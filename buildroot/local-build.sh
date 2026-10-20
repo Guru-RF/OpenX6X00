@@ -78,6 +78,9 @@ echo "== Build"
 cd $BR/build
 make lame mpg123
 make libsndfile-dirclean
+# The GUI and the web server come from this repository (a local site): buildroot syncs them
+# once and never again on its own, so they are re-synced and rebuilt every run
+make x6100-gui-rebuild x6100-webserver-rebuild
 make
 
 echo "== Our U-Boot over buildroot's, 8 KB into the card"
