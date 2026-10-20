@@ -136,6 +136,7 @@ static void beacon_cb(button_data_t *b) {
 
 static void tune_cb(button_data_t *b) {
     dialog_field_tune_band(sel);
+    dialog_destruct();      /* the band chosen, back to the radio, as the Modes menu does */
 }
 
 static void cell_click_cb(lv_event_t *e) {
