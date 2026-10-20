@@ -463,6 +463,33 @@ What they do: see [DX Cluster](#dx-cluster).
 | TX CALIBRATION | IQ offsets, band output gain, codec gain |
 | CESSB | on, level |
 | TX PROTECTION | SWR protection |
+| S-METER | Preamp, Attenuator, RF gain a step, Measure |
+
+S-meter front end. Where: Settings > TX Cal > S-METER.
+
+The S-meter reading stays put when PRE, ATT or the RF gain change: the
+preamp's gain is taken off the reading, the attenuator's depth added, and
+for every RF gain step under 100 a fraction of a dB added. The three values
+are settings, with the figures measured on one radio as defaults.
+
+| Setting | Range | Default |
+|---|---|---|
+| Preamp | 0 to 40 dB | 19 dB |
+| Attenuator | 0 to 40 dB | 15 dB |
+| RF gain, a step | 0.00 to 2.00 dB | 0.60 dB |
+
+Measure sets them for your radio, since preamps differ a little. Feed a
+steady carrier, from a signal generator (around -73 dBm, S9) or a strong
+broadcast station, so the meter reads between S5 and S9+20, and press
+Measure. For about 12 s the radio reads its meter with everything off, then
+with PRE on, with ATT on, and with the RF gain at 40, a second and a half
+each, and moves the three settings by what was left over. PRE, ATT and the
+RF gain go back as they were, also when you press Stop, leave the tab or
+transmit. A reading that wanders more than 3 dB during a step, or a carrier
+outside S5 to S9+20, stops the measurement and changes nothing.
+
+The per band S-meter calibration (Settings > General > CONTROLS) is a
+separate correction, for the band's level with everything off.
 
 SWR protection. Where: Settings > TX Cal > TX PROTECTION > SWR protection.
 

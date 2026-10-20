@@ -205,6 +205,16 @@ class SettingsManager {
     // RF gain is compensated on its own (meter.c)
     Parameter<int32_t> p_smeter_cal{"smeter_cal", -22, -40, 20,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The front end, dB taken off the S-meter reading so it stays put when PRE, ATT or the RF gain
+    // change: the preamp's gain, the attenuator's depth, and hundredths of a dB for each RF gain
+    // step under 100. Defaults measured on one radio; Settings > TX Cal > S-METER > Measure sets
+    // them for this one (smeter.c, settings_window.cpp)
+    Parameter<int32_t> p_smeter_pre{"smeter_pre", 19, 0, 40,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_smeter_att{"smeter_att", 15, 0, 40,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_smeter_rfg{"smeter_rfg", 60, 0, 200,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Waterfall lines/s: 1 = 5, 2 = 7.5 (frames averaged, less noisy),
     // 3 = 15 (default), 4 = 20, 5 = 30
     Parameter<int32_t> p_waterfall_speed{"waterfall_speed", 3, 1, 5,

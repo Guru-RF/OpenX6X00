@@ -39,3 +39,6 @@ void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx);
 
 /* The last reading in dB, S1 to S9+40 */
 int16_t meter_get_raw_db(void);
+
+/* The same, unrounded (the front end measurement in Settings) */
+float meter_get_db(void);

@@ -47,7 +47,7 @@ of text for NavTex.
 | Bluetooth | Bluetooth |
 | Keys (long presses, hand mic keys, paddle) | Keys, "Keys, paddle" |
 | Cluster (filters, view, PSK Reporter) | Cluster, "Spots" |
-| TX Cal (calibration, CESSB, protection) | TX Cal, "TX audio, SWR" |
+| TX Cal (calibration, CESSB, protection, S-meter front end) | TX Cal, "TX audio, SWR" |
 | Info (version, baseband, broadcast list, factory reset, power) | System, "Update, power" |
 | Walkie | (in the APP grid here as well) |
 

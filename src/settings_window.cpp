@@ -3246,6 +3246,187 @@ static uint8_t make_swr_protect(uint8_t row) {
     return row + 1;
 }
 
+static void ptr_clear_cb(lv_event_t *e);
+static lv_obj_t * upd_line(uint8_t row);
+
+/* S-METER: what PRE, ATT and each RF gain step do to the reading, taken off in smeter.c so the
+ * reading stays put when they change. The defaults were measured on one radio; Measure sets them
+ * for this one: on a steady signal (a generator at -73 dBm, or a broadcast carrier well over the
+ * noise) the meter is read with everything off, then with PRE, with ATT, and at RF gain 40, 1.5 s
+ * to settle and 1.5 s of readings each, and what was left over moves the three settings.
+ * PRE, ATT and the RF gain go back as they were after, also when the page closes or on TX. */
+static param_slider_t sm_pre_slider = {&cfg_sm.p_smeter_pre, 0, 40, 1, "%i dB"};
+static param_slider_t sm_att_slider = {&cfg_sm.p_smeter_att, 0, 40, 1, "%i dB"};
+
+#define SMC_SETTLE   15     /* ticks of 100 ms */
+#define SMC_SAMPLE   15
+#define SMC_RFG_LOW  40
+#define SMC_STEPS    4
+
+static lv_obj_t   *smc_sl[3];       /* the sliders: Preamp, Attenuator, RF gain (hundredths a step) */
+static lv_obj_t   *smc_btn, *smc_note;
+static lv_timer_t *smc_timer;
+static int         smc_step;        /* 0 all off, 1 PRE, 2 ATT, 3 RF gain low */
+static int         smc_tick;
+static float       smc_sum, smc_min, smc_max;
+static float       smc_read[SMC_STEPS];
+static int32_t     smc_pre, smc_att, smc_rfg;     /* as they were */
+
+static void sm_rfg_cb(lv_event_t *e) {
+    lv_obj_t *obj = lv_event_get_target(e);
+    int32_t   v   = lv_slider_get_value(obj) * 5;
+
+    lv_label_set_text_fmt((lv_obj_t *)lv_obj_get_user_data(obj), "%i.%02i dB", v / 100, v % 100);
+    cfg_sm.p_smeter_rfg.set(v);
+}
+
+static void smc_note_set(const char *text) {
+    if (smc_note) lv_label_set_text(smc_note, text);
+}
+
+static void smc_btn_label(const char *text) {
+    if (smc_btn) lv_label_set_text(lv_obj_get_child(smc_btn, 0), text);
+}
+
+static void smc_apply(int step) {
+    cparam_i_set(cfg_cur_pre, step == 1);
+    cparam_i_set(cfg_cur_att, step == 2);
+    param_i_set(cfg_rfgain, step == 3 ? SMC_RFG_LOW : 100);
+}
+
+static void smc_stop(const char *text) {
+    if (smc_timer) {
+        lv_timer_del(smc_timer);
+        smc_timer = NULL;
+        cparam_i_set(cfg_cur_pre, smc_pre);
+        cparam_i_set(cfg_cur_att, smc_att);
+        param_i_set(cfg_rfgain, smc_rfg);
+    }
+    smc_btn_label("Measure");
+    if (text) smc_note_set(text);
+}
+
+/* A slider to a value: its callback writes the setting and the label */
+static void smc_slider_set(lv_obj_t *sl, int32_t v, int32_t step) {
+    if (!sl) return;
+    lv_slider_set_value(sl, v / step, LV_ANIM_OFF);
+    lv_event_send(sl, LV_EVENT_VALUE_CHANGED, NULL);
+}
+
+static void smc_timer_cb(lv_timer_t *t) {
+    static const char *const names[SMC_STEPS] = {"everything off", "PRE on", "ATT on", "RF gain 40"};
+    char buf[128];
+
+    if (radio_get_state() != RADIO_RX) {
+        smc_stop("Stopped: the radio transmitted. Nothing changed.");
+        return;
+    }
+    smc_tick++;
+    if (smc_tick <= SMC_SETTLE) {
+        if (smc_tick == 1) {
+            smc_apply(smc_step);
+            smc_sum = 0;
+            smc_min = 1e9f;
+            smc_max = -1e9f;
+            snprintf(buf, sizeof(buf), "Measuring %d of %d, %s. Keep the signal steady.", smc_step + 1, SMC_STEPS, names[smc_step]);
+            smc_note_set(buf);
+        }
+        return;
+    }
+
+    float v = meter_get_db();
+
+    smc_sum += v;
+    smc_min = LV_MIN(smc_min, v);
+    smc_max = LV_MAX(smc_max, v);
+    if (smc_tick < SMC_SETTLE + SMC_SAMPLE) return;
+
+    smc_read[smc_step] = smc_sum / SMC_SAMPLE;
+    if (smc_max - smc_min > 3.0f) {
+        snprintf(buf, sizeof(buf), "Not steady: %.0f to %.0f dB with %s. Nothing changed.", smc_min, smc_max, names[smc_step]);
+        smc_stop(buf);
+        return;
+    }
+    if (smc_step == 0 && (smc_read[0] < S5 || smc_read[0] > S9_20)) {
+        snprintf(buf, sizeof(buf), "The signal reads %.0f dB: feed one between S5 and S9+20. Nothing changed.", smc_read[0]);
+        smc_stop(buf);
+        return;
+    }
+    if (++smc_step < SMC_STEPS) {
+        smc_tick = 0;
+        return;
+    }
+
+    /* The readings came through the present corrections: each moves by what was left over */
+    int32_t pre = LV_CLAMP(0, lroundf(cfg_sm.p_smeter_pre.get() + (smc_read[1] - smc_read[0])), 40);
+    int32_t att = LV_CLAMP(0, lroundf(cfg_sm.p_smeter_att.get() + (smc_read[0] - smc_read[2])), 40);
+    int32_t rfg = LV_CLAMP(0, lroundf(cfg_sm.p_smeter_rfg.get() + 100.0f * (smc_read[0] - smc_read[3]) / (100 - SMC_RFG_LOW)), 200);
+
+    rfg = (rfg + 2) / 5 * 5;    /* the slider's step */
+    smc_stop(NULL);
+    smc_slider_set(smc_sl[0], pre, 1);
+    smc_slider_set(smc_sl[1], att, 1);
+    smc_slider_set(smc_sl[2], rfg, 5);
+    cfg_sm.p_smeter_pre.set(pre);   /* also without the sliders (the page may be gone) */
+    cfg_sm.p_smeter_att.set(att);
+    cfg_sm.p_smeter_rfg.set(rfg);
+    snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i dB, RF gain %i.%02i dB a step.", pre, att, rfg / 100, rfg % 100);
+    smc_note_set(buf);
+}
+
+static void smc_btn_cb(lv_event_t *e) {
+    if (smc_timer) {
+        smc_stop("Stopped. Nothing changed.");
+        return;
+    }
+    if (radio_get_state() != RADIO_RX) {
+        smc_note_set("Not while transmitting.");
+        return;
+    }
+    smc_pre  = cparam_i_get(cfg_cur_pre);
+    smc_att  = cparam_i_get(cfg_cur_att);
+    smc_rfg  = param_i_get(cfg_rfgain);
+    smc_step = 0;
+    smc_tick = 0;
+    smc_timer = lv_timer_create(smc_timer_cb, 100, NULL);
+    smc_btn_label("Stop");
+    smc_note_set("Keep the signal steady: about 12 s.");
+}
+
+/* The page goes (another tab, Settings closed): the measurement stops and the front end goes back */
+static void smc_delete_cb(lv_event_t *e) {
+    smc_note = NULL;
+    smc_stop(NULL);
+}
+
+static uint8_t make_smeter_fe(uint8_t row) {
+    int32_t rfg = cfg_sm.p_smeter_rfg.get();
+
+    wl_row_label(row, "Preamp");
+    smc_sl[0] = param_slider(row_cell(row, 4, 3, SMALL_3), SMALL_3 - 134, &sm_pre_slider);
+    lv_obj_add_event_cb(smc_sl[0], ptr_clear_cb, LV_EVENT_DELETE, &smc_sl[0]);
+    row++;
+    wl_row_label(row, "Attenuator");
+    smc_sl[1] = param_slider(row_cell(row, 4, 3, SMALL_3), SMALL_3 - 134, &sm_att_slider);
+    lv_obj_add_event_cb(smc_sl[1], ptr_clear_cb, LV_EVENT_DELETE, &smc_sl[1]);
+    row++;
+    wl_row_label(row, "RF gain, a step");
+    smc_sl[2] = row_slider(row_cell(row, 4, 3, SMALL_3), rfg / 5, 0, 40, SMALL_3 - 134, sm_rfg_cb, NULL,
+                           "%i.%02i dB", rfg / 100, rfg % 100);
+    lv_obj_add_event_cb(smc_sl[2], ptr_clear_cb, LV_EVENT_DELETE, &smc_sl[2]);
+    row++;
+
+    wl_row_label(row, "On a steady signal");
+    smc_btn = wl_button(row, smc_timer ? "Stop" : "Measure", smc_btn_cb);
+    lv_obj_add_event_cb(smc_btn, ptr_clear_cb, LV_EVENT_DELETE, &smc_btn);
+    row++;
+    smc_note = upd_line(row);
+    lv_obj_add_event_cb(smc_note, smc_delete_cb, LV_EVENT_DELETE, NULL);
+    lv_label_set_text(smc_note, "Steady carrier in, S5 to S9+20. PRE, ATT and RF gain are tried, then put back.");
+    row++;
+    return row;
+}
+
 /* TX CAL: the transmitter's calibration and CESSB, per band where the base keeps them per band */
 static void make_txcal_page() {
     x6100_base_ver_t base = x6100_control_get_base_ver();
@@ -3270,6 +3451,10 @@ static void make_txcal_page() {
 
     row = card_begin("TX PROTECTION");
     row = make_swr_protect(row);
+    card_end(row);
+
+    row = card_begin("S-METER");
+    row = make_smeter_fe(row);
     card_end(row);
 }
 

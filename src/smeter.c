@@ -32,11 +32,10 @@ static float            meter_peak = S1;
 static int64_t          peak_ms;                /* when the peak was set */
 static bool             in_tx;        /* TX: the S-meter at rest, framed red, no readings */
 
-/* PRE and ATT shift the reading and the noise floor (measured): kept here, meter_update() and
+/* PRE and ATT shift the reading (by the settings cfg_smeter_pre / cfg_smeter_att, measured or
+ * from Settings > TX Cal > S-METER > Measure) and the noise floor: kept here, meter_update() and
  * meter_set_noise() run in the DSP thread */
 static bool             pre_on, att_on;
-#define PRE_DB          19.0f
-#define ATT_DB          15.0f
 #define FLOOR_DB        14.0f
 
 static lv_obj_t         *obj;
@@ -532,10 +531,11 @@ lv_obj_t *meter_init(lv_obj_t *parent) {
 }
 
 /* Calibration of the current band (Settings, S-meter cal: the baseband reads a different level
- * on each band) and RF gain, which lowers the reading 0.60 dB a step (3 broadcast carriers,
- * 100 to 0): the reading is the same at any RF gain, as PRE and ATT */
+ * on each band) and RF gain, which lowers the reading cfg_smeter_rfg hundredths of a dB a step
+ * (0.60 on one radio, 3 broadcast carriers, 100 to 0): the reading is the same at any RF gain,
+ * as PRE and ATT */
 static float meter_cal_db(void) {
-    return param_i_get(cfg_smeter_cal) + 0.60f * (100 - param_i_get(cfg_rfgain));
+    return param_i_get(cfg_smeter_cal) + 0.01f * param_i_get(cfg_smeter_rfg) * (100 - param_i_get(cfg_rfgain));
 }
 
 void meter_set_noise(float val) {
@@ -551,8 +551,8 @@ void meter_update(float db, float beta) {
     if (isnan(db) || in_tx) return;
     if (!isfinite(meter_db) || !isfinite(meter_peak)) meter_db = meter_peak = S1;
 
-    if (att_on) db += ATT_DB;
-    if (pre_on) db -= PRE_DB;
+    if (att_on) db += param_i_get(cfg_smeter_att);
+    if (pre_on) db -= param_i_get(cfg_smeter_pre);
     db = LV_CLAMP(S1, db + meter_cal_db(), S9_40);
 
     int64_t ms = get_time();
@@ -570,5 +570,9 @@ void meter_update(float db, float beta) {
 }
 
 int16_t meter_get_raw_db(void) {
+    return meter_db_raw;
+}
+
+float meter_get_db(void) {
     return meter_db_raw;
 }
