@@ -349,8 +349,7 @@ class Connection {
                 char *end_pos = (char *)memchr(buf + FRAME_ADD_LEN, FRAME_END, end - FRAME_ADD_LEN);
                 if (end_pos) {
                     size_t frame_len = end_pos - buf + 1;
-                    start            = frame_len;
-                    end              = start;
+                    start            = frame_len;   /* what follows stays for the next call */
                     return new Frame(buf, frame_len);
                 }
             }
