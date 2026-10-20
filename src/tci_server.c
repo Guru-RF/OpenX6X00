@@ -111,7 +111,7 @@ typedef struct {
 } cmd_t;
 
 static client_t        clients[MAX_CLIENTS];
-static atomic_bool     enabled;
+static atomic_bool     enabled = true;    /* on until /mnt/tci.conf says enabled=0 */
 static atomic_int      port = TCI_DEFAULT_PORT;
 static atomic_int      nclients;
 static int             wake_fd[2] = {-1, -1};
@@ -147,7 +147,7 @@ static time_t conf_mtime(void) {
 static void conf_read(void) {
     FILE *f = fopen(TCI_CONF, "r");
     char  line[64];
-    bool  en = false;
+    bool  en = true;
     int   p  = TCI_DEFAULT_PORT;
 
     if (!f)

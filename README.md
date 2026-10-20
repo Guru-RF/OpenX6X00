@@ -8,8 +8,6 @@ headphones and CAT, a web configurator, and a **TCI server** so the
 hear and key the radio over the network. In the RF.Guru identity: near-black
 surfaces, gold for what is on, electric blue as the second accent.
 
-<p align="center"><img src="docs/screenshots/main_screen.png" alt="Main screen" width="720"></p>
-
 ## Where it comes from
 
 OpenX6X00 is a fork of the last fully open-source release of the X6100
@@ -39,12 +37,13 @@ Removed, so that nothing on the radio talks to a server of its own:
 Added:
 
 - a **TCI v2.0 server** (Expert Electronics' protocol, as AetherSDR serves
-  it) over a WebSocket on port 50001, off by default: Settings > General >
-  TCI SERVER on the radio, System > TCI on the web page. It carries `vfo`,
+  it) over a WebSocket on port 50001, on by default on whatever network the
+  radio is on, WiFi or Ethernet: Settings > General > TCI SERVER on the radio,
+  System > TCI on the web page. It carries `vfo`,
   `modulation`, `rx_filter_band`, `agc_mode`, RIT, `drive`, `trx` (PTT, with
   `,tci` for the client's audio as the microphone), the S-meter and the TX
   meters, the RX audio stream (int16 mono, 24 kHz) and the TX audio frames.
-  No login: enable it only on a network you trust. Config in `/mnt/tci.conf`
+  No login: turn it off on a network you don't trust. Config in `/mnt/tci.conf`
   (`enabled=0|1`, `port=50001`);
 - the RF.Guru default theme and the OpenX6X00 boot logo;
 - a local configurator socket (`/tmp/x6100_cfg.sock`) for the web pages that
@@ -66,20 +65,9 @@ Added:
 | **Web configurator** | `http://<radio IP>/`: bands, digital frequencies, memories, cluster, Field Ops, CW messages, macros, logs, files, a gallery, backup and restore, display, time, Ethernet, TCI. |
 | **TCI server** | The VFO-Knob and any TCI client on the network: tune, mode, filter, AGC, PTT, the meters and the audio both ways. |
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/screenshots/cluster_column.png" alt="Cluster column"><br><sub><b>Cluster column</b> around the VFO</sub></td>
-    <td align="center"><img src="docs/screenshots/field_activation.png" alt="Field Ops activation"><br><sub><b>Field Ops</b>: CQ, log, spot</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/js8_app.png" alt="JS8"><br><sub><b>JS8</b></sub></td>
-    <td align="center"><img src="docs/screenshots/sstv_tx.png" alt="SSTV TX"><br><sub><b>SSTV TX</b>: picture and text template</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/theme_outdoor.png" alt="Outdoor theme"><br><sub><b>Outdoor</b>: for the sun</sub></td>
-    <td align="center"><img src="docs/screenshots/theme_rs.png" alt="RS theme"><br><sub><b>RS</b>: glossy buttons, black LCD</sub></td>
-  </tr>
-</table>
+Screenshots of this firmware are taken on the radio (a key with the Screenshot action,
+Settings > Keys) and land on the DATA partition and in the web Gallery;
+`python3 tools/screenshots/pull.py <radio IP>` copies them into `docs/screenshots/`.
 
 ## Install
 
@@ -139,7 +127,7 @@ boot/ u-boot/            boot logo, the U-Boot binary written over buildroot's
 sql/                     the default params.db
 themes/                  the RS theme (images) and the JSON themes copied to the SD card
 buildroot/               build.sh: the GUI alone with the buildroot toolchain
-docs/                    MANUAL.md, THEMES.md, screenshots
+docs/                    MANUAL.md, THEMES.md, MENUS.md, screenshots pulled from a radio
 ```
 
 ## Documentation

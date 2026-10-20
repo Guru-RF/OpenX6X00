@@ -97,7 +97,6 @@ On battery, at 10% or less the radio shows a message every minute: "Battery
 receiving with WiFi and Bluetooth on, 10% left about 22 minutes and 5% about
 12.
 
-![Battery 8%: about 15 min left](screenshots/low_battery.png)
 
 ### Battery time
 
@@ -232,7 +231,6 @@ of the waterfall. With Spectrum on, the card has:
 | Filter colour | the filter passband on the spectrum and the waterfall: Theme (default), Blue, Cyan, Green, Yellow, Orange, Red, Violet, White |
 | Height | the height of the spectrum, 60-160 px |
 
-![Settings > Display > SPECTRUM with Filter colour, and the coloured passband](screenshots/display_filter_colour.png)
 
 Colours, on the web configurator's Display page:
 
@@ -263,7 +261,6 @@ Records the screen and the audio to an AVI file (MJPEG video, 800x480,
   about N min left", again every minute; at 50 MB it stops by itself and closes the
   file properly ("SD card full, recording saved").
 
-![REC 02:15 under the frequency strip while recording](screenshots/screen_rec_label.png)
 
 ### Walkie Talkie mode
 
@@ -399,7 +396,6 @@ All these options are also on the web configurator's Display page.
 | VOX | On, Gain, Anti-VOX, Delay |
 | AGC | Hang, Knee, Slope |
 
-![Settings > Audio: Boot sound and SCREEN REC > File length](screenshots/settings_audio.png)
 
 ### Wireless tab
 
@@ -585,7 +581,6 @@ carrier itself and its own ALC brings it down to the power set, so the bar
 only shows how much it turned it down. Readings around 5 on a dummy load are
 normal; there is nothing to adjust.
 
-![TX panel in CW, the ALC bar grey](screenshots/tx_panel_cw_alc.png)
 
 ### Recording voice messages
 
@@ -1068,7 +1063,6 @@ the CW line of the main screen.
   with a short QSK time the relay may click between them. Not yet tried on
   the air.
 
-![CW Keyboard app with Live: On](screenshots/cw_kbd_live.png)
 
 ### TinyMIDI / Bluetooth paddle
 
@@ -1110,7 +1104,6 @@ whatever comes in (a key, a mouse button, a MIDI note, a serial line) is
 saved for that kind. Each press has 10 seconds. Swap dit and dah exchanges
 them for all the USB paddles.
 
-![Settings > Keys > PADDLE with a paddle connected](screenshots/settings_keys_paddle.png)
 
 A keyboard-type paddle press stops a CW message on the air; the other kinds
 do not.
@@ -1248,7 +1241,6 @@ or a long-press action. GEN or Radio goes back to the normal screen.
   the QRT at End.
 - The main knob still tunes; the MFK chooses.
 
-![Field Ops home with Re-spot On](screenshots/field_respot.png)
 
 | Home | SOTA, before the activation |
 |---|---|
@@ -1346,7 +1338,6 @@ Upload QRZ, Back.
 - Other messages: "Uploading the log to QRZ...", "No log to upload", "No QRZ key:
   add it on the web page, Field Ops", or "QRZ: " with the reason QRZ gave and how many went before it.
 
-![Field Ops LOG page after Upload QRZ](screenshots/fieldops_log_upload_qrz.png)
 
 Start and Spot also post the spot on the DX cluster (`POTA IT-0123 SSB`,
 `SOTA I/LO-123 CW`); the QSY spots don't.
@@ -1374,7 +1365,6 @@ like POTA, with their own tile.
 The band overview of Field Ops as an app of its own, in the look of the other
 apps: APP (page 3) > Bands, or a long-press action.
 
-![Bands app](screenshots/bands_app.png)
 
 - Each band shows its activity bar and word, the cluster / RBN spot counts
   and who heard you (skimmers, best SNR); the best band is framed.
@@ -1388,7 +1378,6 @@ apps: APP (page 3) > Bands, or a long-press action.
 A list of named frequencies: APP (page 2) > Channels, the long-press action
 APP Channels, or the V/M key of the hand mic.
 
-![the CHANNELS window with the default list](screenshots/channels_window.png)
 
 - The CHANNELS window has a row for each channel: the name on the left, the
   frequency and the mode on the right. A channel with no name shows as
@@ -1561,7 +1550,6 @@ characters each). Plain ASCII only. It writes `/mnt/psk_macros.txt`,
 of `/mnt/js8_texts.txt`. The radio reads them when the window opens, so close
 and reopen the window to see the changes.
 
-![Web configurator: Macros page](screenshots/web/macros_desktop.png)
 
 - Multi-select (tap, checkbox, shift for a range, all/none); delete the
   selection with one confirmation or download it as a ZIP.
@@ -1605,7 +1593,7 @@ one WebSocket carries the frequency, mode, filter, AGC, RIT, drive and PTT
 both ways, the S-meter and the TX meters, and the audio, so a knob or a
 program on the network tunes the radio, hears it and keys it.
 
-- Off by default. Enable it in Settings > General > TCI SERVER or on the
+- On by default, on whatever network the radio is on. Turn it off in Settings > General > TCI SERVER or on the
   web configurator's TCI page (System > TCI). The port is 50001, the one TCI
   clients expect; both places can change it. Stored in `/mnt/tci.conf`
   (`enabled=0|1`, `port=`).

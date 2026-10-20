@@ -216,7 +216,7 @@ def cluster_save(host, port, servers, opts=None):
 
 # TCI server routes
 # Same file and format as the radio GUI (src/tci_server.c): enabled=0|1, port=
-TCI_DEFAULTS = {"enabled": "0", "port": "50001"}
+TCI_DEFAULTS = {"enabled": "1", "port": "50001"}
 
 
 def read_tci_conf():
