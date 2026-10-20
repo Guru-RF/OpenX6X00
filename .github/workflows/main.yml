@@ -62,10 +62,10 @@ jobs:
         path: AetherX6100Buildroot
 
     # Build the GUI package from the checkout above (local site, submodules
-    # already there) instead of cloning gdyuldin/x6100_gui
+    # already there) instead of cloning the GUI the buildroot tree names
     - name: Patch GUI mk
       run: |
-        sed -i "s,https://github.com/gdyuldin/x6100_gui,${GITHUB_WORKSPACE}/x6100_gui,g" $X6CI_GUI_MK
+        sed -i "s,^X6100_GUI_SITE = .*,X6100_GUI_SITE = ${GITHUB_WORKSPACE}/x6100_gui,g" $X6CI_GUI_MK
         sed -i "s,^X6100_GUI_SITE_METHOD = git,X6100_GUI_SITE_METHOD = local,g" $X6CI_GUI_MK
         sed -i "s,^X6100_GUI_GIT_SUBMODULES,# X6100_GUI_GIT_SUBMODULES,g" $X6CI_GUI_MK
 

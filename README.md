@@ -106,9 +106,20 @@ this repository as its GUI package. The GitHub Actions workflow
 checks out both, patches the buildroot tree (local GUI and web server,
 `boost` and `fftw-single` for JS8, no RHVoice, the boot logo) and uploads
 `OpenX6X00-<ref>-sdcard.img.zip`; on a tag it attaches the image to the
-release. Locally: clone AetherX6100Buildroot next to this repository,
-configure it with `./br_config.sh` and `make` in its `build` directory, then
-`buildroot/build.sh` here rebuilds the GUI alone with that toolchain
+release. Locally, the same build runs in a container: clone
+AetherX6100Buildroot next to this repository, then
+
+```
+docker build -t openx6x00-build buildroot
+docker run --rm -u $(id -u):$(id -g) -e HOME=/work/.brhome -v $(dirname $PWD):/work \
+    openx6x00-build bash /work/OpenX6X00/buildroot/local-build.sh
+```
+
+leaves `../AetherX6100Buildroot/build/images/OpenX6X00-local-sdcard.img` (about
+an hour the first time, 20 cores; `buildroot/local-build.sh` has the patch
+steps, `buildroot/Dockerfile` the Ubuntu 22.04 host with CMake 3.28 and
+sqlite3). With a buildroot tree already built, `buildroot/build.sh` rebuilds
+the GUI alone with its toolchain
 ([docs/UPSTREAM_README.md](docs/UPSTREAM_README.md), [manual, Build](docs/MANUAL.md#build)).
 
 ## Layout
