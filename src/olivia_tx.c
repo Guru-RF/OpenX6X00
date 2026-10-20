@@ -6,8 +6,8 @@
  *  From SP2KMO's OpenX6100 psk31/olivia work (randal007 merge). Here:
  *  the blocks are handed to tx_player_stream() (the TX path of the other
  *  digital apps: power cap, ALC levelling, SWR protection, the TX strip),
- *  modulated around TX_PLAYER_AUDIO_HZ with the VFO shifted to the chosen
- *  centre; 8/250 is the default variant.
+ *  modulated around the chosen centre with the VFO left where it is; 8/250
+ *  is the default variant.
  */
 
 #include "olivia_tx.h"
@@ -175,9 +175,10 @@ static void *tx_thread_fn(void *arg) {
     mod_t m = {.lead = LEAD_BLOCKS, .tail = TAIL_BLOCKS, .text_len = strlen(tx_text)};
     int   bw = mode_table[cur_mode].bandwidth;
 
-    /* Around TX_PLAYER_AUDIO_HZ: tx_player shifts the VFO to the centre */
+    /* Around the centre chosen on the waterfall, the VFO left where it is (the offset
+     * TX_PLAYER_AUDIO_HZ asks tx_player for no shift) */
     if (olivia_mod_init(&m.mod, mode_table[cur_mode].tones, bw, OLIVIA_NOMINAL_RATE,
-                        TX_PLAYER_AUDIO_HZ - bw / 2.0) == 0) {
+                        center_hz - bw / 2.0) == 0) {
         if (olivia_resamp_init(&m.res, OLIVIA_NOMINAL_RATE, AUDIO_PLAY_RATE) == 0) {
             m.blk_samples = olivia_mod_block_samples(&m.mod);
             m.blk = malloc(sizeof(float) * m.blk_samples);
@@ -186,7 +187,7 @@ static void *tx_thread_fn(void *arg) {
                 /* A different seed for every transmission, so that a
                  * repeated macro does not give an identical spectrum. */
                 olivia_mod_seed(&m.mod, (uint32_t)time(NULL) | 1u);
-                tx_player_stream(mod_fill, &m, center_hz, tx_player_base_gain_offset(), abort_cb, NULL);
+                tx_player_stream(mod_fill, &m, TX_PLAYER_AUDIO_HZ, tx_player_base_gain_offset(), abort_cb, NULL);
             }
             free(m.blk);
             free(m.out);

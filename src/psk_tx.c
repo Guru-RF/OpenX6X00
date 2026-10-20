@@ -6,8 +6,8 @@
  *  From SP2KMO's OpenX6100 psk31/olivia work (randal007 merge). Here:
  *  the waveform is handed block by block to tx_player_stream() (the TX
  *  path of FT8/JS8/WSPR: power cap, ALC levelling, SWR protection, the
- *  TX strip), centred on TX_PLAYER_AUDIO_HZ with the VFO shifted to the
- *  chosen audio frequency; PSK63 (62.5 Bd) added, same Varicode.
+ *  TX strip), centred on the chosen audio frequency with the VFO left where
+ *  it is; PSK63 (62.5 Bd) added, same Varicode.
  */
 
 #include "psk_tx.h"
@@ -303,9 +303,12 @@ static void *tx_thread_fn(void *arg) {
 
     if (varicode_encode(tx_text, &m.bs)) {
         m.spb      = (double)AUDIO_PLAY_RATE / tx_baud;
-        m.w        = 2.0 * M_PI * TX_PLAYER_AUDIO_HZ / AUDIO_PLAY_RATE;
+        /* On the audio frequency chosen on the waterfall: the VFO stays where it is (the
+         * offset TX_PLAYER_AUDIO_HZ asks tx_player for no shift), the signal goes out where
+         * the other station is heard */
+        m.w        = 2.0 * M_PI * center_hz / AUDIO_PLAY_RATE;
         m.polarity = 1.0f;
-        tx_player_stream(mod_fill, &m, center_hz, tx_player_base_gain_offset(), abort_cb, NULL);
+        tx_player_stream(mod_fill, &m, TX_PLAYER_AUDIO_HZ, tx_player_base_gain_offset(), abort_cb, NULL);
     }
     free(m.bs.bits);
     free(tx_text);
