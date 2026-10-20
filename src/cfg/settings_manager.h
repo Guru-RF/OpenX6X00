@@ -110,6 +110,10 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // Independent VFOs: A and B each keep their own band, a VFO switch brings its band back
     // (vfo_toggle). Off: both VFOs live in the current band, as the radio does it.
+    // Turning the knob into another band plan segment sets its mode: CW in the CW segment, the
+    // sideband of the band in a phone segment (screen_main.c)
+    Parameter<int32_t> p_mode_from_plan{"mode_from_plan", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_indep_vfo{"indep_vfo", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_vfoa_band{"vfoa_band", BAND_UNDEFINED, BAND_UNDEFINED, 1000000,

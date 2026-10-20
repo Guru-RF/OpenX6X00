@@ -44,6 +44,10 @@ void cfg_vfo_toggle(void) {
     cfg_sm.vfo_toggle();
 }
 
+int32_t cfg_default_mode(int32_t freq) {
+    return freq < 10000000 ? x6100_mode_lsb : x6100_mode_usb;
+}
+
 void cfg_band_vfo_copy(void) {
     cfg_sm.cfg_band_vfo_copy();
 }

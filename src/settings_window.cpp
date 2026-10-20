@@ -2666,6 +2666,8 @@ static uint8_t make_station(uint8_t row) {
     row = make_station_row(row, "QTH locator", params.qth.x, ST_QTH);
     /* A and B each on their own band: the VFO key brings the other one's band back */
     row = make_param_switch(row, "Independent VFOs", cfg_sm.p_indep_vfo);
+    /* The knob turned into another band plan segment: CW there, SSB in the phone part */
+    row = make_param_switch(row, "Mode from band plan", cfg_sm.p_mode_from_plan);
     lv_obj_add_event_cb(grid, st_delete_cb, LV_EVENT_DELETE, NULL);
     return row;
 }

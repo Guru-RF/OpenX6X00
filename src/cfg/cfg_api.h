@@ -62,6 +62,7 @@ extern ParamInt         *cfg_atu_enabled;       // p_atu_enabled
 extern ParamInt         *cfg_auto_level_enabled; // p_auto_level_enabled
 extern ParamFloat       *cfg_auto_level_offset;  // p_auto_level_offset
 extern ParamInt         *cfg_knob_info;          // p_knob_info
+extern ParamInt         *cfg_mode_from_plan;     // p_mode_from_plan
 extern ParamInt         *cfg_spectrum_show;      // p_spectrum_show
 extern ParamInt         *cfg_spectrum_height;    // p_spectrum_height
 extern ParamInt         *cfg_digi_text_compact;  // p_digi_text_compact

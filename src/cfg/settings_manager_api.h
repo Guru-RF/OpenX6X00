@@ -44,6 +44,9 @@ void cfg_pwr_set(float watts);
 /* The other VFO; with independent VFOs (p_indep_vfo) its own band comes with it */
 void cfg_vfo_toggle(void);
 
+/* The sideband of a frequency: LSB under 10 MHz, USB above */
+int32_t cfg_default_mode(int32_t freq);
+
 // Copy active VFO (freq, mode, agc, att, pre) to inactive VFO.
 void cfg_band_vfo_copy(void);
 

@@ -21,7 +21,6 @@
 
 extern lv_font_t sony_18;
 
-typedef enum { BP_CW, BP_DIG, BP_ALL, BP_BCN } bp_type_t;
 
 typedef struct {
     int32_t   start, end;   /* Hz */
@@ -158,6 +157,15 @@ void band_plan_update(int32_t center, int32_t half_width) {
 
 void band_plan_refresh(void) {
     redraw();
+}
+
+int band_plan_type(int32_t freq) {
+    for (size_t i = 0; i < sizeof(plan) / sizeof(plan[0]); i++) {
+        if (freq >= plan[i].start && freq < plan[i].end) {
+            return plan[i].type;
+        }
+    }
+    return -1;
 }
 
 bool band_plan_is_cw(int32_t freq) {

@@ -76,6 +76,7 @@ static const struct {
     {"knob_info", &cfg_sm.p_knob_info, 0, 1},
     {"walkie", &cfg_sm.p_walkie, 0, 1},                 /* live: walkie.c follows it */
     {"indep_vfo", &cfg_sm.p_indep_vfo, 0, 1},           /* Station: independent VFOs */
+    {"mode_from_plan", &cfg_sm.p_mode_from_plan, 0, 1}, /* Station: the mode follows the band plan */
 };
 
 static const struct {

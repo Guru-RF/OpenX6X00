@@ -955,6 +955,8 @@ static int32_t snap_hz;
 static int     snap_hold;
 
 /* diff steps of the tuning step, dt ms per detent (0: a key, no acceleration) */
+static void plan_mode(int32_t old, int32_t freq);
+
 static void freq_shift(int16_t diff, uint16_t dt) {
     if (subject_i_get(freq_lock)) {
         return;
@@ -980,6 +982,26 @@ static void freq_shift(int16_t diff, uint16_t dt) {
         snap_hold = hold;
     }
     cparam_i_set(cfg_fg_freq, freq);
+    plan_mode(old, freq);
+}
+
+/* Settings > General > Mode from band plan: the knob turned into another segment of the band plan
+ * sets its mode, CW in a CW segment, the band's sideband in a phone segment. SSB and CW only: the
+ * digital modes, AM and FM, and a mode an app holds, stay as they are */
+static void plan_mode(int32_t old, int32_t freq) {
+    int from = band_plan_type(old), to = band_plan_type(freq);
+
+    if (!param_i_get(cfg_mode_from_plan) || to < 0 || to == from || main_screen_mode_locked()) return;
+
+    int32_t mode = cparam_i_get(cfg_cur_mode);
+    bool    ssb  = mode == x6100_mode_lsb || mode == x6100_mode_usb;
+    bool    cw   = mode == x6100_mode_cw || mode == x6100_mode_cwr;
+
+    if (to == BP_CW && ssb) {
+        cparam_i_set(cfg_cur_mode, x6100_mode_cw);
+    } else if (to == BP_ALL && cw) {
+        cparam_i_set(cfg_cur_mode, cfg_default_mode(freq));
+    }
 }
 
 static void main_knob_cb(lv_event_t *e) {

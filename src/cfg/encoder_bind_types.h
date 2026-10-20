@@ -70,6 +70,7 @@ typedef enum {
     CTRL_WF_MODE,
     CTRL_CLUSTER_ORDER,   /* as CTRL_CLUSTER: MFK only, while the column is shown */
     CTRL_CLUSTER_BANDS,
+    CTRL_CLUSTER_MODES,   /* as CTRL_CLUSTER: All, CW, SSB, DIG, CW+DIG, the filter of Settings */
 
     CTRL_FAST_ACCESS_LAST,
 
