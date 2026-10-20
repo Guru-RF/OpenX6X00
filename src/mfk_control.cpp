@@ -73,7 +73,8 @@ void mfk_set_ctrl(cfg_ctrl_t ctrl) {
 
 /* The cluster column was switched off while one of its MFK items was the active one */
 void mfk_cluster_gone() {
-    if (mfk_ctrl == CTRL_CLUSTER || mfk_ctrl == CTRL_CLUSTER_ORDER || mfk_ctrl == CTRL_CLUSTER_BANDS) {
+    if (mfk_ctrl == CTRL_CLUSTER || mfk_ctrl == CTRL_CLUSTER_ORDER || mfk_ctrl == CTRL_CLUSTER_BANDS ||
+        mfk_ctrl == CTRL_CLUSTER_MODES) {
         mfk_change_ctrl(+1);
     }
 }

@@ -13,6 +13,7 @@
 #include "knob_info.h"
 
 #include "button_bar.h"
+#include "cluster/client.h"
 #include "cluster_column.h"
 #include "mfk_control.h"
 #include "vol_control.h"
@@ -88,6 +89,11 @@ static const std::map<int, Knob> knobs = {
     {CTRL_CLUSTER, {"Cluster", nullptr, [] { return std::string(cluster_column_move(0)); }}},
     {CTRL_CLUSTER_ORDER, pick("Cluster order", cfg_sm.p_cluster_order, {"Freq", "Time"})},
     {CTRL_CLUSTER_BANDS, pick("Cluster bands", cfg_sm.p_cluster_all_bands, {"Band", "All"})},
+    {CTRL_CLUSTER_MODES, {"Cluster modes", nullptr, [] {
+        uint8_t m = cluster_filter()->modes;
+        return std::string(m == CLUSTER_FM_ALL ? "All" : m == CLUSTER_FM_CW ? "CW" : m == CLUSTER_FM_SSB ? "SSB"
+                           : m == CLUSTER_FM_DIG ? "DIG" : m == (CLUSTER_FM_CW | CLUSTER_FM_DIG) ? "CW+DIG" : "Some");
+    }}},
 
     {CTRL_DNF, on_off("Notch filter", cfg_sm.p_dnf)},
     {CTRL_DNF_CENTER, num("DNF center", cfg_sm.p_dnf_center)},

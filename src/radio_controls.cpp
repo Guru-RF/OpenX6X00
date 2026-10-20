@@ -19,6 +19,7 @@
 #include "cfg/settings_manager.h"
 
 extern "C" {
+#include "cluster/client.h"
 #include "cluster_column.h"
 #include "msg_box.h"
 #include "rtty.h"
@@ -225,6 +226,24 @@ void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {
             knobs_set_mfk_param(CTRL_CLUSTER);  /* no subject: refresh the knob label */
             break;
 
+        case CTRL_CLUSTER_MODES: {  /* the modes filter of Settings > Cluster, in five presets */
+            static const uint8_t      presets[] = {CLUSTER_FM_ALL, CLUSTER_FM_CW, CLUSTER_FM_SSB, CLUSTER_FM_DIG,
+                                                   CLUSTER_FM_CW | CLUSTER_FM_DIG};
+            static const char *const  names[]   = {"All", "CW", "SSB", "DIG", "CW+DIG"};
+            const cluster_filter_t   *f         = cluster_filter();
+            int                       cur       = 0;
+
+            for (int k = 0; k < 5; k++)
+                if (f->modes == presets[k]) cur = k;
+            if (diff) {
+                cur = (cur + (diff > 0 ? 1 : 4)) % 5;
+                cluster_filter_save(presets[cur], f->bands, f->activity);
+            }
+            snprintf(buf, size, "Cluster modes: %s", names[cur]);
+            knobs_set_mfk_param(CTRL_CLUSTER_MODES);
+            break;
+        }
+
         case CTRL_IF_SHIFT:
             if (if_shift_supported()) {
                 snprintf(buf, size, "IF shift: %i Hz", turn(cfg_sm.p_band_if_shift, diff, 100));
@@ -246,7 +265,7 @@ cfg_ctrl_t controls_encoder_get_next(encoder_binds_t encoder, cfg_ctrl_t current
     size_t      n     = binds.size();
 
     auto bound = [&](size_t c) {
-        if (c == CTRL_CLUSTER || c == CTRL_CLUSTER_ORDER || c == CTRL_CLUSTER_BANDS) {
+        if (c == CTRL_CLUSTER || c == CTRL_CLUSTER_ORDER || c == CTRL_CLUSTER_BANDS || c == CTRL_CLUSTER_MODES) {
             return encoder == ENCODER_BIND_MFK && cfg_sm.p_cluster_column.get();
         }
         return binds[c] == encoder;
