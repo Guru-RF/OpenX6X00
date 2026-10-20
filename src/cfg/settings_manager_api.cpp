@@ -3,6 +3,9 @@
 #include "db.h"
 #include "settings_manager.h"
 
+#include <algorithm>
+#include <cstdio>
+
 // SettingsManager-level operations exposed to C. cfg_api_init lives in
 // cfg_api.cpp (it also fills the extern parameter pointers); these are the
 // pure manager operations that mostly touch only cfg_sm.
@@ -46,6 +49,22 @@ void cfg_vfo_toggle(void) {
 
 int32_t cfg_default_mode(int32_t freq) {
     return freq < 10000000 ? x6100_mode_lsb : x6100_mode_usb;
+}
+
+int cfg_bands_active(int32_t *start, int32_t *stop, char (*names)[16], int max) {
+    std::vector<BandInfo> all = BandsTable::all_bands();
+    int                   n   = 0;
+
+    std::sort(all.begin(), all.end(), [](const BandInfo &a, const BandInfo &b) { return a.start_freq < b.start_freq; });
+    for (const BandInfo &b : all) {
+        if (b.type != BAND_ACTIVE || n >= max || !cfg_sm.is_valid_hw_freq(b.start_freq))
+            continue;
+        start[n] = (int32_t)b.start_freq;
+        stop[n]  = (int32_t)b.stop_freq;
+        snprintf(names[n], 16, "%s", b.name.c_str());
+        n++;
+    }
+    return n;
 }
 
 void cfg_band_vfo_copy(void) {

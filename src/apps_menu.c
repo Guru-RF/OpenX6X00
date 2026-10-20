@@ -30,11 +30,11 @@
 #define PAD    6
 #define BOX_W  760
 #define TILE_W ((BOX_W - 2 * PAD - (COLS - 1) * GAP) / COLS)
-#define TILE_H 86
+#define TILE_H 66
 #define HEAD_H 38
 #define HINT_H 26
 #define BOX_Y  (TOP_BAR_STD_H + 4)
-#define ICON   40
+#define ICON   36
 
 typedef enum { OPEN_APP, OPEN_SCREEN_REC, OPEN_WALKIE } open_t;
 
@@ -54,6 +54,7 @@ static const struct {
     {"GPS", "Position, time", "gps", OPEN_APP, ACTION_APP_GPS},
     {"Screen Rec", "Screen and audio", "screenrec", OPEN_SCREEN_REC, 0},
     {"Walkie", "Portrait screen", "walkie", OPEN_WALKIE, 0},
+    {"Birdie Cal", "Find birdies, antenna off", "birdie", OPEN_APP, ACTION_APP_BIRDIE},
     {"Settings", "All settings", "settings", OPEN_APP, ACTION_APP_SETTINGS},
 };
 
@@ -207,14 +208,14 @@ static void construct_cb(lv_obj_t *parent) {
         lv_obj_t *name = lv_label_create(t);
         lv_obj_set_style_text_font(name, &sony_24, 0);
         lv_label_set_text(name, apps[i].name);
-        lv_obj_set_pos(name, 10 + ICON + 10, 16);
+        lv_obj_set_pos(name, 10 + ICON + 10, 8);
 
         lv_obj_t *sub = lv_label_create(t);
         lv_obj_set_style_text_font(sub, &sony_18, 0);
         lv_label_set_text(sub, apps[i].sub);
         lv_obj_set_width(sub, TILE_W - ICON - 30);
         lv_label_set_long_mode(sub, LV_LABEL_LONG_DOT);
-        lv_obj_set_pos(sub, 10 + ICON + 10, 48);
+        lv_obj_set_pos(sub, 10 + ICON + 10, 38);
     }
 
     lv_obj_t *hint = lv_label_create(box);

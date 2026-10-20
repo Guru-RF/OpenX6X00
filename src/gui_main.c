@@ -37,6 +37,7 @@
 #include "cw.h"
 #include "cat.h"
 #include "tci_server.h"
+#include "birdie.h"
 #include "cfg_socket.h"
 #include "clock.h"
 #include "rtty.h"
@@ -206,6 +207,7 @@ static void services_start(void) {
     cat_init();
     cfg_socket_init();
     tci_server_init();
+    birdie_init();
     gps_init();
     if (!qso_log_init()) {
         LV_LOG_ERROR("Can't init QSO log");

@@ -1373,6 +1373,24 @@ apps: APP (page 3) > Bands, or a long-press action.
 - Test beacon sends `TEST DE <call>` in CW. ESC closes.
 - The numbers are the same as in Field Ops.
 
+### Birdie Cal
+
+Birdies are steady carriers the radio makes inside itself (clock harmonics, the
+receiver's own spurs): thin lines on the waterfall that never move with the band.
+APP > Birdie Cal finds them. Disconnect the antenna, press **Start**: the scan
+steps the receiver across every active band, a spectrum width at a time, and
+keeps every narrow carrier that stays put between two looks, about a minute for
+the HF bands. **Stop** ends it early; what was found so far is kept. **Clear**
+forgets them. The list is `/mnt/birdies.txt`, one frequency a line.
+
+What is done with them is Settings > Display > MAIN SCREEN > **Birdies** (also
+the **Marks** button here and the web Display page): *Marks* draws a short red
+tick at each one at the top of the waterfall; *Marks + notch* also puts the DNF
+notch on a birdie that falls inside the passband in USB, LSB and the digital
+modes, and takes it off again when you tune away (a notch you set yourself is
+left alone). The receiver's own centre spike, which moves with the VFO, is not a
+birdie and is not kept.
+
 ### Channels
 
 A list of named frequencies: APP (page 2) > Channels, the long-press action

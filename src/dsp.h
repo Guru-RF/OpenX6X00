@@ -41,6 +41,11 @@ void dsp_set_waterfall_enabled(bool enabled);
 void dsp_set_spectrum_enabled(bool enabled);
 
 void dsp_put_audio_samples(size_t nsamples, int16_t *samples);
+
+/* The latest receive spectrum (WATERFALL_NFFT points in dB, centre and width in Hz; bin i is at
+ * centre - width/2 + i * width / n). seq counts the spectra, so a caller sees a new one. Any thread;
+ * false before the first */
+bool dsp_spectrum_snapshot(float *db, uint16_t n, uint32_t *center_hz, uint32_t *width_hz, uint32_t *seq);
 #ifdef __cplusplus
 }
 #endif

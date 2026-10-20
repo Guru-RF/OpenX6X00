@@ -78,6 +78,7 @@
 #include "knob_info.h"
 #include "radio_controls.h"
 #include "apps_menu.h"
+#include "dialog_birdie.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -417,6 +418,7 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_OLIVIA:     return "Olivia";
         case ACTION_APP_JTTY:       return "JTTY";
         case ACTION_APP_CHANNELS:   return "Channels";
+        case ACTION_APP_BIRDIE:     return "Birdie Cal";
         default:                   return NULL;    /* Modes menu: a menu, not an app */
     }
 }
@@ -502,6 +504,7 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_NAVTEX, &dialog_navtex},
         {ACTION_APP_JS8, &dialog_js8},
         {ACTION_APP_CHANNELS, &dialog_channels},
+        {ACTION_APP_BIRDIE, &dialog_birdie},
     };
 
     if (app_action == ACTION_APP_RTTY) {

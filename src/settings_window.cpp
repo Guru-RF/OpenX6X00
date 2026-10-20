@@ -3316,6 +3316,8 @@ static void make_display_page() {
      * in the colour of the signal */
     row = make_param_choice(row, "S-meter colours", " Theme \n Scale \n Level ", cfg_sm.p_smeter_color);
     row = make_param_switch(row, "Needle lamp", cfg_sm.p_smeter_lamp);
+    /* The radio's own carriers found by Birdie Cal (APP): on the waterfall, and out of the passband */
+    row = make_param_choice(row, "Birdies", " Off \n Marks \n Marks + notch ", cfg_sm.p_birdie_marks);
     card_end(row);
 
     row = card_begin("INTERFACE");

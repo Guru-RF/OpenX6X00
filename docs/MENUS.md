@@ -27,7 +27,7 @@ closed v0.129, finds the same things under these names:
 | Screen Rec, "Screen and audio" | Screen Rec, "Record screen and audio" | starts or stops a screen recording |
 | Walkie, "Portrait screen" | Settings > Walkie | the Walkie Talkie screen |
 | Settings, "All settings" | Settings, "All settings" | |
-| (not there) | Birdie Cal, "Find birdies, antenna off" | not written yet |
+| Birdie Cal, "Find birdies, antenna off" | Birdie Cal, "Find birdies, antenna off" | the radio's own carriers: found, marked, notched |
 
 ## Modes grid
 

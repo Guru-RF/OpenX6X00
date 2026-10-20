@@ -47,6 +47,9 @@ void cfg_vfo_toggle(void);
 /* The sideband of a frequency: LSB under 10 MHz, USB above */
 int32_t cfg_default_mode(int32_t freq);
 
+/* The active bands, lowest first: start and stop in Hz and the name of each, up to max; returns how many */
+int cfg_bands_active(int32_t *start, int32_t *stop, char (*names)[16], int max);
+
 // Copy active VFO (freq, mode, agc, att, pre) to inactive VFO.
 void cfg_band_vfo_copy(void);
 

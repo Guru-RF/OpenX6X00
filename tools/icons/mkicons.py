@@ -198,6 +198,11 @@ def i_image(p):      # a picture
     p.line([(16, 76), (40, 48), (56, 64), (68, 54), (84, 76)])
     p.dot(68, 34, 7)
 
+def i_birdie(p):     # a spike over the noise: a birdie
+    p.line([(8, 78), (24, 72), (36, 76), (48, 70), (56, 74), (64, 68), (76, 74), (92, 70)], w=p.w // 2 + 1)
+    p.line([(60, 74), (60, 16)])
+    p.dot(60, 14, 6)
+
 def i_navtex(p):     # lines of text
     p.box(16, 10, 84, 90, r=6)
     for y in (32, 48, 64):

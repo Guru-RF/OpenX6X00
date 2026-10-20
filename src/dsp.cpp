@@ -136,6 +136,11 @@ static uint32_t sp_freq;
 
 static float    wf_lin[WATERFALL_NFFT];
 static float    wf_db[WATERFALL_NFFT];
+
+/* dsp_spectrum_snapshot: the last RX spectrum, copied out under its own lock */
+static float           snap_db[WATERFALL_NFFT];
+static uint32_t        snap_center, snap_width, snap_seq;
+static pthread_mutex_t snap_mux = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t wf_time;
 
 static uint32_t cur_freq;
@@ -328,6 +333,15 @@ void dsp_samples(cfloat *buf_samples, uint16_t size, bool tx, uint32_t base_freq
     s_meter();   /* on every frame, also with the waterfall hidden */
 
     uint32_t span = wf_span();
+
+    if (!tx) {
+        pthread_mutex_lock(&snap_mux);
+        memcpy(snap_db, wf_db, sizeof(snap_db));
+        snap_center = base_freq ? base_freq : cur_freq;
+        snap_width  = span;
+        snap_seq++;
+        pthread_mutex_unlock(&snap_mux);
+    }
 
     if (waterfall_enabled.load(std::memory_order_relaxed))
         waterfall_data(wf_db, WATERFALL_NFFT, tx, base_freq, span);
@@ -524,4 +538,17 @@ void dsp_put_audio_samples(size_t nsamples, int16_t *samples) {
     }
     if (out)
         sink(out, audio);
+}
+
+bool dsp_spectrum_snapshot(float *db, uint16_t n, uint32_t *center_hz, uint32_t *width_hz, uint32_t *seq) {
+    pthread_mutex_lock(&snap_mux);
+    bool ok = snap_seq > 0 && n <= WATERFALL_NFFT;
+    if (ok) {
+        memcpy(db, snap_db, n * sizeof(float));
+        *center_hz = snap_center;
+        *width_hz  = snap_width;
+        *seq       = snap_seq;
+    }
+    pthread_mutex_unlock(&snap_mux);
+    return ok;
 }

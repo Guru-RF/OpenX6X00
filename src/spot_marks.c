@@ -3,6 +3,7 @@
  */
 
 #include "spot_marks.h"
+#include "birdie.h"
 
 #include "cluster/client.h"
 #include "cluster_column.h"
@@ -33,6 +34,9 @@ typedef struct {
     lv_obj_t *line;
 } mark_t;
 
+#define BIRDIE_POOL 24      /* the birdies' ticks at the top of the waterfall */
+#define BIRDIE_H    9
+static lv_obj_t      *bticks[BIRDIE_POOL];
 static mark_t         marks[POOL];
 static int32_t        shown_hz[POOL];   /* the spots drawn now, for the tuning snap */
 static int            shown_n;
@@ -138,6 +142,20 @@ static void redraw(void) {
         lv_obj_add_flag(marks[n].label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(marks[n].line, LV_OBJ_FLAG_HIDDEN);
     }
+
+    /* The birdies in the span: short ticks in the error colour, no tag */
+    int b = 0;
+    if (span_half > 0 && param_i_get(cfg_birdie_marks) > 0) {
+        for (int i = 0; i < birdie_count() && b < BIRDIE_POOL; i++) {
+            int64_t dx = (int64_t)(birdie_at(i) - left) * WIDTH / (2 * span_half);
+            if (dx < 0 || dx >= WIDTH) continue;
+            lv_obj_set_pos(bticks[b], (lv_coord_t)dx - LINE_W / 2, line_y0);
+            lv_obj_set_style_bg_color(bticks[b], TC(err), 0);
+            lv_obj_clear_flag(bticks[b], LV_OBJ_FLAG_HIDDEN);
+            b++;
+        }
+    }
+    for (; b < BIRDIE_POOL; b++) lv_obj_add_flag(bticks[b], LV_OBJ_FLAG_HIDDEN);
 }
 
 /* 1 Hz: new spots or a new minute (the colours age) */
@@ -202,6 +220,15 @@ void spot_marks_init(lv_obj_t *parent, lv_coord_t line_y, lv_coord_t tag_y) {
         lv_obj_add_flag(l, LV_OBJ_FLAG_HIDDEN);
         marks[i].line = l;
     }
+    for (int i = 0; i < BIRDIE_POOL; i++) {
+        lv_obj_t *t = lv_obj_create(parent);
+        lv_obj_remove_style_all(t);
+        lv_obj_set_size(t, LINE_W, BIRDIE_H);
+        lv_obj_set_style_bg_opa(t, LV_OPA_COVER, 0);
+        lv_obj_clear_flag(t, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(t, LV_OBJ_FLAG_HIDDEN);
+        bticks[i] = t;
+    }
     for (int i = 0; i < POOL; i++) {
         lv_obj_t *l = lv_label_create(parent);
         lv_obj_set_style_text_font(l, &SPOT_FONT, 0);
@@ -243,4 +270,8 @@ void spot_marks_update(int32_t center, int32_t half_width) {
     span_center = center;
     span_half   = half_width;
     redraw();
+}
+
+void spot_marks_refresh(void) {
+    if (ready) redraw();
 }
