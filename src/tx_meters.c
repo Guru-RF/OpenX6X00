@@ -47,6 +47,7 @@ static lv_obj_t     *swr_value;
 static lv_obj_t     *alc_value;
 static lv_obj_t     *alc_name;
 static uint32_t      tx_start;
+static float         tx_len;         /* tx_info_set_length */
 
 /* Digital apps: a strip under the frequency bar instead of the panel */
 static lv_obj_t     *strip;
@@ -167,7 +168,14 @@ static void update_strip(void) {
     lv_label_set_text_fmt(strip_swr, "%.1f", vswr);
     lv_obj_set_style_text_color(strip_swr, c, 0);
     lv_obj_set_style_border_color(strip, vswr >= 2.0f ? c : lv_color_make(230, 50, 50), 0);
-    lv_label_set_text_fmt(strip_time, "%02u:%02u", (unsigned)(s / 60), (unsigned)(s % 60));
+    if (tx_len > 0.0f)
+        lv_label_set_text_fmt(strip_time, "%u / %u s", (unsigned)s, (unsigned)(tx_len + 0.5f));
+    else
+        lv_label_set_text_fmt(strip_time, "%02u:%02u", (unsigned)(s / 60), (unsigned)(s % 60));
+}
+
+void tx_info_set_length(float seconds) {
+    tx_len = seconds;
 }
 
 /* The digital apps keep their screen while transmitting: the strip, not the panel */

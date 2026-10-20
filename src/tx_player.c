@@ -149,6 +149,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
         atomic_store(&last_block_ms, now_ms());
     }
     atomic_store(&playing, false);
+    tx_info_set_length(0);      /* the strip back to the time alone */
 
     /* Learned for the next transmission of any app: they share the audio path */
     params_float_set(&params.ft8_output_gain_offset, LV_MAX(drive - base_gain + codec, LEARNED_MIN_DB));

@@ -10,8 +10,11 @@
 
 #include <stdlib.h>
 
+#include "../cfg/cfg_api.h"     /* cfg_ft8_protocol */
 #include "../params/params.h"
 #include "../tx_player.h"       /* tx_player_play */
+#include "../tx_info.h"         /* tx_info_set_length: the slot in the strip */
+#include "ft2.h"                /* ftx_slot_time */
 #include "worker.h"
 
 /* The FT8/FT4/FT2 message as audio, sent by tx_player.c (keying, level, power cap, VFO) */
@@ -28,6 +31,7 @@ bool tx_worker_run(const char    *tx_text,
     bool sent_all = true;   /* no audio made: nothing sent, which is not a stop */
 
     if (made) {
+        tx_info_set_length(ftx_slot_time(param_i_get(cfg_ft8_protocol)));
         sent_all = tx_player_play(samples, n_samples, (int32_t)params.ft8_tx_freq.x, base_gain_offset,
                                   abort_check, abort_check_ctx);
         free(samples);

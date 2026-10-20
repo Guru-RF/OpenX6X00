@@ -37,6 +37,7 @@
 #include "styles.h"
 #include "theme.h"
 #include "tx_player.h"
+#include "tx_info.h"
 #include "wspr/wspr.h"
 #include "wspr/wsprnet.h"
 
@@ -309,6 +310,7 @@ static void *cycle_thread_cb(void *arg) {
             if (t <= TX_LATE_S) {
                 atomic_store(&tx_next, false);
                 scheduler_put_noargs(tx_next_clear_cb);
+                tx_info_set_length(CYCLE_S);    /* the strip counts the cycle */
                 tx_player_play(tx, tx_n, param_i_get(cfg_wspr_tx_freq), base_gain_offset, tx_abort_cb, NULL);
             }
             free(tx);

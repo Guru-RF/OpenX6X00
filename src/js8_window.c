@@ -1478,6 +1478,7 @@ static bool tx_play(int16_t *samples, unsigned n, int index, int count, void *un
     /* Read each frame: the power may be changed while the app is open. */
     float gain       = tx_player_base_gain_offset();
     base_gain_offset = gain;
+    tx_info_set_length(js8_speed_period_s(cur_speed()));   /* the slot, in the strip */
     bool ok          = tx_player_play(samples, n, tx_offset_active, gain, tx_abort_check, NULL);
     keyed            = false;
     return ok;
