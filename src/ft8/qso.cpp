@@ -255,6 +255,8 @@ void FTxQsoProcessor::process_73(ftx_msg_meta_t *meta, std::vector<std::string> 
     if (call_to == _local_callsign) {
         meta->to_me = true;
         if ((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) {
+            /* Their 73 ends the QSO as well as an RR73 we missed: logged if both reports went */
+            _cur_candidate->save_qso(_save_qso_cb);
             delete _cur_candidate;
             if (_next_candidate != NULL) {
                 _cur_candidate = _next_candidate;
