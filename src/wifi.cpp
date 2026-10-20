@@ -38,6 +38,8 @@ static NMDevice  *device = NULL;
 
 static lv_timer_t *loop_timer;
 static lv_timer_t *scan_timer = NULL;
+static char        retry_id[33];      /* the network being joined by hand, for the retries */
+static int         retry_n;
 
 static wifi_status_t status = WIFI_OFF;
 static bool          scanning = false;
@@ -67,6 +69,34 @@ static void connection_delete_cb(GObject *connection, GAsyncResult *result, gpoi
 static void connection_activating_cb(GObject *client, GAsyncResult *result, gpointer user_data);
 static void eth_refresh_cb(lv_timer_t *t);
 
+static void power_on_cb(lv_timer_t *t) {
+    wifi_power_on();
+}
+
+/* No network in reach for three minutes, WiFi on and not connected: the chip is powered off
+ * and on again, two seconds apart. Now and then it stops seeing any network until it is. */
+static void no_network_cb(lv_timer_t *t) {
+    static int empty;
+
+    if (status != WIFI_DISCONNECTED || !device) {
+        empty = 0;
+        return;
+    }
+    const GPtrArray *aps = nm_device_wifi_get_access_points(NM_DEVICE_WIFI(device));
+    if (aps && aps->len > 0) {
+        empty = 0;
+        return;
+    }
+    if (++empty < 3) {
+        wifi_start_scan();
+        return;
+    }
+    empty = 0;
+    LV_LOG_WARN("No WiFi network found for 3 minutes: the chip is restarted");
+    wifi_power_off();
+    lv_timer_set_repeat_count(lv_timer_create(power_on_cb, 2000, NULL), 1);
+}
+
 void wifi_power_setup() {
     set_status(WIFI_DISCONNECTED);
     loop = g_main_loop_new(NULL, FALSE);
@@ -79,6 +109,7 @@ void wifi_power_setup() {
     }
     loop_timer = lv_timer_create(loop_iterations_cb, 30, NULL);
     lv_timer_create(eth_refresh_cb, 1000, NULL);
+    lv_timer_create(no_network_cb, 60000, NULL);
 
     if (params.wifi_enabled.x)
         wifi_power_on();
@@ -191,6 +222,8 @@ void wifi_aps_info_delete(wifi_ap_arr_t aps_info) {
 }
 
 void wifi_add_connection(const char *ssid, const char *password) {
+    snprintf(retry_id, sizeof(retry_id), "%s", ssid);
+    retry_n = 0;
     NMConnection              *connection;
     NMSettingConnection       *s_con;
     NMSettingWireless         *s_wireless;
@@ -301,6 +334,9 @@ void wifi_delete_connection(const char *id) {
 
 void wifi_connect(const char *id) {
     NMRemoteConnection  *rem_con = NULL;
+
+    snprintf(retry_id, sizeof(retry_id), "%s", id);
+    retry_n = 0;
     NMSettingConnection *s_con;
     NMConnection        *connection = NULL;
     gboolean             temporary = FALSE;
@@ -463,6 +499,8 @@ static void fill_access_point_info(GBytes *active_ssid, NMAccessPoint *ap, wifi_
         // Open
         ap_info->password_validator = NULL;
     }
+    /* WPA3 only (SAE without WPA2-PSK): the window says so instead of asking a password */
+    ap_info->wpa3_only = (rsn_flags & NM_802_11_AP_SEC_KEY_MGMT_SAE) && !(rsn_flags & NM_802_11_AP_SEC_KEY_MGMT_PSK);
 
     g_free(ssid_str);
 }
@@ -570,11 +608,24 @@ static void device_state_changed_sig_cb(NMDevice *device, guint new_state, guint
     switch (new_state) {
     case NM_DEVICE_STATE_FAILED:
         if (reason == NM_DEVICE_STATE_REASON_NO_SECRETS) {
-            LV_LOG_WARN("Wrong password");
-            msg_update_text_fmt("Wrong WiFi password");
+            /* The handshake fails now and then with the right password (the chip shared with
+             * Bluetooth, a weak signal): four tries before the password is doubted */
+            NMRemoteConnection *rc = retry_id[0] ? nm_client_get_connection_by_id(client, retry_id) : NULL;
+
+            if (rc && retry_n < 3) {
+                retry_n++;
+                msg_update_text_fmt("Connecting... (try %d/4)", retry_n + 1);
+                nm_client_activate_connection_async(client, NM_CONNECTION(rc), device, NULL, NULL,
+                                                    connection_activating_cb, loop);
+            } else {
+                retry_n = 0;
+                LV_LOG_WARN("Wrong password");
+                msg_update_text_fmt("Wrong WiFi password");
+            }
         }
         break;
     case NM_DEVICE_STATE_ACTIVATED:
+        retry_n = 0;
         set_status(WIFI_CONNECTED);
         break;
     case NM_DEVICE_STATE_DISCONNECTED:

@@ -281,6 +281,8 @@ static void connect_press(button_data_t *b) {
             ap = selected(&any);
             if (!ap) {
                 LV_LOG_USER("Nothing selected, can't connect");
+            } else if (ap->wpa3_only) {
+                msg_update_text_fmt("WPA3-only network: set the router to WPA2 or WPA2/WPA3");
             } else if (ap->known) {
                 wifi_connect(ap->ssid);
             } else if (!ap->password_validator) {

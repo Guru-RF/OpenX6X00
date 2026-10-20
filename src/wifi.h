@@ -35,6 +35,7 @@ typedef struct {
     NM80211Mode           mode;
     bool                  is_connected;
     bool                  known;
+    bool                  wpa3_only;        /* SAE only, no WPA2: the chip can't join it */
     password_validator_fn password_validator;
 } wifi_ap_info_t;
 
