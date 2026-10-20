@@ -2,7 +2,7 @@
 """Tracks a release of the closed X6100 firmware this project was forked from.
 
 For one release (the latest by default) it downloads the GPL sources tarball and the SD
-image, then writes docs/upstream/<tag>.md with:
+image, then writes <tag>.md in its cache (--out for elsewhere; the reports stay out of the repository) with:
 
   1. the release notes;
   2. the buildroot external tree of the release (kernel config, patches, overlay) diffed
@@ -187,7 +187,7 @@ def main():
     ap.add_argument("--buildroot", default=os.path.join(os.path.dirname(ROOT), "AetherX6100Buildroot"),
                     help="our AetherX6100Buildroot checkout (its br2_external is compared)")
     ap.add_argument("--ours-gui", help="our built x6100_gui (default: the buildroot target's)")
-    ap.add_argument("--out", default=os.path.join(ROOT, "docs", "upstream"), help="where the report goes")
+    ap.add_argument("--out", help="where the report goes (default: the cache, next to the downloads)")
     args = ap.parse_args()
 
     rel, src_asset, img_asset = release_info(args.tag)
@@ -359,8 +359,9 @@ def main():
         if rows:
             report += ["Scripts we both have:", ""] + rows + [""]
 
-    os.makedirs(args.out, exist_ok=True)
-    out = os.path.join(args.out, f"{tag}.md")
+    out_dir = args.out or args.cache
+    os.makedirs(out_dir, exist_ok=True)
+    out = os.path.join(out_dir, f"{tag}.md")
     with open(out, "w") as fh:
         fh.write("\n".join(report) + "\n")
     print(f"report: {out}")
