@@ -148,6 +148,7 @@ void btaudio_init(void) {
         fclose(fp);
     }
     hp_on = saved_vol >= 0;
+    if (hp_on) radio_vol_refresh();    /* the speaker muted again: the radio set its volume before this */
     subject_subscribe((Subject *)&cfg_sm.p_volume, vol_changed_cb, NULL);
     lv_timer_create(mute_timer_cb, 1000, NULL);
 }
