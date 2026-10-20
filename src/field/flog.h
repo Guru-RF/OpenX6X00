@@ -22,7 +22,8 @@ typedef struct {
     int32_t freq_hz;
     char    mode[8];    /* ADIF: CW, SSB, AM, FM, FT8 */
     char    rst_s[4], rst_r[4];
-    char    name[48], qth[48], grid[8], country[32];   /* the other station, from the phone's QRZ lookup; "" unknown */
+    char    name[48], qth[48], grid[8], country[32];   /* the other station, from a logbook lookup; "" unknown */
+    char    their_ref[16];  /* the other station's park, summit, bunker or hill: park to park, summit to summit; "" none */
 } field_qso_t;
 
 typedef struct {
@@ -31,6 +32,13 @@ typedef struct {
     char prog;          /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA */
     char ref[16];
 } field_station_t;
+
+/* The programme of a reference by its shape: 'S' SOTA (I/LO-123), 'P' POTA (US-1234), 'F' WWFF (DLFF-0123),
+ * 'B' WWBOTA (B/G-0070), 'H' HOTA (RO-H0390); 0 when it is none of them */
+char field_ref_prog(const char *ref);
+
+/* "S2S", "P2P", "F2F", "B2B", "H2H" for a QSO with their reference, "" without */
+const char *field_qso_tag(const field_qso_t *q);
 
 /* ADIF band ("20m"), "" outside the amateur bands */
 const char *field_band(int32_t hz);

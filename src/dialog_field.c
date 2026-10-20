@@ -994,8 +994,8 @@ static void act_update(void) {
     struct tm tm;
     for (int k = qsos_n > 3 ? qsos_n - 3 : 0; k < qsos_n; k++) {
         localtime_r(&qsos[k].t, &tm);
-        snprintf(line, sizeof(line), "%s%02d:%02d  %-10s  %s / %s  %s", recent[0] ? "\n" : "", tm.tm_hour, tm.tm_min,
-                 qsos[k].call, qsos[k].rst_s, qsos[k].rst_r, qsos[k].mode);
+        snprintf(line, sizeof(line), "%s%02d:%02d  %-10s  %s / %s  %s %s", recent[0] ? "\n" : "", tm.tm_hour, tm.tm_min,
+                 qsos[k].call, qsos[k].rst_s, qsos[k].rst_r, qsos[k].mode, field_qso_tag(&qsos[k]));
         strncat(recent, line, sizeof(recent) - strlen(recent) - 1);
     }
     lv_label_set_text(act_recent, recent);
@@ -1148,8 +1148,8 @@ static void build_log(void) {
     qsos_n = st.log[0] ? field_log_read(st.log, qsos, MAX_QSO) : 0;
     for (int k = 0; k < qsos_n; k++) {
         localtime_r(&qsos[k].t, &tm);
-        snprintf(row, sizeof(row), "%d\t%02d:%02d\t%s\t%s\t%s\t%s / %s", k + 1, tm.tm_hour, tm.tm_min, qsos[k].call,
-                 field_band(qsos[k].freq_hz), qsos[k].mode, qsos[k].rst_s, qsos[k].rst_r);
+        snprintf(row, sizeof(row), "%d\t%02d:%02d\t%s\t%s\t%s %s\t%s / %s", k + 1, tm.tm_hour, tm.tm_min, qsos[k].call,
+                 field_band(qsos[k].freq_hz), qsos[k].mode, field_qso_tag(&qsos[k]), qsos[k].rst_s, qsos[k].rst_r);
         list_add(row);
     }
     list_select(qsos_n - 1);
@@ -1501,6 +1501,8 @@ static void cq_cb(button_data_t *b) {
 }
 
 /* The phone's "CALL|rst sent|rst received[|name|qth|grid|country]", any field may be empty */
+static bool activation_log_add(const field_qso_t *q);
+
 static void parse_log_text(const char *text, char *call, size_t call_size, char *rs, char *rr, field_qso_t *more) {
     char buf[256], *p = buf, *f;
     struct { char *dst; size_t size; } out[] = {
@@ -1566,6 +1568,8 @@ void dialog_field_day_log(const qso_log_record_t *r) {
     snprintf(q.name, sizeof(q.name), "%s", r->name);
     snprintf(q.grid, sizeof(q.grid), "%s", r->remote_grid);
     day_log_add(&q, r->local_call);
+    if (st.active)
+        activation_log_add(&q);     /* an activation going on: this QSO counts for it */
 }
 
 /* A QSO in the log: false when the call is not a callsign */
@@ -1590,17 +1594,25 @@ static bool log_add(const char *call_in, const char *rst_s, const char *rst_r, c
         memcpy(q.qth, more->qth, sizeof(q.qth));
         memcpy(q.grid, more->grid, sizeof(q.grid));
         memcpy(q.country, more->country, sizeof(q.country));
+        memcpy(q.their_ref, more->their_ref, sizeof(q.their_ref));
     }
+    return activation_log_add(&q);
+}
+
+/* Into the activation's log, with the reference of the activation; the screen follows */
+static bool activation_log_add(const field_qso_t *q) {
+    field_station_t sta;
+
     snprintf(sta.call, sizeof(sta.call), "%s", my_call());
     snprintf(sta.grid, sizeof(sta.grid), "%s", station_qth() ? station_qth() : "");
     sta.prog = st.ref.type;
     snprintf(sta.ref, sizeof(sta.ref), "%s", st.ref.ref);
-    if (!field_log_add(st.log, &q, &sta)) {
+    if (!field_log_add(st.log, q, &sta)) {
         msg_schedule_text_ms(9000, "QSO not saved: %s", field_log_error(errno));   /* long: it scrolls */
         return false;
     }
     qsos_n = field_log_read(st.log, qsos, MAX_QSO);
-    msg_update_text_fmt("QSO %d: %s %s %s", qsos_n, q.call, q.rst_s, q.rst_r);
+    msg_update_text_fmt("QSO %d: %s %s %s %s", qsos_n, q->call, q->rst_s, q->rst_r, field_qso_tag(q));
     if (dialog.run && (st.screen == SCR_LOG || act_freq))
         refresh();
     return true;
@@ -1618,10 +1630,24 @@ static void kbd_end(void) {
 
 static bool log_ok(void) {
     const char *v = textarea_window_get();
-    char        call[32] = "", r1[8] = "", r2[8] = "";
+    char        call[32] = "", w[3][16] = {"", "", ""}, r1[8] = "", r2[8] = "";
+    field_qso_t more = {0};
+    int         n_rst = 0;
 
-    if (v && sscanf(v, "%31s %7s %7s", call, r1, r2) >= 1 && !log_add(call, r2, r1, NULL))
-        msg_update_text_fmt("Log: \"%s\" is not a callsign", call);
+    /* "CALL [rst rcvd [rst sent]] [their reference]": a word shaped as a reference is theirs */
+    if (v && sscanf(v, "%31s %15s %15s %15s", call, w[0], w[1], w[2]) >= 1) {
+        for (int i = 0; i < 3 && w[i][0]; i++) {
+            for (char *p = w[i]; *p; p++) *p = toupper((unsigned char)*p);
+            if (field_ref_prog(w[i]))
+                snprintf(more.their_ref, sizeof(more.their_ref), "%s", w[i]);
+            else if (n_rst == 0)
+                snprintf(r1, sizeof(r1), "%s", w[i]), n_rst++;
+            else if (n_rst == 1)
+                snprintf(r2, sizeof(r2), "%s", w[i]), n_rst++;
+        }
+        if (!log_add(call, r2, r1, &more))
+            msg_update_text_fmt("Log: \"%s\" is not a callsign", call);
+    }
     kbd_end();
     return true;
 }
@@ -1638,7 +1664,7 @@ static void log_cb(button_data_t *b) {
     }
     kbd_open = true;
     lv_group_remove_obj(dialog.obj);
-    textarea_window_open_w_label(log_ok, kbd_cancel, "Call [rst rcvd [sent]]: ");
+    textarea_window_open_w_label(log_ok, kbd_cancel, "Call [rst rcvd [sent]] [their ref]: ");
 }
 
 static bool set_ref(const char *in) {

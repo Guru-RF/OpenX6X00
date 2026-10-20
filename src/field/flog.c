@@ -73,9 +73,21 @@ size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const fie
         n = field(buf, size, n, "MY_SIG", "POTA");
         n = field(buf, size, n, "MY_SIG_INFO", st->ref);
         n = field(buf, size, n, "MY_POTA_REF", st->ref);
-    } else if (st->prog == 'B' || st->prog == 'H') {
-        n = field(buf, size, n, "MY_SIG", st->prog == 'B' ? "WWBOTA" : "HOTA");
+    } else if (st->prog == 'B' || st->prog == 'H' || st->prog == 'F') {
+        n = field(buf, size, n, "MY_SIG", st->prog == 'B' ? "WWBOTA" : st->prog == 'H' ? "HOTA" : "WWFF");
         n = field(buf, size, n, "MY_SIG_INFO", st->ref);
+    }
+    /* The other station's reference: park to park, summit to summit */
+    char their = field_ref_prog(q->their_ref);
+    if (their == 'S') {
+        n = field(buf, size, n, "SOTA_REF", q->their_ref);
+    } else if (their == 'P') {
+        n = field(buf, size, n, "SIG", "POTA");
+        n = field(buf, size, n, "SIG_INFO", q->their_ref);
+        n = field(buf, size, n, "POTA_REF", q->their_ref);
+    } else if (their) {
+        n = field(buf, size, n, "SIG", their == 'B' ? "WWBOTA" : their == 'H' ? "HOTA" : "WWFF");
+        n = field(buf, size, n, "SIG_INFO", q->their_ref);
     }
     if (n < size)
         n += (size_t)snprintf(buf + n, size - n, "<eor>\n");
@@ -186,8 +198,42 @@ int field_log_read(const char *path, field_qso_t *out, int max) {
         get(line, "MODE", q->mode, sizeof(q->mode));
         get(line, "RST_SENT", q->rst_s, sizeof(q->rst_s));
         get(line, "RST_RCVD", q->rst_r, sizeof(q->rst_r));
+        get(line, "SOTA_REF", q->their_ref, sizeof(q->their_ref));
+        if (!q->their_ref[0])
+            get(line, "SIG_INFO", q->their_ref, sizeof(q->their_ref));
         n++;
     }
     fclose(f);
     return n;
+}
+
+char field_ref_prog(const char *ref) {
+    size_t      n = ref ? strlen(ref) : 0;
+    const char *dash = n ? strchr(ref, '-') : NULL;
+
+    if (n < 5 || n > 15 || !dash)
+        return 0;
+    for (const char *p = ref; *p; p++)
+        if (!((*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '/' || *p == '-'))
+            return 0;
+    if (ref[0] == 'B' && ref[1] == '/')                                   /* B/G-0070 */
+        return 'B';
+    if (strchr(ref, '/'))                                                 /* I/LO-123, W7W/KG-001 */
+        return 'S';
+    if (dash[1] == 'H' && dash - ref == 2)                                /* RO-H0390 */
+        return 'H';
+    if (dash - ref >= 3 && dash[-1] == 'F' && dash[-2] == 'F')            /* DLFF-0123 */
+        return 'F';
+    return 'P';                                                           /* US-1234, IT-0123 */
+}
+
+const char *field_qso_tag(const field_qso_t *q) {
+    switch (field_ref_prog(q->their_ref)) {
+        case 'S': return "S2S";
+        case 'P': return "P2P";
+        case 'F': return "F2F";
+        case 'B': return "B2B";
+        case 'H': return "H2H";
+        default:  return "";
+    }
 }
