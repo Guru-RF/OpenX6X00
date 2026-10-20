@@ -1,0 +1,9 @@
+config BR2_PACKAGE_RTL8723BU_WIFI
+	bool "rtl8723bu-wifi"
+	depends on BR2_LINUX_KERNEL
+	help
+	  Realtek RTL8723BU WiFi driver (8723bu.ko) from
+	  lwfinger/rtl8723bu, station only, no driver power saving.
+	  rtl8xxxu is blacklisted in /etc/modprobe.d/x6100-wifi.conf.
+
+	  https://github.com/lwfinger/rtl8723bu

@@ -1,0 +1,80 @@
+From: Giovanni Ricciardi IU1WXY <info@x6100-link.it>
+Subject: [PATCH] btcoex: keep the antenna on WiFi during the 4-way handshake
+
+The RTL8723BU on the X6100 has one antenna shared by WiFi and Bluetooth
+(btcoex reports Ant PG Num 1, single-antenna algorithm). After the
+association the driver switches coex to the normal "connected" sharing
+at once, while the WPA 4-way handshake has not even started:
+
+- BTC_GET_BL_WIFI_4_WAY_PROGRESS is hard-wired to FALSE, so the 1-ant
+  "under 4-way" branch of ActionWifiConnected never runs;
+- EAPOL frames are never reported to coex as special packets (only DHCP).
+
+With Bluetooth active, EAPOL frames from and to the router can be lost:
+the router repeats message 1/4 or 3/4 every second, gives up after four
+tries and disassociates with reason 2, and NetworkManager reports
+no-secrets ("wrong password").
+
+Report the handshake to coex: as a special packet on connect and on
+every EAPOL frame sent, and through the 4-way flag while the 802.1X
+port of the AP entry is still closed.
+
+Signed-off-by: Giovanni Ricciardi IU1WXY <info@x6100-link.it>
+---
+--- a/core/rtw_cmd.c
++++ b/core/rtw_cmd.c
+@@ -2520,6 +2520,8 @@
+ 			rtw_hal_set_hwreg(padapter, HW_VAR_H2C_FW_JOINBSSRPT, (u8 *)(&mstatus));
+ #ifdef CONFIG_BT_COEXIST
+ 			rtw_btcoex_MediaStatusNotify(padapter, mstatus);
++			// the 4-way handshake starts now: keep the antenna on WiFi
++			rtw_btcoex_SpecialPacketNotify(padapter, PACKET_DHCP);
+ #endif // CONFIG_BT_COEXIST
+ 			break;
+ 		case LPS_CTRL_DISCONNECT:
+--- a/core/rtw_xmit.c
++++ b/core/rtw_xmit.c
+@@ -1019,7 +1019,7 @@
+ 	{
+ 		rtw_lps_ctrl_wk_cmd(padapter, LPS_CTRL_LEAVE, 1);
+ 	}
+-	else if(pattrib->dhcp_pkt==1)
++	else if((pattrib->dhcp_pkt==1) || (pattrib->ether_type == 0x888e))
+ #endif
+ 	{
+ 		DBG_COUNTER(padapter->tx_logs.core_tx_upd_attrib_active);
+--- a/hal/hal_btcoex.c
++++ b/hal/hal_btcoex.c
+@@ -481,6 +481,23 @@
+ 	return scan_AP_num;
+ }
+ 
++/* Associated station whose 802.1X port is still closed: the WPA 4-way
++ * handshake is running and its EAPOL frames must not lose the antenna. */
++static u8 halbtcoutsrc_Under4Way(PADAPTER padapter)
++{
++	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
++	struct sta_info *psta;
++
++	if (padapter->securitypriv.dot11AuthAlgrthm != dot11AuthAlgrthm_8021X)
++		return _FALSE;
++	if (check_fwstate(pmlmepriv, WIFI_STATION_STATE) == _FALSE ||
++	    check_fwstate(pmlmepriv, WIFI_ASOC_STATE) == _FALSE)
++		return _FALSE;
++
++	psta = rtw_get_stainfo(&padapter->stapriv, get_bssid(pmlmepriv));
++	return (psta && psta->ieee8021x_blocked) ? _TRUE : _FALSE;
++}
++
+ static u8 halbtcoutsrc_Get(void *pBtcContext, u8 getType, void *pOutBuf)
+ {
+ 	PBTC_COEXIST pBtCoexist;
+@@ -562,7 +579,7 @@
+ 			break;
+ 
+ 		case BTC_GET_BL_WIFI_4_WAY_PROGRESS:
+-			*pu8 = _FALSE;
++			*pu8 = halbtcoutsrc_Under4Way(padapter);
+ 			break;
+ 
+ 		case BTC_GET_BL_WIFI_UNDER_5G:

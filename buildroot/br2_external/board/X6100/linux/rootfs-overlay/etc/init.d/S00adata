@@ -1,13 +1,26 @@
 #!/bin/sh
 
 # The DATA partition (settings, logs) is FAT: the radio is often switched off without a clean
-# unmount, and the errors that pile up made the kernel remount it read-only ("Read-only file
-# system" saving settings). Repair it at each start, before anything uses /mnt.
+# unmount, and the errors that pile up made the kernel set it read-only ("Read-only file
+# system" saving settings). It is repaired at each start before anything opens it: fstab has
+# it noauto, so nothing mounts it before this, and this runs first (S00bootanim reads
+# /mnt/params.db). The result is in /tmp/data_fsck.log and /mnt/data_fsck.log.
+LOG=/tmp/data_fsck.log
+
 check_data() {
-    dev=$(blkid -L DATA) || return
-    if grep -q " /mnt " /proc/mounts; then umount /mnt || return; fi   # never check it while in use
-    fsck.fat -a -w "$dev" > /dev/null 2>&1   # 1 = errors fixed: fine
-    mount /mnt
+    dev=$(blkid -L DATA) || { echo "DATA partition not found" > $LOG; return; }
+    if grep -q " /mnt " /proc/mounts; then umount /mnt; fi
+    {
+        echo "$(date '+%Y-%m-%d %H:%M:%S'), up $(cut -d' ' -f1 /proc/uptime) s"
+        grep -q " /mnt " /proc/mounts && echo "/mnt busy, not checked"
+        if ! grep -q " /mnt " /proc/mounts; then
+            fsck.fat -a -w "$dev"; rc=$?           # 0 clean, 1 errors fixed
+            [ $rc -eq 1 ] && { fsck.fat -a -w "$dev"; rc=$?; }   # second pass: clean now?
+            echo "fsck.fat exit $rc"
+            mount /mnt || echo "mount failed"
+        fi
+    } 2>&1 | grep -v -e "conversion" -e "CP850" > $LOG
+    tail -n 40 $LOG > /mnt/data_fsck.log 2>/dev/null
 }
 
 start() {

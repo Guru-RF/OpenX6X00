@@ -1,0 +1,30 @@
+From: Giovanni Ricciardi IU1WXY <info@x6100-link.it>
+Subject: [PATCH] X6100: station only, no driver power saving
+
+Concurrent mode off and CONFIG_POWER_SAVING = n, the same build the
+radio was tested with.
+
+Signed-off-by: Giovanni Ricciardi IU1WXY <info@x6100-link.it>
+---
+diff --git a/Makefile b/Makefile
+index 866b19a..611160e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -19,7 +19,7 @@ EXTRA_CFLAGS += -Wno-unused-label
+ EXTRA_CFLAGS += -Wno-unused-parameter
+ EXTRA_CFLAGS += -Wno-unused-function
+ EXTRA_CFLAGS += -Wno-unused
+-EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
++#EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
+ 
+ ccflags-y += -D__CHECK_ENDIAN__
+ 
+@@ -34,7 +34,7 @@ CONFIG_AUTOCFG_CP = n
+ ########################## WIFI IC ############################
+ CONFIG_RTL8723B = y
+ ########################## Features ###########################
+-CONFIG_POWER_SAVING = y
++CONFIG_POWER_SAVING = n
+ CONFIG_USB_AUTOSUSPEND = n
+ CONFIG_HW_PWRP_DETECTION = n
+ CONFIG_WIFI_TEST = n

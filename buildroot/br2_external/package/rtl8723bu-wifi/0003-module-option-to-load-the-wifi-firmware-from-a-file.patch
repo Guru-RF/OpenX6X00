@@ -1,0 +1,57 @@
+From: Giovanni Ricciardi IU1WXY <info@x6100-link.it>
+Subject: [PATCH] module option to load the WiFi firmware from a file
+
+The driver carries WiFi firmware v29 (2014). rtl8xxxu, used up to 0.126
+without the USB drops seen on 0.127, loads rtlwifi/rtl8723bu_nic.bin
+from linux-firmware, v35. rtw_fw_name=rtlwifi/rtl8723bu_nic.bin loads
+that file through request_firmware; empty (default) keeps the built-in
+firmware, so the two can be compared without rebuilding.
+
+Signed-off-by: Giovanni Ricciardi IU1WXY <info@x6100-link.it>
+---
+--- a/hal/rtl8723b_hal_init.c
++++ b/hal/rtl8723b_hal_init.c
+@@ -22,6 +22,13 @@
+ #include <rtl8723b_hal.h>
+ #include "rtw_bt_mp.h"
+ #include "hal_com_h2c.h"
++#include <linux/firmware.h>
++
++/* Empty: the firmware built into the driver (v29). Otherwise a file under
++ * /lib/firmware, e.g. rtlwifi/rtl8723bu_nic.bin (v35, used by rtl8xxxu). */
++static char *rtw_fw_name = "";
++module_param(rtw_fw_name, charp, 0644);
++MODULE_PARM_DESC(rtw_fw_name, "WiFi firmware file under /lib/firmware instead of the built-in one");
+ 
+ static VOID
+ _FWDownloadEnable(IN PADAPTER padapter, IN BOOLEAN enable)
+@@ -397,6 +404,7 @@
+ 	struct debug_priv *pdbgpriv = &psdpriv->drv_dbg;
+ 	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
+ 	u8 tmp_ps = 0, tmp_rf = 0;
++	const struct firmware *fw_ext = NULL;
+ 
+ 	RT_TRACE(_module_hal_init_c_, _drv_info_, ("+%s\n", __func__));
+ #ifdef CONFIG_WOWLAN
+@@ -503,6 +511,13 @@
+ 		break;
+ 	}
+ 
++	if (!bUsedWoWLANFw && rtw_fw_name && rtw_fw_name[0] &&
++	    request_firmware(&fw_ext, rtw_fw_name, dvobj_to_dev(adapter_to_dvobj(padapter))) == 0) {
++		pFirmware->szFwBuffer = (u8 *)fw_ext->data;
++		pFirmware->ulFwLength = fw_ext->size;
++		DBG_871X_LEVEL(_drv_always_, "firmware %s, %zu bytes\n", rtw_fw_name, fw_ext->size);
++	}
++
+ 	if (pFirmware->ulFwLength > FW_8723B_SIZE) {
+ 		rtStatus = _FAIL;
+ 		DBG_871X_LEVEL(_drv_emerg_, "Firmware size:%u exceed %u\n", pFirmware->ulFwLength, FW_8723B_SIZE);
+@@ -570,6 +585,7 @@
+ 	);
+ 
+ exit:
++	release_firmware(fw_ext);
+ 	if (pFirmware)
+ 		rtw_mfree((u8*)pFirmware, sizeof(RT_FIRMWARE_8723B));
+ 	if (pBTFirmware)

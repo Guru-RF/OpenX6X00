@@ -1,0 +1,22 @@
+# Android USB tethering (radio USB-A <-> phone/tablet). DHCP from the phone, but never the
+# default route or DNS, so internet stays on WiFi/Ethernet. Matched by driver, not by name;
+# the priority beats a generic "Ethernet" profile saved from the GUI. RNDIS only: cdc_ncm is
+# also the driver of USB Ethernet adapters (TRENDnet TUC-ET2G), which must keep their route.
+[connection]
+id=USB tethering
+uuid=441863a7-da0e-48a6-8f9f-4823484d6da7
+type=ethernet
+autoconnect-priority=50
+
+[match]
+driver=rndis_host;
+
+[ethernet]
+
+[ipv4]
+method=auto
+never-default=true
+ignore-auto-dns=true
+
+[ipv6]
+method=disabled

@@ -50,6 +50,19 @@ sed -i "s/^default-sample-rate = 48000/default-sample-rate = 44100/" $EXT/board/
 cp $GUI/buildroot/bt_start.sh $EXT/board/X6100/linux/rootfs-overlay/usr/bin/bt_start.sh
 grep -q "^default-sample-rate = 44100" $EXT/board/X6100/linux/rootfs-overlay/etc/pulse/daemon.conf
 
+echo "== OpenX6X00 additions to the buildroot tree (buildroot/br2_external in this repository)"
+# The rtl8723bu WiFi driver package, the DATA partition repair at boot, the USB tethering
+# profile, the Bluetooth, NTP and PulseAudio settings: copied over the upstream tree
+cp -a $GUI/buildroot/br2_external/. $EXT/
+rm -f $EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S01create_data   # S00adata does it, with the repair
+grep -q "rtl8723bu-wifi/Config.in" $EXT/Config.in || echo 'source "$BR2_EXTERNAL_X6100_PATH/package/rtl8723bu-wifi/Config.in"' >> $EXT/Config.in
+grep -q "^BR2_PACKAGE_RTL8723BU_WIFI=y" $DEFCONFIG || echo "BR2_PACKAGE_RTL8723BU_WIFI=y" >> $DEFCONFIG
+grep -q "^BR2_ROOTFS_DEVICE_TABLE=" $DEFCONFIG || echo 'BR2_ROOTFS_DEVICE_TABLE="system/device_table.txt $(BR2_EXTERNAL_X6100_PATH)/board/X6100/linux/device_table.txt"' >> $DEFCONFIG
+D=$EXT/board/X6100/linux/sun8i-r16-x6100_defconfig
+for o in CONFIG_USB_NET_RNDIS_HOST=m CONFIG_IP_ADVANCED_ROUTER=y CONFIG_IP_MULTIPLE_TABLES=y; do
+    grep -q "^$o" $D || echo "$o" >> $D
+done
+
 echo "== Kernel: UHID for Bluetooth Low Energy keyboards"
 D=$EXT/board/X6100/linux/sun8i-r16-x6100_defconfig
 grep -q "^CONFIG_UHID=" $D || echo "CONFIG_UHID=m" >> $D
