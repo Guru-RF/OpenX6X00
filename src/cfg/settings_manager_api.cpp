@@ -40,6 +40,10 @@ void cfg_pwr_set(float watts) {
     cfg_sm.p_pwr.set(watts);
 }
 
+void cfg_vfo_toggle(void) {
+    cfg_sm.vfo_toggle();
+}
+
 void cfg_band_vfo_copy(void) {
     cfg_sm.cfg_band_vfo_copy();
 }

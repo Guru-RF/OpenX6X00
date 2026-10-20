@@ -108,6 +108,14 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     Parameter<int32_t> p_knob_info{"knob_info", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Independent VFOs: A and B each keep their own band, a VFO switch brings its band back
+    // (vfo_toggle). Off: both VFOs live in the current band, as the radio does it.
+    Parameter<int32_t> p_indep_vfo{"indep_vfo", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_vfoa_band{"vfoa_band", BAND_UNDEFINED, BAND_UNDEFINED, 1000000,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_vfob_band{"vfob_band", BAND_UNDEFINED, BAND_UNDEFINED, 1000000,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // The spectrum above the waterfall (Settings > Display, live): off by default
     Parameter<int32_t> p_spectrum_show{"spectrum_show", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
@@ -538,6 +546,10 @@ class SettingsManager {
     // Copies VFO-related band parameters (freq, mode, agc, att, pre) from the
     // active VFO to the inactive VFO, based on the current p_band_current_vfo.
     void cfg_band_vfo_copy();
+
+    // The other VFO. With independent VFOs on, the band this VFO is on is kept for it and the
+    // other VFO's band is loaded (its frequency and mode come with the band's record).
+    void vfo_toggle();
 
     // Transverter shift for a frequency: the shift of the transverter whose
     // [from, to] range contains `freq`, or 0 when no transverter covers it.

@@ -75,6 +75,7 @@ static const struct {
     {"digi_text_compact", &cfg_sm.p_digi_text_compact, 0, 1},
     {"knob_info", &cfg_sm.p_knob_info, 0, 1},
     {"walkie", &cfg_sm.p_walkie, 0, 1},                 /* live: walkie.c follows it */
+    {"indep_vfo", &cfg_sm.p_indep_vfo, 0, 1},           /* Station: independent VFOs */
 };
 
 static const struct {

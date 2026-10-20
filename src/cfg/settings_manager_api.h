@@ -41,6 +41,9 @@ void cfg_band_load_next(bool up);
 /* TX power in W (p_pwr, 0.1..10), saved and applied as Settings does it */
 void cfg_pwr_set(float watts);
 
+/* The other VFO; with independent VFOs (p_indep_vfo) its own band comes with it */
+void cfg_vfo_toggle(void);
+
 // Copy active VFO (freq, mode, agc, att, pre) to inactive VFO.
 void cfg_band_vfo_copy(void);
 

@@ -2664,6 +2664,8 @@ static uint8_t make_station_row(uint8_t row, const char *label, const char *val,
 static uint8_t make_station(uint8_t row) {
     row = make_station_row(row, "Callsign", params.callsign.x, ST_CALLSIGN);
     row = make_station_row(row, "QTH locator", params.qth.x, ST_QTH);
+    /* A and B each on their own band: the VFO key brings the other one's band back */
+    row = make_param_switch(row, "Independent VFOs", cfg_sm.p_indep_vfo);
     lv_obj_add_event_cb(grid, st_delete_cb, LV_EVENT_DELETE, NULL);
     return row;
 }

@@ -235,9 +235,24 @@ void SettingsManager::switch_band(int new_band_id, bool implicit) {
         cp_cur_pre.recompute();
         cp_cur_agc.recompute();
         cp_bg_freq.recompute();
+
+        // The band the active VFO is on, for independent VFOs (vfo_toggle)
+        (p_band_current_vfo.get() == X6100_VFO_A ? p_vfoa_band : p_vfob_band).set(new_band_id);
     }
 
     band_switch_active_ = false;
+}
+
+void SettingsManager::vfo_toggle() {
+    const bool    on_a  = p_band_current_vfo.get() == X6100_VFO_A;
+    const int32_t other = (on_a ? p_vfob_band : p_vfoa_band).get();
+
+    (on_a ? p_vfoa_band : p_vfob_band).set(band_id_);
+    p_band_current_vfo.set(on_a ? X6100_VFO_B : X6100_VFO_A);
+    if (p_indep_vfo.get() && other != BAND_UNDEFINED && other != band_id_ &&
+        BandsTable::get_by_id(other).rc == SUCCESS) {
+        p_band_id.set(other);   /* explicit switch: both VFO records of that band are loaded */
+    }
 }
 
 void SettingsManager::switch_mode(ModeGroup new_group_id) {
@@ -279,6 +294,8 @@ void SettingsManager::flush_storage(StorageType type, int context_id) {
 }
 
 void SettingsManager::cfg_band_vfo_copy() {
+    // The other VFO comes to this band too (independent VFOs)
+    (p_band_current_vfo.get() == X6100_VFO_A ? p_vfob_band : p_vfoa_band).set(band_id_);
     if (p_band_current_vfo.get() == X6100_VFO_A) {
         p_band_vfob_freq.set(p_band_vfoa_freq.get());
         p_band_vfob_mode.set(p_band_vfoa_mode.get());

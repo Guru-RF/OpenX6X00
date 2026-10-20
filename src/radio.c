@@ -475,11 +475,8 @@ void radio_set_rx_dsp_off(bool all_off) {
 }
 
 x6100_vfo_t radio_toggle_vfo() {
-    x6100_vfo_t new_vfo = (param_i_get(cfg_band_current_vfo) == X6100_VFO_A) ? X6100_VFO_B : X6100_VFO_A;
-
-    param_i_set(cfg_band_current_vfo, new_vfo);
-
-    return new_vfo;
+    cfg_vfo_toggle();
+    return (x6100_vfo_t)param_i_get(cfg_band_current_vfo);
 }
 
 void radio_poweroff() {
