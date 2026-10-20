@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-# Field Ops (POTA/SOTA/WWBOTA/HOTA) helper for the GUI and the web server.
+# Field Ops (POTA/SOTA/WWBOTA/HOTA/WWFF) helper for the GUI and the web server.
 # Every command prints one line on stdout: "ok ..." or "error <reason>", exit 0/1.
 #
-#   x6100-field update                      the four lists -> <dir>/refs.tsv, "ok <parks> <summits> <bunkers> <hota>"
+#   x6100-field update [--skip HF]          the lists -> <dir>/refs.tsv, "ok <parks> <summits> <bunkers> <hota> <wwff>";
+#                                           --skip: lists not downloaded, kept as they are
 #   x6100-field pota-spot --call C --freq-khz F --ref R --mode M [--comments T]
 #   x6100-field wwbota-spot --call C --freq-khz F --ref R --mode M [--id ID] [--qrt]   "ok <spot id>"
 #   x6100-field hota-spot --call C --freq-khz F --ref R --mode M [--comments T]     (key in <dir>/hota.conf)
+#   x6100-field wwff-spot --call C --freq-khz F --ref R --mode M [--comments T]     (key in <dir>/wwff.conf)
 #   x6100-field qrz-upload FILE.adi         "ok <sent> <dup>"
 #
 # <dir> is /mnt/field (env X6100_FIELD_DIR). refs.tsv, tab separated, no header:
-#   P ref name lat lon "" ""     S ref name lat lon alt_m points     B/H ref name lat lon "" ""
+#   P ref name lat lon "" ""     S ref name lat lon alt_m points     B/H/F ref name lat lon "" ""
 # refs.etag keeps the lists' ETags: an unchanged list is not downloaded again.
 # While updating, .update.progress has one line for the GUI: "<list n> <lists> <bytes> <total> <retry> <name>"
 # (total 0: not known). A stalled download goes on from the byte reached (HTTP Range) where the server allows it.
@@ -34,9 +36,11 @@ POTA_CSV = "https://pota.app/all_parks_ext.csv"
 SOTA_CSV = "https://storage.sota.org.uk/summitslist.csv"
 WWBOTA_CSV = "https://api.wwbota.org/bunkers/?format=CSV"
 HOTA_CSV = "https://cqhota.app/api/v1/references/export?format=csv"
+WWFF_CSV = "https://wwff.co/wwff-data/wwff_directory.csv"   # data: WWFF, wwff.co
 WWBOTA_API = os.environ.get("X6100_WWBOTA_API", "https://api.wwbota.org")
 HOTA_API = os.environ.get("X6100_HOTA_API", "https://cqhota.app/api/v1")
 POTA_API = os.environ.get("X6100_POTA_API", "https://api.pota.app")
+WWFF_API = os.environ.get("X6100_WWFF_API", "https://spots.wwff.co/api")
 QRZ_API = os.environ.get("X6100_QRZ_API", "https://logbook.qrz.com/api")
 TIMEOUT = 30
 LIST_TIMEOUT = 60   # per read: the radio's WiFi can stall for a while
@@ -130,12 +134,14 @@ def write_refs(stream, out, kind, ref, name, lat, lon, keep=lambda row: True):
     return n
 
 
-PROGS = {"P": "POTA", "S": "SOTA", "B": "WWBOTA", "H": "HOTA"}
+PROGS = {"P": "POTA", "S": "SOTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF"}
 LISTS = (("P", "parks", lambda: POTA_CSV, write_parks, False),
          ("S", "summits", lambda: SOTA_CSV, lambda s, o: write_summits(s, o, date.today()), False),
          ("B", "bunkers", lambda: WWBOTA_CSV, lambda s, o: write_refs(s, o, "B", "Reference", "Name", "Lat", "Long"), True),
          ("H", "HOTA", lambda: HOTA_CSV,
-          lambda s, o: write_refs(s, o, "H", "code", "name", "lat", "lon", lambda r: r.get("status") == "active"), True))
+          lambda s, o: write_refs(s, o, "H", "code", "name", "lat", "lon", lambda r: r.get("status") == "active"), True),
+         ("F", "wwff", lambda: WWFF_CSV,
+          lambda s, o: write_refs(s, o, "F", "reference", "name", "latitude", "longitude", lambda r: r.get("status") == "active"), True))
 
 
 def keep_old(path, kind, out):
@@ -156,7 +162,7 @@ class Progress:
     """<dir>/.update.progress, written at most twice a second"""
     def __init__(self):
         self.path = os.path.join(FIELD_DIR, ".update.progress")
-        self.n, self.name, self.retry, self.last = 0, "", 0, 0.0
+        self.n, self.name, self.retry, self.last, self.total = 0, "", 0, 0.0, len(LISTS)
 
     def list(self, n, name):
         self.n, self.name, self.retry = n, name, 0
@@ -169,7 +175,7 @@ class Progress:
         self.last = t
         try:
             with open(self.path + ".tmp", "w") as f:
-                f.write(f"{self.n} {len(LISTS)} {done} {total} {self.retry} {self.name}\n")
+                f.write(f"{self.n} {self.total} {done} {total} {self.retry} {self.name}\n")
             os.replace(self.path + ".tmp", self.path)
         except OSError:
             pass
@@ -272,10 +278,16 @@ def cmd_update(args):
     errors = []
     counts = []
     progress = Progress()
+    skip = set(args.skip.upper())   # the programmes switched off: their lines stay as they are
+    todo = [kind for kind, *_ in LISTS if kind not in skip]
+    progress.total = len(todo)
     try:
         with open(tmp, "w", encoding="utf-8", newline="\n") as out:
-            for i, (kind, name, url, parse, site) in enumerate(LISTS):
-                progress.list(i + 1, PROGS[kind])
+            for kind, name, url, parse, site in LISTS:
+                if kind in skip:
+                    counts.append(keep_old(path, kind, out))
+                    continue
+                progress.list(todo.index(kind) + 1, PROGS[kind])
                 start = out.tell()
                 try:
                     n = fetch_list(url(), parse, out, path, kind, etags, site, progress)
@@ -287,7 +299,7 @@ def cmd_update(args):
                     out.truncate()
                     n = keep_old(path, kind, out)
                 counts.append(n)
-        if len(errors) == len(LISTS):
+        if todo and len(errors) == len(todo):
             raise Fail("; ".join(errors))
         os.replace(tmp, path)
         with open(etag_path, "w") as f:
@@ -372,6 +384,35 @@ def cmd_hota_spot(args):
     return "ok"
 
 
+def cmd_wwff_spot(args):
+    """WWFF Spotline, with the activator's own API key (asked to the Spotline team). The fields are those of
+    Spotline's spot form and spots.json; the key goes as X-API-Key"""
+    call, ref, mode, khz = spot_args(args, r"[A-Z0-9]{1,4}FF-\d{4,5}")
+    key = read_key("wwff.conf", "no WWFF key")
+    body = json.dumps({"activator": call, "spotter": read_conf("wwff.conf", "user") or call, "frequency_khz": khz,
+                       "mode": mode, "reference": ref, "remarks": args.comments})
+    code, text = post(WWFF_API.rstrip("/") + "/spots", body, "application/json",
+                      {"User-Agent": site_agent, "X-API-Key": key})
+    if code in (401, 403):
+        raise Fail(f"WWFF key refused (HTTP {code})")
+    if code not in (200, 201):
+        raise Fail(f"HTTP {code} {one_line(text, 60)}")
+    return "ok"
+
+
+def read_conf(name, field):
+    """<field>=... of <dir>/name, "" if none"""
+    try:
+        with open(os.path.join(FIELD_DIR, name), errors="replace") as f:
+            for line in f:
+                key, sep, val = line.strip().partition("=")
+                if sep and key.strip() == field:
+                    return val.strip()
+    except OSError:
+        pass
+    return ""
+
+
 def read_key(name, missing):
     """key=... of <dir>/name"""
     try:
@@ -385,6 +426,39 @@ def read_key(name, missing):
     raise Fail(missing)
 
 
+def read_qrz_active():
+    """(call, key) of the active QRZ profile in qrz.conf. Profiles: call1/key1..call3/key3
+    with active=N; an old single key= becomes profile 1. "" key if none set."""
+    active, legacy, calls, keys = 1, "", ["", "", ""], ["", "", ""]
+    try:
+        with open(os.path.join(FIELD_DIR, "qrz.conf"), errors="replace") as f:
+            for line in f:
+                k, sep, v = line.strip().partition("=")
+                if not sep:
+                    continue
+                k, v = k.strip(), v.strip()
+                if k == "active":
+                    active = int(v) if v.isdigit() else 1
+                elif k == "key":
+                    legacy = v
+                elif k[:4] == "call" and k[4:] in ("1", "2", "3"):
+                    calls[int(k[4]) - 1] = v
+                elif k[:3] == "key" and k[3:] in ("1", "2", "3"):
+                    keys[int(k[3]) - 1] = v
+    except OSError:
+        pass
+    if not any(keys) and legacy:
+        keys[0] = legacy
+    i = active - 1 if 1 <= active <= 3 and keys[active - 1] else next((j for j, x in enumerate(keys) if x), 0)
+    return calls[i], keys[i]
+
+
+def adif_set(rec, name, value):
+    """Drop any existing <name:...>value field and append the new one."""
+    rec = re.sub(r"<%s:\d+(?::[^>]*)?>[^<]*" % name, "", rec, flags=re.I)
+    return rec + f"<{name}:{len(value)}>{value}"
+
+
 def adif_records(text):
     m = re.search(r"<eoh>", text, re.I)
     if m:
@@ -394,7 +468,9 @@ def adif_records(text):
 
 
 def cmd_qrz_upload(args):
-    key = read_key("qrz.conf", "no QRZ key")
+    call, key = read_qrz_active()
+    if not key:
+        raise Fail("no QRZ key")
     try:
         with open(args.file, encoding="utf-8", errors="replace") as f:
             records = adif_records(f.read())
@@ -402,6 +478,8 @@ def cmd_qrz_upload(args):
         raise Fail(one_line(e.strerror or e))
     sent = dup = 0
     for rec in records:
+        if call:   # the active profile's callsign is the station call in the upload
+            rec = adif_set(adif_set(rec, "OPERATOR", call), "STATION_CALLSIGN", call)
         body = urllib.parse.urlencode({"KEY": key, "ACTION": "INSERT", "ADIF": rec + "<eor>"})
         code, text = post(QRZ_API, body, "application/x-www-form-urlencoded")
         if code != 200:
@@ -427,7 +505,9 @@ def main(argv):
     common.add_argument("--call", default=os.environ.get("X6100_CALL", ""))
     parser = Parser(prog="x6100-field")
     sub = parser.add_subparsers(dest="cmd", required=True, parser_class=Parser)
-    sub.add_parser("update", parents=[common]).set_defaults(func=cmd_update)
+    p = sub.add_parser("update", parents=[common])
+    p.add_argument("--skip", default="")   # letters of the lists not to download ("HF")
+    p.set_defaults(func=cmd_update)
     p = sub.add_parser("pota-spot", parents=[common])
     p.add_argument("--freq-khz", required=True)
     p.add_argument("--ref", required=True)
@@ -447,6 +527,12 @@ def main(argv):
     p.add_argument("--mode", required=True)
     p.add_argument("--comments", default="")
     p.set_defaults(func=cmd_hota_spot)
+    p = sub.add_parser("wwff-spot", parents=[common])
+    p.add_argument("--freq-khz", required=True)
+    p.add_argument("--ref", required=True)
+    p.add_argument("--mode", required=True)
+    p.add_argument("--comments", default="")
+    p.set_defaults(func=cmd_wwff_spot)
     p = sub.add_parser("qrz-upload", parents=[common])
     p.add_argument("file")
     p.set_defaults(func=cmd_qrz_upload)
