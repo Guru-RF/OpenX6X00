@@ -168,7 +168,7 @@ static const char *dig_pwr_label() {
 /* The setting itself (the radio follows it): radio_set_pwr() alone left the label and the
  * next step on the old value, and the transmission levelled to it */
 static void dig_pwr_cb(button_data_t *data) {
-    static const float steps[] = {0.5f, 1.0f, 2.0f, 3.0f, 5.0f, TX_PLAYER_MAX_PWR_W};
+    static const float steps[] = {0.1f, 0.2f, 0.5f, 1.0f, 2.0f, 3.0f, 5.0f, TX_PLAYER_MAX_PWR_W};
     float p = LV_MIN(cfg_sm.p_pwr.get(), TX_PLAYER_MAX_PWR_W), next = steps[0];
 
     for (float s : steps) {
