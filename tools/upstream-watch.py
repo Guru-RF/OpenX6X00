@@ -359,7 +359,7 @@ def main():
         if rows:
             report += ["Scripts we both have:", ""] + rows + [""]
 
-    out_dir = args.out or args.cache
+    out_dir = args.out or cache
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, f"{tag}.md")
     with open(out, "w") as fh:
