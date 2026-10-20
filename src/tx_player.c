@@ -7,12 +7,17 @@
 #include "tx_player.h"           /* tx_fill_fn_t, TX_PLAYER_* */
 
 #include <math.h>                 /* log10f */
+#include <pthread.h>
+#include <stdatomic.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #include "lvgl/lvgl.h"           /* LV_MIN, LV_MAX */
 
 #include "audio.h"               /* audio_play, audio_gain_db */
 #include "cfg/cfg_api.h"         /* cparam_i_get, param_f_get */
+#include "msg.h"                 /* the watchdog's note */
 #include "params/params.h"       /* the learned gain offset */
 #include "radio.h"               /* radio_set_modem, radio_set_freq */
 #include "tx_info.h"             /* tx_info_refresh: ALC and power */
@@ -30,6 +35,31 @@
 #define LEARNED_MIN_DB (-42.0f)
 
 #define BLOCK_SAMPLES       2048    /* audio sent per pass, the ALC is read between passes */
+#define STALL_MS            3000    /* keyed this long without a block of audio: unkeyed */
+
+static atomic_bool     playing;
+static atomic_uint_fast64_t last_block_ms;
+
+static uint64_t now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000;
+}
+
+/* A transmission whose audio stops coming (an app stuck, the playback stalled) would keep
+ * the radio keyed on a dead carrier: the watchdog drops the modem bit, which ends it as
+ * the SWR protection does */
+static void *stall_watch(void *arg) {
+    (void)arg;
+    for (;;) {
+        usleep(500000);
+        if (atomic_load(&playing) && now_ms() - atomic_load(&last_block_ms) > STALL_MS && radio_get_modem()) {
+            radio_set_modem(false);
+            msg_schedule_text_fmt("TX stopped: no audio for %d s", STALL_MS / 1000);
+        }
+    }
+    return NULL;
+}
 
 static float keep_in_range(float db) {
     if (db > DRIVE_TOP_DB) return DRIVE_TOP_DB;
@@ -92,6 +122,11 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     float   applied = drive;        /* gain on the previous block */
     bool    stopped = false;
 
+    static pthread_t watch;
+    if (!watch && pthread_create(&watch, NULL, stall_watch, NULL) == 0) pthread_detach(watch);
+    atomic_store(&last_block_ms, now_ms());
+    atomic_store(&playing, true);
+
     for (;;) {
         float   pwr = 0.0f, alc = 0.0f;
         bool    fresh = tx_info_refresh(&reading, &alc, &pwr, NULL);
@@ -111,7 +146,9 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
             audio_gain_db(block, n, drive, block);
         }
         audio_play(block, n);
+        atomic_store(&last_block_ms, now_ms());
     }
+    atomic_store(&playing, false);
 
     /* Learned for the next transmission of any app: they share the audio path */
     params_float_set(&params.ft8_output_gain_offset, LV_MAX(drive - base_gain + codec, LEARNED_MIN_DB));
