@@ -425,14 +425,14 @@ const lv_img_dsc_t *theme_png(const char *path) {
     static struct {
         char         path[96];
         lv_img_dsc_t dsc;
-    } pngs[24];
+    } pngs[64];
     static int n;
     int        w, h;
 
     for (int i = 0; i < n; i++) {
         if (!strcmp(pngs[i].path, path)) return &pngs[i].dsc;
     }
-    if (n == 24) return NULL;
+    if (n == 64) return NULL;
     uint8_t *data = load_png(path, &w, &h);
     if (!data) return NULL;
 
@@ -525,4 +525,19 @@ int theme_list(char names[][32], int max) {
     }
     if (d) closedir(d);
     return n;
+}
+
+/* The icons of the icon menus: white drawings (tools/icons/mkicons.py) coloured here */
+lv_obj_t *theme_icon_img(lv_obj_t *parent, const char *name, int size, lv_color_t color) {
+    char                path[96];
+    const lv_img_dsc_t *d;
+
+    snprintf(path, sizeof(path), "/usr/share/x6100/icons/%s_%d.png", name, size);
+    d = theme_png(path);
+    if (!d) return NULL;
+    lv_obj_t *img = lv_img_create(parent);
+    lv_img_set_src(img, d);
+    lv_obj_set_style_img_recolor(img, color, 0);
+    lv_obj_set_style_img_recolor_opa(img, LV_OPA_COVER, 0);
+    return img;
 }

@@ -146,11 +146,13 @@ static void make_wireless_tab() {
 static const struct {
     button_data_t *btn;
     void         (*make)();
+    const char    *icon;    /* on the rail with icon menus (/usr/share/x6100/icons) */
 } tabs[] = {
-    {&btn_general, make_general_page},  {&btn_display, make_display_page}, {&btn_audio, make_audio_page},
-    {&btn_wireless, make_wireless_tab}, {&btn_bluetooth, make_bluetooth_page}, {&btn_keys, make_keys_page},
-    {&btn_cluster, make_cluster_page},  {&btn_txcal, make_txcal_page},     {&btn_info, make_info_page},
-    {&btn_walkie, make_walkie_page},
+    {&btn_general, make_general_page, "general"},   {&btn_display, make_display_page, "display"},
+    {&btn_audio, make_audio_page, "audio"},         {&btn_wireless, make_wireless_tab, "wireless"},
+    {&btn_bluetooth, make_bluetooth_page, "bluetooth"}, {&btn_keys, make_keys_page, "keys"},
+    {&btn_cluster, make_cluster_page, "cluster"},   {&btn_txcal, make_txcal_page, "txcal"},
+    {&btn_info, make_info_page, "info"},            {&btn_walkie, make_walkie_page, "walkie"},
 };
 
 /* Left rail: the tabs of all button pages, numbered, the current one marked */
@@ -198,10 +200,16 @@ static void rail_create() {
         lv_obj_set_style_border_color(item, TC(accent), 0);
         lv_obj_add_event_cb(item, rail_click_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
 
-        lv_obj_t *num = lv_label_create(item);
-        lv_obj_set_style_text_font(num, SF(14), 0);
-        lv_label_set_text_fmt(num, "%02d", i + 1);
-        lv_obj_align(num, LV_ALIGN_LEFT_MID, 10, 0);
+        /* child 0: the tab's icon (icon menus), else its number */
+        lv_obj_t *num = params.icon_menus.x ? theme_icon_img(item, tabs[i].icon, 24, TC(text_dim)) : NULL;
+        if (num) {
+            lv_obj_align(num, LV_ALIGN_LEFT_MID, 7, 0);
+        } else {
+            num = lv_label_create(item);
+            lv_obj_set_style_text_font(num, SF(14), 0);
+            lv_label_set_text_fmt(num, "%02d", i + 1);
+            lv_obj_align(num, LV_ALIGN_LEFT_MID, 10, 0);
+        }
 
         for (k = 0; tabs[i].btn->label[k] && k < 15; k++) name[k] = toupper(tabs[i].btn->label[k]);
         name[k] = 0;
@@ -228,7 +236,11 @@ static void rail_mark(button_data_t *btn_data) {
 
         lv_obj_set_style_bg_opa(item, on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(item, on ? 4 : 0, 0);
-        lv_obj_set_style_text_color(lv_obj_get_child(item, 0), on ? TC(sel_text) : TC(text_faint), 0);
+        lv_obj_t *mark = lv_obj_get_child(item, 0);
+        if (lv_obj_check_type(mark, &lv_img_class))
+            lv_obj_set_style_img_recolor(mark, on ? TC(sel_text) : TC(text_dim), 0);
+        else
+            lv_obj_set_style_text_color(mark, on ? TC(sel_text) : TC(text_faint), 0);
         lv_obj_set_style_text_color(lv_obj_get_child(item, 1), on ? TC(sel_text) : TC(text_dim), 0);
     }
 }
@@ -3304,6 +3316,8 @@ static void make_display_page() {
 
     row = card_begin("INTERFACE");
     row = make_mag(row);
+    wl_row_label(row, "Icon menus");   /* APP, Modes and the rail as icons: the next time they open */
+    bool_switch(row++, 1, 3, SMALL_3, &params.icon_menus);
     row = make_param_switch(row, "Knob info", cfg_sm.p_knob_info);
     row = make_theme(row);
     row = make_font(row);

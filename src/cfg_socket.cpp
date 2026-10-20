@@ -85,6 +85,7 @@ static const struct {
     {"wf_zoom", &params.waterfall_zoom},
     {"wf_smooth", &params.waterfall_smooth_scroll},
     {"mag_freq", &params.mag_freq},
+    {"icon_menus", &params.icon_menus},
     {"mag_info", &params.mag_info},
     {"mag_alc", &params.mag_alc},
     {"spectrum_filled", &params.spectrum_filled},

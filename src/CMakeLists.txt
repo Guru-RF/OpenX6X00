@@ -31,6 +31,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     pskreporter.c
     dxcc.c
     dialog_modes.c
+    apps_menu.c
     dialog_cw_trainer.c
     dialog_cw_kbd.c
     theme.c

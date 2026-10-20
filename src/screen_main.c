@@ -77,6 +77,7 @@
 #include "cfg/memory.h"
 #include "knob_info.h"
 #include "radio_controls.h"
+#include "apps_menu.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -639,7 +640,16 @@ static bool page_key(keypad_key_t key, bool tap, bool hold) {
         if (page_keys[i].key != key) {
             continue;
         }
-        if (tap) {
+        if (tap && key == KEYPAD_APP && params.icon_menus.x) {
+            /* The APP grid: APP again closes it, the button pages stay as they are */
+            if (dialog_type_is_run(dialog_apps)) {
+                dialog_destruct();
+            } else {
+                close_apps();
+                buttons_load_page_group(page_keys[i].pages);
+                dialog_construct(dialog_apps, obj);
+            }
+        } else if (tap) {
             close_apps();
             buttons_load_page_group(page_keys[i].pages);
         } else if (hold) {

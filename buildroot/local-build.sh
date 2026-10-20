@@ -55,6 +55,7 @@ echo "== OpenX6X00 additions to the buildroot tree (buildroot/br2_external in th
 # profile, the Bluetooth, NTP and PulseAudio settings: copied over the upstream tree
 cp -a $GUI/buildroot/br2_external/. $EXT/
 rm -f $EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S01create_data   # S00adata does it, with the repair
+rm -f $BR/build/target/etc/init.d/S01create_data                         # and from an earlier build's target
 grep -q "rtl8723bu-wifi/Config.in" $EXT/Config.in || echo 'source "$BR2_EXTERNAL_X6100_PATH/package/rtl8723bu-wifi/Config.in"' >> $EXT/Config.in
 grep -q "^BR2_PACKAGE_RTL8723BU_WIFI=y" $DEFCONFIG || echo "BR2_PACKAGE_RTL8723BU_WIFI=y" >> $DEFCONFIG
 grep -q "^BR2_ROOTFS_DEVICE_TABLE=" $DEFCONFIG || echo 'BR2_ROOTFS_DEVICE_TABLE="system/device_table.txt $(BR2_EXTERNAL_X6100_PATH)/board/X6100/linux/device_table.txt"' >> $DEFCONFIG

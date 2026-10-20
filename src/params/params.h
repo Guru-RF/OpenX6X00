@@ -119,6 +119,7 @@ typedef struct {
     params_bool_t       waterfall_center_line;
     params_bool_t       waterfall_zoom;
     params_bool_t       mag_freq;
+    params_bool_t       icon_menus;         /* APP, Modes and the Settings rail as icons */
     params_bool_t       mag_info;
     params_bool_t       mag_alc;
     clock_view_t        clock_view;

@@ -43,6 +43,7 @@ params_t params = {
     .waterfall_center_line  = { .x = true,  .name = "waterfall_center_line" },
     .waterfall_zoom         = { .x = true,  .name = "waterfall_zoom" },
     .mag_freq               = { .x = false,  .name = "mag_freq" },
+    .icon_menus             = { .x = true,   .name = "icon_menus" },
     .mag_info               = { .x = false, .name = "mag_info" },
     .mag_alc                = { .x = true,  .name = "mag_alc" },
     .clock_view             = CLOCK_TIME_POWER,
@@ -267,6 +268,7 @@ static bool params_load() {
 
         if (params_load_uint8(&params.charger, name, i)) continue;
         if (params_load_bool(&params.mag_freq, name, i)) continue;
+        if (params_load_bool(&params.icon_menus, name, i)) continue;
         if (params_load_js8(&params, name, i)) continue;
         if (params_load_bool(&params.sstv_denoise, name, i)) continue;
         if (params_load_bool(&params.ft8_custom_on, name, i)) continue;
@@ -405,6 +407,7 @@ static void params_save() {
 
     params_save_uint8(&params.charger);
     params_save_bool(&params.mag_freq);
+    params_save_bool(&params.icon_menus);
     params_save_js8(&params);
     params_save_bool(&params.sstv_denoise);
     params_save_bool(&params.ft8_custom_on);
