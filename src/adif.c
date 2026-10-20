@@ -35,6 +35,7 @@ static void write_header(FILE *fd);
 
 static void write_str(FILE *fd, const char * key, const char * val);
 static void write_int(FILE *fd, const char * key, int val);
+static void write_rst(FILE *fd, const char *key, int val, qso_log_mode_t mode);
 
 static void write_date_time(FILE *fd, time_t time);
 static void write_freq(FILE *fd, float freq_mhz);
@@ -83,9 +84,9 @@ void adif_add_qso(adif_log l, qso_log_record_t qso)
     write_mode(l->fd, qso.mode);
     write_str(l->fd, "NAME", NULL);
     write_str(l->fd, "QTH", NULL);
-    write_int(l->fd, "RST_SENT", qso.rsts);
+    write_rst(l->fd, "RST_SENT", qso.rsts, qso.mode);
     write_str(l->fd, "STX", NULL);
-    write_int(l->fd, "RST_RCVD", qso.rstr);
+    write_rst(l->fd, "RST_RCVD", qso.rstr, qso.mode);
     write_band(l->fd, qso.band);
     write_freq(l->fd, qso.freq_mhz);
     write_str(l->fd, "GRIDSQUARE", qso.remote_grid);
@@ -221,6 +222,18 @@ static void write_str(FILE *fd, const char * key, const char * val) {
 static void write_int(FILE *fd, const char * key, int val) {
     char str_val[8];
     sprintf(str_val, "%i", val);
+    write_str(fd, key, str_val);
+}
+
+/* The reports of the digital modes are signed dB in two digits, as every logbook writes
+ * them ("+01", "-05"); the others as they are (599) */
+static void write_rst(FILE *fd, const char *key, int val, qso_log_mode_t mode) {
+    char str_val[8];
+
+    if (mode == MODE_FT8 || mode == MODE_FT4 || mode == MODE_FT2 || mode == MODE_JS8)
+        snprintf(str_val, sizeof(str_val), "%+03i", val);
+    else
+        snprintf(str_val, sizeof(str_val), "%i", val);
     write_str(fd, key, str_val);
 }
 

@@ -1559,8 +1559,10 @@ void dialog_field_day_log(const qso_log_record_t *r) {
 
     snprintf(q.call, sizeof(q.call), "%s", r->remote_call);
     snprintf(q.mode, sizeof(q.mode), "%s", r->mode == MODE_FT4 ? "FT4" : r->mode == MODE_JS8 ? "JS8" : r->mode == MODE_FT2 ? "FT2" : "FT8");
-    snprintf(q.rst_s, sizeof(q.rst_s), "%d", r->rsts);
-    snprintf(q.rst_r, sizeof(q.rst_r), "%d", r->rstr);
+    /* The digital reports signed in two digits ("+01", "-05"), as in every logbook */
+    bool digi = r->mode == MODE_FT8 || r->mode == MODE_FT4 || r->mode == MODE_FT2 || r->mode == MODE_JS8;
+    snprintf(q.rst_s, sizeof(q.rst_s), digi ? "%+03d" : "%d", r->rsts);
+    snprintf(q.rst_r, sizeof(q.rst_r), digi ? "%+03d" : "%d", r->rstr);
     snprintf(q.name, sizeof(q.name), "%s", r->name);
     snprintf(q.grid, sizeof(q.grid), "%s", r->remote_grid);
     day_log_add(&q, r->local_call);
