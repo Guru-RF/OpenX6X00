@@ -1019,7 +1019,18 @@ static bool radio_tick() {
             static uint8_t low_reads;
             bool           measured = pack->vbat > 0 || pack->vext > 0;
 
-            bat_pct = measured && !ext ? pack->batcap : -1;   /* the % on the screen (clock.c) */
+            /* The % sags under the TX current and comes back slowly: the last RX reading holds
+             * while transmitting and for 30 s after (also in the top bar, clock.c) */
+            static uint64_t hold_until;
+            static int8_t   held_cap = -1;
+            int8_t          cap = measured && !ext ? pack->batcap : -1;
+
+            if (radio_get_state() == RADIO_TX) hold_until = now_time + 30000;
+            if (now_time < hold_until && held_cap >= 0 && cap >= 0) cap = held_cap;
+            else held_cap = cap;
+            bat_pct = cap;   /* the % on the screen (clock.c) */
+            if (cap >= 0 && cap != pack->batcap)
+                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, cap, pack->flag.charging);
 
             low_reads = measured && !ext && pack->vbat <= LOW_BATTERY_VBAT_LOW ? (low_reads < 3 ? low_reads + 1 : 3) : 0;
             bool enter_low = low_reads >= 3;
