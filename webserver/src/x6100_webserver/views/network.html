@@ -1,0 +1,97 @@
+% rebase('base.html', title='Ethernet')
+<h2><svg class="i"><use href="#i-ethernet"/></svg>Ethernet</h2>
+<p class="sub">A USB Ethernet adapter on the radio: DHCP, or a fixed address for networks that need one. The same settings as Settings &rarr; Wireless &rarr; Ethernet on the radio. WiFi is not touched.</p>
+
+<p id="none" hidden>No Ethernet adapter connected.</p>
+
+<form class="dp-card" id="conf" hidden>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-ethernet"/></svg></span><div><h3>Adapter</h3><p id="iface">-</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Status</b><span id="inuse">-</span></div>
+    <div class="dp-ctl"><span class="status" id="state"></span></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Mode</b><span>DHCP takes the address from the network</span></div>
+    <div class="dp-ctl"><div class="seg" id="mode"><button type="button" data-dhcp="1">DHCP</button><button type="button" data-dhcp="0">Static</button></div></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="ip"><b>IP address</b></label><span>For example 192.168.1.20</span></div>
+    <div class="dp-ctl"><input id="ip" class="st" autocomplete="off" maxlength="15" inputmode="decimal"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="mask"><b>Netmask</b></label><span>255.255.255.0 or /24</span></div>
+    <div class="dp-ctl"><input id="mask" class="st" autocomplete="off" maxlength="15"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="gw"><b>Gateway</b></label><span>Optional. Leave it empty and internet stays on WiFi</span></div>
+    <div class="dp-ctl"><input id="gw" class="st" autocomplete="off" maxlength="15" inputmode="decimal"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="dns"><b>DNS</b></label><span>Optional</span></div>
+    <div class="dp-ctl"><input id="dns" class="st" autocomplete="off" maxlength="15" inputmode="decimal"></div>
+  </div>
+  <div class="dp-row">
+    <button type="submit" class="primary">Apply</button>
+    <span class="status" id="status"></span>
+  </div>
+</form>
+
+<script>
+const FIELDS = ["ip", "mask", "gw", "dns"];
+let dhcp = true;
+
+var showStatus = function(el, text, error=false) {
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var setMode = function(on) {
+  dhcp = on;
+  $("#mode button").each(function() { $(this).attr("aria-pressed", String((this.dataset.dhcp === "1") === on)); });
+  $(".st").prop("disabled", on);
+}
+
+var renderState = function(d) {
+  $("#none").prop("hidden", !!d.present);
+  $("#conf").prop("hidden", !d.present);
+  $("#iface").text(d.iface);
+  showStatus($("#state"), d.state, !d.connected);
+  $("#inuse").text(d.addr ? "In use: " + d.addr + (d.gateway ? ", gateway " + d.gateway : "") : "No address in use");
+}
+
+var render = function(d) {
+  renderState(d);
+  setMode(!!d.dhcp);
+  FIELDS.forEach(function(k) { $("#" + k).val(d[k]); });
+}
+
+/* An adapter plugged in: the form with its saved values; otherwise only the state */
+var poll = function() {
+  $.get('/api/network', {}, function(d) { (d.present && $("#conf").prop("hidden") ? render : renderState)(d); });
+}
+
+$.get('/api/network', {}, render).fail(function(xhr) {
+  showStatus($("#status"), xhr.responseJSON ? xhr.responseJSON.msg : "Radio not reachable", true);
+});
+setInterval(poll, 3000);
+
+$("#mode button").on("click", function() { setMode(this.dataset.dhcp === "1"); });
+
+$("#conf").on("submit", function(e) {
+  e.preventDefault();
+  const data = {dhcp: dhcp};
+  FIELDS.forEach(function(k) { data[k] = $("#" + k).val().trim(); });
+  $.ajax({
+    url: "/api/network",
+    type: "POST",
+    data: JSON.stringify(data),
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    success: function() {
+      showStatus($("#status"), "Saved. The adapter reconnects in a few seconds");
+      setTimeout(function() { $.get('/api/network', {}, render); }, 4000);
+    },
+    error: function(xhr) { showStatus($("#status"), xhr.responseJSON ? xhr.responseJSON.msg : "Apply failed", true); }
+  });
+});
+</script>

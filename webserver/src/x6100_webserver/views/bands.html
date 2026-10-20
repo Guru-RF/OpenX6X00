@@ -1,0 +1,33 @@
+% rebase("base.html", title="Bands editor")
+<h2><svg class="i"><use href="#i-bands"/></svg>Bands</h2>
+<p class="sub">Band edges and default modes shown on the radio. Active bands are reached with the band up/down buttons.</p>
+
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-bands"/></svg></span><div><h3>Band list</h3><p>Name, edges, default mode and the Active flag</p></div><div class="dp-x"><button id="add_band" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add band</button></div></div>
+<div class="dp-body tbl">
+<div class="table-wrap">
+<table id="band_list">
+  <thead><tr><th>Name</th><th class="freq">Start, MHz</th><th class="freq">Stop, MHz</th><th>Mode</th><th>Active</th><th></th></tr></thead>
+  <tbody></tbody></table>
+</div>
+</div>
+</section>
+
+<script src="/static/js/list_editor.js?v=1"></script>
+<script>
+listEditor({
+  table: "#band_list", add: "#add_band", url: "/api/bands",
+  columns: [
+    {show: b => b.name, edit: b => $("<input type='text'>").val(b.name)},
+    {cls: "freq_cell", show: b => mhzText(b.start_freq), edit: b => mhzInput(b.start_freq)},
+    {cls: "freq_cell", show: b => mhzText(b.stop_freq), edit: b => mhzInput(b.stop_freq)},
+    {show: b => modeTag(b.params.vfoa_mode), edit: b => choice(mode_map, b.params.vfoa_mode)},
+    {show: b => $("<i>").addClass(b.type ? "si-check-square" : "si-square"),
+     edit: b => $("<input type='checkbox'>").prop("checked", !!b.type)},
+  ],
+  read: ([name, start, stop, mode, active]) => ({name: name.val(), start_freq: mhzToHz(start), stop_freq: mhzToHz(stop),
+                                                 params: {vfoa_mode: Number(mode.val())}, type: Number(active.prop("checked"))}),
+  blank: () => ({id: null, name: "New", start_freq: 14000000, stop_freq: 14350000, params: {vfoa_mode: 2}, type: 1}),
+  what: b => 'band "' + b.name + '"',
+});
+</script>

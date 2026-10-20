@@ -1,0 +1,127 @@
+% rebase('base.html', title='Field')
+<h2><svg class="i"><use href="#i-mountain"/></svg>Field Ops</h2>
+<p class="sub">POTA, SOTA, WWBOTA and HOTA portable operation: reference lists for the radio, QRZ Logbook upload, HOTA spots, activation logs.</p>
+
+<form class="dp-card" id="qrz">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>QRZ Logbook</h3><p>API key from your QRZ Logbook settings. Uploading needs a QRZ.com Logbook API key, which QRZ.com only gives with a paid QRZ.com subscription (XML level or higher). Key: <b id="key-state"></b></p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="key"><b>API key</b></label><span>Empty = remove the key</span></div>
+    <div class="dp-ctl"><input id="key" type="password" autocomplete="off" maxlength="64" placeholder="New key (empty = remove)"></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="submit" class="primary">Save</button>
+      <span class="status" id="status"></span>
+    </div>
+  </div>
+</form>
+
+<form class="dp-card" id="hota">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>HOTA spots</h3><p>cqhota.app takes spots with your own key: cqhota.app, My account, Integration API key. Without it HOTA spots go to the DX cluster only. Key: <b id="hkey-state"></b></p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="hkey"><b>Integration key</b></label><span>Empty = remove the key</span></div>
+    <div class="dp-ctl"><input id="hkey" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = remove)"></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="submit" class="primary">Save</button>
+      <span class="status" id="hstatus"></span>
+    </div>
+  </div>
+</form>
+
+<section class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-pin"/></svg></span><div><h3>Reference lists</h3><p id="refs"></p></div></div>
+  <div class="dp-body">
+    <div class="actions" style="margin-top:0">
+      <button type="button" class="primary" id="update"><svg class="i"><use href="#i-sync"/></svg>Update the lists</button>
+      <span class="status" id="ustatus"></span>
+    </div>
+  </div>
+</section>
+
+<section class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-file"/></svg></span><div><h3>Activation logs</h3><p>Download or delete the logs of the activations</p></div></div>
+  <div class="dp-body tbl">
+  <div class="table-wrap">
+  <table id="logs">
+    <thead>
+      <tr><th>File</th><th>Size</th><th>Date</th><th></th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  </div>
+  <div class="actions"><span class="status" id="lstatus"></span></div>
+  </div>
+</section>
+
+<script>
+var showStatus = function(id, text, error=false) {
+  const el = $(id);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var timer = null;
+
+var render = function(data) {
+  $("#key-state").text(data.qrz_key ? "set (hidden)" : "not set");
+  $("#hkey-state").text(data.hota_key ? "set (hidden)" : "not set");
+  $("#refs").text(data.refs ? `${data.refs.parks} parks, ${data.refs.summits} summits, ${data.refs.bunkers} bunkers, ${data.refs.hota} HOTA · updated ${data.refs.date} · ${data.refs.size}` : "No list yet: press Update (needs internet on the radio).");
+  $("#update").prop("disabled", data.update.running);
+  if (data.update.running) {
+    showStatus("#ustatus", data.update.progress ? "Downloading " + data.update.progress : "Downloading…");
+  } else if (data.update.result) {
+    showStatus("#ustatus", data.update.result, data.update.result.startsWith("error"));
+  }
+  clearTimeout(timer);
+  if (data.update.running) timer = setTimeout(load, 3000);
+  const body = $("#logs tbody").empty();
+  data.logs.forEach(function(log) {
+    const a = $("<a download>").attr("href", "/field/logs/" + encodeURIComponent(log.name)).text(log.name);
+    const del = $("<button type='button'>").text("Delete").on("click", function() { deleteLog(log.name); });
+    body.append($("<tr>").append($("<td>").append(a), $("<td>").text(log.size), $("<td>").text(log.date), $("<td>").append(del)));
+  });
+  if (!data.logs.length) body.append($("<tr>").append($("<td colspan=4>").text("No logs yet")));
+}
+
+var load = function() { $.get('/api/field', {}, render); }
+load();
+
+var post = function(url, data, ok, statusId) {
+  $.ajax({
+    url: url,
+    type: "POST",
+    data: JSON.stringify(data),
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    success: function(r) { render(r); if (ok) showStatus(statusId, ok); },
+    error: function(xhr) { showStatus(statusId, xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); }
+  });
+}
+
+$("#qrz").on("submit", function(e) {
+  e.preventDefault();
+  post("/api/field/qrz", {key: $("#key").val().trim()}, "Saved", "#status");
+  $("#key").val("");
+});
+
+$("#hota").on("submit", function(e) {
+  e.preventDefault();
+  post("/api/field/hota", {key: $("#hkey").val().trim()}, "Saved", "#hstatus");
+  $("#hkey").val("");
+});
+
+$("#update").on("click", function() { post("/api/field/update", {}, null, "#ustatus"); });
+
+var deleteLog = function(name) {
+  if (!confirm(`Delete the log "${name}"? Download it first if you still need it: this cannot be undone.`)) return;
+  $.ajax({
+    url: "/api/field/logs/" + encodeURIComponent(name),
+    type: "DELETE",
+    dataType: "json",
+    success: function(r) { render(r); showStatus("#lstatus", "Deleted " + name); },
+    error: function(xhr) { showStatus("#lstatus", xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); }
+  });
+}
+</script>

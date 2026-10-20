@@ -1,0 +1,4 @@
+[submodule "lvgl"]
+	path = lvgl
+	url = https://github.com/gdyuldin/lvgl.git
+	branch = neon_draw

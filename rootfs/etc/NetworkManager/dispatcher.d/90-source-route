@@ -1,0 +1,19 @@
+#!/bin/sh
+# Replies leave from the interface that owns the source address
+# (cable and WiFi on the same subnet). One table per interface: 100 + ifindex.
+IF=$1
+case "$2" in up|dhcp4-change|down) ;; *) exit 0 ;; esac
+[ -r /sys/class/net/$IF/ifindex ] || exit 0
+T=$((100 + $(cat /sys/class/net/$IF/ifindex)))
+
+while ip rule del table $T 2>/dev/null; do :; done
+ip route flush table $T 2>/dev/null
+[ "$2" = down ] && exit 0
+
+set -- $IP4_ADDRESS_0          # "addr/prefix gateway"
+[ -n "$1" ] || exit 0
+ADDR=${1%/*}
+NET=$(ip route show dev $IF scope link | grep "src $ADDR" | head -n1 | cut -d' ' -f1)
+[ -n "$NET" ] && ip route add $NET dev $IF src $ADDR table $T
+[ -n "$2" ] && ip route add default via $2 dev $IF table $T
+ip rule add from $ADDR table $T

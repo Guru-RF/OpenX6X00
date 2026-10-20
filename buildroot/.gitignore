@@ -1,0 +1,9 @@
+# cmake run straight in this folder instead of build/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+lv_drivers/
+lvgl/
+src/
+*.db

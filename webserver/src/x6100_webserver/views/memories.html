@@ -1,0 +1,143 @@
+% rebase('base.html', title='Memories')
+<h2><svg class="i"><use href="#i-bookmark"/></svg>Memories</h2>
+<p class="sub">MEM slots are the radio's MEM 1-9 buttons (hold to save, tap to load). Channels are the named list in APP → Channels; the radio picks up changes within a few seconds, unless the Channels dialog is open.</p>
+
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-bookmark"/></svg></span><div><h3>MEM slots</h3><p>The MEM 1-9 buttons: hold to save, tap to load</p></div></div>
+<div class="dp-body tbl">
+<div class="table-wrap">
+<table id="slots">
+  <thead>
+    <tr><th>#</th><th class="freq">Freq, MHz</th><th>Mode</th><th>AGC</th><th>PRE</th><th>ATT</th><th></th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</div>
+<div class="actions"><span class="status" id="status_slots"></span></div>
+</div>
+</section>
+
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>Channels</h3><p>The named list in APP → Channels</p></div><div class="dp-x"><button id="add" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add</button></div></div>
+<div class="dp-body tbl">
+<div class="table-wrap">
+<table id="channels">
+  <thead>
+    <tr><th>Name</th><th class="freq">Freq, MHz</th><th>Mode</th><th>AGC</th><th>PRE</th><th>ATT</th><th></th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</div>
+<div class="actions"><span class="status" id="status_channels"></span></div>
+</div>
+</section>
+
+<script>
+// Same names as x6100_mode_t / x6100_agc_t
+const MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CWR", "AM", "NFM"];
+const AGCS = ["OFF", "SLOW", "FAST", "AUTO"];
+let max = 100;
+
+var showStatus = function(kind, text, error=false) {
+  const el = $("#status_" + kind);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var select = function(values, current) {
+  const el = $("<select>");
+  values.forEach(function(v) { el.append($("<option>").text(v).prop("selected", v == current)); });
+  return el;
+}
+
+var button = function(cls, icon, title) {
+  return $("<button class='action'>").addClass(cls).attr("title", title).append($("<i>").addClass(icon));
+}
+
+// Row with editable fields; d.frequency is Hz or null
+var makeRow = function(d, named) {
+  const row = $("<tr>");
+  const cell = function(el) { row.append($("<td>").append(el)); return el; };
+  if (named) cell($("<input class='name' maxlength='31' pattern='[ -~]*' autocomplete='off'>").val(d.name));
+  else row.append($("<td>").text(d.id));
+  cell($("<input class='freq' type='number' step='0.001' min='0.5' max='56'>").val(d.frequency ? (d.frequency / 1e6).toFixed(3) : ""));
+  row.children().last().addClass("freq_cell");
+  cell(select(MODES, d.mode || "USB").addClass("mode"));
+  cell(select(AGCS, d.agc || "AUTO").addClass("agc"));
+  cell($("<input class='pre' type='checkbox'>").prop("checked", !!d.pre));
+  cell($("<input class='att' type='checkbox'>").prop("checked", !!d.att));
+  return row;
+}
+
+var readRow = function(row, named) {
+  const d = {
+    frequency: Math.round(parseFloat(row.find(".freq").val()) * 1e6),
+    mode: row.find(".mode").val(), agc: row.find(".agc").val(),
+    pre: row.find(".pre").prop("checked"), att: row.find(".att").prop("checked"),
+  };
+  if (named) d.name = row.find(".name").val();
+  return d;
+}
+
+var call = function(kind, type, url, payload, render) {
+  $.ajax({
+    url: url,
+    type: type,
+    data: payload ? JSON.stringify(payload) : undefined,
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    success: function(r) { render(r); showStatus(kind, "Saved"); },
+    error: function(xhr) { showStatus(kind, xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true); }
+  });
+}
+
+var renderSlots = function(data) {
+  const body = $("#slots>tbody").empty();
+  data.slots.forEach(function(s) {
+    const row = makeRow(s, false);
+    const actions = $("<td class='action-cell'>").appendTo(row);
+    actions.append(button("save", "si-disk", "Save").on("click", function() {
+      call("slots", "PUT", "/api/memories/" + s.id, readRow(row, false), renderSlots);
+    }));
+    actions.append(" ", button("remove", "si-trash", "Clear").on("click", function() {
+      call("slots", "DELETE", "/api/memories/" + s.id, null, renderSlots);
+    }));
+    body.append(row);
+  });
+}
+
+var renderChannels = function(data) {
+  max = data.max;
+  const body = $("#channels>tbody").empty();
+  data.channels.forEach(function(c, i) { body.append(channelRow(c, i, data.channels.length)); });
+}
+
+// i is null for a new, not yet saved channel
+var channelRow = function(c, i, n) {
+  const row = makeRow(c, true);
+  const actions = $("<td class='action-cell'>").appendTo(row);
+  const move = function(to) { call("channels", "POST", "/api/channels/" + i + "/move", {to: to}, renderChannels); };
+  if (i !== null) {
+    actions.append(button("up", "", "Up").text("↑").prop("disabled", i == 0).on("click", function() { move(i - 1); }));
+    actions.append(" ", button("down", "", "Down").text("↓").prop("disabled", i == n - 1).on("click", function() { move(i + 1); }));
+  }
+  actions.append(" ", button("save", "si-disk", "Save").on("click", function() {
+    const d = readRow(row, true);
+    if (i === null) call("channels", "POST", "/api/channels", d, renderChannels);
+    else call("channels", "PUT", "/api/channels/" + i, d, renderChannels);
+  }));
+  actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {
+    if (i === null) row.remove();
+    else call("channels", "DELETE", "/api/channels/" + i, null, renderChannels);
+  }));
+  return row;
+}
+
+$("#add").on("click", function() {
+  if ($("#channels>tbody>tr").length >= max) return showStatus("channels", "At most " + max + " channels", true);
+  $("#channels>tbody").append(channelRow({name: ""}, null, 0));
+});
+
+$.get('/api/memories', {}, renderSlots);
+$.get('/api/channels', {}, renderChannels);
+</script>

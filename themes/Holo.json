@@ -1,0 +1,46 @@
+{
+    "base": "RF.Guru",
+    "colors": {
+        "bg": "#000000",
+        "bar": "#161616", "bar_grad": "#161616", "bar_border": "#2a2a2a",
+        "strip": "#000000", "strip_grad": "#000000", "strip_border": "#2a2a2a",
+        "dialog": "#101010", "dialog_grad": "#101010", "dialog_border": "#33b5e5",
+        "btn": "#1e1e1e", "btn_grad": "#1e1e1e", "btn_border": "#2a2a2a", "btn_text": "#ffffff",
+        "btn_active": "#0b2a36", "btn_active_grad": "#0b2a36", "btn_active_border": "#33b5e5", "btn_active_text": "#33b5e5",
+        "btn_page": "#161616", "btn_page_text": "#33b5e5",
+        "btn_off_text": "#555555", "btn_off_border": "#222222",
+        "btn_mark": "#33b5e5", "btn_mark_assigned": "#0099cc", "btn_mark_active": "#ff4444",
+        "card": "#2a2a2a", "focus": "#33b5e5", "focus_text": "#000000", "edited": "#ffbb33",
+
+        "panel": "#000000", "panel_border": "#2a2a2a", "list": "#0a0a0a", "row": "#1a1a1a",
+        "popup": "#1a1a1a", "popup_border": "#33b5e5", "side": "#121212", "chip": "#222222",
+        "sel_bg": "#0f3a4a", "sel_text": "#ffffff", "sel_border": "#33b5e5", "focus_bg": "#0099cc",
+        "near_bg": "#0b2a36", "vfo": "#33b5e5", "vfo_bg": "#06222c",
+
+        "text": "#ffffff", "text_value": "#e0e0e0", "text_dim": "#9e9e9e", "text_soft": "#bebebe",
+        "text_mute": "#777777", "text_faint": "#555555", "text_head": "#33b5e5", "line": "#9e9e9e", "action": "#ffbb33",
+
+        "ok": "#99cc00", "ok_bg": "#1e2a00", "ok_bar": "#669900", "warn": "#ffbb33", "warn_bg": "#3a2a00",
+        "err": "#ff4444", "err_bg": "#3a0a0a", "tx": "#ff4444", "tx_bg": "#cc0000",
+        "info": "#33b5e5", "digi": "#aa66cc", "new": "#99cc00",
+
+        "accent": "#33b5e5", "accent_soft": "#8ad5f0", "veil": "#0a0a0a", "track": "#2a2a2a", "frame": "#0a0a0a",
+        "off": "#444444", "icon_off": "#1a1a1a", "control_border": "#555555", "toggle_on": "#33b5e5", "toggle_focus": "#8ad5f0",
+
+        "vfo_line": "#ff4444", "spot": "#33b5e5", "mode_text": "#33b5e5", "mode_dig": "#33b5e5",
+        "pill_off_text": "#bebebe", "meter_weak": "#0099cc", "meter_bar": "#33b5e5", "meter_over": "#ff4444",
+        "meter_low": "#99cc00", "meter_high": "#ff4444",
+        "bp_cw": "#0099cc", "bp_dig": "#ff8800", "bp_ssb": "#669900", "bp_bcn": "#cc0000", "bp_text": "#ffffff"
+    },
+    "radius": 0,
+    "radius_btn": 0,
+    "radius_popup": 0,
+    "border": 1,
+    "btn_gradient": false,
+    "box_gradient": false,
+    "focus_solid": true,
+    "pill_border": 0,
+    "mode_box": false,
+    "rule": true,
+    "font": "roboto"
+}

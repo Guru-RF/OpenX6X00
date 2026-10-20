@@ -1,0 +1,151 @@
+/*
+ *  SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ *  Xiegu X6100 LVGL GUI
+ *
+ *  Copyright (c) 2022-2023 Belousov Oleg aka R1CBU
+ */
+#include "util.h"
+#include "util.hpp"
+
+#include <algorithm>
+
+#include "common/math.h"
+
+#define COMPARE(a, b) ((a > b) - (a < b))
+
+extern "C" {
+    #include <complex.h>
+    #include <stdlib.h>
+    #include <stdio.h>
+    #include <math.h>
+    #include <sys/time.h>
+    #include <time.h>
+    #include <string.h>
+    #include <string.h>
+    #include <errno.h>
+}
+
+/**
+ * Return time in ms from unix epoch
+ */
+uint64_t get_time() {
+    struct timespec now;
+
+    clock_gettime(CLOCK_MONOTONIC, &now);
+
+    uint64_t usec = (uint64_t) now.tv_sec * 1000L + now.tv_nsec / 1000000L;
+
+    return usec;
+}
+
+void get_time_str(char *str, size_t str_size) {
+    time_t      now = time(NULL);
+    struct tm   *t = localtime(&now);
+
+    snprintf(str, str_size, "%04i-%02i-%02i %02i-%02i-%02i", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
+}
+
+void split_freq(int32_t freq, uint16_t *mhz, uint16_t *khz, uint16_t *hz) {
+    *mhz = freq / 1'000'000;
+    *khz = (freq / 1'000) % 1'000;
+    *hz = freq % 1'000;
+}
+
+int32_t align_int(int32_t x, uint16_t step) {
+    return align(x, static_cast<int32_t>(step));
+}
+
+int32_t limit(int32_t x, int32_t min, int32_t max) {
+    return std::clamp(x, min, max);
+}
+
+float sqr(float x) {
+    return x * x;
+}
+
+void lpf(float *x, float current, float beta, float initial) {
+    if (*x == initial){
+        *x = current;
+    } else {
+        *x = *x * beta + current * (1.0f - beta);
+    }
+
+}
+
+void lpf_block(float *x, float *current, float beta, unsigned int count) {
+    liquid_vectorf_mulscalar(current, count, (1.0f - beta), current);
+    liquid_vectorf_mulscalar(x, count, beta, x);
+    liquid_vectorf_add(x, current, count, x);
+}
+
+char * util_canonize_callsign(const char * callsign, bool strip_slashes) {
+    if (!callsign) {
+        return NULL;
+    }
+
+    char *result = NULL;
+
+    if (strip_slashes) {
+        char *s = strdup(callsign);
+        char *token = strtok(s, "/");
+        while(token) {
+            if ((
+                ((token[0] >= '0') && (token[0] <= '9')) ||
+                ((token[1] >= '0') && (token[1] <= '9')) ||
+                ((token[2] >= '0') && (token[2] <= '9'))
+            ) && strlen(token) >= 4) {
+                result = strdup(token);
+                break;
+            }
+            token = strtok(NULL, "/");
+        }
+        free(s);
+    } else {
+        // strip < and > from remote call
+        size_t callsign_len = strlen(callsign);
+        if ((callsign[0] == '<') && (callsign[callsign_len - 1] == '>')) {
+            result = strdup(callsign + 1);
+            result[callsign_len - 2] = 0;
+        }
+
+    }
+    if (!result) {
+        result = strdup(callsign);
+    }
+    return result;
+}
+
+
+void sleep_usec(uint32_t msec) {
+    // does not interfere with signals like sleep and usleep do
+    struct timespec req_ts;
+    req_ts.tv_sec = msec / 1000000;
+    req_ts.tv_nsec = (msec % 1000000) * 1000L;
+    int32_t olderrno = errno; // Some OS (especially MacOSX) seem to set errno to ETIMEDOUT when sleeping
+
+    while (1) {
+        /* Sleep for the time specified in req_ts. If interrupted by a
+        signal, place the remaining time left to sleep back into req_ts. */
+        int rval = nanosleep(&req_ts, &req_ts);
+        if (rval == 0)
+            break; // Completed the entire sleep time; all done.
+        else if (errno == EINTR)
+            continue; // Interrupted by a signal. Try again.
+        else
+            break; // Some other error; bail out.
+    }
+    errno = olderrno;
+}
+
+int32_t util_compare_version(x6100_base_ver_t a, x6100_base_ver_t b) {
+    int ret;
+    if ((ret = COMPARE(a.major, b.major)) == 0) {
+        if ((ret = COMPARE(a.minor, b.minor)) == 0) {
+            if ((ret = COMPARE(a.patch, b.patch)) == 0) {
+                ret = COMPARE(a.rev, b.rev);
+            }
+        }
+    }
+    return ret;
+}

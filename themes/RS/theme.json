@@ -1,0 +1,186 @@
+{
+  "base": "Classic",
+  "font": "arial",
+  "radius": 6,
+  "radius_btn": 5,
+  "radius_popup": 6,
+  "border": 1,
+  "btn_gradient": true,
+  "box_gradient": false,
+  "focus_solid": true,
+  "mark": [
+    7,
+    16,
+    28
+  ],
+  "pill_border": 1,
+  "mode_box": true,
+  "waterfall": [
+    "#000000",
+    "#000050",
+    "#0040c0",
+    "#0ac7ff",
+    "#ffff40",
+    "#ff6000",
+    "#ffffff"
+  ],
+  "colors": {
+    "bg": "#232323",
+    "bar": "#000000",
+    "bar_grad": "#000000",
+    "bar_border": "#585858",
+    "strip": "#000000",
+    "strip_grad": "#000000",
+    "strip_border": "#585858",
+    "dialog": "#232323",
+    "dialog_grad": "#232323",
+    "dialog_border": "#4a4a4a",
+    "btn": "#4d4d4d",
+    "btn_grad": "#020202",
+    "btn_border": "#6e6e6e",
+    "btn_text": "#ffffff",
+    "btn_active": "#44a4bd",
+    "btn_active_grad": "#0a6ad8",
+    "btn_active_border": "#7fd0ff",
+    "btn_active_text": "#ffffff",
+    "btn_off_text": "#6e6e6e",
+    "btn_page_text": "#e8e8e8",
+    "btn_mark": "#0ac7ff",
+    "btn_mark_assigned": "#0ac7ff",
+    "panel": "#000000",
+    "panel_border": "#585858",
+    "list": "#0a0a0a",
+    "row": "#1a1a1a",
+    "popup": "#1a1a1a",
+    "popup_border": "#6e6e6e",
+    "side": "#141414",
+    "chip": "#2a2a2a",
+    "card": "#4a4a4a",
+    "sel_bg": "#0583e7",
+    "sel_text": "#ffffff",
+    "sel_border": "#7fd0ff",
+    "focus": "#0583e7",
+    "focus_text": "#ffffff",
+    "focus_bg": "#0583e7",
+    "edited": "#0ac7ff",
+    "near_bg": "#193052",
+    "vfo": "#0ac7ff",
+    "vfo_bg": "#193052",
+    "vfo_line": "#0ac7ff",
+    "text": "#ffffff",
+    "text_value": "#eaffff",
+    "text_dim": "#8f8f8f",
+    "text_soft": "#b4b4b4",
+    "text_mute": "#6e6e6e",
+    "text_faint": "#585858",
+    "text_head": "#ffffff",
+    "line": "#b4b4b4",
+    "action": "#0ac7ff",
+    "accent": "#0ac7ff",
+    "accent_soft": "#7fd0ff",
+    "info": "#0ac7ff",
+    "track": "#2a2a2a",
+    "toggle_on": "#0583e7",
+    "toggle_focus": "#7fd0ff",
+    "tx": "#ff3030",
+    "tx_bg": "#c00000",
+    "tx_box": "#3a0000",
+    "ok": "#40e040",
+    "ok_bar": "#30c040",
+    "err": "#ff4040",
+    "meter_low": "#196fd2",
+    "meter_high": "#196fd2",
+    "meter_bar": "#196fd2",
+    "meter_over": "#ff4040",
+    "alc": "#0ac7ff",
+    "pill_off_text": "#808080",
+    "pill_border": "#585858",
+    "mode_dig": "#ffffff",
+    "mode_text": "#ffffff",
+    "mode_bg": "#20529b",
+    "mode_border": "#afd1ff"
+  },
+  "images": {
+    "btn": {
+      "file": "btn.png",
+      "slice": [
+        7,
+        5,
+        7,
+        4
+      ]
+    },
+    "btn_active": {
+      "file": "btn_active.png",
+      "slice": [
+        7,
+        5,
+        7,
+        4
+      ]
+    },
+    "btn_off": {
+      "file": "btn_off.png",
+      "slice": [
+        7,
+        5,
+        7,
+        4
+      ]
+    },
+    "btn_page": {
+      "file": "btn_page.png",
+      "slice": [
+        7,
+        5,
+        7,
+        4
+      ]
+    },
+    "bar": {
+      "file": "bar.png",
+      "slice": [
+        14,
+        14,
+        14,
+        14
+      ]
+    },
+    "strip": {
+      "file": "strip.png",
+      "slice": [
+        14,
+        14,
+        14,
+        14
+      ]
+    },
+    "mark": {
+      "file": "mark.png",
+      "slice": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "mark_active": {
+      "file": "mark_active.png",
+      "slice": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "dialog": {
+      "file": "dialog.png",
+      "slice": [
+        6,
+        6,
+        6,
+        6
+      ]
+    }
+  }
+}

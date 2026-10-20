@@ -1,0 +1,26 @@
+#!/bin/sh
+# Configure adapter for SPP CAT: power, name, SDP record. No pairing agent and
+# not pairable: new devices pair in the pairing window (btcat-ctl discoverable on).
+BTCAT_BT=yes
+BTCAT_ALIAS="X6100"
+[ -r /etc/default/btcat ] && . /etc/default/btcat
+[ -r /mnt/btcat.conf ] && . /mnt/btcat.conf
+
+for i in $(seq 1 30); do hciconfig hci0 >/dev/null 2>&1 && break; sleep 1; done
+# The WiFi/BT chip can reset on its own (it drops off USB and comes back): bluetoothd
+# sometimes exits with it and nothing started it again ("Bluetooth service not running")
+pidof bluetoothd >/dev/null || /etc/init.d/S40bluetoothd start
+for i in $(seq 1 15); do [ -S /var/run/sdp ] && break; sleep 1; done
+# bluetoothd registers hci0 a moment after the kernel: before that every
+# bluetoothctl call below fails with "No default controller available"
+for i in $(seq 1 15); do bluetoothctl list 2>/dev/null | grep -q Controller && break; sleep 1; done
+
+bluetoothctl system-alias "$BTCAT_ALIAS"
+# Once per bluetoothd: it is re-run on every new hci0 and each add stacks another record
+sdptool browse local 2>/dev/null | grep -q "Serial Port" || sdptool add --channel=1 SP
+
+/usr/sbin/btcat-ctl apply
+# headphones: keep A2DP + RX loopback, connect the "Connect at startup" ones
+/usr/sbin/btaudio-ctl boot &
+touch /tmp/btcat-setup.done
+echo "btcat-setup done"

@@ -1,0 +1,72 @@
+#!/bin/sh
+# btcat-ctl bt on|off | discoverable on|off | apply | status
+#
+# "discoverable on" opens a 3-minute pairing window: visible and pairable, and
+# the GUI's agent (bt_dev.c) accepts phones and PCs (Just Works) only while the
+# window is open. Otherwise the radio is hidden and not pairable; paired
+# devices still connect (btcat only takes paired devices, BT_SECURITY_MEDIUM).
+CONF=/mnt/btcat.conf
+WIN=/tmp/btcat-pairing		# while the window is open: its end, in s of uptime (read by the GUI)
+WIN_S=180
+BTCAT_BT=yes
+[ -r /etc/default/btcat ] && . /etc/default/btcat
+[ -r $CONF ] && . $CONF
+
+set_kv() {
+	touch $CONF
+	if grep -q "^$1=" $CONF; then
+		sed -i "s/^$1=.*/$1=$2/" $CONF
+	else
+		echo "$1=$2" >> $CONF
+	fi
+	sync
+	eval "$1=$2"
+}
+
+yn() { [ "$1" = "on" ] && echo yes || echo no; }
+
+uptime_s() { cut -d. -f1 /proc/uptime; }
+
+# Devices paired in the window are trusted, so they reconnect without asking
+# the agent (headphones and keyboards need it), and saved on /mnt.
+trust_paired() {
+	new=""
+	for mac in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
+		bluetoothctl info "$mac" 2>/dev/null | grep -q "Trusted: yes" && continue
+		bluetoothctl trust "$mac" >/dev/null 2>&1 && new=1
+	done
+	[ -n "$new" ] && /usr/sbin/btaudio-ctl save
+}
+
+close_window() {
+	kill "$(cat $WIN.pid 2>/dev/null)" 2>/dev/null
+	rm -f $WIN $WIN.pid
+	bluetoothctl discoverable off
+	bluetoothctl pairable off
+	trust_paired
+}
+
+open_window() {
+	kill "$(cat $WIN.pid 2>/dev/null)" 2>/dev/null
+	echo $(($(uptime_s) + WIN_S)) > $WIN
+	bluetoothctl pairable on
+	bluetoothctl discoverable-timeout $WIN_S	# bluez hides it by itself too
+	bluetoothctl discoverable on
+	(sleep $WIN_S; rm -f $WIN.pid; close_window) </dev/null >/dev/null 2>&1 &
+	echo $! > $WIN.pid
+}
+
+apply() {
+	[ "$BTCAT_BT" = "yes" ] && bluetoothctl power on
+	close_window
+	[ "$BTCAT_BT" = "yes" ] || bluetoothctl power off
+}
+
+case "$1" in
+	bt)           set_kv BTCAT_BT "$(yn $2)"; apply;;
+	discoverable) if [ "$2" = "on" ] && [ "$BTCAT_BT" = "yes" ]; then open_window; else close_window; fi;;
+	apply)        apply;;
+	status)       echo "BTCAT_BT=$BTCAT_BT"
+	              if [ -f $WIN ]; then echo "pairing window: $(($(cat $WIN) - $(uptime_s))) s left"; else echo "pairing window: closed"; fi;;
+	*) echo "Usage: $0 {bt on|off|discoverable on|off|apply|status}"; exit 1;;
+esac

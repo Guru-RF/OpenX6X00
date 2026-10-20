@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+# The current POTA, WWBOTA and HOTA activator spots (pota.app, wwbota.org, cqhota.app), one a line
+# for the DX cluster client (src/cluster/client.c): freq_hz|activator|spotter|comment|HHMM (UTC).
+# A source that fails gives nothing.
+import json
+import os
+import urllib.request
+from datetime import datetime, timedelta, timezone
+
+SITE_AGENT = f"OpenX6X00/{os.environ.get('X6100_FW') or 'unknown'} (+https://github.com/Guru-RF/OpenX6X00)"
+
+
+def get(url, agent="OpenX6X00"):
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": agent})
+        data = json.load(urllib.request.urlopen(req, timeout=20))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def clean(text):
+    return str(text or "").replace("|", " ").replace("\n", " ").strip()
+
+
+def line(khz, call, spotter, words, when):
+    """when: ISO time, UTC"""
+    hz = int(round(float(khz) * 1000))
+    comment = " ".join(clean(x) for x in words if clean(x))
+    print("%d|%s|%s|%s|%s" % (hz, clean(call), clean(spotter), comment, when[11:16].replace(":", "")))
+
+
+for s in get("https://api.pota.app/spot/activator"):
+    try:
+        line(s["frequency"], s["activator"], s.get("spotter"), ("POTA", s.get("reference"), s.get("mode")), s["spotTime"])
+    except (KeyError, TypeError, ValueError):
+        pass
+
+# The last hour; QRT and Test spots are not activations on the air
+for s in get("https://api.wwbota.org/spots/?age=1", SITE_AGENT):
+    try:
+        if s.get("type") != "Live":
+            continue
+        refs = [r["reference"] for r in s.get("references") or []]
+        ref = refs[0] + (" +%d" % (len(refs) - 1) if len(refs) > 1 else "") if refs else s.get("comment")
+        line(float(s["freq"]) * 1000, s["call"], s.get("spotter"), ("WWBOTA", ref, s.get("mode")), s["time"])
+    except (KeyError, TypeError, ValueError, IndexError):
+        pass
+
+# since=: the last hour only (cqhota.app asks for a poll no faster than 10 s; this runs once a minute)
+since = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+for s in get("https://cqhota.app/api/v1/spots?since=" + since, SITE_AGENT):
+    try:
+        if s.get("ended") or "QRT" in str(s.get("comment") or "").upper().split():
+            continue
+        line(s["freq_khz"], s["callsign"], s.get("spotter"), ("HOTA", s.get("reference"), s.get("mode")), s["created_at"])
+    except (KeyError, TypeError, ValueError):
+        pass

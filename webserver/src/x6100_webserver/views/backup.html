@@ -1,0 +1,138 @@
+% rebase('base.html', title='Backup')
+<h2><svg class="i"><use href="#i-archive"/></svg>Backup</h2>
+<p class="sub">Save the radio settings to your computer, and put them back after flashing a new image.</p>
+
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-download"/></svg></span><div><h3>Download backup</h3><p>Tick the parts to save in the file</p></div></div>
+<div class="dp-body">
+<div class="grid checks" id="parts"></div>
+<div class="actions">
+  <button id="download" class="primary"><svg class="i"><use href="#i-download"/></svg>Download backup</button>
+  <span class="status" id="status_download"></span>
+</div>
+</div>
+</section>
+
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-upload"/></svg></span><div><h3>Restore</h3><p>Puts a backup file back on the radio</p></div></div>
+<div class="dp-body">
+<p>Choose a backup file. You can pick which parts to restore; the radio screen restarts (about 5 s) when settings are replaced.</p>
+<input type="file" id="file" accept=".tar,.gz,.tgz,application/gzip,application/x-tar">
+<div id="restore" hidden>
+  <div class="table-wrap" style="margin-top:14px">
+  <table id="compare">
+    <thead>
+      <tr><th></th><th>Part</th><th>In the file</th><th>On the radio now</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  </div>
+  <div class="actions">
+    <button id="restore_btn" class="primary"><svg class="i"><use href="#i-upload"/></svg>Restore selected</button>
+  </div>
+</div>
+<div class="actions"><span class="status" id="status_restore"></span></div>
+</div>
+</section>
+
+<script>
+// key, label, note, checked by default; keys are the parts of the server
+const PARTS = [
+  ["settings", "Settings", "(params.db: bands, filters, keys, display…)", true],
+  ["memories", "Memories and channels", "", true],
+  ["cluster", "Cluster servers, filters and alerts", "", true],
+  ["tci", "TCI server configuration", "", true],
+  ["qso", "QSO log", "", true],
+  ["voice", "Voice keyer messages", "", true],
+  ["cw", "CW trainer progress", "", false],
+  ["wifi", "WiFi networks and passwords", "", false],
+];
+
+var showStatus = function(kind, text, error=false) {
+  const el = $("#status_" + kind);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var errorText = function(xhr, fallback) {
+  return xhr.responseJSON ? xhr.responseJSON.msg : fallback;
+}
+
+var partLabel = function(key) {
+  return PARTS.filter(function(p) { return p[0] == key; })[0][1];
+}
+
+var loadNow = function() {
+  $.getJSON("/api/backup", function(data) {
+    const box = $("#parts").empty();
+    PARTS.forEach(function(p) {
+      const have = p[0] in data.parts;
+      const label = $("<label class='check'>").toggleClass("off", !have);
+      label.append($("<input type='checkbox'>").attr("value", p[0]).prop("checked", have && p[3]).prop("disabled", !have));
+      label.append(" ", document.createTextNode(p[1]));
+      if (p[2]) label.append(" ", $("<small>").text(p[2]));
+      if (have && p[0] == "voice") label.append(" ", $("<small>").text("(" + data.parts.voice + ")"));
+      box.append(label);
+    });
+  }).fail(function(xhr) { showStatus("download", errorText(xhr, "Can't read the radio"), true); });
+}
+
+$("#download").on("click", function() {
+  const parts = $("#parts input:checked").map(function() { return this.value; }).get();
+  if (!parts.length) { showStatus("download", "Select at least one part", true); return; }
+  showStatus("download", "Preparing the backup…");
+  x6100Get("/api/backup/download?parts=" + parts.join(","));
+});
+
+$("#file").on("change", function() {
+  const file = this.files[0];
+  $("#restore").prop("hidden", true);
+  if (!file) return;
+  showStatus("restore", "Reading " + file.name + "…");
+  $.ajax({
+    url: "/api/backup/upload", type: "POST", data: file, processData: false,
+    contentType: "application/octet-stream", dataType: "json",
+    success: function(r) {
+      const body = $("#compare>tbody").empty();
+      PARTS.forEach(function(p) {
+        if (!(p[0] in r.parts)) return;
+        const row = $("<tr>");
+        row.append($("<td>").append($("<input type='checkbox'>").attr("value", p[0]).prop("checked", p[3])));
+        row.append($("<td>").text(p[1]));
+        row.append($("<td>").text(r.parts[p[0]].file));
+        row.append($("<td>").text(r.parts[p[0]].now || "none"));
+        body.append(row);
+      });
+      $("#restore").prop("hidden", false);
+      showStatus("restore", "Backup of " + (r.callsign ? r.callsign + ", " : "") + r.date);
+    },
+    error: function(xhr) { showStatus("restore", errorText(xhr, "Upload failed"), true); }
+  });
+});
+
+$("#restore_btn").on("click", function() {
+  const parts = $("#compare input:checked").map(function() { return this.value; }).get();
+  if (!parts.length) { showStatus("restore", "Select at least one part", true); return; }
+  if (!confirm("Replace the selected parts on the radio? A copy of the current files is kept in /mnt/backup_before_restore.")) return;
+  $("#restore_btn").prop("disabled", true);
+  showStatus("restore", "Restoring…");
+  $.ajax({
+    url: "/api/backup/restore", type: "POST", data: JSON.stringify({parts: parts}),
+    contentType: "application/json; charset=utf-8", dataType: "json",
+    success: function(r) {
+      const failed = Object.keys(r.failed);
+      let text = "Restored: " + (r.restored.map(partLabel).join(", ") || "nothing");
+      if (r.gui_restarted) text += ". The radio screen was restarted";
+      if (failed.length) text += ". Failed: " + failed.map(function(k) { return (k == "gui" ? "screen" : partLabel(k)) + " (" + r.failed[k] + ")"; }).join(", ");
+      showStatus("restore", text, failed.length > 0);
+      $("#restore").prop("hidden", true);
+      $("#file").val("");
+      loadNow();
+    },
+    error: function(xhr) { showStatus("restore", errorText(xhr, "Restore failed"), true); },
+    complete: function() { $("#restore_btn").prop("disabled", false); }
+  });
+});
+
+loadNow();
+</script>

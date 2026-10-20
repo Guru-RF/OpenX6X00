@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# X6100 GUI. x6100_daemon runs /usr/sbin/x6100_gui in a loop, so a killed GUI
+# comes back at once (hot deploys rely on it); stop ends the loop first.
+#
+# Copyright (c) 2026 Giovanni Ricciardi IU1WXY
+#
+
+DAEMON="x6100_daemon"
+PIDFILE="/var/run/$DAEMON.pid"
+
+# shellcheck source=/dev/null
+[ -r "/etc/default/$DAEMON" ] && . "/etc/default/$DAEMON"
+
+result() {
+	if [ "$1" -eq 0 ]; then echo "OK"; else echo "FAIL"; fi
+}
+
+start() {
+	printf 'Starting %s: ' "$DAEMON"
+	# no blinking text cursor on the screen under the GUI
+	echo 0 > /sys/class/graphics/fbcon/cursor_blink
+	# first boot or settings wiped: begin from the default settings
+	[ -f /mnt/params.db ] || cp /usr/share/x6100/params.default.db /mnt/params.db
+	start-stop-daemon -S -b -q -m -p "$PIDFILE" -x "/usr/sbin/$DAEMON"
+	status=$?
+	result "$status"
+	return "$status"
+}
+
+stop() {
+	printf 'Stopping %s: ' "$DAEMON"
+	start-stop-daemon -K -q -p "$PIDFILE"
+	status=$?
+	[ "$status" -eq 0 ] && rm -f "$PIDFILE"
+	result "$status"
+	# the loop is gone, now the GUI itself
+	killall x6100_gui
+	return "$status"
+}
+
+case "$1" in
+	start|stop)
+		"$1";;
+	restart|reload)
+		# no real reload: restart
+		stop; sleep 1; start;;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}"
+		exit 1;;
+esac

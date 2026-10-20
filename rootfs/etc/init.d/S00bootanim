@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# Boot animation: the logo composes itself on the screen while the rest of
+# the boot goes on, with "CQ CQ" in CW when Settings > Audio > Boot sound is
+# on. In the background, and nothing waits for it (S49bootanim makes sure the
+# codec is free before ALSA and PulseAudio start).
+#
+
+case "$1" in
+	start)
+		echo 0 > /sys/class/graphics/fbcon/cursor_blink 2>/dev/null
+		/usr/sbin/x6100-bootanim > /dev/null 2>&1 &
+		;;
+esac
+exit 0

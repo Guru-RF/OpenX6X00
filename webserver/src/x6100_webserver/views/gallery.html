@@ -1,0 +1,423 @@
+% rebase('base.html', title='Gallery')
+<h2><svg class="i"><use href="#i-image"/></svg>Gallery</h2>
+<p class="sub">Screen recordings (AVI), RX audio recordings, screenshots, SSTV and WeFax pictures stored on the radio. Tap files to select them, then download them as a ZIP or delete them together. Screen recordings can be converted to MP4 in this browser.</p>
+<div class="card" id="httpsnote" hidden><span class="meta">In-browser conversion needs a secure page. Open <a id="httpslink" href="#">the HTTPS version of this page</a>: the radio uses a self-signed certificate, so the browser shows a warning once. Accept it (Advanced, then Proceed) and the option appears.</span></div>
+
+<div class="folders" id="folders"></div>
+
+<div id="folderview" hidden>
+  <div class="crumb"><a href="#">Gallery</a> › <span id="crumbname"></span></div>
+  <div class="card upload" id="upload" hidden>
+    <div class="drop" id="drop">Drop pictures here or <button class="primary" id="pickbtn"><svg class="i"><use href="#i-upload"/></svg>Choose files</button></div>
+    <input type="file" id="pickfiles" accept="image/*" multiple hidden>
+    <p class="meta">PNG files up to 4 MB are sent as they are; JPEG and other pictures are converted to PNG in this browser. A file with the same name is kept: the new one gets -1, -2... at the end.</p>
+    <div id="uploads"></div>
+  </div>
+  <div class="card selbar">
+    <button id="selall">Select all</button>
+    <button id="selnone">None</button>
+    <span class="meta" id="selinfo"></span>
+    <button class="primary" id="selzip"><svg class="i"><use href="#i-download"/></svg>Download ZIP</button>
+    <button class="remove" id="seldel">Delete</button>
+    <span class="status" id="status_gallery"></span>
+  </div>
+  <div class="card" id="empty" hidden>This folder is empty.</div>
+  <div class="gallery" id="items"></div>
+</div>
+
+<script src="/static/js/mp4-muxer.js"></script>
+<script>
+const KIND_LABEL = {screenrec: "Screen recording", rec: "RX recording", shots: "Screenshot", sstv: "SSTV received", sstv_tx: "SSTV to send",
+                    wefax: "WeFax received", wefax_tx: "WeFax to send"};
+const FOLDER_LABEL = {all: "All files", shots: "Screenshots", screenrec: "Screen recordings", rec: "RX recordings", sstv: "SSTV received",
+                      sstv_tx: "SSTV to send", wefax: "WeFax received", wefax_tx: "WeFax to send"};
+const FOLDER_ICON = {all: "folder", shots: "image", screenrec: "monitor", rec: "speaker", sstv: "image", sstv_tx: "upload",
+                     wefax: "file", wefax_tx: "upload"};
+const UPLOAD_URL = {sstv_tx: "/api/sstv/tx_pics", wefax_tx: "/api/wefax/tx_pics"};
+const UPLOAD_FIT = {sstv_tx: [800, 640], wefax_tx: [1809, 4000]};   // largest size of a converted picture (the radio fits it)
+const UPLOAD_MAX = 4 * 1024 * 1024;
+
+let all = [], shown = [], folder = "", lastPick = -1;
+const selected = new Set();
+const key = function(x) { return x.kind + "/" + x.name; }
+
+const showStatus = function(text, error=false) {
+  const el = $("#status_gallery");
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+const fileUrl = function(x, part) {
+  return "/gallery/" + part + "/" + x.kind + "/" + encodeURIComponent(x.name);
+}
+
+const humanSize = function(n) {
+  return n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " kB";
+}
+
+const sumSize = function(list) { return list.reduce(function(n, x) { return n + x.size; }, 0); }
+const filesText = function(list) { return list.length ? list.length + (list.length == 1 ? " file · " : " files · ") + humanSize(sumSize(list)) : "empty"; }
+
+// Conversion needs WebCodecs, which browsers only offer on secure pages (HTTPS or localhost)
+const canConvert = function() {
+  return window.isSecureContext && typeof VideoEncoder !== "undefined" && typeof VideoFrame !== "undefined" && typeof createImageBitmap !== "undefined";
+}
+
+// AVI written by the radio: MJPEG video + PCM s16 audio. Returns frames (JPEG bytes) and PCM samples
+const parseAvi = function(buf) {
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  const cc = function(o) { return String.fromCharCode(u8[o], u8[o + 1], u8[o + 2], u8[o + 3]); };
+  const avi = {fps: 8, width: 800, height: 480, rate: 44100, channels: 1, frames: [], audio: []};
+  if (cc(0) != "RIFF" || cc(8) != "AVI ") throw new Error("Not an AVI file");
+  const walk = function(o, end) {
+    while (o + 8 <= end) {
+      const id = cc(o), size = dv.getUint32(o + 4, true), data = o + 8;
+      if (id == "LIST") walk(data + 4, Math.min(data + size, end));
+      else if (id == "avih") { avi.fps = Math.round(1e6 / dv.getUint32(data, true)); avi.width = dv.getUint32(data + 32, true); avi.height = dv.getUint32(data + 36, true); }
+      else if (id == "strh" && cc(data) == "auds") { avi.rate = dv.getUint32(data + 24, true); }
+      else if (id == "strf" && size == 18 && dv.getUint16(data, true) == 1) { avi.channels = dv.getUint16(data + 2, true); avi.rate = dv.getUint32(data + 4, true); }
+      else if (id == "00dc") avi.frames.push(u8.subarray(data, Math.min(data + size, end)));
+      else if (id == "01wb") avi.audio.push(new Int16Array(buf.slice(data, data + (Math.min(size, end - data) & ~1))));
+      o = data + size + (size & 1);
+    }
+  };
+  walk(12, buf.byteLength);
+  if (!avi.frames.length) throw new Error("No video frames");
+  return avi;
+}
+
+const resample = function(pcm, from, to) {
+  const out = new Int16Array(Math.floor(pcm.length * to / from));
+  for (let i = 0; i < out.length; i++) {
+    const p = i * from / to, k = Math.floor(p), f = p - k;
+    out[i] = pcm[k] + ((pcm[Math.min(k + 1, pcm.length - 1)] - pcm[k]) * f);
+  }
+  return out;
+}
+
+const sleep = function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
+// Decode with createImageBitmap, encode with WebCodecs (H.264 + AAC, or Opus), mux with mp4-muxer
+const convert = async function(x, progress, warn) {
+  const res = await fetch(fileUrl(x, "file"));
+  if (!res.ok) throw new Error("Download failed");
+  const avi = parseAvi(await res.arrayBuffer());
+  const W = avi.width & ~1, H = avi.height & ~1;   // H.264 wants even sizes
+
+  let vcfg = null;
+  for (const codec of ["avc1.42001f", "avc1.4d001f"]) {
+    const c = {codec, width: W, height: H, bitrate: 1500000, framerate: avi.fps, avc: {format: "avc"}};
+    if ((await VideoEncoder.isConfigSupported(c)).supported) { vcfg = c; break; }
+  }
+  if (!vcfg) throw new Error("This browser cannot encode H.264");
+
+  let pcm = avi.audio.length ? new Int16Array(avi.audio.reduce(function(n, a) { return n + a.length; }, 0)) : null;
+  if (pcm) { let o = 0; avi.audio.forEach(function(a) { pcm.set(a, o); o += a.length; }); }
+  let acfg = null, arate = avi.rate;
+  if (pcm && typeof AudioEncoder !== "undefined" && avi.channels == 1) {
+    // From 0.127 the AVI carries the measured rate (e.g. 44365 Hz), which AAC may not take
+    const list = [{codec: "mp4a.40.2", sampleRate: arate, numberOfChannels: 1, bitrate: 64000, name: "aac"},
+                  {codec: "mp4a.40.2", sampleRate: 44100, numberOfChannels: 1, bitrate: 64000, name: "aac"},
+                  {codec: "opus", sampleRate: 48000, numberOfChannels: 1, bitrate: 48000, name: "opus"}];
+    for (const c of list) {
+      if ((await AudioEncoder.isConfigSupported(c)).supported) { acfg = c; break; }
+    }
+    if (acfg && acfg.sampleRate != arate) { pcm = resample(pcm, arate, acfg.sampleRate); arate = acfg.sampleRate; }
+  }
+  if (pcm && !acfg) warn("This browser cannot encode audio: the MP4 has no sound.");
+
+  const muxer = new Mp4Muxer.Muxer({
+    target: new Mp4Muxer.ArrayBufferTarget(),
+    video: {codec: "avc", width: W, height: H},
+    audio: acfg ? {codec: acfg.name == "aac" ? "aac" : "opus", numberOfChannels: 1, sampleRate: arate} : undefined,
+    fastStart: "in-memory",
+  });
+  let failure = null;
+  const fail = function(e) { failure = e; };
+  const venc = new VideoEncoder({output: function(chunk, meta) { muxer.addVideoChunk(chunk, meta); }, error: fail});
+  venc.configure(vcfg);
+
+  const total = avi.frames.length + (acfg ? 10 : 0);
+  const step = 1e6 / avi.fps;
+  for (let i = 0; i < avi.frames.length; i++) {
+    if (failure) throw failure;
+    const bmp = await createImageBitmap(new Blob([avi.frames[i]], {type: "image/jpeg"}));
+    const frame = new VideoFrame(bmp, {timestamp: Math.round(i * step), duration: Math.round(step)});
+    venc.encode(frame, {keyFrame: i % (avi.fps * 2) == 0});
+    frame.close();
+    bmp.close();
+    while (venc.encodeQueueSize > 6) await sleep(5);
+    progress(i / total);
+  }
+  await venc.flush();
+  venc.close();
+
+  if (acfg) {
+    const aenc = new AudioEncoder({output: function(chunk, meta) { muxer.addAudioChunk(chunk, meta); }, error: fail});
+    aenc.configure(acfg);
+    const n = 4096;
+    for (let o = 0; o < pcm.length; o += n) {
+      const part = pcm.subarray(o, Math.min(o + n, pcm.length));
+      const data = new AudioData({format: "s16", sampleRate: arate, numberOfFrames: part.length, numberOfChannels: 1,
+                                  timestamp: Math.round(o * 1e6 / arate), data: part});
+      aenc.encode(data);
+      data.close();
+      while (aenc.encodeQueueSize > 16) await sleep(2);
+      progress((avi.frames.length + 10 * o / pcm.length) / total);
+    }
+    await aenc.flush();
+    aenc.close();
+  }
+  if (failure) throw failure;
+  muxer.finalize();
+  progress(1);
+  return new Blob([muxer.target.buffer], {type: "video/mp4"});
+}
+
+const save = function(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function() { URL.revokeObjectURL(a.href); }, 60000);
+}
+
+const makeCard = function(x) {
+  const isAvi = /\.avi$/i.test(x.name), isMp4 = /\.mp4$/i.test(x.name);
+  const card = $("<div class='card item'>");
+  x.card = card;
+  // A tap or click on the card (not on its buttons) selects it, shift-click selects a range
+  card.append($("<input type='checkbox' class='pick'>").attr("aria-label", "Select " + x.name).prop("checked", selected.has(key(x))));
+  card.toggleClass("sel", selected.has(key(x)));
+  card.on("click", function(e) {
+    if ($(e.target).closest("a, button").length) return;
+    const pick = $(e.target).is(".pick");
+    pickItems(shown.indexOf(x), pick ? e.target.checked : !selected.has(key(x)), e.shiftKey);
+  });
+  const thumb = $("<div class='thumb'>");
+  if (x.kind == "rec") thumb.text("MP3");
+  else if (isMp4) thumb.text("MP4");
+  else thumb.append($("<img loading='lazy' alt=''>").attr("src", fileUrl(x, "thumb")).on("error", function() { $(this).remove(); thumb.text("AVI"); }));
+  card.append(thumb);
+  card.append($("<div class='name'>").text(x.name));
+  card.append($("<div class='meta'>").text(KIND_LABEL[x.kind] + (isMp4 ? " (MP4)" : "") + " · " + humanSize(x.size) + " · " + new Date(x.mtime * 1000).toLocaleString()));
+
+  const bar = $("<progress max='1' value='0' hidden>");
+  const note = $("<div class='meta note' hidden>");
+  const actions = $("<div class='actions'>");
+  if (!isAvi) actions.append($("<a class='btn' target='_blank'>").attr("href", fileUrl(x, "file")).text("Open"));
+  actions.append($("<a class='btn' download>").attr("href", fileUrl(x, "file") + "?dl=1").text(isMp4 ? "Download" : "Download original"));
+
+  if (x.kind == "screenrec" && isAvi) {
+    if (canConvert()) {
+      const conv = $("<button class='primary'>").text("Convert to MP4 (in browser)");
+      conv.on("click", async function() {
+        conv.prop("disabled", true);
+        bar.prop("hidden", false).val(0);
+        note.prop("hidden", true);
+        try {
+          const blob = await convert(x, function(v) { bar.val(v); }, function(t) { note.text(t).prop("hidden", false); });
+          save(blob, x.name.replace(/\.avi$/i, ".mp4"));
+          showStatus("Converted " + x.name);
+        } catch (e) {
+          note.text("Conversion failed: " + (e.message || e) + ". Download the AVI instead.").prop("hidden", false);
+        }
+        bar.prop("hidden", true);
+        conv.prop("disabled", false);
+      });
+      actions.append(conv);
+    }
+  }
+
+  actions.append($("<button class='remove'>").text("Delete").on("click", function() {
+    if (!confirm("Delete " + x.name + "?")) return;
+    $.ajax({url: "/api/gallery/" + x.kind + "/" + encodeURIComponent(x.name), method: "DELETE"})
+      .done(function() {
+        card.remove();
+        all = all.filter(function(y) { return y !== x; }); shown = shown.filter(function(y) { return y !== x; });
+        selected.delete(key(x)); updateSel(); showStatus("Deleted " + x.name);
+      })
+      .fail(function() { showStatus("Delete failed", true); });
+  }));
+  card.append(bar, note, actions);
+  return card;
+}
+
+// Selection
+const pickItems = function(i, on, range) {
+  const from = range && lastPick >= 0 ? Math.min(lastPick, i) : i, to = range && lastPick >= 0 ? Math.max(lastPick, i) : i;
+  for (let j = from; j <= to; j++) {
+    const x = shown[j];
+    if (on) selected.add(key(x)); else selected.delete(key(x));
+    x.card.toggleClass("sel", on).find(".pick").prop("checked", on);
+  }
+  lastPick = i;
+  updateSel();
+}
+
+const selList = function() { return shown.filter(function(x) { return selected.has(key(x)); }); }
+
+const updateSel = function() {
+  const sel = selList();
+  $("#selinfo").text(sel.length ? sel.length + " of " + shown.length + " selected · " + humanSize(sumSize(sel)) : filesText(shown));
+  $("#selnone, #selzip, #seldel").prop("disabled", !sel.length);
+  $("#selall").prop("disabled", !shown.length || sel.length == shown.length);
+  $("#empty").prop("hidden", shown.length > 0);
+}
+
+// One kind: {kind, names}; several (All files): {items: ["kind/name"]}
+const selPayload = function(list) {
+  if (list.every(function(x) { return x.kind == list[0].kind; })) return {kind: list[0].kind, names: list.map(function(x) { return x.name; })};
+  return {items: list.map(key)};
+}
+
+const pickAll = function(on) { if (shown.length) { lastPick = 0; pickItems(shown.length - 1, on, true); } lastPick = -1; }
+$("#selall").on("click", function() { pickAll(true); });
+$("#selnone").on("click", function() { pickAll(false); });
+
+$("#selzip").on("click", function() {
+  const form = $("<form method='post' action='/api/gallery/zip' hidden>"), p = selPayload(selList());
+  Object.keys(p).forEach(function(k) {
+    [].concat(p[k]).forEach(function(v) { form.append($("<input type='hidden'>").attr("name", k).val(v)); });
+  });
+  $("body").append(form);
+  x6100PostForm(form[0]);
+  form.remove();
+  showStatus("ZIP download started");
+});
+
+$("#seldel").on("click", function() {
+  const sel = selList(), names = sel.map(function(x) { return x.name; });
+  if (!confirm("Delete " + sel.length + (sel.length == 1 ? " file" : " files") + " (" + humanSize(sumSize(sel)) + ")?\n\n" +
+               names.slice(0, 10).join("\n") + (names.length > 10 ? "\n... and " + (names.length - 10) + " more" : ""))) return;
+  $.ajax({url: "/api/gallery/delete", method: "POST", contentType: "application/json", data: JSON.stringify(selPayload(sel))})
+    .done(function(r) {
+      showStatus("Deleted " + r.deleted.length + (r.failed.length ? ", " + r.failed.length + " failed" : ""), r.failed.length > 0);
+      r.deleted.forEach(function(x) { selected.delete(key(x)); });
+      loadList();
+    })
+    .fail(function(r) { showStatus("Delete failed" + (r.responseJSON ? ": " + r.responseJSON.msg : ""), true); });
+});
+
+// Upload into the TX picture folders
+const loadImage = function(file) {
+  return new Promise(function(ok, bad) {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function() { URL.revokeObjectURL(url); ok(img); };
+    img.onerror = function() { URL.revokeObjectURL(url); bad(new Error("not a picture this browser can read")); };
+    img.src = url;
+  });
+}
+
+// PNG up to 4 MB as it is, anything else drawn on a canvas and saved as PNG, smaller until it fits
+const toPng = async function(file, fit) {
+  if (file.type == "image/png" && file.size <= UPLOAD_MAX) return file;
+  const img = await loadImage(file);
+  let s = Math.min(1, fit[0] / img.naturalWidth, fit[1] / img.naturalHeight);
+  for (;;) {
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * s));
+    c.height = Math.max(1, Math.round(img.naturalHeight * s));
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise(function(ok) { c.toBlob(ok, "image/png"); });
+    if (!blob) throw new Error("conversion failed");
+    if (blob.size <= UPLOAD_MAX || s < 0.1) return blob;
+    s *= 0.7;
+  }
+}
+
+// Same rules as the radio: [A-Za-z0-9][A-Za-z0-9._ -]*.png
+const pngName = function(name) {
+  const base = name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9._ -]/g, "_").replace(/^[^A-Za-z0-9]+/, "").slice(0, 60);
+  return (base || "picture") + ".png";
+}
+
+const sendFile = function(blob, name, url, bar) {
+  return new Promise(function(ok, bad) {
+    const fd = new FormData(), xhr = new XMLHttpRequest();
+    fd.append("file", blob, name);
+    xhr.open("POST", url + "?unique=1");
+    xhr.upload.onprogress = function(e) { if (e.lengthComputable) bar.val(e.loaded / e.total); };
+    xhr.onload = function() {
+      let r = {};
+      try { r = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status == 200) ok(r); else bad(new Error(r.msg || "error " + xhr.status));
+    };
+    xhr.onerror = function() { bad(new Error("network error")); };
+    xhr.send(fd);
+  });
+}
+
+const uploadFiles = async function(files) {
+  const kind = folder;
+  if (!UPLOAD_URL[kind] || !files.length) return;
+  const rows = Array.from(files).map(function(f) {
+    const row = {file: f, bar: $("<progress max='1' value='0'>"), note: $("<span class='meta'>").text("waiting")};
+    $("#uploads").append($("<div class='upl'>").append($("<span class='name'>").text(f.name), row.bar, row.note));
+    return row;
+  });
+  let ok = 0;
+  for (const row of rows) {
+    try {
+      row.note.text("converting");
+      const blob = await toPng(row.file, UPLOAD_FIT[kind]);
+      row.note.text("sending");
+      const r = await sendFile(blob, pngName(row.file.name), UPLOAD_URL[kind], row.bar);
+      row.bar.val(1);
+      row.note.text("saved as " + r.name);
+      ok++;
+    } catch (e) {
+      row.note.addClass("note").text("failed: " + (e.message || e));
+    }
+  }
+  showStatus("Uploaded " + ok + " of " + rows.length, ok < rows.length);
+  loadList();
+}
+
+$("#pickbtn").on("click", function() { $("#pickfiles").trigger("click"); });
+$("#pickfiles").on("change", function() { uploadFiles(this.files); this.value = ""; });
+$("#drop").on("dragover dragenter", function(e) { e.preventDefault(); $(this).addClass("over"); })
+  .on("dragleave", function() { $(this).removeClass("over"); })
+  .on("drop", function(e) { e.preventDefault(); $(this).removeClass("over"); uploadFiles(e.originalEvent.dataTransfer.files); });
+
+// Folders: #kind in the address, so the phone's back button goes back to the folder list
+const render = function() {
+  const h = location.hash.slice(1);
+  folder = FOLDER_LABEL[h] ? h : "";
+  $("#folders").prop("hidden", !!folder);
+  $("#folderview").prop("hidden", !folder);
+  $("#items").empty();
+  if (!folder) {
+    $("#folders").empty();
+    Object.keys(FOLDER_LABEL).forEach(function(k) {
+      const list = k == "all" ? all : all.filter(function(x) { return x.kind == k; });
+      $("#folders").append($("<a class='card folder'>").attr("href", "#" + k)
+        .append($("<span class='dp-ico'>").html('<svg class="i"><use href="#i-' + FOLDER_ICON[k] + '"/></svg>'),
+                $("<div>").append($("<b>").text(FOLDER_LABEL[k]), $("<span class='meta'>").text(filesText(list)))));
+    });
+    return;
+  }
+  shown = folder == "all" ? all.slice() : all.filter(function(x) { return x.kind == folder; });
+  $("#crumbname").text(FOLDER_LABEL[folder]);
+  $("#upload").prop("hidden", !UPLOAD_URL[folder]);
+  shown.forEach(function(x) { $("#items").append(makeCard(x)); });
+  updateSel();
+}
+
+window.addEventListener("hashchange", function() { selected.clear(); lastPick = -1; $("#uploads").empty(); render(); });
+
+const loadList = function() {
+  $.getJSON("/api/gallery").done(function(list) {
+    all = list;
+    render();
+  }).fail(function() { showStatus("Can't read the list", true); });
+}
+
+if (!window.isSecureContext) {
+  $("#httpslink").attr("href", "https://" + location.hostname + "/gallery");
+  $("#httpsnote").prop("hidden", false);
+}
+loadList();
+</script>

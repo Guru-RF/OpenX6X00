@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# Bluetooth SPP bridge for CAT (btcat). Must start before S95gui.
+#
+
+PIDFILE="/var/run/btcat.pid"
+BTCAT_ENABLE=yes
+
+[ -r /etc/default/btcat ] && . /etc/default/btcat
+[ -r /mnt/btcat.conf ] && . /mnt/btcat.conf
+
+start() {
+	[ "$BTCAT_ENABLE" = "yes" ] || return 0
+	printf 'Starting btcat: '
+	modprobe rfcomm 2>/dev/null
+	start-stop-daemon -S -b -q -m -p "$PIDFILE" -x /bin/sh -- -c "exec /usr/sbin/btcat 2>>/tmp/btcat.log"
+	status=$?
+	# give btcat time to bind the pty over /dev/ttyS2 before the GUI opens it
+	for i in 1 2 3 4 5 6 7 8 9 10; do
+		grep -q " /dev/ttyS2 " /proc/self/mountinfo && break
+		usleep 200000
+	done
+	( /usr/sbin/btcat-setup >/tmp/btcat-setup.log 2>&1 & )
+	[ "$status" -eq 0 ] && echo "OK" || echo "FAIL"
+	return "$status"
+}
+
+stop() {
+	printf 'Stopping btcat: '
+	start-stop-daemon -K -q -p "$PIDFILE"
+	rm -f "$PIDFILE" /tmp/btcat.clients
+	killall bt-agent 2>/dev/null
+	umount -l /dev/ttyS2 2>/dev/null
+	echo "OK"
+}
+
+case "$1" in
+	start|stop) "$1";;
+	restart) stop; sleep 1; start;;
+	*) echo "Usage: $0 {start|stop|restart}"; exit 1;;
+esac

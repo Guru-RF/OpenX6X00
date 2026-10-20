@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# The boot sound (S00bootanim) must have closed the codec before ALSA and
+# PulseAudio start (S50). It ends on its own within 5.7 s of its first tone;
+# this waits for it up to 3.5 s, then SIGTERM (it puts the base back), then SIGKILL
+# (the kernel closes the codec; the GUI resets the base when it starts).
+#
+
+busy() { [ -e /tmp/x6100-bootanim.audio ] && pidof x6100-bootanim > /dev/null; }
+wait_free() { n=0; while busy && [ $n -lt $1 ]; do sleep 0.1; n=$((n + 1)); done; }
+
+case "$1" in
+	start)
+		wait_free 35
+		busy && killall -TERM x6100-bootanim 2>/dev/null && wait_free 5
+		busy && killall -KILL x6100-bootanim 2>/dev/null && sleep 0.2
+		;;
+esac
+exit 0

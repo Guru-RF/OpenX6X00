@@ -1,0 +1,16 @@
+[project]
+name = "x6100-webserver"
+description = "Web configurator of the OpenX6X00 firmware for the Xiegu X6100"
+authors = [{name = "Guru-RF"}]
+dynamic = ["version"]
+dependencies = ["bottle", "bottle-sqlite"]   # both third-party, used as they are
+
+[project.scripts]
+x6100_webserver = "x6100_webserver:__main__"   # the radio starts it from /etc/init.d/S96webserver
+
+[tool.flit.sdist]
+include = ["src/x6100_webserver/static/", "src/x6100_webserver/views/"]
+
+[build-system]
+requires = ["flit_core >= 3.4"]
+build-backend = "flit_core.buildapi"

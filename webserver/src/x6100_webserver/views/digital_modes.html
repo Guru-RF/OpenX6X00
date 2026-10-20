@@ -1,0 +1,35 @@
+% rebase("base.html", title="Digital modes editor")
+<h2><svg class="i"><use href="#i-pulse"/></svg>Digital modes</h2>
+<p class="sub">Frequencies offered by the FT8/FT4 and JS8 apps.</p>
+
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>Frequencies</h3><p>Label, dial frequency, mode and app</p></div><div class="dp-x"><button id="add_mode" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add frequency</button></div></div>
+<div class="dp-body tbl">
+<div class="table-wrap">
+<table id="freq_list">
+  <thead><tr><th>Label</th><th class="freq">Freq, MHz</th><th>Mode</th><th>Type</th><th></th></tr></thead>
+  <tbody></tbody></table>
+</div>
+</div>
+</section>
+
+<script src="/static/js/list_editor.js?v=1"></script>
+<script>
+// src/cfg/digital_modes.h cfg_digital_type_t. Every type must be here: an entry of a missing one
+// would be saved as FT8 (its select would have no matching option)
+const apps = {0: "FT8", 1: "FT4", 2: "JS8", 3: "JS8 GhostNet", 4: "WSPR", 5: "FT2"};
+
+listEditor({
+  table: "#freq_list", add: "#add_mode", url: "/api/digital_modes",
+  columns: [
+    {show: f => f.label, edit: f => $("<input type='text'>").val(f.label)},
+    {cls: "freq_cell", show: f => mhzText(f.freq), edit: f => mhzInput(f.freq)},
+    {show: f => modeTag(f.mode), edit: f => choice(mode_map, f.mode)},
+    {show: f => apps[f.type], edit: f => choice(apps, f.type)},
+  ],
+  read: ([label, freq, mode, app]) => ({label: label.val(), freq: mhzToHz(freq), mode: Number(mode.val()),
+                                        type: Number(app.val())}),
+  blank: () => ({id: null, label: "New", freq: 14074000, mode: 3, type: 0}),
+  what: f => 'digital mode "' + f.label + '"',
+});
+</script>

@@ -1,0 +1,163 @@
+% rebase('base.html', title='Logs')
+<h2><svg class="i"><use href="#i-book"/></svg>Logs</h2>
+<p class="sub">Every QSO on the radio, day by day: the day's logs (FT8, FT4, JS8 and the phone's logger) and the POTA/SOTA activations. Edit a QSO in place, delete QSOs or whole days, export what the filter shows as ADIF or CSV.</p>
+
+<section class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-search"/></svg></span><div><h3>Filter and export</h3><p>Export, and Delete shown, work on the QSOs the filter shows</p></div></div>
+  <div class="dp-body">
+  <div class="log-filters">
+    <input id="f-text" placeholder="Call, name, QTH, grid, reference…" autocomplete="off">
+    <select id="f-band"><option value="">All bands</option></select>
+    <select id="f-mode"><option value="">All modes</option></select>
+    <input id="f-from" type="date" title="From">
+    <input id="f-to" type="date" title="To">
+  </div>
+  <div class="actions">
+    <button type="button" class="primary" id="exp-adi"><svg class="i"><use href="#i-download"/></svg>Export ADIF</button>
+    <button type="button" id="exp-csv"><svg class="i"><use href="#i-download"/></svg>Export CSV</button>
+    <button type="button" id="del-shown" class="remove">Delete shown</button>
+    <span class="status" id="status"></span>
+  </div>
+  </div>
+</section>
+
+<div id="days"></div>
+
+<form id="export" method="post" action="/logs/export" style="display:none">
+  <input name="sel"><input name="fmt">
+</form>
+
+<script>
+var qsos = [], active = "";
+const COLS = [["time_on", "UTC"], ["call", "Call"], ["freq", "MHz"], ["band", "Band"], ["mode", "Mode"],
+              ["rst_sent", "Sent"], ["rst_rcvd", "Rcvd"], ["name", "Name"], ["gridsquare", "Grid"], ["ref", "Ref"], ["comment", "Comment"]];
+
+var showStatus = function(text, error=false) {
+  const el = $("#status");
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+var fail = function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); }
+var button = function(cls, icon, title) {
+  return $("<button type='button' class='action'>").addClass(cls).attr("title", title).append($("<i>").addClass(icon));
+}
+var day = q => (q.qso_date || "").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
+var hhmm = t => (t || "").replace(/^(\d{2})(\d{2}).*/, "$1:$2");
+var ref = q => q.sota_ref || q.pota_ref || "";
+var myRef = q => q.my_sota_ref || q.my_pota_ref || "";
+
+var shown = function() {
+  const text = $("#f-text").val().trim().toUpperCase(), band = $("#f-band").val(), mode = $("#f-mode").val();
+  const from = $("#f-from").val(), to = $("#f-to").val();
+  return qsos.filter(function(q) {
+    if (band && (q.band || "").toUpperCase() != band) return false;
+    if (mode && (q.mode || "").toUpperCase() != mode) return false;
+    if (from && day(q) < from) return false;
+    if (to && day(q) > to) return false;
+    if (text && ![q.call, q.name, q.qth, q.gridsquare, ref(q), myRef(q), q.comment].some(v => (v || "").toUpperCase().includes(text))) return false;
+    return true;
+  });
+}
+
+var fillSelect = function(id, key, first) {
+  const el = $(id), cur = el.val();
+  const vals = [...new Set(qsos.map(q => (q[key] || "").toUpperCase()).filter(v => v))].sort();
+  el.empty().append($("<option value=''>").text(first));
+  vals.forEach(v => el.append($("<option>").val(v).text(v)));
+  el.val(vals.includes(cur) ? cur : "");
+}
+
+var render = function() {
+  const list = shown().sort((a, b) => (b.qso_date + b.time_on).localeCompare(a.qso_date + a.time_on));
+  const days = {};
+  list.forEach(q => (days[day(q)] = days[day(q)] || []).push(q));
+  const box = $("#days").empty();
+  if (!list.length) box.append($("<section class='dp-card'>").append($("<div class='dp-body'>").append($("<p class='sub' style='margin:0'>").text(qsos.length ? "No QSO matches the filter" : "No QSOs yet"))));
+  Object.keys(days).sort().reverse().forEach(function(d) {
+    const rows = days[d];
+    const files = [...new Set(rows.map(q => q.file))];
+    const head = $("<h3>").text(d || "No date").append($("<span class='tag'>").text(rows.length + " QSO" + (rows.length == 1 ? "" : "s")));
+    files.forEach(f => head.append($("<a class='tag' download>").attr("href", "/field/logs/" + encodeURIComponent(f)).attr("title", "Download the file").text(f)));
+    const del = button("remove", "si-trash", "Delete this day's QSOs shown").on("click", () => deleteQsos(rows, `all ${rows.length} QSOs of ${d}`));
+    const tbody = $("<tbody>");
+    rows.forEach(q => tbody.append(makeRow(q)));
+    const thead = $("<tr>");
+    COLS.forEach(c => thead.append($("<th>").text(c[1])));
+    thead.append($("<th>"));
+    const top = $("<div class='dp-head'>").append($("<span class='dp-ico'>").html('<svg class="i"><use href="#i-book"/></svg>'), $("<div>").append(head), $("<div class='dp-x'>").append(del));
+    box.append($("<section class='dp-card'>").append(top, $("<div class='dp-body tbl'>").append($("<div class='table-wrap'>").append($("<table class='log'>").append($("<thead>").append(thead), tbody)))));
+  });
+  showStatus(`${list.length} of ${qsos.length} QSOs shown`);
+}
+
+var makeRow = function(q) {
+  const row = $("<tr>").attr("title", q.file + (myRef(q) ? " · activation " + myRef(q) : ""));
+  COLS.forEach(c => row.append($("<td>").text(c[0] == "ref" ? ref(q) : c[0] == "time_on" ? hhmm(q.time_on) : q[c[0]] || "")));
+  const edit = button("", "si-edit", "Edit").on("click", () => row.replaceWith(editRow(q)));
+  const del = button("remove", "si-trash", "Delete").on("click", () => deleteQsos([q], `the QSO with ${q.call}`));
+  return row.append($("<td class='action-cell'>").append(edit, " ", del));
+}
+
+var editRow = function(q) {
+  const row = $("<tr>"), inputs = {};
+  COLS.forEach(function(c) {
+    const k = c[0], v = k == "ref" ? ref(q) : q[k] || "";
+    inputs[k] = $("<input autocomplete='off'>").val(v);
+    row.append($("<td>").append(inputs[k]));
+  });
+  inputs.date = $("<input type='date'>").val(day(q));
+  row.children().first().prepend(inputs.date);
+  const save = button("save", "si-disk", "Save").on("click", function() {
+    const r = inputs.ref.val().trim().toUpperCase();
+    const data = {qso_date: inputs.date.val().replaceAll("-", ""), time_on: inputs.time_on.val().replace(":", "").padEnd(4, "0")};
+    COLS.forEach(c => { if (c[0] != "ref" && c[0] != "time_on") data[c[0]] = inputs[c[0]].val(); });
+    data.sota_ref = /^[A-Z0-9]{1,4}\/[A-Z]{2}-\d{3}$/.test(r) ? r : "";
+    data.pota_ref = r && !data.sota_ref ? r : "";
+    $.ajax({url: `/api/logs/${encodeURIComponent(q.file)}/${q.n}`, type: "PUT", data: JSON.stringify(data),
+            contentType: "application/json; charset=utf-8", dataType: "json",
+            success: () => load("Saved " + data.call.toUpperCase()), error: fail});
+  });
+  const cancel = button("", "si-close", "Cancel").on("click", () => row.replaceWith(makeRow(q)));
+  return row.append($("<td class='action-cell'>").append(save, " ", cancel));
+}
+
+// One by one, from the last of each file: deleting a QSO renumbers the ones after it
+var deleteQsos = function(list, what) {
+  if (list.some(q => q.file == active)) return showStatus("The activation running on the radio is in the list: end it first", true);
+  if (!list.length || !confirm(`Delete ${what}? This cannot be undone: export first if you still need them.`)) return;
+  const todo = list.slice().sort((a, b) => a.file == b.file ? b.n - a.n : a.file.localeCompare(b.file));
+  const next = function() {
+    if (!todo.length) return load(`Deleted ${list.length} QSO${list.length == 1 ? "" : "s"}`);
+    const q = todo.shift();
+    $.ajax({url: `/api/field/logs/${encodeURIComponent(q.file)}/${q.n}`, type: "DELETE", dataType: "json",
+            success: next, error: function(xhr) { fail(xhr); load(); }});
+  };
+  next();
+}
+
+var exportShown = function(fmt) {
+  const list = shown();
+  if (!list.length) return showStatus("Nothing to export", true);
+  $("#export [name=sel]").val(list.map(q => q.file + ":" + q.n).join(","));
+  $("#export [name=fmt]").val(fmt);
+  x6100PostForm($("#export")[0]);
+}
+
+var load = function(msg) {
+  $.get("/api/logs", {}, function(r) {
+    qsos = r.qsos;
+    active = r.active;
+    fillSelect("#f-band", "band", "All bands");
+    fillSelect("#f-mode", "mode", "All modes");
+    render();
+    if (msg) showStatus(msg);
+  }).fail(fail);
+}
+
+$("#f-text").on("input", render);
+$("#f-band, #f-mode, #f-from, #f-to").on("change", render);
+$("#exp-adi").on("click", () => exportShown("adi"));
+$("#exp-csv").on("click", () => exportShown("csv"));
+$("#del-shown").on("click", () => { const l = shown(); deleteQsos(l, `the ${l.length} QSOs shown`); });
+load();
+</script>

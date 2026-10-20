@@ -1,0 +1,143 @@
+% rebase("base.html", title="Time Editor")
+<h2><svg class="i"><use href="#i-clock"/></svg>Time</h2>
+<p class="sub">Radio clock, timezone and time synchronisation.</p>
+
+<section class="dp-card">
+    <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-clock"/></svg></span><div><h3>Time information</h3><p>This browser's clock and the radio's</p></div></div>
+    <div class="dp-body">
+    <div class="time-now">
+        <section><label>Local time</label><div id="local-time">Loading Local Time...</div></section>
+        <section><label>Server time</label><div id="server-time">Fetching Server Time...</div></section>
+        <section><label>Server timezone</label><div id="server-timezone">Fetching Server Timezone...</div></section>
+    </div>
+    <div class="actions"><button id="sync-local-time-btn" class="primary"><svg class="i"><use href="#i-sync"/></svg>Sync Local Time to Server</button></div>
+    </div>
+</section>
+
+<section class="dp-card">
+    <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-edit"/></svg></span><div><h3>Manually update server time</h3><p>Sets the radio clock to the date and time you type</p></div></div>
+    <div class="dp-body">
+    <label for="manual-time">Input time (format: YYYY-MM-DD HH:MM:SS)</label>
+    <div class="row">
+        <input type="text" id="manual-time" placeholder="Input Time"><button id="manual-update-btn">Manually Update Time</button>
+    </div>
+    </div>
+</section>
+
+<section class="dp-card">
+    <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-sync"/></svg></span><div><h3>Update server time by NTP</h3><p>Needs internet on the radio</p></div></div>
+    <div class="dp-body">
+    <label for="ntp-servers">Select or input NTP server</label>
+    <div class="row">
+        <select id="ntp-servers"></select><input type="text" id="custom-ntp" placeholder="Input Custom NTP Server Address" hidden>
+        <button id="update-time-btn">Update Time</button><!-- the custom input shows for "Custom NTP Server..." -->
+    </div>
+    </div>
+</section>
+
+<section class="dp-card">
+    <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-globe"/></svg></span><div><h3>Set server timezone</h3><p>The radio's local time zone</p></div></div>
+    <div class="dp-body">
+    <label for="timezone-select">Select timezone or input custom timezone</label>
+    <div class="row">
+        <select id="timezone-select"></select><input type="text" id="custom-timezone" placeholder="e.g., Asia/Shanghai" hidden>
+        <button id="set-timezone-btn">Set Timezone</button><!-- the custom input shows for "Custom Timezone..." -->
+    </div>
+    </div>
+</section>
+
+<script>
+const NTP_SERVERS = [["pool.ntp.org", "global"], ["time.windows.com", "global"], ["time.cloudflare.com", "global"],
+                     ["ntp.ntsc.ac.cn", "China"], ["cn.ntp.org.cn", "China"], ["ntp1.aliyun.com", "China"], ["ntp.tencent.com", "China"]];
+const ZONES = ["UTC", "America/Los_Angeles", "America/New_York", "Asia/Shanghai", "Asia/Tokyo", "Australia/Sydney",
+               "Europe/London", "Europe/Moscow", "Europe/Paris"];
+let radioZone = null;     // as /api/get_timezone says
+let radioOffset = null;   // radio clock - this browser's clock, ms
+
+const hms = d => [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, "0")).join(":");
+
+function tick() {
+  const t = new Date();
+  $("#local-time").text(hms(t));
+  if (radioOffset !== null) $("#server-time").text(hms(new Date(t.getTime() + radioOffset)));
+}
+
+function readClock() {
+  $.getJSON("/api/get_time")
+    .done(r => {
+      if (!r.server_time) return $("#server-time").text("Server Time: Unfetched");
+      radioOffset = new Date(r.server_time) - new Date();
+      tick();
+    })
+    .fail(() => $("#server-time").text("Server Time: Unfetched"));
+}
+
+function readZone() {
+  $.getJSON("/api/get_timezone")
+    .done(r => { radioZone = r.timezone || null; $("#server-timezone").text(r.timezone || "Unknown"); })
+    .fail(() => $("#server-timezone").text("Error fetching timezone"));
+}
+
+// POST body to url: then(reply) on {"status": "success"}, else an alert with failText + the reason
+function post(url, body, then, failText, httpErrorText) {
+  $.ajax({url: url, method: "POST", contentType: "application/json", data: JSON.stringify(body)})
+    .done(r => r.status === "success" ? then(r) : alert(failText + r.msg))
+    .fail(() => alert(httpErrorText));
+}
+
+function setClock(time) {
+  post("/api/update_time", {update_mode: "manual", manual_time: time},
+       () => { alert("Server time updated manually."); readClock(); },
+       "Manual time update failed: ", "Manual time update failed. Please check the time format and try again.");
+}
+
+// The radio takes the time as its local time: this moment written in the radio's zone
+// (UTC when the browser does not know that zone)
+function nowOnTheRadio() {
+  const t = new Date();
+  try {
+    if (radioZone) return t.toLocaleString("sv-SE", {timeZone: radioZone, hourCycle: "h23"}).slice(0, 19);
+  } catch (e) { /* unknown zone name */ }
+  return t.toISOString().slice(0, 19).replace("T", " ");
+}
+
+function fillChoice(sel, options, customLabel, input) {
+  options.forEach(([value, label]) => sel.append($("<option>").val(value).text(label)));
+  sel.append($("<option value='custom'>").text(customLabel));
+  sel.on("change", () => input.prop("hidden", sel.val() !== "custom"));
+}
+
+fillChoice($("#ntp-servers"), NTP_SERVERS.map(([host, where]) => [host, host + " (" + where + ")"]), "Custom NTP Server...", $("#custom-ntp"));
+fillChoice($("#timezone-select"), ZONES.map(z => [z, z]), "Custom Timezone...", $("#custom-timezone"));
+
+// the value of a select, or of its input when "custom" is chosen ("" when empty)
+const chosen = (sel, input) => $(sel).val() === "custom" ? $(input).val().trim() : $(sel).val();
+
+$("#sync-local-time-btn").on("click", () => setClock(nowOnTheRadio()));
+
+$("#manual-update-btn").on("click", () => {
+  const time = $("#manual-time").val().trim();
+  if (!time) return alert("Please input a valid time.");
+  setClock(time);
+});
+
+$("#update-time-btn").on("click", () => {
+  const server = chosen("#ntp-servers", "#custom-ntp");
+  if (!server) return alert("Please input custom NTP server address!");
+  post("/api/update_time", {update_mode: "ntp", server_address: server},
+       () => { alert("Update time successfully with " + server); readClock(); },
+       "Update time failed with ", "Time update failed. Please check the NTP server address or network connection!");
+});
+
+$("#set-timezone-btn").on("click", () => {
+  const zone = chosen("#timezone-select", "#custom-timezone");
+  if (!zone) return alert("Please select or input a timezone.");
+  post("/api/set_timezone", {timezone: zone}, () => { alert("Timezone updated successfully!"); readZone(); },
+       "Failed to update timezone: ", "Failed to update timezone. Please try again.");
+});
+
+readZone();
+readClock();
+tick();
+setInterval(tick, 1000);
+</script>

@@ -1,0 +1,196 @@
+# Builds the full SD card image on GitHub: this repository (OpenX6X00) is the GUI
+# package of gdyuldin's AetherX6100Buildroot, built from the checkout instead of
+# upstream.
+name: Build image
+
+# By hand only (Actions > Build image > Run workflow): releases are built
+# locally and the image attached by hand; building on every tag only made a
+# second copy, took 2 hours and failed now and then.
+on:
+  workflow_dispatch:
+
+# Write access for the Release step (the default token is read-only)
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      # buildroot external tree, package and config files patched below
+      # (X6CI_ prefix: these reach make too, no buildroot variable has it)
+      X6CI_BR_EXT: AetherX6100Buildroot/br2_external
+      X6CI_GUI_MK: AetherX6100Buildroot/br2_external/package/x6100-gui/x6100_gui.mk
+      X6CI_WEB_MK: AetherX6100Buildroot/br2_external/package/x6100-webserver/x6100_webserver.mk
+      X6CI_DEFCONFIG: AetherX6100Buildroot/br2_external/configs/X6100_defconfig
+      X6CI_IMAGES: AetherX6100Buildroot/build/images
+      X6CI_IMG: OpenX6X00-${{ github.ref_name }}-sdcard.img
+
+    steps:
+    # A full buildroot build needs more room than the runner leaves free:
+    # drop the SDKs we do not use (the tool cache and the big packages stay)
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: false
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: false
+        docker-images: true
+        swap-storage: true
+    - name: check free space
+      run: |
+        df -h
+        pwd
+
+    - name: Checkout GUI
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+        path: x6100_gui
+
+    - name: Checkout buildroot
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+        repository: gdyuldin/AetherX6100Buildroot
+        path: AetherX6100Buildroot
+
+    # Build the GUI package from the checkout above (local site, submodules
+    # already there) instead of cloning gdyuldin/x6100_gui
+    - name: Patch GUI mk
+      run: |
+        sed -i "s,https://github.com/gdyuldin/x6100_gui,${GITHUB_WORKSPACE}/x6100_gui,g" $X6CI_GUI_MK
+        sed -i "s,^X6100_GUI_SITE_METHOD = git,X6100_GUI_SITE_METHOD = local,g" $X6CI_GUI_MK
+        sed -i "s,^X6100_GUI_GIT_SUBMODULES,# X6100_GUI_GIT_SUBMODULES,g" $X6CI_GUI_MK
+
+    # Web configurator: build the copy vendored in webserver/ instead of
+    # fetching gdyuldin/x6100_webserver from GitHub.
+    - name: Patch webserver mk
+      run: |
+        sed -i "s,^X6100_WEBSERVER_SITE = .*,X6100_WEBSERVER_SITE = ${GITHUB_WORKSPACE}/x6100_gui/webserver,g" $X6CI_WEB_MK
+        sed -i "s,^X6100_WEBSERVER_SITE_METHOD = git,X6100_WEBSERVER_SITE_METHOD = local,g" $X6CI_WEB_MK
+        grep "^X6100_WEBSERVER_SITE" $X6CI_WEB_MK
+
+    # JS8 needs the Boost headers (Boost with no library selected installs
+    # only those) and single precision FFTW, already built for liquid-dsp.
+    # x6100-field talks HTTPS to POTA and QRZ: root certificates.
+    # The display runs on DRM (lv_drivers/display/drm.c): libdrm.
+    - name: Enable JS8 dependencies
+      run: |
+        sed -i "s,^X6100_GUI_DEPENDENCIES = \(.*\)$,X6100_GUI_DEPENDENCIES = \1 boost fftw-single," $X6CI_GUI_MK
+        echo "BR2_PACKAGE_BOOST=y" >> $X6CI_DEFCONFIG
+        echo "BR2_PACKAGE_CA_CERTIFICATES=y" >> $X6CI_DEFCONFIG
+        sed -i "/^X6100_GUI_DEPENDENCIES/s/$/ libdrm/" $X6CI_GUI_MK
+        grep "^X6100_GUI_DEPENDENCIES" $X6CI_GUI_MK
+
+    # No voice guidance in this GUI: RHVoice and its voices leave the image.
+    # RHVoice was what brought in PulseAudio, which the GUI needs, so the GUI
+    # package selects PulseAudio itself.
+    - name: Drop RHVoice
+      run: |
+        sed -i "/^X6100_GUI_DEPENDENCIES/s/\brhvoice\b/pulseaudio/" $X6CI_GUI_MK
+        sed -i "s/select BR2_PACKAGE_RHVOICE$/select BR2_PACKAGE_PULSEAUDIO/" $X6CI_BR_EXT/package/x6100-gui/Config.in
+        sed -i "/^BR2_PACKAGE_RHVOICE/d" $X6CI_DEFCONFIG
+        grep "^X6100_GUI_DEPENDENCIES" $X6CI_GUI_MK
+        ! grep -in "rhvoice" $X6CI_GUI_MK $X6CI_BR_EXT/package/x6100-gui/Config.in $X6CI_DEFCONFIG
+
+    # System cleanup:
+    # - firmware for PCI/PCIe network cards (the A33 has no PCIe); the USB
+    #   Ethernet adapters' firmware (RTL815x) stays;
+    # - PulseAudio at the GUI rate, 44.1 kHz: the radio audio is not resampled;
+    # - one Bluetooth setup: bt_start.sh (udev) defers to btcat-setup.
+    - name: System cleanup
+      run: |
+        for o in BROADCOM_TIGON3 BNX2X CXGB4_T4 CXGB4_T5 INTEL_E100 INTEL_ICE MICROCHIP_VSC85XX_PHY QLOGIC_4X RTL_8169; do
+          sed -i "/^BR2_PACKAGE_LINUX_FIRMWARE_${o}=y/d" $X6CI_DEFCONFIG
+        done
+        sed -i "s/^default-sample-rate = 48000/default-sample-rate = 44100/" $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/pulse/daemon.conf
+        cp x6100_gui/buildroot/bt_start.sh $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/usr/bin/bt_start.sh
+        grep "^BR2_PACKAGE_LINUX_FIRMWARE" $X6CI_DEFCONFIG
+        grep -q "^default-sample-rate = 44100" $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/pulse/daemon.conf
+
+    # Kernel: UHID for Bluetooth Low Energy keyboards
+    - name: Kernel UHID (Bluetooth Low Energy keyboards)
+      run: |
+        D=$X6CI_BR_EXT/board/X6100/linux/sun8i-r16-x6100_defconfig
+        grep -q "^CONFIG_UHID=" $D || echo "CONFIG_UHID=m" >> $D
+
+    # Boot logo: the kernel's framebuffer logo shown at power on (800x480,
+    # reduced to 224 colours by buildroot).
+    - name: Custom boot logo
+      run: |
+        # Only the background: the kernel shows it as the first frame of the boot
+        # animation, x6100-bootanim (boot/logo.png) composes the logo over it.
+        cp x6100_gui/boot/kernel_logo.png $X6CI_BR_EXT/board/X6100/linux/logo.png
+
+    # ccache kept between runs. The cache key carries the time of the run,
+    # so every run saves a new one and restores the latest by prefix.
+    - name: Prepare ccache timestamp
+      id: ccache_cache_timestamp
+      shell: cmake -P {0}
+      run: |
+        string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
+        file(APPEND "$ENV{GITHUB_OUTPUT}" "timestamp=${current_date}")
+
+    # Restore here and save right after Build, even when Build fails, so a
+    # failed attempt still leaves its compiled work for the next one.
+    - name: Restore ccache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.buildroot-ccache
+        key: ${{ runner.os }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-
+
+    - name: Configure
+      run: |
+        cd AetherX6100Buildroot && bash ./br_config.sh
+
+    # lame and mpg123 first, then libsndfile from scratch so that it is
+    # configured with them in place (MP3 support)
+    - name: Build
+      run: |
+        cd AetherX6100Buildroot/build
+        make lame mpg123
+        make libsndfile-dirclean
+        make
+
+    - name: Save ccache
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.buildroot-ccache
+        key: ${{ runner.os }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
+
+    # Our u-boot goes over the one buildroot wrote, 8 KB into the card
+    - name: Replace u-boot
+      run: |
+        dd if=x6100_gui/u-boot/u-boot-sunxi-with-spl.bin of=$X6CI_IMAGES/sdcard.img seek=8K bs=1 conv=notrunc
+
+    - name: Compress image
+      run: |
+        cd $X6CI_IMAGES
+        mv sdcard.img $X6CI_IMG
+        zip $X6CI_IMG.zip $X6CI_IMG
+
+    # Always keep the image as a workflow artifact: branch runs have no
+    # release to attach to, and on a tag it survives a failed Release step.
+    - name: Upload image
+      uses: actions/upload-artifact@v4
+      with:
+        name: OpenX6X00-${{ github.ref_name }}-sdcard.img.zip
+        path: ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-sdcard.img.zip
+        retention-days: 30
+
+    # On a tag: GitHub release with the image
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-sdcard.img.zip

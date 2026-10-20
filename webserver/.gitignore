@@ -1,0 +1,7 @@
+# Python build and run leftovers
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+# a local copy of the radio database for testing
+params.db

@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# WiFi profiles saved before v0.125 ask for IPv6, which this kernel lacks:
+# NetworkManager then retries it every 2 s. Turned off once, before it starts (S45).
+#
+
+case "$1" in
+  start)
+    for f in /etc/NetworkManager/system-connections/*.nmconnection; do
+      [ -f "$f" ] && grep -q "^method=auto$" "$f" &&
+        sed -i '/^\[ipv6\]/,/^\[/ s/^method=auto$/method=disabled/' "$f"
+    done
+    ;;
+esac
+
+exit 0

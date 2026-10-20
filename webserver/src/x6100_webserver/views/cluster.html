@@ -1,0 +1,206 @@
+% rebase('base.html', title='DX Cluster')
+<h2><svg class="i"><use href="#i-globe"/></svg>DX Cluster</h2>
+<p class="sub">Servers the radio can use (APP → Cluster). The one in use is marked; the radio reconnects when you change it.</p>
+
+<section class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-server"/></svg></span><div><h3>Servers</h3><p>Telnet servers; Use switches the radio to one</p></div></div>
+  <div class="dp-body tbl">
+<div class="table-wrap">
+<table id="servers">
+  <thead>
+    <tr><th>Name</th><th>Host</th><th>Port</th><th></th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</div>
+  </div>
+</section>
+
+<form class="dp-card" id="add">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-plus"/></svg></span><div><h3>Add server</h3><p>Name, host name and telnet port</p></div></div>
+  <div class="dp-body">
+  <div class="grid" style="grid-template-columns:1fr 2fr 120px">
+    <div><label for="name">Name</label><input id="name" autocomplete="off" required maxlength="31" pattern="[^|]+"></div>
+    <div><label for="host">Host</label><input id="host" autocomplete="off" required pattern="[A-Za-z0-9.\-]{1,127}" maxlength="127"></div>
+    <div><label for="port">Port</label><input id="port" type="number" min="1" max="65535" value="23" required></div>
+  </div>
+  <div class="actions">
+    <button type="submit" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add server</button>
+    <span class="status" id="status"></span>
+  </div>
+  </div>
+</form>
+
+<section class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-filter"/></svg></span><div><h3>Filters</h3><p>Spots hidden here disappear from APP Cluster, the cluster column and the waterfall marks</p></div></div>
+  <div class="dp-body">
+  <p class="sub">Modes, bands and activity are also on the radio: Settings → Cluster.</p>
+  <label>Modes</label>
+  <div class="chips" id="modes">
+    <label><input type="checkbox" value="CW"> CW</label>
+    <label><input type="checkbox" value="SSB"> SSB</label>
+    <label><input type="checkbox" value="DIG"> Digital</label>
+    <label><input type="checkbox" value="AMFM"> AM/FM</label>
+  </div>
+  <label>Bands <small>(none ticked = all bands)</small></label>
+  <div class="chips" id="fbands"></div>
+  <label>Activity <small>(none ticked = all spots)</small></label>
+  <div class="chips" id="activity">
+    <label><input type="checkbox" value="POTA"> POTA</label>
+    <label><input type="checkbox" value="SOTA"> SOTA</label>
+    <label><input type="checkbox" value="WWBOTA"> WWBOTA</label>
+    <label><input type="checkbox" value="HOTA"> HOTA</label>
+  </div>
+  <div class="grid" style="grid-template-columns:1fr 2fr">
+    <div><label for="max_age">Max age</label>
+      <select id="max_age">
+        <option value="0">Off</option>
+        <option value="10">10 min</option>
+        <option value="15">15 min</option>
+        <option value="30">30 min</option>
+        <option value="60">60 min</option>
+        <option value="120">120 min</option>
+      </select></div>
+    <div><label for="skip">Skip spotters</label><input id="skip" autocomplete="off" maxlength="120" placeholder="e.g. K1TTT-# , *-3"></div>
+  </div>
+  <div class="actions">
+    <button type="button" class="primary" id="save-filters">Save</button>
+    <span class="status" id="fstatus"></span>
+  </div>
+  </div>
+</section>
+
+<section class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-bell"/></svg></span><div><h3>Alerts</h3><p>Callsigns or prefixes you are looking for. <code>*</code> matches anything: VP8*, */P, 3Y0J.</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Popup on the radio</b><span>When a spot matches an alert</span></div>
+    <div class="dp-ctl"><label class="sw" title="Popup on the radio"><input type="checkbox" role="switch" id="popup" aria-label="Popup on the radio"><i></i></label></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Beep</b><span>When a spot matches an alert</span></div>
+    <div class="dp-ctl"><label class="sw" title="Beep"><input type="checkbox" role="switch" id="beep" aria-label="Beep"><i></i></label></div>
+  </div>
+  <div class="dp-body tbl" style="border-top:1px solid var(--line)">
+  <div class="table-wrap">
+  <table id="alerts">
+    <thead>
+      <tr><th>Pattern</th><th>Only bands</th><th>Only mode</th><th>Last seen</th><th></th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  </div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid var(--line)">
+  <form id="add-alert">
+    <div class="grid" style="grid-template-columns:2fr 2fr 1fr">
+      <div><label for="pattern">Pattern</label><input id="pattern" autocomplete="off" required maxlength="31" pattern="[A-Za-z0-9/*]+" placeholder="e.g. VP8*"></div>
+      <div><label for="bands">Only bands <small>(none = all)</small></label>
+        <select id="bands" multiple size="4"></select></div>
+      <div><label for="mode">Only mode</label>
+        <select id="mode">
+          <option value="">Any</option>
+          <option value="CW">CW</option>
+          <option value="SSB">SSB</option>
+          <option value="DIG">DIG</option>
+        </select></div>
+    </div>
+    <div class="actions">
+      <button type="submit" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add</button>
+      <span class="status" id="astatus"></span>
+    </div>
+  </form>
+  </div>
+</section>
+
+<script>
+var bandList = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6];
+bandList.forEach(function(b) { $("#bands").append($("<option>").val(b).text(b + " m")); });
+bandList.forEach(function(b) { $("#fbands").append($("<label>").append($("<input type='checkbox'>").val(b), " " + b + " m")); });
+
+var showStatus = function(text, error=false, sel="#status") {
+  const el = $(sel);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var render = function(data) {
+  const body = $("#servers>tbody").empty();
+  data.servers.forEach(function(s, i) {
+    const inUse = s.host == data.host && s.port == data.port;
+    const row = $("<tr>");
+    row.append($("<td>").text(s.name).append(inUse ? ' <span class="tag">in use</span>' : ''));
+    row.append($("<td>").text(s.host));
+    row.append($("<td>").text(s.port));
+    const actions = $("<td class='action-cell'>");
+    if (!inUse) actions.append($("<button class='ghost'>Use</button>").on("click", function() { call("POST", "/api/cluster/use/" + i); }));
+    if (!inUse) actions.append(" ", $("<button class='ghost'>Delete</button>").on("click", function() { call("DELETE", "/api/cluster/servers/" + i); }));
+    body.append(row.append(actions));
+  });
+
+  const f = data.filters;
+  $("#modes input").each(function() { $(this).prop("checked", f.modes.indexOf(this.value) >= 0); });
+  $("#fbands input").each(function() { $(this).prop("checked", f.bands.indexOf(Number(this.value)) >= 0); });
+  $("#activity input").each(function() { $(this).prop("checked", f.activity.indexOf(this.value) >= 0); });
+  $("#max_age").val(String(f.max_age));
+  if ($("#max_age").val() === null) $("#max_age").append($("<option>").val(f.max_age).text(f.max_age + " min")).val(String(f.max_age));
+  $("#skip").val(f.skip.split(",").join(", "));
+
+  const alerts = $("#alerts>tbody").empty();
+  data.alerts.forEach(function(a, i) {
+    const row = $("<tr>").css("opacity", a.enabled === false ? 0.5 : 1);
+    row.append($("<td>").text(a.pattern));
+    row.append($("<td>").text(a.bands ? a.bands.split(",").join(", ") + " m" : "All"));
+    row.append($("<td>").text(a.mode || "Any"));
+    row.append($("<td>").text(a.seen || "—"));
+    const flip = $("<button class='ghost'>").text(a.enabled === false ? "Turn on" : "Turn off").on("click", function() {
+      call("PUT", "/api/cluster/alerts/" + i, {pattern: a.pattern, bands: a.bands ? a.bands.split(",").map(Number) : [],
+                                               mode: a.mode, enabled: a.enabled === false}, "#astatus");
+    });
+    row.append($("<td class='action-cell'>").append(flip, $("<button class='ghost'>Delete</button>").on("click", function() { call("DELETE", "/api/cluster/alerts/" + i, null, "#astatus"); })));
+    alerts.append(row);
+  });
+  $("#popup").prop("checked", data.popup);
+  $("#beep").prop("checked", data.beep);
+}
+
+var call = function(type, url, payload, st="#status") {
+  $.ajax({
+    url: url,
+    type: type,
+    data: payload ? JSON.stringify(payload) : undefined,
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    success: function(r) { render(r); showStatus("Saved", false, st); },
+    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true, st); }
+  });
+}
+
+$.get('/api/cluster', {}, render);
+
+$("#add").on("submit", function(e) {
+  e.preventDefault();
+  call("POST", "/api/cluster/servers",
+       {name: $("#name").val().trim(), host: $("#host").val().trim(), port: Number($("#port").val())});
+  $("#name, #host").val("");
+});
+
+$("#save-filters").on("click", function() {
+  const modes = $("#modes input:checked").map(function() { return this.value; }).get();
+  call("POST", "/api/cluster/filters",
+       {modes: modes, max_age: Number($("#max_age").val()), skip: $("#skip").val().trim(),
+        bands: $("#fbands input:checked").map(function() { return Number(this.value); }).get(),
+        activity: $("#activity input:checked").map(function() { return this.value; }).get()}, "#fstatus");
+});
+
+$("#add-alert").on("submit", function(e) {
+  e.preventDefault();
+  call("POST", "/api/cluster/alerts",
+       {pattern: $("#pattern").val().trim(), bands: ($("#bands").val() || []).map(Number), mode: $("#mode").val()}, "#astatus");
+  $("#pattern").val("");
+  $("#bands").val([]);
+});
+
+$("#popup, #beep").on("change", function() {
+  call("POST", "/api/cluster/alert-options", {popup: $("#popup").prop("checked"), beep: $("#beep").prop("checked")}, "#astatus");
+});
+</script>

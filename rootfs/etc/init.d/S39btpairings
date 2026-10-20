@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# Restores the Bluetooth pairings saved on /mnt by btaudio-ctl, before
+# bluetoothd starts (S40): a new image would otherwise forget them.
+#
+
+case "$1" in
+  start)
+    [ -f /mnt/backups/bluetooth.tgz ] && gunzip -c /mnt/backups/bluetooth.tgz | tar xf - -C /   # BusyBox tar: no -z
+    # Bluetooth keyboards: classic ones go through hidp, Low Energy ones (HOGP) through uhid
+    modprobe hidp 2>/dev/null
+    modprobe uhid 2>/dev/null
+    ;;
+esac
+
+exit 0

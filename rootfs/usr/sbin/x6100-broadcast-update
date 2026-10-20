@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+# Updates the broadcast schedule of the SWL panel (/mnt/broadcast.csv, src/broadcast_db.c) from EiBi's
+# public schedule (Eike Bierwirth, www.eibispace.de). One line on stdout, exit 0/1:
+#   ok <stations> <season>        error offline | error download | error invalid | error busy
+#
+# Season: A = last Sunday of March to last Sunday of October (sked-a26), B the rest (sked-b26 runs
+# into 2027). Not published yet: the season before. The file is checked (EiBi's columns, at least
+# 1000 stations), written as UTF-8 with LF next to the old one and put in its place in one step;
+# the old one stays as broadcast.csv.bak. A failure leaves the list in use as it was.
+# While downloading, <dir>/.broadcast.progress has "<bytes> <total>" (total 0: not known).
+# <dir>/broadcast.info has "<season> <YYYY-MM-DD> <stations>" of the last update.
+# <dir> is /mnt (env X6100_BROADCAST_DIR), the URL env X6100_EIBI_URL ({} is the season).
+
+import errno
+import fcntl
+import http.client
+import os
+import re
+import socket
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import date, timedelta
+
+DIR = os.environ.get("X6100_BROADCAST_DIR", "/mnt")
+URL = os.environ.get("X6100_EIBI_URL", "http://www.eibispace.de/dx/sked-{}.csv")
+CSV = os.path.join(DIR, "broadcast.csv")
+PROGRESS = os.path.join(DIR, ".broadcast.progress")
+HEADER = "kHz:75;Time(UTC):93;Days:59;ITU:49;Station:201;Lng:49;Target:62;Remarks:135;P:35;Start:60;Stop:60;"
+STATION = re.compile(r"\d+(\.\d+)?;\d{4}-\d{4};")
+TIMEOUT = 60        # per read: the radio's WiFi can stall for a while
+RETRIES = 5
+MIN_STATIONS = 1000
+
+
+class Fail(Exception):
+    pass
+
+
+def last_sunday(year, month):
+    d = date(year, month + 1, 1) - timedelta(days=1)
+    return d - timedelta(days=(d.weekday() + 1) % 7)
+
+
+def seasons(today):
+    """(this season, the one before), as EiBi names them"""
+    y = today.year
+    if today < last_sunday(y, 3):
+        return f"b{(y - 1) % 100:02d}", f"a{(y - 1) % 100:02d}"
+    if today < last_sunday(y, 10):
+        return f"a{y % 100:02d}", f"b{(y - 1) % 100:02d}"
+    return f"b{y % 100:02d}", f"a{y % 100:02d}"
+
+
+def progress(got, total):
+    try:
+        with open(PROGRESS + ".tmp", "w") as f:
+            f.write(f"{got} {total}\n")
+        os.replace(PROGRESS + ".tmp", PROGRESS)
+    except OSError:
+        pass
+
+
+def offline(e):
+    r = getattr(e, "reason", e)
+    return isinstance(r, socket.gaierror) or getattr(r, "errno", None) in (errno.ENETUNREACH, errno.EHOSTUNREACH)
+
+
+def download(url):
+    """The file's bytes; None if not published (404). A stalled download goes on from the byte reached."""
+    data = b""
+    total = 0
+    for attempt in range(RETRIES + 1):
+        h = {"User-Agent": "OpenX6X00"}
+        if data:
+            h["Range"] = f"bytes={len(data)}-"
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=h), timeout=TIMEOUT) as r:
+                if data and r.status != 206:
+                    data = b""
+                if not data:
+                    total = int(r.headers.get("Content-Length") or 0)
+                last = 0
+                while True:
+                    chunk = r.read(65536)
+                    if not chunk:
+                        break
+                    data += chunk
+                    if time.monotonic() - last > 0.5:
+                        last = time.monotonic()
+                        progress(len(data), total)
+            if total and len(data) < total:
+                raise http.client.IncompleteRead(b"", total - len(data))
+            progress(len(data), total)
+            return data
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            if e.code < 500 or attempt == RETRIES:
+                raise Fail("download")
+        except (OSError, http.client.HTTPException) as e:
+            if offline(e) and not data:
+                raise Fail("offline")
+            if attempt == RETRIES:
+                raise Fail("download")
+        time.sleep(5)
+
+
+def convert(raw):
+    """UTF-8 text with LF and the number of stations; Fail if not EiBi's schedule"""
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")        # EiBi's usual encoding
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    if lines[0].strip() != HEADER:
+        raise Fail("invalid")
+    stations = sum(1 for l in lines[1:] if STATION.match(l))
+    if stations < MIN_STATIONS:
+        raise Fail("invalid")
+    return "\n".join(l for l in lines if l) + "\n", stations
+
+
+def install(text):
+    tmp = CSV + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        if os.path.exists(CSV):
+            with open(CSV, "rb") as src, open(CSV + ".bak.tmp", "wb") as dst:
+                dst.write(src.read())
+            os.replace(CSV + ".bak.tmp", CSV + ".bak")
+        os.replace(tmp, CSV)
+    finally:
+        for p in (tmp, CSV + ".bak.tmp"):
+            if os.path.exists(p):
+                os.remove(p)
+
+
+def update():
+    lock = open(os.path.join(DIR, ".broadcast.lock"), "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        raise Fail("busy")
+    try:
+        for season in seasons(date.today()):
+            raw = download(URL.format(season))
+            if raw is not None:
+                break
+        else:
+            raise Fail("download")
+        text, stations = convert(raw)
+        install(text)
+    finally:
+        if os.path.exists(PROGRESS):
+            os.remove(PROGRESS)
+    with open(os.path.join(DIR, "broadcast.info"), "w") as f:
+        f.write(f"{season.upper()} {date.today().isoformat()} {stations}\n")
+    os.sync()
+    return f"ok {stations} {season.upper()}"
+
+
+if __name__ == "__main__":
+    try:
+        print(update())
+    except Fail as e:
+        print(f"error {e}")
+        sys.exit(1)
+    except OSError as e:     # /mnt full or read-only: the old file is still there
+        print(f"error download {e}"[:80])
+        sys.exit(1)

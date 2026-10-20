@@ -1,0 +1,18 @@
+# Bluetooth audio: A2DP headphones only, no automatic routing.
+# The RX audio goes to the headphones through a loopback that
+# /usr/sbin/btaudio-ctl loads when asked to (Settings -> Wireless).
+.nofail
+
+# A phone/tablet that connects for CAT also connects as an A2DP source, and
+# the default policy loops it into alsa_output (the radio TX audio):
+# a2dp_source=false. auto_switch=0: never switch a card to HFP/HSP.
+unload-module module-bluetooth-policy
+load-module module-bluetooth-policy auto_switch=0 a2dp_source=false ag=false
+
+# Keep the default sink/source on the radio codec when a device connects.
+unload-module module-switch-on-connect
+
+# No HFP/HSP at all: on this radio (RTL8723BU on the MUSB host) SCO gives no
+# audio and drops the WiFi. headset=ofono without oFono = no headset backend.
+unload-module module-bluetooth-discover
+load-module module-bluetooth-discover headset=ofono

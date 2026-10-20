@@ -1,0 +1,21 @@
+# Code style of OpenX6X00 (clang-format 18)
+# LLVM style with 4 space indent, 120 columns, aligned assignments and
+# declarations, indented case labels.
+---
+Language:        Cpp
+BasedOnStyle:    LLVM
+IndentWidth:     4
+ColumnLimit:     120
+AlignArrayOfStructures: Left
+AlignConsecutiveAssignments:
+  Enabled:         true
+AlignConsecutiveDeclarations:
+  Enabled:         true
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+IndentCaseBlocks: true
+IndentCaseLabels: true
+InsertNewlineAtEOF: true
+KeepEmptyLinesAtEOF: true
+ReflowComments:  false
+...

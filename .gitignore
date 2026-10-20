@@ -1,0 +1,52 @@
+# OpenX6X00: files git leaves out
+
+# Compiler and linker output
+*.o
+*.obj
+*.a
+*.lib
+*.la
+*.lo
+*.so
+*.so.*
+*.dll
+*.dylib
+*.elf
+*.exe
+*.out
+*.app
+*.hex
+*.i*86
+*.x86_64
+*.map
+*.ilk
+*.exp
+*.gch
+*.pch
+
+# Debug symbols and stack usage
+*.dSYM/
+*.pdb
+*.idb
+*.su
+
+# Kernel module builds
+*.ko
+*.mod*
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+Mkfile.old
+dkms.conf
+
+# Build folders (radio build, PC tests) and editor settings
+build/
+_build/
+build_test/
+.vscode
+# PNG copies next to the panel images
+images/*.png
+
+# Local developer tools and tests, not part of the repository
+/tests/

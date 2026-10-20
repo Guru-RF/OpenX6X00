@@ -1,0 +1,170 @@
+#!/bin/sh
+# Bluetooth headphones (A2DP) for the RX audio. Used by Settings -> Bluetooth
+# (HEADPHONES). Scan, pair, connect and remove are in the GUI (bt_dev.c, BlueZ
+# over D-Bus); this script keeps the audio side.
+#
+#   btaudio-ctl status                   headphone audio state (tab separated)
+#   btaudio-ctl save                     copy the pairings to /mnt
+#   btaudio-ctl autoconnect MAC on|off   connect at startup
+#   btaudio-ctl rx on|off                RX audio to the headphones (loopback)
+#   btaudio-ctl volume N                 headphone volume, 0..100 %
+#   btaudio-ctl mute on|off              GUI: AF volume to 0 while headphones are connected
+#   btaudio-ctl boot                     from btcat-setup: monitor + autoconnect
+#   btaudio-ctl monitor                  keeps the cards on A2DP and the loopback up
+#
+# Only A2DP is used: HFP/HSP (SCO) gives no audio on this radio and drops
+# the WiFi (see also /etc/pulse/system.pa.d/btaudio.pa).
+CONF=/mnt/btaudio.conf
+STATE=/tmp/btaudio-hp
+PIDFILE=/tmp/btaudio-monitor.pid
+LST=/tmp/btaudio-lst
+SOURCE=alsa_input.platform-sound.stereo-fallback
+BTAUDIO_RX=yes
+BTAUDIO_MUTE=yes
+BTAUDIO_AUTOCONNECT=""
+# shellcheck source=/dev/null
+[ -r $CONF ] && . $CONF
+export PULSE_SERVER="${PULSE_SERVER:-unix:/var/run/pulse/native}"
+
+set_kv() {
+	touch $CONF
+	if grep -q "^$1=" $CONF; then
+		sed -i "s/^$1=.*/$1=\"$2\"/" $CONF
+	else
+		echo "$1=\"$2\"" >> $CONF
+	fi
+	sync
+	eval "$1=\"\$2\""
+}
+
+yn() { [ "$1" = "on" ] && echo yes || echo no; }
+
+hp_sinks() { pactl list short sinks 2>/dev/null | awk '$2 ~ /^bluez_sink\..*a2dp_sink$/ {print $2}'; }
+
+# Never HFP/HSP: put every headphone card that is not on a2dp_sink back on it
+force_a2dp() {
+	for card in $(pactl list cards 2>/dev/null | awk '
+		$1 == "Name:" {n = $2; a = 0}
+		$1 == "a2dp_sink:" {a = 1}
+		$1 == "Active" && $2 == "Profile:" {if (n ~ /^bluez_card\./ && a && $3 != "a2dp_sink") print n}'); do
+		pactl set-card-profile "$card" a2dp_sink
+	done
+}
+
+apply_rx() {
+	sinks=$(hp_sinks)
+	if [ -n "$sinks" ]; then echo "$sinks" > $STATE; else rm -f $STATE; fi
+	if [ "$BTAUDIO_RX" = "yes" ]; then
+		for s in $sinks; do
+			pactl list short modules 2>/dev/null | grep -q "sink=$s " && continue
+			# Lowest radio-side latency, one reason per option:
+			# - latency_msec=400: end-to-end target of the loopback. At 10 ms the
+			#   buffer ran dry every time the radio (WiFi and BT share the chip)
+			#   held the BT link for a moment: "Too many underruns" and the audio
+			#   skipped; pulse only raises it 5 ms at a time. 120 and 200 ms still
+			#   skipped with WiFi traffic; 400 rides it out.
+			# - adjust_time=1: re-measure and re-sync every second (default 10) so
+			#   the buffer does not drift up between corrections.
+			# - latency offset 0 on the bluez sink port: no extra delay is added to
+			#   the reported latency (some setups leave a non-zero offset).
+			# A2DP/SBC encoding and the headphones add their own delay after this.
+			card=bluez_card.${s#bluez_sink.}; card=${card%.a2dp_sink}
+			pactl set-port-latency-offset "$card" headphone-output 0 2>/dev/null
+			# - max_latency_msec / fast_adjust_threshold_msec: every underrun raises
+			#   the loopback latency and it never comes down (seen growing to 2 s);
+			#   cap it at target + 300 ms and drop the excess at once (as openx6100's
+			#   bt_audio.c, LOOP_MAX_EXTRA_MS / LOOP_FAST_ADJUST_MS, with more room).
+			pactl load-module module-loopback source=$SOURCE sink="$s" latency_msec=400 adjust_time=1 \
+				max_latency_msec=700 fast_adjust_threshold_msec=600 \
+				source_dont_move=true sink_dont_move=true >/dev/null
+		done
+	else
+		for m in $(pactl list short modules 2>/dev/null | awk '$2 == "module-loopback" && /sink=bluez_sink\./ {print $1}'); do
+			pactl unload-module "$m"
+		done
+	fi
+}
+
+# Headphones put in their case often drop the link without saying so: the
+# link is then declared lost after the supervision timeout (20 s by default).
+# 2 s (3200 slots of 0.625 ms) brings the speaker back quickly.
+# Sent once per link (MAC/handle in $LST): sync_audio runs on every PulseAudio
+# event, and a burst of HCI commands to the chip on each one is pointless.
+short_lst() {
+	set_lst=""
+	for c in $(hcitool con 2>/dev/null | awk '/ACL/ {print $3 "/" $5}'); do
+		if grep -qx "$c" $LST 2>/dev/null || hcitool lst "${c%/*}" 3200 >/dev/null 2>&1; then
+			set_lst="$set_lst $c"
+		fi
+	done
+	printf '%s\n' $set_lst > $LST
+}
+
+sync_audio() { force_a2dp; short_lst; apply_rx; }
+
+status() {
+	hp=0; vol=-1
+	s=$(hp_sinks | head -n 1)
+	if [ -n "$s" ]; then
+		hp=1
+		vol=$(pactl get-sink-volume "$s" 2>/dev/null | sed -n 's|^Volume:[^/]*/ *\([0-9]*\)%.*|\1|p')
+	fi
+	printf 'HP\t%s\t%s\nRX\t%s\nMUTE\t%s\n' "$hp" "${vol:--1}" "$BTAUDIO_RX" "$BTAUDIO_MUTE"
+}
+
+# /var/lib/bluetooth is on the rootfs, which a new image replaces: keep a copy
+# on /mnt (vfat, so as a tarball), restored at boot by S39btpairings.
+save_pairings() {
+	mkdir -p /mnt/backups
+	# BusyBox tar has no -z: through gzip
+	tar cf - -C / var/lib/bluetooth 2>/dev/null | gzip > /mnt/backups/bluetooth.tgz
+	sync
+}
+
+autoconnect() {
+	l=""
+	for m in $BTAUDIO_AUTOCONNECT; do [ "$m" = "$1" ] || l="$l $m"; done
+	[ "$2" = "on" ] && l="$l $1"
+	set_kv BTAUDIO_AUTOCONNECT "${l# }"
+}
+
+monitor() {
+	while true; do
+		sync_audio
+		pactl subscribe 2>/dev/null | while read -r line; do
+			case "$line" in
+				*" on card #"*|*" on sink #"*) sync_audio;;
+			esac
+		done
+		sleep 5
+	done
+}
+
+boot() {
+	# Pairings made while the copy on /mnt could not be written (0.126: this
+	# script was not executable) have no copy: make it once, a new image needs it
+	[ -f /mnt/backups/bluetooth.tgz ] || ! ls /var/lib/bluetooth/*/??:* >/dev/null 2>&1 || save_pairings
+	pid=$(cat $PIDFILE 2>/dev/null)
+	if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+		monitor </dev/null >/dev/null 2>&1 &
+		echo $! > $PIDFILE
+	fi
+	for _ in 1 2 3; do
+		for m in $BTAUDIO_AUTOCONNECT; do
+			bluetoothctl info "$m" 2>/dev/null | grep -q "Connected: yes" || bluetoothctl connect "$m" >/dev/null 2>&1
+		done
+		sleep 10
+	done
+}
+
+case "$1" in
+	status)      status;;
+	save)        save_pairings;;
+	autoconnect) autoconnect "$2" "$3";;
+	rx)          set_kv BTAUDIO_RX "$(yn "$2")"; apply_rx;;
+	volume)      for s in $(hp_sinks); do pactl set-sink-volume "$s" "$2%"; done;;
+	mute)        set_kv BTAUDIO_MUTE "$(yn "$2")";;
+	boot)        boot;;
+	monitor)     monitor;;
+	*) echo "Usage: $0 {status|save|autoconnect MAC on|off|rx on|off|volume N|mute on|off|boot|monitor}"; exit 1;;
+esac

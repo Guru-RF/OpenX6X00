@@ -1,0 +1,6 @@
+# x6100-bootanim: the boot logo composes itself while the radio boots (see bootanim.c)
+find_package(PNG REQUIRED)
+add_executable(x6100-bootanim bootanim.c)
+target_link_libraries(x6100-bootanim PRIVATE PNG::PNG aether_x6100_control gpiod asound sqlite3 pthread m)
+install(TARGETS x6100-bootanim DESTINATION sbin)
+install(FILES ${CMAKE_SOURCE_DIR}/boot/logo.png DESTINATION share/x6100 RENAME bootlogo.png)

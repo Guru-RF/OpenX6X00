@@ -1,0 +1,4 @@
+# Read by S50gpsd and by the udev hotplug script (gpsdctl): a GPS plugged in later is added
+# to the running gpsd through the control socket.
+GPSD_SOCKET="/var/run/gpsd.sock"
+GPSD_OPTIONS="-n"

@@ -1,0 +1,111 @@
+% rebase('base.html', title='Macros')
+<h2><svg class="i"><use href="#i-list"/></svg>Macros</h2>
+<p class="sub">The macro buttons of the PSK31, Olivia and JTTY windows and the JS8 INFO and STATUS answers. The radio shows the changes the next time the window opens.</p>
+
+% for mode, label, help in (('psk', 'PSK31', 'Up to 12, name up to 23 characters, text up to 199. <MYCALL>, <CALL>, <RST> and <RSTR> are filled in when sent'),
+%                           ('olivia', 'Olivia', 'Up to 12, name up to 23 characters, text up to 199. <MYCALL>, <CALL>, <RST> and <RSTR> are filled in when sent'),
+%                           ('jtty', 'JTTY', 'F1 to F8, text up to 80 characters. %M is your call, %H the DX call, %E 599 and the serial number')):
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>{{label}}</h3><p>{{help}}</p></div><div class="dp-x"><button class="primary add" data-mode="{{mode}}"><svg class="i"><use href="#i-plus"/></svg>Add</button></div></div>
+<div class="dp-body tbl">
+<div class="table-wrap">
+<table id="t-{{mode}}">
+  <thead>
+    <tr><th>Name</th><th>Text</th><th></th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</div>
+<div class="actions"><span class="status" id="s-{{mode}}"></span></div>
+</div>
+</section>
+% end
+
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>JS8</h3><p>The answers to INFO? and STATUS?, up to 64 characters each, empty for none</p></div></div>
+<div class="dp-body tbl">
+<div class="table-wrap">
+<table>
+  <tbody>
+    <tr><td style="width:9em">INFO</td><td style="width:100%"><input id="js8-info" class="name" autocomplete="off" pattern="[ -~]*" maxlength="64" style="width:100%"></td></tr>
+    <tr><td>STATUS</td><td><input id="js8-status" class="name" autocomplete="off" pattern="[ -~]*" maxlength="64" style="width:100%"></td></tr>
+  </tbody>
+</table>
+</div>
+<div class="actions"><button id="js8-save" class="primary">Save</button><span class="status" id="s-js8"></span></div>
+</div>
+</section>
+
+<script>
+var showStatus = function(mode, text, error=false) {
+  const el = $("#s-" + mode);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var button = function(cls, icon, title) {
+  return $("<button class='action'>").addClass(cls).attr("title", title).append($("<i>").addClass(icon));
+}
+
+var call = function(mode, type, url, payload) {
+  $.ajax({
+    url: "/api/macros/" + mode + url,
+    type: type,
+    data: payload ? JSON.stringify(payload) : undefined,
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    success: function(r) { render(mode, r); showStatus(mode, "Saved"); },
+    error: function(xhr) { showStatus(mode, xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true); }
+  });
+}
+
+// m.id is null for a new, not yet saved macro
+var macroRow = function(mode, m, lim) {
+  const row = $("<tr>");
+  const input = function(v, max) { return $("<input class='name' autocomplete='off' pattern='[ -~]*'>").attr("maxlength", max).val(v || "").css("width", "100%"); };
+  const name = input(m.name, lim.name_max), text = input(m.text, lim.text_max);
+  row.append($("<td>").css("width", "9em").append(name), $("<td>").css("width", "100%").append(text));
+  const actions = $("<td class='action-cell'>").css("white-space", "nowrap").appendTo(row);
+  actions.append(button("save", "si-disk", "Save").on("click", function() {
+    const d = {name: name.val(), text: text.val()};
+    if (m.id === null) call(mode, "POST", "", d);
+    else call(mode, "PUT", "/" + m.id, d);
+  }));
+  if (m.id) actions.append(" ", $("<button class='action up' title='Move up'>").text("▲").on("click", function() {
+    call(mode, "POST", "/" + m.id + "/up");
+  }));
+  actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {
+    if (m.id === null) row.remove();
+    else call(mode, "DELETE", "/" + m.id);
+  }));
+  return row;
+}
+
+var limits = {};
+var render = function(mode, data) {
+  limits[mode] = data;
+  const body = $("#t-" + mode + ">tbody").empty();
+  data.macros.forEach(function(m) { body.append(macroRow(mode, m, data)); });
+}
+
+$(".add").on("click", function() {
+  const mode = $(this).data("mode");
+  const row = macroRow(mode, {id: null}, limits[mode]);
+  $("#t-" + mode + ">tbody").append(row);
+  row.find("input").first().focus();
+});
+
+["psk", "olivia", "jtty"].forEach(function(mode) { $.get('/api/macros/' + mode, {}, function(r) { render(mode, r); }); });
+
+var js8Show = function(r) { $("#js8-info").val(r.info); $("#js8-status").val(r.status); }
+$("#js8-save").on("click", function() {
+  $.ajax({
+    url: "/api/js8_texts", type: "PUT",
+    data: JSON.stringify({info: $("#js8-info").val(), status: $("#js8-status").val()}),
+    contentType: "application/json; charset=utf-8", dataType: "json",
+    success: function(r) { js8Show(r); showStatus("js8", "Saved"); },
+    error: function(xhr) { showStatus("js8", xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true); }
+  });
+});
+$.get('/api/js8_texts', {}, js8Show);
+</script>

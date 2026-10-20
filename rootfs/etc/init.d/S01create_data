@@ -1,0 +1,56 @@
+#!/bin/sh
+
+# The DATA partition (settings, logs) is FAT: the radio is often switched off without a clean
+# unmount, and the errors that pile up made the kernel remount it read-only ("Read-only file
+# system" saving settings). Repair it at each start, before anything uses /mnt.
+check_data() {
+    dev=$(blkid -L DATA) || return
+    if grep -q " /mnt " /proc/mounts; then umount /mnt || return; fi   # never check it while in use
+    fsck.fat -a -w "$dev" > /dev/null 2>&1   # 1 = errors fixed: fine
+    mount /mnt
+}
+
+start() {
+    # Check fat32 not exists
+    parted -m -s /dev/mmcblk0 print | grep fat32
+    retVal=$?
+    if [ $retVal -eq 0 ]; then
+        echo "Fat32 partition already exists"
+        check_data
+        return
+    fi
+    # Get free space info
+    FREE_INFO=$(parted -sm /dev/mmcblk0 print free | tail -n1 | grep free)
+    retVal=$?
+    if [ $retVal -ne 0 ]; then
+        echo "No free space available"
+        return
+    fi
+    FREE_ARR=(${FREE_INFO//:/ })
+    # Create (or recreate) partition
+    parted -m -s -a opt /dev/mmcblk0 mkpart primary fat32 ${FREE_ARR[1]} ${FREE_ARR[2]}
+    partprobe /dev/mmcblk0
+    # Check if we have a preexisting DATA partition
+    dataPartition=$(blkid -L DATA)
+    if [ -n "$dataPartition" ]; then
+        echo "Mount existing data partition"
+        # Mount partition
+        mount $dataPartition
+        return
+    fi
+    # Format partition
+    mkfs -t vfat -n DATA /dev/mmcblk0p3
+    # Mount partition
+    mount /dev/mmcblk0p3
+}
+
+
+case "$1" in
+    start)
+        start;;
+    stop)
+        ;;
+    *)
+        echo "Usage: $0 {start}"
+    exit 1
+esac

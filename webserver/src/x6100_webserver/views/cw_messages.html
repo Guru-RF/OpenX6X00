@@ -1,0 +1,77 @@
+% rebase('base.html', title='CW messages')
+<h2><svg class="i"><use href="#i-cw"/></svg>CW messages</h2>
+<p class="sub">The messages of MSG &rarr; CW on the radio, sent with TX or as a beacon. Up to 64 characters each; the radio shows the changes the next time MSG &rarr; CW opens.</p>
+
+<section class="dp-card">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-cw"/></svg></span><div><h3>Messages</h3><p>Up to 64 characters each</p></div><div class="dp-x"><button id="add" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add</button></div></div>
+<div class="dp-body tbl">
+<div class="table-wrap">
+<table id="messages">
+  <thead>
+    <tr><th>Message</th><th></th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</div>
+<div class="actions"><span class="status" id="status"></span></div>
+</div>
+</section>
+
+<script>
+let max = 64;
+
+var showStatus = function(text, error=false) {
+  const el = $("#status");
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var button = function(cls, icon, title) {
+  return $("<button class='action'>").addClass(cls).attr("title", title).append($("<i>").addClass(icon));
+}
+
+var call = function(type, url, payload) {
+  $.ajax({
+    url: url,
+    type: type,
+    data: payload ? JSON.stringify(payload) : undefined,
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    success: function(r) { render(r); showStatus("Saved"); },
+    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true); }
+  });
+}
+
+// m.id is null for a new, not yet saved message
+var messageRow = function(m) {
+  const row = $("<tr>");
+  const text = $("<input class='name' autocomplete='off' pattern='[ -~]*'>").attr("maxlength", max).val(m.text || "")
+    .css("width", "100%");
+  row.append($("<td>").css("width", "100%").append(text));
+  const actions = $("<td class='action-cell'>").appendTo(row);
+  actions.append(button("save", "si-disk", "Save").on("click", function() {
+    const d = {text: text.val()};
+    if (m.id === null) call("POST", "/api/cw_messages", d);
+    else call("PUT", "/api/cw_messages/" + m.id, d);
+  }));
+  actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {
+    if (m.id === null) row.remove();
+    else call("DELETE", "/api/cw_messages/" + m.id);
+  }));
+  return row;
+}
+
+var render = function(data) {
+  max = data.max;
+  const body = $("#messages>tbody").empty();
+  data.messages.forEach(function(m) { body.append(messageRow(m)); });
+}
+
+$("#add").on("click", function() {
+  const row = messageRow({id: null, text: ""});
+  $("#messages>tbody").append(row);
+  row.find("input").focus();
+});
+
+$.get('/api/cw_messages', {}, render);
+</script>

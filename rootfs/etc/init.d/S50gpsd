@@ -1,0 +1,43 @@
+#!/bin/sh
+#
+# Starts the gps daemon. It keeps running with no GPS attached (control socket), so a USB GPS
+# plugged in later is picked up by the udev hotplug script and feeds ntpd (SHM 0) and the GUI.
+#
+
+NAME=gpsd
+DAEMON=/usr/sbin/$NAME
+PIDFILE=/var/run/$NAME.pid
+[ -r /etc/default/gpsd ] && . /etc/default/gpsd
+
+start() {
+        printf "Starting $NAME: "
+        DEVICES=""
+        for d in /dev/ttyACM0 /dev/gps0; do [ -e $d ] && DEVICES="$DEVICES $d"; done
+        start-stop-daemon -S -q -p $PIDFILE --exec $DAEMON -- -P $PIDFILE -F $GPSD_SOCKET $GPSD_OPTIONS $DEVICES && echo "OK" || echo "Failed"
+}
+stop() {
+        printf "Stopping $NAME: "
+        start-stop-daemon -K -q -p $PIDFILE && echo "OK" || echo "Failed"
+        rm -f $PIDFILE
+}
+restart() {
+        stop
+        start
+}
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  restart|reload)
+        restart
+        ;;
+  *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

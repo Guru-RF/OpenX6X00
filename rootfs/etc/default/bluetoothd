@@ -1,0 +1,2 @@
+# -C: compat mode (SDP server socket) needed by sdptool for the SPP record
+BLUETOOTHD_ARGS="-n -C"
