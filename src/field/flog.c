@@ -42,6 +42,16 @@ static size_t field(char *buf, size_t size, size_t len, const char *tag, const c
     return n > 0 ? len + (size_t)n : len;
 }
 
+/* The ADIF SUBMODE of a log mode that is one, NULL when the mode stands on its own */
+static const char *adif_submode(const char *mode) {
+    static const char *const sub[] = {"FT4", "JS8", "FT2", NULL};
+
+    for (int i = 0; sub[i]; i++)
+        if (!strcasecmp(mode, sub[i]))
+            return sub[i];
+    return NULL;
+}
+
 size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const field_station_t *st) {
     char      date[16], tm_on[16], freq[16];
     struct tm tm;
@@ -57,7 +67,10 @@ size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const fie
     n = field(buf, size, n, "TIME_ON", tm_on);
     n = field(buf, size, n, "BAND", field_band(q->freq_hz));
     n = field(buf, size, n, "FREQ", freq);
-    n = field(buf, size, n, "MODE", q->mode);
+    /* ADIF has FT4, JS8 and FT2 as submodes of MFSK (FT8 is a mode of its own) */
+    const char *submode = adif_submode(q->mode);
+    n = field(buf, size, n, "MODE", submode ? "MFSK" : q->mode);
+    n = field(buf, size, n, "SUBMODE", submode ? submode : "");
     n = field(buf, size, n, "RST_SENT", q->rst_s);
     n = field(buf, size, n, "RST_RCVD", q->rst_r);
     n = field(buf, size, n, "NAME", q->name);
@@ -196,6 +209,12 @@ int field_log_read(const char *path, field_qso_t *out, int max) {
         get(line, "FREQ", v, sizeof(v));
         q->freq_hz = (int32_t)(atof(v) * 1e6 + 0.5);
         get(line, "MODE", q->mode, sizeof(q->mode));
+        if (!strcasecmp(q->mode, "MFSK")) {       /* the submode names it: FT4, JS8, FT2 */
+            char sub[8];
+            get(line, "SUBMODE", sub, sizeof(sub));
+            if (sub[0])
+                snprintf(q->mode, sizeof(q->mode), "%s", sub);
+        }
         get(line, "RST_SENT", q->rst_s, sizeof(q->rst_s));
         get(line, "RST_RCVD", q->rst_r, sizeof(q->rst_r));
         get(line, "SOTA_REF", q->their_ref, sizeof(q->their_ref));
