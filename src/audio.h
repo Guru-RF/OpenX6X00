@@ -24,6 +24,10 @@ typedef enum {
     AUDIO_PLAY_VOICE_REC  // Rec mode, BASE will stream audio from hmic and this app
 } audio_play_mode_t;
 
+/* The GUI's exit code when PulseAudio cannot be reached or goes away: x6100_daemon starts it
+ * again and does not count the start against a pending update */
+#define AUDIO_EXIT_NO_SERVER 3
+
 void audio_init();
 void audio_mixer_setup(x6100_base_ver_t base_ver);
 int audio_play(int16_t *buf, size_t samples);

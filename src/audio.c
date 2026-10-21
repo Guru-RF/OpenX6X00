@@ -27,6 +27,7 @@
 #include "btaudio.h"
 
 #define AUDIO_RATE_MS   100
+#define PA_CONNECT_TRIES 20     /* a second apart: PulseAudio still coming up, or x6100_daemon restarting it */
 
 static pa_threaded_mainloop *mloop;
 static pa_mainloop_api      *mlapi;
@@ -45,11 +46,58 @@ static char                 *capture_device = "alsa_input.platform-sound.stereo-
 static pa_stream            *monitor_stm = NULL;
 
 static float                peak_db = -60.0f;
+static bool                 connected;      /* the context was READY once */
 
 static void record_monitor_setup();
 
+/* On the mainloop thread, with its lock held */
 static void on_state_change(pa_context *c, void *userdata) {
+    pa_context_state_t st = pa_context_get_state(c);
+
+    if (connected && (st == PA_CONTEXT_FAILED || st == PA_CONTEXT_TERMINATED)) {
+        /* PulseAudio went away under us: every stream is dead, the receiver is silent and the
+         * waterfall stands. Out, so x6100_daemon brings PulseAudio and us back. */
+        LV_LOG_ERROR("PulseAudio gone (%s): exiting for a restart", pa_strerror(pa_context_errno(c)));
+        fflush(stdout);
+        fflush(stderr);
+        _exit(AUDIO_EXIT_NO_SERVER);
+    }
     pa_threaded_mainloop_signal(mloop, 0);
+}
+
+/* Connects ctx, trying PA_CONNECT_TRIES times a second apart; exits when PulseAudio never answers.
+ * The wait needs the mainloop lock: without it pa_threaded_mainloop_wait() returns at once, and a
+ * context that failed (no PulseAudio) had the old loop spinning on one core for ever. */
+static void context_connect(void) {
+    pa_threaded_mainloop_lock(mloop);
+    for (int attempt = 1;; attempt++) {
+        pa_context_state_t st = PA_CONTEXT_FAILED;
+
+        ctx = pa_context_new(mlapi, "X6100 GUI");
+        pa_context_set_state_callback(ctx, on_state_change, NULL);
+        if (pa_context_connect(ctx, NULL, PA_CONTEXT_NOAUTOSPAWN, NULL) >= 0) {
+            while ((st = pa_context_get_state(ctx)) != PA_CONTEXT_READY && st != PA_CONTEXT_FAILED &&
+                   st != PA_CONTEXT_TERMINATED) {
+                pa_threaded_mainloop_wait(mloop);
+            }
+        }
+        if (st == PA_CONTEXT_READY) {
+            break;
+        }
+        LV_LOG_ERROR("PulseAudio: %s (try %d of %d)", pa_strerror(pa_context_errno(ctx)), attempt, PA_CONNECT_TRIES);
+        pa_context_unref(ctx);
+        ctx = NULL;
+        if (attempt >= PA_CONNECT_TRIES) {
+            pa_threaded_mainloop_unlock(mloop);
+            LV_LOG_ERROR("No PulseAudio: exiting for a restart");
+            exit(AUDIO_EXIT_NO_SERVER);
+        }
+        pa_threaded_mainloop_unlock(mloop);
+        sleep(1);
+        pa_threaded_mainloop_lock(mloop);
+    }
+    connected = true;
+    pa_threaded_mainloop_unlock(mloop);
 }
 
 static void read_callback(pa_stream *s, size_t nbytes, void *udata) {
@@ -68,18 +116,9 @@ void audio_init() {
     pa_threaded_mainloop_start(mloop);
 
     mlapi = pa_threaded_mainloop_get_api(mloop);
-    ctx = pa_context_new(mlapi, "X6100 GUI");
+    context_connect();
 
-    pa_threaded_mainloop_lock(mloop);
-    pa_context_set_state_callback(ctx, on_state_change, NULL);
-    pa_context_connect(ctx, NULL, 0, NULL);
-    pa_threaded_mainloop_unlock(mloop);
-
-    while (PA_CONTEXT_READY != pa_context_get_state(ctx))  {
-        pa_threaded_mainloop_wait(mloop);
-    }
-
-    LV_LOG_USER("Conected");
+    LV_LOG_USER("Connected");
 
     pa_buffer_attr  attr;
 
