@@ -1199,7 +1199,7 @@ Cluster app (APP > Cluster; pages `(CLUSTER 1:2)` and `(CLUSTER 2:2)`):
   first (`Time`).
 - Order and band view are saved and shared with the cluster column.
 - The status line shows the WiFi and cluster state ("Set your callsign",
-  "WiFi not connected", "Connecting...", "cluster connected", or the error
+  "No network: WiFi or Ethernet", "Connecting...", "cluster connected", or the error
   and "retrying").
 
 Filters and alerts. They are saved in `/mnt/cluster.conf`, shared by the
@@ -1702,7 +1702,7 @@ RTL8152/8153, CDC Ethernet/NCM). It can be plugged in at any time.
 
 While the adapter is connected (cable in, address got) the WiFi radio is
 held off: the info bar shows a USB plug in the WiFi cell, lit, and the
-WiFi status says "Ethernet connected: WiFi radio off". The WiFi/BT chip
+WiFi status says "Ethernet in use". The WiFi/BT chip
 stays on, so Bluetooth keeps working. Pull the cable or the adapter and
 WiFi comes back on its own. An adapter plugged in without a cable shows the
 plug unlit, and WiFi stays as it was.

@@ -1808,7 +1808,7 @@ static void wifi_update() {
         }
         lv_label_set_text(r->note, ap->known ? "saved" : "");
     }
-    lv_label_set_text(wf.status_ssid, wifi_eth_active() ? "Ethernet connected: WiFi radio off" : ssid);
+    lv_label_set_text(wf.status_ssid, wifi_eth_active() ? "Ethernet in use" : ssid);
 
     char  ip[16] = "", gw[16] = "";
     char *ip_p = ip, *gw_p = gw;

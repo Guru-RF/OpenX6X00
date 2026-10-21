@@ -105,6 +105,9 @@ void eth_get_info(eth_info_t *info);
  * for Bluetooth) and wifi_get_status() says WIFI_OFF. Back on when the cable or the adapter goes. */
 bool wifi_eth_active(void);
 
+/* Any thread: the radio has a network, by WiFi or by the wired adapter */
+bool net_connected(void);
+
 /* Any thread: NULL or what is wrong. A field alone, or the whole set (netmask normalized to dotted) */
 const char *eth_check_field(int field, char *val);
 const char *eth_check(eth_cfg_t *cfg);

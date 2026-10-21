@@ -164,7 +164,7 @@ static void load_server(void) {
 static void background_cb(lv_timer_t *t) {
     (void)t;
     if (cluster_config_mtime() != conf_mtime || strcmp(client_call, params.callsign.x) != 0) load_server();
-    bool up = wifi_get_status() == WIFI_CONNECTED;
+    bool up = net_connected();
     if (up && !wifi_was_up) cluster_client_retry();
     wifi_was_up = up;
     alert_scan();
@@ -472,8 +472,8 @@ static void update_status(void) {
         lv_label_set_text_fmt(status_right, "#%06x Set your callsign: Settings > General#", theme_hex(TC_err));
         return;
     }
-    if (wifi_get_status() != WIFI_CONNECTED) {
-        lv_label_set_text_fmt(status_right, "#%06x WiFi not connected#", theme_hex(TC_err));
+    if (!net_connected()) {
+        lv_label_set_text_fmt(status_right, "#%06x No network: WiFi or Ethernet#", theme_hex(TC_err));
         return;
     }
     switch (st) {

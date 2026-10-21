@@ -155,6 +155,10 @@ bool wifi_eth_active(void) {
     return eth_holds_wifi;
 }
 
+bool net_connected(void) {
+    return eth_holds_wifi || status == WIFI_CONNECTED;
+}
+
 /* NetworkManager's WirelessEnabled (the rfkill soft switch of wlan0), asynchronously */
 static void wifi_radio_enable(bool on) {
     if (!client) {
