@@ -24,39 +24,44 @@ check_data() {
 }
 
 start() {
-    # Check fat32 not exists
-    parted -m -s /dev/mmcblk0 print | grep fat32
-    retVal=$?
-    if [ $retVal -eq 0 ]; then
+    # A FAT32 partition: the DATA partition is there (checked and repaired, then mounted)
+    if parted -m -s /dev/mmcblk0 print | grep -q fat32; then
         echo "Fat32 partition already exists"
         check_data
         return
     fi
-    # Get free space info
+    # None: the first start of a freshly written card, two partitions and the rest of the card
+    # free. A card with a third partition of another kind (a reused card) is left alone: the old
+    # script made a fourth and then formatted whatever was third.
+    if parted -m -s /dev/mmcblk0 print | grep -q "^3:"; then
+        echo "A third partition exists and is not FAT32: not touched"
+        return
+    fi
     FREE_INFO=$(parted -sm /dev/mmcblk0 print free | tail -n1 | grep free)
-    retVal=$?
-    if [ $retVal -ne 0 ]; then
+    if [ $? -ne 0 ]; then
         echo "No free space available"
         return
     fi
     FREE_ARR=(${FREE_INFO//:/ })
-    # Create (or recreate) partition
-    parted -m -s -a opt /dev/mmcblk0 mkpart primary fat32 ${FREE_ARR[1]} ${FREE_ARR[2]}
-    partprobe /dev/mmcblk0
-    # Check if we have a preexisting DATA partition
-    dataPartition=$(blkid -L DATA)
-    if [ -n "$dataPartition" ]; then
-        echo "Mount existing data partition"
-        # Mount partition
-        mount $dataPartition
+    # The partition, and the device it got (not assumed): a failed step stops here, no format
+    if ! parted -m -s -a opt /dev/mmcblk0 mkpart primary fat32 ${FREE_ARR[1]} ${FREE_ARR[2]}; then
+        echo "Creating the DATA partition failed"
         return
     fi
-    # Format partition
-    mkfs -t vfat -n DATA /dev/mmcblk0p3
-    # Mount partition
-    mount /dev/mmcblk0p3
+    partprobe /dev/mmcblk0
+    NEW=$(parted -m -s /dev/mmcblk0 print | tail -n1 | cut -d: -f1)
+    DEV=/dev/mmcblk0p$NEW
+    if [ "$NEW" != "3" ] || [ ! -b "$DEV" ]; then
+        echo "The new partition is not $DEV: not formatted"
+        return
+    fi
+    if [ -n "$(blkid "$DEV")" ]; then
+        echo "$DEV holds a filesystem already: not formatted"
+        return
+    fi
+    mkfs -t vfat -n DATA "$DEV" || { echo "Formatting $DEV failed"; return; }
+    mount "$DEV" /mnt
 }
-
 
 case "$1" in
     start)
