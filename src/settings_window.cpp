@@ -93,7 +93,7 @@ static void wl_row_label(uint8_t row, const char *text);
 static lv_obj_t     *grid;
 static lv_obj_t     *page;      /* scrolling column of cards */
 static lv_coord_t   col_dsc[] = { LV_GRID_FR(1), SMALL_1, SMALL_1, SMALL_1, SMALL_1, SMALL_1, SMALL_1, LV_GRID_TEMPLATE_LAST };
-static lv_coord_t   col_station[] = { LV_GRID_FR(1), 150, LV_GRID_TEMPLATE_LAST };
+static lv_coord_t   col_station[] = { LV_GRID_FR(1), SMALL_3, LV_GRID_TEMPLATE_LAST };   /* a label and one control */
 static lv_coord_t   col_datetime[] = { LV_GRID_FR(1), 78, 78, 100, LV_GRID_TEMPLATE_LAST };
 static lv_coord_t   row_pool[8][64];    /* row descriptors: one per card of the page */
 static lv_coord_t   *row_dsc = row_pool[0];
@@ -2671,10 +2671,14 @@ static uint8_t make_station_row(uint8_t row, const char *label, const char *val,
 static uint8_t make_station(uint8_t row) {
     row = make_station_row(row, "Callsign", params.callsign.x, ST_CALLSIGN);
     row = make_station_row(row, "QTH locator", params.qth.x, ST_QTH);
+    /* The switches in the card's own second column: make_param_switch places them in the
+     * seven-column template, past the end of this two-column one */
     /* A and B each on their own band: the VFO key brings the other one's band back */
-    row = make_param_switch(row, "Independent VFOs", cfg_sm.p_indep_vfo);
+    wl_row_label(row, "Independent VFOs");
+    param_switch(row++, 1, 1, SMALL_3, cfg_sm.p_indep_vfo);
     /* The knob turned into another band plan segment: CW there, SSB in the phone part */
-    row = make_param_switch(row, "Mode from band plan", cfg_sm.p_mode_from_plan);
+    wl_row_label(row, "Mode from band plan");
+    param_switch(row++, 1, 1, SMALL_3, cfg_sm.p_mode_from_plan);
     lv_obj_add_event_cb(grid, st_delete_cb, LV_EVENT_DELETE, NULL);
     return row;
 }
