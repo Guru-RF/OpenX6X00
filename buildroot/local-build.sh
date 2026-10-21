@@ -33,6 +33,10 @@ echo "== JS8 dependencies, root certificates, libdrm"
 grep -q "boost fftw-single" $GUI_MK || sed -i "s,^X6100_GUI_DEPENDENCIES = \(.*\)$,X6100_GUI_DEPENDENCIES = \1 boost fftw-single," $GUI_MK
 grep -q "^BR2_PACKAGE_BOOST=y" $DEFCONFIG || echo "BR2_PACKAGE_BOOST=y" >> $DEFCONFIG
 grep -q "^BR2_PACKAGE_CA_CERTIFICATES=y" $DEFCONFIG || echo "BR2_PACKAGE_CA_CERTIFICATES=y" >> $DEFCONFIG
+# Python's ssl module and the openssl command: HTTPS from the helpers (spots, QRZ, GitHub) and the
+# web server's certificate; the upstream defconfig left both out, HTTPS failed silently
+grep -q "^BR2_PACKAGE_PYTHON3_SSL=y" $DEFCONFIG || echo "BR2_PACKAGE_PYTHON3_SSL=y" >> $DEFCONFIG
+grep -q "^BR2_PACKAGE_LIBOPENSSL_BIN=y" $DEFCONFIG || echo "BR2_PACKAGE_LIBOPENSSL_BIN=y" >> $DEFCONFIG
 grep -q "libdrm" $GUI_MK || sed -i "/^X6100_GUI_DEPENDENCIES/s/$/ libdrm/" $GUI_MK
 
 echo "== No RHVoice: PulseAudio selected by the GUI itself"

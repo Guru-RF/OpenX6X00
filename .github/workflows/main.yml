@@ -86,6 +86,9 @@ jobs:
         sed -i "s,^X6100_GUI_DEPENDENCIES = \(.*\)$,X6100_GUI_DEPENDENCIES = \1 boost fftw-single," $X6CI_GUI_MK
         echo "BR2_PACKAGE_BOOST=y" >> $X6CI_DEFCONFIG
         echo "BR2_PACKAGE_CA_CERTIFICATES=y" >> $X6CI_DEFCONFIG
+        # Python's ssl module and the openssl command: HTTPS from the helpers and the web server's certificate
+        echo "BR2_PACKAGE_PYTHON3_SSL=y" >> $X6CI_DEFCONFIG
+        echo "BR2_PACKAGE_LIBOPENSSL_BIN=y" >> $X6CI_DEFCONFIG
         sed -i "/^X6100_GUI_DEPENDENCIES/s/$/ libdrm/" $X6CI_GUI_MK
         grep "^X6100_GUI_DEPENDENCIES" $X6CI_GUI_MK
 
