@@ -49,8 +49,9 @@ class Inbox { // "MSG" messages sent to us
     /// less than REPEAT_MS ago it is a resend (our ACK got lost) and the
     /// first copy's id comes back instead. An empty `route` means `from`
     /// was heard directly.
+    /// `inserted`, when given, tells whether a message was stored (false for a resend).
     int add(const std::string &from, const std::string &text, std::int64_t when, const std::string &to = "",
-            const std::string &route = "");
+            const std::string &route = "", bool *inserted = nullptr);
 
     std::vector<InboxMessage> list() const; ///< newest first
     std::optional<InboxMessage> get(int wanted) const;
@@ -95,7 +96,7 @@ class HeldMessages { // "MSG TO:" messages for others
     /// Keeps `text` from `from` for the base call of `to`. The same message
     /// again within Inbox::REPEAT_MS gives back the id it already has.
     int add(const std::string &from, const std::string &to, const std::string &text, std::int64_t when,
-            const std::string &route = "");
+            const std::string &route = "", bool *inserted = nullptr);
 
     /// First message not yet delivered to `station` or its base call, as
     /// getNextMessageIdForCallsign() on desktop.

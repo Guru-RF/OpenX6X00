@@ -251,20 +251,20 @@ static js8_stored_t store_message(const js8::StoreAction &act, int64_t now_ms, j
                                   js8_held_t *held) {
     using Kind = js8::StoreAction::Kind;
     js8_stored_t res{};
-    std::size_t  had;
-    bool         written = true;
+    bool         inserted = false;
+    bool         written  = true;
+    /* The store says whether it kept the message: a full store drops its oldest for a new one,
+     * so its size does not tell, and the new message was taken for a resend and never saved */
     if (act.kind == Kind::Inbox && inbox != nullptr) {
-        had        = inbox->store.size();
         res.kind   = JS8_STORED_INBOX;
-        res.id     = inbox->store.add(act.from, act.text, now_ms, act.to, act.path);
-        res.resend = inbox->store.size() == had;
-        if (!res.resend) written = inbox->store.save(inbox->file);
+        res.id     = inbox->store.add(act.from, act.text, now_ms, act.to, act.path, &inserted);
+        res.resend = !inserted;
+        if (inserted) written = inbox->store.save(inbox->file);
     } else if (act.kind == Kind::Held && held != nullptr) {
-        had        = held->store.size();
         res.kind   = JS8_STORED_HELD;
-        res.id     = held->store.add(act.from, act.to, act.text, now_ms, act.path);
-        res.resend = held->store.size() == had;
-        if (!res.resend) written = held->store.save(held->file);
+        res.id     = held->store.add(act.from, act.to, act.text, now_ms, act.path, &inserted);
+        res.resend = !inserted;
+        if (inserted) written = held->store.save(held->file);
     } else {
         return res; // nothing stored: all zero
     }

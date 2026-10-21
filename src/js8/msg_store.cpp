@@ -166,11 +166,13 @@ bool Inbox::save(const std::string &file) const {
 }
 
 int Inbox::add(const std::string &from, const std::string &text, std::int64_t when, const std::string &to,
-               const std::string &route) {
+               const std::string &route, bool *inserted) {
+    if (inserted) *inserted = false;
     for (const InboxMessage &old : items_) {
         bool resend = old.from == from && old.text == text && when - old.utc_ms < REPEAT_MS;
         if (resend) return old.id;
     }
+    if (inserted) *inserted = true;
 
     InboxMessage msg;
     msg.id     = fresh_id_++;
@@ -285,12 +287,14 @@ bool HeldMessages::save(const std::string &file) const {
 }
 
 int HeldMessages::add(const std::string &from, const std::string &to, const std::string &text, std::int64_t when,
-                      const std::string &route) {
+                      const std::string &route, bool *inserted) {
+    if (inserted) *inserted = false;
     const std::string target = base_callsign(to);
     for (const HeldMessage &old : items_) {
         bool resend = old.from == from && old.to == target && old.text == text && when - old.utc_ms < Inbox::REPEAT_MS;
         if (resend) return old.id;
     }
+    if (inserted) *inserted = true;
 
     HeldMessage msg;
     msg.id     = fresh_id_++;
