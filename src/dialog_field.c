@@ -1761,9 +1761,13 @@ static void update_done(const char *line) {
     }
     update_text[0] = 0;
     if (!strncmp(line, "ok", 2)) {
-        int p = 0, s = 0, b = 0, h = 0, w = 0;
+        int         p = 0, s = 0, b = 0, h = 0, w = 0;
+        const char *partial = strstr(line, " partial ");
+
         sscanf(line, "ok %d %d %d %d %d", &p, &s, &b, &h, &w);
         msg_update_text_fmt("Reference list: %d parks, %d summits, %d bunkers, %d HOTA, %d WWFF", p, s, b, h, w);
+        if (partial)    /* a list that could not be fetched kept its previous entries */
+            msg_schedule_text_ms(6000, "Not updated, kept as it was: %s", partial + 9);
         near_lookup(true);
     } else {
         msg_update_text_fmt("Reference list: %s", line);
@@ -1826,10 +1830,14 @@ static void tune_cb(button_data_t *b) {
 }
 
 static void qrz_done(const char *line) {
-    int sent = 0, dup = 0;
+    int  sent = 0, dup = 0, bad = 0;
+    char reason[80] = "";
 
-    if (sscanf(line, "ok %d %d", &sent, &dup) == 2)
-        msg_update_text_fmt("QRZ: %d sent, %d already there", sent, dup);
+    if (sscanf(line, "ok %d %d %d %79[^\n]", &sent, &dup, &bad, reason) >= 2) {
+        msg_update_text_fmt("QRZ: %d sent, %d already there%s", sent, dup, bad ? ", some refused" : "");
+        if (bad)    /* QRZ took the others; the first reason it gave */
+            msg_schedule_text_ms(6000, "QRZ refused %d: %s", bad, reason);
+    }
     else if (!strcmp(line, "error no QRZ key")) {
         /* the message holds 127 characters: the notice goes in two steps */
         msg_update_text_fmt("No QRZ profile: add it on the web page, Field Ops");
