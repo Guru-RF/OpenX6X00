@@ -145,6 +145,7 @@ static void close_window(dialog_t *d) {
     }
     if (d->obj) {
         lv_obj_del(d->obj);
+        event_obj_drop_deleted();   /* what a thread queued for it meanwhile (the GPS window gets fixes) */
     }
     if (d->restore_radio || radio_back) {
         mem_load(MEM_BACKUP_ID);
