@@ -118,6 +118,8 @@ static int             wake_fd[2] = {-1, -1};
 static atomic_bool     cap_wanted;
 static int             drive_set = -1;   /* the drive a client set; the base holds it, the settings keep theirs */
 static int             ptt_owner = -1;   /* the client that keyed the radio's own PTT, -1 none */
+static atomic_bool     ptt_unkey_due;    /* an unkey of the radio's PTT is queued: resent until it ran */
+static uint64_t        ptt_unkey_ms;
 static uint64_t        ptt_ms;
 
 /* The TX audio session: one client at a time */
@@ -334,6 +336,8 @@ static void apply_cmd(void *arg) {
             }
             break;
         case C_UNKEY:
+            if (!c->tci)
+                atomic_store(&ptt_unkey_due, false);
             tx_unkey(c->tci, c->a != 0);
             break;
     }
@@ -496,7 +500,9 @@ static void tx_session_end(int ci, bool drain) {
     }
     if (ptt_owner == ci) {
         put_cmd(C_UNKEY, 0, 0, false);
-        ptt_owner = -1;
+        atomic_store(&ptt_unkey_due, true);     /* the queue can drop it: tx_session_tick resends */
+        ptt_unkey_ms = now_ms();
+        ptt_owner    = -1;
     }
 }
 
@@ -711,6 +717,12 @@ static void handle_tx_audio(int ci, const uint8_t *frame, size_t len) {
 static void tx_session_tick(uint64_t now) {
     if (ptt_owner >= 0 && (clients[ptt_owner].fd < 0 || now - ptt_ms > TX_LIMIT_MS))
         tx_session_end(ptt_owner, false);
+    /* The unkey of the radio's PTT is one entry in the scheduler's queue, which drops when full
+     * (a flooding client): until the LVGL thread ran it, it goes again every 300 ms */
+    if (atomic_load(&ptt_unkey_due) && now - ptt_unkey_ms > 300) {
+        ptt_unkey_ms = now;
+        put_cmd(C_UNKEY, 0, 0, false);
+    }
     if (txs.owner < 0) {
         if (atomic_load(&txs.keyed))            /* keyed for a client that has gone */
             put_cmd(C_UNKEY, 0, 0, true);
