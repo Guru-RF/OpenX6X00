@@ -56,7 +56,15 @@ start() {
         return
     fi
     if [ -n "$(blkid "$DEV")" ]; then
-        echo "$DEV holds a filesystem already: not formatted"
+        # A card image is smaller than the card: a new image leaves the old DATA filesystem
+        # where it was, only its partition entry is gone. Made again, it is the same DATA:
+        # settings and logs survive the new image (checked and mounted like any other start)
+        if [ "$(blkid -s LABEL -o value "$DEV")" = "DATA" ]; then
+            echo "The DATA filesystem of the previous image is still there: kept"
+            check_data
+            return
+        fi
+        echo "$DEV holds another filesystem: not formatted"
         return
     fi
     mkfs -t vfat -n DATA "$DEV" || { echo "Formatting $DEV failed"; return; }

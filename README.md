@@ -98,9 +98,11 @@ checks its signature, installs it and restarts the radio software, keeping
 the previous version for an automatic rollback if the new one does not come
 up. A new card image is only needed when the kernel or a driver changes.
 
-Writing a new image erases DATA too: download the Backup from the web
-configurator first and restore it after the first start (the
-[manual](docs/MANUAL.md) lists the files). A patched baseband
+A new image normally keeps DATA: the image is smaller than the card, so the
+DATA filesystem stays where it was and the first start adopts it again.
+Download the Backup from the web configurator first all the same (the
+[manual](docs/MANUAL.md) lists the files); a card-wiping tool or a smaller
+card would lose it. A patched baseband
 ([x6100_base_patch](https://github.com/gdyuldin/x6100_base_patch)) r13 or
 newer is recommended: the TX audio and calibration options (CESSB, band
 output gain) and a battery percentage from a measured discharge curve.
