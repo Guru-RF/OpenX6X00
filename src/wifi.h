@@ -101,6 +101,10 @@ typedef struct {
 /* Any thread: the state as of the last second */
 void eth_get_info(eth_info_t *info);
 
+/* True while a wired adapter is connected: WiFi's radio is held off for it (the chip stays on
+ * for Bluetooth) and wifi_get_status() says WIFI_OFF. Back on when the cable or the adapter goes. */
+bool wifi_eth_active(void);
+
 /* Any thread: NULL or what is wrong. A field alone, or the whole set (netmask normalized to dotted) */
 const char *eth_check_field(int field, char *val);
 const char *eth_check(eth_cfg_t *cfg);

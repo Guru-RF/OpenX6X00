@@ -44,6 +44,7 @@ static int         retry_n;
 static wifi_status_t status = WIFI_OFF;
 static bool          scanning = false;
 static uint64_t      last_scan;
+static bool          eth_holds_wifi;   /* a wired adapter is connected: WiFi's radio off for it */
 
 static void loop_iterations_cb(lv_timer_t *);
 static void update_scan_status_cb(lv_timer_t *t);
@@ -68,6 +69,7 @@ static void connection_modify_cb(GObject *connection, GAsyncResult *result, gpoi
 static void connection_delete_cb(GObject *connection, GAsyncResult *result, gpointer user_data);
 static void connection_activating_cb(GObject *client, GAsyncResult *result, gpointer user_data);
 static void eth_refresh_cb(lv_timer_t *t);
+static void wifi_radio_enable(bool on);
 
 static void power_on_cb(lv_timer_t *t) {
     wifi_power_on();
@@ -78,7 +80,7 @@ static void power_on_cb(lv_timer_t *t) {
 static void no_network_cb(lv_timer_t *t) {
     static int empty;
 
-    if (status != WIFI_DISCONNECTED || !device) {
+    if (status != WIFI_DISCONNECTED || !device || eth_holds_wifi) {
         empty = 0;
         return;
     }
@@ -108,6 +110,9 @@ void wifi_power_setup() {
         }
     }
     loop_timer = lv_timer_create(loop_iterations_cb, 30, NULL);
+    /* NetworkManager keeps its WirelessEnabled across restarts: a radio held off for an
+     * adapter that is gone now would stay off. On; eth_refresh_cb holds it again if need be */
+    wifi_radio_enable(true);
     lv_timer_create(eth_refresh_cb, 1000, NULL);
     lv_timer_create(no_network_cb, 60000, NULL);
 
@@ -143,7 +148,20 @@ void wifi_power_off() {
 }
 
 wifi_status_t wifi_get_status() {
-    return status;
+    return eth_holds_wifi ? WIFI_OFF : status;
+}
+
+bool wifi_eth_active(void) {
+    return eth_holds_wifi;
+}
+
+/* NetworkManager's WirelessEnabled (the rfkill soft switch of wlan0), asynchronously */
+static void wifi_radio_enable(bool on) {
+    if (!client) {
+        return;
+    }
+    nm_client_dbus_set_property(client, NM_DBUS_PATH, NM_DBUS_INTERFACE, "WirelessEnabled",
+                                g_variant_new_boolean(on), -1, NULL, NULL, NULL);
 }
 
 void wifi_start_scan() {
@@ -767,8 +785,28 @@ static void eth_refresh_cb(lv_timer_t *t) {
         }
     }
 
-    std::lock_guard<std::mutex> lock(eth_mutex);
-    eth_info = in;
+    bool changed;
+    {
+        std::lock_guard<std::mutex> lock(eth_mutex);
+        changed  = in.present != eth_info.present || in.connected != eth_info.connected;
+        eth_info = in;
+    }
+    /* A wired connection takes over: WiFi's radio is held off while it lasts (a radio the
+     * Bluetooth chip shares, and two routes to the same LAN confuse the TCI clients); the chip
+     * stays powered for Bluetooth. The cable or the adapter gone: the radio comes back */
+    if (in.connected != eth_holds_wifi) {
+        eth_holds_wifi = in.connected;
+        LV_LOG_USER("Ethernet %s: WiFi radio %s", in.connected ? "connected" : "gone", in.connected ? "off" : "on");
+        wifi_radio_enable(!in.connected);
+        if (in.connected && scan_timer) {
+            lv_timer_del(scan_timer);
+            scan_timer = NULL;
+            scanning   = false;
+        }
+    }
+    if (changed) {
+        lv_msg_send(MSG_WIFI_STATE_CHANGED, NULL);   /* the info bar's symbol */
+    }
 }
 
 void eth_get_info(eth_info_t *info) {

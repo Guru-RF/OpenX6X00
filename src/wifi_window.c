@@ -398,6 +398,7 @@ static void state_cb(void *s, lv_msg_t *m) {
         case WIFI_CONNECTED:  text = "Connected"; break;
         case WIFI_CONNECTING: text = "Connecting..."; break;
         case WIFI_STARTING:   text = "Starting..."; break;
+        case WIFI_OFF:        text = wifi_eth_active() ? "Off: Ethernet connected" : "Off"; break;
         default:              text = "Disconnected"; break;
     }
     lv_label_set_text(state_val, text);

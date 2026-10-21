@@ -1697,8 +1697,15 @@ program on the network tunes the radio, hears it and keys it.
 ## Ethernet
 
 A USB Ethernet adapter in the radio's USB port gives it a wired connection
-next to WiFi. Adapters with the common chips work (ASIX, Realtek
+instead of WiFi. Adapters with the common chips work (ASIX, Realtek
 RTL8152/8153, CDC Ethernet/NCM). It can be plugged in at any time.
+
+While the adapter is connected (cable in, address got) the WiFi radio is
+held off: the info bar shows a USB plug in the WiFi cell, lit, and the
+WiFi status says "Ethernet connected: WiFi radio off". The WiFi/BT chip
+stays on, so Bluetooth keeps working. Pull the cable or the adapter and
+WiFi comes back on its own. An adapter plugged in without a cable shows the
+plug unlit, and WiFi stays as it was.
 
 Where: Settings > Wireless > ETHERNET, or the Ethernet page of the web
 configurator (System > Ethernet). Both show the same settings. The ETHERNET

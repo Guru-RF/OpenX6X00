@@ -318,10 +318,18 @@ void info_lock_mode(bool lock) {
     subject_i_set(mode_locked, lock);
 }
 
+/* The network cell: the WiFi symbol, or the USB one with a wired adapter plugged in (lit when
+ * it is connected; WiFi is held off then) */
 static void wifi_icon_update(void *arg) {
     wifi_status_t st = wifi_get_status();
     lv_color_t    c  = st == WIFI_CONNECTED ? TC(ok) : st == WIFI_OFF ? TC(icon_off) : lv_color_hex(COLOR_ICON_IDLE);
+    eth_info_t    eth;
 
+    eth_get_info(&eth);
+    if (eth.present) {
+        c = eth.connected ? TC(ok) : lv_color_hex(COLOR_ICON_IDLE);
+    }
+    lv_label_set_text(items[INFO_WIFI], eth.present ? LV_SYMBOL_USB : LV_SYMBOL_WIFI);
     lv_obj_set_style_text_color(items[INFO_WIFI], c, 0);
 }
 
