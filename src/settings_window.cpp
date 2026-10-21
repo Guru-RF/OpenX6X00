@@ -3282,6 +3282,7 @@ static int         smc_tick;
 static float       smc_sum, smc_min, smc_max;
 static float       smc_read[SMC_STEPS];
 static int32_t     smc_pre, smc_att, smc_rfg;     /* as they were */
+static int32_t     smc_band;                       /* the band measured: PRE and ATT are per band */
 
 static void sm_rfg_cb(lv_event_t *e) {
     lv_obj_t *obj = lv_event_get_target(e);
@@ -3305,16 +3306,23 @@ static void smc_apply(int step) {
     param_i_set(cfg_rfgain, step == 3 ? SMC_RFG_LOW : 100);
 }
 
-static void smc_stop(const char *text) {
+/* front_end false: PRE and ATT are not put back (they are the band's, and the band changed) */
+static void smc_stop_fe(const char *text, bool front_end) {
     if (smc_timer) {
         lv_timer_del(smc_timer);
         smc_timer = NULL;
-        cparam_i_set(cfg_cur_pre, smc_pre);
-        cparam_i_set(cfg_cur_att, smc_att);
+        if (front_end) {
+            cparam_i_set(cfg_cur_pre, smc_pre);
+            cparam_i_set(cfg_cur_att, smc_att);
+        }
         param_i_set(cfg_rfgain, smc_rfg);
     }
     smc_btn_label("Measure");
     if (text) smc_note_set(text);
+}
+
+static void smc_stop(const char *text) {
+    smc_stop_fe(text, true);
 }
 
 /* A slider to a value: its callback writes the setting and the label */
@@ -3330,6 +3338,12 @@ static void smc_timer_cb(lv_timer_t *t) {
 
     if (radio_get_state() != RADIO_RX) {
         smc_stop("Stopped: the radio transmitted. Nothing changed.");
+        return;
+    }
+    if (param_i_get(cfg_band_id) != smc_band) {
+        /* PRE and ATT belong to the band: the readings would mix two bands, and the old band's
+         * values cannot be written from here */
+        smc_stop_fe("Stopped: band changed. Check PRE and ATT on the band you left.", false);
         return;
     }
     smc_tick++;
@@ -3397,6 +3411,7 @@ static void smc_btn_cb(lv_event_t *e) {
     smc_pre  = cparam_i_get(cfg_cur_pre);
     smc_att  = cparam_i_get(cfg_cur_att);
     smc_rfg  = param_i_get(cfg_rfgain);
+    smc_band = param_i_get(cfg_band_id);
     smc_step = 0;
     smc_tick = 0;
     smc_timer = lv_timer_create(smc_timer_cb, 100, NULL);
