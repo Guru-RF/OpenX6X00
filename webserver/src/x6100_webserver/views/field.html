@@ -1,6 +1,6 @@
 % rebase('base.html', title='Field')
 <h2><svg class="i"><use href="#i-mountain"/></svg>Field Ops</h2>
-<p class="sub">POTA, SOTA, WWBOTA and HOTA portable operation: reference lists for the radio, QRZ Logbook upload, HOTA spots, activation logs.</p>
+<p class="sub">POTA, SOTA, WWBOTA, HOTA and WWFF portable operation: reference lists for the radio, QRZ Logbook upload, HOTA and WWFF spots, activation logs.</p>
 
 <form class="dp-card" id="qrz">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>QRZ Logbook</h3><p>API key from your QRZ Logbook settings. Uploading needs a QRZ.com Logbook API key, which QRZ.com only gives with a paid QRZ.com subscription (XML level or higher). Key: <b id="key-state"></b></p></div></div>
@@ -26,6 +26,20 @@
     <div class="actions" style="margin-top:0">
       <button type="submit" class="primary">Save</button>
       <span class="status" id="hstatus"></span>
+    </div>
+  </div>
+</form>
+
+<form class="dp-card" id="wwff">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>WWFF spots</h3><p>The WWFF Spotline (spots.wwff.co) takes spots with your own API key, asked to the Spotline team. Without it WWFF spots go to the DX cluster only. Key: <b id="wkey-state"></b></p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="wkey"><b>API key</b></label><span>Empty = remove the key</span></div>
+    <div class="dp-ctl"><input id="wkey" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = remove)"></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="submit" class="primary">Save</button>
+      <span class="status" id="wstatus"></span>
     </div>
   </div>
 </form>
@@ -67,7 +81,8 @@ var timer = null;
 var render = function(data) {
   $("#key-state").text(data.qrz_key ? "set (hidden)" : "not set");
   $("#hkey-state").text(data.hota_key ? "set (hidden)" : "not set");
-  $("#refs").text(data.refs ? `${data.refs.parks} parks, ${data.refs.summits} summits, ${data.refs.bunkers} bunkers, ${data.refs.hota} HOTA · updated ${data.refs.date} · ${data.refs.size}` : "No list yet: press Update (needs internet on the radio).");
+  $("#wkey-state").text(data.wwff_key ? "set (hidden)" : "not set");
+  $("#refs").text(data.refs ? `${data.refs.parks} parks, ${data.refs.summits} summits, ${data.refs.bunkers} bunkers, ${data.refs.hota} HOTA, ${data.refs.wwff} WWFF · updated ${data.refs.date} · ${data.refs.size}` : "No list yet: press Update (needs internet on the radio).");
   $("#update").prop("disabled", data.update.running);
   if (data.update.running) {
     showStatus("#ustatus", data.update.progress ? "Downloading " + data.update.progress : "Downloading…");
@@ -110,6 +125,12 @@ $("#hota").on("submit", function(e) {
   e.preventDefault();
   post("/api/field/hota", {key: $("#hkey").val().trim()}, "Saved", "#hstatus");
   $("#hkey").val("");
+});
+
+$("#wwff").on("submit", function(e) {
+  e.preventDefault();
+  post("/api/field/wwff", {key: $("#wkey").val().trim()}, "Saved", "#wstatus");
+  $("#wkey").val("");
 });
 
 $("#update").on("click", function() { post("/api/field/update", {}, null, "#ustatus"); });

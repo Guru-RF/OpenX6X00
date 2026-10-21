@@ -3,11 +3,11 @@
  *
  *  Xiegu X6100 LVGL GUI - Field Ops
  *
- *  Screens: home (SOTA, POTA, WWBOTA, HOTA, Bands, Log tiles), a program (the reference where you
+ *  Screens: home (SOTA, POTA, WWBOTA, HOTA, WWFF, Bands, Log tiles), a program (the reference where you
  *  are and the nearest ones; during an activation the activation screen: frequency,
  *  S-meter, CQ, QSO count and time), Bands (activity and who hears you, from RBN) and
  *  the activation log. The dialog covers the whole screen above the buttons; the main
- *  knob still tunes. The network jobs (reference list update, POTA/WWBOTA/HOTA spot, QRZ upload) run
+ *  knob still tunes. The network jobs (reference list update, POTA/WWBOTA/HOTA/WWFF spot, QRZ upload) run
  *  x6100-field in a thread; its one-line answer comes back through the scheduler.
  *  The companion app follows the screen through the remote state (dialog_field_remote_state)
  *  and logs, spots and starts the activation.
@@ -71,6 +71,7 @@
 #define REFS_PATH   FIELD_DIR "/refs.tsv"
 #define STATE_PATH  FIELD_DIR "/state"
 #define HOTA_KEY    FIELD_DIR "/hota.conf"   /* written by the web page (Field Ops) */
+#define WWFF_KEY    FIELD_DIR "/wwff.conf"
 #define LOGS_DIR    FIELD_DIR "/logs"
 #define HELPER      "x6100-field"
 
@@ -79,7 +80,7 @@
 #define STATUS_H    34
 #define MAX_NEAR    30
 #define MAX_QSO     200
-#define HOME_TILES  6       /* SOTA, POTA, WWBOTA, HOTA, Bands, Log (back in 0.127, its QRZ upload experimental) */
+#define HOME_TILES  7       /* SOTA, POTA, WWBOTA, HOTA, WWFF, Bands, Log */
 #define GPS_MAX_AGE 600     /* s */
 #define PHONE_MAX_AGE 1800
 
@@ -94,7 +95,7 @@ static void show(screen_t s);
 static struct {
     screen_t    screen;
     int         home_sel;
-    char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA */
+    char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF */
     bool        have_ref;
     field_ref_t ref;
     bool        active;
@@ -142,7 +143,7 @@ static char        wwbota_id[48]; /* wwbota.org's id of this activation's spot: 
 static time_t      end_armed_at;
 static bool        spot_armed;   /* Spot asks before posting: a second press within 4 s sends */
 static time_t      spot_armed_at;
-/* POTA, WWBOTA and HOTA auto spot: at the start of the activation, and again after a QSY (frequency 1 kHz away
+/* POTA, WWBOTA, HOTA and WWFF auto spot: at the start of the activation, and again after a QSY (frequency 1 kHz away
  * or another mode) once we transmitted there and stayed QSY_SETTLE_S (field/qsy.c) */
 static lv_timer_t *qsy_timer;
 static int32_t     spot_hz;      /* where the last spot said we are */
@@ -160,6 +161,7 @@ static const struct {
 } tiles[] = {
     {'S', "SOTA", "sota", "Summits\nOn The Air"},   {'P', "POTA", "pota", "Parks\nOn The Air"},
     {'B', "WWBOTA", "wwbota", "Bunkers\nOn The Air"}, {'H', "HOTA", "hota", "History\nOn The Air"},
+    {'F', "WWFF", "wwff", "Nature\nOn The Air"},
     {0, "BANDS", "bands", "Activity\nRBN, beacon"}, {0, "LOG", "log", "Activation\nlog"},
 };
 
@@ -168,12 +170,13 @@ static lv_color_t prog_color(char p) {
         case 'S': return TC(warn);
         case 'P': return TC(ok);
         case 'B': return TC(digi);
+        case 'F': return TC(vfo);
         default: return TC(alert);      /* HOTA */
     }
 }
 
 static lv_color_t accent(int k) {
-    return tiles[k].prog ? prog_color(tiles[k].prog) : k == 4 ? TC(info) : TC(text_head);
+    return tiles[k].prog ? prog_color(tiles[k].prog) : k == HOME_TILES - 2 ? TC(info) : TC(text_head);
 }
 
 static lv_color_t prog_accent(void) {
@@ -220,7 +223,7 @@ static void state_load(void) {
         else if (!strcmp(line, "home"))
             st.home_sel = atoi(v);
         else if (!strcmp(line, "prog"))
-            st.prog = *v && strchr("PBH", *v) ? *v : 'S';
+            st.prog = *v && strchr("PBHF", *v) ? *v : 'S';
         else if (!strcmp(line, "active"))
             st.active = atoi(v);
         else if (!strcmp(line, "start"))
@@ -324,7 +327,7 @@ static void deg_text(char *buf, size_t size, double lat, double lon) {
 }
 
 static const char *prog_name_of(char p) {
-    return p == 'S' ? "SOTA" : p == 'P' ? "POTA" : p == 'B' ? "WWBOTA" : "HOTA";
+    return p == 'S' ? "SOTA" : p == 'P' ? "POTA" : p == 'B' ? "WWBOTA" : p == 'F' ? "WWFF" : "HOTA";
 }
 
 static const char *prog_name(void) {
@@ -343,11 +346,12 @@ static const char *prog_icon(void) {
     return s;
 }
 
-/* What the activation needs: QSOs (SOTA 4, POTA 10, WWBOTA 25 or 10 in S5 and Z3) or, HOTA, 5 different calls */
+/* What the activation needs: QSOs (SOTA 4, POTA 10, WWBOTA 25 or 10 in S5 and Z3, WWFF 44) or, HOTA, 5 different calls */
 static int prog_needs(void) {
     switch (st.ref.type) {
         case 'S': return 4;
         case 'P': return 10;
+        case 'F': return 44;
         case 'B': return !strncmp(st.ref.ref, "B/S5-", 5) || !strncmp(st.ref.ref, "B/Z3-", 5) ? 10 : 25;
         default: return 5;
     }
@@ -766,7 +770,7 @@ static void boot_cb(button_data_t *b) {
     buttons_refresh(&b_boot);
 }
 
-/* POTA, WWBOTA, HOTA: spot again after a QSY once we transmitted there */
+/* POTA, WWBOTA, HOTA, WWFF: spot again after a QSY once we transmitted there */
 static const char *respot_label(void) {
     return param_i_get(cfg_field_respot) ? "Re-spot\nOn" : "Re-spot\nOff";
 }
@@ -821,7 +825,7 @@ static void home_open(int k) {
             st.prog = st.ref.type;
         show(SCR_PROG);
     } else {
-        show(k == 4 ? SCR_BANDS : SCR_LOG);
+        show(k == HOME_TILES - 2 ? SCR_BANDS : SCR_LOG);
     }
 }
 
@@ -868,7 +872,9 @@ static void build_home(void) {
         icon(t, tiles[k].icon, 96, (tw - 96) / 2 - 2, 24);
         const lv_font_t *nf = theme_shape.vision ? VF(28) : VF(32);   /* VISION: WWBOTA on one line */
         if (lv_txt_get_width(tiles[k].name, strlen(tiles[k].name), nf, 0, LV_TEXT_FLAG_NONE) > tw - 4)
-            nf = VF(28);    /* six tiles: WWBOTA one size down, the others as they are */
+            nf = VF(28);    /* seven tiles: WWBOTA a size or two down, the others as they are */
+        if (lv_txt_get_width(tiles[k].name, strlen(tiles[k].name), nf, 0, LV_TEXT_FLAG_NONE) > tw - 4)
+            nf = VF(24);
         lv_obj_t *n = label(t, nf, accent(k), 0, 140, tw - 4);
         lv_obj_t *s = label(t, VF(20), lv_color_mix(accent(k), TC(text), 160), 0, 186, tw - 4);
 
@@ -940,7 +946,8 @@ static void build_ref(void) {
 
     static const lv_coord_t widths[] = {130, 88, 150};
     list_create(body, 400, 38, W - 408, h - 32, widths, 3);
-    list_head(st.prog == 'S' ? "SUMMIT\tKM\tNAME" : st.prog == 'P' ? "PARK\tKM\tNAME" : st.prog == 'B' ? "BUNKER\tKM\tNAME" : "SITE\tKM\tNAME", 404, 8);
+    list_head(st.prog == 'S' ? "SUMMIT\tKM\tNAME" : st.prog == 'P' ? "PARK\tKM\tNAME" : st.prog == 'B' ? "BUNKER\tKM\tNAME"
+                                 : st.prog == 'F' ? "AREA\tKM\tNAME" : "SITE\tKM\tNAME", 404, 8);
     if (near_n > 0 && near_prog == st.prog) {
         for (int k = 0; k < near_n; k++) {
             snprintf(row, sizeof(row), "%s\t%.*f\t%s", near[k].ref, near[k].km < 10 ? 1 : 0, near[k].km, near[k].name);
@@ -1301,7 +1308,11 @@ static bool hota_key(void) {
     return access(HOTA_KEY, R_OK) == 0;
 }
 
-/* The spot on the program's site (POTA, WWBOTA, HOTA); qrt: the activation ended */
+static bool wwff_key(void) {
+    return access(WWFF_KEY, R_OK) == 0;
+}
+
+/* The spot on the program's site (POTA, WWBOTA, HOTA, WWFF); qrt: the activation ended */
 static bool spot_job(bool qrt) {
     double      khz = cparam_i_get(cfg_fg_freq) / 1000.0;
     const char *m   = adif_mode();
@@ -1312,7 +1323,7 @@ static bool spot_job(bool qrt) {
         return job_start(spot_done, HELPER " wwbota-spot --call %s --freq-khz %.1f --ref %s --mode %s --id '%s'%s",
                          my_call(), khz, st.ref.ref, m, wwbota_id, qrt ? " --qrt" : "");
     return job_start(spot_done, HELPER " %s --call %s --freq-khz %.1f --ref %s --mode %s%s",
-                     st.ref.type == 'H' ? "hota-spot" : "pota-spot", my_call(), khz, st.ref.ref, m,
+                     st.ref.type == 'H' ? "hota-spot" : st.ref.type == 'F' ? "wwff-spot" : "pota-spot", my_call(), khz, st.ref.ref, m,
                      qrt ? " --comments QRT" : "");
 }
 
@@ -1445,10 +1456,10 @@ static void spot_to(bool cluster) {
     snprintf(comment, sizeof(comment), "%s %s %s", p, st.ref.ref, adif_mode());
     if (cluster)
         cluster_client_send_spot(cparam_i_get(cfg_fg_freq) / 1000.0, my_call(), comment);   /* the DX clusters too */
-    if (st.ref.type == 'H' && !hota_key()) {
-        /* cqhota.app takes spots with the activator's own key only */
-        msg_update_text_fmt(cluster ? "HOTA spot on the DX clusters only: no HOTA key (web page, Field Ops)"
-                                    : "No HOTA spot: no HOTA key (web page, Field Ops)");
+    if ((st.ref.type == 'H' && !hota_key()) || (st.ref.type == 'F' && !wwff_key())) {
+        /* cqhota.app and the WWFF Spotline take spots with the activator's own key only */
+        msg_update_text_fmt(cluster ? "%s spot on the DX clusters only: no %s key (web page, Field Ops)"
+                                    : "No %s spot: no %s key (web page, Field Ops)", p, p);
         return;
     }
     if (spot_job(false))
@@ -1744,9 +1755,9 @@ static void update_done(const char *line) {
     }
     update_text[0] = 0;
     if (!strncmp(line, "ok", 2)) {
-        int p = 0, s = 0, b = 0, h = 0;
-        sscanf(line, "ok %d %d %d %d", &p, &s, &b, &h);
-        msg_update_text_fmt("Reference list: %d parks, %d summits, %d bunkers, %d HOTA", p, s, b, h);
+        int p = 0, s = 0, b = 0, h = 0, w = 0;
+        sscanf(line, "ok %d %d %d %d %d", &p, &s, &b, &h, &w);
+        msg_update_text_fmt("Reference list: %d parks, %d summits, %d bunkers, %d HOTA, %d WWFF", p, s, b, h, w);
         near_lookup(true);
     } else {
         msg_update_text_fmt("Reference list: %s", line);

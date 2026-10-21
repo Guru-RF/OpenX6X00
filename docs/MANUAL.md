@@ -1275,8 +1275,8 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 | **Activation** | **Bands** |
 | ![Activation](screenshots/field_activation.png) | ![Band overview](screenshots/field_bands.png) |
 
-Home: six tiles, SOTA, POTA, WWBOTA, HOTA, Bands and LOG. MFK to choose, a
-press opens.
+Home: seven tiles, SOTA, POTA, WWBOTA, HOTA, WWFF, Bands and LOG. MFK to
+choose, a press opens.
 
 SOTA / POTA, before the activation:
 
@@ -1293,7 +1293,7 @@ SOTA / POTA, before the activation:
   then each list with its progress, "Updating <list> (1/4): x.x / y.y MB",
   and "reading it..." once it is downloaded. A download that stops goes on
   from where it stopped, up to 5 tries ("retry 2 of 5"). At the end:
-  "Reference list: N parks, N summits, N bunkers, N HOTA".
+  "Reference list: N parks, N summits, N bunkers, N HOTA, N WWFF".
 
   ![Field Ops while the reference lists download](screenshots/fieldops_list_progress.png)
 - Start begins the activation and its ADIF log.
@@ -1386,6 +1386,19 @@ like POTA, with their own tile.
   cqhota.app with your own key: on cqhota.app, My account > Integration API
   key, then paste it in the web configurator's Field Ops page. Without the
   key HOTA spots go to the DX cluster only, and the message says so.
+
+WWFF (World Wide Flora and Fauna) has its own tile too, the blue leaf.
+
+- Update list downloads the WWFF directory (wwff.co) with the other lists;
+  the list heading says AREA. A reference is `DLFF-0123`, `ONFF-0456` and
+  the like.
+- A valid activation needs 44 QSOs: the activation screen counts `QSOs / 44`.
+- The log has `MY_SIG WWFF` and `MY_SIG_INFO` with the reference; a park
+  to park QSO logs the other reference as `SIG WWFF`, `SIG_INFO`.
+- Spots go to the WWFF Spotline (spots.wwff.co) with your own API key,
+  asked to the Spotline team, pasted in the web configurator's Field Ops
+  page. Without the key WWFF spots go to the DX cluster only, and the
+  message says so.
 
 ### Bands
 
@@ -1571,7 +1584,7 @@ The menu has General and four groups:
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)) |
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
-| | Field Ops | QRZ Logbook API key and upload, HOTA key, update the reference lists, download the activation logs |
+| | Field Ops | QRZ Logbook API key and upload, HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV |

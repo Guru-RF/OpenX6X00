@@ -265,11 +265,11 @@ def set_tci():
 
 
 # Field Ops routes: x6100-field (rootfs/usr/sbin) does the downloads, same files as the GUI:
-# <FIELD_DIR>/refs.tsv, qrz.conf and hota.conf ("key=..."), logs/*.adi
+# <FIELD_DIR>/refs.tsv, qrz.conf, hota.conf and wwff.conf ("key=..."), logs/*.adi
 
 field_lock = threading.Lock()
 field_update = {"running": False, "result": ""}
-field_refs_counts = (None, {})   # (mtime, size), {"P": parks, "S": summits, "B": bunkers, "H": HOTA}
+field_refs_counts = (None, {})   # (mtime, size), {"P": parks, "S": summits, "B": bunkers, "H": HOTA, "F": WWFF}
 
 
 def field_path(*names):
@@ -299,7 +299,8 @@ def field_refs():
         field_refs_counts = (stamp, counts)
     c = field_refs_counts[1]
     return {"date": time.strftime("%Y-%m-%d %H:%M", time.localtime(st.st_mtime)), "size": fmt_size(st.st_size),
-            "parks": c.get(b"P", 0), "summits": c.get(b"S", 0), "bunkers": c.get(b"B", 0), "hota": c.get(b"H", 0)}
+            "parks": c.get(b"P", 0), "summits": c.get(b"S", 0), "bunkers": c.get(b"B", 0), "hota": c.get(b"H", 0),
+            "wwff": c.get(b"F", 0)}
 
 
 def field_logs():
@@ -347,13 +348,14 @@ def get_field():
                 (f", retry {retry} of 5" if retry != "0" else "")
         except (OSError, ValueError):
             pass
-    return {"qrz_key": key_set("qrz.conf"), "hota_key": key_set("hota.conf"), "update": update, "refs": field_refs(),
+    return {"qrz_key": key_set("qrz.conf"), "hota_key": key_set("hota.conf"), "wwff_key": key_set("wwff.conf"),
+            "update": update, "refs": field_refs(),
             "logs": field_logs()}
 
 
-@app.post('/api/field/<name:re:qrz|hota>')
+@app.post('/api/field/<name:re:qrz|hota|wwff>')
 def set_field_key(name):
-    """QRZ Logbook API key, cqhota.app integration key: <name>.conf, never shown back"""
+    """QRZ Logbook API key, cqhota.app integration key, WWFF Spotline key: <name>.conf, never shown back"""
     key = str((bottle.request.json or {}).get("key", "")).strip()
     if key and not re.fullmatch(r"[!-~]{1,128}", key):
         return api_error(400, "Invalid key: 1-128 printable characters, no spaces")
