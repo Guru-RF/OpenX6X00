@@ -65,14 +65,26 @@ bool field_ref_parse(char *line, field_ref_t *r) {
     return true;
 }
 
+/* A line of the list; one longer than the buffer is taken as far as it goes and the rest
+ * skipped, instead of the rest coming back as a line of its own */
+static bool read_line(FILE *f, char *line, size_t size) {
+    if (!fgets(line, size, f))
+        return false;
+    if (strchr(line, '\n') == NULL) {
+        int c;
+        while ((c = fgetc(f)) != EOF && c != '\n') {}
+    }
+    return true;
+}
+
 int field_refs_near(const char *path, char type, double lat, double lon, field_ref_t *out, int max) {
     FILE *f = fopen(path, "r");
-    char  line[256];
+    char  line[512];
     int   n = 0;
 
     if (!f)
         return -1;
-    while (fgets(line, sizeof(line), f)) {
+    while (read_line(f, line, sizeof(line))) {
         field_ref_t r;
 
         if (line[0] != type || !field_ref_parse(line, &r))
@@ -94,12 +106,12 @@ int field_refs_near(const char *path, char type, double lat, double lon, field_r
 
 bool field_refs_find(const char *path, const char *ref, field_ref_t *out) {
     FILE *f = fopen(path, "r");
-    char  line[256];
+    char  line[512];
     bool  found = false;
 
     if (!f)
         return false;
-    while (!found && fgets(line, sizeof(line), f))
+    while (!found && read_line(f, line, sizeof(line)))
         found = field_ref_parse(line, out) && !strcasecmp(out->ref, ref);
     fclose(f);
     return found;
