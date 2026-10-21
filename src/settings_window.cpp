@@ -611,6 +611,20 @@ static void bl_level_cb(lv_event_t *e) {
     backlight_set_brightness(params.brightness_normal);
 }
 
+static void bl_blank_cb(lv_event_t *e) {
+    params_lock();
+    params.screen_off_min = lv_spinbox_get_value(lv_event_get_target(e));
+    params_unlock(&params.dirty.screen_off_min);
+    backlight_settings_changed();
+}
+
+static void bl_always_cb(lv_event_t *e) {
+    params_lock();
+    params.screen_off_always = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+    params_unlock(&params.dirty.screen_off_always);
+    backlight_settings_changed();
+}
+
 static void bl_keys_cb(lv_event_t *e) {
     backlight_set_buttons((buttons_light_t)lv_dropdown_get_selected(lv_event_get_target(e)));
 }
@@ -636,6 +650,14 @@ static uint8_t make_backlight(uint8_t row) {
 
     wl_row_label(row, "Buttons brightness");
     row_choice(row, 1, 6, SMALL_6, " Always Off \n Always On \n Temporarily On ", params.brightness_buttons, bl_keys_cb, NULL);
+    row++;
+
+    /* The screen dark after so many minutes without a key or knob (0: never), or always: the
+     * radio run from the knob or a browser, POWER shows the screen for a while */
+    wl_row_label(row, "Screen off after min, always");
+    obj = row_spin(row, 1, 2, SMALL_2, params.screen_off_min, 0, 120, 3);
+    lv_obj_add_event_cb(obj, bl_blank_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    row_switch(row, 4, 3, SMALL_3, params.screen_off_always, bl_always_cb, NULL);
     return row + 1;
 }
 

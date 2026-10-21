@@ -40,11 +40,15 @@ def emit(path, events):
             f.write(struct.pack("llHHi", 0, 0, EV_SYN, 0, 0))
 
 
+POWER_DEV = "/dev/input/event4"   # the PMIC's key (axp20x-pek): the matrix keypad drops KEY_POWER
+
+
 def key(name, ms):
     code = KEYS[name.upper()]
-    emit(KEYPAD, [(EV_KEY, code, 1)])
+    dev = POWER_DEV if code == KEY_POWER else KEYPAD
+    emit(dev, [(EV_KEY, code, 1)])
     time.sleep(ms / 1000)
-    emit(KEYPAD, [(EV_KEY, code, 0)])
+    emit(dev, [(EV_KEY, code, 0)])
 
 
 def turn(knob, n):

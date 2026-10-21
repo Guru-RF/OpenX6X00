@@ -386,7 +386,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 
 | Card | Options |
 |---|---|
-| BACKLIGHT | timeout and brightness, buttons brightness (Always Off, Always On, Temporarily On) |
+| BACKLIGHT | timeout and brightness, buttons brightness (Always Off, Always On, Temporarily On), Screen off after (minutes without a key or knob, 0 never; the key that wakes it does nothing else), Always off (the screen stays dark for a radio run from the VFO-Knob or a browser; POWER shows it for the blank time, a minute at least) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp |
@@ -1657,7 +1657,7 @@ applied on the radio as you change them.
 | S-meter | S-meter type (Bars, Needle), Colours (Theme, Scale, Level), Needle lamp; with a preview |
 | Waterfall | Mode (Centered, Fixed), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll |
 | On the waterfall | Band plan, Cluster spots, Cluster column |
-| Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on) |
+| Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Text and info | Knob info, Magnify frequency, Magnify info, Magnify ALC |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate

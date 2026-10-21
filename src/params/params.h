@@ -96,6 +96,8 @@ typedef struct {
     int16_t             brightness_normal;
     int16_t             brightness_idle;
     uint16_t            brightness_timeout; /* seconds */
+    uint16_t            screen_off_min;     /* the screen blanked after this long without a key, minutes, 0 never */
+    bool                screen_off_always;  /* the screen stays dark: a radio run from the knob or a browser */
     buttons_light_t     brightness_buttons;
 
     /* radio */
@@ -207,6 +209,8 @@ typedef struct {
         bool    brightness_normal;
         bool    brightness_idle;
         bool    brightness_timeout;
+        bool    screen_off_min;
+        bool    screen_off_always;
         bool    brightness_buttons;
 
         bool    mic;

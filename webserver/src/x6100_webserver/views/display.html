@@ -63,7 +63,9 @@ const CARDS = [
     ["bright_normal", "Brightness", "", "range", [-1, 9, 1, 1, ""]],
     ["bright_idle", "Brightness when idle", "", "range", [-1, 9, 1, 1, ""]],
     ["bright_timeout", "Idle after", "Seconds without a key or the knob", "range", [5, 120, 5, 1, " s"]],
-    ["bright_buttons", "Button lights", "", "sel", ["Always off", "Always on", "Temporarily on"]]]],
+    ["bright_buttons", "Button lights", "", "sel", ["Always off", "Always on", "Temporarily on"]],
+    ["screen_off_min", "Screen off after", "Minutes without a key or the knob, 0 never; the next key wakes it", "range", [0, 120, 1, 1, " min"]],
+    ["screen_off_always", "Screen always off", "A radio run from the knob or a browser; POWER shows the screen for a while", "sw"]]],
   ["text", "Text and info", "What the screen shows bigger", [
     ["indep_vfo", "Independent VFOs", "VFO A and VFO B each keep their own band, frequency and mode; A=B copies everything", "sw"],
     ["birdie_marks", "Birdies", "The radio's own carriers found by Birdie Cal: marked on the waterfall, and notched out of the passband", "seg", ["Off", "Marks", "Marks + notch"]],

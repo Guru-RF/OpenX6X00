@@ -137,6 +137,16 @@ static void disp_apply(void *arg) {
         params.brightness_timeout = d->val;
         params_unlock(&params.dirty.brightness_timeout);
         backlight_tick();
+    } else if (!strcmp(d->name, "screen_off_min")) {
+        params_lock();
+        params.screen_off_min = LV_CLAMP(0, d->val, 120);
+        params_unlock(&params.dirty.screen_off_min);
+        backlight_settings_changed();
+    } else if (!strcmp(d->name, "screen_off_always")) {
+        params_lock();
+        params.screen_off_always = d->val != 0;
+        params_unlock(&params.dirty.screen_off_always);
+        backlight_settings_changed();
     } else if (!strcmp(d->name, "bright_buttons")) {
         backlight_set_buttons((buttons_light_t)d->val);
     } else if (!strcmp(d->name, "theme")) {
@@ -188,6 +198,10 @@ static const char *disp_set(cJSON *req, disp_set_t *d) {
         min = 5, max = 120, known = true;
     if (!strcmp(d->name, "bright_buttons"))
         min = 0, max = 2, known = true;
+    if (!strcmp(d->name, "screen_off_min"))
+        min = 0, max = 120, known = true;
+    if (!strcmp(d->name, "screen_off_always"))
+        min = 0, max = 1, known = true;
     if (!known)
         return "Unknown option";
     if (!get_int(req, min, max, &d->val))
@@ -206,9 +220,10 @@ static int disp_get(char *buf, size_t size) {
         l += snprintf(buf + l, size - l, ",\"%s\":%d", o.name, o.b->x ? 1 : 0);
     l += snprintf(buf + l, size - l,
                   ",\"auto_level_offset\":%d,\"bright_normal\":%d,\"bright_idle\":%d,\"bright_timeout\":%d,"
-                  "\"bright_buttons\":%d,\"theme\":\"%s\",\"themes\":[",
+                  "\"bright_buttons\":%d,\"screen_off_min\":%d,\"screen_off_always\":%d,\"theme\":\"%s\",\"themes\":[",
                   (int)lroundf(cfg_sm.p_auto_level_offset.get() * 10), params.brightness_normal, params.brightness_idle,
-                  params.brightness_timeout, (int)params.brightness_buttons, params.theme_name.x);
+                  params.brightness_timeout, (int)params.brightness_buttons, params.screen_off_min, params.screen_off_always ? 1 : 0,
+                  params.theme_name.x);
     for (int i = 0; i < count && l < (int)size - 40; i++)
         l += snprintf(buf + l, size - l, "%s\"%s\"", i ? "," : "", names[i]);
     l += snprintf(buf + l, size - l, "]}\n");

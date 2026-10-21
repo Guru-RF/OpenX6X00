@@ -32,6 +32,7 @@
 
 params_t params = {
     .brightness_normal = 5, .brightness_idle = 4, .brightness_timeout = 30,
+    .screen_off_min = 5, .screen_off_always = false,
     .brightness_buttons     = BUTTONS_TEMPORARILY,
 
     .spectrum_beta          = { .name = "spectrum_beta", .x = 85, .min = 0, .max = 90 },
@@ -227,6 +228,10 @@ static bool params_load() {
             params.brightness_idle = i;
         } else if (strcmp(name, "brightness_timeout") == 0) {
             params.brightness_timeout = i;
+        } else if (strcmp(name, "screen_off_min") == 0) {
+            params.screen_off_min = i;
+        } else if (strcmp(name, "screen_off_always") == 0) {
+            params.screen_off_always = i != 0;
         } else if (strcmp(name, "brightness_buttons") == 0) {
             params.brightness_buttons = i;
         } else if (strcmp(name, "line_in") == 0) {
@@ -378,6 +383,8 @@ static void params_save() {
     if (params.dirty.brightness_normal)     params_write_int("brightness_normal", params.brightness_normal, &params.dirty.brightness_normal);
     if (params.dirty.brightness_idle)       params_write_int("brightness_idle", params.brightness_idle, &params.dirty.brightness_idle);
     if (params.dirty.brightness_timeout)    params_write_int("brightness_timeout", params.brightness_timeout, &params.dirty.brightness_timeout);
+    if (params.dirty.screen_off_min)        params_write_int("screen_off_min", params.screen_off_min, &params.dirty.screen_off_min);
+    if (params.dirty.screen_off_always)     params_write_int("screen_off_always", params.screen_off_always, &params.dirty.screen_off_always);
     if (params.dirty.brightness_buttons)    params_write_int("brightness_buttons", params.brightness_buttons, &params.dirty.brightness_buttons);
 
     if (params.dirty.clock_view)            params_write_int("clock_view", params.clock_view, &params.dirty.clock_view);

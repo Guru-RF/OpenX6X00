@@ -102,8 +102,9 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
         data->continue_reading = true;
 
         if (in.type == EV_KEY) {
-            backlight_tick();
-            if (in.code == VOL_PRESS) {
+            if (backlight_tick() && in.value) {
+                /* the press woke the screen: that was its job, the radio does not see it */
+            } else if (in.code == VOL_PRESS) {
                 pad->evdev_key   = KEY_VOL_PRESS;
                 pad->evdev_state = in.value ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
             } else if (in.code == MFK_PRESS) {
