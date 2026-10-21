@@ -250,18 +250,19 @@ static int peaks(const float *db, uint16_t n, uint16_t *out, int max) {
     return k;
 }
 
-/* A spectrum taken at f: waits for one centred there (the radio moved), false when the scan
- * was stopped or none came */
+/* A spectrum taken at f, where the scan just tuned the hardware: two fresh frames after the
+ * settle (the frame's own centre follows the settings' VFO, which the scan leaves alone, so it
+ * cannot be matched against f); false when the scan was stopped or no frame came */
 static bool spectrum_at(int32_t f, float *db, uint32_t *span) {
-    uint32_t center = 0, seq = 0, last = 0;
+    uint32_t center = 0, seq = 0, first = 0;
     uint64_t until = now_ms() + 1500;
 
+    (void)f;
+    if (!dsp_spectrum_snapshot(db, WATERFALL_NFFT, &center, span, &first)) first = 0;
     while (now_ms() < until) {
         if (atomic_load(&stop_req)) return false;
-        if (dsp_spectrum_snapshot(db, WATERFALL_NFFT, &center, span, &seq) && seq != last &&
-            llabs((int64_t)center - f) < 1000)
+        if (dsp_spectrum_snapshot(db, WATERFALL_NFFT, &center, span, &seq) && seq >= first + 2)
             return true;
-        last = seq;
         sleep_ms(50);
     }
     return false;
