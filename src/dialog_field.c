@@ -234,9 +234,9 @@ static void state_load(void) {
             st.have_ref = field_ref_parse(v, &st.ref);
     }
     fclose(f);
-    if (st.screen >= SCR_LOG && HOME_TILES < 6)
+    if ((unsigned)st.screen > SCR_LOG)      /* an edited or damaged file */
         st.screen = SCR_HOME;
-    if (st.home_sel >= HOME_TILES)
+    if (st.home_sel < 0 || st.home_sel >= HOME_TILES)
         st.home_sel = 0;
 }
 
@@ -1581,9 +1581,12 @@ void dialog_field_day_log(const qso_log_record_t *r) {
     snprintf(q.rst_r, sizeof(q.rst_r), digi ? "%+03d" : "%d", r->rstr);
     snprintf(q.name, sizeof(q.name), "%s", r->name);
     snprintf(q.grid, sizeof(q.grid), "%s", r->remote_grid);
-    day_log_add(&q, r->local_call);
+    /* An activation going on: the QSO counts for it and goes in its log, as the voice QSOs
+     * logged here do; otherwise in the day's log. Not both: the web page lists every log */
     if (st.active)
-        activation_log_add(&q);     /* an activation going on: this QSO counts for it */
+        activation_log_add(&q);
+    else
+        day_log_add(&q, r->local_call);
 }
 
 /* A QSO in the log: false when the call is not a callsign */
