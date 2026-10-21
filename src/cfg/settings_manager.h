@@ -170,10 +170,12 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_swr_color{"swr_color", -1, -1, 0xffffff,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_smeter_needle{"smeter_needle", false, 0, 1,
+    // The needle on its lit dial is the default: it suits the RF.Guru theme best (a radio that
+    // chose bars keeps them, the saved value wins)
+    Parameter<int32_t> p_smeter_needle{"smeter_needle", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // Needle S-meter on an amber dial lit from below, as the old analog meters
-    Parameter<int32_t> p_smeter_lamp{"smeter_lamp", false, 0, 1,
+    Parameter<int32_t> p_smeter_lamp{"smeter_lamp", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_band_plan{"band_plan", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};

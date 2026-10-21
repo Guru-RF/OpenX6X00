@@ -201,9 +201,9 @@ Display page).
 
 | Option | Values | What it does |
 |---|---|---|
-| S-meter type | Bars, Needle | Bars: thin bars along the scale (default). Needle: a wide, low dial with a needle, in the theme's colours; the dB value is under the dial. |
+| S-meter type | Bars, Needle | Needle (the default): a wide, low dial with a needle, in the theme's colours; the dB value is under the dial. Bars: thin bars along the scale. |
 | S-meter colours | Theme, Scale, Level | Theme: as the theme draws it. Scale: green, yellow and red along the scale. Level: the lit bars (on the needle, the arc up to the signal) in the colour of the signal level. |
-| Needle lamp | on, off | An amber dial lit from behind, with dark marks and a red zone over S9. Needle only; it replaces the colours. |
+| Needle lamp | on, off | An amber dial lit from behind, with dark marks and a red zone over S9 (the default). Needle only; it replaces the colours. |
 
 The VISION theme always uses bars.
 
