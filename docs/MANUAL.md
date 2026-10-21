@@ -1451,8 +1451,9 @@ Birdies are steady carriers the radio makes inside itself (clock harmonics, the
 receiver's own spurs): thin lines on the waterfall that never move with the band.
 APP > Birdie Cal finds them. Disconnect the antenna, press **Start**: the scan
 steps the receiver across every active band, a spectrum width at a time, and
-keeps every narrow carrier that stays put between two looks, about a minute for
-the HF bands. **Stop** ends it early; what was found so far is kept. **Clear**
+keeps every narrow carrier that stays put between two looks: a few minutes, the
+2 m and 70 cm bands included when they are active. **Stop** ends it early; what
+was found so far is kept. **Clear**
 forgets them. The list is `/mnt/birdies.txt`, one frequency a line.
 
 What is done with them is Settings > Display > MAIN SCREEN > **Birdies** (also
