@@ -80,11 +80,29 @@ step through the channels (a long press changes band).
 
 ## Updating the firmware
 
-A new version comes as a full microSD image: write it to the card as in
-[first steps](#first-steps). Writing the image erases the whole card,
-settings and logs included: download the Backup from the web configurator
-first, and put it back after the first start. Settings > Info shows the
-version the radio runs.
+The radio updates itself: Settings > Info > Update, or the Update page of the
+web configurator (System > Update).
+
+- Check asks GitHub for the latest release. Install downloads its update
+  bundle (the GUI, the web pages, the helpers and their data, about 10 MB),
+  checks every file against the project's signature, puts the files in place
+  with the previous ones kept, and restarts the radio software: the screen
+  goes dark for a few seconds. Settings, logs and everything on the DATA
+  partition stay as they are.
+- The new version is "pending" until it has run a minute; then it is
+  confirmed. If it does not stay up for a minute three times in a row, the
+  start loop puts the previous version back by itself. A power cut during the
+  install is undone the same way at the next start.
+- The web page can also take a bundle file (`OpenX6X00-vX.Y.Z-update.tar.gz`
+  from the releases page) for a radio without internet, and has a button to go
+  back to the previous version by hand.
+- The bundle is signed; a bundle not made by the project is refused. (For
+  building your own: `tools/update/mkbundle.py`, the key in
+  `rootfs/usr/share/x6100/update.pub`; a radio with `/mnt/update/allow-unsigned`
+  takes unsigned bundles.)
+- What the updater cannot change comes with a card image: the kernel, its
+  modules (the WiFi driver), U-Boot, the partition layout. A release says when
+  an image is needed.
 
 ## Main screen
 

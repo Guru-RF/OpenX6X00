@@ -48,7 +48,7 @@ of text for NavTex.
 | Keys (long presses, hand mic keys, paddle) | Keys, "Keys, paddle" |
 | Cluster (filters, view, PSK Reporter) | Cluster, "Spots" |
 | TX Cal (calibration, CESSB, protection, S-meter front end) | TX Cal, "TX audio, SWR" |
-| Info (version, baseband, broadcast list, factory reset, power) | System, "Update, power" |
+| Info (version, update, baseband, broadcast list, factory reset, power) | System, "Update, power" |
 | Walkie | (in the APP grid here as well) |
 
 The web configurator has the same **Icon menus** switch on its Display page.

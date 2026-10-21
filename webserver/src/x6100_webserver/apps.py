@@ -260,6 +260,99 @@ def tci():
     return bottle.template('tci')
 
 
+# Firmware update: x6100-update on the radio does the work (check, download, verify, install,
+# rollback); the page shows its status and starts a job in a thread
+
+update_lock = threading.Lock()
+update_job = {"running": False, "what": "", "result": ""}
+UPDATE_CMD = "/usr/sbin/x6100-update"
+UPDATE_MAX_BYTES = 64 * 1024 * 1024
+
+
+def update_run(args, timeout=1800):
+    try:
+        r = subprocess.run([UPDATE_CMD] + args, capture_output=True, text=True, timeout=timeout)
+        lines = r.stdout.strip().splitlines()
+        return lines[-1] if lines else f"error exit code {r.returncode}"
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"error {e}"
+
+
+def update_json(args):
+    out = update_run(args, timeout=60)
+    try:
+        return json.loads(out)
+    except ValueError:
+        return {"error": out[6:] if out.startswith("error ") else out}
+
+
+def update_job_run(what, args):
+    result = update_run(args)
+    with update_lock:
+        update_job.update(running=False, result=result)
+
+
+def update_start(what, args):
+    with update_lock:
+        if update_job["running"]:
+            return api_error(409, "An update is already running")
+        update_job.update(running=True, what=what, result="")
+    threading.Thread(target=update_job_run, args=(what, args), daemon=True).start()
+    return get_update()
+
+
+@app.route('/update')
+def update_page():
+    return bottle.template('update')
+
+
+@app.get('/api/update')
+def get_update():
+    st = update_json(["status"])
+    with update_lock:
+        st["job"] = dict(update_job)
+    return st
+
+
+@app.get('/api/update/check')
+def check_update():
+    return update_json(["check"])
+
+
+@app.post('/api/update/upgrade')
+def start_upgrade():
+    return update_start("upgrade", ["upgrade"])
+
+
+@app.post('/api/update/rollback')
+def start_rollback():
+    return update_start("rollback", ["rollback"])
+
+
+@app.post('/api/update/upload')
+def upload_update():
+    """A bundle file (multipart field "file"): saved on the DATA partition and installed."""
+    upload = bottle.request.files.get("file")
+    if upload is None:
+        return api_error(400, "No file")
+    if not upload.raw_filename.endswith(".tar.gz"):
+        return api_error(400, "Not an update bundle (.tar.gz)")
+    os.makedirs("/mnt/update", exist_ok=True)
+    dest = "/mnt/update/upload.tar.gz"
+    size = 0
+    with open(dest + ".part", "wb") as f:
+        while True:
+            chunk = upload.file.read(1 << 20)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > UPDATE_MAX_BYTES:
+                return api_error(413, "Larger than 64 MB")
+            f.write(chunk)
+    os.replace(dest + ".part", dest)
+    return update_start("install", ["install", dest])
+
+
 @app.get('/api/tci')
 def get_tci():
     return read_tci_conf()

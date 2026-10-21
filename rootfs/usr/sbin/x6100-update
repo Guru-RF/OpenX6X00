@@ -1,0 +1,389 @@
+#!/usr/bin/env python3
+# OpenX6X00 updater: the GUI, the web server, the helpers and the data they install, replaced on
+# the running radio from a signed bundle (tools/update/mkbundle.py), with a journal and the previous
+# files kept so a bad version goes back by itself. Every command prints one line or one JSON object
+# on stdout, exit 0/1.
+#
+#   status                   {"running":..,"pending":..,"last":..}
+#   check                    {"running":..,"latest":..,"url":..,"newer":bool}   (GitHub Releases)
+#   download <url>           the bundle into /mnt/update, progress in /mnt/update/.progress
+#   install <file>           verify, stage, swap in, restart the GUI and the web server
+#   upgrade                  check, download and install the newer release
+#   rollback                 the previous files back, restart
+#   confirm                  the new version runs: the pending mark goes (the GUI, after a minute)
+#   boot-check               before each GUI start (x6100_daemon): a pending version that keeps
+#                            dying is rolled back
+#
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
+import hashlib
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tarfile
+import time
+import urllib.error
+import urllib.request
+
+REPO = os.environ.get("X6100_UPDATE_REPO", "Guru-RF/OpenX6X00")
+API = f"https://api.github.com/repos/{REPO}/releases/latest"
+PUB = "/usr/share/x6100/update.pub"
+VERSION_FILE = "/usr/share/x6100/app-version"
+STATE = "/var/lib/x6100-update"       # the journal and the previous files: on the root filesystem
+PREV = os.path.join(STATE, "prev")
+JOURNAL = os.path.join(STATE, "journal.json")
+PENDING = os.path.join(STATE, "pending.json")
+LAST = os.path.join(STATE, "last.json")
+WORK = "/mnt/update"                  # the download and the staging: the DATA partition has the room
+PROGRESS = os.path.join(WORK, ".progress")
+ALLOW_UNSIGNED = os.path.join(WORK, "allow-unsigned")
+ALLOWED = ("/usr/sbin/", "/usr/bin/", "/usr/lib/", "/usr/share/x6100/",
+           "/etc/init.d/", "/etc/")
+MAX_STARTS = 3                        # GUI starts without a confirm before the rollback
+TIMEOUT = 30
+RUN_LIMIT = 1800
+
+
+class Fail(Exception):
+    pass
+
+
+def running_version():
+    try:
+        with open(VERSION_FILE) as f:
+            return f.read().strip()
+    except OSError:
+        return "unknown"
+
+
+def vtuple(v):
+    out = []
+    for part in str(v).lstrip("v").split("."):
+        digits = "".join(ch for ch in part if ch.isdigit())
+        out.append(int(digits) if digits else 0)
+    return tuple(out)
+
+
+def load(path, default=None):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def save(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(obj, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+    dfd = os.open(os.path.dirname(path), os.O_RDONLY)
+    os.fsync(dfd)
+    os.close(dfd)
+
+
+def progress(step, got=0, total=0):
+    os.makedirs(WORK, exist_ok=True)
+    with open(PROGRESS + ".tmp", "w") as f:
+        f.write(f"{step} {got} {total}\n")
+    os.replace(PROGRESS + ".tmp", PROGRESS)
+
+
+def restart_apps():
+    """The web server and the GUI, detached: the caller may be the web server itself."""
+    subprocess.Popen(["setsid", "sh", "-c", "sleep 1; /etc/init.d/S96webserver restart >/dev/null 2>&1; "
+                      "kill $(pidof x6100_gui) 2>/dev/null"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+# ---- check and download --------------------------------------------------------------------
+
+def http(url, timeout=TIMEOUT):
+    req = urllib.request.Request(url, headers={"User-Agent": f"OpenX6X00/{running_version()}", "Accept": "application/json"})
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
+def cmd_check(args):
+    out = {"running": running_version(), "latest": None, "url": None, "newer": False, "notes": ""}
+    try:
+        with http(API) as r:
+            rel = json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:          # no release yet
+            return out
+        raise Fail(f"GitHub answered HTTP {e.code}")
+    except (OSError, ValueError) as e:
+        raise Fail(f"no connection to GitHub: {getattr(e, 'reason', e)}")
+    tag = str(rel.get("tag_name", "")).lstrip("v")
+    asset = next((x for x in rel.get("assets", []) if str(x.get("name", "")).endswith("-update.tar.gz")), None)
+    out["latest"] = tag or None
+    out["url"] = asset["browser_download_url"] if asset else None
+    out["notes"] = (rel.get("body") or "")[:2000]
+    out["newer"] = bool(tag and asset and vtuple(tag) > vtuple(out["running"]))
+    return out
+
+
+def cmd_download(args):
+    url = args[0]
+    os.makedirs(WORK, exist_ok=True)
+    dest = os.path.join(WORK, "bundle.tar.gz")
+    got = 0
+    with http(url, timeout=60) as r, open(dest + ".part", "wb") as f:
+        total = int(r.headers.get("Content-Length") or 0)
+        progress("download", 0, total)
+        while True:
+            chunk = r.read(65536)
+            if not chunk:
+                break
+            f.write(chunk)
+            got += len(chunk)
+            progress("download", got, total)
+        f.flush()
+        os.fsync(f.fileno())
+    if total and got != total:
+        raise Fail(f"short download: {got} of {total} bytes")
+    os.replace(dest + ".part", dest)
+    return dest
+
+
+# ---- verify and install --------------------------------------------------------------------
+
+def read_manifest(tar):
+    try:
+        mjson = tar.extractfile("manifest.json").read()
+    except (KeyError, AttributeError):
+        raise Fail("not an update bundle: no manifest")
+    try:
+        sig = tar.extractfile("manifest.sig").read()
+    except (KeyError, AttributeError):
+        sig = None
+    if sig is None:
+        if not os.path.exists(ALLOW_UNSIGNED):
+            raise Fail("the bundle is not signed")
+    else:
+        os.makedirs(WORK, exist_ok=True)
+        mpath, spath = os.path.join(WORK, ".manifest"), os.path.join(WORK, ".manifest.sig")
+        with open(mpath, "wb") as f:
+            f.write(mjson)
+        with open(spath, "wb") as f:
+            f.write(sig)
+        try:
+            r = subprocess.run(["openssl", "dgst", "-sha256", "-verify", PUB, "-signature", spath, mpath],
+                               capture_output=True, timeout=60)
+        except OSError:
+            raise Fail("openssl is missing: the signature cannot be checked")
+        if r.returncode != 0:
+            raise Fail("the signature does not match: not a bundle made for this firmware")
+    try:
+        m = json.loads(mjson)
+    except ValueError:
+        raise Fail("the manifest is not JSON")
+    if m.get("product") != "OpenX6X00" or not isinstance(m.get("files"), list) or not m.get("version"):
+        raise Fail("the manifest is not for OpenX6X00")
+    for e in m["files"]:
+        p = e.get("path", "")
+        if not p.startswith("/") or ".." in p.split("/") or not p.startswith(ALLOWED) or p.endswith("/"):
+            raise Fail(f"the bundle wants to write {p}: refused")
+    return m
+
+
+def stage(bundle):
+    """The bundle's files into WORK/stage, each checked against the manifest; returns the manifest."""
+    st = os.path.join(WORK, "stage")
+    shutil.rmtree(st, ignore_errors=True)
+    os.makedirs(st)
+    # Decompressed by the system's gzip: the radio's Python may come without zlib
+    plain = os.path.join(WORK, "bundle.tar")
+    with open(plain, "wb") as f:
+        r = subprocess.run(["gzip", "-dc", bundle], stdout=f, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        raise Fail("not a gzip file")
+    with tarfile.open(plain, "r:") as tar:
+        m = read_manifest(tar)
+        n = len(m["files"])
+        for i, e in enumerate(m["files"]):
+            progress("verify", i, n)
+            try:
+                src = tar.extractfile("files" + e["path"])
+            except KeyError:
+                src = None
+            if src is None:
+                raise Fail(f"{e['path']} is missing from the bundle")
+            dest = os.path.join(st, e["path"].lstrip("/"))
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            h = hashlib.sha256()
+            with open(dest, "wb") as f:
+                while True:
+                    chunk = src.read(65536)
+                    if not chunk:
+                        break
+                    h.update(chunk)
+                    f.write(chunk)
+                f.flush()
+                os.fsync(f.fileno())
+            if h.hexdigest() != e.get("sha256"):
+                raise Fail(f"{e['path']} does not match its checksum")
+            os.chmod(dest, int(str(e.get("mode", "644")), 8))
+    os.remove(plain)
+    return m
+
+
+def apply(m):
+    """The staged files into place, one by one, the previous ones kept and the journal ahead of each step."""
+    st = os.path.join(WORK, "stage")
+    shutil.rmtree(PREV, ignore_errors=True)
+    files = [{"path": e["path"], "prev": os.path.exists(e["path"]), "done": False} for e in m["files"]]
+    journal = {"version": m["version"], "from": running_version(), "state": "applying", "files": files,
+               "started": time.time()}
+    save(JOURNAL, journal)
+    n = len(files)
+    for i, f in enumerate(files):
+        progress("install", i, n)
+        p = f["path"]
+        if f["prev"]:
+            keep = os.path.join(PREV, p.lstrip("/"))
+            os.makedirs(os.path.dirname(keep), exist_ok=True)
+            shutil.copy2(p, keep)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        tmp = p + ".x6new"
+        shutil.copy2(os.path.join(st, p.lstrip("/")), tmp)
+        fd = os.open(tmp, os.O_RDONLY)
+        os.fsync(fd)
+        os.close(fd)
+        os.replace(tmp, p)
+        f["done"] = True
+        save(JOURNAL, journal)
+    journal["state"] = "applied"
+    save(JOURNAL, journal)
+    save(PENDING, {"version": m["version"], "from": journal["from"], "starts": 0, "since": time.time()})
+    shutil.rmtree(st, ignore_errors=True)
+    os.sync()
+
+
+def undo(journal):
+    """Every file the journal says was replaced goes back (or away, when it was new)."""
+    for f in reversed(journal.get("files", [])):
+        if not f.get("done"):
+            continue
+        p = f["path"]
+        keep = os.path.join(PREV, p.lstrip("/"))
+        if f.get("prev") and os.path.exists(keep):
+            os.replace(keep, p)
+        else:
+            try:
+                os.remove(p)
+            except FileNotFoundError:
+                pass
+    os.sync()
+
+
+def cmd_install(args):
+    if not args:
+        raise Fail("install needs the bundle's path")
+    bundle = args[0]
+    if load(JOURNAL, {}).get("state") == "applying":
+        raise Fail("an interrupted install must be rolled back first")
+    progress("verify")
+    m = stage(bundle)
+    apply(m)
+    save(LAST, {"result": "installed", "version": m["version"], "when": time.time()})
+    progress("done")
+    restart_apps()
+    return f"ok {m['version']}"
+
+
+def cmd_upgrade(args):
+    c = cmd_check(args)
+    if not c["newer"]:
+        return "ok up to date" if c["latest"] else "ok no release"
+    bundle = cmd_download([c["url"]])
+    return cmd_install([bundle])
+
+
+def cmd_rollback(args):
+    journal = load(JOURNAL)
+    if not journal or journal.get("state") == "rolled back":
+        raise Fail("nothing to roll back")
+    undo(journal)
+    journal["state"] = "rolled back"
+    save(JOURNAL, journal)
+    if os.path.exists(PENDING):
+        os.remove(PENDING)
+    save(LAST, {"result": "rolled back", "version": journal.get("version"), "to": journal.get("from"), "when": time.time()})
+    restart_apps()
+    return f"ok back to {journal.get('from')}"
+
+
+def cmd_confirm(args):
+    if os.path.exists(PENDING):
+        pend = load(PENDING, {})
+        os.remove(PENDING)
+        journal = load(JOURNAL)
+        if journal:
+            journal["state"] = "confirmed"
+            save(JOURNAL, journal)
+        save(LAST, {"result": "confirmed", "version": pend.get("version"), "when": time.time()})
+        return f"ok {pend.get('version')} confirmed"
+    return "ok nothing pending"
+
+
+def cmd_boot_check(args):
+    journal = load(JOURNAL)
+    if journal and journal.get("state") == "applying":   # power went during the swap
+        undo(journal)
+        journal["state"] = "rolled back"
+        save(JOURNAL, journal)
+        if os.path.exists(PENDING):
+            os.remove(PENDING)
+        save(LAST, {"result": "rolled back", "version": journal.get("version"), "to": journal.get("from"),
+                    "why": "the install was interrupted", "when": time.time()})
+        return "rolled back: interrupted install"
+    pend = load(PENDING)
+    if not pend:
+        return "ok"
+    pend["starts"] = int(pend.get("starts", 0)) + 1
+    if pend["starts"] > MAX_STARTS:
+        if journal:
+            undo(journal)
+            journal["state"] = "rolled back"
+            save(JOURNAL, journal)
+        os.remove(PENDING)
+        save(LAST, {"result": "rolled back", "version": pend.get("version"), "to": pend.get("from"),
+                    "why": f"the GUI did not stay up ({MAX_STARTS} starts)", "when": time.time()})
+        return f"rolled back to {pend.get('from')}"
+    save(PENDING, pend)
+    return f"pending {pend.get('version')} start {pend['starts']}"
+
+
+def cmd_status(args):
+    return {"running": running_version(), "pending": load(PENDING), "last": load(LAST),
+            "progress": open(PROGRESS).read().strip() if os.path.exists(PROGRESS) else ""}
+
+
+def main(argv):
+    cmds = {"status": cmd_status, "check": cmd_check, "download": cmd_download, "install": cmd_install,
+            "upgrade": cmd_upgrade, "rollback": cmd_rollback, "confirm": cmd_confirm, "boot-check": cmd_boot_check}
+    if not argv or argv[0] not in cmds:
+        print("error usage: x6100-update " + "|".join(cmds))
+        return 1
+    signal.signal(signal.SIGALRM, lambda *_: (print("error timed out"), sys.exit(1)))
+    signal.alarm(RUN_LIMIT)
+    try:
+        out = cmds[argv[0]](argv[1:])
+        print(json.dumps(out) if isinstance(out, dict) else out)
+        return 0
+    except Fail as e:
+        print(f"error {e}")
+    except Exception as e:
+        print(f"error {' '.join(str(e).split())[:120] or type(e).__name__}")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

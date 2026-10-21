@@ -198,8 +198,23 @@ jobs:
         mv sdcard.img $X6CI_IMG
         zip $X6CI_IMG.zip $X6CI_IMG
 
-    # Always keep the image as a workflow artifact: branch runs have no
-    # release to attach to, and on a tag it survives a failed Release step.
+    # The update bundle a running radio installs by itself (x6100-update), signed with the
+    # repository secret UPDATE_SIGNING_KEY (an EC P-256 private key in PEM; its public half is
+    # rootfs/usr/share/x6100/update.pub). Without the secret the bundle is unsigned and radios refuse it.
+    - name: Update bundle
+      env:
+        UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+      run: |
+        VER=$(sed -n 's/.*define VERSION.* v\([0-9.]*\).*/\1/p' x6100_gui/src/main.h)
+        KEYARG=""
+        if [ -n "$UPDATE_SIGNING_KEY" ]; then printf '%s\n' "$UPDATE_SIGNING_KEY" > /tmp/update-key.pem; KEYARG="--key /tmp/update-key.pem"; fi
+        python3 x6100_gui/tools/update/mkbundle.py --target AetherX6100Buildroot/build/target \
+            --manifest $(ls -d AetherX6100Buildroot/build/build/x6100-gui-*/install_manifest.txt | head -1) \
+            --version $VER --out $X6CI_IMAGES/OpenX6X00-${{ github.ref_name }}-update.tar.gz $KEYARG
+        rm -f /tmp/update-key.pem
+
+    # Always keep the image and the bundle as workflow artifacts: branch runs have no
+    # release to attach to, and on a tag they survive a failed Release step.
     - name: Upload image
       uses: actions/upload-artifact@v4
       with:
@@ -207,9 +222,18 @@ jobs:
         path: ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-sdcard.img.zip
         retention-days: 30
 
-    # On a tag: GitHub release with the image
+    - name: Upload update bundle
+      uses: actions/upload-artifact@v4
+      with:
+        name: OpenX6X00-${{ github.ref_name }}-update.tar.gz
+        path: ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-update.tar.gz
+        retention-days: 30
+
+    # On a tag: GitHub release with the image and the update bundle (what radios look for)
     - name: Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-sdcard.img.zip
+        files: |
+          ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-sdcard.img.zip
+          ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-update.tar.gz

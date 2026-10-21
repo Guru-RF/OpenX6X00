@@ -98,7 +98,21 @@ for d in $BR/build/build/x6100-gui-*/rootfs; do
 done
 find $BR/build/target/usr/sbin -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
 make x6100-gui-rebuild x6100-webserver-rebuild
+# Packages whose options changed after an earlier build here are not rebuilt by buildroot on
+# its own: python3 (the ssl module) and openssl (the command) are reconfigured when missing
+ls $BR/build/target/usr/lib/python3.11/lib-dynload/_ssl*.so > /dev/null 2>&1 || make python3-reconfigure
+[ -x $BR/build/target/usr/bin/openssl ] || make libopenssl-reconfigure
 make
+
+echo "== Update bundle (tools/update/mkbundle.py): what x6100-update installs on a running radio"
+# Signed with $UPDATE_KEY (default: $HOME/.config/openx6x00/update-key.pem, so inside the container
+# /work/.brhome/.config/openx6x00/update-key.pem); unsigned without it, which a radio only takes with
+# /mnt/update/allow-unsigned present
+VER=$(sed -n 's/.*define VERSION.* v\([0-9.]*\).*/\1/p' $GUI/src/main.h)
+KEY=${UPDATE_KEY:-$HOME/.config/openx6x00/update-key.pem}
+KEYARG=""; [ -f "$KEY" ] && KEYARG="--key $KEY"
+python3 $GUI/tools/update/mkbundle.py --target $BR/build/target --manifest $(ls -d $BR/build/build/x6100-gui-*/install_manifest.txt | head -1) \
+    --version $VER --out $BR/build/images/OpenX6X00-v$VER-update.tar.gz $KEYARG
 
 echo "== Our U-Boot over buildroot's, 8 KB into the card"
 dd if=$GUI/u-boot/u-boot-sunxi-with-spl.bin of=$BR/build/images/sdcard.img seek=8K bs=1 conv=notrunc

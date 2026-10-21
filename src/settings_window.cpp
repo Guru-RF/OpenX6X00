@@ -3847,6 +3847,143 @@ static void bc_btn_cb(lv_event_t *e) {
     if (!bc_timer) bc_timer = lv_timer_create(bc_timer_cb, 500, NULL);
 }
 
+/* Firmware update (x6100-update): Check asks GitHub for a newer release, Install downloads and
+ * installs it (the GUI restarts at the end); the note follows the helper's progress file */
+#define UPD_CTL      "/usr/sbin/x6100-update"
+#define UPD_PROGRESS "/mnt/update/.progress"
+
+static lv_obj_t   *upd_note, *upd_btn;
+static lv_timer_t *upd_timer;
+static bool        upd_busy;
+static char        upd_latest[24];     /* a newer version found by Check, "" none */
+
+static void upd_say(const char *t) {
+    if (upd_note) lv_label_set_text(upd_note, t);
+}
+
+static void upd_btn_label(const char *t) {
+    if (upd_btn) lv_label_set_text(lv_obj_get_child(upd_btn, 0), t);
+}
+
+static void upd_timer_cb(lv_timer_t *t) {
+    FILE *f = fopen(UPD_PROGRESS, "r");
+    char  step[16], s[64];
+    long  got = 0, total = 0;
+
+    if (!f) return;
+    if (fscanf(f, "%15s %ld %ld", step, &got, &total) >= 1) {
+        if (!strcmp(step, "download")) {
+            if (total > 0) snprintf(s, sizeof(s), "Downloading %.1f of %.1f MB", got / 1e6, total / 1e6);
+            else snprintf(s, sizeof(s), "Downloading %.1f MB", got / 1e6);
+        } else if (!strcmp(step, "verify")) {
+            snprintf(s, sizeof(s), "Checking the files: %ld of %ld", got, total);
+        } else if (!strcmp(step, "install")) {
+            snprintf(s, sizeof(s), "Installing: %ld of %ld files", got, total);
+        } else {
+            snprintf(s, sizeof(s), "Finishing...");
+        }
+        upd_say(s);
+    }
+    fclose(f);
+}
+
+static void upd_timer_stop(void) {
+    if (upd_timer) {
+        lv_timer_del(upd_timer);
+        upd_timer = NULL;
+    }
+}
+
+static void upd_del_cb(lv_event_t *e) {
+    upd_note = NULL;
+    upd_timer_stop();
+}
+
+/* "latest":"0.2.0" and "newer":true out of the helper's JSON line, without a parser */
+static bool upd_json_str(const char *json, const char *key, char *out, size_t n) {
+    char  k[32];
+    snprintf(k, sizeof(k), "\"%s\": ", key);
+    const char *p = strstr(json, k);
+    if (!p) return false;
+    p += strlen(k);
+    if (*p != '"') return false;
+    p++;
+    size_t i = 0;
+    while (*p && *p != '"' && i + 1 < n) out[i++] = *p++;
+    out[i] = 0;
+    return true;
+}
+
+static void upd_check_done(const char *out, int status, void *user) {
+    char latest[24] = "", s[96];
+
+    upd_busy = false;
+    upd_latest[0] = 0;
+    if (strncmp(out, "error", 5) == 0) {
+        snprintf(s, sizeof(s), "Check failed: %.70s", out + 6);
+    } else if (strstr(out, "\"newer\": true") && upd_json_str(out, "latest", latest, sizeof(latest))) {
+        snprintf(upd_latest, sizeof(upd_latest), "%s", latest);
+        snprintf(s, sizeof(s), "v%s is available. Install downloads it and restarts the radio software.", latest);
+        upd_btn_label("Install");
+    } else if (upd_json_str(out, "latest", latest, sizeof(latest))) {
+        snprintf(s, sizeof(s), "Up to date: v%s is the latest release.", latest);
+    } else {
+        snprintf(s, sizeof(s), "No release on GitHub yet.");
+    }
+    if (upd_note) upd_say(s);
+    else msg_update_text_fmt("%s", s);
+}
+
+static void upd_install_done(const char *out, int status, void *user) {
+    char s[96];
+
+    upd_busy = false;
+    upd_timer_stop();
+    if (strncmp(out, "ok", 2) == 0) snprintf(s, sizeof(s), "Installed. The radio software restarts now.");
+    else snprintf(s, sizeof(s), "Update failed: %.70s. Nothing changed.", strncmp(out, "error", 5) == 0 ? out + 6 : out);
+    upd_latest[0] = 0;
+    upd_btn_label("Check");
+    if (upd_note) upd_say(s);
+    else msg_update_text_fmt("%s", s);
+}
+
+static void upd_btn_cb(lv_event_t *e) {
+    if (upd_busy) return;
+    upd_busy = true;
+    if (upd_latest[0]) {
+        upd_say("Downloading...");
+        sh_run(UPD_CTL " upgrade", upd_install_done, NULL);
+        if (!upd_timer) upd_timer = lv_timer_create(upd_timer_cb, 500, NULL);
+    } else {
+        upd_say("Asking GitHub for the latest release...");
+        sh_run(UPD_CTL " check", upd_check_done, NULL);
+    }
+}
+
+static uint8_t make_update(uint8_t row) {
+    FILE *f = fopen("/var/lib/x6100-update/pending.json", "r");
+    char  s[96];
+
+    wl_row_label(row, "Update");
+    upd_btn = wl_button(row, "Check", upd_btn_cb);
+    lv_obj_add_event_cb(upd_btn, ptr_clear_cb, LV_EVENT_DELETE, &upd_btn);
+    upd_latest[0] = 0;
+    row++;
+    upd_note = upd_line(row);
+    lv_obj_add_event_cb(upd_note, upd_del_cb, LV_EVENT_DELETE, NULL);
+    if (f) {   /* installed, not yet confirmed by a minute of running */
+        fclose(f);
+        upd_say("A new version was just installed: it is confirmed once the radio has run a minute.");
+    } else if (upd_busy) {
+        upd_say("Updating...");
+        if (!upd_timer) upd_timer = lv_timer_create(upd_timer_cb, 500, NULL);
+    } else {
+        snprintf(s, sizeof(s), "Check looks for a newer release on GitHub; installing takes a minute.");
+        upd_say(s);
+    }
+    return row + 1;
+}
+
 static uint8_t make_broadcast_list(uint8_t row) {
     char s[96], n[16], season[8], day[12];
     int stations;
@@ -4012,6 +4149,7 @@ static void make_info_page() {
     row = info_row(row, "Project", "OpenX6X00 by RF.Guru");
     row = info_row(row, "Source", "github.com/Guru-RF/OpenX6X00");
     row = info_row(row, "Baseband", x6100_control_get_fw_version_str());
+    row = make_update(row);
     row = make_broadcast_list(row);
     row = make_factory_reset(row);
     card_end(row);

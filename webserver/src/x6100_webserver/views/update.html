@@ -1,0 +1,109 @@
+% rebase('base.html', title='Update')
+<h2><svg class="i"><use href="#i-download"/></svg>Update</h2>
+<p class="sub">The radio installs a newer OpenX6X00 by itself: the GUI, the web pages, the helpers and their data, from the project's GitHub releases or from a bundle file. The files are checked against the project's signature, the previous version is kept, and the radio software restarts at the end (about a minute). A version that does not come up is put back automatically. The kernel and the WiFi driver still come with a card image.</p>
+
+<div class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-cpu"/></svg></span><div><h3>Version</h3><p>What runs now, and the latest release</p></div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Running</b></div><div class="dp-ctl" id="running">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Latest release</b><span id="notes"></span></div><div class="dp-ctl" id="latest">-</div></div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="button" id="check">Check</button>
+      <button type="button" id="upgrade" class="primary" style="display:none">Install</button>
+      <span class="status" id="status"></span>
+    </div>
+  </div>
+</div>
+
+<form class="dp-card" id="upl">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-upload"/></svg></span><div><h3>Bundle file</h3><p>An OpenX6X00-vX.Y.Z-update.tar.gz from the releases page, for a radio without internet</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="file"><b>File</b></label></div>
+    <div class="dp-ctl"><input id="file" type="file" accept=".gz,.tar.gz"></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="submit" class="primary">Install the file</button>
+      <span class="status" id="ustatus"></span>
+    </div>
+  </div>
+</form>
+
+<div class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-sync"/></svg></span><div><h3>Previous version</h3><p>The files of the version before the last update are kept until the next one</p></div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Last update</b></div><div class="dp-ctl" id="last">-</div></div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="button" id="rollback">Go back to the previous version</button>
+      <span class="status" id="rstatus"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+var showStatus = function(sel, text, error=false) {
+  const el = $(sel);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+var fail = function(xhr) { showStatus("#status", xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); }
+var poll = null;
+
+var render = function(st) {
+  $("#running").text("v" + (st.running || "?"));
+  if (st.pending) $("#running").text("v" + st.running + " (installed, waiting for its first minute)");
+  if (st.last) {
+    var l = st.last, when = new Date(l.when * 1000).toLocaleString();
+    $("#last").text(l.result + (l.version ? " v" + l.version : "") + (l.to ? " (back to v" + l.to + ")" : "") + (l.why ? ": " + l.why : "") + ", " + when);
+  }
+  if (st.job && st.job.running) {
+    var p = (st.progress || "").split(" "), text = "Working...";
+    if (p[0] == "download") text = "Downloading " + (p[1] / 1e6).toFixed(1) + (p[2] > 0 ? " of " + (p[2] / 1e6).toFixed(1) : "") + " MB";
+    else if (p[0] == "verify") text = "Checking the files: " + p[1] + " of " + p[2];
+    else if (p[0] == "install") text = "Installing: " + p[1] + " of " + p[2] + " files";
+    showStatus(st.job.what == "install" ? "#ustatus" : st.job.what == "rollback" ? "#rstatus" : "#status", text);
+    if (!poll) poll = setInterval(refresh, 1000);
+  } else if (poll) {
+    clearInterval(poll); poll = null;
+    var r = st.job.result || "";
+    var sel = st.job.what == "install" ? "#ustatus" : st.job.what == "rollback" ? "#rstatus" : "#status";
+    if (r.startsWith("ok")) showStatus(sel, "Done: " + r.slice(3) + ". The radio software is restarting; this page comes back in a moment.");
+    else showStatus(sel, r.replace(/^error /, "Failed: "), true);
+    setTimeout(refresh, 8000);
+  }
+}
+
+var refresh = function() { $.get('/api/update', {}, render); }
+refresh();
+
+$("#check").on("click", function() {
+  showStatus("#status", "Asking GitHub...");
+  $.get('/api/update/check', {}, function(c) {
+    if (c.error) { showStatus("#status", c.error, true); return; }
+    $("#latest").text(c.latest ? "v" + c.latest : "no release yet");
+    $("#notes").text((c.notes || "").split("\n")[0].slice(0, 120));
+    $("#upgrade").toggle(!!c.newer);
+    showStatus("#status", c.newer ? "v" + c.latest + " is available" : "Up to date");
+  }).fail(fail);
+});
+
+$("#upgrade").on("click", function() {
+  if (!confirm("Download and install the latest release? The radio software restarts at the end.")) return;
+  $.post('/api/update/upgrade', {}, render).fail(fail);
+});
+
+$("#rollback").on("click", function() {
+  if (!confirm("Put the previous version's files back and restart?")) return;
+  $.post('/api/update/rollback', {}, render).fail(function(xhr) { showStatus("#rstatus", xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); });
+});
+
+$("#upl").on("submit", function(e) {
+  e.preventDefault();
+  var f = $("#file")[0].files[0];
+  if (!f) { showStatus("#ustatus", "Choose a file first", true); return; }
+  var fd = new FormData(); fd.append("file", f);
+  showStatus("#ustatus", "Uploading " + (f.size / 1e6).toFixed(1) + " MB...");
+  $.ajax({url: "/api/update/upload", type: "POST", data: fd, processData: false, contentType: false, dataType: "json",
+          success: render, error: function(xhr) { showStatus("#ustatus", xhr.responseJSON ? xhr.responseJSON.msg : "Upload failed", true); }});
+});
+</script>

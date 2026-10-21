@@ -92,6 +92,12 @@ Keys) writes a PNG to the DATA partition, shown in the web Gallery and copied he
 3. Put the card in the radio and switch on. Settings and logs live on the
    card's DATA partition (`/mnt`).
 
+After that the radio updates itself: Settings > Info > Update (or System >
+Update on the web page) fetches the latest release's bundle from GitHub,
+checks its signature, installs it and restarts the radio software, keeping
+the previous version for an automatic rollback if the new one does not come
+up. A new card image is only needed when the kernel or a driver changes.
+
 Writing a new image erases DATA too: download the Backup from the web
 configurator first and restore it after the first start (the
 [manual](docs/MANUAL.md) lists the files). A patched baseband

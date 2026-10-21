@@ -40,6 +40,7 @@
 #include "birdie.h"
 #include "cfg_socket.h"
 #include "clock.h"
+#include "btaudio.h"
 #include "rtty.h"
 #include "screen_light.h"
 #include "gui_events.h"
@@ -234,6 +235,12 @@ static void tick_start(void) {
 
 /* The events from the threads, the scheduled work, LVGL; then sleep until LVGL wants to
  * run again, at least 5 ms (when it says now) to keep the CPU free */
+/* A version installed by x6100-update is "pending" until the GUI has run a minute: then it is
+ * confirmed, otherwise the start loop rolls it back after three failed starts */
+static void update_confirm_cb(lv_timer_t *t) {
+    sh_run("/usr/sbin/x6100-update confirm", NULL, NULL);
+}
+
 static void gui_loop(void) {
     for (;;) {
         int64_t start = get_time();
@@ -281,6 +288,7 @@ int main(void) {
     if (!walkie_on() && param_i_get(cfg_field_boot)) {
         main_screen_start_app(ACTION_APP_FIELD);
     }
+    lv_timer_set_repeat_count(lv_timer_create(update_confirm_cb, 60000, NULL), 1);
     gui_loop();
     return 0;
 }
