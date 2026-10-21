@@ -3907,6 +3907,17 @@ static void fr_timer_cb(lv_timer_t *t) {
     _exit(0);   /* not exit(): no destructor may write the settings back */
 }
 
+/* The panel goes, whichever way (ESC, Settings closed with a front key, a theme change): the
+ * timer goes with it, or its next tick writes a freed label and a held MFK resets the radio
+ * with nothing on screen */
+static void fr_delete_cb(lv_event_t *e) {
+    if (fr_timer) {
+        lv_timer_del(fr_timer);
+        fr_timer = NULL;
+    }
+    fr_count = NULL;
+}
+
 static void fr_key_cb(lv_event_t *e) {
     switch (*((uint32_t *)lv_event_get_param(e))) {
         case LV_KEY_ESC:    lv_async_call(fr_close, NULL); break;
@@ -3922,6 +3933,7 @@ static void fr_btn_cb(lv_event_t *e) {
 
     fr_panel = lv_obj_create(dialog.obj);
     lv_obj_add_event_cb(fr_panel, ptr_clear_cb, LV_EVENT_DELETE, &fr_panel);
+    lv_obj_add_event_cb(fr_panel, fr_delete_cb, LV_EVENT_DELETE, NULL);
     lv_obj_remove_style_all(fr_panel);
     lv_obj_set_size(fr_panel, lv_pct(94), lv_pct(92));
     lv_obj_center(fr_panel);
