@@ -27,6 +27,7 @@
 #include "cfg/cfg_api.h"
 #include "radio.h"
 #include "scheduler.h"
+#include "screen_light.h"
 #include "screen_main.h"
 #include "smeter.h"
 #include "tx_meters.h"
@@ -282,6 +283,7 @@ static void tx_unkey(bool tci, bool drain) {
     } else {
         radio_set_ptt(false);
     }
+    radio_set_tci_mute(false);
 }
 
 static void apply_cmd(void *arg) {
@@ -289,6 +291,7 @@ static void apply_cmd(void *arg) {
 
     switch (c->id) {
         case C_FREQ:
+            backlight_tick();   /* tuning from the knob or a program: the screen wakes as for a key */
             if (!main_screen_freq_locked() && cfg_is_valid_hw_freq(c->a))
                 main_screen_set_freq((uint64_t)c->a);
             break;
@@ -334,6 +337,7 @@ static void apply_cmd(void *arg) {
             } else {
                 radio_set_ptt(true);
             }
+            radio_set_tci_mute(true);   /* the operator is at the other end: nothing from the speaker */
             break;
         case C_UNKEY:
             if (!c->tci)

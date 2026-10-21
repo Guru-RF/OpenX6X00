@@ -1726,6 +1726,11 @@ browser's Origin is checked).
 
 ## TCI server
 
+While a TCI client transmits (the knob's PTT, AetherSDR, the browser remote's
+microphone) the radio's speaker and TX monitor are quiet, and come back as they
+were when the client unkeys. A frequency change from a TCI client wakes a blanked
+screen like a key does (not with Screen always off).
+
 TCI (Transceiver Control Interface, version 2.0) is the protocol of Expert
 Electronics' SDRs, the one AetherSDR serves to WSJT-X and to the
 [VFO-Knob](https://github.com/Guru-RF/VFO-Knob). The radio serves it too:

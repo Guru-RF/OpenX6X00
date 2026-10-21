@@ -173,6 +173,7 @@ static uint64_t         pack_time;      /* last packet from the base */
 static uint8_t          pack_vbat, pack_vext;   /* its voltages, 0.1 V */
 static volatile int8_t  bat_pct = -1;   /* the battery %, -1 on external power or not measured yet */
 static bool             mute = false;
+static bool             tci_mute = false;   /* a TCI client transmits: the speaker and the monitor off */
 static bool             digi_cap;       /* a digital app is open: never above its cap */
 
 static tx_watch_t       tx_watch;
@@ -417,9 +418,19 @@ void radio_change_mute() {
     radio_vol_refresh();
 }
 
-/* Speaker AF: 0 when muted or when btaudio silences it (headphones connected) */
+/* Speaker AF: 0 when muted, when btaudio silences it (headphones connected) or while a TCI
+ * client transmits */
 void radio_vol_refresh() {
-    WITH_RADIO_LOCK(x6100_control_rxvol_set((mute || btaudio_speaker_muted()) ? 0 : param_i_get(cfg_volume)));
+    WITH_RADIO_LOCK(x6100_control_rxvol_set((mute || tci_mute || btaudio_speaker_muted()) ? 0 : param_i_get(cfg_volume)));
+}
+
+/* A TCI client keyed the radio: the operator is at the other end, so the speaker and the TX
+ * monitor stay quiet here until it unkeys; then both come back as they were */
+void radio_set_tci_mute(bool on) {
+    if (tci_mute == on) return;
+    tci_mute = on;
+    radio_vol_refresh();
+    WITH_RADIO_LOCK(x6100_control_moni_set(on ? 0 : param_i_get(cfg_moni)));
 }
 
 static void on_volume_change(Subject *subj, void *user_data) {
@@ -560,6 +571,7 @@ void radio_set_qsk_time(uint16_t ms) {
 void radio_set_rec_moni(bool on) {
     int32_t moni = param_i_get(cfg_moni);
 
+    if (tci_mute) return;       /* quiet while a TCI client transmits */
     WITH_RADIO_LOCK(x6100_control_moni_set(on && moni < 30 ? 30 : moni));
 }
 

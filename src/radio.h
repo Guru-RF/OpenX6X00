@@ -56,6 +56,8 @@ uint16_t radio_change_vol(int16_t df);
 bool radio_change_spmode(int16_t df);
 
 void radio_change_mute();
+/* A TCI client transmits: the speaker and the monitor quiet until it unkeys */
+void radio_set_tci_mute(bool on);
 void radio_vol_refresh();
 
 void radio_set_pwr(float d);
