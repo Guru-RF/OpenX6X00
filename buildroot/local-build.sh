@@ -65,6 +65,9 @@ echo "== OpenX6X00 additions to the buildroot tree (buildroot/br2_external in th
 # profile, the Bluetooth, NTP and PulseAudio settings: copied over the upstream tree
 cp -a $GUI/buildroot/br2_external/. $EXT/
 rm -f $EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S01create_data   # S00adata does it, with the repair
+# S00adata and the NTP hook are in rootfs/ (installed by the GUI's CMake, so the update bundle carries
+# them); the overlay's copies would be laid over them last
+rm -f $EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S00adata $EXT/board/X6100/linux/rootfs-overlay/etc/NetworkManager/dispatcher.d/99-ntp-sync.sh
 rm -f $BR/build/target/etc/init.d/S01create_data                         # and from an earlier build's target
 # The legacy updater (any x6100_r1cbu_*.tgz on the DATA partition unpacked over / at boot, unsigned,
 # unchecked): OpenX6X00 is installed as a card image, so it goes

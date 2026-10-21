@@ -136,6 +136,8 @@ jobs:
       run: |
         cp -a x6100_gui/buildroot/br2_external/. $X6CI_BR_EXT/
         rm -f $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S01create_data
+        # S00adata and the NTP hook live in rootfs/ (in the update bundle): not the overlay's copies
+        rm -f $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S00adata $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/NetworkManager/dispatcher.d/99-ntp-sync.sh
         rm -f $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S02update   # the legacy unsigned updater
         grep -q "rtl8723bu-wifi/Config.in" $X6CI_BR_EXT/Config.in || echo 'source "$BR2_EXTERNAL_X6100_PATH/package/rtl8723bu-wifi/Config.in"' >> $X6CI_BR_EXT/Config.in
         grep -q "^BR2_PACKAGE_RTL8723BU_WIFI=y" $X6CI_DEFCONFIG || echo "BR2_PACKAGE_RTL8723BU_WIFI=y" >> $X6CI_DEFCONFIG

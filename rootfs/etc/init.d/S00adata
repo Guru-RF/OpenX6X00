@@ -5,19 +5,58 @@
 # system" saving settings). It is repaired at each start before anything opens it: fstab has
 # it noauto, so nothing mounts it before this, and this runs first (S00bootanim reads
 # /mnt/params.db). The result is in /tmp/data_fsck.log and /mnt/data_fsck.log.
+#
+# The partition is the one labelled DATA, else the card's third partition when that is FAT: cards
+# written by older images or made by hand carry no label, and fstab mounted the third partition
+# whatever it was called. Looked up by label only, such a card left /mnt unmounted and every
+# setting went into the system partition's /mnt folder, lost at the next start and filling the
+# system. A partition found that way gets the label; what was written into the system's /mnt
+# folder in the meantime is moved onto DATA, in found_on_system.
 LOG=/tmp/data_fsck.log
+P3=/dev/mmcblk0p3
+
+# dev: the DATA partition; relabel set when it has no label yet
+find_data() {
+    relabel=
+    dev=$(blkid -L DATA 2>/dev/null) && return 0
+    if [ -b $P3 ] && [ "$(blkid -o value -s TYPE $P3 2>/dev/null)" = vfat ]; then
+        dev=$P3
+        relabel=1
+        return 0
+    fi
+    return 1
+}
+
+# Files written into the system's own /mnt folder while DATA was not mounted: onto DATA
+rescue() {
+    mkdir -p /tmp/sysroot && mount --bind / /tmp/sysroot || return
+    if [ -n "$(ls -A /tmp/sysroot/mnt 2>/dev/null)" ]; then
+        mkdir -p /mnt/found_on_system &&
+            cp -a /tmp/sysroot/mnt/. /mnt/found_on_system/ &&
+            rm -rf /tmp/sysroot/mnt/* /tmp/sysroot/mnt/.[!.]* &&
+            echo "files found in the system's /mnt moved to found_on_system"
+    fi
+    umount /tmp/sysroot
+}
 
 check_data() {
-    dev=$(blkid -L DATA) || { echo "DATA partition not found" > $LOG; return; }
+    find_data || { echo "DATA partition not found" > $LOG; return; }
     if grep -q " /mnt " /proc/mounts; then umount /mnt; fi
     {
         echo "$(date '+%Y-%m-%d %H:%M:%S'), up $(cut -d' ' -f1 /proc/uptime) s"
+        echo "$dev, label $(blkid -o value -s LABEL "$dev" 2>/dev/null || echo none)"
         grep -q " /mnt " /proc/mounts && echo "/mnt busy, not checked"
         if ! grep -q " /mnt " /proc/mounts; then
             fsck.fat -a -w "$dev"; rc=$?           # 0 clean, 1 errors fixed
             [ $rc -eq 1 ] && { fsck.fat -a -w "$dev"; rc=$?; }   # second pass: clean now?
             echo "fsck.fat exit $rc"
-            mount /mnt || echo "mount failed"
+            # a label only on a filesystem fsck left clean: not worth a write into a broken one
+            [ -n "$relabel" ] && [ $rc -le 1 ] && { fatlabel "$dev" DATA && echo "label DATA set"; }
+            if mount "$dev" /mnt; then
+                rescue
+            else
+                echo "mount failed"
+            fi
         fi
     } 2>&1 | grep -v -e "conversion" -e "CP850" > $LOG
     tail -n 40 $LOG > /mnt/data_fsck.log 2>/dev/null
