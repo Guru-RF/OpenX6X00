@@ -487,7 +487,9 @@ with PRE on, with ATT on, and with the RF gain at 40, a second and a half
 each, and moves the three settings by what was left over. PRE, ATT and the
 RF gain go back as they were, also when you press Stop, leave the tab or
 transmit. A reading that wanders more than 3 dB during a step, or a carrier
-outside S5 to S9+20, stops the measurement and changes nothing.
+outside S5 to S9+20, stops the measurement and changes nothing. A band
+change stops it too ("Stopped: band changed"): PRE and ATT belong to the
+band, so check them on the band you left.
 
 The per band S-meter calibration (Settings > General > CONTROLS) is a
 separate correction, for the band's level with everything off.
@@ -1294,7 +1296,10 @@ SOTA / POTA, before the activation:
   then each list with its progress, "Updating <list> (1/4): x.x / y.y MB",
   and "reading it..." once it is downloaded. A download that stops goes on
   from where it stopped, up to 5 tries ("retry 2 of 5"). At the end:
-  "Reference list: N parks, N summits, N bunkers, N HOTA, N WWFF".
+  "Reference list: N parks, N summits, N bunkers, N HOTA, N WWFF". A list
+  that could not be fetched keeps its previous entries and is named after:
+  "Not updated, kept as it was: <list>: <reason>". A run that hangs (a
+  connection that never answers) ends after 30 minutes with "timed out".
 
   ![Field Ops while the reference lists download](screenshots/fieldops_list_progress.png)
 - Start begins the activation and its ADIF log.
@@ -1358,7 +1363,9 @@ Upload QRZ, QRZ: <call>, Back.
 
 - Upload QRZ (experimental) sends the whole activation log to your QRZ.com
   logbook. QSOs already there are counted, not sent again: "QRZ: 5 sent, 2
-  already there".
+  already there". A QSO QRZ refuses (a call it does not take) does not stop
+  the others: "QRZ: 5 sent, 2 already there, some refused", then "QRZ
+  refused 1: <the reason QRZ gave>".
 - QRZ: <call> (page LOGBOOK) shows the QRZ profile the upload goes to, and a
   press turns to the next one: "QRZ profile: <call>". The profiles, up to
   three callsigns each with a Logbook API key, are set on the Field Ops page
@@ -1370,7 +1377,7 @@ Upload QRZ, QRZ: <call>, Back.
 - Uploading to QRZ needs a QRZ.com Logbook API key, which QRZ.com only gives
   with a paid QRZ.com subscription (XML level or higher).
 - Other messages: "Uploading the log to QRZ...", "No log to upload", "No QRZ profile:
-  add it on the web page, Field Ops", or "QRZ: " with the reason QRZ gave and how many went before it.
+  add it on the web page, Field Ops", or "QRZ: HTTP <code> after N sent" when the service itself failed.
 
 
 Start and Spot also post the spot on the DX cluster (`POTA IT-0123 SSB`,
@@ -1664,7 +1671,10 @@ program on the network tunes the radio, hears it and keys it.
   (`enabled=0|1`, `port=`).
 - There is no login: enable it only on a network you trust, and turn it off
   when it is not needed. Anyone who reaches the port can key the
-  transmitter.
+  transmitter. A web page is the exception: a browser names the page's site
+  (Origin) when it opens the socket, and the radio refuses a page from any
+  site but its own, so a page you happen to visit cannot key the radio
+  through your browser. TCI programs send no Origin and are not affected.
 - The TCI SERVER card shows the connected client (address), "no client"
   otherwise.
 - What it carries: `vfo`, `modulation` (lsb, usb, cw, cwr, am, nfm, digl,

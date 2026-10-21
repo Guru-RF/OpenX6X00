@@ -83,6 +83,16 @@ make lame mpg123
 make libsndfile-dirclean
 # The GUI and the web server come from this repository (a local site): buildroot syncs them
 # once and never again on its own, so they are re-synced and rebuilt every run
+# The sync into build/x6100-gui-*/ adds and updates but never deletes: what left the repository
+# would stay there and be installed again (an old S01create_data was), as would what an earlier
+# build put in target/. The synced rootfs copy goes first, and target/ loses what rootfs/ no longer has
+for d in $BR/build/build/x6100-gui-*/rootfs; do
+    [ -d "$d" ] || continue
+    (cd "$d" && find . -type f) | while read -r f; do
+        [ -e "$GUI/rootfs/$f" ] || rm -f "$d/$f" "$BR/build/target/$f"
+    done
+done
+find $BR/build/target/usr/sbin -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
 make x6100-gui-rebuild x6100-webserver-rebuild
 make
 

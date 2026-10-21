@@ -50,3 +50,4 @@ images/*.png
 
 # Local developer tools and tests, not part of the repository
 /tests/
+__pycache__/
