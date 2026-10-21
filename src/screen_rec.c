@@ -30,6 +30,7 @@
 #include <jpeglib.h>
 
 #include "screen_rec.h"
+#include "remote_server.h"
 #include "avi_writer.h"
 #include "audio.h"
 #include "recorder.h"
@@ -333,6 +334,7 @@ void screen_rec_put_audio_samples(size_t nsamples, int16_t *samples) {
 void (*screen_rec_out)(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) = fbdev_flush;
 
 void screen_rec_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
+    remote_flush(area, color_p);       /* the browser remote's viewers */
     if (active && shadow) {
         int32_t x1 = area->x1 < 0 ? 0 : area->x1;
         int32_t x2 = area->x2 >= W ? W - 1 : area->x2;

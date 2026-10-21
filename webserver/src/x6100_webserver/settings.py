@@ -19,5 +19,8 @@ FIELD_DIR = "/mnt/field"            # refs.tsv, qrz.conf, logs/*.adi (rootfs/usr
 FIELD_CMD = "x6100-field"
 HTTPS_PORT = 0                      # set when the HTTPS server runs (the Gallery's in-browser conversion needs it)
 HTTP_PORT = 80                      # the plain server: every other page
+REMOTE_CONF = "/mnt/remote.conf"   # the browser remote (src/remote_server.c): enabled=, port=
+WSS_REMOTE_PORT = 0                 # TLS front doors to the remote and TCI WebSockets for the https page (0: none)
+WSS_TCI_PORT = 0
 LOCALTIME = "/etc/localtime"        # Time page: the timezone link
 ZONEINFO = "/usr/share/zoneinfo"

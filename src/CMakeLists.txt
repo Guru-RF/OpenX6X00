@@ -62,6 +62,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_field.c
     dialog_bands.c
     dialog_snake.c
+    remote_server.c
 )
 
 # Subfolders: some add their sources to the GUI, others build a library

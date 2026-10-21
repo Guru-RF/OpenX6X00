@@ -4,6 +4,7 @@ import os
 import socket
 import subprocess
 import threading
+import socketserver
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
@@ -99,6 +100,68 @@ def make_https_server(app, host, port, cert, key):
     return make_server(host, port, app, SSLServer, RequestHandler)
 
 
+class WssProxy(ThreadingMixIn, socketserver.TCPServer):
+    """A TLS front door to one of the GUI's plain WebSocket servers (the remote on 50002, TCI on
+    50001), for the https Remote page: a secure page may only open wss:// sockets, and the
+    browser's microphone is only given to a secure page. Bytes are piped both ways untouched, so
+    the GUI still sees the browser's Origin and Host headers and does its own check."""
+    allow_reuse_address = True
+    daemon_threads = True
+
+    def __init__(self, addr, context, target_port):
+        self.context = context
+        self.target_port = target_port   # a callable: the port to connect to, read when a client comes
+        super().__init__(addr, None)
+
+    def finish_request(self, request, client_address):
+        request.settimeout(10)
+        try:
+            tls = self.context.wrap_socket(request, server_side=True)
+        except (ssl.SSLError, OSError):
+            return
+        try:
+            plain = socket.create_connection(("127.0.0.1", self.target_port()), timeout=5)
+        except OSError:
+            tls.close()
+            return
+        tls.settimeout(None)
+        plain.settimeout(None)
+
+        def pump(src, dst):
+            try:
+                while True:
+                    data = src.recv(65536)
+                    if not data:
+                        break
+                    dst.sendall(data)
+            except OSError:
+                pass
+            for s in (src, dst):
+                try:
+                    s.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+
+        threading.Thread(target=pump, args=(plain, tls), daemon=True).start()
+        pump(tls, plain)
+        tls.close()
+        plain.close()
+
+
+def start_wss_proxies(host, cert, key):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert, key)
+    for name, port, target in (("WSS_REMOTE_PORT", 50003, lambda: apps.read_remote_conf()["port"]),
+                               ("WSS_TCI_PORT", 50004, lambda: apps.read_tci_conf()["port"])):
+        try:
+            server = WssProxy((host, port), context, target)
+        except OSError as e:
+            logging.error("wss proxy: can't listen on %d (%s)", port, e)
+            continue
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        setattr(settings, name, port)
+
+
 def start_https(app, host, port, cert_dir):
     if ssl is None:
         logging.error("HTTPS: python ssl module missing, HTTP only")
@@ -113,6 +176,7 @@ def start_https(app, host, port, cert_dir):
         return
     threading.Thread(target=server.serve_forever, daemon=True).start()
     settings.HTTPS_PORT = port
+    start_wss_proxies(host, *files)
 
 
 def options():

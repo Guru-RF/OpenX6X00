@@ -208,6 +208,7 @@ static void services_start(void) {
     cat_init();
     cfg_socket_init();
     tci_server_init();
+    remote_server_init();
     birdie_init();
     gps_init();
     if (!qso_log_init()) {

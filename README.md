@@ -62,7 +62,8 @@ Added:
 | **Screen** | DRM/KMS output with the GUI on a transparent layer over a waterfall drawn one line at a time, about half the CPU of the old path; a main knob with every detent timed in its own thread and acceleration that grows with the speed. |
 | **Themes** | Every colour, corner, font and waterfall palette comes from the theme; RF.Guru, Classic, Outdoor, Outdoor-Negative, VISION, Black Metal, Total Black, RS, Holo and Material 3 come with the image, your own go on the SD card ([docs/THEMES.md](docs/THEMES.md)). |
 | **Wireless** | WiFi, a USB Ethernet adapter with DHCP or a fixed address, USB tethering; Bluetooth CAT for three clients, headphones and keyboards with pairings that survive a new image. |
-| **Web configurator** | `http://<radio IP>/`: bands, digital frequencies, memories, cluster, Field Ops, CW messages, macros, logs, files, a gallery, backup and restore, display, time, Ethernet, TCI. |
+| **Browser remote** | `http://x6100.local/remote`: the radio's screen live in any browser, every key and knob, RX audio and the browser's microphone for TX (https). Replaces the closed phone apps. |
+| **Web configurator** | `http://x6100.local/` (mDNS; or the radio's IP): bands, digital frequencies, memories, cluster, Field Ops, CW messages, macros, logs, files, a gallery, backup and restore, display, time, network name, Ethernet, TCI. |
 | **TCI server** | The VFO-Knob and any TCI client on the network: tune, mode, filter, AGC, PTT, the meters and the audio both ways. |
 
 ## Screenshots
@@ -75,6 +76,7 @@ Added:
 | ![Field Ops](docs/screenshots/field_home.png) Field Ops | ![Field Ops log](docs/screenshots/field_log.png) Field Ops logbook | ![Walkie](docs/screenshots/walkie.png) Walkie Talkie |
 | ![Birdie Cal](docs/screenshots/birdie_cal.png) Birdie Cal | ![SWR scan](docs/screenshots/swr_scan.png) SWR scan | ![CW trainer](docs/screenshots/cw_trainer.png) CW trainer |
 | ![Settings](docs/screenshots/settings_general.png) Settings | ![Settings, Display](docs/screenshots/settings_display.png) Settings, Display | ![Settings, Info](docs/screenshots/settings_info.png) Settings, Info |
+| ![Browser remote](docs/screenshots/web_remote.png) Browser remote, in a browser | ![Settings, Browser remote](docs/screenshots/settings_general_remote.png) Settings, Browser remote | ![Settings, Network name](docs/screenshots/settings_wireless_name.png) Settings, Network name |
 
 More in [docs/screenshots](docs/screenshots): the Recorder, GPS and every Settings tab. They
 are taken from a PC over SSH with `tools/screenshots/drive.py`, which presses the radio's keys

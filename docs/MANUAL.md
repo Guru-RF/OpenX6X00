@@ -20,7 +20,9 @@ Settings. Button and option names are written as the radio shows them.
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
+- [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
+- [Network name](#network-name)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
 - [Reference](#reference): [Bluetooth CAT connection](#bluetooth-cat-connection), [CI-V commands](#supported-ci-v-commands), [btcat-ctl](#btcat-ctl), [btaudio-ctl](#btaudio-ctl), [files on /mnt](#files-on-mnt)
@@ -40,7 +42,8 @@ Settings. Button and option names are written as the radio shows them.
 3. Check the clock. FT8, JS8 and WSPR need it right to a second or two.
    Where: Settings > General > DATE / TIME.
 4. Open the web configurator from a browser on the same network:
-   `http://<radio IP>/` (see [Web configurator](#web-configurator)).
+   `http://x6100.local/`, or `http://<radio IP>/` where mDNS names do not
+   resolve (see [Web configurator](#web-configurator)).
 
 ### Buttons and knobs
 
@@ -421,6 +424,7 @@ All these options are also on the web configurator's Display page.
 | Card | Options |
 |---|---|
 | WIFI | power, status, IP, networks |
+| NETWORK NAME | the radio's name on the LAN, `x6100` by default: reachable as `<name>.local` (see [Network name](#network-name)) |
 | ETHERNET | a USB Ethernet adapter: DHCP or a static address (see [Ethernet](#ethernet)) |
 
 WiFi/BT power switches the WiFi and Bluetooth chip (one chip for both): with
@@ -1605,8 +1609,8 @@ its LVGL sizes are generated with `tools/font_gen.py`.
 ## Web configurator
 
 A small web server (vendored in [webserver/](../webserver/), Python/bottle) runs
-on the radio on port 80. Open `http://<radio IP>/` from any browser on the
-same network. The radio picks up changes within a few seconds.
+on the radio on port 80. Open `http://x6100.local/` (or `http://<radio IP>/`)
+from any browser on the same network. The radio picks up changes within a few seconds.
 
 The menu has General and four groups:
 
@@ -1675,6 +1679,51 @@ Server options: `--host`, `--port`, `--https-port` (0 = off), `--cert-dir`,
 |---|---|
 | ![Cluster page](screenshots/web/cluster_desktop.png) | ![Digital modes page](screenshots/web/digital_modes_desktop.png) |
 
+## Browser remote
+
+The radio in a browser: its screen live, every front key, the three knobs,
+the audio both ways. A phone, a tablet or a PC on the same network opens
+`http://x6100.local/remote` (the web configurator's Remote page) and works the
+radio as if standing in front of it, apps and settings included, since it is
+the radio's own screen that is shown. This is what the closed phone apps did;
+here it is a web page, nothing to install.
+
+<!-- IMG web_remote.png: the Remote page in a browser -->
+
+- The screen: streamed as JPEG frames, up to ten a second, by the GUI itself
+  (`remote_server.c`, WebSocket on port 50002). An unchanged screen is sent
+  once a second. The Walkie Talkie portrait screen is shown upright.
+- F1-F5 under the screen, the key block to its right (GEN, KEY, DFN / APP,
+  MSG, DFL / AM, CW, SSB / A/B, PRE, ATU / V/M, AGC, FST), BAND up and down,
+  LOCK, POWER and PTT. A key is held as long as it is pressed, so long presses
+  work; the page releases every key it holds when it loses the connection.
+- VOL, MFK and the MAIN knob: drag around the ring, the mouse wheel over it,
+  or the - and + buttons; "push" presses the VOL or MFK knob.
+- Keyboard: F1-F5, left and right arrows turn the main knob (Shift: ten
+  detents at a time), `[` and `]` the volume, PageUp and PageDown the MFK,
+  Enter pushes the MFK, Space is PTT.
+- Sound: the RX audio to the browser, over the TCI server (so TCI must be on,
+  the default). Browsers need a tap before they play: press Sound once.
+- Mic: the browser's microphone goes to the radio while PTT is held, over the
+  TCI server as any TCI client does it. Browsers only give the microphone to
+  an https page: open `https://x6100.local/remote` and accept the radio's
+  certificate once. Without Mic, PTT keys the radio's own microphone or hand
+  mic, as the PTT key on the radio does.
+- Fullscreen fills the display with the remote; the status line shows the
+  frame rate and the bandwidth (about 300-500 kB/s with a moving waterfall).
+
+Where: the Remote link in the web configurator's menu. Settings > General >
+BROWSER REMOTE turns the server on and off (on by default) and shows who is
+watching; the web page offers to turn it on when it is off. The port is in
+`/mnt/remote.conf`. Up to three viewers at a time.
+
+The screen is streamed even while the radio's panel is dark (Screen off after,
+Screen always off): a radio with its screen off, worked from the browser, is
+the intended setup for a remote shack corner. There is no login, like the TCI
+server and the web configurator: anyone on the network can reach the radio, so
+use it on a network you trust. Pages from other sites cannot connect (the
+browser's Origin is checked).
+
 ## TCI server
 
 TCI (Transceiver Control Interface, version 2.0) is the protocol of Expert
@@ -1713,6 +1762,23 @@ program on the network tunes the radio, hears it and keys it.
   (loggers, WSJT-X with its TCI option, CW keyers) should work for what the
   radio has; what it does not have is answered with the radio's own value.
 
+## Network name
+
+The radio announces itself on the LAN by mDNS (Avahi), so `http://x6100.local/`
+opens the web configurator and `x6100.local:50001` is the TCI server, on WiFi
+and on Ethernet alike, without knowing the address. Phones, tablets, Macs,
+Linux and current Windows resolve `.local` names out of the box.
+
+The name is `x6100` by default. Change it in Settings > Wireless > NETWORK NAME
+(the keyboard opens; letters, digits and `-`, up to 32) or on the web
+configurator's Network page. It is saved in `/mnt/hostname.conf` on the DATA
+partition, so it survives a new card image, and takes effect at once: the
+radio's hostname changes and Avahi announces the new name within a few
+seconds. Two radios on one LAN need two names.
+
+Where mDNS is blocked (some corporate or guest networks) or the browser does
+not resolve `.local`, the IP address shown in Settings > Wireless still works.
+
 ## Ethernet
 
 A USB Ethernet adapter in the radio's USB port gives it a wired connection
@@ -1726,8 +1792,8 @@ stays on, so Bluetooth keeps working. Pull the cable or the adapter and
 WiFi comes back on its own. An adapter plugged in without a cable shows the
 plug unlit, and WiFi stays as it was.
 
-Where: Settings > Wireless > ETHERNET, or the Ethernet page of the web
-configurator (System > Ethernet). Both show the same settings. The ETHERNET
+Where: Settings > Wireless > ETHERNET, or the Network page of the web
+configurator (System > Network). Both show the same settings. The ETHERNET
 card is there only while an adapter is plugged in: it appears and goes away
 with the adapter, also with the page open. Without one the web page says
 "No Ethernet adapter connected".

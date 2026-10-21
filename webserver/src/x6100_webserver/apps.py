@@ -260,6 +260,73 @@ def tci():
     return bottle.template('tci')
 
 
+# Browser remote (src/remote_server.c): the page is views/remote.html, the radio serves the screen
+# and takes the keys on its own WebSocket port; the conf file is shared like the TCI one
+REMOTE_DEFAULTS = {"enabled": "1", "port": "50002"}
+
+
+def read_remote_conf():
+    conf = dict(REMOTE_DEFAULTS)
+    try:
+        with open(settings.REMOTE_CONF, errors="replace") as f:
+            for line in f:
+                key, sep, val = line.rstrip("\r\n").partition("=")
+                if sep and key in conf:
+                    conf[key] = val
+    except OSError:
+        pass
+    try:
+        port = int(conf["port"])
+    except ValueError:
+        port = int(REMOTE_DEFAULTS["port"])
+    return {"enabled": conf["enabled"] == "1", "port": port}
+
+
+def write_remote_conf(enabled, port):
+    tmp = settings.REMOTE_CONF + ".tmp"
+    with open(tmp, "w") as f:
+        f.write("enabled=%d\nport=%d\n" % (1 if enabled else 0, port))
+    os.replace(tmp, settings.REMOTE_CONF)
+
+
+def remote_state():
+    r = read_remote_conf()
+    t = read_tci_conf()
+    r.update({"tci_enabled": t["enabled"], "tci_port": t["port"],
+              "wss_port": settings.WSS_REMOTE_PORT, "wss_tci_port": settings.WSS_TCI_PORT})
+    return r
+
+
+@app.route('/remote')
+def remote():
+    return bottle.template('remote')
+
+
+@app.get('/api/remote')
+def remote_get():
+    return remote_state()
+
+
+@app.post('/api/remote')
+def remote_set():
+    try:
+        data = bottle.request.json
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        return api_error(400, "Invalid request")
+    cur = read_remote_conf()
+    enabled = data.get("enabled", cur["enabled"])
+    port = data.get("port", cur["port"])
+    if not isinstance(enabled, bool) or not isinstance(port, int) or isinstance(port, bool) or not 1024 <= port <= 65535:
+        return api_error(400, "Invalid value")
+    try:
+        write_remote_conf(enabled, port)
+    except OSError as e:
+        return api_error(500, "Can't save: %s" % e)
+    return remote_state()
+
+
 # Firmware update: x6100-update on the radio does the work (check, download, verify, install,
 # rollback); the page shows its status and starts a job in a thread
 
@@ -1002,6 +1069,42 @@ ETH_FIELDS = ("ip", "mask", "gw", "dns")
 @app.route('/network')
 def network():
     return bottle.template('network')
+
+
+# The network name (rootfs/usr/sbin/x6100-hostname): hostname and mDNS, <name>.local
+HOSTNAME_TOOL = "/usr/sbin/x6100-hostname"
+HOSTNAME_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]{0,30}[A-Za-z0-9])?$")
+
+
+def hostname_state():
+    try:
+        name = subprocess.run([HOSTNAME_TOOL, "get"], capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        name = ""
+    return {"name": name or socket.gethostname(), "mdns": os.path.exists("/usr/sbin/avahi-daemon")}
+
+
+@app.get('/api/hostname')
+def hostname_get():
+    return hostname_state()
+
+
+@app.post('/api/hostname')
+def hostname_set():
+    try:
+        data = bottle.request.json
+    except ValueError:
+        data = None
+    name = data.get("name") if isinstance(data, dict) else None
+    if not isinstance(name, str) or not HOSTNAME_RE.match(name.strip()):
+        return api_error(400, "Letters, digits and '-', 1 to 32 characters, not starting or ending with '-'")
+    try:
+        r = subprocess.run([HOSTNAME_TOOL, "set", name.strip()], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return api_error(503, "Can't set the name: %s" % e)
+    if r.returncode != 0:
+        return api_error(409, r.stderr.strip() or "Name not set")
+    return hostname_state()
 
 
 @app.get('/api/network')

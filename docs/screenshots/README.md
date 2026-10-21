@@ -7,3 +7,5 @@ Screenshots of this firmware, from the radio.
   partition; the web Gallery shows them and `pull.py <radio IP>` copies them here.
 
 The ones in the README were taken on 2026-10-21 on the bench.
+`web_remote.png` is the browser remote page in Chromium (1280 px wide), taken over the DevTools
+protocol with the radio streaming.

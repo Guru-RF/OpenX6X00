@@ -19,6 +19,7 @@
 #include <thread>
 #include <string>
 #include <cstdio>
+#include <cctype>
 #include <cstring>
 #include <cstdarg>
 #include <functional>
@@ -44,6 +45,7 @@ extern "C" {
     #include "text_popup.h"
     #include "station.h"
     #include "tci_server.h"
+    #include "remote_server.h"
     #include "cluster/client.h"
     #include "cluster/spots.h"
     #include "broadcast_db.h"
@@ -89,6 +91,7 @@ static void make_cluster_page();
 static void make_txcal_page();
 static void make_walkie_page();
 static void wl_row_label(uint8_t row, const char *text);
+static void nn_load(char *out, size_t size);     /* the network name (Wireless) */
 
 static lv_obj_t     *grid;
 static lv_obj_t     *page;      /* scrolling column of cards */
@@ -2304,9 +2307,66 @@ static struct {
     lv_obj_t *client;
 } wv;
 
+/* Browser remote (remote_server.c): on/off and who is watching */
+static struct {
+    lv_obj_t *sw;
+    lv_obj_t *pill;
+    lv_obj_t *info;
+} rs;
+
+static void rs_update() {
+    const char *ip = remote_server_viewer();
+    int         n  = remote_server_viewers();
+    char        text[96];
+    char        name[40];
+
+    if (!rs.sw) return;
+    if (remote_server_get_enabled() != lv_obj_has_state(rs.sw, LV_STATE_CHECKED)) {
+        if (remote_server_get_enabled()) lv_obj_add_state(rs.sw, LV_STATE_CHECKED);
+        else lv_obj_clear_state(rs.sw, LV_STATE_CHECKED);
+    }
+    wl_pill(rs.pill, n ? (n == 1 ? "1 viewer" : "viewers") : NULL, theme_hex(TC_ok_bg), theme_hex(TC_ok));
+    nn_load(name, sizeof(name));
+    if (ip)
+        snprintf(text, sizeof(text), "%s, port %d", ip, remote_server_port());
+    else
+        snprintf(text, sizeof(text), "%s.local/remote, port %d", name, remote_server_port());
+    lv_label_set_text(rs.info, text);
+    lv_obj_set_style_text_color(rs.info, ip ? TC(text) : TC(text_faint), 0);
+}
+
+static void rs_power_cb(lv_event_t *e) {
+    remote_server_set_enabled(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
+    rs_update();
+}
+
+static uint8_t make_remote(uint8_t row) {
+    lv_obj_t *obj;
+
+    wl_row_label(row, "Browser remote");
+    rs.sw = bt_switch_cell(row, 1, remote_server_get_enabled(), rs_power_cb);
+    row++;
+
+    wl_row_label(row, "Address / Viewer");
+    obj = lv_obj_create(grid);
+    lv_obj_remove_style_all(obj);
+    lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(obj, 12, 0);
+    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
+    rs.pill = wl_pill_create(obj, 0);
+    rs.info = wl_label(obj, SF(22), theme_hex(TC_text), 0);
+    lv_obj_set_size(rs.info, 400, lv_font_get_line_height(SF(22)));
+    lv_label_set_long_mode(rs.info, LV_LABEL_LONG_DOT);
+    return row + 1;
+}
+
 static void wv_update() {
     const char *name = tci_server_client();
     char        port[24];
+
+    rs_update();
 
     /* The web configurator may change the setting while the page is open */
     if (tci_server_get_enabled() != lv_obj_has_state(wv.sw, LV_STATE_CHECKED)) {
@@ -2898,6 +2958,10 @@ static void make_general_page() {
 
     row = card_begin("TCI SERVER");
     row = make_tci(row);
+    card_end(row);
+
+    row = card_begin("BROWSER REMOTE");
+    row = make_remote(row);
     card_end(row);
     wv_update();
     wv_timer = lv_timer_create(wv_timer_cb, 1000, NULL);   /* deleted by st_delete_cb */
@@ -3618,6 +3682,103 @@ static void make_audio_page() {
     card_end(row);
 }
 
+/* The network name (x6100-hostname): the hostname, announced by mDNS as <name>.local, so the
+ * web pages and the TCI server are found without an address. Saved on the DATA partition. */
+
+#define NN_CONF "/mnt/hostname.conf"
+#define NN_MAX  32
+
+static void nn_load(char *out, size_t size) {
+    FILE *f = fopen(NN_CONF, "r");
+
+    out[0] = 0;
+    if (f) {
+        if (fgets(out, size, f)) {
+            out[strcspn(out, " \r\n")] = 0;
+        }
+        fclose(f);
+    }
+    if (!out[0]) {
+        snprintf(out, size, "x6100");
+    }
+}
+
+/* Letters, digits and '-', 1 to 32, not starting or ending with '-' (x6100-hostname checks too) */
+static bool nn_valid(const char *s) {
+    size_t n = strlen(s);
+
+    if (n < 1 || n > NN_MAX || s[0] == '-' || s[n - 1] == '-') {
+        return false;
+    }
+    for (size_t i = 0; i < n; i++) {
+        if (!isalnum((unsigned char)s[i]) && s[i] != '-') {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void nn_done_cb(const char *out, int status, void *user) {
+    if (status != 0) {
+        msg_update_text_fmt("Network name not set");
+    } else {
+        char name[NN_MAX + 1];
+
+        nn_load(name, sizeof(name));
+        msg_update_text_fmt("Reachable as %s.local", name);
+    }
+    if ((intptr_t)user == wl_gen && wl_tab && strcmp(wl_tab, "Wireless") == 0) {
+        make_wireless_page();
+    }
+}
+
+static bool nn_kbd_ok() {
+    char val[64];
+    char cmd[128];
+
+    snprintf(val, sizeof(val), "%s", textarea_window_get());
+    if (!nn_valid(val)) {
+        msg_update_text_fmt("Letters, digits and '-', up to 32");
+        return false;
+    }
+    snprintf(cmd, sizeof(cmd), "/usr/sbin/x6100-hostname set %s", val);
+    sh_run(cmd, nn_done_cb, (void *)(intptr_t)wl_gen);
+    return wl_kbd_close();
+}
+
+static void nn_edit_cb(lv_event_t *e) {
+    char name[NN_MAX + 1];
+
+    nn_load(name, sizeof(name));
+    wl_kbd = true;
+    lv_group_remove_all_objs(keyboard_group);
+    textarea_window_open(nn_kbd_ok, wl_kbd_close);
+    lv_textarea_set_max_length(textarea_window_text(), NN_MAX);
+    lv_textarea_set_accepted_chars(textarea_window_text(), "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-");
+    lv_textarea_set_placeholder_text(textarea_window_text(), "Network name");
+    textarea_window_set(name);
+}
+
+static uint8_t make_network_name(uint8_t row) {
+    char      name[NN_MAX + 1];
+    char      local[NN_MAX + 8];
+    lv_obj_t *obj;
+
+    /* The card uses col_station: a label and one control, as the Station card */
+    nn_load(name, sizeof(name));
+    snprintf(local, sizeof(local), "%s.local", name);
+    wl_row_label(row, "Name");
+    obj = wl_button(row, name, nn_edit_cb);
+    lv_obj_set_size(obj, 150, ROW_H - 4);
+    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_CENTER, row, 1);
+    row++;
+    wl_row_label(row, "Reachable as");
+    obj = wl_label(grid, SF(22), theme_hex(TC_text_value), 0);
+    lv_label_set_text(obj, local);
+    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_CENTER, row, 1);
+    return row + 1;
+}
+
 static void make_wireless_page() {
     grid_delete();
     grid_create();
@@ -3626,6 +3787,10 @@ static void make_wireless_page() {
     wl_tab = "Wireless";
     row = card_begin("WIFI");
     row = make_wifi(row);
+    card_end(row);
+
+    row = card_begin("NETWORK NAME", col_station);
+    row = make_network_name(row);
     card_end(row);
 
     eth_info_t in;
