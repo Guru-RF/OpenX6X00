@@ -792,7 +792,7 @@ int wspr_decode(float  *idat,
                         dupe = 1;
                 }
 
-                if (!dupe) {
+                if (!dupe && uniques < MAX_UNIQUES) {   /* the result arrays hold MAX_UNIQUES */
                     snprintf(allcalls[uniques], sizeof(allcalls[0]), "%s", callsign);
                     allfreqs[uniques] = freq;
                     uniques++;

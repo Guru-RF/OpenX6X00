@@ -61,6 +61,9 @@ long unsigned int pack_call(char const *callsign) {
             call6[i] = callsign[i];
         }
     } else if (isdigit(callsign[1])) {
+        if (call_len > 5) {   /* shifted one place right: six characters would overrun call6 */
+            return 0;
+        }
         for (i = 1; i < call_len + 1; i++) {
             call6[i] = callsign[i - 1];
         }

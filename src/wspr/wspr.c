@@ -142,8 +142,12 @@ bool wspr_encode(const char *call, const char *grid, int dbm, uint8_t symbols[WS
     char   msg[32];
     size_t len = strlen(call);
 
-    /* Type 1: plain call of 4..6 characters, digit in 2nd or 3rd place */
+    /* Type 1: plain call of 4..6 characters, digit in 2nd or 3rd place; with the digit in 2nd
+     * place only (K1ABC) the call is packed one place right, so five characters at most */
     if (len < 4 || len > 6 || !(isdigit((unsigned char)call[1]) || isdigit((unsigned char)call[2]))) {
+        return false;
+    }
+    if (!isdigit((unsigned char)call[2]) && len > 5) {
         return false;
     }
     for (size_t k = 0; k < len; k++) {

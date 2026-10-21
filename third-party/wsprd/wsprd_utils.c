@@ -270,6 +270,10 @@ int unpk_(signed char *message, char *hashtab, char *loctab, char *call_loc_pow,
             ndbm = ntype - nadd;
             snprintf(cdbm, sizeof(cdbm), "%2d", ndbm);
             snprintf(call_loc_pow, 23, "%s %s", callsign, cdbm);
+            /* The structured fields too (the Type 1 branch sets them; here they stayed empty, so
+             * a compound call decoded with a blank callsign and 0 dBm). No locator in a Type 2. */
+            snprintf(call, HASHTAB_ENTRY_LEN, "%s", callsign);
+            snprintf(pwr, 3, "%02d", ndbm);
             int nu = ndbm % 10;
             if (nu == 0 || nu == 3 || nu == 7) {
                 ihash = nhash(callsign, strlen(callsign), (uint32_t)146);
