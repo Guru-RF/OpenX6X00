@@ -16,6 +16,7 @@ import tarfile
 import tempfile
 import threading
 import time
+import urllib.parse
 import zipfile
 
 import bottle
@@ -23,6 +24,24 @@ import bottle
 from . import settings
 
 app = bottle.Bottle()   # the configurator pages and their API
+
+
+@app.hook('before_request')
+def refuse_cross_site_writes():
+    """A request that changes something, sent by a page from another site (a form a browser on the
+    LAN was made to submit): refused. The radio's own pages send none of these headers, or their own
+    host. Browsers mark the request with Sec-Fetch-Site, older ones only with Origin."""
+    req = bottle.request
+    if req.method in ("GET", "HEAD", "OPTIONS"):
+        return
+    if req.headers.get("Sec-Fetch-Site", "") == "cross-site":
+        bottle.abort(403, "Cross-site request refused")
+    origin = req.headers.get("Origin", "")
+    if origin:   # "null" (a file:// page) has no host and is refused too
+        theirs = (urllib.parse.urlsplit(origin).hostname or "").lower()
+        ours = (urllib.parse.urlsplit("//" + req.headers.get("Host", "")).hostname or "").lower()
+        if not theirs or theirs != ours:
+            bottle.abort(403, "Cross-site request refused")
 
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -513,11 +532,15 @@ POTA_REF = r'[A-Z0-9]{1,4}-\d{4,5}'            # IT-1234
 
 
 def set_ref(rec, ref):
-    """The other station's SOTA or POTA reference (by its form); "" removes it."""
-    rec = adif_del(adif_del(rec, "SOTA_REF"), "POTA_REF")
+    """The other station's SOTA or POTA reference (by its form); "" removes it. Written as the radio
+    writes it (src/field/flog.c): SOTA_REF, or SIG POTA with SIG_INFO and POTA_REF."""
+    for name in ("SOTA_REF", "POTA_REF", "SIG", "SIG_INFO"):
+        rec = adif_del(rec, name)
     if not ref:
         return rec
-    return adif_set(rec, "SOTA_REF" if re.fullmatch(SOTA_REF, ref) else "POTA_REF", ref)
+    if re.fullmatch(SOTA_REF, ref):
+        return adif_set(rec, "SOTA_REF", ref)
+    return adif_set(adif_set(adif_set(rec, "SIG", "POTA"), "SIG_INFO", ref), "POTA_REF", ref)
 
 
 def edit_qso(name, n, fn):
@@ -526,25 +549,39 @@ def edit_qso(name, n, fn):
     if not name.endswith(".adi") or os.path.basename(name) != name:
         return api_error(400, "Not a log")
     path = field_path("logs", name)
-    try:
-        with open(path, errors="replace") as f:
-            text = f.read()
-    except FileNotFoundError:
-        return api_error(404, "Not found")
-    head, parts = adif_split(text)
-    recs = [i for i, p in enumerate(parts[:-1]) if re.search(r'<call:\d+', p, re.I)]
-    if not 0 <= n < len(recs):
-        return api_error(404, "No such QSO")
-    new = fn(parts[recs[n]])
-    if new is None:
-        del parts[recs[n]]
-    else:
-        parts[recs[n]] = new
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        f.write(head + "<eor>".join(parts))
-    os.replace(tmp, path)
-    return None
+    # The radio appends QSOs to the same file: a QSO logged between the read here and the
+    # replace would be lost, so the file is checked for growth and the edit done again
+    for attempt in range(5):
+        try:
+            with open(path, "rb") as f:
+                raw = f.read()
+        except FileNotFoundError:
+            return api_error(404, "Not found")
+        text = raw.decode(errors="replace")
+        head, parts = adif_split(text)
+        recs = [i for i, p in enumerate(parts[:-1]) if re.search(r'<call:\d+', p, re.I)]
+        if not 0 <= n < len(recs):
+            return api_error(404, "No such QSO")
+        new = fn(parts[recs[n]])
+        if new is None:
+            del parts[recs[n]]
+        else:
+            parts[recs[n]] = new
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(head + "<eor>".join(parts))
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            unchanged = os.path.getsize(path) == len(raw)
+        except FileNotFoundError:
+            unchanged = False
+        if unchanged:
+            os.replace(tmp, path)
+            return None
+        os.remove(tmp)
+        time.sleep(0.2)
+    return api_error(409, "The log is being written: try again")
 
 
 @app.delete('/api/field/logs/<name>/<n:int>')
@@ -627,7 +664,10 @@ def get_logs():
     qsos = []
     for log in field_logs():
         for n, rec in enumerate(log_records(log["name"])):
-            qsos.append(dict(adif_fields(rec), file=log["name"], n=n))
+            q = adif_fields(rec)
+            if q.get("submode"):   # MFSK with SUBMODE FT4, JS8, FT2: the submode names it
+                q["mode"] = q["submode"]
+            qsos.append(dict(q, file=log["name"], n=n))
     return {"qsos": qsos, "active": field_active_log()}
 
 
