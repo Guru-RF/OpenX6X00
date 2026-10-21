@@ -110,9 +110,16 @@ static void construct_cb(lv_obj_t *parent);
 static void destruct_cb();
 static void key_cb(lv_event_t *e);
 
-static button_data_t btn_p1        = { .type = BTN_TEXT, .label = "(SETTINGS\n1:3)", .press = button_next_page_cb };
-static button_data_t btn_p2        = { .type = BTN_TEXT, .label = "(SETTINGS\n2:3)", .press = button_next_page_cb };
-static button_data_t btn_p3        = { .type = BTN_TEXT, .label = "(SETTINGS\n3:3)", .press = button_next_page_cb };
+/* The page button, and the APP key pressed again: the next page of buttons, and its first tab opens
+ * (buttons_load_page_group presses the page button for the key) */
+static void page_press(button_data_t *btn) {
+    button_next_page_cb(btn);
+    if (btn->next && btn->next->items[1]) tab_press(btn->next->items[1]);
+}
+
+static button_data_t btn_p1        = { .type = BTN_TEXT, .label = "(SETTINGS\n1:3)", .press = page_press };
+static button_data_t btn_p2        = { .type = BTN_TEXT, .label = "(SETTINGS\n2:3)", .press = page_press };
+static button_data_t btn_p3        = { .type = BTN_TEXT, .label = "(SETTINGS\n3:3)", .press = page_press };
 static button_data_t btn_general   = { .type = BTN_TEXT, .label = "General", .press = tab_press };
 static button_data_t btn_display   = { .type = BTN_TEXT, .label = "Display", .press = tab_press };
 static button_data_t btn_audio     = { .type = BTN_TEXT, .label = "Audio", .press = tab_press };

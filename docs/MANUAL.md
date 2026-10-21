@@ -319,7 +319,8 @@ restart.
 
 APP (page 2) > Settings. The tabs are on three button pages: General, Display,
 Audio, Wireless (page 1); Bluetooth, Keys, Cluster, TX Cal (page 2); Info,
-Update, Walkie (page 3).
+Walkie (page 3). The page button, or the APP key pressed again, turns the
+page and opens its first tab.
 
 The MFK walks the controls and stops at the first and last one. There the
 page shows its top or its end, so status rows below the last control are
