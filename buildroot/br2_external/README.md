@@ -9,6 +9,15 @@ also switch them on in the defconfig and the kernel configuration:
   `etc/modprobe.d/x6100-wifi.conf` (20 MHz, channel plan with 12 and 13).
 - `etc/init.d/S00adata` and `etc/fstab`: the DATA partition (FAT, settings and logs) is
   checked and repaired at every start before anything mounts it; it replaces S01create_data.
+  On a card without one it makes the partition in the free space, and only formats the
+  partition it just made; a third partition of another kind is left alone.
+- `etc/init.d/S04restore_backup_config`: the WiFi profiles and SSH keys kept on the DATA
+  partition come back at boot as before, but only those files, regular files under their own
+  folders; the upstream script unpacked the whole archive over `/`. The legacy updater
+  `S02update` (any `x6100_r1cbu_*.tgz` on the DATA partition unpacked over `/` at boot,
+  unsigned) is removed by the build: OpenX6X00 is installed as a card image.
+- `etc/ssh/sshd_config`: as upstream (root may log in with the password), but no empty
+  passwords.
 - `etc/NetworkManager/system-connections/usb-tether.nmconnection` and `device_table.txt`:
   Android USB tethering, never the default route; the kernel gets RNDIS and policy routing.
 - `etc/bluetooth/main.conf`: no pairing timeouts of its own, the GUI's Bluetooth window sets

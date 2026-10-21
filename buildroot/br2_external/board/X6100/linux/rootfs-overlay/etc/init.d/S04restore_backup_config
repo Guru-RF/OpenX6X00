@@ -1,0 +1,62 @@
+#!/bin/sh
+#
+# The network profiles, SSH host keys and root's SSH files are kept on the DATA partition and put
+# back at boot (a rewritten card keeps its WiFi and its SSH identity). Only those files are taken
+# from the archive: it lies on the user-visible DATA partition, and the script this replaces
+# extracted whatever it held over / as root.
+#
+
+BACKUP_PATH="/mnt/backups/backup.tgz"
+BACKUP_DIR=$(dirname ${BACKUP_PATH})
+# What may come back, as the archive names them (no leading /)
+ALLOWED="etc/NetworkManager/system-connections/ etc/ssh/ root/.ssh/"
+
+backup() {
+    [ -d "${BACKUP_DIR}" ] || mkdir -p "${BACKUP_DIR}"
+    # into a temporary file first: a power cut during the write leaves the previous backup
+    if tar czf "${BACKUP_PATH}.tmp" /etc/NetworkManager/system-connections/* /etc/ssh/*_key* /root/.ssh/* 2>/dev/null; then
+        mv -f "${BACKUP_PATH}.tmp" "${BACKUP_PATH}"
+    else
+        rm -f "${BACKUP_PATH}.tmp"
+    fi
+}
+
+allowed() {
+    case "$1" in
+        *..*|/*) return 1 ;;
+    esac
+    for prefix in $ALLOWED; do
+        case "$1" in
+            "$prefix"*) return 0 ;;
+        esac
+    done
+    return 1
+}
+
+restore() {
+    [ -f "${BACKUP_PATH}" ] || return 0
+    # Regular files only (the '-' type), under the allowed folders, no symlinks or devices
+    WANT=$(tar tzvf "${BACKUP_PATH}" 2>/dev/null | while read -r mode owner size date time name rest; do
+        case "$mode" in
+            -*) allowed "$name" && echo "$name" ;;
+        esac
+    done)
+    [ -n "$WANT" ] || return 0
+    echo "$WANT" | tar xzf "${BACKUP_PATH}" -C / --no-same-owner -T - 2>/dev/null \
+        || echo "$WANT" | xargs tar xzf "${BACKUP_PATH}" -C / 2>/dev/null
+    chmod 600 /etc/ssh/*_key /root/.ssh/* /etc/NetworkManager/system-connections/* 2>/dev/null
+}
+
+case "$1" in
+    start)
+        restore
+        ;;
+    stop)
+        backup
+        ;;
+    *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+esac
+
+exit 0
