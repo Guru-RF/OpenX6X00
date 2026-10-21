@@ -1287,4 +1287,5 @@ static void * radio_thread(void *arg) {
             idle_time = now_time;
         }
     }
+    return NULL;
 }

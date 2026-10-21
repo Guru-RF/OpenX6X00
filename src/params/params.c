@@ -448,6 +448,7 @@ static void * params_thread(void *arg) {
         pthread_mutex_unlock(&params_mux);
         usleep(100000);
     }
+    return NULL;
 }
 
 /* Save now, before the GUI restarts itself */

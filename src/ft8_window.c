@@ -1146,7 +1146,7 @@ static void on_psd(const float *psd, uint16_t nfft, float sec, const slot_info_t
 
     wf_row_t row = {.n = hi - lo};
 
-    row.db = calloc(sizeof(float), row.n);
+    row.db = calloc(row.n, sizeof(float));
     memcpy(row.db, &psd[lo], row.n * sizeof(float));
 
     /* Relative to the noise floor (the 30th percentile of the row, smoothed over ~2 s), as

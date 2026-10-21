@@ -90,6 +90,7 @@ static void * gps_thread(void *arg) {
             pthread_mutex_unlock(&lock);
         }
     }
+    return NULL;
 }
 
 static void on_usb_device_change(void * s, lv_msg_t * msg) {
