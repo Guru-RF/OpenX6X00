@@ -78,7 +78,9 @@ static void show_page(void *unused) {
     set_buttons(NULL, 0);
 }
 
-/* The files in the folder, in the order the folder gives them; one empty row if none */
+static bool no_files;    /* the one row is the hint, not a file */
+
+/* The files in the folder, in the order the folder gives them; one row with a hint if none */
 static void list_files() {
     DIR             *dir = opendir(recorder_path);
     struct dirent   *de;
@@ -90,15 +92,16 @@ static void list_files() {
                 lv_table_set_cell_value(files_list, rows++, 0, de->d_name);
         closedir(dir);
     }
-    if (!rows)
-        lv_table_set_cell_value(files_list, rows++, 0, "");
+    no_files = rows == 0;
+    if (no_files)
+        lv_table_set_cell_value(files_list, rows++, 0, "No recordings yet: Rec starts one");
     lv_table_set_row_cnt(files_list, rows);
 }
 
 static const char *selected() {
     uint16_t r, c;
 
-    if (!rows) return NULL;
+    if (!rows || no_files) return NULL;
     lv_table_get_selected_cell(files_list, &r, &c);
     return r == LV_TABLE_CELL_NONE ? NULL : lv_table_get_cell_value(files_list, r, c);
 }
