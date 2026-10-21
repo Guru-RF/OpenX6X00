@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <new>
 
 namespace x6100 {
 namespace js8 {
@@ -28,6 +29,9 @@ static bool fail(std::string &error, const std::string &why) {
     error = why;
     return false;
 }
+
+// An hour at 48 kHz: longer than any recording the decoders take
+static constexpr std::size_t MAX_FRAMES = 48000u * 3600u;
 
 bool read_wav(const std::string &file, WavAudio &out, std::string &error) {
     const File f(std::fopen(file.c_str(), "rb"), &std::fclose);
@@ -49,11 +53,24 @@ bool read_wav(const std::string &file, WavAudio &out, std::string &error) {
 
         if (std::memcmp(head, "data", 4) == 0) {
             if (!got_fmt) return fail(error, "data chunk before fmt chunk");
-            // A short file just gives fewer samples.
-            const std::size_t         frame_bytes = 2u * channels;
-            const std::size_t         frames      = size / frame_bytes;
-            std::vector<std::int16_t> interleaved(frames * channels);
-            const std::size_t         read = std::fread(interleaved.data(), frame_bytes, frames, f.get());
+            // The chunk's length is the file's word: bounded by what the file holds, or a 44-byte
+            // file claiming 4 GB of samples asked for them (std::bad_alloc, nothing caught it).
+            const std::size_t frame_bytes = 2u * channels;
+            const long        here        = std::ftell(f.get());
+            std::size_t       frames      = size / frame_bytes;
+            if (here >= 0 && std::fseek(f.get(), 0, SEEK_END) == 0) {
+                const long end = std::ftell(f.get());
+                std::fseek(f.get(), here, SEEK_SET);
+                if (end >= here) frames = std::min<std::size_t>(frames, (std::size_t)(end - here) / frame_bytes);
+            }
+            if (frames > MAX_FRAMES) return fail(error, "longer than an hour");
+            std::vector<std::int16_t> interleaved;
+            try {
+                interleaved.resize(frames * channels);
+            } catch (const std::bad_alloc &) {
+                return fail(error, "not enough memory for the file");
+            }
+            const std::size_t read = std::fread(interleaved.data(), frame_bytes, frames, f.get());
             out.samples.resize(read);
             for (std::size_t i = 0; i < read; ++i) out.samples[i] = interleaved[i * channels] / 32768.0f;
             return true;
