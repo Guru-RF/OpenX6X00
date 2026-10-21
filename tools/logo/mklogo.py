@@ -76,6 +76,20 @@ def boot(W=800, H=480):
         xx += med.getlength(c) + sp
     # a thin gold rule under the wordmark
     d.rectangle([W // 2 - 60, 352, W // 2 + 60, 354], fill=GOLD)
+    # the maintainer, at the foot: the RF.Guru mark and a line (bootanim.c reveals y >= 415 last)
+    rfg = Image.open(os.path.join(os.path.dirname(fontdir), "rfguru-logo.png")).convert("RGBA")
+    rfg = rfg.resize((34, 34), Image.LANCZOS)
+    small = ImageFont.truetype(os.path.join(fontdir, "Inter-Medium.ttf"), 17)
+    line = "MAINTAINED BY RF.GURU"
+    sp = 3
+    tw = sum(small.getlength(c) for c in line) + sp * (len(line) - 1)
+    x = W / 2 - (rfg.width + 14 + tw) / 2
+    y = 432
+    im.paste(rfg, (int(x), y - 8), rfg)
+    xx = x + rfg.width + 14
+    for c in line:
+        d.text((xx, y), c, font=small, fill=MUTED)
+        xx += small.getlength(c) + sp
     return im
 
 os.makedirs(outdir, exist_ok=True)

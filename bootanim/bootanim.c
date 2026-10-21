@@ -241,8 +241,9 @@ static void sound_end(pthread_t th) {
 
 /* When a logo pixel starts to fade in, ms from the first frame. The mark is 190 px wide at the
  * top (y 48..238): its ring is gold, the signal through it blue (b > r); then the name (y 258..340),
- * the rule (y 352) and the subtitle (y 372..400). */
+ * the rule (y 352), the subtitle (y 372..400) and the maintainer's line at the foot (y 424..466). */
 static int start_ms(int x, int y, const uint8_t *p) {
+    if (y >= 415) return 1760 + (x - 230) * 240 / 340;               /* the foot, left to right */
     if (y < 250) {
         double r = hypot(x - CX, y - CY);
 
