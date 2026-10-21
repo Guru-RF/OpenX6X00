@@ -41,7 +41,7 @@ static void          *state_sub;
 static bool           typing;           /* the password keyboard is open: the buttons wait */
 static pick_t         picked = PICK_NONE;
 static wifi_ap_info_t editing;          /* the network the password is for */
-static char          *typed;
+static char           typed[128];    /* the password typed, kept for the next try; "" none */
 
 static void construct_cb(lv_obj_t *parent);
 static void destruct_cb(void);
@@ -201,12 +201,14 @@ static void typing_done(void) {
 
 static bool password_cancel(void) {
     msg_update_text_fmt("Password is required");
+    typed[0] = 0;
     typing_done();
     return true;
 }
 
 static bool password_ok(void) {
-    typed = (char *)textarea_window_get();
+    /* A copy: the textarea goes with the window, the pointer into it would not */
+    snprintf(typed, sizeof(typed), "%s", textarea_window_get());
     if (editing.password_validator && !editing.password_validator(typed)) {
         msg_update_text_fmt("Incorrect password");
         return false;
@@ -216,7 +218,7 @@ static bool password_ok(void) {
     } else {
         wifi_add_connection(editing.ssid, typed);
     }
-    typed = NULL;
+    typed[0] = 0;
     typing_done();
     return true;
 }
@@ -225,7 +227,7 @@ static void ask_password(const wifi_ap_info_t *ap) {
     editing = *ap;
     lv_group_remove_obj(nets);
     textarea_window_open(password_ok, password_cancel);
-    if (typed) {
+    if (typed[0]) {
         textarea_window_set(typed);
     } else {
         lv_textarea_set_placeholder_text(textarea_window_text(), " Password");
