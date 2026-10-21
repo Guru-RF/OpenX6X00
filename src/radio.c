@@ -130,6 +130,12 @@ static void recover_processing_audio_inputs();
 static bool radio_tick();
 static void * radio_thread(void *arg);
 
+/* The tuner found its network, on the LVGL thread (see the flow handler) */
+static void atu_done_cb(void *arg) {
+    cfg_atu_save_network(*(uint32_t *)arg);
+    param_i_set(cfg_atu_enabled, true);
+}
+
 /* A hand mic key, on the LVGL thread (see the flow handler) */
 static void hkey_sched_cb(void *arg) {
     hkey_put(*(uint32_t *)arg);
@@ -1144,9 +1150,11 @@ static bool radio_tick() {
 
             case RADIO_ATU_RUN:
                 if (pack->flag.atu_status && !pack->flag.tx) {
-                    cfg_atu_save_network(pack->atu_params);
+                    /* The settings on the LVGL thread: their observers run where they are set, and
+                     * the delayed ones (the info bar) schedule LVGL calls, which only that thread may */
+                    uint32_t network = pack->atu_params;
+                    scheduler_put(atu_done_cb, &network, sizeof(network));
                     WITH_RADIO_LOCK(x6100_control_atu_tune(false));
-                    param_i_set(cfg_atu_enabled, true);
                     recover_processing_audio_inputs();
                     if (notify_rx_tx) {
                         notify_rx_tx(false);
