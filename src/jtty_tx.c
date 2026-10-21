@@ -233,7 +233,9 @@ int jtty_tx_frames_left(void)
     if (!tx_on)
         return 0;
     pthread_mutex_lock(&mux);
-    n = (int)((nsamp - k) / (JTTY_NSYM * spsym) + 0.999);
+    /* Before the TX thread set its timing (tx_on is up first) nothing is on the air yet: the
+     * queue alone counts, the division by zero would make NaN and INT_MIN */
+    n = spsym > 0 ? (int)((nsamp - k) / (JTTY_NSYM * spsym) + 0.999) : 0;
     for (int i = 0; i < q_cnt; i++)
         n += queue[(q_head + i) % QUEUE].nsym / JTTY_NSYM;
     pthread_mutex_unlock(&mux);
