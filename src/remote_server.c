@@ -62,6 +62,8 @@
 #define FRAME_MS    100             /* ten frames a second at the most */
 #define STILL_MS    1000            /* an unchanged screen: a frame this often */
 #define IDLE_MS     30000           /* a silent client is gone (the page pings every 5 s) */
+#define PING_MS     10000           /* a client silent this long is pinged: a page in a background tab has its
+                                       timers throttled to a minute, the browser answers a PING by itself */
 #define CONF_MS     2000
 #define QUALITY     70
 #define MAX_HELD    8
@@ -85,6 +87,7 @@ typedef struct {
     char            text[TEXT_MAX];
     size_t          text_len;
     uint64_t        last_ms;
+    uint64_t        ping_ms;        /* the last PING we sent */
     uint16_t        held[MAX_HELD]; /* keys this client holds down: released when it goes */
     int             nheld;
 } client_t;
@@ -451,7 +454,7 @@ static void accept_client(int listen_fd) {
         c->up      = false;
         c->in_len = c->out_len = c->text_len = 0;
         c->nheld   = 0;
-        c->last_ms = now_ms();
+        c->last_ms = c->ping_ms = now_ms();
         inet_ntop(AF_INET, &peer.sin_addr, c->ip, sizeof(c->ip));
         pthread_mutex_unlock(&c->lock);
         atomic_fetch_add(&nclients, 1);
@@ -525,9 +528,17 @@ static void *server_thread(void *arg) {
         uint64_t now = now_ms();
         if (now - idle_ms >= 1000) {
             idle_ms = now;
-            for (int i = 0; i < MAX_CLIENTS; i++)
-                if (clients[i].fd >= 0 && now - clients[i].last_ms > IDLE_MS)
-                    client_close(&clients[i]);
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                client_t *c = &clients[i];
+                if (c->fd < 0)
+                    continue;
+                if (now - c->last_ms > IDLE_MS) {
+                    client_close(c);
+                } else if (c->up && now - c->last_ms > PING_MS && now - c->ping_ms > PING_MS) {
+                    c->ping_ms = now;
+                    client_frame(c, WS_OP_PING, NULL, 0, NULL, 0);
+                }
+            }
         }
         if (now - conf_ms >= CONF_MS) {
             conf_ms = now;

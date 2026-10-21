@@ -60,6 +60,8 @@
 #define OUT_SIZE      65536         /* queued output: ~1.3 s of RX audio, dropped when full */
 #define TEXT_MAX      2048          /* a text message, fragments joined */
 #define IDLE_MS       60000         /* a client silent this long is gone (the knob pings every 2 s) */
+#define PING_MS       20000         /* a client silent this long is pinged: a browser page (the remote's audio) in a
+                                       background tab has its timers throttled, the browser answers a PING itself */
 #define STATE_MS      20            /* the radio's state read this often */
 #define SMETER_MS     100
 #define TXSENS_MS     200
@@ -93,6 +95,7 @@ typedef struct {
     bool            audio_on, audio_float;
     uint32_t        audio_rate;
     uint64_t        last_ms;
+    uint64_t        ping_ms;        /* the last PING we sent */
 } client_t;
 
 /* What the clients are told; read from the radio every STATE_MS */
@@ -941,7 +944,7 @@ static void accept_client(int listen_fd) {
         c->in_len = c->out_len = c->text_len = 0;
         c->rx_sensors = c->tx_sensors = c->audio_on = c->audio_float = false;
         c->audio_rate  = AUDIO_RATE;
-        c->last_ms     = now_ms();
+        c->last_ms = c->ping_ms = now_ms();
         inet_ntop(AF_INET, &peer.sin_addr, c->ip, sizeof(c->ip));
         pthread_mutex_unlock(&c->lock);
         atomic_fetch_add(&nclients, 1);
@@ -1054,11 +1057,18 @@ static void *server_thread(void *arg) {
             state_ms = now;
             state_follow(&last, false);
             telemetry(now, &last);
-            for (int i = 0; i < MAX_CLIENTS; i++)
-                if (clients[i].fd >= 0 && now - clients[i].last_ms > IDLE_MS) {
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                client_t *c = &clients[i];
+                if (c->fd < 0)
+                    continue;
+                if (now - c->last_ms > IDLE_MS) {
                     tx_session_end(i, false);
-                    client_close(&clients[i]);
+                    client_close(c);
+                } else if (c->up && now - c->last_ms > PING_MS && now - c->ping_ms > PING_MS) {
+                    c->ping_ms = now;
+                    client_frame(c, WS_OP_PING, NULL, 0, NULL, 0);
                 }
+            }
         }
         if (now - conf_ms >= CONF_MS) {
             conf_ms = now;
