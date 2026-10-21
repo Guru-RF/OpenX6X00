@@ -52,7 +52,8 @@ bool field_log_add(const char *path, const field_qso_t *q, const field_station_t
 /* What went wrong with field_log_add, from its errno, in words for the operator */
 const char *field_log_error(int err);
 
-/* The QSOs of the file, oldest first; returns the count (0 when missing) */
+/* The QSOs of the file, oldest first, the newest max of them when there are more; returns the
+ * count in the file (0 when missing), which may be more than max */
 int field_log_read(const char *path, field_qso_t *out, int max);
 
 #ifdef __cplusplus

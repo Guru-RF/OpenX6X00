@@ -182,6 +182,14 @@ static void get(const char *rec, const char *tag, char *out, size_t size) {
     }
 }
 
+static void reverse(field_qso_t *a, int lo, int hi) {
+    while (lo < hi) {
+        field_qso_t t = a[lo];
+        a[lo++] = a[hi];
+        a[hi--] = t;
+    }
+}
+
 int field_log_read(const char *path, field_qso_t *out, int max) {
     FILE *f = fopen(path, "r");
     char  line[1024];
@@ -189,11 +197,12 @@ int field_log_read(const char *path, field_qso_t *out, int max) {
 
     if (!f)
         return 0;
-    /* field_log_add writes one record per line */
-    while (n < max && fgets(line, sizeof(line), f)) {
+    /* field_log_add writes one record per line. Past max the oldest make room (a ring), so a
+     * long activation shows its newest QSOs; the count returned is the whole file's */
+    while (fgets(line, sizeof(line), f)) {
         char        v[32];
         struct tm   tm = {0};
-        field_qso_t *q = &out[n];
+        field_qso_t *q = &out[n % max];
 
         if (!strcasestr(line, "<eor>"))
             continue;
@@ -224,6 +233,12 @@ int field_log_read(const char *path, field_qso_t *out, int max) {
         n++;
     }
     fclose(f);
+    if (n > max) {   /* the ring starts at n % max: turned so the oldest kept comes first */
+        int start = n % max;
+        reverse(out, 0, start - 1);
+        reverse(out, start, max - 1);
+        reverse(out, 0, max - 1);
+    }
     return n;
 }
 

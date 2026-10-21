@@ -131,7 +131,14 @@ static double      near_lat = 999, near_lon;
 static char        near_prog;
 
 static field_qso_t qsos[MAX_QSO];
-static int         qsos_n;
+static int         qsos_n;          /* in qsos[]: the newest MAX_QSO of the log */
+static int         qsos_total;      /* in the log */
+
+/* The activation's log into qsos[]: the newest MAX_QSO, and the whole count */
+static void log_load(void) {
+    qsos_total = st.log[0] ? field_log_read(st.log, qsos, MAX_QSO) : 0;
+    qsos_n     = qsos_total < MAX_QSO ? qsos_total : MAX_QSO;
+}
 
 static atomic_bool busy;            /* an x6100-field job runs */
 static bool        updating;        /* the reference list downloads */
@@ -362,7 +369,7 @@ static int act_count(void) {
     int n = 0;
 
     if (st.ref.type != 'H')
-        return qsos_n;
+        return qsos_total;
     for (int i = 0; i < qsos_n; i++) {
         int k = 0;
         while (k < i && strcasecmp(qsos[k].call, qsos[i].call))
@@ -510,6 +517,17 @@ static void near_lookup(bool force) {
 
 /* Widgets */
 
+/* True for text with our colour markup, "#rrggbb ...#": only such labels get recolouring, so a
+ * '#' in a reference's name (Bunker #12) shows instead of starting a colour command */
+static bool has_markup(const char *text) {
+    for (const char *p = strchr(text, '#'); p; p = strchr(p + 1, '#')) {
+        int i = 1;
+        while (i <= 6 && isxdigit((unsigned char)p[i])) i++;
+        if (i == 7 && p[7] == ' ') return true;
+    }
+    return false;
+}
+
 static lv_obj_t *label(lv_obj_t *parent, const lv_font_t *font, lv_color_t color, lv_coord_t x, lv_coord_t y,
                        lv_coord_t w) {
     lv_obj_t *l = lv_label_create(parent);
@@ -610,7 +628,7 @@ static lv_obj_t *row_create(lv_obj_t *parent, const char *text, lv_coord_t x, lv
 
         if (next)
             *next++ = 0;
-        lv_label_set_recolor(l, true);
+        lv_label_set_recolor(l, has_markup(cell));   /* a '#' in a name is not a colour command */
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
         lv_obj_set_width(l, cols[c]);
         lv_label_set_text(l, cell);
@@ -881,6 +899,7 @@ static void build_home(void) {
         lv_obj_t *n = label(t, nf, accent(k), 0, 140, tw - 4);
         lv_obj_t *s = label(t, VF(20), lv_color_mix(accent(k), TC(text), 160), 0, 186, tw - 4);
 
+        lv_label_set_recolor(n, false);
         lv_label_set_text(n, tiles[k].name);
         lv_label_set_text(s, tiles[k].sub);
         lv_obj_set_style_text_align(n, LV_TEXT_ALIGN_CENTER, 0);
@@ -903,6 +922,7 @@ static void prog_info_update(void) {
     bool have_pos = position(&lat, &lon, &src, &age);
     if (st.have_ref && st.ref.type == st.prog) {
         lv_label_set_text(info_ref, st.ref.ref);
+        lv_label_set_recolor(info_name, false);
         lv_label_set_text(info_name, st.ref.name);
     } else {
         lv_label_set_text(info_ref, "------");
@@ -1047,6 +1067,7 @@ static void build_act(void) {
     lv_label_set_long_mode(act_text, LV_LABEL_LONG_WRAP);
     lv_label_set_text_fmt(act_text, "CQ CQ CQ DE %s\n%s %s", my_call(), prog_name(), st.ref.ref);
     lv_obj_t *name = label(box, VF(34), TC(text_dim), 14, 72, 530);   /* the summit or park, big */
+    lv_label_set_recolor(name, false);
     lv_label_set_text(name, st.ref.name);
     act_recent = label(box, VF(22), TC(text_dim), 14, h - 120 - 3 * 24 - 12, 530);
 
@@ -1072,7 +1093,7 @@ static void build_act(void) {
 
 static void build_prog(void) {
     if (st.active && st.log[0])
-        qsos_n = field_log_read(st.log, qsos, MAX_QSO);
+        log_load();
     if (st.active && st.have_ref && st.ref.type == st.prog)
         build_act();
     else
@@ -1155,15 +1176,15 @@ static void build_log(void) {
     head_set("log", t);
     list_create(body, 8, 36, W - 16, body_h - STATUS_H - 40, widths, 6);
     list_head("N\tTIME\tCALL\tBAND\tMODE\tRST S / R", 13, 6);
-    qsos_n = st.log[0] ? field_log_read(st.log, qsos, MAX_QSO) : 0;
+    log_load();
     for (int k = 0; k < qsos_n; k++) {
         localtime_r(&qsos[k].t, &tm);
-        snprintf(row, sizeof(row), "%d\t%02d:%02d\t%s\t%s\t%s %s\t%s / %s", k + 1, tm.tm_hour, tm.tm_min, qsos[k].call,
+        snprintf(row, sizeof(row), "%d\t%02d:%02d\t%s\t%s\t%s %s\t%s / %s", qsos_total - qsos_n + k + 1, tm.tm_hour, tm.tm_min, qsos[k].call,
                  field_band(qsos[k].freq_hz), qsos[k].mode, field_qso_tag(&qsos[k]), qsos[k].rst_s, qsos[k].rst_r);
         list_add(row);
     }
     list_select(qsos_n - 1);
-    lv_label_set_text_fmt(status, "%d QSO%s   %s", qsos_n, qsos_n == 1 ? "" : "s",
+    lv_label_set_text_fmt(status, "%d QSO%s   %s", qsos_total, qsos_total == 1 ? "" : "s",
                           st.log[0] ? strrchr(st.log, '/') + 1 : "No activation yet");
     buttons_load_page(&page_log);
 }
@@ -1371,7 +1392,7 @@ static bool activation_start(void) {
     mkdir(LOGS_DIR, 0755);
     snprintf(st.log, sizeof(st.log), "%s/%04d%02d%02d-%02d%02d_%s.adi", LOGS_DIR, tm.tm_year + 1900, tm.tm_mon + 1,
              tm.tm_mday, tm.tm_hour, tm.tm_min, name);
-    qsos_n = 0;
+    qsos_n = qsos_total = 0;
     st.screen = SCR_PROG;
     state_save();
     msg_update_text_fmt("Activation started: %s", st.ref.ref);
@@ -1395,7 +1416,7 @@ static void activation_end(void) {
         lv_timer_del(qsy_timer);
         qsy_timer = NULL;
     }
-    msg_update_text_fmt("Activation complete: %s, %d QSO%s, %d min", st.ref.ref, qsos_n, qsos_n == 1 ? "" : "s", s / 60);
+    msg_update_text_fmt("Activation complete: %s, %d QSO%s, %d min", st.ref.ref, qsos_total, qsos_total == 1 ? "" : "s", s / 60);
     /* ponytail: spotted is not saved, a restart mid-activation sends no QRT */
     if (spotted && st.ref.type != 'S' && spot_job(true))
         spotted = false;
@@ -1628,8 +1649,8 @@ static bool activation_log_add(const field_qso_t *q) {
         msg_schedule_text_ms(9000, "QSO not saved: %s", field_log_error(errno));   /* long: it scrolls */
         return false;
     }
-    qsos_n = field_log_read(st.log, qsos, MAX_QSO);
-    msg_update_text_fmt("QSO %d: %s %s %s %s", qsos_n, q->call, q->rst_s, q->rst_r, field_qso_tag(q));
+    log_load();
+    msg_update_text_fmt("QSO %d: %s %s %s %s", qsos_total, q->call, q->rst_s, q->rst_r, field_qso_tag(q));
     if (dialog.run && (st.screen == SCR_LOG || act_freq))
         refresh();
     return true;
@@ -2092,7 +2113,7 @@ static void log_watch(void) {
     seen = sb;
     if (first)
         return;   /* read where the log is opened or written */
-    qsos_n = sb.st_size ? field_log_read(st.log, qsos, MAX_QSO) : 0;
+    log_load();
     if (dialog.run && (st.screen == SCR_LOG || act_freq))
         refresh();
 }
@@ -2144,7 +2165,7 @@ static void construct_cb(lv_obj_t *parent) {
         state_load();
         st_loaded = true;
         if (st.active && st.log[0])
-            qsos_n = field_log_read(st.log, qsos, MAX_QSO);
+            log_load();
     }
     dialog.obj = dialog_init(parent);
     /* The whole screen above the buttons */
