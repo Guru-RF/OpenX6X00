@@ -116,11 +116,31 @@ int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max) {
         return 0;
     if (strncmp(line, "GET ", 4) != 0)
         return -1;
-    size_t      kl, ul;
+    size_t      kl, ul, ol, hl;
     const char *key = header(line, "Sec-WebSocket-Key", &kl);
     const char *upg = header(line, "Upgrade", &ul);
     if (!key || !kl || kl > 64 || !upg || strncasecmp(upg, "websocket", 9) != 0)
         return -1;
+
+    /* A browser sends Origin, a TCI program does not: a web page from elsewhere (an ad, a
+     * phishing page) could otherwise key the radio from any browser on the LAN. Only the
+     * radio's own pages (an Origin at the Host the request came to) may */
+    const char *org  = header(line, "Origin", &ol);
+    const char *host = header(line, "Host", &hl);
+    if (org && ol) {
+        const char *o = memchr(org, ':', ol);                /* past "http:" or "https:" */
+        if (!o || ol < (size_t)(o - org) + 3 || o[1] != '/' || o[2] != '/')
+            return -1;
+        o += 3;
+        size_t olen = ol - (o - org);
+        /* the hosts without their ports: the page comes from port 80, the socket is on 50001 */
+        const char *oc = memchr(o, ':', olen);
+        if (oc) olen = oc - o;
+        const char *hc = host ? memchr(host, ':', hl) : NULL;
+        if (hc) hl = hc - host;
+        if (!host || !hl || hl != olen || strncasecmp(o, host, hl) != 0)
+            return -1;
+    }
 
     /* accept = base64(sha1(key + the RFC's GUID)) */
     char    cat[64 + 36 + 1];
