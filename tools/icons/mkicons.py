@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The icons of the icon menus (APP grid, Modes grid, the Settings rail): white line drawings on
 a transparent ground, recoloured by the GUI to the theme's accent (theme_icon_img). Drawn here with
-PIL at four times the size and scaled down, so they stay crisp at 24 and 40 px.
+PIL at four times the size and scaled down, so they stay crisp at 24 and 36 px.
 
   python3 tools/icons/mkicons.py rootfs/usr/share/x6100/icons
 
@@ -14,7 +14,7 @@ import sys
 
 from PIL import Image, ImageDraw
 
-SIZES = (24, 40)
+SIZES = (24, 36)   # the Settings rail, the APP and Modes grids
 SS = 4
 WHITE = (255, 255, 255, 255)
 

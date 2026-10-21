@@ -205,17 +205,19 @@ static void construct_cb(lv_obj_t *parent) {
         }
         lv_obj_set_pos(img, 10, (TILE_H - ICON) / 2);
 
+        /* The name, then the line in two rows of a smaller font: beside the icon the tile is
+         * narrow (117 px) and the lines wrap; with one row's height the second was cut off */
         lv_obj_t *name = lv_label_create(t);
-        lv_obj_set_style_text_font(name, &sony_24, 0);
+        lv_obj_set_style_text_font(name, &sony_22, 0);
         lv_label_set_text(name, apps[i].name);
-        lv_obj_set_pos(name, 10 + ICON + 10, 8);
+        lv_obj_set_pos(name, 10 + ICON + 10, 5);
 
         lv_obj_t *sub = lv_label_create(t);
-        lv_obj_set_style_text_font(sub, &sony_18, 0);
+        lv_obj_set_style_text_font(sub, &sony_16, 0);
         lv_label_set_text(sub, apps[i].sub);
-        lv_obj_set_width(sub, TILE_W - ICON - 30);
+        lv_obj_set_size(sub, TILE_W - ICON - 30, 36);
         lv_label_set_long_mode(sub, LV_LABEL_LONG_DOT);
-        lv_obj_set_pos(sub, 10 + ICON + 10, 38);
+        lv_obj_set_pos(sub, 10 + ICON + 10, 29);
     }
 
     lv_obj_t *hint = lv_label_create(box);
