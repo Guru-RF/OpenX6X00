@@ -35,6 +35,14 @@ static void mfk_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     if (turned) {
         backlight_tick();
     }
+    /* An open dropdown list moves one line a click: the detents of a fast turn, read together,
+     * would jump down the list */
+    if (sum) {
+        lv_obj_t *f = lv_group_get_focused(keyboard_group);
+
+        if (f && lv_obj_check_type(f, &lv_dropdown_class) && lv_dropdown_is_open(f))
+            sum = sum > 0 ? 1 : -1;
+    }
     data->enc_diff = -sum;      /* the device counts left turns as positive */
     data->state    = knob->pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 }
