@@ -96,10 +96,12 @@ def progress(step, got=0, total=0):
 
 
 def restart_apps():
-    """The web server and the GUI, detached: the caller may be the web server itself."""
+    """The web server and the GUI, detached: the caller may be the web server itself. The GUI's
+    start loop (x6100_daemon) is restarted too, not just the GUI: the loop is a shell script the
+    bundle may have changed, and the running shell keeps the old one until it exits."""
     subprocess.Popen(["setsid", "sh", "-c", "sleep 1; /etc/init.d/S96webserver restart >/dev/null 2>&1; "
-                      "kill $(pidof x6100_gui) 2>/dev/null"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL, start_new_session=True)
+                      "/etc/init.d/S95gui restart >/dev/null 2>&1"], stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
 
 # ---- check and download --------------------------------------------------------------------
