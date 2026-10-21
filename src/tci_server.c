@@ -684,7 +684,9 @@ static void handle_tx_audio(int ci, const uint8_t *frame, size_t len) {
     size_t   n   = h.length;
     uint32_t ch  = h.channels ? h.channels : 1;
     size_t   bps = h.format == AF_FLOAT32 ? 4 : 2;
-    if (n == 0 || n > 2048 || len < sizeof(h) + n * ch * bps)
+    /* Each bound checked on its own: n * ch * bps with the header's channel count unchecked
+     * wrapped on 32 bits and read past the frame */
+    if (n == 0 || n > 2048 || ch > 2 || len - sizeof(h) < n * ch * bps)
         return;
     const uint8_t *d = frame + sizeof(h);
     for (size_t i = 0; i < n; i++) {
