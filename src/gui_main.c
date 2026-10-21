@@ -37,6 +37,7 @@
 #include "cw.h"
 #include "cat.h"
 #include "tci_server.h"
+#include "remote_server.h"
 #include "birdie.h"
 #include "cfg_socket.h"
 #include "clock.h"

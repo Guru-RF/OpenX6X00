@@ -547,17 +547,25 @@ static void jpeg_fail(j_common_ptr c) {
     longjmp(*(jmp_buf *)c->client_data, 1);
 }
 
+/* The JPEG into a buffer libjpeg allocates, the caller frees. Its own buffer is never handed
+ * back in: jpeg_mem_dest() reads *size as the buffer's capacity but writes the JPEG's length
+ * into it, so a buffer reused that way "grew" on every frame bigger than the one before, each
+ * time leaving the old one behind: 200 kB a second with a viewer watching the waterfall, an
+ * out-of-memory kill after an hour. */
 static bool encode(const uint8_t *px, int32_t w, int32_t h, uint8_t **out, unsigned long *size) {
     struct jpeg_compress_struct c;
     struct jpeg_error_mgr       jerr;
     jmp_buf                     jb;
 
+    *out  = NULL;
+    *size = 0;
     c.err           = jpeg_std_error(&jerr);
     jerr.error_exit = jpeg_fail;
     jpeg_create_compress(&c);
     c.client_data = &jb;
     if (setjmp(jb)) {
         jpeg_destroy_compress(&c);
+        *out = NULL;    /* libjpeg's buffer, lost: it may already have freed what *out points to */
         return false;
     }
     jpeg_mem_dest(&c, out, size);
@@ -673,8 +681,10 @@ static void *encoder_thread(void *arg) {
             usleep(FRAME_MS * 1000 / 2);
             continue;
         }
-        if (!encode(enc, w, h, &jpg, &jpg_len))
+        if (!encode(enc, w, h, &jpg, &jpg_len)) {
+            usleep(FRAME_MS * 1000);
             continue;
+        }
         frame_hdr_t hdr = {.w = (uint16_t)w, .h = (uint16_t)h, .seq = atomic_fetch_add(&seq, 1)};
         for (int i = 0; i < MAX_CLIENTS; i++) {
             client_t *c = &clients[i];
@@ -686,6 +696,9 @@ static void *encoder_thread(void *arg) {
             if (room)
                 client_frame(c, WS_OP_BINARY, &hdr, sizeof(hdr), jpg, jpg_len);
         }
+        free(jpg);
+        jpg     = NULL;
+        jpg_len = 0;
         sent_ms = now;
         /* what went out becomes the frame to compare with */
         if (!prev || pw != w || ph != h) {
