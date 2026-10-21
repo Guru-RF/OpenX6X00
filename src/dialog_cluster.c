@@ -478,7 +478,7 @@ static void update_status(void) {
     }
     switch (st) {
         case CLUSTER_CONNECTED:
-            lv_label_set_text_fmt(status_right, "#%06x WiFi - cluster connected#", theme_hex(TC_ok));
+            lv_label_set_text_fmt(status_right, "#%06x %s - cluster connected#", theme_hex(TC_ok), wifi_eth_active() ? "Ethernet" : "WiFi");
             break;
         case CLUSTER_CONNECTING:
             lv_label_set_text_fmt(status_right, "#%06x Connecting...#", theme_hex(TC_warn));
