@@ -52,6 +52,7 @@
 #include "theme.h"
 #include "tx_player.h"
 #include "util.h"
+#include "btaudio.h"   /* sh_run */
 #include "ft8/audio_worker.h"
 #include "ft8/cq_scheduler.h"
 #include "ft8/ft2.h"
@@ -668,7 +669,12 @@ static void time_sync_cb(button_data_t *btn) {
 
     struct timespec ts = {.tv_sec = now - (int)off};
 
-    if (clock_settime(CLOCK_REALTIME, &ts)) LV_LOG_ERROR("Can't set system time: %s\n", strerror(errno));
+    if (clock_settime(CLOCK_REALTIME, &ts)) {
+        LV_LOG_ERROR("Can't set system time: %s\n", strerror(errno));
+        return;
+    }
+    /* into the RTC too, in UTC as the kernel reads it at boot: kept across a power-off */
+    sh_run("hwclock -w -u -f /dev/rtc1", NULL, NULL);
 }
 
 static void map_cb(button_data_t *btn) {
