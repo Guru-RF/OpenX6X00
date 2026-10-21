@@ -65,9 +65,23 @@ Added:
 | **Web configurator** | `http://<radio IP>/`: bands, digital frequencies, memories, cluster, Field Ops, CW messages, macros, logs, files, a gallery, backup and restore, display, time, Ethernet, TCI. |
 | **TCI server** | The VFO-Knob and any TCI client on the network: tune, mode, filter, AGC, PTT, the meters and the audio both ways. |
 
-Screenshots of this firmware are taken on the radio (a key with the Screenshot action,
-Settings > Keys) and land on the DATA partition and in the web Gallery;
-`python3 tools/screenshots/pull.py <radio IP>` copies them into `docs/screenshots/`.
+## Screenshots
+
+| | | |
+|---|---|---|
+| ![Main screen](docs/screenshots/main.png) Main screen | ![APP grid](docs/screenshots/apps_grid.png) APP grid | ![Modes grid](docs/screenshots/modes_grid.png) Modes grid |
+| ![FT8](docs/screenshots/ft8.png) FT8 | ![JS8](docs/screenshots/js8.png) JS8 | ![RTTY](docs/screenshots/rtty.png) RTTY |
+| ![Cluster](docs/screenshots/cluster.png) DX cluster | ![Bands](docs/screenshots/bands.png) Bands | ![Channels](docs/screenshots/channels.png) Channels |
+| ![Field Ops](docs/screenshots/field_home.png) Field Ops | ![Field Ops log](docs/screenshots/field_log.png) Field Ops logbook | ![Walkie](docs/screenshots/walkie.png) Walkie Talkie |
+| ![Birdie Cal](docs/screenshots/birdie_cal.png) Birdie Cal | ![SWR scan](docs/screenshots/swr_scan.png) SWR scan | ![CW trainer](docs/screenshots/cw_trainer.png) CW trainer |
+| ![Settings](docs/screenshots/settings_general.png) Settings | ![Settings, Display](docs/screenshots/settings_display.png) Settings, Display | ![Settings, Info](docs/screenshots/settings_info.png) Settings, Info |
+
+More in [docs/screenshots](docs/screenshots): the Recorder, GPS and every Settings tab. They
+are taken from a PC over SSH with `tools/screenshots/drive.py`, which presses the radio's keys
+and turns its knobs from a script and dumps the screen; a single shot is
+`tools/screenshots/grab.py`. On the radio itself a key with the Screenshot action (Settings >
+Keys) writes a PNG to the DATA partition, shown in the web Gallery and copied here with
+`tools/screenshots/pull.py`.
 
 ## Install
 
