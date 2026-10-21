@@ -8,6 +8,8 @@
 
 #include "scheduler.h"
 
+#include <cstdlib>
+#include <cstring>
 #include <queue>
 #include <mutex>
 
@@ -47,9 +49,10 @@ void scheduler_put_noargs(scheduler_fn_t fn) {
 
 void scheduler_work() {
     item_t item;
-    while (!queue.empty()) {
+    while (true) {
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::lock_guard<std::mutex> lock(m_mutex);   /* the emptiness test under the lock too */
+            if (queue.empty()) break;
             item = queue.front();
             queue.pop();
         }
