@@ -16,6 +16,7 @@
 #include <fstream>
 #include <regex>
 #include <sstream>
+#include <fcntl.h>
 #include <unistd.h>
 
 namespace x6100 {
@@ -98,9 +99,18 @@ static bool replace_file(const std::string &path, const std::string &content) {
     if (out == nullptr) return false;
     bool good = std::fwrite(content.data(), 1, content.size(), out) == content.size();
     good      = good && std::fflush(out) == 0;
-    fsync(fileno(out));
+    good      = good && fsync(fileno(out)) == 0;   // an SD card error here is a failed save, not a success
     good = (std::fclose(out) == 0) && good;
-    if (good && std::rename(tmp.c_str(), path.c_str()) == 0) return true;
+    if (good && std::rename(tmp.c_str(), path.c_str()) == 0) {
+        // The rename itself made durable: the directory
+        std::string dir = path.substr(0, path.rfind('/'));
+        int         dfd = open(dir.empty() ? "." : dir.c_str(), O_RDONLY | O_DIRECTORY);
+        if (dfd >= 0) {
+            fsync(dfd);
+            close(dfd);
+        }
+        return true;
+    }
     std::remove(tmp.c_str());
     return false;
 }

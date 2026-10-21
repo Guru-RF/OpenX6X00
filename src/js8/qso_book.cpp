@@ -281,8 +281,8 @@ bool adif_append(const std::string &path, const LogEntry &entry, std::string &er
     if (good && std::ftell(fp) == 0) good = std::fputs(ADIF_HEADER, fp) >= 0;
     if (good) good = std::fputs(adif_record(entry).c_str(), fp) >= 0;
     if (good) good = std::fflush(fp) == 0;
-    /* Straight to the SD card: the radio may lose power at any moment. */
-    fsync(fileno(fp));
+    /* Straight to the SD card: the radio may lose power at any moment; a card error is a failure */
+    if (good) good = fsync(fileno(fp)) == 0;
     const bool closed = std::fclose(fp) == 0;
     good = closed && good;
     if (!good) err = "can't write " + path;

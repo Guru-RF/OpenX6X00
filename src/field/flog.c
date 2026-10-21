@@ -134,7 +134,8 @@ bool field_log_add(const char *path, const field_qso_t *q, const field_station_t
     field_adif_record(rec, sizeof(rec), q, st);
     if (fputs(rec, f) < 0 || fflush(f) != 0)
         err = errno;
-    fsync(fileno(f));   /* a QSO is never lost to a power cut */
+    if (!err && fsync(fileno(f)) != 0)   /* a QSO is never lost to a power cut; a card error is told */
+        err = errno;
     if (fclose(f) != 0 && !err)
         err = errno;
     if (err)
