@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <errno.h>
 #include <math.h>
@@ -155,7 +156,15 @@ static x6100_flow_t    *pack;
 static x6100_base_ver_t base_ver;
 static int8_t           audio_in_lvl;
 
-static radio_state_t    state = RADIO_RX;
+/* Written by the radio thread (RX/TX and the tuner's steps, from what the base reports) and by
+ * the LVGL thread (the tuner and the SWR scan started or stopped, power off): atomic, and
+ * every change goes from the state the writer saw, so a change by the other thread in between
+ * is not overwritten (one of the two would be lost otherwise) */
+static _Atomic radio_state_t state = RADIO_RX;
+
+static bool state_move(radio_state_t from, radio_state_t to) {
+    return atomic_compare_exchange_strong(&state, &from, to);
+}
 static uint64_t         now_time;
 static uint64_t         prev_time;
 static uint64_t         idle_time;
@@ -430,13 +439,11 @@ bool radio_change_spmode(int16_t df) {
 }
 
 void radio_start_atu() {
-    if (state == RADIO_RX) {
-        state = RADIO_ATU_START;
-    }
+    state_move(RADIO_RX, RADIO_ATU_START);
 }
 
 bool radio_start_swrscan() {
-    if (state != RADIO_RX) {
+    if (!state_move(RADIO_RX, RADIO_SWRSCAN)) {
         return false;
     }
 
@@ -447,14 +454,12 @@ bool radio_start_swrscan() {
     x6100_control_txpwr_set(LV_MIN(param_f_get(cfg_pwr), 1.0f));
     x6100_control_swrscan_set(true);
     radio_unlock();
-    state = RADIO_SWRSCAN;
 
     return true;
 }
 
 void radio_stop_swrscan() {
-    if (state == RADIO_SWRSCAN) {
-        state = RADIO_RX;
+    if (state_move(RADIO_SWRSCAN, RADIO_RX)) {
         radio_lock();
         x6100_control_swrscan_set(false);
         set_txpwr(param_f_get(cfg_pwr));
@@ -1110,8 +1115,7 @@ static bool radio_tick() {
 
         switch (state) {
             case RADIO_RX:
-                if (pack->flag.tx) {
-                    state = RADIO_TX;
+                if (pack->flag.tx && state_move(RADIO_RX, RADIO_TX)) {
                     if (notify_rx_tx) {
                         notify_rx_tx(true);
                     }
@@ -1119,8 +1123,7 @@ static bool radio_tick() {
                 break;
 
             case RADIO_TX:
-                if (!pack->flag.tx) {
-                    state = RADIO_RX;
+                if (!pack->flag.tx && state_move(RADIO_TX, RADIO_RX)) {
                     if (notify_rx_tx) {
                         notify_rx_tx(false);
                     }
@@ -1136,7 +1139,7 @@ static bool radio_tick() {
 
             case RADIO_ATU_START:
                 WITH_RADIO_LOCK(x6100_control_atu_tune(true));
-                state = RADIO_ATU_WAIT;
+                state_move(RADIO_ATU_START, RADIO_ATU_WAIT);
                 break;
 
             case RADIO_ATU_WAIT:
@@ -1144,7 +1147,7 @@ static bool radio_tick() {
                     if (notify_rx_tx) {
                         notify_rx_tx(true);
                     }
-                    state = RADIO_ATU_RUN;
+                    state_move(RADIO_ATU_WAIT, RADIO_ATU_RUN);
                 }
                 break;
 
@@ -1162,7 +1165,7 @@ static bool radio_tick() {
 
                     // TODO: change with observer on atu->loaded change
                     WITH_RADIO_LOCK(x6100_control_cmd(x6100_atu_network, pack->atu_params));
-                    state = RADIO_RX;
+                    state_move(RADIO_ATU_RUN, RADIO_RX);
                 } else if (pack->flag.tx) {
                     tx_info_update(pack->tx_power * 0.1f, pack->vswr * 0.1f, pack->alc_level * 0.1f);
                 }
@@ -1174,7 +1177,7 @@ static bool radio_tick() {
 
             case RADIO_POWEROFF:
                 WITH_RADIO_LOCK(x6100_control_poweroff());
-                state = RADIO_OFF;
+                state_move(RADIO_POWEROFF, RADIO_OFF);
                 break;
 
             case RADIO_OFF:
