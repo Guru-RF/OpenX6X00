@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# OpenX6X00: the radio's network name from the DATA partition (/mnt/hostname.conf, "x6100"
+# without one), before the network and Avahi (S50avahi-daemon) come up: x6100.local by mDNS.
+#
+
+case "$1" in
+  start)
+    printf "Network name: "
+    /usr/sbin/x6100-hostname
+    ;;
+esac
+
+exit 0

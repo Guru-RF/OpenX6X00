@@ -1,7 +1,20 @@
-% rebase('base.html', title='Ethernet')
-<h2><svg class="i"><use href="#i-ethernet"/></svg>Ethernet</h2>
-<p class="sub">A USB Ethernet adapter on the radio: DHCP, or a fixed address for networks that need one. The same settings as Settings &rarr; Wireless &rarr; Ethernet on the radio. WiFi is not touched.</p>
+% rebase('base.html', title='Network')
+<h2><svg class="i"><use href="#i-ethernet"/></svg>Network</h2>
+<p class="sub">The radio's name on the LAN, and a USB Ethernet adapter: DHCP, or a fixed address for networks that need one. The same settings as Settings &rarr; Wireless on the radio. WiFi is not touched.</p>
 
+<form class="dp-card" id="nameform">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-network"/></svg></span><div><h3>Network name</h3><p>Any browser on the LAN reaches the radio as <b id="local">x6100.local</b> (mDNS, announced by Avahi), on WiFi and Ethernet alike. The name is kept on the DATA partition.</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="hn"><b>Name</b></label><span>Letters, digits and '-', up to 32</span></div>
+    <div class="dp-ctl"><input id="hn" autocomplete="off" maxlength="32" spellcheck="false"></div>
+  </div>
+  <div class="dp-row">
+    <button type="submit" class="primary">Apply</button>
+    <span class="status" id="namestatus"></span>
+  </div>
+</form>
+
+<h3 class="sub" style="margin-top:1.5em">Ethernet</h3>
 <p id="none" hidden>No Ethernet adapter connected.</p>
 
 <form class="dp-card" id="conf" hidden>
@@ -39,6 +52,22 @@
 <script>
 const FIELDS = ["ip", "mask", "gw", "dns"];
 let dhcp = true;
+
+/* The network name */
+var renderName = function(d) {
+  $("#hn").val(d.name);
+  $("#local").text(d.name + ".local");
+  if (!d.mdns) showStatus($("#namestatus"), "This image has no Avahi: the name is set, .local needs a newer card image", true);
+}
+$.get('/api/hostname', {}, renderName);
+$("#nameform").on("submit", function(e) {
+  e.preventDefault();
+  const name = $("#hn").val().trim();
+  showStatus($("#namestatus"), "Setting...");
+  $.ajax({url: "/api/hostname", type: "POST", data: JSON.stringify({name: name}), contentType: "application/json",
+    success: function(d) { renderName(d); showStatus($("#namestatus"), "Set. Reachable as " + d.name + ".local in a few seconds"); },
+    error: function(xhr) { showStatus($("#namestatus"), xhr.responseJSON ? xhr.responseJSON.msg : "Not set", true); }});
+});
 
 var showStatus = function(el, text, error=false) {
   el.toggleClass("error", error);

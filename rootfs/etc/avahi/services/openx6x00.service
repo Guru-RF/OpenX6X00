@@ -1,0 +1,19 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!-- OpenX6X00: what the radio offers on the LAN, found by name (x6100.local) -->
+<service-group>
+  <name replace-wildcards="yes">OpenX6X00 on %h</name>
+  <service>
+    <type>_http._tcp</type>
+    <port>80</port>
+    <txt-record>path=/</txt-record>
+  </service>
+  <service>
+    <type>_https._tcp</type>
+    <port>443</port>
+  </service>
+  <service>
+    <type>_tci._tcp</type>
+    <port>50001</port>
+  </service>
+</service-group>

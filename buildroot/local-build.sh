@@ -37,6 +37,12 @@ grep -q "^BR2_PACKAGE_CA_CERTIFICATES=y" $DEFCONFIG || echo "BR2_PACKAGE_CA_CERT
 # web server's certificate; the upstream defconfig left both out, HTTPS failed silently
 grep -q "^BR2_PACKAGE_PYTHON3_SSL=y" $DEFCONFIG || echo "BR2_PACKAGE_PYTHON3_SSL=y" >> $DEFCONFIG
 grep -q "^BR2_PACKAGE_LIBOPENSSL_BIN=y" $DEFCONFIG || echo "BR2_PACKAGE_LIBOPENSSL_BIN=y" >> $DEFCONFIG
+# mDNS: x6100.local (rootfs/etc/avahi, S39hostname). The GUI package selects Avahi so that it is
+# installed first and our avahi-daemon.conf is the one left in the image
+grep -q "^BR2_PACKAGE_AVAHI=y" $DEFCONFIG || echo "BR2_PACKAGE_AVAHI=y" >> $DEFCONFIG
+grep -q "^BR2_PACKAGE_AVAHI_DAEMON=y" $DEFCONFIG || echo "BR2_PACKAGE_AVAHI_DAEMON=y" >> $DEFCONFIG
+grep -q "select BR2_PACKAGE_AVAHI_DAEMON" $EXT/package/x6100-gui/Config.in || sed -i "s/^\tselect BR2_PACKAGE_LIBPNG$/\tselect BR2_PACKAGE_LIBPNG\n\tselect BR2_PACKAGE_AVAHI\n\tselect BR2_PACKAGE_AVAHI_DAEMON/" $EXT/package/x6100-gui/Config.in
+grep -q "avahi" $GUI_MK || sed -i "/^X6100_GUI_DEPENDENCIES/s/$/ avahi/" $GUI_MK
 grep -q "libdrm" $GUI_MK || sed -i "/^X6100_GUI_DEPENDENCIES/s/$/ libdrm/" $GUI_MK
 
 echo "== No RHVoice: PulseAudio selected by the GUI itself"

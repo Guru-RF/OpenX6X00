@@ -1,0 +1,62 @@
+#!/bin/sh
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# OpenX6X00 - the radio's network name: hostname and mDNS (Avahi), so that http://x6100.local
+# reaches it without knowing its address. The name lives on the DATA partition and survives a new
+# image; Settings > Wireless and the web Network page change it.
+#
+#   x6100-hostname            apply the saved name (boot, S39hostname) and print it
+#   x6100-hostname get        print the saved name
+#   x6100-hostname set NAME   check, save and apply NAME (letters, digits, '-'; 1-32 characters)
+#
+# Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
+
+CONF=/mnt/hostname.conf
+DEFAULT=x6100
+
+saved() {
+    n=$(head -n 1 "$CONF" 2>/dev/null | tr -d ' \r\n')
+    [ -n "$n" ] || n=$DEFAULT
+    echo "$n"
+}
+
+valid() {
+    echo "$1" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]{0,30}[A-Za-z0-9])?$'
+}
+
+apply() {
+    hostname "$1"
+    echo "$1" > /etc/hostname 2>/dev/null
+    # Avahi announces the name it started with: started again when it runs
+    if [ -x /usr/sbin/avahi-daemon ] && /usr/sbin/avahi-daemon -c 2>/dev/null; then
+        /usr/sbin/avahi-daemon -k 2>/dev/null
+        /usr/sbin/avahi-daemon -D 2>/dev/null
+    fi
+}
+
+case "$1" in
+    "")
+        n=$(saved)
+        apply "$n"
+        echo "$n"
+        ;;
+    get)
+        saved
+        ;;
+    set)
+        n=$2
+        if ! valid "$n"; then
+            echo "Name: letters, digits and '-', 1 to 32 characters, not starting or ending with '-'" >&2
+            exit 2
+        fi
+        if ! echo "$n" > "$CONF"; then
+            echo "Can't write $CONF" >&2
+            exit 1
+        fi
+        apply "$n"
+        echo "$n"
+        ;;
+    *)
+        echo "Usage: x6100-hostname [get | set NAME]" >&2
+        exit 1
+        ;;
+esac

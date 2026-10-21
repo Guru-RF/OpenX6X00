@@ -89,6 +89,11 @@ jobs:
         # Python's ssl module and the openssl command: HTTPS from the helpers and the web server's certificate
         echo "BR2_PACKAGE_PYTHON3_SSL=y" >> $X6CI_DEFCONFIG
         echo "BR2_PACKAGE_LIBOPENSSL_BIN=y" >> $X6CI_DEFCONFIG
+        # mDNS: x6100.local (rootfs/etc/avahi, S39hostname); the GUI package depends on Avahi so our conf wins
+        echo "BR2_PACKAGE_AVAHI=y" >> $X6CI_DEFCONFIG
+        echo "BR2_PACKAGE_AVAHI_DAEMON=y" >> $X6CI_DEFCONFIG
+        sed -i "s/^\tselect BR2_PACKAGE_LIBPNG$/\tselect BR2_PACKAGE_LIBPNG\n\tselect BR2_PACKAGE_AVAHI\n\tselect BR2_PACKAGE_AVAHI_DAEMON/" $X6CI_BR_EXT/package/x6100-gui/Config.in
+        sed -i "/^X6100_GUI_DEPENDENCIES/s/$/ avahi/" $X6CI_GUI_MK
         sed -i "/^X6100_GUI_DEPENDENCIES/s/$/ libdrm/" $X6CI_GUI_MK
         grep "^X6100_GUI_DEPENDENCIES" $X6CI_GUI_MK
 
