@@ -130,6 +130,11 @@ static void recover_processing_audio_inputs();
 static bool radio_tick();
 static void * radio_thread(void *arg);
 
+/* A hand mic key, on the LVGL thread (see the flow handler) */
+static void hkey_sched_cb(void *arg) {
+    hkey_put(*(uint32_t *)arg);
+}
+
 /**********************
  *  STATIC VARIABLES
  **********************/
@@ -1191,7 +1196,13 @@ static bool radio_tick() {
                 break;
         }
 
-        hkey_put(pack->hkey);
+        /* The hand mic key to the LVGL thread: hkey_put makes and deletes LVGL timers, which
+         * only that thread may do. Posted when it changes (held down, the base repeats it) */
+        static uint32_t last_hkey;
+        if (pack->hkey != last_hkey) {
+            last_hkey = pack->hkey;
+            scheduler_put(hkey_sched_cb, &last_hkey, sizeof(last_hkey));
+        }
     } else {
         if (d > FLOW_RESTART_TIMEOUT) {
             LV_LOG_WARN("Flow reset");
