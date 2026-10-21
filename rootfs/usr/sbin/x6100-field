@@ -24,6 +24,7 @@ import io
 import json
 import os
 import re
+import signal
 import sys
 import time
 import urllib.error
@@ -45,6 +46,10 @@ QRZ_API = os.environ.get("X6100_QRZ_API", "https://logbook.qrz.com/api")
 TIMEOUT = 30
 LIST_TIMEOUT = 60   # per read: the radio's WiFi can stall for a while
 RETRIES = 5
+# The whole run, after which the helper gives up with "error timed out": the GUI runs one job at a
+# time and would wait forever for a stuck one (a DNS lookup or a connect that never returns)
+RUN_LIMIT = {"update": 1800}
+RUN_LIMIT_DEFAULT = 600
 user_agent = "OpenX6X00/unknown"
 # wwbota.org and cqhota.app: the firmware version (the GUI sets X6100_FW) and a contact
 site_agent = f"OpenX6X00/{os.environ.get('X6100_FW') or 'unknown'} (+https://github.com/Guru-RF/OpenX6X00)"
@@ -308,7 +313,9 @@ def cmd_update(args):
         progress.remove()
         if os.path.exists(tmp):
             os.remove(tmp)
-    return "ok " + " ".join(map(str, counts))
+    # A list that failed kept its previous lines: said after the counts, the answer stays "ok ..."
+    partial = f" partial {'; '.join(errors)}" if errors else ""
+    return "ok " + " ".join(map(str, counts)) + partial
 
 
 def post(url, body, content_type, headers=None, method=None):
@@ -476,22 +483,24 @@ def cmd_qrz_upload(args):
             records = adif_records(f.read())
     except OSError as e:
         raise Fail(one_line(e.strerror or e))
-    sent = dup = 0
+    sent = dup = bad = 0
+    reason = ""
     for rec in records:
         if call:   # the active profile's callsign is the station call in the upload
             rec = adif_set(adif_set(rec, "OPERATOR", call), "STATION_CALLSIGN", call)
         body = urllib.parse.urlencode({"KEY": key, "ACTION": "INSERT", "ADIF": rec + "<eor>"})
         code, text = post(QRZ_API, body, "application/x-www-form-urlencoded")
-        if code != 200:
+        if code != 200:   # the service, not the record: the rest would fail the same way
             raise Fail(f"HTTP {code} after {sent} sent")
         res = dict(urllib.parse.parse_qsl(text.strip(), keep_blank_values=True))
         if res.get("RESULT") == "OK":
             sent += 1
         elif "duplicate" in res.get("REASON", "").lower():
             dup += 1
-        else:
-            raise Fail(f"QRZ {one_line(res.get('REASON') or res.get('RESULT') or text, 60)} after {sent} sent")
-    return f"ok {sent} {dup}"
+        else:   # this record refused (a call QRZ does not take, a bad field): the others still go
+            bad += 1
+            reason = reason or one_line(res.get("REASON") or res.get("RESULT") or text, 60)
+    return f"ok {sent} {dup} {bad}" + (f" {reason}" if bad else "")
 
 
 class Parser(argparse.ArgumentParser):
@@ -539,6 +548,8 @@ def main(argv):
     try:
         args = parser.parse_args(argv)
         user_agent = f"OpenX6X00/{args.call.strip().upper() or 'unknown'}"
+        signal.signal(signal.SIGALRM, lambda *_: (print("error timed out"), sys.exit(1)))
+        signal.alarm(RUN_LIMIT.get(args.cmd, RUN_LIMIT_DEFAULT))
         print(args.func(args))
         return 0
     except Fail as e:
