@@ -3,10 +3,18 @@
 <p class="sub">POTA, SOTA, WWBOTA, HOTA and WWFF portable operation: reference lists for the radio, QRZ Logbook upload, HOTA and WWFF spots, activation logs.</p>
 
 <form class="dp-card" id="qrz">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>QRZ Logbook</h3><p>API key from your QRZ Logbook settings. Uploading needs a QRZ.com Logbook API key, which QRZ.com only gives with a paid QRZ.com subscription (XML level or higher). Key: <b id="key-state"></b></p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>QRZ Logbook</h3><p>Up to three profiles, a callsign with its Logbook API key (QRZ.com, Logbook, Settings): the active one takes the uploads. The radio's log page can switch the active profile too. Uploading needs a QRZ.com Logbook API key, which QRZ.com only gives with a paid QRZ.com subscription (XML level or higher).</p></div></div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="key"><b>API key</b></label><span>Empty = remove the key</span></div>
-    <div class="dp-ctl"><input id="key" type="password" autocomplete="off" maxlength="64" placeholder="New key (empty = remove)"></div>
+    <div class="dp-lbl"><label for="qcall1"><b>Profile 1</b> <input type="radio" name="qactive" value="1" id="qact1"> active</label><span id="qstate1"></span></div>
+    <div class="dp-ctl"><input id="qcall1" type="text" autocomplete="off" maxlength="16" placeholder="Callsign" style="width:9em;text-transform:uppercase"> <input id="qkey1" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" class="qremove" data-n="1">Remove</button></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="qcall2"><b>Profile 2</b> <input type="radio" name="qactive" value="2" id="qact2"> active</label><span id="qstate2"></span></div>
+    <div class="dp-ctl"><input id="qcall2" type="text" autocomplete="off" maxlength="16" placeholder="Callsign" style="width:9em;text-transform:uppercase"> <input id="qkey2" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" class="qremove" data-n="2">Remove</button></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="qcall3"><b>Profile 3</b> <input type="radio" name="qactive" value="3" id="qact3"> active</label><span id="qstate3"></span></div>
+    <div class="dp-ctl"><input id="qcall3" type="text" autocomplete="off" maxlength="16" placeholder="Callsign" style="width:9em;text-transform:uppercase"> <input id="qkey3" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" class="qremove" data-n="3">Remove</button></div>
   </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
@@ -79,7 +87,13 @@ var showStatus = function(id, text, error=false) {
 var timer = null;
 
 var render = function(data) {
-  $("#key-state").text(data.qrz_key ? "set (hidden)" : "not set");
+  data.qrz.profiles.forEach(function(p, i) {
+    var n = i + 1;
+    $("#qcall" + n).val(p.call);
+    $("#qstate" + n).text(p.key ? "key set (hidden)" : "no key");
+    $("#qact" + n).prop("checked", data.qrz.active === n).prop("disabled", !p.key);
+    $(".qremove[data-n=" + n + "]").prop("disabled", !p.key);
+  });
   $("#hkey-state").text(data.hota_key ? "set (hidden)" : "not set");
   $("#wkey-state").text(data.wwff_key ? "set (hidden)" : "not set");
   $("#refs").text(data.refs ? `${data.refs.parks} parks, ${data.refs.summits} summits, ${data.refs.bunkers} bunkers, ${data.refs.hota} HOTA, ${data.refs.wwff} WWFF · updated ${data.refs.date} · ${data.refs.size}` : "No list yet: press Update (needs internet on the radio).");
@@ -117,8 +131,13 @@ var post = function(url, data, ok, statusId) {
 
 $("#qrz").on("submit", function(e) {
   e.preventDefault();
-  post("/api/field/qrz", {key: $("#key").val().trim()}, "Saved", "#status");
-  $("#key").val("");
+  var profiles = [1, 2, 3].map(function(n) { return {call: $("#qcall" + n).val().trim(), key: $("#qkey" + n).val().trim()}; });
+  post("/api/field/qrz", {active: parseInt($("input[name=qactive]:checked").val() || "0"), profiles: profiles}, "Saved", "#status");
+  [1, 2, 3].forEach(function(n) { $("#qkey" + n).val(""); });
+});
+
+$(".qremove").on("click", function() {
+  post("/api/field/qrz", {remove: parseInt($(this).data("n"))}, "Removed", "#status");
 });
 
 $("#hota").on("submit", function(e) {

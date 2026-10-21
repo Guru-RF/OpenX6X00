@@ -1354,16 +1354,22 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
 LOG tile. The page title is "<program> LOGBOOK <reference>" with a red TEST:
 the page and its QRZ upload are experimental. It lists the QSOs of the
 activation log (N, TIME, CALL, BAND, MODE, RST S / R). Buttons: Log QSO,
-Upload QRZ, Back.
+Upload QRZ, QRZ: <call>, Back.
 
 - Upload QRZ (experimental) sends the whole activation log to your QRZ.com
   logbook. QSOs already there are counted, not sent again: "QRZ: 5 sent, 2
   already there".
+- QRZ: <call> (page LOGBOOK) shows the QRZ profile the upload goes to, and a
+  press turns to the next one: "QRZ profile: <call>". The profiles, up to
+  three callsigns each with a Logbook API key, are set on the Field Ops page
+  of the web configurator, where the active one is chosen too. With one
+  profile the key says "Only one QRZ profile"; with none, "No QRZ profile:
+  add it on the web page, Field Ops".
 - It needs your QRZ Logbook API key, pasted on the Field Ops page of the web
   configurator.
 - Uploading to QRZ needs a QRZ.com Logbook API key, which QRZ.com only gives
   with a paid QRZ.com subscription (XML level or higher).
-- Other messages: "Uploading the log to QRZ...", "No log to upload", "No QRZ key:
+- Other messages: "Uploading the log to QRZ...", "No log to upload", "No QRZ profile:
   add it on the web page, Field Ops", or "QRZ: " with the reason QRZ gave and how many went before it.
 
 
@@ -1585,7 +1591,7 @@ The menu has General and four groups:
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)) |
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
-| | Field Ops | QRZ Logbook API key and upload, HOTA key, WWFF key, update the reference lists, download the activation logs |
+| | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV |

@@ -284,6 +284,58 @@ def key_set(name):
         return False
 
 
+QRZ_PROFILES = 3
+
+
+def qrz_read():
+    """qrz.conf: up to three QRZ Logbook profiles, call1/key1..call3/key3 and active=N (an old single
+    key= is profile 1). The keys never go back to the browser, only whether one is set."""
+    active, legacy, calls, keys = 1, "", [""] * QRZ_PROFILES, [""] * QRZ_PROFILES
+    try:
+        with open(field_path("qrz.conf"), errors="replace") as f:
+            for line in f:
+                k, sep, v = line.strip().partition("=")
+                if not sep:
+                    continue
+                k, v = k.strip(), v.strip()
+                if k == "active" and v.isdigit():
+                    active = int(v)
+                elif k == "key":
+                    legacy = v
+                elif k[:4] == "call" and k[4:].isdigit() and 1 <= int(k[4:]) <= QRZ_PROFILES:
+                    calls[int(k[4:]) - 1] = v
+                elif k[:3] == "key" and k[3:].isdigit() and 1 <= int(k[3:]) <= QRZ_PROFILES:
+                    keys[int(k[3:]) - 1] = v
+    except OSError:
+        pass
+    if not any(keys) and legacy:
+        keys[0] = legacy
+    if not 1 <= active <= QRZ_PROFILES:
+        active = 1
+    return active, calls, keys
+
+
+def qrz_write(active, calls, keys):
+    path = field_path("qrz.conf")
+    os.makedirs(settings.FIELD_DIR, exist_ok=True)
+    if not any(keys):
+        if os.path.exists(path):
+            os.remove(path)
+        return
+    tmp = path + ".tmp"
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        f.write(f"active={active}\n")
+        for i in range(QRZ_PROFILES):
+            if keys[i]:
+                f.write(f"call{i + 1}={calls[i]}\nkey{i + 1}={keys[i]}\n")
+    os.rename(tmp, path)
+
+
+def qrz_state():
+    active, calls, keys = qrz_read()
+    return {"active": active, "profiles": [{"call": calls[i], "key": bool(keys[i])} for i in range(QRZ_PROFILES)]}
+
+
 def field_refs():
     global field_refs_counts
     try:
@@ -348,14 +400,47 @@ def get_field():
                 (f", retry {retry} of 5" if retry != "0" else "")
         except (OSError, ValueError):
             pass
-    return {"qrz_key": key_set("qrz.conf"), "hota_key": key_set("hota.conf"), "wwff_key": key_set("wwff.conf"),
+    return {"qrz": qrz_state(), "hota_key": key_set("hota.conf"), "wwff_key": key_set("wwff.conf"),
             "update": update, "refs": field_refs(),
             "logs": field_logs()}
 
 
-@app.post('/api/field/<name:re:qrz|hota|wwff>')
+@app.post('/api/field/qrz')
+def set_field_qrz():
+    """The QRZ Logbook profiles: {"active": N, "profiles": [{"call", "key"}, ...]} ("" key: the one
+    stored stays), or {"remove": N}. The radio's log page picks the active one too."""
+    body = bottle.request.json or {}
+    active, calls, keys = qrz_read()
+    if "remove" in body:
+        n = body["remove"]
+        if not (isinstance(n, int) and 1 <= n <= QRZ_PROFILES):
+            return api_error(400, "No such profile")
+        calls[n - 1] = keys[n - 1] = ""
+    else:
+        for i, prof in enumerate((body.get("profiles") or [])[:QRZ_PROFILES]):
+            call = str(prof.get("call", "")).strip().upper()
+            key = str(prof.get("key", "")).strip()
+            if call and not re.fullmatch(r"[A-Z0-9/-]{1,16}", call):
+                return api_error(400, f"Profile {i + 1}: the call is letters, digits, / and -")
+            if key and not re.fullmatch(r"[!-~]{1,128}", key):
+                return api_error(400, f"Profile {i + 1}: a key is 1-128 printable characters, no spaces")
+            calls[i] = call
+            if key:
+                keys[i] = key
+        if isinstance(body.get("active"), int):
+            active = body["active"]
+    if not 1 <= active <= QRZ_PROFILES or not keys[active - 1]:
+        active = next((i + 1 for i in range(QRZ_PROFILES) if keys[i]), 1)
+    try:
+        qrz_write(active, calls, keys)
+    except OSError as e:
+        return api_error(500, f"Can't save: {e}")
+    return get_field()
+
+
+@app.post('/api/field/<name:re:hota|wwff>')
 def set_field_key(name):
-    """QRZ Logbook API key, cqhota.app integration key, WWFF Spotline key: <name>.conf, never shown back"""
+    """cqhota.app integration key, WWFF Spotline key: <name>.conf, never shown back"""
     key = str((bottle.request.json or {}).get("key", "")).strip()
     if key and not re.fullmatch(r"[!-~]{1,128}", key):
         return api_error(400, "Invalid key: 1-128 printable characters, no spaces")

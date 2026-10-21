@@ -669,6 +669,8 @@ static void update_cb(button_data_t *b);
 static void beacon_cb(button_data_t *b);
 static void tune_cb(button_data_t *b);
 static void qrz_cb(button_data_t *b);
+static void qrz_prof_cb(button_data_t *b);
+static const char *qrz_prof_label(void);
 static void cq_cb(button_data_t *b);
 static void bands_cb(button_data_t *b);
 static void logbook_cb(button_data_t *b);
@@ -705,6 +707,7 @@ static button_data_t b_beacon = {.type = BTN_TEXT, .label = "Test\nbeacon", .pre
 static button_data_t b_tune   = {.type = BTN_TEXT, .label = "Use\nband", .press = tune_cb};
 static button_data_t b_logpg  = {.type = BTN_TEXT, .label = "LOGBOOK"};
 static button_data_t b_qrz    = {.type = BTN_TEXT, .label = "Upload\nQRZ", .press = qrz_cb};
+static button_data_t b_qrzprof = {.type = BTN_TEXT_FN, .label_fn = qrz_prof_label, .press = qrz_prof_cb};
 
 static buttons_page_t page_home  = {.items = {&b_home, &b_open, &b_boot, &b_respot, &b_exit}};
 static buttons_page_t page_ref1  = {.items = {&b_ref1, &b_act, &b_spot, &b_ref, &b_back}};
@@ -712,7 +715,7 @@ static buttons_page_t page_ref2  = {.items = {&b_ref2, &b_update, &b_reccq, &b_c
 static buttons_page_t page_act1  = {.items = {&b_act1, &b_cq, &b_log, &b_spot, &b_back}};
 static buttons_page_t page_act2  = {.items = {&b_act2, &b_act, &b_band, &b_reccq, &b_back}};   /* b_book: LOG hidden */
 static buttons_page_t page_bands = {.items = {&b_bands, &b_beacon, &b_tune, NULL, &b_back}};
-static buttons_page_t page_log   = {.items = {&b_logpg, &b_log, &b_qrz, NULL, &b_back}};
+static buttons_page_t page_log   = {.items = {&b_logpg, &b_log, &b_qrz, &b_qrzprof, &b_back}};
 
 static const char *boot_label(void) {
     return param_i_get(cfg_field_boot) ? "Start here\nOn" : "Start here\nOff";
@@ -1826,7 +1829,7 @@ static void qrz_done(const char *line) {
         msg_update_text_fmt("QRZ: %d sent, %d already there", sent, dup);
     else if (!strcmp(line, "error no QRZ key")) {
         /* the message holds 127 characters: the notice goes in two steps */
-        msg_update_text_fmt("No QRZ key: add it on the web page, Field Ops");
+        msg_update_text_fmt("No QRZ profile: add it on the web page, Field Ops");
         msg_schedule_text_ms(8000, "Uploading needs a QRZ.com Logbook API key, which QRZ.com only gives with a paid "
                                    "QRZ.com subscription (XML level or higher).");
     } else
@@ -1840,6 +1843,115 @@ static void qrz_cb(button_data_t *b) {
     }
     if (job_start(qrz_done, HELPER " qrz-upload '%s'", st.log))
         msg_update_text_fmt("Uploading the log to QRZ...");
+}
+
+/* The QRZ Logbook profiles (qrz.conf, written on the web page: call1/key1 .. call3/key3, active=N;
+ * an old single key= is profile 1). The button shows the active one and turns to the next with a key. */
+#define QRZ_PROFILES 3
+#define QRZ_CONF     FIELD_DIR "/qrz.conf"
+
+typedef struct {
+    int  active;
+    char call[QRZ_PROFILES][20];
+    bool key[QRZ_PROFILES];
+} qrz_conf_t;
+
+static void qrz_conf_read(qrz_conf_t *c) {
+    char  line[256];
+    bool  legacy = false;
+    FILE *f = fopen(QRZ_CONF, "r");
+
+    memset(c, 0, sizeof(*c));
+    c->active = 1;
+    if (!f) return;
+    while (fgets(line, sizeof(line), f)) {
+        char *v = strchr(line, '=');
+        int   n;
+
+        if (!v) continue;
+        *v++ = 0;
+        v[strcspn(v, "\r\n")] = 0;
+        if (!strcmp(line, "active"))
+            c->active = atoi(v);
+        else if (!strcmp(line, "key"))
+            legacy = *v != 0;
+        else if (sscanf(line, "call%d", &n) == 1 && n >= 1 && n <= QRZ_PROFILES)
+            snprintf(c->call[n - 1], sizeof(c->call[0]), "%s", v);
+        else if (sscanf(line, "key%d", &n) == 1 && n >= 1 && n <= QRZ_PROFILES)
+            c->key[n - 1] = *v != 0;
+    }
+    fclose(f);
+    if (legacy && !c->key[0] && !c->key[1] && !c->key[2]) c->key[0] = true;
+    if (c->active < 1 || c->active > QRZ_PROFILES || !c->key[c->active - 1]) {
+        c->active = 0;
+        for (int i = 0; i < QRZ_PROFILES && !c->active; i++)
+            if (c->key[i]) c->active = i + 1;
+    }
+}
+
+/* active=N replaced (or added), the rest of the file as it is */
+static bool qrz_conf_set_active(int active) {
+    char  lines[16][256];
+    int   n = 0;
+    bool  seen = false;
+    FILE *f = fopen(QRZ_CONF, "r");
+
+    if (!f) return false;
+    while (n < 16 && fgets(lines[n], sizeof(lines[0]), f)) {
+        if (!strncmp(lines[n], "active=", 7)) {
+            if (seen) continue;
+            snprintf(lines[n], sizeof(lines[0]), "active=%d\n", active);
+            seen = true;
+        }
+        n++;
+    }
+    fclose(f);
+    f = fopen(QRZ_CONF ".tmp", "w");
+    if (!f) return false;
+    if (!seen) fprintf(f, "active=%d\n", active);
+    for (int i = 0; i < n; i++) fputs(lines[i], f);
+    fclose(f);
+    return rename(QRZ_CONF ".tmp", QRZ_CONF) == 0;
+}
+
+static const char *qrz_prof_label(void) {
+    static char s[32];
+    qrz_conf_t  c;
+
+    qrz_conf_read(&c);
+    if (!c.active)
+        snprintf(s, sizeof(s), "QRZ:\nnone");
+    else if (c.call[c.active - 1][0])
+        snprintf(s, sizeof(s), "QRZ:\n%s", c.call[c.active - 1]);
+    else
+        snprintf(s, sizeof(s), "QRZ:\nprofile %d", c.active);
+    return s;
+}
+
+static void qrz_prof_cb(button_data_t *b) {
+    qrz_conf_t c;
+    int        n = 0, next = 0;
+
+    qrz_conf_read(&c);
+    for (int i = 0; i < QRZ_PROFILES; i++) n += c.key[i];
+    if (n == 0) {
+        msg_update_text_fmt("No QRZ profile: add it on the web page, Field Ops");
+        return;
+    }
+    if (n == 1) {
+        msg_update_text_fmt("Only one QRZ profile");
+        return;
+    }
+    for (int i = 1; i <= QRZ_PROFILES && !next; i++) {
+        int k = (c.active - 1 + i) % QRZ_PROFILES;
+        if (c.key[k]) next = k + 1;
+    }
+    if (!qrz_conf_set_active(next)) {
+        msg_update_text_fmt("QRZ profile not saved");
+        return;
+    }
+    msg_update_text_fmt("QRZ profile: %s", c.call[next - 1][0] ? c.call[next - 1] : "no callsign");
+    buttons_refresh(b);
 }
 
 /* Keys, touch and timer */
