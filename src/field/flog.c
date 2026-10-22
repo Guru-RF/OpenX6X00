@@ -10,10 +10,12 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -120,12 +122,25 @@ bool field_log_add(const char *path, const field_qso_t *q, const field_station_t
         *p = '/';
     }
 
+    /* The browser's log editor rewrites the file whole: it holds this lock on the folder while it
+     * does, so a QSO is never appended to a copy about to be replaced (audit A11, apps.py edit_qso) */
+    char *sl   = strrchr(dir, '/');
+    int   lock = -1;
+    if (sl && sl != dir) {
+        *sl  = 0;
+        lock = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        if (lock >= 0)
+            flock(lock, LOCK_EX);
+    }
+
     bool  is_new = access(path, F_OK) != 0;
     FILE *f      = fopen(path, "a");
 
     if (!f) {
         err = errno == ENOENT && mk ? mk : errno;   /* a folder that could not be made says why */
         fprintf(stderr, "Log write failed: %s: %s\n", path, strerror(err));
+        if (lock >= 0)
+            close(lock);
         errno = err;
         return false;
     }
@@ -138,6 +153,8 @@ bool field_log_add(const char *path, const field_qso_t *q, const field_station_t
         err = errno;
     if (fclose(f) != 0 && !err)
         err = errno;
+    if (lock >= 0)
+        close(lock);
     if (err)
         fprintf(stderr, "Log write failed: %s: %s\n", path, strerror(err));
     errno = err;

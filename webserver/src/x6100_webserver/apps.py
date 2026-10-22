@@ -4,6 +4,7 @@ try:
 except ImportError:   # images built before python3-zlib was selected
     zlib = None
 import csv
+import fcntl
 import io
 import json
 import os
@@ -715,9 +716,15 @@ def edit_qso(name, n, fn):
     if not name.endswith(".adi") or os.path.basename(name) != name:
         return api_error(400, "Not a log")
     path = field_path("logs", name)
-    # The radio appends QSOs to the same file: a QSO logged between the read here and the
-    # replace would be lost, so the file is checked for growth and the edit done again
-    for attempt in range(5):
+    # The radio appends QSOs to the same file and takes this lock on the folder while it does
+    # (src/field/flog.c): a QSO logged while the file is rewritten here would otherwise be lost
+    # with the copy being replaced (audit A11)
+    try:
+        lock = os.open(os.path.dirname(path), os.O_RDONLY)
+    except OSError:
+        return api_error(404, "Not found")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX)
         try:
             with open(path, "rb") as f:
                 raw = f.read()
@@ -738,16 +745,10 @@ def edit_qso(name, n, fn):
             f.write(head + "<eor>".join(parts))
             f.flush()
             os.fsync(f.fileno())
-        try:
-            unchanged = os.path.getsize(path) == len(raw)
-        except FileNotFoundError:
-            unchanged = False
-        if unchanged:
-            os.replace(tmp, path)
-            return None
-        os.remove(tmp)
-        time.sleep(0.2)
-    return api_error(409, "The log is being written: try again")
+        os.replace(tmp, path)
+    finally:
+        os.close(lock)   # releases the lock
+    return None
 
 
 @app.delete('/api/field/logs/<name>/<n:int>')
