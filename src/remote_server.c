@@ -252,22 +252,24 @@ static int key_code(const char *name) {
     return -1;
 }
 
-/* A knob turned n detents (signed): one event per detent, as the hardware reports them */
+/* A knob turned n detents (signed, positive clockwise): one event per detent, as the hardware
+ * reports them. The main knob counts right turns as positive, VOL and MFK count left turns as
+ * positive (knob_device.c, mfk_device.c): their events go out the other way round */
 static bool knob_emit(const char *name, int n) {
-    int      fd, axis;
+    int      fd, axis, dir;
 
     if (!strcasecmp(name, "main"))
-        fd = dev_main, axis = REL_X;
+        fd = dev_main, axis = REL_X, dir = 1;
     else if (!strcasecmp(name, "vol"))
-        fd = dev_vol, axis = REL_Y;
+        fd = dev_vol, axis = REL_Y, dir = -1;
     else if (!strcasecmp(name, "mfk"))
-        fd = dev_mfk, axis = REL_Z;
+        fd = dev_mfk, axis = REL_Z, dir = -1;
     else
         return false;
     if (n > 50) n = 50;
     if (n < -50) n = -50;
     for (int i = 0; i < abs(n); i++)
-        emit(fd, EV_REL, axis, n > 0 ? 1 : -1);
+        emit(fd, EV_REL, axis, n > 0 ? dir : -dir);
     return true;
 }
 
