@@ -266,6 +266,7 @@ static void gui_loop(void) {
 }
 
 int main(void) {
+    scheduler_init();   /* this is the GUI thread */
     setenv("X6100_FW", strrchr(VERSION, 'v') + 1, 1);   /* the helpers' User-Agent (x6100-field, spots) */
     clock_tz_init();
     lv_init();

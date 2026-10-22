@@ -18,6 +18,7 @@
 #include <atomic>
 #include <mutex>
 #include <thread>
+#include <pthread.h>
 #include <vector>
 #include <cmath>
 #include <chrono>
@@ -1136,15 +1137,20 @@ static Frame *process_req(const Frame *req) {
     return resp;
 }
 
-static std::mutex req_mutex;
+/* A request is handled on the GUI thread: it reads and sets the parameters, whose observers
+ * drive LVGL, and the GUI thread owns both (audit A05). The CAT thread only moves bytes */
+struct req_job_t {
+    const Frame *req;
+    Frame       *resp;
+};
 
-static Frame *process_req_locked(const Frame *req) {
-    std::lock_guard<std::mutex> lock(req_mutex);
-    return process_req(req);
+static void process_req_cb(void *arg) {
+    auto *job = static_cast<req_job_t *>(arg);
+    job->resp = process_req(job->req);
 }
 
-
 static void cat_thread() {
+    pthread_setname_np(pthread_self(), "cat");
     while (true) {
         bool sleep = true;
 
@@ -1152,9 +1158,15 @@ static void cat_thread() {
         if (req) {
             sleep = false;
             conn->send(req);
-            auto resp = process_req_locked(req);
-            // resp->log("resp");
-            conn->send(resp);
+            req_job_t job = {req, nullptr};
+            if (!scheduler_call(process_req_cb, &job)) {
+                job.resp = new Frame(req);
+                job.resp->set_code(CODE_NG);
+            }
+            // job.resp->log("resp");
+            conn->send(job.resp);
+            delete job.resp;
+            delete req;
         }
 
         while (!send_queue.empty()) {
@@ -1173,7 +1185,9 @@ void cat_init() {
     /* UART */
     x6100_gpio_set(x6100_pin_usb, 1); /* USB -> CAT */
 
-    int fd = open("/dev/ttyS2", O_RDWR | O_NONBLOCK | O_NOCTTY);
+    /* X6100_CAT_DEV: another port, for a test through a pty */
+    const char *dev = getenv("X6100_CAT_DEV");
+    int fd = open(dev ? dev : "/dev/ttyS2", O_RDWR | O_NONBLOCK | O_NOCTTY);
 
     if (fd > 0) {
         struct termios attr;
