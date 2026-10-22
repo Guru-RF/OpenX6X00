@@ -5,6 +5,7 @@
  */
 
 #include "psk_macro.h"
+#include "board.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -14,7 +15,7 @@
 #include "digi_qso.h"         /* shared QSO state: DX call and RST */
 
 #ifndef PSK_MACROS_PATH
-#define PSK_MACROS_PATH "/mnt/psk_macros.txt"
+#define PSK_MACROS_PATH BOARD_DATA "/psk_macros.txt"
 #endif
 
 static psk_macro_t macros[PSK_MACRO_MAX];

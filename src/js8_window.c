@@ -10,6 +10,7 @@
  */
 
 #include "js8_window.h"
+#include "board.h"
 #include "js8_map.h"
 #include "main.h"
 #include "pskreporter.h"
@@ -92,17 +93,17 @@
 /* Files on the DATA partition (/mnt), all plain text a PC can edit. Tests
  * point them elsewhere. */
 #if !defined(JS8_TEXTS_PATH)
-#define JS8_TEXTS_PATH   "/mnt/js8_texts.txt"      /* INFO, STATUS, groups, alert words, spot form */
+#define JS8_TEXTS_PATH   BOARD_DATA "/js8_texts.txt"      /* INFO, STATUS, groups, alert words, spot form */
 #endif
 #if !defined(JS8_INBOX_PATH)
-#define JS8_INBOX_PATH   "/mnt/js8_inbox.txt"      /* MSGs to us, a line each */
+#define JS8_INBOX_PATH   BOARD_DATA "/js8_inbox.txt"      /* MSGs to us, a line each */
 #endif
-#define JS8_SAVED_PATH   "/mnt/js8_saved.txt"      /* saved messages, a line each, empty line = unused */
+#define JS8_SAVED_PATH   BOARD_DATA "/js8_saved.txt"      /* saved messages, a line each, empty line = unused */
 #if !defined(JS8_HELD_PATH)
-#define JS8_HELD_PATH    "/mnt/js8_held.txt"       /* MSG TO: we keep for someone else */
+#define JS8_HELD_PATH    BOARD_DATA "/js8_held.txt"       /* MSG TO: we keep for someone else */
 #endif
 #if !defined(JS8_LOG_PATH)
-#define JS8_LOG_PATH     "/mnt/js8call_log.adi"    /* the file name desktop JS8Call uses */
+#define JS8_LOG_PATH     BOARD_DATA "/js8call_log.adi"    /* the file name desktop JS8Call uses */
 #endif
 
 /* Timing */

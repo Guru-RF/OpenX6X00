@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "board.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -18,7 +19,7 @@ extern "C" {
 #endif
 
 #ifndef TCI_CONF
-#define TCI_CONF         "/mnt/tci.conf"   /* enabled=0|1, port=NNNN */
+#define TCI_CONF         BOARD_DATA "/tci.conf"   /* enabled=0|1, port=NNNN */
 #endif
 #define TCI_DEFAULT_PORT 50001
 

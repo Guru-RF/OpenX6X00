@@ -7,6 +7,7 @@
  */
 
 #include "screen_main.h"
+#include "board.h"
 #include "wefax_window.h"
 #include "freq_list.h"
 #include "wefax/decoder.h"
@@ -43,7 +44,7 @@
 
 /* Rows kept at full size for Save: 2400 x 1809 = 4.1 MiB, a vertical chart fits */
 #define STORE_ROWS      2400
-#define SAVE_DIR        "/mnt/wefax"
+#define SAVE_DIR        BOARD_DATA "/wefax"
 #define TX_DIR          SAVE_DIR "/tx_pics"
 #define BROWSER_FILES   128
 

@@ -18,6 +18,7 @@
  */
 
 #include "dialog_cw_trainer.h"
+#include "board.h"
 
 #include "buttons.h"
 #include "cJSON.h"
@@ -60,7 +61,7 @@
 #define RESET_MS    3000    /* second press of Reset stats within this time */
 
 #ifndef CWT_STATS_FILE
-#define CWT_STATS_FILE "/mnt/cw_trainer.json"
+#define CWT_STATS_FILE BOARD_DATA "/cw_trainer.json"
 #endif
 
 #define X           16

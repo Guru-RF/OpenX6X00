@@ -11,6 +11,7 @@
  */
 
 #include "ft8_window.h"
+#include "board.h"
 
 #include <errno.h>
 #include <math.h>
@@ -331,10 +332,10 @@ static void map_open(bool heard) {
         return;
     }
     if (heard)
-        map_obj = js8_map_create(dialog.obj, WIDTH, WF_HEIGHT, station_qth(), "/mnt/ft_log.adi", js8_map_heard_fill,
+        map_obj = js8_map_create(dialog.obj, WIDTH, WF_HEIGHT, station_qth(), BOARD_DATA "/ft_log.adi", js8_map_heard_fill,
                                  false, map_pick);
     else
-        map_obj = js8_map_create(dialog.obj, WIDTH, WF_HEIGHT, station_qth(), "/mnt/ft_log.adi", NULL, true, NULL);
+        map_obj = js8_map_create(dialog.obj, WIDTH, WF_HEIGHT, station_qth(), BOARD_DATA "/ft_log.adi", NULL, true, NULL);
     if (!map_obj) {
         msg_update_text_fmt("Not enough memory for the map");
         return;
@@ -1328,7 +1329,7 @@ static void construct_cb(lv_obj_t *parent) {
     main_screen_lock_band(true);
 
     decoder_start();
-    ft8_log = adif_log_init("/mnt/ft_log.adi");
+    ft8_log = adif_log_init(BOARD_DATA "/ft_log.adi");
 
     /* WSJT-X datagrams over UDP (GridTracker, JTAlert...): /mnt/ft8_udp.conf */
     ft8_udp_init();

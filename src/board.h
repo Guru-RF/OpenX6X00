@@ -25,6 +25,12 @@
 #define BOARD_PA_SINK       "alsa_output.platform-sound.stereo-fallback"
 #define BOARD_PA_SOURCE     "alsa_input.platform-sound.stereo-fallback"
 
+/* The user's data: the settings database, logs, macros, recordings, themes. The X6100's data
+ * partition; a desktop build passes its own directory (-DBOARD_DATA='"..."') */
+#ifndef BOARD_DATA
+#define BOARD_DATA          "/mnt"
+#endif
+
 /* The CAT serial port behind the USB bridge, the clock chip */
 #define BOARD_CAT_DEV       "/dev/ttyS2"
 #define BOARD_RTC_DEV       "/dev/rtc1"

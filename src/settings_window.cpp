@@ -1055,7 +1055,7 @@ static lv_timer_t *bt_visible_timer;
 static uint32_t bt_visible_tick;     /* last tap: btcat-ctl gets 3 s to write the state */
 
 static bool btcat_read(const char *key, bool def) {
-    const char *files[] = { "/etc/default/btcat", "/mnt/btcat.conf" };
+    const char *files[] = { "/etc/default/btcat", BOARD_DATA "/btcat.conf" };
     bool val = def;
     size_t klen = strlen(key);
 
@@ -2153,7 +2153,7 @@ static void bt_scan_cb(lv_event_t *e) {
 static bool bt_autoconn(const char *addr) {
     char  line[512];
     bool  on = false;
-    FILE *f = fopen("/mnt/btaudio.conf", "r");
+    FILE *f = fopen(BOARD_DATA "/btaudio.conf", "r");
 
     if (!f) {
         return false;
@@ -3686,7 +3686,7 @@ static void make_audio_page() {
 /* The network name (x6100-hostname): the hostname, announced by mDNS as <name>.local, so the
  * web pages and the TCI server are found without an address. Saved on the DATA partition. */
 
-#define NN_CONF "/mnt/hostname.conf"
+#define NN_CONF BOARD_DATA "/hostname.conf"
 #define NN_MAX  32
 
 static void nn_load(char *out, size_t size) {
@@ -3965,8 +3965,8 @@ static lv_obj_t * upd_line(uint8_t row) {
 /* Broadcast list (Update): x6100-broadcast-update downloads EiBi's schedule for the SWL panel and
  * the broadcast name; a timer shows its progress file, at the end broadcast_db reads the new list. */
 #define BC_CTL      "/usr/sbin/x6100-broadcast-update"
-#define BC_INFO     "/mnt/broadcast.info"
-#define BC_PROGRESS "/mnt/.broadcast.progress"
+#define BC_INFO     BOARD_DATA "/broadcast.info"
+#define BC_PROGRESS BOARD_DATA "/.broadcast.progress"
 
 static lv_obj_t   *bc_note;
 static lv_timer_t *bc_timer;
@@ -4038,7 +4038,7 @@ static void bc_btn_cb(lv_event_t *e) {
 /* Firmware update (x6100-update): Check asks GitHub for a newer release, Install downloads and
  * installs it (the GUI restarts at the end); the note follows the helper's progress file */
 #define UPD_CTL      "/usr/sbin/x6100-update"
-#define UPD_PROGRESS "/mnt/update/.progress"
+#define UPD_PROGRESS BOARD_DATA "/update/.progress"
 
 static lv_obj_t   *upd_note, *upd_btn;
 static lv_timer_t *upd_timer;
@@ -4194,7 +4194,7 @@ static uint8_t make_broadcast_list(uint8_t row) {
     if (f && fscanf(f, "%7s %11s %d", season, day, &stations) == 3) {
         bc_thousands(n, sizeof(n), stations);
         snprintf(s, sizeof(s), "In use: season %s, updated %s, %s stations.", season, day, n);
-    } else if (stat("/mnt/broadcast.csv", &st) == 0) {
+    } else if (stat(BOARD_DATA "/broadcast.csv", &st) == 0) {
         strftime(day, sizeof(day), "%Y-%m-%d", localtime(&st.st_mtime));
         snprintf(s, sizeof(s), "In use: the list that came with the firmware, from %s.", day);
     } else {
@@ -4247,7 +4247,7 @@ static void fr_timer_cb(lv_timer_t *t) {
     }
     lv_label_set_text(fr_count, "Resetting...");
     lv_refr_now(NULL);
-    factory_reset_dir("/mnt");
+    factory_reset_dir(BOARD_DATA);
     _exit(0);   /* not exit(): no destructor may write the settings back */
 }
 

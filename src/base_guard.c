@@ -5,6 +5,7 @@
  */
 
 #include "base_guard.h"
+#include "board.h"
 
 #include <stdarg.h>
 #include <stdatomic.h>
@@ -15,7 +16,7 @@
 #include <unistd.h>
 
 #ifndef BASE_GUARD_LOG
-#define BASE_GUARD_LOG  "/mnt/base_i2c.log"
+#define BASE_GUARD_LOG  BOARD_DATA "/base_i2c.log"
 #endif
 #define LOG_MAX         (16 * 1024)
 

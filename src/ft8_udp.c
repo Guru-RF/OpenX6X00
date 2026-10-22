@@ -5,6 +5,7 @@
  */
 
 #include "ft8_udp.h"
+#include "board.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -18,7 +19,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-#define CONF_PATH        "/mnt/ft8_udp.conf"
+#define CONF_PATH        BOARD_DATA "/ft8_udp.conf"
 
 #define WSJTX_MAGIC      0xadbccbdaU
 #define WSJTX_SCHEMA     3U          /* schema 3 is what WSJT-X 2.x emits */

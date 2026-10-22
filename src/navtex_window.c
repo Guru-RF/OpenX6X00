@@ -6,6 +6,7 @@
 // Copyright (c) 2026 Giovanni Ricciardi IU1WXY
 
 #include "navtex_window.h"
+#include "board.h"
 #include "navtex/sitorb.h"
 #include "navtex/dsc.h"
 #include "ft8/decode_list.h"
@@ -32,7 +33,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define NAVTEX_SAVE_DIR "/mnt/navtex"   /* navtex-YYYYMMDD-HHMMSS.txt, on the web Files page (idea from 1KO125) */
+#define NAVTEX_SAVE_DIR BOARD_DATA "/navtex"   /* navtex-YYYYMMDD-HHMMSS.txt, on the web Files page (idea from 1KO125) */
 
 #define TEXT_SIZE   65536   /* the text on screen; whole lines go from the top when it is full */
 #define RX_CHARS    512     /* characters waiting for the UI timer */

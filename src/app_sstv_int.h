@@ -8,6 +8,7 @@
 #pragma once
 
 #include "app_frame.h"
+#include "board.h"
 #include "app_sstv.h"
 #include "buttons.h"
 #include "dialog.h"
@@ -26,7 +27,7 @@
 #define SSTV_COL_W      (APP_FRAME_X + APP_FRAME_W - 8 - SSTV_COL_X)
 #define SSTV_PIC_PIXELS (((DIALOG_H_MAX - 20) * 4 / 3) * (DIALOG_H_MAX - 20))   /* largest dialog */
 
-#define SSTV_DIR        "/mnt/sstv"
+#define SSTV_DIR        BOARD_DATA "/sstv"
 #define SSTV_HELP_LINE  "Freq.: calling frequencies   Pictures in /mnt/sstv"
 
 /* ---- app_sstv.c ---- */

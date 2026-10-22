@@ -21,6 +21,7 @@
  */
 
 #include "dxcc.h"
+#include "board.h"
 
 #include <ctype.h>
 #include <pthread.h>
@@ -29,7 +30,7 @@
 #include <string.h>
 
 #ifndef CTY_SD                     /* tests point these elsewhere */
-#define CTY_SD      "/mnt/cty.dat"
+#define CTY_SD      BOARD_DATA "/cty.dat"
 #endif
 #ifndef CTY_IMAGE
 #define CTY_IMAGE   "/usr/share/x6100/cty.dat"

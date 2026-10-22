@@ -23,6 +23,7 @@
 #include <math.h>
 
 #include "audio.h"
+#include "board.h"
 #include "cfg/cfg_api.h"
 #include "app_window.h"
 #include "voice_messages.h"
@@ -65,7 +66,7 @@ typedef struct {
 } item_t;
 
 #ifndef VOICE_MSG_PATH
-#define VOICE_MSG_PATH "/mnt/msg"
+#define VOICE_MSG_PATH BOARD_DATA "/msg"
 #endif
 static const char *path = VOICE_MSG_PATH;
 

@@ -5,6 +5,7 @@
  */
 
 #include "olivia_macro.h"
+#include "board.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -14,7 +15,7 @@
 #include "digi_qso.h"         /* shared QSO state: DX call and RST */
 
 #ifndef OLIVIA_MACROS_PATH
-#define OLIVIA_MACROS_PATH "/mnt/olivia_macros.txt"
+#define OLIVIA_MACROS_PATH BOARD_DATA "/olivia_macros.txt"
 #endif
 
 static olivia_macro_t macros[OLIVIA_MACRO_MAX];

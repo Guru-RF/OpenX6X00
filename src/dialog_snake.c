@@ -9,6 +9,7 @@
  *  only biting yourself ends the game. The best score stays in /mnt/snake_best.
  */
 #include "dialog_snake.h"
+#include "board.h"
 
 #include "dialog.h"
 #include "styles.h"
@@ -30,7 +31,7 @@
 #define MAX_LEN    (COLS * (DIALOG_H_MAX / CELL))
 #define STEP_MS    180      /* the start: slow; 20 ms less every 100 points, down to 100 */
 #define STEP_MIN   100
-#define BEST_FILE  "/mnt/snake_best"
+#define BEST_FILE  BOARD_DATA "/snake_best"
 
 typedef struct {
     int8_t x, y;

@@ -17,6 +17,7 @@
  * firmware restarts, not saved.
  */
 #include "app_sstv_int.h"
+#include "board.h"
 
 #include "audio.h"
 #include "keyboard.h"
@@ -40,9 +41,9 @@
 
 /* folders and the file handed to the encoder (other paths for the PC harness) */
 #ifndef SSTV_TX_PICS_DIR
-#define SSTV_TX_PICS_DIR "/mnt/sstv/tx_pics"
-#define SSTV_TX_TEXT_DIR "/mnt/sstv/tx_text"
-#define SSTV_TX_PNG      "/mnt/sstv-tx.png"
+#define SSTV_TX_PICS_DIR BOARD_DATA "/sstv/tx_pics"
+#define SSTV_TX_TEXT_DIR BOARD_DATA "/sstv/tx_text"
+#define SSTV_TX_PNG      BOARD_DATA "/sstv-tx.png"
 #endif
 
 #define PREROLL_MS   500u          /* silence before the VIS: the TX path settles */

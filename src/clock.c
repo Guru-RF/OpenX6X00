@@ -7,6 +7,7 @@
  */
 
 #include "clock.h"
+#include "board.h"
 
 #include "styles.h"
 #include "theme.h"
@@ -214,7 +215,7 @@ static time_t get_last_sync_time() {
 
 /* Time zone: POSIX TZ string kept in /mnt/tz.conf, the system clock stays UTC */
 
-#define TZ_FILE "/mnt/tz.conf"
+#define TZ_FILE BOARD_DATA "/tz.conf"
 
 void clock_tz_init() {
     char  line[64] = "UTC0";

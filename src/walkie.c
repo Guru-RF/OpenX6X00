@@ -9,6 +9,7 @@
  */
 
 #include "walkie.h"
+#include "board.h"
 
 #include "styles.h"
 #include "theme.h"
@@ -175,7 +176,7 @@ static void meter_draw_cb(lv_event_t *e) {
  * of the same format with the slot number ("ch", 1-32) in each entry. freq 0: empty slot */
 #define WCH_N       32
 #ifndef WCH_FILE
-#define WCH_FILE    "/mnt/walkie_channels.json"
+#define WCH_FILE    BOARD_DATA "/walkie_channels.json"
 #endif
 
 static channel_t wch[WCH_N];

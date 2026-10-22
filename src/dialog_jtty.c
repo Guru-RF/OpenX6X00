@@ -22,6 +22,7 @@
  */
 
 #include "dialog_jtty.h"
+#include "board.h"
 
 #include "lvgl/lvgl.h"
 
@@ -143,7 +144,7 @@ static float       sp_edge_hi = 2800.0f;
 /* F1-F8 are a macro list, as the PSK and Olivia ones: /mnt/jtty_macros.txt, one
  * "name<TAB>text" line per key in order. A missing file is written with the WSJT-X
  * keys; keys past the end of the list are empty. Read at every opening. */
-#define JTTY_MACROS_PATH "/mnt/jtty_macros.txt"
+#define JTTY_MACROS_PATH BOARD_DATA "/jtty_macros.txt"
 #define FKEYS           8
 #define FKEY_NAME       24
 

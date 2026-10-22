@@ -43,6 +43,7 @@
  */
 
 #include "dialog_psk.h"
+#include "board.h"
 
 #include "lvgl/lvgl.h"
 
@@ -172,7 +173,7 @@
 #define DIAL_MAX_HZ     50000
 
 #ifndef SQL_CONF_PATH
-#define SQL_CONF_PATH   "/mnt/psk.conf"
+#define SQL_CONF_PATH   BOARD_DATA "/psk.conf"
 #endif
 
 /* ------------------------------------------------------------------ */

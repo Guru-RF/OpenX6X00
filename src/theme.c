@@ -5,6 +5,7 @@
  */
 
 #include "theme.h"
+#include "board.h"
 
 #include "cJSON.h"
 #include "fonts/font_select.h"
@@ -18,7 +19,7 @@
 #include <unistd.h>
 
 #ifndef THEMES_DIR
-#define THEMES_DIR "/mnt/themes"
+#define THEMES_DIR BOARD_DATA "/themes"
 #endif
 
 enum { B_RFGURU, B_LEGACY, B_OUTDOOR, B_CLASSIC, B_OUTDOOR_NEG, B_VISION, B_BLACK_METAL, B_TOTAL_BLACK, B_COUNT };

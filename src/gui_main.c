@@ -192,7 +192,7 @@ static void settings_load(void) {
     vol_init();
     /* Bundled themes to the SD card once; one already there is never overwritten */
     if (system("mkdir -p /mnt/themes; for t in /usr/share/x6100/themes/*; do "
-               "[ -e \"/mnt/themes/${t##*/}\" ] || cp -r \"$t\" /mnt/themes/; done") != 0)
+               "[ -e \"" BOARD_DATA "/themes/${t##*/}\" ] || cp -r \"$t\" " BOARD_DATA "/themes/; done") != 0)
         LV_LOG_WARN("Bundled themes not copied to /mnt/themes");
     styles_load(params.theme_name.x);
 }
@@ -216,7 +216,7 @@ static void services_start(void) {
     if (!qso_log_init()) {
         LV_LOG_ERROR("Can't init QSO log");
     }
-    qso_log_import_adif("/mnt/incoming_log.adi");
+    qso_log_import_adif(BOARD_DATA "/incoming_log.adi");
     dialog_cluster_start_client();
 }
 

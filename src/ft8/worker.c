@@ -7,6 +7,7 @@
  */
 
 #include "worker.h"
+#include "../board.h"
 
 #include "../util.h"
 #include "gfsk.h"
@@ -33,7 +34,7 @@
 #define TIME_OSR 4               // Time oversampling rate (symbol subdivision)
 #define FREQ_OSR 2               // Frequency oversampling rate (bin subdivision)
 #define FTXLIB_MIN_SCORE_DEFAULT 10
-#define FTXLIB_MIN_SCORE_PATH "/mnt/ft8lib_min_score.txt"
+#define FTXLIB_MIN_SCORE_PATH BOARD_DATA "/ft8lib_min_score.txt"
 #define DECODE_BLOCK_STRIDE 2    // Try to decode each N block
 #define EARLY_LDPC_ITERATIONS 25 // LDPC iterations on early decoding
 

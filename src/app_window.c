@@ -7,6 +7,7 @@
  */
 
 #include "app_window.h"
+#include "board.h"
 #include "theme.h"
 #include "gui_styles.h"
 #include "radio.h"
@@ -21,7 +22,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define APP_FREQS "/mnt/app_freqs"   /* "<app> <freq> <mode>" a line */
+#define APP_FREQS BOARD_DATA "/app_freqs"   /* "<app> <freq> <mode>" a line */
 
 static dialog_t *shown;              /* the window on screen (or the last one asked for) */
 static int32_t   mode_back = -1;     /* the mode an app replaced, given back when it closes */

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "board.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -18,7 +19,7 @@
 extern "C" {
 #endif
 
-#define BIRDIE_FILE "/mnt/birdies.txt"      /* one frequency in Hz a line, sorted */
+#define BIRDIE_FILE BOARD_DATA "/birdies.txt"      /* one frequency in Hz a line, sorted */
 #define BIRDIES_MAX 256
 
 /* Loads the file, takes the marks and the notch along with the frequency and the mode (LVGL

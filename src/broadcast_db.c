@@ -1,3 +1,4 @@
+#include "board.h"
 // SPDX-License-Identifier: LGPL-2.1-or-later
 //
 // Xiegu X6100 LVGL GUI - broadcast stations from the EiBi CSV (broadcast_db.h)
@@ -15,7 +16,7 @@
 #include <time.h>       /* gmtime_r */
 #include <unistd.h>     /* access, unlink */
 
-#define DB_FILE     "/mnt/broadcast.csv"
+#define DB_FILE     BOARD_DATA "/broadcast.csv"
 #define DB_DEFAULT  "/usr/share/x6100/broadcast.csv"
 
 /* The EiBi columns: kHz;Time(UTC);Days;ITU;Station;Lng;Target;Remarks;P;Start;Stop */

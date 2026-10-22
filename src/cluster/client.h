@@ -10,6 +10,7 @@
 #pragma once
 
 #include "spots.h"
+#include "../board.h"
 
 #include <time.h>
 
@@ -18,7 +19,7 @@ extern "C" {
 #endif
 
 #ifndef CLUSTER_CONF /* overridden by the tests and the UI harness */
-#define CLUSTER_CONF         "/mnt/cluster.conf"
+#define CLUSTER_CONF         BOARD_DATA "/cluster.conf"
 #endif
 #define CLUSTER_DEFAULT_HOST "dxfun.com"
 #define CLUSTER_DEFAULT_PORT 8000

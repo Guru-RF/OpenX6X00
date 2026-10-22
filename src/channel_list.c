@@ -14,6 +14,7 @@
 // Copyright (c) 2026 Giovanni Ricciardi IU1WXY, own code of the IU1WXY firmware
 
 #include "channel_list.h"
+#include "board.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,7 +24,7 @@
 #include "cJSON.h"
 #include "cfg/cfg_api.h"
 
-#define CHANNELS_FILE   "/mnt/channels.json"
+#define CHANNELS_FILE   BOARD_DATA "/channels.json"
 #define CHANNELS_TMP    CHANNELS_FILE ".tmp"
 #define COUNT(a)        (sizeof(a) / sizeof((a)[0]))
 

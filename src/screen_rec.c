@@ -16,6 +16,7 @@
  * frame, so audio and video stay in sync. */
 
 #include "lv_drivers/display/drm.h"
+#include "board.h"
 #include <stdlib.h>
 #include <string.h>
 #include <setjmp.h>
@@ -46,7 +47,7 @@
 #define SCREEN_REC_FPS      8
 #define SCREEN_REC_QUALITY  70
 #ifndef SCREEN_REC_DIR
-#define SCREEN_REC_DIR      "/mnt/screenrec"
+#define SCREEN_REC_DIR      BOARD_DATA "/screenrec"
 #endif
 #define SCREEN_REC_MIN_MB   50
 #define SCREEN_REC_MB_MIN   45              /* about 42 MB a minute measured on the radio */

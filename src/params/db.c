@@ -7,6 +7,7 @@
  */
 
 #include "db.h"
+#include "../board.h"
 
 #include "migrations.h"
 #include "../util.h"
@@ -90,7 +91,7 @@ bool database_init() {
     sqlite3_config(SQLITE_CONFIG_LOG, errorLogCallback, NULL);
     sqlite3_config(SQLITE_CONFIG_SERIALIZED);
 
-    int rc = sqlite3_open("/mnt/params.db", &db);
+    int rc = sqlite3_open(BOARD_DATA "/params.db", &db);
 
     if (rc != SQLITE_OK) {
         LV_LOG_ERROR("Can't open params.db");

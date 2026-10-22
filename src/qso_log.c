@@ -7,6 +7,7 @@
  */
 
 #include "qso_log.h"
+#include "board.h"
 
 #include "util.h"
 #include "msg.h"
@@ -20,7 +21,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define LOG_DB  "/mnt/qso_log.db"
+#define LOG_DB  BOARD_DATA "/qso_log.db"
 
 /* The table and its indexes as radios already have them on disk: never change a column */
 static const char *schema[] = {

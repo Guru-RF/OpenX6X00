@@ -13,13 +13,14 @@
 #include <sndfile.h>
 
 #include "audio.h"
+#include "board.h"
 #include "dialog_recorder.h"
 #include "recorder.h"
 #include "msg.h"
 #include "params/params.h"
 #include "scheduler.h"
 
-char            *recorder_path = "/mnt/rec";
+char            *recorder_path = BOARD_DATA "/rec";
 
 /* The file is written from the audio thread and opened and closed from the GUI (or the player's)
  * thread: the lock keeps a close out of a write in progress (audit A07) */

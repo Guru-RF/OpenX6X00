@@ -5,6 +5,7 @@
  */
 
 #include "btaudio.h"
+#include "board.h"
 
 #include "cfg/settings_manager.h"
 #include "cfg/subject_api.h"
@@ -22,10 +23,10 @@ extern "C" {
 }
 
 #define BTAUDIO_CTL   "/usr/sbin/btaudio-ctl"
-#define BTAUDIO_CONF  "/mnt/btaudio.conf"
+#define BTAUDIO_CONF  BOARD_DATA "/btaudio.conf"
 #define HP_STATE      "/tmp/btaudio-hp"     /* written by btaudio-ctl: headphones connected */
-#define HP_VOL_FILE   "/mnt/btaudio.hpvol"  /* last headphone volume set with the VOL control */
-#define SAVED_AF_VOL  "/mnt/btaudio.afvol"  /* AF volume before muting, survives a power off */
+#define HP_VOL_FILE   BOARD_DATA "/btaudio.hpvol"  /* last headphone volume set with the VOL control */
+#define SAVED_AF_VOL  BOARD_DATA "/btaudio.afvol"  /* AF volume before muting, survives a power off */
 
 struct result_t {
     std::string       out;

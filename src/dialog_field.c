@@ -14,6 +14,7 @@
  */
 
 #include "dialog_field.h"
+#include "board.h"
 
 #include "buttons.h"
 #include "cfg/cfg_api.h"
@@ -63,7 +64,7 @@
 #define VF(n) (theme_shape.vision ? font_down(&sony_##n, VISION_FONT_STEPS - 1) : &sony_##n)
 
 #ifndef FIELD_DIR   /* overridden by the UI harness */
-#define FIELD_DIR   "/mnt/field"
+#define FIELD_DIR   BOARD_DATA "/field"
 #endif
 #ifndef FIELD_ICONS
 #define FIELD_ICONS "/usr/share/x6100/field"

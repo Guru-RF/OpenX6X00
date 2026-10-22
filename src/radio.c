@@ -10,6 +10,7 @@
  *      INCLUDES
  *********************/
 #include "radio.h"
+#include "board.h"
 
 #include "hw/hw.h"
 
@@ -859,8 +860,8 @@ static void recover_processing_audio_inputs() {
 /* Battery log for the discharge curve of the pack and the time left (bat_est.c), every
  * minute: the base gives the voltage (0.1 V steps) and its own %, no current. Called about
  * every 0.4 s: TX seconds and watts add up in between */
-#define BATTERY_LOG     "/mnt/battery_log.csv"
-#define BATTERY_MODEL   "/mnt/battery_model.json"
+#define BATTERY_LOG     BOARD_DATA "/battery_log.csv"
+#define BATTERY_MODEL   BOARD_DATA "/battery_model.json"
 #define BATTERY_HEADER  "time,vbat,batcap,vext,charging,tx,backlight,cpu_mhz,tx_s,tx_w,wifi,bt,hp\n"
 
 /* GUI thread: arg = { % , minutes left or -1 }. Short texts: longer ones scroll */

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "lvgl/lvgl.h"
+#include "board.h"
 
 #include <stdbool.h>
 
@@ -18,7 +19,7 @@
 extern "C" {
 #endif
 
-#define REMOTE_CONF         "/mnt/remote.conf"
+#define REMOTE_CONF         BOARD_DATA "/remote.conf"
 #define REMOTE_DEFAULT_PORT 50002
 
 void remote_server_init(void);

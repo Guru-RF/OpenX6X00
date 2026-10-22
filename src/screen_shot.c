@@ -10,6 +10,7 @@
  * thread of its own */
 
 #include "screen_shot.h"
+#include "board.h"
 #include "lvgl/lvgl.h"
 #include "lv_drivers/display/drm.h"
 #include "util.h"
@@ -86,7 +87,7 @@ static void *screenshot_thread(void *arg) {
     FILE   *f;
 
     get_time_str(when, sizeof(when));
-    snprintf(path, sizeof(path), "/mnt/%s.png", when);
+    snprintf(path, sizeof(path), BOARD_DATA "/%s.png", when);
     f = fopen(path, "wb");
     if (!f) {
         msg_update_text_fmt("Error write file");
