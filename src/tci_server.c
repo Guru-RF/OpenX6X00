@@ -390,9 +390,13 @@ static void apply_cmd(void *arg) {
     }
 }
 
+/* An unkey takes the scheduler's reserve: a flood of tuning must not keep the radio on the air */
 static void put_cmd(cmd_id_t id, int32_t a, int32_t b, bool tci) {
     cmd_t c = {.id = id, .a = a, .b = b, .tci = tci};
-    scheduler_put(apply_cmd, &c, sizeof(c));
+    if (id == C_UNKEY)
+        scheduler_put_urgent(apply_cmd, &c, sizeof(c));
+    else
+        scheduler_put(apply_cmd, &c, sizeof(c));
 }
 
 /* ---- The state, read from any thread ------------------------------------------------ */

@@ -283,14 +283,14 @@ static int handle_line(const char *line, char *out, size_t size) {
         l = disp_get(out, size);
     } else if (!strcmp(name->valuestring, "disp_set")) {
         disp_set_t d;
-        if (!(err = disp_set(req, &d)))
-            scheduler_put(disp_apply, &d, sizeof(d));
+        if (!(err = disp_set(req, &d)) && !scheduler_put(disp_apply, &d, sizeof(d)))
+            err = "Busy, try again";    /* not "ok" for a change that will not happen (audit A21) */
     } else if (!strcmp(name->valuestring, "eth_get")) {
         l = eth_get(out, size);
     } else if (!strcmp(name->valuestring, "eth_set")) {
         eth_cfg_t cfg;
-        if (!(err = eth_set(req, &cfg)))
-            scheduler_put(eth_apply_cb, &cfg, sizeof(cfg));
+        if (!(err = eth_set(req, &cfg)) && !scheduler_put(eth_apply_cb, &cfg, sizeof(cfg)))
+            err = "Busy, try again";
     } else {
         err = "Unknown command";
     }

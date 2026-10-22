@@ -28,15 +28,21 @@ void scheduler_init();
 bool scheduler_on_gui_thread();
 
 /**
- * Schedule execution function in main thread
+ * Run fn on the GUI thread later, with a copy of arg (arg_size bytes).
+ * False: the queue is full, fn will not run; the caller says so or tries again (audit A21)
  */
-void scheduler_put(scheduler_fn_t fn, void *arg, size_t arg_size);
-
+bool scheduler_put(scheduler_fn_t fn, void *arg, size_t arg_size);
 
 /**
- * Schedule execution function without arguments in main thread
+ * The same with room kept beyond the usual bound: for what must get through when the queue
+ * is flooded (an unkey, a stop)
  */
-void scheduler_put_noargs(scheduler_fn_t fn);
+bool scheduler_put_urgent(scheduler_fn_t fn, void *arg, size_t arg_size);
+
+/**
+ * Run fn(NULL) on the GUI thread later. False: the queue is full
+ */
+bool scheduler_put_noargs(scheduler_fn_t fn);
 
 /**
  * Run fn(arg) on the GUI thread and wait for it; on the GUI thread itself it runs at once.
@@ -45,7 +51,7 @@ void scheduler_put_noargs(scheduler_fn_t fn);
 bool scheduler_call(scheduler_fn_t fn, void *arg);
 
 /**
- * Execute scheduled functions
+ * Run what is queued, up to a budget per call; the rest waits for the next loop
  */
 void scheduler_work();
 

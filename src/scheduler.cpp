@@ -20,6 +20,8 @@ extern "C" {
 }
 
 #define QUEUE_MAX_SIZE  64
+#define QUEUE_URGENT    16      /* room beyond that for what must get through: an unkey, a stop */
+#define WORK_BUDGET     32      /* items per scheduler_work(): a flooding producer leaves LVGL its turn */
 
 /* A caller waiting for its item (scheduler_call) */
 struct sync_t {
@@ -49,9 +51,10 @@ bool scheduler_on_gui_thread() {
     return gui_thread_known && pthread_equal(pthread_self(), gui_thread);
 }
 
-static bool put(scheduler_fn_t fn, void *arg, sync_t *sync) {
+static bool put(scheduler_fn_t fn, void *arg, sync_t *sync, bool urgent) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (queue.size() > QUEUE_MAX_SIZE){
+    size_t limit = urgent ? QUEUE_MAX_SIZE + QUEUE_URGENT : QUEUE_MAX_SIZE;
+    if (queue.size() >= limit) {
         LV_LOG_ERROR("Scheduler queue overflow");
         return false;
     }
@@ -59,18 +62,30 @@ static bool put(scheduler_fn_t fn, void *arg, sync_t *sync) {
     return true;
 }
 
-void scheduler_put(scheduler_fn_t fn, void * arg, size_t arg_size) {
+static bool put_copy(scheduler_fn_t fn, void *arg, size_t arg_size, bool urgent) {
     void *arg_copy = nullptr;
     if (arg_size) {
         arg_copy = malloc(arg_size);
+        if (!arg_copy)
+            return false;
         memcpy(arg_copy, arg, arg_size);
     }
-    if (!put(fn, arg_copy, nullptr)) {
+    if (!put(fn, arg_copy, nullptr, urgent)) {
         free(arg_copy);
+        return false;
     }
+    return true;
 }
 
-void scheduler_put_noargs(scheduler_fn_t fn) {
+bool scheduler_put(scheduler_fn_t fn, void * arg, size_t arg_size) {
+    return put_copy(fn, arg, arg_size, false);
+}
+
+bool scheduler_put_urgent(scheduler_fn_t fn, void * arg, size_t arg_size) {
+    return put_copy(fn, arg, arg_size, true);
+}
+
+bool scheduler_put_noargs(scheduler_fn_t fn) {
     return scheduler_put(fn, NULL, 0);
 }
 
@@ -80,7 +95,7 @@ bool scheduler_call(scheduler_fn_t fn, void *arg) {
         return true;
     }
     sync_t sync;
-    if (!put(fn, arg, &sync)) {
+    if (!put(fn, arg, &sync, false)) {
         return false;
     }
     std::unique_lock<std::mutex> lock(sync.m);
@@ -90,7 +105,7 @@ bool scheduler_call(scheduler_fn_t fn, void *arg) {
 
 void scheduler_work() {
     item_t item;
-    while (true) {
+    for (int budget = WORK_BUDGET; budget; budget--) {
         {
             std::lock_guard<std::mutex> lock(m_mutex);   /* the emptiness test under the lock too */
             if (queue.empty()) break;
