@@ -233,6 +233,7 @@
 
   /* ---- Audio over TCI: RX to the speaker, the microphone to the radio while PTT is held ---- */
   let actx = null, nextTime = 0, sndOn = false, micOn = false, txOn = false, micStream = null, micNode = null, micSrc = null;
+  let micReq = 0;   /* the microphone request in flight: an answer to an older one is let go (audit A18) */
   const HDR = 64;
   function connectTci() {
     if (!conf || !conf.tci_enabled || (tci && tci.readyState <= 1)) return;
@@ -266,12 +267,20 @@
   function micToggle() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { status(secure ? "No microphone access in this browser" : "Microphone: open the https page (link below)", true); return; }
     micOn = !micOn; $("#mic").attr("aria-pressed", String(micOn));
+    if (txOn) txStop(document.getElementById("pttbtn"));   /* no microphone, no transmission */
+    if (micStream) { micStream.getTracks().forEach(function(t) { t.stop(); }); micStream = null; }
+    const req = ++micReq;
     if (micOn) {
+      status("Asking the browser for the microphone...");
       navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true}, video: false}).then(function(s) {
+        if (req !== micReq) { s.getTracks().forEach(function(t) { t.stop(); }); return; }   /* Off, or On again, came first */
         micStream = s; status("Microphone ready: hold PTT to transmit");
         if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-      }, function(e) { micOn = false; $("#mic").attr("aria-pressed", "false"); status("Microphone refused: " + e.message, true); });
-    } else if (micStream) { micStream.getTracks().forEach(function(t) { t.stop(); }); micStream = null; }
+      }, function(e) {
+        if (req !== micReq) return;
+        micOn = false; $("#mic").attr("aria-pressed", "false"); status("Microphone refused: " + e.message, true);
+      });
+    } else status("Microphone off");
   }
   $("#mic").on("click", micToggle);
   function txFrame(samples, rate) {
