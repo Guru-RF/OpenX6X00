@@ -41,6 +41,7 @@ static int16_t          rows;
 static volatile bool    playing;
 static char             *renaming;      /* the name before Rename, while the editor is open */
 static pthread_t        play_thr;
+static bool             play_thr_live;  /* a play thread exists until play_done() has joined it */
 static int16_t          play_buf[PLAY_CHUNK];
 
 static void open_cb(lv_obj_t *parent);
@@ -110,44 +111,49 @@ static void file_path(char *buf, size_t size, const char *name) {
     snprintf(buf, size, "%s/%s", recorder_path, name);
 }
 
-/* Plays the selected file to the end or until Play Stop, TX or leaving the screen */
-static void *play_thread(void *arg) {
-    const char  *name = NULL;
-    char        path[300];
-    SF_INFO     info = { 0 };
-    SNDFILE     *f = NULL;
-    bool        bt;
+/* The file, opened on the GUI thread; the thread only plays it */
+typedef struct {
+    SNDFILE *f;
+} play_job_t;
 
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+static void play_done(void *unused);
+
+/* Plays the file to the end or until Play Stop, TX or leaving the screen. Nothing of LVGL
+ * is touched here: the name was read and the recorder stopped on the GUI thread before the
+ * start, the buttons come back through play_done() there (audit A08) */
+static void *play_thread(void *arg) {
+    play_job_t  *job = arg;
+    bool        bt;
 
     /* on the Bluetooth headphones when they stand in for the speaker */
     bt = audio_play_bt_begin();
     if (!bt) radio_set_play_mode(AUDIO_PLAY_ON);
 
-    name = selected();
-    if (name) {
-        file_path(path, sizeof(path), name);
-        f = sf_open(path, SFM_READ, &info);
-    }
-    if (f) {
-        if (recorder_is_on()) recorder_set_on(false);
-        for (playing = true; playing; ) {
-            int n = sf_read_short(f, play_buf, PLAY_CHUNK);
+    while (playing) {
+        int n = sf_read_short(job->f, play_buf, PLAY_CHUNK);
 
-            if (n <= 0) break;
-            audio_play(play_buf, n);
-        }
-        playing = false;
-        sf_close(f);
-        audio_play_wait();
+        if (n <= 0) break;
+        audio_play(play_buf, n);
     }
+    playing = false;
+    sf_close(job->f);
+    audio_play_wait();
 
     if (bt) audio_play_bt_end();
     else radio_set_play_mode(AUDIO_PLAY_OFF);
 
-    if (dialog.run) scheduler_put_noargs(show_page);
+    free(job);
+    scheduler_put_noargs(play_done);
     return NULL;
+}
+
+/* GUI thread, after the thread's last word: it is joined, the four buttons come back when
+ * this screen is still up */
+static void play_done(void *unused) {
+    if (!play_thr_live) return;
+    pthread_join(play_thr, NULL);
+    play_thr_live = false;
+    if (dialog.run) show_page(NULL);
 }
 
 /* The editor closed, with OK or not: the list takes the keys again */
@@ -262,8 +268,7 @@ static void open_cb(lv_obj_t *parent) {
 }
 
 static void close_cb(void) {
-    radio_set_play_mode(AUDIO_PLAY_OFF);
-    playing = false;
+    playing = false;    /* the thread stops; play_done() joins it, this screen gone or not */
     textarea_window_close();
     lv_timer_del(meter_timer);
 }
@@ -278,7 +283,28 @@ static void rec_stop_cb(button_data_t *b) {
 }
 
 static void play_cb(button_data_t *b) {
-    pthread_create(&play_thr, NULL, play_thread, NULL);
+    const char  *name = selected();
+    char        path[300];
+    SF_INFO     info = { 0 };
+    play_job_t  *job;
+
+    if (play_thr_live || !name) return;     /* the last one still winding down: not twice */
+    file_path(path, sizeof(path), name);
+    job = calloc(1, sizeof(*job));
+    job->f = sf_open(path, SFM_READ, &info);
+    if (!job->f) {
+        free(job);
+        return;
+    }
+    if (recorder_is_on()) recorder_set_on(false);
+    playing = true;     /* set here, not in the thread: a Stop before it got going holds */
+    if (pthread_create(&play_thr, NULL, play_thread, job) != 0) {
+        playing = false;
+        sf_close(job->f);
+        free(job);
+        return;
+    }
+    play_thr_live = true;
     set_buttons(&btn_play_stop, SLOT_PLAY);
 }
 
