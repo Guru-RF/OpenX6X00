@@ -10,5 +10,5 @@
 
 #include <stdint.h>
 
-/* A hand mic key as the base reports it (X6100_HKEY_*), 0 when it is let go */
+/* A hand mic key as the base reports it (RADIO_HKEY_*), 0 when it is let go */
 void hkey_put(uint32_t key);

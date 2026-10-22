@@ -15,7 +15,7 @@ extern "C" {
 #include "params/params.h"
 #include "pubsub_ids.h"
 
-#include <aether_radio/x6100_control/low/gpio.h>
+#include "radio.h"
 #include <arpa/inet.h>
 #include <glib.h>
 #include <stdio.h>
@@ -125,7 +125,7 @@ void wifi_power_setup() {
 void wifi_power_on() {
     LV_LOG_USER("Power on wifi/bt");
     params_bool_set(&params.wifi_enabled, true);
-    x6100_gpio_set(x6100_pin_wifi, 0);
+    radio_wifi_power(false);
     if (!device) {
         set_status(WIFI_STARTING);
     }
@@ -139,7 +139,7 @@ void wifi_power_off() {
         device = NULL;
     }
     params_bool_set(&params.wifi_enabled, false);
-    x6100_gpio_set(x6100_pin_wifi, 1);
+    radio_wifi_power(true);
     if (scan_timer) {
         lv_timer_del(scan_timer);
         scan_timer = NULL;

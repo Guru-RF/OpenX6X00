@@ -9,7 +9,7 @@
 #pragma once
 
 #include <stdbool.h>
-#include <aether_radio/x6100_control/control.h>
+#include <stdint.h>
 
 #include "radio_types.h"
 
@@ -89,8 +89,17 @@ bool radio_get_modem(void);   /* the TX audio from the GUI (apps, recordings), n
 /* true: the baseband sends our audio to the speaker, the path of voice prompts and the
  * recorder (meanwhile its audio to us is not the receiver); false: the mics again */
 void radio_speaker_play(bool speaker);
-/* audio_set_play_mode() with the radio lock: use this one */
+/* What the base streams: the receiver, our audio to the speaker, or the hand mic and our audio */
 void radio_set_play_mode(audio_play_mode_t mode);
+
+/* The base's firmware version, and as the base prints it */
+radio_base_ver_t radio_base_ver(void);
+const char *radio_base_ver_str(void);
+
+/* The board's switches on the base's pins */
+void radio_wifi_power(bool on);
+void radio_backlight_power(bool on);
+void radio_usb_to_cat(void);
 
 void radio_set_line_in(uint8_t d);
 void radio_set_line_out(uint8_t d);

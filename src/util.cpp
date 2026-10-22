@@ -138,7 +138,7 @@ void sleep_usec(uint32_t msec) {
     errno = olderrno;
 }
 
-int32_t util_compare_version(x6100_base_ver_t a, x6100_base_ver_t b) {
+int32_t util_compare_version(radio_base_ver_t a, radio_base_ver_t b) {
     int ret;
     if ((ret = COMPARE(a.major, b.major)) == 0) {
         if ((ret = COMPARE(a.minor, b.minor)) == 0) {

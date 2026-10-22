@@ -116,7 +116,7 @@ class Panorama {
 static pthread_mutex_t mux = PTHREAD_MUTEX_INITIALIZER;
 static bool            ready;
 
-static x6100_base_ver_t base_ver;
+static radio_base_ver_t base_ver;
 static bool             base_decim;     /* the base decimates the IQ for the zoom */
 static bool             base_dc_block;  /* the base removes DC from the IQ */
 static iirfilt_cccf     dc_block;
@@ -381,7 +381,7 @@ static void set_zoom(uint8_t z) {
 
 static void on_zoom_change(Subject *subj, void *user_data) {
     int32_t z = cfg_sm.p_mode_zoom.get();
-    bool    old_oem = base_ver.rev < 8 && util_compare_version(base_ver, (x6100_base_ver_t){1, 1, 9, 0}) < 0;
+    bool    old_oem = base_ver.rev < 8 && util_compare_version(base_ver, (radio_base_ver_t){1, 1, 9, 0}) < 0;
 
     if (old_oem) {
         set_zoom(z);
@@ -435,8 +435,8 @@ static void on_spectrum_show(Subject *subj, void *user_data) {
 }
 
 void dsp_init() {
-    base_ver = x6100_control_get_base_ver();
-    base_decim = util_compare_version(base_ver, (x6100_base_ver_t){1, 1, 9, 0}) >= 0 || base_ver.rev >= 8;
+    base_ver = radio_base_ver();
+    base_decim = util_compare_version(base_ver, (radio_base_ver_t){1, 1, 9, 0}) >= 0 || base_ver.rev >= 8;
     base_dc_block = base_ver.rev >= 8;
 
     sp_rx = new Panorama(SPECTRUM_NFFT);

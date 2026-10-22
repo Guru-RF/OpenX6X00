@@ -11,7 +11,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include <aether_radio/x6100_control/control.h>
+#include "radio_types.h"
 
 #define AUDIO_PLAY_RATE     (44100)
 #define AUDIO_CAPTURE_RATE  (44100)
@@ -29,12 +29,10 @@ typedef enum {
 #define AUDIO_EXIT_NO_SERVER 3
 
 void audio_init();
-void audio_mixer_setup(x6100_base_ver_t base_ver);
+void audio_mixer_setup(radio_base_ver_t base_ver);
 int audio_play(int16_t *buf, size_t samples);
 void audio_play_wait();
 void audio_play_flush();
-/* Without the radio lock: call radio_set_play_mode() */
-void audio_set_play_mode(audio_play_mode_t mode);
 
 /* Local playback on the Bluetooth headphones, from the playing thread (see audio.c) */
 bool audio_play_bt_begin(void);

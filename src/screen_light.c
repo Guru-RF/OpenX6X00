@@ -19,7 +19,7 @@
 #include "lvgl/lvgl.h"
 #include "util.h"
 
-#include <aether_radio/x6100_control/low/gpio.h>
+#include "radio.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,7 +52,7 @@ static void write_power(bool on) {
 }
 
 static void keys_light(bool on) {
-    x6100_gpio_set(x6100_pin_light, on ? 1 : 0);
+    radio_backlight_power(on);
 }
 
 static bool dark(void) {

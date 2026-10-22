@@ -23,7 +23,6 @@
 #include "tx_info.h"             /* tx_info_refresh: ALC and power */
 #include "tx_level.h"
 
-#include <aether_radio/x6100_control/control.h>   /* x6100_control_get_base_ver */
 
 /* Range of the gain applied to the samples, dB */
 #define DRIVE_FLOOR_DB      (-42.0f)
@@ -165,7 +164,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
 
 float tx_player_base_gain_offset(void) {
     /* Bases from rev 3 on (patched firmware) set the power themselves */
-    if (x6100_control_get_base_ver().rev >= 3) return -9.4f;
+    if (radio_base_ver().rev >= 3) return -9.4f;
 
     return -16.4f + 10.0f * log10f(LV_MIN(param_f_get(cfg_pwr), TX_PLAYER_MAX_PWR_W));
 }

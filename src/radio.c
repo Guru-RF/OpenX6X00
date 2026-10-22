@@ -11,6 +11,10 @@
  *********************/
 #include "radio.h"
 
+#include <aether_radio/x6100_control/control.h>
+#include <aether_radio/x6100_control/low/flow.h>
+#include <aether_radio/x6100_control/low/gpio.h>
+
 /* The GUI's enums (radio_types.h) are the library's numbers: what the library takes below
  * comes straight from them */
 #define SAME(a, b) _Static_assert((int)(a) == (int)(b), #a " is not " #b)
@@ -28,6 +32,19 @@ SAME(radio_key_auto_right, x6100_key_auto_right);
 SAME(radio_iambic_a, x6100_iambic_a);    SAME(radio_iambic_b, x6100_iambic_b);
 SAME(radio_mic_builtin, x6100_mic_builtin); SAME(radio_mic_handle, x6100_mic_handle);
 SAME(radio_mic_auto, x6100_mic_auto);
+SAME(RADIO_HKEY_SPCH, X6100_HKEY_SPCH);  SAME(RADIO_HKEY_TUNER, X6100_HKEY_TUNER);
+SAME(RADIO_HKEY_XFC, X6100_HKEY_XFC);    SAME(RADIO_HKEY_UP, X6100_HKEY_UP);
+SAME(RADIO_HKEY_DOWN, X6100_HKEY_DOWN);  SAME(RADIO_HKEY_VM, X6100_HKEY_VM);
+SAME(RADIO_HKEY_NW, X6100_HKEY_NW);      SAME(RADIO_HKEY_F1, X6100_HKEY_F1);
+SAME(RADIO_HKEY_F2, X6100_HKEY_F2);      SAME(RADIO_HKEY_1, X6100_HKEY_1);
+SAME(RADIO_HKEY_2, X6100_HKEY_2);        SAME(RADIO_HKEY_3, X6100_HKEY_3);
+SAME(RADIO_HKEY_4, X6100_HKEY_4);        SAME(RADIO_HKEY_5, X6100_HKEY_5);
+SAME(RADIO_HKEY_6, X6100_HKEY_6);        SAME(RADIO_HKEY_7, X6100_HKEY_7);
+SAME(RADIO_HKEY_8, X6100_HKEY_8);        SAME(RADIO_HKEY_9, X6100_HKEY_9);
+SAME(RADIO_HKEY_DOT, X6100_HKEY_DOT);    SAME(RADIO_HKEY_0, X6100_HKEY_0);
+SAME(RADIO_HKEY_CE, X6100_HKEY_CE);      SAME(RADIO_HKEY_MODE, X6100_HKEY_MODE);
+SAME(RADIO_HKEY_FIL, X6100_HKEY_FIL);    SAME(RADIO_HKEY_GENE, X6100_HKEY_GENE);
+SAME(RADIO_HKEY_FINP, X6100_HKEY_FINP);
 #undef SAME
 
 #include <unistd.h>
@@ -40,8 +57,6 @@ SAME(radio_mic_auto, x6100_mic_auto);
 #include <time.h>
 #include <sys/stat.h>
 
-#include <aether_radio/x6100_control/low/flow.h>
-#include <aether_radio/x6100_control/low/gpio.h>
 
 #include "cfg/cfg_api.h"
 #include "cfg/db.h"
@@ -172,7 +187,7 @@ static bool low_power = false;
 static pthread_mutex_t  control_mux;
 
 static x6100_flow_t    *pack;
-static x6100_base_ver_t base_ver;
+static radio_base_ver_t base_ver;      /* the base's firmware, read at init */
 static int8_t           audio_in_lvl;
 
 /* Written by the radio thread (RX/TX and the tuner's steps, from what the base reports) and by
@@ -246,10 +261,10 @@ void radio_init() {
 
 void radio_start() {
 
-    base_ver = x6100_control_get_base_ver();
+    base_ver = radio_base_ver();
 
     // Enable center mode by default (old behavior)
-    if ((util_compare_version(base_ver, (x6100_base_ver_t){1, 1, 9, 0}) >= 0) || (base_ver.rev >= 8)) {
+    if ((util_compare_version(base_ver, (radio_base_ver_t){1, 1, 9, 0}) >= 0) || (base_ver.rev >= 8)) {
         x6100_control_if_shift_set(false);
     }
 
@@ -352,7 +367,7 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_nr, on_change_uint8, x6100_control_nr_set);
     subject_subscribe_and_notify((Subject*)cfg_nr_level, on_change_uint8, x6100_control_nr_level_set);
 
-    if ((util_compare_version(base_ver, (x6100_base_ver_t){1, 1, 9, 0}) >= 0) || (base_ver.rev >= 8)) {
+    if ((util_compare_version(base_ver, (radio_base_ver_t){1, 1, 9, 0}) >= 0) || (base_ver.rev >= 8)) {
         subject_subscribe_and_notify((Subject*)cfg_mode_zoom, on_fw_zoom_change, NULL);
     }
 
@@ -567,8 +582,50 @@ bool radio_get_modem(void) {
 
 /* Under the lock: the record, PTT, modem, tune and split bits share one register, and the
  * library's read-modify-write of it from two threads lost a PTT or modem change */
+static void play_mode_apply(audio_play_mode_t mode) {
+    switch (mode) {
+    case AUDIO_PLAY_OFF:
+        x6100_control_record_set(false);
+        x6100_control_hmic_set(param_i_get(cfg_hmic));
+        x6100_control_imic_set(param_i_get(cfg_imic));
+        break;
+
+    case AUDIO_PLAY_ON:
+        x6100_control_hmic_set(0);
+        /* fall through */
+    case AUDIO_PLAY_VOICE_REC:
+        x6100_control_imic_set(0);
+        x6100_control_record_set(true);
+        break;
+
+    default:
+        break;
+    }
+}
+
 void radio_set_play_mode(audio_play_mode_t mode) {
-    WITH_RADIO_LOCK(audio_set_play_mode(mode));
+    WITH_RADIO_LOCK(play_mode_apply(mode));
+}
+
+radio_base_ver_t radio_base_ver(void) {
+    x6100_base_ver_t v = x6100_control_get_base_ver();
+    return (radio_base_ver_t){v.major, v.minor, v.patch, v.rev};
+}
+
+const char *radio_base_ver_str(void) {
+    return x6100_control_get_fw_version_str();
+}
+
+void radio_wifi_power(bool on) {
+    x6100_gpio_set(x6100_pin_wifi, on ? 1 : 0);
+}
+
+void radio_backlight_power(bool on) {
+    x6100_gpio_set(x6100_pin_light, on ? 1 : 0);
+}
+
+void radio_usb_to_cat(void) {
+    x6100_gpio_set(x6100_pin_usb, 1);
 }
 
 void radio_speaker_play(bool speaker) {

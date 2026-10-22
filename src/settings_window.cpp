@@ -3542,7 +3542,7 @@ static uint8_t make_smeter_fe(uint8_t row) {
 
 /* TX CAL: the transmitter's calibration and CESSB, per band where the base keeps them per band */
 static void make_txcal_page() {
-    x6100_base_ver_t base = x6100_control_get_base_ver();
+    radio_base_ver_t base = radio_base_ver();
     uint8_t          row;
 
     grid_create();
@@ -3636,7 +3636,7 @@ static void make_display_page() {
 }
 
 static void make_audio_page() {
-    x6100_base_ver_t base = x6100_control_get_base_ver();
+    radio_base_ver_t base = radio_base_ver();
     uint8_t          row;
 
     grid_create();
@@ -4336,7 +4336,7 @@ static void make_info_page() {
     row = info_row(row, "Version", strrchr(VERSION, ' ') + 1);
     row = info_row(row, "Project", "OpenX6X00 by RF.Guru");
     row = info_row(row, "Source", "github.com/Guru-RF/OpenX6X00");
-    row = info_row(row, "Baseband", x6100_control_get_fw_version_str());
+    row = info_row(row, "Baseband", radio_base_ver_str());
     row = make_update(row);
     row = make_broadcast_list(row);
     row = make_factory_reset(row);

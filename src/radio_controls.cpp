@@ -164,9 +164,9 @@ static bool from_table(cfg_ctrl_t ctrl, int32_t diff, char *buf, size_t size) {
 
 /* IF shift needs base firmware 1.1.9 (or a board revision 8 and later) */
 static bool if_shift_supported() {
-    x6100_base_ver_t ver = x6100_control_get_base_ver();
+    radio_base_ver_t ver = radio_base_ver();
 
-    return util_compare_version(ver, (x6100_base_ver_t){1, 1, 9, 0}) >= 0 || ver.rev >= 8;
+    return util_compare_version(ver, (radio_base_ver_t){1, 1, 9, 0}) >= 0 || ver.rev >= 8;
 }
 
 void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {

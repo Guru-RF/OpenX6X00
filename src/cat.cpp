@@ -34,7 +34,6 @@ extern "C" {
     #include "tx_info.h"
 
     #include "lvgl/lvgl.h"
-    #include <aether_radio/x6100_control/low/gpio.h>
     #include <fcntl.h>
     #include <stdio.h>
     #include <stdlib.h>
@@ -1188,7 +1187,7 @@ static void cat_thread() {
 
 void cat_init() {
     /* UART */
-    x6100_gpio_set(x6100_pin_usb, 1); /* USB -> CAT */
+    radio_usb_to_cat();
 
     /* X6100_CAT_DEV: another port, for a test through a pty */
     const char *dev = getenv("X6100_CAT_DEV");

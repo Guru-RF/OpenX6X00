@@ -165,7 +165,7 @@ void audio_init() {
     record_monitor_setup();
 }
 
-void audio_mixer_setup(x6100_base_ver_t base_ver) {
+void audio_mixer_setup(radio_base_ver_t base_ver) {
     int res;
     // overall level
     res = system("amixer sset 'Headphone',0 63,63"); // max output level
@@ -434,29 +434,6 @@ void audio_gain_db_transition(int16_t *buf, size_t samples, float gain1, float g
         out[i] = x;
     }
 }
-
-void audio_set_play_mode(audio_play_mode_t mode) {
-    switch (mode)
-    {
-    case AUDIO_PLAY_OFF:
-        x6100_control_record_set(false);
-        x6100_control_hmic_set(param_i_get(cfg_hmic));
-        x6100_control_imic_set(param_i_get(cfg_imic));
-        break;
-
-    case AUDIO_PLAY_ON:
-        x6100_control_hmic_set(0);
-    case AUDIO_PLAY_VOICE_REC:
-        x6100_control_imic_set(0);
-        x6100_control_record_set(true);
-        break;
-
-    default:
-        break;
-    }
-}
-
-
 
 float audio_set_play_vol(float db) {
     snd_mixer_t *handle;

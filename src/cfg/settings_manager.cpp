@@ -5,7 +5,6 @@
 #include <cstdio>
 
 extern "C" {
-#include <aether_radio/x6100_control/control.h>
 }
 
 

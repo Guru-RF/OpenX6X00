@@ -17,7 +17,7 @@
 
 extern "C" {
 #endif
-#include <aether_radio/x6100_control/control.h>
+#include "radio_types.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
@@ -41,7 +41,7 @@ char *util_canonize_callsign(const char *callsign, bool strip_slashes);
 
 void sleep_usec(uint32_t msec);
 
-int32_t util_compare_version(x6100_base_ver_t a, x6100_base_ver_t b);
+int32_t util_compare_version(radio_base_ver_t a, radio_base_ver_t b);
 
 #ifdef __cplusplus
 }

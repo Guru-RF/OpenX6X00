@@ -546,7 +546,7 @@ static void knob_binds_cb(Subject *subj, void *user_data) {
 
 void buttons_init(lv_obj_t *parent) {
     /* No auto notch before base revision 3 */
-    if (x6100_control_get_base_ver().rev < 3) page_dfn_1.items[4] = NULL;
+    if (radio_base_ver().rev < 3) page_dfn_1.items[4] = NULL;
 
     for (const auto &g : groups) {
         for (size_t i = 0; i < g.n; i++) {

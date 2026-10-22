@@ -11,6 +11,43 @@
 
 #pragma once
 
+#include <stdint.h>
+
+/* The base's (the baseband's) firmware version as it reports it */
+typedef struct {
+    uint8_t major;
+    uint8_t minor;
+    uint8_t patch;
+    uint8_t rev;
+} radio_base_ver_t;
+
+/* The hand mic's keys as the base reports them (mic_keys.c) */
+#define RADIO_HKEY_SPCH     0xC1
+#define RADIO_HKEY_TUNER    0xC2
+#define RADIO_HKEY_XFC      0xC4
+#define RADIO_HKEY_UP       0x84
+#define RADIO_HKEY_DOWN     0x04
+#define RADIO_HKEY_VM       0x81
+#define RADIO_HKEY_NW       0x82
+#define RADIO_HKEY_F1       0x48
+#define RADIO_HKEY_F2       0x44
+#define RADIO_HKEY_1        0xE1
+#define RADIO_HKEY_2        0xE2
+#define RADIO_HKEY_3        0xE4
+#define RADIO_HKEY_4        0x61
+#define RADIO_HKEY_5        0x62
+#define RADIO_HKEY_6        0x64
+#define RADIO_HKEY_7        0xA1
+#define RADIO_HKEY_8        0xA2
+#define RADIO_HKEY_9        0xA4
+#define RADIO_HKEY_DOT      0x21
+#define RADIO_HKEY_0        0x22
+#define RADIO_HKEY_CE       0x24
+#define RADIO_HKEY_MODE     0xE8
+#define RADIO_HKEY_FIL      0x68
+#define RADIO_HKEY_GENE     0xA8
+#define RADIO_HKEY_FINP     0x28
+
 typedef enum {
     RADIO_VFO_A = 0,
     RADIO_VFO_B
