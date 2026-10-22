@@ -23,6 +23,13 @@ pkg_check_modules(LIBDRM REQUIRED libdrm)
 target_include_directories(lv_drivers SYSTEM PRIVATE ${LIBDRM_INCLUDE_DIRS})
 target_link_libraries(lv_drivers PUBLIC lvgl xkbcommon ${LIBDRM_LIBRARIES})
 
+# The SDL window driver (sdl/), for the GUI on a PC
+if(LV_DRIVERS_SDL)
+  pkg_check_modules(SDL2 REQUIRED sdl2)
+  target_include_directories(lv_drivers SYSTEM PRIVATE ${SDL2_INCLUDE_DIRS})
+  target_link_libraries(lv_drivers PUBLIC ${SDL2_LIBRARIES})
+endif()
+
 if("${LIB_INSTALL_DIR}" STREQUAL "")
   set(LIB_INSTALL_DIR "lib")
 endif()

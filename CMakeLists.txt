@@ -7,6 +7,11 @@
 
 cmake_minimum_required(VERSION 3.23)
 
+# The GUI on this PC: an SDL window for the panel, the stub radio behind hw.h, the data in a
+# directory. host/build.sh configures, builds and runs it; see host/README.md
+option(HOST_BUILD "Build the GUI for this PC (SDL window, stub radio)" OFF)
+set(HOST_DATA_DIR "${CMAKE_BINARY_DIR}/data" CACHE PATH "The host build's data directory (the radio's /mnt)")
+
 # All C code is C11
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -30,6 +35,23 @@ if(ENABLE_TESTING)
                 GIT_REPOSITORY https://github.com/gdyuldin/X6100Control.git
                 GIT_TAG        v0.16.1)
         FetchContent_MakeAvailable(aether_x6100_control)
+elseif(HOST_BUILD)
+        # This PC: no NEON, the SDL window driver, the host board (board.h), the data and share
+        # directories under the build directory; liquid-dsp and ft8_lib from build-host/deps
+        # (host/build.sh puts them there)
+        add_compile_definitions(LV_DRAW_NEON=0 HOST_BUILD=1 USE_SDL=1 USE_DRM=0 USE_FBDEV=0)
+        add_compile_definitions(BOARD_DATA="${HOST_DATA_DIR}" BOARD_SHARE="${CMAKE_BINARY_DIR}/share")
+        set(LV_DRIVERS_SDL ON)
+        set(HW_BACKEND "stub" CACHE STRING "The radio backend: x6100 or stub")
+        set(HOST_DEPS ${CMAKE_SOURCE_DIR}/build-host/deps)
+        include_directories(${HOST_DEPS}/include)
+        link_directories(${HOST_DEPS}/lib)
+        add_link_options(-Wl,-rpath,${HOST_DEPS}/lib)
+        # What the image ships read-only, staged as the host's share directory
+        file(COPY rootfs/usr/share/x6100/ DESTINATION ${CMAKE_BINARY_DIR}/share)
+        file(COPY images DESTINATION ${CMAKE_BINARY_DIR}/share)
+        file(COPY themes/RS DESTINATION ${CMAKE_BINARY_DIR}/share/themes)
+        file(COPY third-party/cty/cty.dat DESTINATION ${CMAKE_BINARY_DIR}/share)
 else()
         # Allwinner A33: Cortex-A7, hard float, NEON
         add_compile_options(-mtune=cortex-a7 -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4)
@@ -48,10 +70,12 @@ else()
         add_subdirectory(third-party/js8core)     # JS8Call's modem, for src/js8
         add_subdirectory(third-party/wsprd)
         add_subdirectory(src)
-        add_subdirectory(btcat)
-        add_subdirectory(bootanim)
         add_subdirectory(lv_drivers)
         add_subdirectory(sql)
+        if(NOT HOST_BUILD)
+                add_subdirectory(btcat)       # the radio's own programs
+                add_subdirectory(bootanim)
+        endif()
 
         # Installed into the buildroot target: the GUI, the rootfs overlay
         # (init scripts, tools, data) and the images

@@ -70,6 +70,7 @@
 #include <fcntl.h>
 #include <jpeglib.h>
 #include <linux/input.h>
+#include <math.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <poll.h>

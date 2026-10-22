@@ -67,7 +67,7 @@
 #define FIELD_DIR   BOARD_DATA "/field"
 #endif
 #ifndef FIELD_ICONS
-#define FIELD_ICONS "/usr/share/x6100/field"
+#define FIELD_ICONS BOARD_SHARE "/field"
 #endif
 #define REFS_PATH   FIELD_DIR "/refs.tsv"
 #define STATE_PATH  FIELD_DIR "/state"

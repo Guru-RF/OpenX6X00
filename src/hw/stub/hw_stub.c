@@ -20,8 +20,8 @@
 
 #define SAMPLE_RATE     100000      /* the X6100's IQ stream */
 #define SAMPLES         512         /* per packet, like the X6100's fp32 packet */
-#define NOISE_RMS       0.002f
-#define TONE_AMP        0.02f
+#define NOISE_RMS       0.00004f    /* about -120 dB in the panel: a real base's floor */
+#define TONE_AMP        0.002f      /* a loud signal, S9 and some */
 #define TONE_HZ         1000.0f
 
 static int32_t  reg_i[HW_PARAM_COUNT];
@@ -186,7 +186,7 @@ bool hw_flow_read(hw_pack_t *p) {
         return false;
     }
     next_pack_ns += period;
-    if (now - next_pack_ns > 50 * period) {   /* fell far behind (a debugger stop): start afresh */
+    if ((int64_t)(now - next_pack_ns) > (int64_t)(50 * period)) {   /* far behind (a debugger stop): afresh */
         next_pack_ns = now;
     }
 

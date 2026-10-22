@@ -8,7 +8,9 @@
 
 #pragma once
 
-#include <gps.h>          /* gpsd client library */
+#if HAVE_LIBGPS
+#include <gps.h>          /* gpsd client library; a PC without it builds without GPS */
+#endif
 #include <stdbool.h>      /* for the C files that include only this */
 
 typedef enum {

@@ -83,22 +83,35 @@ foreach(dir fonts ft8 js8 widgets params qth cluster field wspr cfg cw_decoder)
     add_subdirectory(${dir})
 endforeach()
 
-# ft8_lib headers (buildroot package ft8); only for the GUI itself, not the
-# libraries above
-include_directories(${CMAKE_SYSROOT}/usr/include/ft8lib/)
+# ft8_lib headers (buildroot package ft8lib; the host build has them in build-host/deps);
+# only for the GUI itself, not the libraries above
+if(NOT HOST_BUILD)
+    include_directories(${CMAKE_SYSROOT}/usr/include/ft8lib/)
+endif()
+
+# The panel on a PC
+if(HOST_BUILD)
+    target_sources(${PROJECT_NAME} PUBLIC host/host_panel.c)
+endif()
 
 # System libraries: threads with -pthread, the rest through pkg-config
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
 pkg_check_modules(deps REQUIRED IMPORTED_TARGET
-    libnm dbus-glib-1 sqlite3 libpng libgps sndfile libudev libpulse libpulse-simple alsa libjpeg
+    libnm dbus-glib-1 sqlite3 libpng sndfile libudev libpulse libpulse-simple alsa libjpeg
 )
+# gpsd's library: the radio has it; a PC without it builds without GPS (gps.c)
+pkg_check_modules(gps IMPORTED_TARGET libgps)
+if(gps_FOUND)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_LIBGPS=1)
+    set(GPS_LIBS PkgConfig::gps)
+endif()
 
 # Link order matters for the static libraries: ours first, then LVGL, the
 # radio backend's library, liquid-dsp and ft8_lib
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    PkgConfig::deps
+    PkgConfig::deps ${GPS_LIBS}
     FT8 QTH CLUSTER FIELD WSPR CW_DECODER JS8 cfg
     Threads::Threads
     lvgl lvgl::drivers

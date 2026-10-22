@@ -9,6 +9,7 @@
  *  the UI thread through scheduler_put() before it touches a widget.
  */
 
+#define _GNU_SOURCE     /* pthread_setname_np */
 #include "js8_window.h"
 #include "board.h"
 #include "js8_map.h"

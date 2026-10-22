@@ -20,7 +20,9 @@
 #include <math.h>       /* isfinite */
 #include <time.h>
 
+#if HAVE_LIBGPS
 static struct gps_data_t    gpsdata;
+#endif
 static uint64_t             prev_time = 0;
 static gps_status_t         status=GPS_STATUS_WAITING;
 
@@ -31,6 +33,8 @@ static pthread_cond_t  cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t pos_lock = PTHREAD_MUTEX_INITIALIZER;
 static double          gpsd_lat, gpsd_lon;
 static time_t          gpsd_time;    /* when it came, 0 before the first */
+
+#if HAVE_LIBGPS
 
 static bool connect() {
     if (gps_open("localhost", "2947", &gpsdata) == -1) {
@@ -93,6 +97,8 @@ static void * gps_thread(void *arg) {
     return NULL;
 }
 
+#endif /* HAVE_LIBGPS */
+
 static void on_usb_device_change(void * s, lv_msg_t * msg) {
     enum usb_devices_event_t event = (enum usb_devices_event_t)msg->payload;
     if (event == USB_DEV_ADDED) {
@@ -101,10 +107,14 @@ static void on_usb_device_change(void * s, lv_msg_t * msg) {
 }
 
 void gps_init() {
+#if HAVE_LIBGPS
     pthread_t thread;
 
     pthread_create(&thread, NULL, gps_thread, NULL);
     pthread_detach(thread);
+#else
+    LV_LOG_WARN("Built without libgps: no GPS");
+#endif
     lv_msg_subscribe(MSG_USB_DEVICE_CHANGED, on_usb_device_change, NULL);
 }
 

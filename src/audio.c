@@ -435,52 +435,44 @@ void audio_gain_db_transition(int16_t *buf, size_t samples, float gain1, float g
     }
 }
 
-float audio_set_play_vol(float db) {
-    snd_mixer_t *handle;
+/* The codec's playback or capture level through its ALSA mixer element (board.h); what it
+ * took, or db when the board has no such element (a PC) */
+static float mixer_db(const char *elem_name, bool capture, float db) {
+    snd_mixer_t          *handle;
     snd_mixer_selem_id_t *sid;
-    const char *card = "default";
-    const char *selem_name = "AIF1 DA0";
+    long                  got = (long)(db * 100.0f);
 
-    snd_mixer_open(&handle, 0);
-    snd_mixer_attach(handle, card);
+    if (!elem_name || snd_mixer_open(&handle, 0) < 0) {
+        return db;
+    }
+    snd_mixer_attach(handle, "default");
     snd_mixer_selem_register(handle, NULL, NULL);
     snd_mixer_load(handle);
 
     snd_mixer_selem_id_alloca(&sid);
     snd_mixer_selem_id_set_index(sid, 0);
-    snd_mixer_selem_id_set_name(sid, selem_name);
-    snd_mixer_elem_t* elem = snd_mixer_find_selem(handle, sid);
+    snd_mixer_selem_id_set_name(sid, elem_name);
+    snd_mixer_elem_t *elem = snd_mixer_find_selem(handle, sid);
 
-    snd_mixer_selem_set_playback_dB_all(elem, (long)(db * 100.0f), 0);
-    long db_long;
-    snd_mixer_selem_get_playback_dB(elem, SND_MIXER_SCHN_MONO, &db_long);
+    if (!elem) {
+        LV_LOG_WARN("No mixer element \"%s\"", elem_name);
+    } else if (capture) {
+        snd_mixer_selem_set_capture_dB_all(elem, got, 0);
+        snd_mixer_selem_get_capture_dB(elem, SND_MIXER_SCHN_MONO, &got);
+    } else {
+        snd_mixer_selem_set_playback_dB_all(elem, got, 0);
+        snd_mixer_selem_get_playback_dB(elem, SND_MIXER_SCHN_MONO, &got);
+    }
     snd_mixer_close(handle);
-    return (float)db_long / 100.0f;
+    return (float)got / 100.0f;
 }
 
-
+float audio_set_play_vol(float db) {
+    return mixer_db(BOARD_MIXER_PLAY, false, db);
+}
 
 float audio_set_rec_vol(float db) {
-    snd_mixer_t *handle;
-    snd_mixer_selem_id_t *sid;
-    const char *card = "default";
-    const char *selem_name = "ADC";
-
-    snd_mixer_open(&handle, 0);
-    snd_mixer_attach(handle, card);
-    snd_mixer_selem_register(handle, NULL, NULL);
-    snd_mixer_load(handle);
-
-    snd_mixer_selem_id_alloca(&sid);
-    snd_mixer_selem_id_set_index(sid, 0);
-    snd_mixer_selem_id_set_name(sid, selem_name);
-    snd_mixer_elem_t* elem = snd_mixer_find_selem(handle, sid);
-
-    snd_mixer_selem_set_capture_dB_all(elem, (long)(db * 100.0f), 0);
-    long db_long;
-    snd_mixer_selem_get_capture_dB(elem, SND_MIXER_SCHN_MONO, &db_long);
-    snd_mixer_close(handle);
-    return (float) db_long / 100.0f;
+    return mixer_db(BOARD_MIXER_REC, true, db);
 }
 
 float audio_get_peak_db() {

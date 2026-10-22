@@ -24,7 +24,7 @@ static sqlite3_stmt     *insert_stmt;
 /* A params.db with no usable bands (an old, foreign or broken one kept on the DATA partition
  * when the SD card was written again: the tables missing, empty or with other columns): both
  * band tables made again from the default database, the other settings kept */
-#define DEFAULT_DB "/usr/share/x6100/params.default.db"
+#define DEFAULT_DB BOARD_SHARE "/params.default.db"
 
 /* The query works and, with need_row, returns a row */
 static bool query_ok(const char *sql, bool need_row) {

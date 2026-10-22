@@ -332,7 +332,13 @@ void screen_rec_put_audio_samples(size_t nsamples, int16_t *samples) {
 
 /* LVGL thread */
 
-void (*screen_rec_out)(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) = fbdev_flush;
+/* gui_main.c's panel_open() sets the real one before the first frame */
+void (*screen_rec_out)(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) =
+#if USE_FBDEV
+    fbdev_flush;
+#else
+    NULL;
+#endif
 
 void screen_rec_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
     remote_flush(area, color_p);       /* the browser remote's viewers */

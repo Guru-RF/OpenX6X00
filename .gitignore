@@ -51,3 +51,6 @@ images/*.png
 # Local developer tools and tests, not part of the repository
 /tests/
 __pycache__/
+
+# The PC build (host/build.sh)
+build-host/

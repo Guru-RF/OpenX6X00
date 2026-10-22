@@ -533,7 +533,7 @@ lv_obj_t *theme_icon_img(lv_obj_t *parent, const char *name, int size, lv_color_
     char                path[96];
     const lv_img_dsc_t *d;
 
-    snprintf(path, sizeof(path), "/usr/share/x6100/icons/%s_%d.png", name, size);
+    snprintf(path, sizeof(path), BOARD_SHARE "/icons/%s_%d.png", name, size);
     d = theme_png(path);
     if (!d) return NULL;
     lv_obj_t *img = lv_img_create(parent);

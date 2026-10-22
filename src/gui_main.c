@@ -12,8 +12,12 @@
 #include "msg_box.h"
 #include "board.h"
 #include "lvgl/lvgl.h"
+#if USE_SDL
+#include "host/host_panel.h"
+#else
 #include "lv_drivers/display/fbdev.h"
 #include "lv_drivers/display/drm.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -128,6 +132,11 @@ bool main_display_portrait(bool on) {
 /* The panel: DRM planes (the GUI over the waterfall) when the kernel has them, the old
  * framebuffer otherwise */
 static void panel_open(void) {
+#if USE_SDL
+    host_panel_open();
+    screen_rec_out = host_panel_flush;
+    return;
+#endif
 #if USE_DRM
     signal(SIGUSR1, dump_signal);
     if (drm_init()) {
@@ -137,7 +146,9 @@ static void panel_open(void) {
     }
     unlink("/tmp/x6100_gui.drm");
 #endif
+#if USE_FBDEV
     fbdev_init();
+#endif
 }
 
 /* LVGL's display, 800x480 landscape; every frame goes through the screen recorder */
@@ -164,7 +175,11 @@ static void display_register(void) {
 
 /* Front keys (event0, the second keypad on event4), main knob, VOL, MFK */
 static void inputs_open(void) {
+#if USE_SDL
+    host_panel_inputs();    /* the PC's keyboard, instead of a USB one found by itself */
+#else
     keyboard_init();
+#endif
     keypad_init(BOARD_DEV_KEYPAD);
     keypad_init(BOARD_DEV_POWER);
     rotary_main_init(BOARD_DEV_MAIN);
@@ -191,9 +206,9 @@ static void settings_load(void) {
     mfk_init();
     vol_init();
     /* Bundled themes to the SD card once; one already there is never overwritten */
-    if (system("mkdir -p /mnt/themes; for t in /usr/share/x6100/themes/*; do "
+    if (system("mkdir -p " BOARD_DATA "/themes; for t in " BOARD_SHARE "/themes/*; do "
                "[ -e \"" BOARD_DATA "/themes/${t##*/}\" ] || cp -r \"$t\" " BOARD_DATA "/themes/; done") != 0)
-        LV_LOG_WARN("Bundled themes not copied to /mnt/themes");
+        LV_LOG_WARN("Bundled themes not copied to " BOARD_DATA "/themes");
     styles_load(params.theme_name.x);
 }
 

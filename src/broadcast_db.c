@@ -17,7 +17,7 @@
 #include <unistd.h>     /* access, unlink */
 
 #define DB_FILE     BOARD_DATA "/broadcast.csv"
-#define DB_DEFAULT  "/usr/share/x6100/broadcast.csv"
+#define DB_DEFAULT  BOARD_SHARE "/broadcast.csv"
 
 /* The EiBi columns: kHz;Time(UTC);Days;ITU;Station;Lng;Target;Remarks;P;Start;Stop */
 enum { C_KHZ, C_TIME, C_DAYS, C_ITU, C_STATION, C_LANG, C_TARGET, C_REMARKS, C_P, C_START, C_STOP, COLS };

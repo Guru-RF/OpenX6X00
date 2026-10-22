@@ -14,6 +14,24 @@
 #define BOARD_DISP_W        800
 #define BOARD_DISP_H        480
 
+#ifdef HOST_BUILD
+/* The GUI on a PC (cmake -DHOST_BUILD=ON): an SDL window for the panel, the stub radio, and the
+ * front keys and knobs as FIFOs under the data directory that host/host_panel.c writes the PC's
+ * keys and mouse wheel into, in the devices' own event format (so the drivers and the browser
+ * panel's key injection are the radio's). BOARD_DATA and BOARD_SHARE come from the build */
+#define BOARD_DEV_KEYPAD    BOARD_DATA "/run/keypad"
+#define BOARD_DEV_MAIN      BOARD_DATA "/run/main"
+#define BOARD_DEV_VOL       BOARD_DATA "/run/vol"
+#define BOARD_DEV_MFK       BOARD_DATA "/run/mfk"
+#define BOARD_DEV_POWER     BOARD_DATA "/run/power"
+#define BOARD_PA_SINK       NULL                    /* PulseAudio's defaults */
+#define BOARD_PA_SOURCE     NULL
+#define BOARD_MIXER_PLAY    NULL                    /* no codec levels to set */
+#define BOARD_MIXER_REC     NULL
+#define BOARD_CAT_DEV       BOARD_DATA "/run/cat"   /* none: X6100_CAT_DEV=<pty> gives one */
+#define BOARD_RTC_DEV       "/dev/null"
+#else
+
 /* The input devices (gui_main.c reads them, remote_server.c writes the browser's keys into them) */
 #define BOARD_DEV_KEYPAD    "/dev/input/event0"     /* the front keys, a matrix keypad */
 #define BOARD_DEV_MAIN      "/dev/input/event1"     /* the main knob */
@@ -21,9 +39,11 @@
 #define BOARD_DEV_MFK       "/dev/input/event3"
 #define BOARD_DEV_POWER     "/dev/input/event4"     /* the PMIC's key: the matrix keypad drops KEY_POWER */
 
-/* PulseAudio's names for the codec */
+/* PulseAudio's names for the codec, and its ALSA mixer elements for the play and record levels */
 #define BOARD_PA_SINK       "alsa_output.platform-sound.stereo-fallback"
 #define BOARD_PA_SOURCE     "alsa_input.platform-sound.stereo-fallback"
+#define BOARD_MIXER_PLAY    "AIF1 DA0"
+#define BOARD_MIXER_REC     "ADC"
 
 /* The user's data: the settings database, logs, macros, recordings, themes. The X6100's data
  * partition; a desktop build passes its own directory (-DBOARD_DATA='"..."') */
@@ -34,3 +54,10 @@
 /* The CAT serial port behind the USB bridge, the clock chip */
 #define BOARD_CAT_DEV       "/dev/ttyS2"
 #define BOARD_RTC_DEV       "/dev/rtc1"
+#endif
+
+/* What the image ships read-only: the default settings, icons, the country list, the bundled
+ * themes and pictures */
+#ifndef BOARD_SHARE
+#define BOARD_SHARE         "/usr/share/x6100"
+#endif

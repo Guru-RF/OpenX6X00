@@ -16,6 +16,7 @@
  * the button callbacks.
  */
 #include "app_sstv.h"
+#include "board.h"
 #include "app_sstv_int.h"
 
 #include "audio.h"
@@ -1166,7 +1167,7 @@ static void destruct_cb(void)
 
 /* ---- At boot: the TX pictures and texts we ship, once, never over the user's files ---- */
 
-#define BUNDLED      "/usr/share/x6100/sstv"
+#define BUNDLED      BOARD_SHARE "/sstv"
 #define INSTALLED    SSTV_DIR "/.resources-v1"
 
 static bool copy_new(const char *from, const char *to)

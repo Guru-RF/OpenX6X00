@@ -42,9 +42,21 @@
 #define LV_DRV_INDEV_I2C_WR(data)
 #define LV_DRV_INDEV_I2C_READ(last_read) 0
 
-/* Drivers whose code is not in lv_drivers/: off */
+/* An SDL window instead of the panel: the host build (-DHOST_BUILD=ON) sets USE_SDL */
+#ifndef USE_SDL
 #define USE_SDL         0
+#endif
 #define USE_SDL_GPU     0
+#if USE_SDL
+#define SDL_HOR_RES         800
+#define SDL_VER_RES         480
+#define SDL_ZOOM            1
+#define SDL_DOUBLE_BUFFERED 0
+#define SDL_INCLUDE_PATH    <SDL2/SDL.h>
+#define SDL_DUAL_DISPLAY    0
+#endif
+
+/* Drivers whose code is not in lv_drivers/: off */
 #define USE_MONITOR     0
 #define USE_WINDOWS     0
 #define USE_WIN32DRV    0

@@ -33,7 +33,7 @@
 #define CTY_SD      BOARD_DATA "/cty.dat"
 #endif
 #ifndef CTY_IMAGE
-#define CTY_IMAGE   "/usr/share/x6100/cty.dat"
+#define CTY_IMAGE   BOARD_SHARE "/cty.dat"
 #endif
 #define CTY_MAX     (4 * 1024 * 1024)
 #define CALL_MAX    24

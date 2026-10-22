@@ -301,7 +301,7 @@ struct Frame {
 class Connection {
     int        fd;
     char       buf[1024];
-    const char header[2] = {FRAME_PRE, FRAME_PRE};
+    const char header[2] = {(char)FRAME_PRE, (char)FRAME_PRE};   /* char is signed on a PC */
     size_t     start=0;
     size_t     end=0;
 

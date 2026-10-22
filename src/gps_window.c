@@ -67,6 +67,7 @@ static void coord_text(char *buf, size_t size, double v, const char *pos, const 
 
 /* One report from gpsd (gps.c); the position rows only with a 2D or 3D fix */
 static void report_cb(lv_event_t *e) {
+#if HAVE_LIBGPS
     struct gps_data_t   *g = lv_event_get_param(e);
     char                text[64];
 
@@ -99,6 +100,7 @@ static void report_cb(lv_event_t *e) {
     lv_label_set_text(values[R_LON], text);
     qth_pos_to_str(g->fix.latitude, g->fix.longitude, text);
     lv_label_set_text(values[R_GRID], text);
+#endif
 }
 
 static void status_cb(lv_timer_t *t) {
