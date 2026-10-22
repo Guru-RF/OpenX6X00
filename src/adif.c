@@ -144,10 +144,17 @@ int adif_read(const char * path, qso_log_record_t ** records) {
         memset(&qso_ts, 0, sizeof(qso_ts));
         char * mode = NULL;
         char * submode = NULL;
+        bool bad = false;
         for (unsigned int i = 0; ; i++) {
             if (regexec(&regex, s, ARRAY_SIZE(pmatch), pmatch, 0))
                 break;
-            val_len = atoi(s + pmatch[2].rm_so);
+            val_len = strtoul(s + pmatch[2].rm_so, NULL, 10);
+            /* The value must lie within the line: a length past its end is a broken file, and
+             * copying it read past the buffer (audit A09). The record is skipped */
+            if (val_len > (size_t)(line + read - (s + pmatch[0].rm_eo))) {
+                bad = true;
+                break;
+            }
             if (val_len > 0) {
                 if (strncmp(s + pmatch[1].rm_so, "OPERATOR", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
                     COPY_STR(cur_record->local_call, s + pmatch[0].rm_eo, val_len);
@@ -183,6 +190,11 @@ int adif_read(const char * path, qso_log_record_t ** records) {
             s += pmatch[0].rm_eo;
         }
 
+        if (bad) {
+            free(mode);
+            free(submode);
+            continue;
+        }
         cur_record->time = timegm(&qso_ts);
         cur_record->mode = create_mode(mode, submode);
         if (mode) free(mode);
