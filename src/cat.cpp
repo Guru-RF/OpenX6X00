@@ -327,33 +327,37 @@ class Connection {
             start = 0;
         }
         while (1) {
-            int res = read(fd, buf + end, sizeof(buf) - end);
-            if (res < 0) {
-                return nullptr;
-            }
-            if (res > 0) {
-                end += res;
-            }
-            char *frame_start = (char *)memmem(buf, end, header, sizeof(header));
-            if (frame_start == NULL) {
-                // Move last byte to begin
-                buf[0] = buf[end - 1];
-                end    = 1;
-                return nullptr;
-            }
-            if (frame_start != buf) {
-                end = end + buf - frame_start;
-                memmove(buf, frame_start, end);
-                start = 0;
-            }
-            if (end >= FRAME_ADD_LEN) {
-                char *end_pos = (char *)memchr(buf + FRAME_ADD_LEN, FRAME_END, end - FRAME_ADD_LEN);
-                if (end_pos) {
-                    size_t frame_len = end_pos - buf + 1;
-                    start            = frame_len;   /* what follows stays for the next call */
-                    return new Frame(buf, frame_len);
+            /* What is in the buffer first: frames that arrived together (a burst, a program that
+             * does not wait for the answer) were answered one per later byte otherwise */
+            if (end >= sizeof(header)) {
+                char *frame_start = (char *)memmem(buf, end, header, sizeof(header));
+                if (frame_start == NULL) {
+                    // Move last byte to begin: it may be the first half of a header
+                    buf[0] = buf[end - 1];
+                    end    = 1;
+                } else {
+                    if (frame_start != buf) {
+                        end -= frame_start - buf;
+                        memmove(buf, frame_start, end);
+                    }
+                    if (end >= FRAME_ADD_LEN) {
+                        char *end_pos = (char *)memchr(buf + FRAME_ADD_LEN, FRAME_END, end - FRAME_ADD_LEN);
+                        if (end_pos) {
+                            size_t frame_len = end_pos - buf + 1;
+                            start            = frame_len;   /* what follows stays for the next call */
+                            return new Frame(buf, frame_len);
+                        }
+                    }
+                    if (end == sizeof(buf)) {
+                        end = 0;    /* a header and no end in a full buffer: not a frame, dropped */
+                    }
                 }
             }
+            int res = read(fd, buf + end, sizeof(buf) - end);
+            if (res <= 0) {
+                return nullptr;     /* nothing more now (or the port is gone) */
+            }
+            end += res;
         }
     }
 
