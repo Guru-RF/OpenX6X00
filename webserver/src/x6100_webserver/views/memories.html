@@ -60,7 +60,9 @@ var makeRow = function(d, named) {
   const cell = function(el) { row.append($("<td>").append(el)); return el; };
   if (named) cell($("<input class='name' maxlength='31' pattern='[ -~]*' autocomplete='off'>").val(d.name));
   else row.append($("<td>").text(d.id));
-  cell($("<input class='freq' type='number' step='0.001' min='0.5' max='56'>").val(d.frequency ? (d.frequency / 1e6).toFixed(3) : ""));
+  // Shown in MHz, at least 3 decimals and up to 6, so 14,074,500 Hz reads 14.0745 (audit A13)
+  const shown = d.frequency ? (d.frequency / 1e6).toFixed(6).replace(/(\.\d{3}\d*?)0+$/, "$1") : "";
+  cell($("<input class='freq' type='number' step='any' min='0.5' max='56'>").val(shown).data({hz: d.frequency, shown: shown}));
   row.children().last().addClass("freq_cell");
   cell(select(MODES, d.mode || "USB").addClass("mode"));
   cell(select(AGCS, d.agc || "AUTO").addClass("agc"));
@@ -70,8 +72,10 @@ var makeRow = function(d, named) {
 }
 
 var readRow = function(row, named) {
+  // The hertz as they were unless the field was edited: a saved name or mode never rounds the frequency
+  const fi = row.find(".freq"), fv = fi.val();
   const d = {
-    frequency: Math.round(parseFloat(row.find(".freq").val()) * 1e6),
+    frequency: fv === fi.data("shown") && fi.data("hz") ? fi.data("hz") : Math.round(parseFloat(fv) * 1e6),
     mode: row.find(".mode").val(), agc: row.find(".agc").val(),
     pre: row.find(".pre").prop("checked"), att: row.find(".att").prop("checked"),
   };
