@@ -21,11 +21,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static lv_img_dsc_t snap;
-static uint8_t     *argb;           /* the snapshot, 4 bytes a pixel, B G R A */
-static uint8_t     *rows[800];      /* 480 landscape, 800 portrait (walkie) */
+/* One screenshot: its own buffers, so a second one taken while the first is still being written
+ * shares nothing with it (audit A06) */
+typedef struct {
+    lv_img_dsc_t snap;
+    uint8_t     *argb;              /* the snapshot, 4 bytes a pixel, B G R A */
+    uint8_t    **rows;              /* one RGB row a pointer, h of them */
+} shot_t;
 
-static bool write_png(FILE *f, uint16_t w, uint16_t h) {
+static bool write_png(FILE *f, shot_t *s) {
+    uint16_t    w   = s->snap.header.w, h = s->snap.header.h;
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     png_infop   info;
 
@@ -49,28 +54,36 @@ static bool write_png(FILE *f, uint16_t w, uint16_t h) {
                  PNG_FILTER_TYPE_DEFAULT);
 
     for (uint16_t y = 0; y < h; y++) {
-        const uint8_t *px = argb + (size_t)y * w * 4;
+        const uint8_t *px  = s->argb + (size_t)y * w * 4;
+        uint8_t       *row = s->rows[y];
 
-        rows[y] = malloc(w * 3);
         for (uint16_t x = 0; x < w; x++, px += 4) {
-            rows[y][x * 3]     = px[2];
-            rows[y][x * 3 + 1] = px[1];
-            rows[y][x * 3 + 2] = px[0];
+            row[x * 3]     = px[2];
+            row[x * 3 + 1] = px[1];
+            row[x * 3 + 2] = px[0];
         }
     }
-    png_set_rows(png, info, rows);
+    png_set_rows(png, info, s->rows);
     png_write_png(png, info, PNG_TRANSFORM_IDENTITY, NULL);
     png_write_end(png, info);
-    for (uint16_t y = 0; y < h; y++) {
-        free(rows[y]);
-    }
     png_destroy_write_struct(&png, NULL);
     return true;
 }
 
+static void shot_free(shot_t *s) {
+    if (s->rows) {
+        for (uint16_t y = 0; y < s->snap.header.h; y++)
+            free(s->rows[y]);
+        free(s->rows);
+    }
+    free(s->argb);
+    free(s);
+}
+
 static void *screenshot_thread(void *arg) {
-    char  when[64], path[80];
-    FILE *f;
+    shot_t *s = (shot_t *)arg;
+    char    when[64], path[80];
+    FILE   *f;
 
     get_time_str(when, sizeof(when));
     snprintf(path, sizeof(path), "/mnt/%s.png", when);
@@ -78,27 +91,52 @@ static void *screenshot_thread(void *arg) {
     if (!f) {
         msg_update_text_fmt("Error write file");
     } else {
-        if (write_png(f, snap.header.w, snap.header.h)) {
+        if (write_png(f, s)) {
             msg_update_text_fmt("Saved %s", when);
         }
         fclose(f);
     }
-    free(argb);
+    shot_free(s);
     return NULL;
 }
 
 void screenshot_take() {
     uint32_t  size = lv_snapshot_buf_size_needed(lv_scr_act(), LV_IMG_CF_TRUE_COLOR_ALPHA);
     pthread_t thread;
+    shot_t   *s = calloc(1, sizeof(*s));
 
-    argb = malloc(size);
-    lv_snapshot_take_to_buf(lv_scr_act(), LV_IMG_CF_TRUE_COLOR_ALPHA, &snap, argb, size);
+    if (s)
+        s->argb = malloc(size);
+    if (!s || !s->argb || lv_snapshot_take_to_buf(lv_scr_act(), LV_IMG_CF_TRUE_COLOR_ALPHA, &s->snap, s->argb, size) != LV_RES_OK) {
+        LV_LOG_ERROR("Screenshot: no memory");
+        if (s)
+            shot_free(s);
+        return;
+    }
+    /* the rows for the PNG, taken here so the writer has nothing left to fail on */
+    s->rows = calloc(s->snap.header.h, sizeof(uint8_t *));
+    for (uint16_t y = 0; s->rows && y < s->snap.header.h; y++) {
+        s->rows[y] = malloc((size_t)s->snap.header.w * 3);
+        if (!s->rows[y]) {
+            LV_LOG_ERROR("Screenshot: no memory");
+            shot_free(s);
+            return;
+        }
+    }
+    if (!s->rows) {
+        shot_free(s);
+        return;
+    }
 #if USE_DRM
     /* the waterfall is on a plane of its own, under the see-through GUI */
-    if (snap.header.w == 800 && snap.header.h == 480) {
-        drm_compose_landscape((uint32_t *)argb);
+    if (s->snap.header.w == 800 && s->snap.header.h == 480) {
+        drm_compose_landscape((uint32_t *)s->argb);
     }
 #endif
-    pthread_create(&thread, NULL, screenshot_thread, NULL);
+    if (pthread_create(&thread, NULL, screenshot_thread, s) != 0) {
+        LV_LOG_ERROR("Screenshot: no thread");
+        shot_free(s);
+        return;
+    }
     pthread_detach(thread);
 }
