@@ -9,23 +9,19 @@
  *  so a lost write stayed lost until the 3 s refresh, which runs only in RX: a lost PTT off
  *  kept the radio keyed, a lost frequency landed seconds later.
  *
- *  base_guard.c takes over x6100_control_cmd() (every setter of the library goes through it):
- *  a failed write is sent again, and radio.c resends the whole register block after any
- *  error and after every un-key. tx_watch is the stuck-TX rule (radio.c).
+ *  hw/x6100/hw_x6100.c takes over x6100_control_cmd() (every setter of the library goes
+ *  through it): a failed write is sent again and reported here, and radio.c resends the whole
+ *  register block after any error and after every un-key. tx_watch is the stuck-TX rule (radio.c).
  */
 
 #pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <aether_radio/x6100_control/low/control.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Bits of x6100_sple_atue_trx that key the radio from the GUI */
-#define BASE_GUARD_TX_BITS  (x6100_iptt | x6100_modem_trx | x6100_atu_tune | x6100_swrscan_trx | x6100_calibration_trx)
 
 #define BASE_GUARD_ERROR    1u  /* a write failed, even if a resend got it through */
 #define BASE_GUARD_UNKEY    2u  /* PTT, modem, tune, SWR scan or calibration went off */
@@ -37,6 +33,11 @@ extern "C" {
 
 #define TX_WATCH_CUT        1       /* tx_watch_power(): set TX power to 0 now */
 #define TX_WATCH_RESTORE    2       /* base back in RX: put the user's power back */
+
+/* From the backend: a write to register reg needed a resend (ok: it got through), the TX bits
+ * the GUI sets went off */
+void base_guard_write_failed(int reg, bool ok);
+void base_guard_unkeyed(void);
 
 /* Events since the last call, cleared. Counts: writes that failed and got through on a resend,
  * writes lost after all tries; reg: the last register that failed */

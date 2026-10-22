@@ -21,7 +21,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_jtty.c jtty.c jtty_rx.c jtty_tx.c
     tx_player.c tx_level.c
     swr_guard.c
-    base_guard.c
+    base_guard.c hw/x6100/hw_x6100.c
     app_sstv.c
     app_sstv_tx.c
     app_sstv_gallery.c

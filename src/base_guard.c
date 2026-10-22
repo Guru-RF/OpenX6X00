@@ -4,10 +4,8 @@
  *  Xiegu X6100 LVGL GUI - I2C writes to the base that fail (base_guard.h)
  */
 
-#define _GNU_SOURCE
 #include "base_guard.h"
 
-#include <dlfcn.h>
 #include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -16,51 +14,24 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <aether_radio/x6100_control/low/control.h>
-
 #ifndef BASE_GUARD_LOG
 #define BASE_GUARD_LOG  "/mnt/base_i2c.log"
 #endif
 #define LOG_MAX         (16 * 1024)
-#define TRIES           3
-#define RETRY_US        2000
-
-static bool (*lib_cmd)(x6100_cmd_enum_t cmd, uint32_t arg);
 
 static atomic_uint  events;
 static atomic_uint  resent;
 static atomic_uint  lost;
 static atomic_int   last_reg = -1;
 
-__attribute__((constructor)) static void find_lib_cmd(void) {
-    lib_cmd = (bool (*)(x6100_cmd_enum_t, uint32_t))dlsym(RTLD_NEXT, "x6100_control_cmd");
-    if (!lib_cmd) {
-        fprintf(stderr, "base_guard: x6100_control_cmd not found in the control library\n");
-        abort();
-    }
+void base_guard_write_failed(int reg, bool ok) {
+    atomic_store(&last_reg, reg);
+    atomic_fetch_add(ok ? &resent : &lost, 1);
+    atomic_fetch_or(&events, BASE_GUARD_ERROR);
 }
 
-/* The library's own name: its setters (PTT, modem, tune, frequency...) call it through the PLT,
- * so every write lands here. The library updates its register copy before writing and its
- * setters drop the result: a write that fails is sent again here, and radio.c resends the
- * whole block (the error found by Hany El Imam, base_guard.h) */
-bool x6100_control_cmd(x6100_cmd_enum_t cmd, uint32_t arg) {
-    uint32_t prev = x6100_control_get(cmd);
-    int      fails = 0;
-    bool     ok;
-
-    while (!(ok = lib_cmd(cmd, arg)) && ++fails < TRIES) {
-        usleep(RETRY_US);
-    }
-    if (fails) {
-        atomic_store(&last_reg, cmd);
-        atomic_fetch_add(ok ? &resent : &lost, 1);
-        atomic_fetch_or(&events, BASE_GUARD_ERROR);
-    }
-    if (cmd == x6100_sple_atue_trx && (prev & BASE_GUARD_TX_BITS) && !(arg & BASE_GUARD_TX_BITS)) {
-        atomic_fetch_or(&events, BASE_GUARD_UNKEY);
-    }
-    return ok;
+void base_guard_unkeyed(void) {
+    atomic_fetch_or(&events, BASE_GUARD_UNKEY);
 }
 
 unsigned base_guard_take(unsigned *r, unsigned *l, int *reg) {

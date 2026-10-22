@@ -11,41 +11,7 @@
  *********************/
 #include "radio.h"
 
-#include <aether_radio/x6100_control/control.h>
-#include <aether_radio/x6100_control/low/flow.h>
-#include <aether_radio/x6100_control/low/gpio.h>
-
-/* The GUI's enums (radio_types.h) are the library's numbers: what the library takes below
- * comes straight from them */
-#define SAME(a, b) _Static_assert((int)(a) == (int)(b), #a " is not " #b)
-SAME(RADIO_VFO_A, X6100_VFO_A);          SAME(RADIO_VFO_B, X6100_VFO_B);
-SAME(radio_mode_lsb, x6100_mode_lsb);    SAME(radio_mode_lsb_dig, x6100_mode_lsb_dig);
-SAME(radio_mode_usb, x6100_mode_usb);    SAME(radio_mode_usb_dig, x6100_mode_usb_dig);
-SAME(radio_mode_cw, x6100_mode_cw);      SAME(radio_mode_cwr, x6100_mode_cwr);
-SAME(radio_mode_am, x6100_mode_am);      SAME(radio_mode_nfm, x6100_mode_nfm);
-SAME(radio_agc_off, x6100_agc_off);      SAME(radio_agc_slow, x6100_agc_slow);
-SAME(radio_agc_fast, x6100_agc_fast);    SAME(radio_agc_auto, x6100_agc_auto);
-SAME(radio_att_off, x6100_att_off);      SAME(radio_att_on, x6100_att_on);
-SAME(radio_pre_off, x6100_pre_off);      SAME(radio_pre_on, x6100_pre_on);
-SAME(radio_key_manual, x6100_key_manual); SAME(radio_key_auto_left, x6100_key_auto_left);
-SAME(radio_key_auto_right, x6100_key_auto_right);
-SAME(radio_iambic_a, x6100_iambic_a);    SAME(radio_iambic_b, x6100_iambic_b);
-SAME(radio_mic_builtin, x6100_mic_builtin); SAME(radio_mic_handle, x6100_mic_handle);
-SAME(radio_mic_auto, x6100_mic_auto);
-SAME(RADIO_HKEY_SPCH, X6100_HKEY_SPCH);  SAME(RADIO_HKEY_TUNER, X6100_HKEY_TUNER);
-SAME(RADIO_HKEY_XFC, X6100_HKEY_XFC);    SAME(RADIO_HKEY_UP, X6100_HKEY_UP);
-SAME(RADIO_HKEY_DOWN, X6100_HKEY_DOWN);  SAME(RADIO_HKEY_VM, X6100_HKEY_VM);
-SAME(RADIO_HKEY_NW, X6100_HKEY_NW);      SAME(RADIO_HKEY_F1, X6100_HKEY_F1);
-SAME(RADIO_HKEY_F2, X6100_HKEY_F2);      SAME(RADIO_HKEY_1, X6100_HKEY_1);
-SAME(RADIO_HKEY_2, X6100_HKEY_2);        SAME(RADIO_HKEY_3, X6100_HKEY_3);
-SAME(RADIO_HKEY_4, X6100_HKEY_4);        SAME(RADIO_HKEY_5, X6100_HKEY_5);
-SAME(RADIO_HKEY_6, X6100_HKEY_6);        SAME(RADIO_HKEY_7, X6100_HKEY_7);
-SAME(RADIO_HKEY_8, X6100_HKEY_8);        SAME(RADIO_HKEY_9, X6100_HKEY_9);
-SAME(RADIO_HKEY_DOT, X6100_HKEY_DOT);    SAME(RADIO_HKEY_0, X6100_HKEY_0);
-SAME(RADIO_HKEY_CE, X6100_HKEY_CE);      SAME(RADIO_HKEY_MODE, X6100_HKEY_MODE);
-SAME(RADIO_HKEY_FIL, X6100_HKEY_FIL);    SAME(RADIO_HKEY_GENE, X6100_HKEY_GENE);
-SAME(RADIO_HKEY_FINP, X6100_HKEY_FINP);
-#undef SAME
+#include "hw/hw.h"
 
 #include <unistd.h>
 #include <stdio.h>
@@ -80,7 +46,7 @@ SAME(RADIO_HKEY_FINP, X6100_HKEY_FINP);
 #include "dialog_msg_voice.h"
 #include "msg.h"
 #include "base_guard.h"
-#include "audio.h"          /* audio_set_play_mode */
+#include "audio.h"
 #include "bat_est.h"
 #include "clock.h"
 #include "wifi.h"
@@ -109,13 +75,13 @@ SAME(RADIO_HKEY_FINP, X6100_HKEY_FINP);
 
 #define WITH_RADIO_LOCK(fn) radio_lock(); fn; radio_unlock();
 
-#define CHANGE_PARAM(new_val, val, dirty, radio_fn) \
+#define CHANGE_PARAM(new_val, val, dirty, hw_param) \
     if (new_val != val) { \
         params_lock(); \
         val = new_val; \
         params_unlock(&dirty); \
         radio_lock(); \
-        radio_fn(val); \
+        hw_set_i(hw_param, val); \
         radio_unlock(); \
     }
 
@@ -123,16 +89,10 @@ SAME(RADIO_HKEY_FINP, X6100_HKEY_FINP);
  *      TYPEDEFS
  **********************/
 
-typedef enum {
-    x6100_flow_fp32 = 0,
-    x6100_flow_bf16,
-} x6100_flow_fmt_t;
-
 /**********************
  *  STATIC PROTOTYPES
  **********************/
 
-static void on_change_bool(Subject *subj, void *user_data);
 static void radio_lock();
 static void radio_unlock();
 
@@ -150,16 +110,12 @@ static void on_band_change(Subject *subj, void *user_data);
 static void update_agc_time(Subject *subj, void *user_data);
 static void on_atu_network_change(Subject *subj, void *user_data);
 static void on_change_comp_ratio(Subject *subj, void *user_data);
-static void base_control_command(Subject *subj, void *user_data);
 static void on_fw_zoom_change(Subject *subj, void *user_data);
 
-static void on_change_float(Subject *subj, void *user_data);
-static void on_change_uint32(Subject *subj, void *user_data);
-static void on_change_int32(Subject *subj, void *user_data);
-static void on_change_uint16(Subject *subj, void *user_data);
-static void on_change_uint8(Subject *subj, void *user_data);
+static void on_change_i(Subject *subj, void *user_data);
+static void on_change_f(Subject *subj, void *user_data);
+static void on_pwr_change(Subject *subj, void *user_data);
 static void on_volume_change(Subject *subj, void *user_data);
-static void on_change_int8(Subject *subj, void *user_data);
 
 static void recover_processing_audio_inputs();
 static bool radio_tick();
@@ -186,7 +142,8 @@ static bool low_power = false;
 
 static pthread_mutex_t  control_mux;
 
-static x6100_flow_t    *pack;
+static hw_pack_t        pack_buf;
+static hw_pack_t       *pack = &pack_buf;
 static radio_base_ver_t base_ver;      /* the base's firmware, read at init */
 static int8_t           audio_in_lvl;
 
@@ -217,10 +174,8 @@ static volatile bool    morse_on;
 static volatile uint32_t morse_ms;      /* the GUI's CW key last changed */
 
 static void set_txpwr(float w) {
-    x6100_control_txpwr_set(digi_cap && w > TX_PLAYER_MAX_PWR_W ? TX_PLAYER_MAX_PWR_W : w);
+    hw_set_f(HW_TXPWR_F, digi_cap && w > TX_PLAYER_MAX_PWR_W ? TX_PLAYER_MAX_PWR_W : w);
 }
-
-static cfloat           samples_buf[RADIO_SAMPLES*2];
 
 static uint32_t min_tx;
 static uint32_t max_tx;
@@ -230,25 +185,18 @@ static uint32_t max_tx;
  **********************/
 
 void radio_bb_reset() {
-    x6100_gpio_set(x6100_pin_bb_reset, 1);
-    usleep(100000);
-    x6100_gpio_set(x6100_pin_bb_reset, 0);
+    hw_bb_reset();
 }
 
 void radio_init() {
-    if (!x6100_gpio_init())
-        return;
-
-    x6100_gpio_set(x6100_pin_morse_key, 1);     /* Morse key off */
-
-    if (!x6100_flow_init())
+    if (!hw_init())
         return;
 
     /* Back off (0.1 .. 25.6 s) and, once, after about 6 s without an answer,
      * pulse the baseband reset pin instead of waiting forever (upstream 37f3894) */
     uint8_t cnt = 0;
 
-    while (!x6100_control_init()) {
+    while (!hw_control_init()) {
         usleep(100000 << cnt);
         if (cnt < 8) cnt++;
         if (cnt == 6) {
@@ -261,14 +209,8 @@ void radio_init() {
 
 void radio_start() {
 
-    base_ver = radio_base_ver();
-
-    // Enable center mode by default (old behavior)
-    if ((util_compare_version(base_ver, (radio_base_ver_t){1, 1, 9, 0}) >= 0) || (base_ver.rev >= 8)) {
-        x6100_control_if_shift_set(false);
-    }
-
-    pack = malloc(sizeof(x6100_flow_t));
+    hw_start();
+    base_ver = hw_base_ver();
 
     subject_subscribe_and_notify((Subject*)cfg_band_vfoa_freq, on_vfo_freq_change, (void*)RADIO_VFO_A);
     subject_subscribe_and_notify((Subject*)cfg_band_vfob_freq, on_vfo_freq_change, (void*)RADIO_VFO_B);
@@ -288,14 +230,14 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_band_vfoa_pre, on_vfo_pre_change, (void*)RADIO_VFO_A);
     subject_subscribe_and_notify((Subject*)cfg_band_vfob_pre, on_vfo_pre_change, (void*)RADIO_VFO_B);
 
-    subject_subscribe_and_notify((Subject*)cfg_band_current_vfo, on_change_uint32, x6100_control_vfo_set);
-    subject_subscribe_and_notify((Subject*)cfg_band_split, on_change_uint8, x6100_control_split_set);
-    subject_subscribe_and_notify((Subject*)cfg_rfgain, on_change_uint8, x6100_control_rfg_set);
+    subject_subscribe_and_notify((Subject*)cfg_band_current_vfo, on_change_i, (void*)HW_VFO_CUR);
+    subject_subscribe_and_notify((Subject*)cfg_band_split, on_change_i, (void*)HW_SPLIT);
+    subject_subscribe_and_notify((Subject*)cfg_rfgain, on_change_i, (void*)HW_RFG);
 
     subject_subscribe_and_notify((Subject*)cfg_band_if_shift, on_if_shift_change, NULL);
 
-    subject_subscribe_and_notify((Subject*)cfg_band_tx_i_offset, on_change_int32, x6100_control_tx_i_offset_set);
-    subject_subscribe_and_notify((Subject*)cfg_band_tx_q_offset, on_change_int32, x6100_control_tx_q_offset_set);
+    subject_subscribe_and_notify((Subject*)cfg_band_tx_i_offset, on_change_i, (void*)HW_TX_I_OFFSET);
+    subject_subscribe_and_notify((Subject*)cfg_band_tx_q_offset, on_change_i, (void*)HW_TX_Q_OFFSET);
 
     subject_subscribe((Subject*)cfg_band_id, on_band_change, NULL);
 
@@ -308,81 +250,75 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_cur_mode, on_high_filter_change, NULL);
 
     subject_subscribe_and_notify((Subject*)cfg_volume, on_volume_change, NULL);
-    subject_subscribe_and_notify((Subject*)cfg_squelch, on_change_uint8, x6100_control_sql_set);
-    subject_subscribe_and_notify((Subject*)cfg_pwr, on_change_float, set_txpwr);
-    subject_subscribe_and_notify((Subject*)cfg_output_gain, on_change_float, x6100_control_adc_dac_gain_set);
-    subject_subscribe_and_notify((Subject*)cfg_band_dac_offset, on_change_float, x6100_control_dac_gain_set);
-    subject_subscribe_and_notify((Subject*)cfg_atu_enabled, on_change_uint8, x6100_control_atu_set);
+    subject_subscribe_and_notify((Subject*)cfg_squelch, on_change_i, (void*)HW_SQL);
+    subject_subscribe_and_notify((Subject*)cfg_pwr, on_pwr_change, NULL);
+    subject_subscribe_and_notify((Subject*)cfg_output_gain, on_change_f, (void*)HW_ADC_DAC_GAIN_F);
+    subject_subscribe_and_notify((Subject*)cfg_band_dac_offset, on_change_f, (void*)HW_DAC_GAIN_F);
+    subject_subscribe_and_notify((Subject*)cfg_atu_enabled, on_change_i, (void*)HW_ATU_ENABLED);
     cfg_atu_network_subscribe(on_atu_network_change, NULL);
     on_atu_network_change(NULL, NULL);
 
     /* Compressor */
     subject_subscribe_and_notify((Subject*)cfg_comp, on_change_comp_ratio, NULL);
-    subject_subscribe_and_notify((Subject*)cfg_comp_threshold_offset, on_change_float, x6100_control_comp_threshold_set);
-    subject_subscribe_and_notify((Subject*)cfg_comp_makeup_offset, on_change_float, x6100_control_comp_makeup_set);
+    subject_subscribe_and_notify((Subject*)cfg_comp_threshold_offset, on_change_f, (void*)HW_COMP_THRESHOLD_F);
+    subject_subscribe_and_notify((Subject*)cfg_comp_makeup_offset, on_change_f, (void*)HW_COMP_MAKEUP_F);
 
     /* VOX */
-    subject_subscribe_and_notify((Subject*)cfg_vox_on, on_change_uint8, x6100_control_vox_set);
-    subject_subscribe_and_notify((Subject*)cfg_vox_gain, on_change_uint8, x6100_control_vox_gain_set);
-    subject_subscribe_and_notify((Subject*)cfg_vox_ag, on_change_uint8, x6100_control_vox_ag_set);
-    subject_subscribe_and_notify((Subject*)cfg_vox_delay, on_change_uint16, x6100_control_vox_delay_set);
+    subject_subscribe_and_notify((Subject*)cfg_vox_on, on_change_i, (void*)HW_VOX);
+    subject_subscribe_and_notify((Subject*)cfg_vox_gain, on_change_i, (void*)HW_VOX_GAIN);
+    subject_subscribe_and_notify((Subject*)cfg_vox_ag, on_change_i, (void*)HW_VOX_AG);
+    subject_subscribe_and_notify((Subject*)cfg_vox_delay, on_change_i, (void*)HW_VOX_DELAY);
 
-    subject_subscribe_and_notify((Subject*)cfg_mic, on_change_uint8, x6100_control_mic_set);
-    subject_subscribe_and_notify((Subject*)cfg_hmic, on_change_uint8, x6100_control_hmic_set);
-    subject_subscribe_and_notify((Subject*)cfg_imic, on_change_uint8, x6100_control_imic_set);
-    subject_subscribe_and_notify((Subject*)cfg_moni, on_change_uint8, x6100_control_moni_set);
+    subject_subscribe_and_notify((Subject*)cfg_mic, on_change_i, (void*)HW_MIC);
+    subject_subscribe_and_notify((Subject*)cfg_hmic, on_change_i, (void*)HW_HMIC);
+    subject_subscribe_and_notify((Subject*)cfg_imic, on_change_i, (void*)HW_IMIC);
+    subject_subscribe_and_notify((Subject*)cfg_moni, on_change_i, (void*)HW_MONI);
 
-    subject_subscribe_and_notify((Subject*)cfg_rit, base_control_command, (void*)x6100_rit);
-    subject_subscribe_and_notify((Subject*)cfg_xit, base_control_command, (void*)x6100_xit);
-    subject_subscribe_and_notify((Subject*)cfg_fm_emphasis, on_change_bool, x6100_control_fm_emp);
+    subject_subscribe_and_notify((Subject*)cfg_rit, on_change_i, (void*)HW_RIT);
+    subject_subscribe_and_notify((Subject*)cfg_xit, on_change_i, (void*)HW_XIT);
+    subject_subscribe_and_notify((Subject*)cfg_fm_emphasis, on_change_i, (void*)HW_FM_EMP);
 
-    subject_subscribe_and_notify((Subject*)cfg_tx_filter_low, on_change_uint16, x6100_control_tx_filter_low_set);
-    subject_subscribe_and_notify((Subject*)cfg_tx_filter_high, on_change_uint16, x6100_control_tx_filter_high_set);
+    subject_subscribe_and_notify((Subject*)cfg_tx_filter_low, on_change_i, (void*)HW_TX_FILTER_LOW);
+    subject_subscribe_and_notify((Subject*)cfg_tx_filter_high, on_change_i, (void*)HW_TX_FILTER_HIGH);
 
-    subject_subscribe_and_notify((Subject*)cfg_cessb_on, on_change_bool, x6100_control_cessb_set);
-    subject_subscribe_and_notify((Subject*)cfg_cessb_power_up, on_change_float, x6100_control_cessb_power_up_set);
+    subject_subscribe_and_notify((Subject*)cfg_cessb_on, on_change_i, (void*)HW_CESSB);
+    subject_subscribe_and_notify((Subject*)cfg_cessb_power_up, on_change_f, (void*)HW_CESSB_POWER_UP_F);
 
-    subject_subscribe_and_notify((Subject*)cfg_key_tone, on_change_uint16, x6100_control_key_tone_set);
-    subject_subscribe_and_notify((Subject*)cfg_key_speed, on_change_uint8, x6100_control_key_speed_set);
-    subject_subscribe_and_notify((Subject*)cfg_key_mode, on_change_uint8, x6100_control_key_mode_set);
-    subject_subscribe_and_notify((Subject*)cfg_iambic_mode, on_change_uint8, x6100_control_iambic_mode_set);
-    subject_subscribe_and_notify((Subject*)cfg_key_vol, on_change_uint16, x6100_control_key_vol_set);
-    subject_subscribe_and_notify((Subject*)cfg_key_train, on_change_uint8, x6100_control_key_train_set);
-    subject_subscribe_and_notify((Subject*)cfg_qsk_time, on_change_uint16, x6100_control_qsk_time_set);
-    subject_subscribe_and_notify((Subject*)cfg_key_ratio, on_change_float, x6100_control_key_ratio_set);
-    subject_subscribe_and_notify((Subject*)cfg_cw_peak_on, on_change_bool, x6100_control_cw_peak_set);
-    subject_subscribe_and_notify((Subject*)cfg_cw_peak_q, on_change_uint8, x6100_control_cw_peak_q_set);
+    subject_subscribe_and_notify((Subject*)cfg_key_tone, on_change_i, (void*)HW_KEY_TONE);
+    subject_subscribe_and_notify((Subject*)cfg_key_speed, on_change_i, (void*)HW_KEY_SPEED);
+    subject_subscribe_and_notify((Subject*)cfg_key_mode, on_change_i, (void*)HW_KEY_MODE);
+    subject_subscribe_and_notify((Subject*)cfg_iambic_mode, on_change_i, (void*)HW_IAMBIC_MODE);
+    subject_subscribe_and_notify((Subject*)cfg_key_vol, on_change_i, (void*)HW_KEY_VOL);
+    subject_subscribe_and_notify((Subject*)cfg_key_train, on_change_i, (void*)HW_KEY_TRAIN);
+    subject_subscribe_and_notify((Subject*)cfg_qsk_time, on_change_i, (void*)HW_QSK_TIME);
+    subject_subscribe_and_notify((Subject*)cfg_key_ratio, on_change_f, (void*)HW_KEY_RATIO_F);
+    subject_subscribe_and_notify((Subject*)cfg_cw_peak_on, on_change_i, (void*)HW_CW_PEAK);
+    subject_subscribe_and_notify((Subject*)cfg_cw_peak_q, on_change_i, (void*)HW_CW_PEAK_Q);
 
-    subject_subscribe_and_notify((Subject*)cfg_agc_hang, on_change_uint8, x6100_control_agc_hang_set);
-    subject_subscribe_and_notify((Subject*)cfg_agc_knee, on_change_int8, x6100_control_agc_knee_set);
-    subject_subscribe_and_notify((Subject*)cfg_agc_slope, on_change_uint8, x6100_control_agc_slope_set);
+    subject_subscribe_and_notify((Subject*)cfg_agc_hang, on_change_i, (void*)HW_AGC_HANG);
+    subject_subscribe_and_notify((Subject*)cfg_agc_knee, on_change_i, (void*)HW_AGC_KNEE);
+    subject_subscribe_and_notify((Subject*)cfg_agc_slope, on_change_i, (void*)HW_AGC_SLOPE);
 
-    subject_subscribe_and_notify((Subject*)cfg_dnf, on_change_uint8, x6100_control_dnf_set);
-    subject_subscribe_and_notify((Subject*)cfg_dnf_center, on_change_uint16, x6100_control_dnf_center_set);
-    subject_subscribe_and_notify((Subject*)cfg_dnf_width, on_change_uint16, x6100_control_dnf_width_set);
-    subject_subscribe_and_notify((Subject*)cfg_dnf_auto, on_change_uint16, x6100_control_dnf_update_set);
-    subject_subscribe_and_notify((Subject*)cfg_nb, on_change_uint8, x6100_control_nb_set);
-    subject_subscribe_and_notify((Subject*)cfg_nb_level, on_change_uint8, x6100_control_nb_level_set);
-    subject_subscribe_and_notify((Subject*)cfg_nb_width, on_change_uint8, x6100_control_nb_width_set);
-    subject_subscribe_and_notify((Subject*)cfg_nr, on_change_uint8, x6100_control_nr_set);
-    subject_subscribe_and_notify((Subject*)cfg_nr_level, on_change_uint8, x6100_control_nr_level_set);
+    subject_subscribe_and_notify((Subject*)cfg_dnf, on_change_i, (void*)HW_DNF);
+    subject_subscribe_and_notify((Subject*)cfg_dnf_center, on_change_i, (void*)HW_DNF_CENTER);
+    subject_subscribe_and_notify((Subject*)cfg_dnf_width, on_change_i, (void*)HW_DNF_WIDTH);
+    subject_subscribe_and_notify((Subject*)cfg_dnf_auto, on_change_i, (void*)HW_DNF_AUTO);
+    subject_subscribe_and_notify((Subject*)cfg_nb, on_change_i, (void*)HW_NB);
+    subject_subscribe_and_notify((Subject*)cfg_nb_level, on_change_i, (void*)HW_NB_LEVEL);
+    subject_subscribe_and_notify((Subject*)cfg_nb_width, on_change_i, (void*)HW_NB_WIDTH);
+    subject_subscribe_and_notify((Subject*)cfg_nr, on_change_i, (void*)HW_NR);
+    subject_subscribe_and_notify((Subject*)cfg_nr_level, on_change_i, (void*)HW_NR_LEVEL);
 
     if ((util_compare_version(base_ver, (radio_base_ver_t){1, 1, 9, 0}) >= 0) || (base_ver.rev >= 8)) {
         subject_subscribe_and_notify((Subject*)cfg_mode_zoom, on_fw_zoom_change, NULL);
     }
 
-    x6100_control_charger_set(params.charger.x == RADIO_CHARGER_ON);
-    x6100_control_bias_drive_set(params.bias_drive);
-    x6100_control_bias_final_set(params.bias_final);
-
-    x6100_control_spmode_set(params.spmode.x);
-
-    x6100_control_linein_set(params.line_in);
-    x6100_control_lineout_set(params.line_out);
-
-    if (base_ver.rev >= 8) {
-        x6100_control_bf16_flow_set(true);
-    }
+    hw_set_i(HW_CHARGER, params.charger.x == RADIO_CHARGER_ON);
+    hw_set_i(HW_BIAS_DRIVE, params.bias_drive);
+    hw_set_i(HW_BIAS_FINAL, params.bias_final);
+    hw_set_i(HW_SPMODE, params.spmode.x);
+    hw_set_i(HW_LINE_IN, params.line_in);
+    hw_set_i(HW_LINE_OUT, params.line_out);
 
     prev_time = get_time();
     idle_time = prev_time;
@@ -423,7 +359,7 @@ void radio_set_freq(int32_t freq) {
     }
     radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
     int32_t shift = cfg_transverter_shift_for(freq);
-    WITH_RADIO_LOCK(x6100_control_vfo_freq_set(vfo, freq - shift));
+    WITH_RADIO_LOCK(hw_vfo_set_freq(vfo, freq - shift));
 }
 
 bool radio_check_freq(int32_t freq) {
@@ -455,7 +391,7 @@ void radio_change_mute() {
 /* Speaker AF: 0 when muted, when btaudio silences it (headphones connected) or while a TCI
  * client transmits */
 void radio_vol_refresh() {
-    WITH_RADIO_LOCK(x6100_control_rxvol_set((mute || tci_mute || btaudio_speaker_muted()) ? 0 : param_i_get(cfg_volume)));
+    WITH_RADIO_LOCK(hw_set_i(HW_RXVOL, (mute || tci_mute || btaudio_speaker_muted()) ? 0 : param_i_get(cfg_volume)));
 }
 
 /* A TCI client keyed the radio: the operator is at the other end, so the speaker and the TX
@@ -464,7 +400,7 @@ void radio_set_tci_mute(bool on) {
     if (tci_mute == on) return;
     tci_mute = on;
     radio_vol_refresh();
-    WITH_RADIO_LOCK(x6100_control_moni_set(on ? 0 : param_i_get(cfg_moni)));
+    WITH_RADIO_LOCK(hw_set_i(HW_MONI, on ? 0 : param_i_get(cfg_moni)));
 }
 
 static void on_volume_change(Subject *subj, void *user_data) {
@@ -478,7 +414,7 @@ bool radio_change_spmode(int16_t df) {
 
     params_bool_set(&params.spmode, df > 0);
 
-    WITH_RADIO_LOCK(x6100_control_spmode_set(params.spmode.x));
+    WITH_RADIO_LOCK(hw_set_i(HW_SPMODE, params.spmode.x));
 
     return params.spmode.x;
 }
@@ -496,8 +432,8 @@ bool radio_start_swrscan() {
     radio_lock();
     /* 1 W is enough to read the SWR; less if PWR is set lower.
      * ponytail: fixed 1 W cap, make it a setting if the bridge reads poorly that low */
-    x6100_control_txpwr_set(LV_MIN(param_f_get(cfg_pwr), 1.0f));
-    x6100_control_swrscan_set(true);
+    hw_set_f(HW_TXPWR_F, LV_MIN(param_f_get(cfg_pwr), 1.0f));
+    hw_set_i(HW_SWRSCAN, true);
     radio_unlock();
 
     return true;
@@ -506,7 +442,7 @@ bool radio_start_swrscan() {
 void radio_stop_swrscan() {
     if (state_move(RADIO_SWRSCAN, RADIO_RX)) {
         radio_lock();
-        x6100_control_swrscan_set(false);
+        hw_set_i(HW_SWRSCAN, false);
         set_txpwr(param_f_get(cfg_pwr));
         radio_unlock();
     }
@@ -522,17 +458,17 @@ void radio_set_digi_cap(bool on) {
 }
 
 void radio_set_tx_filter(uint16_t from_hz, uint16_t to_hz) {
-    WITH_RADIO_LOCK(x6100_control_tx_filter_low_set(from_hz); x6100_control_tx_filter_high_set(to_hz));
+    WITH_RADIO_LOCK(hw_set_i(HW_TX_FILTER_LOW, from_hz); hw_set_i(HW_TX_FILTER_HIGH, to_hz));
 }
 
 void radio_set_rx_dsp_off(bool all_off) {
     bool nr = param_i_get(cfg_nr), nb = param_i_get(cfg_nb);
     bool dnf = param_i_get(cfg_dnf), dnf_auto = param_i_get(cfg_dnf_auto);
 
-    WITH_RADIO_LOCK(x6100_control_nr_set(nr && !all_off);
-                    x6100_control_nb_set(nb && !all_off);
-                    x6100_control_dnf_set(dnf && !all_off);
-                    x6100_control_dnf_update_set(dnf_auto && !all_off));
+    WITH_RADIO_LOCK(hw_set_i(HW_NR, nr && !all_off);
+                    hw_set_i(HW_NB, nb && !all_off);
+                    hw_set_i(HW_DNF, dnf && !all_off);
+                    hw_set_i(HW_DNF_AUTO, dnf_auto && !all_off));
 }
 
 radio_vfo_t radio_toggle_vfo() {
@@ -543,7 +479,7 @@ radio_vfo_t radio_toggle_vfo() {
 void radio_poweroff() {
     screen_rec_shutdown();
     if (params.charger.x == RADIO_CHARGER_SHADOW) {
-        WITH_RADIO_LOCK(x6100_control_charger_set(true));
+        WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, true));
     }
     cfg_api_flush_all();
     cfg_db_shutdown();
@@ -551,18 +487,18 @@ void radio_poweroff() {
 }
 
 void radio_set_charger(bool on) {
-    WITH_RADIO_LOCK(x6100_control_charger_set(on));
+    WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, on));
 }
 
 void radio_set_ptt(bool tx) {
-    WITH_RADIO_LOCK(x6100_control_ptt_set(tx));
+    WITH_RADIO_LOCK(hw_set_i(HW_PTT, tx));
 }
 
 static int mic_override = -1;      /* the walkie screen's mic, cfg_mic stays as saved */
 
 void radio_set_mic_override(int mic) {
     mic_override = mic;
-    WITH_RADIO_LOCK(x6100_control_mic_set(mic < 0 ? param_i_get(cfg_mic) : mic));
+    WITH_RADIO_LOCK(hw_set_i(HW_MIC, mic < 0 ? param_i_get(cfg_mic) : mic));
 }
 
 int radio_get_mic(void) {
@@ -573,7 +509,7 @@ static bool modem_on;
 
 void radio_set_modem(bool tx) {
     modem_on = tx;
-    WITH_RADIO_LOCK(x6100_control_modem_set(tx));
+    WITH_RADIO_LOCK(hw_set_i(HW_MODEM, tx));
 }
 
 bool radio_get_modem(void) {
@@ -585,17 +521,17 @@ bool radio_get_modem(void) {
 static void play_mode_apply(audio_play_mode_t mode) {
     switch (mode) {
     case AUDIO_PLAY_OFF:
-        x6100_control_record_set(false);
-        x6100_control_hmic_set(param_i_get(cfg_hmic));
-        x6100_control_imic_set(param_i_get(cfg_imic));
+        hw_set_i(HW_RECORD, false);
+        hw_set_i(HW_HMIC, param_i_get(cfg_hmic));
+        hw_set_i(HW_IMIC, param_i_get(cfg_imic));
         break;
 
     case AUDIO_PLAY_ON:
-        x6100_control_hmic_set(0);
+        hw_set_i(HW_HMIC, 0);
         /* fall through */
     case AUDIO_PLAY_VOICE_REC:
-        x6100_control_imic_set(0);
-        x6100_control_record_set(true);
+        hw_set_i(HW_IMIC, 0);
+        hw_set_i(HW_RECORD, true);
         break;
 
     default:
@@ -608,24 +544,23 @@ void radio_set_play_mode(audio_play_mode_t mode) {
 }
 
 radio_base_ver_t radio_base_ver(void) {
-    x6100_base_ver_t v = x6100_control_get_base_ver();
-    return (radio_base_ver_t){v.major, v.minor, v.patch, v.rev};
+    return hw_base_ver();
 }
 
 const char *radio_base_ver_str(void) {
-    return x6100_control_get_fw_version_str();
+    return hw_base_ver_str();
 }
 
 void radio_wifi_power(bool on) {
-    x6100_gpio_set(x6100_pin_wifi, on ? 1 : 0);
+    hw_pin_set(HW_PIN_WIFI, on);
 }
 
 void radio_backlight_power(bool on) {
-    x6100_gpio_set(x6100_pin_light, on ? 1 : 0);
+    hw_pin_set(HW_PIN_LIGHT, on);
 }
 
 void radio_usb_to_cat(void) {
-    x6100_gpio_set(x6100_pin_usb, 1);
+    hw_pin_set(HW_PIN_USB_CAT, true);
 }
 
 void radio_speaker_play(bool speaker) {
@@ -633,28 +568,28 @@ void radio_speaker_play(bool speaker) {
 }
 
 void radio_set_line_in(uint8_t d) {
-    CHANGE_PARAM(d, params.line_in, params.dirty.line_in, x6100_control_linein_set);
+    CHANGE_PARAM(d, params.line_in, params.dirty.line_in, HW_LINE_IN);
 }
 
 void radio_set_line_out(uint8_t d) {
-    CHANGE_PARAM(d, params.line_out, params.dirty.line_out, x6100_control_lineout_set);
+    CHANGE_PARAM(d, params.line_out, params.dirty.line_out, HW_LINE_OUT);
 }
 
 void radio_set_qsk_time(uint16_t ms) {
-    WITH_RADIO_LOCK(x6100_control_qsk_time_set(ms));
+    WITH_RADIO_LOCK(hw_set_i(HW_QSK_TIME, ms));
 }
 
 void radio_set_rec_moni(bool on) {
     int32_t moni = param_i_get(cfg_moni);
 
     if (tci_mute) return;       /* quiet while a TCI client transmits */
-    WITH_RADIO_LOCK(x6100_control_moni_set(on && moni < 30 ? 30 : moni));
+    WITH_RADIO_LOCK(hw_set_i(HW_MONI, on && moni < 30 ? 30 : moni));
 }
 
 void radio_set_morse_key(bool on) {
     morse_on = on;
     morse_ms = get_time();
-    x6100_gpio_set(x6100_pin_morse_key, on ? 0 : 1);
+    hw_pin_set(HW_PIN_MORSE_KEY, on);
 }
 
 /**********************
@@ -670,47 +605,19 @@ static void radio_unlock() {
     pthread_mutex_unlock(&control_mux);
 }
 
-static void on_change_bool(Subject *subj, void *user_data) {
-    int32_t new_val = subject_i_get((SubjectInt*)subj);
-    void (*fn)(bool) = (void (*)(bool))user_data;
-    WITH_RADIO_LOCK(fn(new_val));
+/* A setting straight to the base: user_data is the hw_param_t */
+static void on_change_i(Subject *subj, void *user_data) {
+    int32_t v = subject_i_get((SubjectInt*)subj);
+    WITH_RADIO_LOCK(hw_set_i((hw_param_t)(intptr_t)user_data, v));
 }
 
-static void on_change_int8(Subject *subj, void *user_data) {
-    int32_t new_val = subject_i_get((SubjectInt*)subj);
-    void (*fn)(int8_t) = (void (*)(int8_t))user_data;
-    WITH_RADIO_LOCK(fn(new_val));
+static void on_change_f(Subject *subj, void *user_data) {
+    float v = subject_f_get((SubjectFloat*)subj);
+    WITH_RADIO_LOCK(hw_set_f((hw_param_t)(intptr_t)user_data, v));
 }
 
-static void on_change_uint8(Subject *subj, void *user_data) {
-    int32_t new_val = subject_i_get((SubjectInt*)subj);
-    void (*fn)(uint8_t) = (void (*)(uint8_t))user_data;
-    WITH_RADIO_LOCK(fn(new_val));
-}
-
-
-static void on_change_uint16(Subject *subj, void *user_data) {
-    int32_t new_val = subject_i_get((SubjectInt*)subj);
-    void (*fn)(uint16_t) = (void (*)(uint16_t))user_data;
-    WITH_RADIO_LOCK(fn(new_val));
-}
-
-static void on_change_uint32(Subject *subj, void *user_data) {
-    int32_t new_val = subject_i_get((SubjectInt*)subj);
-    void (*fn)(uint32_t) = (void (*)(uint32_t))user_data;
-    WITH_RADIO_LOCK(fn(new_val));
-}
-
-static void on_change_int32(Subject *subj, void *user_data) {
-    int32_t new_val = subject_i_get((SubjectInt*)subj);
-    void (*fn)(int32_t) = (void (*)(int32_t))user_data;
-    WITH_RADIO_LOCK(fn(new_val));
-}
-
-static void on_change_float(Subject *subj, void *user_data) {
-    float new_val = subject_f_get((SubjectFloat*)subj);
-    void (*fn)(float) = (void (*)(float))user_data;
-    WITH_RADIO_LOCK(fn(new_val));
+static void on_pwr_change(Subject *subj, void *user_data) {
+    WITH_RADIO_LOCK(set_txpwr(subject_f_get((SubjectFloat*)subj)));
 }
 
 static void on_vfo_freq_change(Subject *subj, void *user_data) {
@@ -723,21 +630,23 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     }
     int32_t shift = cfg_transverter_shift_for(new_val);
     shift += param_i_get(cfg_band_if_shift);
-    if (x6100_control_get(vfo == RADIO_VFO_A ? x6100_vfoa_freq : x6100_vfob_freq) == (uint32_t)(new_val - shift)) {
-        return;
+    radio_lock();
+    bool changed = hw_vfo_set_freq(vfo, new_val - shift);
+    radio_unlock();
+    if (changed) {
+        LV_LOG_USER("Radio set vfo %i freq=%i (%i)", vfo, new_val, new_val - shift);
     }
-    WITH_RADIO_LOCK(x6100_control_vfo_freq_set(vfo, new_val - shift));
-    LV_LOG_USER("Radio set vfo %i freq=%i (%i)", vfo, new_val, new_val - shift);
 }
 
 static void on_vfo_mode_change(Subject *subj, void *user_data) {
     radio_vfo_t vfo = (radio_vfo_t )user_data;
     int32_t new_val = subject_i_get((SubjectInt*)subj);
-    if (x6100_control_get(vfo == RADIO_VFO_A ? x6100_vfoa_mode : x6100_vfob_mode) == (uint32_t)new_val) {
-        return;
+    radio_lock();
+    bool changed = hw_vfo_set_mode(vfo, new_val);
+    radio_unlock();
+    if (changed) {
+        LV_LOG_USER("Radio set vfo %i mode=%i", vfo, new_val);
     }
-    WITH_RADIO_LOCK(x6100_control_vfo_mode_set(vfo, new_val));
-    LV_LOG_USER("Radio set vfo %i mode=%i", vfo, new_val);;
 }
 
 /* AGC AUTO in CW with the decoder on goes FAST: as AUTO recovers after a station stops, the rising
@@ -750,7 +659,7 @@ static void apply_vfo_agc(radio_vfo_t vfo) {
     if (agc == radio_agc_auto && (mode == radio_mode_cw || mode == radio_mode_cwr) && subject_i_get((SubjectInt*)cfg_cw_decoder)) {
         agc = radio_agc_fast;
     }
-    WITH_RADIO_LOCK(x6100_control_vfo_agc_set(vfo, agc));
+    WITH_RADIO_LOCK(hw_vfo_set_agc(vfo, agc));
     LV_LOG_USER("Radio set vfo %i agc=%i", vfo, agc);
 }
 
@@ -805,24 +714,25 @@ static void update_agc_time(Subject *subj, void *user_data) {
             }
             break;
     }
-    if (x6100_control_get(x6100_agctime) == agc_time) {
-        return;
+    radio_lock();
+    bool changed = hw_set_i(HW_AGC_TIME, agc_time);
+    radio_unlock();
+    if (changed) {
+        LV_LOG_USER("Radio set agc time=%u for agc: %i\n", agc_time, agc);
     }
-    WITH_RADIO_LOCK(x6100_control_agc_time_set(agc_time));
-    LV_LOG_USER("Radio set agc time=%u for agc: %i\n", agc_time, agc);
 }
 
 static void on_vfo_att_change(Subject *subj, void *user_data) {
     radio_vfo_t vfo = (radio_vfo_t )user_data;
     int32_t new_val = subject_i_get((SubjectInt*)subj);
-    WITH_RADIO_LOCK(x6100_control_vfo_att_set(vfo, new_val));
+    WITH_RADIO_LOCK(hw_vfo_set_att(vfo, new_val));
     LV_LOG_USER("Radio set vfo %i att=%i", vfo, new_val);
 }
 
 static void on_vfo_pre_change(Subject *subj, void *user_data) {
     radio_vfo_t vfo = (radio_vfo_t )user_data;
     int32_t new_val = subject_i_get((SubjectInt*)subj);
-    WITH_RADIO_LOCK(x6100_control_vfo_pre_set(vfo, new_val));
+    WITH_RADIO_LOCK(hw_vfo_set_pre(vfo, new_val));
     LV_LOG_USER("Radio set vfo %i pre=%i", vfo, new_val);
 }
 
@@ -830,17 +740,8 @@ static void on_atu_network_change(Subject *subj, void *user_data) {
     (void)subj;
     (void)user_data;
     uint32_t new_val = cfg_atu_get_network();
-    WITH_RADIO_LOCK(x6100_control_cmd(x6100_atu_network, new_val));
+    WITH_RADIO_LOCK(hw_set_i(HW_ATU_NETWORK, new_val));
     LV_LOG_USER("Radio set atu network=%u", new_val);
-}
-
-/* Only what changes goes to the base: a band switch (e.g. across 7.040 MHz)
- * used to send the filters twice, the AGC time and both frequencies again,
- * on top of the mode change that already makes an audio gap */
-static void cmd_changed(x6100_cmd_enum_t cmd, uint32_t arg) {
-    if (x6100_control_get(cmd) != arg) {
-        x6100_control_cmd(cmd, arg);
-    }
 }
 
 static void on_low_filter_change(Subject *subj, void *user_data) {
@@ -853,8 +754,8 @@ static void on_low_filter_change(Subject *subj, void *user_data) {
     int32_t low2 = LV_MAX(0, low - FILTER_2_OFFSET_OUT);
     radio_lock();
     LV_LOG_USER("Radio set filters: low=%i, low2=%i", low, low2);
-    cmd_changed(x6100_filter1_low, low);
-    cmd_changed(x6100_filter2_low, low2);
+    hw_set_i(HW_FILTER1_LOW, low);
+    hw_set_i(HW_FILTER2_LOW, low2);
     radio_unlock();
 }
 
@@ -867,8 +768,8 @@ static void on_high_filter_change(Subject *subj, void *user_data) {
             // For AM BASE uses absolute low and high values to choose LPF filters for I and Q
             radio_lock();
             LV_LOG_USER("Radio set filters: low=%i, low2=%i", -high, -high2);
-            cmd_changed(x6100_filter1_low, -high);
-            cmd_changed(x6100_filter2_low, -high2);
+            hw_set_i(HW_FILTER1_LOW, -high);
+            hw_set_i(HW_FILTER2_LOW, -high2);
             radio_unlock();
             break;
         default:
@@ -876,8 +777,8 @@ static void on_high_filter_change(Subject *subj, void *user_data) {
     }
     radio_lock();
     LV_LOG_USER("Radio set filters: high=%i, high2=%i", high, high2);
-    cmd_changed(x6100_filter1_high, high);
-    cmd_changed(x6100_filter2_high, high2);
+    hw_set_i(HW_FILTER1_HIGH, high);
+    hw_set_i(HW_FILTER2_HIGH, high2);
     radio_unlock();
 }
 
@@ -888,11 +789,11 @@ static void on_change_comp_ratio(Subject *subj, void *user_data) {
     }
     if (ratio == 1) {
         // invert
-        WITH_RADIO_LOCK(x6100_control_comp_set(true));
+        WITH_RADIO_LOCK(hw_set_i(HW_COMP_ON, true));
     } else {
         radio_lock();
-        x6100_control_comp_set(false);
-        x6100_control_comp_level_set((x6100_comp_level_t)(ratio - 2));
+        hw_set_i(HW_COMP_ON, false);
+        hw_set_i(HW_COMP_LEVEL, ratio - 2);
         radio_unlock();
     }
 }
@@ -904,7 +805,7 @@ static void on_fw_zoom_change(Subject *subj, void *user_data) {
         val++;
         zoom >>= 1;
     }
-    WITH_RADIO_LOCK(x6100_control_fftdec_set(val));
+    WITH_RADIO_LOCK(hw_set_i(HW_FFT_DEC, val));
 }
 
 static void on_if_shift_change(Subject *subj, void *user_data) {
@@ -914,11 +815,11 @@ static void on_if_shift_change(Subject *subj, void *user_data) {
     LV_LOG_USER("Shift: %d, cur_freq: %d\n", shift, cur_freq);
     if (shift != 0) {
         radio_lock();
-        x6100_control_if_shift_freq_set(shift);
-        x6100_control_if_shift_set(true);
+        hw_set_i(HW_IF_SHIFT_HZ, shift);
+        hw_set_i(HW_IF_SHIFT_ON, true);
         radio_unlock();
     } else {
-        WITH_RADIO_LOCK(x6100_control_if_shift_set(false));
+        WITH_RADIO_LOCK(hw_set_i(HW_IF_SHIFT_ON, false));
     }
     radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
     on_vfo_freq_change(NULL, (void*)vfo);
@@ -928,24 +829,14 @@ static void on_band_change(Subject *subj, void *user_data) {
     // Workaround for bug with ignored IQ offset on band change from BASE
     int32_t i_val = param_i_get(cfg_band_tx_i_offset);
     int32_t q_val = param_i_get(cfg_band_tx_q_offset);
-    if (i_val == (int32_t)x6100_control_get(x6100_txiofs)) {
+    if (i_val == hw_get_i(HW_TX_I_OFFSET)) {
         i_val++;
     }
-    radio_lock();
-    x6100_control_tx_i_offset_set(i_val);
-    radio_unlock();
-    if (q_val == (int32_t)x6100_control_get(x6100_txqofs)) {
-        q_val ++;
+    WITH_RADIO_LOCK(hw_set_i(HW_TX_I_OFFSET, i_val));
+    if (q_val == hw_get_i(HW_TX_Q_OFFSET)) {
+        q_val++;
     }
-    radio_lock();
-    x6100_control_tx_q_offset_set(q_val);
-    radio_unlock();
-}
-
-static void base_control_command(Subject *subj, void *user_data) {
-    uint32_t val = subject_i_get((SubjectInt*)subj);
-    x6100_cmd_enum_t cmd = (x6100_cmd_enum_t)user_data;
-    WITH_RADIO_LOCK(x6100_control_cmd(cmd, val));
+    WITH_RADIO_LOCK(hw_set_i(HW_TX_Q_OFFSET, q_val));
 }
 
 /**
@@ -955,13 +846,13 @@ static void recover_processing_audio_inputs() {
     usleep(10000);
     radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
     radio_lock();
-    x6100_control_vfo_mode_set(vfo, radio_mode_usb_dig);
-    x6100_control_txpwr_set(0.1f);
-    x6100_control_modem_set(true);
+    hw_vfo_set_mode(vfo, radio_mode_usb_dig);
+    hw_set_f(HW_TXPWR_F, 0.1f);
+    hw_set_i(HW_MODEM, true);
     usleep(50000);
-    x6100_control_modem_set(false);
+    hw_set_i(HW_MODEM, false);
     set_txpwr(param_f_get(cfg_pwr));
-    x6100_control_vfo_mode_set(vfo, cparam_i_get(cfg_cur_mode));
+    hw_vfo_set_mode(vfo, cparam_i_get(cfg_cur_mode));
     radio_unlock();
 }
 
@@ -985,7 +876,7 @@ static void battery_warn_cb(void *arg) {
     }
 }
 
-static void battery_log(const x6100_flow_t *p) {
+static void battery_log(const hw_pack_t *p) {
     static time_t   last;
     static uint64_t prev_ms;
     static float    tx_s, tx_ws;
@@ -996,7 +887,7 @@ static void battery_log(const x6100_flow_t *p) {
     FILE            *f;
     char            head[sizeof(BATTERY_HEADER)];
 
-    if (p->flag.tx && prev_ms && now_time > prev_ms) {
+    if (p->tx && prev_ms && now_time > prev_ms) {
         float dt = (now_time - prev_ms) / 1000.0f;
 
         dt = dt > 1 ? 1 : dt;
@@ -1024,7 +915,7 @@ static void battery_log(const x6100_flow_t *p) {
         fclose(f);
     }
     bat_sample_t s = {
-        .t = t, .vbat = p->vbat * 0.1f, .cap = p->batcap, .vext = p->vext * 0.1f, .charging = p->flag.charging,
+        .t = t, .vbat = p->vbat * 0.1f, .cap = p->batcap, .vext = p->vext * 0.1f, .charging = p->charging,
         .tx_s = tx_s, .tx_w = tx_s > 0 ? tx_ws / tx_s : 0, .bl = backlight_level(),
         .wifi = wifi_get_status() != WIFI_OFF,
         .bt = access("/sys/class/bluetooth/hci0", F_OK) == 0,
@@ -1070,7 +961,7 @@ static void battery_log(const x6100_flow_t *p) {
         fputs(BATTERY_HEADER, f);
     }
     fprintf(f, "%ld,%.1f,%u,%.1f,%u,%u,%d,%u,%.0f,%.1f,%u,%u,%u\n", (long) t, s.vbat, p->batcap, s.vext,
-            p->flag.charging, s.tx_s > 0, s.bl, mhz, s.tx_s, s.tx_w, s.wifi, s.bt, s.hp);
+            p->charging, s.tx_s > 0, s.bl, mhz, s.tx_s, s.tx_w, s.wifi, s.bt, s.hp);
     fclose(f);
 }
 
@@ -1099,7 +990,7 @@ static bool radio_tick() {
 
     int32_t d = now_time - prev_time;
 
-    if (x6100_flow_read(pack)) {
+    if (hw_flow_read(pack)) {
         prev_time = now_time;
         pack_time = now_time;
         pack_vbat = pack->vbat;
@@ -1109,14 +1000,14 @@ static bool radio_tick() {
 
         if (delay++ > 10) {
             delay = 0;
-            clock_update_power(pack->vext * 0.1f, pack->vbat*0.1f, pack->batcap, pack->flag.charging);
+            clock_update_power(pack->vext * 0.1f, pack->vbat*0.1f, pack->batcap, pack->charging);
             battery_log(pack);
             /* Only on a change, with hysteresis: around 6.0 V the 30 s
              * power-off timer was started and stopped over and over */
             /* External power: the flag alone is not enough, charging an
              * empty battery it stayed clear with 11.7 V on the jack and the
              * radio switched itself off on the charger */
-            bool ext = pack->flag.vext || pack->flag.charging || pack->vext >= 90;
+            bool ext = pack->vext_flag || pack->charging || pack->vext >= 90;
             /* At power-on the base sends a few packets before it has measured anything (0 V on both):
              * one of them alone started "Low battery!" with a full battery on the charger. Low only
              * after 3 readings in a row (about 1.2 s), and never on a reading of nothing */
@@ -1134,7 +1025,7 @@ static bool radio_tick() {
             else held_cap = cap;
             bat_pct = cap;   /* the % on the screen (clock.c) */
             if (cap >= 0 && cap != pack->batcap)
-                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, cap, pack->flag.charging);
+                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, cap, pack->charging);
 
             low_reads = measured && !ext && pack->vbat <= LOW_BATTERY_VBAT_LOW ? (low_reads < 3 ? low_reads + 1 : 3) : 0;
             bool enter_low = low_reads >= 3;
@@ -1145,65 +1036,11 @@ static bool radio_tick() {
                 scheduler_put(low_power_ui_cb, &low_power, sizeof(low_power));
             }
         }
-        flow_info_t flow_info = pack->flow_info;
-
-        uint32_t base_freq = 0;
-        uint8_t fft_dec = 0;
-        /*
-        On patched:
-            RX:
-                SSB: base_freq = fg_freq - if_shift + rit
-                CW: base_freq = fg_freq - key_tone - if_shift + rit
-                CWR: base_freq = fg_freq + key_tone - if_shift + rit
-                AM: base_freq = fg_freq - 100 + rit
-                FM: base_freq = fg_freq - 200 + rit
-            TX:
-                SSB: base_freq = fg_freq + xit
-                CW: base_freq = fg_freq + xit
-
-            On OEM: base_freq = 0
-        */
-        if (base_ver.rev >= 8) {
-            base_freq = flow_info.lo_freq;
-            fft_dec = 1U << flow_info.fft_dec;
-        }
-
-        cfloat *flow_samples = (cfloat*)((char *)pack + offsetof(x6100_flow_t, samples));
-        cfloat *samples;
-        size_t n_samples;
-
-        if (base_ver.rev >= 8) {
-            if (flow_info.flow_fmt == x6100_flow_fp32) {
-                samples = flow_samples;
-                n_samples = RADIO_SAMPLES;
-            } else if (flow_info.flow_fmt == x6100_flow_bf16) {
-                n_samples = RADIO_SAMPLES * 2;
-                uint16_t *u16_flow_samples = (uint16_t*)flow_samples;
-                uint32_t *u32_samples_buf = (uint32_t*)samples_buf;
-                for (size_t i = 0; i < n_samples * 2; i+=4) {
-                    u32_samples_buf[i] = (uint32_t)u16_flow_samples[i] << 16;
-                    u32_samples_buf[i+1] = (uint32_t)u16_flow_samples[i+1] << 16;
-                    u32_samples_buf[i+2] = (uint32_t)u16_flow_samples[i+2] << 16;
-                    u32_samples_buf[i+3] = (uint32_t)u16_flow_samples[i+3] << 16;
-                }
-                samples = samples_buf;
-            }
-        } else {
-            samples = flow_samples;
-            n_samples = RADIO_SAMPLES;
-        }
-        // printf("%d from %d, freq: %d, vary_freq: %d\n", flow_info->flow_seq_n, seq_total, base_freq, vary_freq);
-        // union {
-        //     uint32_t i;
-        //     float f;
-        // } fuint = {flow_info->_pad2};
-        // printf("max signal: %g\n", fuint.f);
-        // printf("audio mul: %.*g\n", fuint.f);
-        dsp_samples(samples, n_samples, pack->flag.tx, base_freq, flow_info.vary_freq, fft_dec);
+        dsp_samples((cfloat *)pack->samples, pack->n_samples, pack->tx, pack->lo_freq, pack->vary_freq, pack->fft_dec);
 
         switch (state) {
             case RADIO_RX:
-                if (pack->flag.tx && state_move(RADIO_RX, RADIO_TX)) {
+                if (pack->tx && state_move(RADIO_RX, RADIO_TX)) {
                     if (notify_rx_tx) {
                         notify_rx_tx(true);
                     }
@@ -1211,7 +1048,7 @@ static bool radio_tick() {
                 break;
 
             case RADIO_TX:
-                if (!pack->flag.tx && state_move(RADIO_TX, RADIO_RX)) {
+                if (!pack->tx && state_move(RADIO_TX, RADIO_RX)) {
                     if (notify_rx_tx) {
                         notify_rx_tx(false);
                     }
@@ -1226,12 +1063,12 @@ static bool radio_tick() {
                 break;
 
             case RADIO_ATU_START:
-                WITH_RADIO_LOCK(x6100_control_atu_tune(true));
+                WITH_RADIO_LOCK(hw_set_i(HW_ATU_TUNE, true));
                 state_move(RADIO_ATU_START, RADIO_ATU_WAIT);
                 break;
 
             case RADIO_ATU_WAIT:
-                if (pack->flag.tx) {
+                if (pack->tx) {
                     if (notify_rx_tx) {
                         notify_rx_tx(true);
                     }
@@ -1240,21 +1077,21 @@ static bool radio_tick() {
                 break;
 
             case RADIO_ATU_RUN:
-                if (pack->flag.atu_status && !pack->flag.tx) {
+                if (pack->atu_status && !pack->tx) {
                     /* The settings on the LVGL thread: their observers run where they are set, and
                      * the delayed ones (the info bar) schedule LVGL calls, which only that thread may */
                     uint32_t network = pack->atu_params;
                     scheduler_put(atu_done_cb, &network, sizeof(network));
-                    WITH_RADIO_LOCK(x6100_control_atu_tune(false));
+                    WITH_RADIO_LOCK(hw_set_i(HW_ATU_TUNE, false));
                     recover_processing_audio_inputs();
                     if (notify_rx_tx) {
                         notify_rx_tx(false);
                     }
 
                     // TODO: change with observer on atu->loaded change
-                    WITH_RADIO_LOCK(x6100_control_cmd(x6100_atu_network, pack->atu_params));
+                    WITH_RADIO_LOCK(hw_set_i(HW_ATU_NETWORK, pack->atu_params));
                     state_move(RADIO_ATU_RUN, RADIO_RX);
-                } else if (pack->flag.tx) {
+                } else if (pack->tx) {
                     tx_info_update(pack->tx_power * 0.1f, pack->vswr * 0.1f, pack->alc_level * 0.1f);
                 }
                 break;
@@ -1264,7 +1101,7 @@ static bool radio_tick() {
                 break;
 
             case RADIO_POWEROFF:
-                WITH_RADIO_LOCK(x6100_control_poweroff());
+                WITH_RADIO_LOCK(hw_poweroff());
                 state_move(RADIO_POWEROFF, RADIO_OFF);
                 break;
 
@@ -1273,18 +1110,18 @@ static bool radio_tick() {
         }
 
         bool gui_tx = (state != RADIO_RX && state != RADIO_TX)
-            || (x6100_control_get(x6100_sple_atue_trx) & BASE_GUARD_TX_BITS)
+            || hw_tx_keyed_by_gui()
             || morse_on || (uint32_t)now_time - morse_ms < MORSE_HANG_MS;
 
-        if (tx_watch_check(&tx_watch, now_time, pack->flag.tx, gui_tx)) {
+        if (tx_watch_check(&tx_watch, now_time, pack->tx, gui_tx)) {
             base_guard_log("base still in TX %u ms after an un-key or write error, nothing keying it from the GUI: PTT off resent",
                            TX_WATCH_HOLD_MS);
             resync_due = true;
         }
 
-        switch (tx_watch_power(&tx_watch, now_time, pack->flag.tx)) {
+        switch (tx_watch_power(&tx_watch, now_time, pack->tx)) {
             case TX_WATCH_CUT:
-                WITH_RADIO_LOCK(x6100_control_txpwr_set(0.0f));
+                WITH_RADIO_LOCK(hw_set_f(HW_TXPWR_F, 0.0f));
                 base_guard_log("base still in TX %u ms after PTT off and a write error: TX power set to 0 (vext %.1f V, vbat %.1f V)",
                                TX_WATCH_CUT_MS, pack->vext * 0.1f, pack->vbat * 0.1f);
                 break;
@@ -1318,7 +1155,7 @@ static bool radio_tick() {
                                (unsigned)(now_time - pack_time), vb, ve);
             }
             prev_time = now_time;
-            x6100_flow_restart();
+            hw_flow_restart();
             dsp_reset();
         }
         return true;
@@ -1348,9 +1185,7 @@ static void guard_events() {
  * The library reopens the bus and tries once more on its own, and reports nothing but errno */
 static bool resend_all() {
     radio_lock();
-    errno = 0;
-    x6100_control_idle();
-    bool ok = errno == 0;
+    bool ok = hw_resend_all();
     radio_unlock();
     return ok;
 }
