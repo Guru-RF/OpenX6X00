@@ -135,32 +135,63 @@ bool sql_query_exec(const char *sql) {
 }
 
 
-void params_write_int(const char *name, int data, bool *dirty) {
+/* The legacy settings' writes, between params_write_begin() and params_write_commit(). A
+ * setting's dirty flag is cleared only once the transaction holding its row has committed:
+ * a failed step or commit (a full card, an I/O error) leaves it for the next save (audit A14) */
+#define PENDING_MAX 256
+static bool *pending[PENDING_MAX];
+static int  npending;
+static bool pending_short;  /* a write failed, or did not fit the list: the save is not complete */
+
+void params_write_begin(void) {
+    npending = 0;
+    pending_short = false;
+    sql_query_exec("BEGIN");
+}
+
+static bool write_step(bool *dirty) {
+    int rc = sqlite3_step(insert_stmt);
+
+    sqlite3_reset(insert_stmt);
+    sqlite3_clear_bindings(insert_stmt);
+    if (rc != SQLITE_DONE) {
+        LV_LOG_ERROR("Settings write: %s", sqlite3_errmsg(db));
+        pending_short = true;   /* stays dirty: written again next time */
+        return false;
+    }
+    if (npending < PENDING_MAX)
+        pending[npending++] = dirty;
+    else
+        pending_short = true;
+    return true;
+}
+
+bool params_write_int(const char *name, int data, bool *dirty) {
     sqlite3_bind_text(insert_stmt, 1, name, strlen(name), 0);
     sqlite3_bind_int(insert_stmt, 2, data);
-    sqlite3_step(insert_stmt);
-    sqlite3_reset(insert_stmt);
-    sqlite3_clear_bindings(insert_stmt);
-
-    *dirty = false;
+    return write_step(dirty);
 }
 
-void params_write_float(const char *name, float data, bool *dirty) {
+bool params_write_float(const char *name, float data, bool *dirty) {
     sqlite3_bind_text(insert_stmt, 1, name, strlen(name), 0);
     sqlite3_bind_double(insert_stmt, 2, (double) data);
-    sqlite3_step(insert_stmt);
-    sqlite3_reset(insert_stmt);
-    sqlite3_clear_bindings(insert_stmt);
-
-    *dirty = false;
+    return write_step(dirty);
 }
 
-void params_write_text(const char *name, const char *data, bool *dirty) {
+bool params_write_text(const char *name, const char *data, bool *dirty) {
     sqlite3_bind_text(insert_stmt, 1, name, strlen(name), 0);
     sqlite3_bind_text(insert_stmt, 2, data, strlen(data), 0);
-    sqlite3_step(insert_stmt);
-    sqlite3_reset(insert_stmt);
-    sqlite3_clear_bindings(insert_stmt);
+    return write_step(dirty);
+}
 
-    *dirty = false;
+bool params_write_commit(void) {
+    if (!sql_query_exec("COMMIT")) {
+        sql_query_exec("ROLLBACK");
+        npending = 0;
+        return false;
+    }
+    for (int i = 0; i < npending; i++)
+        *pending[i] = false;
+    npending = 0;
+    return !pending_short;
 }

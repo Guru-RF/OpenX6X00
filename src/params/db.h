@@ -19,6 +19,10 @@ bool database_init();
 
 bool sql_query_exec(const char *sql);
 
-void params_write_int(const char *name, int data, bool *dirty);
-void params_write_float(const char *name, float data, bool *dirty);
-void params_write_text(const char *name, const char *data, bool *dirty);
+/* A save: begin, the writes (false: that one failed, its dirty flag stays), commit (false:
+ * nothing of it is saved, or not all; every dirty flag that is not saved stays set) */
+void params_write_begin(void);
+bool params_write_int(const char *name, int data, bool *dirty);
+bool params_write_float(const char *name, float data, bool *dirty);
+bool params_write_text(const char *name, const char *data, bool *dirty);
+bool params_write_commit(void);

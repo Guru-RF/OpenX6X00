@@ -30,6 +30,11 @@ void params_unlock(bool *dirty) {
     pthread_mutex_unlock(&params_mux);
 }
 
+/* A save that failed: due again after the usual delay (the caller holds params_mux) */
+void params_save_again() {
+    params_mod_time = get_time();
+}
+
 bool params_ready_to_save() {
     if ((params_mod_time) && (get_time() - params_mod_time > PARAMS_SAVE_TIMEOUT)) {
         params_mod_time = 0;

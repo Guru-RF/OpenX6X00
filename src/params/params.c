@@ -364,10 +364,9 @@ static void params_save_str(params_str_t *var) {
     }
 }
 
-static void params_save() {
-    if (!sql_query_exec("BEGIN")) {
-        return;
-    }
+/* False: not everything is on the card; the dirty flags say what, the next save tries again */
+static bool params_save() {
+    params_write_begin();
 
     if (params.dirty.cw_encoder_period)     params_write_int("cw_encoder_period", params.cw_encoder_period, &params.dirty.cw_encoder_period);
     if (params.dirty.voice_msg_period)      params_write_int("voice_msg_period", params.voice_msg_period, &params.dirty.voice_msg_period);
@@ -440,20 +439,28 @@ static void params_save() {
     params_save_uint8(&params.theme);
     params_save_uint8(&params.font);
 
-    sql_query_exec("COMMIT");
+    return params_write_commit();
 }
 
 /* * */
 
 static void * params_thread(void *arg) {
+    int fails = 0;      /* saves in a row that did not get through: the card may be gone */
+
     while (true) {
         pthread_mutex_lock(&params_mux);
-        if (params_ready_to_save()){
-            params_save();
-            // params_mode_save();
+        if (params_ready_to_save()) {
+            if (params_save()) {
+                if (fails) LV_LOG_USER("Settings saved again after %d failed saves", fails);
+                fails = 0;
+            } else {
+                if (fails == 0) LV_LOG_ERROR("Settings not saved: kept to try again");
+                fails++;
+                params_save_again();
+            }
         }
         pthread_mutex_unlock(&params_mux);
-        usleep(100000);
+        usleep(fails ? 5000000 : 100000);   /* a failing card is not hammered */
     }
     return NULL;
 }

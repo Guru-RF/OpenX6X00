@@ -16,3 +16,4 @@ extern pthread_mutex_t  params_mux;
 void params_lock();
 void params_unlock(bool *dirty);
 bool params_ready_to_save();
+void params_save_again();
