@@ -72,10 +72,20 @@
 .screen { aspect-ratio:800/480; background:#000; border-radius:8px; overflow:hidden; }
 .screen canvas { width:100%; height:100%; display:block; }
 /* The FT8, CW and Log tabs */
-.ftbar { display:grid; grid-template-columns:repeat(4, 1fr); gap:5px; margin-bottom:6px; }
+.ftbar { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; margin-bottom:6px; }
 .ftbar .b { height:38px; font-size:12px; }
-.ftnext { font:12px/1.3 system-ui,sans-serif; color:var(--pd); padding:2px 4px 6px; min-height:1.3em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ftbar .b.armed { border-color:#e03030; box-shadow:inset 0 -3px 0 #e03030; }
+.ftl { display:grid; grid-template-columns:repeat(5, 1fr); gap:3px; margin:0 0 6px; padding:0; list-style:none; counter-reset:step; }
+.ftl li { font:600 10px/1.2 system-ui,sans-serif; letter-spacing:.3px; color:var(--pd); text-align:center; padding:5px 2px; border-radius:6px; background:var(--pb); border:1px solid var(--pl); position:relative; overflow:hidden; }
+.ftl li small { display:block; font-size:10px; font-weight:500; color:var(--pd); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; min-height:1.2em; }
+.ftl li.done { color:var(--pt); border-color:var(--pon); }
+.ftl li.cur { color:#fff; background:var(--pon); border-color:var(--pon); }
+.ftl li.cur small { color:#dde; }
+.ftl li.tx { background:#b71c1c; border-color:#b71c1c; }
+.ftl li.off { opacity:.55; }
+.ftnext { font:12px/1.35 system-ui,sans-serif; color:var(--pd); padding:2px 4px 6px; min-height:1.3em; }
 .ftnext b { color:var(--pa); }
+.ftnext.stop { color:#ffd27a; }
 .ft { margin:0; padding:0; list-style:none; font:12px/1.3 "SF Mono", Menlo, Consolas, monospace; }
 .ft li { display:grid; grid-template-columns:1fr auto; gap:2px 8px; padding:5px 6px; border-bottom:1px solid var(--pl); cursor:pointer; align-items:baseline; white-space:nowrap; overflow:hidden; }
 .ft li .x { overflow:hidden; text-overflow:ellipsis; }
@@ -214,15 +224,23 @@ body.app h2, body.app #intro { display:none; }
         <button class="b" id="ft-open"><small>APP</small><span>Open</span></button>
         <button class="b" id="ft-mode"><small>MODE</small><span>FT8</span></button>
         <button class="b" id="ft-txf"><small>TX Hz</small><span>--</span></button>
-        <button class="b" id="ft-stop">STOP</button>
-        <button class="b tg" id="ft-cq">CQ</button>
-        <button class="b tg" id="ft-auto">AUTO</button>
-        <button class="b tg" id="ft-hold">HOLD</button>
-        <button class="b" id="ft-clear">CLEAR</button>
+        <button class="b tg" id="ft-txcall" title="TX Call: armed, the queued message goes out in its slot; off, the app only listens and decodes (a dry run)"><small>TX</small><span>off</span></button>
+        <button class="b tg" id="ft-cq" title="Call CQ every slot of ours until a station answers, or CQ off">CQ</button>
+        <button class="b tg" id="ft-auto" title="Answer by itself a station that calls you, and carry the QSO through; it never calls CQ on its own">AUTO</button>
+        <button class="b tg" id="ft-hold" title="Hold the TX offset: do not move onto the station answered">HOLD</button>
+        <button class="b" id="ft-stop" title="Stop the transmission, drop the queued message, CQ off, TX off: nothing transmits until armed again">STOP</button>
+        <button class="b" id="ft-clear" title="Clear this list (the radio's is not touched)">CLEAR</button>
       </div>
+      <ol class="ftl" id="ftl" title="What the app does now and next">
+        <li data-s="listen">Listening<small></small></li>
+        <li data-s="queued">Queued<small></small></li>
+        <li data-s="slot">Next slot<small></small></li>
+        <li data-s="sending">Sending<small></small></li>
+        <li data-s="logged">Logged<small></small></li>
+      </ol>
       <div class="ftnext" id="ft-next">The app is closed: Open starts it on the radio.</div>
       <ul class="ft" id="ftrows"></ul>
-      <p class="sub" style="margin:8px 0 0;font-size:12px">CQ and AUTO run on the radio: they go on calling and answering when this page closes or loses its link. STOP ends the transmission under way and the queued reply; CQ off stops calling; AUTO off stops answering; Close ends the app. A tap on a CQ queues one reply for the next slot.</p>
+      <p class="sub" style="margin:8px 0 0;font-size:12px">All of it runs on the radio: CQ and AUTO go on calling and answering when this page closes or loses its link. TX off makes a dry run: the app listens, decodes and queues, and nothing keys the transmitter. A tap on a CQ or a call queues one reply for the next slot of ours and arms TX.</p>
     </div>
     <div class="tab" id="tab-cw">
       <div class="ftbar" style="grid-template-columns:1fr 1fr"><button class="b" id="cw-clear">CLEAR</button><button class="b" id="cw-log"><small>LOG</small><span>last call</span></button></div>
@@ -648,19 +666,52 @@ body.app h2, body.app #intro { display:none; }
   const PROTOS = ["FT4", "FT8", "FT2"];
   let ft8 = null, ftCount = 0;
   const $ftrows = $("#ftrows"), ftList = document.getElementById("ftrows");
+  /* The timeline (U10): what the app does now and next, as the radio tells it ("ft8 {...}" with
+   * in: ms to our next slot, slot: its length, rep: sends left, qso, hound, nocall, logged, logged_s).
+   * The countdown ticks here between the radio's updates. ftStopped: STOP was pressed, the line
+   * says what stays armed until the state moves on. */
+  let ft8At = 0, ftStopped = false;
+  function ftSlotIn() { return ft8 && ft8.in >= 0 ? Math.max(0, ft8.in - (Date.now() - ft8At)) : -1; }
   function showFt8() {
     const f = ft8; if (!f) return;
     $("#ft-open span").text(f.open ? "Close" : "Open"); $("#ft-open").toggleClass("on", !!f.open);
     $("#ft-mode span").text(PROTOS[f.proto] || "FT8");
     $("#ft-txf span").text(f.txf);
+    $("#ft-txcall span").text(f.tx ? "armed" : "off"); $("#ft-txcall").toggleClass("on", !!f.tx).toggleClass("armed", !!(f.tx && f.open));
     $("#ft-cq").toggleClass("on", !!f.cq); $("#ft-auto").toggleClass("on", !!f.auto); $("#ft-hold").toggleClass("on", !!f.hold);
     $("#ft-stop").toggleClass("down", !!f.sending);
-    const $n = $("#ft-next").empty();
+    if (f.sending || f.cq || (f.next && f.tx)) ftStopped = false;
+    const slotS = f.slot ? f.slot / 1000 : 15, inS = Math.ceil(ftSlotIn() / 1000), msg = f.next || "";
+    const queued = !!msg, armed = !!f.tx, cq = /^CQ /.test(msg) || msg.startsWith("CQ_");
+    const dx = queued && !cq ? msg.split(" ")[0] : "";
+    /* the steps: which is current, which are done, what each says */
+    const stage = !f.open ? "" : f.sending ? "sending" : queued && armed ? "slot" : queued ? "queued" : f.logged_s >= 0 && f.logged_s < 90 ? "logged" : "listen";
+    const order = ["listen", "queued", "slot", "sending", "logged"], at = order.indexOf(stage);
+    const sub = {
+      listen: !f.open ? "" : f.nocall ? "no callsign" : f.auto ? "AUTO answers you" : "tap a call",
+      queued: queued ? (cq ? "CQ" : "to " + dx) + (armed ? "" : ", TX off") : "",
+      slot: queued && armed && inS >= 0 ? "in " + inS + " s" + (f.rep > 0 ? ", " + f.rep + " left" : "") : queued ? "TX off" : "",
+      sending: f.sending ? msg : "",
+      logged: f.logged ? f.logged + " " + (f.logged_s < 60 ? f.logged_s + " s" : Math.floor(f.logged_s / 60) + " min") + " ago" : "",
+    };
+    $("#ftl li").each(function() {
+      const k = this.dataset.s, i = order.indexOf(k);
+      this.className = (k === stage ? "cur" : at > i && stage !== "listen" && stage !== "logged" ? "done" : "") + (k === "sending" && f.sending ? " tx" : "") + (!f.open || (k === "slot" && queued && !armed) ? " off" : "");
+      this.lastElementChild.textContent = sub[k];
+    });
+    /* the line: what happens next and on what condition, in words */
+    const $n = $("#ft-next").empty().toggleClass("stop", ftStopped);
     if (!f.open) $n.text("The app is closed: Open starts it on the radio.");
-    else if (f.sending) $n.append("On the air: ", $("<b>").text(f.next));
-    else if (f.next) $n.append("Next TX: ", $("<b>").text(f.next));
-    else $n.text("Listening. Tap a CQ to answer it, CQ to call.");
+    else if (f.nocall) $n.text("No callsign set on the radio (Settings > Station): the app decodes but never transmits.");
+    else if (f.sending) $n.append("On the air now: ", $("<b>").text(msg), f.rep > 0 ? " (" + f.rep + " more without an answer, then it stops)" : f.rep < 0 ? " (repeats until answered)" : "");
+    else if (ftStopped) $n.append("Stopped: the transmission and the queued message are dropped, CQ is off, TX is off. Nothing transmits until CQ, a tap on a call or TX arms it again", f.auto ? "; AUTO stays on and answers callers once armed." : ".");
+    else if (queued && armed) $n.append("Next: ", $("<b>").text(msg), " in " + inS + " s (every " + (2 * slotS) + " s, our " + (f.proto === 1 ? "15" : f.proto === 0 ? "7.5" : "3.75") + " s slot)", cq ? ", until a station answers or CQ off" : f.rep > 0 ? ", " + f.rep + " more tries without an answer" : "", f.hound ? "; Hound mode, the TX offset is the Fox's" : "", ".");
+    else if (queued) $n.append("Queued, not armed: ", $("<b>").text(msg), ". TX off: nothing goes out until TX, CQ or a tap on a call arms it (a dry run).");
+    else if (f.cq) $n.append("CQ armed: the next CQ goes out in " + inS + " s.");
+    else if (f.qso) $n.text("In a QSO with no message due: the radio waits for the other station" + (f.auto ? ", AUTO answers its next message" : ", tap its next message to answer") + ".");
+    else $n.text("Listening, nothing queued. " + (f.auto ? "AUTO: a station calling you is answered by itself. " : "AUTO off: a station calling you waits for your tap. ") + (armed ? "CQ calls, a tap on a CQ answers it." : "TX off (dry run): CQ or a tap arms it."));
   }
+  setInterval(function() { if (ft8 && ft8.open && ft8.in >= 0) showFt8(); }, 1000);
   function addFt8Row(r) {
     const atEnd = ftList.scrollHeight - ftList.scrollTop - ftList.clientHeight < 40 || !ftList.parentNode.classList.contains("cur");
     const li = $("<li>").addClass("t" + r.t).append($("<span class='x'>").text(r.x));
@@ -676,7 +727,8 @@ body.app h2, body.app #intro { display:none; }
   }
   $("#ft-open").on("click", function() { send("ft8 " + (ft8 && ft8.open ? "close" : "open")); });
   $("#ft-mode").on("click", function() { send("ft8 mode"); });
-  $("#ft-stop").on("click", function() { send("ft8 stop"); });
+  $("#ft-stop").on("click", function() { if (send("ft8 stop")) { ftStopped = true; showFt8(); } });
+  $("#ft-txcall").on("click", function() { send("ft8 txcall"); });
   $("#ft-cq").on("click", function() { send("ft8 cq"); });
   $("#ft-auto").on("click", function() { send("ft8 auto"); });
   $("#ft-hold").on("click", function() { send("ft8 hold"); });
@@ -787,7 +839,7 @@ body.app h2, body.app #intro { display:none; }
       else if (head === "spots") { spots = JSON.parse(body); showSpots(); requestDraw(); }
       else if (head === "bands") bands = JSON.parse(body);
       else if (head === "plan") { plan = JSON.parse(body); requestDraw(); }
-      else if (head === "ft8") { ft8 = JSON.parse(body); showFt8(); }
+      else if (head === "ft8") { ft8 = JSON.parse(body); ft8At = Date.now(); showFt8(); }
       else if (head === "ft8r") addFt8Row(JSON.parse(body));
       else if (head === "cw") addCw(JSON.parse(body));
       else if (head === "logged") { const a = body.split(" "); if (a.length > 1) logAnswer(a[0], a[1]); else status(body === "ok" ? "QSO logged" : "QSO not logged (see the radio)", body !== "ok"); }

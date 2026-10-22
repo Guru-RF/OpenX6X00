@@ -123,6 +123,8 @@ static SubjectInt   *tx_enabled;    /* TX Call */
 static SubjectInt   *cq_enabled;    /* TX CQ */
 static bool          tx_odd;        /* the slot (odd or even) our transmissions go in */
 static ftx_tx_msg_t  tx_msg;        /* the next transmission, "" none */
+static char          last_logged[16];   /* the last QSO saved (the panel's timeline), "" none */
+static time_t        last_logged_at;
 /* UTC start of the slot being received, "HH:MM:SS": in front of each row of it (worker thread) */
 static char          slot_time[9] = "--:--:--";
 
@@ -230,6 +232,8 @@ static void save_qso(const char *call, const char *grid, const int rcvd, const i
     adif_add_qso(ft8_log, rec);
     qso_log_record_save(rec);
     dialog_field_day_log(&rec);
+    snprintf(last_logged, sizeof(last_logged), "%s", call);
+    last_logged_at = now;
     ft8_udp_log_qso(now, rec.remote_call, grid, (uint64_t)cparam_i_get(cfg_fg_freq), mode_name(), sent, rcvd,
                     (int)param_f_get(cfg_pwr), params.callsign.x, station_qth());
 
@@ -616,6 +620,7 @@ static void tx_call_cb(button_data_t *btn) {
     if (subject_i_get(tx_enabled)) {
         sending = false;
         subject_i_set(tx_enabled, false);
+        msg_schedule_text_fmt("TX off: receive only until TX Call, CQ or a call is pressed");
     } else if (!params.callsign.x[0]) {
         msg_schedule_text_fmt("Call sign required");
     } else {
@@ -1248,6 +1253,7 @@ static void key_cb(lv_event_t *e) {
 
 static void construct_cb(lv_obj_t *parent) {
     dialog.obj = dialog_init(parent);
+    last_logged[0] = '\0';      /* the timeline's "Logged" is of this session */
 
     /* The window covers the main screen's spectrum and waterfall: no DSP for them */
     dsp_set_waterfall_enabled(false);
@@ -1389,9 +1395,12 @@ dialog_t *dialog_ft8 = &dialog;
 
 void ft8_window_status(ft8_status_t *s) {
     memset(s, 0, sizeof(*s));
-    s->open    = dialog_type_is_run(dialog_ft8);
-    s->proto   = cur_proto();
-    s->tx_freq = params.ft8_tx_freq.x;
+    s->open     = dialog_type_is_run(dialog_ft8);
+    s->proto    = cur_proto();
+    s->tx_freq  = params.ft8_tx_freq.x;
+    s->in_ms    = -1;       /* no countdown, no log: nothing ticks while the app is closed */
+    s->logged_s = -1;
+    s->slot_ms  = (int32_t)(ftx_slot_time(cur_proto()) * 1000);
     if (!s->open || !tx_enabled)
         return;
     s->cq      = subject_i_get(cq_enabled);
@@ -1401,6 +1410,27 @@ void ft8_window_status(ft8_status_t *s) {
     s->sending = sending;
     snprintf(s->next, sizeof(s->next), "%s", tx_msg.msg);
     if (!strncmp(s->next, "CQ_", 3)) s->next[2] = ' ';
+
+    /* The timeline: when the queued message goes out, how often still, what was logged */
+    float slot = ftx_slot_time(cur_proto());
+    if (tx_msg.msg[0] && s->tx && !sending) {
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+        float sec = (now.tv_sec % 60) + now.tv_nsec / 1.0e9f;
+        int   n   = (int)(sec / slot);              /* this slot's number in the minute */
+        bool  odd = (n % 2) != 0;
+        float t;
+        if (odd == tx_odd && fmodf(sec, slot) < tx_start_limit()) t = sec;             /* about to go, this slot */
+        else t = (n + (odd == tx_odd ? 2 : 1)) * slot;                                    /* the next slot of our parity */
+        s->in_ms = (int32_t)((t - sec) * 1000);
+        if (s->in_ms < 0) s->in_ms = 0;
+    }
+    s->repeats = tx_msg.msg[0] ? tx_msg.repeats : 0;
+    s->qso     = qso && ftx_qso_processor_has_current(qso);
+    s->hound   = hound_on;
+    s->nocall  = !params.callsign.x[0];
+    snprintf(s->logged, sizeof(s->logged), "%s", last_logged);
+    s->logged_s = last_logged[0] ? (int32_t)(time(NULL) - last_logged_at) : -1;
 }
 
 bool ft8_window_remote(ft8_rc_t what, int32_t arg, const cell_data_t *cell) {
@@ -1412,7 +1442,9 @@ bool ft8_window_remote(ft8_rc_t what, int32_t arg, const cell_data_t *cell) {
             if (subject_i_get(cq_enabled)) tx_cq_cb(NULL);     /* off, and the message dropped */
             tx_call_off();
             tx_msg.msg[0] = '\0';
+            msg_schedule_text_fmt("Stopped: nothing transmits until TX Call, CQ or a call is pressed");
             break;
+        case FT8_RC_TXCALL: tx_call_cb(NULL); break;
         case FT8_RC_AUTO:   auto_cb(NULL); break;
         case FT8_RC_HOLD:   hold_cb(NULL); break;
         case FT8_RC_MODE:   mode_cb(NULL); break;

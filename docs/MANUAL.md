@@ -1738,9 +1738,10 @@ web page, nothing to install, any device with a browser.
   coloured, the sender's country and distance, "worked" when the log knows
   the call; tap a CQ or a call to answer it as a press on the radio's list
   does, CQ calls, STOP ends the transmission, AUTO and HOLD are the app's
-  switches, MODE steps FT8, FT4, FT2, TX Hz sets the audio frequency. The
-  line above the list shows the next transmission; the QSO logs itself as
-  always. The last rows are kept, so a page that opens later sees them.
+  switches, TX is the app's TX Call (armed or off), MODE steps FT8, FT4,
+  FT2, TX Hz sets the audio frequency. The QSO logs itself as always. The
+  last rows are kept, so a page that opens later sees them. What the app
+  does now and next is a timeline above the list, see below.
 - CW: the radio's CW decoder's text as it comes (in CW mode, Settings > CW);
   LOG takes the last call sign in it to the Log tab.
 - Log: a voice or CW QSO by hand: call, RST sent and received, a name, LOG.
@@ -1773,7 +1774,10 @@ Screen page. The apps: the FT8 list's rows come as `ft8r {...}` (id, type,
 text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
 state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
 the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
-`ft8 txfreq HZ` and `ft8 reply ID` work the app, `log CALL|RSTS|RSTR|NAME`
+`ft8 txcall`, `ft8 txfreq HZ` and `ft8 reply ID` work the app; the state
+carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
+the sends left, `qso`, `hound`, `nocall`, `logged` and `logged_s`), once a
+second while a countdown runs; `log CALL|RSTS|RSTR|NAME`
 writes the day's log and is answered with `logged ok|no`. `logq ID CALL|...`
 is the same QSO with a number the client chose, answered `logged ID ok|no`;
 the radio keeps the last sixteen answers and `logq? ID` asks for one again:
@@ -1907,11 +1911,39 @@ from the page"). With the browser microphone the TCI rules apply: the radio
 unkeys half a second after the audio stops and after three minutes. Nothing
 keys the radio across a gap: a reconnect never re-presses PTT.
 
-The FT8 tab says it under its list: CQ and AUTO run on the radio and go on
-calling and answering when the page closes or loses its link; STOP ends the
-transmission under way and the queued reply, CQ off stops calling, AUTO off
-stops answering, Close ends the app. A tap on a CQ queues one reply for the
-next slot.
+### What the FT8 app will do next
+
+The FT8 tab shows the app's automation as a timeline, Listening > Queued >
+Next slot > Sending > Logged, the current step lit, with the facts under
+each: who AUTO answers, the queued message and its station, the seconds to
+the slot it goes out in and the tries left, what is on the air, the last
+QSO logged and how long ago. The line under it says the same in a sentence,
+with the condition: "Next: ON6URE JO21 in 7 s (every 30 s, our 15 s slot),
+until a station answers or CQ off", "Listening, nothing queued. AUTO: a
+station calling you is answered by itself. CQ calls, a tap on a CQ answers
+it", "No callsign set on the radio: the app decodes but never transmits".
+
+Three things are kept apart: a message queued but not armed (TX off: it
+stays a draft, the dry run), one armed (TX on: it goes out in the next slot
+of ours, counted down) and one on the air. TX is the app's TX Call: off, the
+app listens, decodes and queues and nothing keys the transmitter, so a new
+setup, a doubtful antenna or a first look at a band costs no transmission;
+CQ, a tap on a call or TX itself arms it, and the radio says so on its
+screen as well ("TX off: receive only until TX Call, CQ or a call is
+pressed").
+
+STOP is one button with one stated outcome: the transmission under way and
+the queued message are dropped, CQ goes off, TX goes off; the line then
+says what stays armed ("AUTO stays on and answers callers once armed") until
+the state moves on. CQ off alone stops the calling and keeps the rest; AUTO
+off stops the answering; Close ends the app.
+
+All of it runs on the radio: CQ and AUTO go on calling and answering when
+the page closes or loses its link, and a page that opens later finds the
+timeline where the radio is. The same holds for the radio's other automation
+the browser does not drive: JS8's AUTO, heartbeats and acks and WSPR's TX %
+beacons (set on the radio, off whenever their app opens, see JS8 and WSPR)
+continue on the radio until stopped there.
 
 ## Browser remote
 

@@ -995,7 +995,10 @@ static void ft8_status_line(char *buf, size_t n, const ft8_status_t *s) {
     size_t k = snprintf(buf, n, "ft8 {\"open\":%d,\"proto\":%d,\"cq\":%d,\"tx\":%d,\"auto\":%d,\"hold\":%d,\"sending\":%d,\"txf\":%d,\"next\":",
                         s->open, s->proto, s->cq, s->tx, s->auto_on, s->hold, s->sending, s->tx_freq);
     k += json_str(buf + k, n - k, s->next);
-    snprintf(buf + k, n - k, "}");
+    k += snprintf(buf + k, n - k, ",\"in\":%d,\"slot\":%d,\"rep\":%d,\"qso\":%d,\"hound\":%d,\"nocall\":%d,\"logged\":",
+                  s->in_ms, s->slot_ms, s->repeats, s->qso, s->hound, s->nocall);
+    k += json_str(buf + k, n - k, s->logged);
+    snprintf(buf + k, n - k, ",\"logged_s\":%d}", s->logged_s);
 }
 
 /* What the panel asks of the apps, on the LVGL thread */
@@ -1100,13 +1103,13 @@ static void app_apply(void *arg) {
     }
 }
 
-/* "ft8 open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" */
+/* "ft8 open|close|cq|stop|auto|hold|mode|txcall", "ft8 txfreq HZ", "ft8 reply ID" */
 static bool app_ft8_cmd(const char *what, const char *arg) {
     static const struct {
         const char *name;
         ft8_rc_t    rc;
     } rcs[] = {{"cq", FT8_RC_CQ},     {"stop", FT8_RC_STOP},     {"auto", FT8_RC_AUTO},   {"hold", FT8_RC_HOLD},
-               {"mode", FT8_RC_MODE}, {"txfreq", FT8_RC_TXFREQ}, {"reply", FT8_RC_REPLY}};
+               {"mode", FT8_RC_MODE}, {"txfreq", FT8_RC_TXFREQ}, {"reply", FT8_RC_REPLY}, {"txcall", FT8_RC_TXCALL}};
     acmd_t a = {.id = A_FT8};
 
     if (!strcasecmp(what, "open")) {
@@ -1160,7 +1163,7 @@ static void *panel_thread(void *arg) {
     ft8_status_t   ft8_last = {0};
     bool           have_last = false;
     uint32_t       sp_seq = 0, spots_gen = 0;
-    uint64_t       state_ms = 0, meter_ms = 0, spots_ms = 0, ft8_ms = 0;
+    uint64_t       state_ms = 0, meter_ms = 0, spots_ms = 0, ft8_ms = 0, ft8_sent_ms = 0;
     char           line[512];
     (void)arg;
 
@@ -1256,10 +1259,16 @@ static void *panel_thread(void *arg) {
         /* The apps: the FT8 state when it changed, the CW text, a log's answer */
         if (now - ft8_ms >= FT8_MS) {
             ft8_ms = now;
-            ft8_status_t fs;
+            ft8_status_t fs, a, b;
             ft8_window_status(&fs);
-            if (memcmp(&fs, &ft8_last, sizeof(fs)) != 0) {
-                ft8_last = fs;
+            /* The clocks (the slot countdown, the age of the log) tick on their own: those go
+             * once a second, the rest the moment it changes */
+            a = fs; b = ft8_last;
+            a.in_ms = b.in_ms = 0; a.logged_s = b.logged_s = 0;
+            bool ticking = (fs.in_ms >= 0 || fs.logged_s >= 0) && now - ft8_sent_ms >= 1000;
+            if (memcmp(&a, &b, sizeof(a)) != 0 || ticking) {
+                ft8_last    = fs;
+                ft8_sent_ms = now;
                 ft8_status_line(line, sizeof(line), &fs);
                 panel_broadcast(line);
             }
