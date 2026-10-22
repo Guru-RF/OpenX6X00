@@ -11,6 +11,7 @@
  */
 
 #include "cat.h"
+#include "board.h"
 
 #include "cfg/settings_manager.h"
 #include "common/queue.h"
@@ -1191,7 +1192,7 @@ void cat_init() {
 
     /* X6100_CAT_DEV: another port, for a test through a pty */
     const char *dev = getenv("X6100_CAT_DEV");
-    int fd = open(dev ? dev : "/dev/ttyS2", O_RDWR | O_NONBLOCK | O_NOCTTY);
+    int fd = open(dev ? dev : BOARD_CAT_DEV, O_RDWR | O_NONBLOCK | O_NOCTTY);
 
     if (fd > 0) {
         struct termios attr;

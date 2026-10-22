@@ -19,6 +19,7 @@
 #include <alsa/mixer.h>
 
 #include "lvgl/lvgl.h"
+#include "board.h"
 #include "audio.h"
 #include "meter.h"
 #include "dsp.h"
@@ -34,14 +35,14 @@ static pa_mainloop_api      *mlapi;
 static pa_context           *ctx;
 
 static pa_stream            *play_stm;
-static char                 *play_device = "alsa_output.platform-sound.stereo-fallback";
+static char                 *play_device = BOARD_PA_SINK;
 
 /* Local playback on the Bluetooth headphones (audio_play_bt_begin), per
  * thread: the TX players never see it, so TX audio always goes to the codec. */
 static __thread pa_stream   *bt_stm = NULL;
 
 static pa_stream            *capture_stm;
-static char                 *capture_device = "alsa_input.platform-sound.stereo-fallback";
+static char                 *capture_device = BOARD_PA_SOURCE;
 
 static pa_stream            *monitor_stm = NULL;
 

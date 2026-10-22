@@ -10,6 +10,7 @@
  */
 
 #include "msg_box.h"
+#include "board.h"
 #include "lvgl/lvgl.h"
 #include "lv_drivers/display/fbdev.h"
 #include "lv_drivers/display/drm.h"
@@ -59,7 +60,7 @@
 #include "walkie.h"
 
 /* LVGL draws the areas it refreshes here, then flushes them to the panel */
-#define DISP_BUF_SIZE (800 * 480 * 4)
+#define DISP_BUF_SIZE (BOARD_DISP_W * BOARD_DISP_H * 4)
 
 rotary_t                    *vol;
 encoder_t                   *mfk;
@@ -115,8 +116,8 @@ bool main_display_portrait(bool on) {
         return false;
     }
     drm_set_portrait(on);
-    disp_drv.hor_res = on ? 480 : 800;
-    disp_drv.ver_res = on ? 800 : 480;
+    disp_drv.hor_res = on ? BOARD_DISP_H : BOARD_DISP_W;
+    disp_drv.ver_res = on ? BOARD_DISP_W : BOARD_DISP_H;
     lv_disp_drv_update(lv_disp_get_default(), &disp_drv);
     return true;
 #else
@@ -147,8 +148,8 @@ static void display_register(void) {
     lv_disp_drv_init(&disp_drv);
     disp_drv.draw_buf = &draw_buf;
     disp_drv.flush_cb = screen_rec_flush;
-    disp_drv.hor_res  = 800;
-    disp_drv.ver_res  = 480;
+    disp_drv.hor_res  = BOARD_DISP_W;
+    disp_drv.ver_res  = BOARD_DISP_H;
 #if USE_DRM
     /* GUI over the waterfall plane: see-through parts keep their alpha */
     disp_drv.screen_transp = drm_planes();
@@ -164,12 +165,12 @@ static void display_register(void) {
 /* Front keys (event0, the second keypad on event4), main knob, VOL, MFK */
 static void inputs_open(void) {
     keyboard_init();
-    keypad_init("/dev/input/event0");
-    keypad_init("/dev/input/event4");
-    rotary_main_init("/dev/input/event1");
+    keypad_init(BOARD_DEV_KEYPAD);
+    keypad_init(BOARD_DEV_POWER);
+    rotary_main_init(BOARD_DEV_MAIN);
 
-    vol = rotary_init("/dev/input/event2");
-    mfk = encoder_init("/dev/input/event3");
+    vol = rotary_init(BOARD_DEV_VOL);
+    mfk = encoder_init(BOARD_DEV_MFK);
 
     /* VOL turns are keys to the focused widget: the value, or the choice of what it controls */
     vol->left[VOL_STATE_EDIT]    = KEY_VOL_LEFT_EDIT;

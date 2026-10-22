@@ -45,6 +45,7 @@
 #include <stdio.h>       /* before jpeglib.h, which wants FILE */
 
 #include "remote_server.h"
+#include "board.h"
 
 #include "band_plan.h"
 #include "cfg/cfg_api.h"
@@ -106,12 +107,12 @@
 #define FT8_RING    48              /* rows of the FT8 list kept for a page that opens later */
 #define CW_HIST     1024            /* the CW decoder's last characters, for the same */
 
-/* The input devices: what the GUI reads (gui_main.c inputs_open) */
-#define DEV_KEYPAD "/dev/input/event0"
-#define DEV_MAIN   "/dev/input/event1"
-#define DEV_VOL    "/dev/input/event2"
-#define DEV_MFK    "/dev/input/event3"
-#define DEV_POWER  "/dev/input/event4"   /* the PMIC's key: the matrix keypad drops KEY_POWER */
+/* The input devices: what the GUI reads (gui_main.c inputs_open), board.h */
+#define DEV_KEYPAD BOARD_DEV_KEYPAD
+#define DEV_MAIN   BOARD_DEV_MAIN
+#define DEV_VOL    BOARD_DEV_VOL
+#define DEV_MFK    BOARD_DEV_MFK
+#define DEV_POWER  BOARD_DEV_POWER
 
 typedef struct {
     int             fd;

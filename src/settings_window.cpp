@@ -7,6 +7,7 @@
  */
 
 #include "settings_window.h"
+#include "board.h"
 
 #include "dsp.h"
 #include "wifi.h"
@@ -565,10 +566,10 @@ static void dt_rtc_cb(lv_event_t *e) {
     if (lv_obj_has_state(lv_event_get_target(e), LV_STATE_EDITED) || !dt_changed) {
         return;
     }
-    int rtc = open("/dev/rtc1", O_WRONLY);
+    int rtc = open(BOARD_RTC_DEV, O_WRONLY);
 
     if (rtc <= 0) {
-        LV_LOG_ERROR("Can't open /dev/rtc1: %s\n", strerror(errno));
+        LV_LOG_ERROR("Can't open " BOARD_RTC_DEV ": %s\n", strerror(errno));
     } else {
         int res = ioctl(rtc, RTC_SET_TIME, &dt_utc);
 
