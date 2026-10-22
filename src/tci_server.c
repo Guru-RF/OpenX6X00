@@ -119,7 +119,7 @@ static atomic_bool     enabled = true;    /* on until /mnt/tci.conf says enabled
 static atomic_int      port = TCI_DEFAULT_PORT;
 static atomic_int      nclients;
 static int             wake_fd[2] = {-1, -1};
-static atomic_bool     cap_wanted;
+static atomic_bool     cap_wanted;      /* a client wants RX audio: set by the socket thread alone (cap_update) */
 static int             drive_set = -1;   /* the drive a client set; the base holds it, the settings keep theirs */
 static int             ptt_owner = -1;   /* the client that keyed the radio's own PTT, -1 none */
 static atomic_bool     ptt_unkey_due;    /* an unkey of the radio's PTT is queued: resent until it ran */
@@ -252,6 +252,18 @@ static void broadcastf(const char *fmt, ...) {
         broadcast(buf);
 }
 
+/* Socket thread: the capture runs while a client wants audio. Only this thread decides, so
+ * an audio_start cannot be undone by the capture thread finding no listener a moment
+ * earlier (audit A16) */
+static void cap_update(void) {
+    bool any = false;
+
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        if (clients[i].fd >= 0 && clients[i].audio_on)
+            any = true;
+    atomic_store(&cap_wanted, any);
+}
+
 static void client_close(client_t *c) {
     pthread_mutex_lock(&c->lock);
     if (c->fd >= 0) {
@@ -263,6 +275,7 @@ static void client_close(client_t *c) {
     c->out_len = c->in_len = c->text_len = 0;
     c->audio_on = c->rx_sensors = c->tx_sensors = false;
     pthread_mutex_unlock(&c->lock);
+    cap_update();
 }
 
 /* ---- The radio, on the LVGL thread -------------------------------------------------- */
@@ -629,14 +642,23 @@ static void handle_cmd(int ci, char *line) {
         }
         client_textf(c, "audio_samplerate:%u;", c->audio_rate);
     } else if (!strcmp(name, "audio_stream_sample_type")) {
-        if (n >= 1) c->audio_float = strcasecmp(a[0], "float32") == 0;
+        if (n >= 1) {
+            pthread_mutex_lock(&c->lock);   /* the capture thread reads it with the frame */
+            c->audio_float = strcasecmp(a[0], "float32") == 0;
+            pthread_mutex_unlock(&c->lock);
+        }
         client_textf(c, "audio_stream_sample_type:%s;", c->audio_float ? "float32" : "int16");
     } else if (!strcmp(name, "audio_start")) {
+        pthread_mutex_lock(&c->lock);
         c->audio_on = true;
-        atomic_store(&cap_wanted, true);
+        pthread_mutex_unlock(&c->lock);
+        cap_update();
         client_text(c, "audio_start:0;");
     } else if (!strcmp(name, "audio_stop")) {
+        pthread_mutex_lock(&c->lock);
         c->audio_on = false;
+        pthread_mutex_unlock(&c->lock);
+        cap_update();
         client_text(c, "audio_stop:0;");
     } else if (!strcmp(name, "tx_enable")) {
         client_text(c, "tx_enable:0,true;");
@@ -804,15 +826,20 @@ static void *capture_thread(void *arg) {
             s = NULL;
             continue;
         }
-        bool any = false;
         for (int i = 0; i < MAX_CLIENTS; i++) {
             client_t *c = &clients[i];
-            if (c->fd < 0 || !c->audio_on)
+            bool      on, flt;
+
+            /* one look at the client's wishes per frame: the header and the samples agree */
+            pthread_mutex_lock(&c->lock);
+            on  = c->fd >= 0 && c->up && c->audio_on;
+            flt = c->audio_float;
+            pthread_mutex_unlock(&c->lock);
+            if (!on)
                 continue;
-            any = true;
-            audio_hdr_t h = {.receiver = 0, .sample_rate = AUDIO_RATE, .format = c->audio_float ? AF_FLOAT32 : AF_INT16,
+            audio_hdr_t h = {.receiver = 0, .sample_rate = AUDIO_RATE, .format = flt ? AF_FLOAT32 : AF_INT16,
                              .length = AUDIO_FRAMES, .type = AT_RX, .channels = 1};
-            if (c->audio_float) {
+            if (flt) {
                 for (int k = 0; k < AUDIO_FRAMES; k++)
                     fl[k] = pcm[k] / 32768.0f;
                 client_frame(c, WS_OP_BINARY, &h, sizeof(h), fl, sizeof(fl));
@@ -820,8 +847,6 @@ static void *capture_thread(void *arg) {
                 client_frame(c, WS_OP_BINARY, &h, sizeof(h), pcm, sizeof(pcm));
             }
         }
-        if (!any)
-            atomic_store(&cap_wanted, false);
     }
     return NULL;
 }
