@@ -180,19 +180,40 @@ def cluster_option_lines(opts):
     return lines
 
 
+# One configuration file change at a time: two requests at once read the same list, wrote the
+# same temporary name and one of the edits was lost (audit A12). Held around read, change and replace
+config_lock = threading.Lock()
+
+
+def replace_file(path, write, **kw):
+    """The file written whole through a unique temporary name next to it, then put in place in one step."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=os.path.basename(path) + ".", suffix=".tmp")
+    try:
+        os.chmod(tmp, 0o644)
+        with os.fdopen(fd, "w", **kw) as f:
+            write(f)
+            f.flush()
+            os.fsync(f.fileno())   # /mnt is FAT on the SD card, as the GUI does
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def write_cluster_conf(host, port, servers, opts=None):
-    if opts is None:
-        opts = read_cluster_options()  # keep the filters and alerts
-    tmp = settings.CLUSTER_CONF + ".tmp"
-    with open(tmp, "w") as f:
+    def write(f):
         f.write(f"host={host}\nport={port}\n")
         for name, h, p in servers:
             f.write(f"server={name}|{h}|{p}\n")
         for line in cluster_option_lines(opts):
             f.write(line + "\n")
-        f.flush()
-        os.fsync(f.fileno())
-    os.rename(tmp, settings.CLUSTER_CONF)
+    with config_lock:
+        if opts is None:
+            opts = read_cluster_options()  # keep the filters and alerts
+        replace_file(settings.CLUSTER_CONF, write)
 
 
 def cluster_alerts_seen():
@@ -1236,13 +1257,9 @@ def macros_state(mode):
 
 
 def write_macros(mode, items):
-    path = settings.MACRO_FILES[mode]
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="latin-1") as f:
-        f.write("".join("%s\t%s\n" % (m["name"], m["text"]) for m in items))
-        f.flush()
-        os.fsync(f.fileno())   # /mnt is FAT on the SD card, as the GUI does
-    os.replace(tmp, path)
+    replace_file(settings.MACRO_FILES[mode],
+                 lambda f: f.write("".join("%s\t%s\n" % (m["name"], m["text"]) for m in items)),
+                 encoding="latin-1")
 
 
 def macro_entry(mode):
@@ -1263,9 +1280,10 @@ def change_macros(mode, fn):
     if mode not in settings.MACRO_FILES:
         return api_error(404, "No such mode")
     try:
-        items = read_macros(mode)
-        fn(items)
-        write_macros(mode, items)
+        with config_lock:
+            items = read_macros(mode)
+            fn(items)
+            write_macros(mode, items)
     except ValueError as ex:
         return api_error(400, str(ex))
     except OSError as ex:
@@ -1381,11 +1399,10 @@ def read_channels():
 
 
 def write_channels(channels):
-    tmp = settings.CHANNELS_FILE + ".tmp"
-    with open(tmp, "w") as f:
+    def write(f):
         json.dump({"version": 1, "channels": channels}, f, indent="\t")
         f.write("\n")
-    os.rename(tmp, settings.CHANNELS_FILE)
+    replace_file(settings.CHANNELS_FILE, write)
 
 
 def channels_state():
@@ -1394,15 +1411,16 @@ def channels_state():
 
 def channels_edit(change):
     """Read, change (raises ValueError), write, return the new list."""
-    channels = read_channels()
-    try:
-        change(channels)
-    except ValueError as ex:
-        return api_error(400, str(ex))
-    try:
-        write_channels(channels)
-    except OSError as ex:
-        return api_error(500, f"Can't save: {ex}")
+    with config_lock:
+        channels = read_channels()
+        try:
+            change(channels)
+        except ValueError as ex:
+            return api_error(400, str(ex))
+        try:
+            write_channels(channels)
+        except OSError as ex:
+            return api_error(500, f"Can't save: {ex}")
     return channels_state()
 
 
