@@ -337,6 +337,11 @@ static void apply_cmd(void *arg) {
                 txs.prev = 0;
                 atomic_store(&txs.keyed, true);
                 radio_set_modem(true);
+            } else if (c->tci) {
+                /* CW or a data mode: the audio has no way in, and the radio's own PTT would have
+                 * been keyed with nothing in the session to release it (audit A01) */
+                atomic_store(&txs.refused, true);
+                break;
             } else {
                 radio_set_ptt(true);
             }
@@ -451,8 +456,14 @@ static void state_follow(rstate_t *last, bool first) {
         if (!s.tx)
             ptt_owner = -1;
     }
-    if (atomic_exchange(&txs.refused, false))
+    if (atomic_exchange(&txs.refused, false)) {
         broadcast("trx:0,false;");
+        /* the key was refused: the session that asked for it holds nothing (audit A01) */
+        if (!atomic_load(&txs.keyed))
+            txs.owner = -1;
+        if (!s.tx)
+            ptt_owner = -1;
+    }
     *last = s;
 }
 
