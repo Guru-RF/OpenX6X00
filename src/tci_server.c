@@ -120,7 +120,29 @@ static atomic_int      port = TCI_DEFAULT_PORT;
 static atomic_int      nclients;
 static int             wake_fd[2] = {-1, -1};
 static atomic_bool     cap_wanted;      /* a client wants RX audio: set by the socket thread alone (cap_update) */
-static int             drive_set = -1;   /* the drive a client set; the base holds it, the settings keep theirs */
+/* The drive a client set, with the power the setting took from it: reported as long as the
+ * setting still holds that power. A change from the front panel or another client then shows
+ * as the conversion of the actual power again (audit A17). One word: written on the GUI
+ * thread, read on the socket thread */
+static atomic_uint_fast64_t drive_set;   /* drive + 1 in the high half (0: none), the power's float bits low */
+
+static void drive_set_store(int drive, float pwr) {
+    uint32_t bits;
+
+    memcpy(&bits, &pwr, sizeof(bits));
+    atomic_store(&drive_set, ((uint64_t)(drive + 1) << 32) | bits);
+}
+
+/* The drive to report for the actual power */
+static int drive_of(float pwr) {
+    uint64_t v = atomic_load(&drive_set);
+    uint32_t bits;
+
+    memcpy(&bits, &pwr, sizeof(bits));
+    if ((v >> 32) && (uint32_t)v == bits)
+        return (int)(v >> 32) - 1;
+    return (int)lroundf((pwr - 0.1f) * 100.0f / 9.9f);
+}
 static int             ptt_owner = -1;   /* the client that keyed the radio's own PTT, -1 none */
 static atomic_bool     ptt_unkey_due;    /* an unkey of the radio's PTT is queued: resent until it ran */
 static uint64_t        ptt_unkey_ms;
@@ -333,8 +355,8 @@ static void apply_cmd(void *arg) {
             param_i_set(cfg_rit, c->a);
             break;
         case C_DRIVE:
-            drive_set = c->a;
             cfg_pwr_set(0.1f + c->a * 9.9f / 100.0f);   /* saved, the radio follows the setting */
+            drive_set_store(c->a, param_f_get(cfg_pwr)); /* as the setting kept it */
             break;
         case C_KEY:
             if (radio_get_state() != RADIO_RX || radio_get_modem() || atomic_load(&txs.keyed)) {
@@ -385,7 +407,7 @@ static void state_read(rstate_t *s) {
     s->fhi   = cparam_i_get(cfg_cur_filter_high);
     s->agc   = cparam_i_get(cfg_cur_agc);
     s->rit   = param_i_get(cfg_rit);
-    s->drive = drive_set >= 0 ? drive_set : (int)lroundf((param_f_get(cfg_pwr) - 0.1f) * 100.0f / 9.9f);
+    s->drive = drive_of(param_f_get(cfg_pwr));
     s->tx    = radio_get_state() != RADIO_RX || radio_get_modem();
 }
 
