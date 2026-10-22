@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import secrets
 import shutil
 import socket
 import sqlite3
@@ -2163,7 +2164,7 @@ def upload_backup():
         return backup_error(409, "Another backup operation is running")
     try:
         stage = backup_stage()
-        shutil.rmtree(stage, ignore_errors=True)
+        stage_clear()
         os.makedirs(stage, mode=0o700)
         archive = os.path.join(settings.BACKUP_WORK, "upload.tar")
         try:
@@ -2185,10 +2186,40 @@ def upload_backup():
             except OSError:
                 pass
         in_file = describe_backup(stage_files(), manifest["date"][:32])
-        return {"date": manifest["date"][:32], "callsign": str(manifest.get("callsign", ""))[:16],
+        token = stage_token_new()
+        return {"date": manifest["date"][:32], "callsign": str(manifest.get("callsign", ""))[:16], "token": token,
                 "parts": {p: {"file": s, "now": describe_backup(backup_current()).get(p, "")} for p, s in in_file.items()}}
     finally:
         backup_lock.release()
+
+
+def stage_token_path():
+    return os.path.join(settings.BACKUP_WORK, "stage.token")
+
+
+def stage_token_new():
+    """The identity of the upload just staged: the restore must name it, so a backup uploaded
+    from another tab in between is never restored under this one's preview (audit A10)."""
+    token = secrets.token_hex(8)
+    with open(stage_token_path(), "w") as f:
+        f.write(token)
+    return token
+
+
+def stage_token():
+    try:
+        with open(stage_token_path()) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def stage_clear():
+    shutil.rmtree(backup_stage(), ignore_errors=True)
+    try:
+        os.remove(stage_token_path())
+    except OSError:
+        pass
 
 
 def stage_files():
@@ -2244,17 +2275,42 @@ def apply_memory_slots(path):
 
 
 def gui_service(action):
-    subprocess.run([settings.GUI_INIT, action], capture_output=True, timeout=60)
+    """The GUI's init script; its exit status (audit A22)."""
+    return subprocess.run([settings.GUI_INIT, action], capture_output=True, timeout=60).returncode
+
+
+def gui_running():
+    """The GUI or its start loop is alive: a writer of the settings and the log."""
+    for name in ("x6100_gui", "x6100_daemon"):
+        if subprocess.run(["pidof", name], capture_output=True).returncode == 0:
+            return True
+    return False
+
+
+def gui_stop_for_restore():
+    """Stops the GUI and waits for it and its start loop to be gone: a restore over a live
+    writer would be undone or corrupt the database. The error text if they stay (audit A22)."""
+    rc = gui_service("stop")
+    for _ in range(20):
+        if not gui_running():
+            return None
+        time.sleep(0.5)
+    gui_service("start")    # whatever stopped comes back; nothing was replaced
+    return f"The radio screen did not stop (exit {rc}): nothing was replaced"
 
 
 @app.post('/api/backup/restore')
 def restore_backup():
-    parts = (bottle.request.json or {}).get("parts")
+    body = bottle.request.json or {}
+    parts = body.get("parts")
     if not isinstance(parts, list) or not parts:
         return backup_error(400, "Nothing selected")
     if not backup_lock.acquire(blocking=False):
         return backup_error(409, "Another backup operation is running")
     try:
+        token = stage_token()
+        if not token or str(body.get("token", "")) != token:
+            return backup_error(409, "The backup shown is not the one on the radio any more: choose the file again")
         files = stage_files()
         todo = {}   # member -> path on the radio, in the order of params.db first
         for name, path in sorted(files.items(), key=lambda x: x[0] != "params.db"):
@@ -2264,12 +2320,14 @@ def restore_backup():
         if not todo:
             return backup_error(409, "No uploaded backup: choose the file again")
         gui = any(backup_member(n)[0] in BACKUP_GUI_PARTS for n in todo)
+        gui_up = False
         if gui:
             try:
-                gui_service("stop")
+                err = gui_stop_for_restore()
             except (OSError, subprocess.SubprocessError) as e:
                 return backup_error(500, f"Can't stop the radio screen: {e}")
-            time.sleep(1)
+            if err:
+                return backup_error(500, err)
         failed, restored = {}, []
         try:
             for name, dst in todo.items():
@@ -2301,12 +2359,15 @@ def restore_backup():
         finally:
             if gui:
                 try:
-                    gui_service("start")
+                    rc = gui_service("start")
+                    gui_up = rc == 0
+                    if rc:
+                        failed["gui"] = f"The radio screen did not start (exit {rc}): switch the radio off and on"
                 except (OSError, subprocess.SubprocessError) as e:
                     failed["gui"] = f"Can't start the radio screen: {e}"
-            shutil.rmtree(backup_stage(), ignore_errors=True)
+            stage_clear()
         restored = [p for p in restored if p not in failed]
-        return {"restored": restored, "failed": failed, "gui_restarted": gui}
+        return {"restored": restored, "failed": failed, "gui_restarted": gui_up}
     finally:
         backup_lock.release()
 

@@ -103,6 +103,7 @@ $("#file").on("change", function() {
         row.append($("<td>").text(r.parts[p[0]].now || "none"));
         body.append(row);
       });
+      $("#restore").data("token", r.token);   /* names this upload to the restore: a later upload, another tab's, is refused */
       $("#restore").prop("hidden", false);
       showStatus("restore", "Backup of " + (r.callsign ? r.callsign + ", " : "") + r.date);
     },
@@ -117,7 +118,7 @@ $("#restore_btn").on("click", function() {
   $("#restore_btn").prop("disabled", true);
   showStatus("restore", "Restoring…");
   $.ajax({
-    url: "/api/backup/restore", type: "POST", data: JSON.stringify({parts: parts}),
+    url: "/api/backup/restore", type: "POST", data: JSON.stringify({parts: parts, token: $("#restore").data("token")}),
     contentType: "application/json; charset=utf-8", dataType: "json",
     success: function(r) {
       const failed = Object.keys(r.failed);
