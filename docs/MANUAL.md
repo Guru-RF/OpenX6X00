@@ -20,6 +20,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
+- [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
 - [Network name](#network-name)
@@ -1679,11 +1680,60 @@ Server options: `--host`, `--port`, `--https-port` (0 = off), `--cert-dir`,
 |---|---|
 | ![Cluster page](screenshots/web/cluster_desktop.png) | ![Digital modes page](screenshots/web/digital_modes_desktop.png) |
 
+## Browser panel
+
+The radio worked natively from a browser: `http://x6100.local/panel` (the
+web configurator's Remote > Panel page). Not a picture of the radio's screen
+but the radio's own controls, laid out for a touch screen, on a phone, a
+tablet or a PC, portrait or landscape: what the closed phone app does, as a
+web page, nothing to install, any device with a browser.
+
+![The Panel page on a tablet](screenshots/web_panel.png)
+
+- The spectrum and the waterfall, live from the radio's own FFT (a kilobyte a
+  frame, fifteen a second: a tenth of the Screen page's bandwidth), with the
+  frequency scale, the IARU band plan strip, the VFO line and the passband.
+  Tap or drag to tune, pinch (or Ctrl + the mouse wheel) to zoom, the wheel
+  to tune by the step. Colours: Blue, Fire, Ice, Grey.
+- The frequency: tap it for a keypad (kHz). BAND up and down, MODE, STEP,
+  ZOOM, VFO A/B, LOCK; the knob buttons tune by the step.
+- PRE, ATT, NB, NR, AGC, ATU on and off; VOL, SQL, RF GAIN and POWER with
+  - and +, or a slider on a tap; FILTER presets for the mode and the edges by
+  hand; ATU TUNE (a long press of the key).
+- The S-meter, the power and SWR while transmitting, the battery.
+- Spots: the DX cluster's spots as the radio filters them (see
+  [DX Cluster](#dx-cluster)), newest first, tap one to tune to it; the calls
+  stand on the waterfall too, an alert in orange.
+- Keys: the front keys and knobs, for the radio's menus and apps; the Screen
+  tab shows the radio's display, so an app opened with APP is worked from
+  here. The [Browser remote](#browser-remote) is the same thing full size.
+- Sound (the RX audio in the browser) and Mic (the browser's microphone while
+  PTT is held) as on the Screen page, over the TCI server; PTT without Mic
+  keys the radio's own microphone.
+- Light: a light theme for the sun. App: the panel alone, without the
+  configurator's header, for a phone. Fullscreen.
+- Phone in portrait: the radio on top, the Spots, Keys and Screen tabs below.
+  Tablet or PC in landscape: side by side. The page follows the screen.
+
+The page talks to the GUI's remote WebSocket (port 50002, the Screen page's):
+`panel 1` subscribes to the state (`state {...}` as JSON: frequency, mode,
+filter, the switches and the levels, whenever something changes), the
+S-meter (`m <dB>`, ten a second), the TX meters (`t <W> <SWR> <ALC>`), the
+bands and the band plan (`bands`, `plan`), the spots (`spots [...]`) and the
+spectrum as binary frames (16 bytes header `{u16 0xFFFF, u16 bins, u32
+centre Hz, u32 width Hz, u32 sequence}`, then one int8 dB per bin). `set NAME
+VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list),
+`agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1), `sql`, `rfg`
+(0-100), `vol` (0-55), `pwr` (tenths of a watt), `step`, `zoom` (1-8), `band`
+(+1/-1), `vfo` (toggle), `filter LO HI`. The keys and knobs go as on the
+Screen page. Settings > General > BROWSER REMOTE turns the server on and off
+for both pages.
+
 ## Browser remote
 
 The radio in a browser: its screen live, every front key, the three knobs,
 the audio both ways. A phone, a tablet or a PC on the same network opens
-`http://x6100.local/remote` (the web configurator's Remote page) and works the
+`http://x6100.local/remote` (the web configurator's Remote > Screen page) and works the
 radio as if standing in front of it, apps and settings included, since it is
 the radio's own screen that is shown. This is what the closed phone apps did;
 here it is a web page, nothing to install.

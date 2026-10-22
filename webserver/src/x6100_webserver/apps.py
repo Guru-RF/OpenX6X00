@@ -302,6 +302,12 @@ def remote():
     return bottle.template('remote')
 
 
+# The Panel page (views/panel.html): the radio worked natively over the same WebSocket
+@app.route('/panel')
+def panel():
+    return bottle.template('panel')
+
+
 @app.get('/api/remote')
 def remote_get():
     return remote_state()

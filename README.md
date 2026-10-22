@@ -62,7 +62,8 @@ Added:
 | **Screen** | DRM/KMS output with the GUI on a transparent layer over a waterfall drawn one line at a time, about half the CPU of the old path; a main knob with every detent timed in its own thread and acceleration that grows with the speed. |
 | **Themes** | Every colour, corner, font and waterfall palette comes from the theme; RF.Guru, Classic, Outdoor, Outdoor-Negative, VISION, Black Metal, Total Black, RS, Holo and Material 3 come with the image, your own go on the SD card ([docs/THEMES.md](docs/THEMES.md)). |
 | **Wireless** | WiFi, a USB Ethernet adapter with DHCP or a fixed address, USB tethering; Bluetooth CAT for three clients, headphones and keyboards with pairings that survive a new image. |
-| **Browser remote** | `http://x6100.local/remote`: the radio's screen live in any browser, every key and knob, RX audio and the browser's microphone for TX (https). Replaces the closed phone apps. |
+| **Browser panel** | `http://x6100.local/panel`: the radio worked natively from a phone, a tablet or a PC, portrait or landscape: the spectrum and the waterfall live (tap or drag to tune, pinch to zoom), the frequency, band, mode, step and zoom, every switch and level, the S-meter, the DX spots (tap to tune), RX audio and the browser's microphone for TX, a light theme for the sun. What the closed phone app does, as a web page. |
+| **Browser remote** | `http://x6100.local/remote`: the radio's screen live in any browser, every key and knob, RX audio and the browser's microphone for TX (https), for the radio's own menus and apps. |
 | **Web configurator** | `http://x6100.local/` (mDNS; or the radio's IP): bands, digital frequencies, memories, cluster, Field Ops, CW messages, macros, logs, files, a gallery, backup and restore, display, time, network name, Ethernet, TCI. |
 | **TCI server** | The VFO-Knob and any TCI client on the network: tune, mode, filter, AGC, PTT, the meters and the audio both ways. |
 

@@ -26,6 +26,9 @@ void band_plan_set_y(lv_coord_t y);
 /* Span shown: center - half_width .. center + half_width */
 void band_plan_update(int32_t center, int32_t half_width);
 
+/* Segment i of the plan (start, end in Hz, bp_type_t): false past the last one. Any thread */
+bool band_plan_segment(int i, int32_t *start, int32_t *end, int *type);
+
 /* The setting changed: redraw with the last span */
 void band_plan_refresh(void);
 

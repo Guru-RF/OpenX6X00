@@ -1,0 +1,758 @@
+% rebase('base.html', title='Panel')
+<style>
+/* The panel: the radio worked natively in the browser, on a phone, a tablet or a PC. SPDX-License-Identifier: LGPL-2.1-or-later */
+.pn { --pb:#0d1626; --pc:#15223a; --pl:#27385a; --pt:#e6edf3; --pd:#8fa3b8; --pa:#ffb020; --pok:#5fd38a; --perr:#ff6b6b; --pon:#2a7fff;
+      display:flex; gap:12px; align-items:stretch; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; color:var(--pt); }
+.pn[data-theme="light"] { --pb:#f4f6f8; --pc:#ffffff; --pl:#c9d2de; --pt:#101418; --pd:#4a5666; --pa:#c77d00; --pon:#0b5fd0; --pok:#1f8a4c; --perr:#c62828; }
+.pn-radio { flex:1 1 600px; min-width:0; display:flex; flex-direction:column; gap:8px; }
+.pn-side { flex:0 0 340px; min-width:0; display:flex; flex-direction:column; gap:8px; }
+.pn-top { display:grid; grid-template-columns:auto 1fr auto; gap:8px 12px; align-items:center; background:var(--pc); border:1px solid var(--pl); border-radius:10px; padding:8px 12px; }
+.chips { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.chip { font:600 12px/1 system-ui,sans-serif; letter-spacing:.4px; padding:6px 8px; border-radius:6px; background:var(--pb); border:1px solid var(--pl); color:var(--pd); }
+.chip.on { color:var(--pt); border-color:var(--pon); }
+.chip.tx { background:#b71c1c; color:#fff; border-color:#b71c1c; }
+.chip.rx { color:var(--pok); border-color:var(--pok); }
+.freq { grid-row:1 / span 2; grid-column:3; font:700 clamp(28px, 6vw, 46px)/1 "SF Mono", Menlo, Consolas, monospace; letter-spacing:1px; cursor:pointer; text-align:right; font-variant-numeric:tabular-nums; padding:2px 0; }
+.freq small { font-size:.55em; color:var(--pd); font-weight:500; }
+.freq.locked { color:var(--pd); }
+.smeter { grid-column:1 / span 2; display:flex; align-items:center; gap:8px; font:600 12px/1 system-ui,sans-serif; color:var(--pd); }
+.smeter .bar { flex:1; height:12px; background:var(--pb); border:1px solid var(--pl); border-radius:4px; position:relative; overflow:hidden; }
+.smeter .bar i { position:absolute; left:0; top:0; bottom:0; width:0; background:linear-gradient(90deg,#2a7fff 0 60%,#ffb020 60% 80%,#ff5252 80%); transition:width .08s linear; }
+.smeter .bar b { position:absolute; top:0; bottom:0; width:1px; background:var(--pl); }
+.smeter .val { min-width:5em; text-align:right; color:var(--pt); font-variant-numeric:tabular-nums; }
+.pn-pan { position:relative; background:#000; border-radius:10px; overflow:hidden; border:1px solid var(--pl); height:clamp(220px, 44vh, 520px); touch-action:none; cursor:crosshair; }
+.pn-pan canvas { width:100%; height:100%; display:block; }
+.pn-pan .msg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; color:#9fb3c8; background:#0b1220cc; font-size:15px; }
+.pn-pan .msg[hidden] { display:none; }
+.pn-ctl { display:flex; flex-direction:column; gap:6px; }
+.row { display:grid; gap:6px; }
+.row.r7 { grid-template-columns:repeat(7, 1fr); }
+.row.r6 { grid-template-columns:repeat(6, 1fr); }
+.row.r5 { grid-template-columns:repeat(5, 1fr); }
+.row.r4 { grid-template-columns:repeat(4, 1fr); }
+.b { background:var(--pc); color:var(--pt); border:1px solid var(--pl); border-radius:8px; padding:0 4px; height:44px; font:600 13px/1.15 system-ui,sans-serif; cursor:pointer; touch-action:manipulation; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-width:0; overflow:hidden; }
+.b small { font-size:10px; font-weight:500; color:var(--pd); letter-spacing:.5px; }
+.b:active, .b.down { background:var(--pon); border-color:var(--pon); color:#fff; }
+.b:active small, .b.down small { color:#dde; }
+.b.on { border-color:var(--pon); box-shadow:inset 0 -3px 0 var(--pon); }
+.b.ptt { height:56px; background:#4a1a1a; border-color:#7a2a2a; font-size:15px; color:#fff; }
+.b.ptt.down { background:#e03030; border-color:#e03030; }
+.b.lvl { flex-direction:row; justify-content:space-between; padding:0; }
+.b.lvl > span { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; }
+.b.lvl > i { width:34px; align-self:stretch; display:flex; align-items:center; justify-content:center; font:700 18px/1 system-ui,sans-serif; font-style:normal; color:var(--pd); border-left:1px solid var(--pl); }
+.b.lvl > i:first-child { border-left:0; border-right:1px solid var(--pl); }
+.b.lvl > i:active { background:var(--pon); color:#fff; }
+.b.lvl:active { background:var(--pc); color:var(--pt); }
+.pn-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 10px; }
+.pn-bar .status { margin-left:auto; }
+.pn-bar button[aria-pressed="true"] { background:var(--pon); color:#fff; border-color:var(--pon); }
+/* The side column */
+.tabs { display:flex; gap:4px; background:var(--pc); border:1px solid var(--pl); border-radius:10px; padding:4px; }
+.tabs button { flex:1; background:transparent; border:0; color:var(--pd); border-radius:7px; padding:8px 4px; font:600 13px/1 system-ui,sans-serif; cursor:pointer; }
+.tabs button[aria-selected="true"] { background:var(--pb); color:var(--pt); }
+.tab { display:none; background:var(--pc); border:1px solid var(--pl); border-radius:10px; padding:8px; flex:1; min-height:200px; overflow:auto; }
+.tab.cur { display:block; }
+.spots { margin:0; padding:0; list-style:none; font:13px/1.3 system-ui,sans-serif; }
+.spots li { display:grid; grid-template-columns:5.5em 1fr 3em 2.6em; gap:6px; padding:7px 6px; border-bottom:1px solid var(--pl); cursor:pointer; align-items:baseline; }
+.spots li:hover { background:var(--pb); }
+.spots li.near { background:#1c2e4a; }
+.pn[data-theme="light"] .spots li.near { background:#e3ecf8; }
+.spots li.al b { color:var(--pa); }
+.spots .f { font-variant-numeric:tabular-nums; color:var(--pt); font-weight:600; }
+.spots b { color:#7fc4ff; }
+.spots .m, .spots .a { color:var(--pd); font-size:12px; text-align:right; }
+.spots .k { grid-column:2 / span 3; color:var(--pd); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.keys { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+.keys .wide { grid-column:1 / -1; }
+.keys .b { height:40px; }
+.knobs { display:flex; gap:6px; }
+.knobs .b { flex:1; }
+.screen { aspect-ratio:800/480; background:#000; border-radius:8px; overflow:hidden; }
+.screen canvas { width:100%; height:100%; display:block; }
+/* Pop-ups: a list of choices, a slider, the keypad */
+.pop { position:fixed; inset:0; background:#0008; z-index:100; display:flex; align-items:center; justify-content:center; padding:16px; }
+.pop[hidden] { display:none; }
+.pop .box { background:var(--pc); color:var(--pt); border:1px solid var(--pl); border-radius:12px; padding:14px; min-width:260px; max-width:94vw; max-height:90vh; overflow:auto; box-shadow:0 10px 40px #000a; }
+.pop h4 { margin:0 0 10px; font:600 14px/1 system-ui,sans-serif; color:var(--pd); display:flex; justify-content:space-between; align-items:center; }
+.pop .list { display:grid; grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:6px; }
+.pop .list .b { height:42px; }
+.pop input[type=range] { width:100%; margin:12px 0; accent-color:var(--pon); }
+.pop .big { font:700 28px/1 "SF Mono", Menlo, Consolas, monospace; text-align:center; margin:4px 0 12px; font-variant-numeric:tabular-nums; }
+.pad { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+.pad .b { height:46px; font-size:18px; }
+.pad .b.ok { background:var(--pon); border-color:var(--pon); color:#fff; }
+.pop .lohi { display:flex; gap:8px; align-items:center; margin-top:10px; }
+.pop .lohi input[type=number] { width:6em; }
+/* Phones and portrait tablets: one column, the radio first */
+@media (max-width: 899px), (orientation: portrait) {
+  .pn { flex-direction:column; }
+  .pn-side { flex:1 1 auto; }
+  .pn-pan { height:clamp(180px, 34vh, 420px); }
+  .tab { min-height:160px; max-height:50vh; }
+}
+@media (max-width: 520px) {
+  .pn-top { grid-template-columns:1fr auto; }
+  .freq { grid-row:1; grid-column:2; }
+  .smeter { grid-column:1 / span 2; }
+  .b { height:40px; font-size:12px; }
+  .row.r7 { grid-template-columns:repeat(4, 1fr); }
+  .row.r6 { grid-template-columns:repeat(3, 1fr); }
+  .row.r5 { grid-template-columns:repeat(3, 1fr); }
+}
+/* App mode: the page alone, no header or footer, the height of the screen */
+body.app header, body.app footer { display:none; }
+body.app main { max-width:none; padding:8px; }
+body.app .pn-bar { margin-bottom:6px; }
+body.app h2, body.app #intro { display:none; }
+:fullscreen .pn { max-width:none; }
+</style>
+
+<h2><svg class="i"><use href="#i-sliders"/></svg>Panel</h2>
+<p class="sub" id="intro">The radio worked from the browser: the spectrum and the waterfall live, tap or drag to tune, pinch to zoom, every switch and level at hand, the DX spots, the audio both ways. Phone, tablet or PC, on the same network as the radio. The <a href="/remote">Screen</a> page shows the radio's own display instead. No login: anyone on the network can reach this page.</p>
+
+<div class="pn-bar">
+  <button type="button" id="snd" aria-pressed="false">Sound</button>
+  <button type="button" id="mic" aria-pressed="false" title="The browser's microphone transmits while PTT is held">Mic</button>
+  <button type="button" id="theme" title="Dark or light (for the sun)">Light</button>
+  <button type="button" id="pal" title="The waterfall's colours">Colours</button>
+  <button type="button" id="appmode" title="The panel alone, the height of the screen">App</button>
+  <button type="button" id="full">Fullscreen</button>
+  <span class="status" id="st"></span>
+</div>
+
+<div class="pn" id="pn">
+  <section class="pn-radio">
+    <div class="pn-top">
+      <div class="chips">
+        <span class="chip rx" id="c-trx">RX</span>
+        <span class="chip" id="c-band">--</span>
+        <span class="chip" id="c-vfo" title="VFO">A</span>
+        <span class="chip" id="c-bat" title="Battery">--%</span>
+      </div>
+      <div class="freq" id="freq" title="Tap: type a frequency">-.---.---</div>
+      <div class="smeter"><span>S</span><div class="bar" id="sbar"><i></i></div><span class="val" id="sval">--</span></div>
+    </div>
+    <div class="pn-pan" id="pan">
+      <canvas id="cv"></canvas>
+      <div class="msg" id="msg">Connecting...</div>
+    </div>
+    <div class="pn-ctl">
+      <div class="row r7">
+        <button class="b" id="b-bdn"><small>BAND</small>▼</button>
+        <button class="b" id="b-bup"><small>BAND</small>▲</button>
+        <button class="b" id="b-mode"><small>MODE</small><span>--</span></button>
+        <button class="b" id="b-step"><small>STEP</small><span>--</span></button>
+        <button class="b" id="b-zoom"><small>ZOOM</small><span>x1</span></button>
+        <button class="b" id="b-vfo"><small>VFO</small><span>A/B</span></button>
+        <button class="b" id="b-lock"><small>LOCK</small><span>off</span></button>
+      </div>
+      <div class="row r6">
+        <button class="b tg" data-set="pre" id="b-pre">PRE</button>
+        <button class="b tg" data-set="att" id="b-att">ATT</button>
+        <button class="b tg" data-set="nb" id="b-nb">NB</button>
+        <button class="b tg" data-set="nr" id="b-nr">NR</button>
+        <button class="b" id="b-agc"><small>AGC</small><span>--</span></button>
+        <button class="b tg" data-set="atu" id="b-atu">ATU</button>
+      </div>
+      <div class="row r5">
+        <button class="b lvl" data-lvl="vol"><i data-d="-1">−</i><span><small>VOL</small><span>--</span></span><i data-d="1">+</i></button>
+        <button class="b lvl" data-lvl="sql"><i data-d="-1">−</i><span><small>SQL</small><span>--</span></span><i data-d="1">+</i></button>
+        <button class="b lvl" data-lvl="rfg"><i data-d="-1">−</i><span><small>RF GAIN</small><span>--</span></span><i data-d="1">+</i></button>
+        <button class="b lvl" data-lvl="pwr"><i data-d="-1">−</i><span><small>POWER</small><span>--</span></span><i data-d="1">+</i></button>
+        <button class="b" id="b-filter"><small>FILTER</small><span>--</span></button>
+      </div>
+      <div class="row r4">
+        <button class="b" id="b-tune"><small>knob</small>◀ −</button>
+        <button class="b" id="b-tunep"><small>knob</small>+ ▶</button>
+        <button class="b" id="b-atune"><small>ATU</small>TUNE</button>
+        <button class="b ptt" id="pttbtn">PTT (hold)</button>
+      </div>
+    </div>
+  </section>
+  <aside class="pn-side">
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" aria-selected="true" data-tab="spots">Spots</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="keys">Keys</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="screen">Screen</button>
+    </div>
+    <div class="tab cur" id="tab-spots"><ul class="spots" id="spots"><li style="display:block;color:var(--pd)">No spots yet: the cluster is set on the radio (Cluster page).</li></ul></div>
+    <div class="tab" id="tab-keys">
+      <div class="keys">
+        <button class="b" data-key="F1">F1</button><button class="b" data-key="F2">F2</button><button class="b" data-key="F3">F3</button>
+        <button class="b" data-key="F4">F4</button><button class="b" data-key="F5">F5</button><button class="b" data-key="POWER" title="Tap: screen on/off">POWER</button>
+        <button class="b" data-key="GEN">GEN</button><button class="b" data-key="KEY">KEY</button><button class="b" data-key="DFN">DFN</button>
+        <button class="b" data-key="APP">APP</button><button class="b" data-key="MSG">MSG</button><button class="b" data-key="DFL">DFL</button>
+        <button class="b" data-key="AM">AM</button><button class="b" data-key="CW">CW</button><button class="b" data-key="SSB">SSB</button>
+        <button class="b" data-key="AB">A/B</button><button class="b" data-key="PRE">PRE</button><button class="b" data-key="ATU">ATU</button>
+        <button class="b" data-key="VM">V/M</button><button class="b" data-key="AGC">AGC</button><button class="b" data-key="FST">FST</button>
+        <div class="wide knobs"><button class="b" data-knob="vol" data-step="-1">VOL −</button><button class="b" data-key="VOL">VOL push</button><button class="b" data-knob="vol" data-step="1">VOL +</button></div>
+        <div class="wide knobs"><button class="b" data-knob="mfk" data-step="-1">MFK −</button><button class="b" data-key="MFK">MFK push</button><button class="b" data-knob="mfk" data-step="1">MFK +</button></div>
+        <div class="wide knobs"><button class="b" data-key="BAND_DOWN">BAND ▼</button><button class="b" data-key="LOCK">LOCK</button><button class="b" data-key="BAND_UP">BAND ▲</button></div>
+      </div>
+      <p class="sub" style="margin:10px 0 0;font-size:12px">The radio's front keys, for its menus and apps: what they open shows on the Screen tab.</p>
+    </div>
+    <div class="tab" id="tab-screen"><div class="screen"><canvas id="scv" width="800" height="480"></canvas></div></div>
+  </aside>
+</div>
+
+<p class="sub" style="margin-top:12px">Panorama: tap or drag to tune, pinch (or the mouse wheel with Ctrl) to zoom, the wheel to tune by the step. Tap the frequency to type one, a spot to tune to it. Keyboard: ← → tune (Shift: ten steps), [ ] volume, Space PTT. Sound starts on a tap (browsers ask for one). Mic needs an https page: <a id="httpslink" href="#">https://this radio/panel</a> (accept the certificate once).</p>
+
+<div class="pop" id="pop" hidden><div class="box" id="popbox"></div></div>
+
+<script>
+(function() {
+  "use strict";
+  const $st = $("#st"), $msg = $("#msg"), pn = document.getElementById("pn");
+  const secure = location.protocol === "https:";
+  const MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CW-R", "AM", "NFM"];
+  const AGCS = ["OFF", "SLOW", "FAST", "AUTO"];
+  const STEPS = [10, 100, 500, 1000, 5000];
+  const PLAN_COLORS = ["#2a7fff", "#d08a00", "#2e9e4f", "#b040c0"];     /* CW, DIG, ALL, BCN */
+  const PLAN_NAMES = ["CW", "DIG", "SSB", "BCN"];
+  let conf = null, ws = null, tci = null, alive = true, reconnect = null;
+  let state = null, bands = [], plan = [], spots = [];
+  let frames = 0, bytes = 0, lastStat = Date.now(), lastFrame = 0;
+  let pref = {};
+  try { pref = JSON.parse(localStorage.getItem("x6100panel") || "{}"); } catch (e) {}
+  function savePref() { try { localStorage.setItem("x6100panel", JSON.stringify(pref)); } catch (e) {} }
+
+  function status(text, error) { $st.toggleClass("error", !!error).html('<span class="dot"></span>').append(document.createTextNode(text)); }
+  function wsUrl(kind) {
+    const port = secure ? (kind === "remote" ? conf.wss_port : conf.wss_tci_port) : (kind === "remote" ? conf.port : conf.tci_port);
+    return (secure ? "wss://" : "ws://") + location.hostname + ":" + port + "/";
+  }
+  $("#httpslink").attr("href", "https://" + location.host.replace(/:\d+$/, "") + "/panel");
+  function send(s) { if (ws && ws.readyState === 1) ws.send(s); }
+  function set(name, v, v2) { send("set " + name + " " + v + (v2 !== undefined ? " " + v2 : "")); }
+  function fmtFreq(hz) { const s = String(hz).padStart(7, "0"); return s.slice(0, -6) + "." + s.slice(-6, -3) + "." + s.slice(-3); }
+  function fmtK(hz) { return (hz / 1000).toFixed(hz % 1000 ? 1 : 0); }
+  function bandOf(hz) { for (const b of bands) if (hz >= b.a && hz <= b.b) return b.n; return "--"; }
+  function fmtStep(s) { return s >= 1000 ? (s / 1000) + "k" : s + ""; }
+  function fmtFilter(s) {
+    const bw = s.fhi - s.flo;
+    return (s.mode === 4 || s.mode === 5) ? bw + "" : (bw >= 1000 ? (bw / 1000).toFixed(1).replace(/\.0$/, "") + "k" : bw + "");
+  }
+
+  /* ---- Theme and layout ---- */
+  if (pref.theme === "light") pn.dataset.theme = "light";
+  $("#theme").on("click", function() { pref.theme = pn.dataset.theme === "light" ? "dark" : "light"; pn.dataset.theme = pref.theme; savePref(); $(this).text(pref.theme === "light" ? "Dark" : "Light"); resize(); });
+  $("#theme").text(pref.theme === "light" ? "Dark" : "Light");
+  if (pref.app) document.body.classList.add("app");
+  $("#appmode").attr("aria-pressed", String(!!pref.app)).on("click", function() { pref.app = !pref.app; savePref(); document.body.classList.toggle("app", pref.app); $(this).attr("aria-pressed", String(pref.app)); setTimeout(resize, 50); });
+  $("#full").on("click", function() { if (document.fullscreenElement) document.exitFullscreen(); else if (pn.requestFullscreen) pn.requestFullscreen(); });
+
+  /* ---- The state ---- */
+  function showState() {
+    const s = state;
+    if (!s) return;
+    $("#freq").text(fmtFreq(s.freq)).toggleClass("locked", !!s.lock);
+    $("#c-band").text(bandOf(s.freq) + " " + MODES[s.mode]).toggleClass("on", true);
+    $("#c-vfo").text(s.vfo ? "B" : "A");
+    $("#c-bat").text(s.bat + "%").toggle(s.bat >= 0);
+    $("#c-trx").text(s.tx ? "TX" : "RX").toggleClass("tx", !!s.tx).toggleClass("rx", !s.tx);
+    $("#b-mode span").text(MODES[s.mode]);
+    $("#b-step span").text(fmtStep(s.step));
+    $("#b-zoom span").text("x" + s.zoom);
+    $("#b-agc span").text(AGCS[s.agc]);
+    $("#b-lock span").text(s.lock ? "on" : "off"); $("#b-lock").toggleClass("on", !!s.lock);
+    ["pre", "att", "nb", "nr", "atu"].forEach(function(k) { $("#b-" + k).toggleClass("on", !!s[k]); });
+    $('[data-lvl="vol"] span span').text(s.vol); $('[data-lvl="sql"] span span').text(s.sql);
+    $('[data-lvl="rfg"] span span').text(s.rfg); $('[data-lvl="pwr"] span span').text(s.pwr.toFixed(1) + " W");
+    $("#b-filter span").text(fmtFilter(s));
+    document.getElementById("pttbtn").classList.toggle("down", !!s.tx);
+    markSpots();
+  }
+  function showMeter(db) {
+    /* S1 = -121 dBm, 6 dB a unit to S9 = -73, then dB over */
+    const s = (db + 127) / 6;
+    let txt;
+    if (db < -121) txt = "S0"; else if (db <= -73) txt = "S" + Math.min(9, Math.floor(s)); else txt = "S9+" + Math.round(db + 73);
+    const pct = Math.max(0, Math.min(100, db <= -73 ? (db + 127) * 60 / 54 : 60 + (db + 73) * 40 / 60));
+    $("#sbar i").css("width", pct + "%"); $("#sval").text(txt);
+  }
+  function showTx(pwr, swr, alc) {
+    const pct = Math.max(0, Math.min(100, pwr * 10));
+    $("#sbar i").css("width", pct + "%"); $("#sval").text(pwr.toFixed(1) + "W " + swr.toFixed(1));
+  }
+
+  /* ---- The panorama ---- */
+  const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+  const wf = document.createElement("canvas"), wctx = wf.getContext("2d");
+  let W = 0, H = 0, dpr = 1, nbins = 1024, center = 0, span = 100000, haveSp = false;
+  let trace = null, wfRows = 0, levMin = -110, levMax = -50, palette = null, palName = pref.palette || "blue";
+  const SCALE_H = 16, PLAN_H = 8;
+  function specH() { return Math.round(H * 0.34); }
+  function resize() {
+    const r = cv.parentNode.getBoundingClientRect();
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.max(1, Math.round(r.width * dpr)); H = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const rows = Math.max(1, H - SCALE_H * dpr - PLAN_H * dpr - specH());
+    if (wf.width !== nbins || wf.height !== rows) {
+      const old = document.createElement("canvas"); old.width = wf.width; old.height = wf.height; old.getContext("2d").drawImage(wf, 0, 0);
+      wf.width = nbins; wf.height = rows; wctx.fillStyle = "#000"; wctx.fillRect(0, 0, nbins, rows);
+      if (old.width) wctx.drawImage(old, 0, 0, old.width, Math.min(old.height, rows), 0, 0, nbins, Math.min(old.height, rows));
+      wfRows = rows;
+    }
+    draw();
+  }
+  function makePalette(name) {
+    const stops = {
+      blue: [[0, 0, 0, 20], [0.25, 0, 20, 110], [0.5, 0, 140, 200], [0.7, 60, 220, 160], [0.85, 255, 240, 60], [1, 255, 255, 255]],
+      fire: [[0, 0, 0, 0], [0.3, 110, 0, 0], [0.55, 230, 70, 0], [0.8, 255, 200, 0], [1, 255, 255, 230]],
+      grey: [[0, 0, 0, 0], [1, 255, 255, 255]],
+      ice:  [[0, 5, 5, 20], [0.4, 20, 60, 140], [0.7, 90, 170, 230], [0.9, 200, 240, 255], [1, 255, 255, 255]],
+    }[name] || null;
+    if (!stops) return makePalette("blue");
+    const p = new Uint8ClampedArray(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      const t = i / 255; let a = stops[0], b = stops[stops.length - 1];
+      for (let k = 0; k < stops.length - 1; k++) if (t >= stops[k][0] && t <= stops[k + 1][0]) { a = stops[k]; b = stops[k + 1]; break; }
+      const u = (t - a[0]) / Math.max(1e-6, b[0] - a[0]);
+      p[i * 3] = a[1] + (b[1] - a[1]) * u; p[i * 3 + 1] = a[2] + (b[2] - a[2]) * u; p[i * 3 + 2] = a[3] + (b[3] - a[3]) * u;
+    }
+    return p;
+  }
+  palette = makePalette(palName);
+  const PALS = ["blue", "fire", "ice", "grey"];
+  $("#pal").on("click", function() { palName = PALS[(PALS.indexOf(palName) + 1) % PALS.length]; palette = makePalette(palName); pref.palette = palName; savePref(); status("Waterfall: " + palName); });
+  function autoLevels(bins) {
+    const vis = visSpan(), b0 = Math.max(0, Math.floor((span - vis) / 2 / span * nbins)), bn = Math.max(8, Math.floor(vis / span * nbins));
+    const sorted = Array.from(bins.subarray(b0, b0 + bn)).sort(function(a, b) { return a - b; });
+    const floor = sorted[Math.floor(sorted.length * 0.3)];
+    const min = floor - 6, max = min + 60;
+    levMin += (min - levMin) * 0.1; levMax += (max - levMax) * 0.1;
+  }
+  function spectrumFrame(buf) {
+    const dv = new DataView(buf);
+    const n = dv.getUint16(2, true), c = dv.getUint32(4, true), w = dv.getUint32(8, true);
+    const bins = new Int8Array(buf, 16, n);
+    if (n !== nbins) { nbins = n; resize(); }
+    if (haveSp && c !== center && w === span && wfRows) {
+      /* the centre moved: the history slides so the signals stay under their frequency */
+      const dx = Math.round((center - c) * nbins / span);
+      if (Math.abs(dx) < nbins) { wctx.drawImage(wf, dx, 0); wctx.fillStyle = "#000"; if (dx > 0) wctx.fillRect(0, 0, dx, wfRows); else wctx.fillRect(nbins + dx, 0, -dx, wfRows); }
+    }
+    if (w !== span) { wctx.fillStyle = "#000"; wctx.fillRect(0, 0, nbins, wfRows); }
+    center = c; span = w; haveSp = true;
+    autoLevels(bins);
+    trace = bins;
+    /* one row down, the new line on top */
+    wctx.drawImage(wf, 0, 1);
+    const img = wctx.createImageData(nbins, 1), d = img.data, range = Math.max(1, levMax - levMin);
+    for (let i = 0; i < nbins; i++) {
+      const v = Math.max(0, Math.min(255, Math.round((bins[i] - levMin) * 255 / range)));
+      d[i * 4] = palette[v * 3]; d[i * 4 + 1] = palette[v * 3 + 1]; d[i * 4 + 2] = palette[v * 3 + 2]; d[i * 4 + 3] = 255;
+    }
+    wctx.putImageData(img, 0, 0);
+    frames++; bytes += buf.byteLength; lastFrame = Date.now();
+    requestDraw();
+  }
+  let drawPending = false;
+  function requestDraw() { if (!drawPending) { drawPending = true; requestAnimationFrame(function() { drawPending = false; draw(); }); } }
+  /* An old base sends the whole 100 kHz whatever the zoom (the radio zooms the view itself): shown is
+   * the zoomed part around the centre, a new base's data is already that wide */
+  function visSpan() { return Math.min(span, 100000 / (state ? state.zoom : 1)); }
+  function hzToX(hz) { const v = visSpan(); return (hz - (center - v / 2)) * W / v; }
+  function xToHz(x) { const v = visSpan(); return center - v / 2 + x * v / W; }
+  function draw() {
+    if (!W) return;
+    const light = pn.dataset.theme === "light";
+    const sh = specH(), top = (SCALE_H + PLAN_H) * dpr, wfTop = top + sh;
+    ctx.fillStyle = light ? "#f8fafc" : "#0a0f1a"; ctx.fillRect(0, 0, W, top + sh);
+    if (!haveSp) { ctx.fillStyle = "#000"; ctx.fillRect(0, wfTop, W, H - wfTop); return; }
+    /* waterfall */
+    ctx.imageSmoothingEnabled = false;
+    const vis = visSpan(), left = center - vis / 2;
+    const b0 = (left - (center - span / 2)) / span * nbins, bn = vis / span * nbins;
+    ctx.drawImage(wf, b0, 0, bn, wfRows, 0, wfTop, W, H - wfTop);
+    /* the scale */
+    const tick = vis <= 15000 ? 1000 : vis <= 30000 ? 2000 : vis <= 60000 ? 5000 : 10000;
+    ctx.font = (11 * dpr) + "px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillStyle = light ? "#334" : "#9fb3c8"; ctx.strokeStyle = light ? "#99a" : "#345"; ctx.lineWidth = dpr;
+    for (let f = Math.ceil(left / tick) * tick; f < left + vis; f += tick) {
+      const x = hzToX(f);
+      ctx.fillText((f / 1000000).toFixed(3).replace(/0$/, ""), x, 2 * dpr);
+      ctx.beginPath(); ctx.moveTo(x, SCALE_H * dpr - 3 * dpr); ctx.lineTo(x, H); ctx.globalAlpha = 0.25; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    /* the band plan strip */
+    for (const seg of plan) {
+      if (seg[1] <= left || seg[0] >= left + vis) continue;
+      const x1 = Math.max(0, hzToX(seg[0])), x2 = Math.min(W, hzToX(seg[1]));
+      ctx.fillStyle = PLAN_COLORS[seg[2]] || "#888"; ctx.globalAlpha = 0.85; ctx.fillRect(x1, SCALE_H * dpr, x2 - x1, PLAN_H * dpr); ctx.globalAlpha = 1;
+      if (x2 - x1 > 40 * dpr) { ctx.fillStyle = "#fff"; ctx.font = "bold " + (7 * dpr) + "px system-ui, sans-serif"; ctx.textBaseline = "middle"; ctx.fillText(PLAN_NAMES[seg[2]], (x1 + x2) / 2, SCALE_H * dpr + PLAN_H * dpr / 2); }
+    }
+    /* the passband */
+    const s = state;
+    if (s) {
+      const lsb = s.mode === 0 || s.mode === 1 || s.mode === 5, sym = s.mode === 6 || s.mode === 7;
+      const lo = sym ? -s.fhi : lsb ? -s.fhi : s.flo, hi = sym ? s.fhi : lsb ? -s.flo : s.fhi;
+      const x1 = hzToX(s.freq + lo), x2 = hzToX(s.freq + hi);
+      ctx.fillStyle = light ? "#0b5fd0" : "#7fc4ff"; ctx.globalAlpha = 0.18; ctx.fillRect(x1, top, x2 - x1, H - top); ctx.globalAlpha = 1;
+    }
+    /* the trace */
+    const range = Math.max(1, levMax - levMin);
+    ctx.beginPath();
+    const i0 = Math.max(0, Math.floor(b0)), i1 = Math.min(nbins - 1, Math.ceil(b0 + bn));
+    for (let i = i0; i <= i1; i++) {
+      const x = (i - b0) * W / bn, y = top + sh - Math.max(0, Math.min(1, (trace[i] - levMin) / range)) * (sh - 4 * dpr);
+      if (i > i0) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+    ctx.strokeStyle = light ? "#0b5fd0" : "#bfe3ff"; ctx.lineWidth = dpr; ctx.stroke();
+    ctx.lineTo(W, top + sh); ctx.lineTo(0, top + sh); ctx.closePath();
+    ctx.fillStyle = light ? "#0b5fd0" : "#2a7fff"; ctx.globalAlpha = 0.25; ctx.fill(); ctx.globalAlpha = 1;
+    /* the spots */
+    /* a tick for every spot in view, the call in the first of four rows where it does not overlap
+     * (newest spots first: a busy band shows the latest and drops the rest) */
+    ctx.font = "bold " + (10 * dpr) + "px system-ui, sans-serif"; ctx.textBaseline = "top"; ctx.textAlign = "left";
+    const rowEnd = [-1e9, -1e9, -1e9, -1e9], seen = {};
+    for (const sp of spots) {
+      if (sp.f < left || sp.f > left + vis || seen[sp.c]) continue;
+      seen[sp.c] = true;
+      const x = hzToX(sp.f), tw = ctx.measureText(sp.c).width + 6 * dpr;
+      ctx.strokeStyle = sp.al ? "#ffb020" : "#ff6b6b"; ctx.lineWidth = dpr; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + 14 * dpr); ctx.stroke();
+      let row = -1;
+      for (let r = 0; r < rowEnd.length; r++) if (x > rowEnd[r]) { row = r; break; }
+      if (row < 0) continue;
+      rowEnd[row] = x + tw;
+      ctx.fillStyle = sp.al ? "#ffb020" : (light ? "#c62828" : "#ffb0b0"); ctx.fillText(sp.c, x + 2 * dpr, top + 2 * dpr + row * 11 * dpr);
+    }
+    /* the VFO */
+    if (s) {
+      const x = hzToX(s.freq);
+      ctx.strokeStyle = "#ff3b3b"; ctx.lineWidth = Math.max(1, dpr); ctx.beginPath(); ctx.moveTo(x, SCALE_H * dpr); ctx.lineTo(x, H); ctx.stroke();
+    }
+  }
+  window.addEventListener("resize", function() { setTimeout(resize, 50); });
+  if (window.ResizeObserver) new ResizeObserver(function() { resize(); }).observe(document.getElementById("pan"));
+
+  /* Touch and mouse on the panorama: tap to tune, drag to tune, pinch to zoom, wheel to tune */
+  const pan = document.getElementById("pan"), ptrs = new Map();
+  let drag = null, pinch = null, tuneTimer = null, tuneWant = null;
+  function tuneTo(hz) {
+    if (!state || state.lock) return;
+    hz = Math.round(hz);
+    tuneWant = hz;
+    if (!tuneTimer) tuneTimer = setTimeout(function() { tuneTimer = null; if (tuneWant !== null) { set("freq", tuneWant); tuneWant = null; } }, 40);
+    state.freq = hz; showState(); requestDraw();     /* shown at once, the radio confirms */
+  }
+  function roundStep(hz) { const st = state ? state.step : 100; return Math.round(hz / st) * st; }
+  function zoomTo(z) { z = Math.max(1, Math.min(8, z)); if (state && z !== state.zoom) set("zoom", z); }
+  pan.addEventListener("pointerdown", function(e) {
+    e.preventDefault(); pan.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    if (ptrs.size === 1) drag = {x0: e.clientX, f0: state ? state.freq : 0, moved: false, t: Date.now()};
+    else if (ptrs.size === 2) { const p = Array.from(ptrs.values()); pinch = {d0: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), z0: state ? state.zoom : 1, done: false}; drag = null; }
+  });
+  pan.addEventListener("pointermove", function(e) {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    if (pinch && ptrs.size === 2) {
+      const p = Array.from(ptrs.values()), d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), r = d / pinch.d0;
+      if (!pinch.done && (r > 1.35 || r < 0.74)) { pinch.done = true; zoomTo(r > 1 ? pinch.z0 * 2 : pinch.z0 / 2); }
+      return;
+    }
+    if (drag) {
+      const dx = e.clientX - drag.x0;
+      if (Math.abs(dx) > 4) drag.moved = true;
+      if (drag.moved) tuneTo(roundStep(drag.f0 - dx * dpr * visSpan() / W));
+    }
+  });
+  function panUp(e) {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.delete(e.pointerId);
+    if (drag && !drag.moved && ptrs.size === 0 && Date.now() - drag.t < 600) {
+      const r = pan.getBoundingClientRect();
+      tuneTo(roundStep(xToHz((e.clientX - r.left) * dpr)));
+    }
+    if (ptrs.size === 0) { drag = null; pinch = null; }
+  }
+  pan.addEventListener("pointerup", panUp); pan.addEventListener("pointercancel", panUp);
+  pan.addEventListener("wheel", function(e) {
+    e.preventDefault();
+    if (!state) return;
+    if (e.ctrlKey) { zoomTo(e.deltaY < 0 ? state.zoom * 2 : state.zoom / 2); return; }
+    const n = (e.shiftKey ? 10 : 1) * (e.deltaY < 0 ? 1 : -1);
+    tuneTo(state.freq + n * state.step);
+  }, {passive: false});
+  pan.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+
+  /* ---- Pop-ups ---- */
+  const $pop = $("#pop"), $box = $("#popbox");
+  function popClose() { $pop.prop("hidden", true); $box.empty(); }
+  $pop.on("pointerdown", function(e) { if (e.target === this) popClose(); });
+  function popList(title, items, cur, cb) {
+    $box.empty().append($("<h4>").text(title));
+    const list = $("<div class='list'>");
+    items.forEach(function(it) { list.append($("<button type='button' class='b'>").toggleClass("on", it.v === cur).text(it.t).on("click", function() { popClose(); cb(it.v); })); });
+    $box.append(list); $pop.prop("hidden", false);
+  }
+  function popSlider(title, min, max, step, cur, fmt, cb) {
+    $box.empty().append($("<h4>").text(title));
+    const big = $("<div class='big'>").text(fmt(cur)), inp = $("<input type='range'>").attr({min: min, max: max, step: step}).val(cur);
+    let t = null;
+    inp.on("input", function() { const v = parseFloat(this.value); big.text(fmt(v)); if (!t) t = setTimeout(function() { t = null; cb(parseFloat(inp.val())); }, 60); });
+    $box.append(big, inp, $("<div class='actions'>").append($("<button type='button' class='primary'>Done</button>").on("click", popClose)));
+    $pop.prop("hidden", false);
+  }
+  function popFreq() {
+    let txt = "";
+    const big = $("<div class='big'>").text("kHz");
+    $box.empty().append($("<h4>").text("Frequency, kHz"), big);
+    const pad = $("<div class='pad'>");
+    "789456123.0⌫".split("").forEach(function(k) {
+      pad.append($("<button type='button' class='b'>").text(k).on("click", function() {
+        if (k === "⌫") txt = txt.slice(0, -1); else if (k === "." && txt.indexOf(".") >= 0) return; else txt += k;
+        big.text(txt ? txt + " kHz" : "kHz");
+      }));
+    });
+    pad.append($("<button type='button' class='b ok' style='grid-column:1 / -1'>Tune</button>").on("click", function() {
+      const k = parseFloat(txt); if (!isNaN(k) && k > 0) { tuneTo(k < 60000 ? k * 1000 : k); } popClose();
+    }));
+    $box.append(pad); $pop.prop("hidden", false);
+  }
+  function popFilter() {
+    const s = state; if (!s) return;
+    const cw = s.mode === 4 || s.mode === 5, am = s.mode === 6 || s.mode === 7;
+    const presets = cw ? [[100, 50], [250, 125], [500, 250], [1000, 500]] : am ? [[6000, 0], [9000, 0], [12000, 0]] : [[1800, 100], [2400, 100], [2700, 100], [3000, 50], [3600, 50]];
+    $box.empty().append($("<h4>").text("Filter"));
+    const list = $("<div class='list'>");
+    presets.forEach(function(p) {
+      const bw = p[0], lo = cw ? Math.max(0, 700 - bw / 2) : am ? 0 : p[1], hi = cw ? 700 + bw / 2 : am ? bw : p[1] + bw;
+      list.append($("<button type='button' class='b'>").toggleClass("on", s.fhi - s.flo === hi - lo).text(bw >= 1000 ? (bw / 1000).toFixed(1).replace(/\.0$/, "") + "k" : bw).on("click", function() { set("filter", lo, hi); popClose(); }));
+    });
+    const lo = $("<input type='number' min='0' max='12000' step='10'>").val(s.flo), hi = $("<input type='number' min='0' max='12000' step='10'>").val(s.fhi);
+    $box.append(list, $("<div class='lohi'>").append("Low ", lo, " High ", hi, $("<button type='button' class='primary'>Set</button>").on("click", function() { set("filter", parseInt(lo.val(), 10) || 0, parseInt(hi.val(), 10) || 0); popClose(); })));
+    $pop.prop("hidden", false);
+  }
+
+  /* ---- Controls ---- */
+  const LVL = {vol: {min: 0, max: 55, step: 1, fmt: function(v) { return v; }}, sql: {min: 0, max: 100, step: 1, fmt: function(v) { return v; }},
+               rfg: {min: 0, max: 100, step: 1, fmt: function(v) { return v; }}, pwr: {min: 0.1, max: 10, step: 0.1, fmt: function(v) { return v.toFixed(1) + " W"; }}};
+  function lvlSend(name, v) { set(name, name === "pwr" ? Math.round(v * 10) : Math.round(v)); if (state) { state[name] = v; showState(); } }
+  document.querySelectorAll(".b.lvl").forEach(function(el) {
+    const name = el.dataset.lvl, L = LVL[name];
+    el.querySelectorAll("i").forEach(function(i) {
+      let rep = null;
+      const fire = function() { if (!state) return; lvlSend(name, Math.max(L.min, Math.min(L.max, state[name] + parseInt(i.dataset.d, 10) * L.step))); };
+      i.addEventListener("pointerdown", function(e) { e.preventDefault(); e.stopPropagation(); fire(); rep = setInterval(fire, 130); });
+      const stop = function() { if (rep) { clearInterval(rep); rep = null; } };
+      i.addEventListener("pointerup", stop); i.addEventListener("pointercancel", stop); i.addEventListener("pointerleave", stop);
+      i.addEventListener("click", function(e) { e.stopPropagation(); });
+    });
+    el.addEventListener("click", function() { if (state) popSlider(el.querySelector("small").textContent, L.min, L.max, L.step, state[name], L.fmt, function(v) { lvlSend(name, v); }); });
+    el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+  });
+  document.querySelectorAll(".b.tg").forEach(function(el) { el.addEventListener("click", function() { if (state) set(el.dataset.set, state[el.dataset.set] ? 0 : 1); }); });
+  $("#b-mode").on("click", function() { if (state) popList("Mode", MODES.map(function(m, i) { return {t: m, v: i}; }), state.mode, function(v) { set("mode", v); }); });
+  $("#b-step").on("click", function() { if (state) popList("Tuning step", STEPS.map(function(s) { return {t: fmtStep(s), v: s}; }), state.step, function(v) { set("step", v); }); });
+  $("#b-zoom").on("click", function() { if (state) zoomTo(state.zoom >= 8 ? 1 : state.zoom * 2); });
+  $("#b-agc").on("click", function() { if (state) popList("AGC", AGCS.map(function(a, i) { return {t: a, v: i}; }), state.agc, function(v) { set("agc", v); }); });
+  $("#b-vfo").on("click", function() { set("vfo", 1); });
+  $("#b-lock").on("click", function() { if (state) set("lock", state.lock ? 0 : 1); });
+  $("#b-bup").on("click", function() { set("band", 1); }); $("#b-bdn").on("click", function() { set("band", -1); });
+  $("#b-filter").on("click", popFilter);
+  $("#freq").on("click", popFreq);
+  $("#b-atune").on("click", function() { keyDown("ATU", null); setTimeout(function() { keyUp("ATU", null); }, 1200); });   /* a long press: tune */
+  ["b-tune", "b-tunep"].forEach(function(id, k) {
+    const el = document.getElementById(id); let rep = null;
+    const fire = function() { if (state) tuneTo(state.freq + (k ? 1 : -1) * state.step); };
+    el.addEventListener("pointerdown", function(e) { e.preventDefault(); fire(); rep = setInterval(fire, 100); });
+    const stop = function() { if (rep) { clearInterval(rep); rep = null; } };
+    el.addEventListener("pointerup", stop); el.addEventListener("pointercancel", stop); el.addEventListener("pointerleave", stop);
+    el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+  });
+
+  /* ---- Spots ---- */
+  function showSpots() {
+    const ul = $("#spots").empty();
+    if (!spots.length) { ul.append($("<li style='display:block;color:var(--pd)'>").text("No spots: the cluster is set on the radio (Cluster page).")); return; }
+    spots.forEach(function(sp) {
+      const li = $("<li>").toggleClass("al", !!sp.al).append($("<span class='f'>").text(fmtK(sp.f)), $("<b>").text(sp.c), $("<span class='m'>").text(sp.m), $("<span class='a'>").text(sp.a + "m"));
+      if (sp.k) li.append($("<span class='k'>").text(sp.k + " · " + sp.s));
+      li.on("click", function() { tuneTo(sp.f); });
+      li[0].dataset.f = sp.f;
+      ul.append(li);
+    });
+    markSpots();
+  }
+  function markSpots() {
+    if (!state) return;
+    document.querySelectorAll("#spots li[data-f]").forEach(function(li) { li.classList.toggle("near", Math.abs(parseInt(li.dataset.f, 10) - state.freq) < 500); });
+  }
+
+  /* ---- The side tabs ---- */
+  let screenOn = false;
+  $(".tabs button").on("click", function() {
+    const t = this.dataset.tab;
+    $(".tabs button").attr("aria-selected", "false"); $(this).attr("aria-selected", "true");
+    $(".tab").removeClass("cur"); $("#tab-" + t).addClass("cur");
+    const want = t === "screen";
+    if (want !== screenOn) { screenOn = want; send("screen " + (want ? 1 : 0)); }
+    pref.tab = t; savePref();
+  });
+  if (pref.tab && pref.tab !== "spots") $('.tabs button[data-tab="' + pref.tab + '"]').trigger("click");
+  const scv = document.getElementById("scv"), sctx = scv.getContext("2d");
+  let drawing = false, pending = null;
+  function screenFrame(buf) {
+    const dv = new DataView(buf), w = dv.getUint16(0, true), h = dv.getUint16(2, true);
+    if (scv.width !== w || scv.height !== h) { scv.width = w; scv.height = h; }
+    const blob = new Blob([buf.slice(8)], {type: "image/jpeg"});
+    if (drawing) { pending = blob; return; }
+    drawing = true;
+    const done = function() { drawing = false; if (pending) { const b = pending; pending = null; drawB(b); } };
+    const drawB = function(b) { createImageBitmap(b).then(function(bmp) { sctx.drawImage(bmp, 0, 0); bmp.close && bmp.close(); done(); }, done); };
+    drawB(blob);
+  }
+
+  /* ---- The connection ---- */
+  function connect() {
+    if (!alive || !conf) return;
+    if (!conf.enabled) {
+      $msg.html("The browser remote is off on the radio.<br><br>Settings &gt; General &gt; BROWSER REMOTE, or ").append($("<button type='button' class='primary'>Turn it on</button>").on("click", function() {
+        $.ajax({url: "/api/remote", type: "POST", data: JSON.stringify({enabled: true}), contentType: "application/json", success: function() { conf.enabled = true; $msg.text("Turning on..."); setTimeout(connect, 2500); }});
+      })).prop("hidden", false);
+      return;
+    }
+    $msg.text("Connecting...").prop("hidden", false);
+    try { ws = new WebSocket(wsUrl("remote")); } catch (e) { status("No WebSocket: " + e, true); return; }
+    ws.binaryType = "arraybuffer";
+    ws.onopen = function() { $msg.prop("hidden", true); status("Connected"); lastFrame = Date.now(); send("screen " + (screenOn ? 1 : 0)); send("panel 1"); };
+    ws.onmessage = function(ev) {
+      if (ev.data instanceof ArrayBuffer) {
+        if (ev.data.byteLength >= 16 && new DataView(ev.data).getUint16(0, true) === 0xFFFF) spectrumFrame(ev.data); else screenFrame(ev.data);
+        return;
+      }
+      const t = String(ev.data), sp = t.indexOf(" "), head = sp < 0 ? t : t.slice(0, sp), body = sp < 0 ? "" : t.slice(sp + 1);
+      try {
+        if (head === "state") { state = JSON.parse(body); showState(); requestDraw(); }
+        else if (head === "m") showMeter(parseFloat(body));
+        else if (head === "t") { const a = body.split(" "); showTx(parseFloat(a[0]), parseFloat(a[1]), parseFloat(a[2])); }
+        else if (head === "spots") { spots = JSON.parse(body); showSpots(); requestDraw(); }
+        else if (head === "bands") bands = JSON.parse(body);
+        else if (head === "plan") { plan = JSON.parse(body); requestDraw(); }
+        else if (head === "err") status(body, true);
+      } catch (e) { status("Bad message: " + e, true); }
+    };
+    ws.onclose = function() { ws = null; releaseAll(); $msg.text("Connection lost. Trying again...").prop("hidden", false); status("Disconnected", true); if (alive) reconnect = setTimeout(load, 3000); };
+    ws.onerror = function() {};
+  }
+  function load() {
+    $.get("/api/remote", function(c) { conf = c; connect(); connectTci(); }).fail(function() { status("Radio not reachable", true); if (alive) reconnect = setTimeout(load, 3000); });
+  }
+  setInterval(function() { send("ping"); }, 5000);
+  setInterval(function() {
+    const dt = (Date.now() - lastStat) / 1000; lastStat = Date.now();
+    if (ws && ws.readyState === 1) {
+      status((frames / dt).toFixed(0) + " fps, " + (bytes / dt / 1024).toFixed(0) + " kB/s" + (tci && tci.readyState === 1 && sndOn ? ", sound" : ""), false);
+      if (Date.now() - lastFrame > 4000) $msg.text("No spectrum from the radio...").prop("hidden", false); else $msg.prop("hidden", true);
+    }
+    frames = 0; bytes = 0;
+  }, 2000);
+
+  /* ---- Keys (the Keys tab, PTT) ---- */
+  const held = {};
+  function keyDown(name, el) { if (held[name]) return; held[name] = true; send("key " + name + " 1"); if (el) el.classList.add("down"); if (navigator.vibrate) navigator.vibrate(8); }
+  function keyUp(name, el) { if (!held[name]) return; delete held[name]; send("key " + name + " 0"); if (el) el.classList.remove("down"); }
+  function releaseAll() { Object.keys(held).forEach(function(k) { keyUp(k, document.querySelector('[data-key="' + k + '"]')); }); if (txOn) txStop(); }
+  document.querySelectorAll("[data-key], #pttbtn").forEach(function(el) {
+    const name = el.dataset.key || "PTT";
+    el.addEventListener("pointerdown", function(e) { e.preventDefault(); el.setPointerCapture(e.pointerId); if (name === "PTT" && micOn) txStart(el); else keyDown(name, el); });
+    const up = function() { if (name === "PTT" && txOn) txStop(el); else keyUp(name, el); };
+    el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("lostpointercapture", up);
+    el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+  });
+  document.querySelectorAll("[data-knob]").forEach(function(el) {
+    let rep = null;
+    const fire = function() { send("knob " + el.dataset.knob + " " + el.dataset.step); };
+    el.addEventListener("pointerdown", function(e) { e.preventDefault(); fire(); rep = setInterval(fire, 120); });
+    const stop = function() { if (rep) { clearInterval(rep); rep = null; } };
+    el.addEventListener("pointerup", stop); el.addEventListener("pointercancel", stop); el.addEventListener("pointerleave", stop);
+    el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+  });
+  window.addEventListener("blur", releaseAll);
+  document.addEventListener("keydown", function(e) {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || !$pop.prop("hidden")) return;
+    if (e.key === " ") { e.preventDefault(); if (e.repeat) return; if (micOn) txStart(document.getElementById("pttbtn")); else keyDown("PTT", document.getElementById("pttbtn")); return; }
+    if (!state) return;
+    const n = e.shiftKey ? 10 : 1;
+    if (e.key === "ArrowRight") { e.preventDefault(); tuneTo(state.freq + n * state.step); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); tuneTo(state.freq - n * state.step); }
+    else if (e.key === "]") { e.preventDefault(); lvlSend("vol", Math.min(55, state.vol + 1)); }
+    else if (e.key === "[") { e.preventDefault(); lvlSend("vol", Math.max(0, state.vol - 1)); }
+  });
+  document.addEventListener("keyup", function(e) { if (e.key === " ") { if (txOn) txStop(document.getElementById("pttbtn")); else keyUp("PTT", document.getElementById("pttbtn")); } });
+
+  /* ---- Audio over TCI: RX to the speaker, the microphone to the radio while PTT is held ---- */
+  let actx = null, nextTime = 0, sndOn = false, micOn = false, txOn = false, micStream = null, micNode = null, micSrc = null;
+  const HDR = 64;
+  function connectTci() {
+    if (!conf || !conf.tci_enabled || (tci && tci.readyState <= 1)) return;
+    try { tci = new WebSocket(wsUrl("tci")); } catch (e) { return; }
+    tci.binaryType = "arraybuffer";
+    tci.onopen = function() { if (sndOn) tci.send("audio_start:0;"); };
+    tci.onmessage = function(ev) {
+      if (!(ev.data instanceof ArrayBuffer) || !sndOn || !actx) return;
+      const dv = new DataView(ev.data);
+      const rate = dv.getUint32(4, true), fmt = dv.getUint32(8, true), n = dv.getUint32(20, true), type = dv.getUint32(24, true), ch = dv.getUint32(28, true) || 1;
+      if (type !== 1 || n === 0 || ev.data.byteLength < HDR + n * ch * (fmt === 3 ? 4 : 2)) return;
+      const buf = actx.createBuffer(1, n, rate), out = buf.getChannelData(0);
+      if (fmt === 3) { const f = new Float32Array(ev.data, HDR, n * ch); for (let i = 0; i < n; i++) out[i] = f[i * ch]; }
+      else { const s = new Int16Array(ev.data, HDR, n * ch); for (let i = 0; i < n; i++) out[i] = s[i * ch] / 32768; }
+      const src = actx.createBufferSource(); src.buffer = buf; src.connect(actx.destination);
+      const now = actx.currentTime;
+      if (nextTime < now + 0.04 || nextTime > now + 0.6) nextTime = now + 0.08;
+      src.start(nextTime); nextTime += buf.duration;
+    };
+    tci.onclose = function() { tci = null; if (alive) setTimeout(connectTci, 3000); };
+  }
+  $("#snd").on("click", function() {
+    sndOn = !sndOn; $(this).attr("aria-pressed", String(sndOn));
+    if (sndOn) {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      actx.resume();
+      if (tci && tci.readyState === 1) tci.send("audio_start:0;"); else connectTci();
+    } else if (tci && tci.readyState === 1 && !txOn) tci.send("audio_stop:0;");
+  });
+  $("#mic").on("click", function() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { status(secure ? "No microphone access in this browser" : "Microphone: open the https page (link below)", true); return; }
+    micOn = !micOn; $("#mic").attr("aria-pressed", String(micOn));
+    if (micOn) {
+      navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true}, video: false}).then(function(s) {
+        micStream = s; status("Microphone ready: hold PTT to transmit");
+        if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      }, function(e) { micOn = false; $("#mic").attr("aria-pressed", "false"); status("Microphone refused: " + e.message, true); });
+    } else if (micStream) { micStream.getTracks().forEach(function(t) { t.stop(); }); micStream = null; }
+  });
+  function txFrame(samples, rate) {
+    const n = samples.length, buf = new ArrayBuffer(HDR + n * 2), dv = new DataView(buf);
+    dv.setUint32(4, rate, true); dv.setUint32(8, 0, true); dv.setUint32(20, n, true); dv.setUint32(24, 2, true); dv.setUint32(28, 1, true);
+    const out = new Int16Array(buf, HDR, n);
+    for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, samples[i])); out[i] = v < 0 ? v * 32768 : v * 32767; }
+    return buf;
+  }
+  function txStart(el) {
+    if (!micStream || !tci || tci.readyState !== 1 || txOn) return;
+    txOn = true; if (el) el.classList.add("down");
+    actx.resume();
+    tci.send("trx:0,true,tci;");
+    micSrc = actx.createMediaStreamSource(micStream);
+    micNode = actx.createScriptProcessor(2048, 1, 1);
+    micNode.onaudioprocess = function(e) { if (txOn && tci && tci.readyState === 1) tci.send(txFrame(e.inputBuffer.getChannelData(0), actx.sampleRate)); };
+    micSrc.connect(micNode); micNode.connect(actx.destination);
+    status("Transmitting (browser microphone)");
+  }
+  function txStop(el) {
+    if (!txOn) return;
+    txOn = false; if (el) el.classList.remove("down");
+    if (micNode) { micNode.disconnect(); micNode.onaudioprocess = null; micNode = null; }
+    if (micSrc) { micSrc.disconnect(); micSrc = null; }
+    if (tci && tci.readyState === 1) tci.send("trx:0,false;");
+    status("Connected");
+  }
+
+  window.addEventListener("beforeunload", function() { alive = false; releaseAll(); if (ws) ws.close(); if (tci) tci.close(); });
+  resize();
+  load();
+})();
+</script>

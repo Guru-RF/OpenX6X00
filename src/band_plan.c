@@ -159,6 +159,15 @@ void band_plan_refresh(void) {
     redraw();
 }
 
+bool band_plan_segment(int i, int32_t *start, int32_t *end, int *type) {
+    if (i < 0 || (size_t)i >= sizeof(plan) / sizeof(plan[0]))
+        return false;
+    *start = plan[i].start;
+    *end   = plan[i].end;
+    *type  = plan[i].type;
+    return true;
+}
+
 int band_plan_type(int32_t freq) {
     for (size_t i = 0; i < sizeof(plan) / sizeof(plan[0]); i++) {
         if (freq >= plan[i].start && freq < plan[i].end) {
