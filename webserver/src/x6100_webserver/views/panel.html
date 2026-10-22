@@ -127,6 +127,12 @@ body.app main { max-width:none; padding:8px; }
 body.app .pn-bar { margin-bottom:6px; }
 body.app h2, body.app #intro { display:none; }
 :fullscreen .pn { max-width:none; }
+/* The link to the radio is down or silent: the controls show the last confirmed state, greyed (R6) */
+.pn-radio.stale .pn-top, .pn-radio.stale .pn-ctl { filter: grayscale(.8); opacity: .55; transition: opacity .3s; }
+.pn-bar .health { margin-left: auto; }
+.pn-bar .status { margin-left: 0; }
+.msg .primary, .msg .ghost { margin: 0 4px; }
+#lgrows .i .b { height: 24px; padding: 0 8px; margin-left: 6px; font-size: 11px; }
 </style>
 
 <h2><svg class="i"><use href="#i-sliders"/></svg>Panel</h2>
@@ -139,6 +145,7 @@ body.app h2, body.app #intro { display:none; }
   <button type="button" id="pal" title="The waterfall's colours">Colours</button>
   <button type="button" id="appmode" title="The panel alone, the height of the screen">App</button>
   <button type="button" id="full">Fullscreen</button>
+  <span class="health" id="hl" title="The page's links to the radio: control, spectrum, sound, microphone"></span>
   <span class="status" id="st"></span>
 </div>
 
@@ -222,7 +229,7 @@ body.app h2, body.app #intro { display:none; }
     <div class="tab" id="tab-log">
       <div class="logf"><input id="lg-call" placeholder="CALL" autocapitalize="characters" autocomplete="off"><input id="lg-rs" placeholder="RST s" value="59"><input id="lg-rr" placeholder="RST r" value="59"></div>
       <div class="logf2"><input id="lg-name" placeholder="Name (optional)" autocomplete="off"><button class="b" id="lg-log" style="height:40px;padding:0 18px">LOG</button></div>
-      <p class="sub" style="margin:10px 0 0;font-size:12px">A voice or CW QSO on the radio's frequency and mode, into the day's ADIF log on the radio (the web Logs page lists it). Digital QSOs log themselves.</p>
+      <p class="sub" style="margin:10px 0 0;font-size:12px">A voice or CW QSO on the radio's frequency and mode, into the day's ADIF log on the radio (the web Logs page lists it). Digital QSOs log themselves. Each QSO is confirmed by the radio: one sent into a dropped connection is asked about when the link is back, and never logged twice.</p>
       <ul class="ft" id="lgrows"></ul>
     </div>
     <div class="tab cur" id="tab-spots"><ul class="spots" id="spots"><li style="display:block;color:var(--pd)">No spots yet: the cluster is set on the radio (Cluster page).</li></ul></div>
@@ -249,6 +256,7 @@ body.app h2, body.app #intro { display:none; }
 
 <div class="pop" id="pop" hidden><div class="box" id="popbox"></div></div>
 
+<script src="/static/js/radio_link.js?v=1"></script>
 <script>
 (function() {
   "use strict";
@@ -259,9 +267,9 @@ body.app h2, body.app #intro { display:none; }
   const STEPS = [10, 100, 500, 1000, 5000];
   const PLAN_COLORS = ["#2a7fff", "#d08a00", "#2e9e4f", "#b040c0"];     /* CW, DIG, ALL, BCN */
   const PLAN_NAMES = ["CW", "DIG", "SSB", "BCN"];
-  let conf = null, ws = null, tci = null, alive = true, reconnect = null;
-  let state = null, bands = [], plan = [], spots = [];
-  let frames = 0, bytes = 0, lastStat = Date.now(), lastFrame = 0;
+  let conf = null, unreachable = false, updating = null, link = null, tlink = null;   /* the links are made below */
+  let state = null, stateAt = 0, bands = [], plan = [], spots = [];
+  let frames = 0, bytes = 0, lastStat = Date.now(), lastFrame = 0, lastAudio = 0, fpsText = "", abytes = 0, kbsText = "";
   let pref = {};
   try { pref = JSON.parse(localStorage.getItem("x6100panel") || "{}"); } catch (e) {}
   function savePref() { try { localStorage.setItem("x6100panel", JSON.stringify(pref)); } catch (e) {} }
@@ -272,7 +280,7 @@ body.app h2, body.app #intro { display:none; }
     return (secure ? "wss://" : "ws://") + location.hostname + ":" + port + "/";
   }
   $("#httpslink").attr("href", "https://" + location.host.replace(/:\d+$/, "") + "/panel");
-  function send(s) { if (ws && ws.readyState === 1) ws.send(s); }
+  function send(s) { return !!link && link.send(s); }
   function set(name, v, v2) { send("set " + name + " " + v + (v2 !== undefined ? " " + v2 : "")); }
   function fmtFreq(hz) { const s = String(hz).padStart(7, "0"); return s.slice(0, -6) + "." + s.slice(-6, -3) + "." + s.slice(-3); }
   function fmtK(hz) { return (hz / 1000).toFixed(hz % 1000 ? 1 : 0); }
@@ -679,13 +687,61 @@ body.app h2, body.app #intro { display:none; }
   }
   $("#cw-clear").on("click", function() { cwEl.textContent = ""; });
   $("#cw-log").on("click", function() { const c = $("#cw-log span").text(); if (c && c !== "last call") { $("#lg-call").val(c); $("#lg-rs, #lg-rr").val(state && (state.mode === 4 || state.mode === 5) ? "599" : "59"); $('.tabs button[data-tab="log"]').trigger("click"); } });
+  /* Every QSO goes with a number of the page's own ("logq ID ..."); the radio answers "logged ID
+   * ok|no". One without an answer (the link dropped, the page reloaded) is asked about ("logq? ID")
+   * when the link is back: "ok" or "no" settles it, "unknown" means the radio never saw it, or
+   * restarted since. Never seen and the same radio run: sent once more. Otherwise it is for the
+   * operator: the Logs page tells, the row offers Send again or Forget. A retry is never automatic
+   * when a duplicate is possible (R6). */
+  const pend = pref.logPending = pref.logPending || {};
+  function logRow(id, label, st) {
+    let li = $("#lgrows li[data-id='" + id + "']");
+    if (!li.length) { li = $("<li class='t2'>").attr("data-id", id).append($("<span class='x'>").text(label), $("<span class='i'>")); $("#lgrows").prepend(li); }
+    li.find(".i").text(st);
+    return li;
+  }
+  function logSend(id, p) { logRow(id, p.label, send("logq " + id + " " + p.text) ? "sending..." : "waiting for the connection"); }
+  function logAnswer(id, r, silent) {
+    const p = pend[id];
+    const label = p ? p.label : "QSO " + id;
+    if (r === "ok") { logRow(id, label, "logged"); status("QSO logged"); if (p && p.draft) { $("#lg-call, #lg-name").val(""); draftSave(); } }
+    else if (r === "no") { logRow(id, label, "refused (see the radio)"); status("QSO not logged (see the radio)", true); }
+    else {
+      if (!p) return;
+      if (!silent && p.boot && link.boot === p.boot && !p.tries) { p.tries = 1; p.t = Date.now(); p.asks = 0; savePref(); logSend(id, p); return; }
+      const li = logRow(id, label, silent ? "no answer: check the Logs page before sending again" : "not confirmed: the radio restarted, check the Logs page");
+      li.find(".i").append($("<button type='button' class='b'>Send again</button>").on("click", function() { p.tries = 0; p.asks = 0; p.boot = link.boot; p.t = Date.now(); savePref(); logSend(id, p); }),
+                           $("<button type='button' class='b'>Forget</button>").on("click", function() { delete pend[id]; savePref(); li.remove(); }));
+      return;
+    }
+    delete pend[id]; savePref();
+  }
+  function logReconcile() { Object.keys(pend).forEach(function(id) { pend[id].asked = Date.now(); send("logq? " + id); }); }
+  function logTick() {
+    if (!link.up) return;
+    const now = Date.now();
+    Object.keys(pend).forEach(function(id) {
+      const p = pend[id];
+      if (now - Math.max(p.t, p.asked || 0) < 8000) return;
+      p.asks = (p.asks || 0) + 1; p.asked = now; savePref();
+      if (p.asks > 3) logAnswer(id, "unknown", true); else send("logq? " + id);
+    });
+  }
+  Object.keys(pend).forEach(function(id) { logRow(id, pend[id].label, "unanswered (" + RadioLink.age(Date.now() - pend[id].t) + " ago)"); });
   $("#lg-log").on("click", function() {
     const call = $("#lg-call").val().trim().toUpperCase();
     if (!call) { status("A call sign first", true); return; }
-    send("log " + [call, $("#lg-rs").val().trim(), $("#lg-rr").val().trim(), $("#lg-name").val().trim()].join("|").replace(/\n/g, " "));
-    $("#lgrows").prepend($("<li class='t2'>").append($("<span class='x'>").text(new Date().toISOString().slice(11, 16) + " " + call + " " + $("#lg-rs").val() + " " + $("#lg-rr").val()), $("<span class='i'>").text("sent")));
+    const id = pref.logSeq = ((pref.logSeq || 0) % 2000000000) + 1;
+    const rs = $("#lg-rs").val().trim(), rr = $("#lg-rr").val().trim();
+    pend[id] = {text: [call, rs, rr, $("#lg-name").val().trim()].join("|").replace(/\n/g, " "), label: new Date().toISOString().slice(11, 16) + " " + call + " " + rs + " " + rr, t: Date.now(), boot: link.boot, tries: 0, asks: 0, draft: true};
+    savePref();
+    logSend(id, pend[id]);
   });
   $("#lg-call").on("keydown", function(e) { if (e.key === "Enter") $("#lg-log").trigger("click"); });
+  /* The fields outlive a reload and a lost connection */
+  function draftSave() { pref.draft = {call: $("#lg-call").val(), rs: $("#lg-rs").val(), rr: $("#lg-rr").val(), name: $("#lg-name").val()}; savePref(); }
+  if (pref.draft) { $("#lg-call").val(pref.draft.call || ""); $("#lg-rs").val(pref.draft.rs || "59"); $("#lg-rr").val(pref.draft.rr || "59"); $("#lg-name").val(pref.draft.name || ""); }
+  $("#lg-call, #lg-rs, #lg-rr, #lg-name").on("input", draftSave);
 
   /* ---- The side tabs ---- */
   let screenOn = false;
@@ -713,54 +769,99 @@ body.app h2, body.app #intro { display:none; }
     drawB(blob);
   }
 
-  /* ---- The connection ---- */
-  function connect() {
-    if (!alive || !conf) return;
-    if (!conf.enabled) {
-      $msg.html("The browser remote is off on the radio.<br><br>Settings &gt; General &gt; BROWSER REMOTE, or ").append($("<button type='button' class='primary'>Turn it on</button>").on("click", function() {
-        $.ajax({url: "/api/remote", type: "POST", data: JSON.stringify({enabled: true}), contentType: "application/json", success: function() { conf.enabled = true; $msg.text("Turning on..."); setTimeout(connect, 2500); }});
-      })).prop("hidden", false);
+  /* ---- The connection: one link for control and pictures, one for sound; each comes back by itself ---- */
+  const radio = pn.querySelector(".pn-radio");
+  function onText(t) {
+    const sp = t.indexOf(" "), head = sp < 0 ? t : t.slice(0, sp), body = sp < 0 ? "" : t.slice(sp + 1);
+    try {
+      if (head === "state") { state = JSON.parse(body); stateAt = Date.now(); showState(); requestDraw(); }
+      else if (head === "m") showMeter(parseFloat(body));
+      else if (head === "t") { const a = body.split(" "); showTx(parseFloat(a[0]), parseFloat(a[1]), parseFloat(a[2])); }
+      else if (head === "spots") { spots = JSON.parse(body); showSpots(); requestDraw(); }
+      else if (head === "bands") bands = JSON.parse(body);
+      else if (head === "plan") { plan = JSON.parse(body); requestDraw(); }
+      else if (head === "ft8") { ft8 = JSON.parse(body); showFt8(); }
+      else if (head === "ft8r") addFt8Row(JSON.parse(body));
+      else if (head === "cw") addCw(JSON.parse(body));
+      else if (head === "logged") { const a = body.split(" "); if (a.length > 1) logAnswer(a[0], a[1]); else status(body === "ok" ? "QSO logged" : "QSO not logged (see the radio)", body !== "ok"); }
+      else if (head === "err") status(body, true);
+    } catch (e) { status("Bad message: " + e, true); }
+  }
+  link = RadioLink.create({
+    url: function() {
+      /* every try asks the web server first: it tells whether the remote is on, and whether the radio is updating */
+      return $.get("/api/remote").then(function(c) {
+        conf = c; unreachable = false;
+        tlink.tryNow();
+        if (!c.enabled) return null;
+        if (!link.gen) return wsUrl("remote");     /* the first try: nothing was lost, no update to suspect */
+        return $.get("/api/update").then(function(u) { updating = u.job && u.job.running ? u.job.what : null; return wsUrl("remote"); }, function() { return wsUrl("remote"); });
+      }, function() { unreachable = true; return null; });
+    },
+    ping: "ping",
+    onOpen: function() { radio.classList.remove("stale"); lastFrame = Date.now(); send("screen " + (screenOn ? 1 : 0)); send("panel 1"); status("Connected"); view(); },
+    onHello: function(boot, restarted) { if (restarted) status("The radio restarted: what it shows now is its fresh state", true); logReconcile(); },
+    onText: onText,
+    onBinary: function(buf) { if (buf.byteLength >= 16 && new DataView(buf).getUint16(0, true) === 0xFFFF) spectrumFrame(buf); else screenFrame(buf); },
+    onClose: function(gen, retry, wasUp) { dropped(wasUp); },
+    onStall: function() { view(); },
+  });
+  /* The link went: nothing of it is sent again. A held key, a tune on its way, a transmission are
+   * let go here (the radio drops them too); the operator presses again, on purpose */
+  function dropped(wasUp) {
+    tuneWant = null; if (tuneTimer) { clearTimeout(tuneTimer); tuneTimer = null; }
+    const hadKeys = Object.keys(held).length > 0 || txOn;
+    Object.keys(held).forEach(function(k) { delete held[k]; const el = k === "PTT" ? document.getElementById("pttbtn") : document.querySelector('[data-key="' + k + '"]'); if (el) el.classList.remove("down"); });
+    if (txOn) txStop(document.getElementById("pttbtn"));
+    radio.classList.add("stale");
+    if (hadKeys) status("Connection lost: keys released, press again when it is back", true);
+    else if (wasUp) status("Connection lost", true);
+    view();
+  }
+  function stateLine() { return state && stateAt ? "What is shown is from " + RadioLink.age(Date.now() - stateAt) + " ago. " : "Nothing from the radio yet. "; }
+  function view() {
+    const now = Date.now();
+    if (link.up && !link.stalled) {
+      if (now - lastFrame > 4000) $msg.text("No spectrum from the radio...").prop("hidden", false); else $msg.prop("hidden", true);
       return;
     }
-    $msg.text("Connecting...").prop("hidden", false);
-    try { ws = new WebSocket(wsUrl("remote")); } catch (e) { status("No WebSocket: " + e, true); return; }
-    ws.binaryType = "arraybuffer";
-    ws.onopen = function() { $msg.prop("hidden", true); status("Connected"); lastFrame = Date.now(); send("screen " + (screenOn ? 1 : 0)); send("panel 1"); };
-    ws.onmessage = function(ev) {
-      if (ev.data instanceof ArrayBuffer) {
-        if (ev.data.byteLength >= 16 && new DataView(ev.data).getUint16(0, true) === 0xFFFF) spectrumFrame(ev.data); else screenFrame(ev.data);
-        return;
-      }
-      const t = String(ev.data), sp = t.indexOf(" "), head = sp < 0 ? t : t.slice(0, sp), body = sp < 0 ? "" : t.slice(sp + 1);
-      try {
-        if (head === "state") { state = JSON.parse(body); showState(); requestDraw(); }
-        else if (head === "m") showMeter(parseFloat(body));
-        else if (head === "t") { const a = body.split(" "); showTx(parseFloat(a[0]), parseFloat(a[1]), parseFloat(a[2])); }
-        else if (head === "spots") { spots = JSON.parse(body); showSpots(); requestDraw(); }
-        else if (head === "bands") bands = JSON.parse(body);
-        else if (head === "plan") { plan = JSON.parse(body); requestDraw(); }
-        else if (head === "ft8") { ft8 = JSON.parse(body); showFt8(); }
-        else if (head === "ft8r") addFt8Row(JSON.parse(body));
-        else if (head === "cw") addCw(JSON.parse(body));
-        else if (head === "logged") { status(body === "ok" ? "QSO logged" : "QSO not logged (see the radio)", body !== "ok"); if (body === "ok") { $("#lg-call, #lg-name").val(""); $("#lgrows li .i").first().text("logged"); } else $("#lgrows li .i").first().text("refused"); }
-        else if (head === "err") status(body, true);
-      } catch (e) { status("Bad message: " + e, true); }
-    };
-    ws.onclose = function() { ws = null; releaseAll(); $msg.text("Connection lost. Trying again...").prop("hidden", false); status("Disconnected", true); if (alive) reconnect = setTimeout(load, 3000); };
-    ws.onerror = function() {};
+    const $m = $msg.empty().prop("hidden", false);
+    if (link.up) { $m.append("The radio does not answer. ", stateLine()); return; }
+    if (conf && !conf.enabled) {
+      $m.html("The browser remote is off on the radio.<br><br>Settings &gt; General &gt; BROWSER REMOTE, or ").append($("<button type='button' class='primary'>Turn it on</button>").on("click", function() {
+        $.ajax({url: "/api/remote", type: "POST", data: JSON.stringify({enabled: true}), contentType: "application/json", success: function() { conf.enabled = true; $msg.text("Turning on..."); setTimeout(function() { link.tryNow(); }, 2500); }});
+      }));
+      return;
+    }
+    if (unreachable) $m.append("The radio is not reachable. ", updating ? "" : "It may be off, restarting, or on another address since a network change. ");
+    else if (!conf) $m.append("Connecting... ");
+    else $m.append("Connection lost. ");
+    if (updating) $m.append("The radio is installing an update (" + updating + "): this page comes back when it has restarted. ");
+    $m.append(stateLine());
+    const n = link.retryIn();
+    $m.append(n ? "Trying again in " + n + " s." : "Trying again...", $("<button type='button' class='primary'>Try now</button>").on("click", function() { link.tryNow(); }));
   }
-  function load() {
-    $.get("/api/remote", function(c) { conf = c; connect(); connectTci(); }).fail(function() { status("Radio not reachable", true); if (alive) reconnect = setTimeout(load, 3000); });
+  function showHealth() {
+    const now = Date.now(), ch = [];
+    if (!link.up) ch.push({n: "Control", s: "off", t: link.retryIn() ? "retry in " + link.retryIn() + " s" : ""});
+    else if (link.stalled) ch.push({n: "Control", s: "stale", t: "silent " + RadioLink.age(now - link.lastRx)});
+    else ch.push({n: "Control", s: "ok", t: ""});
+    if (!link.up || link.stalled) ch.push({n: "Spectrum", s: "off", t: haveSp ? RadioLink.age(now - lastFrame) + " ago" : ""});
+    else if (now - lastFrame > 4000) ch.push({n: "Spectrum", s: "stale", t: RadioLink.age(now - lastFrame) + " ago"});
+    else ch.push({n: "Spectrum", s: "ok", t: fpsText});
+    if (!sndOn) ch.push({n: "Sound", s: "idle", t: "off"});
+    else if (!tlink.up) ch.push({n: "Sound", s: "off", t: conf && !conf.tci_enabled ? "TCI off on the radio" : "no link"});
+    else if (now - lastAudio > 2000) ch.push({n: "Sound", s: "stale", t: lastAudio ? RadioLink.age(now - lastAudio) + " ago" : "nothing yet"});
+    else ch.push({n: "Sound", s: "ok", t: kbsText});
+    ch.push(micState === "ready" ? {n: "Mic", s: "ok", t: txOn ? "TX" : "ready"} : micState === "asking" ? {n: "Mic", s: "stale", t: "asking"} : micState === "refused" ? {n: "Mic", s: "off", t: "refused"} : {n: "Mic", s: "idle", t: "off"});
+    RadioLink.health(document.getElementById("hl"), ch);
   }
-  setInterval(function() { send("ping"); }, 5000);
   setInterval(function() {
     const dt = (Date.now() - lastStat) / 1000; lastStat = Date.now();
-    if (ws && ws.readyState === 1) {
-      status((frames / dt).toFixed(0) + " fps, " + (bytes / dt / 1024).toFixed(0) + " kB/s" + (tci && tci.readyState === 1 && sndOn ? ", sound" : ""), false);
-      if (Date.now() - lastFrame > 4000) $msg.text("No spectrum from the radio...").prop("hidden", false); else $msg.prop("hidden", true);
-    }
-    frames = 0; bytes = 0;
+    fpsText = (frames / dt).toFixed(0) + " fps, " + (bytes / dt / 1024).toFixed(0) + " kB/s"; kbsText = (abytes / dt / 1024).toFixed(0) + " kB/s";
+    frames = 0; bytes = 0; abytes = 0;
   }, 2000);
+  setInterval(function() { showHealth(); view(); logTick(); }, 1000);
 
   /* ---- Keys (the Keys tab, PTT) ---- */
   const held = {};
@@ -797,44 +898,54 @@ body.app h2, body.app #intro { display:none; }
 
   /* ---- Audio over TCI: RX to the speaker, the microphone to the radio while PTT is held ---- */
   let actx = null, nextTime = 0, sndOn = false, micOn = false, txOn = false, micStream = null, micNode = null, micSrc = null;
+  let micState = "off", micReq = 0;   /* off, asking, ready, refused; the request in flight (an older answer is let go, audit A18) */
   const HDR = 64;
-  function connectTci() {
-    if (!conf || !conf.tci_enabled || (tci && tci.readyState <= 1)) return;
-    try { tci = new WebSocket(wsUrl("tci")); } catch (e) { return; }
-    tci.binaryType = "arraybuffer";
-    tci.onopen = function() { if (sndOn) tci.send("audio_start:0;"); };
-    tci.onmessage = function(ev) {
-      if (!(ev.data instanceof ArrayBuffer) || !sndOn || !actx) return;
-      const dv = new DataView(ev.data);
+  tlink = RadioLink.create({
+    url: function() { return conf && conf.tci_enabled ? wsUrl("tci") : null; },
+    ping: null,
+    onOpen: function() { if (sndOn) tlink.send("audio_start:0;"); },
+    onBinary: function(buf) {
+      if (!sndOn || !actx) return;
+      const dv = new DataView(buf);
       const rate = dv.getUint32(4, true), fmt = dv.getUint32(8, true), n = dv.getUint32(20, true), type = dv.getUint32(24, true), ch = dv.getUint32(28, true) || 1;
-      if (type !== 1 || n === 0 || ev.data.byteLength < HDR + n * ch * (fmt === 3 ? 4 : 2)) return;
-      const buf = actx.createBuffer(1, n, rate), out = buf.getChannelData(0);
-      if (fmt === 3) { const f = new Float32Array(ev.data, HDR, n * ch); for (let i = 0; i < n; i++) out[i] = f[i * ch]; }
-      else { const s = new Int16Array(ev.data, HDR, n * ch); for (let i = 0; i < n; i++) out[i] = s[i * ch] / 32768; }
-      const src = actx.createBufferSource(); src.buffer = buf; src.connect(actx.destination);
+      if (type !== 1 || n === 0 || buf.byteLength < HDR + n * ch * (fmt === 3 ? 4 : 2)) return;
+      lastAudio = Date.now(); abytes += buf.byteLength;
+      const ab = actx.createBuffer(1, n, rate), out = ab.getChannelData(0);
+      if (fmt === 3) { const f = new Float32Array(buf, HDR, n * ch); for (let i = 0; i < n; i++) out[i] = f[i * ch]; }
+      else { const s16 = new Int16Array(buf, HDR, n * ch); for (let i = 0; i < n; i++) out[i] = s16[i * ch] / 32768; }
+      const src = actx.createBufferSource(); src.buffer = ab; src.connect(actx.destination);
       const now = actx.currentTime;
       if (nextTime < now + 0.04 || nextTime > now + 0.6) nextTime = now + 0.08;
-      src.start(nextTime); nextTime += buf.duration;
-    };
-    tci.onclose = function() { tci = null; if (alive) setTimeout(connectTci, 3000); };
-  }
+      src.start(nextTime); nextTime += ab.duration;
+    },
+    onClose: function(gen, retry, wasUp) { if (txOn) { txStop(document.getElementById("pttbtn")); status("Transmission ended: the sound link dropped. Press PTT again when it is back", true); } },
+  });
   $("#snd").on("click", function() {
     sndOn = !sndOn; $(this).attr("aria-pressed", String(sndOn));
     if (sndOn) {
       if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-      actx.resume();
-      if (tci && tci.readyState === 1) tci.send("audio_start:0;"); else connectTci();
-    } else if (tci && tci.readyState === 1 && !txOn) tci.send("audio_stop:0;");
+      actx.resume(); lastAudio = 0;
+      if (!tlink.send("audio_start:0;")) tlink.tryNow();
+    } else if (!txOn) tlink.send("audio_stop:0;");
   });
   $("#mic").on("click", function() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { status(secure ? "No microphone access in this browser" : "Microphone: open the https page (link below)", true); return; }
     micOn = !micOn; $("#mic").attr("aria-pressed", String(micOn));
+    if (txOn) txStop(document.getElementById("pttbtn"));
+    if (micStream) { micStream.getTracks().forEach(function(t) { t.stop(); }); micStream = null; }
+    const req = ++micReq;
     if (micOn) {
+      micState = "asking"; status("Asking the browser for the microphone...");
       navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true}, video: false}).then(function(s) {
-        micStream = s; status("Microphone ready: hold PTT to transmit");
+        if (req !== micReq) { s.getTracks().forEach(function(t) { t.stop(); }); return; }
+        micStream = s; micState = "ready"; status("Microphone ready: hold PTT to transmit");
+        s.getTracks().forEach(function(t) { t.onended = function() { if (micStream === s) { micState = "off"; micOn = false; $("#mic").attr("aria-pressed", "false"); micStream = null; if (txOn) txStop(document.getElementById("pttbtn")); status("The microphone went away: transmission ended", true); } }; });
         if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-      }, function(e) { micOn = false; $("#mic").attr("aria-pressed", "false"); status("Microphone refused: " + e.message, true); });
-    } else if (micStream) { micStream.getTracks().forEach(function(t) { t.stop(); }); micStream = null; }
+      }, function(e) {
+        if (req !== micReq) return;
+        micOn = false; micState = "refused"; $("#mic").attr("aria-pressed", "false"); status("Microphone refused: " + e.message, true);
+      });
+    } else { micState = "off"; status("Microphone off"); }
   });
   function txFrame(samples, rate) {
     const n = samples.length, buf = new ArrayBuffer(HDR + n * 2), dv = new DataView(buf);
@@ -844,13 +955,14 @@ body.app h2, body.app #intro { display:none; }
     return buf;
   }
   function txStart(el) {
-    if (!micStream || !tci || tci.readyState !== 1 || txOn) return;
+    if (!micStream || txOn) return;
+    if (!tlink.up) { status("No sound link to the radio: no transmission", true); return; }
     txOn = true; if (el) el.classList.add("down");
     actx.resume();
-    tci.send("trx:0,true,tci;");
+    tlink.send("trx:0,true,tci;");
     micSrc = actx.createMediaStreamSource(micStream);
     micNode = actx.createScriptProcessor(2048, 1, 1);
-    micNode.onaudioprocess = function(e) { if (txOn && tci && tci.readyState === 1) tci.send(txFrame(e.inputBuffer.getChannelData(0), actx.sampleRate)); };
+    micNode.onaudioprocess = function(e) { if (txOn) tlink.send(txFrame(e.inputBuffer.getChannelData(0), actx.sampleRate)); };
     micSrc.connect(micNode); micNode.connect(actx.destination);
     status("Transmitting (browser microphone)");
   }
@@ -859,12 +971,13 @@ body.app h2, body.app #intro { display:none; }
     txOn = false; if (el) el.classList.remove("down");
     if (micNode) { micNode.disconnect(); micNode.onaudioprocess = null; micNode = null; }
     if (micSrc) { micSrc.disconnect(); micSrc = null; }
-    if (tci && tci.readyState === 1) tci.send("trx:0,false;");
+    tlink.send("trx:0,false;");
     status("Connected");
   }
 
-  window.addEventListener("beforeunload", function() { alive = false; releaseAll(); if (ws) ws.close(); if (tci) tci.close(); });
+  window.addEventListener("beforeunload", function() { releaseAll(); link.close(); tlink.close(); });
+  document.addEventListener("visibilitychange", function() { if (document.hidden) releaseAll(); });   /* the page out of sight: no key stays down */
   resize();
-  load();
+  link.connect();
 })();
 </script>

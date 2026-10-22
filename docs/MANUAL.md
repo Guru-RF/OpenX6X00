@@ -1745,9 +1745,51 @@ text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
 state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
 the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
 `ft8 txfreq HZ` and `ft8 reply ID` work the app, `log CALL|RSTS|RSTR|NAME`
-writes the day's log and is answered with `logged ok|no`. Settings > General
-> BROWSER REMOTE turns the server on and off for both pages. A page opens
-on a tab with `/panel#ft8`, `#cw`, `#log`, `#keys` or `#screen`.
+writes the day's log and is answered with `logged ok|no`. `logq ID CALL|...`
+is the same QSO with a number the client chose, answered `logged ID ok|no`;
+the radio keeps the last sixteen answers and `logq? ID` asks for one again:
+`ok`, `no`, `pending` (still being written) or `unknown` (never seen, or the
+radio restarted since). The greeting `hello <version> <boot>` ends with a
+number chosen when the GUI started: a client that sees it change knows the
+radio restarted. Settings > General > BROWSER REMOTE turns the server on and
+off for both pages. A page opens on a tab with `/panel#ft8`, `#cw`, `#log`,
+`#keys` or `#screen`.
+
+### When the link drops
+
+Both pages, Panel and Screen, say how each of their links to the radio is
+doing, in the bar at the top: Control (the commands and the state), Spectrum
+or Picture, Sound and Mic, each green when flowing, amber when connected but
+silent (the radio does not answer: what is shown is old), red when down, grey
+when not in use. The controls grey out and the panorama says how old the
+shown state is ("What is shown is from 12 s ago") the moment the connection
+is lost or stalls, so a stale page never looks live.
+
+The page comes back by itself: one second after the loss, then two, four,
+eight, at most fifteen seconds between tries, with a Try now button. It also
+says why it waits when it can tell: the radio not reachable (off, restarting,
+or on another address after a network change), the browser remote turned off
+(with the button to turn it on), an update being installed (the page returns
+when the radio has restarted). A changed boot number says "The radio
+restarted".
+
+Nothing crosses a gap on its own. A key held when the link went is released
+and stays released (the radio drops it as well), a transmission from the
+browser microphone ends, a tune on its way is dropped: when the page is back
+it shows the radio's real state and the operator presses again, on purpose.
+Nothing is replayed: not a frequency, not a PTT, not a CQ, not a QSO. What
+the operator typed is kept: the log fields, the chosen tab, through a lost
+link and a reload.
+
+A QSO from the Log tab is the one thing that must not be lost or doubled, so
+each goes with a number of its own and shows "sending..." until the radio
+answers "logged" or "refused". One sent into a gap ("waiting for the
+connection"), or left without an answer by a reload, is asked about when the
+link is back. The radio never saw it and did not restart in between: it is
+sent once more. The radio restarted, or does not answer the question: the row
+says so and leaves it to the operator, who checks the Logs page and taps
+Send again or Forget. The page never retries by itself when a duplicate is
+possible.
 
 ## Browser remote
 
@@ -1789,7 +1831,10 @@ watching; the web page offers to turn it on when it is off. The port is in
 
 The screen is streamed even while the radio's panel is dark (Screen off after,
 Screen always off): a radio with its screen off, worked from the browser, is
-the intended setup for a remote shack corner. There is no login, like the TCI
+the intended setup for a remote shack corner. The link's health, the greyed
+last picture with its age when the link drops, the reconnection and what is
+never replayed across a gap are as on the Panel page (When the link drops,
+above). There is no login, like the TCI
 server and the web configurator: anyone on the network can reach the radio, so
 use it on a network you trust. Pages from other sites cannot connect (the
 browser's Origin is checked).

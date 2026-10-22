@@ -15,7 +15,9 @@
  *
  *  Frames: binary, 8 bytes header {u16 width, u16 height, u32 sequence} little endian, then JPEG.
  *  Commands (text): "key NAME 1|0" (press, release), "knob main|vol|mfk N" (detents, signed),
- *  "ping". Answers: "hello <version>", "size W H", "pong", "err <text>".
+ *  "ping". Answers: "hello <version> <boot>", "size W H", "pong", "err <text>". <boot> is a number
+ *  chosen when the GUI started: a page that sees it change knows the radio restarted and
+ *  nothing it had asked for survived (R6).
  *
  *  The Panel page works the radio natively instead of through a picture of its screen: a client
  *  that sends "panel 1" gets the radio's state as JSON ("state {...}": frequency, mode, filter,
@@ -32,7 +34,11 @@
  *  list's rows go out as they come ("ft8r {...}", the last 48 to a page that opens later), the
  *  app's state when it changes ("ft8 {...}"), the CW decoder's text ("cw \"...\""); "ft8
  *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "log
- *  CALL|RSTS|RSTR|NAME" writes the day's log as the CW keyboard does ("logged ok|no").
+ *  CALL|RSTS|RSTR|NAME" writes the day's log as the CW keyboard does ("logged ok|no"). "logq ID
+ *  CALL|..." is the same with a number the page chose: the answer is "logged ID ok|no", kept for
+ *  the last sixteen, and "logq? ID" asks for it again after a dropped connection or a reload, so
+ *  a QSO sent into a gap is found ("ok", "no", "pending" while the GUI still has it) or declared
+ *  "unknown", never logged twice by a retry (R6).
  *
  *  The Origin check of ws_handshake() keeps pages from other sites out; like the TCI server there
  *  is no login: the radio's own network is trusted.
@@ -642,7 +648,15 @@ static char        cw_new[512];     /* decoded since the last flush */
 static size_t      cw_new_len;
 static char        cw_hist[CW_HIST + 1];
 static size_t      cw_hist_len;
-static atomic_int  log_result;      /* 1 logged, 2 refused: told to the panel clients */
+static uint32_t    boot_id;         /* this GUI run, told in "hello" */
+#define LOG_ANSWERS 16
+static struct {                     /* the last log commands' answers: id 0 is the old "log" without one */
+    uint32_t id;
+    uint8_t  result;                /* 0 still with the GUI thread, 1 logged, 2 refused */
+    bool     told;                  /* gone out to the panel clients */
+} log_ans[LOG_ANSWERS];
+static int         log_ans_next;
+static atomic_bool log_pending;     /* an answer waits to go out */
 
 /* A row as JSON: "ft8r {...}" */
 static void ft8_row_line(char *buf, size_t n, uint32_t id, const cell_data_t *cd) {
@@ -754,7 +768,74 @@ typedef struct {
     bool        has_cell;
     cell_data_t cell;
     char        text[200];
+    uint32_t    log_id;     /* A_LOG: the page's number for its answer, 0 for none */
 } acmd_t;
+
+/* A log command's place in the ring: its own if it has one (queued earlier), else the next */
+static int log_slot(uint32_t id) {
+    if (id)
+        for (int i = 0; i < LOG_ANSWERS; i++)
+            if (log_ans[i].id == id)
+                return i;
+    int i = log_ans_next;
+    log_ans_next = (log_ans_next + 1) % LOG_ANSWERS;
+    log_ans[i].id = id;
+    return i;
+}
+
+/* A log command queued for the GUI thread: "pending" to a query until its answer is in */
+static void log_queued(uint32_t id) {
+    pthread_mutex_lock(&app_mux);
+    int i = log_slot(id);
+    log_ans[i].result = 0;
+    log_ans[i].told   = true;
+    pthread_mutex_unlock(&app_mux);
+}
+
+/* The answer to a log command, kept; the panel thread tells the clients */
+static void log_answer(uint32_t id, bool ok) {
+    pthread_mutex_lock(&app_mux);
+    int i = log_slot(id);
+    log_ans[i].result = ok ? 1 : 2;
+    log_ans[i].told   = false;
+    pthread_mutex_unlock(&app_mux);
+    atomic_store(&log_pending, true);
+}
+
+/* "logq? ID": the answer kept for ID, pending while the GUI thread has it, or unknown (the radio
+ * restarted, or the command never arrived) */
+static void log_query(client_t *c, uint32_t id) {
+    const char *r = "unknown";
+
+    pthread_mutex_lock(&app_mux);
+    for (int i = 0; i < LOG_ANSWERS; i++)
+        if (log_ans[i].id == id && id)
+            r = log_ans[i].result == 1 ? "ok" : log_ans[i].result == 2 ? "no" : "pending";
+    pthread_mutex_unlock(&app_mux);
+    client_textf(c, "logged %u %s", id, r);
+}
+
+/* The answers not yet told, from the panel thread */
+static void log_flush(void) {
+    char line[64];
+
+    if (!atomic_exchange(&log_pending, false))
+        return;
+    pthread_mutex_lock(&app_mux);
+    for (int i = 0; i < LOG_ANSWERS; i++) {
+        if (!log_ans[i].result || log_ans[i].told)
+            continue;
+        log_ans[i].told = true;
+        if (log_ans[i].id)
+            snprintf(line, sizeof(line), "logged %u %s", log_ans[i].id, log_ans[i].result == 1 ? "ok" : "no");
+        else
+            snprintf(line, sizeof(line), "logged %s", log_ans[i].result == 1 ? "ok" : "no");
+        pthread_mutex_unlock(&app_mux);
+        panel_broadcast(line);
+        pthread_mutex_lock(&app_mux);
+    }
+    pthread_mutex_unlock(&app_mux);
+}
 
 static void app_apply(void *arg) {
     acmd_t *a = (acmd_t *)arg;
@@ -774,7 +855,7 @@ static void app_apply(void *arg) {
             ft8_window_remote((ft8_rc_t)a->what, a->arg, a->has_cell ? &a->cell : NULL);
             break;
         case A_LOG:
-            atomic_store(&log_result, dialog_field_qso_log(a->text) ? 1 : 2);
+            log_answer(a->log_id, dialog_field_qso_log(a->text));
             break;
     }
 }
@@ -815,11 +896,20 @@ static bool app_ft8_cmd(const char *what, const char *arg) {
     return true;
 }
 
-/* "log CALL|RSTS|RSTR|NAME|QTH|GRID|COUNTRY" (dialog_field_qso_log's text), the day's log */
-static void app_log_cmd(const char *text) {
-    acmd_t a = {.id = A_LOG};
+/* "log CALL|RSTS|RSTR|NAME|QTH|GRID|COUNTRY" (dialog_field_qso_log's text), the day's log;
+ * "logq ID CALL|..." the same, answered with the ID. A queue with no room answers "no" at once:
+ * the page must not believe a QSO sent into nothing was logged (audit A21) */
+static void app_log_cmd(client_t *c, uint32_t id, const char *text) {
+    acmd_t a = {.id = A_LOG, .log_id = id};
     snprintf(a.text, sizeof(a.text), "%s", text);
-    scheduler_put(app_apply, &a, sizeof(a));
+    if (id)
+        log_queued(id);
+    if (!scheduler_put(app_apply, &a, sizeof(a))) {
+        if (id)
+            log_answer(id, false);      /* told by the panel thread, kept for a query */
+        else
+            client_text(c, "logged no");
+    }
 }
 
 /* Panel thread: the spectrum as it comes, the state every PANEL_MS, the meters, the spots */
@@ -934,9 +1024,7 @@ static void *panel_thread(void *arg) {
                 panel_broadcast(line);
             }
             panel_cw_flush();
-            int lr = atomic_exchange(&log_result, 0);
-            if (lr)
-                panel_broadcast(lr == 1 ? "logged ok" : "logged no");
+            log_flush();
         }
         usleep(20000);
     }
@@ -950,7 +1038,20 @@ static void handle_text(client_t *c, char *text) {
     int   n    = 0;
 
     if (!strncmp(text, "log ", 4)) {        /* the text as it is: names have spaces */
-        app_log_cmd(text + 4);
+        app_log_cmd(c, 0, text + 4);
+        return;
+    }
+    if (!strncmp(text, "logq? ", 6)) {
+        log_query(c, (uint32_t)strtoul(text + 6, NULL, 10));
+        return;
+    }
+    if (!strncmp(text, "logq ", 5)) {       /* "logq ID TEXT" */
+        char    *end;
+        uint32_t id = (uint32_t)strtoul(text + 5, &end, 10);
+        if (id && *end == ' ')
+            app_log_cmd(c, id, end + 1);
+        else
+            client_text(c, "err logq ID TEXT");
         return;
     }
     for (char *t = strtok(text, " \t\r\n"); t && n < 4; t = strtok(NULL, " \t\r\n"))
@@ -1034,7 +1135,7 @@ static void client_read(client_t *c) {
         pthread_mutex_lock(&c->lock);
         c->up = true;
         pthread_mutex_unlock(&c->lock);
-        client_textf(c, "hello %s", VERSION);
+        client_textf(c, "hello %s %u", VERSION, boot_id);
         pthread_mutex_lock(&fmut);
         int32_t w = sw, h = sh;
         pthread_mutex_unlock(&fmut);
@@ -1404,6 +1505,11 @@ static void *encoder_thread(void *arg) {
 /* ---- Public ------------------------------------------------------------------------- */
 
 void remote_server_init(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    boot_id = (uint32_t)ts.tv_sec ^ (uint32_t)ts.tv_nsec ^ (uint32_t)getpid();
+    if (!boot_id)
+        boot_id = 1;
     pthread_t th;
 
     for (int i = 0; i < MAX_CLIENTS; i++) {

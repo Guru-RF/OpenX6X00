@@ -51,6 +51,13 @@ button:hover{border-color:var(--dim)}
 .status.error{color:var(--err)}
 .status.error .dot{background:var(--err)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;flex:none}
+/* The remote pages' channels: Control, Spectrum, Sound, Mic (R6) */
+.health{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
+.hc{padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--dim);white-space:nowrap}
+.hc.ok{color:var(--ok);border-color:#2f6b45}
+.hc.stale{color:var(--accent);border-color:#7a5a16}
+.hc.off{color:var(--err);border-color:#7a2a2a}
+.hc.idle{opacity:.6}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{color:var(--dim);font-weight:500;text-align:left;padding:8px;border-bottom:1px solid var(--line)}
