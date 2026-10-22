@@ -265,6 +265,15 @@ def apply(m):
         os.replace(tmp, p)
         f["done"] = True
         save(JOURNAL, journal)
+    # The version file follows the signed manifest, whatever the bundle's copy says (a bundle built
+    # without a configure carried a stale one); the rollback restores the previous one from PREV
+    if running_version() != m["version"]:
+        tmp = VERSION_FILE + ".x6new"
+        with open(tmp, "w") as f:
+            f.write(m["version"] + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, VERSION_FILE)
     # The crash counter before the state: an interruption between the two still rolls back
     save(PENDING, {"version": m["version"], "from": journal["from"], "starts": 0, "since": time.time()})
     journal["state"] = "applied"

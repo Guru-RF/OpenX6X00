@@ -62,7 +62,10 @@ else()
         install(FILES third-party/cty/cty.dat DESTINATION share/x6100)
         # Copied to /mnt/themes at start when missing (main.c)
         install(DIRECTORY themes/RS DESTINATION share/x6100/themes)
-        # The apps' version, for the web configurator and the scripts
+        # The apps' version, for the web configurator and the scripts. Read at configure time, so a
+        # changed main.h must configure again: a plain rebuild left the old number in the file (and
+        # in the update bundle, whose radios then thought they ran 0.1.0)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS src/main.h)
         file(STRINGS src/main.h APP_VERSION REGEX "define VERSION ")
         string(REGEX REPLACE ".* v([0-9.]+).*" "\\1" APP_VERSION "${APP_VERSION}")
         file(WRITE ${CMAKE_BINARY_DIR}/app-version "${APP_VERSION}\n")
