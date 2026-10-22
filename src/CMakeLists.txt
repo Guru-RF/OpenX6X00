@@ -21,7 +21,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_jtty.c jtty.c jtty_rx.c jtty_tx.c
     tx_player.c tx_level.c
     swr_guard.c
-    base_guard.c hw/x6100/hw_x6100.c
+    base_guard.c
     app_sstv.c
     app_sstv_tx.c
     app_sstv_gallery.c
@@ -65,6 +65,19 @@ target_sources(${PROJECT_NAME} PUBLIC
     remote_server.c
 )
 
+# The radio behind src/hw/hw.h: the X6100 through its control library, or the stub (a radio made
+# of nothing, for the GUI on a desktop and as the template for a new radio's backend)
+set(HW_BACKEND "x6100" CACHE STRING "The radio backend: x6100 or stub")
+if(HW_BACKEND STREQUAL "x6100")
+    target_sources(${PROJECT_NAME} PUBLIC hw/x6100/hw_x6100.c)
+    set(HW_LIBS aether_x6100_control)
+elseif(HW_BACKEND STREQUAL "stub")
+    target_sources(${PROJECT_NAME} PUBLIC hw/stub/hw_stub.c)
+    set(HW_LIBS m)
+else()
+    message(FATAL_ERROR "HW_BACKEND must be x6100 or stub, not '${HW_BACKEND}'")
+endif()
+
 # Subfolders: some add their sources to the GUI, others build a library
 foreach(dir fonts ft8 js8 widgets params qth cluster field wspr cfg cw_decoder)
     add_subdirectory(${dir})
@@ -83,13 +96,13 @@ pkg_check_modules(deps REQUIRED IMPORTED_TARGET
 )
 
 # Link order matters for the static libraries: ours first, then LVGL, the
-# radio control library, liquid-dsp and ft8_lib
+# radio backend's library, liquid-dsp and ft8_lib
 target_link_libraries(${PROJECT_NAME} PRIVATE
     PkgConfig::deps
     FT8 QTH CLUSTER FIELD WSPR CW_DECODER JS8 cfg
     Threads::Threads
     lvgl lvgl::drivers
-    aether_x6100_control liquid ft8
+    ${HW_LIBS} liquid ft8
 )
 
 # For a debug build on the radio add to the target, compile and link:

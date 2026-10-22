@@ -27,4 +27,4 @@ else()
     target_link_libraries(cfg PUBLIC ${SQLITE3_LIBRARY})
 endif()
 
-target_link_libraries(cfg PUBLIC Threads::Threads lvgl aether_x6100_control)
+target_link_libraries(cfg PUBLIC Threads::Threads lvgl)
