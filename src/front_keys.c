@@ -14,6 +14,7 @@
 #include "front_keys.h"
 
 #include "screen_light.h"
+#include "control_owner.h"
 #include "key_input.h"
 #include "main.h"
 
@@ -102,6 +103,8 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
         data->continue_reading = true;
 
         if (in.type == EV_KEY) {
+            if (in.value)
+                ctl_local_input();   /* a key at the radio: control is the operator's (unless injected) */
             if (backlight_tick() && in.value) {
                 /* the press woke the screen: that was its job, the radio does not see it */
             } else if (in.code == VOL_PRESS) {

@@ -63,6 +63,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_bands.c
     dialog_snake.c
     remote_server.c
+    control_owner.c
 )
 
 # The radio behind src/hw/hw.h: the X6100 through its control library, or the stub (a radio made

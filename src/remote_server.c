@@ -19,6 +19,20 @@
  *  chosen when the GUI started: a page that sees it change knows the radio restarted and
  *  nothing it had asked for survived (R6).
  *
+ *  Sessions and control (R3): a new connection may only watch and listen ("role view 0 -").
+ *  "pair?" puts a six-digit code on the radio's screen for two minutes; "pair CODE NAME" with
+ *  the right code makes a session (the first one ever is admin, the others operate, with TX),
+ *  answered "paired TOKEN ROLE TX"; the page keeps the token and sends "auth TOKEN" at every
+ *  connection, answered "role ROLE TX NAME" (view, operate, admin). Keys, knobs, "set", "ft8"
+ *  need operate and control: one holder at a time for what touches the RF side, taken with
+ *  "control take" (refused while the radio is on the air), given back with "control release";
+ *  "ctl WHO MINE" tells every client who has it (none, local, tci, browser NAME). The log needs
+ *  operate. An admin lists the sessions ("sessions" -> "sessions [...]") and ends one ("revoke
+ *  N": its sockets close, its token is gone); "unpair" forgets the caller's own. A held PTT
+ *  key is a lease: the page repeats "key PTT 1" every second, the radio unkeys without it for
+ *  three seconds, and after three minutes whatever happens (R4). "tx 0|1" goes to every client
+ *  when the radio's TX state changes.
+ *
  *  The Panel page works the radio natively instead of through a picture of its screen: a client
  *  that sends "panel 1" gets the radio's state as JSON ("state {...}": frequency, mode, filter,
  *  the switches, the levels), the S-meter ("m <dB>", ten a second), the TX meters while on the
@@ -51,6 +65,8 @@
 #include <stdio.h>       /* before jpeglib.h, which wants FILE */
 
 #include "remote_server.h"
+#include "control_owner.h"
+#include "msg_box.h"
 #include "board.h"
 
 #include "band_plan.h"
@@ -72,6 +88,7 @@
 #include "tx_meters.h"
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <jpeglib.h>
@@ -139,7 +156,41 @@ typedef struct {
     bool            screen;         /* wants the screen frames (the Remote page) */
     bool            panel;          /* wants the state, the spectrum and the spots (the Panel page) */
     bool            panel_fresh;    /* just subscribed: the whole state goes out next */
+    int             sess;           /* the session it authenticated as, -1 none (a viewer) */
+    uint8_t         role;           /* ROLE_VIEW, ROLE_OPERATE, ROLE_ADMIN */
+    bool            tx_ok;          /* the session may transmit */
+    uint64_t        ptt_ms;         /* the PTT key held: its last renewal, and when it began */
+    uint64_t        ptt_start_ms;
+    uint32_t        ctl_told;       /* the control version last told ("ctl"), 0 never */
 } client_t;
+
+/* Sessions: a paired browser, remembered in REMOTE_SESSIONS until revoked */
+enum { ROLE_VIEW = 0, ROLE_OPERATE = 1, ROLE_ADMIN = 2 };
+#define SESS_MAX     16
+#define TOKEN_LEN    32
+#define PAIR_MS      120000   /* the code stays good this long */
+#define PAIR_TRIES   3
+#define PTT_LEASE_MS 3000     /* a held PTT without renewal */
+#define PTT_LIMIT_MS (180 * 1000)
+
+typedef struct {
+    char     token[TOKEN_LEN + 1];
+    char     name[32];
+    uint8_t  role;
+    bool     tx;
+    uint64_t created, last;   /* wall clock, seconds */
+    char     ip[48];
+} session_t;
+
+static session_t       sessions[SESS_MAX];
+static int             nsessions;
+static pthread_mutex_t sess_mux = PTHREAD_MUTEX_INITIALIZER;
+static char            pair_code[8];
+static uint64_t        pair_until_ms;
+static int             pair_tries;
+static atomic_bool     tx_last;        /* the TX state last told to the clients */
+static atomic_bool     disconnect_all_due;   /* Settings: every socket closed, the sessions kept */
+static atomic_bool     forget_all_due;       /* Settings: every session revoked */
 
 /* What the panel clients are told; read from the radio every PANEL_MS */
 typedef struct {
@@ -239,6 +290,192 @@ static void conf_write(void) {
     rename(tmp, REMOTE_CONF);
 }
 
+/* ---- Sessions (R3) -------------------------------------------------------------------- */
+
+static const char *role_name(uint8_t r) {
+    return r == ROLE_ADMIN ? "admin" : r == ROLE_OPERATE ? "operate" : "view";
+}
+
+static uint64_t wall_s(void) {
+    return (uint64_t)time(NULL);
+}
+
+/* sess_mux held */
+static void sess_save_locked(void) {
+    char  tmp[80];
+    FILE *f;
+
+    snprintf(tmp, sizeof(tmp), "%s.tmp", REMOTE_SESSIONS);
+    int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd < 0 || !(f = fdopen(fd, "w"))) {
+        if (fd >= 0)
+            close(fd);
+        return;
+    }
+    for (int i = 0; i < nsessions; i++)
+        fprintf(f, "%s\t%s\t%d\t%d\t%llu\t%llu\t%s\n", sessions[i].token, sessions[i].name, sessions[i].role,
+                sessions[i].tx ? 1 : 0, (unsigned long long)sessions[i].created, (unsigned long long)sessions[i].last,
+                sessions[i].ip);
+    fclose(f);
+    rename(tmp, REMOTE_SESSIONS);
+}
+
+static void sess_load(void) {
+    FILE *f = fopen(REMOTE_SESSIONS, "r");
+    char  line[256];
+
+    if (!f)
+        return;
+    pthread_mutex_lock(&sess_mux);
+    nsessions = 0;
+    while (nsessions < SESS_MAX && fgets(line, sizeof(line), f)) {
+        session_t *x = &sessions[nsessions];
+        char      *save, *tok;
+        int        k = 0;
+        memset(x, 0, sizeof(*x));
+        for (tok = strtok_r(line, "\t\r\n", &save); tok; tok = strtok_r(NULL, "\t\r\n", &save), k++) {
+            switch (k) {
+                case 0: snprintf(x->token, sizeof(x->token), "%s", tok); break;
+                case 1: snprintf(x->name, sizeof(x->name), "%s", tok); break;
+                case 2: x->role = (uint8_t)LV_CLAMP(0, atoi(tok), 2); break;
+                case 3: x->tx = atoi(tok) != 0; break;
+                case 4: x->created = strtoull(tok, NULL, 10); break;
+                case 5: x->last = strtoull(tok, NULL, 10); break;
+                case 6: snprintf(x->ip, sizeof(x->ip), "%s", tok); break;
+            }
+        }
+        if (strlen(x->token) == TOKEN_LEN && x->name[0])
+            nsessions++;
+    }
+    pthread_mutex_unlock(&sess_mux);
+    fclose(f);
+}
+
+static bool random_hex(char *out, size_t n) {
+    uint8_t raw[32];
+    int     fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+
+    if (fd < 0 || n / 2 > sizeof(raw) || read(fd, raw, n / 2) != (ssize_t)(n / 2)) {
+        if (fd >= 0)
+            close(fd);
+        return false;
+    }
+    close(fd);
+    for (size_t i = 0; i < n / 2; i++)
+        snprintf(out + i * 2, 3, "%02x", raw[i]);
+    return true;
+}
+
+/* A new session for a browser that typed the code; -1 when the table is full */
+static int sess_new(const char *name, const char *ip) {
+    pthread_mutex_lock(&sess_mux);
+    if (nsessions == SESS_MAX || !random_hex(sessions[nsessions].token, TOKEN_LEN)) {
+        pthread_mutex_unlock(&sess_mux);
+        return -1;
+    }
+    session_t *x = &sessions[nsessions];
+    snprintf(x->name, sizeof(x->name), "%s", name);
+    x->role    = nsessions == 0 ? ROLE_ADMIN : ROLE_OPERATE;   /* the first browser paired is the admin */
+    x->tx      = true;
+    x->created = x->last = wall_s();
+    snprintf(x->ip, sizeof(x->ip), "%s", ip);
+    int i = nsessions++;
+    sess_save_locked();
+    pthread_mutex_unlock(&sess_mux);
+    return i;
+}
+
+static int sess_find(const char *token) {
+    int r = -1;
+
+    pthread_mutex_lock(&sess_mux);
+    for (int i = 0; i < nsessions; i++)
+        if (!strcmp(sessions[i].token, token))
+            r = i;
+    pthread_mutex_unlock(&sess_mux);
+    return r;
+}
+
+static void sess_touch(int i, const char *ip) {
+    pthread_mutex_lock(&sess_mux);
+    if (i >= 0 && i < nsessions) {
+        sessions[i].last = wall_s();
+        snprintf(sessions[i].ip, sizeof(sessions[i].ip), "%s", ip);
+        sess_save_locked();
+    }
+    pthread_mutex_unlock(&sess_mux);
+}
+
+static void client_close(client_t *c);
+static void client_text(client_t *c, const char *text);
+static void client_textf(client_t *c, const char *fmt, ...);
+
+/* The session is gone: its token, and every socket that holds it (socket thread) */
+static void sess_revoke(int i) {
+    for (int k = 0; k < MAX_CLIENTS; k++) {
+        client_t *c = &clients[k];
+        if (c->fd >= 0 && c->sess == i) {
+            client_text(c, "err session revoked");
+            client_close(c);
+        }
+    }
+    pthread_mutex_lock(&sess_mux);
+    if (i >= 0 && i < nsessions) {
+        memmove(&sessions[i], &sessions[i + 1], (nsessions - i - 1) * sizeof(sessions[0]));
+        nsessions--;
+        sess_save_locked();
+    }
+    pthread_mutex_unlock(&sess_mux);
+    for (int k = 0; k < MAX_CLIENTS; k++)      /* the ones after it moved down */
+        if (clients[k].fd >= 0 && clients[k].sess > i)
+            clients[k].sess--;
+}
+
+/* LVGL thread: the code on the radio's screen */
+static void pair_msg_apply(void *arg) {
+    (void)arg;
+    pthread_mutex_lock(&sess_mux);
+    char code[8];
+    snprintf(code, sizeof(code), "%s", pair_code);
+    pthread_mutex_unlock(&sess_mux);
+    msg_schedule_text_ms(15000, "Pair code: #ffb020 %s#  (2 min)", code);
+}
+
+/* A code, new unless one is still good; shown on the radio's screen. Any thread. */
+static void pair_show(char *out, size_t n) {
+    pthread_mutex_lock(&sess_mux);
+    if (!pair_code[0] || now_ms() > pair_until_ms) {
+        uint8_t raw[4] = {0};
+        int     fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+        if (fd >= 0) {
+            if (read(fd, raw, sizeof(raw)) < 0) {}
+            close(fd);
+        }
+        uint32_t v = (raw[0] | raw[1] << 8 | raw[2] << 16 | (uint32_t)raw[3] << 24) % 1000000;
+        snprintf(pair_code, sizeof(pair_code), "%06u", v);
+        pair_tries = 0;
+    }
+    pair_until_ms = now_ms() + PAIR_MS;
+    if (out)
+        snprintf(out, n, "%s", pair_code);
+    pthread_mutex_unlock(&sess_mux);
+    scheduler_put_noargs(pair_msg_apply);
+}
+
+/* The code typed: a session, or -1 (wrong, or no code; three wrong tries burn the code) */
+static int pair_try(const char *code, const char *name, const char *ip) {
+    bool ok;
+
+    pthread_mutex_lock(&sess_mux);
+    ok = pair_code[0] && now_ms() <= pair_until_ms && !strcmp(code, pair_code);
+    if (ok || ++pair_tries >= PAIR_TRIES) {
+        pair_code[0]  = 0;
+        pair_until_ms = 0;
+    }
+    pthread_mutex_unlock(&sess_mux);
+    return ok ? sess_new(name, ip) : -1;
+}
+
 static void wake(void) {
     if (wake_fd[1] >= 0 && write(wake_fd[1], "w", 1) < 0) {}
 }
@@ -260,6 +497,7 @@ static void emit(int fd, uint16_t type, uint16_t code, int32_t value) {
 }
 
 static void key_emit(uint16_t code, bool down) {
+    ctl_injected();
     emit(code == KEY_POWER ? dev_power : dev_keypad, EV_KEY, code, down ? 1 : 0);
 }
 
@@ -286,6 +524,7 @@ static bool knob_emit(const char *name, int n) {
         return false;
     if (n > 50) n = 50;
     if (n < -50) n = -50;
+    ctl_injected();
     for (int i = 0; i < abs(n); i++)
         emit(fd, EV_REL, axis, n > 0 ? dir : -dir);
     return true;
@@ -351,6 +590,7 @@ static void client_textf(client_t *c, const char *fmt, ...) {
 
 static void client_close(client_t *c) {
     client_release_keys(c);
+    ctl_release(CTL_BROWSER, (int)(c - clients));
     pthread_mutex_lock(&c->lock);
     if (c->fd >= 0) {
         close(c->fd);
@@ -1033,12 +1273,84 @@ static void *panel_thread(void *arg) {
 
 /* "key NAME 1|0", "knob main|vol|mfk N", "ping", "screen 0|1", "panel 0|1", "set NAME VALUE",
  * "ft8 WHAT [ARG]", "log TEXT" */
+/* "ctl WHO MINE": who controls the radio, and whether it is this client */
+static void ctl_tell(client_t *c) {
+    ctl_info_t o;
+    char       who[64];
+
+    ctl_get(&o);
+    if (o.kind == CTL_LOCAL)
+        snprintf(who, sizeof(who), "local");
+    else if (o.kind == CTL_TCI)
+        snprintf(who, sizeof(who), "tci");
+    else if (o.kind == CTL_BROWSER)
+        snprintf(who, sizeof(who), "browser %s", o.name);
+    else
+        snprintf(who, sizeof(who), "none");
+    client_textf(c, "ctl %s %d", who, o.kind == CTL_BROWSER && o.id == (int)(c - clients) ? 1 : 0);
+    c->ctl_told = ctl_version() + 1;
+}
+
+static void role_tell(client_t *c) {
+    client_textf(c, "role %s %d %s", role_name(c->role), c->tx_ok ? 1 : 0, c->sess >= 0 ? sessions[c->sess].name : "-");
+}
+
+/* The client may do this: the role, and control of the radio for what touches the RF side
+ * (taken when free, else the holder is named and the page offers Take control) */
+static bool allowed(client_t *c, uint8_t role, bool control) {
+    if (c->role < role) {
+        client_text(c, role == ROLE_ADMIN ? "err admin only" : "err view only: pair this browser to operate");
+        return false;
+    }
+    if (control && !ctl_claim(CTL_BROWSER, (int)(c - clients), c->sess >= 0 ? sessions[c->sess].name : c->ip, false)) {
+        ctl_info_t o;
+        ctl_get(&o);
+        client_textf(c, "err controlled by %s: take control first",
+                     o.kind == CTL_LOCAL ? "the radio's operator" : o.kind == CTL_TCI ? "a TCI client" : o.name);
+        ctl_tell(c);
+        return false;
+    }
+    return true;
+}
+
+static void sessions_tell(client_t *c) {
+    char line[1024];
+    int  n = snprintf(line, sizeof(line), "sessions [");
+
+    pthread_mutex_lock(&sess_mux);
+    for (int i = 0; i < nsessions && n < (int)sizeof(line) - 160; i++) {
+        bool online = false;
+        for (int k = 0; k < MAX_CLIENTS; k++)
+            if (clients[k].fd >= 0 && clients[k].up && clients[k].sess == i)
+                online = true;
+        n += snprintf(line + n, sizeof(line) - n, "%s{\"n\":%d,\"name\":\"%s\",\"role\":\"%s\",\"tx\":%d,\"last\":%llu,\"ip\":\"%s\",\"online\":%d,\"me\":%d}",
+                      i ? "," : "", i, sessions[i].name, role_name(sessions[i].role), sessions[i].tx ? 1 : 0,
+                      (unsigned long long)sessions[i].last, sessions[i].ip, online ? 1 : 0, c->sess == i ? 1 : 0);
+    }
+    pthread_mutex_unlock(&sess_mux);
+    snprintf(line + n, sizeof(line) - n, "]");
+    client_text(c, line);
+}
+
+/* A name as typed: letters, digits, space, a few marks, up to 24 */
+static void name_clean(char *dst, size_t n, const char *src) {
+    size_t k = 0;
+    for (; *src && k + 1 < n; src++)
+        if (isalnum((unsigned char)*src) || strchr(" -_./'", *src))
+            dst[k++] = *src;
+    while (k && dst[k - 1] == ' ') k--;
+    dst[k] = 0;
+    if (!k)
+        snprintf(dst, n, "browser");
+}
+
 static void handle_text(client_t *c, char *text) {
     char *a[4] = {0};
     int   n    = 0;
 
     if (!strncmp(text, "log ", 4)) {        /* the text as it is: names have spaces */
-        app_log_cmd(c, 0, text + 4);
+        if (allowed(c, ROLE_OPERATE, false))
+            app_log_cmd(c, 0, text + 4);
         return;
     }
     if (!strncmp(text, "logq? ", 6)) {
@@ -1048,10 +1360,35 @@ static void handle_text(client_t *c, char *text) {
     if (!strncmp(text, "logq ", 5)) {       /* "logq ID TEXT" */
         char    *end;
         uint32_t id = (uint32_t)strtoul(text + 5, &end, 10);
+        if (!allowed(c, ROLE_OPERATE, false))
+            return;
         if (id && *end == ' ')
             app_log_cmd(c, id, end + 1);
         else
             client_text(c, "err logq ID TEXT");
+        return;
+    }
+    if (!strncmp(text, "pair ", 5)) {       /* "pair CODE NAME..." */
+        char *sp   = strchr(text + 5, ' ');
+        char  name[32];
+        if (!sp) {
+            client_text(c, "err pair CODE NAME");
+            return;
+        }
+        *sp = 0;
+        name_clean(name, sizeof(name), sp + 1);
+        int i = pair_try(text + 5, name, c->ip);
+        if (i < 0) {
+            client_text(c, "err pairing refused: wrong or expired code (press Pair for a new one)");
+            return;
+        }
+        c->sess  = i;
+        c->role  = sessions[i].role;
+        c->tx_ok = sessions[i].tx;
+        client_textf(c, "paired %s %s %d", sessions[i].token, role_name(c->role), c->tx_ok ? 1 : 0);
+        role_tell(c);
+        ctl_tell(c);
+        LV_LOG_USER("remote: paired %s (%s) as %s", name, c->ip, role_name(c->role));
         return;
     }
     for (char *t = strtok(text, " \t\r\n"); t && n < 4; t = strtok(NULL, " \t\r\n"))
@@ -1060,6 +1397,51 @@ static void handle_text(client_t *c, char *text) {
         return;
     if (!strcmp(a[0], "ping")) {
         client_text(c, "pong");
+    } else if (!strcmp(a[0], "auth") && n >= 2) {
+        int i = strlen(a[1]) == TOKEN_LEN ? sess_find(a[1]) : -1;
+        if (i < 0) {
+            c->sess = -1; c->role = ROLE_VIEW; c->tx_ok = false;
+            client_text(c, "err unknown session: pair this browser again");
+        } else {
+            c->sess  = i;
+            c->role  = sessions[i].role;
+            c->tx_ok = sessions[i].tx;
+            sess_touch(i, c->ip);
+        }
+        role_tell(c);
+        ctl_tell(c);
+    } else if (!strcmp(a[0], "pair?")) {
+        pair_show(NULL, 0);
+        client_text(c, "pairing code shown on the radio for 2 min");
+    } else if (!strcmp(a[0], "unpair")) {
+        if (c->sess >= 0)
+            sess_revoke(c->sess);     /* closes this socket too */
+        else
+            client_text(c, "err not paired");
+    } else if (!strcmp(a[0], "control") && n >= 2) {
+        if (!strcmp(a[1], "take")) {
+            if (!allowed(c, ROLE_OPERATE, false))
+                return;
+            if (!ctl_claim(CTL_BROWSER, (int)(c - clients), c->sess >= 0 ? sessions[c->sess].name : c->ip, true))
+                client_text(c, "err busy: the radio is transmitting, control stays where it is");
+        } else if (!strcmp(a[1], "release")) {
+            ctl_release(CTL_BROWSER, (int)(c - clients));
+        }
+        ctl_tell(c);
+    } else if (!strcmp(a[0], "sessions")) {
+        if (allowed(c, ROLE_ADMIN, false))
+            sessions_tell(c);
+    } else if (!strcmp(a[0], "revoke") && n >= 2) {
+        if (!allowed(c, ROLE_ADMIN, false))
+            return;
+        int i = atoi(a[1]);
+        if (i < 0 || i >= nsessions)
+            client_text(c, "err no such session");
+        else {
+            sess_revoke(i);
+            if (c->fd >= 0)
+                sessions_tell(c);
+        }
     } else if (!strcmp(a[0], "screen") && n >= 2) {
         c->screen = atoi(a[1]) != 0;
     } else if (!strcmp(a[0], "panel") && n >= 2) {
@@ -1073,9 +1455,13 @@ static void handle_text(client_t *c, char *text) {
             }
         }
     } else if (!strcmp(a[0], "set") && n >= 2) {
+        if (!allowed(c, ROLE_OPERATE, true))
+            return;
         if (!panel_set(a[1], n >= 3 ? a[2] : NULL, n >= 4 ? a[3] : NULL))
             client_textf(c, "err unknown setting %s", a[1]);
     } else if (!strcmp(a[0], "ft8") && n >= 2) {
+        if (!allowed(c, ROLE_OPERATE, true))
+            return;
         if (!app_ft8_cmd(a[1], n >= 3 ? a[2] : NULL))
             client_textf(c, "err ft8 %s", a[1]);
     } else if (!strcmp(a[0], "key") && n >= 3) {
@@ -1088,18 +1474,36 @@ static void handle_text(client_t *c, char *text) {
         int i = 0;
         while (i < c->nheld && c->held[i] != code) i++;
         if (down) {
+            if (!allowed(c, ROLE_OPERATE, true))
+                return;
+            if (code == BTN_TRIGGER_HAPPY4) {       /* PTT: the radio's own microphone */
+                if (!c->tx_ok) {
+                    client_text(c, "err this session may not transmit");
+                    return;
+                }
+                c->ptt_ms = now_ms();
+                if (i < c->nheld)
+                    return;                         /* the lease renewed, the key stays down */
+                c->ptt_start_ms = c->ptt_ms;
+            }
             if (i == c->nheld) {
                 if (c->nheld == MAX_HELD) {
                     client_text(c, "err too many keys held");
                     return;
                 }
                 c->held[c->nheld++] = (uint16_t)code;
+            } else if (i < c->nheld) {
+                return;                             /* already down: the hardware saw it */
             }
         } else if (i < c->nheld) {
             c->held[i] = c->held[--c->nheld];
+        } else {
+            return;                                 /* not held by this client: nothing to release */
         }
         key_emit((uint16_t)code, down);
     } else if (!strcmp(a[0], "knob") && n >= 3) {
+        if (!allowed(c, ROLE_OPERATE, true))
+            return;
         if (!knob_emit(a[1], atoi(a[2])))
             client_textf(c, "err unknown knob %s", a[1]);
     } else {
@@ -1140,6 +1544,8 @@ static void client_read(client_t *c) {
         int32_t w = sw, h = sh;
         pthread_mutex_unlock(&fmut);
         client_textf(c, "size %d %d", w ? w : 800, h ? h : 480);
+        role_tell(c);
+        ctl_tell(c);
         LV_LOG_USER("remote: viewer %s", c->ip);
         return;
     }
@@ -1229,6 +1635,11 @@ static void accept_client(int listen_fd) {
         c->nheld   = 0;
         c->screen  = true;
         c->panel   = c->panel_fresh = false;
+        c->sess    = -1;
+        c->role    = ROLE_VIEW;
+        c->tx_ok   = false;
+        c->ptt_ms  = c->ptt_start_ms = 0;
+        c->ctl_told = 0;
         c->last_ms = c->ping_ms = now_ms();
         inet_ntop(AF_INET, &peer.sin_addr, c->ip, sizeof(c->ip));
         pthread_mutex_unlock(&c->lock);
@@ -1275,7 +1686,7 @@ static void *server_thread(void *arg) {
             slot[n]  = i;
             pfd[n++] = (struct pollfd){.fd = c->fd, .events = ev};
         }
-        if (poll(pfd, n, listen_fd >= 0 ? 500 : 1000) < 0 && errno != EINTR) {
+        if (poll(pfd, n, n > 2 ? 100 : listen_fd >= 0 ? 500 : 1000) < 0 && errno != EINTR) {
             usleep(100000);
             continue;
         }
@@ -1283,6 +1694,15 @@ static void *server_thread(void *arg) {
             char buf[64];
             while (read(wake_fd[0], buf, sizeof(buf)) > 0) {}
         }
+        if (atomic_exchange(&forget_all_due, false))
+            while (nsessions > 0)
+                sess_revoke(nsessions - 1);
+        if (atomic_exchange(&disconnect_all_due, false))
+            for (int i = 0; i < MAX_CLIENTS; i++)
+                if (clients[i].fd >= 0) {
+                    client_text(&clients[i], "err disconnected from the radio");
+                    client_close(&clients[i]);
+                }
         if (listen_fd >= 0 && (pfd[1].revents & POLLIN))
             accept_client(listen_fd);
         for (int k = 2; k < n; k++) {
@@ -1313,6 +1733,30 @@ static void *server_thread(void *arg) {
                     c->ping_ms = now;
                     client_frame(c, WS_OP_PING, NULL, 0, NULL, 0);
                 }
+            }
+        }
+        /* A held PTT is a lease (R4): renewed every second by the page, or let go here; three
+         * minutes at most. Who controls the radio, and its TX state, to everyone. */
+        {
+            bool tx = ctl_transmitting();
+            bool tx_changed = tx != atomic_exchange(&tx_last, tx);
+            uint32_t ver = ctl_version() + 1;      /* +1: 0 means never told */
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                client_t *c = &clients[i];
+                if (c->fd < 0 || !c->up)
+                    continue;
+                int k = 0;
+                while (k < c->nheld && c->held[k] != BTN_TRIGGER_HAPPY4) k++;
+                if (k < c->nheld && (now - c->ptt_ms > PTT_LEASE_MS || now - c->ptt_start_ms > PTT_LIMIT_MS)) {
+                    c->held[k] = c->held[--c->nheld];
+                    key_emit(BTN_TRIGGER_HAPPY4, false);
+                    client_text(c, now - c->ptt_start_ms > PTT_LIMIT_MS ? "err ptt released: three minutes on the air"
+                                                                        : "err ptt released: no renewal from the page");
+                }
+                if (tx_changed)
+                    client_textf(c, "tx %d", tx ? 1 : 0);
+                if (c->ctl_told != ver)
+                    ctl_tell(c);
             }
         }
         if (now - conf_ms >= CONF_MS) {
@@ -1523,6 +1967,7 @@ void remote_server_init(void) {
     dev_vol    = open(DEV_VOL, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
     dev_mfk    = open(DEV_MFK, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
     conf_read();
+    sess_load();
     if (pipe2(wake_fd, O_NONBLOCK | O_CLOEXEC) < 0) {
         LV_LOG_ERROR("remote: no wake pipe");
         return;
@@ -1559,4 +2004,39 @@ const char *remote_server_viewer(void) {
         if (clients[i].fd >= 0 && clients[i].up)
             return clients[i].ip;
     return NULL;
+}
+
+void remote_server_pair_code(char *buf, size_t n) {
+    pair_show(buf, n);
+}
+
+int remote_server_sessions(char *buf, size_t n) {
+    int k = 0;
+
+    pthread_mutex_lock(&sess_mux);
+    int count = nsessions;
+    if (buf && n) {
+        buf[0] = 0;
+        for (int i = 0; i < nsessions && k < (int)n - 1; i++) {
+            bool online = false;
+            for (int j = 0; j < MAX_CLIENTS; j++)
+                if (clients[j].fd >= 0 && clients[j].up && clients[j].sess == i)
+                    online = true;
+            k += snprintf(buf + k, n - k, "%s%s%s%s", i ? ", " : "", sessions[i].name,
+                          sessions[i].role == ROLE_ADMIN ? " (admin)" : "", online ? " *" : "");
+        }
+    }
+    pthread_mutex_unlock(&sess_mux);
+    return count;
+}
+
+/* From the GUI thread: the sockets are the server thread's, so the forgetting is handed to it */
+void remote_server_forget_all(void) {
+    atomic_store(&forget_all_due, true);
+    wake();
+}
+
+void remote_server_disconnect_all(void) {
+    atomic_store(&disconnect_all_due, true);
+    wake();
 }

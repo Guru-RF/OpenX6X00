@@ -1780,17 +1780,24 @@ the radio keeps the last sixteen answers and `logq? ID` asks for one again:
 `ok`, `no`, `pending` (still being written) or `unknown` (never seen, or the
 radio restarted since). The greeting `hello <version> <boot>` ends with a
 number chosen when the GUI started: a client that sees it change knows the
-radio restarted. Settings > General > BROWSER REMOTE turns the server on and
-off for both pages. A page opens on a tab with `/panel#ft8`, `#cw`, `#log`,
-`#keys` or `#screen`.
+radio restarted. Sessions and control: `pair?` puts a code on the radio's
+screen, `pair CODE NAME` answers `paired TOKEN ROLE TX`, `auth TOKEN` at each
+connection answers `role view|operate|admin TX NAME`; `control take|release`
+and the radio's `ctl none|local|tci|browser NAME MINE` say who controls the
+radio; an admin's `sessions` lists the paired browsers as JSON and `revoke N`
+ends one; `unpair` forgets the caller's own; `tx 0|1` goes to every client
+when the radio keys or unkeys. Settings > General > BROWSER REMOTE turns the
+server on and off for both pages. A page opens on a tab with `/panel#ft8`,
+`#cw`, `#log`, `#keys` or `#screen`.
 
 ### When the link drops
 
 Both pages, Panel and Screen, say how each of their links to the radio is
-doing, in the bar at the top: Control (the commands and the state), Spectrum
+doing, in the bar at the top: Link (the commands and the state), Spectrum
 or Picture, Sound and Mic, each green when flowing, amber when connected but
 silent (the radio does not answer: what is shown is old), red when down, grey
-when not in use. The controls grey out and the panorama says how old the
+when not in use; then Access (what this browser may do) and Control (who
+operates the radio), see Pairing and control below. The controls grey out and the panorama says how old the
 shown state is ("What is shown is from 12 s ago") the moment the connection
 is lost or stalls, so a stale page never looks live.
 
@@ -1819,6 +1826,92 @@ sent once more. The radio restarted, or does not answer the question: the row
 says so and leaves it to the operator, who checks the Logs page and taps
 Send again or Forget. The page never retries by itself when a duplicate is
 possible.
+
+### Pairing and control
+
+Anyone on the network can open the Panel and the Screen page and watch: the
+spectrum, the picture, the state, the sound. To operate the radio a browser
+is paired once, with a code the radio shows:
+
+1. The page's bar says "View only · Pair". Tap it: the radio puts a six-digit
+   code on its screen for two minutes (Settings > General > BROWSER REMOTE >
+   Pair code shows it again, and the card shows it too).
+2. Type the code and a name for the browser ("Kitchen phone", "Shack PC").
+   Three wrong tries burn the code; Pair asks for a new one.
+3. The browser is paired: the bar shows its name, and it stays paired through
+   reloads and restarts of either side (a token in the browser's storage,
+   shared by the Panel and the Screen page). The radio keeps up to sixteen
+   paired browsers in `/mnt/remote_sessions.conf`.
+
+The first browser ever paired is the admin: it operates the radio and manages
+the others (Sessions in the bar lists them, with their name, their address,
+whether they are connected now and when they were last seen; Revoke ends one
+at once, its open connections included). Every later browser is an operator:
+it operates the radio but manages nothing. A browser unpairs itself from its
+name in the bar. Settings > General > BROWSER REMOTE > Forget all revokes
+every browser at the radio, for a radio that changes hands or a code that
+was seen by the wrong eyes; the next pairing is the new admin.
+
+What a browser may do:
+
+| Role | Watch and listen | Log a QSO | Tune, mode, keys, knobs, PTT, FT8 | Manage browsers |
+|------|------------------|-----------|-----------------------------------|-----------------|
+| View only (not paired) | yes | no | no | no |
+| Operator | yes | yes | yes, with control | no |
+| Admin | yes | yes | yes, with control | yes |
+
+Control: one holder at a time for what touches the RF side (frequency, mode,
+filter, keys and knobs, PTT, the FT8 app), so two browsers, a TCI client and
+the operator at the radio never fight over the VFO without knowing. The bar
+says who has it: "Control: free" (the first to tune or key takes it), "In
+control · Release" (this browser), "Controlled by Kitchen phone · Take",
+"Controlled at the radio · Take" (someone used the radio's own keys or
+knobs), "TCI client active · Take". A command from a browser without control
+is refused ("controlled by Kitchen phone: take control first") and nothing
+is sent to the radio; Take control moves it, at any time but one: while the
+radio transmits, control stays where it is until the transmission ends.
+Release gives it up without anyone taking it. The radio's own keys and knobs
+always take control back (the operator standing at the radio has the last
+word); a browser takes it again on purpose. A TCI client takes it as the
+knob always did, the moment it tunes or keys, unless someone is on the air;
+the TCI page's "Clients may" (or Settings > General > TCI SERVER > Clients)
+set to Listen only makes TCI clients hear and follow the radio without
+tuning or keying it, for a shared network. A browser that loses its link
+loses control with it. Web Logs and the configurator pages are not gated:
+they change settings, not the air.
+
+### Transmitting from the browser
+
+A PTT press from a page is a request; the radio answers, and the button
+shows what the radio did, never what the page hoped:
+
+- PTT (hold), with "TX audio: microphone at the radio" or "browser
+  microphone" under it, so what will go on the air is known before the
+  press. Mic on means the browser's microphone; Mic off, the radio's own.
+  When the browser's microphone is wanted but not ready (not granted yet,
+  refused, gone) the press is refused with "No TX" and the reason: the
+  radio's microphone is never used in its place.
+- Keying... until the radio confirms it is on the air (within 1.5 s, else
+  "No TX: the radio did not key"); ON AIR with the seconds counting; on
+  release Unkeying... until the radio confirms RX.
+- TX ended, when the radio ended it: the link dropped, the microphone went
+  away, the page lost sight of the key (a tab switch, a call on the phone),
+  the lease ran out. The operator presses again, on purpose.
+- TX (not this browser), while the radio is keyed from elsewhere.
+
+A held PTT is a lease. With the radio's microphone the page renews the key
+every second: three seconds without a renewal (the link gone, the page
+frozen) and the radio unkeys by itself, as it does after three minutes on
+the air whatever happens; the page is told why ("ptt released: no renewal
+from the page"). With the browser microphone the TCI rules apply: the radio
+unkeys half a second after the audio stops and after three minutes. Nothing
+keys the radio across a gap: a reconnect never re-presses PTT.
+
+The FT8 tab says it under its list: CQ and AUTO run on the radio and go on
+calling and answering when the page closes or loses its link; STOP ends the
+transmission under way and the queued reply, CQ off stops calling, AUTO off
+stops answering, Close ends the app. A tap on a CQ queues one reply for the
+next slot.
 
 ## Browser remote
 
@@ -1863,10 +1956,11 @@ Screen always off): a radio with its screen off, worked from the browser, is
 the intended setup for a remote shack corner. The link's health, the greyed
 last picture with its age when the link drops, the reconnection and what is
 never replayed across a gap are as on the Panel page (When the link drops,
-above). There is no login, like the TCI
-server and the web configurator: anyone on the network can reach the radio, so
-use it on a network you trust. Pages from other sites cannot connect (the
-browser's Origin is checked).
+above); so are the pairing, the roles, control of the radio and the PTT as
+the radio confirms it (Pairing and control, Transmitting from the browser,
+above): anyone on the network watches, a paired browser operates. The web
+configurator itself has no login: use it on a network you trust. Pages from
+other sites cannot connect (the browser's Origin is checked).
 
 ## TCI server
 
@@ -1885,10 +1979,19 @@ program on the network tunes the radio, hears it and keys it.
 - On by default, on whatever network the radio is on. Turn it off in Settings > General > TCI SERVER or on the
   web configurator's TCI page (System > TCI). The port is 50001, the one TCI
   clients expect; both places can change it. Stored in `/mnt/tci.conf`
-  (`enabled=0|1`, `port=`).
-- There is no login: enable it only on a network you trust, and turn it off
-  when it is not needed. Anyone who reaches the port can key the
-  transmitter. A web page is the exception: a browser names the page's site
+  (`enabled=0|1`, `port=`, `trust=operate|view`).
+- What clients may do: Operate (the default: tune, change the mode, key, as
+  always) or Listen only (the TCI page's "Clients may", the card's Clients):
+  a listening client hears and follows the radio, and its tuning and keying
+  are answered with the state as it is, unchanged. An operating client takes
+  control of the radio the moment it tunes or keys, as the knob always did,
+  unless someone is on the air; a browser that was operating sees "TCI
+  client active" and takes control back on purpose (Pairing and control,
+  under Browser panel).
+- There is no login or pairing for TCI clients: enable it only on a network
+  you trust, or set Listen only, and turn it off when it is not needed.
+  Anyone who reaches the port can key the transmitter when clients may
+  operate. A web page is the exception: a browser names the page's site
   (Origin) when it opens the socket, and the radio refuses a page from any
   site but its own, so a page you happen to visit cannot key the radio
   through your browser. TCI programs send no Origin and are not affected.

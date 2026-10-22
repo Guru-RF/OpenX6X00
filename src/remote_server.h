@@ -14,12 +14,14 @@
 #include "board.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define REMOTE_CONF         BOARD_DATA "/remote.conf"
+#define REMOTE_SESSIONS     BOARD_DATA "/remote_sessions.conf"   /* the paired browsers (R3) */
 #define REMOTE_DEFAULT_PORT 50002
 
 void remote_server_init(void);
@@ -32,6 +34,14 @@ int  remote_server_port(void);
 /* Viewers connected now, and the address of one of them (NULL without) */
 int         remote_server_viewers(void);
 const char *remote_server_viewer(void);
+
+/* Sessions (R3): the pairing code, shown on the screen for two minutes and copied to buf; the
+ * paired browsers as "name (admin) *, ..." (* connected) and their count; every session
+ * forgotten; every socket closed (the sessions stay) */
+void remote_server_pair_code(char *buf, size_t n);
+int  remote_server_sessions(char *buf, size_t n);
+void remote_server_forget_all(void);
+void remote_server_disconnect_all(void);
 
 /* Every area LVGL flushes to the panel (screen_rec.c calls it): kept for the viewers */
 void remote_flush(const lv_area_t *area, const lv_color_t *color_p);

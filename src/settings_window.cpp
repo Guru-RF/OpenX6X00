@@ -2306,13 +2306,16 @@ static struct {
     lv_obj_t *port;
     lv_obj_t *pill;
     lv_obj_t *client;
+    lv_obj_t *trust;     /* Operate / Listen only (R3) */
 } wv;
 
-/* Browser remote (remote_server.c): on/off and who is watching */
+/* Browser remote (remote_server.c): on/off, who is watching, the paired browsers (R3) */
 static struct {
     lv_obj_t *sw;
     lv_obj_t *pill;
     lv_obj_t *info;
+    lv_obj_t *pair;      /* the note beside Pair code */
+    lv_obj_t *sess;      /* the note beside Forget all */
 } rs;
 
 static void rs_update() {
@@ -2334,6 +2337,34 @@ static void rs_update() {
         snprintf(text, sizeof(text), "%s.local/remote, port %d", name, remote_server_port());
     lv_label_set_text(rs.info, text);
     lv_obj_set_style_text_color(rs.info, ip ? TC(text) : TC(text_faint), 0);
+
+    if (rs.sess) {
+        char names[160];
+        int  k = remote_server_sessions(names, sizeof(names));
+        if (k)
+            snprintf(text, sizeof(text), "%d paired: %s", k, names);
+        else
+            snprintf(text, sizeof(text), "no browser paired yet");
+        lv_label_set_text(rs.sess, text);
+        lv_obj_set_style_text_color(rs.sess, k ? TC(text) : TC(text_faint), 0);
+    }
+}
+
+static void rs_pair_cb(lv_event_t *e) {
+    char code[8];
+
+    remote_server_pair_code(code, sizeof(code));
+    if (rs.pair) {
+        char text[64];
+        snprintf(text, sizeof(text), "code %s, two minutes", code);
+        lv_label_set_text(rs.pair, text);
+    }
+}
+
+static void rs_forget_cb(lv_event_t *e) {
+    remote_server_forget_all();
+    if (rs.sess)
+        lv_label_set_text(rs.sess, "every browser forgotten");
 }
 
 static void rs_power_cb(lv_event_t *e) {
@@ -2360,6 +2391,20 @@ static uint8_t make_remote(uint8_t row) {
     rs.info = wl_label(obj, SF(22), theme_hex(TC_text), 0);
     lv_obj_set_size(rs.info, 400, lv_font_get_line_height(SF(22)));
     lv_label_set_long_mode(rs.info, LV_LABEL_LONG_DOT);
+    row++;
+
+    /* A browser only watches until it is paired: the code appears here and on the screen */
+    wl_row_label(row, "Pairing");
+    wl_button(row, "Pair code", rs_pair_cb);
+    rs.pair = wl_note(row);
+    lv_label_set_text(rs.pair, "a browser types the code to operate");
+    row++;
+
+    wl_row_label(row, "Sessions");
+    wl_button(row, "Forget all", rs_forget_cb);
+    rs.sess = wl_note(row);
+    lv_label_set_long_mode(rs.sess, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(rs.sess, 330);
     return row + 1;
 }
 
@@ -2379,6 +2424,15 @@ static void wv_update() {
     wl_pill(wv.pill, name ? "connected" : NULL, theme_hex(TC_ok_bg), theme_hex(TC_ok));
     lv_label_set_text(wv.client, name ? name : "no client");
     lv_obj_set_style_text_color(wv.client, name ? TC(text) : TC(text_faint), 0);
+    if (wv.trust) {
+        uint16_t want = tci_server_get_trust_operate() ? 0 : 1;
+        if (lv_dropdown_get_selected(wv.trust) != want)
+            lv_dropdown_set_selected(wv.trust, want);
+    }
+}
+
+static void wv_trust_cb(lv_event_t *e) {
+    tci_server_set_trust_operate(lv_dropdown_get_selected(lv_event_get_target(e)) == 0);
 }
 
 static void wv_power_cb(lv_event_t *e) {
@@ -2406,6 +2460,13 @@ static uint8_t make_tci(uint8_t row) {
     wv.client = wl_label(obj, SF(22), theme_hex(TC_text), 0);
     lv_obj_set_size(wv.client, 170, lv_font_get_line_height(SF(22)));   /* one line, then dots */
     lv_label_set_long_mode(wv.client, LV_LABEL_LONG_DOT);
+    row++;
+
+    /* What a client may do: tune and key as always, or only hear and follow */
+    wl_row_label(row, "Clients");
+    wv.trust = row_choice(row, 1, 3, SMALL_3, "Operate\nListen only", tci_server_get_trust_operate() ? 0 : 1, wv_trust_cb, NULL);
+    obj = wl_note(row);
+    lv_label_set_text(obj, "listen only: tune and key refused");
     return row + 1;
 }
 

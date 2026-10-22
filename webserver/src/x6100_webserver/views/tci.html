@@ -1,6 +1,6 @@
 % rebase('base.html', title='TCI')
 <h2><svg class="i"><use href="#i-network"/></svg>TCI server</h2>
-<p class="sub">TCI (Transceiver Control Interface, version 2.0) is the protocol of Expert Electronics' SDRs that AetherSDR and other programs serve: one WebSocket carries the frequency, mode, filter, AGC, PTT, the S-meter and the TX meters, and the audio both ways. The radio serves it here, so a <a href="https://github.com/Guru-RF/VFO-Knob">VFO-Knob</a> or any TCI client tunes it over the network, hears it and keys it. There is no login: enable it only on a network you trust.</p>
+<p class="sub">TCI (Transceiver Control Interface, version 2.0) is the protocol of Expert Electronics' SDRs that AetherSDR and other programs serve: one WebSocket carries the frequency, mode, filter, AGC, PTT, the S-meter and the TX meters, and the audio both ways. The radio serves it here, so a <a href="https://github.com/Guru-RF/VFO-Knob">VFO-Knob</a> or any TCI client tunes it over the network, hears it and keys it. There is no login or pairing for TCI clients: enable it only on a network you trust, and choose below whether a client may operate the radio or only listen. An operating client takes control of the radio the moment it tunes or keys, as a knob would; a browser that was operating sees "TCI client active" and takes control back on purpose.</p>
 
 <form class="dp-card" id="conf">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-server"/></svg></span><div><h3>Server<span class="eff">Takes effect: on the radio within a few seconds</span></h3><p>On ws://&lt;radio IP&gt;:&lt;port&gt;/</p></div></div>
@@ -11,6 +11,10 @@
   <div class="dp-row">
     <div class="dp-lbl"><label for="port"><b>Port</b></label><span>50001 is what TCI clients expect</span></div>
     <div class="dp-ctl"><input id="port" type="number" inputmode="numeric" required min="1024" max="65535" step="1"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="trust"><b>Clients may</b></label><span>Operate: tune, change mode, key, as before. Listen only: hear and follow the radio; tuning and keying are answered with the state as it is</span></div>
+    <div class="dp-ctl"><select id="trust"><option value="operate">Operate</option><option value="view">Listen only</option></select></div>
   </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
@@ -31,6 +35,7 @@ var showStatus = function(text, error=false) {
 var render = function(data) {
   $("#enabled").prop("checked", data.enabled);
   $("#port").val(data.port);
+  $("#trust").val(data.trust || "operate");
   form.reset();
 }
 const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
@@ -43,7 +48,7 @@ $("#conf").on("submit", function(e) {
   $.ajax({
     url: "/api/tci",
     type: "POST",
-    data: JSON.stringify({enabled: $("#enabled").prop("checked"), port: parseInt($("#port").val(), 10)}),
+    data: JSON.stringify({enabled: $("#enabled").prop("checked"), port: parseInt($("#port").val(), 10), trust: $("#trust").val()}),
     contentType: "application/json; charset=utf-8",
     dataType: "json",
     success: function(r) { render(r); showStatus("Saved: the radio applies it within a few seconds"); },

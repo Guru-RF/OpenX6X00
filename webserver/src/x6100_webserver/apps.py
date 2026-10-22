@@ -258,7 +258,7 @@ def cluster_save(host, port, servers, opts=None):
 
 # TCI server routes
 # Same file and format as the radio GUI (src/tci_server.c): enabled=0|1, port=
-TCI_DEFAULTS = {"enabled": "1", "port": "50001"}
+TCI_DEFAULTS = {"enabled": "1", "port": "50001", "trust": "operate"}
 
 
 def read_tci_conf():
@@ -275,7 +275,7 @@ def read_tci_conf():
         port = int(conf["port"])
     except ValueError:
         port = int(TCI_DEFAULTS["port"])
-    return {"enabled": conf["enabled"] == "1", "port": port}
+    return {"enabled": conf["enabled"] == "1", "port": port, "trust": "view" if conf["trust"] == "view" else "operate"}
 
 
 @app.route('/tci')
@@ -461,10 +461,14 @@ def set_tci():
     if isinstance(port, bool) or not isinstance(port, int) or not 1024 <= port <= 65535:
         bottle.response.status = 400
         return {"status": "error", "msg": "Invalid port: 1024-65535"}
+    trust = data.get("trust", read_tci_conf()["trust"])   # kept when the page does not send it
+    if trust not in ("operate", "view"):
+        bottle.response.status = 400
+        return {"status": "error", "msg": "trust is operate or view"}
     try:
         tmp = settings.TCI_CONF + ".tmp"
         with open(tmp, "w") as f:
-            f.write(f"enabled={1 if data.get('enabled') else 0}\nport={port}\n")
+            f.write(f"enabled={1 if data.get('enabled') else 0}\nport={port}\ntrust={trust}\n")
         os.rename(tmp, settings.TCI_CONF)
     except OSError as e:
         bottle.response.status = 500

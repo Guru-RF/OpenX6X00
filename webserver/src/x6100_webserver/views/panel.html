@@ -8,6 +8,7 @@
 .pn-side { flex:0 0 340px; min-width:0; display:flex; flex-direction:column; gap:8px; }
 .pn-top { display:grid; grid-template-columns:auto 1fr auto; gap:8px 12px; align-items:center; background:var(--pc); border:1px solid var(--pl); border-radius:10px; padding:8px 12px; }
 .chips { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.sesbar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 .chip { font:600 12px/1 system-ui,sans-serif; letter-spacing:.4px; padding:6px 8px; border-radius:6px; background:var(--pb); border:1px solid var(--pl); color:var(--pd); }
 .chip.on { color:var(--pt); border-color:var(--pon); }
 .chip.tx { background:#b71c1c; color:#fff; border-color:#b71c1c; }
@@ -145,7 +146,8 @@ body.app h2, body.app #intro { display:none; }
   <button type="button" id="pal" title="The waterfall's colours">Colours</button>
   <button type="button" id="appmode" title="The panel alone, the height of the screen">App</button>
   <button type="button" id="full">Fullscreen</button>
-  <span class="health" id="hl" title="The page's links to the radio: control, spectrum, sound, microphone"></span>
+  <span class="sesbar" id="ses" title="This browser's access to the radio, and who controls it"></span>
+  <span class="health" id="hl" title="The page's links to the radio: link, spectrum, sound, microphone; this browser's access; who controls the radio"></span>
   <span class="status" id="st"></span>
 </div>
 
@@ -220,6 +222,7 @@ body.app h2, body.app #intro { display:none; }
       </div>
       <div class="ftnext" id="ft-next">The app is closed: Open starts it on the radio.</div>
       <ul class="ft" id="ftrows"></ul>
+      <p class="sub" style="margin:8px 0 0;font-size:12px">CQ and AUTO run on the radio: they go on calling and answering when this page closes or loses its link. STOP ends the transmission under way and the queued reply; CQ off stops calling; AUTO off stops answering; Close ends the app. A tap on a CQ queues one reply for the next slot.</p>
     </div>
     <div class="tab" id="tab-cw">
       <div class="ftbar" style="grid-template-columns:1fr 1fr"><button class="b" id="cw-clear">CLEAR</button><button class="b" id="cw-log"><small>LOG</small><span>last call</span></button></div>
@@ -252,11 +255,12 @@ body.app h2, body.app #intro { display:none; }
   </aside>
 </div>
 
-<p class="sub" style="margin-top:12px">Panorama: tap or drag to tune, pinch (or the mouse wheel with Ctrl) to zoom, the wheel to tune by the step. Tap the frequency to type one, a spot to tune to it. Keyboard: ← → tune (Shift: ten steps), [ ] volume, Space PTT. Sound starts on a tap (browsers ask for one). Mic needs an https page: <a id="httpslink" href="#">https://this radio/panel</a> (accept the certificate once).</p>
+<p class="sub" style="margin-top:12px">Panorama: tap or drag to tune, pinch (or the mouse wheel with Ctrl) to zoom, the wheel to tune by the step. Tap the frequency to type one, a spot to tune to it. Keyboard: ← → tune (Shift: ten steps), [ ] volume, Space PTT. Sound starts on a tap (browsers ask for one). Mic needs an https page: <a id="httpslink" href="#">https://this radio/panel</a> (accept the certificate once). A browser only watches until it is paired with a code shown on the radio; one paired browser (or the radio's own keys, or a TCI client) controls the radio at a time, and the others take control on purpose.</p>
 
 <div class="pop" id="pop" hidden><div class="box" id="popbox"></div></div>
 
 <script src="/static/js/radio_link.js?v=1"></script>
+<script src="/static/js/radio_session.js?v=1"></script>
 <script>
 (function() {
   "use strict";
@@ -267,7 +271,8 @@ body.app h2, body.app #intro { display:none; }
   const STEPS = [10, 100, 500, 1000, 5000];
   const PLAN_COLORS = ["#2a7fff", "#d08a00", "#2e9e4f", "#b040c0"];     /* CW, DIG, ALL, BCN */
   const PLAN_NAMES = ["CW", "DIG", "SSB", "BCN"];
-  let conf = null, unreachable = false, updating = null, link = null, tlink = null;   /* the links are made below */
+  let conf = null, unreachable = false, updating = null, link = null, tlink = null, ses = null, ptt = null;   /* the links are made below */
+  let micOn = false, txOn = false, micStream = null;   /* the microphone, asked about by the PTT from the start */
   let state = null, stateAt = 0, bands = [], plan = [], spots = [];
   let frames = 0, bytes = 0, lastStat = Date.now(), lastFrame = 0, lastAudio = 0, fpsText = "", abytes = 0, kbsText = "";
   let pref = {};
@@ -317,7 +322,7 @@ body.app h2, body.app #intro { display:none; }
     $('[data-lvl="vol"] span span').text(s.vol); $('[data-lvl="sql"] span span').text(s.sql);
     $('[data-lvl="rfg"] span span').text(s.rfg); $('[data-lvl="pwr"] span span').text(s.pwr.toFixed(1) + " W");
     $("#b-filter span").text(fmtFilter(s));
-    document.getElementById("pttbtn").classList.toggle("down", !!s.tx);
+    if (ptt) ptt.radioTx(!!s.tx);
     markSpots();
   }
   function showMeter(db) {
@@ -774,6 +779,8 @@ body.app h2, body.app #intro { display:none; }
   function onText(t) {
     const sp = t.indexOf(" "), head = sp < 0 ? t : t.slice(0, sp), body = sp < 0 ? "" : t.slice(sp + 1);
     try {
+      if (ses.onText(head, body)) return;          /* role, ctl, paired, tx, sessions */
+      if (head === "err" && ptt.err(body)) return;   /* a refused or ended transmission: the PTT button says so */
       if (head === "state") { state = JSON.parse(body); stateAt = Date.now(); showState(); requestDraw(); }
       else if (head === "m") showMeter(parseFloat(body));
       else if (head === "t") { const a = body.split(" "); showTx(parseFloat(a[0]), parseFloat(a[1]), parseFloat(a[2])); }
@@ -799,20 +806,24 @@ body.app h2, body.app #intro { display:none; }
       }, function() { unreachable = true; return null; });
     },
     ping: "ping",
-    onOpen: function() { radio.classList.remove("stale"); lastFrame = Date.now(); send("screen " + (screenOn ? 1 : 0)); send("panel 1"); status("Connected"); view(); },
+    onOpen: function() { radio.classList.remove("stale"); lastFrame = Date.now(); send("screen " + (screenOn ? 1 : 0)); send("panel 1"); ses.onOpen(); status("Connected"); view(); },
     onHello: function(boot, restarted) { if (restarted) status("The radio restarted: what it shows now is its fresh state", true); logReconcile(); },
     onText: onText,
     onBinary: function(buf) { if (buf.byteLength >= 16 && new DataView(buf).getUint16(0, true) === 0xFFFF) spectrumFrame(buf); else screenFrame(buf); },
     onClose: function(gen, retry, wasUp) { dropped(wasUp); },
     onStall: function() { view(); },
   });
+  /* Who this browser is to the radio and who controls it (R3); the PTT as the radio confirms it (R4) */
+  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); }, onTx: function(on) { ptt.radioTx(on); }});
+  ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses,
+    mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
   /* The link went: nothing of it is sent again. A held key, a tune on its way, a transmission are
    * let go here (the radio drops them too); the operator presses again, on purpose */
   function dropped(wasUp) {
     tuneWant = null; if (tuneTimer) { clearTimeout(tuneTimer); tuneTimer = null; }
-    const hadKeys = Object.keys(held).length > 0 || txOn;
-    Object.keys(held).forEach(function(k) { delete held[k]; const el = k === "PTT" ? document.getElementById("pttbtn") : document.querySelector('[data-key="' + k + '"]'); if (el) el.classList.remove("down"); });
-    if (txOn) txStop(document.getElementById("pttbtn"));
+    const hadKeys = Object.keys(held).length > 0 || ptt.state === "tx" || ptt.state === "requesting";
+    Object.keys(held).forEach(function(k) { delete held[k]; const el = document.querySelector('[data-key="' + k + '"]'); if (el) el.classList.remove("down"); });
+    ptt.lost("The link dropped: the transmission is over. Press PTT again when it is back");
     radio.classList.add("stale");
     if (hadKeys) status("Connection lost: keys released, press again when it is back", true);
     else if (wasUp) status("Connection lost", true);
@@ -843,9 +854,9 @@ body.app h2, body.app #intro { display:none; }
   }
   function showHealth() {
     const now = Date.now(), ch = [];
-    if (!link.up) ch.push({n: "Control", s: "off", t: link.retryIn() ? "retry in " + link.retryIn() + " s" : ""});
-    else if (link.stalled) ch.push({n: "Control", s: "stale", t: "silent " + RadioLink.age(now - link.lastRx)});
-    else ch.push({n: "Control", s: "ok", t: ""});
+    if (!link.up) ch.push({n: "Link", s: "off", t: link.retryIn() ? "retry in " + link.retryIn() + " s" : ""});
+    else if (link.stalled) ch.push({n: "Link", s: "stale", t: "silent " + RadioLink.age(now - link.lastRx)});
+    else ch.push({n: "Link", s: "ok", t: ""});
     if (!link.up || link.stalled) ch.push({n: "Spectrum", s: "off", t: haveSp ? RadioLink.age(now - lastFrame) + " ago" : ""});
     else if (now - lastFrame > 4000) ch.push({n: "Spectrum", s: "stale", t: RadioLink.age(now - lastFrame) + " ago"});
     else ch.push({n: "Spectrum", s: "ok", t: fpsText});
@@ -854,6 +865,7 @@ body.app h2, body.app #intro { display:none; }
     else if (now - lastAudio > 2000) ch.push({n: "Sound", s: "stale", t: lastAudio ? RadioLink.age(now - lastAudio) + " ago" : "nothing yet"});
     else ch.push({n: "Sound", s: "ok", t: kbsText});
     ch.push(micState === "ready" ? {n: "Mic", s: "ok", t: txOn ? "TX" : "ready"} : micState === "asking" ? {n: "Mic", s: "stale", t: "asking"} : micState === "refused" ? {n: "Mic", s: "off", t: "refused"} : {n: "Mic", s: "idle", t: "off"});
+    if (link.up) ses.chips().forEach(function(c) { ch.push(c); });
     RadioLink.health(document.getElementById("hl"), ch);
   }
   setInterval(function() {
@@ -867,11 +879,11 @@ body.app h2, body.app #intro { display:none; }
   const held = {};
   function keyDown(name, el) { if (held[name]) return; held[name] = true; send("key " + name + " 1"); if (el) el.classList.add("down"); if (navigator.vibrate) navigator.vibrate(8); }
   function keyUp(name, el) { if (!held[name]) return; delete held[name]; send("key " + name + " 0"); if (el) el.classList.remove("down"); }
-  function releaseAll() { Object.keys(held).forEach(function(k) { keyUp(k, document.querySelector('[data-key="' + k + '"]')); }); if (txOn) txStop(); }
+  function releaseAll() { Object.keys(held).forEach(function(k) { keyUp(k, document.querySelector('[data-key="' + k + '"]')); }); ptt.release(); }
   document.querySelectorAll("[data-key], #pttbtn").forEach(function(el) {
     const name = el.dataset.key || "PTT";
-    el.addEventListener("pointerdown", function(e) { e.preventDefault(); el.setPointerCapture(e.pointerId); if (name === "PTT" && micOn) txStart(el); else keyDown(name, el); });
-    const up = function() { if (name === "PTT" && txOn) txStop(el); else keyUp(name, el); };
+    el.addEventListener("pointerdown", function(e) { e.preventDefault(); el.setPointerCapture(e.pointerId); if (name === "PTT") ptt.press(); else keyDown(name, el); });
+    const up = function() { if (name === "PTT") ptt.release(); else keyUp(name, el); };
     el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("lostpointercapture", up);
     el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
   });
@@ -886,7 +898,7 @@ body.app h2, body.app #intro { display:none; }
   window.addEventListener("blur", releaseAll);
   document.addEventListener("keydown", function(e) {
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || !$pop.prop("hidden")) return;
-    if (e.key === " ") { e.preventDefault(); if (e.repeat) return; if (micOn) txStart(document.getElementById("pttbtn")); else keyDown("PTT", document.getElementById("pttbtn")); return; }
+    if (e.key === " ") { e.preventDefault(); if (e.repeat) return; ptt.press(); return; }
     if (!state) return;
     const n = e.shiftKey ? 10 : 1;
     if (e.key === "ArrowRight") { e.preventDefault(); tuneTo(state.freq + n * state.step); }
@@ -894,10 +906,10 @@ body.app h2, body.app #intro { display:none; }
     else if (e.key === "]") { e.preventDefault(); lvlSend("vol", Math.min(55, state.vol + 1)); }
     else if (e.key === "[") { e.preventDefault(); lvlSend("vol", Math.max(0, state.vol - 1)); }
   });
-  document.addEventListener("keyup", function(e) { if (e.key === " ") { if (txOn) txStop(document.getElementById("pttbtn")); else keyUp("PTT", document.getElementById("pttbtn")); } });
+  document.addEventListener("keyup", function(e) { if (e.key === " ") ptt.release(); });
 
   /* ---- Audio over TCI: RX to the speaker, the microphone to the radio while PTT is held ---- */
-  let actx = null, nextTime = 0, sndOn = false, micOn = false, txOn = false, micStream = null, micNode = null, micSrc = null;
+  let actx = null, nextTime = 0, sndOn = false, micNode = null, micSrc = null;
   let micState = "off", micReq = 0;   /* off, asking, ready, refused; the request in flight (an older answer is let go, audit A18) */
   const HDR = 64;
   tlink = RadioLink.create({
@@ -918,7 +930,7 @@ body.app h2, body.app #intro { display:none; }
       if (nextTime < now + 0.04 || nextTime > now + 0.6) nextTime = now + 0.08;
       src.start(nextTime); nextTime += ab.duration;
     },
-    onClose: function(gen, retry, wasUp) { if (txOn) { txStop(document.getElementById("pttbtn")); status("Transmission ended: the sound link dropped. Press PTT again when it is back", true); } },
+    onClose: function(gen, retry, wasUp) { if (txOn) ptt.lost("Transmission ended: the sound link dropped. Press PTT again when it is back"); },
   });
   $("#snd").on("click", function() {
     sndOn = !sndOn; $(this).attr("aria-pressed", String(sndOn));
@@ -931,21 +943,23 @@ body.app h2, body.app #intro { display:none; }
   $("#mic").on("click", function() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { status(secure ? "No microphone access in this browser" : "Microphone: open the https page (link below)", true); return; }
     micOn = !micOn; $("#mic").attr("aria-pressed", String(micOn));
-    if (txOn) txStop(document.getElementById("pttbtn"));
+    ptt.release();                                   /* the TX audio path changes: no transmission carries over */
     if (micStream) { micStream.getTracks().forEach(function(t) { t.stop(); }); micStream = null; }
     const req = ++micReq;
     if (micOn) {
       micState = "asking"; status("Asking the browser for the microphone...");
       navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true}, video: false}).then(function(s) {
         if (req !== micReq) { s.getTracks().forEach(function(t) { t.stop(); }); return; }
-        micStream = s; micState = "ready"; status("Microphone ready: hold PTT to transmit");
-        s.getTracks().forEach(function(t) { t.onended = function() { if (micStream === s) { micState = "off"; micOn = false; $("#mic").attr("aria-pressed", "false"); micStream = null; if (txOn) txStop(document.getElementById("pttbtn")); status("The microphone went away: transmission ended", true); } }; });
+        micStream = s; micState = "ready"; status("Microphone ready: PTT transmits the browser's microphone");
+        s.getTracks().forEach(function(t) { t.onended = function() { if (micStream === s) { micState = "off"; micOn = false; $("#mic").attr("aria-pressed", "false"); micStream = null; ptt.lost("The microphone went away: transmission ended"); ptt.render(); } }; });
         if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+        ptt.render();
       }, function(e) {
         if (req !== micReq) return;
-        micOn = false; micState = "refused"; $("#mic").attr("aria-pressed", "false"); status("Microphone refused: " + e.message, true);
+        micOn = false; micState = "refused"; $("#mic").attr("aria-pressed", "false"); status("Microphone refused: " + e.message, true); ptt.render();
       });
-    } else { micState = "off"; status("Microphone off"); }
+    } else { micState = "off"; status("Microphone off: PTT transmits the microphone at the radio"); }
+    ptt.reset();
   });
   function txFrame(samples, rate) {
     const n = samples.length, buf = new ArrayBuffer(HDR + n * 2), dv = new DataView(buf);
@@ -954,25 +968,24 @@ body.app h2, body.app #intro { display:none; }
     for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, samples[i])); out[i] = v < 0 ? v * 32768 : v * 32767; }
     return buf;
   }
-  function txStart(el) {
-    if (!micStream || txOn) return;
-    if (!tlink.up) { status("No sound link to the radio: no transmission", true); return; }
-    txOn = true; if (el) el.classList.add("down");
+  /* The browser microphone path, driven by the PTT state machine: it asks, the radio confirms */
+  function txStart() {
+    if (!micStream || txOn || !tlink.up) return false;
+    txOn = true;
     actx.resume();
-    tlink.send("trx:0,true,tci;");
+    if (!tlink.send("trx:0,true,tci;")) { txOn = false; return false; }
     micSrc = actx.createMediaStreamSource(micStream);
     micNode = actx.createScriptProcessor(2048, 1, 1);
     micNode.onaudioprocess = function(e) { if (txOn) tlink.send(txFrame(e.inputBuffer.getChannelData(0), actx.sampleRate)); };
     micSrc.connect(micNode); micNode.connect(actx.destination);
-    status("Transmitting (browser microphone)");
+    return true;
   }
-  function txStop(el) {
+  function txStop() {
     if (!txOn) return;
-    txOn = false; if (el) el.classList.remove("down");
+    txOn = false;
     if (micNode) { micNode.disconnect(); micNode.onaudioprocess = null; micNode = null; }
     if (micSrc) { micSrc.disconnect(); micSrc = null; }
     tlink.send("trx:0,false;");
-    status("Connected");
   }
 
   window.addEventListener("beforeunload", function() { releaseAll(); link.close(); tlink.close(); });

@@ -15,6 +15,12 @@
  *  does, with the modem bit keying the base. The server paces it with a TX_CHRONO frame every
  *  512 samples, and unkeys after 500 ms without audio or 3 minutes on the air.
  *
+ *  A TCI client has no pairing: /mnt/tci.conf says what it may do (trust=operate, the default,
+ *  as before: it tunes, changes the mode and keys; trust=view: it only hears and follows, its
+ *  commands are answered with the state as it is). An operating client takes control of the
+ *  radio (control_owner.h) as the knob always did, unless someone is on the air; a browser
+ *  that held it sees "TCI client active" and takes it back on purpose (R3).
+ *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
@@ -22,6 +28,7 @@
 
 #include "tci_server.h"
 #include "tci_ws.h"
+#include "control_owner.h"
 
 #include "audio.h"
 #include "cfg/cfg_api.h"
@@ -117,6 +124,7 @@ typedef struct {
 static client_t        clients[MAX_CLIENTS];
 static atomic_bool     enabled = true;    /* on until /mnt/tci.conf says enabled=0 */
 static atomic_int      port = TCI_DEFAULT_PORT;
+static atomic_bool     trust_operate = true;   /* trust=operate (default) or view */
 static atomic_int      nclients;
 static int             wake_fd[2] = {-1, -1};
 static atomic_bool     cap_wanted;      /* a client wants RX audio: set by the socket thread alone (cap_update) */
@@ -175,7 +183,7 @@ static time_t conf_mtime(void) {
 static void conf_read(void) {
     FILE *f = fopen(TCI_CONF, "r");
     char  line[64];
-    bool  en = true;
+    bool  en = true, op = true;
     int   p  = TCI_DEFAULT_PORT;
 
     if (!f)
@@ -185,10 +193,13 @@ static void conf_read(void) {
             en = atoi(line + 8) != 0;
         else if (strncmp(line, "port=", 5) == 0 && atoi(line + 5) > 0 && atoi(line + 5) < 65536)
             p = atoi(line + 5);
+        else if (strncmp(line, "trust=", 6) == 0)
+            op = strncmp(line + 6, "view", 4) != 0;
     }
     fclose(f);
     atomic_store(&enabled, en);
     atomic_store(&port, p);
+    atomic_store(&trust_operate, op);
 }
 
 static void conf_write(void) {
@@ -198,7 +209,8 @@ static void conf_write(void) {
     snprintf(tmp, sizeof(tmp), "%s.tmp", TCI_CONF);
     if (!(f = fopen(tmp, "w")))
         return;
-    fprintf(f, "enabled=%d\nport=%d\n", atomic_load(&enabled) ? 1 : 0, atomic_load(&port));
+    fprintf(f, "enabled=%d\nport=%d\ntrust=%s\n", atomic_load(&enabled) ? 1 : 0, atomic_load(&port),
+            atomic_load(&trust_operate) ? "operate" : "view");
     fclose(f);
     rename(tmp, TCI_CONF);
 }
@@ -287,6 +299,7 @@ static void cap_update(void) {
 }
 
 static void client_close(client_t *c) {
+    ctl_release(CTL_TCI, (int)(c - clients));
     pthread_mutex_lock(&c->lock);
     if (c->fd >= 0) {
         close(c->fd);
@@ -574,6 +587,26 @@ static void handle_cmd(int ci, char *line) {
     if (!*name)
         return;
     state_read(&s);
+
+    /* What touches the RF side: a trusted client takes control of the radio as the knob always
+     * did, unless someone is on the air; a client trusted to view only is answered with the
+     * state as it is, which is what the echo below does when nothing changes */
+    bool rf = !strcmp(name, "vfo") || !strcmp(name, "modulation") || !strcmp(name, "rx_filter_band") ||
+              !strcmp(name, "agc_mode") || !strcmp(name, "rit_enable") || !strcmp(name, "rit_offset") ||
+              !strcmp(name, "drive") || !strcmp(name, "trx");
+    bool may = !rf || (atomic_load(&trust_operate) && (n < 2 && strcmp(name, "trx") ? true : ctl_claim(CTL_TCI, ci, "TCI", true)));
+    if (rf && !may && n >= 2) {
+        /* the state as it is, as for a command that changes nothing */
+        if (!strcmp(name, "vfo")) client_textf(c, "vfo:0,0,%d;", s.freq);
+        else if (!strcmp(name, "modulation")) client_textf(c, "modulation:0,%s;", mode_name(s.mode));
+        else if (!strcmp(name, "rx_filter_band")) { filter_line(fb, sizeof(fb), &s); client_text(c, fb); }
+        else if (!strcmp(name, "agc_mode")) client_textf(c, "agc_mode:0,%s;", agc_name(s.agc));
+        else if (!strcmp(name, "rit_enable")) client_textf(c, "rit_enable:0,%s;", s.rit ? "true" : "false");
+        else if (!strcmp(name, "rit_offset")) client_textf(c, "rit_offset:0,%d;", s.rit);
+        else if (!strcmp(name, "drive")) client_textf(c, "drive:0,%d;", s.drive);
+        else client_textf(c, "trx:0,%s;", s.tx ? "true" : "false");
+        return;
+    }
 
     if (!strcmp(name, "vfo")) {
         if (n >= 3 && atoi(a[0]) == 0 && atoi(a[1]) == 0) {
@@ -1177,6 +1210,15 @@ void tci_server_set_enabled(bool on) {
 
 int tci_server_port(void) {
     return atomic_load(&port);
+}
+
+bool tci_server_get_trust_operate(void) {
+    return atomic_load(&trust_operate);
+}
+
+void tci_server_set_trust_operate(bool on) {
+    atomic_store(&trust_operate, on);
+    conf_write();
 }
 
 int tci_server_clients(void) {

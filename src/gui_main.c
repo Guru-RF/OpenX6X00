@@ -43,6 +43,7 @@
 #include "cat.h"
 #include "tci_server.h"
 #include "remote_server.h"
+#include "control_owner.h"
 #include "birdie.h"
 #include "cfg_socket.h"
 #include "clock.h"
@@ -224,6 +225,7 @@ static void services_start(void) {
     backlight_init();
     cat_init();
     cfg_socket_init();
+    ctl_init();
     tci_server_init();
     remote_server_init();
     birdie_init();

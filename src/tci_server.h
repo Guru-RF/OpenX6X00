@@ -31,6 +31,11 @@ bool tci_server_get_enabled(void);
 void tci_server_set_enabled(bool on);
 int  tci_server_port(void);
 
+/* What a TCI client may do (trust=operate|view in TCI_CONF): operate, as always, or only listen
+ * and follow (R3) */
+bool tci_server_get_trust_operate(void);
+void tci_server_set_trust_operate(bool on);
+
 /* Connected clients, 0 when none */
 int tci_server_clients(void);
 /* The address of the first client ("192.168.1.20"), NULL when none; a static buffer */
