@@ -65,22 +65,19 @@ class Subject {
   protected:
     std::vector<Observer *> observers;
 
-    // Notification invariant (do not break):
-    // notify_impl() copies `observers` under mutex_subscribe and then runs each
-    // callback OUTSIDE the lock. This is correct only because observers never
-    // delete themselves or a peer during notification processing — deletion
-    // happens later, from the main thread, outside the notify loop. Under that
-    // invariant every pointer in the copy stays valid for the whole loop.
-    //   - An observer must NOT unsubscribe+destroy itself or a peer from inside
-    //     its own notify_impl() callback (or from a notify_impl() it triggers,
-    //     e.g. via ComputedParameter::recompute / the ObserverDelayed
-    //     trampoline).
-    //   - subscribe()/unsubscribe() from within a callback take snapshot
-    //     semantics: a newly added observer is not notified this round; a
-    //     removed observer is still notified once. By design.
-    //   - Cross-thread subscribe/unsubscribe is serialized with the copy by
-    //     mutex_subscribe; callbacks run lock-free, so they must only read
-    //     SubjectT values (which have their own mutexes).
+    // Notification rules:
+    // notify_impl() copies `observers` under mutex_subscribe and runs each
+    // callback OUTSIDE the lock, after checking (under the lock again) that the
+    // observer is still subscribed. So a callback may unsubscribe and delete
+    // itself or a peer: the deleted peer is skipped this round.
+    //   - A newly added observer is not notified this round.
+    //   - Parameters are set, so notified, on the GUI thread only; a set from
+    //     another thread goes through scheduler_put()/scheduler_call(). The
+    //     observers drive LVGL and are deleted on the GUI thread, which is only
+    //     safe when nothing notifies them from elsewhere (audit A04/A05).
+    //     notify_impl() logs a set off the GUI thread.
+    //   - Callbacks run lock-free, so they must only read SubjectT values
+    //     (which have their own mutexes).
     void notify_impl();
 
     // Notification entry point: during a suppressed scope (NotifySuppressGuard)

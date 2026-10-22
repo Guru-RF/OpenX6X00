@@ -1,6 +1,27 @@
 #include "subject.h"
 
 #include "../lvgl/lvgl.h"
+#include "../scheduler.h"
+
+#include <execinfo.h>
+#include <pthread.h>
+#include <unistd.h>
+
+/* A parameter set, so notified, off the GUI thread: the observers drive LVGL and are deleted
+ * there, so this is a bug in the caller (audit A04/A05). Logged with the thread and the stack,
+ * the first few times */
+static void off_thread(Subject *s) {
+    static int seen = 0;
+    if (seen++ >= 10) {
+        return;
+    }
+    char name[32] = "?";
+    pthread_getname_np(pthread_self(), name, sizeof(name));
+    LV_LOG_ERROR("Subject %p notified off the GUI thread, by thread \"%s\"", s, name);
+    void *frames[24];
+    int   n = backtrace(frames, 24);
+    backtrace_symbols_fd(frames, n, STDERR_FILENO);
+}
 
 
 void Observer::notify() {
@@ -148,12 +169,23 @@ void Subject::notify() {
 }
 
 void Subject::notify_impl() {
+    if (!scheduler_on_gui_thread()) {
+        off_thread(this);
+    }
     std::vector<Observer *> observers_copy;
     {
         const std::lock_guard<std::mutex> lock(mutex_subscribe);
         observers_copy = observers;
     }
     for (auto &observer : observers_copy) {
+        {
+            /* Unsubscribed by an earlier callback of this round (and deleted with it, the deleter
+             * unsubscribes first): skipped, the pointer may be gone */
+            const std::lock_guard<std::mutex> lock(mutex_subscribe);
+            if (std::find(observers.begin(), observers.end(), observer) == observers.end()) {
+                continue;
+            }
+        }
         observer->notify();
     }
 }
