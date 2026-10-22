@@ -101,11 +101,30 @@ static void context_connect(void) {
     pa_threaded_mainloop_unlock(mloop);
 }
 
+/* The receiver's audio to the decoders and the recorders. A peek gives data, or a hole (no
+ * buffer, a byte count: samples the server lost) that is still to be dropped, or nothing;
+ * the hole goes on as silence so the decoders keep their timing (audit A19) */
 static void read_callback(pa_stream *s, size_t nbytes, void *udata) {
-    int16_t *buf = NULL;
+    const void *buf = NULL;
 
-    pa_stream_peek(s, (const void**) &buf, &nbytes);
-    dsp_put_audio_samples(nbytes / 2, buf);
+    if (pa_stream_peek(s, &buf, &nbytes) < 0) {
+        LV_LOG_WARN("Capture: %s", pa_strerror(pa_context_errno(ctx)));
+        return;
+    }
+    if (nbytes == 0)
+        return;
+    if (buf) {
+        dsp_put_audio_samples(nbytes / 2, (int16_t *) buf);
+    } else {
+        static int16_t silence[1024];
+
+        for (size_t left = nbytes / 2; left; ) {
+            size_t n = left < 1024 ? left : 1024;
+
+            dsp_put_audio_samples(n, silence);
+            left -= n;
+        }
+    }
     pa_stream_drop(s);
 }
 
