@@ -28,7 +28,11 @@
  *  VALUE" changes the radio on the LVGL thread: freq, mode, agc, pre, att, nb, nr, sql, rfg,
  *  vol, pwr (tenths of a watt), step, zoom, band (+1/-1), vfo (toggle), filter LO HI, atu, lock.
  *  A panel thread reads the radio (the settings' getters are safe from any thread, as the TCI
- *  server uses them) and tells the panel clients what changed every 50 ms.
+ *  server uses them) and tells the panel clients what changed every 50 ms. The apps: the FT8
+ *  list's rows go out as they come ("ft8r {...}", the last 48 to a page that opens later), the
+ *  app's state when it changes ("ft8 {...}"), the CW decoder's text ("cw \"...\""); "ft8
+ *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "log
+ *  CALL|RSTS|RSTR|NAME" writes the day's log as the CW keyboard does ("logged ok|no").
  *
  *  The Origin check of ws_handshake() keeps pages from other sites out; like the TCI server there
  *  is no login: the radio's own network is trusted.
@@ -46,9 +50,12 @@
 #include "cfg/cfg_api.h"
 #include "cluster/client.h"
 #include "cluster/spots.h"
+#include "dialog_field.h"
 #include "dsp.h"
+#include "ft8_window.h"
 #include "lv_drivers/display/drm.h"
 #include "main.h"
+#include "params/params.h"
 #include "radio.h"
 #include "scheduler.h"
 #include "screen_light.h"
@@ -95,6 +102,9 @@
 #define SPOTS_MS    3000            /* a busy cluster changes every second: the list goes out this often at most */
 #define SPOT_MAX    80              /* the newest spots the page gets */
 #define PANEL_ROOM  (16 * 1024)     /* a spectrum frame waits while this much is still on its way */
+#define FT8_MS      250             /* the FT8 app's state is read this often */
+#define FT8_RING    48              /* rows of the FT8 list kept for a page that opens later */
+#define CW_HIST     1024            /* the CW decoder's last characters, for the same */
 
 /* The input devices: what the GUI reads (gui_main.c inputs_open) */
 #define DEV_KEYPAD "/dev/input/event0"
@@ -568,14 +578,207 @@ static void panel_spots(uint32_t *gen, bool force) {
     }
 }
 
+/* ---- The apps: the FT8 list, the CW decoder, the log ----------------------------------- */
+
+static pthread_mutex_t app_mux = PTHREAD_MUTEX_INITIALIZER;
+static struct {
+    uint32_t    id;
+    cell_data_t cell;
+} ft8_ring[FT8_RING];
+static uint32_t    ft8_ids;         /* rows seen; a row's slot is id % FT8_RING */
+static char        cw_new[512];     /* decoded since the last flush */
+static size_t      cw_new_len;
+static char        cw_hist[CW_HIST + 1];
+static size_t      cw_hist_len;
+static atomic_int  log_result;      /* 1 logged, 2 refused: told to the panel clients */
+
+/* A row as JSON: "ft8r {...}" */
+static void ft8_row_line(char *buf, size_t n, uint32_t id, const cell_data_t *cd) {
+    size_t k = snprintf(buf, n, "ft8r {\"id\":%u,\"t\":%d,\"x\":", id, (int)cd->cell_type);
+    k += json_str(buf + k, n - k, cd->text);
+    k += snprintf(buf + k, n - k, ",\"c\":");
+    k += json_str(buf + k, n - k, cd->meta.call_de);
+    k += snprintf(buf + k, n - k, ",\"g\":");
+    k += json_str(buf + k, n - k, cd->meta.grid);
+    k += snprintf(buf + k, n - k, ",\"f\":%d,\"snr\":%d,\"me\":%d,\"w\":%d,\"d\":%d,\"p\":%d,\"odd\":%d,\"k\":",
+                  (int)(cd->meta.freq_hz + 0.5f), cd->meta.local_snr, cd->meta.to_me, (int)cd->worked_type, cd->dist,
+                  cd->pota, cd->odd);
+    k += json_str(buf + k, n - k, cd->country);
+    snprintf(buf + k, n - k, "}");
+}
+
+/* LVGL thread (decode_list.c): kept, and to the panel clients at once */
+void remote_server_ft8_row(const void *cell) {
+    const cell_data_t *cd = cell;
+    char               line[512];
+    uint32_t           id;
+
+    pthread_mutex_lock(&app_mux);
+    id = ++ft8_ids;
+    ft8_ring[id % FT8_RING].id   = id;
+    ft8_ring[id % FT8_RING].cell = *cd;
+    pthread_mutex_unlock(&app_mux);
+    if (!atomic_load(&npanel))
+        return;
+    ft8_row_line(line, sizeof(line), id, cd);
+    panel_broadcast(line);
+}
+
+/* Any thread (the CW decoder's) */
+void remote_server_cw_text(const char *text) {
+    size_t n = strlen(text);
+
+    pthread_mutex_lock(&app_mux);
+    if (cw_new_len + n < sizeof(cw_new)) {
+        memcpy(cw_new + cw_new_len, text, n);
+        cw_new_len += n;
+    }
+    if (n < CW_HIST) {
+        if (cw_hist_len + n > CW_HIST) {        /* the oldest make room */
+            size_t drop = cw_hist_len + n - CW_HIST;
+            memmove(cw_hist, cw_hist + drop, cw_hist_len - drop);
+            cw_hist_len -= drop;
+        }
+        memcpy(cw_hist + cw_hist_len, text, n);
+        cw_hist_len += n;
+    }
+    pthread_mutex_unlock(&app_mux);
+}
+
+/* The rows kept and the CW text so far: to a client that just subscribed */
+static void panel_app_history(client_t *c) {
+    char line[CW_HIST * 2 + 16];
+
+    pthread_mutex_lock(&app_mux);
+    uint32_t first = ft8_ids > FT8_RING ? ft8_ids - FT8_RING + 1 : 1;
+    for (uint32_t id = first; id <= ft8_ids; id++) {
+        if (ft8_ring[id % FT8_RING].id != id)
+            continue;
+        ft8_row_line(line, 512, id, &ft8_ring[id % FT8_RING].cell);
+        client_text(c, line);
+    }
+    if (cw_hist_len) {
+        char text[CW_HIST + 1];
+        memcpy(text, cw_hist, cw_hist_len);
+        text[cw_hist_len] = 0;
+        size_t k = snprintf(line, sizeof(line), "cw ");
+        json_str(line + k, sizeof(line) - k, text);
+        client_text(c, line);
+    }
+    pthread_mutex_unlock(&app_mux);
+}
+
+/* New CW text to everyone, from the panel thread */
+static void panel_cw_flush(void) {
+    char text[512], line[1100];
+
+    pthread_mutex_lock(&app_mux);
+    size_t n = cw_new_len;
+    memcpy(text, cw_new, n);
+    text[n]    = 0;
+    cw_new_len = 0;
+    pthread_mutex_unlock(&app_mux);
+    if (!n)
+        return;
+    size_t k = snprintf(line, sizeof(line), "cw ");
+    json_str(line + k, sizeof(line) - k, text);
+    panel_broadcast(line);
+}
+
+static void ft8_status_line(char *buf, size_t n, const ft8_status_t *s) {
+    size_t k = snprintf(buf, n, "ft8 {\"open\":%d,\"proto\":%d,\"cq\":%d,\"tx\":%d,\"auto\":%d,\"hold\":%d,\"sending\":%d,\"txf\":%d,\"next\":",
+                        s->open, s->proto, s->cq, s->tx, s->auto_on, s->hold, s->sending, s->tx_freq);
+    k += json_str(buf + k, n - k, s->next);
+    snprintf(buf + k, n - k, "}");
+}
+
+/* What the panel asks of the apps, on the LVGL thread */
+typedef enum { A_FT8_OPEN, A_FT8_CLOSE, A_FT8, A_LOG } acmd_id_t;
+
+typedef struct {
+    acmd_id_t   id;
+    int         what;       /* ft8_rc_t */
+    int32_t     arg;
+    bool        has_cell;
+    cell_data_t cell;
+    char        text[200];
+} acmd_t;
+
+static void app_apply(void *arg) {
+    acmd_t *a = (acmd_t *)arg;
+
+    switch (a->id) {
+        case A_FT8_OPEN:
+            if (!dialog_type_is_run(dialog_ft8)) {
+                backlight_tick();
+                main_screen_start_app(ACTION_APP_FT8);
+            }
+            break;
+        case A_FT8_CLOSE:
+            if (dialog_type_is_run(dialog_ft8))
+                main_screen_close_app();
+            break;
+        case A_FT8:
+            ft8_window_remote((ft8_rc_t)a->what, a->arg, a->has_cell ? &a->cell : NULL);
+            break;
+        case A_LOG:
+            atomic_store(&log_result, dialog_field_qso_log(a->text) ? 1 : 2);
+            break;
+    }
+}
+
+/* "ft8 open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" */
+static bool app_ft8_cmd(const char *what, const char *arg) {
+    static const struct {
+        const char *name;
+        ft8_rc_t    rc;
+    } rcs[] = {{"cq", FT8_RC_CQ},     {"stop", FT8_RC_STOP},     {"auto", FT8_RC_AUTO},   {"hold", FT8_RC_HOLD},
+               {"mode", FT8_RC_MODE}, {"txfreq", FT8_RC_TXFREQ}, {"reply", FT8_RC_REPLY}};
+    acmd_t a = {.id = A_FT8};
+
+    if (!strcasecmp(what, "open")) {
+        a.id = A_FT8_OPEN;
+    } else if (!strcasecmp(what, "close")) {
+        a.id = A_FT8_CLOSE;
+    } else {
+        size_t i = 0;
+        while (i < sizeof(rcs) / sizeof(rcs[0]) && strcasecmp(rcs[i].name, what)) i++;
+        if (i == sizeof(rcs) / sizeof(rcs[0]))
+            return false;
+        a.what = rcs[i].rc;
+        a.arg  = arg ? (int32_t)strtol(arg, NULL, 10) : 0;
+        if (a.what == FT8_RC_REPLY) {
+            uint32_t id = (uint32_t)a.arg;
+            pthread_mutex_lock(&app_mux);
+            if (id && ft8_ring[id % FT8_RING].id == id) {
+                a.cell     = ft8_ring[id % FT8_RING].cell;
+                a.has_cell = true;
+            }
+            pthread_mutex_unlock(&app_mux);
+            if (!a.has_cell)
+                return false;
+        }
+    }
+    scheduler_put(app_apply, &a, sizeof(a));
+    return true;
+}
+
+/* "log CALL|RSTS|RSTR|NAME|QTH|GRID|COUNTRY" (dialog_field_qso_log's text), the day's log */
+static void app_log_cmd(const char *text) {
+    acmd_t a = {.id = A_LOG};
+    snprintf(a.text, sizeof(a.text), "%s", text);
+    scheduler_put(app_apply, &a, sizeof(a));
+}
+
 /* Panel thread: the spectrum as it comes, the state every PANEL_MS, the meters, the spots */
 static void *panel_thread(void *arg) {
     static float   db[WATERFALL_NFFT];
     static int8_t  bins[WATERFALL_NFFT];
     pstate_t       last = {0};
+    ft8_status_t   ft8_last = {0};
     bool           have_last = false;
     uint32_t       sp_seq = 0, spots_gen = 0;
-    uint64_t       state_ms = 0, meter_ms = 0, spots_ms = 0;
+    uint64_t       state_ms = 0, meter_ms = 0, spots_ms = 0, ft8_ms = 0;
     char           line[512];
     (void)arg;
 
@@ -634,6 +837,12 @@ static void *panel_thread(void *arg) {
                     if (!changed)
                         pstate_line(line, sizeof(line), &s);
                     client_text(c, line);
+                    ft8_window_status(&ft8_last);
+                    ft8_status_line(line, sizeof(line), &ft8_last);
+                    client_text(c, line);
+                    panel_app_history(c);
+                    if (changed)
+                        pstate_line(line, sizeof(line), &s);     /* the line the others get */
                 } else if (changed) {
                     client_text(c, line);
                 }
@@ -661,16 +870,37 @@ static void *panel_thread(void *arg) {
             spots_ms = now;
             panel_spots(&spots_gen, resend);
         }
+
+        /* The apps: the FT8 state when it changed, the CW text, a log's answer */
+        if (now - ft8_ms >= FT8_MS) {
+            ft8_ms = now;
+            ft8_status_t fs;
+            ft8_window_status(&fs);
+            if (memcmp(&fs, &ft8_last, sizeof(fs)) != 0) {
+                ft8_last = fs;
+                ft8_status_line(line, sizeof(line), &fs);
+                panel_broadcast(line);
+            }
+            panel_cw_flush();
+            int lr = atomic_exchange(&log_result, 0);
+            if (lr)
+                panel_broadcast(lr == 1 ? "logged ok" : "logged no");
+        }
         usleep(20000);
     }
     return NULL;
 }
 
-/* "key NAME 1|0", "knob main|vol|mfk N", "ping", "screen 0|1", "panel 0|1", "set NAME VALUE" */
+/* "key NAME 1|0", "knob main|vol|mfk N", "ping", "screen 0|1", "panel 0|1", "set NAME VALUE",
+ * "ft8 WHAT [ARG]", "log TEXT" */
 static void handle_text(client_t *c, char *text) {
     char *a[4] = {0};
     int   n    = 0;
 
+    if (!strncmp(text, "log ", 4)) {        /* the text as it is: names have spaces */
+        app_log_cmd(text + 4);
+        return;
+    }
     for (char *t = strtok(text, " \t\r\n"); t && n < 4; t = strtok(NULL, " \t\r\n"))
         a[n++] = t;
     if (n == 0)
@@ -692,6 +922,9 @@ static void handle_text(client_t *c, char *text) {
     } else if (!strcmp(a[0], "set") && n >= 2) {
         if (!panel_set(a[1], n >= 3 ? a[2] : NULL, n >= 4 ? a[3] : NULL))
             client_textf(c, "err unknown setting %s", a[1]);
+    } else if (!strcmp(a[0], "ft8") && n >= 2) {
+        if (!app_ft8_cmd(a[1], n >= 3 ? a[2] : NULL))
+            client_textf(c, "err ft8 %s", a[1]);
     } else if (!strcmp(a[0], "key") && n >= 3) {
         int  code = key_code(a[1]);
         bool down = atoi(a[2]) != 0;

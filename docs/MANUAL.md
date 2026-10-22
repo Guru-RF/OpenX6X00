@@ -1704,6 +1704,20 @@ web page, nothing to install, any device with a browser.
 - Spots: the DX cluster's spots as the radio filters them (see
   [DX Cluster](#dx-cluster)), newest first, tap one to tune to it; the calls
   stand on the waterfall too, an alert in orange.
+- FT8: the FT8 / FT4 / FT2 app from the browser. Open starts it on the radio
+  (Close ends it), its decodes come as they arrive, CQs and calls to you
+  coloured, the sender's country and distance, "worked" when the log knows
+  the call; tap a CQ or a call to answer it as a press on the radio's list
+  does, CQ calls, STOP ends the transmission, AUTO and HOLD are the app's
+  switches, MODE steps FT8, FT4, FT2, TX Hz sets the audio frequency. The
+  line above the list shows the next transmission; the QSO logs itself as
+  always. The last rows are kept, so a page that opens later sees them.
+- CW: the radio's CW decoder's text as it comes (in CW mode, Settings > CW);
+  LOG takes the last call sign in it to the Log tab.
+- Log: a voice or CW QSO by hand: call, RST sent and received, a name, LOG.
+  It goes to the day's ADIF log on the radio on the radio's frequency and
+  mode (the web Logs page lists it), as a QSO from the CW keyboard does; during
+  a Field Ops activation it counts for the activation.
 - Keys: the front keys and knobs, for the radio's menus and apps; the Screen
   tab shows the radio's display, so an app opened with APP is worked from
   here. The [Browser remote](#browser-remote) is the same thing full size.
@@ -1726,8 +1740,14 @@ VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list),
 `agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1), `sql`, `rfg`
 (0-100), `vol` (0-55), `pwr` (tenths of a watt), `step`, `zoom` (1-8), `band`
 (+1/-1), `vfo` (toggle), `filter LO HI`. The keys and knobs go as on the
-Screen page. Settings > General > BROWSER REMOTE turns the server on and off
-for both pages.
+Screen page. The apps: the FT8 list's rows come as `ft8r {...}` (id, type,
+text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
+state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
+the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
+`ft8 txfreq HZ` and `ft8 reply ID` work the app, `log CALL|RSTS|RSTR|NAME`
+writes the day's log and is answered with `logged ok|no`. Settings > General
+> BROWSER REMOTE turns the server on and off for both pages. A page opens
+on a tab with `/panel#ft8`, `#cw`, `#log`, `#keys` or `#screen`.
 
 ## Browser remote
 

@@ -6,6 +6,7 @@
  */
 
 #include "decode_list.h"
+#include "../remote_server.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -257,6 +258,7 @@ void table_view_push_ui(const cell_data_t *cd) {
 
 void table_view_add_msg_cb(void *data) {
     table_view_push_ui(data);
+    remote_server_ft8_row(data);    /* the browser panel's list */
 }
 
 void table_view_reset(void) {

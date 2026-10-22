@@ -1383,3 +1383,40 @@ static dialog_t dialog = {
 };
 
 dialog_t *dialog_ft8 = &dialog;
+
+/* ---- the browser panel ---- */
+
+void ft8_window_status(ft8_status_t *s) {
+    memset(s, 0, sizeof(*s));
+    s->open    = dialog_type_is_run(dialog_ft8);
+    s->proto   = cur_proto();
+    s->tx_freq = params.ft8_tx_freq.x;
+    if (!s->open || !tx_enabled)
+        return;
+    s->cq      = subject_i_get(cq_enabled);
+    s->tx      = subject_i_get(tx_enabled);
+    s->auto_on = param_i_get(cfg_ft8_auto);
+    s->hold    = param_i_get(cfg_ft8_hold_freq);
+    s->sending = sending;
+    snprintf(s->next, sizeof(s->next), "%s", tx_msg.msg);
+    if (!strncmp(s->next, "CQ_", 3)) s->next[2] = ' ';
+}
+
+bool ft8_window_remote(ft8_rc_t what, int32_t arg, const cell_data_t *cell) {
+    if (!dialog_type_is_run(dialog_ft8) || !tx_enabled)
+        return false;
+    switch (what) {
+        case FT8_RC_CQ:     tx_cq_cb(NULL); break;
+        case FT8_RC_STOP:
+            if (subject_i_get(cq_enabled)) tx_cq_cb(NULL);     /* off, and the message dropped */
+            tx_call_off();
+            tx_msg.msg[0] = '\0';
+            break;
+        case FT8_RC_AUTO:   auto_cb(NULL); break;
+        case FT8_RC_HOLD:   hold_cb(NULL); break;
+        case FT8_RC_MODE:   mode_cb(NULL); break;
+        case FT8_RC_TXFREQ: set_tx_freq_in_filter(arg); break;
+        case FT8_RC_REPLY:  if (cell) list_pressed(cell); break;
+    }
+    return true;
+}

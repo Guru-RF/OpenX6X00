@@ -48,7 +48,8 @@
 .pn-bar button[aria-pressed="true"] { background:var(--pon); color:#fff; border-color:var(--pon); }
 /* The side column */
 .tabs { display:flex; gap:4px; background:var(--pc); border:1px solid var(--pl); border-radius:10px; padding:4px; }
-.tabs button { flex:1; background:transparent; border:0; color:var(--pd); border-radius:7px; padding:8px 4px; font:600 13px/1 system-ui,sans-serif; cursor:pointer; }
+.tabs { flex-wrap:wrap; }
+.tabs button { flex:1 1 auto; background:transparent; border:0; color:var(--pd); border-radius:7px; padding:8px 4px; font:600 13px/1 system-ui,sans-serif; cursor:pointer; }
 .tabs button[aria-selected="true"] { background:var(--pb); color:var(--pt); }
 .tab { display:none; background:var(--pc); border:1px solid var(--pl); border-radius:10px; padding:8px; flex:1; min-height:200px; overflow:auto; }
 .tab.cur { display:block; }
@@ -69,6 +70,27 @@
 .knobs .b { flex:1; }
 .screen { aspect-ratio:800/480; background:#000; border-radius:8px; overflow:hidden; }
 .screen canvas { width:100%; height:100%; display:block; }
+/* The FT8, CW and Log tabs */
+.ftbar { display:grid; grid-template-columns:repeat(4, 1fr); gap:5px; margin-bottom:6px; }
+.ftbar .b { height:38px; font-size:12px; }
+.ftnext { font:12px/1.3 system-ui,sans-serif; color:var(--pd); padding:2px 4px 6px; min-height:1.3em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ftnext b { color:var(--pa); }
+.ft { margin:0; padding:0; list-style:none; font:12px/1.3 "SF Mono", Menlo, Consolas, monospace; }
+.ft li { display:grid; grid-template-columns:1fr auto; gap:2px 8px; padding:5px 6px; border-bottom:1px solid var(--pl); cursor:pointer; align-items:baseline; white-space:nowrap; overflow:hidden; }
+.ft li .x { overflow:hidden; text-overflow:ellipsis; }
+.ft li .i { color:var(--pd); font-size:11px; }
+.ft li .k { grid-column:1 / span 2; color:var(--pd); font-size:11px; font-family:system-ui,sans-serif; overflow:hidden; text-overflow:ellipsis; }
+.ft li.t0, .ft li.t1 { color:var(--pd); cursor:default; }
+.ft li.t3 { background:#14301f; }
+.ft li.t4 { background:#3a2a10; color:#ffd27a; }
+.ft li.t5 { background:#16284a; color:#9fc8ff; cursor:default; }
+.pn[data-theme="light"] .ft li.t3 { background:#e3f5e8; }
+.pn[data-theme="light"] .ft li.t4 { background:#fff0d0; color:#7a4a00; }
+.pn[data-theme="light"] .ft li.t5 { background:#dde8fb; color:#0b3d91; }
+.cwtext { margin:0; white-space:pre-wrap; word-break:break-all; font:14px/1.5 "SF Mono", Menlo, Consolas, monospace; color:var(--pt); min-height:6em; max-height:60vh; overflow:auto; background:var(--pb); border:1px solid var(--pl); border-radius:8px; padding:8px; }
+.logf { display:grid; grid-template-columns:1fr 4.5em 4.5em; gap:6px; margin-bottom:6px; }
+.logf input, .logf2 input { background:var(--pb); color:var(--pt); border:1px solid var(--pl); border-radius:8px; padding:9px 10px; font:15px system-ui,sans-serif; width:100%; }
+.logf2 { display:grid; grid-template-columns:1fr auto; gap:6px; }
 /* Pop-ups: a list of choices, a slider, the keypad */
 .pop { position:fixed; inset:0; background:#0008; z-index:100; display:flex; align-items:center; justify-content:center; padding:16px; }
 .pop[hidden] { display:none; }
@@ -172,8 +194,36 @@ body.app h2, body.app #intro { display:none; }
   <aside class="pn-side">
     <div class="tabs" role="tablist">
       <button type="button" role="tab" aria-selected="true" data-tab="spots">Spots</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="ft8">FT8</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="cw">CW</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="log">Log</button>
       <button type="button" role="tab" aria-selected="false" data-tab="keys">Keys</button>
       <button type="button" role="tab" aria-selected="false" data-tab="screen">Screen</button>
+    </div>
+    <div class="tab" id="tab-ft8">
+      <div class="ftbar">
+        <button class="b" id="ft-open"><small>APP</small><span>Open</span></button>
+        <button class="b" id="ft-mode"><small>MODE</small><span>FT8</span></button>
+        <button class="b" id="ft-txf"><small>TX Hz</small><span>--</span></button>
+        <button class="b" id="ft-stop">STOP</button>
+        <button class="b tg" id="ft-cq">CQ</button>
+        <button class="b tg" id="ft-auto">AUTO</button>
+        <button class="b tg" id="ft-hold">HOLD</button>
+        <button class="b" id="ft-clear">CLEAR</button>
+      </div>
+      <div class="ftnext" id="ft-next">The app is closed: Open starts it on the radio.</div>
+      <ul class="ft" id="ftrows"></ul>
+    </div>
+    <div class="tab" id="tab-cw">
+      <div class="ftbar" style="grid-template-columns:1fr 1fr"><button class="b" id="cw-clear">CLEAR</button><button class="b" id="cw-log"><small>LOG</small><span>last call</span></button></div>
+      <pre class="cwtext" id="cwtext"></pre>
+      <p class="sub" style="margin:8px 0 0;font-size:12px">The radio's CW decoder (Settings > CW): its text as it comes, in CW mode.</p>
+    </div>
+    <div class="tab" id="tab-log">
+      <div class="logf"><input id="lg-call" placeholder="CALL" autocapitalize="characters" autocomplete="off"><input id="lg-rs" placeholder="RST s" value="59"><input id="lg-rr" placeholder="RST r" value="59"></div>
+      <div class="logf2"><input id="lg-name" placeholder="Name (optional)" autocomplete="off"><button class="b" id="lg-log" style="height:40px;padding:0 18px">LOG</button></div>
+      <p class="sub" style="margin:10px 0 0;font-size:12px">A voice or CW QSO on the radio's frequency and mode, into the day's ADIF log on the radio (the web Logs page lists it). Digital QSOs log themselves.</p>
+      <ul class="ft" id="lgrows"></ul>
     </div>
     <div class="tab cur" id="tab-spots"><ul class="spots" id="spots"><li style="display:block;color:var(--pd)">No spots yet: the cluster is set on the radio (Cluster page).</li></ul></div>
     <div class="tab" id="tab-keys">
@@ -581,6 +631,62 @@ body.app h2, body.app #intro { display:none; }
     document.querySelectorAll("#spots li[data-f]").forEach(function(li) { li.classList.toggle("near", Math.abs(parseInt(li.dataset.f, 10) - state.freq) < 500); });
   }
 
+  /* ---- FT8, CW, Log ---- */
+  const PROTOS = ["FT4", "FT8", "FT2"];
+  let ft8 = null, ftCount = 0;
+  const $ftrows = $("#ftrows"), ftList = document.getElementById("ftrows");
+  function showFt8() {
+    const f = ft8; if (!f) return;
+    $("#ft-open span").text(f.open ? "Close" : "Open"); $("#ft-open").toggleClass("on", !!f.open);
+    $("#ft-mode span").text(PROTOS[f.proto] || "FT8");
+    $("#ft-txf span").text(f.txf);
+    $("#ft-cq").toggleClass("on", !!f.cq); $("#ft-auto").toggleClass("on", !!f.auto); $("#ft-hold").toggleClass("on", !!f.hold);
+    $("#ft-stop").toggleClass("down", !!f.sending);
+    const $n = $("#ft-next").empty();
+    if (!f.open) $n.text("The app is closed: Open starts it on the radio.");
+    else if (f.sending) $n.append("On the air: ", $("<b>").text(f.next));
+    else if (f.next) $n.append("Next TX: ", $("<b>").text(f.next));
+    else $n.text("Listening. Tap a CQ to answer it, CQ to call.");
+  }
+  function addFt8Row(r) {
+    const atEnd = ftList.scrollHeight - ftList.scrollTop - ftList.clientHeight < 40 || !ftList.parentNode.classList.contains("cur");
+    const li = $("<li>").addClass("t" + r.t).append($("<span class='x'>").text(r.x));
+    if (r.t >= 2 && r.t <= 4) {
+      li.append($("<span class='i'>").text((r.snr > 0 ? "+" : "") + r.snr + " " + r.f));
+      const k = [r.k, r.d ? r.d + " km" : "", r.w === 1 ? "worked" : r.w === 2 ? "worked (mode)" : "", r.p ? "POTA" : ""].filter(Boolean).join(" · ");
+      if (k) li.append($("<span class='k'>").text(k));
+      li.on("click", function() { send("ft8 reply " + r.id); });
+    }
+    $ftrows.append(li);
+    if (++ftCount > 200) { $ftrows.children().first().remove(); ftCount--; }
+    if (atEnd) ftList.scrollTop = ftList.scrollHeight;
+  }
+  $("#ft-open").on("click", function() { send("ft8 " + (ft8 && ft8.open ? "close" : "open")); });
+  $("#ft-mode").on("click", function() { send("ft8 mode"); });
+  $("#ft-stop").on("click", function() { send("ft8 stop"); });
+  $("#ft-cq").on("click", function() { send("ft8 cq"); });
+  $("#ft-auto").on("click", function() { send("ft8 auto"); });
+  $("#ft-hold").on("click", function() { send("ft8 hold"); });
+  $("#ft-clear").on("click", function() { $ftrows.empty(); ftCount = 0; });
+  $("#ft-txf").on("click", function() { if (ft8) popSlider("TX frequency, Hz", 200, 2800, 10, ft8.txf, function(v) { return v + " Hz"; }, function(v) { send("ft8 txfreq " + Math.round(v)); }); });
+  const cwEl = document.getElementById("cwtext");
+  function addCw(text) {
+    const atEnd = cwEl.scrollHeight - cwEl.scrollTop - cwEl.clientHeight < 40;
+    cwEl.textContent = (cwEl.textContent + text).slice(-6000);
+    if (atEnd) cwEl.scrollTop = cwEl.scrollHeight;
+    const m = cwEl.textContent.match(/\b([A-Z0-9]{1,3}[0-9][A-Z0-9]*[A-Z](?:\/[A-Z0-9]+)?)\b(?![\s\S]*\b[A-Z0-9]{1,3}[0-9][A-Z0-9]*[A-Z]\b)/);
+    if (m) $("#cw-log span").text(m[1]);
+  }
+  $("#cw-clear").on("click", function() { cwEl.textContent = ""; });
+  $("#cw-log").on("click", function() { const c = $("#cw-log span").text(); if (c && c !== "last call") { $("#lg-call").val(c); $("#lg-rs, #lg-rr").val(state && (state.mode === 4 || state.mode === 5) ? "599" : "59"); $('.tabs button[data-tab="log"]').trigger("click"); } });
+  $("#lg-log").on("click", function() {
+    const call = $("#lg-call").val().trim().toUpperCase();
+    if (!call) { status("A call sign first", true); return; }
+    send("log " + [call, $("#lg-rs").val().trim(), $("#lg-rr").val().trim(), $("#lg-name").val().trim()].join("|").replace(/\n/g, " "));
+    $("#lgrows").prepend($("<li class='t2'>").append($("<span class='x'>").text(new Date().toISOString().slice(11, 16) + " " + call + " " + $("#lg-rs").val() + " " + $("#lg-rr").val()), $("<span class='i'>").text("sent")));
+  });
+  $("#lg-call").on("keydown", function(e) { if (e.key === "Enter") $("#lg-log").trigger("click"); });
+
   /* ---- The side tabs ---- */
   let screenOn = false;
   $(".tabs button").on("click", function() {
@@ -591,7 +697,9 @@ body.app h2, body.app #intro { display:none; }
     if (want !== screenOn) { screenOn = want; send("screen " + (want ? 1 : 0)); }
     pref.tab = t; savePref();
   });
-  if (pref.tab && pref.tab !== "spots") $('.tabs button[data-tab="' + pref.tab + '"]').trigger("click");
+  const hashTab = location.hash.replace("#", "");
+  if (hashTab && $('.tabs button[data-tab="' + hashTab + '"]').length) $('.tabs button[data-tab="' + hashTab + '"]').trigger("click");
+  else if (pref.tab && pref.tab !== "spots") $('.tabs button[data-tab="' + pref.tab + '"]').trigger("click");
   const scv = document.getElementById("scv"), sctx = scv.getContext("2d");
   let drawing = false, pending = null;
   function screenFrame(buf) {
@@ -631,6 +739,10 @@ body.app h2, body.app #intro { display:none; }
         else if (head === "spots") { spots = JSON.parse(body); showSpots(); requestDraw(); }
         else if (head === "bands") bands = JSON.parse(body);
         else if (head === "plan") { plan = JSON.parse(body); requestDraw(); }
+        else if (head === "ft8") { ft8 = JSON.parse(body); showFt8(); }
+        else if (head === "ft8r") addFt8Row(JSON.parse(body));
+        else if (head === "cw") addCw(JSON.parse(body));
+        else if (head === "logged") { status(body === "ok" ? "QSO logged" : "QSO not logged (see the radio)", body !== "ok"); if (body === "ok") { $("#lg-call, #lg-name").val(""); $("#lgrows li .i").first().text("logged"); } else $("#lgrows li .i").first().text("refused"); }
         else if (head === "err") status(body, true);
       } catch (e) { status("Bad message: " + e, true); }
     };

@@ -35,6 +35,11 @@ const char *remote_server_viewer(void);
 /* Every area LVGL flushes to the panel (screen_rec.c calls it): kept for the viewers */
 void remote_flush(const lv_area_t *area, const lv_color_t *color_p);
 
+/* For the Panel page: a row of the FT8 app's list (a cell_data_t, LVGL thread) and the CW
+ * decoder's text (any thread) */
+void remote_server_ft8_row(const void *cell);
+void remote_server_cw_text(const char *text);
+
 #ifdef __cplusplus
 }
 #endif
