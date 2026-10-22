@@ -17,6 +17,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
 import hashlib
+import fcntl
 import json
 import os
 import shutil
@@ -45,6 +46,8 @@ ALLOWED = ("/usr/sbin/", "/usr/bin/", "/usr/lib/", "/usr/share/x6100/",
 MAX_STARTS = 3                        # GUI starts without a confirm before the rollback
 TIMEOUT = 30
 RUN_LIMIT = 1800
+LOCK = os.path.join(STATE, "lock")    # one updater at a time: the browser, the GUI and the start loop share it
+LOCK_WAIT = int(os.environ.get("X6100_UPDATE_LOCK_WAIT", "120"))
 
 
 class Fail(Exception):
@@ -387,6 +390,21 @@ def cmd_status(args):
             "progress": open(PROGRESS).read().strip() if os.path.exists(PROGRESS) else ""}
 
 
+def take_lock():
+    """The staging, the previous files and the journal are one set of state: a second updater
+    (the browser while the GUI installs, the start loop's boot-check) waits for the first, and
+    gives up with "busy" after LOCK_WAIT seconds. Held until this process exits (audit A20)."""
+    os.makedirs(STATE, exist_ok=True)
+    fd = os.open(LOCK, os.O_RDWR | os.O_CREAT, 0o600)
+    for _ in range(LOCK_WAIT * 2 + 1):
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return fd
+        except BlockingIOError:
+            time.sleep(0.5)
+    raise Fail("busy: another update is running")
+
+
 def main(argv):
     cmds = {"status": cmd_status, "check": cmd_check, "download": cmd_download, "install": cmd_install,
             "upgrade": cmd_upgrade, "rollback": cmd_rollback, "confirm": cmd_confirm, "boot-check": cmd_boot_check}
@@ -396,6 +414,8 @@ def main(argv):
     signal.signal(signal.SIGALRM, lambda *_: (print("error timed out"), sys.exit(1)))
     signal.alarm(RUN_LIMIT)
     try:
+        if argv[0] not in ("status", "check"):     # the two that change nothing
+            take_lock()
         out = cmds[argv[0]](argv[1:])
         print(json.dumps(out) if isinstance(out, dict) else out)
         return 0
