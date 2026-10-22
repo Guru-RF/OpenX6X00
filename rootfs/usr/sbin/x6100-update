@@ -258,30 +258,40 @@ def apply(m):
         fd = os.open(tmp, os.O_RDONLY)
         os.fsync(fd)
         os.close(fd)
+        # The intent first: power lost between the replace and the journal would otherwise leave
+        # a new file the rollback believed untouched (audit A02)
+        f["replacing"] = True
+        save(JOURNAL, journal)
         os.replace(tmp, p)
         f["done"] = True
         save(JOURNAL, journal)
+    # The crash counter before the state: an interruption between the two still rolls back
+    save(PENDING, {"version": m["version"], "from": journal["from"], "starts": 0, "since": time.time()})
     journal["state"] = "applied"
     save(JOURNAL, journal)
-    save(PENDING, {"version": m["version"], "from": journal["from"], "starts": 0, "since": time.time()})
     shutil.rmtree(st, ignore_errors=True)
     os.sync()
 
 
 def undo(journal):
-    """Every file the journal says was replaced goes back (or away, when it was new)."""
+    """Every file the journal says was, or may have been, replaced goes back (or away, when it was
+    new). Safe to run again after an interruption: each restoration is journalled, and a file whose
+    saved copy is gone was restored already and is left as it is (audit A03)."""
     for f in reversed(journal.get("files", [])):
-        if not f.get("done"):
+        if f.get("restored") or not (f.get("done") or f.get("replacing")):
             continue
         p = f["path"]
         keep = os.path.join(PREV, p.lstrip("/"))
-        if f.get("prev") and os.path.exists(keep):
-            os.replace(keep, p)
+        if f.get("prev"):
+            if os.path.exists(keep):
+                os.replace(keep, p)
         else:
             try:
                 os.remove(p)
             except FileNotFoundError:
                 pass
+        f["restored"] = True
+        save(JOURNAL, journal)
     os.sync()
 
 
