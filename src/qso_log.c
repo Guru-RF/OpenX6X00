@@ -188,28 +188,59 @@ qso_log_search_worked_t qso_log_search_worked(const char *callsign, qso_log_mode
     return res;
 }
 
+/* The records of the file into the log. The file is retired to .bak once every record got
+ * its answer from the database: added, already there, or refused for lacking a callsign
+ * (that one is final). A record the database could not take (an error, a full card) keeps
+ * the file for the next start: the log ignores a duplicate, so nothing is imported twice.
+ * A file with no record in it is kept as .failed, so the operator sees it was not read
+ * (audit A15) */
 static void *import_thread(void *arg) {
     const char          *path = arg;
     qso_log_record_t    *recs = NULL;
-    int                 total;
-    unsigned int        added = 0;
-    char                bak[128];
+    int                 total, unreadable = 0;
+    unsigned int        added = 0, dup = 0, nocall = 0, failed = 0;
+    char                to[128];
 
     pthread_detach(pthread_self());
-    total = adif_read(path, &recs);
+    total = adif_read(path, &recs, &unreadable);
+    if (total < 0) {
+        msg_update_text_fmt("Import: %s could not be read", path);
+        return NULL;
+    }
 
     for (int i = 0; i < total; i++) {
-        int n = qso_log_record_save(recs[i]);
+        int n;
 
+        if (!recs[i].local_call[0] || !recs[i].remote_call[0]) {
+            nocall++;
+            continue;
+        }
+        n = qso_log_record_save(recs[i]);
         if (n > 0) added += n;
+        else if (n == 0) dup++;
+        else failed++;
         if ((i + 1) % 10 == 0) msg_update_text_fmt("Importing QSO: %d/%d", i + 1, total);
     }
     free(recs);
 
-    /* done once: the file is kept as .bak */
-    snprintf(bak, sizeof(bak), "%s.bak", path);
-    rename(path, bak);
-    msg_update_text_fmt("Imported %u QSOs from %i", added, total);
+    if (total == 0) {
+        snprintf(to, sizeof(to), "%s.failed", path);
+        rename(path, to);
+        if (unreadable)
+            msg_update_text_fmt("No QSO readable in the ADIF file (%d broken): kept as %s", unreadable, to);
+        else
+            msg_update_text_fmt("No QSOs found in the ADIF file: kept as %s", to);
+    } else if (failed) {
+        msg_update_text_fmt("Imported %u QSOs, %u not saved: the file is kept for the next start", added, failed);
+    } else {
+        snprintf(to, sizeof(to), "%s.bak", path);
+        rename(path, to);
+        if (dup || nocall || unreadable)
+            msg_update_text_fmt("Imported %u QSOs (%u already in the log, %u without a callsign, %d broken)",
+                                added, dup, nocall, unreadable);
+        else
+            msg_update_text_fmt("Imported %u QSOs", added);
+    }
     return NULL;
 }
 

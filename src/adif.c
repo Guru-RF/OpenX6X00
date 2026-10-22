@@ -20,10 +20,12 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
-#include <regex.h>
+#include <ctype.h>
+#include <strings.h>
 
 #define MHZ 1000000
 #define KHZ 1000
+#define ADIF_MAX_BYTES (64u << 20)   /* an import is read whole: 64 MB is more log than the radio holds */
 
 #define COPY_STR(dst, src, len) (copy_str(dst, src, len, sizeof(dst)))
 
@@ -104,115 +106,207 @@ void adif_add_qso(adif_log l, qso_log_record_t qso)
     fflush(l->fd);
 }
 
-int adif_read(const char * path, qso_log_record_t ** records) {
-    char * line = NULL;
-    size_t len = 0;
-    ssize_t read;
+/* One ADIF tag: <NAME:LEN[:TYPE]> or <EOR>/<EOH>. p is at '<'. TAG_OK with *next after the
+ * value (or the tag); TAG_NONE for a '<' that starts no tag; TAG_BROKEN for a length that
+ * runs past the end of the file: the record it is in cannot be trusted */
+typedef struct {
+    const char *name;
+    size_t      name_len;
+    const char *val;        /* NULL for a tag without a length (EOR, EOH) */
+    size_t      val_len;
+} adif_tag_t;
 
-    FILE *fp = fopen(path, "r");
+enum { TAG_NONE, TAG_OK, TAG_BROKEN };
 
+static int tag_parse(const char *p, const char *end, adif_tag_t *t, const char **next) {
+    const char *q = p + 1;
+
+    t->name = q;
+    while (q < end && *q != ':' && *q != '>' && !isspace((unsigned char)*q))
+        q++;
+    if (q >= end || q == t->name)
+        return TAG_NONE;
+    t->name_len = q - t->name;
+    if (*q == '>') {
+        t->val = NULL;
+        t->val_len = 0;
+        *next = q + 1;
+        return TAG_OK;
+    }
+    if (*q != ':')
+        return TAG_NONE;
+    t->val_len = strtoul(q + 1, (char **)&q, 10);
+    while (q < end && *q != '>')    /* the type, if any: not needed */
+        q++;
+    if (q >= end)
+        return TAG_NONE;
+    q++;
+    /* The value must lie within the file: a length past its end is a broken file, and
+     * copying it read past the buffer (audit A09) */
+    if (t->val_len > (size_t)(end - q))
+        return TAG_BROKEN;
+    t->val = q;
+    *next = q + t->val_len;
+    return TAG_OK;
+}
+
+static bool tag_is(const adif_tag_t *t, const char *name) {
+    return strlen(name) == t->name_len && strncasecmp(t->name, name, t->name_len) == 0;
+}
+
+/* The value as a C string, for the number and date parsers */
+static void tag_copy(const adif_tag_t *t, char *buf, size_t size) {
+    size_t n = t->val_len < size - 1 ? t->val_len : size - 1;
+
+    memcpy(buf, t->val, n);
+    buf[n] = 0;
+}
+
+/* Reads the records of an ADIF file into *records (malloc'd), whatever the line endings and
+ * however the tags are laid out: the fields are found by their declared lengths, the record
+ * ends at <EOR>, the header (if any) at <EOH>; tag names in either case, typed tags
+ * (<CALL:5:S>) too. The local call is OPERATOR, else STATION_CALLSIGN (audit A15).
+ * A record with a field length past the end of the file is left out and counted in
+ * *skipped (when given). Returns the number of records, -1 when the file could not be read */
+int adif_read(const char * path, qso_log_record_t ** records, int *skipped) {
+    FILE    *fp = fopen(path, "r");
+    char    *data = NULL;
+    size_t  size = 0, got = 0;
+
+    *records = NULL;
+    if (skipped) *skipped = 0;
     if (fp == NULL) {
         perror("Unable to open log file:");
+        return -1;
+    }
+    if (fseek(fp, 0, SEEK_END) == 0) {
+        long l = ftell(fp);
+        size = l > 0 ? (size_t)l : 0;
+        rewind(fp);
+    }
+    if (size == 0 || size > ADIF_MAX_BYTES || !(data = malloc(size))) {
+        fclose(fp);
         return 0;
     }
+    got = fread(data, 1, size, fp);
+    fclose(fp);
 
-    static regex_t  regex;
-    static const    char re[] = "<([A-Za-z_]+):([0-9]+)>";
-    regmatch_t      pmatch[3];
-    regoff_t        off, r_len;
-    char            *s;
+    const char *p = data, *end = data + got;
+    size_t      arr_size = 128, count = 0;
+    bool        in_header = true;    /* until <EOH>; a file without one starts with a record */
+    bool        broken = false;      /* this record had a field that ran past the file */
+    char        local[32], station[32], mode[32], submode[32], num[32];
+    struct tm   qso_ts;
+    qso_log_record_t *cur;
 
-    if (regcomp(&regex, re, REG_NEWLINE | REG_EXTENDED)) {
-        printf("Can't compile regexp");
-        return -2;
+    *records = malloc(arr_size * sizeof(qso_log_record_t));
+    cur = &(*records)[0];
+    memset(cur, 0, sizeof(*cur));
+    memset(&qso_ts, 0, sizeof(qso_ts));
+    local[0] = station[0] = mode[0] = submode[0] = 0;
+
+    /* A file that opens with a tag has no header */
+    while (p < end && isspace((unsigned char)*p)) p++;
+    if (p < end && *p == '<') {
+        adif_tag_t  t;
+        const char *next;
+        if (tag_parse(p, end, &t, &next) == TAG_OK && !tag_is(&t, "EOH") && t.val)
+            in_header = false;
     }
 
-    size_t arr_size = 128;
-    *records = malloc(arr_size * sizeof(qso_log_record_t));
+    while (p < end) {
+        adif_tag_t t;
+        const char *next;
+        int         r;
 
-    qso_log_record_t *cur_record;
-    ssize_t cur_record_id = 0;
-    struct tm qso_ts;
-    size_t val_len;
-
-    while ((read = getline(&line, &len, fp)) != -1) {
-        if (read < 7 || strcmp(line + read - 7, "<EOR>\r\n") != 0) continue;
-        s = line;
-        cur_record = &(*records)[cur_record_id];
-        /* From malloc: a field the record lacks, and the seconds, were left random */
-        memset(cur_record, 0, sizeof(*cur_record));
-        memset(&qso_ts, 0, sizeof(qso_ts));
-        char * mode = NULL;
-        char * submode = NULL;
-        bool bad = false;
-        for (unsigned int i = 0; ; i++) {
-            if (regexec(&regex, s, ARRAY_SIZE(pmatch), pmatch, 0))
-                break;
-            val_len = strtoul(s + pmatch[2].rm_so, NULL, 10);
-            /* The value must lie within the line: a length past its end is a broken file, and
-             * copying it read past the buffer (audit A09). The record is skipped */
-            if (val_len > (size_t)(line + read - (s + pmatch[0].rm_eo))) {
-                bad = true;
-                break;
-            }
-            if (val_len > 0) {
-                if (strncmp(s + pmatch[1].rm_so, "OPERATOR", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    COPY_STR(cur_record->local_call, s + pmatch[0].rm_eo, val_len);
-                } else if (strncmp(s + pmatch[1].rm_so, "CALL", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    COPY_STR(cur_record->remote_call, s + pmatch[0].rm_eo, val_len);
-                } else if (strncmp(s + pmatch[1].rm_so, "QSO_DATE", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    strptime(s + pmatch[0].rm_eo, "%Y%m%d", &qso_ts);
-                } else if (strncmp(s + pmatch[1].rm_so, "TIME_ON", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    strptime(s + pmatch[0].rm_eo, "%H%M", &qso_ts);
-                } else if (strncmp(s + pmatch[1].rm_so, "MODE", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    mode = extract_str(s + pmatch[0].rm_eo, val_len);
-                } else if (strncmp(s + pmatch[1].rm_so, "SUBMODE", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    submode = extract_str(s + pmatch[0].rm_eo, val_len);
-                } else if (strncmp(s + pmatch[1].rm_so, "NAME", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    COPY_STR(cur_record->name, s + pmatch[0].rm_eo, val_len);
-                } else if (strncmp(s + pmatch[1].rm_so, "QTH", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    COPY_STR(cur_record->qth, s + pmatch[0].rm_eo, val_len);
-                } else if (strncmp(s + pmatch[1].rm_so, "RST_SENT", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    cur_record->rsts = atoi(s + pmatch[0].rm_eo);
-                } else if (strncmp(s + pmatch[1].rm_so, "RST_RCVD", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    cur_record->rstr = atoi(s + pmatch[0].rm_eo);
-                } else if (strncmp(s + pmatch[1].rm_so, "BAND", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    cur_record->band = str_to_band(s + pmatch[0].rm_eo);
-                } else if (strncmp(s + pmatch[1].rm_so, "FREQ", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    cur_record->freq_mhz = strtof(s + pmatch[0].rm_eo, NULL);
-                } else if (strncmp(s + pmatch[1].rm_so, "MY_GRIDSQUARE", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    COPY_STR(cur_record->local_grid, s + pmatch[0].rm_eo, val_len);
-                } else if (strncmp(s + pmatch[1].rm_so, "GRIDSQUARE", pmatch[1].rm_eo - pmatch[1].rm_so) == 0) {
-                    COPY_STR(cur_record->remote_grid, s + pmatch[0].rm_eo, val_len);
-                }
-            }
-
-            s += pmatch[0].rm_eo;
-        }
-
-        if (bad) {
-            free(mode);
-            free(submode);
+        if (*p != '<') {
+            p++;
             continue;
         }
-        cur_record->time = timegm(&qso_ts);
-        cur_record->mode = create_mode(mode, submode);
-        if (mode) free(mode);
-        if (submode) free(submode);
-        if ((qso_log_freq_to_band(cur_record->freq_mhz * MHZ) != cur_record->band) &&
-            (qso_log_freq_to_band(cur_record->freq_mhz * KHZ) == cur_record->band)) {
-                cur_record->freq_mhz /= 1000;
+        r = tag_parse(p, end, &t, &next);
+        if (r != TAG_OK) {
+            if (r == TAG_BROKEN) broken = true;
+            p++;
+            continue;
         }
-        cur_record_id++;
-        if (cur_record_id >= arr_size) {
-            arr_size *= 2;
-            (*records) = realloc((*records), arr_size * sizeof(qso_log_record_t));
+        p = next;
+        if (in_header) {
+            if (tag_is(&t, "EOH")) in_header = false;
+            continue;
+        }
+        if (tag_is(&t, "EOR")) {
+            if (broken) {
+                /* not a record to trust: left out, the next one starts clean */
+                if (skipped) (*skipped)++;
+                broken = false;
+                memset(cur, 0, sizeof(*cur));
+                memset(&qso_ts, 0, sizeof(qso_ts));
+                local[0] = station[0] = mode[0] = submode[0] = 0;
+                continue;
+            }
+            /* the record is complete */
+            if (local[0]) COPY_STR(cur->local_call, local, strlen(local));
+            else if (station[0]) COPY_STR(cur->local_call, station, strlen(station));
+            cur->time = timegm(&qso_ts);
+            cur->mode = create_mode(mode[0] ? mode : NULL, submode[0] ? submode : NULL);
+            if ((qso_log_freq_to_band(cur->freq_mhz * MHZ) != cur->band) &&
+                (qso_log_freq_to_band(cur->freq_mhz * KHZ) == cur->band)) {
+                cur->freq_mhz /= 1000;      /* a log that wrote kHz */
+            }
+            count++;
+            if (count >= arr_size) {
+                arr_size *= 2;
+                *records = realloc(*records, arr_size * sizeof(qso_log_record_t));
+            }
+            cur = &(*records)[count];
+            memset(cur, 0, sizeof(*cur));
+            memset(&qso_ts, 0, sizeof(qso_ts));
+            local[0] = station[0] = mode[0] = submode[0] = 0;
+            continue;
+        }
+        if (!t.val || t.val_len == 0)
+            continue;
+        if (tag_is(&t, "OPERATOR")) {
+            tag_copy(&t, local, sizeof(local));
+        } else if (tag_is(&t, "STATION_CALLSIGN")) {
+            tag_copy(&t, station, sizeof(station));
+        } else if (tag_is(&t, "CALL")) {
+            COPY_STR(cur->remote_call, (char *)t.val, t.val_len);
+        } else if (tag_is(&t, "QSO_DATE")) {
+            tag_copy(&t, num, sizeof(num));
+            strptime(num, "%Y%m%d", &qso_ts);
+        } else if (tag_is(&t, "TIME_ON")) {
+            tag_copy(&t, num, sizeof(num));
+            strptime(num, strlen(num) >= 6 ? "%H%M%S" : "%H%M", &qso_ts);
+        } else if (tag_is(&t, "MODE")) {
+            tag_copy(&t, mode, sizeof(mode));
+        } else if (tag_is(&t, "SUBMODE")) {
+            tag_copy(&t, submode, sizeof(submode));
+        } else if (tag_is(&t, "NAME")) {
+            COPY_STR(cur->name, (char *)t.val, t.val_len);
+        } else if (tag_is(&t, "QTH")) {
+            COPY_STR(cur->qth, (char *)t.val, t.val_len);
+        } else if (tag_is(&t, "RST_SENT")) {
+            tag_copy(&t, num, sizeof(num));
+            cur->rsts = atoi(num);
+        } else if (tag_is(&t, "RST_RCVD")) {
+            tag_copy(&t, num, sizeof(num));
+            cur->rstr = atoi(num);
+        } else if (tag_is(&t, "BAND")) {
+            tag_copy(&t, num, sizeof(num));
+            cur->band = str_to_band(num);
+        } else if (tag_is(&t, "FREQ")) {
+            tag_copy(&t, num, sizeof(num));
+            cur->freq_mhz = strtof(num, NULL);
+        } else if (tag_is(&t, "MY_GRIDSQUARE")) {
+            COPY_STR(cur->local_grid, (char *)t.val, t.val_len);
+        } else if (tag_is(&t, "GRIDSQUARE")) {
+            COPY_STR(cur->remote_grid, (char *)t.val, t.val_len);
         }
     }
-    free(line);
-    fclose(fp);
-    regfree(&regex);
-    return cur_record_id--;
+    if (broken && skipped) (*skipped)++;    /* a last record without its <EOR> */
+    free(data);
+    return (int)count;
 }
 
 static void write_header(FILE *fd) {

@@ -19,4 +19,4 @@ void adif_log_close(adif_log l);
 
 void adif_add_qso(adif_log l, qso_log_record_t qso);
 
-int adif_read(const char * path, qso_log_record_t ** records);
+int adif_read(const char * path, qso_log_record_t ** records, int *skipped);
