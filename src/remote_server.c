@@ -468,18 +468,68 @@ static void pstate_line(char *buf, size_t n, const pstate_t *s) {
 }
 
 /* A string into JSON: quotes and backslashes escaped, control characters dropped */
+/* The length of the well-formed UTF-8 sequence at s, 0 for none (an overlong form, a surrogate,
+ * a stray continuation byte, a Latin-1 byte: a cluster comment arrives in any encoding) */
+static int utf8_seq(const unsigned char *s) {
+    unsigned char c = s[0], lo = 0x80, hi = 0xBF;
+    int           len;
+
+    if (c < 0x80)
+        return 1;
+    if (c >= 0xC2 && c <= 0xDF)
+        len = 2;
+    else if (c >= 0xE0 && c <= 0xEF) {
+        len = 3;
+        if (c == 0xE0)
+            lo = 0xA0;
+        else if (c == 0xED)
+            hi = 0x9F;
+    } else if (c >= 0xF0 && c <= 0xF4) {
+        len = 4;
+        if (c == 0xF0)
+            lo = 0x90;
+        else if (c == 0xF4)
+            hi = 0x8F;
+    } else
+        return 0;
+    if (s[1] < lo || s[1] > hi)
+        return 0;
+    for (int i = 2; i < len; i++)
+        if ((s[i] & 0xC0) != 0x80)
+            return 0;
+    return len;
+}
+
+/* A JSON string, and valid UTF-8 whatever the source: a browser drops the WebSocket on a text frame
+ * it can't decode. A byte outside a well-formed sequence becomes '?', a control character is left out */
 static size_t json_str(char *out, size_t n, const char *s) {
     size_t k = 0;
     if (n < 3)
         return 0;
     out[k++] = '"';
-    for (; *s && k + 3 < n; s++) {
+    while (*s && k + 3 < n) {
         unsigned char ch = (unsigned char)*s;
         if (ch == '"' || ch == '\\') {
             out[k++] = '\\';
             out[k++] = (char)ch;
-        } else if (ch >= 0x20) {
+            s++;
+        } else if (ch < 0x20) {
+            s++;
+        } else if (ch < 0x80) {
             out[k++] = (char)ch;
+            s++;
+        } else {
+            int len = utf8_seq((const unsigned char *)s);
+            if (!len) {
+                out[k++] = '?';
+                s++;
+            } else {
+                if (k + len + 2 > n)    /* the sequence, the closing quote and the end: all or nothing */
+                    break;
+                memcpy(out + k, s, len);
+                k += len;
+                s += len;
+            }
         }
     }
     out[k++] = '"';
