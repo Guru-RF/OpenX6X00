@@ -1,6 +1,6 @@
 % rebase('base.html', title='Display')
 <h2><svg class="i"><use href="#i-monitor"/></svg>Display</h2>
-<p class="sub">How the radio's screen looks: the same options as Settings &rarr; Display, applied on the radio as you change them.</p>
+<p class="sub">How the radio's screen looks: the same options as Settings &rarr; Display. Every change is applied on the radio as you make it and each row says so (Applied on the radio, or why not); Theme, Spectrum and Spectrum height restart the radio's screen for a few seconds.</p>
 
 <style>
 .dp-grid{columns:2 430px;column-gap:18px}
@@ -86,21 +86,43 @@ var showStatus = function(text, error=false) {
   el.html('<span class="dot"></span>').append(document.createTextNode(text));
 }
 
-var send = function(payload, done) {
+const RESTARTS = {theme: 1, spectrum_show: 1, spectrum_height: 1};   /* the radio's screen restarts for these */
+const ROWS = {};
+CARDS.forEach(function(c) { c[3].forEach(function(o) { ROWS[o[0]] = o; }); });
+
+/* The row's own word on it: Saving..., Applied on the radio, Failed (the control back to what the radio has) */
+var rowState = function(name, st, text) {
+  const row = $("#row-" + name);
+  let el = row.find(".rst");
+  if (!el.length) el = $("<span class='rst'>").appendTo(row.find(".dp-ctl"));
+  el.attr("data-st", st).text(st === "failed" ? "Failed: " + text : text || {saving: "Saving...", applied: "Applied on the radio"}[st] || "");
+}
+
+var send = function(payload, done, fail) {
   $.ajax({
     url: "/api/display", type: "POST", data: JSON.stringify(payload),
     contentType: "application/json; charset=utf-8", dataType: "json",
     success: function() {
-      showStatus(payload.name === "theme" ? "Theme set: the radio's screen is restarting" : "Saved on the radio");
+      showStatus(payload.name === "theme" ? "Theme set: the radio's screen is restarting" : "Applied on the radio");
       if (done) done();
     },
-    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "Not saved", true); }
+    error: function(xhr) { const m = xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")"; showStatus(m, true); if (fail) fail(m); }
   });
 }
 
 var setVal = function(name, v) {
+  const old = D[name];
   D[name] = v;
-  send({name: name, val: v});
+  rowState(name, "saving");
+  send({name: name, val: v}, function() {
+    rowState(name, "applied", RESTARTS[name] ? "Applied: the radio's screen restarts" : "Applied on the radio");
+  }, function(msg) {
+    /* not taken: the control shows what the radio still has */
+    D[name] = old;
+    $("#row-" + name + " .dp-ctl").empty().append(control(ROWS[name]));
+    rowState(name, "failed", msg);
+    refresh();
+  });
   refresh();
 }
 
@@ -141,8 +163,12 @@ var control = function(o) {
     (kind === "theme" ? D.themes : extra).forEach(function(t, i) { sel.append($("<option>").val(kind === "theme" ? t : i).text(t)); });
     sel.val(kind === "theme" ? D.theme : D[name]);
     return sel.on("change", function() {
-      if (kind === "theme") send({name: "theme", theme: this.value});
-      else setVal(name, parseInt(this.value, 10));
+      if (kind === "theme") {
+        const old = D.theme, sel2 = this;
+        D.theme = this.value; rowState("theme", "saving");
+        send({name: "theme", theme: this.value}, function() { rowState("theme", "applied", "Applied: the radio's screen restarts"); },
+             function(msg) { D.theme = old; sel2.value = old; rowState("theme", "failed", msg); });
+      } else setVal(name, parseInt(this.value, 10));
     });
   }
   const [min, max, step, scale, unit] = extra;
@@ -210,7 +236,7 @@ var render = function() {
     card.append(head);
     if (c[4] === "preview") card.append($("<div class='prev' id='prev'>"));
     c[3].forEach(function(o) {
-      const lbl = $("<div class='dp-lbl'>").append($("<b>").text(o[1]));
+      const lbl = $("<div class='dp-lbl'>").append($("<b>").text(o[1]).append(RESTARTS[o[0]] ? $("<span class='eff'>").text("Takes effect: now, the screen restarts") : ""));
       if (o[2]) lbl.append($("<span>").text(o[2]));
       card.append($("<div class='dp-row'>").attr("id", "row-" + o[0]).append(lbl, $("<div class='dp-ctl'>").append(control(o))));
     });

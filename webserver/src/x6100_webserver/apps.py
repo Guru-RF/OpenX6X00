@@ -648,8 +648,11 @@ def set_field_qrz():
 
 @app.post('/api/field/<name:re:hota|wwff>')
 def set_field_key(name):
-    """cqhota.app integration key, WWFF Spotline key: <name>.conf, never shown back"""
-    key = str((bottle.request.json or {}).get("key", "")).strip()
+    """cqhota.app integration key, WWFF Spotline key: <name>.conf, never shown back. {"key": K} stores
+    a new one, {"remove": true} takes it away; an empty key changes nothing, as the QRZ page (U04)."""
+    body = bottle.request.json or {}
+    key = str(body.get("key", "")).strip()
+    remove = body.get("remove") is True
     if key and not re.fullmatch(r"[!-~]{1,128}", key):
         return api_error(400, "Invalid key: 1-128 printable characters, no spaces")
     path = field_path(name + ".conf")
@@ -660,7 +663,7 @@ def set_field_key(name):
             with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
                 f.write(f"key={key}\n")
             os.rename(tmp, path)
-        elif os.path.exists(path):
+        elif remove and os.path.exists(path):
             os.remove(path)
     except OSError as e:
         return api_error(500, f"Can't save: {e}")

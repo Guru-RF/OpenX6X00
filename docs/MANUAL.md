@@ -1634,6 +1634,35 @@ The menu has General and four groups:
 | | Ethernet | the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
 | | TCI | enable the [TCI server](#tci-server), set its port |
 
+### Editing, saving, deleting
+
+Every page says what a change is in and when the radio takes it. A card's
+title carries "Takes effect: ..." (at once; within a few seconds; at the next
+spot, upload, band key or MEM tap; the next time the window opens on the
+radio; the screen restarts). Each row of a list (CW messages, memories and
+channels, macros, bands, digital modes) says Unsaved as soon as it is edited,
+Saving..., Saved, or Failed with the radio's reason, the typed values kept so
+they can be corrected. A row keeps its draft while another row is saved and
+while the list is read again from the radio; a bar in the card counts the
+unsaved rows and offers Save all and Discard. A row the radio changed
+meanwhile (another browser, the radio itself) says "Changed on the radio
+meanwhile": Save keeps yours, Reload takes the radio's. The browser warns
+before a page with unsaved rows is left.
+
+Display applies each option as it is changed and the row says Applied on the
+radio, or Failed with the control back to what the radio has. Forms (TCI,
+Network, the cluster filters, the JS8 answers) say Unsaved and enable their
+Save once a field differs from the radio's.
+
+Deleting is the same everywhere: the question names what goes (the message,
+the channel with its frequency, the band), and for twenty seconds the status
+line offers Undo, which puts the entry back where it was. QSO logs and
+activation logs cannot be undone and say so, with the advice to export first.
+
+Stored secrets (QRZ Logbook keys, the HOTA and WWFF keys) are only ever
+replaced by a key typed in, or taken away by their Remove button; a field
+left empty keeps the key.
+
 Gallery: a folder per kind (screen recordings, voice recordings, screenshots,
 SSTV and WeFax received and to send) with count and size.
 

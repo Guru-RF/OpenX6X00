@@ -3,7 +3,7 @@
 <p class="sub">The radio's name on the LAN, and a USB Ethernet adapter: DHCP, or a fixed address for networks that need one. The same settings as Settings &rarr; Wireless on the radio. WiFi is not touched.</p>
 
 <form class="dp-card" id="nameform">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-network"/></svg></span><div><h3>Network name</h3><p>Any browser on the LAN reaches the radio as <b id="local">x6100.local</b> (mDNS, announced by Avahi), on WiFi and Ethernet alike. The name is kept on the DATA partition.</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-network"/></svg></span><div><h3>Network name<span class="eff">Takes effect: now, reachable under the new name in a few seconds</span></h3><p>Any browser on the LAN reaches the radio as <b id="local">x6100.local</b> (mDNS, announced by Avahi), on WiFi and Ethernet alike. The name is kept on the DATA partition.</p></div></div>
   <div class="dp-row">
     <div class="dp-lbl"><label for="hn"><b>Name</b></label><span>Letters, digits and '-', up to 32</span></div>
     <div class="dp-ctl"><input id="hn" autocomplete="off" maxlength="32" spellcheck="false"></div>
@@ -18,14 +18,14 @@
 <p id="none" hidden>No Ethernet adapter connected.</p>
 
 <form class="dp-card" id="conf" hidden>
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-ethernet"/></svg></span><div><h3>Adapter</h3><p id="iface">-</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-ethernet"/></svg></span><div><h3>Adapter<span class="eff">Takes effect: now, the adapter reconnects</span></h3><p id="iface">-</p></div></div>
   <div class="dp-row">
     <div class="dp-lbl"><b>Status</b><span id="inuse">-</span></div>
     <div class="dp-ctl"><span class="status" id="state"></span></div>
   </div>
   <div class="dp-row">
     <div class="dp-lbl"><b>Mode</b><span>DHCP takes the address from the network</span></div>
-    <div class="dp-ctl"><div class="seg" id="mode"><button type="button" data-dhcp="1">DHCP</button><button type="button" data-dhcp="0">Static</button></div></div>
+    <div class="dp-ctl"><div class="seg" id="mode"><button type="button" data-dhcp="1">DHCP</button><button type="button" data-dhcp="0">Static</button></div><input type="hidden" id="dhcpv"></div>
   </div>
   <div class="dp-row">
     <div class="dp-lbl"><label for="ip"><b>IP address</b></label><span>For example 192.168.1.20</span></div>
@@ -49,14 +49,19 @@
   </div>
 </form>
 
+<script src="/static/js/edit_flow.js?v=1"></script>
 <script>
 const FIELDS = ["ip", "mask", "gw", "dns"];
 let dhcp = true;
+/* Both forms: Unsaved until Apply */
+const nameForm = EditFlow.form($("#nameform"), $("#namestatus"), $("#nameform button[type=submit]"));
+const confForm = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
 
 /* The network name */
 var renderName = function(d) {
   $("#hn").val(d.name);
   $("#local").text(d.name + ".local");
+  nameForm.reset();
   if (!d.mdns) showStatus($("#namestatus"), "This image has no Avahi: the name is set, .local needs a newer card image", true);
 }
 $.get('/api/hostname', {}, renderName);
@@ -76,8 +81,10 @@ var showStatus = function(el, text, error=false) {
 
 var setMode = function(on) {
   dhcp = on;
+  $("#dhcpv").val(on ? "1" : "0");
   $("#mode button").each(function() { $(this).attr("aria-pressed", String((this.dataset.dhcp === "1") === on)); });
   $(".st").prop("disabled", on);
+  confForm.check();
 }
 
 var renderState = function(d) {
@@ -92,6 +99,7 @@ var render = function(d) {
   renderState(d);
   setMode(!!d.dhcp);
   FIELDS.forEach(function(k) { $("#" + k).val(d[k]); });
+  confForm.reset();
 }
 
 /* An adapter plugged in: the form with its saved values; otherwise only the state */
@@ -110,6 +118,7 @@ $("#conf").on("submit", function(e) {
   e.preventDefault();
   const data = {dhcp: dhcp};
   FIELDS.forEach(function(k) { data[k] = $("#" + k).val().trim(); });
+  showStatus($("#status"), "Applying...");
   $.ajax({
     url: "/api/network",
     type: "POST",
@@ -117,7 +126,8 @@ $("#conf").on("submit", function(e) {
     contentType: "application/json; charset=utf-8",
     dataType: "json",
     success: function() {
-      showStatus($("#status"), "Saved. The adapter reconnects in a few seconds");
+      confForm.reset();
+      showStatus($("#status"), "Applied. The adapter reconnects in a few seconds");
       setTimeout(function() { $.get('/api/network', {}, render); }, 4000);
     },
     error: function(xhr) { showStatus($("#status"), xhr.responseJSON ? xhr.responseJSON.msg : "Apply failed", true); }

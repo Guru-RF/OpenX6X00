@@ -3,7 +3,7 @@
 <p class="sub">TCI (Transceiver Control Interface, version 2.0) is the protocol of Expert Electronics' SDRs that AetherSDR and other programs serve: one WebSocket carries the frequency, mode, filter, AGC, PTT, the S-meter and the TX meters, and the audio both ways. The radio serves it here, so a <a href="https://github.com/Guru-RF/VFO-Knob">VFO-Knob</a> or any TCI client tunes it over the network, hears it and keys it. There is no login: enable it only on a network you trust.</p>
 
 <form class="dp-card" id="conf">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-server"/></svg></span><div><h3>Server</h3><p>On ws://&lt;radio IP&gt;:&lt;port&gt;/ ; the radio applies changes within a few seconds</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-server"/></svg></span><div><h3>Server<span class="eff">Takes effect: on the radio within a few seconds</span></h3><p>On ws://&lt;radio IP&gt;:&lt;port&gt;/</p></div></div>
   <div class="dp-row">
     <div class="dp-lbl"><b>Enabled</b><span>Listens for TCI clients on the network</span></div>
     <div class="dp-ctl"><label class="sw" title="Enabled"><input id="enabled" type="checkbox" role="switch" aria-label="Enabled"><i></i></label></div>
@@ -20,6 +20,7 @@
   </div>
 </form>
 
+<script src="/static/js/edit_flow.js?v=1"></script>
 <script>
 var showStatus = function(text, error=false) {
   const el = $("#status");
@@ -30,20 +31,23 @@ var showStatus = function(text, error=false) {
 var render = function(data) {
   $("#enabled").prop("checked", data.enabled);
   $("#port").val(data.port);
+  form.reset();
 }
+const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
 
 $.get('/api/tci', {}, render);
 
 $("#conf").on("submit", function(e) {
   e.preventDefault();
+  showStatus("Saving...");
   $.ajax({
     url: "/api/tci",
     type: "POST",
     data: JSON.stringify({enabled: $("#enabled").prop("checked"), port: parseInt($("#port").val(), 10)}),
     contentType: "application/json; charset=utf-8",
     dataType: "json",
-    success: function(r) { render(r); showStatus("Saved"); },
-    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true); }
+    success: function(r) { render(r); showStatus("Saved: the radio applies it within a few seconds"); },
+    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")", true); }
   });
 });
 </script>

@@ -1,6 +1,6 @@
 % rebase('base.html', title='Macros')
 <h2><svg class="i"><use href="#i-list"/></svg>Macros</h2>
-<p class="sub">The macro buttons of the PSK31, Olivia and JTTY windows and the JS8 INFO and STATUS answers. The radio shows the changes the next time the window opens.</p>
+<p class="sub">The macro buttons of the PSK31, Olivia and JTTY windows and the JS8 INFO and STATUS answers. The radio reads them the next time the window opens: close and reopen it to see a change. A row is saved with its own Save, or all at once; a deleted macro can be brought back for twenty seconds.</p>
 
 % for mode, label, help in (('psk', 'PSK31', 'Up to 12, name up to 23 characters, text up to 199. <MYCALL>, <CALL>, <RST> and <RSTR> are filled in when sent'),
 %                           ('olivia', 'Olivia', 'Up to 12, name up to 23 characters, text up to 199. <MYCALL>, <CALL>, <RST> and <RSTR> are filled in when sent'),
@@ -25,7 +25,7 @@
 <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>JS8</h3><p>The answers to INFO? and STATUS?, up to 64 characters each, empty for none</p></div></div>
 <div class="dp-body tbl">
 <div class="table-wrap">
-<table>
+<table id="t-js8">
   <tbody>
     <tr><td style="width:9em">INFO</td><td style="width:100%"><input id="js8-info" class="name" autocomplete="off" pattern="[ -~]*" maxlength="64" style="width:100%"></td></tr>
     <tr><td>STATUS</td><td><input id="js8-status" class="name" autocomplete="off" pattern="[ -~]*" maxlength="64" style="width:100%"></td></tr>
@@ -36,7 +36,11 @@
 </div>
 </section>
 
+<script src="/static/js/edit_flow.js?v=1"></script>
 <script>
+["psk", "olivia", "jtty"].forEach(function(mode) { EditFlow.effect($("#t-" + mode).closest(".dp-card").find("h3"), "the next time the window opens on the radio"); });
+EditFlow.effect($("#t-js8").closest(".dp-card").find("h3"), "the next time the JS8 window opens on the radio");
+
 var showStatus = function(mode, text, error=false) {
   const el = $("#s-" + mode);
   el.toggleClass("error", error);
@@ -47,49 +51,67 @@ var button = function(cls, icon, title) {
   return $("<button class='action'>").addClass(cls).attr("title", title).append($("<i>").addClass(icon));
 }
 
-var call = function(mode, type, url, payload) {
+/* type url payload, then done(list); on an error the row says why and keeps what was typed */
+var call = function(mode, type, url, payload, row, done) {
+  if (row) EditFlow.state(row, "saving");
   $.ajax({
-    url: "/api/macros/" + mode + url,
-    type: type,
-    data: payload ? JSON.stringify(payload) : undefined,
-    contentType: "application/json; charset=utf-8",
-    dataType: "json",
-    success: function(r) { render(mode, r); showStatus(mode, "Saved"); },
-    error: function(xhr) { showStatus(mode, xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true); }
+    url: "/api/macros/" + mode + url, type: type, data: payload ? JSON.stringify(payload) : undefined,
+    contentType: "application/json; charset=utf-8", dataType: "json",
+    success: function(r) { done(r); },
+    error: function(xhr) {
+      const msg = xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")";
+      if (row) EditFlow.state(row, "failed", msg); else showStatus(mode, msg, true);
+    }
   });
 }
 
-// m.id is null for a new, not yet saved macro
+// m.id is null for a new, not yet saved macro. The row's key is the macro itself, not its place
 var macroRow = function(mode, m, lim) {
-  const row = $("<tr>");
+  const row = $("<tr>").attr("data-key", m.id === null ? "" : m.name + "\t" + m.text);
   const input = function(v, max) { return $("<input class='name' autocomplete='off' pattern='[ -~]*'>").attr("maxlength", max).val(v || "").css("width", "100%"); };
   const name = input(m.name, lim.name_max), text = input(m.text, lim.text_max);
   row.append($("<td>").css("width", "9em").append(name), $("<td>").css("width", "100%").append(text));
   const actions = $("<td class='action-cell'>").css("white-space", "nowrap").appendTo(row);
-  actions.append(button("save", "si-disk", "Save").on("click", function() {
+  const save = function() {
     const d = {name: name.val(), text: text.val()};
-    if (m.id === null) call(mode, "POST", "", d);
-    else call(mode, "PUT", "/" + m.id, d);
-  }));
+    if (m.id === null) call(mode, "POST", "", d, row, function(r) { row.remove(); const rows = render(mode, r), k = d.name.trim() + "\t" + d.text.trim(); if (rows[k]) EditFlow.state(rows[k], "saved"); });
+    else call(mode, "PUT", "/" + m.id, d, row, function(r) { const rows = render(mode, r), k = d.name.trim() + "\t" + d.text.trim(); if (rows[k]) EditFlow.state(rows[k], "saved"); });
+  };
+  actions.append(button("save", "si-disk", "Save").on("click", save));
   if (m.id) actions.append(" ", $("<button class='action up' title='Move up'>").text("▲").on("click", function() {
-    call(mode, "POST", "/" + m.id + "/up");
+    call(mode, "POST", "/" + m.id + "/up", null, null, function(r) { render(mode, r); });
   }));
   actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {
-    if (m.id === null) row.remove();
-    else call(mode, "DELETE", "/" + m.id);
+    if (m.id === null) { row.remove(); EditFlow.tools(null, $("#t-" + mode + ">tbody")); return; }
+    if (!EditFlow.confirmDelete('the macro "' + m.name + '"', "Its text: " + m.text)) return;
+    call(mode, "DELETE", "/" + m.id, null, null, function(r) {
+      render(mode, r);
+      EditFlow.undo($("#s-" + mode), 'Deleted "' + m.name + '".', function() {
+        call(mode, "POST", "", {name: m.name, text: m.text}, null, function(r2) {
+          /* back where it was: up from the end */
+          let at = r2.macros.length - 1;
+          const step = function(r3) { if (at > m.id) { at--; call(mode, "POST", "/" + (at + 1) + "/up", null, null, step); } else { render(mode, r3); showStatus(mode, "Brought back"); } };
+          step(r2);
+        });
+      });
+    });
   }));
+  EditFlow.watch(row, save);
+  if (m.id === null) EditFlow.state(row, "unsaved");
   return row;
 }
 
 var limits = {};
 var render = function(mode, data) {
   limits[mode] = data;
-  const body = $("#t-" + mode + ">tbody").empty();
-  data.macros.forEach(function(m) { body.append(macroRow(mode, m, data)); });
+  const body = $("#t-" + mode + ">tbody");
+  return EditFlow.rebuild(body, function() { body.empty(); data.macros.forEach(function(m) { body.append(macroRow(mode, m, data)); }); });
 }
 
 $(".add").on("click", function() {
   const mode = $(this).data("mode");
+  if (!limits[mode]) return;
+  if ($("#t-" + mode + ">tbody>tr").length >= limits[mode].max) return showStatus(mode, "All " + limits[mode].max + " macros are used, delete one first", true);
   const row = macroRow(mode, {id: null}, limits[mode]);
   $("#t-" + mode + ">tbody").append(row);
   row.find("input").first().focus();
@@ -97,8 +119,13 @@ $(".add").on("click", function() {
 
 ["psk", "olivia", "jtty"].forEach(function(mode) { $.get('/api/macros/' + mode, {}, function(r) { render(mode, r); }); });
 
-var js8Show = function(r) { $("#js8-info").val(r.info); $("#js8-status").val(r.status); }
+/* JS8: the two fields as one form, Unsaved until Save */
+const js8Row = $("#t-js8>tbody");
+var js8Show = function(r) { $("#js8-info").val(r.info); $("#js8-status").val(r.status); js8Row.data("orig", JSON.stringify(EditFlow.values(js8Row))); js8Check(); }
+var js8Check = function() { const d = EditFlow.dirty(js8Row); $("#js8-save").prop("disabled", !d); if (d) showStatus("js8", "Unsaved"); else if ($("#s-js8").text() === "Unsaved") $("#s-js8").empty(); $("#s-js8").toggleClass("form-unsaved", d); }
+$("#js8-info, #js8-status").on("input", js8Check);
 $("#js8-save").on("click", function() {
+  showStatus("js8", "Saving...");
   $.ajax({
     url: "/api/js8_texts", type: "PUT",
     data: JSON.stringify({info: $("#js8-info").val(), status: $("#js8-status").val()}),

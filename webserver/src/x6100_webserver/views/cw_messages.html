@@ -1,6 +1,6 @@
 % rebase('base.html', title='CW messages')
 <h2><svg class="i"><use href="#i-cw"/></svg>CW messages</h2>
-<p class="sub">The messages of MSG &rarr; CW on the radio, sent with TX or as a beacon. Up to 64 characters each; the radio shows the changes the next time MSG &rarr; CW opens.</p>
+<p class="sub">The messages of MSG &rarr; CW on the radio, sent with TX or as a beacon. Up to 64 characters each. A row is saved with its own Save, or all at once; a deleted message can be brought back for twenty seconds.</p>
 
 <section class="dp-card">
 <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-cw"/></svg></span><div><h3>Messages</h3><p>Up to 64 characters each</p></div><div class="dp-x"><button id="add" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add</button></div></div>
@@ -17,8 +17,11 @@
 </div>
 </section>
 
+<script src="/static/js/edit_flow.js?v=1"></script>
 <script>
 let max = 64;
+const body = $("#messages>tbody");
+EditFlow.effect($("#messages").closest(".dp-card").find("h3"), "the next time MSG → CW opens on the radio");
 
 var showStatus = function(text, error=false) {
   const el = $("#status");
@@ -30,46 +33,55 @@ var button = function(cls, icon, title) {
   return $("<button class='action'>").addClass(cls).attr("title", title).append($("<i>").addClass(icon));
 }
 
-var call = function(type, url, payload) {
+/* type url payload, then done(list) with the radio's list; on an error the row says why and keeps its text */
+var call = function(type, url, payload, row, done) {
+  if (row) EditFlow.state(row, "saving");
   $.ajax({
-    url: url,
-    type: type,
-    data: payload ? JSON.stringify(payload) : undefined,
-    contentType: "application/json; charset=utf-8",
-    dataType: "json",
-    success: function(r) { render(r); showStatus("Saved"); },
-    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true); }
+    url: url, type: type, data: payload ? JSON.stringify(payload) : undefined,
+    contentType: "application/json; charset=utf-8", dataType: "json",
+    success: function(r) { done(r); },
+    error: function(xhr) {
+      const msg = xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")";
+      if (row) EditFlow.state(row, "failed", msg); else showStatus(msg, true);
+    }
   });
 }
 
 // m.id is null for a new, not yet saved message
 var messageRow = function(m) {
-  const row = $("<tr>");
-  const text = $("<input class='name' autocomplete='off' pattern='[ -~]*'>").attr("maxlength", max).val(m.text || "")
-    .css("width", "100%");
+  const row = $("<tr>").attr("data-key", m.id === null ? "" : String(m.id));
+  const text = $("<input class='name' autocomplete='off' pattern='[ -~]*'>").attr("maxlength", max).val(m.text || "").css("width", "100%");
   row.append($("<td>").css("width", "100%").append(text));
   const actions = $("<td class='action-cell'>").appendTo(row);
-  actions.append(button("save", "si-disk", "Save").on("click", function() {
+  const save = function() {
     const d = {text: text.val()};
-    if (m.id === null) call("POST", "/api/cw_messages", d);
-    else call("PUT", "/api/cw_messages/" + m.id, d);
-  }));
+    if (m.id === null) call("POST", "/api/cw_messages", d, row, function(r) { row.remove(); const rows = render(r), last = r.messages[r.messages.length - 1]; if (last && rows[String(last.id)]) EditFlow.state(rows[String(last.id)], "saved"); });
+    else call("PUT", "/api/cw_messages/" + m.id, d, row, function(r) { const rows = render(r); if (rows[String(m.id)]) EditFlow.state(rows[String(m.id)], "saved"); });
+  };
+  actions.append(button("save", "si-disk", "Save").on("click", save));
   actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {
-    if (m.id === null) row.remove();
-    else call("DELETE", "/api/cw_messages/" + m.id);
+    if (m.id === null) { row.remove(); EditFlow.tools(null, body); return; }
+    if (!EditFlow.confirmDelete('the message "' + m.text + '"', "It is gone from MSG → CW on the radio.")) return;
+    call("DELETE", "/api/cw_messages/" + m.id, null, null, function(r) {
+      render(r);
+      EditFlow.undo($("#status"), 'Deleted "' + m.text + '".', function() {
+        call("POST", "/api/cw_messages", {text: m.text}, null, function(r2) { render(r2); showStatus("Brought back (at the end of the list)"); });
+      });
+    });
   }));
+  EditFlow.watch(row, save);
+  if (m.id === null) EditFlow.state(row, "unsaved");
   return row;
 }
 
 var render = function(data) {
   max = data.max;
-  const body = $("#messages>tbody").empty();
-  data.messages.forEach(function(m) { body.append(messageRow(m)); });
+  return EditFlow.rebuild(body, function() { body.empty(); data.messages.forEach(function(m) { body.append(messageRow(m)); }); });
 }
 
 $("#add").on("click", function() {
   const row = messageRow({id: null, text: ""});
-  $("#messages>tbody").append(row);
+  body.append(row);
   row.find("input").focus();
 });
 

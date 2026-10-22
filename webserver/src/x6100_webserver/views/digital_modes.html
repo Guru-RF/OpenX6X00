@@ -10,10 +10,12 @@
   <thead><tr><th>Label</th><th class="freq">Freq, MHz</th><th>Mode</th><th>Type</th><th></th></tr></thead>
   <tbody></tbody></table>
 </div>
+<div class="actions"><span class="status"></span></div>
 </div>
 </section>
 
-<script src="/static/js/list_editor.js?v=1"></script>
+<script src="/static/js/edit_flow.js?v=1"></script>
+<script src="/static/js/list_editor.js?v=2"></script>
 <script>
 // src/cfg/digital_modes.h cfg_digital_type_t. Every type must be here: an entry of a missing one
 // would be saved as FT8 (its select would have no matching option)
@@ -30,6 +32,7 @@ listEditor({
   read: ([label, freq, mode, app]) => ({label: label.val(), freq: mhzToHz(freq), mode: Number(mode.val()),
                                         type: Number(app.val())}),
   blank: () => ({id: null, label: "New", freq: 14074000, mode: 3, type: 0}),
-  what: f => 'digital mode "' + f.label + '"',
+  what: f => 'the digital mode "' + f.label + '"',
+  effect: "at the next frequency step in the app",
 });
 </script>

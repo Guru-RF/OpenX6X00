@@ -10,10 +10,12 @@
   <thead><tr><th>Name</th><th class="freq">Start, MHz</th><th class="freq">Stop, MHz</th><th>Mode</th><th>Active</th><th></th></tr></thead>
   <tbody></tbody></table>
 </div>
+<div class="actions"><span class="status"></span></div>
 </div>
 </section>
 
-<script src="/static/js/list_editor.js?v=1"></script>
+<script src="/static/js/edit_flow.js?v=1"></script>
+<script src="/static/js/list_editor.js?v=2"></script>
 <script>
 listEditor({
   table: "#band_list", add: "#add_band", url: "/api/bands",
@@ -28,6 +30,7 @@ listEditor({
   read: ([name, start, stop, mode, active]) => ({name: name.val(), start_freq: mhzToHz(start), stop_freq: mhzToHz(stop),
                                                  params: {vfoa_mode: Number(mode.val())}, type: Number(active.prop("checked"))}),
   blank: () => ({id: null, name: "New", start_freq: 14000000, stop_freq: 14350000, params: {vfoa_mode: 2}, type: 1}),
-  what: b => 'band "' + b.name + '"',
+  what: b => 'the band "' + b.name + '"',
+  effect: "at the next band key or knob turn into the band",
 });
 </script>

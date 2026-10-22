@@ -58,6 +58,21 @@ button:hover{border-color:var(--dim)}
 .hc.stale{color:var(--accent);border-color:#7a5a16}
 .hc.off{color:var(--err);border-color:#7a2a2a}
 .hc.idle{opacity:.6}
+/* The edit flow (U04): a row's state, unsaved rows, the Save all bar, when a card takes effect */
+.rst{display:inline-block;margin-left:8px;font-size:12px;font-weight:500;color:var(--dim);vertical-align:middle;white-space:normal}
+.rst:empty{display:none}
+.rst[data-st=unsaved],.rst[data-st=changed]{color:var(--accent)}
+.rst[data-st=saving]{color:var(--dim)}
+.rst[data-st=saved],.rst[data-st=applied]{color:var(--ok)}
+.rst[data-st=failed]{color:var(--err)}
+.rst button{margin-left:6px}
+tr.unsaved td{background:rgba(255,176,32,.06)}
+tr.unsaved td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.dp-tools{display:flex;align-items:center;gap:10px;padding:8px 20px;border-bottom:1px solid var(--line);background:rgba(255,176,32,.08);font-size:13px;color:var(--accent)}
+button.sm{padding:4px 10px;font-size:12.5px;border-radius:6px}
+.eff{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:6px;font-size:11.5px;font-weight:500;color:var(--dim);border:1px solid var(--line);vertical-align:middle}
+.form-unsaved{color:var(--accent)}
+.form-unsaved .dot{background:var(--accent)}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{color:var(--dim);font-weight:500;text-align:left;padding:8px;border-bottom:1px solid var(--line)}

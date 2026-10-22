@@ -1,6 +1,6 @@
 % rebase('base.html', title='Memories')
 <h2><svg class="i"><use href="#i-bookmark"/></svg>Memories</h2>
-<p class="sub">MEM slots are the radio's MEM 1-9 buttons (hold to save, tap to load). Channels are the named list in APP → Channels; the radio picks up changes within a few seconds, unless the Channels dialog is open.</p>
+<p class="sub">MEM slots are the radio's MEM 1-9 buttons (hold to save, tap to load). Channels are the named list in APP → Channels. A row is saved with its own Save, or all at once; a cleared slot or a deleted channel can be brought back for twenty seconds.</p>
 
 <section class="dp-card">
 <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-bookmark"/></svg></span><div><h3>MEM slots</h3><p>The MEM 1-9 buttons: hold to save, tap to load</p></div></div>
@@ -32,11 +32,15 @@
 </div>
 </section>
 
+<script src="/static/js/edit_flow.js?v=1"></script>
 <script>
 // Same names as x6100_mode_t / x6100_agc_t
 const MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CWR", "AM", "NFM"];
 const AGCS = ["OFF", "SLOW", "FAST", "AUTO"];
 let max = 100;
+const slotsBody = $("#slots>tbody"), chBody = $("#channels>tbody");
+EditFlow.effect($("#slots").closest(".dp-card").find("h3"), "at the next tap of the MEM button");
+EditFlow.effect($("#channels").closest(".dp-card").find("h3"), "on the radio within a few seconds, unless APP → Channels is open there");
 
 var showStatus = function(kind, text, error=false) {
   const el = $("#status_" + kind);
@@ -83,63 +87,94 @@ var readRow = function(row, named) {
   return d;
 }
 
-var call = function(kind, type, url, payload, render) {
+/* type url payload, then done(list); on an error the row says why and keeps what was typed */
+var call = function(kind, type, url, payload, row, done) {
+  if (row) EditFlow.state(row, "saving");
   $.ajax({
-    url: url,
-    type: type,
-    data: payload ? JSON.stringify(payload) : undefined,
-    contentType: "application/json; charset=utf-8",
-    dataType: "json",
-    success: function(r) { render(r); showStatus(kind, "Saved"); },
-    error: function(xhr) { showStatus(kind, xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true); }
+    url: url, type: type, data: payload ? JSON.stringify(payload) : undefined,
+    contentType: "application/json; charset=utf-8", dataType: "json",
+    success: function(r) { done(r); },
+    error: function(xhr) {
+      const msg = xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")";
+      if (row) EditFlow.state(row, "failed", msg); else showStatus(kind, msg, true);
+    }
   });
 }
 
+var slotText = function(s) { return "MEM " + s.id + (s.frequency ? " (" + (s.frequency / 1e6).toFixed(3) + " MHz " + s.mode + ")" : ""); }
+
 var renderSlots = function(data) {
-  const body = $("#slots>tbody").empty();
-  data.slots.forEach(function(s) {
-    const row = makeRow(s, false);
-    const actions = $("<td class='action-cell'>").appendTo(row);
-    actions.append(button("save", "si-disk", "Save").on("click", function() {
-      call("slots", "PUT", "/api/memories/" + s.id, readRow(row, false), renderSlots);
-    }));
-    actions.append(" ", button("remove", "si-trash", "Clear").on("click", function() {
-      call("slots", "DELETE", "/api/memories/" + s.id, null, renderSlots);
-    }));
-    body.append(row);
+  return EditFlow.rebuild(slotsBody, function() {
+    slotsBody.empty();
+    data.slots.forEach(function(s) {
+      const row = makeRow(s, false).attr("data-key", String(s.id));
+      const actions = $("<td class='action-cell'>").appendTo(row);
+      const save = function() {
+        call("slots", "PUT", "/api/memories/" + s.id, readRow(row, false), row, function(r) { const rows = renderSlots(r); if (rows[String(s.id)]) EditFlow.state(rows[String(s.id)], "saved"); });
+      };
+      actions.append(button("save", "si-disk", "Save").on("click", save));
+      actions.append(" ", button("remove", "si-trash", "Clear").prop("disabled", !s.frequency).on("click", function() {
+        if (!EditFlow.confirmDelete(slotText(s), "The MEM " + s.id + " button then holds nothing.")) return;
+        call("slots", "DELETE", "/api/memories/" + s.id, null, null, function(r) {
+          renderSlots(r);
+          EditFlow.undo($("#status_slots"), "Cleared " + slotText(s) + ".", function() {
+            call("slots", "PUT", "/api/memories/" + s.id, {frequency: s.frequency, mode: s.mode, agc: s.agc, pre: s.pre, att: s.att}, null, function(r2) { renderSlots(r2); showStatus("slots", "Brought back"); });
+          });
+        });
+      }));
+      EditFlow.watch(row, save);
+      slotsBody.append(row);
+    });
   });
 }
 
 var renderChannels = function(data) {
   max = data.max;
-  const body = $("#channels>tbody").empty();
-  data.channels.forEach(function(c, i) { body.append(channelRow(c, i, data.channels.length)); });
+  return EditFlow.rebuild(chBody, function() { chBody.empty(); data.channels.forEach(function(c, i) { chBody.append(channelRow(c, i, data.channels.length)); }); });
 }
 
-// i is null for a new, not yet saved channel
+var chanText = function(c) { return '"' + c.name + '" (' + (c.frequency / 1e6).toFixed(3) + " MHz " + c.mode + ")"; }
+
+// i is null for a new, not yet saved channel. The row's key is what names the channel on the radio,
+// not its place: a delete above it moves it without losing its draft
 var channelRow = function(c, i, n) {
-  const row = makeRow(c, true);
+  const row = makeRow(c, true).attr("data-key", i === null ? "" : c.name + "|" + c.frequency + "|" + c.mode);
   const actions = $("<td class='action-cell'>").appendTo(row);
-  const move = function(to) { call("channels", "POST", "/api/channels/" + i + "/move", {to: to}, renderChannels); };
+  const move = function(to) { call("channels", "POST", "/api/channels/" + i + "/move", {to: to}, null, renderChannels); };
   if (i !== null) {
     actions.append(button("up", "", "Up").text("↑").prop("disabled", i == 0).on("click", function() { move(i - 1); }));
     actions.append(" ", button("down", "", "Down").text("↓").prop("disabled", i == n - 1).on("click", function() { move(i + 1); }));
   }
-  actions.append(" ", button("save", "si-disk", "Save").on("click", function() {
+  const save = function() {
     const d = readRow(row, true);
-    if (i === null) call("channels", "POST", "/api/channels", d, renderChannels);
-    else call("channels", "PUT", "/api/channels/" + i, d, renderChannels);
-  }));
+    if (i === null) call("channels", "POST", "/api/channels", d, row, function(r) { row.remove(); const rows = renderChannels(r), k = d.name.trim() + "|" + d.frequency + "|" + d.mode; if (rows[k]) EditFlow.state(rows[k], "saved"); });
+    else call("channels", "PUT", "/api/channels/" + i, d, row, function(r) { const rows = renderChannels(r), k = d.name + "|" + d.frequency + "|" + d.mode; if (rows[k]) EditFlow.state(rows[k], "saved"); });
+  };
+  actions.append(" ", button("save", "si-disk", "Save").on("click", save));
   actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {
-    if (i === null) row.remove();
-    else call("channels", "DELETE", "/api/channels/" + i, null, renderChannels);
+    if (i === null) { row.remove(); EditFlow.tools(null, chBody); return; }
+    if (!EditFlow.confirmDelete("the channel " + chanText(c), "It is gone from APP → Channels on the radio.")) return;
+    call("channels", "DELETE", "/api/channels/" + i, null, null, function(r) {
+      renderChannels(r);
+      EditFlow.undo($("#status_channels"), "Deleted " + chanText(c) + ".", function() {
+        call("channels", "POST", "/api/channels", {name: c.name, frequency: c.frequency, mode: c.mode, agc: c.agc, pre: c.pre, att: c.att}, null, function(r2) {
+          const back = r2.channels.length - 1;
+          if (back > i) call("channels", "POST", "/api/channels/" + back + "/move", {to: i}, null, function(r3) { renderChannels(r3); showStatus("channels", "Brought back"); });
+          else { renderChannels(r2); showStatus("channels", "Brought back"); }
+        });
+      });
+    });
   }));
+  EditFlow.watch(row, save);
+  if (i === null) EditFlow.state(row, "unsaved");
   return row;
 }
 
 $("#add").on("click", function() {
-  if ($("#channels>tbody>tr").length >= max) return showStatus("channels", "At most " + max + " channels", true);
-  $("#channels>tbody").append(channelRow({name: ""}, null, 0));
+  if (chBody.children("tr").length >= max) return showStatus("channels", "At most " + max + " channels", true);
+  const row = channelRow({name: ""}, null, 0);
+  chBody.append(row);
+  row.find("input").first().focus();
 });
 
 $.get('/api/memories', {}, renderSlots);

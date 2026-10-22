@@ -1,9 +1,9 @@
 % rebase('base.html', title='DX Cluster')
 <h2><svg class="i"><use href="#i-globe"/></svg>DX Cluster</h2>
-<p class="sub">Servers the radio can use (APP → Cluster). The one in use is marked; the radio reconnects when you change it.</p>
+<p class="sub">Servers the radio can use (APP → Cluster), the filters and the alerts. The one in use is marked; the radio reconnects when you change it. Filters and alerts apply to the next spots. A deleted server or alert can be brought back for twenty seconds.</p>
 
 <section class="dp-card">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-server"/></svg></span><div><h3>Servers</h3><p>Telnet servers; Use switches the radio to one</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-server"/></svg></span><div><h3>Servers<span class="eff">Takes effect: the radio reconnects within a few seconds</span></h3><p>Telnet servers; Use switches the radio to one</p></div></div>
   <div class="dp-body tbl">
 <div class="table-wrap">
 <table id="servers">
@@ -32,7 +32,7 @@
 </form>
 
 <section class="dp-card">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-filter"/></svg></span><div><h3>Filters</h3><p>Spots hidden here disappear from APP Cluster, the cluster column and the waterfall marks</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-filter"/></svg></span><div><h3>Filters<span class="eff">Takes effect: at the next spots</span></h3><p>Spots hidden here disappear from APP Cluster, the cluster column and the waterfall marks</p></div></div>
   <div class="dp-body">
   <p class="sub">Modes, bands and activity are also on the radio: Settings → Cluster.</p>
   <label>Modes</label>
@@ -71,7 +71,7 @@
 </section>
 
 <section class="dp-card">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-bell"/></svg></span><div><h3>Alerts</h3><p>Callsigns or prefixes you are looking for. <code>*</code> matches anything: VP8*, */P, 3Y0J.</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-bell"/></svg></span><div><h3>Alerts<span class="eff">Takes effect: at the next spots</span></h3><p>Callsigns or prefixes you are looking for. <code>*</code> matches anything: VP8*, */P, 3Y0J.</p></div></div>
   <div class="dp-row">
     <div class="dp-lbl"><b>Popup on the radio</b><span>When a spot matches an alert</span></div>
     <div class="dp-ctl"><label class="sw" title="Popup on the radio"><input type="checkbox" role="switch" id="popup" aria-label="Popup on the radio"><i></i></label></div>
@@ -112,6 +112,7 @@
   </div>
 </section>
 
+<script src="/static/js/edit_flow.js?v=1"></script>
 <script>
 var bandList = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6];
 bandList.forEach(function(b) { $("#bands").append($("<option>").val(b).text(b + " m")); });
@@ -133,7 +134,12 @@ var render = function(data) {
     row.append($("<td>").text(s.port));
     const actions = $("<td class='action-cell'>");
     if (!inUse) actions.append($("<button class='ghost'>Use</button>").on("click", function() { call("POST", "/api/cluster/use/" + i); }));
-    if (!inUse) actions.append(" ", $("<button class='ghost'>Delete</button>").on("click", function() { call("DELETE", "/api/cluster/servers/" + i); }));
+    if (!inUse) actions.append(" ", $("<button class='ghost'>Delete</button>").on("click", function() {
+      if (!EditFlow.confirmDelete('the server "' + s.name + '" (' + s.host + ":" + s.port + ")", "")) return;
+      call("DELETE", "/api/cluster/servers/" + i, null, "#status", function() {
+        EditFlow.undo($("#status"), 'Deleted "' + s.name + '".', function() { call("POST", "/api/cluster/servers", {name: s.name, host: s.host, port: s.port}, "#status", function() { showStatus("Brought back"); }); });
+      });
+    }));
     body.append(row.append(actions));
   });
 
@@ -156,24 +162,35 @@ var render = function(data) {
       call("PUT", "/api/cluster/alerts/" + i, {pattern: a.pattern, bands: a.bands ? a.bands.split(",").map(Number) : [],
                                                mode: a.mode, enabled: a.enabled === false}, "#astatus");
     });
-    row.append($("<td class='action-cell'>").append(flip, $("<button class='ghost'>Delete</button>").on("click", function() { call("DELETE", "/api/cluster/alerts/" + i, null, "#astatus"); })));
+    row.append($("<td class='action-cell'>").append(flip, $("<button class='ghost'>Delete</button>").on("click", function() {
+      if (!EditFlow.confirmDelete('the alert "' + a.pattern + '"', "")) return;
+      call("DELETE", "/api/cluster/alerts/" + i, null, "#astatus", function() {
+        EditFlow.undo($("#astatus"), 'Deleted "' + a.pattern + '".', function() {
+          call("POST", "/api/cluster/alerts", {pattern: a.pattern, bands: a.bands ? a.bands.split(",").map(Number) : [], mode: a.mode, enabled: a.enabled !== false}, "#astatus", function() { showStatus("Brought back", false, "#astatus"); });
+        });
+      });
+    })));
     alerts.append(row);
   });
   $("#popup").prop("checked", data.popup);
   $("#beep").prop("checked", data.beep);
+  filterForm.reset();
 }
 
-var call = function(type, url, payload, st="#status") {
+var call = function(type, url, payload, st="#status", then) {
+  showStatus("Saving...", false, st);
   $.ajax({
     url: url,
     type: type,
     data: payload ? JSON.stringify(payload) : undefined,
     contentType: "application/json; charset=utf-8",
     dataType: "json",
-    success: function(r) { render(r); showStatus("Saved", false, st); },
-    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true, st); }
+    success: function(r) { render(r); showStatus("Saved", false, st); if (then) then(r); },
+    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")", true, st); }
   });
 }
+/* The filters: Unsaved until Save, what was typed kept when the radio refuses it */
+const filterForm = EditFlow.form($("#save-filters").closest(".dp-body"), $("#fstatus"), $("#save-filters"));
 
 $.get('/api/cluster', {}, render);
 

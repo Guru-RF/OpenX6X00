@@ -3,7 +3,7 @@
 <p class="sub">POTA, SOTA, WWBOTA, HOTA and WWFF portable operation: reference lists for the radio, QRZ Logbook upload, HOTA and WWFF spots, activation logs.</p>
 
 <form class="dp-card" id="qrz">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>QRZ Logbook</h3><p>Up to three profiles, a callsign with its Logbook API key (QRZ.com, Logbook, Settings): the active one takes the uploads. The radio's log page can switch the active profile too. Uploading needs a QRZ.com Logbook API key, which QRZ.com only gives with a paid QRZ.com subscription (XML level or higher).</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>QRZ Logbook<span class="eff">Takes effect: at the next upload</span></h3><p>Up to three profiles, a callsign with its Logbook API key (QRZ.com, Logbook, Settings): the active one takes the uploads. The radio's log page can switch the active profile too. Uploading needs a QRZ.com Logbook API key, which QRZ.com only gives with a paid QRZ.com subscription (XML level or higher).</p></div></div>
   <div class="dp-row">
     <div class="dp-lbl"><label for="qcall1"><b>Profile 1</b> <input type="radio" name="qactive" value="1" id="qact1"> active</label><span id="qstate1"></span></div>
     <div class="dp-ctl"><input id="qcall1" type="text" autocomplete="off" maxlength="16" placeholder="Callsign" style="width:9em;text-transform:uppercase"> <input id="qkey1" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" class="qremove" data-n="1">Remove</button></div>
@@ -25,10 +25,10 @@
 </form>
 
 <form class="dp-card" id="hota">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>HOTA spots</h3><p>cqhota.app takes spots with your own key: cqhota.app, My account, Integration API key. Without it HOTA spots go to the DX cluster only. Key: <b id="hkey-state"></b></p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>HOTA spots<span class="eff">Takes effect: at the next spot</span></h3><p>cqhota.app takes spots with your own key: cqhota.app, My account, Integration API key. Without it HOTA spots go to the DX cluster only. Key: <b id="hkey-state"></b></p></div></div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="hkey"><b>Integration key</b></label><span>Empty = remove the key</span></div>
-    <div class="dp-ctl"><input id="hkey" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = remove)"></div>
+    <div class="dp-lbl"><label for="hkey"><b>Integration key</b></label><span>A new key replaces the stored one; empty keeps it. Remove takes it away.</span></div>
+    <div class="dp-ctl"><input id="hkey" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" class="kremove" data-name="hota">Remove</button></div>
   </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
@@ -39,10 +39,10 @@
 </form>
 
 <form class="dp-card" id="wwff">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>WWFF spots</h3><p>The WWFF Spotline (spots.wwff.co) takes spots with your own API key, asked to the Spotline team. Without it WWFF spots go to the DX cluster only. Key: <b id="wkey-state"></b></p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>WWFF spots<span class="eff">Takes effect: at the next spot</span></h3><p>The WWFF Spotline (spots.wwff.co) takes spots with your own API key, asked to the Spotline team. Without it WWFF spots go to the DX cluster only. Key: <b id="wkey-state"></b></p></div></div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="wkey"><b>API key</b></label><span>Empty = remove the key</span></div>
-    <div class="dp-ctl"><input id="wkey" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = remove)"></div>
+    <div class="dp-lbl"><label for="wkey"><b>API key</b></label><span>A new key replaces the stored one; empty keeps it. Remove takes it away.</span></div>
+    <div class="dp-ctl"><input id="wkey" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" class="kremove" data-name="wwff">Remove</button></div>
   </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
@@ -96,6 +96,8 @@ var render = function(data) {
   });
   $("#hkey-state").text(data.hota_key ? "set (hidden)" : "not set");
   $("#wkey-state").text(data.wwff_key ? "set (hidden)" : "not set");
+  $(".kremove[data-name=hota]").prop("disabled", !data.hota_key);
+  $(".kremove[data-name=wwff]").prop("disabled", !data.wwff_key);
   $("#refs").text(data.refs ? `${data.refs.parks} parks, ${data.refs.summits} summits, ${data.refs.bunkers} bunkers, ${data.refs.hota} HOTA, ${data.refs.wwff} WWFF · updated ${data.refs.date} · ${data.refs.size}` : "No list yet: press Update (needs internet on the radio).");
   $("#update").prop("disabled", data.update.running);
   if (data.update.running) {
@@ -132,24 +134,30 @@ var post = function(url, data, ok, statusId) {
 $("#qrz").on("submit", function(e) {
   e.preventDefault();
   var profiles = [1, 2, 3].map(function(n) { return {call: $("#qcall" + n).val().trim(), key: $("#qkey" + n).val().trim()}; });
-  post("/api/field/qrz", {active: parseInt($("input[name=qactive]:checked").val() || "0"), profiles: profiles}, "Saved", "#status");
+  post("/api/field/qrz", {active: parseInt($("input[name=qactive]:checked").val() || "0"), profiles: profiles}, "Saved: used at the next upload", "#status");
   [1, 2, 3].forEach(function(n) { $("#qkey" + n).val(""); });
 });
 
 $(".qremove").on("click", function() {
-  post("/api/field/qrz", {remove: parseInt($(this).data("n"))}, "Removed", "#status");
+  const n = $(this).data("n");
+  if (!confirm("Remove profile " + n + " (" + ($("#qcall" + n).val() || "no call") + ") and its key?")) return;
+  post("/api/field/qrz", {remove: parseInt(n)}, "Removed", "#status");
 });
 
-$("#hota").on("submit", function(e) {
-  e.preventDefault();
-  post("/api/field/hota", {key: $("#hkey").val().trim()}, "Saved", "#hstatus");
-  $("#hkey").val("");
+/* A key is only ever replaced by a typed one or taken away by Remove: an empty field changes nothing */
+[["hota", "#hkey", "#hstatus"], ["wwff", "#wkey", "#wstatus"]].forEach(function(k) {
+  $("#" + k[0]).on("submit", function(e) {
+    e.preventDefault();
+    const key = $(k[1]).val().trim();
+    if (!key) { showStatus(k[2], "Nothing typed: the stored key stays. Remove takes it away."); return; }
+    post("/api/field/" + k[0], {key: key}, "Saved: the new key is used at the next spot", k[2]);
+    $(k[1]).val("");
+  });
 });
-
-$("#wwff").on("submit", function(e) {
-  e.preventDefault();
-  post("/api/field/wwff", {key: $("#wkey").val().trim()}, "Saved", "#wstatus");
-  $("#wkey").val("");
+$(".kremove").on("click", function() {
+  const name = $(this).data("name");
+  if (!confirm("Remove the " + name.toUpperCase() + " key? Spots then go to the DX cluster only, until a new key is saved.")) return;
+  post("/api/field/" + name, {remove: true}, "Removed", name === "hota" ? "#hstatus" : "#wstatus");
 });
 
 $("#update").on("click", function() { post("/api/field/update", {}, null, "#ustatus"); });
