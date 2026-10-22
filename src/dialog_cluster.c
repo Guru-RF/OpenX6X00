@@ -648,17 +648,17 @@ uint32_t dialog_cluster_tuned(char *call, size_t size) {
 }
 
 void dialog_cluster_tune_spot(const cluster_spot_t *s) {
-    x6100_mode_t mode;
+    radio_mode_t mode;
 
     snprintf(tuned_call, sizeof(tuned_call), "%s", s->dx);
     tuned_seq++;
     switch (cluster_guess_mode(s)) {
-        case CLUSTER_MODE_CW:   mode = x6100_mode_cw; break;
-        case CLUSTER_MODE_LSB:  mode = x6100_mode_lsb; break;
-        case CLUSTER_MODE_DIGI: mode = x6100_mode_usb_dig; break;
-        case CLUSTER_MODE_AM:   mode = x6100_mode_am; break;
-        case CLUSTER_MODE_FM:   mode = x6100_mode_nfm; break;
-        default:                mode = x6100_mode_usb; break;
+        case CLUSTER_MODE_CW:   mode = radio_mode_cw; break;
+        case CLUSTER_MODE_LSB:  mode = radio_mode_lsb; break;
+        case CLUSTER_MODE_DIGI: mode = radio_mode_usb_dig; break;
+        case CLUSTER_MODE_AM:   mode = radio_mode_am; break;
+        case CLUSTER_MODE_FM:   mode = radio_mode_nfm; break;
+        default:                mode = radio_mode_usb; break;
     }
     main_screen_set_freq(s->freq_hz);
     cparam_i_set(cfg_cur_mode, mode);

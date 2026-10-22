@@ -1010,7 +1010,7 @@ static void load_band(int8_t dir)
 
     /* Frequency first, then mode - the order cfg_digital_load() uses. */
     cparam_i_set(cfg_fg_freq, (int32_t)psk_bands[idx].dial_hz);
-    cparam_i_set(cfg_cur_mode, x6100_mode_usb_dig);
+    cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
 
     msg_update_text_fmt("%s %s  %u.%03u MHz", mode_name(), psk_bands[idx].label,
                         (unsigned)(psk_bands[idx].dial_hz / 1000000u),

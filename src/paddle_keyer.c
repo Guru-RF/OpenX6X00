@@ -146,7 +146,7 @@ void paddle_keyer_stop(void) {
 bool paddle_keyer_active(void) {
     int32_t m = cparam_i_get(cfg_cur_mode);
 
-    return m == x6100_mode_cw || m == x6100_mode_cwr;
+    return m == radio_mode_cw || m == radio_mode_cwr;
 }
 
 bool paddle_keyer_key(int code) {
@@ -174,11 +174,11 @@ unsigned paddle_keyer_sources(const char **tty) {
 }
 
 static bool dit(void) {
-    return param_i_get(cfg_key_mode) == x6100_key_auto_right ? right : left;
+    return param_i_get(cfg_key_mode) == radio_key_auto_right ? right : left;
 }
 
 static bool dah(void) {
-    return param_i_get(cfg_key_mode) == x6100_key_auto_right ? left : right;
+    return param_i_get(cfg_key_mode) == radio_key_auto_right ? left : right;
 }
 
 static void key(bool on) {
@@ -324,11 +324,11 @@ static void * keyer_thread(void *arg) {
             atomic_store(&halt, false);
             continue;
         }
-        if (param_i_get(cfg_key_mode) == x6100_key_manual) {
+        if (param_i_get(cfg_key_mode) == radio_key_manual) {
             key(left);    /* a straight key */
             continue;
         }
-        k = (iambic_t){.mode_b = param_i_get(cfg_iambic_mode) == x6100_iambic_b};
+        k = (iambic_t){.mode_b = param_i_get(cfg_iambic_mode) == radio_iambic_b};
         clock_gettime(CLOCK_MONOTONIC, &t);
         while (!atomic_load(&halt) && (el = iambic_next(&k, dit(), dah())) != PADDLE_NONE) {
             long dit_nsec = 1200000000L / param_i_get(cfg_key_speed);

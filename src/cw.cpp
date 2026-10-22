@@ -117,9 +117,9 @@ static void on_freq_change(Subject *subj, void *user_data) {
     int32_t mode = cfg_sm.cp_cur_mode.get();
 
     last_freq = freq;
-    if ((mode == x6100_mode_cw || mode == x6100_mode_cwr) && d != 0 && d >= -1500 && d <= 1500) {
+    if ((mode == radio_mode_cw || mode == radio_mode_cwr) && d != 0 && d >= -1500 && d <= 1500) {
         float s = rx_shift.load();
-        while (!rx_shift.compare_exchange_weak(s, s + (mode == x6100_mode_cw ? -d : d))) {}
+        while (!rx_shift.compare_exchange_weak(s, s + (mode == radio_mode_cw ? -d : d))) {}
     }
 }
 

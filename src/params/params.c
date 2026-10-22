@@ -612,22 +612,22 @@ void params_str_set(params_str_t *var, const char *x) {
     params_unlock(&var->dirty);
 }
 
-inline char * params_key_mode_str_get(x6100_key_mode_t val) {
+inline char * params_key_mode_str_get(radio_key_mode_t val) {
     switch (val) {
-        case x6100_key_manual:
+        case radio_key_manual:
             return "Manual";
-        case x6100_key_auto_left:
+        case radio_key_auto_left:
             return "Auto-L";
-        case x6100_key_auto_right:
+        case radio_key_auto_right:
             return "Auto-R";
     }
 }
 
-inline char * params_iambic_mode_str_ger(x6100_iambic_mode_t val) {
+inline char * params_iambic_mode_str_ger(radio_iambic_mode_t val) {
     switch (val) {
-        case x6100_iambic_a:
+        case radio_iambic_a:
             return "A";
-        case x6100_iambic_b:
+        case radio_iambic_b:
             return "B";
     }
 }

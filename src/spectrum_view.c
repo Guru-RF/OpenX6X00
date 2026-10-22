@@ -440,16 +440,16 @@ static void on_zoom_changed(Subject *subj, void *user_data) {
 }
 
 /* The modes that listen below the VFO */
-static bool below(x6100_mode_t mode) {
-    return mode == x6100_mode_lsb || mode == x6100_mode_lsb_dig || mode == x6100_mode_cwr;
+static bool below(radio_mode_t mode) {
+    return mode == radio_mode_lsb || mode == radio_mode_lsb_dig || mode == radio_mode_cwr;
 }
 
 static void on_filter_change(Subject *subj, void *user_data) {
     int32_t      low = subject_i_get((SubjectInt *)cfg_cur_filter_low);
     int32_t      high = subject_i_get((SubjectInt *)cfg_cur_filter_high);
-    x6100_mode_t mode = subject_i_get((SubjectInt *)cfg_cur_mode);
+    radio_mode_t mode = subject_i_get((SubjectInt *)cfg_cur_mode);
 
-    if (mode == x6100_mode_am || mode == x6100_mode_nfm) {
+    if (mode == radio_mode_am || mode == radio_mode_nfm) {
         pass_lo = -high;        /* both sidebands */
         pass_hi = high;
     } else if (below(mode)) {
@@ -467,10 +467,10 @@ static void on_notch_change(Subject *subj, void *user_data) {
     /* Redrawn on the next loop: the change may come from another thread (CAT) */
     lv_async_call((void (*)(void *))lv_obj_invalidate, obj);
 
-    x6100_mode_t mode = subject_i_get((SubjectInt *)cfg_cur_mode);
+    radio_mode_t mode = subject_i_get((SubjectInt *)cfg_cur_mode);
 
     notch_on = subject_i_get((SubjectInt *)cfg_dnf) && !subject_i_get((SubjectInt *)cfg_dnf_auto) &&
-               mode != x6100_mode_am && mode != x6100_mode_nfm;
+               mode != radio_mode_am && mode != radio_mode_nfm;
     if (notch_on) {
         notch_half = subject_i_get((SubjectInt *)cfg_dnf_width);
         notch_hz = subject_i_get((SubjectInt *)cfg_dnf_center);
@@ -479,9 +479,9 @@ static void on_notch_change(Subject *subj, void *user_data) {
 }
 
 static void on_mode_change(Subject *subj, void *user_data) {
-    x6100_mode_t mode = subject_i_get((SubjectInt *)subj);
+    radio_mode_t mode = subject_i_get((SubjectInt *)subj);
 
-    vfo_line_on = mode != x6100_mode_cw && mode != x6100_mode_cwr;
+    vfo_line_on = mode != radio_mode_cw && mode != radio_mode_cwr;
 }
 
 static void on_lo_offset_change(Subject *subj, void *user_data) {

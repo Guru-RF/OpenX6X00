@@ -108,9 +108,9 @@ static lv_timer_t *timer_once(lv_timer_cb_t cb, uint32_t ms) {
 }
 
 static bool cw_mode(void) {
-    x6100_mode_t mode = cparam_i_get(cfg_cur_mode);
+    radio_mode_t mode = cparam_i_get(cfg_cur_mode);
 
-    return mode == x6100_mode_cw || mode == x6100_mode_cwr;
+    return mode == radio_mode_cw || mode == radio_mode_cwr;
 }
 
 static void toggle_freq_lock(void) {
@@ -334,7 +334,7 @@ void mem_save(uint16_t id) {
     }
 }
 
-/* AGC key and the MFK "AGC" button: Off, Slow, Fast, Auto and round, the order of x6100_agc_t */
+/* AGC key and the MFK "AGC" button: Off, Slow, Fast, Auto and round, the order of radio_agc_t */
 void main_screen_agc_next() {
     cparam_i_set(cfg_cur_agc, (cparam_i_get(cfg_cur_agc) + 1) % 4);
     if (params.mag_info.x) {
@@ -579,11 +579,11 @@ static void msg_dialog_open(dialog_t *dialog) {
 
 /* CW messages in CW, voice messages in the voice modes, nothing in the digital ones */
 static void msg_key(void) {
-    x6100_mode_t mode = cparam_i_get(cfg_cur_mode);
+    radio_mode_t mode = cparam_i_get(cfg_cur_mode);
 
     if (cw_mode()) {
         msg_dialog_open(dialog_msg_cw);
-    } else if (mode == x6100_mode_lsb || mode == x6100_mode_usb || mode == x6100_mode_am || mode == x6100_mode_nfm) {
+    } else if (mode == radio_mode_lsb || mode == radio_mode_usb || mode == radio_mode_am || mode == radio_mode_nfm) {
         msg_dialog_open(dialog_msg_voice);
     } else {
         msg_tiny_set_text_fmt("Not used in this mode");
@@ -592,12 +592,12 @@ static void msg_key(void) {
 
 /* SSB key: a press swaps LSB and USB, a long press turns DIG on or off; from any other
  * mode it goes to LSB */
-static x6100_mode_t ssb_key_mode(x6100_mode_t mode, bool hold) {
-    bool lower = mode == x6100_mode_lsb || mode == x6100_mode_lsb_dig;
-    bool dig   = mode == x6100_mode_lsb_dig || mode == x6100_mode_usb_dig;
+static radio_mode_t ssb_key_mode(radio_mode_t mode, bool hold) {
+    bool lower = mode == radio_mode_lsb || mode == radio_mode_lsb_dig;
+    bool dig   = mode == radio_mode_lsb_dig || mode == radio_mode_usb_dig;
 
-    if (!lower && mode != x6100_mode_usb && mode != x6100_mode_usb_dig) {
-        return x6100_mode_lsb;
+    if (!lower && mode != radio_mode_usb && mode != radio_mode_usb_dig) {
+        return radio_mode_lsb;
     }
     if (hold) {
         dig = !dig;
@@ -605,19 +605,19 @@ static x6100_mode_t ssb_key_mode(x6100_mode_t mode, bool hold) {
         lower = !lower;
     }
     if (lower) {
-        return dig ? x6100_mode_lsb_dig : x6100_mode_lsb;
+        return dig ? radio_mode_lsb_dig : radio_mode_lsb;
     }
-    return dig ? x6100_mode_usb_dig : x6100_mode_usb;
+    return dig ? radio_mode_usb_dig : radio_mode_usb;
 }
 
 /* The three mode keys, pressed or held: AM/NFM, CW/CW-R, SSB as above */
 static void mode_key(keypad_key_t key, bool hold) {
-    x6100_mode_t mode = cparam_i_get(cfg_cur_mode);
+    radio_mode_t mode = cparam_i_get(cfg_cur_mode);
 
     if (key == KEYPAD_MODE_AM) {
-        mode = mode == x6100_mode_am ? x6100_mode_nfm : x6100_mode_am;
+        mode = mode == radio_mode_am ? radio_mode_nfm : radio_mode_am;
     } else if (key == KEYPAD_MODE_CW) {
-        mode = mode == x6100_mode_cw ? x6100_mode_cwr : x6100_mode_cw;
+        mode = mode == radio_mode_cw ? radio_mode_cwr : radio_mode_cw;
     } else {
         mode = ssb_key_mode(mode, hold);
     }
@@ -756,7 +756,7 @@ static void front_key_cb(lv_event_t *e) {
                 spectrum_clear();
                 tiny_vfo();
             } else if (hold) {
-                bool on_a = param_i_get(cfg_band_current_vfo) == X6100_VFO_A;
+                bool on_a = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
 
                 cfg_band_vfo_copy();
                 msg_update_text_fmt("Clone VFO %s", on_a ? "A->B" : "B->A");
@@ -869,13 +869,13 @@ static void mic_key_cb(lv_event_t *e) {
         /* Hand mic MODE: press steps LSB, USB, CW, CW-R, AM, NFM; long press is the SSB key's long press (DIG on/off) */
         case HKEY_MODE:
             if (!mode_lock && tap) {
-                static const x6100_mode_t order[] = {x6100_mode_lsb, x6100_mode_usb, x6100_mode_cw,
-                                                     x6100_mode_cwr, x6100_mode_am,  x6100_mode_nfm};
-                x6100_mode_t mode = cparam_i_get(cfg_cur_mode);
+                static const radio_mode_t order[] = {radio_mode_lsb, radio_mode_usb, radio_mode_cw,
+                                                     radio_mode_cwr, radio_mode_am,  radio_mode_nfm};
+                radio_mode_t mode = cparam_i_get(cfg_cur_mode);
                 size_t       i    = 0;
 
-                if (mode == x6100_mode_lsb_dig || mode == x6100_mode_usb_dig) {
-                    mode = mode == x6100_mode_lsb_dig ? x6100_mode_lsb : x6100_mode_usb;
+                if (mode == radio_mode_lsb_dig || mode == radio_mode_usb_dig) {
+                    mode = mode == radio_mode_lsb_dig ? radio_mode_lsb : radio_mode_usb;
                 }
                 while (i < sizeof(order) / sizeof(order[0]) && order[i] != mode) {
                     i++;
@@ -997,11 +997,11 @@ static void plan_mode(int32_t old, int32_t freq) {
     if (!param_i_get(cfg_mode_from_plan) || to < 0 || to == from || main_screen_mode_locked()) return;
 
     int32_t mode = cparam_i_get(cfg_cur_mode);
-    bool    ssb  = mode == x6100_mode_lsb || mode == x6100_mode_usb;
-    bool    cw   = mode == x6100_mode_cw || mode == x6100_mode_cwr;
+    bool    ssb  = mode == radio_mode_lsb || mode == radio_mode_usb;
+    bool    cw   = mode == radio_mode_cw || mode == radio_mode_cwr;
 
     if (to == BP_CW && ssb) {
-        cparam_i_set(cfg_cur_mode, x6100_mode_cw);
+        cparam_i_set(cfg_cur_mode, radio_mode_cw);
     } else if (to == BP_ALL && cw) {
         cparam_i_set(cfg_cur_mode, cfg_default_mode(freq));
     }

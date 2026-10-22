@@ -510,7 +510,7 @@ static void load_band(int8_t dir)
     dial_offset_hz = 0;
     refresh_btn(&btn_dial);
     cparam_i_set(cfg_fg_freq, (int32_t)bands[idx].dial_hz);
-    cparam_i_set(cfg_cur_mode, x6100_mode_usb_dig);
+    cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
     msg_update_text_fmt("JTTY %s  %u.%03u MHz", bands[idx].label, (unsigned)(bands[idx].dial_hz / 1000000u),
                         (unsigned)((bands[idx].dial_hz / 1000u) % 1000u));
 }

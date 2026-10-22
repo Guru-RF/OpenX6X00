@@ -47,7 +47,7 @@ static char      done[LINE_MAX + 1];   /* Live: the line keyed so far, until Ent
 static bool can_send(void) {
     int32_t m = cparam_i_get(cfg_cur_mode);
 
-    return (m == x6100_mode_cw || m == x6100_mode_cwr) && band_plan_is_cw(cparam_i_get(cfg_fg_freq)) &&
+    return (m == radio_mode_cw || m == radio_mode_cwr) && band_plan_is_cw(cparam_i_get(cfg_fg_freq)) &&
            !dialog_is_run();
 }
 

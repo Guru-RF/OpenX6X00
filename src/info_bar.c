@@ -175,8 +175,8 @@ static void deck_atu_update(Subject *subj, void *user_data) {
 }
 
 static void deck_update(Subject *subj, void *user_data) {
-    static const char *const agc[] = {"AGC OFF", "AGC-S", "AGC-F", "AGC-A"};   /* x6100_agc_t order */
-    x6100_agc_t a = cparam_i_get(cfg_cur_agc);
+    static const char *const agc[] = {"AGC OFF", "AGC-S", "AGC-F", "AGC-A"};   /* radio_agc_t order */
+    radio_agc_t a = cparam_i_get(cfg_cur_agc);
     int32_t     bw = cparam_i_get(cfg_cur_filter_bw), step = param_i_get(cfg_mode_freq_step);
     int32_t     half = 50000 / (params.waterfall_zoom.x ? LV_MAX(1, param_i_get(cfg_mode_zoom)) : 1);
 
@@ -191,9 +191,9 @@ static void deck_update(Subject *subj, void *user_data) {
     deck_set(D_SPL, param_i_get(cfg_band_split));
     deck_set(D_RIT, param_i_get(cfg_rit));
     deck_set(D_XIT, param_i_get(cfg_xit));
-    lv_label_set_text(deck_ind[D_AGC], a <= x6100_agc_auto ? agc[a] : "AGC");
-    lv_obj_set_style_text_color(deck_ind[D_AGC], a == x6100_agc_off ? TC(text_mute) : TC(ok), 0);
-    lv_obj_set_style_bg_opa(deck_ind[D_AGC], a == x6100_agc_off ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
+    lv_label_set_text(deck_ind[D_AGC], a <= radio_agc_auto ? agc[a] : "AGC");
+    lv_obj_set_style_text_color(deck_ind[D_AGC], a == radio_agc_off ? TC(text_mute) : TC(ok), 0);
+    lv_obj_set_style_bg_opa(deck_ind[D_AGC], a == radio_agc_off ? LV_OPA_TRANSP : LV_OPA_COVER, 0);
 
     lv_label_set_text(deck_mode, info_params_mode_label_get());
     if (bw >= 1000) snprintf(b, sizeof(b), "%d.%dk", (int)(bw / 1000), (int)(bw % 1000 / 100));
@@ -296,19 +296,19 @@ static const char *name_of(const char *const *names, size_t n, int32_t i) {
 }
 
 const char *info_params_mode_label_get(void) {
-    static const char *const names[] = {"LSB", "LSB-D", "USB", "USB-D", "CW", "CW-R", "AM", "NFM"};   /* x6100_mode_t order */
+    static const char *const names[] = {"LSB", "LSB-D", "USB", "USB-D", "CW", "CW-R", "AM", "NFM"};   /* radio_mode_t order */
 
     return name_of(names, sizeof(names) / sizeof(names[0]), cparam_i_get(cfg_cur_mode));
 }
 
 const char *info_params_agc(void) {
-    static const char *const names[] = {"OFF", "SLOW", "FAST", "AUTO"};   /* x6100_agc_t order */
+    static const char *const names[] = {"OFF", "SLOW", "FAST", "AUTO"};   /* radio_agc_t order */
 
     return name_of(names, sizeof(names) / sizeof(names[0]), cparam_i_get(cfg_cur_agc));
 }
 
 const char *info_params_vfo_label_get(void) {
-    bool b = param_i_get(cfg_band_current_vfo) != X6100_VFO_A;
+    bool b = param_i_get(cfg_band_current_vfo) != RADIO_VFO_A;
 
     if (param_i_get(cfg_band_split)) return b ? "SPL-B" : "SPL-A";
     return b ? "VFO-B" : "VFO-A";
@@ -424,8 +424,8 @@ static void vfo_update(Subject *subj, void *user_data) {
 
 /* Digital modes in their own colour; a mode an app holds, soft */
 static void mode_update(Subject *subj, void *user_data) {
-    x6100_mode_t m   = cparam_i_get(cfg_cur_mode);
-    bool         dig = m == x6100_mode_lsb_dig || m == x6100_mode_usb_dig;
+    radio_mode_t m   = cparam_i_get(cfg_cur_mode);
+    bool         dig = m == radio_mode_lsb_dig || m == radio_mode_usb_dig;
 
     lv_label_set_text(items[INFO_MODE], info_params_mode_label_get());
     lv_obj_set_style_text_color(items[INFO_MODE], dig ? TC(mode_dig) : subject_i_get(mode_locked) ? TC(text_soft) : TC(text), 0);

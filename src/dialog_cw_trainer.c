@@ -109,7 +109,7 @@ static bool    active;      /* between construct and destruct */
 static bool           saved;
 static int32_t        prev_train;
 static bool           mode_changed;
-static x6100_mode_t   prev_mode;
+static radio_mode_t   prev_mode;
 
 /* Learn */
 static char     target[TARGET_MAX];
@@ -229,7 +229,7 @@ static bool force_train(void) {
 
 static bool is_cw(void) {
     int32_t m = cparam_i_get(cfg_cur_mode);
-    return m == x6100_mode_cw || m == x6100_mode_cwr;
+    return m == radio_mode_cw || m == radio_mode_cwr;
 }
 
 /* Decoder */
@@ -1104,8 +1104,8 @@ static void construct_cb(lv_obj_t *parent) {
     /* CW mode: the decoder listens only there */
     mode_changed = !is_cw();
     if (mode_changed) {
-        prev_mode = (x6100_mode_t)cparam_i_get(cfg_cur_mode);
-        cparam_i_set(cfg_cur_mode, x6100_mode_cw);
+        prev_mode = (radio_mode_t)cparam_i_get(cfg_cur_mode);
+        cparam_i_set(cfg_cur_mode, radio_mode_cw);
     }
     main_screen_lock_mode(true);
     panel_hide();

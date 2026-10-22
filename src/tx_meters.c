@@ -36,7 +36,7 @@
 /* The readings of this TX: smoothed, except in the digital modes where each tone counts */
 static float         pwr, vswr, alc;
 static uint8_t       msg_id;          /* one more with each reading (tx_info_refresh()) */
-static x6100_mode_t  cur_mode;        /* followed from the first mode change on */
+static radio_mode_t  cur_mode;        /* followed from the first mode change on */
 
 static lv_obj_t     *obj;        /* "TX" in the S-meter box */
 static lv_obj_t     *panel;      /* big TX panel under the top bars */
@@ -74,7 +74,7 @@ static void mode_changed(Subject *subj, void *user_data) {
  * set (dummy load, 2026-10-17: 1 W ALC 5.5, 5 W 4.9, power right), so the ALC only shows how far
  * down; nothing for the operator to set, shown greyed */
 static bool alc_greyed(void) {
-    return cur_mode == x6100_mode_cw || cur_mode == x6100_mode_cwr;
+    return cur_mode == radio_mode_cw || cur_mode == radio_mode_cwr;
 }
 
 /* One bar row: SLICES slices, lit up to val; SWR turns yellow then red. */
@@ -360,7 +360,7 @@ lv_obj_t *tx_info_init(lv_obj_t *parent) {
 void tx_info_update(float p, float s, float a) {
     a = ALC_MAX - a;
     s = LV_MIN(SWR_MAX, s);
-    if (cur_mode == x6100_mode_lsb_dig || cur_mode == x6100_mode_usb_dig) {
+    if (cur_mode == radio_mode_lsb_dig || cur_mode == radio_mode_usb_dig) {
         pwr = p;
         alc = a;
         vswr = s;

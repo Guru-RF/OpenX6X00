@@ -106,7 +106,7 @@ static T turn(Parameter<T, D, S> &p, int32_t diff, T step) {
 static int32_t filter_high_step() {
     int32_t mode = cfg_sm.cp_cur_mode.get();
 
-    return mode == x6100_mode_cw || mode == x6100_mode_cwr ? 10 : 50;
+    return mode == radio_mode_cw || mode == radio_mode_cwr ? 10 : 50;
 }
 
 /* One step round a setting of n values (0 .. n-1) */
@@ -196,13 +196,13 @@ void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {
             break;
 
         case CTRL_KEY_MODE:     /* manual, auto left, auto right */
-            i = cycle(cfg_sm.p_key_mode, x6100_key_auto_right + 1, diff);
-            snprintf(buf, size, "Key mode: %s", params_key_mode_str_get((x6100_key_mode_t)i));
+            i = cycle(cfg_sm.p_key_mode, radio_key_auto_right + 1, diff);
+            snprintf(buf, size, "Key mode: %s", params_key_mode_str_get((radio_key_mode_t)i));
             break;
 
         case CTRL_IAMBIC_MODE:  /* A, B */
-            i = cycle(cfg_sm.p_iambic_mode, x6100_iambic_b + 1, diff);
-            snprintf(buf, size, "Iambic mode: %s", params_iambic_mode_str_ger((x6100_iambic_mode_t)i));
+            i = cycle(cfg_sm.p_iambic_mode, radio_iambic_b + 1, diff);
+            snprintf(buf, size, "Iambic mode: %s", params_iambic_mode_str_ger((radio_iambic_mode_t)i));
             break;
 
         case CTRL_RTTY_RATE:
@@ -299,7 +299,7 @@ void controls_toggle_key_train(button_data_t *data) {
 }
 
 void controls_toggle_key_iambic_mode(button_data_t *data) {
-    cfg_sm.p_iambic_mode.set(cfg_sm.p_iambic_mode.get() == x6100_iambic_a ? x6100_iambic_b : x6100_iambic_a);
+    cfg_sm.p_iambic_mode.set(cfg_sm.p_iambic_mode.get() == radio_iambic_a ? radio_iambic_b : radio_iambic_a);
 }
 
 void controls_toggle_cw_decoder(button_data_t *data) {
@@ -351,7 +351,7 @@ void controls_span_narrower(button_data_t *data) {
 void controls_cw_zap(button_data_t *data) {
     int32_t mode = cfg_sm.cp_cur_mode.get();
 
-    if (mode != x6100_mode_cw && mode != x6100_mode_cwr) {
+    if (mode != radio_mode_cw && mode != radio_mode_cwr) {
         return;
     }
 
@@ -360,7 +360,7 @@ void controls_cw_zap(button_data_t *data) {
     int32_t freq      = cfg_sm.cp_fg_freq.get();
 
     LV_LOG_USER("tone_freq: %f, key_tone: %i", tone_freq, key_tone);
-    if (mode == x6100_mode_cw) {
+    if (mode == radio_mode_cw) {
         freq += tone_freq - key_tone;
     } else {
         freq -= tone_freq - key_tone;

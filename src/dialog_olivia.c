@@ -762,7 +762,7 @@ static void load_band(int8_t dir)
 
     /* Frequency first, then mode - the order cfg_digital_load() uses. */
     cparam_i_set(cfg_fg_freq, (int32_t)olivia_bands[idx].dial_hz);
-    cparam_i_set(cfg_cur_mode, x6100_mode_usb_dig);
+    cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
 
     /* The listed dial frequencies assume the waterfall centre at 1500. */
     olivia_tx_set_center(BAND_CENTER_HZ);

@@ -11,6 +11,8 @@
 #include <stdbool.h>
 #include <aether_radio/x6100_control/control.h>
 
+#include "radio_types.h"
+
 #include "lvgl/lvgl.h"
 #include "audio.h"
 
@@ -50,7 +52,7 @@ radio_state_t radio_get_state();
 void radio_set_freq(int32_t freq);
 bool radio_check_freq(int32_t freq);
 
-x6100_vfo_t radio_toggle_vfo();
+radio_vfo_t radio_toggle_vfo();
 
 uint16_t radio_change_vol(int16_t df);
 bool radio_change_spmode(int16_t df);
@@ -78,7 +80,7 @@ void radio_stop_swrscan();
 
 void radio_poweroff();
 void radio_set_ptt(bool tx);
-/* The mic of the baseband without saving it (x6100_mic_sel_t), -1: back to cfg_mic */
+/* The mic of the baseband without saving it (radio_mic_sel_t), -1: back to cfg_mic */
 void radio_set_mic_override(int mic);
 /* The mic in use: the override, else cfg_mic */
 int radio_get_mic(void);

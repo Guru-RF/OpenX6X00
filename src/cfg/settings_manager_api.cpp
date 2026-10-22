@@ -48,7 +48,7 @@ void cfg_vfo_toggle(void) {
 }
 
 int32_t cfg_default_mode(int32_t freq) {
-    return freq < 10000000 ? x6100_mode_lsb : x6100_mode_usb;
+    return freq < 10000000 ? radio_mode_lsb : radio_mode_usb;
 }
 
 int cfg_bands_active(int32_t *start, int32_t *stop, char (*names)[16], int max) {

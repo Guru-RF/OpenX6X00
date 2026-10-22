@@ -2127,7 +2127,7 @@ static const char *where_label(void)
  * retune. */
 static void js8_usb_dig(void)
 {
-    const int want = x6100_mode_usb_dig;
+    const int want = radio_mode_usb_dig;
     if (cparam_i_get(cfg_cur_mode) == want) return;
     cparam_i_set(cfg_cur_mode, want);
 }

@@ -13,6 +13,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "../radio_types.h"
 #include "../lvgl/lvgl.h"
 
 #include "../common/type_utils.h"
@@ -600,7 +601,7 @@ class MemoryTable {
 
 // Read-only presets of digital mode working frequencies (FT8/FT4), mirroring
 // the legacy `digital_modes` table from sql/params.sql. Each row carries a
-// label, a frequency and the radio mode (always x6100_mode_usb_dig in the
+// label, a frequency and the radio mode (always radio_mode_usb_dig in the
 // seed data). Navigation is directional: find_next/find_prev return the
 // preset strictly above/below a frequency, find_closest the nearest one.
 class DigitalModesTable {

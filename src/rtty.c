@@ -68,7 +68,7 @@ static bool           rx_letter     = true;
 static bool         ready = false;
 static rtty_state_t state = RTTY_OFF;
 
-static x6100_mode_t cur_mode;
+static radio_mode_t cur_mode;
 
 static const char rtty_letters[32] = {'\0', 'E', '\n', 'A', ' ', 'S', 'I', 'U', '\0', 'D', 'R',
                                       'J',  'N', 'F',  'C', 'K', 'T', 'Z', 'L', 'W',  'H', 'Y',
@@ -309,8 +309,8 @@ void rtty_put_audio_samples(unsigned int n, float *samples) {
         return;
     }
 
-    bool  mark_hi = ((cur_mode == x6100_mode_usb || cur_mode == x6100_mode_usb_dig) && !params.rtty_reverse) ||
-                    ((cur_mode == x6100_mode_lsb || cur_mode == x6100_mode_lsb_dig) && params.rtty_reverse);
+    bool  mark_hi = ((cur_mode == radio_mode_usb || cur_mode == radio_mode_usb_dig) && !params.rtty_reverse) ||
+                    ((cur_mode == radio_mode_lsb || cur_mode == radio_mode_lsb_dig) && params.rtty_reverse);
     float half = params.rtty_shift / 2.0f;
     float bw = params.rtty_rate / 100.0f * 1.5f;   /* a baud and a half */
     float c_mark[3], c_space[3];
@@ -349,8 +349,8 @@ void rtty_put_audio_samples(unsigned int n, float *samples) {
         float pwr1 = 10.0f * log10f(fskdem_get_symbol_energy(demod, 1, 1));
         float pwr  = pwr0 - pwr1;
 
-        if (((cur_mode == x6100_mode_usb || cur_mode == x6100_mode_usb_dig) && !params.rtty_reverse) ||
-            ((cur_mode == x6100_mode_lsb || cur_mode == x6100_mode_lsb_dig) && params.rtty_reverse)) {
+        if (((cur_mode == radio_mode_usb || cur_mode == radio_mode_usb_dig) && !params.rtty_reverse) ||
+            ((cur_mode == radio_mode_lsb || cur_mode == radio_mode_lsb_dig) && params.rtty_reverse)) {
             pwr = -pwr;
         }
 
@@ -657,8 +657,8 @@ static void tx_start(const char *text) {
     job->baud = params.rtty_rate / 100.0f;
 
     /* The tones the receiver takes for mark and space (rtty_put_audio_samples) */
-    bool mark_hi = ((cur_mode == x6100_mode_usb || cur_mode == x6100_mode_usb_dig) && !params.rtty_reverse) ||
-                   ((cur_mode == x6100_mode_lsb || cur_mode == x6100_mode_lsb_dig) && params.rtty_reverse);
+    bool mark_hi = ((cur_mode == radio_mode_usb || cur_mode == radio_mode_usb_dig) && !params.rtty_reverse) ||
+                   ((cur_mode == radio_mode_lsb || cur_mode == radio_mode_lsb_dig) && params.rtty_reverse);
     float half = params.rtty_shift / 2.0f;
     job->mark_hz  = params.rtty_center + (mark_hi ? half : -half);
     job->space_hz = params.rtty_center + (mark_hi ? -half : half);

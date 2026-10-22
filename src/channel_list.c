@@ -33,46 +33,46 @@ static struct timespec  file_time;     /* mtime when this GUI last read or wrote
 
 /* What a new radio starts with: weather and navigation broadcasts worth a listen */
 static const channel_t presets[] = {
-    { "NAVTEX MF",       517000,   x6100_mode_usb_dig, x6100_agc_slow },
-    { "NAVTEX HF",       4208500,  x6100_mode_usb_dig, x6100_agc_slow },
-    { "SHANNON VOLMET",  3413000,  x6100_mode_usb,     x6100_agc_fast },
-    { "SHANNON VOLMET",  5505000,  x6100_mode_usb,     x6100_agc_fast },
-    { "SHANNON VOLMET",  8957000,  x6100_mode_usb,     x6100_agc_fast },
-    { "SHANNON VOLMET",  13264000, x6100_mode_usb,     x6100_agc_fast },
-    { "RTTY DWD DDK2",   4582200,  x6100_mode_usb_dig, x6100_agc_fast },
-    { "RTTY DWD DDH7",   7645200,  x6100_mode_usb_dig, x6100_agc_fast },
-    { "RTTY DWD DDK9",   10100000, x6100_mode_usb_dig, x6100_agc_fast },
-    { "RTTY DWD DDH9",   11038200, x6100_mode_usb_dig, x6100_agc_fast },
-    { "RTTY DWD DDH8",   14466500, x6100_mode_usb_dig, x6100_agc_fast },
-    { "WEFAX DWD DDH3",  3853500,  x6100_mode_usb_dig, x6100_agc_slow },
-    { "WEFAX DWD DDK3",  7878470,  x6100_mode_usb_dig, x6100_agc_slow },
-    { "WEFAX DWD DDK6",  13881000, x6100_mode_usb_dig, x6100_agc_slow },
-    { "WEFAX GYA",       11085000, x6100_mode_usb_dig, x6100_agc_slow },
-    { "WEFAX GYA",       8038500,  x6100_mode_usb_dig, x6100_agc_slow },
-    { "WEFAX GYA",       4608500,  x6100_mode_usb_dig, x6100_agc_slow },
-    { "WEFAX GYA",       2617000,  x6100_mode_usb_dig, x6100_agc_slow },
+    { "NAVTEX MF",       517000,   radio_mode_usb_dig, radio_agc_slow },
+    { "NAVTEX HF",       4208500,  radio_mode_usb_dig, radio_agc_slow },
+    { "SHANNON VOLMET",  3413000,  radio_mode_usb,     radio_agc_fast },
+    { "SHANNON VOLMET",  5505000,  radio_mode_usb,     radio_agc_fast },
+    { "SHANNON VOLMET",  8957000,  radio_mode_usb,     radio_agc_fast },
+    { "SHANNON VOLMET",  13264000, radio_mode_usb,     radio_agc_fast },
+    { "RTTY DWD DDK2",   4582200,  radio_mode_usb_dig, radio_agc_fast },
+    { "RTTY DWD DDH7",   7645200,  radio_mode_usb_dig, radio_agc_fast },
+    { "RTTY DWD DDK9",   10100000, radio_mode_usb_dig, radio_agc_fast },
+    { "RTTY DWD DDH9",   11038200, radio_mode_usb_dig, radio_agc_fast },
+    { "RTTY DWD DDH8",   14466500, radio_mode_usb_dig, radio_agc_fast },
+    { "WEFAX DWD DDH3",  3853500,  radio_mode_usb_dig, radio_agc_slow },
+    { "WEFAX DWD DDK3",  7878470,  radio_mode_usb_dig, radio_agc_slow },
+    { "WEFAX DWD DDK6",  13881000, radio_mode_usb_dig, radio_agc_slow },
+    { "WEFAX GYA",       11085000, radio_mode_usb_dig, radio_agc_slow },
+    { "WEFAX GYA",       8038500,  radio_mode_usb_dig, radio_agc_slow },
+    { "WEFAX GYA",       4608500,  radio_mode_usb_dig, radio_agc_slow },
+    { "WEFAX GYA",       2617000,  radio_mode_usb_dig, radio_agc_slow },
 };
 
 /* The first name of each table is also what an unknown value is written as */
-static const struct { x6100_mode_t mode; const char *name; } mode_names[] = {
-    { x6100_mode_usb, "USB" },      { x6100_mode_lsb, "LSB" },
-    { x6100_mode_lsb_dig, "LSB-D" }, { x6100_mode_usb_dig, "USB-D" },
-    { x6100_mode_cw, "CW" },        { x6100_mode_cwr, "CWR" },
-    { x6100_mode_am, "AM" },        { x6100_mode_nfm, "NFM" },
+static const struct { radio_mode_t mode; const char *name; } mode_names[] = {
+    { radio_mode_usb, "USB" },      { radio_mode_lsb, "LSB" },
+    { radio_mode_lsb_dig, "LSB-D" }, { radio_mode_usb_dig, "USB-D" },
+    { radio_mode_cw, "CW" },        { radio_mode_cwr, "CWR" },
+    { radio_mode_am, "AM" },        { radio_mode_nfm, "NFM" },
 };
 
-static const struct { x6100_agc_t agc; const char *name; } agc_names[] = {
-    { x6100_agc_auto, "AUTO" }, { x6100_agc_off, "OFF" },
-    { x6100_agc_slow, "SLOW" }, { x6100_agc_fast, "FAST" },
+static const struct { radio_agc_t agc; const char *name; } agc_names[] = {
+    { radio_agc_auto, "AUTO" }, { radio_agc_off, "OFF" },
+    { radio_agc_slow, "SLOW" }, { radio_agc_fast, "FAST" },
 };
 
-const char *channels_mode_name(x6100_mode_t mode) {
+const char *channels_mode_name(radio_mode_t mode) {
     for (size_t i = 0; i < COUNT(mode_names); i++)
         if (mode_names[i].mode == mode) return mode_names[i].name;
     return mode_names[0].name;
 }
 
-bool channels_mode_parse(const char *value, x6100_mode_t *mode) {
+bool channels_mode_parse(const char *value, radio_mode_t *mode) {
     if (!value || !mode) return false;
     for (size_t i = 0; i < COUNT(mode_names); i++)
         if (!strcmp(mode_names[i].name, value)) {
@@ -82,13 +82,13 @@ bool channels_mode_parse(const char *value, x6100_mode_t *mode) {
     return false;
 }
 
-const char *channels_agc_name(x6100_agc_t agc) {
+const char *channels_agc_name(radio_agc_t agc) {
     for (size_t i = 0; i < COUNT(agc_names); i++)
         if (agc_names[i].agc == agc) return agc_names[i].name;
     return agc_names[0].name;
 }
 
-bool channels_agc_parse(const char *value, x6100_agc_t *agc) {
+bool channels_agc_parse(const char *value, radio_agc_t *agc) {
     if (!value || !agc) return false;
     for (size_t i = 0; i < COUNT(agc_names); i++)
         if (!strcmp(agc_names[i].name, value)) {

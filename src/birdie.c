@@ -145,8 +145,8 @@ static int32_t notch_wanted(void) {
     int32_t vfo  = cparam_i_get(cfg_fg_freq);
     int32_t mode = cparam_i_get(cfg_cur_mode);
     int32_t low  = cparam_i_get(cfg_cur_filter_low), high = cparam_i_get(cfg_cur_filter_high);
-    bool    usb  = mode == x6100_mode_usb || mode == x6100_mode_usb_dig;
-    bool    lsb  = mode == x6100_mode_lsb || mode == x6100_mode_lsb_dig;
+    bool    usb  = mode == radio_mode_usb || mode == radio_mode_usb_dig;
+    bool    lsb  = mode == radio_mode_lsb || mode == radio_mode_lsb_dig;
     int32_t best = 0;
 
     if (!usb && !lsb) return 0;

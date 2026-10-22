@@ -11,6 +11,25 @@
  *********************/
 #include "radio.h"
 
+/* The GUI's enums (radio_types.h) are the library's numbers: what the library takes below
+ * comes straight from them */
+#define SAME(a, b) _Static_assert((int)(a) == (int)(b), #a " is not " #b)
+SAME(RADIO_VFO_A, X6100_VFO_A);          SAME(RADIO_VFO_B, X6100_VFO_B);
+SAME(radio_mode_lsb, x6100_mode_lsb);    SAME(radio_mode_lsb_dig, x6100_mode_lsb_dig);
+SAME(radio_mode_usb, x6100_mode_usb);    SAME(radio_mode_usb_dig, x6100_mode_usb_dig);
+SAME(radio_mode_cw, x6100_mode_cw);      SAME(radio_mode_cwr, x6100_mode_cwr);
+SAME(radio_mode_am, x6100_mode_am);      SAME(radio_mode_nfm, x6100_mode_nfm);
+SAME(radio_agc_off, x6100_agc_off);      SAME(radio_agc_slow, x6100_agc_slow);
+SAME(radio_agc_fast, x6100_agc_fast);    SAME(radio_agc_auto, x6100_agc_auto);
+SAME(radio_att_off, x6100_att_off);      SAME(radio_att_on, x6100_att_on);
+SAME(radio_pre_off, x6100_pre_off);      SAME(radio_pre_on, x6100_pre_on);
+SAME(radio_key_manual, x6100_key_manual); SAME(radio_key_auto_left, x6100_key_auto_left);
+SAME(radio_key_auto_right, x6100_key_auto_right);
+SAME(radio_iambic_a, x6100_iambic_a);    SAME(radio_iambic_b, x6100_iambic_b);
+SAME(radio_mic_builtin, x6100_mic_builtin); SAME(radio_mic_handle, x6100_mic_handle);
+SAME(radio_mic_auto, x6100_mic_auto);
+#undef SAME
+
 #include <unistd.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -236,23 +255,23 @@ void radio_start() {
 
     pack = malloc(sizeof(x6100_flow_t));
 
-    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_freq, on_vfo_freq_change, (void*)X6100_VFO_A);
-    subject_subscribe_and_notify((Subject*)cfg_band_vfob_freq, on_vfo_freq_change, (void*)X6100_VFO_B);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_freq, on_vfo_freq_change, (void*)RADIO_VFO_A);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfob_freq, on_vfo_freq_change, (void*)RADIO_VFO_B);
 
-    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_mode, on_vfo_mode_change, (void*)X6100_VFO_A);
-    subject_subscribe_and_notify((Subject*)cfg_band_vfob_mode, on_vfo_mode_change, (void*)X6100_VFO_B);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_mode, on_vfo_mode_change, (void*)RADIO_VFO_A);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfob_mode, on_vfo_mode_change, (void*)RADIO_VFO_B);
 
-    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_agc, on_vfo_agc_change, (void*)X6100_VFO_A);
-    subject_subscribe_and_notify((Subject*)cfg_band_vfob_agc, on_vfo_agc_change, (void*)X6100_VFO_B);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_agc, on_vfo_agc_change, (void*)RADIO_VFO_A);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfob_agc, on_vfo_agc_change, (void*)RADIO_VFO_B);
     subject_subscribe((Subject*)cfg_band_vfoa_mode, on_cw_agc_cond_change, NULL);
     subject_subscribe((Subject*)cfg_band_vfob_mode, on_cw_agc_cond_change, NULL);
     subject_subscribe((Subject*)cfg_cw_decoder, on_cw_agc_cond_change, NULL);
 
-    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_att, on_vfo_att_change, (void*)X6100_VFO_A);
-    subject_subscribe_and_notify((Subject*)cfg_band_vfob_att, on_vfo_att_change, (void*)X6100_VFO_B);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_att, on_vfo_att_change, (void*)RADIO_VFO_A);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfob_att, on_vfo_att_change, (void*)RADIO_VFO_B);
 
-    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_pre, on_vfo_pre_change, (void*)X6100_VFO_A);
-    subject_subscribe_and_notify((Subject*)cfg_band_vfob_pre, on_vfo_pre_change, (void*)X6100_VFO_B);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfoa_pre, on_vfo_pre_change, (void*)RADIO_VFO_A);
+    subject_subscribe_and_notify((Subject*)cfg_band_vfob_pre, on_vfo_pre_change, (void*)RADIO_VFO_B);
 
     subject_subscribe_and_notify((Subject*)cfg_band_current_vfo, on_change_uint32, x6100_control_vfo_set);
     subject_subscribe_and_notify((Subject*)cfg_band_split, on_change_uint8, x6100_control_split_set);
@@ -387,7 +406,7 @@ void radio_set_freq(int32_t freq) {
         LV_LOG_ERROR("Freq %i incorrect", freq);
         return;
     }
-    x6100_vfo_t vfo = param_i_get(cfg_band_current_vfo);
+    radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
     int32_t shift = cfg_transverter_shift_for(freq);
     WITH_RADIO_LOCK(x6100_control_vfo_freq_set(vfo, freq - shift));
 }
@@ -458,7 +477,7 @@ bool radio_start_swrscan() {
         return false;
     }
 
-    cparam_i_set(cfg_cur_mode, x6100_mode_am);
+    cparam_i_set(cfg_cur_mode, radio_mode_am);
     radio_lock();
     /* 1 W is enough to read the SWR; less if PWR is set lower.
      * ponytail: fixed 1 W cap, make it a setting if the bridge reads poorly that low */
@@ -501,9 +520,9 @@ void radio_set_rx_dsp_off(bool all_off) {
                     x6100_control_dnf_update_set(dnf_auto && !all_off));
 }
 
-x6100_vfo_t radio_toggle_vfo() {
+radio_vfo_t radio_toggle_vfo() {
     cfg_vfo_toggle();
-    return (x6100_vfo_t)param_i_get(cfg_band_current_vfo);
+    return (radio_vfo_t)param_i_get(cfg_band_current_vfo);
 }
 
 void radio_poweroff() {
@@ -638,16 +657,16 @@ static void on_change_float(Subject *subj, void *user_data) {
 }
 
 static void on_vfo_freq_change(Subject *subj, void *user_data) {
-    x6100_vfo_t vfo = (x6100_vfo_t )user_data;
+    radio_vfo_t vfo = (radio_vfo_t )user_data;
     int32_t new_val;
-    if (vfo == X6100_VFO_A) {
+    if (vfo == RADIO_VFO_A) {
         new_val = param_i_get(cfg_band_vfoa_freq);
     } else {
         new_val = param_i_get(cfg_band_vfob_freq);
     }
     int32_t shift = cfg_transverter_shift_for(new_val);
     shift += param_i_get(cfg_band_if_shift);
-    if (x6100_control_get(vfo == X6100_VFO_A ? x6100_vfoa_freq : x6100_vfob_freq) == (uint32_t)(new_val - shift)) {
+    if (x6100_control_get(vfo == RADIO_VFO_A ? x6100_vfoa_freq : x6100_vfob_freq) == (uint32_t)(new_val - shift)) {
         return;
     }
     WITH_RADIO_LOCK(x6100_control_vfo_freq_set(vfo, new_val - shift));
@@ -655,9 +674,9 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
 }
 
 static void on_vfo_mode_change(Subject *subj, void *user_data) {
-    x6100_vfo_t vfo = (x6100_vfo_t )user_data;
+    radio_vfo_t vfo = (radio_vfo_t )user_data;
     int32_t new_val = subject_i_get((SubjectInt*)subj);
-    if (x6100_control_get(vfo == X6100_VFO_A ? x6100_vfoa_mode : x6100_vfob_mode) == (uint32_t)new_val) {
+    if (x6100_control_get(vfo == RADIO_VFO_A ? x6100_vfoa_mode : x6100_vfob_mode) == (uint32_t)new_val) {
         return;
     }
     WITH_RADIO_LOCK(x6100_control_vfo_mode_set(vfo, new_val));
@@ -667,12 +686,12 @@ static void on_vfo_mode_change(Subject *subj, void *user_data) {
 /* AGC AUTO in CW with the decoder on goes FAST: as AUTO recovers after a station stops, the rising
  * noise keys the decoder and prints Ts and Es between its overs (40 m, 2026-10-14). Only the
  * radio gets FAST: the setting stays AUTO, and an explicit OFF / SLOW / FAST is left alone. */
-static void apply_vfo_agc(x6100_vfo_t vfo) {
-    int32_t agc  = subject_i_get((SubjectInt*)(vfo == X6100_VFO_A ? cfg_band_vfoa_agc : cfg_band_vfob_agc));
-    int32_t mode = subject_i_get((SubjectInt*)(vfo == X6100_VFO_A ? cfg_band_vfoa_mode : cfg_band_vfob_mode));
+static void apply_vfo_agc(radio_vfo_t vfo) {
+    int32_t agc  = subject_i_get((SubjectInt*)(vfo == RADIO_VFO_A ? cfg_band_vfoa_agc : cfg_band_vfob_agc));
+    int32_t mode = subject_i_get((SubjectInt*)(vfo == RADIO_VFO_A ? cfg_band_vfoa_mode : cfg_band_vfob_mode));
 
-    if (agc == x6100_agc_auto && (mode == x6100_mode_cw || mode == x6100_mode_cwr) && subject_i_get((SubjectInt*)cfg_cw_decoder)) {
-        agc = x6100_agc_fast;
+    if (agc == radio_agc_auto && (mode == radio_mode_cw || mode == radio_mode_cwr) && subject_i_get((SubjectInt*)cfg_cw_decoder)) {
+        agc = radio_agc_fast;
     }
     WITH_RADIO_LOCK(x6100_control_vfo_agc_set(vfo, agc));
     LV_LOG_USER("Radio set vfo %i agc=%i", vfo, agc);
@@ -680,50 +699,50 @@ static void apply_vfo_agc(x6100_vfo_t vfo) {
 
 static void on_vfo_agc_change(Subject *subj, void *user_data) {
     (void)subj;
-    apply_vfo_agc((x6100_vfo_t)user_data);
+    apply_vfo_agc((radio_vfo_t)user_data);
 }
 
 static void on_cw_agc_cond_change(Subject *subj, void *user_data) {
     (void)subj;
     (void)user_data;
-    apply_vfo_agc(X6100_VFO_A);
-    apply_vfo_agc(X6100_VFO_B);
+    apply_vfo_agc(RADIO_VFO_A);
+    apply_vfo_agc(RADIO_VFO_B);
 }
 
 static void update_agc_time(Subject *subj, void *user_data) {
-    x6100_agc_t     agc = cparam_i_get(cfg_cur_agc);
-    x6100_mode_t    mode = cparam_i_get(cfg_cur_mode);
+    radio_agc_t     agc = cparam_i_get(cfg_cur_agc);
+    radio_mode_t    mode = cparam_i_get(cfg_cur_mode);
     uint16_t        agc_time = 500;
 
     switch (agc) {
-        case x6100_agc_off:
+        case radio_agc_off:
             agc_time = 1000;
             break;
 
-        case x6100_agc_slow:
+        case radio_agc_slow:
             agc_time = 1000;
             break;
 
-        case x6100_agc_fast:
+        case radio_agc_fast:
             agc_time = 100;
             break;
 
-        case x6100_agc_auto:
+        case radio_agc_auto:
             switch (mode) {
-                case x6100_mode_lsb:
-                case x6100_mode_lsb_dig:
-                case x6100_mode_usb:
-                case x6100_mode_usb_dig:
+                case radio_mode_lsb:
+                case radio_mode_lsb_dig:
+                case radio_mode_usb:
+                case radio_mode_usb_dig:
                     agc_time = 500;
                     break;
 
-                case x6100_mode_cw:
-                case x6100_mode_cwr:
+                case radio_mode_cw:
+                case radio_mode_cwr:
                     agc_time = 100;
                     break;
 
-                case x6100_mode_am:
-                case x6100_mode_nfm:
+                case radio_mode_am:
+                case radio_mode_nfm:
                     agc_time = 1000;
                     break;
             }
@@ -737,14 +756,14 @@ static void update_agc_time(Subject *subj, void *user_data) {
 }
 
 static void on_vfo_att_change(Subject *subj, void *user_data) {
-    x6100_vfo_t vfo = (x6100_vfo_t )user_data;
+    radio_vfo_t vfo = (radio_vfo_t )user_data;
     int32_t new_val = subject_i_get((SubjectInt*)subj);
     WITH_RADIO_LOCK(x6100_control_vfo_att_set(vfo, new_val));
     LV_LOG_USER("Radio set vfo %i att=%i", vfo, new_val);
 }
 
 static void on_vfo_pre_change(Subject *subj, void *user_data) {
-    x6100_vfo_t vfo = (x6100_vfo_t )user_data;
+    radio_vfo_t vfo = (radio_vfo_t )user_data;
     int32_t new_val = subject_i_get((SubjectInt*)subj);
     WITH_RADIO_LOCK(x6100_control_vfo_pre_set(vfo, new_val));
     LV_LOG_USER("Radio set vfo %i pre=%i", vfo, new_val);
@@ -768,8 +787,8 @@ static void cmd_changed(x6100_cmd_enum_t cmd, uint32_t arg) {
 }
 
 static void on_low_filter_change(Subject *subj, void *user_data) {
-    x6100_mode_t mode = cparam_i_get(cfg_cur_mode);
-    if ((mode == x6100_mode_am) || (mode == x6100_mode_nfm)) {
+    radio_mode_t mode = cparam_i_get(cfg_cur_mode);
+    if ((mode == radio_mode_am) || (mode == radio_mode_nfm)) {
         // No update low on AM/FM, low should be -high
         return;
     }
@@ -786,8 +805,8 @@ static void on_high_filter_change(Subject *subj, void *user_data) {
     int32_t high = cparam_i_get(cfg_cur_filter_high);
     int32_t high2 = high + FILTER_2_OFFSET_OUT;
     switch (cparam_i_get(cfg_cur_mode)) {
-        case x6100_mode_am:
-        case x6100_mode_nfm:
+        case radio_mode_am:
+        case radio_mode_nfm:
             // For AM BASE uses absolute low and high values to choose LPF filters for I and Q
             radio_lock();
             LV_LOG_USER("Radio set filters: low=%i, low2=%i", -high, -high2);
@@ -844,7 +863,7 @@ static void on_if_shift_change(Subject *subj, void *user_data) {
     } else {
         WITH_RADIO_LOCK(x6100_control_if_shift_set(false));
     }
-    x6100_vfo_t vfo = param_i_get(cfg_band_current_vfo);
+    radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
     on_vfo_freq_change(NULL, (void*)vfo);
 }
 
@@ -877,9 +896,9 @@ static void base_control_command(Subject *subj, void *user_data) {
  */
 static void recover_processing_audio_inputs() {
     usleep(10000);
-    x6100_vfo_t vfo = param_i_get(cfg_band_current_vfo);
+    radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
     radio_lock();
-    x6100_control_vfo_mode_set(vfo, x6100_mode_usb_dig);
+    x6100_control_vfo_mode_set(vfo, radio_mode_usb_dig);
     x6100_control_txpwr_set(0.1f);
     x6100_control_modem_set(true);
     usleep(50000);

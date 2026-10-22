@@ -225,7 +225,7 @@ static void update_cb(Subject *subj, void *user_data) {
 
     split_freq(f, &mhz, &khz, &hz);
     if (theme_shape.deck) {     /* the other VFO at the top right, the current one in the badge */
-        bool     b = param_i_get(cfg_band_current_vfo) == X6100_VFO_B;
+        bool     b = param_i_get(cfg_band_current_vfo) == RADIO_VFO_B;
         uint16_t mhz2, khz2, hz2;
 
         split_freq(cparam_i_get(cfg_bg_freq), &mhz2, &khz2, &hz2);

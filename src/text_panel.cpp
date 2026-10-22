@@ -35,7 +35,7 @@ static char         buf[1024];      /* the text as decoded, '\n' between the lin
 static char        *buf_write = buf;   /* its end, where the next text goes */
 static char         shown[6144];    /* buf with the words coloured (label recolour), up to 9 more chars a word */
 static uint8_t      max_line_count;
-static x6100_mode_t prev_mode;      /* CW-R kept as CW: switching between them keeps the text */
+static radio_mode_t prev_mode;      /* CW-R kept as CW: switching between them keeps the text */
 
 static void mode_cb(Subject *subj, void *user_data);
 static void dim_on_tuning(Subject *subj, void *user_data);
@@ -164,9 +164,9 @@ static void drop_first_line() {
 
 /* CW with Parse on: words split and coloured (cw_parse.c) */
 static bool parse_on() {
-    x6100_mode_t m = (x6100_mode_t)cfg_sm.cp_cur_mode.get();
+    radio_mode_t m = (radio_mode_t)cfg_sm.cp_cur_mode.get();
 
-    return cfg_sm.p_cw_parse.get() && (m == x6100_mode_cw || m == x6100_mode_cwr);
+    return cfg_sm.p_cw_parse.get() && (m == radio_mode_cw || m == radio_mode_cwr);
 }
 
 /* A word that looks like a callsign (cw_parse.c), not our own call */
@@ -350,7 +350,7 @@ lv_obj_t *panel_init(lv_obj_t *parent) {
     lv_anim_set_time(&dim_anim, 200);
 
     /* Shown by the mode and the CW decoder switch; the font follows Settings */
-    prev_mode = (x6100_mode_t)cfg_sm.cp_cur_mode.get();
+    prev_mode = (radio_mode_t)cfg_sm.cp_cur_mode.get();
     cfg_sm.cp_cur_mode.subscribe_delayed(mode_cb, NULL);
     cfg_sm.p_cw_decoder.subscribe_delayed_and_notify(mode_cb, NULL);
     cfg_sm.cp_fg_freq.subscribe_delayed(dim_on_tuning, NULL);
@@ -406,9 +406,9 @@ void panel_clear(void) {
 
 /* CW with the decoder on, or SSB with RTTY (and NavTex) running */
 void panel_update_visibility(bool clear) {
-    x6100_mode_t mode = (x6100_mode_t)cfg_sm.cp_cur_mode.get();
-    bool         cw = mode == x6100_mode_cw || mode == x6100_mode_cwr;
-    bool         ssb = (unsigned)mode <= (unsigned)x6100_mode_usb_dig;   /* LSB, LSB-D, USB, USB-D */
+    radio_mode_t mode = (radio_mode_t)cfg_sm.cp_cur_mode.get();
+    bool         cw = mode == radio_mode_cw || mode == radio_mode_cwr;
+    bool         ssb = (unsigned)mode <= (unsigned)radio_mode_usb_dig;   /* LSB, LSB-D, USB, USB-D */
     bool         on = cw ? cfg_sm.p_cw_decoder.get() : ssb && rtty_get_state() != RTTY_OFF;
 
     /* RTTY: the scope, and the text keeps clear of it */
@@ -444,13 +444,13 @@ void panel_update_visibility(bool clear) {
     if (clear) panel_clear();
 }
 
-static x6100_mode_t cw_as_one(x6100_mode_t m) {
-    return m == x6100_mode_cwr ? x6100_mode_cw : m;
+static radio_mode_t cw_as_one(radio_mode_t m) {
+    return m == radio_mode_cwr ? radio_mode_cw : m;
 }
 
 /* A new mode clears the text, CW to CW-R and back does not */
 static void mode_cb(Subject *subj, void *user_data) {
-    x6100_mode_t mode = cw_as_one((x6100_mode_t)cfg_sm.cp_cur_mode.get());
+    radio_mode_t mode = cw_as_one((radio_mode_t)cfg_sm.cp_cur_mode.get());
     bool         clear = mode != cw_as_one(prev_mode);
 
     prev_mode = mode;

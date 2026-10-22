@@ -127,7 +127,7 @@ static const char *agc_label() {
     static const char *const names[] = {"Off", "Slow", "Fast", "Auto"};
     int32_t                  agc = cfg_sm.cp_cur_agc.get();
 
-    return text("AGC:\n%s", agc >= 0 && agc <= x6100_agc_auto ? names[agc] : "?");
+    return text("AGC:\n%s", agc >= 0 && agc <= radio_agc_auto ? names[agc] : "?");
 }
 
 static const char *screen_rec_label() {
@@ -266,10 +266,10 @@ static button_data_t btn_key_train = knob_toggle([] { return text("Train:\n%s", 
 static button_data_t btn_key_tone = knob([] { return text("Tone:\n%i Hz", cfg_sm.p_key_tone.get()); },
                                          CTRL_KEY_TONE, &cfg_sm.p_key_tone);
 static button_data_t btn_key_mode = knob(
-    [] { return text("Mode:\n%s", params_key_mode_str_get((x6100_key_mode_t)cfg_sm.p_key_mode.get())); },
+    [] { return text("Mode:\n%s", params_key_mode_str_get((radio_key_mode_t)cfg_sm.p_key_mode.get())); },
     CTRL_KEY_MODE, &cfg_sm.p_key_mode);
 static button_data_t btn_iambic = knob_toggle(
-    [] { return text("Iambic:\n%s mode", params_iambic_mode_str_ger((x6100_iambic_mode_t)cfg_sm.p_iambic_mode.get())); },
+    [] { return text("Iambic:\n%s mode", params_iambic_mode_str_ger((radio_iambic_mode_t)cfg_sm.p_iambic_mode.get())); },
     controls_toggle_key_iambic_mode, CTRL_IAMBIC_MODE, &cfg_sm.p_iambic_mode);
 static button_data_t btn_qsk = knob([] { return text("QSK time:\n%i ms", cfg_sm.p_qsk_time.get()); },
                                     CTRL_QSK_TIME, &cfg_sm.p_qsk_time);

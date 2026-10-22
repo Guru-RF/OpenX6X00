@@ -24,6 +24,7 @@
 
 #include <ft8lib/constants.h>
 
+#include "../radio_types.h"
 #include "../common/math.h"
 #include "computed_parameter.h"
 #include "encoder_bind_types.h"
@@ -35,11 +36,11 @@ extern "C" {
 }
 
 enum ModeGroup {
-    MODE_GROUP_SSB = x6100_mode_lsb,
-    MODE_GROUP_DIGI = x6100_mode_lsb_dig,
-    MODE_GROUP_CW = x6100_mode_cw,
-    MODE_GROUP_AM = x6100_mode_am,
-    MODE_GROUP_FM = x6100_mode_nfm,
+    MODE_GROUP_SSB = radio_mode_lsb,
+    MODE_GROUP_DIGI = radio_mode_lsb_dig,
+    MODE_GROUP_CW = radio_mode_cw,
+    MODE_GROUP_AM = radio_mode_am,
+    MODE_GROUP_FM = radio_mode_nfm,
 };
 
 class SettingsManager {
@@ -90,7 +91,7 @@ class SettingsManager {
     // Default 7 = 20m SSB, matching the VFOA default frequency of 14.1 MHz.
     Parameter<int32_t> p_band_id{"band_id", 7, {},
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
-    Parameter<int32_t> p_mic{"mic", x6100_mic_auto, 0, 2,
+    Parameter<int32_t> p_mic{"mic", radio_mic_auto, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_hmic{"hmic", 20, 0, 50,
         StorageType::GLOBAL, pending_writes_, &global_params_};
@@ -143,8 +144,8 @@ class SettingsManager {
     // Walkie Talkie: the walkie channel the main knob is on, 0-31 (walkie.c, /mnt/walkie_channels.json)
     Parameter<int32_t> p_walkie_ch{"walkie_ch", 0, 0, 31,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // Walkie Talkie: the microphone while its screen is up (x6100_mic_sel_t); p_mic stays as saved
-    Parameter<int32_t> p_walkie_mic{"walkie_mic", x6100_mic_builtin, 0, 2,
+    // Walkie Talkie: the microphone while its screen is up (radio_mic_sel_t); p_mic stays as saved
+    Parameter<int32_t> p_walkie_mic{"walkie_mic", radio_mic_builtin, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // S-meter drawn as a needle on a dial instead of the bars
     // Waterfall colours: 0 the theme's, then classic, gauss, grey, fire, ice, rainbow (theme.c)
@@ -294,9 +295,9 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_key_speed{"key_speed", 15, 5, 50,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_key_mode{"key_mode", x6100_key_manual, 0, 2,
+    Parameter<int32_t> p_key_mode{"key_mode", radio_key_manual, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_iambic_mode{"iambic_mode", x6100_iambic_a, 0, 1,
+    Parameter<int32_t> p_iambic_mode{"iambic_mode", radio_iambic_a, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_key_vol{"key_vol", 10, 0, 32,
         StorageType::GLOBAL, pending_writes_, &global_params_};
@@ -399,7 +400,7 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
 
     // --- BAND params (`band_params` table) ---
-    Parameter<int32_t> p_band_current_vfo{"vfo", (int32_t)X6100_VFO_A, 0, 1,
+    Parameter<int32_t> p_band_current_vfo{"vfo", (int32_t)RADIO_VFO_A, 0, 1,
         StorageType::BAND, pending_writes_, &band_params_};
     Parameter<int32_t> p_band_if_shift{"if_shift", 0, -40'000, 40'000,
         StorageType::BAND, pending_writes_, &band_params_};
@@ -429,21 +430,21 @@ class SettingsManager {
         StorageType::BAND, pending_writes_};
     Parameter<int32_t> p_band_vfob_freq{"vfob_freq", 14'150'000, 100'000, 500'000'000,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfoa_mode{"vfoa_mode", x6100_mode_usb, (int32_t)x6100_mode_lsb, (int32_t)x6100_mode_nfm,
+    Parameter<int32_t> p_band_vfoa_mode{"vfoa_mode", radio_mode_usb, (int32_t)radio_mode_lsb, (int32_t)radio_mode_nfm,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfob_mode{"vfob_mode", x6100_mode_usb, (int32_t)x6100_mode_lsb, (int32_t)x6100_mode_nfm,
+    Parameter<int32_t> p_band_vfob_mode{"vfob_mode", radio_mode_usb, (int32_t)radio_mode_lsb, (int32_t)radio_mode_nfm,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfoa_att{"vfoa_att", x6100_att_off, 0, (int32_t)x6100_att_on,
+    Parameter<int32_t> p_band_vfoa_att{"vfoa_att", radio_att_off, 0, (int32_t)radio_att_on,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfoa_pre{"vfoa_pre", x6100_pre_off, 0, (int32_t)x6100_pre_on,
+    Parameter<int32_t> p_band_vfoa_pre{"vfoa_pre", radio_pre_off, 0, (int32_t)radio_pre_on,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfoa_agc{"vfoa_agc", x6100_agc_auto, 0, (int32_t)x6100_agc_auto,
+    Parameter<int32_t> p_band_vfoa_agc{"vfoa_agc", radio_agc_auto, 0, (int32_t)radio_agc_auto,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfob_att{"vfob_att", x6100_att_off, 0, (int32_t)x6100_att_on,
+    Parameter<int32_t> p_band_vfob_att{"vfob_att", radio_att_off, 0, (int32_t)radio_att_on,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfob_pre{"vfob_pre", x6100_pre_off, 0, (int32_t)x6100_pre_on,
+    Parameter<int32_t> p_band_vfob_pre{"vfob_pre", radio_pre_off, 0, (int32_t)radio_pre_on,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfob_agc{"vfob_agc", x6100_agc_auto, 0, (int32_t)x6100_agc_auto,
+    Parameter<int32_t> p_band_vfob_agc{"vfob_agc", radio_agc_auto, 0, (int32_t)radio_agc_auto,
         StorageType::BAND, pending_writes_};
 
     // --- Transverter params (OTHER storage, fixed HW conversion) ---
@@ -635,7 +636,7 @@ class SettingsManager {
     static void switch_band_observer_cb(Subject *subj, void *user_data);
 
     // Mode group functions
-    static ModeGroup mode_group(x6100_mode_t mode);
+    static ModeGroup mode_group(radio_mode_t mode);
     static int32_t mode_group_filter_low_default(ModeGroup group);
     static int32_t mode_group_filter_high_default(ModeGroup group);
     static int32_t mode_group_freq_step_default(ModeGroup group);

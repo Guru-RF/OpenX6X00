@@ -153,7 +153,7 @@ static std::atomic<bool> floor_reset{true};
 
 static int32_t      filter_from = 0;
 static int32_t      filter_to   = 3000;
-static x6100_mode_t cur_mode;
+static radio_mode_t cur_mode;
 
 /* FT8 and other dialogs switch the panorama off to save CPU */
 static std::atomic<bool> waterfall_enabled{true};
@@ -400,15 +400,15 @@ static void on_filter_change(Subject *subj, void *user_data) {
     int32_t shift = cfg_sm.p_band_if_shift.get();
 
     switch (cfg_sm.cp_cur_mode.get()) {
-        case x6100_mode_lsb:
-        case x6100_mode_lsb_dig:
-        case x6100_mode_cwr:    /* below the carrier */
+        case radio_mode_lsb:
+        case radio_mode_lsb_dig:
+        case radio_mode_cwr:    /* below the carrier */
             filter_from = shift - high;
             filter_to   = shift - low;
             break;
 
-        case x6100_mode_am:
-        case x6100_mode_nfm:    /* both sides */
+        case radio_mode_am:
+        case radio_mode_nfm:    /* both sides */
             filter_from = shift - high;
             filter_to   = shift + high;
             break;
@@ -421,7 +421,7 @@ static void on_filter_change(Subject *subj, void *user_data) {
 }
 
 static void on_mode_change(Subject *subj, void *user_data) {
-    cur_mode = (x6100_mode_t)cfg_sm.cp_cur_mode.get();
+    cur_mode = (radio_mode_t)cfg_sm.cp_cur_mode.get();
 }
 
 static void on_freq_change(Subject *subj, void *user_data) {
@@ -516,7 +516,7 @@ void dsp_put_audio_samples(size_t nsamples, int16_t *samples) {
 
     if (rtty_get_state() == RTTY_RX)
         sink = rtty_put_audio_samples;
-    else if (cur_mode == x6100_mode_cw || cur_mode == x6100_mode_cwr)
+    else if (cur_mode == radio_mode_cw || cur_mode == radio_mode_cwr)
         sink = cw_put_audio_samples;
     else if (dialog_need_audio())
         sink = dialog_audio_samples;

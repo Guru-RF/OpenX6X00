@@ -19,6 +19,7 @@
 #include "textarea_window.h"     /* the name editor */
 #include "cfg/cfg_api.h"         /* the current frequency */
 #include "styles.h"              /* fonts */
+#include "radio_types.h"
 #include "theme.h"
 
 static void window_open_cb(lv_obj_t *parent);
@@ -59,9 +60,9 @@ static int16_t renamed = -1;        /* row to put the cursor back on after a ren
 static int16_t dragging = -1;       /* row the dragged channel is on, -1 when not dragging */
 
 /* Mode as shown in the list: "?" for one the file can't hold */
-static const char *mode_label(x6100_mode_t mode) {
+static const char *mode_label(radio_mode_t mode) {
     const char *name = channels_mode_name(mode);
-    x6100_mode_t back;
+    radio_mode_t back;
 
     return channels_mode_parse(name, &back) && back == mode ? name : "?";
 }
@@ -190,8 +191,8 @@ static bool tune(int16_t row, bool close) {
     cparam_i_set(cfg_fg_freq, c->freq);
     cparam_i_set(cfg_cur_mode, c->mode);
     cparam_i_set(cfg_cur_agc, c->agc);
-    cparam_i_set(cfg_cur_pre, c->pre ? x6100_pre_on : x6100_pre_off);
-    cparam_i_set(cfg_cur_att, c->att ? x6100_att_on : x6100_att_off);
+    cparam_i_set(cfg_cur_pre, c->pre ? radio_pre_on : radio_pre_off);
+    cparam_i_set(cfg_cur_att, c->att ? radio_att_on : radio_att_off);
     if (close) dialog_destruct();
     return true;        /* tuned */
 }

@@ -20,8 +20,8 @@
 typedef struct {
     char            name[CHANNEL_NAME_MAX];
     uint32_t        freq;
-    x6100_mode_t    mode;
-    x6100_agc_t     agc;
+    radio_mode_t    mode;
+    radio_agc_t     agc;
     bool            pre;
     bool            att;
 } channel_t;
@@ -46,7 +46,7 @@ bool channels_set_name(uint16_t i, const char *name);   /* saved */
 bool channels_move(uint16_t i, uint16_t to);        /* memory only: the dialog saves on Drop */
 
 /* Mode and AGC as written in the file ("USB-D", "SLOW"), and back */
-const char *channels_mode_name(x6100_mode_t mode);
-bool channels_mode_parse(const char *value, x6100_mode_t *mode);
-const char *channels_agc_name(x6100_agc_t agc);
-bool channels_agc_parse(const char *value, x6100_agc_t *agc);
+const char *channels_mode_name(radio_mode_t mode);
+bool channels_mode_parse(const char *value, radio_mode_t *mode);
+const char *channels_agc_name(radio_agc_t agc);
+bool channels_agc_parse(const char *value, radio_agc_t *agc);

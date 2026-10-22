@@ -45,29 +45,29 @@ extern "C" {
 }
 
 // Resolve the frequency parameter for a CI-V main/sub VFO selector. vfo_id is
-// the CI-V selector (X6100_VFO_A = main/selected VFO, X6100_VFO_B = sub/inactive
+// the CI-V selector (RADIO_VFO_A = main/selected VFO, RADIO_VFO_B = sub/inactive
 // VFO); cur_vfo identifies which hardware VFO (A or B) is currently active.
 static Parameter<int32_t>& vfo_freq(int vfo_id, int cur_vfo)
 {
-    if (vfo_id == X6100_VFO_A)
+    if (vfo_id == RADIO_VFO_A)
     {
-        return cur_vfo == X6100_VFO_A ? cfg_sm.p_band_vfoa_freq : cfg_sm.p_band_vfob_freq;
+        return cur_vfo == RADIO_VFO_A ? cfg_sm.p_band_vfoa_freq : cfg_sm.p_band_vfob_freq;
     }
     else
     {
-        return cur_vfo == X6100_VFO_A ? cfg_sm.p_band_vfob_freq : cfg_sm.p_band_vfoa_freq;
+        return cur_vfo == RADIO_VFO_A ? cfg_sm.p_band_vfob_freq : cfg_sm.p_band_vfoa_freq;
     }
 }
 
 static Parameter<int32_t>& vfo_mode(int vfo_id, int cur_vfo)
 {
-    if (vfo_id == X6100_VFO_A)
+    if (vfo_id == RADIO_VFO_A)
     {
-        return cur_vfo == X6100_VFO_A ? cfg_sm.p_band_vfoa_mode : cfg_sm.p_band_vfob_mode;
+        return cur_vfo == RADIO_VFO_A ? cfg_sm.p_band_vfoa_mode : cfg_sm.p_band_vfob_mode;
     }
     else
     {
-        return cur_vfo == X6100_VFO_A ? cfg_sm.p_band_vfob_mode : cfg_sm.p_band_vfoa_mode;
+        return cur_vfo == RADIO_VFO_A ? cfg_sm.p_band_vfob_mode : cfg_sm.p_band_vfoa_mode;
     }
 }
 
@@ -386,31 +386,31 @@ static void set_vfo(void *arg) {
     if (!arg) {
         LV_LOG_ERROR("arg is NULL");
     }
-    x6100_vfo_t vfo = *(x6100_vfo_t *)arg;
+    radio_vfo_t vfo = *(radio_vfo_t *)arg;
     cfg_sm.p_band_current_vfo.set(vfo);
 }
 
-static x6100_mode_t ci_mode_2_x_mode(uint8_t mode, bool data_mode=false) {
-    x6100_mode_t r_mode;
+static radio_mode_t ci_mode_2_x_mode(uint8_t mode, bool data_mode=false) {
+    radio_mode_t r_mode;
 
     switch (mode) {
         case M_LSB:
-            r_mode = data_mode ? x6100_mode_lsb_dig : x6100_mode_lsb;
+            r_mode = data_mode ? radio_mode_lsb_dig : radio_mode_lsb;
             break;
         case M_USB:
-            r_mode = data_mode ? x6100_mode_usb_dig : x6100_mode_usb;
+            r_mode = data_mode ? radio_mode_usb_dig : radio_mode_usb;
             break;
         case M_AM:
-            r_mode = x6100_mode_am;
+            r_mode = radio_mode_am;
             break;
         case M_CW:
-            r_mode = x6100_mode_cw;
+            r_mode = radio_mode_cw;
             break;
         case M_NFM:
-            r_mode = x6100_mode_nfm;
+            r_mode = radio_mode_nfm;
             break;
         case M_CWR:
-            r_mode = x6100_mode_cwr;
+            r_mode = radio_mode_cwr;
             break;
         default:
             break;
@@ -419,13 +419,13 @@ static x6100_mode_t ci_mode_2_x_mode(uint8_t mode, bool data_mode=false) {
 }
 
 /* 1A 06 set: data mode on/off keeps LSB/USB, only adds or drops the D */
-static x6100_mode_t ci_data_mode_2_x_mode(x6100_mode_t x_mode, uint8_t data_mode) {
+static radio_mode_t ci_data_mode_2_x_mode(radio_mode_t x_mode, uint8_t data_mode) {
     if (data_mode) {
-        if (x_mode == x6100_mode_lsb) return x6100_mode_lsb_dig;
-        if (x_mode == x6100_mode_usb) return x6100_mode_usb_dig;
+        if (x_mode == radio_mode_lsb) return radio_mode_lsb_dig;
+        if (x_mode == radio_mode_usb) return radio_mode_usb_dig;
     } else {
-        if (x_mode == x6100_mode_lsb_dig) return x6100_mode_lsb;
-        if (x_mode == x6100_mode_usb_dig) return x6100_mode_usb;
+        if (x_mode == radio_mode_lsb_dig) return radio_mode_lsb;
+        if (x_mode == radio_mode_usb_dig) return radio_mode_usb;
     }
     return x_mode;
 }
@@ -474,28 +474,28 @@ static int32_t ci_band_freq(uint8_t band) {
     return 0;
 }
 
-static uint8_t x_mode_2_ci_mode(x6100_mode_t mode, bool *data_mode=nullptr) {
+static uint8_t x_mode_2_ci_mode(radio_mode_t mode, bool *data_mode=nullptr) {
     switch (mode) {
-        case x6100_mode_lsb_dig:
+        case radio_mode_lsb_dig:
             if (data_mode) *data_mode = true;
-        case x6100_mode_lsb:
+        case radio_mode_lsb:
             return M_LSB;
             break;
-        case x6100_mode_usb_dig:
+        case radio_mode_usb_dig:
             if (data_mode) *data_mode = true;
-        case x6100_mode_usb:
+        case radio_mode_usb:
             return M_USB;
             break;
-        case x6100_mode_cw:
+        case radio_mode_cw:
             return M_CW;
             break;
-        case x6100_mode_cwr:
+        case radio_mode_cwr:
             return M_CWR;
             break;
-        case x6100_mode_am:
+        case radio_mode_am:
             return M_AM;
             break;
-        case x6100_mode_nfm:
+        case radio_mode_nfm:
             return M_NFM;
             break;
         default:
@@ -510,20 +510,20 @@ static uint8_t get_if_bandwidth() {
     uint8_t  val;
 
     switch (cfg_sm.cp_cur_mode.get()) {
-        case x6100_mode_cw:
-        case x6100_mode_cwr:
-        case x6100_mode_lsb:
-        case x6100_mode_lsb_dig:
-        case x6100_mode_usb:
-        case x6100_mode_usb_dig:
+        case radio_mode_cw:
+        case radio_mode_cwr:
+        case radio_mode_lsb:
+        case radio_mode_lsb_dig:
+        case radio_mode_usb:
+        case radio_mode_usb_dig:
             if (bw <= 500) {
                 val = (bw - 25) / 50;
             } else {
                 val = (bw - 50) / 100 + 5;
             }
             break;
-        case x6100_mode_am:
-        case x6100_mode_nfm:
+        case radio_mode_am:
+        case radio_mode_nfm:
             val = (bw - 100) / 200;
             break;
         default:
@@ -575,10 +575,10 @@ static Frame *process_req(const Frame *req) {
     auto resp = new Frame(req);
 
     int32_t        new_freq;
-    x6100_vfo_t    cur_vfo    = (x6100_vfo_t)cfg_sm.p_band_current_vfo.get();
+    radio_vfo_t    cur_vfo    = (radio_vfo_t)cfg_sm.p_band_current_vfo.get();
     int32_t        cur_freq   = cfg_sm.cp_fg_freq.get();
-    x6100_mode_t   cur_mode   = (x6100_mode_t)cfg_sm.cp_cur_mode.get();
-    x6100_vfo_t    target_vfo = cur_vfo;
+    radio_mode_t   cur_mode   = (radio_mode_t)cfg_sm.cp_cur_mode.get();
+    radio_vfo_t    target_vfo = cur_vfo;
     uint8_t        vfo_id;
 
     size_t data_size = req->data.size();
@@ -631,11 +631,11 @@ static Frame *process_req(const Frame *req) {
 
         case C_SET_VFO:
             if (data_size == 1) {
-                x6100_vfo_t new_vfo;
+                radio_vfo_t new_vfo;
                 switch (req->data[0]) {
                     case S_VFOA:
-                        if (cur_vfo != X6100_VFO_A) {
-                            new_vfo = X6100_VFO_A;
+                        if (cur_vfo != RADIO_VFO_A) {
+                            new_vfo = RADIO_VFO_A;
                             cfg_sm.p_band_current_vfo.set(new_vfo);
                         }
 
@@ -643,18 +643,18 @@ static Frame *process_req(const Frame *req) {
                         break;
 
                     case S_VFOB:
-                        if (cur_vfo != X6100_VFO_B) {
-                            new_vfo = X6100_VFO_B;
+                        if (cur_vfo != RADIO_VFO_B) {
+                            new_vfo = RADIO_VFO_B;
                             cfg_sm.p_band_current_vfo.set(new_vfo);
                         }
                         resp->set_code(CODE_OK);
                         break;
 
                     case S_XCHNG:
-                        if (cur_vfo == X6100_VFO_A) {
-                            new_vfo = X6100_VFO_B;
+                        if (cur_vfo == RADIO_VFO_A) {
+                            new_vfo = RADIO_VFO_B;
                         } else {
-                            new_vfo = X6100_VFO_A;
+                            new_vfo = RADIO_VFO_A;
                         }
                         cfg_sm.p_band_current_vfo.set(new_vfo);
                         resp->set_code(CODE_OK);
@@ -671,7 +671,7 @@ static Frame *process_req(const Frame *req) {
                 }
             } else if (data_size == 0) {
                 resp->set_payload_len(2);
-                resp->data[0] = cur_vfo == X6100_VFO_A ? S_VFOA : S_VFOB;
+                resp->data[0] = cur_vfo == RADIO_VFO_A ? S_VFOA : S_VFOB;
             } else {
                 set_unsupported(req, resp);
             }
@@ -913,7 +913,7 @@ static Frame *process_req(const Frame *req) {
                     case MEM_DM_FG:
                         // data mode, filter
                         resp->set_payload_len(4);
-                        resp->data[1] = (cur_mode == x6100_mode_lsb_dig) || (cur_mode == x6100_mode_usb_dig);
+                        resp->data[1] = (cur_mode == radio_mode_lsb_dig) || (cur_mode == radio_mode_usb_dig);
                         resp->data[2] = 0x01;
                         break;
 
@@ -1024,21 +1024,21 @@ static Frame *process_req(const Frame *req) {
         case C_SEND_SEL_MODE:
             {
                 uint8_t v;
-                x6100_mode_t new_mode;
+                radio_mode_t new_mode;
                 bool data_mode = false;
                 Parameter<int32_t> *mode_par;
 
                 if (req->data[0] == 0) {
                     // fg
-                    mode_par = cfg_sm.p_band_current_vfo.get() == X6100_VFO_A ? &cfg_sm.p_band_vfoa_mode :&cfg_sm.p_band_vfob_mode;
+                    mode_par = cfg_sm.p_band_current_vfo.get() == RADIO_VFO_A ? &cfg_sm.p_band_vfoa_mode :&cfg_sm.p_band_vfob_mode;
                 } else {
                     // bg
-                    mode_par = cfg_sm.p_band_current_vfo.get() == X6100_VFO_B ? &cfg_sm.p_band_vfoa_mode :&cfg_sm.p_band_vfob_mode;
+                    mode_par = cfg_sm.p_band_current_vfo.get() == RADIO_VFO_B ? &cfg_sm.p_band_vfoa_mode :&cfg_sm.p_band_vfob_mode;
                 }
                 switch (data_size) {
                     case 1:
                         // Read command
-                        v = x_mode_2_ci_mode((x6100_mode_t)mode_par->get(), &data_mode);
+                        v = x_mode_2_ci_mode((radio_mode_t)mode_par->get(), &data_mode);
                         resp->set_payload_len(5);
                         resp->data[1] = v;
                         resp->data[2] = data_mode;
@@ -1243,13 +1243,13 @@ static void on_fg_freq_change(Subject *s, void *user_data) {
 static void on_mode_change(Subject *s, void *user_data) {
     Frame frame{0, LOCAL_ADDRESS, C_SND_MODE};
     frame.set_payload_len(2);
-    frame.data[0] = x_mode_2_ci_mode((x6100_mode_t)cfg_sm.cp_cur_mode.get());
+    frame.data[0] = x_mode_2_ci_mode((radio_mode_t)cfg_sm.cp_cur_mode.get());
     send_notify(frame);
 }
 
 static void on_vfo_change(Subject *s, void *user_data) {
     Frame frame{0, LOCAL_ADDRESS, C_SET_VFO};
     frame.set_payload_len(2);
-    frame.data[0] = cfg_sm.p_band_current_vfo.get() == X6100_VFO_A ? S_VFOA : S_VFOB;
+    frame.data[0] = cfg_sm.p_band_current_vfo.get() == RADIO_VFO_A ? S_VFOA : S_VFOB;
     send_notify(frame);
 }

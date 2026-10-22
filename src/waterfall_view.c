@@ -442,15 +442,15 @@ static void update_middle_line(void) {
     int32_t high = subject_i_get((SubjectInt*)cfg_cur_filter_high);
     int32_t from, to;
 
-    switch ((x6100_mode_t) subject_i_get((SubjectInt*)cfg_cur_mode)) {
-        case x6100_mode_lsb:
-        case x6100_mode_lsb_dig:
-        case x6100_mode_cwr:
+    switch ((radio_mode_t) subject_i_get((SubjectInt*)cfg_cur_mode)) {
+        case radio_mode_lsb:
+        case radio_mode_lsb_dig:
+        case radio_mode_cwr:
             from = -high;
             to = -low;
             break;
-        case x6100_mode_am:
-        case x6100_mode_nfm:
+        case radio_mode_am:
+        case radio_mode_nfm:
             from = -high;
             to = high;
             break;

@@ -248,7 +248,7 @@ void freq_list_tune(const freq_list_item_t *it, int32_t audio) {
     int32_t dial = item_dial(it, audio);
 
     main_screen_set_freq(dial);
-    cparam_i_set(cfg_cur_mode, it->lsb ? x6100_mode_lsb : x6100_mode_usb);
+    cparam_i_set(cfg_cur_mode, it->lsb ? radio_mode_lsb : radio_mode_usb);
     /* The station stays named in the frequency strip while decoding */
     char label[64];
     if (it->note)

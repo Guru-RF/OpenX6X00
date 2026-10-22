@@ -260,8 +260,8 @@ static void wch_recall(int i) {
     cparam_i_set(cfg_fg_freq, c->freq);
     cparam_i_set(cfg_cur_mode, c->mode);
     cparam_i_set(cfg_cur_agc, c->agc);
-    cparam_i_set(cfg_cur_pre, c->pre ? x6100_pre_on : x6100_pre_off);
-    cparam_i_set(cfg_cur_att, c->att ? x6100_att_on : x6100_att_off);
+    cparam_i_set(cfg_cur_pre, c->pre ? radio_pre_on : radio_pre_off);
+    cparam_i_set(cfg_cur_att, c->att ? radio_att_on : radio_att_off);
 }
 
 /* The main knob in MEM: every slot in turn, the empty ones too (they can be stored into) */
@@ -605,8 +605,8 @@ static void build(void) {
 static void no_dig_mode(Subject *subj, void *user_data) {
     if (!walkie_on()) return;
     int32_t mode = cparam_i_get(cfg_cur_mode);
-    if (mode != x6100_mode_usb_dig && mode != x6100_mode_lsb_dig) return;
-    cparam_i_set(cfg_cur_mode, mode == x6100_mode_usb_dig ? x6100_mode_usb : x6100_mode_lsb);
+    if (mode != radio_mode_usb_dig && mode != radio_mode_lsb_dig) return;
+    cparam_i_set(cfg_cur_mode, mode == radio_mode_usb_dig ? radio_mode_usb : radio_mode_lsb);
     msg_schedule_text_fmt("No digital modes in walkie mode");
 }
 

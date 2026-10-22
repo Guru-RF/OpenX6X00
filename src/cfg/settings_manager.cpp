@@ -129,7 +129,7 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
     cp_cur_mode.recompute();
 
     // The starting mode is the active VFO's mode of the restored band.
-    mode_group_id_ = mode_group((x6100_mode_t)cp_cur_mode.get());
+    mode_group_id_ = mode_group((radio_mode_t)cp_cur_mode.get());
 
     set_mode_context(mode_group_id_);
 
@@ -237,18 +237,18 @@ void SettingsManager::switch_band(int new_band_id, bool implicit) {
         cp_bg_freq.recompute();
 
         // The band the active VFO is on, for independent VFOs (vfo_toggle)
-        (p_band_current_vfo.get() == X6100_VFO_A ? p_vfoa_band : p_vfob_band).set(new_band_id);
+        (p_band_current_vfo.get() == RADIO_VFO_A ? p_vfoa_band : p_vfob_band).set(new_band_id);
     }
 
     band_switch_active_ = false;
 }
 
 void SettingsManager::vfo_toggle() {
-    const bool    on_a  = p_band_current_vfo.get() == X6100_VFO_A;
+    const bool    on_a  = p_band_current_vfo.get() == RADIO_VFO_A;
     const int32_t other = (on_a ? p_vfob_band : p_vfoa_band).get();
 
     (on_a ? p_vfoa_band : p_vfob_band).set(band_id_);
-    p_band_current_vfo.set(on_a ? X6100_VFO_B : X6100_VFO_A);
+    p_band_current_vfo.set(on_a ? RADIO_VFO_B : RADIO_VFO_A);
     if (p_indep_vfo.get() && other != BAND_UNDEFINED && other != band_id_ &&
         BandsTable::get_by_id(other).rc == SUCCESS) {
         p_band_id.set(other);   /* explicit switch: both VFO records of that band are loaded */
@@ -295,8 +295,8 @@ void SettingsManager::flush_storage(StorageType type, int context_id) {
 
 void SettingsManager::cfg_band_vfo_copy() {
     // The other VFO comes to this band too (independent VFOs)
-    (p_band_current_vfo.get() == X6100_VFO_A ? p_vfob_band : p_vfoa_band).set(band_id_);
-    if (p_band_current_vfo.get() == X6100_VFO_A) {
+    (p_band_current_vfo.get() == RADIO_VFO_A ? p_vfob_band : p_vfoa_band).set(band_id_);
+    if (p_band_current_vfo.get() == RADIO_VFO_A) {
         p_band_vfob_freq.set(p_band_vfoa_freq.get());
         p_band_vfob_mode.set(p_band_vfoa_mode.get());
         p_band_vfob_agc.set(p_band_vfoa_agc.get());
@@ -375,11 +375,11 @@ void SettingsManager::cur_mode_set(int32_t mode) {
 }
 
 int32_t SettingsManager::cur_att_get() {
-    return p_band_current_vfo.get() == X6100_VFO_A ? p_band_vfoa_att.get() : p_band_vfob_att.get();
+    return p_band_current_vfo.get() == RADIO_VFO_A ? p_band_vfoa_att.get() : p_band_vfob_att.get();
 }
 
 void SettingsManager::cur_att_set(int32_t att) {
-    if (p_band_current_vfo.get() == X6100_VFO_A) {
+    if (p_band_current_vfo.get() == RADIO_VFO_A) {
         p_band_vfoa_att.set(att);
     } else {
         p_band_vfob_att.set(att);
@@ -387,11 +387,11 @@ void SettingsManager::cur_att_set(int32_t att) {
 }
 
 int32_t SettingsManager::cur_pre_get() {
-    return p_band_current_vfo.get() == X6100_VFO_A ? p_band_vfoa_pre.get() : p_band_vfob_pre.get();
+    return p_band_current_vfo.get() == RADIO_VFO_A ? p_band_vfoa_pre.get() : p_band_vfob_pre.get();
 }
 
 void SettingsManager::cur_pre_set(int32_t pre) {
-    if (p_band_current_vfo.get() == X6100_VFO_A) {
+    if (p_band_current_vfo.get() == RADIO_VFO_A) {
         p_band_vfoa_pre.set(pre);
     } else {
         p_band_vfob_pre.set(pre);
@@ -399,11 +399,11 @@ void SettingsManager::cur_pre_set(int32_t pre) {
 }
 
 int32_t SettingsManager::cur_agc_get() {
-    return p_band_current_vfo.get() == X6100_VFO_A ? p_band_vfoa_agc.get() : p_band_vfob_agc.get();
+    return p_band_current_vfo.get() == RADIO_VFO_A ? p_band_vfoa_agc.get() : p_band_vfob_agc.get();
 }
 
 void SettingsManager::cur_agc_set(int32_t agc) {
-    if (p_band_current_vfo.get() == X6100_VFO_A) {
+    if (p_band_current_vfo.get() == RADIO_VFO_A) {
         p_band_vfoa_agc.set(agc);
     } else {
         p_band_vfob_agc.set(agc);
@@ -411,11 +411,11 @@ void SettingsManager::cur_agc_set(int32_t agc) {
 }
 
 int32_t SettingsManager::bg_freq_get() {
-    return p_band_current_vfo.get() == X6100_VFO_A ? p_band_vfob_freq.get() : p_band_vfoa_freq.get();
+    return p_band_current_vfo.get() == RADIO_VFO_A ? p_band_vfob_freq.get() : p_band_vfoa_freq.get();
 }
 
 void SettingsManager::bg_freq_set(int32_t freq) {
-    if (p_band_current_vfo.get() == X6100_VFO_A) {
+    if (p_band_current_vfo.get() == RADIO_VFO_A) {
         p_band_vfob_freq.set(freq);
     } else {
         p_band_vfoa_freq.set(freq);
@@ -451,17 +451,17 @@ int32_t SettingsManager::clamp_to_valid_hw_freq(int32_t freq) const {
 
 SettingsManager::FilterMode SettingsManager::filter_mode(int32_t mode) const {
     switch (mode) {
-        case x6100_mode_lsb:
-        case x6100_mode_lsb_dig:
-        case x6100_mode_usb:
-        case x6100_mode_usb_dig:
+        case radio_mode_lsb:
+        case radio_mode_lsb_dig:
+        case radio_mode_usb:
+        case radio_mode_usb_dig:
             return FilterMode::SSB;
-        case x6100_mode_am:
+        case radio_mode_am:
             return FilterMode::AM;
-        case x6100_mode_nfm:
+        case radio_mode_nfm:
             return FilterMode::FM;
-        case x6100_mode_cw:
-        case x6100_mode_cwr:
+        case radio_mode_cw:
+        case radio_mode_cwr:
             return FilterMode::CW;
         default:
             return FilterMode::SSB;
@@ -470,10 +470,10 @@ SettingsManager::FilterMode SettingsManager::filter_mode(int32_t mode) const {
 
 int32_t SettingsManager::filter_low_validate(int32_t v) {
     switch (cp_cur_mode.get()) {
-        case x6100_mode_cw:
-        case x6100_mode_cwr:
-        case x6100_mode_am:
-        case x6100_mode_nfm:
+        case radio_mode_cw:
+        case radio_mode_cwr:
+        case radio_mode_am:
+        case radio_mode_nfm:
             return 0;
     }
     int high = p_mode_filter_high.get();
@@ -599,7 +599,7 @@ void SettingsManager::switch_mode_observer_cb(Subject * /*subj*/, void *user_dat
     // MODE params (set_quiet) and recomputes cp_fg_freq, never cp_cur_mode, so
     // this does not recurse.
     SettingsManager *mgr = static_cast<SettingsManager *>(user_data);
-    auto group = mode_group((x6100_mode_t)mgr->cp_cur_mode.get());
+    auto group = mode_group((radio_mode_t)mgr->cp_cur_mode.get());
     mgr->switch_mode(group);
 }
 
@@ -628,18 +628,18 @@ void SettingsManager::switch_band_observer_cb(Subject * /*subj*/, void *user_dat
     mgr->switch_band(mgr->p_band_id.get(), false);
 }
 
-ModeGroup SettingsManager::mode_group(x6100_mode_t mode) {
+ModeGroup SettingsManager::mode_group(radio_mode_t mode) {
     switch (mode) {
-        case x6100_mode_lsb:
-        case x6100_mode_usb:
+        case radio_mode_lsb:
+        case radio_mode_usb:
             return MODE_GROUP_SSB;
 
-        case x6100_mode_lsb_dig:
-        case x6100_mode_usb_dig:
+        case radio_mode_lsb_dig:
+        case radio_mode_usb_dig:
             return MODE_GROUP_DIGI;
 
-        case x6100_mode_cw:
-        case x6100_mode_cwr:
+        case radio_mode_cw:
+        case radio_mode_cwr:
             return MODE_GROUP_CW;
 
         default:
@@ -762,7 +762,7 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     // the new band, exactly like the inactive VFO.
 
     // VFOA frequency: skipped on implicit switch when VFOA is the active VFO.
-    if (!(implicit && active_vfo == X6100_VFO_A)) {
+    if (!(implicit && active_vfo == RADIO_VFO_A)) {
         // vfoa_freq: NOT_FOUND -> band start (or the default); an out-of-range
         // loaded value is clamped to the band start.
         int rc = p_band_vfoa_freq.load(band_id);
@@ -795,7 +795,7 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     }
 
     // VFOB frequency: skipped on implicit switch when VFOB is the active VFO.
-    if (!(implicit && active_vfo == X6100_VFO_B)) {
+    if (!(implicit && active_vfo == RADIO_VFO_B)) {
         // vfob_freq: copies the current vfoa_freq when absent; clamped like
         // vfoa_freq when loaded.
         int rc = p_band_vfob_freq.load(band_id);
@@ -836,7 +836,7 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
 }
 
 int32_t SettingsManager::resolve_default_mode(int32_t freq) {
-    return freq < 10000000 ? x6100_mode_lsb : x6100_mode_usb;
+    return freq < 10000000 ? radio_mode_lsb : radio_mode_usb;
 }
 
 std::string SettingsManager::make_default_encoder_bind() {
@@ -868,10 +868,10 @@ std::string SettingsManager::encoder_bind_validate(const std::string &val) {
 int32_t SettingsManager::lo_offset_compute() {
     int32_t mode = cp_cur_mode.get();
     int32_t key_tone = p_key_tone.get();
-    if (mode == x6100_mode_cw) {
+    if (mode == radio_mode_cw) {
         return -key_tone;
     }
-    if (mode == x6100_mode_cwr) {
+    if (mode == radio_mode_cwr) {
         return key_tone;
     }
     return 0;

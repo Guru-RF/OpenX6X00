@@ -290,15 +290,15 @@ static const char *adif_mode(void) {
     const char *d = digi_mode();
 
     switch (cparam_i_get(cfg_cur_mode)) {
-        case x6100_mode_cw:
-        case x6100_mode_cwr:
+        case radio_mode_cw:
+        case radio_mode_cwr:
             return "CW";
-        case x6100_mode_am:
+        case radio_mode_am:
             return "AM";
-        case x6100_mode_nfm:
+        case radio_mode_nfm:
             return "FM";
-        case x6100_mode_lsb_dig:
-        case x6100_mode_usb_dig:
+        case radio_mode_lsb_dig:
+        case radio_mode_usb_dig:
             return d ? d : "FT8";
         default:
             return d ? d : "SSB";
@@ -307,7 +307,7 @@ static const char *adif_mode(void) {
 
 static bool is_cw(void) {
     int m = cparam_i_get(cfg_cur_mode);
-    return m == x6100_mode_cw || m == x6100_mode_cwr;
+    return m == radio_mode_cw || m == radio_mode_cwr;
 }
 
 /* The best position: radio GPS, else the QTH locator. src: "GPS", "QTH" */
@@ -1842,7 +1842,7 @@ void dialog_field_tune_band(int band) {
     int32_t f = field_band_freq(band, is_cw());
     main_screen_set_freq(f);
     if (!is_cw() && !main_screen_mode_locked())
-        cparam_i_set(cfg_cur_mode, f < 10000000 ? x6100_mode_lsb : x6100_mode_usb);
+        cparam_i_set(cfg_cur_mode, f < 10000000 ? radio_mode_lsb : radio_mode_usb);
     msg_update_text_fmt("%s: %.3f MHz", field_band_name(band), f / 1e6);
 }
 

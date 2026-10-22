@@ -268,7 +268,7 @@ static void client_close(client_t *c) {
 /* ---- The radio, on the LVGL thread -------------------------------------------------- */
 
 static bool voice_mode(int32_t m) {
-    return m == x6100_mode_lsb || m == x6100_mode_usb || m == x6100_mode_am || m == x6100_mode_nfm;
+    return m == radio_mode_lsb || m == radio_mode_usb || m == radio_mode_am || m == radio_mode_nfm;
 }
 
 /* tci: the TCI audio session (if there is one); else the radio's own PTT */
@@ -386,7 +386,7 @@ static const char *agc_name(int32_t a) {
 
 /* The passband as TCI tells it: below the carrier negative (lsb, digl, cwr) */
 static void filter_line(char *buf, size_t n, const rstate_t *s) {
-    bool neg = s->mode == x6100_mode_lsb || s->mode == x6100_mode_lsb_dig || s->mode == x6100_mode_cwr;
+    bool neg = s->mode == radio_mode_lsb || s->mode == radio_mode_lsb_dig || s->mode == radio_mode_cwr;
     if (neg)
         snprintf(buf, n, "rx_filter_band:0,%d,%d;", -s->fhi, -s->flo);
     else
@@ -477,8 +477,8 @@ static int mode_index(const char *name) {
     for (int i = 0; i < 8; i++)
         if (strcasecmp(name, mode_names[i]) == 0)
             return i;
-    if (strcasecmp(name, "fm") == 0) return x6100_mode_nfm;
-    if (strcasecmp(name, "sam") == 0 || strcasecmp(name, "dsb") == 0) return x6100_mode_am;
+    if (strcasecmp(name, "fm") == 0) return radio_mode_nfm;
+    if (strcasecmp(name, "sam") == 0 || strcasecmp(name, "dsb") == 0) return radio_mode_am;
     return -1;
 }
 
@@ -486,7 +486,7 @@ static int agc_index(const char *name) {
     for (int i = 0; i < 4; i++)
         if (strcasecmp(name, agc_names[i]) == 0)
             return i;
-    if (strcasecmp(name, "med") == 0 || strcasecmp(name, "medium") == 0) return x6100_agc_auto;
+    if (strcasecmp(name, "med") == 0 || strcasecmp(name, "medium") == 0) return radio_agc_auto;
     return -1;
 }
 

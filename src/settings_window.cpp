@@ -2861,7 +2861,7 @@ static uint8_t make_param_slider(uint8_t row, const char *label, param_slider_t 
 }
 
 /* The microphone input: Audio > MICROPHONE (p_mic) and the walkie's own (p_walkie_mic).
- * Same order as x6100_mic_builtin, x6100_mic_handle, x6100_mic_auto. */
+ * Same order as radio_mic_builtin, radio_mic_handle, radio_mic_auto. */
 static uint8_t make_mic(uint8_t row, const char *label, ParamInt &param) {
     wl_row_label(row, label);
     row_choice(row, 4, 3, SMALL_3, " Built-in \n Hand \n Auto ", param.get(), int_choice_cb, &param);
@@ -3049,7 +3049,7 @@ static const char * pd_code_name(int src, int code, char *buf) {
 
 /* Dit and dah codes of the map as they key now: KEY mode Auto-R and Swap flip them */
 static bool pd_flip() {
-    return (cfg_sm.p_key_mode.get() == x6100_key_auto_right) != (bool)cfg_sm.p_paddle_swap.get();
+    return (cfg_sm.p_key_mode.get() == radio_key_auto_right) != (bool)cfg_sm.p_paddle_swap.get();
 }
 
 static void pd_update() {
