@@ -30,7 +30,7 @@ for node in tree.body:
     if isinstance(node, ast.FunctionDef) and node.name in wanted:
         node.decorator_list = []
         selected.append(node)
-    elif isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and (t.id.startswith('CLUSTER_') or t.id in ('config_lock','UPDATE_MAX_BYTES')) for t in node.targets):
+    elif isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and (t.id.startswith('CLUSTER_') or t.id in ('config_lock','UPDATE_MAX_BYTES','update_lock','update_job')) for t in node.targets):
         selected.append(node)
 exec(compile(ast.Module(body=selected,type_ignores=[]), 'apps-production-extract', 'exec'), ns)
 
@@ -100,24 +100,23 @@ with tempfile.TemporaryDirectory(prefix='x6upload-') as td:
             n.value = str(upload_dir)+n.value[len('/mnt/update'):]
     exec(compile(ast.Module(body=[upload_node],type_ignores=[]),'apps-production-upload','exec'),ns)
     job_started, helper_may_open = threading.Event(), threading.Event()
-    outcomes=[]
-    busy=False
-    def start(what,args):
-        global busy
-        if busy: return ns['api_error'](409,'An update is already running')
-        busy=True
-        def worker():
-            job_started.set();helper_may_open.wait()
-            outcomes.append(ug['cmd_install'](args[1:]))
-        thread=threading.Thread(target=worker);thread.start();outcomes.append(thread)
-        return {'running':True}
-    ns['update_start']=start
+    # the production job runner with the updater's install in place of the helper process: the
+    # job is reserved before the upload is written and installs the file it was given (audit B08)
+    def run(args):
+        job_started.set();helper_may_open.wait()
+        return ug['cmd_install'](args[1:])
+    ns['update_run']=run
+    ns['get_update']=lambda:{'running':True}
     bottle.request.files={'file':SimpleNamespace(raw_filename='A.tar.gz',file=io.BytesIO(bundle('1')))}
     a_result=ns['upload_update']()
     job_started.wait()
     bottle.request.files={'file':SimpleNamespace(raw_filename='B.tar.gz',file=io.BytesIO(bundle('2')))}
     b_result=ns['upload_update']()
     helper_may_open.set()
-    outcomes[0].join()
+    for _ in range(200):
+        with ns['update_lock']:
+            running=ns['update_job']['running']
+        if not running: break
+        __import__('time').sleep(0.05)
     print('upload A:',a_result,'upload B:',b_result,'A job installed:',ver_path.read_text().strip(),app_path.read_text())
-    assert 'error' in b_result.values() and ver_path.read_text()=='2\n'
+    assert 'error' in b_result.values() and ver_path.read_text()=='1\n' and len(list(upload_dir.iterdir()))==0

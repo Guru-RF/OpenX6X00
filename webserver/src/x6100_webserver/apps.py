@@ -403,17 +403,37 @@ def update_job_run(what, args):
     with update_lock:
         update_job.update(running=False, result=result)
 
+    if what == "install" and len(args) > 1 and os.path.basename(args[1]).startswith("upload-"):
+        try:
+            os.remove(args[1])      # the uploaded bundle is staged and applied: not needed again
+        except OSError:
+            pass
 
-def update_start(what, args):
+def update_reserve(what):
+    """The one job at a time, taken before anything is done for it; None, or the 409 response."""
     with update_lock:
         if update_job["running"]:
             return api_error(409, "An update is already running")
         update_job.update(running=True, what=what, result="")
-    threading.Thread(target=update_job_run, args=(what, args), daemon=True).start()
+    return None
+
+
+def update_release():
+    with update_lock:
+        update_job["running"] = False
+
+
+def update_launch(args):
+    """Runs the reserved job in its thread"""
+    threading.Thread(target=update_job_run, args=(update_job["what"], args), daemon=True).start()
     return get_update()
 
 
 @app.route('/update')
+def update_start(what, args):
+    return update_reserve(what) or update_launch(args)
+
+
 def update_page():
     return bottle.template('update')
 
@@ -449,20 +469,36 @@ def upload_update():
         return api_error(400, "No file")
     if not upload.raw_filename.endswith(".tar.gz"):
         return api_error(400, "Not an update bundle (.tar.gz)")
-    os.makedirs("/mnt/update", exist_ok=True)
-    dest = "/mnt/update/upload.tar.gz"
-    size = 0
-    with open(dest + ".part", "wb") as f:
-        while True:
-            chunk = upload.file.read(1 << 20)
-            if not chunk:
-                break
-            size += len(chunk)
-            if size > UPDATE_MAX_BYTES:
-                return api_error(413, "Larger than 64 MB")
-            f.write(chunk)
-    os.replace(dest + ".part", dest)
-    return update_start("install", ["install", dest])
+    # The job is taken before the file is written, and every upload has a file of its own: a
+    # second upload wrote over the one shared path while the accepted job had not opened it yet,
+    # was told "already running", and the job installed the second bundle (audit B08)
+    err = update_reserve("install")
+    if err:
+        return err
+    dest = "/mnt/update/upload-%s.tar.gz" % secrets.token_hex(4)
+    try:
+        os.makedirs("/mnt/update", exist_ok=True)
+        size = 0
+        with open(dest + ".part", "wb") as f:
+            while True:
+                chunk = upload.file.read(1 << 20)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > UPDATE_MAX_BYTES:
+                    raise ValueError("Larger than 64 MB")
+                f.write(chunk)
+        os.replace(dest + ".part", dest)
+    except BaseException as e:
+        update_release()
+        try:
+            os.remove(dest + ".part")
+        except OSError:
+            pass
+        if isinstance(e, ValueError):
+            return api_error(413, str(e))
+        raise
+    return update_launch(["install", dest])
 
 
 @app.get('/api/tci')
