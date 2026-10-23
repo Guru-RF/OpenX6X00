@@ -211,7 +211,8 @@
   Ptt.prototype.radioTx = function(on) {
     const self = this;
     if (on) {
-      if (this.state === "requesting") { this.clear(); this.state = "tx"; this.why = ""; this.render(); if (this.o.status) this.o.status("On the air (" + (this.path === "mic" ? "browser microphone" : "the radio's microphone") + ")"); }
+      /* only the confirmation timeout goes: the renewal keeps the server's lease while the button is held (audit B10) */
+      if (this.state === "requesting") { if (this.timer) { clearTimeout(this.timer); this.timer = null; } this.state = "tx"; this.why = ""; this.render(); if (this.o.status) this.o.status("On the air (" + (this.path === "mic" ? "browser microphone" : "the radio's microphone") + ")"); }
       else if (this.state === "idle" || this.state === "ended" || this.state === "refused") { this.state = "busy"; this.render(); }
     } else {
       if (this.state === "tx") { this.clear(); this.stopPath(); this.set("ended", "The radio ended the transmission"); }

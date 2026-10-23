@@ -20,5 +20,6 @@ ptt.press();
 advance(100);
 ptt.radioTx(true);
 advance(4000);
-console.log(JSON.stringify({state: ptt.state, sent, renewTimer: ptt.renew, expected: 'key PTT 1 once per second while held'}, null, 2));
-if (sent.filter(x => x.text === 'key PTT 1').length !== 1) process.exit(1);
+const keys = sent.filter(x => x.text === 'key PTT 1').length;
+console.log(JSON.stringify({state: ptt.state, keys, renewTimer: ptt.renew, expected: 'key PTT 1 once per second while held (fixed, audit B10)'}, null, 2));
+if (keys < 4 || ptt.renew === null) process.exit(1);
