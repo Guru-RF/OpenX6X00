@@ -1782,7 +1782,10 @@ writes the day's log and is answered with `logged ok|no`. `logq ID CALL|...`
 is the same QSO with a number the client chose, answered `logged ID ok|no`;
 the radio keeps the last sixteen answers and `logq? ID` asks for one again:
 `ok`, `no`, `pending` (still being written) or `unknown` (never seen, or the
-radio restarted since). The greeting `hello <version> <boot>` ends with a
+radio restarted since). After `size` the radio lists its keys (`keys GEN APP
+...`: the X6200 has no PRE, V/M, AGC or LOCK key) and, to a panel, `modes 8|10`
+(the X6200 adds SAM and WFM; `set mode` with one the radio has not is answered
+`err mode: not on this radio`). The greeting `hello <version> <boot>` ends with a
 number chosen when the GUI started: a client that sees it change knows the
 radio restarted. Sessions and control: `pair?` puts a code on the radio's
 screen, `pair CODE NAME` answers `paired TOKEN ROLE TX`, `auth TOKEN` at each

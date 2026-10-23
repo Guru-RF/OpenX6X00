@@ -285,6 +285,7 @@ body.app h2, body.app #intro { display:none; }
   const $st = $("#st"), $msg = $("#msg"), pn = document.getElementById("pn");
   const secure = location.protocol === "https:";
   const MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CW-R", "AM", "NFM", "SAM", "WFM"];
+  let nModes = 8;    /* "modes N" from the radio: an X6200 has SAM and WFM too */
   const AGCS = ["OFF", "SLOW", "FAST", "AUTO"];
   const STEPS = [10, 100, 500, 1000, 5000];
   const PLAN_COLORS = ["#2a7fff", "#d08a00", "#2e9e4f", "#b040c0"];     /* CW, DIG, ALL, BCN */
@@ -625,7 +626,7 @@ body.app h2, body.app #intro { display:none; }
     el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
   });
   document.querySelectorAll(".b.tg").forEach(function(el) { el.addEventListener("click", function() { if (state) set(el.dataset.set, state[el.dataset.set] ? 0 : 1); }); });
-  $("#b-mode").on("click", function() { if (state) popList("Mode", MODES.map(function(m, i) { return {t: m, v: i}; }), state.mode, function(v) { set("mode", v); }); });
+  $("#b-mode").on("click", function() { if (state) popList("Mode", MODES.slice(0, nModes).map(function(m, i) { return {t: m, v: i}; }), state.mode, function(v) { set("mode", v); }); });
   $("#b-step").on("click", function() { if (state) popList("Tuning step", STEPS.map(function(s) { return {t: fmtStep(s), v: s}; }), state.step, function(v) { set("step", v); }); });
   $("#b-zoom").on("click", function() { if (state) zoomTo(state.zoom >= 8 ? 1 : state.zoom * 2); });
   $("#b-agc").on("click", function() { if (state) popList("AGC", AGCS.map(function(a, i) { return {t: a, v: i}; }), state.agc, function(v) { set("agc", v); }); });
@@ -838,6 +839,8 @@ body.app h2, body.app #intro { display:none; }
       else if (head === "t") { const a = body.split(" "); showTx(parseFloat(a[0]), parseFloat(a[1]), parseFloat(a[2])); }
       else if (head === "spots") { spots = JSON.parse(body); showSpots(); requestDraw(); }
       else if (head === "bands") bands = JSON.parse(body);
+      else if (head === "modes") nModes = Math.min(MODES.length, parseInt(body, 10) || 8);
+      else if (head === "keys") keysHave(body.split(" "));
       else if (head === "plan") { plan = JSON.parse(body); requestDraw(); }
       else if (head === "ft8") { ft8 = JSON.parse(body); ft8At = Date.now(); showFt8(); }
       else if (head === "ft8r") addFt8Row(JSON.parse(body));

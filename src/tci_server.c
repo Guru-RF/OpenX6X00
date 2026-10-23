@@ -457,7 +457,8 @@ static void send_greeting(client_t *c, const rstate_t *s) {
     client_text(c, "channels_count:1;");
     client_text(c, "vfo_limits:100000,55000000;");
     client_text(c, "if_limits:-48000,48000;");
-    client_text(c, "modulations_list:lsb,usb,digl,digu,cw,cwr,am,nfm;");
+    /* the list and the parser agree: sam and wfm where the base has them (audit B15) */
+    client_textf(c, "modulations_list:lsb,usb,digl,digu,cw,cwr,am,nfm%s;", radio_caps() & HW_CAP_SAM_WFM ? ",sam,wfm" : "");
     client_textf(c, "audio_samplerate:%d;", AUDIO_RATE);
     client_text(c, "audio_stream_sample_type:int16;");
     client_text(c, "audio_stream_channels:1;");

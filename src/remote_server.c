@@ -633,10 +633,15 @@ static void panel_apply(void *arg) {
                 main_screen_set_freq((uint64_t)p->a);
             break;
         case P_MODE:
-            if (!main_screen_mode_locked() && p->a >= 0 && p->a < 8)
+            if (!main_screen_mode_locked() && mode_supported(p->a))
                 cparam_i_set(cfg_cur_mode, p->a);
             break;
         case P_AGC:    cparam_i_set(cfg_cur_agc, LV_CLAMP(0, p->a, 3)); break;
+/* A mode of this radio: SAM and WFM only where the base has them (audit B15) */
+static bool mode_supported(int32_t m) {
+    return m >= 0 && m <= radio_mode_last && (m < radio_mode_sam || (radio_caps() & HW_CAP_SAM_WFM));
+}
+
         case P_PRE:    cparam_i_set(cfg_cur_pre, p->a != 0); break;
         case P_ATT:    cparam_i_set(cfg_cur_att, p->a != 0); break;
         case P_NB:     param_i_set(cfg_nb, p->a != 0); break;
@@ -671,8 +676,8 @@ static void panel_put(pcmd_id_t id, int32_t a, int32_t b) {
     scheduler_put(panel_apply, &p, sizeof(p));
 }
 
-/* "set NAME VALUE [VALUE2]" */
-static bool panel_set(const char *name, const char *v1, const char *v2) {
+/* "set NAME VALUE [VALUE2]": 0 done, 1 no such setting, 2 a mode this radio has not */
+static int panel_set(const char *name, const char *v1, const char *v2) {
     static const struct {
         const char *name;
         pcmd_id_t   id;
@@ -706,6 +711,8 @@ static void pstate_read(pstate_t *s) {
     s->agc   = cparam_i_get(cfg_cur_agc);
     s->pre   = cparam_i_get(cfg_cur_pre);
     s->att   = cparam_i_get(cfg_cur_att);
+        if (names[i].id == P_MODE && !mode_supported(a))
+            return 2;
     s->nb    = param_i_get(cfg_nb);
     s->nr    = param_i_get(cfg_nr);
     s->sql   = param_i_get(cfg_squelch);
@@ -835,6 +842,7 @@ static void panel_hello(client_t *c) {
     int     type;
     for (int i = 0; band_plan_segment(i, &a, &b, &type) && k < sizeof(buf) - 48; i++)
         k += snprintf(buf + k, sizeof(buf) - k, "%s[%d,%d,%d]", i ? "," : "", a, b, type);
+    client_textf(c, "modes %d", radio_caps() & HW_CAP_SAM_WFM ? radio_mode_last + 1 : radio_mode_sam);
     snprintf(buf + k, sizeof(buf) - k, "]");
     client_text(c, buf);
 }
@@ -1499,6 +1507,8 @@ static void handle_text(client_t *c, char *text) {
         while (i < c->nheld && c->held[i] != code) i++;
         if (down) {
             if (!allowed(c, ROLE_OPERATE, true))
+        else if (r == 2)
+            client_text(c, "err mode: not on this radio");
                 return;
             if (code == BTN_TRIGGER_HAPPY4) {       /* PTT: the radio's own microphone */
                 if (!c->tx_ok) {
