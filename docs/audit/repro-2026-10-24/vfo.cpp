@@ -19,6 +19,8 @@ int main() {
  s->cp_bg_freq.set(7100000);
  std::cout<<"after B=7100000: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<" mode="<<s->cp_cur_mode.get()<<"\n";
  s->flush_all();
- auto v=BandParamsTable::Load<int32_t>(4,"vfob_freq");
+ auto v=BandParamsTable::Load<int32_t>(7,"vfob_freq");   /* fixed (audit B11): stored with the band that stays */
  std::cout<<"persisted B="<<v.value<<" rc="<<v.rc<<"\n";
+ s->vfo_toggle();
+ std::cout<<"after toggle: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<" vfo="<<s->p_band_current_vfo.get()<<"\n";
 }

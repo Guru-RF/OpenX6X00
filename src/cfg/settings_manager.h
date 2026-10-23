@@ -570,6 +570,7 @@ class SettingsManager {
     // The other VFO. With independent VFOs on, the band this VFO is on is kept for it and the
     // other VFO's band is loaded (its frequency and mode come with the band's record).
     void vfo_toggle();
+    void band_follow(int32_t freq);    // the band the active VFO's frequency lies in, implicitly
 
     // Transverter shift for a frequency: the shift of the transverter whose
     // [from, to] range contains `freq`, or 0 when no transverter covers it.

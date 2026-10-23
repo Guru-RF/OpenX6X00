@@ -251,6 +251,8 @@ void SettingsManager::vfo_toggle() {
     if (p_indep_vfo.get() && other != BAND_UNDEFINED && other != band_id_ &&
         BandsTable::get_by_id(other).rc == SUCCESS) {
         p_band_id.set(other);   /* explicit switch: both VFO records of that band are loaded */
+    } else {
+        band_follow(fg_freq_get());   /* the VFO now active was tuned into another band while inactive */
     }
 }
 
@@ -614,17 +616,27 @@ void SettingsManager::switch_mode_observer_cb(Subject * /*subj*/, void *user_dat
 }
 
 void SettingsManager::vfo_freq_change_cb(Subject *subj, void *user_data) {
-    // Whenever a VFO frequency changes, check whether it landed in a different
-    // band. If so, switch bands implicitly: the frequency that caused the
-    // switch is preserved (it was just tuned), and the new band's mode/att/pre/
-    // agc are loaded. Triggered from both cp_fg_freq.set() (via fg_freq_set ->
-    // active VFO freq .set()) and direct p_band_vfo*_freq.set().
-    SettingsManager   *mgr       = static_cast<SettingsManager *>(user_data);
-    auto              *freq_subj = static_cast<SubjectT<int32_t> *>(subj);
-    const int32_t      freq      = freq_subj->get();
-    BandInfoLoadResult result    = BandsTable::get_by_freq(static_cast<uint32_t>(freq));
-    if (result.rc == SUCCESS && result.value.id != mgr->band_id_) {
-        mgr->switch_band(result.value.id, true);
+    // The band follows the active VFO: when its frequency lands in another band
+    // the band switches implicitly, that frequency kept (it was just tuned) and
+    // the band's mode/att/pre/agc loaded. The inactive VFO's frequency is only
+    // stored: a switch from it loaded the new band over the active VFO's mode
+    // and over the frequency just asked for (audit B11); vfo_toggle() follows
+    // it once it is the active one. Triggered from cp_fg_freq.set() (via
+    // fg_freq_set -> active VFO freq .set()) and direct p_band_vfo*_freq.set().
+    SettingsManager *mgr    = static_cast<SettingsManager *>(user_data);
+    Subject         *active = mgr->p_band_current_vfo.get() == RADIO_VFO_A
+                                  ? static_cast<Subject *>(&mgr->p_band_vfoa_freq)
+                                  : static_cast<Subject *>(&mgr->p_band_vfob_freq);
+    if (subj != active) {
+        return;
+    }
+    mgr->band_follow(static_cast<SubjectT<int32_t> *>(subj)->get());
+}
+
+void SettingsManager::band_follow(int32_t freq) {
+    BandInfoLoadResult result = BandsTable::get_by_freq(static_cast<uint32_t>(freq));
+    if (result.rc == SUCCESS && result.value.id != band_id_) {
+        switch_band(result.value.id, true);
     }
 }
 
