@@ -209,6 +209,7 @@ uint64_t from_bcd_be(const uint8_t bcd_data[], uint8_t len) {
 #define M_AM 0x02
 #define M_CW 0x03
 #define M_NFM 0x05
+#define M_WFM 0x06
 #define M_CWR 0x07
 
 // memory/bank/rig control
@@ -408,6 +409,9 @@ static radio_mode_t ci_mode_2_x_mode(uint8_t mode, bool data_mode=false) {
         case M_NFM:
             r_mode = radio_mode_nfm;
             break;
+        case M_WFM:
+            r_mode = radio_caps() & HW_CAP_SAM_WFM ? radio_mode_wfm : radio_mode_nfm;
+            break;
         case M_CWR:
             r_mode = radio_mode_cwr;
             break;
@@ -492,10 +496,14 @@ static uint8_t x_mode_2_ci_mode(radio_mode_t mode, bool *data_mode=nullptr) {
             return M_CWR;
             break;
         case radio_mode_am:
+        case radio_mode_sam:
             return M_AM;
             break;
         case radio_mode_nfm:
             return M_NFM;
+            break;
+        case radio_mode_wfm:
+            return M_WFM;
             break;
         default:
             return 0;
@@ -523,6 +531,8 @@ static uint8_t get_if_bandwidth() {
             break;
         case radio_mode_am:
         case radio_mode_nfm:
+        case radio_mode_sam:
+        case radio_mode_wfm:
             val = (bw - 100) / 200;
             break;
         default:

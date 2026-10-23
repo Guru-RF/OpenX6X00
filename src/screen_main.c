@@ -583,7 +583,8 @@ static void msg_key(void) {
 
     if (cw_mode()) {
         msg_dialog_open(dialog_msg_cw);
-    } else if (mode == radio_mode_lsb || mode == radio_mode_usb || mode == radio_mode_am || mode == radio_mode_nfm) {
+    } else if (mode == radio_mode_lsb || mode == radio_mode_usb || mode == radio_mode_am || mode == radio_mode_nfm ||
+               mode == radio_mode_sam || mode == radio_mode_wfm) {
         msg_dialog_open(dialog_msg_voice);
     } else {
         msg_tiny_set_text_fmt("Not used in this mode");
@@ -610,12 +611,24 @@ static radio_mode_t ssb_key_mode(radio_mode_t mode, bool hold) {
     return dig ? radio_mode_usb_dig : radio_mode_usb;
 }
 
-/* The three mode keys, pressed or held: AM/NFM, CW/CW-R, SSB as above */
+/* The AM key: AM and NFM, with SAM and WFM between them on a base that has them (the X6200) */
+static radio_mode_t am_key_mode(radio_mode_t mode) {
+    bool more = (radio_caps() & HW_CAP_SAM_WFM) != 0;
+
+    switch (mode) {
+        case radio_mode_am:     return more ? radio_mode_sam : radio_mode_nfm;
+        case radio_mode_sam:    return radio_mode_nfm;
+        case radio_mode_nfm:    return more ? radio_mode_wfm : radio_mode_am;
+        default:                return radio_mode_am;
+    }
+}
+
+/* The three mode keys, pressed or held: AM/(SAM)/NFM/(WFM), CW/CW-R, SSB as above */
 static void mode_key(keypad_key_t key, bool hold) {
     radio_mode_t mode = cparam_i_get(cfg_cur_mode);
 
     if (key == KEYPAD_MODE_AM) {
-        mode = mode == radio_mode_am ? radio_mode_nfm : radio_mode_am;
+        mode = am_key_mode(mode);
     } else if (key == KEYPAD_MODE_CW) {
         mode = mode == radio_mode_cw ? radio_mode_cwr : radio_mode_cw;
     } else {
@@ -866,21 +879,24 @@ static void mic_key_cb(lv_event_t *e) {
             page_key(KEYPAD_DFL, tap, hold);
             break;
 
-        /* Hand mic MODE: press steps LSB, USB, CW, CW-R, AM, NFM; long press is the SSB key's long press (DIG on/off) */
+        /* Hand mic MODE: press steps LSB, USB, CW, CW-R, AM, NFM (and SAM, WFM where the base has
+         * them); long press is the SSB key's long press (DIG on/off) */
         case HKEY_MODE:
             if (!mode_lock && tap) {
                 static const radio_mode_t order[] = {radio_mode_lsb, radio_mode_usb, radio_mode_cw,
-                                                     radio_mode_cwr, radio_mode_am,  radio_mode_nfm};
+                                                     radio_mode_cwr, radio_mode_am,  radio_mode_nfm,
+                                                     radio_mode_sam, radio_mode_wfm};
+                size_t n_order = radio_caps() & HW_CAP_SAM_WFM ? 8 : 6;
                 radio_mode_t mode = cparam_i_get(cfg_cur_mode);
                 size_t       i    = 0;
 
                 if (mode == radio_mode_lsb_dig || mode == radio_mode_usb_dig) {
                     mode = mode == radio_mode_lsb_dig ? radio_mode_lsb : radio_mode_usb;
                 }
-                while (i < sizeof(order) / sizeof(order[0]) && order[i] != mode) {
+                while (i < n_order && order[i] != mode) {
                     i++;
                 }
-                cparam_i_set(cfg_cur_mode, order[(i + 1) % (sizeof(order) / sizeof(order[0]))]);
+                cparam_i_set(cfg_cur_mode, order[(i + 1) % n_order]);
             } else if (!mode_lock && hold) {
                 mode_key(KEYPAD_MODE_SSB, true);
             }

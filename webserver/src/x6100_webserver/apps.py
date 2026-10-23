@@ -945,7 +945,7 @@ def cfg_connect(timeout):
 # Memories: MEM button slots (params.db, table `memory`) and named channels
 # (channels.json, same format as the radio GUI, src/channels.c)
 # Names and enum values are x6100_mode_t / x6100_agc_t from x6100_control
-MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CWR", "AM", "NFM"]
+MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CWR", "AM", "NFM", "SAM", "WFM"]
 AGCS = ["OFF", "SLOW", "FAST", "AUTO"]
 MEM_SLOTS = range(1, 10)  # MEM_HKEY_MAX_ID in src/main_screen.h; 10 is the GUI's backup slot
 FREQ_MIN, FREQ_MAX = 100000, 56000000  # the GUI HF range (HF_MIN_FREQ)

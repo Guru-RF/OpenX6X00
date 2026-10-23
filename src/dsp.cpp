@@ -520,6 +520,8 @@ static void on_filter_change(Subject *subj, void *user_data) {
 
         case radio_mode_am:
         case radio_mode_nfm:    /* both sides */
+        case radio_mode_sam:
+        case radio_mode_wfm:
             filter_from = shift - high;
             filter_to   = shift + high;
             break;

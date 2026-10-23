@@ -295,8 +295,10 @@ static const char *adif_mode(void) {
         case radio_mode_cwr:
             return "CW";
         case radio_mode_am:
+        case radio_mode_sam:
             return "AM";
         case radio_mode_nfm:
+        case radio_mode_wfm:
             return "FM";
         case radio_mode_lsb_dig:
         case radio_mode_usb_dig:

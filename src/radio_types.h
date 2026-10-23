@@ -38,6 +38,7 @@ typedef enum {
     HW_CAP_TX_FILTER    = 1 << 10,  /* HW_TX_FILTER_LOW / HIGH */
     HW_CAP_FM_EMP       = 1 << 11,  /* HW_FM_EMP */
     HW_CAP_TX_LEVEL     = 1 << 12,  /* the base sets the TX power itself: digital audio goes at one level */
+    HW_CAP_SAM_WFM      = 1 << 13,  /* the modes radio_mode_sam and radio_mode_wfm */
 } hw_cap_t;
 
 /* The hand mic's keys as the base reports them (mic_keys.c) */
@@ -80,7 +81,10 @@ typedef enum {
     radio_mode_cw      = 4,
     radio_mode_cwr     = 5,
     radio_mode_am      = 6,
-    radio_mode_nfm     = 7
+    radio_mode_nfm     = 7,
+    radio_mode_sam     = 8,     /* synchronous AM and wide FM: the X6200 (HW_CAP_SAM_WFM); a base */
+    radio_mode_wfm     = 9,     /* without them takes AM and NFM for them */
+    radio_mode_last    = radio_mode_wfm
 } radio_mode_t;
 
 typedef enum {

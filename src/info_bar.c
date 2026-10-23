@@ -296,7 +296,7 @@ static const char *name_of(const char *const *names, size_t n, int32_t i) {
 }
 
 const char *info_params_mode_label_get(void) {
-    static const char *const names[] = {"LSB", "LSB-D", "USB", "USB-D", "CW", "CW-R", "AM", "NFM"};   /* radio_mode_t order */
+    static const char *const names[] = {"LSB", "LSB-D", "USB", "USB-D", "CW", "CW-R", "AM", "NFM", "SAM", "WFM"};   /* radio_mode_t order */
 
     return name_of(names, sizeof(names) / sizeof(names[0]), cparam_i_get(cfg_cur_mode));
 }

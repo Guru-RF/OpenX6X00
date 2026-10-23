@@ -449,7 +449,7 @@ static void on_filter_change(Subject *subj, void *user_data) {
     int32_t      high = subject_i_get((SubjectInt *)cfg_cur_filter_high);
     radio_mode_t mode = subject_i_get((SubjectInt *)cfg_cur_mode);
 
-    if (mode == radio_mode_am || mode == radio_mode_nfm) {
+    if (mode == radio_mode_am || mode == radio_mode_nfm || mode == radio_mode_sam || mode == radio_mode_wfm) {
         pass_lo = -high;        /* both sidebands */
         pass_hi = high;
     } else if (below(mode)) {
@@ -470,7 +470,7 @@ static void on_notch_change(Subject *subj, void *user_data) {
     radio_mode_t mode = subject_i_get((SubjectInt *)cfg_cur_mode);
 
     notch_on = subject_i_get((SubjectInt *)cfg_dnf) && !subject_i_get((SubjectInt *)cfg_dnf_auto) &&
-               mode != radio_mode_am && mode != radio_mode_nfm;
+               mode != radio_mode_am && mode != radio_mode_nfm && mode != radio_mode_sam && mode != radio_mode_wfm;
     if (notch_on) {
         notch_half = subject_i_get((SubjectInt *)cfg_dnf_width);
         notch_hz = subject_i_get((SubjectInt *)cfg_dnf_center);

@@ -316,7 +316,8 @@ static void client_close(client_t *c) {
 /* ---- The radio, on the LVGL thread -------------------------------------------------- */
 
 static bool voice_mode(int32_t m) {
-    return m == radio_mode_lsb || m == radio_mode_usb || m == radio_mode_am || m == radio_mode_nfm;
+    return m == radio_mode_lsb || m == radio_mode_usb || m == radio_mode_am || m == radio_mode_nfm ||
+           m == radio_mode_sam || m == radio_mode_wfm;
 }
 
 /* tci: the TCI audio session (if there is one); else the radio's own PTT */
@@ -414,7 +415,7 @@ static void put_cmd(cmd_id_t id, int32_t a, int32_t b, bool tci) {
 
 /* ---- The state, read from any thread ------------------------------------------------ */
 
-static const char *const mode_names[] = {"lsb", "digl", "usb", "digu", "cw", "cwr", "am", "nfm"};
+static const char *const mode_names[] = {"lsb", "digl", "usb", "digu", "cw", "cwr", "am", "nfm", "sam", "wfm"};
 static const char *const agc_names[]  = {"off", "slow", "fast", "auto"};
 
 static void state_read(rstate_t *s) {
@@ -429,7 +430,7 @@ static void state_read(rstate_t *s) {
 }
 
 static const char *mode_name(int32_t m) {
-    return m >= 0 && m < 8 ? mode_names[m] : "usb";
+    return m >= 0 && m <= radio_mode_last ? mode_names[m] : "usb";
 }
 
 static const char *agc_name(int32_t a) {
@@ -526,10 +527,12 @@ static bool parse_bool(const char *s) {
 }
 
 static int mode_index(const char *name) {
-    for (int i = 0; i < 8; i++)
+    int n = radio_caps() & HW_CAP_SAM_WFM ? 10 : 8;
+
+    for (int i = 0; i < n; i++)
         if (strcasecmp(name, mode_names[i]) == 0)
             return i;
-    if (strcasecmp(name, "fm") == 0) return radio_mode_nfm;
+    if (strcasecmp(name, "fm") == 0 || strcasecmp(name, "wfm") == 0) return radio_mode_nfm;
     if (strcasecmp(name, "sam") == 0 || strcasecmp(name, "dsb") == 0) return radio_mode_am;
     return -1;
 }

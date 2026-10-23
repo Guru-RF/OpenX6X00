@@ -451,6 +451,8 @@ static void update_middle_line(void) {
             break;
         case radio_mode_am:
         case radio_mode_nfm:
+        case radio_mode_sam:
+        case radio_mode_wfm:
             from = -high;
             to = high;
             break;

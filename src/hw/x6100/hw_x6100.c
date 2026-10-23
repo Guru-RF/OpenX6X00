@@ -307,6 +307,9 @@ bool hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz) {
 }
 
 bool hw_vfo_set_mode(radio_vfo_t vfo, radio_mode_t mode) {
+    /* No SAM or WFM on this base: AM and NFM */
+    if (mode == radio_mode_sam) mode = radio_mode_am;
+    if (mode == radio_mode_wfm) mode = radio_mode_nfm;
     if (x6100_control_get(vfo == RADIO_VFO_A ? x6100_vfoa_mode : x6100_vfob_mode) == (uint32_t)mode) {
         return false;
     }

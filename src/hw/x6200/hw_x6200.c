@@ -59,9 +59,14 @@ SAME(RADIO_HKEY_FIL, X6200_HKEY_FIL);    SAME(RADIO_HKEY_GENE, X6200_HKEY_GENE);
 SAME(RADIO_HKEY_FINP, X6200_HKEY_FINP);
 #undef SAME
 
-/* The GUI's NFM is the base's 8 (SAM, the GUI has no mode for yet, is its 7) */
+/* The GUI numbers SAM and WFM after NFM, the base has SAM before it */
 static x6200_mode_t lib_mode(radio_mode_t m) {
-    return m == radio_mode_nfm ? x6200_mode_nfm : (x6200_mode_t)m;
+    switch (m) {
+        case radio_mode_nfm:    return x6200_mode_nfm;
+        case radio_mode_sam:    return x6200_mode_sam;
+        case radio_mode_wfm:    return x6200_mode_wfm;
+        default:                return (x6200_mode_t)m;
+    }
 }
 
 /* Bits of x6200_sple_atue_trx that key the radio from the GUI */
@@ -172,7 +177,7 @@ const char *hw_base_ver_str(void) {
  * spectrum ready-made, and has a compressor with a ratio. No IF shift, no TX calibration of
  * the X6100's kind, no CESSB, no TX filter */
 uint32_t hw_caps(void) {
-    return HW_CAP_ZOOM | HW_CAP_DNF_AUTO | HW_CAP_PSD | HW_CAP_COMP | HW_CAP_TX_LEVEL;
+    return HW_CAP_ZOOM | HW_CAP_DNF_AUTO | HW_CAP_PSD | HW_CAP_COMP | HW_CAP_TX_LEVEL | HW_CAP_SAM_WFM;
 }
 
 /* ---- Settings ------------------------------------------------------------------------- */

@@ -456,8 +456,10 @@ SettingsManager::FilterMode SettingsManager::filter_mode(int32_t mode) const {
         case radio_mode_usb_dig:
             return FilterMode::SSB;
         case radio_mode_am:
+        case radio_mode_sam:
             return FilterMode::AM;
         case radio_mode_nfm:
+        case radio_mode_wfm:
             return FilterMode::FM;
         case radio_mode_cw:
         case radio_mode_cwr:
@@ -473,6 +475,8 @@ int32_t SettingsManager::filter_low_validate(int32_t v) {
         case radio_mode_cwr:
         case radio_mode_am:
         case radio_mode_nfm:
+        case radio_mode_sam:
+        case radio_mode_wfm:
             return 0;
     }
     int high = p_mode_filter_high.get();
@@ -641,6 +645,9 @@ ModeGroup SettingsManager::mode_group(radio_mode_t mode) {
         case radio_mode_cwr:
             return MODE_GROUP_CW;
 
+        case radio_mode_sam:
+            return MODE_GROUP_AM;
+
         default:
             return static_cast<ModeGroup>(mode);
     }
@@ -664,6 +671,8 @@ int32_t SettingsManager::mode_group_filter_high_default(ModeGroup group) {
             return 2950;
         case MODE_GROUP_CW:
             return 500;
+        case MODE_GROUP_WFM:
+            return 8000;
         default:
             return 4000;
     }

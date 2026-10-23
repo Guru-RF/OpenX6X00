@@ -719,6 +719,8 @@ static void update_agc_time(Subject *subj, void *user_data) {
 
                 case radio_mode_am:
                 case radio_mode_nfm:
+                case radio_mode_sam:
+                case radio_mode_wfm:
                     agc_time = 1000;
                     break;
             }
@@ -756,7 +758,7 @@ static void on_atu_network_change(Subject *subj, void *user_data) {
 
 static void on_low_filter_change(Subject *subj, void *user_data) {
     radio_mode_t mode = cparam_i_get(cfg_cur_mode);
-    if ((mode == radio_mode_am) || (mode == radio_mode_nfm)) {
+    if (mode == radio_mode_am || mode == radio_mode_nfm || mode == radio_mode_sam || mode == radio_mode_wfm) {
         // No update low on AM/FM, low should be -high
         return;
     }
@@ -775,6 +777,8 @@ static void on_high_filter_change(Subject *subj, void *user_data) {
     switch (cparam_i_get(cfg_cur_mode)) {
         case radio_mode_am:
         case radio_mode_nfm:
+        case radio_mode_sam:
+        case radio_mode_wfm:
             // For AM BASE uses absolute low and high values to choose LPF filters for I and Q
             radio_lock();
             LV_LOG_USER("Radio set filters: low=%i, low2=%i", -high, -high2);

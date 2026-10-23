@@ -60,6 +60,7 @@ static const struct { radio_mode_t mode; const char *name; } mode_names[] = {
     { radio_mode_lsb_dig, "LSB-D" }, { radio_mode_usb_dig, "USB-D" },
     { radio_mode_cw, "CW" },        { radio_mode_cwr, "CWR" },
     { radio_mode_am, "AM" },        { radio_mode_nfm, "NFM" },
+    { radio_mode_sam, "SAM" },      { radio_mode_wfm, "WFM" },
 };
 
 static const struct { radio_agc_t agc; const char *name; } agc_names[] = {

@@ -38,8 +38,9 @@ enum ModeGroup {
     MODE_GROUP_SSB = radio_mode_lsb,
     MODE_GROUP_DIGI = radio_mode_lsb_dig,
     MODE_GROUP_CW = radio_mode_cw,
-    MODE_GROUP_AM = radio_mode_am,
+    MODE_GROUP_AM = radio_mode_am,      /* AM and SAM */
     MODE_GROUP_FM = radio_mode_nfm,
+    MODE_GROUP_WFM = radio_mode_wfm,    /* its own filter width */
 };
 
 class SettingsManager {
@@ -429,9 +430,9 @@ class SettingsManager {
         StorageType::BAND, pending_writes_};
     Parameter<int32_t> p_band_vfob_freq{"vfob_freq", 14'150'000, 100'000, 500'000'000,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfoa_mode{"vfoa_mode", radio_mode_usb, (int32_t)radio_mode_lsb, (int32_t)radio_mode_nfm,
+    Parameter<int32_t> p_band_vfoa_mode{"vfoa_mode", radio_mode_usb, (int32_t)radio_mode_lsb, (int32_t)radio_mode_last,
         StorageType::BAND, pending_writes_};
-    Parameter<int32_t> p_band_vfob_mode{"vfob_mode", radio_mode_usb, (int32_t)radio_mode_lsb, (int32_t)radio_mode_nfm,
+    Parameter<int32_t> p_band_vfob_mode{"vfob_mode", radio_mode_usb, (int32_t)radio_mode_lsb, (int32_t)radio_mode_last,
         StorageType::BAND, pending_writes_};
     Parameter<int32_t> p_band_vfoa_att{"vfoa_att", radio_att_off, 0, (int32_t)radio_att_on,
         StorageType::BAND, pending_writes_};
