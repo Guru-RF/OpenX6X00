@@ -28,6 +28,7 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static atomic_bool     on   = false;
 static SNDFILE        *file = NULL;      /* under lock */
 static bool            failed;          /* under lock: the card refused a write, said once */
+static bool            failed_untold;   /* under lock: the GUI has not heard of it yet */
 
 static bool create_file() {
     SF_INFO sfinfo;
@@ -60,7 +61,7 @@ static bool create_file() {
 
     pthread_mutex_lock(&lock);
     file   = f;
-    failed = false;
+    failed = failed_untold = false;
     pthread_mutex_unlock(&lock);
     return true;
 }
@@ -105,10 +106,13 @@ void recorder_put_audio_samples(size_t nsamples, int16_t *samples) {
     if (file && !failed) {
         if (sf_write_short(file, samples, nsamples) != (sf_count_t)nsamples) {
             /* a full or failing card: said once, and the recording stopped on the GUI thread */
-            failed = true;
+            failed = failed_untold = true;
             LV_LOG_ERROR("Recorder: write failed: %s", sf_strerror(file));
-            scheduler_put_noargs(write_failed);
         }
     }
+    /* A full queue drops the notice: it goes with the next samples until it is in, so the GUI
+     * never keeps showing a recording that stopped (audit B16) */
+    if (file && failed_untold && scheduler_put_noargs(write_failed))
+        failed_untold = false;
     pthread_mutex_unlock(&lock);
 }

@@ -143,7 +143,10 @@ static void *play_thread(void *arg) {
     else radio_set_play_mode(AUDIO_PLAY_OFF);
 
     free(job);
-    scheduler_put_noargs(play_done);
+    /* The GUI must hear of the end: a full queue dropped the one notice and Play never came back
+     * until the GUI restarted (audit B16); tried until it is in */
+    while (!scheduler_put_noargs(play_done))
+        usleep(20000);
     return NULL;
 }
 
