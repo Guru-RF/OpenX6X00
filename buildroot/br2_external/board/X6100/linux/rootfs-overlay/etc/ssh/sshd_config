@@ -38,7 +38,8 @@ PermitRootLogin yes
 
 # The default is to check both .ssh/authorized_keys and .ssh/authorized_keys2
 # but this is overridden so installations will only check .ssh/authorized_keys
-AuthorizedKeysFile	.ssh/authorized_keys
+# Keys on the DATA partition too (/mnt/ssh/authorized_keys): they survive a new card image
+AuthorizedKeysFile	.ssh/authorized_keys /mnt/ssh/authorized_keys
 
 #AuthorizedPrincipalsFile none
 
