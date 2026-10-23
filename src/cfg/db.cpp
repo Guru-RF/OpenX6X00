@@ -1026,8 +1026,24 @@ int AtuTable::LoadAll(int32_t ant, std::vector<AtuEntry> &out) {
 // Global database entry points
 // ---------------------------------------------------------------------------
 
+static std::recursive_mutex tx_mutex;
+static sqlite3             *shared_db;
+
+extern "C" void cfg_db_tx_lock(void) {
+    tx_mutex.lock();
+}
+
+extern "C" void cfg_db_tx_unlock(void) {
+    tx_mutex.unlock();
+}
+
+extern "C" bool cfg_db_in_transaction(void) {
+    return shared_db && !sqlite3_get_autocommit(shared_db);
+}
+
 extern "C" void cfg_db_init(sqlite3 *database) {
     bool ok;
+    shared_db = database;
     ok = ParamsTable::Init(database);
     if (!ok)
         exit(1);

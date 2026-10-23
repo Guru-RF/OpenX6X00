@@ -1,5 +1,6 @@
 #include "pending_writes.h"
 #include "storage_policy.h"
+#include "db.h"
 
 #include <cassert>
 #include <type_traits>
@@ -47,6 +48,10 @@ void PendingWrites::flush_all() {
 // with context_id 0); band/mode tables filter by context_id. A context_id of
 // -1 matches every entry of that type.
 void PendingWrites::flush_storage(StorageType type, int context_id) {
+    struct TxGuard {    // outside the legacy writer's transaction (audit B12)
+        TxGuard() { cfg_db_tx_lock(); }
+        ~TxGuard() { cfg_db_tx_unlock(); }
+    } tx;
     std::lock_guard<std::mutex> lock(mutex_);
 
     auto flush_fn = [&](auto &map) {
@@ -78,7 +83,9 @@ void PendingWrites::flush_storage(StorageType type, int context_id) {
                 rc = policy.save_text(key.context_id, key.name.c_str(), it->second);
             }
 
-            if (rc == SUCCESS) {
+            // Inside a transaction someone else holds, the row is theirs to commit or roll back:
+            // the entry stays for a flush outside one (audit B12)
+            if (rc == SUCCESS && !cfg_db_in_transaction()) {
                 it = map.erase(it);
             } else {
                 ++it;

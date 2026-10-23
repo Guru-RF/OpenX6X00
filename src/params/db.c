@@ -8,6 +8,7 @@
 
 #include "db.h"
 #include "../board.h"
+#include "../cfg/db.h"
 
 #include "migrations.h"
 #include "../util.h"
@@ -146,6 +147,7 @@ static bool pending_short;  /* a write failed, or did not fit the list: the save
 void params_write_begin(void) {
     npending = 0;
     pending_short = false;
+    cfg_db_tx_lock();       /* the new settings' flush waits: its rows would be ours to roll back (audit B12) */
     sql_query_exec("BEGIN");
 }
 
@@ -187,9 +189,11 @@ bool params_write_text(const char *name, const char *data, bool *dirty) {
 bool params_write_commit(void) {
     if (!sql_query_exec("COMMIT")) {
         sql_query_exec("ROLLBACK");
+        cfg_db_tx_unlock();
         npending = 0;
         return false;
     }
+    cfg_db_tx_unlock();
     for (int i = 0; i < npending; i++)
         *pending[i] = false;
     npending = 0;

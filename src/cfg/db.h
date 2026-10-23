@@ -713,6 +713,15 @@ extern "C" {
 void cfg_db_init(sqlite3 *database);
 void cfg_db_shutdown();
 
+// The one connection is shared with the legacy settings writer (params/db.c), whose BEGIN..COMMIT
+// would otherwise take the new settings' writes with it: a failed commit rolled them back after
+// their pending entries were gone (audit B12). The legacy writer holds the lock around its
+// transaction, a flush of the new settings around its writes; a write that still lands inside a
+// transaction keeps its pending entry until a later flush outside one
+void cfg_db_tx_lock(void);
+void cfg_db_tx_unlock(void);
+bool cfg_db_in_transaction(void);
+
 #ifdef __cplusplus
 }
 #endif
