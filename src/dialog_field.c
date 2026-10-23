@@ -2193,7 +2193,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_set_style_border_color(head, TC(panel_border), 0);
     lv_obj_clear_flag(head, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *x = label(head, VF(26), TC(text), 14, 9, 0);
-    lv_label_set_text(x, "X6100");
+    lv_label_set_text(x, BOARD_NAME);
     head_icon  = NULL;
     title      = label(head, VF(24), TC(text), 104, 10, 440);
     head_dot   = dot(head, 556, 17, 12, TC(err));

@@ -7,6 +7,7 @@
 #define _GNU_SOURCE
 
 #include "flog.h"
+#include "../board.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -145,7 +146,7 @@ bool field_log_add(const char *path, const field_qso_t *q, const field_station_t
         return false;
     }
     if (is_new)
-        fprintf(f, "X6100 Field Ops log\n<ADIF_VER:5>3.1.4 <PROGRAMID:9>OpenX6X00 <eoh>\n");
+        fprintf(f, BOARD_NAME " Field Ops log\n<ADIF_VER:5>3.1.4 <PROGRAMID:9>OpenX6X00 <eoh>\n");
     field_adif_record(rec, sizeof(rec), q, st);
     if (fputs(rec, f) < 0 || fflush(f) != 0)
         err = errno;

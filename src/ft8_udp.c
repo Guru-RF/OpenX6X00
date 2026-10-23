@@ -48,7 +48,7 @@ static bool     enabled  = false;
 static bool     running  = false;
 static char     host[64] = "239.255.0.0,gateway";
 static uint16_t port     = 2237;
-static char     wsjt_id[32] = "X6100";
+static char     wsjt_id[32] = BOARD_NAME;
 /* Several destinations at once. Multicast is the tidy answer on a normal
  * LAN, but when the phone itself is the access point Android will not
  * hand multicast from its SoftAP interface to local apps - the app joins
@@ -157,7 +157,7 @@ static void qb_send(qbuf_t *b) {
 static void conf_write(void) {
     FILE *f = fopen(CONF_PATH, "w");
     if (!f) return;
-    fprintf(f, "# X6100 WSJT-X UDP broadcaster\n");
+    fprintf(f, "# " BOARD_NAME " WSJT-X UDP broadcaster\n");
     fprintf(f, "# host: one or more targets separated by commas.\n");
     fprintf(f, "#   239.255.0.0  multicast, works on a normal LAN\n");
     fprintf(f, "#   gateway      resolved at start; on a phone hotspot\n");
@@ -515,8 +515,8 @@ size_t ft8_udp_build_adif(char *out, size_t out_sz, time_t when,
 
     size_t o = 0;
     int n = snprintf(out, out_sz,
-                     "X6100 ADIF export\n<adif_ver:5>3.1.0\n"
-                     "<programid:5>X6100\n<EOH>\n");
+                     BOARD_NAME " ADIF export\n<adif_ver:5>3.1.0\n"
+                     "<programid:9>OpenX6X00\n<EOH>\n");
     if (n < 0 || (size_t)n >= out_sz) { if (out_sz) out[0] = '\0'; return 0; }
     o = (size_t)n;
 
