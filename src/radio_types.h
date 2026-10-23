@@ -28,6 +28,15 @@ typedef enum {
     HW_CAP_IF_SHIFT = 1 << 1,   /* HW_IF_SHIFT_ON / HW_IF_SHIFT_HZ */
     HW_CAP_DNF_AUTO = 1 << 2,   /* the notch finds the carrier itself (HW_DNF_AUTO) */
     HW_CAP_PSD      = 1 << 3,   /* the base sends its own spectrum, no IQ samples (hw_pack_t.psd) */
+    /* The transmitter's settings (Settings > TX CAL, Audio) */
+    HW_CAP_TX_IQ_OFFSET = 1 << 4,   /* HW_TX_I_OFFSET / HW_TX_Q_OFFSET */
+    HW_CAP_BAND_GAIN    = 1 << 5,   /* HW_DAC_GAIN_F per band */
+    HW_CAP_CODEC_GAIN   = 1 << 6,   /* HW_ADC_DAC_GAIN_F */
+    HW_CAP_CESSB        = 1 << 7,   /* HW_CESSB, HW_CESSB_POWER_UP_F */
+    HW_CAP_COMP         = 1 << 8,   /* HW_COMP_ON, HW_COMP_LEVEL */
+    HW_CAP_COMP_SHAPE   = 1 << 9,   /* HW_COMP_THRESHOLD_F, HW_COMP_MAKEUP_F */
+    HW_CAP_TX_FILTER    = 1 << 10,  /* HW_TX_FILTER_LOW / HIGH */
+    HW_CAP_FM_EMP       = 1 << 11,  /* HW_FM_EMP */
 } hw_cap_t;
 
 /* The hand mic's keys as the base reports them (mic_keys.c) */

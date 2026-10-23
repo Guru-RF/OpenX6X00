@@ -168,10 +168,11 @@ const char *hw_base_ver_str(void) {
     return ver_str;
 }
 
-/* The base narrows its spectrum for the zoom, finds the notch's carrier itself, and sends the
- * spectrum ready-made. No IF shift */
+/* The base narrows its spectrum for the zoom, finds the notch's carrier itself, sends the
+ * spectrum ready-made, and has a compressor with a ratio. No IF shift, no TX calibration of
+ * the X6100's kind, no CESSB, no TX filter */
 uint32_t hw_caps(void) {
-    return HW_CAP_ZOOM | HW_CAP_DNF_AUTO | HW_CAP_PSD;
+    return HW_CAP_ZOOM | HW_CAP_DNF_AUTO | HW_CAP_PSD | HW_CAP_COMP;
 }
 
 /* ---- Settings ------------------------------------------------------------------------- */

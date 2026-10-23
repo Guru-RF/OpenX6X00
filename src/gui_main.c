@@ -195,6 +195,19 @@ static void inputs_open(void) {
     vol->left[VOL_STATE_SELECT]  = KEY_VOL_LEFT_SELECT;
     vol->right[VOL_STATE_SELECT] = KEY_VOL_RIGHT_SELECT;
     vol->state                   = VOL_STATE_EDIT;
+
+#ifdef BOARD_DEV_MFK_INNER
+    /* The inner ring of the MFK knob chooses what the MFK controls, in every state (the stock
+     * X6200 GUI's use of it); the outer knob then changes the value */
+    rotary_t *inner = rotary_init(BOARD_DEV_MFK_INNER);
+
+    if (inner) {
+        for (int i = 0; i < 3; i++) {
+            inner->left[i]  = KEY_MFK_PREV;
+            inner->right[i] = KEY_MFK_NEXT;
+        }
+    }
+#endif
 }
 
 /* The settings, and what is made from them before the screen is built */

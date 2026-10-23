@@ -3603,21 +3603,25 @@ static uint8_t make_smeter_fe(uint8_t row) {
 
 /* TX CAL: the transmitter's calibration and CESSB, per band where the base keeps them per band */
 static void make_txcal_page() {
-    radio_base_ver_t base = radio_base_ver();
-    uint8_t          row;
+    uint32_t caps = radio_caps();
+    uint8_t  row;
 
     grid_create();
-    row = card_begin("TX CALIBRATION");
-    row = make_iq_offsets(row);
-    if (base.rev >= 8) {
-        row = make_band_gain(row);
+    if (caps & (HW_CAP_TX_IQ_OFFSET | HW_CAP_BAND_GAIN | HW_CAP_CODEC_GAIN)) {
+        row = card_begin("TX CALIBRATION");
+        if (caps & HW_CAP_TX_IQ_OFFSET) {
+            row = make_iq_offsets(row);
+        }
+        if (caps & HW_CAP_BAND_GAIN) {
+            row = make_band_gain(row);
+        }
+        if (caps & HW_CAP_CODEC_GAIN) {
+            row = make_codec_gain(row);
+        }
+        card_end(row);
     }
-    if (base.rev >= 3) {
-        row = make_codec_gain(row);
-    }
-    card_end(row);
 
-    if (base.rev >= 12) {
+    if (caps & HW_CAP_CESSB) {
         row = card_begin("CESSB");
         row = make_cessb(row);
         card_end(row);
@@ -3697,8 +3701,8 @@ static void make_display_page() {
 }
 
 static void make_audio_page() {
-    radio_base_ver_t base = radio_base_ver();
-    uint8_t          row;
+    uint32_t caps = radio_caps();
+    uint8_t  row;
 
     grid_create();
     row = card_begin("RX AUDIO");
@@ -3712,13 +3716,15 @@ static void make_audio_page() {
     row = make_screen_rec_split(row);
     card_end(row);
 
-    if (base.rev >= 3) {
+    if (caps & (HW_CAP_COMP_SHAPE | HW_CAP_TX_FILTER | HW_CAP_FM_EMP)) {
         row = card_begin("TX AUDIO");
-        row = make_comp(row);
-        if (base.rev >= 9) {
+        if (caps & HW_CAP_COMP_SHAPE) {
+            row = make_comp(row);
+        }
+        if (caps & HW_CAP_TX_FILTER) {
             row = make_tx_filter(row);
         }
-        if (base.rev >= 8) {
+        if (caps & HW_CAP_FM_EMP) {
             row = make_param_switch(row, "FM pre/de-emphasis", cfg_sm.p_fm_emphasis);
         }
         card_end(row);

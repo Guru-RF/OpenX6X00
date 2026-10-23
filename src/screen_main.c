@@ -1061,6 +1061,8 @@ static void spectrum_key_cb(lv_event_t *e) {
         case '+':                   step_freq_step(true); break;
         case '[':  case KEY_VOL_LEFT_EDIT:      vol_update(-1); break;
         case ']':  case KEY_VOL_RIGHT_EDIT:     vol_update(+1); break;
+        case KEY_MFK_PREV:                      mfk_change_ctrl(-1); break;
+        case KEY_MFK_NEXT:                      mfk_change_ctrl(+1); break;
         case '{':  case KEY_VOL_LEFT_SELECT:    vol_change_ctrl(-1); break;
         case '}':  case KEY_VOL_RIGHT_SELECT:   vol_change_ctrl(+1); break;
         case LV_KEY_LEFT:           main_screen_mfk(-1); break;

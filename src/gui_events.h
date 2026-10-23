@@ -68,6 +68,7 @@ typedef enum {
     KEY_VOL_LEFT_EDIT = 0x290, KEY_VOL_RIGHT_EDIT,      /* turned while it changes a value */
     KEY_VOL_LEFT_SELECT, KEY_VOL_RIGHT_SELECT,          /* turned while it chooses the control */
     KEY_VOL_PRESS,          /* not ESC: a menu or an app does not close on it */
+    KEY_MFK_PREV, KEY_MFK_NEXT,     /* the MFK knob's inner ring (the X6200): what the MFK controls */
 } keys_t;
 
 /* Event codes of the GUI, registered with LVGL by event_init() */

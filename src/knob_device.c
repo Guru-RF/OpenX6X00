@@ -44,7 +44,6 @@ static void vol_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
         }
         if (turned) {
             backlight_tick();
-        ctl_local_input();
             ctl_local_input();
             pending                = sum;
             data->continue_reading = true;
