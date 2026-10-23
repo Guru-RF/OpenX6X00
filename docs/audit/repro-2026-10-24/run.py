@@ -70,8 +70,8 @@ def main():
 
         binary = work / "adif-frequency"
         command([*CC, *cflags, *san, HERE / "adif-frequency.c", *gc, "-o", binary], env)
-        command([binary], env, failure=True, contains=("stack-buffer-overflow", "write_freq"))
-        print("B03: reproduced ADIF formatter stack-buffer-overflow")
+        command([binary], env)
+        print("B03 (fixed): the ADIF formatter writes 145.5 MHz within its buffer")
 
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")

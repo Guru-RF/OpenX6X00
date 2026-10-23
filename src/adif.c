@@ -352,8 +352,8 @@ static void write_date_time(FILE *fd, time_t time) {
 }
 
 static void write_freq(FILE *fd, float freq_mhz) {
-    char str_freq[8];
-    sprintf(str_freq, "%0.4f", freq_mhz);
+    char str_freq[16];      /* "145.5000" is nine bytes with its terminator: eight overflowed (audit B03) */
+    snprintf(str_freq, sizeof(str_freq), "%0.4f", freq_mhz);
     write_str(fd, "FREQ", str_freq);
 }
 
@@ -361,8 +361,8 @@ static void write_band(FILE *fd, qso_log_band_t band) {
     if (band == BAND_OTHER) {
         write_str(fd, "BAND", "");
     } else {
-        char str_band[8];
-        sprintf(str_band, "%dM", band);
+        char str_band[16];
+        snprintf(str_band, sizeof(str_band), "%dM", band);
         write_str(fd, "BAND", str_band);
     }
 }
