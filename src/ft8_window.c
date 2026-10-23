@@ -258,7 +258,7 @@ static void ui_post(const ui_job_t *j) {
 /* The TX frequency from the worker: the parameter now (the transmission reads it), the marker
  * and the strip through the job */
 static void ui_job_tx_freq(ui_job_t *j, int32_t hz) {
-    hz = LV_MAX(filter_low, LV_MIN(hz, filter_high));
+    hz = LV_MAX(hz, filter_low);     /* as set_tx_freq clamps */
     params_uint16_set(&params.ft8_tx_freq, hz);
     j->txfreq    = true;
     j->txfreq_hz = hz;
