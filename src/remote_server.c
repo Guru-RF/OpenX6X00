@@ -170,6 +170,7 @@ enum { ROLE_VIEW = 0, ROLE_OPERATE = 1, ROLE_ADMIN = 2 };
 #define SESS_MAX     16
 #define TOKEN_LEN    32
 #define PAIR_MS      120000   /* the code stays good this long */
+#define PAIR_SHOW_MS 15000    /* and shows on the screen this long */
 #define PAIR_TRIES   3
 #define PTT_LEASE_MS 3000     /* a held PTT without renewal */
 #define PTT_LIMIT_MS (180 * 1000)
@@ -188,6 +189,7 @@ static int             nsessions;
 static pthread_mutex_t sess_mux = PTHREAD_MUTEX_INITIALIZER;
 static char            pair_code[8];
 static uint64_t        pair_until_ms;
+static atomic_uint_fast64_t pair_hide_ms;   /* until then the mirror is withheld from the unpaired (audit B02) */
 static int             pair_tries;
 static atomic_bool     tx_last;        /* the TX state last told to the clients */
 static atomic_bool     disconnect_all_due;   /* Settings: every socket closed, the sessions kept */
@@ -454,7 +456,7 @@ static void pair_msg_apply(void *arg) {
     char code[8];
     snprintf(code, sizeof(code), "%s", pair_code);
     pthread_mutex_unlock(&sess_mux);
-    msg_schedule_text_ms(15000, "Pair code: #ffb020 %s#  (2 min)", code);
+    msg_schedule_text_ms(PAIR_SHOW_MS, "Pair code: #ffb020 %s#  (2 min)", code);
 }
 
 /* A code, new unless one is still good; shown on the radio's screen. Any thread. */
@@ -475,6 +477,9 @@ static void pair_show(char *out, size_t n) {
     if (out)
         snprintf(out, n, "%s", pair_code);
     pthread_mutex_unlock(&sess_mux);
+    /* The code is for the eyes at the radio: the screen mirror, which anyone on the network may
+     * watch before pairing, holds its frames from the unpaired while the code shows (audit B02) */
+    atomic_store(&pair_hide_ms, now_ms() + PAIR_SHOW_MS + 2000);
     scheduler_put_noargs(pair_msg_apply);
 }
 
@@ -1975,7 +1980,7 @@ static void *encoder_thread(void *arg) {
         frame_hdr_t hdr = {.w = (uint16_t)w, .h = (uint16_t)h, .seq = atomic_fetch_add(&seq, 1)};
         for (int i = 0; i < MAX_CLIENTS; i++) {
             client_t *c = &clients[i];
-            if (c->fd < 0 || !c->up || !c->screen)
+            if (c->fd < 0 || !c->up || !c->screen || (hide && c->sess < 0))
                 continue;
             pthread_mutex_lock(&c->lock);
             bool room = c->out_len == 0;      /* the last frame still on its way: this one is skipped */
@@ -2014,6 +2019,7 @@ void remote_server_init(void) {
     pthread_t th;
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
+        bool hide = now < atomic_load(&pair_hide_ms);   /* a pairing code is on the screen */
         clients[i].fd  = -1;
         clients[i].out = malloc(OUT_SIZE);
         pthread_mutex_init(&clients[i].lock, NULL);

@@ -1791,7 +1791,8 @@ radio restarted. Sessions and control: `pair?` puts a code on the radio's
 screen, `pair CODE NAME` answers `paired TOKEN ROLE TX`, `auth TOKEN` at each
 connection answers `role view|operate|admin TX NAME`; `control take|release`
 and the radio's `ctl none|local|tci|browser NAME MINE` say who controls the
-radio; an admin's `sessions` lists the paired browsers as JSON and `revoke N`
+radio (while the code shows, the screen mirror of unpaired viewers pauses:
+the code is for the eyes at the radio); an admin's `sessions` lists the paired browsers as JSON and `revoke N`
 ends one; `unpair` forgets the caller's own; `tx 0|1` goes to every client
 when the radio keys or unkeys. Settings > General > BROWSER REMOTE turns the
 server on and off for both pages. A page opens on a tab with `/panel#ft8`,
