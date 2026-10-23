@@ -18,6 +18,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <strings.h>
 #include <time.h>
@@ -220,6 +221,56 @@ static void udp_check_cb(lv_timer_t *t) {
 /* ---- the log ---- */
 
 /* A QSO is complete (qso.cpp, or the Fox's RR73): the ADIF file, the log, the loggers, the remote */
+/* ---- The decoder thread's hands on the screen (audit B05) ----
+ * on_message and on_tick run on the audio worker: what they want of the GUI (the finder's cursor
+ * and TX frequency, CQ off, the Field Ops entry of a logged QSO) goes to the LVGL thread as a job.
+ * A full queue is tried again for a while, never waited on for good: the GUI joins this thread
+ * when the window closes */
+static void set_tx_freq(int32_t hz);
+
+static void gui_post(scheduler_fn_t fn, const void *arg, size_t n) {
+    for (int i = 0; i < 100; i++) {
+        if (scheduler_put(fn, (void *)arg, n)) return;
+        usleep(20000);
+    }
+    if (!scheduler_put_urgent(fn, (void *)arg, n)) LV_LOG_ERROR("FT8: the GUI queue stayed full, a job was dropped");
+}
+
+typedef struct {
+    bool    cursor, txfreq, cq_off;
+    float   cursor_hz;
+    int32_t txfreq_hz;
+} ui_job_t;
+
+static void ui_apply(void *arg) {
+    ui_job_t *j = arg;
+
+    if (!dialog.run) return;    /* the window closed meanwhile */
+    if (j->cursor) lv_finder_set_cursor(finder, j->cursor_hz);
+    if (j->txfreq) set_tx_freq(j->txfreq_hz);
+    if (j->cq_off && subject_i_get(cq_enabled)) subject_i_set(cq_enabled, false);
+}
+
+static void ui_post(const ui_job_t *j) {
+    gui_post(ui_apply, j, sizeof(*j));
+}
+
+/* The TX frequency from the worker: the parameter now (the transmission reads it), the marker
+ * and the strip through the job */
+static void ui_job_tx_freq(ui_job_t *j, int32_t hz) {
+    hz = LV_MAX(filter_low, LV_MIN(hz, filter_high));
+    params_uint16_set(&params.ft8_tx_freq, hz);
+    j->txfreq    = true;
+    j->txfreq_hz = hz;
+}
+
+/* GUI thread: the QSO into the Field Ops log (its screen follows) */
+static void save_qso_apply(void *arg) {
+    dialog_field_day_log((qso_log_record_t *)arg);
+}
+
+/* From the QSO sequence (the decoder thread) or the Save key (GUI): the ADIF and the log database
+ * here, the Field Ops entry on the GUI thread */
 static void save_qso(const char *call, const char *grid, const int rcvd, const int sent) {
     time_t now = time(NULL);
     int64_t dial = cparam_i_get(cfg_fg_freq);
@@ -231,7 +282,7 @@ static void save_qso(const char *call, const char *grid, const int rcvd, const i
 
     adif_add_qso(ft8_log, rec);
     qso_log_record_save(rec);
-    dialog_field_day_log(&rec);
+    gui_post(save_qso_apply, &rec, sizeof(rec));
     snprintf(last_logged, sizeof(last_logged), "%s", call);
     last_logged_at = now;
     ft8_udp_log_qso(now, rec.remote_call, grid, (uint64_t)cparam_i_get(cfg_fg_freq), mode_name(), sent, rcvd,
@@ -1023,7 +1074,8 @@ static void hound_rx_text(const char *text, int snr, float freq_hz, bool odd) {
         strcpy(tx_msg.msg, tx);
         tx_msg.repeats = -1;
         tx_odd         = true;
-        lv_finder_set_cursor(finder, freq_hz);
+        ui_job_t j = {.cursor = true, .cursor_hz = freq_hz};
+        ui_post(&j);
         add_info("Hound: %s sent %+03d, answering R%+03d at %d Hz", hound.fox, hound.rcvd, hound.sent, hound.fox_freq);
         msg_schedule_text_fmt("Next TX: %s", tx_msg.msg);
     } else if (ev == HOUND_LOGGED) {
@@ -1076,11 +1128,11 @@ static void add_rx_text(int16_t snr, const char *text, bool odd, float freq_hz, 
     if (hound_on) {
         hound_rx_text(text, snr, freq_hz, odd);
     } else if (tx_msg.msg[0] && strcmp(was, tx_msg.msg)) {    /* the sequence answers it */
-        lv_finder_set_cursor(finder, meta.freq_hz);
-        if (!param_i_get(cfg_ft8_hold_freq)) set_tx_freq(freq_hz);
+        ui_job_t j = {.cursor = true, .cursor_hz = meta.freq_hz, .cq_off = true};
+        if (!param_i_get(cfg_ft8_hold_freq)) ui_job_tx_freq(&j, (int32_t)freq_hz);
         tx_odd = !odd;
         msg_schedule_text_fmt("Next TX: %s", tx_msg.msg);
-        if (subject_i_get(cq_enabled)) subject_i_set(cq_enabled, false);
+        ui_post(&j);
     }
 
     bool parsed = meta.type != FXT_MSG_TYPE_OTHER && meta.call_de[0];
@@ -1199,7 +1251,11 @@ static bool transmit(const slot_info_t *slot, float sec) {
             return true;
         }
         int hz = hound_tx_freq(&hound, params.ft8_tx_freq.x, (unsigned)rand());
-        if (hz != params.ft8_tx_freq.x) set_tx_freq(hz);
+        if (hz != params.ft8_tx_freq.x) {
+            ui_job_t j = {0};
+            ui_job_tx_freq(&j, hz);
+            ui_post(&j);
+        }
     }
     sending = true;
     add_tx_row(tx_msg.msg);
@@ -1207,7 +1263,10 @@ static bool transmit(const slot_info_t *slot, float sec) {
     sending = false;
     if (tx_msg.repeats > 0) tx_msg.repeats--;
     if (tx_msg.repeats == 0) {      /* given up: a CQ ends with it */
-        if (!strncmp(tx_msg.msg, "CQ", 2)) subject_i_set(cq_enabled, false);
+        if (!strncmp(tx_msg.msg, "CQ", 2)) {
+            ui_job_t j = {.cq_off = true};
+            ui_post(&j);
+        }
         tx_msg.msg[0] = '\0';
     }
     return true;
