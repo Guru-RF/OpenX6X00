@@ -10,7 +10,7 @@ python3 docs/audit/repro-2026-10-24/run.py
 
 Requirements are Python 3, Node.js, a C/C++ compiler, SQLite development files, the checked-out LVGL submodule and the existing host dependency headers under `build-host/deps/include` (particularly liquid-dsp). The runner does not download dependencies. `CC` and `CXX` can select compilers. Generated C, binaries and fixtures live in an automatically removed temporary directory. AddressSanitizer leak detection is disabled because it is unavailable under the environment's process tracing; memory-access checks remain enabled.
 
-**Expected results demonstrate the audited defects.** The runner expects the known erroneous results, including three sanitizer/guard-page failures. After a fix, the corresponding expectation must change. These are audit evidence harnesses, not a passing release test suite.
+**Expected results now demonstrate the fixes.** As delivered (commit `4cad3f5`) the runner expected the known erroneous results, including three sanitizer/guard-page failures. Each fix flipped the matching expectation, so the runner is now a regression suite for the twelve harnessed findings: a run ends with "All 12 reproduced findings and the selected original-fix checks matched the audit" when every fix still holds. The original expectations can be read in the runner's history.
 
 | Harness | Evidence |
 |---|---|
@@ -29,4 +29,4 @@ Requirements are Python 3, Node.js, a C/C++ compiler, SQLite development files, 
 
 The AST-based Python harnesses omit HTTP decorators and supply only the required globals. The generated C harnesses retain the selected production function bodies while replacing surrounding services. They establish the reported local failure paths and regression results; they do not establish full HTTP, audio, rendering or hardware behavior. The C++ harnesses replace GUI logging/async entry points and use the real storage implementation.
 
-The five code-established findings B02/B05/B14/B15/B16 require the source traces and follow-up integration checks described in the audit. The runner does not reproduce those five.
+The five code-established findings B02/B05/B14/B15/B16 require the source traces and follow-up integration checks described in the audit. The runner does not reproduce those five; their fixes are verified by build and by hand on the radio.

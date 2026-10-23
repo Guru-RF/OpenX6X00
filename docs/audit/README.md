@@ -2,6 +2,8 @@
 
 The latest review is [Codex-Audit-2026-10-24.md](Codex-Audit-2026-10-24.md), covering revision `00f91e1` (`v0.3.1`). It records 17 current findings, B01 to B17, and the disposition of all 22 original findings. [Reproduction harnesses](repro-2026-10-24/README.md) accompany it.
 
+All 17 are fixed in the commits that follow `4cad3f5` (one per finding, named "audit B01" to "audit B17"); the harnesses were flipped with each fix and now run as a regression suite.
+
 The original review of revision `d6bf443` (2026-10-22) is preserved as the record the earlier fixes refer to by ID:
 
 - [Codex-Audit.md](Codex-Audit.md): 22 correctness findings, A01 to A22, with evidence and priorities.
