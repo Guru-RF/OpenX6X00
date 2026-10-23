@@ -135,7 +135,18 @@ static int tag_parse(const char *p, const char *end, adif_tag_t *t, const char *
     }
     if (*q != ':')
         return TAG_NONE;
-    t->val_len = strtoul(q + 1, (char **)&q, 10);
+    /* The length's digits, within the file: strtoul() on the buffer, which has no terminating
+     * NUL, read past a file that ends in them (audit B04) */
+    q++;
+    if (q >= end || !isdigit((unsigned char)*q))
+        return TAG_NONE;
+    t->val_len = 0;
+    while (q < end && isdigit((unsigned char)*q)) {
+        t->val_len = t->val_len * 10 + (size_t)(*q - '0');
+        if (t->val_len > ADIF_MAX_BYTES)
+            return TAG_BROKEN;
+        q++;
+    }
     while (q < end && *q != '>')    /* the type, if any: not needed */
         q++;
     if (q >= end)

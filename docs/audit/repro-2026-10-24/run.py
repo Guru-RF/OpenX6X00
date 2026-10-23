@@ -78,8 +78,8 @@ def main():
         binary = work / "adif-input"
         command([*CC, *cflags, *san, HERE / "adif-input.c", HERE / "guard-malloc.c",
                  "src/adif.c", *gc, "-Wl,--wrap=malloc", "-Wl,--wrap=free", "-o", binary], env)
-        command([binary, fixture], env, failure=True, contains=("AddressSanitizer", "tag_parse"))
-        print("B04: reproduced guarded EOF read in tag_parse")
+        command([binary, fixture], env, contains=("records=0",))
+        print("B04 (fixed): a file ending in a length's digits is read within its bytes")
 
         fixture.write_bytes(b"<eor>" + b" " * 1009 + b"<CALL:15>")
         binary = work / "field-input"
