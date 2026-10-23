@@ -163,8 +163,9 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
 }
 
 float tx_player_base_gain_offset(void) {
-    /* Bases from rev 3 on (patched firmware) set the power themselves */
-    if (radio_base_ver().rev >= 3) return -9.4f;
+    /* A base that sets the power itself (the X6100 from rev 3 on, the X6200, whose stock GUI
+     * plays at one level too) takes the audio at one level; the OEM X6100 base scales it */
+    if (radio_caps() & HW_CAP_TX_LEVEL) return -9.4f;
 
     return -16.4f + 10.0f * log10f(LV_MIN(param_f_get(cfg_pwr), TX_PLAYER_MAX_PWR_W));
 }

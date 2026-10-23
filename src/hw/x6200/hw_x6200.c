@@ -172,7 +172,7 @@ const char *hw_base_ver_str(void) {
  * spectrum ready-made, and has a compressor with a ratio. No IF shift, no TX calibration of
  * the X6100's kind, no CESSB, no TX filter */
 uint32_t hw_caps(void) {
-    return HW_CAP_ZOOM | HW_CAP_DNF_AUTO | HW_CAP_PSD | HW_CAP_COMP;
+    return HW_CAP_ZOOM | HW_CAP_DNF_AUTO | HW_CAP_PSD | HW_CAP_COMP | HW_CAP_TX_LEVEL;
 }
 
 /* ---- Settings ------------------------------------------------------------------------- */

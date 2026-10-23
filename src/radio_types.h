@@ -37,6 +37,7 @@ typedef enum {
     HW_CAP_COMP_SHAPE   = 1 << 9,   /* HW_COMP_THRESHOLD_F, HW_COMP_MAKEUP_F */
     HW_CAP_TX_FILTER    = 1 << 10,  /* HW_TX_FILTER_LOW / HIGH */
     HW_CAP_FM_EMP       = 1 << 11,  /* HW_FM_EMP */
+    HW_CAP_TX_LEVEL     = 1 << 12,  /* the base sets the TX power itself: digital audio goes at one level */
 } hw_cap_t;
 
 /* The hand mic's keys as the base reports them (mic_keys.c) */

@@ -31,6 +31,7 @@
 #define BOARD_CAT_DEV       BOARD_DATA "/run/cat"   /* none: X6100_CAT_DEV=<pty> gives one */
 #define BOARD_RTC_DEV       "/dev/null"
 #define BOARD_NAME          "host"
+#define BOARD_NAME_LOWER    "x6100"
 #else
 
 /* The input devices (gui_main.c reads them, remote_server.c writes the browser's keys into them) */
@@ -40,10 +41,12 @@
 #define BOARD_DEV_MFK       "/dev/input/event3"
 #ifdef BOARD_X6200
 #define BOARD_NAME          "X6200"
+#define BOARD_NAME_LOWER    "x6200"                 /* the default network name, what WSJT-X's protocol is told */
 #define BOARD_DEV_MFK_INNER "/dev/input/event4"     /* the inner ring of the MFK knob (not read yet) */
 #define BOARD_DEV_POWER     NULL                    /* the base reports the POWER key in its packets */
 #else
 #define BOARD_NAME          "X6100"
+#define BOARD_NAME_LOWER    "x6100"
 #define BOARD_DEV_POWER     "/dev/input/event4"     /* the PMIC's key: the matrix keypad drops KEY_POWER */
 #endif
 

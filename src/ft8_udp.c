@@ -355,7 +355,7 @@ void ft8_udp_send_heartbeat(void) {
     qb_header(&b, MSG_HEARTBEAT);
     qb_u32(&b, WSJTX_SCHEMA);      /* max schema we speak */
     qb_str(&b, "2.6.1");           /* version string      */
-    qb_str(&b, "x6100");           /* revision            */
+    qb_str(&b, BOARD_NAME_LOWER);  /* revision            */
     qb_send(&b);
 }
 

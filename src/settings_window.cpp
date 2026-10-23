@@ -3767,7 +3767,7 @@ static void nn_load(char *out, size_t size) {
         fclose(f);
     }
     if (!out[0]) {
-        snprintf(out, size, "x6100");
+        snprintf(out, size, "%s", BOARD_NAME_LOWER);   /* x6100-hostname's default too */
     }
 }
 

@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # OpenX6X00 - the radio's network name: hostname and mDNS (Avahi), so that http://x6100.local
-# reaches it without knowing its address. The name lives on the DATA partition and survives a new
+# (http://x6200.local on an X6200) reaches it without knowing its address. The name lives on the DATA partition and survives a new
 # image; Settings > Wireless and the web Network page change it.
 #
 #   x6100-hostname            apply the saved name (boot, S39hostname) and print it
@@ -11,7 +11,9 @@
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
 
 CONF=/mnt/hostname.conf
+# The model, from the device tree: an X6200 answers as x6200.local unless it was given a name
 DEFAULT=x6100
+grep -q "xiegu,x6200" /proc/device-tree/compatible 2>/dev/null && DEFAULT=x6200
 
 saved() {
     n=$(head -n 1 "$CONF" 2>/dev/null | tr -d ' \r\n')

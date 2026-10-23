@@ -171,7 +171,7 @@ uint32_t hw_caps(void) {
         caps |= HW_CAP_ZOOM | HW_CAP_IF_SHIFT;
     }
     if (v.rev >= 3) {
-        caps |= HW_CAP_DNF_AUTO | HW_CAP_COMP | HW_CAP_COMP_SHAPE | HW_CAP_CODEC_GAIN;
+        caps |= HW_CAP_DNF_AUTO | HW_CAP_COMP | HW_CAP_COMP_SHAPE | HW_CAP_CODEC_GAIN | HW_CAP_TX_LEVEL;
     }
     if (v.rev >= 8) {
         caps |= HW_CAP_BAND_GAIN | HW_CAP_FM_EMP;
