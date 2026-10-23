@@ -131,20 +131,29 @@ make libsndfile-dirclean
 # would stay there and be installed again (an old S01create_data was), as would what an earlier
 # build put in target/. A directory that held another GUI's sources (the stock X6200 GUI, in a tree
 # built stock before) is wiped once: its files would be compiled along with ours
-for d in $BR/build/build/$GUI_PKG-*/; do
-    [ -d "$d" ] && [ ! -f "$d/.openx6x00" ] && { echo "   wiping $d (not synced from OpenX6X00 before)"; rm -rf "$d"; }
-done
-# The synced rootfs copy goes first, and target/ loses what rootfs/ no longer has
-for d in $BR/build/build/$GUI_PKG-*/rootfs; do
-    [ -d "$d" ] || continue
-    (cd "$d" && find . -type f) | while read -r f; do
-        [ -e "$GUI/rootfs/$f" ] || rm -f "$d/$f" "$BR/build/target/$f"
+if ls $BR/build/build/$GUI_PKG-*/.stamp_built > /dev/null 2>&1; then
+    for d in $BR/build/build/$GUI_PKG-*/; do
+        [ -d "$d" ] && [ ! -f "$d/.openx6x00" ] && { echo "   wiping $d (not synced from OpenX6X00 before)"; rm -rf "$d"; }
     done
-done
-find $BR/build/target/usr/sbin -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
-# The GUI is configured again, not only rebuilt: its options (HW_BACKEND above) live in CMake's
-# cache, which a rebuild keeps
-make $GUI_PKG-reconfigure x6100-webserver-rebuild
+    # The synced rootfs copy goes first, and target/ loses what rootfs/ no longer has
+    for d in $BR/build/build/$GUI_PKG-*/rootfs; do
+        [ -d "$d" ] || continue
+        (cd "$d" && find . -type f) | while read -r f; do
+            [ -e "$GUI/rootfs/$f" ] || rm -f "$d/$f" "$BR/build/target/$f"
+        done
+    done
+    find $BR/build/target/usr/sbin -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
+    # The GUI is configured again, not only rebuilt: its options (HW_BACKEND above) live in CMake's
+    # cache, which a rebuild keeps
+    make $GUI_PKG-reconfigure x6100-webserver-rebuild
+else
+    # A tree built for the first time (the GitHub runner): the whole image in buildroot's own
+    # order. The GUI package names only part of what it links, the upstream control library
+    # nothing at all (libgpiod): asked for on their own, as above, they came before libgpiod
+    # and the rest were there and failed
+    echo "   first build of this tree: everything, in buildroot's order"
+    make
+fi
 for d in $BR/build/build/$GUI_PKG-*/; do touch "$d/.openx6x00"; done
 # Packages whose options changed after an earlier build here are not rebuilt by buildroot on
 # its own: python3 (the ssl module) and openssl (the command) are reconfigured when missing
