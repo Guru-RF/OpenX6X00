@@ -932,11 +932,12 @@ static size_t      cw_new_len;
 static char        cw_hist[CW_HIST + 1];
 static size_t      cw_hist_len;
 static uint32_t    boot_id;         /* this GUI run, told in "hello" */
-#define LOG_ANSWERS 16
+#define LOG_ANSWERS 64
 static struct {                     /* the last log commands' answers: id 0 is the old "log" without one */
+    uint64_t who;                   /* the session that sent it: every page counts from 1 (audit B07) */
     uint32_t id;
     uint8_t  result;                /* 0 still with the GUI thread, 1 logged, 2 refused */
-    bool     told;                  /* gone out to the panel clients */
+    bool     told;                  /* gone out to the session's panel clients */
 } log_ans[LOG_ANSWERS];
 static int         log_ans_next;
 static atomic_bool log_pending;     /* an answer waits to go out */
@@ -1055,54 +1056,74 @@ typedef struct {
     cell_data_t cell;
     char        text[200];
     uint32_t    log_id;     /* A_LOG: the page's number for its answer, 0 for none */
+    uint64_t    who;        /* A_LOG: the session it came from */
 } acmd_t;
 
+/* The session a client logs under: its token hashed (FNV-1a); the one value for the unpaired */
+static uint64_t sess_key(const client_t *c) {
+    uint64_t h = 1469598103934665603ULL;
+
+    pthread_mutex_lock(&sess_mux);
+    if (c->sess >= 0 && c->sess < nsessions)
+        for (const char *p = sessions[c->sess].token; *p; p++)
+            h = (h ^ (uint8_t)*p) * 1099511628211ULL;
+    pthread_mutex_unlock(&sess_mux);
+    return h;
+}
+
 /* A log command's place in the ring: its own if it has one (queued earlier), else the next */
-static int log_slot(uint32_t id) {
+static int log_slot(uint64_t who, uint32_t id) {
     if (id)
         for (int i = 0; i < LOG_ANSWERS; i++)
-            if (log_ans[i].id == id)
+            if (log_ans[i].id == id && log_ans[i].who == who)
                 return i;
     int i = log_ans_next;
     log_ans_next = (log_ans_next + 1) % LOG_ANSWERS;
-    log_ans[i].id = id;
+    log_ans[i].who = who;
+    log_ans[i].id  = id;
     return i;
 }
 
 /* A log command queued for the GUI thread: "pending" to a query until its answer is in */
-static void log_queued(uint32_t id) {
+static void log_queued(uint64_t who, uint32_t id) {
     pthread_mutex_lock(&app_mux);
-    int i = log_slot(id);
+    int i = log_slot(who, id);
     log_ans[i].result = 0;
     log_ans[i].told   = true;
     pthread_mutex_unlock(&app_mux);
 }
 
-/* The answer to a log command, kept; the panel thread tells the clients */
-static void log_answer(uint32_t id, bool ok) {
+/* The answer to a log command, kept; the panel thread tells the session's clients */
+static void log_answer(uint64_t who, uint32_t id, bool ok) {
     pthread_mutex_lock(&app_mux);
-    int i = log_slot(id);
+    int i = log_slot(who, id);
     log_ans[i].result = ok ? 1 : 2;
     log_ans[i].told   = false;
     pthread_mutex_unlock(&app_mux);
     atomic_store(&log_pending, true);
 }
 
-/* "logq? ID": the answer kept for ID, pending while the GUI thread has it, or unknown (the radio
- * restarted, or the command never arrived) */
+/* "logq? ID": the answer kept for this session's ID, pending while the GUI thread has it, or
+ * unknown (the radio restarted, the command never arrived, or the answer is too old to be kept:
+ * the page leaves it to the operator) */
 static void log_query(client_t *c, uint32_t id) {
-    const char *r = "unknown";
+    const char *r   = "unknown";
+    uint64_t    who = sess_key(c);
 
     pthread_mutex_lock(&app_mux);
     for (int i = 0; i < LOG_ANSWERS; i++)
-        if (log_ans[i].id == id && id)
+        if (log_ans[i].id == id && id && log_ans[i].who == who)
             r = log_ans[i].result == 1 ? "ok" : log_ans[i].result == 2 ? "no" : "pending";
     pthread_mutex_unlock(&app_mux);
     client_textf(c, "logged %u %s", id, r);
 }
 
-/* The answers not yet told, from the panel thread */
+/* The answers not yet told, from the panel thread: each to the panel clients of its session.
+ * Every page counts its QSOs from 1, so a receipt broadcast to all confirmed another page's
+ * QSO 1 (audit B07) */
 static void log_flush(void) {
+    struct { uint64_t who; uint32_t id; uint8_t result; } out[LOG_ANSWERS];
+    int  n = 0;
     char line[64];
 
     if (!atomic_exchange(&log_pending, false))
@@ -1112,15 +1133,19 @@ static void log_flush(void) {
         if (!log_ans[i].result || log_ans[i].told)
             continue;
         log_ans[i].told = true;
-        if (log_ans[i].id)
-            snprintf(line, sizeof(line), "logged %u %s", log_ans[i].id, log_ans[i].result == 1 ? "ok" : "no");
-        else
-            snprintf(line, sizeof(line), "logged %s", log_ans[i].result == 1 ? "ok" : "no");
-        pthread_mutex_unlock(&app_mux);
-        panel_broadcast(line);
-        pthread_mutex_lock(&app_mux);
+        out[n].who = log_ans[i].who, out[n].id = log_ans[i].id, out[n].result = log_ans[i].result;
+        n++;
     }
     pthread_mutex_unlock(&app_mux);
+    for (int k = 0; k < n; k++) {
+        if (out[k].id)
+            snprintf(line, sizeof(line), "logged %u %s", out[k].id, out[k].result == 1 ? "ok" : "no");
+        else
+            snprintf(line, sizeof(line), "logged %s", out[k].result == 1 ? "ok" : "no");
+        for (int i = 0; i < MAX_CLIENTS; i++)
+            if (clients[i].fd >= 0 && clients[i].up && clients[i].panel && sess_key(&clients[i]) == out[k].who)
+                client_text(&clients[i], line);
+    }
 }
 
 static void app_apply(void *arg) {
@@ -1141,7 +1166,7 @@ static void app_apply(void *arg) {
             ft8_window_remote((ft8_rc_t)a->what, a->arg, a->has_cell ? &a->cell : NULL);
             break;
         case A_LOG:
-            log_answer(a->log_id, dialog_field_qso_log(a->text));
+            log_answer(a->who, a->log_id, dialog_field_qso_log(a->text));
             break;
     }
 }
@@ -1184,15 +1209,31 @@ static bool app_ft8_cmd(const char *what, const char *arg) {
 
 /* "log CALL|RSTS|RSTR|NAME|QTH|GRID|COUNTRY" (dialog_field_qso_log's text), the day's log;
  * "logq ID CALL|..." the same, answered with the ID. A queue with no room answers "no" at once:
- * the page must not believe a QSO sent into nothing was logged (audit A21) */
+ * the page must not believe a QSO sent into nothing was logged (audit A21). An ID this session
+ * sent before is not written again: its answer goes out once more (audit B07) */
 static void app_log_cmd(client_t *c, uint32_t id, const char *text) {
-    acmd_t a = {.id = A_LOG, .log_id = id};
+    uint64_t who = sess_key(c);
+    acmd_t   a   = {.id = A_LOG, .log_id = id, .who = who};
+
     snprintf(a.text, sizeof(a.text), "%s", text);
-    if (id)
-        log_queued(id);
+    if (id) {
+        pthread_mutex_lock(&app_mux);
+        for (int i = 0; i < LOG_ANSWERS; i++) {
+            if (log_ans[i].id != id || log_ans[i].who != who)
+                continue;
+            if (log_ans[i].result) {
+                log_ans[i].told = false;
+                atomic_store(&log_pending, true);
+            }
+            pthread_mutex_unlock(&app_mux);
+            return;
+        }
+        pthread_mutex_unlock(&app_mux);
+        log_queued(who, id);
+    }
     if (!scheduler_put(app_apply, &a, sizeof(a))) {
         if (id)
-            log_answer(id, false);      /* told by the panel thread, kept for a query */
+            log_answer(who, id, false); /* told by the panel thread, kept for a query */
         else
             client_text(c, "logged no");
     }
@@ -1978,6 +2019,7 @@ static void *encoder_thread(void *arg) {
             continue;
         }
         frame_hdr_t hdr = {.w = (uint16_t)w, .h = (uint16_t)h, .seq = atomic_fetch_add(&seq, 1)};
+        bool hide = now < atomic_load(&pair_hide_ms);   /* a pairing code is on the screen */
         for (int i = 0; i < MAX_CLIENTS; i++) {
             client_t *c = &clients[i];
             if (c->fd < 0 || !c->up || !c->screen || (hide && c->sess < 0))
@@ -2019,7 +2061,6 @@ void remote_server_init(void) {
     pthread_t th;
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        bool hide = now < atomic_load(&pair_hide_ms);   /* a pairing code is on the screen */
         clients[i].fd  = -1;
         clients[i].out = malloc(OUT_SIZE);
         pthread_mutex_init(&clients[i].lock, NULL);

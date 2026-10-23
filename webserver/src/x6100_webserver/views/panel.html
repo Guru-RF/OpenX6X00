@@ -746,11 +746,12 @@ body.app h2, body.app #intro { display:none; }
   $("#cw-clear").on("click", function() { cwEl.textContent = ""; });
   $("#cw-log").on("click", function() { const c = $("#cw-log span").text(); if (c && c !== "last call") { $("#lg-call").val(c); $("#lg-rs, #lg-rr").val(state && (state.mode === 4 || state.mode === 5) ? "599" : "59"); $('.tabs button[data-tab="log"]').trigger("click"); } });
   /* Every QSO goes with a number of the page's own ("logq ID ..."); the radio answers "logged ID
-   * ok|no". One without an answer (the link dropped, the page reloaded) is asked about ("logq? ID")
-   * when the link is back: "ok" or "no" settles it, "unknown" means the radio never saw it, or
-   * restarted since. Never seen and the same radio run: sent once more. Otherwise it is for the
-   * operator: the Logs page tells, the row offers Send again or Forget. A retry is never automatic
-   * when a duplicate is possible (R6). */
+   * ok|no", to this browser's session only (another page's QSO 1 is not ours). One without an
+   * answer (the link dropped, the page reloaded) is asked about ("logq? ID") when the link is
+   * back: "ok" or "no" settles it; "unknown" means the radio never saw it, restarted since, or
+   * no longer keeps the answer, and the radio cannot tell which. That is for the operator: the
+   * Logs page tells, the row offers Send again (the radio writes a number it already knows only
+   * once) or Forget. A retry is never automatic when a duplicate is possible (R6, audit B07). */
   const pend = pref.logPending = pref.logPending || {};
   function logRow(id, label, st) {
     let li = $("#lgrows li[data-id='" + id + "']");
@@ -766,8 +767,7 @@ body.app h2, body.app #intro { display:none; }
     else if (r === "no") { logRow(id, label, "refused (see the radio)"); status("QSO not logged (see the radio)", true); }
     else {
       if (!p) return;
-      if (!silent && p.boot && link.boot === p.boot && !p.tries) { p.tries = 1; p.t = Date.now(); p.asks = 0; savePref(); logSend(id, p); return; }
-      const li = logRow(id, label, silent ? "no answer: check the Logs page before sending again" : "not confirmed: the radio restarted, check the Logs page");
+      const li = logRow(id, label, silent ? "no answer: check the Logs page before sending again" : "not confirmed: the radio has no record of it, check the Logs page");
       li.find(".i").append($("<button type='button' class='b'>Send again</button>").on("click", function() { p.tries = 0; p.asks = 0; p.boot = link.boot; p.t = Date.now(); savePref(); logSend(id, p); }),
                            $("<button type='button' class='b'>Forget</button>").on("click", function() { delete pend[id]; savePref(); li.remove(); }));
       return;
