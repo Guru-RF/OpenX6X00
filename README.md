@@ -88,15 +88,17 @@ Keys) writes a PNG to the DATA partition, shown in the web Gallery and copied he
 
 ## Install
 
-1. Download `OpenX6X00-v<version>-sdcard.img.zip` from the
-   [latest release](https://github.com/Guru-RF/OpenX6X00/releases/latest).
+1. Download the image for your radio from the
+   [latest release](https://github.com/Guru-RF/OpenX6X00/releases/latest):
+   `OpenX6X00-v<version>-sdcard.img.zip` for the X6100,
+   `OpenX6X00-x6200-v<version>-sdcard.img.zip` for the X6200.
 2. Write the image to a microSD card with [balenaEtcher](https://etcher.balena.io/)
    or Rufus.
 3. Put the card in the radio and switch on. Settings and logs live on the
    card's DATA partition (`/mnt`).
 
 After that the radio updates itself: Settings > Info > Update (or System >
-Update on the web page) fetches the latest release's bundle from GitHub,
+Update on the web page) fetches the latest release's bundle for its model from GitHub,
 checks its signature, installs it and restarts the radio software, keeping
 the previous version for an automatic rollback if the new one does not come
 up. A new card image is only needed when the kernel or a driver changes.
@@ -112,15 +114,18 @@ output gain) and a battery percentage from a measured discharge curve.
 
 ## Build
 
-The image is built by
-[AetherX6100Buildroot](https://github.com/gdyuldin/AetherX6100Buildroot), with
-this repository as its GUI package. The GitHub Actions workflow
-(`.github/workflows/main.yml`, *Build image*, run by hand, about an hour)
-checks out both, patches the buildroot tree (local GUI and web server,
-`boost` and `fftw-single` for JS8, no RHVoice, the boot logo) and uploads
-`OpenX6X00-<ref>-sdcard.img.zip`; on a tag it attaches the image to the
-release. Locally, the same build runs in a container: clone
-AetherX6100Buildroot next to this repository, then
+The images are built by
+[AetherX6100Buildroot](https://github.com/gdyuldin/AetherX6100Buildroot) and
+[AetherX6200Buildroot](https://github.com/gdyuldin/AetherX6200Buildroot), with
+this repository as their GUI package. `buildroot/local-build.sh` patches the
+buildroot tree (local GUI and web server, `boost` and `fftw-single` for JS8,
+no RHVoice, the boot logo), builds it and makes the update bundle. The GitHub
+Actions workflow (`.github/workflows/main.yml`, *Build image*, run by hand,
+about an hour per radio) runs that script for both radios and uploads
+`OpenX6X00-<ref>-sdcard.img.zip` and `OpenX6X00-x6200-<ref>-sdcard.img.zip`
+with their bundles; on a tag it attaches them to the release. Locally, the
+same build runs in a container: clone the buildroot tree next to this
+repository, then
 
 ```
 docker build -t openx6x00-build buildroot

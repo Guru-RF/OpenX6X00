@@ -1,10 +1,11 @@
-# Builds the full SD card image on GitHub: this repository (OpenX6X00) is the GUI
-# package of gdyuldin's AetherX6100Buildroot, built from the checkout instead of
-# upstream.
+# Builds the SD card images on GitHub, one per radio: this repository (OpenX6X00) is the GUI
+# package of gdyuldin's AetherX6100Buildroot (the X6100) and AetherX6200Buildroot (the X6200),
+# built from the checkout instead of upstream. buildroot/local-build.sh does the patching and
+# the build, here as in the container at home.
 name: Build image
 
 # By hand only (Actions > Build image > Run workflow): releases are built
-# locally and the image attached by hand; building on every tag only made a
+# locally and the images attached by hand; building on every tag only made a
 # second copy, took 2 hours and failed now and then.
 on:
   workflow_dispatch:
@@ -16,19 +17,24 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - model: x6100
+            tree: AetherX6100Buildroot
+            out: OpenX6X00
+          - model: x6200
+            tree: AetherX6200Buildroot
+            out: OpenX6X00-x6200
     defaults:
       run:
         shell: bash
 
     env:
-      # buildroot external tree, package and config files patched below
-      # (X6CI_ prefix: these reach make too, no buildroot variable has it)
-      X6CI_BR_EXT: AetherX6100Buildroot/br2_external
-      X6CI_GUI_MK: AetherX6100Buildroot/br2_external/package/x6100-gui/x6100_gui.mk
-      X6CI_WEB_MK: AetherX6100Buildroot/br2_external/package/x6100-webserver/x6100_webserver.mk
-      X6CI_DEFCONFIG: AetherX6100Buildroot/br2_external/configs/X6100_defconfig
-      X6CI_IMAGES: AetherX6100Buildroot/build/images
-      X6CI_IMG: OpenX6X00-${{ github.ref_name }}-sdcard.img
+      X6CI_IMAGES: ${{ matrix.tree }}/build/images
+      X6CI_IMG: ${{ matrix.out }}-${{ github.ref_name }}-sdcard.img
+      X6CI_BUNDLE: ${{ matrix.out }}-${{ github.ref_name }}-update.tar.gz
 
     steps:
     # A full buildroot build needs more room than the runner leaves free:
@@ -58,105 +64,11 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: true
-        repository: gdyuldin/AetherX6100Buildroot
-        path: AetherX6100Buildroot
+        repository: gdyuldin/${{ matrix.tree }}
+        path: ${{ matrix.tree }}
 
-    # Build the GUI package from the checkout above (local site, submodules
-    # already there) instead of cloning the GUI the buildroot tree names
-    - name: Patch GUI mk
-      run: |
-        sed -i "s,^X6100_GUI_SITE = .*,X6100_GUI_SITE = ${GITHUB_WORKSPACE}/x6100_gui,g" $X6CI_GUI_MK
-        sed -i "s,^X6100_GUI_SITE_METHOD = git,X6100_GUI_SITE_METHOD = local,g" $X6CI_GUI_MK
-        sed -i "s,^X6100_GUI_GIT_SUBMODULES,# X6100_GUI_GIT_SUBMODULES,g" $X6CI_GUI_MK
-
-    # Web configurator: build the copy vendored in webserver/ instead of
-    # fetching gdyuldin/x6100_webserver from GitHub.
-    - name: Patch webserver mk
-      run: |
-        sed -i "s,^X6100_WEBSERVER_SITE = .*,X6100_WEBSERVER_SITE = ${GITHUB_WORKSPACE}/x6100_gui/webserver,g" $X6CI_WEB_MK
-        sed -i "s,^X6100_WEBSERVER_SITE_METHOD = git,X6100_WEBSERVER_SITE_METHOD = local,g" $X6CI_WEB_MK
-        grep "^X6100_WEBSERVER_SITE" $X6CI_WEB_MK
-
-    # JS8 needs the Boost headers (Boost with no library selected installs
-    # only those) and single precision FFTW, already built for liquid-dsp.
-    # x6100-field talks HTTPS to POTA and QRZ: root certificates.
-    # The display runs on DRM (lv_drivers/display/drm.c): libdrm.
-    - name: Enable JS8 dependencies
-      run: |
-        sed -i "s,^X6100_GUI_DEPENDENCIES = \(.*\)$,X6100_GUI_DEPENDENCIES = \1 boost fftw-single," $X6CI_GUI_MK
-        echo "BR2_PACKAGE_BOOST=y" >> $X6CI_DEFCONFIG
-        echo "BR2_PACKAGE_CA_CERTIFICATES=y" >> $X6CI_DEFCONFIG
-        # Python's ssl module and the openssl command: HTTPS from the helpers and the web server's certificate
-        echo "BR2_PACKAGE_PYTHON3_SSL=y" >> $X6CI_DEFCONFIG
-        echo "BR2_PACKAGE_LIBOPENSSL_BIN=y" >> $X6CI_DEFCONFIG
-        # mDNS: x6100.local (rootfs/etc/avahi, S39hostname); the GUI package depends on Avahi so our conf wins
-        echo "BR2_PACKAGE_AVAHI=y" >> $X6CI_DEFCONFIG
-        echo "BR2_PACKAGE_AVAHI_DAEMON=y" >> $X6CI_DEFCONFIG
-        sed -i "s/^\tselect BR2_PACKAGE_LIBPNG$/\tselect BR2_PACKAGE_LIBPNG\n\tselect BR2_PACKAGE_AVAHI\n\tselect BR2_PACKAGE_AVAHI_DAEMON/" $X6CI_BR_EXT/package/x6100-gui/Config.in
-        sed -i "/^X6100_GUI_DEPENDENCIES/s/$/ avahi/" $X6CI_GUI_MK
-        sed -i "/^X6100_GUI_DEPENDENCIES/s/$/ libdrm/" $X6CI_GUI_MK
-        grep "^X6100_GUI_DEPENDENCIES" $X6CI_GUI_MK
-
-    # No voice guidance in this GUI: RHVoice and its voices leave the image.
-    # RHVoice was what brought in PulseAudio, which the GUI needs, so the GUI
-    # package selects PulseAudio itself.
-    - name: Drop RHVoice
-      run: |
-        sed -i "/^X6100_GUI_DEPENDENCIES/s/\brhvoice\b/pulseaudio/" $X6CI_GUI_MK
-        sed -i "s/select BR2_PACKAGE_RHVOICE$/select BR2_PACKAGE_PULSEAUDIO/" $X6CI_BR_EXT/package/x6100-gui/Config.in
-        sed -i "/^BR2_PACKAGE_RHVOICE/d" $X6CI_DEFCONFIG
-        grep "^X6100_GUI_DEPENDENCIES" $X6CI_GUI_MK
-        ! grep -in "rhvoice" $X6CI_GUI_MK $X6CI_BR_EXT/package/x6100-gui/Config.in $X6CI_DEFCONFIG
-
-    # System cleanup:
-    # - firmware for PCI/PCIe network cards (the A33 has no PCIe); the USB
-    #   Ethernet adapters' firmware (RTL815x) stays;
-    # - PulseAudio at the GUI rate, 44.1 kHz: the radio audio is not resampled;
-    # - one Bluetooth setup: bt_start.sh (udev) defers to btcat-setup.
-    - name: System cleanup
-      run: |
-        for o in BROADCOM_TIGON3 BNX2X CXGB4_T4 CXGB4_T5 INTEL_E100 INTEL_ICE MICROCHIP_VSC85XX_PHY QLOGIC_4X RTL_8169; do
-          sed -i "/^BR2_PACKAGE_LINUX_FIRMWARE_${o}=y/d" $X6CI_DEFCONFIG
-        done
-        sed -i "s/^default-sample-rate = 48000/default-sample-rate = 44100/" $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/pulse/daemon.conf
-        cp x6100_gui/buildroot/bt_start.sh $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/usr/bin/bt_start.sh
-        grep "^BR2_PACKAGE_LINUX_FIRMWARE" $X6CI_DEFCONFIG
-        grep -q "^default-sample-rate = 44100" $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/pulse/daemon.conf
-
-    # Kernel: UHID for Bluetooth Low Energy keyboards
-    - name: Kernel UHID (Bluetooth Low Energy keyboards)
-      run: |
-        D=$X6CI_BR_EXT/board/X6100/linux/sun8i-r16-x6100_defconfig
-        grep -q "^CONFIG_UHID=" $D || echo "CONFIG_UHID=m" >> $D
-
-    # The rtl8723bu WiFi driver package, the DATA partition repair at boot, the USB
-    # tethering profile, the Bluetooth, NTP and PulseAudio settings: buildroot/br2_external
-    # of this repository over the upstream tree (buildroot/local-build.sh does the same)
-    - name: OpenX6X00 additions to the buildroot tree
-      run: |
-        cp -a x6100_gui/buildroot/br2_external/. $X6CI_BR_EXT/
-        rm -f $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S01create_data
-        # S00adata and the NTP hook live in rootfs/ (in the update bundle): not the overlay's copies
-        rm -f $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S00adata $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/NetworkManager/dispatcher.d/99-ntp-sync.sh
-        rm -f $X6CI_BR_EXT/board/X6100/linux/rootfs-overlay/etc/init.d/S02update   # the legacy unsigned updater
-        grep -q "rtl8723bu-wifi/Config.in" $X6CI_BR_EXT/Config.in || echo 'source "$BR2_EXTERNAL_X6100_PATH/package/rtl8723bu-wifi/Config.in"' >> $X6CI_BR_EXT/Config.in
-        grep -q "^BR2_PACKAGE_RTL8723BU_WIFI=y" $X6CI_DEFCONFIG || echo "BR2_PACKAGE_RTL8723BU_WIFI=y" >> $X6CI_DEFCONFIG
-        grep -q "^BR2_ROOTFS_DEVICE_TABLE=" $X6CI_DEFCONFIG || echo 'BR2_ROOTFS_DEVICE_TABLE="system/device_table.txt $(BR2_EXTERNAL_X6100_PATH)/board/X6100/linux/device_table.txt"' >> $X6CI_DEFCONFIG
-        D=$X6CI_BR_EXT/board/X6100/linux/sun8i-r16-x6100_defconfig
-        for o in CONFIG_USB_NET_RNDIS_HOST=m CONFIG_IP_ADVANCED_ROUTER=y CONFIG_IP_MULTIPLE_TABLES=y; do
-          grep -q "^$o" $D || echo "$o" >> $D
-        done
-
-    # Boot logo: the kernel's framebuffer logo shown at power on (800x480,
-    # reduced to 224 colours by buildroot).
-    - name: Custom boot logo
-      run: |
-        # Only the background: the kernel shows it as the first frame of the boot
-        # animation, x6100-bootanim (boot/logo.png) composes the logo over it.
-        cp x6100_gui/boot/kernel_logo.png $X6CI_BR_EXT/board/X6100/linux/logo.png
-
-    # ccache kept between runs. The cache key carries the time of the run,
-    # so every run saves a new one and restores the latest by prefix.
+    # ccache kept between runs, one cache per radio. The cache key carries the time of the
+    # run, so every run saves a new one and restores the latest by prefix.
     - name: Prepare ccache timestamp
       id: ccache_cache_timestamp
       shell: cmake -P {0}
@@ -170,70 +82,58 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.buildroot-ccache
-        key: ${{ runner.os }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
+        key: ${{ runner.os }}-${{ matrix.model }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
         restore-keys: |
-          ${{ runner.os }}-ccache-
+          ${{ runner.os }}-${{ matrix.model }}-ccache-
 
-    - name: Configure
-      run: |
-        cd AetherX6100Buildroot && bash ./br_config.sh
-
-    # lame and mpg123 first, then libsndfile from scratch so that it is
-    # configured with them in place (MP3 support)
+    # The update bundle a running radio installs by itself (x6100-update) is signed with the
+    # repository secret UPDATE_SIGNING_KEY (an EC P-256 private key in PEM; its public half is
+    # rootfs/usr/share/x6100/update.pub). Without the secret the bundle is unsigned and radios
+    # refuse it. The script also patches the buildroot tree, configures and builds, puts our
+    # U-Boot on the X6100's image and names it <out>-local-sdcard.img.
     - name: Build
+      env:
+        UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
       run: |
-        cd AetherX6100Buildroot/build
-        make lame mpg123
-        make libsndfile-dirclean
-        make
+        if [ -n "$UPDATE_SIGNING_KEY" ]; then
+          printf '%s\n' "$UPDATE_SIGNING_KEY" > /tmp/update-key.pem
+          export UPDATE_KEY=/tmp/update-key.pem
+        fi
+        MODEL=${{ matrix.model }} GUI_DIR=$GITHUB_WORKSPACE/x6100_gui BR_DIR=$GITHUB_WORKSPACE/${{ matrix.tree }} \
+          bash x6100_gui/buildroot/local-build.sh
+        rm -f /tmp/update-key.pem
 
     - name: Save ccache
       if: always()
       uses: actions/cache/save@v4
       with:
         path: ~/.buildroot-ccache
-        key: ${{ runner.os }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
+        key: ${{ runner.os }}-${{ matrix.model }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
 
-    # Our u-boot goes over the one buildroot wrote, 8 KB into the card
-    - name: Replace u-boot
-      run: |
-        dd if=x6100_gui/u-boot/u-boot-sunxi-with-spl.bin of=$X6CI_IMAGES/sdcard.img seek=8K bs=1 conv=notrunc
-
-    - name: Compress image
+    # The release names: <out>-<ref>-sdcard.img.zip and <out>-<ref>-update.tar.gz (the script
+    # named the bundle after the version in src/main.h)
+    - name: Name the image and the bundle
       run: |
         cd $X6CI_IMAGES
-        mv sdcard.img $X6CI_IMG
+        mv ${{ matrix.out }}-local-sdcard.img $X6CI_IMG
         zip $X6CI_IMG.zip $X6CI_IMG
-
-    # The update bundle a running radio installs by itself (x6100-update), signed with the
-    # repository secret UPDATE_SIGNING_KEY (an EC P-256 private key in PEM; its public half is
-    # rootfs/usr/share/x6100/update.pub). Without the secret the bundle is unsigned and radios refuse it.
-    - name: Update bundle
-      env:
-        UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
-      run: |
-        VER=$(sed -n 's/.*define VERSION.* v\([0-9.]*\).*/\1/p' x6100_gui/src/main.h)
-        KEYARG=""
-        if [ -n "$UPDATE_SIGNING_KEY" ]; then printf '%s\n' "$UPDATE_SIGNING_KEY" > /tmp/update-key.pem; KEYARG="--key /tmp/update-key.pem"; fi
-        python3 x6100_gui/tools/update/mkbundle.py --target AetherX6100Buildroot/build/target \
-            --manifest $(ls -d AetherX6100Buildroot/build/build/x6100-gui-*/install_manifest.txt | head -1) \
-            --version $VER --out $X6CI_IMAGES/OpenX6X00-${{ github.ref_name }}-update.tar.gz $KEYARG
-        rm -f /tmp/update-key.pem
+        mv ${{ matrix.out }}-v*-update.tar.gz $X6CI_BUNDLE
+        ls -la $X6CI_IMG.zip $X6CI_BUNDLE
 
     # Always keep the image and the bundle as workflow artifacts: branch runs have no
     # release to attach to, and on a tag they survive a failed Release step.
     - name: Upload image
       uses: actions/upload-artifact@v4
       with:
-        name: OpenX6X00-${{ github.ref_name }}-sdcard.img.zip
-        path: ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-sdcard.img.zip
+        name: ${{ env.X6CI_IMG }}.zip
+        path: ${{ env.X6CI_IMAGES }}/${{ env.X6CI_IMG }}.zip
         retention-days: 30
 
     - name: Upload update bundle
       uses: actions/upload-artifact@v4
       with:
-        name: OpenX6X00-${{ github.ref_name }}-update.tar.gz
-        path: ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-update.tar.gz
+        name: ${{ env.X6CI_BUNDLE }}
+        path: ${{ env.X6CI_IMAGES }}/${{ env.X6CI_BUNDLE }}
         retention-days: 30
 
     # On a tag: GitHub release with the image and the update bundle (what radios look for)
@@ -242,5 +142,5 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: |
-          ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-sdcard.img.zip
-          ${{ env.X6CI_IMAGES }}/OpenX6X00-${{ github.ref_name }}-update.tar.gz
+          ${{ env.X6CI_IMAGES }}/${{ env.X6CI_IMG }}.zip
+          ${{ env.X6CI_IMAGES }}/${{ env.X6CI_BUNDLE }}
