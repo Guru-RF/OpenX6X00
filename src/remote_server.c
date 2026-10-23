@@ -66,6 +66,7 @@
 
 #include "remote_server.h"
 #include "control_owner.h"
+#include "front_keys.h"
 #include "msg_box.h"
 #include "board.h"
 
@@ -482,6 +483,11 @@ static void wake(void) {
 
 /* ---- Input devices ------------------------------------------------------------------ */
 
+/* -1 for a device the board does not have (NULL in board.h) */
+static int dev_open(const char *path) {
+    return path ? open(path, O_WRONLY | O_NONBLOCK | O_CLOEXEC) : -1;
+}
+
 static void emit(int fd, uint16_t type, uint16_t code, int32_t value) {
     struct input_event ev[2];
 
@@ -496,8 +502,17 @@ static void emit(int fd, uint16_t type, uint16_t code, int32_t value) {
     if (write(fd, ev, sizeof(ev)) < 0) {}
 }
 
+static void power_cb(void *arg) {
+    keypad_power_set(*(bool *)arg);
+}
+
 static void key_emit(uint16_t code, bool down) {
     ctl_injected();
+    if (code == KEY_POWER && dev_power < 0) {
+        /* No device for it (the X6200: the base reports the key): as the base's packets do */
+        scheduler_put(power_cb, &down, sizeof(down));
+        return;
+    }
     emit(code == KEY_POWER ? dev_power : dev_keypad, EV_KEY, code, down ? 1 : 0);
 }
 
@@ -1970,11 +1985,11 @@ void remote_server_init(void) {
         clients[i].out = malloc(OUT_SIZE);
         pthread_mutex_init(&clients[i].lock, NULL);
     }
-    dev_keypad = open(DEV_KEYPAD, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
-    dev_power  = open(DEV_POWER, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
-    dev_main   = open(DEV_MAIN, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
-    dev_vol    = open(DEV_VOL, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
-    dev_mfk    = open(DEV_MFK, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
+    dev_keypad = dev_open(DEV_KEYPAD);
+    dev_power  = dev_open(DEV_POWER);
+    dev_main   = dev_open(DEV_MAIN);
+    dev_vol    = dev_open(DEV_VOL);
+    dev_mfk    = dev_open(DEV_MFK);
     conf_read();
     sess_load();
     if (pipe2(wake_fd, O_NONBLOCK | O_CLOEXEC) < 0) {

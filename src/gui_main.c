@@ -174,7 +174,8 @@ static void display_register(void) {
     lv_disp_set_bg_opa(disp, LV_OPA_COVER);
 }
 
-/* Front keys (event0, the second keypad on event4), main knob, VOL, MFK */
+/* Front keys (event0, the POWER key on its own device where the board has one), main knob,
+ * VOL, MFK (board.h) */
 static void inputs_open(void) {
 #if USE_SDL
     host_panel_inputs();    /* the PC's keyboard, instead of a USB one found by itself */

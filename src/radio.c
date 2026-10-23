@@ -40,6 +40,7 @@
 #include "btaudio.h"
 #include "pubsub_ids.h"
 #include "scheduler.h"
+#include "front_keys.h"
 #include "backlight.h"
 #include "swr_guard.h"
 #include "paddle_keyer.h"
@@ -173,6 +174,10 @@ static bool             resync_due;     /* resend the whole register block (base
 static uint64_t         resync_time;
 static volatile bool    morse_on;
 static volatile uint32_t morse_ms;      /* the GUI's CW key last changed */
+
+static void power_key_cb(void *arg) {
+    keypad_power_set(*(bool *)arg);
+}
 
 static void set_txpwr(float w) {
     hw_set_f(HW_TXPWR_F, digi_cap && w > TX_PLAYER_MAX_PWR_W ? TX_PLAYER_MAX_PWR_W : w);
@@ -310,7 +315,7 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_nr, on_change_i, (void*)HW_NR);
     subject_subscribe_and_notify((Subject*)cfg_nr_level, on_change_i, (void*)HW_NR_LEVEL);
 
-    if ((util_compare_version(base_ver, (radio_base_ver_t){1, 1, 9, 0}) >= 0) || (base_ver.rev >= 8)) {
+    if (hw_caps() & HW_CAP_ZOOM) {
         subject_subscribe_and_notify((Subject*)cfg_mode_zoom, on_fw_zoom_change, NULL);
     }
 
@@ -546,6 +551,10 @@ void radio_set_play_mode(audio_play_mode_t mode) {
 
 radio_base_ver_t radio_base_ver(void) {
     return hw_base_ver();
+}
+
+uint32_t radio_caps(void) {
+    return hw_caps();
 }
 
 const char *radio_base_ver_str(void) {
@@ -1037,7 +1046,19 @@ static bool radio_tick() {
                 scheduler_put(low_power_ui_cb, &low_power, sizeof(low_power));
             }
         }
-        dsp_samples((cfloat *)pack->samples, pack->n_samples, pack->tx, pack->lo_freq, pack->vary_freq, pack->fft_dec);
+        if (pack->psd) {
+            dsp_psd(pack->psd, pack->n_psd, pack->psd_span, pack->tx, pack->smeter_dbm);
+        } else {
+            dsp_samples((cfloat *)pack->samples, pack->n_samples, pack->tx, pack->lo_freq, pack->vary_freq, pack->fft_dec);
+        }
+
+        /* The POWER key where the base reports it (the X6200): to the GUI thread as a key */
+        static bool power_was;
+
+        if (pack->power_key != power_was) {
+            power_was = pack->power_key;
+            scheduler_put(power_key_cb, &power_was, sizeof(power_was));
+        }
 
         switch (state) {
             case RADIO_RX:

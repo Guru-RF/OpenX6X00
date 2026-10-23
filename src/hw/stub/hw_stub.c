@@ -66,6 +66,10 @@ const char *hw_base_ver_str(void) {
     return "stub";
 }
 
+uint32_t hw_caps(void) {
+    return 0;
+}
+
 /* ---- Settings ------------------------------------------------------------------------- */
 
 /* The X6100 keeps these in a register of their own and compares before the write; so does the

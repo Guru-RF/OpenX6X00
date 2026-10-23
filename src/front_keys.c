@@ -124,7 +124,25 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     data->state = pad->evdev_state;
 }
 
+/* The POWER key as the base reports it in its packets (the X6200, hw_pack_t.power_key) or as
+ * the browser sends it where there is no device for it: the same path as a press on a device,
+ * so the wake, the hold and the control owner work the same. GUI thread */
+void keypad_power_set(bool down) {
+    struct input_event in = {.type = EV_KEY, .code = KEY_POWER, .value = down ? 1 : 0};
+
+    if (down) {
+        ctl_local_input();
+    }
+    if (backlight_tick() && down) {
+        return;     /* the press woke the screen: that was its job */
+    }
+    button_event(&in);
+}
+
 keypad_t *keypad_init(char *dev_name) {
+    if (!dev_name) {
+        return NULL;    /* a board without this device (BOARD_DEV_POWER on the X6200) */
+    }
     int fd = open(dev_name, O_RDWR | O_NOCTTY | O_NDELAY);
 
     if (fd == -1) {

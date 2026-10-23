@@ -160,6 +160,21 @@ const char *hw_base_ver_str(void) {
     return x6100_control_get_fw_version_str();
 }
 
+/* The patched firmware (1.1.9, and every rev 8 board) zooms and shifts the IF itself; the auto
+ * notch came with rev 3 */
+uint32_t hw_caps(void) {
+    x6100_base_ver_t v    = x6100_control_get_base_ver();
+    uint32_t         caps = 0;
+
+    if (ver_cmp(v, (x6100_base_ver_t){1, 1, 9, 0}) >= 0 || v.rev >= 8) {
+        caps |= HW_CAP_ZOOM | HW_CAP_IF_SHIFT;
+    }
+    if (v.rev >= 3) {
+        caps |= HW_CAP_DNF_AUTO;
+    }
+    return caps;
+}
+
 /* ---- Settings ------------------------------------------------------------------------- */
 
 /* The settings with a register of their own: compared before the write, read back by hw_get_i() */
@@ -379,6 +394,11 @@ bool hw_flow_read(hw_pack_t *p) {
     p->atu_params = pack->atu_params;
     p->vary_freq  = info.vary_freq;
     p->hkey       = pack->hkey;
+    p->psd        = NULL;
+    p->n_psd      = 0;
+    p->psd_span   = 0;
+    p->smeter_dbm = 0;
+    p->power_key  = false;
     return true;
 }
 

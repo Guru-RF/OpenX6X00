@@ -545,8 +545,8 @@ static void knob_binds_cb(Subject *subj, void *user_data) {
 }
 
 void buttons_init(lv_obj_t *parent) {
-    /* No auto notch before base revision 3 */
-    if (radio_base_ver().rev < 3) page_dfn_1.items[4] = NULL;
+    /* No auto notch where the base has none (X6100 boards before revision 3) */
+    if (!(radio_caps() & HW_CAP_DNF_AUTO)) page_dfn_1.items[4] = NULL;
 
     for (const auto &g : groups) {
         for (size_t i = 0; i < g.n; i++) {

@@ -21,6 +21,15 @@ typedef struct {
     uint8_t rev;
 } radio_base_ver_t;
 
+/* What the radio's base can do, radio_caps() (hw_caps() of the backend): the GUI sends and
+ * shows only what applies. The X6100's depend on its firmware; the X6200's are fixed */
+typedef enum {
+    HW_CAP_ZOOM     = 1 << 0,   /* the base narrows its stream for the zoom (HW_FFT_DEC) */
+    HW_CAP_IF_SHIFT = 1 << 1,   /* HW_IF_SHIFT_ON / HW_IF_SHIFT_HZ */
+    HW_CAP_DNF_AUTO = 1 << 2,   /* the notch finds the carrier itself (HW_DNF_AUTO) */
+    HW_CAP_PSD      = 1 << 3,   /* the base sends its own spectrum, no IQ samples (hw_pack_t.psd) */
+} hw_cap_t;
+
 /* The hand mic's keys as the base reports them (mic_keys.c) */
 #define RADIO_HKEY_SPCH     0xC1
 #define RADIO_HKEY_TUNER    0xC2

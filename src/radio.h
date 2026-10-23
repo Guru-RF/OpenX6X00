@@ -95,6 +95,8 @@ void radio_set_play_mode(audio_play_mode_t mode);
 /* The base's firmware version, and as the base prints it */
 radio_base_ver_t radio_base_ver(void);
 const char *radio_base_ver_str(void);
+/* HW_CAP_* bits (radio_types.h): what the base does itself */
+uint32_t radio_caps(void);
 
 /* The board's switches on the base's pins */
 void radio_wifi_power(bool on);

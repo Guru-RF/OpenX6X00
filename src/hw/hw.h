@@ -2,7 +2,8 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
  *  OpenX6X00 - the radio hardware as radio.c drives it: the base's settings, its packets,
- *  the board's pins. One implementation per radio (hw/x6100/hw_x6100.c for the X6100);
+ *  the board's pins. One implementation per radio (hw/x6100/hw_x6100.c for the X6100,
+ *  hw/x6200/hw_x6200.c for the X6200, hw/stub/hw_stub.c for none);
  *  radio.c, the GUI and the apps know only this file and radio_types.h.
  *
  *  Threads: radio.c holds its lock around every call except hw_flow_read(), hw_flow_restart()
@@ -42,6 +43,13 @@ typedef struct {
     uint8_t     fft_dec;        /* the base's own spectrum decimation (1, 2, 4 ...), 0 when it does not say */
     bool        vary_freq;
     uint32_t    hkey;           /* the hand mic's key (RADIO_HKEY_*), 0 for none */
+    /* A base that computes the spectrum itself (HW_CAP_PSD) sends it in place of the samples
+     * (samples NULL): n_psd bins in dB, the lowest frequency first, over the span of the zoom */
+    const float *psd;
+    uint16_t    n_psd;
+    uint32_t    psd_span;       /* Hz the bins cover (the base's own zoom steps) */
+    int16_t     smeter_dbm;     /* its own S-meter reading, dBm; 0 with the samples */
+    bool        power_key;      /* the POWER key, where the base reports it instead of an input device */
 } hw_pack_t;
 
 /* The board's switches */
@@ -140,6 +148,8 @@ void hw_start(void);
 
 radio_base_ver_t hw_base_ver(void);
 const char      *hw_base_ver_str(void);
+/* HW_CAP_* bits (radio_types.h); valid once hw_start() ran */
+uint32_t         hw_caps(void);
 
 /* A setting to the base. True when it changed (the base got it); the settings the base holds in
  * a register of their own are compared first, the packed ones are always sent */

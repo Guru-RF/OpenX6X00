@@ -35,6 +35,8 @@ extern "C" {
 
 void dsp_init();
 void dsp_samples(cfloat *buf_samples, uint16_t size, bool tx, uint32_t base_freq, bool vary_freq, uint8_t fft_dec);
+/* A spectrum the base computed itself (hw_pack_t.psd, HW_CAP_PSD), with its S-meter reading */
+void dsp_psd(const float *db, uint16_t n, uint32_t span_hz, bool tx, int16_t smeter_dbm);
 void dsp_reset();
 
 void dsp_set_waterfall_enabled(bool enabled);

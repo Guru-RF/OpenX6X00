@@ -7,8 +7,9 @@
  */
 
 /* What the GUI does with the samples of the base board: the panorama (spectrum and
- * waterfall) from the IQ stream, the S-meter, the automatic waterfall colours, and the
- * audio for the decoders. Demodulation, filters, AGC and the speaker are on the base. */
+ * waterfall) from the IQ stream, or from the spectrum a base computes itself (the X6200),
+ * the S-meter, the automatic waterfall colours, and the audio for the decoders.
+ * Demodulation, filters, AGC and the speaker are on the base. */
 
 #include "dsp.h"
 #include "dsp_math.h"
@@ -113,10 +114,57 @@ class Panorama {
     }
 };
 
+/* A spectrum the base computed (hw_pack_t.psd): the packets between two screen frames are
+ * averaged in power, then laid onto the display's bins. Nothing to transform */
+class PsdFrames {
+    std::vector<float> acc;
+    size_t             count = 0;
+
+  public:
+    explicit PsdFrames(size_t n) : acc(n, 0.0f) {}
+
+    void reset() {
+        std::fill(acc.begin(), acc.end(), 0.0f);
+        count = 0;
+    }
+
+    bool ready() const {
+        return count > 0;
+    }
+
+    void push(const float *db, size_t n) {
+        if (acc.size() != n)
+            acc.assign(n, 0.0f);
+        for (size_t i = 0; i < n; i++)
+            acc[i] += powf(10.0f, db[i] * 0.1f);
+        count++;
+    }
+
+    /* Mean level per bin in dB: the middle part (frac of the n bins, 1 for all) stretched over
+     * out[m], linear between two bins; starts a new average */
+    void take(float *out, size_t m, float frac) {
+        size_t n     = acc.size();
+        float  k     = 1.0f / count;
+        float  width = (n - 1) * std::clamp(frac, 0.0f, 1.0f);
+        float  start = (n - 1 - width) * 0.5f;
+
+        for (size_t j = 0; j < m; j++) {
+            float  x = start + width * j / (m - 1);
+            size_t i = (size_t)x;
+            float  f = x - i;
+            float  p = i + 1 < n ? acc[i] * (1.0f - f) + acc[i + 1] * f : acc[i];
+
+            out[j] = 10.0f * log10f(std::max(p * k, 1e-20f));
+        }
+        reset();
+    }
+};
+
 static pthread_mutex_t mux = PTHREAD_MUTEX_INITIALIZER;
 static bool            ready;
 
 static radio_base_ver_t base_ver;
+static uint32_t         caps;           /* radio_caps(): what the base does itself */
 static bool             base_decim;     /* the base decimates the IQ for the zoom */
 static bool             base_dc_block;  /* the base removes DC from the IQ */
 static iirfilt_cccf     dc_block;
@@ -128,6 +176,7 @@ static cfloat        iq[RADIO_SAMPLES * 2];     /* bf16 packets carry twice as m
 static cfloat        iq_dec[RADIO_SAMPLES * 2];
 
 static Panorama *sp_rx, *sp_tx, *wf_rx, *wf_tx;
+static PsdFrames *psd_sp_rx, *psd_sp_tx, *psd_wf_rx, *psd_wf_tx;   /* HW_CAP_PSD bases */
 
 static float    sp_psd[SPECTRUM_NFFT];
 static float    sp_shown[SPECTRUM_NFFT];
@@ -241,13 +290,16 @@ static void spectrum_frame(Panorama *sp, uint64_t now, bool tx, uint32_t freq, u
     sp_time = now;
 }
 
-static bool waterfall_frame(Panorama *wf, uint64_t now) {
-    /* Waterfall speed 4 and 5 run at 20 and 30 frames/s, the slower ones at 15 and
-     * waterfall_data() averages them */
+/* Waterfall speed 4 and 5 run at 20 and 30 frames/s, the slower ones at 15 and
+ * waterfall_data() averages them */
+static uint8_t wf_frame_ms() {
     static const uint8_t frame_ms[] = {FRAME_MS, FRAME_MS, FRAME_MS, 1000 / 20, 1000 / 30};
-    uint8_t ms = frame_ms[std::clamp(cfg_sm.p_waterfall_speed.get(), 1, 5) - 1];
 
-    if (now - wf_time <= ms || settle || !wf->ready())
+    return frame_ms[std::clamp(cfg_sm.p_waterfall_speed.get(), 1, 5) - 1];
+}
+
+static bool waterfall_frame(Panorama *wf, uint64_t now) {
+    if (now - wf_time <= wf_frame_ms() || settle || !wf->ready())
         return false;
 
     wf->take(wf_lin);
@@ -297,6 +349,28 @@ static void auto_levels(uint64_t now) {
     waterfall_update_max(max);
 }
 
+/* A waterfall frame is in wf_db and wf_lin: the copy for the browser, the waterfall, the colours */
+static void frame_out(uint64_t now, bool tx, uint32_t base_freq) {
+    uint32_t span = wf_span();
+
+    if (!tx) {
+        pthread_mutex_lock(&snap_mux);
+        memcpy(snap_db, wf_db, sizeof(snap_db));
+        snap_center = base_freq ? base_freq : cur_freq;
+        snap_width  = span;
+        snap_seq++;
+        pthread_mutex_unlock(&snap_mux);
+    }
+
+    if (waterfall_enabled.load(std::memory_order_relaxed))
+        waterfall_data(wf_db, WATERFALL_NFFT, tx, base_freq, span);
+
+    if (tx)
+        after_tx = 2;
+    else
+        auto_levels(now);
+}
+
 /* * Entry points * */
 
 void dsp_samples(cfloat *buf_samples, uint16_t size, bool tx, uint32_t base_freq, bool vary_freq, uint8_t fft_dec) {
@@ -331,25 +405,58 @@ void dsp_samples(cfloat *buf_samples, uint16_t size, bool tx, uint32_t base_freq
         return;
 
     s_meter();   /* on every frame, also with the waterfall hidden */
+    frame_out(now, tx, base_freq);
+}
 
-    uint32_t span = wf_span();
+/* The base's own spectrum (HW_CAP_PSD, the X6200): n bins in dB over span_hz around the tuned
+ * frequency, the lowest first, one packet of the base. The base's steps are wider than the
+ * screen's span: its middle part is shown. The base's S-meter reading replaces the one summed
+ * from the bins. Nothing says where the base is tuned: the GUI's frequency, as with an OEM
+ * X6100 base */
+void dsp_psd(const float *db, uint16_t n, uint32_t span_hz, bool tx, int16_t smeter_dbm) {
+    if (!ready)
+        return;
 
-    if (!tx) {
-        pthread_mutex_lock(&snap_mux);
-        memcpy(snap_db, wf_db, sizeof(snap_db));
-        snap_center = base_freq ? base_freq : cur_freq;
-        snap_width  = span;
-        snap_seq++;
-        pthread_mutex_unlock(&snap_mux);
+    uint64_t now  = get_time();
+    float    frac = span_hz ? (float)wf_span() / span_hz : 1.0f;
+
+    if (settle)
+        settle--;
+
+    PsdFrames *sp = tx ? psd_sp_tx : psd_sp_rx;
+    PsdFrames *wf = tx ? psd_wf_tx : psd_wf_rx;
+
+    pthread_mutex_lock(&mux);
+    if (spectrum_on()) {
+        sp->push(db, n);
+        if (now - sp_time > FRAME_MS && sp->ready()) {
+            sp->take(sp_psd, SPECTRUM_NFFT, frac);
+            for (size_t i = 0; i < SPECTRUM_NFFT; i++) {
+                float v = sp_psd[i] + zoom_db;
+
+                sp_shown[i] += (v - sp_shown[i]) * (v > sp_shown[i] ? 0.6f : 0.2f);
+            }
+            spectrum_data(sp_shown, SPECTRUM_NFFT, tx, 0, zoom);
+            sp_time = now;
+        }
     }
+    wf->push(db, n);
+    pthread_mutex_unlock(&mux);
 
-    if (waterfall_enabled.load(std::memory_order_relaxed))
-        waterfall_data(wf_db, WATERFALL_NFFT, tx, base_freq, span);
+    if (now - wf_time <= wf_frame_ms() || settle || !wf->ready())
+        return;
 
-    if (tx)
-        after_tx = 2;
-    else
-        auto_levels(now);
+    wf->take(wf_db, WATERFALL_NFFT, frac);
+    /* The lift for the zoom, and the linear powers auto_levels() reads on the scale of the IQ path */
+    for (size_t i = 0; i < WATERFALL_NFFT; i++) {
+        wf_lin[i] = powf(10.0f, (wf_db[i] - LEVEL_DB) * 0.1f);
+        wf_db[i] += zoom_db;
+    }
+    wf_time = now;
+
+    if (dialog_msg_voice_get_state() != MSG_VOICE_RECORD)
+        meter_update(smeter_dbm, params.spectrum_beta.x * 0.01f);
+    frame_out(now, tx, 0);
 }
 
 static void set_zoom(uint8_t z) {
@@ -375,21 +482,25 @@ static void set_zoom(uint8_t z) {
     std::fill(sp_shown, sp_shown + SPECTRUM_NFFT, (float)S_MIN);
     sp_rx->reset();
     wf_rx->reset();
+    psd_sp_rx->reset();
+    psd_wf_rx->reset();
     floor_reset = true;
     pthread_mutex_unlock(&mux);
 }
 
 static void on_zoom_change(Subject *subj, void *user_data) {
     int32_t z = cfg_sm.p_mode_zoom.get();
-    bool    old_oem = base_ver.rev < 8 && util_compare_version(base_ver, (radio_base_ver_t){1, 1, 9, 0}) < 0;
 
-    if (old_oem) {
+    if (!(caps & HW_CAP_ZOOM)) {    /* an OEM X6100 base, the stub: the IQ is decimated here */
         set_zoom(z);
         return;
     }
+    /* Narrower bins hold less noise: lifted back (the base that sends its spectrum halves its
+     * bins with the zoom too) */
     zoom_db = 3.0f * log2f(z);
     floor_reset = true;
-    /* The OEM base from 1.1.9 decimates but does not report the zoom back */
+    /* The OEM X6100 base from 1.1.9 decimates but does not report the zoom back; a base that
+     * sends its spectrum says nothing either */
     if (base_ver.rev < 8)
         set_zoom(z);
 }
@@ -436,13 +547,18 @@ static void on_spectrum_show(Subject *subj, void *user_data) {
 
 void dsp_init() {
     base_ver = radio_base_ver();
-    base_decim = util_compare_version(base_ver, (radio_base_ver_t){1, 1, 9, 0}) >= 0 || base_ver.rev >= 8;
+    caps = radio_caps();
+    base_decim = (caps & HW_CAP_ZOOM) != 0;
     base_dc_block = base_ver.rev >= 8;
 
     sp_rx = new Panorama(SPECTRUM_NFFT);
     sp_tx = new Panorama(SPECTRUM_NFFT);
     wf_rx = new Panorama(WATERFALL_NFFT);
     wf_tx = new Panorama(WATERFALL_NFFT);
+    psd_sp_rx = new PsdFrames(RADIO_SAMPLES);
+    psd_sp_tx = new PsdFrames(RADIO_SAMPLES);
+    psd_wf_rx = new PsdFrames(RADIO_SAMPLES);
+    psd_wf_tx = new PsdFrames(RADIO_SAMPLES);
     std::fill(sp_shown, sp_shown + SPECTRUM_NFFT, (float)S_MIN);
 
     dc_block = iirfilt_cccf_create_dc_blocker(0.005f);
@@ -476,6 +592,10 @@ void dsp_reset() {
     sp_tx->reset();
     wf_rx->reset();
     wf_tx->reset();
+    psd_sp_rx->reset();
+    psd_sp_tx->reset();
+    psd_wf_rx->reset();
+    psd_wf_tx->reset();
 }
 
 void dsp_set_waterfall_enabled(bool enabled) {
