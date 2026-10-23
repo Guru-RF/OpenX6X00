@@ -1,9 +1,9 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - what the X6100's Linux shows the GUI: the devices by name, the panel's size.
- *  Another radio on the same code changes this file (and the control library behind radio.c),
- *  not the places that use them.
+ *  OpenX6X00 - what the radio's Linux shows the GUI: the devices by name, the panel's size.
+ *  The X6100 unless the build says BOARD_X6200 (cmake -DHW_BACKEND=x6200). Another radio on
+ *  the same code changes this file (and the backend behind hw/hw.h), not the places that use them.
  *
  *  Copyright (c) 2026 RF.Guru
  */
@@ -30,6 +30,7 @@
 #define BOARD_MIXER_REC     NULL
 #define BOARD_CAT_DEV       BOARD_DATA "/run/cat"   /* none: X6100_CAT_DEV=<pty> gives one */
 #define BOARD_RTC_DEV       "/dev/null"
+#define BOARD_NAME          "host"
 #else
 
 /* The input devices (gui_main.c reads them, remote_server.c writes the browser's keys into them) */
@@ -37,7 +38,14 @@
 #define BOARD_DEV_MAIN      "/dev/input/event1"     /* the main knob */
 #define BOARD_DEV_VOL       "/dev/input/event2"
 #define BOARD_DEV_MFK       "/dev/input/event3"
+#ifdef BOARD_X6200
+#define BOARD_NAME          "X6200"
+#define BOARD_DEV_MFK_INNER "/dev/input/event4"     /* the inner ring of the MFK knob (not read yet) */
+#define BOARD_DEV_POWER     NULL                    /* the base reports the POWER key in its packets */
+#else
+#define BOARD_NAME          "X6100"
 #define BOARD_DEV_POWER     "/dev/input/event4"     /* the PMIC's key: the matrix keypad drops KEY_POWER */
+#endif
 
 /* PulseAudio's names for the codec, and its ALSA mixer elements for the play and record levels */
 #define BOARD_PA_SINK       "alsa_output.platform-sound.stereo-fallback"
@@ -45,7 +53,7 @@
 #define BOARD_MIXER_PLAY    "AIF1 DA0"
 #define BOARD_MIXER_REC     "ADC"
 
-/* The user's data: the settings database, logs, macros, recordings, themes. The X6100's data
+/* The user's data: the settings database, logs, macros, recordings, themes. The radio's data
  * partition; a desktop build passes its own directory (-DBOARD_DATA='"..."') */
 #ifndef BOARD_DATA
 #define BOARD_DATA          "/mnt"

@@ -194,12 +194,16 @@ void audio_mixer_setup(radio_base_ver_t base_ver) {
     // capture audio from radio
     res = system("amixer sset 'Mic1',0 0,0 cap");
     // mic boost
+#ifdef BOARD_X6200
+    res = system("amixer sset 'Mic1 Boost',0 0");     /* as the stock X6200 GUI sets it */
+#else
     if (base_ver.rev >= 12) {
         // no need for mic boost on r12 and later
         res = system("amixer sset 'Mic1 Boost',0 0");
     } else {
         res = system("amixer sset 'Mic1 Boost',0 1");
     }
+#endif
     // disable capturing from mixer
     res = system("amixer sset 'Mixer',0 nocap");
     res = system("amixer sset 'ADC Gain',0 3");

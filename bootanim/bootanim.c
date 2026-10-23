@@ -22,7 +22,18 @@
 #include <gpiod.h>
 #include <linux/fb.h>
 #include <alsa/asoundlib.h>
+/* The base, through the control library of the radio this is built for (BOARD_X6200 from CMake) */
+#ifdef BOARD_X6200
+#include <aether_radio/x6200_control/control.h>
+#define base_control_init   x6200_control_init
+#define base_rxvol_set      x6200_control_rxvol_set
+#define base_record_set     x6200_control_record_set
+#else
 #include <aether_radio/x6100_control/control.h>
+#define base_control_init   x6100_control_init
+#define base_rxvol_set      x6100_control_rxvol_set
+#define base_record_set     x6100_control_record_set
+#endif
 #include <math.h>
 #include <png.h>
 #include <pthread.h>
@@ -67,14 +78,14 @@ static int64_t now_ms(void) {
 #define VOL_DEFAULT 30        /* p_volume's default, when the DB has none */
 #define SOUND_MAX_MS 5700     /* CQ CQ is 5.16 s with the lead: the sound never runs longer than this */
 
-/* The base unit, through the GUI's own control library: x6100_control_init()
+/* The base unit, through the GUI's own control library: base_control_init()
  * sends every register with the library's defaults (RX, PTT off), as the GUI
  * does first thing at its start; voice_rec alone then makes the base play the
- * codec on the speaker. The GUI repeats x6100_control_init() when it starts */
+ * codec on the speaker. The GUI repeats base_control_init() when it starts */
 static int user_vol;
 
 /* The CW key line held up (1) while the base is ours, as the GUI sets it before
- * x6100_control_init() (radio.c). Only this line: the library's x6100_gpio_init()
+ * base_control_init() (radio.c). Only this line: the library's x6100_gpio_init()
  * would also drive the backlight, USB and WiFi lines. Released at the end, so the
  * GUI can claim it */
 #define KEY_CHIP "gpiochip1"
@@ -211,14 +222,14 @@ static int sound_start(pthread_t *th) {
     }
     if (access(GUI_UP, F_OK) == 0) goto no_sound;
     if (!key_up()) goto no_sound;
-    if (!x6100_control_init()) goto no_sound;   /* once: no retries */
-    x6100_control_rxvol_set(user_vol < MIN_VOL ? MIN_VOL : user_vol);
-    x6100_control_record_set(true);
+    if (!base_control_init()) goto no_sound;   /* once: no retries */
+    base_rxvol_set(user_vol < MIN_VOL ? MIN_VOL : user_vol);
+    base_record_set(true);
     cw("-.-. --.-   -.-. --.-");
     deadline = now_ms() + SOUND_MAX_MS;
     if (pthread_create(th, NULL, sound_thread, NULL) == 0) return 1;
-    x6100_control_record_set(false);
-    x6100_control_rxvol_set(user_vol);
+    base_record_set(false);
+    base_rxvol_set(user_vol);
 no_sound:
     key_release();
     pcm_close();
@@ -230,8 +241,8 @@ no_sound:
 static void sound_end(pthread_t th) {
     pthread_join(th, NULL);
     if (access(GUI_UP, F_OK) != 0) {
-        x6100_control_record_set(false);
-        x6100_control_rxvol_set(user_vol);
+        base_record_set(false);
+        base_rxvol_set(user_vol);
     }
     key_release();
     unlink(AUDIO_BUSY);

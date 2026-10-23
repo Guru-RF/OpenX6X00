@@ -60,6 +60,14 @@ else()
         add_link_options(-Wl,--gc-sections)
 endif()
 
+# The radio behind src/hw/hw.h: the X6100 or the X6200 through its control library, or the
+# stub (a radio made of nothing, for the GUI on a desktop and as the template for a new radio's
+# backend). The host build above chose the stub already
+set(HW_BACKEND "x6100" CACHE STRING "The radio backend: x6100, x6200 or stub")
+if(HW_BACKEND STREQUAL "x6200")
+        add_compile_definitions(BOARD_X6200=1)
+endif()
+
 add_subdirectory(lvgl)
 
 if(ENABLE_TESTING AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests)

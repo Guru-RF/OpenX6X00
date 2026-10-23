@@ -66,17 +66,18 @@ target_sources(${PROJECT_NAME} PUBLIC
     control_owner.c
 )
 
-# The radio behind src/hw/hw.h: the X6100 through its control library, or the stub (a radio made
-# of nothing, for the GUI on a desktop and as the template for a new radio's backend)
-set(HW_BACKEND "x6100" CACHE STRING "The radio backend: x6100 or stub")
+# The radio behind src/hw/hw.h (HW_BACKEND, chosen in the top-level CMakeLists.txt)
 if(HW_BACKEND STREQUAL "x6100")
     target_sources(${PROJECT_NAME} PUBLIC hw/x6100/hw_x6100.c)
     set(HW_LIBS aether_x6100_control)
+elseif(HW_BACKEND STREQUAL "x6200")
+    target_sources(${PROJECT_NAME} PUBLIC hw/x6200/hw_x6200.c)
+    set(HW_LIBS aether_x6200_control)
 elseif(HW_BACKEND STREQUAL "stub")
     target_sources(${PROJECT_NAME} PUBLIC hw/stub/hw_stub.c)
     set(HW_LIBS m)
 else()
-    message(FATAL_ERROR "HW_BACKEND must be x6100 or stub, not '${HW_BACKEND}'")
+    message(FATAL_ERROR "HW_BACKEND must be x6100, x6200 or stub, not '${HW_BACKEND}'")
 endif()
 
 # Subfolders: some add their sources to the GUI, others build a library
