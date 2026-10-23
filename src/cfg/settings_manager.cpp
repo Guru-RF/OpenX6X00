@@ -487,9 +487,16 @@ int32_t SettingsManager::filter_low_validate(int32_t v) {
     return clip(v, 0, hi);
 }
 
+/* The widest filter the mode takes: the X6200's WFM goes to 10 kHz (its stock GUI's limit, the
+ * default 8 kHz), every other mode to 6 kHz */
+int32_t SettingsManager::filter_high_max() {
+    return cp_cur_mode.get() == radio_mode_wfm ? 10000 : 6000;
+}
+
 int32_t SettingsManager::filter_high_validate(int32_t v) {
-    int low = clip(p_mode_filter_low.get(), 0, 5999);
-    return clip(v, low + 1, 6000);
+    int max = filter_high_max();
+    int low = clip(p_mode_filter_low.get(), 0, max - 1);
+    return clip(v, low + 1, max);
 }
 
 int32_t SettingsManager::cur_filter_low_compute() {
@@ -569,7 +576,7 @@ void SettingsManager::cur_filter_high_reverse(int32_t v) {
 }
 
 void SettingsManager::cur_filter_bw_reverse(int32_t v) {
-    v = clip(v, 10, 6000);
+    v = clip(v, 10, filter_high_max());
     switch (filter_mode(cp_cur_mode.get())) {
         case FilterMode::AM:
         case FilterMode::FM:

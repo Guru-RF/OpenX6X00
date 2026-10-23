@@ -703,6 +703,7 @@ class SettingsManager {
     // Validate filters (cross-validate against the sibling filter edge; read
     // member params via `this`).
     int32_t filter_low_validate(int32_t v);
+    int32_t filter_high_max();
     int32_t filter_high_validate(int32_t v);
 
     // compute fns for cp_cur_filter_{low,high,bw}.
