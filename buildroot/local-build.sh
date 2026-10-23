@@ -83,6 +83,10 @@ done
 mkdir -p $BOARD/rootfs-overlay/usr/bin
 cp $GUI/buildroot/bt_start.sh $BOARD/rootfs-overlay/usr/bin/bt_start.sh
 
+# rootfs/ is synced into the GUI package and installed as is: a __pycache__ left there by running
+# one of its scripts on the host (tests) would land in the image
+find $GUI/rootfs -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
+
 echo "== OpenX6X00 additions to the buildroot tree (buildroot/br2_external in this repository)"
 # The rtl8723bu WiFi driver package (the X6100's USB WiFi; the X6200's is on the board), the DATA
 # partition repair at boot, the USB tethering profile, the Bluetooth, NTP and PulseAudio settings:
@@ -141,8 +145,20 @@ if ls $BR/build/build/$GUI_PKG-*/.stamp_built > /dev/null 2>&1; then
         (cd "$d" && find . -type f) | while read -r f; do
             [ -e "$GUI/rootfs/$f" ] || rm -f "$d/$f" "$BR/build/target/$f"
         done
+        find "$d" -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null   # emptied above, installed as a directory otherwise
     done
     find $BR/build/target/usr/sbin -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null
+    # The web server the same way: its synced sources lose what webserver/ no longer has (a tree
+    # built stock first kept the stock web server's files, which went into the wheel), and it is
+    # reinstalled whole below, so what an earlier version installed goes first (the module, its
+    # dist-info and the script in bin, which the installer refuses to overwrite)
+    for d in $BR/build/build/x6100-webserver-*/src; do
+        [ -d "$d" ] || continue
+        (cd "$d" && find . -type f -not -path '*/__pycache__/*') | while read -r f; do
+            [ -e "$GUI/webserver/src/$f" ] || { echo "   stale web server file $f"; rm -f "$d/$f"; }
+        done
+    done
+    rm -rf $BR/build/target/usr/lib/python3*/site-packages/x6100_webserver* $BR/build/target/usr/bin/x6100_webserver
     # The GUI is configured again, not only rebuilt: its options (HW_BACKEND above) live in CMake's
     # cache, which a rebuild keeps
     make $GUI_PKG-reconfigure x6100-webserver-rebuild
@@ -159,6 +175,14 @@ for d in $BR/build/build/$GUI_PKG-*/; do touch "$d/.openx6x00"; done
 # its own: python3 (the ssl module) and openssl (the command) are reconfigured when missing
 ls $BR/build/target/usr/lib/python3.11/lib-dynload/_ssl*.so > /dev/null 2>&1 || make python3-reconfigure
 [ -x $BR/build/target/usr/bin/openssl ] || make libopenssl-reconfigure
+# What a tree built stock before installed in target/ stays there (buildroot never removes what a
+# package put there) and would go into the image: the PCI firmware whose options were dropped above
+# (16 MB; RTL_815X, kept, is the rtl815x files of rtl_nic, the rest came with RTL_8169), RHVoice
+# (dropped above, 13 MB), the stock GUI's binary and data (/usr/sbin/x6200_gui, /usr/share/x6200)
+rm -rf $BR/build/target/lib/firmware/{bnx2x,cxgb4,e100,intel,microchip,qed,tigon}
+find $BR/build/target/lib/firmware/rtl_nic -type f ! -name 'rtl815*' -delete 2>/dev/null
+rm -rf $BR/build/target/usr/share/RHVoice $BR/build/target/usr/lib/libRHVoice* $BR/build/target/usr/bin/RHVoice*
+rm -rf $BR/build/target/usr/sbin/x6200_gui $BR/build/target/usr/share/x6200
 make
 
 echo "== Update bundle (tools/update/mkbundle.py): what x6100-update installs on a running radio"
