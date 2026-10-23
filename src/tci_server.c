@@ -597,7 +597,11 @@ static void handle_cmd(int ci, char *line) {
     bool rf = !strcmp(name, "vfo") || !strcmp(name, "modulation") || !strcmp(name, "rx_filter_band") ||
               !strcmp(name, "agc_mode") || !strcmp(name, "rit_enable") || !strcmp(name, "rit_offset") ||
               !strcmp(name, "drive") || !strcmp(name, "trx");
-    bool may = !rf || (atomic_load(&trust_operate) && (n < 2 && strcmp(name, "trx") ? true : ctl_claim(CTL_TCI, ci, "TCI", true)));
+    /* Ending its own transmission is never refused: the client that keyed unkeys whatever happened
+     * to control (a knob took it) or to its trust (Listen only) since; refusing left the radio on
+     * the air until the 180 s limit (audit B01) */
+    bool release = !strcmp(name, "trx") && n >= 2 && !parse_bool(a[1]) && (txs.owner == ci || ptt_owner == ci);
+    bool may = !rf || release || (atomic_load(&trust_operate) && (n < 2 && strcmp(name, "trx") ? true : ctl_claim(CTL_TCI, ci, "TCI", true)));
     if (rf && !may && n >= 2) {
         /* the state as it is, as for a command that changes nothing */
         if (!strcmp(name, "vfo")) client_textf(c, "vfo:0,0,%d;", s.freq);

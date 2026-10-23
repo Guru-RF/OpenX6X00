@@ -67,7 +67,7 @@ int main(void) {
   char stop2[]="trx:0,false";
   handle_cmd(0,stop2);
   printf("after listen-only and explicit unkey: keyed=%d, tx_session_end_calls=%d, queued_command=%d\n",keyed,ends,last_command);
-  return !(keyed && ends==0 && last_command==-1);
+  return !(!keyed && ends==2 && last_command==-1);   /* fixed (audit B01): both unkeys end the session */
 }
 '''
 (p/'unkey-ownership.c').write_text(pre+'\n'+fn('static bool parse_bool(')+'\n'+fn('static int split_args(')+'\n'+fn('static void handle_cmd(')+'\n'+main)
