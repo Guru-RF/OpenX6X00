@@ -5,7 +5,7 @@ an ECDSA P-256 / SHA-256 signature of the manifest (what the radio's OpenSSL 1.1
 
   python3 tools/update/mkbundle.py --target <buildroot target dir> \\
       --manifest <build/x6100-gui-*/install_manifest.txt> --version 0.2.0 \\
-      --out OpenX6X00-v0.2.0-update.tar.gz [--key update-key.pem] [--notes "..."]
+      --out OpenX6X00-x6100-v0.3.2-update.tar.gz [--key update-key.pem] [--notes "..."]
 
 The key is the EC private key whose public half is rootfs/usr/share/x6100/update.pub
 (openssl ecparam -name prime256v1 -genkey -noout -out key.pem); without it the bundle is

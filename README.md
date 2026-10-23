@@ -90,7 +90,7 @@ Keys) writes a PNG to the DATA partition, shown in the web Gallery and copied he
 
 1. Download the image for your radio from the
    [latest release](https://github.com/Guru-RF/OpenX6X00/releases/latest):
-   `OpenX6X00-v<version>-sdcard.img.zip` for the X6100,
+   `OpenX6X00-x6100-v<version>-sdcard.img.zip` for the X6100,
    `OpenX6X00-x6200-v<version>-sdcard.img.zip` for the X6200.
 2. Write the image to a microSD card with [balenaEtcher](https://etcher.balena.io/)
    or Rufus.
@@ -122,7 +122,7 @@ buildroot tree (local GUI and web server, `boost` and `fftw-single` for JS8,
 no RHVoice, the boot logo), builds it and makes the update bundle. The GitHub
 Actions workflow (`.github/workflows/main.yml`, *Build image*, run by hand,
 about an hour per radio) runs that script for both radios and uploads
-`OpenX6X00-<ref>-sdcard.img.zip` and `OpenX6X00-x6200-<ref>-sdcard.img.zip`
+`OpenX6X00-x6100-<ref>-sdcard.img.zip` and `OpenX6X00-x6200-<ref>-sdcard.img.zip`
 with their bundles; on a tag it attaches them to the release. Locally, the
 same build runs in a container: clone the buildroot tree next to this
 repository, then
@@ -133,7 +133,7 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/work/.brhome -v $(dirname $PWD):/w
     openx6x00-build bash /work/OpenX6X00/buildroot/local-build.sh
 ```
 
-leaves `../AetherX6100Buildroot/build/images/OpenX6X00-local-sdcard.img` (about
+leaves `../AetherX6100Buildroot/build/images/OpenX6X00-x6100-local-sdcard.img` (about
 an hour the first time, 20 cores; `buildroot/local-build.sh` has the patch
 steps, `buildroot/Dockerfile` the Ubuntu 22.04 host with CMake 3.28 and
 sqlite3). The X6200 is the same GUI on its own buildroot tree,

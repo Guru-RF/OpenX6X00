@@ -12,7 +12,7 @@
 #   docker run --rm -u $(id -u):$(id -g) -e HOME=/work/.brhome -e MODEL=x6200 -v $(dirname $PWD):/work \
 #       openx6x00-build bash /work/OpenX6X00/buildroot/local-build.sh
 #
-# The image lands in ../AetherX6100Buildroot/build/images/OpenX6X00-local-sdcard.img, the
+# The image lands in ../AetherX6100Buildroot/build/images/OpenX6X00-x6100-local-sdcard.img, the
 # X6200's in ../AetherX6200Buildroot/build/images/OpenX6X00-x6200-local-sdcard.img.
 # About an hour the first time; ccache in $HOME/.buildroot-ccache keeps the next ones short.
 set -eo pipefail
@@ -22,7 +22,7 @@ set -eo pipefail
 # packages x6200-gui and aether-x6200-control, its board X6200
 MODEL=${MODEL:-x6100}
 case $MODEL in
-    x6100) M=X6100; BRDEF=AetherX6100Buildroot; GUI_PKG=x6100-gui; GUI_VAR=X6100_GUI; OUT=OpenX6X00 ;;
+    x6100) M=X6100; BRDEF=AetherX6100Buildroot; GUI_PKG=x6100-gui; GUI_VAR=X6100_GUI; OUT=OpenX6X00-x6100 ;;
     x6200) M=X6200; BRDEF=AetherX6200Buildroot; GUI_PKG=x6200-gui; GUI_VAR=X6200_GUI; OUT=OpenX6X00-x6200 ;;
     *) echo "MODEL must be x6100 or x6200, not '$MODEL'"; exit 1 ;;
 esac

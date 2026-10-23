@@ -97,7 +97,7 @@ web configurator (System > Update).
   confirmed. If it does not stay up for a minute three times in a row, the
   start loop puts the previous version back by itself. A power cut during the
   install is undone the same way at the next start.
-- The web page can also take a bundle file (`OpenX6X00-vX.Y.Z-update.tar.gz`
+- The web page can also take a bundle file (`OpenX6X00-x6100-vX.Y.Z-update.tar.gz` or `OpenX6X00-x6200-vX.Y.Z-update.tar.gz`
   from the releases page) for a radio without internet, and has a button to go
   back to the previous version by hand.
 - The bundle is signed; a bundle not made by the project is refused. (For

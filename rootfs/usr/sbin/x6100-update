@@ -64,7 +64,9 @@ def running_version():
 
 def radio_model():
     """x6100 or x6200, from the device tree: the two radios share this program and the release
-    page, each has its own bundle (the X6200's name carries -x6200-)"""
+    page, each has its own bundle: the X6200's name carries -x6200-, the X6100's -x6100- (none up
+    to v0.3.1). Updaters before v0.3.1 take the first -update.tar.gz asset of the release, so the
+    X6100's bundle is uploaded first"""
     try:
         with open("/proc/device-tree/compatible", "rb") as f:
             return "x6200" if b"xiegu,x6200" in f.read() else "x6100"

@@ -23,7 +23,7 @@ jobs:
         include:
           - model: x6100
             tree: AetherX6100Buildroot
-            out: OpenX6X00
+            out: OpenX6X00-x6100
           - model: x6200
             tree: AetherX6200Buildroot
             out: OpenX6X00-x6200
