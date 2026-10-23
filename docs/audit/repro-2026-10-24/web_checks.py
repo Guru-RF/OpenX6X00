@@ -23,8 +23,8 @@ ns = {'bottle': bottle, 'os': os, 'io': io, 'json': json, 're': re, 'tempfile': 
       'threading': threading, 'settings': SimpleNamespace(), 'time': __import__('time')}
 wanted = {'replace_file', 'read_cluster_conf', 'read_cluster_options', 'cluster_option_lines',
           'write_cluster_conf', 'cluster_save', 'cluster_state', 'cluster_alerts_seen',
-          'cluster_error', 'cluster_alert_input', 'cluster_alert_dup', 'add_cluster_alert',
-          'api_error', 'upload_update'}
+          'cluster_error', 'cluster_alert_input', 'cluster_alert_dup', 'add_cluster_alert', 'cluster_update',
+          'api_error', 'upload_update', 'update_reserve', 'update_release', 'update_launch', 'update_job_run'}
 selected = []
 for node in tree.body:
     if isinstance(node, ast.FunctionDef) and node.name in wanted:
@@ -38,15 +38,16 @@ with tempfile.TemporaryDirectory(prefix='x6cluster-') as td:
     ns['settings'].CLUSTER_CONF = str(Path(td)/'cluster.conf')
     ns['CLUSTER_ALERTS_SEEN'] = str(Path(td)/'seen')
     original = ns['read_cluster_options']
-    barrier = threading.Barrier(2)
-    reads = threading.local()
-    def synchronized_read():
+    first = threading.Event()
+    def slow_first_read():
+        # the first request lingers after its read: without the lock around read-change-write the
+        # second one read the same list meanwhile and the two saves kept one alert (audit B13)
         result = original()
-        if not getattr(reads, 'seen', False):
-            reads.seen = True
-            barrier.wait()
+        if not first.is_set():
+            first.set()
+            __import__('time').sleep(0.3)
         return result
-    ns['read_cluster_options'] = synchronized_read
+    ns['read_cluster_options'] = slow_first_read
     responses = []
     def request_alert(pattern):
         bottle.request.json = {'pattern': pattern, 'bands': [], 'mode': ''}
@@ -55,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix='x6cluster-') as td:
     for thread in threads: thread.start()
     for thread in threads: thread.join()
     print('cluster success responses:', len(responses), 'final alerts:', [a['pattern'] for a in original()['alerts']])
-    assert len(responses) == 2 and len(original()['alerts']) == 1
+    assert len(responses) == 2 and len(original()['alerts']) == 2   # fixed (audit B13): both kept
 
 with tempfile.TemporaryDirectory(prefix='x6upload-') as td:
     from hashlib import sha256

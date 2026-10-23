@@ -183,7 +183,7 @@ def cluster_option_lines(opts):
 
 # One configuration file change at a time: two requests at once read the same list, wrote the
 # same temporary name and one of the edits was lost (audit A12). Held around read, change and replace
-config_lock = threading.Lock()
+config_lock = threading.RLock()   # cluster_update() holds it around write_cluster_conf()
 
 
 def replace_file(path, write, **kw):
@@ -257,6 +257,22 @@ def cluster_save(host, port, servers, opts=None):
 
 
 # TCI server routes
+def cluster_update(change):
+    """Reads the cluster configuration, lets change(host, port, servers, opts) alter servers and
+    opts in place and writes it back, all under config_lock: two requests that read the same
+    list and each wrote its own kept one of the two changes (audit B13). change() returns an
+    error response, (host, port) to switch to, or None."""
+    with config_lock:
+        host, port, servers = read_cluster_conf()
+        opts = read_cluster_options()
+        r = change(host, port, servers, opts)
+        if isinstance(r, dict):
+            return r
+        if isinstance(r, tuple):
+            host, port = r
+        return cluster_save(host, port, servers, opts)
+
+
 # Same file and format as the radio GUI (src/tci_server.c): enabled=0|1, port=
 TCI_DEFAULTS = {"enabled": "1", "port": "50001", "trust": "operate"}
 
@@ -1504,12 +1520,14 @@ def add_cluster_server():
         port = 0
     if not 0 < port < 65536:
         return cluster_error(400, "Invalid port: 1-65535")
-    cur_host, cur_port, servers = read_cluster_conf()
-    if len(servers) >= CLUSTER_MAX_SERVERS:
-        return cluster_error(400, f"At most {CLUSTER_MAX_SERVERS} servers")
-    if any(h == host and p == port for _, h, p in servers):
-        return cluster_error(400, "This server is already in the list")
-    return cluster_save(cur_host, cur_port, servers + [(name, host, port)])
+
+    def change(cur_host, cur_port, servers, opts):
+        if len(servers) >= CLUSTER_MAX_SERVERS:
+            return cluster_error(400, f"At most {CLUSTER_MAX_SERVERS} servers")
+        if any(h == host and p == port for _, h, p in servers):
+            return cluster_error(400, "This server is already in the list")
+        servers.append((name, host, port))
+    return cluster_update(change)
 
 
 def cluster_text_ok(text, max_len):
@@ -1539,11 +1557,11 @@ def set_cluster_filters():
         return cluster_error(400, "Invalid bands")
     if not isinstance(activity, list) or any(a not in CLUSTER_ACTIVITY for a in activity):
         return cluster_error(400, "Invalid activity")
-    host, port, servers = read_cluster_conf()
-    opts = read_cluster_options()
-    opts.update(modes=[m for m in CLUSTER_MODES if m in modes], max_age=max_age, skip=skip,
-                bands=[b for b in CLUSTER_BANDS if b in bands], activity=[a for a in CLUSTER_ACTIVITY if a in activity])
-    return cluster_save(host, port, servers, opts)
+
+    def change(host, port, servers, opts):
+        opts.update(modes=[m for m in CLUSTER_MODES if m in modes], max_age=max_age, skip=skip,
+                    bands=[b for b in CLUSTER_BANDS if b in bands], activity=[a for a in CLUSTER_ACTIVITY if a in activity])
+    return cluster_update(change)
 
 
 def cluster_alert_input(data):
@@ -1576,14 +1594,14 @@ def add_cluster_alert():
     a, err = cluster_alert_input(bottle.request.json or {})
     if err:
         return err
-    host, port, servers = read_cluster_conf()
-    opts = read_cluster_options()
-    if len(opts["alerts"]) >= CLUSTER_MAX_ALERTS:
-        return cluster_error(400, f"At most {CLUSTER_MAX_ALERTS} alerts")
-    if cluster_alert_dup(opts["alerts"], a):
-        return cluster_error(400, "This alert is already in the list")
-    opts["alerts"].append(a)
-    return cluster_save(host, port, servers, opts)
+
+    def change(host, port, servers, opts):
+        if len(opts["alerts"]) >= CLUSTER_MAX_ALERTS:
+            return cluster_error(400, f"At most {CLUSTER_MAX_ALERTS} alerts")
+        if cluster_alert_dup(opts["alerts"], a):
+            return cluster_error(400, "This alert is already in the list")
+        opts["alerts"].append(a)
+    return cluster_update(change)
 
 
 # Edit an alert, or turn it off and on ("enabled"; an alert off stays in the list as alert_off=)
@@ -1592,53 +1610,52 @@ def edit_cluster_alert(index):
     a, err = cluster_alert_input(bottle.request.json or {})
     if err:
         return err
-    host, port, servers = read_cluster_conf()
-    opts = read_cluster_options()
-    if not 0 <= index < len(opts["alerts"]):
-        return cluster_error(404, "No such alert")
-    if cluster_alert_dup(opts["alerts"][:index] + opts["alerts"][index + 1:], a):
-        return cluster_error(400, "This alert is already in the list")
-    opts["alerts"][index] = a
-    return cluster_save(host, port, servers, opts)
+
+    def change(host, port, servers, opts):
+        if not 0 <= index < len(opts["alerts"]):
+            return cluster_error(404, "No such alert")
+        if cluster_alert_dup(opts["alerts"][:index] + opts["alerts"][index + 1:], a):
+            return cluster_error(400, "This alert is already in the list")
+        opts["alerts"][index] = a
+    return cluster_update(change)
 
 
 @app.delete('/api/cluster/alerts/<index:int>')
 def delete_cluster_alert(index):
-    host, port, servers = read_cluster_conf()
-    opts = read_cluster_options()
-    if not 0 <= index < len(opts["alerts"]):
-        return cluster_error(404, "No such alert")
-    del opts["alerts"][index]
-    return cluster_save(host, port, servers, opts)
+    def change(host, port, servers, opts):
+        if not 0 <= index < len(opts["alerts"]):
+            return cluster_error(404, "No such alert")
+        del opts["alerts"][index]
+    return cluster_update(change)
 
 
 @app.post('/api/cluster/alert-options')
 def set_cluster_alert_options():
     data = bottle.request.json or {}
-    host, port, servers = read_cluster_conf()
-    opts = read_cluster_options()
-    opts.update(popup=bool(data.get("popup")), beep=bool(data.get("beep")))
-    return cluster_save(host, port, servers, opts)
+
+    def change(host, port, servers, opts):
+        opts.update(popup=bool(data.get("popup")), beep=bool(data.get("beep")))
+    return cluster_update(change)
 
 
 @app.post('/api/cluster/use/<index:int>')
 def use_cluster_server(index):
-    _, _, servers = read_cluster_conf()
-    if not 0 <= index < len(servers):
-        return cluster_error(404, "No such server")
-    _, host, port = servers[index]
-    return cluster_save(host, port, servers)
+    def change(host, port, servers, opts):
+        if not 0 <= index < len(servers):
+            return cluster_error(404, "No such server")
+        return servers[index][1:]
+    return cluster_update(change)
 
 
 @app.delete('/api/cluster/servers/<index:int>')
 def delete_cluster_server(index):
-    host, port, servers = read_cluster_conf()
-    if not 0 <= index < len(servers):
-        return cluster_error(404, "No such server")
-    if servers[index][1:] == (host, port):
-        return cluster_error(400, "This server is in use: choose another one first")
-    del servers[index]
-    return cluster_save(host, port, servers)
+    def change(host, port, servers, opts):
+        if not 0 <= index < len(servers):
+            return cluster_error(404, "No such server")
+        if servers[index][1:] == (host, port):
+            return cluster_error(400, "This server is in use: choose another one first")
+        del servers[index]
+    return cluster_update(change)
 
 
 # Gallery: screen recordings, audio recordings and screenshots
