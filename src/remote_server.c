@@ -231,10 +231,24 @@ static int32_t         fw, fh, ew, eh, pw, ph;
 static bool            frame_ready, dirty;
 static atomic_uint     seq;
 
+/* The keys a page may press, with the codes this board's keypad reports for them (front_keys.c
+ * decodes the same table the other way): the X6100's codes on the X6200 pressed MSG for APP,
+ * ATU for PRE and so on (audit B14). "keys" after "size" tells a page which it has. */
 static const struct {
     const char *name;
     uint16_t    code;
 } keys[] = {
+#ifdef BOARD_X6200
+    {"POWER", KEY_POWER},
+    {"GEN", BTN_TRIGGER_HAPPY1},     {"APP", BTN_TRIGGER_HAPPY2},      {"KEY", BTN_TRIGGER_HAPPY3},
+    {"PTT", BTN_TRIGGER_HAPPY4},     {"BAND_DOWN", BTN_TRIGGER_HAPPY5}, {"BAND_UP", BTN_TRIGGER_HAPPY6},
+    {"MSG", BTN_TRIGGER_HAPPY7},     {"DFN", BTN_TRIGGER_HAPPY8},      {"DFL", BTN_TRIGGER_HAPPY9},
+    {"AM", BTN_TRIGGER_HAPPY10},     {"CW", BTN_TRIGGER_HAPPY11},      {"SSB", BTN_TRIGGER_HAPPY12},
+    {"F1", BTN_TRIGGER_HAPPY13},     {"F2", BTN_TRIGGER_HAPPY14},      {"F3", BTN_TRIGGER_HAPPY15},
+    {"AB", BTN_TRIGGER_HAPPY16},     {"ATU", BTN_TRIGGER_HAPPY17},     {"FST", BTN_TRIGGER_HAPPY18},
+    {"F4", BTN_TRIGGER_HAPPY19},     {"F5", BTN_TRIGGER_HAPPY20},      {"VOL", BTN_TRIGGER_HAPPY21},
+    {"MFK", BTN_TRIGGER_HAPPY27},
+#else
     {"POWER", KEY_POWER},
     {"GEN", BTN_TRIGGER_HAPPY1},     {"KEY", BTN_TRIGGER_HAPPY2},      {"DFN", BTN_TRIGGER_HAPPY3},
     {"PTT", BTN_TRIGGER_HAPPY4},     {"BAND_DOWN", BTN_TRIGGER_HAPPY5}, {"BAND_UP", BTN_TRIGGER_HAPPY6},
@@ -245,6 +259,7 @@ static const struct {
     {"F4", BTN_TRIGGER_HAPPY19},     {"F5", BTN_TRIGGER_HAPPY20},      {"VOL", BTN_TRIGGER_HAPPY21},
     {"VM", BTN_TRIGGER_HAPPY22},     {"AGC", BTN_TRIGGER_HAPPY23},     {"FST", BTN_TRIGGER_HAPPY24},
     {"LOCK", BTN_TRIGGER_HAPPY25},   {"MFK", BTN_TRIGGER_HAPPY27},
+#endif
 };
 
 static uint64_t now_ms(void) {
@@ -622,6 +637,11 @@ static void client_close(client_t *c) {
 
 /* ---- The panel: the radio's state, the spectrum, the spots ---------------------------- */
 
+/* A mode of this radio: SAM and WFM only where the base has them (audit B15) */
+static bool mode_supported(int32_t m) {
+    return m >= 0 && m <= radio_mode_last && (m < radio_mode_sam || (radio_caps() & HW_CAP_SAM_WFM));
+}
+
 /* LVGL thread */
 static void panel_apply(void *arg) {
     pcmd_t *p = (pcmd_t *)arg;
@@ -637,11 +657,6 @@ static void panel_apply(void *arg) {
                 cparam_i_set(cfg_cur_mode, p->a);
             break;
         case P_AGC:    cparam_i_set(cfg_cur_agc, LV_CLAMP(0, p->a, 3)); break;
-/* A mode of this radio: SAM and WFM only where the base has them (audit B15) */
-static bool mode_supported(int32_t m) {
-    return m >= 0 && m <= radio_mode_last && (m < radio_mode_sam || (radio_caps() & HW_CAP_SAM_WFM));
-}
-
         case P_PRE:    cparam_i_set(cfg_cur_pre, p->a != 0); break;
         case P_ATT:    cparam_i_set(cfg_cur_att, p->a != 0); break;
         case P_NB:     param_i_set(cfg_nb, p->a != 0); break;
@@ -696,10 +711,12 @@ static int panel_set(const char *name, const char *v1, const char *v2) {
             a = abs(a), b = abs(b);
             if (a > b) { int32_t t = a; a = b; b = t; }
         }
+        if (names[i].id == P_MODE && !mode_supported(a))
+            return 2;
         panel_put(names[i].id, a, b);
-        return true;
+        return 0;
     }
-    return false;
+    return 1;
 }
 
 /* Any thread */
@@ -711,8 +728,6 @@ static void pstate_read(pstate_t *s) {
     s->agc   = cparam_i_get(cfg_cur_agc);
     s->pre   = cparam_i_get(cfg_cur_pre);
     s->att   = cparam_i_get(cfg_cur_att);
-        if (names[i].id == P_MODE && !mode_supported(a))
-            return 2;
     s->nb    = param_i_get(cfg_nb);
     s->nr    = param_i_get(cfg_nr);
     s->sql   = param_i_get(cfg_squelch);
@@ -827,6 +842,7 @@ static void panel_hello(client_t *c) {
     char           buf[2048];
     size_t         k = 0;
 
+    client_textf(c, "modes %d", radio_caps() & HW_CAP_SAM_WFM ? radio_mode_last + 1 : radio_mode_sam);
     int n = cfg_bands_active(start, stop, names, 32);
     k += snprintf(buf + k, sizeof(buf) - k, "bands [");
     for (int i = 0; i < n && k < sizeof(buf) - 64; i++) {
@@ -842,7 +858,6 @@ static void panel_hello(client_t *c) {
     int     type;
     for (int i = 0; band_plan_segment(i, &a, &b, &type) && k < sizeof(buf) - 48; i++)
         k += snprintf(buf + k, sizeof(buf) - k, "%s[%d,%d,%d]", i ? "," : "", a, b, type);
-    client_textf(c, "modes %d", radio_caps() & HW_CAP_SAM_WFM ? radio_mode_last + 1 : radio_mode_sam);
     snprintf(buf + k, sizeof(buf) - k, "]");
     client_text(c, buf);
 }
@@ -1489,8 +1504,11 @@ static void handle_text(client_t *c, char *text) {
     } else if (!strcmp(a[0], "set") && n >= 2) {
         if (!allowed(c, ROLE_OPERATE, true))
             return;
-        if (!panel_set(a[1], n >= 3 ? a[2] : NULL, n >= 4 ? a[3] : NULL))
+        int r = panel_set(a[1], n >= 3 ? a[2] : NULL, n >= 4 ? a[3] : NULL);
+        if (r == 1)
             client_textf(c, "err unknown setting %s", a[1]);
+        else if (r == 2)
+            client_text(c, "err mode: not on this radio");
     } else if (!strcmp(a[0], "ft8") && n >= 2) {
         if (!allowed(c, ROLE_OPERATE, true))
             return;
@@ -1507,8 +1525,6 @@ static void handle_text(client_t *c, char *text) {
         while (i < c->nheld && c->held[i] != code) i++;
         if (down) {
             if (!allowed(c, ROLE_OPERATE, true))
-        else if (r == 2)
-            client_text(c, "err mode: not on this radio");
                 return;
             if (code == BTN_TRIGGER_HAPPY4) {       /* PTT: the radio's own microphone */
                 if (!c->tx_ok) {
@@ -1578,6 +1594,13 @@ static void client_read(client_t *c) {
         int32_t w = sw, h = sh;
         pthread_mutex_unlock(&fmut);
         client_textf(c, "size %d %d", w ? w : 800, h ? h : 480);
+        {
+            char   line[320] = "keys";
+            size_t k = 4;
+            for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]) && k < sizeof(line) - 1; i++)
+                k += snprintf(line + k, sizeof(line) - k, " %s", keys[i].name);
+            client_text(c, line);
+        }
         role_tell(c);
         ctl_tell(c);
         LV_LOG_USER("remote: viewer %s", c->ip);

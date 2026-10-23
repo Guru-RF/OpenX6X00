@@ -935,6 +935,8 @@ body.app h2, body.app #intro { display:none; }
   function keyDown(name, el) { if (held[name]) return; held[name] = true; send("key " + name + " 1"); if (el) el.classList.add("down"); if (navigator.vibrate) navigator.vibrate(8); }
   function keyUp(name, el) { if (!held[name]) return; delete held[name]; send("key " + name + " 0"); if (el) el.classList.remove("down"); }
   function releaseAll() { Object.keys(held).forEach(function(k) { keyUp(k, document.querySelector('[data-key="' + k + '"]')); }); ptt.release(); }
+  /* "keys NAME ...": the keys this radio has; the others are greyed (the X6200 has no PRE, V/M, AGC or LOCK key) */
+  function keysHave(names) { document.querySelectorAll("[data-key]").forEach(function(el) { const no = names.indexOf(el.dataset.key) < 0; el.disabled = no; el.title = no ? "Not on this radio" : el.title; }); }
   document.querySelectorAll("[data-key], #pttbtn").forEach(function(el) {
     const name = el.dataset.key || "PTT";
     el.addEventListener("pointerdown", function(e) { e.preventDefault(); el.setPointerCapture(e.pointerId); if (name === "PTT") ptt.press(); else keyDown(name, el); });

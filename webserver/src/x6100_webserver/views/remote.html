@@ -160,6 +160,7 @@
       const w = t.split(" "), sp = t.indexOf(" "), body = sp < 0 ? "" : t.slice(sp + 1);
       if (ses.onText(w[0], body)) return;             /* role, ctl, paired, tx, sessions */
       if (w[0] === "size") { cv.width = +w[1]; cv.height = +w[2]; $("#screen").toggleClass("portrait", +w[2] > +w[1]); }
+      else if (w[0] === "keys") keysHave(w.slice(1));   /* the keys this radio has: the others greyed (the X6200 has no PRE, V/M, AGC or LOCK) */
       else if (w[0] === "err") { if (!ptt.err(body)) status(body, true); }
     },
     onBinary: showFrame,
@@ -227,6 +228,7 @@
   function keyDown(name, el) { if (held[name]) return; held[name] = true; send("key " + name + " 1"); if (el) el.classList.add("down"); if (navigator.vibrate) navigator.vibrate(8); }
   function keyUp(name, el) { if (!held[name]) return; delete held[name]; send("key " + name + " 0"); if (el) el.classList.remove("down"); }
   function releaseAll() { Object.keys(held).forEach(function(k) { const el = document.querySelector('[data-key="' + k + '"]'); keyUp(k, el); }); ptt.release(); }
+  function keysHave(names) { document.querySelectorAll("[data-key]").forEach(function(el) { const no = names.indexOf(el.dataset.key) < 0; el.disabled = no; el.title = no ? "Not on this radio" : el.title; }); }
   document.querySelectorAll("[data-key]").forEach(function(el) {
     const name = el.dataset.key;
     el.addEventListener("pointerdown", function(e) { e.preventDefault(); el.setPointerCapture(e.pointerId); if (name === "PTT") ptt.press(); else keyDown(name, el); });
