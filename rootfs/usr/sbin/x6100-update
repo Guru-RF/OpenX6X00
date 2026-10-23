@@ -62,6 +62,20 @@ def running_version():
         return "unknown"
 
 
+def radio_model():
+    """x6100 or x6200, from the device tree: the two radios share this program and the release
+    page, each has its own bundle (the X6200's name carries -x6200-)"""
+    try:
+        with open("/proc/device-tree/compatible", "rb") as f:
+            return "x6200" if b"xiegu,x6200" in f.read() else "x6100"
+    except OSError:
+        return "x6100"
+
+
+def bundle_for_this_radio(name):
+    return name.endswith("-update.tar.gz") and (("-x6200-" in name) == (radio_model() == "x6200"))
+
+
 def vtuple(v):
     out = []
     for part in str(v).lstrip("v").split("."):
@@ -126,7 +140,7 @@ def cmd_check(args):
     except (OSError, ValueError) as e:
         raise Fail(f"no connection to GitHub: {getattr(e, 'reason', e)}")
     tag = str(rel.get("tag_name", "")).lstrip("v")
-    asset = next((x for x in rel.get("assets", []) if str(x.get("name", "")).endswith("-update.tar.gz")), None)
+    asset = next((x for x in rel.get("assets", []) if bundle_for_this_radio(str(x.get("name", "")))), None)
     out["latest"] = tag or None
     out["url"] = asset["browser_download_url"] if asset else None
     out["notes"] = (rel.get("body") or "")[:2000]
@@ -191,6 +205,8 @@ def read_manifest(tar):
         raise Fail("the manifest is not JSON")
     if m.get("product") != "OpenX6X00" or not isinstance(m.get("files"), list) or not m.get("version"):
         raise Fail("the manifest is not for OpenX6X00")
+    if m.get("model", "x6100") != radio_model():
+        raise Fail(f"the bundle is for the {m.get('model', 'x6100').upper()}, this radio is a {radio_model().upper()}")
     for e in m["files"]:
         p = e.get("path", "")
         if not p.startswith("/") or ".." in p.split("/") or not p.startswith(ALLOWED) or p.endswith("/"):

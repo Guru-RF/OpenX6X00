@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--key")
     ap.add_argument("--notes", default="")
+    ap.add_argument("--model", default="x6100", choices=["x6100", "x6200"], help="the radio the bundle is built for")
     a = ap.parse_args()
 
     paths = set()
@@ -62,8 +63,8 @@ def main():
             data = f.read()
         entries.append({"path": p, "sha256": hashlib.sha256(data).hexdigest(), "size": len(data),
                         "mode": "%o" % (os.stat(src).st_mode & 0o777)})
-    manifest = {"product": "OpenX6X00", "version": a.version.lstrip("v"), "built": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "notes": a.notes, "files": entries}
+    manifest = {"product": "OpenX6X00", "model": a.model, "version": a.version.lstrip("v"),
+                "built": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "notes": a.notes, "files": entries}
     mjson = json.dumps(manifest, indent=1, sort_keys=True).encode()
 
     sig = b""

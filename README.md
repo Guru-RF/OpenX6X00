@@ -131,7 +131,13 @@ docker run --rm -u $(id -u):$(id -g) -e HOME=/work/.brhome -v $(dirname $PWD):/w
 leaves `../AetherX6100Buildroot/build/images/OpenX6X00-local-sdcard.img` (about
 an hour the first time, 20 cores; `buildroot/local-build.sh` has the patch
 steps, `buildroot/Dockerfile` the Ubuntu 22.04 host with CMake 3.28 and
-sqlite3). With a buildroot tree already built, `buildroot/build.sh` rebuilds
+sqlite3). The X6200 is the same GUI on its own buildroot tree,
+[AetherX6200Buildroot](https://github.com/gdyuldin/AetherX6200Buildroot)
+cloned next to this repository: the same command with `-e MODEL=x6200` leaves
+`../AetherX6200Buildroot/build/images/OpenX6X00-x6200-local-sdcard.img` and the
+`OpenX6X00-x6200-v<version>-update.tar.gz` bundle (the updater on a radio takes
+only its own model's bundle). The radio's backend is `src/hw/x6200/hw_x6200.c`
+behind `src/hw/hw.h`, chosen with `cmake -DHW_BACKEND=x6200`. With a buildroot tree already built, `buildroot/build.sh` rebuilds
 the GUI alone with its toolchain
 ([docs/UPSTREAM_README.md](docs/UPSTREAM_README.md), [manual, Build](docs/MANUAL.md#build)).
 
