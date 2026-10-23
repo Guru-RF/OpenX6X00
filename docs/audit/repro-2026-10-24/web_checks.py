@@ -19,7 +19,7 @@ class FakeBottle:
     response = threading.local()
 
 bottle = FakeBottle()
-ns = {'bottle': bottle, 'os': os, 'io': io, 'json': json, 're': re, 'tempfile': tempfile,
+ns = {'bottle': bottle, 'os': os, 'io': io, 'json': json, 're': re, 'tempfile': tempfile, 'secrets': __import__('secrets'),
       'threading': threading, 'settings': SimpleNamespace(), 'time': __import__('time')}
 wanted = {'replace_file', 'read_cluster_conf', 'read_cluster_options', 'cluster_option_lines',
           'write_cluster_conf', 'cluster_save', 'cluster_state', 'cluster_alerts_seen',

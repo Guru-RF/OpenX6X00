@@ -5,6 +5,7 @@ except ImportError:   # images built before python3-zlib was selected
     zlib = None
 import csv
 import fcntl
+import hashlib
 import io
 import json
 import os
@@ -256,7 +257,6 @@ def cluster_save(host, port, servers, opts=None):
     return cluster_state()
 
 
-# TCI server routes
 def cluster_update(change):
     """Reads the cluster configuration, lets change(host, port, servers, opts) alter servers and
     opts in place and writes it back, all under config_lock: two requests that read the same
@@ -273,6 +273,7 @@ def cluster_update(change):
         return cluster_save(host, port, servers, opts)
 
 
+# TCI server routes
 # Same file and format as the radio GUI (src/tci_server.c): enabled=0|1, port=
 TCI_DEFAULTS = {"enabled": "1", "port": "50001", "trust": "operate"}
 
@@ -402,12 +403,12 @@ def update_job_run(what, args):
     result = update_run(args)
     with update_lock:
         update_job.update(running=False, result=result)
-
     if what == "install" and len(args) > 1 and os.path.basename(args[1]).startswith("upload-"):
         try:
             os.remove(args[1])      # the uploaded bundle is staged and applied: not needed again
         except OSError:
             pass
+
 
 def update_reserve(what):
     """The one job at a time, taken before anything is done for it; None, or the 409 response."""
@@ -429,11 +430,11 @@ def update_launch(args):
     return get_update()
 
 
-@app.route('/update')
 def update_start(what, args):
     return update_reserve(what) or update_launch(args)
 
 
+@app.route('/update')
 def update_page():
     return bottle.template('update')
 
@@ -791,11 +792,21 @@ def set_ref(rec, ref):
     return adif_set(adif_set(adif_set(rec, "SIG", "POTA"), "SIG_INFO", ref), "POTA_REF", ref)
 
 
-def edit_qso(name, n, fn):
-    """Applies fn to record n (0 = the first QSO of the file; records without CALL do not count):
-    fn returns the new record, or None to delete it. Returns an error response or None."""
+def rec_id(rec):
+    """A QSO's identity on the pages: a digest of its record as it stands in the file. The row
+    number alone named another QSO once one before it was deleted in another tab (audit B09)."""
+    return hashlib.sha1(rec.strip().encode(errors="replace")).hexdigest()[:12]
+
+
+def edit_qso(name, n, fn, rid):
+    """Applies fn to the record with the identity rid (rec_id), of which n is the row number the
+    page knew (0 = the first QSO of the file; records without CALL do not count): fn returns the
+    new record, or None to delete it. A rid the file no longer holds is a 409: the page is stale.
+    Returns an error response or None."""
     if not name.endswith(".adi") or os.path.basename(name) != name:
         return api_error(400, "Not a log")
+    if not rid:
+        return api_error(400, "Which QSO: the id is missing (reload the page)")
     path = field_path("logs", name)
     # The radio appends QSOs to the same file and takes this lock on the folder while it does
     # (src/field/flog.c): a QSO logged while the file is rewritten here would otherwise be lost
@@ -814,13 +825,18 @@ def edit_qso(name, n, fn):
         text = raw.decode(errors="replace")
         head, parts = adif_split(text)
         recs = [i for i, p in enumerate(parts[:-1]) if re.search(r'<call:\d+', p, re.I)]
-        if not 0 <= n < len(recs):
-            return api_error(404, "No such QSO")
-        new = fn(parts[recs[n]])
-        if new is None:
-            del parts[recs[n]]
+        same = [i for i in recs if rec_id(parts[i]) == rid]
+        if len(same) == 1:
+            at = same[0]
+        elif same and 0 <= n < len(recs) and recs[n] in same:
+            at = recs[n]      # identical records: the row the page meant
         else:
-            parts[recs[n]] = new
+            return api_error(409, "This QSO is not in the log as the page shows it: reload the page")
+        new = fn(parts[at])
+        if new is None:
+            del parts[at]
+        else:
+            parts[at] = new
         tmp = path + ".tmp"
         with open(tmp, "w") as f:
             f.write(head + "<eor>".join(parts))
@@ -834,7 +850,7 @@ def edit_qso(name, n, fn):
 
 @app.delete('/api/field/logs/<name>/<n:int>')
 def delete_qso(name, n):
-    return edit_qso(name, n, lambda rec: None) or {"status": "OK"}
+    return edit_qso(name, n, lambda rec: None, bottle.request.query.get("id", "")) or {"status": "OK"}
 
 
 @app.put('/api/field/logs/<name>/<n:int>')
@@ -861,7 +877,7 @@ def put_qso(name, n):
     def change(rec):
         rec = adif_set(adif_set(adif_set(rec, "CALL", call), "RST_SENT", rs), "RST_RCVD", rr)
         return rec if ref is None else set_ref(rec, ref)
-    return edit_qso(name, n, change) or {"status": "OK"}
+    return edit_qso(name, n, change, bottle.request.query.get("id", "")) or {"status": "OK"}
 
 
 @app.delete('/api/field/logs/<name>')
@@ -915,7 +931,7 @@ def get_logs():
             q = adif_fields(rec)
             if q.get("submode"):   # MFSK with SUBMODE FT4, JS8, FT2: the submode names it
                 q["mode"] = q["submode"]
-            qsos.append(dict(q, file=log["name"], n=n))
+            qsos.append(dict(q, file=log["name"], n=n, id=rec_id(rec)))
     return {"qsos": qsos, "active": field_active_log()}
 
 
@@ -925,6 +941,8 @@ LOG_FIELDS = {"call": r'[A-Z0-9/]{3,15}', "qso_date": r'\d{8}', "time_on": r'\d{
               "rst_sent": r'[+-]?\d{1,3}|', "rst_rcvd": r'[+-]?\d{1,3}|', "name": r'[^<>]{0,40}',
               "qth": r'[^<>]{0,40}', "gridsquare": r'([A-R]{2}\d{2}([A-X]{2})?)?', "comment": r'[^<>]{0,80}',
               "sota_ref": r'(%s)?' % SOTA_REF, "pota_ref": r'(%s)?' % POTA_REF}
+# The modes ADIF files as a SUBMODE of MFSK (the radio logs FT4, JS8 and FT2 that way)
+SUBMODE_OF = {"FT4": "MFSK", "JS8": "MFSK", "FT2": "MFSK", "FST4": "MFSK", "FST4W": "MFSK", "Q65": "MFSK", "MSK144": "MFSK"}
 
 
 @app.put('/api/logs/<name>/<n:int>')
@@ -946,20 +964,29 @@ def put_log_qso(name, n):
 
     def change(rec):
         for k, v in clean.items():
-            rec = adif_set(rec, k.upper(), v) if v else adif_del(rec, k.upper())
+            if k == "mode":
+                # The page shows the submode where there is one (JS8, FT4) and sends that name
+                # back: written as the MODE/SUBMODE pair ADIF defines, and a mode without a
+                # submode takes the old SUBMODE with it (audit B17)
+                if v in SUBMODE_OF:
+                    rec = adif_set(adif_set(rec, "MODE", SUBMODE_OF[v]), "SUBMODE", v)
+                else:
+                    rec = adif_del(adif_set(rec, "MODE", v) if v else adif_del(rec, "MODE"), "SUBMODE")
+            else:
+                rec = adif_set(rec, k.upper(), v) if v else adif_del(rec, k.upper())
         return rec
-    return edit_qso(name, n, change) or {"status": "OK"}
+    return edit_qso(name, n, change, bottle.request.query.get("id", "")) or {"status": "OK"}
 
 
 @app.post('/logs/export')
 def export_logs():
-    """Form field sel = "file:n,file:n,...", fmt = adi | csv: those QSOs as one ADIF or CSV download."""
+    """Form field sel = "file:id,file:id,...", fmt = adi | csv: those QSOs as one ADIF or CSV download."""
     want = {}
     for item in bottle.request.forms.get("sel", "").split(","):
-        name, _, n = item.rpartition(":")
-        if name.endswith(".adi") and os.path.basename(name) == name and n.isdigit():
-            want.setdefault(name, set()).add(int(n))
-    recs = [rec for name in sorted(want) for n, rec in enumerate(log_records(name)) if n in want[name]]
+        name, _, rid = item.rpartition(":")
+        if name.endswith(".adi") and os.path.basename(name) == name and re.fullmatch(r'[0-9a-f]{12}', rid):
+            want.setdefault(name, set()).add(rid)
+    recs = [rec for name in sorted(want) for rec in log_records(name) if rec_id(rec) in want[name]]
     stamp = time.strftime("%Y%m%d-%H%M")
     if bottle.request.forms.get("fmt") == "csv":
         cols = ["qso_date", "time_on", "call", "band", "freq", "mode", "rst_sent", "rst_rcvd", "name", "qth",

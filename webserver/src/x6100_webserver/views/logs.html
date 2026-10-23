@@ -113,7 +113,7 @@ var editRow = function(q) {
     COLS.forEach(c => { if (c[0] != "ref" && c[0] != "time_on") data[c[0]] = inputs[c[0]].val(); });
     data.sota_ref = /^[A-Z0-9]{1,4}\/[A-Z]{2}-\d{3}$/.test(r) ? r : "";
     data.pota_ref = r && !data.sota_ref ? r : "";
-    $.ajax({url: `/api/logs/${encodeURIComponent(q.file)}/${q.n}`, type: "PUT", data: JSON.stringify(data),
+    $.ajax({url: `/api/logs/${encodeURIComponent(q.file)}/${q.n}?id=${q.id}`, type: "PUT", data: JSON.stringify(data),
             contentType: "application/json; charset=utf-8", dataType: "json",
             success: () => load("Saved " + data.call.toUpperCase()), error: fail});
   });
@@ -121,7 +121,7 @@ var editRow = function(q) {
   return row.append($("<td class='action-cell'>").append(save, " ", cancel));
 }
 
-// One by one, from the last of each file: deleting a QSO renumbers the ones after it
+// One by one, from the last of each file (each QSO goes by its id, so a renumbering by an earlier deletion does no harm)
 var deleteQsos = function(list, what) {
   if (list.some(q => q.file == active)) return showStatus("The activation running on the radio is in the list: end it first", true);
   if (!list.length || !confirm(`Delete ${what}? This cannot be undone: export first if you still need them.`)) return;
@@ -129,7 +129,7 @@ var deleteQsos = function(list, what) {
   const next = function() {
     if (!todo.length) return load(`Deleted ${list.length} QSO${list.length == 1 ? "" : "s"}`);
     const q = todo.shift();
-    $.ajax({url: `/api/field/logs/${encodeURIComponent(q.file)}/${q.n}`, type: "DELETE", dataType: "json",
+    $.ajax({url: `/api/field/logs/${encodeURIComponent(q.file)}/${q.n}?id=${q.id}`, type: "DELETE", dataType: "json",
             success: next, error: function(xhr) { fail(xhr); load(); }});
   };
   next();
@@ -138,7 +138,7 @@ var deleteQsos = function(list, what) {
 var exportShown = function(fmt) {
   const list = shown();
   if (!list.length) return showStatus("Nothing to export", true);
-  $("#export [name=sel]").val(list.map(q => q.file + ":" + q.n).join(","));
+  $("#export [name=sel]").val(list.map(q => q.file + ":" + q.id).join(","));
   $("#export [name=fmt]").val(fmt);
   x6100PostForm($("#export")[0]);
 }
