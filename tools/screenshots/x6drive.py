@@ -7,8 +7,13 @@ devices; the events are written into their nodes as if pressed.
                     BAND_UP, AM, CW, SSB, AB, PRE, ATU, VM, AGC, FST, VOL, MFK), held ms (default 80)
   long NAME         held 1.3 s: the long press
   mfk N | main N | vol N   turn the knob N detents, clockwise when positive
+  inner N           the X6200's inner MFK ring, N detents
   sleep S           wait S seconds (floats allowed)
   shot NAME         the screen into /tmp/shots/NAME.raw (SIGUSR1 to the GUI)
+
+The radio's model comes from the device tree: the X6200's keypad has other codes for APP, KEY,
+MSG, DFN, ATU and FST, no LOCK, PRE, VM or AGC key, and no POWER key device (its base reports
+the POWER key); an X6200 has the inner ring.
 
 SPDX-License-Identifier: LGPL-2.1-or-later
 Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -22,14 +27,32 @@ import time
 EV_SYN, EV_KEY, EV_REL = 0, 1, 2
 KEY_POWER = 116
 HAPPY = 0x2c0      # BTN_TRIGGER_HAPPY1
-KEYS = {"POWER": KEY_POWER, "GEN": HAPPY, "APP": HAPPY + 6, "KEY": HAPPY + 1, "MSG": HAPPY + 7, "DFN": HAPPY + 2,
-        "DFL": HAPPY + 8, "F1": HAPPY + 12, "F2": HAPPY + 13, "F3": HAPPY + 14, "F4": HAPPY + 18, "F5": HAPPY + 19,
-        "LOCK": HAPPY + 24, "PTT": HAPPY + 3, "BAND_DOWN": HAPPY + 4, "BAND_UP": HAPPY + 5, "AM": HAPPY + 9,
-        "CW": HAPPY + 10, "SSB": HAPPY + 11, "AB": HAPPY + 15, "PRE": HAPPY + 16, "ATU": HAPPY + 17,
-        "VM": HAPPY + 21, "AGC": HAPPY + 22, "FST": HAPPY + 23, "VOL": HAPPY + 20, "MFK": HAPPY + 26}
+
+def model():
+    try:
+        with open("/proc/device-tree/compatible", "rb") as f:
+            return "x6200" if b"xiegu,x6200" in f.read() else "x6100"
+    except OSError:
+        return "x6100"
+
+
+MODEL = model()
+# The front keys as src/front_keys.c maps them; the two keypads share most codes
+KEYS = {"GEN": HAPPY, "F1": HAPPY + 12, "F2": HAPPY + 13, "F3": HAPPY + 14, "F4": HAPPY + 18, "F5": HAPPY + 19,
+        "PTT": HAPPY + 3, "BAND_DOWN": HAPPY + 4, "BAND_UP": HAPPY + 5, "AM": HAPPY + 9, "CW": HAPPY + 10,
+        "SSB": HAPPY + 11, "AB": HAPPY + 15, "VOL": HAPPY + 20, "MFK": HAPPY + 26}
+if MODEL == "x6200":
+    KEYS.update({"APP": HAPPY + 1, "KEY": HAPPY + 2, "MSG": HAPPY + 6, "DFN": HAPPY + 7, "DFL": HAPPY + 8,
+                 "ATU": HAPPY + 16, "FST": HAPPY + 17})
+else:
+    KEYS.update({"POWER": KEY_POWER, "APP": HAPPY + 6, "KEY": HAPPY + 1, "MSG": HAPPY + 7, "DFN": HAPPY + 2,
+                 "DFL": HAPPY + 8, "LOCK": HAPPY + 24, "PRE": HAPPY + 16, "ATU": HAPPY + 17, "VM": HAPPY + 21,
+                 "AGC": HAPPY + 22, "FST": HAPPY + 23})
 KEYPAD = "/dev/input/event0"
-# each knob reports its own axis (REL_X, REL_Y, REL_Z); an event on another axis is dropped by the kernel
+# each knob reports its own axis (REL_X, REL_Y, REL_Z, REL_RX); an event on another axis is dropped by the kernel
 KNOBS = {"main": ("/dev/input/event1", 0, -1), "vol": ("/dev/input/event2", 1, -1), "mfk": ("/dev/input/event3", 2, -1)}
+if MODEL == "x6200":
+    KNOBS["inner"] = ("/dev/input/event4", 3, -1)
 SHOTS = "/tmp/shots"
 
 
@@ -44,6 +67,8 @@ POWER_DEV = "/dev/input/event4"   # the PMIC's key (axp20x-pek): the matrix keyp
 
 
 def key(name, ms):
+    if name.upper() not in KEYS:
+        sys.exit(f"no {name.upper()} key on the {MODEL.upper()}")
     code = KEYS[name.upper()]
     dev = POWER_DEV if code == KEY_POWER else KEYPAD
     emit(dev, [(EV_KEY, code, 1)])
