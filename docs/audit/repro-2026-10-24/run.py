@@ -85,8 +85,8 @@ def main():
         binary = work / "field-input"
         command([*CC, *cflags, *san, HERE / "field-input.c", "src/field/flog.c", *gc,
                  "-o", binary], env)
-        command([binary, fixture], env, failure=True, contains=("stack-buffer-overflow", "field_log_read"))
-        print("B06: reproduced Field Ops parser stack-buffer-overflow")
+        command([binary, fixture], env, contains=("records=0",))
+        print("B06 (fixed): the Field Ops reader skips a record whose field runs past it")
 
     print("All 12 reproduced findings and the selected original-fix checks matched the audit.")
 

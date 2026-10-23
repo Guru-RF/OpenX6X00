@@ -192,6 +192,8 @@ static void get(const char *rec, const char *tag, char *out, size_t size) {
         if (!v)
             return;
         v++;
+        if (len > strlen(v))    /* the field runs past the record: a broken record, not a value (audit B06) */
+            return;
         if (len >= size)
             len = size - 1;
         memcpy(out, v, len);
