@@ -43,8 +43,11 @@ var button = function(cls, icon, title) {
 }
 var day = q => (q.qso_date || "").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
 var hhmm = t => (t || "").replace(/^(\d{2})(\d{2}).*/, "$1:$2");
-var ref = q => q.sota_ref || q.pota_ref || "";
-var myRef = q => q.my_sota_ref || q.my_pota_ref || "";
+// SIG_INFO for the programmes without a field of their own; a park's is POTA_REF (an older page changed only that,
+// and SIG POTA without POTA_REF is a reference it removed)
+var sigRef = (sig, info) => (sig || "").toUpperCase() == "POTA" ? "" : info || "";
+var ref = q => q.sota_ref || q.pota_ref || sigRef(q.sig, q.sig_info);
+var myRef = q => q.my_sota_ref || q.my_pota_ref || sigRef(q.my_sig, q.my_sig_info);
 
 var shown = function() {
   const text = $("#f-text").val().trim().toUpperCase(), band = $("#f-band").val(), mode = $("#f-mode").val();
@@ -111,8 +114,7 @@ var editRow = function(q) {
     const r = inputs.ref.val().trim().toUpperCase();
     const data = {qso_date: inputs.date.val().replaceAll("-", ""), time_on: inputs.time_on.val().replace(":", "").padEnd(4, "0")};
     COLS.forEach(c => { if (c[0] != "ref" && c[0] != "time_on") data[c[0]] = inputs[c[0]].val(); });
-    data.sota_ref = /^[A-Z0-9]{1,4}\/[A-Z]{2}-\d{3}$/.test(r) ? r : "";
-    data.pota_ref = r && !data.sota_ref ? r : "";
+    data.ref = r;   // the server writes it as the radio does: SOTA_REF, or SIG / SIG_INFO (POTA_REF for a park)
     $.ajax({url: `/api/logs/${encodeURIComponent(q.file)}/${q.n}?id=${q.id}`, type: "PUT", data: JSON.stringify(data),
             contentType: "application/json; charset=utf-8", dataType: "json",
             success: () => load("Saved " + data.call.toUpperCase()), error: fail});

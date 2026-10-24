@@ -777,20 +777,47 @@ def adif_del(rec, name):
     return rec if not m else rec[:m.start()] + rec[m.end() + int(m.group(1)):]
 
 
-SOTA_REF = r'[A-Z0-9]{1,4}/[A-Z]{2}-\d{3}'     # I/LO-123
-POTA_REF = r'[A-Z0-9]{1,4}-\d{4,5}'            # IT-1234
+SOTA_REF = r'[A-Z0-9]{1,4}/[A-Z]{2}-[0-9]{3}'     # I/LO-123 ([0-9]: \d takes any script's digits)
+POTA_REF = r'[A-Z0-9]{1,4}-[0-9]{4,5}'            # IT-1234
+# The ADIF SIG of each programme but SOTA (SOTA_REF), by the letter ref_prog gives
+REF_SIG = {"P": "POTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA"}
+
+
+def ref_prog(ref):
+    """The programme of a reference by its shape, as the radio tells it (src/field/flog.c field_ref_prog): S SOTA,
+    P POTA, B WWBOTA, H HOTA, F WWFF, T TOTA, C WCA, M MOTA; "" when it is none of them"""
+    if re.fullmatch(r'X[0-9]{5}', ref):                                # X42018
+        return "M"
+    if not 5 <= len(ref) <= 15 or "-" not in ref or not re.fullmatch(r'[A-Z0-9/-]+', ref):
+        return ""
+    pre, num = ref.split("-", 1)
+    if ref.startswith("B/"):                                           # B/G-0070
+        return "B"
+    if "/" in ref:                                                     # I/LO-123
+        return "S" if re.fullmatch(SOTA_REF, ref) else ""
+    if len(pre) == 2 and num[:1] == "H":                               # RO-H0390
+        return "H"
+    if len(pre) >= 3 and pre.endswith("FF"):                           # DLFF-0123
+        return "F"
+    if 3 <= len(pre) <= 5 and pre.endswith("R") and re.fullmatch(r'[0-9]{4}', num):  # OKR-0150
+        return "T"
+    if 1 <= len(pre) <= 3 and re.fullmatch(r'[0-9]{5}', num) and (num[0] == "0" or pre == "I"):   # DL-01156
+        return "C"
+    return "P" if re.fullmatch(POTA_REF, ref) else ""                 # US-1234
 
 
 def set_ref(rec, ref):
-    """The other station's SOTA or POTA reference (by its form); "" removes it. Written as the radio
-    writes it (src/field/flog.c): SOTA_REF, or SIG POTA with SIG_INFO and POTA_REF."""
+    """The other station's reference (its programme by its form, ref_prog); "" removes it. Written as the
+    radio writes it (src/field/flog.c): SOTA_REF; SIG and SIG_INFO, with POTA_REF for a park."""
     for name in ("SOTA_REF", "POTA_REF", "SIG", "SIG_INFO"):
         rec = adif_del(rec, name)
-    if not ref:
-        return rec
-    if re.fullmatch(SOTA_REF, ref):
+    prog = ref_prog(ref) if ref else ""
+    if prog == "S":
         return adif_set(rec, "SOTA_REF", ref)
-    return adif_set(adif_set(adif_set(rec, "SIG", "POTA"), "SIG_INFO", ref), "POTA_REF", ref)
+    if prog in REF_SIG:
+        rec = adif_set(adif_set(rec, "SIG", REF_SIG[prog]), "SIG_INFO", ref)
+        return adif_set(rec, "POTA_REF", ref) if prog == "P" else rec
+    return rec
 
 
 def rec_id(rec):
@@ -857,7 +884,7 @@ def delete_qso(name, n):
 @app.put('/api/field/logs/<name>/<n:int>')
 def put_qso(name, n):
     """JSON {"call", "rst_sent", "rst_rcvd", "ref"?}: the QSO's call, reports and the other station's
-    SOTA or POTA reference ("" none; left as it is when missing)."""
+    reference, of any programme ("" none; left as it is when missing)."""
     try:
         data = bottle.request.json
     except ValueError:
@@ -872,8 +899,8 @@ def put_qso(name, n):
     ref = data.get("ref")
     if ref is not None:
         ref = str(ref).strip().upper()
-        if ref and not (re.fullmatch(SOTA_REF, ref) or re.fullmatch(POTA_REF, ref)):
-            return api_error(400, "Invalid SOTA/POTA reference")
+        if ref and not ref_prog(ref):
+            return api_error(400, "Invalid reference")
 
     def change(rec):
         rec = adif_set(adif_set(adif_set(rec, "CALL", call), "RST_SENT", rs), "RST_RCVD", rr)
@@ -941,7 +968,8 @@ LOG_FIELDS = {"call": r'[A-Z0-9/]{3,15}', "qso_date": r'\d{8}', "time_on": r'\d{
               "band": r'\d{1,4}(\.\d+)?C?M|', "freq": r'\d{1,4}(\.\d{1,6})?|', "mode": r'[A-Z0-9-]{1,12}|',
               "rst_sent": r'[+-]?\d{1,3}|', "rst_rcvd": r'[+-]?\d{1,3}|', "name": r'[^<>]{0,40}',
               "qth": r'[^<>]{0,40}', "gridsquare": r'([A-R]{2}\d{2}([A-X]{2})?)?', "comment": r'[^<>]{0,80}',
-              "sota_ref": r'(%s)?' % SOTA_REF, "pota_ref": r'(%s)?' % POTA_REF}
+              "sota_ref": r'(%s)?' % SOTA_REF, "pota_ref": r'(%s)?' % POTA_REF,
+              "ref": r'[A-Z0-9/-]{0,15}'}   # the other station's reference, any programme: set_ref
 # The modes ADIF files as a SUBMODE of MFSK (the radio logs FT4, JS8 and FT2 that way)
 SUBMODE_OF = {"FT4": "MFSK", "JS8": "MFSK", "FT2": "MFSK", "FST4": "MFSK", "FST4W": "MFSK", "Q65": "MFSK", "MSK144": "MFSK"}
 
@@ -959,13 +987,22 @@ def put_log_qso(name, n):
     for k, v in data.items():
         v = str(v).strip()
         v = v if k in ("name", "qth", "comment") else v.upper()
-        if k not in LOG_FIELDS or not re.fullmatch(LOG_FIELDS[k], v) or (k in ("call", "qso_date", "time_on") and not v):
+        if k not in LOG_FIELDS or not re.fullmatch(LOG_FIELDS[k], v) or (k in ("call", "qso_date", "time_on") and not v) \
+                or (k in ("ref", "sota_ref", "pota_ref") and v and not ref_prog(v)):
             return api_error(400, f"Invalid {k.upper()}: {v}")
         clean[k] = v
+    # The other station's reference: "ref", or the sota_ref / pota_ref pair older pages send (one of
+    # them, the other empty), written through set_ref so SIG and SIG_INFO follow
+    if "ref" not in clean and ("sota_ref" in clean or "pota_ref" in clean):
+        clean["ref"] = clean.get("sota_ref") or clean.get("pota_ref") or ""
+    clean.pop("sota_ref", None)
+    clean.pop("pota_ref", None)
 
     def change(rec):
         for k, v in clean.items():
-            if k == "mode":
+            if k == "ref":
+                rec = set_ref(rec, v)
+            elif k == "mode":
                 # The page shows the submode where there is one (JS8, FT4) and sends that name
                 # back: written as the MODE/SUBMODE pair ADIF defines, and a mode without a
                 # submode takes the old SUBMODE with it (audit B17)
@@ -991,7 +1028,8 @@ def export_logs():
     stamp = time.strftime("%Y%m%d-%H%M")
     if bottle.request.forms.get("fmt") == "csv":
         cols = ["qso_date", "time_on", "call", "band", "freq", "mode", "rst_sent", "rst_rcvd", "name", "qth",
-                "gridsquare", "sota_ref", "pota_ref", "my_sota_ref", "my_pota_ref", "comment"]
+                "gridsquare", "sota_ref", "pota_ref", "sig", "sig_info", "my_sota_ref", "my_pota_ref", "my_sig",
+                "my_sig_info", "comment"]
         out = io.StringIO()
         w = csv.writer(out)
         w.writerow([c.upper() for c in cols])

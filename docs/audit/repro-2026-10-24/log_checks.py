@@ -10,12 +10,12 @@ from types import SimpleNamespace
 
 path=Path(__file__).resolve().parents[3] / 'webserver/src/x6100_webserver/apps.py'
 tree=ast.parse(path.read_text())
-needed={'field_path','adif_split','adif_set','adif_del','edit_qso','adif_fields','log_records','api_error','put_log_qso','rec_id'}
+needed={'field_path','adif_split','adif_set','adif_del','edit_qso','adif_fields','log_records','api_error','put_log_qso','rec_id','set_ref','ref_prog'}
 selected=[]
 for node in tree.body:
     if isinstance(node,ast.FunctionDef) and node.name in needed:
         node.decorator_list=[];selected.append(node)
-    elif isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ('SOTA_REF','POTA_REF','LOG_FIELDS','SUBMODE_OF') for t in node.targets):selected.append(node)
+    elif isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ('SOTA_REF','POTA_REF','REF_SIG','LOG_FIELDS','SUBMODE_OF') for t in node.targets):selected.append(node)
 bottle=SimpleNamespace(request=SimpleNamespace(),response=SimpleNamespace())
 ns={'fcntl':fcntl,'hashlib':hashlib,'json':json,'os':os,'re':re,'bottle':bottle,'settings':SimpleNamespace()}
 exec(compile(ast.Module(body=selected,type_ignores=[]),str(path),'exec'),ns)
@@ -48,3 +48,22 @@ with tempfile.TemporaryDirectory(prefix='x6log-') as td:
     fields=ns['adif_fields'](ns['log_records']('day.adi')[0])
     print('save mode JS8:',result,'fields:',fields)
     assert fields['mode']=='MFSK' and fields['submode']=='JS8'
+    # The other station's reference, any programme, written as the radio writes it (TOTA, WCA, MOTA added)
+    for typed,want in (('OKR-0150',{'sig':'TOTA','sig_info':'OKR-0150'}),('DL-01156',{'sig':'WCA','sig_info':'DL-01156'}),
+                       ('X42018',{'sig':'MOTA','sig_info':'X42018'}),('US-1234',{'sig':'POTA','sig_info':'US-1234','pota_ref':'US-1234'}),
+                       ('I/LO-123',{'sota_ref':'I/LO-123'})):
+        bottle.request.query={'id':ns['rec_id'](ns['log_records']('day.adi')[0])}
+        bottle.request.json={'ref':typed}
+        ns['put_log_qso']('day.adi',0)
+        fields=ns['adif_fields'](ns['log_records']('day.adi')[0])
+        got={k:fields[k] for k in ('sig','sig_info','pota_ref','sota_ref') if k in fields}
+        print('save ref',typed,'->',got)
+        assert got==want
+    # An older page sends the sota_ref / pota_ref pair: SIG and SIG_INFO follow (set_ref)
+    bottle.request.query={'id':ns['rec_id'](ns['log_records']('day.adi')[0])}
+    bottle.request.json={'sota_ref':'','pota_ref':'US-5678'}
+    ns['put_log_qso']('day.adi',0)
+    fields=ns['adif_fields'](ns['log_records']('day.adi')[0])
+    got={k:fields[k] for k in ('sig','sig_info','pota_ref','sota_ref') if k in fields}
+    print('older page saves pota_ref US-5678 ->',got)
+    assert got=={'sig':'POTA','sig_info':'US-5678','pota_ref':'US-5678'}
