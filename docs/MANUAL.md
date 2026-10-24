@@ -1301,8 +1301,11 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 | **Activation** | **Bands** |
 | ![Activation](screenshots/field_activation.png) | ![Band overview](screenshots/field_bands.png) |
 
-Home: seven tiles, SOTA, POTA, WWBOTA, HOTA, WWFF, Bands and LOG. MFK to
-choose, a press opens.
+Home: a row of seven tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF
+and Bands. Six and a half fit on the screen (five and a half with VISION):
+the row scrolls along as the MFK moves, and Bands is one MFK step left of
+LOG. A press opens. On the PC a drag scrolls the row and a click opens a
+tile.
 
 SOTA / POTA, before the activation:
 

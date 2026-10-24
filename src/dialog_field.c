@@ -3,8 +3,8 @@
  *
  *  Xiegu X6100 LVGL GUI - Field Ops
  *
- *  Screens: home (SOTA, POTA, WWBOTA, HOTA, WWFF, Bands, Log tiles), a program (the reference where you
- *  are and the nearest ones; during an activation the activation screen: frequency,
+ *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, Bands), a program (the reference
+ *  where you are and the nearest ones; during an activation the activation screen: frequency,
  *  S-meter, CQ, QSO count and time), Bands (activity and who hears you, from RBN) and
  *  the activation log. The dialog covers the whole screen above the buttons; the main
  *  knob still tunes. The network jobs (reference list update, POTA/WWBOTA/HOTA/WWFF spot, QRZ upload) run
@@ -81,7 +81,6 @@
 #define STATUS_H    34
 #define MAX_NEAR    30
 #define MAX_QSO     200
-#define HOME_TILES  7       /* SOTA, POTA, WWBOTA, HOTA, WWFF, Bands, Log */
 #define GPS_MAX_AGE 600     /* s */
 #define PHONE_MAX_AGE 1800
 
@@ -115,6 +114,8 @@ static dialog_t dialog = {
 dialog_t *dialog_field = &dialog;
 
 static lv_obj_t   *title, *head_icon, *head_right, *head_clock, *head_dot, *body, *list, *status;
+static lv_obj_t   *home_row;        /* the home screen's scrolling row of tiles; NULL on the other screens */
+static lv_coord_t  home_step;       /* a tile and the gap after it */
 static lv_coord_t  body_h;
 static lv_timer_t *timer;
 static int         sel, rows_n;
@@ -162,16 +163,23 @@ static field_qsy_t qsy;
 
 /* Colours */
 
-/* The home tiles: the programs, then Bands and Log */
+/* The home tiles, left to right: the log, the programs, the band overview (one MFK step left of the log) */
 static const struct {
-    char        prog;
+    screen_t    scr;            /* what a press opens */
+    char        prog;           /* SCR_PROG: the programme */
     const char *name, *icon, *sub;
 } tiles[] = {
-    {'S', "SOTA", "sota", "Summits\nOn The Air"},   {'P', "POTA", "pota", "Parks\nOn The Air"},
-    {'B', "WWBOTA", "wwbota", "Bunkers\nOn The Air"}, {'H', "HOTA", "hota", "History\nOn The Air"},
-    {'F', "WWFF", "wwff", "Nature\nOn The Air"},
-    {0, "BANDS", "bands", "Activity\nRBN, beacon"}, {0, "LOG", "log", "Activation\nlog"},
+    {SCR_LOG, 0, "LOG", "log", "Activation\nlog"},
+    {SCR_PROG, 'S', "SOTA", "sota", "Summits\nOn The Air"},
+    {SCR_PROG, 'P', "POTA", "pota", "Parks\nOn The Air"},
+    {SCR_PROG, 'B', "WWBOTA", "wwbota", "Bunkers\nOn The Air"},
+    {SCR_PROG, 'H', "HOTA", "hota", "History\nOn The Air"},
+    {SCR_PROG, 'F', "WWFF", "wwff", "Nature\nOn The Air"},
+    {SCR_BANDS, 0, "BANDS", "bands", "Activity\nRBN, beacon"},
 };
+#define HOME_TILES ((int)(sizeof(tiles) / sizeof(tiles[0])))
+#define HOME_PAD   8        /* the row's left and right padding */
+#define HOME_GAP   8
 
 static lv_color_t prog_color(char p) {
     switch (p) {
@@ -184,7 +192,22 @@ static lv_color_t prog_color(char p) {
 }
 
 static lv_color_t accent(int k) {
-    return tiles[k].prog ? prog_color(tiles[k].prog) : k == HOME_TILES - 2 ? TC(info) : TC(text_head);
+    return tiles[k].prog ? prog_color(tiles[k].prog) : tiles[k].scr == SCR_BANDS ? TC(info) : TC(text_head);
+}
+
+/* "home=" in the state: the tile's name. A number is from before LOG moved first: an index into the seven
+ * tiles of then */
+static int home_index(const char *v) {
+    static const char *const old[] = {"SOTA", "POTA", "WWBOTA", "HOTA", "WWFF", "BANDS", "LOG"};
+
+    if (isdigit((unsigned char)*v)) {
+        int i = atoi(v);
+        v     = i >= 0 && i < (int)(sizeof(old) / sizeof(old[0])) ? old[i] : "";
+    }
+    for (int k = 0; k < HOME_TILES; k++)
+        if (!strcasecmp(tiles[k].name, v))
+            return k;
+    return 0;   /* LOG */
 }
 
 static lv_color_t prog_accent(void) {
@@ -201,7 +224,7 @@ static void state_save(void) {
     f = fopen(tmp, "w");
     if (!f)
         return;
-    fprintf(f, "screen=%d\nhome=%d\nprog=%c\nactive=%d\nstart=%lld\nlog=%s\n", st.screen, st.home_sel,
+    fprintf(f, "screen=%d\nhome=%s\nprog=%c\nactive=%d\nstart=%lld\nlog=%s\n", st.screen, tiles[st.home_sel].name,
             st.prog,
             st.active, (long long)st.start, st.log);
     if (st.have_ref)
@@ -229,7 +252,7 @@ static void state_load(void) {
         if (!strcmp(line, "screen"))
             st.screen = (screen_t)atoi(v);
         else if (!strcmp(line, "home"))
-            st.home_sel = atoi(v);
+            st.home_sel = home_index(v);
         else if (!strcmp(line, "prog"))
             st.prog = *v && strchr("PBHF", *v) ? *v : 'S';
         else if (!strcmp(line, "active"))
@@ -847,20 +870,37 @@ static void home_open(int k) {
         /* The activation keeps its program */
         if (st.active && st.have_ref)
             st.prog = st.ref.type;
-        show(SCR_PROG);
-    } else {
-        show(k == HOME_TILES - 2 ? SCR_BANDS : SCR_LOG);
     }
+    show(tiles[k].scr);
 }
 
 static void open_cb(button_data_t *b) {
     home_open(sel);
 }
 
+/* The row scrolled so the tile and its neighbours are in view; it moves only when the selection comes within
+ * a tile of an edge. lv_obj_scroll_to_x stops at both ends (no snap: LVGL 8.3 snaps past them) */
+static void home_reveal(int k) {
+    lv_coord_t x    = lv_obj_get_scroll_x(home_row);   /* the content at the view's left edge */
+    lv_coord_t view = W - 2 * HOME_PAD;                /* a constant: the row may not have had its layout yet */
+    lv_coord_t l    = (k - 1) * home_step;             /* the left neighbour's left edge */
+    lv_coord_t r    = (k + 2) * home_step - HOME_GAP;  /* the right neighbour's right edge */
+
+    if (l < x)
+        x = l;
+    else if (r > x + view)
+        x = r - view;
+    else
+        return;
+    lv_obj_scroll_to_x(home_row, x, LV_ANIM_OFF);
+}
+
 static void home_select(int k) {
+    if (!home_row)
+        return;
     sel = (k + HOME_TILES) % HOME_TILES;
     for (int i = 0; i < HOME_TILES; i++) {
-        lv_obj_t *t  = lv_obj_get_child(body, i);
+        lv_obj_t *t  = lv_obj_get_child(home_row, i);
         bool      on = i == sel;
 
         lv_obj_set_style_border_width(t, on ? 4 : 2, 0);
@@ -868,6 +908,7 @@ static void home_select(int k) {
         lv_obj_set_style_bg_color(t, lv_color_mix(accent(i), TC(panel), on ? 80 : 30), 0);
         lv_obj_set_style_bg_grad_color(t, TC(panel), 0);
     }
+    home_reveal(sel);
 }
 
 static void tile_click_cb(lv_event_t *e) {
@@ -877,15 +918,45 @@ static void tile_click_cb(lv_event_t *e) {
     home_open(k);
 }
 
+/* The name on one line: the biggest of 32 to 24 that fits (WWBOTA a step or two down) */
+static const lv_font_t *tile_font(const char *name, lv_coord_t w) {
+    const lv_font_t *f[] = {VF(32), VF(30), VF(28), VF(26), VF(24)};
+
+    for (size_t i = 0; i < sizeof(f) / sizeof(f[0]); i++)
+        if (lv_txt_get_width(name, strlen(name), f[i], 0, LV_TEXT_FLAG_NONE) <= w)
+            return f[i];
+    return f[sizeof(f) / sizeof(f[0]) - 1];
+}
+
 static void build_home(void) {
-    lv_coord_t gap = 8, tw = (W - 16 - (HOME_TILES - 1) * gap) / HOME_TILES;
-    lv_coord_t x0 = (W - HOME_TILES * tw - (HOME_TILES - 1) * gap) / 2, th = body_h - STATUS_H - 30;
+    /* 6.5 tiles in view, VISION 5.5 (its bigger type): the cut tile at the edge says the row goes on */
+    int        halves = theme_shape.vision ? 11 : 13;
+    lv_coord_t tw     = 2 * (W - HOME_PAD - halves / 2 * HOME_GAP) / halves;   /* 114, VISION 136 */
+    lv_coord_t th     = body_h - STATUS_H - 30;
 
     head_set(NULL, "FIELD OPERATIONS");
-    list   = NULL;
-    rows_n = HOME_TILES;
+    list      = NULL;
+    rows_n    = HOME_TILES;
+    home_step = tw + HOME_GAP;
+
+    /* The row: dragged on the PC (a drag never opens a tile), scrolled by home_reveal for the MFK */
+    home_row = lv_obj_create(body);
+    lv_obj_remove_style_all(home_row);
+    lv_obj_set_size(home_row, W, 16 + th + 14);     /* the tiles where they were, the bar under them */
+    lv_obj_set_style_pad_hor(home_row, HOME_PAD, 0);
+    lv_obj_set_style_pad_top(home_row, 16, 0);
+    lv_obj_set_scroll_dir(home_row, LV_DIR_HOR);
+    lv_obj_set_scrollbar_mode(home_row, LV_SCROLLBAR_MODE_AUTO);   /* always there: the row is wider than the screen */
+    lv_obj_set_style_width(home_row, 4, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(home_row, 2, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(home_row, TC(text_dim), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(home_row, LV_OPA_50, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(home_row, LV_OPA_COVER, LV_PART_SCROLLBAR | LV_STATE_SCROLLED);
+    lv_obj_set_style_pad_bottom(home_row, 4, LV_PART_SCROLLBAR);
+    lv_obj_set_style_pad_hor(home_row, HOME_PAD + 4, LV_PART_SCROLLBAR);
+
     for (int k = 0; k < HOME_TILES; k++) {
-        lv_obj_t *t = panel(body, x0 + k * (tw + gap), 16, tw, th);
+        lv_obj_t *t = panel(home_row, k * home_step, 0, tw, th);
 
         lv_obj_set_style_border_color(t, accent(k), 0);
         lv_obj_set_style_radius(t, 10, 0);
@@ -894,12 +965,7 @@ static void build_home(void) {
         lv_obj_add_event_cb(t, tile_click_cb, LV_EVENT_CLICKED, (void *)(intptr_t)k);
 
         icon(t, tiles[k].icon, 96, (tw - 96) / 2 - 2, 24);
-        const lv_font_t *nf = theme_shape.vision ? VF(28) : VF(32);   /* VISION: WWBOTA on one line */
-        if (lv_txt_get_width(tiles[k].name, strlen(tiles[k].name), nf, 0, LV_TEXT_FLAG_NONE) > tw - 4)
-            nf = VF(28);    /* seven tiles: WWBOTA a size or two down, the others as they are */
-        if (lv_txt_get_width(tiles[k].name, strlen(tiles[k].name), nf, 0, LV_TEXT_FLAG_NONE) > tw - 4)
-            nf = VF(24);
-        lv_obj_t *n = label(t, nf, accent(k), 0, 140, tw - 4);
+        lv_obj_t *n = label(t, tile_font(tiles[k].name, tw - 4), accent(k), 0, 140, tw - 4);
         lv_obj_t *s = label(t, VF(20), lv_color_mix(accent(k), TC(text), 160), 0, 186, tw - 4);
 
         lv_label_set_recolor(n, false);
@@ -1300,6 +1366,7 @@ static void show(screen_t s) {
     info_ref  = NULL;
     act_freq  = NULL;
     list      = NULL;
+    home_row  = NULL;
     lv_obj_clean(body);
     buttons_unload_page();
     switch (s) {
@@ -2244,4 +2311,5 @@ static void destruct_cb(void) {
     info_ref  = NULL;
     act_freq  = NULL;
     head_icon = NULL;
+    home_row  = NULL;
 }
