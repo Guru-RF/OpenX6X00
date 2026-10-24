@@ -17,7 +17,7 @@ closed v0.129, finds the same things under these names:
 |---|---|---|
 | Modes, "FT8, JS8, PSK, SSTV..." | Modes, "FT8, JS8, PSK, RTTY, SSTV..." | the digital modes grid |
 | Cluster, "DX spots" | Cluster, "DX spots" | the DX cluster app |
-| Field Ops, "SOTA, POTA, WWFF" | Field Ops, "POTA, SOTA activations" | activations |
+| Field Ops, "SOTA, POTA, WWFF..." | Field Ops, "POTA, SOTA activations" | activations |
 | Bands, "Band activity" | Bands, "Band activity" | cluster and RBN activity per band |
 | Channels, "Memory channels" | Channels, "Memory channels" | named channels |
 | SWR Scan, "Sweep, transmits" | SWR scan, "SWR sweep, transmits" | |

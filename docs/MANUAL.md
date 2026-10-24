@@ -1319,7 +1319,7 @@ SOTA / POTA, before the activation:
   locator.
 - Update list (page 2) downloads the parks (POTA) and summits (SOTA); then it
   works offline. Also from the web configurator's Field Ops page. The radio
-  says "Downloading the reference lists: up to 10 minutes on a slow WiFi",
+  says "Downloading the reference lists: up to half an hour on a slow WiFi",
   then each list with its progress, "Updating POTA (1/8): x.x / y.y MB" up
   to MOTA (8/8),
   and "reading it..." once it is downloaded. A download that stops goes on

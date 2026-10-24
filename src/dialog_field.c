@@ -1956,7 +1956,7 @@ static void update_done(const char *line) {
 static void list_update(void) {
     if (job_start(update_done, HELPER " update --call %s", my_call()[0] ? my_call() : "unknown")) {
         updating = true;
-        msg_update_text_fmt("Downloading the reference lists: up to 10 minutes on a slow WiFi");
+        msg_update_text_fmt("Downloading the reference lists: up to half an hour on a slow WiFi");
         if (dialog.run && st.screen == SCR_PROG && !st.active)
             lv_label_set_text(status, "Downloading the reference lists...");
         if (!update_timer)

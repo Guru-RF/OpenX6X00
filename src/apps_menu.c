@@ -45,7 +45,7 @@ static const struct {
 } apps[] = {
     {"Modes", "FT8, JS8, PSK, SSTV...", "modes", OPEN_APP, ACTION_APP_MODES},
     {"Cluster", "DX spots", "cluster", OPEN_APP, ACTION_APP_CLUSTER},
-    {"Field Ops", "SOTA, POTA, WWFF", "field", OPEN_APP, ACTION_APP_FIELD},
+    {"Field Ops", "SOTA, POTA, WWFF...", "field", OPEN_APP, ACTION_APP_FIELD},
     {"Bands", "Band activity", "bands", OPEN_APP, ACTION_APP_BANDS},
     {"Channels", "Memory channels", "channels", OPEN_APP, ACTION_APP_CHANNELS},
     {"SWR Scan", "Sweep, transmits", "swr", OPEN_APP, ACTION_APP_SWRSCAN},

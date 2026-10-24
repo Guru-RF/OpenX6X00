@@ -1,8 +1,9 @@
 # OpenX6X00 by RF.Guru
 
-Open firmware for the **Xiegu X6100**: a complete microSD image with every
+Open firmware for the **Xiegu X6100** and **X6200**: a complete microSD image with every
 digital mode decoded and sent on the radio itself, the DX cluster on the
-waterfall, SOTA and POTA activations with big outdoor tiles, themes, Bluetooth
+waterfall, portable activations (SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA,
+MOTA) with big outdoor tiles, themes, Bluetooth
 headphones and CAT, a web configurator, and a **TCI server** so the
 [VFO-Knob](https://github.com/Guru-RF/VFO-Knob) and other TCI clients tune,
 hear and key the radio over the network. In the RF.Guru identity: near-black
@@ -193,5 +194,7 @@ and the WSJT-X team JTTY; SP2KMO the Bluetooth tab; 2E0JFS the Black Metal and
 Total Black themes. Libraries: LVGL, cJSON, FFTW, liquid-dsp, ft8_lib, libpng,
 bottle, PulseAudio, BlueZ. Fonts: Roboto, DejaVu, Arial, Sony Sketch. The
 skimmer spots come from the Reverse Beacon Network and the broadcast schedule
-from the EiBi list by Eike Bierwirth. OpenX6X00 is maintained by RF.Guru
+from the EiBi list by Eike Bierwirth. The Field Ops reference lists come from
+POTA, SOTA, WWBOTA, cqhota.app, WWFF, TOTA (OK2IH, wwtota.com), the WCA castle
+list as ON4VT keeps it, and GMA (gma.rocks) for the mills. OpenX6X00 is maintained by RF.Guru
 (Joeri Van Dooren ON6URE).
