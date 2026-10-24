@@ -267,12 +267,48 @@ static bool digits_end(const char *p, size_t n) {
     return p[n] == 0;
 }
 
+/* 3 to 4 digits, an optional letter, and nothing after: an ARLHS number's (079, 1286, 079H) */
+static bool lh_number(const char *p) {
+    size_t d = strspn(p, "0123456789");
+
+    return d >= 3 && d <= 4 && (!p[d] || (p[d] >= 'A' && p[d] <= 'Z' && !p[d + 1]));
+}
+
+static bool three_letters(const char *p) {
+    return p[0] >= 'A' && p[0] <= 'Z' && p[1] >= 'A' && p[1] <= 'Z' && p[2] >= 'A' && p[2] <= 'Z';
+}
+
+bool field_ref_lh(const char *in, char *out, size_t size) {
+    char        s[24];
+    size_t      i = 0;
+    const char *p;
+
+    for (; in && *in && i < sizeof(s) - 1; in++)
+        s[i++] = (char)toupper((unsigned char)*in);
+    s[i] = 0;
+    p = s;
+    if (!strncmp(p, "ARLHS", 5) && (p[5] == ' ' || p[5] == '-' || p[5] == '_'))
+        p += 6;
+    else if (!strncmp(p, "LH", 2) && (p[2] == ' ' || p[2] == '-'))
+        p += 3;
+    if (!three_letters(p))
+        return false;
+    const char *num = p + 3 + (p[3] == ' ' || p[3] == '-');
+    size_t      d   = strspn(num, "0123456789");
+    if (d < 1 || d > 4 || (num[d] && (num[d] < 'A' || num[d] > 'Z' || num[d + 1])))
+        return false;
+    snprintf(out, size, "%.3s %03d%s", p, atoi(num), num + d);
+    return true;
+}
+
 char field_ref_prog(const char *ref) {
     size_t      n = ref ? strlen(ref) : 0;
     const char *dash = n ? strchr(ref, '-') : NULL;
 
     if (n == 6 && ref[0] == 'X' && digits_end(ref + 1, 5))               /* X42018 */
         return 'M';
+    if (n >= 7 && n <= 9 && three_letters(ref) && ref[3] == ' ' && lh_number(ref + 4))   /* BEL 002, USA 1286 */
+        return 'L';
     if (n < 5 || n > 15 || !dash)
         return 0;
     for (const char *p = ref; *p; p++)
@@ -294,6 +330,9 @@ char field_ref_prog(const char *ref) {
      * US-12345) never start with 0 and have no 1-letter prefix; the WCA's only castles past 09999 are Italy's */
     if (pre >= 1 && pre <= 3 && digits_end(dash + 1, 5) && (dash[1] == '0' || (pre == 1 && ref[0] == 'I')))
         return 'C';
+    /* BEL-002, USA-1286: three letters, which no POTA prefix has; the towers ending in R come first */
+    if (pre == 3 && three_letters(ref) && lh_number(dash + 1))
+        return 'L';
     return 'P';                                                           /* US-1234, IT-0123, FR-10234 */
 }
 
@@ -306,6 +345,7 @@ const char *field_prog_sig(char prog) {
         case 'T': return "TOTA";
         case 'C': return "WCA";
         case 'M': return "MOTA";
+        case 'L': return "ARLHS";   /* the lighthouses' numbering; GMA takes the reference from its upload form */
         default:  return NULL;
     }
 }
@@ -320,6 +360,7 @@ const char *field_qso_tag(const field_qso_t *q) {
         case 'T': return "T2T";
         case 'C': return "C2C";
         case 'M': return "M2M";
+        case 'L': return "L2L";
         default:  return "";
     }
 }

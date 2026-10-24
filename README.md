@@ -3,7 +3,7 @@
 Open firmware for the **Xiegu X6100** and **X6200**: a complete microSD image with every
 digital mode decoded and sent on the radio itself, the DX cluster on the
 waterfall, portable activations (SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA,
-MOTA) with big outdoor tiles, themes, Bluetooth
+MOTA, lighthouses) with big outdoor tiles, themes, Bluetooth
 headphones and CAT, a web configurator, and a **TCI server** so the
 [VFO-Knob](https://github.com/Guru-RF/VFO-Knob) and other TCI clients tune,
 hear and key the radio over the network. In the RF.Guru identity: near-black
@@ -57,7 +57,7 @@ Added:
 | **Digital modes** | FT8, FT4 and FT2 (CQ, reply, auto sequence, Hound, POTA tag, ADIF log), JS8 (JS8Call compatible, all four speeds at once, inbox, relays, heartbeats, APRS), WSPR (decode and beacon, WSPRnet upload), PSK31, PSK63, Olivia, JTTY, RTTY, SSTV (receive with VIS, transmit with templates, denoise), WeFax and NavTex. No PC, no sound card cable: APP > Modes. |
 | **CW** | A decoder that copies down to about 0 dB SNR with Parse splitting run-together words, a CW keyboard with a send queue and Live mode, messages with `{CALL}` and `{HIS}`, USB and Bluetooth paddles, a CW trainer. |
 | **DX Cluster** | Spots on the waterfall, in a column beside it and in a full app that follows the VFO; filters by mode, band and activity (POTA, SOTA, WWBOTA, HOTA), alerts on calls and prefixes, spot snap when turning slowly, ten public servers built in. |
-| **Field Ops** | A second interface for SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA and MOTA activations with big tiles for gloves: the summit or park found from the GPS or the locator, the references of the whole world offline, CQ, a log straight to ADIF with the references, self-spots to pota.app, wwbota.org, cqhota.app and the WWFF Spotline, QRZ Logbook upload. |
+| **Field Ops** | A second interface for SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA and lighthouse (LH, ARLHS) activations with big tiles for gloves: the summit or park found from the GPS or the locator, the references of the whole world offline, CQ, a log straight to ADIF with the references, self-spots to pota.app, wwbota.org, cqhota.app and the WWFF Spotline, QRZ Logbook upload. |
 | **Bands** | A live picture of 160 to 6 m from the cluster and the Reverse Beacon Network, and a test beacon that shows who hears you from your own antenna. |
 | **Radio** | IARU band plan strip, Birdie Cal (the radio's own carriers found, marked, notched), S-meter in bars or a needle, long-press actions on every key, editable bands, memories and channels, transverters, RX recorder, screen recording and screenshots, voice messages, SWR scan, Walkie Talkie portrait mode, local time on screen with UTC in the logs. |
 | **Screen** | DRM/KMS output with the GUI on a transparent layer over a waterfall drawn one line at a time, about half the CPU of the old path; a main knob with every detent timed in its own thread and acceleration that grows with the speed. |
@@ -196,5 +196,5 @@ bottle, PulseAudio, BlueZ. Fonts: Roboto, DejaVu, Arial, Sony Sketch. The
 skimmer spots come from the Reverse Beacon Network and the broadcast schedule
 from the EiBi list by Eike Bierwirth. The Field Ops reference lists come from
 POTA, SOTA, WWBOTA, cqhota.app, WWFF, TOTA (OK2IH, wwtota.com), the WCA castle
-list as ON4VT keeps it, and GMA (gma.rocks) for the mills. OpenX6X00 is maintained by RF.Guru
+list as ON4VT keeps it, and GMA (gma.rocks) for the mills and the lighthouses. OpenX6X00 is maintained by RF.Guru
 (Joeri Van Dooren ON6URE).

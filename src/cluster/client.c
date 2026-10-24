@@ -306,8 +306,8 @@ static bool prefix_ok(const char *p, size_t n) {
     return letter;
 }
 
-/* US-1234, IT-0123, K-12345 (not a WWFF IFF-0123, a TOTA tower OKR-0150 or a WCA castle DL-01156, I-14619: the
- * shapes Field Ops tells apart, src/field/flog.c field_ref_prog) */
+/* US-1234, IT-0123, K-12345 (not a WWFF IFF-0123, a TOTA tower OKR-0150, a WCA castle DL-01156, I-14619 or a
+ * lighthouse USA-1286: the shapes Field Ops tells apart, src/field/flog.c field_ref_prog) */
 static bool park_ref(const char *w) {
     const char *dash = strchr(w, '-');
     if (!dash || strchr(w, '/')) return false;
@@ -316,6 +316,8 @@ static bool park_ref(const char *w) {
     size_t d = strlen(dash + 1);
     if (d < 4 || d > 5 || !all_digits(dash + 1, d)) return false;
     if (n >= 3 && dash[-1] == 'R' && d == 4) return false;                                /* a tower */
+    if (n == 3 && isalpha((unsigned char)w[0]) && isalpha((unsigned char)w[1]) && isalpha((unsigned char)w[2]))
+        return false;                                                                     /* a lighthouse */
     if (n <= 3 && d == 5 && (dash[1] == '0' || (n == 1 && w[0] == 'I'))) return false;   /* a castle */
     return true;
 }

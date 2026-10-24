@@ -6,6 +6,8 @@ WWBOTA, HOTA, Bands and Log icons the project was forked with:
   tota_96.png, tota_64.png   TOTA, a lookout tower in the tile's orange: lattice legs, railed platform, roof, pennant
   wca_96.png,  wca_64.png    WCA, a grey stone castle: two crenellated towers, a crenellated wall with a gate
   mota_96.png, mota_64.png   MOTA, a windmill in the tile's teal with four light lattice sails
+  lh_96.png,   lh_64.png     LH, a lighthouse in the tile's coral red: red and white bands, a dark gallery, a lit
+                             lantern with beams to both sides, on a rock
 
   python3 tools/icons/mkfield.py rootfs/usr/share/x6100/field
 
@@ -32,6 +34,15 @@ MILL = (65, 175, 199, 255)      # the MOTA tile's accent (teal)
 MILL_DARK = (36, 120, 140, 255)
 SAIL = (235, 240, 245, 255)
 SAIL_EDGE = (150, 160, 175, 255)
+BEACON = (248, 113, 113, 255)   # the LH tile's accent (theme role err)
+BEACON_DARK = (185, 60, 60, 255)
+BEACON_WHITE = (235, 240, 245, 255)
+BEACON_WHITE_SHADE = (196, 205, 216, 255)
+GALLERY = (71, 85, 105, 255)
+GLASS = (255, 222, 100, 255)
+BEAM = (255, 243, 180, 230)
+ROCK = (120, 132, 150, 255)
+ROCK_LIGHT = (165, 177, 194, 255)
 
 
 def canvas(size):
@@ -158,13 +169,50 @@ def windmill(size):
     return im.resize((size, size), Image.LANCZOS)
 
 
+def lighthouse(size):
+    im, d, p, u = canvas(size)
+    top, foot = 36, 87                              # the shaft, from under the gallery to the rock
+    hw = lambda y: 10 + 8 * (y - top) / (foot - top)    # its half width, 10 at the top to 18 at the foot
+
+    # The beams, behind the lantern: a wedge to each side
+    for sgn in (-1, 1):
+        d.polygon([p(50 + sgn * 6, 20), p(50 + sgn * 44, 11), p(50 + sgn * 44, 31), p(50 + sgn * 6, 24)], fill=BEAM)
+
+    # The rock, its lit top
+    d.polygon([p(18, 94), p(25, 88), p(35, 84), p(65, 84), p(75, 87.5), p(82, 94)], fill=ROCK)
+    d.polygon([p(25, 88), p(35, 84), p(65, 84), p(70, 85.5), p(42, 87.5)], fill=ROCK_LIGHT)
+
+    # The shaft: five bands, red at the top and the foot, the right third in shade; the door
+    bands = [top + i * (foot - top) / 5 for i in range(6)]
+    for i, (y0, y1) in enumerate(zip(bands, bands[1:])):
+        lit, shade = (BEACON, BEACON_DARK) if i % 2 == 0 else (BEACON_WHITE, BEACON_WHITE_SHADE)
+        d.polygon([p(50 - hw(y0), y0), p(50 + hw(y0), y0), p(50 + hw(y1), y1), p(50 - hw(y1), y1)], fill=lit)
+        d.polygon([p(50 + hw(y0) / 3, y0), p(50 + hw(y0), y0), p(50 + hw(y1), y1), p(50 + hw(y1) / 3, y1)], fill=shade)
+    d.rectangle([p(46, 79), p(54, 87)], fill=GALLERY)
+    d.pieslice([p(46, 75), p(54, 83)], 180, 360, fill=GALLERY)
+
+    # The gallery: its deck, the railing over it
+    d.rectangle([p(34, 32), p(66, 36.5)], fill=GALLERY)
+    d.rectangle([p(36, 26), p(64, 28)], fill=GALLERY)                       # handrail
+    for x in (37, 43.5, 50, 56.5, 63):
+        d.rectangle([p(x - 1, 27), p(x + 1, 32)], fill=GALLERY)             # balusters
+
+    # The lantern: the glass with a centre bar, the dome on its rim, the ball on top
+    d.rectangle([p(42, 16), p(58, 28)], fill=GLASS)
+    d.rectangle([p(49, 16), p(51, 28)], fill=GALLERY)
+    d.rectangle([p(40, 14.5), p(60, 17)], fill=GALLERY)
+    d.pieslice([p(41, 7), p(59, 23)], 180, 360, fill=GALLERY)
+    d.ellipse([p(47.75, 4), p(52.25, 8.5)], fill=GALLERY)
+    return im.resize((size, size), Image.LANCZOS)
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "rootfs/usr/share/x6100/field"
     os.makedirs(out, exist_ok=True)
-    for name, draw in (("wwff", leaf), ("tota", tower), ("wca", castle), ("mota", windmill)):
+    for name, draw in (("wwff", leaf), ("tota", tower), ("wca", castle), ("mota", windmill), ("lh", lighthouse)):
         for size in (96, 64):
             draw(size).save(os.path.join(out, f"{name}_{size}.png"))
-    print(f"wwff, tota, wca and mota icons in {out}")
+    print(f"wwff, tota, wca, mota and lh icons in {out}")
 
 
 if __name__ == "__main__":

@@ -534,7 +534,7 @@ def set_tci():
 
 field_lock = threading.Lock()
 field_update = {"running": False, "result": ""}
-field_refs_counts = (None, {})   # (mtime, size), {"P": parks, "S": summits, "B": bunkers, "H": HOTA, "F": WWFF, "T": towers, "C": castles, "M": mills}
+field_refs_counts = (None, {})   # (mtime, size), {"P": parks, "S": summits, "B": bunkers, "H": HOTA, "F": WWFF, "T": towers, "C": castles, "M": mills, "L": lights}
 
 
 def field_path(*names):
@@ -617,7 +617,8 @@ def field_refs():
     c = field_refs_counts[1]
     return {"date": time.strftime("%Y-%m-%d %H:%M", time.localtime(st.st_mtime)), "size": fmt_size(st.st_size),
             "parks": c.get(b"P", 0), "summits": c.get(b"S", 0), "bunkers": c.get(b"B", 0), "hota": c.get(b"H", 0),
-            "wwff": c.get(b"F", 0), "towers": c.get(b"T", 0), "castles": c.get(b"C", 0), "mills": c.get(b"M", 0)}
+            "wwff": c.get(b"F", 0), "towers": c.get(b"T", 0), "castles": c.get(b"C", 0), "mills": c.get(b"M", 0),
+            "lights": c.get(b"L", 0)}
 
 
 def field_logs():
@@ -780,14 +781,16 @@ def adif_del(rec, name):
 SOTA_REF = r'[A-Z0-9]{1,4}/[A-Z]{2}-[0-9]{3}'     # I/LO-123 ([0-9]: \d takes any script's digits)
 POTA_REF = r'[A-Z0-9]{1,4}-[0-9]{4,5}'            # IT-1234
 # The ADIF SIG of each programme but SOTA (SOTA_REF), by the letter ref_prog gives
-REF_SIG = {"P": "POTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA"}
+REF_SIG = {"P": "POTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA", "L": "ARLHS"}
 
 
 def ref_prog(ref):
     """The programme of a reference by its shape, as the radio tells it (src/field/flog.c field_ref_prog): S SOTA,
-    P POTA, B WWBOTA, H HOTA, F WWFF, T TOTA, C WCA, M MOTA; "" when it is none of them"""
+    P POTA, B WWBOTA, H HOTA, F WWFF, T TOTA, C WCA, M MOTA, L a lighthouse (BEL 002); "" when it is none of them"""
     if re.fullmatch(r'X[0-9]{5}', ref):                                # X42018
         return "M"
+    if re.fullmatch(r'[A-Z]{3} [0-9]{3,4}[A-Z]?', ref):                # BEL 002, USA 1286, AUS 079H
+        return "L"
     if not 5 <= len(ref) <= 15 or "-" not in ref or not re.fullmatch(r'[A-Z0-9/-]+', ref):
         return ""
     pre, num = ref.split("-", 1)
@@ -803,7 +806,18 @@ def ref_prog(ref):
         return "T"
     if 1 <= len(pre) <= 3 and re.fullmatch(r'[0-9]{5}', num) and (num[0] == "0" or pre == "I"):   # DL-01156
         return "C"
+    if re.fullmatch(r'[A-Z]{3}', pre) and re.fullmatch(r'[0-9]{3,4}[A-Z]?', num):   # BEL-002 (written BEL 002)
+        return "L"
     return "P" if re.fullmatch(POTA_REF, ref) else ""                 # US-1234
+
+
+def ref_norm(ref):
+    """A lighthouse as the radio writes it (src/field/flog.c field_ref_lh): BEL-2, BEL002, ARLHS BEL 002, LH BEL 2 and
+    SCO-0144 are BEL 002 and SCO 144; any other reference as it is"""
+    m = re.fullmatch(r'(?:(?:ARLHS[ _-]?|LH[ -]))?([A-Z]{3})[ -]?([0-9]{1,4})([A-Z]?)', ref)
+    if m and ref_prog(ref) in ("L", ""):
+        return f"{m[1]} {int(m[2]):03d}{m[3]}"
+    return ref
 
 
 def set_ref(rec, ref):
@@ -811,6 +825,7 @@ def set_ref(rec, ref):
     radio writes it (src/field/flog.c): SOTA_REF; SIG and SIG_INFO, with POTA_REF for a park."""
     for name in ("SOTA_REF", "POTA_REF", "SIG", "SIG_INFO"):
         rec = adif_del(rec, name)
+    ref = ref_norm(ref) if ref else ""   # a lighthouse as GMA's list and the radio write it: BEL 002
     prog = ref_prog(ref) if ref else ""
     if prog == "S":
         return adif_set(rec, "SOTA_REF", ref)
@@ -899,7 +914,7 @@ def put_qso(name, n):
     ref = data.get("ref")
     if ref is not None:
         ref = str(ref).strip().upper()
-        if ref and not ref_prog(ref):
+        if ref and not ref_prog(ref_norm(ref)):
             return api_error(400, "Invalid reference")
 
     def change(rec):
@@ -969,7 +984,7 @@ LOG_FIELDS = {"call": r'[A-Z0-9/]{3,15}', "qso_date": r'\d{8}', "time_on": r'\d{
               "rst_sent": r'[+-]?\d{1,3}|', "rst_rcvd": r'[+-]?\d{1,3}|', "name": r'[^<>]{0,40}',
               "qth": r'[^<>]{0,40}', "gridsquare": r'([A-R]{2}\d{2}([A-X]{2})?)?', "comment": r'[^<>]{0,80}',
               "sota_ref": r'(%s)?' % SOTA_REF, "pota_ref": r'(%s)?' % POTA_REF,
-              "ref": r'[A-Z0-9/-]{0,15}'}   # the other station's reference, any programme: set_ref
+              "ref": r'[A-Z0-9/ -]{0,15}'}   # the other station's reference, any programme (BEL 002): set_ref
 # The modes ADIF files as a SUBMODE of MFSK (the radio logs FT4, JS8 and FT2 that way)
 SUBMODE_OF = {"FT4": "MFSK", "JS8": "MFSK", "FT2": "MFSK", "FST4": "MFSK", "FST4W": "MFSK", "Q65": "MFSK", "MSK144": "MFSK"}
 
@@ -988,7 +1003,7 @@ def put_log_qso(name, n):
         v = str(v).strip()
         v = v if k in ("name", "qth", "comment") else v.upper()
         if k not in LOG_FIELDS or not re.fullmatch(LOG_FIELDS[k], v) or (k in ("call", "qso_date", "time_on") and not v) \
-                or (k in ("ref", "sota_ref", "pota_ref") and v and not ref_prog(v)):
+                or (k in ("ref", "sota_ref", "pota_ref") and v and not ref_prog(ref_norm(v))):
             return api_error(400, f"Invalid {k.upper()}: {v}")
         clean[k] = v
     # The other station's reference: "ref", or the sota_ref / pota_ref pair older pages send (one of

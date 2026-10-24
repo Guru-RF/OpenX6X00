@@ -1236,7 +1236,7 @@ waterfall.
 - POTA / SOTA come from the spot comment: the word POTA or SOTA, a park
   reference (`US-1234`, `IT-0123`) or a summit reference (`I/LO-123`,
   `W7W/KG-001`). WWFF references (`IFF-0123`), TOTA towers (`OKR-0150`) and
-  WCA castles (`DL-01156`) are not taken as POTA.
+  WCA castles (`DL-01156`) and lighthouses (`USA-1286`) are not taken as POTA.
   WWBOTA: the word WWBOTA (or BOTA) or a bunker (`B/G-0070`); HOTA: the word
   HOTA or a HOTA reference (`RO-H0390`).
 - Besides the cluster, the radio reads the activator spots of pota.app,
@@ -1302,8 +1302,8 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 | **Activation** | **Bands** |
 | ![Activation](screenshots/field_activation.png) | ![Band overview](screenshots/field_bands.png) |
 
-Home: a row of ten tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
-TOTA, WCA, MOTA and Bands. Six and a half fit on the screen (five and a half
+Home: a row of eleven tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
+TOTA, WCA, MOTA, LH and Bands. Six and a half fit on the screen (five and a half
 with VISION): the row scrolls along as the MFK moves, and Bands is one MFK
 step left of LOG. A press opens. On the PC a drag scrolls the row and a click
 opens a tile.
@@ -1317,15 +1317,15 @@ SOTA / POTA, before the activation:
 - The position comes from the radio's GPS, else from the QTH locator. The
   dot in the header is green for a real position (GPS), yellow for the
   locator.
-- Update list (page 2) downloads the parks (POTA) and summits (SOTA); then it
+- Update list (page 2) downloads the reference lists of all the programmes; then it
   works offline. Also from the web configurator's Field Ops page. The radio
   says "Downloading the reference lists: up to half an hour on a slow WiFi",
-  then each list with its progress, "Updating POTA (1/8): x.x / y.y MB" up
-  to MOTA (8/8),
+  then each list with its progress, "Updating POTA (1/9): x.x / y.y MB" up
+  to LH (9/9),
   and "reading it..." once it is downloaded. A download that stops goes on
   from where it stopped, up to 5 tries ("retry 2 of 5"). At the end:
-  "Lists: N parks, N summits, N bunkers, N HOTA, N WWFF, N towers, N castles,
-  N mills". A list
+  "Lists: N POTA, N SOTA, N WWBOTA, N HOTA, N WWFF, N TOTA, N WCA, N MOTA,
+  N LH". A list
   that could not be fetched keeps its previous entries and is named after:
   "Not updated, kept as it was: <list>: <reason>". A run that hangs (a
   connection that never answers) ends after 45 minutes with "timed out".
@@ -1482,6 +1482,33 @@ teal windmill.
 - The logs go to wwtota.com (Upload, once registered), to the WCA by email
   (wcalog@qth.cz) and to GMA (ADIF upload) for MOTA. Download them from the
   web configurator's Field Ops page.
+
+LH, the lighthouses, has its own tile too, the red and white lighthouse.
+"LH" is what lighthouse activators write on the DX cluster ("LH BEL 002").
+The references are the lighthouses' ARLHS numbers, the World List of Lights
+of the Amateur Radio Lighthouse Society.
+
+- Update list downloads GMA's lighthouse list (gma.rocks) with the others;
+  the list heading says LIGHT. A lighthouse is `BEL 002`, with a space, as
+  the list writes it (`USA 1286` and `AUS 079H` have four digits or a
+  letter). Ref... also takes `BEL-002`, `BEL002`, `bel 2` or `ARLHS BEL 002`.
+  Belgium's lighthouses and lightships (the BLHA's 18 among them) are all
+  in the list.
+- A valid activation for GMA's Lighthouse Award: 4 different stations,
+  operating portable (50 QSOs when you work from the lighthouse on its
+  power), within 1000 m of the light and in sight of it. The activation
+  screen counts `CALLS / 4`.
+- The log has `MY_SIG ARLHS` and `MY_SIG_INFO BEL 002`. A QSO with another
+  lighthouse logs theirs as `SIG ARLHS` (the log shows L2L): type it after
+  the call as `LH BEL 002` or `BEL-002`, which always work, or as `BEL 002`
+  when the list has it (during a lighthouse activation also `BEL002`, and
+  `BEL 007` for a number that can be no report).
+- Spot posts `LH ARLHS BEL 002 SSB` on the DX cluster: LH for the people
+  who look for lighthouses, ARLHS just before the number so Spothole picks
+  up the reference. There is no lighthouse spot service open to the radio.
+- The log goes to GMA (ADIF upload, the reference typed in the upload
+  form), where it counts for the Lighthouse Award and, for the Belgian
+  lights, the BLHA.
 
 ### Bands
 

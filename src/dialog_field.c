@@ -3,7 +3,7 @@
  *
  *  Xiegu X6100 LVGL GUI - Field Ops
  *
- *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, Bands), a
+ *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Bands), a
  *  program (the reference where you are and the nearest ones; during an activation the activation screen:
  *  frequency, S-meter, CQ, QSO count and time), Bands (activity and who hears you, from RBN) and
  *  the activation log. The dialog covers the whole screen above the buttons; the main
@@ -94,7 +94,7 @@ static void show(screen_t s);
 static struct {
     screen_t    screen;
     int         home_sel;
-    char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA */
+    char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA, 'L' LH */
     bool        have_ref;
     field_ref_t ref;
     bool        active;
@@ -168,6 +168,7 @@ typedef struct {
     bool        calls;          /* counts different calls, not QSOs */
     bool        site;           /* spotted on its own site (with the DX clusters too), automatically at the start
                                  * and after a QSY; otherwise on the DX clusters only, with Spot */
+    const char *spot;           /* the DX cluster comment's first words; NULL: the name */
 } prog_t;
 
 static const prog_t progs[] = {
@@ -180,8 +181,11 @@ static const prog_t progs[] = {
     {'T', "TOTA",   "tota",   "Towers\nOn The Air",   "TOWER",  13, false, false},   /* HF; 3 on VHF */
     {'C', "WCA",    "wca",    "World Castle\nAward",  "CASTLE", 50, false, false},
     {'M', "MOTA",   "mota",   "Mills\nOn The Air",    "MILL",   4,  true,  false},   /* GMA's rules: 4 stations */
+    /* The lighthouses by their ARLHS numbers (BEL 002), as GMA lists them and Belgian activators spot them ("LH
+     * BEL 002"); ARLHS just before the number so Spothole reads it. GMA's award: 4 stations, within 1000 m */
+    {'L', "LH",     "lh",     "Lighthouses\nOn The Air", "LIGHT", 4, true, false, "LH ARLHS"},
 };
-#define PROG_LETTERS "SPBHFTCM"
+#define PROG_LETTERS "SPBHFTCML"
 
 /* The programme of a letter; SOTA for one that is none (a damaged file): DX cluster spots only, never a site's */
 static const prog_t *prog_of(char p) {
@@ -203,6 +207,7 @@ static lv_color_t prog_color(char p) {
         case 'T': return lv_color_mix(TC(warn), TC(err), LV_OPA_50);   /* orange */
         case 'C': return TC(text_soft);                                 /* stone */
         case 'M': return lv_color_mix(TC(ok), TC(vfo), LV_OPA_50);     /* teal */
+        case 'L': return TC(err);                                       /* the red of the bands */
         default: return TC(text);
     }
 }
@@ -215,7 +220,7 @@ static const struct {
 } tiles[] = {
     {SCR_LOG, 0, "LOG", "log", "Activation\nlog"},
     {SCR_PROG, 'S'}, {SCR_PROG, 'P'}, {SCR_PROG, 'B'}, {SCR_PROG, 'H'}, {SCR_PROG, 'F'},
-    {SCR_PROG, 'T'}, {SCR_PROG, 'C'}, {SCR_PROG, 'M'},
+    {SCR_PROG, 'T'}, {SCR_PROG, 'C'}, {SCR_PROG, 'M'}, {SCR_PROG, 'L'},
     {SCR_BANDS, 0, "BANDS", "bands", "Activity\nRBN, beacon"},
 };
 #define HOME_TILES ((int)(sizeof(tiles) / sizeof(tiles[0])))
@@ -338,6 +343,16 @@ static bool ref_ok(const char *r) {
         return false;
     for (; *r; r++)
         if (!isalnum((unsigned char)*r) && *r != '/' && *r != '-')
+            return false;
+    return true;
+}
+
+/* A reference for a DX cluster comment, not a command line: a lighthouse's has a space (BEL 002) */
+static bool ref_text_ok(const char *r) {
+    if (!r[0] || r[0] == ' ')
+        return false;
+    for (; *r; r++)
+        if (!isalnum((unsigned char)*r) && *r != '/' && *r != '-' && *r != ' ')
             return false;
     return true;
 }
@@ -1497,7 +1512,7 @@ static bool activation_start(void) {
     gmtime_r(&st.start, &tm);
     snprintf(name, sizeof(name), "%s", st.ref.ref);
     for (p = name; *p; p++)
-        if (*p == '/')
+        if (*p == '/' || *p == ' ')   /* the file name goes on a command line (the QRZ upload) */
             *p = '_';
     mkdir(FIELD_DIR, 0755);
     mkdir(LOGS_DIR, 0755);
@@ -1564,7 +1579,7 @@ static void spot_done(const char *line) {
 
 static void spot_to(bool cluster) {
     /* the screen's programme: a reference left from another one (no tower near, no list yet) is not spotted */
-    if (!st.have_ref || st.ref.type != st.prog || !ref_ok(st.ref.ref)) {
+    if (!st.have_ref || st.ref.type != st.prog || !ref_text_ok(st.ref.ref)) {
         msg_update_text_fmt("Choose the %s reference first", prog_name());
         return;
     }
@@ -1579,7 +1594,8 @@ static void spot_to(bool cluster) {
          * ("WCA <ref>", as its groups ask) and MOTA have no spot API of their own */
         char        comment[48];
         const char *p = prog_name_of(st.ref.type);
-        snprintf(comment, sizeof(comment), "%s %s %s", p, st.ref.ref, adif_mode());
+        snprintf(comment, sizeof(comment), "%s %s %s", prog_of(st.ref.type)->spot ? prog_of(st.ref.type)->spot : p,
+                 st.ref.ref, adif_mode());
         if (cluster_client_send_spot(cparam_i_get(cfg_fg_freq) / 1000.0, my_call(), comment))
             msg_update_text_fmt("%s spot on the DX clusters: %s %.1f %s", p, st.ref.ref,
                                 cparam_i_get(cfg_fg_freq) / 1000.0, adif_mode());
@@ -1795,30 +1811,59 @@ static bool wca_pad(const char *ref, char *out, size_t size) {
 
 static bool log_ok(void) {
     const char *v = textarea_window_get();
-    char        call[32] = "", w[3][16] = {"", "", ""}, r1[8] = "", r2[8] = "";
+    char        text[160], *words[8], *save, call[32] = "", r1[8] = "", r2[8] = "";
+    int         nw = 0, n_rst = 0;
+    bool        lh_word = false;    /* the word before was LH or ARLHS: a lighthouse's number follows */
     field_qso_t more = {0};
-    int         n_rst = 0;
 
+    snprintf(text, sizeof(text), "%s", v ? v : "");
+    for (char *t = strtok_r(text, " \t", &save); t && nw < 8; t = strtok_r(NULL, " \t", &save)) {   /* not strtok: other threads use it */
+        for (char *p = t; *p; p++) *p = toupper((unsigned char)*p);
+        words[nw++] = t;
+    }
     /* "CALL [rst rcvd [rst sent]] [their reference]": a word shaped as a reference is theirs */
-    if (v && sscanf(v, "%31s %15s %15s %15s", call, w[0], w[1], w[2]) >= 1) {
-        for (int i = 0; i < 3 && w[i][0]; i++) {
-            for (char *p = w[i]; *p; p++) *p = toupper((unsigned char)*p);
-            /* Castle to castle, their number sent without its zeros: "I-12" is no report and no park, it is
-             * I-00012; "DL-1156" has a park's shape, and is the castle DL-01156 only when the list has no such
-             * park and has that castle */
-            char        padded[16];
+    if (nw >= 1) {
+        snprintf(call, sizeof(call), "%s", words[0]);
+        for (int i = 1; i < nw; i++) {
+            char        w[16], two[40], lh[16], padded[16];
             field_ref_t r;
-            if (st.ref.type == 'C' && wca_pad(w[i], padded, sizeof(padded)) && field_ref_prog(padded) == 'C'
-                && (field_ref_prog(w[i]) == 0
-                    || (field_ref_prog(w[i]) == 'P' && !field_refs_find(REFS_PATH, w[i], &r)
-                        && field_refs_find(REFS_PATH, padded, &r) && r.type == 'C')))
-                snprintf(w[i], sizeof(w[i]), "%s", padded);
-            if (field_ref_prog(w[i]))
-                snprintf(more.their_ref, sizeof(more.their_ref), "%s", w[i]);
+            char        prog;
+
+            snprintf(w, sizeof(w), "%s", words[i]);
+            if (!strcmp(w, "LH") || !strcmp(w, "ARLHS")) {
+                lh_word = true;
+                continue;
+            }
+            snprintf(two, sizeof(two), "%s %s", w, i + 1 < nw ? words[i + 1] : "");
+            prog = field_ref_prog(w);
+            const char *num = i + 1 < nw ? words[i + 1] : "";
+            bool        no_rst = num[0] == '0' || strlen(num) > 3 || (num[0] && isalpha((unsigned char)num[strlen(num) - 1]));
+            if (i + 1 < nw && strlen(w) == 3 && field_ref_lh(two, lh, sizeof(lh))
+                && (lh_word || (st.ref.type == 'L' && no_rst) || (field_refs_find(REFS_PATH, lh, &r) && r.type == 'L'))) {
+                /* A lighthouse in two words, BEL 002: after LH or ARLHS, in a lighthouse activation when the number
+                 * can be no report (007, 1286, 079H), or when the list has it */
+                snprintf(w, sizeof(w), "%s", lh);
+                i++;
+            } else if ((prog == 'L' || ((st.ref.type == 'L' || lh_word) && (prog == 0 || prog == 'P')))
+                       && field_ref_lh(w, lh, sizeof(lh))) {
+                /* BEL-002 as the list writes it, BEL 002; during a lighthouse activation also BEL002, BEL-2 */
+                snprintf(w, sizeof(w), "%s", lh);
+            } else if (st.ref.type == 'C' && wca_pad(w, padded, sizeof(padded)) && field_ref_prog(padded) == 'C'
+                       && (prog == 0
+                           || (prog == 'P' && !field_refs_find(REFS_PATH, w, &r)
+                               && field_refs_find(REFS_PATH, padded, &r) && r.type == 'C'))) {
+                /* Castle to castle, their number sent without its zeros: "I-12" is no report and no park, it
+                 * is I-00012; "DL-1156" has a park's shape, and is the castle DL-01156 only when the list has
+                 * no such park and has that castle */
+                snprintf(w, sizeof(w), "%s", padded);
+            }
+            lh_word = false;
+            if (field_ref_prog(w))
+                snprintf(more.their_ref, sizeof(more.their_ref), "%s", w);
             else if (n_rst == 0)
-                snprintf(r1, sizeof(r1), "%s", w[i]), n_rst++;
+                snprintf(r1, sizeof(r1), "%s", w), n_rst++;
             else if (n_rst == 1)
-                snprintf(r2, sizeof(r2), "%s", w[i]), n_rst++;
+                snprintf(r2, sizeof(r2), "%s", w), n_rst++;
         }
         if (!log_add(call, r2, r1, &more))
             msg_update_text_fmt("Log: \"%s\" is not a callsign", call);
@@ -1852,6 +1897,11 @@ static bool set_ref(const char *in) {
     if (st.active || !ref[0])
         return false;
     bool found = field_refs_find(REFS_PATH, ref, &r);
+    char lh[16];
+    if (!found && field_ref_lh(ref, lh, sizeof(lh)) && strcmp(lh, ref) && field_refs_find(REFS_PATH, lh, &r)) {
+        snprintf(ref, sizeof(ref), "%s", lh);   /* a lighthouse as the list writes it: BEL-2 is BEL 002 */
+        found = true;
+    }
     if (!found) {
         /* WCA: a castle's number may come without its zeros ("DL-1156" is DL-01156), when it is not another
          * programme's reference. The castle list lags the WCA's (new castles are activated before they are in
@@ -1936,13 +1986,13 @@ static void update_done(const char *line) {
     }
     update_text[0] = 0;
     if (!strncmp(line, "ok", 2)) {
-        int         p = 0, s = 0, b = 0, h = 0, w = 0, t = 0, c = 0, m = 0;
+        int         p = 0, s = 0, b = 0, h = 0, w = 0, t = 0, c = 0, m = 0, l = 0;
         const char *partial = strstr(line, " partial ");
 
-        /* x6100-field's LISTS order */
-        sscanf(line, "ok %d %d %d %d %d %d %d %d", &p, &s, &b, &h, &w, &t, &c, &m);
-        msg_update_text_fmt("Lists: %d parks, %d summits, %d bunkers, %d HOTA, %d WWFF, %d towers, %d castles, %d mills",
-                            p, s, b, h, w, t, c, m);
+        /* x6100-field's LISTS order; named by programme: the message holds 127 characters */
+        sscanf(line, "ok %d %d %d %d %d %d %d %d %d", &p, &s, &b, &h, &w, &t, &c, &m, &l);
+        msg_update_text_fmt("Lists: %d POTA, %d SOTA, %d WWBOTA, %d HOTA, %d WWFF, %d TOTA, %d WCA, %d MOTA, %d LH",
+                            p, s, b, h, w, t, c, m, l);
         if (partial)    /* a list that could not be fetched kept its previous entries */
             msg_schedule_text_ms(6000, "Not updated, kept as it was: %s", partial + 9);
         near_lookup(true);

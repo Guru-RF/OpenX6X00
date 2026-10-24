@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# Field Ops (POTA/SOTA/WWBOTA/HOTA/WWFF/TOTA/WCA/MOTA) helper for the GUI and the web server.
+# Field Ops (POTA/SOTA/WWBOTA/HOTA/WWFF/TOTA/WCA/MOTA/LH) helper for the GUI and the web server.
 # Every command prints one line on stdout: "ok ..." or "error <reason>", exit 0/1.
 #
 #   x6100-field update [--skip HF]          the lists -> <dir>/refs.tsv,
-#                                           "ok <parks> <summits> <bunkers> <hota> <wwff> <towers> <castles> <mills>";
+#                                           "ok <parks> <summits> <bunkers> <hota> <wwff> <towers> <castles> <mills> <lights>";
 #                                           --skip: lists not downloaded, kept as they are
 #   x6100-field pota-spot --call C --freq-khz F --ref R --mode M [--comments T]
 #   x6100-field wwbota-spot --call C --freq-khz F --ref R --mode M [--id ID] [--qrt]   "ok <spot id>"
@@ -12,8 +12,9 @@
 #   x6100-field qrz-upload FILE.adi         "ok <sent> <dup>"
 #
 # <dir> is /mnt/field (env X6100_FIELD_DIR). refs.tsv, tab separated, no header:
-#   P ref name lat lon "" ""     S ref name lat lon alt_m points     B/H/F/T/C/M ref name lat lon "" ""
-#   T, C and M with lat and lon empty when their list has no position for one: found by its reference only
+#   P ref name lat lon "" ""     S ref name lat lon alt_m points     B/H/F/T/C/M/L ref name lat lon "" ""
+#   T, C, M and L with lat and lon empty when their list has no position for one: found by its reference only;
+#   L's reference has a space (BEL 002), as the lighthouses' ARLHS numbers are written
 # refs.etag keeps the lists' ETags: an unchanged list is not downloaded again.
 # While updating, .update.progress has one line for the GUI: "<list n> <lists> <bytes> <total> <retry> <name>"
 # (total 0: not known). A stalled download goes on from the byte reached (HTTP Range) where the server allows it.
@@ -46,6 +47,7 @@ TOTA_CSV = "https://www.rozhledny.eu/servis/generate_csv.php?ref=ALL&filter=all"
 # list is a spreadsheet (.ods/.xls) with no positions in most countries
 WCA_CSV = "https://docs.google.com/spreadsheets/d/16-GsekTXYlwdZy9Ho5vaZjKAON4WtCdzRiTSMMDtUJg/export?format=csv&gid=0"
 MOTA_CSV = "https://www.gma.rocks/download/mills.csv"   # data: GMA (gma.rocks), Mills On The Air
+LH_CSV = "https://www.gma.rocks/download/lighthouse.csv"   # data: GMA (gma.rocks), the lighthouses with their ARLHS numbers
 WWBOTA_API = os.environ.get("X6100_WWBOTA_API", "https://api.wwbota.org")
 HOTA_API = os.environ.get("X6100_HOTA_API", "https://cqhota.app/api/v1")
 POTA_API = os.environ.get("X6100_POTA_API", "https://api.pota.app")
@@ -150,6 +152,7 @@ def write_refs(stream, out, kind, ref, name, lat, lon, keep=lambda row: True):
 TOTA_REF = re.compile(r"[A-Z0-9]{2,4}R-\d{4}")       # OKR-0150, DLR-0163, 9MR-0101, K1R-0029
 WCA_REF = re.compile(r"[A-Z0-9]{1,3}-\d{5}")          # DL-01156, ON-00001, I-14619, 3D2-00001
 MOTA_REF = re.compile(r"X\d{5}")                       # X42018
+LH_REF = re.compile(r"([A-Z]{3})[ -]?(\d{1,4})([A-Z]?)")    # BEL 002, BEL-002, USA 1286, AUS 079H: written "BEL 002"
 JUNK = {"test", "bitte loeschen", "test-m\u00fchle"}    # test rows in the published lists
 
 
@@ -246,6 +249,32 @@ def unmangle(s):
         return s
 
 
+def write_lighthouses(stream, out):
+    """LH: GMA's lighthouses, a title line ("created: ..."), then ILLW,WLOTA,ARLHS,"Local LH",DXCC,IOTA,WFF,GIA,Name,
+    Longitude,Latitude,... (longitude first). Those with an ARLHS number, written as GMA does: "BEL 002" """
+    lines = text_lines(stream)
+    lines.readline()
+    refs = {}   # a reference listed twice: the row with a position (NET 004's first has none)
+    for row in csv.DictReader(lines):
+        try:
+            m = LH_REF.fullmatch(clean(row.get("ARLHS") or "").upper())
+            if not m:
+                continue
+            ref = f"{m[1]} {int(m[2]):03d}{m[3]}"
+            pos = position_or_none(row["Latitude"], row["Longitude"])
+            if ref in refs and (pos == "\t" or refs[ref][1] != "\t"):
+                continue
+            name = unmangle(row.get("Name") or "")
+            for a, b in (("&#039;", "'"), ("&quot;", '"'), ("&lt;", "<"), ("&gt;", ">"), ("&amp;", "&")):
+                name = name.replace(a, b)
+            refs[ref] = (place(name, ""), pos)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            continue
+    for ref, (name, pos) in refs.items():
+        out.write(f"L\t{ref}\t{name}\t{pos}\t\t\n")
+    return len(refs)
+
+
 def write_mills(stream, out):
     """MOTA: a title line ("created: ..."), then Reference,Name,Type,Function,City,State,District,Latitude,Longitude,..."""
     lines = text_lines(stream)
@@ -265,7 +294,8 @@ def write_mills(stream, out):
     return n
 
 
-PROGS = {"P": "POTA", "S": "SOTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA"}
+PROGS = {"P": "POTA", "S": "SOTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA",
+         "L": "LH"}
 # The answer's counts come in this order: new lists go at the end
 LISTS = (("P", "parks", lambda: POTA_CSV, write_parks, False),
          ("S", "summits", lambda: SOTA_CSV, lambda s, o: write_summits(s, o, date.today()), False),
@@ -276,7 +306,8 @@ LISTS = (("P", "parks", lambda: POTA_CSV, write_parks, False),
           lambda s, o: write_refs(s, o, "F", "reference", "name", "latitude", "longitude", lambda r: r.get("status") == "active"), True),
          ("T", "towers", lambda: TOTA_CSV, write_towers, True),
          ("C", "castles", lambda: WCA_CSV, write_castles, True),
-         ("M", "mills", lambda: MOTA_CSV, write_mills, True))
+         ("M", "mills", lambda: MOTA_CSV, write_mills, True),
+         ("L", "lights", lambda: LH_CSV, write_lighthouses, True))
 
 
 def keep_old(path, kind, out):

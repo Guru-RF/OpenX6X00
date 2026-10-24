@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 path=Path(__file__).resolve().parents[3] / 'webserver/src/x6100_webserver/apps.py'
 tree=ast.parse(path.read_text())
-needed={'field_path','adif_split','adif_set','adif_del','edit_qso','adif_fields','log_records','api_error','put_log_qso','rec_id','set_ref','ref_prog'}
+needed={'field_path','adif_split','adif_set','adif_del','edit_qso','adif_fields','log_records','api_error','put_log_qso','rec_id','set_ref','ref_prog','ref_norm'}
 selected=[]
 for node in tree.body:
     if isinstance(node,ast.FunctionDef) and node.name in needed:
@@ -51,7 +51,9 @@ with tempfile.TemporaryDirectory(prefix='x6log-') as td:
     # The other station's reference, any programme, written as the radio writes it (TOTA, WCA, MOTA added)
     for typed,want in (('OKR-0150',{'sig':'TOTA','sig_info':'OKR-0150'}),('DL-01156',{'sig':'WCA','sig_info':'DL-01156'}),
                        ('X42018',{'sig':'MOTA','sig_info':'X42018'}),('US-1234',{'sig':'POTA','sig_info':'US-1234','pota_ref':'US-1234'}),
-                       ('I/LO-123',{'sota_ref':'I/LO-123'})):
+                       ('I/LO-123',{'sota_ref':'I/LO-123'}),('BEL-002',{'sig':'ARLHS','sig_info':'BEL 002'}),
+                       ('BEL 002',{'sig':'ARLHS','sig_info':'BEL 002'}),('SCO-0144',{'sig':'ARLHS','sig_info':'SCO 144'}),
+                       ('LH BEL 2',{'sig':'ARLHS','sig_info':'BEL 002'}),('OKR-0150',{'sig':'TOTA','sig_info':'OKR-0150'})):
         bottle.request.query={'id':ns['rec_id'](ns['log_records']('day.adi')[0])}
         bottle.request.json={'ref':typed}
         ns['put_log_qso']('day.adi',0)
