@@ -534,7 +534,7 @@ def set_tci():
 
 field_lock = threading.Lock()
 field_update = {"running": False, "result": ""}
-field_refs_counts = (None, {})   # (mtime, size), {"P": parks, "S": summits, "B": bunkers, "H": HOTA, "F": WWFF}
+field_refs_counts = (None, {})   # (mtime, size), {"P": parks, "S": summits, "B": bunkers, "H": HOTA, "F": WWFF, "T": towers, "C": castles, "M": mills}
 
 
 def field_path(*names):
@@ -617,7 +617,7 @@ def field_refs():
     c = field_refs_counts[1]
     return {"date": time.strftime("%Y-%m-%d %H:%M", time.localtime(st.st_mtime)), "size": fmt_size(st.st_size),
             "parks": c.get(b"P", 0), "summits": c.get(b"S", 0), "bunkers": c.get(b"B", 0), "hota": c.get(b"H", 0),
-            "wwff": c.get(b"F", 0)}
+            "wwff": c.get(b"F", 0), "towers": c.get(b"T", 0), "castles": c.get(b"C", 0), "mills": c.get(b"M", 0)}
 
 
 def field_logs():
@@ -638,7 +638,8 @@ def field_logs():
 def run_field_update():
     env = dict(os.environ, X6100_FIELD_DIR=settings.FIELD_DIR, X6100_CALL=read_callsign())
     try:
-        r = subprocess.run([settings.FIELD_CMD, "update"], capture_output=True, text=True, timeout=1800, env=env)
+        # the helper gives up after 2700 s (its RUN_LIMIT): a little longer here, to hear why
+        r = subprocess.run([settings.FIELD_CMD, "update"], capture_output=True, text=True, timeout=2760, env=env)
         lines = r.stdout.strip().splitlines()
         result = lines[-1] if lines else f"error exit code {r.returncode}"
     except (OSError, subprocess.SubprocessError) as e:

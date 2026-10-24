@@ -1301,11 +1301,11 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 | **Activation** | **Bands** |
 | ![Activation](screenshots/field_activation.png) | ![Band overview](screenshots/field_bands.png) |
 
-Home: a row of seven tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF
-and Bands. Six and a half fit on the screen (five and a half with VISION):
-the row scrolls along as the MFK moves, and Bands is one MFK step left of
-LOG. A press opens. On the PC a drag scrolls the row and a click opens a
-tile.
+Home: a row of ten tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
+TOTA, WCA, MOTA and Bands. Six and a half fit on the screen (five and a half
+with VISION): the row scrolls along as the MFK moves, and Bands is one MFK
+step left of LOG. A press opens. On the PC a drag scrolls the row and a click
+opens a tile.
 
 SOTA / POTA, before the activation:
 
@@ -1319,13 +1319,15 @@ SOTA / POTA, before the activation:
 - Update list (page 2) downloads the parks (POTA) and summits (SOTA); then it
   works offline. Also from the web configurator's Field Ops page. The radio
   says "Downloading the reference lists: up to 10 minutes on a slow WiFi",
-  then each list with its progress, "Updating <list> (1/4): x.x / y.y MB",
+  then each list with its progress, "Updating POTA (1/8): x.x / y.y MB" up
+  to MOTA (8/8),
   and "reading it..." once it is downloaded. A download that stops goes on
   from where it stopped, up to 5 tries ("retry 2 of 5"). At the end:
-  "Reference list: N parks, N summits, N bunkers, N HOTA, N WWFF". A list
+  "Lists: N parks, N summits, N bunkers, N HOTA, N WWFF, N towers, N castles,
+  N mills". A list
   that could not be fetched keeps its previous entries and is named after:
   "Not updated, kept as it was: <list>: <reason>". A run that hangs (a
-  connection that never answers) ends after 30 minutes with "timed out".
+  connection that never answers) ends after 45 minutes with "timed out".
 
   ![Field Ops while the reference lists download](screenshots/fieldops_list_progress.png)
 - Start begins the activation and its ADIF log.
@@ -1406,8 +1408,9 @@ Upload QRZ, QRZ: <call>, Back.
   add it on the web page, Field Ops", or "QRZ: HTTP <code> after N sent" when the service itself failed.
 
 
-Start and Spot also post the spot on the DX cluster (`POTA IT-0123 SSB`,
-`SOTA I/LO-123 CW`); the QSY spots don't.
+Spot also posts the spot on the DX cluster (`POTA IT-0123 SSB`, `SOTA
+I/LO-123 CW`), and so does Start in POTA, WWBOTA, HOTA and WWFF; the QSY
+spots don't.
 
 WWBOTA (World Wide Bunkers On The Air) and HOTA (History On The Air) work
 like POTA, with their own tile.
@@ -1439,6 +1442,45 @@ WWFF (World Wide Flora and Fauna) has its own tile too, the blue leaf.
   asked to the Spotline team, pasted in the web configurator's Field Ops
   page. Without the key WWFF spots go to the DX cluster only, and the
   message says so.
+
+TOTA (Towers On The Air), WCA (World Castles Award) and MOTA (Mills On The
+Air) have their own tiles: the orange lookout tower, the grey castle and the
+teal windmill.
+
+- Update list downloads their lists with the others: the towers from the
+  TOTA site (wwtota.com, its tower list), the castles from the WCA list as
+  ON4VT keeps it with positions, the mills from GMA (gma.rocks). The list
+  headings say TOWER, CASTLE and MILL.
+- A tower is `OKR-0150`, `DLR-0163` or `ONR-0323`, a castle `ON-00001`,
+  `DL-01156` or `I-14619`, a mill `X42018`.
+- Most castles have no position in the list: those of Belgium, Germany,
+  England, the Czech Republic and Sweden have one, those of Italy, France
+  and Spain don't. A castle with no position is not among the nearest:
+  Ref... (page 2) takes any castle by its number, `DL-1156` as `DL-01156`. A
+  number the list doesn't have yet (new castles are activated before the
+  list has them) is taken as it is: "not in the castle list, taken as it
+  is".
+- The activation screen counts what a valid activation needs: `QSOs / 13`
+  in TOTA (13 on HF; on VHF 3 are enough, which the count doesn't tell
+  apart), `QSOs / 50` in WCA, `CALLS / 4` in MOTA (four different stations;
+  33 QSOs when the radio runs on mains or car power). Operate within 200 m
+  of the tower, within 1 km of the castle, within 1 km of the mill and in
+  sight of it.
+- The log has `MY_SIG TOTA`, `MY_SIG WCA` or `MY_SIG MOTA` and `MY_SIG_INFO`
+  with the reference. A QSO with another tower, castle or mill (its
+  reference typed after the call) logs theirs as `SIG` and `SIG_INFO`, and
+  the log shows T2T, C2C or M2M. During a WCA activation a castle sent
+  without its zeros (`DL-1156`) is logged as `DL-01156` when the list has
+  that castle and no such park.
+- Spots go to the DX cluster only, as in SOTA: none of the three has a spot
+  service open to the radio. Spot posts `TOTA OKR-0150 SSB`, `WCA DL-01156
+  CW` or `MOTA X42018 SSB`. Nothing is spotted by itself: not at the start,
+  not after a QSY, no QRT at End. The TOTA Cluster on wwtota.com takes spots
+  from its own app and site only, and passes them on to the DX cluster in
+  the same form.
+- The logs go to wwtota.com (Upload, once registered), to the WCA by email
+  (wcalog@qth.cz) and to GMA (ADIF upload) for MOTA. Download them from the
+  web configurator's Field Ops page.
 
 ### Bands
 

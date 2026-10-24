@@ -2,7 +2,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
  *  Xiegu X6100 LVGL GUI - Field Ops: the activation log, one ADIF file per activation
- *  (MY_SOTA_REF, MY_SIG POTA / MY_POTA_REF, MY_SIG WWBOTA or HOTA / MY_SIG_INFO)
+ *  (MY_SOTA_REF, MY_SIG POTA / MY_POTA_REF, MY_SIG WWBOTA, HOTA, WWFF, TOTA, WCA or MOTA / MY_SIG_INFO)
  */
 
 #pragma once
@@ -23,21 +23,25 @@ typedef struct {
     char    mode[8];    /* ADIF: CW, SSB, AM, FM, FT8 */
     char    rst_s[4], rst_r[4];
     char    name[48], qth[48], grid[8], country[32];   /* the other station, from a logbook lookup; "" unknown */
-    char    their_ref[16];  /* the other station's park, summit, bunker or hill: park to park, summit to summit; "" none */
+    char    their_ref[16];  /* the other station's reference: park to park, summit to summit...; "" none */
 } field_qso_t;
 
 typedef struct {
     char call[16];
     char grid[8];
-    char prog;          /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA */
+    char prog;          /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA */
     char ref[16];
 } field_station_t;
 
 /* The programme of a reference by its shape: 'S' SOTA (I/LO-123), 'P' POTA (US-1234), 'F' WWFF (DLFF-0123),
- * 'B' WWBOTA (B/G-0070), 'H' HOTA (RO-H0390); 0 when it is none of them */
+ * 'B' WWBOTA (B/G-0070), 'H' HOTA (RO-H0390), 'T' TOTA (OKR-0150), 'C' WCA (DL-01156), 'M' MOTA (X42018);
+ * 0 when it is none of them */
 char field_ref_prog(const char *ref);
 
-/* "S2S", "P2P", "F2F", "B2B", "H2H" for a QSO with their reference, "" without */
+/* The ADIF SIG of a programme ("POTA", "WWBOTA"...), NULL for SOTA (its own SOTA_REF fields) and unknown letters */
+const char *field_prog_sig(char prog);
+
+/* "S2S", "P2P", "F2F", "B2B", "H2H", "T2T", "C2C", "M2M" for a QSO with their reference, "" without */
 const char *field_qso_tag(const field_qso_t *q);
 
 /* ADIF band ("20m"), "" outside the amateur bands */

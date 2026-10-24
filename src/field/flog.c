@@ -83,27 +83,24 @@ size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const fie
     n = field(buf, size, n, "STATION_CALLSIGN", st->call);
     n = field(buf, size, n, "OPERATOR", st->call);
     n = field(buf, size, n, "MY_GRIDSQUARE", st->grid);
+    /* TOTA, WCA and MOTA have no ADIF field of their own: MY_SIG / MY_SIG_INFO, as their rules and GMA ask */
     if (st->prog == 'S') {
         n = field(buf, size, n, "MY_SOTA_REF", st->ref);
-    } else if (st->prog == 'P') {
-        n = field(buf, size, n, "MY_SIG", "POTA");
+    } else if (field_prog_sig(st->prog)) {
+        n = field(buf, size, n, "MY_SIG", field_prog_sig(st->prog));
         n = field(buf, size, n, "MY_SIG_INFO", st->ref);
-        n = field(buf, size, n, "MY_POTA_REF", st->ref);
-    } else if (st->prog == 'B' || st->prog == 'H' || st->prog == 'F') {
-        n = field(buf, size, n, "MY_SIG", st->prog == 'B' ? "WWBOTA" : st->prog == 'H' ? "HOTA" : "WWFF");
-        n = field(buf, size, n, "MY_SIG_INFO", st->ref);
+        if (st->prog == 'P')
+            n = field(buf, size, n, "MY_POTA_REF", st->ref);
     }
-    /* The other station's reference: park to park, summit to summit */
+    /* The other station's reference: park to park, summit to summit... */
     char their = field_ref_prog(q->their_ref);
     if (their == 'S') {
         n = field(buf, size, n, "SOTA_REF", q->their_ref);
-    } else if (their == 'P') {
-        n = field(buf, size, n, "SIG", "POTA");
+    } else if (field_prog_sig(their)) {
+        n = field(buf, size, n, "SIG", field_prog_sig(their));
         n = field(buf, size, n, "SIG_INFO", q->their_ref);
-        n = field(buf, size, n, "POTA_REF", q->their_ref);
-    } else if (their) {
-        n = field(buf, size, n, "SIG", their == 'B' ? "WWBOTA" : their == 'H' ? "HOTA" : "WWFF");
-        n = field(buf, size, n, "SIG_INFO", q->their_ref);
+        if (their == 'P')
+            n = field(buf, size, n, "POTA_REF", q->their_ref);
     }
     if (n < size)
         n += (size_t)snprintf(buf + n, size - n, "<eor>\n");
@@ -262,24 +259,55 @@ int field_log_read(const char *path, field_qso_t *out, int max) {
     return n;
 }
 
+/* n digits from p, and nothing after them */
+static bool digits_end(const char *p, size_t n) {
+    for (size_t i = 0; i < n; i++)
+        if (p[i] < '0' || p[i] > '9')
+            return false;
+    return p[n] == 0;
+}
+
 char field_ref_prog(const char *ref) {
     size_t      n = ref ? strlen(ref) : 0;
     const char *dash = n ? strchr(ref, '-') : NULL;
 
+    if (n == 6 && ref[0] == 'X' && digits_end(ref + 1, 5))               /* X42018 */
+        return 'M';
     if (n < 5 || n > 15 || !dash)
         return 0;
     for (const char *p = ref; *p; p++)
         if (!((*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '/' || *p == '-'))
             return 0;
+    size_t pre = (size_t)(dash - ref);
     if (ref[0] == 'B' && ref[1] == '/')                                   /* B/G-0070 */
         return 'B';
     if (strchr(ref, '/'))                                                 /* I/LO-123, W7W/KG-001 */
         return 'S';
-    if (dash[1] == 'H' && dash - ref == 2)                                /* RO-H0390 */
+    if (dash[1] == 'H' && pre == 2)                                       /* RO-H0390 */
         return 'H';
-    if (dash - ref >= 3 && dash[-1] == 'F' && dash[-2] == 'F')            /* DLFF-0123 */
+    if (pre >= 3 && dash[-1] == 'F' && dash[-2] == 'F')                   /* DLFF-0123 */
         return 'F';
-    return 'P';                                                           /* US-1234, IT-0123 */
+    /* OKR-0150, 9MR-0101, K1R-0029: 2 to 4 before the R, which no POTA prefix has (KR-1308 is a park) */
+    if (pre >= 3 && pre <= 5 && dash[-1] == 'R' && digits_end(dash + 1, 4))
+        return 'T';
+    /* DL-01156, I-14619, 3D2-00001: five digits after a prefix of 1 to 3. POTA's five-digit parks (FR-10234,
+     * US-12345) never start with 0 and have no 1-letter prefix; the WCA's only castles past 09999 are Italy's */
+    if (pre >= 1 && pre <= 3 && digits_end(dash + 1, 5) && (dash[1] == '0' || (pre == 1 && ref[0] == 'I')))
+        return 'C';
+    return 'P';                                                           /* US-1234, IT-0123, FR-10234 */
+}
+
+const char *field_prog_sig(char prog) {
+    switch (prog) {
+        case 'P': return "POTA";
+        case 'B': return "WWBOTA";
+        case 'H': return "HOTA";
+        case 'F': return "WWFF";
+        case 'T': return "TOTA";
+        case 'C': return "WCA";
+        case 'M': return "MOTA";
+        default:  return NULL;
+    }
 }
 
 const char *field_qso_tag(const field_qso_t *q) {
@@ -289,6 +317,9 @@ const char *field_qso_tag(const field_qso_t *q) {
         case 'F': return "F2F";
         case 'B': return "B2B";
         case 'H': return "H2H";
+        case 'T': return "T2T";
+        case 'C': return "C2C";
+        case 'M': return "M2M";
         default:  return "";
     }
 }

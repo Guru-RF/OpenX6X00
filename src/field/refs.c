@@ -1,7 +1,7 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  Xiegu X6100 LVGL GUI - Field Ops: parks and summits near a position
+ *  Xiegu X6100 LVGL GUI - Field Ops: references near a position
  */
 
 #include "refs.h"
@@ -57,8 +57,8 @@ bool field_ref_parse(char *line, field_ref_t *r) {
     r->type = f[0][0];
     snprintf(r->ref, sizeof(r->ref), "%s", f[1]);
     ascii_fold(r->name, sizeof(r->name), f[2]);
-    r->lat    = atof(f[3]);
-    r->lon    = atof(f[4]);
+    r->lat    = f[3][0] ? atof(f[3]) : NAN;    /* a castle with no position in the list */
+    r->lon    = f[4][0] ? atof(f[4]) : NAN;
     r->alt_m  = n > 5 ? atoi(f[5]) : 0;
     r->points = n > 6 ? atoi(f[6]) : 0;
     r->km     = 0;
@@ -87,7 +87,7 @@ int field_refs_near(const char *path, char type, double lat, double lon, field_r
     while (read_line(f, line, sizeof(line))) {
         field_ref_t r;
 
-        if (line[0] != type || !field_ref_parse(line, &r))
+        if (line[0] != type || !field_ref_parse(line, &r) || isnan(r.lat) || isnan(r.lon))
             continue;
         r.km = km_between(lat, lon, r.lat, r.lon);
         if (n == max && r.km >= out[n - 1].km)
@@ -105,14 +105,19 @@ int field_refs_near(const char *path, char type, double lat, double lon, field_r
 }
 
 bool field_refs_find(const char *path, const char *ref, field_ref_t *out) {
-    FILE *f = fopen(path, "r");
-    char  line[512];
-    bool  found = false;
+    FILE  *f = fopen(path, "r");
+    char   line[512];
+    bool   found = false;
+    size_t n     = strlen(ref);
 
     if (!f)
         return false;
-    while (!found && read_line(f, line, sizeof(line)))
-        found = field_ref_parse(line, out) && !strcasecmp(out->ref, ref);
+    /* The reference column compared first, the line parsed only when it matches: it runs on the GUI thread,
+     * over the whole list (~400000 lines) when the reference is not in it */
+    while (!found && read_line(f, line, sizeof(line))) {
+        if (line[0] && line[1] == '\t' && !strncasecmp(line + 2, ref, n) && line[2 + n] == '\t')
+            found = field_ref_parse(line, out) && !strcasecmp(out->ref, ref);
+    }
     fclose(f);
     return found;
 }
