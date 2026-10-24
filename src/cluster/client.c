@@ -306,14 +306,18 @@ static bool prefix_ok(const char *p, size_t n) {
     return letter;
 }
 
-/* US-1234, IT-0123, K-12345 (not a WWFF IFF-0123) */
+/* US-1234, IT-0123, K-12345 (not a WWFF IFF-0123, a TOTA tower OKR-0150 or a WCA castle DL-01156, I-14619: the
+ * shapes Field Ops tells apart, src/field/flog.c field_ref_prog) */
 static bool park_ref(const char *w) {
     const char *dash = strchr(w, '-');
     if (!dash || strchr(w, '/')) return false;
     size_t n = (size_t)(dash - w);
     if (!prefix_ok(w, n) || (n >= 2 && strncmp(dash - 2, "FF", 2) == 0)) return false;
     size_t d = strlen(dash + 1);
-    return d >= 4 && d <= 5 && all_digits(dash + 1, d);
+    if (d < 4 || d > 5 || !all_digits(dash + 1, d)) return false;
+    if (n >= 3 && dash[-1] == 'R' && d == 4) return false;                                /* a tower */
+    if (n <= 3 && d == 5 && (dash[1] == '0' || (n == 1 && w[0] == 'I'))) return false;   /* a castle */
+    return true;
 }
 
 /* I/LO-123, W7W/KG-001, HB/BE-150 */

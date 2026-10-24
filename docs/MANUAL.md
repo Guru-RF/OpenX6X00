@@ -1235,7 +1235,8 @@ waterfall.
   Where: Settings > Cluster > CLUSTER FILTERS.
 - POTA / SOTA come from the spot comment: the word POTA or SOTA, a park
   reference (`US-1234`, `IT-0123`) or a summit reference (`I/LO-123`,
-  `W7W/KG-001`). WWFF references (`IFF-0123`) are not taken as POTA.
+  `W7W/KG-001`). WWFF references (`IFF-0123`), TOTA towers (`OKR-0150`) and
+  WCA castles (`DL-01156`) are not taken as POTA.
   WWBOTA: the word WWBOTA (or BOTA) or a bunker (`B/G-0070`); HOTA: the word
   HOTA or a HOTA reference (`RO-H0390`).
 - Besides the cluster, the radio reads the activator spots of pota.app,
