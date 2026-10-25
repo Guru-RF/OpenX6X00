@@ -51,3 +51,26 @@ build PC (tx-test-2026-10-24.txt, i2c-baseline-2026-10-24.txt) and /mnt/baseband
   revision (issue #3 reports I2C trouble on V1.1.8 radios, base-side), a TX hold-off after a band change
   in the GUI as a workaround, the external-voltage report, and Xiegu's stock V1.1.9 base (found unflashed
   on the radio's eMMC: OpenX6X00 already enables zoom and IF shift for it) as the low-risk alternative.
+
+## CESSB on Xiegu's newest bases, X6100 and X6200 (and the other TX options with it)
+
+Asked 2026-10-25; CESSB first, the rest when it comes for free. CESSB (controlled-envelope SSB, W9GR) gives
+SSB more average power without splatter: the SSB envelope is clipped and the overshoot the filtering brings
+back is controlled. Today only gdyuldin's patched X6100 base has it (x6100_base_patch rev 12 and up,
+`HW_CAP_CESSB`, Settings > TX CAL), and r13 is not usable on V1.1.8 radios (the section above). Xiegu's newest
+bases, X6100 V1.1.9 and X6200 1.0.8, have no CESSB, and the X6200's no TX filter either
+(src/hw/x6200/hw_x6200.c, `hw_caps()`).
+
+- **The idea**: do it in the GUI, on the voice path, so it works on both radios and any base. The mic is
+  recorded by Linux, processed and played into the transmitter the way voice messages, FT8, TCI and the
+  browser panel already transmit (`radio_set_modem()`; `AUDIO_PLAY_ON` mutes the base's mic inputs,
+  src/radio.c). Chain: TX filter (band-pass), compressor, CESSB (Hilbert to the complex envelope, clip,
+  filter, overshoot clip), then a fixed level into the base so its ALC stays out of it.
+- **To find out first**: whether both radios' mics (hand and built-in) can be recorded by Linux while the base
+  transmits from the modem input (voice messages record the mic: `AUDIO_PLAY_VOICE_REC`); the delay from mic
+  to RF (aim under 40 ms: PulseAudio's buffers) and a monitor that hears the processed audio; who keys (the
+  hand mic's PTT keys the base, the GUI must key the modem path instead), VOX; the X6200 base's compressor
+  off meanwhile; power and ALC (the X6200 holds power without ALC, `HW_CAP_TX_NO_ALC`); a measurement
+  (average power at the same peak, splatter seen on a second receiver).
+- **Maybe also, from the same chain**: r13's other TX options for the stock bases: TX filter (the X6200 has
+  none), compressor shape, FM pre-emphasis, a TX equaliser. The band output gain stays base-side.
