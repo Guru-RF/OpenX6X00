@@ -4,8 +4,13 @@
 # files kept so a bad version goes back by itself. Every command prints one line or one JSON object
 # on stdout, exit 0/1.
 #
-#   status                   {"running":..,"pending":..,"last":..}
-#   check                    {"running":..,"latest":..,"url":..,"newer":bool}   (GitHub Releases)
+#   status                   {"running":..,"pending":..,"last":..,"image":{..}}
+#   check                    {"running":..,"latest":..,"url":..,"newer":bool,"image_needed":bool,..}   (GitHub Releases)
+#
+# The card image: what an update cannot carry (the kernel, its modules, U-Boot) comes with a card image. Each
+# version says which image level it wants per radio (/usr/share/x6100/image-required); the image build stamps
+# its level into /etc/openx6x00-image. "check" reads the newer release's file and says whether it also wants a
+# newer card image; "status" says whether the running software does.
 #   download <url>           the bundle into /mnt/update, progress in /mnt/update/.progress
 #   install <file>           verify, stage, swap in, restart the GUI and the web server
 #   upgrade                  check, download and install the newer release
@@ -33,6 +38,9 @@ REPO = os.environ.get("X6100_UPDATE_REPO", "Guru-RF/OpenX6X00")
 API = f"https://api.github.com/repos/{REPO}/releases/latest"
 PUB = "/usr/share/x6100/update.pub"
 VERSION_FILE = "/usr/share/x6100/app-version"
+IMAGE_STAMP = "/etc/openx6x00-image"                 # written by the image build only, never by an update
+IMAGE_REQUIRED = "/usr/share/x6100/image-required"   # comes with each version
+RAW = f"https://raw.githubusercontent.com/{REPO}/v{{tag}}/rootfs/usr/share/x6100/image-required"
 STATE = "/var/lib/x6100-update"       # the journal and the previous files: on the root filesystem
 PREV = os.path.join(STATE, "prev")
 JOURNAL = os.path.join(STATE, "journal.json")
@@ -72,6 +80,40 @@ def radio_model():
             return "x6200" if b"xiegu,x6200" in f.read() else "x6100"
     except OSError:
         return "x6100"
+
+
+def image_required(text, model=None):
+    """(level, what the image brings) for this radio from an image-required file's text; (1, "") when it
+    has no line for it"""
+    model = model or radio_model()
+    for line in text.splitlines():
+        parts = line.split(None, 2)
+        if len(parts) >= 2 and not parts[0].startswith("#") and parts[0] == model and parts[1].isdigit():
+            return int(parts[1]), parts[2].strip() if len(parts) > 2 else ""
+    return 1, ""
+
+
+def image_level():
+    """The running card image's level: its stamp, 1 for the images before the stamp (up to v0.3.3)"""
+    try:
+        with open(IMAGE_STAMP) as f:
+            for line in f:
+                k, _, v = line.strip().partition("=")
+                if k == "level" and v.isdigit():
+                    return int(v)
+    except OSError:
+        pass
+    return 1
+
+
+def image_state():
+    try:
+        with open(IMAGE_REQUIRED) as f:
+            need, note = image_required(f.read())
+    except OSError:
+        need, note = 1, ""
+    have = image_level()
+    return {"level": have, "required": need, "needed": have < need, "note": note if have < need else ""}
 
 
 def bundle_for_this_radio(name):
@@ -147,6 +189,20 @@ def cmd_check(args):
     out["url"] = asset["browser_download_url"] if asset else None
     out["notes"] = (rel.get("body") or "")[:2000]
     out["newer"] = bool(tag and asset and vtuple(tag) > vtuple(out["running"]))
+    out["image_needed"], out["image_note"], out["image_url"] = False, "", None
+    if out["newer"]:
+        # Does the newer release also want a newer card image for this radio? Its own image-required file, at
+        # its tag; no answer is no warning
+        try:
+            with http(RAW.format(tag=tag), timeout=10) as r:
+                need, note = image_required(r.read(4096).decode(errors="replace"))
+            if need > image_level():
+                img = next((x for x in rel.get("assets", []) if str(x.get("name", "")).endswith("-sdcard.img.zip")
+                            and (("-x6200-" in str(x.get("name"))) == (radio_model() == "x6200"))), None)
+                out["image_needed"], out["image_note"] = True, note
+                out["image_url"] = img["browser_download_url"] if img else rel.get("html_url")
+        except (OSError, ValueError):
+            pass
     return out
 
 
@@ -405,7 +461,8 @@ def cmd_boot_check(args):
 
 def cmd_status(args):
     return {"running": running_version(), "pending": load(PENDING), "last": load(LAST),
-            "progress": open(PROGRESS).read().strip() if os.path.exists(PROGRESS) else ""}
+            "progress": open(PROGRESS).read().strip() if os.path.exists(PROGRESS) else "",
+            "image": image_state()}
 
 
 def take_lock():

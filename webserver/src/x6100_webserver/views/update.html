@@ -6,6 +6,7 @@
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-cpu"/></svg></span><div><h3>Version</h3><p>What runs now, and the latest release</p></div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Running</b></div><div class="dp-ctl" id="running">-</div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Latest release</b><span id="notes"></span></div><div class="dp-ctl" id="latest">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Card image</b><span id="imgnote">What the update cannot carry (the kernel, the WiFi driver) comes with a card image</span></div><div class="dp-ctl" id="image">-</div></div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
       <button type="button" id="check">Check</button>
@@ -51,6 +52,10 @@ var poll = null;
 
 var render = function(st) {
   $("#running").text("v" + (st.running || "?"));
+  if (st.image) {
+    $("#image").text(st.image.needed ? "a newer one is out" : "up to date");
+    if (st.image.needed) $("#imgnote").text("This version's card image brings " + st.image.note + ": write it from the releases page; settings and logs stay on the card");
+  }
   if (st.pending) $("#running").text("v" + st.running + " (installed, waiting for its first minute)");
   if (st.last) {
     var l = st.last, when = new Date(l.when * 1000).toLocaleString();
@@ -84,6 +89,11 @@ $("#check").on("click", function() {
     $("#notes").text((c.notes || "").split("\n")[0].slice(0, 120));
     $("#upgrade").toggle(!!c.newer);
     showStatus("#status", c.newer ? "v" + c.latest + " is available" : "Up to date");
+    if (c.newer && c.image_needed) {
+      /* the release also has a new card image for this radio: the update brings the rest */
+      $("#image").empty().append($("<a>").attr("href", c.image_url || "https://github.com/Guru-RF/OpenX6X00/releases/latest").text("v" + c.latest + " image"));
+      $("#imgnote").text("v" + c.latest + " also has a new card image, bringing " + (c.image_note || "more") + ". Install updates the radio software now; write the image when convenient (settings and logs stay)");
+    }
   }).fail(fail);
 });
 

@@ -60,6 +60,7 @@
 #include "btaudio.h"
 #include "bt_dev.h"
 #include "usb_devices.h"
+#include "image_level.h"
 #include "dialog_cluster.h"
 #include "app_sstv.h"
 #include "walkie.h"
@@ -249,6 +250,7 @@ static void services_start(void) {
     }
     qso_log_import_adif(BOARD_DATA "/incoming_log.adi");
     dialog_cluster_start_client();
+    image_level_notice_init();   /* a newer card image wanted: said once per version */
 }
 
 /* LVGL's clock: 5 ms ticks */

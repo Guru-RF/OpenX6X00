@@ -105,8 +105,20 @@ web configurator (System > Update).
   `rootfs/usr/share/x6100/update.pub`; a radio with `/mnt/update/allow-unsigned`
   takes unsigned bundles.)
 - What the updater cannot change comes with a card image: the kernel, its
-  modules (the WiFi driver), U-Boot, the partition layout. A release says when
-  an image is needed.
+  modules (the WiFi driver), U-Boot, the partition layout. The radio says when
+  a release has a new card image for it:
+  - Check: "vX is available, with a new card image", and a message saying what
+    the image brings. Install still updates the radio software; the image is
+    written when convenient.
+  - After the update, Settings > Info > Update and the web Update page say
+    "New card image for this version: ..." until the new image is on the card,
+    and the radio says it once at the first start of each version.
+  - Writing a new image keeps the settings and logs on the DATA partition (see
+    [Install](#getting-started)); download the Backup first all the same.
+  - How it knows: every card image carries its level for its radio in
+    `/etc/openx6x00-image`, which no update touches, and each version lists the
+    level it wants in `/usr/share/x6100/image-required`. Images up to v0.3.3
+    have no stamp and count as level 1.
 
 ## Main screen
 

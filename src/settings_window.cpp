@@ -6,6 +6,7 @@
  *  Copyright (c) 2022-2023 Belousov Oleg aka R1CBU
  */
 
+#include "image_level.h"
 #include "settings_window.h"
 #include "board.h"
 
@@ -4172,15 +4173,25 @@ static bool upd_json_str(const char *json, const char *key, char *out, size_t n)
 }
 
 static void upd_check_done(const char *out, int status, void *user) {
-    char latest[24] = "", s[96];
+    char latest[24] = "", s[200];
 
     upd_busy = false;
     upd_latest[0] = 0;
     if (strncmp(out, "error", 5) == 0) {
         snprintf(s, sizeof(s), "Check failed: %.70s", out + 6);
     } else if (strstr(out, "\"newer\": true") && upd_json_str(out, "latest", latest, sizeof(latest))) {
+        char note[120] = "";
+
         snprintf(upd_latest, sizeof(upd_latest), "%s", latest);
-        snprintf(s, sizeof(s), "v%s is available. Install downloads it and restarts the radio software.", latest);
+        if (strstr(out, "\"image_needed\": true") && upd_json_str(out, "image_note", note, sizeof(note))) {
+            /* the release also wants a newer card image for this radio (x6100-update reads its image-required) */
+            snprintf(s, sizeof(s), "v%s is available, with a new card image. Install updates the radio software.",
+                     latest);
+            msg_update_text_fmt("v%s: Install updates the radio software. Its card image also brings %s: write it "
+                                "from the releases page when convenient.", latest, note[0] ? note : "more");
+        } else {
+            snprintf(s, sizeof(s), "v%s is available. Install downloads it and restarts the radio software.", latest);
+        }
         upd_btn_label("Install");
     } else if (upd_json_str(out, "latest", latest, sizeof(latest))) {
         snprintf(s, sizeof(s), "Up to date: v%s is the latest release.", latest);
@@ -4219,7 +4230,7 @@ static void upd_btn_cb(lv_event_t *e) {
 
 static uint8_t make_update(uint8_t row) {
     FILE *f = fopen("/var/lib/x6100-update/pending.json", "r");
-    char  s[96];
+    char  s[96], note[160], t[240];
 
     wl_row_label(row, "Update");
     upd_btn = wl_button(row, "Check", upd_btn_cb);
@@ -4234,6 +4245,10 @@ static uint8_t make_update(uint8_t row) {
     } else if (upd_busy) {
         upd_say("Updating...");
         if (!upd_timer) upd_timer = lv_timer_create(upd_timer_cb, 500, NULL);
+    } else if (image_newer_wanted(note, sizeof(note))) {
+        /* the running version wants a newer card image than the one on the card */
+        snprintf(t, sizeof(t), "New card image for this version: %s", note);
+        upd_say(t);
     } else {
         snprintf(s, sizeof(s), "Check looks for a newer release on GitHub; installing takes a minute.");
         upd_say(s);

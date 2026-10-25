@@ -108,6 +108,15 @@ rm -f $BOARD/rootfs-overlay/etc/init.d/S01create_data   # S00adata does it, with
 # S00adata and the NTP hook are in rootfs/ (installed by the GUI's CMake, so the update bundle carries
 # them); the overlay's copies would be laid over them last
 rm -f $BOARD/rootfs-overlay/etc/init.d/S00adata $BOARD/rootfs-overlay/etc/NetworkManager/dispatcher.d/99-ntp-sync.sh
+# The WiFi and SSH backup at shutdown and restore at boot too (rootfs/etc/init.d, since v0.3.4)
+rm -f $BOARD/rootfs-overlay/etc/init.d/S04restore_backup_config
+# The card image's level for this radio (rootfs/usr/share/x6100/image-required), stamped where no update writes:
+# x6100-update and the GUI compare it with what the running version wants and say when a newer image is worth
+# writing
+IMAGE_LEVEL=$(awk -v m=$MODEL '$1 == m && $2 ~ /^[0-9]+$/ {print $2}' $GUI/rootfs/usr/share/x6100/image-required)
+mkdir -p $BOARD/rootfs-overlay/etc
+printf 'model=%s\nlevel=%s\nversion=%s\n' $MODEL ${IMAGE_LEVEL:-1} \
+    "$(sed -n 's/.*define VERSION.* v\([0-9.]*\).*/\1/p' $GUI/src/main.h)" > $BOARD/rootfs-overlay/etc/openx6x00-image
 rm -f $BR/build/target/etc/init.d/S01create_data                         # and from an earlier build's target
 # The legacy updater (any x6100_r1cbu_*.tgz on the DATA partition unpacked over / at boot, unsigned,
 # unchecked): OpenX6X00 is installed as a card image, so it goes

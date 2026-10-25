@@ -1,0 +1,8 @@
+# The card image this version of the radio software wants, per radio: <model> <level> <what that image brings>.
+# Raise a radio's level when a change reaches it only with a card image (the kernel, its modules such as the
+# WiFi driver, U-Boot, the root filesystem's packages): the in-radio update cannot carry those. The image
+# build (buildroot/local-build.sh) stamps the level into /etc/openx6x00-image, which no update touches;
+# x6100-update and the GUI compare the two and say when a newer card image is worth writing. Images up to
+# v0.3.3 have no stamp: level 1.
+x6100 1
+x6200 2 the WiFi driver's fix for joins that time out
