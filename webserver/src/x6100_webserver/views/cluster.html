@@ -3,6 +3,23 @@
 <p class="sub">Servers the radio can use (APP → Cluster), the filters and the alerts. The one in use is marked; the radio reconnects when you change it. Filters and alerts apply to the next spots. A deleted server or alert can be brought back for twenty seconds.</p>
 
 <section class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-globe"/></svg></span><div><h3>Link<span class="eff">Takes effect: within a few seconds</span></h3><p>The radio logs in to one server. A cluster network takes a call on a few nodes at most, and a second login with the same call on a node ends the first: give the radio its own login (your call with -2) when a logger uses your call too</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Cluster link</b><span>Off: the radio holds no cluster login</span></div>
+    <div class="dp-ctl"><label class="sw" title="Cluster link"><input type="checkbox" role="switch" id="enabled" aria-label="Cluster link"><i></i></label></div>
+  </div>
+  <div class="dp-body">
+    <div class="grid">
+      <div><label for="login">Login</label><input id="login" autocomplete="off" maxlength="15" pattern="[A-Za-z0-9/\-]{1,15}" placeholder="your call"></div>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="save-link">Save</button>
+      <span class="status" id="lstatus"></span>
+    </div>
+  </div>
+</section>
+
+<section class="dp-card">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-server"/></svg></span><div><h3>Servers<span class="eff">Takes effect: the radio reconnects within a few seconds</span></h3><p>Telnet servers; Use switches the radio to one</p></div></div>
   <div class="dp-body tbl">
 <div class="table-wrap">
@@ -174,6 +191,8 @@ var render = function(data) {
   });
   $("#popup").prop("checked", data.popup);
   $("#beep").prop("checked", data.beep);
+  $("#enabled").prop("checked", data.enabled !== false);
+  $("#login").val(data.login || "");
   filterForm.reset();
 }
 
@@ -216,6 +235,12 @@ $("#add-alert").on("submit", function(e) {
   $("#pattern").val("");
   $("#bands").val([]);
 });
+
+var saveLink = function() {
+  call("POST", "/api/cluster/link", {enabled: $("#enabled").prop("checked"), login: $("#login").val().trim()}, "#lstatus");
+}
+$("#enabled").on("change", saveLink);
+$("#save-link").on("click", saveLink);
 
 $("#popup, #beep").on("change", function() {
   call("POST", "/api/cluster/alert-options", {popup: $("#popup").prop("checked"), beep: $("#beep").prop("checked")}, "#astatus");

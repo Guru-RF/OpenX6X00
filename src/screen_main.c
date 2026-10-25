@@ -54,6 +54,7 @@
 #include "dialog_jtty.h"
 #include "app_sstv.h"
 #include "dialog_cluster.h"
+#include "cluster/client.h"
 #include "dialog_modes.h"
 #include "dialog_cw_trainer.h"
 #include "dialog_wspr.h"
@@ -781,6 +782,7 @@ static void front_key_cb(lv_event_t *e) {
                 backlight_switch();
             } else if (hold) {
                 msg_update_text_fmt("Power off");
+                cluster_client_stop();      /* the cluster link closed, not left to time out at the node */
                 radio_poweroff();
             }
             break;
@@ -1467,6 +1469,7 @@ static void power_off_cb(lv_timer_t *t) {
     power_off_timer = NULL;     /* one shot: LVGL deletes it */
     msg_update_text_fmt("Power off");
     radio_set_charger(true);
+    cluster_client_stop();
     radio_poweroff();
 }
 

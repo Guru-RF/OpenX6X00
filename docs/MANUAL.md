@@ -1227,6 +1227,15 @@ STATION), used to log in.
 - The client connects in the background as soon as both are there. It
   reconnects by itself (with a backoff) after an error or when WiFi comes
   back.
+- It logs in to one server, the one chosen. A cluster network takes a call on
+  a few nodes at most (DXSpider: three), and a second login with the same call
+  on a node ends the first. When the node refuses the call, or another login
+  with it takes over (a logger on your PC), the radio waits 30 minutes before
+  it tries again. To run the radio and a logger at the same time, give the
+  radio its own login, your call with `-2`, on the web configurator's Cluster
+  page (Link card).
+- Link Off (Cluster page 2, or the web page) ends the login and keeps it off,
+  also after a restart. Powering off closes the link at once.
 - Spots older than 60 minutes are dropped. After login it asks for the latest
   50 spots (`sh/dx`).
 
@@ -1247,11 +1256,11 @@ Cluster app (APP > Cluster; pages `(CLUSTER 1:2)` and `(CLUSTER 2:2)`):
 - Page 2: Server opens the list of saved servers: MFK to choose, press to use
   it, Server again or ESC to close. The choice is saved in
   `/mnt/cluster.conf`. Order: by frequency around the VFO (`Freq`) or newest
-  first (`Time`).
+  first (`Time`). Link: the cluster login on or off.
 - Order and band view are saved and shared with the cluster column.
 - The status line shows the WiFi and cluster state ("Set your callsign",
-  "No network: WiFi or Ethernet", "Connecting...", "cluster connected", or the error
-  and "retrying").
+  "No network: WiFi or Ethernet", "Connecting...", "cluster connected", "Cluster
+  link off", or the error and "retrying" or "retry in 30 min").
 
 Filters and alerts. They are saved in `/mnt/cluster.conf`, shared by the
 radio and the web configurator, and apply to the app, the column and the

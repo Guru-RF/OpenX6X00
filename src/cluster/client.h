@@ -50,6 +50,15 @@ int cluster_servers_load(cluster_server_t *out, int max);
  * (atomically: a temporary file, then rename). */
 bool cluster_config_save(const char *host, int port);
 
+/* "enabled=0" in CLUSTER_CONF: the client stays off (missing or 1: on). The radio's Link button and the web page
+ * write it */
+bool cluster_config_enabled(void);
+bool cluster_enabled_save(bool on);
+
+/* The call to log in with: "login=" in CLUSTER_CONF (e.g. ON6URE-2, so the radio and a logger with ON6URE are not
+ * one login to the cluster), else `callsign` */
+void cluster_config_login(char *out, size_t size, const char *callsign);
+
 /* Modification time of CLUSTER_CONF, 0 when missing: the app reloads the
  * server when the file changes (e.g. from the web configurator). */
 time_t cluster_config_mtime(void);
@@ -123,12 +132,13 @@ bool cluster_filter_pass(const cluster_filter_t *f, const cluster_spot_t *s, uin
 bool cluster_parse_server(const char *text, char *host, size_t host_size, int *port);
 
 /* Starts the client, or makes the running one reconnect when the server
- * or the callsign changed. */
+ * or the callsign changed. One login; refused by the node or taken over by another login with the call
+ * (DXSpider), it waits 30 minutes. cluster_client_stop() closes the link at once. */
 void cluster_client_start(const char *host, int port, const char *callsign);
 void cluster_client_stop(void);
 
-/* Posts a spot on every cluster link ("DX <kHz> <call> <comment>"), each sends it once logged in,
- * within 2 minutes. False when the client is not running. */
+/* Posts a spot on the cluster link ("DX <kHz> <call> <comment>"), sent once logged in, within 2 minutes.
+ * False when the client is not running. */
 bool cluster_client_send_spot(double khz, const char *call, const char *comment);
 
 /* Retries at once when waiting after a failure (e.g. the WiFi is back). */

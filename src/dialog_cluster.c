@@ -81,6 +81,8 @@ static const char *mode_label(void);
 static const char *band_label(void);
 static void order_cb(button_data_t *data);
 static const char *order_label(void);
+static void link_cb(button_data_t *data);
+static const char *link_label(void);
 static void server_cb(button_data_t *data);
 static bool popup_key(uint32_t key);
 static void use_server(int i);
@@ -96,6 +98,7 @@ static button_data_t btn_server = {.type = BTN_TEXT, .label = "Server", .press =
 static button_data_t btn_band = {.type = BTN_TEXT_FN, .label_fn = band_label, .press = band_all_cb};
 static button_data_t btn_mode = {.type = BTN_TEXT_FN, .label_fn = mode_label, .press = mode_cb};
 static button_data_t btn_order = {.type = BTN_TEXT_FN, .label_fn = order_label, .press = order_cb};
+static button_data_t btn_link = {.type = BTN_TEXT_FN, .label_fn = link_label, .press = link_cb};
 static button_data_t btn_tune = {.type = BTN_TEXT, .label = "Tune", .press = tune_cb};
 static button_data_t btn_close = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
 
@@ -103,7 +106,7 @@ static buttons_page_t btn_page_1 = {
     .items = {&btn_page, &btn_band, &btn_tune, &btn_mode, &btn_close},
 };
 static buttons_page_t btn_page_2 = {
-    .items = {&btn_page2, &btn_server, &btn_order, NULL, &btn_close},
+    .items = {&btn_page2, &btn_server, &btn_order, &btn_link, &btn_close},
 };
 
 static dialog_t dialog = {
@@ -152,10 +155,13 @@ static bool     wifi_was_up;
 /* Reads the server and (re)starts the client: a running one reconnects
  * only when the server or the callsign changed. */
 static void load_server(void) {
+    char login[CLUSTER_CALL_LEN];
+
     conf_mtime = cluster_config_mtime();
     cluster_config_load(server, sizeof(server), &server_port);
     snprintf(client_call, sizeof(client_call), "%s", params.callsign.x);
-    if (client_call[0]) cluster_client_start(server, server_port, client_call);
+    cluster_config_login(login, sizeof(login), client_call);
+    if (client_call[0] && login[0] && cluster_config_enabled()) cluster_client_start(server, server_port, login);
     else cluster_client_stop();
 }
 
@@ -472,6 +478,10 @@ static void update_status(void) {
         lv_label_set_text_fmt(status_right, "#%06x Set your callsign: Settings > General#", theme_hex(TC_err));
         return;
     }
+    if (!cluster_config_enabled()) {
+        lv_label_set_text(status_right, "Cluster link off");
+        return;
+    }
     if (!net_connected()) {
         lv_label_set_text_fmt(status_right, "#%06x No network: WiFi or Ethernet#", theme_hex(TC_err));
         return;
@@ -484,7 +494,9 @@ static void update_status(void) {
             lv_label_set_text_fmt(status_right, "#%06x Connecting...#", theme_hex(TC_warn));
             break;
         case CLUSTER_FAILED:
-            lv_label_set_text_fmt(status_right, "#%06x %s, retrying#", theme_hex(TC_err), detail[0] ? detail : "Cluster error");
+            lv_label_set_text_fmt(status_right, "#%06x %s, %s#", theme_hex(TC_err), detail[0] ? detail : "Cluster error",
+                                  strncmp(detail, "refused", 7) == 0 || strncmp(detail, "logged in", 9) == 0
+                                      ? "retry in 30 min" : "retrying");
             break;
         default:
             lv_label_set_text(status_right, "Stopped");
@@ -867,6 +879,25 @@ static void order_cb(button_data_t *data) {
     follow_vfo = true;
     rebuild();
     msg_update_text_fmt("Cluster: %s", by_time() ? "newest first" : "by frequency");
+}
+
+static const char *link_label(void) {
+    return cluster_config_enabled() ? "Link /\nOn" : "Link /\nOff";
+}
+
+/* The cluster login on and off: off, the radio holds no session on any node (the POTA, WWBOTA and HOTA spots
+ * keep coming over HTTPS only while it is on) */
+static void link_cb(button_data_t *data) {
+    bool on = !cluster_config_enabled();
+
+    if (!cluster_enabled_save(on)) {
+        msg_update_text_fmt("Cluster: can't save");
+        return;
+    }
+    load_server();
+    buttons_refresh(data);
+    update_status();
+    msg_update_text_fmt("Cluster: %s", on ? "link on" : "link off");
 }
 
 static const char *mode_label(void) {

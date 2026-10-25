@@ -99,6 +99,7 @@ CLUSTER_BANDS = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6]
 CLUSTER_ACTIVITY = ["POTA", "SOTA", "WWBOTA", "HOTA"]   # the GUI's cluster_act_names
 # Written by the radio GUI: pattern|freq_hz|HH:MM of the last spot that matched
 CLUSTER_ALERTS_SEEN = "/tmp/cluster_alerts_seen"
+CLUSTER_LOGIN_RE = re.compile(r"[A-Za-z0-9/-]{1,15}")   # the GUI's cluster_config_login(): else the station's call
 
 
 def read_cluster_conf():
@@ -129,7 +130,8 @@ def read_cluster_conf():
 
 def read_cluster_options():
     """Filters and alerts of cluster.conf (same rules as the GUI: missing = no filter)."""
-    opts = {"modes": list(CLUSTER_MODES), "bands": [], "activity": [], "max_age": 0, "skip": "", "alerts": [], "popup": False, "beep": False}
+    opts = {"modes": list(CLUSTER_MODES), "bands": [], "activity": [], "max_age": 0, "skip": "", "alerts": [], "popup": False, "beep": False,
+            "enabled": True, "login": ""}
     try:
         with open(settings.CLUSTER_CONF, errors="replace") as f:
             lines = f.read().splitlines()
@@ -155,6 +157,11 @@ def read_cluster_options():
             opts["popup"] = line[12:].strip() not in ("", "0")
         elif line.startswith("alert_beep="):
             opts["beep"] = line[11:].strip() not in ("", "0")
+        elif line.startswith("enabled="):   # the GUI: atoi() != 0, missing = on
+            m = re.match(r"\s*[+-]?\d+", line[8:])
+            opts["enabled"] = not m or int(m.group()) != 0
+        elif line.startswith("login="):
+            opts["login"] = line[6:].strip() if CLUSTER_LOGIN_RE.fullmatch(line[6:].strip()) else ""
         elif line.startswith("alert=") or line.startswith("alert_off="):   # alert_off: kept, not used
             on = line.startswith("alert=")
             parts = line[6 if on else 10:].split("|")
@@ -179,6 +186,9 @@ def cluster_option_lines(opts):
         lines.append(f"{'alert' if a.get('enabled', True) else 'alert_off'}={a['pattern']}|{a['bands']}|{a['mode']}")
     lines.append(f"alert_popup={int(opts['popup'])}")
     lines.append(f"alert_beep={int(opts['beep'])}")
+    lines.append(f"enabled={int(opts['enabled'])}")
+    if opts["login"]:
+        lines.append("login=" + opts["login"])
     return lines
 
 
@@ -241,6 +251,7 @@ def cluster_state():
             "servers": [{"name": n, "host": h, "port": p} for n, h, p in servers],
             "filters": {"modes": opts["modes"], "bands": opts["bands"], "activity": opts["activity"], "max_age": opts["max_age"], "skip": opts["skip"]},
             "alerts": opts["alerts"], "popup": opts["popup"], "beep": opts["beep"],
+            "enabled": opts["enabled"], "login": opts["login"],
             "options": {"modes": CLUSTER_MODES, "bands": CLUSTER_BANDS, "activity": CLUSTER_ACTIVITY}}  # what this firmware has
 
 
@@ -1752,6 +1763,19 @@ def set_cluster_alert_options():
 
     def change(host, port, servers, opts):
         opts.update(popup=bool(data.get("popup")), beep=bool(data.get("beep")))
+    return cluster_update(change)
+
+
+@app.post('/api/cluster/link')
+def set_cluster_link():
+    """The cluster login on or off, and the call it logs in with (empty: the station's call)"""
+    data = bottle.request.json or {}
+    login = str(data.get("login", "")).strip().upper()
+    if login and not CLUSTER_LOGIN_RE.fullmatch(login):
+        return cluster_error(400, "Login: up to 15 letters, digits, / or -, e.g. ON6URE-2")
+
+    def change(host, port, servers, opts):
+        opts.update(enabled=bool(data.get("enabled", True)), login=login)
     return cluster_update(change)
 
 

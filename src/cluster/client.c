@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -34,26 +36,25 @@
 #define SHOW_DX_DELAY_MS   2000
 #define MAX_AGE_MIN        60
 #define LINE_MAX_LEN       512
+#define REFUSED_MS         (30 * 60000) /* the node refused the call, or another login took it over: */
+                                        /* coming back sooner bumped the operator's logger off again */
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static bool            thread_running; /* under lock */
 static volatile bool   stop_requested;
 static volatile bool   reconnect_requested; /* new server or callsign */
 
-/* More sources into the same store, whose "same DX within 1 kHz" keeps one spot: EXTRA_LINKS
- * other servers of the list (one node only gets its own region's spots well) and the
- * activator spots of pota.app, wwbota.org and cqhota.app. Their threads leave the state shown, the main server's, alone. */
-#define EXTRA_LINKS      4
+/* One telnet login. Four more went to other servers of the list with the same call: DXSpider refuses a call
+ * already on three nodes of its network ("you are already connected to 3 other nodes"), so the operator's own
+ * logger was refused, and a node with that call logged in already bumps the older login off (issue #4). The
+ * activator spots of pota.app, wwbota.org and cqhota.app come over HTTPS, another thread, no login */
 #define POTA_SPOTS       "/usr/sbin/x6100-pota-spots"
 #define POTA_POLL_MS     60000
-static __thread bool   extra_link;
-static volatile unsigned extras_gen;       /* +1: other servers or callsign changed */
-static __thread unsigned my_gen;          /* the extra link's, at its connect */
-static bool            extras_running;      /* under lock */
-static char            extra_host[EXTRA_LINKS][128];
-static int             extra_port[EXTRA_LINKS];
+static bool            pota_running;        /* under lock */
+static int             session_fd = -1;     /* the link's socket, under lock: cluster_client_stop() ends it at once */
+static bool            refused;             /* the node refused the call or another login took over: a long wait */
 
-#define ABORTED() (stop_requested || (extra_link ? my_gen != extras_gen : reconnect_requested))
+#define ABORTED() (stop_requested || reconnect_requested)
 
 static cluster_store_t store;
 static uint32_t        store_gen = 1;
@@ -61,11 +62,11 @@ static cluster_state_t state     = CLUSTER_STOPPED;
 static char            state_detail[64];
 
 static char host_name[128];
-static char     spot_cmd[128];  /* cluster_client_send_spot(): to every link, under lock */
+static char     spot_cmd[128];  /* cluster_client_send_spot(), under lock */
 static unsigned spot_seq;
 static int64_t  spot_at;
-static __thread unsigned spot_sent; /* the link's last spot_seq sent */
-#define SPOT_VALID_MS 120000        /* a link that logs in later doesn't send an old spot */
+static unsigned spot_sent;      /* the last spot_seq sent */
+#define SPOT_VALID_MS 120000    /* sent once logged in, if it is not older than this */
 static int  host_port;
 static char login_call[CLUSTER_CALL_LEN];
 
@@ -83,7 +84,6 @@ static uint16_t utc_now_min(void) {
 }
 
 static void set_state(cluster_state_t s, const char *detail) {
-    if (extra_link) return;
     pthread_mutex_lock(&lock);
     state = s;
     snprintf(state_detail, sizeof(state_detail), "%s", detail ? detail : "");
@@ -170,7 +170,8 @@ int cluster_servers_load(cluster_server_t *out, int max) {
 /* Sets the server in use; the saved servers, filters and alerts are kept. */
 bool cluster_config_save(const char *host, int port) {
     static const char *keep[] = {"server=", "filter_modes=", "filter_bands=", "filter_activity=", "max_age=",
-                                 "skip_spotters=", "alert=", "alert_off=", "alert_popup=", "alert_beep="};
+                                 "skip_spotters=", "alert=", "alert_off=", "alert_popup=", "alert_beep=",
+                                 "enabled=", "login="};
     static char        servers[24 * 1024];
     servers[0] = '\0';
     FILE *in   = fopen(CLUSTER_CONF, "r");
@@ -191,6 +192,64 @@ bool cluster_config_save(const char *host, int port) {
     FILE *f = fopen(CLUSTER_CONF ".tmp", "w");
     if (!f) return false;
     fprintf(f, "host=%s\nport=%d\n%s", host, port, servers);
+    bool ok = fflush(f) == 0 && fsync(fileno(f)) == 0;
+    ok      = fclose(f) == 0 && ok;
+    return ok && rename(CLUSTER_CONF ".tmp", CLUSTER_CONF) == 0;
+}
+
+/* One "key=" line's value from CLUSTER_CONF, false when there is none */
+static bool conf_value(const char *key, char *out, size_t size) {
+    FILE  *f = fopen(CLUSTER_CONF, "r");
+    char   line[256];
+    size_t k = strlen(key);
+    bool   found = false;
+
+    while (f && fgets(line, sizeof(line), f)) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if (strncmp(line, key, k) == 0) {
+            snprintf(out, size, "%s", line + k);
+            found = true;
+        }
+    }
+    if (f) fclose(f);
+    return found;
+}
+
+bool cluster_config_enabled(void) {
+    char v[16];
+
+    return !conf_value("enabled=", v, sizeof(v)) || atoi(v) != 0;
+}
+
+void cluster_config_login(char *out, size_t size, const char *callsign) {
+    char v[CLUSTER_CALL_LEN];
+
+    /* Letters, digits, / and -: what a cluster takes as a login, else the station's call */
+    if (conf_value("login=", v, sizeof(v)) && v[0] && strspn(v, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/-") == strlen(v)) {
+        snprintf(out, size, "%s", v);
+    } else {
+        snprintf(out, size, "%s", callsign);
+    }
+}
+
+bool cluster_enabled_save(bool on) {
+    static char rest[24 * 1024];
+    char        line[512];
+
+    rest[0]  = '\0';
+    FILE *in = fopen(CLUSTER_CONF, "r");
+    while (in && fgets(line, sizeof(line), in)) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if (line[0] && strncmp(line, "enabled=", 8) != 0 && strlen(rest) + strlen(line) + 2 < sizeof(rest)) {
+            strcat(rest, line);
+            strcat(rest, "\n");
+        }
+    }
+    if (in) fclose(in);
+
+    FILE *f = fopen(CLUSTER_CONF ".tmp", "w");
+    if (!f) return false;
+    fprintf(f, "%senabled=%d\n", rest, on ? 1 : 0);
     bool ok = fflush(f) == 0 && fsync(fileno(f)) == 0;
     ok      = fclose(f) == 0 && ok;
     return ok && rename(CLUSTER_CONF ".tmp", CLUSTER_CONF) == 0;
@@ -614,6 +673,13 @@ static int open_socket(const char *host, int port_num) {
         fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (fd < 0) continue;
         fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+        /* A link that died without a word (the WiFi gone) is found in about two minutes, not after the ten of
+         * IDLE_TIMEOUT_MS */
+        int on = 1, idle = 60, intvl = 20, cnt = 3;
+        setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
+        setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
         if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) break;
         if (errno == EINPROGRESS) {
             struct pollfd pfd = {fd, POLLOUT, 0};
@@ -733,6 +799,16 @@ static bool session(int fd, const char *call) {
                 if (len > 0) {
                     line[len] = '\0';
                     if (strcasestr(line, "DXSpider")) spider = true;
+                    /* DXSpider's contomany ("Sorry CALL but you are already connected to N other nodes") and
+                     * conbump ("Reconnected as CALL, this instance is disconnected"): said once, then the line
+                     * closes; reconnecting at once fought the operator's own logger for the call */
+                    if (strcasestr(line, "already connected to")) {
+                        refused = true;
+                        set_state(CLUSTER_FAILED, "refused: this call is on other nodes");
+                    } else if (strcasestr(line, "this instance is disconnected")) {
+                        refused = true;
+                        set_state(CLUSTER_FAILED, "logged in elsewhere with this call");
+                    }
                     cluster_client_feed_line(line);
                     len = 0;
                 }
@@ -754,9 +830,12 @@ static bool session(int fd, const char *call) {
             }
         }
     }
+    pthread_mutex_lock(&lock);
+    session_fd = -1;
+    pthread_mutex_unlock(&lock);
     close(fd);
-    if (!ABORTED()) set_state(CLUSTER_FAILED, "connection closed");
-    return now_ms() - started > STABLE_MS;
+    if (!ABORTED() && !refused) set_state(CLUSTER_FAILED, "connection closed");
+    return now_ms() - started > STABLE_MS && !refused;
 }
 
 static void *thread_cb(void *arg) {
@@ -774,11 +853,18 @@ static void *thread_cb(void *arg) {
             pthread_mutex_unlock(&lock);
 
             set_state(CLUSTER_CONNECTING, "");
+            refused = false;
             int fd = open_socket(host, port);
-            if (fd >= 0 && session(fd, call)) delay = RETRY_MIN_MS;
-            /* No network: retry calmly, with a longer wait each time. */
+            if (fd >= 0) {
+                pthread_mutex_lock(&lock);
+                session_fd = stop_requested ? -1 : fd;
+                pthread_mutex_unlock(&lock);
+                if (session(fd, call)) delay = RETRY_MIN_MS;
+            }
+            /* No network: retry calmly, with a longer wait each time; refused or taken over: much later, unless
+             * the server or the call changes or the WiFi comes back */
             if (!reconnect_requested) {
-                wait_ms(delay);
+                wait_ms(refused ? REFUSED_MS : delay);
                 delay = delay * 2 < RETRY_MAX_MS ? delay * 2 : RETRY_MAX_MS;
             }
             if (reconnect_requested) delay = RETRY_MIN_MS;
@@ -796,35 +882,17 @@ static void *thread_cb(void *arg) {
     }
 }
 
-/* Another server, as thread_cb() but without touching the state shown */
-static void *extra_cb(void *arg) {
-    int i     = (int)(intptr_t)arg;
-    int delay = RETRY_MIN_MS;
-
-    extra_link = true;
-    while (!stop_requested) {
-        char host[sizeof(extra_host[0])], call[sizeof(login_call)];
-        int  port;
-        pthread_mutex_lock(&lock);
-        my_gen = extras_gen;
-        memcpy(host, extra_host[i], sizeof(host));
-        memcpy(call, login_call, sizeof(call));
-        port = extra_port[i];
-        pthread_mutex_unlock(&lock);
-
-        int fd = host[0] ? open_socket(host, port) : -1;
-        if (fd >= 0 && session(fd, call)) delay = RETRY_MIN_MS;
-        for (int t = 0; t < delay && !stop_requested && my_gen == extras_gen; t += 500) usleep(500000);
-        delay = my_gen != extras_gen ? RETRY_MIN_MS : (delay * 2 < RETRY_MAX_MS ? delay * 2 : RETRY_MAX_MS);
-    }
-    return NULL;
-}
-
 /* pota.app's, wwbota.org's and cqhota.app's activator spots, a minute apart, through POTA_SPOTS */
 static void *pota_cb(void *arg) {
     (void)arg;
-    extra_link = true;
-    while (!stop_requested) {
+    for (;;) {
+        pthread_mutex_lock(&lock);
+        if (stop_requested) {
+            pota_running = false;   /* a later start runs it again (it was never restarted) */
+            pthread_mutex_unlock(&lock);
+            return NULL;
+        }
+        pthread_mutex_unlock(&lock);
         FILE *f = popen(POTA_SPOTS " 2>/dev/null", "r");
         char  line[256];
         while (f && fgets(line, sizeof(line), f)) {
@@ -865,33 +933,12 @@ static void start_thread(void *(*fn)(void *), void *arg) {
     pthread_attr_destroy(&attr);
 }
 
-/* The other servers: the first EXTRA_LINKS of the list on another host (under lock) */
-static void pick_extras(const char *main_host) {
-    cluster_server_t list[CLUSTER_MAX_SERVERS];
-    int              n = cluster_servers_load(list, CLUSTER_MAX_SERVERS), k = 0;
-    char             host[EXTRA_LINKS][128] = {{0}};
-    int              port[EXTRA_LINKS]      = {0};
-
-    for (int i = 0; i < n && k < EXTRA_LINKS; i++) {
-        if (strcasecmp(list[i].host, main_host) == 0) continue;
-        snprintf(host[k], sizeof(host[k]), "%s", list[i].host);
-        port[k++] = list[i].port;
-    }
-    if (memcmp(host, extra_host, sizeof(host)) || memcmp(port, extra_port, sizeof(port))) {
-        memcpy(extra_host, host, sizeof(host));
-        memcpy(extra_port, port, sizeof(port));
-        extras_gen++;
-    }
-}
-
 /* The thread is detached and never joined: a DNS lookup or a connect can
  * block for seconds, and closing the app must not wait for it. */
 void cluster_client_start(const char *host, int port, const char *callsign) {
     pthread_mutex_lock(&lock);
     if (strcmp(host_name, host) != 0 || strcmp(login_call, callsign) != 0 || host_port != port)
         reconnect_requested = true; /* the running session picks up the change */
-    if (strcmp(login_call, callsign) != 0) extras_gen++;
-    pick_extras(host);
     snprintf(host_name, sizeof(host_name), "%s", host);
     snprintf(login_call, sizeof(login_call), "%s", callsign);
     host_port      = port;
@@ -909,9 +956,8 @@ void cluster_client_start(const char *host, int port, const char *callsign) {
         }
         pthread_attr_destroy(&attr);
     }
-    if (!extras_running) {
-        extras_running = true;
-        for (int i = 0; i < EXTRA_LINKS; i++) start_thread(extra_cb, (void *)(intptr_t)i);
+    if (!pota_running) {
+        pota_running = true;
         start_thread(pota_cb, NULL);
     }
     pthread_mutex_unlock(&lock);
@@ -929,8 +975,15 @@ bool cluster_client_send_spot(double khz, const char *call, const char *comment)
     return ok;
 }
 
+/* The link ends at once (power off, cluster off): a node keeps a session that vanished without a word for many
+ * minutes, and the call counts as logged in there meanwhile */
 void cluster_client_stop(void) {
+    pthread_mutex_lock(&lock);
     stop_requested = true;
+    if (session_fd >= 0) {
+        shutdown(session_fd, SHUT_RDWR);
+    }
+    pthread_mutex_unlock(&lock);
 }
 
 void cluster_client_retry(void) {
