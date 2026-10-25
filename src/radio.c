@@ -168,6 +168,7 @@ static uint8_t          pack_vbat, pack_vext;   /* its voltages, 0.1 V */
 static volatile int8_t  bat_pct = -1;   /* the battery %, -1 on external power or not measured yet */
 static bool             mute = false;
 static bool             tci_mute = false;   /* a TCI client transmits: the speaker and the monitor off */
+static bool             rec_moni = false;   /* a screen recording takes the TX audio: the monitor at 30 at least */
 static bool             digi_cap;       /* a digital app is open: never above its cap */
 
 static tx_watch_t       tx_watch;
@@ -279,7 +280,7 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_mic, on_change_i, (void*)HW_MIC);
     subject_subscribe_and_notify((Subject*)cfg_hmic, on_change_i, (void*)HW_HMIC);
     subject_subscribe_and_notify((Subject*)cfg_imic, on_change_i, (void*)HW_IMIC);
-    subject_subscribe_and_notify((Subject*)cfg_moni, on_change_i, (void*)HW_MONI);
+    subject_subscribe_and_notify((Subject*)cfg_moni, on_volume_change, NULL);   /* radio_vol_refresh: muted with the speaker */
 
     subject_subscribe_and_notify((Subject*)cfg_rit, on_change_i, (void*)HW_RIT);
     subject_subscribe_and_notify((Subject*)cfg_xit, on_change_i, (void*)HW_XIT);
@@ -395,10 +396,20 @@ void radio_change_mute() {
     radio_vol_refresh();
 }
 
-/* Speaker AF: 0 when muted, when btaudio silences it (headphones connected) or while a TCI
- * client transmits */
+/* Speaker AF and TX monitor together: both 0 when muted, when btaudio silences the speaker (headphones
+ * connected) or while a TCI client transmits; the monitor 0 at AF 0 too, which otherwise still played FT8's
+ * tones (issue #1). A screen recording keeps the monitor at 30 at least, but not under a TCI client's PTT */
 void radio_vol_refresh() {
-    WITH_RADIO_LOCK(hw_set_i(HW_RXVOL, (mute || tci_mute || btaudio_speaker_muted()) ? 0 : param_i_get(cfg_volume)));
+    bool    muted = mute || tci_mute || btaudio_speaker_muted();
+    int32_t vol   = param_i_get(cfg_volume);
+    int32_t moni  = param_i_get(cfg_moni);
+
+    if (rec_moni && !tci_mute) moni = LV_MAX(moni, 30);
+    else if (muted || vol == 0) moni = 0;
+    radio_lock();
+    hw_set_i(HW_RXVOL, muted ? 0 : vol);
+    hw_set_i(HW_MONI, moni);
+    radio_unlock();
 }
 
 /* A TCI client keyed the radio: the operator is at the other end, so the speaker and the TX
@@ -407,7 +418,6 @@ void radio_set_tci_mute(bool on) {
     if (tci_mute == on) return;
     tci_mute = on;
     radio_vol_refresh();
-    WITH_RADIO_LOCK(hw_set_i(HW_MONI, on ? 0 : param_i_get(cfg_moni)));
 }
 
 static void on_volume_change(Subject *subj, void *user_data) {
@@ -591,10 +601,8 @@ void radio_set_qsk_time(uint16_t ms) {
 }
 
 void radio_set_rec_moni(bool on) {
-    int32_t moni = param_i_get(cfg_moni);
-
-    if (tci_mute) return;       /* quiet while a TCI client transmits */
-    WITH_RADIO_LOCK(hw_set_i(HW_MONI, on && moni < 30 ? 30 : moni));
+    rec_moni = on;
+    radio_vol_refresh();
 }
 
 void radio_set_morse_key(bool on) {

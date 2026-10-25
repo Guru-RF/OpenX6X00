@@ -622,6 +622,11 @@ WeFax) set their audio level by themselves.
 - On the X6200 the ALC reading does not follow the audio level, so the level
   goes up until the power reaches the setting and stays there.
 
+While the AF volume is 0, or the speaker is muted (the mute action, Bluetooth
+headphones with Mute speaker, a TCI client transmitting), the TX monitor is
+quiet too: the speaker does not play the tones of a digital transmission. A
+screen recording still takes them.
+
 TX power while a digital app is open:
 
 - The power is capped at 7 W. With a higher setting the app says so
@@ -1588,7 +1593,7 @@ pairing and connection in DEVICES, the audio switches in HEADPHONES.
 |---|---|
 | RX to headphones | a PulseAudio loopback from the radio RX audio (`alsa_input.platform-sound.stereo-fallback`) to the headphones |
 | Volume | the headphones sink volume |
-| Mute speaker | AF volume 0 while the headphones are connected, back to the previous value when they disconnect. The AF volume does not change the audio sent to the headphones. |
+| Mute speaker | AF volume and TX monitor 0 while the headphones are connected, back to the previous values when they disconnect. The AF volume does not change the audio sent to the headphones. |
 
 - Only A2DP is used: HFP/HSP (SCO) gives no audio on this radio and drops the
   WiFi, so PulseAudio has no headset backend
@@ -2344,7 +2349,7 @@ its own pairing agent (log in `/tmp/bt_pair.log`).
 | `btaudio-ctl autoconnect MAC on\|off` | Connect at startup |
 | `btaudio-ctl rx on\|off` | RX audio to the headphones (loopback) |
 | `btaudio-ctl volume N` | Headphone volume, 0-100 % |
-| `btaudio-ctl mute on\|off` | AF volume 0 while headphones are connected |
+| `btaudio-ctl mute on\|off` | AF volume and TX monitor 0 while headphones are connected |
 | `btaudio-ctl boot` / `monitor` | Started by `btcat-setup`: keeps the headphones on A2DP with the loopback up, connects the "Connect at startup" devices |
 
 ### Files on /mnt
