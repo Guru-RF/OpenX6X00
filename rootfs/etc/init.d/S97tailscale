@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# OpenX6X00: Tailscale, when it was turned on (/mnt/tailscale.conf): x6100-tailscale starts its
+# supervisor in the background, which downloads it once, waits for the network and keeps it running.
+#
+
+case "$1" in
+  start)
+    printf "Tailscale: "
+    /usr/sbin/x6100-tailscale && echo "OK"
+    ;;
+  stop)
+    # The supervisor stops tailscaled on its way out; the setting stays on
+    pid=$(cat /run/tailscale/lock 2>/dev/null)
+    [ -n "$pid" ] && kill "$pid" 2>/dev/null
+    ;;
+esac
+
+exit 0

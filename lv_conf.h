@@ -78,6 +78,7 @@
 
 /* Screenshots and screen recording; message bus between modules */
 #define LV_USE_SNAPSHOT 1
+#define LV_USE_QRCODE 1     /* Settings > Wireless: the Tailscale login link */
 #define LV_USE_MSG 1
 
 #define LV_BUILD_EXAMPLES 0

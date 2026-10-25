@@ -1,0 +1,470 @@
+#!/usr/bin/env python3
+# OpenX6X00 - Tailscale: the radio on its owner's tailnet, so a laptop or a phone running Tailscale
+# reaches its web pages, the browser Panel and Remote and the TCI server from anywhere, with no port
+# opened on the router. Tailscale's own build for 32-bit ARM, the version pinned below with its SHA-256,
+# is downloaded once (37 MB) when Tailscale is turned on. It runs in userspace mode: the kernel has no
+# TUN device, and tailscaled hands each incoming connection to the radio's own port on 127.0.0.1. Its log
+# upload to Tailscale is off (--no-logs-no-support), as is its DNS: the radio only answers.
+#
+#   x6100-tailscale            at boot (S97tailscale): start it when it is on
+#   x6100-tailscale on         turn it on: download once, start, ask for a login
+#   x6100-tailscale off        turn it off; the login is kept
+#   x6100-tailscale logout     forget the login (while it is on, a new one is asked for)
+#   x6100-tailscale hostname   give Tailscale the radio's network name (x6100-hostname calls it)
+#   x6100-tailscale status     the state as key=value lines: state, text, url, name, ip, version
+#   x6100-tailscale run        the supervisor itself, started by the commands above
+#
+# The program lives on the DATA partition, which the web pages can write (Backup restore), so its SHA-256
+# is checked before every start. The login (the node key) lives on the root filesystem, where the web
+# pages cannot read it: a new card image asks for a new login. Files a tailnet peer sends with Taildrop
+# land in a 1 MB tmpfs, so they never fill the root filesystem: the radio has no use for them.
+#
+# On and off only change the setting: the supervisor follows it within a poll, also during the download,
+# and a supervisor that stops while the setting is back on starts the next one. SIGTERM (S97tailscale
+# stop, at shutdown) stops it and keeps the setting.
+#
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
+import fcntl
+import hashlib
+import http.client
+import json
+import os
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
+
+VERSION = "1.104.2"
+TGZ_URL = f"https://pkgs.tailscale.com/stable/tailscale_{VERSION}_arm.tgz"
+TGZ_SHA256 = "b694ff9c67235da98798b9592a0cc900bc9d1613041f77722ec9bf4ce2d215cf"
+BIN_SHA256 = "9404866023e64385091fe5e9faebe88f9051f035b26785b656c410f174e5eb25"    # tailscaled in it
+
+CONF = "/mnt/tailscale.conf"          # enabled=0|1: on the DATA partition, it survives a new image
+DIR = "/mnt/tailscale"                # the program (and the download while it runs)
+BIN = os.path.join(DIR, "tailscaled")
+STATE = "/var/lib/tailscale"          # the login: root filesystem only
+DROP = os.path.join(STATE, "files")   # Taildrop's inbox: a tmpfs of TS_DROP_KB on it
+RUN = "/run/tailscale"                # socket, status, lock, log
+SOCK = os.path.join(RUN, "tailscaled.sock")
+STATUS = os.path.join(RUN, "status")
+LOCK = os.path.join(RUN, "lock")
+LOG = os.path.join(RUN, "tailscaled.log")
+LOG_MAX = 512 * 1024
+PORT = 41641                          # WireGuard's UDP port: a fixed one helps a router keep the path open
+POLL = 2                              # s between status reads
+RETRY = 60                            # s before a failed download or start is tried again
+UP_WAIT = 30                          # s for a new tailscaled to answer on its socket
+DROP_KB = 1024
+
+
+class Stopped(Exception):
+    """Turned off, or SIGTERM: whatever runs gives up"""
+
+
+_stop = []                            # SIGTERM seen (shutdown): stop, keep the setting
+
+
+def stopping():
+    return bool(_stop) or not enabled()
+
+
+class Fail(Exception):
+    pass
+
+
+def enabled():
+    try:
+        with open(CONF) as f:
+            return any(line.strip() == "enabled=1" for line in f)
+    except OSError:
+        return False
+
+
+def set_enabled(on):
+    tmp = f"{CONF}.{os.getpid()}"
+    with open(tmp, "w") as f:
+        f.write(f"enabled={1 if on else 0}\n")
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, CONF)
+
+
+def network_name():
+    try:
+        return subprocess.run(["/usr/sbin/x6100-hostname", "get"], capture_output=True, text=True,
+                              timeout=10).stdout.strip() or "x6100"
+    except (OSError, subprocess.SubprocessError):
+        return "x6100"
+
+
+def say(state, text, **kw):
+    """The status file the GUI and the web page read: written when it changes (the file, not a copy
+    in memory: a command may have written it meanwhile)"""
+    fields = {"state": state, "text": text, "version": VERSION, **kw}
+    body = "".join(f"{k}={str(v).replace(chr(10), ' ')}\n" for k, v in fields.items() if v is not None)
+    try:
+        with open(STATUS) as f:
+            if f.read() == body:
+                return
+    except OSError:
+        pass
+    os.makedirs(RUN, exist_ok=True)
+    tmp = f"{STATUS}.{os.getpid()}"                # each writer its own: commands and the supervisor overlap
+    with open(tmp, "w") as f:
+        f.write(body)
+    os.replace(tmp, STATUS)
+
+
+# ---- the program -----------------------------------------------------------------------------
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def have_program():
+    try:
+        return sha256(BIN) == BIN_SHA256
+    except OSError:
+        return False
+
+
+def download():
+    """Tailscale's tarball, checked against the pinned SHA-256, and tailscaled out of it"""
+    os.makedirs(DIR, exist_ok=True)
+    if shutil.disk_usage(DIR).free < 120 * 1024 * 1024:
+        raise Fail("not enough room on the card (120 MB needed)")
+    part = os.path.join(DIR, "download.part")
+    h = hashlib.sha256()
+    got = 0
+    req = urllib.request.Request(TGZ_URL, headers={"User-Agent": "OpenX6X00"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r, open(part, "wb") as f:
+            total = int(r.headers.get("Content-Length") or 0)
+            shown = -1
+            while True:
+                if stopping():
+                    raise Stopped()
+                chunk = r.read(65536)
+                if not chunk:
+                    break
+                f.write(chunk)
+                h.update(chunk)
+                got += len(chunk)
+                pct = got * 100 // total if total else 0
+                if pct != shown:
+                    say("download", f"Downloading Tailscale: {pct} %", pct=pct)
+                    shown = pct
+    except Stopped:
+        os.remove(part)
+        raise
+    except OSError as e:
+        raise Fail(f"download failed: {getattr(e, 'reason', e)}")
+    if h.hexdigest() != TGZ_SHA256:
+        os.remove(part)
+        raise Fail("the download does not match its checksum")
+    # BusyBox: no tar -z, and this Python has no zlib
+    tmp = os.path.join(DIR, "unpack")
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(tmp)
+    member = f"tailscale_{VERSION}_arm/tailscaled"
+    r = subprocess.run(f"gunzip -c '{part}' | tar x -C '{tmp}' '{member}'", shell=True, capture_output=True,
+                       text=True)
+    os.remove(part)
+    src = os.path.join(tmp, member)
+    if r.returncode != 0 or not os.path.isfile(src) or sha256(src) != BIN_SHA256:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise Fail("tailscaled could not be unpacked")
+    os.chmod(src, 0o755)
+    os.replace(src, BIN)
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ---- tailscaled's local API ------------------------------------------------------------------
+
+class _Conn(http.client.HTTPConnection):
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(SOCK)
+
+
+def api(method, path, body=None):
+    c = _Conn("local-tailscaled.sock", timeout=10)
+    headers = {"Sec-Tailscale": "localapi"}
+    data = None
+    if body is not None:
+        data = json.dumps(body)
+        headers["Content-Type"] = "application/json"
+    try:
+        c.request(method, "/localapi/v0/" + path, body=data, headers=headers)
+        r = c.getresponse()
+        out = r.read()
+    finally:
+        c.close()
+    if r.status >= 300:
+        raise Fail(f"tailscaled: {path}: HTTP {r.status} {out[:120].decode(errors='replace')}")
+    return json.loads(out) if out else None
+
+
+def set_prefs(hostname=None):
+    """Running, under the radio's name, no DNS and no routes of others: the radio only answers"""
+    prefs = {"WantRunning": True, "WantRunningSet": True, "CorpDNS": False, "CorpDNSSet": True,
+             "RouteAll": False, "RouteAllSet": True}
+    if hostname:
+        prefs.update({"Hostname": hostname, "HostnameSet": True})
+    api("PATCH", "prefs", prefs)
+
+
+# ---- the supervisor --------------------------------------------------------------------------
+
+def drop_tmpfs():
+    """Taildrop's inbox on a small tmpfs: what a peer sends never reaches the root filesystem"""
+    os.makedirs(DROP, mode=0o700, exist_ok=True)
+    if not os.path.ismount(DROP):
+        r = subprocess.run(["mount", "-t", "tmpfs", "-o", f"size={DROP_KB}k,mode=0700", "tmpfs", DROP],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise Fail(f"no tmpfs for Taildrop files: {r.stderr.strip()}")
+
+
+def start_daemon():
+    os.makedirs(STATE, mode=0o700, exist_ok=True)
+    os.makedirs(RUN, exist_ok=True)
+    drop_tmpfs()
+    try:
+        os.remove(SOCK)    # left by a tailscaled that crashed: the new one would seem up, and refuse
+    except FileNotFoundError:
+        pass
+    env = dict(os.environ, TS_LOGS_DIR=RUN)    # its log settings in RAM, not on the root filesystem
+    log = open(LOG, "ab")
+    try:
+        return subprocess.Popen([BIN, "--tun=userspace-networking", f"--statedir={STATE}", f"--socket={SOCK}",
+                                 f"--port={PORT}", "--no-logs-no-support"],
+                                stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env,
+                                preexec_fn=lambda: os.nice(10))   # behind the GUI and the audio
+    finally:
+        log.close()
+
+
+def wait_up(daemon):
+    """The new tailscaled answers on its socket: its prefs are set. It is up only then"""
+    name = network_name()
+    end = time.time() + UP_WAIT
+    while True:
+        if stopping():
+            raise Stopped()
+        if daemon.poll() is not None:
+            raise Fail(f"tailscaled stopped at once (code {daemon.returncode})")
+        try:
+            set_prefs(name)
+            return
+        except (Fail, OSError) as e:
+            if time.time() > end:
+                raise Fail(f"tailscaled does not answer ({e})")
+        time.sleep(0.5)
+
+
+def stop_daemon(p):
+    if p and p.poll() is None:
+        p.terminate()
+        try:
+            p.wait(10)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+
+
+def nap(seconds):
+    """A sleep that ends when Tailscale is turned off"""
+    end = time.time() + seconds
+    while time.time() < end and not stopping():
+        time.sleep(min(0.5, end - time.time()))
+
+
+def report(st):
+    """BackendState and the rest, said in a line"""
+    bs = st.get("BackendState", "")
+    me = st.get("Self") or {}
+    name = (me.get("DNSName") or "").rstrip(".") or None
+    ips = me.get("TailscaleIPs") or []
+    ip = next((a for a in ips if ":" not in a), ips[0] if ips else None)
+    if bs == "Running":
+        say("running", "Connected", name=name, ip=ip,
+            tailnet=(st.get("CurrentTailnet") or {}).get("Name"))
+    elif bs == "NeedsLogin" and st.get("AuthURL"):
+        say("login", "Waiting for your login", url=st["AuthURL"])
+    elif bs == "NeedsMachineAuth":
+        say("approval", "Approve it in Tailscale's admin console", name=name)
+    else:
+        say("starting", "Starting Tailscale...")
+
+
+def run():
+    os.makedirs(RUN, exist_ok=True)
+    lock = open(LOCK, "a+")                        # not "w": that would empty a running supervisor's pid
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return 0                                   # one supervisor already runs
+    lock.truncate(0)
+    lock.write(f"{os.getpid()}\n")
+    lock.flush()
+    signal.signal(signal.SIGTERM, lambda *_: _stop.append(1))
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    daemon = None
+    asked = 0.0                                    # when a login link was last asked for
+    try:
+        while not stopping():
+            if daemon is None:
+                try:
+                    if not have_program():
+                        say("download", "Downloading Tailscale: 0 %", pct=0)
+                        download()
+                    say("starting", "Starting Tailscale...")
+                    daemon = start_daemon()
+                    wait_up(daemon)
+                    asked = 0.0
+                except Stopped:
+                    break
+                except (Fail, OSError, ValueError) as e:
+                    stop_daemon(daemon)
+                    daemon = None
+                    say("error", f"Tailscale: {e}; trying again in a minute")
+                    nap(RETRY)
+                    continue
+            if daemon.poll() is not None:
+                say("error", f"tailscaled stopped (code {daemon.returncode}); starting it again")
+                daemon = None
+                nap(10)
+                continue
+            try:
+                st = api("GET", "status?peers=false")
+                bs = st.get("BackendState")
+                if bs == "Stopped":
+                    set_prefs()
+                elif bs == "NeedsLogin" and not st.get("AuthURL") and time.time() - asked > 30:
+                    api("POST", "login-interactive")
+                    asked = time.time()
+                report(st)
+            except (Fail, OSError, ValueError) as e:
+                say("starting", f"Starting Tailscale... ({e})")
+            try:
+                if os.path.getsize(LOG) > LOG_MAX:
+                    os.truncate(LOG, 0)            # opened for appending: tailscaled goes on from 0
+            except OSError:
+                pass
+            nap(POLL)
+    finally:
+        if daemon and daemon.poll() is None:
+            say("stopping", "Stopping Tailscale...")
+        stop_daemon(daemon)
+        say("off", "Off")
+        lock.close()                               # released: the next supervisor may start
+    # Turned on again while this one stopped (off, then on at once): the next one takes over. Not after
+    # SIGTERM: that is the shutdown, the setting stays as it is
+    if not _stop and enabled():
+        spawn()
+    return 0
+
+
+# ---- the commands ----------------------------------------------------------------------------
+
+def supervisor_pid():
+    """The running supervisor's pid, 0 for none: whoever holds the lock, not a pid that may be another's now"""
+    try:
+        f = open(LOCK)
+    except OSError:
+        return 0
+    with f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            return 0                               # nobody holds it
+        except OSError:
+            pass
+        try:
+            return int(f.read().strip() or 0)
+        except ValueError:
+            return 0
+
+
+def spawn():
+    """A supervisor, unless one runs (two at once: the second finds the lock taken and leaves)"""
+    if not supervisor_pid():
+        subprocess.Popen([os.path.abspath(sys.argv[0]), "run"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def cmd_boot():
+    if enabled():
+        spawn()
+    else:
+        say("off", "Off")
+    return 0
+
+
+def cmd_on():
+    set_enabled(True)
+    if not supervisor_pid():                       # one that is stopping starts the next itself
+        say("starting", "Starting Tailscale...")
+        spawn()
+    return 0
+
+
+def cmd_off():
+    """The setting off: the supervisor sees it within a poll (the download too) and stops tailscaled"""
+    set_enabled(False)
+    for _ in range(250):
+        if not supervisor_pid():
+            break
+        time.sleep(0.1)
+    else:
+        return 0                                   # still stopping: its status says so, then Off
+    say("off", "Off")                              # also when none ran: no stale state is left
+    return 0
+
+
+def cmd_logout():
+    if not os.path.exists(SOCK):
+        raise Fail("Tailscale is not running")
+    api("POST", "logout")
+    return 0
+
+
+def cmd_hostname():
+    if os.path.exists(SOCK):
+        set_prefs(network_name())
+    return 0
+
+
+def cmd_status():
+    try:
+        with open(STATUS) as f:
+            sys.stdout.write(f.read())
+    except OSError:
+        sys.stdout.write(f"state=off\ntext=Off\nversion={VERSION}\n")
+    return 0
+
+
+def main(argv):
+    cmds = {"on": cmd_on, "off": cmd_off, "logout": cmd_logout, "hostname": cmd_hostname,
+            "status": cmd_status, "run": run}
+    if argv and argv[0] not in cmds:
+        print("usage: x6100-tailscale [" + "|".join(cmds) + "]", file=sys.stderr)
+        return 1
+    try:
+        return cmds[argv[0]]() if argv else cmd_boot()
+    except (Fail, OSError) as e:                   # OSError: tailscaled not answering on its socket
+        print(f"error {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

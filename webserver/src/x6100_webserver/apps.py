@@ -517,6 +517,56 @@ def upload_update():
     return update_launch(["install", dest])
 
 
+# Tailscale (rootfs/usr/sbin/x6100-tailscale): its supervisor keeps a status file, the page reads it;
+# the switch and Log out run the helper, which only starts or signals the supervisor and returns
+TAILSCALE_CMD = "/usr/sbin/x6100-tailscale"
+TAILSCALE_STATUS = "/run/tailscale/status"
+TAILSCALE_CONF = "/mnt/tailscale.conf"
+
+
+def tailscale_status():
+    st = {"state": "off", "text": "Off"}
+    try:
+        with open(TAILSCALE_STATUS) as f:
+            for line in f:
+                k, sep, v = line.rstrip("\n").partition("=")
+                if sep:
+                    st[k] = v
+    except OSError:
+        pass
+    try:
+        with open(TAILSCALE_CONF) as f:
+            st["enabled"] = any(line.strip() == "enabled=1" for line in f)
+    except OSError:
+        st["enabled"] = False
+    return st
+
+
+@app.route('/tailscale')
+def tailscale_page():
+    return bottle.template('tailscale')
+
+
+@app.get('/api/tailscale')
+def get_tailscale():
+    return tailscale_status()
+
+
+@app.post('/api/tailscale')
+def set_tailscale():
+    action = (bottle.request.json or {}).get("action")
+    if action not in ("on", "off", "logout"):
+        return api_error(400, "action: on, off or logout")
+    try:
+        r = subprocess.run([TAILSCALE_CMD, action], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return api_error(500, f"Tailscale: {e}")
+    if r.returncode != 0:
+        msg = (r.stderr.strip().splitlines() or [f"exit code {r.returncode}"])[-1]
+        return api_error(500, "Tailscale: " + (msg[6:] if msg.startswith("error ") else msg))
+    return tailscale_status()
+
+
 @app.get('/api/tci')
 def get_tci():
     return read_tci_conf()

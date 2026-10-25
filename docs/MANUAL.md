@@ -24,6 +24,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
 - [Network name](#network-name)
+- [Tailscale](#tailscale)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
 - [Reference](#reference): [Bluetooth CAT connection](#bluetooth-cat-connection), [CI-V commands](#supported-ci-v-commands), [btcat-ctl](#btcat-ctl), [btaudio-ctl](#btaudio-ctl), [files on /mnt](#files-on-mnt)
@@ -469,6 +470,7 @@ on the MFK 2:3 page) goes to the nearest of them: 2:1 and 3:1 as 2:1, 4:1 to
 |---|---|
 | WIFI | power, status, IP, networks |
 | NETWORK NAME | the radio's name on the LAN, `x6100` by default: reachable as `<name>.local` (see [Network name](#network-name)) |
+| TAILSCALE | on/off, status, the radio's name and address on your tailnet, the login as a code to scan, Log out (see [Tailscale](#tailscale)) |
 | ETHERNET | a USB Ethernet adapter: DHCP or a static address (see [Ethernet](#ethernet)) |
 
 WiFi/BT power switches the WiFi and Bluetooth chip (one chip for both): with
@@ -2231,6 +2233,70 @@ seconds. Two radios on one LAN need two names.
 Where mDNS is blocked (some corporate or guest networks) or the browser does
 not resolve `.local`, the IP address shown in Settings > Wireless still works.
 
+## Tailscale
+
+[Tailscale](https://tailscale.com) puts the radio on your own private network,
+your tailnet. With Tailscale on a laptop or a phone you reach the radio from
+anywhere as if you were on its LAN: the web configurator, the
+[Browser panel](#browser-panel), the [Browser remote](#browser-remote) and the
+[TCI server](#tci-server). Nothing is opened on the router: Tailscale finds its
+own way out, and relays the traffic when it must.
+
+Turning it on (the radio needs the internet for it):
+
+1. Settings > Wireless > TAILSCALE > Tailscale on, or Remote > Tailscale >
+   Enabled on the web configurator.
+2. The first time, the radio downloads Tailscale from Tailscale's own site
+   (version 1.104.2 for 32-bit ARM, 37 MB, to the DATA partition) and checks
+   it against the checksum that comes with OpenX6X00. Status shows the
+   download.
+3. Status says "Waiting for your login". Scan the code on the radio's screen
+   with a phone, or press Log in to Tailscale on the web page, and log in with
+   your Tailscale account (a free Personal account will do). If your tailnet
+   approves new devices by hand, Status says so: approve the radio in
+   Tailscale's admin console.
+4. Status says Connected. Address shows the radio's name on the tailnet, its
+   network name with your tailnet's suffix (`x6200.tail1234.ts.net`), and its
+   address (`100.x.y.z`).
+
+From the laptop or the phone, with Tailscale on: `http://<name>/` (the full
+name, `http://x6200/` with MagicDNS on, or the `100.x.y.z` address), with
+`/panel` and `/remote` after it; a TCI client connects to the same name, port
+50001. The browser's microphone needs the https page (`https://<name>/remote`),
+with the radio's certificate accepted as on the LAN.
+
+Good to know:
+
+- Everyone on your tailnet reaches the radio as if they were on its LAN: the
+  web configurator has no login, TCI clients need none, and SSH asks for
+  root's password. Share the radio's machine in Tailscale only with people you
+  would let in at home. The Panel and Screen pages still ask for pairing
+  before they operate.
+- Tailscale runs in userspace mode (the radio's kernel has no TUN device): it
+  hands each incoming connection to the radio's own port. The radio itself
+  cannot reach the other machines of the tailnet, and needs not.
+- Its log upload to Tailscale is off (`--no-logs-no-support`), and so is its
+  DNS on the radio.
+- The login (the radio's key) is kept on the radio's root filesystem, out of
+  reach of the web pages. A new card image keeps Tailscale on but asks for a
+  new login; the radio then shows up as a new machine (remove the old one in
+  the admin console).
+- Log out forgets the login; while Tailscale is on, a new login is asked for at
+  once. Off stops Tailscale and keeps the login. On the radio Log out takes two
+  presses; the web page asks first, and warns when it was itself opened over
+  the tailnet, since Off or Log out then cut that very connection.
+- Files sent to the radio with Taildrop are refused: they would land on the
+  radio's small system partition, so it gives them 1 MB of memory only.
+- The [network name](#network-name) is the radio's name on the tailnet: a new
+  name goes to Tailscale too.
+- tailscaled takes about 30 MB of the radio's memory, and runs behind the GUI
+  and the audio (lower priority).
+- Over SSH, `x6100-tailscale status` prints the state, and
+  `/run/tailscale/tailscaled.log` has tailscaled's own log.
+
+The tailscaled program is Tailscale's own build (BSD-3-Clause), fetched from
+pkgs.tailscale.com; OpenX6X00 does not include it.
+
 ## Ethernet
 
 A USB Ethernet adapter in the radio's USB port gives it a wired connection
@@ -2460,6 +2526,8 @@ The DATA partition, readable on a PC.
 | `sstv/` | received SSTV pictures; `tx_pics/` pictures and `tx_text/` text templates to send |
 | `wefax/` | received faxes; `tx_pics/` pictures to send |
 | `https/` | the web configurator's HTTPS certificate |
+| `tailscale.conf` | Tailscale on or off: `enabled=0|1` |
+| `tailscale/` | the tailscaled program, downloaded when Tailscale is turned on and checked before every start |
 
 `cluster.conf` example (the `host=`/`port=` lines are the server in use, each
 `server=` line is a saved server, `name|host|port`):

@@ -94,6 +94,8 @@ static void make_txcal_page();
 static void make_walkie_page();
 static void wl_row_label(uint8_t row, const char *text);
 static void nn_load(char *out, size_t size);     /* the network name (Wireless) */
+static void ts_update();                         /* Tailscale (Wireless) */
+static void ts_forget();
 
 static lv_obj_t     *grid;
 static lv_obj_t     *page;      /* scrolling column of cards */
@@ -2641,6 +2643,7 @@ static void wl_timer_cb(lv_timer_t *t) {
     }
     wifi_update();
     eth_update();
+    ts_update();
 }
 
 /* Objects die with the page: late callbacks must not touch them */
@@ -2651,6 +2654,7 @@ static void bt_forget_objs() {
 
 static void wl_delete_cb(lv_event_t *e) {
     wl_gen++;
+    ts_forget();
     lv_timer_del(wl_timer);
     wl_timer = NULL;
     wl_menu_back = NULL;
@@ -3857,6 +3861,216 @@ static uint8_t make_network_name(uint8_t row) {
     return row + 1;
 }
 
+/* Tailscale (x6100-tailscale): the switch and Log out run the helper, the rest follows the status file
+ * its supervisor keeps, read with the page's timer (the helper itself takes a second of CPU to start) */
+#define TS_CTL    "/usr/sbin/x6100-tailscale"
+#define TS_STATUS "/run/tailscale/status"
+#define TS_CONF   BOARD_DATA "/tailscale.conf"
+#define TS_QR     150
+#define TS_ARM_MS 5000      /* Log out: the second press within this */
+
+struct ts_status_t {
+    char state[16];
+    char text[96];
+    char url[160];
+    char name[96];
+    char ip[48];
+    bool enabled;           /* the setting, as the web page shows it */
+};
+
+static struct {
+    lv_obj_t *sw, *text, *addr, *qr, *qr_note, *logout, *logout_note;
+    uint32_t  armed;        /* Log out pressed once, at this tick: 0 none */
+    char      url[160];     /* the link the code shows */
+    bool      busy;         /* a command runs: the switch is not set back from the file meanwhile */
+    bool      shown;        /* the page has had its first update: a login wanted after that scrolls to the code */
+} ts;
+
+/* The page is gone: late callbacks must not touch its objects */
+static void ts_forget() {
+    ts = {};
+}
+
+static void ts_load(ts_status_t *st) {
+    char line[256];
+    FILE *f = fopen(TS_STATUS, "r");
+
+    *st = {};
+    strcpy(st->state, "off");
+    strcpy(st->text, "Off");
+    if (!f) {
+        return;
+    }
+    while (fgets(line, sizeof(line), f)) {
+        char *v = strchr(line, '=');
+
+        if (!v) continue;
+        *v++ = '\0';
+        v[strcspn(v, "\r\n")] = '\0';
+        if (strcmp(line, "state") == 0) snprintf(st->state, sizeof(st->state), "%s", v);
+        else if (strcmp(line, "text") == 0) snprintf(st->text, sizeof(st->text), "%s", v);
+        else if (strcmp(line, "url") == 0) snprintf(st->url, sizeof(st->url), "%s", v);
+        else if (strcmp(line, "name") == 0) snprintf(st->name, sizeof(st->name), "%s", v);
+        else if (strcmp(line, "ip") == 0) snprintf(st->ip, sizeof(st->ip), "%s", v);
+    }
+    fclose(f);
+    f = fopen(TS_CONF, "r");
+    if (f) {
+        while (fgets(line, sizeof(line), f)) {
+            if (strncmp(line, "enabled=1", 9) == 0) st->enabled = true;
+        }
+        fclose(f);
+    }
+}
+
+static void ts_busy(bool on) {
+    ts.busy = on;
+    if (on) {
+        lv_obj_add_state(ts.sw, LV_STATE_DISABLED);
+        lv_obj_add_state(ts.logout, LV_STATE_DISABLED);
+    } else {
+        lv_obj_clear_state(ts.sw, LV_STATE_DISABLED);
+    }
+}
+
+static void ts_update() {
+    ts_status_t st;
+
+    if (!ts.text) {
+        return;
+    }
+    ts_load(&st);
+    bool running = strcmp(st.state, "running") == 0;
+    bool login = strcmp(st.state, "login") == 0 && st.url[0];
+
+    if (ts.busy) {
+        return;             /* the command's own text stays until it is done */
+    }
+    if (st.enabled != lv_obj_has_state(ts.sw, LV_STATE_CHECKED)) {
+        if (st.enabled) lv_obj_add_state(ts.sw, LV_STATE_CHECKED);
+        else lv_obj_clear_state(ts.sw, LV_STATE_CHECKED);
+    }
+    lv_label_set_text(ts.text, st.text);
+    if (running) {
+        lv_label_set_text_fmt(ts.addr, "%s  %s", st.name, st.ip);
+    } else {
+        lv_label_set_text(ts.addr, "-");
+    }
+    if (login) {
+        lv_obj_clear_flag(ts.qr, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(ts.qr_note, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(ts.qr, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(ts.qr_note, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (login && strcmp(ts.url, st.url) != 0) {
+        bool first = !ts.url[0];
+
+        snprintf(ts.url, sizeof(ts.url), "%s", st.url);
+        lv_qrcode_update(ts.qr, ts.url, strlen(ts.url));
+        if (first && ts.shown) {   /* turned on here: the code comes into view (it is below the switch) */
+            lv_obj_update_layout(ts.qr);
+            lv_obj_scroll_to_view_recursive(ts.qr, LV_ANIM_ON);
+        }
+    }
+    ts.shown = true;
+    if (running || strcmp(st.state, "approval") == 0) lv_obj_clear_state(ts.logout, LV_STATE_DISABLED);
+    else lv_obj_add_state(ts.logout, LV_STATE_DISABLED);
+    if (ts.armed && lv_tick_elaps(ts.armed) > TS_ARM_MS) {
+        ts.armed = 0;
+        lv_label_set_text(ts.logout_note, "asks for a new login");
+    }
+}
+
+static void ts_done_cb(const char *out, int status, void *user) {
+    if ((intptr_t)user == wl_gen) {
+        ts_busy(false);
+    }
+    if (status != 0) {
+        const char *e = strstr(out, "error ");
+
+        msg_update_text_fmt("Tailscale: %s", e ? e + 6 : "the helper failed");
+    }
+    if ((intptr_t)user == wl_gen) {
+        ts_update();
+    }
+}
+
+static void ts_switch_cb(lv_event_t *e) {
+    bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+
+    if (ts.busy) {
+        return;
+    }
+    ts_busy(true);          /* one command at a time: off and on at once lost the on */
+    lv_label_set_text(ts.text, on ? "Starting Tailscale..." : "Stopping Tailscale...");
+    sh_run(on ? TS_CTL " on" : TS_CTL " off", ts_done_cb, (void *)(intptr_t)wl_gen);
+}
+
+/* Two presses: worked through the browser remote over Tailscale, it cuts that very connection */
+static void ts_logout_cb(lv_event_t *e) {
+    if (ts.busy || lv_obj_has_state(ts.logout, LV_STATE_DISABLED)) {
+        return;
+    }
+    if (!ts.armed || lv_tick_elaps(ts.armed) > TS_ARM_MS) {
+        ts.armed = lv_tick_get() | 1;
+        lv_label_set_text(ts.logout_note, "press again to log out");
+        return;
+    }
+    ts.armed = 0;
+    lv_label_set_text(ts.logout_note, "asks for a new login");
+    ts_busy(true);
+    lv_label_set_text(ts.text, "Logging out...");
+    sh_run(TS_CTL " logout", ts_done_cb, (void *)(intptr_t)wl_gen);
+}
+
+static uint8_t make_tailscale(uint8_t row) {
+    ts = {};
+    wl_row_label(row, "Tailscale");
+    ts.sw = bt_switch_cell(row, 1, false, ts_switch_cb);
+    row++;
+
+    wl_row_label(row, "Status");
+    ts.text = wl_label(grid, SF(22), theme_hex(TC_text_value), 0);
+    lv_obj_set_size(ts.text, SMALL_6, lv_font_get_line_height(SF(22)));   /* one line, then dots */
+    lv_label_set_long_mode(ts.text, LV_LABEL_LONG_DOT);
+    lv_obj_set_grid_cell(ts.text, LV_GRID_ALIGN_START, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
+    row++;
+
+    wl_row_label(row, "Address");
+    ts.addr = wl_label(grid, SF(22), theme_hex(TC_text_dim), 0);
+    lv_obj_set_size(ts.addr, SMALL_6, lv_font_get_line_height(SF(22)));
+    lv_label_set_long_mode(ts.addr, LV_LABEL_LONG_DOT);
+    lv_obj_set_grid_cell(ts.addr, LV_GRID_ALIGN_START, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
+    row++;
+
+    /* While a login is wanted: its link as a code for a phone, with a quiet zone round it */
+    ts.qr = lv_qrcode_create(grid, TS_QR, lv_color_black(), lv_color_white());
+    lv_obj_set_style_border_color(ts.qr, lv_color_white(), 0);
+    lv_obj_set_style_border_width(ts.qr, 8, 0);
+    lv_obj_set_grid_cell(ts.qr, LV_GRID_ALIGN_START, 1, 3, LV_GRID_ALIGN_CENTER, row, 1);
+    dialog_item(&dialog, ts.qr);   /* the knob reaches it while it shows: Log out below is off until a login */
+    /* Focused, it keeps its white quiet zone (the theme's focus border would replace it): an outline round it */
+    lv_obj_set_style_border_color(ts.qr, lv_color_white(), LV_STATE_FOCUSED);
+    lv_obj_set_style_border_width(ts.qr, 8, LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_color(ts.qr, TC(focus), LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_width(ts.qr, 3, LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_pad(ts.qr, 2, LV_STATE_FOCUSED);
+    ts.qr_note = wl_note(row);
+    lv_label_set_text(ts.qr_note, "Scan with a phone and log in to Tailscale, or open the link on the web page: "
+                                  "Remote > Tailscale");
+    lv_obj_add_flag(ts.qr, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ts.qr_note, LV_OBJ_FLAG_HIDDEN);
+    row_dsc[row] = LV_GRID_CONTENT;
+    row++;
+
+    wl_row_label(row, "Login");
+    ts.logout = wl_button(row, "Log out", ts_logout_cb);
+    ts.logout_note = wl_note(row);
+    lv_label_set_text(ts.logout_note, "asks for a new login");
+    return row + 1;
+}
+
 static void make_wireless_page() {
     grid_delete();
     grid_create();
@@ -3870,6 +4084,11 @@ static void make_wireless_page() {
     row = card_begin("NETWORK NAME", col_station);
     row = make_network_name(row);
     card_end(row);
+
+    row = card_begin("TAILSCALE");
+    row = make_tailscale(row);
+    card_end(row);
+    ts_update();
 
     eth_info_t in;
 
