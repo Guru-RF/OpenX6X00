@@ -34,6 +34,12 @@ lv_obj_t *textarea_window_open(textarea_window_cb_t ok_cb, textarea_window_cb_t 
 lv_obj_t *textarea_window_open_w_label(textarea_window_cb_t ok_cb, textarea_window_cb_t cancel_cb, const char *text);
 void textarea_window_close();
 
+/* A character (or LV_KEY_BACKSPACE) into the open window's text, wherever the focus is; false with no window.
+ * The hand mic's digits: the window holds the group in edit mode, where they are mic keys, and with the
+ * on-screen keys focused a key event typed nothing */
+bool textarea_window_type(uint32_t key);
+bool textarea_window_is_open(void);
+
 const char *textarea_window_get();
 void textarea_window_set(const char *text);
 lv_obj_t *textarea_window_text();

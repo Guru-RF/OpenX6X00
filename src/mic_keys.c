@@ -16,6 +16,7 @@
 #include "screen_light.h"
 #include "gui_events.h"
 #include "key_input.h"
+#include "text_popup.h"
 
 #include "radio_types.h"
 #include <stdlib.h>
@@ -90,6 +91,15 @@ void hkey_put(uint32_t code) {
     }
     if (i == sizeof(keys) / sizeof(keys[0])) {
         cur.key = HKEY_UNKNOWN;
+    } else if (keys[i].use != MIC_KEY && keys[i].code != RADIO_HKEY_FINP && textarea_window_is_open()) {
+        /* A text window open (a WiFi password, a call): digits, the dot and CE go into its text; they changed the
+         * band before, the window holding the group in edit mode */
+        if (all_up()) {
+            textarea_window_type(keys[i].key);
+            cur.state = HKEY_PRESS;
+            cur.key   = HKEY_UNKNOWN;
+        }
+        return;
     } else if (keys[i].use == TYPED || (keys[i].use == TYPED_UNLESS_EDITING && !lv_group_get_editing(keyboard_group))) {
         /* Typed once per press: nothing while another key is still down */
         if (all_up()) {

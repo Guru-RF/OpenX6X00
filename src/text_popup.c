@@ -196,6 +196,22 @@ void textarea_window_close() {
     }
 }
 
+bool textarea_window_is_open(void) {
+    return window != NULL;
+}
+
+bool textarea_window_type(uint32_t key) {
+    if (!window) {
+        return false;
+    }
+    if (key == LV_KEY_BACKSPACE) {
+        lv_textarea_del_char(field);
+    } else {
+        lv_textarea_add_char(field, key);
+    }
+    return true;
+}
+
 const char *textarea_window_get() {
     return lv_textarea_get_text(field);
 }
