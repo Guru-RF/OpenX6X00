@@ -1,7 +1,7 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  IARU Region 1 band plan (160 m .. 10 m, 6 m) as a thin coloured strip at
+ *  IARU Region 1 band plan (160 m .. 10 m, 6 m) and the bands of the band list it lacks, as a thin coloured strip at
  *  the bottom of the spectrum (top of the waterfall when the spectrum is off), lined up with the frequency row.
  */
 
@@ -31,6 +31,10 @@ bool band_plan_segment(int i, int32_t *start, int32_t *end, int *type);
 
 /* The setting changed: redraw with the last span */
 void band_plan_refresh(void);
+
+/* The band list may have changed: the IARU segments, and the active bands they do not cover as segments of the
+ * type their name says (CW, DIG/FT8/DATA, BCN, else all modes). LVGL thread */
+void band_plan_reload(void);
 
 /* The segment type (bp_type_t) at freq, -1 between the segments */
 int band_plan_type(int32_t freq);

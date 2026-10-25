@@ -49,6 +49,8 @@ int32_t cfg_default_mode(int32_t freq);
 
 /* The active bands, lowest first: start and stop in Hz and the name of each, up to max; returns how many */
 int cfg_bands_active(int32_t *start, int32_t *stop, char (*names)[16], int max);
+/* The same with the bands' ids (ids may be NULL) */
+int cfg_bands_active_ids(int32_t *ids, int32_t *start, int32_t *stop, char (*names)[16], int max);
 
 // Copy active VFO (freq, mode, agc, att, pre) to inactive VFO.
 void cfg_band_vfo_copy(void);

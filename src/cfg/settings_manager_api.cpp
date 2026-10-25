@@ -52,6 +52,10 @@ int32_t cfg_default_mode(int32_t freq) {
 }
 
 int cfg_bands_active(int32_t *start, int32_t *stop, char (*names)[16], int max) {
+    return cfg_bands_active_ids(NULL, start, stop, names, max);
+}
+
+int cfg_bands_active_ids(int32_t *ids, int32_t *start, int32_t *stop, char (*names)[16], int max) {
     std::vector<BandInfo> all = BandsTable::all_bands();
     int                   n   = 0;
 
@@ -59,6 +63,7 @@ int cfg_bands_active(int32_t *start, int32_t *stop, char (*names)[16], int max) 
     for (const BandInfo &b : all) {
         if (b.type != BAND_ACTIVE || n >= max || !cfg_sm.is_valid_hw_freq(b.start_freq))
             continue;
+        if (ids) ids[n] = b.id;
         start[n] = (int32_t)b.start_freq;
         stop[n]  = (int32_t)b.stop_freq;
         snprintf(names[n], 16, "%s", b.name.c_str());

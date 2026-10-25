@@ -8,15 +8,20 @@
 #include "styles.h"
 #include "theme.h"
 
+#include <pthread.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "fonts/font_select.h"
 
 /* VISION: the sizes of the other themes here (an overlay on VISION's shorter waterfall) */
 #define NF(n) (theme_shape.vision ? font_down(&sony_##n, VISION_FONT_STEPS) : &sony_##n)
 
 #define WIDTH   800
-#define POOL    12      /* segments in view: a span is 100 kHz at most */
+#define POOL    16      /* segments in view: a span is 100 kHz at most */
+#define MAX_SEG 96      /* the IARU table and the bands added to the band list */
+#define BANDS   48
 #define OPA     LV_OPA_80     /* the waterfall shows through a little, the labels stay readable */
 
 extern lv_font_t sony_18;
@@ -31,6 +36,7 @@ typedef struct {
 static const bp_seg_t plan[] = {
     {  1810000,  1838000, BP_CW  }, {  1838000,  1843000, BP_DIG }, {  1843000,  2000000, BP_ALL },
     {  3500000,  3570000, BP_CW  }, {  3570000,  3600000, BP_DIG }, {  3600000,  3800000, BP_ALL },
+    {  5351500,  5354000, BP_CW  }, {  5354000,  5366000, BP_ALL }, {  5366000,  5366500, BP_DIG },  /* WRC-15 */
     {  7000000,  7040000, BP_CW  }, {  7040000,  7050000, BP_DIG }, {  7050000,  7200000, BP_ALL },
     { 10100000, 10130000, BP_CW  }, { 10130000, 10150000, BP_DIG },
     { 14000000, 14070000, BP_CW  }, { 14070000, 14099000, BP_DIG }, { 14099000, 14101000, BP_BCN },
@@ -62,6 +68,61 @@ static seg_t   segs[POOL];
 static bool    ready;
 static int32_t span_center, span_half;
 
+/* The plan in use: plan[] and, where it has nothing, the active bands of the band list (a band added on the web
+ * page, "60m CW" at 5.3 MHz, had no strip and no CW keyboard: issue #5). Read from any thread (remote_server) */
+static bp_seg_t        cur[MAX_SEG];
+static int             ncur;
+static pthread_mutex_t cur_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/* A band's own segment type, from its name as the presets are named ("40m CW", "20m SSB"); its last used mode
+ * is no type: it changes with every mode change */
+static bp_type_t type_from_name(const char *name) {
+    if (strcasestr(name, "CW")) return BP_CW;
+    if (strcasestr(name, "DIG") || strcasestr(name, "FT8") || strcasestr(name, "FT4") || strcasestr(name, "DATA")) return BP_DIG;
+    if (strcasestr(name, "BCN") || strcasestr(name, "BEACON")) return BP_BCN;
+    return BP_ALL;
+}
+
+static int by_start(const void *a, const void *b) {
+    const bp_seg_t *x = a, *y = b;
+
+    return x->start < y->start ? -1 : x->start > y->start;
+}
+
+void band_plan_reload(void) {
+    static int32_t ids[BANDS], start[BANDS], stop[BANDS];
+    static char    names[BANDS][16];
+    static bp_seg_t list[MAX_SEG];
+    int            nb = cfg_bands_active_ids(ids, start, stop, names, BANDS);
+    int            n  = sizeof(plan) / sizeof(plan[0]);
+
+    memcpy(list, plan, sizeof(plan));
+    for (int i = 0; i < nb; i++) {
+        /* Broadcast and CB (ids 100-299, sql/params.sql) are no amateur bands */
+        if (ids[i] >= 100 && ids[i] < 300) {
+            continue;
+        }
+        int32_t   a = start[i], e = stop[i];
+        bp_type_t t = type_from_name(names[i]);
+        int       base = n;
+
+        qsort(list, n, sizeof(list[0]), by_start);
+        /* The parts of [a, e] no segment covers yet */
+        for (int k = 0; k < base && a < e && n < MAX_SEG; k++) {
+            if (list[k].end <= a) continue;
+            if (list[k].start >= e) break;
+            if (list[k].start > a) list[n++] = (bp_seg_t){a, list[k].start, t};
+            a = list[k].end > a ? list[k].end : a;
+        }
+        if (a < e && n < MAX_SEG) list[n++] = (bp_seg_t){a, e, t};
+    }
+    qsort(list, n, sizeof(list[0]), by_start);
+    pthread_mutex_lock(&cur_lock);
+    memcpy(cur, list, n * sizeof(list[0]));
+    ncur = n;
+    pthread_mutex_unlock(&cur_lock);
+}
+
 static void redraw(void) {
     int n = 0;
 
@@ -72,8 +133,9 @@ static void redraw(void) {
         int32_t left = span_center - span_half;
         int64_t span = 2 * (int64_t)span_half;
 
-        for (size_t i = 0; i < sizeof(plan) / sizeof(plan[0]) && n < POOL; i++) {
-            const bp_seg_t *p    = &plan[i];
+        pthread_mutex_lock(&cur_lock);
+        for (int i = 0; i < ncur && n < POOL; i++) {
+            const bp_seg_t *p    = &cur[i];
             int64_t         a    = (int64_t)(p->start - left) * WIDTH / span;
             int64_t         b    = (int64_t)(p->end - left) * WIDTH / span;
             seg_t          *s    = &segs[n];
@@ -108,6 +170,7 @@ static void redraw(void) {
             lv_obj_clear_flag(s->box, LV_OBJ_FLAG_HIDDEN);
             n++;
         }
+        pthread_mutex_unlock(&cur_lock);
     }
     for (; n < POOL; n++) {
         lv_obj_add_flag(segs[n].box, LV_OBJ_FLAG_HIDDEN);
@@ -115,6 +178,7 @@ static void redraw(void) {
 }
 
 void band_plan_init(lv_obj_t *parent, lv_coord_t y) {
+    band_plan_reload();
     for (int i = 0; i < POOL; i++) {
         lv_obj_t *b = lv_obj_create(parent);
 
@@ -160,28 +224,33 @@ void band_plan_refresh(void) {
 }
 
 bool band_plan_segment(int i, int32_t *start, int32_t *end, int *type) {
-    if (i < 0 || (size_t)i >= sizeof(plan) / sizeof(plan[0]))
-        return false;
-    *start = plan[i].start;
-    *end   = plan[i].end;
-    *type  = plan[i].type;
-    return true;
+    bool ok;
+
+    pthread_mutex_lock(&cur_lock);
+    ok = i >= 0 && i < ncur;
+    if (ok) {
+        *start = cur[i].start;
+        *end   = cur[i].end;
+        *type  = cur[i].type;
+    }
+    pthread_mutex_unlock(&cur_lock);
+    return ok;
 }
 
 int band_plan_type(int32_t freq) {
-    for (size_t i = 0; i < sizeof(plan) / sizeof(plan[0]); i++) {
-        if (freq >= plan[i].start && freq < plan[i].end) {
-            return plan[i].type;
+    int type = -1;
+
+    pthread_mutex_lock(&cur_lock);
+    for (int i = 0; i < ncur; i++) {
+        if (freq >= cur[i].start && freq < cur[i].end) {
+            type = cur[i].type;
+            break;
         }
     }
-    return -1;
+    pthread_mutex_unlock(&cur_lock);
+    return type;
 }
 
 bool band_plan_is_cw(int32_t freq) {
-    for (size_t i = 0; i < sizeof(plan) / sizeof(plan[0]); i++) {
-        if (freq >= plan[i].start && freq < plan[i].end) {
-            return plan[i].type == BP_CW;
-        }
-    }
-    return false;
+    return band_plan_type(freq) == BP_CW;
 }

@@ -1269,6 +1269,12 @@ static void on_cluster_spots_wf_change(Subject *subj, void *user_data) {
     cluster_column_layout(y);
 }
 
+/* Another band: the band list may have changed on the web page since (a band added, renamed, moved) */
+static void on_band_id_change(Subject *subj, void *user_data) {
+    band_plan_reload();
+    band_plan_refresh();
+}
+
 static void on_band_plan_change(Subject *subj, void *user_data) {
     band_plan_refresh();
     on_cluster_spots_wf_change(NULL, NULL);
@@ -1384,6 +1390,7 @@ static void build(void) {
     cluster_column_init(obj, wf_y);
     subject_subscribe_delayed_and_notify((Subject*)cfg_cluster_spots_wf, on_cluster_spots_wf_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_band_plan, on_band_plan_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_band_id, on_band_id_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_cluster_column, on_cluster_column_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_spectrum_show, on_spectrum_layout_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_spectrum_height, on_spectrum_layout_change, NULL);

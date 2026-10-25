@@ -241,6 +241,14 @@ Over the waterfall. Where: Settings > Display > MAIN SCREEN.
 | Cluster spots | the DX cluster calls at their frequencies (see [DX Cluster](#dx-cluster)) |
 | Cluster column | the spot list in a box on the right |
 
+The band plan strip shows the IARU Region 1 segments (160 m to 6 m, 60 m as
+WRC-15). A band of the band list the IARU plan does not cover (one added on
+the web configurator's Bands page, the top of 6 m, 4 m, 2 m) gets a strip
+too, typed from its name: CW in the name makes a CW segment, DIG, FT8, FT4 or
+DATA a digital one, BCN a beacon one, anything else all modes. "60m CW" at
+5.2585 MHz is a CW segment, so the CW keyboard works there. Broadcast and CB
+get none. A band changed on the web page shows at the next band change.
+
 Spectrum. Where: Settings > Display > SPECTRUM (off by default; the screen
 restarts to lay it out). The band plan and the cluster spots stay at the top
 of the waterfall. With Spectrum on, the card has:

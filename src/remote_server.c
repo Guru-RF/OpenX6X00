@@ -844,7 +844,7 @@ static void panel_broadcast(const char *s) {
 static void panel_hello(client_t *c) {
     static int32_t start[32], stop[32];
     static char    names[32][16];
-    char           buf[2048];
+    static char    buf[4096];       /* the plan with bands of the band list added: more than 2 KB */
     size_t         k = 0;
 
     client_textf(c, "modes %d", radio_caps() & HW_CAP_SAM_WFM ? radio_mode_last + 1 : radio_mode_sam);
