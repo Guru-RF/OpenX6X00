@@ -9,6 +9,83 @@ headphones and CAT, a web configurator, and a **TCI server** so the
 hear and key the radio over the network. In the RF.Guru identity: near-black
 surfaces, gold for what is on, electric blue as the second accent.
 
+## Reporting a problem
+
+Open an [issue](https://github.com/Guru-RF/OpenX6X00/issues), one problem per
+issue, after a look at the open ones. Please give:
+
+1. **The radio**: X6100 or X6200.
+2. **The versions**, from Settings > Info: the OpenX6X00 version and the
+   **Baseband** version (see [The baseband](#the-baseband) below). Say
+   whether the card was written from an image or updated in the radio, and
+   from which version.
+3. **What happened**: what you did, what you expected and what you got. Give
+   the mode, the band or frequency, the power setting and the menu you were
+   in. A photo of the screen helps, above all of a message or of the TX
+   panel.
+4. **Power and antenna**: an external supply or the battery; an antenna, a
+   tuner or a dummy load. For a transmit problem, give what the TX panel shows
+   (PWR, SWR, ALC), and what an external wattmeter shows if you have one.
+5. **The logs**, from the card's DATA partition: put the card in a PC and
+   attach the newest files of the `app_logs` folder. Each run of the radio
+   software leaves one `x6100_log_*.txt`. From v0.3.4 a power-off with the
+   POWER key saves the running one too, so switch off right after the problem.
+6. **WiFi**: from v0.3.4 a failed join writes `app_logs/wifi.txt`, with no
+   password in it. Add the exact message on the screen, the router's security
+   (WPA2, WPA2/WPA3, WPA3 only), its 2.4 GHz channel, and whether a phone
+   hotspot works.
+7. **Audio and Bluetooth**: what you heard (the received audio or your own
+   transmission), and the volume, mute and headphone settings.
+
+## The baseband
+
+Each radio runs two firmwares. OpenX6X00 is the Linux side, on the card. The
+**baseband** is the firmware of the radio board (DSP, RF, power, keyer), from
+Xiegu. OpenX6X00 talks to it and never changes it. Settings > Info > Baseband
+shows its version.
+
+**X6100**
+
+| Baseband | What it is | With OpenX6X00 |
+|---|---|---|
+| V1.1.8 (240915003) | Xiegu's base on most radios since late 2024 | Works. The bench X6100 runs it. |
+| V1.1.9 (251127001) | Xiegu's newer base. Some radios carry it, not yet flashed, on their internal memory. | Works, and OpenX6X00 also uses its zoom and IF shift. |
+| [x6100_base_patch](https://github.com/gdyuldin/x6100_base_patch) r13 | gdyuldin's patched base, built on V1.1.6 | Works. It adds the TX audio and calibration options (compressor shape, band output gain, TX filter, CESSB, FM emphasis) and a battery percentage from a measured discharge curve. On a radio that shipped with V1.1.8 we saw its power about 10 % high before calibration, now and then next to no power on the first transmission after a band change, and the external voltage read as 0 V ([TODO.md](TODO.md)). |
+
+The settings that need a newer base are hidden when the base is too old.
+
+**X6200**
+
+| Baseband | What it is | With OpenX6X00 |
+|---|---|---|
+| 1.0.7 (January 2026) | Xiegu's base | Works. |
+| 1.0.8 (August 2026) | Fixes the CW keyer speed and an S-meter stuck at -255 dBm, adds CW macros | Works. |
+
+OpenX6X00 v0.3.0 to v0.3.3 lose the transmit power about a second into a
+transmission on the X6200, on both bases (issues #1 and #8). v0.3.4 fixes it:
+tested into a dummy load on 1.0.7 and 1.0.8.
+
+**Updating the baseband**: with Xiegu's own system, which stays on the radio's
+internal memory when OpenX6X00 runs from the card.
+
+1. Run the radio from a 13.8 V supply (3 A or more) with the battery out, for
+   the whole update.
+2. Write Xiegu's update image for your radio (from
+   [xiegu.eu](https://xiegu.eu/downloads/), for example
+   `x6200udimg-260820001.zip` for the X6200's 1.0.8) to a spare microSD card,
+   not the OpenX6X00 one. Boot the radio from it: it writes Xiegu's system to
+   the internal memory in about a minute, then switches off.
+3. Take the card out and switch on: Xiegu's system starts. System Setting >
+   Firmware Upgrade, choose the new file (`x6200_mcu_20260820141208.xgf` for
+   the X6200's 1.0.8), UPGRADE, wait for 100 %, QUIT. Then Factory Reset, which
+   clears Xiegu's settings only.
+4. Switch off, put the OpenX6X00 card back and switch on. OpenX6X00 keeps its
+   settings on its card.
+
+Xiegu's tutorial:
+[X6200 firmware upgrade](http://xiegu.eu/wp-content/uploads/sites/4/2024/07/X6200FirmwareUpgradeTutorialWS-JSZL-2407-01ENRevised.pdf).
+The patched X6100 base comes with its own instructions.
+
 ## Where it comes from
 
 OpenX6X00 is a fork of the last fully open-source release of the X6100
@@ -102,16 +179,17 @@ After that the radio updates itself: Settings > Info > Update (or System >
 Update on the web page) fetches the latest release's bundle for its model from GitHub,
 checks its signature, installs it and restarts the radio software, keeping
 the previous version for an automatic rollback if the new one does not come
-up. A new card image is only needed when the kernel or a driver changes.
+up. A new card image is only needed when the kernel or a driver changes. From
+v0.3.4 the radio says so: Check shows when a release also has a new card image
+for that radio and what it brings, and Settings > Info > Update keeps saying
+it until the new image is on the card.
 
 A new image normally keeps DATA: the image is smaller than the card, so the
 DATA filesystem stays where it was and the first start adopts it again.
 Download the Backup from the web configurator first all the same (the
 [manual](docs/MANUAL.md) lists the files); a card-wiping tool or a smaller
-card would lose it. A patched baseband
-([x6100_base_patch](https://github.com/gdyuldin/x6100_base_patch)) r13 or
-newer is recommended: the TX audio and calibration options (CESSB, band
-output gain) and a battery percentage from a measured discharge curve.
+card would lose it. For the baseband versions and how to update them, see
+[The baseband](#the-baseband).
 
 ## Build
 
