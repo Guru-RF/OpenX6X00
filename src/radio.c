@@ -120,7 +120,9 @@ static void on_change_f(Subject *subj, void *user_data);
 static void on_pwr_change(Subject *subj, void *user_data);
 static void on_volume_change(Subject *subj, void *user_data);
 
+#ifndef BOARD_X6200
 static void recover_processing_audio_inputs();
+#endif
 static bool tx_refused(void);
 static bool radio_tick();
 static void * radio_thread(void *arg);
@@ -892,6 +894,7 @@ static void on_band_change(Subject *subj, void *user_data) {
     WITH_RADIO_LOCK(hw_set_i(HW_TX_Q_OFFSET, q_val));
 }
 
+#ifndef BOARD_X6200
 /**
  * Restore "listening" of main board and USB soundcard after ATU
  */
@@ -908,6 +911,7 @@ static void recover_processing_audio_inputs() {
     hw_vfo_set_mode(vfo, cparam_i_get(cfg_cur_mode));
     radio_unlock();
 }
+#endif
 
 /* Battery log for the discharge curve of the pack and the time left (bat_est.c), every
  * minute: the base gives the voltage (0.1 V steps) and its own %, no current. Called about
@@ -1148,7 +1152,10 @@ static bool radio_tick() {
                     uint32_t network = pack->atu_params;
                     scheduler_put(atu_done_cb, &network, sizeof(network));
                     WITH_RADIO_LOCK(hw_set_i(HW_ATU_TUNE, false));
+#ifndef BOARD_X6200
+                    /* The X6100's: it keys the modem at 0.1 W; gdyuldin's X6200 GUI dropped it */
                     recover_processing_audio_inputs();
+#endif
                     if (notify_rx_tx) {
                         notify_rx_tx(false);
                     }

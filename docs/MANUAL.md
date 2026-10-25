@@ -441,6 +441,9 @@ All these options are also on the web configurator's Display page.
 | VOX | On, Gain, Anti-VOX, Delay |
 | AGC | Hang, Knee, Slope |
 
+Compressor on the X6200: its base has three levels, so the ratio chosen (Comp
+on the MFK 2:3 page) goes to the nearest of them: 2:1 and 3:1 as 2:1, 4:1 to
+7:1 as 4:1, 8:1 as 8:1; 1:1 (Off) is off. It is off by default on the X6200.
 
 ### Wireless tab
 

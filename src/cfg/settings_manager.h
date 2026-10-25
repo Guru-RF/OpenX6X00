@@ -383,7 +383,12 @@ class SettingsManager {
     // DSP custom
     Parameter<float, int32_t, 5> p_output_gain{"output_gain", 0.0f, {},
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
+#ifdef BOARD_X6200
+    /* Off, as gdyuldin's X6200 GUI starts (and as the X6200 had it in effect while the bit went in upside down) */
+    Parameter<int32_t>           p_comp{"comp", 1, 1, 8,
+#else
     Parameter<int32_t>           p_comp{"comp", 4, 1, 8,
+#endif
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<float, int32_t, 2> p_comp_threshold_offset{"comp_threshold_offset", 0.0f, {},
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};

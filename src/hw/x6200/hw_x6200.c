@@ -264,8 +264,13 @@ bool hw_set_i(hw_param_t p, int32_t v) {
             if (hw_get_i(HW_FILTER1_HIGH) == v) return false;
             x6200_control_rx_filter_set_high(v);
             break;
-        case HW_COMP_ON:        x6200_control_comp_set(v); break;
-        case HW_COMP_LEVEL:     x6200_control_comp_level_set((x6200_comp_level_t)v); break;
+        /* radio.c speaks the X6100's compressor: COMP_ON true is OFF there, and COMP_LEVEL is the ratio minus 2
+         * (0-6). The X6200's bit is a plain on/off and its levels are off, 1:2, 1:4, 1:8 (x6200_comp_level_t;
+         * gdyuldin's GUI sends the bit as it is): "Comp off" turned it on, and ratios over 1:5 went past the end */
+        case HW_COMP_ON:        x6200_control_comp_set(!v); break;
+        case HW_COMP_LEVEL:     x6200_control_comp_level_set(v + 2 <= 3 ? x6200_comp_1_2 : v + 2 <= 7 ? x6200_comp_1_4
+                                                                                                  : x6200_comp_1_8);
+                                break;
         case HW_VOX:            x6200_control_vox_set(v); break;
         case HW_VOX_GAIN:       x6200_control_vox_gain_set(v); break;
         case HW_VOX_AG:         x6200_control_vox_ag_set(v); break;
