@@ -1822,7 +1822,7 @@ static void wifi_update() {
 
             lv_obj_set_style_bg_color(r->bars[b], lit ? TC(ok) : TC(off), 0);
         }
-        if (ap->password_validator) {
+        if (ap->password_validator || ap->unsupported) {     /* WEP, enterprise, OWE: not open either */
             lv_obj_clear_flag(r->lock, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(r->lock, LV_OBJ_FLAG_HIDDEN);
@@ -4185,10 +4185,7 @@ static void upd_check_done(const char *out, int status, void *user) {
         snprintf(upd_latest, sizeof(upd_latest), "%s", latest);
         if (strstr(out, "\"image_needed\": true") && upd_json_str(out, "image_note", note, sizeof(note))) {
             /* the release also wants a newer card image for this radio (x6100-update reads its image-required) */
-            snprintf(s, sizeof(s), "v%s is available, with a new card image. Install updates the radio software.",
-                     latest);
-            msg_update_text_fmt("v%s: Install updates the radio software. Its card image also brings %s: write it "
-                                "from the releases page when convenient.", latest, note[0] ? note : "more");
+            snprintf(s, sizeof(s), "v%s is out; its card image brings %s", latest, note[0] ? note : "more");
         } else {
             snprintf(s, sizeof(s), "v%s is available. Install downloads it and restarts the radio software.", latest);
         }

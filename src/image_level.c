@@ -61,8 +61,8 @@ static void notice_cb(lv_timer_t *t) {
         seen[strcspn(seen, "\r\n")] = '\0';
     }
     if (strcmp(seen, VERSION) == 0) return;
-    msg_update_text_fmt("A new card image is out for this version: %s. Write it from the releases page; settings "
-                        "and logs stay on the card.", note);
+    /* the message box takes one short line: what the image brings is on Settings > Info > Update */
+    msg_schedule_long_text_fmt("New card image out: Settings > Info");
     if ((f = fopen(NOTICE_SEEN, "w"))) {
         fprintf(f, "%s\n", VERSION);
         fclose(f);

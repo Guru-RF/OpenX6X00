@@ -201,7 +201,7 @@ def cmd_check(args):
                             and (("-x6200-" in str(x.get("name"))) == (radio_model() == "x6200"))), None)
                 out["image_needed"], out["image_note"] = True, note
                 out["image_url"] = img["browser_download_url"] if img else rel.get("html_url")
-        except (OSError, ValueError):
+        except Exception:      # http.client errors are neither OSError nor ValueError: never fatal here
             pass
     return out
 

@@ -53,11 +53,13 @@ allowed() {
 restore() {
     local list=/tmp/backup-config.list
     [ -f "${BACKUP_PATH}" ] || return 0
+    # A freshly written card only: the images carry no SSH host keys (S50sshd makes them at the first start), so
+    # keys present mean this card has run before, and a file missing now was deleted on purpose (a WiFi network
+    # forgotten, an SSH key revoked); taking it back from the archive would undo that at every start
+    ls /etc/ssh/ssh_host_*_key > /dev/null 2>&1 && return 0
     # Regular files only (the '-' type), under the allowed folders, no symlinks or devices; the name is the rest
     # of the line (a WiFi profile is named after its network, spaces and all)
-    # Files already on the card stay: the archive is from the last clean shutdown, and a profile or a password
-    # changed since would go back at every start; a rewritten card gets them all. (BusyBox tar -k stops at the
-    # first file that exists instead of skipping it)
+    # Files already on the card stay (BusyBox tar -k stops at the first file that exists instead of skipping it)
     unpack | tar tvf - 2>/dev/null | while read -r mode owner size date time name; do
         case "$mode" in
             -*) allowed "$name" && [ ! -e "/$name" ] && echo "$name" ;;

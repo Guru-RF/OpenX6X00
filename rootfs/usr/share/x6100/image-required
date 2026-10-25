@@ -5,4 +5,4 @@
 # x6100-update and the GUI compare the two and say when a newer card image is worth writing. Images up to
 # v0.3.3 have no stamp: level 1.
 x6100 1
-x6200 2 the WiFi driver's fix for joins that time out
+x6200 2 the WiFi driver fix
