@@ -90,6 +90,10 @@ CLUSTER_DEFAULT_SERVERS = [
     ("DB0SUE", "db0sue.de", 8000),
     ("GB7DJK", "gb7djk.dxcluster.net", 7300),
     ("AE5E", "dxspots.com", 23),
+    ("HamQTH", "hamqth.com", 7300),
+    ("IZ7AUH", "dx.iz7auh.net", 8000),
+    ("ON0DXK", "on0dxk.dyndns.org", 8000),
+    ("N2WQ", "dxc.n2wq.com", 7300),
 ]
 CLUSTER_DEFAULT_PORT = 8000
 CLUSTER_MAX_SERVERS = 16

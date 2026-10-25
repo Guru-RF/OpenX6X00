@@ -1355,9 +1355,9 @@ Cluster view. Where: Settings > Cluster > CLUSTER VIEW.
 
 Without the cluster spots on the waterfall there is no snap.
 
-Servers. If `/mnt/cluster.conf` has no `server=` lines the app lists eleven
+Servers. If `/mnt/cluster.conf` has no `server=` lines the app lists fifteen
 public clusters (DXFUN, VE7CC, W3LPL, K1TTT, NC7J, W1NR, WA9PIE, K4ZR,
-DB0SUE, GB7DJK, AE5E). The default is DXFUN, `dxfun.com` port 8000. Add and
+DB0SUE, GB7DJK, AE5E, HamQTH, IZ7AUH, ON0DXK, N2WQ). The default is DXFUN, `dxfun.com` port 8000. Add and
 remove servers from the [web configurator](#web-configurator) or in the file
 ([format](#files-on-mnt)).
 
