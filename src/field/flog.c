@@ -78,12 +78,15 @@ size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const fie
     n = field(buf, size, n, "RST_RCVD", q->rst_r);
     n = field(buf, size, n, "NAME", q->name);
     n = field(buf, size, n, "QTH", q->qth);
-    n = field(buf, size, n, "GRIDSQUARE", q->grid);
+    /* A tile they gave (tile to tile) is where they are, closer than a logbook's locator */
+    char their = field_ref_prog(q->their_ref);
+    n = field(buf, size, n, "GRIDSQUARE", their == 'G' ? q->their_ref : q->grid);
     n = field(buf, size, n, "COUNTRY", q->country);
     n = field(buf, size, n, "STATION_CALLSIGN", st->call);
     n = field(buf, size, n, "OPERATOR", st->call);
-    n = field(buf, size, n, "MY_GRIDSQUARE", st->grid);
-    /* TOTA, WCA and MOTA have no ADIF field of their own: MY_SIG / MY_SIG_INFO, as their rules and GMA ask */
+    /* Tiles: the tile is where the activation was, whatever the station's locator says; Tiles reads it here */
+    n = field(buf, size, n, "MY_GRIDSQUARE", st->prog == 'G' ? st->ref : st->grid);
+    /* TOTA, WCA, MOTA and Tiles have no ADIF field of their own: MY_SIG / MY_SIG_INFO, as their rules and GMA ask */
     if (st->prog == 'S') {
         n = field(buf, size, n, "MY_SOTA_REF", st->ref);
     } else if (field_prog_sig(st->prog)) {
@@ -93,7 +96,6 @@ size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const fie
             n = field(buf, size, n, "MY_POTA_REF", st->ref);
     }
     /* The other station's reference: park to park, summit to summit... */
-    char their = field_ref_prog(q->their_ref);
     if (their == 'S') {
         n = field(buf, size, n, "SOTA_REF", q->their_ref);
     } else if (field_prog_sig(their)) {
@@ -301,12 +303,32 @@ bool field_ref_lh(const char *in, char *out, size_t size) {
     return true;
 }
 
+/* A 6-character locator, in either case: JO20ab, JO20AB */
+static bool tile(const char *p) {
+    for (int i = 0; i < 6; i++) {
+        char c = (char)toupper((unsigned char)p[i]);
+        if (!(i >= 2 && i <= 3 ? c >= '0' && c <= '9' : c >= 'A' && c <= (i < 2 ? 'R' : 'X')))
+            return false;
+    }
+    return p[6] == 0;
+}
+
+bool field_ref_tile(const char *in, char *out, size_t size) {
+    if (!in || !tile(in))
+        return false;
+    snprintf(out, size, "%c%c%c%c%c%c", toupper((unsigned char)in[0]), toupper((unsigned char)in[1]), in[2], in[3],
+             tolower((unsigned char)in[4]), tolower((unsigned char)in[5]));
+    return true;
+}
+
 char field_ref_prog(const char *ref) {
     size_t      n = ref ? strlen(ref) : 0;
     const char *dash = n ? strchr(ref, '-') : NULL;
 
     if (n == 6 && ref[0] == 'X' && digits_end(ref + 1, 5))               /* X42018 */
         return 'M';
+    if (n == 6 && tile(ref))                                             /* JO20ab: a Tiles tile */
+        return 'G';
     if (n >= 7 && n <= 9 && three_letters(ref) && ref[3] == ' ' && lh_number(ref + 4))   /* BEL 002, USA 1286 */
         return 'L';
     if (n < 5 || n > 15 || !dash)
@@ -346,6 +368,7 @@ const char *field_prog_sig(char prog) {
         case 'C': return "WCA";
         case 'M': return "MOTA";
         case 'L': return "ARLHS";   /* the lighthouses' numbering; GMA takes the reference from its upload form */
+        case 'G': return "TILES";   /* Tiles reads the tile from MY_GRIDSQUARE; MY_SIG names the activation here */
         default:  return NULL;
     }
 }
@@ -361,6 +384,7 @@ const char *field_qso_tag(const field_qso_t *q) {
         case 'C': return "C2C";
         case 'M': return "M2M";
         case 'L': return "L2L";
+        case 'G': return "T3";      /* Tiles' own name for tile to tile */
         default:  return "";
     }
 }

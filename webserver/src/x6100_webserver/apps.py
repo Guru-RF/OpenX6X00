@@ -846,14 +846,19 @@ def adif_del(rec, name):
 SOTA_REF = r'[A-Z0-9]{1,4}/[A-Z]{2}-[0-9]{3}'     # I/LO-123 ([0-9]: \d takes any script's digits)
 POTA_REF = r'[A-Z0-9]{1,4}-[0-9]{4,5}'            # IT-1234
 # The ADIF SIG of each programme but SOTA (SOTA_REF), by the letter ref_prog gives
-REF_SIG = {"P": "POTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA", "L": "ARLHS"}
+REF_SIG = {"P": "POTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA", "L": "ARLHS",
+           "G": "TILES"}
+TILE = r'[A-R]{2}[0-9]{2}[A-X]{2}'                # a Tiles tile, JO20ab (the references come here in capitals)
 
 
 def ref_prog(ref):
     """The programme of a reference by its shape, as the radio tells it (src/field/flog.c field_ref_prog): S SOTA,
-    P POTA, B WWBOTA, H HOTA, F WWFF, T TOTA, C WCA, M MOTA, L a lighthouse (BEL 002); "" when it is none of them"""
+    P POTA, B WWBOTA, H HOTA, F WWFF, T TOTA, C WCA, M MOTA, L a lighthouse (BEL 002), G a Tiles tile (JO20ab); ""
+    when it is none of them"""
     if re.fullmatch(r'X[0-9]{5}', ref):                                # X42018
         return "M"
+    if re.fullmatch(TILE, ref.upper()):                                # JO20ab
+        return "G"
     if re.fullmatch(r'[A-Z]{3} [0-9]{3,4}[A-Z]?', ref):                # BEL 002, USA 1286, AUS 079H
         return "L"
     if not 5 <= len(ref) <= 15 or "-" not in ref or not re.fullmatch(r'[A-Z0-9/-]+', ref):
@@ -878,7 +883,10 @@ def ref_prog(ref):
 
 def ref_norm(ref):
     """A lighthouse as the radio writes it (src/field/flog.c field_ref_lh): BEL-2, BEL002, ARLHS BEL 002, LH BEL 2 and
-    SCO-0144 are BEL 002 and SCO 144; any other reference as it is"""
+    SCO-0144 are BEL 002 and SCO 144; a tile as Tiles writes it (field_ref_tile): JO20AB is JO20ab; any other
+    reference as it is"""
+    if re.fullmatch(TILE, ref.upper()):
+        return ref[:4].upper() + ref[4:].lower()
     m = re.fullmatch(r'(?:(?:ARLHS[ _-]?|LH[ -]))?([A-Z]{3})[ -]?([0-9]{1,4})([A-Z]?)', ref)
     if m and ref_prog(ref) in ("L", ""):
         return f"{m[1]} {int(m[2]):03d}{m[3]}"
@@ -887,7 +895,11 @@ def ref_norm(ref):
 
 def set_ref(rec, ref):
     """The other station's reference (its programme by its form, ref_prog); "" removes it. Written as the
-    radio writes it (src/field/flog.c): SOTA_REF; SIG and SIG_INFO, with POTA_REF for a park."""
+    radio writes it (src/field/flog.c): SOTA_REF; SIG and SIG_INFO, with POTA_REF for a park and GRIDSQUARE for a
+    tile."""
+    old = adif_fields(rec)
+    if old.get("sig", "").upper() == "TILES" and old.get("gridsquare", "").upper() == old.get("sig_info", "").upper():
+        rec = adif_del(rec, "GRIDSQUARE")         # the tile they gave goes with it
     for name in ("SOTA_REF", "POTA_REF", "SIG", "SIG_INFO"):
         rec = adif_del(rec, name)
     ref = ref_norm(ref) if ref else ""   # a lighthouse as GMA's list and the radio write it: BEL 002
@@ -896,6 +908,8 @@ def set_ref(rec, ref):
         return adif_set(rec, "SOTA_REF", ref)
     if prog in REF_SIG:
         rec = adif_set(adif_set(rec, "SIG", REF_SIG[prog]), "SIG_INFO", ref)
+        if prog == "G":
+            rec = adif_set(rec, "GRIDSQUARE", ref)    # tile to tile: where they are
         return adif_set(rec, "POTA_REF", ref) if prog == "P" else rec
     return rec
 

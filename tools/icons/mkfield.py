@@ -8,6 +8,8 @@ WWBOTA, HOTA, Bands and Log icons the project was forked with:
   mota_96.png, mota_64.png   MOTA, a windmill in the tile's teal with four light lattice sails
   lh_96.png,   lh_64.png     LH, a lighthouse in the tile's coral red: red and white bands, a dark gallery, a lit
                              lantern with beams to both sides, on a rock
+  tiles_96.png, tiles_64.png Tiles, a map of three by three tiles in the tile's lime, a pin on the bright one in the
+                             middle
 
   python3 tools/icons/mkfield.py rootfs/usr/share/x6100/field
 
@@ -43,6 +45,11 @@ GLASS = (255, 222, 100, 255)
 BEAM = (255, 243, 180, 230)
 ROCK = (120, 132, 150, 255)
 ROCK_LIGHT = (165, 177, 194, 255)
+LIME = (151, 201, 94, 255)      # the Tiles tile's accent (theme roles ok and warn mixed)
+LIME_MID = (98, 140, 58, 255)
+LIME_DARK = (70, 104, 40, 255)
+PIN = (30, 41, 59, 255)
+PIN_DOT = (235, 240, 245, 255)
 
 
 def canvas(size):
@@ -206,13 +213,34 @@ def lighthouse(size):
     return im.resize((size, size), Image.LANCZOS)
 
 
+def tiles(size):
+    im, d, p, u = canvas(size)
+    step, side = 31, 27                             # three tiles a row, 4 apart
+
+    # The map: the tiles around in two shades, a checker; the one you are in bright
+    for row in range(3):
+        for col in range(3):
+            x, y = 5 + col * step, 5 + row * step
+            fill = LIME if (row, col) == (1, 1) else LIME_MID if (row + col) % 2 else LIME_DARK
+            d.rounded_rectangle([p(x, y), p(x + side, y + side)], radius=u(4), fill=fill)
+
+    # The pin on the middle tile: a round head drawn to a point at the tile's centre, a light dot in it
+    cx, tip, r = 50, 56, 11
+    hy = tip - 22
+    d.ellipse([p(cx - r, hy - r), p(cx + r, hy + r)], fill=PIN)
+    d.polygon([p(cx - r * 0.82, hy + r * 0.55), p(cx + r * 0.82, hy + r * 0.55), p(cx, tip)], fill=PIN)
+    d.ellipse([p(cx - 4.5, hy - 4.5), p(cx + 4.5, hy + 4.5)], fill=PIN_DOT)
+    return im.resize((size, size), Image.LANCZOS)
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "rootfs/usr/share/x6100/field"
     os.makedirs(out, exist_ok=True)
-    for name, draw in (("wwff", leaf), ("tota", tower), ("wca", castle), ("mota", windmill), ("lh", lighthouse)):
+    for name, draw in (("wwff", leaf), ("tota", tower), ("wca", castle), ("mota", windmill), ("lh", lighthouse),
+                       ("tiles", tiles)):
         for size in (96, 64):
             draw(size).save(os.path.join(out, f"{name}_{size}.png"))
-    print(f"wwff, tota, wca, mota and lh icons in {out}")
+    print(f"wwff, tota, wca, mota, lh and tiles icons in {out}")
 
 
 if __name__ == "__main__":

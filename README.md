@@ -3,7 +3,7 @@
 Open firmware for the **Xiegu X6100** and **X6200**: a complete microSD image
 with every digital mode decoded on the radio itself, and sent where the mode
 transmits; the DX cluster on the waterfall; portable activations (SOTA, POTA,
-WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, lighthouses) with big outdoor tiles;
+WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, lighthouses, Tiles) with big outdoor tiles;
 themes; Bluetooth headphones and CAT; the radio worked from a browser, as a
 panel of its own or with its own screen live; a web configurator; an update
 from inside the radio; and a **TCI server** so the
@@ -107,7 +107,7 @@ The patched X6100 base comes with its own instructions.
 | **Digital modes** | FT8, FT4 and FT2 (CQ, reply, auto sequence, Hound, POTA tag, ADIF log), JS8 (JS8Call compatible, all four speeds at once, inbox, relays, heartbeats, APRS), WSPR (decode and beacon, WSPRnet upload), PSK31, PSK63, Olivia, JTTY, RTTY, SSTV (receive with VIS, transmit with templates, denoise), WeFax, and NavTex with DSC (receive only). FT8, FT4, FT2, JS8, PSK, Olivia and JTTY decodes go to PSK Reporter (on by default), and the FT8 app sends WSJT-X UDP for GridTracker and loggers. No PC, no sound card cable: APP > Modes. |
 | **CW** | A decoder that copies down to about 0 dB SNR with Parse splitting run-together words, a CW keyboard with a send queue and Live mode, messages with `{CALL}` and `{HIS}`, USB and Bluetooth paddles, a CW trainer. |
 | **DX Cluster** | Spots on the waterfall, in a column beside it and in a full app that follows the VFO; filters by mode, band and activity (POTA, SOTA, WWBOTA, HOTA), alerts on calls and prefixes, spot snap when turning slowly; fifteen public servers built in, DXFUN by default. One login, a Link switch, and a login of its own if you set one (your call with `-2`, on the web Cluster page) so a logger can use the call at the same time. |
-| **Field Ops** | A second interface for SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA and lighthouse (LH, ARLHS) activations with big tiles for gloves: the summit or park found from the GPS or the locator, the references of the whole world offline after one Update list with internet, CQ, a log straight to ADIF with the references, self-spots to pota.app, wwbota.org, cqhota.app and the WWFF Spotline (the last two with your own key) and to the DX cluster (the only spot for SOTA, TOTA, WCA, MOTA and LH), QRZ Logbook upload. |
+| **Field Ops** | A second interface for SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA and lighthouse (LH, ARLHS) activations with big tiles for gloves: the summit or park found from the GPS or the locator, the references of the whole world offline after one Update list with internet, CQ, a log straight to ADIF with the references, self-spots to pota.app, wwbota.org, cqhota.app and the WWFF Spotline (the last two with your own key) and to the DX cluster (the only spot for SOTA, TOTA, WCA, MOTA and LH), QRZ Logbook upload. In the next release: Tiles on the Air, the 6-character locator square you are in, from the GPS, with the eight around it. |
 | **Bands** | A live picture of 160 to 6 m from the cluster and the Reverse Beacon Network, and a test beacon that shows who hears you from your own antenna. |
 | **Radio** | IARU Region 1 band plan strip (60 m too, and a strip for each band you add), Birdie Cal (the radio's own carriers found, marked, notched), S-meter in bars or a needle, long-press actions on every key, editable bands, memories and channels, the broadcast bands in AM, transverters, RX recorder, screen recording and screenshots, voice messages, SWR scan, Walkie Talkie portrait mode, PRE and ATT on the VOL 2:2 page, local time on screen with UTC in the logs. |
 | **X6200** | SAM and WFM on the AM key, zoom 1 to 4 over the base's 384 kHz, the two-ring MFK, FM broadcast (87.5-108 MHz) and the airband (118-137 MHz) to receive after 6 m on the band keys, PRE and ATT on the VOL 2:2 page since it has no PRE key, the volume over the base's whole range (0 to 100). |
@@ -267,8 +267,8 @@ Added:
   place of the Link's;
 - a **signed update from GitHub Releases**, with rollback and the card-image
   notice, in place of the x6100-link.it channel;
-- the TOTA, WCA, MOTA and lighthouse programmes in Field Ops, and the network
-  name (mDNS);
+- the TOTA, WCA, MOTA, lighthouse and Tiles programmes in Field Ops, and the
+  network name (mDNS);
 - the RF.Guru default theme and the OpenX6X00 boot logo;
 - a local configurator socket (`/tmp/x6100_cfg.sock`) for the web pages that
   set the display and the Ethernet port, in place of the remote socket.

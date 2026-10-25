@@ -15,7 +15,7 @@ selected=[]
 for node in tree.body:
     if isinstance(node,ast.FunctionDef) and node.name in needed:
         node.decorator_list=[];selected.append(node)
-    elif isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ('SOTA_REF','POTA_REF','REF_SIG','LOG_FIELDS','SUBMODE_OF') for t in node.targets):selected.append(node)
+    elif isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ('SOTA_REF','POTA_REF','REF_SIG','TILE','LOG_FIELDS','SUBMODE_OF') for t in node.targets):selected.append(node)
 bottle=SimpleNamespace(request=SimpleNamespace(),response=SimpleNamespace())
 ns={'fcntl':fcntl,'hashlib':hashlib,'json':json,'os':os,'re':re,'bottle':bottle,'settings':SimpleNamespace()}
 exec(compile(ast.Module(body=selected,type_ignores=[]),str(path),'exec'),ns)
@@ -53,7 +53,8 @@ with tempfile.TemporaryDirectory(prefix='x6log-') as td:
                        ('X42018',{'sig':'MOTA','sig_info':'X42018'}),('US-1234',{'sig':'POTA','sig_info':'US-1234','pota_ref':'US-1234'}),
                        ('I/LO-123',{'sota_ref':'I/LO-123'}),('BEL-002',{'sig':'ARLHS','sig_info':'BEL 002'}),
                        ('BEL 002',{'sig':'ARLHS','sig_info':'BEL 002'}),('SCO-0144',{'sig':'ARLHS','sig_info':'SCO 144'}),
-                       ('LH BEL 2',{'sig':'ARLHS','sig_info':'BEL 002'}),('OKR-0150',{'sig':'TOTA','sig_info':'OKR-0150'})):
+                       ('LH BEL 2',{'sig':'ARLHS','sig_info':'BEL 002'}),('jo20AB',{'sig':'TILES','sig_info':'JO20ab'}),
+                       ('OKR-0150',{'sig':'TOTA','sig_info':'OKR-0150'})):
         bottle.request.query={'id':ns['rec_id'](ns['log_records']('day.adi')[0])}
         bottle.request.json={'ref':typed}
         ns['put_log_qso']('day.adi',0)
@@ -61,6 +62,10 @@ with tempfile.TemporaryDirectory(prefix='x6log-') as td:
         got={k:fields[k] for k in ('sig','sig_info','pota_ref','sota_ref') if k in fields}
         print('save ref',typed,'->',got)
         assert got==want
+        if want.get('sig')=='TILES':   # tile to tile: their tile is where they are
+            assert fields.get('gridsquare')=='JO20ab', fields
+        elif typed=='OKR-0150':        # and goes with it when the reference changes
+            assert 'gridsquare' not in fields, fields
     # An older page sends the sota_ref / pota_ref pair: SIG and SIG_INFO follow (set_ref)
     bottle.request.query={'id':ns['rec_id'](ns['log_records']('day.adi')[0])}
     bottle.request.json={'sota_ref':'','pota_ref':'US-5678'}

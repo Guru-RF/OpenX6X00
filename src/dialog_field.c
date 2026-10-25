@@ -3,7 +3,7 @@
  *
  *  Xiegu X6100 LVGL GUI - Field Ops
  *
- *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Bands), a
+ *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Tiles, Bands), a
  *  program (the reference where you are and the nearest ones; during an activation the activation screen:
  *  frequency, S-meter, CQ, QSO count and time), Bands (activity and who hears you, from RBN) and
  *  the activation log. The dialog covers the whole screen above the buttons; the main
@@ -94,7 +94,8 @@ static void show(screen_t s);
 static struct {
     screen_t    screen;
     int         home_sel;
-    char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA, 'L' LH */
+    char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA, 'L' LH,
+                             * 'G' Tiles */
     bool        have_ref;
     field_ref_t ref;
     bool        active;
@@ -130,6 +131,7 @@ static field_ref_t near[MAX_NEAR];
 static int         near_n = -2;     /* -2: not looked up yet, -1: no list */
 static double      near_lat = 999, near_lon;
 static char        near_prog;
+static char        tile_here[8];    /* Tiles: the tile the last lookup found us in */
 
 static field_qso_t qsos[MAX_QSO];
 static int         qsos_n;          /* in qsos[]: the newest MAX_QSO of the log */
@@ -184,8 +186,11 @@ static const prog_t progs[] = {
     /* The lighthouses by their ARLHS numbers (BEL 002), as GMA lists them and Belgian activators spot them ("LH
      * BEL 002"); ARLHS just before the number so Spothole reads it. GMA's award: 4 stations, within 1000 m */
     {'L', "LH",     "lh",     "Lighthouses\nOn The Air", "LIGHT", 4, true, false, "LH ARLHS"},
+    /* Tiles on the Air: the 6-character locator square you are in (about 5 x 7 km), from the position, no list.
+     * One QSO activates it, once per tile and UTC day. Its own spots need an account key: the DX clusters only */
+    {'G', "TILES",  "tiles",  "Tiles\nOn The Air",   "TILE",   1,  false, false},
 };
-#define PROG_LETTERS "SPBHFTCML"
+#define PROG_LETTERS "SPBHFTCMLG"
 
 /* The programme of a letter; SOTA for one that is none (a damaged file): DX cluster spots only, never a site's */
 static const prog_t *prog_of(char p) {
@@ -208,6 +213,7 @@ static lv_color_t prog_color(char p) {
         case 'C': return TC(text_soft);                                 /* stone */
         case 'M': return lv_color_mix(TC(ok), TC(vfo), LV_OPA_50);     /* teal */
         case 'L': return TC(err);                                       /* the red of the bands */
+        case 'G': return lv_color_mix(TC(ok), TC(warn), LV_OPA_50);     /* lime */
         default: return TC(text);
     }
 }
@@ -220,7 +226,7 @@ static const struct {
 } tiles[] = {
     {SCR_LOG, 0, "LOG", "log", "Activation\nlog"},
     {SCR_PROG, 'S'}, {SCR_PROG, 'P'}, {SCR_PROG, 'B'}, {SCR_PROG, 'H'}, {SCR_PROG, 'F'},
-    {SCR_PROG, 'T'}, {SCR_PROG, 'C'}, {SCR_PROG, 'M'}, {SCR_PROG, 'L'},
+    {SCR_PROG, 'T'}, {SCR_PROG, 'C'}, {SCR_PROG, 'M'}, {SCR_PROG, 'L'}, {SCR_PROG, 'G'},
     {SCR_BANDS, 0, "BANDS", "bands", "Activity\nRBN, beacon"},
 };
 #define HOME_TILES ((int)(sizeof(tiles) / sizeof(tiles[0])))
@@ -539,11 +545,15 @@ static void near_result_cb(void *arg) {
     near_lat  = r->lat;
     near_lon  = r->lon;
     memcpy(near, r->refs, sizeof(near));
-    /* The nearest one is the reference while none is chosen */
-    if (!st.active && near_n > 0 && (!st.have_ref || st.ref.type != r->prog)) {
+    /* The nearest one is the reference while none is chosen. Tiles: the tile we are in, also after a move, unless
+     * another one was chosen (one around it, or typed in) */
+    bool follow = r->prog == 'G' && st.have_ref && st.ref.type == 'G' && (!tile_here[0] || !strcmp(st.ref.ref, tile_here));
+    if (!st.active && near_n > 0 && (!st.have_ref || st.ref.type != r->prog || follow)) {
         st.ref      = near[0];
         st.have_ref = true;
     }
+    if (r->prog == 'G' && near_n > 0)
+        snprintf(tile_here, sizeof(tile_here), "%s", near[0].ref);
     state_save();
     if (dialog.run && st.screen == SCR_PROG && !st.active) {
         sel = 0;
@@ -560,6 +570,51 @@ static void *near_thread(void *arg) {
     return NULL;
 }
 
+/* Tiles: the tile at the position and the eight around it, nearest first; km: how far to its nearest edge. None
+ * when the position is a locator of 4 characters, which tells no tile */
+static int tiles_near(double lat, double lon, const char *src, field_ref_t *out, int max) {
+    static const char *const dirs[3][3] = {{"south-west", "south", "south-east"},
+                                           {"west", NULL, "east"},
+                                           {"north-west", "north", "north-east"}};
+    const double h = 2.5 / 60, w = 5.0 / 60;    /* a tile: 2.5' of latitude by 5' of longitude */
+    const char  *qth = station_qth();
+    char         g[9];
+    double       clat, clon;
+    int          n = 0;
+
+    if (!strcmp(src, "QTH") && (!qth || strlen(qth) < 6))
+        return 0;
+    qth_pos_to_str(lat, lon, g);
+    g[6] = 0;
+    qth_str_to_pos(g, &clat, &clon);            /* its centre */
+    for (int dy = -1; dy <= 1; dy++)
+        for (int dx = -1; dx <= 1 && n < max; dx++) {
+            double tlat = clat + dy * h, tlon = clon + dx * w;
+            if (tlat <= -90 || tlat >= 90)
+                continue;
+            tlon = tlon >= 180 ? tlon - 360 : tlon < -180 ? tlon + 360 : tlon;
+            field_ref_t *r = &out[n++];
+            *r      = (field_ref_t){.type = 'G', .lat = tlat, .lon = tlon};
+            qth_pos_to_str(tlat, tlon, g);
+            g[6] = 0;
+            field_ref_tile(g, r->ref, sizeof(r->ref));
+            if (dx || dy) {
+                double nlat = fmin(fmax(lat, tlat - h / 2), tlat + h / 2), nlon = fmin(fmax(lon, tlon - w / 2), tlon + w / 2);
+                r->km = (float)qth_pos_dist(lat, lon, nlat, nlon);
+                snprintf(r->name, sizeof(r->name), "%s", dirs[dy + 1][dx + 1]);
+            } else {
+                snprintf(r->name, sizeof(r->name), "here (%s)", !strcmp(src, "GPS") ? "GPS" : "locator");
+            }
+        }
+    for (int i = 1; i < n; i++)                 /* by distance; here first, at 0 */
+        for (int k = i; k > 0 && out[k].km < out[k - 1].km; k--) {
+            field_ref_t t = out[k];
+            out[k]        = out[k - 1];
+            out[k - 1]    = t;
+        }
+    return n;
+}
+
 static void near_lookup(bool force) {
     double      lat, lon;
     const char *src;
@@ -568,6 +623,18 @@ static void near_lookup(bool force) {
 
     if (!position(&lat, &lon, &src, &age))
         return;
+    if (st.prog == 'G') {
+        /* No list to read: at once, through the scheduler as the thread's answer (show() must not run in a build) */
+        if (!force && near_prog == 'G' && near_n != -2 && fabs(lat - near_lat) < 0.003 && fabs(lon - near_lon) < 0.004)
+            return;
+        near_result_t r = {.prog = 'G', .lat = lat, .lon = lon};
+        r.n       = tiles_near(lat, lon, src, r.refs, MAX_NEAR);
+        near_prog = 'G';
+        near_lat  = lat;
+        near_lon  = lon;
+        scheduler_put(near_result_cb, &r, sizeof(r));
+        return;
+    }
     /* Again when the list was replaced (the radio's update), the program changed or we moved 300 m */
     static time_t refs_mtime;
     static ino_t  refs_ino;
@@ -1046,8 +1113,9 @@ static void prog_info_update(void) {
         lv_label_set_text(info_name, st.ref.name);
     } else {
         lv_label_set_text(info_ref, "------");
-        lv_label_set_text(info_name, near_n == -1                         ? "No reference list"
+        lv_label_set_text(info_name, near_n == -1 && st.prog != 'G'       ? "No reference list"
                                      : !have_pos                          ? "No position"
+                                     : near_n == 0 && near_prog == 'G' && st.prog == 'G' ? "Ref...: type your tile"
                                      : near_n == 0 && near_prog == st.prog ? "None in the list: Update list"
                                                                           : "Looking...");
     }
@@ -1103,6 +1171,9 @@ static void build_ref(void) {
     }
     prog_info_update();
     lv_label_set_text(status, updating ? (update_text[0] ? update_text : "Downloading the reference lists...")
+                              : st.prog == 'G' ? (near_n == 0 && near_prog == 'G'
+                                                      ? "4-character locator: Ref... your tile, or GPS"
+                                                      : "MFK: a tile (km: to its edge).  Ref...: any tile")
                               : near_n == -1 || (near_n == 0 && near_prog == st.prog)
                                   ? "No reference list yet: Update list (page 2), with WiFi"
                               : st.prog == 'C' ? "MFK: choose the castle.  Ref...: any castle by its number (most have no position)"
@@ -1857,6 +1928,16 @@ static bool log_ok(void) {
                  * no such park and has that castle */
                 snprintf(w, sizeof(w), "%s", padded);
             }
+            if (prog == 'G') {
+                char t[8];
+                field_ref_tile(w, t, sizeof(t));
+                if (st.ref.type != 'G') {   /* a locator they gave, in another activation: where they are, no more */
+                    snprintf(more.grid, sizeof(more.grid), "%s", t);
+                    lh_word = false;
+                    continue;
+                }
+                snprintf(w, sizeof(w), "%s", t);   /* tile to tile: JO20ab, as Tiles writes it */
+            }
             lh_word = false;
             if (field_ref_prog(w))
                 snprintf(more.their_ref, sizeof(more.their_ref), "%s", w);
@@ -1896,6 +1977,22 @@ static bool set_ref(const char *in) {
         *p = toupper((unsigned char)*p);
     if (st.active || !ref[0])
         return false;
+    char tile[8];
+    if (st.prog == 'G') {
+        /* Tiles: any tile by its locator; no list to look in */
+        if (!field_ref_tile(ref, tile, sizeof(tile))) {
+            msg_update_text_fmt("%s: not a tile (a 6-character locator, JO20ab)", ref);
+            return false;
+        }
+        r = (field_ref_t){.type = 'G'};
+        snprintf(r.ref, sizeof(r.ref), "%s", tile);
+        snprintf(r.name, sizeof(r.name), "Typed in");
+        qth_str_to_pos(tile, &r.lat, &r.lon);
+        st.ref      = r;
+        st.have_ref = true;
+        state_save();
+        return true;
+    }
     bool found = field_refs_find(REFS_PATH, ref, &r);
     char lh[16];
     if (!found && field_ref_lh(ref, lh, sizeof(lh)) && strcmp(lh, ref) && field_refs_find(REFS_PATH, lh, &r)) {

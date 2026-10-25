@@ -1384,8 +1384,8 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 | **Activation** | **Bands** |
 | ![Activation](screenshots/field_activation.png) | ![Band overview](screenshots/field_bands.png) |
 
-Home: a row of eleven tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
-TOTA, WCA, MOTA, LH and Bands. Six and a half fit on the screen (five and a half
+Home: a row of twelve tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
+TOTA, WCA, MOTA, LH, Tiles and Bands. Six and a half fit on the screen (five and a half
 with VISION): the row scrolls along as the MFK moves, and Bands is one MFK
 step left of LOG. A press opens. On the PC a drag scrolls the row and a click
 opens a tile.
@@ -1591,6 +1591,34 @@ of the Amateur Radio Lighthouse Society.
 - The log goes to GMA (ADIF upload, the reference typed in the upload
   form), where it counts for the Lighthouse Award and, for the Belgian
   lights, the BLHA.
+
+Tiles (Tiles on the Air, tilesontheair.com, worldwide) has its own tile too,
+a lime map with a pin. A tile is a 6-character locator square, 2.5' of
+latitude by 5' of longitude (about 5 x 7 km): `JO20ab`. Tiles counts one
+activation per tile and UTC day. Next release.
+
+![Tiles, before the activation](screenshots/field_tiles.png)
+
+- There is no list to update: the reference is the tile you are in, from
+  the GPS or from a 6-character QTH locator ("here (GPS)", "here
+  (locator)"), with the eight around it and how far it is to their nearest
+  edge. The tile follows you as you move, until you choose another one or
+  start. A 4-character QTH locator tells no tile: Ref... (page 2) types
+  yours, and takes any tile (`JO20ab`, `jo20AB`).
+- One QSO is a valid activation: the screen counts `QSOs / 1`. Every mode
+  counts; Tiles' rules want each QSO made by you, no automated ones. An
+  activation that runs past 00:00 UTC is two for Tiles: its upload splits
+  the log by day.
+- The log has the tile in `MY_GRIDSQUARE`, where Tiles reads it, and in
+  `MY_SIG TILES` / `MY_SIG_INFO`. A QSO with another Tiles activator: type
+  their tile after the call. It is logged as their `GRIDSQUARE` and `SIG
+  TILES`, and the log shows T3, Tiles' tile to tile. In the other
+  programmes a locator typed after the call is only their `GRIDSQUARE`.
+- Spot posts `TILES JO20ab SSB` on the DX cluster. Tiles' own spots (its
+  site and apps) need an account key and are not sent from the radio.
+- The log goes to tilesontheair.com (the activation form; the ADIF is
+  required from 30 QSOs). Download it from the web configurator's Field Ops
+  page.
 
 ### Bands
 
