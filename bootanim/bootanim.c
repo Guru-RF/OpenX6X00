@@ -76,6 +76,11 @@ static int64_t now_ms(void) {
 #define LEAD_MS     1500      /* silence first: the base opens its speaker path late (400 ms still cut the first C) */
 #define MIN_VOL     28        /* AF for the sound when the saved VOL (0..55) is lower */
 #define VOL_DEFAULT 30        /* p_volume's default, when the DB has none */
+#ifdef BOARD_X6200
+#define VOL_MAX     100       /* the volume's range (board.h BOARD_VOL_MAX) */
+#else
+#define VOL_MAX     55
+#endif
 #define SOUND_MAX_MS 5700     /* CQ CQ is 5.16 s with the lead: the sound never runs longer than this */
 
 /* The base unit, through the GUI's own control library: base_control_init()
@@ -209,9 +214,9 @@ static void *sound_thread(void *arg) {
 
 /* True when the sound started: codec running, base in play mode */
 static int sound_start(pthread_t *th) {
-    if (saved("boot_sound", 0) != 1) return 0;
+    if (saved("boot_sound", 0) != 1 || saved("speaker_off", 0) == 1) return 0;   /* Speaker always off: a remote station */
     user_vol = saved("vol", VOL_DEFAULT);
-    if (user_vol < 0 || user_vol > 55) return 0;
+    if (user_vol < 0 || user_vol > VOL_MAX) return 0;
     close(open(AUDIO_BUSY, O_CREAT | O_WRONLY, 0644));
     /* The codec levels as the GUI sets them (audio.c audio_mixer_setup); ALSA restores the rest later */
     system("alsactl restore >/dev/null 2>&1; amixer -q sset 'Headphone',0 63,63 >/dev/null 2>&1; "

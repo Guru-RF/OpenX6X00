@@ -3713,6 +3713,7 @@ static void make_audio_page() {
     row = make_line_gain(row);
     row = make_audio_gain(row);
     row = make_param_switch(row, "Boot sound", cfg_sm.p_boot_sound);   /* CQ CQ in CW with the boot logo */
+    row = make_param_switch(row, "Speaker always off", cfg_sm.p_speaker_off);   /* a remote station */
     card_end(row);
 
     row = card_begin("SCREEN REC");

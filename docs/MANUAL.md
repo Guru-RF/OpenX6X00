@@ -447,11 +447,17 @@ All these options are also on the web configurator's Display page.
 
 | Card | Options |
 |---|---|
-| RX AUDIO | Speaker mode, Line-in / Line-out, Play / Rec gain, Boot sound (CQ CQ in CW with the boot logo, quiet; at volume 28 when your VOL is lower; off by default) |
+| RX AUDIO | Speaker mode, Line-in / Line-out, Play / Rec gain, Boot sound (CQ CQ in CW with the boot logo, quiet; at volume 28 when your VOL is lower; off by default), Speaker always off |
 | TX AUDIO | compressor (threshold, makeup), TX filter, FM pre/de-emphasis |
 | MICROPHONE | Input (Built-in, Hand, Auto), Hand mic gain, Built-in gain |
 | VOX | On, Gain, Anti-VOX, Delay |
 | AGC | Hang, Knee, Slope |
+
+Speaker always off, for a radio run from a browser or a TCI client: the
+speaker and the TX monitor stay silent whatever the volume, and there is no
+boot sound. The sound to the browser, TCI and Bluetooth headphones goes on as
+before. Turning VOL says so on the screen. The CW sidetone keeps its own level
+(Key volume). Also on the web configurator's Display page, Remote station card.
 
 Compressor on the X6200: its base has three levels, so the ratio chosen (Comp
 on the MFK 2:3 page) goes to the nearest of them: 2:1 and 3:1 as 2:1, 4:1 to

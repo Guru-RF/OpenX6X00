@@ -261,6 +261,7 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_cur_mode, on_high_filter_change, NULL);
 
     subject_subscribe_and_notify((Subject*)cfg_volume, on_volume_change, NULL);
+    subject_subscribe((Subject*)cfg_speaker_off, on_volume_change, NULL);   /* Speaker always off */
     subject_subscribe_and_notify((Subject*)cfg_squelch, on_change_i, (void*)HW_SQL);
     subject_subscribe_and_notify((Subject*)cfg_pwr, on_pwr_change, NULL);
     subject_subscribe_and_notify((Subject*)cfg_output_gain, on_change_f, (void*)HW_ADC_DAC_GAIN_F);
@@ -384,6 +385,9 @@ uint16_t radio_change_vol(int16_t df) {
     }
 
     mute = false;
+    if (param_i_get(cfg_speaker_off) && !btaudio_speaker_muted()) {
+        msg_update_text_fmt("Speaker always off: Settings > Audio");   /* VOL still sets the value */
+    }
 
     uint16_t new_val = limit(vol + df, 0, BOARD_VOL_MAX);
 
@@ -399,11 +403,11 @@ void radio_change_mute() {
     radio_vol_refresh();
 }
 
-/* Speaker AF and TX monitor together: both 0 when muted, when btaudio silences the speaker (headphones
- * connected) or while a TCI client transmits; the monitor 0 at AF 0 too, which otherwise still played FT8's
+/* Speaker AF and TX monitor together: both 0 when muted, with Speaker always off (a remote station), when btaudio
+ * silences the speaker (headphones connected) or while a TCI client transmits; the monitor 0 at AF 0 too, which otherwise still played FT8's
  * tones (issue #1). A screen recording keeps the monitor at 30 at least, but not under a TCI client's PTT */
 void radio_vol_refresh() {
-    bool    muted = mute || tci_mute || btaudio_speaker_muted();
+    bool    muted = mute || tci_mute || btaudio_speaker_muted() || param_i_get(cfg_speaker_off);
     int32_t vol   = param_i_get(cfg_volume);
     int32_t moni  = param_i_get(cfg_moni);
 

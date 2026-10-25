@@ -238,6 +238,10 @@ class SettingsManager {
     // Settings > Audio > Boot sound: "CQ CQ" in CW with the boot animation (bootanim/bootanim.c reads it from the DB)
     Parameter<int32_t> p_boot_sound{"boot_sound", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Settings > Audio > Speaker always off: a remote station's speaker and TX monitor stay silent, whatever the
+    // volume (radio.c radio_vol_refresh); the audio to a browser, TCI and headphones goes on
+    Parameter<int32_t> p_speaker_off{"speaker_off", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_vox_gain{"vox_gain", 0, 0, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_vox_ag{"vox_ag", 0, 0, 100,
