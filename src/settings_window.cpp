@@ -658,10 +658,14 @@ static uint8_t make_backlight(uint8_t row) {
     row++;
 
     /* The screen dark after so many minutes without a key or knob (0: never), or always: the
-     * radio run from the knob or a browser, POWER shows the screen for a while */
-    wl_row_label(row, "Screen off after min, always");
+     * radio run from the knob or a browser, POWER shows the screen for a while. Two rows: one
+     * label for both ran into the minutes */
+    wl_row_label(row, "Screen off (min)");
     obj = row_spin(row, 1, 2, SMALL_2, params.screen_off_min, 0, 120, 3);
     lv_obj_add_event_cb(obj, bl_blank_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    row++;
+
+    wl_row_label(row, "Screen always off");
     row_switch(row, 4, 3, SMALL_3, params.screen_off_always, bl_always_cb, NULL);
     return row + 1;
 }
@@ -1567,10 +1571,12 @@ static lv_obj_t * wl_button(uint8_t row, const char *text, lv_event_cb_t cb) {
     return obj;
 }
 
-/* Note to the right of a 3-column control */
+/* Note to the right of a 3-column control: two lines in its own columns, a longer one ran off the card */
 static lv_obj_t * wl_note(uint8_t row) {
     lv_obj_t *obj = wl_label(grid, theme_shape.vision ? &sony_18 : &sony_20, theme_hex(TC_text_dim), 0);   /* one size up: two would overflow */
 
+    lv_obj_set_width(obj, SMALL_3);
+    lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
     lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 4, 3, LV_GRID_ALIGN_CENTER, row, 1);
     return obj;
 }
