@@ -11,14 +11,31 @@ BACKUP_DIR=$(dirname ${BACKUP_PATH})
 # What may come back, as the archive names them (no leading /)
 ALLOWED="etc/NetworkManager/system-connections/ etc/ssh/ root/.ssh/"
 
+# BusyBox tar has no -z (no FEATURE_SEAMLESS_GZ): the archive goes through gzip and gunzip. gdyuldin's stock
+# image writes a plain tar under the same name, which is read as it is
+unpack() {
+    if gzip -t "${BACKUP_PATH}" 2>/dev/null; then
+        gunzip -c "${BACKUP_PATH}"
+    else
+        cat "${BACKUP_PATH}"
+    fi
+}
+
 backup() {
+    local list=/tmp/backup-config.list f
     [ -d "${BACKUP_DIR}" ] || mkdir -p "${BACKUP_DIR}"
+    for f in /etc/NetworkManager/system-connections/* /etc/ssh/*_key* /root/.ssh/*; do
+        [ -f "$f" ] && echo "${f#/}"
+    done > $list
     # into a temporary file first: a power cut during the write leaves the previous backup
-    if tar czf "${BACKUP_PATH}.tmp" /etc/NetworkManager/system-connections/* /etc/ssh/*_key* /root/.ssh/* 2>/dev/null; then
+    set -o pipefail
+    if [ -s $list ] && tar cf - -C / -T $list 2>/dev/null | gzip > "${BACKUP_PATH}.tmp"; then
         mv -f "${BACKUP_PATH}.tmp" "${BACKUP_PATH}"
     else
         rm -f "${BACKUP_PATH}.tmp"
     fi
+    set +o pipefail
+    rm -f $list
 }
 
 allowed() {
@@ -34,16 +51,20 @@ allowed() {
 }
 
 restore() {
+    local list=/tmp/backup-config.list
     [ -f "${BACKUP_PATH}" ] || return 0
-    # Regular files only (the '-' type), under the allowed folders, no symlinks or devices
-    WANT=$(tar tzvf "${BACKUP_PATH}" 2>/dev/null | while read -r mode owner size date time name rest; do
+    # Regular files only (the '-' type), under the allowed folders, no symlinks or devices; the name is the rest
+    # of the line (a WiFi profile is named after its network, spaces and all)
+    # Files already on the card stay: the archive is from the last clean shutdown, and a profile or a password
+    # changed since would go back at every start; a rewritten card gets them all. (BusyBox tar -k stops at the
+    # first file that exists instead of skipping it)
+    unpack | tar tvf - 2>/dev/null | while read -r mode owner size date time name; do
         case "$mode" in
-            -*) allowed "$name" && echo "$name" ;;
+            -*) allowed "$name" && [ ! -e "/$name" ] && echo "$name" ;;
         esac
-    done)
-    [ -n "$WANT" ] || return 0
-    echo "$WANT" | tar xzf "${BACKUP_PATH}" -C / --no-same-owner -T - 2>/dev/null \
-        || echo "$WANT" | xargs tar xzf "${BACKUP_PATH}" -C / 2>/dev/null
+    done > $list
+    [ -s $list ] && unpack | tar xof - -C / -T $list 2>/dev/null
+    rm -f $list
     chmod 600 /etc/ssh/*_key /root/.ssh/* /etc/NetworkManager/system-connections/* 2>/dev/null
 }
 
