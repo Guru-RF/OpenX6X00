@@ -14,6 +14,13 @@
 #define BOARD_DISP_W        800
 #define BOARD_DISP_H        480
 
+/* The AF volume's range, the base's own: the X6200 takes 0..100 (gdyuldin's X6200 GUI, 0d504863), the X6100 0..55 */
+#ifdef BOARD_X6200
+#define BOARD_VOL_MAX       100
+#else
+#define BOARD_VOL_MAX       55
+#endif
+
 #ifdef HOST_BUILD
 /* The GUI on a PC (cmake -DHOST_BUILD=ON): an SDL window for the panel, the stub radio, and the
  * front keys and knobs as FIFOs under the data directory that host/host_panel.c writes the PC's

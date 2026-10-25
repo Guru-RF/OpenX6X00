@@ -729,9 +729,9 @@ static Frame *process_req(const Frame *req) {
                         // VOL
                         if (data_size == 1) {
                             resp->set_payload_len(4);
-                            to_bcd_be(&resp->data[1], cfg_sm.p_volume.get() * 255 / 55, 3);
+                            to_bcd_be(&resp->data[1], cfg_sm.p_volume.get() * 255 / BOARD_VOL_MAX, 3);
                         } else if (data_size == 3) {
-                            cfg_sm.p_volume.set(from_bcd_be(&req->data[1], 3) * 55 / 255);
+                            cfg_sm.p_volume.set(from_bcd_be(&req->data[1], 3) * BOARD_VOL_MAX / 255);
                         }
                         break;
                     case 0x02:

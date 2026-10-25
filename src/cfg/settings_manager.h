@@ -24,6 +24,7 @@
 
 #include <ft8lib/constants.h>
 
+#include "../board.h"
 #include "../radio_types.h"
 #include "../common/math.h"
 #include "computed_parameter.h"
@@ -70,7 +71,7 @@ class SettingsManager {
     // --- GLOBAL params (flat `params` table) ---
     // General
     // clang-format off
-    Parameter<int32_t> p_volume{"vol", 30, 0, 55,
+    Parameter<int32_t> p_volume{"vol", 30, 0, BOARD_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, 0.1f, 10.0f,
         StorageType::GLOBAL, pending_writes_, &global_params_};

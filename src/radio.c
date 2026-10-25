@@ -382,7 +382,7 @@ uint16_t radio_change_vol(int16_t df) {
 
     mute = false;
 
-    uint16_t new_val = limit(vol + df, 0, 55);
+    uint16_t new_val = limit(vol + df, 0, BOARD_VOL_MAX);
 
     if (new_val != vol) {
         param_i_set(cfg_volume, new_val);

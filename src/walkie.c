@@ -594,7 +594,7 @@ static void build(void) {
     lv_obj_align(tx_label, LV_ALIGN_BOTTOM_MID, 0, -12);
 
     rule(ROWS_Y - 14);
-    vol_bar = level_row("VOL", ROWS_Y, 55, &vol_val);
+    vol_bar = level_row("VOL", ROWS_Y, BOARD_VOL_MAX, &vol_val);
     sql_bar = level_row("SQL", ROWS_Y + ROW_STEP, 100, &sql_val);
     pwr_bar = level_row("PWR", ROWS_Y + 2 * ROW_STEP, 100, &pwr_val);
 

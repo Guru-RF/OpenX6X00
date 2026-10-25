@@ -1848,7 +1848,7 @@ spectrum as binary frames (16 bytes header `{u16 0xFFFF, u16 bins, u32
 centre Hz, u32 width Hz, u32 sequence}`, then one int8 dB per bin). `set NAME
 VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list),
 `agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1), `sql`, `rfg`
-(0-100), `vol` (0-55), `pwr` (tenths of a watt), `step`, `zoom` (1-8), `band`
+(0-100), `vol` (0-55 on the X6100, 0-100 on the X6200), `pwr` (tenths of a watt), `step`, `zoom` (1-8), `band`
 (+1/-1), `vfo` (toggle), `filter LO HI`. The keys and knobs go as on the
 Screen page. The apps: the FT8 list's rows come as `ft8r {...}` (id, type,
 text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
@@ -1867,7 +1867,7 @@ once (the answer goes out again), and `logq? ID` asks for one again: `ok`,
 restarted since, or no longer kept). After `size` the radio lists its keys (`keys GEN APP
 ...`: the X6200 has no PRE, V/M, AGC or LOCK key) and, to a panel, `modes 8|10`
 (the X6200 adds SAM and WFM; `set mode` with one the radio has not is answered
-`err mode: not on this radio`). The greeting `hello <version> <boot>` ends with a
+`err mode: not on this radio`) and `volmax 55|100`, the AF volume's range. The greeting `hello <version> <boot>` ends with a
 number chosen when the GUI started: a client that sees it change knows the
 radio restarted. Sessions and control: `pair?` puts a code on the radio's
 screen, `pair CODE NAME` answers `paired TOKEN ROLE TX`, `auth TOKEN` at each

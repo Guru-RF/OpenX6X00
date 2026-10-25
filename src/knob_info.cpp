@@ -194,7 +194,7 @@ class KnobLine {
         *is_edit = edit;
 
         /* the settings' ranges (settings_manager.h) */
-        float max = ctrl == CTRL_VOL                                            ? 55
+        float max = ctrl == CTRL_VOL                                            ? BOARD_VOL_MAX
                   : ctrl == CTRL_SQL || ctrl == CTRL_RFG || ctrl == CTRL_MONI ? 100
                   : ctrl == CTRL_PWR                                            ? 10
                                                                                 : 0;

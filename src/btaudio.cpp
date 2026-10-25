@@ -38,7 +38,7 @@ struct result_t {
 static bool mute_on   = true;   /* speaker silent while headphones are connected (default) */
 static int  saved_vol = -1;
 static bool hp_on     = false;
-static int  hp_vol    = 30;     /* headphone volume on the 0..55 VOL scale */
+static int  hp_vol    = 30;     /* headphone volume on the VOL scale, 0..BOARD_VOL_MAX */
 static bool vol_busy  = false;
 static int  vol_pending = -1;
 
@@ -91,7 +91,7 @@ static void hp_vol_done(const char *out, int status, void *user) {
 /* One volume command at a time, the last value wins */
 static void hp_vol_send() {
     if (vol_busy || vol_pending < 0) return;
-    std::string args = "volume " + std::to_string(vol_pending * 100 / 55);
+    std::string args = "volume " + std::to_string(vol_pending * 100 / BOARD_VOL_MAX);
 
     vol_pending = -1;
     vol_busy = true;

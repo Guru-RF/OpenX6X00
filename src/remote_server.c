@@ -668,7 +668,7 @@ static void panel_apply(void *arg) {
         case P_NR:     param_i_set(cfg_nr, p->a != 0); break;
         case P_SQL:    param_i_set(cfg_squelch, LV_CLAMP(0, p->a, 100)); break;
         case P_RFG:    param_i_set(cfg_rfgain, LV_CLAMP(0, p->a, 100)); break;
-        case P_VOL:    param_i_set(cfg_volume, LV_CLAMP(0, p->a, 55)); break;
+        case P_VOL:    param_i_set(cfg_volume, LV_CLAMP(0, p->a, BOARD_VOL_MAX)); break;
         case P_PWR:    cfg_pwr_set(LV_CLAMP(1, p->a, 100) / 10.0f); break;
         case P_STEP:   param_i_set(cfg_mode_freq_step, LV_CLAMP(1, p->a, 10000)); break;
         case P_ZOOM:   param_i_set(cfg_mode_zoom, LV_CLAMP(1, p->a, 8)); break;
@@ -848,6 +848,7 @@ static void panel_hello(client_t *c) {
     size_t         k = 0;
 
     client_textf(c, "modes %d", radio_caps() & HW_CAP_SAM_WFM ? radio_mode_last + 1 : radio_mode_sam);
+    client_textf(c, "volmax %d", BOARD_VOL_MAX);
     int n = cfg_bands_active(start, stop, names, 32);
     k += snprintf(buf + k, sizeof(buf) - k, "bands [");
     for (int i = 0; i < n && k < sizeof(buf) - 64; i++) {

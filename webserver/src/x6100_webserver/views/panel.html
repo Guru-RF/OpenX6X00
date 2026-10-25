@@ -840,6 +840,7 @@ body.app h2, body.app #intro { display:none; }
       else if (head === "spots") { spots = JSON.parse(body); showSpots(); requestDraw(); }
       else if (head === "bands") bands = JSON.parse(body);
       else if (head === "modes") nModes = Math.min(MODES.length, parseInt(body, 10) || 8);
+      else if (head === "volmax") LVL.vol.max = parseInt(body, 10) || 55;   /* the X6200: 100 */
       else if (head === "keys") keysHave(body.split(" "));
       else if (head === "plan") { plan = JSON.parse(body); requestDraw(); }
       else if (head === "ft8") { ft8 = JSON.parse(body); ft8At = Date.now(); showFt8(); }
@@ -960,7 +961,7 @@ body.app h2, body.app #intro { display:none; }
     const n = e.shiftKey ? 10 : 1;
     if (e.key === "ArrowRight") { e.preventDefault(); tuneTo(state.freq + n * state.step); }
     else if (e.key === "ArrowLeft") { e.preventDefault(); tuneTo(state.freq - n * state.step); }
-    else if (e.key === "]") { e.preventDefault(); lvlSend("vol", Math.min(55, state.vol + 1)); }
+    else if (e.key === "]") { e.preventDefault(); lvlSend("vol", Math.min(LVL.vol.max, state.vol + 1)); }
     else if (e.key === "[") { e.preventDefault(); lvlSend("vol", Math.max(0, state.vol - 1)); }
   });
   document.addEventListener("keyup", function(e) { if (e.key === " ") ptt.release(); });
