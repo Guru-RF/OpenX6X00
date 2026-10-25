@@ -100,6 +100,17 @@ static void power_on_cb(lv_timer_t *t) {
     wifi_power_on();
 }
 
+/* What the driver, NetworkManager and the supplicant said, for a report: /mnt/app_logs/wifi.txt */
+static void wifi_log(const char *ssid) {
+    FILE *f = fopen("/tmp/x6100-wifilog.ssid", "w");
+
+    if (f) {
+        fputs(ssid, f);
+        fclose(f);
+    }
+    sh_run("/usr/sbin/x6100-wifilog", NULL, NULL);
+}
+
 /* No network in reach for three minutes, WiFi on and not connected: the chip is powered off
  * and on again, two seconds apart. Now and then it stops seeing any network until it is. */
 static void no_network_cb(lv_timer_t *t) {
@@ -124,12 +135,31 @@ static void no_network_cb(lv_timer_t *t) {
     lv_timer_set_repeat_count(lv_timer_create(power_on_cb, 2000, NULL), 1);
 }
 
+/* The WiFi device: wlan0, or else the WiFi device NetworkManager has under another name (issue #3: a
+ * radio refused every join with "mismatching interface name") */
+static NMDevice * find_wifi_device(void) {
+    NMDevice *d = nm_client_get_device_by_iface(client, WLAN_IFACE);
+
+    if (d && NM_IS_DEVICE_WIFI(d)) {
+        return d;
+    }
+    const GPtrArray *devs = nm_client_get_devices(client);
+
+    for (guint i = 0; devs && i < devs->len; i++) {
+        d = NM_DEVICE(g_ptr_array_index(devs, i));
+        if (NM_IS_DEVICE_WIFI(d)) {
+            return d;
+        }
+    }
+    return NULL;
+}
+
 void wifi_power_setup() {
     set_status(WIFI_DISCONNECTED);
     loop = g_main_loop_new(NULL, FALSE);
     setup_nm_client();
     if (client != NULL) {
-        device = nm_client_get_device_by_iface(client, WLAN_IFACE);
+        device = find_wifi_device();
         if (device) {
             setup_wifi_device();
         }
@@ -336,7 +366,7 @@ void wifi_add_connection(const wifi_ap_info_t *ap_info, const char *password) {
                  NM_SETTING_CONNECTION_TYPE, NM_SETTING_WIRELESS_SETTING_NAME,
 				 NM_SETTING_CONNECTION_AUTOCONNECT, TRUE,
                  NM_SETTING_CONNECTION_AUTOCONNECT_RETRIES, 0,   // 0 = forever, see fix_autoconnect_retries()
-				 NM_SETTING_CONNECTION_INTERFACE_NAME, WLAN_IFACE,
+				 NM_SETTING_CONNECTION_INTERFACE_NAME, device ? nm_device_get_iface(device) : WLAN_IFACE,
 				 NULL);
     // clang-format on
     g_free(uuid);
@@ -401,6 +431,10 @@ void wifi_update_connection(const char *uuid, const char *password) {
     if (rem_con) {
         new_connection = nm_simple_connection_new_clone(NM_CONNECTION(rem_con));
         nm_connection_remove_setting(new_connection, NM_TYPE_SETTING_WIRELESS_SECURITY);
+        if (device) {   /* a profile tied to wlan0 on a radio whose WiFi is named otherwise */
+            g_object_set(nm_connection_get_setting_connection(new_connection), NM_SETTING_CONNECTION_INTERFACE_NAME,
+                         nm_device_get_iface(device), NULL);
+        }
         if (password) {
             s_wsec = (NMSettingWirelessSecurity *)nm_setting_wireless_security_new();
             // clang-format off
@@ -529,7 +563,7 @@ static void setup_nm_client() {
 static void setup_wifi_device() {
     NMActiveConnection *active_con;
 
-    LV_LOG_USER("Setup wlan0 device");
+    LV_LOG_USER("Setup WiFi device %s", nm_device_get_iface(device));
     g_signal_connect(device, "state-changed", G_CALLBACK(device_state_changed_sig_cb), NULL);
     active_con = nm_device_get_active_connection(device);
     if (active_con) {
@@ -544,7 +578,7 @@ static void device_added_sig_cb(NMClient *client, GObject *dev, gpointer user_da
     NMDevice           *nm_dev;
     NMActiveConnection *active_con;
     nm_dev = NM_DEVICE(dev);
-    if (strcmp(nm_device_get_iface(nm_dev), WLAN_IFACE) == 0) {
+    if (NM_IS_DEVICE_WIFI(nm_dev) && (!device || strcmp(nm_device_get_iface(nm_dev), WLAN_IFACE) == 0)) {
         device = nm_dev;
         setup_wifi_device();
     }
@@ -684,6 +718,7 @@ static void connection_adding_and_activating_cb(GObject *client, GAsyncResult *r
                      error->domain);
         msg_update_text_fmt("WiFi: %s", error->message);
         retry_uuid[0] = '\0';
+        wifi_log(retry_ssid);   /* refused before the join started: no device state change writes it */
         g_error_free(error);
     } else {
         LV_LOG_USER("Activated: %s\n", nm_active_connection_get_id(active_con));
@@ -790,13 +825,7 @@ static void device_state_changed_sig_cb(NMDevice *device, guint new_state, guint
             }
             retry_uuid[0] = '\0';
             retry_n = 0;
-            /* What the driver, NetworkManager and the supplicant said, for a report: /mnt/app_logs/wifi.txt */
-            FILE *f = fopen("/tmp/x6100-wifilog.ssid", "w");
-            if (f) {
-                fputs(retry_ssid, f);
-                fclose(f);
-            }
-            sh_run("/usr/sbin/x6100-wifilog", NULL, NULL);
+            wifi_log(retry_ssid);
         }
         break;
     }
@@ -828,6 +857,7 @@ static void connection_activating_cb(GObject *client, GAsyncResult *result, gpoi
                      error->domain);
         msg_update_text_fmt("WiFi: %s", error->message);
         retry_uuid[0] = '\0';
+        wifi_log(retry_ssid);
         g_error_free(error);
     } else {
         LV_LOG_USER("Activated: %s\n", nm_active_connection_get_id(active_con));
