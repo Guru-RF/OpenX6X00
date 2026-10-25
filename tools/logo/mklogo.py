@@ -65,31 +65,35 @@ def boot(W=800, H=480):
     y = 258
     d.text((x - ba[0], y), a, font=bold, fill=WHITE)
     d.text((x + wa + gap - bb[0], y), b, font=bold, fill=GOLD)
-    sub = "OPEN FIRMWARE FOR THE XIEGU X6100"
+    sub = "OPEN FIRMWARE FOR THE XIEGU X6100 AND X6200"
     ws, hs, bs = text_width(med, sub)
-    # letter-spaced subtitle
-    sp = 5
-    total = sum(med.getlength(c) for c in sub) + sp * (len(sub) - 1)
+    # letter-spaced subtitle, the spacing narrowed to keep it 40 px clear of the edges
+    glyphs = sum(med.getlength(c) for c in sub)
+    sp = min(5, (W - 80 - glyphs) / (len(sub) - 1))
+    total = glyphs + sp * (len(sub) - 1)
     xx = W / 2 - total / 2
     for c in sub:
         d.text((xx, 372), c, font=med, fill=MUTED)
         xx += med.getlength(c) + sp
     # a thin gold rule under the wordmark
     d.rectangle([W // 2 - 60, 352, W // 2 + 60, 354], fill=GOLD)
-    # the maintainer, at the foot: the RF.Guru mark and a line (bootanim.c reveals y >= 415 last)
+    # the maintainer, at the foot: the RF.Guru mark and a line, the call in gold (bootanim.c reveals y >= 415
+    # last, left to right)
     rfg = Image.open(os.path.join(os.path.dirname(fontdir), "rfguru-logo.png")).convert("RGBA")
     rfg = rfg.resize((34, 34), Image.LANCZOS)
     small = ImageFont.truetype(os.path.join(fontdir, "Inter-Medium.ttf"), 17)
-    line = "MAINTAINED BY RF.GURU"
+    callf = ImageFont.truetype(os.path.join(fontdir, "Inter-Bold.ttf"), 17)
+    parts = [("MAINTAINED BY ", small, MUTED), ("ON6URE", callf, GOLD), (" FOR RF.GURU", small, MUTED)]
     sp = 3
-    tw = sum(small.getlength(c) for c in line) + sp * (len(line) - 1)
+    chars = [(c, f, col) for s, f, col in parts for c in s]
+    tw = sum(f.getlength(c) for c, f, _ in chars) + sp * (len(chars) - 1)
     x = W / 2 - (rfg.width + 14 + tw) / 2
     y = 432
     im.paste(rfg, (int(x), y - 8), rfg)
     xx = x + rfg.width + 14
-    for c in line:
-        d.text((xx, y), c, font=small, fill=MUTED)
-        xx += small.getlength(c) + sp
+    for c, f, col in chars:
+        d.text((xx, y), c, font=f, fill=col)
+        xx += f.getlength(c) + sp
     return im
 
 os.makedirs(outdir, exist_ok=True)
