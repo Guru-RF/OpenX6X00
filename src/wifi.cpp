@@ -49,6 +49,16 @@ static gint64      retry_us;          /* when the last try started */
 #define RETRY_TRIES     4
 #define RETRY_WINDOW_US (120 * G_USEC_PER_SEC)   /* a failure later than this is not that join's */
 
+/* An SSID for the message box, whose label colours "#rrggbb text#": a '#' in the name hid characters */
+static const char *shown(const char *ssid) {
+    static char buf[40];
+    size_t      i = 0;
+
+    for (; ssid[i] && i + 1 < sizeof(buf); i++) buf[i] = ssid[i] == '#' ? '-' : ssid[i];
+    buf[i] = '\0';
+    return buf;
+}
+
 static void retry_start(const char *uuid, const char *ssid) {
     snprintf(retry_uuid, sizeof(retry_uuid), "%s", uuid);
     snprintf(retry_ssid, sizeof(retry_ssid), "%s", ssid);
@@ -282,9 +292,9 @@ static NMAccessPoint *find_ap(const uint8_t *ssid, size_t len) {
 
 const char *wifi_ap_refusal(const wifi_ap_info_t *ap) {
     if (ap->unsupported) {
-        static char buf[96];
+        static char buf[160];
 
-        snprintf(buf, sizeof(buf), "%s uses %s: the radio joins open and WPA2 networks", ap->ssid, ap->unsupported);
+        snprintf(buf, sizeof(buf), "%s uses %s: the radio joins open and WPA2 networks", shown(ap->ssid), ap->unsupported);
         return buf;
     }
     if (ap->wpa3_only) {
@@ -300,7 +310,7 @@ void wifi_add_connection(const wifi_ap_info_t *ap_info, const char *password) {
     NMAccessPoint *ap = find_ap(ap_info->ssid_raw, ap_info->ssid_len);
 
     if (!ap) {
-        msg_update_text_fmt("WiFi %s: no longer in range, scan again", ap_info->ssid);
+        msg_update_text_fmt("WiFi %s: no longer in range, scan again", shown(ap_info->ssid));
         return;
     }
     const char *ssid = ap_info->ssid;
@@ -375,7 +385,7 @@ void wifi_add_connection(const wifi_ap_info_t *ap_info, const char *password) {
     /* On the access point the list showed: NetworkManager otherwise looked for one itself, and with none that
      * fits (a security other than the profile's) it saved the profile as a hidden network, "known" from then on */
     LV_LOG_USER("Adding connection to %s (%s)", ssid, nm_access_point_get_bssid(ap));
-    msg_update_text_fmt("Connecting to %s...", ssid);
+    msg_update_text_fmt("Connecting to %s...", shown(ssid));
     nm_client_add_and_activate_connection_async(client, connection, device, nm_object_get_path(NM_OBJECT(ap)), NULL,
                                                 connection_adding_and_activating_cb, NULL);
     g_object_unref(connection);
@@ -426,7 +436,7 @@ void wifi_connect(const char *uuid) {
         rem_con = nm_client_get_connection_by_uuid(client, uuid);
         if (rem_con != NULL) {
             retry_start(uuid, nm_connection_get_id(NM_CONNECTION(rem_con)));
-            msg_update_text_fmt("Connecting to %s...", retry_ssid);
+            msg_update_text_fmt("Connecting to %s...", shown(retry_ssid));
             nm_client_activate_connection_async(client, NM_CONNECTION(rem_con), device, NULL, NULL,
                                                 connection_activating_cb, loop);
         } else {
@@ -768,15 +778,15 @@ static void device_state_changed_sig_cb(NMDevice *device, guint new_state, guint
             retry_us = g_get_monotonic_time();
             LV_LOG_WARN("WiFi %s: %s (reason %u), try %d/%d", retry_ssid, why ? why : "failed", reason, retry_n + 1,
                         RETRY_TRIES);
-            msg_update_text_fmt("Connecting to %s... (try %d/%d)", retry_ssid, retry_n + 1, RETRY_TRIES);
+            msg_update_text_fmt("Connecting to %s... (try %d/%d)", shown(retry_ssid), retry_n + 1, RETRY_TRIES);
             nm_client_activate_connection_async(client, NM_CONNECTION(rc), device, NULL, NULL,
                                                 connection_activating_cb, loop);
         } else {
             LV_LOG_WARN("WiFi %s: %s (reason %u)", retry_ssid, why ? why : "failed", reason);
             if (why) {
-                msg_update_text_fmt("WiFi %s: %s", retry_ssid, why);
+                msg_update_text_fmt("WiFi %s: %s", shown(retry_ssid), why);
             } else {
-                msg_update_text_fmt("WiFi %s: join failed (reason %u)", retry_ssid, reason);
+                msg_update_text_fmt("WiFi %s: join failed (reason %u)", shown(retry_ssid), reason);
             }
             retry_uuid[0] = '\0';
             retry_n = 0;

@@ -98,8 +98,11 @@ void band_plan_reload(void) {
 
     memcpy(list, plan, sizeof(plan));
     for (int i = 0; i < nb; i++) {
-        /* Broadcast and CB (ids 100-299, sql/params.sql) are no amateur bands */
-        if (ids[i] >= 100 && ids[i] < 300) {
+        /* Broadcast, the X6200's FM broadcast and airband, CB (ids 100-299 in sql/params.sql and migrations.c) are no
+         * amateur bands; by their names too, so a user's band that got such an id keeps its strip */
+        if (ids[i] >= 100 && ids[i] < 300
+            && (strncasecmp(names[i], "Broadcast", 9) == 0 || strncasecmp(names[i], "CB", 2) == 0
+                || strcasecmp(names[i], "FM broadcast") == 0 || strcasecmp(names[i], "Airband") == 0)) {
             continue;
         }
         int32_t   a = start[i], e = stop[i];
