@@ -49,6 +49,7 @@ typedef struct {
     float sum_pwr;
     float sum_alc;
     bool  held;     /* the level was found (or had to come down): no more ramping up */
+    bool  power_hold; /* the ALC does not follow the drive (HW_CAP_TX_NO_ALC): held once the power reaches the setting */
     float up_db;    /* ramped up so far this transmission */
 } tx_level_t;
 

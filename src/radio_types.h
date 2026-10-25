@@ -39,6 +39,10 @@ typedef enum {
     HW_CAP_FM_EMP       = 1 << 11,  /* HW_FM_EMP */
     HW_CAP_TX_LEVEL     = 1 << 12,  /* the base sets the TX power itself: digital audio goes at one level */
     HW_CAP_SAM_WFM      = 1 << 13,  /* the modes radio_mode_sam and radio_mode_wfm */
+    HW_CAP_KEEPALIVE    = 1 << 14,  /* the register block every second in every state, TX included: the X6200's
+                                     * base fades its RF out about a second into a TX the host is silent in */
+    HW_CAP_TX_NO_ALC    = 1 << 15,  /* the ALC does not follow the drive (the X6200: about 0 from 0.03 to 5 W): digital
+                                     * drive held once the power reaches the setting */
 } hw_cap_t;
 
 /* The hand mic's keys as the base reports them (mic_keys.c) */

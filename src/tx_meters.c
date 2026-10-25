@@ -356,9 +356,9 @@ lv_obj_t *tx_info_init(lv_obj_t *parent) {
     return obj;
 }
 
-/* From the base, in its thread. Its ALC counts down from 10: turned round here */
+/* From the base, in its thread. The ALC from 0 (at rest) up: the X6100 backend turns its count round, the
+ * X6200 sends it this way (as gdyuldin's X6200 GUI reads it, 34ec351 "Invert ALC") */
 void tx_info_update(float p, float s, float a) {
-    a = ALC_MAX - a;
     s = LV_MIN(SWR_MAX, s);
     if (cur_mode == radio_mode_lsb_dig || cur_mode == radio_mode_usb_dig) {
         pwr = p;

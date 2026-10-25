@@ -8,6 +8,7 @@
 
 
 #include "params.h"
+#include "../board.h"
 
 #include "db.h"
 
@@ -53,8 +54,15 @@ params_t params = {
     .clock_tx_timeout       = 1,
 
     .charger                = { .x = 1, .min = 0, .max = 2, .name = "charger"},
+#ifdef BOARD_X6200
+    /* The X6200's PA bias as the OEM app writes it (0x0eec0d20: drive 3360, final 3820), as gdyuldin's X6200 GUI
+     * does; the X6100's 450/650 went to it before */
+    .bias_drive             = 3360,
+    .bias_final             = 3820,
+#else
     .bias_drive             = 450,
     .bias_final             = 650,
+#endif
     .line_in                = 10,
     .line_out               = 10,
     .spmode                 = { .x = false,             .name = "spmode" },
@@ -88,7 +96,13 @@ params_t params = {
     .js8_custom_hz         = { .name = "js8_custom_hz", .x = 0 },
     .ft8_custom_on          = { .x = false,     .name = "ft8_custom_on" },
     .ft8_custom_hz          = { .x = 0,         .name = "ft8_custom_hz" },
+#ifdef BOARD_X6200
+    /* Its own name: v0.3.0 to v0.3.3 read the X6200's ALC the wrong way round (as the X6100's) and learned the
+     * drive down to the floor, 40 dB under the power (issues #1, #8); that value is left behind */
+    .ft8_output_gain_offset = { .x = 0.0f,      .name = "ft8_output_gain_offset_v2" },
+#else
     .ft8_output_gain_offset = { .x = 0.0f,      .name = "ft8_output_gain_offset" },
+#endif
     .ft8_cq_modifier        = { .x = "",        .name = "ft8_cq_modifier"},
     .sstv_denoise           = { .x = true,      .name = "sstv_denoise" },
 

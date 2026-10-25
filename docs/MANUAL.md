@@ -619,6 +619,8 @@ WeFax) set their audio level by themselves.
   the ALC reads under 1, the level goes up slowly and stops there; when the
   ALC goes over 3 or the power is well over the setting, it comes down.
 - The level found is kept for the next transmission.
+- On the X6200 the ALC reading does not follow the audio level, so the level
+  goes up until the power reaches the setting and stays there.
 
 TX power while a digital app is open:
 

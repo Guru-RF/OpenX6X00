@@ -50,7 +50,8 @@ static float tx_level_decide(tx_level_t *l) {
         if (d < -TX_LEVEL_DOWN_MAX_DB) d = -TX_LEVEL_DOWN_MAX_DB;
         l->held = true;
     } else if (!l->held) {
-        if (a >= TX_LEVEL_ALC_SHOWS || (l->target_w > 0.0f && p > l->target_w + TX_LEVEL_PWR_STEP_W)) {
+        if (a >= TX_LEVEL_ALC_SHOWS || (l->target_w > 0.0f && p > l->target_w + TX_LEVEL_PWR_STEP_W)
+            || (l->power_hold && l->target_w > 0.0f && p >= l->target_w - TX_LEVEL_PWR_STEP_W)) {
             l->held = true; /* there: the ALC holds the power at the setting (or nothing holds it) */
         } else if (l->up_db < TX_LEVEL_UP_MAX_DB) {
             /* The ALC under 1: up, faster while far short (under half the

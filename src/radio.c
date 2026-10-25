@@ -59,6 +59,7 @@
 
 #define FLOW_RESTART_TIMEOUT 300
 #define IDLE_TIMEOUT        (3 * 1000)
+#define KEEPALIVE_MS        1000    /* HW_CAP_KEEPALIVE: as gdyuldin's X6200 GUI, in TX too */
 #define RESYNC_RETRY_MS     200     /* the register block again, after one that didn't get through */
 #define MORSE_HANG_MS       3000    /* the base holds TX for the QSK time after the GUI's CW key */
 
@@ -1228,8 +1229,12 @@ static void * radio_thread(void *arg) {
 
         int32_t idle = now_time - idle_time;
 
-        /* Every 3 s in RX as always; after a write error or an un-key at once, in TX too */
-        if ((idle > IDLE_TIMEOUT && state == RADIO_RX) || (resync_due && now_time - resync_time >= RESYNC_RETRY_MS)) {
+        /* Every 3 s in RX as always (every second in every state for a base that wants it, the X6200, which
+         * otherwise takes the RF away about a second into TX: issues #1, #8); after a write error or an un-key
+         * at once, in TX too */
+        bool keepalive = radio_caps() & HW_CAP_KEEPALIVE;
+        if ((keepalive ? idle > KEEPALIVE_MS : (idle > IDLE_TIMEOUT && state == RADIO_RX))
+            || (resync_due && now_time - resync_time >= RESYNC_RETRY_MS)) {
             resync_time = now_time;
             resync_due = !resend_all();
             if (resync_due) {

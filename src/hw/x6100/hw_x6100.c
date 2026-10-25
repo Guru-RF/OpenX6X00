@@ -400,7 +400,7 @@ bool hw_flow_read(hw_pack_t *p) {
     p->vext_flag  = pack->flag.vext;
     p->tx_power   = pack->tx_power;
     p->vswr       = pack->vswr;
-    p->alc_level  = pack->alc_level;
+    p->alc_level  = pack->alc_level >= 100 ? 0 : 100 - pack->alc_level;  /* the X6100's ALC counts down from 10 */
     p->vext       = pack->vext;
     p->vbat       = pack->vbat;
     p->batcap     = pack->batcap;

@@ -34,7 +34,7 @@ typedef struct {
     bool        vext_flag;      /* on external power, as the base sees it */
     uint8_t     tx_power;       /* 0.1 W */
     uint8_t     vswr;           /* 0.1 */
-    uint8_t     alc_level;      /* 0.1 */
+    uint8_t     alc_level;      /* 0.1: 0 the ALC at rest, up with its action (the X6100's own count turned round) */
     uint8_t     vext;           /* 0.1 V */
     uint8_t     vbat;           /* 0.1 V */
     uint8_t     batcap;         /* % */

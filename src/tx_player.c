@@ -111,6 +111,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     tx_level_t      level;
 
     tx_level_start(&level, LV_MIN(param_f_get(cfg_pwr), TX_PLAYER_MAX_PWR_W));
+    level.power_hold = radio_caps() & HW_CAP_TX_NO_ALC;
     tx_info_refresh(&reading, NULL, NULL, NULL);    /* what came before this TX is not ours */
 
     /* Baseband r13 at 5 W (2026-10-12): the power holds at the setting from 0 dB down to -36 dB of
