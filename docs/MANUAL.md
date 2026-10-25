@@ -1996,7 +1996,8 @@ Anyone on the network can open the Panel and the Screen page and watch: the
 spectrum, the picture, the state, the sound. To operate the radio a browser
 is paired once, with a code the radio shows:
 
-1. The page's bar says "View only · Pair". Tap it: the radio puts a six-digit
+1. The page's bar says "View only · Pair to operate". Tap it, or any key or
+   knob on the page, which opens the same dialog: the radio puts a six-digit
    code on its screen for two minutes (Settings > General > BROWSER REMOTE >
    Pair code shows it again, and the card shows it too).
 2. Type the code and a name for the browser ("Kitchen phone", "Shack PC").
@@ -2027,12 +2028,13 @@ Control: one holder at a time for what touches the RF side (frequency, mode,
 filter, keys and knobs, PTT, the FT8 app), so two browsers, a TCI client and
 the operator at the radio never fight over the VFO without knowing. The bar
 says who has it: "Control: free" (the first to tune or key takes it), "In
-control · Release" (this browser), "Controlled by Kitchen phone · Take",
-"Controlled at the radio · Take" (someone used the radio's own keys or
-knobs), "TCI client active · Take". A command from a browser without control
-is refused ("controlled by Kitchen phone: take control first") and nothing
-is sent to the radio; Take control moves it, at any time but one: while the
-radio transmits, control stays where it is until the transmission ends.
+control · Release" (this browser), "Kitchen phone · Take control", "At the
+radio · Take control" (someone used the radio's own keys or knobs), "TCI
+client · Take control". A key, a knob or a setting pressed in a browser
+without control is not sent to the radio: a Take control dialog opens, says
+who has control, and its button brings control here (as the button in the
+bar does at any time). One exception: while the radio transmits, control
+stays where it is until the transmission ends.
 Release gives it up without anyone taking it. The radio's own keys and knobs
 always take control back (the operator standing at the radio has the last
 word); a browser takes it again on purpose. A TCI client takes it as the

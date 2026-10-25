@@ -86,6 +86,17 @@
     if (head === "tx") { this.radioTx = w[0] === "1"; if (this.o.onTx) this.o.onTx(this.radioTx); return true; }
     if (head === "sessions") { try { this.sessions = JSON.parse(body); } catch (e) { this.sessions = []; } this.sessionsRender(); return true; }
     if (head === "err") {
+      /* A key, a knob or a setting refused: say how to get it at once, in a dialog, rather than in the status
+       * line, where people did not find it ("how do I take control?"). Not more than once in 4 s: a held key or a
+       * turned knob repeats */
+      if (/^view only/.test(body) && !this.pairing) {
+        if (Date.now() - (this.askedAt || 0) > 4000) { this.askedAt = Date.now(); this.pairError = null; this.pairOpen(); }
+        return false;    /* the page still sees it: the PTT button shows the refusal */
+      }
+      if (/^controlled by/.test(body)) {
+        if (Date.now() - (this.askedAt || 0) > 4000) { this.askedAt = Date.now(); this.takeOpen(); }
+        return false;
+      }
       if (/^unknown session/.test(body)) { store(TOKEN_KEY, null); this.pending = false; this.role = "view"; this.render(); if (this.o.onChange) this.o.onChange(); }
       else if (/^pairing refused/.test(body) && this.pairing) { this.pairError = body.replace(/^pairing refused: /, ""); this.pairOpen(); }
       else if (/^session revoked/.test(body)) { store(TOKEN_KEY, null); this.role = "view"; this.render(); }
@@ -106,13 +117,13 @@
   };
   Session.prototype.render = function() {
     const c = this.ctl;
-    this.$role.text(this.role === "view" ? "View only · Pair" : this.name + (this.role === "admin" ? " · admin" : "")).toggleClass("warn", this.role === "view").attr("title", this.role === "view" ? "This browser only watches. Pair it with a code shown on the radio to operate" : "This browser is paired and may operate the radio");
+    this.$role.text(this.role === "view" ? "View only · Pair to operate" : this.name + (this.role === "admin" ? " · admin" : "")).toggleClass("warn", this.role === "view").attr("title", this.role === "view" ? "This browser only watches. Pair it with a code shown on the radio to operate" : "This browser is paired and may operate the radio");
     let t, title;
     if (c.mine) { t = "In control · Release"; title = "This browser controls the radio. Release lets another take it without a takeover"; }
     else if (c.who === "none") { t = "Control: free"; title = "Nobody controls the radio: the first to tune or key takes it"; }
-    else if (c.who === "local") { t = "Controlled at the radio · Take"; title = "Someone used the radio's own keys or knobs. Take control to operate from here"; }
-    else if (c.who === "tci") { t = "TCI client active · Take"; title = "A TCI client (a VFO knob, a program) operates the radio. Take control to operate from here"; }
-    else { t = "Controlled by " + c.name + " · Take"; title = "Another browser operates the radio. Take control moves it here (not while the radio transmits)"; }
+    else if (c.who === "local") { t = "At the radio · Take control"; title = "Someone used the radio's own keys or knobs. Take control to operate from here"; }
+    else if (c.who === "tci") { t = "TCI client · Take control"; title = "A TCI client (a VFO knob, a program) operates the radio. Take control to operate from here"; }
+    else { t = c.name + " · Take control"; title = "Another browser operates the radio. Take control moves it here (not while the radio transmits)"; }
     this.$ctl.text(t).attr("title", title).toggleClass("ok", c.mine).toggleClass("warn", !c.mine && c.who !== "none").prop("disabled", this.role === "view" && c.who === "none");
     this.$adm.prop("hidden", this.role !== "admin");
   };
@@ -124,13 +135,24 @@
       {t: "Close", primary: true},
     ]);
   };
+  /* "Take control": who has it now, and one button to bring it here */
+  Session.prototype.takeOpen = function() {
+    const self = this, c = this.ctl;
+    const who = c.who === "local" ? "Someone used the radio's own keys or knobs, so the radio is operated at the radio."
+              : c.who === "tci" ? "A TCI client (a VFO knob, a logging program) operates the radio."
+              : c.who === "browser" ? "\"" + c.name + "\" operates the radio from another browser." : "Another place operates the radio.";
+    popup("Take control", $("<div>").append(
+      $("<p>").text(who + " One place at a time operates the radio; this browser only watches until it takes control."),
+      $("<p>").text("Take control moves it here. The button at the top (\"Take control\") does the same at any time; at the radio, a key or a knob takes it back.")),
+      [{t: "Take control", primary: true, cb: function() { self.ctlClick(); }}, {t: "Not now"}]);
+  };
   Session.prototype.pairOpen = function() {
     const self = this;
     if (!this.pairing) { this.pairing = true; this.o.send("pair?"); }
     const code = $("<input inputmode='numeric' pattern='[0-9]*' maxlength='6' autocomplete='off' placeholder='6 digits'>");
     const name = $("<input maxlength='24' autocomplete='off' placeholder='for example Kitchen phone'>").val(load(NAME_KEY) || "");
     const body = $("<div>").append(
-      $("<p>").text("A six-digit code is on the radio's screen for two minutes (Settings › General › BROWSER REMOTE › Pair code shows it again). Type it here, and a name for this browser."),
+      $("<p>").text("This browser only watches until it is paired, once. A six-digit code is now on the radio's screen for two minutes (Settings › General › BROWSER REMOTE › Pair code shows it again). Type it here, and a name for this browser."),
       $("<label>").text("Code").append(code), $("<label>").text("This browser's name").append(name),
       this.pairError ? $("<p class='err'>").text(this.pairError) : "");
     const go = function() {
