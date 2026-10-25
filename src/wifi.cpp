@@ -11,6 +11,7 @@
 
 extern "C" {
 
+#include "btaudio.h"             /* sh_run: the WiFi log after a failed join */
 #include "msg.h"
 #include "params/params.h"
 #include "pubsub_ids.h"
@@ -27,6 +28,7 @@ extern "C" {
 #include <map>
 #include <mutex>
 #include <vector>
+#include <algorithm>
 #include <array>
 
 #define WLAN_IFACE "wlan0"
@@ -38,8 +40,21 @@ static NMDevice  *device = NULL;
 
 static lv_timer_t *loop_timer;
 static lv_timer_t *scan_timer = NULL;
-static char        retry_id[33];      /* the network being joined by hand, for the retries */
+/* The join asked for by hand (a press of Connect): its profile, for the retries and the reason on the screen */
+static char        retry_uuid[40];
+static char        retry_ssid[33];
 static int         retry_n;
+static gint64      retry_us;          /* when the last try started */
+
+#define RETRY_TRIES     4
+#define RETRY_WINDOW_US (120 * G_USEC_PER_SEC)   /* a failure later than this is not that join's */
+
+static void retry_start(const char *uuid, const char *ssid) {
+    snprintf(retry_uuid, sizeof(retry_uuid), "%s", uuid);
+    snprintf(retry_ssid, sizeof(retry_ssid), "%s", ssid);
+    retry_n = 0;
+    retry_us = g_get_monotonic_time();
+}
 
 static wifi_status_t status = WIFI_OFF;
 static bool          scanning = false;
@@ -206,29 +221,32 @@ wifi_ap_arr_t wifi_get_available_access_points() {
         std::vector<wifi_ap_info_t>                ap_info_vec;
 
         for (i = 0; i < aps->len; i++) {
-            wifi_ap_info_t ap_info;
+            wifi_ap_info_t ap_info = {};
             NMAccessPoint *ap = NM_ACCESS_POINT(g_ptr_array_index(aps, i));
             fill_access_point_info(active_ssid, ap, &ap_info);
 
             std::string ssid = ap_info.ssid;
 
+            /* One row per network, the strongest of its access points: [1] is its place in ap_info_vec (it
+             * was set to the access point's index in NM's list, which wrote over another network's row or
+             * past the end with three or more access points of one network). Hidden ones each get a row */
             auto search = ssid_strength_map.find(ssid);
             if ((search != ssid_strength_map.end()) && (ssid.compare(EMPTY_SSID_STR) !=0 )) {
                 if (search->second[0] < ap_info.strength) {
-                    ap_info_vec[ssid_strength_map[ssid][1]] = ap_info;
-                    ssid_strength_map[ssid] = {ap_info.strength, i};
+                    ap_info_vec[search->second[1]] = ap_info;
+                    search->second[0] = ap_info.strength;
                 }
 
             } else {
                 ssid_strength_map[ssid] = {
-                    {ap_info.strength, ap_info_vec.size()}
+                    {ap_info.strength, (uint)ap_info_vec.size()}
                 };
                 ap_info_vec.push_back(ap_info);
             }
         }
 
-        aps_info.count = ssid_strength_map.size();
-        aps_info.ap_arr = (wifi_ap_info_t *)malloc(sizeof(wifi_ap_info_t) * aps_info.count);
+        aps_info.count = (uint8_t)std::min<size_t>(ap_info_vec.size(), 255);
+        aps_info.ap_arr = (wifi_ap_info_t *)malloc(sizeof(wifi_ap_info_t) * std::max<size_t>(aps_info.count, 1));
         for (i = 0; i < aps_info.count; i++) {
             aps_info.ap_arr[i] = ap_info_vec[i];
             aps_info.is_connected |= aps_info.ap_arr[i].is_connected;
@@ -243,9 +261,49 @@ void wifi_aps_info_delete(wifi_ap_arr_t aps_info) {
     }
 }
 
-void wifi_add_connection(const char *ssid, const char *password) {
-    snprintf(retry_id, sizeof(retry_id), "%s", ssid);
-    retry_n = 0;
+/* The strongest access point of the network now, NULL when none is in the list */
+static NMAccessPoint *find_ap(const uint8_t *ssid, size_t len) {
+    const GPtrArray *aps = device ? nm_device_wifi_get_access_points(NM_DEVICE_WIFI(device)) : NULL;
+    NMAccessPoint   *best = NULL;
+
+    for (guint i = 0; aps && i < aps->len; i++) {
+        NMAccessPoint *ap = NM_ACCESS_POINT(g_ptr_array_index(aps, i));
+        GBytes        *s = nm_access_point_get_ssid(ap);
+        gsize          n = 0;
+        const void    *d = s ? g_bytes_get_data(s, &n) : NULL;
+
+        if (d && n == len && memcmp(d, ssid, len) == 0
+            && (!best || nm_access_point_get_strength(ap) > nm_access_point_get_strength(best))) {
+            best = ap;
+        }
+    }
+    return best;
+}
+
+const char *wifi_ap_refusal(const wifi_ap_info_t *ap) {
+    if (ap->unsupported) {
+        static char buf[96];
+
+        snprintf(buf, sizeof(buf), "%s uses %s: the radio joins open and WPA2 networks", ap->ssid, ap->unsupported);
+        return buf;
+    }
+    if (ap->wpa3_only) {
+        return "WPA3-only network: set the router to WPA2 or WPA2/WPA3";
+    }
+    if (ap->ssid_len == 0) {
+        return "A hidden network: not supported";
+    }
+    return NULL;
+}
+
+void wifi_add_connection(const wifi_ap_info_t *ap_info, const char *password) {
+    NMAccessPoint *ap = find_ap(ap_info->ssid_raw, ap_info->ssid_len);
+
+    if (!ap) {
+        msg_update_text_fmt("WiFi %s: no longer in range, scan again", ap_info->ssid);
+        return;
+    }
+    const char *ssid = ap_info->ssid;
     NMConnection              *connection;
     NMSettingConnection       *s_con;
     NMSettingWireless         *s_wireless;
@@ -260,6 +318,7 @@ void wifi_add_connection(const char *ssid, const char *password) {
     /* Build up the 'connection' Setting */
     s_con = (NMSettingConnection *)nm_setting_connection_new();
     uuid = nm_utils_uuid_generate();
+    retry_start(uuid, ssid);
     // clang-format off
     g_object_set(G_OBJECT(s_con),
 				 NM_SETTING_CONNECTION_UUID, uuid,
@@ -275,7 +334,7 @@ void wifi_add_connection(const char *ssid, const char *password) {
 
     /* Build up the 'wireless' Setting */
     // nm_utils_ap_mode_security_valid
-    g_ssid = g_bytes_new(ssid, strlen(ssid));
+    g_ssid = g_bytes_new(ap_info->ssid_raw, ap_info->ssid_len);   /* the bytes, not the UTF-8 shown */
     s_wireless = (NMSettingWireless *)nm_setting_wireless_new();
     // clang-format off
     g_object_set(G_OBJECT(s_wireless),
@@ -283,6 +342,7 @@ void wifi_add_connection(const char *ssid, const char *password) {
 				 NM_SETTING_WIRELESS_MODE, NM_SETTING_WIRELESS_MODE_INFRA,
 				 NULL);
     // clang-format on
+    g_bytes_unref(g_ssid);
     nm_connection_add_setting(connection, NM_SETTING(s_wireless));
 
     /* Wifi security */
@@ -312,19 +372,22 @@ void wifi_add_connection(const char *ssid, const char *password) {
     g_object_set(G_OBJECT(s_ip6), NM_SETTING_IP_CONFIG_METHOD, NM_SETTING_IP6_CONFIG_METHOD_DISABLED, NULL);
     nm_connection_add_setting(connection, NM_SETTING(s_ip6));
 
-    LV_LOG_USER("Adding connection");
-    nm_client_add_and_activate_connection_async(client, connection, device, NULL, NULL,
+    /* On the access point the list showed: NetworkManager otherwise looked for one itself, and with none that
+     * fits (a security other than the profile's) it saved the profile as a hidden network, "known" from then on */
+    LV_LOG_USER("Adding connection to %s (%s)", ssid, nm_access_point_get_bssid(ap));
+    msg_update_text_fmt("Connecting to %s...", ssid);
+    nm_client_add_and_activate_connection_async(client, connection, device, nm_object_get_path(NM_OBJECT(ap)), NULL,
                                                 connection_adding_and_activating_cb, NULL);
     g_object_unref(connection);
 }
 
-void wifi_update_connection(const char *id, const char *password) {
+void wifi_update_connection(const char *uuid, const char *password) {
     NMRemoteConnection        *rem_con = NULL;
     NMConnection              *new_connection;
     NMSettingWirelessSecurity *s_wsec;
     gboolean                   temporary = FALSE;
 
-    rem_con = nm_client_get_connection_by_id(client, id);
+    rem_con = nm_client_get_connection_by_uuid(client, uuid);
     if (rem_con) {
         new_connection = nm_simple_connection_new_clone(NM_CONNECTION(rem_con));
         nm_connection_remove_setting(new_connection, NM_TYPE_SETTING_WIRELESS_SECURITY);
@@ -340,38 +403,34 @@ void wifi_update_connection(const char *id, const char *password) {
             nm_connection_add_setting(new_connection, NM_SETTING(s_wsec));
         }
         nm_connection_replace_settings_from_connection(NM_CONNECTION(rem_con), new_connection);
-        nm_remote_connection_commit_changes_async(rem_con, !temporary, NULL, connection_modify_cb, NULL);
+        /* user_data: join it again once saved ("Change password" saved and never reconnected) */
+        nm_remote_connection_commit_changes_async(rem_con, !temporary, NULL, connection_modify_cb, (gpointer)1);
         g_object_unref(new_connection);
     } else {
-        LV_LOG_ERROR("Connection %s not found", id);
+        LV_LOG_ERROR("Connection %s not found", uuid);
     }
 }
 
-void wifi_delete_connection(const char *id) {
-    NMRemoteConnection *rem_con;
+void wifi_delete_connection(const char *uuid) {
+    NMRemoteConnection *rem_con = nm_client_get_connection_by_uuid(client, uuid);
 
-    rem_con = nm_client_get_connection_by_id(client, id);
-    nm_remote_connection_delete_async(rem_con, NULL, connection_delete_cb, NULL);
+    if (rem_con) {
+        nm_remote_connection_delete_async(rem_con, NULL, connection_delete_cb, NULL);
+    }
 }
 
-void wifi_connect(const char *id) {
-    NMRemoteConnection  *rem_con = NULL;
-
-    snprintf(retry_id, sizeof(retry_id), "%s", id);
-    retry_n = 0;
-    NMSettingConnection *s_con;
-    NMConnection        *connection = NULL;
-    gboolean             temporary = FALSE;
-    const char          *uuid;
-    const char          *password;
+void wifi_connect(const char *uuid) {
+    NMRemoteConnection *rem_con;
 
     if (device != NULL) {
-        rem_con = nm_client_get_connection_by_id(client, id);
+        rem_con = nm_client_get_connection_by_uuid(client, uuid);
         if (rem_con != NULL) {
+            retry_start(uuid, nm_connection_get_id(NM_CONNECTION(rem_con)));
+            msg_update_text_fmt("Connecting to %s...", retry_ssid);
             nm_client_activate_connection_async(client, NM_CONNECTION(rem_con), device, NULL, NULL,
                                                 connection_activating_cb, loop);
         } else {
-            LV_LOG_WARN("Connection with id=%s is not found", id);
+            LV_LOG_WARN("Connection %s is not found", uuid);
         }
     }
 }
@@ -482,49 +541,77 @@ static void device_added_sig_cb(NMClient *client, GObject *dev, gpointer user_da
 }
 
 static void fill_access_point_info(GBytes *active_ssid, NMAccessPoint *ap, wifi_ap_info_t *ap_info) {
-    NMRemoteConnection *rem_con;
-    guint32             flags, wpa_flags, rsn_flags;
-    guint8              strength;
-    GBytes             *ssid;
-    const char         *hwaddr;
-    NM80211Mode         mode;
-    char               *ssid_str, *wpa_flags_str, *rsn_flags_str;
+    guint32     flags, wpa_flags, rsn_flags;
+    GBytes     *ssid;
+    const char *hwaddr;
+    char       *ssid_str;
 
-    /* Get AP properties */
+    memset(ap_info, 0, sizeof(*ap_info));
     flags = nm_access_point_get_flags(ap);
     wpa_flags = nm_access_point_get_wpa_flags(ap);
     rsn_flags = nm_access_point_get_rsn_flags(ap);
     ssid = nm_access_point_get_ssid(ap);
     hwaddr = nm_access_point_get_bssid(ap);
-    mode = nm_access_point_get_mode(ap);
-    strength = nm_access_point_get_strength(ap);
 
-    /* Convert to strings */
-    if (ssid)
-        ssid_str = nm_utils_ssid_to_utf8((const guint8 *)g_bytes_get_data(ssid, NULL), g_bytes_get_size(ssid));
-    else
+    gsize       ssid_len = 0;
+    const void *ssid_data = ssid ? g_bytes_get_data(ssid, &ssid_len) : NULL;
+
+    if (ssid_data && ssid_len > 0 && ssid_len <= sizeof(ap_info->ssid_raw)) {
+        memcpy(ap_info->ssid_raw, ssid_data, ssid_len);
+        ap_info->ssid_len = (uint8_t)ssid_len;
+        ssid_str = nm_utils_ssid_to_utf8((const guint8 *)ssid_data, ssid_len);
+    } else {
         ssid_str = g_strdup(EMPTY_SSID_STR);
-    strcpy(ap_info->bssid, hwaddr);
-    strcpy(ap_info->ssid, ssid_str);
-    ap_info->strength = strength;
-    ap_info->mode = mode;
-    ap_info->is_connected = active_ssid && (g_bytes_compare(ssid, active_ssid) == 0);
-
-    rem_con = nm_client_get_connection_by_id(client, ssid_str);
-    ap_info->known = rem_con != NULL;
-
-    /* Set password validator */
-    if (rsn_flags & NM_802_11_AP_SEC_KEY_MGMT_PSK) {
-        // WPA2
-        ap_info->password_validator = nm_utils_wpa_psk_valid;
-    } else if (flags == NM_802_11_AP_FLAGS_NONE) {
-        // Open
-        ap_info->password_validator = NULL;
     }
-    /* WPA3 only (SAE without WPA2-PSK): the window says so instead of asking a password */
-    ap_info->wpa3_only = (rsn_flags & NM_802_11_AP_SEC_KEY_MGMT_SAE) && !(rsn_flags & NM_802_11_AP_SEC_KEY_MGMT_PSK);
-
+    snprintf(ap_info->bssid, sizeof(ap_info->bssid), "%s", hwaddr ? hwaddr : "");
+    snprintf(ap_info->ssid, sizeof(ap_info->ssid), "%s", ssid_str);
+    ap_info->strength = nm_access_point_get_strength(ap);
+    ap_info->mode = nm_access_point_get_mode(ap);
+    ap_info->is_connected = active_ssid && ssid && (g_bytes_compare(ssid, active_ssid) == 0);
     g_free(ssid_str);
+
+    /* Known: a saved profile NetworkManager would use on this access point (its SSID and a security that fits),
+     * the latest used if several; not one merely named after the SSID */
+    GPtrArray *fits = nm_access_point_filter_connections(ap, nm_client_get_connections(client));
+    guint64    latest = 0;
+
+    for (guint i = 0; fits && i < fits->len; i++) {
+        NMConnection        *c = NM_CONNECTION(g_ptr_array_index(fits, i));
+        NMSettingConnection *sc = nm_connection_get_setting_connection(c);
+        guint64              ts = sc ? nm_setting_connection_get_timestamp(sc) : 0;
+
+        if (!ap_info->known || ts > latest) {
+            snprintf(ap_info->uuid, sizeof(ap_info->uuid), "%s", nm_connection_get_uuid(c));
+            ap_info->known = true;
+            latest = ts;
+        }
+    }
+    if (fits) {
+        g_ptr_array_unref(fits);
+    }
+
+    /* What it takes. The validator was set only for WPA2-PSK and for flags exactly NONE, and ap_info was the
+     * last network's memory: an open network that also says WPS (flags not NONE), or a WPA1 one, kept the
+     * previous row's validator, and an open network was joined as WPA-PSK with a password it does not have */
+    guint32 akm     = wpa_flags | rsn_flags;
+    bool    privacy = flags & NM_802_11_AP_FLAGS_PRIVACY;
+    bool    psk     = akm & NM_802_11_AP_SEC_KEY_MGMT_PSK;
+    bool    sae     = rsn_flags & NM_802_11_AP_SEC_KEY_MGMT_SAE;
+    bool    eap     = akm & NM_802_11_AP_SEC_KEY_MGMT_802_1X;
+    bool    owe     = rsn_flags & NM_802_11_AP_SEC_KEY_MGMT_OWE;
+
+    if (psk || sae) {
+        ap_info->password_validator = nm_utils_wpa_psk_valid;
+        /* WPA3 only (SAE without WPA2-PSK): the window says so instead of asking a password */
+        ap_info->wpa3_only = sae && !psk;
+    } else if (eap) {
+        ap_info->unsupported = "WPA Enterprise (802.1X)";
+    } else if (owe) {
+        ap_info->unsupported = "Enhanced Open (OWE)";
+    } else if (privacy) {
+        ap_info->unsupported = "WEP";
+    }
+    /* else open: no validator */
 }
 
 static void set_status(wifi_status_t val) {
@@ -583,9 +670,10 @@ static void connection_adding_and_activating_cb(GObject *client, GAsyncResult *r
     active_con = nm_client_add_and_activate_connection_finish(NM_CLIENT(client), result, &error);
 
     if (error) {
-        LV_LOG_ERROR("Error adding and activating connection: %s (code: %zu, domain: %zu)", error->message, error->code,
+        LV_LOG_ERROR("Error adding and activating connection: %s (code: %d, domain: %u)", error->message, error->code,
                      error->domain);
-        // stort password - (code: 7, domain: 53)
+        msg_update_text_fmt("WiFi: %s", error->message);
+        retry_uuid[0] = '\0';
         g_error_free(error);
     } else {
         LV_LOG_USER("Activated: %s\n", nm_active_connection_get_id(active_con));
@@ -604,9 +692,14 @@ static void connection_modify_cb(GObject *connection, GAsyncResult *result, gpoi
     if (!nm_remote_connection_commit_changes_finish(NM_REMOTE_CONNECTION(connection), result, &error)) {
         LV_LOG_ERROR(("Error: Failed to modify connection '%s': %s"), nm_connection_get_id(NM_CONNECTION(connection)),
                      error->message);
+        msg_update_text_fmt("WiFi: %s", error->message);
+        g_error_free(error);
     } else {
         LV_LOG_USER(("Connection '%s' (%s) successfully modified.\n"), nm_connection_get_id(NM_CONNECTION(connection)),
                     nm_connection_get_uuid(NM_CONNECTION(connection)));
+        if (user_data) {
+            wifi_connect(nm_connection_get_uuid(NM_CONNECTION(connection)));   /* the new password tried at once */
+        }
     }
     g_main_loop_quit(loop);
 }
@@ -624,29 +717,81 @@ static void connection_delete_cb(GObject *connection, GAsyncResult *result, gpoi
     g_main_loop_quit(loop);
 }
 
+/* Why a join failed, in words. On a secured network NetworkManager ends any join that takes too long as "no
+ * secrets" (it has no agent to ask for a password again), so that reason covers a weak signal and a WPA3 or
+ * PMF mismatch as well as a wrong password */
+static const char *fail_text(guint reason) {
+    switch (reason) {
+        case NM_DEVICE_STATE_REASON_NO_SECRETS:            return "handshake failed: password, signal or router security";
+        case NM_DEVICE_STATE_REASON_SUPPLICANT_TIMEOUT:    return "no answer: signal, channel or router security";
+        case NM_DEVICE_STATE_REASON_SUPPLICANT_DISCONNECT: return "dropped while joining: signal or router security";
+        case NM_DEVICE_STATE_REASON_SUPPLICANT_FAILED:
+        case NM_DEVICE_STATE_REASON_SUPPLICANT_CONFIG_FAILED: return "the WiFi service refused the profile";
+        case NM_DEVICE_STATE_REASON_SSID_NOT_FOUND:        return "not in range";
+        case NM_DEVICE_STATE_REASON_IP_CONFIG_UNAVAILABLE:
+        case NM_DEVICE_STATE_REASON_IP_CONFIG_EXPIRED:
+        case NM_DEVICE_STATE_REASON_DHCP_START_FAILED:
+        case NM_DEVICE_STATE_REASON_DHCP_ERROR:
+        case NM_DEVICE_STATE_REASON_DHCP_FAILED:           return "joined, but no address from DHCP";
+        default:                                           return NULL;
+    }
+}
+
+/* Worth another try: the join itself did not complete (the chip shares its antenna with Bluetooth, the
+ * signal is weak) */
+static bool fail_retry(guint reason) {
+    return reason == NM_DEVICE_STATE_REASON_NO_SECRETS || reason == NM_DEVICE_STATE_REASON_SUPPLICANT_TIMEOUT
+        || reason == NM_DEVICE_STATE_REASON_SUPPLICANT_DISCONNECT || reason == NM_DEVICE_STATE_REASON_SSID_NOT_FOUND;
+}
+
 static void device_state_changed_sig_cb(NMDevice *device, guint new_state, guint old_state, guint reason,
                                         gpointer user_data) {
-    LV_LOG_INFO("Old state: %zu, new state: %zu, reason: %zu", old_state, new_state, reason);
+    LV_LOG_USER("WiFi state %u -> %u, reason %u", old_state, new_state, reason);
     switch (new_state) {
-    case NM_DEVICE_STATE_FAILED:
-        if (reason == NM_DEVICE_STATE_REASON_NO_SECRETS) {
-            /* The handshake fails now and then with the right password (the chip shared with
-             * Bluetooth, a weak signal): four tries before the password is doubted */
-            NMRemoteConnection *rc = retry_id[0] ? nm_client_get_connection_by_id(client, retry_id) : NULL;
+    case NM_DEVICE_STATE_FAILED: {
+        /* The join asked for by hand, if this is its failure (the active connection's profile, or within its
+         * time when NetworkManager no longer says) */
+        NMActiveConnection *ac = nm_device_get_active_connection(device);
+        const char         *failed = ac ? nm_active_connection_get_uuid(ac) : NULL;
+        bool                ours = retry_uuid[0]
+            && (failed ? strcmp(failed, retry_uuid) == 0 : g_get_monotonic_time() - retry_us < RETRY_WINDOW_US);
+        const char         *why = fail_text(reason);
 
-            if (rc && retry_n < 3) {
-                retry_n++;
-                msg_update_text_fmt("Connecting... (try %d/4)", retry_n + 1);
-                nm_client_activate_connection_async(client, NM_CONNECTION(rc), device, NULL, NULL,
-                                                    connection_activating_cb, loop);
+        if (!ours) {
+            LV_LOG_WARN("WiFi join failed (reason %u%s%s)", reason, why ? ": " : "", why ? why : "");
+            break;
+        }
+        NMRemoteConnection *rc = nm_client_get_connection_by_uuid(client, retry_uuid);
+
+        if (rc && fail_retry(reason) && retry_n < RETRY_TRIES - 1) {
+            retry_n++;
+            retry_us = g_get_monotonic_time();
+            LV_LOG_WARN("WiFi %s: %s (reason %u), try %d/%d", retry_ssid, why ? why : "failed", reason, retry_n + 1,
+                        RETRY_TRIES);
+            msg_update_text_fmt("Connecting to %s... (try %d/%d)", retry_ssid, retry_n + 1, RETRY_TRIES);
+            nm_client_activate_connection_async(client, NM_CONNECTION(rc), device, NULL, NULL,
+                                                connection_activating_cb, loop);
+        } else {
+            LV_LOG_WARN("WiFi %s: %s (reason %u)", retry_ssid, why ? why : "failed", reason);
+            if (why) {
+                msg_update_text_fmt("WiFi %s: %s", retry_ssid, why);
             } else {
-                retry_n = 0;
-                LV_LOG_WARN("Wrong password");
-                msg_update_text_fmt("Wrong WiFi password");
+                msg_update_text_fmt("WiFi %s: join failed (reason %u)", retry_ssid, reason);
             }
+            retry_uuid[0] = '\0';
+            retry_n = 0;
+            /* What the driver, NetworkManager and the supplicant said, for a report: /mnt/app_logs/wifi.txt */
+            FILE *f = fopen("/tmp/x6100-wifilog.ssid", "w");
+            if (f) {
+                fputs(retry_ssid, f);
+                fclose(f);
+            }
+            sh_run("/usr/sbin/x6100-wifilog", NULL, NULL);
         }
         break;
+    }
     case NM_DEVICE_STATE_ACTIVATED:
+        retry_uuid[0] = '\0';
         retry_n = 0;
         set_status(WIFI_CONNECTED);
         break;
@@ -658,7 +803,7 @@ static void device_state_changed_sig_cb(NMDevice *device, guint new_state, guint
 
 static void active_con_state_changed_sig_cb(NMActiveConnection *active_connection, guint state, guint reason,
                                             gpointer user_data) {
-    LV_LOG_INFO("Active con state change -  state: %zu, reason: %zu", state, reason);
+    LV_LOG_USER("WiFi connection state %u, reason %u", state, reason);
     lv_msg_send(MSG_WIFI_STATE_CHANGED, NULL);
 }
 
@@ -669,8 +814,10 @@ static void connection_activating_cb(GObject *client, GAsyncResult *result, gpoi
     active_con = nm_client_activate_connection_finish(NM_CLIENT(client), result, &error);
 
     if (error) {
-        LV_LOG_ERROR("Error activating connection: %s (code: %zu, domain: %zu)", error->message, error->code,
+        LV_LOG_ERROR("Error activating connection: %s (code: %d, domain: %u)", error->message, error->code,
                      error->domain);
+        msg_update_text_fmt("WiFi: %s", error->message);
+        retry_uuid[0] = '\0';
         g_error_free(error);
     } else {
         LV_LOG_USER("Activated: %s\n", nm_active_connection_get_id(active_con));

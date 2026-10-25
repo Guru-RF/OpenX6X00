@@ -29,14 +29,18 @@ typedef enum {
 typedef gboolean (*password_validator_fn)(const char *);
 
 typedef struct {
-    char                  ssid[33];
+    char                  ssid[33];         /* shown (UTF-8) */
+    uint8_t               ssid_raw[32];     /* as the network sends it: what a new profile is made with */
+    uint8_t               ssid_len;
     char                  bssid[18];
+    char                  uuid[40];         /* the saved profile that fits this network, "" for none */
     uint8_t               strength;
     NM80211Mode           mode;
     bool                  is_connected;
-    bool                  known;
+    bool                  known;            /* uuid names a saved profile */
     bool                  wpa3_only;        /* SAE only, no WPA2: the chip can't join it */
-    password_validator_fn password_validator;
+    const char           *unsupported;      /* WEP, WPA Enterprise, Enhanced Open: what it uses, NULL when it can be joined */
+    password_validator_fn password_validator;   /* NULL: an open network */
 } wifi_ap_info_t;
 
 typedef struct {
@@ -67,13 +71,18 @@ void wifi_start_scan();
 
 bool wifi_scanning();
 
-void wifi_add_connection(const char *ssid, const char *password);
+/* NULL, or why the radio cannot join this network: said instead of asking for a password */
+const char *wifi_ap_refusal(const wifi_ap_info_t *ap);
 
-void wifi_update_connection(const char *id, const char *password);
+/* A new profile for the network, joined on the access point the list showed (NULL password: open) */
+void wifi_add_connection(const wifi_ap_info_t *ap, const char *password);
 
-void wifi_delete_connection(const char *id);
+/* The saved profile `uuid` with a new password, joined again */
+void wifi_update_connection(const char *uuid, const char *password);
 
-void wifi_connect(const char *id);
+void wifi_delete_connection(const char *uuid);
+
+void wifi_connect(const char *uuid);
 
 void wifi_disconnect();
 

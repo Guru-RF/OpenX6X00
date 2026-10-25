@@ -1890,13 +1890,13 @@ static bool wl_kbd_ok() {
     const char *password = textarea_window_get();
 
     if (wl_kbd_ap.password_validator && !wl_kbd_ap.password_validator(password)) {
-        msg_update_text_fmt("Incorrect password");
+        msg_update_text_fmt("A WPA password has 8 to 63 characters");
         return false;
     }
     if (wl_kbd_ap.known) {
-        wifi_update_connection(wl_kbd_ap.ssid, password);
+        wifi_update_connection(wl_kbd_ap.uuid, password);
     } else {
-        wifi_add_connection(wl_kbd_ap.ssid, password);
+        wifi_add_connection(&wl_kbd_ap, password);
     }
     return wl_kbd_close();
 }
@@ -1918,10 +1918,12 @@ static void wifi_row_cb(lv_event_t *e) {
         items.push_back({"Disconnect", "", [] { wifi_disconnect(); }});
     } else {
         items.push_back({"Connect", "", [ap] {
-            if (ap.known) {
-                wifi_connect(ap.ssid);
+            if (wifi_ap_refusal(&ap)) {
+                msg_update_text_fmt("%s", wifi_ap_refusal(&ap));   /* WEP, enterprise, WPA3 only, hidden */
+            } else if (ap.known) {
+                wifi_connect(ap.uuid);
             } else if (!ap.password_validator) {
-                wifi_add_connection(ap.ssid, NULL);
+                wifi_add_connection(&ap, NULL);
             } else {
                 wl_kbd_open(ap);
             }
@@ -1932,7 +1934,7 @@ static void wifi_row_cb(lv_event_t *e) {
     }
     if (ap.known) {
         items.push_back({"Delete", "", [ap] {
-            wifi_delete_connection(ap.ssid);
+            wifi_delete_connection(ap.uuid);
             msg_update_text_fmt("Connection deleted");
         }});
     }

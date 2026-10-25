@@ -431,6 +431,27 @@ All these options are also on the web configurator's Display page.
 WiFi/BT power switches the WiFi and Bluetooth chip (one chip for both): with
 it off, Bluetooth is off too. Bluetooth has its own tab.
 
+Joining a network:
+
+- Press a network, then Connect. A network with a lock asks for its password
+  (8 to 63 characters); an open one joins at once. The digits, the dot and CE
+  of the hand mic type into the password box.
+- The radio joins open and WPA2 networks, and WPA2/WPA3 ones in WPA2. It says
+  so instead of asking for a password on a WEP, WPA Enterprise, Enhanced Open
+  (OWE), WPA3-only or hidden network.
+- A join that does not complete is tried four times. Then the screen says why:
+  "handshake failed: password, signal or router security", "no answer: signal,
+  channel or router security", "not in range", "joined, but no address from
+  DHCP", and so on. A wrong password and a weak signal look the same to the
+  radio, so the first message names both.
+- After a failed join the radio writes what its WiFi module, NetworkManager and
+  the supplicant said to `app_logs/wifi.txt` on the card's DATA partition (no
+  password is in it). Attach that file to a report.
+- The saved networks, the SSH host keys and root's SSH keys are copied to
+  `backups/backup.tgz` on the DATA partition at every clean shutdown. At boot,
+  the files missing from the system are taken back from it, so a rewritten card
+  keeps its WiFi; files already there are left alone.
+
 ### Bluetooth tab
 
 | Card | Options |

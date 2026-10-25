@@ -25,6 +25,7 @@
 #include "lvgl/lvgl.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define WIN_W       775
 #define WIN_H       (DIALOG_H - 26)     /* 13 px above and below */
@@ -41,6 +42,7 @@ static void          *state_sub;
 static bool           typing;           /* the password keyboard is open: the buttons wait */
 static pick_t         picked = PICK_NONE;
 static wifi_ap_info_t editing;          /* the network the password is for */
+static char           chosen[33];       /* the SSID on the selected row: kept there when the list is refreshed */
 static char           typed[128];    /* the password typed, kept for the next try; "" none */
 
 static void construct_cb(lv_obj_t *parent);
@@ -92,12 +94,13 @@ static void state_changed(void) {
     lv_msg_send(MSG_WIFI_STATE_CHANGED, NULL);
 }
 
-/* Connected first, then the known ones */
+/* Connected first, then the known ones, then by name: the rows keep their order from one refresh to the next
+ * (qsort with the rank alone shuffled networks of one rank every second) */
 static int by_rank(const void *a, const void *b) {
     const wifi_ap_info_t *x = a, *y = b;
     int                   rx = x->is_connected * 2 + x->known, ry = y->is_connected * 2 + y->known;
 
-    return rx == ry ? 0 : rx < ry ? 1 : -1;
+    return rx != ry ? (rx < ry ? 1 : -1) : strcmp(x->ssid, y->ssid);
 }
 
 static void list_empty(void) {
@@ -117,17 +120,29 @@ static void list_refresh_cb(lv_timer_t *t) {
     if (found.count) {
         qsort(found.ap_arr, found.count, sizeof(wifi_ap_info_t), by_rank);
     }
+    int keep = -1;      /* the chosen network's row now */
+
     for (uint16_t i = 0; i < found.count; i++) {
         wifi_ap_info_t *ap = malloc(sizeof(wifi_ap_info_t));
 
         *ap = found.ap_arr[i];
         lv_table_set_cell_value_fmt(nets, i, 0, "%s %s", ap->ssid, ap->is_connected ? " (*)" : "");
         lv_table_set_cell_user_data(nets, i, 0, ap);
+        if (chosen[0] && keep < 0 && strcmp(ap->ssid, chosen) == 0) {
+            keep = i;
+        }
     }
     if (found.count) {
         lv_table_set_row_cnt(nets, found.count);
     } else {
         list_empty();
+    }
+    /* The selection stays on the network chosen, not on the row number: Connect joined whatever network the
+     * refresh had put there */
+    lv_table_t *tbl = (lv_table_t *)nets;
+    if (keep >= 0 && tbl->row_act != LV_TABLE_CELL_NONE && tbl->row_act != keep) {
+        tbl->row_act = keep;
+        lv_obj_invalidate(nets);
     }
     lv_event_send(nets, LV_EVENT_VALUE_CHANGED, NULL);
     wifi_aps_info_delete(found);
@@ -150,6 +165,7 @@ static void pick_cb(lv_event_t *e) {
     wifi_ap_info_t *ap = selected(&any);
     pick_t          now = !ap ? PICK_NONE : ap->known ? PICK_KNOWN : PICK_NEW;
 
+    snprintf(chosen, sizeof(chosen), "%s", ap ? ap->ssid : "");   /* a refresh puts the selection back first */
     if (!any || now != picked) {
         picked = now;
         state_changed();
@@ -210,13 +226,13 @@ static bool password_ok(void) {
     /* A copy: the textarea goes with the window, the pointer into it would not */
     snprintf(typed, sizeof(typed), "%s", textarea_window_get());
     if (editing.password_validator && !editing.password_validator(typed)) {
-        msg_update_text_fmt("Incorrect password");
+        msg_update_text_fmt("A WPA password has 8 to 63 characters");
         return false;
     }
     if (editing.known) {
-        wifi_update_connection(editing.ssid, typed);
+        wifi_update_connection(editing.uuid, typed);
     } else {
-        wifi_add_connection(editing.ssid, typed);
+        wifi_add_connection(&editing, typed);
     }
     typed[0] = 0;
     typing_done();
@@ -283,12 +299,12 @@ static void connect_press(button_data_t *b) {
             ap = selected(&any);
             if (!ap) {
                 LV_LOG_USER("Nothing selected, can't connect");
-            } else if (ap->wpa3_only) {
-                msg_update_text_fmt("WPA3-only network: set the router to WPA2 or WPA2/WPA3");
+            } else if (wifi_ap_refusal(ap)) {
+                msg_update_text_fmt("%s", wifi_ap_refusal(ap));
             } else if (ap->known) {
-                wifi_connect(ap->ssid);
+                wifi_connect(ap->uuid);
             } else if (!ap->password_validator) {
-                wifi_add_connection(ap->ssid, NULL);    /* an open network */
+                wifi_add_connection(ap, NULL);    /* an open network */
             } else {
                 ask_password(ap);
             }
@@ -322,11 +338,11 @@ static void forget_press(button_data_t *b) {
     bool            any;
     wifi_ap_info_t *ap = selected(&any);
 
-    if (!ap) {
-        LV_LOG_USER("Nothing selected");
+    if (!ap || !ap->known) {
+        LV_LOG_USER("Nothing saved selected");
         return;
     }
-    wifi_delete_connection(ap->ssid);
+    wifi_delete_connection(ap->uuid);
     msg_update_text_fmt("Connection deleted");
 }
 

@@ -1,0 +1,48 @@
+#!/bin/sh
+# x6100-wifilog: what a WiFi join did, for a report. The GUI runs it after a join failed (the network's name in
+# /tmp/x6100-wifilog.ssid); anyone may run it. Written to /mnt/app_logs/wifi.txt, on the card's DATA partition:
+# the radio's WiFi module, the kernel's join lines, NetworkManager's, the supplicant's last reason codes and
+# what the network offers (its own scan entry only; no password is in any of it)
+OUT=/mnt/app_logs/wifi.txt
+SSID=$(cat /tmp/x6100-wifilog.ssid 2>/dev/null)
+mkdir -p /mnt/app_logs
+
+prop() {
+    dbus-send --system --print-reply --dest=fi.w1.wpa_supplicant1 "$1" org.freedesktop.DBus.Properties.Get \
+        string:fi.w1.wpa_supplicant1.Interface "string:$2" 2>/dev/null | tail -n 1 | sed 's/^ *variant *//'
+}
+
+{
+    echo "== $(date '+%Y-%m-%d %H:%M:%S')  OpenX6X00 $(cat /usr/share/x6100/app-version 2>/dev/null)  $(uname -r)"
+    echo "network: $SSID"
+    echo "== module"
+    for d in /sys/bus/usb/devices/*; do
+        [ -f "$d/idVendor" ] && echo "$(cat "$d/idVendor"):$(cat "$d/idProduct") $(cat "$d/product" 2>/dev/null)"
+    done
+    echo "driver: $(basename "$(readlink -f /sys/class/net/wlan0/device/driver)")"
+    echo "== regulatory"
+    iw reg get 2>&1 | head -n 4
+    echo "== link"
+    iw dev wlan0 link 2>&1
+    echo "== supplicant"
+    IF=$(dbus-send --system --print-reply --dest=fi.w1.wpa_supplicant1 /fi/w1/wpa_supplicant1 \
+        org.freedesktop.DBus.Properties.Get string:fi.w1.wpa_supplicant1 string:Interfaces 2>/dev/null \
+        | grep -o '/fi/w1/wpa_supplicant1/Interfaces/[0-9]*' | head -n 1)
+    if [ -n "$IF" ]; then
+        for p in State CurrentAuthMode DisconnectReason AuthStatusCode AssocStatusCode; do
+            echo "$p: $(prop "$IF" $p)"
+        done
+    fi
+    echo "== what the network offers"
+    iw dev wlan0 scan dump 2>/dev/null | awk -v s="$SSID" '
+        /^BSS / { if (keep) printf "%s", blk; blk = ""; keep = 0 }
+        { blk = blk $0 "\n" }
+        $1 == "SSID:" { name = $0; sub(/^[ \t]*SSID: /, "", name); if (name == s) keep = 1 }
+        END { if (keep) printf "%s", blk }' \
+        | grep -E '^BSS|SSID:|freq:|signal:|apabilit|Authentication suites|Pairwise ciphers|Group cipher|MFP|Mobility Domain|WPS'
+    echo "== kernel"
+    dmesg | grep -E 'wlan0|rtw|8723|tx report|firmware' | tail -n 80
+    echo "== NetworkManager"
+    grep NetworkManager /var/log/messages 2>/dev/null \
+        | grep -E 'wlan0|Activation|state change|reason|supplicant|Config: added|association|dhcp|secrets' | tail -n 150
+} > "$OUT.tmp" 2>&1 && mv "$OUT.tmp" "$OUT"
