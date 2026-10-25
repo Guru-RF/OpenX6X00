@@ -1,0 +1,151 @@
+% rebase('base.html', title='Wavelog')
+<h2><svg class="i"><use href="#i-upload"/></svg>Wavelog</h2>
+<p class="sub">Every QSO the radio logs, in every mode (FT8, FT4, FT2, JS8, voice, CW, Field Ops activations), goes to your <a href="https://github.com/wavelog/wavelog">Wavelog</a> as well, a few seconds after it is logged; the radio's own logs stay as they are. Without a network the QSOs wait on the SD card and go when the radio is back online. The display says what happened: "Wavelog: DL1ABC uploaded".</p>
+
+<form class="dp-card" id="conf">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-server"/></svg></span><div><h3>Upload<span class="eff">Takes effect: at the next QSO</span></h3><p>Your Wavelog's address and an API key with read and write rights (Wavelog: your account menu, API Keys). The QSOs go into the station profile chosen here, or, with Automatic, into the profile with the callsign the radio logged them with. Switched on, the QSOs from that moment on are sent, not the log from before<span id="since"></span>.</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Upload to Wavelog</b><span>Each QSO, a few seconds after it is logged</span></div>
+    <div class="dp-ctl"><label class="sw" title="Upload to Wavelog"><input id="enabled" type="checkbox" role="switch" aria-label="Upload to Wavelog"><i></i></label></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="url"><b>Wavelog URL</b></label><span>The address you open Wavelog with, without /index.php</span></div>
+    <div class="dp-ctl"><input id="url" type="url" autocomplete="off" maxlength="200" placeholder="https://log.example.org"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="key"><b>API key</b></label><span>Key: <b id="key-state"></b>. A new key replaces the stored one; empty keeps it. Remove takes it away and stops the upload.</span></div>
+    <div class="dp-ctl"><input id="key" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" id="remove">Remove</button></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="station"><b>Station profile</b></label><span>Automatic: each QSO goes to the profile with the radio's callsign, so changing the callsign on the radio (DF8MH, DF8MH/P) is all it takes. Load reads the profiles of the key from Wavelog</span></div>
+    <div class="dp-ctl"><select id="station"></select> <button type="button" id="load"><svg class="i"><use href="#i-sync"/></svg>Load</button></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Check the certificate</b><span>Off only for a Wavelog at home with a self-signed certificate</span></div>
+    <div class="dp-ctl"><label class="sw" title="Check the certificate"><input id="verify" type="checkbox" role="switch" aria-label="Check the certificate"><i></i></label></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="submit" class="primary">Save</button>
+      <button type="button" id="test">Test connection</button>
+      <span class="status" id="status"></span>
+    </div>
+  </div>
+</form>
+
+<section class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-upload"/></svg></span><div><h3>Status</h3><p id="state"></p></div></div>
+  <div class="dp-body">
+    <div class="actions" style="margin-top:0">
+      <button type="button" class="primary" id="sync"><svg class="i"><use href="#i-sync"/></svg>Send now</button>
+      <span class="status" id="sstatus"></span>
+    </div>
+  </div>
+</section>
+
+<script src="/static/js/edit_flow.js?v=1"></script>
+<script>
+var showStatus = function(id, text, error=false) {
+  const el = $(id);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var station = function(id, name, label) {
+  return $("<option>").val(id).text(label || (name ? name + " (ID " + id + ")" : "Profile ID " + id)).data("name", name || "");
+}
+
+var AUTO = "Automatic: by the radio's callsign";
+
+var baseOptions = function(sel) {
+  return sel.empty().append(station("", "", "No profile"), station("auto", "", AUTO));
+}
+
+var render = function(data) {
+  $("#enabled").prop("checked", data.enabled);
+  $("#url").val(data.url);
+  $("#key").val("");
+  $("#key-state").text(data.key ? "set (hidden)" : "not set");
+  $("#remove").prop("disabled", !data.key);
+  $("#verify").prop("checked", data.verify_tls);
+  const sel = baseOptions($("#station"));
+  if (data.station_id && data.station_id !== "auto") sel.append(station(data.station_id, data.station_name));
+  sel.val(data.station_id);
+  $("#since").text(data.enabled && data.since ? " (on since " + data.since + ")" : "");
+  renderState(data);
+  form.reset();
+}
+
+var renderState = function(data) {
+  const res = data.last.result || "";
+  const what = res === "ok" ? "nothing new" : res.replace(/^(ok|retry|error) (\d+ )?/, "");
+  $("#state").text((data.queue ? data.queue + " QSO" + (data.queue === 1 ? "" : "s") + " waiting. " : "No QSO waiting. ") +
+                   "Last run: " + (res ? data.last.time + ", " + what : "none yet"));
+  $("#sync").prop("disabled", !data.enabled);
+}
+
+const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
+
+var load = function() { $.get('/api/wavelog', {}, render); }
+load();
+
+var post = function(url, data, done, statusId) {
+  $.ajax({
+    url: url,
+    type: "POST",
+    data: JSON.stringify(data),
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    success: done,
+    error: function(xhr) { showStatus(statusId, xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")", true); }
+  });
+}
+
+/* What the page has typed, saved or not: Load and Test try it before Save */
+var typed = function() { return {url: $("#url").val().trim(), key: $("#key").val().trim(), verify_tls: $("#verify").prop("checked")}; }
+
+$("#load").on("click", function() {
+  showStatus("#status", "Asking Wavelog...");
+  post("/api/wavelog/stations", typed(), function(r) {
+    const sel = $("#station"), was = sel.val();
+    baseOptions(sel);
+    r.stations.forEach(function(s) {
+      sel.append(station(s.id, s.name, s.name + " · " + [s.call, s.grid].filter(Boolean).join(" ") + " (ID " + s.id + ")" + (s.active ? " · active" : "")));
+    });
+    const active = r.stations.find(function(s) { return s.active; });
+    sel.val(was === "auto" || r.stations.some(function(s) { return s.id === was; }) ? was : active ? active.id : "");
+    sel.trigger("change");
+    const calls = r.stations.map(function(s) { return s.call; }).filter(function(c, i, a) { return c && a.indexOf(c) === i; });
+    showStatus("#status", r.stations.length + " station profile" + (r.stations.length === 1 ? "" : "s") + " loaded" +
+               (calls.length ? " (" + calls.join(", ") + ")" : "") + (sel.val() === "auto" ? ": Automatic takes them by callsign" : ": choose one, then Save"));
+  }, "#status");
+});
+
+$("#test").on("click", function() {
+  showStatus("#status", "Asking Wavelog...");
+  post("/api/wavelog/test", typed(), function(r) { showStatus("#status", "Connection OK: Wavelog " + r.version); }, "#status");
+});
+
+$("#conf").on("submit", function(e) {
+  e.preventDefault();
+  const sel = $("#station option:selected");
+  showStatus("#status", "Saving...");
+  post("/api/wavelog", Object.assign(typed(), {enabled: $("#enabled").prop("checked"), station_id: sel.val(), station_name: sel.data("name") || ""}),
+       function(r) { render(r); showStatus("#status", r.enabled ? "Saved: the next QSO goes to Wavelog" : "Saved: the upload is off"); }, "#status");
+});
+
+$("#remove").on("click", function() {
+  if (!confirm("Remove the Wavelog API key? The upload stops until a new key is saved.")) return;
+  post("/api/wavelog", {remove: true}, function(r) { render(r); showStatus("#status", "Removed: the upload is off"); }, "#status");
+});
+
+$("#sync").on("click", function() {
+  showStatus("#sstatus", "Sending...");
+  post("/api/wavelog/sync", {}, function(r) {
+    renderState(r);
+    const line = r.result || "";
+    showStatus("#sstatus", line === "ok" ? "Nothing new to send" : line.replace(/^(ok|retry|error|off) ?(\d+ )?/, "") || "The upload is off",
+               /^(retry|error)/.test(line));
+  }, "#sstatus");
+});
+</script>

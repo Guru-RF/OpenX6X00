@@ -74,6 +74,9 @@
 #define WWFF_KEY    FIELD_DIR "/wwff.conf"
 #define LOGS_DIR    FIELD_DIR "/logs"
 #define HELPER      "x6100-field"
+#define WAVELOG_CONF FIELD_DIR "/wavelog.conf"   /* written by the web page (Wavelog) */
+#define WAVELOG_SYNC "x6100-wavelog sync 2>/dev/null"
+#define WAVELOG_RETRY (5 * 60 * 1000)   /* ms: the next try while QSOs wait for the network */
 
 #define W           800
 #define HEAD_H      46
@@ -520,6 +523,100 @@ static bool job_start(job_done_t done, const char *fmt, ...) {
     }
     pthread_detach(t);
     return true;
+}
+
+/* Wavelog live upload: x6100-wavelog sends the new QSOs of the logs to the user's Wavelog (web page,
+ * Operating > Wavelog), after each QSO, a minute after the start and every 5 minutes while some wait for
+ * the network. A thread of its own, apart from the x6100-field jobs: a QSO logged during a list update
+ * still goes. Switched off on the web page, nothing runs */
+
+static atomic_bool wl_busy, wl_again, wl_loud;
+static lv_timer_t *wl_timer;
+
+static void wavelog_kick(bool loud);
+
+static void wavelog_retry_cb(lv_timer_t *t) {
+    wl_timer = NULL;    /* one shot: LVGL deletes it after this call */
+    wavelog_kick(false);
+}
+
+/* x6100-wavelog's line: "ok", "ok <n> <message>", "retry <n> <message>", "error <message>" or "off". What
+ * was sent is always shown; a retry or an error only on the QSO that met it, not at every try */
+static void wavelog_done_cb(void *arg) {
+    const char *line  = arg, *text = strchr(line, ' ');
+    bool        sent  = !strncmp(line, "ok ", 3), retry = !strncmp(line, "retry ", 6);
+    bool        loud  = atomic_exchange(&wl_loud, false);
+
+    if (text && (sent || retry))
+        text = strchr(text + 1, ' ');   /* past the count */
+    if (text && (sent || loud))
+        msg_schedule_long_text_fmt("%s", text + 1);
+    if (retry && !wl_timer) {
+        wl_timer = lv_timer_create(wavelog_retry_cb, WAVELOG_RETRY, NULL);
+        lv_timer_set_repeat_count(wl_timer, 1);
+    }
+}
+
+static void *wavelog_thread(void *arg) {
+    char  line[160];
+    FILE *p;
+
+    do {    /* a QSO logged while the helper runs: once more, it reads the logs again */
+        atomic_store(&wl_again, false);
+        snprintf(line, sizeof(line), "error Wavelog: no answer");
+        if ((p = popen(WAVELOG_SYNC, "r"))) {
+            if (!fgets(line, sizeof(line), p))
+                snprintf(line, sizeof(line), "error Wavelog: no answer");
+            pclose(p);
+        }
+    } while (atomic_load(&wl_again));
+    line[strcspn(line, "\r\n")] = 0;
+    atomic_store(&wl_busy, false);
+    scheduler_put(wavelog_done_cb, line, sizeof(line));
+    if (atomic_load(&wl_again))     /* asked for between the last run and now */
+        wavelog_kick(false);
+    return NULL;
+}
+
+/* enabled=1 in wavelog.conf: switched on on the web page */
+static bool wavelog_on(void) {
+    char  line[256];
+    bool  on = false;
+    FILE *f  = fopen(WAVELOG_CONF, "r");
+
+    if (!f)
+        return false;
+    while (!on && fgets(line, sizeof(line), f))
+        on = !strncmp(line, "enabled=1", 9);
+    fclose(f);
+    return on;
+}
+
+/* Any thread: loud for a QSO just logged, quiet for the retries */
+static void wavelog_kick(bool loud) {
+    pthread_t t;
+    bool      idle = false;
+
+    if (!wavelog_on())   /* not set up or off: no Python after every QSO */
+        return;
+    if (loud)
+        atomic_store(&wl_loud, true);
+    atomic_store(&wl_again, true);
+    if (!atomic_compare_exchange_strong(&wl_busy, &idle, true))
+        return;
+    if (pthread_create(&t, NULL, wavelog_thread, NULL) != 0) {
+        atomic_store(&wl_busy, false);
+        return;
+    }
+    pthread_detach(t);
+}
+
+static void wavelog_start_cb(lv_timer_t *t) {
+    wavelog_kick(false);    /* what waited at the last switch off */
+}
+
+void dialog_field_wavelog_start(void) {
+    lv_timer_set_repeat_count(lv_timer_create(wavelog_start_cb, 60000, NULL), 1);
 }
 
 /* The nearest references, looked up in a thread (the list has ~260000 lines) */
@@ -1695,6 +1792,7 @@ static bool day_log_add(const field_qso_t *q, const char *me) {
         msg_schedule_text_ms(9000, "QSO not saved: %s", field_log_error(errno));   /* long: it scrolls */
         return false;
     }
+    wavelog_kick(true);
     return true;
 }
 
@@ -1780,6 +1878,7 @@ static bool activation_log_add(const field_qso_t *q) {
         msg_schedule_text_ms(9000, "QSO not saved: %s", field_log_error(errno));   /* long: it scrolls */
         return false;
     }
+    wavelog_kick(true);
     log_load();
     msg_update_text_fmt("QSO %d: %s %s %s %s", qsos_total, q->call, q->rst_s, q->rst_r, field_qso_tag(q));
     if (dialog.run && (st.screen == SCR_LOG || act_freq))
