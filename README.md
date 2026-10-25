@@ -83,7 +83,7 @@ internal memory when OpenX6X00 runs from the card.
    settings on its card.
 
 Xiegu's tutorial:
-[X6200 firmware upgrade](http://xiegu.eu/wp-content/uploads/sites/4/2024/07/X6200FirmwareUpgradeTutorialWS-JSZL-2407-01ENRevised.pdf).
+[X6200 firmware upgrade](https://xiegu.eu/wp-content/uploads/sites/4/2024/07/X6200FirmwareUpgradeTutorialWS-JSZL-2407-01ENRevised.pdf).
 The patched X6100 base comes with its own instructions.
 
 ## Where it comes from
