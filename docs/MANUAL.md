@@ -2284,7 +2284,9 @@ internet stays on WiFi or Ethernet.
 
 The GUI restarts when its audio server (PulseAudio) goes away: `x6100_daemon`
 starts the audio server again and then the GUI, within a few seconds. The log of
-the run that ended is in `/mnt/app_logs/`; the last lines say why.
+the run that ended is in `/mnt/app_logs/`; the last lines say why. A power-off
+with the POWER key saves the run's log there too (`..._off.txt`); the newest 50
+logs are kept.
 
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 

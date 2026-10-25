@@ -29,6 +29,8 @@ pulse_ensure() {
 }
 
 mkdir -p /mnt/app_logs/
+# The newest 50 run logs are kept (one per restart and, since v0.3.4, one per power-off)
+ls -t /mnt/app_logs/x6100_log_*.txt 2>/dev/null | tail -n +51 | while read -r f; do rm -f "$f"; done
 cp -R /usr/share/x6100/images /dev/shm/
 code=0
 while true; do

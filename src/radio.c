@@ -499,7 +499,33 @@ radio_vfo_t radio_toggle_vfo() {
     return (radio_vfo_t)param_i_get(cfg_band_current_vfo);
 }
 
+/* This run's log onto the card: x6100_daemon moves /tmp/x6100_log.txt to app_logs only when the GUI exits, and
+ * a power-off never lets it, so the log of the run a problem happened in was lost (and asked for in reports) */
+static void save_log(void) {
+    char       path[128];
+    time_t     now = time(NULL);
+    struct tm  tm;
+    FILE      *in, *out;
+    char       buf[4096];
+    size_t     n;
+
+    fflush(stdout);
+    fflush(stderr);
+    localtime_r(&now, &tm);
+    snprintf(path, sizeof(path), BOARD_DATA "/app_logs/x6100_log_%04d-%02d-%02d_%02d-%02d-%02d_off.txt", tm.tm_year + 1900,
+             tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    if (!(in = fopen("/tmp/x6100_log.txt", "r"))) return;
+    if ((out = fopen(path, "w"))) {
+        while ((n = fread(buf, 1, sizeof(buf), in)) > 0 && fwrite(buf, 1, n, out) == n) {}
+        fflush(out);
+        fsync(fileno(out));
+        fclose(out);
+    }
+    fclose(in);
+}
+
 void radio_poweroff() {
+    save_log();
     screen_rec_shutdown();
     if (params.charger.x == RADIO_CHARGER_SHADOW) {
         WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, true));
