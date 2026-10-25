@@ -542,7 +542,8 @@ void radio_set_charger(bool on) {
 /* Keying from the GUI on a receive-only frequency (the X6200's FM broadcast and airband) is refused, with a word on
  * the screen; the base's own TX permit covers its hand-mic PTT and paddle */
 static bool tx_refused(void) {
-    int32_t freq = cparam_i_get(cfg_fg_freq);
+    /* the frequency the radio transmits on: the other VFO's in split */
+    int32_t freq = param_i_get(cfg_band_split) ? cparam_i_get(cfg_bg_freq) : cparam_i_get(cfg_fg_freq);
 
     static uint64_t said;
 

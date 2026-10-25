@@ -106,7 +106,7 @@ static void vol_changed_cb(Subject *subj, void *user) {
     hp_vol_send();
     FILE *fp = fopen(HP_VOL_FILE, "w");
     if (fp) {
-        fprintf(fp, "%d\n", hp_vol);
+        fprintf(fp, "%d %d\n", hp_vol, BOARD_VOL_MAX);     /* the value and its scale */
         fclose(fp);
     }
 }
@@ -145,7 +145,10 @@ void btaudio_init(void) {
     }
     fp = fopen(HP_VOL_FILE, "r");
     if (fp) {
-        if (fscanf(fp, "%d", &hp_vol) != 1) hp_vol = 30;
+        int scale = 55;     /* a file with no scale was written on the old 0..55 VOL scale (the X6200's too) */
+
+        if (fscanf(fp, "%d %d", &hp_vol, &scale) < 1) hp_vol = 30;
+        if (scale > 0 && scale != BOARD_VOL_MAX) hp_vol = hp_vol * BOARD_VOL_MAX / scale;
         fclose(fp);
     }
     hp_on = saved_vol >= 0;

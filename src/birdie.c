@@ -282,6 +282,10 @@ static void *scan_thread(void *arg) {
     for (int bi = 0; bi < bands && !atomic_load(&stop_req); bi++) {
         int in_band = 0;
 
+        if (cfg_is_rx_only_freq(start[bi])) {
+            continue;   /* the X6200's FM broadcast and airband: no transmit there to clean up for, minutes more */
+        }
+
         /* a first spectrum for the width in use */
         radio_set_freq(start[bi] + 50000 < stop[bi] ? start[bi] + 50000 : (start[bi] + stop[bi]) / 2);
         sleep_ms(SETTLE_MS);

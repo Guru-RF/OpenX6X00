@@ -222,16 +222,23 @@ static int _9_vhf_rx_bands() {
 #else
     const int active = 0;
 #endif
-    char sql[512];
+    char sql[1536];
 
     snprintf(sql, sizeof(sql),
              "INSERT OR IGNORE INTO bands VALUES (112, 'FM broadcast', 87500000, 108000000, %d), "
              "(113, 'Airband', 118000000, 137000000, %d);"
-             "INSERT OR IGNORE INTO band_params VALUES (112, 'vfoa_freq', 100000000), (112, 'vfoa_mode', 9), "
-             "(113, 'vfoa_freq', 118000000), (113, 'vfoa_mode', 6);"
+             /* their opening frequency and mode only when the rows are these bands, not a user's band with the id */
+             "INSERT OR IGNORE INTO band_params SELECT 112, 'vfoa_freq', 100000000 WHERE EXISTS "
+             "(SELECT 1 FROM bands WHERE id = 112 AND name = 'FM broadcast');"
+             "INSERT OR IGNORE INTO band_params SELECT 112, 'vfoa_mode', 9 WHERE EXISTS "
+             "(SELECT 1 FROM bands WHERE id = 112 AND name = 'FM broadcast');"
+             "INSERT OR IGNORE INTO band_params SELECT 113, 'vfoa_freq', 118000000 WHERE EXISTS "
+             "(SELECT 1 FROM bands WHERE id = 113 AND name = 'Airband');"
+             "INSERT OR IGNORE INTO band_params SELECT 113, 'vfoa_mode', 6 WHERE EXISTS "
+             "(SELECT 1 FROM bands WHERE id = 113 AND name = 'Airband');"
              /* The broadcast bands opened in LSB or USB and kept it once visited: AM, their stations' mode */
-             "UPDATE band_params SET val = 6 WHERE bands_id BETWEEN 100 AND 199 "
-             "AND name IN ('vfoa_mode', 'vfob_mode') AND val IN (0, 2);",
+             "UPDATE band_params SET val = 6 WHERE bands_id IN (SELECT id FROM bands WHERE id BETWEEN 100 AND 199 "
+             "AND name LIKE 'Broadcast%%') AND name IN ('vfoa_mode', 'vfob_mode') AND val IN (0, 2);",
              active, active);
     if (sqlite3_exec(db, sql, NULL, NULL, NULL) != SQLITE_OK) {
         printf("Cannot add the VHF receive bands: %s\n", sqlite3_errmsg(db));

@@ -32,6 +32,18 @@ float tx_level_block(tx_level_t *l, bool have, float pwr_w, float alc) {
     return tx_level_decide(l);
 }
 
+/* power_hold: the last step up raised the power by under a quarter of what it should have. Judged only near the
+ * setting (from 60 % of it) and where the step should move the reading by a whole 0.1 W step at least: lower down
+ * the readings' steps looked like no rise and stopped the drive far short. The steps counted add up in flat_db */
+static bool tx_level_flat(tx_level_t *l, float p) {
+    float expected = l->prev_p * (powf(10.0f, l->last_up / 10.0f) - 1.0f);
+    bool  flat     = l->last_up > 0.0f && l->prev_p >= 0.6f * l->target_w && expected >= TX_LEVEL_PWR_STEP_W
+                  && p - l->prev_p < 0.25f * expected;
+
+    l->flat_db = flat ? l->flat_db + l->last_up : 0.0f;
+    return flat;
+}
+
 static float tx_level_decide(tx_level_t *l) {
     float p = l->sum_pwr / l->n, a = l->sum_alc / l->n;
     l->n = l->wb = 0;
@@ -53,13 +65,24 @@ static float tx_level_decide(tx_level_t *l) {
         if (a >= TX_LEVEL_ALC_SHOWS || (l->target_w > 0.0f && p > l->target_w + TX_LEVEL_PWR_STEP_W)
             || (l->power_hold && l->target_w > 0.0f && p >= l->target_w - TX_LEVEL_PWR_STEP_W)) {
             l->held = true; /* there: the ALC holds the power at the setting (or nothing holds it) */
+        } else if (l->power_hold && (l->flat_n = tx_level_flat(l, p) ? l->flat_n + 1 : 0) >= 2) {
+            /* No ALC to stop at, and two steps up in a row brought no more power: the setting is out of reach (a
+             * weak supply, the 7 W cap above what the band gives). Those steps back, and held: without this the
+             * drive climbed to full scale over a few transmissions */
+            d = -l->flat_db;
+            l->held = true;
         } else if (l->up_db < TX_LEVEL_UP_MAX_DB) {
             /* The ALC under 1: up, faster while far short (under half the
              * setting), then gently into the ALC. */
             d = l->target_w > 0.0f && p < l->target_w * 0.5f ? TX_LEVEL_UP_FAST_DB : TX_LEVEL_UP_SLOW_DB;
             if (l->up_db + d > TX_LEVEL_UP_MAX_DB) d = TX_LEVEL_UP_MAX_DB - l->up_db;
             l->up_db += d;
+            l->last_up = d;
         }
     }
+    if (d <= 0.0f) {
+        l->last_up = 0.0f;
+    }
+    l->prev_p = p;
     return d;
 }

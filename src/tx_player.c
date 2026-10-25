@@ -151,8 +151,11 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     atomic_store(&playing, false);
     tx_info_set_length(0);      /* the strip back to the time alone */
 
-    /* Learned for the next transmission of any app: they share the audio path */
-    params_float_set(&params.ft8_output_gain_offset, LV_MAX(drive - base_gain + codec, LEARNED_MIN_DB));
+    /* Learned for the next transmission of any app: they share the audio path. With no ALC to go by, only a level
+     * that was found: a transmission that never settled leaves the last good one */
+    if (!level.power_hold || level.held) {
+        params_float_set(&params.ft8_output_gain_offset, LV_MAX(drive - base_gain + codec, LEARNED_MIN_DB));
+    }
     audio_play_wait();          /* the last block out before unkeying */
     radio_set_modem(false);     /* unkeyed: back to the dial frequency */
     radio_set_freq(dial);
