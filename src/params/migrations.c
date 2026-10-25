@@ -213,6 +213,33 @@ static int _8_fix_comp_offsets() {
     return 0;
 }
 
+/* The X6200's FM broadcast and airband, receive only (issue #9): two bands that open in wide FM and AM. Active (the
+ * band keys step through them) on the X6200; on the X6100, which cannot tune there, inactive and skipped anyway.
+ * And the broadcast bands' saved LSB/USB (their default before) turned to AM */
+static int _9_vhf_rx_bands() {
+#ifdef BOARD_X6200
+    const int active = 1;
+#else
+    const int active = 0;
+#endif
+    char sql[512];
+
+    snprintf(sql, sizeof(sql),
+             "INSERT OR IGNORE INTO bands VALUES (112, 'FM broadcast', 87500000, 108000000, %d), "
+             "(113, 'Airband', 118000000, 137000000, %d);"
+             "INSERT OR IGNORE INTO band_params VALUES (112, 'vfoa_freq', 100000000), (112, 'vfoa_mode', 9), "
+             "(113, 'vfoa_freq', 118000000), (113, 'vfoa_mode', 6);"
+             /* The broadcast bands opened in LSB or USB and kept it once visited: AM, their stations' mode */
+             "UPDATE band_params SET val = 6 WHERE bands_id BETWEEN 100 AND 199 "
+             "AND name IN ('vfoa_mode', 'vfob_mode') AND val IN (0, 2);",
+             active, active);
+    if (sqlite3_exec(db, sql, NULL, NULL, NULL) != SQLITE_OK) {
+        printf("Cannot add the VHF receive bands: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+    return 0;
+}
+
 static int (*migrations[])() = {
     _0_init_migrations,
     _1_create_ftx_table,
@@ -223,6 +250,7 @@ static int (*migrations[])() = {
     _6_add_wspr_presets,
     _7_add_ft2_presets,
     _8_fix_comp_offsets,
+    _9_vhf_rx_bands,
 };
 
 int migrations_apply(void) {

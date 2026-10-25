@@ -11,7 +11,7 @@ Settings. Button and option names are written as the radio shows them.
 
 - [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs)
 - [Updating the firmware](#updating-the-firmware)
-- [Main screen](#main-screen): [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
+- [Main screen](#main-screen): [receiving outside the ham bands](#receiving-outside-the-ham-bands), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
@@ -109,6 +109,20 @@ web configurator (System > Update).
   an image is needed.
 
 ## Main screen
+
+### Receiving outside the ham bands
+
+- The broadcast bands of the band list (Broadcast 75m to 11m) open in AM and
+  keep their own mode and settings, as a ham band does; the band keys still
+  skip them. (They opened in LSB under 10 MHz and USB above, which made AM
+  stations sound garbled.)
+- The X6200 also receives FM broadcast (87.5-108 MHz, wide FM) and the airband
+  (118-137 MHz, AM), as its specification has it: two bands, FM broadcast and
+  Airband, after 6 m on the band keys. They are receive only: PTT, the digital
+  apps, CW from the keyboard and the tuner are refused there, with a message.
+- PRE and ATT are on the VOL 2:2 button page (F1 from the main screen), per
+  band. The X6200 has no PRE key, and its receiver is specified with the
+  preamplifier on: turn PRE on when the band sounds quiet.
 
 ### Low battery
 

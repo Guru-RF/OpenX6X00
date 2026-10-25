@@ -562,6 +562,15 @@ class SettingsManager {
     // 0.1-55 MHz band; anything above must be covered by a transverter.
     static constexpr int32_t HF_MIN_FREQ = 100'000;     /* upstream f6c97fa */
     static constexpr int32_t HF_MAX_FREQ = 55'000'000;
+    // The X6200 also receives FM broadcast (88-108 MHz, wide FM) and the airband (108-136 MHz, AM), as its
+    // specification and the OEM firmware have it; receive only (issue #9)
+    static constexpr int32_t VHF_RX_MIN_FREQ = 87'500'000;
+    static constexpr int32_t VHF_RX_MAX_FREQ = 137'000'000;
+#ifdef BOARD_X6200
+    static constexpr bool HAS_VHF_RX = true;
+#else
+    static constexpr bool HAS_VHF_RX = false;
+#endif
 
     // -- VFO operations --
     // Copies VFO-related band parameters (freq, mode, agc, att, pre) from the
@@ -589,7 +598,12 @@ class SettingsManager {
         if (freq >= HF_MIN_FREQ && freq <= HF_MAX_FREQ) {
             return true;
         }
-        return transverter_shift_for(freq) != 0;
+        return transverter_shift_for(freq) != 0 || is_rx_only_freq(freq);
+    }
+
+    // The radio receives `freq` but must not transmit there (the X6200's FM broadcast and airband range)
+    bool is_rx_only_freq(int32_t freq) const {
+        return HAS_VHF_RX && freq >= VHF_RX_MIN_FREQ && freq <= VHF_RX_MAX_FREQ && transverter_shift_for(freq) == 0;
     }
 
     // If `freq` is hardware-usable, return it unchanged. Otherwise clamp to the
@@ -683,7 +697,7 @@ class SettingsManager {
     void load_band_vfo(int band_id, bool implicit);
 
     // Default mode for a frequency: LSB below 10 MHz, USB at or above.
-    static int32_t resolve_default_mode(int32_t freq);
+    static int32_t resolve_default_mode(int32_t freq, int32_t band_id);
 
     // Default 50-char encoder-bind string (all NONE except the documented
     // VOL/MFK positions). Static: callable from the ctor init list.

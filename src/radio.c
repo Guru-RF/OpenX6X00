@@ -121,6 +121,7 @@ static void on_pwr_change(Subject *subj, void *user_data);
 static void on_volume_change(Subject *subj, void *user_data);
 
 static void recover_processing_audio_inputs();
+static bool tx_refused(void);
 static bool radio_tick();
 static void * radio_thread(void *arg);
 
@@ -437,11 +438,14 @@ bool radio_change_spmode(int16_t df) {
 }
 
 void radio_start_atu() {
+    if (tx_refused()) {
+        return;
+    }
     state_move(RADIO_RX, RADIO_ATU_START);
 }
 
 bool radio_start_swrscan() {
-    if (!state_move(RADIO_RX, RADIO_SWRSCAN)) {
+    if (tx_refused() || !state_move(RADIO_RX, RADIO_SWRSCAN)) {
         return false;
     }
 
@@ -507,7 +511,27 @@ void radio_set_charger(bool on) {
     WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, on));
 }
 
+/* Keying from the GUI on a receive-only frequency (the X6200's FM broadcast and airband) is refused, with a word on
+ * the screen; the base's own TX permit covers its hand-mic PTT and paddle */
+static bool tx_refused(void) {
+    int32_t freq = cparam_i_get(cfg_fg_freq);
+
+    static uint64_t said;
+
+    if (!cfg_is_rx_only_freq(freq)) {
+        return false;
+    }
+    if (get_time() - said > 3000) {     /* once, not for every CW element */
+        said = get_time();
+        msg_schedule_text_fmt("No TX on %d.%03d MHz: receive only", freq / 1000000, freq / 1000 % 1000);
+    }
+    return true;
+}
+
 void radio_set_ptt(bool tx) {
+    if (tx && tx_refused()) {
+        return;
+    }
     WITH_RADIO_LOCK(hw_set_i(HW_PTT, tx));
 }
 
@@ -525,6 +549,9 @@ int radio_get_mic(void) {
 static bool modem_on;
 
 void radio_set_modem(bool tx) {
+    if (tx && tx_refused()) {
+        return;
+    }
     modem_on = tx;
     WITH_RADIO_LOCK(hw_set_i(HW_MODEM, tx));
 }
@@ -606,6 +633,9 @@ void radio_set_rec_moni(bool on) {
 }
 
 void radio_set_morse_key(bool on) {
+    if (on && tx_refused()) {
+        return;
+    }
     morse_on = on;
     morse_ms = get_time();
     hw_pin_set(HW_PIN_MORSE_KEY, on);

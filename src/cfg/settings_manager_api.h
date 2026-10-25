@@ -25,6 +25,8 @@ int32_t cfg_transverter_shift_for(int32_t freq);
 // True when freq is usable by the hardware: HF 0.1-55 MHz or inside any
 // transverter range.
 bool cfg_is_valid_hw_freq(int32_t freq);
+/* Received but never transmitted on: the X6200's FM broadcast and airband */
+bool cfg_is_rx_only_freq(int32_t freq);
 
 // Persist all pending deferred writes immediately.
 void cfg_api_flush_all(void);

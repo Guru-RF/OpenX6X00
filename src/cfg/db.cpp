@@ -88,15 +88,20 @@ bool BandsTable::Init(sqlite3 *database) {
 
     rc = sqlite3_prepare_v2(
         db_,
-        "SELECT id, name, start_freq, stop_freq FROM bands WHERE "
-        "   (:freq >= start_freq) AND (:freq <= stop_freq) AND (type = 1) "
+        /* The band a frequency lies in: the active ones and the broadcast bands (ids 100-199, inactive: the band
+         * keys skip them), which were gaps sharing one saved mode, LSB from the first visit on (issue #9). An
+         * active band wins where they touch (40m SSB and Broadcast 41m at 7.2 MHz) */
+        "SELECT * FROM (SELECT id, name, start_freq, stop_freq, type FROM bands WHERE "
+        "   (:freq >= start_freq) AND (:freq <= stop_freq) AND (type = 1 OR id BETWEEN 100 AND 199) "
         "UNION SELECT * FROM ("
-        "   SELECT NULL, NULL, a.stop_freq, b.start_freq FROM ("
-        "       SELECT stop_freq FROM bands WHERE :freq > stop_freq AND type = 1 ORDER BY stop_freq DESC LIMIT 1"
+        "   SELECT NULL, NULL, a.stop_freq, b.start_freq, NULL FROM ("
+        "       SELECT stop_freq FROM bands WHERE :freq > stop_freq AND (type = 1 OR id BETWEEN 100 AND 199) "
+        "       ORDER BY stop_freq DESC LIMIT 1"
         "   ) AS a FULL OUTER JOIN ("
-        "       SELECT start_freq FROM bands WHERE :freq < start_freq AND type = 1 ORDER BY start_freq LIMIT 1"
+        "       SELECT start_freq FROM bands WHERE :freq < start_freq AND (type = 1 OR id BETWEEN 100 AND 199) "
+        "       ORDER BY start_freq LIMIT 1"
         "   ) AS b"
-        ") ORDER BY id DESC NULLS LAST LIMIT 1",
+        ")) ORDER BY id IS NULL, type DESC, id DESC LIMIT 1",
         -1, &get_band_by_freq_stmt_, 0);
     if (rc != SQLITE_OK) {
         LV_LOG_ERROR("Failed prepare get_band_by_freq statement: %s", sqlite3_errmsg(db_));
@@ -259,7 +264,7 @@ BandInfoLoadResult BandsTable::get_by_freq(uint32_t freq) {
             info.id                  = sqlite3_column_int(get_band_by_freq_stmt_, 0);
             const unsigned char *txt = sqlite3_column_text(get_band_by_freq_stmt_, 1);
             info.name                = txt ? reinterpret_cast<const char *>(txt) : "";
-            info.type                = BAND_ACTIVE;
+            info.type                = sqlite3_column_int(get_band_by_freq_stmt_, 4) == BAND_ACTIVE ? BAND_ACTIVE : BAND_INACTIVE;
         } else {
             // Found a gap between bands
             info.id   = BAND_UNDEFINED;

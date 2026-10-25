@@ -18,6 +18,10 @@ bool cfg_is_valid_hw_freq(int32_t freq) {
     return cfg_sm.is_valid_hw_freq(freq);
 }
 
+bool cfg_is_rx_only_freq(int32_t freq) {
+    return cfg_sm.is_rx_only_freq(freq);
+}
+
 void cfg_api_flush_all(void) {
     cfg_sm.flush_all();
 }

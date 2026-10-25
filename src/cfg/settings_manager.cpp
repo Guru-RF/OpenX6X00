@@ -432,6 +432,8 @@ int32_t SettingsManager::clamp_to_valid_hw_freq(int32_t freq) const {
     const int32_t bounds[] = {
         HF_MIN_FREQ,                // HF lower limit
         HF_MAX_FREQ,                // HF upper limit
+        HAS_VHF_RX ? VHF_RX_MIN_FREQ : HF_MAX_FREQ,     // the X6200's FM broadcast and airband
+        HAS_VHF_RX ? VHF_RX_MAX_FREQ : HF_MAX_FREQ,
         p_transverter_0_from.get(), // transverter 0 [from, to]
         p_transverter_0_to.get(),
         p_transverter_1_from.get(), // transverter 1 [from, to]
@@ -808,7 +810,7 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     {
         int rc = p_band_vfoa_mode.load(band_id);
         if (rc != SUCCESS) {
-            p_band_vfoa_mode.set_quiet(resolve_default_mode(p_band_vfoa_freq.get()));
+            p_band_vfoa_mode.set_quiet(resolve_default_mode(p_band_vfoa_freq.get(), band_id));
         }
     }
     {
@@ -862,7 +864,12 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     }
 }
 
-int32_t SettingsManager::resolve_default_mode(int32_t freq) {
+/* A band (or a gap) with no mode saved yet. Broadcast bands (ids 100-199) were LSB under 10 MHz and USB above,
+ * where every station is AM: it sounded garbled and hard to find (issue #9) */
+int32_t SettingsManager::resolve_default_mode(int32_t freq, int32_t band_id) {
+    if (HAS_VHF_RX && freq >= VHF_RX_MIN_FREQ && freq < 108000000) return radio_mode_wfm;
+    if (HAS_VHF_RX && freq >= 108000000 && freq <= VHF_RX_MAX_FREQ) return radio_mode_am;
+    if (band_id >= 100 && band_id < 200) return radio_mode_am;
     return freq < 10000000 ? radio_mode_lsb : radio_mode_usb;
 }
 
