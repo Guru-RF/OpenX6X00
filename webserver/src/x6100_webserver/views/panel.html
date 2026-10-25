@@ -823,7 +823,7 @@ body.app h2, body.app #intro { display:none; }
     if (drawing) { pending = blob; return; }
     drawing = true;
     const done = function() { drawing = false; if (pending) { const b = pending; pending = null; drawB(b); } };
-    const drawB = function(b) { createImageBitmap(b).then(function(bmp) { sctx.drawImage(bmp, 0, 0); bmp.close && bmp.close(); done(); }, done); };
+    const drawB = function(b) { createImageBitmap(b).then(function(bmp) { sctx.drawImage(bmp, 0, 0, scv.width, scv.height); bmp.close && bmp.close(); done(); }, done); };
     drawB(blob);
   }
 

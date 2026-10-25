@@ -2083,6 +2083,13 @@ here it is a web page, nothing to install.
 - The screen: streamed as JPEG frames, up to ten a second, by the GUI itself
   (`remote_server.c`, WebSocket on port 50002). An unchanged screen is sent
   once a second. The Walkie Talkie portrait screen is shown upright.
+- Picture (next to Fullscreen): Sharp sends the whole screen as it is (about
+  40 kB a frame with a moving waterfall), Balanced the same at a lower JPEG
+  quality (about 33 kB), Fast half the size, drawn over the whole picture
+  (about 12 kB). The frames a second follow the link: on a WiFi link that
+  carries 150 kB/s, Sharp gives about 4 and Fast about 9. The choice is kept
+  in the browser. A frame goes out only when the last one has reached the
+  browser, so a slow link shows fewer, current frames rather than late ones.
 - F1-F5 under the screen, the key block to its right (GEN, KEY, DFN / APP,
   MSG, DFL / AM, CW, SSB / A/B, PRE, ATU / V/M, AGC, FST), BAND up and down,
   LOCK, POWER and PTT. A key is held as long as it is pressed, so long presses

@@ -56,6 +56,9 @@
   <button type="button" id="snd" aria-pressed="false">Sound</button>
   <button type="button" id="mic" aria-pressed="false" title="The browser's microphone transmits while PTT is held">Mic</button>
   <button type="button" id="full">Fullscreen</button>
+  <select id="pic" title="Picture: Sharp is the whole screen as it is; Fast is half the size and about three times the frames on a slow WiFi link">
+    <option value="sharp">Picture: sharp</option><option value="balanced">Picture: balanced</option><option value="fast">Picture: fast</option>
+  </select>
   <span class="sesbar" id="ses" title="This browser's access to the radio, and who controls it"></span>
   <span class="health" id="hl" title="The page's links to the radio: link, picture, sound, microphone; this browser's access; who controls the radio"></span>
   <span class="status" id="st"></span>
@@ -123,10 +126,10 @@
     const done = function() { drawing = false; if (pending) { const b = pending; pending = null; draw(b); } };
     const draw = function(b) {
       if (window.createImageBitmap) {
-        createImageBitmap(b).then(function(bmp) { ctx2d.drawImage(bmp, 0, 0); bmp.close && bmp.close(); done(); }, done);
+        createImageBitmap(b).then(function(bmp) { ctx2d.drawImage(bmp, 0, 0, cv.width, cv.height); bmp.close && bmp.close(); done(); }, done);
       } else {
         const img = new Image(), url = URL.createObjectURL(b);
-        img.onload = function() { ctx2d.drawImage(img, 0, 0); URL.revokeObjectURL(url); done(); };
+        img.onload = function() { ctx2d.drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url); done(); };
         img.onerror = function() { URL.revokeObjectURL(url); done(); };
         img.src = url;
       }
@@ -141,6 +144,15 @@
 
   /* ---- The connection: one link for control and the picture, one for sound; each comes back by itself ---- */
   function send(s) { return !!link && link.send(s); }
+
+  /* The picture asked for: a per-browser choice, kept in this browser only */
+  let pic = "sharp";
+  try { pic = localStorage.getItem("remote_picture") || "sharp"; } catch (e) {}
+  $("#pic").val(pic).on("change", function() {
+    pic = this.value;
+    try { localStorage.setItem("remote_picture", pic); } catch (e) {}
+    send("picture " + pic);
+  });
   const screenEl = document.getElementById("screen"), panelEl = document.querySelector(".rm-panel");
   link = RadioLink.create({
     url: function() {
@@ -154,7 +166,7 @@
       }, function() { unreachable = true; return null; });
     },
     ping: "ping",
-    onOpen: function() { screenEl.classList.remove("stale"); panelEl.classList.remove("stale"); lastFrame = Date.now(); ses.onOpen(); status("Connected"); view(); },
+    onOpen: function() { screenEl.classList.remove("stale"); panelEl.classList.remove("stale"); lastFrame = Date.now(); send("picture " + pic); ses.onOpen(); status("Connected"); view(); },
     onHello: function(boot, restarted) { if (restarted) status("The radio restarted", true); },
     onText: function(t) {
       const w = t.split(" "), sp = t.indexOf(" "), body = sp < 0 ? "" : t.slice(sp + 1);

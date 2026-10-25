@@ -121,7 +121,13 @@
 #define PING_MS     10000           /* a client silent this long is pinged: a page in a background tab has its
                                        timers throttled to a minute, the browser answers a PING by itself */
 #define CONF_MS     2000
-#define QUALITY     70
+/* The picture a viewer asks for ("picture sharp|balanced|fast"): JPEG quality, and half size. A whole 800x480
+ * frame is 40-80 kB with a busy waterfall, so a 1-2 Mbit/s WiFi link carries about 3 a second; half size at q60
+ * is a quarter of that (issue #6) */
+enum { PIC_SHARP, PIC_BALANCED, PIC_FAST, PIC_N };
+static const struct { const char *name; int quality; bool half; } pics[PIC_N] = {
+    {"sharp", 70, false}, {"balanced", 50, false}, {"fast", 60, true},
+};
 #define MAX_HELD    8
 #define PANEL_MS    50              /* the state is read this often for the panel clients */
 #define METER_MS    100
@@ -155,6 +161,9 @@ typedef struct {
     uint16_t        held[MAX_HELD]; /* keys this client holds down: released when it goes */
     int             nheld;
     bool            screen;         /* wants the screen frames (the Remote page) */
+    uint8_t         pic;            /* PIC_*: the picture it asked for */
+    bool            screen_stale;   /* a screen change it has not been sent yet */
+    uint64_t        screen_ms;      /* its last frame */
     bool            panel;          /* wants the state, the spectrum and the spots (the Panel page) */
     bool            panel_fresh;    /* just subscribed: the whole state goes out next */
     int             sess;           /* the session it authenticated as, -1 none (a viewer) */
@@ -604,7 +613,12 @@ static bool client_frame(client_t *c, uint8_t opcode, const void *p1, size_t l1,
         client_flush(c);
         ok = true;
     }
+    bool left = c->out_len > 0;
     pthread_mutex_unlock(&c->lock);
+    /* What the socket did not take now goes as soon as it can: the server thread asks for POLLOUT only when it
+     * builds its poll set, and slept up to 100 ms with the end of a frame waiting */
+    if (left)
+        wake();
     return ok;
 }
 
@@ -1538,6 +1552,13 @@ static void handle_text(client_t *c, char *text) {
         }
     } else if (!strcmp(a[0], "screen") && n >= 2) {
         c->screen = atoi(a[1]) != 0;
+        c->screen_stale = true;
+    } else if (!strcmp(a[0], "picture") && n >= 2) {
+        for (int k = 0; k < PIC_N; k++)
+            if (!strcmp(a[1], pics[k].name)) {
+                c->pic          = (uint8_t)k;
+                c->screen_stale = true;
+            }
     } else if (!strcmp(a[0], "panel") && n >= 2) {
         bool on = atoi(a[1]) != 0;
         if (on != c->panel) {
@@ -1732,12 +1753,21 @@ static void accept_client(int listen_fd) {
         if (c->fd >= 0)
             continue;
         setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+#ifdef TCP_NOTSENT_LOWAT
+        /* Little left unsent in the kernel: a link slower than the frames drops frames here instead of queueing
+         * seconds of them, and the picture stays current */
+        int lowat = 32 * 1024;
+        setsockopt(fd, IPPROTO_TCP, TCP_NOTSENT_LOWAT, &lowat, sizeof(lowat));
+#endif
         pthread_mutex_lock(&c->lock);
         c->fd      = fd;
         c->up      = false;
         c->in_len = c->out_len = c->text_len = 0;
         c->nheld   = 0;
         c->screen  = true;
+        c->pic     = PIC_SHARP;
+        c->screen_stale = true;
+        c->screen_ms    = 0;
         c->panel   = c->panel_fresh = false;
         c->sess    = -1;
         c->role    = ROLE_VIEW;
@@ -1886,7 +1916,7 @@ static void jpeg_fail(j_common_ptr c) {
  * into it, so a buffer reused that way "grew" on every frame bigger than the one before, each
  * time leaving the old one behind: 200 kB a second with a viewer watching the waterfall, an
  * out-of-memory kill after an hour. */
-static bool encode(const uint8_t *px, int32_t w, int32_t h, uint8_t **out, unsigned long *size) {
+static bool encode(const uint8_t *px, int32_t w, int32_t h, int quality, uint8_t **out, unsigned long *size) {
     struct jpeg_compress_struct c;
     struct jpeg_error_mgr       jerr;
     jmp_buf                     jb;
@@ -1908,7 +1938,7 @@ static bool encode(const uint8_t *px, int32_t w, int32_t h, uint8_t **out, unsig
     c.input_components = 4;
     c.in_color_space   = JCS_EXT_BGRX;
     jpeg_set_defaults(&c);
-    jpeg_set_quality(&c, QUALITY, TRUE);
+    jpeg_set_quality(&c, quality, TRUE);
     c.dct_method = JDCT_IFAST;
     jpeg_start_compress(&c, TRUE);
     while (c.next_scanline < (JDIMENSION)h) {
@@ -1986,9 +2016,35 @@ static void tick_cb(lv_timer_t *t) {
     pthread_mutex_unlock(&fmut);
 }
 
-/* Encoder thread: a frame to JPEG, to every viewer with room; an unchanged screen once a second */
+/* Half size: each 2x2 block averaged (BGRX), into a buffer that is kept */
+static const uint8_t *half_size(const uint8_t *px, int32_t w, int32_t h) {
+    static uint8_t *out;
+    static size_t   cap;
+    int32_t         hw = w / 2, hh = h / 2;
+    size_t          need = (size_t)hw * hh * 4;
+
+    if (need > cap) {
+        free(out);
+        out = malloc(need);
+        cap = out ? need : 0;
+        if (!out)
+            return NULL;
+    }
+    for (int32_t y = 0; y < hh; y++) {
+        const uint8_t *r0 = px + (size_t)(2 * y) * w * 4, *r1 = r0 + (size_t)w * 4;
+        uint8_t       *o  = out + (size_t)y * hw * 4;
+        for (int32_t x = 0; x < hw; x++, r0 += 8, r1 += 8, o += 4)
+            for (int k = 0; k < 4; k++)
+                o[k] = (uint8_t)((r0[k] + r0[k + 4] + r1[k] + r1[k + 4] + 2) >> 2);
+    }
+    return out;
+}
+
+/* Encoder thread: a frame to JPEG for the viewers that can take one now (nothing still on its way to them), once
+ * per picture kind they asked for. A viewer that could not take a changed frame gets the next one even if the
+ * screen stopped changing (it waited for the once-a-second repeat), and nothing is encoded for nobody (at 3 frames
+ * a second, seven encodes in ten went nowhere) */
 static void *encoder_thread(void *arg) {
-    uint64_t      sent_ms = 0;
     uint8_t      *jpg     = NULL;
     unsigned long jpg_len = 0;
     (void)arg;
@@ -2008,41 +2064,61 @@ static void *encoder_thread(void *arg) {
 
         if (!atomic_load(&nclients))
             continue;
-        uint64_t now  = now_ms();
+        uint64_t now   = now_ms();
         size_t   bytes = (size_t)w * h * 4;
         bool     same  = prev && pw == w && ph == h && memcmp(prev, enc, bytes) == 0;
-        if (same && now - sent_ms < STILL_MS) {
-            usleep(FRAME_MS * 1000 / 2);
-            continue;
-        }
-        if (!encode(enc, w, h, &jpg, &jpg_len)) {
-            usleep(FRAME_MS * 1000);
-            continue;
-        }
-        frame_hdr_t hdr = {.w = (uint16_t)w, .h = (uint16_t)h, .seq = atomic_fetch_add(&seq, 1)};
-        bool hide = now < atomic_load(&pair_hide_ms);   /* a pairing code is on the screen */
+        bool     hide  = now < atomic_load(&pair_hide_ms);   /* a pairing code is on the screen */
+        bool     want[MAX_CLIENTS] = {false};
+        bool     any = false;
+
         for (int i = 0; i < MAX_CLIENTS; i++) {
             client_t *c = &clients[i];
             if (c->fd < 0 || !c->up || !c->screen || (hide && c->sess < 0))
                 continue;
             pthread_mutex_lock(&c->lock);
-            bool room = c->out_len == 0;      /* the last frame still on its way: this one is skipped */
+            bool room = c->out_len == 0;      /* the last frame still on its way: none now */
             pthread_mutex_unlock(&c->lock);
-            if (room)
-                client_frame(c, WS_OP_BINARY, &hdr, sizeof(hdr), jpg, jpg_len);
+            if (!same)
+                c->screen_stale = true;
+            want[i] = room && (c->screen_stale || now - c->screen_ms >= STILL_MS);
+            any |= want[i];
         }
-        free(jpg);
-        jpg     = NULL;
-        jpg_len = 0;
-        sent_ms = now;
-        /* what went out becomes the frame to compare with */
-        if (!prev || pw != w || ph != h) {
-            free(prev);
-            prev = malloc(bytes);
-            pw = w, ph = h;
+        if (!same) {
+            /* the frame to compare the next one with */
+            if (!prev || pw != w || ph != h) {
+                free(prev);
+                prev = malloc(bytes);
+                pw = w, ph = h;
+            }
+            if (prev)
+                memcpy(prev, enc, bytes);
         }
-        if (prev)
-            memcpy(prev, enc, bytes);
+        if (!any) {
+            usleep(FRAME_MS * 1000 / 2);
+            continue;
+        }
+        frame_hdr_t hdr = {.w = (uint16_t)w, .h = (uint16_t)h, .seq = atomic_fetch_add(&seq, 1)};
+        for (int k = 0; k < PIC_N; k++) {
+            bool needed = false;
+            for (int i = 0; i < MAX_CLIENTS; i++)
+                needed |= want[i] && clients[i].pic == k;
+            if (!needed)
+                continue;
+            /* The header keeps the screen's size: the page draws a half-size picture over the whole canvas */
+            const uint8_t *src = pics[k].half ? half_size(enc, w, h) : enc;
+            if (!src || !encode(src, pics[k].half ? w / 2 : w, pics[k].half ? h / 2 : h, pics[k].quality, &jpg, &jpg_len))
+                continue;
+            for (int i = 0; i < MAX_CLIENTS; i++) {
+                client_t *c = &clients[i];
+                if (want[i] && c->pic == k && client_frame(c, WS_OP_BINARY, &hdr, sizeof(hdr), jpg, jpg_len)) {
+                    c->screen_stale = false;
+                    c->screen_ms    = now;
+                }
+            }
+            free(jpg);
+            jpg     = NULL;
+            jpg_len = 0;
+        }
         /* hold the pace: the LVGL side fills the next frame meanwhile */
         uint64_t spent = now_ms() - now;
         if (spent < FRAME_MS)
