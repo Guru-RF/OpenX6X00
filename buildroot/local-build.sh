@@ -96,6 +96,9 @@ cp -a $GUI/buildroot/br2_external/package $EXT/
 cp -a $GUI/buildroot/br2_external/board/X6100/linux/. $BOARD/
 if [ $MODEL = x6200 ]; then
     rm -f $BOARD/rootfs-overlay/etc/modprobe.d/x6100-wifi.conf
+    # module-bluez5-device with no path= in the X6200 tree's system.pa: upstream dropped it for the X6100 (ef0d395);
+    # the headphones come through module-bluetooth-discover
+    sed -i '/^load-module module-bluez5-device$/d' $BOARD/rootfs-overlay/etc/pulse/system.pa
     sed -i "s/BR2_EXTERNAL_X6100_PATH/BR2_EXTERNAL_X6200_PATH/" $BOARD/device_table.txt 2>/dev/null || true
 fi
 grep -q "^default-sample-rate = 44100" $BOARD/rootfs-overlay/etc/pulse/daemon.conf
