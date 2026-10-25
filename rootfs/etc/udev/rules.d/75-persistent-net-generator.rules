@@ -1,0 +1,6 @@
+# Empty on purpose: it takes the place of eudev's /lib/udev/rules.d/75-persistent-net-generator.rules.
+#
+# That generator pins a name to each network adapter's MAC address in 70-persistent-net.rules, and an adapter
+# that once showed another address gets the next name: wlan1. udev renames the interface while NetworkManager
+# already has it as wlan0, and a profile for wlan0 is then refused with "mismatching interface name" (issue #3).
+# A radio has one WiFi and one USB network adapter at most: the kernel's own names are all it needs.

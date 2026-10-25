@@ -1,0 +1,2 @@
+# Empty on purpose: the names eudev's generator wrote here, one per MAC address, are no longer used (see
+# 75-persistent-net-generator.rules). The interfaces keep the kernel's names: wlan0, eth0.
