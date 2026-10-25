@@ -413,6 +413,12 @@ void panel_update_visibility(bool clear) {
 
     /* RTTY: the scope, and the text keeps clear of it */
     bool rtty = on && !cw;
+    /* The CW speed above the panel is CW's: RTTY (NavTex) showed the last "WPM: 22" over the frequency scale */
+    if (rtty) {
+        lv_obj_add_flag(info_line, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(info_line, LV_OBJ_FLAG_HIDDEN);
+    }
     if (rtty) {
         lv_obj_clear_flag(scope_box, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_style_pad_right(obj, SCOPE_SZ + 12, 0);
