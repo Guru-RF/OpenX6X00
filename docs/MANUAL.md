@@ -788,9 +788,10 @@ Two examples:
   shift of -100 kHz on the band it is in. Tune to 29.620; the radio transmits
   on 29.520.
 - QO-100 through converters to and from 28 MHz, the receive one putting the
-  downlink's narrowband beacon (10489.550 MHz) at 28.550 MHz, the transmit
-  one taking 2400.050 MHz from 28.050 MHz: a shift of -500 kHz on 10 m. Tune
-  the downlink and the uplink follows.
+  narrowband transponder's lower beacon (10489.500 MHz) at 28.500 MHz, the
+  transmit one taking 2400.000 MHz (which comes down at 10489.500) from
+  28.000 MHz: a shift of -500 kHz on 10 m. Tune the downlink and the uplink
+  follows.
 
 Not tried on the air yet. The hand mic's PTT and the paddle go to the base
 directly, without the GUI's check: what the base does with a VFO B it cannot
