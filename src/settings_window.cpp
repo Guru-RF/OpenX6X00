@@ -865,6 +865,27 @@ static uint8_t make_transverters(uint8_t row) {
     return row;
 }
 
+/* The TX shift of the band the radio is on, kHz, 0 off: split comes on with it and the other VFO stays at the
+ * active one + the shift (the input of an FM repeater, a QO-100 station's IF). Not on a band the radio cannot
+ * transmit on */
+static void tx_shift_cb(lv_event_t *e) {
+    cfg_sm.tx_shift_set(lv_spinbox_get_value(lv_event_get_target(e)) * 1000);
+}
+
+static uint8_t make_tx_shift(uint8_t row) {
+    BandInfoLoadResult band = BandsTable::get_by_id(cfg_sm.current_band_id());
+    char               label[48];
+
+    if (band.rc != SUCCESS || cfg_sm.band_use(band.value.start_freq, band.value.stop_freq) != BAND_USE_TX) {
+        return row;
+    }
+    snprintf(label, sizeof(label), "TX shift %s, kHz", band.value.name.c_str());
+    wl_row_label(row, label);
+    lv_obj_t *sb = row_spin(row, 1, 3, SMALL_3, cfg_sm.p_band_tx_shift.get() / 1000, -9999, 9999, 4);
+    lv_obj_add_event_cb(sb, tx_shift_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    return row + 1;
+}
+
 /* Spectrum above the waterfall on/off; the waterfall takes its place */
 
 /* The main screen follows it live (main_screen.c); the page again, with or without the spectrum
@@ -3023,6 +3044,7 @@ static void make_general_page() {
     row = make_param_slider(row, "Accel. onset", &accel_onset_slider);
     row = make_charger(row);
     row = make_param_slider(row, "Per band S-meter cal", &smeter_cal_slider);
+    row = make_tx_shift(row);
     /* The Walkie Talkie portrait screen: on at once (walkie.c follows the setting), Settings closes */
     row = make_param_switch(row, "Walkie Talkie", cfg_sm.p_walkie);
     card_end(row);
