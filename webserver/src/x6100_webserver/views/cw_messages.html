@@ -38,10 +38,10 @@ var call = function(type, url, payload, row, done) {
   if (row) EditFlow.state(row, "saving");
   $.ajax({
     url: url, type: type, data: payload ? JSON.stringify(payload) : undefined,
-    contentType: "application/json; charset=utf-8", dataType: "json",
+    contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
     success: function(r) { done(r); },
-    error: function(xhr) {
-      const msg = xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")";
+    error: function(xhr, why) {
+      const msg = x6100FailText(xhr, why);
       if (row) EditFlow.state(row, "failed", msg); else showStatus(msg, true);
     }
   });

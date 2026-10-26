@@ -204,8 +204,9 @@ var call = function(type, url, payload, st="#status", then) {
     data: payload ? JSON.stringify(payload) : undefined,
     contentType: "application/json; charset=utf-8",
     dataType: "json",
+    timeout: X6100_WAIT_MS,
     success: function(r) { render(r); showStatus("Saved", false, st); if (then) then(r); },
-    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")", true, st); }
+    error: function(xhr, why) { showStatus(x6100FailText(xhr, why), true, st); }
   });
 }
 /* The filters: Unsaved until Save, what was typed kept when the radio refuses it */

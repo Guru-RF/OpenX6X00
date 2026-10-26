@@ -110,12 +110,12 @@ var post = function(body, done) {
     data: JSON.stringify(body),
     contentType: "application/json; charset=utf-8",
     dataType: "json",
+    timeout: 135000,   /* up to three runs of x6100-winlink, 40 s each (set_winlink) */
     success: done,
-    error: function(xhr) {
+    error: function(xhr, why) {
       busy = false;
       refresh();
-      showStatus(body.enabled === undefined ? "#status" : "#sstatus",
-                 xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")", true);
+      showStatus(body.enabled === undefined ? "#status" : "#sstatus", x6100FailText(xhr, why, 135000), true);
     }
   });
 }

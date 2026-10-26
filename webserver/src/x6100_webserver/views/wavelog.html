@@ -90,14 +90,16 @@ var load = function() { $.get('/api/wavelog', {}, render); }
 load();
 
 var post = function(url, data, done, statusId) {
+  const ms = url === "/api/wavelog/sync" ? 345000 : 55000;   /* x6100-wavelog: 330 s for a sync, 40 s for the rest */
   $.ajax({
     url: url,
     type: "POST",
     data: JSON.stringify(data),
     contentType: "application/json; charset=utf-8",
     dataType: "json",
+    timeout: ms,
     success: done,
-    error: function(xhr) { showStatus(statusId, xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")", true); }
+    error: function(xhr, why) { showStatus(statusId, x6100FailText(xhr, why, ms), true); }
   });
 }
 

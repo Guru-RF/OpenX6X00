@@ -107,12 +107,12 @@ var rowState = function(name, st, text) {
 var send = function(payload, done, fail) {
   $.ajax({
     url: "/api/display", type: "POST", data: JSON.stringify(payload),
-    contentType: "application/json; charset=utf-8", dataType: "json",
+    contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
     success: function() {
       showStatus(payload.name === "theme" ? "Theme set: the radio's screen is restarting" : "Applied on the radio");
       if (done) done();
     },
-    error: function(xhr) { const m = xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")"; showStatus(m, true); if (fail) fail(m); }
+    error: function(xhr, why) { const m = x6100FailText(xhr, why); showStatus(m, true); if (fail) fail(m); }
   });
 }
 

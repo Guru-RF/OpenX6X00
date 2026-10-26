@@ -1,7 +1,8 @@
 /* Bands and Digital modes pages: the entries of a JSON list API in a table, one row edited at a time.
  * PUT url adds, POST url/<id> changes, DELETE url/<id> removes; after each change the list is read again.
  * A row says what it is in (Unsaved, Saving, Saved, Failed with the reason, the typed values kept);
- * a delete says what goes and can be undone for twenty seconds (U04, with edit_flow.js).
+ * a delete says what goes and can be undone for twenty seconds (U04, with edit_flow.js). A failure says why, with
+ * x6100FailText() and X6100_WAIT_MS of base.html.
  *
  * opts.table   the <table> (its tbody is filled)
  * opts.add     the "add" button
@@ -19,11 +20,6 @@ function listEditor(opts) {
 
   function button(cls, icon) {
     return $("<button class='action'>").addClass(cls).append($("<i>").addClass(icon));
-  }
-
-  function failText(xhr) {
-    const r = xhr.responseJSON;
-    return r && r.msg ? r.msg : "The radio did not answer (HTTP " + xhr.status + ")";
   }
 
   function load(then) {
@@ -66,22 +62,23 @@ function listEditor(opts) {
     EditFlow.state(tr, "saving");
     $.ajax({url: add ? opts.url : opts.url + "/" + entry.id, type: add ? "PUT" : "POST",
             data: JSON.stringify(opts.read(inputs)), contentType: "application/json; charset=utf-8",
-            dataType: "json",
+            dataType: "json", timeout: X6100_WAIT_MS,
             success: function() { load(function() { if (!add) { const row = body.children("tr[data-key='" + entry.id + "']"); if (row.length) $("<span class='rst' data-st='saved'>Saved</span>").appendTo(row.children(".action-cell")); } else $status.removeClass("error").html('<span class="dot"></span>').append(document.createTextNode("Added")); }); },
-            error: function(xhr) { EditFlow.state(tr, "failed", failText(xhr)); }});
+            error: function(xhr, why) { EditFlow.state(tr, "failed", x6100FailText(xhr, why)); }});
   }
 
   function remove(entry) {
     if (!EditFlow.confirmDelete(opts.what(entry), "")) return;
-    $.ajax({url: opts.url + "/" + entry.id, type: "DELETE", success: function() {
+    $.ajax({url: opts.url + "/" + entry.id, type: "DELETE", timeout: X6100_WAIT_MS, success: function() {
       load();
       const back = Object.assign({}, entry); delete back.id;
       EditFlow.undo($status, "Deleted " + opts.what(entry) + ".", function() {
         $.ajax({url: opts.url, type: "PUT", data: JSON.stringify(back), contentType: "application/json; charset=utf-8", dataType: "json",
+                timeout: X6100_WAIT_MS,
                 success: function() { load(); $status.removeClass("error").html('<span class="dot"></span>').append(document.createTextNode("Brought back")); },
-                error: function(xhr) { $status.addClass("error").html('<span class="dot"></span>').append(document.createTextNode("Not brought back: " + failText(xhr))); }});
+                error: function(xhr, why) { $status.addClass("error").html('<span class="dot"></span>').append(document.createTextNode("Not brought back: " + x6100FailText(xhr, why))); }});
       });
-    }, error: function(xhr) { $status.addClass("error").html('<span class="dot"></span>').append(document.createTextNode(failText(xhr))); }});
+    }, error: function(xhr, why) { $status.addClass("error").html('<span class="dot"></span>').append(document.createTextNode(x6100FailText(xhr, why))); }});
   }
 
   $(opts.add).on("click", function() {

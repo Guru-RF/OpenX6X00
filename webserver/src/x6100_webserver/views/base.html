@@ -8,6 +8,20 @@
     <script>
       const mode_map = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CW-R", "AM", "NFM", "SAM", "WFM"];   // x6100_mode_t, index = value in params.db
 
+      /* How long a page waits for the radio's web server on a change that only writes a file: with no limit, a
+       * reply that never came left "Saving..." on the page for good (issue #23) */
+      const X6100_WAIT_MS = 15000;
+
+      /* Why a request failed, for a page's status line: the server's own message, else which of three things
+       * happened (all three were "The radio did not answer (HTTP N)"). why, ms: jQuery's error word, the timeout */
+      function x6100FailText(xhr, why, ms) {
+        const r = xhr.responseJSON;
+        if (r && r.msg) return r.msg;
+        if (why === "timeout") return "No reply from the radio in " + Math.round((ms || X6100_WAIT_MS) / 1000) + " s: reload the page to see what was saved";
+        if (!xhr.status) return "The radio's web server could not be reached (WiFi?): reload the page";
+        return "The radio's web server failed (HTTP " + xhr.status + ")";
+      }
+
       /* HTTPS with the radio's self-signed certificate: Chrome's download manager does not take the
        * exception the page has, so downloads failed with a network error. Through fetch() they do,
        * saved from a blob. Plain HTTP keeps the browser's own download. */

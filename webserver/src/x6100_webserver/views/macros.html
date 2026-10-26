@@ -56,10 +56,10 @@ var call = function(mode, type, url, payload, row, done) {
   if (row) EditFlow.state(row, "saving");
   $.ajax({
     url: "/api/macros/" + mode + url, type: type, data: payload ? JSON.stringify(payload) : undefined,
-    contentType: "application/json; charset=utf-8", dataType: "json",
+    contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
     success: function(r) { done(r); },
-    error: function(xhr) {
-      const msg = xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")";
+    error: function(xhr, why) {
+      const msg = x6100FailText(xhr, why);
       if (row) EditFlow.state(row, "failed", msg); else showStatus(mode, msg, true);
     }
   });
@@ -129,9 +129,9 @@ $("#js8-save").on("click", function() {
   $.ajax({
     url: "/api/js8_texts", type: "PUT",
     data: JSON.stringify({info: $("#js8-info").val(), status: $("#js8-status").val()}),
-    contentType: "application/json; charset=utf-8", dataType: "json",
+    contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
     success: function(r) { js8Show(r); showStatus("js8", "Saved"); },
-    error: function(xhr) { showStatus("js8", xhr.responseJSON ? xhr.responseJSON.msg : "Save failed", true); }
+    error: function(xhr, why) { showStatus("js8", x6100FailText(xhr, why), true); }
   });
 });
 $.get('/api/js8_texts', {}, js8Show);

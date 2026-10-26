@@ -51,8 +51,9 @@ $("#conf").on("submit", function(e) {
     data: JSON.stringify({enabled: $("#enabled").prop("checked"), port: parseInt($("#port").val(), 10), trust: $("#trust").val()}),
     contentType: "application/json; charset=utf-8",
     dataType: "json",
+    timeout: X6100_WAIT_MS,
     success: function(r) { render(r); showStatus("Saved: the radio applies it within a few seconds"); },
-    error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")", true); }
+    error: function(xhr, why) { showStatus(x6100FailText(xhr, why), true); }
   });
 });
 </script>

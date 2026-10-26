@@ -96,8 +96,9 @@ var act = function(action, saying) {
     data: JSON.stringify({action: action}),
     contentType: "application/json; charset=utf-8",
     dataType: "json",
+    timeout: 45000,   /* x6100-tailscale: 30 s at most (set_tailscale) */
     success: function(r) { busy = false; render(r); showStatus("Done"); },
-    error: function(xhr) { busy = false; refresh(); showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")", true); }
+    error: function(xhr, why) { busy = false; refresh(); showStatus(x6100FailText(xhr, why, 45000), true); }
   });
 }
 
