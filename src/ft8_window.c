@@ -36,6 +36,7 @@
 #include "gui_events.h"
 #include "flags.h"
 #include "freq_strip.h"
+#include "gps.h"
 #include "ft8_udp.h"
 #include "js8_map.h"
 #include "key_input.h"
@@ -718,20 +719,50 @@ static void cq_modifier_cb(button_data_t *btn) {
     kb_open = true;
 }
 
-/* The system clock to the nearest slot start: for a clock off by a few seconds */
-static void time_sync_cb(button_data_t *btn) {
-    time_t now  = time(NULL);
-    float  slot = ftx_slot_time(cur_proto());
-    float  off  = fmodf((uint8_t)(now % 60) + slot / 2, slot) - slot / 2;
+/* Time Sync, pressed as a slot starts: the system clock to the nearest slot start, for a clock
+ * off by a few seconds with nothing to set it. A clock that ntpd keeps (WiFi, or the GPS through
+ * it) is right already, and moved to where the press fell it would be off by up to half a slot:
+ * it is left alone. The step is taken from the time to the nanosecond (FT4's and FT2's slots
+ * start on fractions of a second, whole seconds missed them), and only a clock that moved goes
+ * into the RTC */
+#define SYNC_GPS_AGE_S  10      /* a GPS fix this recent: gpsd feeds ntpd */
+#define SYNC_ON_SLOT_NS 50000000
 
-    struct timespec ts = {.tv_sec = now - (int)off};
+static void time_sync_cb(button_data_t *btn) {
+    struct timespec now;
+    double          lat, lon;
+    int             err_ms, age;
+    int64_t         off, t;
+
+    if (ftx_clock_synced(&err_ms)) {
+        msg_update_text_fmt("Clock in sync (NTP, within %d ms): no Time Sync needed", err_ms);
+        return;
+    }
+    if (gps_last_fix(&lat, &lon, &age) && age <= SYNC_GPS_AGE_S) {
+        msg_update_text_fmt("The GPS keeps the clock: no Time Sync needed");
+        return;
+    }
+    clock_gettime(CLOCK_REALTIME, &now);
+    off = ftx_slot_offset_ns(now.tv_sec, now.tv_nsec, ftx_slot_time(cur_proto()));
+    if (llabs(off) < SYNC_ON_SLOT_NS) {
+        msg_update_text_fmt("Clock on the slot already (%+.2f s)", off / 1e9);
+        return;
+    }
+    clock_gettime(CLOCK_REALTIME, &now);    /* the step on the time as it is now: nothing lost */
+    t = (int64_t)now.tv_sec * 1000000000LL + now.tv_nsec - off;
+
+    struct timespec ts = {.tv_sec = t / 1000000000LL, .tv_nsec = t % 1000000000LL};
 
     if (clock_settime(CLOCK_REALTIME, &ts)) {
-        LV_LOG_ERROR("Can't set system time: %s\n", strerror(errno));
+        const char *why = strerror(errno);
+
+        LV_LOG_ERROR("Can't set system time: %s\n", why);
+        msg_update_text_fmt("Time Sync: the clock can't be set (%s)", why);
         return;
     }
     /* into the RTC too, in UTC as the kernel reads it at boot: kept across a power-off */
     sh_run("hwclock -w -u -f /dev/rtc1", NULL, NULL);
+    msg_update_text_fmt("Clock moved %+.2f s to the slot start", -off / 1e9);
 }
 
 static void map_cb(button_data_t *btn) {
