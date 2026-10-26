@@ -69,6 +69,12 @@ typedef enum {
     ST_STOP,
 } wspr_state_t;
 
+enum {              /* tx_next_subj: the look of the TX next button */
+    NEXT_OFF,
+    NEXT_ARMED,
+    NEXT_ON_AIR,    /* Stop TX */
+};
+
 typedef struct {
     time_t      cycle;          /* UTC start */
     uint32_t    dial_hz;
@@ -230,20 +236,30 @@ static void start_decode(time_t cycle) {
 
 /* Cycle thread */
 
+/* Polled every block (about 46 ms): Stop TX or a close ends the beacon there, and what is queued for the sound card
+ * goes too, off the air at once instead of after its 0.8 s (as Winlink) */
 static bool tx_abort_cb(void *ctx) {
     (void)ctx;
-    return atomic_load(&state) != ST_TX;
+    if (atomic_load(&state) == ST_TX) {
+        return false;
+    }
+    audio_play_flush();
+    return true;
 }
 
-static void tx_next_clear_cb(void *arg) {
+/* The TX next button's look from where the cycle is: Stop TX while a beacon is due or on the air. Scheduled by the
+ * cycle thread when that changes, run on the LVGL thread with the state as it is then */
+static void tx_next_look_cb(void *arg) {
     (void)arg;
-    subject_i_set(tx_next_subj, false);
+    subject_i_set(tx_next_subj, atomic_load(&state) == ST_TX ? NEXT_ON_AIR
+                                : atomic_load(&tx_next)       ? NEXT_ARMED
+                                                              : NEXT_OFF);
 }
 
 static void tx_off_cb(void *arg) {
     (void)arg;
     param_i_set(cfg_wspr_tx_pct, 0);
-    subject_i_set(tx_next_subj, false);
+    tx_next_look_cb(NULL);
 }
 
 /* The beacon for the next cycle, or NULL for RX */
@@ -283,8 +299,9 @@ static void *cycle_thread_cb(void *arg) {
             if (!prepared) {
                 free(tx);
                 tx = prepare_tx(&tx_n);
-            } else if (tx && tx_by_next && !atomic_load(&tx_next)) {
-                /* Prepared at 116 s for TX next, then TX next was turned off: no beacon */
+            } else if (tx && (tx_by_next ? !atomic_load(&tx_next) : param_i_get(cfg_wspr_tx_pct) == 0)) {
+                /* Prepared at 116 s, then what it was for turned off (TX next, TX % to 0, Stop TX): no beacon.
+                 * One the TX % had chosen used to go out all the same */
                 free(tx);
                 tx = NULL;
             }
@@ -302,6 +319,7 @@ static void *cycle_thread_cb(void *arg) {
             if (old == ST_STOP) {
                 break;
             }
+            scheduler_put_noargs(tx_next_look_cb);      /* Stop TX for a beacon due in this cycle */
         }
 
         int st = atomic_load(&state);
@@ -309,13 +327,13 @@ static void *cycle_thread_cb(void *arg) {
         if (st == ST_TX && t >= TX_START_S) {
             if (t <= TX_LATE_S) {
                 atomic_store(&tx_next, false);
-                scheduler_put_noargs(tx_next_clear_cb);
                 tx_info_set_length(CYCLE_S);    /* the strip counts the cycle */
                 tx_player_play(tx, tx_n, param_i_get(cfg_wspr_tx_freq), base_gain_offset, tx_abort_cb, NULL);
             }
             free(tx);
             tx = NULL;
             atomic_compare_exchange_strong(&state, &st, ST_WAIT);
+            scheduler_put_noargs(tx_next_look_cb);      /* back to TX next */
             continue;
         }
         if (st == ST_RX && t >= DECODE_S) {
@@ -486,10 +504,36 @@ static void tx_pct_cb(button_data_t *b) {
 }
 
 static const char *tx_next_label(void) {
-    return subject_i_get(tx_next_subj) ? "TX next\n(armed)" : "TX next";
+    switch (subject_i_get(tx_next_subj)) {
+        case NEXT_ON_AIR:
+            return "Stop TX";
+        case NEXT_ARMED:
+            return "TX next\n(armed)";
+        default:
+            return "TX next";
+    }
 }
 
+/* Stop TX: the beacon off the air within a block, and none after it until TX % or TX next is pressed again. The rest
+ * of the cycle is idle */
+static void stop_tx(void) {
+    int st = ST_TX;
+
+    atomic_store(&tx_next, false);
+    param_i_set(cfg_wspr_tx_pct, 0);
+    atomic_compare_exchange_strong(&state, &st, ST_WAIT);   /* tx_abort_cb ends it */
+    tx_next_look_cb(NULL);
+    msg_update_text_fmt("WSPR: TX stopped, TX %% off");
+}
+
+/* While a beacon is due or on the air the button is Stop TX (page 1 has no room for one more). Before, a press
+ * there armed another beacon for the next cycle: TX next is cleared as a beacon starts */
 static void tx_next_cb(button_data_t *b) {
+    if (atomic_load(&state) == ST_TX) {     /* also in the second before the audio starts */
+        stop_tx();
+        return;
+    }
+
     bool on = !atomic_load(&tx_next);
 
     if (on && !my_call[0]) {
@@ -497,12 +541,7 @@ static void tx_next_cb(button_data_t *b) {
         return;
     }
     atomic_store(&tx_next, on);
-    subject_i_set(tx_next_subj, on);
-    if (!on) {
-        int st = ST_TX;
-
-        atomic_compare_exchange_strong(&state, &st, ST_WAIT);  /* stops the beacon on the air */
-    }
+    tx_next_look_cb(NULL);
 }
 
 static const char *upload_label(void) {
@@ -585,14 +624,14 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_add_event_cb(dialog.obj, band_cb, EVENT_BAND_DOWN, NULL);
 
     if (!tx_next_subj) {
-        tx_next_subj    = subject_i_create(false);
+        tx_next_subj    = subject_i_create(NEXT_OFF);
         btn_tx_next.subj = (Subject *)tx_next_subj;
     }
     btn_tx_pct.subj = (Subject *)cfg_wspr_tx_pct;
     btn_tx_pct2.subj = (Subject *)cfg_wspr_tx_pct;
     btn_upload.subj = (Subject *)cfg_wspr_upload;
     atomic_store(&tx_next, false);
-    subject_i_set(tx_next_subj, false);
+    subject_i_set(tx_next_subj, NEXT_OFF);
     buttons_load_page(&btn_page_1);
 
     app_frame_create(&frame, dialog.obj);
