@@ -410,8 +410,14 @@ int32_t radio_tx_freq(void) {
     return cparam_i_get(cfg_bg_freq);
 }
 
-/* The VFO the radio transmits on, the other one in split: radio_set_freq moved the active one, so FT8 and the other
- * apps sent their tone at B + 1325 Hz in split, and never restored the IF shift (the X6100's VFO stayed off by it) */
+/* The base's split bit off while the active VFO carries the TX frequency (radio_set_tx_freq) */
+static atomic_bool split_held;
+
+/* The VFO the radio transmits on to `freq`. In split that is the active VFO, with the base's split bit off until
+ * radio_set_tx_freq(0): the X6200's base (1.0.8) sent the apps' tone from VFO A whatever B said, an FT8 CQ at
+ * 1200 Hz with a +700 Hz TX shift on 14.074 heard at 14.075325 (A + 1325, PSK Reporter, 2026-10-26); moving the
+ * active VFO without split is the path both bases take. radio_set_freq moved the active one in split, so FT8 and the
+ * other apps sent their tone at B + 1325 Hz, and never restored the IF shift (the X6100's VFO stayed off by it) */
 void radio_set_tx_freq(int32_t freq) {
     radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
 
@@ -420,14 +426,17 @@ void radio_set_tx_freq(int32_t freq) {
          * changed since (split off during an SWR scan left B on a sweep point); one that did not move is not resent */
         on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
         on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
+        if (atomic_exchange(&split_held, false)) {
+            WITH_RADIO_LOCK(hw_set_i(HW_SPLIT, param_i_get(cfg_band_split)));
+        }
         return;
-    }
-    if (param_i_get(cfg_band_split)) {
-        vfo = vfo == RADIO_VFO_A ? RADIO_VFO_B : RADIO_VFO_A;
     }
     if (!cfg_is_tx_freq(freq)) {
         LV_LOG_ERROR("TX freq %i incorrect", freq);
         return;
+    }
+    if (param_i_get(cfg_band_split) && !atomic_exchange(&split_held, true)) {
+        WITH_RADIO_LOCK(hw_set_i(HW_SPLIT, false));
     }
     WITH_RADIO_LOCK(hw_vfo_set_freq(vfo, freq - cfg_transverter_shift_for(freq)));
 }
@@ -642,12 +651,25 @@ int radio_get_mic(void) {
 
 static bool modem_on;
 
+/* In split the audio goes out on the TX frequency through radio_set_tx_freq, as the apps' tone does (TCI's audio,
+ * the voice messages): the active VFO moved before keying and back after; an app that moved it for its tone keeps
+ * its own */
 void radio_set_modem(bool tx) {
+    static bool moved;
+
     if (tx && tx_refused()) {
         return;
     }
+    if (tx && param_i_get(cfg_band_split) && !atomic_load(&split_held)) {
+        radio_set_tx_freq(radio_tx_freq());
+        moved = true;
+    }
     modem_on = tx;
     WITH_RADIO_LOCK(hw_set_i(HW_MODEM, tx));
+    if (!tx && moved) {
+        moved = false;
+        radio_set_tx_freq(0);
+    }
 }
 
 bool radio_get_modem(void) {

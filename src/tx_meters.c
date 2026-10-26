@@ -18,6 +18,7 @@
 #include "theme.h"
 #include "util.h"
 #include "info_bar.h"
+#include "radio.h"             /* radio_tx_freq */
 #include "rtty.h"
 #include "ft8_window.h"
 #include "dialog_js8.h"
@@ -149,7 +150,7 @@ static lv_obj_t *make_label(lv_obj_t *parent, const lv_font_t *font, uint32_t co
 
 static void update_head(void) {
     uint32_t  s    = lv_tick_elaps(tx_start) / 1000;
-    int32_t   f    = cparam_i_get(cfg_fg_freq);
+    int32_t   f    = radio_tx_freq();      /* in split the other VFO's, or the TX shift's */
     uint16_t  mhz, khz, hz;
 
     split_freq(f, &mhz, &khz, &hz);

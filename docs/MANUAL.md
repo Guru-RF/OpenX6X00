@@ -787,10 +787,13 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   where the whole band, shifted, can transmit (6 m with +5000 kHz, 55-58.9
   MHz, is refused); the Settings row takes any shift, and B is then red and
   refused where it cannot.
-- The digital apps (FT8, FT4, JS8, WSPR, RTTY, SSTV...) and the SWR scan move
-  the VFO that transmits, so they work in split and with a shift. Before, they
-  moved the VFO you listen on: in split FT8 went out 1325 Hz above B whatever
-  its offset.
+- The digital apps (FT8, FT4, JS8, WSPR, RTTY, SSTV...), the SWR scan, the
+  voice messages and TCI's audio go out on the TX frequency, so they work in
+  split and with a shift: for each transmission the VFO you listen on moves
+  there with the radio's split off, and both come back after. v0.3.5 moved
+  the VFO you listen on and left split on: an X6100 sent FT8 1325 Hz above B
+  whatever its offset, and the X6200's base sends these from VFO A in split
+  (an FT8 CQ with a +700 Hz shift was heard 700 Hz low).
 - Winlink is simplex: it does not key while a shift is on (split on), and
   says "Winlink: no TX, a TX shift is set on this band".
 
