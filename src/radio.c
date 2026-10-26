@@ -102,6 +102,7 @@ static void radio_lock();
 static void radio_unlock();
 
 static void on_vfo_freq_change(Subject *subj, void *user_data);
+static void on_transverter_change(Subject *subj, void *user_data);
 static void on_vfo_mode_change(Subject *subj, void *user_data);
 static void on_vfo_agc_change(Subject *subj, void *user_data);
 static void on_cw_agc_cond_change(Subject *subj, void *user_data);
@@ -233,6 +234,13 @@ void radio_start() {
 
     subject_subscribe_and_notify((Subject*)cfg_band_vfoa_freq, on_vfo_freq_change, (void*)RADIO_VFO_A);
     subject_subscribe_and_notify((Subject*)cfg_band_vfob_freq, on_vfo_freq_change, (void*)RADIO_VFO_B);
+
+    subject_subscribe((Subject*)cfg_transverter_0_from, on_transverter_change, NULL);
+    subject_subscribe((Subject*)cfg_transverter_0_to, on_transverter_change, NULL);
+    subject_subscribe((Subject*)cfg_transverter_0_shift, on_transverter_change, NULL);
+    subject_subscribe((Subject*)cfg_transverter_1_from, on_transverter_change, NULL);
+    subject_subscribe((Subject*)cfg_transverter_1_to, on_transverter_change, NULL);
+    subject_subscribe((Subject*)cfg_transverter_1_shift, on_transverter_change, NULL);
 
     subject_subscribe_and_notify((Subject*)cfg_band_vfoa_mode, on_vfo_mode_change, (void*)RADIO_VFO_A);
     subject_subscribe_and_notify((Subject*)cfg_band_vfob_mode, on_vfo_mode_change, (void*)RADIO_VFO_B);
@@ -771,6 +779,14 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     if (changed) {
         LV_LOG_USER("Radio set vfo %i freq=%i (%i)", vfo, new_val, new_val - shift);
     }
+}
+
+/* A transverter's range or shift changed (Settings > General > TRANSVERTERS): both VFOs again with the shift that
+ * now applies. A shift set to 0 (off) left the base on the IF until the next retune, and the hand mic's PTT, which
+ * the base keys by itself, went out there: 29.500 MHz on 10 m for a 2 m 145.500 */
+static void on_transverter_change(Subject *subj, void *user_data) {
+    on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
+    on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
 }
 
 static void on_vfo_mode_change(Subject *subj, void *user_data) {
