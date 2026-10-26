@@ -110,10 +110,11 @@ def request(url, body, verify):
             code, text = r.status, r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         code, text = e.code, e.read().decode("utf-8", "replace")
-    except ssl.SSLCertVerificationError as e:
-        raise Fail(f"certificate refused ({one_line(e.verify_message or e, 40)})")
-    except (urllib.error.URLError, OSError) as e:
-        raise Retry(one_line(getattr(e, "reason", e) or e, 50))
+    except (urllib.error.URLError, OSError) as e:   # urllib wraps a refused certificate in a URLError
+        why = getattr(e, "reason", e)
+        if isinstance(why, ssl.SSLCertVerificationError):
+            raise Fail(f"certificate refused ({one_line(why.verify_message or why, 40)})")
+        raise Retry(one_line(why or e, 50))
     try:
         parsed = json.loads(text)
     except ValueError:
@@ -258,7 +259,7 @@ def send(conf, rec, station_id):
     body = {"key": conf["key"], "station_profile_id": station_id, "type": "adif", "string": rec}
     code, j, text = request(api_url(conf["url"], "qso"), body, conf.get("verify_tls", "1") != "0")
     if not isinstance(j, dict) or "status" not in j:   # not Wavelog: a WiFi login page, a proxy's page
-        raise Retry(f"no Wavelog answer (HTTP {code})")
+        raise Retry(f"not Wavelog's answer (HTTP {code})")
     status = str(j["status"]).lower()
     msgs = j.get("messages") if isinstance(j.get("messages"), list) else []
     full = re.sub(r"<br\s*/?>", " ", " ".join(map(str, msgs))).strip() or str(j.get("reason") or j.get("message") or "")
@@ -318,16 +319,17 @@ def cmd_sync(conf):
                 queue.pop(i)
                 save_json(QUEUE, queue)
             n = ok + dupe
+            said = ", ".join(([f"{qsos(ok)} uploaded"] if ok else []) + ([f"{qsos(dupe)} already there"] if dupe else []))
             result = ("ok " + (f"{n} Wavelog: {last} uploaded" if n == 1 and ok
                                else f"{n} Wavelog: {last} was already there" if n == 1
-                               else f"{n} Wavelog: {qsos(n)} uploaded") if n else "ok")
+                               else f"{n} Wavelog: {said}") if n else "ok")
             if bad:
                 result = f"error Wavelog refused {bad[0]}" + (f" (+{len(bad) - 1} more)" if len(bad) > 1 else "")
             elif nobody:
-                done = f"{last} uploaded, " if n == 1 and ok else f"{qsos(n)} uploaded, " if n else ""
+                done = f"{last} uploaded, " if n == 1 and ok else f"{said}, " if n else ""
                 result = f"error Wavelog: {done}no station profile for {nobody[0]}, {qsos(len(queue))} waiting"
         except Retry as e:   # the display says why in short; the web page has the last result
-            why = str(e) if str(e).startswith("server") else "no connection"
+            why = str(e) if str(e).startswith(("server", "not Wavelog")) else "no connection"
             result = f"retry {len(queue)} Wavelog: {why}, {qsos(len(queue))} waiting"
         except Fail as e:
             result = f"error Wavelog: {e}, {qsos(len(queue))} waiting"
