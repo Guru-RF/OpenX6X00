@@ -174,7 +174,7 @@ static uint8_t          pack_vbat, pack_vext;   /* its voltages, 0.1 V */
 static volatile int8_t  bat_pct = -1;   /* the battery %, -1 on external power or not measured yet */
 static bool             mute = false;
 static bool             tci_mute = false;   /* a TCI client transmits: the speaker and the monitor off */
-static bool             rec_moni = false;   /* a screen recording takes the TX audio: the monitor at 30 at least */
+static bool             rec_moni = false;   /* a screen recording takes the TX audio: the monitor at 30 at least (X6100) */
 static bool             digi_cap;       /* a digital app is open: never above its cap */
 
 static tx_watch_t       tx_watch;
@@ -468,13 +468,20 @@ void radio_change_mute() {
 
 /* Speaker AF and TX monitor together: both 0 when muted, with Speaker always off (a remote station), when btaudio
  * silences the speaker (headphones connected) or while a TCI client transmits; the monitor 0 at AF 0 too, which otherwise still played FT8's
- * tones (issue #1). A screen recording keeps the monitor at 30 at least, but not under a TCI client's PTT */
+ * tones (issue #1). A screen recording keeps the monitor at 30 at least on the X6100, but not under a TCI client's PTT */
 void radio_vol_refresh() {
     bool    muted = mute || tci_mute || btaudio_speaker_muted() || param_i_get(cfg_speaker_off);
     int32_t vol   = param_i_get(cfg_volume);
     int32_t moni  = param_i_get(cfg_moni);
+#ifdef BOARD_X6200
+    /* A screen recording leaves the monitor alone here: the X6200's speaker shares the case with the
+     * built-in microphone, and a monitor at 30 rang back into the transmission (issue #15) */
+    bool    rec_raise = false;
+#else
+    bool    rec_raise = rec_moni && !tci_mute;
+#endif
 
-    if (rec_moni && !tci_mute) moni = LV_MAX(moni, 30);
+    if (rec_raise) moni = LV_MAX(moni, 30);
     else if (muted || vol == 0) moni = 0;
     radio_lock();
     hw_set_i(HW_RXVOL, muted ? 0 : vol);
