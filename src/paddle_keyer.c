@@ -14,7 +14,17 @@
 
 #include <linux/input.h>
 
+/* The paddle that is not the element's own: its press is the one remembered */
+static bool other_held(const iambic_t *k, bool dit, bool dah) {
+    return k->last == PADDLE_DIT ? dah : k->last == PADDLE_DAH ? dit : false;
+}
+
 void iambic_paddles(iambic_t *k, bool dit, bool dah) {
+    bool o = other_held(k, dit, dah);
+
+    if (!o) {
+        k->other_on = false;    /* let go: pressed again, it is a press of its own */
+    }
     if (k->last == PADDLE_DIT && dah) {
         k->dah_mem = true;
     }
@@ -23,6 +33,12 @@ void iambic_paddles(iambic_t *k, bool dit, bool dah) {
     }
     if (dit && dah) {
         k->squeeze = true;
+        k->kept    = false;
+    } else if (k->squeeze && o && !k->other_on) {
+        /* The squeeze ended with the other paddle still held, and that one was pressed during
+         * the element: a press of its own that only overlapped. Right-left-right for a K with
+         * the dit down just before the dah is let go: mode A dropped the dit, and sent M */
+        k->kept = true;
     }
 }
 
@@ -31,7 +47,7 @@ paddle_el_t iambic_next(iambic_t *k, bool dit, bool dah) {
 
     iambic_paddles(k, dit, dah);
     /* A squeeze let go: mode A ends with the element just sent, B sends the other one too */
-    if (!k->mode_b && k->squeeze && !dit && !dah) {
+    if (!k->mode_b && k->squeeze && !dit && !dah && !k->kept) {
         k->dit_mem = k->dah_mem = false;
     }
     if (k->dit_mem || k->dah_mem) {
@@ -43,8 +59,9 @@ paddle_el_t iambic_next(iambic_t *k, bool dit, bool dah) {
     } else {
         next = PADDLE_NONE;
     }
-    k->dit_mem = k->dah_mem = k->squeeze = false;
-    k->last = next;
+    k->dit_mem = k->dah_mem = k->squeeze = k->kept = false;
+    k->last     = next;
+    k->other_on = other_held(k, dit, dah);
     iambic_paddles(k, dit, dah);   /* still squeezed as the new element starts */
     return next;
 }

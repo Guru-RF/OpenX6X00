@@ -24,6 +24,9 @@ typedef struct {
     bool        mode_b;
     bool        dit_mem, dah_mem;   /* the other paddle touched during an element */
     bool        squeeze;            /* both held during the element */
+    bool        other_on;           /* the other paddle held since the element started: a squeeze going on */
+    bool        kept;               /* the squeeze ended with the other paddle, pressed during the element,
+                                     * still held: mode A keeps its memory */
     paddle_el_t last;               /* the element on (with its space), NONE when idle */
 } iambic_t;
 
