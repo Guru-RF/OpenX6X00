@@ -1275,6 +1275,27 @@ static void on_band_id_change(Subject *subj, void *user_data) {
     band_plan_refresh();
 }
 
+/* Off a band the radio cannot use any more, to the one below (else the one above): the WR12 switched off, or at the
+ * start an X6200 left on 2 m before its transverters were off by default, a radio left on 4 m */
+static void band_usable_check(void *arg) {
+    if (cfg_is_valid_hw_freq(cparam_i_get(cfg_fg_freq))) {
+        return;
+    }
+    LV_LOG_USER("%i Hz cannot be tuned: another band", cparam_i_get(cfg_fg_freq));
+    cfg_band_load_next(false);
+    if (!cfg_is_valid_hw_freq(cparam_i_get(cfg_fg_freq))) {
+        cfg_band_load_next(true);
+    }
+}
+
+/* Settings > General > WR12 on HOST (the X6200, also on the web Display page): the bands above 55 MHz come or go,
+ * the band keys and the band plan strip follow */
+static void on_wr12_change(Subject *subj, void *user_data) {
+    band_usable_check(NULL);
+    band_plan_reload();
+    band_plan_refresh();
+}
+
 static void on_band_plan_change(Subject *subj, void *user_data) {
     band_plan_refresh();
     on_cluster_spots_wf_change(NULL, NULL);
@@ -1353,6 +1374,7 @@ lv_obj_t * main_screen() {
 
     build();
     buttons_load_page(&buttons_page_vol_1);
+    lv_async_call(band_usable_check, NULL);     /* once the radio runs */
     return obj;
 }
 
@@ -1391,6 +1413,7 @@ static void build(void) {
     subject_subscribe_delayed_and_notify((Subject*)cfg_cluster_spots_wf, on_cluster_spots_wf_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_band_plan, on_band_plan_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_band_id, on_band_id_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_wr12, on_wr12_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_cluster_column, on_cluster_column_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_spectrum_show, on_spectrum_layout_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_spectrum_height, on_spectrum_layout_change, NULL);
