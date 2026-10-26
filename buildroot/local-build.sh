@@ -50,6 +50,15 @@ sed -i "/_CONF_OPTS += -DHW_BACKEND=/d" $GUI_MK
 sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_CONF_OPTS += -DHW_BACKEND=$MODEL\n\n&|" $GUI_MK
 grep -q "^${GUI_VAR}_CONF_OPTS += -DHW_BACKEND=$MODEL" $GUI_MK
 
+echo "== Pat, the Winlink client (tools/pat/build.sh): one static ARMv7 binary for both radios"
+# Built with its own pinned Go (buildroot's is too old for it) and kept in $HOME/.cache/openx6x00;
+# the GUI's CMake installs it as /usr/bin/pat, so it is in the image and in the update bundle
+PAT_BIN=$(bash $GUI/tools/pat/build.sh)
+[ -x "$PAT_BIN" ]
+sed -i "/_CONF_OPTS += -DPAT_BINARY=/d" $GUI_MK
+sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_CONF_OPTS += -DPAT_BINARY=$PAT_BIN\n&|" $GUI_MK
+grep -q "^${GUI_VAR}_CONF_OPTS += -DPAT_BINARY=$PAT_BIN" $GUI_MK
+
 echo "== JS8 dependencies, root certificates, libdrm"
 grep -q "boost fftw-single" $GUI_MK || sed -i "s,^${GUI_VAR}_DEPENDENCIES = \(.*\)$,${GUI_VAR}_DEPENDENCIES = \1 boost fftw-single," $GUI_MK
 grep -q "^BR2_PACKAGE_BOOST=y" $DEFCONFIG || echo "BR2_PACKAGE_BOOST=y" >> $DEFCONFIG

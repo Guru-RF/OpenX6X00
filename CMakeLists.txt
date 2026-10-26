@@ -95,6 +95,12 @@ else()
         install(FILES third-party/cty/cty.dat DESTINATION share/x6100)
         # Copied to /mnt/themes at start when missing (main.c)
         install(DIRECTORY themes/RS DESTINATION share/x6100/themes)
+        # Pat, the Winlink client: built outside, by tools/pat/build.sh (buildroot/local-build.sh
+        # passes its path), and installed as /usr/bin/pat, so the update bundle carries it too
+        set(PAT_BINARY "" CACHE FILEPATH "Pat for the radio (tools/pat/build.sh)")
+        if(PAT_BINARY)
+                install(PROGRAMS ${PAT_BINARY} DESTINATION bin RENAME pat)
+        endif()
         # The apps' version, for the web configurator and the scripts. Read at configure time, so a
         # changed main.h must configure again: a plain rebuild left the old number in the file (and
         # in the update bundle, whose radios then thought they ran 0.1.0)
