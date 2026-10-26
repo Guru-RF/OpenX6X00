@@ -77,7 +77,8 @@ bottle.BaseTemplate.defaults.update(callsign=read_callsign, request=bottle.reque
 #
 # Same file and format as the radio GUI (src/cluster/client.c): "host=..."
 # and "port=..." lines are the server in use, "server=name|host|port" lines
-# the saved ones. The GUI reloads the server when the file's mtime changes.
+# the saved ones. The GUI reloads the server when the file changes: it is always replaced whole
+# (replace_file), so a save within the same 2 s of FAT's mtime is seen by its new inode.
 # Filters and alerts are more lines: filter_modes=CW,SSB,DIG,AMFM, filter_bands=40,20,
 # filter_activity=POTA,SOTA,WWBOTA,HOTA, max_age=MIN,
 # skip_spotters=A,B, alert=PATTERN|bands|mode, alert_popup=0|1, alert_beep=0|1.

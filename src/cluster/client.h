@@ -59,8 +59,8 @@ bool cluster_enabled_save(bool on);
  * one login to the cluster), else `callsign` */
 void cluster_config_login(char *out, size_t size, const char *callsign);
 
-/* Modification time of CLUSTER_CONF, 0 when missing: the app reloads the
- * server when the file changes (e.g. from the web configurator). */
+/* A stamp of CLUSTER_CONF (its mtime, inode and size), 0 when missing: the app reloads the server when it changes
+ * (e.g. from the web configurator). Not a time: compare it, nothing else. */
 time_t cluster_config_mtime(void);
 
 /* Filters and alerts, from the same file (the web page writes them):

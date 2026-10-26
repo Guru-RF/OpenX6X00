@@ -255,9 +255,15 @@ bool cluster_enabled_save(bool on) {
     return ok && rename(CLUSTER_CONF ".tmp", CLUSTER_CONF) == 0;
 }
 
+/* Changes with every save: the GUI and the web configurator replace the file by rename (a new inode). The mtime
+ * alone missed a second save within the same 2 s, the step FAT keeps it in on /mnt: "Use" C right after B, or a
+ * new login, left the radio on B or the old login until a reboot (issue #23). The nanoseconds are for the PC build,
+ * whose file systems give a freed inode number out again */
 time_t cluster_config_mtime(void) {
     struct stat st;
-    return stat(CLUSTER_CONF, &st) == 0 ? st.st_mtime : 0;
+    if (stat(CLUSTER_CONF, &st) != 0) return 0;
+    return (time_t)((uint64_t)st.st_mtime ^ (uint64_t)st.st_ino << 1 ^ (uint64_t)st.st_size << 17 ^
+                    (uint64_t)st.st_mtim.tv_nsec << 32);
 }
 
 uint8_t cluster_spot_mode_class(const cluster_spot_t *s) {
