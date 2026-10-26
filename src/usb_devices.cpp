@@ -6,6 +6,8 @@
 #include <chrono>
 #include <thread>
 #include <cstdio>
+#include <cstring>
+#include <dirent.h>
 
 
 extern "C" {
@@ -60,7 +62,48 @@ static void wait_new_device() {
 	}
 }
 
+#ifdef BOARD_X6200
+/* One sysfs attribute of a USB device, its newline cut; "" when it has none */
+static void usb_attr(const char *node, const char *name, char *out, size_t size) {
+    char  path[288];
+    FILE *f;
+
+    out[0] = '\0';
+    snprintf(path, sizeof(path), "/sys/bus/usb/devices/%s/%s", node, name);
+    if ((f = fopen(path, "r"))) {
+        if (fgets(out, size, f)) out[strcspn(out, "\n")] = '\0';
+        fclose(f);
+    }
+}
+
+/* What is on the HOST port, into the log at the start: bus 3, the SoC's OTG port as a host (the bench X6200's USB
+ * Ethernet showed up as 3-1; its own WiFi is on bus 1). For when the WR12 can be told from what it presents there:
+ * its USB ids, if it has any, are not known yet */
+static void log_host_port() {
+    DIR           *d = opendir("/sys/bus/usb/devices");
+    struct dirent *e;
+    int            n = 0;
+
+    if (!d) return;
+    while ((e = readdir(d))) {
+        char vid[8], pid[8], product[64];
+
+        if (strncmp(e->d_name, "3-", 2) || strchr(e->d_name, ':')) continue;     /* bus 3's devices, not interfaces */
+        usb_attr(e->d_name, "idVendor", vid, sizeof(vid));
+        usb_attr(e->d_name, "idProduct", pid, sizeof(pid));
+        usb_attr(e->d_name, "product", product, sizeof(product));
+        LV_LOG_USER("USB on HOST: %s %s:%s %s", e->d_name, vid, pid, product);
+        n++;
+    }
+    closedir(d);
+    if (!n) LV_LOG_USER("USB on HOST: nothing");
+}
+#endif
+
 void usb_devices_monitor_init() {
+#ifdef BOARD_X6200
+    log_host_port();
+#endif
     /* create udev object */
 	udev = udev_new();
 	if (!udev) {
