@@ -179,6 +179,7 @@ static bool             digi_cap;       /* a digital app is open: never above it
 static tx_watch_t       tx_watch;
 static bool             resync_due;     /* resend the whole register block (base_guard.h) */
 static uint64_t         resync_time;
+static uint64_t         block_time;     /* the whole register block last sent (resend_all), radio thread only */
 static volatile bool    morse_on;
 static volatile uint32_t morse_ms;      /* the GUI's CW key last changed */
 static uint64_t         atu_time;       /* the tune asked, then the base last seen in TX for it */
@@ -1360,6 +1361,7 @@ static bool resend_all() {
     radio_lock();
     bool ok = hw_resend_all();
     radio_unlock();
+    block_time = now_time;
     return ok;
 }
 
@@ -1377,9 +1379,11 @@ static void * radio_thread(void *arg) {
 
         /* Every 3 s in RX as always (every second in every state for a base that wants it, the X6200, which
          * otherwise takes the RF away about a second into TX: issues #1, #8); after a write error or an un-key
-         * at once, in TX too */
+         * at once, in TX too. The X6200's second counts from the last block, not from the last write: any write,
+         * even one the library skipped as unchanged, put it off, and a client setting a value more than once a
+         * second kept the block from going at all (#16) */
         bool keepalive = radio_caps() & HW_CAP_KEEPALIVE;
-        if ((keepalive ? idle > KEEPALIVE_MS : (idle > IDLE_TIMEOUT && state == RADIO_RX))
+        if ((keepalive ? now_time - block_time > KEEPALIVE_MS : (idle > IDLE_TIMEOUT && state == RADIO_RX))
             || (resync_due && now_time - resync_time >= RESYNC_RETRY_MS)) {
             resync_time = now_time;
             resync_due = !resend_all();
