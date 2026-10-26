@@ -136,12 +136,23 @@ def have_program():
         return False
 
 
+def remove(path):
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+
+
 def download():
     """Tailscale's tarball, checked against the pinned SHA-256, and tailscaled out of it"""
     os.makedirs(DIR, exist_ok=True)
+    part = os.path.join(DIR, "download.part")
+    tmp = os.path.join(DIR, "unpack")
+    # What an interrupted try left (a lost link, the power gone) is not counted against the room needed
+    remove(part)
+    shutil.rmtree(tmp, ignore_errors=True)
     if shutil.disk_usage(DIR).free < 120 * 1024 * 1024:
         raise Fail("not enough room on the card (120 MB needed)")
-    part = os.path.join(DIR, "download.part")
     h = hashlib.sha256()
     got = 0
     req = urllib.request.Request(TGZ_URL, headers={"User-Agent": "OpenX6X00"})
@@ -166,13 +177,12 @@ def download():
         os.remove(part)
         raise
     except OSError as e:
+        remove(part)
         raise Fail(f"download failed: {getattr(e, 'reason', e)}")
     if h.hexdigest() != TGZ_SHA256:
         os.remove(part)
         raise Fail("the download does not match its checksum")
     # BusyBox: no tar -z, and this Python has no zlib
-    tmp = os.path.join(DIR, "unpack")
-    shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(tmp)
     member = f"tailscale_{VERSION}_arm/tailscaled"
     r = subprocess.run(f"gunzip -c '{part}' | tar x -C '{tmp}' '{member}'", shell=True, capture_output=True,
