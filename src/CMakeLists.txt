@@ -64,6 +64,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_snake.c
     remote_server.c
     control_owner.c
+    winlink.c
 )
 
 # The radio behind src/hw/hw.h (HW_BACKEND, chosen in the top-level CMakeLists.txt)

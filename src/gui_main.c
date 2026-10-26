@@ -65,6 +65,7 @@
 #include "dialog_cluster.h"
 #include "app_sstv.h"
 #include "walkie.h"
+#include "winlink.h"
 
 /* LVGL draws the areas it refreshes here, then flushes them to the panel */
 #define DISP_BUF_SIZE (BOARD_DISP_W * BOARD_DISP_H * 4)
@@ -244,6 +245,7 @@ static void services_start(void) {
     ctl_init();
     tci_server_init();
     remote_server_init();
+    winlink_init();     /* ardopcf's audio and Pat's rigctld: idle until they connect */
     birdie_init();
     gps_init();
     if (!qso_log_init()) {
