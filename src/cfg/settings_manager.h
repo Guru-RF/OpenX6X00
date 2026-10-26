@@ -703,9 +703,9 @@ class SettingsManager {
     static void switch_band_observer_cb(Subject *subj, void *user_data);
 
     // The TX shift kept: while the band has one and split is on, the other VFO is the active one + the shift (on
-    // VFO A: B = A + shift; on VFO B: A = B - shift, the reverse). Run on every change of either VFO's frequency,
-    // the active VFO, split and the shift, so any path that tunes (knob, memory, CAT, TCI, the apps, a band switch)
-    // brings the TX frequency along; a write to the other VFO is put back
+    // VFO A: B = A + shift; on VFO B: A = B - shift, the reverse), in the active one's mode. Run on every change of
+    // either VFO's frequency or mode, the active VFO, split and the shift, so any path that tunes (knob, memory,
+    // CAT, TCI, the apps, a band switch) brings the TX frequency along; a write to the other VFO is put back
     void tx_shift_follow();
     static void tx_shift_cb(Subject *subj, void *user_data);
 
@@ -816,9 +816,9 @@ class SettingsManager {
     Subscription vfoa_freq_obs_;
     Subscription vfob_freq_obs_;
 
-    // The TX shift's observers (both VFO frequencies, the active VFO, split, the shift) and its re-entrancy guard:
-    // tx_shift_follow writes a VFO it watches
-    Subscription tx_shift_obs_[5];
+    // The TX shift's observers (both VFO frequencies and modes, the active VFO, split, the shift) and its re-entrancy
+    // guard: tx_shift_follow writes a VFO it watches
+    Subscription tx_shift_obs_[7];
     bool         tx_shift_busy_ = false;
 
     // Background flush thread control.

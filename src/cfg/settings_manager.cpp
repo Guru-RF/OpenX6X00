@@ -109,8 +109,8 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
 
     // The TX shift follows the VFOs: after the band follow above, so a tune into another band has loaded that
     // band's shift and split when it runs
-    Subject *tx_shift_subj[] = {&p_band_vfoa_freq, &p_band_vfob_freq, &p_band_current_vfo, &p_band_split,
-                                &p_band_tx_shift};
+    Subject *tx_shift_subj[] = {&p_band_vfoa_freq, &p_band_vfob_freq, &p_band_vfoa_mode, &p_band_vfob_mode,
+                                &p_band_current_vfo, &p_band_split, &p_band_tx_shift};
     for (size_t i = 0; i < std::size(tx_shift_obs_); i++)
         tx_shift_obs_[i] = Subscription(tx_shift_subj[i]->subscribe(tx_shift_cb, this));
 
@@ -275,10 +275,14 @@ void SettingsManager::tx_shift_follow() {
         return;
     }
     tx_shift_busy_ = true;
+    // The mode too: in split the base transmits on the other VFO in that VFO's own mode, so a B left in NFM sent
+    // FM on an SSB band (bench, 2026-10-26)
     if (p_band_current_vfo.get() == RADIO_VFO_A) {
         p_band_vfob_freq.set(p_band_vfoa_freq.get() + shift);
+        p_band_vfob_mode.set(p_band_vfoa_mode.get());
     } else {
         p_band_vfoa_freq.set(p_band_vfob_freq.get() - shift);
+        p_band_vfoa_mode.set(p_band_vfob_mode.get());
     }
     // Independent VFOs: the other VFO is on this band too, so a VFO switch stays here (the reverse) instead of
     // loading the band that VFO was on before

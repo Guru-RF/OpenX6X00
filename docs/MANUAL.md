@@ -748,9 +748,10 @@ CONTROLS > TX shift <band>, kHz (the band the radio is on; not shown on a band
 the radio cannot transmit on), or the web configurator's Bands page, TX shift
 column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
 
-- With a shift, split comes on and VFO B stays at VFO A + the shift: tune A
-  anywhere (the knob, a memory, the band keys, CAT, TCI, the apps) and B
-  follows. The radio listens on A and transmits on B.
+- With a shift, split comes on and VFO B stays at VFO A + the shift, in A's
+  mode: tune A anywhere (the knob, a memory, the band keys, CAT, TCI, the
+  apps) or change its mode, and B follows. The radio listens on A and
+  transmits on B.
 - The status bar shows the shift in place of SPL-A ("-600k", "+1.6M"); the
   Black Metal and Total Black themes show it after the other VFO.
 - The VFO key gives the reverse: on VFO B the radio listens on the
@@ -763,8 +764,9 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   Bands page (for example 10m ending at 29.520 MHz and a "10m FM" from 29.520
   to 29.700 MHz) and the shift to that one: tuning into it brings the shift,
   tuning out of it takes it away.
-- While the shift is on, VFO B is the shift's: a frequency written to B (CAT,
-  A=B) goes back to A + the shift.
+- While the shift is on, VFO B is the shift's: a frequency or a mode written
+  to B (CAT, A=B) goes back to A + the shift in A's mode (on REV the other
+  way round).
 - The radio transmits only where it can (HF, a transverter that is on). Where
   the shift takes B off it, the VFO on the status bar turns red (in Black
   Metal and Total Black the other VFO's frequency), and PTT, the apps, CW, the
