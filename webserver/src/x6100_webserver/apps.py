@@ -811,6 +811,161 @@ def field_log_file(name):
     return bottle.static_file(name, root=field_path("logs"), download=True, mimetype="text/plain")
 
 
+# Wavelog routes: x6100-wavelog (rootfs/usr/sbin) talks to the user's Wavelog; the GUI runs it after each QSO.
+# <FIELD_DIR>/wavelog.conf: enabled, url, key, station_id, station_name, verify_tls, since. The key never goes
+# back to the browser, only whether one is set; wavelog.state and wavelog.queue are the helper's.
+
+WAVELOG_KEYS = ("enabled", "url", "key", "station_id", "station_name", "verify_tls", "since")
+WAVELOG_URL = r"https?://[^\s<>\"'=]{3,200}"
+
+
+def wavelog_read():
+    conf = {}
+    try:
+        with open(field_path("wavelog.conf"), errors="replace") as f:
+            for line in f:
+                k, sep, v = line.strip().partition("=")
+                if sep and k.strip() in WAVELOG_KEYS:
+                    conf[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return conf
+
+
+def wavelog_write(conf):
+    path = field_path("wavelog.conf")
+    os.makedirs(settings.FIELD_DIR, exist_ok=True)
+    tmp = path + ".tmp"
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        for k in WAVELOG_KEYS:
+            if conf.get(k, "") != "":
+                f.write(f"{k}={conf[k]}\n")
+    os.rename(tmp, path)
+
+
+def wavelog_json(name, default):
+    try:
+        with open(field_path(name), errors="replace") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def wavelog_state(result=None):
+    conf = wavelog_read()
+    last = wavelog_json("wavelog.state", {}).get("last") or {}
+    since = int(conf.get("since") or 0) if (conf.get("since") or "").isdigit() else 0
+    return {"enabled": conf.get("enabled") == "1", "url": conf.get("url", ""), "key": bool(conf.get("key")),
+            "station_id": conf.get("station_id", ""), "station_name": conf.get("station_name", ""),
+            "verify_tls": conf.get("verify_tls", "1") != "0",
+            "since": time.strftime("%Y-%m-%d %H:%M", time.localtime(since)) if since else "",
+            "queue": len(wavelog_json("wavelog.queue", [])), "result": result,
+            "last": {"result": last.get("result", ""),
+                     "time": time.strftime("%Y-%m-%d %H:%M", time.localtime(last["time"])) if last.get("time") else ""}}
+
+
+def wavelog_run(cmd, form=None, timeout=330):
+    """x6100-wavelog's line; form: URL, key and certificate check typed on the page, not saved yet"""
+    env = dict(os.environ, X6100_FIELD_DIR=settings.FIELD_DIR)
+    if form:
+        env.update(X6100_WAVELOG_URL=form["url"], X6100_WAVELOG_VERIFY="1" if form["verify_tls"] else "0")
+        if form["key"]:
+            env["X6100_WAVELOG_KEY"] = form["key"]
+    try:   # the helper gives up after 300 s (its RUN_LIMIT): a little longer here, to hear why
+        r = subprocess.run([settings.WAVELOG_CMD, cmd], capture_output=True, text=True, timeout=timeout, env=env)
+        lines = r.stdout.strip().splitlines()
+        return lines[-1] if lines else f"error exit code {r.returncode}"
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"error {e}"
+
+
+def wavelog_form(body):
+    """URL, key and certificate check of the page's form, checked; None and the reason when wrong"""
+    url = str(body.get("url", "")).strip()
+    key = str(body.get("key", "")).strip()
+    if url and not re.fullmatch(WAVELOG_URL, url):
+        return None, "The URL starts with http:// or https://, no spaces"
+    if key and not re.fullmatch(r"[!-~]{1,128}", key):
+        return None, "A key is 1-128 printable characters, no spaces"
+    return {"url": url, "key": key, "verify_tls": body.get("verify_tls", True) is not False}, None
+
+
+@app.route('/wavelog')
+def wavelog_page():
+    return bottle.template('wavelog')
+
+
+@app.get('/api/wavelog')
+def get_wavelog():
+    return wavelog_state()
+
+
+@app.post('/api/wavelog')
+def set_wavelog():
+    """{"enabled", "url", "key" ("": the one stored stays), "station_id", "station_name", "verify_tls"},
+    or {"remove": true}: the key goes and the upload stops. Switched on, QSOs from now on are sent."""
+    body = bottle.request.json or {}
+    conf = wavelog_read()
+    if body.get("remove"):
+        conf.pop("key", None)
+        conf["enabled"] = "0"
+    else:
+        form, why = wavelog_form(body)
+        if not form:
+            return api_error(400, why)
+        sid = str(body.get("station_id", "")).strip()
+        if sid and not (sid.isdigit() or sid == "auto"):   # auto: the profile with the QSO's station callsign
+            return api_error(400, "No such station profile")
+        name = "" if sid == "auto" else re.sub(r"[\r\n=]", " ", str(body.get("station_name", "")))[:60].strip()
+        enabled = bool(body.get("enabled"))
+        key = form["key"] or conf.get("key", "")
+        if enabled and not (form["url"] and key and sid):
+            return api_error(400, "To switch it on: the URL, an API key and a station profile")
+        if enabled and conf.get("enabled") != "1":
+            conf["since"] = str(int(time.time()))   # from now on: the log from before is not sent
+        conf.update(url=form["url"], station_id=sid, station_name=name, verify_tls="1" if form["verify_tls"] else "0",
+                    enabled="1" if enabled else "0")
+        if key:
+            conf["key"] = key
+    try:
+        wavelog_write(conf)
+    except OSError as e:
+        return api_error(500, f"Can't save: {e}")
+    if conf.get("enabled") == "1":   # what waits goes now, not at the next QSO
+        threading.Thread(target=wavelog_run, args=("sync",), daemon=True).start()
+    return wavelog_state()
+
+
+@app.post('/api/wavelog/stations')
+def wavelog_stations():
+    form, why = wavelog_form(bottle.request.json or {})
+    if not form:
+        return api_error(400, why)
+    line = wavelog_run("stations", form, timeout=40)
+    if not line.startswith("ok "):
+        return api_error(502, "Wavelog: " + line.partition(" ")[2])
+    try:
+        return {"stations": json.loads(line[3:])}
+    except ValueError:
+        return api_error(502, "Wavelog: an answer the page can't read")
+
+
+@app.post('/api/wavelog/test')
+def wavelog_test():
+    form, why = wavelog_form(bottle.request.json or {})
+    if not form:
+        return api_error(400, why)
+    line = wavelog_run("test", form, timeout=40)
+    if not line.startswith("ok "):
+        return api_error(502, "Wavelog: " + line.partition(" ")[2])
+    return {"version": line[3:]}
+
+
+@app.post('/api/wavelog/sync')
+def wavelog_sync():
+    return wavelog_state(wavelog_run("sync"))
+
+
 def field_active_log():
     """The log of the activation running on the radio ("" when none), from the GUI's state file."""
     try:

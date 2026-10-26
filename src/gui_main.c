@@ -9,6 +9,7 @@
  *  order they need each other, then the GUI loop.
  */
 
+#include "dialog_field.h"
 #include "msg_box.h"
 #include "board.h"
 #include "lvgl/lvgl.h"
@@ -326,6 +327,7 @@ int main(void) {
         main_screen_start_app(ACTION_APP_FIELD);
     }
     lv_timer_set_repeat_count(lv_timer_create(update_confirm_cb, 60000, NULL), 1);
+    dialog_field_wavelog_start();
     gui_loop();
     return 0;
 }
