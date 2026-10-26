@@ -371,7 +371,7 @@ void tx_info_update(float p, float s, float a) {
         lpf(&vswr, s, 0.9f, 0.0f);
     }
     msg_id++;
-    scheduler_put_noargs(update_tx_info);
+    scheduler_put_coalesced(update_tx_info);
 }
 
 void tx_info_get(float *p, float *s) {

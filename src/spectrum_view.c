@@ -502,7 +502,7 @@ static void on_levels_change(Subject *subj, void *user_data) {
 
 static void on_vfo_change(Subject *subj, void *user_data) {
     vfo_hz = cparam_i_get(cfg_fg_freq);
-    scheduler_put_noargs(spectrum_refresh);
+    scheduler_put_coalesced(spectrum_refresh);
 }
 
 static void on_rit_change(Subject *subj, void *user_data) {
@@ -594,7 +594,7 @@ void spectrum_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint8_
     }
     last_fft_dec = fft_dec;
     pthread_mutex_unlock(&data_mux);
-    scheduler_put_noargs(spectrum_refresh);
+    scheduler_put_coalesced(spectrum_refresh);
 }
 
 int32_t spectrum_span(float *vfo_at) {

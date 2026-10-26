@@ -11,9 +11,9 @@
 #include <condition_variable>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <mutex>
 #include <pthread.h>
-#include <queue>
 
 extern "C" {
     #include "lvgl/lvgl.h"
@@ -34,9 +34,10 @@ struct item_t {
     scheduler_fn_t fn;
     void    *arg;
     sync_t  *sync;      /* NULL: arg is our copy, freed after the call */
+    bool     coalesced; /* scheduler_put_coalesced: one of its fn in the queue at a time */
 };
 
-static std::queue<item_t> queue;
+static std::deque<item_t> queue;
 static std::mutex m_mutex;
 
 static pthread_t gui_thread;
@@ -51,14 +52,24 @@ bool scheduler_on_gui_thread() {
     return gui_thread_known && pthread_equal(pthread_self(), gui_thread);
 }
 
-static bool put(scheduler_fn_t fn, void *arg, sync_t *sync, bool urgent) {
+static bool put(scheduler_fn_t fn, void *arg, sync_t *sync, bool urgent, bool coalesced = false) {
     std::lock_guard<std::mutex> lock(m_mutex);
+    /* One already waiting covers this ask: it shows what is there when it runs. A redraw asked at each DSP
+     * frame (3 jobs every ~95 ms on the X6200) took all 64 places while the GUI thread was behind at the start,
+     * and every other job was dropped for seconds (#33) */
+    if (coalesced) {
+        for (const item_t &i : queue) {
+            if (i.coalesced && i.fn == fn) {
+                return true;
+            }
+        }
+    }
     size_t limit = urgent ? QUEUE_MAX_SIZE + QUEUE_URGENT : QUEUE_MAX_SIZE;
     if (queue.size() >= limit) {
         LV_LOG_ERROR("Scheduler queue overflow");
         return false;
     }
-    queue.push({fn, arg, sync});
+    queue.push_back({fn, arg, sync, coalesced});
     return true;
 }
 
@@ -89,6 +100,10 @@ bool scheduler_put_noargs(scheduler_fn_t fn) {
     return scheduler_put(fn, NULL, 0);
 }
 
+bool scheduler_put_coalesced(scheduler_fn_t fn) {
+    return put(fn, nullptr, nullptr, false, true);
+}
+
 bool scheduler_call(scheduler_fn_t fn, void *arg) {
     if (scheduler_on_gui_thread()) {
         fn(arg);
@@ -107,10 +122,12 @@ void scheduler_work() {
     item_t item;
     for (int budget = WORK_BUDGET; budget; budget--) {
         {
-            std::lock_guard<std::mutex> lock(m_mutex);   /* the emptiness test under the lock too */
+            /* The emptiness test under the lock too. Out of the queue before it runs: a coalesced ask
+             * meanwhile is for data newer than this run shows, and is queued */
+            std::lock_guard<std::mutex> lock(m_mutex);
             if (queue.empty()) break;
             item = queue.front();
-            queue.pop();
+            queue.pop_front();
         }
         item.fn(item.arg);
         if (item.sync) {

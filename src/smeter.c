@@ -565,7 +565,7 @@ void meter_update(float db, float beta) {
     }
     meter_db_raw = db;
     meter_db = meter_db * beta + db * (1.0f - beta);
-    scheduler_put_noargs(show_value);
+    scheduler_put_coalesced(show_value);
     event_send(obj, LV_EVENT_REFRESH, NULL);
 }
 

@@ -45,6 +45,13 @@ bool scheduler_put_urgent(scheduler_fn_t fn, void *arg, size_t arg_size);
 bool scheduler_put_noargs(scheduler_fn_t fn);
 
 /**
+ * Run fn(NULL) on the GUI thread later, once however often it is asked before it runs: for a job that
+ * shows what is there when it runs (a redraw), asked for at each frame of the DSP. True also when one
+ * is queued already; one asked while it runs runs again after. False: the queue is full
+ */
+bool scheduler_put_coalesced(scheduler_fn_t fn);
+
+/**
  * Run fn(arg) on the GUI thread and wait for it; on the GUI thread itself it runs at once.
  * arg is the caller's, not copied. False when the queue is full (fn did not run)
  */

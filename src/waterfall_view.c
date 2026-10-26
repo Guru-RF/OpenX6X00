@@ -181,7 +181,7 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
     while (id < 255 && (n += hist[id]) < size * 3 / 4) id++;
     row->floor = id;
     __atomic_add_fetch(&new_rows, 1, __ATOMIC_RELEASE);
-    scheduler_put_noargs(refresh_waterfall);
+    scheduler_put_coalesced(refresh_waterfall);
 }
 
 /* ---- One row onto the screen's pixels ---- */
@@ -419,7 +419,7 @@ static void do_scroll_timer(lv_timer_t *t) {
     } else {
         wf_center_freq = target;
     }
-    scheduler_put_noargs(refresh_waterfall);
+    scheduler_put_coalesced(refresh_waterfall);
 }
 
 /* No planes: a step each time the image is drawn */
@@ -495,7 +495,7 @@ static void on_zoom_changed(Subject *subj, void *user_data) {
 
 static void on_view_changed(Subject *subj, void *user_data) {
     update_middle_line();
-    scheduler_put_noargs(refresh_waterfall);
+    scheduler_put_coalesced(refresh_waterfall);
 }
 
 /* A new frequency: the next rows the base sends may still be of the old one */
@@ -616,7 +616,7 @@ void waterfall_set_height(lv_coord_t h) {
             lv_img_set_src(img, frame);
         }
         set_line_height();
-        scheduler_put_noargs(refresh_waterfall);
+        scheduler_put_coalesced(refresh_waterfall);
         return;
     }
 
