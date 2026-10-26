@@ -9,6 +9,7 @@
 /* The GUI's own event codes, and a queue for events sent from other threads: LVGL is not
  * thread safe, so they wait here until the GUI loop delivers them (event_obj_check()). */
 
+#include "gui_wake.h"
 #include "gui_events.h"
 
 #include "key_input.h"
@@ -116,6 +117,7 @@ void event_send(lv_obj_t *obj, lv_event_code_t event_code, void *param) {
     ring[head] = (queued_t){.obj = obj, .code = event_code, .param = param};
     head       = next;
     pthread_mutex_unlock(&lock);
+    gui_wake();
 }
 
 void event_send_key(int32_t key) {
