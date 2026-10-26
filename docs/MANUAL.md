@@ -872,8 +872,8 @@ TX power while a digital app is open:
 
 - The power is capped at 7 W. With a higher setting the app says so
   ("Power is limited to 7W"), and the setting comes back when you close it.
-- The Power button in the apps sets the power: 0.5, 1, 2, 3, 5, 7 W. WSPR's
-  Power button is its own and leaves the radio's power alone (see
+- The Power button in the apps sets the power: 0.1, 0.2, 0.5, 1, 2, 3, 5,
+  7 W. WSPR's Power button is its own and leaves the radio's power alone (see
   [WSPR](#wspr)).
 - Digital apps reopen on their last frequency and mode.
 
