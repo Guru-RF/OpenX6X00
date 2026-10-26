@@ -282,6 +282,22 @@ static int _11_x6200_transverters_off() {
     return 0;
 }
 
+/* Settings > Audio's Play and Rec gain sliders wrote their dB value into the Line-in too, as a whole number (0 at
+ * 0 dB and below), and it was saved: on the X6200 the apps' audio then reached the base at next to nothing and FT8
+ * went out at 0 W, across updates (#16). Back to the default 10 where the Line-in is still what one of those sliders
+ * put there; one set on its own row afterwards stays */
+static int _12_line_in_restore() {
+    if (sqlite3_exec(db,
+                     "UPDATE params SET val = 10 WHERE name = 'line_in' AND val < 10 AND val IN "
+                     "(SELECT MAX(0, CAST(g.val AS INTEGER)) FROM params AS g "
+                     "WHERE g.name IN ('play_gain_db_f', 'rec_gain_db_f'));",
+                     NULL, NULL, NULL) != SQLITE_OK) {
+        printf("Cannot restore the Line-in: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+    return 0;
+}
+
 static int (*migrations[])() = {
     _0_init_migrations,
     _1_create_ftx_table,
@@ -295,6 +311,7 @@ static int (*migrations[])() = {
     _9_vhf_rx_bands,
     _10_band_60m,
     _11_x6200_transverters_off,
+    _12_line_in_restore,
 };
 
 int migrations_apply(void) {

@@ -692,14 +692,15 @@ static uint8_t make_line_gain(uint8_t row) {
     return row + 1;
 }
 
-/* Play and Rec gain in dB: what the mixer took is saved and goes to the Line-in too */
+/* Play and Rec gain in dB: what the mixer took is saved. Not the Line-in, the base's own level on the row above: this
+ * wrote the dB value there too, as a whole number (0 at 0 dB and below), and on the X6200 the apps then went out at
+ * 0 W (#16; migration _12 puts it back). The stock X6200 GUI does not write it either */
 static void play_rec_gain_cb(lv_event_t *e) {
     lv_obj_t *s   = lv_event_get_target(e);
     bool      rec = lv_event_get_user_data(e) != NULL;
     float     db  = rec ? audio_set_rec_vol(lv_slider_get_value(s)) : audio_set_play_vol(lv_slider_get_value(s));
 
     params_float_set(rec ? &params.rec_gain_db_f : &params.play_gain_db_f, db);
-    radio_set_line_in(db);
     slider_text(s, "%.1f", db);
 }
 
