@@ -754,6 +754,7 @@ static const key_action_t front_actions[] = {
     /* Tools */
     {" APP Cluster ", ACTION_APP_CLUSTER},
     {" APP CW Trainer ", ACTION_APP_CWTRAINER},
+    {" APP CW Keyboard ", ACTION_APP_CW_KBD},
     {" APP Field Ops ", ACTION_APP_FIELD},
     {" APP Bands ", ACTION_APP_BANDS},
     {" APP Channels ", ACTION_APP_CHANNELS},

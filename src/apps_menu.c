@@ -51,6 +51,7 @@ static const struct {
     {"SWR Scan", "Sweep, transmits", "swr", OPEN_APP, ACTION_APP_SWRSCAN},
     {"Recorder", "RX audio", "recorder", OPEN_APP, ACTION_APP_RECORDER},
     {"CW Trainer", "Learn CW", "trainer", OPEN_APP, ACTION_APP_CWTRAINER},
+    {"CW Keyboard", "CW as you type", "text", OPEN_APP, ACTION_APP_CW_KBD},   /* the keyboard of RTTY, PSK */
     {"GPS", "Position, time", "gps", OPEN_APP, ACTION_APP_GPS},
     {"Screen Rec", "Screen and audio", "screenrec", OPEN_SCREEN_REC, 0},
     {"Walkie", "Portrait screen", "walkie", OPEN_WALKIE, 0},

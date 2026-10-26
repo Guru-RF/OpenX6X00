@@ -338,6 +338,7 @@ static button_data_t btn_swr = app_btn("SWR\nScan", ACTION_APP_SWRSCAN);
 static button_data_t btn_rec = app_btn("RX\nRecorder", ACTION_APP_RECORDER);
 static button_data_t btn_settings = app_btn("Settings", ACTION_APP_SETTINGS);
 static button_data_t btn_cwt = app_btn("CW\nTrainer", ACTION_APP_CWTRAINER);
+static button_data_t btn_cwkbd = app_btn("CW\nKeyboard", ACTION_APP_CW_KBD);
 static button_data_t btn_field = app_btn("Field\nOps", ACTION_APP_FIELD);
 static button_data_t btn_chans = app_btn("Channels", ACTION_APP_CHANNELS);
 static button_data_t btn_bands = app_btn("Bands", ACTION_APP_BANDS);
@@ -382,7 +383,7 @@ static buttons_page_t page_mfk_3 = {{&btn_mfk_p3, &btn_wf_mode, &btn_span_wider,
 
 static buttons_page_t page_app_1 = {{&btn_app_p1, &btn_modes, &btn_cluster, &btn_swr, &btn_rec}};
 static buttons_page_t page_app_2 = {{&btn_app_p2, &btn_settings, &btn_cwt, &btn_field, &btn_chans}};
-static buttons_page_t page_app_3 = {{&btn_app_p3, &btn_bands, &btn_gps, &btn_screen_rec}};   /* the MFK 3:3 one too */
+static buttons_page_t page_app_3 = {{&btn_app_p3, &btn_bands, &btn_gps, &btn_screen_rec, &btn_cwkbd}};   /* Screen rec: the MFK 3:3 one too */
 
 static buttons_page_t page_key_1 = {{&btn_key_p1, &btn_key_speed, &btn_key_vol, &btn_key_train, &btn_key_tone}};
 static buttons_page_t page_key_2 = {{&btn_key_p2, &btn_key_mode, &btn_iambic, &btn_qsk, &btn_ratio}};
