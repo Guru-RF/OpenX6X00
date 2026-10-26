@@ -1054,10 +1054,12 @@ static void battery_log(const hw_pack_t *p) {
 }
 
 static swr_guard_t swr_guard;
+static atomic_uint swr_trips;
 
 /* SWR protection, on the GUI thread: what the GUI keys lets go (a PTT held on the radio or the
  * mic, VOX and the radio's own keyer are the base's: they may key again) */
 static void swr_trip_cb(void *arg) {
+    atomic_fetch_add(&swr_trips, 1);    /* before the modem bit drops: whoever sees it gone can tell why */
     cw_encoder_stop();
     paddle_keyer_stop();
     dialog_msg_voice_ptt_pressed();
@@ -1069,6 +1071,10 @@ static void swr_trip_cb(void *arg) {
 
 int radio_get_battery() {
     return bat_pct;
+}
+
+unsigned radio_swr_trips(void) {
+    return atomic_load(&swr_trips);
 }
 
 static bool radio_tick() {
