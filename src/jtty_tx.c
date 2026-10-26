@@ -211,14 +211,20 @@ bool jtty_tx_send(const char *text, int profile, char *canon)
 
 void jtty_tx_stop(void)
 {
+    /* Under the lock: the TX thread clears tx_on and stop_req together when a transmission
+     * ends, and a stop set just after that refused every later send ("TX queue full") */
+    pthread_mutex_lock(&mux);
     if (tx_on)
         stop_req = true;
+    pthread_mutex_unlock(&mux);
 }
 
 void jtty_tx_abort(void)
 {
+    pthread_mutex_lock(&mux);
     if (tx_on)
         abort_req = true;
+    pthread_mutex_unlock(&mux);
 }
 
 bool jtty_tx_is_on(void)
