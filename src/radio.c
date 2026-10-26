@@ -50,6 +50,7 @@
 #include "base_guard.h"
 #include "audio.h"
 #include "bat_est.h"
+#include "bat_watch.h"
 #include "clock.h"
 #include "wifi.h"
 
@@ -68,11 +69,6 @@
 #define FILTER_2_OFFSET 60
 #define FILTER_2_OFFSET_IN 20
 #define FILTER_2_OFFSET_OUT (FILTER_2_OFFSET - FILTER_2_OFFSET_IN)
-
-/* Battery voltage in 0.1 V units; LOW + HYSTERESIS = HIGH (upstream 21c2b93) */
-#define LOW_BATTERY_VBAT_LOW     60
-#define LOW_BATTERY_HYSTERESIS   2
-#define LOW_BATTERY_VBAT_HIGH    (LOW_BATTERY_VBAT_LOW + LOW_BATTERY_HYSTERESIS)
 
 /**********************
  *      MACROS
@@ -1062,6 +1058,29 @@ static void battery_warn_cb(void *arg) {
     }
 }
 
+/* The model, and the log fed again, once at the base's first reading, whatever it says: the stretch on battery goes
+ * on across a GUI restart (the model learns only what is newer than it); no model yet, it learns from the old log
+ * too. During the start, as before the readings had to settle (bat_watch.h): 15 s into a running GUI the replay of
+ * a full log would hold the radio thread, and with it the spectrum, the S-meter and the X6200's register keepalive */
+static void battery_model_load(void) {
+    static bool done;
+
+    if (done) {
+        return;
+    }
+    done = true;
+
+    uint64_t t0 = get_time();
+
+    if (!bat_est_load(BATTERY_MODEL)) {
+        bat_est_replay(BATTERY_LOG ".1");
+    }
+    bat_est_replay(BATTERY_LOG);
+    bat_est_save(BATTERY_MODEL);
+    fprintf(stderr, "battery: model and log read at %llu ms, in %llu ms\n", (unsigned long long)(now_time - start_time),
+            (unsigned long long)(get_time() - t0));
+}
+
 static void battery_log(const hw_pack_t *p) {
     static time_t   last;
     static uint64_t prev_ms;
@@ -1083,15 +1102,6 @@ static void battery_log(const hw_pack_t *p) {
     prev_ms = now_time;
     if (t - last < 60) {
         return;
-    }
-    /* At start the log is fed again: the stretch on battery goes on across a GUI restart (the
-     * model learns only what is newer than it). No model yet: learn from the old log too */
-    if (!last) {
-        if (!bat_est_load(BATTERY_MODEL)) {
-            bat_est_replay(BATTERY_LOG ".1");
-        }
-        bat_est_replay(BATTERY_LOG);
-        bat_est_save(BATTERY_MODEL);
     }
     last = t;
     if ((f = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "r"))) {
@@ -1149,6 +1159,32 @@ static void battery_log(const hw_pack_t *p) {
     fprintf(f, "%ld,%.1f,%u,%.1f,%u,%u,%d,%u,%.0f,%.1f,%u,%u,%u\n", (long) t, s.vbat, p->batcap, s.vext,
             p->charging, s.tx_s > 0, s.bl, mhz, s.tx_s, s.tx_w, s.wifi, s.bt, s.hp);
     fclose(f);
+}
+
+/* The base's supply readings until they count, into the run's log: what it sends at power-on, for a
+ * report (#17). A line for each change, then one when they count */
+static void battery_startup_log(const bat_watch_t *w, const hw_pack_t *p) {
+    static bool     done;
+    static uint16_t shown = UINT16_MAX;     /* vbat, batcap */
+    static uint8_t  shown_ext;
+
+    if (done) {
+        return;
+    }
+    if (w->counts) {
+        fprintf(stderr, "battery: readings count from %llu ms: %.1f V %u%%, external %.1f V\n",
+                (unsigned long long)(now_time - start_time), p->vbat * 0.1f, p->batcap, p->vext * 0.1f);
+        done = true;
+        return;
+    }
+    if (shown == (p->vbat << 8 | p->batcap) && shown_ext == p->vext) {
+        return;
+    }
+    shown = p->vbat << 8 | p->batcap;
+    shown_ext = p->vext;
+    fprintf(stderr, "battery: start-up reading at %llu ms: %.1f V %u%%, external %.1f V (flag %u, charging %u)\n",
+            (unsigned long long)(now_time - start_time), p->vbat * 0.1f, p->batcap, p->vext * 0.1f, p->vext_flag,
+            p->charging);
 }
 
 static swr_guard_t swr_guard;
@@ -1225,25 +1261,24 @@ static bool radio_tick() {
 
         if (delay++ > 10) {
             delay = 0;
-            clock_update_power(pack->vext * 0.1f, pack->vbat*0.1f, pack->batcap, pack->charging);
-            battery_log(pack);
-            /* Only on a change, with hysteresis: around 6.0 V the 30 s
-             * power-off timer was started and stopped over and over */
-            /* External power: the flag alone is not enough, charging an
-             * empty battery it stayed clear with 11.7 V on the jack and the
-             * radio switched itself off on the charger */
-            bool ext = pack->vext_flag || pack->charging || pack->vext >= 90;
-            /* At power-on the base sends a few packets before it has measured anything (0 V on both):
-             * one of them alone started "Low battery!" with a full battery on the charger. Low only
-             * after 3 readings in a row (about 1.2 s), and never on a reading of nothing */
-            static uint8_t low_reads;
-            bool           measured = pack->vbat > 0 || pack->vext > 0;
+            /* The base's first readings after power-on are not the battery's (bat_watch.h): the top bar,
+             * the battery log and time left, its warnings and the power-off wait until they count */
+            static bat_watch_t bat_watch;
+
+            bat_watch_reading(&bat_watch, pack->vbat, pack->vext, pack->vext_flag, pack->charging, now_time);
+
+            battery_startup_log(&bat_watch, pack);
+            battery_model_load();
+            if (bat_watch.counts) {
+                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, pack->batcap, pack->charging);
+                battery_log(pack);
+            }
 
             /* The % sags under the TX current and comes back slowly: the last RX reading holds
              * while transmitting and for 30 s after (also in the top bar, clock.c) */
             static uint64_t hold_until;
             static int8_t   held_cap = -1;
-            int8_t          cap = measured && !ext ? pack->batcap : -1;
+            int8_t          cap = bat_watch.counts && !bat_watch.ext ? pack->batcap : -1;
 
             if (radio_get_state() == RADIO_TX) hold_until = now_time + 30000;
             if (now_time < hold_until && held_cap >= 0 && cap >= 0) cap = held_cap;
@@ -1252,13 +1287,9 @@ static bool radio_tick() {
             if (cap >= 0 && cap != pack->batcap)
                 clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, cap, pack->charging);
 
-            low_reads = measured && !ext && pack->vbat <= LOW_BATTERY_VBAT_LOW ? (low_reads < 3 ? low_reads + 1 : 3) : 0;
-            bool enter_low = low_reads >= 3;
-            bool leave_low = ext || (pack->vbat >= LOW_BATTERY_VBAT_HIGH);
-
             /* low_power: what the GUI was told (the note above radio_tick) */
-            if ((!low_power && enter_low) || (low_power && leave_low)) {
-                bool low = !low_power;
+            if (bat_watch.low != low_power) {
+                bool low = bat_watch.low;
 
                 if (scheduler_put_urgent(low_power_ui_cb, &low, sizeof(low))) {
                     low_power = low;

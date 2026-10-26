@@ -215,6 +215,15 @@ On battery, at 10% or less the radio shows a message every minute: "Battery
 receiving with WiFi and Bluetooth on, 10% left about 22 minutes and 5% about
 12.
 
+Right after power-on the base may not have measured the battery yet: one
+X6100 reported nothing for about 3 seconds, then a charge that climbed to the
+real one over about 7 more. The radio does not take those first readings: the
+box at the top right stays empty, and the battery's readings count from about
+15 seconds after the base's first reading with a voltage, some 15 to 20 seconds
+after the screen comes up. The warnings and the power-off at 6.0 V work from
+then on. The GUI log (app_logs) lists what the base sent until then, as
+"battery: start-up reading" lines.
+
 
 ### Battery time
 
@@ -231,6 +240,8 @@ At the top right the radio shows the charge and the time left:
   reach a full charge.
 - Charged and still on the external supply: "99%" with the power sign.
 - External supply only, no battery fitted: the external voltage, "12.1v".
+- Just after power-on: nothing, for 15 to 20 seconds, while the base's first
+  readings settle (see [low battery](#low-battery)).
 
 The "~" stays until the radio has seen at least 2 hours of discharge or 2 full
 charges. Until then take the time as a rough guess.

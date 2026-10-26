@@ -81,7 +81,10 @@ static void show_time() {
     }
 
     /* The % and the time left or to full (bat_est.c); the voltages are in Settings > Info */
-    if (v_bat < 3.0f) {     /* external power, no battery */
+    if (v_bat < 3.0f && v_ext < 3.0f) {    /* no reading yet: radio.c gives the first some seconds after start */
+        for (int i = 0; i < 4; i++)
+            lv_label_set_text(power_labels[i], "");
+    } else if (v_bat < 3.0f) {      /* external power, no battery */
         lv_label_set_text(power_labels[0], "");
         lv_label_set_text(power_labels[1], "");
         lv_label_set_text(power_labels[2], ext_sym);
