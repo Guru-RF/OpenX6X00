@@ -453,18 +453,25 @@ static void clear_view(void) {
     lv_event_send(table_view_obj(), LV_EVENT_KEY, &up);
 }
 
-/* The decoder again from the start: after a change of dial frequency or mode */
-static void decoder_restart(void) {
+/* The decoder again from the start: after a change of dial frequency or mode. The queued
+ * message goes with it, and TX CQ with a CQ: left on, it called nothing, and took two presses
+ * to call again (#28). Returns whether a CQ ended */
+static bool decoder_restart(void) {
+    bool cq = subject_i_get(cq_enabled);
+
+    subject_i_set(cq_enabled, false);
     decoder_stop();
     decoder_start();
     clear_view();
+    return cq;
 }
 
-/* After any change of dial frequency */
+/* After any change of dial frequency. A CQ that ended says so after the band's label: the
+ * band keys work from any button page, TX CQ may not be in view */
 static void retuned(void) {
     hound_stop(&hound);
     js8_map_heard_clear();
-    decoder_restart();
+    if (decoder_restart()) msg_schedule_text_fmt("CQ off: press TX CQ to call on this frequency");
 }
 
 static void band_cb(lv_event_t *e) {
@@ -619,8 +626,7 @@ static void mode_cb(button_data_t *btn) {
 
     param_i_set(cfg_ft8_protocol, next);
     freq_strip_set_app(ftx_protocol_name(next));
-    subject_i_set(cq_enabled, false);
-    decoder_restart();
+    decoder_restart();      /* a CQ ends with no note: TX CQ is next to Mode */
     if (params.ft8_custom_on.x) params_bool_set(&params.ft8_custom_on, false); /* FT4/FT2 elsewhere */
     if (next != FTX_PROTOCOL_FT8) hound_on = false;
     load_band(0);
@@ -1044,6 +1050,9 @@ static void list_pressed(const cell_data_t *cd) {
         return;
     }
 
+    char was[sizeof(tx_msg.msg)];
+
+    snprintf(was, sizeof(was), "%s", tx_msg.msg);
     ftx_qso_processor_start_qso(qso, (ftx_msg_meta_t *)&cd->meta, &tx_msg);
     if (!tx_msg.msg[0]) {
         msg_schedule_text_fmt("Invalid message");
@@ -1054,6 +1063,10 @@ static void list_pressed(const cell_data_t *cd) {
     if (!param_i_get(cfg_ft8_hold_freq)) set_tx_freq(cd->meta.freq_hz);
     tx_odd = !cd->odd;
     subject_i_set(tx_enabled, true);
+    /* The answer took the CQ's place: CQ off, as when the sequence answers (#28). Told by a change
+     * of the message, as add_rx_text does, not by a "CQ" at its start: a call can begin with CQ
+     * (CQ7X). A 73 addressed to me leaves the message as it was, and the CQ goes on */
+    if (strcmp(was, tx_msg.msg)) subject_i_set(cq_enabled, false);
 
     cell_data_t row = {.cell_type = CELL_START_QSO};
 
@@ -1529,7 +1542,8 @@ bool ft8_window_remote(ft8_rc_t what, int32_t arg, const cell_data_t *cell) {
     switch (what) {
         case FT8_RC_CQ:     tx_cq_cb(NULL); break;
         case FT8_RC_STOP:
-            if (subject_i_get(cq_enabled)) tx_cq_cb(NULL);     /* off, and the message dropped */
+            /* CQ off here, not through tx_cq_cb: that does nothing while a keyboard is open on the radio */
+            subject_i_set(cq_enabled, false);
             tx_call_off();
             tx_msg.msg[0] = '\0';
             msg_schedule_text_fmt("Stopped: nothing transmits until TX Call, CQ or a call is pressed");

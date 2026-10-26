@@ -936,8 +936,11 @@ Buttons:
 | 4 | Freq: Preset / 14.091, Hound: Off / On, Retries, For you |
 
 - Show: CQ shows the CQs and the messages to you; All shows all traffic.
-- TX CQ calls CQ. TX Call allows or stops transmitting; stopping cuts a
-  transmission in progress.
+- TX CQ calls CQ. A band key, Freq or Mode ends the CQ: TX CQ goes to
+  Disabled (after a band key or Freq the radio also says "CQ off: press TX
+  CQ to call on this frequency"), and one press calls again there. A reply,
+  yours or Auto's, takes the CQ's place and turns it off too. TX Call allows
+  or stops transmitting; stopping cuts a transmission in progress.
 - Hold Freq: your TX offset does not move to the station you answer.
 - Auto: the next message of the QSO is sent by itself, and a station that
   calls you gets an answer, also while you call CQ (what other programs call
