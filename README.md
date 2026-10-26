@@ -25,8 +25,10 @@ the needle S-meter.*
 
 ## Reporting a problem
 
-Open an [issue](https://github.com/Guru-RF/OpenX6X00/issues), one problem per
-issue, after a look at the open ones. Please give:
+Open a [bug report](https://github.com/Guru-RF/OpenX6X00/issues/new?template=bug.yml),
+one problem per issue, after a look at the
+[open issues](https://github.com/Guru-RF/OpenX6X00/issues). Its form asks for
+these; please give:
 
 1. **The radio**: X6100 or X6200.
 2. **The versions**, from Settings > Info: the OpenX6X00 version and the
@@ -54,7 +56,7 @@ issue, after a look at the open ones. Please give:
 
 ## Requesting a feature
 
-Open an [issue](https://github.com/Guru-RF/OpenX6X00/issues/new?title=Feature%3A%20)
+Open a [feature request](https://github.com/Guru-RF/OpenX6X00/issues/new?template=feature.yml)
 whose title starts with **Feature:** and names it in a few words
 (`Feature: Winlink over HF`), one feature per issue. Look at the open ones
 first: if the feature is there, add what you would use it for to that issue.
@@ -77,19 +79,8 @@ Please give:
 6. **How you can help**: testing it on your radio, a pull request, the
    documentation.
 
-To copy into the issue:
-
-```
-Radio and version: X6200, v0.3.5
-What I want to do:
-How I do it today:
-Where it would live:
-What it depends on:
-How I can help:
-```
-
-Feature requests are labelled **enhancement**. One feature per issue lets
-each be answered, built and closed on its own.
+The form asks for each of these, and labels the issue **enhancement**. One
+feature per issue lets each be answered, built and closed on its own.
 
 ## The baseband
 

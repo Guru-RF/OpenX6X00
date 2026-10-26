@@ -1,0 +1,64 @@
+name: Feature request
+description: Something the firmware could do that it does not do yet.
+title: "Feature: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One feature per issue, named in the title after **Feature:** (`Feature: Winlink over HF`). More in the README's [Requesting a feature](https://github.com/Guru-RF/OpenX6X00#requesting-a-feature).
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you start
+      options:
+        - label: I looked at the open issues, and this feature is not among them. If it is, I add what I would use it for to that issue instead.
+          required: true
+  - type: dropdown
+    id: radio
+    attributes:
+      label: The radio
+      options:
+        - X6100
+        - X6200
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: OpenX6X00 version you run
+      description: "Settings > Info."
+      placeholder: v0.3.5
+  - type: textarea
+    id: what
+    attributes:
+      label: What you want to do
+      description: "The operating it is for (an activation, a contest, a remote station, a digital mode), not only the feature: \"log a Tiles activation from the GPS\" says more than \"add Tiles\"."
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How you do it today
+      description: "On the radio, with a program on a PC, a phone app or another firmware, and what is missing or awkward about it."
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where it would live
+      description: "An app under APP, a Settings tab, Field Ops, the web configurator, the Panel or Screen page, TCI; what you would press and what you would see. A sketch, or a screenshot of another program that does it, helps."
+  - type: textarea
+    id: depends
+    attributes:
+      label: What it depends on
+      description: "A programme, a service, a protocol or a device, with a link to its rules, its API or its specification, and whether it needs an account or a key."
+  - type: checkboxes
+    id: help
+    attributes:
+      label: How you can help
+      options:
+        - label: Testing it on my radio
+        - label: A pull request
+        - label: The documentation

@@ -1,0 +1,82 @@
+name: Bug report
+description: Something on the radio, or on its web pages, does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One problem per issue. What to give, and why, is in the README's [Reporting a problem](https://github.com/Guru-RF/OpenX6X00#reporting-a-problem).
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you start
+      options:
+        - label: I looked at the open issues, and this problem is not among them.
+          required: true
+  - type: dropdown
+    id: radio
+    attributes:
+      label: The radio
+      options:
+        - X6100
+        - X6200
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: OpenX6X00 version
+      description: "Settings > Info."
+      placeholder: v0.3.5
+    validations:
+      required: true
+  - type: input
+    id: baseband
+    attributes:
+      label: Baseband version
+      description: "Settings > Info > Baseband. See [The baseband](https://github.com/Guru-RF/OpenX6X00#the-baseband)."
+      placeholder: "1.0.8"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How the card got this version
+      options:
+        - Written from the card image
+        - Updated in the radio (Settings > Info > Update)
+    validations:
+      required: true
+  - type: input
+    id: from
+    attributes:
+      label: Updated from
+      description: "When it was updated in the radio: the version before."
+      placeholder: v0.3.4
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: "What you did, what you expected and what you got. The mode, the band or frequency, the power setting and the menu you were in. A photo of the screen helps, above all of a message or of the TX panel."
+    validations:
+      required: true
+  - type: textarea
+    id: power
+    attributes:
+      label: Power and antenna
+      description: "An external supply or the battery; an antenna, a tuner or a dummy load. For a transmit problem, what the TX panel shows (PWR, SWR, ALC), and what an external wattmeter shows if you have one."
+  - type: textarea
+    id: logs
+    attributes:
+      label: The logs
+      description: "The newest files of the `app_logs` folder on the card's DATA partition, from the card in a PC or from the web configurator's Files page: drag them here. Each run of the radio software leaves one `x6100_log_*.txt`; a power-off with the POWER key right after the problem saves the running one too."
+  - type: textarea
+    id: wifi
+    attributes:
+      label: WiFi
+      description: "For a WiFi problem: `app_logs/wifi.txt` (no password in it), the exact message on the screen, the router's security (WPA2, WPA2/WPA3, WPA3 only), its 2.4 GHz channel, and whether a phone hotspot works."
+  - type: textarea
+    id: audio
+    attributes:
+      label: Audio and Bluetooth
+      description: "For an audio problem: what you heard (the received audio or your own transmission), and the volume, mute and headphone settings."

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: The manual
+    url: https://github.com/Guru-RF/OpenX6X00/blob/main/docs/MANUAL.md
+    about: How each app, setting and web page works.
+  - name: openx6x00.org
+    url: https://openx6x00.org/
+    about: Install, update, the baseband, Tailscale.
