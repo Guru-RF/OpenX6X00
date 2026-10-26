@@ -13,7 +13,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
-- [Transmitting](#transmitting): [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
+- [Transmitting](#transmitting): [TX shift](#tx-shift), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
@@ -253,7 +253,7 @@ the connections on the second.
 
 | Item | Meaning |
 |---|---|
-| VFO-A / VFO-B | the VFO in use; SPL-A / SPL-B when split is on |
+| VFO-A / VFO-B | the VFO in use; SPL-A / SPL-B when split is on; with a [TX shift](#tx-shift) the shift ("-600k") or REV; red in split when the radio cannot transmit on the other VFO |
 | USB-D, LSB, CW... | the mode |
 | AUTO, FAST, SLOW, OFF | the AGC |
 | PRE, ATT, ATU | highlighted when the preamp, the attenuator or the tuner is on |
@@ -444,7 +444,7 @@ base is too old.
 |---|---|
 | STATION | callsign, QTH locator, Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, both VFOs live in the current band) |
 | DATE / TIME | date, time, time zone |
-| CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
+| CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | TCI SERVER | on/off, port and status, connected client |
@@ -727,6 +727,58 @@ POWER, below Factory reset, has three lines:
   Auto; default Built-in). The Audio tab's input is not changed.
 
 ## Transmitting
+
+### TX shift
+
+A band can transmit at a fixed distance from where it listens: an FM
+repeater's input, or a QO-100 station whose receive and transmit converters
+put the satellite at two different frequencies. Where: Settings > General >
+CONTROLS > TX shift <band>, kHz (the band the radio is on; not shown on a band
+the radio cannot transmit on), or the web configurator's Bands page, TX shift
+column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
+
+- With a shift, split comes on and VFO B stays at VFO A + the shift: tune A
+  anywhere (the knob, a memory, the band keys, CAT, TCI, the apps) and B
+  follows. The radio listens on A and transmits on B.
+- The status bar shows the shift in place of SPL-A ("-600k", "+1.6M"); the
+  Black Metal and Total Black themes show it after the other VFO.
+- The VFO key gives the reverse: on VFO B the radio listens on the
+  repeater's input (A = B - the shift) and transmits on its output; the
+  status bar reads REV. The VFO key again goes back.
+- Split off (AGC held) pauses the shift: simplex on A, the shift kept for when
+  split comes on again. A shift of 0 turns split off too.
+- The shift belongs to the band: another band has its own, or none. For
+  repeaters in part of a band only, give them a band of their own on the web
+  Bands page (for example 10m ending at 29.520 MHz and a "10m FM" from 29.520
+  to 29.700 MHz) and the shift to that one: tuning into it brings the shift,
+  tuning out of it takes it away.
+- While the shift is on, VFO B is the shift's: a frequency written to B (CAT,
+  A=B) goes back to A + the shift.
+- The radio transmits only where it can (HF, a transverter that is on). Where
+  the shift takes B off it, the VFO on the status bar turns red (in Black
+  Metal and Total Black the other VFO's frequency), and PTT, the apps, CW, the
+  tuner and the SWR scan are refused with "No TX on ... MHz". The web page
+  does not save such a shift.
+- The digital apps (FT8, FT4, JS8, WSPR, RTTY, SSTV...) and the SWR scan move
+  the VFO that transmits, so they work in split and with a shift. Before, they
+  moved the VFO you listen on: in split FT8 went out 1325 Hz above B whatever
+  its offset.
+- Winlink is simplex: it does not key while a shift is on (split on), and
+  says "Winlink: no TX, a TX shift is set on this band".
+
+Two examples:
+
+- A 10 m FM repeater that sends on 29.620 MHz and listens on 29.520 MHz: a
+  shift of -100 kHz on the band it is in. Tune to 29.620; the radio transmits
+  on 29.520.
+- QO-100 through converters to and from 28 MHz, the receive one putting the
+  downlink's narrowband beacon (10489.550 MHz) at 28.550 MHz, the transmit
+  one taking 2400.050 MHz from 28.050 MHz: a shift of -500 kHz on 10 m. Tune
+  the downlink and the uplink follows.
+
+Not tried on the air yet. The hand mic's PTT and the paddle go to the base
+directly, without the GUI's check: what the base does with a VFO B it cannot
+transmit on is its own TX permit.
 
 ### Digital-mode TX level
 
@@ -1856,7 +1908,7 @@ The menu has General and four groups:
 | Group | Page | Does |
 |---|---|---|
 | | General | index of the pages |
-| Frequencies | Bands | band edges and default modes |
+| Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)) |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)) |
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
@@ -2012,7 +2064,8 @@ Connecting to a gateway:
 - ARDOP keys the radio the way the radio's own digital modes do, and
   identifies with your callsign in CW. The radio does not key for Winlink
   while it is already transmitting, nor for 5 minutes after a high SWR
-  stopped a Winlink transmission; the screen says so.
+  stopped a Winlink transmission, nor while the band has a
+  [TX shift](#tx-shift) on; the screen says so.
 - Pat listens before it calls: on a busy frequency it asks in the mailbox
   whether to go ahead.
 - The gateway list: the first time, Pat fetches it from winlink.org when the
