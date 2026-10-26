@@ -621,6 +621,56 @@ Joining a network:
   the files missing from the system are taken back from it, so a rewritten card
   keeps its WiFi; files already there are left alone.
 
+An access point that does not answer the X6100 (#29, #32):
+
+- Some access points never let the X6100 join, with the right password and a
+  good signal: MediaTek ones (GL.iNet GL-MT3000, GL-MT3600BE) and the UniFi
+  U6+ among them. The radio authenticates, then the access point never
+  answers its association request. Connect makes its four tries and then
+  says, on a network with a password, "handshake failed: password, signal or
+  router security", as a wrong password does. In `app_logs/wifi.txt` the
+  supplicant's `AssocStatusCode` is 1; `dmesg` shows
+  `RTL871X: auth success, start assoc` with no association after it. (The
+  "join refused, assoc status 1" quoted in #29 is another firmware's log.)
+- The X6100's WiFi driver, 8723bu, sent its HT capabilities one octet short,
+  and these access points do not answer that. The fixed driver comes with the
+  card image of the release that carries it: write that image (see
+  [Install](#getting-started)). An update alone does not change the driver;
+  the radio says when a release has a new card image for it (see
+  [Updating the firmware](#updating-the-firmware)).
+- Until then the kernel's own driver for the chip, rtl8xxxu, joins them. The
+  X6200 has another chip and driver, and none of this applies to it.
+
+rtl8xxxu over [SSH](#ssh) (through a phone hotspot, which the radio joins, or
+[Ethernet](#ethernet)), until the next start:
+
+```
+/etc/init.d/S45network-manager stop
+rmmod 8723bu
+modprobe rtl8xxxu
+/etc/init.d/S45network-manager start
+```
+
+rtl8xxxu at every start (the radio restarts):
+
+```
+mv /etc/modprobe.d/x6100-wifi.conf /etc/modprobe.d/x6100-wifi.conf.disabled
+echo 'blacklist 8723bu' > /etc/modprobe.d/disable-8723bu.conf
+reboot
+```
+
+Back to 8723bu without a new card image:
+
+```
+rm /etc/modprobe.d/disable-8723bu.conf
+mv /etc/modprobe.d/x6100-wifi.conf.disabled /etc/modprobe.d/x6100-wifi.conf
+reboot
+```
+
+Writing a new card image, such as the one with the fix, goes back to 8723bu
+by itself. The 20 MHz and channel 12 and 13 settings in `x6100-wifi.conf` are
+8723bu's and do not apply to rtl8xxxu.
+
 ### Bluetooth tab
 
 | Card | Options |
