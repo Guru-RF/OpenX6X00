@@ -52,6 +52,45 @@ issue, after a look at the open ones. Please give:
 7. **Audio and Bluetooth**: what you heard (the received audio or your own
    transmission), and the volume, mute and headphone settings.
 
+## Requesting a feature
+
+Open an [issue](https://github.com/Guru-RF/OpenX6X00/issues/new?title=Feature%3A%20)
+whose title starts with **Feature:** and names it in a few words
+(`Feature: Winlink over HF`), one feature per issue. Look at the open ones
+first: if the feature is there, add what you would use it for to that issue.
+Please give:
+
+1. **The radio**: X6100, X6200 or both, and the OpenX6X00 version you run
+   (Settings > Info).
+2. **What you want to do**: the operating it is for (an activation, a
+   contest, a remote station, a digital mode), not only the feature: "log a
+   Tiles activation from the GPS" says more than "add Tiles".
+3. **How you do it today**: on the radio, with a program on a PC, a phone app
+   or another firmware, and what is missing or awkward about it.
+4. **Where it would live**: an app under APP, a Settings tab, Field Ops, the
+   web configurator, the Panel or Screen page, TCI; what you would press and
+   what you would see. A sketch, or a screenshot of another program that does
+   it, helps.
+5. **What it depends on**: a programme, a service, a protocol or a device,
+   with a link to its rules, its API or its specification, and whether it
+   needs an account or a key.
+6. **How you can help**: testing it on your radio, a pull request, the
+   documentation.
+
+To copy into the issue:
+
+```
+Radio and version: X6200, v0.3.5
+What I want to do:
+How I do it today:
+Where it would live:
+What it depends on:
+How I can help:
+```
+
+Feature requests are labelled **enhancement**. One feature per issue lets
+each be answered, built and closed on its own.
+
 ## The baseband
 
 Each radio runs two firmwares. OpenX6X00 is the Linux side, on the card. The
