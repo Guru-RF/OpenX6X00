@@ -10,7 +10,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     mic_keys.c clock.c bat_est.c info_bar.c smeter.c
     band_names.cpp tx_meters.c
     audio.c mfk_control.cpp cw.cpp cw_decoder.c cw_parse.c text_panel.cpp
-    rtty.c screen_shot.c screen_rec.c avi_writer.c screen_light.c gps.c cat.cpp tci_ws.c tci_server.c cfg_socket.cpp
+    rtty.c screen_shot.c screen_rec.c avi_writer.c screen_light.c gps.c cat.cpp tci_ws.c tci_audio.c tci_server.c cfg_socket.cpp
     app_window.c settings_window.cpp swrscan_window.c ft8_window.c
     freq_entry.c gps_window.c cw_messages.c
     voice_messages.c recorder_window.c qth_entry.c station.c dialog_channels.c

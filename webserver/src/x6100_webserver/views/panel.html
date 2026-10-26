@@ -970,19 +970,24 @@ body.app h2, body.app #intro { display:none; }
   let actx = null, nextTime = 0, sndOn = false, micNode = null, micSrc = null;
   let micState = "off", micReq = 0;   /* off, asking, ready, refused; the request in flight (an older answer is let go, audit A18) */
   const HDR = 64;
+  /* The format this page plays, asked for on every connection (the radio's TCI default is 48 kHz float32 stereo, 8x the bytes) */
+  const AUDIO_START = "audio_samplerate:24000;audio_stream_sample_type:int16;audio_stream_channels:1;audio_stream_samples:512;audio_start:0;";
   tlink = RadioLink.create({
     url: function() { return conf && conf.tci_enabled ? wsUrl("tci") : null; },
     ping: null,
-    onOpen: function() { if (sndOn) tlink.send("audio_start:0;"); },
+    onOpen: function() { if (sndOn) tlink.send(AUDIO_START); },
     onBinary: function(buf) {
       if (!sndOn || !actx) return;
       const dv = new DataView(buf);
       const rate = dv.getUint32(4, true), fmt = dv.getUint32(8, true), n = dv.getUint32(20, true), type = dv.getUint32(24, true), ch = dv.getUint32(28, true) || 1;
-      if (type !== 1 || n === 0 || buf.byteLength < HDR + n * ch * (fmt === 3 ? 4 : 2)) return;
+      /* n counts the samples of every channel (TCI's length): n / ch of each */
+      if (type !== 1 || n === 0 || (fmt !== 0 && fmt !== 3) || buf.byteLength < HDR + n * (fmt === 3 ? 4 : 2)) return;
+      const k = Math.floor(n / ch);
+      if (!k) return;
       lastAudio = Date.now(); abytes += buf.byteLength;
-      const ab = actx.createBuffer(1, n, rate), out = ab.getChannelData(0);
-      if (fmt === 3) { const f = new Float32Array(buf, HDR, n * ch); for (let i = 0; i < n; i++) out[i] = f[i * ch]; }
-      else { const s16 = new Int16Array(buf, HDR, n * ch); for (let i = 0; i < n; i++) out[i] = s16[i * ch] / 32768; }
+      const ab = actx.createBuffer(1, k, rate), out = ab.getChannelData(0);
+      if (fmt === 3) { const f = new Float32Array(buf, HDR, n); for (let i = 0; i < k; i++) out[i] = f[i * ch]; }
+      else { const s16 = new Int16Array(buf, HDR, n); for (let i = 0; i < k; i++) out[i] = s16[i * ch] / 32768; }
       const src = actx.createBufferSource(); src.buffer = ab; src.connect(actx.destination);
       const now = actx.currentTime;
       if (nextTime < now + 0.04 || nextTime > now + 0.6) nextTime = now + 0.08;
@@ -995,7 +1000,7 @@ body.app h2, body.app #intro { display:none; }
     if (sndOn) {
       if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
       actx.resume(); lastAudio = 0;
-      if (!tlink.send("audio_start:0;")) tlink.tryNow();
+      if (!tlink.send(AUDIO_START)) tlink.tryNow();
     } else if (!txOn) tlink.send("audio_stop:0;");
   });
   $("#mic").on("click", function() {

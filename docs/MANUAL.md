@@ -2753,11 +2753,32 @@ program on the network tunes the radio, hears it and keys it.
   audio as the microphone), `rx_smeter` and `rx_channel_sensors` (the
   S-meter in dBm, after `rx_sensors_enable:true;`), `tx_sensors` (mic level,
   forward power, SWR, ALC, after `tx_sensors_enable:true;`), the RX audio
-  stream (`audio_start`, int16 mono, 24 kHz) and the TX audio frames the
-  client answers to each `TX_CHRONO`. The greeting ends with `start;` then
-  `ready;`: the radio is running, as ExpertSDR3 says of an SDR that is on. A
-  client cannot switch the radio on or off: `start;` and `stop;` are both
-  answered with `start;`.
+  stream (`audio_start`, in the client's format, below) and the TX audio
+  frames the client answers to each `TX_CHRONO`. The greeting ends with
+  `start;` then `ready;`: the radio is running, as ExpertSDR3 says of an SDR
+  that is on. A client cannot switch the radio on or off: `start;` and
+  `stop;` are both answered with `start;`.
+- Audio formats: each client gets the RX audio as it asks with
+  `audio_samplerate` (24000 or 48000), `audio_stream_sample_type` (int16,
+  int24, int32, float32), `audio_stream_channels` (1, or 2 with the same
+  audio in both) and `audio_stream_samples` (100 to 2048 a frame); a value
+  the radio does not have is answered with the one it keeps. A client that
+  asks for nothing gets TCI's defaults, which WSJT-X and JTDX expect without
+  asking: 48 kHz, float32, stereo, 2048 a frame (about 3 Mbit/s from the
+  radio). A client that asks for 24 kHz and not for a channel count gets one
+  channel in frames of 512, as the radio always sent it (the VFO-Knob does
+  this). The receiver is heard at 24 kHz: for 48 kHz the radio doubles the
+  rate with a filter, flat to 9 kHz. The greeting gives the client's format,
+  a change is answered with what moved, and every frame's header says its
+  rate, type, length and channels.
+- TCI audio on the air (`trx:0,true,tci;`): in LSB, USB, AM and FM, not in
+  CW or DIGL/DIGU, where the key is refused. Every 21.3 ms a `TX_CHRONO`
+  asks for 21.3 ms of audio in the client's format (1024 samples of each
+  channel at 48 kHz, 512 at 24 kHz); the radio takes 8 to 48 kHz in any of
+  the four types and transmits the first channel. A frame whose size is not
+  what its header says ends the transmission at once (the radio unkeys);
+  WSJT-X's and JTDX's frame, twice the size with the audio in its first half,
+  is taken as theirs.
 - VFO-Knob: build or flash its AetherSDR firmware, set the radio's address
   on the knob's configuration page as the AetherSDR computer, port 50001.
   The knob tunes, changes mode, filter and AGC, keys the radio, shows the
@@ -2766,19 +2787,25 @@ program on the network tunes the radio, hears it and keys it.
 - Other clients: anything that talks to AetherSDR or ExpertSDR3 over TCI
   (loggers, CW keyers) should work for what the radio has; what it does not
   have is answered with the radio's own value.
-- WSJT-X and JTDX (rig "TCI Client RX1", the radio's address and port 50001):
-  they connect, and the frequency and the mode follow both ways. Their TCI
-  audio does not work with the radio yet: they take the stream as 48 kHz
-  float32 stereo without asking for it (ExpertSDR3's defaults), while the
-  radio sends what it announces, int16 mono at 24 kHz.
-  - Leave "Use TCI Audio" off (Settings > Audio). With it on they read each
-    audio frame as twice its size, past its end, and decode nothing.
-  - Do not transmit from them over TCI. Their keying (`trx:0,true,tci;`)
-    always comes with their TCI audio, in a shape the radio cannot read: the
-    radio drops it and unkeys at once.
-  - Set Clients to Operate. With Listen only, their band and mode changes
-    are answered with the radio's state, unchanged, and they stop with a Rig
-    Failure.
+- WSJT-X, WSJT-X Improved and JTDX: CAT and audio over the one connection,
+  no sound card or cable. The audio takes about 3 Mbit/s from the radio, and
+  about 6 Mbit/s more from the PC while it transmits (they send each TX frame
+  at twice its size).
+  - Settings > Radio: Rig "TCI Client RX1", Network Server the radio's
+    address and port (`x6100.local:50001`), PTT Method CAT (the only one TCI
+    has), Mode USB (Data/Pkt puts the radio in DIGU, where TCI audio does not
+    key it; or None, with the radio in USB yourself), Split Operation None or
+    Fake It.
+  - Settings > Audio: "Use TCI Audio" on, then restart the program. The Rx
+    dB box beside it sets the receive level. Keep it on: their keying always
+    sends TCI audio (`trx:0,true,tci;`), so with it off the radio is keyed
+    with silence.
+  - The transmit level is their Pwr slider; set it so the radio's ALC shows
+    little or none, as with a sound card.
+  - On the radio, Clients on Operate (Settings > General > TCI SERVER, or
+    the TCI page's "Clients may"). With Listen only, their band and mode
+    changes are answered with the radio's state, unchanged, and they stop
+    with a Rig Failure.
 
 ## Network name
 

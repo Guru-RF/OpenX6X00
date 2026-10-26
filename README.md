@@ -318,10 +318,12 @@ Added:
   System > TCI on the web page. It carries `vfo`, `modulation`,
   `rx_filter_band`, `agc_mode`, RIT, `drive`, `trx` (PTT, with `,tci` for the
   client's audio as the microphone), the S-meter and the TX meters, the RX
-  audio stream (int16 mono, 24 kHz) and the TX audio frames. No login: set
-  Clients to Listen only, or turn it off, on a network you don't trust (the
-  browser pages' Sound and Mic go over it). Config in `/mnt/tci.conf`
-  (`enabled=0|1`, `port=50001`, `trust=operate|view`);
+  audio stream (in the format each client asks for: TCI's 48 kHz float32
+  stereo by default, 24 kHz int16 mono for the VFO-Knob and the browser
+  pages) and the TX audio frames. No login: set Clients to Listen only, or
+  turn it off, on a network you don't trust (the browser pages' Sound and Mic
+  go over it). Config in `/mnt/tci.conf` (`enabled=0|1`, `port=50001`,
+  `trust=operate|view`);
 - the **browser panel and remote**, local only, on the radio's own WebSocket
   (port 50002, no outside server), with pairing and one control holder, in
   place of the Link's;

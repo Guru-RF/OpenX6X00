@@ -9,11 +9,13 @@
  *  reads the radio's state (the settings' getters are safe from any thread) every 20 ms and
  *  tells the clients what changed, so a change made on the radio itself reaches them too.
  *
- *  Audio: a capture thread reads the receiver from PulseAudio at 24 kHz, mono, and hands
- *  512-sample frames to every client that asked (audio_start). A client keyed with
- *  "trx:0,true,tci" sends TX_AUDIO frames; they go to the codec as the voice keyer's audio
- *  does, with the modem bit keying the base. The server paces it with a TX_CHRONO frame every
- *  512 samples, and unkeys after 500 ms without audio or 3 minutes on the air.
+ *  Audio: a capture thread reads the receiver from PulseAudio at 24 kHz, mono, and hands it to
+ *  every client that asked (audio_start) in the format that client asked for: TCI's defaults,
+ *  48 kHz float32 stereo in frames of 2048, until it asks for another (tci_audio.c has the
+ *  conversions). A client keyed with "trx:0,true,tci" sends TX_AUDIO frames; they go to the
+ *  codec as the voice keyer's audio does, with the modem bit keying the base. The server paces
+ *  it with a TX_CHRONO frame every 21.3 ms (512 samples at 24 kHz), and unkeys after 500 ms
+ *  without audio or 3 minutes on the air.
  *
  *  A TCI client has no pairing: /mnt/tci.conf says what it may do (trust=operate, the default,
  *  as before: it tunes, changes the mode and keys; trust=view: it only hears and follows, its
@@ -27,6 +29,7 @@
 #define _GNU_SOURCE     /* accept4, pipe2 */
 
 #include "tci_server.h"
+#include "tci_audio.h"
 #include "tci_ws.h"
 #include "control_owner.h"
 
@@ -59,12 +62,15 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
 #include <time.h>
 #include <unistd.h>
 
 #define MAX_CLIENTS   4
-#define IN_SIZE       16384         /* a client's frame: commands, or 512 TX samples as float32 */
-#define OUT_SIZE      65536         /* queued output: ~1.3 s of RX audio, dropped when full */
+#define IN_SIZE       32768         /* a client's frame: commands, or TX audio (WSJT-X's: 64 + 2048 * 8 bytes) */
+#define OUT_SIZE      262144        /* queued output; RX audio takes up to audio_budget() of it */
+#define URG_SIZE      2048          /* queued TX_CHRONO frames: 0.6 s of them, longer than TX_SILENCE_MS */
+#define NOTSENT_LOWAT 16384         /* what the kernel holds unsent for a client: the rest waits in out */
 #define TEXT_MAX      2048          /* a text message, fragments joined */
 #define IDLE_MS       60000         /* a client silent this long is gone (the knob pings every 2 s) */
 #define PING_MS       20000         /* a client silent this long is pinged: a browser page (the remote's audio) in a
@@ -73,13 +79,14 @@
 #define SMETER_MS     100
 #define TXSENS_MS     200
 #define CONF_MS       2000
-#define AUDIO_RATE    24000         /* the RX audio to the clients, whatever rate they ask (see below) */
-#define AUDIO_FRAMES  512
+#define AUDIO_RATE    24000         /* the capture's, and the RX audio's for a client that asks for it */
+#define AUDIO_FRAMES  512           /* a capture read, and a TX_CHRONO's worth at 24 kHz: 21.3 ms */
+#define ACC_MAX       (2048 + 2 * AUDIO_FRAMES)   /* a client's RX audio short of a frame, then a read more */
 #define TX_SILENCE_MS 500           /* keyed with TCI audio: unkeyed without frames this long */
 #define TX_LIMIT_MS   (180 * 1000)
 
-/* The TCI audio frame header, 64 bytes, little endian */
-enum { AF_INT16 = 0, AF_FLOAT32 = 3 };
+/* The TCI audio frame header, 64 bytes, little endian. length counts the samples of all the
+ * channels (TCI's "real samples"), so a frame holds length / channels samples of each */
 enum { AT_IQ = 0, AT_RX = 1, AT_TX = 2, AT_CHRONO = 3 };
 
 typedef struct {
@@ -93,14 +100,29 @@ typedef struct {
     char            ip[48];
     uint8_t         in[IN_SIZE];
     size_t          in_len;
-    uint8_t         out[OUT_SIZE];  /* under lock: the capture thread writes here too */
-    size_t          out_len;
+    /* Output, under lock (the capture thread writes here too). out is a ring: out_len bytes from
+     * out_head, whole frames; urg holds the TX_CHRONO frames, which go out before out's next
+     * frame (client_flush) */
+    uint8_t         out[OUT_SIZE];
+    size_t          out_head, out_len;
+    size_t          out_cut;        /* what is left to send of the frame at out_head (0: it starts there) */
+    uint8_t         urg[URG_SIZE];
+    size_t          urg_len;
     pthread_mutex_t lock;
     char            text[TEXT_MAX];
     size_t          text_len;
     bool            rx_sensors, tx_sensors;
-    bool            audio_on, audio_float;
-    uint32_t        audio_rate;
+    bool            audio_on;
+    /* The audio format the client set (see audio_fmt): written by the socket thread under the
+     * lock, read by the capture thread under it */
+    uint32_t        fmt_rate, fmt_type;
+    uint32_t        fmt_ch, fmt_samples;    /* 0: not set */
+    bool            fmt_rate_asked;         /* it sent audio_samplerate (a rate the server has) */
+    uint32_t        fmt_gen;                /* moves with every change: the capture thread starts the frame over */
+    /* The capture thread's alone: the client's RX audio at its rate, short of a whole frame */
+    float           acc[ACC_MAX];
+    size_t          acc_n;
+    uint32_t        acc_gen;
     uint64_t        last_ms;
     uint64_t        ping_ms;        /* the last PING we sent */
 } client_t;
@@ -161,8 +183,11 @@ static struct {
     atomic_bool keyed;      /* the base keyed by us through the modem bit */
     atomic_bool refused;    /* the last key was refused: say trx false */
     int         owner;      /* client index */
-    uint64_t    start_ms, last_audio_ms, chrono_ms;
-    uint32_t    rate;
+    uint64_t    start_ms, last_audio_ms;
+    uint64_t    chrono_t0;  /* us, when TX_CHRONO 0 went out (0: not yet) */
+    uint64_t    chrono_n;   /* TX_CHRONO frames since */
+    uint32_t    chrono_gen; /* the client's format they were asked in */
+    uint32_t    rate;       /* of the client's last TX frame */
     double      pos;
     int16_t     prev;
 } txs;
@@ -171,6 +196,41 @@ static uint64_t now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000;
+}
+
+static uint64_t now_us(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000;
+}
+
+/* ---- The audio format of a client --------------------------------------------------- */
+
+typedef struct {
+    uint32_t rate, type, ch;
+    uint32_t samples;       /* of each channel in an RX frame */
+} afmt_t;
+
+/* What the client gets: what it set, TCI's defaults for the rest (48 kHz, float32, 2 channels,
+ * 2048 samples a frame at 48 kHz, 1024 at 24 kHz), which WSJT-X and JTDX take without asking.
+ * One exception keeps the clients written for this server before working: a client that asks
+ * for 24 kHz and says nothing of the channels gets one channel and 512 samples a frame, as the
+ * server always served it. That is the VFO-Knob (audio_samplerate:24000, int16, nothing more;
+ * it plays every sample of a frame as one channel). Socket thread, or under the lock */
+static afmt_t audio_fmt(const client_t *c) {
+    bool   legacy = c->fmt_rate_asked && c->fmt_rate == AUDIO_RATE && !c->fmt_ch;
+    afmt_t f      = {.rate = c->fmt_rate, .type = c->fmt_type};
+
+    f.ch      = c->fmt_ch ? c->fmt_ch : legacy ? 1 : 2;
+    f.samples = c->fmt_samples ? c->fmt_samples : legacy ? AUDIO_FRAMES : c->fmt_rate == 48000 ? 2048 : 1024;
+    return f;
+}
+
+/* RX audio queued for a client up to 0.6 s of its stream (64 kB at least, as before), so a slow
+ * link loses whole frames and never the state lines behind them */
+static size_t audio_budget(const afmt_t *f) {
+    size_t b = (size_t)f->rate * f->ch * tci_sample_bytes(f->type) * 6 / 10;
+    return b < 65536 ? 65536 : b > OUT_SIZE - 16384 ? OUT_SIZE - 16384 : b;
 }
 
 /* ---- Configuration ------------------------------------------------------------------ */
@@ -221,37 +281,125 @@ static void wake(void) {
 
 /* ---- Clients ------------------------------------------------------------------------ */
 
+/* The frame at out_head, header and payload: its length, from its header (ws_frame_head's) */
+static size_t out_frame_size(const client_t *c) {
+    uint8_t h[WS_HEAD_MAX] = {0};
+    size_t  len;
+
+    for (size_t i = 0; i < sizeof(h) && i < c->out_len; i++)
+        h[i] = c->out[(c->out_head + i) % OUT_SIZE];
+    len = h[1] & 0x7f;
+    if (len == 126)
+        return 4 + ((size_t)h[2] << 8 | h[3]);
+    if (len == 127) {
+        len = 0;
+        for (int i = 2; i < 10; i++)
+            len = len << 8 | h[i];
+        return 10 + len;
+    }
+    return 2 + len;
+}
+
+/* n bytes of out sent: the head moves on, and out_cut follows the frames it crossed */
+static void out_sent(client_t *c, size_t n) {
+    while (n) {
+        if (!c->out_cut)
+            c->out_cut = out_frame_size(c);
+        size_t k = n < c->out_cut ? n : c->out_cut;
+        c->out_cut -= k;
+        c->out_head = (c->out_head + k) % OUT_SIZE;
+        c->out_len -= k;
+        n -= k;
+    }
+    if (!c->out_len)
+        c->out_head = 0;
+}
+
+/* What the socket takes, without waiting; under lock. A TX_CHRONO waiting in urg goes before
+ * the rest of out, as soon as the frame being sent from out is whole on the wire: behind RX
+ * audio queued for a link slower than the stream (WSJT-X's 385 kB/s) it came later than the
+ * 500 ms TX_SILENCE_MS, and the over was unkeyed. NOTSENT_LOWAT keeps that queue here and
+ * not in the kernel, where nothing can pass it. out is a ring: nothing is moved */
 static void client_flush(client_t *c) {
-    if (c->fd < 0 || !c->out_len)
-        return;
-    ssize_t n = send(c->fd, c->out, c->out_len, MSG_NOSIGNAL | MSG_DONTWAIT);
-    if (n > 0) {
-        c->out_len -= n;
-        memmove(c->out, c->out + n, c->out_len);
+    while (c->fd >= 0 && (c->urg_len || c->out_len)) {
+        struct iovec  iov[2];
+        struct msghdr m   = {.msg_iov = iov, .msg_iovlen = 1};
+        bool          urg = c->urg_len && !c->out_cut;
+        size_t        n;
+
+        if (urg) {
+            n      = c->urg_len;
+            iov[0] = (struct iovec){c->urg, n};
+        } else {
+            n = c->urg_len ? c->out_cut : c->out_len;   /* urg waits: the frame begun, no more */
+            size_t first = OUT_SIZE - c->out_head;
+            iov[0] = (struct iovec){c->out + c->out_head, n < first ? n : first};
+            if (n > first) {
+                iov[1]       = (struct iovec){c->out, n - first};
+                m.msg_iovlen = 2;
+            }
+        }
+        ssize_t k = sendmsg(c->fd, &m, MSG_NOSIGNAL | MSG_DONTWAIT);
+        if (k <= 0)
+            return;
+        if (urg) {
+            c->urg_len -= k;
+            memmove(c->urg, c->urg + k, c->urg_len);
+        } else {
+            out_sent(c, k);
+        }
+        if ((size_t)k < n)
+            return;     /* the socket is full: POLLOUT brings us back */
     }
 }
 
+/* Bytes after what waits in out; the room was checked */
+static void out_put(client_t *c, const void *p, size_t n) {
+    size_t at    = (c->out_head + c->out_len) % OUT_SIZE;
+    size_t first = OUT_SIZE - at < n ? OUT_SIZE - at : n;
+
+    memcpy(c->out + at, p, first);
+    memcpy(c->out, (const uint8_t *)p + first, n - first);
+    c->out_len += n;
+}
+
 /* A whole frame (header, then one or two payload parts) or nothing: a slow client loses
- * frames, never gets a cut one. Any thread. */
-static void client_frame(client_t *c, uint8_t opcode, const void *p1, size_t l1, const void *p2, size_t l2) {
+ * frames, never gets a cut one. The frame is queued while the output stays within limit.
+ * Any thread. */
+static void client_frame_within(client_t *c, size_t limit, uint8_t opcode, const void *p1, size_t l1,
+                                const void *p2, size_t l2) {
     uint8_t head[WS_HEAD_MAX];
     size_t  hl = ws_frame_head(head, opcode, l1 + l2);
 
     pthread_mutex_lock(&c->lock);
-    if (c->fd >= 0 && c->up && c->out_len + hl + l1 + l2 <= OUT_SIZE) {
-        memcpy(c->out + c->out_len, head, hl);
-        c->out_len += hl;
-        if (l1) {
-            memcpy(c->out + c->out_len, p1, l1);
-            c->out_len += l1;
-        }
-        if (l2) {
-            memcpy(c->out + c->out_len, p2, l2);
-            c->out_len += l2;
-        }
+    if (c->fd >= 0 && c->up && c->out_len + hl + l1 + l2 <= limit) {
+        out_put(c, head, hl);
+        if (l1)
+            out_put(c, p1, l1);
+        if (l2)
+            out_put(c, p2, l2);
         client_flush(c);
     }
     pthread_mutex_unlock(&c->lock);
+}
+
+/* A TX_CHRONO: through urg, ahead of what waits in out (client_flush) */
+static void client_chrono(client_t *c, const audio_hdr_t *h) {
+    uint8_t head[WS_HEAD_MAX];
+    size_t  hl = ws_frame_head(head, WS_OP_BINARY, sizeof(*h));
+
+    pthread_mutex_lock(&c->lock);
+    if (c->fd >= 0 && c->up && c->urg_len + hl + sizeof(*h) <= URG_SIZE) {
+        memcpy(c->urg + c->urg_len, head, hl);
+        memcpy(c->urg + c->urg_len + hl, h, sizeof(*h));
+        c->urg_len += hl + sizeof(*h);
+        client_flush(c);
+    }
+    pthread_mutex_unlock(&c->lock);
+}
+
+static void client_frame(client_t *c, uint8_t opcode, const void *p1, size_t l1, const void *p2, size_t l2) {
+    client_frame_within(c, OUT_SIZE, opcode, p1, l1, p2, l2);
 }
 
 static void client_text(client_t *c, const char *s) {
@@ -307,7 +455,7 @@ static void client_close(client_t *c) {
         atomic_fetch_sub(&nclients, 1);
     }
     c->up = false;
-    c->out_len = c->in_len = c->text_len = 0;
+    c->out_head = c->out_len = c->out_cut = c->urg_len = c->in_len = c->text_len = 0;
     c->audio_on = c->rx_sensors = c->tx_sensors = false;
     pthread_mutex_unlock(&c->lock);
     cap_update();
@@ -459,10 +607,12 @@ static void send_greeting(client_t *c, const rstate_t *s) {
     client_text(c, "if_limits:-48000,48000;");
     /* the list and the parser agree: sam and wfm where the base has them (audit B15) */
     client_textf(c, "modulations_list:lsb,usb,digl,digu,cw,cwr,am,nfm%s;", radio_caps() & HW_CAP_SAM_WFM ? ",sam,wfm" : "");
-    client_textf(c, "audio_samplerate:%d;", AUDIO_RATE);
-    client_text(c, "audio_stream_sample_type:int16;");
-    client_text(c, "audio_stream_channels:1;");
-    client_textf(c, "audio_stream_samples:%d;", AUDIO_FRAMES);
+    /* the client's audio format: TCI's defaults, until it asks */
+    afmt_t f = audio_fmt(c);
+    client_textf(c, "audio_samplerate:%u;", f.rate);
+    client_textf(c, "audio_stream_sample_type:%s;", tci_sample_type_name(f.type));
+    client_textf(c, "audio_stream_channels:%u;", f.ch);
+    client_textf(c, "audio_stream_samples:%u;", f.samples);
     client_textf(c, "vfo:0,0,%d;", s->freq);
     client_textf(c, "modulation:0,%s;", mode_name(s->mode));
     client_text(c, fb);
@@ -567,6 +717,59 @@ static int split_args(char *cmd, char **name, char *args[], int max) {
             *p++ = 0;
     }
     return n;
+}
+
+/* A whole number, nothing after it */
+static bool parse_int(const char *s, int *v) {
+    char *end;
+    long  l = strtol(s, &end, 10);
+
+    if (end == s || *end || l < -1000000 || l > 1000000)
+        return false;
+    *v = (int)l;
+    return true;
+}
+
+/* audio_samplerate, audio_stream_sample_type, audio_stream_channels, audio_stream_samples:
+ * set (a value the server has not got is ignored, as TCI says: 24 and 48 kHz; int16, int24,
+ * int32, float32; channels limited to 1-2, samples to 100-2048), answered with the value as it
+ * is, then with every other one that moved with it: the samples follow the rate unless set, and
+ * the knob's exception in audio_fmt comes and goes with the rate and the channels */
+static void audio_fmt_cmd(client_t *c, const char *name, const char *arg) {
+    afmt_t was = audio_fmt(c), now;
+    int    v;
+
+    pthread_mutex_lock(&c->lock);
+    if (arg && !strcmp(name, "audio_samplerate")) {
+        if (parse_int(arg, &v) && (v == AUDIO_RATE || v == 48000)) {
+            c->fmt_rate       = v;
+            c->fmt_rate_asked = true;
+        }
+    } else if (arg && !strcmp(name, "audio_stream_sample_type")) {
+        if ((v = tci_sample_type(arg)) >= 0)
+            c->fmt_type = v;
+    } else if (arg && !strcmp(name, "audio_stream_channels")) {
+        if (parse_int(arg, &v))
+            c->fmt_ch = LV_CLAMP(1, v, 2);
+    } else if (arg) {
+        if (parse_int(arg, &v))
+            c->fmt_samples = LV_CLAMP(100, v, 2048);
+    }
+    now = audio_fmt(c);
+    if (memcmp(&was, &now, sizeof(now)))
+        c->fmt_gen++;
+    pthread_mutex_unlock(&c->lock);
+
+    bool rate = !strcmp(name, "audio_samplerate"), type = !strcmp(name, "audio_stream_sample_type");
+    bool ch = !strcmp(name, "audio_stream_channels"), samples = !strcmp(name, "audio_stream_samples");
+    if (rate || was.rate != now.rate)
+        client_textf(c, "audio_samplerate:%u;", now.rate);
+    if (type || was.type != now.type)
+        client_textf(c, "audio_stream_sample_type:%s;", tci_sample_type_name(now.type));
+    if (ch || was.ch != now.ch)
+        client_textf(c, "audio_stream_channels:%u;", now.ch);
+    if (samples || was.samples != now.samples)
+        client_textf(c, "audio_stream_samples:%u;", now.samples);
 }
 
 /* The client's transmission ends, whichever way it keyed: from the socket thread. A key still
@@ -685,8 +888,9 @@ static void handle_cmd(int ci, char *line) {
                     txs.owner         = ci;
                     txs.start_ms      = now_ms();
                     txs.last_audio_ms = txs.start_ms;
-                    txs.chrono_ms     = 0;
-                    txs.rate          = AUDIO_RATE;
+                    txs.chrono_t0     = 0;
+                    txs.chrono_n      = 0;
+                    txs.rate          = audio_fmt(c).rate;
                 } else {
                     ptt_owner = ci;
                     ptt_ms    = now_ms();
@@ -705,23 +909,13 @@ static void handle_cmd(int ci, char *line) {
     } else if (!strcmp(name, "tx_sensors_enable")) {
         if (n >= 1) c->tx_sensors = parse_bool(a[0]);
         client_textf(c, "tx_sensors_enable:%s;", c->tx_sensors ? "true" : "false");
-    } else if (!strcmp(name, "audio_samplerate")) {
-        if (n >= 1) {
-            int r = atoi(a[0]);
-            if (r == 8000 || r == 12000 || r == 24000 || r == 48000)
-                c->audio_rate = r;
-        }
-        client_textf(c, "audio_samplerate:%u;", c->audio_rate);
-    } else if (!strcmp(name, "audio_stream_sample_type")) {
-        if (n >= 1) {
-            pthread_mutex_lock(&c->lock);   /* the capture thread reads it with the frame */
-            c->audio_float = strcasecmp(a[0], "float32") == 0;
-            pthread_mutex_unlock(&c->lock);
-        }
-        client_textf(c, "audio_stream_sample_type:%s;", c->audio_float ? "float32" : "int16");
+    } else if (!strcmp(name, "audio_samplerate") || !strcmp(name, "audio_stream_sample_type") ||
+               !strcmp(name, "audio_stream_channels") || !strcmp(name, "audio_stream_samples")) {
+        audio_fmt_cmd(c, name, n >= 1 ? a[0] : NULL);
     } else if (!strcmp(name, "audio_start")) {
         pthread_mutex_lock(&c->lock);
         c->audio_on = true;
+        c->fmt_gen++;               /* the stream starts with a whole frame of now */
         pthread_mutex_unlock(&c->lock);
         cap_update();
         client_text(c, "audio_start:0;");
@@ -765,7 +959,10 @@ static void handle_text(int ci, char *text) {
 
 /* ---- TX audio from the client ------------------------------------------------------- */
 
-/* Linear interpolation from in_rate to AUDIO_PLAY_RATE, carried over between frames */
+/* Linear interpolation from in_rate to AUDIO_PLAY_RATE, carried over between frames. 48 kHz
+ * (WSJT-X, a browser's microphone) goes in as it is: simulated, a halfband down to 24 kHz first
+ * changed nothing in the passband, where the worst product is this interpolation's own (-48 dBc
+ * for a 2.9 kHz tone, the same from the knob's 24 kHz), and left 15 dB more above it */
 static size_t resample(const int16_t *in, size_t n, uint32_t in_rate, int16_t *out, size_t out_max) {
     double step = (double)in_rate / AUDIO_PLAY_RATE;
     size_t k    = 0;
@@ -789,6 +986,17 @@ static size_t resample(const int16_t *in, size_t n, uint32_t in_rate, int16_t *o
     return k;
 }
 
+/* A TX frame as TCI lays it out: length samples of all the channels, in the header's type.
+ * Two shapes are taken:
+ *  - the payload is length samples (TCI's, the knob's, the browser microphone's); the
+ *    channels are the header's, or the client's format's when that word is not 1 or 2;
+ *  - the payload is twice that, its first half the audio: WSJT-X and JTDX size the frame for
+ *    length pairs, fill it with length samples (length / 2 pairs, left and right the same)
+ *    and leave the channel word unwritten, so their frame is stereo whatever it says.
+ * A frame of another shape is no audio the radio can read (played as it came it was noise at
+ * the set drive): it ends the transmission before any of it is played, the radio unkeys and
+ * the client hears trx:0,false. The first channel goes on the air. Each bound checked on its
+ * own: a product of the header's words unchecked wrapped on 32 bits and read past the frame */
 static void handle_tx_audio(int ci, const uint8_t *frame, size_t len) {
     audio_hdr_t h;
     int16_t     pcm[2048];
@@ -800,32 +1008,25 @@ static void handle_tx_audio(int ci, const uint8_t *frame, size_t len) {
     if (h.type != AT_TX)
         return;
     size_t   n   = h.length;
-    uint32_t ch  = h.channels ? h.channels : 1;
-    size_t   bps = h.format == AF_FLOAT32 ? 4 : 2;
-    /* The payload is exactly the header's n samples of ch channels. A frame of another shape is
-     * no audio the radio can read: WSJT-X and JTDX answer TX_CHRONO with float32 stereo under
-     * our int16 header (512 pairs, 4096 bytes), which played as int16 was noise at the set
-     * drive. It ends the transmission before any of it is played: the radio unkeys and the
-     * client hears trx:0,false. Each bound checked on its own: n * ch * bps with the header's
-     * channel count unchecked wrapped on 32 bits and read past the frame */
-    if (n == 0 || n > 2048 || ch > 2 || len - sizeof(h) != n * ch * bps) {
+    size_t   bps = tci_sample_bytes(h.format);
+    size_t   p   = len - sizeof(h);
+    uint32_t ch  = 0;
+    if (bps && n && n <= 2048) {
+        if (p == n * bps)
+            ch = h.channels == 1 || h.channels == 2 ? h.channels : audio_fmt(&clients[ci]).ch;
+        else if (p == 2 * n * bps)
+            ch = 2;
+    }
+    if (!ch || n / ch == 0) {
         tx_session_end(ci, false);
         return;
     }
-    const uint8_t *d = frame + sizeof(h);
-    for (size_t i = 0; i < n; i++) {
-        if (h.format == AF_FLOAT32) {
-            float f;
-            memcpy(&f, d + i * ch * 4, 4);
-            pcm[i] = (int16_t)(LV_CLAMP(-1.0f, f, 1.0f) * 32767.0f);
-        } else {
-            pcm[i] = (int16_t)(d[i * ch * 2] | d[i * ch * 2 + 1] << 8);
-        }
-    }
+    size_t frames = n / ch;
+    tci_decode_first(frame + sizeof(h), frames, ch, h.format, pcm);
     if (h.sample_rate >= 8000 && h.sample_rate <= 48000)
         txs.rate = h.sample_rate;
     txs.last_audio_ms = now_ms();
-    size_t k = resample(pcm, n, txs.rate, out, sizeof(out) / sizeof(out[0]));
+    size_t k = resample(pcm, frames, txs.rate, out, sizeof(out) / sizeof(out[0]));
     if (k)
         audio_play_if_room(out, k);    /* full: dropped, the delay stays short */
 }
@@ -860,23 +1061,45 @@ static void tx_session_tick(uint64_t now) {
         tx_session_end(txs.owner, false);
         return;
     }
-    uint64_t period = AUDIO_FRAMES * 1000 / txs.rate;   /* 21 ms at 24 kHz */
-    if (now - txs.chrono_ms >= period) {
-        audio_hdr_t h = {.receiver = 0, .sample_rate = txs.rate, .format = AF_INT16, .length = AUDIO_FRAMES,
-                         .type = AT_CHRONO, .channels = 1};
-        txs.chrono_ms = txs.chrono_ms ? txs.chrono_ms + period : now;
-        client_frame(c, WS_OP_BINARY, &h, sizeof(h), NULL, 0);
+    /* TX_CHRONO asks for 21.3 ms of audio in the client's format (512 samples at 24 kHz, 1024
+     * at 48 kHz; length counts every channel's), on time to the microsecond: a pace rounded to
+     * 21 ms asked for 1.6 % more than the air takes, and the play stream dropped the rest. A
+     * late tick sends what is due; a stall, or a new format, starts the count over */
+    afmt_t   f      = audio_fmt(c);
+    uint64_t frames = (uint64_t)f.rate * AUDIO_FRAMES / AUDIO_RATE;
+    uint64_t us     = now_us();
+    if (!txs.chrono_t0 || txs.chrono_gen != c->fmt_gen) {
+        txs.chrono_t0  = us;
+        txs.chrono_n   = 0;
+        txs.chrono_gen = c->fmt_gen;
+    }
+    for (int i = 0; i < 2; i++) {
+        uint64_t due = txs.chrono_t0 + txs.chrono_n * frames * 1000000 / f.rate;
+        if (us < due)
+            break;
+        if (us - due > 200000) {
+            txs.chrono_t0 = us;
+            txs.chrono_n  = 0;
+        }
+        audio_hdr_t h = {.receiver = 0, .sample_rate = f.rate, .format = f.type, .length = (uint32_t)frames * f.ch,
+                         .type = AT_CHRONO, .channels = f.ch};
+        client_chrono(c, &h);
+        txs.chrono_n++;
     }
 }
 
 /* ---- RX audio to the clients -------------------------------------------------------- */
 
-/* Capture at AUDIO_RATE, mono: every client gets that rate, whatever it asked (the header
- * says so, and the knob plays what the header says) */
+/* Captured once at AUDIO_RATE, mono; each client gets it in its format (audio_fmt): at 48 kHz
+ * through the halfband (run once a read for all of them), the one channel in each of the
+ * client's, in frames of the client's size, what is short of a frame kept for the next read.
+ * The header says what the frame holds. */
 static void *capture_thread(void *arg) {
-    pa_simple *s = NULL;
-    int16_t    pcm[AUDIO_FRAMES];
-    float      fl[AUDIO_FRAMES];
+    static uint8_t pkt[2048 * 2 * 4];   /* the largest frame: 2048 float32 pairs */
+    pa_simple     *s = NULL;
+    int16_t        pcm[AUDIO_FRAMES];
+    float          x24[AUDIO_FRAMES], x48[2 * AUDIO_FRAMES];
+    tci_up2_t      up = {0};
     (void)arg;
 
     while (true) {
@@ -904,25 +1127,46 @@ static void *capture_thread(void *arg) {
             s = NULL;
             continue;
         }
+
+        bool   on[MAX_CLIENTS], any48 = false;
+        afmt_t fmt[MAX_CLIENTS];
         for (int i = 0; i < MAX_CLIENTS; i++) {
             client_t *c = &clients[i];
-            bool      on, flt;
+            uint32_t  gen;
 
-            /* one look at the client's wishes per frame: the header and the samples agree */
+            /* one look at the client's wishes per read: the header and the samples agree */
             pthread_mutex_lock(&c->lock);
-            on  = c->fd >= 0 && c->up && c->audio_on;
-            flt = c->audio_float;
+            on[i]  = c->fd >= 0 && c->up && c->audio_on;
+            fmt[i] = audio_fmt(c);
+            gen    = c->fmt_gen;
             pthread_mutex_unlock(&c->lock);
-            if (!on)
+            if (gen != c->acc_gen || !on[i]) {
+                c->acc_gen = gen;
+                c->acc_n   = 0;
+            }
+            any48 = any48 || (on[i] && fmt[i].rate == 48000);
+        }
+        for (int k = 0; k < AUDIO_FRAMES; k++)
+            x24[k] = pcm[k] / 32768.0f;
+        tci_up2(&up, x24, AUDIO_FRAMES, any48 ? x48 : NULL);
+
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            client_t     *c  = &clients[i];
+            const afmt_t *f  = &fmt[i];
+            bool          hi = f->rate == 48000;
+            size_t        n  = hi ? 2 * AUDIO_FRAMES : AUDIO_FRAMES;
+
+            if (!on[i])
                 continue;
-            audio_hdr_t h = {.receiver = 0, .sample_rate = AUDIO_RATE, .format = flt ? AF_FLOAT32 : AF_INT16,
-                             .length = AUDIO_FRAMES, .type = AT_RX, .channels = 1};
-            if (flt) {
-                for (int k = 0; k < AUDIO_FRAMES; k++)
-                    fl[k] = pcm[k] / 32768.0f;
-                client_frame(c, WS_OP_BINARY, &h, sizeof(h), fl, sizeof(fl));
-            } else {
-                client_frame(c, WS_OP_BINARY, &h, sizeof(h), pcm, sizeof(pcm));
+            memcpy(c->acc + c->acc_n, hi ? x48 : x24, n * sizeof(float));
+            c->acc_n += n;
+            while (c->acc_n >= f->samples) {
+                audio_hdr_t h = {.receiver = 0, .sample_rate = f->rate, .format = f->type,
+                                 .length = f->samples * f->ch, .type = AT_RX, .channels = f->ch};
+                size_t bytes = tci_encode(c->acc, f->samples, f->ch, f->type, pkt);
+                client_frame_within(c, audio_budget(f), WS_OP_BINARY, &h, sizeof(h), pkt, bytes);
+                c->acc_n -= f->samples;
+                memmove(c->acc, c->acc + f->samples, c->acc_n * sizeof(float));
             }
         }
     }
@@ -1052,12 +1296,20 @@ static void accept_client(int listen_fd) {
         if (c->fd >= 0)
             continue;
         setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+#ifdef TCP_NOTSENT_LOWAT
+        setsockopt(fd, IPPROTO_TCP, TCP_NOTSENT_LOWAT, &(int){NOTSENT_LOWAT}, sizeof(int));
+#endif
         pthread_mutex_lock(&c->lock);
         c->fd          = fd;
         c->up          = false;
-        c->in_len = c->out_len = c->text_len = 0;
-        c->rx_sensors = c->tx_sensors = c->audio_on = c->audio_float = false;
-        c->audio_rate  = AUDIO_RATE;
+        c->in_len = c->text_len = 0;
+        c->out_head = c->out_len = c->out_cut = c->urg_len = 0;
+        c->rx_sensors = c->tx_sensors = c->audio_on = false;
+        c->fmt_rate    = 48000;         /* TCI's defaults until it asks (audio_fmt) */
+        c->fmt_type    = TCI_FLOAT32;
+        c->fmt_ch = c->fmt_samples = 0;
+        c->fmt_rate_asked = false;
+        c->fmt_gen++;
         c->last_ms = c->ping_ms = now_ms();
         inet_ntop(AF_INET, &peer.sin_addr, c->ip, sizeof(c->ip));
         pthread_mutex_unlock(&c->lock);
@@ -1129,7 +1381,7 @@ static void *server_thread(void *arg) {
             if (c->fd < 0)
                 continue;
             pthread_mutex_lock(&c->lock);
-            short ev = POLLIN | (c->out_len ? POLLOUT : 0);
+            short ev = POLLIN | (c->out_len || c->urg_len ? POLLOUT : 0);
             pthread_mutex_unlock(&c->lock);
             slot[n]  = i;
             pfd[n++] = (struct pollfd){.fd = c->fd, .events = ev};
