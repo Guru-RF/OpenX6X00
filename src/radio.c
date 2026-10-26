@@ -612,6 +612,10 @@ void radio_poweroff() {
     }
     cfg_api_flush_all();
     cfg_db_shutdown();
+    /* Onto the card before the base cuts the power: the settings are written with synchronous=OFF (params/db.c), the
+     * FAT keeps its table and folder changes in memory, and the kernel writes them out some 30 s later. Cut before,
+     * params.db and its WAL can be left half written on the card, and the files written last lost */
+    sync();
     state = RADIO_POWEROFF;
 }
 
