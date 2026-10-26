@@ -365,8 +365,8 @@ void wifi_add_connection(const wifi_ap_info_t *ap_info, const char *password) {
 				 NM_SETTING_CONNECTION_ID, ssid,
                  NM_SETTING_CONNECTION_TYPE, NM_SETTING_WIRELESS_SETTING_NAME,
 				 NM_SETTING_CONNECTION_AUTOCONNECT, TRUE,
-                 NM_SETTING_CONNECTION_AUTOCONNECT_RETRIES, 0,   // 0 = forever, see fix_autoconnect_retries()
-				 NM_SETTING_CONNECTION_INTERFACE_NAME, device ? nm_device_get_iface(device) : WLAN_IFACE,
+                 NM_SETTING_CONNECTION_AUTOCONNECT_RETRIES, 0,   // 0 = forever, see fix_wifi_profiles()
+				 NM_SETTING_CONNECTION_INTERFACE_NAME, NULL,   // any WiFi device: see fix_wifi_profiles()
 				 NULL);
     // clang-format on
     g_free(uuid);
@@ -431,10 +431,9 @@ void wifi_update_connection(const char *uuid, const char *password) {
     if (rem_con) {
         new_connection = nm_simple_connection_new_clone(NM_CONNECTION(rem_con));
         nm_connection_remove_setting(new_connection, NM_TYPE_SETTING_WIRELESS_SECURITY);
-        if (device) {   /* a profile tied to wlan0 on a radio whose WiFi is named otherwise */
-            g_object_set(nm_connection_get_setting_connection(new_connection), NM_SETTING_CONNECTION_INTERFACE_NAME,
-                         nm_device_get_iface(device), NULL);
-        }
+        /* tied to no interface name, as fix_wifi_profiles() leaves them */
+        g_object_set(nm_connection_get_setting_connection(new_connection), NM_SETTING_CONNECTION_INTERFACE_NAME, NULL,
+                     NULL);
         if (password) {
             s_wsec = (NMSettingWirelessSecurity *)nm_setting_wireless_security_new();
             // clang-format off
@@ -531,17 +530,27 @@ static void update_scan_status_cb(lv_timer_t *t) {
  * radio) blocks the network, and NM no longer reconnects even after the
  * chip comes back. Retry forever instead.
  */
-static void fix_autoconnect_retries() {
+/* The saved WiFi networks: autoconnect retried forever (an old profile stopped after one try), and tied to no
+ * interface name. A radio hit by issue #3 named its WiFi wlan1 until the update's udev rules took effect at the next
+ * start, and a network joined meanwhile was tied to wlan1 and refused ever after on wlan0 */
+static void fix_wifi_profiles() {
     const GPtrArray *cons = nm_client_get_connections(client);
 
     for (guint i = 0; i < cons->len; i++) {
         NMRemoteConnection  *rem_con = (NMRemoteConnection *)g_ptr_array_index(cons, i);
         NMSettingConnection *s_con = nm_connection_get_setting_connection(NM_CONNECTION(rem_con));
 
-        if (!s_con || nm_setting_connection_get_autoconnect_retries(s_con) != 1 ||
-            strcmp(nm_setting_connection_get_connection_type(s_con), NM_SETTING_WIRELESS_SETTING_NAME) != 0)
+        if (!s_con || strcmp(nm_setting_connection_get_connection_type(s_con), NM_SETTING_WIRELESS_SETTING_NAME) != 0)
             continue;
-        g_object_set(G_OBJECT(s_con), NM_SETTING_CONNECTION_AUTOCONNECT_RETRIES, 0, NULL);
+        bool retries = nm_setting_connection_get_autoconnect_retries(s_con) == 1;
+        bool iface   = nm_setting_connection_get_interface_name(s_con) != NULL;
+
+        if (!retries && !iface)
+            continue;
+        if (retries)
+            g_object_set(G_OBJECT(s_con), NM_SETTING_CONNECTION_AUTOCONNECT_RETRIES, 0, NULL);
+        if (iface)
+            g_object_set(G_OBJECT(s_con), NM_SETTING_CONNECTION_INTERFACE_NAME, NULL, NULL);
         nm_remote_connection_commit_changes_async(rem_con, TRUE, NULL, connection_modify_cb, NULL);
     }
 }
@@ -557,7 +566,7 @@ static void setup_nm_client() {
         return;
     }
     g_signal_connect(client, "device-added", G_CALLBACK(device_added_sig_cb), NULL);
-    fix_autoconnect_retries();
+    fix_wifi_profiles();
 }
 
 static void setup_wifi_device() {
