@@ -40,10 +40,13 @@
 <script>
 var last = {};
 // This page itself reached over the tailnet: Off and Log out would cut the connection it came by
+// (also by its MagicDNS short name, as this page suggests, or Tailscale's IPv6 range)
 var viaTailnet = function() {
-  const h = location.hostname;
+  const h = location.hostname.toLowerCase();
+  const short = (last.name || "").split(".")[0].toLowerCase();
   const m = /^100\.(\d+)\./.exec(h);
-  return h === last.name || h === last.ip || h.endsWith(".ts.net") || (m && m[1] >= 64 && m[1] <= 127);
+  return h === last.name || (short && h === short) || h === last.ip || h.endsWith(".ts.net")
+    || h.startsWith("[fd7a:115c:a1e0:") || (m && m[1] >= 64 && m[1] <= 127);
 }
 const CUT = "You are connected through Tailscale: this cuts your connection to the radio, and only the radio itself or its home network can bring it back.\n\n";
 
