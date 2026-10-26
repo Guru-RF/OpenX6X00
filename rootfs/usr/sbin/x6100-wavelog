@@ -7,7 +7,8 @@
 #                            "off"                           not set up or not enabled
 #                            "ok"                            nothing new
 #                            "ok <n> <message>"              n QSOs sent (or already in Wavelog)
-#                            "retry <n> <message>"           n QSOs wait: no network, server busy
+#                            "retry <n> <message>"           n QSOs wait: no network, server busy, an answer
+#                                                            that is not Wavelog's (a WiFi login page)
 #                            "error <message>"               refused (key, station profile): fix it on the web page
 #   x6100-wavelog stations   "ok <json>": the station profiles of the key, [{"id", "name", "call", "grid", "active"}]
 #   x6100-wavelog test       "ok <Wavelog version>"
@@ -249,22 +250,25 @@ def collect(state, queue, since):
 
 
 def send(conf, rec, station_id):
-    """'ok', 'dupe', 'reject <why>'; Retry or Fail for what stops the whole run"""
+    """'ok', 'dupe', 'reject <why>'; Retry or Fail for what stops the whole run. Wavelog answers 201 "created"
+    for a QSO it took and 400 "abort" for one it didn't, the reason in "messages" (a duplicate among them)"""
     body = {"key": conf["key"], "station_profile_id": station_id, "type": "adif", "string": rec}
     code, j, text = request(api_url(conf["url"], "qso"), body, conf.get("verify_tls", "1") != "0")
-    j = j if isinstance(j, dict) else {}
-    status = str(j.get("status", "")).lower()
-    reason = one_line(j.get("reason") or j.get("message") or text, 60)
-    if "dup" in status or "dup" in reason.lower():
-        return "dupe"
-    if 200 <= code < 300 and status != "failed":
+    if not isinstance(j, dict) or "status" not in j:   # not Wavelog: a WiFi login page, a proxy's page
+        raise Retry(f"no Wavelog answer (HTTP {code})")
+    status = str(j["status"]).lower()
+    msgs = j.get("messages") if isinstance(j.get("messages"), list) else []
+    full = re.sub(r"<br\s*/?>", " ", " ".join(map(str, msgs))).strip() or str(j.get("reason") or j.get("message") or "")
+    why = one_line(full, 60)
+    if code == 201 and status == "created":
         return "ok"
-    if code in (401, 403):
-        raise Fail(f"key refused (HTTP {code})")
     if code in (408, 429) or code >= 500:
         raise Retry(f"server HTTP {code}")
-    return f"reject {reason}"
-
+    if code in (401, 403):   # the key, or a station profile that is not the key's
+        raise Fail(why or f"key refused (HTTP {code})")
+    if code == 400 and status == "abort":
+        return "dupe" if "duplicate" in full.lower() else f"reject {why}"
+    raise Fail(f"HTTP {code} {why}".strip())   # anything else (a wrong URL): stop, the QSOs wait
 
 def qsos(n):
     return f"{n} QSO{'' if n == 1 else 's'}"
