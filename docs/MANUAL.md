@@ -345,6 +345,23 @@ DATA a digital one, BCN a beacon one, anything else all modes. "60m CW" at
 5.2585 MHz is a CW segment, so the CW keyboard works there. Broadcast and CB
 get none. A band changed on the web page shows at the next band change.
 
+Zoom and step per mode. Where: Settings > Display > MAIN SCREEN (also on the
+web configurator's Display page).
+
+- On (the default): each mode keeps its own waterfall zoom and tuning step
+  (FST), and a mode change brings that mode's back. SSB (LSB, USB), DIG
+  (LSB-D, USB-D), CW (CW, CW-R), AM (AM, SAM), NFM and wide FM each have
+  their own.
+- Off: one zoom and one step for every mode. A change in any mode (FST, the
+  span buttons, the MFK, the browser panel, CAT) changes them in all, and a
+  mode change keeps them, whatever makes it: the mode keys, Mode from band
+  plan, or the knob turned into the next band of the band list, which brings
+  the mode last used in that band (14.069 in 20m CW to 14.0701 in 20m SSB).
+- Turned off, the zoom and step of the mode the radio is in become every
+  mode's. They stay over a restart.
+- Turned on again, each mode has its own zoom and step back, as they were
+  when the option went off.
+
 Spectrum. Where: Settings > Display > SPECTRUM (off by default; the screen
 restarts to lay it out). The band plan and the cluster spots stay at the top
 of the waterfall. With Spectrum on, the card has:
@@ -502,7 +519,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | BACKLIGHT | timeout and brightness, buttons brightness (Always Off, Always On, Temporarily On), Screen off (min) (minutes without a key or knob, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser; POWER shows it for the blank time, a minute at least) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
-| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp |
+| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode (see [Waterfall](#waterfall)) |
 | INTERFACE | Popups Freq/Info/ALC, Knob info, Theme, Font, FT8/FT4 info |
 
 - Popups Freq/Info/ALC: a big frequency while tuning, a big value of the
@@ -2149,7 +2166,7 @@ applied on the radio as you change them.
 | On the waterfall | Band plan, Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
-| Text and info | Knob info, Magnify frequency, Magnify info, Magnify ALC |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, Magnify ALC |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
 made on first start (valid 10 years, stored in `/mnt/https/`). The browser

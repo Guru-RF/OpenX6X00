@@ -123,6 +123,10 @@ class SettingsManager {
     // sideband of the band in a phone segment (screen_main.c)
     Parameter<int32_t> p_mode_from_plan{"mode_from_plan", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Zoom and step per mode (Settings > Display): on, each mode group keeps its own waterfall zoom and tuning
+    // step, as it always did. Off, one zoom and one step for every mode (zoom_step_scope)
+    Parameter<int32_t> p_zoom_step_per_mode{"zoom_step_per_mode", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Birdies (birdie.c): 0 nothing, 1 marked on the waterfall, 2 marked and notched in the passband
     Parameter<int32_t> p_birdie_marks{"birdie_marks", 1, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
@@ -505,6 +509,8 @@ class SettingsManager {
     // Parameter<int32_t> p_mode_squelch{
     //     "squelch",    0, StorageType::MODE, pending_writes_, [](int32_t v) { return clip(v, 0, 100); }, {},
     //     &mode_params_};
+    // The step and the zoom are the current mode group's, or every mode's (context MODE_ALL) while
+    // p_zoom_step_per_mode is off: their readers and writers never see the difference
     Parameter<int32_t> p_mode_freq_step{"freq_step", 500, [](int32_t v) { return clip(v, 1, 10000); },
         StorageType::MODE, pending_writes_, [this]() { on_mode_freq_step_not_found(); }, &mode_params_};
     Parameter<int32_t> p_mode_zoom{"spectrum_factor", 1, [](int32_t v) { return clip(v, 1, 8); },
@@ -591,6 +597,10 @@ class SettingsManager {
     // -- Accessors --
     int current_band_id() const { return band_id_; }
     int current_mode_group_id() const { return mode_group_id_; }
+
+    // The mode_params rows of the zoom and the step every mode shares (p_zoom_step_per_mode off): no mode group's,
+    // and not -1, which load() and flush_storage() take for "the bound one" and "any"
+    static constexpr int MODE_ALL = 100;
 
     // Hardware-usable frequency range limits (in Hz). HF is the native
     // 0.1-55 MHz band; anything above must be covered by a transverter.
@@ -736,13 +746,19 @@ class SettingsManager {
     // for new_group_id.
     void switch_mode(ModeGroup new_group_id);
 
-    // Apply the current band/mode context to every parameter in the group.
+    // Apply the current band/mode context to every parameter in the group. A mode param bound to MODE_ALL keeps it.
     void set_band_context(int band_id);
     void set_mode_context(int mode_id);
 
-    // Full group loads (used by init_load).
+    // Full group loads (used by init_load). load_mode_all, also a mode switch's, leaves the params bound to MODE_ALL.
     void load_band_all(int band_id);
     void load_mode_all();
+
+    // The zoom and the step bound as p_zoom_step_per_mode has it: to the current mode group, or to MODE_ALL. At
+    // init the values saved for every mode are read; the option turned off, the current mode's become every mode's.
+    // Back per mode, each mode's own values return: the shared ones were never written into their rows
+    void zoom_step_scope(bool at_init);
+    static void zoom_step_scope_cb(Subject *subj, void *user_data);
 
     // Switch-time band loads: never loads current_vfo; when `implicit` is true
     // also keeps the active VFO's freq+mode (loads only the inactive VFO).
@@ -811,6 +827,9 @@ class SettingsManager {
     // Holds the cp_cur_mode observer that triggers switch_mode() on mode change.
     // RAII: unsubscribes on destruction.
     Subscription switch_mode_obs_;
+
+    // The p_zoom_step_per_mode observer: rebinds the zoom and the step (zoom_step_scope)
+    Subscription zoom_step_obs_;
 
     // Holds the p_band_id observer that triggers an explicit band switch when
     // p_band_id is set. RAII: unsubscribe on destruction.

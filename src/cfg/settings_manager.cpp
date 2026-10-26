@@ -21,7 +21,8 @@ extern "C" {
 //     band switch. The active VFO's frequency that caused the switch is kept,
 //     but its mode/att/pre/agc are loaded from the new band.
 //   - Switch mode: the user changed the mode. Save pending mode writes and
-//     load the mode params for the new mode.
+//     load the mode params for the new mode; not the zoom and the step while
+//     every mode shares them (p_zoom_step_per_mode off, zoom_step_scope).
 //
 // All loads use Parameter::load(), which reads the context_id bound via
 // set_context_id() — no context threading through every call.
@@ -143,9 +144,14 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
 
     load_mode_all();
 
+    // Zoom and step of every mode (the option off): bound to their own rows after the mode's are loaded, so a
+    // row never written takes the current mode's values
+    zoom_step_scope(true);
+
     // Subscribe an observer that calls switch_mode() whenever the current mode
     // changes (e.g. from cp_cur_mode.set() or a VFO switch).
     switch_mode_obs_ = Subscription(cp_cur_mode.subscribe(switch_mode_observer_cb, this));
+    zoom_step_obs_   = Subscription(p_zoom_step_per_mode.subscribe(zoom_step_scope_cb, this));
 
     // Bind the computed current VFO att/pre/agc and the background VFO
     // frequency to their sources and recompute from the freshly loaded params.
@@ -201,12 +207,51 @@ void SettingsManager::on_mode_filter_high_not_found() {
     p_mode_filter_high.set_quiet(mode_group_filter_high_default((ModeGroup)p_mode_filter_high.context_id()));
 }
 
+// The rows of every mode never written: the value in use stays, and zoom_step_scope saves it there
 void SettingsManager::on_mode_freq_step_not_found() {
-    p_mode_freq_step.set_quiet(mode_group_freq_step_default((ModeGroup)p_mode_freq_step.context_id()));
+    if (p_mode_freq_step.context_id() != MODE_ALL) {
+        p_mode_freq_step.set_quiet(mode_group_freq_step_default((ModeGroup)p_mode_freq_step.context_id()));
+    }
 }
 
 void SettingsManager::on_mode_zoom_not_found() {
-    p_mode_zoom.set_quiet(mode_group_zoom_default((ModeGroup)p_mode_zoom.context_id()));
+    if (p_mode_zoom.context_id() != MODE_ALL) {
+        p_mode_zoom.set_quiet(mode_group_zoom_default((ModeGroup)p_mode_zoom.context_id()));
+    }
+}
+
+void SettingsManager::zoom_step_scope(bool at_init) {
+    Parameter<int32_t> *const zs[] = {&p_mode_zoom, &p_mode_freq_step};
+
+    if (p_zoom_step_per_mode.get()) {
+        if (p_mode_zoom.context_id() != MODE_ALL) {
+            return;
+        }
+        // Back per mode: the current mode's own values, which the shared ones never wrote over. A change made in its
+        // rows just before the option went off may still be queued, and load() reads the database
+        pending_writes_.flush_storage(StorageType::MODE, mode_group_id_);
+        for (Parameter<int32_t> *p : zs) {
+            p->set_context_id(mode_group_id_);
+            p->load();
+        }
+        return;
+    }
+    if (p_mode_zoom.context_id() == MODE_ALL) {
+        return;
+    }
+    // One zoom and one step for every mode. At a start, those saved for every mode. The option turned off now, or
+    // those rows never written: the current mode's, the ones on screen (nothing jumps), written to the rows of every
+    // mode so a restart in another mode finds them and not that mode's own
+    for (Parameter<int32_t> *p : zs) {
+        p->set_context_id(MODE_ALL);
+        if (!at_init || p->load() == NOT_FOUND) {
+            pending_writes_.write(StorageKey{StorageType::MODE, MODE_ALL, p->db_name()}, p->get());
+        }
+    }
+}
+
+void SettingsManager::zoom_step_scope_cb(Subject * /*subj*/, void *user_data) {
+    static_cast<SettingsManager *>(user_data)->zoom_step_scope(false);
 }
 
 void SettingsManager::switch_band(int new_band_id, bool implicit) {
@@ -806,8 +851,11 @@ void SettingsManager::set_band_context(int band_id) {
 }
 
 void SettingsManager::set_mode_context(int mode_id) {
+    // The zoom and the step of every mode stay with every mode (zoom_step_scope)
     for (ParamBase *p : mode_params_) {
-        p->set_context_id(mode_id);
+        if (p->context_id() != MODE_ALL) {
+            p->set_context_id(mode_id);
+        }
     }
 }
 
@@ -822,8 +870,11 @@ void SettingsManager::load_band_all(int band_id) {
 }
 
 void SettingsManager::load_mode_all() {
+    // Not the zoom and step of every mode: a mode change keeps them, and their row may lag a change still queued
     for (ParamBase *p : mode_params_) {
-        p->load(p->context_id());
+        if (p->context_id() != MODE_ALL) {
+            p->load(p->context_id());
+        }
     }
 }
 

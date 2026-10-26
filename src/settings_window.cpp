@@ -3727,6 +3727,8 @@ static void make_display_page() {
     row = make_param_switch(row, "Needle lamp", cfg_sm.p_smeter_lamp);
     /* The radio's own carriers found by Birdie Cal (APP): on the waterfall, and out of the passband */
     row = make_param_choice(row, "Birdies", " Off \n Marks \n Marks + notch ", cfg_sm.p_birdie_marks);
+    /* Off: one waterfall zoom and one tuning step for every mode, a mode change keeps them */
+    row = make_param_switch(row, "Zoom and step per mode", cfg_sm.p_zoom_step_per_mode);
     card_end(row);
 
     row = card_begin("INTERFACE");
