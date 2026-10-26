@@ -30,6 +30,11 @@ bool cfg_is_tx_freq(int32_t freq) {
     return cfg_sm.is_tx_freq(freq);
 }
 
+bool cfg_band_usable(void) {
+    BandInfoLoadResult b = BandsTable::get_by_id(cfg_sm.current_band_id());
+    return b.rc != SUCCESS || cfg_sm.band_use(b.value.start_freq, b.value.stop_freq) != BAND_USE_NONE;
+}
+
 void cfg_api_flush_all(void) {
     cfg_sm.flush_all();
 }

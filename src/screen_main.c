@@ -1276,14 +1276,15 @@ static void on_band_id_change(Subject *subj, void *user_data) {
 }
 
 /* Off a band the radio cannot use any more, to the one below (else the one above): the WR12 switched off, or at the
- * start an X6200 left on 2 m before its transverters were off by default, a radio left on 4 m */
+ * start an X6200 left on 2 m before its transverters were off by default, a radio left on 4 m. The band counts as
+ * well as the frequency: on 4 m the start clamp puts the VFO on 55.000 MHz, which can be tuned */
 static void band_usable_check(void *arg) {
-    if (cfg_is_valid_hw_freq(cparam_i_get(cfg_fg_freq))) {
+    if (cfg_is_valid_hw_freq(cparam_i_get(cfg_fg_freq)) && cfg_band_usable()) {
         return;
     }
     LV_LOG_USER("%i Hz cannot be tuned: another band", cparam_i_get(cfg_fg_freq));
     cfg_band_load_next(false);
-    if (!cfg_is_valid_hw_freq(cparam_i_get(cfg_fg_freq))) {
+    if (!cfg_is_valid_hw_freq(cparam_i_get(cfg_fg_freq)) || !cfg_band_usable()) {
         cfg_band_load_next(true);
     }
 }

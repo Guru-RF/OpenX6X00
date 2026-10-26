@@ -38,6 +38,8 @@ bool cfg_is_valid_hw_freq(int32_t freq);
 bool cfg_is_rx_only_freq(int32_t freq);
 /* Transmitted on: HF, a transverter with a shift */
 bool cfg_is_tx_freq(int32_t freq);
+/* The band the radio is on is one it can use (band_use over its edges); true between bands */
+bool cfg_band_usable(void);
 
 // Persist all pending deferred writes immediately.
 void cfg_api_flush_all(void);
