@@ -422,6 +422,9 @@ static const char *tx_refused(void) {
     }
     if (swr_trip_ms && now_ms() - swr_trip_ms < SWR_HOLD_MS)
         return "an SWR trip less than 5 minutes ago";
+    /* Winlink is simplex: with a TX shift the key went out shifted, 600 kHz off the frequency Pat tuned */
+    if (param_i_get(cfg_band_split) && param_i_get(cfg_band_tx_shift))
+        return "a TX shift is set on this band";
     return NULL;
 }
 
