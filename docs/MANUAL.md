@@ -11,7 +11,7 @@ Settings. Button and option names are written as the radio shows them.
 
 - [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs)
 - [Updating the firmware](#updating-the-firmware)
-- [Main screen](#main-screen): [receiving outside the ham bands](#receiving-outside-the-ham-bands), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
+- [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
@@ -125,6 +125,28 @@ web configurator (System > Update).
 
 ## Main screen
 
+### Band keys
+
+The BAND keys (and the hand mic's long UP/DOWN, the keyboard's PgUp/PgDn, the
+Walkie Talkie's Band buttons, the browser panel) step through the active bands
+of the band list, from the frequency up or down.
+
+- They skip a band the radio cannot tune: 4 m (70 MHz) on both radios, and on
+  the X6200 2 m and 70 cm unless the WR12 is on (see
+  [WR12 receiver](#wr12-receiver-x6200)). The band plan strip, Birdie Cal and
+  the browser panel's band list leave them out the same way.
+- 2 m and 70 cm on the X6100 are transverter bands (Settings > General >
+  TRANSVERTERS): they stay on the band keys while a transverter covers them.
+- 60 m (5351.5-5366.5 kHz, WRC-15) is on the band keys, between 80 m and
+  40 m. It opens at 5.360 MHz in USB, the sideband used there. A radio
+  updated from an older version gets it too, unless a band of its own already
+  covers part of it (a "60m CW" added on the web page). Whether the base lets
+  you transmit there is the base's own band plan: both bases list a 60 m band
+  around it. Not tried on the air yet.
+- A band with no mode saved opens in LSB under 10 MHz and USB above, USB on
+  60 m; on the X6200 wide FM on FM broadcast, AM on the airband and NFM in
+  what only the WR12 receives.
+
 ### Receiving outside the ham bands
 
 - The broadcast bands of the band list (Broadcast 75m to 11m) open in AM and
@@ -134,10 +156,39 @@ web configurator (System > Update).
 - The X6200 also receives FM broadcast (87.5-108 MHz, wide FM) and the airband
   (118-137 MHz, AM), as its specification has it: two bands, FM broadcast and
   Airband, after 6 m on the band keys. They are receive only: PTT, the digital
-  apps, CW from the keyboard and the tuner are refused there, with a message.
+  apps, CW from the keyboard, the tuner and the SWR scan are refused there,
+  with "No TX on 100.000 MHz: receive only".
+- The same refusal holds anywhere the radio does not transmit: above 55 MHz
+  without a transverter, and everything the WR12 receives. In split it is the
+  other VFO's frequency, the one the radio would transmit on, that counts.
 - PRE and ATT are on the VOL 2:2 button page (F1 from the main screen), per
   band. The X6200 has no PRE key, and its receiver is specified with the
   preamplifier on: turn PRE on when the band sounds quiet.
+
+### WR12 receiver (X6200)
+
+Xiegu's WR12 is a receiver for the X6200's HOST port: 54 MHz to 1 GHz,
+receive only. The radio cannot tell yet that it is plugged in, so a switch
+says so. Where: Settings > General > WR12 RECEIVER > WR12 on HOST (also on
+the web Display page, Receiver card). Off by default.
+
+- On: the bands of the band list between 54 MHz and 1 GHz come onto the band
+  keys and the band plan (4 m, 2 m, 70 cm with the default list), and the
+  knob and the keypad go up to 1 GHz. They open in NFM. Everything there is
+  receive only: PTT, the apps, CW, the tuner and the SWR scan are refused with
+  a message.
+- Off again while on one of those bands: the radio goes to the band below
+  (the airband from 2 m).
+- Not tested yet: whether the base tunes through the WR12 by itself when it is
+  given a frequency above 137 MHz, as this switch assumes. Reports are
+  welcome, with the log of the run (`/mnt/app_logs/`): at every start the
+  radio writes there what is on the HOST port ("USB on HOST: ..."), what it
+  would need to detect the WR12 by itself.
+- The X6200's two transverters (2 m and 70 cm, 28 MHz IF) are off by default,
+  so that 2 m and 70 cm are the WR12's. Older versions had them always on:
+  "145.500" was tuned and transmitted on 29.500 MHz, on 10 m. A transverter
+  set up in Settings before the update keeps its shift. To use one, set its
+  shift in Settings > General > TRANSVERTERS (0 is off).
 
 ### Low battery
 
@@ -394,7 +445,8 @@ base is too old.
 | STATION | callsign, QTH locator, Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, both VFOs live in the current band) |
 | DATE / TIME | date, time, time zone |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
-| TRANSVERTERS | two transverters: from, to, shift |
+| TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)) |
+| WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | TCI SERVER | on/off, port and status, connected client |
 
 Main knob acceleration. Where: Settings > General > CONTROLS > Freq
@@ -1641,8 +1693,9 @@ Birdies are steady carriers the radio makes inside itself (clock harmonics, the
 receiver's own spurs): thin lines on the waterfall that never move with the band.
 APP > Birdie Cal finds them. Disconnect the antenna, press **Start**: the scan
 steps the receiver across every active band, a spectrum width at a time, and
-keeps every narrow carrier that stays put between two looks: a few minutes, the
-2 m and 70 cm bands included when they are active. **Stop** ends it early; what
+keeps every narrow carrier that stays put between two looks: a few minutes,
+every band the radio transmits on (a transverter's too; not the receive-only
+bands). **Stop** ends it early; what
 was found so far is kept. **Clear**
 forgets them. The list is `/mnt/birdies.txt`, one frequency a line.
 
@@ -1879,6 +1932,7 @@ applied on the radio as you change them.
 | Waterfall | Mode (Centered, Fixed), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll |
 | On the waterfall | Band plan, Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
+| Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Text and info | Knob info, Magnify frequency, Magnify info, Magnify ALC |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
