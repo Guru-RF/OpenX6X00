@@ -13,7 +13,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
-- [Transmitting](#transmitting): [TX shift](#tx-shift), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
+- [Transmitting](#transmitting): [TX shift](#tx-shift), [SWR scan and the tuner](#swr-scan-and-the-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
@@ -514,6 +514,17 @@ boot sound. The sound to the browser, TCI and Bluetooth headphones goes on as
 before. Turning VOL says so on the screen. The CW sidetone keeps its own level
 (Key volume). Also on the web configurator's Display page, Remote station card.
 
+Line-in and Play / Rec gain are separate settings:
+
+- Line-in / Line-out (0-36, default 10) are the base's own levels. Line-in is
+  the input level for the audio the digital apps transmit.
+- Play / Rec gain (dB) are the radio's own playback and recording volumes.
+- Up to v0.3.5, moving Play or Rec gain also set Line-in to that dB value,
+  as a whole number: 0 at 0 dB and below. With Line-in at 0 the digital apps
+  on the X6200 could transmit at 0 W (issue #16). Play and Rec gain no longer
+  change Line-in. After the update, a Line-in left that way goes back to 10.
+  A Line-in you set on its own slider afterwards stays as it is.
+
 Compressor on the X6200: its base has three levels, so the ratio chosen (Comp
 on the MFK 2:3 page) goes to the nearest of them: 2:1 and 3:1 as 2:1, 4:1 to
 7:1 as 4:1, 8:1 as 8:1; 1:1 (Off) is off. It is off by default on the X6200.
@@ -780,6 +791,39 @@ Not tried on the air yet. The hand mic's PTT and the paddle go to the base
 directly, without the GUI's check: what the base does with a VFO B it cannot
 transmit on is its own TX permit.
 
+### SWR scan and the tuner
+
+SWR scan: APP 1:3 > SWR Scan. It transmits a carrier (AM, 1 W, or less when
+PWR is set lower) and sweeps it across the span around the frequency the
+radio transmits on (the other VFO in split), drawing the SWR as it goes.
+
+- Run starts the sweep and the button turns into Stop. Stop, or closing the
+  window, ends it and puts the VFO and the mode back.
+- Span: 50, 100, 200 or 500 kHz (not while scanning). Scale: Log or Linear.
+- It starts only from receive. While the radio transmits or the tuner is
+  tuning, Run says "SWR scan: not while transmitting or tuning" and nothing
+  moves. On a frequency the radio cannot transmit on, it says "No TX on ...
+  MHz".
+
+The tuner (the ATU key held, or the "tuner tune" action) transmits a carrier
+until it has found a match. The radio now gives up a tune that does not end
+normally:
+
+- The base has 3 s to start transmitting for the tuner. If it doesn't, the
+  radio says "Tuner did not start".
+- If the base goes back to receive without reporting a match, the radio
+  waits 1 s and then says "Tuner: no match".
+- In both cases the tune is switched off and the radio is back in receive.
+  Before, it stayed in its tuning state: a new tune and the SWR scan did
+  nothing, and CAT and TCI reported TX until a restart. That is the likely
+  cause of issue #25, no SWR scan after a tune on 10 m and 15 m.
+- Each case goes into the base log (`/mnt/base_i2c.log`) with what the base
+  reported, for example "ATU: Tuner: no match (tx 0, atu_status 0,
+  atu_params 00000000)".
+
+Not tried on the radio yet: what the X6200's base reports at the end of a
+tune with no match.
+
 ### Digital-mode TX level
 
 The apps that transmit from the radio (FT8/FT4, JS8, WSPR, SSTV, RTTY,
@@ -790,9 +834,19 @@ WeFax) set their audio level by themselves.
 - In the first second or so of a transmission nothing changes. Then, while
   the ALC reads under 1, the level goes up slowly and stops there; when the
   ALC goes over 3 or the power is well over the setting, it comes down.
-- The level found is kept for the next transmission.
+- The level found is kept for the next transmission. Not from a WSPR beacon,
+  which has its own power (0.2 W by default): its level would pull the one
+  FT8 starts from down.
 - On the X6200 the ALC reading does not follow the audio level, so the level
   goes up until the power reaches the setting and stays there.
+- A transmission that reads 0 W from its first second to its end says so:
+  "TX 0 W: level -38 dB, Line-in 10". The log gets a line with the level, the
+  Line-in, the ALC and the power set; send it with a report. On the X6200 the
+  level then goes back to its default (0 dB) for the next transmission,
+  instead of climbing back 8 dB a transmission. A Line-in of 0 is the other
+  known cause: see [Audio tab](#audio-tab).
+- At start the log has a line with the base's version, Line-in, Line-out,
+  Play and Rec gain and the level kept.
 
 While the AF volume is 0, or the speaker is muted (the mute action, Bluetooth
 headphones with Mute speaker, a TCI client transmitting), the TX monitor is
@@ -803,7 +857,9 @@ TX power while a digital app is open:
 
 - The power is capped at 7 W. With a higher setting the app says so
   ("Power is limited to 7W"), and the setting comes back when you close it.
-- The Power button in the apps sets the power: 0.5, 1, 2, 3, 5, 7 W.
+- The Power button in the apps sets the power: 0.5, 1, 2, 3, 5, 7 W. WSPR's
+  Power button is its own and leaves the radio's power alone (see
+  [WSPR](#wspr)).
 - Digital apps reopen on their last frequency and mode.
 
 ### ALC in CW
@@ -1070,14 +1126,28 @@ or NTP).
   your QTH).
 - TX % (0, 10, 20, 33, 50): the chance that a cycle is a beacon, chosen at
   random as in WSJT-X. TX next sends one beacon in the next cycle; press
-  again to stop it, also on the air.
-- The message is the callsign, the first 4 characters of the locator and the
-  power (at most 7 W, rounded to a WSPR level). Compound calls with a `/`
-  can't be sent.
+  again before that cycle to cancel it. Turning TX % to 0 cancels a beacon
+  it had already chosen for the next cycle.
+- Stop TX: while a beacon is on the air, and in the second before it starts,
+  the TX next button reads Stop TX. A press takes the beacon off the air at
+  once and turns TX % to 0 and TX next off. The rest of that cycle is idle;
+  the next cycles receive until you press TX % or TX next again. Closing WSPR
+  (ESC) also stops a beacon.
+- Power (page 2) is WSPR's own: 0.1, 0.2, 0.5, 1, 2 or 5 W, 0.2 W by
+  default. The radio's power setting is not changed: the radio goes to
+  WSPR's power for each beacon and back to its own after it. These steps
+  are the WSPR levels (20, 23, 27, 30, 33, 37 dBm) that the radio's 0.1 W
+  steps reach exactly, so the power the beacon reports is the power it
+  sends. 0.25 W is not one of them: the X6200 would send 0.2 W.
+- After the update WSPR beacons go out at 0.2 W until you choose another
+  power. Before, WSPR used the radio's power, and its Power button changed
+  it for SSB and the other apps too.
+- The message is the callsign, the first 4 characters of the locator and
+  that power. Compound calls with a `/` can't be sent.
 - The main knob moves the TX audio offset (1410-1590 Hz).
 - Upload: the spots of each cycle go to WSPRnet (plain HTTP over WiFi). The
   status line counts what was sent and what failed.
-- Page 2: Power and TX n%, the same 0, 10, 20, 33, 50 steps as on page 1.
+- Page 2: Power and TX %, the same 0, 10, 20, 33, 50 steps as on page 1.
 
 ### SSTV, WeFax and NavTex
 
@@ -2634,6 +2704,15 @@ The radio's baseband records only from the hand mic: plug it in to record. See
 
 That is the cap for the digital apps. Your setting comes back when you close
 the app.
+
+#### FT8 or another digital app transmits at 0 W
+
+The radio says "TX 0 W: level ... dB, Line-in ..." after such a
+transmission. Check Settings > Audio > Line-in: it should be 10 unless you
+changed it yourself (see [Audio tab](#audio-tab)). On the X6200 the next
+transmission starts again from the default level. If it happens again, send
+the newest log in `/mnt/app_logs/` (a power-off with the POWER key saves the
+run's log there) and the base log `/mnt/base_i2c.log` with your report.
 
 #### The DX Cluster shows no spots
 
