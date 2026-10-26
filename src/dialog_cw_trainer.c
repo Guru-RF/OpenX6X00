@@ -457,12 +457,22 @@ static void set_level(int l) {
     reset_score();
 }
 
+/* The newest character of the level comes up in one place of three while it is new, less and
+ * less over its first HIST_N tries; after that its weight alone counts, as every other one's.
+ * A fixed one in three for good put X, the last of the 40, on every third place at the top
+ * level however well it was known */
+static bool newest_extra(int l) {
+    int n = stats.n[l - 1];
+
+    return n < HIST_N && rand() % (3 * HIST_N) < HIST_N - n;
+}
+
 static void new_target(void) {
     int len = param_i_get(cfg_cwt_group);
     int l   = level();
     for (int i = 0; i < len; i++) {
-        /* the newest character comes up more often, then the weak ones */
-        int k     = (rand() % 3 == 0) ? l - 1 : pick_char(l);
+        /* the newest character comes up more often while it is new, then the weak ones */
+        int k     = newest_extra(l) ? l - 1 : pick_char(l);
         target[i] = koch[k].c;
     }
     target[len] = 0;
