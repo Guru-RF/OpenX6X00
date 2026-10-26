@@ -4,7 +4,8 @@
  *  OpenX6X00 - the GUI's start, stage by stage, on the card: app_logs/start_trace.txt, a line
  *  for each stage, written through at once. The run's log is in /tmp until the GUI exits or the
  *  POWER key switches off (x6100_daemon, radio.c save_log): a start that stops before the screen
- *  comes up (#17: at the splash) left nothing on the card to say where it stopped.
+ *  comes up (#17: at the splash) left nothing on the card to say where it stopped. With DATA not
+ *  mounted, or read-only, the lines go to the system partition's /var/lib/x6100/start_trace.txt.
  *
  *  x6100_daemon writes its own line into the same file before each start of the GUI and when the
  *  GUI ends (rootfs/usr/sbin/x6100-starttrace, same format): a start that never got to the GUI, and

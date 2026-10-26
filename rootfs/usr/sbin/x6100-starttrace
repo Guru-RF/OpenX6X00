@@ -1,23 +1,88 @@
 #!/bin/sh
 #
-# OpenX6X00: one line of the radio's start trace, app_logs/start_trace.txt on the DATA partition,
-# written through to the card at once: a start that stops is usually ended by pulling the power.
+# OpenX6X00: one line of the radio's start trace, written through to the card at once: a start that
+# stops is usually ended by pulling the power, and the next report shows how far it got (#17).
 #
-#   x6100-starttrace <text>
+#   x6100-starttrace <text>     a line
+#   x6100-starttrace --boot     the first line of a start (rcS): the versions
 #
-# The line is the GUI's (src/start_trace.c): the UTC time, the seconds since the kernel started,
-# the text. Past 64 KB the file becomes start_trace.1.txt. Never fails: a trace that cannot be
-# written changes nothing.
+# The DATA partition's app_logs/start_trace.txt gets every line: the init scripts' (rcS: "S00adata
+# start", "S00adata end", ...), S00adata's own steps, x6100_daemon's and the GUI's (src/start_trace.c,
+# same format). DATA is mounted by S00adata, after its check, and made by it at the first start of a
+# new card. Until then the lines go to the system partition, /var/lib/x6100/start_trace.txt, and
+# into this start's list in /run, which goes onto DATA ahead of its first line there: a start that
+# stopped before DATA was mounted has its lines on the system partition only. So has a start whose
+# DATA did not mount or is read-only: the GUI's lines (start_trace.c) go there too then.
 #
-# X6100_START_TRACE_FILE names another file (the tests).
+# The line: the UTC time, the seconds since the kernel started, the text. A file past 64 KB becomes
+# start_trace.1.txt at the next start. Never fails: a trace that cannot be written changes nothing.
+#
+# X6100_START_TRACE_DATA, _SYS, _RUN and _MOUNTS name other places (the tests).
 #
 
-TRACE=${X6100_START_TRACE_FILE:-/mnt/app_logs/start_trace.txt}
+DATA=${X6100_START_TRACE_DATA:-/mnt}
+DATA_FILE=$DATA/app_logs/start_trace.txt
+SYS_FILE=${X6100_START_TRACE_SYS:-/var/lib/x6100/start_trace.txt}
+PENDING=${X6100_START_TRACE_RUN:-/run/x6100-starttrace.pending}
+MOUNTS=${X6100_START_TRACE_MOUNTS:-/proc/mounts}
 MAX=65536
 
-[ -n "$1" ] || exit 0
-mkdir -p "${TRACE%/*}" 2> /dev/null
-[ -f "$TRACE" ] && [ "$(wc -c < "$TRACE")" -gt $MAX ] && mv -f "$TRACE" "${TRACE%.txt}.1.txt" 2> /dev/null
-echo "$(date -u '+%Y-%m-%d %H:%M:%SZ'), up $(cut -d' ' -f1 /proc/uptime) s: $*" 2> /dev/null >> "$TRACE"
-sync
+# Past MAX the file becomes .1
+turn() {
+    [ -f "$1" ] && [ "$(wc -c < "$1")" -gt $MAX ] && mv -f "$1" "${1%.txt}.1.txt"
+}
+
+# Standard input appended to the file $1 and written through to the card: that file's fsync, not a
+# global sync, which would wait for every write pending on every filesystem (a format, a download)
+append() {
+    dd of="$1" oflag=append conv=notrunc,fsync status=none
+}
+
+# The line onto the file $1, its folder made; false when it cannot be written (DATA read-only)
+put() {
+    [ -d "${1%/*}" ] || mkdir -p "${1%/*}"
+    printf '%s\n' "$line" | append "$1"
+}
+
+data_mounted() {
+    while read -r _ m _; do
+        [ "$m" = "$DATA" ] && return 0
+    done < "$MOUNTS"
+    return 1
+}
+
+{
+    if [ "$1" = --boot ]; then
+        model=? level=?
+        while IFS== read -r k v; do
+            case "$k" in
+                model) model=$v ;;
+                level) level=$v ;;
+            esac
+        done < /etc/openx6x00-image
+        text="boot: OpenX6X00 $(cat /usr/share/x6100/app-version), card image $model level $level"
+        turn "$SYS_FILE"
+        rm -f "$PENDING"
+    else
+        text="$*"
+    fi
+    [ -n "$text" ] || exit 0
+    read -r up _ < /proc/uptime
+    line="$(date -u '+%Y-%m-%d %H:%M:%SZ'), up $up s: $text"
+
+    if data_mounted; then
+        # Turned over once a start, here, and by the GUI at any of its lines (src/start_trace.c): each
+        # line of the some 70 a start is a process or two less. The list stays until it is on DATA
+        if [ -f "$PENDING" ]; then
+            turn "$DATA_FILE"
+            [ -d "$DATA/app_logs" ] || mkdir -p "$DATA/app_logs"
+            append "$DATA_FILE" < "$PENDING" && rm -f "$PENDING"
+        fi
+        # DATA read-only (the kernel's answer to FAT errors): the system partition's file, as before the mount
+        put "$DATA_FILE" || put "$SYS_FILE"
+    else
+        put "$SYS_FILE"
+        put "$PENDING"
+    fi
+} 2> /dev/null
 exit 0

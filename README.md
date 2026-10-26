@@ -48,7 +48,9 @@ these; please give:
    From v0.3.4 a power-off with the POWER key saves the running one too, so
    switch off right after the problem. For a start that stops at the boot
    logo or a dark screen, attach `app_logs/start_trace.txt`: how far each
-   start got.
+   start got, from power-on (on the card's DATA partition in a PC when the
+   radio does not start far enough for the web configurator; see the manual's
+   Troubleshooting).
 6. **WiFi**: from v0.3.4 a failed join writes `app_logs/wifi.txt`, with no
    password in it. Add the exact message on the screen, the router's security
    (WPA2, WPA2/WPA3, WPA3 only), its 2.4 GHz channel, and whether a phone

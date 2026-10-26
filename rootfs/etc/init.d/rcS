@@ -1,0 +1,43 @@
+#!/bin/sh
+#
+# Start all init scripts in /etc/init.d, executing them in numerical order (buildroot's rcS).
+#
+# OpenX6X00: with the start trace (x6100-starttrace): a line before and after each script, on the card
+# at once, so a start that stops before the GUI shows where (#17). The DATA partition's
+# app_logs/start_trace.txt, from S00adata's end on; before that /var/lib/x6100/start_trace.txt on the
+# system partition. A script that exits with an error says so ("S10udev end, exit 1").
+#
+
+trace=/usr/sbin/x6100-starttrace
+[ -x "$trace" ] || trace=:
+"$trace" --boot
+
+for i in /etc/init.d/S??* ;do
+
+     # Ignore dangling symlinks (if any).
+     [ ! -f "$i" ] && continue
+
+     n=${i##*/}
+     "$trace" "$n start"
+     case "$i" in
+	*.sh)
+	    # Source shell script for speed.
+	    (
+		trap - INT QUIT TSTP
+		set start
+		. $i
+	    )
+	    ;;
+	*)
+	    # No sh extension, so fork subprocess.
+	    $i start
+	    ;;
+    esac
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        "$trace" "$n end"
+    else
+        "$trace" "$n end, exit $rc"
+    fi
+done
+"$trace" "init scripts done"

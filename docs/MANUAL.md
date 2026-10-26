@@ -2993,29 +2993,62 @@ logs are kept.
 
 #### The radio stops at the boot logo, or the screen stays dark after it
 
-The radio writes each stage of its start to `/mnt/app_logs/start_trace.txt`
-on the card as it goes (the run's own log is kept in memory until the GUI ends,
-so a start that stops leaves nothing else). Each line has the time in UTC and
-the seconds since power-on. Before each start of the GUI comes "x6100_daemon:
-GUI start N", then the GUI's own lines, in this order:
+The radio writes each step of its start to `app_logs/start_trace.txt` on the
+DATA partition as it goes (the run's own log is kept in memory until the GUI
+ends, so a start that stops leaves nothing else). Each line has the time in
+UTC and the seconds since power-on:
 
-1. "GUI start", with the version
-2. "settings read"
-3. "base: no answer (try N)" for each try while the base gives no answer, and
-   "base: reset" after about 6 seconds of that; then "base answered"
-4. "screen built"
-5. "base: version ..."
-6. "services: WiFi set up", "services: Bluetooth set up", "services: CAT, TCI
-   and the browser's servers up", "services: QSO log read", "services started"
-7. "first frame": the screen is the GUI's from here on
-8. "battery: readings count", 15 to 20 seconds later
+1. "boot: OpenX6X00 ..., card image ..." at the beginning of each start
+2. a line before and after each start script ("S00adata start", "S00adata
+   end", ...), with ", exit N" after one that failed, and "init scripts done"
+   after the last. S00adata checks the DATA partition at every start and makes
+   it at the first start of a new card; its own lines ("S00adata: fsck.fat of
+   ...", "fsck.fat exit N", "formatting ...") show a check that takes long.
+3. "x6100_daemon: GUI start N" before each start of the GUI, then the GUI's
+   own lines:
+   1. "GUI start", with the version
+   2. "settings read"
+   3. "base: no answer (try N)" for each try while the base gives no answer,
+      and "base: reset" after about 6 seconds of that; then "base answered".
+      "base: its pins or its line could not be opened" instead when the GUI
+      cannot reach the base at all
+   4. "screen built"
+   5. "base: version ..."
+   6. "services: WiFi set up", "services: Bluetooth set up", "services: CAT,
+      TCI and the browser's servers up", "services: QSO log read", "services
+      started"
+   7. "first frame": the screen is the GUI's from here on
+   8. "battery: readings count", 15 to 20 seconds later
+4. "x6100_daemon: GUI ended, exit code N" when the GUI stops (139: it crashed),
+   then the next start of the GUI
 
-When the GUI stops, "x6100_daemon: GUI ended, exit code N" follows (139: it
-crashed) and the next start begins. The last line of the failed start says how
-far it got. If the radio still starts on the external supply, open the web
-configurator's Files page, `app_logs`, and send `start_trace.txt` (and
-`start_trace.1.txt` if it is there) with your report, saying when the failed
-start was and on what power.
+The scripts after S95gui (the web server, Tailscale, Winlink) run while the GUI
+starts, so their lines come between the GUI's. The last line of the failed
+start says how far it got. If the radio still starts on the external supply,
+open the web configurator's Files page, `app_logs`, and send `start_trace.txt`
+(and `start_trace.1.txt` if it is there) with your report, saying when the
+failed start was and on what power. If it does not start far enough for the
+web configurator, read the file on a PC.
+
+#### Reading the start trace on a PC
+
+1. Switch the radio off and take out its SD card. Put the card in a PC.
+2. Open the card's large FAT32 partition, labelled DATA: Windows and macOS show
+   it as a drive. Windows may offer to format the card's other partitions:
+   cancel that, never format.
+3. In `app_logs`, open `start_trace.txt` (and `start_trace.1.txt`). The last
+   "boot:" line begins the newest start. Send the file with your report,
+   saying when the failed start was and on what power; the `x6100_log_*.txt`
+   files from that time help too.
+4. When the newest start is not in it (the last "boot:" block is from an
+   earlier start), that start stopped before the DATA partition was ready,
+   in its check or its first making (S00adata). Those lines are on the card's
+   system partition, the second one (ext4: Linux reads it, Windows and macOS
+   need an ext4 reader), in `/var/lib/x6100/start_trace.txt`. When that file
+   has no "boot:" line for it either, the start stopped before Linux ran its
+   start scripts (in U-Boot or the kernel): say so in the report. A start
+   whose DATA partition did not mount, or went read-only after card errors,
+   has all its lines in that file too, the GUI's included.
 
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
@@ -3211,6 +3244,7 @@ The DATA partition, readable on a PC.
 | `tailscale/` | the tailscaled program, downloaded when Tailscale is turned on and checked before every start |
 | `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=500|2000` |
 | `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
+| `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
 
 `cluster.conf` example (the `host=`/`port=` lines are the server in use, each
 `server=` line is a saved server, `name|host|port`):

@@ -15,6 +15,12 @@
 LOG=/tmp/data_fsck.log
 P3=/dev/mmcblk0p3
 
+# A step into the start trace (x6100-starttrace; rcS writes this script's start and end): the check and
+# the format are what can take long here, on a large or a failing card
+trace() {
+    [ -x /usr/sbin/x6100-starttrace ] && /usr/sbin/x6100-starttrace "S00adata: $*"
+}
+
 # dev: the DATA partition; relabel set when it has no label yet
 find_data() {
     relabel=
@@ -40,22 +46,25 @@ rescue() {
 }
 
 check_data() {
-    find_data || { echo "DATA partition not found" > $LOG; return; }
+    find_data || { echo "DATA partition not found" > $LOG; trace "DATA partition not found"; return; }
     if grep -q " /mnt " /proc/mounts; then umount /mnt; fi
     {
         echo "$(date '+%Y-%m-%d %H:%M:%S'), up $(cut -d' ' -f1 /proc/uptime) s"
         echo "$dev, label $(blkid -o value -s LABEL "$dev" 2>/dev/null || echo none)"
         grep -q " /mnt " /proc/mounts && echo "/mnt busy, not checked"
         if ! grep -q " /mnt " /proc/mounts; then
+            trace "fsck.fat of $dev"
             fsck.fat -a -w "$dev"; rc=$?           # 0 clean, 1 errors fixed
-            [ $rc -eq 1 ] && { fsck.fat -a -w "$dev"; rc=$?; }   # second pass: clean now?
+            [ $rc -eq 1 ] && { trace "fsck.fat fixed errors, second pass"; fsck.fat -a -w "$dev"; rc=$?; }   # clean now?
             echo "fsck.fat exit $rc"
+            trace "fsck.fat exit $rc"
             # a label only on a filesystem fsck left clean: not worth a write into a broken one
             [ -n "$relabel" ] && [ $rc -le 1 ] && { fatlabel "$dev" DATA && echo "label DATA set"; }
             if mount "$dev" /mnt; then
                 rescue
             else
                 echo "mount failed"
+                trace "mount of $dev failed"
             fi
         fi
     } 2>&1 | grep -v -e "conversion" -e "CP850" > $LOG
@@ -74,17 +83,21 @@ start() {
     # script made a fourth and then formatted whatever was third.
     if parted -m -s /dev/mmcblk0 print | grep -q "^3:"; then
         echo "A third partition exists and is not FAT32: not touched"
+        trace "A third partition exists and is not FAT32: not touched"
         return
     fi
     FREE_INFO=$(parted -sm /dev/mmcblk0 print free | tail -n1 | grep free)
     if [ $? -ne 0 ]; then
         echo "No free space available"
+        trace "No free space available"
         return
     fi
     FREE_ARR=(${FREE_INFO//:/ })
+    trace "no DATA partition: making it, ${FREE_ARR[1]} to ${FREE_ARR[2]}"
     # The partition, and the device it got (not assumed): a failed step stops here, no format
     if ! parted -m -s -a opt /dev/mmcblk0 mkpart primary fat32 ${FREE_ARR[1]} ${FREE_ARR[2]}; then
         echo "Creating the DATA partition failed"
+        trace "making the partition failed"
         return
     fi
     partprobe /dev/mmcblk0
@@ -92,6 +105,7 @@ start() {
     DEV=/dev/mmcblk0p$NEW
     if [ "$NEW" != "3" ] || [ ! -b "$DEV" ]; then
         echo "The new partition is not $DEV: not formatted"
+        trace "The new partition is not $DEV: not formatted"
         return
     fi
     if [ -n "$(blkid "$DEV")" ]; then
@@ -104,10 +118,12 @@ start() {
             return
         fi
         echo "$DEV holds another filesystem: not formatted"
+        trace "$DEV holds another filesystem: not formatted"
         return
     fi
-    mkfs -t vfat -n DATA "$DEV" || { echo "Formatting $DEV failed"; return; }
-    mount "$DEV" /mnt
+    trace "formatting $DEV"
+    mkfs -t vfat -n DATA "$DEV" || { echo "Formatting $DEV failed"; trace "formatting $DEV failed"; return; }
+    mount "$DEV" /mnt || trace "mount of $DEV failed"
 }
 
 case "$1" in
