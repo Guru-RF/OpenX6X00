@@ -7,6 +7,7 @@ import csv
 import fcntl
 import hashlib
 import io
+import ipaddress
 import json
 import os
 import re
@@ -547,13 +548,32 @@ def tailscale_page():
     return bottle.template('tailscale')
 
 
+def tailscale_host_ok():
+    """The page opened by an address or by the radio's own name. A page from another site that points its own
+    name at the radio (DNS rebinding) passes the cross-site guard, and its login link would put the radio on
+    that site's tailnet: Tailscale is switched and its link shown only by these names"""
+    host = (urllib.parse.urlsplit("//" + (bottle.request.get_header("Host") or "")).hostname or "").rstrip(".")
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+    name = socket.gethostname().lower()
+    return host in ("localhost", name, name + ".local") or host.endswith(".ts.net")
+
+
 @app.get('/api/tailscale')
 def get_tailscale():
-    return tailscale_status()
+    st = tailscale_status()
+    if not tailscale_host_ok():
+        st.pop("url", None)
+    return st
 
 
 @app.post('/api/tailscale')
 def set_tailscale():
+    if not tailscale_host_ok():
+        return api_error(403, f"Open this page by the radio's address or {socket.gethostname()}.local to change Tailscale")
     action = (bottle.request.json or {}).get("action")
     if action not in ("on", "off", "logout"):
         return api_error(400, "action: on, off or logout")
