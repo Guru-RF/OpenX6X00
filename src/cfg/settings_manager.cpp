@@ -263,6 +263,8 @@ void SettingsManager::vfo_toggle() {
     if (p_indep_vfo.get() && other != BAND_UNDEFINED && other != band_id_ &&
         BandsTable::get_by_id(other).rc == SUCCESS) {
         p_band_id.set(other);   /* explicit switch: both VFO records of that band are loaded */
+    } else if (p_band_tx_shift.get() && p_band_split.get()) {
+        band_follow(p_band_vfoa_freq.get());    /* a TX shift: the band is A's, B = A + the shift can lie beyond it */
     } else {
         band_follow(fg_freq_get());   /* the VFO now active was tuned into another band while inactive */
     }
@@ -681,7 +683,14 @@ void SettingsManager::vfo_freq_change_cb(Subject *subj, void *user_data) {
     if (subj != active) {
         return;
     }
-    mgr->band_follow(static_cast<SubjectT<int32_t> *>(subj)->get());
+    int32_t freq = static_cast<SubjectT<int32_t> *>(subj)->get();
+
+    // REV with a TX shift: the band of VFO A, which tx_shift_follow is about to put at B - the shift. B itself can
+    // lie beyond the band (10 m + 500 kHz from 29.500), and following it went into the gap above and lost the shift
+    if (subj == &mgr->p_band_vfob_freq && mgr->p_band_tx_shift.get() && mgr->p_band_split.get()) {
+        freq = std::max(freq - mgr->p_band_tx_shift.get(), HF_MIN_FREQ);
+    }
+    mgr->band_follow(freq);
 }
 
 void SettingsManager::band_follow(int32_t freq) {
