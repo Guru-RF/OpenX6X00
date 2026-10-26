@@ -270,6 +270,35 @@ def follow_sshd_config():
         pass
 
 
+OLD_SSH_KEYS = "/mnt/ssh/authorized_keys"
+
+
+def adopt_old_ssh_keys():
+    """The X6100 images v0.3.1-v0.3.5 also took SSH keys from /mnt/ssh/authorized_keys, which the DATA partition's
+    other writers can reach; keys-only SSH reads root's file alone. Once, at the first start after the update, the keys
+    there move into root's file (those sshd took, as they were, a key root has already left out), and the old file is
+    renamed .imported, so whoever logged in with a key still does. On the radio only"""
+    try:
+        with open("/proc/device-tree/compatible", "rb") as f:
+            if b"xiegu," not in f.read():
+                return
+        with open(OLD_SSH_KEYS, errors="replace") as f:
+            old = [k for k in map(apps.ssh_parse_line, f.read().splitlines()) if k]
+    except OSError:
+        return
+    try:
+        with apps.ssh_lock:
+            lines = apps.ssh_read()
+            have = {k["fingerprint"] for k in map(apps.ssh_parse_line, lines) if k}
+            new = [(k["options"] + " " + k["line"]).strip() for k in old if k["fingerprint"] not in have]
+            if new:
+                apps.ssh_write(lines + new)
+            os.replace(OLD_SSH_KEYS, OLD_SSH_KEYS + ".imported")
+        logging.warning("ssh: %d key(s) from %s moved to root's authorized_keys", len(new), OLD_SSH_KEYS)
+    except OSError as e:
+        logging.error("ssh: %s not moved: %s", OLD_SSH_KEYS, e)
+
+
 def options():
     p = argparse.ArgumentParser(description="OpenX6X00 web configurator")
     p.add_argument("--db", required=True, help="params.db of the radio GUI")
@@ -295,6 +324,7 @@ def serve():
     settings.CHANNELS_FILE = opts.channels_file
     if opts.https_port and not (opts.debug and "BOTTLE_CHILD" not in os.environ):   # not in the reloader's parent
         start_https(apps.app, opts.host, opts.https_port, opts.cert_dir)
+    adopt_old_ssh_keys()
     follow_sshd_config()
     settings.HTTP_PORT = opts.port
     apps.app.run(server=ThreadedServer, host=opts.host, port=opts.port, debug=opts.debug, reloader=opts.debug)
