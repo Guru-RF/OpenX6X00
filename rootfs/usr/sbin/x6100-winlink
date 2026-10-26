@@ -48,7 +48,8 @@ LIB = ROOT + "/var/lib/winlink"       # XDG_CONFIG_HOME: Pat's config (with the 
 PAT_CONFIG = os.path.join(LIB, "pat", "config.json")
 PASSWORD = os.path.join(LIB, "password")
 RUN = ROOT + "/run/winlink"           # status, lock, logs
-STATE = os.path.join(RUN, "state")    # XDG_STATE_HOME: Pat's own log and event log, in RAM
+STATE = os.path.join(LIB, "state")    # XDG_STATE_HOME: Pat's account check and its other small marks, kept so
+                                      # they hold across a restart; its log and event log go to RUN
 STATUS = os.path.join(RUN, "status")
 LOCK = os.path.join(RUN, "lock")
 CONFIG_LOCK = os.path.join(RUN, "config.lock")
@@ -379,7 +380,8 @@ def start_pat(pat, want):
     # Pat takes PAT_* variables over its config file: none from outside
     env = {k: v for k, v in os.environ.items() if not k.startswith(("PAT_", "ARDOP_", "XDG_"))}
     env.update(XDG_CONFIG_HOME=LIB, XDG_DATA_HOME=DATA, XDG_STATE_HOME=STATE)
-    pat.start([PAT, "http", "--addr", f":{HTTP_PORT}"], env=env, nice=10)   # behind the GUI and the modem
+    pat.start([PAT, "--log", os.path.join(RUN, "pat-own.log"), "--event-log", os.path.join(RUN, "eventlog.json"),
+               "http", "--addr", f":{HTTP_PORT}"], env=env, nice=10)   # behind the GUI and the modem
     pat.settings = (want, hashlib.sha256(password.encode()).hexdigest())
 
 

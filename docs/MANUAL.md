@@ -1920,7 +1920,7 @@ laptop on the radio's network; ARDOP is the HF modem
 ([ardopcf](https://github.com/pflarue/ardop)), working through the radio's own
 audio. Pat calls a Winlink RMS gateway, the radio tunes there and transmits,
 and your mail goes out while the new mail comes in. Where: web configurator,
-Operating > Winlink. Off by default; when it is off, nothing of it runs.
+Operating > Winlink. Off by default; when it is off, Pat and ARDOP do not run.
 
 Setting it up:
 
@@ -1953,7 +1953,8 @@ Connecting to a gateway:
   and Connect.
 - Pat gives the radio the gateway's dial frequency: the radio tunes there,
   switches to USB-D (unless it is in USB or USB-D already), and tunes back
-  after the session. The radio's power setting applies.
+  after the session. The power is the radio's setting, at most 7 W, as for
+  the radio's other digital modes.
 - ARDOP keys the radio the way the radio's own digital modes do, and
   identifies with your callsign in CW. The radio does not key for Winlink
   while it is already transmitting, nor for 5 minutes after a high SWR
@@ -1977,8 +1978,8 @@ Good to know:
   (`x6100.local`, the Tailscale name), and refuses requests from the pages of
   other sites, so a web page you happen to visit cannot use it through your
   browser. The configurator changes Winlink only when opened by those names
-  too. ARDOP and the radio's frequency control for Pat listen on the radio
-  itself only.
+  too. ARDOP and the radio's frequency control for Pat listen on 127.0.0.1,
+  which Tailscale (userspace mode) also opens to your tailnet.
 - The password is kept on the radio's system partition (`/var/lib/winlink`),
   out of reach of the web pages: never shown again, not in the Backup, not on
   the Files page. A new card image keeps the settings (`/mnt/winlink.conf`)
@@ -1995,8 +1996,9 @@ Good to know:
   `/run/winlink/pat.log` and `/run/winlink/ardopcf.log` have the programs'
   output (in memory).
 
-Not tested yet: real ARQ sessions with a gateway on the air. Reports are
-welcome ([#18](https://github.com/Guru-RF/OpenX6X00/issues/18)).
+Tested on an X6200: the receive path, Pat's page and its guard, and ARDOP's
+ID frame on the air (1 W). Not tested yet: a real session with a gateway, and
+the X6100 on the air. Reports are welcome ([#18](https://github.com/Guru-RF/OpenX6X00/issues/18)).
 
 Pat (MIT, Martin Hebnes Pedersen LA5NTA) and ardopcf (MIT, Rick Muething, John
 Wiseman, Peter LaRue) come with the firmware: Pat with small changes (its page
