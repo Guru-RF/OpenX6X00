@@ -3,7 +3,8 @@
  *
  *  CW keyboard: text typed on a USB or Bluetooth keyboard is keyed in CW.
  *  A line goes out with Enter; lines typed while sending wait in a queue.
- *  Without a keyboard a press of the MFK opens the on-screen one.
+ *  Without a keyboard a press of the MFK opens the on-screen one. Live (the
+ *  last page) keys each letter as it is typed, on either.
  */
 
 #include "dialog_cw_kbd.h"
@@ -44,7 +45,7 @@ static void live_btn_cb(button_data_t *btn);
 
 static void msg_btn_cb(button_data_t *btn);
 static void enqueue(const char *text);
-static void enqueue_raw(const char *text, bool space);
+static bool enqueue_raw(const char *text, bool space);
 
 static button_data_t btn_p1    = {.type = BTN_TEXT, .label = "(CW KBD 1:1)", .press = NULL};
 static button_data_t btn_send  = {.type = BTN_TEXT, .label = "Send", .press = send_btn_cb};
@@ -201,15 +202,16 @@ static void enqueue(const char *text) {
     enqueue_raw(text, true);
 }
 
-/* space: a word space after the text (a typed line); without it the Link paddle sends letter by letter */
-static void enqueue_raw(const char *text, bool space) {
+/* space: a word space after the text (a typed line); without it the Link paddle sends letter by letter.
+ * False out of CW: nothing queued */
+static bool enqueue_raw(const char *text, bool space) {
     size_t len = strlen(queue);
 
     text = cw_encoder_expand(text);
 
     if (!cw_mode()) {
         msg_update_text_fmt("Set CW mode to transmit");
-        return;
+        return false;
     }
     for (; *text && len < sizeof(queue) - 2; text++) {
         if (*text != '#') {
@@ -221,6 +223,7 @@ static void enqueue_raw(const char *text, bool space) {
     }
     queue[len]   = 0;
     timer_cb(NULL);
+    return true;
 }
 
 static void send_input(void) {
@@ -249,7 +252,12 @@ static void change_speed(int d) {
     update_view();
 }
 
-/* On-screen keyboard */
+/* On-screen keyboard. With Live on its letters are keyed as they are typed, as a keyboard's are: the line
+ * only shows them and OK keys nothing more. Live is read when it opens, for that line. Live off it is the
+ * text popup of the rest of the GUI, a held key repeating into the line too: nothing goes before OK */
+
+static bool   osk_live;
+static size_t osk_len;      /* Live: the letters on the line, each queued as it was typed */
 
 static void osk_end(void) {
     textarea_window_close();
@@ -262,7 +270,7 @@ static void osk_end(void) {
 static bool osk_ok(void) {
     const char *val = textarea_window_get();
 
-    if (val && *val) {
+    if (!osk_live && val && *val) {     /* Live: already queued */
         enqueue(val);
     }
     osk_end();
@@ -274,14 +282,68 @@ static bool osk_cancel(void) {
     return true;
 }
 
+/* Live: a letter is queued before the line takes it; one that cannot go (out of CW, '#') is not taken.
+ * A full line starts again empty, its letters stay queued.
+ * Typing and Backspace act at the end of the line wherever the keyboard's arrows left the cursor, so the
+ * line keeps the order keyed and Backspace rubs out the letter that leaves the queue. A held MFK press
+ * keys its letter once: each repeat of the keyboard would go on the air. A held Backspace goes on, it
+ * only takes letters off */
+static void osk_insert_cb(lv_event_t *e) {
+    lv_obj_t   *ta    = lv_event_get_target(e);
+    const char *c     = lv_event_get_param(e);
+    uint32_t    max   = lv_textarea_get_max_length(ta);
+    lv_indev_t *indev = lv_indev_get_act();
+
+    lv_textarea_set_cursor_pos(ta, LV_TEXTAREA_CURSOR_LAST);    /* LVGL reads it after this event */
+    if (c[0] == LV_KEY_DEL && !c[1]) {
+        return;         /* lv_textarea_del_char() asks first: osk_changed_cb takes it off the queue */
+    }
+    if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_ENCODER && indev->proc.long_pr_sent) {
+        lv_textarea_set_insert_replace(ta, "");
+        return;
+    }
+    if (c[0] < ' ' || c[0] >= 127 || c[0] == '#' || c[1] || !enqueue_raw(c, false)) {
+        lv_textarea_set_insert_replace(ta, "");
+        return;
+    }
+    if (max && strlen(lv_textarea_get_text(ta)) >= max) {
+        osk_len = 0;    /* first: the line's VALUE_CHANGED takes nothing out of the queue */
+        lv_textarea_set_text(ta, "");
+    }
+}
+
+/* Live: a letter rubbed out leaves the queue if it is not keyed yet, as Backspace on a keyboard */
+static void osk_changed_cb(lv_event_t *e) {
+    size_t n = strlen(lv_textarea_get_text(lv_event_get_target(e)));
+
+    for (; osk_len > n; osk_len--) {
+        if (queue[0]) {
+            queue[strlen(queue) - 1] = 0;
+        }
+    }
+    osk_len = n;
+    update_view();
+}
+
 static void osk_open(void) {
     if (on_screen_kbd) {
         return;
     }
     on_screen_kbd = true;
+    osk_live      = param_i_get(cfg_cw_live);
+    osk_len       = 0;
     /* The text area gets the keys only when the dialog is out of the group */
     lv_group_remove_obj(dialog.obj);
-    textarea_window_open(osk_ok, osk_cancel);
+    if (osk_live) {
+        lv_obj_t *ta;
+
+        textarea_window_open_w_label(osk_ok, osk_cancel, "Live: ");
+        ta = textarea_window_text();
+        lv_obj_add_event_cb(ta, osk_insert_cb, LV_EVENT_INSERT, NULL);
+        lv_obj_add_event_cb(ta, osk_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    } else {
+        textarea_window_open(osk_ok, osk_cancel);
+    }
 }
 
 /* Keys: the typed characters, Enter, Esc; arrows and MFK change the speed */
