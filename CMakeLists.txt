@@ -83,6 +83,7 @@ else()
         if(NOT HOST_BUILD)
                 add_subdirectory(btcat)       # the radio's own programs
                 add_subdirectory(bootanim)
+                add_subdirectory(third-party/ardopcf)     # the Winlink modem, for Pat
         endif()
 
         # Installed into the buildroot target: the GUI, the rootfs overlay

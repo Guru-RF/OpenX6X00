@@ -1,7 +1,8 @@
 # ardopcf (vendored)
 
 ARDOP HF modem (TNC) by Rick Muething KN6KB, John Wiseman G8BPQ and Peter
-LaRue, as ardopcf 1.0.4.1.3. Pat talks to it on its host ports for Winlink.
+LaRue AI7YN, as ardopcf 1.0.4.1.3. Pat talks to it on its host ports for
+Winlink.
 
 Source: https://github.com/pflarue/ardop
 Commit: `e27af046c04f973ed8958a219844f655ead6c419` (2026-09-07)
@@ -9,7 +10,8 @@ License: MIT (see `LICENSE`), except the libraries under `lib/`, below
 
 Copied from that commit: `src/`, `lib/`, `webgui/`, `LICENSE`, `changelog.md`,
 `Makefile` and `README.md` (not `docs/`, `test/` or `host/`).
-`UPSTREAM.md` is ours.
+`CMakeLists.txt` (the `Makefile`'s Linux build, as part of the GUI's), `txt2c.cmake`
+(the WebGui files as C strings, in place of `lib/txt2c`) and this file are ours.
 
 Upstream development has stopped (README.md). The README asks that anything
 released from ardopcf be given a new name, and that a modem which is not
