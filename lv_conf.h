@@ -28,6 +28,11 @@
 #define LV_MEM_CUSTOM 1
 #define LV_MEMCPY_MEMSET_STD 1
 
+/* LVGL's clock is the kernel's monotonic clock (lv_tick_mono.h) */
+#define LV_TICK_CUSTOM 1
+#define LV_TICK_CUSTOM_INCLUDE "lv_tick_mono.h"
+#define LV_TICK_CUSTOM_SYS_TIME_EXPR (lv_tick_mono_ms())
+
 /* Screen refresh about 30 per second; keys and knobs read every 10 ms */
 #define LV_DISP_DEF_REFR_PERIOD 33      /*[ms]*/
 #define LV_INDEV_DEF_READ_PERIOD 10     /*[ms]*/
