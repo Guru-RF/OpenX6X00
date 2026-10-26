@@ -109,8 +109,8 @@ The patched X6100 base comes with its own instructions.
 | **Digital modes** | FT8, FT4 and FT2 (CQ, reply, auto sequence, Hound, POTA tag, ADIF log), JS8 (JS8Call compatible, all four speeds at once, inbox, relays, heartbeats, APRS), WSPR (decode and beacon, WSPRnet upload), PSK31, PSK63, Olivia, JTTY, RTTY, SSTV (receive with VIS, transmit with templates, denoise), WeFax, and NavTex with DSC (receive only). FT8, FT4, FT2, JS8, PSK, Olivia and JTTY decodes go to PSK Reporter (on by default), and the FT8 app sends WSJT-X UDP for GridTracker and loggers. No PC, no sound card cable: APP > Modes. |
 | **CW** | A decoder that copies down to about 0 dB SNR with Parse splitting run-together words, a CW keyboard with a send queue and Live mode, messages with `{CALL}` and `{HIS}`, USB and Bluetooth paddles, a CW trainer. |
 | **DX Cluster** | Spots on the waterfall, in a column beside it and in a full app that follows the VFO; filters by mode, band and activity (POTA, SOTA, WWBOTA, HOTA), alerts on calls and prefixes, spot snap when turning slowly; fifteen public servers built in, DXFUN by default. One login, a Link switch, and a login of its own if you set one (your call with `-2`, on the web Cluster page) so a logger can use the call at the same time. |
-| **Field Ops** | A second interface for SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA and lighthouse (LH, ARLHS) activations with big tiles for gloves: the summit or park found from the GPS or the locator, the references of the whole world offline after one Update list with internet, CQ, a log straight to ADIF with the references, self-spots to pota.app, wwbota.org, cqhota.app and the WWFF Spotline (the last two with your own key) and to the DX cluster (the only spot for SOTA, TOTA, WCA, MOTA and LH), QRZ Logbook upload. In the next release: Tiles on the Air, the 6-character locator square you are in, from the GPS, with the eight around it. |
-| **Wavelog** | In the next release: every QSO the radio logs, in every mode, goes to your own [Wavelog](https://github.com/wavelog/wavelog) a few seconds later: a queue on the SD card while there is no network, the station profile chosen by the radio's callsign (DF8MH, DF8MH/P), the result on the display. |
+| **Field Ops** | A second interface for SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA and lighthouse (LH, ARLHS) activations with big tiles for gloves: the summit or park found from the GPS or the locator, the references of the whole world offline after one Update list with internet, CQ, a log straight to ADIF with the references, self-spots to pota.app, wwbota.org, cqhota.app and the WWFF Spotline (the last two with your own key) and to the DX cluster (the only spot for SOTA, TOTA, WCA, MOTA and LH), QRZ Logbook upload. Tiles on the Air: the 6-character locator square you are in, from the GPS, with the eight around it. |
+| **Wavelog** | Every QSO the radio logs, in every mode, goes to your own [Wavelog](https://github.com/wavelog/wavelog) a few seconds later: a queue on the SD card while there is no network, the station profile chosen by the radio's callsign (DF8MH, DF8MH/P), the result on the display. |
 | **Bands** | A live picture of 160 to 6 m from the cluster and the Reverse Beacon Network, and a test beacon that shows who hears you from your own antenna. |
 | **Radio** | IARU Region 1 band plan strip (60 m too, and a strip for each band you add), Birdie Cal (the radio's own carriers found, marked, notched), S-meter in bars or a needle, long-press actions on every key, editable bands, memories and channels, the broadcast bands in AM, transverters, RX recorder, screen recording and screenshots, voice messages, SWR scan, Walkie Talkie portrait mode, PRE and ATT on the VOL 2:2 page, local time on screen with UTC in the logs. |
 | **X6200** | SAM and WFM on the AM key, zoom 1 to 4 over the base's 384 kHz, the two-ring MFK, FM broadcast (87.5-108 MHz) and the airband (118-137 MHz) to receive after 6 m on the band keys, PRE and ATT on the VOL 2:2 page since it has no PRE key, the volume over the base's whole range (0 to 100). |
@@ -119,8 +119,8 @@ The patched X6100 base comes with its own instructions.
 | **Wireless** | WiFi (a failed join says why on the screen), a USB Ethernet adapter with DHCP or a fixed address, USB tethering, a network name of your own; Bluetooth CAT for three clients, headphones and keyboards with pairings that survive a new image. |
 | **Browser panel** | `http://x6100.local/panel` (`x6200.local` on an X6200): the radio worked natively from a phone, a tablet or a PC, portrait or landscape: the spectrum and the waterfall live (tap or drag to tune, pinch to zoom), the frequency, band, mode, step and zoom, every switch and level, the S-meter, the DX spots (tap to tune), the FT8 app (decodes, tap to answer, CQ, auto, hold), the CW decoder's text, a log entry, RX audio and the browser's microphone for TX, a light theme for the sun. What the closed phone app does, as a web page. |
 | **Browser remote** | `http://x6100.local/remote` (Remote > Screen in the web menu): the radio's screen live in any browser (up to three browsers at a time, the Panel and Screen pages together), every key and knob, RX audio and the browser's microphone for TX, a Picture choice (Sharp, Balanced, Fast) for a slow link, for the radio's own menus and apps. |
-| **Remote station** | A browser watches until it is paired with a six-digit code from the radio; one holds the control at a time (a browser, a TCI client or the radio itself). Sound and Mic go over the TCI server; the microphone needs the https page. In the next release: a key pressed without the control offers Take control, and Speaker always off (Settings > Audio) keeps the speaker silent. |
-| **Tailscale** | In the next release: the radio on your own tailnet, so a laptop or a phone with Tailscale reaches it from anywhere (the configurator, the Panel and Screen pages, TCI) with nothing opened on the router. Turned on in Settings > Wireless or Remote > Tailscale; the login is a code on the radio's screen or a link on the web page. Tailscale's own build is downloaded once (37 MB) and checked against a pinned checksum ([manual](docs/MANUAL.md#tailscale)). |
+| **Remote station** | A browser watches until it is paired with a six-digit code from the radio; one holds the control at a time (a browser, a TCI client or the radio itself). Sound and Mic go over the TCI server; the microphone needs the https page. A key pressed without the control offers Take control, and Speaker always off (Settings > Audio) keeps the speaker silent. |
+| **Tailscale** | The radio on your own tailnet, so a laptop or a phone with Tailscale reaches it from anywhere (the configurator, the Panel and Screen pages, TCI) with nothing opened on the router. Turned on in Settings > Wireless or Remote > Tailscale; the login is a code on the radio's screen or a link on the web page. Tailscale's own build is downloaded once (37 MB) and checked against a pinned checksum ([manual](docs/MANUAL.md#tailscale)). |
 | **Web configurator** | `http://x6100.local/` (mDNS, `x6200.local` on an X6200, or the radio's IP): bands, digital frequencies, memories, cluster, Field Ops, Wavelog, CW messages, macros, logs, files, a gallery, backup and restore, display, time, network name, Ethernet, TCI, the update. No login; pages from other sites are refused. |
 | **TCI server** | The VFO-Knob and any TCI client on the network: tune, mode, filter, AGC, PTT, the meters and the audio both ways; the clients may be set to Listen only, all of them together. |
 
@@ -175,7 +175,7 @@ live, its keys and knobs, Sound, Mic and the Picture choice.
 | | |
 |---|---|
 | ![Settings, General](docs/screenshots/settings_general.png) **[Settings](docs/MANUAL.md#settings) > General**: the station, the ten tabs down the left | ![Settings, TCI server and Browser remote](docs/screenshots/settings_general_remote.png) **General**: the TCI server and the browser remote |
-| ![Settings, Display](docs/screenshots/settings_display.png) **Display**: backlight and screen off | ![Settings, Audio](docs/screenshots/settings_audio.png) **Audio**: Speaker always off (next release) |
+| ![Settings, Display](docs/screenshots/settings_display.png) **Display**: backlight and screen off | ![Settings, Audio](docs/screenshots/settings_audio.png) **Audio**: Speaker always off |
 
 <details>
 <summary>More Settings tabs</summary>
@@ -224,6 +224,29 @@ holds); a card-wiping tool or a smaller card would lose it. For the
 baseband versions and how to update them, see [The baseband](#the-baseband).
 
 <br clear="right">
+
+## Tailscale
+
+<img src="docs/screenshots/settings_tailscale.png" width="400" align="right" alt="Settings, Wireless: Tailscale waiting for the login">
+
+Reach the radio from anywhere, with nothing opened on your router: Tailscale
+puts it on your own private network, your tailnet. With Tailscale on a laptop
+or a phone, the web configurator, the Panel and Screen pages and TCI work as
+they do at home, also behind a mobile or satellite connection.
+
+1. On the radio: Settings > Wireless > TAILSCALE, or Remote > Tailscale on the
+   web configurator. The radio needs the internet.
+2. The first time, it downloads Tailscale from Tailscale's own site (37 MB) and
+   checks it against the checksum that comes with OpenX6X00.
+3. Log in: scan the code on the radio's screen with a phone, or press Log in to
+   Tailscale on the web page. A free Personal account will do.
+4. From the laptop or the phone, with Tailscale on: `http://<the radio's name>/`,
+   with `/panel` and `/remote` after it, and TCI on port 50001.
+
+Everyone on your tailnet reaches the radio as if they were at home, and the web
+configurator has no login: share the radio only with people you would let in.
+Tailscale runs in userspace mode, its log upload is off, and the login stays on
+the radio. More in the [manual](docs/MANUAL.md#tailscale).
 
 ## Where it comes from
 

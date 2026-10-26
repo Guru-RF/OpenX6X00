@@ -1596,7 +1596,7 @@ of the Amateur Radio Lighthouse Society.
 Tiles (Tiles on the Air, tilesontheair.com, worldwide) has its own tile too,
 a lime map with a pin. A tile is a 6-character locator square, 2.5' of
 latitude by 5' of longitude (about 5 x 7 km): `JO20ab`. Tiles counts one
-activation per tile and UTC day. Next release.
+activation per tile and UTC day.
 
 ![Tiles, before the activation](screenshots/field_tiles.png)
 
@@ -1896,7 +1896,7 @@ Server options: `--host`, `--port`, `--https-port` (0 = off), `--cert-dir`,
 
 ## Wavelog
 
-Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavelog) as well, a few seconds after it is logged: FT8, FT4, FT2, JS8, voice and CW (the phone's logger, the CW keyboard) and the Field Ops activations, all that the web Logs page lists. The radio's own logs stay as they are. Where: web configurator, Operating > Wavelog. Next release.
+Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavelog) as well, a few seconds after it is logged: FT8, FT4, FT2, JS8, voice and CW (the phone's logger, the CW keyboard) and the Field Ops activations, all that the web Logs page lists. The radio's own logs stay as they are. Where: web configurator, Operating > Wavelog.
 
 - Set up: the Wavelog URL (the address you open Wavelog with), an API key with read and write rights (Wavelog: your account menu, API Keys), then Load, choose the station profile and switch Upload to Wavelog on. Test connection asks Wavelog for its version, with what is typed, before Save.
 - Station profile Automatic: each QSO goes to the Wavelog profile with the callsign the radio logged it with (Settings > General > STATION). With a profile DF8MH and one DF8MH/P in Wavelog, changing the callsign on the radio is all it takes; when several profiles have the callsign, the one Wavelog marks active. A QSO whose callsign has no profile waits, "Wavelog: no station profile for DF8MH/M, 1 QSO waiting", and the others still go; make the profile in Wavelog, then Send now.
