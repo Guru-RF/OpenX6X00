@@ -1173,7 +1173,9 @@ or NTP).
   power. Before, WSPR used the radio's power, and its Power button changed
   it for SSB and the other apps too.
 - The message is the callsign, the first 4 characters of the locator and
-  that power. Compound calls with a `/` can't be sent.
+  that power. Compound calls with a `/` can't be sent. Without a callsign or
+  a locator (Settings > General > STATION, or a GPS fix when WSPR opens) TX
+  next and TX % say which one is missing and stay off.
 - The main knob moves the TX audio offset (1410-1590 Hz).
 - Upload: the spots of each cycle go to WSPRnet (plain HTTP over WiFi). The
   status line counts what was sent and what failed.

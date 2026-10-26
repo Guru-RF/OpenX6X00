@@ -283,7 +283,11 @@ static int16_t *prepare_tx(uint32_t *n) {
     }
     tx_w = wspr_w(dbm);
     if (!wspr_encode(my_call, my_grid, dbm, sym)) {
-        msg_schedule_text_fmt("WSPR TX: \"%s %.4s\" can't be sent (plain call and locator only)", my_call, my_grid);
+        if (strlen(my_grid) < 4) {
+            msg_schedule_text_fmt("WSPR TX: set the QTH locator in Settings");
+        } else {
+            msg_schedule_text_fmt("WSPR TX: \"%s %.4s\" can't be sent (plain call and locator only)", my_call, my_grid);
+        }
         atomic_store(&tx_next, false);
         scheduler_put_noargs(tx_off_cb);
         return NULL;
@@ -506,6 +510,20 @@ static const char *tx_pct_label(void) {
     return buf;
 }
 
+/* A beacon needs the callsign and 4 characters of locator: said at the press. TX next used to show armed and drop
+ * at 1:56, when the beacon is made, with a message easy to miss (a radio with no QTH set and no GPS fix) */
+static bool tx_possible(void) {
+    if (!my_call[0]) {
+        msg_update_text_fmt("WSPR TX: set the callsign in Settings");
+        return false;
+    }
+    if (strlen(my_grid) < 4) {
+        msg_update_text_fmt("WSPR TX: set the QTH locator in Settings");
+        return false;
+    }
+    return true;
+}
+
 static void tx_pct_cb(button_data_t *b) {
     static const int steps[] = {0, 10, 20, 33, 50};
     int              cur = param_i_get(cfg_wspr_tx_pct);
@@ -514,7 +532,12 @@ static void tx_pct_cb(button_data_t *b) {
     while (k < sizeof(steps) / sizeof(steps[0]) && steps[k] <= cur) {
         k++;
     }
-    param_i_set(cfg_wspr_tx_pct, k < sizeof(steps) / sizeof(steps[0]) ? steps[k] : 0);
+    int next = k < sizeof(steps) / sizeof(steps[0]) ? steps[k] : 0;
+
+    if (cur == 0 && next > 0 && !tx_possible()) {
+        return;
+    }
+    param_i_set(cfg_wspr_tx_pct, next);
 }
 
 static const char *pwr_label(void) {
@@ -570,8 +593,7 @@ static void tx_next_cb(button_data_t *b) {
 
     bool on = !atomic_load(&tx_next);
 
-    if (on && !my_call[0]) {
-        msg_update_text_fmt("WSPR TX: set the callsign in Settings");
+    if (on && !tx_possible()) {
         return;
     }
     atomic_store(&tx_next, on);
