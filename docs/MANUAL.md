@@ -1906,7 +1906,7 @@ Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavel
 - A QSO Wavelog refuses (a record it can't take) goes to `/mnt/field/wavelog.failed.adi` and is not sent again. A refused key stops the upload until a new key is saved; the QSOs wait.
 - A QSO edited on the Logs page after it was sent is sent again as a new one, and one deleted there stays in Wavelog: correct it in Wavelog too.
 - HTTPS is checked against the radio's root certificates. Check the certificate off only for a Wavelog at home with a self-signed certificate.
-- The key is kept in `/mnt/field/wavelog.conf`, readable by root only, never sent back to the browser and not in the Backup (as the QRZ, HOTA and WWFF keys). The upload uses Wavelog's API (`api/qso`, `api/station_info`, `api/version`); QSOs sent through it are not uploaded on to other services by Wavelog at once and get no callbook lookup there.
+- The key is kept in `/mnt/field/wavelog.conf`. The Wavelog page never shows it again and it is not in the Backup, but like the QRZ, HOTA and WWFF keys it can be downloaded from the Files page by anyone who reaches the web configurator (your LAN, and your tailnet with Tailscale on). The upload uses Wavelog's API (`api/qso`, `api/station_info`, `api/version`); QSOs sent through it are not uploaded on to other services by Wavelog at once and get no callbook lookup there.
 - By hand: `x6100-wavelog sync`, `x6100-wavelog stations`, `x6100-wavelog test` (one line each, as the other helpers).
 
 ## Browser panel
