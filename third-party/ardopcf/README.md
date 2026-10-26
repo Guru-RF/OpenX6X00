@@ -1,0 +1,50 @@
+# ardopcf
+
+## I have decided to discontinue development of ardopcf and will not be accepting any additional pull requests.  - Peter LaRue AI7YN
+
+Maybe I'll create one more release using some of what is currently in the [develop branch](https://github.com/pflarue/ardop/tree/develop) (or maybe not).
+
+For anyone interested in continued development of Ardop, I encourage you to either fork this repo and move forward, or create a new implementation.  I hope that one of these occurs, because until a new open source cross platform alternative is well supported by Winlink RMS stations, it is important that Ardop continue to be usable.  However, I have other projects that I'd rather spend my time on.  In addition to the opportunity for continued traditional development, perhaps using some of the contents of the [develop branch](https://github.com/pflarue/ardop/tree/develop) that never made it into a release of ardopcf, two projects linked below demonstrate how AI tools might also be useful.  I can't comment on the quality of these efforts.  However, as AI tools continue to improve, I believe that their use by someone who is both a competent programmer and who understands how to evaluate the quality of AI output, may be able to produce something better organized and more reliable that ardopcf.
+
+Just as I chose the name ardopcf when I created a fork of John Wiseman's ardopc, I ask anyone releasing something based on ardopcf to also give it a new name.  As I've written elsewhere, I also strongly recommend that anyone producing something that is not over-the-air compatible with ARDOP_WIN and ardopcf not use "ardop" as a part of its name.  Both of these are to help avoid confusing users.
+
+While I believe that ardopcf is suitable for continued use, here are some links to other Ardop implementations.  If you know of (or are the author of) an Ardop implementation that you'd like me to add to this list, create a [GitHub Issue](https://github.com/pflarue/ardop/issues) to let me know about it.  This list does not include any fork of ardopcf that still uses that name.
+
+https://winlink.org  Some of the downloads linked from this site include ARDOP_WIN, the latest version of the original Windows-only Ardop implementation by Rick Muething.
+
+https://www.cantab.net/users/john.wiseman/Documents/ARDOPC.html or https://github.com/g8bpq/ardop.  John Wiseman's Ardop implementation that ardopcf was forked from.
+
+https://dl2man.de/ARDOP or https://dl2man.de/ARDOP/client.  ARDOP Winlink, a Winlink client and new implementation of Ardop that runs entirely in a web browser by Manuel DL2MAN.  DL2MAN is well known for developing the (tr)uSDX with Guido PE1NNZ.
+
+https://github.com/rfb/ardopb.  ardopb, an AI driven re-implementation of ARDOP, by Ryan Barber.  
+
+-----------------------------
+
+The Amateur Radio Digital Open Protocol (Ardop) is a protocol for exchange of digital data encoded as audio and transmitted over amateur radio.  **ardopcf** is an Open-Source cross-platform implmentation of Ardop.  While **ardopcf** is usable and being used, it is likely to still contain bugs, and it is still under active development.  The primary goals of the ongoing develpment effort are to improve both stability and over the air performance.  Ongoing efforts to reorganize the code base to make it easier to understand, debug, and maintain help support these goals.
+
+> **For Ardop Developers - about AI:**
+> 
+> It seems clear that AI tools are in the process of significantly changing the way that software is written.  However, I am not yet using these tools.  This is partly because, in addition to trying to make ardopcf a better program, the goal of improving my own skills and knowledge is at least as important to me.  I feel like am learning more by not using these tools.  I accept that others, including some who may be interested in contributing to ardopcf, may have different goals and opinions.  So, other people may use AI tools to help them create the content of their Pull Requests.  However, I believe that these tools currently require careful human evaluation of their output.  **I expect the people using these tools to do that evaluation, and fix any problems they find, so that I don't have to.  To me, this means a line-by-line review of any changes suggested by an AI tool.  If an AI tool suggests a change that you disagree with or that you don't understand, it isn't ready to be submitted as a Pull Request for this project.**
+
+See the [latest release](https://github.com/pflarue/ardop/releases/latest) page to download **ardopcf** binaries for Linux and Windows.  One of the design goals of **ardopcf** is to make building from source as simple as possible.  So, if binaries compatible with your hardware and operating system are not available, [BUILDING.md](docs/BUILDING.md) provides easy to follow step by step instructions for both Linux and Windows users to build **ardopcf** from the source code.  Building from the source code found in the `develop` branch also provides the opportunity to try the most recent updates to **ardopcf** that were made since the latest release.
+
+Though improvements have been made to the documentation for users and developers of **ardopcf**, additional work is needed.  The free users subgroup of ardop.groups.io is a useful supplement to the information found here and on the pages linked below.  The archives of that group can be read by anyone.  Anyone with comments or questions about **ardopcf**, is encouraged to join and send a message to that group.  General comments and requests for assistance are best directed to that group.  In contrast, creating a new [Issue](https://github.com/pflarue/ardop/issues) here in the GitHub repository may be more appropriate to report a bug or suggest a change in the operation of **ardopcf**.
+
+## Additional Documentation:
+
+* [USAGE_linux.md](docs/USAGE_linux.md) and [USAGE_windows.md](docs/USAGE_windows.md): Basic instructions to install, configure, and run **ardopcf**.  These are split into separate versions for Linux and Windows users in an effort to make them easier to understand and follow, even though it results in some repetition.
+* [Troubleshooting.md](docs/Troubleshooting.md): Some suggestions for anyone having difficulty getting **ardopcf** to work correctly.
+* [BUILDING.md](docs/BUILDING.md): How to build **ardopcf** from source (Linux and Windows).
+* [Commandline_options.md](docs/Commandline_options.md): Descriptions of all of the options that can be applied when starting **ardopcf**.
+* [Host_Interface_Commands.md](docs/Host_Interface_Commands.md): Descriptions of all of the commands that host programs can pass to **ardopcf**.  These may also be applied at startup using the `--hostcommands` option.
+* [CONTRIBUTING.md](docs/CONTRIBUTING.md): Info about how to contribute to the ongoing development of **ardopcf**.
+* [About_Ardop.md](docs/About_Ardop.md): Info about the relationship between the Ardop specification, **ardopcf**, and other Ardop implementations.
+* [Motivation.md](docs/Motivation.md): Some info about why I am interested in maintaining and improving **ardopcf**, and why I think you might be interested in using it.
+* [ARDOP_Overview_20150701.pdf](docs/refs/ARDOP_Overview_20150701.pdf), [ARDOP_Specification_20171127.pdf](docs/refs/ARDOP_Specification_20171127.pdf), [ARDOP_Protocol_Native_TNC_Commands_20171130.pdf](docs/refs/ARDOP_Protocol_Native_TNC_Commands_20171130.pdf), [Host_Interface_Spec_for_WL2K_supported_Protocols_TNCs_20171109.pdf](docs/refs/Host_Interface_Spec_for_WL2K_supported_Protocols_TNCs_20171109.pdf): A few PDF documents written by others which are also included in the `docs/refs` directory for reference purposes.
+
+[Pat](https://getpat.io) Winlink and [Hamlib/rigctld](https://hamlib.github.io) are two popular open source programs often used in conjunction with **ardopcf**.  While these are multi-platform programs, they seem to be most commonly used on Linux computers.  As a result, information about using them on Windows machines is less common online.  So, the following are provided to assist Windows users to install and configure them.
+
+* [Pat_windows.md](docs/Pat_windows.md): How to install, configure, and run [Pat](https://getpat.io) Winlink on a Windows computer with **ardopcf**.
+* [Hamlib_Windows11.md](docs/Hamlib_Windows11.md): How to install, configure, and run  [Hamlib/rigctld](https://hamlib.github.io) on a Windows 11 computer.  Hamlib/rigctld are not used directly with **ardopcf**.  However, they can be used by [Pat](https://getpat.io) to do CAT control and handle PTT.
+
+**ardopcf** is released under the MIT open source license.  See [LICENSE](LICENSE) for details.  Use, study, and experimentation with this software is not only permitted, it is strongly encouraged.  I believe that such activity should be central to both amateur radio and open source software development.  However, the authors ask that if this source code is used to develop software that deviates from the Ardop [specification](docs/refs/ARDOP_Specification_20171127.pdf), or that is incompatible with existing implementations, that the `ardop` name not be used for such software.  Software claiming to be usable implementations of `ardop` should all be interoperable.  Otherwise, users may be confused and attempts to communicate with this software may fail.
