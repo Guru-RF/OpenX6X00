@@ -1,0 +1,141 @@
+% rebase('base.html', title='Winlink')
+<h2><svg class="i"><use href="#i-file"/></svg>Winlink</h2>
+<p class="sub">Winlink email over HF from the radio alone, with no computer: <a href="https://getpat.io">Pat</a> is the mail program, its mailbox a web page you open on a phone or a laptop on the radio's network; ARDOP is the modem, through the radio's own audio. When Pat calls a gateway, the radio tunes to it and switches to USB-D. Off by default: when off, nothing runs.</p>
+
+<div class="dp-card" id="notice" style="display:none">
+  <div class="dp-body" id="notice-text" style="color:var(--err)"></div>
+</div>
+
+<div class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-file"/></svg></span><div><h3>Winlink<span class="eff">Takes effect: at once</span></h3><p>Pat and ARDOP (ardopcf) on the radio</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Enabled</b><span>Starts with the radio, also after a new card image</span></div>
+    <div class="dp-ctl"><label class="sw" title="Enabled"><input id="enabled" type="checkbox" role="switch" aria-label="Enabled"><i></i></label></div>
+  </div>
+  <div class="dp-row"><div class="dp-lbl"><b>Status</b></div><div class="dp-ctl" id="text">-</div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Mailbox</b><span>Pat's own page, on port <span id="port">8080</span> of the radio: write and read your mail, choose a gateway and connect</span></div>
+    <div class="dp-ctl" id="mailbox"><a class="btn primary" id="open" target="_blank" rel="noopener" style="display:none">Open the mailbox</a><span id="nomailbox">-</span></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0"><span class="status" id="sstatus"></span></div>
+  </div>
+</div>
+
+<form class="dp-card" id="conf">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>Station<span class="eff">Takes effect: Pat restarts with it</span></h3><p>Your Winlink account and what ARDOP may use. Pat's mailbox has its own Settings page for the rest</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="mycall"><b>Callsign</b></label><span>Your Winlink account. Empty: the radio's callsign<span id="radiocall"></span></span></div>
+    <div class="dp-ctl"><input id="mycall" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="15"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="locator"><b>Locator</b></label><span>Sent to the gateway, and the distances in Pat's gateway list. Empty: the radio's QTH<span id="radioloc"></span></span></div>
+    <div class="dp-ctl"><input id="locator" type="text" autocomplete="off" spellcheck="false" maxlength="6"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="password"><b>Winlink password</b></label><span>Password: <b id="pw-state"></b>. A new one replaces it; empty keeps it. It stays on the radio and is never shown again</span></div>
+    <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="64" placeholder="New password (empty = keep)"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="bandwidth"><b>ARDOP bandwidth</b></label><span>The widest ARDOP may use. 500 Hz suits most gateways and a crowded band; 2000 Hz is faster on a good path with a gateway that runs it</span></div>
+    <div class="dp-ctl"><select id="bandwidth"><option value="500">500 Hz</option><option value="2000">2000 Hz</option></select></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="submit" class="primary">Save</button>
+      <span class="status" id="status"></span>
+    </div>
+  </div>
+</form>
+
+<div class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-lock"/></svg></span><div><h3>Good to know</h3><p>Before you turn it on</p></div></div>
+  <div class="dp-body">
+    <ul style="margin:0;padding-left:18px;color:var(--dim);line-height:1.5">
+      <li>The mailbox has no login of its own: anyone on the radio's network, and on your tailnet with Tailscale on, can read and send your mail and make the radio transmit. Turn Winlink off on a network you do not trust.</li>
+      <li>The mailbox answers only to the radio's address or its own name, and refuses pages from other sites: a web page you happen to visit cannot use it through your browser.</li>
+      <li>In the mailbox: Connect, ARDOP, then the gateway list (with your locator, the nearest first) gives each gateway's call and frequency. The radio tunes there in USB-D when Pat connects, and back afterwards.</li>
+      <li>The password is kept on the radio's system partition: not in the Backup, not on the Files page. A new card image asks for it again. The mail itself is on the SD card (<code>/mnt/winlink</code>) and stays.</li>
+      <li>Not tested yet: a real ARDOP session with a gateway on the air.</li>
+    </ul>
+  </div>
+</div>
+
+<script src="/static/js/edit_flow.js?v=1"></script>
+<script>
+var showStatus = function(id, text, error=false) {
+  const el = $(id);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+var busy = false;
+const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
+
+// The status, the switch and the notes: every two seconds, without touching what is being typed below
+var renderState = function(st) {
+  if (!busy) $("#enabled").prop("checked", !!st.enabled);
+  $("#enabled").prop("disabled", busy);
+  $("#text").text(st.text || st.state);
+  $("#port").text(st.port);
+  const up = st.pat === "running";
+  if (up) $("#open").attr("href", "http://" + location.hostname + ":" + st.port + "/");
+  $("#open").toggle(up);
+  $("#nomailbox").toggle(!up).text(st.enabled ? "Once Pat runs" : "When Winlink is on");
+  const notes = [];
+  if (!st.installed) notes.push("Pat and ARDOP are not on this radio yet: they come with the update that brings Winlink.");
+  if (!st.host_ok) notes.push("This page was opened by a name the radio does not know as its own. Open it by the radio's address or its .local name to change Winlink; the mailbox only opens by those names too.");
+  if (st.enabled && !st.mycall && !st.radio_mycall) notes.push("No callsign: set yours below, or the radio's in Settings > General.");
+  $("#notice").toggle(notes.length > 0);
+  $("#notice-text").text(notes.join(" "));
+}
+
+var render = function(st) {
+  renderState(st);
+  $("#mycall").val(st.mycall).attr("placeholder", st.radio_mycall || "Your callsign");
+  $("#radiocall").text(st.radio_mycall ? " (" + st.radio_mycall + ")" : "");
+  $("#locator").val(st.locator).attr("placeholder", st.radio_locator || "JO20ab");
+  $("#radioloc").text(st.radio_locator ? " (" + st.radio_locator + ")" : "");
+  $("#password").val("");
+  $("#pw-state").text(st.password_set ? "set (hidden)" : "not set");
+  $("#bandwidth").val(String(st.bandwidth));
+  form.reset();
+}
+
+var refresh = function() { $.get('/api/winlink', {}, renderState); }
+
+var post = function(body, done) {
+  $.ajax({
+    url: "/api/winlink",
+    type: "POST",
+    data: JSON.stringify(body),
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    success: done,
+    error: function(xhr) {
+      busy = false;
+      refresh();
+      showStatus(body.enabled === undefined ? "#status" : "#sstatus",
+                 xhr.responseJSON ? xhr.responseJSON.msg : "The radio did not answer (HTTP " + xhr.status + ")", true);
+    }
+  });
+}
+
+$("#enabled").on("change", function() {
+  const on = $(this).prop("checked");
+  busy = true;
+  $("#enabled").prop("disabled", true);
+  showStatus("#sstatus", on ? "Turning Winlink on..." : "Turning Winlink off: a connection in progress ends first...");
+  post({enabled: on}, function(r) { busy = false; renderState(r); showStatus("#sstatus", on ? "On" : "Off"); });
+});
+
+$("#conf").on("submit", function(e) {
+  e.preventDefault();
+  showStatus("#status", "Saving...");
+  post({mycall: $("#mycall").val().trim(), locator: $("#locator").val().trim(),
+        bandwidth: parseInt($("#bandwidth").val(), 10), password: $("#password").val()},
+       function(r) { render(r); showStatus("#status", r.enabled ? "Saved: Pat restarts with it" : "Saved"); });
+});
+
+$.get('/api/winlink', {}, render);
+setInterval(refresh, 2000);
+</script>

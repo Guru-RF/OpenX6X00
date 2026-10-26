@@ -52,17 +52,22 @@ PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 bottle.TEMPLATE_PATH.append(os.path.join(PACKAGE_DIR, "views"))
 
 
-def read_callsign():
-    """Callsign from params.db for the page header, "" when missing."""
+def read_param(name):
+    """A text setting of the radio from params.db (callsign, qth), "" when missing."""
     try:
         con = sqlite3.connect(f"file:{settings.DB_PATH}?mode=ro", uri=True)
         try:
-            row = con.execute("SELECT val FROM params WHERE name = 'callsign'").fetchone()
+            row = con.execute("SELECT val FROM params WHERE name = ?", (name,)).fetchone()
         finally:
             con.close()
     except sqlite3.Error:
         return ""
     return str(row[0]) if row and row[0] else ""
+
+
+def read_callsign():
+    """Callsign from params.db for the page header, "" when missing."""
+    return read_param("callsign")
 
 
 bottle.BaseTemplate.defaults.update(callsign=read_callsign, request=bottle.request)
@@ -548,10 +553,11 @@ def tailscale_page():
     return bottle.template('tailscale')
 
 
-def tailscale_host_ok():
+def local_host_ok():
     """The page opened by an address or by the radio's own name. A page from another site that points its own
-    name at the radio (DNS rebinding) passes the cross-site guard, and its login link would put the radio on
-    that site's tailnet: Tailscale is switched and its link shown only by these names"""
+    name at the radio (DNS rebinding) passes the cross-site guard: Tailscale is switched and its login link
+    shown (which would put the radio on that site's tailnet), and Winlink changed, only by these names. Pat's
+    mailbox on port 8080 takes the same names (tools/pat)"""
     host = (urllib.parse.urlsplit("//" + (bottle.request.get_header("Host") or "")).hostname or "").rstrip(".")
     try:
         ipaddress.ip_address(host)
@@ -565,14 +571,14 @@ def tailscale_host_ok():
 @app.get('/api/tailscale')
 def get_tailscale():
     st = tailscale_status()
-    if not tailscale_host_ok():
+    if not local_host_ok():
         st.pop("url", None)
     return st
 
 
 @app.post('/api/tailscale')
 def set_tailscale():
-    if not tailscale_host_ok():
+    if not local_host_ok():
         return api_error(403, f"Open this page by the radio's address or {socket.gethostname()}.local to change Tailscale")
     action = (bottle.request.json or {}).get("action")
     if action not in ("on", "off", "logout"):
@@ -585,6 +591,140 @@ def set_tailscale():
         msg = (r.stderr.strip().splitlines() or [f"exit code {r.returncode}"])[-1]
         return api_error(500, "Tailscale: " + (msg[6:] if msg.startswith("error ") else msg))
     return tailscale_status()
+
+
+# Winlink (rootfs/usr/sbin/x6100-winlink): Pat and ardopcf under a supervisor that keeps a status file. The page
+# writes the settings (/mnt/winlink.conf), hands a new password to the helper on stdin (it goes to the root
+# filesystem, where these pages never read it back) and runs the helper to apply them and to turn it on or off
+WINLINK_CMD = "/usr/sbin/x6100-winlink"
+WINLINK_STATUS = "/run/winlink/status"
+WINLINK_CONF = "/mnt/winlink.conf"
+WINLINK_PASSWORD = "/var/lib/winlink/password"
+WINLINK_PROGRAMS = ("/usr/bin/pat", "/usr/bin/ardopcf")
+WINLINK_PORT = 8080                                   # Pat's mailbox
+WINLINK_CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")   # as x6100-winlink checks them
+WINLINK_LOCATOR_RE = re.compile(r"[A-R]{2}[0-9]{2}([A-X]{2})?", re.I)
+winlink_lock = threading.Lock()                       # one change at a time: Off may take 20 s
+
+
+def winlink_conf():
+    conf = {"enabled": "0", "mycall": "", "locator": "", "bandwidth": "500"}
+    try:
+        with open(WINLINK_CONF) as f:
+            for line in f:
+                k, sep, v = line.strip().partition("=")
+                if sep:
+                    conf[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return conf
+
+
+def winlink_state():
+    """The settings, the supervisor's status and the defaults; whether a password is set, never the password"""
+    st = {"state": "off", "text": "Off", "pat": "off", "ardop": "off"}
+    try:
+        with open(WINLINK_STATUS) as f:
+            for line in f:
+                k, sep, v = line.rstrip("\n").partition("=")
+                if sep:
+                    st[k] = v
+    except OSError:
+        pass
+    conf = winlink_conf()
+    try:
+        password_set = os.path.getsize(WINLINK_PASSWORD) > 0
+    except OSError:
+        password_set = False
+    st.update(enabled=conf["enabled"] == "1", mycall=conf["mycall"], locator=conf["locator"],
+              bandwidth=2000 if conf["bandwidth"] == "2000" else 500, password_set=password_set,
+              radio_mycall=max(read_callsign().upper().split("/"), key=len),   # ON6URE of ON6URE/P
+              radio_locator=read_param("qth"), installed=all(os.access(p, os.X_OK) for p in WINLINK_PROGRAMS),
+              host_ok=local_host_ok(), port=WINLINK_PORT)
+    return st
+
+
+def winlink_run(args, stdin=None):
+    """The helper; its error line, None when it went well"""
+    try:
+        r = subprocess.run([WINLINK_CMD, *args], input=stdin, capture_output=True, text=True, timeout=40)
+    except (OSError, subprocess.SubprocessError) as e:
+        return str(e)
+    if r.returncode != 0:
+        msg = (r.stderr.strip().splitlines() or [f"exit code {r.returncode}"])[-1]
+        return msg[6:] if msg.startswith("error ") else msg
+    return None
+
+
+@app.route('/winlink')
+def winlink_page():
+    return bottle.template('winlink')
+
+
+@app.get('/api/winlink')
+def get_winlink():
+    return winlink_state()
+
+
+@app.post('/api/winlink')
+def set_winlink():
+    """Any of enabled, mycall, locator, bandwidth and password; what is not sent stays. An empty callsign or
+    locator is the radio's own, an empty password keeps the one set"""
+    if not local_host_ok():
+        return api_error(403, f"Open this page by the radio's address or {socket.gethostname()}.local to change Winlink")
+    try:
+        data = bottle.request.json
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        return api_error(400, "Invalid request")
+    with winlink_lock:
+        conf = winlink_conf()
+        new = dict(conf)
+        if "enabled" in data:
+            if not isinstance(data["enabled"], bool):
+                return api_error(400, "enabled: true or false")
+            new["enabled"] = "1" if data["enabled"] else "0"
+        if "mycall" in data:
+            call = data["mycall"].strip().upper() if isinstance(data["mycall"], str) else None
+            if call is None or call and not WINLINK_CALL_RE.fullmatch(call):
+                return api_error(400, "Callsign: your Winlink account, letters and digits (an SSID like -5 may follow); "
+                                      "empty for the radio's")
+            new["mycall"] = call
+        if "locator" in data:
+            loc = data["locator"].strip() if isinstance(data["locator"], str) else None
+            if loc is None or loc and not WINLINK_LOCATOR_RE.fullmatch(loc):
+                return api_error(400, "Locator: 4 or 6 characters (JO20 or JO20ab); empty for the radio's QTH")
+            new["locator"] = loc[:4].upper() + loc[4:].lower()
+        if "bandwidth" in data:
+            if data["bandwidth"] not in (500, 2000) or isinstance(data["bandwidth"], bool):
+                return api_error(400, "Bandwidth: 500 or 2000")
+            new["bandwidth"] = str(data["bandwidth"])
+        password = data.get("password", "")
+        password = password.strip() if isinstance(password, str) else None
+        if password is None or len(password) > 64 or any(ord(c) < 32 or ord(c) == 127 for c in password):
+            return api_error(400, "Password: up to 64 characters")
+        if password:
+            err = winlink_run(["set-password"], password)
+            if err:
+                return api_error(500, "Winlink: " + err)
+        keys = ["enabled", "mycall", "locator", "bandwidth"]
+        if new != conf:
+            try:
+                replace_file(WINLINK_CONF, lambda f: f.write(
+                    "".join(f"{k}={new[k]}\n" for k in keys + [k for k in new if k not in keys])))
+            except OSError as e:
+                return api_error(500, f"Can't save: {e}")
+        err = None
+        if new["enabled"] == "1":
+            if password or any(new[k] != conf[k] for k in keys[1:]):
+                err = winlink_run(["apply"])          # Pat restarts with them
+            err = err or winlink_run(["on"])
+        elif conf["enabled"] == "1" or "enabled" in data:
+            err = winlink_run(["off"])
+        if err:
+            return api_error(500, "Winlink: " + err)
+    return winlink_state()
 
 
 @app.get('/api/tci')
