@@ -854,11 +854,12 @@ WeFax) set their audio level by themselves.
 - On the X6200 the ALC reading does not follow the audio level, so the level
   goes up until the power reaches the setting and stays there.
 - A transmission that reads 0 W from its first second to its end says so:
-  "TX 0 W: level -38 dB, Line-in 10". The log gets a line with the level, the
-  Line-in, the ALC and the power set; send it with a report. On the X6200 the
-  level then goes back to its default (0 dB) for the next transmission,
-  instead of climbing back 8 dB a transmission. A Line-in of 0 is the other
-  known cause: see [Audio tab](#audio-tab).
+  "TX 0 W: level -38 dB, Line-in 10". Not at a 0.1 W setting, where the
+  power reading (in whole tenths of a watt) can show 0.0 all along. The log
+  gets a line with the level, the Line-in, the ALC and the power set; send it
+  with a report. On the X6200 the level then goes back to its default (0 dB)
+  for the next transmission, instead of climbing back 8 dB a transmission. A
+  Line-in of 0 is the other known cause: see [Audio tab](#audio-tab).
 - At start the log has a line with the base's version, Line-in, Line-out,
   Play and Rec gain and the level kept.
 

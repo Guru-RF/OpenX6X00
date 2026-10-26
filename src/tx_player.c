@@ -182,9 +182,11 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     float learned = LV_MAX(level_db, LEARNED_MIN_DB);
 
     /* No power read at all once the PA settled, a whole transmission long (#16): said on the screen and in the log
-     * with what makes the level, so that a report tells the learned level, the Line-in and the base apart */
+     * with what makes the level, so that a report tells the learned level, the Line-in and the base apart. From a
+     * 0.2 W setting only: the reading is whole tenths, cut off, so at 0.1 W (FT8's lowest step, WSPR's 20 dBm) a
+     * true 0.09 W reads 0.0 a whole normal transmission long, and the X6200 lost its level each time */
     bool no_rf = !stopped && reads > 0 && level.blocks > TX_LEVEL_SETTLE_BLOCKS + 2 * TX_LEVEL_WINDOW_BLOCKS
-              && peak_w < TX_LEVEL_PWR_STEP_W;
+              && peak_w < TX_LEVEL_PWR_STEP_W && level.target_w > 1.5f * TX_LEVEL_PWR_STEP_W;
 
     if (no_rf) {
         fprintf(stderr, "tx_player: 0 W the whole TX: level %.1f dB (codec %.1f, samples %.1f), line_in %u, "
