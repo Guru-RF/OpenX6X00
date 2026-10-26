@@ -151,6 +151,7 @@ static uint16_t now_min;
 static char     server[128];
 static int      server_port;
 static time_t   conf_mtime;
+static bool     link_on; /* the Link switch as load_server() last read it: what the client was told */
 static char     client_call[sizeof(params.callsign.x)];
 static bool     wifi_was_up;
 
@@ -163,7 +164,8 @@ static void load_server(void) {
     cluster_config_load(server, sizeof(server), &server_port);
     snprintf(client_call, sizeof(client_call), "%s", params.callsign.x);
     cluster_config_login(login, sizeof(login), client_call);
-    if (client_call[0] && login[0] && cluster_config_enabled()) cluster_client_start(server, server_port, login);
+    link_on = cluster_config_enabled();
+    if (client_call[0] && login[0] && link_on) cluster_client_start(server, server_port, login);
     else cluster_client_stop();
 }
 
@@ -474,7 +476,8 @@ static void update_header(void) {
 }
 
 /* The link in words, as the status line says it, and its colour; *word names the state for the web page: nocall,
- * off, nonet, connecting, connected, failed or stopped */
+ * off, nonet, connecting, connected, failed or stopped. On or off is what the client was told, not cluster.conf
+ * read again: the web page's "stale" compares the two, so it shows a change the radio missed */
 static uint32_t link_status(char *text, size_t size, const char **word) {
     char            detail[64];
     cluster_state_t st = cluster_client_state(detail, sizeof(detail));
@@ -484,7 +487,7 @@ static uint32_t link_status(char *text, size_t size, const char **word) {
         snprintf(text, size, "Set your callsign: Settings > General");
         return theme_hex(TC_err);
     }
-    if (!cluster_config_enabled()) {
+    if (!link_on) {
         *word = "off";
         snprintf(text, size, "Cluster link off");
         return COLOR_DIM;
