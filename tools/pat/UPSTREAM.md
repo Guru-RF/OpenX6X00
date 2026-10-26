@@ -58,7 +58,11 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   network do it. The Host header must be an IP address, `localhost`, the hostname,
   `<hostname>.local` or end in `.ts.net` (no DNS rebinding). For `/api/` and `/ws`: an Origin
   header, when present, must name the same host:port as Host, and Sec-Fetch-Site, when
-  present, must be `same-origin` or `none`. 403 otherwise. Pages are sent with
+  present, must be `same-origin` or `none`. What changes something (`/api/connect` and
+  `/api/disconnect` on any method, every API request that is not a GET or HEAD) must also come
+  with an Origin or jQuery's `X-Requested-With`, which Pat's page sends: an `<img>` or a link on
+  another site reaches a plain `http://` address on the LAN with neither Origin nor
+  Sec-Fetch-Site. 403 otherwise. Pages are sent with
   `X-Frame-Options: SAMEORIGIN`, so another site cannot frame the mailbox and have its buttons
   clicked. With a unit test (`api/guard_test.go`).
 - `0002-no-phone-home.patch`: the web UI no longer makes the radio contact the internet each

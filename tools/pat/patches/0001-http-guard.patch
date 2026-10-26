@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 4cf549478ab4de8330582aae19bf5a413c6ac4f6 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Mon, 26 Oct 2026 12:19:12 +0100
-Subject: [PATCH 1/2] api: refuse requests other sites can make a browser send
+Subject: [PATCH] api: refuse requests other sites can make a browser send
  (OpenX6X00)
 
 Pat has no login, and a plain GET of /api/connect keys the transmitter.
@@ -12,14 +12,20 @@ The HTTP server's handler is wrapped in a guard:
 - for /api/ and /ws, an Origin header, when present, must name the same
   host:port as Host, and Sec-Fetch-Site, when present, must be
   same-origin or none;
+- what changes something (/api/connect and /api/disconnect on any
+  method, every API request that is not a GET or HEAD) must also come
+  with an Origin or jQuery's X-Requested-With, which Pat's page sends:
+  an <img> or a link on another site reaches a plain http:// LAN address
+  with neither Origin nor Sec-Fetch-Site, and cannot add that header
+  without a CORS preflight that carries its Origin;
 - 403 otherwise. Pages are sent with X-Frame-Options: SAMEORIGIN.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- api/api.go        |  2 +-
- api/guard.go      | 86 +++++++++++++++++++++++++++++++++++++++++++++++
- api/guard_test.go | 52 ++++++++++++++++++++++++++++
- 3 files changed, 139 insertions(+), 1 deletion(-)
+ api/api.go        |   2 +-
+ api/guard.go      | 112 ++++++++++++++++++++++++++++++++++++++++++++++
+ api/guard_test.go |  74 ++++++++++++++++++++++++++++++
+ 3 files changed, 187 insertions(+), 1 deletion(-)
  create mode 100644 api/guard.go
  create mode 100644 api/guard_test.go
 
@@ -38,10 +44,10 @@ index 7f39760..a1c9308 100644
  	go func() {
 diff --git a/api/guard.go b/api/guard.go
 new file mode 100644
-index 0000000..e702365
+index 0000000..2c07a00
 --- /dev/null
 +++ b/api/guard.go
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,112 @@
 +// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
 +// Use of this source code is governed by the MIT-license that can be
 +// found in the LICENSE file.
@@ -67,6 +73,12 @@ index 0000000..e702365
 +//     DNS points at us (DNS rebinding).
 +//   - For /api/ and /ws: an Origin header, when present, must name the same host:port as
 +//     Host, and Sec-Fetch-Site, when present, must be same-origin or none.
++//   - What changes something (/api/connect and /api/disconnect, which take a GET, and any
++//     API request that is not a GET) must also show it comes from Pat's own page: an
++//     Origin header (checked above), or jQuery's X-Requested-With, which Pat's page sends.
++//     A browser sends neither Origin nor Sec-Fetch-Site with an <img> or a link to a plain
++//     http:// address on the LAN, and a page on another site cannot add X-Requested-With
++//     without a CORS preflight, which carries its Origin.
 +//
 +// Anything else gets 403. Pages on other sites may not frame Pat's pages either.
 +func guard(next http.Handler) http.Handler {
@@ -77,6 +89,10 @@ index 0000000..e702365
 +		}
 +		if guardedPath(r.URL.Path) && !sameOrigin(r) {
 +			http.Error(w, "Forbidden: cross-origin request", http.StatusForbidden)
++			return
++		}
++		if guardedPath(r.URL.Path) && changes(r) && !fromOwnPage(r) {
++			http.Error(w, "Forbidden: not from Pat's own page", http.StatusForbidden)
 +			return
 +		}
 +		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
@@ -128,12 +144,28 @@ index 0000000..e702365
 +	}
 +	return false
 +}
++
++// changes tells whether an API request changes something: connect and disconnect, which
++// Pat answers on any method, and every request that is not a GET or HEAD.
++func changes(r *http.Request) bool {
++	p := path.Clean("/" + r.URL.Path)
++	if p == "/api/connect" || p == "/api/disconnect" {
++		return true
++	}
++	return r.Method != http.MethodGet && r.Method != http.MethodHead
++}
++
++// fromOwnPage tells whether a request shows it comes from Pat's own page: it carries an
++// Origin header (sameOrigin has checked that it is ours) or jQuery's X-Requested-With.
++func fromOwnPage(r *http.Request) bool {
++	return r.Header.Get("Origin") != "" || r.Header.Get("X-Requested-With") == "XMLHttpRequest"
++}
 diff --git a/api/guard_test.go b/api/guard_test.go
 new file mode 100644
-index 0000000..75e9c19
+index 0000000..3e01d21
 --- /dev/null
 +++ b/api/guard_test.go
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,74 @@
 +package api
 +
 +import (
@@ -149,29 +181,51 @@ index 0000000..75e9c19
 +	tests := []struct {
 +		path, host, origin, site string
 +		want                     int
++		method, xrw              string // GET and none when empty
 +	}{
-+		{"/ui", "192.168.1.20:8080", "", "", 200},
-+		{"/api/status", "[fe80::1]:8080", "", "", 200},
-+		{"/api/status", "localhost:8080", "", "", 200},
-+		{"/api/status", hostname + ":8080", "", "", 200},
-+		{"/api/status", hostname + ".local:8080", "", "", 200},
-+		{"/api/status", "radio.tail1234.ts.net", "", "", 200},
-+		{"/api/status", "evil.example", "", "", 403},
-+		{"/ui", "evil.example:8080", "", "", 403},
-+		{"/api/status", "", "", "", 403},
-+		{"/api/status", "10.0.0.5:8080", "http://10.0.0.5:8080", "same-origin", 200},
-+		{"/ui", "10.0.0.5:8080", "", "none", 200},
-+		{"/ui", "10.0.0.5:8080", "", "cross-site", 200},
-+		{"/api/connect", "10.0.0.5:8080", "http://evil.example", "", 403},
-+		{"/api/connect", "10.0.0.5:8080", "http://10.0.0.5", "", 403},
-+		{"/api/connect", "10.0.0.5:8080", "null", "", 403},
-+		{"/api/connect", "10.0.0.5:8080", "", "cross-site", 403},
-+		{"/api/connect", "10.0.0.5:8080", "", "same-site", 403},
-+		{"//api/connect", "10.0.0.5:8080", "", "cross-site", 403},
-+		{"/ws", "10.0.0.5:8080", "http://evil.example", "", 403},
++		{"/ui", "192.168.1.20:8080", "", "", 200, "", ""},
++		{"/api/status", "[fe80::1]:8080", "", "", 200, "", ""},
++		{"/api/status", "localhost:8080", "", "", 200, "", ""},
++		{"/api/status", hostname + ":8080", "", "", 200, "", ""},
++		{"/api/status", hostname + ".local:8080", "", "", 200, "", ""},
++		{"/api/status", "radio.tail1234.ts.net", "", "", 200, "", ""},
++		{"/api/status", "evil.example", "", "", 403, "", ""},
++		{"/ui", "evil.example:8080", "", "", 403, "", ""},
++		{"/api/status", "", "", "", 403, "", ""},
++		{"/api/status", "10.0.0.5:8080", "http://10.0.0.5:8080", "same-origin", 200, "", ""},
++		{"/ui", "10.0.0.5:8080", "", "none", 200, "", ""},
++		{"/ui", "10.0.0.5:8080", "", "cross-site", 200, "", ""},
++		{"/api/connect", "10.0.0.5:8080", "http://evil.example", "", 403, "", ""},
++		{"/api/connect", "10.0.0.5:8080", "http://10.0.0.5", "", 403, "", ""},
++		{"/api/connect", "10.0.0.5:8080", "null", "", 403, "", ""},
++		{"/api/connect", "10.0.0.5:8080", "", "cross-site", 403, "", ""},
++		{"/api/connect", "10.0.0.5:8080", "", "same-site", 403, "", ""},
++		{"//api/connect", "10.0.0.5:8080", "", "cross-site", 403, "", ""},
++		{"/ws", "10.0.0.5:8080", "http://evil.example", "", 403, "", ""},
++		// what an <img> or a link on another site sends to a LAN address over http: no Origin,
++		// no Sec-Fetch-*
++		{"/api/connect", "10.0.0.5:8080", "", "", 403, "", ""},
++		{"/api/disconnect", "x6100.local:8080", "", "", 403, "", ""},
++		{"/api/connect", "10.0.0.5:8080", "", "", 403, "POST", ""},
++		{"/api/config", "10.0.0.5:8080", "", "", 403, "PUT", ""},
++		{"/api/mailbox/in/X", "10.0.0.5:8080", "", "", 403, "DELETE", ""},
++		// Pat's own page: jQuery's header, or the Origin of a POST
++		{"/api/connect", "10.0.0.5:8080", "", "", 200, "", "XMLHttpRequest"},
++		{"/api/disconnect", "10.0.0.5:8080", "http://10.0.0.5:8080", "same-origin", 200, "POST", "XMLHttpRequest"},
++		{"/api/form", "10.0.0.5:8080", "http://10.0.0.5:8080", "same-origin", 200, "POST", ""},
++		{"/api/connect", "10.0.0.5:8080", "http://evil.example", "", 403, "", "XMLHttpRequest"},
++		// reads need no proof: another site cannot see the answer
++		{"/api/status", "10.0.0.5:8080", "", "", 200, "", ""},
 +	}
 +	for _, tt := range tests {
-+		r := httptest.NewRequest("GET", "http://x"+tt.path, nil)
++		method := tt.method
++		if method == "" {
++			method = "GET"
++		}
++		r := httptest.NewRequest(method, "http://x"+tt.path, nil)
++		if tt.xrw != "" {
++			r.Header.Set("X-Requested-With", tt.xrw)
++		}
 +		r.Host = tt.host
 +		if tt.origin != "" {
 +			r.Header.Set("Origin", tt.origin)
@@ -186,3 +240,6 @@ index 0000000..75e9c19
 +		}
 +	}
 +}
+-- 
+2.56.0
+

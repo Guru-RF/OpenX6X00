@@ -54,6 +54,7 @@ fetch() {   # URL FILE
 if [ ! -x "$GOROOT_DIR/bin/go" ]; then
     echo "== Go $GO_VER from go.dev"
     T=$(mktemp -d "$CACHE/go-$GO_VER.tmp.XXXXXX")
+    trap 'rm -rf "$T"' EXIT     # a download or unpack that fails leaves nothing in the cache
     fetch "$GO_URL" "$T/go.tar.gz"
     echo "$GO_SHA256  $T/go.tar.gz" | sha256sum -c --quiet - \
         || { echo "tools/pat/build.sh: $GO_URL does not have the pinned SHA-256"; rm -rf "$T"; exit 1; }
