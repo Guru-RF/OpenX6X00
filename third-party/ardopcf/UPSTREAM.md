@@ -53,3 +53,7 @@ Each one is its own commit on top of the pristine import.
   ports (TCP 8515 commands, 8516 data, UDP 8515) and the WebGui (`-G`) listen
   on 127.0.0.1 only. Upstream binds them to every interface without any
   authentication, so anyone on the radio's network could key it.
+- `src/common/ARDOPCommon.c`, `src/common/HostInterface.c`: a capture or
+  playback device name of 80 characters or more (on the command line, or in
+  the `CAPTURE` / `PLAYBACK` host commands) is refused instead of copied past
+  the end of its 80-byte buffer; the port argument is cut to its buffer.

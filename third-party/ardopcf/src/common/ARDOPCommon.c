@@ -352,11 +352,18 @@ void processargs(int argc, char * argv[])
 
 	if (argc > optind)
 	{
-		strcpy(HostPort, argv[optind]);
+		snprintf(HostPort, sizeof(HostPort), "%s", argv[optind]);
 	}
 
 	if (argc > optind + 2)
 	{
+		if (strlen(argv[optind + 1]) >= sizeof(CaptureDevice)
+			|| strlen(argv[optind + 2]) >= sizeof(PlaybackDevice))
+		{
+			printf("ERROR: capture and playback device names may be at most %d characters long.\n",
+				(int)sizeof(CaptureDevice) - 1);
+			exit(1);
+		}
 		strcpy(CaptureDevice, argv[optind + 1]);
 		strcpy(PlaybackDevice, argv[optind + 2]);
 	}

@@ -461,6 +461,10 @@ void ProcessCommandFromHost(char * strCMD)
 			sprintf(cmdReply, "%s %s", strCMD, CaptureDevice);
 			SendReplyToHost(cmdReply);
 		}
+		else if (strlen(ptrParams) >= sizeof(CaptureDevice))
+		{
+			snprintf(strFault, sizeof(strFault), "Syntax Err: %s: device name too long", strCMD);
+		}
 		else
 		{
 			strcpy(CaptureDevice, ptrParams);
@@ -1029,6 +1033,10 @@ void ProcessCommandFromHost(char * strCMD)
 		{
 			sprintf(cmdReply, "%s %s", strCMD, PlaybackDevice);
 			SendReplyToHost(cmdReply);
+		}
+		else if (strlen(ptrParams) >= sizeof(PlaybackDevice))
+		{
+			snprintf(strFault, sizeof(strFault), "Syntax Err: %s: device name too long", strCMD);
 		}
 		else
 		{
