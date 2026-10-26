@@ -194,10 +194,13 @@ live, its keys and knobs, Sound, Mic and the Picture choice.
    [latest release](https://github.com/Guru-RF/OpenX6X00/releases/latest):
    `OpenX6X00-x6100-v<version>-sdcard.img.zip` for the X6100,
    `OpenX6X00-x6200-v<version>-sdcard.img.zip` for the X6200.
-2. Write the image to a microSD card with [balenaEtcher](https://etcher.balena.io/)
-   or Rufus.
-3. Put the card in the radio and switch on. Settings and logs live on the
-   card's DATA partition (`/mnt`).
+2. Write the image to a microSD card (a branded one, 8-32 GB) with
+   [balenaEtcher](https://etcher.balena.io/): select the `.img.zip` as it is and
+   let it verify what it wrote. Rufus works too, but does not verify. If
+   Windows then offers to format the card, choose Cancel.
+3. Put the card in the radio and switch on, the first time on external power:
+   press POWER briefly and give it a minute (the screen stays dark for the
+   first seconds). Settings and logs live on the card's DATA partition (`/mnt`).
 
 ## Updating
 
