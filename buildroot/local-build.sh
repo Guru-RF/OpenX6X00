@@ -213,6 +213,8 @@ rm -rf $BR/build/target/lib/firmware/{bnx2x,cxgb4,e100,intel,microchip,qed,tigon
 find $BR/build/target/lib/firmware/rtl_nic -type f ! -name 'rtl815*' -delete 2>/dev/null
 rm -rf $BR/build/target/usr/share/RHVoice $BR/build/target/usr/lib/libRHVoice* $BR/build/target/usr/bin/RHVoice*
 rm -rf $BR/build/target/usr/sbin/x6200_gui $BR/build/target/usr/share/x6200
+# and the RS theme the GUI installed up to v0.3.5 (cut from an Icom RS-BA1 screenshot: not shipped any more)
+rm -rf $BR/build/target/usr/share/x6100/themes
 make
 
 echo "== Update bundle (tools/update/mkbundle.py): what x6100-update installs on a running radio"

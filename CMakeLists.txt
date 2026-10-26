@@ -50,7 +50,6 @@ elseif(HOST_BUILD)
         # What the image ships read-only, staged as the host's share directory
         file(COPY rootfs/usr/share/x6100/ DESTINATION ${CMAKE_BINARY_DIR}/share)
         file(COPY images DESTINATION ${CMAKE_BINARY_DIR}/share)
-        file(COPY themes/RS DESTINATION ${CMAKE_BINARY_DIR}/share/themes)
         file(COPY third-party/cty/cty.dat DESTINATION ${CMAKE_BINARY_DIR}/share)
 else()
         # Allwinner A33: Cortex-A7, hard float, NEON
@@ -93,8 +92,8 @@ else()
         install(DIRECTORY images DESTINATION share/x6100)
         # Callsign -> country for the FT8/FT4 table (AD1C, country-files.com)
         install(FILES third-party/cty/cty.dat DESTINATION share/x6100)
-        # Copied to /mnt/themes at start when missing (main.c)
-        install(DIRECTORY themes/RS DESTINATION share/x6100/themes)
+        # No folder theme is installed: themes/RS is cut from a screenshot of Icom's RS-BA1
+        # (themes/make_rs.py, personal use only)
         # Pat, the Winlink client: built outside, by tools/pat/build.sh (buildroot/local-build.sh
         # passes its path), and installed as /usr/bin/pat, so the update bundle carries it too
         set(PAT_BINARY "" CACHE FILEPATH "Pat for the radio (tools/pat/build.sh)")

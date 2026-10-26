@@ -223,10 +223,10 @@ static void settings_load(void) {
     audio_set_rec_vol(params.rec_gain_db_f.x);
     mfk_init();
     vol_init();
-    /* Bundled themes to the SD card once; one already there is never overwritten */
-    if (system("mkdir -p " BOARD_DATA "/themes; for t in " BOARD_SHARE "/themes/*; do "
-               "[ -e \"" BOARD_DATA "/themes/${t##*/}\" ] || cp -r \"$t\" " BOARD_DATA "/themes/; done") != 0)
-        LV_LOG_WARN("Bundled themes not copied to " BOARD_DATA "/themes");
+    /* The folder for the user's own themes (docs/THEMES.md). None comes with the image any more: the RS
+     * theme that was copied here is cut from a screenshot of Icom's RS-BA1 (themes/make_rs.py) */
+    if (system("mkdir -p " BOARD_DATA "/themes") != 0)
+        LV_LOG_WARN("No " BOARD_DATA "/themes folder");
     styles_load(params.theme_name.x);
 }
 

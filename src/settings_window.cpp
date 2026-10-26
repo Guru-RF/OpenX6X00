@@ -313,7 +313,7 @@ static void theme_apply(void *arg) {
 static void font_update_cb(lv_event_t * e) {
     uint8_choice_cb(e);
     if (theme_shape.font >= 0) {
-        msg_update_text_fmt("Font: this theme has its own");   /* RS, Black Metal, Total Black */
+        msg_update_text_fmt("Font: this theme has its own");   /* Black Metal, Total Black, a file that sets one */
         return;
     }
     params_flush();
@@ -483,7 +483,7 @@ static uint8_t make_param_choice(uint8_t row, const char *label, const char *opt
 }
 
 /* Spectrum and waterfall looks: while one of them is changed the window fades to 60% and the
- * main screen shows through. Not with a theme's window image (RS): faded, it turns see-through. */
+ * main screen shows through. Not with a folder theme's window image: faded, it turns see-through. */
 static void fade_exec(void *obj, int32_t opa) {
     lv_obj_set_style_bg_img_opa((lv_obj_t *)obj, opa, 0);
 }
