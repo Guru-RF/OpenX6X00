@@ -201,7 +201,10 @@ static float minutes_now(void) {
 void bat_est_feed(const bat_sample_t *s) {
     bool ext = is_ext(s);
     float dt = have_last ? (float) (s->t - last.t) : 0;
-    bool fresh = !have_last || dt <= 0 || dt > GAP || ext != is_ext(&last) || s->vbat < 3;
+    /* A reading without a battery voltage ends the stretch, and the next one with it begins one: a radio
+     * started on battery took its first row while the base still sent 0 V, and the time left then went on
+     * from an older stretch of the log, the one before a charge (#17: 38 min or over 6 h at 56 %) */
+    bool fresh = !have_last || dt <= 0 || dt > GAP || ext != is_ext(&last) || s->vbat < 3 || last.vbat < 3;
 
     if (fresh) {
         win_start = s->t + SETTLE;      /* a new stretch */
