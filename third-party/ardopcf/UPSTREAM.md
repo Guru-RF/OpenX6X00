@@ -44,3 +44,8 @@ over-the-air compatible not use "ardop" in its name; ours stays compatible.
 ## Local patches
 
 Each one is its own commit on top of the pristine import.
+
+- `src/linux/SockSound.c` (new) and hooks in `src/linux/ALSASound.c`: the
+  capture device `SOCK:<path>` takes the audio and the PTT through the GUI's
+  UNIX socket (protocol at the top of `SockSound.c`) instead of ALSA, which
+  is then never opened. `Makefile` builds it too.

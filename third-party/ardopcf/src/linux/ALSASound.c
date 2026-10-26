@@ -54,6 +54,15 @@ void WebguiPoll();
 int add_noise(short *samples, unsigned int nSamples, short stddev);
 short InputNoiseStdDev = 0;
 
+// SockSound.c: audio and PTT through the radio GUI's socket ("SOCK:<path>")
+extern BOOL UseSockAudio;
+int sock_init(const char *dev);
+int sock_read(short *input, unsigned int nSamples);
+void sock_write(const short *s, int n);
+void sock_tx_begin(void);
+void sock_ptt(int on);
+void sock_rx_flush(void);
+
 extern BOOL blnDISCRepeating;
 
 extern char * CM108Device;
@@ -1501,6 +1510,9 @@ int SoundCardRead(short * input, unsigned int nSamples)
 	int avail;
 	int start;
 
+	if (UseSockAudio)
+		return sock_read(input, nSamples);
+
 	if (rechandle == NULL)
 		return 0;
 
@@ -1587,7 +1599,9 @@ short * SendtoCard(short * buf, int n)
 		ProcessNewSamples(buf, 1200);  // signed
 	}
 
-	if (playhandle)
+	if (UseSockAudio)
+		sock_write(&buffer[Index][0], n);
+	else if (playhandle)
 		SoundCardWrite(&buffer[Index][0], n);
 	if (txwff != NULL)
 		WriteWav(&buffer[Index][0], n, txwff);
@@ -1608,6 +1622,8 @@ short loopbuff[1200];  // Temp for testing - loop sent samples to decoder
 
 int InitSound(BOOL Quiet)
 {
+	if (strncmp(CaptureDevice, "SOCK:", 5) == 0)
+		return sock_init(CaptureDevice);
 	if (strcmp(PlaybackDevice, "NOSOUND") == 0)
 		return (1);
 	GetInputDeviceCollection();
@@ -1707,6 +1723,12 @@ void PollReceivedSamples()
 void StopCapture()
 {
 	Capturing = FALSE;
+
+	if (UseSockAudio)
+	{
+		sock_tx_begin();
+		return;
+	}
 
 	if (strcmp(PlaybackDevice, "NOSOUND") == 0)
 		return;
@@ -1859,7 +1881,9 @@ void SoundFlush()
 		// txwfu = NULL;
 	// }
 
-	if (strcmp(PlaybackDevice, "NOSOUND") != 0)
+	if (UseSockAudio)
+		sock_rx_flush();
+	else if (strcmp(PlaybackDevice, "NOSOUND") != 0)
 		OpenSoundCapture(SavedCaptureDevice, SavedCaptureRate, strFault);
 	StartCapture();
 
@@ -1871,6 +1895,11 @@ void SoundFlush()
 
 VOID RadioPTT(int PTTState)
 {
+	if (UseSockAudio)
+	{
+		sock_ptt(PTTState);
+		return;
+	}
 #ifdef __ARM_ARCH
 	if (useGPIO)
 		gpioWrite(pttGPIOPin, (pttGPIOInvert ? (1-PTTState) : (PTTState)));

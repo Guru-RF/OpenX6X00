@@ -76,6 +76,7 @@ OBJS = \
 OBJS_LIN = \
 	src/linux/ALSASound.o \
 	src/linux/LinSerial.o \
+	src/linux/SockSound.o \
 
 # Windows-only object files
 OBJS_WIN = \
