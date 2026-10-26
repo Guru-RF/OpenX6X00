@@ -463,7 +463,7 @@ static void update_header(void) {
     lv_label_set_text_fmt(head_mid, "#%06x %s# - VFO #%06x %d.%03d.%02d#", theme_hex(TC_text),
                           showing_all() ? "All" : cluster_band_name(vfo_band()), theme_hex(TC_text), vfo / 1000000,
                           (vfo / 1000) % 1000, (vfo % 1000) / 10);
-    bool conf_filtered = flt && (flt->modes != CLUSTER_FM_ALL || flt->max_age || flt->skip[0]);
+    bool conf_filtered = flt && (flt->modes != CLUSTER_FM_ALL || flt->max_age || flt->skip[0] || flt->spotter_dxcc[0]);
     if (view_mode || conf_filtered) {
         static const char *const names[] = {"Filtered", "CW only", "SSB only", "", "DIG only"};
         lv_label_set_text_fmt(head_right, "%s - %d/%d - %02d:%02dZ", names[view_mode], view_count,

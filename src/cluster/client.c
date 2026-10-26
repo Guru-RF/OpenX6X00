@@ -8,6 +8,8 @@
 
 #include "client.h"
 
+#include "../dxcc.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -48,7 +50,9 @@ static volatile bool   reconnect_requested; /* new server or callsign */
  * already on three nodes of its network ("you are already connected to 3 other nodes"), so the operator's own
  * logger was refused, and a node with that call logged in already bumps the older login off (issue #4). The
  * activator spots of pota.app, wwbota.org and cqhota.app come over HTTPS, another thread, no login */
+#ifndef POTA_SPOTS /* the tests point it elsewhere */
 #define POTA_SPOTS       "/usr/sbin/x6100-pota-spots"
+#endif
 #define POTA_POLL_MS     60000
 static bool            pota_running;        /* under lock */
 static int             session_fd = -1;     /* the link's socket, under lock: cluster_client_stop() ends it at once */
@@ -170,8 +174,8 @@ int cluster_servers_load(cluster_server_t *out, int max) {
 /* Sets the server in use; the saved servers, filters and alerts are kept. */
 bool cluster_config_save(const char *host, int port) {
     static const char *keep[] = {"server=", "filter_modes=", "filter_bands=", "filter_activity=", "max_age=",
-                                 "skip_spotters=", "alert=", "alert_off=", "alert_popup=", "alert_beep=",
-                                 "enabled=", "login="};
+                                 "skip_spotters=", "filter_spotter_dxcc=", "alert=", "alert_off=", "alert_popup=",
+                                 "alert_beep=", "enabled=", "login="};
     static char        servers[24 * 1024];
     servers[0] = '\0';
     FILE *in   = fopen(CLUSTER_CONF, "r");
@@ -445,6 +449,8 @@ static void filter_line(cluster_filter_t *f, char *line) {
         f->max_age = (uint16_t)(v > 0 && v < 1440 ? v : 0);
     } else if (strncmp(line, "skip_spotters=", 14) == 0) {
         snprintf(f->skip, sizeof(f->skip), "%s", line + 14);
+    } else if (strncmp(line, "filter_spotter_dxcc=", 20) == 0) {
+        snprintf(f->spotter_dxcc, sizeof(f->spotter_dxcc), "%s", line + 20);
     } else if (strncmp(line, "alert_popup=", 12) == 0) {
         f->popup = atoi(line + 12) != 0;
     } else if (strncmp(line, "alert_beep=", 11) == 0) {
@@ -616,11 +622,82 @@ bool cluster_parse_server(const char *text, char *host, size_t host_size, int *p
     return true;
 }
 
+/* filter_spotter_dxcc=PA,ON: only the spots heard in these countries (the spotter's call, by cty.dat), issue #24.
+ * Applied as spots come in, not when they are shown: the store keeps the newest spot per DX and kHz whoever sent
+ * it, and 300 at most, so a W spotting the DX after an ON took the ON's spot away, and the spots from everywhere
+ * else pushed the wanted ones out. Alerts still pass, as in cluster_filter_pass() */
+#define SPOTTER_DXCC_MAX 16
+static const char      *spotter_dxcc[SPOTTER_DXCC_MAX]; /* the entities (dxcc_prefix_entity()), under lock */
+static int              spotter_dxcc_n;                  /* 0: no filter */
+static cluster_filter_t in_flt;                          /* for its alerts, under lock */
+static time_t           in_mtime = -1;                   /* the CLUSTER_CONF stamp they were read at, under lock */
+static unsigned         in_gen;                          /* a new list, under lock: the session asks sh/dx again */
+
+/* Under lock */
+static bool spot_wanted(const cluster_spot_t *s) {
+    char        call[CLUSTER_CALL_LEN];
+    const char *ent;
+
+    if (!spotter_dxcc_n || cluster_alert_match(&in_flt, s) >= 0) return true;
+    snprintf(call, sizeof(call), "%s", s->spotter);
+    call[strcspn(call, "-")] = '\0'; /* ON4ABC-# (a skimmer), PA3XYZ-2 */
+    if (!(ent = dxcc_entity(call))) return false;
+    for (int i = 0; i < spotter_dxcc_n; i++)
+        if (strcmp(ent, spotter_dxcc[i]) == 0) return true;
+    return false;
+}
+
+/* The list and the alerts, read again when CLUSTER_CONF changed; a new list drops the stored spots it does not want.
+ * From the client's threads: cty.dat is read on the first list (0.1 s), not under the lock */
+static void in_filter_update(void) {
+    time_t           m = cluster_config_mtime();
+    const char      *ents[SPOTTER_DXCC_MAX];
+    int              n = 0;
+    cluster_filter_t f = {0};
+
+    pthread_mutex_lock(&lock);
+    bool same = m == in_mtime;
+    pthread_mutex_unlock(&lock);
+    if (same) return;
+    cluster_filter_load(&f);
+    char *save;
+    for (char *w = strtok_r(f.spotter_dxcc, ",", &save); w && n < SPOTTER_DXCC_MAX; w = strtok_r(NULL, ",", &save))
+        if (dxcc_prefix_entity(trim(w), &ents[n])) n++;
+    pthread_mutex_lock(&lock);
+    in_mtime = m;
+    in_flt   = f;
+    if (n != spotter_dxcc_n || memcmp(ents, spotter_dxcc, (size_t)n * sizeof(ents[0])) != 0) {
+        memcpy(spotter_dxcc, ents, (size_t)n * sizeof(ents[0]));
+        spotter_dxcc_n = n;
+        in_gen++;
+        int k = 0;
+        for (int i = 0; i < store.count; i++)
+            if (spot_wanted(&store.spots[i])) store.spots[k++] = store.spots[i];
+        if (k != store.count) {
+            store.count = k;
+            store_gen++;
+        }
+    }
+    pthread_mutex_unlock(&lock);
+}
+
+static unsigned in_filter_gen(void) {
+    pthread_mutex_lock(&lock);
+    unsigned g = in_gen;
+    pthread_mutex_unlock(&lock);
+    return g;
+}
+
 void cluster_client_feed_line(const char *line) {
     cluster_spot_t spot;
     if (!cluster_parse_line(line, &spot)) return;
     if (spot.when && time(NULL) - spot.when > MAX_AGE_MIN * 60) return; /* old sh/dx row */
+    in_filter_update();
     pthread_mutex_lock(&lock);
+    if (!spot_wanted(&spot)) {
+        pthread_mutex_unlock(&lock);
+        return;
+    }
     cluster_store_add(&store, &spot);
     cluster_store_expire(&store, utc_now_min(), MAX_AGE_MIN);
     store_gen++;
@@ -767,6 +844,7 @@ static bool session(int fd, const char *call) {
     bool          asked_spots = false;
     bool          spider      = false; /* DXSpider wants "sh/dx 50", the others "sh/dx/50" */
     int64_t       last_rx     = started;
+    unsigned      filter_seen = in_filter_gen();
     unsigned char buf[1024];
 
     set_state(CLUSTER_CONNECTED, "logging in");
@@ -780,6 +858,15 @@ static bool session(int fd, const char *call) {
             send_login(fd, call);
             logged_in = true;
             login_at  = now;
+        }
+        /* Another spotter-country list: the latest spots again, those it wants this time */
+        in_filter_update();
+        if (in_filter_gen() != filter_seen) {
+            filter_seen = in_filter_gen();
+            if (asked_spots) {
+                asked_spots = false;
+                login_at    = now - SHOW_DX_DELAY_MS - 1;
+            }
         }
         if (logged_in && !asked_spots && now - login_at > SHOW_DX_DELAY_MS) {
             /* The latest spots at once, not only the new ones from now on. */
@@ -907,6 +994,7 @@ static void *pota_cb(void *arg) {
             return NULL;
         }
         pthread_mutex_unlock(&lock);
+        in_filter_update();
         FILE *f = popen(POTA_SPOTS " 2>/dev/null", "r");
         char  line[256];
         while (f && fgets(line, sizeof(line), f)) {
@@ -928,8 +1016,10 @@ static void *pota_cb(void *arg) {
             sp.utc_min = (uint16_t)(atoi(fld[4]) / 100 * 60 + atoi(fld[4]) % 100);
             if (sp.freq_hz <= 0 || !sp.dx[0] || cluster_age_min(sp.utc_min, utc_now_min()) > MAX_AGE_MIN) continue;
             pthread_mutex_lock(&lock);
-            cluster_store_add(&store, &sp);
-            store_gen++;
+            if (spot_wanted(&sp)) {
+                cluster_store_add(&store, &sp);
+                store_gen++;
+            }
             pthread_mutex_unlock(&lock);
         }
         if (f) pclose(f);
