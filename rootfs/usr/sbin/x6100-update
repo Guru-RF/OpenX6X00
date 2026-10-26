@@ -161,7 +161,8 @@ def restart_apps():
     start loop (x6100_daemon) is restarted too, not just the GUI: the loop is a shell script the
     bundle may have changed, and the running shell keeps the old one until it exits. Winlink (Pat and
     ardopcf, which come with the bundle) after them, when it is there; a rollback that took S98winlink away
-    stops its supervisor, which stops both programs."""
+    stops its supervisor, which stops both programs. sshd reads a changed /etc/ssh/sshd_config when the new web
+    server starts (follow_sshd_config): the updaters before it restart the web server too."""
     subprocess.Popen(["setsid", "sh", "-c", "sleep 1; /etc/init.d/S96webserver restart >/dev/null 2>&1; "
                       "/etc/init.d/S95gui restart >/dev/null 2>&1; "
                       "if [ -x /etc/init.d/S98winlink ]; then /etc/init.d/S98winlink restart >/dev/null 2>&1; "

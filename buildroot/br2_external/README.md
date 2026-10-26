@@ -16,8 +16,9 @@ also switch them on in the defconfig and the kernel configuration:
   folders; the upstream script unpacked the whole archive over `/`. The legacy updater
   `S02update` (any `x6100_r1cbu_*.tgz` on the DATA partition unpacked over `/` at boot,
   unsigned) is removed by the build: OpenX6X00 is installed as a card image.
-- `etc/ssh/sshd_config`: as upstream (root may log in with the password), but no empty
-  passwords.
+- `etc/ssh/sshd_config` is no longer here: it is in `rootfs/etc/ssh` (keys only), so the
+  update bundle carries it, and `local-build.sh` removes the upstream overlay's copy (root
+  logged in with the image's password).
 - `etc/NetworkManager/system-connections/usb-tether.nmconnection` and `device_table.txt`:
   Android USB tethering, never the default route; the kernel gets RNDIS and policy routing.
 - `etc/bluetooth/main.conf`: no pairing timeouts of its own, the GUI's Bluetooth window sets

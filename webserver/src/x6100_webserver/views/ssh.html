@@ -1,0 +1,109 @@
+% rebase('base.html', title='SSH')
+<h2><svg class="i"><use href="#i-key"/></svg>SSH</h2>
+<p class="sub">SSH on the radio takes keys only: password logins are off, since every radio came with the same root password. Add the public key of each computer you log in from; <code>ssh root@<span class="host">x6100.local</span></code> then logs in with it.</p>
+
+<section class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>Keys<span class="eff">Takes effect: at the next login</span></h3><p id="count">Root's keys</p></div></div>
+  <div class="dp-body tbl">
+    <div class="table-wrap">
+      <table id="keys">
+        <thead><tr><th>Type</th><th>Comment</th><th>Fingerprint</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="none" style="display:none;margin:12px 8px 4px;color:var(--dim)">No key yet: SSH lets nobody in. Add one below.</p>
+    <div class="actions"><span class="status" id="status"></span></div>
+  </div>
+</section>
+
+<form class="dp-card" id="addform">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-plus"/></svg></span><div><h3>Add a key</h3><p>The public half: the one line of the <code>.pub</code> file</p></div></div>
+  <div class="dp-body">
+    <textarea id="key" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Public key"
+      placeholder="ssh-ed25519 AAAA... you@computer"
+      style="width:100%;resize:vertical;background:#0b1422;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font:13px/1.4 ui-monospace,monospace;word-break:break-all"></textarea>
+    <p style="margin:10px 0 0;color:var(--dim);font-size:13px">No key yet? On your computer, <code>ssh-keygen -t ed25519</code> makes one; paste the line of <code>~/.ssh/id_ed25519.pub</code> here (on Windows: <code>type %USERPROFILE%\.ssh\id_ed25519.pub</code>). Taken: ssh-ed25519, ecdsa-sha2-nistp256, -nistp384 and -nistp521, and ssh-rsa of <span id="rsamin">3072</span> bits or more, one key at a time, with no options before it.</p>
+    <div class="actions">
+      <button type="submit" class="primary">Add</button>
+      <span class="status" id="astatus"></span>
+    </div>
+  </div>
+</form>
+
+<div class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-lock"/></svg></span><div><h3>Good to know</h3><p>Where the keys are kept</p></div></div>
+  <div class="dp-body">
+    <ul style="margin:0;padding-left:18px;color:var(--dim);line-height:1.5">
+      <li>The keys are root's, in <code>/root/.ssh/authorized_keys</code>. A copy goes to <code>backups/backup.tgz</code> on the DATA partition after each change here and at every clean power-off, so a new card image takes them back.</li>
+      <li>Removing a key does not end a session already open with it; the next login needs another key.</li>
+      <li>This page answers only to the radio's address or its own name (<span class="host">x6100.local</span>): a page from another site cannot add a key through your browser.</li>
+    </ul>
+  </div>
+</div>
+
+<script src="/static/js/edit_flow.js?v=1"></script>
+<script>
+const body = $("#keys>tbody");
+const form = EditFlow.form($("#addform"), $("#astatus"), $("#addform button[type=submit]"));
+$(".host").text(location.hostname);
+
+var showStatus = function(el, text, error=false) {
+  $(el).toggleClass("error", error).removeClass("form-unsaved").html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var call = function(type, url, payload, statusEl, done) {
+  $.ajax({
+    url: url, type: type, data: payload ? JSON.stringify(payload) : undefined,
+    contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
+    success: done,
+    error: function(xhr, why) { showStatus(statusEl, x6100FailText(xhr, why), true); }
+  });
+}
+
+var label = function(k) { return k.comment ? '"' + k.comment + '"' : k.type + " " + k.fingerprint.slice(7, 19) + "..."; }
+
+var remove = function(k, last) {
+  const lost = last ? "It is the only key: SSH then lets nobody in until a key is added here." : "SSH no longer lets it in.";
+  if (k.options ? !confirm("Remove the key " + label(k) + "?\n\n" + lost + "\n\nIt has options, so it is not offered back: add it again by hand.")
+                : !EditFlow.confirmDelete("the key " + label(k), lost)) return;
+  call("DELETE", "/api/ssh/keys", {fingerprint: k.fingerprint}, "#status", function(r) {
+    render(r);
+    if (k.options) { showStatus("#status", "Removed " + label(k) + "."); return; }
+    EditFlow.undo($("#status"), "Removed " + label(k) + ".", function() {
+      call("POST", "/api/ssh/keys", {key: k.line}, "#status", function(r2) { render(r2); showStatus("#status", "Brought back"); });
+    });
+  });
+}
+
+var render = function(d) {
+  body.empty();
+  d.keys.forEach(function(k) {
+    const kind = k.type + (k.bits ? " (" + k.bits + " bits)" : "");
+    const comment = $("<td>").css("word-break", "break-all").text(k.comment || "-");
+    if (k.options) comment.append($("<br>"), $("<span>").css({color: "var(--dim)", fontSize: "12.5px"}).text("with options: " + k.options));
+    body.append($("<tr>").append(
+      $("<td>").css("white-space", "nowrap").text(kind),
+      comment,
+      $("<td>").append($("<code>").css("word-break", "break-all").text(k.fingerprint)),
+      $("<td class='action-cell'>").append($("<button type='button' class='action remove'>").attr("title", "Remove").append($("<i class='si-trash'>"))
+        .on("click", function() { remove(k, d.keys.length === 1); }))));
+  });
+  $("#none").toggle(!d.keys.length);
+  $("#count").text(d.keys.length ? d.keys.length + " of at most " + d.max + " keys" : "None yet");
+  $("#rsamin").text(d.rsa_min_bits);
+}
+
+$("#addform").on("submit", function(e) {
+  e.preventDefault();
+  showStatus("#astatus", "Adding...");
+  call("POST", "/api/ssh/keys", {key: $("#key").val()}, "#astatus", function(r) {
+    render(r);
+    $("#key").val("");
+    form.reset();
+    showStatus("#astatus", "Added: it logs in from now on");
+  });
+});
+
+$.ajax({url: "/api/ssh", dataType: "json", timeout: X6100_WAIT_MS, success: function(r) { render(r); form.reset(); },
+        error: function(xhr, why) { showStatus("#status", x6100FailText(xhr, why), true); $("#addform button[type=submit]").prop("disabled", true); }});
+</script>

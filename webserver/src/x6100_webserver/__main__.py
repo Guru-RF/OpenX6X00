@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import signal
 import socket
 import subprocess
 import threading
@@ -239,6 +240,36 @@ def start_https(app, host, port, cert_dir):
         threading.Thread(target=renew_when_clock_set, args=(tls, cert_dir), daemon=True).start()
 
 
+SSHD_CONFIG, SSHD_PID = "/etc/ssh/sshd_config", "/var/run/sshd.pid"
+
+
+def follow_sshd_config():
+    """sshd started before /etc/ssh/sshd_config last changed (an update brought a new one): told to read it again.
+    SIGHUP makes sshd start itself anew with the file; the sessions open stay. Done here because every updater
+    restarts the web server after an install, also those from before keys-only SSH, which left sshd alone; at boot
+    sshd starts after the file is in place and nothing happens. A file sshd -t refuses is not loaded (the running
+    sshd would exit on it). On the radio only: a web server tried out on a PC leaves that PC's sshd alone"""
+    try:
+        with open("/proc/device-tree/compatible", "rb") as f:
+            if b"xiegu," not in f.read():
+                return
+        if os.path.getmtime(SSHD_CONFIG) <= os.path.getmtime(SSHD_PID):
+            return
+        with open(SSHD_PID) as f:
+            pid = int(f.read().strip())
+        with open(f"/proc/{pid}/comm") as f:
+            if f.read().strip() != "sshd":
+                return
+        r = subprocess.run(["/usr/sbin/sshd", "-t"], capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            logging.error("sshd: %s refused (%s), not loaded", SSHD_CONFIG, r.stderr.strip())
+            return
+        os.kill(pid, signal.SIGHUP)
+        logging.warning("sshd: told to read the new %s", SSHD_CONFIG)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+
+
 def options():
     p = argparse.ArgumentParser(description="OpenX6X00 web configurator")
     p.add_argument("--db", required=True, help="params.db of the radio GUI")
@@ -264,6 +295,7 @@ def serve():
     settings.CHANNELS_FILE = opts.channels_file
     if opts.https_port and not (opts.debug and "BOTTLE_CHILD" not in os.environ):   # not in the reloader's parent
         start_https(apps.app, opts.host, opts.https_port, opts.cert_dir)
+    follow_sshd_config()
     settings.HTTP_PORT = opts.port
     apps.app.run(server=ThreadedServer, host=opts.host, port=opts.port, debug=opts.debug, reloader=opts.debug)
 

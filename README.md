@@ -152,7 +152,7 @@ The patched X6100 base comes with its own instructions.
 | **Browser remote** | `http://x6100.local/remote` (Remote > Screen in the web menu): the radio's screen live in any browser (up to three browsers at a time, the Panel and Screen pages together), every key and knob, RX audio and the browser's microphone for TX, a Picture choice (Sharp, Balanced, Fast) for a slow link, for the radio's own menus and apps. |
 | **Remote station** | A browser watches until it is paired with a six-digit code from the radio; one holds the control at a time (a browser, a TCI client or the radio itself). Sound and Mic go over the TCI server; the microphone needs the https page. A key pressed without the control offers Take control, and Speaker always off (Settings > Audio) keeps the speaker silent. |
 | **Tailscale** | The radio on your own tailnet, so a laptop or a phone with Tailscale reaches it from anywhere (the configurator, the Panel and Screen pages, TCI) with nothing opened on the router. Turned on in Settings > Wireless or Remote > Tailscale; the login is a code on the radio's screen or a link on the web page. Tailscale's own build is downloaded once (37 MB) and checked against a pinned checksum ([manual](docs/MANUAL.md#tailscale)). |
-| **Web configurator** | `http://x6100.local/` (mDNS, `x6200.local` on an X6200, or the radio's IP): bands, digital frequencies, memories, cluster, Field Ops, Wavelog, CW messages, macros, logs, files, a gallery, backup and restore, display, time, network name, Ethernet, TCI, the update. No login; pages from other sites are refused. |
+| **Web configurator** | `http://x6100.local/` (mDNS, `x6200.local` on an X6200, or the radio's IP): bands, digital frequencies, memories, cluster, Field Ops, Wavelog, CW messages, macros, logs, files, a gallery, backup and restore, display, time, network name, Ethernet, TCI, the SSH keys (SSH takes keys only, no password), the update. No login; pages from other sites are refused. |
 | **TCI server** | The VFO-Knob and any TCI client on the network: tune, mode, filter, AGC, PTT, the meters and the audio both ways; the clients may be set to Listen only, all of them together. |
 
 ## Screenshots
@@ -331,7 +331,12 @@ Added:
   network name (mDNS);
 - the RF.Guru default theme and the OpenX6X00 boot logo;
 - a local configurator socket (`/tmp/x6100_cfg.sock`) for the web pages that
-  set the display and the Ethernet port, in place of the remote socket.
+  set the display and the Ethernet port, in place of the remote socket;
+- **SSH with keys only**: every radio had the same root password, so password
+  logins are off. Add your computer's public key on the web configurator,
+  System > SSH (`ssh-keygen -t ed25519` makes one; paste the line of
+  `~/.ssh/id_ed25519.pub`), then `ssh root@x6100.local`
+  ([manual](docs/MANUAL.md#ssh)).
 
 ## Build
 

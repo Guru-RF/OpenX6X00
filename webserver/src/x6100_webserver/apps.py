@@ -3,6 +3,7 @@ try:
     import zlib
 except ImportError:   # images built before python3-zlib was selected
     zlib = None
+import base64
 import csv
 import fcntl
 import hashlib
@@ -218,11 +219,11 @@ def cluster_option_lines(opts):
 config_lock = threading.RLock()   # cluster_update() holds it around write_cluster_conf()
 
 
-def replace_file(path, write, **kw):
+def replace_file(path, write, mode=0o644, **kw):
     """The file written whole through a unique temporary name next to it, then put in place in one step."""
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=os.path.basename(path) + ".", suffix=".tmp")
     try:
-        os.chmod(tmp, 0o644)
+        os.chmod(tmp, mode)
         with os.fdopen(fd, "w", **kw) as f:
             write(f)
             f.flush()
@@ -568,8 +569,9 @@ def tailscale_page():
 def local_host_ok():
     """The page opened by an address or by the radio's own name. A page from another site that points its own
     name at the radio (DNS rebinding) passes the cross-site guard: Tailscale is switched and its login link
-    shown (which would put the radio on that site's tailnet), and Winlink changed, only by these names. Pat's
-    mailbox on port 8080 takes the same names (tools/pat)"""
+    shown (which would put the radio on that site's tailnet), Winlink changed, and the SSH keys listed and
+    changed (a key added is a root login), only by these names. Pat's mailbox on port 8080 takes the same names
+    (tools/pat)"""
     host = (urllib.parse.urlsplit("//" + (bottle.request.get_header("Host") or "")).hostname or "").rstrip(".")
     try:
         ipaddress.ip_address(host)
@@ -737,6 +739,218 @@ def set_winlink():
         if err:
             return api_error(500, "Winlink: " + err)
     return winlink_state()
+
+
+# SSH takes keys only (rootfs/etc/ssh/sshd_config): root's keys in /root/.ssh/authorized_keys are listed, added and
+# removed here. S04restore_backup_config keeps them on the DATA partition, after each change here and at every
+# clean power-off, and puts them back on a new card image
+SSH_DIR = "/root/.ssh"
+SSH_AUTHORIZED_KEYS = os.path.join(SSH_DIR, "authorized_keys")
+SSH_BACKUP = ["/etc/init.d/S04restore_backup_config", "stop"]
+SSH_KEY_TYPES = ("ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521", "ssh-rsa")
+SSH_EC_CURVES = {"nistp256": (256, 65), "nistp384": (384, 97), "nistp521": (521, 133)}   # bits, point 04|x|y
+SSH_RSA_MIN_BITS = 3072
+SSH_MAX_KEYS = 32
+SSH_TYPE_RE = re.compile(r"[a-z0-9][a-z0-9@.-]{2,63}")
+ssh_lock = threading.Lock()
+
+
+def ssh_blob_fields(blob):
+    """The length-prefixed strings an SSH public key is made of, None when it is not made of them"""
+    out, i = [], 0
+    while i < len(blob):
+        n = int.from_bytes(blob[i:i + 4], "big")
+        if i + 4 + n > len(blob):
+            return None
+        out.append(blob[i + 4:i + 4 + n])
+        i += 4 + n
+    return out
+
+
+def ssh_key(kind, b64):
+    """{type, bits, fingerprint} of a public key as authorized_keys has it (type, base64), None when the base64 is
+    not a key of that type. A type this page does not add (sk-, ssh-dss) is listed with bits None"""
+    try:
+        blob = base64.b64decode(b64, validate=True)
+    except ValueError:
+        return None
+    f = ssh_blob_fields(blob)
+    if not f or f[0] != kind.encode():
+        return None
+    bits = None
+    if kind == "ssh-ed25519":
+        if len(f) != 2 or len(f[1]) != 32:
+            return None
+        bits = 256
+    elif kind.startswith("ecdsa-sha2-") and kind in SSH_KEY_TYPES:
+        bits, point = SSH_EC_CURVES[kind[11:]]
+        if len(f) != 3 or f[1] != kind[11:].encode() or len(f[2]) != point or f[2][:1] != b"\x04":
+            return None
+    elif kind == "ssh-rsa":
+        if len(f) != 3:
+            return None
+        bits = int.from_bytes(f[2], "big").bit_length()
+    fingerprint = "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+    return {"type": kind, "bits": bits, "fingerprint": fingerprint}
+
+
+def ssh_parse_line(line):
+    """The key of an authorized_keys line: {type, bits, fingerprint, comment, options, line (the key without its
+    options)}; None for a blank line, a # comment or a line sshd would not take either. Options (from=...,
+    command=...) come first, and a quoted value may hold spaces"""
+    def key_of(text):
+        parts = text.split(None, 2)
+        key = ssh_key(parts[0], parts[1]) if len(parts) >= 2 and SSH_TYPE_RE.fullmatch(parts[0]) else None
+        if key:
+            key.update(comment=parts[2] if len(parts) > 2 else "", line=" ".join(parts))
+        return key
+
+    s = line.strip()
+    if not s or s.startswith("#"):
+        return None
+    key = key_of(s)
+    if key:
+        key["options"] = ""
+        return key
+    quoted, i = False, 0
+    while i < len(s) and (quoted or s[i] not in " \t"):
+        if s[i] == "\\" and quoted:
+            i += 1
+        elif s[i] == '"':
+            quoted = not quoted
+        i += 1
+    key = key_of(s[i:].strip())
+    if key:
+        key["options"] = s[:i]
+    return key
+
+
+def ssh_new_key(text):
+    """(key, line to add) for a pasted public key; ValueError says what is wrong with it"""
+    text = text.strip() if isinstance(text, str) else ""
+    if not text:
+        raise ValueError("Paste a public key: one line, ssh-ed25519 AAAA... you@computer")
+    if "PRIVATE KEY" in text:
+        raise ValueError("That is a private key, which stays on your computer: paste the line of the .pub file")
+    if "\n" in text or "\r" in text:
+        raise ValueError("One key at a time, on one line")
+    if len(text) > 8192:
+        raise ValueError("Too long for a public key")
+    parts = text.split(None, 2)
+    if parts[0] not in SSH_KEY_TYPES:
+        raise ValueError("The line starts with the key type: ssh-ed25519, ecdsa-sha2-nistp256 (384, 521) or ssh-rsa, "
+                         "with nothing before it")
+    key = ssh_key(parts[0], parts[1]) if len(parts) >= 2 else None
+    if not key:
+        raise ValueError(f"Not a whole {parts[0]} key: copy the line again")
+    if key["type"] == "ssh-rsa" and key["bits"] < SSH_RSA_MIN_BITS:
+        raise ValueError(f"An RSA key of {key['bits']} bits: {SSH_RSA_MIN_BITS} or more, or an ed25519 key "
+                         "(ssh-keygen -t ed25519)")
+    comment = parts[2] if len(parts) > 2 else ""
+    if len(comment) > 200 or any(ord(c) < 32 or ord(c) == 127 for c in comment):
+        raise ValueError("The comment after the key: up to 200 characters, no tabs or control characters")
+    return key, " ".join(parts)
+
+
+def ssh_read():
+    """The lines of root's authorized_keys, [] when it has none"""
+    try:
+        with open(SSH_AUTHORIZED_KEYS, errors="replace") as f:
+            return f.read().splitlines()
+    except FileNotFoundError:
+        return []
+
+
+def ssh_state():
+    return {"keys": [k for k in map(ssh_parse_line, ssh_read()) if k], "max": SSH_MAX_KEYS,
+            "rsa_min_bits": SSH_RSA_MIN_BITS}
+
+
+def ssh_write(lines):
+    """authorized_keys replaced whole (0600, in a 0700 .ssh), then the backup on the DATA partition at once: a
+    power cut before the next clean power-off would leave a new card image without the change"""
+    os.makedirs(SSH_DIR, mode=0o700, exist_ok=True)
+    replace_file(SSH_AUTHORIZED_KEYS, lambda f: f.write("".join(line + "\n" for line in lines)), mode=0o600)
+    if os.access(SSH_BACKUP[0], os.X_OK):
+        try:
+            subprocess.run(SSH_BACKUP, stdin=subprocess.DEVNULL, capture_output=True, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+
+def ssh_request():
+    """The request's JSON object, or the error to answer with: also for a page opened by another site's name"""
+    if not local_host_ok():
+        return None, api_error(403, f"Open this page by the radio's address or {socket.gethostname()}.local "
+                                    "to see or change the SSH keys")
+    try:
+        data = bottle.request.json if bottle.request.method != "GET" else {}
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        return None, api_error(400, "Invalid request")
+    return data, None
+
+
+@app.route('/ssh')
+def ssh_page():
+    return bottle.template('ssh')
+
+
+@app.get('/api/ssh')
+def get_ssh():
+    _, err = ssh_request()
+    if err:
+        return err
+    try:
+        return ssh_state()
+    except OSError as e:
+        return api_error(500, f"Can't read the keys: {e}")
+
+
+@app.post('/api/ssh/keys')
+def add_ssh_key():
+    data, err = ssh_request()
+    if err:
+        return err
+    try:
+        key, line = ssh_new_key(data.get("key"))
+    except ValueError as e:
+        return api_error(400, str(e))
+    with ssh_lock:
+        try:
+            lines = ssh_read()
+            have = [k for k in map(ssh_parse_line, lines) if k]
+            same = next((k for k in have if k["fingerprint"] == key["fingerprint"]), None)
+            if same:
+                return api_error(400, "This key is there already" + (f" ({same['comment']})" if same["comment"] else ""))
+            if len(have) >= SSH_MAX_KEYS:
+                return api_error(400, f"{SSH_MAX_KEYS} keys at most: remove one first")
+            ssh_write(lines + [line])
+            return ssh_state()
+        except OSError as e:
+            return api_error(500, f"Can't save the key: {e}")
+
+
+@app.delete('/api/ssh/keys')
+def delete_ssh_key():
+    """Every line with that key goes (a key may be there twice, with options)"""
+    data, err = ssh_request()
+    if err:
+        return err
+    fingerprint = data.get("fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint.startswith("SHA256:"):
+        return api_error(400, "fingerprint: SHA256:...")
+    with ssh_lock:
+        try:
+            lines = ssh_read()
+            keep = [line for line in lines if (ssh_parse_line(line) or {}).get("fingerprint") != fingerprint]
+            if len(keep) == len(lines):
+                return api_error(404, "That key is not there any more: reload the page")
+            ssh_write(keep)
+            return ssh_state()
+        except OSError as e:
+            return api_error(500, f"Can't remove the key: {e}")
 
 
 @app.get('/api/tci')

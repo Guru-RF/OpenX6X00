@@ -26,6 +26,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
 - [Network name](#network-name)
+- [SSH](#ssh)
 - [Tailscale](#tailscale)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
@@ -567,7 +568,8 @@ Joining a network:
   the supplicant said to `app_logs/wifi.txt` on the card's DATA partition (no
   password is in it). Attach that file to a report.
 - The saved networks, the SSH host keys and root's SSH keys are copied to
-  `backups/backup.tgz` on the DATA partition at every clean shutdown. At boot,
+  `backups/backup.tgz` on the DATA partition at every clean shutdown, and when
+  a key is added or removed on the web configurator ([SSH](#ssh)). At boot,
   the files missing from the system are taken back from it, so a rewritten card
   keeps its WiFi; files already there are left alone.
 
@@ -2047,6 +2049,7 @@ The menu has General and four groups:
 | | Time | local and server time; Sync sets the radio clock from the browser's, in the radio's timezone; NTP sync; timezone |
 | | Ethernet | the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
 | | TCI | enable the [TCI server](#tci-server), set its port |
+| | SSH | the keys that may log in over SSH: list, add, remove (passwords are not taken, see [SSH](#ssh)) |
 
 ### Editing, saving, deleting
 
@@ -2619,6 +2622,31 @@ seconds. Two radios on one LAN need two names.
 Where mDNS is blocked (some corporate or guest networks) or the browser does
 not resolve `.local`, the IP address shown in Settings > Wireless still works.
 
+## SSH
+
+SSH on the radio takes keys only: logging in with a password is off, because
+every radio came with the same root password. Each computer you log in from
+needs its public key on the radio:
+
+1. On the computer, once: `ssh-keygen -t ed25519` (it keeps the key in
+   `~/.ssh/id_ed25519`, the public half in `~/.ssh/id_ed25519.pub`).
+2. On the web configurator, System > SSH: paste the one line of
+   `id_ed25519.pub` and press Add.
+3. `ssh root@x6100.local` (your radio's name, or its address) logs in.
+
+- The page lists the keys (type, comment, fingerprint) and removes one; a
+  removed key can be put back with Undo for twenty seconds. It takes
+  ssh-ed25519, ecdsa-sha2-nistp256/384/521 and ssh-rsa of 3072 bits or more,
+  one key at a time, as `ssh-keygen` writes it (no options in front).
+- The keys are root's, in `/root/.ssh/authorized_keys`. A copy goes to
+  `backups/backup.tgz` on the DATA partition after each change on the page and
+  at every clean power-off, so a new card image takes them back.
+- The page opens only by the radio's address or its own name (as the
+  Tailscale page): a page from another site cannot add a key through your
+  browser.
+- `/mnt/ssh/authorized_keys` on the DATA partition, which the card images of
+  v0.3.1 to v0.3.5 also read, is no longer used: add those keys on the page.
+
 ## Tailscale
 
 [Tailscale](https://tailscale.com) puts the radio on your own private network,
@@ -2654,10 +2682,10 @@ with the radio's certificate accepted as on the LAN.
 Good to know:
 
 - Everyone on your tailnet reaches the radio as if they were on its LAN: the
-  web configurator has no login, TCI clients need none, and SSH asks for
-  root's password. Share the radio's machine in Tailscale only with people you
-  would let in at home. The Panel and Screen pages still ask for pairing
-  before they operate.
+  web configurator has no login, TCI clients need none, and SSH takes the keys
+  added on System > SSH ([SSH](#ssh)). Share the radio's machine in Tailscale
+  only with people you would let in at home. The Panel and Screen pages still
+  ask for pairing before they operate.
 - Tailscale runs in userspace mode (the radio's kernel has no TUN device): it
   hands each incoming connection to the radio's own port. The radio itself
   cannot reach the other machines of the tailnet, and needs not.

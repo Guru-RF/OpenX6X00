@@ -1,5 +1,10 @@
 #	$OpenBSD: sshd_config,v 1.104 2021/07/02 05:11:21 dtucker Exp $
 
+# OpenX6X00: keys only. Every radio had the same root password ("123"), so password logins are off; root's
+# keys are in /root/.ssh/authorized_keys, added and removed on the web configurator's System > SSH page and
+# kept on the DATA partition for a new card image (S04restore_backup_config). In rootfs/, so the update
+# bundle carries it; the web server tells a running sshd to read it again when it changed (follow_sshd_config)
+
 # This is the sshd server system-wide configuration file.  See
 # sshd_config(5) for more information.
 
@@ -29,7 +34,7 @@
 # Authentication:
 
 #LoginGraceTime 2m
-PermitRootLogin yes
+PermitRootLogin prohibit-password
 #StrictModes yes
 #MaxAuthTries 6
 #MaxSessions 10
@@ -38,8 +43,9 @@ PermitRootLogin yes
 
 # The default is to check both .ssh/authorized_keys and .ssh/authorized_keys2
 # but this is overridden so installations will only check .ssh/authorized_keys
-# Keys on the DATA partition too (/mnt/ssh/authorized_keys): they survive a new card image
-AuthorizedKeysFile	.ssh/authorized_keys /mnt/ssh/authorized_keys
+# Not /mnt/ssh/authorized_keys any more: the DATA partition is written by the web Files page and the Backup
+# restore, and keys there were a login the SSH page did not show
+AuthorizedKeysFile	.ssh/authorized_keys
 
 #AuthorizedPrincipalsFile none
 
@@ -55,11 +61,11 @@ AuthorizedKeysFile	.ssh/authorized_keys /mnt/ssh/authorized_keys
 #IgnoreRhosts yes
 
 # To disable tunneled clear text passwords, change to no here!
-PasswordAuthentication yes
+PasswordAuthentication no
 PermitEmptyPasswords no
 
 # Change to no to disable s/key passwords
-#KbdInteractiveAuthentication yes
+KbdInteractiveAuthentication no
 
 # Kerberos options
 #KerberosAuthentication no
