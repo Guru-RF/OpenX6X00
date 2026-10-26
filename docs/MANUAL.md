@@ -131,10 +131,11 @@ The BAND keys (and the hand mic's long UP/DOWN, the keyboard's PgUp/PgDn, the
 Walkie Talkie's Band buttons, the browser panel) step through the active bands
 of the band list, from the frequency up or down.
 
-- They skip a band the radio cannot tune: 4 m (70 MHz) on both radios, and on
-  the X6200 2 m and 70 cm unless the WR12 is on (see
-  [WR12 receiver](#wr12-receiver-x6200)). The band plan strip, Birdie Cal and
-  the browser panel's band list leave them out the same way.
+- They skip a band the radio cannot tune: 4 m (70 MHz), and on the X6200 2 m
+  and 70 cm, unless a transverter (Settings > General > TRANSVERTERS) or, on
+  the X6200, the WR12 covers it (see [WR12 receiver](#wr12-receiver-x6200)).
+  The band plan strip, Birdie Cal and the browser panel's band list leave them
+  out the same way.
 - 2 m and 70 cm on the X6100 are transverter bands (Settings > General >
   TRANSVERTERS): they stay on the band keys while a transverter covers them.
 - 60 m (5351.5-5366.5 kHz, WRC-15) is on the band keys, between 80 m and
@@ -159,8 +160,10 @@ of the band list, from the frequency up or down.
   apps, CW from the keyboard, the tuner and the SWR scan are refused there,
   with "No TX on 100.000 MHz: receive only".
 - The same refusal holds anywhere the radio does not transmit: above 55 MHz
-  without a transverter, and everything the WR12 receives. In split it is the
-  other VFO's frequency, the one the radio would transmit on, that counts.
+  without a transverter, and what the WR12 receives unless a transverter with
+  a shift covers it (the transverter wins, see
+  [WR12 receiver](#wr12-receiver-x6200)). In split it is the other VFO's
+  frequency, the one the radio would transmit on, that counts.
 - PRE and ATT are on the VOL 2:2 button page (F1 from the main screen), per
   band. The X6200 has no PRE key, and its receiver is specified with the
   preamplifier on: turn PRE on when the band sounds quiet.
@@ -175,8 +178,10 @@ the web Display page, Receiver card). Off by default.
 - On: the bands of the band list between 54 MHz and 1 GHz come onto the band
   keys and the band plan (4 m, 2 m, 70 cm with the default list), and the
   knob and the keypad go up to 1 GHz. They open in NFM. Everything there is
-  receive only: PTT, the apps, CW, the tuner and the SWR scan are refused with
-  a message.
+  receive only (PTT, the apps, CW, the tuner and the SWR scan are refused with
+  a message), unless a transverter with a shift covers it: the transverter
+  wins and transmits on its IF. Set its shift to 0 to leave that range to the
+  WR12.
 - Off again while on one of those bands: the radio goes to the band below
   (the airband from 2 m).
 - Not tested yet: whether the base tunes through the WR12 by itself when it is
