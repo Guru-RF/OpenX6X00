@@ -7,7 +7,8 @@
  *  recorded (wspr/wspr.c) and decoded at 114 s, after the 110.6 s signal;
  *  the spots go to the table and, when Upload is on, to WSPRnet. A TX cycle
  *  (chosen at random with the TX % chance, or "TX next") sends the beacon
- *  from 1 s: call, 4-character locator and power, at most 7 W.
+ *  from 1 s: call, 4-character locator and power. The power is WSPR's own
+ *  (0.1 to 5 W, 0.2 W at first): the radio's power setting is left alone.
  *
  *  Threads: the cycle thread keeps the time and transmits (tx_player blocks
  *  for the whole beacon); each decode runs in a thread of its own, with a
@@ -57,7 +58,6 @@
 #define TX_LATE_S       2.0     /* later than this the beacon waits a cycle */
 #define DECODE_S        114.0   /* the signal ends at 111.6 s (+ drift) */
 #define PREPARE_S       116.0   /* next cycle chosen and synthesised */
-#define MAX_PWR         TX_PLAYER_MAX_PWR_W
 
 #define MAX_ROWS        60
 #define MAX_SPOTS       32
@@ -101,10 +101,12 @@ static void rotary_cb(int32_t diff);
 static const char *tx_pct_label(void);
 static const char *upload_label(void);
 static const char *tx_next_label(void);
+static const char *pwr_label(void);
 static void tx_pct_cb(button_data_t *b);
 static void upload_cb(button_data_t *b);
 static void tx_next_cb(button_data_t *b);
 static void clear_cb(button_data_t *b);
+static void pwr_cb(button_data_t *b);
 
 static buttons_page_t btn_page_1, btn_page_2;
 
@@ -115,13 +117,14 @@ static button_data_t btn_tx_next = {.type = BTN_TEXT_FN, .label_fn = tx_next_lab
 static button_data_t btn_upload  = {.type = BTN_TEXT_FN, .label_fn = upload_label, .press = upload_cb};
 static button_data_t btn_clear   = {.type = BTN_TEXT, .label = "Clear", .press = clear_cb};
 static button_data_t btn_tx_pct2 = {.type = BTN_TEXT_FN, .label_fn = tx_pct_label, .press = tx_pct_cb};  /* TX % seen on page 2 too */
+static button_data_t btn_pwr     = {.type = BTN_TEXT_FN, .label_fn = pwr_label, .press = pwr_cb};  /* WSPR's own, not the radio's */
 
 static buttons_page_t btn_page_1 = {
     .items = {&btn_page, &btn_tx_pct, &btn_tx_next, &btn_upload, &btn_clear},
 };
 
 static buttons_page_t btn_page_2 = {
-    .items = {&btn_page2, &btn_dig_pwr, &btn_tx_pct2},
+    .items = {&btn_page2, &btn_pwr, &btn_tx_pct2},
 };
 
 static dialog_t dialog = {
@@ -153,11 +156,11 @@ static atomic_int           state = ST_STOP;
 static atomic_uint          gen;            /* bumped on close and band change */
 static atomic_bool          tx_next;
 static bool                 tx_by_next;    /* the prepared beacon is there for TX next, not the TX % pick */
+static float                tx_w;           /* its power, fixed with the dBm it reports */
 static atomic_int           uploaded;
 static atomic_int           upload_failed;
 static atomic_int           decoding;
 static uint32_t             dial_hz;        /* of the cycle being recorded */
-static float                base_gain_offset;
 static char                 my_call[16], my_grid[8];
 static pthread_t            cycle_thread;
 static bool                 cycle_thread_run;
@@ -169,6 +172,11 @@ static double now_s(void) {
 
     clock_gettime(CLOCK_REALTIME, &ts);
     return ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
+/* A WSPR level in W, in the radio's 0.1 W steps: 20 dBm 0.1 W, 23 dBm 0.2 W, 27 0.5, 30 1, 33 2, 37 5 */
+static float wspr_w(int dbm) {
+    return roundf(powf(10.0f, dbm / 10.0f) / 100.0f) / 10.0f;
 }
 
 /* Decode thread */
@@ -262,17 +270,19 @@ static void tx_off_cb(void *arg) {
     tx_next_look_cb(NULL);
 }
 
-/* The beacon for the next cycle, or NULL for RX */
+/* The beacon for the next cycle, or NULL for RX. Its power goes with it (tx_w): a Power press before it goes out
+ * cannot make it report one and send another */
 static int16_t *prepare_tx(uint32_t *n) {
     uint8_t sym[WSPR_SYMBOLS];
     int     pct = param_i_get(cfg_wspr_tx_pct);
-    float   pwr = fminf(param_f_get(cfg_pwr), MAX_PWR);
+    int     dbm = param_i_get(cfg_wspr_dbm);
 
     tx_by_next = atomic_load(&tx_next);
     if (!tx_by_next && (pct == 0 || rand() % 100 >= pct)) {
         return NULL;
     }
-    if (!wspr_encode(my_call, my_grid, wspr_dbm(pwr), sym)) {
+    tx_w = wspr_w(dbm);
+    if (!wspr_encode(my_call, my_grid, dbm, sym)) {
         msg_schedule_text_fmt("WSPR TX: \"%s %.4s\" can't be sent (plain call and locator only)", my_call, my_grid);
         atomic_store(&tx_next, false);
         scheduler_put_noargs(tx_off_cb);
@@ -328,7 +338,11 @@ static void *cycle_thread_cb(void *arg) {
             if (t <= TX_LATE_S) {
                 atomic_store(&tx_next, false);
                 tx_info_set_length(CYCLE_S);    /* the strip counts the cycle */
-                tx_player_play(tx, tx_n, param_i_get(cfg_wspr_tx_freq), base_gain_offset, tx_abort_cb, NULL);
+                /* WSPR's own power, on this thread: the radio's setting back after the beacon */
+                tx_player_set_pwr(tx_w);
+                tx_player_play(tx, tx_n, param_i_get(cfg_wspr_tx_freq), tx_player_base_gain_offset(), tx_abort_cb,
+                               NULL);
+                tx_player_set_pwr(0.0f);
             }
             free(tx);
             tx = NULL;
@@ -446,7 +460,7 @@ static void timer_cb(lv_timer_t *t) {
     double now = now_s();
     double s   = fmod(now, CYCLE_S);
     int    st  = atomic_load(&state);
-    float  pwr = fminf(param_f_get(cfg_pwr), MAX_PWR);
+    int    dbm = param_i_get(cfg_wspr_dbm);
 
     lv_label_set_text_fmt(frame.head_left, "%s   %.4f MHz", cfg_digital_label_get(), cparam_i_get(cfg_fg_freq) / 1e6);
 
@@ -482,7 +496,7 @@ static void timer_cb(lv_timer_t *t) {
         snprintf(last, sizeof(last), "Last: %d spot%s (%.1f s)   ", last_n, last_n == 1 ? "" : "s", last_secs);
     }
     lv_label_set_text_fmt(frame.status, "%sTX %d%% at %d Hz, %.1f W = %d dBm   %s", last, param_i_get(cfg_wspr_tx_pct),
-                          param_i_get(cfg_wspr_tx_freq), pwr, wspr_dbm(pwr), up);
+                          param_i_get(cfg_wspr_tx_freq), wspr_w(dbm), dbm, up);
 }
 
 static const char *tx_pct_label(void) {
@@ -501,6 +515,26 @@ static void tx_pct_cb(button_data_t *b) {
         k++;
     }
     param_i_set(cfg_wspr_tx_pct, k < sizeof(steps) / sizeof(steps[0]) ? steps[k] : 0);
+}
+
+static const char *pwr_label(void) {
+    static char buf[24];
+
+    snprintf(buf, sizeof(buf), "Power\n%g W", wspr_w(param_i_get(cfg_wspr_dbm)));
+    return buf;
+}
+
+/* WSPR's own power: the next level up, round to the lowest. The levels the 0.1 W steps reach exactly, to 5 W. The
+ * shared Power button set the radio's power, for SSB and the other apps afterwards too */
+static void pwr_cb(button_data_t *b) {
+    static const int levels[] = {20, 23, 27, 30, 33, 37};
+    int              cur = param_i_get(cfg_wspr_dbm);
+    size_t           k   = 0;
+
+    while (k < sizeof(levels) / sizeof(levels[0]) && levels[k] <= cur) {
+        k++;
+    }
+    param_i_set(cfg_wspr_dbm, k < sizeof(levels) / sizeof(levels[0]) ? levels[k] : levels[0]);
 }
 
 static const char *tx_next_label(void) {
@@ -630,6 +664,7 @@ static void construct_cb(lv_obj_t *parent) {
     btn_tx_pct.subj = (Subject *)cfg_wspr_tx_pct;
     btn_tx_pct2.subj = (Subject *)cfg_wspr_tx_pct;
     btn_upload.subj = (Subject *)cfg_wspr_upload;
+    btn_pwr.subj = (Subject *)cfg_wspr_dbm;
     atomic_store(&tx_next, false);
     subject_i_set(tx_next_subj, NEXT_OFF);
     buttons_load_page(&btn_page_1);
@@ -666,12 +701,6 @@ static void construct_cb(lv_obj_t *parent) {
     main_screen_lock_freq(true);
     main_screen_lock_band(true);
     freq_strip_set_offset(param_i_get(cfg_wspr_tx_freq));
-
-    if (param_f_get(cfg_pwr) > MAX_PWR) {
-        radio_set_pwr(MAX_PWR);
-        msg_update_text_fmt("Power limited to %.0f W", MAX_PWR);
-    }
-    base_gain_offset = tx_player_base_gain_offset();
 
     /* Uppercase call, 6-character locator (WSPRnet), 4 of them go on the air */
     snprintf(my_call, sizeof(my_call), "%s", call ? call : "");
@@ -718,6 +747,5 @@ static void destruct_cb(void) {
     main_screen_lock_freq(false);
     main_screen_lock_band(false);
     freq_strip_set_offset(-1);
-    radio_set_pwr(param_f_get(cfg_pwr));
     table = NULL;
 }

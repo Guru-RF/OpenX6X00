@@ -280,6 +280,10 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_wspr_upload{"wspr_upload", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // WSPR's own TX power, as the dBm the beacon reports (20 = 0.1 W, 23 = 0.2 W ... 37 = 5 W); the radio's power
+    // setting is left alone. 23 dBm: 0.2 W is a 0.1 W step of the X6200 and an exact WSPR level, 0.25 W neither
+    Parameter<int32_t> p_wspr_dbm{"wspr_dbm", 23, 20, 37,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Decodes (FT8 FT4 FT2 JS8 PSK31 PSK63 Olivia) to PSK Reporter, on by default
     Parameter<int32_t> p_pskreporter{"pskreporter", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
