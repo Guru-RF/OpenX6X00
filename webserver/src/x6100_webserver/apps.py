@@ -1012,6 +1012,13 @@ def adif_set(rec, name, value):
     return rec[:m.start()] + new + rec[m.end() + int(m.group(1)):]
 
 
+def adif_get(rec, name):
+    """One field of rec, found by its own tag. For the ASCII fields: the radio writes lengths in bytes (flog.c), and
+    adif_fields, counting characters, runs over the next tag after a value such as "Łódź" """
+    m = re.search(r'<%s:(\d+)(?::\w)?>' % name, rec, re.I)
+    return rec[m.end():m.end() + int(m.group(1))] if m else ""
+
+
 def adif_del(rec, name):
     """rec without the field `name`."""
     m = re.search(r'<%s:(\d+)(?::\w)?>' % name, rec, re.I)
@@ -1072,8 +1079,7 @@ def set_ref(rec, ref):
     """The other station's reference (its programme by its form, ref_prog); "" removes it. Written as the
     radio writes it (src/field/flog.c): SOTA_REF; SIG and SIG_INFO, with POTA_REF for a park and GRIDSQUARE for a
     tile."""
-    old = adif_fields(rec)
-    if old.get("sig", "").upper() == "TILES" and old.get("gridsquare", "").upper() == old.get("sig_info", "").upper():
+    if adif_get(rec, "SIG").upper() == "TILES" and adif_get(rec, "GRIDSQUARE").upper() == adif_get(rec, "SIG_INFO").upper():
         rec = adif_del(rec, "GRIDSQUARE")         # the tile they gave goes with it
     for name in ("SOTA_REF", "POTA_REF", "SIG", "SIG_INFO"):
         rec = adif_del(rec, name)
