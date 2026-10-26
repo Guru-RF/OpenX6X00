@@ -159,6 +159,10 @@ if [ $MODEL = x6200 ] && ls -d $BR/build/build/rtw88-*/ > /dev/null 2>&1 \
         && ! grep -qs "0001-wifi-rtw88-TX-report" $BR/build/build/rtw88-*/.applied_patches_list; then
     make rtw88-dirclean
 fi
+if [ $MODEL = x6100 ] && ls -d $BR/build/build/rtl8723bu-wifi-*/ > /dev/null 2>&1 \
+        && ! grep -qs "0005-ht-capabilities-element" $BR/build/build/rtl8723bu-wifi-*/.applied_patches_list; then
+    make rtl8723bu-wifi-dirclean
+fi
 # The GUI and the web server come from this repository (a local site): buildroot syncs them
 # once and never again on its own, so they are re-synced and rebuilt every run
 # The sync into build/<gui package>-*/ adds and updates but never deletes: what left the repository

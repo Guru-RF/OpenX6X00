@@ -1,0 +1,214 @@
+From: BrunoKlu <BrunoKlu@users.noreply.github.com>
+Subject: [PATCH] HT Capabilities element: 26 octets, bounded copies
+
+struct rtw_ieee80211_ht_cap declared tx_BF_cap_info and
+antenna_selection_info as __le16 each, so the element written in the
+Association Request was 25 octets instead of 26. MediaTek access points
+(MT7981) ACK such a request and never answer it. Use __le32 + u8 as in
+802.11, and bound the copy of the AP's element in HT_caps_handler() to
+the size of HT_cap[].
+
+Added for OpenX6X00 (#29, #32): the other copies on the station's
+receive path (beacons, probe responses, authentication and association
+responses) that fill a fixed buffer for a length read from the frame,
+bounded:
+- rtw_check_bcn_info(), on every beacon with the associated AP's BSSID:
+  the SSID, up to 255 octets, went into Ssid[32] and on over the rest of
+  the WLAN_BSSID_EX, IELength included. Over 32 is now a mismatch, as a
+  different SSID is (collect_bss_info() bounds it the same way).
+- update_sta_support_rate() (IBSS): a peer's rates went into
+  SupportedRates[16] and on into the next FW_sta_info entry. Refused now.
+- WFD_info_handler(), for a vendor element with the WFD OUI in the
+  Association Response (CONFIG_P2P and CONFIG_WFD are on): the element,
+  up to 257 octets, went into wfd_ie[128] on the stack, and its Device
+  Information attribute, up to 65535 octets, into attr_content[10]. An
+  element over 128 octets, or an attribute under 4 or over 10, is now
+  ignored.
+- OnAuthClient(), shared key authentication: the challenge text, up to
+  255 octets, went into chg_txt[128] and on through mlme_ext_info. The
+  driver turns to shared key by itself when an AP answers status 13, so
+  whoever answers a join gets there. Over 128 now fails the
+  authentication.
+- rtw_cfg80211_inform_bss(), for every scan result while a scan is
+  pending: the WPS Selected Registrar attribute, up to 65535 octets, went
+  into the one-octet sr on the stack. Now read only when it is one octet
+  inside the element.
+- rtw_get_wps_attr(), under the last one: the attribute length + 4 was a
+  u16, so a length of 0xFFFC made a step of 0 and the walk never ended,
+  with the scan queue's lock held. It is a u32 now.
+Checked and left:
+- Already bounded: collect_bss_info() (the elements, SSID, rates),
+  join_cmd_hdl(), HT_info_handler(), bwmode_update_check(),
+  ERP_IE_handler(), rtw_restructure_ht_ie() (the HT information element
+  only at its exact size), and the frame rtw_cfg80211_inform_bss() builds
+  (1000 octets).
+- Reads past an element, inside the received buffer, and fixed-size
+  copies: WMM_param_handler(), update_TSF(), the ADDBA request, the HT
+  element fields read without a length check, rtw_get_wfd_attr_content()
+  (up to 12 octets past wfd_ie[128]), and OnBeacon()'s
+  CONFIG_ATTEMPT_TO_FIX_AP_BEACON_ERROR, which rewrites the Extended
+  Supported Rates element's own length octet in the frame.
+- Reads only, the helpers called without an output buffer:
+  rtw_get_sec_ie() in rtw_get_bcn_info() and rtw_check_bcn_info(), and
+  rtw_get_wps_ie(), rtw_get_p2p_ie() and rtw_get_wapi_ie() where they
+  only find an element.
+- Wi-Fi Direct only, reached once user space starts P2P (a scan for
+  DIRECT- with a P2P element, remain-on-channel, a P2P GO), which nothing
+  on the radio does: process_p2p_ps_ie() (the NoA attribute into
+  noa_attr[256]), on_action_public_p2p() and the rtw_p2p.c frame handlers
+  (attributes into small stack arrays), rtw_p2p_check_frames(), the
+  listen channel of a probe request in collect_bss_info(), and
+  rtw_get_p2p_attr(), whose length + 3 is a u16 as rtw_get_wps_attr()'s
+  was.
+- Wireless extensions only, ioctls nothing on the radio issues
+  (NetworkManager and wpa_supplicant use nl80211; there are no
+  wireless-tools): translate_scan()'s rtw_get_sec_ie() into
+  wpa_ie[255] and rsn_ie[255] (a 255-octet element is 257 with its
+  header) and its hex dump into 512 octets, its WFD filter, and the P2P
+  private ioctls.
+- AP mode only, which the radio never runs (the handlers return outside
+  AP state): OnAuth(), OnAssocReq(), rtw_ap.c, the beacon and probe
+  response builders.
+- Compiled out: rtw_tdls.c (CONFIG_TDLS), the VHT handlers
+  (CONFIG_80211AC_VHT), WAPI, Intel WiDi, CONFIG_ATMEL_RC_PATCH,
+  CONFIG_AUTO_AP_MODE, CONFIG_DFS.
+- Not audited here: element lists that user space sets through cfg80211
+  (not frames), and the data path (A-MSDU, defragmentation, 802.11w),
+  which parses no elements.
+struct HT_caps_element stays as it is: HT_cap[26] makes its union 26
+octets already; its struct view is not packed, and a __le32
+Beamforming_caps there would make it 32.
+---
+diff --git a/core/rtw_ieee80211.c b/core/rtw_ieee80211.c
+--- a/core/rtw_ieee80211.c
++++ b/core/rtw_ieee80211.c
+@@ -993,7 +993,8 @@ u8 *rtw_get_wps_attr(u8 *wps_ie, uint wp
+ 		// 4 = 2(Attribute ID) + 2(Length)
+ 		u16 attr_id = RTW_GET_BE16(attr_ptr);
+ 		u16 attr_data_len = RTW_GET_BE16(attr_ptr + 2);
+-		u16 attr_len = attr_data_len + 4;
++		// u32: in a u16, a length of 0xFFFC + 4 is a step of 0 and the walk never ends
++		u32 attr_len = attr_data_len + 4;
+ 
+ 		//DBG_871X("%s attr_ptr:%p, id:%u, length:%u\n", __FUNCTION__, attr_ptr, attr_id, attr_data_len);
+ 		if( attr_id == target_attr_id )
+diff --git a/core/rtw_mlme_ext.c b/core/rtw_mlme_ext.c
+--- a/core/rtw_mlme_ext.c
++++ b/core/rtw_mlme_ext.c
+@@ -1652,6 +1652,13 @@ unsigned int OnAuthClient(_adapter *pada
+ 				goto authclnt_fail;
+ 			}
+ 
++			// the challenge text is 128 octets, its length the frame's
++			if (len > sizeof(pmlmeinfo->chg_txt))
++			{
++				DBG_871X("%s: challenge text too long (%u)\n", __FUNCTION__, len);
++				goto authclnt_fail;
++			}
++
+ 			_rtw_memcpy((void *)(pmlmeinfo->chg_txt), (void *)(p + 2), len);
+ 			pmlmeinfo->auth_seq = 3;
+ 			issue_auth(padapter, NULL, 0);
+diff --git a/core/rtw_wlan_util.c b/core/rtw_wlan_util.c
+--- a/core/rtw_wlan_util.c
++++ b/core/rtw_wlan_util.c
+@@ -1233,11 +1233,20 @@ int WFD_info_handler(_adapter *padapter,
+ 	u32	wfd_ielen = 0;
+ 
+ 	pwdinfo = &padapter->wdinfo;
++	// the element's length is the AP's: rtw_get_wfd_ie() copies all of it
++	if (pIE->Length + 2 > sizeof(wfd_ie))
++		return _FAIL;
+ 	if (rtw_get_wfd_ie( ( u8* ) pIE, pIE->Length, wfd_ie, &wfd_ielen )) {
+ 		u8 attr_content[ 10 ] = { 0x00 };
+ 		u32 attr_contentlen = 0;
+ 
+ 		DBG_871X( "[%s] Found WFD IE\n", __FUNCTION__ );
++		// the attribute's length (16 bits) is the AP's too: ask for it first; the port is at +2
++		rtw_get_wfd_attr_content( wfd_ie, wfd_ielen,
++					  WFD_ATTR_DEVICE_INFO,
++					  NULL, &attr_contentlen);
++		if (attr_contentlen < 4 || attr_contentlen > sizeof(attr_content))
++			return _FAIL;
+ 		rtw_get_wfd_attr_content( wfd_ie, wfd_ielen,
+ 					  WFD_ATTR_DEVICE_INFO,
+ 					  attr_content, &attr_contentlen);
+@@ -1578,7 +1587,7 @@ void HT_caps_handler(_adapter *padapter,
+ 
+ 	pmlmeinfo->HT_caps_enable = 1;
+ 
+-	for (i = 0; i < (pIE->Length); i++)
++	for (i = 0; i < (pIE->Length) && i < sizeof(pmlmeinfo->HT_caps.u.HT_cap); i++)
+ 	{
+ 		if (i != 2)
+ 		{
+@@ -1998,6 +2007,10 @@ int rtw_check_bcn_info(ADAPTER *Adapter,
+ 	}
+ 
+ 	if((NULL != p) && (_FALSE == hidden_ssid && (*(p + 1)))) {
++		if (len > NDIS_802_11_LENGTH_SSID) {
++			DBG_871X("%s(): SSID IE too long (%u)\n", __func__, len);
++			goto _mismatch;
++		}
+ 		_rtw_memcpy(bssid->Ssid.Ssid, (p + 2), *(p + 1));
+ 		bssid->Ssid.SsidLength = *(p + 1);
+ 	} else {
+@@ -2832,12 +2845,21 @@ int update_sta_support_rate(_adapter *pa
+ 		return _FAIL;
+ 	}
+ 
++	if (ie_len > NDIS_802_11_LENGTH_RATES_EX)
++	{
++		return _FAIL;
++	}
++
+ 	_rtw_memcpy(pmlmeinfo->FW_sta_info[cam_idx].SupportedRates, pIE->data, ie_len);
+ 	supportRateNum = ie_len;
+ 
+ 	pIE = (PNDIS_802_11_VARIABLE_IEs)rtw_get_ie(pvar_ie, _EXT_SUPPORTEDRATES_IE_, &ie_len, var_ie_len);
+ 	if (pIE)
+ 	{
++		if (ie_len > (NDIS_802_11_LENGTH_RATES_EX - supportRateNum))
++		{
++			return _FAIL;
++		}
+ 		_rtw_memcpy((pmlmeinfo->FW_sta_info[cam_idx].SupportedRates + supportRateNum), pIE->data, ie_len);
+ 	}
+ 
+diff --git a/include/wifi.h b/include/wifi.h
+--- a/include/wifi.h
++++ b/include/wifi.h
+@@ -710,8 +710,8 @@ struct rtw_ieee80211_ht_cap {
+ 	unsigned char	ampdu_params_info;
+ 	unsigned char	supp_mcs_set[16];
+ 	__le16	extended_ht_cap_info;
+-	__le16		tx_BF_cap_info;
+-	__le16	       antenna_selection_info;
++	__le32	tx_BF_cap_info;
++	unsigned char	antenna_selection_info;
+ } __attribute__ ((packed));
+ 
+ /**
+diff --git a/os_dep/ioctl_cfg80211.c b/os_dep/ioctl_cfg80211.c
+--- a/os_dep/ioctl_cfg80211.c
++++ b/os_dep/ioctl_cfg80211.c
+@@ -428,11 +428,18 @@ struct cfg80211_bss *rtw_cfg80211_inform
+ 		struct cfg80211_ssid *ssids = request->ssids;
+ 		u32 wpsielen=0;
+ 		u8 *wpsie=NULL;
++		uint sr_len = 0;
+ 
+ 		wpsie = rtw_get_wps_ie(pnetwork->network.IEs+_FIXED_IE_LENGTH_, pnetwork->network.IELength-_FIXED_IE_LENGTH_, NULL, &wpsielen);
+ 
+ 		if(wpsie && wpsielen>0)
+-			psr = rtw_get_wps_attr_content(wpsie,  wpsielen, WPS_ATTR_SELECTED_REGISTRAR, (u8*)(&sr), NULL);
++			psr = rtw_get_wps_attr_content(wpsie,  wpsielen, WPS_ATTR_SELECTED_REGISTRAR, NULL, &sr_len);
++
++		// Selected Registrar is one octet; the attribute's length is the AP's
++		if (psr && (sr_len != 1 || psr + 1 > wpsie + wpsielen))
++			psr = NULL;
++		if (psr)
++			sr = *psr;
+ 
+ 		if (sr != 0)
+ 		{

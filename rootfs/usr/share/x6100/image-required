@@ -4,5 +4,5 @@
 # build (buildroot/local-build.sh) stamps the level into /etc/openx6x00-image, which no update touches;
 # x6100-update and the GUI compare the two and say when a newer card image is worth writing. Images up to
 # v0.3.3 have no stamp: level 1.
-x6100 1
+x6100 2 the WiFi driver fix (MediaTek and UniFi access points)
 x6200 2 the WiFi driver fix

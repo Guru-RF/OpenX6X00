@@ -4,9 +4,12 @@ Copied over AetherX6100Buildroot's `br2_external` by `local-build.sh` and the wo
 also switch them on in the defconfig and the kernel configuration:
 
 - `package/rtl8723bu-wifi`: lwfinger's out-of-tree Realtek driver instead of the kernel's
-  rtl8xxxu, with four patches (station only without power saving, the antenna kept on WiFi
-  during the WPA handshake, firmware from a file, 802.11w protected management frames) and
-  `etc/modprobe.d/x6100-wifi.conf` (20 MHz, channel plan with 12 and 13).
+  rtl8xxxu, with five patches (station only without power saving, the antenna kept on WiFi
+  during the WPA handshake, firmware from a file, 802.11w protected management frames, the HT
+  Capabilities element at its 26 octets with the received elements' copies bounded) and
+  `etc/modprobe.d/x6100-wifi.conf` (20 MHz, channel plan with 12 and 13). The first four come
+  from the v0.129 sources, the fifth from #29 (MediaTek access points never answered the
+  25-octet element).
 - `etc/init.d/S00adata` and `etc/fstab`: the DATA partition (FAT, settings and logs) is
   checked and repaired at every start before anything mounts it; it replaces S01create_data.
   On a card without one it makes the partition in the free space, and only formats the
