@@ -12,6 +12,7 @@
 #include "util.h"
 #include "msg.h"
 #include "adif.h"
+#include "params/params.h"
 
 #include <lvgl/src/misc/lv_log.h>
 #include <sqlite3.h>
@@ -188,10 +189,15 @@ qso_log_search_worked_t qso_log_search_worked(const char *callsign, qso_log_mode
     return res;
 }
 
+/* The radio's own callsign (Settings > STATION) as the import starts, taken on the GUI thread:
+ * the one of a record that names neither OPERATOR nor STATION_CALLSIGN */
+static char own_call[sizeof(params.callsign.x)];
+
 /* The records of the file into the log. The file is retired to .bak once every record got
  * its answer from the database: added, already there, or refused for lacking a callsign
- * (that one is final). A record the database could not take (an error, a full card) keeps
- * the file for the next start: the log ignores a duplicate, so nothing is imported twice.
+ * (no CALL, or no own call in the record nor on the radio: that one is final). A record the
+ * database could not take (an error, a full card) keeps the file for the next start: the log
+ * ignores a duplicate, so nothing is imported twice.
  * A file with no record in it is kept as .failed, so the operator sees it was not read
  * (audit A15) */
 static void *import_thread(void *arg) {
@@ -211,6 +217,9 @@ static void *import_thread(void *arg) {
     for (int i = 0; i < total; i++) {
         int n;
 
+        if (!recs[i].local_call[0]) {
+            snprintf(recs[i].local_call, sizeof(recs[i].local_call), "%s", own_call);
+        }
         if (!recs[i].local_call[0] || !recs[i].remote_call[0]) {
             nocall++;
             continue;
@@ -251,6 +260,7 @@ void qso_log_import_adif(const char *path) {
         LV_LOG_USER("No ADI file to import");
         return;
     }
+    snprintf(own_call, sizeof(own_call), "%s", params.callsign.x);
     if (pthread_create(&thr, NULL, import_thread, (void *)path) != 0)
         LV_LOG_ERROR("ADIF import thread not started");
 }
