@@ -2754,15 +2754,31 @@ program on the network tunes the radio, hears it and keys it.
   S-meter in dBm, after `rx_sensors_enable:true;`), `tx_sensors` (mic level,
   forward power, SWR, ALC, after `tx_sensors_enable:true;`), the RX audio
   stream (`audio_start`, int16 mono, 24 kHz) and the TX audio frames the
-  client answers to each `TX_CHRONO`.
+  client answers to each `TX_CHRONO`. The greeting ends with `start;` then
+  `ready;`: the radio is running, as ExpertSDR3 says of an SDR that is on. A
+  client cannot switch the radio on or off: `start;` and `stop;` are both
+  answered with `start;`.
 - VFO-Knob: build or flash its AetherSDR firmware, set the radio's address
   on the knob's configuration page as the AetherSDR computer, port 50001.
   The knob tunes, changes mode, filter and AGC, keys the radio, shows the
   S-meter and the TX meters, plays the RX audio on its jack and sends its
   microphone when keyed.
 - Other clients: anything that talks to AetherSDR or ExpertSDR3 over TCI
-  (loggers, WSJT-X with its TCI option, CW keyers) should work for what the
-  radio has; what it does not have is answered with the radio's own value.
+  (loggers, CW keyers) should work for what the radio has; what it does not
+  have is answered with the radio's own value.
+- WSJT-X and JTDX (rig "TCI Client RX1", the radio's address and port 50001):
+  they connect, and the frequency and the mode follow both ways. Their TCI
+  audio does not work with the radio yet: they take the stream as 48 kHz
+  float32 stereo without asking for it (ExpertSDR3's defaults), while the
+  radio sends what it announces, int16 mono at 24 kHz.
+  - Leave "Use TCI Audio" off (Settings > Audio). With it on they read each
+    audio frame as twice its size, past its end, and decode nothing.
+  - Do not transmit from them over TCI. Their keying (`trx:0,true,tci;`)
+    always comes with their TCI audio, in a shape the radio cannot read: the
+    radio drops it and unkeys at once.
+  - Set Clients to Operate. With Listen only, their band and mode changes
+    are answered with the radio's state, unchanged, and they stop with a Rig
+    Failure.
 
 ## Network name
 

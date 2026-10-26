@@ -475,6 +475,10 @@ static void send_greeting(client_t *c, const rstate_t *s) {
     client_text(c, "split_enable:0,false;");
     client_textf(c, "drive:0,%d;", s->drive);
     client_textf(c, "trx:0,%s;", s->tx ? "true" : "false");
+    /* The receiver runs whenever the server does. ExpertSDR3 and Thetis end the state with
+     * start; (stop; for an SDR switched off), and WSJT-X's and JTDX's TCI client take a
+     * greeting without it as a radio switched off: "TCI SDR is not switched on" (#17) */
+    client_text(c, "start;");
     client_text(c, "ready;");
 }
 
@@ -741,7 +745,8 @@ static void handle_cmd(int ci, char *line) {
     } else if (!strcmp(name, "rx_volume") || !strcmp(name, "rx_balance")) {
         client_textf(c, "%s:0,0,0;", name);
     } else if (!strcmp(name, "start") || !strcmp(name, "stop")) {
-        client_textf(c, "%s;", name);
+        /* A client cannot switch the radio on or off: the answer is the state as it is, running */
+        client_text(c, "start;");
     }
     /* spot, tune_drive, the DSP switches and what we don't know: nothing to say */
 }
@@ -797,10 +802,16 @@ static void handle_tx_audio(int ci, const uint8_t *frame, size_t len) {
     size_t   n   = h.length;
     uint32_t ch  = h.channels ? h.channels : 1;
     size_t   bps = h.format == AF_FLOAT32 ? 4 : 2;
-    /* Each bound checked on its own: n * ch * bps with the header's channel count unchecked
-     * wrapped on 32 bits and read past the frame */
-    if (n == 0 || n > 2048 || ch > 2 || len - sizeof(h) < n * ch * bps)
+    /* The payload is exactly the header's n samples of ch channels. A frame of another shape is
+     * no audio the radio can read: WSJT-X and JTDX answer TX_CHRONO with float32 stereo under
+     * our int16 header (512 pairs, 4096 bytes), which played as int16 was noise at the set
+     * drive. It ends the transmission before any of it is played: the radio unkeys and the
+     * client hears trx:0,false. Each bound checked on its own: n * ch * bps with the header's
+     * channel count unchecked wrapped on 32 bits and read past the frame */
+    if (n == 0 || n > 2048 || ch > 2 || len - sizeof(h) != n * ch * bps) {
+        tx_session_end(ci, false);
         return;
+    }
     const uint8_t *d = frame + sizeof(h);
     for (size_t i = 0; i < n; i++) {
         if (h.format == AF_FLOAT32) {

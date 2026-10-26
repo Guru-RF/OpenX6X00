@@ -90,13 +90,30 @@ bool tx_info_refresh(uint8_t *seen, float *alc, float *p, float *s) {
     return true;
 }
 
-/* ---- the audio out: counted ---- */
+/* ---- the audio out: what each transmission played, counted, and kept in the file
+ * TCI_TEST_PLAYED (int16 at AUDIO_PLAY_RATE) for the client test to read ---- */
 static size_t played;
+static FILE  *played_f;
 void audio_play_wait(void) {}
 void audio_play_flush(void) {}
-bool audio_play_lowlat_begin(void) { return true; }
-void audio_play_lowlat_end(void) { fprintf(stderr, "[stub] played %zu samples\n", played); }
-bool audio_play_if_room(int16_t *buf, size_t n) { (void)buf; played += n; return true; }
+bool audio_play_lowlat_begin(void) {
+    const char *path = getenv("TCI_TEST_PLAYED");
+    played   = 0;
+    played_f = path ? fopen(path, "wb") : NULL;
+    return true;
+}
+void audio_play_lowlat_end(void) {
+    if (played_f) {
+        fclose(played_f);
+        played_f = NULL;
+    }
+    fprintf(stderr, "[stub] played %zu samples\n", played);
+}
+bool audio_play_if_room(int16_t *buf, size_t n) {
+    played += n;
+    if (played_f) fwrite(buf, sizeof(*buf), n, played_f);
+    return true;
+}
 
 /* ---- PulseAudio: a 1 kHz tone, paced like a real stream ---- */
 struct pa_simple { uint32_t rate; double phase; };
