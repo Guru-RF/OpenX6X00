@@ -78,29 +78,25 @@ bases, X6100 V1.1.9 and X6200 1.0.8, have no CESSB, and the X6200's no TX filter
 ## Winlink over HF: Pat with ARDOP on the radio, Mercury after (#18, #19)
 
 Asked 2026-10-26 (issues #18 and #19). Winlink email from the radio alone, with a phone on its WiFi to read and
-write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem. Both run on ARM Linux today, so it should
-be possible on both radios.
+write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
 
-- **Pat**: linux armhf builds (v1.0.0 has a .deb), or built in Buildroot. Its web UI (port 8080) is the mailbox
-  on a phone or laptop, linked from the configurator (Operating > Winlink). Downloaded once to DATA with a pinned
-  checksum, as Tailscale is, rather than 20+ MB in every image. The Winlink password kept as the QRZ key is
-  (0600, not in the Backup). Telnet to the CMS over WiFi works the day Pat runs: a first step without HF.
-- **ARDOP**: ardopcf (github.com/pflarue/ardop, MIT, C, ARM builds), the open mode the Winlink RMS gateways run
-  next to VARA and Pactor. Its host interface (TCP 8515/8516) is what Pat speaks. Audio at 12 kHz through ALSA
-  or `pulse`; the radio's audio belongs to the GUI, so the GUI gives ardopcf a PulseAudio sink and source for RX
-  and TX (or ardopcf's modem goes into the GUI, which MIT allows), and TX goes through tx_player
-  (`radio_set_modem()`, the learned drive level).
-- **PTT and frequency**: Pat keys and tunes through hamlib's rigctld protocol. A small rigctld-compatible server
-  in the GUI on localhost:4532 (`F`, `f`, `M`, `m`, `T`, `t`) does both, and serves other programs too.
-  ardopcf's own CAT keystring PTT is the other road.
-- **To find out first**: both radios' TX/RX turnaround (ARQ wants it short: PTT to RF, RF off to RX audio);
-  ardopcf's CPU on the X6100's A7 next to the GUI; levels and the 12 kHz resampling; the RX filter for ARDOP's
-  200-2000 Hz; the TX watchdog and the SWR guard while ARQ keys every few seconds. ardopcf's maintainer has
-  stepped back (its README asks for forks), so fixes may have to be ours.
+- **Built, for the next release**: Pat v1.0.0 built with a pinned Go (tools/pat, a few patches: its page answers
+  only to the radio's own names and refuses other sites' requests, no release or password-recovery check) and
+  ardopcf (github.com/pflarue/ardop, MIT, C) in third-party/ardopcf, both in the image and the bundle. ardopcf's
+  audio and PTT go through the GUI (src/winlink.c: a socket, 12 kHz, TX through tx_player), which also answers
+  Pat as a rigctld on 127.0.0.1:4532: it tunes and sets USB-D. A supervisor (x6100-winlink, S98winlink) runs both
+  while Winlink is on; the web configurator's Operating > Winlink sets the callsign and locator (the radio's by
+  default), the Winlink password (root filesystem, 0600, never shown, not in the Backup) and the ARDOP bandwidth,
+  and links Pat's mailbox on port 8080 ([manual](docs/MANUAL.md#winlink)).
+- **To find out on the air**: real ARQ sessions with an RMS gateway, not tried yet. Both radios' TX/RX
+  turnaround (ARQ wants it short: PTT to RF, RF off to RX audio); ardopcf's CPU and Pat's memory on the
+  X6100's A7 next to the GUI; levels; the RX filter for ARDOP's 200-2000 Hz; the TX watchdog and the SWR guard
+  while ARQ keys every few seconds. ardopcf's maintainer has stepped back (its README asks for forks), so fixes
+  may have to be ours.
 - **Mercury** (github.com/Rhizomatica/mercury, GPL-3.0, a separate process): faster OFDM with a VARA-style TCP
   interface (Pat's VARA transport), a `pulse` backend, PTT left to the client. No Winlink RMS gateway runs it
-  (its README has no Winlink), so it is for station to station (Pat P2P) and HERMES networks: after ARDOP.
-  VARA itself is closed and Windows-only: out.
+  (its README has no Winlink), so it is for station to station (Pat P2P) and HERMES networks: next, after
+  ARDOP has been on the air. VARA itself is closed and Windows-only: out.
 
 ## WiFi: a static address, as Ethernet has (#17)
 

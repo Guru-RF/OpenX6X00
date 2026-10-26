@@ -21,6 +21,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
 - [Wavelog](#wavelog)
+- [Winlink](#winlink)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
@@ -1808,6 +1809,7 @@ The menu has General and four groups:
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | Wavelog | every logged QSO to your Wavelog: URL, API key, station profile (one, or Automatic by the radio's callsign), connection test, Send now (writes `/mnt/field/wavelog.conf`, see [Wavelog](#wavelog)) |
+| | Winlink | Winlink email over HF with Pat and ARDOP: Enabled, callsign, locator, the Winlink password (write only), ARDOP bandwidth, the status and Open the mailbox (Pat's page on port 8080; writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV |
@@ -1908,6 +1910,98 @@ Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavel
 - HTTPS is checked against the radio's root certificates. Check the certificate off only for a Wavelog at home with a self-signed certificate.
 - The key is kept in `/mnt/field/wavelog.conf`. The Wavelog page never shows it again and it is not in the Backup, but like the QRZ, HOTA and WWFF keys it can be downloaded from the Files page by anyone who reaches the web configurator (your LAN, and your tailnet with Tailscale on). The upload uses Wavelog's API (`api/qso`, `api/station_info`, `api/version`); QSOs sent through it are not uploaded on to other services by Wavelog at once and get no callbook lookup there.
 - By hand: `x6100-wavelog sync`, `x6100-wavelog stations`, `x6100-wavelog test` (one line each, as the other helpers).
+
+## Winlink
+
+In the next release. [Winlink](https://winlink.org) email over HF from the
+radio alone, with no computer and no internet: [Pat](https://getpat.io) is the
+mail program, and its mailbox is a web page you open on a phone, a tablet or a
+laptop on the radio's network; ARDOP is the HF modem
+([ardopcf](https://github.com/pflarue/ardop)), working through the radio's own
+audio. Pat calls a Winlink RMS gateway, the radio tunes there and transmits,
+and your mail goes out while the new mail comes in. Where: web configurator,
+Operating > Winlink. Off by default; when it is off, nothing of it runs.
+
+Setting it up:
+
+1. You need a Winlink account: your callsign and its password.
+   [winlink.org](https://winlink.org) explains how to get one.
+2. On Operating > Winlink, fill in the Station card and Save:
+   - Callsign: your Winlink account. Empty takes the radio's callsign
+     (Settings > General) without its portable part: ON6URE for ON6URE/P.
+   - Locator: sent to the gateway, and Pat's gateway list is sorted by the
+     distance from it. Empty takes the radio's QTH.
+   - Winlink password: kept on the radio and never shown again (the page says
+     "set (hidden)"); a field left empty keeps it.
+   - ARDOP bandwidth: the widest ARDOP may use. 500 Hz suits most gateways and
+     a crowded band; 2000 Hz is faster on a good path, with a gateway that
+     runs ARDOP 2000.
+3. Switch Enabled on. Status says "Running as ON6URE" once Pat and ARDOP run.
+   From then on they start with the radio, also after a new card image.
+4. Press Open the mailbox, or open `http://x6100.local:8080/` (`x6200.local`
+   on an X6200, or the radio's address): Pat's own page, where you write and
+   read your mail. Its Settings page has the rest of Pat's options. The
+   callsign, the password, the locator and the ARDOP and radio settings are
+   set again by the radio each time Pat starts: change those on the radio's
+   Winlink page, not in Pat.
+
+Connecting to a gateway:
+
+- In the mailbox: Connect, ARDOP as the transport, then the gateway list (the
+  RMS list): the gateways that run ARDOP, with their callsign, frequency and
+  distance. Pick one on a band that suits the time of day and your antenna,
+  and Connect.
+- Pat gives the radio the gateway's dial frequency: the radio tunes there,
+  switches to USB-D (unless it is in USB or USB-D already), and tunes back
+  after the session. The radio's power setting applies.
+- ARDOP keys the radio the way the radio's own digital modes do, and
+  identifies with your callsign in CW. The radio does not key for Winlink
+  while it is already transmitting, nor for 5 minutes after a high SWR
+  stopped a Winlink transmission; the screen says so.
+- Pat listens before it calls: on a busy frequency it asks in the mailbox
+  whether to go ahead.
+- The gateway list: the first time, Pat fetches it from winlink.org when the
+  radio has internet, and keeps it on the SD card. Without internet it uses
+  the list built into Pat (April 2026). Updating it needs the internet.
+- With the radio on the internet (WiFi, Ethernet), Pat's Telnet transport
+  (Connect, Telnet) sends and fetches the mail with no radio at all: a first
+  test of the account and the mailbox.
+
+Good to know:
+
+- The mailbox has no login of its own. Anyone who reaches the radio's
+  network, and your tailnet with Tailscale on, can read and send your mail and
+  make the radio transmit under your callsign. Turn Winlink off on a network
+  you do not trust (a campsite's WiFi, a shared hotspot).
+- The mailbox answers only to the radio's address and its own names
+  (`x6100.local`, the Tailscale name), and refuses requests from the pages of
+  other sites, so a web page you happen to visit cannot use it through your
+  browser. The configurator changes Winlink only when opened by those names
+  too. ARDOP and the radio's frequency control for Pat listen on the radio
+  itself only.
+- The password is kept on the radio's system partition (`/var/lib/winlink`),
+  out of reach of the web pages: never shown again, not in the Backup, not on
+  the Files page. A new card image keeps the settings (`/mnt/winlink.conf`)
+  but asks for the password again.
+- The mail is on the DATA partition (`/mnt/winlink/pat/mailbox`, one file per
+  message), so it survives a new card image. Like everything on `/mnt`, anyone
+  who reaches the web configurator can download it from the Files page.
+- Pat's own calls home are off: the version report, the release check and the
+  password-recovery check. When the radio is online, Pat still fetches the
+  gateway list from winlink.org, checks the account at a connection (once
+  every 100 days) and fetches the forms when you update them.
+- Pat runs behind the GUI and the audio (lower priority).
+- Over SSH, `x6100-winlink status` prints the state, and
+  `/run/winlink/pat.log` and `/run/winlink/ardopcf.log` have the programs'
+  output (in memory).
+
+Not tested yet: real ARQ sessions with a gateway on the air. Reports are
+welcome ([#18](https://github.com/Guru-RF/OpenX6X00/issues/18)).
+
+Pat (MIT, Martin Hebnes Pedersen LA5NTA) and ardopcf (MIT, Rick Muething, John
+Wiseman, Peter LaRue) come with the firmware: Pat with small changes (its page
+answers only to the radio's names, no calls home), ardopcf with its audio and
+PTT through the radio's GUI.
 
 ## Browser panel
 
@@ -2573,6 +2667,8 @@ The DATA partition, readable on a PC.
 | `https/` | the web configurator's HTTPS certificate |
 | `tailscale.conf` | Tailscale on or off: `enabled=0|1` |
 | `tailscale/` | the tailscaled program, downloaded when Tailscale is turned on and checked before every start |
+| `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=500|2000` |
+| `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
 
 `cluster.conf` example (the `host=`/`port=` lines are the server in use, each
 `server=` line is a saved server, `name|host|port`):
