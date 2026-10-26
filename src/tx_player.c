@@ -16,10 +16,10 @@
 #include "lvgl/lvgl.h"           /* LV_MIN, LV_MAX */
 
 #include "audio.h"               /* audio_play, audio_gain_db */
-#include "cfg/cfg_api.h"         /* cparam_i_get, param_f_get */
+#include "cfg/cfg_api.h"         /* param_f_get */
 #include "msg.h"                 /* the watchdog's note */
 #include "params/params.h"       /* the learned gain offset */
-#include "radio.h"               /* radio_set_modem, radio_set_freq */
+#include "radio.h"               /* radio_set_modem, radio_set_tx_freq */
 #include "tx_info.h"             /* tx_info_refresh: ALC and power */
 #include "tx_level.h"
 
@@ -100,9 +100,10 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     float   codec = audio_set_play_vol(total + 6.0f);
     float   drive = total - codec;
 
-    int32_t dial = cparam_i_get(cfg_fg_freq);
+    /* The VFO that transmits moves for the tone: the other one in split (a TX shift), the IF shift put back after */
+    int32_t dial = radio_tx_freq();
 
-    radio_set_freq(dial + offset_hz - TX_PLAYER_AUDIO_HZ);
+    radio_set_tx_freq(dial + offset_hz - TX_PLAYER_AUDIO_HZ);
     radio_set_modem(true);      /* keyed, the audio from the GUI */
 
     /* The drive from the ALC and power readback (tx_level.c): ramped up while the ALC reads
@@ -164,7 +165,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     }
     audio_play_wait();          /* the last block out before unkeying */
     radio_set_modem(false);     /* unkeyed: back to the dial frequency */
-    radio_set_freq(dial);
+    radio_set_tx_freq(0);
     audio_set_play_vol(params.play_gain_db_f.x);   /* the playback volume of the settings */
     if (over_cap) {
         radio_set_pwr(param_f_get(cfg_pwr));   /* RTTY and WeFax left the radio at the cap, also in SSB after */

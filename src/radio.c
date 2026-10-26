@@ -378,6 +378,29 @@ bool radio_check_freq(int32_t freq) {
     return cfg_is_valid_hw_freq(freq);
 }
 
+int32_t radio_tx_freq(void) {
+    return param_i_get(cfg_band_split) ? cparam_i_get(cfg_bg_freq) : cparam_i_get(cfg_fg_freq);
+}
+
+/* The VFO the radio transmits on, the other one in split: radio_set_freq moved the active one, so FT8 and the other
+ * apps sent their tone at B + 1325 Hz in split, and never restored the IF shift (the X6100's VFO stayed off by it) */
+void radio_set_tx_freq(int32_t freq) {
+    radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
+
+    if (param_i_get(cfg_band_split)) {
+        vfo = vfo == RADIO_VFO_A ? RADIO_VFO_B : RADIO_VFO_A;
+    }
+    if (freq == 0) {
+        on_vfo_freq_change(NULL, (void *)vfo);    /* its own frequency, transverter and IF shift as tuned */
+        return;
+    }
+    if (!cfg_is_tx_freq(freq)) {
+        LV_LOG_ERROR("TX freq %i incorrect", freq);
+        return;
+    }
+    WITH_RADIO_LOCK(hw_vfo_set_freq(vfo, freq - cfg_transverter_shift_for(freq)));
+}
+
 uint16_t radio_change_vol(int16_t df) {
     int32_t vol = param_i_get(cfg_volume);
     if (df == 0) {
@@ -544,12 +567,12 @@ void radio_set_charger(bool on) {
 }
 
 /* Keying from the GUI where the radio does not transmit is refused, with a word on the screen: the X6200's FM
- * broadcast and airband, what the WR12 receives, anything above HF that no transverter covers. PTT, the modem
+ * broadcast and airband, what the WR12 receives, anything above HF that no transverter covers. Where it transmits:
+ * radio_tx_freq, the other VFO in split, wherever a TX shift put it. PTT, the modem
  * (the apps), CW, the tuner and the SWR scan come through here; the base's own TX permit covers its hand-mic PTT
  * and paddle */
 static bool tx_refused(void) {
-    /* the frequency the radio transmits on: the other VFO's in split */
-    int32_t freq = param_i_get(cfg_band_split) ? cparam_i_get(cfg_bg_freq) : cparam_i_get(cfg_fg_freq);
+    int32_t freq = radio_tx_freq();
 
     static uint64_t said;
 

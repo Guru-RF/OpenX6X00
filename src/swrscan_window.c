@@ -55,11 +55,12 @@ static dialog_t dialog = { .construct_cb = open_cb, .destruct_cb = close_cb, .bt
 
 dialog_t *dialog_swrscan = &dialog;
 
-/* A flat 1.0 line and the scan back at the low edge of the span */
+/* A flat 1.0 line and the scan back at the low edge of the span, around the frequency the radio transmits on
+ * (the other VFO in split, a TX shift's) */
 static void reset_scan() {
     for (int i = 0; i < POINTS; i++) swr[i] = smooth[i] = 1.0f;
     pos = 0;
-    f_center = cparam_i_get(cfg_fg_freq);
+    f_center = radio_tx_freq();
     f_low = f_center - span_hz / 2;
     f_high = f_center + span_hz / 2;
 }
@@ -192,7 +193,7 @@ static void scan_step(float v) {
     event_send(plot, LV_EVENT_REFRESH, NULL);
 
     pos = (pos + 1) % POINTS;
-    radio_set_freq(f_low + (f_high - f_low) * pos / POINTS);
+    radio_set_tx_freq(f_low + (f_high - f_low) * pos / POINTS);
 }
 
 static void freq_changed(Subject *subj, void *user_data) {
@@ -248,7 +249,7 @@ static void close_cb(void) {
     unsubscribe(&freq_obs);
     unsubscribe(&linear_obs);
     unsubscribe(&span_obs);
-    radio_set_freq(cparam_i_get(cfg_fg_freq));
+    radio_set_tx_freq(0);
 }
 
 static void plot_key_cb(lv_event_t *e) {
@@ -262,17 +263,18 @@ static void plot_key_cb(lv_event_t *e) {
         radio_change_vol(1);
 }
 
-/* Run / stop. The VFO settings are kept aside while scanning and put back after */
+/* Run / stop. The VFO settings are kept aside while scanning and put back after; the sweep moves the VFO that
+ * transmits, which goes back to its own frequency */
 static void run_cb(button_data_t *b) {
     if (scanning) {
         scanning = false;
         radio_stop_swrscan();
-        radio_set_freq(f_center);
+        radio_set_tx_freq(0);
         mem_load(MEM_BACKUP_ID);
     } else {
         mem_save(MEM_BACKUP_ID);
         reset_scan();
-        radio_set_freq(f_low);
+        radio_set_tx_freq(f_low);
         scanning = radio_start_swrscan();
     }
 }
