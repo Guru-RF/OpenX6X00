@@ -177,24 +177,27 @@ def refusal(code, j, text):
 
 # The logs
 
-FIELD_RE = re.compile(r"<(\w+):(\d+)(?::\w)?>", re.I)
+FIELD_RE = re.compile(rb"<(\w+):(\d+)(?::\w)?>", re.I)
 
 
-def adif_records(text):
-    m = re.search(r"<eoh>", text, re.I)
+def adif_records(data):
+    """The records of a log read as bytes: an ADIF length counts bytes (flog.c), "Jürgen" is 7"""
+    m = re.search(rb"<eoh>", data, re.I)
     if m:
-        text = text[m.end():]
-    parts = re.split(r"<eor>", text, flags=re.I)[:-1]   # what follows the last <eor> is not a record yet
-    return [p.strip() for p in parts if re.search(r"<call:\d+", p, re.I)]
+        data = data[m.end():]
+    parts = re.split(rb"<eor>", data, flags=re.I)[:-1]   # what follows the last <eor> is not a record yet
+    return [p.strip() for p in parts if re.search(rb"<call:\d+", p, re.I)]
 
 
 def adif_fields(rec):
+    """The fields of a record, bytes or text, counted in bytes"""
+    b = rec.encode() if isinstance(rec, str) else rec
     out, i = {}, 0
-    for m in FIELD_RE.finditer(rec):
+    for m in FIELD_RE.finditer(b):
         if m.start() < i:
             continue
         n = int(m.group(2))
-        out[m.group(1).lower()] = rec[m.end():m.end() + n]
+        out[m.group(1).decode().lower()] = b[m.end():m.end() + n].decode("utf-8", "replace")
         i = m.end() + n
     return out
 
@@ -231,16 +234,16 @@ def collect(state, queue, since):
             stamp = [int(st.st_mtime), st.st_size]
             if files.get(name) == stamp or st.st_mtime < since:
                 continue
-            with open(path, encoding="utf-8", errors="replace") as fh:
-                text = fh.read()
+            with open(path, "rb") as fh:
+                data = fh.read()
         except OSError:
             continue
         found = []
-        for rec in adif_records(text):
+        for rec in adif_records(data):
             f = adif_fields(rec)
             t, key = qso_time(f), qso_key(f)
             if t >= since and key not in sent and key not in waiting:
-                found.append((t, {"key": key, "call": f.get("call", "").upper(), "t": t, "adif": rec + "<eor>"}))
+                found.append((t, {"key": key, "call": f.get("call", "").upper(), "t": t, "adif": rec.decode("utf-8", "replace") + "<eor>"}))
                 waiting.add(key)
         queue.extend(q for _, q in sorted(found, key=lambda x: x[0]))
         files[name] = stamp
