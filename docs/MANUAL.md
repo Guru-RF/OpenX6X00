@@ -504,6 +504,25 @@ acceleration.
 - Accel. onset (1-5, default 3) sets how soon it starts: 1 only when turned
   fast, 5 already when turned gently.
 
+Charger. Where: Settings > General > CONTROLS > Charger (default On). What the
+radio asks the base for with an external supply connected:
+
+- Off: no charging, with the radio on or switched off.
+- On: charging, with the radio on or switched off.
+- Shadow: no charging while the radio is on; at Power off the base is asked to
+  charge, so the battery charges while the radio is off.
+
+The radio sends it at the start, with each change, and again with the rest of
+the base's settings (every 3 s in receive on the X6100, every second on the
+X6200). A power-off for a low battery asks for charging whatever the setting.
+Whether the base charges: External on the [Info tab](#info-tab), for example
+"12.1 V  charging".
+
+The X6200 with base 1.0.8 does not honour Off or Shadow while the radio is on:
+External goes on saying "charging", as with On (#33). They take effect only
+after Power off: with Off the battery does not charge then, with Shadow it
+does.
+
 Zone. Where: Settings > General > DATE / TIME > Zone. The change applies at
 once; summer time follows by itself where the zone has it. 24 zones, UTC then
 west to east: UTC, Pacific/Honolulu (HST), America/Anchorage (AKST/AKDT),
