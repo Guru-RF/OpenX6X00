@@ -134,7 +134,6 @@ static field_ref_t near[MAX_NEAR];
 static int         near_n = -2;     /* -2: not looked up yet, -1: no list */
 static double      near_lat = 999, near_lon;
 static char        near_prog;
-static char        tile_here[8];    /* Tiles: the tile the last lookup found us in */
 
 static field_qso_t qsos[MAX_QSO];
 static int         qsos_n;          /* in qsos[]: the newest MAX_QSO of the log */
@@ -642,15 +641,15 @@ static void near_result_cb(void *arg) {
     near_lat  = r->lat;
     near_lon  = r->lon;
     memcpy(near, r->refs, sizeof(near));
-    /* The nearest one is the reference while none is chosen. Tiles: the tile we are in, also after a move, unless
-     * another one was chosen (one around it, or typed in) */
-    bool follow = r->prog == 'G' && st.have_ref && st.ref.type == 'G' && (!tile_here[0] || !strcmp(st.ref.ref, tile_here));
+    /* The nearest one is the reference while none is chosen. Tiles: the tile we are in follows a move while it is
+     * the automatic one, "here (...)" (the name is in the state file, so a tile chosen around it or typed in stays
+     * chosen after a restart too); a GPS tile is not given up for the locator's when the fix gets old */
+    bool follow = r->prog == 'G' && near_n > 0 && st.have_ref && st.ref.type == 'G' && !strncmp(st.ref.name, "here (", 6)
+                  && (strcmp(st.ref.name, "here (GPS)") || !strcmp(near[0].name, "here (GPS)"));
     if (!st.active && near_n > 0 && (!st.have_ref || st.ref.type != r->prog || follow)) {
         st.ref      = near[0];
         st.have_ref = true;
     }
-    if (r->prog == 'G' && near_n > 0)
-        snprintf(tile_here, sizeof(tile_here), "%s", near[0].ref);
     state_save();
     if (dialog.run && st.screen == SCR_PROG && !st.active) {
         sel = 0;
