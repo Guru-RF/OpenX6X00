@@ -84,6 +84,10 @@
       </select></div>
     <div><label for="skip">Skip spotters</label><input id="skip" autocomplete="off" maxlength="120" placeholder="e.g. K1TTT-# , *-3"></div>
   </div>
+  <div class="grid" style="grid-template-columns:1fr">
+    <div><label for="spotdxcc">Heard in <small>(the spotter's country, by its prefix; empty = all. Alerts still come through)</small></label>
+      <input id="spotdxcc" autocomplete="off" maxlength="120" placeholder="e.g. PA, ON"></div>
+  </div>
   <div class="actions">
     <button type="button" class="primary" id="save-filters">Save</button>
     <span class="status" id="fstatus"></span>
@@ -171,6 +175,7 @@ var render = function(data) {
   $("#max_age").val(String(f.max_age));
   if ($("#max_age").val() === null) $("#max_age").append($("<option>").val(f.max_age).text(f.max_age + " min")).val(String(f.max_age));
   $("#skip").val(f.skip.split(",").join(", "));
+  $("#spotdxcc").val((f.spotter_dxcc || "").split(",").join(", "));
 
   const alerts = $("#alerts>tbody").empty();
   data.alerts.forEach(function(a, i) {
@@ -228,7 +233,7 @@ $("#add").on("submit", function(e) {
 $("#save-filters").on("click", function() {
   const modes = $("#modes input:checked").map(function() { return this.value; }).get();
   call("POST", "/api/cluster/filters",
-       {modes: modes, max_age: Number($("#max_age").val()), skip: $("#skip").val().trim(),
+       {modes: modes, max_age: Number($("#max_age").val()), skip: $("#skip").val().trim(), spotter_dxcc: $("#spotdxcc").val().trim(),
         bands: $("#fbands input:checked").map(function() { return Number(this.value); }).get(),
         activity: $("#activity input:checked").map(function() { return this.value; }).get()}, "#fstatus");
 });

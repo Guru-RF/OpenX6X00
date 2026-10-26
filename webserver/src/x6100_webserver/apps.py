@@ -80,8 +80,9 @@ bottle.BaseTemplate.defaults.update(callsign=read_callsign, request=bottle.reque
 # the saved ones. The GUI reloads the server when the file changes: it is always replaced whole
 # (replace_file), so a save within the same 2 s of FAT's mtime is seen by its new inode.
 # Filters and alerts are more lines: filter_modes=CW,SSB,DIG,AMFM, filter_bands=40,20,
-# filter_activity=POTA,SOTA,WWBOTA,HOTA, max_age=MIN,
-# skip_spotters=A,B, alert=PATTERN|bands|mode, alert_popup=0|1, alert_beep=0|1.
+# filter_activity=POTA,SOTA,WWBOTA,HOTA, max_age=MIN, skip_spotters=A,B,
+# filter_spotter_dxcc=PA,ON (spots heard in these countries: the GUI drops the others as they come in),
+# alert=PATTERN|bands|mode, alert_popup=0|1, alert_beep=0|1.
 
 CLUSTER_DEFAULT_HOST = "dxfun.com"
 # Used while cluster.conf has no server= lines (keep in sync with src/cluster/client.c)
@@ -114,6 +115,8 @@ CLUSTER_ALERTS_SEEN = "/tmp/cluster_alerts_seen"
 CLUSTER_LINK = "/tmp/cluster_link"
 CLUSTER_LINK_SETTLE_S = 6   # the GUI looks at cluster.conf every 2 s: a change older than this was seen
 CLUSTER_LOGIN_RE = re.compile(r"[A-Za-z0-9/-]{1,15}")   # the GUI's cluster_config_login(): else the station's call
+# filter_spotter_dxcc: up to 16 prefixes (the GUI's SPOTTER_DXCC_MAX), each standing for its country in cty.dat
+CLUSTER_SPOTTER_DXCC_RE = re.compile(r"([A-Z0-9/]{1,6}(,[A-Z0-9/]{1,6}){0,15})?")
 
 
 def read_cluster_conf():
@@ -144,8 +147,8 @@ def read_cluster_conf():
 
 def read_cluster_options():
     """Filters and alerts of cluster.conf (same rules as the GUI: missing = no filter)."""
-    opts = {"modes": list(CLUSTER_MODES), "bands": [], "activity": [], "max_age": 0, "skip": "", "alerts": [], "popup": False, "beep": False,
-            "enabled": True, "login": ""}
+    opts = {"modes": list(CLUSTER_MODES), "bands": [], "activity": [], "max_age": 0, "skip": "", "spotter_dxcc": "", "alerts": [],
+            "popup": False, "beep": False, "enabled": True, "login": ""}
     try:
         with open(settings.CLUSTER_CONF, errors="replace") as f:
             lines = f.read().splitlines()
@@ -167,6 +170,8 @@ def read_cluster_options():
             opts["max_age"] = int(m.group()) if m and 0 < int(m.group()) < 1440 else 0
         elif line.startswith("skip_spotters="):
             opts["skip"] = line[14:]
+        elif line.startswith("filter_spotter_dxcc="):
+            opts["spotter_dxcc"] = line[20:]
         elif line.startswith("alert_popup="):
             opts["popup"] = line[12:].strip() not in ("", "0")
         elif line.startswith("alert_beep="):
@@ -196,6 +201,8 @@ def cluster_option_lines(opts):
         lines.append(f"max_age={opts['max_age']}")
     if opts["skip"]:
         lines.append("skip_spotters=" + opts["skip"])
+    if opts["spotter_dxcc"]:
+        lines.append("filter_spotter_dxcc=" + opts["spotter_dxcc"])
     for a in opts["alerts"]:
         lines.append(f"{'alert' if a.get('enabled', True) else 'alert_off'}={a['pattern']}|{a['bands']}|{a['mode']}")
     lines.append(f"alert_popup={int(opts['popup'])}")
@@ -263,7 +270,8 @@ def cluster_state():
         a["seen"] = seen.get(a["pattern"], "")
     return {"host": host, "port": port,
             "servers": [{"name": n, "host": h, "port": p} for n, h, p in servers],
-            "filters": {"modes": opts["modes"], "bands": opts["bands"], "activity": opts["activity"], "max_age": opts["max_age"], "skip": opts["skip"]},
+            "filters": {"modes": opts["modes"], "bands": opts["bands"], "activity": opts["activity"], "max_age": opts["max_age"], "skip": opts["skip"],
+                        "spotter_dxcc": opts["spotter_dxcc"]},
             "alerts": opts["alerts"], "popup": opts["popup"], "beep": opts["beep"],
             "enabled": opts["enabled"], "login": opts["login"],
             "options": {"modes": CLUSTER_MODES, "bands": CLUSTER_BANDS, "activity": CLUSTER_ACTIVITY}}  # what this firmware has
@@ -2072,6 +2080,10 @@ def set_cluster_filters():
     skip = ",".join(w.strip() for w in str(data.get("skip", "")).split(",") if w.strip())
     if not cluster_text_ok(skip, 120) or not re.fullmatch(r"[A-Za-z0-9/*#@,-]*", skip):
         return cluster_error(400, "Invalid spotters: letters, digits, '*', '#', '-', '/' separated by commas")
+    # "PA, on" or "PA ON" -> "PA,ON"
+    spotter_dxcc = ",".join(w.upper() for w in re.split(r"[,\s]+", str(data.get("spotter_dxcc", ""))) if w)
+    if not CLUSTER_SPOTTER_DXCC_RE.fullmatch(spotter_dxcc):
+        return cluster_error(400, "Heard in: up to 16 prefixes (letters, digits, '/') separated by commas, e.g. PA, ON")
     bands = data.get("bands", [])
     activity = data.get("activity", [])
     if not isinstance(bands, list) or any(not isinstance(b, int) or b not in CLUSTER_BANDS for b in bands):
@@ -2080,7 +2092,7 @@ def set_cluster_filters():
         return cluster_error(400, "Invalid activity")
 
     def change(host, port, servers, opts):
-        opts.update(modes=[m for m in CLUSTER_MODES if m in modes], max_age=max_age, skip=skip,
+        opts.update(modes=[m for m in CLUSTER_MODES if m in modes], max_age=max_age, skip=skip, spotter_dxcc=spotter_dxcc,
                     bands=[b for b in CLUSTER_BANDS if b in bands], activity=[a for a in CLUSTER_ACTIVITY if a in activity])
     return cluster_update(change)
 
