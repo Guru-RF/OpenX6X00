@@ -7,6 +7,8 @@ import math
 import sqlite3
 
 LSB, USB, AM, NFM, WFM = 0, 2, 6, 7, 9      # x6100_mode_t
+TX_SHIFT_MAX = 10_000_000                   # Hz, the GUI's SettingsManager::TX_SHIFT_MAX
+HF_MIN, HF_MAX = 100_000, 55_000_000        # where the radio transmits without a transverter
 BAND_KEYS = ("name", "start_freq", "stop_freq", "type", "id")
 FREQ_KEYS = ("label", "freq", "mode", "type", "id")
 
@@ -77,6 +79,31 @@ def default_mode(freq):
     return LSB if freq < 10_000_000 else USB
 
 
+def hf_tx(lo, hi):
+    """True when the radio transmits somewhere in [lo, hi] Hz, by HF alone: what is known without the GUI, which knows
+    the transverters too (band_use, the GUI socket's "band_use")."""
+    return lo <= HF_MAX and hi >= HF_MIN
+
+
+def _mhz(hz):
+    return f"{hz / 1e6:.3f}"
+
+
+def _check_tx_shift(band, shift, band_tx):
+    """A TX shift (Hz, 0 off) the band can take: up to 10 MHz either way, on a band the radio transmits on, and the
+    band shifted still one it transmits on. band_tx(lo, hi): does the radio transmit somewhere in [lo, hi]."""
+    if not shift:
+        return
+    if abs(shift) > TX_SHIFT_MAX:
+        raise Invalid("TX shift: 10000 kHz at most, up or down")
+    lo, hi = band["start_freq"], band["stop_freq"]
+    if not band_tx(lo, hi):
+        raise Invalid(f'No TX shift on "{band["name"]}": the radio does not transmit on {_mhz(lo)}-{_mhz(hi)} MHz')
+    if not band_tx(lo + shift, hi + shift):
+        raise Invalid(f"TX shift {shift / 1000:g} kHz: the radio does not transmit on "
+                      f"{_mhz(lo + shift)}-{_mhz(hi + shift)} MHz")
+
+
 def _check_overlap(band, others):
     lo, hi = band["start_freq"], band["stop_freq"]
     for other in others:
@@ -94,20 +121,26 @@ def _set_param(con, band_id, name, val):
         con.execute("INSERT INTO band_params (bands_id, name, val) VALUES (?, ?, ?)", (band_id, name, val))
 
 
-def add_band(con, data):
+def add_band(con, data, band_tx=hf_tx):
+    """A new band; a TX shift in its params checked (band_tx: _check_tx_shift), split on with it."""
     band = _band_input(data)
     _check_overlap(band, bands(con))
+    shift = band["params"].get("tx_shift", 0)
+    _check_tx_shift(band, shift, band_tx)
     band_id = con.execute("INSERT INTO bands (name, start_freq, stop_freq, type) VALUES (?, ?, ?, ?)",
                           (band["name"], band["start_freq"], band["stop_freq"], band["type"])).lastrowid
     params = band["params"]
     params.setdefault("vfoa_freq", band["start_freq"])
     params.setdefault("vfoa_mode", default_mode(band["start_freq"]))
+    if shift:
+        params["split"] = 1     # as the GUI's tx_shift_set: the shift works in split
     con.executemany("INSERT INTO band_params (bands_id, name, val) VALUES (?, ?, ?)",
                     [(band_id, k, v) for k, v in params.items()])
 
 
-def update_band(con, band_id, data):
-    """New name, edges, Active flag and mode. A VFO frequency left outside the new edges moves to the start."""
+def update_band(con, band_id, data, band_tx=hf_tx):
+    """New name, edges, Active flag, mode and TX shift. A VFO frequency left outside the new edges moves to the start.
+    A new TX shift turns split on (off with 0), as on the radio; one checked again when the edges change."""
     band = _band_input(data)
     others = bands(con)
     old = next((b for b in others if b["id"] == band_id), None)
@@ -115,6 +148,10 @@ def update_band(con, band_id, data):
         raise Invalid(f"Band parameters with id={band_id} not found")
     others.remove(old)
     _check_overlap(band, others)
+    old_shift = old["params"].get("tx_shift", 0)
+    shift = band["params"].get("tx_shift", old_shift)
+    if shift != old_shift or (old["start_freq"], old["stop_freq"]) != (band["start_freq"], band["stop_freq"]):
+        _check_tx_shift(band, shift, band_tx)
     con.execute("UPDATE bands SET name = ?, start_freq = ?, stop_freq = ?, type = ? WHERE id = ?",
                 (band["name"], band["start_freq"], band["stop_freq"], band["type"], band_id))
     for vfo in ("vfoa_freq", "vfob_freq"):
@@ -122,6 +159,9 @@ def update_band(con, band_id, data):
             _set_param(con, band_id, vfo, band["start_freq"])
     if "vfoa_mode" in band["params"]:
         _set_param(con, band_id, "vfoa_mode", band["params"]["vfoa_mode"])
+    if shift != old_shift:      # unchanged: a split set by hand stays as it is
+        _set_param(con, band_id, "tx_shift", shift)
+        _set_param(con, band_id, "split", int(shift != 0))
 
 
 def delete_band(con, band_id):

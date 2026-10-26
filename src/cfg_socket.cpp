@@ -8,6 +8,7 @@
  *    {"cmd":"disp_set","text":name,"val":v}           -> {"t":"ok"} or {"t":"err","err":"..."}; "theme":name for the theme
  *    {"cmd":"eth_get"}                                -> {"t":"eth", ...}
  *    {"cmd":"eth_set","dhcp":0|1,"ip":..,"mask":..,"gw":..,"dns":..}
+ *    {"cmd":"band_use","lo":hz,"hi":hz}               -> {"t":"band_use","use":0|1|2} (none, receive, transmit)
  *  The values are checked here and applied on the LVGL thread through the scheduler, as the
  *  Settings pages apply them.
  *
@@ -274,6 +275,20 @@ static void eth_apply_cb(void *arg) {
     eth_apply((eth_cfg_t *)arg);
 }
 
+/* What the radio can do somewhere in [lo, hi] Hz (band_use: HF, the transverters that are on, the X6200's receive
+ * ranges): the web Bands page checks a TX shift with it. Read only, answered from this thread */
+static const char *band_use_get(cJSON *req, char *out, size_t size, int *l) {
+    cJSON *lo = cJSON_GetObjectItemCaseSensitive(req, "lo");
+    cJSON *hi = cJSON_GetObjectItemCaseSensitive(req, "hi");
+
+    if (!cJSON_IsNumber(lo) || !cJSON_IsNumber(hi) || lo->valuedouble < -2e9 || hi->valuedouble > 2e9 ||
+        lo->valuedouble > hi->valuedouble)
+        return "Invalid range";
+    *l = snprintf(out, size, "{\"t\":\"band_use\",\"use\":%d}\n",
+                  (int)cfg_sm.band_use((int32_t)lo->valuedouble, (int32_t)hi->valuedouble));
+    return NULL;
+}
+
 /* The answer to one request line */
 static int handle_line(const char *line, char *out, size_t size) {
     cJSON      *req  = cJSON_Parse(line);
@@ -295,6 +310,8 @@ static int handle_line(const char *line, char *out, size_t size) {
         eth_cfg_t cfg;
         if (!(err = eth_set(req, &cfg)) && !scheduler_put(eth_apply_cb, &cfg, sizeof(cfg)))
             err = "Busy, try again";
+    } else if (!strcmp(name->valuestring, "band_use")) {
+        err = band_use_get(req, out, size, &l);
     } else {
         err = "Unknown command";
     }

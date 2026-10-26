@@ -6,6 +6,7 @@ try:
     import gzip
 except ImportError:   # images built before python3-zlib was selected
     gzip = None
+import functools
 import json
 import os
 import re
@@ -16,7 +17,7 @@ import bottle
 
 from . import freq_lists
 from . import settings
-from .apps import PACKAGE_DIR, api_error, app
+from .apps import PACKAGE_DIR, api_error, app, display_call
 
 STATIC_PATH = os.path.join(PACKAGE_DIR, "static")
 
@@ -46,6 +47,15 @@ def freq_list_change(change, *args, created=False):
     return {"status": "OK"}
 
 
+def band_tx(lo, hi):
+    """Whether the radio transmits somewhere in [lo, hi] Hz, as the GUI's band_use has it (src/cfg_socket.cpp: HF, the
+    transverters that are on); HF alone when the GUI does not answer. For the TX shift on the Bands page."""
+    reply = display_call({"cmd": "band_use", "lo": lo, "hi": hi})
+    if reply and reply.get("t") == "band_use":
+        return reply.get("use") == 2
+    return freq_lists.hf_tx(lo, hi)
+
+
 @app.get('/api/bands')
 def bands_get(dbcon):
     return json_list(freq_lists.bands(dbcon))
@@ -53,12 +63,12 @@ def bands_get(dbcon):
 
 @app.put('/api/bands')
 def bands_add(dbcon):
-    return freq_list_change(freq_lists.add_band, dbcon, created=True)
+    return freq_list_change(functools.partial(freq_lists.add_band, band_tx=band_tx), dbcon, created=True)
 
 
 @app.post('/api/bands/<band_id:int>')
 def bands_set(band_id, dbcon):
-    return freq_list_change(freq_lists.update_band, dbcon, band_id)
+    return freq_list_change(functools.partial(freq_lists.update_band, band_tx=band_tx), dbcon, band_id)
 
 
 @app.delete('/api/bands/<band_id:int>')
