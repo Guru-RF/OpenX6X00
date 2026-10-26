@@ -31,6 +31,17 @@ bool dxcc_lookup(const char *call, const char **name, const char **prefix);
  * and north positive. False when the call is unknown, as above. */
 bool dxcc_pos(const char *call, double *lat, double *lon);
 
+/* The DXCC entity of `call`, as its primary prefix ("K", "DL"), NULL when
+ * unknown (as dxcc_lookup()). cty.dat's WAE-only entities count as the DXCC
+ * entity they are part of: IT9 (Sicily) is "I", GM/s (Shetland) "GM", TA1
+ * "TA", 4U1V "OE", IG9 "I", JW/b "JW". Compare the results with strcmp(). */
+const char *dxcc_entity(const char *call);
+
+/* The same for a prefix as a person types it ("PD" -> "PA", "OT" -> "ON",
+ * "K", "R" -> "UA", "IT9" -> "I"): its longest match in cty.dat's prefix
+ * list, single letters included. False when nothing matches. */
+bool dxcc_prefix_entity(const char *prefix, const char **entity);
+
 #ifdef __cplusplus
 }
 #endif

@@ -403,6 +403,59 @@ bool dxcc_lookup(const char *call, const char **name, const char **prefix)
     return true;
 }
 
+/* cty.dat's WAE-only entities (a '*' before the prefix) and the DXCC
+ * entity each one is part of. */
+static const char *wae_parent(const char *prefix)
+{
+    static const char *const map[][2] = {
+        { "4U1V", "OE" }, { "GM/s", "GM" }, { "IG9", "I" }, { "IT9", "I" },
+        { "JW/b", "JW" }, { "TA1",  "TA" },
+        { NULL, NULL }
+    };
+    int i;
+
+    for (i = 0; map[i][0] != NULL; i++) {
+        if (strcmp(prefix, map[i][0]) == 0) {
+            return map[i][1];
+        }
+    }
+    return prefix;
+}
+
+const char *dxcc_entity(const char *call)
+{
+    const char *prefix;
+
+    return dxcc_lookup(call, NULL, &prefix) ? wae_parent(prefix) : NULL;
+}
+
+bool dxcc_prefix_entity(const char *prefix, const char **entity)
+{
+    char s[CALL_MAX];
+    int  ent;
+    int  i;
+    int  o = 0;
+
+    pthread_once(&once, load);
+    if (prefix == NULL || n_ents == 0) {
+        return false;
+    }
+    for (i = 0; prefix[i] != '\0' && o < (int)sizeof(s) - 1; i++) {
+        if (!isspace((unsigned char)prefix[i])) {
+            s[o++] = (char)toupper((unsigned char)prefix[i]);
+        }
+    }
+    s[o] = '\0';
+    /* Not through dxcc_lookup(): it wants two characters at least, and a
+     * prefix padded into a call can land elsewhere (R0 is Asiatic Russia) */
+    ent = o > 0 ? longest_prefix(s) : -1;
+    if (ent < 0) {
+        return false;
+    }
+    *entity = wae_parent(ents[ent].prefix);
+    return true;
+}
+
 bool dxcc_pos(const char *call, double *lat, double *lon)
 {
     const char *prefix;
