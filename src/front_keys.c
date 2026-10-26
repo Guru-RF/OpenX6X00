@@ -8,8 +8,8 @@
 
 /* The radio's buttons (front and top side, the knob presses) from their input devices.
  * A button goes to the screen as EVENT_KEYPAD: press, release, and after the hold time
- * long and its release. The VOL press is an LVGL key of its own (KEY_VOL_PRESS); the MFK
- * press is the button of the MFK encoder (encoder.c). */
+ * long and its release. The VOL press is an LVGL key of its own (KEY_VOL_PRESS), once a
+ * press however long it is held; the MFK press is the button of the MFK encoder (encoder.c). */
 
 #include "front_keys.h"
 
@@ -122,8 +122,10 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
             if (backlight_tick() && in.value) {
                 /* the press woke the screen: that was its job, the radio does not see it */
             } else if (in.code == VOL_PRESS) {
-                pad->evdev_key   = KEY_VOL_PRESS;
-                pad->evdev_state = in.value ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+                if (in.value == 1) {    /* the press only: let go below, whatever the key does */
+                    pad->evdev_key   = KEY_VOL_PRESS;
+                    pad->evdev_state = LV_INDEV_STATE_PRESSED;
+                }
             } else if (in.code == MFK_PRESS) {
                 mfk->pressed = in.value != 0;
                 /* The encoder samples it at its next read: a quick press and release
@@ -136,6 +138,9 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     }
     data->key   = pad->evdev_key;
     data->state = pad->evdev_state;
+    /* LVGL sees the VOL press for one read: a key held past its long press time (HOLD_MS) is
+     * sent again every 100 ms, and each one flipped VOL between choosing and changing */
+    pad->evdev_state = LV_INDEV_STATE_RELEASED;
 }
 
 /* The POWER key as the base reports it in its packets (the X6200, hw_pack_t.power_key) or as

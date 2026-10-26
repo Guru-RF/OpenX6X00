@@ -19,7 +19,7 @@ typedef struct {
     int            fd;
     lv_indev_drv_t indev_drv;
     lv_indev_t    *indev;
-    int            evdev_state;     /* the VOL press as LVGL sees it */
+    int            evdev_state;     /* the VOL press as LVGL sees it: pressed for one read */
     int            evdev_key;
 } keypad_t;
 
