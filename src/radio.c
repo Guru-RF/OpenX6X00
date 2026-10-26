@@ -476,11 +476,13 @@ void radio_start_atu() {
     state_move(RADIO_RX, RADIO_ATU_START);
 }
 
-bool radio_start_swrscan() {
+/* Nothing moves before the scan is known to start: the VFO that transmits goes to `from` only then */
+bool radio_start_swrscan(int32_t from) {
     if (tx_refused() || !state_move(RADIO_RX, RADIO_SWRSCAN)) {
         return false;
     }
 
+    radio_set_tx_freq(from);
     cparam_i_set(cfg_cur_mode, radio_mode_am);
     radio_lock();
     /* 1 W is enough to read the SWR; less if PWR is set lower.

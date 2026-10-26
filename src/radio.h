@@ -80,7 +80,9 @@ void radio_set_charger(bool on);
 
 void radio_start_atu();
 
-bool radio_start_swrscan();
+/* From RX only, where the radio may transmit (else false, "No TX on ..." said): the VFO that transmits to `from`,
+ * then AM at 1 W at most */
+bool radio_start_swrscan(int32_t from);
 void radio_stop_swrscan();
 
 void radio_poweroff();
