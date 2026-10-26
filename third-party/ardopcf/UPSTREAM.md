@@ -57,3 +57,6 @@ Each one is its own commit on top of the pristine import.
   playback device name of 80 characters or more (on the command line, or in
   the `CAPTURE` / `PLAYBACK` host commands) is refused instead of copied past
   the end of its 80-byte buffer; the port argument is cut to its buffer.
+- `lib/rawhid/rawhid.c`: on Linux `CM108Handle` is the file descriptor its
+  `read`/`write`/`close` calls take, not a `hid_device *` (an int-conversion
+  warning with older gcc, an error with gcc 14 and later).
