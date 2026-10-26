@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A TCI client of the plainest kind, for the host test of src/tci_server.c (see Makefile):
-a raw WebSocket on 127.0.0.1:50001 that walks through what the VFO-Knob does on a connection.
-Standard library only."""
+a raw WebSocket on 127.0.0.1:50001 (TCI_TEST_PORT) that walks through what the VFO-Knob does
+on a connection. Standard library only."""
 import base64
 import hashlib
 import os
@@ -10,7 +10,7 @@ import struct
 import sys
 import time
 
-HOST, PORT = "127.0.0.1", 50001
+HOST, PORT = "127.0.0.1", int(os.environ.get("TCI_TEST_PORT", "50001"))
 
 
 class WS:
