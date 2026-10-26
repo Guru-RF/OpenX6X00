@@ -266,6 +266,22 @@ static int _10_band_60m() {
     return 0;
 }
 
+/* The X6200's two transverters are off by default now (a shift of 0, settings_manager.h): its 2 m and 70 cm are the
+ * WR12's, to receive. One set up before (a row saved for it) keeps its shift, the old default where only its edges
+ * were changed. The X6100 keeps its transverters as they were */
+static int _11_x6200_transverters_off() {
+#ifdef BOARD_X6200
+    if (sqlite3_exec(db,
+                     "INSERT OR IGNORE INTO transverter SELECT DISTINCT id, 'shift', "
+                     "CASE id WHEN 0 THEN 116000000 ELSE 404000000 END FROM transverter WHERE id IN (0, 1);",
+                     NULL, NULL, NULL) != SQLITE_OK) {
+        printf("Cannot keep the transverters: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+#endif
+    return 0;
+}
+
 static int (*migrations[])() = {
     _0_init_migrations,
     _1_create_ftx_table,
@@ -278,6 +294,7 @@ static int (*migrations[])() = {
     _8_fix_comp_offsets,
     _9_vhf_rx_bands,
     _10_band_60m,
+    _11_x6200_transverters_off,
 };
 
 int migrations_apply(void) {

@@ -466,19 +466,22 @@ class SettingsManager {
     // context_id is the fixed transverter number (0 or 1) — never switched. NOT registered
     // in any load-all registry (group = nullptr): they are loaded individually
     // in init_load() with explicit load(0)/load(1). Values are frequencies in Hz.
+    // A shift of 0 is a transverter that is off. The X6200's are off by default: its 2 m and 70 cm are the WR12's,
+    // to receive, and the always-on transverters tuned "145.500" to 29.500 MHz and transmitted there, on 10 m.
+    // Migration _11 keeps the shift of one set up before. The X6100 keeps upstream's two, on by default
     // Transverter 0 (2m: 144-150 MHz, IF at 28 MHz)
     Parameter<int32_t> p_transverter_0_from{"from", 144'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
     Parameter<int32_t> p_transverter_0_to{"to", 150'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
-    Parameter<int32_t> p_transverter_0_shift{"shift", 116'000'000, 0, 500'000'000,
+    Parameter<int32_t> p_transverter_0_shift{"shift", HAS_VHF_RX ? 0 : 116'000'000, 0, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
     // Transverter 1 (70cm: 432-438 MHz, IF at 28 MHz)
     Parameter<int32_t> p_transverter_1_from{"from", 432'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
     Parameter<int32_t> p_transverter_1_to{"to", 438'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
-    Parameter<int32_t> p_transverter_1_shift{"shift", 404'000'000, 0, 500'000'000,
+    Parameter<int32_t> p_transverter_1_shift{"shift", HAS_VHF_RX ? 0 : 404'000'000, 0, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
 
     // --- MODE params (`mode_params` table) ---

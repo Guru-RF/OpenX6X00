@@ -838,7 +838,7 @@ static uint8_t make_key_rows(uint8_t row, int first, int last) {
     return row;
 }
 
-/* Transverters: the band they cover (from, to) and the shift, in MHz */
+/* Transverters: the band they cover (from, to) and the shift, in MHz; a shift of 0 is off (the X6200's default) */
 static void xvrt_cb(lv_event_t *e) {
     ((ParamInt *)lv_event_get_user_data(e))->set(lv_spinbox_get_value(lv_event_get_target(e)) * 1000000L);
 }
@@ -848,12 +848,12 @@ static uint8_t make_transverters(uint8_t row) {
         {&cfg_sm.p_transverter_0_from, &cfg_sm.p_transverter_0_to, &cfg_sm.p_transverter_0_shift},
         {&cfg_sm.p_transverter_1_from, &cfg_sm.p_transverter_1_to, &cfg_sm.p_transverter_1_shift},
     };
-    const int lo[3] = {70, 70, 42};
+    const int lo[3] = {70, 70, 0};
 
     for (auto &x : p) {
-        char label[24];
+        char label[32];
 
-        snprintf(label, sizeof(label), "%i: from, to, shift", x[0]->context_id() + 1);
+        snprintf(label, sizeof(label), "%i: from, to, shift (0 off)", x[0]->context_id() + 1);
         wl_row_label(row, label);
         for (int i = 0; i < 3; i++) {
             lv_obj_t *sb = row_spin(row, 1 + 2 * i, 2, SMALL_2, x[i]->get() / 1000000L, lo[i], 500, 3);
