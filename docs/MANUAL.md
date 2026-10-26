@@ -491,7 +491,7 @@ base is too old.
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
-| TCI SERVER | on/off, port and status, connected client |
+| TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only, see [TCI server](#tci-server)) |
 
 Main knob acceleration. Where: Settings > General > CONTROLS > Freq
 acceleration.
