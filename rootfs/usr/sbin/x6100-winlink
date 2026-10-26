@@ -1,0 +1,625 @@
+#!/usr/bin/env python3
+# OpenX6X00 - Winlink: email over HF from the radio alone. Pat (getpat.io) is the client: its web mailbox on
+# port 8080 is used from a phone or a laptop. ardopcf is the ARDOP modem: its audio and PTT go through the GUI
+# (the socket /run/ardop.sock), which owns the radio's audio and keys it as for its other digital modes, and
+# tunes the radio for Pat as a rigctld on 127.0.0.1:4532. Both programs come with the firmware (/usr/bin).
+# Off by default; when off, nothing runs.
+#
+#   x6100-winlink               at boot (S98winlink): start the supervisor when Winlink is on
+#   x6100-winlink on            turn it on: start Pat and ardopcf
+#   x6100-winlink off           turn it off: Pat and ardopcf stop
+#   x6100-winlink apply         write Pat's config again from the settings; Pat restarts when they changed
+#   x6100-winlink set-password  the Winlink password, read from stdin (the web page): never on a command line
+#   x6100-winlink status        the state as key=value lines: state, text, pat, ardop
+#   x6100-winlink stop          stop the supervisor and wait for it, the setting kept (S98winlink stop)
+#   x6100-winlink run           the supervisor itself, started by the commands above
+#
+# The settings are in /mnt/winlink.conf (enabled=0|1, mycall=, locator=, bandwidth=500|2000), written by
+# the web page; an empty callsign or locator is the radio's own (Settings > General: callsign and QTH).
+# Pat's config.json holds the password, so it lives on the root filesystem (/var/lib/winlink/pat), where the
+# web pages cannot read it. It is merged, not written whole: our keys are set, every other one is kept,
+# since Pat's own Settings page edits the file too. The mailbox is on the DATA partition (/mnt/winlink/pat)
+# and survives a new card image; Pat's state and the logs are in RAM (/run/winlink).
+#
+# Pat ends a connection in progress on SIGINT and stops on the next one; SIGTERM would kill it at once,
+# perhaps in the middle of a transmission. So Pat gets SIGINT, a wait, SIGINT, a wait, then SIGKILL.
+# SIGTERM to the supervisor (S98winlink stop, at shutdown) stops both programs and keeps the setting.
+#
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
+import copy
+import fcntl
+import hashlib
+import json
+import os
+import re
+import signal
+import socket
+import sqlite3
+import subprocess
+import sys
+import time
+
+ROOT = os.environ.get("X6100_WINLINK_ROOT", "")   # tests on a PC only: every path below under it
+CONF = ROOT + "/mnt/winlink.conf"     # the settings: on the DATA partition, they survive a new image
+PARAMS_DB = ROOT + "/mnt/params.db"   # the radio's callsign and QTH, the defaults
+DATA = ROOT + "/mnt/winlink"          # XDG_DATA_HOME: Pat's mailbox, forms, gateway list
+LIB = ROOT + "/var/lib/winlink"       # XDG_CONFIG_HOME: Pat's config (with the password), its prehooks
+PAT_CONFIG = os.path.join(LIB, "pat", "config.json")
+PASSWORD = os.path.join(LIB, "password")
+RUN = ROOT + "/run/winlink"           # status, lock, logs
+STATE = os.path.join(RUN, "state")    # XDG_STATE_HOME: Pat's own log and event log, in RAM
+STATUS = os.path.join(RUN, "status")
+LOCK = os.path.join(RUN, "lock")
+CONFIG_LOCK = os.path.join(RUN, "config.lock")
+PAT_LOG = os.path.join(RUN, "pat.log")
+ARDOP_LOG = os.path.join(RUN, "ardopcf.log")
+LOG_MAX = 256 * 1024
+PAT = ROOT + "/usr/bin/pat"
+ARDOPCF = ROOT + "/usr/bin/ardopcf"
+ARDOP_SOCK = ROOT + "/run/ardop.sock"  # the GUI's audio and PTT bridge (src/winlink.c)
+ARDOP_PORT = 8515                      # ardopcf's host port on 127.0.0.1 (data on 8516)
+HTTP_PORT = 8080                       # Pat's web mailbox
+RIG = "x6x00"                          # the name of the GUI's rigctld in Pat's config
+POLL = 2                               # s between looks at the settings and the programs
+RETRY_FIRST = 5                        # s before a program that stopped is started again, doubled each time
+RETRY_MAX = 60
+STABLE = 120                           # s of running after which a stop counts as the first again
+PAT_INT_WAIT = (10, 5)                 # s after the first and the second SIGINT
+ARDOP_TERM_WAIT = 5
+BANDWIDTHS = (500, 2000)
+CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")
+LOCATOR_RE = re.compile(r"[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?")
+
+# Pat's own defaults (cfg.DefaultConfig of v1.0.0), for a config.json that does not exist yet: Pat reads a
+# file that exists on top of an empty config, so what it leaves out would be empty, not Pat's default
+PAT_DEFAULTS = {
+    "mycall": "", "secure_login_password": "", "auxiliary_addresses": [], "locator": "",
+    "auto_download_size_limit": -1, "service_codes": ["PUBLIC"], "http_addr": "localhost:8080",
+    "motd": ["Open source Winlink client - getpat.io"],
+    "connect_aliases": {"telnet": "telnet://{mycall}:CMSTelnet@cms.winlink.org:8772/wl2k"},
+    "listen": [], "hamlib_rigs": {},
+    "ax25": {"engine": "agwpe", "rig": "", "beacon": {"every": 3600, "message": "Winlink P2P", "destination": "IDENT"}},
+    "ax25_linux": {"port": "wl2k"},
+    "agwpe": {"addr": "localhost:8000", "radio_port": 0},
+    "serial-tnc": {"path": "/dev/ttyUSB0", "serial_baud": 9600, "hbaud": 1200, "type": "kenwood"},
+    "ardop": {"addr": "localhost:8515", "arq_bandwidth": {"Forced": False, "Max": 500}, "connect_requests": 10,
+              "rig": "", "ptt_ctrl": False, "beacon_interval": 0, "cwid_enabled": True},
+    "pactor": {"path": "/dev/ttyUSB0", "baudrate": 57600, "rig": "", "custom_init_script": ""},
+    "telnet": {"listen_addr": ":8774", "password": ""},
+    "varahf": {"addr": "localhost:8300", "bandwidth": 2300, "rig": "", "ptt_ctrl": False},
+    "varafm": {"addr": "localhost:8300", "rig": "", "ptt_ctrl": False},
+    "gpsd": {"enable_http": False, "allow_forms": False, "use_server_time": False, "update_locator": False,
+             "addr": "localhost:2947"},
+    "schedule": {}, "version_reporting_disabled": False,
+}
+
+
+class Fail(Exception):
+    pass
+
+
+_stop = []                            # SIGTERM seen (shutdown): stop, keep the setting
+_poke = []                            # SIGUSR1 (on, off, apply): look at the settings now
+
+
+def stopping():
+    return bool(_stop) or not enabled()
+
+
+# ---- the settings ----------------------------------------------------------------------------
+
+def read_conf():
+    conf = {}
+    try:
+        with open(CONF) as f:
+            for line in f:
+                k, sep, v = line.strip().partition("=")
+                if sep:
+                    conf[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return conf
+
+
+def enabled():
+    return read_conf().get("enabled") == "1"
+
+
+def set_enabled(on):
+    """enabled= changed, the other settings kept (the web page writes them)"""
+    conf = read_conf()
+    if conf.get("enabled") == ("1" if on else "0"):
+        return
+    conf = {"mycall": "", "locator": "", "bandwidth": "500", **conf, "enabled": "1" if on else "0"}
+    first = ["enabled", "mycall", "locator", "bandwidth"]
+    tmp = f"{CONF}.{os.getpid()}"
+    with open(tmp, "w") as f:
+        f.write("".join(f"{k}={conf[k]}\n" for k in first + [k for k in conf if k not in first]))
+        f.flush()
+        os.fsync(f.fileno())                       # /mnt is FAT on the SD card
+    os.replace(tmp, CONF)
+
+
+_station = (None, ("", ""))           # (params.db's mtimes, (callsign, QTH)) of the last read
+
+
+def radio_station():
+    """The radio's callsign and QTH locator, read again only when params.db changed; while it cannot be read
+    (the GUI writing it), the last ones read"""
+    global _station
+    key = []
+    for p in (PARAMS_DB, PARAMS_DB + "-wal"):
+        try:
+            key.append(os.stat(p).st_mtime_ns)
+        except OSError:
+            key.append(0)
+    if tuple(key) == _station[0]:
+        return _station[1]
+    try:
+        con = sqlite3.connect(f"file:{PARAMS_DB}?mode=ro", uri=True, timeout=2)
+        try:
+            rows = dict(con.execute("SELECT name, val FROM params WHERE name IN ('callsign', 'qth')").fetchall())
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return _station[1]
+    _station = (tuple(key), (str(rows.get("callsign") or ""), str(rows.get("qth") or "")))
+    return _station[1]
+
+
+def base_call(call):
+    """A Winlink account is the plain callsign: ON6URE of ON6URE/P or PA/ON6URE"""
+    return max(call.strip().upper().split("/"), key=len) if call.strip() else ""
+
+
+def norm_locator(loc):
+    """JO20ab: the field in capitals, the subsquare in small letters; "" for anything that is not a locator"""
+    loc = loc.strip()
+    if not LOCATOR_RE.fullmatch(loc):
+        return ""
+    return loc[:4].upper() + loc[4:].lower()
+
+
+def read_password():
+    try:
+        with open(PASSWORD) as f:
+            return f.read().strip("\r\n")
+    except OSError:
+        return ""
+
+
+def wanted():
+    """What Pat is to run with: the settings, the radio's own callsign and QTH where they are empty"""
+    conf = read_conf()
+    call, qth = radio_station()
+    mycall = conf.get("mycall", "").upper()
+    if not CALL_RE.fullmatch(mycall):
+        mycall = base_call(call)
+        mycall = mycall if CALL_RE.fullmatch(mycall) else ""
+    bw = int(conf["bandwidth"]) if conf.get("bandwidth") in ("500", "2000") else 500
+    return {"mycall": mycall, "locator": norm_locator(conf.get("locator", "")) or norm_locator(qth),
+            "bandwidth": bw}
+
+
+def write_config(want, password):
+    """Pat's config.json with our keys set and every other one kept (Pat's own Settings page edits it too).
+    True when the file changed. One writer at a time: the supervisor and the apply command"""
+    os.makedirs(os.path.dirname(PAT_CONFIG), mode=0o700, exist_ok=True)
+    os.makedirs(RUN, exist_ok=True)
+    with open(CONFIG_LOCK, "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        old = None
+        try:
+            with open(PAT_CONFIG) as f:
+                old = f.read()
+            cfg = json.loads(old)
+            if not isinstance(cfg, dict):
+                raise ValueError("not an object")
+        except FileNotFoundError:
+            cfg = copy.deepcopy(PAT_DEFAULTS)
+        except (OSError, ValueError, UnicodeDecodeError):
+            # Broken (by hand, or the power gone while Pat wrote it): kept aside, and a new one
+            try:
+                os.replace(PAT_CONFIG, PAT_CONFIG + ".bad")
+            except OSError:
+                pass
+            old = None
+            cfg = copy.deepcopy(PAT_DEFAULTS)
+
+        def sub(name):
+            v = cfg.get(name)
+            if not isinstance(v, dict):
+                v = cfg[name] = {}
+            return v
+
+        cfg.update({"mycall": want["mycall"], "secure_login_password": password, "locator": want["locator"],
+                    "http_addr": f":{HTTP_PORT}", "listen": [], "version_reporting_disabled": True})
+        sub("hamlib_rigs")[RIG] = {"network": "tcp", "address": "127.0.0.1:4532", "VFO": ""}
+        sub("ardop").update({"addr": f"127.0.0.1:{ARDOP_PORT}", "rig": RIG, "ptt_ctrl": False,
+                             "beacon_interval": 0, "cwid_enabled": True,
+                             "arq_bandwidth": {"Forced": False, "Max": want["bandwidth"]}})
+        sub("prediction")["engine"] = "disabled"
+        body = json.dumps(cfg, indent=2) + "\n"
+        if body == old:
+            return False
+        tmp = f"{PAT_CONFIG}.{os.getpid()}"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(body)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, PAT_CONFIG)
+        return True
+
+
+def say(state, text, pat="off", ardop="off"):
+    """The status file the web page reads: written when it changes. Never the password, also not in a
+    program's last log line"""
+    pw = read_password()
+    if pw:
+        text = text.replace(pw, "***")
+    fields = {"state": state, "text": text, "pat": pat, "ardop": ardop}
+    body = "".join(f"{k}={str(v).replace(chr(10), ' ')}\n" for k, v in fields.items())
+    try:
+        with open(STATUS) as f:
+            if f.read() == body:
+                return
+    except OSError:
+        pass
+    os.makedirs(RUN, exist_ok=True)
+    tmp = f"{STATUS}.{os.getpid()}"                # each writer its own: commands and the supervisor overlap
+    with open(tmp, "w") as f:
+        f.write(body)
+    os.replace(tmp, STATUS)
+
+
+# ---- the two programs ------------------------------------------------------------------------
+
+def last_line(path):
+    """The last line a program wrote, without Pat's date and time: why it stopped"""
+    try:
+        with open(path, "rb") as f:
+            f.seek(max(0, os.path.getsize(path) - 4096))
+            lines = [ln.strip() for ln in f.read().decode(errors="replace").splitlines() if ln.strip()]
+    except OSError:
+        return ""
+    if not lines:
+        return ""
+    return re.sub(r"^\d{4}/\d\d/\d\d \d\d:\d\d:\d\d(\.\d+)? ", "", lines[-1])[:160]
+
+
+class Program:
+    """Pat or ardopcf: its process, and when it may be started again after it stopped by itself"""
+
+    def __init__(self, label, log):
+        self.label, self.log = label, log
+        self.proc = None
+        self.started = 0.0
+        self.fails = 0
+        self.next = 0.0
+        self.why = ""
+        self.answered = False                      # Pat: its web mailbox answered since this start
+        self.settings = None                       # Pat: what it was started with
+
+    def alive(self):
+        return self.proc is not None and self.proc.poll() is None
+
+    def start(self, argv, env=None, nice=0):
+        self.started = time.time()                 # also for a start that fails: the next try waits longer
+        self.answered = False
+        os.makedirs(RUN, exist_ok=True)
+        log = open(self.log, "ab")
+        try:
+            self.proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env, cwd=RUN,
+                                         preexec_fn=(lambda: os.nice(nice)) if nice else None)
+        finally:
+            log.close()
+
+    def failed(self, why):
+        """Stopped or not started: tried again later, a little later each time it happens again soon"""
+        self.proc = None
+        self.fails = 1 if time.time() - self.started > STABLE else self.fails + 1
+        self.next = time.time() + min(RETRY_MAX, RETRY_FIRST * 2 ** (self.fails - 1))
+        self.why = why
+
+    def reap(self):
+        if self.proc is None or self.proc.poll() is None:
+            return
+        code = self.proc.returncode
+        if code < 0:                               # killed: its last line says nothing about it
+            try:
+                how = signal.Signals(-code).name
+            except ValueError:
+                how = f"signal {-code}"
+        else:
+            line = last_line(self.log)
+            how = f"code {code}{': ' + line if line else ''}"
+        self.failed(f"{self.label} stopped ({how})")
+
+    def wait_left(self):
+        return max(0, int(self.next - time.time() + 0.999))
+
+
+def stop_pat(p):
+    """SIGINT ends a connection in progress, the next one stops Pat; SIGKILL if it still runs"""
+    if p is None or p.poll() is not None:
+        return
+    for wait in PAT_INT_WAIT:
+        p.send_signal(signal.SIGINT)
+        try:
+            p.wait(wait)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+    p.kill()
+    p.wait()
+
+
+def stop_ardop(p):
+    if p is None or p.poll() is not None:
+        return
+    p.terminate()
+    try:
+        p.wait(ARDOP_TERM_WAIT)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        p.wait()
+
+
+def start_ardop(ardop):
+    ardop.start([ARDOPCF, "--nologfile", str(ARDOP_PORT), f"SOCK:{ARDOP_SOCK}", f"SOCK:{ARDOP_SOCK}"])
+
+
+def start_pat(pat, want):
+    password = read_password()
+    write_config(want, password)
+    for d in (DATA, STATE):
+        os.makedirs(d, exist_ok=True)
+    # Pat takes PAT_* variables over its config file: none from outside
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("PAT_", "ARDOP_", "XDG_"))}
+    env.update(XDG_CONFIG_HOME=LIB, XDG_DATA_HOME=DATA, XDG_STATE_HOME=STATE)
+    pat.start([PAT, "http", "--addr", f":{HTTP_PORT}"], env=env, nice=10)   # behind the GUI and the modem
+    pat.settings = (want, hashlib.sha256(password.encode()).hexdigest())
+
+
+def answers(port):
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout=1).close()
+        return True
+    except OSError:
+        return False
+
+
+def trim_logs():
+    for path in (PAT_LOG, ARDOP_LOG):
+        try:
+            if os.path.getsize(path) > LOG_MAX:
+                os.truncate(path, 0)               # opened for appending: the program goes on from 0
+        except OSError:
+            pass
+
+
+def nap(seconds):
+    """A sleep that ends when Winlink is turned off, or a command asks for a look at the settings"""
+    end = time.time() + seconds
+    while time.time() < end and not stopping() and not _poke:
+        time.sleep(min(0.5, max(0, end - time.time())))
+
+
+def report(pat, ardop, want):
+    st = {"pat": "running" if pat.alive() and pat.answered else "starting" if pat.alive() else "stopped",
+          "ardop": "running" if ardop.alive() else "stopped"}
+    waiting = [p for p in (ardop, pat) if not p.alive()]
+    if waiting:
+        p = waiting[0]
+        say("error", f"{p.why}; starting it again in {p.wait_left()} s", **st)
+    elif st["pat"] != "running":
+        say("starting", "Starting Pat and ARDOP...", **st)
+    else:
+        call = f"Running as {want['mycall']}" if want["mycall"] else "Running, with no callsign yet"
+        gui = "" if os.path.exists(ARDOP_SOCK) else "; ARDOP waits for the radio's audio (the GUI)"
+        say("running", call + gui, **st)
+
+
+def run():
+    # The handlers before the pid is in the lock: a SIGUSR1 from a command would end the process otherwise
+    signal.signal(signal.SIGTERM, lambda *_: _stop.append(1))
+    signal.signal(signal.SIGUSR1, lambda *_: _poke.append(1))
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    os.makedirs(RUN, exist_ok=True)
+    lock = open(LOCK, "a+")                        # not "w": that would empty a running supervisor's pid
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return 0                                   # one supervisor already runs
+    lock.truncate(0)
+    lock.write(f"{os.getpid()}\n")
+    lock.flush()
+    pat = Program("Pat", PAT_LOG)
+    ardop = Program("ARDOP (ardopcf)", ARDOP_LOG)
+    try:
+        while not stopping():
+            _poke.clear()
+            missing = [p for p in (PAT, ARDOPCF) if not os.access(p, os.X_OK)]
+            if missing:
+                say("error", f"{os.path.basename(missing[0])} is not on this radio: it comes with the update "
+                             "that brings Winlink")
+                nap(RETRY_MAX)
+                continue
+            want = wanted()
+            now = (want, hashlib.sha256(read_password().encode()).hexdigest())
+            for p in (ardop, pat):
+                p.reap()                           # stopped by itself: tried again later
+            if pat.alive() and pat.settings != now:
+                say("starting", "Restarting Pat with the new settings...", pat="starting",
+                    ardop="running" if ardop.alive() else "stopped")
+                stop_pat(pat.proc)
+                pat.proc = None
+                if stopping():                     # turned off meanwhile: nothing more to start
+                    break
+            if not pat.alive() and pat.settings != now:
+                pat.next = pat.fails = 0           # new settings: tried at once, perhaps they were the trouble
+            # ardopcf first: Pat connects to it the first time it needs the modem, and again when it went
+            for p, start in ((ardop, start_ardop), (pat, lambda p: start_pat(p, want))):
+                if not p.alive() and time.time() >= p.next:
+                    try:
+                        start(p)
+                    except (OSError, ValueError) as e:
+                        p.failed(f"{p.label} could not start ({e})")
+            if pat.alive() and not pat.answered:
+                pat.answered = answers(HTTP_PORT)
+            report(pat, ardop, want)
+            trim_logs()
+            nap(POLL)
+    finally:
+        if pat.alive() or ardop.alive():
+            say("off", "Stopping Pat and ARDOP...", pat="stopped" if not pat.alive() else "running",
+                ardop="stopped" if not ardop.alive() else "running")
+        stop_pat(pat.proc)                         # first: it ends its connection to the modem
+        stop_ardop(ardop.proc)
+        say("off", "Off")
+        lock.truncate(0)                           # no pid left behind that another process may get later
+        lock.close()                               # released: the next supervisor may start
+    # Turned on again while this one stopped (off, then on at once): the next one takes over. Not after
+    # SIGTERM: that is the shutdown, the setting stays as it is
+    if not _stop and enabled():
+        spawn()
+    return 0
+
+
+# ---- the commands ----------------------------------------------------------------------------
+
+def supervisor_pid():
+    """The running supervisor's pid, 0 for none: whoever holds the lock, not a pid that may be another's now"""
+    try:
+        f = open(LOCK)
+    except OSError:
+        return 0
+    with f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            return 0                               # nobody holds it
+        except OSError:
+            pass
+        try:
+            return int(f.read().strip() or 0)
+        except ValueError:
+            return 0
+
+
+def spawn():
+    """A supervisor, unless one runs (two at once: the second finds the lock taken and leaves)"""
+    if not supervisor_pid():
+        subprocess.Popen([os.path.abspath(sys.argv[0]), "run"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def poke():
+    """The supervisor looks at the settings now, not at its next poll; False when none runs"""
+    pid = supervisor_pid()
+    if pid:
+        try:
+            os.kill(pid, signal.SIGUSR1)
+            return True
+        except OSError:
+            pass
+    return False
+
+
+def wait_gone(seconds):
+    for _ in range(int(seconds * 10)):
+        if not supervisor_pid():
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def cmd_boot():
+    if enabled():
+        spawn()
+    else:
+        say("off", "Off")
+    return 0
+
+
+def cmd_on():
+    set_enabled(True)
+    if not poke():                                 # one that is stopping starts the next itself
+        say("starting", "Starting Pat and ARDOP...")
+        spawn()
+    return 0
+
+
+def cmd_off():
+    """The setting off: the supervisor stops Pat (a connection in progress ends first) and ardopcf"""
+    set_enabled(False)
+    poke()
+    if wait_gone(25):
+        say("off", "Off")                          # also when none ran: no stale state is left
+    return 0                                       # else still stopping: its status says so, then Off
+
+
+def cmd_apply():
+    """Pat's config written again now; a running supervisor restarts Pat when the settings changed"""
+    write_config(wanted(), read_password())
+    poke()
+    return 0
+
+
+def cmd_set_password():
+    pw = sys.stdin.read()
+    pw = pw[:-1] if pw.endswith("\n") else pw
+    pw = pw[:-1] if pw.endswith("\r") else pw
+    if not pw:
+        raise Fail("no password given")
+    if len(pw) > 64 or any(ord(c) < 32 or ord(c) == 127 for c in pw):
+        raise Fail("the password is 1-64 characters, no control characters")
+    os.makedirs(LIB, mode=0o700, exist_ok=True)
+    tmp = f"{PASSWORD}.{os.getpid()}"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(pw + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, PASSWORD)
+    return 0
+
+
+def cmd_status():
+    try:
+        with open(STATUS) as f:
+            sys.stdout.write(f.read())
+    except OSError:
+        sys.stdout.write("state=off\ntext=Off\npat=off\nardop=off\n")
+    return 0
+
+
+def cmd_stop():
+    """SIGTERM to the supervisor, and the wait while it stops Pat and ardopcf (S98winlink restart starts the
+    next one only then: it would find the lock taken)"""
+    pid = supervisor_pid()
+    if pid:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            return 0
+        wait_gone(30)
+    return 0
+
+
+def main(argv):
+    cmds = {"on": cmd_on, "off": cmd_off, "apply": cmd_apply, "set-password": cmd_set_password,
+            "status": cmd_status, "stop": cmd_stop, "run": run}
+    if argv and argv[0] not in cmds:
+        print("usage: x6100-winlink [" + "|".join(cmds) + "]", file=sys.stderr)
+        return 1
+    try:
+        return cmds[argv[0]]() if argv else cmd_boot()
+    except (Fail, OSError) as e:
+        print(f"error {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

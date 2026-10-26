@@ -159,9 +159,15 @@ def progress(step, got=0, total=0):
 def restart_apps():
     """The web server and the GUI, detached: the caller may be the web server itself. The GUI's
     start loop (x6100_daemon) is restarted too, not just the GUI: the loop is a shell script the
-    bundle may have changed, and the running shell keeps the old one until it exits."""
+    bundle may have changed, and the running shell keeps the old one until it exits. Winlink (Pat and
+    ardopcf, which come with the bundle) after them, when it is there; a rollback that took S98winlink away
+    stops its supervisor, which stops both programs."""
     subprocess.Popen(["setsid", "sh", "-c", "sleep 1; /etc/init.d/S96webserver restart >/dev/null 2>&1; "
-                      "/etc/init.d/S95gui restart >/dev/null 2>&1"], stdin=subprocess.DEVNULL,
+                      "/etc/init.d/S95gui restart >/dev/null 2>&1; "
+                      "if [ -x /etc/init.d/S98winlink ]; then /etc/init.d/S98winlink restart >/dev/null 2>&1; "
+                      "else pid=$(cat /run/winlink/lock 2>/dev/null); [ -n \"$pid\" ] && "
+                      "grep -q x6100-winlink /proc/$pid/cmdline 2>/dev/null && kill $pid; fi"],
+                     stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
 
