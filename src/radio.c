@@ -386,8 +386,20 @@ bool radio_check_freq(int32_t freq) {
     return cfg_is_valid_hw_freq(freq);
 }
 
+/* With a TX shift the frequency the shift asks for, not the other VFO's: that VFO is held to 100 kHz and up, so a
+ * shift below 0 Hz left it at 100 kHz, which can transmit and keyed there. This one is refused (tx_refused) and red
+ * on the screen instead */
 int32_t radio_tx_freq(void) {
-    return param_i_get(cfg_band_split) ? cparam_i_get(cfg_bg_freq) : cparam_i_get(cfg_fg_freq);
+    int32_t shift = param_i_get(cfg_band_tx_shift);
+    int32_t fg = cparam_i_get(cfg_fg_freq);
+
+    if (!param_i_get(cfg_band_split)) {
+        return fg;
+    }
+    if (shift) {
+        return param_i_get(cfg_band_current_vfo) == RADIO_VFO_A ? fg + shift : fg - shift;
+    }
+    return cparam_i_get(cfg_bg_freq);
 }
 
 /* The VFO the radio transmits on, the other one in split: radio_set_freq moved the active one, so FT8 and the other
@@ -590,8 +602,11 @@ static bool tx_refused(void) {
         return false;
     }
     if (get_time() - said > 3000) {     /* once, not for every CW element */
+        int32_t f = freq < 0 ? -freq : freq;    /* a TX shift below 0 Hz */
+
         said = get_time();
-        msg_schedule_text_fmt("No TX on %d.%03d MHz: receive only", freq / 1000000, freq / 1000 % 1000);
+        msg_schedule_text_fmt("No TX on %s%d.%03d MHz: receive only", freq < 0 ? "-" : "", f / 1000000,
+                              f / 1000 % 1000);
     }
     return true;
 }
