@@ -252,11 +252,16 @@ void bat_est_feed(const bat_sample_t *s) {
         win_start = s->t;
     }
 
-    /* A countdown that follows the model slowly: no jumps when the % does */
-    float now = minutes_now();
+    /* A countdown that follows the model slowly: no jumps when the % does. Never above the model
+     * though: near empty the base's % can fall 30 points in a few minutes, and the slow follow
+     * kept hours that were not there (0 % and 3h52 left, issue #31). So down at once, up slowly;
+     * at the base's 0 % nothing is left. Not on a reading with TX in its minute: the % sags under
+     * the TX current (radio.c holds the shown one), and one 0 would show 0h00 next to 11 %. The
+     * median of the last five gets there after three 0 readings */
+    float now = s->cap > 0 || s->tx_s > 0 ? minutes_now() : 0;
 
     shown = fresh ? now : shown - dt / 60;
-    shown = clampf(shown + 0.2f * (now - shown), 0, 6000);
+    shown = clampf(shown + 0.2f * (now - shown), 0, now);
 }
 
 int bat_est_minutes(int to_cap, bool *charging, bool *approx) {

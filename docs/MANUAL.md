@@ -239,10 +239,16 @@ really use it. It weighs what draws current:
 - headphones;
 - screen brightness.
 
-The time shown follows what you did in the last 20 minutes. Every 20 minutes the
-radio works its model out again and saves it on the microSD, so it is not lost
-when you switch off. The more you use the radio, the closer the time gets to the
-real one.
+The time shown follows what you did in the last 20 minutes. It counts down
+minute by minute and rises slowly, but it never shows more than the model gives
+for the % now: near empty the % can fall 30 points in a few minutes, and the
+time falls with it. At 0% on receive it shows 0h00. While you transmit the %
+sags under the TX current, so a single 0% reading is not taken as empty: the
+time reaches 0h00 after a few minutes at 0%. (Up to v0.3.5 it also followed
+slowly on the way down, and could still show hours at 0%, issue #31.) Every 20
+minutes the radio works its model out again and saves it on the microSD, so it
+is not lost when you switch off. The more you use the radio, the closer the time
+gets to the real one.
 
 Limits:
 - If you start transmitting much more than usual, the time drops fast. That is
