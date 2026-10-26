@@ -79,6 +79,7 @@
 #define RIG_CLIENTS     4
 #define RIG_LINE        256
 #define TUNE_WAIT_MS    700             /* \set_freq waits this long for the LVGL thread (Pat reads for 1 s) */
+#define PENDING_MS      (30 * 1000)     /* a QSY asked on the air is done at the end of it, if within this */
 
 typedef struct {
     uint8_t  type;
@@ -124,6 +125,10 @@ static struct {
 /* The worker's, kept from one connection to the next */
 static uint64_t unkey_ms;           /* our last transmission ended */
 static uint64_t swr_trip_ms;        /* the SWR protection stopped one, 0 never */
+static unsigned key_trips;          /* radio_swr_trips() when our last key began */
+static atomic_bool keying;          /* the worker transmits: on_air() may not show it yet, or no more */
+
+static void rig_pending_tune(void);
 
 static uint64_t now_ms(void) {
     struct timespec ts;
@@ -408,6 +413,13 @@ static const char *tx_refused(void) {
         usleep(10000);
     if (on_air())
         return "the radio is on the air";
+    /* A trip the guard reported after our last key ended (its callback runs on the LVGL thread,
+     * maybe after tx_player returned) counts for that key */
+    if (unkey_ms && radio_swr_trips() != key_trips) {
+        key_trips   = radio_swr_trips();    /* counted once */
+        swr_trip_ms = unkey_ms;
+        LV_LOG_WARN("winlink: SWR trip, no TX for %d minutes", SWR_HOLD_MS / 60000);
+    }
     if (swr_trip_ms && now_ms() - swr_trip_ms < SWR_HOLD_MS)
         return "an SWR trip less than 5 minutes ago";
     return NULL;
@@ -419,6 +431,8 @@ static void transmit(void) {
     bool     low   = audio_play_lowlat_begin();
     unsigned trips = radio_swr_trips();
 
+    key_trips = trips;
+
     if (!low)
         LV_LOG_WARN("winlink: no low-latency stream, playing through the usual one");
     msresamp_rrrf_reset(ses.rs);
@@ -426,11 +440,13 @@ static void transmit(void) {
     ses.key_ms   = now_ms();
 
     tx_player_stream(tx_fill, NULL, TX_PLAYER_AUDIO_HZ, tx_player_base_gain_offset(), tx_abort, NULL);
+    atomic_store(&keying, false);
 
     if (low)
         audio_play_lowlat_end();
     unkey_ms = now_ms();
     if (radio_swr_trips() != trips) {
+        key_trips   = radio_swr_trips();
         swr_trip_ms = unkey_ms;
         LV_LOG_WARN("winlink: SWR trip, no TX for %d minutes", SWR_HOLD_MS / 60000);
     }
@@ -466,8 +482,10 @@ static void *tx_thread(void *arg) {
         }
         ses.key       = KEY_ON;
         ses.fill_done = false;
+        atomic_store(&keying, true);
         pthread_mutex_unlock(&ses.lock);
 
+        rig_pending_tune();     /* a QSY Pat asked during the last key: this one goes out there */
         transmit();
 
         pthread_mutex_lock(&ses.lock);
@@ -675,18 +693,14 @@ static void tune_cb(void *arg) {
     atomic_fetch_add(&tunes, 1);
 }
 
-/* \set_freq: hamlib's code, 0 when the radio is there. Not while on the air (tx_player puts its
- * dial back at the end), nor on a frequency an app holds */
-static int rig_tune(double hz) {
-    unsigned seen = atomic_load(&tunes);
-    int32_t  f;
+static atomic_int    pending_hz;   /* a \set_freq asked on the air, done once it is over; 0 none */
+static atomic_ullong pending_ms;
 
-    if (!(hz >= 1.0 && hz < 2147483647.0))
-        return -1;      /* RIG_EINVAL */
-    f = (int32_t)llround(hz);
-    if (!cfg_is_valid_hw_freq(f))
-        return -1;
-    if (on_air() || !scheduler_put(tune_cb, &f, sizeof(f)))
+/* The tune on the LVGL thread, waited for: hamlib's code, 0 when the radio is there */
+static int rig_do_tune(int32_t f) {
+    unsigned seen = atomic_load(&tunes);
+
+    if (!scheduler_put(tune_cb, &f, sizeof(f)))
         return -9;      /* RIG_ERJCTED */
     for (int ms = 0; atomic_load(&tunes) == seen; ms += 5) {
         if (ms >= TUNE_WAIT_MS)
@@ -694,6 +708,38 @@ static int rig_tune(double hz) {
         usleep(5000);
     }
     return cparam_i_get(cfg_fg_freq) == f ? 0 : -9;
+}
+
+/* A QSY kept while on the air, now that it is over (the rig thread) or before the next key (the
+ * worker): whichever comes first takes it */
+static void rig_pending_tune(void) {
+    int32_t f = atomic_load(&pending_hz);
+
+    if (!f || (on_air() && !atomic_load(&keying)))
+        return;
+    f = atomic_exchange(&pending_hz, 0);
+    if (f && now_ms() - atomic_load(&pending_ms) < PENDING_MS)
+        rig_do_tune(f);
+}
+
+/* \set_freq: hamlib's code. On the air it is answered at once and done at the end of the
+ * transmission: tx_player puts its own dial back as it unkeys, and Pat tunes back a second after
+ * its session, while ardopcf may still send its ID. Not on a frequency an app holds */
+static int rig_tune(double hz) {
+    int32_t f;
+
+    if (!(hz >= 1.0 && hz < 2147483647.0))
+        return -1;      /* RIG_EINVAL */
+    f = (int32_t)llround(hz);
+    if (!cfg_is_valid_hw_freq(f))
+        return -1;
+    if (on_air() || atomic_load(&keying)) {
+        atomic_store(&pending_ms, now_ms());
+        atomic_store(&pending_hz, f);
+        return 0;
+    }
+    atomic_store(&pending_hz, 0);   /* asked again since: the newest wins */
+    return rig_do_tune(f);
 }
 
 /* The answer to one line into reply, "" for none. False: the client says goodbye */
@@ -820,11 +866,13 @@ static void *rig_thread(void *arg) {
             slot[n]  = i;
             pfd[n++] = (struct pollfd){.fd = rig_clients[i].fd, .events = POLLIN};
         }
-        if (poll(pfd, n, -1) < 0) {
+        if (poll(pfd, n, atomic_load(&pending_hz) ? 100 : -1) < 0) {
             if (errno != EINTR)
                 usleep(100000);
             continue;
         }
+        if (atomic_load(&pending_hz) && !on_air() && !atomic_load(&keying))
+            rig_pending_tune();
         for (nfds_t k = 1; k < n; k++) {
             if (pfd[k].revents)
                 rig_read(&rig_clients[slot[k]]);
