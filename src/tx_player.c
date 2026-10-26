@@ -9,6 +9,7 @@
 #include <math.h>                 /* log10f */
 #include <pthread.h>
 #include <stdatomic.h>
+#include <stdio.h>               /* the 0 W line in the log */
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -17,7 +18,7 @@
 
 #include "audio.h"               /* audio_play, audio_gain_db */
 #include "cfg/cfg_api.h"         /* param_f_get */
-#include "msg.h"                 /* the watchdog's note */
+#include "msg.h"                 /* the watchdog's and the 0 W notes */
 #include "params/params.h"       /* the learned gain offset */
 #include "radio.h"               /* radio_set_modem, radio_set_tx_freq */
 #include "tx_info.h"             /* tx_info_refresh: ALC and power */
@@ -122,6 +123,8 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     int16_t block[BLOCK_SAMPLES];
     float   applied = drive;        /* gain on the previous block */
     bool    stopped = false;
+    float   peak_w = 0.0f, peak_alc = 0.0f;    /* the highest readings after the settling, and how many */
+    int     reads = 0;
 
     static pthread_t watch;
     if (!watch && pthread_create(&watch, NULL, stall_watch, NULL) == 0) pthread_detach(watch);
@@ -133,6 +136,11 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
         bool    fresh = tx_info_refresh(&reading, &alc, &pwr, NULL);
 
         drive = keep_in_range(drive + tx_level_block(&level, fresh, pwr, alc));
+        if (fresh && level.blocks > TX_LEVEL_SETTLE_BLOCKS) {
+            peak_w = LV_MAX(peak_w, pwr);
+            peak_alc = LV_MAX(peak_alc, alc);
+            reads++;
+        }
 
         size_t n = fill(block, BLOCK_SAMPLES, fill_ctx);
 
@@ -156,9 +164,25 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
      * was found; one still climbing to the setting only back up towards the default (0), where the X6200 gives 5 W
      * at once. Without that, a level knocked down once (an ALC or power reading over: a mag loop not yet tuned)
      * climbed its 8 dB a transmission, never reached the setting, was never saved, and FT8 stayed at 0 W (#16) */
-    float learned = LV_MAX(drive - base_gain + codec, LEARNED_MIN_DB);
+    float level_db = drive - base_gain + codec;
+    float learned = LV_MAX(level_db, LEARNED_MIN_DB);
 
-    if (!level.power_hold || level.held) {
+    /* No power read at all once the PA settled, a whole transmission long (#16): said on the screen and in the log
+     * with what makes the level, so that a report tells the learned level, the Line-in and the base apart */
+    bool no_rf = !stopped && reads > 0 && level.blocks > TX_LEVEL_SETTLE_BLOCKS + 2 * TX_LEVEL_WINDOW_BLOCKS
+              && peak_w < TX_LEVEL_PWR_STEP_W;
+
+    if (no_rf) {
+        fprintf(stderr, "tx_player: 0 W the whole TX: level %.1f dB (codec %.1f, samples %.1f), line_in %u, "
+                "ALC %.1f, PWR %.1f W%s\n", level_db, codec, drive, params.line_in, peak_alc, level.target_w,
+                level.power_hold ? ", the level back to 0 dB" : "");
+        msg_schedule_text_fmt("TX 0 W: level %.0f dB, Line-in %u", level_db, params.line_in);
+    }
+    if (level.power_hold && no_rf) {
+        /* Nothing came out: the next transmission from the default, where the X6200 gives the setting at once, not
+         * 8 dB a transmission up from a level near the floor */
+        params_float_set(&params.ft8_output_gain_offset, 0.0f);
+    } else if (!level.power_hold || level.held) {
         params_float_set(&params.ft8_output_gain_offset, learned);
     } else if (params.ft8_output_gain_offset.x < 0.0f && learned > params.ft8_output_gain_offset.x) {
         params_float_set(&params.ft8_output_gain_offset, LV_MIN(learned, 0.0f));

@@ -225,6 +225,10 @@ void radio_start() {
 
     hw_start();
     base_ver = hw_base_ver();
+    /* What the digital TX level comes from, for a report of an app at 0 W (#16); the base version was nowhere */
+    fprintf(stderr, "radio: base %s, line_in %u, line_out %u, play %.1f dB, rec %.1f dB, digital level %.1f dB\n",
+            hw_base_ver_str(), params.line_in, params.line_out, params.play_gain_db_f.x, params.rec_gain_db_f.x,
+            params.ft8_output_gain_offset.x);
 
     subject_subscribe_and_notify((Subject*)cfg_band_vfoa_freq, on_vfo_freq_change, (void*)RADIO_VFO_A);
     subject_subscribe_and_notify((Subject*)cfg_band_vfob_freq, on_vfo_freq_change, (void*)RADIO_VFO_B);
