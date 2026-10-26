@@ -58,6 +58,14 @@ static struct {
 
 static lv_coord_t list_y, list_h;   /* the list's place with the pin table hidden */
 
+/* A touch on the list: LVGL's table selects the touched row while the finger is down, and no
+ * row once it is lifted (lv_table.c, pointer input) */
+static struct {
+    uint16_t row;       /* the MFK row before the touch, LV_TABLE_CELL_NONE: none */
+    bool     last;      /* that was the last row: the list followed the new ones */
+    uint16_t finger;    /* the row under the finger as it was lifted */
+} touch;
+
 /* The data of row r of the list or of the pin table, NULL for the "Wait sync" row */
 static cell_data_t *row_data(lv_obj_t *obj, uint32_t r) {
     if (obj == pin.obj) return r < (uint32_t)pin.n ? &pin.cd[r] : NULL;
@@ -208,7 +216,8 @@ static void drop_oldest(void) {
 
     if (list_rows.n <= KEEP_ROWS) return;
     for (int i = 0; i < DROP_ROWS; i++) gone_h += t->row_h[i];
-    t->row_act = t->row_act > DROP_ROWS ? t->row_act - DROP_ROWS : 0;
+    if (t->row_act != LV_TABLE_CELL_NONE) t->row_act = t->row_act > DROP_ROWS ? t->row_act - DROP_ROWS : 0;
+    if (touch.row != LV_TABLE_CELL_NONE) touch.row = touch.row > DROP_ROWS ? touch.row - DROP_ROWS : 0;
 
     list_rows.n -= DROP_ROWS;
     memmove(&list_rows.cd[0], &list_rows.cd[DROP_ROWS], list_rows.n * sizeof(list_rows.cd[0]));
@@ -461,6 +470,38 @@ static void pressed_cb(lv_event_t *e) {
     }
 }
 
+/* After a touch the MFK row is put back, or the next MFK step started again from the first row,
+ * the oldest message, and with no row selected the list stopped following the new ones. A tap
+ * (it answered its row on the press) leaves the MFK row where it was, on the last row following
+ * on; a drag that scrolled the list leaves it on the row under the finger, as the MFK scrolled
+ * back would. Before the table's own handler (pre) and after it */
+static void touch_cb(lv_event_t *e) {
+    lv_table_t *t     = (lv_table_t *)list;
+    lv_indev_t *indev = lv_indev_get_act();
+    uint16_t    rows  = lv_table_get_row_cnt(list);
+    bool        pre   = lv_event_get_user_data(e) == NULL;
+    uint16_t    r;
+
+    if (lv_indev_get_type(indev) != LV_INDEV_TYPE_POINTER) return;     /* the MFK press keeps its row */
+    if (lv_event_get_code(e) == LV_EVENT_PRESSED) {
+        touch.row  = t->row_act < rows ? t->row_act : LV_TABLE_CELL_NONE;
+        touch.last = touch.row != LV_TABLE_CELL_NONE && touch.row + 1 == rows;
+        return;
+    }
+    if (pre) {
+        touch.finger = t->row_act;
+        return;
+    }
+    if (lv_indev_get_scroll_obj(indev)) r = touch.finger;
+    else if (touch.last) r = rows - 1;
+    else r = touch.row != LV_TABLE_CELL_NONE ? touch.row : touch.finger;
+    if (r >= rows) r = rows - 1;
+    t->col_act   = 0;
+    t->row_act   = r;
+    pin.prev_row = r;
+    lv_obj_invalidate(list);
+}
+
 /* The MFK past the last row of the list goes on into the pin table, up from its first row
  * back into the list. The list moved its own selection already (class first): put it back */
 static void pin_follow_key(uint32_t key) {
@@ -535,6 +576,10 @@ void table_view_build(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w
 
     list = rows_table(parent, x, y, w);
     lv_obj_add_event_cb(list, list_key_cb, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(list, touch_cb, LV_EVENT_PRESSED | LV_EVENT_PREPROCESS, NULL);
+    lv_obj_add_event_cb(list, touch_cb, LV_EVENT_RELEASED | LV_EVENT_PREPROCESS, NULL);
+    lv_obj_add_event_cb(list, touch_cb, LV_EVENT_RELEASED, list);
+    touch.row = LV_TABLE_CELL_NONE;
     lv_obj_set_height(list, h);
     lv_obj_set_style_bg_opa(list, LV_OPA_60, LV_PART_MAIN);
     lv_obj_set_style_border_width(list, theme_shape.border, LV_PART_MAIN);
