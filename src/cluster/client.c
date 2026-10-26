@@ -327,14 +327,14 @@ static char *trim(char *s) {
 /* "CW,SSB" -> bits; unknown words are ignored */
 static uint8_t parse_modes(char *list) {
     uint8_t bits = 0;
-    for (char *w = strtok(list, ","); w; w = strtok(NULL, ",")) bits |= mode_bit(trim(w));
+    for (char *save, *w = strtok_r(list, ",", &save); w; w = strtok_r(NULL, ",", &save)) bits |= mode_bit(trim(w));
     return bits;
 }
 
 /* "20,17" -> bits of cluster_band_of() indexes; unknown bands are ignored */
 static uint16_t parse_bands(char *list) {
     uint16_t bits = 0;
-    for (char *w = strtok(list, ","); w; w = strtok(NULL, ",")) {
+    for (char *save, *w = strtok_r(list, ",", &save); w; w = strtok_r(NULL, ",", &save)) {
         int m = atoi(w);
         for (int b = 0; m > 0 && b < 16; b++)
             if (atoi(cluster_band_name(b)) == m) bits |= (uint16_t)(1u << b);
@@ -347,7 +347,7 @@ const char *const cluster_act_names[CLUSTER_ACT_COUNT] = {"POTA", "SOTA", "WWBOT
 /* "POTA,SOTA" -> CLUSTER_ACT_* bits; unknown words are ignored */
 static uint8_t parse_activity(char *list) {
     uint8_t bits = 0;
-    for (char *w = strtok(list, ","); w; w = strtok(NULL, ",")) {
+    for (char *save, *w = strtok_r(list, ",", &save); w; w = strtok_r(NULL, ",", &save)) {
         w = trim(w);
         for (int i = 0; i < CLUSTER_ACT_COUNT; i++)
             if (strcasecmp(w, cluster_act_names[i]) == 0) bits |= (uint8_t)(1u << i);
@@ -424,7 +424,7 @@ uint8_t cluster_spot_activity(const cluster_spot_t *s) {
     if (strstr(text, "SOTA")) bits |= CLUSTER_ACT_SOTA;
     if (strstr(text, "BOTA")) bits |= CLUSTER_ACT_WWBOTA;
     if (strstr(text, "HOTA")) bits |= CLUSTER_ACT_HOTA;
-    for (char *w = strtok(text, " ,;:()[]!?\t"); w; w = strtok(NULL, " ,;:()[]!?\t")) {
+    for (char *save, *w = strtok_r(text, " ,;:()[]!?\t", &save); w; w = strtok_r(NULL, " ,;:()[]!?\t", &save)) {
         if (park_ref(w)) bits |= CLUSTER_ACT_POTA;
         if (summit_ref(w)) bits |= CLUSTER_ACT_SOTA;
         if (bunker_ref(w)) bits |= CLUSTER_ACT_WWBOTA;
@@ -586,7 +586,7 @@ bool cluster_filter_pass(const cluster_filter_t *f, const cluster_spot_t *s, uin
     if (f->skip[0]) {
         char list[sizeof(f->skip)];
         snprintf(list, sizeof(list), "%s", f->skip);
-        for (char *w = strtok(list, ","); w; w = strtok(NULL, ",")) {
+        for (char *save, *w = strtok_r(list, ",", &save); w; w = strtok_r(NULL, ",", &save)) {
             w = trim(w);
             if (*w && glob_match(w, s->spotter)) return false;
         }
