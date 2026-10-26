@@ -535,11 +535,26 @@ static void power_cb(void *arg) {
     keypad_power_set(*(bool *)arg);
 }
 
+/* The POWER key where there is no device for it (the X6200), as radio.c posts the base's: told until its job is
+ * in. A release dropped by a full queue left the press alone, and its hold timer (front_keys.c, KEYPAD_LONG)
+ * powered the radio off: a click became a power-off. power_told: what the GUI was told; the server loop tries
+ * again. A press that cannot go in and is let go before there is room is not told at all. Socket thread */
+static bool power_down, power_told;
+
+static void power_post(void) {
+    if (power_down != power_told) {
+        bool down = power_down;
+
+        if (scheduler_put_urgent(power_cb, &down, sizeof(down)))
+            power_told = down;
+    }
+}
+
 static void key_emit(uint16_t code, bool down) {
     ctl_injected();
     if (code == KEY_POWER && dev_power < 0) {
-        /* No device for it (the X6200: the base reports the key): as the base's packets do */
-        scheduler_put(power_cb, &down, sizeof(down));
+        power_down = down;
+        power_post();
         return;
     }
     emit(code == KEY_POWER ? dev_power : dev_keypad, EV_KEY, code, down ? 1 : 0);
@@ -1820,10 +1835,12 @@ static void *server_thread(void *arg) {
             slot[n]  = i;
             pfd[n++] = (struct pollfd){.fd = c->fd, .events = ev};
         }
-        if (poll(pfd, n, n > 2 ? 100 : listen_fd >= 0 ? 500 : 1000) < 0 && errno != EINTR) {
+        /* A POWER key not told yet (power_post): tried again about as often as the base's packets */
+        if (poll(pfd, n, power_down != power_told ? 30 : n > 2 ? 100 : listen_fd >= 0 ? 500 : 1000) < 0 && errno != EINTR) {
             usleep(100000);
             continue;
         }
+        power_post();
         if (pfd[0].revents & POLLIN) {
             char buf[64];
             while (read(wake_fd[0], buf, sizeof(buf)) > 0) {}

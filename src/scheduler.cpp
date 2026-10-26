@@ -20,7 +20,7 @@ extern "C" {
 }
 
 #define QUEUE_MAX_SIZE  64
-#define QUEUE_URGENT    16      /* room beyond that for what must get through: an unkey, a stop */
+#define QUEUE_URGENT    16      /* room beyond that for what must get through: an unkey, a stop, a key */
 #define WORK_BUDGET     32      /* items per scheduler_work(): a flooding producer leaves LVGL its turn */
 
 /* A caller waiting for its item (scheduler_call) */

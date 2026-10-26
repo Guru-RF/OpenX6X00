@@ -1153,10 +1153,12 @@ static void battery_log(const hw_pack_t *p) {
 
 static swr_guard_t swr_guard;
 static atomic_uint swr_trips;
+static atomic_bool swr_trip_queued;     /* a trip's job waits in the queue: one stops TX, more add nothing */
 
 /* SWR protection, on the GUI thread: what the GUI keys lets go (a PTT held on the radio or the
  * mic, VOX and the radio's own keyer are the base's: they may key again) */
 static void swr_trip_cb(void *arg) {
+    atomic_store(&swr_trip_queued, false);  /* out of the queue: a trip from now on is posted again */
     atomic_fetch_add(&swr_trips, 1);    /* before the modem bit drops: whoever sees it gone can tell why */
     cw_encoder_stop();
     paddle_keyer_stop();
@@ -1196,6 +1198,15 @@ static void atu_give_up(radio_state_t from, const char *why) {
                    (unsigned)pack->atu_params);
     msg_schedule_text_fmt("%s", why);
 }
+
+/* What the base reports by a change alone goes to the GUI thread once: the low battery, the POWER key, a hand mic
+ * key, the tuner's network. Nothing posts it again, so a job dropped by a full queue was lost for good: a POWER
+ * release lost let the hold timer turn a tap into a power-off, a low battery lost never started the 30 s
+ * power-off, a network lost was not kept (#33's start: the DSP's redraws held all 64 places for seconds). Such a
+ * job takes the urgent reserve, and the change counts as told only once its job is in: if even the reserve is
+ * full, the next packet (for the battery, the next reading) tries again */
+static uint32_t atu_network;        /* the tuner's network, for atu_done_cb */
+static bool     atu_network_due;    /* found, its job not in the queue yet */
 
 static bool radio_tick() {
     if (now_time < prev_time) {
@@ -1245,9 +1256,13 @@ static bool radio_tick() {
             bool enter_low = low_reads >= 3;
             bool leave_low = ext || (pack->vbat >= LOW_BATTERY_VBAT_HIGH);
 
+            /* low_power: what the GUI was told (the note above radio_tick) */
             if ((!low_power && enter_low) || (low_power && leave_low)) {
-                low_power = !low_power;
-                scheduler_put(low_power_ui_cb, &low_power, sizeof(low_power));
+                bool low = !low_power;
+
+                if (scheduler_put_urgent(low_power_ui_cb, &low, sizeof(low))) {
+                    low_power = low;
+                }
             }
         }
         if (pack->psd) {
@@ -1256,12 +1271,19 @@ static bool radio_tick() {
             dsp_samples((cfloat *)pack->samples, pack->n_samples, pack->tx, pack->lo_freq, pack->vary_freq, pack->fft_dec);
         }
 
-        /* The POWER key where the base reports it (the X6200): to the GUI thread as a key */
+        /* The POWER key where the base reports it (the X6200): to the GUI thread as a key. power_was: what
+         * the GUI was told (the note above radio_tick) */
         static bool power_was;
 
         if (pack->power_key != power_was) {
-            power_was = pack->power_key;
-            scheduler_put(power_key_cb, &power_was, sizeof(power_was));
+            bool down = pack->power_key;
+
+            if (scheduler_put_urgent(power_key_cb, &down, sizeof(down))) {
+                power_was = down;
+            }
+        }
+        if (atu_network_due && scheduler_put_urgent(atu_done_cb, &atu_network, sizeof(atu_network))) {
+            atu_network_due = false;
         }
 
         switch (state) {
@@ -1282,8 +1304,13 @@ static bool radio_tick() {
                     // printf("%d, %d\n", pack->tx_power, pack->alc_level);
                     tx_info_update(pack->tx_power * 0.1f, pack->vswr * 0.1f, pack->alc_level * 0.1f);
                     float swr = pack->vswr * 0.1f;
-                    if (swr_guard_check(&swr_guard, pack->tx_power * 0.1f, swr, param_i_get(cfg_swr_protect) * 0.1f, now_time)) {
-                        scheduler_put(swr_trip_cb, &swr, sizeof(swr));
+                    /* A stop: the urgent reserve. Dropped even so, swr_guard trips again 300 ms on. One in the
+                     * queue at a time: with the GUI thread stalled and TX still on, a trip every ~320 ms took
+                     * the reserve in 25 s from those that do not try again (TCI's unkey, FT8's last post).
+                     * Marked before the put, the job may run before the put returns */
+                    if (swr_guard_check(&swr_guard, pack->tx_power * 0.1f, swr, param_i_get(cfg_swr_protect) * 0.1f, now_time) &&
+                        !atomic_exchange(&swr_trip_queued, true) && !scheduler_put_urgent(swr_trip_cb, &swr, sizeof(swr))) {
+                        atomic_store(&swr_trip_queued, false);
                     }
                 }
                 break;
@@ -1309,9 +1336,10 @@ static bool radio_tick() {
             case RADIO_ATU_RUN:
                 if (pack->atu_status && !pack->tx) {
                     /* The settings on the LVGL thread: their observers run where they are set, and
-                     * the delayed ones (the info bar) schedule LVGL calls, which only that thread may */
-                    uint32_t network = pack->atu_params;
-                    scheduler_put(atu_done_cb, &network, sizeof(network));
+                     * the delayed ones (the info bar) schedule LVGL calls, which only that thread may.
+                     * Not in the queue: the next packets try again (the note above radio_tick) */
+                    atu_network     = pack->atu_params;
+                    atu_network_due = !scheduler_put_urgent(atu_done_cb, &atu_network, sizeof(atu_network));
                     WITH_RADIO_LOCK(hw_set_i(HW_ATU_TUNE, false));
 #ifndef BOARD_X6200
                     /* The X6100's: it keys the modem at 0.1 W; gdyuldin's X6200 GUI dropped it */
@@ -1370,11 +1398,15 @@ static bool radio_tick() {
         }
 
         /* The hand mic key to the LVGL thread: hkey_put makes and deletes LVGL timers, which
-         * only that thread may do. Posted when it changes (held down, the base repeats it) */
+         * only that thread may do. Posted when it changes (held down, the base repeats it);
+         * last_hkey: what the GUI was told (the note above radio_tick) */
         static uint32_t last_hkey;
         if (pack->hkey != last_hkey) {
-            last_hkey = pack->hkey;
-            scheduler_put(hkey_sched_cb, &last_hkey, sizeof(last_hkey));
+            uint32_t hkey = pack->hkey;
+
+            if (scheduler_put_urgent(hkey_sched_cb, &hkey, sizeof(hkey))) {
+                last_hkey = hkey;
+            }
         }
     } else {
         if (d > FLOW_RESTART_TIMEOUT) {
