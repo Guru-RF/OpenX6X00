@@ -490,7 +490,7 @@ SOCKET OpenSocket4(int port)
 
 	psin=&local_sin;
 	psin->sin_family = AF_INET;
-	psin->sin_addr.s_addr = INADDR_ANY;
+	psin->sin_addr.s_addr = htonl(INADDR_LOOPBACK);  // OpenX6X00: this host only
 
 	if (port)
 	{
@@ -536,7 +536,7 @@ SOCKET OpenUDPSocket(int port)
 
 	psin=&local_sin;
 	psin->sin_family = AF_INET;
-	psin->sin_addr.s_addr = INADDR_ANY;
+	psin->sin_addr.s_addr = htonl(INADDR_LOOPBACK);  // OpenX6X00: this host only
 
 	if (port)
 	{
@@ -574,7 +574,7 @@ BOOL TCPHostInit()
 	WSAStartup(MAKEWORD(2, 0), &WsaData);
 #endif
 
-	ZF_LOGI("%s listening on port %d", ProductName, port);
+	ZF_LOGI("%s listening on 127.0.0.1 port %d", ProductName, port);
 //	InitQueue();
 
 	// Here is where our listening ports for commands and data are opened.

@@ -1220,7 +1220,8 @@ SOCKET get_listener_socket(void)
 	hints.ai_family = AF_INET;  // AF_UNSPEC would allow ipv4 or ipv6
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
-	if ((rv = getaddrinfo(NULL, ws_port_str, &hints, &ai)) != 0) {
+	// OpenX6X00: this host only
+	if ((rv = getaddrinfo("127.0.0.1", ws_port_str, &hints, &ai)) != 0) {
 		// TODO:  While gai_strerror() is available for WIN32, the
 		// Microsoft documentation recommends using WSAGetLastError()
 		// instead.

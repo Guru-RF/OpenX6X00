@@ -49,3 +49,7 @@ Each one is its own commit on top of the pristine import.
   capture device `SOCK:<path>` takes the audio and the PTT through the GUI's
   UNIX socket (protocol at the top of `SockSound.c`) instead of ALSA, which
   is then never opened. `Makefile` builds it too.
+- `src/common/TCPHostInterface.c`, `lib/ws_server/ws_server.c`: the host
+  ports (TCP 8515 commands, 8516 data, UDP 8515) and the WebGui (`-G`) listen
+  on 127.0.0.1 only. Upstream binds them to every interface without any
+  authentication, so anyone on the radio's network could key it.
