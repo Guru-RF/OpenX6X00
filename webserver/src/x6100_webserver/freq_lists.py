@@ -6,7 +6,7 @@ Same tables the radio GUI reads (sql/params.sql): `bands` with its per-band valu
 import math
 import sqlite3
 
-LSB, USB = 0, 2                 # x6100_mode_t: a new band starts in LSB below 10 MHz, USB above
+LSB, USB, AM, NFM, WFM = 0, 2, 6, 7, 9      # x6100_mode_t
 BAND_KEYS = ("name", "start_freq", "stop_freq", "type", "id")
 FREQ_KEYS = ("label", "freq", "mode", "type", "id")
 
@@ -63,6 +63,20 @@ def _band_input(data):
     return band
 
 
+def default_mode(freq):
+    """The mode a new band opens in, as the GUI's default_mode() has it: LSB below 10 MHz but USB on 60 m, USB
+    above; above HF (55 MHz) NFM, wide FM and AM on the FM broadcast and airband (87.5-137 MHz)."""
+    if 87_500_000 <= freq < 108_000_000:
+        return WFM
+    if 108_000_000 <= freq <= 137_000_000:
+        return AM
+    if freq > 55_000_000:
+        return NFM
+    if 5_250_000 <= freq <= 5_450_000:
+        return USB
+    return LSB if freq < 10_000_000 else USB
+
+
 def _check_overlap(band, others):
     lo, hi = band["start_freq"], band["stop_freq"]
     for other in others:
@@ -87,7 +101,7 @@ def add_band(con, data):
                           (band["name"], band["start_freq"], band["stop_freq"], band["type"])).lastrowid
     params = band["params"]
     params.setdefault("vfoa_freq", band["start_freq"])
-    params.setdefault("vfoa_mode", LSB if band["start_freq"] < 10_000_000 else USB)
+    params.setdefault("vfoa_mode", default_mode(band["start_freq"]))
     con.executemany("INSERT INTO band_params (bands_id, name, val) VALUES (?, ?, ?)",
                     [(band_id, k, v) for k, v in params.items()])
 

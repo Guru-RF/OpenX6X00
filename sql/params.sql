@@ -43,10 +43,11 @@ INSERT INTO bands VALUES
     (111, 'Broadcast 11m', 25600000, 26055000, 0),
     (300, '4m',      70000000,  72000000, 1),
     (301, '2m',     144000000, 150000000, 1),
-    (302, '70cm',   432000000, 438000000, 1);
+    (302, '70cm',   432000000, 438000000, 1),
+    (13,  '60m',      5351500,   5366500, 1);
 
 -- Where each band opens the first time: VFO A frequency and mode.
--- Broadcast bands and 4m have none.
+-- Broadcast bands and 4m have none. 60 m opens in USB, the sideband used there.
 CREATE TABLE band_params (bands_id INTEGER, name TEXT, val INTEGER,
     UNIQUE (bands_id, name) ON CONFLICT REPLACE);
 INSERT INTO band_params VALUES
@@ -67,7 +68,8 @@ INSERT INTO band_params VALUES
     (203, 'vfoa_freq',  26965000), (203, 'vfoa_mode', 6),
     (204, 'vfoa_freq',  27415000), (204, 'vfoa_mode', 6),
     (301, 'vfoa_freq', 145500000), (301, 'vfoa_mode', 7),
-    (302, 'vfoa_freq', 433500000), (302, 'vfoa_mode', 7);
+    (302, 'vfoa_freq', 433500000), (302, 'vfoa_mode', 7),
+    (13,  'vfoa_freq',   5360000), (13,  'vfoa_mode', 2);
 
 -- General settings by name; those not listed take the GUI's own defaults.
 CREATE TABLE params (name TEXT PRIMARY KEY ON CONFLICT REPLACE, val INTEGER);

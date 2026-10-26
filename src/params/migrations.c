@@ -247,6 +247,25 @@ static int _9_vhf_rx_bands() {
     return 0;
 }
 
+/* 60 m, WRC-15 (5351.5-5366.5 kHz), for the band keys: the list had none, they went from 80 m to 40 m (issue #22).
+ * Opens at 5.360 MHz in USB, the sideband used there. Not where a band already covers part of it (a "60m CW" added
+ * on the web page), nor on a new database, which has it from sql/params.sql */
+static int _10_band_60m() {
+    if (sqlite3_exec(db,
+                     "INSERT OR IGNORE INTO bands SELECT 13, '60m', 5351500, 5366500, 1 WHERE NOT EXISTS "
+                     "(SELECT 1 FROM bands WHERE start_freq < 5366500 AND stop_freq > 5351500);"
+                     /* its opening frequency and mode only when the row is this band, not a user's band with the id */
+                     "INSERT OR IGNORE INTO band_params SELECT 13, 'vfoa_freq', 5360000 WHERE EXISTS "
+                     "(SELECT 1 FROM bands WHERE id = 13 AND name = '60m');"
+                     "INSERT OR IGNORE INTO band_params SELECT 13, 'vfoa_mode', 2 WHERE EXISTS "
+                     "(SELECT 1 FROM bands WHERE id = 13 AND name = '60m');",
+                     NULL, NULL, NULL) != SQLITE_OK) {
+        printf("Cannot add 60 m: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+    return 0;
+}
+
 static int (*migrations[])() = {
     _0_init_migrations,
     _1_create_ftx_table,
@@ -258,6 +277,7 @@ static int (*migrations[])() = {
     _7_add_ft2_presets,
     _8_fix_comp_offsets,
     _9_vhf_rx_bands,
+    _10_band_60m,
 };
 
 int migrations_apply(void) {
