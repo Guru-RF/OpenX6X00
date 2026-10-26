@@ -514,7 +514,8 @@ static void preview_fade(lv_obj_t *obj) {
 }
 
 /* Date and time, local. A change sets the system clock at once, the RTC (in UTC) when the focus
- * comes back to a field after the edit. */
+ * comes back to a field after the edit. The fields hold the time the page was built: only what an
+ * edit changed is applied, to the clock as it is now */
 
 static struct tm dt_tm;         /* the fields */
 static struct tm dt_utc;        /* the same instant, for the RTC */
@@ -547,21 +548,29 @@ static void dt_show() {
     zone_refresh = false;
 }
 
+/* The MFK press that moves a field's edit cursor sends a change too: the whole fields went to the clock, which an
+ * edit that changed nothing set back by the time the page had been open (23 s on the bench, 2026-10-26) */
 static void dt_changed_cb(lv_event_t *e) {
-    struct timespec tp = {};
+    struct timespec tp;
+    struct tm       was = dt_tm, now;
 
     if (zone_refresh) return;
     for (int i = 0; i < 6; i++) {
         *dt_field(i) = lv_spinbox_get_value(dt_spin[i]) - dt_spec[i].base;
     }
-    dt_changed = true;
+    now = dt_tm;        /* mktime normalises (31 in a 30-day month): copies, the fields stay as shown */
+    was.tm_isdst = now.tm_isdst = -1;
 
-    dt_tm.tm_isdst = -1;
-    tp.tv_sec = mktime(&dt_tm);
+    time_t delta = mktime(&now) - mktime(&was);
+
+    if (delta == 0) return;
+    clock_gettime(CLOCK_REALTIME, &tp);
+    tp.tv_sec += delta;
     if (clock_settime(CLOCK_REALTIME, &tp) != 0) {
         LV_LOG_ERROR("Can't set system time: %s\n", strerror(errno));
         return;
     }
+    dt_changed = true;
     gmtime_r(&tp.tv_sec, &dt_utc);
 }
 
