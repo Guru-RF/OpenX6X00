@@ -38,6 +38,7 @@
 #include "paddle_keyer.h"
 #include "front_keys.h"
 #include "params/params.h"
+#include "params/db.h"
 #include "cfg/cfg_api.h"
 #include "audio.h"
 #include "cw.h"
@@ -231,6 +232,16 @@ static void settings_load(void) {
     styles_load(params.theme_name.x);
 }
 
+/* Settings that did not come from params.db (params/db.c: one the GUI could not use), said once the screen is up */
+static void settings_note_cb(lv_timer_t *t) {
+    const char *note = database_note();
+
+    (void)t;
+    if (note) {
+        msg_schedule_long_text_fmt("%s", note);
+    }
+}
+
 /* Everything that runs beside the GUI, once the radio is up */
 static void services_start(void) {
     cw_init();
@@ -260,6 +271,7 @@ static void services_start(void) {
     start_trace("services: QSO log read");
     dialog_cluster_start_client();
     image_level_notice_init();   /* a newer card image wanted: said once per version */
+    lv_timer_set_repeat_count(lv_timer_create(settings_note_cb, 3000, NULL), 1);
 }
 
 /* LVGL's clock: 5 ms ticks */
@@ -344,7 +356,10 @@ int main(void) {
     if (!walkie_on() && param_i_get(cfg_field_boot)) {
         main_screen_start_app(ACTION_APP_FIELD);
     }
-    lv_timer_set_repeat_count(lv_timer_create(update_confirm_cb, 60000, NULL), 1);
+    /* Not when this version could not use the settings file (params/db.c): the update is then taken back */
+    if (!database_version_fault()) {
+        lv_timer_set_repeat_count(lv_timer_create(update_confirm_cb, 60000, NULL), 1);
+    }
     dialog_field_wavelog_start();
     gui_loop();
     return 0;

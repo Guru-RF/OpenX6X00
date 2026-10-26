@@ -15,7 +15,16 @@
 
 extern sqlite3          *db;
 
+/* params.db opened, repaired and migrated, cfg_db_init done; one the GUI cannot use is put aside for the defaults
+ * (db.c). False: no settings database at all */
 bool database_init();
+
+/* What to say on the screen once it is up when the settings did not come from params.db; NULL when they did */
+const char *database_note(void);
+
+/* True when params.db is the GUI's own and this version could not migrate or use it (left as it is, this start on
+ * the defaults): a new version is then not confirmed, and x6100-update's boot-check takes it back after 3 starts */
+bool database_version_fault(void);
 
 bool sql_query_exec(const char *sql);
 

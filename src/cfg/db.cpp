@@ -1046,33 +1046,18 @@ extern "C" bool cfg_db_in_transaction(void) {
     return shared_db && !sqlite3_get_autocommit(shared_db);
 }
 
-extern "C" void cfg_db_init(sqlite3 *database) {
-    bool ok;
+/* False when a table's statements cannot be made (a table missing or of another shape): the tables done are shut
+ * down again, and params/db.c takes the defaults instead. It used to exit(1), and the GUI stopped at every start */
+extern "C" bool cfg_db_init(sqlite3 *database) {
     shared_db = database;
-    ok = ParamsTable::Init(database);
-    if (!ok)
-        exit(1);
-    ok = BandsTable::Init(database);
-    if (!ok)
-        exit(1);
-    ok = BandParamsTable::Init(database);
-    if (!ok)
-        exit(1);
-    ok = ModeParamsTable::Init(database);
-    if (!ok)
-        exit(1);
-    ok = TransverterTable::Init(database);
-    if (!ok)
-        exit(1);
-    ok = MemoryTable::Init(database);
-    if (!ok)
-        exit(1);
-    ok = DigitalModesTable::Init(database);
-    if (!ok)
-        exit(1);
-    ok = AtuTable::Init(database);
-    if (!ok)
-        exit(1);
+    if (ParamsTable::Init(database) && BandsTable::Init(database) && BandParamsTable::Init(database) &&
+        ModeParamsTable::Init(database) && TransverterTable::Init(database) && MemoryTable::Init(database) &&
+        DigitalModesTable::Init(database) && AtuTable::Init(database)) {
+        return true;
+    }
+    cfg_db_shutdown();
+    shared_db = nullptr;
+    return false;
 }
 
 void cfg_db_shutdown() {

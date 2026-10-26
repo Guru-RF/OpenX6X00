@@ -3007,18 +3007,20 @@ UTC and the seconds since power-on:
 3. "x6100_daemon: GUI start N" before each start of the GUI, then the GUI's
    own lines:
    1. "GUI start", with the version
-   2. "settings read"
-   3. "base: no answer (try N)" for each try while the base gives no answer,
+   2. "settings: ..." only when the settings file could not be used (see
+      ["Settings file unusable"](#settings-file-unusable-put-aside-defaults-loaded))
+   3. "settings read"
+   4. "base: no answer (try N)" for each try while the base gives no answer,
       and "base: reset" after about 6 seconds of that; then "base answered".
       "base: its pins or its line could not be opened" instead when the GUI
       cannot reach the base at all
-   4. "screen built"
-   5. "base: version ..."
-   6. "services: WiFi set up", "services: Bluetooth set up", "services: CAT,
+   5. "screen built"
+   6. "base: version ..."
+   7. "services: WiFi set up", "services: Bluetooth set up", "services: CAT,
       TCI and the browser's servers up", "services: QSO log read", "services
       started"
-   7. "first frame": the screen is the GUI's from here on
-   8. "battery: readings count", 15 to 20 seconds later
+   8. "first frame": the screen is the GUI's from here on
+   9. "battery: readings count", 15 to 20 seconds later
 4. "x6100_daemon: GUI ended, exit code N" when the GUI stops (139: it crashed),
    then the next start of the GUI
 
@@ -3049,6 +3051,30 @@ web configurator, read the file on a PC.
    start scripts (in U-Boot or the kernel): say so in the report. A start
    whose DATA partition did not mount, or went read-only after card errors,
    has all its lines in that file too, the GUI's included.
+
+#### "Settings file unusable: put aside, defaults loaded"
+
+The settings file, `params.db` on the DATA partition, could not be used at the
+start: empty, damaged (the radio switched off or the card pulled while it was
+being written), or not this firmware's. Up to v0.3.5 the radio then stopped at
+the boot logo at every start. Now the file is renamed
+`params-unusable-<date>Z.db` (its `-wal` and `-shm` files with it), the
+default settings take its place and the radio starts. Set it up again, or
+restore a Backup on the web configurator. Attach the put-aside files to a
+report: they show what happened to the file.
+
+"Settings not readable: defaults, not saved" means the card would not let the
+radio use or replace the file (it went read-only after card errors, or it was
+busy). That start runs on the default settings and saves nothing; the file on
+the card stays as it is. Switch off and on again; if it says so at every start,
+check the card on a PC.
+
+"Settings not usable by this version: defaults, not saved" means the file is
+sound but this version could not bring it up to date or use it: a fault of the
+version, not of the file, which is kept. That start runs on the default
+settings and saves nothing. A version installed by an update is then not
+confirmed: after three such starts, the next start goes back to the version
+before. Please report it, with the run's log from `app_logs`.
 
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
@@ -3223,6 +3249,7 @@ The DATA partition, readable on a PC.
 | File | What |
 |---|---|
 | `params.db`, `qso_log.db` | the radio's settings and QSO database |
+| `params-unusable-<date>Z.db` | a settings file the radio could not use, put aside at a start (["Settings file unusable"](#settings-file-unusable-put-aside-defaults-loaded)) |
 | `cluster.conf` | DX cluster server in use, saved servers, filters and alerts |
 | `cw_trainer.json` | CW trainer statistics and Calls best score |
 | `tci.conf` | TCI server on/off and port |

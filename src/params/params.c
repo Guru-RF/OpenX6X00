@@ -217,13 +217,17 @@ static bool params_load() {
         return false;
     }
 
-    while (sqlite3_step(stmt) != SQLITE_DONE) {
+    /* Rows until the end or a failed read (a damaged page): "!= SQLITE_DONE" went on past the error, with NULL columns */
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         const char      *name = sqlite3_column_text(stmt, 0);
         const float     f = sqlite3_column_double(stmt, 1);
         const int32_t   i = sqlite3_column_int(stmt, 1);
         const int64_t   l = sqlite3_column_int64(stmt, 1);
         const char      *t = sqlite3_column_text(stmt, 1);
 
+        if (!name) {
+            continue;
+        }
         if (strcmp(name, "cw_encoder_period") == 0) {
             params.cw_encoder_period = i;
         } else if (strcmp(name, "voice_msg_period") == 0) {
@@ -321,7 +325,7 @@ static bool params_load() {
     }
 
     sqlite3_finalize(stmt);
-    return true;
+    return rc == SQLITE_DONE;
 }
 
 static void params_save_bool(params_bool_t *var) {
@@ -488,10 +492,7 @@ void params_flush() {
 
 void params_init() {
     int rc;
-    if (database_init()) {
-        // Init new cfg statements
-        cfg_db_init(db);
-
+    if (database_init()) {      /* cfg_db_init with it: the new cfg statements */
         // Init the new SettingsManager-backed C-API: loads global/band/mode
         // params into cfg_sm and fills the cfg_* handles (Stage 1 migration).
         cfg_api_init(NULL);
@@ -526,7 +527,7 @@ void params_msg_cw_load() {
         return;
     }
 
-    while (sqlite3_step(stmt) != SQLITE_DONE) {
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
         int         id = sqlite3_column_int(stmt, 0);
         const char  *val = sqlite3_column_text(stmt, 1);
 

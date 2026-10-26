@@ -709,8 +709,8 @@ class AtuTable {
 extern "C" {
 #endif
 
-// Global database entry points.
-void cfg_db_init(sqlite3 *database);
+// Global database entry points. cfg_db_init: false when a table cannot be used (all shut down again)
+bool cfg_db_init(sqlite3 *database);
 void cfg_db_shutdown();
 
 // The one connection is shared with the legacy settings writer (params/db.c), whose BEGIN..COMMIT
