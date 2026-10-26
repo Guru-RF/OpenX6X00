@@ -15,7 +15,9 @@ with balenaEtcher or Rufus, put the card in the radio and power it on.
 Callsigns already worked are marked in the UI. To bring in the QSOs of an
 older log, copy the ADI file to the `DATA` partition of the card as
 `incoming_log.adi`. At the next start its records go into the radio's own log
-and the file is renamed `incoming_log.adi.bak`.
+and the file is renamed `incoming_log.adi.bak`. A record that names neither
+OPERATOR nor STATION_CALLSIGN is logged under the radio's callsign (Settings >
+General > STATION).
 
 The `DATA` partition only exists after the radio has started once with the
 card in.

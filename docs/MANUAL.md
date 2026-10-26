@@ -64,7 +64,8 @@ The APP button opens three pages of apps and tools:
 - The MFK walks the items of an app or a list; a press chooses.
 - ESC closes popups and apps.
 - A press of VOL does not close menus or apps, and in a text field it types
-  nothing; on the main screen it still works as ESC.
+  nothing; on the main screen it still works as ESC. Held, it is still one
+  press.
 
 Long press. Each button group (GEN, APP, KEY, MSG, DFN, DFL) has a
 long-press action.
@@ -938,7 +939,12 @@ Buttons:
   same slot and one is a POTA activator, that one is answered first.
 - Retries: how many times a message goes out with no answer before the QSO is
   dropped. Each press steps 3, 4, 5, 6, 8, 10, 12, 15 and back to 3; 6 by default.
-- Time Sync: rounds the clock to the nearest slot (15 s FT8, 7.5 s FT4, 3.75 s FT2).
+- Time Sync: for a clock off by a few seconds with no WiFi or GPS to set
+  it. Press it as a slot starts (the signals start, or a clock you trust
+  shows :00, :15, :30, :45): the clock moves to the nearest slot start (15 s
+  FT8, 7.5 s FT4, 3.75 s FT2) and is kept in the clock chip. A clock that
+  NTP (WiFi) or the GPS keeps is left alone ("Clock in sync", "The GPS keeps
+  the clock"): moved to a press it could only get worse.
 - CQ Modifier: for example `CQ POTA` or `CQ DX`.
 
 The list. Each row has the slot time, the message, and on the right the
@@ -962,7 +968,10 @@ pota.app; with no spots there is no tag.
 
 Replying. Turn the MFK onto a row and press it. The radio
 answers that station, moves your TX offset there (unless Hold Freq is on) and
-turns TX Call on. A press while transmitting stops TX.
+turns TX Call on. A press while transmitting stops TX. Touching a row answers
+it too; the MFK stays on its row, and on the last row the list keeps
+following new messages. Dragging the list leaves the MFK on the row you let
+go on.
 
 The "For you" strip. Stations that call you stay pinned in a strip under the
 list, so they do not scroll away.
@@ -1415,6 +1424,12 @@ kinds:
 In CW or CW-R the contacts key the radio; out of CW they do nothing. The
 keyer follows the KEY buttons in CW (mode, iambic A/B, speed, ratio).
 
+- Iambic A: letting go of a squeeze (both contacts) ends with the element
+  being sent. Iambic B sends one more of the other contact.
+- A contact pressed during an element and still held when the other one is
+  let go is a press of its own, sent in both modes. K keyed dah, dit, dah
+  with the dit down just before the dah is let go stays a K (Iambic A sent M).
+
 SET > KEYS > PADDLE shows what is connected and the dit/dah of each kind.
 Learn dit and dah > Start, then press the dit contact and the dah contact:
 whatever comes in (a key, a mouse button, a MIDI note, a serial line) is
@@ -1451,6 +1466,11 @@ KEY settings. While it is open the radio is in train mode: sidetone only, no TX.
   - QSK time and Ratio are on the same page.
 - With a paddle, set Mode to Auto-L or Auto-R before opening the trainer. On
   Manual only one side of the paddle keys.
+- Learn (Koch) plays groups of the characters of your level. The level's
+  newest character comes up in about one place of three while it is new,
+  less and less over its first 20 tries; after that it comes up as often as
+  the others. Weak and little tried characters come up more often (Stats
+  shows the last 20 tries of each).
 
 
 ## Apps
@@ -2726,7 +2746,8 @@ logs are kept.
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
 Check the clock: FT8 and JS8 need it within about 2 s, WSPR within about a
-second. WiFi (NTP) or GPS sets it. FT8 and JS8 also have Time Sync.
+second. WiFi (NTP) or GPS sets it. FT8 and JS8 also have Time Sync (FT8's
+for a clock that neither keeps).
 
 #### The ALC reads about 1 in FT8 or JS8. Is it too high?
 
@@ -2896,7 +2917,7 @@ The DATA partition, readable on a PC.
 | `app_freqs` | the last frequency and mode of each digital app |
 | `psk_macros.txt`, `olivia_macros.txt`, `psk.conf` | PSK and Olivia macros, PSK squelch |
 | `js8_inbox.txt`, `js8_held.txt`, `js8_texts.txt` | JS8 inbox, messages held for others, INFO/STATUS/alert words/groups |
-| `incoming_log.adi` | put an ADIF log here to import it at the next start |
+| `incoming_log.adi` | put an ADIF log here to import it at the next start; a record with neither OPERATOR nor STATION_CALLSIGN is logged under your callsign |
 | `field/` | Field Ops state and activation logs (`field/logs/`) |
 | `screenrec/` | screen recordings (AVI) |
 | `themes/` | theme files and folders ([docs/THEMES.md](THEMES.md)); RS is copied here at the first start |
