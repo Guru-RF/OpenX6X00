@@ -151,10 +151,16 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     atomic_store(&playing, false);
     tx_info_set_length(0);      /* the strip back to the time alone */
 
-    /* Learned for the next transmission of any app: they share the audio path. With no ALC to go by, only a level
-     * that was found: a transmission that never settled leaves the last good one */
+    /* Learned for the next transmission of any app: they share the audio path. With no ALC to go by, a level that
+     * was found; one still climbing to the setting only back up towards the default (0), where the X6200 gives 5 W
+     * at once. Without that, a level knocked down once (an ALC or power reading over: a mag loop not yet tuned)
+     * climbed its 8 dB a transmission, never reached the setting, was never saved, and FT8 stayed at 0 W (#16) */
+    float learned = LV_MAX(drive - base_gain + codec, LEARNED_MIN_DB);
+
     if (!level.power_hold || level.held) {
-        params_float_set(&params.ft8_output_gain_offset, LV_MAX(drive - base_gain + codec, LEARNED_MIN_DB));
+        params_float_set(&params.ft8_output_gain_offset, learned);
+    } else if (params.ft8_output_gain_offset.x < 0.0f && learned > params.ft8_output_gain_offset.x) {
+        params_float_set(&params.ft8_output_gain_offset, LV_MIN(learned, 0.0f));
     }
     audio_play_wait();          /* the last block out before unkeying */
     radio_set_modem(false);     /* unkeyed: back to the dial frequency */
