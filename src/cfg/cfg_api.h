@@ -187,6 +187,7 @@ extern ParamFloat *cfg_band_dac_offset;   // p_band_dac_offset
 extern ParamInt   *cfg_band_grid_min;     // p_band_grid_min
 extern ParamInt   *cfg_band_grid_max;     // p_band_grid_max
 extern ParamInt   *cfg_band_split;        // p_band_split
+extern ParamInt   *cfg_band_tx_shift;     // p_band_tx_shift (Hz, 0 off)
 extern ParamInt   *cfg_band_tx_i_offset;  // p_band_tx_i_offset
 extern ParamInt   *cfg_band_tx_q_offset;  // p_band_tx_q_offset
 extern ParamInt   *cfg_band_vfoa_mode;    // p_band_vfoa_mode

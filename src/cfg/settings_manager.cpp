@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <iterator>
 
 extern "C" {
 }
@@ -106,6 +107,13 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
     vfoa_freq_obs_ = Subscription(p_band_vfoa_freq.subscribe(vfo_freq_change_cb, this));
     vfob_freq_obs_ = Subscription(p_band_vfob_freq.subscribe(vfo_freq_change_cb, this));
 
+    // The TX shift follows the VFOs: after the band follow above, so a tune into another band has loaded that
+    // band's shift and split when it runs
+    Subject *tx_shift_subj[] = {&p_band_vfoa_freq, &p_band_vfob_freq, &p_band_current_vfo, &p_band_split,
+                                &p_band_tx_shift};
+    for (size_t i = 0; i < std::size(tx_shift_obs_); i++)
+        tx_shift_obs_[i] = Subscription(tx_shift_subj[i]->subscribe(tx_shift_cb, this));
+
     // Subscribe the p_band_id observer that triggers an explicit band switch
     // when p_band_id is set. Subscribed after the initial load so the restore
     // of the persisted band does not trigger a switch.
@@ -180,6 +188,9 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
     cp_cur_filter_low.recompute();
     cp_cur_filter_high.recompute();
     cp_cur_filter_bw.recompute();
+
+    // A band left with a shift: its TX frequency as the shift has it, whatever was saved
+    tx_shift_follow();
 }
 
 void SettingsManager::on_mode_filter_low_not_found() {
@@ -255,6 +266,36 @@ void SettingsManager::vfo_toggle() {
     } else {
         band_follow(fg_freq_get());   /* the VFO now active was tuned into another band while inactive */
     }
+}
+
+void SettingsManager::tx_shift_follow() {
+    const int32_t shift = p_band_tx_shift.get();
+
+    if (shift == 0 || !p_band_split.get() || tx_shift_busy_) {
+        return;
+    }
+    tx_shift_busy_ = true;
+    if (p_band_current_vfo.get() == RADIO_VFO_A) {
+        p_band_vfob_freq.set(p_band_vfoa_freq.get() + shift);
+    } else {
+        p_band_vfoa_freq.set(p_band_vfob_freq.get() - shift);
+    }
+    // Independent VFOs: the other VFO is on this band too, so a VFO switch stays here (the reverse) instead of
+    // loading the band that VFO was on before
+    Parameter<int32_t> &other = p_band_current_vfo.get() == RADIO_VFO_A ? p_vfob_band : p_vfoa_band;
+    if (other.get() != band_id_) {
+        other.set(band_id_);
+    }
+    tx_shift_busy_ = false;
+}
+
+void SettingsManager::tx_shift_cb(Subject * /*subj*/, void *user_data) {
+    static_cast<SettingsManager *>(user_data)->tx_shift_follow();
+}
+
+void SettingsManager::tx_shift_set(int32_t hz) {
+    p_band_tx_shift.set(hz);
+    p_band_split.set(hz != 0);
 }
 
 void SettingsManager::switch_mode(ModeGroup new_group_id) {

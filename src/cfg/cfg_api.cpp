@@ -141,6 +141,7 @@ ParamFloat       *cfg_band_dac_offset     = nullptr;
 ParamInt         *cfg_band_grid_min       = nullptr;
 ParamInt         *cfg_band_grid_max       = nullptr;
 ParamInt         *cfg_band_split          = nullptr;
+ParamInt         *cfg_band_tx_shift       = nullptr;
 ParamInt         *cfg_band_tx_i_offset    = nullptr;
 ParamInt         *cfg_band_tx_q_offset    = nullptr;
 ParamInt         *cfg_band_vfoa_mode      = nullptr;
@@ -314,6 +315,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_band_grid_min    = &cfg_sm.p_band_grid_min;
     cfg_band_grid_max    = &cfg_sm.p_band_grid_max;
     cfg_band_split       = &cfg_sm.p_band_split;
+    cfg_band_tx_shift    = &cfg_sm.p_band_tx_shift;
     cfg_band_tx_i_offset = &cfg_sm.p_band_tx_i_offset;
     cfg_band_tx_q_offset = &cfg_sm.p_band_tx_q_offset;
     cfg_band_vfoa_mode   = &cfg_sm.p_band_vfoa_mode;

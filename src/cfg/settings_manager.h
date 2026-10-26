@@ -423,8 +423,15 @@ class SettingsManager {
         StorageType::BAND, pending_writes_, {}, &band_params_};
     Parameter<int32_t> p_band_grid_max{"grid_max", -73, {},
         StorageType::BAND, pending_writes_, {}, &band_params_};
-    Parameter<int32_t> p_band_split{"split", false, 0, 1,
-        StorageType::BAND, pending_writes_, &band_params_};
+    // Split, this band's own: a band that never saved one starts without, not with the last band's (a split a TX
+    // shift turned on stayed on in every band after)
+    Parameter<int32_t> p_band_split{"split", false, [](int32_t v) { return clip(v, 0, 1); },
+        StorageType::BAND, pending_writes_, [this] { p_band_split.set_quiet(0); }, &band_params_};
+    // TX shift of this band, Hz, 0 off (|shift| up to 10 MHz): with split on, the other VFO is kept at the active one
+    // + the shift (tx_shift_follow), so the radio transmits shifted: an FM repeater's input, a QO-100 station's IF.
+    // A band that never saved one has none, not the last band's
+    Parameter<int32_t> p_band_tx_shift{"tx_shift", 0, [](int32_t v) { return clip(v, -TX_SHIFT_MAX, TX_SHIFT_MAX); },
+        StorageType::BAND, pending_writes_, [this] { p_band_tx_shift.set_quiet(0); }, &band_params_};
     Parameter<int32_t> p_band_tx_i_offset{"tx_i_offset", 0, {},
         StorageType::BAND, pending_writes_, {}, &band_params_};
     Parameter<int32_t> p_band_tx_q_offset{"tx_q_offset", 0, {},
@@ -592,6 +599,9 @@ class SettingsManager {
     static constexpr int32_t WR12_MIN_FREQ = 54'000'000;
     static constexpr int32_t WR12_MAX_FREQ = 1'000'000'000;
 
+    // The largest TX shift, Hz (p_band_tx_shift)
+    static constexpr int32_t TX_SHIFT_MAX = 10'000'000;
+
     // -- VFO operations --
     // Copies VFO-related band parameters (freq, mode, agc, att, pre) from the
     // active VFO to the inactive VFO, based on the current p_band_current_vfo.
@@ -601,6 +611,9 @@ class SettingsManager {
     // other VFO's band is loaded (its frequency and mode come with the band's record).
     void vfo_toggle();
     void band_follow(int32_t freq);    // the band the active VFO's frequency lies in, implicitly
+
+    // The TX shift of the current band, Hz (Settings, the web Bands page): split comes on with a shift, off with 0
+    void tx_shift_set(int32_t hz);
 
     // Transverter shift for a frequency: the shift of the transverter whose
     // [from, to] range contains `freq`, or 0 when no transverter covers it.
@@ -684,6 +697,13 @@ class SettingsManager {
     // Trampoline for the p_band_id observer: an explicit band switch is triggered
     // by setting p_band_id; the observer runs switch_band with implicit=false.
     static void switch_band_observer_cb(Subject *subj, void *user_data);
+
+    // The TX shift kept: while the band has one and split is on, the other VFO is the active one + the shift (on
+    // VFO A: B = A + shift; on VFO B: A = B - shift, the reverse). Run on every change of either VFO's frequency,
+    // the active VFO, split and the shift, so any path that tunes (knob, memory, CAT, TCI, the apps, a band switch)
+    // brings the TX frequency along; a write to the other VFO is put back
+    void tx_shift_follow();
+    static void tx_shift_cb(Subject *subj, void *user_data);
 
     // Mode group functions
     static ModeGroup mode_group(radio_mode_t mode);
@@ -791,6 +811,11 @@ class SettingsManager {
     // destruction.
     Subscription vfoa_freq_obs_;
     Subscription vfob_freq_obs_;
+
+    // The TX shift's observers (both VFO frequencies, the active VFO, split, the shift) and its re-entrancy guard:
+    // tx_shift_follow writes a VFO it watches
+    Subscription tx_shift_obs_[5];
+    bool         tx_shift_busy_ = false;
 
     // Background flush thread control.
     bool                    flush_thread_running_ = false;
