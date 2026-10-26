@@ -18,6 +18,11 @@
  *  the radio, caps the power and steers the drive as for the other digital modes. The client
  *  going ends everything: the stream stops, a transmission is cut and the radio unkeyed.
  *
+ *  The rigctld server, for Pat's hamlib rig on 127.0.0.1:WINLINK_RIG_PORT: one command a line
+ *  (CR LF or LF), at most one line back. \get_freq (f), \set_freq (F: tunes as TCI does and sets
+ *  USB-D unless the mode is USB or USB-D), \get_ptt (t), \set_ptt (T: answered only, ardopcf keys
+ *  through the socket; Pat runs with ptt_ctrl false), \chk_vfo, \quit (q); anything else RPRT -11.
+ *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
@@ -26,16 +31,23 @@
 #include "winlink.h"
 
 #include "audio.h"
+#include "cfg/cfg_api.h"
 #include "msg.h"
 #include "radio.h"
+#include "scheduler.h"
+#include "screen_light.h"
+#include "screen_main.h"
 #include "tx_player.h"
 
 #include "lvgl/lvgl.h"
 
 #include <liquid/liquid.h>
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <math.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <poll.h>
 #include <pthread.h>
 #include <pulse/error.h>
@@ -63,6 +75,10 @@
 #define KEY_LIMIT_MS    (30 * 1000)     /* one key at most */
 #define SWR_HOLD_MS     (5 * 60 * 1000) /* no keying this long after an SWR trip in a Winlink TX */
 #define TURN_MS         500             /* after our own TX the base may still report it this long */
+
+#define RIG_CLIENTS     4
+#define RIG_LINE        256
+#define TUNE_WAIT_MS    700             /* \set_freq waits this long for the LVGL thread (Pat reads for 1 s) */
 
 typedef struct {
     uint8_t  type;
@@ -580,6 +596,260 @@ static void *ardop_thread(void *arg) {
     return NULL;
 }
 
+/* ---- rigctld for Pat ---------------------------------------------------------------- */
+
+typedef enum {
+    RIG_NONE,           /* an empty line: no answer */
+    RIG_GET_FREQ,
+    RIG_SET_FREQ,
+    RIG_GET_PTT,
+    RIG_SET_PTT,
+    RIG_CHK_VFO,
+    RIG_QUIT,
+    RIG_BAD_ARG,        /* a command we know without the number it needs */
+    RIG_UNKNOWN,
+} rig_cmd_t;
+
+/* One line, its CR LF cut: the command, with its number in *arg */
+static rig_cmd_t rig_parse(const char *line, double *arg) {
+    static const struct {
+        const char *brief, *full;
+        rig_cmd_t  cmd;
+        bool       number;
+    } cmds[] = {
+        {"f", "\\get_freq", RIG_GET_FREQ, false},
+        {"F", "\\set_freq", RIG_SET_FREQ, true},
+        {"t", "\\get_ptt", RIG_GET_PTT, false},
+        {"T", "\\set_ptt", RIG_SET_PTT, true},
+        {NULL, "\\chk_vfo", RIG_CHK_VFO, false},
+        {"q", "\\quit", RIG_QUIT, false},
+        {"Q", NULL, RIG_QUIT, false},
+    };
+    char   word[32];
+    size_t n;
+
+    while (*line == ' ' || *line == '\t')
+        line++;
+    if (!*line)
+        return RIG_NONE;
+    n = strcspn(line, " \t");
+    if (n >= sizeof(word))
+        return RIG_UNKNOWN;
+    memcpy(word, line, n);
+    word[n] = 0;
+    line += n;
+
+    for (size_t i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++) {
+        if (!(cmds[i].brief && !strcmp(word, cmds[i].brief)) && !(cmds[i].full && !strcmp(word, cmds[i].full)))
+            continue;
+        if (cmds[i].number) {
+            char *end;
+
+            *arg = strtod(line, &end);
+            while (*end == ' ' || *end == '\t')
+                end++;
+            if (end == line || *end || !isfinite(*arg))
+                return RIG_BAD_ARG;
+        }
+        return cmds[i].cmd;
+    }
+    return RIG_UNKNOWN;
+}
+
+static atomic_uint tunes;   /* tune_cb ran: rig_tune knows its answer */
+
+/* LVGL thread: Pat's QSY as TCI tunes, then USB-D unless the mode is USB or USB-D already */
+static void tune_cb(void *arg) {
+    int32_t f = *(int32_t *)arg;
+
+    if (!on_air() && !main_screen_freq_locked() && cfg_is_valid_hw_freq(f)) {
+        int32_t mode;
+
+        backlight_tick();   /* tuned from a program: the screen wakes as for a key */
+        if (f != cparam_i_get(cfg_fg_freq))
+            main_screen_set_freq((uint64_t)f);
+        mode = cparam_i_get(cfg_cur_mode);
+        if (mode != radio_mode_usb && mode != radio_mode_usb_dig && !main_screen_mode_locked())
+            cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
+    }
+    atomic_fetch_add(&tunes, 1);
+}
+
+/* \set_freq: hamlib's code, 0 when the radio is there. Not while on the air (tx_player puts its
+ * dial back at the end), nor on a frequency an app holds */
+static int rig_tune(double hz) {
+    unsigned seen = atomic_load(&tunes);
+    int32_t  f;
+
+    if (!(hz >= 1.0 && hz < 2147483647.0))
+        return -1;      /* RIG_EINVAL */
+    f = (int32_t)llround(hz);
+    if (!cfg_is_valid_hw_freq(f))
+        return -1;
+    if (on_air() || !scheduler_put(tune_cb, &f, sizeof(f)))
+        return -9;      /* RIG_ERJCTED */
+    for (int ms = 0; atomic_load(&tunes) == seen; ms += 5) {
+        if (ms >= TUNE_WAIT_MS)
+            return -5;  /* RIG_ETIMEOUT: the LVGL thread busy */
+        usleep(5000);
+    }
+    return cparam_i_get(cfg_fg_freq) == f ? 0 : -9;
+}
+
+/* The answer to one line into reply, "" for none. False: the client says goodbye */
+static bool rig_answer(const char *line, char *reply, size_t size) {
+    double arg = 0;
+
+    reply[0] = 0;
+    switch (rig_parse(line, &arg)) {
+        case RIG_NONE:
+            break;
+        case RIG_GET_FREQ:
+            snprintf(reply, size, "%d\n", (int)cparam_i_get(cfg_fg_freq));
+            break;
+        case RIG_SET_FREQ:
+            snprintf(reply, size, "RPRT %d\n", rig_tune(arg));
+            break;
+        case RIG_GET_PTT:
+            snprintf(reply, size, "%d\n", on_air() ? 1 : 0);
+            break;
+        case RIG_SET_PTT:
+            snprintf(reply, size, "RPRT 0\n");      /* ardopcf keys through the socket */
+            break;
+        case RIG_CHK_VFO:
+            snprintf(reply, size, "0\n");
+            break;
+        case RIG_QUIT:
+            return false;
+        case RIG_BAD_ARG:
+            snprintf(reply, size, "RPRT -1\n");     /* RIG_EINVAL */
+            break;
+        case RIG_UNKNOWN:
+            snprintf(reply, size, "RPRT -11\n");    /* RIG_ENAVAIL */
+            break;
+    }
+    return true;
+}
+
+typedef struct {
+    int    fd;
+    char   in[RIG_LINE];
+    size_t len;
+} rig_client_t;
+
+static rig_client_t rig_clients[RIG_CLIENTS];
+
+static void rig_close(rig_client_t *c) {
+    close(c->fd);
+    c->fd  = -1;
+    c->len = 0;
+}
+
+static void rig_read(rig_client_t *c) {
+    ssize_t n = recv(c->fd, c->in + c->len, sizeof(c->in) - 1 - c->len, MSG_DONTWAIT);
+    char   *p, *nl;
+
+    if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) {
+        rig_close(c);
+        return;
+    }
+    if (n < 0)
+        return;
+    c->len += n;
+    p = c->in;
+    while ((nl = memchr(p, '\n', c->len - (size_t)(p - c->in)))) {
+        char reply[64];
+        bool stay;
+
+        *nl = 0;
+        if (nl > p && nl[-1] == '\r')
+            nl[-1] = 0;
+        stay = rig_answer(p, reply, sizeof(reply));
+        if (reply[0])
+            send(c->fd, reply, strlen(reply), MSG_DONTWAIT | MSG_NOSIGNAL);
+        if (!stay) {
+            rig_close(c);
+            return;
+        }
+        p = nl + 1;
+    }
+    c->len -= (size_t)(p - c->in);
+    memmove(c->in, p, c->len);
+    if (c->len == sizeof(c->in) - 1)
+        rig_close(c);   /* a line that never ends */
+}
+
+static int rig_listen(void) {
+    static bool        said;
+    struct sockaddr_in a   = {.sin_family = AF_INET, .sin_port = htons(WINLINK_RIG_PORT),
+                              .sin_addr.s_addr = htonl(INADDR_LOOPBACK)};
+    int                fd  = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    int                one = 1;
+
+    if (fd < 0)
+        return -1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+    if (bind(fd, (struct sockaddr *)&a, sizeof(a)) < 0 || listen(fd, 4) < 0) {
+        if (!said)
+            LV_LOG_ERROR("winlink: can't listen on 127.0.0.1:%d: %s", WINLINK_RIG_PORT, strerror(errno));
+        said = true;
+        close(fd);
+        return -1;
+    }
+    LV_LOG_USER("winlink: rigctld on 127.0.0.1:%d", WINLINK_RIG_PORT);
+    return fd;
+}
+
+static void *rig_thread(void *arg) {
+    int lfd = -1;
+    (void)arg;
+
+    for (;;) {
+        if (lfd < 0 && (lfd = rig_listen()) < 0) {
+            sleep(5);
+            continue;
+        }
+        struct pollfd pfd[1 + RIG_CLIENTS];
+        int           slot[1 + RIG_CLIENTS];
+        nfds_t        n = 0;
+
+        pfd[n++] = (struct pollfd){.fd = lfd, .events = POLLIN};
+        for (int i = 0; i < RIG_CLIENTS; i++) {
+            if (rig_clients[i].fd < 0)
+                continue;
+            slot[n]  = i;
+            pfd[n++] = (struct pollfd){.fd = rig_clients[i].fd, .events = POLLIN};
+        }
+        if (poll(pfd, n, -1) < 0) {
+            if (errno != EINTR)
+                usleep(100000);
+            continue;
+        }
+        for (nfds_t k = 1; k < n; k++) {
+            if (pfd[k].revents)
+                rig_read(&rig_clients[slot[k]]);
+        }
+        if (pfd[0].revents & POLLIN) {
+            int fd  = accept4(lfd, NULL, NULL, SOCK_CLOEXEC);
+            int one = 1;
+
+            if (fd < 0)
+                continue;
+            setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+            for (int i = 0; i < RIG_CLIENTS && fd >= 0; i++) {
+                if (rig_clients[i].fd < 0) {
+                    rig_clients[i].fd  = fd;
+                    rig_clients[i].len = 0;
+                    fd = -1;
+                }
+            }
+            if (fd >= 0)
+                close(fd);  /* all taken */
+        }
+    }
+    return NULL;
+}
+
 /* ---- Public ------------------------------------------------------------------------- */
 
 void winlink_init(void) {
@@ -597,6 +867,11 @@ void winlink_init(void) {
     ses.rs       = msresamp_rrrf_create(rate, 60.0f);
     ses.tail_len = LV_MIN((size_t)ceilf(msresamp_rrrf_get_delay(ses.rs) / rate) + 2, (size_t)IN_BLOCK);
 
+    for (int i = 0; i < RIG_CLIENTS; i++)
+        rig_clients[i].fd = -1;
+
     if (pthread_create(&th, NULL, ardop_thread, NULL) == 0)
+        pthread_detach(th);
+    if (pthread_create(&th, NULL, rig_thread, NULL) == 0)
         pthread_detach(th);
 }

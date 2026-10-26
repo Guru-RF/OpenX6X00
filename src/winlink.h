@@ -5,8 +5,9 @@
  *
  *  ardopcf, the ARDOP modem, has no sound card here: it connects to the GUI on a UNIX socket,
  *  hears the receiver through it and sends its audio and its PTT back, and the GUI keys the
- *  transmitter as for its own digital modes. It listens from the start and does nothing until
- *  ardopcf comes; x6100-winlink starts ardopcf and Pat when Winlink is on.
+ *  transmitter as for its own digital modes. Pat, the mail client, tunes the radio through a
+ *  rigctld of the GUI's own on 127.0.0.1. Both listen from the start and do nothing until a
+ *  client comes; x6100-winlink starts ardopcf and Pat when Winlink is on.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -28,7 +29,12 @@ extern "C" {
 #endif
 #endif
 
-/* Starts the ARDOP bridge: once, after audio_init() */
+/* Pat's hamlib rig: TCP on 127.0.0.1 */
+#ifndef WINLINK_RIG_PORT
+#define WINLINK_RIG_PORT    4532
+#endif
+
+/* Starts the ARDOP bridge and the rigctld server: once, after audio_init() */
 void winlink_init(void);
 
 #ifdef __cplusplus
