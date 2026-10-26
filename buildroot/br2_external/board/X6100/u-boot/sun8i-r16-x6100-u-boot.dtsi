@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * U-Boot's part of the X6100's device tree (board/X6100/dts/sun8i-r16-x6100.dts), for mainline
+ * U-Boot 2026.07. U-Boot takes only the first <board>-u-boot.dtsi it finds, so the sunxi one is
+ * included here. The mmc2 alias goes: the U-Boot builds that start these radios had none (the
+ * 2025 binary the image carried up to v0.3.5, and the 2026.07 one of IU1WXY's v0.131).
+ */
+
+#include "sunxi-u-boot.dtsi"
+
+/ {
+	aliases {
+		/delete-property/ mmc2;
+	};
+};

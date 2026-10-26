@@ -89,8 +89,8 @@ jobs:
     # The update bundle a running radio installs by itself (x6100-update) is signed with the
     # repository secret UPDATE_SIGNING_KEY (an EC P-256 private key in PEM; its public half is
     # rootfs/usr/share/x6100/update.pub). Without the secret the bundle is unsigned and radios
-    # refuse it. The script also patches the buildroot tree, configures and builds, puts our
-    # U-Boot on the X6100's image and names it <out>-local-sdcard.img.
+    # refuse it. The script also patches the buildroot tree (the X6100's U-Boot: mainline 2026.07,
+    # its tarball checked), configures and builds, and names the image <out>-local-sdcard.img.
     - name: Build
       env:
         UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}

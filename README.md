@@ -402,7 +402,7 @@ rootfs/                  init scripts, helper scripts (x6100-update, x6100-field
                          x6100-broadcast-update, x6100-hostname, x6100-tailscale, x6100-wifilog,
                          btcat-ctl, btaudio-ctl), data files
 btcat/ bootanim/         Bluetooth CAT bridge, boot animation
-boot/ u-boot/            boot logo, the U-Boot binary written over buildroot's (X6100 image)
+boot/                    boot logo
 sql/                     the default params.db
 themes/                  the Holo and Material 3 JSON themes to copy by hand; make_rs.py, an
                          RS-BA1 look cut from a screenshot (personal use, not installed)

@@ -135,6 +135,23 @@ rm -f $BOARD/rootfs-overlay/etc/init.d/S02update $BR/build/target/etc/init.d/S02
 if [ $MODEL = x6100 ]; then
     grep -q "rtl8723bu-wifi/Config.in" $EXT/Config.in || echo 'source "$BR2_EXTERNAL_X6100_PATH/package/rtl8723bu-wifi/Config.in"' >> $EXT/Config.in
     grep -q "^BR2_PACKAGE_RTL8723BU_WIFI=y" $DEFCONFIG || echo "BR2_PACKAGE_RTL8723BU_WIFI=y" >> $DEFCONFIG
+    # U-Boot: mainline 2026.07 built from source with the same U-Boot defconfig (issue #21). Up to v0.3.5 the image
+    # had a 2025 binary written over the 2023.01 buildroot built: it switches the DRAM supply on in an order
+    # mainline put back in 2025.04 (1dadb246a3) because it hung boards of this family at the kernel start, and a
+    # radio of #21 stopped there with our card and started with IU1WXY's v0.131, whose U-Boot 2026.07 is the only
+    # real difference (same kernel, same device tree). The dtsi adds U-Boot's own nodes
+    sed -i 's/^BR2_TARGET_UBOOT_CUSTOM_VERSION_VALUE=.*/BR2_TARGET_UBOOT_CUSTOM_VERSION_VALUE="2026.07"/' $DEFCONFIG
+    grep -q "^BR2_TARGET_UBOOT_NEEDS_PYTHON3=y" $DEFCONFIG || echo "BR2_TARGET_UBOOT_NEEDS_PYTHON3=y" >> $DEFCONFIG
+    sed -i 's|^\(BR2_TARGET_UBOOT_CUSTOM_DTS_PATH=".*/sun8i-r16-x6100\.dts\)"$|\1 $(BR2_EXTERNAL_X6100_PATH)/board/X6100/u-boot/sun8i-r16-x6100-u-boot.dtsi"|' $DEFCONFIG
+    cp $GUI/buildroot/br2_external/board/X6100/u-boot/sun8i-r16-x6100-u-boot.dtsi $EXT/board/X6100/u-boot/
+    # buildroot 2023.02 copies COPYING over Licenses/gpl-2.0.txt for U-Boot before 2013.10; in 2026.07 COPYING is a
+    # link to that file and the copy fails the extraction
+    sed -i 's#if \[ -f \$(@D)/COPYING \]; then#if [ -f $(@D)/COPYING ] \&\& [ ! -L $(@D)/COPYING ]; then#' $BR/buildroot/boot/uboot/uboot.mk
+    # and builds mkeficapsule (EFI capsules, which the radio does not use) with the build host's gnutls, which the
+    # container has not: a host tool only, the U-Boot binary is the same without it
+    grep -q "CONFIG_TOOLS_MKEFICAPSULE" $EXT/board/X6100/u-boot/sun8i-r16-x6100_defconfig \
+        || echo "# CONFIG_TOOLS_MKEFICAPSULE is not set" >> $EXT/board/X6100/u-boot/sun8i-r16-x6100_defconfig
+    grep -E "^BR2_TARGET_UBOOT_(CUSTOM_VERSION_VALUE|NEEDS_PYTHON3|CUSTOM_DTS_PATH)" $DEFCONFIG
 fi
 grep -q "^BR2_ROOTFS_DEVICE_TABLE=" $DEFCONFIG || echo "BR2_ROOTFS_DEVICE_TABLE=\"system/device_table.txt \$(BR2_EXTERNAL_${M}_PATH)/board/$M/linux/device_table.txt\"" >> $DEFCONFIG
 for o in CONFIG_USB_NET_RNDIS_HOST=m CONFIG_IP_ADVANCED_ROUTER=y CONFIG_IP_MULTIPLE_TABLES=y; do
@@ -152,6 +169,14 @@ cd $BR && bash ./br_config.sh
 
 echo "== Build"
 cd $BR/build
+if [ $MODEL = x6100 ]; then
+    # A U-Boot configured here before its defconfig turned mkeficapsule off is configured again
+    grep -qs "^CONFIG_TOOLS_MKEFICAPSULE=y" $BR/build/build/uboot-2026.07/.config && make uboot-dirclean
+    # buildroot checks no hash for a U-Boot version of one's own: this one is the release's
+    # (ftp.denx.de, the same file as in IU1WXY's v0.131 sources)
+    make uboot-source
+    echo "78e8bfc382fe388f9b55aa1daf8c563522a037779b5d4c349d1415e381f1243e  $BR/buildroot/dl/uboot/u-boot-2026.07.tar.bz2" | sha256sum -c -
+fi
 make lame mpg123
 make libsndfile-dirclean
 # A package patched after an earlier build here is built again: buildroot applies patches at extraction only
@@ -231,10 +256,6 @@ KEYARG=""; [ -f "$KEY" ] && KEYARG="--key $KEY"
 python3 $GUI/tools/update/mkbundle.py --target $BR/build/target --manifest $(ls -d $BR/build/build/$GUI_PKG-*/install_manifest.txt | head -1) \
     --version $VER --model $MODEL --out $BR/build/images/$OUT-v$VER-update.tar.gz $KEYARG
 
-if [ $MODEL = x6100 ]; then
-    echo "== Our U-Boot over buildroot's, 8 KB into the card"
-    dd if=$GUI/u-boot/u-boot-sunxi-with-spl.bin of=$BR/build/images/sdcard.img seek=8K bs=1 conv=notrunc
-fi
 cp $BR/build/images/sdcard.img $BR/build/images/$OUT-local-sdcard.img
 ls -la $BR/build/images/$OUT-local-sdcard.img
 echo "== done"
