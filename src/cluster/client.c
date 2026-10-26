@@ -747,6 +747,16 @@ static bool looks_like_login_prompt(const char *text) {
     return strcasestr(text, "login") || strcasestr(text, "call") || strcasestr(text, "enter your");
 }
 
+/* The call, at the node's prompt or after LOGIN_FALLBACK_MS; the state says so (the web page shows it, #23) */
+static void send_login(int fd, const char *call) {
+    char detail[64];
+
+    send_text(fd, call);
+    send_text(fd, "\r\n");
+    snprintf(detail, sizeof(detail), "logged in as %s", call);
+    set_state(CLUSTER_CONNECTED, detail);
+}
+
 /* Returns true when the session lasted long enough to reset the backoff. */
 static bool session(int fd, const char *call) {
     char          line[LINE_MAX_LEN];
@@ -759,7 +769,7 @@ static bool session(int fd, const char *call) {
     int64_t       last_rx     = started;
     unsigned char buf[1024];
 
-    set_state(CLUSTER_CONNECTED, "");
+    set_state(CLUSTER_CONNECTED, "logging in");
 
     while (!ABORTED()) {
         struct pollfd pfd = {fd, POLLIN, 0};
@@ -767,8 +777,7 @@ static bool session(int fd, const char *call) {
         int64_t       now = now_ms();
 
         if (!logged_in && now - started > LOGIN_FALLBACK_MS) {
-            send_text(fd, call);
-            send_text(fd, "\r\n");
+            send_login(fd, call);
             logged_in = true;
             login_at  = now;
         }
@@ -828,8 +837,7 @@ static bool session(int fd, const char *call) {
         if (!logged_in && len > 0) {
             line[len] = '\0';
             if (looks_like_login_prompt(line)) {
-                send_text(fd, call);
-                send_text(fd, "\r\n");
+                send_login(fd, call);
                 logged_in = true;
                 login_at  = now_ms();
                 len       = 0;
@@ -943,8 +951,13 @@ static void start_thread(void *(*fn)(void *), void *arg) {
  * block for seconds, and closing the app must not wait for it. */
 void cluster_client_start(const char *host, int port, const char *callsign) {
     pthread_mutex_lock(&lock);
-    if (strcmp(host_name, host) != 0 || strcmp(login_call, callsign) != 0 || host_port != port)
+    if (strcmp(host_name, host) != 0 || strcmp(login_call, callsign) != 0 || host_port != port) {
         reconnect_requested = true; /* the running session picks up the change */
+        if (thread_running) {
+            state           = CLUSTER_CONNECTING; /* not the old login's state under the new server's name */
+            state_detail[0] = '\0';
+        }
+    }
     snprintf(host_name, sizeof(host_name), "%s", host);
     snprintf(login_call, sizeof(login_call), "%s", callsign);
     host_port      = port;

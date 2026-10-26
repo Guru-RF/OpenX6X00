@@ -148,6 +148,8 @@ void cluster_client_retry(void);
  * the count, or -1 when nothing changed. */
 int cluster_client_snapshot(cluster_spot_t *out, int max, uint32_t *gen);
 
+/* The state, and its detail: why it failed, or while connected "logging in", then "logged in as CALL" once the
+ * call was sent (a node that refuses it says so next: CLUSTER_FAILED) */
 cluster_state_t cluster_client_state(char *detail, size_t size);
 
 

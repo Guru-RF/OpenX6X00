@@ -110,6 +110,9 @@ CLUSTER_BANDS = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6]
 CLUSTER_ACTIVITY = ["POTA", "SOTA", "WWBOTA", "HOTA"]   # the GUI's cluster_act_names
 # Written by the radio GUI: pattern|freq_hz|HH:MM of the last spot that matched
 CLUSTER_ALERTS_SEEN = "/tmp/cluster_alerts_seen"
+# Written by the radio GUI (src/dialog_cluster.c link_write): state|host:port|text, its APP Cluster status line
+CLUSTER_LINK = "/tmp/cluster_link"
+CLUSTER_LINK_SETTLE_S = 6   # the GUI looks at cluster.conf every 2 s: a change older than this was seen
 CLUSTER_LOGIN_RE = re.compile(r"[A-Za-z0-9/-]{1,15}")   # the GUI's cluster_config_login(): else the station's call
 
 
@@ -2167,6 +2170,30 @@ def set_cluster_link():
     def change(host, port, servers, opts):
         opts.update(enabled=bool(data.get("enabled", True)), login=login)
     return cluster_update(change)
+
+
+@app.get('/api/cluster/link')
+def get_cluster_link():
+    """What the radio's cluster link is doing, as APP Cluster's status line says it (issue #23). "stale": the
+    radio has not taken up what cluster.conf says (another server, the link on or off) a while after the change"""
+    try:
+        with open(CLUSTER_LINK, errors="replace") as f:
+            state, server, text = (f.readline().rstrip("\n").split("|", 2) + ["", ""])[:3]
+    except OSError:
+        return {"state": "", "server": "", "text": "", "stale": False}   # the GUI has not written it (yet)
+    host, port, _ = read_cluster_conf()
+    enabled = read_cluster_options()["enabled"]
+    try:
+        settled = time.time() - os.stat(settings.CLUSTER_CONF).st_mtime > CLUSTER_LINK_SETTLE_S
+    except OSError:
+        settled = True
+    if state == "off":
+        behind = enabled
+    elif state == "nocall":   # no callsign: the radio holds no link whatever the file says
+        behind = False
+    else:
+        behind = not enabled or server != f"{host}:{port}"
+    return {"state": state, "server": server, "text": text, "stale": behind and settled}
 
 
 @app.post('/api/cluster/use/<index:int>')
