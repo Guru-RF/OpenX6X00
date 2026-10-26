@@ -261,13 +261,18 @@ bool cluster_enabled_save(bool on) {
 
 /* Changes with every save: the GUI and the web configurator replace the file by rename (a new inode). The mtime
  * alone missed a second save within the same 2 s, the step FAT keeps it in on /mnt: "Use" C right after B, or a
- * new login, left the radio on B or the old login until a reboot (issue #23). The nanoseconds are for the PC build,
- * whose file systems give a freed inode number out again */
+ * new login, left the radio on B or the old login until a reboot (issue #23). The fields are mixed, not XOR-ed side
+ * by side: from one save to the next FAT's mtime goes up 2 s and its inode number 1, and those cancelled out in
+ * overlapping bits for about 1 save in 3 (the link switched on again a few seconds after off, the same size). The
+ * nanoseconds are for the PC build, whose file systems give a freed inode number out again */
 time_t cluster_config_mtime(void) {
     struct stat st;
     if (stat(CLUSTER_CONF, &st) != 0) return 0;
-    return (time_t)((uint64_t)st.st_mtime ^ (uint64_t)st.st_ino << 1 ^ (uint64_t)st.st_size << 17 ^
-                    (uint64_t)st.st_mtim.tv_nsec << 32);
+    uint64_t h = (uint64_t)st.st_mtime;
+    h          = h * 0x9E3779B97F4A7C15ull ^ (uint64_t)st.st_ino;
+    h          = h * 0x9E3779B97F4A7C15ull ^ (uint64_t)st.st_size;
+    h          = h * 0x9E3779B97F4A7C15ull ^ (uint64_t)st.st_mtim.tv_nsec;
+    return (time_t)(h ^ h >> 32);
 }
 
 uint8_t cluster_spot_mode_class(const cluster_spot_t *s) {
