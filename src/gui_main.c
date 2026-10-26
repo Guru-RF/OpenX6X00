@@ -62,6 +62,7 @@
 #include "bt_dev.h"
 #include "usb_devices.h"
 #include "image_level.h"
+#include "start_trace.h"
 #include "dialog_cluster.h"
 #include "app_sstv.h"
 #include "walkie.h"
@@ -236,9 +237,12 @@ static void services_start(void) {
     rtty_init();
     radio_set_rx_tx_notify_fn(&main_screen_notify_rx_tx);
     radio_set_low_power_cb(&main_screen_notify_low_power);
-    wifi_power_setup();
+    /* The start trace after each step that talks to another program or the card: a hang shows between two lines */
+    wifi_power_setup();     /* NetworkManager, its calls waited for */
+    start_trace("services: WiFi set up");
     btaudio_init();
     bt_dev_init();
+    start_trace("services: Bluetooth set up");
     backlight_init();
     cat_init();
     cfg_socket_init();
@@ -246,12 +250,14 @@ static void services_start(void) {
     tci_server_init();
     remote_server_init();
     winlink_init();     /* ardopcf's audio and Pat's rigctld: idle until they connect */
+    start_trace("services: CAT, TCI and the browser's servers up");
     birdie_init();
     gps_init();
     if (!qso_log_init()) {
         LV_LOG_ERROR("Can't init QSO log");
     }
     qso_log_import_adif(BOARD_DATA "/incoming_log.adi");
+    start_trace("services: QSO log read");
     dialog_cluster_start_client();
     image_level_notice_init();   /* a newer card image wanted: said once per version */
 }
@@ -281,6 +287,8 @@ static void update_confirm_cb(lv_timer_t *t) {
 }
 
 static void gui_loop(void) {
+    bool drawn = false;     /* the start trace's last stage */
+
     for (;;) {
         int64_t start = get_time();
 
@@ -296,6 +304,10 @@ static void gui_loop(void) {
             rename("/tmp/screen.raw.tmp", "/tmp/screen.raw");
         }
 #endif
+        if (!drawn) {
+            drawn = true;
+            start_trace("first frame");
+        }
         int64_t wait = next - get_time();
 
         usleep(wait > 0 ? wait * 1000 : 5000);
@@ -304,6 +316,7 @@ static void gui_loop(void) {
 
 int main(void) {
     scheduler_init();   /* this is the GUI thread */
+    start_trace("GUI start, %s", VERSION);
     setenv("X6100_FW", strrchr(VERSION, 'v') + 1, 1);   /* the helpers' User-Agent (x6100-field, spots) */
     clock_tz_init();
     lv_init();
@@ -314,13 +327,16 @@ int main(void) {
     display_register();
     inputs_open();
     settings_load();
+    start_trace("settings read");
 
     radio_init();
     audio_mixer_setup(radio_base_ver());
     dsp_init();
     lv_obj_t *screen = main_screen();
+    start_trace("screen built");
     radio_start();
     services_start();
+    start_trace("services started");
     tick_start();
 
     lv_scr_load(screen);

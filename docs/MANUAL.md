@@ -2991,6 +2991,32 @@ the run that ended is in `/mnt/app_logs/`; the last lines say why. A power-off
 with the POWER key saves the run's log there too (`..._off.txt`); the newest 50
 logs are kept.
 
+#### The radio stops at the boot logo, or the screen stays dark after it
+
+The radio writes each stage of its start to `/mnt/app_logs/start_trace.txt`
+on the card as it goes (the run's own log is kept in memory until the GUI ends,
+so a start that stops leaves nothing else). Each line has the time in UTC and
+the seconds since power-on. Before each start of the GUI comes "x6100_daemon:
+GUI start N", then the GUI's own lines, in this order:
+
+1. "GUI start", with the version
+2. "settings read"
+3. "base: no answer (try N)" for each try while the base gives no answer, and
+   "base: reset" after about 6 seconds of that; then "base answered"
+4. "screen built"
+5. "base: version ..."
+6. "services: WiFi set up", "services: Bluetooth set up", "services: CAT, TCI
+   and the browser's servers up", "services: QSO log read", "services started"
+7. "first frame": the screen is the GUI's from here on
+8. "battery: readings count", 15 to 20 seconds later
+
+When the GUI stops, "x6100_daemon: GUI ended, exit code N" follows (139: it
+crashed) and the next start begins. The last line of the failed start says how
+far it got. If the radio still starts on the external supply, open the web
+configurator's Files page, `app_logs`, and send `start_trace.txt` (and
+`start_trace.1.txt` if it is there) with your report, saying when the failed
+start was and on what power.
+
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
 Check the clock: FT8 and JS8 need it within about 2 s, WSPR within about a

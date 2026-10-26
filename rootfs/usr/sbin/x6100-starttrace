@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# OpenX6X00: one line of the radio's start trace, app_logs/start_trace.txt on the DATA partition,
+# written through to the card at once: a start that stops is usually ended by pulling the power.
+#
+#   x6100-starttrace <text>
+#
+# The line is the GUI's (src/start_trace.c): the UTC time, the seconds since the kernel started,
+# the text. Past 64 KB the file becomes start_trace.1.txt. Never fails: a trace that cannot be
+# written changes nothing.
+#
+# X6100_START_TRACE_FILE names another file (the tests).
+#
+
+TRACE=${X6100_START_TRACE_FILE:-/mnt/app_logs/start_trace.txt}
+MAX=65536
+
+[ -n "$1" ] || exit 0
+mkdir -p "${TRACE%/*}" 2> /dev/null
+[ -f "$TRACE" ] && [ "$(wc -c < "$TRACE")" -gt $MAX ] && mv -f "$TRACE" "${TRACE%.txt}.1.txt" 2> /dev/null
+echo "$(date -u '+%Y-%m-%d %H:%M:%SZ'), up $(cut -d' ' -f1 /proc/uptime) s: $*" 2> /dev/null >> "$TRACE"
+sync
+exit 0

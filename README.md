@@ -46,7 +46,9 @@ these; please give:
    the `app_logs` folder, from the card in a PC or from the web configurator's
    Files page. Each run of the radio software leaves one `x6100_log_*.txt`.
    From v0.3.4 a power-off with the POWER key saves the running one too, so
-   switch off right after the problem.
+   switch off right after the problem. For a start that stops at the boot
+   logo or a dark screen, attach `app_logs/start_trace.txt`: how far each
+   start got.
 6. **WiFi**: from v0.3.4 a failed join writes `app_logs/wifi.txt`, with no
    password in it. Add the exact message on the screen, the router's security
    (WPA2, WPA2/WPA3, WPA3 only), its 2.4 GHz channel, and whether a phone

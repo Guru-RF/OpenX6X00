@@ -51,6 +51,7 @@
 #include "audio.h"
 #include "bat_est.h"
 #include "bat_watch.h"
+#include "start_trace.h"
 #include "clock.h"
 #include "wifi.h"
 
@@ -201,28 +202,35 @@ void radio_bb_reset() {
 }
 
 void radio_init() {
-    if (!hw_init())
+    if (!hw_init()) {
+        start_trace("base: its pins or its line could not be opened");
         return;
+    }
 
     /* Back off (0.1 .. 25.6 s) and, once, after about 6 s without an answer,
      * pulse the baseband reset pin instead of waiting forever (upstream 37f3894) */
-    uint8_t cnt = 0;
+    uint8_t  cnt = 0;
+    unsigned tries = 0;
 
     while (!hw_control_init()) {
+        start_trace("base: no answer (try %u)", ++tries);
         usleep(100000 << cnt);
         if (cnt < 8) cnt++;
         if (cnt == 6) {
             fprintf(stderr, "Baseband not answering, reset\n");
+            start_trace("base: reset");
             radio_bb_reset();
             usleep(1000000);
         }
     }
+    start_trace("base answered");
 }
 
 void radio_start() {
 
     hw_start();
     base_ver = hw_base_ver();
+    start_trace("base: version %s", hw_base_ver_str());
     /* What the digital TX level comes from, for a report of an app at 0 W (#16); the base version was nowhere */
     fprintf(stderr, "radio: base %s, line_in %u, line_out %u, play %.1f dB, rec %.1f dB, digital level %.1f dB\n",
             hw_base_ver_str(), params.line_in, params.line_out, params.play_gain_db_f.x, params.rec_gain_db_f.x,
@@ -1161,6 +1169,11 @@ static void battery_log(const hw_pack_t *p) {
     fclose(f);
 }
 
+/* On the GUI thread: the trace syncs the card, which the flow must not wait for */
+static void start_trace_cb(void *arg) {
+    start_trace("%s", (const char *)arg);
+}
+
 /* The base's supply readings until they count, into the run's log: what it sends at power-on, for a
  * report (#17). A line for each change, then one when they count */
 static void battery_startup_log(const bat_watch_t *w, const hw_pack_t *p) {
@@ -1172,8 +1185,12 @@ static void battery_startup_log(const bat_watch_t *w, const hw_pack_t *p) {
         return;
     }
     if (w->counts) {
-        fprintf(stderr, "battery: readings count from %llu ms: %.1f V %u%%, external %.1f V\n",
-                (unsigned long long)(now_time - start_time), p->vbat * 0.1f, p->batcap, p->vext * 0.1f);
+        char line[96];
+
+        snprintf(line, sizeof(line), "battery: readings count from %llu ms: %.1f V %u%%, external %.1f V",
+                 (unsigned long long)(now_time - start_time), p->vbat * 0.1f, p->batcap, p->vext * 0.1f);
+        fprintf(stderr, "%s\n", line);
+        scheduler_put(start_trace_cb, line, sizeof(line));  /* the card's write off this thread */
         done = true;
         return;
     }
