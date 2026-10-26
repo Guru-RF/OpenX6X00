@@ -225,14 +225,19 @@ static void update_cb(Subject *subj, void *user_data) {
 
     split_freq(f, &mhz, &khz, &hz);
     if (theme_shape.deck) {     /* the other VFO at the top right, the current one in the badge */
-        bool     b = param_i_get(cfg_band_current_vfo) == RADIO_VFO_B;
-        uint16_t mhz2, khz2, hz2;
+        bool        b = param_i_get(cfg_band_current_vfo) == RADIO_VFO_B;
+        uint16_t    mhz2, khz2, hz2;
+        /* a TX shift after it ("-600k", "REV"); in split, in the error colour where the radio cannot transmit */
+        const char *shift = info_params_tx_shift_label();
+        bool        blocked = info_tx_blocked();
+        char        tail[32] = "";
 
+        if (shift) snprintf(tail, sizeof(tail), "  #%06x %s#", theme_hex(blocked ? TC_err : TC_info), shift);
         split_freq(cparam_i_get(cfg_bg_freq), &mhz2, &khz2, &hz2);
         lv_label_set_text_fmt(freq_label, "%i.%03i", mhz, khz);
         lv_label_set_text_fmt(freq_small, ".%02i", hz / 10);
-        lv_label_set_text_fmt(other_label, "#%06x %s#  %i.%03i.%02i", theme_hex(TC_text), b ? "A" : "B", mhz2, khz2,
-                              hz2 / 10);
+        lv_label_set_text_fmt(other_label, "#%06x %s#  #%06x %i.%03i.%02i#%s", theme_hex(TC_text), b ? "A" : "B",
+                              theme_hex(blocked ? TC_err : TC_text_dim), mhz2, khz2, hz2 / 10, tail);
         lv_label_set_text(vfo_badge, b ? "B" : "A");
         lv_label_set_text_fmt(band_label, "#%06x %s#", theme_hex(TC_accent), app);   /* the open app only */
     } else if (param_i_get(cfg_band_split)) {
@@ -426,6 +431,7 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     subject_subscribe_delayed((Subject *)cfg_fg_freq, update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_bg_freq, update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_band_split, update_cb, NULL);
+    subject_subscribe_delayed((Subject *)cfg_band_tx_shift, update_cb, NULL);   /* deck: after the other VFO */
     subject_subscribe_delayed((Subject *)cfg_cur_mode, update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_broadcast_name, bc_setting_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_mode_freq_step, step_change_cb, NULL);

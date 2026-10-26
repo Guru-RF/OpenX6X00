@@ -10,6 +10,7 @@
 
 #include "cfg/cfg_api.h"
 #include "gui_styles.h"
+#include "radio.h"
 #include "theme.h"
 #include "params/params.h"
 #include "pubsub_ids.h"
@@ -130,6 +131,9 @@ lv_obj_t *info_init(lv_obj_t *parent) {
 
     /* Each cell follows its settings; the last subscription of each paints it now */
     subject_subscribe_delayed((Subject *)cfg_band_current_vfo, vfo_update, NULL);
+    subject_subscribe_delayed((Subject *)cfg_band_tx_shift, vfo_update, NULL);
+    subject_subscribe_delayed((Subject *)cfg_fg_freq, vfo_update, NULL);    /* where it transmits, for the colour */
+    subject_subscribe_delayed((Subject *)cfg_bg_freq, vfo_update, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_band_split, vfo_update, NULL);
     subject_subscribe_delayed((Subject *)cfg_cur_mode, mode_update, NULL);
     subject_subscribe_delayed_and_notify((Subject *)mode_locked, mode_update, NULL);
@@ -307,9 +311,31 @@ const char *info_params_agc(void) {
     return name_of(names, sizeof(names) / sizeof(names[0]), cparam_i_get(cfg_cur_agc));
 }
 
-const char *info_params_vfo_label_get(void) {
-    bool b = param_i_get(cfg_band_current_vfo) != RADIO_VFO_A;
+const char *info_params_tx_shift_label(void) {
+    static char s[8];
+    int32_t     hz = param_i_get(cfg_band_tx_shift);
+    int32_t     a  = hz < 0 ? -hz : hz;
+    char        sign = hz < 0 ? '-' : '+';
 
+    if (!hz || !param_i_get(cfg_band_split)) return NULL;
+    if (param_i_get(cfg_band_current_vfo) != RADIO_VFO_A) return "REV";   /* listening on the input */
+    /* as short as "SPL-A": MHz with one decimal from 1 MHz, kHz with one under 100 kHz */
+    if (a >= 1000000 && a % 1000000 == 0) snprintf(s, sizeof(s), "%c%dM", sign, (int)(a / 1000000));
+    else if (a >= 1000000) snprintf(s, sizeof(s), "%c%d.%dM", sign, (int)(a / 1000000), (int)(a / 100000 % 10));
+    else if (a >= 100000 || a % 1000 == 0) snprintf(s, sizeof(s), "%c%dk", sign, (int)(a / 1000));
+    else snprintf(s, sizeof(s), "%c%d.%dk", sign, (int)(a / 1000), (int)(a / 100 % 10));
+    return s;
+}
+
+bool info_tx_blocked(void) {
+    return param_i_get(cfg_band_split) && !cfg_is_tx_freq(radio_tx_freq());
+}
+
+const char *info_params_vfo_label_get(void) {
+    bool        b     = param_i_get(cfg_band_current_vfo) != RADIO_VFO_A;
+    const char *shift = info_params_tx_shift_label();
+
+    if (shift) return shift;
     if (param_i_get(cfg_band_split)) return b ? "SPL-B" : "SPL-A";
     return b ? "VFO-B" : "VFO-A";
 }
@@ -418,8 +444,10 @@ static void *status_thread(void *arg) {
 }
 
 
+/* The error colour in split when the radio cannot transmit on the other VFO: a TX shift that took it off the band */
 static void vfo_update(Subject *subj, void *user_data) {
     lv_label_set_text(items[INFO_VFO], info_params_vfo_label_get());
+    lv_obj_set_style_text_color(items[INFO_VFO], info_tx_blocked() ? TC(err) : TC(text), 0);
 }
 
 /* Digital modes in their own colour; a mode an app holds, soft */
