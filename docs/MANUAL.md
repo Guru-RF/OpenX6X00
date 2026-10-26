@@ -1480,8 +1480,11 @@ Cluster app (APP > Cluster; pages `(CLUSTER 1:2)` and `(CLUSTER 2:2)`):
   first (`Time`). Link: the cluster login on or off.
 - Order and band view are saved and shared with the cluster column.
 - The status line shows the WiFi and cluster state ("Set your callsign",
-  "No network: WiFi or Ethernet", "Connecting...", "cluster connected", "Cluster
-  link off", or the error and "retrying" or "retry in 30 min").
+  "No network: WiFi or Ethernet", "Connecting...", "WiFi - logging in...",
+  "Logged in as ON6URE-2", "Cluster link off", or the error and "retrying" or
+  "retry in 30 min"). "Logged in" means the call was sent: a node that refuses
+  it says so next, and the line shows that. The web configurator's Cluster page
+  shows the same line (Link card, On the radio).
 
 Filters and alerts. They are saved in `/mnt/cluster.conf`, shared by the
 radio and the web configurator, and apply to the app, the column and the
@@ -1502,6 +1505,20 @@ waterfall.
   same list.
 - On the web configurator (Cluster page): the same modes, bands and activity,
   plus maximum age and spotters to skip (`*` wildcard).
+- Heard in (web configurator, Filters card): only the spots whose spotter is
+  in one of these countries, typed as prefixes: `PA, ON` for the Netherlands
+  and Belgium. Each prefix stands for its whole country by the country list
+  (`cty.dat`): PD and PH are the Netherlands too, OT is Belgium, K is the USA,
+  R is European Russia (UA9 or R0 for Asiatic Russia); Sicily (IT9) counts as
+  Italy. Up to 16; empty = all spots. The spotter's `-2` or `-#` (a skimmer)
+  does not count. Spots from other countries are dropped as they come in, so
+  they cannot push the wanted ones out of the list or replace them (the list
+  keeps one spot per call and frequency, the newest). Spots from spotters the
+  country list does not know are dropped too. A changed list takes the latest
+  spots from the cluster again. Alerts still come through. The POTA, WWBOTA and
+  HOTA spots are filtered the same way. The cluster itself still sends every
+  spot: nothing is set on the node, so a logger that uses the same call there
+  is not affected.
 - Alerts (web configurator): callsigns or prefixes (`3B8M`, `VP8*`, `*/MM`),
   optionally only on some bands or one mode. Matching spots are magenta with
   an `ALERT` tag and are never filtered out. A new one pops up on the main
@@ -2010,6 +2027,13 @@ unsaved rows and offers Save all and Discard. A row the radio changed
 meanwhile (another browser, the radio itself) says "Changed on the radio
 meanwhile": Save keeps yours, Reload takes the radio's. The browser warns
 before a page with unsaved rows is left.
+
+A save that fails says why: the radio's own reason (an invalid port, a list
+that is full), "No reply from the radio in 15 s: reload the page to see what
+was saved" (the radio may have saved it), "The radio's web server could not
+be reached (WiFi?)" (the browser got no answer at all: the WiFi, a phone that
+went to sleep) or "The radio's web server failed (HTTP N)". The pages that
+run a helper (Tailscale, Winlink, Wavelog) wait longer than 15 s.
 
 Display applies each option as it is changed and the row says Applied on the
 radio, or Failed with the control back to what the radio has. Forms (TCI,
@@ -2718,7 +2742,14 @@ run's log there) and the base log `/mnt/base_i2c.log` with your report.
 
 Read the status line in the Cluster app. It needs WiFi and your callsign.
 Check also the filters (Settings > Cluster): one mode and one band always
-stay on, so a narrow choice can hide everything.
+stay on, so a narrow choice can hide everything. On the web configurator's
+Cluster page, Heard in keeps only the spots from the countries listed: on a
+quiet band that can be none.
+
+The web page's Link card shows the same status line (On the radio). "Not
+taken up by the radio yet", more than a few seconds after a change made
+there, means the radio still uses the server or the link it had: save the
+change again; a restart of the radio reads the file anew.
 
 #### The MP4 conversion does not work in the Gallery
 
@@ -2866,7 +2897,19 @@ host=dxfun.com
 port=8000
 server=DXFUN|dxfun.com|8000
 server=NC7J|dxc.nc7j.com|7373
+filter_modes=CW,DIG
+skip_spotters=K1TTT-#
+filter_spotter_dxcc=PA,ON
+alert=VP8*|20,17|CW
+login=ON6URE-2
 ```
+
+The other lines are the filters and alerts (see [DX Cluster](#dx-cluster)):
+`filter_modes=`, `filter_bands=`, `filter_activity=`, `max_age=` (minutes),
+`skip_spotters=`, `filter_spotter_dxcc=` (Heard in), `alert=` (pattern, bands,
+mode) and `alert_off=`, `alert_popup=`, `alert_beep=`, `enabled=0` (link off)
+and `login=`. The radio and the web page replace the file whole on each
+change.
 
 Defaults for the Bluetooth bridge are in `/etc/default/btcat`
 (`BTCAT_ENABLE`, `BTCAT_BT`, `BTCAT_ALIAS`); the
