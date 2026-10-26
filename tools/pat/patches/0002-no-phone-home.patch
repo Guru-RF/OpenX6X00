@@ -1,0 +1,107 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Mon, 26 Oct 2026 12:20:06 +0100
+Subject: [PATCH 2/2] api: no phone-home from the web UI (OpenX6X00)
+
+The web UI asked two things of the internet each time it was opened,
+and the radio asked on its behalf:
+
+- /api/new-release-check asked api.getpat.io for the latest release. It
+  answers 204 (no newer release) now: this Pat comes with the radio's
+  updates.
+- GET /api/winlink-account/password-recovery-email sent the callsign and
+  the password to winlink.org. It answers a placeholder address now,
+  which the UI takes for "an address is set". Setting an address (PUT)
+  still goes to winlink.org.
+
+The version report and the periodic recovery-email check of the app
+itself stay off through version_reporting_disabled in the config.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ api/api.go             | 34 ++++------------------------------
+ api/winlink_account.go | 12 ++++++------
+ 2 files changed, 10 insertions(+), 36 deletions(-)
+
+diff --git a/api/api.go b/api/api.go
+index a1c9308..5352b9a 100644
+--- a/api/api.go
++++ b/api/api.go
+@@ -20,14 +20,11 @@ import (
+ 
+ 	"github.com/la5nta/pat/app"
+ 	"github.com/la5nta/pat/cfg"
+-	"github.com/la5nta/pat/internal/buildinfo"
+ 	"github.com/la5nta/pat/internal/gpsd"
+-	"github.com/la5nta/pat/internal/patapi"
+ 	"github.com/la5nta/pat/web"
+ 
+ 	"github.com/gorilla/mux"
+ 	"github.com/gorilla/websocket"
+-	"github.com/hashicorp/go-version"
+ 	"github.com/la5nta/wl2k-go/catalog"
+ 	"github.com/la5nta/wl2k-go/transport/ardop"
+ 	"github.com/n8jja/Pat-Vara/vara"
+@@ -370,34 +367,11 @@ func (h Handler) ConnectHandler(w http.ResponseWriter, req *http.Request) {
+ 	})
+ }
+ 
++// newReleaseCheckHandler answers "no newer release" (204, what the web UI takes for it) without
++// asking api.getpat.io (OpenX6X00 patch): this Pat comes with the radio's own updates, and the
++// web UI asked on every page load.
+ func (h Handler) newReleaseCheckHandler(w http.ResponseWriter, r *http.Request) {
+-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+-	defer cancel()
+-
+-	release, err := patapi.GetLatestVersion(ctx)
+-	if err != nil {
+-		http.Error(w, "Error getting latest version: "+err.Error(), http.StatusInternalServerError)
+-		return
+-	}
+-
+-	currentVer, err := version.NewVersion(buildinfo.Version)
+-	if err != nil {
+-		http.Error(w, "Invalid current version format: "+err.Error(), http.StatusInternalServerError)
+-		return
+-	}
+-	latestVer, err := version.NewVersion(release.Version)
+-	if err != nil {
+-		http.Error(w, "Invalid latest version format: "+err.Error(), http.StatusInternalServerError)
+-		return
+-	}
+-
+-	if currentVer.Compare(latestVer) >= 0 {
+-		w.WriteHeader(http.StatusNoContent)
+-		return
+-	}
+-
+-	w.Header().Set("Content-Type", "application/json")
+-	json.NewEncoder(w).Encode(release)
++	w.WriteHeader(http.StatusNoContent)
+ }
+ 
+ func (h Handler) configHandler(w http.ResponseWriter, r *http.Request) {
+diff --git a/api/winlink_account.go b/api/winlink_account.go
+index aa3f2ab..ddd81d2 100644
+--- a/api/winlink_account.go
++++ b/api/winlink_account.go
+@@ -71,13 +71,13 @@ func (h Handler) winlinkPasswordRecoveryEmailHandler(w http.ResponseWriter, r *h
+ 
+ 	switch r.Method {
+ 	case http.MethodGet:
+-		email, err := cmsapi.PasswordRecoveryEmailGet(ctx, callsign, password)
+-		if err != nil {
+-			http.Error(w, err.Error(), http.StatusInternalServerError)
+-			return
+-		}
++		// OpenX6X00 patch: the web UI asks this each time it connects (every page load),
++		// and the answer came from winlink.org, with the callsign and the password in the
++		// URL. winlink.org is not asked: the UI gets a placeholder, which it takes for "an
++		// address is set", and stays quiet. Setting an address (PUT, below) still goes to
++		// winlink.org.
+ 		w.Header().Set("Content-Type", "application/json")
+-		json.NewEncoder(w).Encode(body{RecoveryEmail: email})
++		json.NewEncoder(w).Encode(body{RecoveryEmail: "(not checked)"})
+ 	case http.MethodPut:
+ 		var v body
+ 		if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
