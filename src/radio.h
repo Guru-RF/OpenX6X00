@@ -55,7 +55,7 @@ bool radio_check_freq(int32_t freq);
  * (- on VFO B), also where the other VFO cannot follow (below 100 kHz), so that it is refused */
 int32_t radio_tx_freq(void);
 /* The VFO the radio transmits on (the other one in split) to `freq` without updating its subject: a digital app's
- * tone, the SWR scan. 0: back to its own frequency, IF shift and all */
+ * tone, the SWR scan. 0: both VFOs back to their own frequency, IF shift and all */
 void radio_set_tx_freq(int32_t freq);
 
 radio_vfo_t radio_toggle_vfo();

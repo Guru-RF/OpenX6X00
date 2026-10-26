@@ -407,12 +407,15 @@ int32_t radio_tx_freq(void) {
 void radio_set_tx_freq(int32_t freq) {
     radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
 
+    if (freq == 0) {
+        /* Both VFOs on their own frequency, transverter and IF shift as tuned: the one that transmits can have
+         * changed since (split off during an SWR scan left B on a sweep point); one that did not move is not resent */
+        on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
+        on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
+        return;
+    }
     if (param_i_get(cfg_band_split)) {
         vfo = vfo == RADIO_VFO_A ? RADIO_VFO_B : RADIO_VFO_A;
-    }
-    if (freq == 0) {
-        on_vfo_freq_change(NULL, (void *)vfo);    /* its own frequency, transverter and IF shift as tuned */
-        return;
     }
     if (!cfg_is_tx_freq(freq)) {
         LV_LOG_ERROR("TX freq %i incorrect", freq);
