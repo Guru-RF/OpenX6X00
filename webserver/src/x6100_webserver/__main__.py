@@ -4,6 +4,7 @@ import os
 import socket
 import subprocess
 import threading
+import time
 import socketserver
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
@@ -53,12 +54,44 @@ def local_ips():
     return sorted(ips)
 
 
+# A clock before this was never set: the PCF8563 that lost its time reads 2000, the kernel without it 1970
+CLOCK_SET = 1767225600   # 2026-01-01 UTC
+
+
+def clock_set():
+    return time.time() >= CLOCK_SET
+
+
+def cert_outdated(cert):
+    """True when the certificate is not valid by the clock (expired, or not valid yet) or not a certificate at
+    all; False when it is valid, or when openssl can't tell"""
+    try:
+        r = subprocess.run(["openssl", "x509", "-in", cert, "-noout", "-startdate", "-enddate"],
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if r.returncode != 0:
+        return True   # load_cert_chain would refuse it too: HTTP only for good
+    dates = dict(line.strip().split("=", 1) for line in r.stdout.splitlines() if "=" in line)
+    try:
+        start, end = ssl.cert_time_to_seconds(dates["notBefore"]), ssl.cert_time_to_seconds(dates["notAfter"])
+    except (KeyError, ValueError):
+        return False
+    return not start <= time.time() <= end
+
+
 def ensure_cert(cert_dir):
-    """Self-signed certificate (10 years) made with the openssl CLI on first start.
-    Returns (cert, key) paths, or None when it can't be made."""
+    """Self-signed certificate (10 years) made with the openssl CLI on first start, and made again at a start
+    that finds it expired or not valid yet: one made while the clock was unset (1970, 2000) was expired for good
+    once the clock was right. With the clock unset (before CLOCK_SET) the one there is kept: made anew at such a
+    clock it would replace a good one at every start without a network, and be wrong again once the clock is
+    set; start_https waits for the clock instead. Returns (cert, key) paths, or None when there is none."""
     cert, key = os.path.join(cert_dir, "cert.pem"), os.path.join(cert_dir, "key.pem")
-    if os.path.isfile(cert) and os.path.isfile(key):
+    have = os.path.isfile(cert) and os.path.isfile(key)
+    if have and (not clock_set() or not cert_outdated(cert)):
         return cert, key
+    if have:
+        logging.warning("HTTPS: the certificate is not valid on %s, making a new one", time.strftime("%Y-%m-%d"))
     try:
         os.makedirs(cert_dir, exist_ok=True)
         san = ",".join(["DNS:x6100"] + ["IP:" + ip for ip in local_ips()])
@@ -74,25 +107,51 @@ def ensure_cert(cert_dir):
         os.replace(cert + ".tmp", cert)
         return cert, key
     except (OSError, RuntimeError, subprocess.SubprocessError) as e:
-        logging.error("HTTPS: can't create certificate (%s), HTTP only", e)
+        logging.error("HTTPS: can't create certificate (%s), %s", e, "keeping the old one" if have else "HTTP only")
         for f in (cert + ".tmp", key + ".tmp"):
             try:
                 os.remove(f)
             except OSError:
                 pass
-        return None
+        return (cert, key) if have else None
 
 
-def make_https_server(app, host, port, cert, key):
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(cert, key)
+class TlsContext:
+    """The certificate the HTTPS server and the wss proxies hand out. load() puts a new one in for the next
+    connections; a handshake under way keeps the context it started with"""
 
+    def __init__(self, cert, key):
+        self.load(cert, key)
+
+    def load(self, cert, key):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cert, key)
+        self.context = context
+
+    def wrap(self, sock):
+        return self.context.wrap_socket(sock, server_side=True)
+
+
+def renew_when_clock_set(tls, cert_dir, every=30):
+    """The clock was unset at the start: once NTP, the GPS or the user has set it, the certificate is checked
+    against it (made anew when it is not valid by it), and the servers take it from their next connection"""
+    while not clock_set():
+        time.sleep(every)
+    files = ensure_cert(cert_dir)
+    if files:
+        try:
+            tls.load(*files)
+        except (ssl.SSLError, OSError) as e:
+            logging.error("HTTPS: can't load the new certificate (%s)", e)
+
+
+def make_https_server(app, host, port, tls):
     class SSLServer(ThreadingWSGIServer):
         def finish_request(self, request, client_address):
             # handshake in the worker thread, so a stalled client can't block accept()
             request.settimeout(10)
             try:
-                request = context.wrap_socket(request, server_side=True)
+                request = tls.wrap(request)
             except (ssl.SSLError, OSError):
                 return   # e.g. the browser rejected the self-signed certificate
             super().finish_request(request, client_address)
@@ -108,15 +167,15 @@ class WssProxy(ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-    def __init__(self, addr, context, target_port):
-        self.context = context
+    def __init__(self, addr, tls, target_port):
+        self.tls = tls
         self.target_port = target_port   # a callable: the port to connect to, read when a client comes
         super().__init__(addr, None)
 
     def finish_request(self, request, client_address):
         request.settimeout(10)
         try:
-            tls = self.context.wrap_socket(request, server_side=True)
+            tls = self.tls.wrap(request)
         except (ssl.SSLError, OSError):
             return
         try:
@@ -148,13 +207,11 @@ class WssProxy(ThreadingMixIn, socketserver.TCPServer):
         plain.close()
 
 
-def start_wss_proxies(host, cert, key):
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(cert, key)
+def start_wss_proxies(host, tls):
     for name, port, target in (("WSS_REMOTE_PORT", 50003, lambda: apps.read_remote_conf()["port"]),
                                ("WSS_TCI_PORT", 50004, lambda: apps.read_tci_conf()["port"])):
         try:
-            server = WssProxy((host, port), context, target)
+            server = WssProxy((host, port), tls, target)
         except OSError as e:
             logging.error("wss proxy: can't listen on %d (%s)", port, e)
             continue
@@ -170,13 +227,16 @@ def start_https(app, host, port, cert_dir):
     if not files:
         return
     try:
-        server = make_https_server(app, host, port, *files)
+        tls = TlsContext(*files)
+        server = make_https_server(app, host, port, tls)
     except (ssl.SSLError, OSError) as e:
         logging.error("HTTPS: can't start on port %d (%s), HTTP only", port, e)
         return
     threading.Thread(target=server.serve_forever, daemon=True).start()
     settings.HTTPS_PORT = port
-    start_wss_proxies(host, *files)
+    start_wss_proxies(host, tls)
+    if not clock_set():
+        threading.Thread(target=renew_when_clock_set, args=(tls, cert_dir), daemon=True).start()
 
 
 def options():

@@ -2122,7 +2122,12 @@ applied on the radio as you change them.
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
 made on first start (valid 10 years, stored in `/mnt/https/`). The browser
-shows a certificate warning once; accept it. In-browser MP4 conversion in the
+shows a certificate warning once; accept it. A certificate that is expired or
+not valid yet by the radio's clock (one made while the clock was wrong) is
+made anew at the next start, and the browser asks once more. While the clock
+is not set (a date before 2026: no network or GPS yet, a clock chip that lost
+its time) the certificate is left as it is, and checked again once the clock
+is set. In-browser MP4 conversion in the
 Gallery only works on the HTTPS page (WebCodecs needs a secure context);
 "Convert on radio" works on both.
 
