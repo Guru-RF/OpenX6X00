@@ -2754,6 +2754,15 @@ Check the clock: FT8 and JS8 need it within about 2 s, WSPR within about a
 second. WiFi (NTP) or GPS sets it. FT8 and JS8 also have Time Sync (FT8's
 for a clock that neither keeps).
 
+#### The clock is back at the same time after every power-off
+
+The radio keeps the time in a clock chip while it is off. Some of these chips
+come stopped (their STOP or TEST1 bit set) and never count. The radio starts
+such a chip at boot and says so in the system log ("Clock chip ... was
+stopped ... started"). The chip takes the right time at the next NTP sync
+(when WiFi or Ethernet comes up), from FT8's Time Sync, or from the date and
+time set in Settings > General > DATE / TIME, and keeps it from then on.
+
 #### The ALC reads about 1 in FT8 or JS8. Is it too high?
 
 No. The TX level settles with the ALC working a little, with the power at the

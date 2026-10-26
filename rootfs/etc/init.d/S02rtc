@@ -1,0 +1,69 @@
+#!/bin/sh
+#
+# The clock chip, a PCF8563 at 0x51 on the second I2C bus of both radios (rtc1, which the kernel set the clock
+# from at boot). Some come with STOP or TEST1 set in control register 0 and never count: the radio then starts
+# at the same time after every power-off, and the kernel's driver never clears them. Cleared here, only those
+# two bits and only on that chip, before NTP, the GPS and the GUI use the clock. The chip keeps the time it had
+# when it stopped until it is written: at the NTP sync when the network comes up (99-ntp-sync.sh), by FT8's
+# Time Sync, or with the date and time set in Settings.
+#
+# The chip is found by its I2C device (name pcf8563, address 0x51): the bus number is the kernel's, not the
+# device tree's. i2cget and i2cset (i2c-tools, in both images) take -f, the kernel's driver holding the address;
+# that driver never writes register 0, so the two do not collide. Changes go to syslog (tag rtc).
+#
+
+SYS=${X6100_RTC_SYSFS:-/sys}
+ADDR=0x51
+STOP_TEST1=0xa0   # Control_status_1 (00h): bit 7 TEST1, bit 5 STOP; bit 3 TESTC is left as it is
+
+say() {
+    echo "$1"
+    logger -t rtc "$1" 2> /dev/null
+}
+
+# A register as i2cget prints it (0x28): the number, nothing on a failed or odd read
+read_reg() {
+    v=$(i2cget -f -y "$1" $ADDR 0x00 b 2> /dev/null) || return 1
+    case "$v" in
+        0x[0-9a-fA-F][0-9a-fA-F]) echo "$v" ;;
+        *) return 1 ;;
+    esac
+}
+
+start() {
+    found=
+    for dev in "$SYS"/bus/i2c/devices/*-0051; do
+        [ "$(cat "$dev/name" 2> /dev/null)" = pcf8563 ] || continue
+        found=1
+        bus=${dev##*/}
+        bus=${bus%-0051}
+        if ! command -v i2cget > /dev/null || ! command -v i2cset > /dev/null; then
+            say "Clock chip: i2cget/i2cset missing, not checked"
+            return
+        fi
+        if ! reg=$(read_reg "$bus"); then
+            say "Clock chip (i2c-$bus): control register unreadable, not checked"
+            continue
+        fi
+        if [ $((reg & STOP_TEST1)) -eq 0 ]; then
+            echo "Clock chip: running"
+            continue
+        fi
+        new=$(printf '0x%02x' $((reg & ~STOP_TEST1 & 0xff)))
+        if i2cset -f -y "$bus" $ADDR 0x00 "$new" b 2> /dev/null && now=$(read_reg "$bus") &&
+                [ $((now & STOP_TEST1)) -eq 0 ]; then
+            say "Clock chip (i2c-$bus): was stopped (control $reg, STOP/TEST1 set), started ($now); NTP, Time Sync or Settings write its time"
+        else
+            say "Clock chip (i2c-$bus): stopped (control $reg, STOP/TEST1 set), could not start it"
+        fi
+    done
+    [ -n "$found" ] || say "Clock chip: no PCF8563 found"
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+esac
+
+exit 0
