@@ -771,8 +771,10 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   the shift takes B off it (below 0 Hz too, where B itself stops at 100 kHz),
   the VFO on the status bar turns red (in Black Metal and Total Black the
   other VFO's frequency), and PTT, the apps, CW, the tuner and the SWR scan
-  are refused with "No TX on ... MHz". The web page
-  does not save such a shift.
+  are refused with "No TX on ... MHz". The web Bands page saves a shift only
+  where the whole band, shifted, can transmit (6 m with +5000 kHz, 55-58.9
+  MHz, is refused); the Settings row takes any shift, and B is then red and
+  refused where it cannot.
 - The digital apps (FT8, FT4, JS8, WSPR, RTTY, SSTV...) and the SWR scan move
   the VFO that transmits, so they work in split and with a shift. Before, they
   moved the VFO you listen on: in split FT8 went out 1325 Hz above B whatever

@@ -91,7 +91,8 @@ def _mhz(hz):
 
 def _check_tx_shift(band, shift, band_tx):
     """A TX shift (Hz, 0 off) the band can take: up to 10 MHz either way, on a band the radio transmits on, and the
-    band shifted still one it transmits on. band_tx(lo, hi): does the radio transmit somewhere in [lo, hi]."""
+    whole band shifted still where it transmits: both its ends, so that anywhere on the band VFO B can transmit (6 m
+    + 5000 kHz only touched 55 MHz, and was taken). band_tx(lo, hi): does the radio transmit somewhere in [lo, hi]."""
     if not shift:
         return
     if abs(shift) > TX_SHIFT_MAX:
@@ -99,8 +100,8 @@ def _check_tx_shift(band, shift, band_tx):
     lo, hi = band["start_freq"], band["stop_freq"]
     if not band_tx(lo, hi):
         raise Invalid(f'No TX shift on "{band["name"]}": the radio does not transmit on {_mhz(lo)}-{_mhz(hi)} MHz')
-    if not band_tx(lo + shift, hi + shift):
-        raise Invalid(f"TX shift {shift / 1000:g} kHz: the radio does not transmit on "
+    if not (band_tx(lo + shift, lo + shift) and band_tx(hi + shift, hi + shift)):
+        raise Invalid(f"TX shift {shift / 1000:g} kHz: the radio does not transmit on all of "
                       f"{_mhz(lo + shift)}-{_mhz(hi + shift)} MHz")
 
 
