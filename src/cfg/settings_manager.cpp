@@ -258,10 +258,16 @@ void SettingsManager::vfo_toggle() {
     const bool    on_a  = p_band_current_vfo.get() == RADIO_VFO_A;
     const int32_t other = (on_a ? p_vfob_band : p_vfoa_band).get();
 
+    // The other VFO's band only where the radio can still use it: a 2 m left there by v0.3.5 on an X6200 with the
+    // transverters and the WR12 off is not (load_band_vfo would keep its 145.500, and the base be sent it)
+    auto usable = [this](int32_t id) {
+        BandInfoLoadResult b = BandsTable::get_by_id(id);
+        return b.rc == SUCCESS && band_use(b.value.start_freq, b.value.stop_freq) != BAND_USE_NONE;
+    };
+
     (on_a ? p_vfoa_band : p_vfob_band).set(band_id_);
     p_band_current_vfo.set(on_a ? RADIO_VFO_B : RADIO_VFO_A);
-    if (p_indep_vfo.get() && other != BAND_UNDEFINED && other != band_id_ &&
-        BandsTable::get_by_id(other).rc == SUCCESS) {
+    if (p_indep_vfo.get() && other != BAND_UNDEFINED && other != band_id_ && usable(other)) {
         p_band_id.set(other);   /* explicit switch: both VFO records of that band are loaded */
     } else if (p_band_tx_shift.get() && p_band_split.get()) {
         band_follow(p_band_vfoa_freq.get());    /* a TX shift: the band is A's, B = A + the shift can lie beyond it */
