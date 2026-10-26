@@ -187,6 +187,9 @@ def main():
     ap.add_argument("--buildroot", default=os.path.join(os.path.dirname(ROOT), "AetherX6100Buildroot"),
                     help="our AetherX6100Buildroot checkout (its br2_external is compared)")
     ap.add_argument("--ours-gui", help="our built x6100_gui (default: the buildroot target's)")
+    ap.add_argument("--ref", choices=("ours", "previous"), default="ours",
+                    help="the GUI's strings against our GUI (what they have that we don't) or the previous cached "
+                         "release (what this release added)")
     ap.add_argument("--out", help="where the report goes (default: the cache, next to the downloads)")
     args = ap.parse_args()
 
@@ -286,14 +289,20 @@ def main():
     if img_asset:
         imgzip = asset_path(img_asset)
         ext4 = extract_rootfs(imgzip, os.path.join(cache, "image"))
-        gui = rootfs_dump(ext4, "/usr/sbin/x6100_gui", os.path.join(cache, "x6100_gui.bin"))
+        # the GUI binary: /usr/sbin/x6100-iu1wxy-gui from v0.131, /usr/sbin/x6100_gui before
+        for gui_path in ("/usr/sbin/x6100-iu1wxy-gui", "/usr/sbin/x6100_gui"):
+            gui = rootfs_dump(ext4, gui_path, os.path.join(cache, "x6100_gui.bin"))
+            if gui:
+                break
+        if not gui:
+            sys.exit("no GUI binary in the image (looked for x6100-iu1wxy-gui and x6100_gui in /usr/sbin)")
         theirs = strings_of(gui)
         with open(os.path.join(cache, "x6100_gui.strings"), "w") as fh:
             fh.write("\n".join(sorted(theirs)))
         # the reference: our built GUI, else the previous cached release
         ours_gui = args.ours_gui or os.path.join(args.buildroot, "build", "target", "usr", "sbin", "x6100_gui")
         ref_name = f"our GUI `{os.path.relpath(ours_gui, ROOT) if ours_gui.startswith(ROOT) else ours_gui}`"
-        if not os.path.exists(ours_gui):
+        if args.ref == "previous" or not os.path.exists(ours_gui):
             prev = sorted((d for d in os.listdir(args.cache) if d != tag and os.path.exists(os.path.join(args.cache, d, "x6100_gui.strings"))),
                           key=lambda v: [int(x) for x in re.findall(r"\d+", v)])
             if prev:
@@ -308,7 +317,7 @@ def main():
         new = sorted(s for s in theirs - ours_strings if UI_STRING.match(s) and not NOISE.match(s))
         gone = sorted(s for s in ours_strings - theirs if UI_STRING.match(s) and not NOISE.match(s))
         report += ["## What the GUI binary says", "",
-                   f"Text strings of their `/usr/sbin/x6100_gui` ({os.path.getsize(gui) / 1e6:.1f} MB) that {ref_name} does not have: "
+                   f"Text strings of their `{gui_path}` ({os.path.getsize(gui) / 1e6:.1f} MB) that {ref_name} does not have: "
                    f"{len(new)} lines that read as interface text (of {len(theirs - ours_strings)} new strings in all; the full "
                    f"list is `{cache}/x6100_gui.strings`). What the release added, in its own words:", ""]
         report += [f"- {s}" for s in new[:400]]
