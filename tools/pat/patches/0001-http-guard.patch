@@ -1,0 +1,188 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Mon, 26 Oct 2026 12:19:12 +0100
+Subject: [PATCH 1/2] api: refuse requests other sites can make a browser send
+ (OpenX6X00)
+
+Pat has no login, and a plain GET of /api/connect keys the transmitter.
+The HTTP server's handler is wrapped in a guard:
+
+- the Host header must be an IP address, localhost, the hostname,
+  <hostname>.local or end in .ts.net (no DNS rebinding);
+- for /api/ and /ws, an Origin header, when present, must name the same
+  host:port as Host, and Sec-Fetch-Site, when present, must be
+  same-origin or none;
+- 403 otherwise. Pages are sent with X-Frame-Options: SAMEORIGIN.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ api/api.go        |  2 +-
+ api/guard.go      | 86 +++++++++++++++++++++++++++++++++++++++++++++++
+ api/guard_test.go | 52 ++++++++++++++++++++++++++++
+ 3 files changed, 139 insertions(+), 1 deletion(-)
+ create mode 100644 api/guard.go
+ create mode 100644 api/guard_test.go
+
+diff --git a/api/api.go b/api/api.go
+index 7f39760..a1c9308 100644
+--- a/api/api.go
++++ b/api/api.go
+@@ -56,7 +56,7 @@ func ListenAndServe(ctx context.Context, a *app.App, addr string) error {
+ 
+ 	srv := http.Server{
+ 		Addr:    addr,
+-		Handler: handler,
++		Handler: guard(handler), // OpenX6X00: see guard.go
+ 	}
+ 	errs := make(chan error, 1)
+ 	go func() {
+diff --git a/api/guard.go b/api/guard.go
+new file mode 100644
+index 0000000..e702365
+--- /dev/null
++++ b/api/guard.go
+@@ -0,0 +1,86 @@
++// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
++// Use of this source code is governed by the MIT-license that can be
++// found in the LICENSE file.
++
++package api
++
++import (
++	"net"
++	"net/http"
++	"net/netip"
++	"net/url"
++	"os"
++	"path"
++	"strings"
++)
++
++// guard refuses the requests that a web page on another site can make a browser send to
++// Pat (OpenX6X00 patch). Pat has no login, and a plain GET of /api/connect keys the
++// transmitter.
++//
++//   - The Host header must name this machine: an IP address, localhost, the hostname,
++//     <hostname>.local or a Tailscale name (*.ts.net). Any other name is one that somebody's
++//     DNS points at us (DNS rebinding).
++//   - For /api/ and /ws: an Origin header, when present, must name the same host:port as
++//     Host, and Sec-Fetch-Site, when present, must be same-origin or none.
++//
++// Anything else gets 403. Pages on other sites may not frame Pat's pages either.
++func guard(next http.Handler) http.Handler {
++	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		if !hostAllowed(r.Host) {
++			http.Error(w, "Forbidden: unknown host name", http.StatusForbidden)
++			return
++		}
++		if guardedPath(r.URL.Path) && !sameOrigin(r) {
++			http.Error(w, "Forbidden: cross-origin request", http.StatusForbidden)
++			return
++		}
++		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
++		next.ServeHTTP(w, r)
++	})
++}
++
++// hostAllowed tells whether a Host header (host or host:port) names this machine.
++func hostAllowed(hostport string) bool {
++	host := hostport
++	if h, _, err := net.SplitHostPort(hostport); err == nil {
++		host = h
++	}
++	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
++	host = strings.TrimSuffix(strings.ToLower(host), ".")
++	if host == "" {
++		return false
++	}
++	if _, err := netip.ParseAddr(host); err == nil {
++		return true
++	}
++	if host == "localhost" || strings.HasSuffix(host, ".ts.net") {
++		return true
++	}
++	name, err := os.Hostname()
++	name = strings.TrimSuffix(strings.ToLower(name), ".")
++	return err == nil && name != "" && (host == name || host == name+".local")
++}
++
++// guardedPath tells whether a path is the API's: /api, /api/... or /ws.
++func guardedPath(p string) bool {
++	p = path.Clean("/" + p)
++	return p == "/api" || strings.HasPrefix(p, "/api/") || p == "/ws"
++}
++
++// sameOrigin tells whether a request comes from Pat's own pages or from no page at all
++// (curl, an address typed in): Origin, when sent, is http(s)://<the Host header>, and
++// Sec-Fetch-Site, when sent, is same-origin or none.
++func sameOrigin(r *http.Request) bool {
++	if o := r.Header.Get("Origin"); o != "" {
++		u, err := url.Parse(o)
++		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || !strings.EqualFold(u.Host, r.Host) {
++			return false
++		}
++	}
++	switch r.Header.Get("Sec-Fetch-Site") {
++	case "", "same-origin", "none":
++		return true
++	}
++	return false
++}
+diff --git a/api/guard_test.go b/api/guard_test.go
+new file mode 100644
+index 0000000..75e9c19
+--- /dev/null
++++ b/api/guard_test.go
+@@ -0,0 +1,52 @@
++package api
++
++import (
++	"net/http"
++	"net/http/httptest"
++	"os"
++	"testing"
++)
++
++func TestGuard(t *testing.T) {
++	hostname, _ := os.Hostname()
++	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
++	tests := []struct {
++		path, host, origin, site string
++		want                     int
++	}{
++		{"/ui", "192.168.1.20:8080", "", "", 200},
++		{"/api/status", "[fe80::1]:8080", "", "", 200},
++		{"/api/status", "localhost:8080", "", "", 200},
++		{"/api/status", hostname + ":8080", "", "", 200},
++		{"/api/status", hostname + ".local:8080", "", "", 200},
++		{"/api/status", "radio.tail1234.ts.net", "", "", 200},
++		{"/api/status", "evil.example", "", "", 403},
++		{"/ui", "evil.example:8080", "", "", 403},
++		{"/api/status", "", "", "", 403},
++		{"/api/status", "10.0.0.5:8080", "http://10.0.0.5:8080", "same-origin", 200},
++		{"/ui", "10.0.0.5:8080", "", "none", 200},
++		{"/ui", "10.0.0.5:8080", "", "cross-site", 200},
++		{"/api/connect", "10.0.0.5:8080", "http://evil.example", "", 403},
++		{"/api/connect", "10.0.0.5:8080", "http://10.0.0.5", "", 403},
++		{"/api/connect", "10.0.0.5:8080", "null", "", 403},
++		{"/api/connect", "10.0.0.5:8080", "", "cross-site", 403},
++		{"/api/connect", "10.0.0.5:8080", "", "same-site", 403},
++		{"//api/connect", "10.0.0.5:8080", "", "cross-site", 403},
++		{"/ws", "10.0.0.5:8080", "http://evil.example", "", 403},
++	}
++	for _, tt := range tests {
++		r := httptest.NewRequest("GET", "http://x"+tt.path, nil)
++		r.Host = tt.host
++		if tt.origin != "" {
++			r.Header.Set("Origin", tt.origin)
++		}
++		if tt.site != "" {
++			r.Header.Set("Sec-Fetch-Site", tt.site)
++		}
++		w := httptest.NewRecorder()
++		guard(ok).ServeHTTP(w, r)
++		if w.Code != tt.want {
++			t.Errorf("%s Host=%q Origin=%q Sec-Fetch-Site=%q: got %d, want %d", tt.path, tt.host, tt.origin, tt.site, w.Code, tt.want)
++		}
++	}
++}
