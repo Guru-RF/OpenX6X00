@@ -62,6 +62,8 @@
 #define KEEPALIVE_MS        1000    /* HW_CAP_KEEPALIVE: as gdyuldin's X6200 GUI, in TX too */
 #define RESYNC_RETRY_MS     200     /* the register block again, after one that didn't get through */
 #define MORSE_HANG_MS       3000    /* the base holds TX for the QSK time after the GUI's CW key */
+#define ATU_START_MS        3000    /* the base keys for the tuner within this, or the tune is given up */
+#define ATU_NO_MATCH_MS     1000    /* back in RX this long without the tuner's done flag: no match */
 
 #define FILTER_2_OFFSET 60
 #define FILTER_2_OFFSET_IN 20
@@ -179,6 +181,7 @@ static bool             resync_due;     /* resend the whole register block (base
 static uint64_t         resync_time;
 static volatile bool    morse_on;
 static volatile uint32_t morse_ms;      /* the GUI's CW key last changed */
+static uint64_t         atu_time;       /* the tune asked, then the base last seen in TX for it */
 
 static void power_key_cb(void *arg) {
     keypad_power_set(*(bool *)arg);
@@ -1102,6 +1105,28 @@ unsigned radio_swr_trips(void) {
     return atomic_load(&swr_trips);
 }
 
+/* The base never keyed for the tuner, or ended a tune without its done flag (no match: more likely on 10 and 15 m
+ * with a real antenna). The GUI stayed in the tuner's state for good with the tune bit set: no new tune, the SWR
+ * scan refused, CAT and TCI reporting TX (#25). Now the tune bit off, back to RX, a word on the screen and a line in
+ * the base log with what the base reported */
+static void atu_give_up(radio_state_t from, const char *why) {
+    WITH_RADIO_LOCK(hw_set_i(HW_ATU_TUNE, false));
+#ifndef BOARD_X6200
+    if (from == RADIO_ATU_RUN) {
+        recover_processing_audio_inputs();      /* as after a tune that found its network */
+    }
+#endif
+    if (!state_move(from, RADIO_RX)) {
+        return;     /* powering off meanwhile */
+    }
+    if (from == RADIO_ATU_RUN && notify_rx_tx) {
+        notify_rx_tx(false);
+    }
+    base_guard_log("ATU: %s (tx %d, atu_status %d, atu_params %08x)", why, pack->tx, pack->atu_status,
+                   (unsigned)pack->atu_params);
+    msg_schedule_text_fmt("%s", why);
+}
+
 static bool radio_tick() {
     if (now_time < prev_time) {
         prev_time = now_time;
@@ -1195,6 +1220,7 @@ static bool radio_tick() {
 
             case RADIO_ATU_START:
                 WITH_RADIO_LOCK(hw_set_i(HW_ATU_TUNE, true));
+                atu_time = now_time;
                 state_move(RADIO_ATU_START, RADIO_ATU_WAIT);
                 break;
 
@@ -1203,7 +1229,10 @@ static bool radio_tick() {
                     if (notify_rx_tx) {
                         notify_rx_tx(true);
                     }
+                    atu_time = now_time;
                     state_move(RADIO_ATU_WAIT, RADIO_ATU_RUN);
+                } else if (now_time - atu_time > ATU_START_MS) {
+                    atu_give_up(RADIO_ATU_WAIT, "Tuner did not start");
                 }
                 break;
 
@@ -1227,6 +1256,10 @@ static bool radio_tick() {
                     state_move(RADIO_ATU_RUN, RADIO_RX);
                 } else if (pack->tx) {
                     tx_info_update(pack->tx_power * 0.1f, pack->vswr * 0.1f, pack->alc_level * 0.1f);
+                    atu_time = now_time;
+                } else if (now_time - atu_time > ATU_NO_MATCH_MS) {
+                    /* out of TX without the done flag; the X6200 library's own example ends a tune there */
+                    atu_give_up(RADIO_ATU_RUN, "Tuner: no match");
                 }
                 break;
 
