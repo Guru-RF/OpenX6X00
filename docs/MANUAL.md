@@ -2043,12 +2043,16 @@ meanwhile (another browser, the radio itself) says "Changed on the radio
 meanwhile": Save keeps yours, Reload takes the radio's. The browser warns
 before a page with unsaved rows is left.
 
-A save that fails says why: the radio's own reason (an invalid port, a list
-that is full), "No reply from the radio in 15 s: reload the page to see what
-was saved" (the radio may have saved it), "The radio's web server could not
-be reached (WiFi?)" (the browser got no answer at all: the WiFi, a phone that
-went to sleep) or "The radio's web server failed (HTTP N)". The pages that
-run a helper (Tailscale, Winlink, Wavelog) wait longer than 15 s.
+On the Bands, Digital modes, Memories, Cluster, CW messages, Macros, Display
+and TCI pages a save that fails says why: the radio's own reason (an invalid
+port, a list that is full), "No reply from the radio in 15 s: reload the page
+to see what was saved" (the radio may have saved it), "The radio's web server
+could not be reached (WiFi?)" (the browser got no answer at all: the WiFi, a
+phone that went to sleep) or "The radio's web server failed (HTTP N)". The
+Tailscale, Winlink and Wavelog pages say the same, but wait longer than 15 s:
+they run a helper. The other pages (Field Ops, Logs, Network, Time, Update,
+Backup) give the radio's reason when it sent one, else only that the save
+failed, and wait as long as the browser does.
 
 Display applies each option as it is changed and the row says Applied on the
 radio, or Failed with the control back to what the radio has. Forms (TCI,
