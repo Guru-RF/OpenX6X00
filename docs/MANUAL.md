@@ -187,8 +187,11 @@ the web Display page, Receiver card). Off by default.
 - The X6200's two transverters (2 m and 70 cm, 28 MHz IF) are off by default,
   so that 2 m and 70 cm are the WR12's. Older versions had them always on:
   "145.500" was tuned and transmitted on 29.500 MHz, on 10 m. A transverter
-  set up in Settings before the update keeps its shift. To use one, set its
-  shift in Settings > General > TRANSVERTERS (0 is off).
+  set up in Settings before the update keeps its shift. The three that
+  gdyuldin's X6200 firmware saves (4 m, 2 m and 70 cm through a 28 MHz IF)
+  are not taken for yours when they are exactly its values and nothing else
+  is set: they are removed, and the transverters are off. To use one, set
+  its shift in Settings > General > TRANSVERTERS (0 is off).
 
 ### Low battery
 

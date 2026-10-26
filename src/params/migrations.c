@@ -298,6 +298,28 @@ static int _12_line_in_restore() {
     return 0;
 }
 
+/* gdyuldin's stock X6200 GUI saves three transverters of its own, all nine values: 70-72 MHz shift 42 MHz (4 m),
+ * 144-150 shift 116 and 432-438 shift 404, all through a 28 MHz IF. A radio that ran it before ours kept them: _11
+ * took them for the user's and left them on, and our transverter 1 is its first row, 4 m. Exactly those nine rows and
+ * nothing else are the stock GUI's, not the user's: they go, and the transverters are off as on a new radio. Any
+ * other row or value keeps them all (the bench X6200, 2026-10-26) */
+static int _13_x6200_stock_transverters() {
+#ifdef BOARD_X6200
+    if (sqlite3_exec(db,
+                     "DELETE FROM transverter WHERE (SELECT count(*) FROM transverter) = 9 AND 9 = "
+                     "(SELECT count(*) FROM transverter AS t JOIN (VALUES "
+                     "(0, 'from', 70000000), (0, 'to', 72000000), (0, 'shift', 42000000), "
+                     "(1, 'from', 144000000), (1, 'to', 150000000), (1, 'shift', 116000000), "
+                     "(2, 'from', 432000000), (2, 'to', 438000000), (2, 'shift', 404000000)) AS s "
+                     "ON t.id = s.column1 AND t.name = s.column2 AND t.val = s.column3);",
+                     NULL, NULL, NULL) != SQLITE_OK) {
+        printf("Cannot remove the stock transverters: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+#endif
+    return 0;
+}
+
 static int (*migrations[])() = {
     _0_init_migrations,
     _1_create_ftx_table,
@@ -312,6 +334,7 @@ static int (*migrations[])() = {
     _10_band_60m,
     _11_x6200_transverters_off,
     _12_line_in_restore,
+    _13_x6200_stock_transverters,
 };
 
 int migrations_apply(void) {
