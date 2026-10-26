@@ -2645,8 +2645,10 @@ needs its public key on the radio:
 - The page opens only by the radio's address or its own name (as the
   Tailscale page): a page from another site cannot add a key through your
   browser.
-- `/mnt/ssh/authorized_keys` on the DATA partition, which the card images of
-  v0.3.1 to v0.3.5 also read, is no longer used: add those keys on the page.
+- `/mnt/ssh/authorized_keys` on the DATA partition, which the X6100's card
+  images of v0.3.1 to v0.3.5 also read, is no longer read: at the first start
+  after the update its keys move into root's file (they show on the page) and
+  it is renamed `authorized_keys.imported`.
 
 ## Tailscale
 
