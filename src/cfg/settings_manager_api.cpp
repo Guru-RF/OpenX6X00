@@ -14,12 +14,20 @@ int32_t cfg_transverter_shift_for(int32_t freq) {
     return cfg_sm.transverter_shift_for(freq);
 }
 
+band_use_t cfg_band_use(int32_t start, int32_t stop) {
+    return cfg_sm.band_use(start, stop);
+}
+
 bool cfg_is_valid_hw_freq(int32_t freq) {
     return cfg_sm.is_valid_hw_freq(freq);
 }
 
 bool cfg_is_rx_only_freq(int32_t freq) {
     return cfg_sm.is_rx_only_freq(freq);
+}
+
+bool cfg_is_tx_freq(int32_t freq) {
+    return cfg_sm.is_tx_freq(freq);
 }
 
 void cfg_api_flush_all(void) {
@@ -34,12 +42,26 @@ void cfg_api_stop_flush_thread(void) {
     cfg_sm.stop_flush_thread();
 }
 
+/* The next active band above (starting at or above the frequency) or below (ending at or below it) that the radio can
+ * use: 4m, and 2m and 70cm without a transverter or the WR12, are stepped over (BandsTable::next asked only for
+ * the Active flag). One walk of the list: asking next() again from a band skipped could go round two bands that
+ * start together */
 void cfg_band_load_next(bool up) {
-    int32_t            cur_freq = cfg_sm.cp_fg_freq.get();
-    int32_t            cur_id   = cfg_sm.current_band_id();
-    BandInfoLoadResult result   = BandsTable::next(cur_id, static_cast<uint32_t>(cur_freq), up);
-    if (result.rc == SUCCESS) {
-        cfg_sm.p_band_id.set(result.value.id);
+    std::vector<BandInfo> all      = BandsTable::all_bands();      /* by start_freq */
+    int32_t               cur_freq = cfg_sm.cp_fg_freq.get();
+    int32_t               cur_id   = cfg_sm.current_band_id();
+    int32_t               id       = BAND_UNDEFINED;
+
+    for (size_t k = 0; k < all.size() && id == BAND_UNDEFINED; k++) {
+        const BandInfo &b = all[up ? k : all.size() - 1 - k];
+
+        if (b.type == BAND_ACTIVE && b.id != cur_id
+            && (up ? (int32_t)b.start_freq >= cur_freq : (int32_t)b.stop_freq <= cur_freq)
+            && cfg_sm.band_use(b.start_freq, b.stop_freq) != BAND_USE_NONE)
+            id = b.id;
+    }
+    if (id != BAND_UNDEFINED) {
+        cfg_sm.p_band_id.set(id);
     }
 }
 
@@ -52,7 +74,7 @@ void cfg_vfo_toggle(void) {
 }
 
 int32_t cfg_default_mode(int32_t freq) {
-    return freq < 10000000 ? radio_mode_lsb : radio_mode_usb;
+    return cfg_sm.default_mode(freq);
 }
 
 int cfg_bands_active(int32_t *start, int32_t *stop, char (*names)[16], int max) {
@@ -65,7 +87,7 @@ int cfg_bands_active_ids(int32_t *ids, int32_t *start, int32_t *stop, char (*nam
 
     std::sort(all.begin(), all.end(), [](const BandInfo &a, const BandInfo &b) { return a.start_freq < b.start_freq; });
     for (const BandInfo &b : all) {
-        if (b.type != BAND_ACTIVE || n >= max || !cfg_sm.is_valid_hw_freq(b.start_freq))
+        if (b.type != BAND_ACTIVE || n >= max || cfg_sm.band_use(b.start_freq, b.stop_freq) == BAND_USE_NONE)
             continue;
         if (ids) ids[n] = b.id;
         start[n] = (int32_t)b.start_freq;

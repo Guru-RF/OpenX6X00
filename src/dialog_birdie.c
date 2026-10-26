@@ -154,7 +154,7 @@ static void construct_cb(lv_obj_t *parent) {
          "Birdies are steady carriers the radio makes inside itself. This scan finds them on every active "
          "band and keeps their frequencies: the waterfall marks them, and with Marks + notch the notch filter "
          "takes one out of the passband when you tune across it.");
-    text(dialog.obj, &sony_22, TC(warn), 150, "Disconnect the antenna, then press Start. A few minutes: every active band, 2 m and 70 cm included.");
+    text(dialog.obj, &sony_22, TC(warn), 150, "Disconnect the antenna, then press Start. A few minutes: every active band the radio transmits on.");
     status_label = text(dialog.obj, &sony_24, TC(text_value), 200, "");
     known_label  = text(dialog.obj, &sony_22, TC(text_dim), 250, "");
     known_update();

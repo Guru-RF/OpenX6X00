@@ -381,7 +381,8 @@ void controls_set_band_m(int32_t m) {
     int32_t  id    = BAND_UNDEFINED;
     uint32_t start = UINT32_MAX;
     for (const BandInfo &b : BandsTable::all_bands()) {
-        if (b.type != BAND_ACTIVE || !band_matches(b.name, m) || !cfg_sm.is_valid_hw_freq(b.start_freq))
+        if (b.type != BAND_ACTIVE || !band_matches(b.name, m)
+            || cfg_sm.band_use(b.start_freq, b.stop_freq) == BAND_USE_NONE)
             continue;
         if (b.start_freq < start) {
             id    = b.id;

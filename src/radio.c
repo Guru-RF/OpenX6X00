@@ -543,15 +543,17 @@ void radio_set_charger(bool on) {
     WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, on));
 }
 
-/* Keying from the GUI on a receive-only frequency (the X6200's FM broadcast and airband) is refused, with a word on
- * the screen; the base's own TX permit covers its hand-mic PTT and paddle */
+/* Keying from the GUI where the radio does not transmit is refused, with a word on the screen: the X6200's FM
+ * broadcast and airband, what the WR12 receives, anything above HF that no transverter covers. PTT, the modem
+ * (the apps), CW, the tuner and the SWR scan come through here; the base's own TX permit covers its hand-mic PTT
+ * and paddle */
 static bool tx_refused(void) {
     /* the frequency the radio transmits on: the other VFO's in split */
     int32_t freq = param_i_get(cfg_band_split) ? cparam_i_get(cfg_bg_freq) : cparam_i_get(cfg_fg_freq);
 
     static uint64_t said;
 
-    if (!cfg_is_rx_only_freq(freq)) {
+    if (cfg_is_tx_freq(freq)) {
         return false;
     }
     if (get_time() - said > 3000) {     /* once, not for every CW element */

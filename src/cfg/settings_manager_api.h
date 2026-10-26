@@ -18,15 +18,26 @@ extern "C" {
 // compatibility; it is currently inert.
 void cfg_api_init(void (*on_db_error)(const char *));
 
+/* What the radio can do on a band or at a frequency */
+typedef enum {
+    BAND_USE_NONE = 0,      /* nothing: it cannot tune there */
+    BAND_USE_RX,            /* receive only: the X6200's FM broadcast and airband, the WR12's 54 MHz-1 GHz */
+    BAND_USE_TX,            /* receive and transmit: HF, a transverter with a shift */
+} band_use_t;
+
 // Transverter shift for a frequency: the shift of the transverter whose
-// [from, to] range contains freq, or 0 when none covers it.
+// [from, to] range contains freq, or 0 when none covers it (a shift of 0 is off).
 int32_t cfg_transverter_shift_for(int32_t freq);
 
-// True when freq is usable by the hardware: HF 0.1-55 MHz or inside any
-// transverter range.
+/* What the radio can do somewhere in [start, stop] (Hz; start == stop for one frequency) */
+band_use_t cfg_band_use(int32_t start, int32_t stop);
+// True when freq is usable by the hardware: HF 0.1-55 MHz, a transverter's
+// range, the X6200's receive ranges.
 bool cfg_is_valid_hw_freq(int32_t freq);
-/* Received but never transmitted on: the X6200's FM broadcast and airband */
+/* Received but never transmitted on: the X6200's FM broadcast and airband, the WR12's range */
 bool cfg_is_rx_only_freq(int32_t freq);
+/* Transmitted on: HF, a transverter with a shift */
+bool cfg_is_tx_freq(int32_t freq);
 
 // Persist all pending deferred writes immediately.
 void cfg_api_flush_all(void);
@@ -46,7 +57,8 @@ void cfg_pwr_set(float watts);
 /* The other VFO; with independent VFOs (p_indep_vfo) its own band comes with it */
 void cfg_vfo_toggle(void);
 
-/* The sideband of a frequency: LSB under 10 MHz, USB above */
+/* The mode a frequency opens in: its sideband (LSB under 10 MHz, USB above and on 60 m), WFM and AM on the X6200's FM
+ * broadcast and airband, NFM where only the WR12 receives */
 int32_t cfg_default_mode(int32_t freq);
 
 /* The active bands, lowest first: start and stop in Hz and the name of each, up to max; returns how many */

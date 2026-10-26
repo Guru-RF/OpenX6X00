@@ -83,21 +83,22 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
         }
     }
 
-    // The starting band comes from the persisted global parameter.
-    band_id_ = p_band_id.get();
-
-    set_band_context(band_id_);
-
-    load_band_all(band_id_);
-
     // Transverter params are loaded individually (fixed context_id = the
-    // transverter number). NOT_FOUND keeps the default value.
+    // transverter number). NOT_FOUND keeps the default value. Before the band:
+    // the clamps of load_band_vfo ask band_use, which reads them.
     p_transverter_0_from.load(0);
     p_transverter_0_to.load(0);
     p_transverter_0_shift.load(0);
     p_transverter_1_from.load(1);
     p_transverter_1_to.load(1);
     p_transverter_1_shift.load(1);
+
+    // The starting band comes from the persisted global parameter.
+    band_id_ = p_band_id.get();
+
+    set_band_context(band_id_);
+
+    load_band_all(band_id_);
 
     // Subscribe the VFO frequency observers that trigger an implicit band
     // switch when a frequency is tuned into a different band. Subscribed after
@@ -428,16 +429,19 @@ int32_t SettingsManager::clamp_to_valid_hw_freq(int32_t freq) const {
         return freq;
     }
 
-    // Boundaries of every hardware-usable frequency range.
+    // Boundaries of every hardware-usable frequency range (HF_MAX_FREQ again for one that is not there)
+    const bool    wr12 = HAS_VHF_RX && p_wr12.get();
     const int32_t bounds[] = {
         HF_MIN_FREQ,                // HF lower limit
         HF_MAX_FREQ,                // HF upper limit
         HAS_VHF_RX ? VHF_RX_MIN_FREQ : HF_MAX_FREQ,     // the X6200's FM broadcast and airband
         HAS_VHF_RX ? VHF_RX_MAX_FREQ : HF_MAX_FREQ,
-        p_transverter_0_from.get(), // transverter 0 [from, to]
-        p_transverter_0_to.get(),
-        p_transverter_1_from.get(), // transverter 1 [from, to]
-        p_transverter_1_to.get(),
+        wr12 ? WR12_MIN_FREQ : HF_MAX_FREQ,             // the WR12
+        wr12 ? WR12_MAX_FREQ : HF_MAX_FREQ,
+        p_transverter_0_shift.get() ? p_transverter_0_from.get() : HF_MAX_FREQ,    // transverter 0 [from, to], on
+        p_transverter_0_shift.get() ? p_transverter_0_to.get() : HF_MAX_FREQ,
+        p_transverter_1_shift.get() ? p_transverter_1_from.get() : HF_MAX_FREQ,    // transverter 1 [from, to], on
+        p_transverter_1_shift.get() ? p_transverter_1_to.get() : HF_MAX_FREQ,
     };
 
     int32_t nearest = bounds[0];
@@ -792,11 +796,12 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
 
     // VFOA frequency: skipped on implicit switch when VFOA is the active VFO.
     if (!(implicit && active_vfo == RADIO_VFO_A)) {
-        // vfoa_freq: NOT_FOUND -> band start (or the default); an out-of-range
-        // loaded value is clamped to the band start.
+        // vfoa_freq: NOT_FOUND -> band start (or the default), on what the radio can tune (4m has no opening
+        // frequency and neither radio tunes 70 MHz); an out-of-range loaded value is clamped.
         int rc = p_band_vfoa_freq.load(band_id);
         if (rc == NOT_FOUND) {
-            p_band_vfoa_freq.set_quiet(have_band ? static_cast<int32_t>(band.value.start_freq) : default_freq);
+            p_band_vfoa_freq.set_quiet(have_band ? clamp_to_valid_hw_freq(static_cast<int32_t>(band.value.start_freq))
+                                                 : default_freq);
         } else if (rc == SUCCESS && have_band) {
             const int32_t freq = p_band_vfoa_freq.get();
             if (freq < static_cast<int32_t>(band.value.start_freq) ||
@@ -864,13 +869,23 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     }
 }
 
-/* A band (or a gap) with no mode saved yet. Broadcast bands (ids 100-199) were LSB under 10 MHz and USB above,
- * where every station is AM: it sounded garbled and hard to find (issue #9) */
-int32_t SettingsManager::resolve_default_mode(int32_t freq, int32_t band_id) {
-    if (HAS_VHF_RX && freq >= VHF_RX_MIN_FREQ && freq < 108000000) return radio_mode_wfm;
-    if (HAS_VHF_RX && freq >= 108000000 && freq <= VHF_RX_MAX_FREQ) return radio_mode_am;
-    if (band_id >= 100 && band_id < 200) return radio_mode_am;
+/* 60 m is worked in USB, though under 10 MHz (the WRC-15 band and the channels around it) */
+int32_t SettingsManager::default_mode(int32_t freq) const {
+    if (band_use(freq, freq) == BAND_USE_RX) {
+        if (freq >= VHF_RX_MIN_FREQ && freq < 108000000) return radio_mode_wfm;
+        if (freq >= 108000000 && freq <= VHF_RX_MAX_FREQ) return radio_mode_am;
+        return radio_mode_nfm;      /* the WR12: 2 m, 70 cm and the like */
+    }
+    if (freq >= 5250000 && freq <= 5450000) return radio_mode_usb;
     return freq < 10000000 ? radio_mode_lsb : radio_mode_usb;
+}
+
+/* A band (or a gap) with no mode saved yet. Broadcast bands (ids 100-199) were LSB under 10 MHz and USB above,
+ * where every station is AM: it sounded garbled and hard to find (issue #9). FM broadcast and Airband (112, 113)
+ * are receive bands of their own */
+int32_t SettingsManager::resolve_default_mode(int32_t freq, int32_t band_id) const {
+    if (band_id >= 100 && band_id < 200 && band_use(freq, freq) != BAND_USE_RX) return radio_mode_am;
+    return default_mode(freq);
 }
 
 std::string SettingsManager::make_default_encoder_bind() {
