@@ -15,7 +15,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [TX shift](#tx-shift), [SWR scan and the tuner](#swr-scan-and-the-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
-- [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages), [CW Trainer](#cw-trainer)
+- [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat)
 - [Themes](#themes)
@@ -58,7 +58,13 @@ The APP button opens three pages of apps and tools:
 |---|---|
 | APP 1:3 | Modes, Cluster, SWR Scan, RX Recorder |
 | APP 2:3 | Settings, CW Trainer, Field Ops, Channels |
-| APP 3:3 | Bands, GPS, Screen rec |
+| APP 3:3 | Bands, GPS, Screen rec, CW Keyboard |
+
+With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
+opens the same apps as a grid of tiles over these pages, with Walkie and
+Birdie Cal besides: the MFK chooses a tile, a press opens it, APP or ESC
+closes the grid. "APP > CW Keyboard" in this manual is the tile, or the
+button on APP 3:3.
 
 - Each app has its own button pages, named like `(JS8 1:7)`. The first
   button goes to the next page.
@@ -76,7 +82,7 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 |---|---|
 | Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, WF mode, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
-| Tools | Cluster, CW Trainer, Field Ops, Bands, Channels, RX recorder, SWR Scan, GPS, QTH grid, Settings |
+| Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Channels, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
 The hand mic F1 and F2 keys (short and long press) are set in the same tab.
 Where: Settings > Keys > HAND MIC KEYS.
@@ -342,7 +348,8 @@ WRC-15). A band of the band list the IARU plan does not cover (one added on
 the web configurator's Bands page, the top of 6 m, 4 m, 2 m) gets a strip
 too, typed from its name: CW in the name makes a CW segment, DIG, FT8, FT4 or
 DATA a digital one, BCN a beacon one, anything else all modes. "60m CW" at
-5.2585 MHz is a CW segment, so the CW keyboard works there. Broadcast and CB
+5.2585 MHz is a CW segment, so the main screen's
+[CW line](#cw-from-the-keyboard) works there. Broadcast and CB
 get none. A band changed on the web page shows at the next band change.
 
 Zoom and step per mode. Where: Settings > Display > MAIN SCREEN (also on the
@@ -520,10 +527,14 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode (see [Waterfall](#waterfall)) |
-| INTERFACE | Popups Freq/Info/ALC, Knob info, Theme, Font, FT8/FT4 info |
+| INTERFACE | Popups Freq/Info/ALC, Icon menus, Knob info, Theme, Font, Decoder text, FT8/FT4 info |
 
 - Popups Freq/Info/ALC: a big frequency while tuning, a big value of the
   control being changed, a big ALC reading while transmitting.
+- Icon menus (on by default): the APP grid (see
+  [Buttons and knobs](#buttons-and-knobs)), APP > Modes as tiles and icons on
+  the Settings tabs; off, APP shows its button pages only, Modes a list and
+  the tabs their numbers. It shows the next time they open.
 - Knob info: the value shown while a knob turns.
 - Theme: see [Themes](#themes). A new theme applies at once, without a restart.
 - Font: Sony Sketch, Roboto or DejaVu (default). A new font applies at once.
@@ -1423,13 +1434,47 @@ again when it reconnects.
   also with TX in MSG > CW; with no callsign set it stays as written.
 - Until the line is open, the other keys (- = and so on) work as usual; in
   CW [ and ] are the paddle (below).
+- With Live on ([CW Keyboard](#cw-keyboard), last page) each letter is keyed
+  as you type it.
 
-Live mode. The CW Keyboard app has a switch on its
-last page, "Live: On" / "Live: Off", off by default. The same setting drives
-the CW line of the main screen.
+### CW Keyboard
+
+The CW Keyboard app is CW as you type, with a keyboard or without one, the
+same on the X6100 and the X6200. Where: APP > CW Keyboard; a long press can
+open it too (Settings > Keys > FRONT KEYS, LONG PRESS: APP CW Keyboard).
+
+- It keys in CW or CW-R. In another mode the box on the right reads NOT CW
+  and nothing is taken ("Set CW mode to transmit"). Unlike the main screen's
+  line it does not need the CW segment; where the radio may not transmit it
+  says "No TX on ...: receive only" and keys nothing.
+- With a USB or Bluetooth keyboard: type the line under the log, Enter keys
+  it, lines typed while sending wait in a queue. Backspace corrects; Esc
+  stops what is on the air and queued, and with nothing to stop closes the
+  app.
+- Without a keyboard: a press of the MFK, or Send, with the line empty opens
+  the on-screen keyboard. Turn the MFK to a key and press to type it; OK (the
+  tick) keys the line, the keyboard key at the bottom left closes it without
+  sending. With a line typed on a keyboard, the MFK press or Send keys it.
+- Turning the MFK (or the arrow keys) sets the speed, 5 to 60 WPM, the same
+  as KEY > Speed; the head of the window shows it.
+- The log: what was sent dim, the line on the air bright up to the key and
+  highlighted after it, the queue grey. On the right READY, ON AIR or NOT CW.
+- Buttons: Send, Stop, Clear (the log and the line), Close. The next pages
+  key the MSG > CW messages (up to eight, four to a page), each as a typed
+  line; the last page has Live.
+
+Live. Where: CW Keyboard, last page, "Live: On" / "Live: Off", off by
+default. The same setting drives the CW line of the main screen (above).
 
 - Live on: each letter is keyed as you type it, no Enter needed; a space is
   the word gap. The empty field reads "Live: keyed as typed".
+- On the on-screen keyboard too: it reads "Live:" in front of the line and
+  each letter goes out as you press it. The line only shows what you typed;
+  full (64 letters) it starts again empty. OK or the keyboard key closes it
+  and keys nothing more. Live switched while it is open counts from the next
+  time it opens. Letters and Backspace go to the end of the line, wherever
+  the arrow keys put the cursor. An MFK press held on a letter keys it once;
+  held on Backspace it goes on rubbing out.
 - Backspace removes the last letter not keyed yet; a letter already on the
   air stays.
 - Limits: there can be up to about 0.1 s of extra space between letters, and
