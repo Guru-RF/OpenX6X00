@@ -3,10 +3,46 @@
 # Restores the Bluetooth pairings saved on /mnt by btaudio-ctl, before
 # bluetoothd starts (S40): a new image would otherwise forget them.
 #
+# Only onto a system without pairings, a newly written card: one that has its own keeps them, as
+# S04restore_backup_config keeps its files. Unpacked at every start, the copy went over the
+# system's own pairings each time, and an older copy, or one a power cut left half written on the
+# DATA partition, won. And only Bluetooth's own files: the archive lies on the user-visible DATA
+# partition, and whatever it held was unpacked over / as root.
+#
+
+ARCHIVE=/mnt/backups/bluetooth.tgz
+STATE=/var/lib/bluetooth
+LIST=/tmp/btpairings.list
+
+restore() {
+    [ -f "$ARCHIVE" ] || return 0
+    # A pairing is a device folder (its address) under the adapter's: btaudio-ctl's own test
+    ls "$STATE"/*/??:* > /dev/null 2>&1 && return 0
+    # Regular files under var/lib/bluetooth/ only (the '-' type: no links, no devices), no "..", no
+    # glob characters (bluetoothd's names have none). BusyBox tar has no -z: through gunzip
+    gunzip -c "$ARCHIVE" | tar tvf - 2> /dev/null | while read -r mode owner size date time name; do
+        case "$mode" in
+            -*)
+                case "$name" in
+                    *..* | *[][*?\\]*) ;;
+                    var/lib/bluetooth/*) echo "$name" ;;
+                esac
+                ;;
+        esac
+    done > "$LIST"
+    # Each one's bytes (-O), written by this script under its own name. tar takes a name as a pattern
+    # that also matches the entries below it: unpacked onto /, that let links and devices through
+    umask 077    # as bluetoothd makes them: folders 700, files 600
+    while read -r name; do
+        mkdir -p "/${name%/*}" && gunzip -c "$ARCHIVE" | tar xOf - "$name" > "/$name" 2> /dev/null
+    done < "$LIST"
+    chmod -R go-rwx "$STATE" 2> /dev/null
+    rm -f "$LIST"
+}
 
 case "$1" in
   start)
-    [ -f /mnt/backups/bluetooth.tgz ] && gunzip -c /mnt/backups/bluetooth.tgz | tar xf - -C /   # BusyBox tar: no -z
+    restore
     # Bluetooth keyboards: classic ones go through hidp, Low Energy ones (HOGP) through uhid
     modprobe hidp 2>/dev/null
     modprobe uhid 2>/dev/null

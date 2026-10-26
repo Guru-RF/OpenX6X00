@@ -2113,8 +2113,9 @@ pairing and connection in DEVICES, the audio switches in HEADPHONES.
   MFK press, press the keyboard's pairing key when asked; if it asks for a
   code, the code to type (then Enter) shows on the Activity row. A keyboard
   that takes a new address at each pairing is found again by its name.
-- Pairings are kept in a backup on `/mnt` and restored at boot
-  (`S39btpairings`), so a new image does not forget them.
+- Pairings are kept in a backup on `/mnt` (`backups/bluetooth.tgz`) and
+  restored at the first start of a new image (`S39btpairings`), so it does not
+  forget them. A radio that has pairings of its own keeps them as they are.
 
 > **WiFi and Bluetooth share one chip.** With both on, the headphone audio can
 > skip, WiFi slows down and the chip sometimes resets. The built-in WiFi is
