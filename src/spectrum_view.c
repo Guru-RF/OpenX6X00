@@ -181,12 +181,12 @@ static lv_color_t kept_color(lv_color_t trace, lv_color_t bg) {
 static lv_color_t trace_color(void) {
     int32_t c = param_i_get(cfg_spectrum_line_color);
 
-    return c < 0 ? TC(line) : lv_color_hex(c);
+    return c < 0 || theme_shape.mono ? TC(line) : lv_color_hex(c);   /* 1bit: ink */
 }
 
 /* The fill in its own colour: the trace is drawn over it */
 static bool fill_own(void) {
-    return params.spectrum_filled.x && param_i_get(cfg_spectrum_fill_color) >= 0;
+    return params.spectrum_filled.x && param_i_get(cfg_spectrum_fill_color) >= 0 && !theme_shape.mono;
 }
 
 static lv_color_t fill_color(void) {
@@ -196,7 +196,8 @@ static lv_color_t fill_color(void) {
 /* The fill fading from its colour at the trace to the background at the bottom, the trace drawn
  * over it (after R1CBU's gradient fill, OpenX6100) */
 static bool fill_grad(void) {
-    return params.spectrum_filled.x && (param_i_get(cfg_spectrum_fill_gradient) || theme_shape.deck);   /* deck: always */
+    return params.spectrum_filled.x && (param_i_get(cfg_spectrum_fill_gradient) || theme_shape.deck) &&   /* deck: always */
+           !theme_shape.mono;                                                                           /* 1bit: bars */
 }
 
 /* ---- LVGL drawing: the walkie's bandscope, the main spectrum without planes, the markers ---- */
@@ -249,7 +250,7 @@ static void trace_draw(lv_draw_ctx_t *ctx, lv_obj_t *o, lv_coord_t shift, const 
     }
     levels(&min, &max);
     lv_draw_line_dsc_init(&peak_dsc);
-    peak_dsc.color = TC(off);
+    peak_dsc.color = theme_shape.mono ? TC(line) : TC(off);   /* 1bit: a line above the bars */
     peak_dsc.width = 1;
     lv_draw_line_dsc_init(&over_dsc);
     over_dsc.color = trace_color();
@@ -305,6 +306,10 @@ static void kept_draw(lv_draw_ctx_t *ctx, lv_obj_t *o) {
     lv_draw_line_dsc_init(&dsc);
     dsc.color = kept_color(trace_color(), lv_obj_get_style_bg_color(o, LV_PART_MAIN));
     dsc.width = 1;
+    if (theme_shape.mono) {     /* 1bit: dotted (the mono layer's stipple), no half tone */
+        dsc.color = TC(line);
+        dsc.opa = LV_OPA_40;
+    }
     for (int i = from; i < to; i++) {
         if (isnan(kept_db[i])) {
             joined = false;
@@ -350,14 +355,22 @@ void spectrum_draw_cb(lv_event_t *e) {
     lv_draw_rect_dsc_init(&band);
     band.bg_color = fc >= 0 ? lv_color_hex(fc) : theme_shape.deck ? TC(vfo_bg) : bg_color;   /* deck: shaded on the black */
     band.bg_opa = LV_OPA_50;
-    shade(ctx, &band, vfo_x + (int32_t)((float)(w * pass_lo) / span + 1.0f),
-          vfo_x + (int32_t)((float)(w * pass_hi) / span + 1.0f), top, h);
+    lv_coord_t pass_x1 = vfo_x + (int32_t)((float)(w * pass_lo) / span + 1.0f);
+    lv_coord_t pass_x2 = vfo_x + (int32_t)((float)(w * pass_hi) / span + 1.0f);
+
+    if (theme_shape.mono) {     /* 1bit: its two edges, no shade over the bars */
+        vline(ctx, &line, pass_x1, top, h);
+        vline(ctx, &line, pass_x2, top, h);
+    } else {
+        shade(ctx, &band, pass_x1, pass_x2, top, h);
+    }
 
     /* notch_hz already carries the sideband's sign: no second flip, or LSB lands on the USB side */
     if (notch_on) {
         int32_t a = notch_hz - notch_half, b = notch_hz + notch_half;
 
         band.bg_color = TC(text);
+        if (theme_shape.mono) band.bg_opa = LV_OPA_30;   /* a stippled band */
         shade(ctx, &band, vfo_x + w * LV_MIN(a, b) / span, vfo_x + w * LV_MAX(a, b) / span, top, h);
     }
 
@@ -376,7 +389,13 @@ void spectrum_draw_cb(lv_event_t *e) {
     /* The VFO line as the waterfall's, red while recording; none in CW */
     line.width = 3;
     line.color = recorder_is_on() ? TC(err_strong) : TC(vfo_line);
-    if (vfo_line_on) {
+    if (vfo_line_on && theme_shape.mono) {     /* 1bit: 1 px ink in a paper halo, readable over the bars */
+        line.color = TC(panel);
+        vline(ctx, &line, vfo_x, top, h);
+        line.width = 1;
+        line.color = TC(vfo_line);
+        vline(ctx, &line, vfo_x, top, h);
+    } else if (vfo_line_on) {
         vline(ctx, &line, vfo_x, top, h);
     }
 }
@@ -432,8 +451,29 @@ static void wu_line(float x0, float y0, float x1, float y1, uint32_t color) {
     }
 }
 
-/* Points from..to-1 of db, joined where they are not NAN */
-static void polyline(const float *db, int from, int to, float min, float max, lv_coord_t shift, uint32_t color) {
+/* 1bit: a line of whole pixels (Bresenham), every pixel or every other one (dotted) */
+static void mono_line(int x0, int y0, int x1, int y1, uint32_t color, bool dotted) {
+    int dx = LV_ABS(x1 - x0), dy = -LV_ABS(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
+
+    for (;;) {
+        if (!dotted || ((x0 + y0) & 1) == 0) plot(x0, y0, 1.0f, color);
+        if (x0 == x1 && y0 == y1) break;
+        int e2 = 2 * err;
+
+        if (e2 >= dy) {
+            err += dy;
+            x0 += sx;
+        }
+        if (e2 <= dx) {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+/* Points from..to-1 of db, joined where they are not NAN; dotted: 1bit's kept trace */
+static void polyline(const float *db, int from, int to, float min, float max, lv_coord_t shift, uint32_t color,
+                     bool dotted) {
     float px = 0, py = 0;
     bool  joined = false;
 
@@ -446,7 +486,9 @@ static void polyline(const float *db, int from, int to, float min, float max, lv
         float y = (1.0f - (db[i] - min) / (max - min)) * strip_h;
 
         y = LV_CLAMP(0.0f, y, (float)strip_h);
-        if (joined) {
+        if (joined && theme_shape.mono) {
+            mono_line(lroundf(px), lroundf(py), lroundf(x), lroundf(y), color, dotted);
+        } else if (joined) {
             wu_line(px, py, x, y, color);
         }
         px = x;
@@ -524,17 +566,18 @@ static void direct_render(void) {
 
     pthread_mutex_lock(&data_mux);
     if (params.spectrum_peak.x && !data_tx) {
-        polyline(peak_db, 0, POINTS, min, max, shift, TC(off).full);
+        polyline(peak_db, 0, POINTS, min, max, shift, theme_shape.mono ? line : TC(off).full, false);
     }
     if (params.spectrum_filled.x) {
         fill_columns(min, max, shift);
     }
     if (!params.spectrum_filled.x || fill_own() || fill_grad()) {
-        polyline(trace_db, 0, POINTS, min, max, shift, line);
+        polyline(trace_db, 0, POINTS, min, max, shift, line, false);
     }
     pthread_mutex_unlock(&data_mux);
-    if (kept_side(&from, &to)) {
-        polyline(kept_db, from, to, min, max, 0, kept_color(trace_color(), TC(panel)).full);
+    if (kept_side(&from, &to)) {   /* 1bit: dotted ink, no half tone */
+        polyline(kept_db, from, to, min, max, 0, theme_shape.mono ? line : kept_color(trace_color(), TC(panel)).full,
+                 true);
     }
 
 #if USE_DRM
