@@ -142,8 +142,8 @@ static void rig_pending_tune(void);
 static atomic_int    pending_hz;    /* a \set_freq asked on the air, done once it is over; 0 none */
 static atomic_int    missed_hz;     /* a QSY Pat was told was done and that could not be (rig_pending_tune); 0 none */
 /* The frequency of the connection under way: Pat's last tune, or where ardopcf last keyed; 0 none. Written by
- * the rig thread, and by the worker in tx_off_freq after its own rig_pending_tune: a \set_freq from then on is
- * kept for later (keying) */
+ * the rig thread under tune_lock, and by the worker in tx_off_freq after its own rig_pending_tune: a \set_freq
+ * from then on is kept for later (keying), so never both at once */
 static atomic_int    ref_hz;
 static atomic_ullong ref_ms;
 
@@ -787,12 +787,28 @@ static rig_cmd_t rig_parse(const char *line, double *arg) {
     return RIG_UNKNOWN;
 }
 
-static atomic_uint tunes;   /* tune_cb ran: rig_tune knows its answer */
+/* One tune at a time, the rig thread's or the worker's, each waited for by its own number. With a count of the
+ * tunes made shared by all, one given up on after TUNE_WAIT_MS was still made when the LVGL thread came to it,
+ * after Pat had been told it timed out, and its count woke the next one's wait, whose answer was then decided on
+ * the frequency the late one had left */
+typedef struct {
+    int32_t  hz;
+    unsigned id;
+} tune_t;
 
-/* LVGL thread: Pat's QSY as TCI tunes, then USB-D unless the mode is USB or USB-D already */
+static pthread_mutex_t tune_lock = PTHREAD_MUTEX_INITIALIZER;
+static atomic_uint     tune_queued;     /* the tune in the LVGL queue that is still wanted; 0 none */
+static atomic_uint     tune_done;       /* the last one tune_cb made */
+
+/* LVGL thread: Pat's QSY as TCI tunes, then USB-D unless the mode is USB or USB-D already. Not one rig_do_tune
+ * took back */
 static void tune_cb(void *arg) {
-    int32_t f = *(int32_t *)arg;
+    const tune_t *t  = arg;
+    unsigned      id = t->id;
+    int32_t       f  = t->hz;
 
+    if (!atomic_compare_exchange_strong(&tune_queued, &id, 0))
+        return;
     if (!on_air() && !main_screen_freq_locked() && cfg_is_valid_hw_freq(f)) {
         int32_t mode;
 
@@ -803,19 +819,29 @@ static void tune_cb(void *arg) {
         if (mode != radio_mode_usb && mode != radio_mode_usb_dig && !main_screen_mode_locked())
             cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
     }
-    atomic_fetch_add(&tunes, 1);
+    atomic_store(&tune_done, t->id);
 }
 
 static atomic_ullong pending_ms;    /* when pending_hz was asked */
 
-/* The tune on the LVGL thread, waited for: hamlib's code, 0 when the radio is there */
+/* The tune on the LVGL thread, waited for: hamlib's code, 0 when the radio is there. Under tune_lock */
 static int rig_do_tune(int32_t f) {
-    unsigned seen = atomic_load(&tunes);
+    static unsigned last;
+    tune_t          t = {.hz = f};
 
-    if (!scheduler_put(tune_cb, &f, sizeof(f)))
+    if (!++last)
+        last = 1;       /* 0 is none */
+    t.id = last;
+    atomic_store(&tune_queued, t.id);
+    if (!scheduler_put(tune_cb, &t, sizeof(t))) {
+        atomic_store(&tune_queued, 0);
         return -9;      /* RIG_ERJCTED */
-    for (int ms = 0; atomic_load(&tunes) == seen; ms += 5) {
-        if (ms >= TUNE_WAIT_MS)
+    }
+    for (int ms = 0; atomic_load(&tune_done) != t.id; ms += 5) {
+        unsigned id = t.id;
+
+        /* Not begun: taken back, the LVGL thread passes it by. Begun: its end is a moment away */
+        if (ms >= TUNE_WAIT_MS && atomic_compare_exchange_strong(&tune_queued, &id, 0))
             return -5;  /* RIG_ETIMEOUT: the LVGL thread busy */
         usleep(5000);
     }
@@ -827,17 +853,19 @@ static int rig_do_tune(int32_t f) {
  * the frequency, the LVGL thread busy, too late) leaves the radio where Pat does not think it is, and
  * ardopcf does not key until it is there or Pat tunes again (missed_hz) */
 static void rig_pending_tune(void) {
-    int32_t f = atomic_load(&pending_hz);
+    int32_t f;
 
-    if (!f || (on_air() && !atomic_load(&keying)))
-        return;
-    f = atomic_exchange(&pending_hz, 0);
-    if (f && (now_ms() - atomic_load(&pending_ms) >= PENDING_MS || rig_do_tune(f) != 0))
-        atomic_store(&missed_hz, f);
-    if (f) {
+    /* The worker also waits out a QSY of the rig thread's under way: its key is checked where that leaves the radio */
+    pthread_mutex_lock(&tune_lock);
+    f = atomic_load(&pending_hz);
+    if (f && !(on_air() && !atomic_load(&keying))) {
+        atomic_store(&pending_hz, 0);
+        if (now_ms() - atomic_load(&pending_ms) >= PENDING_MS || rig_do_tune(f) != 0)
+            atomic_store(&missed_hz, f);
         atomic_store(&ref_hz, f);   /* where Pat waits, made or not */
         atomic_store(&ref_ms, now_ms());
     }
+    pthread_mutex_unlock(&tune_lock);
 }
 
 /* \set_freq: hamlib's code. On the air it is answered at once and done at the end of the
@@ -845,23 +873,25 @@ static void rig_pending_tune(void) {
  * its session, while ardopcf may still send its ID. Not on a frequency an app holds */
 static int rig_tune(double hz) {
     int32_t f;
-    int     ret;
+    int     ret = 0;
 
     if (!(hz >= 1.0 && hz < 2147483647.0))
         return -1;      /* RIG_EINVAL */
     f = (int32_t)llround(hz);
     if (!cfg_is_valid_hw_freq(f))
         return -1;
+    pthread_mutex_lock(&tune_lock);     /* kept or made with no tune of the worker's in between */
     atomic_store(&missed_hz, 0);    /* Pat's QSY before this one is not where Pat waits any more */
     if (on_air() || atomic_load(&keying)) {
         atomic_store(&pending_ms, now_ms());
         atomic_store(&pending_hz, f);
-        return 0;
+    } else {
+        atomic_store(&pending_hz, 0);   /* asked again since: the newest wins */
+        ret = rig_do_tune(f);
+        atomic_store(&ref_hz, ret == 0 ? f : 0);    /* not made: Pat knows, and waits nowhere */
+        atomic_store(&ref_ms, now_ms());
     }
-    atomic_store(&pending_hz, 0);   /* asked again since: the newest wins */
-    ret = rig_do_tune(f);
-    atomic_store(&ref_hz, ret == 0 ? f : 0);    /* not made: Pat knows, and waits nowhere */
-    atomic_store(&ref_ms, now_ms());
+    pthread_mutex_unlock(&tune_lock);
     return ret;
 }
 
