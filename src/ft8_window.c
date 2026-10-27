@@ -151,8 +151,14 @@ static atomic_bool     sending;
 /* The decoder runs for this window: off from the start of decoder_stop, so that what the thread
  * still does before its join (a last decode answered, the slot for it) sends nothing */
 static bool            decoder_on;
-static char          last_logged[16];   /* the last QSO saved (the panel's timeline), "" none */
-static time_t        last_logged_at;
+
+/* save_qso() runs on the decoder thread and on the GUI (Force QSO save): one at a time, so that two
+ * records don't mix in the ADIF file; the last QSO saved goes with them (the panel's status reads
+ * it). Never taken with qso_mux held, nor held over a GUI job */
+static pthread_mutex_t save_mux = PTHREAD_MUTEX_INITIALIZER;
+static char            last_logged[16];     /* the last QSO saved (the panel's timeline), "" none */
+static time_t          last_logged_at;
+
 /* UTC start of the slot being received, "HH:MM:SS": in front of each row of it (worker thread) */
 static char          slot_time[9] = "--:--:--";
 
@@ -359,14 +365,16 @@ static void save_qso(const done_qso_t *d) {
                                                  dial, NULL, NULL, station_qth(), grid);
     free(canon);
 
+    pthread_mutex_lock(&save_mux);
     adif_add_qso(ft8_log, rec);
     qso_log_record_save(rec);
+    snprintf(last_logged, sizeof(last_logged), "%s", call);
+    last_logged_at = now;
+    pthread_mutex_unlock(&save_mux);
 
     saved_job_t job = {.rec = rec, .ui = {.cursor_off = true, .tx_gen = d->tx_gen, .win_gen = win_gen}};
 
     gui_post(save_qso_apply, &job, sizeof(job));
-    snprintf(last_logged, sizeof(last_logged), "%s", call);
-    last_logged_at = now;
     ft8_udp_log_qso(now, rec.remote_call, grid, (uint64_t)cparam_i_get(cfg_fg_freq), mode_name(), sent, rcvd,
                     (int)param_f_get(cfg_pwr), params.callsign.x, station_qth());
 
@@ -1563,7 +1571,9 @@ static void key_cb(lv_event_t *e) {
 
 static void construct_cb(lv_obj_t *parent) {
     dialog.obj = dialog_init(parent);
+    pthread_mutex_lock(&save_mux);
     last_logged[0] = '\0';      /* the timeline's "Logged" is of this session */
+    pthread_mutex_unlock(&save_mux);
 
     /* The window covers the main screen's spectrum and waterfall: no DSP for them */
     dsp_set_waterfall_enabled(false);
@@ -1749,8 +1759,10 @@ void ft8_window_status(ft8_status_t *s) {
     }
     s->repeats = next.msg[0] ? next.repeats : 0;
     s->nocall  = !params.callsign.x[0];
+    pthread_mutex_lock(&save_mux);
     snprintf(s->logged, sizeof(s->logged), "%s", last_logged);
     s->logged_s = last_logged[0] ? (int32_t)(time(NULL) - last_logged_at) : -1;
+    pthread_mutex_unlock(&save_mux);
 }
 
 bool ft8_window_remote(ft8_rc_t what, int32_t arg, const cell_data_t *cell) {
