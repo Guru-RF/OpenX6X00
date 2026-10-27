@@ -30,7 +30,8 @@ void waterfall_get_levels(bool tx, float *min, float *max);
 
 /* Fixed mode (cfg_wf_mode): the displayed span stays put and the VFO moves across it.
  * Returns how far (Hz) the centre of the received data is from the display centre;
- * always 0 in Centered mode. Re-centres the view when the VFO nears an edge. */
+ * always 0 in Centered mode. Re-centres the view on the received data when they are a
+ * quarter of the spectrum's span (100 kHz / zoom) from its centre, or the VFO 40%. */
 int32_t waterfall_view_shift(void);
 
 /* LV_EVENT_DRAW_MAIN_END of an object drawn on the DRM primary plane (waterfall,

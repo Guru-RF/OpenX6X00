@@ -339,12 +339,22 @@ Where: Settings > Display > WATERFALL.
 
 | Option | What it does |
 |---|---|
-| Mode | Centered keeps the VFO in the middle; Fixed keeps the span |
+| Mode | Centered keeps the VFO in the middle; Fixed keeps the span (below) |
 | Auto level, offset | the levels follow the noise floor; the offset makes it darker or brighter |
 | Min / max | the manual levels, used when auto level is off |
 | Line, zoom | a line on the VFO; zoom with the waterfall instead of the span |
 | Smooth scroll | scrolls by pixels instead of lines |
 | Speed | 3 = 15 lines/s (default), 4 = 20, 5 = 30; 2 = 7.5 and 1 = 5 average the frames into a line: less noise and less CPU |
+
+In Fixed mode the span stays still and the VFO line moves across it. The
+spectrum comes in only for the span around the VFO, so the side you tune
+away from gets nothing new: there the waterfall goes on with the last
+picture received at those frequencies, and the spectrum shows its last line
+there, dimmed: the last one received after the dial had been still for half a
+second. When what is received is a quarter of the spectrum's span from the
+centre (25 kHz at zoom 1, 12.5 kHz at zoom 2), or the VFO 40% of it, the
+view jumps back and centres on what is received: the VFO, less any IF shift
+(with Smooth scroll on, the waterfall slides there).
 
 Over the waterfall. Where: Settings > Display > MAIN SCREEN.
 

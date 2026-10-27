@@ -31,15 +31,19 @@
 #define WIDTH       800
 #define MAX_HEIGHT  480     /* the buffers: the height changes live (spectrum on/off, its height) */
 #define SPAN_HZ     100000  /* shown at zoom 1 */
+#define DATA_AT     (WATERFALL_NFFT / 2)    /* a row's data from this value on, as many again around them */
+#define ROW_BINS    (WATERFALL_NFFT * 2)
 #define TX_MIN      S4      /* the colour scale in TX, and the automatic one before the DSP sets it */
 #define TX_MAX      S9_20
 
-/* One row as the DSP gave it: colour indexes over the span it covered */
+/* One row as the DSP gave it: colour indexes over the span it covered, and in Fixed mode
+ * half that span each side of it with the last picture received there (keep_around()) */
 typedef struct {
-    uint8_t  values[WATERFALL_NFFT];
+    uint8_t  values[ROW_BINS];  /* the data from DATA_AT on; values[0] is width below the centre */
     uint32_t center_freq;
-    uint32_t width;     /* Hz; 0: empty */
+    uint32_t width;     /* Hz of the data; 0: empty */
     uint8_t  floor;     /* 75th percentile: above it the row has signals */
+    bool     kept;      /* the values around the data are set */
 } wf_row_t;
 
 static lv_obj_t     *obj;
@@ -53,8 +57,8 @@ static lv_obj_t     *filter_band;
 static lv_point_t    vfo_line_points[] = {{0, 0}, {0, 0}};
 
 static lv_coord_t    height;
-static wf_row_t     *rows;              /* a ring of height rows */
-static uint16_t      newest;            /* the last row written */
+static wf_row_t     *rows;              /* a ring of height + 1 rows: those drawn, and the one being written */
+static uint16_t      newest;            /* the last row written: the DSP thread writes the next, then moves this on */
 
 static float         level_min = TX_MIN;
 static float         level_max = TX_MAX;
@@ -86,6 +90,18 @@ static int              new_rows = 0;       /* rows from the DSP thread not draw
 static int32_t          view_center = 0;
 static bool             view_fixed = false;
 
+/* Fixed mode keeps the picture still while the VFO moves across it, and the base sends only
+ * the span around the VFO: the side tuned away from gets no new data (#10). What was last
+ * received at each frequency around the rows (dB, NAN: nothing) fills it there instead of the
+ * noise. keep_db[i] is keep_bin + i - DATA_AT bins (of keep_width / WATERFALL_NFFT Hz) above
+ * keep_anchor, at a row's values[i] but for the part of a bin the row is off this grid: it moves
+ * by whole bins only, where the rows move by the Hz of each tuning step; moved by the parts of a
+ * bin, the picture would drift or blur. The DSP thread's */
+static float            keep_db[ROW_BINS];
+static uint32_t         keep_anchor;
+static int32_t          keep_bin;
+static uint32_t         keep_width;         /* 0: nothing kept */
+
 static void refresh_waterfall(void *arg);
 static void do_scroll_timer(lv_timer_t *t);
 static void update_middle_line(void);
@@ -112,12 +128,90 @@ static void on_palette_change(Subject *subj, void *user_data) {
     wf_palette = preset;
 }
 
-/* The row age rows before the newest (0: the newest) */
+/* The row age rows before the newest (0: the newest), age under height: never the one the DSP thread
+ * is writing */
 static wf_row_t *row_at(int32_t age) {
-    return &rows[(newest - age + height) % height];
+    int32_t ring = height + 1;
+
+    return &rows[(__atomic_load_n(&newest, __ATOMIC_ACQUIRE) - age + ring) % ring];
 }
 
 /* ---- Rows from the DSP thread ---- */
+
+/* A part out of the row's band (tuned away from it) shows the row's own noise, its
+ * values at scattered places capped where signals start, not black */
+static inline uint8_t noise_at(const wf_row_t *row, size_t i) {
+    uint8_t v = row->values[DATA_AT + (i * 2654435761u + (uintptr_t) row) % WATERFALL_NFFT];
+
+    return v < row->floor ? v : row->floor;
+}
+
+/* Where hz is in keep_db, bins from keep_anchor */
+static double keep_pos(uint32_t hz) {
+    return ((double) hz - keep_anchor) * WATERFALL_NFFT / keep_width;
+}
+
+/* Fixed mode: a new row's data (db, its colours from min to max) into keep_db, and the
+ * row's values around its data from keep_db */
+static void keep_around(wf_row_t *row, const float *db, float min, float max) {
+    if (row->width != keep_width || fabs(keep_pos(row->center_freq) - DATA_AT - keep_bin) >= ROW_BINS) {
+        /* The first, another zoom or another band: nothing kept */
+        keep_width = row->width;
+        keep_anchor = row->center_freq;
+        keep_bin = -DATA_AT;
+        for (size_t i = 0; i < ROW_BINS; i++) {
+            keep_db[i] = NAN;
+        }
+    }
+    /* keep_db follows the row by whole bins: the row's value j is at keep_db[j + frac] */
+    double  at = keep_pos(row->center_freq) - DATA_AT;
+    int32_t move = lround(at) - keep_bin;
+    int32_t gone = LV_MIN(LV_ABS(move), ROW_BINS);
+    float   frac = at - lround(at);
+
+    if (move > 0) {
+        memmove(keep_db, keep_db + gone, (ROW_BINS - gone) * sizeof(float));
+        for (int32_t i = ROW_BINS - gone; i < ROW_BINS; i++) keep_db[i] = NAN;
+    } else if (move < 0) {
+        memmove(keep_db + gone, keep_db, (ROW_BINS - gone) * sizeof(float));
+        for (int32_t i = 0; i < gone; i++) keep_db[i] = NAN;
+    }
+    keep_bin += move;
+
+    /* The data, received now */
+    for (int32_t k = 0; k < ROW_BINS; k++) {
+        float   x = k - frac - DATA_AT;
+        int32_t i = floorf(x);
+
+        if (i >= 0 && i < WATERFALL_NFFT - 1) {
+            keep_db[k] = db[i] + (db[i + 1] - db[i]) * (x - i);
+        } else if (i == WATERFALL_NFFT - 1 && x == i) {
+            keep_db[k] = db[i];
+        }
+    }
+
+    /* Around it what was received there last, the row's noise where nothing was */
+    float scale = 255.0f / (max - min);
+
+    for (int32_t j = 0; j < ROW_BINS; j++) {
+        if (j >= DATA_AT && j < DATA_AT + WATERFALL_NFFT) {
+            continue;
+        }
+        float   x = j + frac;
+        int32_t i = floorf(x);
+        float   a = i >= 0 ? keep_db[i] : NAN;
+        float   b = i + 1 < ROW_BINS ? keep_db[i + 1] : NAN;
+        float   v = isnan(a) ? b : isnan(b) ? a : a + (b - a) * (x - i);
+
+        if (isnan(v)) {
+            row->values[j] = noise_at(row, j);
+        } else {
+            v = (v - min) * scale;
+            row->values[j] = v < 0.0f ? 0 : v > 255.0f ? 255 : v;
+        }
+    }
+    row->kept = true;
+}
 
 void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint32_t width_hz) {
     if (skip_rows && base_freq == 0) {
@@ -154,9 +248,12 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
         acc_n = 0;
     }
 
-    float min, max;
+    /* The row is made in the slot after the newest, which is never drawn, and shown once whole.
+     * Moved on first, the GUI could draw it half made, a column off, with the sides of the row the
+     * slot held around its data */
+    uint16_t next = (newest + 1) % (height + 1);
+    float    min, max;
 
-    newest = (newest + 1) % height;
     waterfall_get_levels(tx, &min, &max);
     if (base_freq == 0) {
         base_freq = radio_center_freq + mode_lo_offset;     /* no frequency with the data: the one set */
@@ -164,7 +261,7 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
         base_freq += mode_lo_offset;
     }
 
-    wf_row_t *row = &rows[newest];
+    wf_row_t *row = &rows[next];
     float     scaled[size];
     uint16_t  hist[256] = {0};
 
@@ -177,35 +274,41 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
     for (uint16_t i = 0; i < size; i++) {
         uint8_t c = scaled[i] < 0.0f ? 0 : scaled[i] > 255.0f ? 255 : scaled[i];
 
-        row->values[i] = c;
+        row->values[DATA_AT + i] = c;
         hist[c]++;
     }
     uint32_t n = 0, id = 0;
     while (id < 255 && (n += hist[id]) < size * 3 / 4) id++;
     row->floor = id;
+
+    /* Not the picture of TX: after it the same frequencies are received again */
+    row->kept = false;
+    if (!param_i_get(cfg_wf_mode)) {
+        keep_width = 0;
+    } else if (!tx && size == WATERFALL_NFFT && width_hz) {
+        keep_around(row, db, min, max);
+    }
+    __atomic_store_n(&newest, next, __ATOMIC_RELEASE);
     __atomic_add_fetch(&new_rows, 1, __ATOMIC_RELEASE);
     scheduler_put_coalesced(refresh_waterfall);
 }
 
 /* ---- One row onto the screen's pixels ---- */
 
-/* A part out of the row's band (tuned away from it) shows the row's own noise, its
- * values at scattered places capped where signals start, not black */
-static inline uint8_t noise_px(const wf_row_t *row, size_t i) {
-    uint8_t v = row->values[(i * 2654435761u + (uintptr_t) row) % WATERFALL_NFFT];
-
-    return v < row->floor ? v : row->floor;
-}
-
 /* Pixels i0..i1-1 (out is indexed by pixel) of a row, for a picture of span Hz centred on
- * center: linear between the row's points, 1/8 of a point steps */
+ * center: linear between the row's points, 1/8 of a point steps. Its values: its data, and in
+ * Fixed mode around them the last picture; out of them its noise */
 static void row_pixels(const wf_row_t *row, uint32_t center, uint32_t span, size_t i0, size_t i1, uint8_t *out) {
     if (!row->width) {
         memset(out + i0, 0, i1 - i0);       /* not written yet */
         return;
     }
-    uint32_t row_lo = row->center_freq - row->width / 2;
-    uint32_t row_hi = row_lo + row->width;
+    uint32_t first = row->kept ? 0 : DATA_AT;
+    uint32_t end = row->kept ? ROW_BINS : DATA_AT + WATERFALL_NFFT;
+    uint32_t reach = row->kept ? row->width : row->width / 2;
+    int32_t  grid_lo = row->center_freq - row->width;  /* values[0] */
+    uint32_t row_lo = row->center_freq - reach;
+    uint32_t row_hi = row->center_freq + reach;
     uint32_t lo = center - span / 2;
     uint32_t hi = lo + span;
     uint32_t half = span / 2;
@@ -213,11 +316,12 @@ static void row_pixels(const wf_row_t *row, uint32_t center, uint32_t span, size
 
     for (size_t i = i0; i < i1; i++) {
         int32_t  hz = center + (span * i + half) / WIDTH - half;
-        int32_t  pos = (hz - row_lo) * (WATERFALL_NFFT << 3) / row->width;
-        uint32_t k = (uint32_t) pos >> 3;
+        int32_t  d = hz - grid_lo;
+        uint32_t pos = d < 0 ? 0 : (uint32_t) d * (WATERFALL_NFFT << 3) / row->width;
+        uint32_t k = pos >> 3;
 
-        if (apart || pos < 0 || k >= WATERFALL_NFFT - 2) {
-            out[i] = noise_px(row, i);
+        if (apart || d < 0 || k < first || k + 2 >= end) {
+            out[i] = noise_at(row, i);
         } else {
             int16_t a = row->values[k], b = row->values[k + 1];
 
@@ -381,10 +485,14 @@ int32_t waterfall_view_shift(void) {
     }
     int32_t rc = cparam_i_get(cfg_fg_freq) - param_i_get(cfg_band_if_shift);
     int32_t vfo = cparam_i_get(cfg_fg_freq);
-    /* Keep a 20% margin: the received data (centred on rc) and the VFO must stay inside */
-    int32_t limit = 50000 / param_i_get(cfg_mode_zoom) * 8 / 10;
+    int32_t half = SPAN_HZ / 2 / param_i_get(cfg_mode_zoom);
 
-    if (!view_fixed || abs(rc - view_center) > limit || abs(vfo - view_center) > limit) {
+    /* The received data (centred on rc) within a quarter of the span of the centre: the side
+     * tuned away from shows the last picture received there, and jumped back sooner less of it
+     * is old (#10; it was 40% of the span). The VFO within 40% as before: an IF shift keeps it
+     * up to that far from rc (on_if_shift_zoom(), screen_main.c), and over the quarter the view
+     * would follow it at every step */
+    if (!view_fixed || abs(rc - view_center) > half / 2 || abs(vfo - view_center) > half * 8 / 10) {
         view_center = rc;
         view_fixed = true;
     }
@@ -606,9 +714,9 @@ void waterfall_set_height(lv_coord_t h) {
 
     if (ready) {
         /* Again (main_screen.c): the same buffers, an empty waterfall of the new height. The
-         * DSP thread may write a row meanwhile: newest stays under MAX_HEIGHT */
-        newest = 0;
-        for (size_t i = 0; i < MAX_HEIGHT; i++) {
+         * DSP thread may write a row meanwhile: it stays within the MAX_HEIGHT + 1 rows */
+        __atomic_store_n(&newest, 0, __ATOMIC_RELEASE);
+        for (size_t i = 0; i <= MAX_HEIGHT; i++) {
             rows[i].width = 0;
         }
         wfp_head = 0;
@@ -632,8 +740,8 @@ void waterfall_set_height(lv_coord_t h) {
     } else {
         frame = lv_img_buf_alloc(WIDTH, height, LV_IMG_CF_TRUE_COLOR);
     }
-    rows = calloc(MAX_HEIGHT, sizeof(*rows));
-    for (size_t i = 0; i < MAX_HEIGHT; i++) {
+    rows = calloc(MAX_HEIGHT + 1, sizeof(*rows));
+    for (size_t i = 0; i <= MAX_HEIGHT; i++) {
         rows[i].center_freq = radio_center_freq;
     }
     newest = 0;

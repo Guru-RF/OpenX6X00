@@ -38,6 +38,7 @@
 #define SPAN_HZ     100000      /* shown at zoom 1 */
 #define TX_MIN      S4          /* the scale in TX, and the automatic one before the DSP sets it */
 #define TX_MAX      S9_20
+#define KEPT_SETTLE 8           /* traces after a retune not kept (kept_settle()) */
 
 static lv_obj_t        *obj;
 
@@ -53,6 +54,16 @@ static int16_t          peak_rest_hz;       /* a move of the peaks smaller than 
 
 static float            level_min = TX_MIN;
 static float            level_max = TX_MAX;
+
+/* Fixed mode keeps the view still while the VFO moves across it, and the base sends only the
+ * span around the VFO: the side tuned away from gets no new trace (#10). There the trace last
+ * received at each point of the view, settled after a retune (kept_settle()), dimmed, instead of
+ * nothing. GUI thread; NAN: nothing */
+static float            kept_db[POINTS];
+static int32_t          kept_view;          /* the view's centre (Hz) they are points of; 0: none */
+static uint8_t          kept_zoom;
+static bool             kept_new;           /* a settled trace not kept yet (data_mux) */
+static uint8_t          kept_wait;          /* traces to come before one is settled (data_mux) */
 
 static uint8_t          zoom = 1;
 static int32_t          pass_lo;            /* filter edges, Hz from the VFO, LSB below it */
@@ -75,9 +86,12 @@ static uint32_t        *strip;
 static int32_t          strip_h;
 static int32_t          drawn_markers[12];
 
-/* Pixels from the centre of a view w wide for hz, rounded */
+/* Pixels from the centre of a view w wide for hz, rounded either way from 0 (half up, a VFO
+ * tuned below the centre of the Fixed view had its trace a pixel to the right) */
 static lv_coord_t hz_px(int32_t hz, lv_coord_t w) {
-    return (hz * zoom * w + SPAN_HZ / 2) / SPAN_HZ;
+    int32_t v = hz * zoom * w;
+
+    return (v + (v < 0 ? -SPAN_HZ / 2 : SPAN_HZ / 2)) / SPAN_HZ;
 }
 
 /* Where the VFO is: the markers follow it (and the fixed waterfall view) */
@@ -103,6 +117,64 @@ static lv_coord_t trace_px(lv_coord_t w) {
 static void levels(float *min, float *max) {
     *min = data_tx ? TX_MIN : level_min;
     *max = data_tx ? TX_MAX : level_max;
+}
+
+/* Fixed mode: a new trace into kept_db at the points it is drawn on; another view, another
+ * zoom or Centered mode: none kept. Before each refresh */
+static void keep_trace(void) {
+    int32_t view = param_i_get(cfg_wf_mode) ? vfo_hz - if_shift - waterfall_view_shift() : 0;
+
+    if (view != kept_view || zoom != kept_zoom) {
+        kept_view = view;
+        kept_zoom = zoom;
+        for (int i = 0; i < POINTS; i++) {
+            kept_db[i] = NAN;
+        }
+    }
+    if (!kept_view) {
+        return;
+    }
+    lv_coord_t shift = trace_px(POINTS);
+
+    pthread_mutex_lock(&data_mux);
+    if (kept_new && !data_tx) {
+        for (int x = LV_MAX(shift, 0); x < LV_MIN(POINTS + shift, POINTS); x++) {
+            kept_db[x] = trace_db[x - shift];
+        }
+    }
+    kept_new = false;
+    pthread_mutex_unlock(&data_mux);
+}
+
+/* A retune: the next KEPT_SETTLE traces are not kept. The OEM X6100 base sends no frequency with
+ * its data (nor does the X6200's spectrum), so dsp.cpp cannot move its smoothed trace (in dB, up
+ * 0.6 and down 0.2 of the way a frame) with the retune: for a while the carriers left behind still
+ * show a step away and those of the new place too low, and the base's first frame is of the old
+ * place. Kept, the side tuned away from would hold that. 8 traces (about half a second) take a
+ * carrier left behind down to a sixth of its height over the noise (0.8^8) */
+static void kept_settle(void) {
+    pthread_mutex_lock(&data_mux);
+    kept_wait = KEPT_SETTLE;
+    kept_new = false;
+    pthread_mutex_unlock(&data_mux);
+}
+
+/* The points of the side tuned away from (to the one where the trace starts, so they join),
+ * false when none; not in TX */
+static bool kept_side(int *from, int *to) {
+    lv_coord_t shift = trace_px(POINTS);
+
+    if (!kept_view || data_tx || shift == 0) {
+        return false;
+    }
+    *from = shift > 0 ? 0 : LV_MAX(POINTS + shift - 1, 0);
+    *to = shift > 0 ? LV_MIN(shift + 1, POINTS) : POINTS;
+    return true;
+}
+
+/* The trace's colour, half way to the background */
+static lv_color_t kept_color(lv_color_t trace, lv_color_t bg) {
+    return lv_color_mix(trace, bg, LV_OPA_50);
 }
 
 /* Settings (web Display page): the trace and the fill in their own colours, else the theme's */
@@ -160,7 +232,9 @@ static void trace_draw(lv_draw_ctx_t *ctx, lv_obj_t *o, lv_coord_t shift, const 
     lv_coord_t         w = lv_obj_get_width(o), h = lv_obj_get_height(o);
     bool               filled = params.spectrum_filled.x, grad = fill_grad(), over = fill_own() || grad;
     bool               peaks = params.spectrum_peak.x && !data_tx;
-    lv_point_t         prev = {o->coords.x1, top + h}, prev_peak = prev, prev_over = {0, 0};
+    /* From the foot of the first point: from the left corner, a shifted trace (Fixed mode) had a
+     * slope across the side tuned away from */
+    lv_point_t         prev = {x0, top + h}, prev_peak = prev, prev_over = {0, 0};
     lv_draw_line_dsc_t peak_dsc, over_dsc;
     float              min, max;
 
@@ -214,6 +288,38 @@ static void trace_draw(lv_draw_ctx_t *ctx, lv_obj_t *o, lv_coord_t shift, const 
     }
 }
 
+/* Fixed mode: on the side tuned away from, the trace last received there, a dimmed line */
+static void kept_draw(lv_draw_ctx_t *ctx, lv_obj_t *o) {
+    lv_coord_t         top = o->coords.y1;
+    lv_coord_t         w = lv_obj_get_width(o), h = lv_obj_get_height(o);
+    lv_draw_line_dsc_t dsc;
+    lv_point_t         prev = {0, 0};
+    bool               joined = false;
+    float              min, max;
+    int                from, to;
+
+    if (!kept_side(&from, &to)) {
+        return;
+    }
+    levels(&min, &max);
+    lv_draw_line_dsc_init(&dsc);
+    dsc.color = kept_color(trace_color(), lv_obj_get_style_bg_color(o, LV_PART_MAIN));
+    dsc.width = 1;
+    for (int i = from; i < to; i++) {
+        if (isnan(kept_db[i])) {
+            joined = false;
+            continue;
+        }
+        lv_point_t p = {o->coords.x1 + i * w / POINTS, level_y(kept_db[i], min, max, top, h)};
+
+        if (joined) {
+            lv_draw_line(ctx, &dsc, &prev, &p);
+        }
+        prev = p;
+        joined = true;
+    }
+}
+
 /* The trace is on the primary plane: the main screen's spectrum in direct mode, not the walkie's */
 static bool on_plane(lv_obj_t *o) {
     return direct && o == obj;
@@ -235,6 +341,7 @@ void spectrum_draw_cb(lv_event_t *e) {
     line.width = 1;
     if (!on_plane(o)) {
         trace_draw(ctx, o, shift, &line);
+        kept_draw(ctx, o);
     }
 
     /* The passband, + 1 px each edge */
@@ -325,19 +432,26 @@ static void wu_line(float x0, float y0, float x1, float y1, uint32_t color) {
     }
 }
 
-static void polyline(const float *db, float min, float max, lv_coord_t shift, uint32_t color) {
+/* Points from..to-1 of db, joined where they are not NAN */
+static void polyline(const float *db, int from, int to, float min, float max, lv_coord_t shift, uint32_t color) {
     float px = 0, py = 0;
+    bool  joined = false;
 
-    for (int i = 0; i < POINTS; i++) {
+    for (int i = from; i < to; i++) {
+        if (isnan(db[i])) {
+            joined = false;
+            continue;
+        }
         float x = i + shift;
         float y = (1.0f - (db[i] - min) / (max - min)) * strip_h;
 
         y = LV_CLAMP(0.0f, y, (float)strip_h);
-        if (i) {
+        if (joined) {
             wu_line(px, py, x, y, color);
         }
         px = x;
         py = y;
+        joined = true;
     }
 }
 
@@ -406,18 +520,22 @@ static void direct_render(void) {
         max = min + 1.0f;
     }
     lv_coord_t shift = trace_px(POINTS);
+    int        from, to;
 
     pthread_mutex_lock(&data_mux);
     if (params.spectrum_peak.x && !data_tx) {
-        polyline(peak_db, min, max, shift, TC(off).full);
+        polyline(peak_db, 0, POINTS, min, max, shift, TC(off).full);
     }
     if (params.spectrum_filled.x) {
         fill_columns(min, max, shift);
     }
     if (!params.spectrum_filled.x || fill_own() || fill_grad()) {
-        polyline(trace_db, min, max, shift, line);
+        polyline(trace_db, 0, POINTS, min, max, shift, line);
     }
     pthread_mutex_unlock(&data_mux);
+    if (kept_side(&from, &to)) {
+        polyline(kept_db, from, to, min, max, 0, kept_color(trace_color(), TC(panel)).full);
+    }
 
 #if USE_DRM
     drm_wf_present(strip, obj->coords.y1, h);
@@ -425,6 +543,7 @@ static void direct_render(void) {
 }
 
 static void spectrum_refresh(void *data) {
+    keep_trace();
     if (!direct) {
         lv_obj_invalidate(obj);
     } else if (lv_obj_get_screen(obj) == lv_scr_act()) {    /* not under the walkie screen */
@@ -486,10 +605,12 @@ static void on_mode_change(Subject *subj, void *user_data) {
 
 static void on_lo_offset_change(Subject *subj, void *user_data) {
     lo_offset = subject_i_get((SubjectInt *)subj);
+    kept_settle();
 }
 
 static void on_if_shift_change(Subject *subj, void *user_data) {
     if_shift = subject_i_get((SubjectInt *)subj);
+    kept_settle();
 }
 
 /* Manual levels follow the band's settings; automatic ones come from the DSP */
@@ -502,6 +623,7 @@ static void on_levels_change(Subject *subj, void *user_data) {
 
 static void on_vfo_change(Subject *subj, void *user_data) {
     vfo_hz = cparam_i_get(cfg_fg_freq);
+    kept_settle();
     scheduler_put_coalesced(spectrum_refresh);
 }
 
@@ -580,6 +702,11 @@ void spectrum_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint8_
 
     pthread_mutex_lock(&data_mux);
     data_tx = tx;
+    if (kept_wait) {
+        kept_wait--;
+    } else {
+        kept_new = true;
+    }
     memcpy(trace_db, db, size * sizeof(float));
     if (params.spectrum_peak.x && !tx) {
         /* A peak holds for its time, then sinks; a new zoom starts them again */
