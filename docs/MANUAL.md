@@ -578,8 +578,8 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 - Knob info: the value shown while a knob turns.
 - Theme: see [Themes](#themes). A new theme applies at once, without a restart.
 - Font: Sony Sketch, Roboto or DejaVu (default). A new font applies at once.
-  Themes with their own font (Black Metal, Total Black, a theme file that sets
-  one) keep it.
+  Themes with their own font (Black Metal, Total Black, 1bit, a theme file that
+  sets one) keep it.
 - Broadcast names (from v0.127): tuned to a broadcast station on the air,
   the frequency strip shows "BC <station name>" in a light blue box instead
   of the band name. The names come from the broadcast list (see the
@@ -2187,6 +2187,7 @@ restart.
 | VISION | for weak eyes: big type, white digits on dark grey, orange for what is on, aqua frames; the S-meter on a row of its own, always bars |
 | Black Metal | designed by 2E0JFS: two rows of state on top (ATT PRE, NR NB DNF, AGC, SPL ATU, RIT XIT; mode, filter, BW, IF, STEP, scope span), S/SWR/ALC scales beside a big frequency with the 10 Hz digits smaller, the other VFO and an A/B badge, the span edges in the spectrum, one-line buttons; brushed grey panels, cyan for the tuned digit and the encoder's control, Roboto |
 | Total Black | designed by 2E0JFS: Black Metal on pure black, the buttons marked by a thin grey line on top |
+| 1bit | black on one white, like a monochrome LCD: every pixel ink or paper, a pixel font, inverted boxes for what is on or selected, the frequency in big pixel digits, the S-meter as segments, the spectrum as black bars, the waterfall as dots (the stronger, the denser); its own font and icons |
 | your files | `/mnt/themes/<name>.json`, or a folder `/mnt/themes/<name>/theme.json` with PNG images |
 
 - A theme file sets only what it changes; the rest comes from its `base`
@@ -3302,8 +3303,8 @@ the WiFi.
 
 #### The new font did not change anything
 
-Black Metal, Total Black and theme files that set a font have their own and
-keep it: pick another theme to see the font you chose.
+Black Metal, Total Black, 1bit and theme files that set a font have their own
+and keep it: pick another theme to see the font you chose.
 
 #### The main screen's waterfall stands still
 
