@@ -392,6 +392,10 @@ def remote_state():
     t = read_tci_conf()
     r.update({"tci_enabled": t["enabled"], "tci_port": t["port"],
               "wss_port": settings.WSS_REMOTE_PORT, "wss_tci_port": settings.WSS_TCI_PORT})
+    if not local_host_ok():   # the radio takes a page's sockets by these names only (src/tci_ws.c): say so
+        r["name_refused"] = (f"Open this page by the radio's address, {socket.gethostname()}.local or its Tailscale "
+                             "name: by another name the radio does not take its connection, as a page from another "
+                             "site could make your browser connect the same way")
     return r
 
 
