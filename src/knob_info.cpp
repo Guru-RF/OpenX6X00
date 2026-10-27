@@ -148,8 +148,12 @@ class KnobLine {
         uint32_t    on = theme_hex(TC_btn_mark), off = theme_hex(TC_text_soft);
         char        buf[64];
 
-        snprintf(buf, sizeof(buf), "%s #%06x %s:# #%06x %s#", arrow, edit ? off : on, knob->name, edit ? on : off,
-                 val.c_str());
+        if (theme_shape.mono) {     /* 1bit: what the knob changes now in brackets, not in a colour */
+            snprintf(buf, sizeof(buf), edit ? "%s %s: [%s]" : "%s [%s]: %s", arrow, knob->name, val.c_str());
+        } else {
+            snprintf(buf, sizeof(buf), "%s #%06x %s:# #%06x %s#", arrow, edit ? off : on, knob->name, edit ? on : off,
+                     val.c_str());
+        }
         lv_label_set_text(label, buf);
     }
 

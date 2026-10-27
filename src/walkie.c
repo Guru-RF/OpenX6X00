@@ -153,7 +153,12 @@ static void tx_bar(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx, lv_coord_t y, const c
     a.y1 = obj->coords.y1 + y;
     a.y2 = a.y1 + 24;
     dsc.bg_color = TC(chip);
+    if (theme_shape.mono) {     /* 1bit: the track (chip is the paper) framed */
+        dsc.border_width = 1;
+        dsc.border_color = TC(text);
+    }
     lv_draw_rect(draw_ctx, &dsc, &a);
+    dsc.border_width = 0;
     a.x2 = a.x1 + (lv_area_get_width(&a) - 1) * LV_CLAMP(0.0f, v, 10.0f) / 10.0f;
     dsc.bg_color = on;
     lv_draw_rect(draw_ctx, &dsc, &a);

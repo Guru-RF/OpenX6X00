@@ -326,7 +326,22 @@ static void draw_row_cb(lv_event_t *e) {
         lv_table_get_selected_cell(obj, &sel_row, &sel_col);
         mfk_here = pin.sel < 0 && sel_row == r;
     }
-    if (mfk_here) rect->bg_color = lv_color_lighten(rect->bg_color, 20);
+    if (theme_shape.mono) {     /* 1bit: by shape: the MFK's row framed heavy, a new CQ marked, own TX framed */
+        rect->border_color = TC(text);
+        rect->border_opa = LV_OPA_COVER;
+        if (mfk_here) {
+            rect->border_side = LV_BORDER_SIDE_FULL;
+            rect->border_width = 2;
+        } else if (cd && cd->cell_type == CELL_RX_CQ && cd->worked_type == SEARCH_WORKED_NO) {
+            rect->border_side = LV_BORDER_SIDE_LEFT;
+            rect->border_width = 4;
+        } else if (cd && cd->cell_type == CELL_TX_MSG) {
+            rect->border_side = LV_BORDER_SIDE_FULL;
+            rect->border_width = 1;
+        }
+    } else if (mfk_here) {
+        rect->bg_color = lv_color_lighten(rect->bg_color, 20);
+    }
 }
 
 static lv_coord_t text_width(const char *text, const lv_draw_label_dsc_t *ld) {

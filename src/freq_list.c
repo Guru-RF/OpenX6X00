@@ -139,6 +139,12 @@ static void draw_cb(lv_event_t *e) {
                                      (c == 3 ? LV_BORDER_SIDE_RIGHT : 0);
     } else if (is_current(r)) {
         dsc->rect_dsc->bg_color = lv_color_hex(COLOR_CUR);
+        if (theme_shape.mono && c == 0) {     /* 1bit: near_bg is the paper; a bar on the left marks it */
+            dsc->rect_dsc->border_color = TC(text);
+            dsc->rect_dsc->border_width = 4;
+            dsc->rect_dsc->border_opa   = LV_OPA_COVER;
+            dsc->rect_dsc->border_side  = LV_BORDER_SIDE_LEFT;
+        }
     }
     if (c == 1) dsc->label_dsc->color = lv_color_hex(COLOR_DIM);
     if (c == 2 && ((int)r == sel || is_current(r))) dsc->label_dsc->color = lv_color_hex(COLOR_NEAR);

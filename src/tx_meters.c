@@ -103,6 +103,9 @@ static void draw_bar(lv_draw_ctx_t *draw_ctx, lv_coord_t x1, lv_coord_t y1, floa
         } else {
             rect_dsc.bg_color = lv_color_hex(on_color);
         }
+        /* 1bit: the unlit slices hollow (chip is the paper), so the scale stays in sight */
+        rect_dsc.border_width = theme_shape.mono && i >= lit ? 1 : 0;
+        rect_dsc.border_color = TC(text);
         area.x1 = x1 + i * slice_w;
         area.x2 = area.x1 + slice_w - 3;
         lv_draw_rect(draw_ctx, &rect_dsc, &area);

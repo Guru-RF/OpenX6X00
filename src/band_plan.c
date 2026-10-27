@@ -152,7 +152,8 @@ static void redraw(void) {
             if (b <= a)    b = a + 1;
 
             lv_obj_set_x(s->box, a);
-            lv_obj_set_width(s->box, b - a);
+            /* 1bit: a 1 px paper gap between segments, which no longer differ in colour */
+            lv_obj_set_width(s->box, theme_shape.mono ? LV_MAX(b - a - 1, 1) : b - a);
             lv_obj_set_style_bg_color(s->box, lv_color_hex(theme_hex(colors[p->type])), 0);
 
             /* No label when it does not fit the visible part */

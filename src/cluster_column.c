@@ -95,6 +95,10 @@ static void set_alert_bg(row_t *r, bool on) {
         lv_obj_set_style_bg_color(l[i], on ? TC(alert_bg) : TC(vfo_bg), 0);
         lv_obj_set_style_bg_opa(l[i], on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     }
+    if (theme_shape.mono) {     /* 1bit: alert_bg is the paper; the call framed instead */
+        lv_obj_set_style_border_width(r->call, on ? 1 : 0, 0);
+        lv_obj_set_style_border_color(r->call, TC(text), 0);
+    }
 }
 
 static void show_spot(row_t *r, const cluster_spot_t *s, bool highlighted, const cluster_filter_t *flt, uint16_t now) {

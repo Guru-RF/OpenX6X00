@@ -344,6 +344,15 @@ void info_lock_mode(bool lock) {
     subject_i_set(mode_locked, lock);
 }
 
+/* 1bit: a status icon that is on sits in an ink box (the mono layer draws it in paper): with one
+ * colour, lit no longer shows by its colour. Off ones are paper, hidden; idle ones plain ink */
+static void icon_box(lv_obj_t *o, bool on) {
+    if (!theme_shape.mono) return;
+    lv_obj_set_style_bg_color(o, TC(text), 0);
+    lv_obj_set_style_bg_opa(o, on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_hor(o, 2, 0);
+}
+
 /* The network cell: the WiFi symbol, or the USB one with a wired adapter plugged in (lit when
  * it is connected; WiFi is held off then) */
 static void wifi_icon_update(void *arg) {
@@ -357,6 +366,7 @@ static void wifi_icon_update(void *arg) {
     }
     lv_label_set_text(items[INFO_WIFI], eth.present ? LV_SYMBOL_USB : LV_SYMBOL_WIFI);
     lv_obj_set_style_text_color(items[INFO_WIFI], c, 0);
+    icon_box(items[INFO_WIFI], eth.present ? eth.connected : st == WIFI_CONNECTED);
 }
 
 /* Sent from NetworkManager's thread: the icon is set on the LVGL one (a theme change may be
@@ -368,6 +378,7 @@ static void wifi_state_change_cb(void *s, lv_msg_t *m) {
 static void set_icon(info_items_t item, status_t st, uint32_t on_color) {
     uint32_t color = st == STATUS_ON ? on_color : st == STATUS_IDLE ? COLOR_ICON_IDLE : COLOR_ICON_OFF;
     lv_obj_set_style_text_color(items[item], lv_color_hex(color), 0);
+    icon_box(items[item], st == STATUS_ON);
 }
 
 static void status_update(void *arg) {

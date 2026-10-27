@@ -324,6 +324,10 @@ static void button_colours(void) {
     lv_style_set_opa(&btn_disabled_style, LV_OPA_COVER);
     lv_style_set_text_color(&btn_disabled_style, TC(btn_off_text));
     lv_style_set_border_color(&btn_disabled_style, TC(btn_off_border));
+    if (theme_shape.mono) {     /* 1bit: dimmed is stippled text and a dotted frame (mono.c), no grey */
+        lv_style_set_text_opa(&btn_disabled_style, LV_OPA_30);
+        lv_style_set_border_opa(&btn_disabled_style, LV_OPA_30);
+    }
 
     lv_style_set_bg_color(&btn_mark_style, TC(btn_mark));
     lv_style_set_opa(&btn_mark_assigned_style, theme_shape.focus_solid ? LV_OPA_COVER : LV_OPA_40);
@@ -348,6 +352,12 @@ static void focus_colours(bool strong) {
         lv_style_set_border_width(&dialog_item_focus_style, 2);
         lv_style_set_border_color(&dialog_item_focus_style, TC(focus));
         lv_style_remove_prop(&dialog_item_edited_style, LV_STYLE_BG_COLOR);
+    }
+    if (theme_shape.mono) {     /* 1bit: the focused row inverted, the one being changed framed */
+        lv_style_set_bg_opa(&dialog_item_edited_style, LV_OPA_TRANSP);
+        lv_style_set_text_color(&dialog_item_edited_style, TC(text));
+        lv_style_set_border_width(&dialog_item_edited_style, 2);
+        lv_style_set_border_color(&dialog_item_edited_style, TC(sel_border));
     }
 }
 
@@ -403,6 +413,7 @@ static void surface_images(void) {
         lv_style_set_height(&btn_mark_style, theme_shape.deck ? 3 : BUTTONS_H - 2 - 20);
         lv_style_set_bg_opa(&btn_mark_style, LV_OPA_COVER);
         lv_style_remove_prop(&btn_mark_style, LV_STYLE_BG_IMG_SRC);
+        if (theme_shape.mono) lv_style_set_width(&btn_mark_active_style, 8);   /* 1bit: the knob's one twice as wide */
     }
 }
 
@@ -457,7 +468,7 @@ void styles_apply(void) {
     for (int i = 0; i < 2; i++) {
         lv_style_set_bg_color(overlays[i], TC(panel));
         lv_style_set_bg_opa(overlays[i], strong ? LV_OPA_COVER : see[i]);
-        lv_style_set_border_width(overlays[i], strong ? 2 : 0);
+        lv_style_set_border_width(overlays[i], strong ? 2 : theme_shape.mono ? 1 : 0);   /* 1bit: solid, framed */
         lv_style_set_border_color(overlays[i], TC(panel_border));
     }
 

@@ -540,6 +540,11 @@ static void make_slot(disp_btn_t *s, lv_obj_t *parent, lv_coord_t x) {
     s->vol_mark = make_mark(f, mx, my);
     s->mfk_mark = make_mark(f, mx, my);
     lv_obj_set_style_bg_color(s->mfk_mark, TC(info), 0);
+    if (theme_shape.mono) {     /* 1bit: the MFK's mark hollow, the VOL's solid */
+        lv_obj_set_style_bg_color(s->mfk_mark, TC(btn), 0);
+        lv_obj_set_style_border_width(s->mfk_mark, 1, 0);
+        lv_obj_set_style_border_color(s->mfk_mark, TC(text), 0);
+    }
 
     s->label = lv_label_create(f);
     lv_obj_center(s->label);

@@ -74,7 +74,7 @@ static void draw_band(lv_draw_ctx_t *ctx, const lv_area_t *box, const BandInfo &
     rect.bg_color     = bg_color;
     rect.bg_opa       = LV_OPA_50;
     rect.border_width = 2;
-    rect.border_color = lv_color_white();
+    rect.border_color = theme_shape.mono ? TC(text) : lv_color_white();   /* 1bit: white is the paper */
     rect.border_opa   = LV_OPA_50;
     rect.border_side  = edges;
     a = (lv_area_t){(lv_coord_t)(box->x1 + from + 2), box->y1, (lv_coord_t)(box->x1 + to - 2),
@@ -86,7 +86,7 @@ static void draw_band(lv_draw_ctx_t *ctx, const lv_area_t *box, const BandInfo &
     lv_point_t          size;
 
     lv_draw_label_dsc_init(&text);
-    text.color = lv_color_white();
+    text.color = theme_shape.mono ? TC(text) : lv_color_white();
     text.font  = &sony_22;
     lv_txt_get_size(&size, band.name.c_str(), text.font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     if (to - from > size.x) {

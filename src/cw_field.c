@@ -316,8 +316,9 @@ void cw_field_init(lv_obj_t *parent) {
     for (int i = 0; i < 4; i++) {               /* a dark outline under, then the yellow line */
         lv_obj_t *line = lv_line_create(arrow);
         lv_line_set_points(line, i % 2 ? head : shaft, i % 2 ? 3 : 2);
-        lv_obj_set_style_line_color(line, i < 2 ? lv_color_black() : TC(accent), 0);
-        lv_obj_set_style_line_opa(line, i < 2 ? LV_OPA_60 : LV_OPA_COVER, 0);
+        /* 1bit: an ink arrow in a paper halo (the outline in paper, solid) */
+        lv_obj_set_style_line_color(line, i < 2 ? (theme_shape.mono ? TC(panel) : lv_color_black()) : TC(accent), 0);
+        lv_obj_set_style_line_opa(line, i < 2 && !theme_shape.mono ? LV_OPA_60 : LV_OPA_COVER, 0);
         lv_obj_set_style_line_width(line, i < 2 ? 9 : 5, 0);
         lv_obj_set_style_line_rounded(line, true, 0);
     }

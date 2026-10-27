@@ -1023,7 +1023,14 @@ static void table_draw_cb(lv_event_t *ev)
 
     uint16_t cur_row, cur_col;
     lv_table_get_selected_cell(tbl, &cur_row, &cur_col);
-    if (cur_row == row) d->rect_dsc->bg_color = lv_color_lighten(d->rect_dsc->bg_color, 30);
+    if (cur_row == row && theme_shape.mono) {     /* 1bit: the cursor row framed heavy, no lighter tone */
+        d->rect_dsc->border_color = TC(text);
+        d->rect_dsc->border_opa = LV_OPA_COVER;
+        d->rect_dsc->border_side = LV_BORDER_SIDE_FULL;
+        d->rect_dsc->border_width = 2;
+    } else if (cur_row == row) {
+        d->rect_dsc->bg_color = lv_color_lighten(d->rect_dsc->bg_color, 30);
+    }
 }
 
 /* Is the row about the selected station: sent by them, or by us to them? */

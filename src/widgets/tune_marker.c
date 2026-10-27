@@ -86,6 +86,11 @@ static void draw_bands(lv_obj_t * obj, lv_draw_ctx_t * ctx) {
     d.bg_color = d.border_color = TC(finder_band);
     d.bg_opa = LV_OPA_30;
     d.border_opa = LV_OPA_70;
+    if (theme_shape.mono) {     /* 1bit: frames over the waterfall's dots, the cursor's heavier */
+        d.bg_opa = LV_OPA_TRANSP;
+        d.border_opa = LV_OPA_COVER;
+        d.border_width = 1;
+    }
     lv_draw_rect(ctx, &d, &a);
 
     if (f->cursor == NO_CURSOR || f->cursor == f->value) return;
@@ -93,6 +98,7 @@ static void draw_bands(lv_obj_t * obj, lv_draw_ctx_t * ctx) {
     a.x1 = obj->coords.x1 + px(w, f->cursor - f->range_min, span);
     a.x2 = a.x1 + px(w, f->width, span);
     d.bg_color = d.border_color = TC(finder_cursor);
+    if (theme_shape.mono) d.border_width = 2;
     lv_draw_rect(ctx, &d, &a);
 }
 

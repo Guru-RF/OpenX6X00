@@ -85,7 +85,8 @@ static void redraw(void) {
             w  = lv_txt_get_width(s->dx, strlen(s->dx), &SPOT_FONT, 0, LV_TEXT_FLAG_NONE) + 4;
             lx = (x + w > WIDTH) ? x - w + 1 : x;  /* right-aligned at the right edge */
 
-            uint32_t color = cluster_alert_match(flt, s) >= 0 ? theme_hex(TC_alert) : SPOT_COLOR;
+            bool     alert = cluster_alert_match(flt, s) >= 0;
+            uint32_t color = alert ? theme_hex(TC_alert) : SPOT_COLOR;
 
             if (has_col && lx + w > col.x1) {
                 if (x < col.x1) {
@@ -127,6 +128,10 @@ static void redraw(void) {
             lv_label_set_text(m->label, s->dx);
             lv_obj_set_pos(m->label, lx, tag_y0 + row * ROW_H);
             lv_obj_set_style_text_color(m->label, lv_color_hex(color), 0);
+            if (theme_shape.mono) {     /* 1bit: an alert call inverted, not in its own colour */
+                lv_obj_set_style_bg_color(m->label, TC(text), 0);
+                lv_obj_set_style_bg_opa(m->label, alert ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+            }
             lv_obj_clear_flag(m->label, LV_OBJ_FLAG_HIDDEN);
 
             shown_hz[n - 1] = s->freq_hz;

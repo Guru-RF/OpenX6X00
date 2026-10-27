@@ -126,6 +126,7 @@ static void draw_cb(lv_event_t *e) {
     a.y1 = y0;
     a.y2 = y0 + swr_y(3.0f, h);
     zone.bg_color = TC(err);
+    if (theme_shape.mono) zone.bg_opa = LV_OPA_30;   /* 1bit: the bad zone stippled (the good one goes) */
     lv_draw_rect(ctx, &zone, &a);
 
     /* SWR lines every 0.5, each after its number */
