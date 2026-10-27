@@ -539,10 +539,11 @@ X6200). A power-off for a low battery asks for charging whatever the setting.
 Whether the base charges: External on the [Info tab](#info-tab), for example
 "12.1 V  charging".
 
-The X6200 with base 1.0.8 does not honour Off or Shadow while the radio is on:
-External goes on saying "charging", as with On (#33). They take effect only
-after Power off: with Off the battery does not charge then, with Shadow it
-does.
+The X6200 with base 1.0.8 goes on reporting "charging" while the radio is on
+and a supply is connected, whatever the setting, so External says "charging"
+then (#33). The setting works all the same: measured by a user with the stock
+charger and the radio on, with Off the battery stayed at 7.8 V and 65 % for 42
+minutes, with On it went from 57 to 64 % in 45 minutes.
 
 Zone. Where: Settings > General > DATE / TIME > Zone. The change applies at
 once; summer time follows by itself where the zone has it. 24 zones, UTC then
