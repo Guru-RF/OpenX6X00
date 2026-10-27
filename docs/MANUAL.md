@@ -920,7 +920,8 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   there with the radio's split off, and both come back after. v0.3.5 moved
   the VFO you listen on and left split on: an X6100 sent FT8 1325 Hz above B
   whatever its offset, and the X6200's base sends these from VFO A in split
-  (an FT8 CQ with a +700 Hz shift was heard 700 Hz low).
+  (an FT8 CQ at 1200 Hz with a +700 Hz shift was heard at VFO A + 1325 Hz,
+  575 Hz below where it belonged).
 - Winlink is simplex: it does not key while a shift is on (split on), and
   says "Winlink: no TX, a TX shift is set on this band".
 
@@ -2331,7 +2332,7 @@ Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavel
 
 ## Winlink
 
-In the next release. [Winlink](https://winlink.org) email over HF from the
+Since v0.3.6. [Winlink](https://winlink.org) email over HF from the
 radio alone, with no computer and no internet: [Pat](https://getpat.io) is the
 mail program, and its mailbox is a web page you open on a phone, a tablet or a
 laptop on the radio's network; ARDOP is the HF modem
