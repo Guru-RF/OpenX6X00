@@ -1296,16 +1296,17 @@ def wavelog_origin(url):
         return url.strip()
 
 
-def wavelog_form(body):
+def wavelog_form(body, saved=None):
     """URL, key and certificate check of the page's form, checked; None and the reason when wrong. An empty key
-    is the saved one, for the saved URL's server only: Test or Save with another URL sent it there (audit C08)"""
+    is the saved one, for the saved URL's server only: Test or Save with another URL sent it there (audit C08).
+    saved: wavelog.conf as the caller read it, the one its key comes from"""
     url = str(body.get("url", "")).strip()
     key = str(body.get("key", "")).strip()
     if url and not re.fullmatch(WAVELOG_URL, url):
         return None, "The URL starts with http:// or https://, no spaces"
     if key and not re.fullmatch(r"[!-~]{1,128}", key):
         return None, "A key is 1-128 printable characters, no spaces"
-    saved = wavelog_read()
+    saved = wavelog_read() if saved is None else saved
     if url and not key and saved.get("key") and wavelog_origin(url) != wavelog_origin(saved.get("url", "")):
         return None, "Another server: type its API key too (the saved key goes only to the server it was saved with)"
     return {"url": url, "key": key, "verify_tls": body.get("verify_tls", True) is not False}, None
@@ -1321,17 +1322,27 @@ def get_wavelog():
     return wavelog_state()
 
 
+wavelog_lock = threading.Lock()
+
+
 @app.post('/api/wavelog')
 def set_wavelog():
     """{"enabled", "url", "key" ("": the one stored stays), "station_id", "station_name", "verify_tls"},
-    or {"remove": true}: the key goes and the upload stops. Switched on, QSOs from now on are sent."""
-    body = bottle.request.json or {}
+    or {"remove": true}: the key goes and the upload stops. Switched on, QSOs from now on are sent.
+    One Save at a time, its URL checked against the wavelog.conf it keeps the key of: with a read for the check
+    and one for the key, a Save of another server with its key between them gave this one's URL the old key"""
+    with wavelog_lock:
+        return wavelog_save(bottle.request.json or {})
+
+
+def wavelog_save(body):
+    """set_wavelog's work, under wavelog_lock"""
     conf = wavelog_read()
     if body.get("remove"):
         conf.pop("key", None)
         conf["enabled"] = "0"
     else:
-        form, why = wavelog_form(body)
+        form, why = wavelog_form(body, conf)
         if not form:
             return api_error(400, why)
         sid = str(body.get("station_id", "")).strip()
