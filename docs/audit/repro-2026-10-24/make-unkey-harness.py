@@ -32,11 +32,14 @@ pre = r'''
 #define AUDIO_RATE 24000
 static bool keyed;
 radio_state_t radio_get_state(void) {return keyed ? RADIO_TX : RADIO_RX;}
-typedef struct {pthread_mutex_t lock; bool rx_sensors,tx_sensors,audio_float,audio_on; uint32_t audio_rate;} client_t;
+typedef struct {pthread_mutex_t lock; bool rx_sensors,tx_sensors,audio_on; uint32_t fmt_gen;} client_t;
 static client_t clients[4];
 typedef struct {int32_t freq,mode,flo,fhi,agc,rit; int drive; bool tx;} rstate_t;
 static atomic_bool trust_operate = true;
-static struct {int owner; uint64_t start_ms,last_audio_ms,chrono_ms; uint32_t rate;} txs;
+static struct {int owner; uint64_t start_ms,last_audio_ms,chrono_t0,chrono_n; uint32_t rate;} txs;
+typedef struct {uint32_t rate,type,ch,samples;} afmt_t;
+static afmt_t audio_fmt(const client_t *c) {(void)c;return (afmt_t){48000,0,2,2048};}
+static void audio_fmt_cmd(client_t *c,const char *name,const char *arg) {(void)c;(void)name;(void)arg;}
 static int ptt_owner;
 static uint64_t ptt_ms;
 static int ends, last_command = -1;
