@@ -42,7 +42,7 @@ parts = [
     'static pthread_mutex_t app_mux = PTHREAD_MUTEX_INITIALIZER;',
     between('static struct {                     /* the last log commands\' answers', 'static atomic_bool log_pending;'),
 ]
-names = ['role_name', 'sess_key', 'log_slot', 'log_queued', 'log_answer', 'log_query', 'log_flush',
+names = ['role_name', 'sess_key', 'log_sum', 'log_slot', 'log_queued', 'log_answer', 'log_query', 'log_flush',
          'app_apply', 'app_log_cmd', 'mode_supported', 'panel_put', 'panel_set', 'role_tell', 'ctl_tell', 'allowed',
          'ptt_down', 'ptt_lease', 'key_code', 'name_clean', 'handle_text']
 pre = r'''

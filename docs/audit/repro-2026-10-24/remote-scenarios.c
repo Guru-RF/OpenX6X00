@@ -78,11 +78,41 @@ static int run_ptt(void) {
     return 0;
 }
 
+/* Audit C03: two tabs of one paired browser share its session. Pages before the fix counted their QSOs from 1
+ * in each tab; the fixed page picks 53 random bits. The GUI writes what it is given (gui_run) */
+static int run_log(void) {
+    client_t *a = open_client(0, ROLE_OPERATE, true), *b = open_client(1, ROLE_OPERATE, true);
+
+    snprintf(sessions[0].token, sizeof(sessions[0].token), "%032d", 7);
+    snprintf(sessions[0].name, sizeof(sessions[0].name), "Shack PC");
+    nsessions = 1;
+    puts("        -- two tabs, each its QSO number 1, two different contacts");
+    say(a, "logq 1 ON4AAA|59|59|Anna");
+    gui_run(); log_flush();
+    size_t before = strlen(said[1]);       /* tab B heard tab A's receipt: the session's */
+    say(b, "logq 1 DL2BBB|57|55|Bernd");
+    gui_run(); log_flush();
+    say(b, "logq? 1 DL2BBB|57|55|Bernd");
+    printf("one number, two contacts: writes=%d, the second told ok=%d, told conflict=%d\n", writes,
+           strstr(said[1] + before, "logged 1 ok") != NULL, strstr(said[1] + before, "logged 1 conflict") != NULL);
+    puts("        -- the fixed page's numbers: one each, a lost receipt sent again");
+    say(a, "logq 6061235617123456 OK1CCC|59|59|Cyril");
+    say(b, "logq 3101998844556677 SP3DDD|59|59|Dorota");
+    gui_run(); log_flush();
+    say(a, "logq 6061235617123456 OK1CCC|59|59|Cyril");
+    gui_run(); log_flush();
+    say(b, "logq? 3101998844556677 SP3DDD|59|59|Dorota");
+    printf("two tabs, two more contacts: writes=%d, 53-bit numbers answered whole=%d\n", writes,
+           strstr(said[1], "logged 3101998844556677 ok") != NULL && strstr(said[0], "logged 6061235617123456 ok") != NULL);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     ctl_init();
     if (argc >= 2 && !strcmp(argv[1], "ping")) return run_ping();
     if (argc >= 2 && !strcmp(argv[1], "ptt")) return run_ptt();
-    fprintf(stderr, "remote ptt\n");
+    if (argc >= 2 && !strcmp(argv[1], "log")) return run_log();
+    fprintf(stderr, "remote ptt|log\n");
     return 2;
 }

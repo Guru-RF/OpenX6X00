@@ -57,6 +57,9 @@ def main():
             "a new press keyed the radio: 1, still keyed at its renewal: 1",
             "the refused press's renewal keyed the radio: 0",
             "a page without numbers keyed the radio: 0, told to reload: 1")).strip())
+        print("C03 log receipts, two tabs of one browser (fixed):\n" + command([binary, "log"], env, contains=(
+            "one number, two contacts: writes=1, the second told ok=0, told conflict=1",
+            "two tabs, two more contacts: writes=3, 53-bit numbers answered whole=1")).strip())
 
         command([sys.executable, HERE / "make-unkey-harness.py"], env)
         binary = work / "unkey"

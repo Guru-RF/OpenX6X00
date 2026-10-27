@@ -2528,12 +2528,15 @@ carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
 the sends left, `qso`, `hound`, `nocall`, `logged` and `logged_s`), once a
 second while a countdown runs; `log CALL|RSTS|RSTR|NAME`
 writes the day's log and is answered with `logged ok|no`. `logq ID CALL|...`
-is the same QSO with a number the client chose, answered `logged ID ok|no`
-to the clients of the session that sent it (each page counts from 1); the
-radio keeps the last 64 answers, writes a number a session sent before only
-once (the answer goes out again), and `logq? ID` asks for one again: `ok`,
-`no`, `pending` (still being written) or `unknown` (never seen, the radio
-restarted since, or no longer kept). After `size` the radio lists its keys (`keys GEN APP
+is the same QSO with a number the client chose (the Panel takes 53 random
+bits, so no two tabs or reloads of a browser pick the same), answered
+`logged ID ok|no` to the clients of the session that sent it; the radio
+keeps the last 64 answers, each bound to its QSO: a number a session sent
+before with the same QSO is written only once (the answer goes out again),
+with another QSO it is answered `logged ID conflict` and not written.
+`logq? ID CALL|...` asks for one again: `ok`, `no`, `pending` (still being
+written), `conflict` (the number holds another QSO) or `unknown` (never
+seen, the radio restarted since, or no longer kept). After `size` the radio lists its keys (`keys GEN APP
 ...`: the X6200 has no PRE, V/M, AGC or LOCK key) and, to a panel, `modes 8|10`
 (the X6200 adds SAM and WFM; `set mode` with one the radio has not is answered
 `err mode: not on this radio`) and `volmax 55|100`, the AF volume's range. The greeting `hello <version> <boot>` ends with a
@@ -2596,11 +2599,22 @@ A QSO from the Log tab is the one thing that must not be lost or doubled, so
 each goes with a number of its own and shows "sending..." until the radio
 answers "logged" or "refused". One sent into a gap ("waiting for the
 connection"), or left without an answer by a reload, is asked about when the
-link is back. The radio never saw it and did not restart in between: it is
-sent once more. The radio restarted, or does not answer the question: the row
-says so and leaves it to the operator, who checks the Logs page and taps
-Send again or Forget. The page never retries by itself when a duplicate is
-possible.
+link is back, and the radio's answer settles it. When the radio has no
+record of it (it never saw it, restarted since, or no longer keeps the
+answer: it cannot tell which), the row says so and leaves it to the
+operator, who checks the Logs page and taps Send again or Forget. The page
+never retries by itself when a duplicate is possible.
+
+The number is one no other tab and no reload of the browser picks, and the
+radio's answer is bound to the QSO it was given for, so two Panel tabs open
+side by side never take each other's "logged". The QSOs waiting for an
+answer are kept in the browser one by one, so neither tab's list overwrites
+the other's and a reloaded tab still has its own (without the browser's
+storage, as in some private windows, they live as long as the page). A
+number the radio already holds for another QSO (a tab still showing a page
+from before this update, which counted from 1) is answered "not logged: the
+radio holds another QSO under this number"; Send again sends it under a new
+number.
 
 ### Pairing and control
 

@@ -53,9 +53,10 @@
  *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "log
  *  CALL|RSTS|RSTR|NAME" writes the day's log as the CW keyboard does ("logged ok|no"). "logq ID
  *  CALL|..." is the same with a number the page chose: the answer is "logged ID ok|no", kept for
- *  the last sixteen, and "logq? ID" asks for it again after a dropped connection or a reload, so
- *  a QSO sent into a gap is found ("ok", "no", "pending" while the GUI still has it) or declared
- *  "unknown", never logged twice by a retry (R6).
+ *  the last 64, and "logq? ID CALL|..." asks for it again after a dropped connection or a reload,
+ *  so a QSO sent into a gap is found ("ok", "no", "pending" while the GUI still has it) or declared
+ *  "unknown", never logged twice by a retry (R6). A receipt is bound to its QSO: the same number
+ *  with another QSO is answered "conflict", never with the other QSO's answer (audit C03).
  *
  *  The Origin check of ws_handshake() keeps pages from other sites out; like the TCI server there
  *  is no login: the radio's own network is trusted.
@@ -968,8 +969,9 @@ static size_t      cw_hist_len;
 static uint32_t    boot_id;         /* this GUI run, told in "hello" */
 #define LOG_ANSWERS 64
 static struct {                     /* the last log commands' answers: id 0 is the old "log" without one */
-    uint64_t who;                   /* the session that sent it: every page counts from 1 (audit B07) */
-    uint32_t id;
+    uint64_t who;                   /* the session that sent it: older pages count from 1 (audit B07) */
+    uint64_t id;                    /* the page's number: random, 53 bits, from any tab of the browser (C03) */
+    uint64_t sum;                   /* its QSO's text, hashed: the receipt is this QSO's only (audit C03) */
     uint8_t  result;                /* 0 still with the GUI thread, 1 logged, 2 refused */
     bool     told;                  /* gone out to the session's panel clients */
 } log_ans[LOG_ANSWERS];
@@ -1089,8 +1091,9 @@ typedef struct {
     bool        has_cell;
     cell_data_t cell;
     char        text[200];
-    uint32_t    log_id;     /* A_LOG: the page's number for its answer, 0 for none */
+    uint64_t    log_id;     /* A_LOG: the page's number for its answer, 0 for none */
     uint64_t    who;        /* A_LOG: the session it came from */
+    uint64_t    sum;        /* A_LOG: its text as sent, hashed (log_sum) */
 } acmd_t;
 
 /* The session a client logs under: its token hashed (FNV-1a); the one value for the unpaired */
@@ -1105,8 +1108,17 @@ static uint64_t sess_key(const client_t *c) {
     return h;
 }
 
+/* A QSO's text as the page sent it, hashed (FNV-1a): what a receipt is for */
+static uint64_t log_sum(const char *text) {
+    uint64_t h = 1469598103934665603ULL;
+
+    for (const char *p = text; *p; p++)
+        h = (h ^ (uint8_t)*p) * 1099511628211ULL;
+    return h;
+}
+
 /* A log command's place in the ring: its own if it has one (queued earlier), else the next */
-static int log_slot(uint64_t who, uint32_t id) {
+static int log_slot(uint64_t who, uint64_t id) {
     if (id)
         for (int i = 0; i < LOG_ANSWERS; i++)
             if (log_ans[i].id == id && log_ans[i].who == who)
@@ -1119,44 +1131,48 @@ static int log_slot(uint64_t who, uint32_t id) {
 }
 
 /* A log command queued for the GUI thread: "pending" to a query until its answer is in */
-static void log_queued(uint64_t who, uint32_t id) {
+static void log_queued(uint64_t who, uint64_t id, uint64_t sum) {
     pthread_mutex_lock(&app_mux);
     int i = log_slot(who, id);
+    log_ans[i].sum    = sum;
     log_ans[i].result = 0;
     log_ans[i].told   = true;
     pthread_mutex_unlock(&app_mux);
 }
 
 /* The answer to a log command, kept; the panel thread tells the session's clients */
-static void log_answer(uint64_t who, uint32_t id, bool ok) {
+static void log_answer(uint64_t who, uint64_t id, uint64_t sum, bool ok) {
     pthread_mutex_lock(&app_mux);
     int i = log_slot(who, id);
+    log_ans[i].sum    = sum;
     log_ans[i].result = ok ? 1 : 2;
     log_ans[i].told   = false;
     pthread_mutex_unlock(&app_mux);
     atomic_store(&log_pending, true);
 }
 
-/* "logq? ID": the answer kept for this session's ID, pending while the GUI thread has it, or
+/* "logq? ID CALL|...": the answer kept for this session's ID, pending while the GUI thread has it, or
  * unknown (the radio restarted, the command never arrived, or the answer is too old to be kept:
- * the page leaves it to the operator) */
-static void log_query(client_t *c, uint32_t id) {
+ * the page leaves it to the operator). Kept for another QSO under that number: "conflict", that
+ * QSO's answer is not this one's (audit C03). A page from before C03 asks without the QSO */
+static void log_query(client_t *c, uint64_t id, const char *text) {
     const char *r   = "unknown";
     uint64_t    who = sess_key(c);
 
     pthread_mutex_lock(&app_mux);
     for (int i = 0; i < LOG_ANSWERS; i++)
         if (log_ans[i].id == id && id && log_ans[i].who == who)
-            r = log_ans[i].result == 1 ? "ok" : log_ans[i].result == 2 ? "no" : "pending";
+            r = text && log_ans[i].sum != log_sum(text) ? "conflict"
+              : log_ans[i].result == 1 ? "ok" : log_ans[i].result == 2 ? "no" : "pending";
     pthread_mutex_unlock(&app_mux);
-    client_textf(c, "logged %u %s", id, r);
+    client_textf(c, "logged %llu %s", (unsigned long long)id, r);
 }
 
 /* The answers not yet told, from the panel thread: each to the panel clients of its session.
- * Every page counts its QSOs from 1, so a receipt broadcast to all confirmed another page's
+ * Older pages count their QSOs from 1, so a receipt broadcast to all confirmed another page's
  * QSO 1 (audit B07) */
 static void log_flush(void) {
-    struct { uint64_t who; uint32_t id; uint8_t result; } out[LOG_ANSWERS];
+    struct { uint64_t who; uint64_t id; uint8_t result; } out[LOG_ANSWERS];
     int  n = 0;
     char line[64];
 
@@ -1173,7 +1189,7 @@ static void log_flush(void) {
     pthread_mutex_unlock(&app_mux);
     for (int k = 0; k < n; k++) {
         if (out[k].id)
-            snprintf(line, sizeof(line), "logged %u %s", out[k].id, out[k].result == 1 ? "ok" : "no");
+            snprintf(line, sizeof(line), "logged %llu %s", (unsigned long long)out[k].id, out[k].result == 1 ? "ok" : "no");
         else
             snprintf(line, sizeof(line), "logged %s", out[k].result == 1 ? "ok" : "no");
         for (int i = 0; i < MAX_CLIENTS; i++)
@@ -1200,7 +1216,7 @@ static void app_apply(void *arg) {
             ft8_window_remote((ft8_rc_t)a->what, a->arg, a->has_cell ? &a->cell : NULL);
             break;
         case A_LOG:
-            log_answer(a->who, a->log_id, dialog_field_qso_log(a->text));
+            log_answer(a->who, a->log_id, a->sum, dialog_field_qso_log(a->text));
             break;
     }
 }
@@ -1244,10 +1260,12 @@ static bool app_ft8_cmd(const char *what, const char *arg) {
 /* "log CALL|RSTS|RSTR|NAME|QTH|GRID|COUNTRY" (dialog_field_qso_log's text), the day's log;
  * "logq ID CALL|..." the same, answered with the ID. A queue with no room answers "no" at once:
  * the page must not believe a QSO sent into nothing was logged (audit A21). An ID this session
- * sent before is not written again: its answer goes out once more (audit B07) */
-static void app_log_cmd(client_t *c, uint32_t id, const char *text) {
+ * sent before with this QSO is not written again: its answer goes out once more (audit B07). With
+ * another QSO it is a "conflict", not written and not answered with the other's result: two tabs
+ * of one browser share the session, and pages before C03 each counted from 1 */
+static void app_log_cmd(client_t *c, uint64_t id, const char *text) {
     uint64_t who = sess_key(c);
-    acmd_t   a   = {.id = A_LOG, .log_id = id, .who = who};
+    acmd_t   a   = {.id = A_LOG, .log_id = id, .who = who, .sum = log_sum(text)};
 
     snprintf(a.text, sizeof(a.text), "%s", text);
     if (id) {
@@ -1255,19 +1273,22 @@ static void app_log_cmd(client_t *c, uint32_t id, const char *text) {
         for (int i = 0; i < LOG_ANSWERS; i++) {
             if (log_ans[i].id != id || log_ans[i].who != who)
                 continue;
-            if (log_ans[i].result) {
+            bool same = log_ans[i].sum == a.sum;
+            if (same && log_ans[i].result) {
                 log_ans[i].told = false;
                 atomic_store(&log_pending, true);
             }
             pthread_mutex_unlock(&app_mux);
+            if (!same)
+                client_textf(c, "logged %llu conflict", (unsigned long long)id);
             return;
         }
         pthread_mutex_unlock(&app_mux);
-        log_queued(who, id);
+        log_queued(who, id, a.sum);
     }
     if (!scheduler_put(app_apply, &a, sizeof(a))) {
         if (id)
-            log_answer(who, id, false); /* told by the panel thread, kept for a query */
+            log_answer(who, id, a.sum, false); /* told by the panel thread, kept for a query */
         else
             client_text(c, "logged no");
     }
@@ -1529,13 +1550,16 @@ static void handle_text(client_t *c, char *text) {
             app_log_cmd(c, 0, text + 4);
         return;
     }
-    if (!strncmp(text, "logq? ", 6)) {
-        log_query(c, (uint32_t)strtoul(text + 6, NULL, 10));
+    /* The numbers are 53 bits: strtoull, as strtoul stops at 32 bits on the radio */
+    if (!strncmp(text, "logq? ", 6)) {      /* "logq? ID TEXT", "logq? ID" from a page before C03 */
+        char    *end;
+        uint64_t id = strtoull(text + 6, &end, 10);
+        log_query(c, id, *end == ' ' ? end + 1 : NULL);
         return;
     }
     if (!strncmp(text, "logq ", 5)) {       /* "logq ID TEXT" */
         char    *end;
-        uint32_t id = (uint32_t)strtoul(text + 5, &end, 10);
+        uint64_t id = strtoull(text + 5, &end, 10);
         if (!allowed(c, ROLE_OPERATE, false))
             return;
         if (id && *end == ' ')

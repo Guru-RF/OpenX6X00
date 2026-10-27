@@ -751,14 +751,37 @@ body.app h2, body.app #intro { display:none; }
   }
   $("#cw-clear").on("click", function() { cwEl.textContent = ""; });
   $("#cw-log").on("click", function() { const c = $("#cw-log span").text(); if (c && c !== "last call") { $("#lg-call").val(c); $("#lg-rs, #lg-rr").val(state && (state.mode === 4 || state.mode === 5) ? "599" : "59"); $('.tabs button[data-tab="log"]').trigger("click"); } });
-  /* Every QSO goes with a number of the page's own ("logq ID ..."); the radio answers "logged ID
-   * ok|no", to this browser's session only (another page's QSO 1 is not ours). One without an
-   * answer (the link dropped, the page reloaded) is asked about ("logq? ID") when the link is
-   * back: "ok" or "no" settles it; "unknown" means the radio never saw it, restarted since, or
-   * no longer keeps the answer, and the radio cannot tell which. That is for the operator: the
-   * Logs page tells, the row offers Send again (the radio writes a number it already knows only
-   * once) or Forget. A retry is never automatic when a duplicate is possible (R6, audit B07). */
-  const pend = pref.logPending = pref.logPending || {};
+  /* Every QSO goes with a number no other tab, reload or page of this browser picks ("logq ID ..."): 53 random
+   * bits. The tabs of a browser share its session, and each counting from 1 gave two QSOs one number, the
+   * second answered with the first's "ok" and never written (audit C03). The radio answers "logged ID ok|no"
+   * to this browser's session, and binds the answer to the QSO: a number it holds for another QSO is a
+   * "conflict" (a page from before C03 counting from 1), never that QSO's answer. One without an answer (the
+   * link dropped, the page reloaded) is asked about ("logq? ID QSO") when the link is back: "ok" or "no"
+   * settles it; "unknown" means the radio never saw it, restarted since, or no longer keeps the answer, and
+   * the radio cannot tell which. That is for the operator: the Logs page tells, the row offers Send again
+   * (the radio writes a number it already knows only once; after a conflict, under a new number) or Forget.
+   * A retry is never automatic when a duplicate is possible (R6, audit B07). The unanswered are kept each
+   * under its own key, so tabs do not overwrite each other's list; a page starts with all of them. */
+  const LOGQ = "x6100logq:", pend = {};
+  function logId() {
+    const r = new Uint32Array(2);
+    try { crypto.getRandomValues(r); } catch (e) { r[0] = Math.random() * 4294967296; r[1] = Math.random() * 4294967296; }
+    return String((r[0] & 0x1fffff) * 4294967296 + r[1] || 1);
+  }
+  function pendSave(id) { try { if (pend[id]) localStorage.setItem(LOGQ + id, JSON.stringify(pend[id])); else localStorage.removeItem(LOGQ + id); } catch (e) {} }
+  try {
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(LOGQ) === 0) pend[k.slice(LOGQ.length)] = JSON.parse(localStorage.getItem(k)); }
+  } catch (e) {}
+  if (pref.logPending) {      /* the one list of a page before C03 */
+    Object.keys(pref.logPending).forEach(function(id) { pend[id] = pref.logPending[id]; pendSave(id); });
+    delete pref.logPending; delete pref.logSeq; savePref();
+  }
+  /* another tab settled or forgot one this page took over at its start: not this page's to ask about */
+  window.addEventListener("storage", function(e) {
+    if (!e.key || e.key.indexOf(LOGQ) !== 0 || e.newValue !== null) return;
+    const id = e.key.slice(LOGQ.length);
+    if (pend[id]) { delete pend[id]; $("#lgrows li[data-id='" + id + "']").remove(); }
+  });
   function logRow(id, label, st) {
     let li = $("#lgrows li[data-id='" + id + "']");
     if (!li.length) { li = $("<li class='t2'>").attr("data-id", id).append($("<span class='x'>").text(label), $("<span class='i'>")); $("#lgrows").prepend(li); }
@@ -766,39 +789,46 @@ body.app h2, body.app #intro { display:none; }
     return li;
   }
   function logSend(id, p) { logRow(id, p.label, send("logq " + id + " " + p.text) ? "sending..." : "waiting for the connection"); }
+  function logAsk(id) { send("logq? " + id + " " + pend[id].text); }
   function logAnswer(id, r, silent) {
     const p = pend[id];
-    const label = p ? p.label : "QSO " + id;
-    if (r === "ok") { logRow(id, label, "logged"); status("QSO logged"); if (p && p.draft) { $("#lg-call, #lg-name").val(""); draftSave(); } }
-    else if (r === "no") { logRow(id, label, "refused (see the radio)"); status("QSO not logged (see the radio)", true); }
+    if (!p) return;           /* another tab's QSO (the radio tells every page of the session), or one forgotten */
+    if (r === "ok") {
+      logRow(id, p.label, "logged"); status("QSO logged");
+      if (p.draft && $("#lg-call").val().trim().toUpperCase() === p.text.split("|")[0]) { $("#lg-call, #lg-name").val(""); draftSave(); }   /* the form still shows it */
+    }
+    else if (r === "no") { logRow(id, p.label, "refused (see the radio)"); status("QSO not logged (see the radio)", true); }
     else {
-      if (!p) return;
-      const li = logRow(id, label, silent ? "no answer: check the Logs page before sending again" : "not confirmed: the radio has no record of it, check the Logs page");
-      li.find(".i").append($("<button type='button' class='b'>Send again</button>").on("click", function() { p.tries = 0; p.asks = 0; p.boot = link.boot; p.t = Date.now(); savePref(); logSend(id, p); }),
-                           $("<button type='button' class='b'>Forget</button>").on("click", function() { delete pend[id]; savePref(); li.remove(); }));
+      const conflict = r === "conflict";
+      const li = logRow(id, p.label, conflict ? "not logged: the radio holds another QSO under this number, check the Logs page" : silent ? "no answer: check the Logs page before sending again" : "not confirmed: the radio has no record of it, check the Logs page");
+      li.find(".i").append($("<button type='button' class='b'>Send again</button>").on("click", function() {
+        let sid = id;
+        if (conflict) { sid = logId(); delete pend[id]; pendSave(id); pend[sid] = p; li.attr("data-id", sid); }
+        p.tries = 0; p.asks = 0; p.boot = link.boot; p.t = Date.now(); pendSave(sid); logSend(sid, p);
+      }), $("<button type='button' class='b'>Forget</button>").on("click", function() { delete pend[id]; pendSave(id); li.remove(); }));
       return;
     }
-    delete pend[id]; savePref();
+    delete pend[id]; pendSave(id);
   }
-  function logReconcile() { Object.keys(pend).forEach(function(id) { pend[id].asked = Date.now(); send("logq? " + id); }); }
+  function logReconcile() { Object.keys(pend).forEach(function(id) { pend[id].asked = Date.now(); logAsk(id); }); }
   function logTick() {
     if (!link.up) return;
     const now = Date.now();
     Object.keys(pend).forEach(function(id) {
       const p = pend[id];
       if (now - Math.max(p.t, p.asked || 0) < 8000) return;
-      p.asks = (p.asks || 0) + 1; p.asked = now; savePref();
-      if (p.asks > 3) logAnswer(id, "unknown", true); else send("logq? " + id);
+      p.asks = (p.asks || 0) + 1; p.asked = now; pendSave(id);
+      if (p.asks > 3) logAnswer(id, "unknown", true); else logAsk(id);
     });
   }
   Object.keys(pend).forEach(function(id) { logRow(id, pend[id].label, "unanswered (" + RadioLink.age(Date.now() - pend[id].t) + " ago)"); });
   $("#lg-log").on("click", function() {
     const call = $("#lg-call").val().trim().toUpperCase();
     if (!call) { status("A call sign first", true); return; }
-    const id = pref.logSeq = ((pref.logSeq || 0) % 2000000000) + 1;
+    const id = logId();
     const rs = $("#lg-rs").val().trim(), rr = $("#lg-rr").val().trim();
     pend[id] = {text: [call, rs, rr, $("#lg-name").val().trim()].join("|").replace(/\n/g, " "), label: new Date().toISOString().slice(11, 16) + " " + call + " " + rs + " " + rr, t: Date.now(), boot: link.boot, tries: 0, asks: 0, draft: true};
-    savePref();
+    pendSave(id);
     logSend(id, pend[id]);
   });
   $("#lg-call").on("keydown", function(e) { if (e.key === "Enter") $("#lg-log").trigger("click"); });

@@ -18,7 +18,7 @@ Requirements are Python 3, Node.js, a C/C++ compiler, SQLite development files, 
 | `adif-frequency.c` | B03: calls the production static frequency formatter at 145.5 MHz |
 | `adif-input.c`, `guard-malloc.c` | B04: runs the production reader with `<CALL:5`; places its seven-byte allocation before an unreadable page |
 | `field-input.c` | B06: runs the production Field Ops reader with a truncated 1,023-byte record |
-| `make-log-harness.py` | B07: extracts current receipt/cache/submission functions; counts scheduled dispatches |
+| `make-log-harness.py` | B07: extracts current receipt/cache/submission functions (with their payload digest since C03); counts scheduled dispatches |
 | `web_checks.py` | B08/B13: extracts current upload/cluster functions, forces interleavings and runs the production updater against temporary installation paths |
 | `log_checks.py` | B09/B17: extracts current log functions and simulates stale ordinal requests and a MODE edit |
 | `ptt-renewal.js` | B10: evaluates the complete production PTT component with a fake clock |
@@ -32,7 +32,7 @@ Checks for the [26 October audit](../Codex-Audit-2026-10-26.md) on the browser r
 | Harness | Evidence |
 |---|---|
 | `ptt-hold.js` | C02, the page: production RadioLink and RadioPtt with a fake socket and clock; a link that stops delivering ends the hold (release sent, no renewal), refuses presses until a ping sent after the silence is answered, and numbers every press; pings are numbered too, so a pong the radio dropped (or the sync ping's own) stalls the link only until a later ping is answered, and a radio answering a bare pong still works |
-| `make-remote-harness.py`, `remote-scenarios.c` | C02, the radio: extracts the remote server's `handle_text` with the PTT lease, key, log and set functions it calls, links the real control owner, stubs the clock, input devices, GUI queue and sockets; `ptt` replays late renewals after the lease ran out, a refused press's renewal and a page without numbers; `ping` checks that a pong repeats its ping's number (a bare ping, from a page before, gets a bare pong) |
+| `make-remote-harness.py`, `remote-scenarios.c` | C02, the radio: extracts the remote server's `handle_text` with the PTT lease, key, log and set functions it calls, links the real control owner, stubs the clock, input devices, GUI queue and sockets; `ptt` replays late renewals after the lease ran out, a refused press's renewal and a page without numbers; `ping` checks that a pong repeats its ping's number (a bare ping, from a page before, gets a bare pong); `log` (C03) has two tabs of one session send different QSOs under one number (a conflict, one write) and under the fixed page's 53-bit numbers (two writes, a resend answered not written) |
 
 The AST-based Python harnesses omit HTTP decorators and supply only the required globals. The generated C harnesses retain the selected production function bodies while replacing surrounding services. They establish the reported local failure paths and regression results; they do not establish full HTTP, audio, rendering or hardware behavior. The C++ harnesses replace GUI logging/async entry points and use the real storage implementation.
 
