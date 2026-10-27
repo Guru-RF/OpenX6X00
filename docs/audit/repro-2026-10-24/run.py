@@ -103,6 +103,11 @@ def main():
         command([binary], env)
         print("B03 (fixed): the ADIF formatter writes 145.5 MHz within its buffer")
 
+        binary = work / "ws-handshake"
+        command([*CC, *cflags, *san, HERE / "ws-handshake.c", *gc, "-o", binary], env)
+        print("C08 WebSocket names (26 October audit, fixed):\n" + command([binary], env, contains=(
+            "21 of 21 cases as they should be",)).strip())
+
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")
         binary = work / "adif-input"

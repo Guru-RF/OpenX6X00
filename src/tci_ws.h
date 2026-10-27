@@ -38,7 +38,10 @@ typedef struct {
 
 /* An HTTP request (the bytes read so far, len of them): complete when the blank line is in.
  * Returns 1 and the 101 response in resp when it is a WebSocket upgrade, 0 when the request
- * is not complete yet, -1 when it is complete but not an upgrade we take. */
+ * is not complete yet, -1 when it is complete but not an upgrade we take. A browser's (it
+ * sends Origin) is taken from the radio's own pages only, opened by one of its own names: an
+ * address, localhost, the hostname, <hostname>.local, *.ts.net or MagicDNS's short name.
+ * TCI's and the browser remote's sockets both come here. */
 int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max);
 
 /* One frame from the start of buf: returns the bytes it took (header and payload), 0 when
