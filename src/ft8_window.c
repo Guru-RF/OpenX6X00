@@ -380,9 +380,9 @@ static void save_qso(const done_qso_t *d) {
     }
 }
 
-/* The QSOs completed in a step under qso_mux, for qso_unlock(). Two at most: in Hound mode the
- * processor's and Hound's own */
-static done_qso_t done_qsos[2];
+/* The QSO completed in a step under qso_mux, for qso_unlock(): the processor's, or in Hound mode
+ * Hound's own (add_rx_text drops the processor's there) */
+static done_qso_t done_qsos[1];
 static int        done_n;
 
 /* The processor's save callback, and Hound's RR73: under qso_mux, so noted only. The candidate
@@ -1332,9 +1332,13 @@ static void add_rx_text(int16_t snr, const char *text, bool odd, float freq_hz, 
     /* One step of the sequence: a QSO it completes is saved after it, the GUI's part posted after */
     qso_lock();
     snprintf(was, sizeof(was), "%s", tx_msg.msg);
+    int done = done_n;
     ftx_qso_processor_add_rx_text(qso, text, snr, &meta, hound_on ? &ignored : &tx_msg);
 
     if (hound_on) {
+        /* The processor follows the Fox too, its answers unsent, and may complete the QSO: Hound's
+         * RR73 alone logs it */
+        done_n = done;
         hound_rx_text(text, snr, freq_hz, odd, &j);
     } else if (tx_msg.msg[0] && strcmp(was, tx_msg.msg)) {    /* the sequence answers it */
         j.cursor    = true;
