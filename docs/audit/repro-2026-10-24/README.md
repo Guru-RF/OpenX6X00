@@ -27,6 +27,7 @@ Requirements are Python 3, Node.js, a C/C++ compiler, SQLite development files, 
 | `updater_checks.py` | A02/A03: runs production apply/undo/boot-check with interruption injection and temporary recovery state |
 | `backup_checks.py` | A10/A22: checks stale-token and persistent-writer rejection using production restore logic and request/process stand-ins |
 | `keyboard-scope.js` | C09 of the [26 October audit](../Codex-Audit-2026-10-26.md): the Panel's and the Screen page's production keyboard code with `radio_session.js` and its dialogs, on the pages' own markup; Space and Enter on focused buttons, a select, contenteditable, open dialogs, the PTT button, nothing focused; a click on a button giving the keyboard back to the page; the picture list chosen with the mouse or the keyboard |
+| `edit-flow.js` | C12 of the same audit: `edit_flow.js`, `list_editor.js` and the CW messages, Memories, Macros and Bands pages' own scripts, the web server a stand-in answering late, out of order or with a failure; an edit typed during a save, a rename, a new entry, a timeout, a retry without another edit, Save all and a delete going out one at a time, Close on Bands during a save and after a failure |
 | `browser-dom.js` | Not a check: a small DOM and jQuery stand-in under which the pages' own scripts run in Node, without a browser or an npm package |
 
 Checks for the [26 October audit](../Codex-Audit-2026-10-26.md) on the browser remote, added with their fixes:

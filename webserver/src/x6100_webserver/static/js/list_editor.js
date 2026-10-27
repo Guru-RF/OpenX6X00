@@ -1,6 +1,7 @@
 /* Bands and Digital modes pages: the entries of a JSON list API in a table, one row edited at a time.
  * PUT url adds, POST url/<id> changes, DELETE url/<id> removes; after each change the list is read again.
- * A row says what it is in (Unsaved, Saving, Saved, Failed with the reason, the typed values kept);
+ * A row says what it is in (Unsaved, Saving with its fields and Close waiting, Saved, Failed with the reason,
+ * the typed values kept and Save to try again); Add is refused, with a message, while a row is edited;
  * a delete says what goes and can be undone for twenty seconds (U04, with edit_flow.js). A failure says why, with
  * x6100FailText() and X6100_WAIT_MS of base.html.
  *
@@ -26,6 +27,7 @@ function listEditor(opts) {
     $.getJSON(opts.url, function(list) {
       body.empty();
       list.forEach(function(entry) { body.append(show($("<tr>"), entry)); });
+      EditFlow.tools(null, body);   /* no row left to save: no Save all bar */
       if (then) then(list);
     });
   }
@@ -55,16 +57,22 @@ function listEditor(opts) {
     if (entry.id === null) tr.remove();
     else show(tr, entry);
     body.find(".action").show();
+    EditFlow.tools(null, body);   /* a failed row closed has nothing left to save */
   }
 
   function saveRow(tr, entry, inputs) {
     const add = entry.id === null;
+    /* The fields and Close wait for the answer: after a save the table is read again, which took an edit
+     * made meanwhile away behind its Saved, Close and Edit again included (audit C12). A failure gives them
+     * back, and Save tries again */
+    const fields = tr.find("input, select, textarea, .close"), had = fields.filter(function() { return this === document.activeElement; });
     EditFlow.state(tr, "saving");
+    fields.prop("disabled", true);
     $.ajax({url: add ? opts.url : opts.url + "/" + entry.id, type: add ? "PUT" : "POST",
             data: JSON.stringify(opts.read(inputs)), contentType: "application/json; charset=utf-8",
             dataType: "json", timeout: X6100_WAIT_MS,
             success: function() { load(function() { if (!add) { const row = body.children("tr[data-key='" + entry.id + "']"); if (row.length) $("<span class='rst' data-st='saved'>Saved</span>").appendTo(row.children(".action-cell")); } else $status.removeClass("error").html('<span class="dot"></span>').append(document.createTextNode("Added")); }); },
-            error: function(xhr, why) { EditFlow.state(tr, "failed", x6100FailText(xhr, why)); }});
+            error: function(xhr, why) { fields.prop("disabled", false); had.trigger("focus"); EditFlow.state(tr, "failed", x6100FailText(xhr, why)); }});
   }
 
   function remove(entry) {
@@ -82,6 +90,8 @@ function listEditor(opts) {
   }
 
   $(opts.add).on("click", function() {
+    /* One row at a time: the new row's save reads the table again, over the other row's edit */
+    if (body.find(".save").length) { $status.addClass("error").html('<span class="dot"></span>').append(document.createTextNode("Save or close the row being edited first")); return; }
     const entry = opts.blank(), tr = show($("<tr>"), entry);
     body.prepend(tr);
     edit(tr, entry);

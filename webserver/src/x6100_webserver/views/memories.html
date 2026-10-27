@@ -32,7 +32,7 @@
 </div>
 </section>
 
-<script src="/static/js/edit_flow.js?v=1"></script>
+<script src="/static/js/edit_flow.js?v=2"></script>
 <script>
 // Same names as x6100_mode_t / x6100_agc_t
 const MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CWR", "AM", "NFM", "SAM", "WFM"];
@@ -87,16 +87,16 @@ var readRow = function(row, named) {
   return d;
 }
 
-/* type url payload, then done(list); on an error the row says why and keeps what was typed */
-var call = function(kind, type, url, payload, row, done) {
-  if (row) EditFlow.state(row, "saving");
-  $.ajax({
+/* type url payload, then done(list), one request of the table at a time (EditFlow.ajax); on an error the
+ * row of the save tk (EditFlow.submit) says why and keeps what was typed */
+var call = function(kind, type, url, payload, tk, done) {
+  EditFlow.ajax(kind === "slots" ? slotsBody : chBody, {
     url: url, type: type, data: payload ? JSON.stringify(payload) : undefined,
     contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
     success: function(r) { done(r); },
     error: function(xhr, why) {
       const msg = x6100FailText(xhr, why);
-      if (row) EditFlow.state(row, "failed", msg); else showStatus(kind, msg, true);
+      if (tk) EditFlow.failed(tk, msg); else showStatus(kind, msg, true);
     }
   });
 }
@@ -110,7 +110,8 @@ var renderSlots = function(data) {
       const row = makeRow(s, false).attr("data-key", String(s.id));
       const actions = $("<td class='action-cell'>").appendTo(row);
       const save = function() {
-        call("slots", "PUT", "/api/memories/" + s.id, readRow(row, false), row, function(r) { const rows = renderSlots(r); if (rows[String(s.id)]) EditFlow.state(rows[String(s.id)], "saved"); });
+        const tk = EditFlow.submit(row); if (!tk) return;
+        call("slots", "PUT", "/api/memories/" + s.id, readRow(row, false), tk, function(r) { EditFlow.saved(tk, function() { return renderSlots(r)[String(s.id)]; }); });
       };
       actions.append(button("save", "si-disk", "Save").on("click", save));
       actions.append(" ", button("remove", "si-trash", "Clear").prop("disabled", !s.frequency).on("click", function() {
@@ -146,9 +147,10 @@ var channelRow = function(c, i, n) {
     actions.append(" ", button("down", "", "Down").text("↓").prop("disabled", i == n - 1).on("click", function() { move(i + 1); }));
   }
   const save = function() {
+    const tk = EditFlow.submit(row); if (!tk) return;
     const d = readRow(row, true);
-    if (i === null) call("channels", "POST", "/api/channels", d, row, function(r) { row.remove(); const rows = renderChannels(r), k = d.name.trim() + "|" + d.frequency + "|" + d.mode; if (rows[k]) EditFlow.state(rows[k], "saved"); });
-    else call("channels", "PUT", "/api/channels/" + i, d, row, function(r) { const rows = renderChannels(r), k = d.name + "|" + d.frequency + "|" + d.mode; if (rows[k]) EditFlow.state(rows[k], "saved"); });
+    if (i === null) call("channels", "POST", "/api/channels", d, tk, function(r) { EditFlow.saved(tk, function() { row.remove(); return renderChannels(r)[d.name.trim() + "|" + d.frequency + "|" + d.mode]; }); });
+    else call("channels", "PUT", "/api/channels/" + i, d, tk, function(r) { EditFlow.saved(tk, function() { return renderChannels(r)[d.name + "|" + d.frequency + "|" + d.mode]; }); });
   };
   actions.append(" ", button("save", "si-disk", "Save").on("click", save));
   actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {

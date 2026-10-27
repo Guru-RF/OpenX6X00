@@ -173,6 +173,7 @@ class Element extends Node {
   set value(v) {
     v = v === null || v === undefined ? '' : String(v);
     if (this.tagName === 'SELECT') { const o = this.querySelectorAll('option').find(x => x.value === v); this.querySelectorAll('option').forEach(x => { x._selected = x === o; }); return; }
+    if (this.tagName === 'OPTION') { this.setAttribute('value', v); return; }
     this._value = v;
   }
   get maxLength() { return this.hasAttribute('maxlength') ? Number(this.getAttribute('maxlength')) : -1; }
@@ -219,7 +220,7 @@ class Document extends Node {
 class Window extends Node { constructor(doc) { super(doc); this.nodeType = 0; } }
 
 /* HTML as the pages and their scripts write it: tags with attributes, text, comments, a few entities */
-function decode(t) { return t.replace(/&rarr;/g, '→').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&nbsp;/g, ' ').replace(/&middot;/g, '·').replace(/&amp;/g, '&'); }
+function decode(t) { return t.replace(/&rarr;/g, '→').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&nbsp;/g, ' ').replace(/&middot;/g, '·').replace(/&quot;/g, '"').replace(/&amp;/g, '&'); }
 function parseHTML(doc, html) {
   const root = doc.createDocumentFragment(), stack = [root];
   const re = /<!--[\s\S]*?-->|<\/\s*([\w-]+)\s*>|<([\w-]+)((?:\s+[\w:-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>"']+))?)*)\s*(\/?)>|([^<]+)/g;
@@ -345,6 +346,26 @@ function makeJQuery(doc, win) {
   return $;
 }
 
+/* bottle's "% for a, b in (('x', 'y'), ...):" ... "% end" over tuples of strings, as macros.html has it,
+ * with {{a}} put in escaped */
+function expand(text) {
+  const lines = text.split('\n'), out = [];
+  const esc = v => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^%\s*for\s+([\w,\s]+?)\s+in\s+(.*)$/.exec(lines[i]);
+    if (!m) { out.push(lines[i]); continue; }
+    let head = m[2];
+    while (!/:\s*$/.test(head)) head += ' ' + lines[++i].replace(/^\s*%/, '');
+    const names = m[1].split(',').map(x => x.trim());
+    const strings = [...head.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g)].map(x => x[1] !== undefined ? x[1] : x[2]);
+    const body = [];
+    for (i++; i < lines.length && !/^\s*%\s*end\b/.test(lines[i]); i++) body.push(lines[i]);
+    for (let k = 0; k + names.length <= strings.length; k += names.length)
+      out.push(...body.map(l => l.replace(/\{\{(\w+)\}\}/g, (x, n) => names.includes(n) ? esc(strings[k + names.indexOf(n)]) : x)));
+  }
+  return out.join('\n');
+}
+
 /* A page: its markup in the body, base.html's helpers, jQuery; scripts run in it with page.run(file or text) */
 function page(view) {
   const doc = new Document(), win = new Window(doc);
@@ -370,7 +391,7 @@ function page(view) {
   p.run(/<script>([\s\S]*?)<\/script>/.exec(base)[1], 'views/base.html');
   if (view) {
     const text = fs.readFileSync(path.join(WEB, 'views', view), 'utf8');
-    const markup = text.split('\n').filter(l => !/^\s*%/.test(l)).join('\n').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
+    const markup = expand(text).split('\n').filter(l => !/^\s*%/.test(l)).join('\n').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
     parseHTML(doc, markup).forEach(n => doc.body.appendChild(n));
     p.script = [...text.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]).pop();
     p.scripts = [...text.matchAll(/<script src="\/static\/js\/([\w.-]+)\?v=\d+"><\/script>/g)].map(m => 'static/js/' + m[1]);

@@ -36,7 +36,7 @@
 </div>
 </section>
 
-<script src="/static/js/edit_flow.js?v=1"></script>
+<script src="/static/js/edit_flow.js?v=2"></script>
 <script>
 ["psk", "olivia", "jtty"].forEach(function(mode) { EditFlow.effect($("#t-" + mode).closest(".dp-card").find("h3"), "the next time the window opens on the radio"); });
 EditFlow.effect($("#t-js8").closest(".dp-card").find("h3"), "the next time the JS8 window opens on the radio");
@@ -51,16 +51,16 @@ var button = function(cls, icon, title) {
   return $("<button class='action'>").addClass(cls).attr("title", title).append($("<i>").addClass(icon));
 }
 
-/* type url payload, then done(list); on an error the row says why and keeps what was typed */
-var call = function(mode, type, url, payload, row, done) {
-  if (row) EditFlow.state(row, "saving");
-  $.ajax({
+/* type url payload, then done(list), one request of the table at a time (EditFlow.ajax); on an error the
+ * row of the save tk (EditFlow.submit) says why and keeps what was typed */
+var call = function(mode, type, url, payload, tk, done) {
+  EditFlow.ajax($("#t-" + mode + ">tbody"), {
     url: "/api/macros/" + mode + url, type: type, data: payload ? JSON.stringify(payload) : undefined,
     contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
     success: function(r) { done(r); },
     error: function(xhr, why) {
       const msg = x6100FailText(xhr, why);
-      if (row) EditFlow.state(row, "failed", msg); else showStatus(mode, msg, true);
+      if (tk) EditFlow.failed(tk, msg); else showStatus(mode, msg, true);
     }
   });
 }
@@ -73,9 +73,10 @@ var macroRow = function(mode, m, lim) {
   row.append($("<td>").css("width", "9em").append(name), $("<td>").css("width", "100%").append(text));
   const actions = $("<td class='action-cell'>").css("white-space", "nowrap").appendTo(row);
   const save = function() {
-    const d = {name: name.val(), text: text.val()};
-    if (m.id === null) call(mode, "POST", "", d, row, function(r) { row.remove(); const rows = render(mode, r), k = d.name.trim() + "\t" + d.text.trim(); if (rows[k]) EditFlow.state(rows[k], "saved"); });
-    else call(mode, "PUT", "/" + m.id, d, row, function(r) { const rows = render(mode, r), k = d.name.trim() + "\t" + d.text.trim(); if (rows[k]) EditFlow.state(rows[k], "saved"); });
+    const tk = EditFlow.submit(row); if (!tk) return;
+    const d = {name: name.val(), text: text.val()}, k = d.name.trim() + "\t" + d.text.trim();
+    if (m.id === null) call(mode, "POST", "", d, tk, function(r) { EditFlow.saved(tk, function() { row.remove(); return render(mode, r)[k]; }); });
+    else call(mode, "PUT", "/" + m.id, d, tk, function(r) { EditFlow.saved(tk, function() { return render(mode, r)[k]; }); });
   };
   actions.append(button("save", "si-disk", "Save").on("click", save));
   if (m.id) actions.append(" ", $("<button class='action up' title='Move up'>").text("▲").on("click", function() {

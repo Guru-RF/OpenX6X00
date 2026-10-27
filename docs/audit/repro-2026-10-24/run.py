@@ -44,6 +44,8 @@ def main():
         print("B10 PTT renewal:\n" + command(["node", HERE / "ptt-renewal.js"], env).strip())
         print("C09 keyboard scope:\n" + command(["node", HERE / "keyboard-scope.js"], env,
               contains=("keyboard cases as they should be",)).strip())
+        print("C12 edit flow:\n" + command(["node", HERE / "edit-flow.js"], env,
+              contains=("edit-flow cases as they should be",)).strip())
 
         # 26 October audit: the browser remote's commands, on the page and in the radio
         print("C02 PTT hold, the page:\n" + command(["node", HERE / "ptt-hold.js"], env).strip())

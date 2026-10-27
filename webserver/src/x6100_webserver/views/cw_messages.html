@@ -17,7 +17,7 @@
 </div>
 </section>
 
-<script src="/static/js/edit_flow.js?v=1"></script>
+<script src="/static/js/edit_flow.js?v=2"></script>
 <script>
 let max = 64;
 const body = $("#messages>tbody");
@@ -33,16 +33,16 @@ var button = function(cls, icon, title) {
   return $("<button class='action'>").addClass(cls).attr("title", title).append($("<i>").addClass(icon));
 }
 
-/* type url payload, then done(list) with the radio's list; on an error the row says why and keeps its text */
-var call = function(type, url, payload, row, done) {
-  if (row) EditFlow.state(row, "saving");
-  $.ajax({
+/* type url payload, then done(list) with the radio's list, one request at a time (EditFlow.ajax); on an
+ * error the row of the save tk (EditFlow.submit) says why and keeps its text */
+var call = function(type, url, payload, tk, done) {
+  EditFlow.ajax(body, {
     url: url, type: type, data: payload ? JSON.stringify(payload) : undefined,
     contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
     success: function(r) { done(r); },
     error: function(xhr, why) {
       const msg = x6100FailText(xhr, why);
-      if (row) EditFlow.state(row, "failed", msg); else showStatus(msg, true);
+      if (tk) EditFlow.failed(tk, msg); else showStatus(msg, true);
     }
   });
 }
@@ -54,9 +54,10 @@ var messageRow = function(m) {
   row.append($("<td>").css("width", "100%").append(text));
   const actions = $("<td class='action-cell'>").appendTo(row);
   const save = function() {
+    const tk = EditFlow.submit(row); if (!tk) return;
     const d = {text: text.val()};
-    if (m.id === null) call("POST", "/api/cw_messages", d, row, function(r) { row.remove(); const rows = render(r), last = r.messages[r.messages.length - 1]; if (last && rows[String(last.id)]) EditFlow.state(rows[String(last.id)], "saved"); });
-    else call("PUT", "/api/cw_messages/" + m.id, d, row, function(r) { const rows = render(r); if (rows[String(m.id)]) EditFlow.state(rows[String(m.id)], "saved"); });
+    if (m.id === null) call("POST", "/api/cw_messages", d, tk, function(r) { EditFlow.saved(tk, function() { row.remove(); const rows = render(r), last = r.messages[r.messages.length - 1]; return last && rows[String(last.id)]; }); });
+    else call("PUT", "/api/cw_messages/" + m.id, d, tk, function(r) { EditFlow.saved(tk, function() { return render(r)[String(m.id)]; }); });
   };
   actions.append(button("save", "si-disk", "Save").on("click", save));
   actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {

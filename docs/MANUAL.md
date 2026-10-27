@@ -2235,12 +2235,20 @@ spot, upload, band key or MEM tap; the next time the window opens on the
 radio; the screen restarts). Each row of a list (CW messages, memories and
 channels, macros, bands, digital modes) says Unsaved as soon as it is edited,
 Saving..., Saved, or Failed with the radio's reason, the typed values kept so
-they can be corrected. A row keeps its draft while another row is saved and
-while the list is read again from the radio; a bar in the card counts the
-unsaved rows and offers Save all and Discard. A row the radio changed
-meanwhile (another browser, the radio itself) says "Changed on the radio
-meanwhile": Save keeps yours, Reload takes the radio's. The browser warns
-before a page with unsaved rows is left.
+they can be corrected or saved again with Save. A row keeps its draft while
+another row is saved and while the list is read again from the radio; a bar
+in the card counts the unsaved and failed rows and offers Save all and
+Discard. A row says Saved only when it holds what the radio confirmed:
+while a row is being saved its Save is unavailable, and an edit typed
+meanwhile stays, Unsaved, for the next Save. The changes to one list go to
+the radio one at a time, each after the answer to the one before, so with
+Save all the rows waiting their turn say Saving... On the Bands and Digital
+modes pages the row's fields and Close are locked until the answer comes,
+and Add is refused, with a message, until the row being edited is saved or
+closed. A row the radio changed meanwhile (another browser, the radio
+itself) says "Changed on the radio meanwhile": Save keeps yours, Reload
+takes the radio's. The browser warns before a page is left with a row
+unsaved, failed or still saving.
 
 On the Bands, Digital modes, Memories, Cluster, CW messages, Macros, Display
 and TCI pages a save that fails says why: the radio's own reason (an invalid
