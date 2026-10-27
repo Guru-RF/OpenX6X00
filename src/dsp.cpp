@@ -48,6 +48,7 @@ extern "C" {
 #define SMETER_DB       (LEVEL_DB + 30.103f)
 #define FRAME_MS        (1000 / 15)
 #define OEM_SETTLE      4           /* OEM base: frames to drop after a tune */
+#define TURNING_MS      500         /* a tune within this of the one before: the dial is turning (#51) */
 #define FLOOR_PCT       0.25f       /* noise floor: percentile of the bin groups */
 #define FLOOR_GROUP     8
 #define COLOUR_BELOW    5.0f        /* waterfall black this far under the noise */
@@ -538,7 +539,15 @@ static void on_mode_change(Subject *subj, void *user_data) {
 }
 
 static void on_freq_change(Subject *subj, void *user_data) {
-    settle = settle_frames();
+    static uint64_t last_ms;
+    uint64_t        now = get_time();
+
+    /* From rest the base's next frames may still be of the frequency before: dropped. With the dial
+     * turning, each step renewed the drop and the waterfall stood still until it rested (#51): the
+     * frames come as they are then, at most a step behind (waterfall_view.c draws but does not keep
+     * them) */
+    settle = now - last_ms > TURNING_MS ? settle_frames() : 0;
+    last_ms = now;
     if (base_ver.rev < 8)
         cur_freq = static_cast<SubjectT<int32_t> *>(subj)->get();
 }
