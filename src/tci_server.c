@@ -1324,6 +1324,8 @@ static void client_read(int ci) {
                 break;
         }
     }
+    if (c->fd < 0)      /* a command that closed it: nothing left to keep */
+        return;
     if (pos) {
         c->in_len -= pos;
         memmove(c->in, c->in + pos, c->in_len);

@@ -1831,6 +1831,8 @@ static void client_read(client_t *c) {
                 break;
         }
     }
+    if (c->fd < 0)      /* what it asked closed it: "unpair", or its own session revoked */
+        return;
     if (pos) {
         c->in_len -= pos;
         memmove(c->in, c->in + pos, c->in_len);
