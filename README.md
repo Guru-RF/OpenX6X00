@@ -62,7 +62,7 @@ these; please give:
 
 Open a [feature request](https://github.com/Guru-RF/OpenX6X00/issues/new?template=feature.yml)
 whose title starts with **Feature:** and names it in a few words
-(`Feature: Winlink over HF`), one feature per issue. Look at the open ones
+(`Feature: SOTA spots`), one feature per issue. Look at the open ones
 first: if the feature is there, add what you would use it for to that issue.
 Please give:
 

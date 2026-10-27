@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        One feature per issue, named in the title after **Feature:** (`Feature: Winlink over HF`). More in the README's [Requesting a feature](https://github.com/Guru-RF/OpenX6X00#requesting-a-feature).
+        One feature per issue, named in the title after **Feature:** (`Feature: SOTA spots`). More in the README's [Requesting a feature](https://github.com/Guru-RF/OpenX6X00#requesting-a-feature).
   - type: checkboxes
     id: checks
     attributes:
