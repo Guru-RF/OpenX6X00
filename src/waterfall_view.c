@@ -66,6 +66,7 @@ static float         level_min = TX_MIN;
 static float         level_max = TX_MAX;
 
 static uint8_t       skip_rows;         /* rows of the old frequency still coming after a retune */
+static bool          retuned;           /* since the row before (#51) */
 static int32_t       radio_center_freq; /* where the base is tuned */
 static int32_t       wf_center_freq;    /* the frequency at the centre of the picture */
 static int32_t       mode_lo_offset;
@@ -158,9 +159,9 @@ static double keep_pos(uint32_t hz) {
     return ((double) hz - keep_anchor) * WATERFALL_NFFT / keep_width;
 }
 
-/* Fixed mode: a new row's data (db, its colours from min to max) into keep_db, and the
- * row's values around its data from keep_db */
-static void keep_around(wf_row_t *row, const float *db, float min, float max) {
+/* Fixed mode: a new row's data (db, its colours from min to max) into keep_db (learn: not a row
+ * that may still be of the frequency before), and the row's values around its data from keep_db */
+static void keep_around(wf_row_t *row, const float *db, float min, float max, bool learn) {
     if (row->width != keep_width || fabs(keep_pos(row->center_freq) - DATA_AT - keep_bin) >= ROW_BINS) {
         /* The first, another zoom or another band: nothing kept */
         keep_width = row->width;
@@ -186,7 +187,7 @@ static void keep_around(wf_row_t *row, const float *db, float min, float max) {
     keep_bin += move;
 
     /* The data, received now */
-    for (int32_t k = 0; k < ROW_BINS; k++) {
+    for (int32_t k = 0; learn && k < ROW_BINS; k++) {
         float   x = k - frac - DATA_AT;
         int32_t i = floorf(x);
 
@@ -223,16 +224,37 @@ static void keep_around(wf_row_t *row, const float *db, float min, float max) {
 static uint8_t row_seq;     /* 1bit: the next row's dither row */
 
 void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint32_t width_hz) {
+    /* After a retune the base's next rows may still be of the frequency before: from rest, the two
+     * are dropped. With the dial turning on, every row was, and the waterfall stood still until it
+     * rested (#51): a retune within five rows of the one before is the dial turning, and then the
+     * rows come as they are, at most a step behind. A row that may be behind is drawn, not kept
+     * (Fixed mode) */
+    static uint8_t still = UINT8_MAX;   /* rows since the last retune */
+    static bool    turning;
+    bool           fresh = true;
+
+    if (retuned && base_freq == 0) {
+        retuned = false;
+        turning = still < 5;
+        still = 0;
+    } else if (still < UINT8_MAX) {
+        still++;
+    }
     if (skip_rows && base_freq == 0) {
-        skip_rows--;
-        return;
+        if (!turning) {
+            skip_rows--;
+            return;
+        }
+        skip_rows = 0;
+        fresh = false;
     }
 
     /* Speed 1 and 2 average 3 and 2 frames into one line (5 and 7.5 lines/s);
      * 4 and 5 get faster frames from the DSP */
     static const uint8_t speed_frames[] = {3, 2, 1, 1, 1};
     static float    acc[WATERFALL_NFFT];
-    static int      acc_n;
+    static int      acc_n, acc_frames;     /* the frames in the line, and since the line before */
+    static bool     acc_fresh;
     static uint32_t acc_freq;
     int             frames = speed_frames[LV_CLAMP(1, param_i_get(cfg_waterfall_speed), 5) - 1];
     /* Where the frame was taken: with no frequency from the base (the OEM X6100 base) the GUI's,
@@ -241,20 +263,25 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
 
     if (frames > 1 && size <= WATERFALL_NFFT) {
         if (acc_n == 0 || at != acc_freq) {
-            /* first frame, or the radio moved: start a new line */
+            /* first frame, or the radio moved: the line again from this frame (one frequency in it) */
             memcpy(acc, db, size * sizeof(float));
             acc_n = 1;
             acc_freq = at;
+            acc_fresh = fresh;
         } else {
             liquid_vectorf_add(acc, db, size, acc);
             acc_n++;
+            acc_fresh &= fresh;
         }
-        if (acc_n < frames) {
+        /* a line every `frames` frames, the dial turning or not: restarted at each step, it came only
+         * once the dial rested (#51) */
+        if (++acc_frames < frames) {
             return;
         }
         liquid_vectorf_mulscalar(acc, size, 1.0f / acc_n, acc);
         db = acc;
-        acc_n = 0;
+        fresh = acc_fresh;
+        acc_n = acc_frames = 0;
     }
 
     /* The row is made in the slot after the newest, which is never drawn, and shown once whole.
@@ -296,7 +323,7 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
     if (!param_i_get(cfg_wf_mode)) {
         keep_width = 0;
     } else if (!tx && size == WATERFALL_NFFT && width_hz) {
-        keep_around(row, db, min, max);
+        keep_around(row, db, min, max, fresh);
     }
     __atomic_store_n(&newest, next, __ATOMIC_RELEASE);
     __atomic_add_fetch(&new_rows, 1, __ATOMIC_RELEASE);
@@ -652,6 +679,7 @@ static void on_view_changed(Subject *subj, void *user_data) {
 /* A new frequency: the next rows the base sends may still be of the old one */
 static void on_if_shift_changed(Subject *subj, void *user_data) {
     skip_rows = 2;
+    retuned = true;
     if_shift = subject_i_get((SubjectInt *)subj);
     radio_center_freq = cparam_i_get(cfg_fg_freq) - if_shift;
     update_middle_line();
@@ -659,6 +687,7 @@ static void on_if_shift_changed(Subject *subj, void *user_data) {
 
 static void on_fg_freq_change(Subject *subj, void *user_data) {
     skip_rows = 2;
+    retuned = true;
     radio_center_freq = subject_i_get((SubjectInt *)subj) - if_shift;
 }
 
