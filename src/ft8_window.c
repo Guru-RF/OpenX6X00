@@ -441,6 +441,7 @@ static void decoder_start(void) {
                                                 param_i_get(cfg_ft8_max_repeats));
 
     ftx_qso_processor_set_is_pota(p, pota_spotted);
+    ftx_qso_processor_set_auto(p, param_i_get(cfg_ft8_auto));     /* the setting, not qso.cpp's default (on) */
     qso_lock();     /* the panel's status reads it */
     qso        = p;
     decoder_on = true;
