@@ -4,6 +4,8 @@
 // number, so the radio can tell a late renewal from a press (the radio's side: remote-scenarios.c, "ptt").
 // A pong the radio drops (its queue for the page full) leaves the link stalled only until a later ping is answered:
 // pings are numbered, "ping N" answered "pong N", and an unanswered sync ping is sent again (review of C02).
+// An err while a press waits for "tx 1" that is not the PTT's leaves the press; the PTT's own refusal ends it and
+// lets go, the radio's microphone or the browser's (review of C13).
 const fs = require('fs');
 const vm = require('vm');
 let now = 0, next = 1;
@@ -111,6 +113,36 @@ const bareStall = untilStalled();
 socket.onmessage({data: 'm -95'});
 advance(100);
 check(bareStall && !link.stalled, 'a radio answering a bare pong, one lost: stalled, back at the next answer');
-console.log(failures.length ? failures.length + ' C02 page check(s) failed' : 'C02 (fixed): the page lets go of a hold on a stalled link, numbers its presses and its pings');
+/* An err while a press waits for the radio's "tx 1" cannot say which command it answers. One that is not the PTT's
+ * (a tune refused for a full queue, a Take control refused while on the air) leaves the press alone; the PTT's own
+ * refusal ends it and sends the release, should this press have keyed meanwhile (review of C13) */
+bare = false;
+advance(6000);
+ptt.press();
+advance(10);
+const p1 = now - 11;
+ptt.err('freq: the radio is busy, try again');
+ptt.err('busy: the radio is transmitting, control stays where it is');
+check(ptt.state === 'requesting', 'a refused tune or Take control while the press waits: the press goes on');
+ptt.radioTx(true);
+advance(2000);
+check(ptt.state === 'tx' && after(p1).filter(t => /^key PTT 1 \d+$/.test(t)).length >= 3 && !after(p1).includes('key PTT 0'), 'it keys and is renewed, no release sent');
+ptt.release();
+ptt.radioTx(false);
+advance(6000);
+ptt.press();
+advance(10);
+const p2 = now - 11;
+check(ptt.err('controlled by the radio\'s operator: take control first') && ptt.state === 'refused', 'the PTT\'s own refusal while the press waits: refused');
+check(after(p2).includes('key PTT 0'), 'and its release goes out (the press may have keyed)');
+advance(3000);
+check(!after(now - 2990).some(t => /^key PTT 1/.test(t)), 'no renewal after the refusal');
+let micStops = 0;                                    /* the browser microphone, through the TCI */
+const mptt = context.window.RadioPtt.create({el: null, send: text => link.send(text), session: {can: () => ''}, link,
+  mic: {wanted: () => true, ready: () => true, start: () => true, stop: () => { micStops++; }}});
+mptt.press();
+mptt.err('view only: pair this browser to operate');
+check(mptt.state === 'refused' && micStops === 1, 'with the browser microphone: the refusal stops the microphone\'s transmission too');
+console.log(failures.length ? failures.length + ' C02 page check(s) failed' : 'C02 (fixed): the page lets go of a hold on a stalled link, numbers its presses and its pings; only the PTT\'s own refusal ends a press, with its release');
 process.exit(failures.length ? 1 : 0);
 })();
