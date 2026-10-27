@@ -27,6 +27,13 @@ Requirements are Python 3, Node.js, a C/C++ compiler, SQLite development files, 
 | `updater_checks.py` | A02/A03: runs production apply/undo/boot-check with interruption injection and temporary recovery state |
 | `backup_checks.py` | A10/A22: checks stale-token and persistent-writer rejection using production restore logic and request/process stand-ins |
 
+Checks for the [26 October audit](../Codex-Audit-2026-10-26.md) on the browser remote, added with their fixes:
+
+| Harness | Evidence |
+|---|---|
+| `ptt-hold.js` | C02, the page: production RadioLink and RadioPtt with a fake socket and clock; a link that stops delivering ends the hold (release sent, no renewal), refuses presses until a ping sent after the silence is answered, and numbers every press; pings are numbered too, so a pong the radio dropped (or the sync ping's own) stalls the link only until a later ping is answered, and a radio answering a bare pong still works |
+| `make-remote-harness.py`, `remote-scenarios.c` | C02, the radio: extracts the remote server's `handle_text` with the PTT lease, key, log and set functions it calls, links the real control owner, stubs the clock, input devices, GUI queue and sockets; `ptt` replays late renewals after the lease ran out, a refused press's renewal and a page without numbers; `ping` checks that a pong repeats its ping's number (a bare ping, from a page before, gets a bare pong) |
+
 The AST-based Python harnesses omit HTTP decorators and supply only the required globals. The generated C harnesses retain the selected production function bodies while replacing surrounding services. They establish the reported local failure paths and regression results; they do not establish full HTTP, audio, rendering or hardware behavior. The C++ harnesses replace GUI logging/async entry points and use the real storage implementation.
 
 The five code-established findings B02/B05/B14/B15/B16 require the source traces and follow-up integration checks described in the audit. The runner does not reproduce those five; their fixes are verified by build and by hand on the radio.

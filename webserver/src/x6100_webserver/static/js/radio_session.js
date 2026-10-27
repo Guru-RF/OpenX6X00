@@ -15,15 +15,19 @@
  *   holder (Take control / Release); an admin gets Sessions. The token lives in localStorage
  *   "x6100session", so the Panel and the Remote page share one pairing.
  *
- *   const ptt = RadioPtt.create({el, send, status, mic: {wanted, ready, start, stop}, session});
+ *   const ptt = RadioPtt.create({el, send, status, mic: {wanted, ready, start, stop}, session, link});
  *     ptt.press() / ptt.release()   the operator's thumb; press is refused when the mic is wanted
- *                                   but not ready (never a silent fallback to the radio's microphone)
+ *                                   but not ready (never a silent fallback to the radio's microphone),
+ *                                   and while the link (a RadioLink) is stalled
  *     ptt.radioTx(on)               the confirmed TX state ("tx 1|0", state.tx)
  *     ptt.err(text)                 an "err ..." from the radio: a refused or ended transmission
- *     ptt.lost(why)                 the link went: whatever was on the air is over
+ *     ptt.lost(why)                 the link went or stalled: whatever was on the air is over (the
+ *                                   release goes out when the socket still takes it)
  *     ptt.state                     idle | requesting | tx | releasing | ended | refused | busy
  *   While a radio-microphone PTT is held the key is renewed every second (the radio lets it go
- *   after three seconds without, and after three minutes whatever happens).
+ *   after three seconds without, and after three minutes whatever happens): "key PTT 1 N", N the
+ *   press's own number. The radio renews only the hold that keyed, so renewals that arrive after
+ *   it let go (a stalled link delivering late) never key it again (audit C02).
  */
 (function() {
   "use strict";
@@ -195,6 +199,7 @@
   const KEY_MS = 1500, RENEW_MS = 1000, ENDED_MS = 5000;
   function Ptt(o) {
     this.o = o; this.state = "idle"; this.path = null; this.since = 0; this.timer = null; this.renew = null; this.why = ""; this.tick = null;
+    this.hold = 0;    /* the last press's number */
     const self = this;
     this.tick = setInterval(function() { if (self.state === "tx") self.render(); }, 1000);
     this.render();
@@ -205,6 +210,7 @@
     if (this.state === "requesting" || this.state === "tx") return;
     if (this.state === "releasing") { this.why = "Wait: the radio is still unkeying"; this.render(); return; }
     if (this.state === "busy") { this.set("busy", "The radio is transmitting already"); return; }
+    if (o.link && o.link.stalled) { this.set("refused", "The radio does not answer: no transmission until it does"); return; }
     const no = o.session ? o.session.can() : "";
     if (no) { this.set("refused", no); return; }
     const mic = o.mic && o.mic.wanted();
@@ -213,7 +219,7 @@
     this.clear();
     let sent;
     if (mic) sent = o.mic.start();
-    else { sent = o.send("key PTT 1"); if (sent) this.renew = setInterval(function() { o.send("key PTT 1"); }, RENEW_MS); }
+    else { const key = "key PTT 1 " + (++this.hold); sent = o.send(key); if (sent) this.renew = setInterval(function() { o.send(key); }, RENEW_MS); }
     if (!sent) { this.set("refused", "No link to the radio: no transmission"); return; }
     this.state = "requesting"; this.why = ""; this.render();
     this.timer = setTimeout(function() { if (self.state === "requesting") { self.stopPath(); self.set("refused", "The radio did not key (no TX confirmed in 1.5 s)"); } }, KEY_MS);
@@ -250,7 +256,7 @@
   /* The setting changed (the microphone on or off): an old refusal or ending is no longer the news */
   Ptt.prototype.reset = function() { if (this.state === "refused" || this.state === "ended") this.set("idle", ""); else this.render(); };
   Ptt.prototype.lost = function(why) {
-    if (this.state === "requesting" || this.state === "tx" || this.state === "releasing") { this.clear(); if (this.path === "mic") this.o.mic.stop(); this.set("ended", why || "The link dropped: the transmission is over"); }
+    if (this.state === "requesting" || this.state === "tx" || this.state === "releasing") { this.clear(); this.stopPath(); this.set("ended", why || "The link dropped: the transmission is over"); }
   };
   Ptt.prototype.set = function(state, why) {
     const self = this;

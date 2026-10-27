@@ -2545,7 +2545,9 @@ and the radio's `ctl none|local|tci|browser NAME MINE` say who controls the
 radio (while the code shows, the screen mirror of unpaired viewers pauses:
 the code is for the eyes at the radio); an admin's `sessions` lists the paired browsers as JSON and `revoke N`
 ends one; `unpair` forgets the caller's own; `tx 0|1` goes to every client
-when the radio keys or unkeys. Settings > General > BROWSER REMOTE turns the
+when the radio keys or unkeys. `key PTT 1 N` keys the radio's own microphone,
+N the page's number for this press, and is repeated every second as the
+lease; `key PTT 0` lets go (see Transmitting from the browser). Settings > General > BROWSER REMOTE turns the
 server on and off for both pages. A page opens on a tab with `/panel#ft8`,
 `#cw`, `#log`, `#keys` or `#screen`.
 
@@ -2575,6 +2577,20 @@ it shows the radio's real state and the operator presses again, on purpose.
 Nothing is replayed: not a frequency, not a PTT, not a CQ, not a QSO. What
 the operator typed is kept: the log fields, the chosen tab, through a lost
 link and a reload.
+
+A link that stalls (connected, but the radio does not answer) counts as lost
+for everything that touches the air, because what the page sends meanwhile
+waits in the connection and would arrive late, all at once: the transmission
+ends on the page (the PTT button shows "TX ended", the status line "The radio
+does not answer: keys released, press again when it answers"), held keys are
+let go (the releases follow whatever is stuck, so they arrive too), a tune on
+its way is dropped, and a key, a knob, a setting, an FT8 command or PTT
+pressed meanwhile is not sent ("The radio does not answer: nothing is sent
+until it does"). The link counts as back when the radio answers a ping sent
+after the silence: by then everything that was on its way from the radio has
+been read, so the page shows its real state before the next press. The page
+asks again every few seconds until it is answered, so an answer the radio
+dropped on the way (its queue for the page full) does not keep it stalled.
 
 A QSO from the Log tab is the one thing that must not be lost or doubled, so
 each goes with a number of its own and shows "sending..." until the radio
@@ -2655,9 +2671,9 @@ shows what the radio did, never what the page hoped:
 - Keying... until the radio confirms it is on the air (within 1.5 s, else
   "No TX: the radio did not key"); ON AIR with the seconds counting; on
   release Unkeying... until the radio confirms RX.
-- TX ended, when the radio ended it: the link dropped, the microphone went
-  away, the page lost sight of the key (a tab switch, a call on the phone),
-  the lease ran out. The operator presses again, on purpose.
+- TX ended, when the radio ended it: the link dropped or stalled, the
+  microphone went away, the page lost sight of the key (a tab switch, a call
+  on the phone), the lease ran out. The operator presses again, on purpose.
 - TX (not this browser), while the radio is keyed from elsewhere.
 
 A held PTT is a lease. With the radio's microphone the page renews the key
@@ -2666,7 +2682,15 @@ frozen) and the radio unkeys by itself, as it does after three minutes on
 the air whatever happens; the page is told why ("ptt released: no renewal
 from the page"). With the browser microphone the TCI rules apply: the radio
 unkeys half a second after the audio stops and after three minutes. Nothing
-keys the radio across a gap: a reconnect never re-presses PTT.
+keys the radio across a gap: a reconnect never re-presses PTT, and every
+press has a number of its own that its renewals carry. A hold the radio let
+go (the lease ran out, three minutes, a release) stays over: renewals of it
+that a stalled link delivers late are ignored, only a new press keys again.
+A Panel or Screen page left open since before the update that brought the
+numbers cannot key the radio's own microphone until it is reloaded: its PTT
+button shows "No TX" and the status line "this session may not transmit
+from a page older than the radio: reload the page". With Mic on (the
+browser's microphone, through the TCI) such a page still transmits.
 
 ### What the FT8 app will do next
 

@@ -43,6 +43,21 @@ def main():
 
         print("B10 PTT renewal:\n" + command(["node", HERE / "ptt-renewal.js"], env).strip())
 
+        # 26 October audit: the browser remote's commands, on the page and in the radio
+        print("C02 PTT hold, the page:\n" + command(["node", HERE / "ptt-hold.js"], env).strip())
+        command([sys.executable, HERE / "make-remote-harness.py"], env)
+        remote = work / "remote"
+        binary = remote / "remote"
+        command([*CC, *cflags, "-I" + str(remote), "-I" + str(HERE), remote / "remote-commands.c",
+                 remote / "control_owner.c", "-pthread", "-o", binary], env)
+        print("C02 ping numbers, the radio (fixed):\n" + command([binary, "ping"], env, contains=(
+            "pongs: pong|pong 7|pong 9007199254740991|",)).strip())
+        print("C02 PTT hold, the radio (fixed):\n" + command([binary, "ptt"], env, contains=(
+            "late renewals of the ended hold keyed the radio: 0",
+            "a new press keyed the radio: 1, still keyed at its renewal: 1",
+            "the refused press's renewal keyed the radio: 0",
+            "a page without numbers keyed the radio: 0, told to reload: 1")).strip())
+
         command([sys.executable, HERE / "make-unkey-harness.py"], env)
         binary = work / "unkey"
         command([*CC, *cflags, "-I" + directory, work / "unkey-ownership.c",

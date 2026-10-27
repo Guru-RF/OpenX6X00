@@ -15,9 +15,11 @@
  *
  *  Frames: binary, 8 bytes header {u16 width, u16 height, u32 sequence} little endian, then JPEG.
  *  Commands (text): "key NAME 1|0" (press, release), "knob main|vol|mfk N" (detents, signed),
- *  "ping". Answers: "hello <version> <boot>", "size W H", "pong", "err <text>". <boot> is a number
- *  chosen when the GUI started: a page that sees it change knows the radio restarted and
- *  nothing it had asked for survived (R6).
+ *  "ping [N]". Answers: "hello <version> <boot>", "size W H", "pong [N]", "err <text>". <boot> is a
+ *  number chosen when the GUI started: a page that sees it change knows the radio restarted and
+ *  nothing it had asked for survived (R6). The pong repeats the ping's number: a pong is dropped
+ *  with the rest when the client's queue is full, so the page tells by the number which ping it
+ *  answers rather than by counting (audit C02).
  *
  *  Sessions and control (R3): a new connection may only watch and listen ("role view 0 -").
  *  "pair?" puts a six-digit code on the radio's screen for two minutes; "pair CODE NAME" with
@@ -29,9 +31,10 @@
  *  "ctl WHO MINE" tells every client who has it (none, local, tci, browser NAME). The log needs
  *  operate. An admin lists the sessions ("sessions" -> "sessions [...]") and ends one ("revoke
  *  N": its sockets close, its token is gone); "unpair" forgets the caller's own. A held PTT
- *  key is a lease: the page repeats "key PTT 1" every second, the radio unkeys without it for
- *  three seconds, and after three minutes whatever happens (R4). "tx 0|1" goes to every client
- *  when the radio's TX state changes.
+ *  key is a lease: "key PTT 1 HOLD" presses it, HOLD the page's number for the press, and the
+ *  page repeats it every second; the radio unkeys without it for three seconds, and after three
+ *  minutes whatever happens (R4). A hold that ended stays ended: only a new number keys again
+ *  (audit C02). "tx 0|1" goes to every client when the radio's TX state changes.
  *
  *  The Panel page works the radio natively instead of through a picture of its screen: a client
  *  that sends "panel 1" gets the radio's state as JSON ("state {...}": frequency, mode, filter,
@@ -171,6 +174,7 @@ typedef struct {
     bool            tx_ok;          /* the session may transmit */
     uint64_t        ptt_ms;         /* the PTT key held: its last renewal, and when it began */
     uint64_t        ptt_start_ms;
+    uint32_t        ptt_hold;       /* the page's number for its last PTT press: renewed while held, then over */
     uint32_t        ctl_told;       /* the control version last told ("ctl"), 0 never */
 } client_t;
 
@@ -1436,6 +1440,55 @@ static bool allowed(client_t *c, uint8_t role, bool control) {
     return true;
 }
 
+/* "key PTT 1 HOLD": the radio's own microphone keyed, HOLD the page's number for this press; the page sends the
+ * same every second to renew the lease (ptt_lease). Only the hold that keyed is renewed: one that ended (the lease
+ * ran out, three minutes, a release) or was refused stays ended, so the renewals a stalled link delivers late key
+ * nothing, and a press on purpose comes with a new number (audit C02). A page without the numbers, open since
+ * before an update, renewed with the press itself: it is told to reload. Socket thread */
+static void ptt_down(client_t *c, const char *hold_text) {
+    uint32_t hold = hold_text ? (uint32_t)strtoul(hold_text, NULL, 10) : 0;
+    int      k    = 0;
+
+    while (k < c->nheld && c->held[k] != BTN_TRIGGER_HAPPY4) k++;
+    if (!hold) {
+        client_text(c, "err this session may not transmit from a page older than the radio: reload the page");
+        return;
+    }
+    if (hold < c->ptt_hold || (hold == c->ptt_hold && k == c->nheld))
+        return;                                 /* an ended hold's renewal: the page was told when it ended */
+    c->ptt_hold = hold;                         /* a press counts once, taken or refused */
+    if (!allowed(c, ROLE_OPERATE, true))
+        return;
+    if (!c->tx_ok) {
+        client_text(c, "err this session may not transmit");
+        return;
+    }
+    c->ptt_ms = now_ms();
+    if (k < c->nheld)
+        return;                                 /* down already: the lease renewed, the three minutes count on */
+    if (c->nheld == MAX_HELD) {
+        client_text(c, "err too many keys held");
+        return;
+    }
+    c->ptt_start_ms = c->ptt_ms;
+    c->held[c->nheld++] = BTN_TRIGGER_HAPPY4;
+    key_emit(BTN_TRIGGER_HAPPY4, true);
+}
+
+/* A held PTT is a lease (R4): renewed every second by the page, or let go here; three minutes at most. Its hold
+ * stays ended (ptt_down). Server thread */
+static void ptt_lease(client_t *c, uint64_t now) {
+    int k = 0;
+
+    while (k < c->nheld && c->held[k] != BTN_TRIGGER_HAPPY4) k++;
+    if (k < c->nheld && (now - c->ptt_ms > PTT_LEASE_MS || now - c->ptt_start_ms > PTT_LIMIT_MS)) {
+        c->held[k] = c->held[--c->nheld];
+        key_emit(BTN_TRIGGER_HAPPY4, false);
+        client_text(c, now - c->ptt_start_ms > PTT_LIMIT_MS ? "err ptt released: three minutes on the air"
+                                                            : "err ptt released: no renewal from the page");
+    }
+}
+
 static void sessions_tell(client_t *c) {
     char line[1024];
     int  n = snprintf(line, sizeof(line), "sessions [");
@@ -1519,7 +1572,10 @@ static void handle_text(client_t *c, char *text) {
     if (n == 0)
         return;
     if (!strcmp(a[0], "ping")) {
-        client_text(c, "pong");
+        if (n >= 2)
+            client_textf(c, "pong %llu", strtoull(a[1], NULL, 10));
+        else
+            client_text(c, "pong");
     } else if (!strcmp(a[0], "auth") && n >= 2) {
         int i = strlen(a[1]) == TOKEN_LEN ? sess_find(a[1]) : -1;
         if (i < 0) {
@@ -1604,30 +1660,22 @@ static void handle_text(client_t *c, char *text) {
             client_textf(c, "err unknown key %s", a[1]);
             return;
         }
+        if (code == BTN_TRIGGER_HAPPY4 && down) {  /* PTT: the radio's own microphone, a lease */
+            ptt_down(c, n >= 4 ? a[3] : NULL);
+            return;
+        }
         int i = 0;
         while (i < c->nheld && c->held[i] != code) i++;
         if (down) {
             if (!allowed(c, ROLE_OPERATE, true))
                 return;
-            if (code == BTN_TRIGGER_HAPPY4) {       /* PTT: the radio's own microphone */
-                if (!c->tx_ok) {
-                    client_text(c, "err this session may not transmit");
-                    return;
-                }
-                c->ptt_ms = now_ms();
-                if (i < c->nheld)
-                    return;                         /* the lease renewed, the key stays down */
-                c->ptt_start_ms = c->ptt_ms;
-            }
-            if (i == c->nheld) {
-                if (c->nheld == MAX_HELD) {
-                    client_text(c, "err too many keys held");
-                    return;
-                }
-                c->held[c->nheld++] = (uint16_t)code;
-            } else if (i < c->nheld) {
+            if (i < c->nheld)
                 return;                             /* already down: the hardware saw it */
+            if (c->nheld == MAX_HELD) {
+                client_text(c, "err too many keys held");
+                return;
             }
+            c->held[c->nheld++] = (uint16_t)code;
         } else if (i < c->nheld) {
             c->held[i] = c->held[--c->nheld];
         } else {
@@ -1788,6 +1836,7 @@ static void accept_client(int listen_fd) {
         c->role    = ROLE_VIEW;
         c->tx_ok   = false;
         c->ptt_ms  = c->ptt_start_ms = 0;
+        c->ptt_hold = 0;
         c->ctl_told = 0;
         c->last_ms = c->ping_ms = now_ms();
         inet_ntop(AF_INET, &peer.sin_addr, c->ip, sizeof(c->ip));
@@ -1886,8 +1935,7 @@ static void *server_thread(void *arg) {
                 }
             }
         }
-        /* A held PTT is a lease (R4): renewed every second by the page, or let go here; three
-         * minutes at most. Who controls the radio, and its TX state, to everyone. */
+        /* The PTT leases (ptt_lease). Who controls the radio, and its TX state, to everyone. */
         {
             bool tx = ctl_transmitting();
             bool tx_changed = tx != atomic_exchange(&tx_last, tx);
@@ -1896,14 +1944,7 @@ static void *server_thread(void *arg) {
                 client_t *c = &clients[i];
                 if (c->fd < 0 || !c->up)
                     continue;
-                int k = 0;
-                while (k < c->nheld && c->held[k] != BTN_TRIGGER_HAPPY4) k++;
-                if (k < c->nheld && (now - c->ptt_ms > PTT_LEASE_MS || now - c->ptt_start_ms > PTT_LIMIT_MS)) {
-                    c->held[k] = c->held[--c->nheld];
-                    key_emit(BTN_TRIGGER_HAPPY4, false);
-                    client_text(c, now - c->ptt_start_ms > PTT_LIMIT_MS ? "err ptt released: three minutes on the air"
-                                                                        : "err ptt released: no renewal from the page");
-                }
+                ptt_lease(c, now);
                 if (tx_changed)
                     client_textf(c, "tx %d", tx ? 1 : 0);
                 if (c->ctl_told != ver)

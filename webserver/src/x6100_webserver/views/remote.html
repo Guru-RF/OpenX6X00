@@ -95,8 +95,8 @@
 
 <p class="sub" style="margin-top:14px">Keyboard: F1–F5, ← → the main knob, Shift + ← → faster, [ ] volume, PageUp/PageDown the MFK, Enter the MFK push, Space PTT. Knobs: drag around the ring, or the mouse wheel over it. Sound starts on a tap (browsers ask for one). Mic needs an https page: <a id="httpslink" href="#">https://this radio/remote</a> (accept the certificate once).</p>
 
-<script src="/static/js/radio_link.js?v=1"></script>
-<script src="/static/js/radio_session.js?v=2"></script>
+<script src="/static/js/radio_link.js?v=2"></script>
+<script src="/static/js/radio_session.js?v=3"></script>
 <script>
 (function() {
   "use strict";
@@ -144,6 +144,12 @@
 
   /* ---- The connection: one link for control and the picture, one for sound; each comes back by itself ---- */
   function send(s) { return !!link && link.send(s); }
+  /* A key or a knob for the radio: not while it does not answer, it would arrive late, after whatever the operator
+   * did next (audit C02). Releases go with send(): late, they still let go */
+  function act(s) {
+    if (link && link.stalled) { status("The radio does not answer: nothing is sent until it does", true); return false; }
+    return send(s);
+  }
 
   /* The picture asked for: a per-browser choice, kept in this browser only */
   let pic = "sharp";
@@ -177,21 +183,33 @@
     },
     onBinary: showFrame,
     onClose: function(gen, retry, wasUp) { dropped(wasUp); },
-    onStall: function() { view(); },
+    onStall: function(on) { stalled(on); },
   });
   /* Who this browser is to the radio and who controls it (R3); the PTT as the radio confirms it (R4) */
   ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); }, onTx: function(on) { ptt.radioTx(on); }});
-  ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses,
+  ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses, link: link,
     mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
-  /* The link went: nothing of it is sent again. A held key or a transmission is let go here (the
-   * radio drops them too); the operator presses again, on purpose */
-  function dropped(wasUp) {
+  /* What touches the air is let go when the link can no longer carry it in time: a held key, knob turns not sent
+   * yet, a transmission. The link went (nothing of it is sent again, the radio drops them too), or it stalled: the
+   * releases go out behind whatever is stuck, so a late arrival lets go too (audit C02). The operator presses
+   * again, on purpose, once the radio answers */
+  function letGo(why) {
     const hadKeys = Object.keys(held).length > 0 || ptt.state === "tx" || ptt.state === "requesting";
-    Object.keys(held).forEach(function(k) { delete held[k]; const el = document.querySelector('[data-key="' + k + '"]'); if (el) el.classList.remove("down"); });
-    ptt.lost("The link dropped: the transmission is over. Press PTT again when it is back");
+    Object.keys(held).forEach(function(k) { keyUp(k, document.querySelector('[data-key="' + k + '"]')); });
+    Object.keys(knobAcc).forEach(function(k) { knobAcc[k] = 0; });
+    ptt.lost(why);
+    return hadKeys;
+  }
+  function dropped(wasUp) {
+    const hadKeys = letGo("The link dropped: the transmission is over. Press PTT again when it is back");
     screenEl.classList.add("stale"); panelEl.classList.add("stale");
     if (hadKeys) status("Connection lost: keys released, press again when it is back", true);
     else if (wasUp) status("Connection lost", true);
+    view();
+  }
+  function stalled(on) {
+    screenEl.classList.toggle("stale", on); panelEl.classList.toggle("stale", on);
+    if (on && letGo("The radio does not answer: the transmission is ended here. Press PTT again when it answers")) status("The radio does not answer: keys released, press again when it answers", true);
     view();
   }
   function pictureLine() { return lastFrame ? "The picture is from " + RadioLink.age(Date.now() - lastFrame) + " ago. " : "No picture from the radio yet. "; }
@@ -237,7 +255,7 @@
 
   /* ---- Keys ---- */
   const held = {};
-  function keyDown(name, el) { if (held[name]) return; held[name] = true; send("key " + name + " 1"); if (el) el.classList.add("down"); if (navigator.vibrate) navigator.vibrate(8); }
+  function keyDown(name, el) { if (held[name] || !act("key " + name + " 1")) return; held[name] = true; if (el) el.classList.add("down"); if (navigator.vibrate) navigator.vibrate(8); }
   function keyUp(name, el) { if (!held[name]) return; delete held[name]; send("key " + name + " 0"); if (el) el.classList.remove("down"); }
   function releaseAll() { Object.keys(held).forEach(function(k) { const el = document.querySelector('[data-key="' + k + '"]'); keyUp(k, el); }); ptt.release(); }
   function keysHave(names) { document.querySelectorAll("[data-key]").forEach(function(el) { const no = names.indexOf(el.dataset.key) < 0; el.disabled = no; el.title = no ? "Not on this radio" : el.title; }); }
@@ -259,7 +277,7 @@
     if (ring) { const deg = (parseFloat(ring.dataset.deg || "0") + steps * (name === "main" ? 12 : 18)) % 360; ring.dataset.deg = deg; ring.style.transform = "rotate(" + deg + "deg)"; }
     if (!knobTimer) knobTimer = setTimeout(function() {        /* a turn's detents in one message */
       knobTimer = null;
-      Object.keys(knobAcc).forEach(function(k) { if (knobAcc[k]) { send("knob " + k + " " + knobAcc[k]); knobAcc[k] = 0; } });
+      Object.keys(knobAcc).forEach(function(k) { if (knobAcc[k]) { act("knob " + k + " " + knobAcc[k]); knobAcc[k] = 0; } });
     }, 30);
   }
   document.querySelectorAll("[data-knob]").forEach(function(el) {
