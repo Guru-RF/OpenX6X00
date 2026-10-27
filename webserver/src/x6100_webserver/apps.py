@@ -1675,6 +1675,24 @@ LOG_FIELDS = {"call": r'[A-Z0-9/]{3,15}', "qso_date": r'\d{8}', "time_on": r'\d{
 SUBMODE_OF = {"FT4": "MFSK", "JS8": "MFSK", "FT2": "MFSK", "FST4": "MFSK", "FST4W": "MFSK", "Q65": "MFSK", "MSK144": "MFSK"}
 
 
+def log_unchanged(q, k, v):
+    """Whether v, put_log_qso's cleaned value of field k, is what the Logs page showed of the record (its fields q,
+    as get_logs gives them). The page sends every column back: one not edited is left as it is, bytes and all.
+    Written again, a NAME or COMMENT that is not UTF-8 (a log from elsewhere) went back as U+FFFD, and the time
+    lost its seconds (the page shows hh:mm), which made the QSO another one for the Wavelog upload (its qso_key)"""
+    if k == "ref":   # logs.html ref(): SOTA_REF, POTA_REF, or SIG_INFO but a park's
+        sig_info = "" if q.get("sig", "").upper() == "POTA" else q.get("sig_info", "")
+        old = q.get("sota_ref") or q.get("pota_ref") or sig_info
+    elif k == "mode":   # the submode where there is one
+        old = q.get("submode") or q.get("mode", "")
+    else:
+        old = q.get(k, "")
+    old = old.strip() if k in ("name", "qth", "comment") else old.strip().upper()
+    if k == "time_on" and len(v) == 4:   # hh:mm on the page
+        old = old[:4]
+    return v == old
+
+
 @app.put('/api/logs/<name>/<n:int>')
 def put_log_qso(name, n):
     """JSON {field: value} for any of LOG_FIELDS; an empty value removes the field (CALL and the date stay)."""
@@ -1700,7 +1718,10 @@ def put_log_qso(name, n):
     clean.pop("pota_ref", None)
 
     def change(rec):
+        shown = adif_fields(rec)
         for k, v in clean.items():
+            if log_unchanged(shown, k, v):
+                continue
             if k == "ref":
                 rec = set_ref(rec, v)
             elif k == "mode":

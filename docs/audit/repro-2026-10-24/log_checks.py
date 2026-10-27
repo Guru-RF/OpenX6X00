@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 path=Path(__file__).resolve().parents[3] / 'webserver/src/x6100_webserver/apps.py'
 tree=ast.parse(path.read_text())
-needed={'field_path','adif_split','adif_tag','adif_set','adif_del','adif_get','edit_qso','adif_fields','log_records','api_error','put_log_qso','rec_id','set_ref','ref_prog','ref_norm'}
+needed={'field_path','adif_split','adif_tag','adif_set','adif_del','adif_get','edit_qso','adif_fields','log_records','api_error','put_log_qso','rec_id','set_ref','ref_prog','ref_norm','log_unchanged'}
 selected=[]
 for node in tree.body:
     if isinstance(node,ast.FunctionDef) and node.name in needed:
@@ -115,3 +115,26 @@ with tempfile.TemporaryDirectory(prefix='x6log-') as td:
     fields=ns['adif_fields'](ns['log_records']('day.adi')[0])
     print('QTH removed:',raw.split(b'<eor>')[0])
     assert b'QTH' not in raw and fields['name']=='Jürgen' and fields['comment']=='73 de Jürgen ✓' and raw.endswith(other)
+    # The Logs page sends every column it shows (logs.html editRow): those not edited stay as they are, bytes and
+    # all, the time's seconds too (the page shows hh:mm); before, a NAME and COMMENT in Latin-1 went back as U+FFFD
+    # and 12:00:01 as 1200, another QSO for the upload (x6100-wavelog's qso_key) (review of C10)
+    def page_save(n,**typed):
+        rec=ns['log_records']('day.adi')[n];q=ns['adif_fields'](rec)
+        if q.get('submode'):q['mode']=q['submode']
+        ref=q.get('sota_ref') or q.get('pota_ref') or ('' if q.get('sig','').upper()=='POTA' else q.get('sig_info',''))
+        data={c:q.get(c,'') for c in ('call','freq','band','mode','rst_sent','rst_rcvd','name','gridsquare','comment')}
+        data.update(qso_date=q['qso_date'],time_on=q['time_on'][:4],ref=ref.strip().upper());data.update(typed)
+        bottle.request.query={'id':ns['rec_id'](rec)};bottle.request.json=data
+        return ns['put_log_qso']('day.adi',n)
+    latin=b'<CALL:5>F4ABC <QSO_DATE:8>20261027 <TIME_ON:6>120001 <BAND:3>20m <NAME:4>Ren\xe9 <MODE:4>MFSK <SUBMODE:3>FT4 <RST_SENT:3>599 <COMMENT:6>tr\xe8s 1 <SIG:4>WWFF <SIG_INFO:9>ONFF-0001 <eor>\n'
+    log.write_bytes(latin)
+    key=helper['qso_key'](helper['adif_fields'](ns['log_records']('day.adi')[0]))
+    page_save(0,rst_sent='579')
+    raw=log.read_bytes()
+    print('Latin-1 record, RST 599 -> 579 by the page:',raw)
+    assert raw==latin.replace(b'<RST_SENT:3>599',b'<RST_SENT:3>579'),raw
+    assert helper['qso_key'](helper['adif_fields'](ns['log_records']('day.adi')[0]))==key
+    page_save(0,time_on='1205',name='René')
+    raw=log.read_bytes()
+    print('time 12:05 and NAME René typed:',raw)
+    assert b'<TIME_ON:4>1205' in raw and '<NAME:5>René'.encode() in raw and b'<COMMENT:6>tr\xe8s 1 ' in raw and b'<SUBMODE:3>FT4' in raw
