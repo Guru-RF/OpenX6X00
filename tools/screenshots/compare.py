@@ -25,7 +25,11 @@ def main():
         sys.exit(__doc__)
     a1d, a2d, bd = sys.argv[1:]
     status = 0
-    names = sorted(n for n in os.listdir(a1d) if n.endswith(".png") and not n.endswith("_diff.png"))
+    # every shot of the three folders: one missing from any of them fails, and so do no shots at all
+    names = sorted({n for d in (a1d, a2d, bd) for n in os.listdir(d) if n.endswith(".png") and not n.endswith("_diff.png")})
+    if not names:
+        print("no shots to compare")
+        sys.exit(1)
     for name in names:
         try:
             a1, a2, b = (Image.open(os.path.join(d, name)).convert("RGB") for d in (a1d, a2d, bd))
