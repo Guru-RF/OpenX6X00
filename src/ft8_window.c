@@ -274,7 +274,8 @@ static void udp_check_cb(lv_timer_t *t) {
 /* A QSO is complete (qso.cpp, or the Fox's RR73): the ADIF file, the log, the loggers, the remote */
 /* ---- The decoder thread's hands on the screen (audit B05) ----
  * on_message and on_tick run on the audio worker: what they want of the GUI (the finder's cursor
- * and TX frequency, CQ off, the Field Ops entry of a logged QSO) goes to the LVGL thread as a job.
+ * on and off, its TX frequency, CQ off, the Field Ops entry of a logged QSO) goes to the LVGL
+ * thread as a job.
  * A full queue is tried again for a while, never waited on for good: the GUI joins this thread
  * when the window closes */
 static void set_tx_freq(int32_t hz);
@@ -288,7 +289,7 @@ static void gui_post(scheduler_fn_t fn, const void *arg, size_t n) {
 }
 
 typedef struct {
-    bool     cursor, txfreq, cq_off;
+    bool     cursor_off, cursor, txfreq, cq_off;
     float    cursor_hz;
     uint32_t tx_gen;    /* of the step that made it */
     uint32_t win_gen;
@@ -303,6 +304,7 @@ static void ui_apply(void *arg) {
     if (j->txfreq) set_tx_freq(params.ft8_tx_freq.x);
     /* The station answered, a CQ over: not when the operator chose another transmission since */
     if (j->tx_gen != tx_gen) return;
+    if (j->cursor_off) lv_finder_clear_cursor(finder);
     if (j->cursor) lv_finder_set_cursor(finder, j->cursor_hz);
     if (j->cq_off && subject_i_get(cq_enabled)) subject_i_set(cq_enabled, false);
 }
@@ -322,14 +324,33 @@ static void ui_job_tx_freq(ui_job_t *j, int32_t hz) {
     j->txfreq = true;
 }
 
-/* GUI thread: the QSO into the Field Ops log (its screen follows) */
+/* A QSO the sequence completed, noted under qso_mux (qso_completed) */
+typedef struct {
+    char     call[32];
+    char     grid[16];
+    int      rcvd, sent;
+    uint32_t tx_gen;    /* of the step that completed it */
+} done_qso_t;
+
+/* GUI thread: the QSO into the Field Ops log (its screen follows) whether the window is open or
+ * not, the finder's cursor off as a job of the window */
+typedef struct {
+    qso_log_record_t rec;
+    ui_job_t         ui;
+} saved_job_t;
+
 static void save_qso_apply(void *arg) {
-    dialog_field_day_log((qso_log_record_t *)arg);
+    saved_job_t *j = arg;
+
+    dialog_field_day_log(&j->rec);
+    ui_apply(&j->ui);
 }
 
 /* A QSO the sequence completed (the decoder thread, or the Save key on the GUI), after its step:
- * the ADIF and the log database here, the Field Ops entry on the GUI thread */
-static void save_qso(const char *call, const char *grid, const int rcvd, const int sent) {
+ * the ADIF and the log database here, the Field Ops entry and the cursor on the GUI thread */
+static void save_qso(const done_qso_t *d) {
+    const char *call = d->call, *grid = d->grid;
+    const int   rcvd = d->rcvd, sent = d->sent;
     time_t now = time(NULL);
     int64_t dial = cparam_i_get(cfg_fg_freq);
     char  *canon = util_canonize_callsign(call, false);
@@ -340,7 +361,10 @@ static void save_qso(const char *call, const char *grid, const int rcvd, const i
 
     adif_add_qso(ft8_log, rec);
     qso_log_record_save(rec);
-    gui_post(save_qso_apply, &rec, sizeof(rec));
+
+    saved_job_t job = {.rec = rec, .ui = {.cursor_off = true, .tx_gen = d->tx_gen, .win_gen = win_gen}};
+
+    gui_post(save_qso_apply, &job, sizeof(job));
     snprintf(last_logged, sizeof(last_logged), "%s", call);
     last_logged_at = now;
     ft8_udp_log_qso(now, rec.remote_call, grid, (uint64_t)cparam_i_get(cfg_fg_freq), mode_name(), sent, rcvd,
@@ -354,17 +378,10 @@ static void save_qso(const char *call, const char *grid, const int rcvd, const i
     } else {
         msg_schedule_long_text_fmt("Saved QSO de %s %d %d", call, sent, rcvd);
     }
-    lv_finder_clear_cursor(finder);
 }
 
 /* The QSOs completed in a step under qso_mux, for qso_unlock(). Two at most: in Hound mode the
  * processor's and Hound's own */
-typedef struct {
-    char call[32];
-    char grid[16];
-    int  rcvd, sent;
-} done_qso_t;
-
 static done_qso_t done_qsos[2];
 static int        done_n;
 
@@ -379,8 +396,9 @@ static void qso_completed(const char *call, const char *grid, const int rcvd, co
 
     snprintf(d->call, sizeof(d->call), "%s", call);
     snprintf(d->grid, sizeof(d->grid), "%s", grid);
-    d->rcvd = rcvd;
-    d->sent = sent;
+    d->rcvd   = rcvd;
+    d->sent   = sent;
+    d->tx_gen = tx_gen;
 }
 
 static void qso_lock(void) {
@@ -395,7 +413,7 @@ static void qso_unlock(void) {
     memcpy(done, done_qsos, n * sizeof(done[0]));
     done_n = 0;
     pthread_mutex_unlock(&qso_mux);
-    for (int i = 0; i < n; i++) save_qso(done[i].call, done[i].grid, done[i].rcvd, done[i].sent);
+    for (int i = 0; i < n; i++) save_qso(&done[i]);
 }
 
 /* Activators spotted on POTA now: the cluster store, which x6100-pota-spots feeds (worker thread only) */
