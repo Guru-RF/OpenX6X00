@@ -34,6 +34,9 @@ app = bottle.Bottle()   # the configurator pages and their API
 # serves all of /mnt (the Wavelog, QRZ, HOTA and WWFF keys, backups/backup.tgz with the SSH host keys and the WiFi
 # passwords, the Winlink mail), and the Backup download can hold the WiFi passwords
 HOST_ONLY_READS = ("/files/", "/api/backup/download")
+# Reads sent as a POST (a form with the selection), with no secret in them: by any name, as the GET reads are (the
+# QSOs and the pictures are on the pages by any name). The cross-site check still applies
+POST_READS = ("/logs/export", "/api/gallery/zip")
 
 
 def host_refused():
@@ -55,7 +58,8 @@ def refuse_other_sites():
     (local_host_ok) as well. Before, the Wavelog page sent the key and Files handed it out by any name (audit C08)"""
     req = bottle.request
     write = req.method not in ("GET", "HEAD", "OPTIONS")
-    if (write or req.path.startswith(HOST_ONLY_READS)) and not local_host_ok():
+    change = write and req.path not in POST_READS
+    if (change or req.path.startswith(HOST_ONLY_READS)) and not local_host_ok():
         raise host_refused()
     if not write:
         return
