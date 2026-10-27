@@ -585,8 +585,13 @@ lv_obj_t *theme_icon_img(lv_obj_t *parent, const char *name, int size, lv_color_
     char                path[256];
     const lv_img_dsc_t *d;
 
-    snprintf(path, sizeof(path), BOARD_SHARE "/icons/%s_%d.png", name, size);
-    d = theme_png(path);
+    /* 1bit: its own pixel icons (tools/icons/mkicons.py), else the others' */
+    snprintf(path, sizeof(path), BOARD_SHARE "/icons/1bit/%s_%d.png", name, size);
+    d = theme_shape.mono ? theme_png(path) : NULL;
+    if (!d) {
+        snprintf(path, sizeof(path), BOARD_SHARE "/icons/%s_%d.png", name, size);
+        d = theme_png(path);
+    }
     if (!d) return NULL;
     lv_obj_t *img = lv_img_create(parent);
     lv_img_set_src(img, d);

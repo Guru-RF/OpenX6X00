@@ -5,6 +5,10 @@ PIL at four times the size and scaled down, so they stay crisp at 24 and 36 px.
 
   python3 tools/icons/mkicons.py rootfs/usr/share/x6100/icons
 
+Also a 1-bit set in <out>/1bit/ for the 1bit theme: the same drawings scaled down by area and cut
+at half coverage, every pixel on or off with strokes of even weight (thresholding the Lanczos
+ones left them uneven).
+
 SPDX-License-Identifier: LGPL-2.1-or-later
 Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
 """
@@ -57,6 +61,12 @@ class Pen:
 
     def out(self, size):
         return self.im.resize((size, size), Image.LANCZOS)
+
+    def out_1bit(self, size):
+        alpha = self.im.getchannel("A").resize((size, size), Image.BOX).point(lambda v: 255 if v >= 128 else 0)
+        im = Image.new("RGBA", (size, size), (255, 255, 255, 0))
+        im.putalpha(alpha)
+        return im
 
 
 def sine(pen, x0, x1, y, amp, periods, w=None):
@@ -214,13 +224,14 @@ ICONS = {n[2:]: f for n, f in globals().items() if n.startswith("i_") and callab
 
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "rootfs/usr/share/x6100/icons"
-    os.makedirs(out, exist_ok=True)
+    os.makedirs(os.path.join(out, "1bit"), exist_ok=True)
     for name, draw in sorted(ICONS.items()):
         for size in SIZES:
             pen = Pen(size)
             draw(pen)
             pen.out(size).save(os.path.join(out, f"{name}_{size}.png"))
-    print(f"{len(ICONS)} icons x {len(SIZES)} sizes in {out}")
+            pen.out_1bit(size).save(os.path.join(out, "1bit", f"{name}_{size}.png"))
+    print(f"{len(ICONS)} icons x {len(SIZES)} sizes in {out}, and in {out}/1bit")
 
 
 if __name__ == "__main__":
