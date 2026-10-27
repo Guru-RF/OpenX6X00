@@ -1,4 +1,4 @@
-From 4cf549478ab4de8330582aae19bf5a413c6ac4f6 Mon Sep 17 00:00:00 2001
+From e18338b2984e08ec7c28aa91b3fd8a2dac97bd3a Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Mon, 26 Oct 2026 12:19:12 +0100
 Subject: [PATCH] api: refuse requests other sites can make a browser send
@@ -8,7 +8,10 @@ Pat has no login, and a plain GET of /api/connect keys the transmitter.
 The HTTP server's handler is wrapped in a guard:
 
 - the Host header must be an IP address, localhost, the hostname,
-  <hostname>.local or end in .ts.net (no DNS rebinding);
+  <hostname>.local, end in .ts.net, or be the radio's MagicDNS short
+  name (the first part of name= in /run/tailscale/status, x6200-1 when
+  the tailnet still has an earlier card's machine as x6200), the names
+  the web configurator takes (no DNS rebinding);
 - for /api/ and /ws, an Origin header, when present, must name the same
   host:port as Host, and Sec-Fetch-Site, when present, must be
   same-origin or none;
@@ -23,9 +26,9 @@ The HTTP server's handler is wrapped in a guard:
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  api/api.go        |   2 +-
- api/guard.go      | 112 ++++++++++++++++++++++++++++++++++++++++++++++
- api/guard_test.go |  74 ++++++++++++++++++++++++++++++
- 3 files changed, 187 insertions(+), 1 deletion(-)
+ api/guard.go      | 138 ++++++++++++++++++++++++++++++++++++++++++++++
+ api/guard_test.go | 102 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 241 insertions(+), 1 deletion(-)
  create mode 100644 api/guard.go
  create mode 100644 api/guard_test.go
 
@@ -44,10 +47,10 @@ index 7f39760..a1c9308 100644
  	go func() {
 diff --git a/api/guard.go b/api/guard.go
 new file mode 100644
-index 0000000..2c07a00
+index 0000000..9fa7b86
 --- /dev/null
 +++ b/api/guard.go
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,138 @@
 +// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
 +// Use of this source code is governed by the MIT-license that can be
 +// found in the LICENSE file.
@@ -69,8 +72,10 @@ index 0000000..2c07a00
 +// transmitter.
 +//
 +//   - The Host header must name this machine: an IP address, localhost, the hostname,
-+//     <hostname>.local or a Tailscale name (*.ts.net). Any other name is one that somebody's
-+//     DNS points at us (DNS rebinding).
++//     <hostname>.local, a Tailscale name (*.ts.net) or the short name MagicDNS gives the
++//     radio (the first part of its tailnet name, from x6100-tailscale's status file: x6200-1
++//     when the tailnet still has an earlier card image's machine as x6200). Any other name is
++//     one that somebody's DNS points at us (DNS rebinding).
 +//   - For /api/ and /ws: an Origin header, when present, must name the same host:port as
 +//     Host, and Sec-Fetch-Site, when present, must be same-origin or none.
 +//   - What changes something (/api/connect and /api/disconnect, which take a GET, and any
@@ -117,9 +122,33 @@ index 0000000..2c07a00
 +	if host == "localhost" || strings.HasSuffix(host, ".ts.net") {
 +		return true
 +	}
++	if short := tailnetName(); short != "" && host == short {
++		return true
++	}
 +	name, err := os.Hostname()
 +	name = strings.TrimSuffix(strings.ToLower(name), ".")
 +	return err == nil && name != "" && (host == name || host == name+".local")
++}
++
++// tailscaleStatus is the status file x6100-tailscale keeps; its name= line is the radio's
++// MagicDNS name (x6200-1.tail1234.ts.net) while it is on a tailnet.
++var tailscaleStatus = "/run/tailscale/status"
++
++// tailnetName is the first part of the radio's MagicDNS name, the short name a tailnet peer
++// opens it by; "" when it is on no tailnet. The web configurator takes the same name
++// (local_host_ok), and its Winlink page links to the mailbox by the name it was opened by.
++func tailnetName() string {
++	b, err := os.ReadFile(tailscaleStatus)
++	if err != nil {
++		return ""
++	}
++	for _, line := range strings.Split(string(b), "\n") {
++		if v, ok := strings.CutPrefix(line, "name="); ok {
++			short, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(v)), ".")
++			return short
++		}
++	}
++	return ""
 +}
 +
 +// guardedPath tells whether a path is the API's: /api, /api/... or /ws.
@@ -162,20 +191,22 @@ index 0000000..2c07a00
 +}
 diff --git a/api/guard_test.go b/api/guard_test.go
 new file mode 100644
-index 0000000..3e01d21
+index 0000000..0a6261b
 --- /dev/null
 +++ b/api/guard_test.go
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,102 @@
 +package api
 +
 +import (
 +	"net/http"
 +	"net/http/httptest"
 +	"os"
++	"path/filepath"
 +	"testing"
 +)
 +
 +func TestGuard(t *testing.T) {
++	tailscaleStatus = filepath.Join(t.TempDir(), "status") // on no tailnet
 +	hostname, _ := os.Hostname()
 +	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 +	tests := []struct {
@@ -237,6 +268,32 @@ index 0000000..3e01d21
 +		guard(ok).ServeHTTP(w, r)
 +		if w.Code != tt.want {
 +			t.Errorf("%s Host=%q Origin=%q Sec-Fetch-Site=%q: got %d, want %d", tt.path, tt.host, tt.origin, tt.site, w.Code, tt.want)
++		}
++	}
++}
++
++// The short name MagicDNS gives the radio, while x6100-tailscale's status file names it.
++func TestGuardTailnetName(t *testing.T) {
++	tailscaleStatus = filepath.Join(t.TempDir(), "status")
++	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
++	code := func(host string) int {
++		r := httptest.NewRequest("GET", "http://x/api/status", nil)
++		r.Host = host
++		w := httptest.NewRecorder()
++		guard(ok).ServeHTTP(w, r)
++		return w.Code
++	}
++	if got := code("x6200-1:8080"); got != 403 {
++		t.Errorf("x6200-1 on no tailnet: got %d, want 403", got)
++	}
++	status := "state=running\ntext=Connected\nname=X6200-1.tail1234.ts.net\nip=100.101.102.103\n"
++	if err := os.WriteFile(tailscaleStatus, []byte(status), 0o644); err != nil {
++		t.Fatal(err)
++	}
++	for host, want := range map[string]int{"x6200-1:8080": 200, "X6200-1.:8080": 200, "x6200-1": 200,
++		"x6200-2:8080": 403, "tail1234:8080": 403, "x6200-1.evil.example:8080": 403} {
++		if got := code(host); got != want {
++			t.Errorf("Host=%q with the tailnet name x6200-1: got %d, want %d", host, got, want)
 +		}
 +	}
 +}
