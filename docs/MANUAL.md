@@ -2218,12 +2218,17 @@ from any browser on the same network. The radio picks up changes within a few se
 
 A change is taken only from a page opened by the radio's address, its own name
 (`x6100.local`, `x6200.local`, or the [network name](#network-name) you gave
-it) or its Tailscale name, and the same goes for the Files page and the Backup
-download, which hold the keys and passwords kept on the radio. Opened by
-another name (one your router gives it, `x6100.fritz.box`), the pages show
-the settings but do not save them, and say by which names they do: a web site
-can point a name of its own at the radio (DNS rebinding), and through your
-browser it could otherwise change settings or download the keys.
+it) or its Tailscale name (the full `*.ts.net` one, or the short one on your
+tailnet), and the same goes for the Files page and the Backup download, which
+hold the keys and passwords kept on the radio, and for the connections of the
+Panel and the Remote page (the Panel's sound too). Opened by another name (one
+your router gives it, `x6100.fritz.box`), the pages show the settings but do
+not save them, the Panel and the Remote page do not connect, and they say by
+which names they do: a web site can point a name of its own at the radio (DNS
+rebinding), and through your browser it could otherwise change settings,
+download the keys or key the transmitter. Logs > Export and the Gallery's ZIP
+download hold no secret and work by any name; TCI programs, which are not
+browsers, connect by any name as before.
 
 The menu has General and four groups:
 
@@ -2360,7 +2365,7 @@ Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavel
 - Each QSO goes once. The radio tells QSOs apart by the other station, the date and time to the second, the band, the mode and your station callsign: two QSOs with DL1ABC in the same minute, or one as ON6URE and one as ON6URE/P, are two, and both go. Wavelog itself takes a second QSO with the same station, band and mode within 15 minutes, under the same callsign of yours, for a duplicate.
 - Without a network, or behind a WiFi login page, the QSOs wait on the SD card (`/mnt/field/wavelog.queue`) and go at the next QSO, a minute after the next start, every 5 minutes while some wait, or with Send now on the web page.
 - A QSO Wavelog refuses (a record it can't take) goes to `/mnt/field/wavelog.failed.adi` and is not sent again unless it is edited on the Logs page. A refused key stops the upload until a new key is saved; the QSOs wait.
-- A QSO edited on the Logs page after it was sent goes again with the next upload. Wavelog adds QSOs and changes none it has: when the call, the band, the mode or the time (by more than 15 minutes) changed, it adds the edited one, and the old one is to be deleted there; otherwise it keeps its own copy, and the display says "Wavelog: DL1ABC was already there, edit it in Wavelog too". A QSO deleted on the Logs page stays in Wavelog.
+- A QSO edited on the Logs page after it was sent goes again with the next upload. Wavelog adds QSOs and changes none it has. When the QSO's call, date, time, band, mode and own callsign are as they were (a report or a name corrected), Wavelog keeps its own copy, and the display says "Wavelog: DL1ABC was already there, edit it in Wavelog too". An edit of any of those reaches Wavelog as another QSO: it is added ("uploaded"), or, within 15 minutes of the old one with the same call, band and mode, found as a duplicate ("was already there"); either way the old one is to be corrected or deleted in Wavelog by hand. A QSO edited while it waits (no network) goes as it stands then, once; deleted while it waits, it does not go. A QSO deleted on the Logs page after it was sent stays in Wavelog.
 - HTTPS is checked against the radio's root certificates. Check the certificate off only for a Wavelog at home with a self-signed certificate.
 - The key is kept in `/mnt/field/wavelog.conf`. The Wavelog page never shows it again and it is not in the Backup, but like the QRZ, HOTA and WWFF keys it can be downloaded from the Files page by anyone who reaches the web configurator (your LAN, and your tailnet with Tailscale on). The upload uses Wavelog's API (`api/qso`, `api/station_info`, `api/version`); QSOs sent through it are not uploaded on to other services by Wavelog at once and get no callbook lookup there.
 - By hand: `x6100-wavelog sync`, `x6100-wavelog stations`, `x6100-wavelog test` (one line each, as the other helpers).
@@ -2459,7 +2464,7 @@ Good to know:
   make the radio transmit under your callsign. Turn Winlink off on a network
   you do not trust (a campsite's WiFi, a shared hotspot).
 - The mailbox answers only to the radio's address and its own names
-  (`x6100.local`, the Tailscale name), and refuses requests from the pages of
+  (`x6100.local`, the Tailscale name, the short name on your tailnet), and refuses requests from the pages of
   other sites, so a web page you happen to visit cannot use it through your
   browser. The configurator changes Winlink only when opened by those names
   too. ARDOP and the radio's frequency control for Pat listen on 127.0.0.1,
