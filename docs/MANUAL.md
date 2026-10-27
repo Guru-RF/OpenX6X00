@@ -2203,6 +2203,15 @@ A small web server (vendored in [webserver/](../webserver/), Python/bottle) runs
 on the radio on port 80. Open `http://x6100.local/` (or `http://<radio IP>/`)
 from any browser on the same network. The radio picks up changes within a few seconds.
 
+A change is taken only from a page opened by the radio's address, its own name
+(`x6100.local`, `x6200.local`, or the [network name](#network-name) you gave
+it) or its Tailscale name, and the same goes for the Files page and the Backup
+download, which hold the keys and passwords kept on the radio. Opened by
+another name (one your router gives it, `x6100.fritz.box`), the pages show
+the settings but do not save them, and say by which names they do: a web site
+can point a name of its own at the radio (DNS rebinding), and through your
+browser it could otherwise change settings or download the keys.
+
 The menu has General and four groups:
 
 | Group | Page | Does |
@@ -2331,7 +2340,7 @@ Server options: `--host`, `--port`, `--https-port` (0 = off), `--cert-dir`,
 
 Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavelog) as well, a few seconds after it is logged: FT8, FT4, FT2, JS8, voice and CW (the phone's logger, the CW keyboard) and the Field Ops activations, all that the web Logs page lists. The radio's own logs stay as they are. Where: web configurator, Operating > Wavelog.
 
-- Set up: the Wavelog URL (the address you open Wavelog with), an API key with read and write rights (Wavelog: your account menu, API Keys), then Load, choose the station profile and switch Upload to Wavelog on. Test connection asks Wavelog for its version, with what is typed, before Save.
+- Set up: the Wavelog URL (the address you open Wavelog with), an API key with read and write rights (Wavelog: your account menu, API Keys), then Load, choose the station profile and switch Upload to Wavelog on. Test connection asks Wavelog for its version, with what is typed, before Save. The saved key goes only to the server it was saved with: with the URL of another server (your Wavelog moved), type the key again for Test connection, Load and Save.
 - Station profile Automatic: each QSO goes to the Wavelog profile with the callsign the radio logged it with (Settings > General > STATION). With a profile DF8MH and one DF8MH/P in Wavelog, changing the callsign on the radio is all it takes; when several profiles have the callsign, the one Wavelog marks active. A QSO whose callsign has no profile waits, "Wavelog: no station profile for DF8MH/M, 1 QSO waiting", and the others still go; make the profile in Wavelog, then Send now.
 - From the moment it is switched on: the QSOs logged before are not sent. To send an older log, import its ADIF in Wavelog (Files, Logs page, Export).
 - The display says what happened: "Wavelog: DL1ABC uploaded", "Wavelog: DL1ABC was already there" (Wavelog found it as a duplicate), "Wavelog: no connection, 2 QSOs waiting". A failure is shown once, on the QSO that met it.

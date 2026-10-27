@@ -30,14 +30,34 @@ from . import settings
 
 app = bottle.Bottle()   # the configurator pages and their API
 
+# Reads that hand out what the radio keeps secret, taken only by its own names as the changes are: the Files page
+# serves all of /mnt (the Wavelog, QRZ, HOTA and WWFF keys, backups/backup.tgz with the SSH host keys and the WiFi
+# passwords, the Winlink mail), and the Backup download can hold the WiFi passwords
+HOST_ONLY_READS = ("/files/", "/api/backup/download")
+
+
+def host_refused():
+    msg = (f"Open this page by the radio's address, {socket.gethostname()}.local or its Tailscale name: by another "
+           "name a page from another site could do the same through your browser")
+    if bottle.request.path.startswith("/api/"):   # the pages show the msg of an API's answer
+        return bottle.HTTPResponse(json.dumps({"status": "error", "msg": msg}), 403,
+                                   {"Content-Type": "application/json"})
+    return bottle.HTTPError(403, msg)
+
 
 @app.hook('before_request')
-def refuse_cross_site_writes():
+def refuse_other_sites():
     """A request that changes something, sent by a page from another site (a form a browser on the
     LAN was made to submit): refused. The radio's own pages send none of these headers, or their own
-    host. Browsers mark the request with Sec-Fetch-Site, older ones only with Origin."""
+    host. Browsers mark the request with Sec-Fetch-Site, older ones only with Origin.
+    A site that points a name of its own at the radio (DNS rebinding) sends that name as Host and Origin
+    alike and passes this: a change, and a read of HOST_ONLY_READS, needs one of the radio's own names
+    (local_host_ok) as well. Before, the Wavelog page sent the key and Files handed it out by any name (audit C08)"""
     req = bottle.request
-    if req.method in ("GET", "HEAD", "OPTIONS"):
+    write = req.method not in ("GET", "HEAD", "OPTIONS")
+    if (write or req.path.startswith(HOST_ONLY_READS)) and not local_host_ok():
+        raise host_refused()
+    if not write:
         return
     if req.headers.get("Sec-Fetch-Site", "") == "cross-site":
         bottle.abort(403, "Cross-site request refused")
@@ -568,10 +588,11 @@ def tailscale_page():
 
 def local_host_ok():
     """The page opened by an address or by the radio's own name. A page from another site that points its own
-    name at the radio (DNS rebinding) passes the cross-site guard: Tailscale is switched and its login link
-    shown (which would put the radio on that site's tailnet), Winlink changed, and the SSH keys listed and
-    changed (a key added is a root login), only by these names. Pat's mailbox on port 8080 takes the same names
-    (tools/pat)"""
+    name at the radio (DNS rebinding) passes the cross-site guard: every change (refuse_other_sites), the Files
+    page and the Backup download, Tailscale's login link (which would put the radio on that site's tailnet) and
+    the list of SSH keys only by these names. Pat's mailbox on port 8080 takes the same names (tools/pat).
+    MagicDNS's short name too, which is the tailnet's name for the radio: x6200-1 while the tailnet still has the
+    machine of an earlier card image as x6200"""
     host = (urllib.parse.urlsplit("//" + (bottle.request.get_header("Host") or "")).hostname or "").rstrip(".")
     try:
         ipaddress.ip_address(host)
@@ -579,7 +600,11 @@ def local_host_ok():
     except ValueError:
         pass
     name = socket.gethostname().lower()
-    return host in ("localhost", name, name + ".local") or host.endswith(".ts.net")
+    names = {"localhost", name, name + ".local"}
+    tailnet = tailscale_status().get("name", "").lower()
+    if tailnet:
+        names.add(tailnet.split(".")[0])
+    return host in names or host.endswith(".ts.net")
 
 
 @app.get('/api/tailscale')
@@ -592,8 +617,6 @@ def get_tailscale():
 
 @app.post('/api/tailscale')
 def set_tailscale():
-    if not local_host_ok():
-        return api_error(403, f"Open this page by the radio's address or {socket.gethostname()}.local to change Tailscale")
     action = (bottle.request.json or {}).get("action")
     if action not in ("on", "off", "logout"):
         return api_error(400, "action: on, off or logout")
@@ -684,8 +707,6 @@ def get_winlink():
 def set_winlink():
     """Any of enabled, mycall, locator, bandwidth and password; what is not sent stays. An empty callsign or
     locator is the radio's own, an empty password keeps the one set"""
-    if not local_host_ok():
-        return api_error(403, f"Open this page by the radio's address or {socket.gethostname()}.local to change Winlink")
     try:
         data = bottle.request.json
     except ValueError:
@@ -1265,14 +1286,28 @@ def wavelog_run(cmd, form=None, timeout=330):
         return f"error {e}"
 
 
+def wavelog_origin(url):
+    """Scheme, host and port of a URL: the server a key is sent to (x6100-wavelog's origin)"""
+    try:
+        u = urllib.parse.urlsplit(url.strip())
+        scheme = u.scheme.lower()
+        return scheme, (u.hostname or "").lower(), u.port or {"http": 80, "https": 443}.get(scheme)
+    except ValueError:   # a port that is not one: equal only to the same text
+        return url.strip()
+
+
 def wavelog_form(body):
-    """URL, key and certificate check of the page's form, checked; None and the reason when wrong"""
+    """URL, key and certificate check of the page's form, checked; None and the reason when wrong. An empty key
+    is the saved one, for the saved URL's server only: Test or Save with another URL sent it there (audit C08)"""
     url = str(body.get("url", "")).strip()
     key = str(body.get("key", "")).strip()
     if url and not re.fullmatch(WAVELOG_URL, url):
         return None, "The URL starts with http:// or https://, no spaces"
     if key and not re.fullmatch(r"[!-~]{1,128}", key):
         return None, "A key is 1-128 printable characters, no spaces"
+    saved = wavelog_read()
+    if url and not key and saved.get("key") and wavelog_origin(url) != wavelog_origin(saved.get("url", "")):
+        return None, "Another server: type its API key too (the saved key goes only to the server it was saved with)"
     return {"url": url, "key": key, "verify_tls": body.get("verify_tls", True) is not False}, None
 
 

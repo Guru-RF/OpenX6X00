@@ -22,7 +22,8 @@
 #   wavelog.queue   JSON: the QSOs waiting, in the order they were logged; it survives a restart
 #   wavelog.failed.adi   QSOs Wavelog refused (a bad record): kept for the user, not sent again
 # stations and test take the URL and key from X6100_WAVELOG_URL / X6100_WAVELOG_KEY / X6100_WAVELOG_VERIFY
-# when set (the web page, before Save), else from wavelog.conf.
+# when set (the web page, before Save), else from wavelog.conf. The saved key goes only to the Wavelog it was
+# saved with: a URL of another server needs its own key in X6100_WAVELOG_KEY.
 
 import calendar
 import fcntl
@@ -34,6 +35,7 @@ import ssl
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 FIELD_DIR = os.environ.get("X6100_FIELD_DIR", "/mnt/field")
@@ -122,10 +124,23 @@ def request(url, body, verify):
     return code, parsed, text
 
 
+def origin(url):
+    """Scheme, host and port of a URL: the server a key is sent to"""
+    try:
+        u = urllib.parse.urlsplit(url.strip())
+        scheme = u.scheme.lower()
+        return scheme, (u.hostname or "").lower(), u.port or {"http": 80, "https": 443}.get(scheme)
+    except ValueError:   # a port that is not one: equal only to the same text
+        return url.strip()
+
+
 def target(conf):
-    """URL, key, verify of the environment (the web page's form) or wavelog.conf"""
+    """URL, key, verify of the environment (the web page's form) or wavelog.conf. The saved key only with the
+    saved URL's server: a URL typed on the page and an empty key sent it to whatever server was typed (audit C08)"""
     url = os.environ.get("X6100_WAVELOG_URL") or conf.get("url", "")
     key = os.environ.get("X6100_WAVELOG_KEY") or conf.get("key", "")
+    if key and not os.environ.get("X6100_WAVELOG_KEY") and origin(url) != origin(conf.get("url", "")):
+        raise Fail("the saved API key is for another server: type the key for this one")
     verify = os.environ.get("X6100_WAVELOG_VERIFY", conf.get("verify_tls", "1")) != "0"
     if not url or not key:
         raise Fail("URL and API key needed")
