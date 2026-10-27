@@ -2505,6 +2505,15 @@ web page, nothing to install, any device with a browser.
   keys the radio's own microphone.
 - Light: a light theme for the sun. App: the panel alone, without the
   configurator's header, for a phone. Fullscreen.
+- Keyboard: left and right arrows tune (Shift: ten steps), `[` and `]` the
+  volume, Space is PTT while held. The keys are the radio's only when they
+  are meant for nothing else: not while a pop-up or the pairing and control
+  dialogs are open, not in a field or a list, and Space on a button reached
+  with Tab presses that button (Sound, Light, a tab), as anywhere on the web,
+  never PTT. Space on the PTT button itself is PTT. A click or a tap on a
+  button gives the keyboard back to the page, so Space after a click on
+  Sound is PTT, even when a field, the menu at the top or a button reached
+  with Tab had the keyboard before.
 - Phone in portrait: the radio on top, the Spots, Keys and Screen tabs below.
   Tablet or PC in landscape: side by side. The page follows the screen.
 
@@ -2788,7 +2797,14 @@ here it is a web page, nothing to install.
   or the - and + buttons; "push" presses the VOL or MFK knob.
 - Keyboard: F1-F5, left and right arrows turn the main knob (Shift: ten
   detents at a time), `[` and `]` the volume, PageUp and PageDown the MFK,
-  Enter pushes the MFK, Space is PTT.
+  Enter pushes the MFK, Space is PTT. As on the Panel, the keys are the
+  radio's only when they are meant for nothing else: not with a dialog open
+  or in the picture list, and Enter or Space on a button reached with Tab
+  presses that button, never the MFK or PTT (Space on the PTT button itself
+  is PTT). A click or a tap on a button gives the keyboard back to the page,
+  and so does a picture chosen with the mouse or a finger: Enter is then the
+  MFK push again. The picture list reached with Tab keeps its keys until Tab
+  moves on.
 - Sound: the RX audio to the browser, over the TCI server (so TCI must be on,
   the default). Browsers need a tap before they play: press Sound once.
 - Mic: the browser's microphone goes to the radio while PTT is held, over the

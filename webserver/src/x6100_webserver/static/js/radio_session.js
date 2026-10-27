@@ -15,6 +15,8 @@
  *   The element `el` gets two buttons: the role (Pair, or this browser's name) and the control
  *   holder (Take control / Release); an admin gets Sessions. The token lives in localStorage
  *   "x6100session", so the Panel and the Remote page share one pairing.
+ *   RadioSession.forRadio(keyEvent, pttEl) -> true when a key is for the page's radio shortcuts
+ *                                 rather than for a field, a focused control or an open dialog
  *
  *   const ptt = RadioPtt.create({el, send, status, mic: {wanted, ready, start, stop}, session, link});
  *     ptt.press() / ptt.release()   the operator's thumb; press is refused when the mic is wanted
@@ -50,6 +52,19 @@
     return $b;
   }
   function popClose() { if ($pop) { $pop.prop("hidden", true); $pop.children(".sbox").empty(); } }
+
+  /* A key for the page's radio shortcuts (Space PTT, Enter the MFK push, the arrows...) only when it is meant
+   * for nothing else (audit C09): none while our dialog is open, none typed into a field or a list, and Space
+   * or Enter only while no control has the focus, since they are what presses a focused button, link or tab:
+   * Tab to Sound and Space is Sound, never PTT. Space on the PTT button itself (pttEl) is PTT */
+  const FIELDS = "input, textarea, select, [role=textbox], [role=combobox], [role=listbox], [role=slider], [role=spinbutton]";
+  function forRadio(e, pttEl) {
+    if (e.defaultPrevented || ($pop && !$pop.prop("hidden"))) return false;
+    const t = e.target;
+    if (t.isContentEditable || t.closest(FIELDS)) return false;
+    if (e.key !== " " && e.key !== "Enter") return true;
+    return t === document.body || t === document.documentElement || (e.key === " " && !!pttEl && t === pttEl);
+  }
 
   function Session(o) {
     this.o = o; this.role = "view"; this.tx = false; this.name = "-"; this.pending = false; this.radioTx = false;
@@ -296,6 +311,6 @@
     el.innerHTML = ""; el.appendChild(document.createTextNode(main)); const sm = document.createElement("small"); sm.textContent = sub; el.appendChild(sm);
   };
 
-  window.RadioSession = {create: function(o) { return new Session(o); }};
+  window.RadioSession = {create: function(o) { return new Session(o); }, forRadio: forRadio};
   window.RadioPtt = {create: function(o) { return new Ptt(o); }};
 })();

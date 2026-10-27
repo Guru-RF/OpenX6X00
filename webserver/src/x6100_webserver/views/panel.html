@@ -1042,8 +1042,12 @@ body.app h2, body.app #intro { display:none; }
     el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
   });
   window.addEventListener("blur", releaseAll);
+  /* The keyboard is the radio's only when a key is meant for nothing else (audit C09): not in a pop-up,
+   * a field or the session dialog, and Space on a focused button presses that button. Space on the
+   * PTT button itself is PTT */
+  const pttEl = document.getElementById("pttbtn");
   document.addEventListener("keydown", function(e) {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || !$pop.prop("hidden")) return;
+    if (!$pop.prop("hidden") || !RadioSession.forRadio(e, pttEl)) return;
     if (e.key === " ") { e.preventDefault(); if (e.repeat) return; ptt.press(); return; }
     if (!state) return;
     const n = e.shiftKey ? 10 : 1;
@@ -1053,6 +1057,16 @@ body.app h2, body.app #intro { display:none; }
     else if (e.key === "[") { e.preventDefault(); lvlSend("vol", Math.max(0, cur("vol") - 1)); }
   });
   document.addEventListener("keyup", function(e) { if (e.key === " ") ptt.release(); });
+  /* A panel button clicked or tapped gives the keyboard back to the page, as Safari does anyway: it takes no
+   * focus and clears it from a field, a button reached with Tab or the open menu at the top, so Space after a
+   * click on Sound, PRE or LOG is PTT. Tab still reaches every button, and then Space is that button's.
+   * Not the menu at the top: a tap opens it by giving it the focus */
+  document.addEventListener("mousedown", function(e) {
+    if (e.button !== 0 || !e.target.closest || !e.target.closest(".pn-bar button, .pn button")) return;
+    e.preventDefault();
+    const a = document.activeElement;
+    if (a && a !== document.body && a.blur) a.blur();
+  });
 
   /* ---- Audio over TCI: RX to the speaker, the microphone to the radio while PTT is held ---- */
   let actx = null, nextTime = 0, sndOn = false, micNode = null, micSrc = null;

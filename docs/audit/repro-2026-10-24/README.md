@@ -10,7 +10,7 @@ python3 docs/audit/repro-2026-10-24/run.py
 
 Requirements are Python 3, Node.js, a C/C++ compiler, SQLite development files, the checked-out LVGL submodule and the existing host dependency headers under `build-host/deps/include` (particularly liquid-dsp). The runner does not download dependencies. `CC` and `CXX` can select compilers. Generated C, binaries and fixtures live in an automatically removed temporary directory. AddressSanitizer leak detection is disabled because it is unavailable under the environment's process tracing; memory-access checks remain enabled.
 
-**Expected results now demonstrate the fixes.** As delivered (commit `4cad3f5`) the runner expected the known erroneous results, including three sanitizer/guard-page failures. Each fix flipped the matching expectation, so the runner is now a regression suite for the twelve harnessed findings: a run ends with "All 12 reproduced findings and the selected original-fix checks matched the audit" when every fix still holds. The original expectations can be read in the runner's history.
+**Expected results now demonstrate the fixes.** As delivered (commit `4cad3f5`) the runner expected the known erroneous results, including three sanitizer/guard-page failures. Each fix flipped the matching expectation, so the runner is now a regression suite for the harnessed findings: the twelve of this audit, and those of later audits whose fixes added a check (in the table below). A run ends with "All reproduced findings and the selected original-fix checks matched the audits" when every fix still holds. The original expectations can be read in the runner's history.
 
 | Harness | Evidence |
 |---|---|
@@ -26,6 +26,8 @@ Requirements are Python 3, Node.js, a C/C++ compiler, SQLite development files, 
 | `settings-rollback.cpp` | B12: uses the same production code and injects rollback after a settings flush |
 | `updater_checks.py` | A02/A03: runs production apply/undo/boot-check with interruption injection and temporary recovery state |
 | `backup_checks.py` | A10/A22: checks stale-token and persistent-writer rejection using production restore logic and request/process stand-ins |
+| `keyboard-scope.js` | C09 of the [26 October audit](../Codex-Audit-2026-10-26.md): the Panel's and the Screen page's production keyboard code with `radio_session.js` and its dialogs, on the pages' own markup; Space and Enter on focused buttons, a select, contenteditable, open dialogs, the PTT button, nothing focused; a click on a button giving the keyboard back to the page; the picture list chosen with the mouse or the keyboard |
+| `browser-dom.js` | Not a check: a small DOM and jQuery stand-in under which the pages' own scripts run in Node, without a browser or an npm package |
 
 Checks for the [26 October audit](../Codex-Audit-2026-10-26.md) on the browser remote, added with their fixes:
 

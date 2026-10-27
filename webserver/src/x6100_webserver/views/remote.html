@@ -154,10 +154,15 @@
   /* The picture asked for: a per-browser choice, kept in this browser only */
   let pic = "sharp";
   try { pic = localStorage.getItem("remote_picture") || "sharp"; } catch (e) {}
-  $("#pic").val(pic).on("change", function() {
+  /* Picked with the mouse or a finger, the list gives the keyboard back to the radio: the arrows and F1-F5
+   * turn the knobs and press the keys again, not the list (audit C09). Reached with Tab, it keeps the keys
+   * until Tab moves on, as a list does */
+  let picPointer = false;
+  $("#pic").val(pic).on("mousedown touchstart", function() { picPointer = true; }).on("keydown", function() { picPointer = false; }).on("change", function() {
     pic = this.value;
     try { localStorage.setItem("remote_picture", pic); } catch (e) {}
     send("picture " + pic);
+    if (picPointer) { picPointer = false; this.blur(); }
   });
   const screenEl = document.getElementById("screen"), panelEl = document.querySelector(".rm-panel");
   link = RadioLink.create({
@@ -308,10 +313,13 @@
     ring.addEventListener("contextmenu", function(e) { e.preventDefault(); });
   });
 
-  /* ---- Keyboard ---- */
+  /* ---- Keyboard: the radio's only when a key is meant for nothing else (audit C09): not in a field, a
+   * list or the session dialog, and Space or Enter on a focused button press that button, never PTT or
+   * the MFK. Space on the PTT button itself is PTT ---- */
   const keyMap = {F1: "F1", F2: "F2", F3: "F3", F4: "F4", F5: "F5", Enter: "MFK", " ": "PTT"};
+  const pttEl = document.getElementById("pttbtn");
   document.addEventListener("keydown", function(e) {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (!RadioSession.forRadio(e, pttEl)) return;
     if (e.key in keyMap) { e.preventDefault(); if (e.repeat) return; const n = keyMap[e.key]; if (n === "PTT") ptt.press(); else keyDown(n, document.querySelector('[data-key="' + n + '"]')); return; }
     const step = e.shiftKey ? 10 : 1;
     if (e.key === "ArrowRight") { e.preventDefault(); knob("main", step); }
@@ -323,6 +331,16 @@
   });
   document.addEventListener("keyup", function(e) {
     if (e.key in keyMap) { const n = keyMap[e.key]; if (n === "PTT") ptt.release(); else keyUp(n, document.querySelector('[data-key="' + n + '"]')); }
+  });
+  /* A button of the page clicked or tapped gives the keyboard back to the page, as Safari does anyway: it
+   * takes no focus and clears it from the picture list, a button reached with Tab or the open menu at the
+   * top, so Enter after a click on Sound is the MFK push. Tab still reaches every button, and then Space and
+   * Enter are that button's. Not the menu at the top: a tap opens it by giving it the focus */
+  document.addEventListener("mousedown", function(e) {
+    if (e.button !== 0 || !e.target.closest || !e.target.closest(".rm-bar button, .rm button")) return;
+    e.preventDefault();
+    const a = document.activeElement;
+    if (a && a !== document.body && a.blur) a.blur();
   });
 
   /* ---- Audio over TCI: RX to the speaker, the microphone to the radio while PTT is held ---- */

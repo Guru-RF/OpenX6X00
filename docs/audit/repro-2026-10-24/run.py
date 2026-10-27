@@ -42,6 +42,8 @@ def main():
             print(script + ":\n" + output.strip())
 
         print("B10 PTT renewal:\n" + command(["node", HERE / "ptt-renewal.js"], env).strip())
+        print("C09 keyboard scope:\n" + command(["node", HERE / "keyboard-scope.js"], env,
+              contains=("keyboard cases as they should be",)).strip())
 
         # 26 October audit: the browser remote's commands, on the page and in the radio
         print("C02 PTT hold, the page:\n" + command(["node", HERE / "ptt-hold.js"], env).strip())
@@ -114,7 +116,7 @@ def main():
         command([binary, fixture], env, contains=("records=0",))
         print("B06 (fixed): the Field Ops reader skips a record whose field runs past it")
 
-    print("All 12 reproduced findings and the selected original-fix checks matched the audit.")
+    print("All reproduced findings and the selected original-fix checks matched the audits.")
 
 
 if __name__ == "__main__":
