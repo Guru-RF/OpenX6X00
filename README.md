@@ -353,7 +353,9 @@ of Aether Radio's trees ([OpenX6100](https://github.com/OpenX6100/AetherX6100Bui
 [gdyuldin](https://github.com/gdyuldin/AetherX6200Buildroot)), with this repository as
 their GUI package. A change upstream reaches an image only once it is merged into the
 fork: every build checks, and says at its start and end (on GitHub as a warning on the
-run) when upstream has commits the fork has not. `buildroot/local-build.sh` patches the
+run) when upstream has commits the fork has not, and names upstream's other branches
+with newer work (pull requests on their way) as a note. The X6100's upstream is
+gdyuldin's tree, moved to OpenX6100. `buildroot/local-build.sh` patches the
 buildroot tree (local GUI and web server, `boost` and `fftw-single` for JS8,
 no RHVoice, the boot logo), builds it and makes the update bundle. The GitHub
 Actions workflow (`.github/workflows/main.yml`, *Build image*, run by hand,
