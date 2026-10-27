@@ -15,6 +15,8 @@
 void host_panel_open(void);
 /* LVGL's flush into the window */
 void host_panel_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *px);
+/* The window's last frame as the radio's SIGUSR1 dump (/tmp/screen.raw: portrait 480 x 800, XRGB8888) */
+bool host_panel_dump(const char *path);
 /* The mouse as a pointer, the keyboard as the GUI's USB keyboard; after the drivers opened
  * their FIFOs */
 void host_panel_inputs(void);

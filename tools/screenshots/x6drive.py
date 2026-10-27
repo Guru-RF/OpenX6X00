@@ -15,6 +15,10 @@ The radio's model comes from the device tree: the X6200's keypad has other codes
 MSG, DFN, ATU and FST, no LOCK, PRE, VM or AGC key, and no POWER key device (its base reports
 the POWER key); an X6200 has the inner ring.
 
+The PC build (host_shots.py imports this): X6DRIVE_DEV_DIR is the folder of its key and knob
+FIFOs (keypad, main, vol, mfk, power: the X6100's codes), X6DRIVE_TMP the folder its /tmp is,
+X6DRIVE_PID the GUI's pid.
+
 SPDX-License-Identifier: LGPL-2.1-or-later
 Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
 """
@@ -64,6 +68,11 @@ def emit(path, events):
 
 
 POWER_DEV = "/dev/input/event4"   # the PMIC's key (axp20x-pek): the matrix keypad drops KEY_POWER
+TMP = os.environ.get("X6DRIVE_TMP", "/tmp")
+DEV_DIR = os.environ.get("X6DRIVE_DEV_DIR")
+if DEV_DIR:   # the PC build: src/host/host_panel.c's FIFOs, one a device, the X6100's codes
+    KEYPAD, POWER_DEV = f"{DEV_DIR}/keypad", f"{DEV_DIR}/power"
+    KNOBS = {k: (f"{DEV_DIR}/{k}", axis, sign) for k, (_, axis, sign) in KNOBS.items() if k != "inner"}
 
 
 def key(name, ms):
@@ -83,21 +92,29 @@ def turn(knob, n):
         time.sleep(0.03)
 
 
-def shot(name):
-    os.makedirs(SHOTS, exist_ok=True)
-    if os.path.exists("/tmp/screen.raw"):
-        os.remove("/tmp/screen.raw")
-    pid = subprocess.run(["pidof", "x6100_gui"], capture_output=True, text=True).stdout.split()
-    os.kill(int(pid[0]), 10)   # SIGUSR1
+def dump():
+    """SIGUSR1 to the GUI, then the path of the screen it wrote (/tmp/screen.raw)."""
+    raw = os.path.join(TMP, "screen.raw")
+    if os.path.exists(raw):
+        os.remove(raw)
+    pid = os.environ.get("X6DRIVE_PID") or \
+        subprocess.run(["pidof", "x6100_gui"], capture_output=True, text=True).stdout.split()[0]
+    os.kill(int(pid), 10)   # SIGUSR1
     for _ in range(50):
-        if os.path.exists("/tmp/screen.raw"):
+        if os.path.exists(raw):
             break
         time.sleep(0.1)
-    os.rename("/tmp/screen.raw", os.path.join(SHOTS, name + ".raw"))
+    return raw
 
 
-def main():
-    for line in sys.stdin:
+def shot(name):
+    os.makedirs(SHOTS, exist_ok=True)
+    os.rename(dump(), os.path.join(SHOTS, name + ".raw"))
+
+
+def run(lines, take=shot):
+    """The commands of a script; take(NAME) for each shot."""
+    for line in lines:
         w = line.split("#")[0].split()
         if not w:
             continue
@@ -111,10 +128,14 @@ def main():
         elif cmd == "sleep":
             time.sleep(float(w[1]))
         elif cmd == "shot":
-            shot(w[1])
+            take(w[1])
         else:
             sys.exit(f"unknown command: {line.strip()}")
         time.sleep(0.35)   # the GUI redraws
+
+
+def main():
+    run(sys.stdin)
     print("done")
 
 

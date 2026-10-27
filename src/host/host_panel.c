@@ -174,8 +174,35 @@ void host_panel_open(void) {
     SDL_SetEventFilter(filter, NULL);
 }
 
+/* What the window shows, landscape, for host_panel_dump() */
+static uint32_t land[BOARD_DISP_W * BOARD_DISP_H];
+
 void host_panel_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *px) {
+    lv_coord_t w = lv_area_get_width(area);
+
+    for (lv_coord_t y = area->y1; y <= area->y2; y++) {
+        for (lv_coord_t x = area->x1; x <= area->x2; x++) {
+            if (x >= 0 && x < BOARD_DISP_W && y >= 0 && y < BOARD_DISP_H)
+                land[y * BOARD_DISP_W + x] = px[(y - area->y1) * w + (x - area->x1)].full;
+        }
+    }
     sdl_display_flush(drv, area, px);
+}
+
+/* The screen as drm_dump() writes it on the radio: the portrait panel (480 x 800), XRGB8888, so
+ * the same converters read both (tools/screenshots/raw2png.py) */
+bool host_panel_dump(const char *path) {
+    static uint32_t row[BOARD_DISP_H];
+    FILE           *f = fopen(path, "wb");
+    bool            ok = f != NULL;
+
+    for (int py = 0; py < BOARD_DISP_W && ok; py++) {
+        for (int px = 0; px < BOARD_DISP_H; px++) {
+            row[px] = land[px * BOARD_DISP_W + (BOARD_DISP_W - 1 - py)] | 0xff000000;
+        }
+        ok = fwrite(row, 4, BOARD_DISP_H, f) == BOARD_DISP_H;
+    }
+    return f && fclose(f) == 0 && ok;
 }
 
 static lv_indev_drv_t mouse_drv, kbd_drv;

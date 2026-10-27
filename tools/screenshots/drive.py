@@ -17,10 +17,9 @@ import subprocess
 import sys
 import tempfile
 
-from PIL import Image
+from raw2png import raw_image
 
-PANEL = (480, 800)
-SSH = ["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR"] \
+SSH =["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR"] \
     + os.environ.get("DRIVE_SSH_OPTS", "").split()
 
 
@@ -43,13 +42,13 @@ def main():
         subprocess.run(["scp", "-q", "-r"] + SSH + [f"root@{host}:/tmp/shots", tmp], check=True)
         for name in sorted(os.listdir(os.path.join(tmp, "shots"))):
             data = open(os.path.join(tmp, "shots", name), "rb").read()
-            if len(data) != PANEL[0] * PANEL[1] * 4:
+            # a name ending in _p is a portrait screen (Walkie): the panel's own orientation, turned 180
+            im = raw_image(data, name.endswith("_p.raw"))
+            if im is None:
                 print(f"{name}: unexpected size {len(data)}", file=sys.stderr)
                 continue
-            im = Image.frombuffer("RGBA", PANEL, data, "raw", "BGRA", 0, 1).convert("RGB")
             dest = os.path.join(out, name[:-4] + ".png")
-            # a name ending in _p is a portrait screen (Walkie): the panel's own orientation, turned 180
-            im.rotate(180 if name.endswith("_p.raw") else -90, expand=True).save(dest)
+            im.save(dest)
             print(dest)
 
 
