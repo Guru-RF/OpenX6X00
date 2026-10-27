@@ -1350,7 +1350,8 @@ static void wf_emit_row(void)
     for (int col = 0; col < WIDTH; col++) px[col] -= wf_floor_db;
 
     wf_data_t row = {.psd = px, .size = WIDTH};
-    scheduler_put(ui_waterfall_add, &row, sizeof(row));
+    /* A full queue refuses it: the row is lost, not its memory (audit C06) */
+    if (!scheduler_put(ui_waterfall_add, &row, sizeof(row))) free(px);
 }
 
 /* Receiver thread: the audio the decoder got, for the waterfall. A row is

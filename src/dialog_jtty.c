@@ -438,7 +438,9 @@ static void on_spec_line(const float *db, int nbins, void *ctx)
     if (!l.db)
         return;
     memcpy(l.db, db, sizeof(float) * (size_t)nbins);
-    scheduler_put(wf_line_ui, &l, sizeof(l));
+    /* A full queue refuses it: the line is lost, not its memory (audit C06) */
+    if (!scheduler_put(wf_line_ui, &l, sizeof(l)))
+        free(l.db);
 }
 
 static void update_finder(void)
