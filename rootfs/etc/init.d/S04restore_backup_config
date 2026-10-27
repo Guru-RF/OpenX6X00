@@ -50,23 +50,55 @@ allowed() {
     return 1
 }
 
+# $1 is the name of exactly one member of the listing $2 (tar tv), and no member lies below it. A link's name
+# comes with " -> " and its target, a hard link's too (BusyBox lists one with a regular file's '-')
+only() {
+    local n=0 mode owner size date time name
+    while read -r mode owner size date time name; do
+        case "${name%% -> *}" in
+            "$1") n=$((n + 1)) ;;
+            "$1"/*) return 1 ;;
+        esac
+    done < "$2"
+    [ $n = 1 ]
+}
+
 restore() {
-    local list=/tmp/backup-config.list
+    local list=/tmp/backup-config.list members=/tmp/backup-config.members mode owner size date time name
     [ -f "${BACKUP_PATH}" ] || return 0
     # A freshly written card only: the images carry no SSH host keys (S50sshd makes them at the first start), so
     # keys present mean this card has run before, and a file missing now was deleted on purpose (a WiFi network
     # forgotten, an SSH key revoked); taking it back from the archive would undo that at every start
     ls /etc/ssh/ssh_host_*_key > /dev/null 2>&1 && return 0
-    # Regular files only (the '-' type), under the allowed folders, no symlinks or devices; the name is the rest
-    # of the line (a WiFi profile is named after its network, spaces and all)
-    # Files already on the card stay (BusyBox tar -k stops at the first file that exists instead of skipping it)
-    unpack | tar tvf - 2>/dev/null | while read -r mode owner size date time name; do
+    # Regular files only (the '-' type, not a hard link), under the allowed folders, not on the card yet (nor a
+    # link there), and the archive's only member of that name with none below it; the name is the rest of the
+    # line (a WiFi profile is named after its network, spaces and all)
+    unpack | tar tvf - > $members 2>/dev/null
+    while read -r mode owner size date time name; do
         case "$mode" in
-            -*) allowed "$name" && [ ! -e "/$name" ] && echo "$name" ;;
+            -*) ;;
+            *) continue ;;
         esac
-    done > $list
-    [ -s $list ] && unpack | tar xof - -C / -T $list 2>/dev/null
-    rm -f $list
+        case "$name" in
+            *" -> "*) continue ;;
+        esac
+        allowed "$name" && [ ! -e "/$name" ] && [ ! -L "/$name" ] && only "$name" $members && echo "$size $name"
+    done < $members > $list
+    # Each one's bytes (-O), written by this script under its own name, as S39btpairings does. Unpacked onto /
+    # with that list, tar took each name as a pattern (fnmatch) for every member of the name and below it, so a
+    # FIFO or a link of a listed file's name came out in its place (audit C14). The pattern's wildcards are
+    # escaped: a WiFi network "Cafe [5G]" is its file's name. Kept only when it is the member's size
+    umask 077    # folders 700, files 600
+    while read -r size name; do
+        mkdir -p "/${name%/*}" || continue
+        unpack | tar xOf - "$(printf '%s\n' "$name" | sed 's/[][*?\\]/\\&/g')" > "/$name.restore" 2>/dev/null
+        if [ "$(($(wc -c < "/$name.restore")))" = "$size" ]; then
+            mv -f "/$name.restore" "/$name"
+        else
+            rm -f "/$name.restore"
+        fi
+    done < $list
+    rm -f $list $members
     chmod 600 /etc/ssh/*_key /root/.ssh/* /etc/NetworkManager/system-connections/* 2>/dev/null
 }
 

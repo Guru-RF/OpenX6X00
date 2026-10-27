@@ -647,9 +647,12 @@ Joining a network:
   password is in it). Attach that file to a report.
 - The saved networks, the SSH host keys and root's SSH keys are copied to
   `backups/backup.tgz` on the DATA partition at every clean shutdown, and when
-  a key is added or removed on the web configurator ([SSH](#ssh)). At boot,
-  the files missing from the system are taken back from it, so a rewritten card
-  keeps its WiFi; files already there are left alone.
+  a key is added or removed on the web configurator ([SSH](#ssh)). At the first
+  start of a rewritten card they are taken back from it, so the card keeps its
+  WiFi (a network named `Cafe [5G]` too); files already there are left alone.
+  Only regular files of those three folders come back, each written by the
+  radio itself: a link, a device, or a name the archive holds twice is left
+  out.
 
 An access point that does not answer the X6100 (#29, #32):
 
