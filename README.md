@@ -411,7 +411,7 @@ buildroot/               local-build.sh and Dockerfile (the image), br2_external
                          build.sh (the GUI alone with the buildroot toolchain)
 host/                    the GUI on a PC (SDL, stub radio)
 tools/                   screenshots/ (drive.py, grab.py, pull.py), update/ (the bundle),
-                         tci/ (the TCI server's host test), icons/ and logo/
+                         tci/ (the TCI server's host test), icons/, logo/ and fonts/
 assets/                  the logo's fonts and marks
 docs/                    MANUAL.md, THEMES.md, MENUS.md, UPSTREAM_README.md, audit/,
                          screenshots/ (taken by script on an X6200)
@@ -454,7 +454,8 @@ recovery, the JS8 map, the high-SWR guard and the digital-mode drive level;
 2E0JFS the Black Metal and Total Black themes. Libraries: LVGL, cJSON, FFTW,
 liquid-dsp, ft8_lib, libpng, Boost, Eigen, CRCpp, bottle, jQuery, mp4-muxer,
 PulseAudio, BlueZ. The country list is AD1C's cty.dat. Fonts:
-Roboto, DejaVu, Arial, Sony Sketch, Inter (the boot logo). The skimmer spots
+Roboto, DejaVu, Arial, Sony Sketch, Inter (the boot logo), Terminus (the 1bit theme's
+pixel font, OFL-1.1, src/fonts/LICENSE-Terminus-OFL-1.1.txt). The skimmer spots
 come from the Reverse Beacon Network and the broadcast schedule from the EiBi
 list by Eike Bierwirth. The Field Ops reference lists come from POTA, SOTA,
 WWBOTA, cqhota.app, WWFF, TOTA (OK2IH, wwtota.com), the WCA castle list as

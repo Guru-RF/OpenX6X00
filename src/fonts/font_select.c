@@ -2,7 +2,9 @@
  * sony_N are replaced by the alt font before the UI is built. The alt fonts are ASCII only
  * (lv_font_conv --bpp 4 --no-compress --range 32-126 --format lvgl, size two steps below
  * Sony's; Arial: tools/font_gen.py, about 0.8 x Sony's size so two-line button labels fit);
- * icon glyphs come from the untouched Sony copy through the fallback. */
+ * icon glyphs come from the untouched Sony copy through the fallback.
+ * The pixel family (1bit): Terminus Font's bitmap sizes at 1 bpp (tools/fonts/bdf2lvgl.py), chosen by
+ * cap and line height, so several Sony sizes share one; Latin-1 too. */
 #include <stdbool.h>
 #include "lvgl/lvgl.h"
 #include "font_select.h"
@@ -12,6 +14,8 @@
 
 #define DECL(n) extern lv_font_t sony_##n; extern const lv_font_t roboto_##n, dejavu_##n, arial_##n, rcond_##n;
 SIZES(DECL)
+extern const lv_font_t pixel_12, pixel_14, pixel_16, pixel_18, pixel_20, pixel_22, pixel_24, pixel_28, pixel_32,
+    pixel_44;
 
 #define SONY(n) &sony_##n,
 #define ROBOTO(n) &roboto_##n,
@@ -23,7 +27,13 @@ static const lv_font_t *const roboto[] = { SIZES(ROBOTO) };
 static const lv_font_t *const dejavu[] = { SIZES(DEJAVU) };
 static const lv_font_t *const arial[] = { SIZES(ARIAL) };
 static const lv_font_t *const rcond[] = { SIZES(RCOND) };
+/* sony_14 .. sony_60 */
+static const lv_font_t *const pixel[] = {
+    &pixel_12, &pixel_12, &pixel_14, &pixel_16, &pixel_18, &pixel_20, &pixel_20, &pixel_22, &pixel_24,
+    &pixel_24, &pixel_28, &pixel_28, &pixel_32, &pixel_32, &pixel_32, &pixel_32, &pixel_44,
+};
 #define N_FONTS (sizeof(sony) / sizeof(sony[0]))
+_Static_assert(sizeof(pixel) / sizeof(pixel[0]) == N_FONTS, "a pixel font for every size");
 
 static lv_font_t orig[N_FONTS];   /* Sony's, as built */
 static bool saved;
@@ -38,10 +48,12 @@ void fonts_apply(uint8_t choice) {
     }
     saved = true;
     buttons_h = 54;
-    if (choice != FONT_ROBOTO && choice != FONT_DEJAVU && choice != FONT_ARIAL && choice != FONT_RCOND) return;
+    if (choice != FONT_ROBOTO && choice != FONT_DEJAVU && choice != FONT_ARIAL && choice != FONT_RCOND &&
+        choice != FONT_PIXEL)
+        return;
     if (choice == FONT_DEJAVU) buttons_h = 62;
     const lv_font_t *const *alt = choice == FONT_ROBOTO ? roboto : choice == FONT_DEJAVU ? dejavu :
-                                   choice == FONT_ARIAL ? arial : rcond;
+                                   choice == FONT_ARIAL ? arial : choice == FONT_PIXEL ? pixel : rcond;
 
     for (unsigned i = 0; i < N_FONTS; i++) {
         *sony[i] = *alt[i];
