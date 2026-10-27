@@ -20,7 +20,7 @@ Requirements are Python 3, Node.js, a C/C++ compiler, SQLite development files, 
 | `field-input.c` | B06: runs the production Field Ops reader with a truncated 1,023-byte record |
 | `make-log-harness.py` | B07: extracts current receipt/cache/submission functions (with their payload digest since C03); counts scheduled dispatches |
 | `web_checks.py` | B08/B13: extracts current upload/cluster functions, forces interleavings and runs the production updater against temporary installation paths |
-| `log_checks.py` | B09/B17: extracts current log functions and simulates stale ordinal requests and a MODE edit |
+| `log_checks.py` | B09/B17: extracts current log functions and simulates stale ordinal requests and a MODE edit. C10 of the [26 October review](../Codex-Audit-2026-10-26.md): names, QTH and comments with ü, Ł and ✓ next to other tags and a Latin-1 record, edited and deleted, read back by the web and by x6100-wavelog |
 | `ptt-renewal.js` | B10: evaluates the complete production PTT component with a fake clock |
 | `vfo.cpp` | B11: links production SettingsManager/storage code and loads `sql/params.sql` into SQLite |
 | `settings-rollback.cpp` | B12: uses the same production code and injects rollback after a settings flush |

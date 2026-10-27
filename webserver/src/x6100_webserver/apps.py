@@ -1397,33 +1397,44 @@ def field_active_log():
     return os.path.basename(kv.get("log", "")) if kv.get("active") == "1" else ""
 
 
-def adif_split(text):
+# A log is handled as bytes from the file to the file: an ADIF length counts bytes, as the radio writes them
+# (src/field/flog.c) and x6100-wavelog reads them, "Jürgen" is 7. Decoded first and counted in characters, a
+# name with ü was read with the next tag's "<", an edit wrote 6 for it or took that "<" away, and the bytes of a
+# log that is not UTF-8 were replaced in every record of the file (audit C10). Values are text only in and out.
+
+def adif_split(data):
     """Header (up to <eoh>) and the parts between <eor>s; the last part is what follows the last record."""
-    m = re.search(r'<eoh>', text, re.I)
-    head, body = (text[:m.end()], text[m.end():]) if m else ("", text)
-    return head, re.split(r'(?i)<eor>', body)
+    m = re.search(rb'<eoh>', data, re.I)
+    head, body = (data[:m.end()], data[m.end():]) if m else (b"", data)
+    return head, re.split(rb'(?i)<eor>', body)
+
+
+def adif_tag(rec, name):
+    """The tag <name:n> in rec and the end of its value, n bytes on (a slice there stops at the record's end)"""
+    m = re.search(rb'<%s:(\d+)(?::\w)?>' % name.encode(), rec, re.I)
+    return (m, m.end() + int(m.group(1))) if m else (None, 0)
 
 
 def adif_set(rec, name, value):
     """rec with the field `name` set to value (added before the end when missing)."""
-    m = re.search(r'<%s:(\d+)(?::\w)?>' % name, rec, re.I)
-    new = "<%s:%d>%s" % (name, len(value), value)
+    v = value.encode()
+    new = b"<%s:%d>%s" % (name.encode(), len(v), v)
+    m, end = adif_tag(rec, name)
     if not m:
-        return rec.rstrip() + " " + new + " "
-    return rec[:m.start()] + new + rec[m.end() + int(m.group(1)):]
+        return rec.rstrip() + b" " + new + b" "
+    return rec[:m.start()] + new + rec[end:]
 
 
 def adif_get(rec, name):
-    """One field of rec, found by its own tag. For the ASCII fields: the radio writes lengths in bytes (flog.c), and
-    adif_fields, counting characters, runs over the next tag after a value such as "Łódź" """
-    m = re.search(r'<%s:(\d+)(?::\w)?>' % name, rec, re.I)
-    return rec[m.end():m.end() + int(m.group(1))] if m else ""
+    """One field of rec, found by its own tag, as the radio finds it"""
+    m, end = adif_tag(rec, name)
+    return rec[m.end():end].decode(errors="replace") if m else ""
 
 
 def adif_del(rec, name):
     """rec without the field `name`."""
-    m = re.search(r'<%s:(\d+)(?::\w)?>' % name, rec, re.I)
-    return rec if not m else rec[:m.start()] + rec[m.end() + int(m.group(1)):]
+    m, end = adif_tag(rec, name)
+    return rec if not m else rec[:m.start()] + rec[end:]
 
 
 SOTA_REF = r'[A-Z0-9]{1,4}/[A-Z]{2}-[0-9]{3}'     # I/LO-123 ([0-9]: \d takes any script's digits)
@@ -1499,7 +1510,7 @@ def set_ref(rec, ref):
 def rec_id(rec):
     """A QSO's identity on the pages: a digest of its record as it stands in the file. The row
     number alone named another QSO once one before it was deleted in another tab (audit B09)."""
-    return hashlib.sha1(rec.strip().encode(errors="replace")).hexdigest()[:12]
+    return hashlib.sha1(rec.strip()).hexdigest()[:12]
 
 
 def edit_qso(name, n, fn, rid):
@@ -1526,9 +1537,8 @@ def edit_qso(name, n, fn, rid):
                 raw = f.read()
         except FileNotFoundError:
             return api_error(404, "Not found")
-        text = raw.decode(errors="replace")
-        head, parts = adif_split(text)
-        recs = [i for i, p in enumerate(parts[:-1]) if re.search(r'<call:\d+', p, re.I)]
+        head, parts = adif_split(raw)
+        recs = [i for i, p in enumerate(parts[:-1]) if re.search(rb'<call:\d+', p, re.I)]
         same = [i for i in recs if rec_id(parts[i]) == rid]
         if len(same) == 1:
             at = same[0]
@@ -1542,8 +1552,8 @@ def edit_qso(name, n, fn, rid):
         else:
             parts[at] = new
         tmp = path + ".tmp"
-        with open(tmp, "w") as f:
-            f.write(head + "<eor>".join(parts))
+        with open(tmp, "wb") as f:
+            f.write(head + b"<eor>".join(parts))
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, path)
@@ -1601,25 +1611,25 @@ def delete_field_log(name):
 # to see, filter, edit, delete and export. QSOs are addressed as (file, n) as edit_qso() counts them.
 
 def adif_fields(rec):
-    """The fields of an ADIF record, names in lower case."""
+    """The fields of an ADIF record, names in lower case, values as text; lengths in bytes (adif_split)."""
     out, i = {}, 0
-    for m in re.finditer(r'<(\w+):(\d+)(?::\w)?>', rec):
+    for m in re.finditer(rb'<(\w+):(\d+)(?::\w)?>', rec):
         if m.start() < i:
             continue
         n = int(m.group(2))
-        out[m.group(1).lower()] = rec[m.end():m.end() + n]
+        out[m.group(1).decode().lower()] = rec[m.end():m.end() + n].decode(errors="replace")
         i = m.end() + n
     return out
 
 
 def log_records(name):
-    """The QSO records of a log (records without CALL do not count, as in edit_qso)."""
+    """The QSO records of a log, bytes (records without CALL do not count, as in edit_qso)."""
     try:
-        with open(field_path("logs", name), errors="replace") as f:
-            text = f.read()
+        with open(field_path("logs", name), "rb") as f:
+            data = f.read()
     except OSError:
         return []
-    return [p for p in adif_split(text)[1][:-1] if re.search(r'<call:\d+', p, re.I)]
+    return [p for p in adif_split(data)[1][:-1] if re.search(rb'<call:\d+', p, re.I)]
 
 
 @app.route('/logs')
@@ -1714,8 +1724,8 @@ def export_logs():
             w.writerow([f.get(c, "") for c in cols])
         body, ext, mime = out.getvalue(), "csv", "text/csv"
     else:
-        body = "OpenX6X00 log export\n<adif_ver:5>3.1.4 <programid:9>OpenX6X00 <eoh>\n" + \
-               "".join(rec.strip() + " <eor>\n" for rec in recs)
+        body = b"OpenX6X00 log export\n<adif_ver:5>3.1.4 <programid:9>OpenX6X00 <eoh>\n" + \
+               b"".join(rec.strip() + b" <eor>\n" for rec in recs)   # the records' bytes: their lengths hold
         ext, mime = "adi", "text/plain"
     bottle.response.content_type = mime + "; charset=utf-8"
     bottle.response.set_header("Content-Disposition", f'attachment; filename="x6100-log-{stamp}.{ext}"')
