@@ -243,8 +243,12 @@ static void update_cb(Subject *subj, void *user_data) {
     } else if (param_i_get(cfg_band_split)) {
         uint16_t mhz2, khz2, hz2;
         split_freq(cparam_i_get(cfg_bg_freq), &mhz2, &khz2, &hz2);
+        if (theme_shape.mono) lv_obj_set_style_text_font(freq_label, &sony_36, 0);   /* both fit, 23 cells */
         lv_label_set_text_fmt(freq_label, "%i.%03i.%03i / %i.%03i.%03i", mhz, khz, hz, mhz2, khz2, hz2);
     } else {
+        extern const lv_font_t pixel_freq_40;
+
+        if (theme_shape.mono) lv_obj_set_style_text_font(freq_label, &pixel_freq_40, 0);
         lv_label_set_text_fmt(freq_label, "%i.%03i.%03i", mhz, khz, hz);
     }
     /* An open app: the band (a broadcast has nothing to do with the digital apps) */
@@ -335,7 +339,10 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
                           v ? LV_FLEX_ALIGN_CENTER : LV_FLEX_ALIGN_END);
     lv_obj_set_style_pad_column(mid, 14, 0);
     lv_obj_align(mid, LV_ALIGN_CENTER, 0, 0);
-    freq_label = make_label(mid, LV_ALIGN_DEFAULT, 0, v ? &sony_60 : &sony_36, theme_hex(TC_text));
+    extern const lv_font_t pixel_freq_40;   /* 1bit: bold pixels doubled, as an LCD's big digits */
+
+    freq_label = make_label(mid, LV_ALIGN_DEFAULT, 0, theme_shape.mono ? &pixel_freq_40 : v ? &sony_60 : &sony_36,
+                            theme_hex(TC_text));
     mode_label = make_label(mid, LV_ALIGN_DEFAULT, 0, v ? &sony_36 : &sony_24, theme_hex(TC_mode_text));
     lv_obj_set_style_pad_bottom(mode_label, 3, 0);
     if (theme_shape.mode_box) {     /* in a box, as an indicator */
