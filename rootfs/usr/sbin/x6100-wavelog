@@ -18,9 +18,10 @@
 #                   since=<unix time>: QSOs from then on are sent, the log from before is not.
 #                   station_id=auto: each QSO goes to the station profile with its STATION_CALLSIGN (DF8MH,
 #                   DF8MH/P...), the one Wavelog marks active when several have it
-#   wavelog.state   JSON: the logs as last read (mtime, size), the QSOs sent (key -> {"t": QSO time, "revs":
-#                   the revisions sent}), the last result
-#   wavelog.queue   JSON: the QSOs waiting, in the order they were logged; it survives a restart
+#   wavelog.state   JSON: the logs as last read (mtime, size), the QSOs sent (key -> QSO time, under old_key as
+#                   well), the revisions sent of each (revs: key -> [rev]), the last result
+#   wavelog.queue   JSON: the QSOs waiting, in the order they were logged, with the logs that hold them; it
+#                   survives a restart
 #   wavelog.failed.adi   QSOs Wavelog refused (a bad record): kept for the user, not sent again unless edited
 # A QSO is its other station, date and time to the second, band, mode and own station callsign (qso_key); a QSO
 # edited after it was sent is sent again (qso_rev), and when Wavelog keeps the copy it has, the line says so.
@@ -248,17 +249,39 @@ def qso_rev(f):
 
 
 def old_key(f):
-    """The key the helper of v0.3.5 and v0.3.6 kept a QSO sent under: what it sent is not sent again"""
+    """The key the helper of v0.3.5 and v0.3.6 kept a QSO sent under, in "sent" as key -> QSO time. What it sent
+    is not sent again here; and as it runs again on this state after Update > Roll back, each QSO sent here is in
+    "sent" under its old key too (old_of), as a QSO time: that helper neither stops at the state (a TypeError at
+    every run, "sent" never saved) nor sends again the QSOs this one sent. The revisions are in "revs", which it
+    leaves as they are"""
     mode = f.get("submode") or f.get("mode", "")
     return "|".join(x.upper() for x in (f.get("call", ""), f.get("qso_date", ""), f.get("time_on", "")[:4],
                                         f.get("band", ""), mode))
 
 
+def old_of(key):
+    """The old_key of the QSO with this qso_key"""
+    p = key.split("|")
+    return "|".join(p[:2] + [p[2][:4]] + p[3:5])
+
+
+def mark_sent(state, q):
+    """q sent (or refused): not sent again as it stands, nor as any log holds it now (two copies of the QSO that
+    differ, in two logs, went as one)"""
+    state["sent"][q["key"]] = state["sent"][old_of(q["key"])] = q["t"]
+    revs = state["revs"].setdefault(q["key"], [])
+    revs.extend(r for r in dict.fromkeys([q["rev"], *q.get("logs", {}).values()]) if r not in revs)
+
+
 def collect(state, queue, since):
-    """The QSOs logged since `since` into the queue: a new one, or one changed since it was sent ("fix"). One
-    waiting goes as it stands now. The logs that did not change since the last run are not read again"""
+    """The QSOs logged since `since` into the queue: a new one, or one changed since it was sent ("fix"). One that
+    waits goes as it stands at the run, and not at all when no log holds it any more (deleted, or its call or time
+    corrected meanwhile) or each log holds it as it was sent (an edit undone). The logs that did not change since
+    the last run are not read again"""
     files = state.setdefault("files", {})
     sent = state.setdefault("sent", {})
+    revs = state.setdefault("revs", {})
+    ours = {old_of(k) for k in revs}   # the old keys written here: the others are of the helper before
     for q in queue:   # left waiting by the helper before the update
         if "rev" not in q:
             f = adif_fields(q["adif"])
@@ -280,26 +303,35 @@ def collect(state, queue, since):
                 data = fh.read()
         except OSError:
             continue
-        found = []
+        found, held = [], set()
         for rec in adif_records(data):
             f = adif_fields(rec)
             t, key, rev = qso_time(f), qso_key(f), qso_rev(f)
-            adif = rec.decode("utf-8", "replace") + "<eor>"
+            held.add(key)
             if t < since:
                 continue
-            if key in waiting:
-                waiting[key].update(adif=adif, rev=rev)
+            adif = rec.decode("utf-8", "replace") + "<eor>"
+            q = waiting.get(key)
+            if q:   # as this log holds it now; what goes is a copy not sent yet
+                q.setdefault("logs", {})[name] = rev
+                if rev not in revs.get(key, ()):
+                    q.update(adif=adif, rev=rev)
                 continue
-            done = sent.get(key)
-            if done is None and isinstance(sent.get(old_key(f)), int):
-                done = sent[key] = {"t": t, "revs": [rev]}
-            if done and rev in done["revs"]:
+            old = old_key(f)
+            if key not in revs and (key in sent or old in sent and old not in ours):
+                revs[key], sent[key], sent[old_of(key)] = [rev], t, t   # sent by the helper before the update
+                ours.add(old_of(key))                                  # (or after a roll back), as it stands
+            done = revs.get(key)
+            if done and rev in done:
                 continue
-            q = {"key": key, "rev": rev, "call": f.get("call", "").upper(), "t": t, "adif": adif}
+            q = {"key": key, "rev": rev, "call": f.get("call", "").upper(), "t": t, "adif": adif, "logs": {name: rev}}
             if done:
                 q["fix"] = True
             found.append((t, q))
             waiting[key] = q
+        for q in queue:   # waiting, and this log holds it no more: deleted, or its call or time corrected
+            if name in q.get("logs", ()) and q["key"] not in held:
+                del q["logs"][name]
         queue.extend(q for _, q in sorted(found, key=lambda x: x[0]))
         # FAT keeps a file's time in 2 s steps: a log changed again within them to the same size (a report
         # corrected, 59 to 57) has the same stamp, so one this recent is read again at the next run
@@ -310,6 +342,10 @@ def collect(state, queue, since):
     for name in list(files):   # deleted logs
         if name not in names:
             del files[name]
+    # A QSO waits while a log holds it in a form not sent yet: deleted, its call or time corrected (no log holds it
+    # now), or edited back to what was sent, it does not go. One the helper before queued, in no log read since, goes
+    queue[:] = [q for q in queue if "logs" not in q
+                or any(r not in revs.get(q["key"], ()) for r in q["logs"].values())]
 
 
 def send(conf, rec, station_id):
@@ -376,7 +412,7 @@ def cmd_sync(conf):
                     ok, dupe, last = ok + (res == "ok"), dupe + (res == "dupe"), q["call"]
                     if res == "dupe" and q.get("fix"):   # api/qso adds QSOs, it changes none Wavelog has
                         kept.append(q["call"])
-                state["sent"].setdefault(q["key"], {"t": q["t"], "revs": []})["revs"].append(q["rev"])
+                mark_sent(state, q)
                 queue.pop(i)
                 save_json(QUEUE, queue)
             n = ok + dupe
@@ -398,8 +434,8 @@ def cmd_sync(conf):
         except Fail as e:
             result = f"error Wavelog: {e}, {qsos(len(queue))} waiting"
         now = time.time()
-        state["sent"] = {k: v for k, v in state["sent"].items()
-                         if (v["t"] if isinstance(v, dict) else v) > now - KEEP_SENT}   # an int: before the update
+        state["sent"] = {k: t for k, t in state["sent"].items() if t > now - KEEP_SENT}
+        state["revs"] = {k: r for k, r in state["revs"].items() if k in state["sent"]}
         state["last"] = {"time": int(now), "result": result, "queue": len(queue)}
         save_json(QUEUE, queue)
         save_json(STATE, state)
