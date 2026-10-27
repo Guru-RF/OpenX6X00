@@ -201,10 +201,10 @@ void radio_bb_reset() {
     hw_bb_reset();
 }
 
-void radio_init() {
+bool radio_init() {
     if (!hw_init()) {
         start_trace("base: its pins or its line could not be opened");
-        return;
+        return false;
     }
 
     /* Back off (0.1 .. 25.6 s) and, once, after about 6 s without an answer,
@@ -224,6 +224,7 @@ void radio_init() {
         }
     }
     start_trace("base answered");
+    return true;
 }
 
 void radio_start() {

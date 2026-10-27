@@ -38,7 +38,7 @@ typedef enum {
 
 typedef void (*radio_rx_tx_change_t) (bool tx);
 
-void radio_init();
+bool radio_init();     /* false: the base's pins or line could not be opened */
 void radio_start();
 void radio_set_rx_tx_notify_fn(radio_rx_tx_change_t cb);
 void radio_set_low_power_cb(void(*cb)(bool));

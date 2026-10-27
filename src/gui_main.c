@@ -341,7 +341,11 @@ int main(void) {
     settings_load();
     start_trace("settings read");
 
-    radio_init();
+    if (!radio_init()) {
+        /* Held by another GUI, or not there: without it nothing here works, and going on crashed on it */
+        fprintf(stderr, "base: its pins or its line could not be opened, exiting\n");
+        return 1;
+    }
     audio_mixer_setup(radio_base_ver());
     dsp_init();
     lv_obj_t *screen = main_screen();
