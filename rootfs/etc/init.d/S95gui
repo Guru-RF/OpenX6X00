@@ -22,8 +22,25 @@ start() {
 	echo 0 > /sys/class/graphics/fbcon/cursor_blink
 	# first boot or settings wiped: begin from the default settings
 	[ -f /mnt/params.db ] || cp /usr/share/x6100/params.default.db /mnt/params.db
-	start-stop-daemon -S -b -q -m -p "$PIDFILE" -x "/usr/sbin/$DAEMON"
+	# One loop only. Two starts at once (an update's restart and a typed one) made two: the second GUI
+	# could not open the base the first one held, and went down at every start until the update was
+	# taken back. Looked for and started under a lock, which the loop does not inherit, so two starts
+	# cannot both find none
+	exec 8> /var/run/S95gui.lock
+	command -v flock > /dev/null && flock 8
+	if pidof "$DAEMON" > /dev/null; then
+		echo "already running"
+		exec 8>&-
+		return 0
+	fi
+	start-stop-daemon -S -b -q -m -p "$PIDFILE" -x "/usr/sbin/$DAEMON" 8>&-
 	status=$?
+	# Under its own name before the lock goes, or the next start would not see it yet
+	for _ in 1 2 3 4 5 6 7 8 9 10; do
+		pidof "$DAEMON" > /dev/null && break
+		sleep 0.2
+	done
+	exec 8>&-
 	result "$status"
 	return "$status"
 }
@@ -34,8 +51,15 @@ stop() {
 	status=$?
 	[ "$status" -eq 0 ] && rm -f "$PIDFILE"
 	result "$status"
-	# the loop is gone, now the GUI itself
+	# any loop the pid file does not name, then the GUI itself
+	killall -q "$DAEMON"
 	killall x6100_gui
+	# Gone before a start that follows, which would take a dying loop for a running one: a loop ends
+	# once its GUI has
+	for _ in 1 2 3 4 5 6 7 8 9 10; do
+		pidof "$DAEMON" > /dev/null || break
+		sleep 0.5
+	done
 	return "$status"
 }
 
