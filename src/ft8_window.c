@@ -121,6 +121,12 @@ static float tx_start_limit(void) {
 
 static dialog_t dialog;
 
+/* The window's instance (audit C06): bumped as it closes, once the decoder thread is joined. A
+ * job that thread queued for the window carries the instance it was made in; one that comes after
+ * its window closed, or in the window opened since, is dropped, its payload freed. The scheduler
+ * keeps a job after the join: the join retires the thread, not what it queued */
+static uint32_t win_gen;
+
 static SubjectInt   *tx_enabled;    /* TX Call */
 static SubjectInt   *cq_enabled;    /* TX CQ */
 
@@ -183,6 +189,24 @@ static void list_pressed(const cell_data_t *cd);
 static bool kb_ok_cb(void);
 static bool kb_cancel_cb(void);
 static void kb_close(void);
+
+/* A row for the list, as a job of this window (win_gen): the decoder's come after it closed too */
+typedef struct {
+    cell_data_t cd;
+    uint32_t    win_gen;
+} row_job_t;
+
+static void row_apply(void *arg) {
+    row_job_t *j = arg;
+
+    if (j->win_gen == win_gen) table_view_add_msg_cb(&j->cd);
+}
+
+static void row_post(const cell_data_t *cd) {
+    row_job_t j = {.cd = *cd, .win_gen = win_gen};
+
+    scheduler_put(row_apply, &j, sizeof(j));
+}
 
 static void give_list_the_mfk(void) {
     lv_group_add_obj(keyboard_group, table_view_obj());
@@ -267,12 +291,13 @@ typedef struct {
     bool     cursor, txfreq, cq_off;
     float    cursor_hz;
     uint32_t tx_gen;    /* of the step that made it */
+    uint32_t win_gen;
 } ui_job_t;
 
 static void ui_apply(void *arg) {
     ui_job_t *j = arg;
 
-    if (!dialog.run) return;    /* the window closed meanwhile */
+    if (j->win_gen != win_gen) return;  /* its window closed meanwhile */
     /* The TX frequency is the parameter already (the transmission reads it), set by the decoder
      * or by the operator since: the marker and the strip show it as it is now */
     if (j->txfreq) set_tx_freq(params.ft8_tx_freq.x);
@@ -283,7 +308,10 @@ static void ui_apply(void *arg) {
 }
 
 static void ui_post(const ui_job_t *j) {
-    gui_post(ui_apply, j, sizeof(*j));
+    ui_job_t k = *j;
+
+    k.win_gen = win_gen;
+    gui_post(ui_apply, &k, sizeof(k));
 }
 
 /* The TX frequency from the worker: the parameter now (the transmission reads it), the marker
@@ -1185,7 +1213,7 @@ static void list_pressed(const cell_data_t *cd) {
     cell_data_t row = {.cell_type = CELL_START_QSO};
 
     snprintf(row.text, sizeof(row.text), "Start QSO with %s", cd->meta.call_de);
-    scheduler_put(table_view_add_msg_cb, &row, sizeof(row));
+    row_post(&row);
     msg_schedule_text_fmt("Next TX: %s", next);
 }
 
@@ -1205,7 +1233,7 @@ static void add_info(const char *fmt, ...) {
     va_start(ap, fmt);
     vsnprintf(row.text, sizeof(row.text), fmt, ap);
     va_end(ap);
-    scheduler_put(table_view_add_msg_cb, &row, sizeof(row));
+    row_post(&row);
 }
 
 /* Our transmission as a row, "12:00:15 DL1ABC ON6URE JO21" */
@@ -1219,7 +1247,7 @@ static void add_tx_row(const char *msg) {
     clock_gettime(CLOCK_REALTIME, &now);
     strftime(row.text, 10, "%H:%M:%S ", gmtime(&now.tv_sec));
     snprintf(row.text + 9, sizeof(row.text) - 9, "%s", text);
-    scheduler_put(table_view_add_msg_cb, &row, sizeof(row));
+    row_post(&row);
 }
 
 /* Hound: the Fox's report gets R+report, its RR73 logs the QSO. Under qso_mux: the GUI's part
@@ -1336,7 +1364,7 @@ static void add_rx_text(int16_t snr, const char *text, bool odd, float freq_hz, 
         qth_str_to_pos(meta.grid, &lat, &lon);
         row.dist = qth_pos_dist(lat, lon, my_lat, my_lon);
     }
-    scheduler_put(table_view_add_msg_cb, &row, sizeof(row));
+    row_post(&row);
 }
 
 /* ---- audio_worker callbacks (the decoder thread) ---- */
@@ -1349,14 +1377,16 @@ static void on_message(const char *text, int snr, float freq_hz, float time_sec,
 }
 
 typedef struct {
-    float *db;
-    size_t n;
+    float   *db;
+    size_t   n;
+    uint32_t win_gen;
 } wf_row_t;
 
+/* Into the waterfall of the window it was made for, if that is still open; freed either way */
 static void wf_row_add(void *data) {
     wf_row_t *row = data;
 
-    lv_waterfall_add_data(waterfall, row->db, row->n);
+    if (row->win_gen == win_gen) lv_waterfall_add_data(waterfall, row->db, row->n);
     free(row->db);
 }
 
@@ -1374,9 +1404,10 @@ static void on_psd(const float *psd, uint16_t nfft, float sec, const slot_info_t
 
     if (lo >= hi) return;
 
-    wf_row_t row = {.n = hi - lo};
+    wf_row_t row = {.n = hi - lo, .win_gen = win_gen};
 
     row.db = calloc(row.n, sizeof(float));
+    if (!row.db) return;
     memcpy(row.db, &psd[lo], row.n * sizeof(float));
 
     /* Relative to the noise floor (the 30th percentile of the row, smoothed over ~2 s), as
@@ -1395,7 +1426,7 @@ static void on_psd(const float *psd, uint16_t nfft, float sec, const slot_info_t
         free(sorted);
     }
     for (size_t i = 0; i < row.n; i++) row.db[i] -= floor_db;
-    scheduler_put(wf_row_add, &row, sizeof(row));
+    if (!scheduler_put(wf_row_add, &row, sizeof(row))) free(row.db);    /* a full queue: this row is lost */
 }
 
 static void on_slot_end(const slot_info_t *slot, void *ctx) {
@@ -1614,6 +1645,7 @@ static void destruct_cb(void) {
     freq_list = NULL;
     kb_close();
     decoder_stop();
+    win_gen++;      /* the decoder is joined: what it queued for this window goes nowhere now */
     /* After the decoder thread, which sends too */
     if (udp_check_timer) {
         lv_timer_del(udp_check_timer);
