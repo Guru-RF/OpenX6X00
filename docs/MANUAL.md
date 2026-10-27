@@ -2061,7 +2061,10 @@ keeps every narrow carrier that stays put between two looks: a few minutes,
 every band the radio transmits on (a transverter's too; not the receive-only
 bands). **Stop** ends it early; what
 was found so far is kept. **Clear**
-forgets them. The list is `/mnt/birdies.txt`, one frequency a line.
+forgets them. The list is `/mnt/birdies.txt`, one frequency a line. It holds
+2048; a scan that finds more says so at the end ("List full at 2048: ... more not
+kept"), which with the antenna still connected means stations: take it off,
+**Clear** and scan again.
 
 What is done with them is Settings > Display > MAIN SCREEN > **Birdies** (also
 the **Marks** button here and the web Display page): *Marks* draws a short red

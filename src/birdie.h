@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 #define BIRDIE_FILE BOARD_DATA "/birdies.txt"      /* one frequency in Hz a line, sorted */
-#define BIRDIES_MAX 256
+#define BIRDIES_MAX 2048    /* 256 filled up in the first bands of a scan, the later ones got none (#50) */
 
 /* Loads the file, takes the marks and the notch along with the frequency and the mode (LVGL
  * thread, once the settings are up) */

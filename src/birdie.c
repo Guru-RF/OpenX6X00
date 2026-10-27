@@ -57,9 +57,9 @@ static void list_sort(void) {
     }
 }
 
-/* Adds hz unless one within SAME_HZ is known; true when it is new */
-static bool list_add(int32_t hz) {
-    bool added = false;
+/* Adds hz unless one within SAME_HZ is known: 1 added, 0 known already, -1 new but the list is full */
+static int list_add(int32_t hz) {
+    int added = 0;
 
     pthread_mutex_lock(&list_mux);
     int i;
@@ -67,7 +67,9 @@ static bool list_add(int32_t hz) {
     if (i == birdies_n && birdies_n < BIRDIES_MAX) {
         birdies[birdies_n++] = hz;
         list_sort();
-        added = true;
+        added = 1;
+    } else if (i == birdies_n) {
+        added = -1;
     }
     pthread_mutex_unlock(&list_mux);
     return added;
@@ -191,7 +193,7 @@ static birdie_progress_fn progress_fn;
 static void        *progress_arg;
 
 typedef struct {
-    char text[96];
+    char text[160];
     bool done;
 } progress_t;
 
@@ -277,7 +279,7 @@ static void *scan_thread(void *arg) {
     uint32_t span  = 0;
     float    a[WATERFALL_NFFT], b[WATERFALL_NFFT];
     uint16_t pa[64], pb[64];
-    int      found = 0;
+    int      found = 0, lost = 0;     /* lost: new ones the full list could not take */
 
     for (int bi = 0; bi < bands && !atomic_load(&stop_req); bi++) {
         int in_band = 0;
@@ -310,9 +312,13 @@ static void *scan_thread(void *arg) {
                 if (!steady) continue;
                 int32_t hz = f - (int32_t)span / 2 + (int32_t)((int64_t)pa[i] * span / WATERFALL_NFFT);
                 if (hz < start[bi] || hz > stop[bi]) continue;
-                if (list_add(hz)) {
+                int r = list_add(hz);
+
+                if (r > 0) {
                     found++;
                     in_band++;
+                } else if (r < 0) {
+                    lost++;
                 }
             }
         }
@@ -321,10 +327,13 @@ static void *scan_thread(void *arg) {
     radio_set_freq(dial);
     list_save();
     atomic_store(&scanning, false);
-    if (atomic_load(&stop_req))
-        progress(true, "Stopped: %d found, %d known in all, saved.", found, birdies_n);
+    const char *how = atomic_load(&stop_req) ? "Stopped" : "Done";
+
+    if (lost)   /* say so: a scan with the antenna on fills the list with stations */
+        progress(true, "%s: %d found, %d known in all, saved. List full at %d: %d more not kept. Antenna off? "
+                       "Clear and scan again.", how, found, birdies_n, BIRDIES_MAX, lost);
     else
-        progress(true, "Done: %d found, %d known in all, saved.", found, birdies_n);
+        progress(true, "%s: %d found, %d known in all, saved.", how, found, birdies_n);
     return NULL;
 }
 
