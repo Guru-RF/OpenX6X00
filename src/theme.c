@@ -464,7 +464,7 @@ const lv_img_dsc_t *theme_image(theme_image_t img, lv_coord_t w, lv_coord_t h) {
 
 const lv_img_dsc_t *theme_png(const char *path) {
     static struct {
-        char         path[96];
+        char         path[256];   /* the PC build's share folder can be a long path */
         lv_img_dsc_t dsc;
     } pngs[64];
     static int n;
@@ -582,7 +582,7 @@ int theme_list(char names[][32], int max) {
 
 /* The icons of the icon menus: white drawings (tools/icons/mkicons.py) coloured here */
 lv_obj_t *theme_icon_img(lv_obj_t *parent, const char *name, int size, lv_color_t color) {
-    char                path[96];
+    char                path[256];
     const lv_img_dsc_t *d;
 
     snprintf(path, sizeof(path), BOARD_SHARE "/icons/%s_%d.png", name, size);
