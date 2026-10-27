@@ -107,12 +107,52 @@ static int run_log(void) {
     return 0;
 }
 
+/* Audit C13: a "set" the radio refuses is answered in words and the whole state goes out to that page again
+ * ("state_due", which the panel thread sends changed or not), so a page that showed what it asked for shows the
+ * radio's; one the GUI thread would have dropped without a word (a lock, a frequency out of range, a full queue)
+ * is refused the same way */
+static void set_case(client_t *c, const char *what, const char *cmd) {
+    said[c - clients][0] = 0;
+    atomic_store(&c->state_due, false);
+    say(c, cmd);
+    int queued = njobs;
+    njobs = 0;
+    printf("%s queued=%d err=%d state again=%d\n", what, queued, !strncmp(said[c - clients], "err", 3),
+           atomic_load(&c->state_due));
+}
+
+static int run_set(void) {
+    client_t *viewer = open_client(0, ROLE_VIEW, false), *op = open_client(1, ROLE_OPERATE, true);
+
+    viewer->sess = -1;
+    snprintf(sessions[0].name, sizeof(sessions[0].name), "Kitchen phone");
+    nsessions = 1;
+    set_case(viewer, "view only:", "set freq 14075000");
+    ctl_claim(CTL_LOCAL, 0, "", true);
+    set_case(op, "control at the radio:", "set freq 14075000");
+    ctl_claim(CTL_BROWSER, 1, "Kitchen phone", true);
+    freq_locked = true;
+    set_case(op, "frequency locked:", "set freq 14075000");
+    freq_locked = false;
+    set_case(op, "out of range:", "set freq 99000000");
+    set_case(op, "a mode this radio has not:", "set mode 9");
+    queue_full = true;
+    set_case(op, "GUI queue full:", "set vol 20");
+    queue_full = false;
+    /* not "busy...": a page takes that for its PTT's refusal and stops renewing a press that may have keyed */
+    printf("the queue-full refusal: %s", said[1]);
+    set_case(op, "no such setting:", "set bogus 1");
+    set_case(op, "accepted:", "set freq 14075000");
+    return 0;
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     ctl_init();
     if (argc >= 2 && !strcmp(argv[1], "ping")) return run_ping();
     if (argc >= 2 && !strcmp(argv[1], "ptt")) return run_ptt();
     if (argc >= 2 && !strcmp(argv[1], "log")) return run_log();
-    fprintf(stderr, "remote ptt|log\n");
+    if (argc >= 2 && !strcmp(argv[1], "set")) return run_set();
+    fprintf(stderr, "remote ptt|ping|log|set\n");
     return 2;
 }

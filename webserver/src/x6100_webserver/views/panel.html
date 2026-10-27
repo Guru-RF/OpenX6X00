@@ -16,6 +16,7 @@
 .freq { grid-row:1 / span 2; grid-column:3; font:700 clamp(28px, 6vw, 46px)/1 "SF Mono", Menlo, Consolas, monospace; letter-spacing:1px; cursor:pointer; text-align:right; font-variant-numeric:tabular-nums; padding:2px 0; }
 .freq small { font-size:.55em; color:var(--pd); font-weight:500; }
 .freq.locked { color:var(--pd); }
+.freq.pend, .b.lvl.pend > span > span { font-style:italic; opacity:.6; }   /* asked for, not confirmed by the radio yet */
 .smeter { grid-column:1 / span 2; display:flex; align-items:center; gap:8px; font:600 12px/1 system-ui,sans-serif; color:var(--pd); }
 .smeter .bar { flex:1; height:12px; background:var(--pb); border:1px solid var(--pl); border-radius:4px; position:relative; overflow:hidden; }
 .smeter .bar i { position:absolute; left:0; top:0; bottom:0; width:0; background:linear-gradient(90deg,#2a7fff 0 60%,#ffb020 60% 80%,#ff5252 80%); transition:width .08s linear; }
@@ -330,10 +331,34 @@ body.app h2, body.app #intro { display:none; }
   $("#full").on("click", function() { if (document.fullscreenElement) document.exitFullscreen(); else if (pn.requestFullscreen) pn.requestFullscreen(); });
 
   /* ---- The state ---- */
+  /* What this page asked for and the radio has not confirmed: the frequency and the levels, shown at once but
+   * marked as asked, never written into the radio's state (audit C13: a refused tune stayed on the readout as if
+   * the radio were there). The radio's state confirms it; a refusal ("err", the radio sends its state again
+   * with it) or WANT_MS without confirmation drops it, and the radio's value shows again */
+  const WANT_MS = 2000;
+  let want = {};
+  function cur(k) { return want[k] ? want[k].v : state[k]; }
+  function wantCheck() {
+    Object.keys(want).forEach(function(k) {
+      const w = want[k], got = k === "pwr" ? Math.abs(state.pwr - w.v) < 0.05 : state[k] === w.v;
+      if (got || Date.now() - w.t > WANT_MS) delete want[k];
+    });
+  }
+  function wantDrop() { if (Object.keys(want).length) { want = {}; showState(); } }
+  /* May the page ask for a change and show it as asked? Not when it knows the radio would refuse: the reason,
+   * and the dialog that changes it */
+  function mayAct() {
+    const no = !link.up ? "No link to the radio: nothing is sent" : link.stalled ? "The radio does not answer: nothing is sent until it does" : ses.can();
+    if (no) { status(no, true); if (link.up && !link.stalled) ses.explain(); }
+    return !no;
+  }
   function showState() {
-    const s = state;
-    if (!s) return;
-    $("#freq").text(fmtFreq(s.freq)).toggleClass("locked", !!s.lock);
+    if (!state) return;
+    wantCheck();
+    const s = Object.assign({}, state);
+    Object.keys(want).forEach(function(k) { s[k] = want[k].v; });
+    $("#freq").text(fmtFreq(s.freq)).toggleClass("locked", !!s.lock).toggleClass("pend", !!want.freq).attr("title", want.freq ? "Asked for, the radio has not confirmed it yet (it is on " + fmtFreq(state.freq) + ")" : "Tap: type a frequency");
+    ["vol", "sql", "rfg", "pwr"].forEach(function(k) { $('[data-lvl="' + k + '"]').toggleClass("pend", !!want[k]); });
     $("#c-band").text(bandOf(s.freq) + " " + MODES[s.mode]).toggleClass("on", true);
     $("#c-vfo").text(s.vfo ? "B" : "A");
     $("#c-bat").text(s.bat + "%").toggle(s.bat >= 0);
@@ -518,18 +543,25 @@ body.app h2, body.app #intro { display:none; }
   const pan = document.getElementById("pan"), ptrs = new Map();
   let drag = null, pinch = null, tuneTimer = null, tuneWant = null;
   function tuneTo(hz) {
-    if (!state || state.lock) return;
+    if (!state) return;
+    if (state.lock) { status("LOCK is on (or an app holds the frequency): the radio stays on " + fmtFreq(state.freq), true); return; }
+    if (!mayAct()) return;
     hz = Math.round(hz);
     tuneWant = hz;
-    if (!tuneTimer) tuneTimer = setTimeout(function() { tuneTimer = null; if (tuneWant !== null) { set("freq", tuneWant); tuneWant = null; } }, 40);
-    state.freq = hz; showState(); requestDraw();     /* shown at once, the radio confirms */
+    want.freq = {v: hz, t: Date.now()};               /* shown at once as asked, the radio confirms */
+    if (!tuneTimer) tuneTimer = setTimeout(function() {
+      tuneTimer = null;
+      if (tuneWant !== null && !set("freq", tuneWant)) { delete want.freq; showState(); }
+      tuneWant = null;
+    }, 40);
+    showState();
   }
   function roundStep(hz) { const st = state ? state.step : 100; return Math.round(hz / st) * st; }
   function zoomTo(z) { z = Math.max(1, Math.min(8, z)); if (state && z !== state.zoom) set("zoom", z); }
   pan.addEventListener("pointerdown", function(e) {
     e.preventDefault(); pan.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY});
-    if (ptrs.size === 1) drag = {x0: e.clientX, f0: state ? state.freq : 0, moved: false, t: Date.now()};
+    if (ptrs.size === 1) drag = {x0: e.clientX, f0: state ? cur("freq") : 0, moved: false, t: Date.now()};
     else if (ptrs.size === 2) { const p = Array.from(ptrs.values()); pinch = {d0: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), z0: state ? state.zoom : 1, done: false}; drag = null; }
   });
   pan.addEventListener("pointermove", function(e) {
@@ -561,7 +593,7 @@ body.app h2, body.app #intro { display:none; }
     if (!state) return;
     if (e.ctrlKey) { zoomTo(e.deltaY < 0 ? state.zoom * 2 : state.zoom / 2); return; }
     const n = (e.shiftKey ? 10 : 1) * (e.deltaY < 0 ? 1 : -1);
-    tuneTo(state.freq + n * state.step);
+    tuneTo(cur("freq") + n * state.step);           /* from the frequency asked last: steps add up */
   }, {passive: false});
   pan.addEventListener("contextmenu", function(e) { e.preventDefault(); });
 
@@ -617,18 +649,25 @@ body.app h2, body.app #intro { display:none; }
   /* ---- Controls ---- */
   const LVL = {vol: {min: 0, max: 55, step: 1, fmt: function(v) { return v; }}, sql: {min: 0, max: 100, step: 1, fmt: function(v) { return v; }},
                rfg: {min: 0, max: 100, step: 1, fmt: function(v) { return v; }}, pwr: {min: 0.1, max: 10, step: 0.1, fmt: function(v) { return v.toFixed(1) + " W"; }}};
-  function lvlSend(name, v) { set(name, name === "pwr" ? Math.round(v * 10) : Math.round(v)); if (state) { state[name] = v; showState(); } }
+  /* A level, shown as asked until the radio confirms it (want, above) */
+  function lvlSend(name, v) {
+    if (!state || !mayAct()) return;
+    v = name === "pwr" ? Math.round(v * 10) / 10 : Math.round(v);
+    want[name] = {v: v, t: Date.now()};
+    if (!set(name, name === "pwr" ? Math.round(v * 10) : v)) delete want[name];
+    showState();
+  }
   document.querySelectorAll(".b.lvl").forEach(function(el) {
     const name = el.dataset.lvl, L = LVL[name];
     el.querySelectorAll("i").forEach(function(i) {
       let rep = null;
-      const fire = function() { if (!state) return; lvlSend(name, Math.max(L.min, Math.min(L.max, state[name] + parseInt(i.dataset.d, 10) * L.step))); };
+      const fire = function() { if (!state) return; lvlSend(name, Math.max(L.min, Math.min(L.max, cur(name) + parseInt(i.dataset.d, 10) * L.step))); };
       i.addEventListener("pointerdown", function(e) { e.preventDefault(); e.stopPropagation(); fire(); rep = setInterval(fire, 130); });
       const stop = function() { if (rep) { clearInterval(rep); rep = null; } };
       i.addEventListener("pointerup", stop); i.addEventListener("pointercancel", stop); i.addEventListener("pointerleave", stop);
       i.addEventListener("click", function(e) { e.stopPropagation(); });
     });
-    el.addEventListener("click", function() { if (state) popSlider(el.querySelector("small").textContent, L.min, L.max, L.step, state[name], L.fmt, function(v) { lvlSend(name, v); }); });
+    el.addEventListener("click", function() { if (state) popSlider(el.querySelector("small").textContent, L.min, L.max, L.step, cur(name), L.fmt, function(v) { lvlSend(name, v); }); });
     el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
   });
   document.querySelectorAll(".b.tg").forEach(function(el) { el.addEventListener("click", function() { if (state) set(el.dataset.set, state[el.dataset.set] ? 0 : 1); }); });
@@ -644,7 +683,7 @@ body.app h2, body.app #intro { display:none; }
   $("#b-atune").on("click", function() { keyDown("ATU", null); setTimeout(function() { keyUp("ATU", null); }, 1200); });   /* a long press: tune */
   ["b-tune", "b-tunep"].forEach(function(id, k) {
     const el = document.getElementById(id); let rep = null;
-    const fire = function() { if (state) tuneTo(state.freq + (k ? 1 : -1) * state.step); };
+    const fire = function() { if (state) tuneTo(cur("freq") + (k ? 1 : -1) * state.step); };
     el.addEventListener("pointerdown", function(e) { e.preventDefault(); fire(); rep = setInterval(fire, 100); });
     const stop = function() { if (rep) { clearInterval(rep); rep = null; } };
     el.addEventListener("pointerup", stop); el.addEventListener("pointercancel", stop); el.addEventListener("pointerleave", stop);
@@ -869,6 +908,7 @@ body.app h2, body.app #intro { display:none; }
     const sp = t.indexOf(" "), head = sp < 0 ? t : t.slice(0, sp), body = sp < 0 ? "" : t.slice(sp + 1);
     try {
       if (ses.onText(head, body)) return;          /* role, ctl, paired, tx, sessions */
+      if (head === "err") wantDrop();                /* a change refused (whichever): the radio's values again */
       if (head === "err" && ptt.err(body)) return;   /* a refused or ended transmission: the PTT button says so */
       if (head === "state") { state = JSON.parse(body); stateAt = Date.now(); showState(); requestDraw(); }
       else if (head === "m") showMeter(parseFloat(body));
@@ -915,6 +955,7 @@ body.app h2, body.app #intro { display:none; }
    * again, on purpose, once the radio answers */
   function letGo(why) {
     tuneWant = null; if (tuneTimer) { clearTimeout(tuneTimer); tuneTimer = null; }
+    wantDrop();                                       /* nothing asked can be confirmed now */
     const hadKeys = Object.keys(held).length > 0 || ptt.state === "tx" || ptt.state === "requesting";
     Object.keys(held).forEach(function(k) { keyUp(k, document.querySelector('[data-key="' + k + '"]')); });
     ptt.lost(why);
@@ -976,7 +1017,7 @@ body.app h2, body.app #intro { display:none; }
     fpsText = (frames / dt).toFixed(0) + " fps, " + (bytes / dt / 1024).toFixed(0) + " kB/s"; kbsText = (abytes / dt / 1024).toFixed(0) + " kB/s";
     frames = 0; bytes = 0; abytes = 0;
   }, 2000);
-  setInterval(function() { showHealth(); view(); logTick(); }, 1000);
+  setInterval(function() { showHealth(); view(); logTick(); if (state && Object.keys(want).length) showState(); }, 1000);
 
   /* ---- Keys (the Keys tab, PTT) ---- */
   const held = {};
@@ -1006,10 +1047,10 @@ body.app h2, body.app #intro { display:none; }
     if (e.key === " ") { e.preventDefault(); if (e.repeat) return; ptt.press(); return; }
     if (!state) return;
     const n = e.shiftKey ? 10 : 1;
-    if (e.key === "ArrowRight") { e.preventDefault(); tuneTo(state.freq + n * state.step); }
-    else if (e.key === "ArrowLeft") { e.preventDefault(); tuneTo(state.freq - n * state.step); }
-    else if (e.key === "]") { e.preventDefault(); lvlSend("vol", Math.min(LVL.vol.max, state.vol + 1)); }
-    else if (e.key === "[") { e.preventDefault(); lvlSend("vol", Math.max(0, state.vol - 1)); }
+    if (e.key === "ArrowRight") { e.preventDefault(); tuneTo(cur("freq") + n * state.step); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); tuneTo(cur("freq") - n * state.step); }
+    else if (e.key === "]") { e.preventDefault(); lvlSend("vol", Math.min(LVL.vol.max, cur("vol") + 1)); }
+    else if (e.key === "[") { e.preventDefault(); lvlSend("vol", Math.max(0, cur("vol") - 1)); }
   });
   document.addEventListener("keyup", function(e) { if (e.key === " ") ptt.release(); });
 

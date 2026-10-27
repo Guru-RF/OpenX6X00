@@ -45,7 +45,8 @@
  *  per bin (the waterfall's own FFT, up to 15 a second, a kilobyte each where a screen frame is
  *  thirty). "screen 0" stops the screen frames for a client that does not show them. "set NAME
  *  VALUE" changes the radio on the LVGL thread: freq, mode, agc, pre, att, nb, nr, sql, rfg,
- *  vol, pwr (tenths of a watt), step, zoom, band (+1/-1), vfo (toggle), filter LO HI, atu, lock.
+ *  vol, pwr (tenths of a watt), step, zoom, band (+1/-1), vfo (toggle), filter LO HI, atu, lock;
+ *  one refused ("err ...") is followed by the whole state, changed or not (audit C13).
  *  A panel thread reads the radio (the settings' getters are safe from any thread, as the TCI
  *  server uses them) and tells the panel clients what changed every 50 ms. The apps: the FT8
  *  list's rows go out as they come ("ft8r {...}", the last 48 to a page that opens later), the
@@ -170,6 +171,7 @@ typedef struct {
     uint64_t        screen_ms;      /* its last frame */
     bool            panel;          /* wants the state, the spectrum and the spots (the Panel page) */
     bool            panel_fresh;    /* just subscribed: the whole state goes out next */
+    atomic_bool     state_due;      /* a "set" refused: the state goes out to it next, changed or not */
     int             sess;           /* the session it authenticated as, -1 none (a viewer) */
     uint8_t         role;           /* ROLE_VIEW, ROLE_OPERATE, ROLE_ADMIN */
     bool            tx_ok;          /* the session may transmit */
@@ -235,6 +237,7 @@ static atomic_int  port    = REMOTE_DEFAULT_PORT;
 static atomic_int  nclients;
 static atomic_int  npanel;          /* clients on the panel feed */
 static atomic_bool spots_resend;    /* a new panel client: the spots go out again */
+static atomic_bool state_resend;    /* a "set" dropped on the LVGL thread: the state goes out to all again */
 static int         wake_fd[2] = {-1, -1};
 static int         dev_keypad = -1, dev_power = -1, dev_main = -1, dev_vol = -1, dev_mfk = -1;
 
@@ -690,10 +693,14 @@ static void panel_apply(void *arg) {
             backlight_tick();
             if (!main_screen_freq_locked() && cfg_is_valid_hw_freq(p->a))
                 main_screen_set_freq((uint64_t)p->a);
+            else
+                atomic_store(&state_resend, true);  /* locked since panel_set looked: no page keeps what it asked (C13) */
             break;
         case P_MODE:
             if (!main_screen_mode_locked() && mode_supported(p->a))
                 cparam_i_set(cfg_cur_mode, p->a);
+            else
+                atomic_store(&state_resend, true);
             break;
         case P_AGC:    cparam_i_set(cfg_cur_agc, LV_CLAMP(0, p->a, 3)); break;
         case P_PRE:    cparam_i_set(cfg_cur_pre, p->a != 0); break;
@@ -709,6 +716,8 @@ static void panel_apply(void *arg) {
         case P_BAND:
             if (!main_screen_band_locked())
                 cfg_band_load_next(p->a > 0);
+            else
+                atomic_store(&state_resend, true);
             break;
         case P_VFO:    cfg_vfo_toggle(); break;
         case P_FILTER:
@@ -725,13 +734,22 @@ static void panel_apply(void *arg) {
     }
 }
 
-static void panel_put(pcmd_id_t id, int32_t a, int32_t b) {
+static bool panel_put(pcmd_id_t id, int32_t a, int32_t b) {
     pcmd_t p = {.id = id, .a = a, .b = b};
-    scheduler_put(panel_apply, &p, sizeof(p));
+    return scheduler_put(panel_apply, &p, sizeof(p));
 }
 
-/* "set NAME VALUE [VALUE2]": 0 done, 1 no such setting, 2 a mode this radio has not */
-static int panel_set(const char *name, const char *v1, const char *v2) {
+/* A "set" refused, in words; and the state goes out to the client again, changed or not, so a page that showed
+ * what it asked for shows the radio's again (audit C13) */
+static void set_refused(client_t *c, const char *why) {
+    client_textf(c, "err %s", why);
+    atomic_store(&c->state_due, true);
+}
+
+/* "set NAME VALUE [VALUE2]", for the LVGL thread. What panel_apply would drop without a word (the frequency
+ * locked, by LOCK or an app, or one this radio does not tune) is refused here first; one locked in between is
+ * still dropped there, with the state to every page again (state_resend) */
+static void panel_set(client_t *c, const char *name, const char *v1, const char *v2) {
     static const struct {
         const char *name;
         pcmd_id_t   id;
@@ -751,11 +769,20 @@ static int panel_set(const char *name, const char *v1, const char *v2) {
             if (a > b) { int32_t t = a; a = b; b = t; }
         }
         if (names[i].id == P_MODE && !mode_supported(a))
-            return 2;
-        panel_put(names[i].id, a, b);
-        return 0;
+            set_refused(c, "mode: not on this radio");
+        else if (names[i].id == P_FREQ && main_screen_freq_locked())
+            set_refused(c, "freq: locked (LOCK, or an app holds the frequency)");
+        else if (names[i].id == P_FREQ && !cfg_is_valid_hw_freq(a))
+            set_refused(c, "freq: not a frequency this radio tunes");
+        else if (!panel_put(names[i].id, a, b)) {
+            char why[48];                       /* named as the others: a page takes "busy..." for its PTT's refusal */
+            snprintf(why, sizeof(why), "%s: the radio is busy, try again", names[i].name);
+            set_refused(c, why);
+        }
+        return;
     }
-    return 1;
+    client_textf(c, "err unknown setting %s", name);
+    atomic_store(&c->state_due, true);
 }
 
 /* Any thread */
@@ -1351,10 +1378,12 @@ static void *panel_thread(void *arg) {
                 last      = s;
                 have_last = true;
             }
+            bool all_due = atomic_exchange(&state_resend, false);
             for (int i = 0; i < MAX_CLIENTS; i++) {
                 client_t *c = &clients[i];
                 if (c->fd < 0 || !c->up || !c->panel)
                     continue;
+                bool due = atomic_exchange(&c->state_due, false) || all_due;
                 if (c->panel_fresh) {
                     c->panel_fresh = false;
                     panel_hello(c);
@@ -1367,7 +1396,9 @@ static void *panel_thread(void *arg) {
                     panel_app_history(c);
                     if (changed)
                         pstate_line(line, sizeof(line), &s);     /* the line the others get */
-                } else if (changed) {
+                } else if (changed || due) {
+                    if (!changed)
+                        pstate_line(line, sizeof(line), &s);     /* a "set" refused: the state as it is */
                     client_text(c, line);
                 }
             }
@@ -1665,13 +1696,11 @@ static void handle_text(client_t *c, char *text) {
             }
         }
     } else if (!strcmp(a[0], "set") && n >= 2) {
-        if (!allowed(c, ROLE_OPERATE, true))
+        if (!allowed(c, ROLE_OPERATE, true)) {
+            atomic_store(&c->state_due, true);     /* as set_refused: the state again (audit C13) */
             return;
-        int r = panel_set(a[1], n >= 3 ? a[2] : NULL, n >= 4 ? a[3] : NULL);
-        if (r == 1)
-            client_textf(c, "err unknown setting %s", a[1]);
-        else if (r == 2)
-            client_text(c, "err mode: not on this radio");
+        }
+        panel_set(c, a[1], n >= 3 ? a[2] : NULL, n >= 4 ? a[3] : NULL);
     } else if (!strcmp(a[0], "ft8") && n >= 2) {
         if (!allowed(c, ROLE_OPERATE, true))
             return;
@@ -1856,6 +1885,7 @@ static void accept_client(int listen_fd) {
         c->screen_stale = true;
         c->screen_ms    = 0;
         c->panel   = c->panel_fresh = false;
+        atomic_store(&c->state_due, false);
         c->sess    = -1;
         c->role    = ROLE_VIEW;
         c->tx_ok   = false;

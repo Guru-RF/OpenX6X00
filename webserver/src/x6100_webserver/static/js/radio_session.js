@@ -10,6 +10,7 @@
  *     ses.ctl                       {who: "none"|"local"|"tci"|"browser", name, mine}
  *     ses.radioTx                   the radio's TX state as last told ("tx 0|1")
  *     ses.can()                     -> "" when this browser may operate now, else the reason
+ *     ses.explain()                 the dialog that changes what can() refused (pair, take control)
  *     ses.chips()                   -> [{n, s, t}] for RadioLink.health: Access and Control
  *   The element `el` gets two buttons: the role (Pair, or this browser's name) and the control
  *   holder (Take control / Release); an admin gets Sessions. The token lives in localStorage
@@ -112,6 +113,14 @@
     if (this.role === "view") return "This browser only watches: Pair it to operate";
     if (this.ctl.who !== "none" && !this.ctl.mine) return this.ctl.who === "local" ? "The radio is operated at the radio: Take control first" : this.ctl.who === "tci" ? "A TCI client operates the radio: Take control first" : "Controlled by " + this.ctl.name + ": Take control first";
     return "";
+  };
+  /* What can() refused, as the radio's own refusal is shown: the pairing or the Take control dialog, not more
+   * than once in 4 s (a page that knows the answer does not send, audit C13) */
+  Session.prototype.explain = function() {
+    if (Date.now() - (this.askedAt || 0) <= 4000) return;
+    this.askedAt = Date.now();
+    if (this.role === "view") { if (!this.pairing) { this.pairError = null; this.pairOpen(); } }
+    else if (this.ctl.who !== "none" && !this.ctl.mine) this.takeOpen();
   };
   Session.prototype.chips = function() {
     const c = this.ctl;

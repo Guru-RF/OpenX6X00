@@ -60,6 +60,13 @@ def main():
         print("C03 log receipts, two tabs of one browser (fixed):\n" + command([binary, "log"], env, contains=(
             "one number, two contacts: writes=1, the second told ok=0, told conflict=1",
             "two tabs, two more contacts: writes=3, 53-bit numbers answered whole=1")).strip())
+        print("C13 refused settings (fixed):\n" + command([binary, "set"], env, contains=(
+            "view only: queued=0 err=1 state again=1", "control at the radio: queued=0 err=1 state again=1",
+            "frequency locked: queued=0 err=1 state again=1", "out of range: queued=0 err=1 state again=1",
+            "a mode this radio has not: queued=0 err=1 state again=1", "GUI queue full: queued=0 err=1 state again=1",
+            "the queue-full refusal: err vol: the radio is busy, try again",
+            "no such setting: queued=0 err=1 state again=1", "accepted: queued=1 err=0 state again=0")).strip())
+        print("C02/C03/C13 (26 October audit): the remote's checks matched the fixes")
 
         command([sys.executable, HERE / "make-unkey-harness.py"], env)
         binary = work / "unkey"

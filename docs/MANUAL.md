@@ -2508,6 +2508,18 @@ web page, nothing to install, any device with a browser.
 - Phone in portrait: the radio on top, the Spots, Keys and Screen tabs below.
   Tablet or PC in landscape: side by side. The page follows the screen.
 
+What the page shows is the radio's state, never what it hopes. A tune or a
+level (the frequency, VOL, SQL, RF GAIN, POWER) shows at once, in faint
+italics, until the radio confirms it; the VFO line on the panorama stays
+where the radio is meanwhile. When the radio refuses it (another place has
+control, LOCK or an app holds the frequency, a frequency the radio does not
+tune, the radio busy) the status line says why and the radio's own value
+shows again; a change neither confirmed nor refused within two seconds goes
+back to the radio's value too. A browser that only watches, or does not
+have control, does not send the change at all: it says why and opens the
+pairing or Take control dialog. With LOCK on, the frequency stays and the
+status line says so.
+
 The page talks to the GUI's remote WebSocket (port 50002, the Screen page's):
 `panel 1` subscribes to the state (`state {...}` as JSON: frequency, mode,
 filter, the switches and the levels, whenever something changes), the
@@ -2518,8 +2530,15 @@ centre Hz, u32 width Hz, u32 sequence}`, then one int8 dB per bin). `set NAME
 VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list),
 `agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1), `sql`, `rfg`
 (0-100), `vol` (0-55 on the X6100, 0-100 on the X6200), `pwr` (tenths of a watt), `step`, `zoom` (1-8), `band`
-(+1/-1), `vfo` (toggle), `filter LO HI`. The keys and knobs go as on the
-Screen page. The apps: the FT8 list's rows come as `ft8r {...}` (id, type,
+(+1/-1), `vfo` (toggle), `filter LO HI`. A `set` the radio refuses is
+answered `err ...` (`err freq: locked (LOCK, or an app holds the
+frequency)`, `err freq: not a frequency this radio tunes`, `err NAME: the
+radio is busy, try again`, `err unknown setting NAME`, the role and
+control refusals) and followed by the whole `state`, changed or not, so a
+client that showed what it asked for can show the radio's again. One the
+radio drops because an app locked the frequency, mode or band in between
+gets no `err`, but the whole `state` goes to every panel client. The keys
+and knobs go as on the Screen page. The apps: the FT8 list's rows come as `ft8r {...}` (id, type,
 text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
 state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
 the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
