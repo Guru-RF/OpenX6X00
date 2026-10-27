@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <math.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -120,17 +121,37 @@ static float tx_start_limit(void) {
 
 static dialog_t dialog;
 
-static volatile bool sending;       /* the decoder thread is transmitting */
 static SubjectInt   *tx_enabled;    /* TX Call */
 static SubjectInt   *cq_enabled;    /* TX CQ */
-static bool          tx_odd;        /* the slot (odd or even) our transmissions go in */
-static ftx_tx_msg_t  tx_msg;        /* the next transmission, "" none */
+
+/* The QSO sequence (audit C05): the processor (qso), the next transmission and Hound's state change
+ * on the decoder thread (a decode, a slot's end, a transmission) and on the GUI (a key, a row, the
+ * browser panel; the panel's status reads them on its own thread). Each takes qso_mux for a whole
+ * step, so a reset on the GUI can't delete the QSO the decoder is completing, nor a decode answer
+ * over a call just chosen. Never held across a wait for another thread: not over a transmission,
+ * not for a GUI job (gui_post may wait for room), not while the GUI joins the decoder. A QSO
+ * completed in a step is saved after it, outside (qso_unlock) */
+static pthread_mutex_t qso_mux = PTHREAD_MUTEX_INITIALIZER;
+static bool            tx_odd;      /* the slot (odd or even) our transmissions go in */
+static ftx_tx_msg_t    tx_msg;      /* the next transmission, "" none */
+/* Bumped by each change of the next transmission from the GUI (a key, a row, the panel, a restart):
+ * what a decoder step queued for the GUI before it is out of date (the step answered a station, the
+ * operator called CQ since) */
+static uint32_t        tx_gen;
+/* Our transmission is on: set under qso_mux as transmit() takes the message, cleared under it by
+ * each stop (TX CQ off, TX Call off, Hound, the panel's STOP, decoder_stop), so a stop after the
+ * message was taken still ends it (tx_stopped_cb). Read anywhere */
+static atomic_bool     sending;
+/* The decoder runs for this window: off from the start of decoder_stop, so that what the thread
+ * still does before its join (a last decode answered, the slot for it) sends nothing */
+static bool            decoder_on;
 static char          last_logged[16];   /* the last QSO saved (the panel's timeline), "" none */
 static time_t        last_logged_at;
 /* UTC start of the slot being received, "HH:MM:SS": in front of each row of it (worker thread) */
 static char          slot_time[9] = "--:--:--";
 
-/* DXpedition Hound mode (FT8 only, off each time the app opens) */
+/* DXpedition Hound mode (FT8 only, off each time the app opens): under qso_mux, the GUI's own
+ * reads of hound_on aside (it is the only one to set it) */
 static bool    hound_on;
 static hound_t hound;
 
@@ -186,9 +207,14 @@ static struct {
     char    dx[16];
 } udp_sent = {-1, -1, -1};
 
+static void qso_lock(void);
+static void qso_unlock(void);
+
 /* The station in QSO: the first word of the next transmission ("DXCALL MYCALL ..."), none for a CQ */
 static void udp_dx_call(char dx[16]) {
+    qso_lock();
     snprintf(dx, 16, "%.*s", (int)strcspn(tx_msg.msg, " "), tx_msg.msg);
+    qso_unlock();
     if (!strcmp(dx, "CQ")) dx[0] = '\0';
 }
 
@@ -238,17 +264,21 @@ static void gui_post(scheduler_fn_t fn, const void *arg, size_t n) {
 }
 
 typedef struct {
-    bool    cursor, txfreq, cq_off;
-    float   cursor_hz;
-    int32_t txfreq_hz;
+    bool     cursor, txfreq, cq_off;
+    float    cursor_hz;
+    uint32_t tx_gen;    /* of the step that made it */
 } ui_job_t;
 
 static void ui_apply(void *arg) {
     ui_job_t *j = arg;
 
     if (!dialog.run) return;    /* the window closed meanwhile */
+    /* The TX frequency is the parameter already (the transmission reads it), set by the decoder
+     * or by the operator since: the marker and the strip show it as it is now */
+    if (j->txfreq) set_tx_freq(params.ft8_tx_freq.x);
+    /* The station answered, a CQ over: not when the operator chose another transmission since */
+    if (j->tx_gen != tx_gen) return;
     if (j->cursor) lv_finder_set_cursor(finder, j->cursor_hz);
-    if (j->txfreq) set_tx_freq(j->txfreq_hz);
     if (j->cq_off && subject_i_get(cq_enabled)) subject_i_set(cq_enabled, false);
 }
 
@@ -261,8 +291,7 @@ static void ui_post(const ui_job_t *j) {
 static void ui_job_tx_freq(ui_job_t *j, int32_t hz) {
     hz = LV_MAX(hz, filter_low);     /* as set_tx_freq clamps */
     params_uint16_set(&params.ft8_tx_freq, hz);
-    j->txfreq    = true;
-    j->txfreq_hz = hz;
+    j->txfreq = true;
 }
 
 /* GUI thread: the QSO into the Field Ops log (its screen follows) */
@@ -270,8 +299,8 @@ static void save_qso_apply(void *arg) {
     dialog_field_day_log((qso_log_record_t *)arg);
 }
 
-/* From the QSO sequence (the decoder thread) or the Save key (GUI): the ADIF and the log database
- * here, the Field Ops entry on the GUI thread */
+/* A QSO the sequence completed (the decoder thread, or the Save key on the GUI), after its step:
+ * the ADIF and the log database here, the Field Ops entry on the GUI thread */
 static void save_qso(const char *call, const char *grid, const int rcvd, const int sent) {
     time_t now = time(NULL);
     int64_t dial = cparam_i_get(cfg_fg_freq);
@@ -300,6 +329,47 @@ static void save_qso(const char *call, const char *grid, const int rcvd, const i
     lv_finder_clear_cursor(finder);
 }
 
+/* The QSOs completed in a step under qso_mux, for qso_unlock(). Two at most: in Hound mode the
+ * processor's and Hound's own */
+typedef struct {
+    char call[32];
+    char grid[16];
+    int  rcvd, sent;
+} done_qso_t;
+
+static done_qso_t done_qsos[2];
+static int        done_n;
+
+/* The processor's save callback, and Hound's RR73: under qso_mux, so noted only. The candidate
+ * that called it may be gone once the lock is free */
+static void qso_completed(const char *call, const char *grid, const int rcvd, const int sent) {
+    if (done_n == (int)ARRAY_SIZE(done_qsos)) {
+        LV_LOG_ERROR("FT8: a QSO with %s completed, no room to save it", call);
+        return;
+    }
+    done_qso_t *d = &done_qsos[done_n++];
+
+    snprintf(d->call, sizeof(d->call), "%s", call);
+    snprintf(d->grid, sizeof(d->grid), "%s", grid);
+    d->rcvd = rcvd;
+    d->sent = sent;
+}
+
+static void qso_lock(void) {
+    pthread_mutex_lock(&qso_mux);
+}
+
+/* The step's completed QSOs are saved after the lock: their logging and GUI jobs may wait */
+static void qso_unlock(void) {
+    done_qso_t done[ARRAY_SIZE(done_qsos)];
+    int        n = done_n;
+
+    memcpy(done, done_qsos, n * sizeof(done[0]));
+    done_n = 0;
+    pthread_mutex_unlock(&qso_mux);
+    for (int i = 0; i < n; i++) save_qso(done[i].call, done[i].grid, done[i].rcvd, done[i].sent);
+}
+
 /* Activators spotted on POTA now: the cluster store, which x6100-pota-spots feeds (worker thread only) */
 static bool pota_spotted(const char *call) {
     static cluster_spot_t spots[CLUSTER_MAX_SPOTS];
@@ -321,8 +391,14 @@ static void on_slot_end(const slot_info_t *slot, void *ctx);
 static void on_tick(const slot_info_t *slot, bool new_slot, float sec, void *ctx);
 
 static void decoder_start(void) {
-    qso = ftx_qso_processor_init(params.callsign.x, station_qth(), save_qso, param_i_get(cfg_ft8_max_repeats));
-    ftx_qso_processor_set_is_pota(qso, pota_spotted);
+    FTxQsoProcessor *p = ftx_qso_processor_init(params.callsign.x, station_qth(), qso_completed,
+                                                param_i_get(cfg_ft8_max_repeats));
+
+    ftx_qso_processor_set_is_pota(p, pota_spotted);
+    qso_lock();     /* the panel's status reads it */
+    qso        = p;
+    decoder_on = true;
+    qso_unlock();
 
     audio_worker_cb_t cb = {
         .on_message  = on_message,
@@ -336,18 +412,27 @@ static void decoder_start(void) {
 }
 
 static void decoder_stop(void) {
-    sending = false;
+    /* Nothing goes out from here: a transmission under way stops, so the join does not wait for it */
+    qso_lock();
+    decoder_on    = false;
+    sending       = false;
+    tx_msg.msg[0] = '\0';
+    tx_gen++;
+    qso_unlock();
     if (audio_worker) {
         audio_worker_destroy(audio_worker);
         audio_worker = NULL;
     }
     radio_set_modem(false);
+    qso_lock();     /* the decoder is gone, the panel's status may still look */
     if (qso) {
         ftx_qso_processor_delete(qso);
         qso = NULL;
     }
+    tx_msg.msg[0] = '\0';  /* an answer its last decode queued */
+    tx_gen++;
+    qso_unlock();
     lv_finder_clear_cursor(finder);
-    tx_msg.msg[0] = '\0';
 }
 
 /* ---- maps ---- */
@@ -469,7 +554,9 @@ static bool decoder_restart(void) {
 /* After any change of dial frequency. A CQ that ended says so after the band's label: the
  * band keys work from any button page, TX CQ may not be in view */
 static void retuned(void) {
+    qso_lock();
     hound_stop(&hound);
+    qso_unlock();
     js8_map_heard_clear();
     if (decoder_restart()) msg_schedule_text_fmt("CQ off: press TX CQ to call on this frequency");
 }
@@ -628,7 +715,11 @@ static void mode_cb(button_data_t *btn) {
     freq_strip_set_app(ftx_protocol_name(next));
     decoder_restart();      /* a CQ ends with no note: TX CQ is next to Mode */
     if (params.ft8_custom_on.x) params_bool_set(&params.ft8_custom_on, false); /* FT4/FT2 elsewhere */
-    if (next != FTX_PROTOCOL_FT8) hound_on = false;
+    if (next != FTX_PROTOCOL_FT8) {
+        qso_lock();
+        hound_on = false;
+        qso_unlock();
+    }
     load_band(0);
 }
 
@@ -649,9 +740,12 @@ static bool first_tx_slot_odd(void) {
 static void tx_cq_cb(button_data_t *btn) {
     if (kb_open) return;
     if (subject_i_get(cq_enabled)) {
-        sending = false;
         subject_i_set(cq_enabled, false);
+        qso_lock();
         tx_msg.msg[0] = '\0';
+        tx_gen++;
+        sending = false;    /* the CQ under way too */
+        qso_unlock();
         return;
     }
     if (hound_on) {
@@ -664,31 +758,36 @@ static void tx_cq_cb(button_data_t *btn) {
     }
     subject_i_set(cq_enabled, true);
     subject_i_set(tx_enabled, true);
+    qso_lock();
     cq_make_message(params.callsign.x, station_qth(), params.ft8_cq_modifier.x, tx_msg.msg);
     tx_odd = first_tx_slot_odd();
     /* "CQ_DX ON6URE JO21" goes out as "CQ DX ..." */
     msg_schedule_text_fmt("Next TX: %s%s", tx_msg.msg[2] == '_' ? "CQ " : "", tx_msg.msg + (tx_msg.msg[2] == '_' ? 3 : 0));
     tx_msg.repeats = param_i_get(cfg_ft8_max_repeats);
     ftx_qso_processor_reset(qso);
+    tx_gen++;
+    qso_unlock();
     lv_finder_clear_cursor(finder);
+}
+
+/* TX Call off: no transmission starts, the one under way stops (not with qso_mux held) */
+static void tx_call_off(void) {
+    qso_lock();
+    subject_i_set(tx_enabled, false);
+    sending = false;
+    qso_unlock();
 }
 
 static void tx_call_cb(button_data_t *btn) {
     if (kb_open) return;
     if (subject_i_get(tx_enabled)) {
-        sending = false;
-        subject_i_set(tx_enabled, false);
+        tx_call_off();
         msg_schedule_text_fmt("TX off: receive only until TX Call, CQ or a call is pressed");
     } else if (!params.callsign.x[0]) {
         msg_schedule_text_fmt("Call sign required");
     } else {
         subject_i_set(tx_enabled, true);
     }
-}
-
-static void tx_call_off(void) {
-    sending = false;
-    subject_i_set(tx_enabled, false);
 }
 
 static void hold_cb(button_data_t *btn) {
@@ -700,14 +799,17 @@ static void auto_cb(button_data_t *btn) {
     if (kb_open) return;
     bool on = !param_i_get(cfg_ft8_auto);
     param_i_set(cfg_ft8_auto, on);
+    qso_lock();
     ftx_qso_processor_set_auto(qso, on);
+    qso_unlock();
 }
 
+/* One step: a QSO the decoder completes meanwhile is saved once, by it or here */
 static void force_save_cb(button_data_t *btn) {
-    if (ftx_qso_processor_can_save_qso(qso))
-        ftx_qso_processor_force_save_qso(qso);
-    else
-        msg_schedule_text_fmt("Can't save incomplete QSO");
+    qso_lock();
+    bool saved = ftx_qso_processor_can_save_qso(qso) && ftx_qso_processor_force_save_qso(qso);
+    qso_unlock();
+    if (!saved) msg_schedule_text_fmt("Can't save incomplete QSO");
 }
 
 static void cq_modifier_cb(button_data_t *btn) {
@@ -903,12 +1005,15 @@ static void hound_cb(button_data_t *btn) {
         msg_schedule_text_fmt("Hound mode is for FT8 only");
         return;
     }
-    hound_on = !hound_on;
-    sending  = false;
     subject_i_set(cq_enabled, false);
+    qso_lock();
+    sending  = false;
+    hound_on = !hound_on;
     tx_msg.msg[0] = '\0';
     memset(&hound, 0, sizeof(hound));
     ftx_qso_processor_reset(qso);
+    tx_gen++;
+    qso_unlock();
     lv_finder_clear_cursor(finder);
     buttons_refresh(&button_hound);
     if (hound_on) {
@@ -931,7 +1036,9 @@ static void retries_cb(button_data_t *btn) {
             break;
         }
     param_i_set(cfg_ft8_max_repeats, next);
+    qso_lock();
     ftx_qso_processor_set_max_repeats(qso, next);
+    qso_unlock();
 }
 
 static void foryou_cb(button_data_t *btn) {
@@ -1039,40 +1146,47 @@ static void list_pressed(const cell_data_t *cd) {
             msg_schedule_text_fmt(cd->meta.call_de[0] ? "Call sign required" : "Select the Fox's CQ");
             return;
         }
+        qso_lock();
         hound_call(&hound, params.callsign.x, station_qth(), cd->meta.call_de, cd->meta.grid,
                    time(NULL), tx_msg.msg);
         tx_msg.repeats = -1;    /* until the Fox answers or the 2 minutes are over */
         tx_odd         = true;  /* the Fox sends first, the Hounds second */
-        lv_finder_set_cursor(finder, cd->meta.freq_hz);
-        subject_i_set(tx_enabled, true);
+        tx_gen++;
         add_info("Hound: calling %s above %d Hz", hound.fox, HOUND_MIN_TX_HZ);
         msg_schedule_text_fmt("Next TX: %s", tx_msg.msg);
+        qso_unlock();
+        lv_finder_set_cursor(finder, cd->meta.freq_hz);
+        subject_i_set(tx_enabled, true);
         return;
     }
 
-    char was[sizeof(tx_msg.msg)];
+    char was[sizeof(tx_msg.msg)], next[sizeof(tx_msg.msg)];
 
+    qso_lock();
     snprintf(was, sizeof(was), "%s", tx_msg.msg);
     ftx_qso_processor_start_qso(qso, (ftx_msg_meta_t *)&cd->meta, &tx_msg);
-    if (!tx_msg.msg[0]) {
+    snprintf(next, sizeof(next), "%s", tx_msg.msg);
+    if (next[0]) tx_odd = !cd->odd;
+    tx_gen++;
+    qso_unlock();
+    if (!next[0]) {
         msg_schedule_text_fmt("Invalid message");
         tx_call_off();
         return;
     }
     lv_finder_set_cursor(finder, cd->meta.freq_hz);
     if (!param_i_get(cfg_ft8_hold_freq)) set_tx_freq(cd->meta.freq_hz);
-    tx_odd = !cd->odd;
     subject_i_set(tx_enabled, true);
     /* The answer took the CQ's place: CQ off, as when the sequence answers (#28). Told by a change
      * of the message, as add_rx_text does, not by a "CQ" at its start: a call can begin with CQ
      * (CQ7X). A 73 addressed to me leaves the message as it was, and the CQ goes on */
-    if (strcmp(was, tx_msg.msg)) subject_i_set(cq_enabled, false);
+    if (strcmp(was, next)) subject_i_set(cq_enabled, false);
 
     cell_data_t row = {.cell_type = CELL_START_QSO};
 
     snprintf(row.text, sizeof(row.text), "Start QSO with %s", cd->meta.call_de);
     scheduler_put(table_view_add_msg_cb, &row, sizeof(row));
-    msg_schedule_text_fmt("Next TX: %s", tx_msg.msg);
+    msg_schedule_text_fmt("Next TX: %s", next);
 }
 
 static void list_close(void) {
@@ -1108,8 +1222,9 @@ static void add_tx_row(const char *msg) {
     scheduler_put(table_view_add_msg_cb, &row, sizeof(row));
 }
 
-/* Hound: the Fox's report gets R+report, its RR73 logs the QSO */
-static void hound_rx_text(const char *text, int snr, float freq_hz, bool odd) {
+/* Hound: the Fox's report gets R+report, its RR73 logs the QSO. Under qso_mux: the GUI's part
+ * goes into j, posted after */
+static void hound_rx_text(const char *text, int snr, float freq_hz, bool odd, ui_job_t *j) {
     char          tx[sizeof(tx_msg.msg)];
     hound_stage_t was = hound.stage;
     hound_event_t ev  = hound_rx(&hound, text, snr, (int)(freq_hz + 0.5f), odd, time(NULL), tx);
@@ -1118,13 +1233,13 @@ static void hound_rx_text(const char *text, int snr, float freq_hz, bool odd) {
         strcpy(tx_msg.msg, tx);
         tx_msg.repeats = -1;
         tx_odd         = true;
-        ui_job_t j = {.cursor = true, .cursor_hz = freq_hz};
-        ui_post(&j);
+        j->cursor      = true;
+        j->cursor_hz   = freq_hz;
         add_info("Hound: %s sent %+03d, answering R%+03d at %d Hz", hound.fox, hound.rcvd, hound.sent, hound.fox_freq);
         msg_schedule_text_fmt("Next TX: %s", tx_msg.msg);
     } else if (ev == HOUND_LOGGED) {
         tx_msg.msg[0] = '\0';
-        save_qso(hound.fox, hound.fox_grid, hound.rcvd, hound.sent);
+        qso_completed(hound.fox, hound.fox_grid, hound.rcvd, hound.sent);
         add_info("Hound: QSO with %s logged", hound.fox);
     } else if (was != HOUND_IDLE && hound.stage == HOUND_IDLE) {
         tx_msg.msg[0] = '\0';
@@ -1132,7 +1247,7 @@ static void hound_rx_text(const char *text, int snr, float freq_hz, bool odd) {
     }
 }
 
-/* For the RX rows */
+/* For the RX rows, under qso_mux */
 static const char *hound_state(void) {
     static char buf[40];
     switch (hound.stage) {
@@ -1165,19 +1280,26 @@ static void add_rx_text(int16_t snr, const char *text, bool odd, float freq_hz, 
     ftx_msg_meta_t meta = {.freq_hz = freq_hz, .time_sec = time_sec};  /* call_de stays "" for unknown messages */
     ftx_tx_msg_t   ignored;
     char           was[sizeof(tx_msg.msg)];
+    ui_job_t       j = {0};
 
+    /* One step of the sequence: a QSO it completes is saved after it, the GUI's part posted after */
+    qso_lock();
     snprintf(was, sizeof(was), "%s", tx_msg.msg);
     ftx_qso_processor_add_rx_text(qso, text, snr, &meta, hound_on ? &ignored : &tx_msg);
 
     if (hound_on) {
-        hound_rx_text(text, snr, freq_hz, odd);
+        hound_rx_text(text, snr, freq_hz, odd, &j);
     } else if (tx_msg.msg[0] && strcmp(was, tx_msg.msg)) {    /* the sequence answers it */
-        ui_job_t j = {.cursor = true, .cursor_hz = meta.freq_hz, .cq_off = true};
+        j.cursor    = true;
+        j.cursor_hz = meta.freq_hz;
+        j.cq_off    = true;
         if (!param_i_get(cfg_ft8_hold_freq)) ui_job_tx_freq(&j, (int32_t)freq_hz);
         tx_odd = !odd;
         msg_schedule_text_fmt("Next TX: %s", tx_msg.msg);
-        ui_post(&j);
     }
+    j.tx_gen = tx_gen;
+    qso_unlock();
+    if (j.cursor || j.txfreq || j.cq_off) ui_post(&j);
 
     bool parsed = meta.type != FXT_MSG_TYPE_OTHER && meta.call_de[0];
 
@@ -1277,47 +1399,76 @@ static void on_psd(const float *psd, uint16_t nfft, float sec, const slot_info_t
 }
 
 static void on_slot_end(const slot_info_t *slot, void *ctx) {
+    qso_lock();
     if (qso) ftx_qso_processor_start_new_slot(qso);
+    qso_unlock();
 }
 
 static bool tx_stopped_cb(void *ctx) {
     return !sending;
 }
 
-/* Our transmission, when one is due in this slot; returns whether it went out */
+/* Our transmission, when one is due in this slot; returns whether it went out. The message is
+ * taken under qso_mux and sent without it: the GUI may stop or change it meanwhile */
 static bool transmit(const slot_info_t *slot, float sec) {
-    if (sec >= tx_start_limit() || !tx_msg.msg[0] || tx_odd != slot->odd || !subject_i_get(tx_enabled))
+    ftx_tx_msg_t out;
+    ui_job_t     j = {0};
+    uint32_t     gen;
+
+    qso_lock();
+    if (!decoder_on || sec >= tx_start_limit() || !tx_msg.msg[0] || tx_odd != slot->odd ||
+        !subject_i_get(tx_enabled)) {
+        qso_unlock();
         return false;
+    }
     if (hound_on) {
         if (hound_timed_out(&hound, time(NULL))) {
             tx_msg.msg[0] = '\0';
             add_info("Hound: no answer from %s, TX stopped", hound.fox);
+            qso_unlock();
             return true;
         }
         int hz = hound_tx_freq(&hound, params.ft8_tx_freq.x, (unsigned)rand());
-        if (hz != params.ft8_tx_freq.x) {
-            ui_job_t j = {0};
-            ui_job_tx_freq(&j, hz);
-            ui_post(&j);
-        }
+        if (hz != params.ft8_tx_freq.x) ui_job_tx_freq(&j, hz);
     }
-    sending = true;
-    add_tx_row(tx_msg.msg);
-    tx_worker_run(tx_msg.msg, AUDIO_PLAY_RATE, base_gain_offset, tx_stopped_cb, NULL);
+    out     = tx_msg;
+    gen     = tx_gen;
+    sending = true;     /* a stop from now on clears it */
+    qso_unlock();
+    if (j.txfreq) {
+        /* Hound's offset to the GUI, whose queue may keep it waiting: stopped or changed meanwhile,
+         * this message does not go */
+        ui_post(&j);
+        qso_lock();
+        bool go = sending && tx_gen == gen;
+        sending = go;
+        qso_unlock();
+        if (!go) return false;
+    }
+
+    add_tx_row(out.msg);
+    tx_worker_run(out.msg, AUDIO_PLAY_RATE, base_gain_offset, tx_stopped_cb, NULL);
+
+    /* It counts for the message that went out, not for one the operator chose meanwhile */
+    qso_lock();
     sending = false;
-    if (tx_msg.repeats > 0) tx_msg.repeats--;
-    if (tx_msg.repeats == 0) {      /* given up: a CQ ends with it */
-        if (!strncmp(tx_msg.msg, "CQ", 2)) {
-            ui_job_t j = {.cq_off = true};
-            ui_post(&j);
+    j = (ui_job_t){.tx_gen = tx_gen};
+    if (tx_gen == gen) {
+        if (tx_msg.repeats > 0) tx_msg.repeats--;
+        if (tx_msg.repeats == 0) {      /* given up: a CQ ends with it */
+            j.cq_off      = !strncmp(tx_msg.msg, "CQ", 2);
+            tx_msg.msg[0] = '\0';
         }
-        tx_msg.msg[0] = '\0';
     }
+    qso_unlock();
+    if (j.cq_off) ui_post(&j);
     return true;
 }
 
 static void on_tick(const slot_info_t *slot, bool new_slot, float sec, void *ctx) {
+    qso_lock();
     bool tx_pending = tx_msg.msg[0] != '\0';
+    qso_unlock();
 
     if (transmit(slot, sec) || !new_slot) return;
 
@@ -1334,10 +1485,12 @@ static void on_tick(const slot_info_t *slot, bool new_slot, float sec, void *ctx
     /* FT2: an RX line every 3.75 s would fill the table; one every 4th slot (15 s), as FT8 */
     if (tx_pending && subject_i_get(tx_enabled)) return;
     if (is_ft2() && ft2_slots++ % 4) return;
+    qso_lock();
     if (hound_on)
         add_info("RX %s %s  Hound: %s", where_label(), slot_time, hound_state());
     else
         add_info("RX %s %s", where_label(), slot_time);
+    qso_unlock();
 }
 
 /* ---- the window ---- */
@@ -1511,26 +1664,35 @@ void ft8_window_status(ft8_status_t *s) {
     s->auto_on = param_i_get(cfg_ft8_auto);
     s->hold    = param_i_get(cfg_ft8_hold_freq);
     s->sending = sending;
-    snprintf(s->next, sizeof(s->next), "%s", tx_msg.msg);
+
+    /* This thread's (the panel's) view of the sequence, taken at once */
+    ftx_tx_msg_t next;
+    bool         odd_slots;
+
+    qso_lock();
+    next      = tx_msg;
+    odd_slots = tx_odd;
+    s->qso    = qso && ftx_qso_processor_has_current(qso);
+    s->hound  = hound_on;
+    qso_unlock();
+    snprintf(s->next, sizeof(s->next), "%s", next.msg);
     if (!strncmp(s->next, "CQ_", 3)) s->next[2] = ' ';
 
     /* The timeline: when the queued message goes out, how often still, what was logged */
     float slot = ftx_slot_time(cur_proto());
-    if (tx_msg.msg[0] && s->tx && !sending) {
+    if (next.msg[0] && s->tx && !sending) {
         struct timespec now;
         clock_gettime(CLOCK_REALTIME, &now);
         float sec = (now.tv_sec % 60) + now.tv_nsec / 1.0e9f;
         int   n   = (int)(sec / slot);              /* this slot's number in the minute */
         bool  odd = (n % 2) != 0;
         float t;
-        if (odd == tx_odd && fmodf(sec, slot) < tx_start_limit()) t = sec;             /* about to go, this slot */
-        else t = (n + (odd == tx_odd ? 2 : 1)) * slot;                                    /* the next slot of our parity */
+        if (odd == odd_slots && fmodf(sec, slot) < tx_start_limit()) t = sec;           /* about to go, this slot */
+        else t = (n + (odd == odd_slots ? 2 : 1)) * slot;                                 /* the next slot of our parity */
         s->in_ms = (int32_t)((t - sec) * 1000);
         if (s->in_ms < 0) s->in_ms = 0;
     }
-    s->repeats = tx_msg.msg[0] ? tx_msg.repeats : 0;
-    s->qso     = qso && ftx_qso_processor_has_current(qso);
-    s->hound   = hound_on;
+    s->repeats = next.msg[0] ? next.repeats : 0;
     s->nocall  = !params.callsign.x[0];
     snprintf(s->logged, sizeof(s->logged), "%s", last_logged);
     s->logged_s = last_logged[0] ? (int32_t)(time(NULL) - last_logged_at) : -1;
@@ -1544,8 +1706,11 @@ bool ft8_window_remote(ft8_rc_t what, int32_t arg, const cell_data_t *cell) {
         case FT8_RC_STOP:
             /* CQ off here, not through tx_cq_cb: that does nothing while a keyboard is open on the radio */
             subject_i_set(cq_enabled, false);
-            tx_call_off();
+            qso_lock();
             tx_msg.msg[0] = '\0';
+            tx_gen++;
+            qso_unlock();
+            tx_call_off();      /* and the transmission under way */
             msg_schedule_text_fmt("Stopped: nothing transmits until TX Call, CQ or a call is pressed");
             break;
         case FT8_RC_TXCALL: tx_call_cb(NULL); break;
