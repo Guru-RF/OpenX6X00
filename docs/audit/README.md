@@ -1,6 +1,6 @@
 # Code audits October 2026
 
-The latest review is [Codex-Audit-2026-10-26.md](Codex-Audit-2026-10-26.md), covering revision `e4f0dc7` (`v0.3.6`). It records 14 current findings, C01 to C14, the disposition of B01 to B17, and improvement ideas I01 to I09. Commits that fix them are named "audit C01" and so on.
+The latest review is [Codex-Audit-2026-10-26.md](Codex-Audit-2026-10-26.md), covering revision `e4f0dc7` (`v0.3.6`). It records 14 current findings, C01 to C14, the disposition of B01 to B17, and improvement ideas I01 to I09. All 14 are fixed in the commits that follow `7fa192c`, named "audit C01" to "audit C14", with the fixes their reviews asked for named "review of C08" and so on; C02, C03, C08, C09, C10, C12 and C13 have checks in the [harnesses](repro-2026-10-24/README.md), C01 in `tools/tci` (`make own_test`); the others were checked with harnesses described in their commits. The improvement ideas are open as issues #38 to #46.
 
 The review before it, [Codex-Audit-2026-10-24.md](Codex-Audit-2026-10-24.md), covered revision `00f91e1` (`v0.3.1`): 17 findings, B01 to B17, and the disposition of all 22 original findings. [Reproduction harnesses](repro-2026-10-24/README.md) accompany it. All 17 are fixed in the commits that follow `4cad3f5` (one per finding, named "audit B01" to "audit B17"); the harnesses were flipped with each fix and run as a regression suite.
 
