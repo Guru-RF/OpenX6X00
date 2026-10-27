@@ -8,8 +8,6 @@
 
 BACKUP_PATH="/mnt/backups/backup.tgz"
 BACKUP_DIR=$(dirname ${BACKUP_PATH})
-# What may come back, as the archive names them (no leading /)
-ALLOWED="etc/NetworkManager/system-connections/ etc/ssh/ root/.ssh/"
 
 # BusyBox tar has no -z (no FEATURE_SEAMLESS_GZ): the archive goes through gzip and gunzip. gdyuldin's stock
 # image writes a plain tar under the same name, which is read as it is
@@ -38,16 +36,25 @@ backup() {
     rm -f $list
 }
 
+# What may come back, as the archive names them (no leading /): what backup() writes, the files right in the
+# three folders, and in etc/ssh the keys only. A name further down, which no backup holds, made folders below them:
+# root/.ssh/authorized_keys/x left authorized_keys a folder, and the SSH page could write no key
 allowed() {
     case "$1" in
         *..*|/*) return 1 ;;
+        etc/NetworkManager/system-connections/*/*|etc/ssh/*/*|root/.ssh/*/*) return 1 ;;
+        etc/NetworkManager/system-connections/?*|root/.ssh/?*|etc/ssh/*_key*) return 0 ;;
     esac
-    for prefix in $ALLOWED; do
-        case "$1" in
-            "$prefix"*) return 0 ;;
-        esac
-    done
     return 1
+}
+
+# The folder of a name allowed() took: one of the three, made by this script when the card has none
+folder() {
+    case "$1" in
+        root/.ssh/*) echo /root/.ssh ;;
+        etc/ssh/*) echo /etc/ssh ;;
+        *) echo /etc/NetworkManager/system-connections ;;
+    esac
 }
 
 # $1 is the name of exactly one member of the listing $2 (tar tv), and no member lies below it. A link's name
@@ -64,7 +71,7 @@ only() {
 }
 
 restore() {
-    local list=/tmp/backup-config.list members=/tmp/backup-config.members mode owner size date time name
+    local list=/tmp/backup-config.list members=/tmp/backup-config.members mode owner size date time name dir
     [ -f "${BACKUP_PATH}" ] || return 0
     # A freshly written card only: the images carry no SSH host keys (S50sshd makes them at the first start), so
     # keys present mean this card has run before, and a file missing now was deleted on purpose (a WiFi network
@@ -90,7 +97,8 @@ restore() {
     # escaped: a WiFi network "Cafe [5G]" is its file's name. Kept only when it is the member's size
     umask 077    # folders 700, files 600
     while read -r size name; do
-        mkdir -p "/${name%/*}" || continue
+        dir=$(folder "$name")
+        [ -d "$dir" ] || mkdir -p "$dir" || continue
         unpack | tar xOf - "$(printf '%s\n' "$name" | sed 's/[][*?\\]/\\&/g')" > "/$name.restore" 2>/dev/null
         if [ "$(($(wc -c < "/$name.restore")))" = "$size" ]; then
             mv -f "/$name.restore" "/$name"
