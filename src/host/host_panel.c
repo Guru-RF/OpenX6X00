@@ -208,6 +208,11 @@ bool host_panel_dump(const char *path) {
 static lv_indev_drv_t mouse_drv, kbd_drv;
 
 void host_panel_inputs(void) {
+    /* The group the VOL and MFK knobs (and this keyboard) work in: keyboard_init() makes it on
+     * the radio, which is not called here. Without it the knobs did nothing on a PC */
+    keyboard_group = lv_group_create();
+    lv_group_set_wrap(keyboard_group, false);
+
     lv_indev_drv_init(&mouse_drv);
     mouse_drv.type    = LV_INDEV_TYPE_POINTER;
     mouse_drv.read_cb = sdl_mouse_read;
