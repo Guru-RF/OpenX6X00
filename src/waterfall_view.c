@@ -132,13 +132,16 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
     static int      acc_n;
     static uint32_t acc_freq;
     int             frames = speed_frames[LV_CLAMP(1, param_i_get(cfg_waterfall_speed), 5) - 1];
+    /* Where the frame was taken: with no frequency from the base (the OEM X6100 base) the GUI's,
+     * else a line averaged frames of several tuning steps */
+    uint32_t        at = base_freq ? base_freq : radio_center_freq + mode_lo_offset;
 
     if (frames > 1 && size <= WATERFALL_NFFT) {
-        if (acc_n == 0 || base_freq != acc_freq) {
+        if (acc_n == 0 || at != acc_freq) {
             /* first frame, or the radio moved: start a new line */
             memcpy(acc, db, size * sizeof(float));
             acc_n = 1;
-            acc_freq = base_freq;
+            acc_freq = at;
         } else {
             liquid_vectorf_add(acc, db, size, acc);
             acc_n++;
