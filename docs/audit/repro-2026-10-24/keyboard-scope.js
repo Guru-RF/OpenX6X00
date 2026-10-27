@@ -11,9 +11,11 @@ function panel() {
   p.eval(`var counts = {press: 0, release: 0, tune: 0, vol: 0, sent: []};
     var ptt = {press: function() { counts.press++; }, release: function() { counts.release++; }};
     var state = {freq: 14074000, step: 10, vol: 20}, LVL = {vol: {max: 55}}, $pop = $("#pop");
+    function cur(k) { return state[k]; }
     function tuneTo() { counts.tune++; }
     function lvlSend() { counts.vol++; }
     function send(s) { counts.sent.push(s); return true; }
+    function act(s) { return send(s); }
     var ses = RadioSession.create({send: send, status: function() {}, el: document.getElementById("ses")});
     ses.role = "operate"; ses.ctl = {who: "browser", name: "other", mine: false};`);
   p.eval(between(p.source, '  /* ---- Keys (the Keys tab, PTT) ---- */', '  /* ---- Audio over TCI'));
@@ -25,6 +27,7 @@ function remote() {
   p.eval(`var counts = {press: 0, release: 0, sent: []};
     var ptt = {press: function() { counts.press++; }, release: function() { counts.release++; }};
     function send(s) { counts.sent.push(s); return true; }
+    function act(s) { return send(s); }
     var ses = RadioSession.create({send: send, status: function() {}, el: document.getElementById("ses")});
     ses.role = "operate"; ses.ctl = {who: "browser", name: "other", mine: false};`);
   p.eval(between(p.source, '  /* ---- Keys ---- */', '  /* ---- Audio over TCI'));
