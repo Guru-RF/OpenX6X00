@@ -2751,6 +2751,19 @@ program on the network tunes the radio, hears it and keys it.
   unless someone is on the air; a browser that was operating sees "TCI
   client active" and takes control back on purpose (Pairing and control,
   under Browser panel).
+- One transmission at a time: the client that keyed holds it, and its unkey
+  or its leaving unkeys the radio, whoever has control by then. Another
+  operating client's key meanwhile, also one sent while the first key is
+  still on its way to the radio, is answered `trx:0,false;` and changes
+  nothing, not even who has control: the client that keyed still tunes
+  during its over. A key the radio refuses (someone on the air, TCI audio in
+  CW or DIGU) is answered `trx:0,false;` too, to the client that sent it
+  alone, and so is a PTT key that, once at the radio, does not put it on the
+  air within a second (a frequency it does not transmit on). A key still on
+  its way when its client unkeys or leaves keys nothing, and a client whose
+  key was refused or cancelled unkeys nothing: a transmission keyed
+  meanwhile with the PTT key on the radio or the browser's PTT stays on the
+  air.
 - There is no login or pairing for TCI clients: enable it only on a network
   you trust, or set Listen only, and turn it off when it is not needed.
   Anyone who reaches the port can key the transmitter when clients may

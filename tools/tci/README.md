@@ -5,6 +5,17 @@ halfband swept from 0.1 to 11.9 kHz (the tone's level, its image at 24 kHz - f),
 cut in reads of any length, the four sample types written to two channels and read back, and
 what the interpolation costs a second of audio on this PC.
 
+Then `tci_own_test` (`make own_test`): who owns a transmission (audit C01). It includes
+`src/tci_server.c` whole, calls its socket thread's steps one at a time and holds the LVGL
+thread's work back in the stub scheduler (`stub_defer`, `stub_run`), so a second start, a
+cancel, a refusal, control taken at the radio, the operator keying at the radio, a client
+leaving, a key lost to a full queue, a key that runs late or one that never puts the radio on
+the air comes between a key and the LVGL thread applying it. Each case checks that one start
+keys the radio and that its client's unkey or leaving ends it, that a cancelled start keys
+nothing, that an unkey never drops the operator's PTT, and that a refused start is answered
+`trx:0,false;` and leaves control where it is; each runs in a child process, its clients on
+socket pairs, without a listener. It prints `OWNER OK: n cases`.
+
 Then it builds `src/tci_server.c` and `src/tci_ws.c` (with `src/tci_audio.c` and
 `src/control_owner.c`) on the PC against the stubs in `stubs.c` (the radio, the settings, the
 scheduler, the meters, PulseAudio: a few variables and a 1 kHz tone), starts it on

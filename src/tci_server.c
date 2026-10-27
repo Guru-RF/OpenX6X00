@@ -139,7 +139,7 @@ typedef enum { C_FREQ, C_MODE, C_FILTER, C_AGC, C_RIT, C_DRIVE, C_KEY, C_UNKEY }
 
 typedef struct {
     cmd_id_t id;
-    int32_t  a, b;
+    int32_t  a, b;      /* C_KEY: a is the start's number (key_gen); C_UNKEY of the PTT: b is */
     bool     tci;
 } cmd_t;
 
@@ -173,15 +173,24 @@ static int drive_of(float pwr) {
         return (int)(v >> 32) - 1;
     return (int)lroundf((pwr - 0.1f) * 100.0f / 9.9f);
 }
-static int             ptt_owner = -1;   /* the client that keyed the radio's own PTT, -1 none */
-static atomic_bool     ptt_unkey_due;    /* an unkey of the radio's PTT is queued: resent until it ran */
+/* A start is its client's from the moment its key is queued, and a second start is refused until
+ * the first is over: a second one taking the owner while the first key was on its way to the LVGL
+ * thread left the radio keyed for the first client, which could no longer unkey it (audit C01).
+ * The LVGL thread says what became of a start by its number, so a refusal ends that start alone */
+static uint32_t        key_gen;          /* the last start queued (socket thread) */
+static atomic_uint     key_keyed;        /* the last start the LVGL thread keyed */
+static atomic_uint     key_refused;      /* the last start the LVGL thread refused */
+static atomic_uint     key_cancelled;    /* the last start ended before its key ran: that key keys nothing */
+static int             ptt_owner = -1;   /* the client the radio's own PTT is keyed for (or about to be), -1 none */
+static bool            ptt_on_air;       /* its key took: the radio was seen on the air since */
+static uint64_t        ptt_keyed_ms;     /* when the socket thread saw its key run, 0 not yet */
+static atomic_uint     ptt_unkey_due;    /* the start whose PTT unkey is queued, 0 none: resent until it ran */
 static uint64_t        ptt_unkey_ms;
 static uint64_t        ptt_ms;
 
 /* The TX audio session: one client at a time */
 static struct {
     atomic_bool keyed;      /* the base keyed by us through the modem bit */
-    atomic_bool refused;    /* the last key was refused: say trx false */
     int         owner;      /* client index */
     uint64_t    start_ms, last_audio_ms;
     uint64_t    chrono_t0;  /* us, when TX_CHRONO 0 went out (0: not yet) */
@@ -486,6 +495,11 @@ static void tx_unkey(bool tci, bool drain) {
     radio_set_tci_mute(false);
 }
 
+/* The PTT unkey of start gen is the one due: no longer due, true once (LVGL thread) */
+static bool ptt_unkey_take(uint32_t gen) {
+    return atomic_compare_exchange_strong(&ptt_unkey_due, &gen, 0);
+}
+
 static void apply_cmd(void *arg) {
     cmd_t *c = (cmd_t *)arg;
 
@@ -521,13 +535,16 @@ static void apply_cmd(void *arg) {
             drive_set_store(c->a, param_f_get(cfg_pwr)); /* as the setting kept it */
             break;
         case C_KEY:
-            if (radio_get_state() != RADIO_RX || radio_get_modem() || atomic_load(&txs.keyed)) {
-                atomic_store(&txs.refused, true);
+            /* keyed or refused, the socket thread learns it by the start's number (state_follow).
+             * A start that ended before its key got here keys nothing: no one would hold it (C01) */
+            if ((uint32_t)c->a == atomic_load(&key_cancelled) || radio_get_state() != RADIO_RX || radio_get_modem() ||
+                atomic_load(&txs.keyed)) {
+                atomic_store(&key_refused, (uint32_t)c->a);
                 break;
             }
             if (c->tci && voice_mode(cparam_i_get(cfg_cur_mode))) {
                 if (!audio_play_lowlat_begin()) {
-                    atomic_store(&txs.refused, true);
+                    atomic_store(&key_refused, (uint32_t)c->a);
                     break;
                 }
                 txs.pos  = 0;
@@ -537,28 +554,33 @@ static void apply_cmd(void *arg) {
             } else if (c->tci) {
                 /* CW or a data mode: the audio has no way in, and the radio's own PTT would have
                  * been keyed with nothing in the session to release it (audit A01) */
-                atomic_store(&txs.refused, true);
+                atomic_store(&key_refused, (uint32_t)c->a);
                 break;
             } else {
                 radio_set_ptt(true);
             }
             radio_set_tci_mute(true);   /* the operator is at the other end: nothing from the speaker */
+            atomic_store(&key_keyed, (uint32_t)c->a);
             break;
         case C_UNKEY:
-            if (!c->tci)
-                atomic_store(&ptt_unkey_due, false);
+            /* The radio's PTT is the operator's too (the PTT key, the browser's PTT): a start's
+             * unkey releases it only if that start's key set it, and once, while it is the one
+             * due: a copy resent before it ran then does nothing. A refused start keys nothing
+             * and unkeys nothing (C01) */
+            if (!c->tci && (!ptt_unkey_take((uint32_t)c->b) || (uint32_t)c->b != atomic_load(&key_keyed)))
+                break;
             tx_unkey(c->tci, c->a != 0);
             break;
     }
 }
 
-/* An unkey takes the scheduler's reserve: a flood of tuning must not keep the radio on the air */
-static void put_cmd(cmd_id_t id, int32_t a, int32_t b, bool tci) {
+/* An unkey takes the scheduler's reserve: a flood of tuning must not keep the radio on the air.
+ * False: the queue was full, the command is lost */
+static bool put_cmd(cmd_id_t id, int32_t a, int32_t b, bool tci) {
     cmd_t c = {.id = id, .a = a, .b = b, .tci = tci};
     if (id == C_UNKEY)
-        scheduler_put_urgent(apply_cmd, &c, sizeof(c));
-    else
-        scheduler_put(apply_cmd, &c, sizeof(c));
+        return scheduler_put_urgent(apply_cmd, &c, sizeof(c));
+    return scheduler_put(apply_cmd, &c, sizeof(c));
 }
 
 /* ---- The state, read from any thread ------------------------------------------------ */
@@ -632,8 +654,12 @@ static void send_greeting(client_t *c, const rstate_t *s) {
     client_text(c, "ready;");
 }
 
-/* What changed since the last look goes to everyone */
+static void tx_session_end(int ci, bool drain);
+
+/* What changed since the last look goes to everyone. What became of the last start is read
+ * before the state: a transmission seen in the state then came after its key */
 static void state_follow(rstate_t *last, bool first) {
+    uint32_t keyed = atomic_load(&key_keyed), refused = atomic_load(&key_refused);
     rstate_t s;
     char     fb[64];
 
@@ -659,19 +685,21 @@ static void state_follow(rstate_t *last, bool first) {
     }
     if (s.drive != last->drive)
         broadcastf("drive:0,%d;", s.drive);
-    if (s.tx != last->tx) {
+    if (s.tx != last->tx)
         broadcastf("trx:0,%s;", s.tx ? "true" : "false");
-        if (!s.tx)
-            ptt_owner = -1;
+    /* The last start refused: its client holds nothing and hears so (audit A01). The refusal of
+     * a start cancelled since is no one's: it neither ends nor tells the start after it (C01) */
+    if (refused == key_gen && (txs.owner >= 0 || ptt_owner >= 0)) {
+        client_text(&clients[txs.owner >= 0 ? txs.owner : ptt_owner], "trx:0,false;");
+        txs.owner = ptt_owner = -1;
     }
-    if (atomic_exchange(&txs.refused, false)) {
-        broadcast("trx:0,false;");
-        /* the key was refused: the session that asked for it holds nothing (audit A01) */
-        if (!atomic_load(&txs.keyed))
-            txs.owner = -1;
-        if (!s.tx)
-            ptt_owner = -1;
-    }
+    /* The radio's PTT is its client's until the radio is back on receive after the key took; the
+     * session ends then, its PTT released with it, never left set with no one to end it. An end
+     * seen before the key took is another transmission's (C01) */
+    if (ptt_owner >= 0 && keyed == key_gen && s.tx)
+        ptt_on_air = true;
+    if (ptt_owner >= 0 && ptt_on_air && !s.tx)
+        tx_session_end(ptt_owner, false);
     *last = s;
 }
 
@@ -773,18 +801,34 @@ static void audio_fmt_cmd(client_t *c, const char *name, const char *arg) {
 }
 
 /* The client's transmission ends, whichever way it keyed: from the socket thread. A key still
- * on its way to the LVGL thread is undone by the unkey queued after it. */
+ * on its way to the LVGL thread is cancelled; one that ran meanwhile is undone by the unkey
+ * queued after it. */
 static void tx_session_end(int ci, bool drain) {
+    if ((txs.owner == ci || ptt_owner == ci) && atomic_load(&key_keyed) != key_gen &&
+        atomic_load(&key_refused) != key_gen)
+        atomic_store(&key_cancelled, key_gen);
     if (txs.owner == ci) {
         put_cmd(C_UNKEY, drain, 0, true);
         txs.owner = -1;
     }
     if (ptt_owner == ci) {
-        put_cmd(C_UNKEY, 0, 0, false);
-        atomic_store(&ptt_unkey_due, true);     /* the queue can drop it: tx_session_tick resends */
+        /* due before it is queued, where it may run at once; the queue can drop it: tx_session_tick resends */
+        atomic_store(&ptt_unkey_due, key_gen);
         ptt_unkey_ms = now_ms();
+        put_cmd(C_UNKEY, 0, (int32_t)key_gen, false);
         ptt_owner    = -1;
     }
+}
+
+/* A start may be queued: nobody is on the air, no start is on its way to it (audit C01), and
+ * nothing a start left is still to be undone. One start at a time, from its request to its unkey:
+ * a key queued behind a cancelled start was undone by that start's unkey or the unkey's resend,
+ * or its session ended when the cancelled start's modem bit dropped */
+static bool tx_free(const rstate_t *s) {
+    bool handled = atomic_load(&key_keyed) == key_gen || atomic_load(&key_refused) == key_gen;
+
+    return !s->tx && txs.owner < 0 && ptt_owner < 0 && handled && !atomic_load(&txs.keyed) &&
+           !atomic_load(&ptt_unkey_due);
 }
 
 static void handle_cmd(int ci, char *line) {
@@ -809,7 +853,12 @@ static void handle_cmd(int ci, char *line) {
      * to control (a knob took it) or to its trust (Listen only) since; refusing left the radio on
      * the air until the 180 s limit (audit B01) */
     bool release = !strcmp(name, "trx") && n >= 2 && !parse_bool(a[1]) && (txs.owner == ci || ptt_owner == ci);
-    bool may = !rf || release || (atomic_load(&trust_operate) && (n < 2 && strcmp(name, "trx") ? true : ctl_claim(CTL_TCI, ci, "TCI", true)));
+    /* A start that cannot be had is answered trx:0,false below and takes nothing: control stays
+     * where it is, with the client whose start is on its way or on the air, which then still
+     * tunes during its over (C01). A client trusted to view only is answered with the state */
+    bool refused = !strcmp(name, "trx") && n >= 2 && parse_bool(a[1]) && !tx_free(&s);
+    bool claim   = !refused && !(n < 2 && strcmp(name, "trx"));
+    bool may     = !rf || release || (atomic_load(&trust_operate) && (!claim || ctl_claim(CTL_TCI, ci, "TCI", true)));
     if (rf && !may && n >= 2) {
         /* the state as it is, as for a command that changes nothing */
         if (!strcmp(name, "vfo")) client_textf(c, "vfo:0,0,%d;", s.freq);
@@ -881,9 +930,10 @@ static void handle_cmd(int ci, char *line) {
             client_textf(c, "trx:0,%s;", s.tx ? "true" : "false");
         } else if (parse_bool(a[1])) {
             bool tci = n >= 3 && strcasecmp(a[2], "tci") == 0;
-            if (s.tx || txs.owner >= 0) {
-                client_text(c, "trx:0,false;");     /* someone is on the air already */
+            if (refused) {      /* as decided above: control was not claimed, even if tx_free holds by now */
+                client_text(c, "trx:0,false;");
             } else {
+                key_gen++;
                 if (tci) {
                     txs.owner         = ci;
                     txs.start_ms      = now_ms();
@@ -892,10 +942,13 @@ static void handle_cmd(int ci, char *line) {
                     txs.chrono_n      = 0;
                     txs.rate          = audio_fmt(c).rate;
                 } else {
-                    ptt_owner = ci;
-                    ptt_ms    = now_ms();
+                    ptt_owner    = ci;
+                    ptt_on_air   = false;
+                    ptt_keyed_ms = 0;
+                    ptt_ms       = now_ms();
                 }
-                put_cmd(C_KEY, 0, 0, tci);
+                if (!put_cmd(C_KEY, (int32_t)key_gen, 0, tci))
+                    atomic_store(&key_refused, key_gen);    /* lost: refused, as the LVGL thread would */
             }
         } else {
             if (txs.owner == ci || ptt_owner == ci)
@@ -1036,11 +1089,24 @@ static void handle_tx_audio(int ci, const uint8_t *frame, size_t len) {
 static void tx_session_tick(uint64_t now) {
     if (ptt_owner >= 0 && (clients[ptt_owner].fd < 0 || now - ptt_ms > TX_LIMIT_MS))
         tx_session_end(ptt_owner, false);
+    /* A key that never took (no TX on this frequency, the base did not follow) holds nothing:
+     * the start is over, as a TCI audio session's below, and its client hears so. It would
+     * keep every other start out (audit C01). The second counts from when its key ran: a key
+     * still queued behind a busy LVGL thread is on its way, not refused */
+    if (ptt_owner >= 0 && !ptt_on_air && atomic_load(&key_keyed) == key_gen) {
+        if (!ptt_keyed_ms) {
+            ptt_keyed_ms = now;
+        } else if (now - ptt_keyed_ms > 1000) {
+            client_text(&clients[ptt_owner], "trx:0,false;");
+            tx_session_end(ptt_owner, false);
+        }
+    }
     /* The unkey of the radio's PTT is one entry in the scheduler's queue, which drops when full
      * (a flooding client): until the LVGL thread ran it, it goes again every 300 ms */
-    if (atomic_load(&ptt_unkey_due) && now - ptt_unkey_ms > 300) {
+    uint32_t due = atomic_load(&ptt_unkey_due);
+    if (due && now - ptt_unkey_ms > 300) {
         ptt_unkey_ms = now;
-        put_cmd(C_UNKEY, 0, 0, false);
+        put_cmd(C_UNKEY, 0, (int32_t)due, false);
     }
     if (txs.owner < 0) {
         if (atomic_load(&txs.keyed))            /* keyed for a client that has gone */

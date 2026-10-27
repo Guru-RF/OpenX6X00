@@ -1,3 +1,4 @@
 build/
 tci_host
 .pid
+tci_own_test

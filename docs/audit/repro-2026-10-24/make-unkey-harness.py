@@ -41,7 +41,10 @@ typedef struct {uint32_t rate,type,ch,samples;} afmt_t;
 static afmt_t audio_fmt(const client_t *c) {(void)c;return (afmt_t){48000,0,2,2048};}
 static void audio_fmt_cmd(client_t *c,const char *name,const char *arg) {(void)c;(void)name;(void)arg;}
 static int ptt_owner;
-static uint64_t ptt_ms;
+static bool ptt_on_air;
+static uint64_t ptt_ms, ptt_keyed_ms;
+static uint32_t key_gen;
+static atomic_uint key_refused;
 static int ends, last_command = -1;
 enum {C_FREQ,C_MODE,C_FILTER,C_AGC,C_RIT,C_DRIVE,C_KEY,C_UNKEY};
 static uint64_t now_ms(void) {return 0;}
@@ -53,8 +56,9 @@ static const char *mode_name(int n) {(void)n;return "usb";}
 static const char *agc_name(int n) {(void)n;return "fast";}
 static int mode_index(const char *s) {(void)s;return 0;}
 static int agc_index(const char *s) {(void)s;return 0;}
-static void put_cmd(int id,int a,int b,bool tci) {(void)a;(void)b;(void)tci;last_command=id;}
+static bool put_cmd(int id,int a,int b,bool tci) {(void)a;(void)b;(void)tci;last_command=id;return true;}
 static void tx_session_end(int ci,bool drain) {(void)ci;(void)drain;ends++;keyed=false;}
+static bool tx_free(const rstate_t *s) {return !s->tx;}
 static void cap_update(void) {}
 '''
 main = r'''

@@ -3,7 +3,8 @@
  *
  *  Host test of the TCI server: the radio, the settings, the scheduler, the meters, the audio
  *  and PulseAudio stood in by a few variables, so src/tci_server.c runs on a PC and
- *  tci_client_test.py can talk to it. Build and run with `make` here.
+ *  tci_client_test.py can talk to it. Build and run with `make` here. tci_own_test.c links
+ *  them too (TCI_STUBS_NO_MAIN), the scheduler's work held back until it runs it (stub_defer).
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -50,23 +51,61 @@ void    cparam_i_set(ComputedParamInt *p, int32_t v) { p->v = v; }
 bool    cfg_is_valid_hw_freq(int32_t f) { return f >= 100000 && f <= 55000000; }
 void    cfg_pwr_set(float w) { pwr.v = w; fprintf(stderr, "[stub] power %.1f W\n", w); }
 
-/* ---- the radio ---- */
+/* ---- the radio. stub_tx_refused: a key does nothing, as radio.c's tx_refused() on a frequency
+ * the radio may not transmit on (the key is taken, the radio stays on receive) ---- */
 static bool ptt, modem;
+bool stub_tx_refused;
 radio_state_t radio_get_state(void) { return ptt || modem ? RADIO_TX : RADIO_RX; }
-void radio_set_ptt(bool tx) { ptt = tx; fprintf(stderr, "[stub] ptt %d\n", tx); }
-void radio_set_modem(bool tx) { modem = tx; fprintf(stderr, "[stub] modem %d\n", tx); }
+void radio_set_ptt(bool tx) {
+    if (tx && stub_tx_refused) return;
+    ptt = tx;
+    fprintf(stderr, "[stub] ptt %d\n", tx);
+}
+void radio_set_modem(bool tx) {
+    if (tx && stub_tx_refused) return;
+    modem = tx;
+    fprintf(stderr, "[stub] modem %d\n", tx);
+}
 bool radio_get_modem(void) { return modem; }
 void radio_set_pwr(float d) { fprintf(stderr, "[stub] power %.1f W\n", d); }
 void radio_set_tci_mute(bool on) { fprintf(stderr, "[stub] tci mute %d\n", on); }
 uint32_t radio_caps(void) { return 0; }     /* an X6100: no SAM, no WFM */
 
-/* ---- the scheduler: no LVGL thread here, the work is done at once ---- */
+/* ---- the scheduler: no LVGL thread here, the work is done at once; with stub_defer it waits,
+ * in order, until stub_run runs it, as on an LVGL thread busy elsewhere ---- */
+bool stub_defer;
+static struct { scheduler_fn_t fn; void *arg; } held[256];
+static size_t nheld;
+
 bool scheduler_put(scheduler_fn_t fn, void *arg, size_t arg_size) {
     void *copy = arg_size ? malloc(arg_size) : NULL;
     if (copy) memcpy(copy, arg, arg_size);
+    if (stub_defer) {
+        if (nheld == sizeof(held) / sizeof(held[0])) {
+            free(copy);
+            return false;
+        }
+        held[nheld].fn    = fn;
+        held[nheld++].arg = copy;
+        return true;
+    }
     fn(copy);
     free(copy);
     return true;
+}
+
+/* The first n jobs waiting (all of them: n < 0), in the order they came; how many ran */
+int stub_run(int n) {
+    int ran = 0;
+    while (nheld && (n < 0 || ran < n)) {
+        scheduler_fn_t fn  = held[0].fn;
+        void          *arg = held[0].arg;
+        memmove(held, held + 1, --nheld * sizeof(held[0]));
+        fn(arg);
+        free(arg);
+        ran++;
+    }
+    return ran;
 }
 bool scheduler_put_urgent(scheduler_fn_t fn, void *arg, size_t arg_size) { return scheduler_put(fn, arg, arg_size); }
 
@@ -138,6 +177,7 @@ int pa_simple_read(pa_simple *s, void *data, size_t bytes, int *error) {
 }
 void pa_simple_free(pa_simple *s) { free(s); }
 
+#ifndef TCI_STUBS_NO_MAIN
 int main(int argc, char **argv) {
     const char *port = getenv("TCI_TEST_PORT");
     (void)argc; (void)argv;
@@ -157,3 +197,4 @@ int main(int argc, char **argv) {
             fprintf(stderr, "[stub] %d client(s), first %s\n", tci_server_clients(), tci_server_client());
     }
 }
+#endif
