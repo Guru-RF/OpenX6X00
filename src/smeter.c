@@ -70,7 +70,7 @@ static void show_value(void *unused) {
 
 /* VISION keeps the bars: its meter is a wide, low row with the value beside it */
 static bool needle_on(void) {
-    return param_i_get(cfg_smeter_needle) && !theme_shape.vision && !theme_shape.deck;
+    return param_i_get(cfg_smeter_needle) && !theme_shape.vision && !theme_shape.deck && !theme_shape.mono;
 }
 
 /* The dB value: under the bars, or under the dial in the needle's dim colour */
@@ -244,7 +244,14 @@ static void lamp_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     }
 }
 
+static void bars_draw_mono(lv_obj_t *o, lv_draw_ctx_t *draw_ctx);
+
 void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
+    if (theme_shape.mono) {     /* the walkie's meter too: no needle in 1bit */
+        bars_draw_mono(obj, draw_ctx);
+        return;
+    }
+
     lv_coord_t          w = lv_obj_get_width(obj);
     lv_coord_t          big = lv_obj_get_height(obj) > 120 ? 8 : 0;    /* the walkie screen: bigger labels, rounder arc */
     lv_coord_t          r = w * (big ? 62 : 64) / 100;     /* wide and flat: 166 px on the 260 px box */
@@ -471,6 +478,59 @@ static void bars_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     }
 }
 
+/* 1bit: the bars as an LCD's segments, under the scale (which no longer runs over them). Lit above
+ * the noise level: solid; lit at or under it (grey in colour): hollow; not lit: a tick on the bottom
+ * row, a ruler to read the scale by; from S9 up 3 px taller, the red zone in one colour; the peak
+ * solid. No lamp, no own colours */
+static void bars_draw_mono(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
+    uint8_t             step = (lv_obj_get_width(o) - 16 - 22) / (BARS - 1);
+    uint8_t             gap = step * 45 / 100;
+    lv_coord_t          x0 = o->coords.x1 + 16, top = o->coords.y1;
+    lv_draw_rect_dsc_t  seg;
+    lv_draw_label_dsc_t scale;
+    lv_area_t           a;
+    lv_point_t          sz;
+    int                 peak = 0;
+
+    for (int i = 0; i < BARS; i++) {
+        if (meter_peak >= bar_db(i) - 1.5f) peak = i;
+    }
+    lv_draw_rect_dsc_init(&seg);
+    seg.bg_color = seg.border_color = TC(text);
+    for (int i = 0; i < BARS; i++) {
+        bool lit = meter_db >= bar_db(i) - 1.5f;
+
+        a.x1 = x0 + i * step - step / 2 + gap / 2;
+        a.x2 = a.x1 + step - gap;
+        a.y1 = top + (i > S9_BAR ? 19 : 22);
+        a.y2 = top + 37;
+        if (!lit && !(i == peak && peak > 0)) {
+            a.y1 = a.y2;                                    /* the ruler */
+            seg.bg_opa = LV_OPA_COVER;
+            seg.border_width = 0;
+        } else if (lit && i != peak && bar_db(i) <= noise_level) {
+            seg.bg_opa = LV_OPA_TRANSP;                     /* under the noise: hollow */
+            seg.border_width = 1;
+        } else {
+            seg.bg_opa = LV_OPA_COVER;
+            seg.border_width = 0;
+        }
+        lv_draw_rect(draw_ctx, &seg, &a);
+    }
+
+    lv_draw_label_dsc_init(&scale);
+    scale.font = &sony_22;
+    scale.color = TC(text);
+    a.y1 = top + 1;
+    a.y2 = a.y1 + 18;
+    for (int k = 0; k < (int)(sizeof(scale_text) / sizeof(scale_text[0])); k++) {
+        lv_txt_get_size(&sz, scale_text[k], scale.font, 0, 0, LV_COORD_MAX, 0);
+        a.x1 = x0 + step * 4 * k - sz.x / 2;
+        a.x2 = a.x1 + sz.x;
+        lv_draw_label(draw_ctx, &scale, &a, scale_text[k], NULL);
+    }
+}
+
 static void meter_draw_cb(lv_event_t *e) {
     lv_obj_t      *o = lv_event_get_target(e);
     lv_draw_ctx_t *draw_ctx = lv_event_get_draw_ctx(e);
@@ -479,7 +539,8 @@ static void meter_draw_cb(lv_event_t *e) {
         deck_draw(o, draw_ctx);
         return;
     }
-    if (needle_on()) meter_needle_draw(o, draw_ctx);
+    if (theme_shape.mono) bars_draw_mono(o, draw_ctx);
+    else if (needle_on()) meter_needle_draw(o, draw_ctx);
     else bars_draw(o, draw_ctx);
     if (in_tx) tx_veil(o, draw_ctx);
 }
