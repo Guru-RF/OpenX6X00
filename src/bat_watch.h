@@ -37,10 +37,22 @@ typedef struct {
     bool     low;           /* low battery: the power-off runs */
     bool     counts;        /* the last reading is the battery's and the supply's */
     bool     ext;           /* the last reading: on external power */
+    bool     by_volts;      /* the % shown is the voltage's, not the base's (bat_watch_cap) */
 } bat_watch_t;
 
 /* One reading. True when low changed */
 bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, uint64_t now_ms);
+
+/* The % of a pack at vbat (0.1 V) on battery and receive: what an X6100 base (1.1.8) reports there,
+ * from its discharge 8.3 to 6.4 V on the bench */
+uint8_t bat_cap_of_volts(uint8_t vbat);
+
+/* The % to show on battery, on receive: the base's, and the voltage's while the two are more than
+ * BAT_CAP_APART apart, until they meet within BAT_CAP_MET. The base counts the charge it sees: a
+ * pack charged with the radio off stayed near empty at 8.2 V, in Xiegu's firmware too (#49) */
+#define BAT_CAP_APART   25
+#define BAT_CAP_MET     10
+uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap);
 
 #ifdef __cplusplus
 }

@@ -1124,7 +1124,9 @@ static void battery_log(const hw_pack_t *p) {
         fclose(f);
     }
     bat_sample_t s = {
-        .t = t, .vbat = p->vbat * 0.1f, .cap = p->batcap, .vext = p->vext * 0.1f, .charging = p->charging,
+        /* the % shown on battery (bat_watch_cap: the base's can be far off, #49), else the base's */
+        .t = t, .vbat = p->vbat * 0.1f, .cap = bat_pct >= 0 ? bat_pct : p->batcap, .vext = p->vext * 0.1f,
+        .charging = p->charging,
         .tx_s = tx_s, .tx_w = tx_s > 0 ? tx_ws / tx_s : 0, .bl = backlight_level(),
         .wifi = wifi_get_status() != WIFI_OFF,
         .bt = access("/sys/class/bluetooth/hci0", F_OK) == 0,
@@ -1139,8 +1141,8 @@ static void battery_log(const hw_pack_t *p) {
     clock_update_estimate(min, approx);
 
     /* On battery at 10% or less: a warning every minute (the 30 s power-off comes at 6.0 V) */
-    if (s.vext < 3.0f && s.vbat >= 3.0f && p->batcap <= 10) {
-        int w[2] = { p->batcap, min };
+    if (s.vext < 3.0f && s.vbat >= 3.0f && s.cap <= 10) {
+        int w[2] = { s.cap, min };
 
         scheduler_put(battery_warn_cb, w, sizeof(w));
     }
@@ -1303,8 +1305,12 @@ static bool radio_tick() {
             int8_t          cap = bat_watch.counts && !bat_watch.ext ? pack->batcap : -1;
 
             if (radio_get_state() == RADIO_TX) hold_until = now_time + 30000;
-            if (now_time < hold_until && held_cap >= 0 && cap >= 0) cap = held_cap;
-            else held_cap = cap;
+            if (now_time < hold_until && held_cap >= 0 && cap >= 0) {
+                cap = held_cap;
+            } else {
+                if (cap >= 0) cap = bat_watch_cap(&bat_watch, pack->vbat, pack->batcap);   /* on receive only */
+                held_cap = cap;
+            }
             bat_pct = cap;   /* the % on the screen (clock.c) */
             if (cap >= 0 && cap != pack->batcap)
                 clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, cap, pack->charging);

@@ -6,6 +6,8 @@
 
 #include "bat_watch.h"
 
+#include <stdlib.h>
+
 bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, uint64_t now_ms) {
     bool measured = vbat >= BAT_NONE || vext >= BAT_NONE;
 
@@ -33,4 +35,22 @@ bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_fla
         return true;
     }
     return false;
+}
+
+uint8_t bat_cap_of_volts(uint8_t vbat) {
+    /* 0.1 V from 6.8 V up: the median % the base reported at each, on battery and receive */
+    static const uint8_t cap[] = {0, 1, 1, 3, 9, 24, 42, 56, 65, 73, 80, 84, 88, 94, 98, 100};
+
+    if (vbat <= 68) return 0;
+    if (vbat >= 68 + sizeof(cap) - 1) return 100;
+    return cap[vbat - 68];
+}
+
+uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
+    uint8_t v = bat_cap_of_volts(vbat);
+    int     apart = abs((int)batcap - v);
+
+    if (apart > BAT_CAP_APART) w->by_volts = true;
+    else if (apart <= BAT_CAP_MET) w->by_volts = false;
+    return w->by_volts ? v : batcap;
 }
