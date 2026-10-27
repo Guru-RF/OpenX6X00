@@ -37,6 +37,41 @@ BOARD=$EXT/board/$M/linux
 KERNEL_DEFCONFIG=$BOARD/sun8i-r16-$MODEL\_defconfig
 mkdir -p "$HOME"
 
+# The buildroot trees are our forks, github.com/Guru-RF/AetherX6100Buildroot and .../AetherX6200Buildroot, of
+# Aether Radio's (the X6100's moved from gdyuldin to OpenX6100). A change upstream reaches an image only once it
+# is merged into the fork: each build says when upstream has commits the tree here has not, at the start and
+# again at the end, and on GitHub as a warning on the run. It never stops the build
+UPSTREAM=$([ $MODEL = x6100 ] && echo OpenX6100/AetherX6100Buildroot || echo gdyuldin/AetherX6200Buildroot)
+UPSTREAM_NOTE=""
+upstream_check() {
+    local new
+    # CI checks the tree out with one commit: its own history (small, not buildroot's) for the comparison
+    if [ "$(git -C $BR rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+        git -C $BR fetch -q --unshallow 2>/dev/null || true
+    fi
+    if ! GIT_TERMINAL_PROMPT=0 git -C $BR fetch -q "https://github.com/$UPSTREAM" HEAD 2>/dev/null; then
+        echo "== Upstream $UPSTREAM: not reachable, not checked"
+        return 0
+    fi
+    if git -C $BR merge-base --is-ancestor FETCH_HEAD HEAD 2>/dev/null; then
+        echo "== Upstream $UPSTREAM: nothing new (its HEAD $(git -C $BR rev-parse --short FETCH_HEAD) is in this tree)"
+        return 0
+    fi
+    new=$(git -C $BR log --oneline --no-decorate HEAD..FETCH_HEAD 2>/dev/null | head -20 || true)
+    UPSTREAM_NOTE=$(printf '%s\n' \
+        "!! UPSTREAM CHANGED: $UPSTREAM has commits $BRDEF here has not:" \
+        "$(printf '%s\n' "${new:-(none listed: see https://github.com/$UPSTREAM/commits)}" | sed 's/^/!!   /')" \
+        "!! This image is built without them. Look at them, then merge them into Guru-RF/$BRDEF, or not.")
+    printf '%s\n' "$UPSTREAM_NOTE"
+    if [ -n "$GITHUB_ACTIONS" ]; then
+        echo "::warning title=Upstream $UPSTREAM changed::$(printf '%s\n' "$new" | grep -c .) commit(s) not in Guru-RF/$BRDEF; this image is built without them (see the job summary)"
+        [ -n "$GITHUB_STEP_SUMMARY" ] && printf '### Upstream %s changed\n\nNot in Guru-RF/%s, not in this image:\n\n```\n%s\n```\n' \
+            "$UPSTREAM" "$BRDEF" "$new" >> "$GITHUB_STEP_SUMMARY"
+    fi
+    return 0
+}
+upstream_check
+
 echo "== $M: GUI package $GUI_PKG from $GUI"
 sed -i "s,^${GUI_VAR}_SITE = .*,${GUI_VAR}_SITE = $GUI,g" $GUI_MK
 sed -i "s,^${GUI_VAR}_SITE_METHOD = git,${GUI_VAR}_SITE_METHOD = local,g" $GUI_MK
@@ -258,4 +293,5 @@ python3 $GUI/tools/update/mkbundle.py --target $BR/build/target --manifest $(ls 
 
 cp $BR/build/images/sdcard.img $BR/build/images/$OUT-local-sdcard.img
 ls -la $BR/build/images/$OUT-local-sdcard.img
+[ -n "$UPSTREAM_NOTE" ] && printf '%s\n' "$UPSTREAM_NOTE"     # again, after the long log
 echo "== done"

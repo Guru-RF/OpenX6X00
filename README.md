@@ -347,9 +347,13 @@ Added:
 ## Build
 
 The images are built by
-[AetherX6100Buildroot](https://github.com/gdyuldin/AetherX6100Buildroot) and
-[AetherX6200Buildroot](https://github.com/gdyuldin/AetherX6200Buildroot), with
-this repository as their GUI package. `buildroot/local-build.sh` patches the
+[AetherX6100Buildroot](https://github.com/Guru-RF/AetherX6100Buildroot) and
+[AetherX6200Buildroot](https://github.com/Guru-RF/AetherX6200Buildroot), our forks
+of Aether Radio's trees ([OpenX6100](https://github.com/OpenX6100/AetherX6100Buildroot),
+[gdyuldin](https://github.com/gdyuldin/AetherX6200Buildroot)), with this repository as
+their GUI package. A change upstream reaches an image only once it is merged into the
+fork: every build checks, and says at its start and end (on GitHub as a warning on the
+run) when upstream has commits the fork has not. `buildroot/local-build.sh` patches the
 buildroot tree (local GUI and web server, `boost` and `fftw-single` for JS8,
 no RHVoice, the boot logo), builds it and makes the update bundle. The GitHub
 Actions workflow (`.github/workflows/main.yml`, *Build image*, run by hand,
@@ -359,7 +363,7 @@ with their bundles as workflow artifacts; run on a tag, it also attaches them
 to that release (the releases since v0.2.2 were built locally and their files
 attached by hand). Locally, the same build runs in a container: clone the
 buildroot tree with its submodule (`git clone --recurse-submodules
-https://github.com/gdyuldin/AetherX6100Buildroot`) next to this repository
+https://github.com/Guru-RF/AetherX6100Buildroot`) next to this repository
 (itself cloned with `--recurse-submodules`), then, from this repository's
 folder,
 
@@ -373,7 +377,7 @@ leaves `../AetherX6100Buildroot/build/images/OpenX6X00-x6100-local-sdcard.img` (
 an hour the first time, 20 cores; `buildroot/local-build.sh` has the patch
 steps, `buildroot/Dockerfile` the Ubuntu 22.04 host with CMake 3.28 and
 sqlite3). The X6200 is the same GUI on its own buildroot tree,
-[AetherX6200Buildroot](https://github.com/gdyuldin/AetherX6200Buildroot)
+[AetherX6200Buildroot](https://github.com/Guru-RF/AetherX6200Buildroot)
 cloned next to this repository: the same command with `-e MODEL=x6200` leaves
 `../AetherX6200Buildroot/build/images/OpenX6X00-x6200-local-sdcard.img` and the
 `OpenX6X00-x6200-v<version>-update.tar.gz` bundle (the updater on a radio takes

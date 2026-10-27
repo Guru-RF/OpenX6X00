@@ -3465,7 +3465,7 @@ runtime state in `/mnt/btcat.conf` overrides them.
 
 GitHub Actions (`.github/workflows/main.yml`, *Build image*, about an hour)
 builds the SD image with
-[AetherX6100Buildroot](https://github.com/gdyuldin/AetherX6100Buildroot),
+[AetherX6100Buildroot](https://github.com/Guru-RF/AetherX6100Buildroot) (our fork of Aether Radio's),
 using this repository's GUI, the vendored `webserver/`, the boot logo
 `boot/logo.png` (800x480) and the Bluetooth files in `rootfs/`.
 

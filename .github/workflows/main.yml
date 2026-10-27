@@ -1,5 +1,5 @@
 # Builds the SD card images on GitHub, one per radio: this repository (OpenX6X00) is the GUI
-# package of gdyuldin's AetherX6100Buildroot (the X6100) and AetherX6200Buildroot (the X6200),
+# package of our forks of Aether Radio's AetherX6100Buildroot (the X6100) and AetherX6200Buildroot (the X6200),
 # built from the checkout instead of upstream. buildroot/local-build.sh does the patching and
 # the build, here as in the container at home.
 name: Build image
@@ -60,11 +60,14 @@ jobs:
         submodules: true
         path: x6100_gui
 
+    # Our forks of Aether Radio's trees: an upstream change reaches an image only once merged into
+    # the fork. local-build.sh warns on the run (and in its summary) when upstream has commits the
+    # fork has not
     - name: Checkout buildroot
       uses: actions/checkout@v4
       with:
         submodules: true
-        repository: gdyuldin/${{ matrix.tree }}
+        repository: Guru-RF/${{ matrix.tree }}
         path: ${{ matrix.tree }}
 
     # ccache kept between runs, one cache per radio. The cache key carries the time of the
