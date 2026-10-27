@@ -29,6 +29,7 @@ typedef struct {
     lv_color_t      *palette;   /* 256 levels, weakest first */
     int16_t         min;        /* dB shown as palette[0] */
     int16_t         max;        /* dB shown as palette[255] */
+    uint8_t         seq;        /* 1bit: the next row's dither row */
 } lv_waterfall_t;
 
 extern const lv_obj_class_t lv_waterfall_class;

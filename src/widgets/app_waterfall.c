@@ -8,6 +8,9 @@
 
 #include "app_waterfall.h"
 
+#include "../mono.h"
+#include "../theme.h"
+
 #include <string.h>
 
 static void wf_init(const lv_obj_class_t * cls, lv_obj_t * obj);
@@ -73,11 +76,12 @@ static void redraw(lv_obj_t * obj) {
     }
 }
 
-/* Black, not zero: zero is transparent on the DRM overlay */
+/* Black (1bit: the paper), not zero: zero is transparent on the DRM overlay */
 static void blank(lv_waterfall_t * wf) {
-    uint32_t n = 2u * wf->dsc.header.w * wf->dsc.header.h;
+    uint32_t   n = 2u * wf->dsc.header.w * wf->dsc.header.h;
+    lv_color_t c = theme_shape.mono ? lv_color_hex(theme_shape.paper) : lv_color_black();
 
-    for (uint32_t i = 0; i < n; i++) wf->rows[i] = lv_color_black();
+    for (uint32_t i = 0; i < n; i++) wf->rows[i] = c;
 }
 
 void lv_waterfall_set_size(lv_obj_t * obj, lv_coord_t w, lv_coord_t h) {
@@ -126,14 +130,21 @@ void lv_waterfall_add_data(lv_obj_t * obj, float * data, uint16_t cnt) {
     wf->top = (wf->top + h - 1) % h;
 
     lv_color_t  *row = wf->rows + wf->top * w;
+    /* 1bit: ink dots by the level's density, the pattern's row the row's own (it scrolls along) */
+    lv_color_t  ink = lv_color_hex(theme_shape.ink), paper = lv_color_hex(theme_shape.paper);
 
     for (uint32_t x = 0; x < w; x++) {
         float level = (data[x * cnt / w] - wf->min) / span;
 
         if (level < 0.0f) level = 0.0f;
         if (level > 1.0f) level = 1.0f;
-        row[x] = wf->palette[(uint8_t)(level * 255)];
+        if (theme_shape.mono) {
+            row[x] = mono_dither(theme_wf_density()[(uint8_t)(level * 255)], x, wf->seq) ? ink : paper;
+        } else {
+            row[x] = wf->palette[(uint8_t)(level * 255)];
+        }
     }
+    wf->seq++;
     memcpy(row + h * w, row, w * sizeof(lv_color_t));
 
     wf->dsc.data = (const uint8_t *)row;
