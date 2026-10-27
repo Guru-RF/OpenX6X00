@@ -39,10 +39,11 @@ struct audio_worker_s {
 
     audio_worker_cb_t cb;
 
-    /* Thread lifecycle. */
+    /* Thread lifecycle. joinable is the caller's (start/stop/destroy), not the thread's: set once
+     * pthread_create() succeeds, the thread joined while it is, run yet or not (audit C04) */
     pthread_t       thread;
+    bool            joinable;
     atomic_bool     stop_req;
-    atomic_bool     thread_running;
     pthread_mutex_t sleep_mux;
     pthread_cond_t  sleep_cv;
 
@@ -178,8 +179,6 @@ static void *worker_main(void *arg) {
     slot_info_t     info = { .odd = false, .answer_generated = false };
     decode_ctx_t    dc   = { .w = w, .info = &info };
 
-    atomic_store(&w->thread_running, true);
-
     while (!atomic_load(&w->stop_req)) {
         struct timespec now;
         clock_gettime(CLOCK_REALTIME, &now);
@@ -224,8 +223,6 @@ static void *worker_main(void *arg) {
             msleep_interruptible(w, 100);
         }
     }
-
-    atomic_store(&w->thread_running, false);
     return NULL;
 }
 
@@ -269,7 +266,6 @@ audio_worker_t *audio_worker_create(int audio_sample_rate,
     if (w->block_size <= 0) goto fail;
 
     atomic_store(&w->stop_req, false);
-    atomic_store(&w->thread_running, false);
 
     return w;
 
@@ -279,11 +275,12 @@ fail:
 }
 
 int audio_worker_start(audio_worker_t *w) {
-    if (!w) return -1;
+    if (!w || w->joinable) return -1;   /* a second thread would take the first one's handle */
     atomic_store(&w->stop_req, false);
     if (pthread_create(&w->thread, NULL, worker_main, w) != 0) {
         return -1;
     }
+    w->joinable = true;
     return 0;
 }
 
@@ -294,10 +291,11 @@ void audio_worker_stop(audio_worker_t *w) {
     pthread_cond_broadcast(&w->sleep_cv);
     pthread_mutex_unlock(&w->sleep_mux);
 
-    if (atomic_load(&w->thread_running)) {
+    /* Not "has it run yet": a thread not scheduled so far starts on a worker freed meanwhile */
+    if (w->joinable) {
         pthread_join(w->thread, NULL);
+        w->joinable = false;
     }
-    atomic_store(&w->thread_running, false);
 }
 
 void audio_worker_destroy(audio_worker_t *w) {

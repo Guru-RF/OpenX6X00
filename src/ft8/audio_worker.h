@@ -70,10 +70,11 @@ audio_worker_t *audio_worker_create(int audio_sample_rate,
                                     int32_t filter_high_hz,
                                     const audio_worker_cb_t *cb);
 
-/* Start the decode thread. */
+/* Start the decode thread. -1: it could not be created, or one started is not stopped yet. */
 int audio_worker_start(audio_worker_t *w);
 
-/* Cooperative shutdown: set stop flag, signal cv, join. No pthread_cancel. */
+/* Cooperative shutdown: set stop flag, signal cv, join the thread started, whether it has run
+ * yet or not. No pthread_cancel. Again, or with none started, it does nothing. */
 void audio_worker_stop(audio_worker_t *w);
 
 /* Release all resources. Calls audio_worker_stop() first if still running. */
