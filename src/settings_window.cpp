@@ -313,7 +313,7 @@ static void theme_apply(void *arg) {
 static void font_update_cb(lv_event_t * e) {
     uint8_choice_cb(e);
     if (theme_shape.font >= 0) {
-        msg_update_text_fmt("Font: this theme has its own");   /* Black Metal, Total Black, a file that sets one */
+        msg_update_text_fmt("Font: this theme has its own");   /* Black Metal, Total Black, 1bit, a file that sets one */
         return;
     }
     params_flush();

@@ -22,10 +22,23 @@
 #define THEMES_DIR BOARD_DATA "/themes"
 #endif
 
-enum { B_RFGURU, B_LEGACY, B_OUTDOOR, B_CLASSIC, B_OUTDOOR_NEG, B_VISION, B_BLACK_METAL, B_TOTAL_BLACK, B_COUNT };
+enum { B_RFGURU, B_LEGACY, B_OUTDOOR, B_CLASSIC, B_OUTDOOR_NEG, B_VISION, B_BLACK_METAL, B_TOTAL_BLACK, B_ONEBIT,
+       B_COUNT };
 
 static const char *const builtin_names[B_COUNT] = {"RF.Guru", "Legacy", "Outdoor", "Classic", "Outdoor-Negative",
-                                                   "VISION", "Black Metal", "Total Black"};
+                                                   "VISION", "Black Metal", "Total Black", "1bit"};
+
+/* 1bit: black on one white, as a monochrome LCD. These roles are the paper (screen, boxes, the text
+ * on what is inverted), every other one the ink: what is on or selected is an ink box, and the mono
+ * draw layer (mono.c) draws the text on it in paper */
+static const theme_color_t onebit_paper[] = {
+    TC_bg,         TC_bar,           TC_bar_grad,     TC_strip,      TC_strip_grad, TC_dialog,         TC_dialog_grad,
+    TC_btn,        TC_btn_grad,      TC_btn_active_text, TC_btn_page, TC_focus_text, TC_panel,         TC_list,
+    TC_row,        TC_popup,         TC_side,         TC_chip,       TC_sel_text,   TC_near_bg,        TC_alert_bg,
+    TC_veil,       TC_alert_box,     TC_track,        TC_frame,      TC_off,        TC_switch_off,     TC_icon_off,
+    TC_mode_text,  TC_bp_text,       TC_pill_hp,      TC_pill_cat,   TC_pill_kbd,   TC_row_alert_text, TC_row_heard,
+    TC_row_tx,     TC_row_cq,        TC_row_group,    TC_ft8_cq,     TC_ft8_cq_worked, TC_ft8_cq_same, TC_ft8_tx,
+};
 
 /* VISION: the default's colours made "warm anthracite": white digits on dark grey, orange for what is on,
  * aqua frames, the layout big (styles.c) */
@@ -190,6 +203,21 @@ static void use_builtin(int b) {
                                       .waterfall = {0x000000, 0x000418, 0x00145e, 0x0a5ad2, 0x28c8f0, 0xc8f05a},
                                       .waterfall_n = 6};
     }
+    if (b == B_ONEBIT) {
+        /* paper a little warm, as a reflective LCD: it reads as a display, not as paper-white glare,
+         * and a stray pure white shows up as a third colour in the two-colour check */
+        const uint32_t ink = 0x000000, paper = 0xefece2;
+
+        for (int i = 0; i < TC_COUNT; i++) colors[i] = ink;
+        for (size_t i = 0; i < sizeof(onebit_paper) / sizeof(onebit_paper[0]); i++) colors[onebit_paper[i]] = paper;
+        theme_shape = (theme_shape_t){.radius = 0, .radius_btn = 0, .radius_popup = 0, .border = 1,
+                                      .focus_solid = true, .mono_cluster = true, .images = 0,
+                                      .font = FONT_PIXEL, .pill_border = 1, .mode_box = true,
+                                      .mono = true, .ink = ink, .paper = paper,
+                                      /* ink density from the noise up (theme_wf_density): paper, then dots */
+                                      .waterfall = {0xffffff, 0xffffff, 0xd8d8d8, 0xa8a8a8, 0x707070, 0x383838, 0x000000},
+                                      .waterfall_n = 7};
+    }
     snprintf(theme_shape.name, sizeof(theme_shape.name), "%s", builtin_names[b]);
 }
 
@@ -271,6 +299,17 @@ static bool load_file(const char *name) {
     int b = builtin_index(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root, "base")));
     use_builtin(b < 0 ? B_RFGURU : b);
     snprintf(theme_shape.name, sizeof(theme_shape.name), "%s", name);
+
+    /* on base 1bit: its two colours ("ink", "paper"), e.g. a green LCD that still has only two */
+    uint32_t two;
+    if (theme_shape.mono && parse_color(cJSON_GetObjectItemCaseSensitive(root, "ink"), &two)) {
+        for (int i = 0; i < TC_COUNT; i++) colors[i] = colors[i] == theme_shape.ink ? two : colors[i];
+        theme_shape.ink = two;
+    }
+    if (theme_shape.mono && parse_color(cJSON_GetObjectItemCaseSensitive(root, "paper"), &two)) {
+        for (int i = 0; i < TC_COUNT; i++) colors[i] = colors[i] == theme_shape.paper ? two : colors[i];
+        theme_shape.paper = two;
+    }
 
     const cJSON *c, *cols = cJSON_GetObjectItemCaseSensitive(root, "colors");
     cJSON_ArrayForEach(c, cols) {
@@ -469,8 +508,20 @@ void theme_ramp_palette(const uint32_t *s, int n, int steps, uint32_t *out) {
     }
 }
 
+static uint8_t wf_density[256];
+
 static void make_palette(void) {
     theme_ramp_palette(theme_shape.waterfall, theme_shape.waterfall_n, theme_shape.waterfall_steps, palette);
+    /* 1bit: the grey ramp read as ink density, dark = dense */
+    for (int i = 0; theme_shape.mono && i < 256; i++) {
+        uint32_t c = palette[i];
+
+        wf_density[i] = 255 - (((c >> 16 & 0xff) * 77 + (c >> 8 & 0xff) * 150 + (c & 0xff) * 29) >> 8);
+    }
+}
+
+const uint8_t *theme_wf_density(void) {
+    return wf_density;
 }
 
 void theme_init(const char *name) {
@@ -503,7 +554,7 @@ const uint32_t *theme_waterfall(void) {
     return theme_shape.waterfall_table == 1 ? wf_palette_legacy : wf_palette_gauss;
 }
 
-/* Legacy is kept but not offered: RF.Guru, Outdoor, Classic, the files */
+/* Legacy is kept but not offered: the other built-in ones (1bit last), then the files */
 int theme_list(char names[][32], int max) {
     int            n = 0;
     DIR           *d;
