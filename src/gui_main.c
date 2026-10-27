@@ -30,6 +30,7 @@
 #include "screen_main.h"
 #include "screen_rec.h"
 #include "gui_styles.h"
+#include "mono.h"
 #include "fonts/font_select.h"
 #include "radio.h"
 #include "dsp.h"
@@ -167,6 +168,7 @@ static void display_register(void) {
     lv_disp_drv_init(&disp_drv);
     disp_drv.draw_buf = &draw_buf;
     disp_drv.flush_cb = screen_rec_flush;
+    disp_drv.draw_ctx_init = mono_draw_ctx_init;   /* LVGL's software renderer; 1bit hooks into it */
     disp_drv.hor_res  = BOARD_DISP_W;
     disp_drv.ver_res  = BOARD_DISP_H;
 #if USE_DRM

@@ -8,6 +8,7 @@
 
 #include "gui_styles.h"
 #include "theme.h"
+#include "mono.h"
 #include "fonts/font_select.h"
 
 /* The panel's background pictures: copied to RAM at boot (x6100_daemon) */
@@ -267,6 +268,7 @@ void styles_load(const char *name) {
     if (theme_shape.vision) {
         fonts_scale(VISION_FONT_STEPS);   /* apps, Settings and popups bigger too */
     }
+    mono_set(theme_shape.mono);   /* 1bit: ink and paper only; the others: LVGL's drawing as it is */
     styles_init();
 }
 
