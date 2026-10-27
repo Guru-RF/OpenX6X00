@@ -17,6 +17,12 @@
  *  and the decoders untouched) and a worker sends ardopcf's audio through tx_player, which keys
  *  the radio, caps the power and steers the drive as for the other digital modes. The client
  *  going ends everything: the stream stops, a transmission is cut and the radio unkeyed.
+ *  Winlink is simplex: a key goes out only where the radio listens (radio_tx_freq() is the dial, no
+ *  XIT, no RIT), on the frequency of the connection under way (Pat's last tune or the last key's,
+ *  for REF_MS; then the dial again), and not while a QSY Pat was told was made could not be
+ *  (missed_hz). Checked as it begins (tx_off_freq) and at each block of it (tx_abort). A frame
+ *  ardopcf keys before the last one is out goes out in the same key, unless Pat asked a QSY
+ *  meanwhile: then it is a key of its own, after the QSY.
  *
  *  The rigctld server, for Pat's hamlib rig on 127.0.0.1:WINLINK_RIG_PORT: one command a line
  *  (CR LF or LF), at most one line back. \get_freq (f), \set_freq (F: tunes as TCI does and sets
@@ -80,6 +86,7 @@
 #define RIG_LINE        256
 #define TUNE_WAIT_MS    700             /* \set_freq waits this long for the LVGL thread (Pat reads for 1 s) */
 #define PENDING_MS      (30 * 1000)     /* a QSY asked on the air is done at the end of it, if within this */
+#define REF_MS          (60 * 1000)     /* Pat's tune or ardopcf's key this recent: a connection under way */
 
 typedef struct {
     uint8_t  type;
@@ -112,6 +119,8 @@ static struct {
     uint64_t        audio_ms;       /* the last T of this key, or the key itself */
     int16_t         ring[RING_SIZE];
     size_t          head, len;      /* head: the oldest sample */
+    bool            cut_on;         /* a frame keyed with Pat's QSY pending: this key ends after `cut` more */
+    size_t          cut;            /* samples, the frame before it (in the ring) */
 
     /* the worker's alone */
     msresamp_rrrf   rs;             /* 12000 -> 44100, its state kept from block to block */
@@ -120,6 +129,7 @@ static struct {
     int16_t         pend[OUT_MAX];  /* resampled, not yet given to tx_player */
     size_t          pend_pos, pend_len;
     uint64_t        key_ms;
+    int32_t         key_hz;         /* where this key goes out: the frequency the radio listens on */
 } ses = {.fd = -1};
 
 /* The worker's, kept from one connection to the next */
@@ -129,6 +139,13 @@ static unsigned key_trips;          /* radio_swr_trips() when our last key began
 static atomic_bool keying;          /* the worker transmits: on_air() may not show it yet, or no more */
 
 static void rig_pending_tune(void);
+static atomic_int    pending_hz;    /* a \set_freq asked on the air, done once it is over; 0 none */
+static atomic_int    missed_hz;     /* a QSY Pat was told was done and that could not be (rig_pending_tune); 0 none */
+/* The frequency of the connection under way: Pat's last tune, or where ardopcf last keyed; 0 none. Written by
+ * the rig thread, and by the worker in tx_off_freq after its own rig_pending_tune: a \set_freq from then on is
+ * kept for later (keying) */
+static atomic_int    ref_hz;
+static atomic_ullong ref_ms;
 
 static uint64_t now_ms(void) {
     struct timespec ts;
@@ -193,6 +210,7 @@ static void key_new(void) {
     ses.key      = KEY_WANTED;
     ses.eos      = false;
     ses.audio_ms = now_ms();
+    ses.cut_on   = false;
     ring_clear();
 }
 
@@ -207,10 +225,16 @@ static void key_on(void) {
             break;
         case KEY_ON:
             /* The next frame before this one is out: one transmission, the radio stays keyed.
-             * Once the last block was given, it is a key of its own after this one */
+             * Once the last block was given, it is a key of its own after this one. So it is when Pat
+             * asked a QSY during this one: the next frame is for the new frequency, and the QSY is made
+             * before a key (tx_off_freq), so this key ends where this frame does (next_block) */
             if (ses.fill_done) {
                 key_new();
             } else {
+                if (ses.eos && atomic_load(&pending_hz) && !ses.cut_on) {
+                    ses.cut_on = true;
+                    ses.cut    = ses.len;
+                }
                 ses.eos      = false;
                 ses.audio_ms = now_ms();
             }
@@ -336,6 +360,19 @@ static bool next_block(void) {
             end = true;
             break;
         }
+        if (ses.cut_on) {
+            /* The frame before Pat's QSY to its end, then this key's; the next one waits in the ring for
+             * the worker, which keys it once the QSY is made */
+            if (ses.cut) {
+                k = ring_take(in, LV_MIN((size_t)IN_BLOCK, ses.cut));
+                ses.cut -= k;
+            } else {
+                tail       = true;
+                ses.cut_on = false;
+                ses.key    = KEY_WANTED;
+            }
+            break;
+        }
         if (ses.len >= IN_BLOCK || (ses.eos && ses.len)) {
             k = ring_take(in, IN_BLOCK);
             break;
@@ -386,17 +423,31 @@ static size_t tx_fill(int16_t *buf, size_t n, void *ctx) {
     return k;
 }
 
-/* tx_player's abort, once a block: the client gone, or the key too long */
+/* 14105000 as "14.105.000" */
+static const char *mhz(char *s, size_t size, int32_t hz) {
+    snprintf(s, size, "%d.%03d.%03d", (int)(hz / 1000000), (int)(hz / 1000 % 1000), (int)(hz % 1000));
+    return s;
+}
+
+/* tx_player's abort, once a block, before it is played: the client gone, the key too long, or its frequency
+ * left. Split turned on, a shift, XIT, the other VFO, the dial turned: the base sends the rest of it elsewhere */
 static bool tx_abort(void *ctx) {
     (void)ctx;
-    bool quit  = atomic_load(&ses.quit);
-    bool limit = now_ms() - ses.key_ms > KEY_LIMIT_MS;
+    bool    quit  = atomic_load(&ses.quit);
+    bool    limit = now_ms() - ses.key_ms > KEY_LIMIT_MS;
+    int32_t tx    = radio_tx_freq() + param_i_get(cfg_xit);
+    bool    moved = tx != ses.key_hz || cparam_i_get(cfg_fg_freq) != ses.key_hz;
 
-    if (!quit && !limit)
+    if (!quit && !limit && !moved)
         return false;
     if (limit) {
         LV_LOG_WARN("winlink: keyed for %d s, unkeyed", KEY_LIMIT_MS / 1000);
         msg_schedule_text_fmt("Winlink: TX stopped after %d s", KEY_LIMIT_MS / 1000);
+    } else if (moved && !quit) {
+        char f[16];
+
+        LV_LOG_WARN("winlink: the TX frequency left %d Hz, unkeyed", (int)ses.key_hz);
+        msg_schedule_text_fmt("Winlink: TX stopped, it left %s MHz", mhz(f, sizeof(f), ses.key_hz));
     }
     pthread_mutex_lock(&ses.lock);
     ses.fill_done = true;
@@ -405,7 +456,7 @@ static bool tx_abort(void *ctx) {
     return true;
 }
 
-/* Why ardopcf's key is not taken; NULL: it is */
+/* Why ardopcf's key is not taken, the radio's state; NULL: it is, if tx_off_freq agrees */
 static const char *tx_refused(void) {
     /* Our own transmission just ended: the base reports RX on its next packet */
     while (!radio_get_modem() && radio_get_state() != RADIO_RX && now_ms() - unkey_ms < TURN_MS &&
@@ -422,9 +473,62 @@ static const char *tx_refused(void) {
     }
     if (swr_trip_ms && now_ms() - swr_trip_ms < SWR_HOLD_MS)
         return "an SWR trip less than 5 minutes ago";
-    /* Winlink is simplex: with a TX shift the key went out shifted, 600 kHz off the frequency Pat tuned */
-    if (param_i_get(cfg_band_split) && param_i_get(cfg_band_tx_shift))
-        return "a TX shift is set on this band";
+    return NULL;
+}
+
+/* Why ardopcf's key would not go out where the radio listens, on the connection's frequency; NULL: it would, on
+ * ses.key_hz. Winlink is simplex, the gateway answers on the frequency it is called on. The key goes out on
+ * radio_tx_freq() (tx_player), in split the other VFO or the shifted one, and the X6100's base adds the XIT
+ * (lo = fg + xit); with RIT the radio, and ARDOP, listen beside the dial. Only a TX shift was refused: plain split
+ * with B elsewhere called the gateway from B (audit C07). Checked here, on what the radio is set to as it keys,
+ * after the QSY Pat asked during the last key: it can bring another band's split.
+ * The connection's frequency: Pat's last tune (made, or not made: missed_hz), or where ardopcf keyed, while either
+ * is less than REF_MS old; the dial once it is older, so a connection made without a QSY keys where the radio
+ * listens. A dial turned, or the other VFO chosen, during a connection keys no more there */
+static const char *tx_off_freq(void) {
+    static char why[96];    /* the worker's */
+    char        a[16], b[16];
+    int32_t     rx, tx, xit, rit, missed, ref;
+    uint64_t    now;
+
+    rig_pending_tune();     /* a QSY Pat asked during the last key: this one goes out there */
+    rx     = cparam_i_get(cfg_fg_freq);
+    tx     = radio_tx_freq();
+    xit    = param_i_get(cfg_xit);
+    rit    = param_i_get(cfg_rit);
+    missed = atomic_load(&missed_hz);
+    if (missed) {
+        if (missed != rx) {
+            snprintf(why, sizeof(why), "the radio could not go to Pat's %s MHz", mhz(a, sizeof(a), missed));
+            return why;
+        }
+        atomic_compare_exchange_strong(&missed_hz, &missed, 0);    /* there after all */
+    }
+    now = now_ms();
+    ref = atomic_load(&ref_hz);
+    if (!ref || now - atomic_load(&ref_ms) >= REF_MS)
+        ref = rx;
+    atomic_store(&ref_hz, ref);
+    atomic_store(&ref_ms, now);     /* ardopcf keys, keyed or not: its connection goes on */
+    if (rx != ref) {
+        snprintf(why, sizeof(why), "the radio left %s MHz", mhz(a, sizeof(a), ref));
+        return why;
+    }
+    if (xit) {
+        snprintf(why, sizeof(why), "XIT is set (%+d Hz)", (int)xit);
+        return why;
+    }
+    if (rit) {
+        snprintf(why, sizeof(why), "RIT is set (%+d Hz)", (int)rit);
+        return why;
+    }
+    if (tx != rx) {
+        if (param_i_get(cfg_band_tx_shift))
+            return "a TX shift is set on this band";
+        snprintf(why, sizeof(why), "split would send on %s, not %s", mhz(a, sizeof(a), tx), mhz(b, sizeof(b), rx));
+        return why;
+    }
+    ses.key_hz = rx;
     return NULL;
 }
 
@@ -468,6 +572,12 @@ static void *tx_thread(void *arg) {
         }
         pthread_mutex_unlock(&ses.lock);
         const char *no = tx_refused();
+
+        if (!no) {
+            atomic_store(&keying, true);    /* a QSY Pat asks from now on waits for the end of this key */
+            if ((no = tx_off_freq()))
+                atomic_store(&keying, false);
+        }
         pthread_mutex_lock(&ses.lock);
 
         if (no) {
@@ -485,15 +595,14 @@ static void *tx_thread(void *arg) {
         }
         ses.key       = KEY_ON;
         ses.fill_done = false;
-        atomic_store(&keying, true);
         pthread_mutex_unlock(&ses.lock);
 
-        rig_pending_tune();     /* a QSY Pat asked during the last key: this one goes out there */
         transmit();
 
         pthread_mutex_lock(&ses.lock);
         if (ses.key == KEY_ON) {    /* else ardopcf keyed again meanwhile: that key is next */
-            ses.key = ses.eos ? KEY_NONE : KEY_DISCARD;
+            ses.key    = ses.eos ? KEY_NONE : KEY_DISCARD;
+            ses.cut_on = false;
             ring_clear();
         }
     }
@@ -509,6 +618,7 @@ static void session_start(int fd) {
     ses.key       = KEY_NONE;
     ses.eos       = false;
     ses.fill_done = false;
+    ses.cut_on    = false;
     ring_clear();
     pthread_mutex_unlock(&ses.lock);
     atomic_store(&ses.quit, false);
@@ -696,8 +806,7 @@ static void tune_cb(void *arg) {
     atomic_fetch_add(&tunes, 1);
 }
 
-static atomic_int    pending_hz;   /* a \set_freq asked on the air, done once it is over; 0 none */
-static atomic_ullong pending_ms;
+static atomic_ullong pending_ms;    /* when pending_hz was asked */
 
 /* The tune on the LVGL thread, waited for: hamlib's code, 0 when the radio is there */
 static int rig_do_tune(int32_t f) {
@@ -714,15 +823,21 @@ static int rig_do_tune(int32_t f) {
 }
 
 /* A QSY kept while on the air, now that it is over (the rig thread) or before the next key (the
- * worker): whichever comes first takes it */
+ * worker): whichever comes first takes it. Pat was told it was done: one that cannot be (an app holds
+ * the frequency, the LVGL thread busy, too late) leaves the radio where Pat does not think it is, and
+ * ardopcf does not key until it is there or Pat tunes again (missed_hz) */
 static void rig_pending_tune(void) {
     int32_t f = atomic_load(&pending_hz);
 
     if (!f || (on_air() && !atomic_load(&keying)))
         return;
     f = atomic_exchange(&pending_hz, 0);
-    if (f && now_ms() - atomic_load(&pending_ms) < PENDING_MS)
-        rig_do_tune(f);
+    if (f && (now_ms() - atomic_load(&pending_ms) >= PENDING_MS || rig_do_tune(f) != 0))
+        atomic_store(&missed_hz, f);
+    if (f) {
+        atomic_store(&ref_hz, f);   /* where Pat waits, made or not */
+        atomic_store(&ref_ms, now_ms());
+    }
 }
 
 /* \set_freq: hamlib's code. On the air it is answered at once and done at the end of the
@@ -730,19 +845,24 @@ static void rig_pending_tune(void) {
  * its session, while ardopcf may still send its ID. Not on a frequency an app holds */
 static int rig_tune(double hz) {
     int32_t f;
+    int     ret;
 
     if (!(hz >= 1.0 && hz < 2147483647.0))
         return -1;      /* RIG_EINVAL */
     f = (int32_t)llround(hz);
     if (!cfg_is_valid_hw_freq(f))
         return -1;
+    atomic_store(&missed_hz, 0);    /* Pat's QSY before this one is not where Pat waits any more */
     if (on_air() || atomic_load(&keying)) {
         atomic_store(&pending_ms, now_ms());
         atomic_store(&pending_hz, f);
         return 0;
     }
     atomic_store(&pending_hz, 0);   /* asked again since: the newest wins */
-    return rig_do_tune(f);
+    ret = rig_do_tune(f);
+    atomic_store(&ref_hz, ret == 0 ? f : 0);    /* not made: Pat knows, and waits nowhere */
+    atomic_store(&ref_ms, now_ms());
+    return ret;
 }
 
 /* The answer to one line into reply, "" for none. False: the client says goodbye */

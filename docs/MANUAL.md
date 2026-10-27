@@ -922,8 +922,12 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   whatever its offset, and the X6200's base sends these from VFO A in split
   (an FT8 CQ at 1200 Hz with a +700 Hz shift was heard at VFO A + 1325 Hz,
   575 Hz below where it belonged).
-- Winlink is simplex: it does not key while a shift is on (split on), and
-  says "Winlink: no TX, a TX shift is set on this band".
+- Winlink is simplex: it keys only on the frequency the radio listens on.
+  With a shift on it does not key and says "Winlink: no TX, a TX shift is set
+  on this band"; in plain split with VFO B on another frequency it says
+  "Winlink: no TX, split would send on 14.200.000, not 14.105.000". Up to
+  v0.3.6 plain split was let through, and Winlink called the gateway from B.
+  XIT and RIT are refused the same way ([Winlink](#winlink)).
 
 Two examples:
 
@@ -2377,8 +2381,37 @@ Connecting to a gateway:
 - ARDOP keys the radio the way the radio's own digital modes do, and
   identifies with your callsign in CW. The radio does not key for Winlink
   while it is already transmitting, nor for 5 minutes after a high SWR
-  stopped a Winlink transmission, nor while the band has a
-  [TX shift](#tx-shift) on; the screen says so.
+  stopped a Winlink transmission; the screen says so.
+- Winlink transmits only on the frequency the radio listens on, which is the
+  gateway's once Pat has tuned there. This is checked as each transmission
+  begins, on the band Pat's QSY brought (split and the [TX shift](#tx-shift)
+  belong to a band):
+  - Split on with VFO B on another frequency, or a TX shift on: no key,
+    "Winlink: no TX, split would send on 14.200.000, not 14.105.000" or
+    "Winlink: no TX, a TX shift is set on this band". Turn split off (AGC
+    held), or put B on the same frequency.
+  - XIT or RIT set (the XIT and RIT buttons): no key, "Winlink: no TX, XIT is
+    set (+500 Hz)" or "Winlink: no TX, RIT is set (+500 Hz)". XIT moves the
+    transmission off the gateway's frequency, RIT moves what ARDOP hears. Set
+    them to 0.
+  - Split turned on, the other VFO chosen, XIT set or the dial turned while
+    Winlink transmits: that transmission stops, "Winlink: TX stopped, it left
+    14.105.000 MHz".
+  - A QSY Pat asks while the radio transmits is made when the transmission
+    ends. A frame ARDOP sends right after that transmission goes out after the
+    QSY, as a transmission of its own, on Pat's new frequency. If the radio
+    cannot go there (an app holds the frequency): no key, "Winlink: no TX, the
+    radio could not go to Pat's 7.100.000 MHz", until the radio is on that
+    frequency or Pat tunes again.
+  - A connection keeps its frequency: the one Pat tuned last, or where ARDOP
+    last transmitted. Turn the dial or choose the other VFO between two
+    transmissions, and Winlink does not key: "Winlink: no TX, the radio left
+    14.105.000 MHz". Go back there, or connect again with the gateway's
+    frequency. A minute after Pat's last QSY and ARDOP's last try the dial
+    counts again: a connect without a frequency then transmits where you
+    listen (ARDOP hears that frequency too). Pat's tune-back after a session
+    is a QSY too, so retuning right after a session and connecting at once
+    without a frequency waits that minute.
 - Pat listens before it calls: on a busy frequency it asks in the mailbox
   whether to go ahead.
 - The gateway list: the first time, Pat fetches it from winlink.org when the
