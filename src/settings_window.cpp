@@ -2726,6 +2726,21 @@ static void focus_row_label(lv_obj_t *obj) {
     }
 }
 
+/* The first or the last object the knob can reach: disabled and hidden ones are skipped, as
+ * LVGL's group does (a disabled Log out under the Tailscale code kept the end out of view) */
+static lv_obj_t *reachable_end(lv_group_t *g, bool last) {
+    for (lv_obj_t **o = (lv_obj_t **)(last ? _lv_ll_get_tail(&g->obj_ll) : _lv_ll_get_head(&g->obj_ll)); o;
+         o = (lv_obj_t **)(last ? _lv_ll_get_prev(&g->obj_ll, o) : _lv_ll_get_next(&g->obj_ll, o))) {
+        lv_obj_t *p = *o;
+
+        while (p && !lv_obj_has_flag(p, LV_OBJ_FLAG_HIDDEN)) p = lv_obj_get_parent(p);
+        if (!p && !lv_obj_has_state(*o, LV_STATE_DISABLED)) {
+            return *o;
+        }
+    }
+    return NULL;
+}
+
 /* MFK focus: bring the whole row into view, with a margin (the default
  * scroll-on-focus left rows at the bottom edge half hidden) */
 static void focus_cb(lv_group_t *g) {
@@ -2742,14 +2757,11 @@ static void focus_cb(lv_group_t *g) {
 
     /* Rows without controls above the first or below the last one (status
      * lines, card ends) would never come into view: show the page ends */
-    lv_obj_t **first = (lv_obj_t **)_lv_ll_get_head(&g->obj_ll);
-    lv_obj_t **last  = (lv_obj_t **)_lv_ll_get_tail(&g->obj_ll);
-
-    if (first && *first == obj) {   /* also the only one while the page is built */
+    if (reachable_end(g, false) == obj) {   /* also the only one while the page is built */
         lv_obj_scroll_to_y(page, 0, LV_ANIM_OFF);
         return;
     }
-    if (last && *last == obj) {
+    if (reachable_end(g, true) == obj) {
         lv_coord_t below = lv_obj_get_scroll_bottom(page);
 
         if (below > 0) lv_obj_scroll_by(page, 0, -below, LV_ANIM_OFF);
