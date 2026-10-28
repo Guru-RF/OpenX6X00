@@ -133,6 +133,21 @@ static void atu_done_cb(void *arg) {
     param_i_set(cfg_atu_enabled, true);
 }
 
+/* The base's warnings, on the LVGL thread: bit 0 battery hot, 1 PA hot, 2 DC in too low,
+ * 3 battery cold, shown in the words of Xiegu's app */
+static void base_warn_cb(void *arg) {
+    static const char *words[] = {"BATTERY HIGH TEMP!", "PA HIGH TEMP!", "DCIN TOO LOW!", "BATTERY LOW TEMP!"};
+    uint8_t            w = *(uint8_t *)arg;
+    char               text[96] = "";
+
+    for (int i = 0; i < 4; i++) {
+        if (w & 1 << i) {
+            snprintf(text + strlen(text), sizeof(text) - strlen(text), "%s%s", text[0] ? "\n" : "", words[i]);
+        }
+    }
+    msg_schedule_long_text_fmt("%s", text);
+}
+
 /* A hand mic key, on the LVGL thread (see the flow handler) */
 static void hkey_sched_cb(void *arg) {
     hkey_put(*(uint32_t *)arg);
@@ -1297,6 +1312,18 @@ static bool radio_tick() {
                 clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, pack->batcap, pack->charging);
                 battery_log(pack);
             }
+
+            /* The base's warnings: shown when one comes on, and again every 30 s while any lasts */
+            static uint8_t  warns;
+            static uint64_t warn_time;
+            uint8_t         w = pack->bat_hot | pack->pa_hot << 1 | pack->dcin_low << 2 | pack->bat_cold << 3;
+
+            if ((w & ~warns) || (w && now_time - warn_time >= 30000)) {
+                if (scheduler_put(base_warn_cb, &w, sizeof(w))) {
+                    warn_time = now_time;
+                }
+            }
+            warns = w;
 
             /* The % sags under the TX current and comes back slowly: the last RX reading holds
              * while transmitting and for 30 s after (also in the top bar, clock.c) */
