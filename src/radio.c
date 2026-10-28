@@ -138,6 +138,23 @@ static void hkey_sched_cb(void *arg) {
     hkey_put(*(uint32_t *)arg);
 }
 
+#ifdef BOARD_PWR_MAX_EXT
+/* The supply changed (true: external power), on the LVGL thread. On battery the cap drops and a
+ * power set above it comes down to it; back on external power only the cap goes up, the power
+ * stays where it was, as in Xiegu's app */
+static void supply_cb(void *arg) {
+    if (*(bool *)arg) {
+        cfg_pwr_max_set(BOARD_PWR_MAX_EXT);
+    } else {
+        cfg_pwr_max_set(BOARD_PWR_MAX_BAT);
+        if (param_f_get(cfg_pwr) > BOARD_PWR_MAX_BAT) {
+            cfg_pwr_set(BOARD_PWR_MAX_BAT);
+            msg_schedule_text_fmt("TX power %0.0f W on battery", BOARD_PWR_MAX_BAT);
+        }
+    }
+}
+#endif
+
 /**********************
  *  STATIC VARIABLES
  **********************/
@@ -1323,6 +1340,25 @@ static bool radio_tick() {
                     low_power = low;
                 }
             }
+
+#ifdef BOARD_PWR_MAX_EXT
+            /* The TX power cap follows the supply once it has been steady for 5 s, as Xiegu's app
+             * waits. Until the readings count we assume external power, the cap we start with */
+            static bool     supply_ext = true, seen_ext = true;
+            static uint64_t seen_time;
+
+            if (bat_watch.counts && bat_watch.ext != seen_ext) {
+                seen_ext  = bat_watch.ext;
+                seen_time = now_time;
+            }
+            if (seen_ext != supply_ext && now_time - seen_time >= 5000) {
+                bool ext = seen_ext;
+
+                if (scheduler_put(supply_cb, &ext, sizeof(ext))) {
+                    supply_ext = ext;
+                }
+            }
+#endif
         }
         if (pack->psd) {
             dsp_psd(pack->psd, pack->n_psd, pack->psd_span, pack->tx, pack->smeter_dbm);

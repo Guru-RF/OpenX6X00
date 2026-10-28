@@ -56,6 +56,10 @@ void cfg_band_load_next(bool up);
 /* TX power in W (p_pwr, 0.1..10), saved and applied as Settings does it */
 void cfg_pwr_set(float watts);
 
+/* The highest TX power in W that can be set (10 by default, BOARD_PWR_MAX_EXT where the board has
+ * caps). Only later settings are clipped to it: the power already set is left as it is */
+void cfg_pwr_max_set(float watts);
+
 /* The other VFO; with independent VFOs (p_indep_vfo) its own band comes with it */
 void cfg_vfo_toggle(void);
 

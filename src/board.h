@@ -21,6 +21,13 @@
 #define BOARD_VOL_MAX       55
 #endif
 
+/* The TX power caps of Xiegu's X6200 app (1.0.8): 8 W on external power, 5 W on battery
+ * (radio.c follows the supply). The X6100 keeps the plain 0.1..10 W range */
+#ifdef BOARD_X6200
+#define BOARD_PWR_MAX_EXT   8.0f
+#define BOARD_PWR_MAX_BAT   5.0f
+#endif
+
 #ifdef HOST_BUILD
 /* The GUI on a PC (cmake -DHOST_BUILD=ON): an SDL window for the panel, the stub radio, and the
  * front keys and knobs as FIFOs under the data directory that host/host_panel.c writes the PC's
