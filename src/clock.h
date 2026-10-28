@@ -24,6 +24,8 @@ float clock_battery_volts(void);
 void clock_power_get(float *ext, float *bat, uint8_t *cap, bool *charge);
 /* Battery time left or to full from bat_est.c, -1 none; approx shows "~" */
 void clock_update_estimate(int minutes, bool approx);
+/* The base found no battery: a red cross in place of the battery and the % */
+void clock_update_no_battery(bool none);
 
 void clock_tz_init();
 void clock_tz_set(const char *posix);

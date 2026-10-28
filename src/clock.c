@@ -26,6 +26,12 @@ static lv_obj_t         *obj;
 static lv_obj_t         *time_label;
 static lv_obj_t         *sec_label;
 static lv_obj_t         *power_labels[4];  /* battery symbol, volts, ext symbol, volts or % */
+
+/* Montserrat has the battery and the bolt but no plug, for external power without charging:
+ * fonts/power_sym_*.c add it and fall back to Montserrat for the rest */
+extern const lv_font_t  power_sym_14, power_sym_18, power_sym_22;
+#define SYMBOL_PLUG     "\xEF\x87\xA6"  /* U+F1E6 */
+
 static pthread_mutex_t  power_mux;
 
 static lv_timer_t       *timer_time_sync;
@@ -37,6 +43,8 @@ static uint8_t          cap_bat;
 static bool             charging;
 static int              est_min = -1;
 static bool             est_approx;
+static bool             est_ext;        /* the estimate was made on external power */
+static bool             no_battery;     /* the base found no battery */
 
 static void check_time_sync_cb(lv_timer_t * t);
 static time_t get_last_sync_time();
@@ -54,7 +62,6 @@ static void show_time() {
 
     pthread_mutex_lock(&power_mux);
     const char * bat_sym;
-    const char * ext_sym;
     /* From the base's %, not the voltage: the pack sits at 7.0-7.2 V from 25% down to 5%
      * (battery_log.csv), so the old 7.0 V step showed half a battery at 10% */
     switch (cap_bat) {
@@ -74,35 +81,49 @@ static void show_time() {
             bat_sym = LV_SYMBOL_BATTERY_FULL;
             break;
     }
-    if (charging) {
-        ext_sym = LV_SYMBOL_CHARGE;
-    } else {
-        ext_sym = LV_SYMBOL_POWER;
-    }
 
     /* The % and the time left or to full (bat_est.c); the voltages are in Settings > Info */
     if (v_bat < 3.0f && v_ext < 3.0f) {    /* no reading yet: radio.c gives the first some seconds after start */
         for (int i = 0; i < 4; i++)
             lv_label_set_text(power_labels[i], "");
+    } else if (no_battery) {        /* a red cross in place of the battery, as Xiegu's app shows it, and
+                                     * the plug: nothing to charge, whatever the charging flag says */
+        lv_label_set_text(power_labels[0], LV_SYMBOL_CLOSE);
+        lv_label_set_text(power_labels[1], "");
+        lv_label_set_text(power_labels[2], SYMBOL_PLUG);
+        lv_label_set_text_fmt(power_labels[3], "%.1fv", v_ext);
+        for (int i = 0; i < 4; i++)
+            lv_obj_set_style_text_color(power_labels[i], i == 0 ? TC(tx)
+                                        : (theme_shape.deck && i % 2) ? TC(text_mute) : TC(text_soft), 0);
     } else if (v_bat < 3.0f) {      /* external power, no battery */
         lv_label_set_text(power_labels[0], "");
         lv_label_set_text(power_labels[1], "");
-        lv_label_set_text(power_labels[2], ext_sym);
+        lv_label_set_text(power_labels[2], SYMBOL_PLUG);
         lv_label_set_text_fmt(power_labels[3], "%.1fv", v_ext);
     } else {
         bool ext = v_ext >= 3.0f;
+        /* The estimate comes once a minute, to empty on battery or to full on external power. If the
+         * supply changed since, it is the wrong one: hide it until the next. At 100 %, nothing to full */
+        bool full = ext && cap_bat >= 100;
+        int  est = est_ext == ext && !full ? est_min : -1;
 
-        lv_label_set_text(power_labels[0], ext && est_min >= 0 ? LV_SYMBOL_CHARGE : bat_sym);
+        /* The symbol before the %: the bolt while charging, the plug on external power without
+         * charging (full, or the charger set off), the battery level on battery. Charging is the
+         * base's flag (radio.c drops it when the charger is off) or a time to full, which rides
+         * over a reading where the flag blinks off */
+        bool chg = !full && (est >= 0 || charging);
+
+        lv_label_set_text(power_labels[0], !ext ? bat_sym : chg ? LV_SYMBOL_CHARGE : SYMBOL_PLUG);
         lv_label_set_text_fmt(power_labels[1], "%i%%", cap_bat);
-        lv_label_set_text(power_labels[2], ext && est_min < 0 ? LV_SYMBOL_POWER : "");  /* charged */
-        if (est_min >= 0) {
-            lv_label_set_text_fmt(power_labels[3], "%s%ih%02i", est_approx ? "~" : "", est_min / 60, est_min % 60);
+        lv_label_set_text(power_labels[2], "");
+        if (est >= 0) {
+            lv_label_set_text_fmt(power_labels[3], "%s%ih%02i", est_approx ? "~" : "", est / 60, est % 60);
         } else {
             lv_label_set_text(power_labels[3], "");
         }
 
         /* On battery below the guard level (20% or under half an hour left): red */
-        bool low = !ext && (cap_bat <= 20 || (est_min >= 0 && est_min < 30));
+        bool low = !ext && (cap_bat <= 20 || (est >= 0 && est < 30));
 
         for (int i = 0; i < 4; i++)
             lv_obj_set_style_text_color(power_labels[i], low ? TC(tx)
@@ -147,7 +168,7 @@ lv_obj_t * clock_init(lv_obj_t * parent) {
 
     for (int i = 0; i < 4; i++) {
         power_labels[i] = lv_label_create(row);
-        lv_obj_set_style_text_font(power_labels[i], i % 2 ? &sony_24 : &lv_font_montserrat_18, 0);
+        lv_obj_set_style_text_font(power_labels[i], i % 2 ? &sony_24 : &power_sym_18, 0);
         lv_obj_set_style_text_color(power_labels[i], TC(text_soft), 0);
     }
     lv_obj_set_style_pad_left(power_labels[2], 4, 0);
@@ -161,7 +182,7 @@ lv_obj_t * clock_init(lv_obj_t * parent) {
         lv_obj_set_parent(row, box);
         lv_obj_center(row);
         for (int i = 0; i < 4; i++)
-            lv_obj_set_style_text_font(power_labels[i], i % 2 ? &sony_20 : &lv_font_montserrat_22, 0);
+            lv_obj_set_style_text_font(power_labels[i], i % 2 ? &sony_20 : &power_sym_22, 0);
     }
     if (theme_shape.deck) {     /* "13:03:02" at the right of the first row, the voltages in the second */
         lv_obj_set_style_text_font(time_label, &sony_24, 0);
@@ -170,7 +191,7 @@ lv_obj_t * clock_init(lv_obj_t * parent) {
         lv_obj_align(lv_obj_get_parent(time_label), LV_ALIGN_TOP_RIGHT, 0, 2);
         lv_obj_align(row, LV_ALIGN_BOTTOM_LEFT, 0, -3);
         for (int i = 0; i < 4; i++)
-            lv_obj_set_style_text_font(power_labels[i], i % 2 ? &sony_20 : &lv_font_montserrat_14, 0);
+            lv_obj_set_style_text_font(power_labels[i], i % 2 ? &sony_20 : &power_sym_14, 0);
         lv_obj_set_style_text_color(power_labels[1], TC(text_mute), 0);
         lv_obj_set_style_text_color(power_labels[3], TC(text_mute), 0);
     }
@@ -197,6 +218,13 @@ void clock_update_estimate(int minutes, bool approx) {
     pthread_mutex_lock(&power_mux);
     est_min = minutes > 5999 ? 5999 : minutes;
     est_approx = approx;
+    est_ext = v_ext >= 3.0f;    /* radio.c updates the power of the same reading just before */
+    pthread_mutex_unlock(&power_mux);
+}
+
+void clock_update_no_battery(bool none) {
+    pthread_mutex_lock(&power_mux);
+    no_battery = none;
     pthread_mutex_unlock(&power_mux);
 }
 

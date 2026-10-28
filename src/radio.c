@@ -169,6 +169,7 @@ static uint64_t         start_time;     /* radio_init() */
 static uint64_t         pack_time;      /* last packet from the base */
 static uint8_t          pack_vbat, pack_vext;   /* its voltages, 0.1 V */
 static volatile int8_t  bat_pct = -1;   /* the battery %, -1 on external power or not measured yet */
+static volatile bool    charger_asked;  /* the charger setting as last applied (Shadow at power-off left out: no bolt then) */
 static bool             mute = false;
 static bool             tci_mute = false;   /* a TCI client transmits: the speaker and the monitor off */
 static bool             rec_moni = false;   /* a screen recording takes the TX audio: the monitor at 30 at least (X6100) */
@@ -346,7 +347,8 @@ void radio_start() {
         subject_subscribe_and_notify((Subject*)cfg_mode_zoom, on_fw_zoom_change, NULL);
     }
 
-    hw_set_i(HW_CHARGER, params.charger.x == RADIO_CHARGER_ON);
+    charger_asked = params.charger.x == RADIO_CHARGER_ON;
+    hw_set_i(HW_CHARGER, charger_asked);
     hw_set_i(HW_BIAS_DRIVE, params.bias_drive);
     hw_set_i(HW_BIAS_FINAL, params.bias_final);
     hw_set_i(HW_SPMODE, params.spmode.x);
@@ -621,7 +623,11 @@ void radio_poweroff() {
 }
 
 void radio_set_charger(bool on) {
+    charger_asked = on;
     WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, on));
+    if (!on && pack_vext >= 30) {
+        clock_update_estimate(-1, false);   /* no time to full in the top bar right away */
+    }
 }
 
 /* Keying from the GUI where the radio does not transmit is refused, with a word on the screen: the X6200's FM
@@ -1138,6 +1144,9 @@ static void battery_log(const hw_pack_t *p) {
     bat_est_feed(&s);
     int min = bat_est_minutes(0, &chg, &approx);
 
+    if (s.vext >= 3.0f && !charger_asked) {
+        min = -1;   /* the charger is off: no time to full */
+    }
     clock_update_estimate(min, approx);
 
     /* On battery at 10% or less: a warning every minute (the 30 s power-off comes at 6.0 V) */
@@ -1293,6 +1302,13 @@ static bool radio_tick() {
 
             battery_startup_log(&bat_watch, pack);
             battery_model_load();
+            /* The X6200's base (1.0.8) raises its charging flag whenever external power is in, even
+             * with the charger off, when it does not charge (measured on the radio: the battery stays
+             * flat). bat_watch above still takes the flag as a sign of external power; from here on
+             * it counts only if charging was asked for, as in Xiegu's app: the top bar, the time to
+             * full and the battery log */
+            pack->charging = pack->charging && charger_asked;
+            clock_update_no_battery(pack->bat_missing);
             if (bat_watch.counts) {
                 clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, pack->batcap, pack->charging);
                 battery_log(pack);
