@@ -5,11 +5,19 @@
 #include "band_plan.h"
 
 #include "cfg/cfg_api.h"
+#include "dxcc.h"
+#include "gps.h"
+#include "itu_region.h"
+#include "params/params.h"
+#include "qth/qth.h"
+#include "scheduler.h"
 #include "styles.h"
 #include "theme.h"
 
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -207,10 +215,102 @@ static int32_t span_center, span_half;
  * on the web page, "60m CW" at 5.3 MHz, had no strip and no CW keyboard: issue #5). Read from any thread
  * (remote_server, cfg_socket) */
 static int             plan_id = BP_PLAN_R1;
-static int             auto_region = 1;     /* what Auto takes */
 static bp_seg_t        cur[MAX_SEG];
 static int             ncur;
 static pthread_mutex_t cur_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/* What Auto takes (Settings and the web page show it): the region, how ("gps", "qth", "call", "" for nothing) and
+ * from what (the locator, the callsign). Under cur_lock */
+static int             auto_region = 1;
+static const char     *auto_how    = "";
+static char            auto_at[16];
+
+/* The callsign's country, for Auto without a locator: looked up on a worker, as cty.dat is read on the first lookup
+ * (about 0.1 s). call_asked is the callsign looked up last; call_pos its country's centre. Under cur_lock */
+static char            call_asked[16];
+static bool            call_pos;
+static double          call_lat, call_lon;
+static atomic_bool     call_busy;
+
+static void follow_cb(void *arg) {
+    band_plan_follow();
+}
+
+static void *call_thread(void *arg) {
+    char  *call = arg;
+    double lat, lon;
+    bool   found = dxcc_pos(call, &lat, &lon);
+
+    pthread_mutex_lock(&cur_lock);
+    if (strcmp(call, call_asked) == 0) {
+        call_pos = found;
+        call_lat = lat;
+        call_lon = lon;
+    }
+    pthread_mutex_unlock(&cur_lock);
+    free(call);
+    atomic_store(&call_busy, false);
+    scheduler_put_noargs(follow_cb);    /* a full queue: the next band change takes it */
+    return NULL;
+}
+
+/* Auto, the first that answers: a GPS fix under 10 s old (as station_qth()), the QTH locator, the country of the
+ * callsign (cty.dat's centre of it; Region 1 until the worker has it), else Region 1. Never a US plan: the licence
+ * class cannot be known. LVGL thread */
+static int find_region(const char **how, char *at, size_t size) {
+    double lat, lon;
+    int    age;
+
+    if (gps_last_fix(&lat, &lon, &age) && age < 10) {
+        char grid[9];
+
+        qth_pos_to_str(lat, lon, grid);
+        grid[6] = 0;
+        snprintf(at, size, "%s", grid);
+        *how = "gps";
+        return itu_region(lat, lon);
+    }
+    if (qth_grid_check(params.qth.x)) {
+        qth_str_to_pos(params.qth.x, &lat, &lon);
+        snprintf(at, size, "%s", params.qth.x);
+        *how = "qth";
+        return itu_region(lat, lon);
+    }
+    *how = "";
+    at[0] = 0;
+    if (!params.callsign.x[0]) {
+        return 1;
+    }
+    pthread_mutex_lock(&cur_lock);
+    bool asked = strcmp(call_asked, params.callsign.x) == 0, found = asked && call_pos;
+
+    lat = call_lat;
+    lon = call_lon;
+    pthread_mutex_unlock(&cur_lock);
+    if (found) {
+        snprintf(at, size, "%s", params.callsign.x);
+        *how = "call";
+        return itu_region(lat, lon);
+    }
+    bool idle = false;
+
+    if (!asked && atomic_compare_exchange_strong(&call_busy, &idle, true)) {
+        char     *call = strdup(params.callsign.x);
+        pthread_t t;
+
+        pthread_mutex_lock(&cur_lock);
+        snprintf(call_asked, sizeof(call_asked), "%s", params.callsign.x);
+        call_pos = false;
+        pthread_mutex_unlock(&cur_lock);
+        if (call && pthread_create(&t, NULL, call_thread, call) == 0) {
+            pthread_detach(t);
+        } else {
+            free(call);
+            atomic_store(&call_busy, false);
+        }
+    }
+    return 1;
+}
 
 /* A band's own segment type, from its name as the presets are named ("40m CW", "20m SSB"); its last used mode
  * is no type: it changes with every mode change */
@@ -231,10 +331,13 @@ void band_plan_reload(void) {
     static int32_t ids[BANDS], start[BANDS], stop[BANDS];
     static char    names[BANDS][16];
     static bp_seg_t list[MAX_SEG];
-    int            want = param_i_get(cfg_band_region);
-    int            plan = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : auto_region;
-    int            nb   = cfg_bands_active_ids(ids, start, stop, names, BANDS);
-    int            n    = plan_build(plan, list);
+    const char    *how;
+    char           at[sizeof(auto_at)];
+    int            region = find_region(&how, at, sizeof(at));
+    int            want   = param_i_get(cfg_band_region);
+    int            plan   = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : region;
+    int            nb     = cfg_bands_active_ids(ids, start, stop, names, BANDS);
+    int            n      = plan_build(plan, list);
 
     for (int i = 0; i < nb; i++) {
         /* Broadcast, the X6200's FM broadcast and airband, CB (ids 100-299 in sql/params.sql and migrations.c) are no
@@ -261,9 +364,37 @@ void band_plan_reload(void) {
     qsort(list, n, sizeof(list[0]), by_start);
     pthread_mutex_lock(&cur_lock);
     memcpy(cur, list, n * sizeof(list[0]));
-    ncur    = n;
-    plan_id = plan;
+    ncur        = n;
+    plan_id     = plan;
+    auto_region = region;
+    auto_how    = how;
+    memcpy(auto_at, at, sizeof(auto_at));
     pthread_mutex_unlock(&cur_lock);
+}
+
+void band_plan_follow(void) {
+    band_plan_reload();
+    band_plan_refresh();
+}
+
+/* A GPS fix that comes or goes (or moves the radio into another region) shows within 10 s; the locator and the
+ * callsign call band_plan_follow() when saved */
+static void where_timer_cb(lv_timer_t *t) {
+    const char *how;
+    char        at[sizeof(auto_at)];
+    int         region = find_region(&how, at, sizeof(at));
+
+    pthread_mutex_lock(&cur_lock);
+    bool moved = region != auto_region;
+
+    if (!moved) {
+        auto_how = how;
+        memcpy(auto_at, at, sizeof(auto_at));
+    }
+    pthread_mutex_unlock(&cur_lock);
+    if (moved) {
+        band_plan_follow();
+    }
 }
 
 int band_plan_now(void) {
@@ -276,9 +407,10 @@ int band_plan_now(void) {
 int band_plan_auto(const char **how, char *at, size_t size) {
     pthread_mutex_lock(&cur_lock);
     int region = auto_region;
+
+    if (how) *how = auto_how;
+    if (at && size) snprintf(at, size, "%s", auto_at);
     pthread_mutex_unlock(&cur_lock);
-    if (how) *how = "";
-    if (at && size) at[0] = 0;
     return region;
 }
 
@@ -345,7 +477,12 @@ static void redraw(void) {
 }
 
 void band_plan_init(lv_obj_t *parent, lv_coord_t y) {
+    static lv_timer_t *where_timer;     /* once: a theme change makes the strip again */
+
     band_plan_reload();
+    if (!where_timer) {
+        where_timer = lv_timer_create(where_timer_cb, 10000, NULL);
+    }
     for (int i = 0; i < POOL; i++) {
         lv_obj_t *b = lv_obj_create(parent);
 

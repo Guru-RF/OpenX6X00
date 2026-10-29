@@ -48,6 +48,9 @@ void band_plan_refresh(void);
  * type their name says (CW, DIG/FT8/DATA, BCN, else all modes). LVGL thread */
 void band_plan_reload(void);
 
+/* Where Auto looks may have changed (the QTH locator or the callsign saved): reload and redraw. LVGL thread */
+void band_plan_follow(void);
+
 /* The plan in use (bp_plan_t, never Auto). Any thread */
 int band_plan_now(void);
 

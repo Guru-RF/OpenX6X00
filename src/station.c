@@ -8,6 +8,7 @@
 
 #include "station.h"
 
+#include "band_plan.h"
 #include "textarea_window.h"
 #include "params/params.h"
 #include "qth/qth.h"
@@ -81,6 +82,7 @@ bool station_callsign_save(const char *callsign) {
         }
     }
     params_str_set(&params.callsign, callsign);
+    band_plan_follow();     /* Auto without a locator goes by the callsign's country */
     return true;
 }
 
@@ -103,6 +105,7 @@ bool station_qth_save(const char *qth) {
         return false;
     }
     params_str_set(&params.qth, qth);
+    band_plan_follow();     /* Auto: the region of the new locator */
     return true;
 }
 
