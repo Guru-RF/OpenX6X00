@@ -520,6 +520,32 @@ static void tci_audio_in_dig(void) {
     }
 }
 
+/* Over Tailscale Funnel (#58) only the Panel's own sound and its key with it: a session that may not transmit, or
+ * one that keyed nothing, asking for the TX state or unkeying is answered with the state and takes no control (the
+ * browser at home keeps it, as when that session's browser asks on the browser remote's socket); the session that
+ * keyed unkeys its own transmission */
+static void funnel_takes_no_control(void) {
+    client_open(A);
+    client_open(B);
+    clients[A].funnel = clients[B].funnel = true;
+    snprintf(clients[A].token, sizeof(clients[A].token), "%s", "11111111111111111111111111111111");  /* no TX */
+    snprintf(clients[B].token, sizeof(clients[B].token), "%s", "0123456789abcdef0123456789abcdef");
+    ctl_claim(CTL_BROWSER, 0, "Shack PC", true);
+    say(A, "trx:0,false;");
+    say(A, "trx;");
+    say(B, "trx:0,false;");
+    check(ctl_holds(CTL_BROWSER, 0), "an unkey or a question from a client that keyed nothing takes no control");
+    check(strstr(heard(A), "trx:0,false;") && strstr(heard(B), "trx:0,false;"), "both answered with the state");
+    say(A, "trx:0,true,tci;");
+    check(ctl_holds(CTL_BROWSER, 0) && strstr(heard(A), "trx:0,false;"), "the session without TX: its key refused");
+    say(B, "trx:0,true,tci;");
+    gui(-1);
+    check(radio_get_modem() && txs.owner == B && ctl_holds(CTL_TCI, B), "B keys with its audio, control with it");
+    say(B, "trx:0,false;");
+    gui(-1);
+    check(!on_air() && txs.owner < 0, "B's unkey ends it");
+}
+
 static int run(const char *name, void (*fn)(void)) {
     int   st;
     pid_t pid;
@@ -565,6 +591,7 @@ int main(void) {
         {"Starts ended before their key ran key nothing", cancelled_keys_nothing},
         {"Two TCI audio starts", two_tci_starts},
         {"TCI audio in DIGU and DIGL", tci_audio_in_dig},
+        {"Over Funnel, an unkey or a question from a client that keyed nothing", funnel_takes_no_control},
     };
     int n = sizeof(cases) / sizeof(cases[0]), bad = 0;
 

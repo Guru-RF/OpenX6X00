@@ -854,16 +854,27 @@ static bool tx_free(const rstate_t *s) {
 /* Over Funnel the Panel's own sound and microphone, nothing more (#58): the audio format, audio on and off, the
  * TX state, an unkey, and a key with the page's audio ("trx:0,true,tci") for a session that may transmit, looked
  * up again as it keys (a session revoked meanwhile keys nothing). A key with the radio's own microphone is answered
- * trx:0,false; anything else is left unanswered. TCI programs do not come over Funnel: they cannot pair */
+ * trx:0,false; anything else is left unanswered. The TX state asked, or an unkey from a client whose transmission
+ * it is not, is answered with the state here: handle_cmd would take control of the radio for it as for a TCI
+ * program, and a session that may only listen, or not transmit, takes no control on the browser remote either.
+ * TCI programs do not come over Funnel: they cannot pair */
 static bool funnel_cmd_ok(client_t *c, const char *name, char **a, int n) {
+    int ci = (int)(c - clients);
+
     if (!strcmp(name, "audio_samplerate") || !strcmp(name, "audio_stream_sample_type") ||
         !strcmp(name, "audio_stream_channels") || !strcmp(name, "audio_stream_samples") ||
         !strcmp(name, "audio_start") || !strcmp(name, "audio_stop"))
         return true;
     if (strcmp(name, "trx") != 0)
         return false;
-    if (n < 2 || !parse_bool(a[1]))
-        return true;
+    if (n < 2 || !parse_bool(a[1])) {
+        if (n >= 2 && (txs.owner == ci || ptt_owner == ci))
+            return true;                    /* its own transmission's end, never refused (audit B01) */
+        rstate_t s;
+        state_read(&s);
+        client_textf(c, "trx:0,%s;", s.tx ? "true" : "false");
+        return false;
+    }
     if (n >= 3 && !strcasecmp(a[2], "tci") && remote_server_session_check(c->token, &c->role, &c->tx_ok, NULL, 0) &&
         c->role >= 1 && c->tx_ok)
         return true;
