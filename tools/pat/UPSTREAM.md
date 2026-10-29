@@ -82,6 +82,12 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   on the radio (Operating > Winlink), not the 2000MAX asked"); a gateway that runs a wider
   bandwidth takes it and negotiates down. A `bw=` at or under it, or none, is left as it is.
   With a test (`app/ardop_bandwidth_test.go`).
+- `0004-log-append.patch`: Pat's log (`--log`, the mailbox's log pane) is opened with `O_APPEND`
+  (still emptied at each start), where Pat used `os.Create`. The supervisor adds lines of its own
+  to it ("OpenX6X00: ...": a refused transmission, what to do after a failed connection, no
+  password set), which Pat's next line wrote over before, and trims it, which left Pat's next line
+  behind a hole of zeros. The log pane's `tailFile` reads a file that became shorter than what it
+  read again from its start. With a test (`api/tail_test.go`).
 
 Not a patch: the version report (daily) and the app's own recovery-email check (every 14 days),
 both to api.winlink.org, stay off through `version_reporting_disabled: true` in the config,

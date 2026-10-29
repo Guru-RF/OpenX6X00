@@ -22,6 +22,9 @@
 # one), every other one is kept, since Pat's own Settings page edits the file too. The mailbox is on the DATA
 # partition (/mnt/winlink/pat) and survives a new card image; Pat's state and the logs are in RAM (/run/winlink).
 #
+# Lines of ours go into Pat's own log ("OpenX6X00: ..."), which the mailbox's log pane shows: no password set, and
+# more. Our Pat opens it for appending (tools/pat, 0004), so neither writes over the other, and it can be trimmed.
+#
 # Pat ends a connection in progress on SIGINT and stops on the next one; SIGTERM would kill it at once,
 # perhaps in the middle of a transmission. So Pat gets SIGINT, a wait, SIGINT, a wait, then SIGKILL.
 # SIGTERM to the supervisor (S98winlink stop, at shutdown) stops both programs and keeps the setting.
@@ -55,6 +58,7 @@ STATUS = os.path.join(RUN, "status")
 LOCK = os.path.join(RUN, "lock")
 CONFIG_LOCK = os.path.join(RUN, "config.lock")
 PAT_LOG = os.path.join(RUN, "pat.log")
+PAT_OWN_LOG = os.path.join(RUN, "pat-own.log")   # Pat's --log: the mailbox's log pane; our notes go in it too
 ARDOP_LOG = os.path.join(RUN, "ardopcf.log")
 LOG_MAX = 256 * 1024
 PAT = ROOT + "/usr/bin/pat"
@@ -401,7 +405,7 @@ def start_pat(pat, want):
     # Pat takes PAT_* variables over its config file: none from outside
     env = {k: v for k, v in os.environ.items() if not k.startswith(("PAT_", "ARDOP_", "XDG_"))}
     env.update(XDG_CONFIG_HOME=LIB, XDG_DATA_HOME=DATA, XDG_STATE_HOME=STATE)
-    pat.start([PAT, "--log", os.path.join(RUN, "pat-own.log"), "--event-log", os.path.join(RUN, "eventlog.json"),
+    pat.start([PAT, "--log", PAT_OWN_LOG, "--event-log", os.path.join(RUN, "eventlog.json"),
                "http", "--addr", f":{HTTP_PORT}"], env=env, nice=10)   # behind the GUI and the modem
     pat.settings = (want, hashlib.sha256(password.encode()).hexdigest())
 
@@ -415,12 +419,40 @@ def answers(port):
 
 
 def trim_logs():
-    for path in (PAT_LOG, ARDOP_LOG):
+    for path in (PAT_LOG, PAT_OWN_LOG, ARDOP_LOG):
         try:
             if os.path.getsize(path) > LOG_MAX:
                 os.truncate(path, 0)               # opened for appending: the program goes on from 0
         except OSError:
             pass
+
+
+def note(text):
+    """A line of ours in Pat's log, which the mailbox's log pane shows: Pat's date and time, "OpenX6X00: ", the
+    text. One write to a file Pat opened for appending (tools/pat, 0004); none before Pat made it, since Pat
+    empties it as it starts. Never the password"""
+    pw = read_password()
+    if pw:
+        text = text.replace(pw, "***")
+    line = f"{time.strftime('%Y/%m/%d %H:%M:%S')} OpenX6X00: {text.replace(chr(10), ' ')}\n".encode()
+    try:
+        fd = os.open(PAT_OWN_LOG, os.O_WRONLY | os.O_APPEND)
+    except OSError:
+        return False
+    try:
+        os.write(fd, line)
+    finally:
+        os.close(fd)
+    return True
+
+
+def pat_up(want):
+    """Pat's mailbox answers, after a start: what to know before a connection goes into its log"""
+    if password_where() == "none":
+        note(f"no Winlink password for {want['mycall'] or 'your callsign'} on the radio. When the gateway asks "
+             "for it, Pat asks on this page and gives up after a minute (context deadline exceeded): set it on "
+             "the radio's Winlink page (Operating > Winlink), or keep this page open while you connect. A new "
+             "account's first connection needs none")
 
 
 def nap(seconds):
@@ -492,6 +524,8 @@ def run():
                         p.failed(f"{p.label} could not start ({e})")
             if pat.alive() and not pat.answered:
                 pat.answered = answers(HTTP_PORT)
+                if pat.answered:
+                    pat_up(want)
             report(pat, ardop, want)
             trim_logs()
             nap(POLL)

@@ -2621,6 +2621,8 @@ Connecting to a gateway:
     sent is the narrower of the two.
 - Pat listens before it calls: on a busy frequency it asks in the mailbox
   whether to go ahead.
+- Lines in the mailbox's log that start with "OpenX6X00:" are the radio's:
+  what Pat cannot see itself, such as no password being set.
 - The gateway asks for the password once its welcome is in (the line ending
   in `>`). With none set, Pat asks for it in the mailbox and gives up after a
   minute: "Exchange failed: context deadline exceeded", and the connection

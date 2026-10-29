@@ -107,5 +107,47 @@ class Password(Root):
         self.assertEqual(self.wl.password_where(), "none")
 
 
+class Notes(Root):
+    def test_appended_to_pats_log(self):
+        self.assertFalse(self.wl.note("before Pat"))                 # Pat empties it as it starts: none before
+        self.assertFalse(os.path.exists(self.wl.PAT_OWN_LOG))
+        pat = os.open(self.wl.PAT_OWN_LOG, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_APPEND, 0o666)
+        os.write(pat, b"2026/10/29 12:15:54 QSY ardop: 7061.5\n")
+        self.assertTrue(self.wl.note("a line\nof ours"))
+        os.write(pat, b"2026/10/29 12:15:57 Connecting to DM6TS (ardop)...\n")
+        os.close(pat)
+        lines = open(self.wl.PAT_OWN_LOG).read().splitlines()
+        self.assertEqual(len(lines), 3)
+        self.assertRegex(lines[1], r"^\d{4}/\d\d/\d\d \d\d:\d\d:\d\d OpenX6X00: a line of ours$")
+        self.assertTrue(lines[2].endswith("Connecting to DM6TS (ardop)..."))
+
+    def test_never_the_password(self):
+        os.makedirs(self.wl.LIB)
+        with open(self.wl.PASSWORD, "w") as f:
+            f.write("s3cret\n")
+        open(self.wl.PAT_OWN_LOG, "w").close()
+        self.wl.note("login s3cret refused")
+        self.assertNotIn("s3cret", open(self.wl.PAT_OWN_LOG).read())
+
+    def test_no_password_said_when_pat_answers(self):
+        open(self.wl.PAT_OWN_LOG, "w").close()
+        self.wl.pat_up({"mycall": "M7SVA"})
+        self.assertIn("OpenX6X00: no Winlink password for M7SVA", open(self.wl.PAT_OWN_LOG).read())
+        os.makedirs(self.wl.LIB)
+        with open(self.wl.PASSWORD, "w") as f:
+            f.write("pw\n")
+        open(self.wl.PAT_OWN_LOG, "w").close()
+        self.wl.pat_up({"mycall": "M7SVA"})
+        self.assertEqual(open(self.wl.PAT_OWN_LOG).read(), "")
+
+    def test_trimmed(self):
+        pat = os.open(self.wl.PAT_OWN_LOG, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_APPEND, 0o666)
+        os.write(pat, b"x" * (self.wl.LOG_MAX + 1))
+        self.wl.trim_logs()
+        os.write(pat, b"next\n")
+        os.close(pat)
+        self.assertEqual(open(self.wl.PAT_OWN_LOG, "rb").read(), b"next\n")
+
+
 if __name__ == "__main__":
     unittest.main()
