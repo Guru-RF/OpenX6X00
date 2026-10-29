@@ -107,6 +107,35 @@ const awayButton = p => [...p.doc.querySelectorAll('#ses button')].find(b => b.t
   check('the Panel passes the address at home only', /awayUrl: function\(\) \{ return !FUNNEL && conf && conf\.funnel_url/.test(src));
 }
 
+/* ---- Remote > Tailscale: the Funnel card ---- */
+{
+  const p = page('tailscale.html');
+  p.run(p.script, 'views/tailscale.html');
+  const answer = st => { const r = p.$.requests.shift(); r.ok(st); };
+  const base = {state: 'running', text: 'Connected', name: 'x6200.tail1234.ts.net', ip: '100.101.102.103', enabled: true};
+  answer(Object.assign({}, base, {funnel: 'off', funnel_wanted: false}));
+  const sw = p.doc.getElementById('funnel');
+  check('Tailscale page: Funnel off, its switch ready while Tailscale is connected', !sw.checked && !sw.disabled);
+  p.$(sw).prop('checked', true).trigger('change');
+  const post = p.$.requests.find(r => r.type === 'POST');
+  check('the switch on: funnel_on to the radio', post && post.body.action === 'funnel_on', post && JSON.stringify(post.body));
+  post.ok(Object.assign({}, base, {funnel: 'enable', funnel_wanted: true, funnel_url: 'https://login.tailscale.com/f/funnel?node=nTEST123',
+                                   funnel_text: 'Turn on HTTPS and Funnel for your tailnet: open the link and allow it'}));
+  const allow = p.doc.getElementById('allow');
+  check('not allowed on the tailnet yet: the link to allow it', p.doc.getElementById('allowrow').style.display !== 'none' &&
+        allow.getAttribute('href') === 'https://login.tailscale.com/f/funnel?node=nTEST123', allow.getAttribute('href'));
+  p.$.requests.length = 0;
+  p.eval('refresh()');
+  answer(Object.assign({}, base, {funnel: 'on', funnel_wanted: true, public: 'https://x6200.tail1234.ts.net/panel', funnel_text: 'On: the Panel is on the internet'}));
+  const pub = p.doc.querySelector('#pub a');
+  check('on: the address on the internet', p.doc.getElementById('pubrow').style.display !== 'none' && pub && pub.getAttribute('href') === 'https://x6200.tail1234.ts.net/panel'
+        && p.doc.getElementById('allowrow').style.display === 'none');
+  check('on: its status', p.doc.getElementById('ftext').textContent === 'On: the Panel is on the internet');
+  p.eval('refresh()');
+  answer({state: 'login', text: 'Waiting for your login', enabled: true, funnel_wanted: false, funnel: 'off'});
+  check('Tailscale not connected: the switch waits (off)', sw.disabled);
+}
+
 const bad = results.filter(r => !r.ok).length;
 console.log(bad ? bad + ' funnel page case(s) WRONG' : 'All ' + results.length + ' funnel page cases as they should be (#58)');
 process.exitCode = bad ? 1 : 0;

@@ -3956,12 +3956,19 @@ struct ts_status_t {
     char name[96];
     char ip[48];
     bool enabled;           /* the setting, as the web page shows it */
+    /* Funnel (#58): the browser Panel on the internet */
+    char funnel[12];        /* off, starting, enable, on, error */
+    char funnel_text[160];
+    char funnel_url[200];   /* the admin console's link that allows Funnel on the tailnet */
+    char pub[128];          /* https://<name>/panel */
+    bool funnel_on;         /* the setting */
 };
 
 static struct {
     lv_obj_t *sw, *text, *addr, *qr, *qr_note, *logout, *logout_note;
+    lv_obj_t *fsw, *fnote, *pub;
     uint32_t  armed;        /* Log out pressed once, at this tick: 0 none */
-    char      url[160];     /* the link the code shows */
+    char      url[200];     /* the link the code shows: the login's, or the one that allows Funnel */
     bool      busy;         /* a command runs: the switch is not set back from the file meanwhile */
     bool      shown;        /* the page has had its first update: a login wanted after that scrolls to the code */
 } ts;
@@ -3992,12 +3999,17 @@ static void ts_load(ts_status_t *st) {
         else if (strcmp(line, "url") == 0) snprintf(st->url, sizeof(st->url), "%s", v);
         else if (strcmp(line, "name") == 0) snprintf(st->name, sizeof(st->name), "%s", v);
         else if (strcmp(line, "ip") == 0) snprintf(st->ip, sizeof(st->ip), "%s", v);
+        else if (strcmp(line, "funnel") == 0) snprintf(st->funnel, sizeof(st->funnel), "%s", v);
+        else if (strcmp(line, "funnel_text") == 0) snprintf(st->funnel_text, sizeof(st->funnel_text), "%s", v);
+        else if (strcmp(line, "funnel_url") == 0) snprintf(st->funnel_url, sizeof(st->funnel_url), "%s", v);
+        else if (strcmp(line, "public") == 0) snprintf(st->pub, sizeof(st->pub), "%s", v);
     }
     fclose(f);
     f = fopen(TS_CONF, "r");
     if (f) {
         while (fgets(line, sizeof(line), f)) {
             if (strncmp(line, "enabled=1", 9) == 0) st->enabled = true;
+            if (strncmp(line, "funnel=1", 8) == 0) st->funnel_on = true;
         }
         fclose(f);
     }
@@ -4008,9 +4020,37 @@ static void ts_busy(bool on) {
     if (on) {
         lv_obj_add_state(ts.sw, LV_STATE_DISABLED);
         lv_obj_add_state(ts.logout, LV_STATE_DISABLED);
+        lv_obj_add_state(ts.fsw, LV_STATE_DISABLED);
     } else {
         lv_obj_clear_state(ts.sw, LV_STATE_DISABLED);
     }
+}
+
+/* Funnel's rows (#58): the switch, which needs Tailscale connected (off it can always be turned), its note, and
+ * Public: the address on the internet, or what Funnel waits for. Returns the link the code shows for it, NULL none */
+static const char *ts_funnel_update(const ts_status_t *st, bool running) {
+    bool on = strcmp(st->funnel, "on") == 0, enable = strcmp(st->funnel, "enable") == 0 && st->funnel_url[0];
+
+    if (st->funnel_on != lv_obj_has_state(ts.fsw, LV_STATE_CHECKED)) {
+        if (st->funnel_on) lv_obj_add_state(ts.fsw, LV_STATE_CHECKED);
+        else lv_obj_clear_state(ts.fsw, LV_STATE_CHECKED);
+    }
+    if (running || st->funnel_on) lv_obj_clear_state(ts.fsw, LV_STATE_DISABLED);
+    else lv_obj_add_state(ts.fsw, LV_STATE_DISABLED);
+    if (st->funnel_on && !remote_server_get_enabled())
+        lv_label_set_text(ts.fnote, "BROWSER REMOTE is off (General): turn it on");
+    else
+        lv_label_set_text(ts.fnote, running || st->funnel_on ? "the Panel alone; pair browsers at home"
+                                                             : "needs Tailscale connected");
+    if (on && st->pub[0])
+        lv_label_set_text(ts.pub, st->pub);
+    else if (st->funnel_on && st->funnel_text[0])
+        lv_label_set_text(ts.pub, st->funnel_text);
+    else if (st->funnel_on)
+        lv_label_set_text(ts.pub, "Waiting for Tailscale...");
+    else
+        lv_label_set_text(ts.pub, "-");
+    return enable ? st->funnel_url : NULL;
 }
 
 static void ts_update() {
@@ -4036,17 +4076,25 @@ static void ts_update() {
     } else {
         lv_label_set_text(ts.addr, "-");
     }
-    if (login) {
+    /* The code: the login's link, or the one that allows Funnel on the tailnet (never both: Funnel waits for
+     * Tailscale connected) */
+    const char *enable = ts_funnel_update(&st, running);
+    const char *code   = login ? st.url : enable;
+    if (code) {
         lv_obj_clear_flag(ts.qr, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(ts.qr_note, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(ts.qr_note, login ? "Scan with a phone and log in to Tailscale, or open the link on the web "
+                                              "page: Remote > Tailscale"
+                                            : "Scan with a phone and allow Funnel for your tailnet in Tailscale's admin "
+                                              "console, or open the link on the web page: Remote > Tailscale");
     } else {
         lv_obj_add_flag(ts.qr, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(ts.qr_note, LV_OBJ_FLAG_HIDDEN);
     }
-    if (login && strcmp(ts.url, st.url) != 0) {
+    if (code && strcmp(ts.url, code) != 0) {
         bool first = !ts.url[0];
 
-        snprintf(ts.url, sizeof(ts.url), "%s", st.url);
+        snprintf(ts.url, sizeof(ts.url), "%s", code);
         lv_qrcode_update(ts.qr, ts.url, strlen(ts.url));
         if (first && ts.shown) {   /* turned on here: the code comes into view (it is below the switch) */
             lv_obj_update_layout(ts.qr);
@@ -4087,6 +4135,18 @@ static void ts_switch_cb(lv_event_t *e) {
     sh_run(on ? TS_CTL " on" : TS_CTL " off", ts_done_cb, (void *)(intptr_t)wl_gen);
 }
 
+/* Funnel (#58): only the setting; the supervisor sets tailscaled within its next poll, and Public follows */
+static void ts_funnel_cb(lv_event_t *e) {
+    bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+
+    if (ts.busy) {
+        return;
+    }
+    ts_busy(true);
+    lv_label_set_text(ts.pub, on ? "Turning Funnel on..." : "Turning Funnel off...");
+    sh_run(on ? TS_CTL " funnel on" : TS_CTL " funnel off", ts_done_cb, (void *)(intptr_t)wl_gen);
+}
+
 /* Two presses: worked through the browser remote over Tailscale, it cuts that very connection */
 static void ts_logout_cb(lv_event_t *e) {
     if (ts.busy || lv_obj_has_state(ts.logout, LV_STATE_DISABLED)) {
@@ -4124,7 +4184,25 @@ static uint8_t make_tailscale(uint8_t row) {
     lv_obj_set_grid_cell(ts.addr, LV_GRID_ALIGN_START, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
     row++;
 
-    /* While a login is wanted: its link as a code for a phone, with a quiet zone round it */
+    /* Funnel (#58): the browser Panel on the internet, at the address Public shows */
+    wl_row_label(row, "Funnel");
+    ts.fsw = bt_switch_cell(row, 1, false, ts_funnel_cb);
+    ts.fnote = wl_note(row);
+    lv_label_set_text(ts.fnote, "the Panel alone; pair browsers at home");
+    row++;
+
+    wl_row_label(row, "Public");
+    ts.pub = wl_label(grid, SF(22), theme_hex(TC_text_value), 0);
+    lv_obj_set_width(ts.pub, SMALL_6);
+    lv_label_set_long_mode(ts.pub, LV_LABEL_LONG_WRAP);     /* the address whole: it is typed from here */
+    lv_obj_set_style_pad_ver(ts.pub, (ROW_H - lv_font_get_line_height(SF(22))) / 2, 0);   /* one line: a row's height */
+    lv_obj_set_grid_cell(ts.pub, LV_GRID_ALIGN_START, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
+    lv_label_set_text(ts.pub, "-");
+    row_dsc[row] = LV_GRID_CONTENT;
+    row++;
+
+    /* While a login is wanted, or Funnel waits to be allowed on the tailnet: the link as a code for a phone, with a
+     * quiet zone round it */
     ts.qr = lv_qrcode_create(grid, TS_QR, lv_color_black(), lv_color_white());
     lv_obj_set_style_border_color(ts.qr, lv_color_white(), 0);
     lv_obj_set_style_border_width(ts.qr, 8, 0);

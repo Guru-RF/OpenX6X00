@@ -26,6 +26,34 @@
 </div>
 
 <div class="dp-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-globe"/></svg></span><div><h3>Tailscale Funnel<span class="eff">Takes effect: within seconds</span></h3><p>The browser Panel on the internet, for a phone or a PC without Tailscale</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Funnel</b><span>Only the Panel and the Screen page, and only for browsers paired at home. Needs Tailscale connected</span></div>
+    <div class="dp-ctl"><label class="sw" title="Funnel"><input id="funnel" type="checkbox" role="switch" aria-label="Funnel"><i></i></label></div>
+  </div>
+  <div class="dp-row"><div class="dp-lbl"><b>Status</b></div><div class="dp-ctl" id="ftext">Off</div></div>
+  <div class="dp-row" id="allowrow" style="display:none">
+    <div class="dp-lbl"><b>Allow Funnel</b><span>Your tailnet does not allow it yet: HTTPS certificates and Funnel are turned on in Tailscale's admin console. The radio's screen shows the same link as a code (Settings > Wireless)</span></div>
+    <div class="dp-ctl"><a class="btn primary" id="allow" target="_blank" rel="noopener noreferrer">Allow in Tailscale</a></div>
+  </div>
+  <div class="dp-row" id="pubrow" style="display:none">
+    <div class="dp-lbl"><b>On the internet</b><span>Open it in a browser paired here: on the Panel at home press <b>Use away from home</b>, and keep the page it opens</span></div>
+    <div class="dp-ctl" id="pub">-</div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <ul style="margin:0;padding-left:18px;color:var(--dim);line-height:1.5">
+      <li>What goes on the internet: the Panel and the Screen page, at https://&lt;name&gt;.&lt;tailnet&gt;.ts.net/panel. Not these pages, not TCI programs, not the Winlink mailbox, not SSH.</li>
+      <li>Nothing is shown or sent to a browser from the internet before it presents the key of a browser paired at home. Pairing is refused over Funnel: pair at home (or once over Tailscale), then Use away from home.</li>
+      <li>The name becomes public: every Funnel name gets an HTTPS certificate, and certificates are listed in public logs that scanners read. Anyone can find the address; only paired browsers get in.</li>
+      <li>Sound takes about 50 kB/s each way, the spectrum about 15 kB/s; Tailscale relays it when it must.</li>
+      <li>You remain the control operator of every transmission made from away, as the rules of your licence say.</li>
+      <li>While Funnel is on, port 443 on your tailnet is the Panel's (with a real certificate); these pages stay at http://&lt;name&gt;/. A funnel set up by hand (<code>tailscale funnel ...</code>) is taken off the internet: the radio's switch alone puts it there.</li>
+    </ul>
+    <div class="actions"><span class="status" id="fstatus"></span></div>
+  </div>
+</div>
+
+<div class="dp-card">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>Good to know</h3><p>Before you turn it on</p></div></div>
   <div class="dp-body">
     <ul style="margin:0;padding-left:18px;color:var(--dim);line-height:1.5">
@@ -82,14 +110,25 @@ var render = function(st) {
       $("<span>").css("color", "var(--dim)").text("With MagicDNS on, http://" + short + "/ works too"));
   }
   $("#logout").prop("disabled", busy || !(st.state === "running" || st.state === "approval"));
+  /* Funnel (#58): the setting, and what the radio made of it */
+  if (!busy) $("#funnel").prop("checked", !!st.funnel_wanted);
+  $("#funnel").prop("disabled", busy || !(st.state === "running" || st.funnel_wanted));
+  $("#ftext").text(st.funnel_wanted ? (st.funnel_text || (st.state === "running" ? "Starting..." : "Waits for Tailscale")) : st.funnel_text || "Off");
+  const allow = st.funnel === "enable" && st.funnel_url;
+  $("#allowrow").toggle(!!allow);
+  if (allow) $("#allow").attr("href", st.funnel_url);
+  const pub = st.funnel === "on" && /^https:\/\//.test(st.public || "");
+  $("#pubrow").toggle(!!pub);
+  if (pub) $("#pub").empty().append($("<a target='_blank' rel='noopener'>").attr("href", st.public).text(st.public));
 }
 
 var refresh = function() { $.get('/api/tailscale', {}, render); }
 
-var act = function(action, saying) {
+var act = function(action, saying, statusEl) {
   busy = true;
-  $("#enabled, #logout").prop("disabled", true);
-  showStatus(saying);
+  $("#enabled, #logout, #funnel").prop("disabled", true);
+  const show = statusEl ? function(t, e) { const el = $(statusEl); el.toggleClass("error", !!e); el.html('<span class="dot"></span>').append(document.createTextNode(t)); } : showStatus;
+  show(saying);
   $.ajax({
     url: "/api/tailscale",
     type: "POST",
@@ -97,10 +136,21 @@ var act = function(action, saying) {
     contentType: "application/json; charset=utf-8",
     dataType: "json",
     timeout: 45000,   /* x6100-tailscale: 30 s at most (set_tailscale) */
-    success: function(r) { busy = false; render(r); showStatus("Done"); },
-    error: function(xhr, why) { busy = false; refresh(); showStatus(x6100FailText(xhr, why, 45000), true); }
+    success: function(r) { busy = false; render(r); show("Done"); },
+    error: function(xhr, why) { busy = false; refresh(); show(x6100FailText(xhr, why, 45000), true); }
   });
 }
+
+/* Funnel on while this page itself came over the tailnet by https: port 443 there becomes the Panel's */
+$("#funnel").on("change", function() {
+  const on = $(this).prop("checked");
+  if (on && location.protocol === "https:" && viaTailnet() &&
+      !confirm("This page came over your tailnet by https. With Funnel on, port 443 there is the Panel's: open these pages at http://" + location.hostname + "/ afterwards.\n\nTurn Funnel on?")) {
+    $(this).prop("checked", false);
+    return;
+  }
+  act(on ? "funnel_on" : "funnel_off", on ? "Turning Funnel on..." : "Turning Funnel off...", "#fstatus");
+});
 
 $("#enabled").on("change", function() {
   const on = $(this).prop("checked");

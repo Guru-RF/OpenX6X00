@@ -644,9 +644,11 @@ def tailscale_status():
         pass
     try:
         with open(TAILSCALE_CONF) as f:
-            st["enabled"] = any(line.strip() == "enabled=1" for line in f)
+            lines = [line.strip() for line in f]
+        st["enabled"] = "enabled=1" in lines
+        st["funnel_wanted"] = "funnel=1" in lines   # Funnel (#58): the setting; "funnel" is what the supervisor made of it
     except OSError:
-        st["enabled"] = False
+        st["enabled"] = st["funnel_wanted"] = False
     return st
 
 
@@ -684,16 +686,22 @@ def get_tailscale():
     st = tailscale_status()
     if not local_host_ok():
         st.pop("url", None)
+        st.pop("funnel_url", None)   # the admin console's link that allows Funnel: the login's kind of link
     return st
+
+
+# The actions, as the helper's arguments: Funnel (#58) only writes its setting, the supervisor follows it
+TAILSCALE_ACTIONS = {"on": ["on"], "off": ["off"], "logout": ["logout"], "funnel_on": ["funnel", "on"],
+                     "funnel_off": ["funnel", "off"]}
 
 
 @app.post('/api/tailscale')
 def set_tailscale():
     action = (bottle.request.json or {}).get("action")
-    if action not in ("on", "off", "logout"):
-        return api_error(400, "action: on, off or logout")
+    if action not in TAILSCALE_ACTIONS:
+        return api_error(400, "action: on, off, logout, funnel_on or funnel_off")
     try:
-        r = subprocess.run([TAILSCALE_CMD, action], capture_output=True, text=True, timeout=30)
+        r = subprocess.run([TAILSCALE_CMD] + TAILSCALE_ACTIONS[action], capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
         return api_error(500, f"Tailscale: {e}")
     if r.returncode != 0:
