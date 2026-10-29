@@ -218,6 +218,7 @@ static int             plan_id = BP_PLAN_R1;
 static bp_seg_t        cur[MAX_SEG];
 static int             ncur;
 static pthread_mutex_t cur_lock = PTHREAD_MUTEX_INITIALIZER;
+static atomic_uint     plan_gen;    /* one up with every change of the segments or the active bands */
 
 /* What Auto takes (Settings and the web page show it): the region, how ("gps", "qth", "call", "" for nothing) and
  * from what (the locator, the callsign). Under cur_lock */
@@ -330,6 +331,9 @@ static int by_start(const void *a, const void *b) {
 void band_plan_reload(void) {
     static int32_t ids[BANDS], start[BANDS], stop[BANDS];
     static char    names[BANDS][16];
+    static int32_t last_start[BANDS], last_stop[BANDS];
+    static char    last_names[BANDS][16];
+    static int     last_nb = -1;
     static bp_seg_t list[MAX_SEG];
     const char    *how;
     char           at[sizeof(auto_at)];
@@ -338,6 +342,16 @@ void band_plan_reload(void) {
     int            plan   = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : region;
     int            nb     = cfg_bands_active_ids(ids, start, stop, names, BANDS);
     int            n      = plan_build(plan, list);
+    /* The browser panel shows the active bands too: they count as a change of the plan */
+    bool           bands  = nb != last_nb || memcmp(start, last_start, sizeof(start)) || memcmp(stop, last_stop, sizeof(stop))
+                            || memcmp(names, last_names, sizeof(names));
+
+    if (bands) {
+        last_nb = nb;
+        memcpy(last_start, start, sizeof(start));
+        memcpy(last_stop, stop, sizeof(stop));
+        memcpy(last_names, names, sizeof(names));
+    }
 
     for (int i = 0; i < nb; i++) {
         /* Broadcast, the X6200's FM broadcast and airband, CB (ids 100-299 in sql/params.sql and migrations.c) are no
@@ -363,6 +377,9 @@ void band_plan_reload(void) {
     }
     qsort(list, n, sizeof(list[0]), by_start);
     pthread_mutex_lock(&cur_lock);
+    if (bands || n != ncur || memcmp(cur, list, n * sizeof(list[0])) != 0) {
+        atomic_fetch_add(&plan_gen, 1);
+    }
     memcpy(cur, list, n * sizeof(list[0]));
     ncur        = n;
     plan_id     = plan;
@@ -370,6 +387,10 @@ void band_plan_reload(void) {
     auto_how    = how;
     memcpy(auto_at, at, sizeof(auto_at));
     pthread_mutex_unlock(&cur_lock);
+}
+
+uint32_t band_plan_gen(void) {
+    return atomic_load(&plan_gen);
 }
 
 void band_plan_follow(void) {

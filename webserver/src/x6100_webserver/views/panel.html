@@ -289,8 +289,8 @@ body.app h2, body.app #intro { display:none; }
   let nModes = 8;    /* "modes N" from the radio: an X6200 has SAM and WFM too */
   const AGCS = ["OFF", "SLOW", "FAST", "AUTO"];
   const STEPS = [10, 100, 500, 1000, 5000];
-  const PLAN_COLORS = ["#2a7fff", "#d08a00", "#2e9e4f", "#b040c0"];     /* CW, DIG, ALL, BCN */
-  const PLAN_NAMES = ["CW", "DIG", "SSB", "BCN"];
+  const PLAN_COLORS = ["#2a7fff", "#d08a00", "#2e9e4f", "#b040c0", "#7d8796"];     /* CW, DIG, ALL, BCN, OUT (a US class) */
+  const PLAN_NAMES = ["CW", "DIG", "SSB", "BCN", "OUT"];
   let conf = null, unreachable = false, updating = null, link = null, tlink = null, ses = null, ptt = null;   /* the links are made below */
   let micOn = false, txOn = false, micStream = null;   /* the microphone, asked about by the PTT from the start */
   let state = null, stateAt = 0, bands = [], plan = [], spots = [];

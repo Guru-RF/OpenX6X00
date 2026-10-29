@@ -61,6 +61,10 @@ int band_plan_auto(const char **how, char *at, size_t size);
 /* "Region 2", "US General" ("Auto" for 0) */
 const char *band_plan_name(int plan);
 
+/* Changes with every change of the segments or of the active bands: the browser panel sends both again. Any
+ * thread */
+uint32_t band_plan_gen(void);
+
 /* The segment type (bp_type_t) at freq, -1 between the segments */
 int band_plan_type(int32_t freq);
 

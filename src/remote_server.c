@@ -39,7 +39,7 @@
  *  The Panel page works the radio natively instead of through a picture of its screen: a client
  *  that sends "panel 1" gets the radio's state as JSON ("state {...}": frequency, mode, filter,
  *  the switches, the levels), the S-meter ("m <dB>", ten a second), the TX meters while on the
- *  air ("t <W> <SWR> <ALC>"), the band list and the band plan once ("bands [...]", "plan [...]"),
+ *  air ("t <W> <SWR> <ALC>"), the band list and the band plan ("bands [...]", "plan [...]", again on a change),
  *  the cluster spots as they change ("spots [...]") and the spectrum as binary frames: 16 bytes
  *  header {u16 0xFFFF, u16 bins, u32 centre Hz, u32 width Hz, u32 sequence}, then one int8 dB
  *  per bin (the waterfall's own FFT, up to 15 a second, a kilobyte each where a screen frame is
@@ -1330,7 +1330,7 @@ static void *panel_thread(void *arg) {
     pstate_t       last = {0};
     ft8_status_t   ft8_last = {0};
     bool           have_last = false;
-    uint32_t       sp_seq = 0, spots_gen = 0;
+    uint32_t       sp_seq = 0, spots_gen = 0, plan_gen = band_plan_gen();
     uint64_t       state_ms = 0, meter_ms = 0, spots_ms = 0, ft8_ms = 0, ft8_sent_ms = 0;
     char           line[512];
     (void)arg;
@@ -1404,6 +1404,15 @@ static void *panel_thread(void *arg) {
                     client_text(c, line);
                 }
             }
+        }
+
+        /* Another band plan (Settings > General > Band plan, Auto in another region) or band list: both again */
+        uint32_t pg = band_plan_gen();
+        if (pg != plan_gen) {
+            plan_gen = pg;
+            for (int i = 0; i < MAX_CLIENTS; i++)
+                if (clients[i].fd >= 0 && clients[i].up && clients[i].panel && !clients[i].panel_fresh)
+                    panel_hello(&clients[i]);
         }
 
         /* The meters */
