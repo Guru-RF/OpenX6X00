@@ -219,6 +219,8 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
         check('off again: no AllowFunnel, no pages, 443 free', s['funnel'] == 'off' and 'AllowFunnel' not in Fake.serve
               and NAME + ':443' not in Fake.serve['Web'] and '443' not in Fake.serve['TCP'], Fake.serve)
         check('off again: the tailnet\'s 8443 kept', Fake.serve['TCP'].get('8443') == {'HTTPS': True})
+        check('off again: the radio\'s own funnel not called one made by hand', 'made by hand' not in
+              s.get('funnel_text', ''), s)
 
         # 10. tailscaled not up yet (a login wanted): waiting, or off
         g['cmd_funnel']('on')

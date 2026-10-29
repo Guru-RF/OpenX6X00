@@ -329,7 +329,9 @@ def funnel_config(cur, name, remote_port, tci_port, on):
     stays, but port 443 is the Panel's while Funnel is on. Returns (config, funnels made by hand removed)"""
     sc = json.loads(json.dumps(cur or {}))
     hp = f"{name}:{FUNNEL_PORT}"
-    theirs = [k for k, v in (sc.get("AllowFunnel") or {}).items() if v and not (on and k == hp)]
+    # the radio's own funnel, turned off or under an older name, was not made by hand
+    mine = {k for k, v in (sc.get("Web") or {}).items() if ours(v)}
+    theirs = [k for k, v in (sc.get("AllowFunnel") or {}).items() if v and k not in mine and not (on and k == hp)]
     for fg in (sc.get("Foreground") or {}).values():
         theirs += [k for k, v in (fg.get("AllowFunnel") or {}).items() if v]
         fg.pop("AllowFunnel", None)
