@@ -37,6 +37,7 @@ class Fake:
     changed_meanwhile = False
     refuse = ''             # tailscaled refusing a new serve config, as it does with no login: "netMap is nil"
     cut = False             # its answer to a serve-config read breaking off (tailscaled stopping or crashing meanwhile)
+    store = None            # its state file: a serve config it takes is written there, as its FileStore does (_serve/a1b2)
     seen_if_match = []
 
     @classmethod
@@ -101,6 +102,10 @@ class LocalAPI(http.server.BaseHTTPRequestHandler):
                                                                 f'port {port} is already serving "{kind(old)}"'}))
             Fake.serve = new or None
             Fake.posts += 1
+            if Fake.store:
+                state = json.loads(Path(Fake.store).read_text())
+                state['_serve/a1b2'] = base64.b64encode(json.dumps(new).encode()).decode()
+                Path(Fake.store).write_text(json.dumps(state))
             return self.reply(200)
         if self.path == '/localapi/v0/query-feature?feature=funnel':
             Fake.queries += 1
@@ -461,6 +466,22 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
         g['supervisor_pid'] = real_supervisor_pid
         Path(g['STATUS']).unlink()
 
+        # tailscaled not connected yet (starting, no internet, no login): with no netmap its serve config reads as none
+        # (reloadServeConfigLocked), while its state keeps the funnel it loads again once it connects
+        g['cmd_funnel']('on')
+        with_funnel()
+        Fake.serve = None
+        code, out = clear('1')
+        check('funnel-clear, tailscaled not connected, the funnel in its state for when it is: not sure, said',
+              code == 1 and 'in its state for when it connects' in out and g['funnel_left'](stored()), out)
+        check('funnel-clear, not connected: its state file not written under it, the setting off',
+              g['funnel_left'](stored()) and not g['funnel_wanted']())
+        Fake.serve, Fake.store = stored(), g['STATE_FILE']     # connected: it loaded the funnel from its state
+        code, out = clear('2')
+        Fake.store = None
+        check('funnel-clear, then connected: out through its local API, and so out of its state, ok',
+              code == 0 and out == 'ok Funnel taken off' and tailnet_only(Fake.serve) and tailnet_only(stored()), out)
+
         alive.unlink()
         g['cmd_funnel']('on')
         with_funnel()
@@ -580,6 +601,16 @@ sys.exit(g['main'](sys.argv[1:]))
         check('the line the web page shows for it: error, then why and what to do',
               code == 1 and line.startswith('error not gone back: Funnel could not be made sure to be off') and
               'turn Funnel off first' in line, line)
+        Fake.refuse, Fake.serve = '', None              # tailscaled not connected: its serve config reads as none
+        g['cmd_funnel']('on')
+        with_funnel()
+        why = refusal(up['cmd_rollback'], [])
+        check('tailscaled not connected, the funnel in its state for when it is: not gone back, why said',
+              why.startswith('not gone back: Funnel could not be made sure to be off (tailscaled keeps a funnel in its '
+                             'state for when it connects)') and ver.read_text() == '0.3.7\n', why)
+        if not why:                                    # gone back all the same: v0.3.7 again, for what follows
+            up['cmd_install']([bundle('0.3.7')])
+        Fake.refuse, Fake.serve = 'netMap is nil', on_and_by_hand()
         with_funnel()
         d = Daemon()                                   # Tailscale turned off then: still refused, so out of the file
         alive.touch()

@@ -117,9 +117,10 @@ web configurator (System > Update).
   Funnel: tailscaled would keep the funnel, and v0.3.6's TCI and browser
   remote would take connections from the internet without a key.
   - When it cannot make sure of that within half a minute (tailscaled not
-    answering, or waiting for a login), it does not go back, and the page
-    says why: turn Funnel off, or Tailscale itself, wait until it says Off,
-    and try again.
+    answering, or not connected: no internet, or waiting for a login, when
+    it keeps the funnel for when it connects), it does not go back, and the
+    page says why: turn Funnel off, or Tailscale itself, wait until it says
+    Off, and try again.
   - Funnel is then off when you come back to v0.3.7: turn it on again there.
   - The step back the radio takes by itself after three failed starts tries
     the same for a few seconds, and goes back whatever came of it.

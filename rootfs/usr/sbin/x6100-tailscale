@@ -517,11 +517,12 @@ def tailscaled_pids():
     return pids
 
 
-def state_funnel_off():
+def state_funnel_off(write=True):
     """No funnel in tailscaled's state file, for its next start. Only while no tailscaled runs: one that runs writes
-    its own copy over it. tailscaled keeps the serve config there as JSON in base64 (under _serve/<profile>); the
-    radio's own entries go from it, and every AllowFunnel, as funnel_config does through the local API, and nothing
-    else is touched. Returns whether a funnel was there; Fail when the file cannot be read: then nobody knows"""
+    its own copy over it (it keeps the whole file in memory). tailscaled keeps the serve config there as JSON in base64
+    (under _serve/<profile>); the radio's own entries go from it, and every AllowFunnel, as funnel_config does through
+    the local API, and nothing else is touched. Returns whether a funnel was there; Fail when the file cannot be read:
+    then nobody knows. write=False only looks, also while tailscaled runs"""
     try:
         with open(STATE_FILE) as f:
             text = f.read()
@@ -548,7 +549,7 @@ def state_funnel_off():
             found = found or funnel_left(sc)
             state[key] = base64.b64encode(json.dumps(new).encode()).decode()
             changed = True
-    if changed:
+    if changed and write:
         tmp = f"{STATE_FILE}.{os.getpid()}"
         with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
             json.dump(state, f, indent=2)
@@ -829,8 +830,11 @@ def cmd_funnel_clear(wait=None):
     never looks at a funnel kept in tailscaled's state, and whose TCI and browser remote would take connections from
     the internet without a key. The setting first, so that a supervisor of this version (one that runs on in memory
     after the step back too) keeps it off; then the funnel out of tailscaled, the radio's own and any made by hand:
-    through its local API while it runs, out of its state file while it does not. Waits FUNNEL_CLEAR_WAIT s at most,
-    or the seconds given: "ok ..." when it is sure, an error naming what kept it from being sure"""
+    through its local API while it runs, out of its state file while it does not. A tailscaled not connected yet
+    (starting, no internet, no login) has no netmap, and its serve config then reads as none (reloadServeConfigLocked)
+    while its state keeps the funnel it loads again once it connects: its state file is looked at too, and the wait is
+    for it to connect. Waits FUNNEL_CLEAR_WAIT s at most, or the seconds given: "ok ..." when it is sure, an error
+    naming what kept it from being sure"""
     try:
         end = time.time() + (FUNNEL_CLEAR_WAIT if wait is None else float(wait))
     except ValueError:
@@ -849,6 +853,9 @@ def cmd_funnel_clear(wait=None):
                     cur = api("GET", "serve-config")
                 if funnel_left(cur):
                     why = "tailscaled keeps a funnel"
+                elif state_funnel_off(write=False):
+                    was = True
+                    why = "tailscaled keeps a funnel in its state for when it connects"
                 elif supervisor_pid() and status_field("funnel") == "on":
                     why = "Tailscale has not taken the setting yet"     # within a poll, or it sets the funnel again
                 else:
