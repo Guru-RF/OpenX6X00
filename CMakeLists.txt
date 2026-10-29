@@ -82,10 +82,10 @@ else()
         if(NOT HOST_BUILD)
                 add_subdirectory(btcat)       # the radio's own programs
                 add_subdirectory(bootanim)
-                add_subdirectory(third-party/ardopcf)     # the Winlink modem, for Pat
         endif()
-        # Mercury, Pat's second Winlink modem (experimental). On the PC too, where it is built only when
-        # asked for by name
+        # The Winlink modems for Pat: ardopcf, and Mercury (experimental). On the PC too, where they are
+        # built only when asked for by name, for the Winlink tests (tools/winlink)
+        add_subdirectory(third-party/ardopcf)
         add_subdirectory(third-party/mercury)
 
         # Installed into the buildroot target: the GUI, the rootfs overlay
