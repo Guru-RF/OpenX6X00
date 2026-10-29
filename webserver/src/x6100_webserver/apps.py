@@ -1232,6 +1232,11 @@ def field_log_file(name):
 
 WAVELOG_KEYS = ("enabled", "url", "key", "station_id", "station_name", "verify_tls", "since")
 WAVELOG_URL = r"https?://[^\s<>\"'=]{3,200}"
+# Wavelog 3.1 and later make two kinds: API keys ("Legacy API Keys (API v1)", wl and 13 hex, cl... from Cloudlog)
+# and API tokens ("API Tokens (API v2)", wl2_ and 40 hex). x6100-wavelog speaks API v1 (the key in the request),
+# which answers a token "missing or invalid api key", 401: Test connection said only "key refused" (#73)
+WAVELOG_V2_TOKEN = ("That is a Wavelog API token (wl2_..., API v2), which the radio can't use yet: on Wavelog's API "
+                    "page, under Legacy API Keys (API v1), Create a read & write key, and type that key (wl...)")
 
 
 def wavelog_read():
@@ -1314,6 +1319,8 @@ def wavelog_form(body, saved=None):
         return None, "The URL starts with http:// or https://, no spaces"
     if key and not re.fullmatch(r"[!-~]{1,128}", key):
         return None, "A key is 1-128 printable characters, no spaces"
+    if key.lower().startswith("wl2_"):
+        return None, WAVELOG_V2_TOKEN
     saved = wavelog_read() if saved is None else saved
     if url and not key and saved.get("key") and wavelog_origin(url) != wavelog_origin(saved.get("url", "")):
         return None, "Another server: type its API key too (the saved key goes only to the server it was saved with)"

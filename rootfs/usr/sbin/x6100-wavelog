@@ -53,6 +53,10 @@ LOCK = os.path.join(FIELD_DIR, ".wavelog.lock")
 TIMEOUT = 20
 RUN_LIMIT = 300      # the GUI waits for one run at a time
 KEEP_SENT = 7 * 86400   # a QSO sent is remembered a week; older ones Wavelog itself finds as duplicates
+# Wavelog 3.1 and later also make API tokens (wl2_..., API v2), which the API v1 used here refuses as an unknown key
+# (401): before, the line said only "key refused" (#73). The web page refuses them at Save; this is for a token
+# saved by v0.3.5 or v0.3.6
+V2_TOKEN = "the key is an API v2 token (wl2_): make a legacy API key (API v1)"
 user_agent = f"OpenX6X00/{os.environ.get('X6100_FW') or 'unknown'} (+https://github.com/Guru-RF/OpenX6X00)"
 
 
@@ -149,6 +153,8 @@ def target(conf):
     verify = os.environ.get("X6100_WAVELOG_VERIFY", conf.get("verify_tls", "1")) != "0"
     if not url or not key:
         raise Fail("URL and API key needed")
+    if key.lower().startswith("wl2_"):
+        raise Fail(V2_TOKEN)
     return url, key, verify
 
 
@@ -389,6 +395,8 @@ def cmd_sync(conf):
         auto = conf["station_id"] == "auto"
         profiles = None   # auto: read from Wavelog once a run, when a QSO waits
         try:
+            if conf["key"].lower().startswith("wl2_"):   # the QSOs wait for a key
+                raise Fail(V2_TOKEN)
             i = 0
             while i < len(queue):
                 q = queue[i]
