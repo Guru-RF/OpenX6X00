@@ -80,7 +80,7 @@ bases, X6100 V1.1.9 and X6200 1.0.8, have no CESSB, and the X6200's no TX filter
 Asked 2026-10-26 (issues #18 and #19). Winlink email from the radio alone, with a phone on its WiFi to read and
 write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
 
-- **Built, for the next release**: Pat v1.0.0 built with a pinned Go (tools/pat, a few patches: its page answers
+- **In v0.3.6**: Pat v1.0.0 built with a pinned Go (tools/pat, a few patches: its page answers
   only to the radio's own names and refuses other sites' requests, no release or password-recovery check) and
   ardopcf (github.com/pflarue/ardop, MIT, C) in third-party/ardopcf, both in the image and the bundle. ardopcf's
   audio and PTT go through the GUI (src/winlink.c: a socket, 12 kHz, TX through tx_player), which also answers
@@ -92,7 +92,7 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   DM6TS, a message each; EA5JTT's X6200 reached HB9MM and stopped at the unset password). M7SVA: the gateway
   list's 2000MAX did not connect, 200 did: the page's bandwidth now caps the list's (Pat patch 0003; 200, 500,
   1000, 2000 Hz, 500 the default).
-- **For the next release** (#43): the radio's state before a connection (/run/winlink/radio from the GUI, the
+- **In v0.3.7** (#43): the radio's state before a connection (/run/winlink/radio from the GUI, the
   page's Before you connect card), the outcomes kept apart (service, modem, session, last connection with what to
   do next, also in the mailbox's log through Pat patch 0004), no key while a digital app is open, a refused QSY
   said, the SWR hold's minutes, where the password is set, the logs as a download, Funnel refused by Pat.
@@ -107,7 +107,7 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   which Pat's varahf transport talks to. Some Winlink RMS gateways do run it, behind RMS Trimode's or BPQ32's
   VARA driver: KO0OOO (its banner gives 7.101.5) and K7EK-10, seen in Mercury's issues (#162, #384, #442); only
   Mercury 1.9.20 and later talk to each other. VARA itself is closed and Windows-only: out.
-  - **Built, experimental, chosen on the Winlink page** (next release): v1.9.21 vendored as its daemon build
+  - **Built, experimental, chosen on the Winlink page** (v0.3.7): v1.9.21 vendored as its daemon build
     (third-party/mercury, two local patches: the TNC and broadcast ports on 127.0.0.1, VERSION answered with a
     VERSION line so Pat cannot hang), linked into x6x00-mercury, which takes the audio and the PTT through the
     GUI's modem socket in its protocol 2 (8000 Hz, keys of up to 40 s; ardopcf stays on protocol 1). In the image
@@ -117,13 +117,15 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     ring full", "RX backlog exceeded") said on the page and in Pat's log ([manual](docs/MANUAL.md#mercury-experimental)). tools/winlink
     tests it on the PC: Pat to Pat peer to peer over two stubbed radios (make modems), the supervisor's and the
     page's side (winlink_test.py, winlink_web_test.py).
-  - **Next**: the go/no-go on the bench X6100, before a release offers it: Mercury's CPU next to the GUI with
-    `top -H` (idle, and in a session; no "decoder ring full" or "RX backlog exceeded" in
-    mercury.log), the temperature, a 30-40 s key at up
-    to 7 W, PTT to RF and unkey to RX audio, the drive level loop on OFDM (QAM16C2 needs a linear chain). Then on
-    the air: P2P with a Mercury station, then a gateway (KO0OOO, K7EK-10) once the Winlink account works. Upstream
-    reports to post: the VERSION reply (Pat's start race), the daemon build's two missing Android hooks, an option
-    for the TNC ports' address, nanorq's and oblas's licence files, PUBLIC in TNC.md.
+  - **Go/no-go on the bench X6100, 2026-10-29** (dummy load): go, as experimental. With `top -H` the radio at
+    38.6 % of its four cores with Mercury listening (17.6 % with ARDOP), 51 % at most in calls, no "decoder ring
+    full" or "RX backlog exceeded" in mercury.log; keys of up to 13.5 s at 5.7-6.3 W on average, 7.0 W at most,
+    the shared digital level from -23.58 to -22.08 dB. The X6100 has no temperature sensor.
+  - **Next**: the same on the bench X6200; a 30-40 s key at up to 7 W, PTT to RF and unkey to RX audio, the
+    drive level loop on OFDM (QAM16C2 needs a linear chain). Then on the air: P2P with a Mercury station, then a
+    gateway (KO0OOO, K7EK-10) once the Winlink account works. Upstream reports to post: the VERSION reply (Pat's
+    start race), the daemon build's two missing Android hooks, an option for the TNC ports' address, nanorq's and
+    oblas's licence files, PUBLIC in TNC.md.
 - **XARA** (github.com/x0rro/xara, a VARA-compatible modem in Rust, first release 2026-10-21; #18): a watch
   item, not built. Watch it regularly: its fix for HF calls with an SSID (XARA issue #22, PR #23), the sound-card
   clock drift that makes a VARA peer time out (XARA #20), its releases, and any takedown or statement by EA5HVK
