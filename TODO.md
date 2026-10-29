@@ -137,9 +137,14 @@ only (the X6200 control library copied them from the X6100's; R1CBU's X6200 GUI 
 working). On the H-22 only F1, the step keys, 1, 2 and F-INP work; F2, F3, HOME, the volume keys, 3-9, 0 and the
 dot do nothing. Every code the base reports is in the log now: `hand mic: key 0x.. (..)` (none while a text
 window is open, which can hold a WiFi password).
-- **Next**: on the bench X6200 with its H-22, each key pressed once in order (F1 F2 F3, the step keys, HOME, the
-  volume keys, A/B, MODE, V/M, 1-9, the dot, 0, F-INP, DWN and UP on the back), and once held; the codes read off
-  the log.
+- What the report shows: 3-9, 0 and the dot do nothing on the main screen and in the F-INP box alike, where 1 and 2
+  work, and mic_keys.c takes every digit the same way. F2 tells nothing yet: it has no action until one is set in
+  Settings > Keys (None by default). F3, HOME and the volume keys are not on the X6100's mic.
+- **Next**: on the bench X6200 with its H-22, on the main screen, each key pressed once in order (F1 F2 F3, the step
+  keys, HOME, the volume keys, A/B, MODE, V/M, 1-9, the dot, 0, F-INP, DWN and UP on the back), and once held; the
+  codes read off the log. A key with no line at all is not in the packet's key word (Xiegu's manual names two data
+  lines on the mic's plug, MDATA and MSVSW): then the packet's other words (`reserved_2`, `reserved_3`, the flag
+  bits the library leaves unnamed) logged when they change, in hw_x6200.c.
 - Then: an H-22 table for the X6200 (the X6100 keeps its mic's), the H-22's own keys (F3 next to F1 and F2 in
   Settings > Keys, HOME to a frequency set in Settings as in Xiegu's app, the volume keys, A/B), the manual's hand
   mic section per radio, and the H-22's codes in the harness (`mic-keys.c`).
