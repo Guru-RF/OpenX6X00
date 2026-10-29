@@ -53,6 +53,7 @@
 #include "radio_io.h"
 #include "modem.h"
 #include "message_store.h"
+#include "mercury_version.h"
 
 static pthread_t tid[7];
 static bool tid_started[7];
@@ -680,8 +681,13 @@ static void execute_control_command(char *buffer)
 
     if (!strncmp(buffer, "VERSION", strlen("VERSION")))
     {
-        /* VARA compatibility: respond with modem identification. */
-        tcp_write(CTL_TCP_PORT, (uint8_t *)"VARA version 4.9.0 registered\r", 30);
+        /* VARA compatibility: respond with modem identification.
+         * OpenX6X00: as a VERSION line.  Pat's VARA driver waits, with no
+         * timeout, for a reply that starts "VERSION" or "WRONG"; "VARA
+         * version 4.9.0 registered" was neither, and Pat hung starting
+         * the modem unless the WRONG for its CWID ON came after it asked. */
+        static const char version_reply[] = "VERSION Mercury " MERCURY_VERSION "\r";
+        tcp_write(CTL_TCP_PORT, (uint8_t *)version_reply, sizeof(version_reply) - 1);
         return;
     }
 

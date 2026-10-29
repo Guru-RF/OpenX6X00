@@ -72,3 +72,8 @@ Each one is its own commit on top of the pristine import.
   8301 data) and the broadcast port (TCP 8100) listen on 127.0.0.1 only.
   Upstream binds them to every interface, with no option to change it and
   no authentication, so anyone on the radio's network could key it.
+- `data_interfaces/tcp_interfaces.c`: `VERSION` is answered
+  `VERSION Mercury 1.9.21` (`MERCURY_VERSION`) instead of
+  `VARA version 4.9.0 registered`. Pat's VARA driver waits, with no
+  timeout, for a line that starts `VERSION` or `WRONG`, so its start of the
+  modem hung unless the `WRONG` for its `CWID ON` came late enough.
