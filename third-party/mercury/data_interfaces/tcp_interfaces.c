@@ -262,7 +262,7 @@ static int open_listener_socket(int port, int port_type, const char *tag)
 
     memset(&local_addr, 0, sizeof(local_addr));
     local_addr.sin_family = AF_INET;
-    local_addr.sin_addr.s_addr = INADDR_ANY;
+    local_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);  /* OpenX6X00: this host only */
     local_addr.sin_port = htons(port);
 
     if (bind(fd, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0)
@@ -282,7 +282,7 @@ static int open_listener_socket(int port, int port_type, const char *tag)
     }
 
     net_set_status(port_type, NET_LISTENING);
-    HLOGI(tag, "Listening on TCP port %d", port);
+    HLOGI(tag, "Listening on 127.0.0.1 TCP port %d", port);
     return fd;
 }
 
@@ -1570,7 +1570,7 @@ void *tcp_server_thread(void *port_ptr)
 
     memset(&local_addr, 0, sizeof(local_addr));
     local_addr.sin_family = AF_INET;
-    local_addr.sin_addr.s_addr = INADDR_ANY;
+    local_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);  /* OpenX6X00: this host only */
     local_addr.sin_port = htons(tcp_port);
 
     if (bind(tcp_socket, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0)

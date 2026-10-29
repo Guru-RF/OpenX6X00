@@ -66,4 +66,9 @@ connect to 1.9.19 or older), so a new pin is a new test on the air.
 
 ## Local patches
 
-None: this is the pristine import.
+Each one is its own commit on top of the pristine import.
+
+- `data_interfaces/tcp_interfaces.c`: the TNC ports (TCP 8300 commands,
+  8301 data) and the broadcast port (TCP 8100) listen on 127.0.0.1 only.
+  Upstream binds them to every interface, with no option to change it and
+  no authentication, so anyone on the radio's network could key it.
