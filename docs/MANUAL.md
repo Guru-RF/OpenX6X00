@@ -2545,7 +2545,7 @@ Setting it up:
    - Filter: whether the RX filter (and the TX filter, on a base that has
      one) covers ARDOP's passband at the page's bandwidth: 1250-1750 Hz at
      500 Hz, 500-2500 Hz at 2000 Hz. Mercury's: 450-2550 Hz at 2300 and
-     2750 Hz, 1000-2000 Hz at 500 Hz.
+     2750 Hz, 1200-1800 Hz at 500 Hz.
    - Power: the radio's PWR, at most 7 W for Winlink.
    - Apps: a digital app open (red: close it), or LOCK on (Pat's QSY is not
      made).
@@ -2803,11 +2803,11 @@ Connect. The radio tunes there in USB-D and back afterwards, as with ARDOP.
 The bandwidth field may stay empty: Mercury then takes the Winlink page's.
 
 - The bandwidth: 2300 Hz (the default) lets Mercury use all its modes; 500 Hz
-  keeps it narrow (DATAC3, 562 Hz, at the most), though its most robust mode,
-  the MFSK floor, is still 1000 Hz wide; 2750 Hz has 2300's modes for now. The
-  narrower of the two stations' is used. The RX filter has to cover Mercury's
-  audio: 450-2550 Hz at 2300 and 2750 Hz, 1000-2000 Hz at 500 Hz. The Before
-  you connect card checks it.
+  keeps it narrow (DATAC3, 562 Hz, at the most), and its most robust mode, the
+  MFSK floor, is then a 500 Hz MFSK at half the speed (about 27 s a frame);
+  2750 Hz has 2300's modes for now. The narrower of the two stations' is used.
+  The RX filter has to cover Mercury's audio: 450-2550 Hz at 2300 and 2750 Hz,
+  1200-1800 Hz at 500 Hz. The Before you connect card checks it.
 - Mercury's keys are longer than ARDOP's: a call on its MFSK floor took 27 s
   on the PC, and a round in a session is up to 30 s on the air plus its head
   and tail. The radio stops a Mercury key after 40 s ("Winlink: TX stopped

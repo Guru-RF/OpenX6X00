@@ -75,7 +75,7 @@
     <div class="dp-ctl"><select id="bandwidth"><option value="200">200 Hz</option><option value="500">500 Hz</option><option value="1000">1000 Hz</option><option value="2000">2000 Hz</option></select></div>
   </div>
   <div class="dp-row" id="row-mercury-bandwidth">
-    <div class="dp-lbl"><label for="mercury_bandwidth"><b>Mercury bandwidth</b></label><span>What Pat asks Mercury for, unless a connection names another. 2300 Hz uses all of Mercury's modes; 500 Hz keeps it narrow (still 1000 Hz wide at its most robust); 2750 Hz is 2300's modes for now. The narrower of the two stations' is used</span></div>
+    <div class="dp-lbl"><label for="mercury_bandwidth"><b>Mercury bandwidth</b></label><span>What Pat asks Mercury for, unless a connection names another. 2300 Hz uses all of Mercury's modes; 500 Hz keeps it within about 560 Hz, its most robust mode then a 500 Hz MFSK at half the speed (27 s a frame); 2750 Hz is 2300's modes for now. The narrower of the two stations' is used</span></div>
     <div class="dp-ctl"><select id="mercury_bandwidth"><option value="500">500 Hz</option><option value="2300">2300 Hz</option><option value="2750">2750 Hz</option></select></div>
   </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
@@ -131,10 +131,10 @@ var radioRow = function(id, value, note, bad) {
 }
 
 // The audio the chosen modem fills, Hz around 1500: ARDOP its bandwidth; Mercury 2100 Hz (DATAC17, QAM16C2) at 2300
-// and 2750, its 1000 Hz MFSK floor at 500
+// and 2750; at 500 600 Hz, DATAC3's 562 the widest (its MFSK floor is the 500 Hz one there, MERCURY_MODE_MFSK_N32)
 var modemSpan = function(st) {
   if (st.modem_choice !== "mercury") return {name: "ARDOP", bw: st.bandwidth, span: st.bandwidth};
-  return {name: "Mercury", bw: st.mercury_bandwidth, span: st.mercury_bandwidth === 500 ? 1000 : 2100};
+  return {name: "Mercury", bw: st.mercury_bandwidth, span: st.mercury_bandwidth === 500 ? 600 : 2100};
 }
 
 // The radio's state as the GUI writes it while the modem is on its audio (/run/winlink/radio, src/winlink.c)
