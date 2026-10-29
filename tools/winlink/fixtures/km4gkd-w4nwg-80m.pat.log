@@ -1,0 +1,20 @@
+2026/10/28 00:57:34 x6x00 ready. Dial frequency is 3.584.90 MHz.
+2026/10/28 00:57:34 Starting HTTP service (http://:8080)...
+2026/10/28 00:58:13 ARDOP TNC (ardopcf_1.0.4.1.3) initialized
+2026/10/28 00:58:31 QSY ardop: 3587
+2026/10/28 00:58:34 Connecting to W4NWG (ardop)...
+2026/10/28 00:58:45 Connected to W4NWG (ardop)
+RMS Trimode 1.4.4.0
+KM4GKD has 116 daily minutes remaining with W4NWG (EM74UL)
+[WL2K-5.0-B2FWIHJM$]
+;PQ: 09495621
+CMS via W4NWG >
+>FC EM CTQPTEYM5EJV 275 235 0
+>F> 3F
+FS Y
+Remote accepted CTQPTEYM5EJV
+Transmitting [test] [offset 0]
+FF
+>FQ
+2026/10/28 01:04:15 Disconnected.
+2026/10/28 01:04:16 QSX ardop: 3587.000

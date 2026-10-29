@@ -2529,6 +2529,30 @@ Setting it up:
      Pat's gateway list shows wider: see "The ARDOP bandwidth" below.
 3. Switch Enabled on. Status says "Running as ON6URE" once Pat and ARDOP run.
    From then on they start with the radio, also after a new card image.
+   The Connections card keeps apart what is often lumped together:
+   - Service: Pat and ARDOP run.
+   - Modem: ARDOP is on the radio's audio (ardopcf connected to the GUI);
+     "Waiting for the radio's audio" until it is.
+   - Session: Idle, Calling a gateway or Connected, as Pat says, and in how
+     many browsers the mailbox is open: Pat asks there what it needs during
+     a connection (go ahead on a busy channel, the password).
+   - Last connection: Calling, Connected (with ARDOP's bandwidth), Delivered
+     ("Done with DM6TS at 500 Hz: 1 sent, 0 received"), Done (nothing to
+     send or receive) or Failed, with what to do next, from Pat's log,
+     ARDOP's and Pat's event log (`/run/winlink`):
+
+     | What happened | What to do |
+     |---|---|
+     | No answer from the gateway (Connect timeout) | Check the power, antenna and SWR, and the radio's screen for "Winlink: no TX"; on a weak path choose 500 or 200 Hz; or another gateway or band |
+     | The gateway refused the bandwidth (INCOMPATIBLE BW) | Choose 500 Hz, or the bandwidth the gateway list gives |
+     | The gateway is busy with another station | Try later, or another gateway |
+     | The frequency stayed busy, or Abort was chosen | Try later, another gateway or band |
+     | The password prompt timed out (context deadline exceeded) | Set the password on this page, or keep the mailbox open to type it |
+     | The gateway refused the password (secure login failed) | Check the password; one set before 31 January 2018 is in capitals |
+     | The link dropped during the exchange | What was delivered counts; connect again, narrower on a weak path |
+     | Pat could not tune the radio (Unable to QSY) | The radio's screen says why |
+
+     The same line goes into Pat's log, so the mailbox shows it too.
 4. Press Open the mailbox, or open `http://x6100.local:8080/` (`x6200.local`
    on an X6200, or the radio's address): Pat's own page, where you write and
    read your mail. Its Settings page has the rest of Pat's options. The

@@ -22,6 +22,18 @@
   </div>
 </div>
 
+<div class="dp-card" id="conn">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-pulse"/></svg></span><div><h3>Connections</h3><p>What Pat and ARDOP are doing, and how the last connection went</p></div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Service</b><span>Pat and ARDOP running</span></div><div class="dp-ctl" id="c-service">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Modem</b><span>ARDOP on the radio's audio</span></div><div class="dp-ctl" id="c-modem">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Session</b><span id="c-browsers">Pat calling a gateway, or connected to one</span></div><div class="dp-ctl" id="c-session">-</div></div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <b id="c-last-head">Last connection</b>
+    <div id="c-last-text" style="color:var(--dim)">None since Pat started</div>
+    <div id="c-last-next" style="display:none"></div>
+  </div>
+</div>
+
 <form class="dp-card" id="conf">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>Station<span class="eff">Takes effect: Pat restarts with it</span></h3><p>Your Winlink account and what ARDOP may use. Pat's mailbox has its own Settings page for the rest</p></div></div>
   <div class="dp-row">
@@ -70,6 +82,34 @@ var showStatus = function(id, text, error=false) {
 }
 var busy = false;
 const PW_STATE = {page: "set here (hidden)", pat: "set in Pat's own Settings (hidden)", none: "not set"};
+const SERVICE = {running: "Running", starting: "Starting", stopped: "Stopped"};
+const MODEM = {ready: "Ready", waiting: "Waiting for the radio's audio"};
+const SESSION = {idle: "Idle", dialing: "Calling a gateway", connected: "Connected", unknown: "-"};
+const LAST = {dialing: "Calling", connected: "Connected", delivered: "Delivered", done: "Done", failed: "Failed"};
+
+// The outcomes the supervisor keeps apart (x6100-winlink, Watch): service, modem, session, the last connection
+var renderConnections = function(st) {
+  const on = st.state !== "off";
+  $("#c-service").text(on && SERVICE[st.service] || "Off");
+  $("#c-modem").text(on && MODEM[st.modem] || "Off");
+  $("#c-session").text(on && SESSION[st.session] || "Off");
+  const n = parseInt(st.browsers, 10);
+  $("#c-browsers").text(isNaN(n) || !on ? "Pat calling a gateway, or connected to one" : n ?
+    "The mailbox is open in " + n + (n > 1 ? " browsers" : " browser") :
+    "No browser has the mailbox open: during a connection Pat asks there what it needs (a busy channel, the password)");
+  if (!st.last_result) {
+    $("#c-last-head").text("Last connection");
+    $("#c-last-text").text(on ? "None since Pat started" : "-");
+    $("#c-last-next").hide();
+    return;
+  }
+  const t = new Date(parseInt(st.last_time, 10) * 1000);
+  $("#c-last-head").text("Last connection: " + (LAST[st.last_result] || st.last_result) +
+    (isNaN(t) ? "" : ", " + t.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})));
+  $("#c-last-text").text(st.last_text);
+  $("#c-last-next").text(st.last_next || "").toggle(!!st.last_next)
+    .css("color", st.last_result === "failed" ? "var(--err)" : "var(--accent)");
+}
 const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
 
 // The status, the switch and the notes: every two seconds, without touching what is being typed below
@@ -88,6 +128,7 @@ var renderState = function(st) {
   if (st.enabled && !st.mycall && !st.radio_mycall) notes.push("No callsign: set yours below, or the radio's in Settings > General.");
   if (st.enabled && st.password === "none") notes.push("No Winlink password on the radio: when the gateway asks for it, Pat asks in the mailbox and gives up after a minute (\"context deadline exceeded\"). Set it below before you connect, or keep the mailbox open to type it there. A new account's first connection needs none.");
   $("#pw-state").text(PW_STATE[st.password || (st.password_set ? "page" : "none")] || PW_STATE.none);
+  renderConnections(st);
   $("#notice").toggle(notes.length > 0);
   $("#notice-text").text(notes.join(" "));
 }

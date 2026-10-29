@@ -31,7 +31,11 @@ def load(root):
 
 
 def fixture(name):
-    with open(os.path.join(FIXTURES, name), encoding="utf-8") as f:
+    return read(os.path.join(FIXTURES, name))
+
+
+def read(path):
+    with open(path, encoding="utf-8") as f:
         return f.read()
 
 
@@ -98,7 +102,7 @@ class Password(Root):
         self.wl.say("error", "Pat stopped (code 1: login s3cret refused)")
         st = self.status()
         self.assertEqual(st["password"], "page")
-        self.assertNotIn("s3cret", open(self.wl.STATUS).read())
+        self.assertNotIn("s3cret", read(self.wl.STATUS))
 
     def test_broken_pat_config(self):
         os.makedirs(os.path.dirname(self.wl.PAT_CONFIG))
@@ -116,7 +120,7 @@ class Notes(Root):
         self.assertTrue(self.wl.note("a line\nof ours"))
         os.write(pat, b"2026/10/29 12:15:57 Connecting to DM6TS (ardop)...\n")
         os.close(pat)
-        lines = open(self.wl.PAT_OWN_LOG).read().splitlines()
+        lines = read(self.wl.PAT_OWN_LOG).splitlines()
         self.assertEqual(len(lines), 3)
         self.assertRegex(lines[1], r"^\d{4}/\d\d/\d\d \d\d:\d\d:\d\d OpenX6X00: a line of ours$")
         self.assertTrue(lines[2].endswith("Connecting to DM6TS (ardop)..."))
@@ -127,18 +131,18 @@ class Notes(Root):
             f.write("s3cret\n")
         open(self.wl.PAT_OWN_LOG, "w").close()
         self.wl.note("login s3cret refused")
-        self.assertNotIn("s3cret", open(self.wl.PAT_OWN_LOG).read())
+        self.assertNotIn("s3cret", read(self.wl.PAT_OWN_LOG))
 
     def test_no_password_said_when_pat_answers(self):
         open(self.wl.PAT_OWN_LOG, "w").close()
         self.wl.pat_up({"mycall": "M7SVA"})
-        self.assertIn("OpenX6X00: no Winlink password for M7SVA", open(self.wl.PAT_OWN_LOG).read())
+        self.assertIn("OpenX6X00: no Winlink password for M7SVA", read(self.wl.PAT_OWN_LOG))
         os.makedirs(self.wl.LIB)
         with open(self.wl.PASSWORD, "w") as f:
             f.write("pw\n")
         open(self.wl.PAT_OWN_LOG, "w").close()
         self.wl.pat_up({"mycall": "M7SVA"})
-        self.assertEqual(open(self.wl.PAT_OWN_LOG).read(), "")
+        self.assertEqual(read(self.wl.PAT_OWN_LOG), "")
 
     def test_trimmed(self):
         pat = os.open(self.wl.PAT_OWN_LOG, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_APPEND, 0o666)
@@ -146,7 +150,203 @@ class Notes(Root):
         self.wl.trim_logs()
         os.write(pat, b"next\n")
         os.close(pat)
-        self.assertEqual(open(self.wl.PAT_OWN_LOG, "rb").read(), b"next\n")
+        self.assertEqual(read(self.wl.PAT_OWN_LOG).encode(), b"next\n")
+
+
+class Running:
+    """A stand-in for a Program that runs"""
+
+    def __init__(self, alive=True, answered=True):
+        self._alive, self.answered = alive, answered
+
+    def alive(self):
+        return self._alive
+
+
+ESTABLISHED = "[STATUS: ARQ CONNECTION ESTABLISHED WITH {}, SESSION BW = {} HZ]"
+
+
+class Outcomes(Root):
+    """Pat's log (the real ones from #18 and #80), ardopcf's console and Pat's event log, read at each poll"""
+
+    def setUp(self):
+        super().setUp()
+        self.pat_status = {"connected": False, "dialing": False, "http_clients": []}
+        self.wl.pat_status = lambda: self.pat_status
+        for path in (self.wl.PAT_OWN_LOG, self.wl.ARDOP_LOG, self.wl.EVENT_LOG):
+            open(path, "w").close()
+        self.watch = self.wl.Watch()
+
+    def add(self, path, text):
+        with open(path, "a") as f:
+            f.write(text if text.endswith("\n") else text + "\n")
+
+    def poll(self, pat="", ardop="", events=()):
+        if pat:
+            self.add(self.wl.PAT_OWN_LOG, pat)
+        if ardop:
+            self.add(self.wl.ARDOP_LOG, ardop)
+        for e in events:
+            self.add(self.wl.EVENT_LOG, json.dumps(e))
+        return self.watch.poll(Running(), Running())
+
+    def notes(self):
+        return [ln for ln in read(self.wl.PAT_OWN_LOG).splitlines() if " OpenX6X00: " in ln]
+
+    def test_km4gkd_one_message_sent(self):
+        k = self.poll(pat=fixture("km4gkd-w4nwg-80m.pat.log"))
+        self.assertEqual(k["last_result"], "delivered")
+        self.assertEqual((k["last_gateway"], k["last_freq"]), ("W4NWG", 3587000))
+        self.assertEqual(k["last_text"], "Done with W4NWG: 1 sent, 0 received")
+        self.assertEqual(k["last_next"], "")
+        self.assertEqual(len(self.notes()), 1)
+        self.assertTrue(self.notes()[0].endswith("OpenX6X00: Done with W4NWG: 1 sent, 0 received"))
+        self.poll()
+        self.assertEqual(len(self.notes()), 1)          # said once
+
+    def test_m7sva_step_by_step(self):
+        log = fixture("m7sva-dm6ts-40m.pat.log").splitlines(keepends=True)
+        k = self.poll(pat="".join(log[:2]), ardop="Audio socket /run/ardop.sock connected")
+        self.assertEqual((k["modem"], k["last_result"]), ("ready", "dialing"))
+        self.assertEqual(k["last_text"], "Calling DM6TS on 7.061.500")
+        k = self.poll(pat="".join(log[2:9]), ardop=ESTABLISHED.format("DM6TS", 200))
+        self.assertEqual(k["last_result"], "connected")
+        self.assertEqual(k["last_text"], "Connected to DM6TS at 200 Hz, exchanging mail")
+        self.assertEqual(self.notes(), [])
+        k = self.poll(pat="".join(log[9:]), ardop="[STATUS: ARQ CONNECTION ENDED WITH DM6TS]",
+                      events=[{"what": "connect", "success": True, "operation": "connect ardop:///DM6TS?freq=7061.5"},
+                              {"what": "exchange", "targetcall": "DM6TS", "success": True,
+                               "sent": ["ECTEM7Q3ODBL"], "received": None}])
+        self.assertEqual(k["last_result"], "delivered")
+        self.assertEqual((k["last_sent"], k["last_received"], k["last_bw"]), (1, 0, 200))
+        self.assertEqual(k["last_text"], "Done with DM6TS at 200 Hz: 1 sent, 0 received")
+
+    def test_ea5jtt_password_prompt_timed_out(self):
+        k = self.poll(pat=fixture("ea5jtt-hb9mm-20m.pat.log"))
+        self.assertEqual(k["last_result"], "failed")
+        self.assertEqual((k["last_gateway"], k["last_freq"]), ("HB9MM", 14107700))
+        self.assertIn("password prompt timed out", k["last_text"])
+        self.assertTrue(k["last_next"].startswith("Set the Winlink password on the radio's Winlink page"))
+
+    def test_ea5jtt_each_connection_noted(self):
+        log = fixture("ea5jtt-hb9mm-20m.pat.log").splitlines(keepends=True)
+        self.poll(pat="".join(log[:16]))
+        self.poll(pat="".join(log[16:]))
+        self.assertEqual(len(self.notes()), 2)
+
+    def test_the_bandwidth_capped(self):
+        k = self.poll(pat="2026/10/29 12:15:54 QSY ardop: 7061.5\n"
+                          "2026/10/29 12:15:54 ARDOP bandwidth 500MAX, the widest set on the radio "
+                          "(Operating > Winlink), not the 2000MAX asked\n"
+                          "2026/10/29 12:15:57 Connecting to DM6TS (ardop)...\n",
+                      ardop=ESTABLISHED.format("DM6TS", 500))
+        self.assertEqual((k["last_bw_asked"], k["last_bw_capped"], k["last_bw"]), ("2000MAX", "500MAX", 500))
+
+    def failed(self, pat, ardop="", refused=""):
+        self.poll(pat="2026/10/29 09:47:01 QSY ardop: 14107.7\n2026/10/29 09:47:04 Connecting to HB9MM (ardop)...")
+        if refused:
+            self.watch.outcome.refusal(refused)
+        k = self.poll(pat=pat, ardop=ardop)
+        self.assertEqual(k["last_result"], "failed")
+        self.assertEqual(len(self.notes()), 1)
+        return k
+
+    TIMEOUT = "2026/10/29 09:48:10 Unable to establish connection to remote: Connect timeout"
+
+    def test_no_answer(self):
+        k = self.failed(self.TIMEOUT, "[STATUS: CONNECT TO HB9MM FAILED]")
+        self.assertEqual(k["last_text"], "No answer from HB9MM on 14.107.700")
+        self.assertIn("500 or 200 Hz", k["last_next"])
+
+    def test_bandwidth_rejected(self):
+        k = self.failed(self.TIMEOUT, "[STATUS: ARQ CONNECTION REJECTED BY HB9MM, INCOMPATIBLE BW.]")
+        self.assertIn("refused the bandwidth", k["last_text"])
+        self.assertTrue(k["last_next"].startswith("Choose 500 Hz"))
+
+    def test_gateway_busy(self):
+        k = self.failed(self.TIMEOUT, "[STATUS: ARQ CONNECTION REJECTED BY HB9MM, REMOTE STATION BUSY.]")
+        self.assertEqual(k["last_text"], "HB9MM is busy with another station")
+
+    def test_another_stations_lines_left_out(self):
+        k = self.failed(self.TIMEOUT, "[STATUS: ARQ CONNECTION REJECTED BY DM6TS, INCOMPATIBLE BW.]")
+        self.assertEqual(k["last_text"], "No answer from HB9MM on 14.107.700")
+
+    def test_busy_channel(self):
+        k = self.failed("2026/10/29 09:47:05 Waiting for clear channel...\n"
+                        "2026/10/29 09:52:05 Unable to establish connection to remote: aborted while waiting for "
+                        "clear channel")
+        self.assertIn("stayed busy", k["last_text"])
+
+    def test_secure_login_failed(self):
+        k = self.failed("2026/10/29 09:47:23 Connected to HB9MM (ardop)\n;PQ: 76303167\nCMS via HB9MM >\n"
+                        "2026/10/29 09:47:40 Exchange failed: [1] Secure login failed - account password does not "
+                        "match. - Disconnecting (88.90.2.192)")
+        self.assertEqual(k["last_text"], "HB9MM refused the password")
+        self.assertIn("capitals", k["last_next"])
+
+    def test_link_dropped(self):
+        k = self.failed("2026/10/29 09:47:23 Connected to HB9MM (ardop)\nRemote accepted ABC123\n"
+                        "Transmitting [test] [offset 0]\n2026/10/29 09:49:00 Exchange failed: EOF",
+                        ESTABLISHED.format("HB9MM", 2000))
+        self.assertEqual(k["last_text"], "The link to HB9MM at 2000 Hz dropped (EOF)")
+        self.assertIn("500 or 200 Hz", k["last_next"])
+
+    def test_app_holding_the_radio(self):
+        k = self.failed(self.TIMEOUT, refused="FT8 is open, close it")
+        self.assertEqual(k["last_text"], "No answer from HB9MM: the radio did not transmit, FT8 is open, close it")
+        self.assertEqual(k["last_next"], "Close the app on the radio, then connect again")
+
+    def test_swr_hold(self):
+        k = self.failed(self.TIMEOUT, refused="an SWR trip less than 5 minutes ago")
+        self.assertIn("Check the antenna", k["last_next"])
+
+    def test_qsy_refused(self):
+        k = self.poll(pat="2026/10/29 09:47:01 QSY ardop: 14107.7\n"
+                          "2026/10/29 09:47:01 Unable to QSY: RPRT -9")
+        self.assertEqual(k["last_result"], "failed")
+        self.assertIn("could not tune", k["last_text"])
+
+    def test_session_and_browsers(self):
+        self.pat_status = {"connected": False, "dialing": True, "http_clients": ["192.168.1.30:51234"]}
+        k = self.poll()
+        self.assertEqual((k["session"], k["browsers"], k["service"]), ("dialing", 1, "running"))
+        self.wl.pat_status = lambda: None                # no answer within a second
+        self.assertEqual(self.poll()["session"], "unknown")
+        self.assertNotIn("last_result", self.poll())
+
+    def test_modem_follows_ardopcf(self):
+        self.assertEqual(self.poll()["modem"], "waiting")
+        self.assertEqual(self.poll(ardop="Audio socket /run/ardop.sock connected")["modem"], "ready")
+        self.assertEqual(self.poll(ardop="Audio socket /run/ardop.sock closed: the other end went away")["modem"],
+                         "waiting")
+
+    def test_waits_for_the_audio_until_ardopcf_is_on_it(self):
+        open(self.wl.ARDOP_SOCK, "w").close()            # the socket there, ardopcf not on it yet
+        self.wl.report(Running(), Running(), {"mycall": "ON6URE"}, {"modem": "waiting"})
+        self.assertIn("ARDOP waits for the radio's audio", read(self.wl.STATUS))
+        self.wl.report(Running(), Running(), {"mycall": "ON6URE"}, {"modem": "ready"})
+        self.assertIn("text=Running as ON6URE\n", read(self.wl.STATUS))
+
+
+class Tails(Root):
+    def test_whole_lines_trim_and_restart(self):
+        path = os.path.join(self.wl.RUN, "x.log")
+        with open(path, "w") as f:
+            f.write("from before\n")
+        t = self.wl.Tail(path)
+        self.assertEqual(t.lines(), [])
+        with open(path, "a") as f:
+            f.write("one\ntw")
+        self.assertEqual(t.lines(), ["one"])
+        with open(path, "a") as f:
+            f.write("o\n")
+        self.assertEqual(t.lines(), ["two"])
+        os.truncate(path, 0)
+        with open(path, "a") as f:
+            f.write("after the trim\n")
+        self.assertEqual(t.lines(), ["after the trim"])
+        t.again()
+        self.assertEqual(t.lines(), ["after the trim"])
 
 
 if __name__ == "__main__":
