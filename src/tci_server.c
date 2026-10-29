@@ -1290,14 +1290,12 @@ static void *capture_thread(void *arg) {
 static bool funnel_take(client_t *c) {
     if (remote_server_funnel_paused())
         return false;
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        client_t *o = &clients[i];
-        if (o == c || o->fd < 0 || !o->ws || !o->funnel)
-            continue;
-        if (o->up)
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        if (&clients[i] != c && clients[i].fd >= 0 && clients[i].funnel && clients[i].up)
             return false;
-        client_close(o);
-    }
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        if (&clients[i] != c && clients[i].fd >= 0 && clients[i].ws && clients[i].funnel)
+            client_close(&clients[i]);
     return true;
 }
 
