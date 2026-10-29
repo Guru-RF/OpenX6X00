@@ -85,8 +85,11 @@
       <li>The mailbox has no login of its own: anyone on the radio's network, and on your tailnet with Tailscale on, can read and send your mail and make the radio transmit. Turn Winlink off on a network you do not trust.</li>
       <li>The mailbox answers only to the radio's address or its own name, and refuses pages from other sites: a web page you happen to visit cannot use it through your browser.</li>
       <li>In the mailbox: Connect, ARDOP, then the gateway list (with your locator, the nearest first) gives each gateway's call and frequency. The radio tunes there in USB-D when Pat connects, and back afterwards.</li>
+      <li>Keep the mailbox open while Pat connects: it asks there whether to go ahead on a busy frequency, and for the password when none is set, and gives up when nobody answers.</li>
+      <li>Close the radio's digital apps (FT8, PSK, RTTY...) first: while one is open Winlink does not transmit or tune.</li>
+      <li>Start at 500 Hz: at the radio's few watts it connects where 2000 Hz does not. The bandwidth above is the widest, also for a gateway the list shows wider.</li>
       <li>The password is kept on the radio's system partition: not in the Backup, not on the Files page. A new card image asks for it again. The mail itself is on the SD card (<code>/mnt/winlink</code>) and stays.</li>
-      <li>Not tested yet: a real ARDOP session with a gateway on the air.</li>
+      <li>Sessions with gateways work: reported on an X6100 on 80 m and from the UK to Germany on 40 m, and an X6200 got as far as the login.</li>
     </ul>
   </div>
 </div>

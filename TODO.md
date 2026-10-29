@@ -75,7 +75,7 @@ bases, X6100 V1.1.9 and X6200 1.0.8, have no CESSB, and the X6200's no TX filter
 - **Maybe also, from the same chain**: r13's other TX options for the stock bases: TX filter (the X6200 has
   none), compressor shape, FM pre-emphasis, a TX equaliser. The band output gain stays base-side.
 
-## Winlink over HF: Pat with ARDOP on the radio, Mercury after (#18, #19)
+## Winlink over HF: Pat with ARDOP on the radio, Mercury and XARA (#18, #19, #43)
 
 Asked 2026-10-26 (issues #18 and #19). Winlink email from the radio alone, with a phone on its WiFi to read and
 write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
@@ -88,15 +88,30 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   while Winlink is on; the web configurator's Operating > Winlink sets the callsign and locator (the radio's by
   default), the Winlink password (root filesystem, 0600, never shown, not in the Backup) and the ARDOP bandwidth,
   and links Pat's mailbox on port 8080 ([manual](docs/MANUAL.md#winlink)).
-- **To find out on the air**: real ARQ sessions with an RMS gateway, not tried yet. Both radios' TX/RX
-  turnaround (ARQ wants it short: PTT to RF, RF off to RX audio); ardopcf's CPU and Pat's memory on the
-  X6100's A7 next to the GUI; levels; the RX filter for ARDOP's 200-2000 Hz; the TX watchdog and the SWR guard
-  while ARQ keys every few seconds. ardopcf's maintainer has stepped back (its README asks for forks), so fixes
-  may have to be ours.
-- **Mercury** (github.com/Rhizomatica/mercury, GPL-3.0, a separate process): faster OFDM with a VARA-style TCP
-  interface (Pat's VARA transport), a `pulse` backend, PTT left to the client. No Winlink RMS gateway runs it
-  (its README has no Winlink), so it is for station to station (Pat P2P) and HERMES networks: next, after
-  ARDOP has been on the air. VARA itself is closed and Windows-only: out.
+- **On the air, reported** (#18, #80): sessions with RMS gateways work (KM4GKD X6100 80 m, M7SVA 40 m UK to
+  DM6TS, a message each; EA5JTT's X6200 reached HB9MM and stopped at the unset password). M7SVA: the gateway
+  list's 2000MAX did not connect, 200 did: the page's bandwidth now caps the list's (Pat patch 0003; 200, 500,
+  1000, 2000 Hz, 500 the default).
+- **For the next release** (#43): the radio's state before a connection (/run/winlink/radio from the GUI, the
+  page's Before you connect card), the outcomes kept apart (service, modem, session, last connection with what to
+  do next, also in the mailbox's log through Pat patch 0004), no key while a digital app is open, a refused QSY
+  said, the SWR hold's minutes, where the password is set, the logs as a download, Funnel refused by Pat.
+- **Still to do on the bench / air**: the acceptance write-up for both radios (ARQ at 200, 500 and 2000;
+  turnaround; per-frame power and ALC with the shared level steady; split, a dial turned, the 30 s key limit and
+  an SWR trip at low power into a mismatch; CPU). A linearity check of ARDOP's multi-carrier frames
+  (TWOTONETEST, TXFRAME 4PSK.1000.100 and 16QAM.2000.100 into the dummy load) decides whether ARDOP needs a drive
+  below the FT8-learned level and whether to start ardopcf with `-H "FASTSTART FALSE"`. P2P listen stays off
+  (Pat's own setting is undone at each start) until it has its own refusal rules and an on-air P2P test.
+  ardopcf's maintainer has stepped back (its README asks for forks), so fixes may have to be ours.
+- **Mercury** (github.com/Rhizomatica/mercury, GPL-3.0, a separate process): being added, experimental: a second
+  Winlink modem next to ARDOP, one at a time, over the GUI's modem socket, pinned to v1.9.21, P2P listen off.
+  Mercury RMS gateways run (#18); its CPU on the X6100 is measured on the bench before it is offered. VARA itself
+  is closed and Windows-only: out.
+- **XARA** (github.com/x0rro/xara, a VARA-compatible modem in Rust, first release 2026-10-21; #18): a watch
+  item, not built. Watch it regularly: its fix for HF calls with an SSID (XARA issue #22, PR #23), the sound-card
+  clock drift that makes a VARA peer time out (XARA #20), its releases, and any takedown or statement by EA5HVK
+  (VARA's author). Implement it when it stabilises; earlier has no added value. Never its "registered" feature
+  (VARA's paid speed without a licence).
 
 ## WiFi: a static address, as Ethernet has (#17)
 

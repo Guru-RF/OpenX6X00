@@ -2369,7 +2369,7 @@ The menu has General and four groups:
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | Wavelog | every logged QSO to your Wavelog: URL, API key, station profile (one, or Automatic by the radio's callsign), connection test, Send now (writes `/mnt/field/wavelog.conf`, see [Wavelog](#wavelog)) |
-| | Winlink | Winlink email over HF with Pat and ARDOP: Enabled, callsign, locator, the Winlink password (write only), ARDOP bandwidth, the status and Open the mailbox (Pat's page on port 8080; writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
+| | Winlink | Winlink email over HF with Pat and ARDOP: Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), ARDOP bandwidth, the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV |
@@ -2675,8 +2675,15 @@ Connecting to a gateway:
     sent is the narrower of the two.
 - Pat listens before it calls: on a busy frequency it asks in the mailbox
   whether to go ahead.
+- Keep the mailbox open during a connection, on a phone too (a phone that
+  goes to sleep closes it): Pat asks there what it needs, whether to go
+  ahead on a busy frequency and the password when none is set, and gives up
+  when nobody answers (after a minute for the password). The Connections
+  card says in how many browsers the mailbox is open.
 - Lines in the mailbox's log that start with "OpenX6X00:" are the radio's:
-  what Pat cannot see itself, such as no password being set.
+  what Pat cannot see itself. No password set, a transmission or a QSY the
+  radio refused and why, the SWR hold, and how each connection ended with
+  what to do next.
 - The gateway asks for the password once its welcome is in (the line ending
   in `>`). With none set, Pat asks for it in the mailbox and gives up after a
   minute: "Exchange failed: context deadline exceeded", and the connection
@@ -2723,14 +2730,25 @@ Good to know:
   writes it each second while ARDOP is on its audio (the Before you connect
   card's).
 
-Tested on an X6200: the receive path, Pat's page and its guard, and ARDOP's
-ID frame on the air (1 W). Not tested yet: a real session with a gateway, and
-the X6100 on the air. Reports are welcome ([#18](https://github.com/Guru-RF/OpenX6X00/issues/18)).
+Sessions with gateways work, as reported on
+[#18](https://github.com/Guru-RF/OpenX6X00/issues/18): KM4GKD on an X6100,
+80 m to W4NWG, a message sent; M7SVA from the UK to DM6TS on 40 m, a message
+sent at 200 Hz (2000MAX did not connect); EA5JTT's X6200 reached HB9MM at
+2000MAX and stopped at the password, which was not set
+([#80](https://github.com/Guru-RF/OpenX6X00/issues/80)). Tested here: the
+receive path, Pat's page and its guard, ARDOP's ID frames on the air at 1 W
+(X6200) and its frames at 5 W into a dummy load (X6100). More reports are
+welcome on #18.
+
+Pat's own Settings has "Listen for inbound P2P traffic": the radio turns it
+off again each time Pat starts. Listening would make the radio transmit,
+unattended, on whatever frequency it is on.
 
 Pat (MIT, Martin Hebnes Pedersen LA5NTA) and ardopcf (MIT, Rick Muething, John
 Wiseman, Peter LaRue) come with the firmware: Pat with small changes (its page
-answers only to the radio's names, no calls home), ardopcf with its audio and
-PTT through the radio's GUI.
+answers only to the radio's names and never through Tailscale Funnel, no calls
+home, the Winlink page's ARDOP bandwidth as the widest, its log open to the
+radio's lines), ardopcf with its audio and PTT through the radio's GUI.
 
 ## Browser panel
 
