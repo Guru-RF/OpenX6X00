@@ -1,7 +1,8 @@
 #!/bin/sh
 #
 # OpenX6X00: Winlink, when it was turned on (/mnt/winlink.conf): x6100-winlink starts its supervisor in
-# the background, which keeps Pat and ardopcf running. After the GUI (S95), which owns the radio's audio.
+# the background, which keeps Pat and the modem (ardopcf, or Mercury) running. After the GUI (S95), which owns
+# the radio's audio.
 #
 
 case "$1" in
@@ -10,7 +11,7 @@ case "$1" in
     /usr/sbin/x6100-winlink && echo "OK"
     ;;
   stop)
-    # The supervisor stops Pat (a connection in progress ends first) and ardopcf; the setting stays on
+    # The supervisor stops Pat (a connection in progress ends first) and the modem; the setting stays on
     /usr/sbin/x6100-winlink stop
     ;;
   restart)

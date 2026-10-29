@@ -5,6 +5,7 @@ functions. Standard library only:
 
     python3 -B tools/winlink/winlink_test.py [-v]
 """
+import configparser
 import contextlib
 import importlib.machinery
 import importlib.util
@@ -74,6 +75,100 @@ class Bandwidth(Root):
         for bw in ("", "300", "2000MAX", "5000"):
             self.conf(enabled=1, mycall="ON6URE", bandwidth=bw)
             self.assertEqual(self.wl.wanted()["bandwidth"], 500, bw)
+
+
+WANT = {"mycall": "ON6URE", "locator": "JO20ab", "bandwidth": 500, "modem": "ardop", "mercury_bandwidth": 2300}
+
+
+class Modem(Root):
+    """modem=ardop|mercury and mercury_bandwidth: Pat's varahf, Mercury's settings and its start"""
+
+    def test_defaults(self):
+        self.conf(enabled=1, mycall="ON6URE")
+        self.assertEqual((self.wl.wanted()["modem"], self.wl.wanted()["mercury_bandwidth"]), ("ardop", 2300))
+        for modem, bw in (("vara", "2000"), ("", "2300MAX"), ("ARDOP", "")):
+            self.conf(enabled=1, mycall="ON6URE", modem=modem, mercury_bandwidth=bw)
+            self.assertEqual((self.wl.wanted()["modem"], self.wl.wanted()["mercury_bandwidth"]), ("ardop", 2300))
+
+    def test_varahf_reaches_pat(self):
+        for bw in (500, 2300, 2750):
+            self.conf(enabled=1, mycall="ON6URE", modem="mercury", mercury_bandwidth=bw)
+            want = self.wl.wanted()
+            self.assertEqual((want["modem"], want["mercury_bandwidth"]), ("mercury", bw))
+            self.wl.write_config(want, "")
+            cfg = self.pat_config()
+            self.assertEqual(cfg["varahf"], {"addr": "127.0.0.1:8300", "bandwidth": bw, "rig": "x6x00",
+                                             "ptt_ctrl": False})
+            self.assertEqual(cfg["listen"], [])                     # no P2P call answered
+            self.assertEqual(cfg["ardop"]["addr"], "127.0.0.1:8515")  # ARDOP's kept for a change back
+
+    def test_varahf_merged(self):
+        self.wl.write_config(dict(WANT), "")
+        cfg = self.pat_config()
+        cfg["varahf"].update(addr="localhost:9999", own_key=1)     # Pat's Settings page, or by hand
+        with open(self.wl.PAT_CONFIG, "w") as f:
+            json.dump(cfg, f)
+        self.wl.write_config(dict(WANT, modem="mercury"), "")
+        self.assertEqual(self.pat_config()["varahf"]["addr"], "127.0.0.1:8300")
+        self.assertEqual(self.pat_config()["varahf"]["own_key"], 1)
+
+    def ini(self):
+        ini = configparser.ConfigParser()
+        self.assertEqual(ini.read(self.wl.MERCURY_INI), [self.wl.MERCURY_INI])
+        return ini
+
+    def test_mercury_ini(self):
+        self.wl.write_mercury_ini(dict(WANT, modem="mercury"))
+        ini = self.ini()
+        self.assertEqual(dict(ini["main"]), {"ui_enabled": "false", "waterfall_enabled": "false",
+                                             "arq_tcp_base_port": "8300", "broadcast_tcp_port": "8100",
+                                             "callsign": "ON6URE"})
+        self.assertEqual(dict(ini["audio"]), {"tx_gain_db": "0.0", "tx_delay_ms": "10"})
+        self.assertEqual(ini["channel"]["busy_detect"], "false")
+        self.assertEqual(ini["tnc"]["keepalive_s"], "60")
+        self.assertEqual(ini["store"]["enabled"], "false")
+        self.wl.write_mercury_ini(dict(WANT, mycall=""))           # no callsign yet: Pat sends it
+        self.assertNotIn("callsign", self.ini()["main"])
+
+    def test_mercury_started(self):
+        """x6x00-mercury on the GUI's socket with its settings, no MERCURY_* test hook from outside, HOME in RAM"""
+        os.makedirs(os.path.dirname(self.wl.MERCURY), exist_ok=True)
+        with open(self.wl.MERCURY, "w") as f:
+            f.write('#!/bin/sh\necho "$@" > args\necho "${MERCURY_RX_DUMP-none} $HOME" > env\n')
+        os.chmod(self.wl.MERCURY, 0o755)
+        os.environ["MERCURY_RX_DUMP"] = "/tmp/dump"
+        self.addCleanup(os.environ.pop, "MERCURY_RX_DUMP", None)
+        mercury = self.wl.Program("Mercury (x6x00-mercury)", self.wl.MERCURY_LOG)
+        self.wl.start_mercury(mercury, dict(WANT, modem="mercury"))
+        mercury.proc.wait(10)
+        self.assertEqual(read(os.path.join(self.wl.RUN, "args")).split(),
+                         [f"SOCK:{self.root}/run/ardop.sock", "-C", self.wl.MERCURY_INI])
+        self.assertEqual(read(os.path.join(self.wl.RUN, "env")).split(), ["none", self.wl.RUN])
+        self.assertTrue(os.path.exists(self.wl.MERCURY_INI))
+
+    def test_status_names_the_modem(self):
+        self.wl.report(Running(), Running(), dict(WANT, modem="mercury"), {"modem": "waiting"})
+        st = read(self.wl.STATUS)
+        self.assertIn("text=Running as ON6URE; Mercury waits for the radio's audio (the GUI)\n", st)
+        self.assertIn("ardop=off\nmercury=running\n", st)
+        ardop = self.wl.Program("ARDOP (ardopcf)", self.wl.ARDOP_LOG)
+        ardop.failed("ARDOP (ardopcf) stopped (code 1)")
+        self.wl.report(Running(), ardop, dict(WANT), {"modem": "off"})
+        st = read(self.wl.STATUS)
+        self.assertIn("text=ARDOP (ardopcf) stopped (code 1); starting it again in 5 s\n", st)
+        self.assertIn("ardop=stopped\nmercury=off\n", st)
+
+    def test_modem_states(self):
+        modems = {"ardop": Running(alive=False), "mercury": Running()}
+        self.assertEqual(self.wl.modem_states(modems, "ardop"), {"ardop": "stopped", "mercury": "running"})
+        modems["mercury"] = Running(alive=False)
+        self.assertEqual(self.wl.modem_states(modems, "mercury"), {"ardop": "off", "mercury": "stopped"})
+
+    def test_turned_on_keeps_the_choice(self):
+        self.conf(enabled=0, mycall="ON6URE", modem="mercury", mercury_bandwidth=500)
+        self.wl.set_enabled(True)
+        self.assertEqual(read(self.wl.CONF), "enabled=1\nmycall=ON6URE\nlocator=\nbandwidth=500\nmodem=mercury\n"
+                                             "mercury_bandwidth=500\n")
 
 
 class Password(Root):
@@ -452,7 +547,7 @@ class PatStart(Root):
         with open(self.wl.PAT_OWN_LOG, "w") as f:
             f.write("2026/10/29 09:47:04 Connecting to HB9MM (ardop)...\n")
         pat = self.wl.Program("Pat", self.wl.PAT_LOG)
-        self.wl.start_pat(pat, {"mycall": "ON6URE", "locator": "JO20ab", "bandwidth": 500})
+        self.wl.start_pat(pat, dict(WANT))
         pat.proc.wait(10)
         self.assertEqual(read(self.wl.PAT_OWN_LOG + ".size").strip(), "0")
 
@@ -464,7 +559,7 @@ class LogDownload(Root):
         os.makedirs(self.wl.LIB)
         with open(self.wl.PASSWORD, "w") as f:
             f.write("PageSecret1\n")
-        self.wl.write_config({"mycall": "EA5JTT", "locator": "IM98", "bandwidth": 500}, "")
+        self.wl.write_config(dict(WANT, mycall="EA5JTT", locator="IM98"), "")
         cfg = self.pat_config()
         cfg.update(secure_login_password="PatSecret22", auxiliary_addresses=["EMCOMM-1:AuxSecret333", "N0CALL"])
         cfg["telnet"]["password"] = "TelnetSecret4"
