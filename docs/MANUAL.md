@@ -910,6 +910,15 @@ Up to v0.3.6 the X6200 also went up to 10 W and asked its base for that
 (issue #53). A setting saved above 8 W comes back as 8 W. The TX meter keeps
 its 0-10 W scale on both radios, so it shows what the radio measures.
 
+On battery the X6200 stops at 5 W, as Xiegu's own firmware (1.0.8) does. The
+radio follows the supply once it has been steady for 5 seconds (and once the
+battery readings count after power-on, see [low battery](#low-battery)). With
+PWR above 5 W when the supply goes, PWR comes down to 5 W and the radio says
+"TX power 5 W on battery". When the supply comes back PWR stays at 5 W: the
+top goes back to 8 W, turn it up yourself. On battery every way of setting
+PWR stops at 5 W: TCI's `drive` from 62 % up gives 5 W, and the browser panel's
+PWR goes back to 5 W. The X6100 has no battery limit.
+
 ### TX shift
 
 A band can transmit at a fixed distance from where it listens: an FM
@@ -2610,7 +2619,7 @@ centre Hz, u32 width Hz, u32 sequence}`, then one int8 dB per bin). `set NAME
 VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list),
 `agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1), `sql`, `rfg`
 (0-100), `vol` (0-55 on the X6100, 0-100 on the X6200), `pwr` (tenths of a watt: 1-100,
-1-80 on the X6200), `step`, `zoom` (1-8), `band`
+1-80 on the X6200, 1-50 there on battery), `step`, `zoom` (1-8), `band`
 (+1/-1), `vfo` (toggle), `filter LO HI`. A `set` the radio refuses is
 answered `err ...` (`err freq: locked (LOCK, or an app holds the
 frequency)`, `err freq: not a frequency this radio tunes`, `err NAME: the
@@ -2954,7 +2963,8 @@ program on the network tunes the radio, hears it and keys it.
   otherwise.
 - What it carries: `vfo`, `modulation` (lsb, usb, cw, cwr, am, nfm, digl,
   digu), `rx_filter_band`, `agc_mode`, `rit_enable` / `rit_offset`,
-  `drive` (TX power, 0-100 %: 0.1 W up to 10 W, 8 W on the X6200),
+  `drive` (TX power, 0-100 %: 0.1 W up to 10 W, 8 W on the X6200; on its
+  battery 5 W from 62 % up),
   `trx` (PTT; `trx:0,true,tci;` keys with the client's
   audio as the microphone), `rx_smeter` and `rx_channel_sensors` (the
   S-meter in dBm, after `rx_sensors_enable:true;`), `tx_sensors` (mic level,
