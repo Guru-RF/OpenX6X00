@@ -58,7 +58,8 @@ int band_plan_now(void);
 int band_plan_region(void);
 
 /* What Auto finds, whatever the setting is: the region (1, 2 or 3); how, unless NULL: "gps", "qth" or "call", with
- * the locator or the callsign it came from in at (size bytes), or "" when nothing tells (Region 1). Any thread */
+ * the locator or the callsign it came from in at (size bytes), "last" when nothing tells now and the radio had Region
+ * 2 or 3 last (the band list's region; at ""), or "" when nothing tells (Region 1). Any thread */
 int band_plan_auto(const char **how, char *at, size_t size);
 
 /* "Region 2", "US General" ("Auto" for 0) */

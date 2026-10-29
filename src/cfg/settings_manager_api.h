@@ -75,6 +75,9 @@ int cfg_bands_active_ids(int32_t *ids, int32_t *start, int32_t *stop, char (*nam
  * 40m SSB and 6m still on the edges of the region before take this one's (BandsTable::follow_region). The count of
  * rows changed. LVGL thread */
 int cfg_bands_follow_region(int region);
+/* The IARU region whose edges the band list's 160m, 80m, 40m SSB and 6m were last given (1, the defaults', until
+ * another region came): the last region the band plan had, for Auto when nothing tells now */
+int cfg_bands_region(void);
 
 // Copy active VFO (freq, mode, agc, att, pre) to inactive VFO.
 void cfg_band_vfo_copy(void);

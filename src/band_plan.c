@@ -235,7 +235,8 @@ static pthread_mutex_t cur_lock = PTHREAD_MUTEX_INITIALIZER;
 static atomic_uint     plan_gen;    /* one up with every change of the segments or the active bands */
 
 /* Where the radio is: the region Auto takes, whether a US plan has phone at 7.075-7.100 MHz, and how it is known
- * ("gps", "qth", "call", "" for not at all) and from what (the locator, the callsign) for Settings and the web page */
+ * ("gps", "qth", "call", "last" for the region it had last, "" for not at all) and from what (the locator, the
+ * callsign) for Settings and the web page */
 typedef struct {
     int         region;
     bool        pacific;
@@ -330,14 +331,28 @@ static bool locate(double *lat, double *lon, where_t *w) {
     return false;
 }
 
-/* Where the radio is; Region 1 when nothing tells. Auto never takes a US plan: the licence class cannot be known.
- * East longitudes in Region 2 are the far Aleutians, west of 130 W too */
-static void find_where(where_t *w) {
-    double lat, lon;
-    bool   known = locate(&lat, &lon, w);
+/* Nothing tells now (the GPS fix gone, no locator, no callsign): the region the radio had last, the one the band
+ * list's rows are on, so the strip and the rows agree; Region 1 when it never had another (it is the rows' defaults
+ * too: it says nothing) */
+static void where_last(where_t *w) {
+    w->region  = cfg_bands_region();
+    w->pacific = false;
+    w->how     = w->region != 1 ? "last" : "";
+    w->at[0]   = 0;
+}
 
-    w->region  = known ? itu_region(lat, lon) : 1;
-    w->pacific = known && (w->region != 2 || lon < -130 || lon > 0 || lat < 20);
+/* Where the radio is; false when nothing tells (where_last()). Auto never takes a US plan: the licence class cannot
+ * be known. East longitudes in Region 2 are the far Aleutians, west of 130 W too */
+static bool find_where(where_t *w) {
+    double lat, lon;
+
+    if (!locate(&lat, &lon, w)) {
+        where_last(w);
+        return false;
+    }
+    w->region  = itu_region(lat, lon);
+    w->pacific = w->region != 2 || lon < -130 || lon > 0 || lat < 20;
+    return true;
 }
 
 /* A band's own segment type, from its name as the presets are named ("40m CW", "20m SSB"); its last used mode
@@ -365,14 +380,17 @@ void band_plan_reload(void) {
     where_t        w;
     int            want = param_i_get(cfg_band_region);
 
-    find_where(&w);
-    int plan = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : w.region;
+    bool known = find_where(&w);
+    int  plan  = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : w.region;
 
-    /* The band list's region edges (80 m to 4 MHz in Region 2 and the US) before it is read. Auto's Region 1 for
-     * nothing known moves none: the callsign's country comes from a worker 0.1 s after the start, and the rows went
-     * from Region 2 to 1 and back at every start */
-    if (cfg_bands_follow_region(want > BP_PLAN_AUTO || w.how[0] ? region_of(plan) : 0)) {
+    /* The band list's region edges (80 m to 4 MHz in Region 2 and the US) before it is read. Auto with nothing to
+     * go by takes the region they are on, so it moves none (the callsign's country comes from a worker 0.1 s after
+     * the start: a Region 1 for that moment moved the rows from Region 2 to 1 and back at every start) */
+    if (cfg_bands_follow_region(region_of(plan))) {
         band_info_reload();
+    }
+    if (!known) {
+        where_last(&w);     /* a plan chosen by hand moved them: Auto would take its region now */
     }
     int  nb = cfg_bands_active_ids(ids, start, stop, names, BANDS);
     int  n  = plan_build(plan, w.pacific, list);

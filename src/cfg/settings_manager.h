@@ -132,7 +132,8 @@ class SettingsManager {
     Parameter<int32_t> p_band_region{"band_region", 0, 0, 7,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // The IARU region whose default edges the band list's 160m, 80m, 40m SSB and 6m were last given (the defaults
-    // in sql/params.sql are Region 1's): a region change moves only the rows still on these (cfg_bands_follow_region)
+    // in sql/params.sql are Region 1's): a region change moves only the rows still on these (cfg_bands_follow_region).
+    // Auto's region when nothing tells (band_plan.c)
     Parameter<int32_t> p_band_edges_region{"band_edges_region", 1, 1, 3,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // Zoom and step per mode (Settings > Display): on, each mode group keeps its own waterfall zoom and tuning
