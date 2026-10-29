@@ -2701,7 +2701,8 @@ Good to know:
 - The mailbox answers only to the radio's address and its own names
   (`x6100.local`, the Tailscale name, the short name on your tailnet), and refuses requests from the pages of
   other sites, so a web page you happen to visit cannot use it through your
-  browser. The configurator changes Winlink only when opened by those names
+  browser. It never answers a request that came from the internet through
+  Tailscale Funnel. The configurator changes Winlink only when opened by those names
   too. ARDOP and the radio's frequency control for Pat listen on 127.0.0.1,
   which Tailscale (userspace mode) also opens to your tailnet.
 - The password is kept on the radio's system partition (`/var/lib/winlink`),

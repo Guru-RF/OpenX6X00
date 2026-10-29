@@ -55,7 +55,9 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
 - `0001-http-guard.patch`: a guard around Pat's HTTP handler (`api/guard.go`, wrapped in
   `api.ListenAndServe`). Pat has no login, and a plain GET of `/api/connect` keys the
   transmitter, so a web page on another site could make the browser of anyone on the radio's
-  network do it. The Host header must be an IP address, `localhost`, the hostname,
+  network do it. Nothing that came through Tailscale Funnel, from the internet: tailscaled's serve
+  proxy marks such a request with a `Tailscale-Funnel-Request` header, and Pat stays on the
+  radio's network and the tailnet whatever is funneled by mistake. The Host header must be an IP address, `localhost`, the hostname,
   `<hostname>.local`, end in `.ts.net`, or be the radio's MagicDNS short name (the first part
   of `name=` in `/run/tailscale/status`: `x6200-1` while the tailnet still has an earlier
   card's machine as `x6200`), the names the web configurator takes (no DNS rebinding). For
