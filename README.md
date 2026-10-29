@@ -155,7 +155,7 @@ The patched X6100 base comes with its own instructions.
 | **Browser panel** | `http://x6100.local/panel` (`x6200.local` on an X6200): the radio worked natively from a phone, a tablet or a PC, portrait or landscape: the spectrum and the waterfall live (tap or drag to tune, pinch to zoom), the frequency, band, mode, step and zoom, every switch and level, the S-meter, the DX spots (tap to tune), the FT8 app (decodes, tap to answer, CQ, auto, hold), the CW decoder's text, a log entry, RX audio and the browser's microphone for TX, a light theme for the sun. What the closed phone app does, as a web page. |
 | **Browser remote** | `http://x6100.local/remote` (Remote > Screen in the web menu): the radio's screen live in any browser (up to three browsers at a time, the Panel and Screen pages together), every key and knob, RX audio and the browser's microphone for TX, a Picture choice (Sharp, Balanced, Fast) for a slow link, for the radio's own menus and apps. |
 | **Remote station** | A browser watches until it is paired with a six-digit code from the radio; one holds the control at a time (a browser, a TCI client or the radio itself). Sound and Mic go over the TCI server; the microphone needs the https page. A key pressed without the control offers Take control, and Speaker always off (Settings > Audio) keeps the speaker silent. |
-| **Tailscale** | The radio on your own tailnet, so a laptop or a phone with Tailscale reaches it from anywhere (the configurator, the Panel and Screen pages, TCI) with nothing opened on the router. Turned on in Settings > Wireless or Remote > Tailscale; the login is a code on the radio's screen or a link on the web page. Tailscale's own build is downloaded once (37 MB) and checked against a pinned checksum ([manual](docs/MANUAL.md#tailscale)). |
+| **Tailscale** | The radio on your own tailnet, so a laptop or a phone with Tailscale reaches it from anywhere (the configurator, the Panel and Screen pages, TCI) with nothing opened on the router. Turned on in Settings > Wireless or Remote > Tailscale; the login is a code on the radio's screen or a link on the web page. Tailscale's own build is downloaded once (37 MB) and checked against a pinned checksum ([manual](docs/MANUAL.md#tailscale)). Funnel puts the browser Panel alone on the internet, for browsers paired at home ([manual](docs/MANUAL.md#tailscale-funnel)). |
 | **Web configurator** | `http://x6100.local/` (mDNS, `x6200.local` on an X6200, or the radio's IP): bands, digital frequencies, memories, cluster, Field Ops, Wavelog, CW messages, macros, logs, files, a gallery, backup and restore, display, time, network name, Ethernet, TCI, the SSH keys (SSH takes keys only, no password), the update. No login; pages from other sites are refused. |
 | **TCI server** | The VFO-Knob and any TCI client on the network: tune, mode, filter, AGC, PTT, the meters and the audio both ways; the clients may be set to Listen only, all of them together. |
 
@@ -285,6 +285,15 @@ Everyone on your tailnet reaches the radio as if they were at home, and the web
 configurator has no login: share the radio only with people you would let in.
 Tailscale runs in userspace mode, its log upload is off, and the login stays on
 the radio. More in the [manual](docs/MANUAL.md#tailscale).
+
+**Tailscale Funnel** puts the browser Panel on the internet for devices without
+Tailscale, at `https://<name>.<tailnet>.ts.net/panel` (Settings > Wireless >
+TAILSCALE > Funnel, or Remote > Tailscale). Only the Panel and the Screen page
+go there, and only for browsers paired at home: pairing is refused from the
+internet, so a browser is paired on the home network and then gets its key
+for away with Use away from home on the Panel. The web configurator, TCI
+programs, the Winlink mailbox and SSH stay on your LAN and tailnet. Funnel
+names are listed in public certificate logs ([manual](docs/MANUAL.md#tailscale-funnel)).
 
 ## Where it comes from
 

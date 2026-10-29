@@ -27,7 +27,7 @@ Settings. Button and option names are written as the radio shows them.
 - [TCI server](#tci-server)
 - [Network name](#network-name)
 - [SSH](#ssh)
-- [Tailscale](#tailscale)
+- [Tailscale](#tailscale): [Tailscale Funnel](#tailscale-funnel)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
 - [Reference](#reference): [Bluetooth CAT connection](#bluetooth-cat-connection), [CI-V commands](#supported-ci-v-commands), [btcat-ctl](#btcat-ctl), [btaudio-ctl](#btaudio-ctl), [files on /mnt](#files-on-mnt)
@@ -740,7 +740,7 @@ the X6200 a screen recording does not raise it (see
 |---|---|
 | WIFI | power, status, IP, networks |
 | NETWORK NAME | the radio's name on the LAN, `x6100` by default: reachable as `<name>.local` (see [Network name](#network-name)) |
-| TAILSCALE | on/off, status, the radio's name and address on your tailnet, the login as a code to scan, Log out (see [Tailscale](#tailscale)) |
+| TAILSCALE | on/off, status, the radio's name and address on your tailnet, Funnel on/off with Public (the Panel's address on the internet, or what Funnel waits for), the login or the link that allows Funnel as a code to scan, Log out (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
 | ETHERNET | a USB Ethernet adapter: DHCP or a static address (see [Ethernet](#ethernet)) |
 
 WiFi/BT power switches the WiFi and Bluetooth chip (one chip for both): with
@@ -2640,7 +2640,9 @@ The radio worked natively from a browser: `http://x6100.local/panel` (the
 web configurator's Remote > Panel page). Not a picture of the radio's screen
 but the radio's own controls, laid out for a touch screen, on a phone, a
 tablet or a PC, portrait or landscape: what the closed phone app does, as a
-web page, nothing to install, any device with a browser.
+web page, nothing to install, any device with a browser. Away from home it
+works over Tailscale, and with [Tailscale Funnel](#tailscale-funnel) from a
+browser paired at home on any device.
 
 ![The Panel page on a tablet](screenshots/web_panel.png)
 
@@ -2834,16 +2836,25 @@ is paired once, with a code the radio shows:
    code on its screen for two minutes (Settings > General > BROWSER REMOTE >
    Pair code shows it again, and the card shows it too).
 2. Type the code and a name for the browser ("Kitchen phone", "Shack PC").
-   Three wrong tries burn the code; Pair asks for a new one.
+   Three wrong tries burn the code; Pair asks for a new one. A browser gets a
+   new code at most every 30 s, and after each burned code it waits twice as
+   long as the time before (1 min, 2, 4, up to an hour), with "Pairing paused"
+   on the radio's screen and in the dialog: guessing the six digits from a
+   browser would otherwise take less than an hour. Settings > General >
+   BROWSER REMOTE > Pair code gives a code at once and starts the waits over.
 3. The browser is paired: the bar shows its name, and it stays paired through
    reloads and restarts of either side (a token in the browser's storage,
    shared by the Panel and the Screen page). The radio keeps up to sixteen
-   paired browsers in `/mnt/remote_sessions.conf`.
+   paired browsers in `/mnt/remote_sessions.conf`, each as a hash (SHA-256)
+   of its token: the Files page hands out what is in `/mnt`, and a hash is no
+   use to whoever reads it. A file from before the hashes is converted at the
+   first start; the browsers paired before stay paired.
 
 The first browser ever paired is the admin: it operates the radio and manages
 the others (Sessions in the bar lists them, with their name, their address,
-whether they are connected now and when they were last seen; Revoke ends one
-at once, its open connections included). Every later browser is an operator:
+"via Funnel" for one last seen from the internet, whether they are connected
+now and when they were last seen; Revoke ends one at once, its open
+connections included). Every later browser is an operator:
 it operates the radio but manages nothing. A browser unpairs itself from its
 name in the bar. Settings > General > BROWSER REMOTE > Forget all revokes
 every browser at the radio, for a radio that changes hands or a code that
@@ -3036,6 +3047,12 @@ program on the network tunes the radio, hears it and keys it.
   unless someone is on the air; a browser that was operating sees "TCI
   client active" and takes control back on purpose (Pairing and control,
   under Browser panel).
+- Not on the internet: TCI has no login, so a connection through Tailscale
+  Funnel is refused, also from a funnel set up by hand (`tailscale funnel
+  50001`). The one exception is the browser Panel's own sound and microphone
+  from away, which gives a paired browser's key first and may then only set
+  its audio and key with it ([Tailscale Funnel](#tailscale-funnel)). A TCI
+  program away from home connects over Tailscale on that machine.
 - One transmission at a time: the client that keyed holds it, and its unkey
   or its leaving unkeys the radio, whoever has control by then. Another
   operating client's key meanwhile, also one sent while the first key is
@@ -3208,6 +3225,12 @@ Good to know:
 - Tailscale runs in userspace mode (the radio's kernel has no TUN device): it
   hands each incoming connection to the radio's own port. The radio itself
   cannot reach the other machines of the tailnet, and needs not.
+- It hands them to the radio's own address, 127.0.0.1, so what listens on
+  this radio only is open to the tailnet too while Tailscale runs: the hamlib
+  port of Winlink (4532, it tunes the radio), ardopcf's host ports (8515 and
+  8516, which can make it transmit while Winlink is on) and gpsd (2947, the
+  radio's position). Another reason to share the radio's machine only with
+  people you would let in at home.
 - Its log upload to Tailscale is off (`--no-logs-no-support`), and so is its
   DNS on the radio.
 - The login (the radio's key) is kept on the radio's root filesystem, out of
@@ -3229,6 +3252,89 @@ Good to know:
 
 The tailscaled program is Tailscale's own build (BSD-3-Clause), fetched from
 pkgs.tailscale.com; OpenX6X00 does not include it.
+
+### Tailscale Funnel
+
+Funnel puts the browser Panel on the internet, for a phone or a PC that does
+not run Tailscale (a work PC, a friend's tablet, a hotel's computer): the
+Panel and the Screen page at `https://<name>.<tailnet>.ts.net/panel`, with
+their sound and microphone, through Tailscale's relays, with nothing opened on
+your router. Only browsers paired at home get in.
+
+What goes on the internet, and what does not:
+
+- The Panel and the Screen page, as pages that tailscaled serves itself: the
+  web server writes them at its start into the radio's memory
+  (`/run/x6100-funnel`), without the menu and nothing of the configurator.
+  Any other address on that name leads to the Panel.
+- Their two sockets: the browser remote's (50002) and TCI (50001), which take
+  nothing from the internet, not even a greeting, before the key of a browser
+  paired at home, within 5 s; a wrong key closes the connection, and ten wrong
+  keys within ten minutes refuse Funnel for ten minutes (a note on the radio's
+  screen). Over TCI only the Panel's own audio and its key go, for a session
+  that may transmit; TCI programs cannot pair and do not come over Funnel.
+- Never: the web configurator (it has no login: every request from the
+  internet gets a 403, also through a funnel set up by hand), TCI programs,
+  Pat's mailbox, SSH, rigctld, ardopcf, gpsd.
+- At most two browsers come from the internet at once; the home network
+  always has two more. Sessions shows a browser from the internet with its
+  address there and "via Funnel"; the log says so too.
+
+Turning it on:
+
+1. Tailscale is on and Connected (above), and BROWSER REMOTE is on (Settings >
+   General).
+2. Settings > Wireless > TAILSCALE > Funnel on, or Remote > Tailscale >
+   Tailscale Funnel on the web configurator.
+3. The first time, your tailnet must allow it: HTTPS certificates and the
+   "funnel" node attribute (Tailscale's default policy gives it to its
+   members). Until it does, Public on the radio shows a code, and the web page
+   an Allow in Tailscale link: the admin console's own page that turns them on
+   for your tailnet (it needs MagicDNS on). Once allowed, the radio goes on by
+   itself.
+4. Public shows `https://<name>.<tailnet>.ts.net/panel`. The name can take up
+   to ten minutes to be found everywhere, and the first visit waits a few
+   seconds while tailscaled fetches its certificate.
+
+Getting a browser in (pair at home, use from anywhere):
+
+- Pairing is refused over Funnel. Pair the browser at home as always
+  ([Pairing and control](#pairing-and-control)), then, on the Panel at home,
+  press **Use away from home**: the radio makes that browser a key of its own,
+  "NAME (away)", with the same rights, and the page offers the link to the
+  Panel on the internet with the key in it, after `#`, which no server sees.
+  Open it in the same browser and keep the page (a bookmark): it takes the key
+  out of the address bar and remembers it. A new away key replaces the one
+  made before; Revoke in Sessions ends it, as any browser's. The key never
+  shows on the radio's screen, which any viewer may watch.
+- A device with Tailscale on can also open the same address over the tailnet
+  and pair there, as at home.
+- Opened without a key, the page says it is not paired for use away from
+  home, and stops trying.
+
+Good to know:
+
+- The name becomes public: Funnel needs an HTTPS certificate for it, and every
+  certificate is listed in public logs that scanners read, so anyone can find
+  the address. Only paired browsers get in, but pick a network name you do not
+  mind being seen.
+- You remain the control operator of every transmission from away, as your
+  licence requires: the Panel shows the radio's state, and PTT is held by the
+  button and let go when the link stalls.
+- Bandwidth: the sound takes about 50 kB/s each way, the spectrum about
+  15 kB/s, the Screen page's picture much more (Picture: fast helps).
+- While Funnel is on, port 443 on the tailnet is the Panel's (with a real
+  certificate); the configurator stays at `http://<name>/`, and its https page
+  is reached by the radio's address on the LAN.
+- The radio owns Funnel: a funnel set up by hand (`tailscale funnel ...`, the
+  command is not installed on the radio) is taken off the internet within a
+  minute, whether Funnel is on or off; serving to the tailnet alone stays.
+- It stays on through restarts, and after a new card image it comes back by
+  itself once Tailscale has its new login (the name may then be `x6200-1`
+  while the tailnet still has the old machine: remove it in the admin console).
+- Over SSH, `x6100-tailscale status` prints `funnel=` (off, starting, enable,
+  on, error) with `funnel_text=` and `public=`; `x6100-tailscale funnel on|off`
+  is the switch. Its setting is `funnel=0|1` in `/mnt/tailscale.conf`.
 
 ## Ethernet
 
