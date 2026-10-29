@@ -135,7 +135,8 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
 Reported 2026-10-27 (X6200, base 1.0.7, the H-22 that comes with the radio). The GUI knows the X6100 mic's codes
 only (the X6200 control library copied them from the X6100's; R1CBU's X6200 GUI notes list the hand mic as not
 working). On the H-22 only F1, the step keys, 1, 2 and F-INP work; F2, F3, HOME, the volume keys, 3-9, 0 and the
-dot do nothing. Every code the base reports is in the log now: `hand mic: key 0x.. (..)`.
+dot do nothing. Every code the base reports is in the log now: `hand mic: key 0x.. (..)` (none while a text
+window is open, which can hold a WiFi password).
 - **Next**: on the bench X6200 with its H-22, each key pressed once in order (F1 F2 F3, the step keys, HOME, the
   volume keys, A/B, MODE, V/M, 1-9, the dot, 0, F-INP, DWN and UP on the back), and once held; the codes read off
   the log.

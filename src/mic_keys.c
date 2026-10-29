@@ -13,7 +13,8 @@
  *
  * The codes are the X6100 mic's. The X6200's H-22 is another mic (F1-F3, HOME, the volume keys, A/B, three
  * columns of digits) and sends other codes for most of its keys, which are not known yet (#56): every code the
- * base reports goes into the log with the key it is taken for, so a press of each key gives the H-22's table. */
+ * base reports goes into the log with the key it is taken for, so a press of each key gives the H-22's table.
+ * Not while a text window is open: its text can be a WiFi password. */
 
 #include "mic_keys.h"
 
@@ -94,9 +95,13 @@ void hkey_put(uint32_t code) {
     while (i < sizeof(keys) / sizeof(keys[0]) && keys[i].code != code) {
         i++;
     }
-    /* Once per press: radio.c passes a code only when it changes */
-    LV_LOG_USER("hand mic: key 0x%02X (%s)", (unsigned)code,
-                i < sizeof(keys) / sizeof(keys[0]) ? keys[i].name : "unknown");
+    /* Once per press: radio.c passes a code only when it changes. None while a text window is open: the digits
+     * of a WiFi password typed on the mic would be in the log, which goes with bug reports (an unknown code too,
+     * once the H-22's table says which digit it is) */
+    if (!textarea_window_is_open()) {
+        LV_LOG_USER("hand mic: key 0x%02X (%s)", (unsigned)code,
+                    i < sizeof(keys) / sizeof(keys[0]) ? keys[i].name : "unknown");
+    }
     if (i == sizeof(keys) / sizeof(keys[0])) {
         cur.key = HKEY_UNKNOWN;
     } else if (keys[i].use != MIC_KEY && keys[i].code != RADIO_HKEY_FINP && textarea_window_is_open()) {

@@ -154,6 +154,8 @@ def main():
             "main screen, 0xE4: press 3, release 3; log: hand mic: key 0xE4 (3)",
             "main screen, 0x53: nothing; log: hand mic: key 0x53 (unknown)",
             "a list focused, 0xE2: typed 2; log: hand mic: key 0xE2 (2)",
+            "a text window open, 0xE1: typed 1 into the text window; log: nothing",
+            "a text window open, 0x53: nothing; log: nothing",
             "codes 0x01-0xFF: logged 255, known 25, unknown 230")).strip())
 
         fixture = work / "truncated.adi"
