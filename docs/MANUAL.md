@@ -2781,8 +2781,10 @@ Mercury with the radio's GUI as its sound card and PTT, as ardopcf has.
 It is experimental. Two stations connected and exchanged mail through it on a
 PC, each with the radio's own Winlink code and Pat, but it has not been on the
 air from a radio yet. It needs far more of the radio's processor than ARDOP:
-how much, and how warm the radio gets, is measured on the bench before a
-release.
+on an X6100, into a dummy load, about one of its four cores, the radio at
+39 % of its processor with Mercury listening (18 % with ARDOP) and at most
+51 % during calls, its receiver never falling behind. The X6100 has no
+temperature sensor to read. Not measured on an X6200 yet.
 
 Choosing it: on Operating > Winlink, the Station card's Modem, Mercury
 (experimental), and its bandwidth, then Save. One modem runs at a time, since
