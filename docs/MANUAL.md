@@ -99,7 +99,7 @@ The radio updates itself: Settings > Info > Update, or the Update page of the
 web configurator (System > Update).
 
 - Check asks GitHub for the latest release. Install downloads its update
-  bundle (the GUI, the web pages, the helpers and their data, about 10 MB),
+  bundle (the GUI, the web pages, the helpers and their data, about 14 MB),
   checks every file against the project's signature, puts the files in place
   with the previous ones kept, and restarts the radio software: the screen
   goes dark for a few seconds. Settings, logs and everything on the DATA
