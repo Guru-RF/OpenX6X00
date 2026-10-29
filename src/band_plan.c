@@ -165,6 +165,11 @@ static const struct {
 
 #define LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
+/* The IARU region of a plan (not Auto): the US is in Region 2 */
+static int region_of(int plan) {
+    return plan >= BP_PLAN_US_EXTRA ? 2 : plan;
+}
+
 /* The segments of plan (bp_plan_t, not Auto) into out, by start. The US ones for the class: what the class does
  * not have is BP_OUT, a Technician's below 10 m CW (97.307(f)(9)) but for the beacons; neighbours of one type
  * merged then */
@@ -343,7 +348,7 @@ void band_plan_reload(void) {
     int            plan   = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : region;
 
     /* The band list's region edges (80 m to 4 MHz in Region 2 and the US) before it is read */
-    if (cfg_bands_follow_region(plan >= BP_PLAN_US_EXTRA ? 2 : plan)) {
+    if (cfg_bands_follow_region(region_of(plan))) {
         band_info_reload();
     }
     int            nb     = cfg_bands_active_ids(ids, start, stop, names, BANDS);
@@ -429,6 +434,10 @@ int band_plan_now(void) {
     int plan = plan_id;
     pthread_mutex_unlock(&cur_lock);
     return plan;
+}
+
+int band_plan_region(void) {
+    return region_of(band_plan_now());
 }
 
 int band_plan_auto(const char **how, char *at, size_t size) {

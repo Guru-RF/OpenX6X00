@@ -36,8 +36,9 @@ const char *field_band_name(int band);
 /* Now (LVGL thread: it reads the cluster spots) */
 void field_bands(field_bands_t *b);
 
-/* A typical activation frequency of the band (field_band_of() index): CW or phone */
-int32_t field_band_freq(int band, bool cw);
+/* A typical activation frequency of the band (field_band_of() index): CW or phone, in the band plan's IARU region
+ * (1, 2 or 3; band_plan_region(), the US is 2) */
+int32_t field_band_freq(int band, bool cw, int region);
 
 /* "HIGH", "GOOD", "FAIR", "POOR", "-" for a level */
 const char *field_band_word(int level);

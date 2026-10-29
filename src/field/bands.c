@@ -78,13 +78,19 @@ void field_bands(field_bands_t *b) {
     }
 }
 
-int32_t field_band_freq(int band, bool cw) {
+int32_t field_band_freq(int band, bool cw, int region) {
     static const int32_t freq[FIELD_RBN_BANDS][2] = {
         {1810000, 1850000},   {3560000, 3760000},   {5355000, 5360000},   {7030000, 7118000},
         {10118000, 10118000}, {14060000, 14285000}, {18086000, 18130000}, {21060000, 21285000},
         {24906000, 24950000}, {28060000, 28400000}, {50060000, 50150000},
     };
-    return band >= 0 && band < FIELD_RBN_BANDS ? freq[band][cw ? 0 : 1] : 0;
+    if (band < 0 || band >= FIELD_RBN_BANDS) return 0;
+    /* Region 2 and the US: phone at 3.760 and 7.118 MHz is for Extra and Advanced, or not allowed (no phone below
+     * 7.125 in the US), so 3.860 and 7.200 there. 50.060 is among the 6 m beacons outside Region 1: 50.090 */
+    if (region == 2 && !cw && band == 1) return 3860000;
+    if (region == 2 && !cw && band == 3) return 7200000;
+    if (region >= 2 && cw && band == 10) return 50090000;
+    return freq[band][cw ? 0 : 1];
 }
 
 const char *field_band_word(int level) {
