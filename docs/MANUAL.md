@@ -2435,11 +2435,11 @@ Connecting to a gateway:
   while it is already transmitting, nor for 5 minutes after a high SWR
   stopped a Winlink transmission; the screen says so.
 - The TX level is the one the radio's digital apps share (see
-  [Digital-mode TX level](#digital-mode-tx-level)). It is judged from about
-  1.3 s into a frame, so a shorter frame leaves it as it is. Up to v0.3.6
-  ARDOP frames took the base's overshoot at keying for overdrive and pulled
-  the level down, frame after frame, until the power fell to a few tenths of
-  a watt within each frame. One or two FT8 transmissions bring it back.
+  [Digital-mode TX level](#digital-mode-tx-level)). It is first judged about
+  2 s into a frame (1.3 s for the base to settle, then half a second of
+  readings), so a shorter frame leaves it as it is. Up to v0.3.6 ARDOP frames
+  could pull the level down, frame after frame, until the power fell to a few
+  tenths of a watt (#66). One or two FT8 transmissions bring it back.
 - Winlink transmits only on the frequency the radio listens on, which is the
   gateway's once Pat has tuned there. This is checked as each transmission
   begins, on the band Pat's QSY brought (split and the [TX shift](#tx-shift)

@@ -101,6 +101,15 @@ static float tx_pwr(void) {
 
 bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, float base_gain,
                       tx_abort_fn_t abort, void *abort_ctx) {
+    /* The radio on the air already (a TCI session, the PTT): not a second transmission over it. With TCI audio
+     * keyed in the DIG modes too (#17), an app's slot could start inside a TCI transmission: both waveforms went
+     * out mixed, the TCI session ended under the app, and the app's audio went on into TCI's stream after it
+     * was freed. Winlink checks this itself (winlink.c on_air) */
+    if (radio_get_modem() || radio_get_state() != RADIO_RX) {
+        fprintf(stderr, "tx_player: the radio is on the air already, this transmission is not sent\n");
+        return false;
+    }
+
     float   pwr_w = tx_pwr();
     bool    own = own_w > 0.0f;
     /* The cap (RTTY and WeFax over 7 W) or an app's own power (WSPR's 0.2 W): the radio there for this transmission,
