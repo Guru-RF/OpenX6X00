@@ -17,9 +17,9 @@
 # The settings are in /mnt/winlink.conf (enabled=0|1, mycall=, locator=, bandwidth=500|2000), written by
 # the web page; an empty callsign or locator is the radio's own (Settings > General: callsign and QTH).
 # Pat's config.json holds the password, so it lives on the root filesystem (/var/lib/winlink/pat), where the
-# web pages cannot read it. It is merged, not written whole: our keys are set, every other one is kept,
-# since Pat's own Settings page edits the file too. The mailbox is on the DATA partition (/mnt/winlink/pat)
-# and survives a new card image; Pat's state and the logs are in RAM (/run/winlink).
+# web pages cannot read it. It is merged, not written whole: our keys are set (the password when the page has
+# one), every other one is kept, since Pat's own Settings page edits the file too. The mailbox is on the DATA
+# partition (/mnt/winlink/pat) and survives a new card image; Pat's state and the logs are in RAM (/run/winlink).
 #
 # Pat ends a connection in progress on SIGINT and stops on the next one; SIGTERM would kill it at once,
 # perhaps in the middle of a transmission. So Pat gets SIGINT, a wait, SIGINT, a wait, then SIGKILL.
@@ -234,8 +234,13 @@ def write_config(want, password):
                 v = cfg[name] = {}
             return v
 
-        cfg.update({"mycall": want["mycall"], "secure_login_password": password, "locator": want["locator"],
+        cfg.update({"mycall": want["mycall"], "locator": want["locator"],
                     "http_addr": f":{HTTP_PORT}", "listen": [], "version_reporting_disabled": True})
+        # The Winlink page's password; with none there, the one typed on Pat's own Settings page is kept. It was
+        # emptied at each start of Pat, which then asked for it in the mailbox when the gateway's challenge came and
+        # gave up after a minute: "Exchange failed: context deadline exceeded" (#80)
+        if password or not isinstance(cfg.get("secure_login_password"), str):
+            cfg["secure_login_password"] = password
         sub("hamlib_rigs")[RIG] = {"network": "tcp", "address": "127.0.0.1:4532", "VFO": ""}
         sub("ardop").update({"addr": f"127.0.0.1:{ARDOP_PORT}", "rig": RIG, "ptt_ctrl": False,
                              "beacon_interval": 0, "cwid_enabled": True,

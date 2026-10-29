@@ -2416,9 +2416,11 @@ Setting it up:
 4. Press Open the mailbox, or open `http://x6100.local:8080/` (`x6200.local`
    on an X6200, or the radio's address): Pat's own page, where you write and
    read your mail. Its Settings page has the rest of Pat's options. The
-   callsign, the password, the locator and the ARDOP and radio settings are
-   set again by the radio each time Pat starts: change those on the radio's
-   Winlink page, not in Pat.
+   callsign, the locator and the ARDOP and radio settings are set again by
+   the radio each time Pat starts, and so is the password once one is set on
+   the radio's Winlink page: change those there, not in Pat. A password typed
+   in Pat's Settings is kept while the Winlink page has none (up to v0.3.6 it
+   was emptied at Pat's next start, #80).
 
 Connecting to a gateway:
 
@@ -2472,6 +2474,10 @@ Connecting to a gateway:
     without a frequency waits that minute.
 - Pat listens before it calls: on a busy frequency it asks in the mailbox
   whether to go ahead.
+- The gateway asks for the password once its welcome is in (the line ending
+  in `>`). With none set, Pat asks for it in the mailbox and gives up after a
+  minute: "Exchange failed: context deadline exceeded", and the connection
+  ends. Set the password on the Winlink page.
 - The gateway list: the first time, Pat fetches it from winlink.org when the
   radio has internet, and keeps it on the SD card. Without internet it uses
   the list built into Pat (April 2026). Updating it needs the internet.
