@@ -286,6 +286,55 @@ BandInfoLoadResult BandsTable::get_by_freq(uint32_t freq) {
     return {BandInfo{}, NOT_FOUND};
 }
 
+/* The band list's rows whose defaults differ by IARU region (sql/params.sql has Region 1's): 80 m to 4 MHz and 40 m
+ * phone to 7.3 in Region 2 (and the US), 80 m to 3.9 in Region 3, 160 m from 1.8 and 6 m to 54 MHz outside Region 1.
+ * Without it 7.2-7.3 and 3.9-4.0 MHz were "Broadcast 41m" and "Broadcast 75m" for a Region 2 radio, in AM */
+static const struct {
+    int32_t     id;
+    const char *name;
+    uint32_t    edges[3][2];    /* Regions 1, 2, 3 */
+} region_bands[] = {
+    {1, "160m", {{1810000, 2000000}, {1800000, 2000000}, {1800000, 2000000}}},
+    {2, "80m", {{3500000, 3800000}, {3500000, 4000000}, {3500000, 3900000}}},
+    {4, "40m SSB", {{7040000, 7200000}, {7040000, 7300000}, {7040000, 7200000}}},
+    {12, "6m", {{50000000, 53900000}, {50000000, 54000000}, {50000000, 54000000}}},
+};
+
+/* Only a row with its id, name and edges as from has them changes: one edited on the web page stays as it is */
+int BandsTable::follow_region(int from, int to) {
+    sqlite3_stmt *stmt;
+    int           changed = 0;
+
+    if (from < 1 || from > 3 || to < 1 || to > 3 || from == to || !db_) return 0;
+    if (sqlite3_prepare_v2(db_, "UPDATE bands SET start_freq = ?, stop_freq = ? "
+                                "WHERE id = ? AND name = ? AND start_freq = ? AND stop_freq = ?", -1, &stmt, 0) != SQLITE_OK) {
+        LV_LOG_ERROR("Failed prepare follow_region statement: %s", sqlite3_errmsg(db_));
+        return 0;
+    }
+    for (const auto &b : region_bands) {
+        sqlite3_bind_int(stmt, 1, b.edges[to - 1][0]);
+        sqlite3_bind_int(stmt, 2, b.edges[to - 1][1]);
+        sqlite3_bind_int(stmt, 3, b.id);
+        sqlite3_bind_text(stmt, 4, b.name, -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 5, b.edges[from - 1][0]);
+        sqlite3_bind_int(stmt, 6, b.edges[from - 1][1]);
+        if (sqlite3_step(stmt) == SQLITE_DONE) {
+            changed += sqlite3_changes(db_);
+        } else {
+            LV_LOG_ERROR("Band %s not moved to Region %d: %s", b.name, to, sqlite3_errmsg(db_));
+        }
+        sqlite3_reset(stmt);
+    }
+    sqlite3_finalize(stmt);
+    if (changed) {
+        /* the band last looked up may have other edges now: 7.25 MHz is 40m SSB, no more Broadcast 41m */
+        std::lock_guard<std::mutex> cache_lock(last_band_mutex_);
+        last_band = BandInfo{BAND_UNDEFINED, "", 1, 0, BAND_INACTIVE};
+    }
+    LV_LOG_USER("Band list from Region %d to Region %d: %d rows", from, to, changed);
+    return changed;
+}
+
 BandInfoLoadResult BandsTable::next(int32_t cur_band_id, uint32_t cur_freq, bool up) {
     int           rc;
     sqlite3_stmt *stmt;

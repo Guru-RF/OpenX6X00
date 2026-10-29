@@ -105,10 +105,20 @@ def _check_tx_shift(band, shift, band_tx):
                       f"{_mhz(lo + shift)}-{_mhz(hi + shift)} MHz")
 
 
-def _check_overlap(band, others):
+def _inactive_broadcast(band, band_id):
+    """An inactive broadcast band of the list (ids 100-199): where an active band overlaps one, the radio takes the
+    active band (src/cfg/db.cpp), so 80m to 4 MHz over "Broadcast 75m" and 40m SSB to 7.3 over "Broadcast 41m", as
+    Region 2 and the US have them, are fine."""
+    return band_id is not None and 100 <= band_id <= 199 and not band["type"]
+
+
+def _check_overlap(band, others, band_id=None):
     lo, hi = band["start_freq"], band["stop_freq"]
     for other in others:
         a, b = other["start_freq"], other["stop_freq"]
+        if (band["type"] and _inactive_broadcast(other, other["id"])) or \
+                (other["type"] and _inactive_broadcast(band, band_id)):
+            continue
         if a < lo < b:
             raise Invalid(f'Start freq {lo} overlap with band "{other["name"]}"')
         if a < hi < b:
@@ -148,7 +158,7 @@ def update_band(con, band_id, data, band_tx=hf_tx):
     if old is None:
         raise Invalid(f"Band parameters with id={band_id} not found")
     others.remove(old)
-    _check_overlap(band, others)
+    _check_overlap(band, others, band_id)
     old_shift = old["params"].get("tx_shift", 0)
     shift = band["params"].get("tx_shift", old_shift)
     if shift != old_shift or (old["start_freq"], old["stop_freq"]) != (band["start_freq"], band["stop_freq"]):

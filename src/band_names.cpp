@@ -165,6 +165,11 @@ extern "C" lv_obj_t *band_info_init(lv_obj_t *parent) {
     return strip;
 }
 
+extern "C" void band_info_reload(void) {
+    bands = BandsTable::all_bands();
+    if (strip) lv_obj_invalidate(strip);
+}
+
 extern "C" void band_info_update(int32_t freq) {
     vfo = freq;
     lv_obj_invalidate(strip);

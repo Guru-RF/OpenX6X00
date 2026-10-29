@@ -5,6 +5,7 @@ The radio skips a band it cannot tune: 4m, 2m and 70cm only come with a transver
 X6200, the WR12 (Settings &gt; General, or Display here); 2m and 70cm with the WR12 are to receive only.
 A TX shift (kHz, 0 off) makes the radio transmit that far from where it listens, in split: an FM repeater's input,
 a QO-100 station's IF; only on a band the radio transmits on, and only where the whole band, shifted, still does.</p>
+<p class="sub" id="band_plan_line" hidden></p>
 
 <section class="dp-card">
 <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-bands"/></svg></span><div><h3>Band list</h3><p>Name, edges, default mode, TX shift and the Active flag</p></div><div class="dp-x"><button id="add_band" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add band</button></div></div>
@@ -21,6 +22,18 @@ a QO-100 station's IF; only on a band the radio transmits on, and only where the
 <script src="/static/js/edit_flow.js?v=2"></script>
 <script src="/static/js/list_editor.js?v=4"></script>
 <script>
+/* The band plan the radio uses (Settings > General > Band plan, or Display here): the region's edges of 160m, 80m,
+ * 40m SSB and 6m come with it */
+$.ajax({url: "/api/display", dataType: "json", success: function(d) {
+  if (!("band_region_now" in d)) return;
+  const names = ["Auto", "IARU Region 1", "IARU Region 2", "IARU Region 3", "US Extra", "US Advanced", "US General", "US Technician"];
+  const how = {gps: "the GPS", qth: "the locator", call: "the callsign"}[d.band_region_how];
+  const plan = d.band_region ? names[d.band_region] : "Auto, " + names[d.band_region_now] + (how ? " from " + how + " " + d.band_region_at : "");
+  $("#band_plan_line").text("Band plan on the radio: " + plan + " (Settings > General there, or Display here). The edges of 160m, 80m, " +
+    "40m SSB and 6m follow its region (80m to 4 MHz and 40m SSB to 7.3 MHz in Region 2 and the US, 80m to 3.9 MHz in Region 3), " +
+    "unless they were changed here.").prop("hidden", false);
+}});
+
 listEditor({
   table: "#band_list", add: "#add_band", url: "/api/bands",
   columns: [

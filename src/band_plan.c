@@ -4,6 +4,7 @@
 
 #include "band_plan.h"
 
+#include "band_names.h"
 #include "cfg/cfg_api.h"
 #include "dxcc.h"
 #include "gps.h"
@@ -340,6 +341,11 @@ void band_plan_reload(void) {
     int            region = find_region(&how, at, sizeof(at));
     int            want   = param_i_get(cfg_band_region);
     int            plan   = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : region;
+
+    /* The band list's region edges (80 m to 4 MHz in Region 2 and the US) before it is read */
+    if (cfg_bands_follow_region(plan >= BP_PLAN_US_EXTRA ? 2 : plan)) {
+        band_info_reload();
+    }
     int            nb     = cfg_bands_active_ids(ids, start, stop, names, BANDS);
     int            n      = plan_build(plan, list);
     /* The browser panel shows the active bands too: they count as a change of the plan */

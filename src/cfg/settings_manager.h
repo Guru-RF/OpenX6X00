@@ -131,6 +131,10 @@ class SettingsManager {
     // 2 or 3, 4-7 the US sub-bands of the Extra, Advanced, General or Technician licence
     Parameter<int32_t> p_band_region{"band_region", 0, 0, 7,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The IARU region whose default edges the band list's 160m, 80m, 40m SSB and 6m were last given (the defaults
+    // in sql/params.sql are Region 1's): a region change moves only the rows still on these (cfg_bands_follow_region)
+    Parameter<int32_t> p_band_edges_region{"band_edges_region", 1, 1, 3,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Zoom and step per mode (Settings > Display): on, each mode group keeps its own waterfall zoom and tuning
     // step, as it always did. Off, one zoom and one step for every mode (zoom_step_scope)
     Parameter<int32_t> p_zoom_step_per_mode{"zoom_step_per_mode", true, 0, 1,

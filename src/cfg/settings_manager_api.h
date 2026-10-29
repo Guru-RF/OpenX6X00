@@ -71,6 +71,9 @@ int32_t cfg_default_mode(int32_t freq);
 int cfg_bands_active(int32_t *start, int32_t *stop, char (*names)[16], int max);
 /* The same with the bands' ids (ids may be NULL) */
 int cfg_bands_active_ids(int32_t *ids, int32_t *start, int32_t *stop, char (*names)[16], int max);
+/* The band plan's IARU region (1, 2, 3; the US plans 2): the band list's 160m, 80m, 40m SSB and 6m still on the
+ * edges of the region before take this one's (BandsTable::follow_region). The count of rows changed. LVGL thread */
+int cfg_bands_follow_region(int region);
 
 // Copy active VFO (freq, mode, agc, att, pre) to inactive VFO.
 void cfg_band_vfo_copy(void);

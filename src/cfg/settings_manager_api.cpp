@@ -107,6 +107,15 @@ int cfg_bands_active_ids(int32_t *ids, int32_t *start, int32_t *stop, char (*nam
     return n;
 }
 
+int cfg_bands_follow_region(int region) {
+    int from = cfg_sm.p_band_edges_region.get();
+
+    if (region == from || region < 1 || region > 3) return 0;
+    int changed = BandsTable::follow_region(from, region);
+    cfg_sm.p_band_edges_region.set(region);
+    return changed;
+}
+
 void cfg_band_vfo_copy(void) {
     cfg_sm.cfg_band_vfo_copy();
 }
