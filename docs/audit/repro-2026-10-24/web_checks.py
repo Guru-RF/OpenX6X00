@@ -196,3 +196,73 @@ with tempfile.TemporaryDirectory(prefix='x6funnel-') as td:
         print(('ok   ' if got == want else 'FAIL ') + what + ': ' + got)
     print('Tailscale Funnel requests (#58): %d of %d cases as they should be' % (len(cases) - len(bad), len(cases)))
     assert not bad
+
+# Issue #58: the Funnel pages may connect to their own address alone. 'self' covers wss:// to it in today's browsers;
+# Safari before 16 takes 'self' for https only, so the pages name the address too once tailscaled has told it
+# (funnel_name, from x6100-tailscale's status file), and the web server writes them anew when it changes
+names = {'funnel_name', 'tailscale_status'}
+nodes = []
+for node in tree.body:
+    if isinstance(node, ast.FunctionDef) and node.name in names:
+        node.decorator_list = []
+        nodes.append(node)
+    elif isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id in (
+            'FUNNEL_NAME', 'TAILSCALE_STATUS', 'TAILSCALE_CONF') for t in node.targets):
+        nodes.append(node)
+named = {'re': re, 'os': os}
+exec(compile(ast.Module(body=nodes, type_ignores=[]), 'apps-funnel-name', 'exec'), named)
+base = (repo / 'webserver/src/x6100_webserver/views/funnel_base.html').read_text()
+csp = re.search(r'http-equiv="Content-Security-Policy" content="([^"]*)"', base).group(1)
+connect = [d for d in csp.split('; ') if d.startswith('connect-src')]
+
+
+def connect_src(host):
+    """The page's connect-src as bottle writes it for host ("": not known yet)"""
+    env = {'funnel_host': host} if host else {}
+    return re.sub(r'\{\{(.*?)\}\}', lambda m: str(eval(m.group(1), {'get': env.get, **env})), connect[0])
+
+
+main = ast.parse((repo / 'webserver/src/x6100_webserver/__main__.py').read_text())
+follow = [n for n in main.body if isinstance(n, ast.FunctionDef) and n.name == 'follow_funnel_name']
+seen, written = iter(['', 'x6200.tail1234.ts.net', 'x6200.tail1234.ts.net', 'x6200-1.tail1234.ts.net', '']), []
+
+
+def sleep(seconds):
+    if next(steps, None) is None:
+        raise StopIteration
+
+
+steps = iter(range(5))
+loop = {'time': SimpleNamespace(sleep=sleep), 'apps': SimpleNamespace(funnel_name=lambda: next(seen)),
+        'write_funnel_pages': lambda out_dir, name: written.append(name), 'FUNNEL_NAME_POLL': 5}
+exec(compile(ast.Module(body=follow, type_ignores=[]), 'main-follow', 'exec'), loop)
+try:
+    loop['follow_funnel_name']('/run/x6100-funnel', '')
+except StopIteration:
+    pass
+with tempfile.TemporaryDirectory(prefix='x6funnelname-') as td:
+    named['TAILSCALE_STATUS'] = str(Path(td) / 'status')
+    named['TAILSCALE_CONF'] = str(Path(td) / 'tailscale.conf')
+
+    def name_of(status):
+        Path(named['TAILSCALE_STATUS']).write_text(status)
+        return named['funnel_name']()
+
+    cases = [
+        ('the name from the status, as the address bar has it', name_of('state=running\nname=X6200.Tail1234.ts.net.\n'),
+         'x6200.tail1234.ts.net'),
+        ('no name yet (a login wanted)', name_of('state=login\nurl=https://login.tailscale.com/a/x\n'), ''),
+        ('a name that is no DNS name: none', name_of('state=running\nname=evil.example; connect-src *\n'), ''),
+        ('connect-src, the name known', connect_src('x6200.tail1234.ts.net'),
+         "connect-src 'self' wss://x6200.tail1234.ts.net"),
+        ('connect-src, no name yet', connect_src(''), "connect-src 'self'"),
+        ('one connect-src, no other wss: in the policy',
+         str(len(connect) == 1 and 'wss:' not in csp.replace(connect[0], '')), 'True'),
+        ('the pages written anew for each new name, not for none', ' '.join(written),
+         'x6200.tail1234.ts.net x6200-1.tail1234.ts.net'),
+    ]
+    bad = [c for c in cases if c[1] != c[2]]
+    for what, got, want in cases:
+        print(('ok   ' if got == want else 'FAIL ') + what + ': ' + got)
+    print('Tailscale Funnel pages\' policy (#58): %d of %d cases as they should be' % (len(cases) - len(bad), len(cases)))
+    assert not bad

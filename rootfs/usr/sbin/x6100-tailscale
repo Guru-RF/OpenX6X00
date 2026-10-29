@@ -26,14 +26,14 @@
 # stop, at shutdown) stops it and keeps the setting.
 #
 # Funnel (#58) puts https://<name>.<tailnet>.ts.net/panel on the internet: the Panel and the Screen page,
-# which the web server writes to FUNNEL_DIR at its start and tailscaled serves itself (no Python on the
-# internet), and their two sockets, which take nothing over Funnel before the token of a browser paired at
-# home. Nothing else: the web pages, TCI programs, Pat, SSH. It is set through tailscaled's local API, as
-# Tailscale's own command does (that command is not installed), and kept in tailscaled's state: at every
-# start, when the name or a port changes, and once a minute it is set again. The radio owns Funnel: a funnel
-# made by hand (tailscale funnel 50001, from a forum) is taken off the internet; serving to the tailnet
-# alone stays. While Funnel is on, port 443 on the tailnet is its own: the Panel there has a real
-# certificate, the configurator stays on http://<name>/.
+# which the web server writes to FUNNEL_DIR at its start and when the name in STATUS changes, and tailscaled
+# serves itself (no Python on the internet), and their two sockets, which take nothing over Funnel before
+# the token of a browser paired at home. Nothing else: the web pages, TCI programs, Pat, SSH. It is set
+# through tailscaled's local API, as Tailscale's own command does (that command is not installed), and kept
+# in tailscaled's state: at every start, when the name or a port changes, and once a minute it is set again.
+# The radio owns Funnel: a funnel made by hand (tailscale funnel 50001, from a forum) is taken off the
+# internet; serving to the tailnet alone stays. While Funnel is on, port 443 on the tailnet is its own: the
+# Panel there has a real certificate, the configurator stays on http://<name>/.
 #
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -73,7 +73,7 @@ RETRY = 60                            # s before a failed download or start is t
 UP_WAIT = 30                          # s for a new tailscaled to answer on its socket
 DROP_KB = 1024
 
-# Funnel (#58): the pages the web server writes at its start (x6100_webserver funnel_render), served by tailscaled
+# Funnel (#58): the pages the web server writes (x6100_webserver funnel_render), served by tailscaled
 FUNNEL_DIR = "/run/x6100-funnel"
 FUNNEL_FILES = ("favicon.ico", "css/base.css", "css/siimple-icons.css", "js/jquery-3.7.1.min.js",
                 "js/radio_link.js", "js/radio_session.js")

@@ -3478,8 +3478,10 @@ What goes on the internet, and what does not:
 
 - The Panel and the Screen page, as pages that tailscaled serves itself: the
   web server writes them at its start into the radio's memory
-  (`/run/x6100-funnel`), without the menu and nothing of the configurator.
-  Any other address on that name leads to the Panel.
+  (`/run/x6100-funnel`), without the menu and nothing of the configurator,
+  and again when the radio's name on the tailnet changes: the pages may
+  connect to that name alone. Any other address on that name leads to the
+  Panel.
 - Their two sockets: the browser remote's (50002) and TCI (50001), which take
   nothing from the internet, not even a greeting, before the key of a browser
   paired at home, within 5 s; a wrong key closes the connection, and ten wrong

@@ -316,15 +316,30 @@ def options():
     return p.parse_args()
 
 
-def write_funnel_pages(out_dir):
+FUNNEL_NAME_POLL = 5     # s between looks at the radio's name on the internet, for the Funnel pages
+
+
+def write_funnel_pages(out_dir, name):
     """The Panel and the Screen page as tailscaled serves them over Tailscale Funnel (#58, apps.funnel_render), at
     every start: they follow the pages of the version installed. In RAM (/run): written anew at each boot"""
     if not out_dir:
         return
     try:
-        apps.funnel_render(out_dir)
+        apps.funnel_render(out_dir, name)
     except (OSError, ValueError) as e:
         logging.error("Funnel: the pages for %s not written (%s)", out_dir, e)
+
+
+def follow_funnel_name(out_dir, name):
+    """The Funnel pages name the radio's address on the internet in what they may connect to (funnel_base.html):
+    tailscaled tells it once Tailscale is up, at boot after this server's start, and it changes with the radio's
+    name or the tailnet's. The pages are written anew when it does"""
+    while True:
+        time.sleep(FUNNEL_NAME_POLL)
+        now = apps.funnel_name()
+        if now and now != name:
+            name = now
+            write_funnel_pages(out_dir, name)
 
 
 def serve():
@@ -340,7 +355,10 @@ def serve():
     adopt_old_ssh_keys()
     follow_sshd_config()
     settings.FUNNEL_DIR = opts.funnel_dir
-    write_funnel_pages(opts.funnel_dir)
+    name = apps.funnel_name()
+    write_funnel_pages(opts.funnel_dir, name)
+    if opts.funnel_dir and not (opts.debug and "BOTTLE_CHILD" not in os.environ):   # not in the reloader's parent
+        threading.Thread(target=follow_funnel_name, args=(opts.funnel_dir, name), daemon=True).start()
     settings.HTTP_PORT = opts.port
     apps.app.run(server=ThreadedServer, host=opts.host, port=opts.port, debug=opts.debug, reloader=opts.debug)
 

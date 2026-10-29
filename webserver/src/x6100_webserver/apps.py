@@ -441,17 +441,27 @@ FUNNEL_FILES = ("favicon.ico", "css/base.css", "css/siimple-icons.css", "js/jque
                 "js/radio_link.js", "js/radio_session.js")
 
 
-def funnel_render(out_dir):
+FUNNEL_NAME = re.compile(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+")
+
+
+def funnel_name():
+    """The radio's name on the internet, <name>.<tailnet>.ts.net, as x6100-tailscale had it from tailscaled; "" while
+    there is none (Tailscale off, or not up yet at boot)"""
+    name = tailscale_status().get("name", "").rstrip(".").lower()
+    return name if FUNNEL_NAME.fullmatch(name) else ""
+
+
+def funnel_render(out_dir, name=""):
     """The two pages with funnel=True (funnel_base.html: no menu, no callsign, nothing of the configurator; their
-    sockets at wss://<name>/ws/remote and /ws/tci), and the files, written whole into a new folder that then takes
-    out_dir's place: a page of an older start never mixes with files of this one. A page that loads a file
-    tailscaled does not serve is said in the log"""
+    sockets at wss://<name>/ws/remote and /ws/tci, which their Content-Security-Policy names when name is known),
+    and the files, written whole into a new folder that then takes out_dir's place: a page of an older start never
+    mixes with files of this one. A page that loads a file tailscaled does not serve is said in the log"""
     tmp = out_dir + ".new"
     shutil.rmtree(tmp, ignore_errors=True)
     for sub in ("css", "js"):
         os.makedirs(os.path.join(tmp, "static", sub), mode=0o755)
     for view in ("panel", "remote"):
-        html = bottle.template(view, funnel=True)
+        html = bottle.template(view, funnel=True, funnel_host=name if FUNNEL_NAME.fullmatch(name) else "")
         loads = set(re.findall(r'(?:src|href)="/static/([^"?]+)', html))
         if loads - set(FUNNEL_FILES):
             raise ValueError(f"{view}.html loads {', '.join(sorted(loads - set(FUNNEL_FILES)))}, which Funnel does not "
