@@ -211,6 +211,11 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
         f.done -= 61
         s = step(f, st)
         check('the pages missing: error, nothing on the internet', s['funnel'] == 'error' and Fake.serve is None, s)
+        Fake.serve = by_hand()
+        s = step(f, st)
+        check('the pages missing: a funnel made by hand taken off meanwhile', s['funnel'] == 'error' and
+              'AllowFunnel' not in Fake.serve, Fake.serve)
+        Fake.serve = None
         (funnel_dir / 'panel.html').write_text('<!doctype html>')
         s = step(f, st)
         check('the pages there at the next poll: on', s['funnel'] == 'on')

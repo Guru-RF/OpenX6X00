@@ -463,6 +463,7 @@ def funnel_step(f, st):
                                                                  "Tailscale's admin console, Access controls")}
             return f.status
         if not all(os.path.isfile(os.path.join(FUNNEL_DIR, p)) for p in ("panel.html", "remote.html")):
+            serve_set(name, remote_port, tci_port, False)       # meanwhile no funnel, the radio's or by hand
             f.status = {"funnel": "error", "funnel_text": "The Panel's Funnel pages are missing: restart the web server"}
             f.done = 0.0                                        # looked for again at the next poll
             return f.status
