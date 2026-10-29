@@ -1056,10 +1056,17 @@ def secrets():
 
 def mask(text, hidden):
     """text with each of hidden as ***, and what else gives a password away: the one Pat prints for a new
-    account ("DO NOT LOSE YOUR PASSWORD: ...", app/app.go), and a secure login's answer to the gateway's ;PQ:"""
+    account ("DO NOT LOSE YOUR PASSWORD: ...", app/app.go), also wherever else it is, since Pat prints the whole
+    activation message above that line ("... you will be required to use 'K1CHN7' as your account password"), and
+    a quoted word in any sentence about a password, as Pat finds it there (app/account_activation.go), a secure
+    login's answer to the gateway's ;PQ:, and the password of a connect URL (telnet://CALL:pass@host)"""
+    hidden = sorted(set(hidden) | set(re.findall(r"DO NOT LOSE YOUR PASSWORD:\s*(\S+)", text)), key=len, reverse=True)
     for s in hidden:
         text = text.replace(s, "***")
     text = re.sub(r"(DO NOT LOSE YOUR PASSWORD:\s*)\S+", r"\1***", text)
+    text = re.sub(r"[^.!?\n]*password[^.!?\n]*",
+                  lambda m: re.sub(r"(['\"`])[a-zA-Z0-9]{6,12}(['\"`])", r"\1***\2", m.group(0)), text, flags=re.I)
+    text = re.sub(r"(://[^\s/:@]*:)[^\s/@]+@", r"\1***@", text)
     return re.sub(r"(;PR:\s*)\S+", r"\1***", text)
 
 

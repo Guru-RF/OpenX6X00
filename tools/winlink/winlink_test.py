@@ -444,19 +444,52 @@ class LogDownload(Root):
                     "DO NOT LOSE YOUR PASSWORD: NEWACCT9\n2026/10/29 09:56:00 login PageSecret1 / PatSecret22\n")
         with open(self.wl.EVENT_LOG, "w") as f:
             f.write(json.dumps({"what": "exchange", "auxiliary_addresses": ["EMCOMM-1:AuxSecret333"]}) + "\n")
+            f.write(json.dumps({"what": "connect", "operation": "connect telnet://EA5JTT:P2pSecret55@10.0.0.7:8774/"})
+                    + "\n")
         with open(self.wl.ARDOP_LOG, "w") as f:
             f.write(ESTABLISHED.format("HB9MM", 2000) + "\n")
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             self.assertEqual(self.wl.cmd_logs(), 0)
         text = out.getvalue()
-        for secret in ("PageSecret1", "PatSecret22", "AuxSecret333", "TelnetSecret4", "NEWACCT9", "81234567"):
+        for secret in ("PageSecret1", "PatSecret22", "AuxSecret333", "TelnetSecret4", "NEWACCT9", "81234567",
+                       "P2pSecret55"):
             self.assertNotIn(secret, text)
+        self.assertIn("telnet://EA5JTT:***@10.0.0.7:8774/", text)
         self.assertIn("DO NOT LOSE YOUR PASSWORD: ***", text)
         self.assertIn(";PR: ***", text)
         self.assertIn("Exchange failed: context deadline exceeded", text)
         self.assertIn("==== ardopcf: /run/winlink/ardopcf.log\n[STATUS: ARQ CONNECTION ESTABLISHED WITH HB9MM", text)
         self.assertIn("==== the radio (the GUI): /run/winlink/radio\n(none)", text)
+
+
+    # Pat prints a new account's activation message whole, the password in it, above its DO NOT LOSE line
+    # (app/app.go, the message as app/account_activation.go has it)
+    ACTIVATION = ("\n========== Your New Winlink Account ==========\nA new Winlink account for 'EA5JTT' has been "
+                  "activated. The next time you connect to a Winlink server or gateway you will be required to use "
+                  "'K1CHN7' as your account password (no quotes).\n\nPlease print and save this message in case you "
+                  "forget your password.\n" + "=" * 62 + "\n\n")
+
+    def logs(self, pat_log):
+        with open(self.wl.PAT_OWN_LOG, "w") as f:
+            f.write(pat_log)
+        with open(self.wl.PAT_LOG, "w") as f:
+            f.write(pat_log)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(self.wl.cmd_logs(), 0)
+        return out.getvalue()
+
+    def test_new_accounts_password_masked_everywhere(self):
+        text = self.logs(self.ACTIVATION + "DO NOT LOSE YOUR PASSWORD: K1CHN7\n\n")
+        self.assertNotIn("K1CHN7", text)
+        self.assertIn("A new Winlink account for 'EA5JTT' has been activated", text)
+        self.assertIn("required to use '***' as your account password", text)
+
+    def test_new_accounts_password_masked_when_pat_did_not_find_it(self):
+        text = self.logs(self.ACTIVATION)                        # no DO NOT LOSE line: Pat found no password
+        self.assertNotIn("K1CHN7", text)
+        self.assertIn("for 'EA5JTT' has been", text)              # a quoted word in another sentence stays
 
 
 class Tails(Root):
