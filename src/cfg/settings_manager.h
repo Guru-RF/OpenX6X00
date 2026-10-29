@@ -735,7 +735,8 @@ class SettingsManager {
     void on_mode_zoom_not_found();
 
     // Shared band-switch core: flush, rebind context, switch-time loads and
-    // recomputes. `implicit` selects whether the active VFO's freq+mode is kept.
+    // recomputes. `implicit`: the active VFO's frequency is kept, and the other VFO
+    // too unless the new band has split on (load_band_vfo).
     void switch_band(int new_band_id, bool implicit);
 
     // -- Context switching --
@@ -758,7 +759,7 @@ class SettingsManager {
     static void zoom_step_scope_cb(Subject *subj, void *user_data);
 
     // Switch-time band loads: never loads current_vfo; when `implicit` is true
-    // also keeps the active VFO's freq+mode (loads only the inactive VFO).
+    // the VFOs as load_band_vfo keeps them.
     void load_band_switch(int new_band_id, bool implicit);
 
     // Loads the four VFO params (vfoa_freq, vfoa_mode, vfob_freq, vfob_mode) in
@@ -770,7 +771,8 @@ class SettingsManager {
     //   - vfob_freq: NOT_FOUND -> current vfoa_freq; else clamped as vfoa_freq.
     //   - vfob_mode: NOT_FOUND/error -> current vfoa_mode.
     // Restored/clamped values are applied with set_quiet (no deferred write).
-    // When `implicit` the active VFO's freq+mode is skipped (kept, not loaded).
+    // When `implicit` the active VFO's frequency is kept and the other VFO keeps
+    // all it had, unless the new band has split on (then it is loaded as above).
     void load_band_vfo(int band_id, bool implicit);
 
     // Default mode for a band with none saved: default_mode(freq), AM in the broadcast bands

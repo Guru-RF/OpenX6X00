@@ -19,7 +19,8 @@ extern "C" {
 //   - Implicit switch: when a VFO frequency is tuned into a different band
 //     (via cp_fg_freq or the active p_band_vfo*_freq), an observer triggers a
 //     band switch. The active VFO's frequency that caused the switch is kept,
-//     but its mode/att/pre/agc are loaded from the new band.
+//     but its mode/att/pre/agc are loaded from the new band. The other VFO
+//     keeps all it had, unless the new band has split on.
 //   - Switch mode: the user changed the mode. Save pending mode writes and
 //     load the mode params for the new mode; not the zoom and the step while
 //     every mode shares them (p_zoom_step_per_mode off, zoom_step_scope).

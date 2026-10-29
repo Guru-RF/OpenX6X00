@@ -155,6 +155,13 @@ of the band list, from the frequency up or down.
 - A band with no mode saved opens in LSB under 10 MHz and USB above, USB on
   60 m; on the X6200 wide FM on FM broadcast, AM on the airband and NFM in
   what only the WR12 receives.
+- Tuned into another band (the knob from 7.040 in 40m SSB to 7.039 in 40m
+  CW, or a frequency from CAT, TCI, a spot or an app), the radio is on that
+  band: the VFO you tune keeps its frequency and takes the mode, ATT, PRE and
+  AGC last used there; the other VFO stays as it was. Where that band has
+  split on, the other VFO, the one the radio transmits on, comes from the
+  band, as with the band keys. Up to v0.3.6 the other VFO always came from
+  the new band: tuning A across 7.040 moved B.
 
 ### Receiving outside the ham bands
 
@@ -509,7 +516,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | callsign, QTH locator, Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, both VFOs live in the current band) |
+| STATION | callsign, QTH locator, Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)) |
