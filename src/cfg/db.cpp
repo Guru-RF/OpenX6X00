@@ -300,14 +300,20 @@ static const struct {
     {12, "6m", {{50000000, 53900000}, {50000000, 54000000}, {50000000, 54000000}}},
 };
 
-/* Only a row with its id, name and edges as from has them changes: one edited on the web page stays as it is */
+/* Only a row with its id, name and edges as from has them changes: one edited on the web page stays as it is. So
+ * does one whose new edges would overlap another band of the list but an inactive broadcast band (as the web page's
+ * check has it): a band of your own at 3.8-3.9 MHz keeps 80m at 3.8 */
 int BandsTable::follow_region(int from, int to) {
     sqlite3_stmt *stmt;
     int           changed = 0;
 
     if (from < 1 || from > 3 || to < 1 || to > 3 || from == to || !db_) return 0;
-    if (sqlite3_prepare_v2(db_, "UPDATE bands SET start_freq = ?, stop_freq = ? "
-                                "WHERE id = ? AND name = ? AND start_freq = ? AND stop_freq = ?", -1, &stmt, 0) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db_,
+                           "UPDATE bands SET start_freq = ?1, stop_freq = ?2 "
+                           "WHERE id = ?3 AND name = ?4 AND start_freq = ?5 AND stop_freq = ?6 AND NOT EXISTS "
+                           "(SELECT 1 FROM bands AS o WHERE o.id != ?3 AND o.start_freq < ?2 AND o.stop_freq > ?1 "
+                           "AND NOT (o.id BETWEEN 100 AND 199 AND o.type = 0))",
+                           -1, &stmt, 0) != SQLITE_OK) {
         LV_LOG_ERROR("Failed prepare follow_region statement: %s", sqlite3_errmsg(db_));
         return 0;
     }
