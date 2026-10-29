@@ -410,7 +410,8 @@ src/                     the GUI (x6100_gui): main screen, apps, settings, decod
   cfg/ params/           the settings (SQLite params.db) and their C/C++ API
   ft8/ js8/ wspr/ sstv/ wefax/ navtex/ cw_decoder/ cluster/ field/ qth/
   fonts/ widgets/        LVGL fonts and custom widgets
-third-party/             js8core (JS8Call's modem, GPL-3), wsprd (WSJT-X, GPL-3), cty.dat
+third-party/             js8core (JS8Call's modem, GPL-3), wsprd (WSJT-X, GPL-3), cty.dat, the Winlink
+                         modems ardopcf (MIT) and Mercury (GPL-3, with our x6x00-mercury)
 lvgl/ lv_drivers/        LVGL 8.3 (gdyuldin's NEON fork, a submodule) and its drivers
 webserver/               the web configurator (Python, bottle)
 rootfs/                  init scripts, helper scripts (x6100-update, x6100-field, x6100-pota-spots,
@@ -426,8 +427,9 @@ buildroot/               local-build.sh and Dockerfile (the image), br2_external
                          build.sh (the GUI alone with the buildroot toolchain)
 host/                    the GUI on a PC (SDL, stub radio)
 tools/                   screenshots/ (drive.py, grab.py, pull.py), update/ (the bundle),
-                         tci/ (the TCI server's host test), itu_region/ (the band plan's
-                         Auto region, a host test), icons/, logo/ and fonts/
+                         tci/ and winlink/ (the TCI server's and the Winlink modem socket's host
+                         tests), itu_region/ (the band plan's Auto region, a host test), icons/,
+                         logo/ and fonts/
 assets/                  the logo's fonts and marks
 docs/                    MANUAL.md, THEMES.md, MENUS.md, UPSTREAM_README.md, audit/,
                          screenshots/ (taken by script on an X6200)
@@ -440,7 +442,8 @@ docs/                    MANUAL.md, THEMES.md, MENUS.md, UPSTREAM_README.md, aud
 - [Themes](docs/THEMES.md): make your own.
 - [Menus](docs/MENUS.md): the icon grids, and how to get the text menus back.
 - [Screenshots](docs/screenshots/README.md): how they are taken.
-- [The TCI server's host test](tools/tci/README.md), the [ITU region's](tools/itu_region/itu_region_test.c) and the [PC build](host/README.md).
+- [The TCI server's host test](tools/tci/README.md), [the Winlink modems'](tools/winlink/README.md), the
+  [ITU region's](tools/itu_region/itu_region_test.c) and the [PC build](host/README.md).
 
 ## Licences
 
@@ -448,7 +451,11 @@ The GUI is LGPL-2.1-or-later ([LICENSE](LICENSE)); js8core and wsprd
 (vendored), the JS8 and WSPR code (`src/js8`, `src/js8_window.c`, `src/wspr`,
 `src/dialog_wspr.c`), JTTY (ported from WSJT-X by K1JT and the WSJT-X team,
 `src/jtty*`, `src/dialog_jtty.c`) and the PSK Reporter upload
-(`src/pskreporter.c`) are GPLv3, so the firmware image is GPLv3. The web
+(`src/pskreporter.c`) are GPLv3, so the firmware image is GPLv3. Mercury, the
+second Winlink modem (vendored in `third-party/mercury`, GPL-3.0-or-later, its
+FreeDV part LGPL-2.1, its iniparser, nanorq and oblas MIT, see its
+[UPSTREAM.md](third-party/mercury/UPSTREAM.md)), and `x6x00-mercury`, our program
+that links it, are GPL-3.0-or-later. ardopcf is MIT. The web
 server is LGPL-2.1 ([webserver/LICENSE](webserver/LICENSE)). Every file keeps
 the copyright notice of its authors.
 
@@ -463,8 +470,8 @@ Field Ops, Bands, the DX cluster, WSPR, SSTV TX, RTTY, WeFax TX, the CW
 keyboard, the Bluetooth work and the layer system; Hany El Imam (1KO125) the
 WeFax, NavTex and SSTV decoders; Jordan Sherer KN4CRD and the JS8Call
 contributors the JS8 engine; K1JT and K9AN wsprd (made a library by VA2GKA);
-K1JT and the WSJT-X team JTTY; SP2KMO the Bluetooth tab, PSK31, PSK63 and
-Olivia, the WSJT-X UDP output, the FT8 country and distance, and FT2
+K1JT and the WSJT-X team JTTY; Rafael Diniz and Rhizomatica's HERMES project
+the Mercury modem; SP2KMO the Bluetooth tab, PSK31, PSK63 and Olivia, the WSJT-X UDP output, the FT8 country and distance, and FT2
 (IU8LMC's mode); randal007 the PSK and Olivia merge, the Bluetooth scan and
 recovery, the JS8 map, the high-SWR guard and the digital-mode drive level;
 2E0JFS the Black Metal and Total Black themes. Libraries: LVGL, cJSON, FFTW,

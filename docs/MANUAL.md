@@ -3855,5 +3855,16 @@ copies the local GUI sources with `rsync -u`, so a newer file edited inside
 `build/build/x6100-gui-*/` survives a rebuild: always edit this repository,
 never the copy in the build tree.
 
+The Winlink modems are built by the GUI's CMake and installed with it, so
+the image and the update bundle carry them: ardopcf (`third-party/ardopcf`)
+and, experimental and not yet to be chosen on the Winlink page,
+`x6x00-mercury` (`third-party/mercury`: Mercury v1.9.21's daemon build and
+our program around it, which takes its audio and PTT through the GUI's
+modem socket). Pat is built outside, by `tools/pat/build.sh`. In the PC
+build both modems are built only when named (`cmake --build build-host
+--target ardopcf x6x00-mercury`); `tools/winlink` then tests the GUI's
+modem socket with them, Pat to Pat over Mercury included (see its
+README).
+
 The private tests and UI harnesses of the original author are not part of
 this repository.

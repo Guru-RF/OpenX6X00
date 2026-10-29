@@ -103,10 +103,20 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   below the FT8-learned level and whether to start ardopcf with `-H "FASTSTART FALSE"`. P2P listen stays off
   (Pat's own setting is undone at each start) until it has its own refusal rules and an on-air P2P test.
   ardopcf's maintainer has stepped back (its README asks for forks), so fixes may have to be ours.
-- **Mercury** (github.com/Rhizomatica/mercury, GPL-3.0, a separate process): being added, experimental: a second
-  Winlink modem next to ARDOP, one at a time, over the GUI's modem socket, pinned to v1.9.21, P2P listen off.
-  Mercury RMS gateways run (#18); its CPU on the X6100 is measured on the bench before it is offered. VARA itself
-  is closed and Windows-only: out.
+- **Mercury** (github.com/Rhizomatica/mercury, GPL-3.0-or-later): faster OFDM with a VARA-style TCP interface,
+  which Pat's varahf transport talks to. Some Winlink RMS gateways do run it, behind RMS Trimode's or BPQ32's
+  VARA driver: KO0OOO (its banner gives 7.101.5) and K7EK-10, seen in Mercury's issues (#162, #384, #442); only
+  Mercury 1.9.20 and later talk to each other. VARA itself is closed and Windows-only: out.
+  - **Built, experimental, not yet to be chosen**: v1.9.21 vendored as its daemon build (third-party/mercury, two
+    local patches: the TNC and broadcast ports on 127.0.0.1, VERSION answered with a VERSION line so Pat cannot
+    hang), linked into x6x00-mercury, which takes the audio and the PTT through the GUI's modem socket in its
+    protocol 2 (8000 Hz, keys of up to 40 s; ardopcf stays on protocol 1). In the image and the bundle.
+    tools/winlink tests it on the PC: Pat to Pat peer to peer over two stubbed radios.
+  - **Next**: the modem choice (ARDOP or Mercury, one at a time, P2P listening off by default) in x6100-winlink
+    and on Operating > Winlink, with the manual. Then the go/no-go on the bench X6100: Mercury's CPU next to the
+    GUI with `top -H` (idle with LISTEN off and on, and in a session; no "RX backlog" warnings), the temperature,
+    a 30-40 s key at up to 7 W, PTT to RF and unkey to RX audio, the drive level loop on OFDM. Then on the air:
+    P2P with a Mercury station, then a gateway once the Winlink account works.
 - **XARA** (github.com/x0rro/xara, a VARA-compatible modem in Rust, first release 2026-10-21; #18): a watch
   item, not built. Watch it regularly: its fix for HF calls with an SSID (XARA issue #22, PR #23), the sound-card
   clock drift that makes a VARA peer time out (XARA #20), its releases, and any takedown or statement by EA5HVK
