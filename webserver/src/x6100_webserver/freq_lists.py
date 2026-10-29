@@ -108,7 +108,8 @@ def _check_tx_shift(band, shift, band_tx):
 def _inactive_broadcast(band, band_id):
     """An inactive broadcast band of the list (ids 100-199): where an active band overlaps one, the radio takes the
     active band (src/cfg/db.cpp), so 80m to 4 MHz over "Broadcast 75m" and 40m SSB to 7.3 over "Broadcast 41m", as
-    Region 2 and the US have them, are fine."""
+    Region 2 and the US have them, are fine. An inactive band that is no broadcast band the radio never looks up, so
+    80m or 40m SSB with those edges may be made inactive too."""
     return band_id is not None and 100 <= band_id <= 199 and not band["type"]
 
 
@@ -116,8 +117,7 @@ def _check_overlap(band, others, band_id=None):
     lo, hi = band["start_freq"], band["stop_freq"]
     for other in others:
         a, b = other["start_freq"], other["stop_freq"]
-        if (band["type"] and _inactive_broadcast(other, other["id"])) or \
-                (other["type"] and _inactive_broadcast(band, band_id)):
+        if _inactive_broadcast(band, band_id) != _inactive_broadcast(other, other["id"]):
             continue
         if a < lo < b:
             raise Invalid(f'Start freq {lo} overlap with band "{other["name"]}"')
