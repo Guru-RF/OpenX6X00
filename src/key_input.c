@@ -22,6 +22,7 @@
 #include "lv_drivers/indev/evdev.h"
 #include "lv_drivers/indev/xkb.h"
 
+#include <fcntl.h>
 #include <glob.h>
 #include <linux/input.h>
 #include <stdio.h>
@@ -90,7 +91,18 @@ static bool has_letters(const char *path) {
     for (int k = KEY_Q; ok && k <= KEY_P; k++) {
         ok = BIT_SET(bits, k);
     }
-    return ok && BIT_SET(bits, KEY_SPACE);
+    if (!ok || !BIT_SET(bits, KEY_SPACE)) {
+        return false;
+    }
+    /* Letters: once opened, to be sure it can be (busy, going away), or it would replace the keyboard in use
+     * with one that reads nothing. Only keyboards get this far: a mouse is still never opened (#79) */
+    int fd = open(path, O_RDONLY | O_NONBLOCK);
+
+    if (fd < 0) {
+        return false;
+    }
+    close(fd);
+    return true;
 }
 
 /* The first device matching pattern that has letters, into path */
