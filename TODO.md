@@ -130,6 +130,19 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   (VARA's author). Implement it when it stabilises; earlier has no added value. Never its "registered" feature
   (VARA's paid speed without a licence).
 
+## X6200: the H-22 hand mic's keys (#56)
+
+Reported 2026-10-27 (X6200, base 1.0.7, the H-22 that comes with the radio). The GUI knows the X6100 mic's codes
+only (the X6200 control library copied them from the X6100's; R1CBU's X6200 GUI notes list the hand mic as not
+working). On the H-22 only F1, the step keys, 1, 2 and F-INP work; F2, F3, HOME, the volume keys, 3-9, 0 and the
+dot do nothing. Every code the base reports is in the log now: `hand mic: key 0x.. (..)`.
+- **Next**: on the bench X6200 with its H-22, each key pressed once in order (F1 F2 F3, the step keys, HOME, the
+  volume keys, A/B, MODE, V/M, 1-9, the dot, 0, F-INP, DWN and UP on the back), and once held; the codes read off
+  the log.
+- Then: an H-22 table for the X6200 (the X6100 keeps its mic's), the H-22's own keys (F3 next to F1 and F2 in
+  Settings > Keys, HOME to a frequency set in Settings as in Xiegu's app, the volume keys, A/B), the manual's hand
+  mic section per radio, and the H-22's codes in the harness (`mic-keys.c`).
+
 ## WiFi: a static address, as Ethernet has (#17)
 
 Asked 2026-10-26. Ethernet (Settings > ETHERNET, web System > Network) has DHCP or Static; a WiFi network has

@@ -148,6 +148,14 @@ def main():
         print("C08 WebSocket names (26 October audit, fixed), and Tailscale Funnel's requests (#58):\n" + command(
             [binary], env, contains=("29 of 29 cases as they should be",)).strip())
 
+        binary = work / "mic-keys"
+        command([*CC, *cflags, *san, HERE / "mic-keys.c", "src/mic_keys.c", *gc, "-o", binary], env)
+        print("#56 hand mic keys, every code into the log:\n" + command([binary], env, contains=(
+            "main screen, 0xE4: press 3, release 3; log: hand mic: key 0xE4 (3)",
+            "main screen, 0x53: nothing; log: hand mic: key 0x53 (unknown)",
+            "a list focused, 0xE2: typed 2; log: hand mic: key 0xE2 (2)",
+            "codes 0x01-0xFF: logged 255, known 25, unknown 230")).strip())
+
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")
         binary = work / "adif-input"

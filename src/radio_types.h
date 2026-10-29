@@ -45,7 +45,8 @@ typedef enum {
                                      * drive held once the power reaches the setting */
 } hw_cap_t;
 
-/* The hand mic's keys as the base reports them (mic_keys.c) */
+/* The hand mic's keys as the base reports them (mic_keys.c): the X6100 mic's codes. The X6200's library has the
+ * same ones, but its H-22 mic sends others for most keys (#56) */
 #define RADIO_HKEY_SPCH     0xC1
 #define RADIO_HKEY_TUNER    0xC2
 #define RADIO_HKEY_XFC      0xC4
