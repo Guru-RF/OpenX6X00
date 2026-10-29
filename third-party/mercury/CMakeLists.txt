@@ -63,3 +63,10 @@ target_link_libraries(mercury_daemon PUBLIC m pthread rt)
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_link_libraries(mercury_daemon PUBLIC atomic)
 endif()
+
+# x6x00-mercury: Mercury with the GUI's Winlink socket as its sound card and PTT (x6x00/, ours), in /usr/bin
+add_executable(x6x00-mercury x6x00/x6x00_mercury.c)
+set_target_properties(x6x00-mercury PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
+target_compile_options(x6x00-mercury PRIVATE -Wall -Wextra)
+target_link_libraries(x6x00-mercury PRIVATE mercury_daemon)
+install(TARGETS x6x00-mercury DESTINATION bin)

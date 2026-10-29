@@ -40,7 +40,10 @@ radio control, websocket server and GUIs, the vendored Hamlib and hidapi,
 
 `CMakeLists.txt` (the daemon build as a static library, part of the GUI's
 build, upstream's compile flags, the vendored iniparser in place of the
-system's, `-latomic` on 32-bit ARM) and this file are ours.
+system's, `-latomic` on 32-bit ARM), `x6x00/x6x00_mercury.c` (the program
+that links it: Mercury with the GUI's Winlink socket as its sound card and
+PTT, installed as `/usr/bin/x6x00-mercury`, GPL-3.0-or-later) and this file
+are ours.
 
 To take a newer version: unpack it, build the same source list (ours, in
 `CMakeLists.txt`, or upstream's `Makefile` for `libmercury_host.a`) with
