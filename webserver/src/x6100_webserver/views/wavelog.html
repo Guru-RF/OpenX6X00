@@ -81,7 +81,7 @@ var renderState = function(data) {
   const what = res === "ok" ? "nothing new" : res.replace(/^(ok|retry|error) (\d+ )?/, "");
   $("#state").text((data.queue ? data.queue + " QSO" + (data.queue === 1 ? "" : "s") + " waiting. " : "No QSO waiting. ") +
                    "Last run: " + (res ? data.last.time + ", " + what : "none yet"));
-  $("#sync").prop("disabled", !data.enabled);
+  $("#sync").data("on", data.enabled).prop("disabled", asking || !data.enabled);
 }
 
 const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
@@ -89,8 +89,20 @@ const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit
 var load = function() { $.get('/api/wavelog', {}, render); }
 load();
 
+/* Test connection, Load and Send now each run x6100-wavelog on the radio and wait for it: one at a time, their
+ * buttons off until the answer. Pressed again while Wavelog was slow to answer, each press started another helper
+ * beside the first, and the browser's few connections to the radio filled up with them (#73) */
+var asking = false;
+var asks = function(on) {
+  asking = on;
+  $("#test, #load").prop("disabled", on);
+  $("#sync").prop("disabled", on || !$("#sync").data("on"));
+}
+
 var post = function(url, data, done, statusId) {
   const ms = url === "/api/wavelog/sync" ? 345000 : 55000;   /* x6100-wavelog: 330 s for a sync, 40 s for the rest */
+  const helper = url !== "/api/wavelog";   /* Save and Remove don't wait for it */
+  if (helper) asks(true);
   $.ajax({
     url: url,
     type: "POST",
@@ -99,7 +111,8 @@ var post = function(url, data, done, statusId) {
     dataType: "json",
     timeout: ms,
     success: done,
-    error: function(xhr, why) { showStatus(statusId, x6100FailText(xhr, why, ms), true); }
+    error: function(xhr, why) { showStatus(statusId, x6100FailText(xhr, why, ms), true); },
+    complete: function() { if (helper) asks(false); }
   });
 }
 

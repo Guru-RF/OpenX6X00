@@ -1295,6 +1295,11 @@ def wavelog_run(cmd, form=None, timeout=330):
         r = subprocess.run([settings.WAVELOG_CMD, cmd], capture_output=True, text=True, timeout=timeout, env=env)
         lines = r.stdout.strip().splitlines()
         return lines[-1] if lines else f"error exit code {r.returncode}"
+    except subprocess.TimeoutExpired:
+        # The helper's own timeouts leave out the name lookup: a name the network's DNS never answers holds it
+        # past them. The page said "Wavelog: Command '['/usr/sbin/x6100-wavelog', 'test']' timed out after 40
+        # seconds" (#73)
+        return f"error no answer in {timeout} s: check the URL, and that the radio can reach that address"
     except (OSError, subprocess.SubprocessError) as e:
         return f"error {e}"
 
