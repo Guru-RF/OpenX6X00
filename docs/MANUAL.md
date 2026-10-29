@@ -426,7 +426,9 @@ Records the screen and the audio to an AVI file (MJPEG video, 800x480,
   transmission at your own Moni level (0 by default, so it is not recorded).
   The X6200's speaker shares the case with the built-in microphone, and a
   monitor at 30 went round through the microphone into the transmission, a
-  loud ringing on the air (issue #15).
+  loud ringing on the air (issue #15). On the X6100 the raised monitor can do
+  the same while you transmit in SSB with the built-in microphone (issue #72):
+  use a headset or the hand mic away from the speaker while recording.
 - File length: Settings > Audio > SCREEN REC > File length, 1 hour (default),
   45, 30, 15 or 5 minutes. When a file reaches that length it is closed and
   the recording goes on in a new file, named with the time it starts. Stop
