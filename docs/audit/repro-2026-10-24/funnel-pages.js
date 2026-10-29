@@ -136,6 +136,49 @@ const awayButton = p => [...p.doc.querySelectorAll('#ses button')].find(b => b.t
   check('Tailscale not connected: the switch waits (off)', sw.disabled);
 }
 
+/* ---- the Update page: a step back to a version before Funnel, refused while Funnel cannot be taken off ---- */
+{
+  const WHY = 'error not gone back: Funnel could not be made sure to be off (tailscaled: serve-config: HTTP 500 netMap is nil). ' +
+              'v0.3.6 knows nothing of Tailscale Funnel and would leave TCI and the browser remote on the internet without a key: ' +
+              'turn Funnel off first, or Tailscale, wait until it says Off, and try again';
+  const SAID = 'Failed: ' + WHY.slice(6);
+  const updatePage = () => {
+    const p = page('update.html');
+    let ids = 0;
+    p.ctx.setInterval = () => ++ids;                 /* the page keeps its poll's id, and tests it */
+    p.ctx.$.post = (url, data, cb) => { const r = p.$.ajax({url: url, type: 'POST', success: cb}); r.fail = () => r; return r; };
+    p.run(p.script, 'views/update.html');
+    p.$.requests.shift().ok({running: '0.3.7', job: {running: false, what: '', result: ''}});
+    return p;
+  };
+  const rstatus = p => p.doc.getElementById('rstatus');
+  {
+    const p = updatePage();
+    p.$('#rollback').trigger('click');
+    const post = p.$.requests.shift();
+    check('Update page: Go back asks the radio', post && post.type === 'POST' && post.url === '/api/update/rollback');
+    post.ok({running: '0.3.7', job: {running: false, what: 'rollback', result: WHY}});   /* refused before this answer */
+    check('a step back refused before the answer came: the reason and what to do shown', rstatus(p).textContent === SAID &&
+          rstatus(p).classList.contains('error'), rstatus(p).textContent.slice(0, 80));
+  }
+  {
+    const p = updatePage();
+    p.$('#rollback').trigger('click');
+    p.$.requests.shift().ok({running: '0.3.7', job: {running: true, what: 'rollback', result: ''}});
+    const working = rstatus(p).textContent;
+    p.eval('refresh()');                               /* the poll, once the wait for Funnel ran out */
+    p.$.requests.shift().ok({running: '0.3.7', job: {running: false, what: 'rollback', result: WHY}});
+    check('refused after the wait: "Working..." first, then the reason', working === 'Working...' && rstatus(p).textContent === SAID,
+          working + ' / ' + rstatus(p).textContent.slice(0, 60));
+  }
+  {
+    const p = page('update.html');
+    p.run(p.script, 'views/update.html');
+    p.$.requests.shift().ok({running: '0.3.6', job: {running: false, what: 'rollback', result: 'ok back to 0.3.6'}});
+    check('the page opened later: a job of before not shown as if just done', rstatus(p).textContent === '', rstatus(p).textContent);
+  }
+}
+
 const bad = results.filter(r => !r.ok).length;
 console.log(bad ? bad + ' funnel page case(s) WRONG' : 'All ' + results.length + ' funnel page cases as they should be (#58)');
 process.exitCode = bad ? 1 : 0;
