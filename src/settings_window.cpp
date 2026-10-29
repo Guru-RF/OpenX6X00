@@ -2878,14 +2878,16 @@ static uint8_t make_station_row(uint8_t row, const char *label, const char *val,
     return row + 1;
 }
 
-/* The band plan: IARU Region 1, 2 or 3, or the US sub-bands of a licence class; Auto names the region it takes */
+/* The band plan: IARU Region 1, 2 or 3, or the US sub-bands of a licence class; Auto names the region it takes.
+ * Four cells wide, out to the left of the column (the dropdowns run right to left, flat_ctl()): "Auto (Region 2)"
+ * was cut in three */
 static uint8_t make_band_region(uint8_t row) {
     std::string options = "Auto (" + std::string(band_plan_name(band_plan_auto(NULL, NULL, 0))) + ")";
 
     for (int i = BP_PLAN_AUTO + 1; i < BP_PLAN_COUNT; i++)
         options += std::string("\n") + band_plan_name(i);
     wl_row_label(row, "Band plan");
-    row_choice(row, 1, 1, SMALL_3, options.c_str(), cfg_sm.p_band_region.get(), int_choice_cb, &cfg_sm.p_band_region);
+    row_choice(row, 1, 1, SMALL_4, options.c_str(), cfg_sm.p_band_region.get(), int_choice_cb, &cfg_sm.p_band_region);
     return row + 1;
 }
 
