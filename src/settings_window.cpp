@@ -440,8 +440,10 @@ static void float_slider_cb(lv_event_t *e) {
     f->set(v);
 }
 
+/* The steps rounded, not cut off: 2.6 / 0.2 is 12.999999 in float, so a stored 2.6 opened on the step of 2.4 */
 static lv_obj_t * float_slider(lv_obj_t *cell, float val, float lo, float hi, lv_coord_t w, float_slider_t *f) {
-    return row_slider(cell, val / f->step, lo / f->step, hi / f->step, w, float_slider_cb, f, "%0.1f", val);
+    return row_slider(cell, lroundf(val / f->step), lroundf(lo / f->step), lroundf(hi / f->step), w,
+                      float_slider_cb, f, "%0.1f", val);
 }
 
 /* A spinbox of `digits` digits */
@@ -1042,8 +1044,10 @@ static void iq_offset_follow(Subject *subj, void *slider) {
     lv_event_send((lv_obj_t *)slider, LV_EVENT_VALUE_CHANGED, NULL);
 }
 
+/* Rounded to the step: cut off, a step up to 2.6 dB came back as 12.999999, so 2.4 again, and the band gain
+ * never got past +/-2.4 dB (issue #67) */
 static void dac_gain_follow(Subject *subj, void *slider) {
-    lv_slider_set_value((lv_obj_t *)slider, cfg_sm.p_band_dac_offset.get() / OUTPUT_GAIN_STEP, LV_ANIM_OFF);
+    lv_slider_set_value((lv_obj_t *)slider, lroundf(cfg_sm.p_band_dac_offset.get() / OUTPUT_GAIN_STEP), LV_ANIM_OFF);
     lv_event_send((lv_obj_t *)slider, LV_EVENT_VALUE_CHANGED, NULL);
 }
 
