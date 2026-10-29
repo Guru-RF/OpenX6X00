@@ -16,9 +16,10 @@ from the session's rate), the key limit of the hello (2 s: stopped after 2 s, th
 message on the screen), a key longer than the GUI allows (40 s), the hellos refused (a
 rate other than 8000 or 12000, no key, version 3: the connection is closed), messages
 before the hello (ignored), a second hello (ignored), a new connection replacing the
-old one, and the radio file the Winlink page reads (`build/radio` here): Winlink's cap
-of 7 W, and 5 W with the X6200 on its battery (`WL_PWR_MAX=5`, said in `cap_battery`).
-It prints `PROTO OK`.
+old one, a digital app opened during a key (`WL_APP`: the key stopped there, the next
+one refused until the app is closed), and the radio file the Winlink page reads
+(`build/radio` here): Winlink's cap of 7 W, and 5 W with the X6200 on its battery
+(`WL_PWR_MAX=5`, said in `cap_battery`). It prints `PROTO OK`.
 
 `make modems` runs `winlink_modems_test.py` with the real modems, in a network
 namespace of its own with loopback only (`unshare -rn`), so Pat reaches nothing

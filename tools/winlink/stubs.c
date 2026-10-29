@@ -13,6 +13,7 @@
  *                 (default 1000)
  *    WL_AIR_OUT   the other station's WL_AIR_IN: what this one transmits goes there, as the radio sends it
  *    WL_PWR_MAX   the top of PWR in W, default BOARD_PWR_MAX (the X6200's 8 W); 5 is the X6200 on its battery
+ *    WL_APP       a file: while it is there, its text is the digital app open (FT8...), else none is
  *  The receiver has a little noise under what it hears. The player keeps time as the low-latency stream does
  *  (100 ms queued), keys the radio for the whole of it and unkeys once the last sample is out.
  *
@@ -113,7 +114,22 @@ uint32_t      radio_caps(void) { return HW_CAP_TX_FILTER; }
 const char *channels_mode_name(int m) { return m == radio_mode_usb_dig ? "USB-D" : "USB"; }
 
 bool backlight_tick(void) { return true; }
-const char *main_screen_digital_app(void) { return NULL; }   /* no app open */
+
+/* WL_APP: the app open is the text of that file, none while there is no file. Asked from several threads */
+const char *main_screen_digital_app(void) {
+    static __thread char name[32];
+    const char          *path = getenv("WL_APP");
+    FILE                *f;
+    size_t               n;
+
+    if (!path || !*path || !(f = fopen(path, "r")))
+        return NULL;
+    n = fread(name, 1, sizeof(name) - 1, f);
+    fclose(f);
+    name[n] = 0;
+    return n ? name : NULL;
+}
+
 bool main_screen_freq_locked(void) { return false; }
 bool main_screen_mode_locked(void) { return false; }
 void main_screen_set_freq(uint64_t f) { freq.v = (int32_t)f; fprintf(stderr, "[stub] freq %d\n", freq.v); }

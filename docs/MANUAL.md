@@ -2624,8 +2624,10 @@ Connecting to a gateway:
 - Close the radio's digital apps first. While one is open (FT8, FT4, JS8,
   WSPR, PSK, Olivia, JTTY, RTTY, SSTV, WeFax, NavTex) it holds the radio's
   frequency, mode and audio: Winlink does not key ("Winlink: no TX, FT8 is
-  open, close it") and Pat's QSY is not made. Up to v0.3.6 a connection
-  without a QSY could key on the app's frequency, between its slots.
+  open, close it") and Pat's QSY is not made. One opened while Winlink
+  transmits stops that transmission ("Winlink: TX stopped, FT8 is open").
+  Up to v0.3.6 a connection without a QSY could key on the app's frequency,
+  between its slots.
 - When Pat's QSY is not made, the screen says why, where Pat's log only has
   "Unable to QSY": "Winlink: no QSY to 7.061.500 MHz, FT8 is open, close
   it", "..., the radio is on the air", "..., the frequency is locked (LOCK)"

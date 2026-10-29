@@ -449,20 +449,26 @@ static const char *mhz(char *s, size_t size, int32_t hz) {
     return s;
 }
 
-/* tx_player's abort, once a block, before it is played: the client gone, the key too long, or its frequency
- * left. Split turned on, a shift, XIT, the other VFO, the dial turned: the base sends the rest of it elsewhere */
+/* tx_player's abort, once a block, before it is played: the client gone, the key too long, a digital app opened, or
+ * its frequency left. Split turned on, a shift, XIT, the other VFO, the dial turned: the base sends the rest of it
+ * elsewhere. An app holds the radio's mode and audio as well, also one that opens on this frequency */
 static bool tx_abort(void *ctx) {
     (void)ctx;
-    bool    quit  = atomic_load(&ses.quit);
-    bool    limit = now_ms() - ses.key_ms > ses.key_limit_ms;
-    int32_t tx    = radio_tx_freq() + param_i_get(cfg_xit);
-    bool    moved = tx != ses.key_hz || cparam_i_get(cfg_fg_freq) != ses.key_hz;
+    bool        quit  = atomic_load(&ses.quit);
+    bool        limit = now_ms() - ses.key_ms > ses.key_limit_ms;
+    const char *app   = main_screen_digital_app();
+    int32_t     tx    = radio_tx_freq() + param_i_get(cfg_xit);
+    bool        moved = tx != ses.key_hz || cparam_i_get(cfg_fg_freq) != ses.key_hz;
 
-    if (!quit && !limit && !moved)
+    if (!quit && !limit && !app && !moved)
         return false;
     if (limit) {
         LV_LOG_WARN("winlink: keyed for %d s, unkeyed", (int)(ses.key_limit_ms / 1000));
         msg_schedule_text_fmt("Winlink: TX stopped after %d s", (int)(ses.key_limit_ms / 1000));
+    } else if (app && !quit) {
+        /* before the frequency: an app opening usually moves it too, and the app is what to close */
+        LV_LOG_WARN("winlink: %s opened, unkeyed", app);
+        msg_schedule_text_fmt("Winlink: TX stopped, %s is open", app);
     } else if (moved && !quit) {
         char f[16];
 
