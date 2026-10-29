@@ -3008,7 +3008,9 @@ here it is a web page, nothing to install.
 Where: the Remote link in the web configurator's menu. Settings > General >
 BROWSER REMOTE turns the server on and off (on by default) and shows who is
 watching; the web page offers to turn it on when it is off. The port is in
-`/mnt/remote.conf`. Up to three viewers at a time.
+`/mnt/remote.conf`. Up to four viewers at a time, the Panel and Screen pages
+together, two of them at most from the internet through
+[Tailscale Funnel](#tailscale-funnel).
 
 The screen is streamed even while the radio's panel is dark (Screen off after,
 Screen always off): a radio with its screen off, worked from the browser, is
