@@ -720,8 +720,9 @@ static uint8_t make_audio_gain(uint8_t row) {
     float rec  = params.rec_gain_db_f.x;
 
     wl_row_label(row, "Play, Rec gain");
-    row_slider(row_cell(row, 1, 3, SMALL_3), play, -10, 10, SMALL_3 - 95, play_rec_gain_cb, NULL, "%.1f", play);
-    row_slider(row_cell(row, 4, 3, SMALL_3), rec, -10, 10, SMALL_3 - 95, play_rec_gain_cb, (void *)1, "%.1f", rec);
+    /* rounded, not cut off: a codec level of -0.75 dB opens on -1 (as the TX Cal sliders, #67) */
+    row_slider(row_cell(row, 1, 3, SMALL_3), lroundf(play), -10, 10, SMALL_3 - 95, play_rec_gain_cb, NULL, "%.1f", play);
+    row_slider(row_cell(row, 4, 3, SMALL_3), lroundf(rec), -10, 10, SMALL_3 - 95, play_rec_gain_cb, (void *)1, "%.1f", rec);
     return row + 1;
 }
 
