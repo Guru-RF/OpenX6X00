@@ -245,8 +245,14 @@ At the top right the radio shows the charge and the time left:
   front: "~4h28".
 - Charging: the lightning sign with "66%  ~3h05", the time still needed to
   reach a full charge.
-- Charged and still on the external supply: "99%" with the power sign.
-- External supply only, no battery fitted: the external voltage, "12.1v".
+- On the external supply and not charging: the plug sign with the charge,
+  "100%" once charged, or with [Charger](#general-tab) set to Off or Shadow on
+  the X6200. (Up to v0.3.6 a charged battery showed the power sign after the
+  %, and the X6200 showed the lightning sign and a time to full whatever the
+  Charger setting, issue #33.)
+- External supply only, no battery fitted: the plug sign and the external
+  voltage, "12.1v". When the X6200's base reports no battery, a red cross in
+  place of the battery.
 - Just after power-on: nothing, for 15 to 20 seconds, while the base's first
   readings settle (see [low battery](#low-battery)).
 
@@ -549,10 +555,14 @@ Whether the base charges: External on the [Info tab](#info-tab), for example
 "12.1 V  charging".
 
 The X6200 with base 1.0.8 goes on reporting "charging" while the radio is on
-and a supply is connected, whatever the setting, so External says "charging"
-then (#33). The setting works all the same: measured by a user with the stock
-charger and the radio on, with Off the battery stayed at 7.8 V and 65 % for 42
-minutes, with On it went from 57 to 64 % in 45 minutes.
+and a supply is connected, whatever the setting (#33). The setting works all
+the same: measured by a user with the stock charger and the radio on, with Off
+the battery stayed at 7.8 V and 65 % for 42 minutes, with On it went from 57 to
+64 % in 45 minutes. So on the X6200 the radio takes the base's "charging" only
+with Charger On, as Xiegu's own firmware does: with Off or Shadow, External
+says "12.1 V" and the top right shows the plug sign with no time to full (up
+to v0.3.6 they said "charging" and showed the lightning sign). The X6100 shows
+what its base reports.
 
 Zone. Where: Settings > General > DATE / TIME > Zone. The change applies at
 once; summer time follows by itself where the zone has it. 24 zones, UTC then
