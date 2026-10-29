@@ -898,7 +898,7 @@ POWER, below Factory reset, has three lines:
 
 TX power (PWR) goes from 0.1 W to 10 W on the X6100, and to 8 W on the X6200:
 its rating on an external supply. The Power knob control, TX power on WLK 1,
-the browser panel's PWR, TCI's `drive` (100 % is 8 W) and CAT stop there.
+the browser panel's PWR, TCI's `drive` (100 % is the radio's top: 10 W, or 8 W on the X6200) and CAT stop there.
 Up to v0.3.6 the X6200 also went up to 10 W and asked its base for that
 (issue #53). A setting saved above 8 W comes back as 8 W. The TX meter keeps
 its 0-10 W scale on both radios, so it shows what the radio measures.
