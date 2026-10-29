@@ -619,13 +619,15 @@ Compressor on the X6200: its base has three levels, so the ratio chosen (Comp
 on the MFK 2:3 page) goes to the nearest of them: 2:1 and 3:1 as 2:1, 4:1 to
 7:1 as 4:1, 8:1 as 8:1; 1:1 (Off) is off. It is off by default on the X6200.
 
-TX monitor: Moni level (VOL 2:2 page, F1) plays your own transmission on the
-speaker. It is 30 by default on the X6100 and 0 on the X6200. The X6200's
-speaker and built-in microphone share the case: at 30 the microphone picked
-the monitor up and fed it back into the transmission, a loud ringing from the
-moment PTT was pressed in SSB (issue #15). A radio whose Moni level was never
-changed gets the new default with the update; a level you set stays. On the
-X6200 a screen recording does not raise it (see
+TX monitor: Moni level (VOL 2:2 page, F2) plays your own transmission on the
+speaker. It is 0 by default on both radios. At 30, the default in earlier
+releases, the microphone picked the monitor up and fed it back into the
+transmission: on the X6200, whose speaker and built-in microphone share the
+case, a loud ringing from the moment PTT was pressed in SSB (issue #15); on
+the X6100 a feedback loop on PTT and while an app sent its tones (issue #72).
+A radio whose Moni level was never changed gets the new default with the
+update; a level you set stays. To hear yourself again, turn it up there. On
+the X6200 a screen recording does not raise it (see
 [Screen recording](#screen-recording)).
 
 ### Wireless tab

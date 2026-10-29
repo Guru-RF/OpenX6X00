@@ -99,13 +99,10 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_imic{"imic", 30, 0, 50,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-#ifdef BOARD_X6200
-    /* The TX monitor off: the X6200's speaker and built-in microphone share the case, and at 30 the
-     * microphone took the monitor back into the transmission, a loud ringing on PTT in SSB (issue #15) */
+    /* The TX monitor off on both radios: at 30 the microphone took the monitor back into the transmission,
+     * a loud ringing on PTT in SSB on the X6200 (issue #15), and a feedback loop from the X6100's speaker
+     * on PTT and on an app's tones (issue #72) */
     Parameter<int32_t> p_moni{"moni", 0, 0, 100,
-#else
-    Parameter<int32_t> p_moni{"moni", 30, 0, 100,
-#endif
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_atu_enabled{"atu", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
