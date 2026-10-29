@@ -20,7 +20,7 @@
 
 #define WIDTH   800
 #define POOL    16      /* segments in view: a span is 100 kHz at most */
-#define MAX_SEG 96      /* the IARU table and the bands added to the band list */
+#define MAX_SEG 128     /* a plan (60 segments at most: US General) and the bands added to the band list */
 #define BANDS   48
 #define OPA     LV_OPA_80     /* the waterfall shows through a little, the labels stay readable */
 
@@ -32,8 +32,18 @@ typedef struct {
     bp_type_t type;
 } bp_seg_t;
 
-/* IARU Region 1, adjacent ranges of the same type merged */
-static const bp_seg_t plan[] = {
+/* The built-in plans, 160 m to 10 m and 6 m: our own reduction of the documents to the segment edges and one of our
+ * types each, adjacent ranges of the same type merged. From
+ *   IARU Region 1: the HF band plan effective from 16 Oct 2020, 6 m from the VHF plan
+ *   IARU Region 2: the band plan of September 2020 (re-issued in 2022 with typo fixes only)
+ *   IARU Region 3: the band plan R3-004 Rev. 2, November 2024
+ *   the US: 47 CFR Part 97 (FCC) 97.301, 97.303(h), 97.305 and 97.307(f) as of October 2026, 60 m as changed on
+ *   14 Jan 2026 (91 FR 1430), with the RTTY/data, packet and beacon windows of the ARRL band plan
+ * The same rules for all of them: CW where the plan has CW only; DIG for narrow band and digital modes without phone,
+ * and the "all modes, digimodes" bits between them and the beacon on 20, 17 and 15 m; BCN for beacons only; ALL where
+ * phone goes. 21120-21149 is CW in Regions 1 and 2 (narrow band modes, all modes in 500 Hz) */
+/* IARU Region 1 */
+static const bp_seg_t plan_r1[] = {
     {  1810000,  1838000, BP_CW  }, {  1838000,  1843000, BP_DIG }, {  1843000,  2000000, BP_ALL },
     {  3500000,  3570000, BP_CW  }, {  3570000,  3600000, BP_DIG }, {  3600000,  3800000, BP_ALL },
     {  5351500,  5354000, BP_CW  }, {  5354000,  5366000, BP_ALL }, {  5366000,  5366500, BP_DIG },  /* WRC-15 */
@@ -53,10 +63,135 @@ static const bp_seg_t plan[] = {
     { 50400000, 50500000, BP_BCN }, { 50500000, 52000000, BP_ALL },
 };
 
-static const theme_color_t colors[] = { TC_bp_cw, TC_bp_dig, TC_bp_ssb, TC_bp_bcn };
+/* IARU Region 2. 75 m phone to 4 MHz, 40 m to 7.3 MHz */
+static const bp_seg_t plan_r2[] = {
+    {  1800000,  1810000, BP_DIG }, {  1810000,  1839000, BP_CW  }, {  1839000,  1840000, BP_DIG },
+    {  1840000,  2000000, BP_ALL },
+    {  3500000,  3570000, BP_CW  }, {  3570000,  3600000, BP_DIG }, {  3600000,  4000000, BP_ALL },
+    {  5351500,  5354000, BP_CW  }, {  5354000,  5366000, BP_ALL }, {  5366000,  5366500, BP_DIG },
+    {  7000000,  7040000, BP_CW  }, {  7040000,  7050000, BP_DIG }, {  7050000,  7300000, BP_ALL },
+    { 10100000, 10130000, BP_CW  }, { 10130000, 10150000, BP_DIG },
+    { 14000000, 14070000, BP_CW  }, { 14070000, 14099000, BP_DIG }, { 14099000, 14101000, BP_BCN },
+    { 14101000, 14112000, BP_DIG }, { 14112000, 14350000, BP_ALL },
+    { 18068000, 18095000, BP_CW  }, { 18095000, 18109000, BP_DIG }, { 18109000, 18111000, BP_BCN },
+    { 18111000, 18120000, BP_DIG }, { 18120000, 18168000, BP_ALL },
+    { 21000000, 21070000, BP_CW  }, { 21070000, 21120000, BP_DIG }, { 21120000, 21149000, BP_CW  },
+    { 21149000, 21151000, BP_BCN }, { 21151000, 21450000, BP_ALL },
+    { 24890000, 24915000, BP_CW  }, { 24915000, 24929000, BP_DIG }, { 24929000, 24931000, BP_BCN },
+    { 24931000, 24990000, BP_ALL },
+    { 28000000, 28070000, BP_CW  }, { 28070000, 28190000, BP_DIG }, { 28190000, 28225000, BP_BCN },
+    { 28225000, 29700000, BP_ALL },
+    { 50000000, 50100000, BP_CW  }, { 50100000, 50400000, BP_ALL }, { 50400000, 50500000, BP_BCN },
+    { 50500000, 54000000, BP_ALL },
+};
+
+/* IARU Region 3: few parts for CW or data only, most are "CW, phone, digimodes". The beacons get 500 Hz either
+ * side; 80 m ends at 3.9 MHz, 40 m at 7.2 */
+static const bp_seg_t plan_r3[] = {
+    {  1800000,  1830000, BP_CW  }, {  1830000,  1840000, BP_DIG }, {  1840000,  2000000, BP_ALL },
+    {  3500000,  3535000, BP_CW  }, {  3535000,  3900000, BP_ALL },
+    {  5351500,  5354000, BP_CW  }, {  5354000,  5366000, BP_ALL }, {  5366000,  5366500, BP_DIG },
+    {  7000000,  7030000, BP_CW  }, {  7030000,  7200000, BP_ALL },
+    { 10100000, 10130000, BP_CW  }, { 10130000, 10150000, BP_DIG },
+    { 14000000, 14070000, BP_CW  }, { 14070000, 14099500, BP_DIG }, { 14099500, 14100500, BP_BCN },
+    { 14100500, 14350000, BP_ALL },
+    { 18068000, 18095000, BP_CW  }, { 18095000, 18109500, BP_DIG }, { 18109500, 18110500, BP_BCN },
+    { 18110500, 18168000, BP_ALL },
+    { 21000000, 21070000, BP_CW  }, { 21070000, 21149500, BP_DIG }, { 21149500, 21150500, BP_BCN },
+    { 21150500, 21450000, BP_ALL },
+    { 24890000, 24915000, BP_CW  }, { 24915000, 24929500, BP_DIG }, { 24929500, 24930500, BP_BCN },
+    { 24930500, 24990000, BP_ALL },
+    { 28000000, 28070000, BP_CW  }, { 28070000, 28190000, BP_DIG }, { 28190000, 28225000, BP_BCN },
+    { 28225000, 29700000, BP_ALL },
+    { 50000000, 50100000, BP_CW  }, { 50100000, 54000000, BP_ALL },
+};
+
+/* The US licence classes, from the most privileges to the fewest; Technician stands for Novice too */
+typedef enum { LIC_EXTRA, LIC_ADVANCED, LIC_GENERAL, LIC_TECH } lic_t;
+
+/* The US: what the FCC allows (phone or not, and for which class), the parts without phone split as the ARRL plan
+ * uses them. cls: the lowest class that has the segment. No phone below 7.125 MHz on the mainland, nor below 14.150
+ * and 21.200 MHz; 75 m phone from 3.6 (Extra), 3.7 (Advanced) and 3.8 MHz (General); 60 m: its 15 kHz and the four
+ * channels of 2.8 kHz around 5332, 5348, 5373 and 5405 kHz */
+static const struct {
+    int32_t   start, end;
+    bp_type_t type;
+    lic_t     cls;
+} plan_us[] = {
+    {  1800000,  1810000, BP_DIG, LIC_GENERAL  }, {  1810000,  1840000, BP_CW,  LIC_GENERAL  },
+    {  1840000,  1843000, BP_DIG, LIC_GENERAL  }, {  1843000,  2000000, BP_ALL, LIC_GENERAL  },
+    {  3500000,  3525000, BP_CW,  LIC_EXTRA    }, {  3525000,  3570000, BP_CW,  LIC_TECH     },
+    {  3570000,  3600000, BP_DIG, LIC_TECH     }, {  3600000,  3700000, BP_ALL, LIC_EXTRA    },
+    {  3700000,  3800000, BP_ALL, LIC_ADVANCED }, {  3800000,  4000000, BP_ALL, LIC_GENERAL  },
+    {  5330600,  5333400, BP_ALL, LIC_GENERAL  }, {  5346600,  5349400, BP_ALL, LIC_GENERAL  },
+    {  5351500,  5354000, BP_CW,  LIC_GENERAL  }, {  5354000,  5366000, BP_ALL, LIC_GENERAL  },
+    {  5366000,  5366500, BP_DIG, LIC_GENERAL  }, {  5371600,  5374400, BP_ALL, LIC_GENERAL  },
+    {  5403600,  5406400, BP_ALL, LIC_GENERAL  },
+    {  7000000,  7025000, BP_CW,  LIC_EXTRA    }, {  7025000,  7040000, BP_CW,  LIC_TECH     },
+    {  7040000,  7050000, BP_DIG, LIC_TECH     }, {  7050000,  7070000, BP_CW,  LIC_TECH     },
+    {  7070000,  7125000, BP_DIG, LIC_TECH     }, {  7125000,  7175000, BP_ALL, LIC_ADVANCED },
+    {  7175000,  7300000, BP_ALL, LIC_GENERAL  },
+    { 10100000, 10130000, BP_CW,  LIC_GENERAL  }, { 10130000, 10150000, BP_DIG, LIC_GENERAL  },
+    { 14000000, 14025000, BP_CW,  LIC_EXTRA    }, { 14025000, 14070000, BP_CW,  LIC_GENERAL  },
+    { 14070000, 14099500, BP_DIG, LIC_GENERAL  }, { 14099500, 14100500, BP_BCN, LIC_GENERAL  },
+    { 14100500, 14112000, BP_DIG, LIC_GENERAL  }, { 14112000, 14150000, BP_CW,  LIC_GENERAL  },
+    { 14150000, 14175000, BP_ALL, LIC_EXTRA    }, { 14175000, 14225000, BP_ALL, LIC_ADVANCED },
+    { 14225000, 14350000, BP_ALL, LIC_GENERAL  },
+    { 18068000, 18095000, BP_CW,  LIC_GENERAL  }, { 18095000, 18109500, BP_DIG, LIC_GENERAL  },
+    { 18109500, 18110500, BP_BCN, LIC_GENERAL  }, { 18110500, 18168000, BP_ALL, LIC_GENERAL  },
+    { 21000000, 21025000, BP_CW,  LIC_EXTRA    }, { 21025000, 21070000, BP_CW,  LIC_TECH     },
+    { 21070000, 21110000, BP_DIG, LIC_TECH     }, { 21110000, 21149500, BP_CW,  LIC_TECH     },
+    { 21149500, 21150500, BP_BCN, LIC_TECH     }, { 21150500, 21200000, BP_CW,  LIC_TECH     },
+    { 21200000, 21225000, BP_ALL, LIC_EXTRA    }, { 21225000, 21275000, BP_ALL, LIC_ADVANCED },
+    { 21275000, 21450000, BP_ALL, LIC_GENERAL  },
+    { 24890000, 24915000, BP_CW,  LIC_GENERAL  }, { 24915000, 24929500, BP_DIG, LIC_GENERAL  },
+    { 24929500, 24930500, BP_BCN, LIC_GENERAL  }, { 24930500, 24990000, BP_ALL, LIC_GENERAL  },
+    { 28000000, 28070000, BP_CW,  LIC_TECH     }, { 28070000, 28150000, BP_DIG, LIC_TECH     },
+    { 28150000, 28190000, BP_CW,  LIC_TECH     }, { 28190000, 28300000, BP_BCN, LIC_TECH     },
+    { 28300000, 28500000, BP_ALL, LIC_TECH     }, { 28500000, 29700000, BP_ALL, LIC_GENERAL  },
+    { 50000000, 50060000, BP_CW,  LIC_TECH     }, { 50060000, 50080000, BP_BCN, LIC_TECH     },
+    { 50080000, 50100000, BP_CW,  LIC_TECH     }, { 50100000, 50600000, BP_ALL, LIC_TECH     },
+    { 50600000, 50800000, BP_DIG, LIC_TECH     }, { 50800000, 54000000, BP_ALL, LIC_TECH     },
+};
+
+#define LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))
+
+/* The segments of plan (bp_plan_t, not Auto) into out, by start. The US ones for the class: what the class does
+ * not have is BP_OUT, a Technician's below 10 m CW (97.307(f)(9)) but for the beacons; neighbours of one type
+ * merged then */
+static int plan_build(int plan, bp_seg_t *out) {
+    int n = 0;
+
+    if (plan < BP_PLAN_US_EXTRA) {
+        const bp_seg_t *t   = plan == BP_PLAN_R2 ? plan_r2 : plan == BP_PLAN_R3 ? plan_r3 : plan_r1;
+        int             len = plan == BP_PLAN_R2 ? LEN(plan_r2) : plan == BP_PLAN_R3 ? LEN(plan_r3) : LEN(plan_r1);
+
+        memcpy(out, t, len * sizeof(*t));
+        return len;
+    }
+    lic_t lic = (lic_t)(plan - BP_PLAN_US_EXTRA);
+
+    for (int i = 0; i < LEN(plan_us); i++) {
+        bp_type_t t = plan_us[i].type;
+
+        if (lic > plan_us[i].cls) {
+            t = BP_OUT;
+        } else if (lic == LIC_TECH && plan_us[i].start < 28000000 && t != BP_BCN) {
+            t = BP_CW;
+        }
+        if (n && out[n - 1].end == plan_us[i].start && out[n - 1].type == t) {
+            out[n - 1].end = plan_us[i].end;
+        } else {
+            out[n++] = (bp_seg_t){plan_us[i].start, plan_us[i].end, t};
+        }
+    }
+    return n;
+}
+
+static const theme_color_t colors[] = { TC_bp_cw, TC_bp_dig, TC_bp_ssb, TC_bp_bcn, TC_bp_out };
 /* Longest first: the first label that fits the segment is used */
 static const char *const labels[][2] = {
-    { "CW", NULL }, { "DIG", NULL }, { "ALL MODES / SSB", "SSB" }, { "BCN", NULL },
+    { "CW", NULL }, { "DIG", NULL }, { "ALL MODES / SSB", "SSB" }, { "BCN", NULL }, { "NOT YOUR CLASS", "OUT" },
 };
 
 typedef struct {
@@ -68,8 +203,9 @@ static seg_t   segs[POOL];
 static bool    ready;
 static int32_t span_center, span_half;
 
-/* The plan in use: plan[] and, where it has nothing, the active bands of the band list (a band added on the web
+/* The plan in use: its table and, where it has nothing, the active bands of the band list (a band added on the web
  * page, "60m CW" at 5.3 MHz, had no strip and no CW keyboard: issue #5). Read from any thread (remote_server) */
+static int             plan_id = BP_PLAN_R1;
 static bp_seg_t        cur[MAX_SEG];
 static int             ncur;
 static pthread_mutex_t cur_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -94,9 +230,8 @@ void band_plan_reload(void) {
     static char    names[BANDS][16];
     static bp_seg_t list[MAX_SEG];
     int            nb = cfg_bands_active_ids(ids, start, stop, names, BANDS);
-    int            n  = sizeof(plan) / sizeof(plan[0]);
+    int            n  = plan_build(plan_id, list);
 
-    memcpy(list, plan, sizeof(plan));
     for (int i = 0; i < nb; i++) {
         /* Broadcast, the X6200's FM broadcast and airband, CB (ids 100-299 in sql/params.sql and migrations.c) are no
          * amateur bands; by their names too, so a user's band that got such an id keeps its strip */

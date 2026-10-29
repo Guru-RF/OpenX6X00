@@ -139,6 +139,7 @@ extern "C" {
     X(bp_dig,            0xe5a823, 0xffd24a, 0x886600, 0xffa000) \
     X(bp_ssb,            0x34d399, 0x60d060, 0x178417, 0x60d060) \
     X(bp_bcn,            0xf87171, 0xff6060, 0x770000, 0xff6060) \
+    X(bp_out,            0x94a3b8, 0x909090, 0x555555, 0x909090) /* a US plan: outside the licence class */ \
     X(bp_text,           0x08090c, 0x000000, 0xffffff, 0x000000) \
     X(finder_band,       0xf87171, 0xff5050, 0x830000, 0xff5050) /* app waterfalls: passband */ \
     X(finder_cursor,     0x34d399, 0x50ff50, 0x008300, 0x50ff50) \

@@ -32,7 +32,7 @@
         "mode_bg": "#1d2024", "mode_border": "#8e9099",
         "pill_off_text": "#c4c6d0", "pill_border": "#44474e",
         "meter_weak": "#7f9cc8", "meter_bar": "#a8c7fa", "meter_over": "#ffb4ab", "meter_low": "#9cd67e", "meter_high": "#ffb4ab",
-        "bp_cw": "#7fa8e8", "bp_dig": "#e8c86a", "bp_ssb": "#7cc48a", "bp_bcn": "#e88a8a", "bp_text": "#111318"
+        "bp_cw": "#7fa8e8", "bp_dig": "#e8c86a", "bp_ssb": "#7cc48a", "bp_bcn": "#e88a8a", "bp_out": "#b8bcc4", "bp_text": "#111318"
     },
     "radius": 16,
     "radius_btn": 24,
