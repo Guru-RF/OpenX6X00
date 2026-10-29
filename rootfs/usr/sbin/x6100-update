@@ -65,6 +65,7 @@ TAILSCALE_STATE = "/var/lib/tailscale/tailscaled.state"   # where tailscaled kee
 FUNNEL_SINCE = (0, 3, 7)              # the first version that knows Tailscale Funnel (#58) and keeps it off by itself
 FUNNEL_WAIT = 30                      # s x6100-tailscale may take to make sure no funnel is left, before a step back
 FUNNEL_QUIET_WAIT = 5                 # s the start loop's own step back gives it
+FUNNEL_QUIET_LIMIT = 20               # s it waits for x6100-tailscale at most then, whatever that one does
 
 
 class Fail(Exception):
@@ -199,7 +200,7 @@ def funnel_off_quietly(version):
         return
     try:
         subprocess.run([TAILSCALE, "funnel-clear", str(FUNNEL_QUIET_WAIT)], stdin=subprocess.DEVNULL,
-                       capture_output=True, timeout=FUNNEL_QUIET_WAIT + 15)
+                       capture_output=True, timeout=FUNNEL_QUIET_LIMIT)
     except (OSError, subprocess.SubprocessError):
         pass
 

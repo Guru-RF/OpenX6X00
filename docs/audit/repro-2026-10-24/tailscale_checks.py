@@ -707,10 +707,22 @@ sys.exit(g['main'](sys.argv[1:]))
         g['cmd_funnel']('on')
         Fake.serve = on_and_by_hand()
         Fake.refuse = 'netMap is nil'
+        up['FUNNEL_WAIT'] = 30                         # the Update page's own wait as on the radio: not the start loop's
         out, took = boot_check()
+        up['FUNNEL_WAIT'] = 2
         Fake.refuse = ''
         check('boot-check, Funnel that cannot be taken off: back all the same, within seconds',
               out == 'rolled back to 0.3.6' and ver.read_text() == '0.3.6\n' and took < 10, f'{out} ({took:.1f} s)')
+        hanging = upd / 'x6100-tailscale-hanging'      # one that never answers, whatever it was asked
+        hanging.write_text('#!/bin/sh\nexec sleep 60\n')
+        hanging.chmod(0o755)
+        failing_starts()
+        limit = up.get('FUNNEL_QUIET_LIMIT', 20)
+        up.update(TAILSCALE=str(hanging), FUNNEL_QUIET_LIMIT=2)
+        out, took = boot_check()
+        up.update(TAILSCALE=str(helper), FUNNEL_QUIET_LIMIT=limit)
+        check('boot-check, x6100-tailscale never answering: back all the same, at the limit it is given',
+              out == 'rolled back to 0.3.6' and ver.read_text() == '0.3.6\n' and 1.5 < took < 6, f'{out} ({took:.1f} s)')
         n = runs()
         failing_starts('0.3.7')
         out, took = boot_check()
