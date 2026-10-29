@@ -92,6 +92,13 @@ def main():
         print("#58 a browser over Tailscale Funnel:\n" + command([binary, "funnel"], env, contains=(
             "over Funnel: pair? and pair refused=1, a code shown=0, tries counted=0",
             "over Funnel, a wrong key: closed=1, counted=1; on the LAN: closed=0, watching=1")).strip())
+        print("#58 Use away from home:\n" + command([binary, "away"], env, contains=(
+            'away: answered with a key=1, its session "Kitchen phone (away)" operate tx=1',
+            "away again: a new key=1, the one before gone=1, sessions 3 -> 3",
+            "the admin's away key: admin",
+            "from the internet: err an away link is made at home",
+            "unpaired: err pair this browser first",
+            "with its away key at home: err this browser has its away link already")).strip())
         print("#58 session tokens kept hashed:\n" + command([binary, "tokens"], env, contains=(
             "a file from before: 2 sessions loaded, the tokens in the file now=0",
             "3eb1bd439947eb762998e566ccc2e099c791118b2f40579cc4f7da2b5061b7f9\tShack PC\t2\t1",

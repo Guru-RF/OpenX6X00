@@ -307,6 +307,52 @@ static int run_funnel(void) {
     return 0;
 }
 
+/* Issue #58, "Use away from home": a paired browser at home asks for its own key for away; the radio makes a
+ * session "NAME (away)" with its role and TX and answers with the token (to that browser alone). Asked again, the
+ * one before is revoked: one away key per browser. Not from the internet, not unpaired, not from an away key */
+static int run_away(void) {
+    client_t *a = open_client(0, ROLE_ADMIN, true), *b = open_client(1, ROLE_OPERATE, true);
+    char      first[TOKEN_LEN + 1] = "", second[TOKEN_LEN + 1] = "", cmd[64];
+
+    nsessions = 0;
+    a->sess = sess_new("Shack PC", "192.168.1.20", first);          /* the first: admin */
+    b->sess = sess_new("Kitchen phone", "192.168.1.31", first);
+    a->role = sessions[a->sess].role;
+    b->role = sessions[b->sess].role;
+    said[1][0] = 0;
+    say(b, "away");
+    sscanf(said[1], "away %32s", first);
+    int i = sess_find(first);
+    printf("away: answered with a key=%d, its session \"%s\" %s tx=%d\n", (int)strlen(first) == TOKEN_LEN,
+           i >= 0 ? sessions[i].name : "?", i >= 0 ? role_name(sessions[i].role) : "?", i >= 0 && sessions[i].tx);
+    int before = nsessions;
+    said[1][0] = 0;
+    say(b, "away");
+    sscanf(said[1], "away %32s", second);
+    printf("away again: a new key=%d, the one before gone=%d, sessions %d -> %d\n", strcmp(first, second) != 0 &&
+           sess_find(second) >= 0, sess_find(first) < 0, before, nsessions);
+    said[0][0] = 0;
+    say(a, "away");
+    sscanf(said[0], "away %32s", cmd);
+    i = sess_find(cmd);
+    printf("the admin's away key: %s\n", i >= 0 ? role_name(sessions[i].role) : said[0]);
+    client_t *f = open_client(2, ROLE_OPERATE, true);
+    f->funnel = true;
+    f->sess = sess_find(second);
+    say(f, "away");
+    printf("from the internet: %s", said[2]);
+    client_t *v = open_client(3, ROLE_VIEW, false);
+    v->sess = -1;
+    say(v, "away");
+    printf("unpaired: %s", said[3]);
+    v->sess = sess_find(second);
+    v->role = ROLE_OPERATE;
+    said[3][0] = 0;
+    say(v, "away");
+    printf("with its away key at home: %s", said[3]);
+    return 0;
+}
+
 /* SHA-256 against the standard's examples and lengths at the padding's edges (55, 56, 64 bytes) */
 static int run_sha(void) {
     static char mil[1000001];
@@ -334,11 +380,12 @@ int main(int argc, char **argv) {
     if (argc >= 2 && !strcmp(argv[1], "tokens")) return run_tokens();
     if (argc >= 2 && !strcmp(argv[1], "sha")) return run_sha();
     if (argc >= 2 && !strcmp(argv[1], "funnel")) return run_funnel();
+    if (argc >= 2 && !strcmp(argv[1], "away")) return run_away();
     if (argc >= 2 && !strcmp(argv[1], "ping")) return run_ping();
     if (argc >= 2 && !strcmp(argv[1], "ptt")) return run_ptt();
     if (argc >= 2 && !strcmp(argv[1], "log")) return run_log();
     if (argc >= 2 && !strcmp(argv[1], "set")) return run_set();
     if (argc >= 2 && !strcmp(argv[1], "pair")) return run_pair();
-    fprintf(stderr, "remote ptt|ping|log|set|pair|tokens|sha|funnel\n");
+    fprintf(stderr, "remote ptt|ping|log|set|pair|tokens|sha|funnel|away\n");
     return 2;
 }

@@ -416,6 +416,9 @@ def remote_state():
         r["name_refused"] = (f"Open this page by the radio's address, {socket.gethostname()}.local or its Tailscale "
                              "name: by another name the radio does not take its connection, as a page from another "
                              "site could make your browser connect the same way")
+    ts = tailscale_status()   # Funnel on (#58): the Panel's address on the internet, for "Use away from home"
+    if ts.get("state") == "running" and ts.get("funnel") == "on" and ts.get("public", "").startswith("https://"):
+        r["funnel_url"] = ts["public"]
     return r
 
 

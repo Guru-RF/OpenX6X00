@@ -15,7 +15,9 @@
  *     ses.chips()                   -> [{n, s, t}] for RadioLink.health: Access and Control
  *   The element `el` gets two buttons: the role (Pair, or this browser's name) and the control
  *   holder (Take control / Release); an admin gets Sessions. The token lives in localStorage
- *   "x6100session", so the Panel and the Remote page share one pairing.
+ *   "x6100session", so the Panel and the Remote page share one pairing. With awayUrl (a function
+ *   giving the Panel's address on the internet while Tailscale Funnel is on, #58) a paired
+ *   browser gets Use away from home: "away" -> "away TOKEN", then a link to awayUrl#t=TOKEN.
  *   RadioSession.forRadio(keyEvent, pttEl) -> true when a key is for the page's radio shortcuts
  *                                 rather than for a field, a focused control or an open dialog
  *   RadioSession.takeLink()       the Funnel page: the away link's "#t=KEY" stored, and taken out of the
@@ -86,7 +88,8 @@
     this.$role = $("<button type='button' class='ses'>").on("click", this.roleClick.bind(this));
     this.$ctl = $("<button type='button' class='ses'>").on("click", this.ctlClick.bind(this));
     this.$adm = $("<button type='button' class='ses' hidden>Sessions</button>").on("click", this.sessionsOpen.bind(this));
-    $(o.el).empty().append(this.$role, this.$ctl, this.$adm);
+    this.$away = $("<button type='button' class='ses' hidden>Use away from home</button>").on("click", this.awayOpen.bind(this));
+    $(o.el).empty().append(this.$role, this.$ctl, this.$adm, this.$away);
     this.render();
   }
   Session.prototype.onOpen = function() {
@@ -117,6 +120,7 @@
       if (this.o.status) this.o.status("Paired as " + (w[1] === "admin" ? "the admin: this browser may operate and manage the others" : "an operator: this browser may operate the radio"));
       return true;
     }
+    if (head === "away") { this.awayReady(w[0]); return true; }
     if (head === "tx") { this.radioTx = w[0] === "1"; if (this.o.onTx) this.o.onTx(this.radioTx); return true; }
     if (head === "sessions") { try { this.sessions = JSON.parse(body); } catch (e) { this.sessions = []; } this.sessionsRender(); return true; }
     if (head === "err") {
@@ -170,6 +174,29 @@
     else { t = c.name + " · Take control"; title = "Another browser operates the radio. Take control moves it here (not while the radio transmits)"; }
     this.$ctl.text(t).attr("title", title).toggleClass("ok", c.mine).toggleClass("warn", !c.mine && c.who !== "none").prop("disabled", this.role === "view" && c.who === "none");
     this.$adm.prop("hidden", this.role !== "admin");
+    /* while Funnel is on, for a paired browser at home (the page gives the Panel's address on the internet) */
+    this.$away.prop("hidden", !(this.o.awayUrl && this.o.awayUrl()) || this.role === "view" || / \(away\)$/.test(this.name))
+      .attr("title", "This browser on the internet, through Tailscale Funnel: a key of its own for the Panel away from home");
+  };
+  /* "Use away from home" (#58): the radio makes this browser a key of its own for the Panel on the internet, and the
+   * page opens it there in this browser, the key after '#' in the link: a fragment goes to no server, and the
+   * page there takes it out of the address bar. It never shows on the radio's screen, which any viewer may watch */
+  Session.prototype.awayOpen = function() {
+    const self = this, url = this.o.awayUrl && this.o.awayUrl();
+    if (!url) return;
+    popup("Use away from home", $("<div>").append(
+      $("<p>").text("The radio's Panel is on the internet at " + url + " through Tailscale Funnel. Only a browser paired here gets in, with a key of its own."),
+      $("<p>").text("This makes that key for this browser (\"" + this.name + " (away)\", with the same rights), and opens the Panel there in this browser: keep that page (a bookmark), it remembers the key. A new key replaces the one made before. Sessions lists it, and Revoke ends it, as any browser.")),
+      [{t: "Make the key and open", primary: true, keep: true, cb: function() { self.o.send("away"); }}, {t: "Cancel"}]);
+  };
+  Session.prototype.awayReady = function(token) {
+    const url = this.o.awayUrl && this.o.awayUrl();
+    if (!url || !/^[0-9a-f]{32}$/.test(token)) return;
+    const $a = $("<a class='btn primary' target='_blank' rel='noopener noreferrer'>").attr("href", url + "#t=" + token).text("Open the Panel away from home");
+    popup("Use away from home", $("<div>").append(
+      $("<p>").text("The key is made. Open the Panel on the internet in this browser, and keep that page: it remembers the key. The key is in the link, after '#', which no server sees, and the page takes it out of the address bar."),
+      $("<p>").append($a)), [{t: "Close", primary: true}]);
+    $a.on("click", function() { setTimeout(popClose, 0); });
   };
   Session.prototype.roleClick = function() {
     if (this.role === "view") { this.pairError = null; this.pairOpen(); return; }
@@ -224,7 +251,7 @@
     else this.sessions.forEach(function(s) {
       const row = $("<div class='srow'>").append(
         $("<b>").text(s.name + (s.me ? " (this browser)" : "")),
-        $("<span>").text(s.role + (s.online ? " · connected" : " · seen " + age(Math.max(0, Date.now() / 1000 - s.last))) + " · " + s.ip),
+        $("<span>").text(s.role + (s.online ? " · connected" : " · seen " + age(Math.max(0, Date.now() / 1000 - s.last))) + " · " + s.ip + (s.funnel ? " via Funnel" : "")),
         $("<button type='button'>").text(s.me ? "Unpair" : "Revoke").on("click", function() {
           if (!confirm((s.me ? "Unpair this browser?" : "Revoke \"" + s.name + "\"?") + " Its connections close now and it only watches until it is paired again.")) return;
           if (s.me) store(TOKEN_KEY, null);

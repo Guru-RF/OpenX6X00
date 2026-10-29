@@ -69,6 +69,44 @@ for (const view of ['panel.html', 'remote.html']) {
   check('a tab in the address (#ft8): left as it is', !q.p.eval('RadioSession.takeLink()') && q.replaced.length === 0 && q.p.ctx.location.hash === '#ft8');
 }
 
+/* ---- Use away from home (the LAN Panel, Funnel on) ---- */
+function awayPanel(url, role, name) {
+  const p = page('panel.html');
+  p.run('static/js/radio_session.js');
+  p.eval(`var sent = [];
+    var ses = RadioSession.create({send: function(s) { sent.push(s); return true; }, status: function() {}, el: document.getElementById("ses"),
+                                   awayUrl: function() { return ${JSON.stringify(url)}; }});
+    ses.onText("role", ${JSON.stringify(role + ' 1 ' + name)});`);
+  return p;
+}
+const awayButton = p => [...p.doc.querySelectorAll('#ses button')].find(b => b.textContent === 'Use away from home');
+{
+  const URL = 'https://x6200.tail1234.ts.net/panel';
+  const p = awayPanel(URL, 'operate', 'Kitchen phone');
+  const b = awayButton(p);
+  check('Funnel on, a paired browser: Use away from home shown', b && !b.hasAttribute('hidden'));
+  p.$(b).trigger('click');
+  check('its dialog names the address on the internet', dialog(p).includes(URL), dialog(p).slice(0, 80));
+  const make = [...p.doc.querySelectorAll('.spop button')].find(x => x.textContent === 'Make the key and open');
+  p.$(make).trigger('click');
+  check('Make the key asks the radio', JSON.stringify(p.ctx.sent) === '["away"]', JSON.stringify(p.ctx.sent));
+  p.eval(`ses.onText("away", "${KEY}")`);
+  const a = p.doc.querySelector('.spop a');
+  check('the radio\'s key: a link to the Panel there, the key after #', a && a.getAttribute('href') === URL + '#t=' + KEY, a && a.getAttribute('href'));
+  check('the link opens apart from this page', a && a.getAttribute('target') === '_blank' && /noopener/.test(a.getAttribute('rel')));
+  check('the key is not in the dialog\'s text', !dialog(p).includes(KEY));
+  check('not shown without Funnel', awayButton(awayPanel(null, 'operate', 'Kitchen phone')).hasAttribute('hidden'));
+  check('not shown to a browser that only watches', awayButton(awayPanel(URL, 'view', '-')).hasAttribute('hidden'));
+  check('not shown to an away key itself', awayButton(awayPanel(URL, 'operate', 'Kitchen phone (away)')).hasAttribute('hidden'));
+  p.eval(`ses.sessionsOpen(); ses.onText("sessions", '[{"n":1,"name":"Kitchen phone (away)","role":"operate","tx":1,"last":0,"ip":"203.0.113.7","funnel":1,"online":1,"me":0}]')`);
+  check('Sessions: an away key over Funnel, its address', dialog(p).includes('203.0.113.7 via Funnel'), dialog(p).slice(dialog(p).indexOf('Kitchen'), dialog(p).indexOf('Kitchen') + 60));
+}
+{
+  /* the Panel's own: the away address only from the configurator at home (/api/remote's funnel_url), never on the Funnel page */
+  const src = page('panel.html').source;
+  check('the Panel passes the address at home only', /awayUrl: function\(\) \{ return !FUNNEL && conf && conf\.funnel_url/.test(src));
+}
+
 const bad = results.filter(r => !r.ok).length;
 console.log(bad ? bad + ' funnel page case(s) WRONG' : 'All ' + results.length + ' funnel page cases as they should be (#58)');
 process.exitCode = bad ? 1 : 0;

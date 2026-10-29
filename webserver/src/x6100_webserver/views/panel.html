@@ -973,7 +973,8 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     onStall: function(on) { stalled(on); },
   });
   /* Who this browser is to the radio and who controls it (R3); the PTT as the radio confirms it (R4) */
-  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); }, onTx: function(on) { ptt.radioTx(on); }});
+  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); }, onTx: function(on) { ptt.radioTx(on); },
+    awayUrl: function() { return !FUNNEL && conf && conf.funnel_url ? conf.funnel_url : null; }});   /* Use away from home (#58) */
   ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses, link: link,
     mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
   /* What touches the air is let go when the link can no longer carry it in time: a held key, a tune on its way, a

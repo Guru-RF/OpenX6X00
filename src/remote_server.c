@@ -70,7 +70,9 @@
  *  within FUNNEL_AUTH_MS; a wrong token closes it, and the tenth within ten minutes refuses
  *  Funnel for ten (remote_server_funnel_refused, which TCI's Funnel mode calls too). Pairing is
  *  refused over Funnel. At most FUNNEL_CLIENTS of the MAX_CLIENTS come from the internet, and
- *  the browser's address (X-Forwarded-For) is shown and logged with "via Funnel".
+ *  the browser's address (X-Forwarded-For) is shown and logged with "via Funnel". A paired
+ *  browser at home gets its key for away with "away", answered "away TOKEN": a session of its
+ *  own, "NAME (away)", with its role and TX, the one before replaced (sess_away).
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -478,24 +480,29 @@ static bool random_hex(char *out, size_t n) {
     return true;
 }
 
-/* A new session for a browser that typed the code, its token (TOKEN_LEN hex characters) into token, for that
- * browser alone; -1 when the table is full */
-static int sess_new(const char *name, const char *ip, char token[TOKEN_LEN + 1]) {
-    pthread_mutex_lock(&sess_mux);
-    if (nsessions == SESS_MAX || !random_hex(token, TOKEN_LEN)) {
-        pthread_mutex_unlock(&sess_mux);
+/* sess_mux held: a new session, its token (TOKEN_LEN hex characters) into token, for that browser alone; role -1:
+ * the first browser paired is the admin, the others operate. -1 when the table is full */
+static int sess_add_locked(const char *name, const char *ip, int role, bool tx, char token[TOKEN_LEN + 1]) {
+    if (nsessions == SESS_MAX || !random_hex(token, TOKEN_LEN))
         return -1;
-    }
     session_t *x = &sessions[nsessions];
     memset(x, 0, sizeof(*x));
     token_hash(token, x->hash);
     snprintf(x->name, sizeof(x->name), "%s", name);
-    x->role    = nsessions == 0 ? ROLE_ADMIN : ROLE_OPERATE;   /* the first browser paired is the admin */
-    x->tx      = true;
+    x->role    = role >= 0 ? (uint8_t)role : nsessions == 0 ? ROLE_ADMIN : ROLE_OPERATE;
+    x->tx      = tx;
     x->created = x->last = wall_s();
     snprintf(x->ip, sizeof(x->ip), "%s", ip);
-    int i = nsessions++;
+    nsessions++;
     sess_save_locked();
+    return nsessions - 1;
+}
+
+/* A new session for a browser that typed the code, its token into token, for that browser alone; -1 when the
+ * table is full */
+static int sess_new(const char *name, const char *ip, char token[TOKEN_LEN + 1]) {
+    pthread_mutex_lock(&sess_mux);
+    int i = sess_add_locked(name, ip, -1, true, token);
     pthread_mutex_unlock(&sess_mux);
     return i;
 }
@@ -604,6 +611,33 @@ static void sess_revoke(int i) {
     for (int k = 0; k < MAX_CLIENTS; k++)      /* the ones after it moved down */
         if (clients[k].fd >= 0 && clients[k].sess > i)
             clients[k].sess--;
+}
+
+/* "away" (#58): a session of its own for this paired browser's use away from home through Tailscale Funnel, named
+ * "NAME (away)", with the role and TX of the browser's session; its token into token, for that browser alone (the
+ * page puts it in the link it opens, after '#'). One per browser: the one made before is revoked, its connections
+ * closed. -1: no room. Socket thread */
+static int sess_away(client_t *c, char token[TOKEN_LEN + 1]) {
+    char name[32];
+    int  role, i = -1;
+    bool tx;
+
+    pthread_mutex_lock(&sess_mux);
+    snprintf(name, sizeof(name), "%.24s (away)", sessions[c->sess].name);
+    role = sessions[c->sess].role;
+    tx   = sessions[c->sess].tx;
+    for (int k = 0; k < nsessions; k++)
+        if (!strcmp(sessions[k].name, name))
+            i = k;
+    pthread_mutex_unlock(&sess_mux);
+    if (i >= 0)
+        sess_revoke(i);                         /* moves the sessions after it down, this client's too */
+    pthread_mutex_lock(&sess_mux);
+    i = sess_add_locked(name, c->ip, role, tx, token);
+    pthread_mutex_unlock(&sess_mux);
+    if (i >= 0)
+        LV_LOG_USER("remote: %s made for use away from home", name);
+    return i;
 }
 
 /* LVGL thread: the code on the radio's screen */
@@ -1866,6 +1900,19 @@ static void handle_text(client_t *c, char *text) {
             sess_revoke(c->sess);     /* closes this socket too */
         else
             client_text(c, "err not paired");
+    } else if (!strcmp(a[0], "away")) {    /* "away" -> "away TOKEN" (sess_away); never on the radio's screen */
+        char token[TOKEN_LEN + 1];
+        size_t nl = c->sess >= 0 ? strlen(sessions[c->sess].name) : 0;
+        if (c->funnel)
+            client_text(c, "err an away link is made at home: on the Panel at home, Use away from home");
+        else if (c->sess < 0 || c->role < ROLE_OPERATE)
+            client_text(c, "err pair this browser first: an away link is for a paired browser");
+        else if (nl > 7 && !strcmp(sessions[c->sess].name + nl - 7, " (away)"))
+            client_text(c, "err this browser has its away link already");
+        else if (sess_away(c, token) < 0)
+            client_text(c, "err no room for another browser: revoke one in Sessions");
+        else
+            client_textf(c, "away %s", token);
     } else if (!strcmp(a[0], "control") && n >= 2) {
         if (!strcmp(a[1], "take")) {
             if (!allowed(c, ROLE_OPERATE, false))

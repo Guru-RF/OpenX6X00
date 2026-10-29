@@ -50,8 +50,8 @@ parts = [
 names = ['role_name', 'sess_key', 'log_sum', 'log_slot', 'log_queued', 'log_answer', 'log_query', 'log_flush',
          'app_apply', 'app_log_cmd', 'mode_supported', 'panel_put', 'set_refused', 'panel_set', 'role_tell', 'ctl_tell', 'allowed',
          'ptt_down', 'ptt_lease', 'key_code', 'name_clean', 'pair_msg_apply', 'pair_paused_apply', 'pair_show', 'pair_try',
-         'wall_s', 'token_hash', 'from_hex', 'sess_save_locked', 'sess_load', 'random_hex', 'sess_new', 'sess_find',
-         'handle_text']
+         'wall_s', 'token_hash', 'from_hex', 'sess_save_locked', 'sess_load', 'random_hex', 'sess_add_locked', 'sess_new',
+         'sess_find', 'sess_revoke', 'sess_away', 'handle_text']
 pre = r'''
 #include <ctype.h>
 #include <fcntl.h>
@@ -126,7 +126,7 @@ static int  funnel_refused, closed;     /* wrong keys over Funnel counted; socke
 static void remote_server_funnel_refused(const char *addr) { (void)addr; funnel_refused++; }
 #define client_close(c) (closed++, (c)->fd = -1, (c)->up = false)
 static int  sess_new(const char *name, const char *ip, char *token);
-static void sess_revoke(int i) { (void)i; }
+static void sess_revoke(int i);
 /* the radio's screen: what it showed last, and how many codes */
 static char shown[256];
 static int  codes_shown;
