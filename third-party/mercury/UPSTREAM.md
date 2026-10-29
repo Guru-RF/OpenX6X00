@@ -38,6 +38,10 @@ radio control, websocket server and GUIs, the vendored Hamlib and hidapi,
 `docs/`, `tests/`, `utils/`, `specs/` and the packaging (`debian/`,
 `android/`, `ios/`, `macos/`, `windows-installer/`).
 
+`CMakeLists.txt` (the daemon build as a static library, part of the GUI's
+build, upstream's compile flags, the vendored iniparser in place of the
+system's, `-latomic` on 32-bit ARM) and this file are ours.
+
 To take a newer version: unpack it, build the same source list (ours, in
 `CMakeLists.txt`, or upstream's `Makefile` for `libmercury_host.a`) with
 dependency files, and copy what the dependency lists name. On-air

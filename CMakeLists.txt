@@ -84,6 +84,9 @@ else()
                 add_subdirectory(bootanim)
                 add_subdirectory(third-party/ardopcf)     # the Winlink modem, for Pat
         endif()
+        # Mercury, Pat's second Winlink modem (experimental). On the PC too, where it is built only when
+        # asked for by name
+        add_subdirectory(third-party/mercury)
 
         # Installed into the buildroot target: the GUI, the rootfs overlay
         # (init scripts, tools, data) and the images
