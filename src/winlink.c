@@ -1,32 +1,35 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - Winlink: the radio's side of ARDOP and Pat (winlink.h)
+ *  OpenX6X00 - Winlink: the radio's side of the Winlink modems and Pat (winlink.h)
  *
- *  The ARDOP bridge. ardopcf connects to WINLINK_ARDOP_SOCK (SOCK_SEQPACKET) and every packet is
- *  one message: a 4-byte header {type, arg, n} (host byte order), then n samples, mono, signed
- *  16 bits, 12000 Hz.
- *    H  ardopcf -> GUI  hello on each connect, arg = the protocol version (1)
- *    R  GUI -> ardopcf  the receiver, 240 samples (20 ms) a message; none while the radio
- *                       transmits, and dropped when the socket is full
- *    T  ardopcf -> GUI  audio to send, n <= 1200
- *    P  ardopcf -> GUI  arg 1: key now; arg 0: the end, every T before it is played out, then
- *                       the radio unkeys. A P 0 without a P 1 is ardopcf's insurance unkey
- *  One client at a time: a new connection replaces the old one. While one is there a thread reads
- *  the receiver from PulseAudio at 12 kHz (as the TCI server's capture does, the GUI's own capture
- *  and the decoders untouched) and a worker sends ardopcf's audio through tx_player, which keys
- *  the radio, caps the power and steers the drive as for the other digital modes. The client
+ *  The modem bridge. The modem, ardopcf or Mercury's bridge x6x00-mercury, connects to WINLINK_ARDOP_SOCK
+ *  (SOCK_SEQPACKET) and every packet is one message: a 4-byte header {type, arg, n} (host byte order), then
+ *  n samples, mono, signed 16 bits, at the session's rate.
+ *    H  modem -> GUI  hello on each connect, arg = the protocol version, the first message.
+ *                     Version 1 (ardopcf): n = 0, 12000 Hz, a key of 30 s at most.
+ *                     Version 2: n = 2, {the rate, 8000 or 12000 Hz; the longest key the modem
+ *                     may need, in seconds}; the GUI keys for KEY_MAX_S at most
+ *    R  GUI -> modem  the receiver, 20 ms a message (240 samples at 12000 Hz, 160 at 8000); none
+ *                     while the radio transmits, and dropped when the socket is full
+ *    T  modem -> GUI  audio to send, n <= 1200
+ *    P  modem -> GUI  arg 1: key now; arg 0: the end, every T before it is played out, then
+ *                     the radio unkeys. A P 0 without a P 1 is an insurance unkey (ardopcf's)
+ *  One client at a time: a new connection replaces the old one. Once its hello is in, a thread reads
+ *  the receiver from PulseAudio at the session's rate (as the TCI server's capture does, the GUI's own
+ *  capture and the decoders untouched) and a worker sends the modem's audio through tx_player, which
+ *  keys the radio, caps the power and steers the drive as for the other digital modes. The client
  *  going ends everything: the stream stops, a transmission is cut and the radio unkeyed.
  *  Winlink is simplex: a key goes out only where the radio listens (radio_tx_freq() is the dial, no
  *  XIT, no RIT), on the frequency of the connection under way (Pat's last tune or the last key's,
  *  for REF_MS; then the dial again), and not while a QSY Pat was told was made could not be
  *  (missed_hz). Checked as it begins (tx_off_freq) and at each block of it (tx_abort). A frame
- *  ardopcf keys before the last one is out goes out in the same key, unless Pat asked a QSY
+ *  the modem keys before the last one is out goes out in the same key, unless Pat asked a QSY
  *  meanwhile: then it is a key of its own, after the QSY.
  *
  *  The rigctld server, for Pat's hamlib rig on 127.0.0.1:WINLINK_RIG_PORT: one command a line
  *  (CR LF or LF), at most one line back. \get_freq (f), \set_freq (F: tunes as TCI does and sets
- *  USB-D unless the mode is USB or USB-D), \get_ptt (t), \set_ptt (T: answered only, ardopcf keys
+ *  USB-D unless the mode is USB or USB-D), \get_ptt (t), \set_ptt (T: answered only, the modem keys
  *  through the socket; Pat runs with ptt_ctrl false), \chk_vfo, \quit (q); anything else RPRT -11.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -70,16 +73,19 @@
 #include <time.h>
 #include <unistd.h>
 
-#define ARDOP_VERSION   1
-#define ARDOP_RATE      12000
-#define RX_BLOCK        240             /* 20 ms, ardopcf's own block */
+#define PROTO_V1        1               /* ardopcf: V1_RATE, keys of V1_KEY_S at most */
+#define PROTO_V2        2               /* the rate and the longest key in the hello */
+#define V1_RATE         12000
+#define V1_KEY_S        30
+#define KEY_MAX_S       40              /* one key at most, whatever the modem asks: Mercury's rounds are 30 s of air */
+#define RATE_MAX        12000
+#define RX_BLOCK_MAX    (RATE_MAX / 50) /* 20 ms, ardopcf's own block */
 #define T_MAX           1200            /* samples in a T message at most */
-#define RING_SIZE       (4 * ARDOP_RATE)    /* TX audio waiting: ardopcf sends 100 ms ahead of the clock */
-#define IN_BLOCK        120             /* 10 ms of ardopcf's audio a block: 441 samples to play */
-#define OUT_MAX         1024            /* the resampler's output for IN_BLOCK, with room (1 + 2 r n) */
+#define RING_S          4               /* TX audio waiting, seconds of it: the modem sends 100 ms ahead of the clock */
+#define IN_BLOCK_MAX    (RATE_MAX / 100)    /* 10 ms of the modem's audio a block: 441 samples to play */
+#define OUT_MAX         1024            /* the resampler's output for a block, with room (1 + 2 r n) */
 #define WAIT_MS         10              /* the worker looks at the ring this often while it waits */
 #define SILENCE_MS      500             /* keyed without audio this long: unkeyed */
-#define KEY_LIMIT_MS    (30 * 1000)     /* one key at most */
 #define SWR_HOLD_MS     (5 * 60 * 1000) /* no keying this long after an SWR trip in a Winlink TX */
 #define TURN_MS         500             /* after our own TX the base may still report it this long */
 
@@ -97,7 +103,7 @@ typedef struct {
 
 _Static_assert(sizeof(hdr_t) == 4, "the socket header is 4 bytes");
 
-/* Where ardopcf's key stands, between the socket thread and the worker */
+/* Where the modem's key stands, between the socket thread and the worker */
 typedef enum {
     KEY_NONE,           /* receiving */
     KEY_WANTED,         /* a P 1 for the worker: its audio collects in the ring */
@@ -105,12 +111,20 @@ typedef enum {
     KEY_DISCARD,        /* refused, or ended before its P 0: the audio is thrown away until then */
 } key_state_t;
 
-/* The ardopcf connection: one at a time, so one of these */
+/* The modem's connection: one at a time, so one of these */
 static struct {
     int             fd;             /* -1: none */
     atomic_bool     quit;           /* the connection ends: its threads stop */
     pthread_t       rx_th, tx_th;
     bool            rx_up, tx_up;
+
+    /* from the hello on, fixed for the connection */
+    unsigned        proto;          /* the hello's version; 0: none yet, no threads */
+    unsigned        rate;           /* the modem's audio, Hz */
+    size_t          rx_block;       /* samples in an R, 20 ms */
+    size_t          in_block;       /* the worker's block, 10 ms */
+    size_t          ring_size;      /* RING_S of audio */
+    uint64_t        key_limit_ms;   /* one key at most */
 
     pthread_mutex_t lock;           /* the key and the ring */
     pthread_cond_t  cond;           /* CLOCK_MONOTONIC */
@@ -118,13 +132,13 @@ static struct {
     bool            eos;            /* the P 0 of this key came */
     bool            fill_done;      /* the last block of this key is given: later audio is not its */
     uint64_t        audio_ms;       /* the last T of this key, or the key itself */
-    int16_t         ring[RING_SIZE];
+    int16_t         ring[RING_S * RATE_MAX];
     size_t          head, len;      /* head: the oldest sample */
     bool            cut_on;         /* a frame keyed with Pat's QSY pending: this key ends after `cut` more */
     size_t          cut;            /* samples, the frame before it (in the ring) */
 
     /* the worker's alone */
-    msresamp_rrrf   rs;             /* 12000 -> 44100, its state kept from block to block */
+    msresamp_rrrf   rs;             /* the rate -> 44100, made at the hello, its state kept from block to block */
     size_t          tail_len;       /* zeros that bring out what the filter still holds */
     float           out[OUT_MAX];
     int16_t         pend[OUT_MAX];  /* resampled, not yet given to tx_player */
@@ -172,14 +186,14 @@ static void ring_clear(void) {
 static void ring_push(const int16_t *s, size_t n) {
     static uint64_t said;
 
-    if (n > RING_SIZE - ses.len) {
+    if (n > ses.ring_size - ses.len) {
         if (now_ms() - said > 5000) {
             said = now_ms();
-            LV_LOG_WARN("winlink: TX audio overflow, %zu samples dropped", n - (RING_SIZE - ses.len));
+            LV_LOG_WARN("winlink: TX audio overflow, %zu samples dropped", n - (ses.ring_size - ses.len));
         }
-        n = RING_SIZE - ses.len;
+        n = ses.ring_size - ses.len;
     }
-    for (size_t i = 0, at = (ses.head + ses.len) % RING_SIZE; i < n; i++, at = (at + 1) % RING_SIZE)
+    for (size_t i = 0, at = (ses.head + ses.len) % ses.ring_size; i < n; i++, at = (at + 1) % ses.ring_size)
         ses.ring[at] = s[i];
     ses.len += n;
 }
@@ -190,7 +204,7 @@ static size_t ring_take(float *out, size_t n) {
         n = ses.len;
     for (size_t i = 0; i < n; i++) {
         out[i] = ses.ring[ses.head] / 32768.0f;
-        ses.head = (ses.head + 1) % RING_SIZE;
+        ses.head = (ses.head + 1) % ses.ring_size;
     }
     ses.len -= n;
     return n;
@@ -208,7 +222,9 @@ static void wait_ms(int ms) {
     pthread_cond_timedwait(&ses.cond, &ses.lock, &ts);
 }
 
-/* ---- ardopcf's messages, on the socket thread --------------------------------------- */
+/* ---- The modem's messages, on the socket thread ------------------------------------- */
+
+static bool session_hello(const hdr_t *h, const int16_t *samples);
 
 /* Under ses.lock: a new key, its audio from now on */
 static void key_new(void) {
@@ -250,7 +266,7 @@ static void key_on(void) {
 /* P 0, under ses.lock */
 static void key_off(void) {
     switch (ses.key) {
-        case KEY_NONE:      /* ardopcf's insurance unkey */
+        case KEY_NONE:      /* an insurance unkey (ardopcf's) */
             break;
         case KEY_DISCARD:
             ses.key = KEY_NONE;
@@ -267,14 +283,12 @@ static bool ardop_msg(const hdr_t *h, const int16_t *samples, ssize_t len) {
     if (len < (ssize_t)sizeof(*h) || len != (ssize_t)(sizeof(*h) + h->n * sizeof(int16_t)))
         return true;    /* cut or padded: not ours to guess */
 
+    if (h->type == 'H')
+        return session_hello(h, samples);
+    if (!ses.proto)
+        return true;    /* before the hello: no rate, no worker */
+
     switch (h->type) {
-        case 'H':
-            if (h->arg != ARDOP_VERSION) {
-                LV_LOG_ERROR("winlink: ardopcf speaks protocol %u, the GUI %u", h->arg, ARDOP_VERSION);
-                return false;
-            }
-            LV_LOG_USER("winlink: ardopcf connected");
-            break;
         case 'T':
             if (h->n > T_MAX)
                 break;
@@ -301,29 +315,30 @@ static bool ardop_msg(const hdr_t *h, const int16_t *samples, ssize_t len) {
     return true;
 }
 
-/* ---- The receiver to ardopcf -------------------------------------------------------- */
+/* ---- The receiver to the modem ------------------------------------------------------ */
 
-/* While ardopcf is there: its own record stream at 12 kHz in 20 ms fragments, PulseAudio
+/* While the modem is there: its own record stream at its rate in 20 ms fragments, PulseAudio
  * converts the codec's 44.1 kHz. Never blocks on the socket: a full one drops the message */
 static void *rx_thread(void *arg) {
     int        fd = *(int *)arg;
     pa_simple *pa = NULL;
     bool       said = false;
+    size_t     bytes = ses.rx_block * sizeof(int16_t);
     struct {
         hdr_t   h;
-        int16_t pcm[RX_BLOCK];
-    } m = {.h = {.type = 'R', .arg = 0, .n = RX_BLOCK}};
+        int16_t pcm[RX_BLOCK_MAX];
+    } m = {.h = {.type = 'R', .arg = 0, .n = (uint16_t)ses.rx_block}};
 
     while (!atomic_load(&ses.quit)) {
         if (!pa) {
-            pa_sample_spec spec = {.format = PA_SAMPLE_S16NE, .rate = ARDOP_RATE, .channels = 1};
+            pa_sample_spec spec = {.format = PA_SAMPLE_S16NE, .rate = ses.rate, .channels = 1};
             /* 0.5 s kept at most: a stall drops audio, it never grows the delay */
-            pa_buffer_attr attr = {.maxlength = ARDOP_RATE, .tlength = (uint32_t)-1, .prebuf = (uint32_t)-1,
-                                   .minreq = (uint32_t)-1, .fragsize = sizeof(m.pcm)};
+            pa_buffer_attr attr = {.maxlength = ses.rate, .tlength = (uint32_t)-1, .prebuf = (uint32_t)-1,
+                                   .minreq = (uint32_t)-1, .fragsize = bytes};
             int            err  = 0;
 
-            pa = pa_simple_new(NULL, "OpenX6X00 ARDOP", PA_STREAM_RECORD, BOARD_PA_SOURCE, "ARDOP RX", &spec, NULL,
-                               &attr, &err);
+            pa = pa_simple_new(NULL, "OpenX6X00 Winlink", PA_STREAM_RECORD, BOARD_PA_SOURCE, "Winlink RX", &spec,
+                               NULL, &attr, &err);
             if (!pa) {
                 if (!said)
                     LV_LOG_ERROR("winlink: no capture stream: %s", pa_strerror(err));
@@ -333,28 +348,28 @@ static void *rx_thread(void *arg) {
                 continue;
             }
         }
-        if (pa_simple_read(pa, m.pcm, sizeof(m.pcm), NULL) < 0) {
+        if (pa_simple_read(pa, m.pcm, bytes, NULL) < 0) {
             pa_simple_free(pa);
             pa = NULL;
             usleep(100000);     /* a stream that fails at once does not spin */
             continue;
         }
         if (on_air())
-            continue;   /* the capture is not the receiver now; ardopcf does not listen either */
-        /* full: dropped, ardopcf catches up; gone: the socket thread ends the connection */
-        send(fd, &m, sizeof(m), MSG_DONTWAIT | MSG_NOSIGNAL);
+            continue;   /* the capture is not the receiver now; the modem does not listen either */
+        /* full: dropped, the modem catches up; gone: the socket thread ends the connection */
+        send(fd, &m, sizeof(m.h) + bytes, MSG_DONTWAIT | MSG_NOSIGNAL);
     }
     if (pa)
         pa_simple_free(pa);
     return NULL;
 }
 
-/* ---- ardopcf's audio on the air ----------------------------------------------------- */
+/* ---- The modem's audio on the air --------------------------------------------------- */
 
 /* The next block into pend; false at the end of the key: its P 0 and every sample played, no
  * audio for SILENCE_MS, or the client gone */
 static bool next_block(void) {
-    float    in[IN_BLOCK];
+    float    in[IN_BLOCK_MAX];
     size_t   k    = 0;
     bool     end  = false, tail = false;
     unsigned ny   = 0;
@@ -369,7 +384,7 @@ static bool next_block(void) {
             /* The frame before Pat's QSY to its end, then this key's; the next one waits in the ring for
              * the worker, which keys it once the QSY is made */
             if (ses.cut) {
-                k = ring_take(in, LV_MIN((size_t)IN_BLOCK, ses.cut));
+                k = ring_take(in, LV_MIN(ses.in_block, ses.cut));
                 ses.cut -= k;
             } else {
                 tail       = true;
@@ -378,8 +393,8 @@ static bool next_block(void) {
             }
             break;
         }
-        if (ses.len >= IN_BLOCK || (ses.eos && ses.len)) {
-            k = ring_take(in, IN_BLOCK);
+        if (ses.len >= ses.in_block || (ses.eos && ses.len)) {
+            k = ring_take(in, ses.in_block);
             break;
         }
         if (ses.eos) {
@@ -387,7 +402,7 @@ static bool next_block(void) {
             break;
         }
         if (now_ms() - ses.audio_ms > SILENCE_MS) {
-            LV_LOG_WARN("winlink: no audio from ardopcf for %d ms, unkeyed", SILENCE_MS);
+            LV_LOG_WARN("winlink: no audio from the modem for %d ms, unkeyed", SILENCE_MS);
             end = true;
             break;
         }
@@ -399,7 +414,7 @@ static bool next_block(void) {
 
     if (end) {
         if (atomic_load(&ses.quit))
-            audio_play_flush();     /* ardopcf gone: off the air now, not after the queue */
+            audio_play_flush();     /* the modem gone: off the air now, not after the queue */
         return false;
     }
     if (tail) {
@@ -439,15 +454,15 @@ static const char *mhz(char *s, size_t size, int32_t hz) {
 static bool tx_abort(void *ctx) {
     (void)ctx;
     bool    quit  = atomic_load(&ses.quit);
-    bool    limit = now_ms() - ses.key_ms > KEY_LIMIT_MS;
+    bool    limit = now_ms() - ses.key_ms > ses.key_limit_ms;
     int32_t tx    = radio_tx_freq() + param_i_get(cfg_xit);
     bool    moved = tx != ses.key_hz || cparam_i_get(cfg_fg_freq) != ses.key_hz;
 
     if (!quit && !limit && !moved)
         return false;
     if (limit) {
-        LV_LOG_WARN("winlink: keyed for %d s, unkeyed", KEY_LIMIT_MS / 1000);
-        msg_schedule_text_fmt("Winlink: TX stopped after %d s", KEY_LIMIT_MS / 1000);
+        LV_LOG_WARN("winlink: keyed for %d s, unkeyed", (int)(ses.key_limit_ms / 1000));
+        msg_schedule_text_fmt("Winlink: TX stopped after %d s", (int)(ses.key_limit_ms / 1000));
     } else if (moved && !quit) {
         char f[16];
 
@@ -665,9 +680,11 @@ static void *tx_thread(void *arg) {
 
 /* ---- The connection, on the socket thread ------------------------------------------- */
 
+/* A client: nothing runs for it until its hello */
 static void session_start(int fd) {
     pthread_mutex_lock(&ses.lock);
     ses.fd        = fd;
+    ses.proto     = 0;
     ses.key       = KEY_NONE;
     ses.eos       = false;
     ses.fill_done = false;
@@ -675,10 +692,54 @@ static void session_start(int fd) {
     ring_clear();
     pthread_mutex_unlock(&ses.lock);
     atomic_store(&ses.quit, false);
+}
+
+/* The hello: the modem's rate and longest key, then the capture and the worker at that rate. False: a client
+ * we do not speak with */
+static bool session_hello(const hdr_t *h, const int16_t *samples) {
+    unsigned rate, key_s;
+    float    r;
+
+    if (ses.proto) {
+        LV_LOG_WARN("winlink: a second hello from the modem, ignored");
+        return true;
+    }
+    if (h->arg == PROTO_V1) {
+        rate  = V1_RATE;
+        key_s = V1_KEY_S;
+    } else if (h->arg == PROTO_V2 && h->n == 2) {
+        rate  = (uint16_t)samples[0];
+        key_s = (uint16_t)samples[1];
+        if ((rate != 8000 && rate != 12000) || !key_s) {
+            LV_LOG_ERROR("winlink: the modem asks for %u Hz and keys of %u s, not spoken here", rate, key_s);
+            return false;
+        }
+        if (key_s > KEY_MAX_S) {
+            LV_LOG_WARN("winlink: the modem may key for %u s, the GUI stops a key after %d", key_s, KEY_MAX_S);
+            key_s = KEY_MAX_S;
+        }
+    } else {
+        LV_LOG_ERROR("winlink: the modem speaks protocol %u, the GUI 1 and 2", h->arg);
+        return false;
+    }
+    ses.proto        = h->arg;
+    ses.rate         = rate;
+    ses.rx_block     = rate / 50;
+    ses.in_block     = rate / 100;
+    ses.ring_size    = RING_S * rate;
+    ses.key_limit_ms = key_s * 1000ULL;
+
+    /* The worker's resampler for this rate, reset at each key; 60 dB as the other apps' */
+    r            = (float)AUDIO_PLAY_RATE / rate;
+    ses.rs       = msresamp_rrrf_create(r, 60.0f);
+    ses.tail_len = LV_MIN((size_t)ceilf(msresamp_rrrf_get_delay(ses.rs) / r) + 2, ses.in_block);
+
+    LV_LOG_USER("winlink: the modem connected, protocol %u, %u Hz, keys of %u s at most", ses.proto, rate, key_s);
     ses.rx_up = pthread_create(&ses.rx_th, NULL, rx_thread, &ses.fd) == 0;
     ses.tx_up = pthread_create(&ses.tx_th, NULL, tx_thread, NULL) == 0;
     if (!ses.rx_up || !ses.tx_up)
-        LV_LOG_ERROR("winlink: no thread for ardopcf");
+        LV_LOG_ERROR("winlink: no thread for the modem");
+    return true;
 }
 
 /* The client gone or replaced: a transmission cut and unkeyed, the capture stopped */
@@ -694,6 +755,11 @@ static void session_end(void) {
     if (ses.rx_up)
         pthread_join(ses.rx_th, NULL);
     ses.rx_up = ses.tx_up = false;
+    if (ses.rs) {
+        msresamp_rrrf_destroy(ses.rs);
+        ses.rs = NULL;
+    }
+    ses.proto = 0;
     close(ses.fd);
     ses.fd = -1;
 }
@@ -722,7 +788,7 @@ static int ardop_listen(void) {
         close(fd);
         return -1;
     }
-    LV_LOG_USER("winlink: ARDOP audio on %s", a.sun_path);
+    LV_LOG_USER("winlink: the modem's audio on %s", a.sun_path);
     return fd;
 }
 
@@ -752,7 +818,7 @@ static void *ardop_thread(void *arg) {
 
             if (fd >= 0) {
                 if (ses.fd >= 0)
-                    LV_LOG_USER("winlink: a new ardopcf connection replaces the old one");
+                    LV_LOG_USER("winlink: a new modem connection replaces the old one");
                 session_end();
                 session_start(fd);
             }
@@ -767,7 +833,7 @@ static void *ardop_thread(void *arg) {
             if (len < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR))
                 break;
             if (len <= 0) {
-                LV_LOG_USER("winlink: ardopcf gone");
+                LV_LOG_USER("winlink: the modem gone");
                 session_end();
                 break;
             }
@@ -1257,17 +1323,12 @@ static void *radio_file_thread(void *arg) {
 void winlink_init(void) {
     pthread_condattr_t ca;
     pthread_t          th;
-    float              rate = (float)AUDIO_PLAY_RATE / ARDOP_RATE;
 
     pthread_mutex_init(&ses.lock, NULL);
     pthread_condattr_init(&ca);
     pthread_condattr_setclock(&ca, CLOCK_MONOTONIC);
     pthread_cond_init(&ses.cond, &ca);
     pthread_condattr_destroy(&ca);
-
-    /* One resampler for the life of the GUI, reset at each key; 60 dB as the other apps' */
-    ses.rs       = msresamp_rrrf_create(rate, 60.0f);
-    ses.tail_len = LV_MIN((size_t)ceilf(msresamp_rrrf_get_delay(ses.rs) / rate) + 2, (size_t)IN_BLOCK);
 
     for (int i = 0; i < RIG_CLIENTS; i++)
         rig_clients[i].fd = -1;
