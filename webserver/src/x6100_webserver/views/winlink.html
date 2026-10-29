@@ -22,6 +22,19 @@
   </div>
 </div>
 
+<div class="dp-card" id="radio">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-antenna"/></svg></span><div><h3>Before you connect</h3><p>The radio as Winlink will use it: anything in red keeps it from transmitting, or from being heard well</p></div></div>
+  <div id="radio-rows">
+  <div class="dp-row"><div class="dp-lbl"><b>Frequency</b><span id="r-freq-n"></span></div><div class="dp-ctl" id="r-freq">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Mode</b><span id="r-mode-n"></span></div><div class="dp-ctl" id="r-mode">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Filter</b><span id="r-filter-n"></span></div><div class="dp-ctl" id="r-filter">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Power</b><span id="r-pwr-n"></span></div><div class="dp-ctl" id="r-pwr">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Apps</b><span id="r-app-n"></span></div><div class="dp-ctl" id="r-app">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Last no TX</b><span id="r-refused-n"></span></div><div class="dp-ctl" id="r-refused">-</div></div>
+  </div>
+  <div class="dp-body" id="radio-none" style="color:var(--dim)">-</div>
+</div>
+
 <div class="dp-card" id="conn">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-pulse"/></svg></span><div><h3>Connections</h3><p>What Pat and ARDOP are doing, and how the last connection went</p></div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Service</b><span>Pat and ARDOP running</span></div><div class="dp-ctl" id="c-service">-</div></div>
@@ -87,6 +100,45 @@ const MODEM = {ready: "Ready", waiting: "Waiting for the radio's audio"};
 const SESSION = {idle: "Idle", dialing: "Calling a gateway", connected: "Connected", unknown: "-"};
 const LAST = {dialing: "Calling", connected: "Connected", delivered: "Delivered", done: "Done", failed: "Failed"};
 
+// 14105000 as "14.105.000", the radio's way
+var mhz = function(hz) {
+  hz = Math.round(hz);
+  return Math.floor(hz / 1e6) + "." + String(Math.floor(hz / 1000) % 1000).padStart(3, "0") + "." + String(hz % 1000).padStart(3, "0");
+}
+var ago = function(s) { return s < 90 ? s + " s ago" : Math.round(s / 60) + " min ago"; }
+var radioRow = function(id, value, note, bad) {
+  $("#r-" + id).text(value).css("color", bad ? "var(--err)" : "");
+  $("#r-" + id + "-n").text(note).css("color", bad ? "var(--err)" : "");
+}
+
+// The radio's state as the GUI writes it while ARDOP is on its audio (/run/winlink/radio, src/winlink.c)
+var renderRadio = function(st) {
+  const r = st.radio || {};
+  const have = r.modem !== undefined;
+  $("#radio-rows").toggle(have);
+  $("#radio-none").toggle(!have).text(st.state === "off" ? "Shown while Winlink is on." :
+    "Shown once ARDOP is on the radio's audio (the GUI running, ARDOP started).");
+  if (!have) return;
+  radioRow("freq", mhz(r.rx), r.simplex ? "No TX: " + r.simplex :
+    r.tx === r.rx ? "Transmits on the same frequency, as Winlink must" : "TX " + mhz(r.tx), !!r.simplex);
+  radioRow("mode", r.mode, r.mode === "USB-D" ? "" : r.mode === "USB" ? "ARDOP works in USB too" :
+    "Pat's QSY to a gateway sets USB-D", false);
+  const bw = st.bandwidth, lo = 1500 - bw / 2, hi = 1500 + bw / 2;
+  const rxOk = r.filter_low <= lo && r.filter_high >= hi;
+  const tx = r.tx_filter_high > 0, txOk = !tx || (r.tx_filter_low <= lo && r.tx_filter_high >= hi);
+  radioRow("filter", r.filter_low + "-" + r.filter_high + " Hz",
+    (rxOk && txOk ? "Covers" : "Does not cover") + " ARDOP's " + lo + "-" + hi + " Hz at " + bw + " Hz" +
+    (tx ? "; TX filter " + r.tx_filter_low + "-" + r.tx_filter_high + " Hz" : "") +
+    (rxOk && txOk ? "" : ": widen the " + (rxOk ? "TX" : "RX") + " filter"), !(rxOk && txOk));
+  radioRow("pwr", Math.min(r.pwr, r.cap).toFixed(1) + " W", r.pwr > r.cap ?
+    "PWR is " + r.pwr.toFixed(1) + " W: Winlink sends at most " + r.cap.toFixed(0) + " W" :
+    "The radio's PWR; Winlink at most " + r.cap.toFixed(0) + " W", false);
+  radioRow("app", r.app || "None", r.app ? "Close it: no Winlink TX or QSY while it holds the radio" :
+    r.locked ? "LOCK is on: Pat's QSY is not made" : "No app holds the radio", !!r.app || !!r.locked);
+  const recent = r.refused && r.refused_age !== null && r.refused_age < 600;
+  radioRow("refused", recent ? ago(r.refused_age) : "None", recent ? r.refused : "In the last 10 minutes", recent);
+}
+
 // The outcomes the supervisor keeps apart (x6100-winlink, Watch): service, modem, session, the last connection
 var renderConnections = function(st) {
   const on = st.state !== "off";
@@ -129,6 +181,7 @@ var renderState = function(st) {
   if (st.enabled && st.password === "none") notes.push("No Winlink password on the radio: when the gateway asks for it, Pat asks in the mailbox and gives up after a minute (\"context deadline exceeded\"). Set it below before you connect, or keep the mailbox open to type it there. A new account's first connection needs none.");
   $("#pw-state").text(PW_STATE[st.password || (st.password_set ? "page" : "none")] || PW_STATE.none);
   renderConnections(st);
+  renderRadio(st);
   $("#notice").toggle(notes.length > 0);
   $("#notice-text").text(notes.join(" "));
 }

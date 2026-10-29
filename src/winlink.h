@@ -29,12 +29,21 @@ extern "C" {
 #endif
 #endif
 
+/* The radio's state for the Winlink web page and the supervisor, key=value lines, while ardopcf is connected */
+#ifndef WINLINK_RADIO_FILE
+#ifdef HOST_BUILD
+#define WINLINK_RADIO_FILE  BOARD_DATA "/run/winlink/radio"
+#else
+#define WINLINK_RADIO_FILE  "/run/winlink/radio"
+#endif
+#endif
+
 /* Pat's hamlib rig: TCP on 127.0.0.1 */
 #ifndef WINLINK_RIG_PORT
 #define WINLINK_RIG_PORT    4532
 #endif
 
-/* Starts the ARDOP bridge and the rigctld server: once, after audio_init() */
+/* Starts the ARDOP bridge, the rigctld server and the radio file's writer: once, after audio_init() */
 void winlink_init(void);
 
 #ifdef __cplusplus

@@ -12,6 +12,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -166,8 +167,8 @@ class Running:
 ESTABLISHED = "[STATUS: ARQ CONNECTION ESTABLISHED WITH {}, SESSION BW = {} HZ]"
 
 
-class Outcomes(Root):
-    """Pat's log (the real ones from #18 and #80), ardopcf's console and Pat's event log, read at each poll"""
+class Logs(Root):
+    """A Watch on the logs in the root, Pat's status given"""
 
     def setUp(self):
         super().setUp()
@@ -192,6 +193,10 @@ class Outcomes(Root):
 
     def notes(self):
         return [ln for ln in read(self.wl.PAT_OWN_LOG).splitlines() if " OpenX6X00: " in ln]
+
+
+class Outcomes(Logs):
+    """Pat's log (the real ones from #18 and #80), ardopcf's console and Pat's event log, read at each poll"""
 
     def test_km4gkd_one_message_sent(self):
         k = self.poll(pat=fixture("km4gkd-w4nwg-80m.pat.log"))
@@ -326,6 +331,79 @@ class Outcomes(Root):
         self.assertIn("ARDOP waits for the radio's audio", read(self.wl.STATUS))
         self.wl.report(Running(), Running(), {"mycall": "ON6URE"}, {"modem": "ready"})
         self.assertIn("text=Running as ON6URE\n", read(self.wl.STATUS))
+
+
+RADIO = """modem=connected
+rx=14107700
+tx=14107700
+mode=USB-D
+split=0
+shift=0
+rit=0
+xit=0
+simplex=
+filter_low=100
+filter_high=2900
+tx_filter_low=160
+tx_filter_high=3000
+pwr=5.0
+cap=7.0
+app={app}
+locked=1
+on_air=0
+swr_hold=0
+refused={refused}
+refused_seq={seq}
+refused_at=1793296526
+qsy={qsy}
+qsy_why={qsy_why}
+qsy_seq={qsy_seq}
+qsy_at=1793296520
+"""
+
+
+class RadioFile(Logs):
+    """The GUI's /run/winlink/radio (src/winlink.c, as the PC build wrote it with FT8 open)"""
+
+    def radio(self, app="", refused="", seq=0, qsy=0, qsy_why="", qsy_seq=0):
+        with open(self.wl.RADIO, "w") as f:
+            f.write(RADIO.format(app=app, refused=refused, seq=seq, qsy=qsy, qsy_why=qsy_why, qsy_seq=qsy_seq))
+
+    def test_refusals_into_pats_log_once(self):
+        self.radio(app="FT8", refused="FT8 is open, close it", seq=3)     # from before this supervisor
+        self.assertEqual(self.poll()["modem"], "ready")                    # the GUI's word, no ardopcf line
+        self.assertEqual(self.notes(), [])
+        self.poll(pat="2026/10/29 09:47:01 QSY ardop: 14107.7\n2026/10/29 09:47:04 Connecting to HB9MM (ardop)...")
+        self.radio(app="FT8", refused="FT8 is open, close it", seq=4)
+        k = self.poll()
+        self.assertEqual(k["last_result"], "dialing")
+        self.assertIn("the radio does not transmit: FT8 is open, close it", k["last_text"])
+        self.assertEqual(len(self.notes()), 1)
+        self.assertTrue(self.notes()[0].endswith(
+            "OpenX6X00: no TX, FT8 is open, close it. Close the app on the radio, then connect again"))
+        self.radio(app="FT8", refused="FT8 is open, close it", seq=5)     # ardopcf's next connect request
+        self.poll()
+        self.assertEqual(len(self.notes()), 1)
+        k = self.poll(pat="2026/10/29 09:48:10 Unable to establish connection to remote: Connect timeout")
+        self.assertEqual(k["last_next"], "Close the app on the radio, then connect again")
+        self.assertEqual(len(self.notes()), 2)
+
+    def test_qsy_not_made(self):
+        self.radio()
+        self.poll()
+        self.radio(qsy=7061500, qsy_why="FT8 is open, close it", qsy_seq=1)
+        self.poll()
+        self.assertTrue(self.notes()[-1].endswith("OpenX6X00: no QSY to 7.061.500 MHz, FT8 is open, close it"))
+        self.radio(qsy=7061500, qsy_why="", qsy_seq=2)                      # made
+        self.poll()
+        self.assertEqual(len(self.notes()), 1)
+
+    def test_stale_file_left_out(self):
+        self.radio(app="FT8", refused="FT8 is open, close it", seq=1)
+        old = time.time() - 60
+        os.utime(self.wl.RADIO, (old, old))
+        self.assertEqual(self.wl.read_radio(), {})
+        self.assertEqual(self.poll()["modem"], "waiting")
 
 
 class Tails(Root):

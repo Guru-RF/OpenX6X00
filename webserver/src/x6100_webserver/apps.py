@@ -715,6 +715,8 @@ def set_tailscale():
 # filesystem, where these pages never read it back) and runs the helper to apply them and to turn it on or off
 WINLINK_CMD = "/usr/sbin/x6100-winlink"
 WINLINK_STATUS = "/run/winlink/status"
+WINLINK_RADIO = "/run/winlink/radio"                  # the GUI's (src/winlink.c), while ardopcf is on its socket
+WINLINK_RADIO_FRESH = 15                              # s: older is from a GUI that is gone
 WINLINK_CONF = "/mnt/winlink.conf"
 WINLINK_PASSWORD = "/var/lib/winlink/password"
 WINLINK_PROGRAMS = ("/usr/bin/pat", "/usr/bin/ardopcf")
@@ -761,8 +763,30 @@ def winlink_state():
               password="page" if password_set else "pat" if st.get("password") == "pat" else "none",
               radio_mycall=max(read_callsign().upper().split("/"), key=len),   # ON6URE of ON6URE/P
               radio_locator=read_param("qth"), installed=all(os.access(p, os.X_OK) for p in WINLINK_PROGRAMS),
-              host_ok=local_host_ok(), port=WINLINK_PORT)
+              host_ok=local_host_ok(), port=WINLINK_PORT, radio=winlink_radio())
     return st
+
+
+def winlink_radio():
+    """The radio's state as the GUI writes it for Winlink: frequencies, mode, the simplex check, filters, power, the
+    app open, the SWR hold, the last refusal and QSY (with how many seconds ago); {} when not written lately"""
+    try:
+        with open(WINLINK_RADIO) as f:
+            if time.time() - os.fstat(f.fileno()).st_mtime > WINLINK_RADIO_FRESH:
+                return {}
+            radio = dict(line.rstrip("\n").split("=", 1) for line in f if "=" in line)
+    except OSError:
+        return {}
+    for k, v in radio.items():
+        if re.fullmatch(r"-?\d+", v):
+            radio[k] = int(v)
+        elif re.fullmatch(r"-?\d+\.\d+", v):
+            radio[k] = float(v)
+    now = int(time.time())
+    for k in ("refused", "qsy"):
+        at = radio.get(k + "_at")
+        radio[k + "_age"] = now - at if isinstance(at, int) and at > 0 else None
+    return radio
 
 
 def winlink_run(args, stdin=None):

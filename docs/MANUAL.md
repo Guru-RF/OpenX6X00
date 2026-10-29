@@ -2529,6 +2529,24 @@ Setting it up:
      Pat's gateway list shows wider: see "The ARDOP bandwidth" below.
 3. Switch Enabled on. Status says "Running as ON6URE" once Pat and ARDOP run.
    From then on they start with the radio, also after a new card image.
+   The Before you connect card shows the radio as Winlink will use it, once
+   ARDOP is on the radio's audio; what is red keeps Winlink from
+   transmitting, or from being heard well:
+   - Frequency: where the radio listens, and whether it transmits there too
+     ("No TX: split would send on 14.200.000, not 14.105.000", XIT, RIT, a
+     TX shift).
+   - Mode: Pat's QSY to a gateway sets USB-D (USB is kept).
+   - Filter: whether the RX filter (and the TX filter, on a base that has
+     one) covers ARDOP's passband at the page's bandwidth: 1250-1750 Hz at
+     500 Hz, 500-2500 Hz at 2000 Hz.
+   - Power: the radio's PWR, at most 7 W for Winlink.
+   - Apps: a digital app open (red: close it), or LOCK on (Pat's QSY is not
+     made).
+   - Last no TX: the radio's last reason not to key, in the last 10 minutes.
+     It also goes into Pat's log ("OpenX6X00: no TX, FT8 is open, close it.
+     Close the app on the radio, then connect again"), once, and again after
+     a minute; so does a QSY not made.
+
    The Connections card keeps apart what is often lumped together:
    - Service: Pat and ARDOP run.
    - Modem: ARDOP is on the radio's audio (ardopcf connected to the GUI);
@@ -2688,7 +2706,9 @@ Good to know:
 - Pat runs behind the GUI and the audio (lower priority).
 - Over SSH, `x6100-winlink status` prints the state, and
   `/run/winlink/pat.log` and `/run/winlink/ardopcf.log` have the programs'
-  output (in memory).
+  output (in memory). `/run/winlink/radio` is the radio's state as the GUI
+  writes it each second while ARDOP is on its audio (the Before you connect
+  card's).
 
 Tested on an X6200: the receive path, Pat's page and its guard, and ARDOP's
 ID frame on the air (1 W). Not tested yet: a real session with a gateway, and

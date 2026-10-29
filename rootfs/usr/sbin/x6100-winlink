@@ -64,6 +64,9 @@ PAT_LOG = os.path.join(RUN, "pat.log")
 PAT_OWN_LOG = os.path.join(RUN, "pat-own.log")   # Pat's --log: the mailbox's log pane; our notes go in it too
 ARDOP_LOG = os.path.join(RUN, "ardopcf.log")
 EVENT_LOG = os.path.join(RUN, "eventlog.json")   # Pat's --event-log
+RADIO = os.path.join(RUN, "radio")    # the GUI's (src/winlink.c): the radio's state while ardopcf is on its socket
+RADIO_FRESH = 15                      # s: an older radio file is from a GUI that is gone
+NOTE_AGAIN = 60                       # s: the same refusal goes into Pat's log again only after this
 LOG_MAX = 256 * 1024
 PAT = ROOT + "/usr/bin/pat"
 ARDOPCF = ROOT + "/usr/bin/ardopcf"
@@ -729,6 +732,17 @@ def radio_fix(refused):
     return "Fix that on the radio, then connect again"
 
 
+def read_radio():
+    """The GUI's radio file as a dict; {} when there is none, or it was not written for RADIO_FRESH s"""
+    try:
+        with open(RADIO) as f:
+            if time.time() - os.fstat(f.fileno()).st_mtime > RADIO_FRESH:
+                return {}
+            return dict(line.rstrip("\n").split("=", 1) for line in f if "=" in line)
+    except OSError:
+        return {}
+
+
 def pat_status():
     """Pat's own status (GET /api/status, which its guard lets through from 127.0.0.1): dialing, connected, and the
     browsers with the mailbox open; None when it does not answer within a second"""
@@ -753,12 +767,35 @@ class Watch:
         self.events = Tail(EVENT_LOG)
         self.outcome = Outcome()
         self.modem = False                         # ardopcf on the GUI's audio socket, as its log says
+        self.seen = {}                             # the radio file's refused_seq and qsy_seq read last
+        self.noted = ("", 0.0)                     # the last refusal put into Pat's log, and when
 
     def pat_started(self):
         self.pat_log.again()                       # Pat empties its log as it starts
 
     def ardop_started(self):
         self.modem = False
+
+    def radio_said(self, radio):
+        """A new "no TX" or QSY not made in the radio file: for the connection under way, and in Pat's log, where
+        Pat itself only sees a connect time out or "Unable to QSY". Not those from before this supervisor"""
+        for key in ("refused", "qsy"):
+            seq, last = radio.get(key + "_seq", ""), self.seen.get(key)
+            self.seen[key] = seq
+            if last is None or seq == last or seq in ("", "0"):
+                continue
+            if key == "refused" and radio.get("refused"):
+                text = radio["refused"]
+                self.outcome.refusal(text)
+                if self.noted[0] != text or time.time() - self.noted[1] >= NOTE_AGAIN:
+                    if note(f"no TX, {text}. {radio_fix(text)}"):
+                        self.noted = (text, time.time())
+            elif key == "qsy" and radio.get("qsy_why"):
+                try:
+                    where = f" to {mhz(int(radio.get('qsy', '0')))} MHz"
+                except ValueError:
+                    where = ""
+                note(f"no QSY{where}, {radio['qsy_why']}")
 
     def poll(self, pat, ardop):
         """The keys, and a note in Pat's log once a connection came to something"""
@@ -771,6 +808,10 @@ class Watch:
             o.ardop_line(line)
         for line in self.events.lines():
             o.event(line)
+        radio = read_radio()
+        if radio:
+            self.modem = radio.get("modem") == "connected"     # the GUI's word over ardopcf's log
+            self.radio_said(radio)
         up = pat.alive() and pat.answered
         keys = {"service": "running" if up and ardop.alive() else "starting" if pat.alive() or ardop.alive() else
                 "stopped",
