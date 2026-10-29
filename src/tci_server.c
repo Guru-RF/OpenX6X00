@@ -1258,11 +1258,19 @@ static void client_read(int ci) {
     c->last_ms = now_ms();
 
     if (!c->up) {
-        char resp[256];
-        int  r = ws_handshake((const char *)c->in, c->in_len, resp, sizeof(resp));
+        char      resp[256];
+        ws_peer_t peer;
+        int       r = ws_handshake((const char *)c->in, c->in_len, resp, sizeof(resp), &peer);
         if (r == 0) {
             if (c->in_len == IN_SIZE)
                 client_close(c);
+            return;
+        }
+        /* From the internet through Tailscale Funnel ("tailscale funnel 50001" made by hand): TCI has no
+         * login, anyone who found the name would tune, listen and key the transmitter (#58) */
+        if (r > 0 && peer.funnel) {
+            LV_LOG_USER("tci: refused %s over Tailscale Funnel", peer.addr[0] ? peer.addr : "a client");
+            client_close(c);
             return;
         }
         if (r < 0 || send(c->fd, resp, strlen(resp), MSG_NOSIGNAL) < 0) {

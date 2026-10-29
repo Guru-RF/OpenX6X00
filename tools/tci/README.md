@@ -32,7 +32,9 @@ left and right), and a transmission as it keys, in the digu of its Mode Data/Pkt
 TX_CHRONO answered with its frame; and
 WSJT-X on a link slower than its RX audio (read at 250 kB/s through a 4 kB receive buffer),
 keyed with the server's queue full: the TX_CHRONOs come ahead of the queued audio, the over
-stays keyed for 3 s, every frame arrives whole. The
+stays keyed for 3 s, every frame arrives whole. Last, Tailscale Funnel (#58): a connection
+with tailscaled's `Tailscale-Funnel-Request` header is closed before its handshake is
+answered, and one through Tailscale's proxy from the tailnet (no such header) is taken. The
 stub keeps what each transmission played in `played.raw` (PLAYED), int16 at 44.1 kHz, for the
 client test to read: how many samples, the tone, its level.
 `make syntax` only compiles; `make PORT=50411 CONF=/tmp/other.conf` runs on another port and

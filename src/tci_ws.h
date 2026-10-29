@@ -36,13 +36,25 @@ typedef struct {
     size_t   len;
 } ws_frame_t;
 
+#define WS_REQUEST_MAX 4096   /* the longest upgrade request taken: Tailscale's proxy adds headers of its own */
+
+/* Where an upgrade request came from, as its headers say */
+typedef struct {
+    bool funnel;            /* Tailscale-Funnel-Request: from the internet, through Tailscale Funnel (#58) */
+    char addr[48];          /* with it, the browser's address (X-Forwarded-For, which tailscaled sets), "" none */
+} ws_peer_t;
+
 /* An HTTP request (the bytes read so far, len of them): complete when the blank line is in.
  * Returns 1 and the 101 response in resp when it is a WebSocket upgrade, 0 when the request
  * is not complete yet, -1 when it is complete but not an upgrade we take. A browser's (it
  * sends Origin) is taken from the radio's own pages only, opened by one of its own names: an
  * address, localhost, the hostname, <hostname>.local, *.ts.net or MagicDNS's short name.
- * TCI's and the browser remote's sockets both come here. */
-int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max);
+ * TCI's and the browser remote's sockets both come here. peer (NULL: not asked) says whether it
+ * came over Tailscale Funnel: tailscaled sets the header on every request from the internet and
+ * drops one the browser sent, so only the internet's requests have it (a client on the LAN that
+ * sends it is taken for one from the internet, which only holds it back). The caller decides
+ * what such a client may do */
+int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max, ws_peer_t *peer);
 
 /* One frame from the start of buf: returns the bytes it took (header and payload), 0 when
  * the buffer holds no complete frame yet, -1 on a frame we refuse (unmasked, reserved bits,

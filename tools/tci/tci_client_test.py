@@ -50,7 +50,8 @@ def played():
 
 
 class WS:
-    def __init__(self, rcvbuf=None):
+    def __init__(self, rcvbuf=None, headers=""):
+        """headers: more request headers, "Name: value\\r\\n" lines (a browser's, Tailscale's proxy's)"""
         self.binary, self.pongs = [], []
         self.rate = None    # bytes a second read at most (a slow link), None: as fast as they come
         if rcvbuf:          # set before connect: the window is offered from it
@@ -62,7 +63,7 @@ class WS:
             self.s = socket.create_connection((HOST, PORT), timeout=5)
         key = base64.b64encode(os.urandom(16)).decode()
         self.s.sendall((f"GET / HTTP/1.1\r\nHost: {HOST}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-                        f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
+                        f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n{headers}\r\n").encode())
         resp = b""
         while b"\r\n\r\n" not in resp:
             chunk = self.s.recv(1024)
@@ -274,7 +275,26 @@ def main():
     formats()
     wsjtx_open()
     wsjtx_slow_link()
+    funnel()
     print("ALL OK")
+
+
+# What Tailscale's proxy adds to a request from the internet through Funnel (tailscaled sets the first itself)
+FUNNEL = "Tailscale-Funnel-Request: ?1\r\nX-Forwarded-For: 203.0.113.7\r\nX-Forwarded-Proto: https\r\n"
+
+
+def funnel():
+    """Issue #58: a funnel made by hand ("tailscale funnel 50001") put TCI, which has no login, on the
+    internet. A connection with tailscaled's Funnel header is closed before the handshake is answered;
+    the same request from the tailnet (Tailscale's proxy, no Funnel header) is taken as before"""
+    try:
+        WS(headers=FUNNEL)
+        raise AssertionError("a connection over Funnel was taken")
+    except (RuntimeError, OSError) as e:
+        print("funnel: refused before the handshake (" + str(e) + ")")
+    ws = WS(headers="X-Forwarded-For: 100.101.102.104\r\nTailscale-User-Login: op@example.com\r\n")
+    print("tailnet through the proxy:", ws.wait_text("protocol:"))
+    ws.send(8, struct.pack(">H", 1000))
 
 
 def rx_frames(ws, seconds):

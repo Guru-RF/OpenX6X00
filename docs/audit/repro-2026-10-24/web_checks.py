@@ -120,3 +120,79 @@ with tempfile.TemporaryDirectory(prefix='x6upload-') as td:
         __import__('time').sleep(0.05)
     print('upload A:',a_result,'upload B:',b_result,'A job installed:',ver_path.read_text().strip(),app_path.read_text())
     assert 'error' in b_result.values() and ver_path.read_text()=='1\n' and len(list(upload_dir.iterdir()))==0
+
+# Issue #58: a request from the internet through Tailscale Funnel carries tailscaled's Tailscale-Funnel-Request, and
+# its name is a *.ts.net name, which the site guard takes as one of the radio's own. Every such request is refused,
+# a page or a read too; the same requests from the LAN and the tailnet pass as they did
+class Refused(Exception):
+    def __init__(self, status, body):
+        super().__init__(status)
+        self.status, self.body = status, body
+
+class GuardBottle:
+    class HTTPError(Refused):
+        def __init__(self, status, body=''):
+            super().__init__(status, body)
+    class HTTPResponse(Refused):
+        def __init__(self, body, status, headers=None):
+            super().__init__(status, body)
+    @staticmethod
+    def abort(status, text=''):
+        raise Refused(status, text)
+    request = SimpleNamespace()
+
+guard = {'bottle': GuardBottle, 'json': json, 'os': os, 'socket': __import__('socket'),
+         'ipaddress': __import__('ipaddress'), 'urllib': __import__('urllib.parse')}
+names = {'host_refused', 'via_funnel', 'funnel_refused', 'refuse_other_sites', 'local_host_ok', 'tailscale_status'}
+nodes = []
+for node in tree.body:
+    if isinstance(node, ast.FunctionDef) and node.name in names:
+        node.decorator_list = []
+        nodes.append(node)
+    elif isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id in (
+            'HOST_ONLY_READS', 'POST_READS', 'TAILSCALE_STATUS', 'TAILSCALE_CONF') for t in node.targets):
+        nodes.append(node)
+assert {n.name for n in nodes if isinstance(n, ast.FunctionDef)} == names, 'the site guard changed its names'
+exec(compile(ast.Module(body=nodes, type_ignores=[]), 'apps-site-guard', 'exec'), guard)
+with tempfile.TemporaryDirectory(prefix='x6funnel-') as td:
+    guard['TAILSCALE_STATUS'] = str(Path(td) / 'status')
+    guard['TAILSCALE_CONF'] = str(Path(td) / 'tailscale.conf')
+    Path(guard['TAILSCALE_STATUS']).write_text('state=running\nname=x6200.tail1234.ts.net\nfunnel=on\n')
+
+    def ask(method, path, host, **headers):
+        hdr = {k.replace('_', '-').lower(): v for k, v in headers.items()}
+        hdr['host'] = host
+        GuardBottle.request = SimpleNamespace(method=method, path=path, headers=hdr,
+                                              get_header=lambda name, default=None: hdr.get(name.lower(), default))
+        try:
+            guard['refuse_other_sites']()
+            return 'passes'
+        except Refused as e:
+            return 'refused %d' % e.status
+
+    funnel = {'Tailscale_Funnel_Request': '?1', 'X_Forwarded_For': '203.0.113.7'}
+    page = 'https://x6200.tail1234.ts.net'
+    cases = [
+        ('the LAN: a page', ask('GET', '/', '192.168.1.50'), 'passes'),
+        ('the LAN: Files', ask('GET', '/files/', '192.168.1.50'), 'passes'),
+        ('the LAN: a change', ask('POST', '/api/remote', '192.168.1.50', Origin='http://192.168.1.50'), 'passes'),
+        ('the tailnet: Files', ask('GET', '/files/', 'x6200.tail1234.ts.net'), 'passes'),
+        ('the tailnet: a change', ask('POST', '/api/tailscale', 'x6200.tail1234.ts.net', Origin=page), 'passes'),
+        ('Funnel: a page', ask('GET', '/', 'x6200.tail1234.ts.net', **funnel), 'refused 403'),
+        ('Funnel: the Panel', ask('GET', '/panel', 'x6200.tail1234.ts.net', **funnel), 'refused 403'),
+        ('Funnel: an API read', ask('GET', '/api/remote', 'x6200.tail1234.ts.net', **funnel), 'refused 403'),
+        ('Funnel: Files', ask('GET', '/files/backups/backup.tgz', 'x6200.tail1234.ts.net', **funnel), 'refused 403'),
+        ('Funnel: a change', ask('POST', '/api/backup/restore', 'x6200.tail1234.ts.net', Origin=page, **funnel),
+         'refused 403'),
+        ('Funnel by an address (a funnel to port 80 made by hand)', ask('GET', '/', '127.0.0.1', **funnel), 'refused 403'),
+        ('Funnel, the header empty', ask('GET', '/', 'x6200.tail1234.ts.net', Tailscale_Funnel_Request=''),
+         'refused 403'),
+    ]
+    hdr = {'host': 'x6200.tail1234.ts.net', 'tailscale-funnel-request': '?1'}
+    GuardBottle.request = SimpleNamespace(headers=hdr, get_header=lambda name, default=None: hdr.get(name.lower(), default))
+    cases.append(('Funnel: local_host_ok', str(guard['local_host_ok']()), 'False'))
+    bad = [c for c in cases if c[1] != c[2]]
+    for what, got, want in cases:
+        print(('ok   ' if got == want else 'FAIL ') + what + ': ' + got)
+    print('Tailscale Funnel requests (#58): %d of %d cases as they should be' % (len(cases) - len(bad), len(cases)))
+    assert not bad

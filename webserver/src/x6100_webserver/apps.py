@@ -48,6 +48,21 @@ def host_refused():
     return bottle.HTTPError(403, msg)
 
 
+def via_funnel():
+    """The request came from the internet through Tailscale Funnel: tailscaled sets this header on every one of
+    those and drops one a browser sent, so a request from the LAN or the tailnet never has it (#58)"""
+    return bottle.request.get_header("Tailscale-Funnel-Request") is not None
+
+
+def funnel_refused():
+    msg = ("The radio's web pages are not on the internet: open them on the radio's own network or over Tailscale. "
+           "Tailscale Funnel only carries the Panel and the Screen page (Remote > Tailscale)")
+    if bottle.request.path.startswith("/api/"):
+        return bottle.HTTPResponse(json.dumps({"status": "error", "msg": msg}), 403,
+                                   {"Content-Type": "application/json"})
+    return bottle.HTTPError(403, msg)
+
+
 @app.hook('before_request')
 def refuse_other_sites():
     """A request that changes something, sent by a page from another site (a form a browser on the
@@ -55,8 +70,13 @@ def refuse_other_sites():
     host. Browsers mark the request with Sec-Fetch-Site, older ones only with Origin.
     A site that points a name of its own at the radio (DNS rebinding) sends that name as Host and Origin
     alike and passes this: a change, and a read of HOST_ONLY_READS, needs one of the radio's own names
-    (local_host_ok) as well. Before, the Wavelog page sent the key and Files handed it out by any name (audit C08)"""
+    (local_host_ok) as well. Before, the Wavelog page sent the key and Files handed it out by any name (audit C08).
+    A request from the internet through Tailscale Funnel is refused whatever it asks, also a page: these pages have
+    no login, and a funnel made by hand (tailscale funnel 80) would hand anyone the settings, the Files page with
+    the keys, Backup restore and the updates. A Funnel name is a *.ts.net name and passed the name check (#58)"""
     req = bottle.request
+    if via_funnel():
+        raise funnel_refused()
     write = req.method not in ("GET", "HEAD", "OPTIONS")
     change = write and req.path not in POST_READS
     if (change or req.path.startswith(HOST_ONLY_READS)) and not local_host_ok():
@@ -600,7 +620,10 @@ def local_host_ok():
     page and the Backup download, Tailscale's login link (which would put the radio on that site's tailnet) and
     the list of SSH keys only by these names. Pat's mailbox on port 8080 takes the same names (tools/pat).
     MagicDNS's short name too, which is the tailnet's name for the radio: x6200-1 while the tailnet still has the
-    machine of an earlier card image as x6200"""
+    machine of an earlier card image as x6200. Never a request from the internet through Tailscale Funnel: its
+    name is a *.ts.net name too (#58)"""
+    if via_funnel():
+        return False
     host = (urllib.parse.urlsplit("//" + (bottle.request.get_header("Host") or "")).hostname or "").rstrip(".")
     try:
         ipaddress.ip_address(host)

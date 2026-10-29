@@ -1769,11 +1769,19 @@ static void client_read(client_t *c) {
     c->last_ms = now_ms();
 
     if (!c->up) {
-        char resp[256];
-        int  r = ws_handshake((const char *)c->in, c->in_len, resp, sizeof(resp));
+        char      resp[256];
+        ws_peer_t peer;
+        int       r = ws_handshake((const char *)c->in, c->in_len, resp, sizeof(resp), &peer);
         if (r == 0) {
             if (c->in_len == IN_SIZE)
                 client_close(c);
+            return;
+        }
+        /* From the internet through Tailscale Funnel (a funnel made by hand, as "tailscale funnel 50002"):
+         * nothing for it, the screen and the spectrum go to anyone who connects (#58) */
+        if (r > 0 && peer.funnel) {
+            LV_LOG_USER("remote: refused %s over Tailscale Funnel", peer.addr[0] ? peer.addr : "a browser");
+            client_close(c);
             return;
         }
         if (r < 0 || send(c->fd, resp, strlen(resp), MSG_NOSIGNAL) < 0) {

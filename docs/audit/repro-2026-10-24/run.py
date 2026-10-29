@@ -105,8 +105,8 @@ def main():
 
         binary = work / "ws-handshake"
         command([*CC, *cflags, *san, HERE / "ws-handshake.c", *gc, "-o", binary], env)
-        print("C08 WebSocket names (26 October audit, fixed):\n" + command([binary], env, contains=(
-            "21 of 21 cases as they should be",)).strip())
+        print("C08 WebSocket names (26 October audit, fixed), and Tailscale Funnel's requests (#58):\n" + command(
+            [binary], env, contains=("29 of 29 cases as they should be",)).strip())
 
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")

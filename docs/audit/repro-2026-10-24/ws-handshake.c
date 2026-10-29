@@ -3,6 +3,9 @@
  * the Host it came to, and only by one of the radio's own names, as the web configurator takes a change. A site
  * that points a name of its own at the radio (DNS rebinding) sends that name as Host and as Origin alike, and was
  * taken: TCI has no login and keys the transmitter. TCI programs send no Origin and are taken by any name.
+ * Issue #58 (Tailscale Funnel): a request with tailscaled's Tailscale-Funnel-Request header is reported as one
+ * from the internet, with its X-Forwarded-For address; Tailscale's proxy adds headers, so a request of up to
+ * 4096 bytes is taken (2048 before).
  *
  *     cc -std=c11 -D_GNU_SOURCE -Isrc ws-handshake.c -o ws-handshake && ./ws-handshake
  *
@@ -19,17 +22,33 @@ static char status_path[512]; /* x6100-tailscale's status file, a temporary one 
 
 static int fails, cases;
 
-static void expect(const char *host, const char *origin, int want) {
-    char req[1024], resp[256];
-    int  n   = snprintf(req, sizeof(req),
-                        "GET /ws HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-                        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n%s%s%s\r\n",
-                        host, origin ? "Origin: " : "", origin ? origin : "", origin ? "\r\n" : "");
-    int  got = ws_handshake(req, (size_t)n, resp, sizeof(resp));
-    printf("%s Host %-34s Origin %-38s %s\n", got == want ? "ok  " : "FAIL", host, origin ? origin : "(none)",
+/* A request with more headers (extra: "Name: value\r\n" lines), taken (1) or refused (-1); what it says of its
+ * peer: from the internet over Funnel (funnel 1) or not (0), and the address the radio shows for it */
+static void expect_peer(const char *host, const char *origin, const char *extra, int want, int want_funnel,
+                        const char *want_addr) {
+    static char req[8192];
+    char        resp[256];
+    ws_peer_t   peer;
+    int         n   = snprintf(req, sizeof(req),
+                               "GET /ws HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                               "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n%s%s%s%s\r\n",
+                               host, origin ? "Origin: " : "", origin ? origin : "", origin ? "\r\n" : "", extra);
+    int         got = ws_handshake(req, (size_t)n, resp, sizeof(resp), &peer);
+    bool        ok  = got == want && (got != 1 || want_funnel < 0 ||
+                                      (peer.funnel == (want_funnel == 1) && !strcmp(peer.addr, want_addr)));
+    printf("%s Host %-34s Origin %-38s %s", ok ? "ok  " : "FAIL", host, origin ? origin : "(none)",
            got == 1 ? "taken" : "refused");
-    fails += got != want;
+    if (got == 1 && want_funnel >= 0)
+        printf(", %s%s%s", peer.funnel ? "over Funnel" : "not over Funnel", peer.addr[0] ? " from " : "", peer.addr);
+    if (extra[0])
+        printf(" (%d bytes)", n);
+    printf("\n");
+    fails += !ok;
     cases++;
+}
+
+static void expect(const char *host, const char *origin, int want) {
+    expect_peer(host, origin, "", want, -1, "");
 }
 
 int main(void) {
@@ -85,6 +104,31 @@ int main(void) {
     expect("x6200-2:50001", "http://x6200-2", -1);
     expect("tail1234:50001", "http://tail1234", -1);
     remove(status_path);
+
+    puts("Issue #58: through Tailscale's proxy, from the tailnet (serve) and from the internet (Funnel)");
+    const char *name = "x6200.tail1234.ts.net", *page = "https://x6200.tail1234.ts.net";
+    expect_peer(name, page, "X-Forwarded-For: 100.101.102.104\r\nX-Forwarded-Proto: https\r\n"
+                "Tailscale-User-Login: op@example.com\r\n", 1, 0, "");
+    expect_peer(name, page, "Tailscale-Funnel-Request: ?1\r\nX-Forwarded-For: 203.0.113.7\r\n", 1, 1, "203.0.113.7");
+    expect_peer(name, page, "tailscale-funnel-request: ?1\r\nX-Forwarded-For: 2001:db8::7, 10.0.0.1\r\n", 1, 1,
+                "2001:db8::7");
+    expect_peer(name, page, "Tailscale-Funnel-Request: ?1\r\nX-Forwarded-For: <script>\r\n", 1, 1, "");
+    expect_peer(name, page, "Tailscale-Funnel-Request: ?1\r\n", 1, 1, "");
+    expect_peer("192.168.1.50:50001", NULL, "X-Forwarded-For: 203.0.113.9\r\n", 1, 0, "");
+    {
+        static char big[5000];
+        size_t      k = 0;
+        /* a profile picture's address and the rest of a tailnet request: 3 kB, which 2048 bytes refused */
+        k += snprintf(big + k, sizeof(big) - k, "Tailscale-User-Profile-Pic: https://lh3.example.com/a/");
+        while (k < 3000)
+            big[k++] = 'x';
+        k += snprintf(big + k, sizeof(big) - k, "\r\nTailscale-Funnel-Request: ?1\r\nX-Forwarded-For: 198.51.100.2\r\n");
+        expect_peer(name, page, big, 1, 1, "198.51.100.2");
+        while (k < 4200)
+            big[k++] = 'y';
+        snprintf(big + k, sizeof(big) - k, "\r\n");
+        expect_peer(name, page, big, -1, -1, "");
+    }
     rmdir(dir);
     printf("%d of %d cases as they should be\n", cases - fails, cases);
     return fails != 0;

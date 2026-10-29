@@ -188,9 +188,34 @@ static bool host_local(const char *name) {
     return tailnet[0] && strcmp(name, tailnet) == 0;
 }
 
-int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max) {
-    char line[2048];
+/* X-Forwarded-For's first address (the browser's, as tailscaled saw it), checked to be one; "" when none */
+static void forwarded_for(const char *req, char *out, size_t out_max) {
+    struct in6_addr a6;
+    struct in_addr  a4;
+    char            a[64];
+    size_t          vl, l = 0;
+    const char     *v = header(req, "X-Forwarded-For", &vl);
 
+    out[0] = 0;
+    if (!v)
+        return;
+    while (l < vl && v[l] != ',' && v[l] != ' ')
+        l++;
+    if (!l || l >= sizeof(a) || l >= out_max)
+        return;
+    memcpy(a, v, l);
+    a[l] = 0;
+    if (inet_pton(AF_INET, a, &a4) == 1 || inet_pton(AF_INET6, a, &a6) == 1)
+        memcpy(out, a, l + 1);
+}
+
+int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max, ws_peer_t *peer) {
+    char line[WS_REQUEST_MAX];
+
+    if (peer)
+        *peer = (ws_peer_t){0};
+    /* 2048 bytes were too few behind Tailscale's proxy: its X-Forwarded-*, and on the tailnet its
+     * Tailscale-User-* with the address of a profile picture (#58) */
     if (len >= sizeof(line))
         return -1;
     memcpy(line, req, len);
@@ -223,6 +248,14 @@ int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max) {
         if (!host || !host_name(o, ol - (o - org), oh, sizeof(oh)) || !host_name(host, hl, hh, sizeof(hh)) ||
             strcmp(oh, hh) != 0 || !host_local(hh))
             return -1;
+    }
+    /* A Funnel name is a *.ts.net name, and passes the check above: only this header tells the
+     * internet's requests from the tailnet's */
+    if (peer) {
+        size_t fl;
+        peer->funnel = header(line, "Tailscale-Funnel-Request", &fl) != NULL;
+        if (peer->funnel)
+            forwarded_for(line, peer->addr, sizeof(peer->addr));
     }
 
     /* accept = base64(sha1(key + the RFC's GUID)) */
