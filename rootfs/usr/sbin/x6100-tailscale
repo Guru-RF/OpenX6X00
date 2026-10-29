@@ -275,6 +275,8 @@ def api_full(method, path, body=None, headers=None):
         c.request(method, "/localapi/v0/" + path, body=data, headers=hdr)
         r = c.getresponse()
         out = r.read()
+    except http.client.HTTPException as e:   # neither OSError nor ValueError: an answer cut off (tailscaled stopping)
+        raise Fail(f"tailscaled: {path.split('?')[0]}: its answer broke off ({type(e).__name__})")
     finally:
         c.close()
     if r.status >= 300:
@@ -622,17 +624,18 @@ def stop_tailscaled(p):
     """tailscaled stopped with no funnel kept (#58): a version without Funnel (gone back to by hand) would start it
     with the funnel of its state and never take it off. Out through the local API first, the radio's own and any made
     by hand, as while it runs; then out of the state file once it has stopped, for one it could not be told about (no
-    login, not answering). The setting stays: the next start sets it again"""
+    login, not answering). The setting stays: the next start sets it again. Whatever comes of the two, tailscaled
+    stops"""
     if p and p.poll() is None:
         try:
             serve_set("", 0, 0, False)
-        except (Fail, OSError, ValueError):
+        except Exception:
             pass
     stop_daemon(p)
     if not tailscaled_pids():
         try:
             state_funnel_off()
-        except (Fail, OSError, ValueError):
+        except Exception:
             pass
 
 

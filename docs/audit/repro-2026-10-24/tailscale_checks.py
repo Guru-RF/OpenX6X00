@@ -36,6 +36,7 @@ class Fake:
     gets = posts = queries = 0
     changed_meanwhile = False
     refuse = ''             # tailscaled refusing a new serve config, as it does with no login: "netMap is nil"
+    cut = False             # its answer to a serve-config read breaking off (tailscaled stopping or crashing meanwhile)
     seen_if_match = []
 
     @classmethod
@@ -66,6 +67,13 @@ class LocalAPI(http.server.BaseHTTPRequestHandler):
             return self.reply(200, json.dumps(Fake.status))
         if self.path == '/localapi/v0/serve-config':
             Fake.gets += 1
+            if Fake.cut:                    # fewer bytes than its Content-Length, then the connection closes
+                self.send_response(200)
+                self.send_header('Content-Length', '400')
+                self.end_headers()
+                self.wfile.write(b'{"TCP": {"443": ')
+                self.close_connection = True
+                return
             return self.reply(200, json.dumps(Fake.serve), {'Etag': Fake.etag(), 'Content-Type': 'application/json'})
         self.reply(404, 'no such')
 
@@ -357,6 +365,19 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
         g['stop_tailscaled'](None)
         check('another tailscaled still runs: its state file not written under it', g['funnel_left'](stored()))
         alive.unlink()
+        Path(g['STATE_FILE']).write_text(json.dumps(dict(others, **{'_serve/a1b2': b64(on_and_by_hand())})))
+        Fake.serve = on_and_by_hand()
+        Fake.cut = True
+        d = Daemon()
+        try:
+            g['stop_tailscaled'](d)
+            check('stopping, tailscaled\'s answer breaking off: stopped all the same, the funnel out of its state file',
+                  not alive.exists() and d.returncode == 0 and tailnet_only(stored()), stored())
+        except Exception as e:
+            check('stopping, tailscaled\'s answer breaking off: stopped all the same', False,
+                  f'{type(e).__name__} raised, tailscaled still running: {alive.exists()}')
+        Fake.cut = False
+        alive.unlink(missing_ok=True)
         Path(g['STATE_FILE']).write_text('{"_serve/a1b2": ')
         try:
             g['stop_tailscaled'](None)
@@ -410,6 +431,18 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
         check('funnel-clear, tailscaled refusing the change (no login): an error naming it, after the wait',
               code == 1 and 'netMap is nil' in out and 1.5 < took < 6, f'{out} ({took:.1f} s)')
         check('funnel-clear, not sure: the setting off all the same', not g['funnel_wanted']())
+        Fake.serve = on_and_by_hand()
+        Fake.cut = True
+        try:
+            t0 = time.time()
+            code, out = clear('2')
+            took = time.time() - t0
+            check('funnel-clear, tailscaled\'s answers breaking off: tried again, then an error line naming it',
+                  code == 1 and out.startswith('error tailscaled: serve-config: its answer broke off') and 1.5 < took < 6,
+                  f'{out} ({took:.1f} s)')
+        except Exception as e:
+            check('funnel-clear, tailscaled\'s answers breaking off: an error line', False, f'{type(e).__name__} raised')
+        Fake.cut = False
 
         real_supervisor_pid = g['supervisor_pid']
         g['supervisor_pid'] = lambda: 4343             # a supervisor runs; its status still says on
