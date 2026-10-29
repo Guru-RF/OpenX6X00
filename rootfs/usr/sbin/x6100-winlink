@@ -416,6 +416,12 @@ def start_pat(pat, want):
     # Pat takes PAT_* variables over its config file: none from outside
     env = {k: v for k, v in os.environ.items() if not k.startswith(("PAT_", "ARDOP_", "XDG_"))}
     env.update(XDG_CONFIG_HOME=LIB, XDG_DATA_HOME=DATA, XDG_STATE_HOME=STATE)
+    # Pat empties its log as it opens it, a moment after it starts: emptied here first, so that the Watch, which
+    # reads it from the start from now on, does not take the last run's lines for new ones meanwhile
+    try:
+        os.truncate(PAT_OWN_LOG, 0)
+    except OSError:
+        pass
     pat.start([PAT, "--log", PAT_OWN_LOG, "--event-log", EVENT_LOG,
                "http", "--addr", f":{HTTP_PORT}"], env=env, nice=10)   # behind the GUI and the modem
     pat.settings = (want, hashlib.sha256(password.encode()).hexdigest())
@@ -555,8 +561,15 @@ class Outcome:
     def _new(self, gateway, at):
         self.last = Connection(gateway, at, self.qsy)
         self.last.bw_asked, self.last.bw_capped = self.capped
-        self.capped = ("", "")
+        self.qsy, self.capped = 0, ("", "")        # this connection's: one without a QSY is not on that frequency
         return self.last
+
+    def pat_stopped(self):
+        """Pat stopped or was restarted with a connection under way: it ends there, with no line in Pat's log"""
+        c = self.last
+        if c is not None and c.stage in ("dialing", "connected"):
+            c.failed_in = "dial" if c.stage == "dialing" else "exchange"
+            c.stage, c.error, c.noted = "failed", "Pat stopped", True
 
     def pat_line(self, line):
         """A line of Pat's own log: Pat's start with the date and time, the session's (the gateway's) do not"""
@@ -679,6 +692,8 @@ def judge(c):
         if sent or received:
             return "delivered", f"Done with {gw}{at}: {sent} sent, {received} received", ""
         return "done", f"Done with {gw}{at}: nothing to send or receive", ""
+    if low == "pat stopped":
+        return "failed", f"Pat stopped during the connection to {gw}", "Connect again once Pat runs again"
     if c.failed_in == "exchange":
         if "context deadline exceeded" in low:
             return "failed", f"Connected to {gw}{at}, then the password prompt timed out (Pat waits a minute)", (
@@ -774,7 +789,8 @@ class Watch:
         self.noted = ("", 0.0)                     # the last refusal put into Pat's log, and when
 
     def pat_started(self):
-        self.pat_log.again()                       # Pat empties its log as it starts
+        self.pat_log.again()                       # Pat's log emptied as it starts (start_pat, and Pat)
+        self.outcome.pat_stopped()
 
     def ardop_started(self):
         self.modem = False
@@ -816,8 +832,11 @@ class Watch:
         for line in self.pat_log.lines():
             o.pat_line(line)
         for line in self.ardop_log.lines():
-            if "Audio socket " in line:
-                self.modem = line.rstrip().endswith(" connected")
+            if "Audio socket " in line:                # its SockSound.c: connected, closed, not there yet, full
+                if line.rstrip().endswith(" connected"):
+                    self.modem = True
+                elif " closed" in line or " not there yet" in line:
+                    self.modem = False
             o.ardop_line(line)
         for line in self.events.lines():
             o.event(line)

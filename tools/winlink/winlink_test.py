@@ -324,8 +324,24 @@ class Outcomes(Logs):
     def test_modem_follows_ardopcf(self):
         self.assertEqual(self.poll()["modem"], "waiting")
         self.assertEqual(self.poll(ardop="Audio socket /run/ardop.sock connected")["modem"], "ready")
+        self.assertEqual(self.poll(ardop="Audio socket full, 'R' message dropped")["modem"], "ready")
         self.assertEqual(self.poll(ardop="Audio socket /run/ardop.sock closed: the other end went away")["modem"],
                          "waiting")
+        self.assertEqual(self.poll(ardop="Audio socket /run/ardop.sock is not there yet, trying again every "
+                                         "second")["modem"], "waiting")
+
+    def test_a_connection_without_a_qsy_has_no_frequency(self):
+        self.poll(pat=fixture("km4gkd-w4nwg-80m.pat.log"))
+        k = self.poll(pat="2026/10/28 01:10:00 Connecting to W4NWG (ardop)...")
+        self.assertEqual((k["last_result"], k["last_freq"], k["last_text"]), ("dialing", "", "Calling W4NWG"))
+
+    def test_pat_restarted_during_a_connection(self):
+        self.poll(pat="2026/10/29 09:47:01 QSY ardop: 14107.7\n2026/10/29 09:47:04 Connecting to HB9MM (ardop)...")
+        self.watch.pat_started()
+        open(self.wl.PAT_OWN_LOG, "w").close()           # Pat empties its log
+        k = self.poll()
+        self.assertEqual((k["last_result"], k["last_text"]), ("failed", "Pat stopped during the connection to HB9MM"))
+        self.assertEqual(self.notes(), [])               # not in Pat's new log
 
     def test_waits_for_the_audio_until_ardopcf_is_on_it(self):
         open(self.wl.ARDOP_SOCK, "w").close()            # the socket there, ardopcf not on it yet
@@ -424,6 +440,21 @@ class RadioFile(Logs):
         os.utime(self.wl.RADIO, (old, old))
         self.assertEqual(self.wl.read_radio(), {})
         self.assertEqual(self.poll()["modem"], "waiting")
+
+
+class PatStart(Root):
+    def test_pats_log_emptied_before_pat_runs(self):
+        """The Watch reads Pat's log from its start once Pat is started: the last run's lines are gone by then"""
+        os.makedirs(os.path.dirname(self.wl.PAT), exist_ok=True)
+        with open(self.wl.PAT, "w") as f:
+            f.write('#!/bin/sh\nwc -c < "$2" > "$2.size"\n')    # $2: the --log file
+        os.chmod(self.wl.PAT, 0o755)
+        with open(self.wl.PAT_OWN_LOG, "w") as f:
+            f.write("2026/10/29 09:47:04 Connecting to HB9MM (ardop)...\n")
+        pat = self.wl.Program("Pat", self.wl.PAT_LOG)
+        self.wl.start_pat(pat, {"mycall": "ON6URE", "locator": "JO20ab", "bandwidth": 500})
+        pat.proc.wait(10)
+        self.assertEqual(read(self.wl.PAT_OWN_LOG + ".size").strip(), "0")
 
 
 class LogDownload(Root):
