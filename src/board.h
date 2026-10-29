@@ -21,6 +21,15 @@
 #define BOARD_VOL_MAX       55
 #endif
 
+/* The top of the TX power setting (PWR), in W: the X6100 is a 10 W radio, the X6200 is rated 8 W on an
+ * external supply, and gdyuldin's X6200 GUI stops its setting at 8.0 (vol.c). 10 W asked of the X6200
+ * went to its base as 10 W (#53) */
+#ifdef BOARD_X6200
+#define BOARD_PWR_MAX       8.0f
+#else
+#define BOARD_PWR_MAX       10.0f
+#endif
+
 #ifdef HOST_BUILD
 /* The GUI on a PC (cmake -DHOST_BUILD=ON): an SDL window for the panel, the stub radio, and the
  * front keys and knobs as FIFOs under the data directory that host/host_panel.c writes the PC's

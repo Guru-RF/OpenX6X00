@@ -917,6 +917,7 @@ body.app h2, body.app #intro { display:none; }
       else if (head === "bands") bands = JSON.parse(body);
       else if (head === "modes") nModes = Math.min(MODES.length, parseInt(body, 10) || 8);
       else if (head === "volmax") LVL.vol.max = parseInt(body, 10) || 55;   /* the X6200: 100 */
+      else if (head === "pwrmax") LVL.pwr.max = (parseInt(body, 10) || 100) / 10;   /* tenths of a watt; the X6200: 80 */
       else if (head === "keys") keysHave(body.split(" "));
       else if (head === "plan") { plan = JSON.parse(body); requestDraw(); }
       else if (head === "ft8") { ft8 = JSON.parse(body); ft8At = Date.now(); showFt8(); }

@@ -896,6 +896,13 @@ POWER, below Factory reset, has three lines:
 
 ## Transmitting
 
+TX power (PWR) goes from 0.1 W to 10 W on the X6100, and to 8 W on the X6200:
+its rating on an external supply. The Power knob control, TX power on WLK 1,
+the browser panel's PWR, TCI's `drive` (100 % is 8 W) and CAT stop there.
+Up to v0.3.6 the X6200 also went up to 10 W and asked its base for that
+(issue #53). A setting saved above 8 W comes back as 8 W. The TX meter keeps
+its 0-10 W scale on both radios, so it shows what the radio measures.
+
 ### TX shift
 
 A band can transmit at a fixed distance from where it listens: an FM
@@ -2583,7 +2590,8 @@ spectrum as binary frames (16 bytes header `{u16 0xFFFF, u16 bins, u32
 centre Hz, u32 width Hz, u32 sequence}`, then one int8 dB per bin). `set NAME
 VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list),
 `agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1), `sql`, `rfg`
-(0-100), `vol` (0-55 on the X6100, 0-100 on the X6200), `pwr` (tenths of a watt), `step`, `zoom` (1-8), `band`
+(0-100), `vol` (0-55 on the X6100, 0-100 on the X6200), `pwr` (tenths of a watt: 1-100,
+1-80 on the X6200), `step`, `zoom` (1-8), `band`
 (+1/-1), `vfo` (toggle), `filter LO HI`. A `set` the radio refuses is
 answered `err ...` (`err freq: locked (LOCK, or an app holds the
 frequency)`, `err freq: not a frequency this radio tunes`, `err NAME: the
@@ -2612,7 +2620,8 @@ written), `conflict` (the number holds another QSO) or `unknown` (never
 seen, the radio restarted since, or no longer kept). After `size` the radio lists its keys (`keys GEN APP
 ...`: the X6200 has no PRE, V/M, AGC or LOCK key) and, to a panel, `modes 8|10`
 (the X6200 adds SAM and WFM; `set mode` with one the radio has not is answered
-`err mode: not on this radio`) and `volmax 55|100`, the AF volume's range. The greeting `hello <version> <boot>` ends with a
+`err mode: not on this radio`), `volmax 55|100`, the AF volume's range, and `pwrmax 100|80`, the top of
+`pwr` in tenths of a watt. The greeting `hello <version> <boot>` ends with a
 number chosen when the GUI started: a client that sees it change knows the
 radio restarted. Sessions and control: `pair?` puts a code on the radio's
 screen, `pair CODE NAME` answers `paired TOKEN ROLE TX`, `auth TOKEN` at each
@@ -2926,7 +2935,8 @@ program on the network tunes the radio, hears it and keys it.
   otherwise.
 - What it carries: `vfo`, `modulation` (lsb, usb, cw, cwr, am, nfm, digl,
   digu), `rx_filter_band`, `agc_mode`, `rit_enable` / `rit_offset`,
-  `drive` (TX power), `trx` (PTT; `trx:0,true,tci;` keys with the client's
+  `drive` (TX power, 0-100 %: 0.1 W up to 10 W, 8 W on the X6200),
+  `trx` (PTT; `trx:0,true,tci;` keys with the client's
   audio as the microphone), `rx_smeter` and `rx_channel_sensors` (the
   S-meter in dBm, after `rx_sensors_enable:true;`), `tx_sensors` (mic level,
   forward power, SWR, ALC, after `tx_sensors_enable:true;`), the RX audio
@@ -3356,7 +3366,7 @@ Logs page shows them all.
 | `14` | `02` | RF gain (0-255) | yes | yes |
 | `14` | `03` | Squelch (0-255) | yes | yes |
 | `14` | `09` | CW pitch (0-255 = 300-900 Hz) | yes | yes |
-| `14` | `0A` | TX power (0-255 = 0-10 W) | yes | yes |
+| `14` | `0A` | TX power (0-255 = 0-10 W; the X6200 stops at 8 W) | yes | yes |
 | `14` | `15` | Monitor level | yes | - |
 | `15` | `02` | S-meter (Icom scale, 120 = S9, for network clients) | yes | - |
 | `15` | `11` | TX power meter | yes | - |

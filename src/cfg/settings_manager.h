@@ -74,7 +74,7 @@ class SettingsManager {
     // clang-format off
     Parameter<int32_t> p_volume{"vol", 30, 0, BOARD_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, 0.1f, 10.0f,
+    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, 0.1f, BOARD_PWR_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_squelch{"sql", 0, 0, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};

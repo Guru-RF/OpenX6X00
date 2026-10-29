@@ -605,7 +605,7 @@ static void build(void) {
     rule(ROWS_Y - 14);
     vol_bar = level_row("VOL", ROWS_Y, BOARD_VOL_MAX, &vol_val);
     sql_bar = level_row("SQL", ROWS_Y + ROW_STEP, 100, &sql_val);
-    pwr_bar = level_row("PWR", ROWS_Y + 2 * ROW_STEP, 100, &pwr_val);
+    pwr_bar = level_row("PWR", ROWS_Y + 2 * ROW_STEP, (int32_t)(BOARD_PWR_MAX * 10), &pwr_val);
 
     timer = lv_timer_create(update_cb, 100, NULL);
 }

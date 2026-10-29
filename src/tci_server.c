@@ -84,6 +84,7 @@
 #define ACC_MAX       (2048 + 2 * AUDIO_FRAMES)   /* a client's RX audio short of a frame, then a read more */
 #define TX_SILENCE_MS 500           /* keyed with TCI audio: unkeyed without frames this long */
 #define TX_LIMIT_MS   (180 * 1000)
+#define DRIVE_SPAN    (BOARD_PWR_MAX - 0.1f)   /* drive 0..100 %: 0.1 W to the top of PWR (10 W, the X6200 8 W) */
 
 /* The TCI audio frame header, 64 bytes, little endian. length counts the samples of all the
  * channels (TCI's "real samples"), so a frame holds length / channels samples of each */
@@ -171,7 +172,7 @@ static int drive_of(float pwr) {
     memcpy(&bits, &pwr, sizeof(bits));
     if ((v >> 32) && (uint32_t)v == bits)
         return (int)(v >> 32) - 1;
-    return (int)lroundf((pwr - 0.1f) * 100.0f / 9.9f);
+    return (int)lroundf((pwr - 0.1f) * 100.0f / DRIVE_SPAN);
 }
 /* A start is its client's from the moment its key is queued, and a second start is refused until
  * the first is over: a second one taking the owner while the first key was on its way to the LVGL
@@ -531,7 +532,7 @@ static void apply_cmd(void *arg) {
             param_i_set(cfg_rit, c->a);
             break;
         case C_DRIVE:
-            cfg_pwr_set(0.1f + c->a * 9.9f / 100.0f);   /* saved, the radio follows the setting */
+            cfg_pwr_set(0.1f + c->a * DRIVE_SPAN / 100.0f);   /* saved, the radio follows the setting */
             drive_set_store(c->a, param_f_get(cfg_pwr)); /* as the setting kept it */
             break;
         case C_KEY:
