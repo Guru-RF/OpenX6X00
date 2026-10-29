@@ -97,6 +97,9 @@ MODEMS = ("ardop", "mercury")          # the modem= choice, ardop the default
 MERCURY_BANDWIDTHS = (500, 2300, 2750)  # Hz, VARA's BW500, BW2300 and BW2750, which Mercury takes; 2300 the default
 MODEM_NAMES = {"ardop": "ARDOP", "mercury": "Mercury"}
 MODEM_PROGRAMS = {"ardop": ARDOPCF, "mercury": MERCURY}
+TRANSPORTS = {"ardop": "ardop", "mercury": "varahf"}   # Pat's transport for each modem
+TRANSPORT_NAMES = {"ardop": "ARDOP", "varahf": "VARA HF"}   # as Pat's Connect dialog names them
+MERCURY_BEHIND = 600                   # s: a "decoder ring full" of Mercury's this recent marks the modem behind
 CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")
 LOCATOR_RE = re.compile(r"[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?")
 
@@ -532,16 +535,20 @@ def nap(seconds):
 
 # ---- what a connection came to ---------------------------------------------------------------
 #
-# Kept apart in the status file: the service (Pat and ardopcf run), the modem (ardopcf on the GUI's audio socket),
-# the session (Pat dialing or connected, its /api/status) and the last connection: dialing, connected to the
-# gateway, mail delivered, or failed, with what to do next, which also goes into Pat's log. Read from three logs,
-# each followed from where it was last read: Pat's own (its lines, and the session's text), ardopcf's console (the
-# [STATUS: ...] lines of its ARQ.c) and Pat's event log (a JSON "exchange" a connection, app/exchange.go: a message
-# is in its "sent" only once the gateway confirmed it). ardopcf's lines have no time: those read in a poll count
-# for the connection Pat's lines of that poll leave under way.
+# Kept apart in the status file: the service (Pat and the modem run), the modem (ardopcf or x6x00-mercury on the
+# GUI's audio socket), the session (Pat dialing or connected, its /api/status) and the last connection: dialing,
+# connected to the gateway, mail delivered, or failed, with what to do next, which also goes into Pat's log. Read
+# from four logs, each followed from where it was last read: Pat's own (its lines, and the session's text),
+# ardopcf's console (the [STATUS: ...] lines of its ARQ.c), Mercury's (x6x00-mercury's lines on the socket, and its
+# decoders falling behind) and Pat's event log (a JSON "exchange" a connection, app/exchange.go: a message is in its
+# "sent" only once the gateway confirmed it). ardopcf's lines have no time: those read in a poll count for the
+# connection Pat's lines of that poll leave under way. With Mercury, Pat's transport is varahf: its lines say so
+# ("Connecting to N0BBB (varahf)...", "vara initialization failed: ...", Pat-Vara's errors).
 
 PAT_TIME_RE = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d)(?:\.\d+)? (.*)$")
 ARDOP_STATUS_RE = re.compile(r"\[STATUS: (.*)\]\s*$")
+PAT_QSY_RE = re.compile(r"QSY (ardop|varahf): (.*)$")
+PAT_CONNECTING_RE = re.compile(r"Connecting to (\S+) \((ardop|varahf)\)\.\.\.$")
 
 
 class Tail:
@@ -586,8 +593,9 @@ def mhz(hz):
 class Connection:
     """One connection Pat made or tried, as the logs tell it"""
 
-    def __init__(self, gateway="", at=0.0, freq=0):
+    def __init__(self, gateway="", at=0.0, freq=0, transport="ardop"):
         self.gateway, self.at, self.freq = gateway, at, freq
+        self.transport = transport                 # Pat's: ardop (ARDOP) or varahf (Mercury)
         self.stage = "dialing"                     # dialing, connected, done, failed
         self.failed_in = ""                        # "dial" or "exchange": where it failed
         self.error = ""                            # Pat's words for it
@@ -607,10 +615,12 @@ class Outcome:
     def __init__(self):
         self.last = None
         self.qsy = 0                               # Hz, Pat's last QSY: the next connection's frequency
+        self.qsy_via = "ardop"                     # its transport, for an "Unable to QSY" after it
         self.capped = ("", "")                     # our Pat's bandwidth line, for the next "Connecting"
+        self.chosen = "ardop"                      # the modem on the Winlink page
 
-    def _new(self, gateway, at):
-        self.last = Connection(gateway, at, self.qsy)
+    def _new(self, gateway, at, transport="ardop"):
+        self.last = Connection(gateway, at, self.qsy, transport)
         self.last.bw_asked, self.last.bw_capped = self.capped
         self.qsy, self.capped = 0, ("", "")        # this connection's: one without a QSY is not on that frequency
         return self.last
@@ -638,20 +648,24 @@ class Outcome:
         except (ValueError, OverflowError):
             at = time.time()
         text = m.group(2)
-        if text.startswith("QSY ardop: "):
+        q = PAT_QSY_RE.match(text)
+        if q:
+            self.qsy_via = q.group(1)
             try:
-                self.qsy = int(round(float(text.split(": ", 1)[1]) * 1000))     # kHz
+                self.qsy = int(round(float(q.group(2)) * 1000))     # kHz
             except ValueError:
                 self.qsy = 0
             return
         if text.startswith("ARDOP bandwidth ") and ", not the " in text:
             self.capped = (text.rsplit(", not the ", 1)[1].split()[0], text.split()[2].rstrip(","))
             return
-        if text.startswith("Connecting to ") and text.endswith(" (ardop)..."):
-            self._new(text[len("Connecting to "):-len(" (ardop)...")], at)
+        q = PAT_CONNECTING_RE.match(text)
+        if q:
+            self._new(q.group(1), at, q.group(2))
             return
-        if text.startswith(("ARDOP TNC initialization failed", "Unable to QSY: ")):
-            c = self._new("", at)                  # before any "Connecting"
+        if text.startswith(("ARDOP TNC initialization failed", "vara initialization failed", "Unable to QSY: ")):
+            via = "ardop" if text.startswith("ARDOP") else "varahf" if text.startswith("vara") else self.qsy_via
+            c = self._new("", at, via)             # before any "Connecting"
             c.stage, c.failed_in, c.error = "failed", "dial", text
             return
         c = self.last
@@ -676,7 +690,7 @@ class Outcome:
         """A line of ardopcf's console: its [STATUS: ...] lines name the other station"""
         m = ARDOP_STATUS_RE.search(line)
         c = self.last
-        if not m or c is None or not c.gateway:
+        if not m or c is None or not c.gateway or c.transport != "ardop":
             return
         st = m.group(1)
         if c.gateway.upper() not in st.split(",")[0].split():
@@ -718,19 +732,22 @@ class Outcome:
         c = self.last
         if c is None:
             return {}
-        result, text, nxt = judge(c)
+        result, text, nxt = judge(c, self.chosen)
         return {"last_result": result, "last_time": int(c.at), "last_gateway": c.gateway, "last_freq": c.freq or "",
                 "last_bw": c.bw or "", "last_bw_asked": c.bw_asked, "last_bw_capped": c.bw_capped,
                 "last_sent": "" if c.sent is None else c.sent,
                 "last_received": "" if c.received is None else c.received, "last_text": text, "last_next": nxt}
 
 
-def judge(c):
-    """(result, what happened, what to do next) of a connection: dialing, connected, delivered, done or failed"""
+def judge(c, chosen="ardop"):
+    """(result, what happened, what to do next) of a connection: dialing, connected, delivered, done or failed.
+    chosen: the modem on the Winlink page"""
     gw = c.gateway or "the gateway"
     on = f" on {mhz(c.freq)}" if c.freq else ""
     at = f" at {c.bw} Hz" if c.bw else ""
     low = c.error.lower()
+    mercury = c.transport == "varahf"
+    narrow = "choose 500 Hz for Mercury on the Winlink page" if mercury else "choose 500 or 200 Hz"
     if c.stage == "dialing":
         if c.refused:
             return "dialing", f"Calling {gw}{on}, but the radio does not transmit: {c.refused}", radio_fix(c.refused)
@@ -756,14 +773,25 @@ def judge(c):
         if c.refused:
             return "failed", f"The link to {gw} dropped: the radio stopped transmitting, {c.refused}", radio_fix(c.refused)
         return "failed", f"The link to {gw}{at} dropped ({c.error})", (
-            "What was delivered before it counts. Connect again; on a weak path choose 500 or 200 Hz")
+            f"What was delivered before it counts. Connect again; on a weak path {narrow}")
     if low == "cancelled":
         return "failed", f"The call to {gw} was cancelled", ""
     if low.startswith("unable to qsy"):
         return "failed", f"Pat could not tune the radio ({c.error})", (
             "The radio's screen says why (an app open, LOCK, on the air): fix that, then connect again")
-    if low.startswith("ardop tnc initialization failed"):
-        return "failed", "ARDOP was not ready", "Wait until the Winlink page says the modem is ready, then connect again"
+    if low.startswith(("ardop tnc initialization failed", "vara initialization failed")):
+        if c.transport != TRANSPORTS[chosen]:
+            return "failed", (f"Pat called through {TRANSPORT_NAMES[c.transport]}, but the radio runs "
+                              f"{MODEM_NAMES[chosen]}"), (
+                f"Choose {TRANSPORT_NAMES[TRANSPORTS[chosen]]} in Pat's Connect dialog"
+                f"{' (Mercury speaks it)' if chosen == 'mercury' else ''}, or {'Mercury' if mercury else 'ARDOP'} as "
+                "the modem on the Winlink page")
+        return "failed", f"{'Mercury' if mercury else 'ARDOP'} was not ready", (
+            "Wait until the Winlink page says the modem is ready, then connect again")
+    bw = re.fullmatch(r"bandwidth (\S+) not supported", low)
+    if bw:
+        return "failed", f"Mercury has no {bw.group(1)} Hz: the connection asked for it", (
+            "Choose 500, 2300 or 2750 Hz for the connection, or none: Mercury then takes the Winlink page's")
     if c.refused:
         return "failed", f"No answer from {gw}: the radio did not transmit, {c.refused}", radio_fix(c.refused)
     if c.ardop == "bandwidth":
@@ -774,6 +802,11 @@ def judge(c):
     if "waiting for clear channel" in low:
         return "failed", "The frequency stayed busy, or Abort was chosen while Pat waited for it to clear", (
             "Try again later, another gateway or another band")
+    if mercury and "connect timeout" in low:
+        return "failed", f"No answer from {gw}{on}", (
+            "Check the power, the antenna and the SWR, and the radio's screen for \"Winlink: no TX\". The other "
+            "station needs Mercury 1.9.20 or later: a VARA gateway from Pat's list does not answer it. Or try "
+            "another band")
     if c.ardop in ("no answer", "rejected") or "connect timeout" in low:
         return "failed", f"No answer from {gw}{on}" + (" (it rejected the call)" if c.ardop == "rejected" else ""), (
             "Check the power, the antenna and the SWR, and the radio's screen for \"Winlink: no TX\"; on a weak path "
@@ -832,9 +865,12 @@ class Watch:
     def __init__(self):
         self.pat_log = Tail(PAT_OWN_LOG)
         self.ardop_log = Tail(ARDOP_LOG)
+        self.mercury_log = Tail(MERCURY_LOG)
         self.events = Tail(EVENT_LOG)
         self.outcome = Outcome()
-        self.modem = False                         # ardopcf on the GUI's audio socket, as its log says
+        self.modem = False                         # the modem on the GUI's audio socket, as its log says
+        self.behind = 0.0                          # Mercury's decoders last dropped audio, as its log says
+        self.behind_noted = 0.0                    # and when that went into Pat's log
         self.seen = {}                             # the radio file's refused_seq and qsy_seq read last
         self.swr_hold = None                       # its swr_hold (s) read last
         self.noted = ("", 0.0)                     # the last refusal put into Pat's log, and when
@@ -845,6 +881,23 @@ class Watch:
 
     def modem_started(self):
         self.modem = False
+        self.behind = 0.0
+
+    def mercury_line(self, line):
+        """A line of Mercury's log: x6x00-mercury on the GUI's socket or not, and its decoders falling behind the
+        receiver (modem/modem.c: the radio's processor short for it, its connects then fail)"""
+        if line.startswith("x6x00-mercury: connected to "):
+            self.modem = True
+        elif line.startswith(("x6x00-mercury: the GUI's socket closed", "x6x00-mercury: stopping")) or (
+                line.startswith("x6x00-mercury: ") and " is not there yet" in line):
+            self.modem = False
+        elif "decoder ring full" in line:
+            self.behind = time.time()
+            if self.behind - self.behind_noted >= MERCURY_BEHIND and note(
+                    "Mercury could not keep up with the receiver (its decoders dropped audio): the radio's "
+                    "processor is short for it, and its connections may fail. ARDOP needs far less (Operating > "
+                    "Winlink); the logs download from that page helps us measure it"):
+                self.behind_noted = self.behind
 
     def radio_said(self, radio):
         """A new "no TX" or QSY not made in the radio file: for the connection under way, and in Pat's log, where
@@ -877,28 +930,36 @@ class Watch:
                     where = ""
                 note(f"no QSY{where}, {radio['qsy_why']}")
 
-    def poll(self, pat, modem):
-        """The keys, and a note in Pat's log once a connection came to something. modem: the chosen one's Program"""
+    def poll(self, pat, modem, kind="ardop"):
+        """The keys, and a note in Pat's log once a connection came to something. modem: the chosen one's Program,
+        kind its name"""
         o = self.outcome
+        o.chosen = kind
         for line in self.pat_log.lines():
             o.pat_line(line)
+        # The socket lines of the chosen modem's log only: the one that just stopped says so after the other started
         for line in self.ardop_log.lines():
-            if "Audio socket " in line:                # its SockSound.c: connected, closed, not there yet, full
+            if kind == "ardop" and "Audio socket " in line:  # its SockSound.c: connected, closed, not there yet, full
                 if line.rstrip().endswith(" connected"):
                     self.modem = True
                 elif " closed" in line or " not there yet" in line:
                     self.modem = False
             o.ardop_line(line)
+        for line in self.mercury_log.lines():
+            if kind == "mercury":
+                self.mercury_line(line)
         for line in self.events.lines():
             o.event(line)
         radio = read_radio()
         if radio:
-            self.modem = radio.get("modem") == "connected"     # the GUI's word over ardopcf's log
+            self.modem = radio.get("modem") == "connected"     # the GUI's word over the modem's log
             self.radio_said(radio)
         up = pat.alive() and pat.answered
+        behind = kind == "mercury" and time.time() - self.behind < MERCURY_BEHIND
         keys = {"service": "running" if up and modem.alive() else "starting" if pat.alive() or modem.alive() else
                 "stopped",
-                "modem": "ready" if modem.alive() and self.modem else "waiting" if modem.alive() else "off"}
+                "modem": ("behind" if behind else "ready") if modem.alive() and self.modem else
+                         "waiting" if modem.alive() else "off"}
         st = pat_status() if up else None
         if st is None:
             keys["session"] = "unknown" if pat.alive() else "off"
@@ -933,7 +994,7 @@ def report(pat, modem, want, keys):
         call = f"Running as {want['mycall']}" if want["mycall"] else "Running, with no callsign yet"
         # The modem on the socket, not the socket there: ardopcf and x6x00-mercury try again every second until
         # the GUI listens
-        gui = "" if keys.get("modem") == "ready" else f"; {name} waits for the radio's audio (the GUI)"
+        gui = "" if keys.get("modem") in ("ready", "behind") else f"; {name} waits for the radio's audio (the GUI)"
         say("running", call + gui, **st)
 
 
@@ -999,7 +1060,7 @@ def run():
                 pat.answered = answers(HTTP_PORT)
                 if pat.answered:
                     pat_up(want)
-            report(pat, modem, want, watch.poll(pat, modem))
+            report(pat, modem, want, watch.poll(pat, modem, kind))
             trim_logs()
             nap(POLL)
     finally:

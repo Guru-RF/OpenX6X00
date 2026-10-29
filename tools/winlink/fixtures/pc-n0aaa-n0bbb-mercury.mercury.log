@@ -1,0 +1,83 @@
+19:45:53.223 [+0.000s] [INF] [engine] Logger initialised (min_level=INFO)
+19:45:53.223 [+0.000s] [INF] [engine] Initialising audio I/O (subsystem=8)
+19:45:53.223 [+0.000s] [INF] [audio-host] Audio from the host program (8 kHz)
+19:45:53.223 [+0.000s] [INF] [engine] Initialising modem (mode=12)
+19:45:53.223 [+0.000s] [INF] [modem] Created data buffers for ARQ and BROADCAST datalink, tx/rx paths.
+19:45:53.226 [+0.003s] [INF] [modem] Initialized persistent mode pool (DATAC16/DATAC15/DATAC13/DATAC4/DATAC3/DATAC1/DATAC17/QAM16C2/MFSK/MFSK500), frames per burst: 1
+19:45:53.226 [+0.003s] [INF] [modem] Active FreeDV mode at startup: 12 (DATAC3), verbosity: 0
+19:45:53.226 [+0.003s] [INF] [modem] Modem expects sample rate: 8000 Hz
+19:45:53.226 [+0.003s] [INF] [modem] Modem payload bytes per frame: 126
+19:45:53.226 [+0.003s] [INF] [modem] Split control/data mode switching: ENABLED
+19:45:53.226 [+0.003s] [INF] [arq-bus] Initialized channel bus
+19:45:53.226 [+0.003s] [INF] [arq] Event loop started
+19:45:53.226 [+0.003s] [INF] [arq] ARQ initialized (frame=126 mode=12)
+19:45:53.226 [+0.003s] [INF] [arq] My callsign: N0AAA
+19:45:53.226 [+0.003s] [INF] [bcast] Starting broadcast system...
+19:45:53.226 [+0.003s] [INF] [bcast] Broadcast frame alignment OK (FreeDV mode 12, hermes mode 1): 126 bytes.
+19:45:53.226 [+0.003s] [INF] [engine] Initialising TCP interfaces (arq=18300, bc=18100)
+19:45:53.226 [+0.003s] [INF] [tcp-ctl] Listening on 127.0.0.1 TCP port 18300
+19:45:53.226 [+0.003s] [INF] [tcp-data] Listening on 127.0.0.1 TCP port 18301
+19:45:53.236 [+0.013s] [INF] [engine] Initialising the UI (tls=0, waterfall=0)
+19:45:53.236 [+0.013s] [INF] [ui-host] UI traffic goes through the host program
+19:45:53.236 [+0.013s] [INF] [ui-comm] UI transport ready
+19:45:53.236 [+0.013s] [INF] [tcp-bcast] Waiting for a client to connect...
+19:45:53.236 [+0.013s] [INF] [ui-comm] Publisher thread started
+19:45:53.236 [+0.013s] [INF] [engine] Mercury engine initialised
+19:45:53.236 [+0.013s] [INF] [ui-comm] Publisher started - sending status every 500ms
+x6x00-mercury: connected to /tmp/winlink-modems-rnvbmbdw/a.sock
+19:45:53.424 [+0.201s] [INF] [tcp-ctl] Control client connected
+19:45:53.424 [+0.201s] [INF] [tcp-ctl] Command received: PUBLIC ON
+19:45:53.424 [+0.202s] [INF] [tcp-ctl] Command received: CWID ON
+19:45:53.424 [+0.202s] [WRN] [tcp-ctl] Unknown command: CWID ON
+19:45:53.424 [+0.202s] [INF] [tcp-ctl] Command received: COMPRESSION TEXT
+19:45:53.424 [+0.202s] [INF] [tcp-ctl] Command received: MYCALL N0AAA
+19:45:53.424 [+0.202s] [INF] [tcp-ctl] Command received: LISTEN OFF
+19:45:53.424 [+0.202s] [INF] [arq] My callsign: N0AAA
+19:45:53.424 [+0.202s] [INF] [tcp-ctl] Command received: VERSION
+19:45:53.467 [+0.244s] [WRN] [tcp-ctl] Control recv returned 0 (err=0), closing
+19:45:53.467 [+0.244s] [INF] [tcp-ctl] Control client disconnected
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Control client connected
+19:45:53.576 [+0.353s] [INF] [tcp-data] Data client connected
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Command received: PUBLIC ON
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Command received: CWID ON
+19:45:53.576 [+0.353s] [WRN] [tcp-ctl] Unknown command: CWID ON
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Command received: COMPRESSION TEXT
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Command received: MYCALL N0AAA
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Command received: LISTEN OFF
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Command received: VERSION
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Command received: BW2300
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Command received: P2P SESSION
+19:45:53.576 [+0.353s] [INF] [tcp-ctl] Command received: CONNECT N0AAA N0BBB
+19:45:53.576 [+0.353s] [INF] [arq] My callsign: N0AAA
+19:45:53.582 [+0.359s] [INF] [radio] TX enabled (PTT ON)
+19:45:57.292 [+4.070s] [INF] [radio] TX disabled (PTT OFF)
+19:46:01.440 [+8.217s] [INF] [arq] Connected to N0BBB
+19:46:01.444 [+8.221s] [INF] [arq-fsm] carousel: NAV headers below 0 dB
+19:46:02.399 [+9.177s] [INF] [radio] TX enabled (PTT ON)
+19:46:06.110 [+12.887s] [INF] [radio] TX disabled (PTT OFF)
+19:46:11.621 [+18.398s] [INF] [radio] TX enabled (PTT ON)
+19:46:15.331 [+22.108s] [INF] [radio] TX disabled (PTT OFF)
+19:46:20.843 [+27.620s] [INF] [radio] TX enabled (PTT ON)
+19:46:24.554 [+31.331s] [INF] [radio] TX disabled (PTT OFF)
+19:46:30.066 [+36.843s] [INF] [radio] TX enabled (PTT ON)
+19:46:33.777 [+40.554s] [INF] [radio] TX disabled (PTT OFF)
+19:46:39.788 [+46.565s] [INF] [radio] TX enabled (PTT ON)
+19:46:43.498 [+50.275s] [INF] [radio] TX disabled (PTT OFF)
+19:46:49.008 [+55.785s] [INF] [radio] TX enabled (PTT ON)
+19:46:50.049 [+56.827s] [INF] [tcp-ctl] Command received: DISCONNECT
+19:46:50.150 [+56.927s] [INF] [tcp-ctl] Command received: BW2300
+19:46:51.151 [+57.928s] [WRN] [tcp-data] Data recv returned 0 (err=0), closing
+19:46:51.151 [+57.928s] [INF] [tcp-data] Data client disconnected
+19:46:51.151 [+57.928s] [WRN] [tcp-ctl] Control recv returned 0 (err=0), closing
+19:46:51.151 [+57.928s] [INF] [tcp-ctl] Control client disconnected
+x6x00-mercury: stopping
+19:46:51.194 [+57.972s] [INF] [engine] Shutting down
+19:46:51.195 [+57.972s] [INF] [modem-rx] decoder worker exit (mode=23)
+19:46:51.196 [+57.973s] [INF] [modem-rx] decoder worker exit (mode=25)
+19:46:51.196 [+57.973s] [INF] [modem-rx] decoder worker exit (mode=100)
+19:46:51.248 [+58.025s] [INF] [ui-comm] Publisher shutting down
+19:46:51.370 [+58.147s] [ERR] [tcp-ctl] DROPPED host state notification 'PTT OFF' — the TNC queue was not open for 50 ms; a host relying on this for interlock or scanning is now out of sync
+19:46:51.370 [+58.147s] [INF] [radio] TX disabled (PTT OFF)
+19:46:51.371 [+58.148s] [INF] [ui-comm] Shut down
+19:46:51.371 [+58.148s] [INF] [engine] Mercury engine shut down
+Loaded configuration from /tmp/winlink-modems-rnvbmbdw/a-mercury.ini

@@ -271,7 +271,7 @@ class Logs(Root):
         super().setUp()
         self.pat_status = {"connected": False, "dialing": False, "http_clients": []}
         self.wl.pat_status = lambda: self.pat_status
-        for path in (self.wl.PAT_OWN_LOG, self.wl.ARDOP_LOG, self.wl.EVENT_LOG):
+        for path in (self.wl.PAT_OWN_LOG, self.wl.ARDOP_LOG, self.wl.MERCURY_LOG, self.wl.EVENT_LOG):
             open(path, "w").close()
         self.watch = self.wl.Watch()
 
@@ -279,14 +279,16 @@ class Logs(Root):
         with open(path, "a") as f:
             f.write(text if text.endswith("\n") else text + "\n")
 
-    def poll(self, pat="", ardop="", events=()):
+    def poll(self, pat="", ardop="", events=(), mercury="", kind="ardop"):
         if pat:
             self.add(self.wl.PAT_OWN_LOG, pat)
         if ardop:
             self.add(self.wl.ARDOP_LOG, ardop)
+        if mercury:
+            self.add(self.wl.MERCURY_LOG, mercury)
         for e in events:
-            self.add(self.wl.EVENT_LOG, json.dumps(e))
-        return self.watch.poll(Running(), Running())
+            self.add(self.wl.EVENT_LOG, e if isinstance(e, str) else json.dumps(e))
+        return self.watch.poll(Running(), Running(), kind)
 
     def notes(self):
         return [ln for ln in read(self.wl.PAT_OWN_LOG).splitlines() if " OpenX6X00: " in ln]
@@ -444,6 +446,104 @@ class Outcomes(Logs):
         self.assertIn("ARDOP waits for the radio's audio", read(self.wl.STATUS))
         self.wl.report(Running(), Running(), {"mycall": "ON6URE"}, {"modem": "ready"})
         self.assertIn("text=Running as ON6URE\n", read(self.wl.STATUS))
+
+
+class MercuryOutcomes(Logs):
+    """With Mercury: Pat's varahf lines, x6x00-mercury's and Mercury's own (the PC test's logs, tools/winlink)"""
+
+    def test_pc_p2p_delivered(self):
+        log = fixture("pc-n0aaa-n0bbb-mercury.mercury.log").splitlines(keepends=True)
+        k = self.poll(mercury="".join(log[:27]), kind="mercury")
+        self.assertEqual(k["modem"], "ready")                         # x6x00-mercury on the socket
+        pat = fixture("pc-n0aaa-n0bbb-mercury.pat.log").splitlines(keepends=True)
+        k = self.poll(pat="".join(pat[:2]), mercury="".join(log[27:]), kind="mercury")
+        self.assertEqual((k["last_result"], k["last_gateway"], k["last_text"]), ("dialing", "N0BBB", "Calling N0BBB"))
+        self.assertEqual(k["modem"], "waiting")                       # x6x00-mercury: stopping
+        k = self.poll(pat="".join(pat[2:]), events=fixture("pc-n0aaa-n0bbb-mercury.events.log").splitlines(),
+                      kind="mercury")
+        self.assertEqual(k["last_result"], "delivered")
+        self.assertEqual(k["last_text"], "Done with N0BBB: 1 sent, 0 received")
+        self.assertEqual((k["last_bw"], k["last_bw_asked"]), ("", ""))   # Pat does not log Mercury's
+        self.assertEqual(len(self.notes()), 1)
+
+    def test_modem_follows_x6x00_mercury(self):
+        self.assertEqual(self.poll(kind="mercury")["modem"], "waiting")
+        self.assertEqual(self.poll(mercury="x6x00-mercury: /run/ardop.sock is not there yet, trying again every "
+                                           "second", kind="mercury")["modem"], "waiting")
+        self.assertEqual(self.poll(mercury="x6x00-mercury: connected to /run/ardop.sock", kind="mercury")["modem"],
+                         "ready")
+        self.assertEqual(self.poll(mercury="x6x00-mercury: the GUI's socket closed: the GUI went away",
+                                   kind="mercury")["modem"], "waiting")
+
+    def test_the_modem_that_stopped_left_out(self):
+        """ARDOP chosen after Mercury: Mercury's last lines come after ardopcf is on the socket (seen live)"""
+        self.poll(mercury="x6x00-mercury: connected to /run/ardop.sock", kind="mercury")
+        self.watch.modem_started()
+        k = self.poll(ardop="Audio socket /run/ardop.sock connected",
+                      mercury="x6x00-mercury: stopping\nx6x00-mercury: the GUI's socket closed: the GUI went away")
+        self.assertEqual(k["modem"], "ready")
+        self.watch.modem_started()
+        k = self.poll(ardop="Audio socket /run/ardop.sock closed: the other end went away",
+                      mercury="x6x00-mercury: connected to /run/ardop.sock", kind="mercury")
+        self.assertEqual(k["modem"], "ready")
+
+    def test_decoders_behind(self):
+        self.poll(mercury="x6x00-mercury: connected to /run/ardop.sock", kind="mercury")
+        open(self.wl.PAT_OWN_LOG, "a").close()
+        ring = "20:01:02.345 [+9.000s] [WRN] [modem-rx] decoder ring full (mode=23): dropped 160 samples so far"
+        self.assertEqual(self.poll(mercury=ring, kind="mercury")["modem"], "behind")
+        self.assertEqual(len(self.notes()), 1)
+        self.assertIn("OpenX6X00: Mercury could not keep up with the receiver", self.notes()[0])
+        self.poll(mercury=ring.replace("160", "10400"), kind="mercury")
+        self.assertEqual(len(self.notes()), 1)                         # once in MERCURY_BEHIND
+        self.watch.behind -= self.wl.MERCURY_BEHIND
+        self.assertEqual(self.poll(kind="mercury")["modem"], "ready")
+        self.watch.modem_started()
+        self.assertEqual(self.poll(kind="mercury")["modem"], "waiting")
+
+    def test_no_answer(self):
+        k = self.poll(pat="2026/10/29 20:10:00 QSY varahf: 7101.5\n"
+                          "2026/10/29 20:10:03 Connecting to KO0OOO (varahf)...\n"
+                          "2026/10/29 20:11:40 Unable to establish connection to remote: connect timeout",
+                      ardop=ESTABLISHED.format("KO0OOO", 2000), kind="mercury")    # not ardopcf's, ignored
+        self.assertEqual(k["last_result"], "failed")
+        self.assertEqual((k["last_text"], k["last_bw"]), ("No answer from KO0OOO on 7.101.500", ""))
+        self.assertIn("Mercury 1.9.20 or later: a VARA gateway from Pat's list does not answer it", k["last_next"])
+
+    def test_link_dropped(self):
+        k = self.poll(pat="2026/10/29 20:10:03 Connecting to N0BBB (varahf)...\n"
+                          "2026/10/29 20:10:12 Connected to N0BBB (vara)\n"
+                          "2026/10/29 20:12:00 Exchange failed: EOF", kind="mercury")
+        self.assertEqual(k["last_text"], "The link to N0BBB dropped (EOF)")
+        self.assertIn("on a weak path choose 500 Hz for Mercury on the Winlink page", k["last_next"])
+
+    def test_the_other_transport(self):
+        k = self.poll(pat="2026/10/29 20:10:00 ARDOP TNC initialization failed: dial tcp 127.0.0.1:8515: "
+                          "connect: connection refused", kind="mercury")
+        self.assertEqual(k["last_text"], "Pat called through ARDOP, but the radio runs Mercury")
+        self.assertEqual(k["last_next"], "Choose VARA HF in Pat's Connect dialog (Mercury speaks it), or ARDOP as "
+                                         "the modem on the Winlink page")
+        k = self.poll(pat="2026/10/29 20:11:00 vara initialization failed: couldn't connect to VARA command port: "
+                          "dial tcp 127.0.0.1:8300: connect: connection refused")
+        self.assertEqual(k["last_text"], "Pat called through VARA HF, but the radio runs ARDOP")
+        self.assertEqual(k["last_next"], "Choose ARDOP in Pat's Connect dialog, or Mercury as the modem on the "
+                                         "Winlink page")
+
+    def test_not_ready(self):
+        k = self.poll(pat="2026/10/29 20:11:00 vara initialization failed: couldn't connect to VARA command port: "
+                          "dial tcp 127.0.0.1:8300: connect: connection refused", kind="mercury")
+        self.assertEqual(k["last_text"], "Mercury was not ready")
+
+    def test_qsy_refused(self):
+        k = self.poll(pat="2026/10/29 20:10:00 QSY varahf: 7101.5\n2026/10/29 20:10:00 Unable to QSY: RPRT -9",
+                      kind="mercury")
+        self.assertIn("could not tune", k["last_text"])
+
+    def test_bandwidth_not_there(self):
+        k = self.poll(pat="2026/10/29 20:10:03 Connecting to N0BBB (varahf)...\n"
+                          "2026/10/29 20:10:03 Unable to establish connection to remote: bandwidth 1000 not supported",
+                      kind="mercury")
+        self.assertEqual(k["last_text"], "Mercury has no 1000 Hz: the connection asked for it")
 
 
 RADIO = """modem=connected
