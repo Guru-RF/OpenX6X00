@@ -495,8 +495,10 @@ what count. What follows it:
   own lies where they would go (75m at 3.8-3.9 MHz keeps 80m at 3.8);
   another region later moves them on. Before, a radio in Region 2 tuned to
   7.2-7.3 or 3.9-4.0 MHz was on "Broadcast 41m" or "Broadcast 75m", in AM.
-  Auto with nothing to go by takes the band list's region, so it leaves
-  the list as it is;
+  A radio updated from an older version is on Auto: in Region 2 or 3 its
+  list moves by itself at the first start, as soon as Auto knows the
+  region. Auto with nothing to go by takes the band list's region, so it
+  leaves the list as it is;
 - the typical frequencies of Field Ops and the Bands app: in Region 2 and
   the US phone on 80 m at 3.860 and on 40 m at 7.200 MHz, and outside
   Region 1 CW on 6 m at 50.090 MHz (50.060 is among the beacons there).
