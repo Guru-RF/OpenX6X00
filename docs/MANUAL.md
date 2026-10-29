@@ -231,6 +231,15 @@ after the screen comes up. The warnings and the power-off at 6.0 V work from
 then on. The GUI log (app_logs) lists what the base sent until then, as
 "battery: start-up reading" lines.
 
+The X6200's base also warns of a battery too hot or too cold, a PA too hot
+and a DC input too low. The radio shows these in the words of Xiegu's own
+firmware: "BATTERY HIGH TEMP!", "BATTERY LOW TEMP!", "PA HIGH TEMP!", "DCIN
+TOO LOW!", several in one message, when one comes on and again every 30
+seconds while any lasts. One that comes and goes (the DC input dipping under
+the TX current) is shown again only after those 30 seconds. Like the battery
+warnings they work once the readings count. The X6100's base does not report
+them.
+
 
 ### Battery time
 
