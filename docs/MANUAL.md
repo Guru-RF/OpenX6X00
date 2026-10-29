@@ -111,15 +111,24 @@ web configurator (System > Update).
 - The web page can also take a bundle file (`OpenX6X00-x6100-vX.Y.Z-update.tar.gz` or `OpenX6X00-x6200-vX.Y.Z-update.tar.gz`
   from the releases page) for a radio without internet, and has a button to go
   back to the previous version by hand.
-- Going back from v0.3.7 to v0.3.6 (that button, or v0.3.6's bundle): first
-  turn [Tailscale Funnel](#tailscale-funnel) off, with Tailscale connected,
-  and wait until it says Off. v0.3.6 knows nothing of Funnel: tailscaled
-  would keep the radio's funnel, and v0.3.6's TCI and browser remote would
-  take connections from the internet without a key. And every paired
-  browser pairs again on v0.3.6, since v0.3.7 keeps only a hash of each
-  browser's key: Forget all (Settings > General > BROWSER REMOTE), on either
-  version, before pairing, so that the first browser paired is the admin
-  again.
+- Going back from v0.3.7 to v0.3.6 (that button, or v0.3.6's bundle): the
+  radio first turns [Tailscale Funnel](#tailscale-funnel) off and takes its
+  funnel, and any set up by hand, out of tailscaled. v0.3.6 knows nothing of
+  Funnel: tailscaled would keep the funnel, and v0.3.6's TCI and browser
+  remote would take connections from the internet without a key.
+  - When it cannot make sure of that within half a minute (tailscaled not
+    answering, or waiting for a login), it does not go back, and the page
+    says why: turn Funnel off, or Tailscale itself, wait until it says Off,
+    and try again.
+  - Funnel is then off when you come back to v0.3.7: turn it on again there.
+  - The step back the radio takes by itself after three failed starts tries
+    the same for a few seconds, and goes back whatever came of it.
+  - This was checked against a stand-in of tailscaled, not on a real
+    tailnet.
+- Every paired browser pairs again on v0.3.6, since v0.3.7 keeps only a hash
+  of each browser's key: Forget all (Settings > General > BROWSER REMOTE), on
+  either version, before pairing, so that the first browser paired is the
+  admin again.
 - The bundle is signed; a bundle not made by the project is refused. (For
   building your own: `tools/update/mkbundle.py`, the key in
   `rootfs/usr/share/x6100/update.pub`; a radio with `/mnt/update/allow-unsigned`
@@ -3571,6 +3580,8 @@ Good to know:
 - It stays on through restarts, and after a new card image it comes back by
   itself once Tailscale has its new login (the name may then be `x6200-1`
   while the tailnet still has the old machine: remove it in the admin console).
+  Tailscale turned off, and the radio's shutdown, take the funnel out of
+  tailscaled; the next start puts it back within seconds.
 - Over SSH, `x6100-tailscale status` prints `funnel=` (off, starting, enable,
   on, error) with `funnel_text=` and `public=`; `x6100-tailscale funnel on|off`
   is the switch. Its setting is `funnel=0|1` in `/mnt/tailscale.conf`.
