@@ -13,6 +13,7 @@
 
 #include "cw_encoder.h"
 #include "cw_field.h"
+#include "input_caps.h"
 #include "kbd_rollover.h"
 #include "paddle_keyer.h"
 #include "pubsub_ids.h"
@@ -21,11 +22,9 @@
 #include "lv_drivers/indev/evdev.h"
 #include "lv_drivers/indev/xkb.h"
 
-#include <fcntl.h>
 #include <glob.h>
 #include <linux/input.h>
 #include <stdio.h>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -80,18 +79,14 @@ static void kbd_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
 }
 
 /* A device with the keys of a keyboard (the top letter row and space): the radio's own
- * buttons and knobs have none of these */
+ * buttons and knobs have none of these. Read from sysfs: opening each device to look stalled
+ * the GUI 50 ms for every node of a USB mouse, on every scan after a plug (#79, input_caps.h) */
 static bool has_letters(const char *path) {
-    unsigned long bits[KEY_MAX / (8 * sizeof(long)) + 1] = {0};
-    int           fd = open(path, O_RDONLY | O_NONBLOCK);
+    unsigned long bits[KEY_MAX / (8 * sizeof(long)) + 1];
+    struct stat   st;
+    bool          ok = stat(path, &st) == 0 &&
+                       input_caps_bits(st.st_rdev, "key", bits, sizeof(bits) / sizeof(bits[0]));
 
-    if (fd < 0) {
-        return false;
-    }
-
-    bool ok = ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(bits)), bits) >= 0;
-
-    close(fd);
     for (int k = KEY_Q; ok && k <= KEY_P; k++) {
         ok = BIT_SET(bits, k);
     }
