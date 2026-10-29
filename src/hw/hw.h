@@ -50,6 +50,7 @@ typedef struct {
     uint32_t    psd_span;       /* Hz the bins cover (the base's own zoom steps) */
     int16_t     smeter_dbm;     /* its own S-meter reading, dBm; 0 with the samples */
     bool        power_key;      /* the POWER key, where the base reports it instead of an input device */
+    bool        bat_missing;    /* the base found no battery (the X6200 says so, the X6100 does not) */
 } hw_pack_t;
 
 /* The board's switches */
