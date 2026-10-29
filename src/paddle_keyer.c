@@ -430,7 +430,7 @@ static void scan_input(void) {
 
     if (glob("/dev/input/event*", 0, NULL, &g) != 0) return;
     for (size_t i = 0; i < g.gl_pathc && !(found[FD_BTN] && found[FD_KBD2]); i++) {
-        unsigned long   keys[BITS(KEY_MAX)], rel[BITS(REL_MAX)];
+        unsigned long   keys[BITS(KEY_MAX)], rel[BITS(REL_MAX)], abs[BITS(ABS_MAX)];
         struct input_id id;
         struct stat     st;
         int             slot = -1;
@@ -439,10 +439,11 @@ static void scan_input(void) {
 
         if (stat(g.gl_pathv[i], &st) != 0 || !input_caps_bits(st.st_rdev, "key", keys, BITS(KEY_MAX))) continue;
         input_caps_bits(st.st_rdev, "rel", rel, BITS(REL_MAX));
+        input_caps_bits(st.st_rdev, "abs", abs, BITS(ABS_MAX));
         input_caps_id(st.st_rdev, &id);
         adp = id.bustype == BUS_USB && adapter(g.gl_pathv[i]);
         if (!found[FD_BTN] && paddle_mouse(has_bit(keys, BTN_LEFT), has_bit(keys, BTN_RIGHT),
-                                           has_bit(rel, REL_X), adp, id.vendor, id.product)) {
+                                           has_bit(rel, REL_X) || has_bit(abs, ABS_X), adp, id.vendor, id.product)) {
             slot = FD_BTN;
         } else if (!found[FD_KBD2] && (id.bustype == BUS_USB || id.bustype == BUS_BLUETOOTH) &&
                    !is_open(FD_KBD, &st) &&
