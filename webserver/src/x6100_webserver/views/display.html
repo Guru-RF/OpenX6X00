@@ -58,7 +58,8 @@ const CARDS = [
     ["wf_zoom", "Zoom", "Zoom with the waterfall instead of the span", "sw"],
     ["wf_smooth", "Smooth scroll", "Scrolls by pixels instead of lines", "sw"]]],
   ["layers", "On the waterfall", "What is drawn over it", [
-    ["band_plan", "Band plan", "The IARU segments on top", "sw"],
+    ["band_plan", "Band plan", "The plan's segments on top", "sw"],
+    ["band_region", "Plan", "", "sel", ["Auto", "Region 1", "Region 2", "Region 3", "US Extra", "US Advanced", "US General", "US Technician"]],
     ["cluster_spots_wf", "Cluster spots", "The calls at their frequencies", "sw"],
     ["cluster_column", "Cluster column", "The spot list on the right", "sw"]]],
   ["sun", "Backlight", "Screen and button lights", [
@@ -123,6 +124,7 @@ var setVal = function(name, v) {
   rowState(name, "saving");
   send({name: name, val: v}, function() {
     rowState(name, "applied", RESTARTS[name] ? "Applied: the radio's screen restarts" : "Applied on the radio");
+    if (name === "band_region") setTimeout(reread, 500);   /* the plan the radio uses now */
   }, function(msg) {
     /* not taken: the control shows what the radio still has */
     D[name] = old;
@@ -223,6 +225,18 @@ var preview = function() {
   return s + '</svg>';
 }
 
+/* The band plan in use, and what Auto finds on the radio (from its GPS, locator or callsign) */
+const PLAN_HOW = {gps: "the GPS", qth: "the locator", call: "the callsign"};
+var planHint = function() {
+  const how = PLAN_HOW[D.band_region_how];
+  const auto = "Region " + D.band_region_auto + (how ? " from " + how + " " + D.band_region_at : ", no GPS, locator or callsign");
+  return D.band_region ? "In use: " + ROWS.band_region[4][D.band_region_now] + " (Auto would take " + auto + ")" : "Auto: " + auto;
+}
+
+var reread = function() {
+  $.ajax({url: "/api/display", dataType: "json", success: function(d) { D = d; refresh(); }});
+}
+
 /* Rows that only matter with another option on */
 var refresh = function() {
   $("#row-auto_level_offset").toggleClass("off", !D.auto_level);
@@ -231,6 +245,12 @@ var refresh = function() {
   $("#row-smeter_bar_color").toggleClass("off", D.smeter_color !== 0 || (D.smeter_needle === 1 && D.smeter_lamp === 1));
   $("#row-smeter_lamp").toggleClass("off", D.smeter_needle !== 1);
   $("#row-smeter_color").toggleClass("off", D.smeter_needle === 1 && D.smeter_lamp === 1);
+  if ("band_region" in D) {
+    $("#opt-band_region option[value=0]").text("Auto (Region " + D.band_region_auto + ")");
+    let hint = $("#row-band_region .dp-lbl span");
+    if (!hint.length) hint = $("<span>").appendTo("#row-band_region .dp-lbl");
+    hint.text(planHint());
+  }
   $("#prev").html(preview());
 }
 

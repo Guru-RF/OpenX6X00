@@ -203,9 +203,11 @@ static seg_t   segs[POOL];
 static bool    ready;
 static int32_t span_center, span_half;
 
-/* The plan in use: its table and, where it has nothing, the active bands of the band list (a band added on the web
- * page, "60m CW" at 5.3 MHz, had no strip and no CW keyboard: issue #5). Read from any thread (remote_server) */
+/* The plan in use (never Auto): its table and, where it has nothing, the active bands of the band list (a band added
+ * on the web page, "60m CW" at 5.3 MHz, had no strip and no CW keyboard: issue #5). Read from any thread
+ * (remote_server, cfg_socket) */
 static int             plan_id = BP_PLAN_R1;
+static int             auto_region = 1;     /* what Auto takes */
 static bp_seg_t        cur[MAX_SEG];
 static int             ncur;
 static pthread_mutex_t cur_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -229,8 +231,10 @@ void band_plan_reload(void) {
     static int32_t ids[BANDS], start[BANDS], stop[BANDS];
     static char    names[BANDS][16];
     static bp_seg_t list[MAX_SEG];
-    int            nb = cfg_bands_active_ids(ids, start, stop, names, BANDS);
-    int            n  = plan_build(plan_id, list);
+    int            want = param_i_get(cfg_band_region);
+    int            plan = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : auto_region;
+    int            nb   = cfg_bands_active_ids(ids, start, stop, names, BANDS);
+    int            n    = plan_build(plan, list);
 
     for (int i = 0; i < nb; i++) {
         /* Broadcast, the X6200's FM broadcast and airband, CB (ids 100-299 in sql/params.sql and migrations.c) are no
@@ -257,8 +261,32 @@ void band_plan_reload(void) {
     qsort(list, n, sizeof(list[0]), by_start);
     pthread_mutex_lock(&cur_lock);
     memcpy(cur, list, n * sizeof(list[0]));
-    ncur = n;
+    ncur    = n;
+    plan_id = plan;
     pthread_mutex_unlock(&cur_lock);
+}
+
+int band_plan_now(void) {
+    pthread_mutex_lock(&cur_lock);
+    int plan = plan_id;
+    pthread_mutex_unlock(&cur_lock);
+    return plan;
+}
+
+int band_plan_auto(const char **how, char *at, size_t size) {
+    pthread_mutex_lock(&cur_lock);
+    int region = auto_region;
+    pthread_mutex_unlock(&cur_lock);
+    if (how) *how = "";
+    if (at && size) at[0] = 0;
+    return region;
+}
+
+const char *band_plan_name(int plan) {
+    static const char *const names[BP_PLAN_COUNT] = {
+        "Auto", "Region 1", "Region 2", "Region 3", "US Extra", "US Advanced", "US General", "US Technician",
+    };
+    return plan >= 0 && plan < BP_PLAN_COUNT ? names[plan] : "";
 }
 
 static void redraw(void) {

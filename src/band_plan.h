@@ -10,6 +10,8 @@
 
 #include "lvgl/lvgl.h"
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -45,6 +47,16 @@ void band_plan_refresh(void);
 /* The band list may have changed: the plan's segments, and the active bands they do not cover as segments of the
  * type their name says (CW, DIG/FT8/DATA, BCN, else all modes). LVGL thread */
 void band_plan_reload(void);
+
+/* The plan in use (bp_plan_t, never Auto). Any thread */
+int band_plan_now(void);
+
+/* What Auto finds, whatever the setting is: the region (1, 2 or 3); how, unless NULL: "gps", "qth" or "call", with
+ * the locator or the callsign it came from in at (size bytes), or "" when nothing tells (Region 1). Any thread */
+int band_plan_auto(const char **how, char *at, size_t size);
+
+/* "Region 2", "US General" ("Auto" for 0) */
+const char *band_plan_name(int plan);
 
 /* The segment type (bp_type_t) at freq, -1 between the segments */
 int band_plan_type(int32_t freq);

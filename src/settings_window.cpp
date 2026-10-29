@@ -46,6 +46,7 @@ extern "C" {
     #include "msg_box.h"
     #include "text_popup.h"
     #include "station.h"
+    #include "band_plan.h"
     #include "tci_server.h"
     #include "remote_server.h"
     #include "cluster/client.h"
@@ -2877,9 +2878,21 @@ static uint8_t make_station_row(uint8_t row, const char *label, const char *val,
     return row + 1;
 }
 
+/* The band plan: IARU Region 1, 2 or 3, or the US sub-bands of a licence class; Auto names the region it takes */
+static uint8_t make_band_region(uint8_t row) {
+    std::string options = "Auto (" + std::string(band_plan_name(band_plan_auto(NULL, NULL, 0))) + ")";
+
+    for (int i = BP_PLAN_AUTO + 1; i < BP_PLAN_COUNT; i++)
+        options += std::string("\n") + band_plan_name(i);
+    wl_row_label(row, "Band plan");
+    row_choice(row, 1, 1, SMALL_3, options.c_str(), cfg_sm.p_band_region.get(), int_choice_cb, &cfg_sm.p_band_region);
+    return row + 1;
+}
+
 static uint8_t make_station(uint8_t row) {
     row = make_station_row(row, "Callsign", params.callsign.x, ST_CALLSIGN);
     row = make_station_row(row, "QTH locator", params.qth.x, ST_QTH);
+    row = make_band_region(row);
     /* The switches in the card's own second column: make_param_switch places them in the
      * seven-column template, past the end of this two-column one */
     /* A and B each on their own band: the VFO key brings the other one's band back */

@@ -127,6 +127,10 @@ class SettingsManager {
     // sideband of the band in a phone segment (screen_main.c)
     Parameter<int32_t> p_mode_from_plan{"mode_from_plan", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The band plan (band_plan.h bp_plan_t): 0 Auto (the IARU region from where the radio is), 1-3 IARU Region 1,
+    // 2 or 3, 4-7 the US sub-bands of the Extra, Advanced, General or Technician licence
+    Parameter<int32_t> p_band_region{"band_region", 0, 0, 7,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Zoom and step per mode (Settings > Display): on, each mode group keeps its own waterfall zoom and tuning
     // step, as it always did. Off, one zoom and one step for every mode (zoom_step_scope)
     Parameter<int32_t> p_zoom_step_per_mode{"zoom_step_per_mode", true, 0, 1,
