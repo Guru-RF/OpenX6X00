@@ -49,6 +49,10 @@ typedef struct {
     uint16_t    n_psd;
     uint32_t    psd_span;       /* Hz the bins cover (the base's own zoom steps) */
     int16_t     smeter_dbm;     /* its own S-meter reading, dBm; 0 with the samples */
+    /* The base's warnings (the X6200 reports them, the X6100 does not) */
+    bool        bat_hot, bat_cold;  /* the battery too hot or too cold */
+    bool        pa_hot;         /* the PA too hot */
+    bool        dcin_low;       /* the DC input too low */
     bool        power_key;      /* the POWER key, where the base reports it instead of an input device */
     bool        bat_missing;    /* the base found no battery (the X6200 says so, the X6100 does not) */
 } hw_pack_t;
