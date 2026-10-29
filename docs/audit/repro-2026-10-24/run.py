@@ -89,6 +89,9 @@ def main():
             "sha256(64 bytes) = a8ae6e6ee929abea3afcfc5258c8ccd6f85273e0d4626d26c7279f3250f77c8e",
             "sha256(1000000 bytes) = cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0",
             "same=1, differs in the last byte=0")).strip())
+        print("#58 a browser over Tailscale Funnel:\n" + command([binary, "funnel"], env, contains=(
+            "over Funnel: pair? and pair refused=1, a code shown=0, tries counted=0",
+            "over Funnel, a wrong key: closed=1, counted=1; on the LAN: closed=0, watching=1")).strip())
         print("#58 session tokens kept hashed:\n" + command([binary, "tokens"], env, contains=(
             "a file from before: 2 sessions loaded, the tokens in the file now=0",
             "3eb1bd439947eb762998e566ccc2e099c791118b2f40579cc4f7da2b5061b7f9\tShack PC\t2\t1",

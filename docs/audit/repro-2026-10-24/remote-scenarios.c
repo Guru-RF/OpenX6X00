@@ -282,6 +282,31 @@ static int run_tokens(void) {
     return 0;
 }
 
+/* Issue #58: a browser at work over Tailscale Funnel (its token was good) may not pair from there: the code is
+ * neither shown nor burned. A wrong token after a good one closes it and counts towards Funnel's pause, where a
+ * LAN client only falls back to watching */
+static int run_funnel(void) {
+    client_t *f = open_client(0, ROLE_OPERATE, true), *l = open_client(1, ROLE_VIEW, false);
+    char      cmd[64];
+
+    f->funnel = true;
+    l->sess   = -1;
+    pair_code[0] = 0;
+    pair_next_ms = 0;
+    int shown_before = codes_shown;
+    say(f, "pair?");
+    snprintf(cmd, sizeof(cmd), "pair %06d Eve", 123456);
+    say(f, cmd);
+    printf("over Funnel: pair? and pair refused=%d, a code shown=%d, tries counted=%d\n",
+           strstr(said[0], "err pairing refused over the internet") != NULL, codes_shown - shown_before, pair_tries);
+    say(f, "auth 0123456789abcdef0123456789abcdee");
+    int f_closed = f->fd < 0, counted = funnel_refused;
+    say(l, "auth 0123456789abcdef0123456789abcdee");
+    printf("over Funnel, a wrong key: closed=%d, counted=%d; on the LAN: closed=%d, watching=%d\n", f_closed, counted,
+           l->fd < 0, l->role == ROLE_VIEW && l->fd >= 0);
+    return 0;
+}
+
 /* SHA-256 against the standard's examples and lengths at the padding's edges (55, 56, 64 bytes) */
 static int run_sha(void) {
     static char mil[1000001];
@@ -308,11 +333,12 @@ int main(int argc, char **argv) {
     snprintf(sessions_path, sizeof(sessions_path), "%s/remote_sessions.conf", getenv("AUDIT_TMP") ? getenv("AUDIT_TMP") : "/tmp");
     if (argc >= 2 && !strcmp(argv[1], "tokens")) return run_tokens();
     if (argc >= 2 && !strcmp(argv[1], "sha")) return run_sha();
+    if (argc >= 2 && !strcmp(argv[1], "funnel")) return run_funnel();
     if (argc >= 2 && !strcmp(argv[1], "ping")) return run_ping();
     if (argc >= 2 && !strcmp(argv[1], "ptt")) return run_ptt();
     if (argc >= 2 && !strcmp(argv[1], "log")) return run_log();
     if (argc >= 2 && !strcmp(argv[1], "set")) return run_set();
     if (argc >= 2 && !strcmp(argv[1], "pair")) return run_pair();
-    fprintf(stderr, "remote ptt|ping|log|set|pair|tokens|sha\n");
+    fprintf(stderr, "remote ptt|ping|log|set|pair|tokens|sha|funnel\n");
     return 2;
 }

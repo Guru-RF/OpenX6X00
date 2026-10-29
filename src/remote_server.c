@@ -64,6 +64,14 @@
  *  The Origin check of ws_handshake() keeps pages from other sites out; like the TCI server there
  *  is no login: the radio's own network is trusted.
  *
+ *  Tailscale Funnel (#58) brings the Panel and the Screen page from the internet, through
+ *  tailscaled, which marks each such connection (ws_handshake's peer.funnel). One of those gets
+ *  nothing, not even "hello", until its first text is "auth TOKEN" of a browser paired at home,
+ *  within FUNNEL_AUTH_MS; a wrong token closes it, and the tenth within ten minutes refuses
+ *  Funnel for ten (remote_server_funnel_refused, which TCI's Funnel mode calls too). Pairing is
+ *  refused over Funnel. At most FUNNEL_CLIENTS of the MAX_CLIENTS come from the internet, and
+ *  the browser's address (X-Forwarded-For) is shown and logged with "via Funnel".
+ *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
@@ -72,6 +80,7 @@
 #include <stdio.h>       /* before jpeglib.h, which wants FILE */
 
 #include "remote_server.h"
+#include "remote_sessions.h"
 #include "control_owner.h"
 #include "front_keys.h"
 #include "msg_box.h"
@@ -118,7 +127,12 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MAX_CLIENTS 3
+#define MAX_CLIENTS 4
+#define FUNNEL_CLIENTS  2           /* from the internet at once: the LAN and the tailnet always keep two */
+#define FUNNEL_AUTH_MS  5000        /* a connection over Funnel presents its token within this, or goes */
+#define FUNNEL_BAD_MAX  10          /* this many wrong tokens over Funnel within FUNNEL_BAD_MS ... */
+#define FUNNEL_BAD_MS   (600 * 1000)
+#define FUNNEL_PAUSE_MS (600 * 1000)  /* ... and Funnel's connections are refused this long */
 #define IN_SIZE     4096
 #define OUT_SIZE    (384 * 1024)    /* two frames at the most */
 #define TEXT_MAX    256
@@ -154,8 +168,11 @@ static const struct { const char *name; int quality; bool half; } pics[PIC_N] = 
 
 typedef struct {
     int             fd;
-    bool            up;
-    char            ip[48];
+    bool            ws;             /* the handshake done: frames are read */
+    bool            up;             /* and it is sent to: at once, or over Funnel once its token is good */
+    bool            funnel;         /* from the internet through Tailscale Funnel (#58) */
+    uint64_t        open_ms;        /* when the handshake was done */
+    char            ip[48];         /* over Funnel the browser's address, from tailscaled's X-Forwarded-For */
     uint8_t         in[IN_SIZE];
     size_t          in_len;
     uint8_t        *out;            /* OUT_SIZE, under lock: the encoder writes here too */
@@ -205,6 +222,7 @@ typedef struct {
     bool     tx;
     uint64_t created, last;   /* wall clock, seconds */
     char     ip[48];
+    bool     funnel;          /* last seen from the internet through Tailscale Funnel, ip the browser's there */
 } session_t;
 
 static session_t       sessions[SESS_MAX];
@@ -216,6 +234,9 @@ static atomic_uint_fast64_t pair_hide_ms;   /* until then the mirror is withheld
 static int             pair_tries;
 static uint64_t        pair_next_ms;                    /* a browser may have a new code from then on */
 static uint64_t        pair_wait_ms = PAIR_WAIT_MS;     /* the wait after the next code: doubled by a burned one */
+static uint64_t        funnel_bad[FUNNEL_BAD_MAX];   /* when the last wrong tokens came over Funnel (sess_mux) */
+static int             funnel_bad_n;
+static atomic_uint_fast64_t funnel_pause_ms;        /* until then nothing over Funnel is taken */
 static atomic_bool     tx_last;        /* the TX state last told to the clients */
 static atomic_bool     disconnect_all_due;   /* Settings: every socket closed, the sessions kept */
 static atomic_bool     forget_all_due;       /* Settings: every session revoked */
@@ -382,9 +403,9 @@ static void sess_save_locked(void) {
         char hex[65];
         for (int k = 0; k < 32; k++)
             snprintf(hex + k * 2, 3, "%02x", sessions[i].hash[k]);
-        fprintf(f, "%s\t%s\t%d\t%d\t%llu\t%llu\t%s\n", hex, sessions[i].name, sessions[i].role,
+        fprintf(f, "%s\t%s\t%d\t%d\t%llu\t%llu\t%s\t%d\n", hex, sessions[i].name, sessions[i].role,
                 sessions[i].tx ? 1 : 0, (unsigned long long)sessions[i].created, (unsigned long long)sessions[i].last,
-                sessions[i].ip);
+                sessions[i].ip[0] ? sessions[i].ip : "-", sessions[i].funnel ? 1 : 0);
     }
     /* whole on the card before it takes the old file's place: a power cut leaves one or the other */
     if (fflush(f) == 0)
@@ -428,6 +449,7 @@ static void sess_load(void) {
                 case 4: x->created = strtoull(tok, NULL, 10); break;
                 case 5: x->last = strtoull(tok, NULL, 10); break;
                 case 6: snprintf(x->ip, sizeof(x->ip), "%s", tok); break;
+                case 7: x->funnel = atoi(tok) != 0; break;
             }
         }
         if (ok && x->name[0])
@@ -493,14 +515,49 @@ static int sess_find(const char *token) {
     return r;
 }
 
-static void sess_touch(int i, const char *ip) {
+/* The session seen now, from ip (over Funnel: the browser's address on the internet) */
+static void sess_touch(int i, const char *ip, bool funnel) {
     pthread_mutex_lock(&sess_mux);
     if (i >= 0 && i < nsessions) {
         sessions[i].last = wall_s();
         snprintf(sessions[i].ip, sizeof(sessions[i].ip), "%s", ip);
+        sessions[i].funnel = funnel;
         sess_save_locked();
     }
     pthread_mutex_unlock(&sess_mux);
+}
+
+/* LVGL thread: Funnel paused */
+static void funnel_paused_apply(void *arg) {
+    (void)arg;
+    msg_schedule_text_ms(PAIR_SHOW_MS, "Tailscale Funnel paused %d min: wrong keys from the internet",
+                         FUNNEL_PAUSE_MS / 60000);
+}
+
+/* A wrong token over Funnel, on this socket or TCI's: the FUNNEL_BAD_MAXth within FUNNEL_BAD_MS refuses Funnel's
+ * connections for FUNNEL_PAUSE_MS. A token cannot be guessed (128 bits), but whoever tries keeps the radio busy and
+ * its slots for the internet taken (remote_sessions.h). Any thread */
+void remote_server_funnel_refused(const char *addr) {
+    uint64_t now   = now_ms();
+    bool     pause = false;
+
+    pthread_mutex_lock(&sess_mux);
+    funnel_bad[funnel_bad_n++ % FUNNEL_BAD_MAX] = now;
+    /* the slot written next holds the oldest of the last FUNNEL_BAD_MAX */
+    if (funnel_bad_n >= FUNNEL_BAD_MAX && now - funnel_bad[funnel_bad_n % FUNNEL_BAD_MAX] < FUNNEL_BAD_MS &&
+        now >= atomic_load(&funnel_pause_ms))
+        pause = true;
+    pthread_mutex_unlock(&sess_mux);
+    LV_LOG_USER("remote: a wrong key over Tailscale Funnel from %s", addr && addr[0] ? addr : "the internet");
+    if (pause) {
+        atomic_store(&funnel_pause_ms, now + FUNNEL_PAUSE_MS);
+        LV_LOG_USER("remote: Tailscale Funnel paused %d min after %d wrong keys", FUNNEL_PAUSE_MS / 60000, FUNNEL_BAD_MAX);
+        scheduler_put_noargs(funnel_paused_apply);
+    }
+}
+
+bool remote_server_funnel_paused(void) {
+    return now_ms() < atomic_load(&funnel_pause_ms);
 }
 
 static void client_close(client_t *c);
@@ -773,7 +830,9 @@ static void client_close(client_t *c) {
     }
     if (c->panel)
         atomic_fetch_sub(&npanel, 1);
+    c->ws      = false;
     c->up      = false;
+    c->funnel  = false;
     c->panel   = false;
     c->out_len = c->in_len = c->text_len = 0;
     pthread_mutex_unlock(&c->lock);
@@ -1655,18 +1714,19 @@ static void ptt_lease(client_t *c, uint64_t now) {
 }
 
 static void sessions_tell(client_t *c) {
-    char line[1024];
+    char line[4096];          /* 16 sessions of up to 220 characters: 1 kB held five or six */
     int  n = snprintf(line, sizeof(line), "sessions [");
 
     pthread_mutex_lock(&sess_mux);
-    for (int i = 0; i < nsessions && n < (int)sizeof(line) - 160; i++) {
+    for (int i = 0; i < nsessions && n < (int)sizeof(line) - 240; i++) {
         bool online = false;
         for (int k = 0; k < MAX_CLIENTS; k++)
             if (clients[k].fd >= 0 && clients[k].up && clients[k].sess == i)
                 online = true;
-        n += snprintf(line + n, sizeof(line) - n, "%s{\"n\":%d,\"name\":\"%s\",\"role\":\"%s\",\"tx\":%d,\"last\":%llu,\"ip\":\"%s\",\"online\":%d,\"me\":%d}",
+        n += snprintf(line + n, sizeof(line) - n, "%s{\"n\":%d,\"name\":\"%s\",\"role\":\"%s\",\"tx\":%d,\"last\":%llu,\"ip\":\"%s\",\"funnel\":%d,\"online\":%d,\"me\":%d}",
                       i ? "," : "", i, sessions[i].name, role_name(sessions[i].role), sessions[i].tx ? 1 : 0,
-                      (unsigned long long)sessions[i].last, sessions[i].ip, online ? 1 : 0, c->sess == i ? 1 : 0);
+                      (unsigned long long)sessions[i].last, sessions[i].ip, sessions[i].funnel ? 1 : 0, online ? 1 : 0,
+                      c->sess == i ? 1 : 0);
     }
     pthread_mutex_unlock(&sess_mux);
     snprintf(line + n, sizeof(line) - n, "]");
@@ -1689,6 +1749,12 @@ static void handle_text(client_t *c, char *text) {
     char *a[4] = {0};
     int   n    = 0;
 
+    /* No pairing from the internet: a browser is paired at home and then used from anywhere with its token (#58).
+     * The code is neither shown, nor burned, nor waited for from there */
+    if (c->funnel && !strncmp(text, "pair", 4) && (text[4] == ' ' || text[4] == '?')) {
+        client_text(c, "err pairing refused over the internet: pair this browser at home, then Use away from home");
+        return;
+    }
     if (!strncmp(text, "log ", 4)) {        /* the text as it is: names have spaces */
         if (allowed(c, ROLE_OPERATE, false))
             app_log_cmd(c, 0, text + 4);
@@ -1747,6 +1813,12 @@ static void handle_text(client_t *c, char *text) {
             client_text(c, "pong");
     } else if (!strcmp(a[0], "auth") && n >= 2) {
         int i = strlen(a[1]) == TOKEN_LEN ? sess_find(a[1]) : -1;
+        if (i < 0 && c->funnel) {               /* over Funnel there is no watching unpaired: it goes */
+            remote_server_funnel_refused(c->ip);
+            client_text(c, "err unknown session: make a new link at home (Use away from home)");
+            client_close(c);
+            return;
+        }
         if (i < 0) {
             c->sess = -1; c->role = ROLE_VIEW; c->tx_ok = false;
             client_text(c, "err unknown session: pair this browser again");
@@ -1754,7 +1826,7 @@ static void handle_text(client_t *c, char *text) {
             c->sess  = i;
             c->role  = sessions[i].role;
             c->tx_ok = sessions[i].tx;
-            sess_touch(i, c->ip);
+            sess_touch(i, c->ip, c->funnel);
         }
         role_tell(c);
         ctl_tell(c);
@@ -1866,6 +1938,79 @@ static void handle_text(client_t *c, char *text) {
     }
 }
 
+/* What a client is told once it is up: the radio's version and boot, the screen's size, the keys it has, the
+ * role and who controls the radio */
+static void client_greet(client_t *c) {
+    char   line[320] = "keys";
+    size_t k = 4;
+
+    client_textf(c, "hello %s %u", VERSION, boot_id);
+    pthread_mutex_lock(&fmut);
+    int32_t w = sw, h = sh;
+    pthread_mutex_unlock(&fmut);
+    client_textf(c, "size %d %d", w ? w : 800, h ? h : 480);
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]) && k < sizeof(line) - 1; i++)
+        k += snprintf(line + k, sizeof(line) - k, " %s", keys[i].name);
+    client_text(c, line);
+    role_tell(c);
+    ctl_tell(c);
+}
+
+/* A connection over Tailscale Funnel, its handshake done (#58): taken while Funnel is not paused after wrong
+ * keys, and while fewer than FUNNEL_CLIENTS come from the internet; to make room, one of those that has not
+ * presented its token yet goes, never one at work. Nothing is sent to it until its token is good (funnel_auth) */
+static bool funnel_take(client_t *c) {
+    client_t *wait = NULL;
+    int       n    = 0;
+
+    if (remote_server_funnel_paused())
+        return false;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        client_t *o = &clients[i];
+        if (o == c || o->fd < 0 || !o->ws || !o->funnel)
+            continue;
+        n++;
+        if (!o->up && (!wait || o->open_ms < wait->open_ms))
+            wait = o;
+    }
+    if (n < FUNNEL_CLIENTS)
+        return true;
+    if (!wait)
+        return false;
+    client_close(wait);
+    return true;
+}
+
+/* The first text of a connection over Funnel: "auth TOKEN" of a browser paired at home, or it goes. With a good
+ * one it is up as a LAN client authenticated so; a wrong one counts towards Funnel's pause. What it sent before its
+ * token, and a text that is no auth, closes it */
+static void funnel_auth(client_t *c, const char *text) {
+    bool tried = !strncmp(text, "auth ", 5);
+    int  i     = tried && strlen(text + 5) == TOKEN_LEN ? sess_find(text + 5) : -1;
+
+    if (i < 0) {
+        if (tried) {
+            remote_server_funnel_refused(c->ip);
+            pthread_mutex_lock(&c->lock);
+            c->up = true;           /* the one line it gets: neither screen nor panel is on, nothing else goes */
+            pthread_mutex_unlock(&c->lock);
+            client_text(c, "err unknown session: make a new link at home (Use away from home)");
+        }
+        client_close(c);
+        return;
+    }
+    c->sess   = i;
+    c->role   = sessions[i].role;
+    c->tx_ok  = sessions[i].tx;
+    c->screen = true;               /* the Screen page's default; the Panel turns it off */
+    pthread_mutex_lock(&c->lock);
+    c->up = true;
+    pthread_mutex_unlock(&c->lock);
+    sess_touch(i, c->ip, true);
+    client_greet(c);
+    LV_LOG_USER("remote: %s over Tailscale Funnel from %s", sessions[i].name, c->ip);
+}
+
 static void client_read(client_t *c) {
     ssize_t n = recv(c->fd, c->in + c->in_len, IN_SIZE - c->in_len, MSG_DONTWAIT);
 
@@ -1878,7 +2023,7 @@ static void client_read(client_t *c) {
     c->in_len += n;
     c->last_ms = now_ms();
 
-    if (!c->up) {
+    if (!c->ws) {
         char      resp[256];
         ws_peer_t peer;
         int       r = ws_handshake((const char *)c->in, c->in_len, resp, sizeof(resp), &peer);
@@ -1887,10 +2032,9 @@ static void client_read(client_t *c) {
                 client_close(c);
             return;
         }
-        /* From the internet through Tailscale Funnel (a funnel made by hand, as "tailscale funnel 50002"):
-         * nothing for it, the screen and the spectrum go to anyone who connects (#58) */
-        if (r > 0 && peer.funnel) {
-            LV_LOG_USER("remote: refused %s over Tailscale Funnel", peer.addr[0] ? peer.addr : "a browser");
+        if (r > 0 && peer.funnel && !funnel_take(c)) {
+            LV_LOG_USER("remote: refused %s over Tailscale Funnel (%s)", peer.addr[0] ? peer.addr : "a browser",
+                        remote_server_funnel_paused() ? "paused after wrong keys" : "two from the internet already");
             client_close(c);
             return;
         }
@@ -1898,24 +2042,21 @@ static void client_read(client_t *c) {
             client_close(c);
             return;
         }
-        c->in_len = 0;
+        c->in_len  = 0;
+        c->ws      = true;
+        c->open_ms = now_ms();
+        if (peer.funnel) {
+            /* From the internet through Tailscale Funnel: no screen, spectrum, state or spots, not even the
+             * greeting, before the token of a browser paired at home (funnel_auth, FUNNEL_AUTH_MS) (#58) */
+            c->funnel = true;
+            c->screen = false;
+            snprintf(c->ip, sizeof(c->ip), "%s", peer.addr[0] ? peer.addr : "-");
+            return;
+        }
         pthread_mutex_lock(&c->lock);
         c->up = true;
         pthread_mutex_unlock(&c->lock);
-        client_textf(c, "hello %s %u", VERSION, boot_id);
-        pthread_mutex_lock(&fmut);
-        int32_t w = sw, h = sh;
-        pthread_mutex_unlock(&fmut);
-        client_textf(c, "size %d %d", w ? w : 800, h ? h : 480);
-        {
-            char   line[320] = "keys";
-            size_t k = 4;
-            for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]) && k < sizeof(line) - 1; i++)
-                k += snprintf(line + k, sizeof(line) - k, " %s", keys[i].name);
-            client_text(c, line);
-        }
-        role_tell(c);
-        ctl_tell(c);
+        client_greet(c);
         LV_LOG_USER("remote: viewer %s", c->ip);
         return;
     }
@@ -1946,7 +2087,10 @@ static void client_read(client_t *c) {
                 if (f.fin) {
                     c->text[c->text_len] = 0;
                     c->text_len = 0;
-                    handle_text(c, c->text);
+                    if (c->up)
+                        handle_text(c, c->text);
+                    else
+                        funnel_auth(c, c->text);    /* over Funnel, before its token */
                 }
                 break;
             case WS_OP_PING:
@@ -1960,7 +2104,7 @@ static void client_read(client_t *c) {
                 break;
         }
     }
-    if (c->fd < 0)      /* what it asked closed it: "unpair", or its own session revoked */
+    if (c->fd < 0)      /* what it asked closed it: "unpair", its own session revoked, a token refused */
         return;
     if (pos) {
         c->in_len -= pos;
@@ -2008,7 +2152,9 @@ static void accept_client(int listen_fd) {
 #endif
         pthread_mutex_lock(&c->lock);
         c->fd      = fd;
+        c->ws      = false;
         c->up      = false;
+        c->funnel  = false;
         c->in_len = c->out_len = c->text_len = 0;
         c->nheld   = 0;
         c->screen  = true;
@@ -2113,6 +2259,9 @@ static void *server_thread(void *arg) {
                 if (c->fd < 0)
                     continue;
                 if (now - c->last_ms > IDLE_MS) {
+                    client_close(c);
+                } else if (c->funnel && !c->up && now - c->open_ms > FUNNEL_AUTH_MS) {
+                    LV_LOG_USER("remote: %s over Tailscale Funnel gave no key in time", c->ip);
                     client_close(c);
                 } else if (c->up && now - c->last_ms > PING_MS && now - c->ping_ms > PING_MS) {
                     c->ping_ms = now;
@@ -2419,14 +2568,23 @@ int remote_server_port(void) {
     return atomic_load(&port);
 }
 
+/* Those that are up: one over Funnel that has not given its token yet sees nothing */
 int remote_server_viewers(void) {
-    return atomic_load(&nclients);
+    int n = 0;
+
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        n += clients[i].fd >= 0 && clients[i].up;
+    return n;
 }
 
 const char *remote_server_viewer(void) {
+    static char buf[64];
+
     for (int i = 0; i < MAX_CLIENTS; i++)
-        if (clients[i].fd >= 0 && clients[i].up)
-            return clients[i].ip;
+        if (clients[i].fd >= 0 && clients[i].up) {
+            snprintf(buf, sizeof(buf), "%s%s", clients[i].ip, clients[i].funnel ? " via Funnel" : "");
+            return buf;
+        }
     return NULL;
 }
 

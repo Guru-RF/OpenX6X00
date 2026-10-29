@@ -121,7 +121,10 @@ static void panel_apply(void *arg) { (void)arg; }
 static void gui_run(void) { for (int i = 0; i < njobs; i++) jobs[i].fn(jobs[i].arg); njobs = 0; }
 static pthread_mutex_t sess_mux = PTHREAD_MUTEX_INITIALIZER;
 static int  sess_find(const char *token);
-static void sess_touch(int i, const char *ip) { (void)i; (void)ip; }
+static void sess_touch(int i, const char *ip, bool funnel) { (void)i; (void)ip; (void)funnel; }
+static int  funnel_refused, closed;     /* wrong keys over Funnel counted; sockets closed */
+static void remote_server_funnel_refused(const char *addr) { (void)addr; funnel_refused++; }
+#define client_close(c) (closed++, (c)->fd = -1, (c)->up = false)
 static int  sess_new(const char *name, const char *ip, char *token);
 static void sess_revoke(int i) { (void)i; }
 /* the radio's screen: what it showed last, and how many codes */
