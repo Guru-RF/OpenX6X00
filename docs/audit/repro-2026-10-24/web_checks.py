@@ -81,7 +81,7 @@ with tempfile.TemporaryDirectory(prefix='x6upload-') as td:
               JOURNAL=str(state/'journal.json'), PENDING=str(state/'pending.json'), LAST=str(state/'last.json'),
               PROGRESS=str(work/'progress'), ALLOW_UNSIGNED=str(work/'allow-unsigned'),
               VERSION_FILE=str(ver_path), ALLOWED=(str(target)+'/',), restart_apps=lambda: None,
-              radio_model=lambda: 'x6100')
+              radio_model=lambda: 'x6100', TAILSCALE=str(root/'no-tailscale'), TAILSCALE_STATE=str(root/'no-state'))
     Path(ug['ALLOW_UNSIGNED']).touch()
     def bundle(version):
         body = ('application '+version).encode()

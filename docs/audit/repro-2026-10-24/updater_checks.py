@@ -13,7 +13,8 @@ with tempfile.TemporaryDirectory(prefix='x6journal-') as td:
     version=installed/'version';version.write_text('0\n')
     target=installed/'application';target.write_text('old')
     up.update(WORK=str(work),STATE=str(state),PREV=str(state/'prev'),JOURNAL=str(state/'journal'),
-              PENDING=str(state/'pending'),LAST=str(state/'last'),PROGRESS=str(work/'progress'),VERSION_FILE=str(version),restart_apps=lambda:None)
+              PENDING=str(state/'pending'),LAST=str(state/'last'),PROGRESS=str(work/'progress'),VERSION_FILE=str(version),restart_apps=lambda:None,
+              TAILSCALE=str(root/'no-tailscale'),TAILSCALE_STATE=str(root/'no-state'))
     manifest={'version':'1','files':[{'path':str(target)},{'path':str(version)}]}
     def stage():
         for p,body in ((target,'new'),(version,'1\n')):
