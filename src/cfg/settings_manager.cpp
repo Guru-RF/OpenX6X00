@@ -901,15 +901,18 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     BandInfoLoadResult band         = BandsTable::get_by_id(band_id);
     const bool         have_band    = (band.rc == SUCCESS) && (band.value.id != BAND_UNDEFINED);
 
-    // On an implicit switch (the active VFO tuned across a band edge) no
-    // frequency is loaded: the active VFO keeps the one that caused the switch,
-    // the inactive VFO keeps its own. The active VFO's mode/att/pre/agc are
-    // loaded from the new band; the inactive VFO keeps all it had (keep_a,
-    // keep_b), so tuning A across a band edge does not move B.
-    const bool keep_a = implicit && active_vfo == RADIO_VFO_B, keep_b = implicit && active_vfo == RADIO_VFO_A;
+    // On an implicit switch (the active VFO tuned across a band edge) the active
+    // VFO keeps the frequency that caused the switch; its mode/att/pre/agc are
+    // loaded from the new band. The inactive VFO keeps all it had (keep_a,
+    // keep_b), so tuning A across a band edge does not move B; but not where the
+    // new band has split on (p_band_split is loaded before): the inactive VFO is
+    // then the one the radio transmits on, and comes from the band as on an
+    // explicit switch (kept, 40m CW in split sent on 40m SSB's B, 7.150, not its own 7.025).
+    const bool keep_other = implicit && !p_band_split.get();
+    const bool keep_a = keep_other && active_vfo == RADIO_VFO_B, keep_b = keep_other && active_vfo == RADIO_VFO_A;
 
-    // VFOA frequency: skipped on an implicit switch.
-    if (!implicit) {
+    // VFOA frequency: skipped on an implicit switch when VFOA is the active VFO, or kept.
+    if (!(implicit && active_vfo == RADIO_VFO_A) && !keep_a) {
         // vfoa_freq: NOT_FOUND -> band start (or the default), on what the radio can tune (4m has no opening
         // frequency and neither radio tunes 70 MHz); an out-of-range loaded value is clamped.
         int rc = p_band_vfoa_freq.load(band_id);
@@ -942,8 +945,8 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
         (void)rc;
     }
 
-    // VFOB frequency: skipped on an implicit switch.
-    if (!implicit) {
+    // VFOB frequency: skipped on an implicit switch when VFOB is the active VFO, or kept.
+    if (!(implicit && active_vfo == RADIO_VFO_B) && !keep_b) {
         // vfob_freq: copies the current vfoa_freq when absent; clamped like
         // vfoa_freq when loaded.
         int rc = p_band_vfob_freq.load(band_id);
