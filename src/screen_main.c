@@ -100,7 +100,7 @@ static lv_coord_t   wf_y;                   /* waterfall top */
  * greys out with it */
 static SubjectInt   *freq_lock;
 static bool         band_lock, mode_lock, ab_lock;
-static const char   *digital_app;   /* the name of the digital app opened last (app_name), while radio_digi_cap() */
+static press_action_t last_app;     /* the app opened last: a digital one while radio_digi_cap() */
 
 static lv_timer_t *timer_once(lv_timer_cb_t cb, uint32_t ms) {
     lv_timer_t *t = lv_timer_create(cb, ms, NULL);
@@ -452,6 +452,7 @@ void main_screen_start_app(press_action_t app_action) {
         return;
     }
     close_apps();
+    last_app = app_action;      /* before the cap goes on: main_screen_digital_app reads the two together */
 
     /* The digital apps open where they were last used */
     switch (app_action) {
@@ -477,9 +478,6 @@ void main_screen_start_app(press_action_t app_action) {
             break;
         default:
             break;
-    }
-    if (radio_digi_cap()) {
-        digital_app = app_name(app_action);
     }
 
     /* Every app but RTTY is a window of its own */
@@ -1190,9 +1188,7 @@ bool main_screen_mode_locked() {
 }
 
 const char *main_screen_digital_app(void) {
-    const char *app = digital_app;
-
-    return radio_digi_cap() && app ? app : NULL;
+    return radio_digi_cap() ? app_name(last_app) : NULL;
 }
 
 /* A jump, not a turn of the knob: the spectrum starts again */
