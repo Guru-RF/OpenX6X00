@@ -739,7 +739,8 @@ def winlink_conf():
 
 
 def winlink_state():
-    """The settings, the supervisor's status and the defaults; whether a password is set, never the password"""
+    """The settings, the supervisor's status and the defaults; where a password is set, never the password: on this
+    page (password_set), in Pat's own Settings (the supervisor's password=pat, #80) or nowhere"""
     st = {"state": "off", "text": "Off", "pat": "off", "ardop": "off"}
     try:
         with open(WINLINK_STATUS) as f:
@@ -757,6 +758,7 @@ def winlink_state():
     st.update(enabled=conf["enabled"] == "1", mycall=conf["mycall"], locator=conf["locator"],
               bandwidth=int(conf["bandwidth"]) if conf["bandwidth"] in [str(b) for b in WINLINK_BANDWIDTHS] else 500,
               password_set=password_set,
+              password="page" if password_set else "pat" if st.get("password") == "pat" else "none",
               radio_mycall=max(read_callsign().upper().split("/"), key=len),   # ON6URE of ON6URE/P
               radio_locator=read_param("qth"), installed=all(os.access(p, os.X_OK) for p in WINLINK_PROGRAMS),
               host_ok=local_host_ok(), port=WINLINK_PORT)

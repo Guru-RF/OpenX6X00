@@ -33,7 +33,7 @@
     <div class="dp-ctl"><input id="locator" type="text" autocomplete="off" spellcheck="false" maxlength="6"></div>
   </div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="password"><b>Winlink password</b></label><span>Password: <b id="pw-state"></b>. A new one replaces it; empty keeps it. It stays on the radio and is never shown again</span></div>
+    <div class="dp-lbl"><label for="password"><b>Winlink password</b></label><span>Password: <b id="pw-state"></b>. A new one replaces it, also one set in Pat's own Settings; empty keeps it. It stays on the radio and is never shown again</span></div>
     <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="64" placeholder="New password (empty = keep)"></div>
   </div>
   <div class="dp-row">
@@ -69,6 +69,7 @@ var showStatus = function(id, text, error=false) {
   el.html('<span class="dot"></span>').append(document.createTextNode(text));
 }
 var busy = false;
+const PW_STATE = {page: "set here (hidden)", pat: "set in Pat's own Settings (hidden)", none: "not set"};
 const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
 
 // The status, the switch and the notes: every two seconds, without touching what is being typed below
@@ -85,6 +86,8 @@ var renderState = function(st) {
   if (!st.installed) notes.push("Pat and ARDOP are not on this radio yet: they come with the update that brings Winlink.");
   if (!st.host_ok) notes.push("This page was opened by a name the radio does not know as its own. Open it by the radio's address or its .local name to change Winlink; the mailbox only opens by those names too.");
   if (st.enabled && !st.mycall && !st.radio_mycall) notes.push("No callsign: set yours below, or the radio's in Settings > General.");
+  if (st.enabled && st.password === "none") notes.push("No Winlink password on the radio: when the gateway asks for it, Pat asks in the mailbox and gives up after a minute (\"context deadline exceeded\"). Set it below before you connect, or keep the mailbox open to type it there. A new account's first connection needs none.");
+  $("#pw-state").text(PW_STATE[st.password || (st.password_set ? "page" : "none")] || PW_STATE.none);
   $("#notice").toggle(notes.length > 0);
   $("#notice-text").text(notes.join(" "));
 }
@@ -96,7 +99,6 @@ var render = function(st) {
   $("#locator").val(st.locator).attr("placeholder", st.radio_locator || "JO20ab");
   $("#radioloc").text(st.radio_locator ? " (" + st.radio_locator + ")" : "");
   $("#password").val("");
-  $("#pw-state").text(st.password_set ? "set (hidden)" : "not set");
   $("#bandwidth").val(String(st.bandwidth));
   form.reset();
 }

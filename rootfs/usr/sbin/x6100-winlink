@@ -10,7 +10,7 @@
 #   x6100-winlink off           turn it off: Pat and ardopcf stop
 #   x6100-winlink apply         write Pat's config again from the settings; Pat restarts when they changed
 #   x6100-winlink set-password  the Winlink password, read from stdin (the web page): never on a command line
-#   x6100-winlink status        the state as key=value lines: state, text, pat, ardop
+#   x6100-winlink status        the state as key=value lines: state, text, pat, ardop, password
 #   x6100-winlink stop          stop the supervisor and wait for it, the setting kept (S98winlink stop)
 #   x6100-winlink run           the supervisor itself, started by the commands above
 #
@@ -191,6 +191,21 @@ def read_password():
         return ""
 
 
+def password_where():
+    """Where Pat's Winlink password comes from: "page" (the Winlink page's, which Pat gets at each start), "pat"
+    (typed in Pat's own Settings and kept while the page has none, #80) or "none": Pat then asks for it in the
+    mailbox when a gateway asks, and gives up after a minute. Never the password itself"""
+    if read_password():
+        return "page"
+    try:
+        with open(PAT_CONFIG) as f:
+            cfg = json.load(f)
+    except (OSError, ValueError, UnicodeDecodeError):
+        return "none"
+    pw = cfg.get("secure_login_password") if isinstance(cfg, dict) else None
+    return "pat" if isinstance(pw, str) and pw else "none"
+
+
 def wanted():
     """What Pat is to run with: the settings, the radio's own callsign and QTH where they are empty"""
     conf = read_conf()
@@ -262,11 +277,11 @@ def write_config(want, password):
 
 def say(state, text, pat="off", ardop="off"):
     """The status file the web page reads: written when it changes. Never the password, also not in a
-    program's last log line"""
+    program's last log line; where it is set (password_where) is"""
     pw = read_password()
     if pw:
         text = text.replace(pw, "***")
-    fields = {"state": state, "text": text, "pat": pat, "ardop": ardop}
+    fields = {"state": state, "text": text, "pat": pat, "ardop": ardop, "password": password_where()}
     body = "".join(f"{k}={str(v).replace(chr(10), ' ')}\n" for k, v in fields.items())
     try:
         with open(STATUS) as f:
@@ -599,7 +614,7 @@ def cmd_status():
         with open(STATUS) as f:
             sys.stdout.write(f.read())
     except OSError:
-        sys.stdout.write("state=off\ntext=Off\npat=off\nardop=off\n")
+        sys.stdout.write(f"state=off\ntext=Off\npat=off\nardop=off\npassword={password_where()}\n")
     return 0
 
 

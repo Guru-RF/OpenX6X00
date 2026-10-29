@@ -69,5 +69,43 @@ class Bandwidth(Root):
             self.assertEqual(self.wl.wanted()["bandwidth"], 500, bw)
 
 
+class Password(Root):
+    def status(self):
+        with open(self.wl.STATUS) as f:
+            return dict(line.rstrip("\n").split("=", 1) for line in f)
+
+    def test_where_it_is_set(self):
+        self.conf(enabled=1, mycall="ON6URE")
+        self.assertEqual(self.wl.password_where(), "none")          # no Pat config yet
+        self.wl.write_config(self.wl.wanted(), "")
+        self.assertEqual(self.wl.password_where(), "none")
+        cfg = self.pat_config()
+        cfg["secure_login_password"] = "typed-in-pat"                # Pat's own Settings page
+        with open(self.wl.PAT_CONFIG, "w") as f:
+            json.dump(cfg, f)
+        self.assertEqual(self.wl.password_where(), "pat")
+        self.wl.write_config(self.wl.wanted(), "")                   # kept while the page has none (#80)
+        self.assertEqual(self.wl.password_where(), "pat")
+        os.makedirs(self.wl.LIB, exist_ok=True)
+        with open(self.wl.PASSWORD, "w") as f:
+            f.write("from-the-page\n")
+        self.assertEqual(self.wl.password_where(), "page")
+
+    def test_in_the_status_never_the_password(self):
+        os.makedirs(self.wl.LIB, exist_ok=True)
+        with open(self.wl.PASSWORD, "w") as f:
+            f.write("s3cret\n")
+        self.wl.say("error", "Pat stopped (code 1: login s3cret refused)")
+        st = self.status()
+        self.assertEqual(st["password"], "page")
+        self.assertNotIn("s3cret", open(self.wl.STATUS).read())
+
+    def test_broken_pat_config(self):
+        os.makedirs(os.path.dirname(self.wl.PAT_CONFIG))
+        with open(self.wl.PAT_CONFIG, "w") as f:
+            f.write("{not json")
+        self.assertEqual(self.wl.password_where(), "none")
+
+
 if __name__ == "__main__":
     unittest.main()

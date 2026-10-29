@@ -2518,8 +2518,12 @@ Setting it up:
      (Settings > General) without its portable part: ON6URE for ON6URE/P.
    - Locator: sent to the gateway, and Pat's gateway list is sorted by the
      distance from it. Empty takes the radio's QTH.
-   - Winlink password: kept on the radio and never shown again (the page says
-     "set (hidden)"); a field left empty keeps it.
+   - Winlink password: kept on the radio and never shown again; a field left
+     empty keeps it. The row says where the password Pat uses is set: "set
+     here (hidden)", "set in Pat's own Settings (hidden)" or "not set". With
+     Winlink on and none set anywhere, the page says so in red at the top
+     (see the password below); it is a warning only, since a new account's
+     first connection over the air needs none.
    - ARDOP bandwidth: the widest ARDOP may use, 200, 500 (the default), 1000
      or 2000 Hz. It counts for every connection, also with a gateway that
      Pat's gateway list shows wider: see "The ARDOP bandwidth" below.
@@ -2610,7 +2614,11 @@ Connecting to a gateway:
 - The gateway asks for the password once its welcome is in (the line ending
   in `>`). With none set, Pat asks for it in the mailbox and gives up after a
   minute: "Exchange failed: context deadline exceeded", and the connection
-  ends. Set the password on the Winlink page.
+  ends. Set the password on the Winlink page (its Password row says whether
+  Pat has one, and where it was set), or keep the mailbox open during the
+  connection to type it there. A new account's first connection over the air
+  goes without one: the gateway then sends the account's password in a
+  message, and Pat's log shows it once ("DO NOT LOSE YOUR PASSWORD").
 - The gateway list: the first time, Pat fetches it from winlink.org when the
   radio has internet, and keeps it on the SD card. Without internet it uses
   the list built into Pat (April 2026). Updating it needs the internet.
