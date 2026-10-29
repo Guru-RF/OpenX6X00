@@ -99,7 +99,10 @@ MODEM_NAMES = {"ardop": "ARDOP", "mercury": "Mercury"}
 MODEM_PROGRAMS = {"ardop": ARDOPCF, "mercury": MERCURY}
 TRANSPORTS = {"ardop": "ardop", "mercury": "varahf"}   # Pat's transport for each modem
 TRANSPORT_NAMES = {"ardop": "ARDOP", "varahf": "VARA HF"}   # as Pat's Connect dialog names them
-MERCURY_BEHIND = 600                   # s: a "decoder ring full" of Mercury's this recent marks the modem behind
+MERCURY_BEHIND = 600                   # s: one of MERCURY_BEHIND_SAID this recent marks the modem behind
+# Mercury's warnings that its receiver fell behind (modem/modem.c): a decoder thread dropped audio, or the capture
+# backlog passed its cap and was thrown away undecoded
+MERCURY_BEHIND_SAID = ("decoder ring full", "RX backlog exceeded")
 CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")
 LOCATOR_RE = re.compile(r"[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?")
 
@@ -884,14 +887,14 @@ class Watch:
         self.behind = 0.0
 
     def mercury_line(self, line):
-        """A line of Mercury's log: x6x00-mercury on the GUI's socket or not, and its decoders falling behind the
-        receiver (modem/modem.c: the radio's processor short for it, its connects then fail)"""
+        """A line of Mercury's log: x6x00-mercury on the GUI's socket or not, and its receiver falling behind
+        (MERCURY_BEHIND_SAID: the radio's processor short for it, its connects then fail)"""
         if line.startswith("x6x00-mercury: connected to "):
             self.modem = True
         elif line.startswith(("x6x00-mercury: the GUI's socket closed", "x6x00-mercury: stopping")) or (
                 line.startswith("x6x00-mercury: ") and " is not there yet" in line):
             self.modem = False
-        elif "decoder ring full" in line:
+        elif any(w in line for w in MERCURY_BEHIND_SAID):
             self.behind = time.time()
             if self.behind - self.behind_noted >= MERCURY_BEHIND and note(
                     "Mercury could not keep up with the receiver (its decoders dropped audio): the radio's "

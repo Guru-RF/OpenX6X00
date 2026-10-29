@@ -501,6 +501,15 @@ class MercuryOutcomes(Logs):
         self.watch.modem_started()
         self.assertEqual(self.poll(kind="mercury")["modem"], "waiting")
 
+    def test_backlog_behind(self):
+        """Its capture backlog thrown away undecoded: the receiver fell behind before the decoders"""
+        self.poll(mercury="x6x00-mercury: connected to /run/ardop.sock", kind="mercury")
+        open(self.wl.PAT_OWN_LOG, "a").close()
+        flushed = ("20:01:02.345 [+9.000s] [WRN] [modem-rx] RX backlog exceeded ~30 s cap; flushing stale audio to "
+                   "catch up")
+        self.assertEqual(self.poll(mercury=flushed, kind="mercury")["modem"], "behind")
+        self.assertEqual(len(self.notes()), 1)
+
     def test_no_answer(self):
         k = self.poll(pat="2026/10/29 20:10:00 QSY varahf: 7101.5\n"
                           "2026/10/29 20:10:03 Connecting to KO0OOO (varahf)...\n"

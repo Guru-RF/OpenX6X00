@@ -114,11 +114,12 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     and the bundle. Operating > Winlink's Modem (ARDOP or Mercury, one at a time) and Mercury's bandwidth (500,
     2300, 2750); x6100-winlink runs x6x00-mercury in place of ardopcf with /run/winlink/mercury.ini, Pat's varahf
     on 127.0.0.1:8300 (P2P listening off), Mercury's readiness and outcomes, its decoders falling behind ("decoder
-    ring full") said on the page and in Pat's log ([manual](docs/MANUAL.md#mercury-experimental)). tools/winlink
+    ring full", "RX backlog exceeded") said on the page and in Pat's log ([manual](docs/MANUAL.md#mercury-experimental)). tools/winlink
     tests it on the PC: Pat to Pat peer to peer over two stubbed radios (make modems), the supervisor's and the
     page's side (winlink_test.py, winlink_web_test.py).
   - **Next**: the go/no-go on the bench X6100, before a release offers it: Mercury's CPU next to the GUI with
-    `top -H` (idle, and in a session; no "decoder ring full" in mercury.log), the temperature, a 30-40 s key at up
+    `top -H` (idle, and in a session; no "decoder ring full" or "RX backlog exceeded" in
+    mercury.log), the temperature, a 30-40 s key at up
     to 7 W, PTT to RF and unkey to RX audio, the drive level loop on OFDM (QAM16C2 needs a linear chain). Then on
     the air: P2P with a Mercury station, then a gateway (KO0OOO, K7EK-10) once the Winlink account works. Upstream
     reports to post: the VERSION reply (Pat's start race), the daemon build's two missing Android hooks, an option

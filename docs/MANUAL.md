@@ -2827,8 +2827,9 @@ When it does not work:
   bandwidth Mercury does not have (500, 2300 or 2750).
 - The Modem row says "Ready, but it fell behind the receiver lately" in red,
   and Pat's log "OpenX6X00: Mercury could not keep up with the receiver": one
-  of Mercury's decoders dropped audio ("decoder ring full" in its log) and its
-  connections fail. The radio's processor is short for it: use ARDOP, and send
+  of Mercury's decoders dropped audio, or it threw away audio it had not
+  decoded yet ("decoder ring full" or "RX backlog exceeded" in its log), and
+  its connections fail. The radio's processor is short for it: use ARDOP, and send
   the logs download on [#18](https://github.com/Guru-RF/OpenX6X00/issues/18),
   it helps the measurement.
 - Mercury's log is `/run/winlink/mercury.log` (in the logs download too), its
