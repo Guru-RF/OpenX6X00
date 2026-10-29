@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The Panel and the Screen page on the internet through Tailscale Funnel (#58): written once by the web server
+         (funnel_render) and served by tailscaled; no menu, no callsign, nothing of the configurator. What the page
+         may load and connect to is its own address alone. SPDX-License-Identifier: LGPL-2.1-or-later -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' wss:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta name="referrer" content="no-referrer">
+    <title>{{title}} - X6100 from away</title><link rel="icon" href="/static/favicon.ico" type="image/vnd.microsoft.icon">
+    <link href="/static/css/base.css?v=9" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/siimple-icons.css">
+    <script src="/static/js/jquery-3.7.1.min.js"></script>
+    <script>window.X6100_FUNNEL = true;   /* the pages' Funnel mode: wss://<this address>/ws/remote and /ws/tci */</script>
+  </head><body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+      <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+    </svg>
+    <main>{{!base}}</main>
+    <footer>OpenX6X00 · the radio from away, through Tailscale Funnel · <a href="/panel">Panel</a> · <a href="/remote">Screen</a></footer>
+  </body></html>

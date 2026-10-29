@@ -430,6 +430,44 @@ def panel():
     return bottle.template('panel')
 
 
+# Tailscale Funnel (#58): the Panel and the Screen page for the internet, written at the start into a folder in RAM
+# (settings.FUNNEL_DIR) with the files they load. tailscaled serves them itself, path by path
+# (rootfs/usr/sbin/x6100-tailscale, which lists the same files): no request from the internet reaches this server
+FUNNEL_FILES = ("favicon.ico", "css/base.css", "css/siimple-icons.css", "js/jquery-3.7.1.min.js",
+                "js/radio_link.js", "js/radio_session.js")
+
+
+def funnel_render(out_dir):
+    """The two pages with funnel=True (funnel_base.html: no menu, no callsign, nothing of the configurator; their
+    sockets at wss://<name>/ws/remote and /ws/tci), and the files, written whole into a new folder that then takes
+    out_dir's place: a page of an older start never mixes with files of this one. A page that loads a file
+    tailscaled does not serve is said in the log"""
+    tmp = out_dir + ".new"
+    shutil.rmtree(tmp, ignore_errors=True)
+    for sub in ("css", "js"):
+        os.makedirs(os.path.join(tmp, "static", sub), mode=0o755)
+    for view in ("panel", "remote"):
+        html = bottle.template(view, funnel=True)
+        loads = set(re.findall(r'(?:src|href)="/static/([^"?]+)', html))
+        if loads - set(FUNNEL_FILES):
+            raise ValueError(f"{view}.html loads {', '.join(sorted(loads - set(FUNNEL_FILES)))}, which Funnel does not "
+                             "serve: add it to FUNNEL_FILES here and in x6100-tailscale")
+        with open(os.path.join(tmp, view + ".html"), "w") as f:
+            f.write(html)
+    for name in FUNNEL_FILES:
+        shutil.copyfile(os.path.join(PACKAGE_DIR, "static", name), os.path.join(tmp, "static", name))
+    for dirpath, _, files in os.walk(tmp):
+        os.chmod(dirpath, 0o755)
+        for name in files:
+            os.chmod(os.path.join(dirpath, name), 0o644)
+    old = out_dir + ".old"
+    shutil.rmtree(old, ignore_errors=True)
+    if os.path.isdir(out_dir):
+        os.replace(out_dir, old)
+    os.replace(tmp, out_dir)
+    shutil.rmtree(old, ignore_errors=True)
+
+
 @app.get('/api/remote')
 def remote_get():
     return remote_state()

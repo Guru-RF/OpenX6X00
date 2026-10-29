@@ -311,7 +311,20 @@ def options():
     p.add_argument("--channels-file", help="path to channels.json", default=settings.CHANNELS_FILE)
     p.add_argument("--https-port", type=int, help="port for HTTPS (0 = off)", default=443)
     p.add_argument("--cert-dir", help="directory of the self-signed cert.pem and key.pem", default="/mnt/https")
+    p.add_argument("--funnel-dir", help="where the Panel for Tailscale Funnel is written (empty: not written)",
+                   default=settings.FUNNEL_DIR)
     return p.parse_args()
+
+
+def write_funnel_pages(out_dir):
+    """The Panel and the Screen page as tailscaled serves them over Tailscale Funnel (#58, apps.funnel_render), at
+    every start: they follow the pages of the version installed. In RAM (/run): written anew at each boot"""
+    if not out_dir:
+        return
+    try:
+        apps.funnel_render(out_dir)
+    except (OSError, ValueError) as e:
+        logging.error("Funnel: the pages for %s not written (%s)", out_dir, e)
 
 
 def serve():
@@ -326,6 +339,8 @@ def serve():
         start_https(apps.app, opts.host, opts.https_port, opts.cert_dir)
     adopt_old_ssh_keys()
     follow_sshd_config()
+    settings.FUNNEL_DIR = opts.funnel_dir
+    write_funnel_pages(opts.funnel_dir)
     settings.HTTP_PORT = opts.port
     apps.app.run(server=ThreadedServer, host=opts.host, port=opts.port, debug=opts.debug, reloader=opts.debug)
 

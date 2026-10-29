@@ -232,6 +232,14 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
               'https://tailscale.com/cap/funnel-ports?ports=8443,10000': None}}))
         check('caps: 443 in a range', g['caps_ok']({'CapMap': {'https': None, 'funnel': None,
               'https://tailscale.com/cap/funnel-ports?ports=400-500': None}}))
+
+        # 12. The files the web server writes for the Funnel pages are the ones served, one by one
+        import ast
+        tree = ast.parse((repo / 'webserver/src/x6100_webserver/apps.py').read_text())
+        web_files = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
+                         and any(isinstance(t, ast.Name) and t.id == 'FUNNEL_FILES' for t in n.targets))
+        check('the web server writes the files tailscaled serves', tuple(web_files) == tuple(g['FUNNEL_FILES']),
+              web_files)
         server.shutdown()
         server.server_close()
     finally:

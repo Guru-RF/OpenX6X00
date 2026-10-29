@@ -4,7 +4,8 @@
  * Remote pages, on top of RadioLink.
  *
  *   const ses = RadioSession.create({send, status, el, onChange});
- *     ses.onOpen()                  after "panel 1": sends "auth TOKEN" when this browser was paired
+ *     ses.onOpen()                  first on a connection: sends "auth TOKEN" when this browser was paired
+ *                                   (over Tailscale Funnel the radio takes nothing before it)
  *     ses.onText(head, body)        -> true when the message was its own (role, ctl, paired, tx, sessions)
  *     ses.role                      "view" | "operate" | "admin";  ses.tx (may transmit);  ses.name
  *     ses.ctl                       {who: "none"|"local"|"tci"|"browser", name, mine}
@@ -17,6 +18,8 @@
  *   "x6100session", so the Panel and the Remote page share one pairing.
  *   RadioSession.forRadio(keyEvent, pttEl) -> true when a key is for the page's radio shortcuts
  *                                 rather than for a field, a focused control or an open dialog
+ *   RadioSession.takeLink()       the Funnel page: the away link's "#t=KEY" stored, and taken out of the
+ *                                 address bar (#58);  RadioSession.token(): this browser's key, null none
  *
  *   const ptt = RadioPtt.create({el, send, status, mic: {wanted, ready, start, stop}, session, link});
  *     ptt.press() / ptt.release()   the operator's thumb; press is refused when the mic is wanted
@@ -37,6 +40,17 @@
   const TOKEN_KEY = "x6100session", NAME_KEY = "x6100name";
   function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
   function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  /* Tailscale Funnel (#58): the away link (Use away from home) brings this browser's key as "#t=KEY". It goes into
+   * this address's storage, and out of the address bar at once: it is neither bookmarked, nor shown, nor sent to any
+   * server (a fragment never is). Only on the Funnel page: a link to the radio at home cannot plant a key there */
+  function takeLink() {
+    if (!/^#t=/.test(location.hash)) return false;
+    const m = /^#t=([0-9a-f]{32})$/.exec(location.hash);
+    if (m) store(TOKEN_KEY, m[1]);
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { location.hash = ""; }
+    return !!m;
+  }
   function age(s) { return s < 60 ? "just now" : s < 3600 ? Math.floor(s / 60) + " min ago" : s < 86400 ? Math.floor(s / 3600) + " h ago" : Math.floor(s / 86400) + " d ago"; }
 
   /* A small modal of our own: title, body (jQuery or text), buttons */
@@ -313,6 +327,7 @@
     el.innerHTML = ""; el.appendChild(document.createTextNode(main)); const sm = document.createElement("small"); sm.textContent = sub; el.appendChild(sm);
   };
 
-  window.RadioSession = {create: function(o) { return new Session(o); }, forRadio: forRadio};
+  window.RadioSession = {create: function(o) { return new Session(o); }, forRadio: forRadio, takeLink: takeLink,
+                         token: function() { return load(TOKEN_KEY); }};
   window.RadioPtt = {create: function(o) { return new Ptt(o); }};
 })();
