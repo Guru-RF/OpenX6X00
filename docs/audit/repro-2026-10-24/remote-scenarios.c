@@ -83,7 +83,7 @@ static int run_ptt(void) {
 static int run_log(void) {
     client_t *a = open_client(0, ROLE_OPERATE, true), *b = open_client(1, ROLE_OPERATE, true);
 
-    snprintf(sessions[0].token, sizeof(sessions[0].token), "%032d", 7);
+    memset(sessions[0].hash, 7, sizeof(sessions[0].hash));
     snprintf(sessions[0].name, sizeof(sessions[0].name), "Shack PC");
     nsessions = 1;
     puts("        -- two tabs, each its QSO number 1, two different contacts");
@@ -218,14 +218,101 @@ static int run_pair(void) {
     return 0;
 }
 
+/* Issue #58: the tokens of the paired browsers were kept as they are in REMOTE_SESSIONS (/mnt), which the web
+ * configurator's Files page hands out: a token copied from there was that browser's access, from the internet too
+ * with Tailscale Funnel. The radio keeps their SHA-256 now. A file from before is read, its tokens hashed, and
+ * written anew: the browsers paired before stay paired */
+static void file_text(char *buf, size_t n) {
+    FILE  *f = fopen(sessions_path, "r");
+    size_t k = f ? fread(buf, 1, n - 1, f) : 0;
+    buf[k] = 0;
+    if (f) fclose(f);
+}
+
+static int run_tokens(void) {
+    const char *t1 = "0123456789abcdef0123456789abcdef", *t2 = "fedcba9876543210fedcba9876543210";
+    char        text[2048], cmd[128];
+    client_t   *c = open_client(0, ROLE_VIEW, false);
+    FILE       *f = fopen(sessions_path, "w");
+
+    if (!f) return 2;
+    fprintf(f, "%s\tShack PC\t2\t1\t1761000000\t1761500000\t192.168.1.20\n", t1);
+    fprintf(f, "%s\tKitchen phone\t1\t1\t1761100000\t1761600000\t192.168.1.31\n", t2);
+    fprintf(f, "zz23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\tbroken\t1\t1\t0\t0\t-\n");
+    fclose(f);
+    sess_load();
+    file_text(text, sizeof(text));
+    printf("a file from before: %d sessions loaded, the tokens in the file now=%d\n", nsessions,
+           strstr(text, t1) != NULL || strstr(text, t2) != NULL);
+    printf("the file now:\n%s", text);
+    c->sess = -1;
+    snprintf(cmd, sizeof(cmd), "auth %s", t2);
+    say(c, cmd);
+    printf("the phone paired before the update: %s", strstr(said[0], "role operate 1 Kitchen phone") ? "operates" : said[0]);
+    printf("\n");
+    snprintf(cmd, sizeof(cmd), "auth %.31sf", t2);
+    said[0][0] = 0;
+    say(c, cmd);
+    printf("its token with the last digit changed: %s", said[0]);
+    nsessions = 0;
+    sess_load();                                      /* read back as now written */
+    c->sess = -1;
+    snprintf(cmd, sizeof(cmd), "auth %s", t1);
+    said[0][0] = 0;
+    say(c, cmd);
+    printf("read again: %d sessions, the PC paired before: %s\n", nsessions,
+           strstr(said[0], "role admin 1 Shack PC") ? "admin" : said[0]);
+    c->sess = -1;
+    c->role = ROLE_VIEW;
+    pair_code[0] = 0;
+    pair_next_ms = 0;
+    say(c, "pair?");
+    snprintf(cmd, sizeof(cmd), "pair %s Laptop", pair_code);
+    said[0][0] = 0;
+    say(c, cmd);
+    char token[TOKEN_LEN + 1] = "";
+    sscanf(said[0], "paired %32s", token);
+    file_text(text, sizeof(text));
+    uint8_t h[32];
+    char    hex[65];
+    ws_sha256((const uint8_t *)token, strlen(token), h);
+    for (int k = 0; k < 32; k++) snprintf(hex + k * 2, 3, "%02x", h[k]);
+    printf("a new pairing: token handed out=%d, in the file=%d, its hash in the file=%d\n", (int)strlen(token) == TOKEN_LEN,
+           token[0] && strstr(text, token) != NULL, strstr(text, hex) != NULL);
+    return 0;
+}
+
+/* SHA-256 against the standard's examples and lengths at the padding's edges (55, 56, 64 bytes) */
+static int run_sha(void) {
+    static char mil[1000001];
+    const char *in[] = {"", "abc", "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+                        "0123456789abcdef0123456789abcdef0123456789abcdef0123456", /* 55 */
+                        "0123456789abcdef0123456789abcdef0123456789abcdef01234567", /* 56 */
+                        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", /* 64 */
+                        mil};
+    memset(mil, 'a', 1000000);
+    for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++) {
+        uint8_t h[32];
+        ws_sha256((const uint8_t *)in[i], strlen(in[i]), h);
+        printf("sha256(%zu bytes) = ", strlen(in[i]));
+        for (int k = 0; k < 32; k++) printf("%02x", h[k]);
+        printf("\n");
+    }
+    printf("same=%d, differs in the last byte=%d\n", ws_same("abcd", "abcd", 4), ws_same("abcd", "abce", 4));
+    return 0;
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     ctl_init();
+    snprintf(sessions_path, sizeof(sessions_path), "%s/remote_sessions.conf", getenv("AUDIT_TMP") ? getenv("AUDIT_TMP") : "/tmp");
+    if (argc >= 2 && !strcmp(argv[1], "tokens")) return run_tokens();
+    if (argc >= 2 && !strcmp(argv[1], "sha")) return run_sha();
     if (argc >= 2 && !strcmp(argv[1], "ping")) return run_ping();
     if (argc >= 2 && !strcmp(argv[1], "ptt")) return run_ptt();
     if (argc >= 2 && !strcmp(argv[1], "log")) return run_log();
     if (argc >= 2 && !strcmp(argv[1], "set")) return run_set();
     if (argc >= 2 && !strcmp(argv[1], "pair")) return run_pair();
-    fprintf(stderr, "remote ptt|ping|log|set|pair\n");
+    fprintf(stderr, "remote ptt|ping|log|set|pair|tokens|sha\n");
     return 2;
 }

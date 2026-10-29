@@ -37,7 +37,7 @@ parts = [
     pairing,
     'enum { ROLE_VIEW = 0, ROLE_OPERATE = 1, ROLE_ADMIN = 2 };',
     between('typedef struct {\n    int             fd;', '} client_t;'),
-    between('typedef struct {\n    char     token[TOKEN_LEN + 1];', '} session_t;'),
+    between('typedef struct {\n    uint8_t  hash[32];', '} session_t;'),
     'static session_t sessions[SESS_MAX];\nstatic int nsessions;\nstatic client_t clients[MAX_CLIENTS];',
     between('static const struct {\n    const char *name;\n    uint16_t    code;\n} keys[] = {', '\n};'),
     between('enum { PIC_SHARP', '};\n'),
@@ -50,10 +50,12 @@ parts = [
 names = ['role_name', 'sess_key', 'log_sum', 'log_slot', 'log_queued', 'log_answer', 'log_query', 'log_flush',
          'app_apply', 'app_log_cmd', 'mode_supported', 'panel_put', 'set_refused', 'panel_set', 'role_tell', 'ctl_tell', 'allowed',
          'ptt_down', 'ptt_lease', 'key_code', 'name_clean', 'pair_msg_apply', 'pair_paused_apply', 'pair_show', 'pair_try',
+         'wall_s', 'token_hash', 'from_hex', 'sess_save_locked', 'sess_load', 'random_hex', 'sess_new', 'sess_find',
          'handle_text']
 pre = r'''
 #include <ctype.h>
 #include <fcntl.h>
+#include <time.h>
 #include <unistd.h>
 #include <linux/input.h>
 #include <pthread.h>
@@ -67,6 +69,9 @@ pre = r'''
 #include <strings.h>
 #include "control_owner.h"
 #include "radio.h"
+#include "tci_ws.h"
+static char sessions_path[512];     /* REMOTE_SESSIONS: a temporary file (remote-scenarios.c) */
+#define REMOTE_SESSIONS sessions_path
 #define LV_LOG_USER(...) ((void)0)
 #define LV_CLAMP(lo, v, hi) ((v) < (lo) ? (lo) : (v) > (hi) ? (hi) : (v))
 #define VERSION "audit"
@@ -115,9 +120,9 @@ static bool scheduler_put(void (*fn)(void *), void *arg, size_t n) {
 static void panel_apply(void *arg) { (void)arg; }
 static void gui_run(void) { for (int i = 0; i < njobs; i++) jobs[i].fn(jobs[i].arg); njobs = 0; }
 static pthread_mutex_t sess_mux = PTHREAD_MUTEX_INITIALIZER;
-static int  sess_find(const char *t) { (void)t; return -1; }
+static int  sess_find(const char *token);
 static void sess_touch(int i, const char *ip) { (void)i; (void)ip; }
-static int  sess_new(const char *name, const char *ip);
+static int  sess_new(const char *name, const char *ip, char *token);
 static void sess_revoke(int i) { (void)i; }
 /* the radio's screen: what it showed last, and how many codes */
 static char shown[256];
@@ -133,17 +138,6 @@ static atomic_int  npanel;
 static atomic_bool spots_resend;
 '''
 post = r'''
-static int sess_new(const char *name, const char *ip) {
-    (void)ip;
-    if (nsessions == SESS_MAX) return -1;
-    session_t *x = &sessions[nsessions];
-    memset(x, 0, sizeof(*x));
-    snprintf(x->token, sizeof(x->token), "%032d", nsessions + 1);
-    snprintf(x->name, sizeof(x->name), "%s", name);
-    x->role = nsessions == 0 ? ROLE_ADMIN : ROLE_OPERATE;
-    x->tx   = true;
-    return nsessions++;
-}
 static char said[MAX_CLIENTS][4096];
 static void client_text(client_t *c, const char *t) {
     int i = (int)(c - clients);

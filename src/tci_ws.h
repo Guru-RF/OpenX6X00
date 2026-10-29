@@ -3,7 +3,8 @@
  *
  *  OpenX6X00 - WebSocket framing for the TCI server (tci_server.c): the HTTP upgrade
  *  handshake (RFC 6455, with its own SHA-1 and base64), the client's masked frames read
- *  back, the server's frames written out. Nothing in here touches a socket.
+ *  back, the server's frames written out. Nothing in here touches a socket. Also the SHA-256
+ *  the browser remote keeps its session tokens as (remote_server.c).
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -67,6 +68,10 @@ size_t ws_frame_head(uint8_t *head, uint8_t opcode, size_t payload_len);
 /* 20 bytes of SHA-1 of data; base64 of n bytes into out (NUL terminated, 4 * ceil(n / 3) + 1) */
 void   ws_sha1(const uint8_t *data, size_t len, uint8_t digest[20]);
 size_t ws_base64(const uint8_t *in, size_t n, char *out, size_t out_max);
+
+/* 32 bytes of SHA-256 of data; n bytes compared in a time that does not depend on where they differ */
+void ws_sha256(const uint8_t *data, size_t len, uint8_t digest[32]);
+bool ws_same(const void *a, const void *b, size_t n);
 
 #ifdef __cplusplus
 }

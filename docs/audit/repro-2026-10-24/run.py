@@ -55,7 +55,7 @@ def main():
         remote = work / "remote"
         binary = remote / "remote"
         command([*CC, *cflags, "-I" + str(remote), "-I" + str(HERE), remote / "remote-commands.c",
-                 remote / "control_owner.c", "-pthread", "-o", binary], env)
+                 remote / "control_owner.c", "src/tci_ws.c", "-pthread", "-o", binary], env)
         print("C02 ping numbers, the radio (fixed):\n" + command([binary, "ping"], env, contains=(
             "pongs: pong|pong 7|pong 9007199254740991|",)).strip())
         print("C02 PTT hold, the radio (fixed):\n" + command([binary, "ptt"], env, contains=(
@@ -80,6 +80,23 @@ def main():
             "Pairing paused 60 min: three wrong codes",
             "asked at the radio: a code at once=1, burned again: paused 1 min, not an hour=1",
             "the right code: paired=1; a guess with no code shown counted=0")).strip())
+        print("#58 SHA-256 (the standard's examples, the padding's edges):\n" + command([binary, "sha"], env, contains=(
+            "sha256(0 bytes) = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sha256(3 bytes) = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "sha256(56 bytes) = 248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+            "sha256(55 bytes) = 72fa96f64bf2dd082aafb08cf80ed17f5b3d2c6cd527c4b138b69506f5e5c173",
+            "sha256(56 bytes) = 67e4026bfbe6f1cd3f40518f324bcdf4426ae00faf5a0cddeae67a0e60ecf665",
+            "sha256(64 bytes) = a8ae6e6ee929abea3afcfc5258c8ccd6f85273e0d4626d26c7279f3250f77c8e",
+            "sha256(1000000 bytes) = cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0",
+            "same=1, differs in the last byte=0")).strip())
+        print("#58 session tokens kept hashed:\n" + command([binary, "tokens"], env, contains=(
+            "a file from before: 2 sessions loaded, the tokens in the file now=0",
+            "3eb1bd439947eb762998e566ccc2e099c791118b2f40579cc4f7da2b5061b7f9\tShack PC\t2\t1",
+            "4ba68aa8767bde72e8c798ee82d1275291cea73e72ad74d35ecf48e41386eb82\tKitchen phone\t1\t1",
+            "the phone paired before the update: operates",
+            "its token with the last digit changed: err unknown session",
+            "read again: 2 sessions, the PC paired before: admin",
+            "a new pairing: token handed out=1, in the file=0, its hash in the file=1")).strip())
 
         command([sys.executable, HERE / "make-unkey-harness.py"], env)
         binary = work / "unkey"

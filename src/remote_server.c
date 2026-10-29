@@ -195,8 +195,11 @@ enum { ROLE_VIEW = 0, ROLE_OPERATE = 1, ROLE_ADMIN = 2 };
 #define PTT_LEASE_MS 3000     /* a held PTT without renewal */
 #define PTT_LIMIT_MS (180 * 1000)
 
+/* The token itself goes to the browser once, at pairing; the radio keeps its SHA-256 only: REMOTE_SESSIONS is on
+ * the DATA partition, whose files the web configurator's Files page hands out, and a token copied from there was
+ * the browser's access, from the internet too once Tailscale Funnel is on (#58) */
 typedef struct {
-    char     token[TOKEN_LEN + 1];
+    uint8_t  hash[32];        /* SHA-256 of the token (its 32 hex characters) */
     char     name[32];
     uint8_t  role;
     bool     tx;
@@ -341,9 +344,31 @@ static uint64_t wall_s(void) {
     return (uint64_t)time(NULL);
 }
 
-/* sess_mux held */
+/* A token's hash: SHA-256 of its 32 hex characters */
+static void token_hash(const char *token, uint8_t hash[32]) {
+    ws_sha256((const uint8_t *)token, strlen(token), hash);
+}
+
+/* n bytes of hex (2n characters) into bytes: false unless all are hex digits */
+static bool from_hex(const char *s, uint8_t *out, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        int v = 0;
+        for (int k = 0; k < 2; k++) {
+            char ch = s[i * 2 + k];
+            int  d  = ch >= '0' && ch <= '9' ? ch - '0' : ch >= 'a' && ch <= 'f' ? ch - 'a' + 10
+                    : ch >= 'A' && ch <= 'F' ? ch - 'A' + 10 : -1;
+            if (d < 0)
+                return false;
+            v = v * 16 + d;
+        }
+        out[i] = (uint8_t)v;
+    }
+    return true;
+}
+
+/* sess_mux held. The hash, never the token (session_t) */
 static void sess_save_locked(void) {
-    char  tmp[80];
+    char  tmp[sizeof(REMOTE_SESSIONS) + 8];
     FILE *f;
 
     snprintf(tmp, sizeof(tmp), "%s.tmp", REMOTE_SESSIONS);
@@ -353,17 +378,28 @@ static void sess_save_locked(void) {
             close(fd);
         return;
     }
-    for (int i = 0; i < nsessions; i++)
-        fprintf(f, "%s\t%s\t%d\t%d\t%llu\t%llu\t%s\n", sessions[i].token, sessions[i].name, sessions[i].role,
+    for (int i = 0; i < nsessions; i++) {
+        char hex[65];
+        for (int k = 0; k < 32; k++)
+            snprintf(hex + k * 2, 3, "%02x", sessions[i].hash[k]);
+        fprintf(f, "%s\t%s\t%d\t%d\t%llu\t%llu\t%s\n", hex, sessions[i].name, sessions[i].role,
                 sessions[i].tx ? 1 : 0, (unsigned long long)sessions[i].created, (unsigned long long)sessions[i].last,
                 sessions[i].ip);
+    }
+    /* whole on the card before it takes the old file's place: a power cut leaves one or the other */
+    if (fflush(f) == 0)
+        fsync(fileno(f));
     fclose(f);
     rename(tmp, REMOTE_SESSIONS);
 }
 
+/* The sessions, as sess_save_locked keeps them (a 64-hex hash first). A file from before keeps the token itself
+ * (32 hex): it is hashed here and the file written anew, so the browsers paired before stay paired and the tokens
+ * are off the card. The old file stays until the new one has taken its place (sess_save_locked) */
 static void sess_load(void) {
     FILE *f = fopen(REMOTE_SESSIONS, "r");
     char  line[256];
+    int   plain = 0;
 
     if (!f)
         return;
@@ -372,11 +408,20 @@ static void sess_load(void) {
     while (nsessions < SESS_MAX && fgets(line, sizeof(line), f)) {
         session_t *x = &sessions[nsessions];
         char      *save, *tok;
-        int        k = 0;
+        int        k  = 0;
+        bool       ok = false;
         memset(x, 0, sizeof(*x));
         for (tok = strtok_r(line, "\t\r\n", &save); tok; tok = strtok_r(NULL, "\t\r\n", &save), k++) {
             switch (k) {
-                case 0: snprintf(x->token, sizeof(x->token), "%s", tok); break;
+                case 0:
+                    if (strlen(tok) == 64) {
+                        ok = from_hex(tok, x->hash, 32);
+                    } else if (strlen(tok) == TOKEN_LEN) {   /* a token from before: hashed */
+                        ok = true;
+                        token_hash(tok, x->hash);
+                        plain++;
+                    }
+                    break;
                 case 1: snprintf(x->name, sizeof(x->name), "%s", tok); break;
                 case 2: x->role = (uint8_t)LV_CLAMP(0, atoi(tok), 2); break;
                 case 3: x->tx = atoi(tok) != 0; break;
@@ -385,11 +430,15 @@ static void sess_load(void) {
                 case 6: snprintf(x->ip, sizeof(x->ip), "%s", tok); break;
             }
         }
-        if (strlen(x->token) == TOKEN_LEN && x->name[0])
+        if (ok && x->name[0])
             nsessions++;
     }
-    pthread_mutex_unlock(&sess_mux);
     fclose(f);
+    if (plain) {
+        sess_save_locked();
+        LV_LOG_USER("remote: %d paired browser(s) kept as a hash of the token from now on", plain);
+    }
+    pthread_mutex_unlock(&sess_mux);
 }
 
 static bool random_hex(char *out, size_t n) {
@@ -407,14 +456,17 @@ static bool random_hex(char *out, size_t n) {
     return true;
 }
 
-/* A new session for a browser that typed the code; -1 when the table is full */
-static int sess_new(const char *name, const char *ip) {
+/* A new session for a browser that typed the code, its token (TOKEN_LEN hex characters) into token, for that
+ * browser alone; -1 when the table is full */
+static int sess_new(const char *name, const char *ip, char token[TOKEN_LEN + 1]) {
     pthread_mutex_lock(&sess_mux);
-    if (nsessions == SESS_MAX || !random_hex(sessions[nsessions].token, TOKEN_LEN)) {
+    if (nsessions == SESS_MAX || !random_hex(token, TOKEN_LEN)) {
         pthread_mutex_unlock(&sess_mux);
         return -1;
     }
     session_t *x = &sessions[nsessions];
+    memset(x, 0, sizeof(*x));
+    token_hash(token, x->hash);
     snprintf(x->name, sizeof(x->name), "%s", name);
     x->role    = nsessions == 0 ? ROLE_ADMIN : ROLE_OPERATE;   /* the first browser paired is the admin */
     x->tx      = true;
@@ -426,12 +478,16 @@ static int sess_new(const char *name, const char *ip) {
     return i;
 }
 
+/* The session of a token, -1 none. Every session is compared, each in the same time: how long the answer took
+ * tells nothing of how much of a guess was right */
 static int sess_find(const char *token) {
-    int r = -1;
+    uint8_t h[32];
+    int     r = -1;
 
+    token_hash(token, h);
     pthread_mutex_lock(&sess_mux);
     for (int i = 0; i < nsessions; i++)
-        if (!strcmp(sessions[i].token, token))
+        if (ws_same(sessions[i].hash, h, sizeof(h)))
             r = i;
     pthread_mutex_unlock(&sess_mux);
     return r;
@@ -530,9 +586,9 @@ static int pair_show(char *out, size_t n, bool at_radio) {
     return 0;
 }
 
-/* The code typed: a session, or -1 (wrong, or no code; three wrong tries burn the code, and pairing pauses
- * twice as long as the last time, pair_show) */
-static int pair_try(const char *code, const char *name, const char *ip) {
+/* The code typed: a session and its token, or -1 (wrong, or no code; three wrong tries burn the code, and pairing
+ * pauses twice as long as the last time, pair_show) */
+static int pair_try(const char *code, const char *name, const char *ip, char token[TOKEN_LEN + 1]) {
     uint64_t now = now_ms();
     bool     good, ok, burned = false;
     int      paused_min = 0;
@@ -557,7 +613,7 @@ static int pair_try(const char *code, const char *name, const char *ip) {
         LV_LOG_USER("remote: pairing paused %d min after three wrong codes (last from %s)", paused_min, ip);
         scheduler_put(pair_paused_apply, &paused_min, sizeof(paused_min));
     }
-    return ok ? sess_new(name, ip) : -1;
+    return ok ? sess_new(name, ip, token) : -1;
 }
 
 static void wake(void) {
@@ -1171,14 +1227,14 @@ typedef struct {
     uint64_t    sum;        /* A_LOG: its text as sent, hashed (log_sum) */
 } acmd_t;
 
-/* The session a client logs under: its token hashed (FNV-1a); the one value for the unpaired */
+/* The session a client logs under: its token's hash folded (FNV-1a); the one value for the unpaired */
 static uint64_t sess_key(const client_t *c) {
     uint64_t h = 1469598103934665603ULL;
 
     pthread_mutex_lock(&sess_mux);
     if (c->sess >= 0 && c->sess < nsessions)
-        for (const char *p = sessions[c->sess].token; *p; p++)
-            h = (h ^ (uint8_t)*p) * 1099511628211ULL;
+        for (size_t k = 0; k < sizeof(sessions[0].hash); k++)
+            h = (h ^ sessions[c->sess].hash[k]) * 1099511628211ULL;
     pthread_mutex_unlock(&sess_mux);
     return h;
 }
@@ -1665,7 +1721,8 @@ static void handle_text(client_t *c, char *text) {
         }
         *sp = 0;
         name_clean(name, sizeof(name), sp + 1);
-        int i = pair_try(text + 5, name, c->ip);
+        char token[TOKEN_LEN + 1];
+        int  i = pair_try(text + 5, name, c->ip, token);
         if (i < 0) {
             client_text(c, "err pairing refused: wrong or expired code (press Pair for a new one)");
             return;
@@ -1673,7 +1730,7 @@ static void handle_text(client_t *c, char *text) {
         c->sess  = i;
         c->role  = sessions[i].role;
         c->tx_ok = sessions[i].tx;
-        client_textf(c, "paired %s %s %d", sessions[i].token, role_name(c->role), c->tx_ok ? 1 : 0);
+        client_textf(c, "paired %s %s %d", token, role_name(c->role), c->tx_ok ? 1 : 0);
         role_tell(c);
         ctl_tell(c);
         LV_LOG_USER("remote: paired %s (%s) as %s", name, c->ip, role_name(c->role));
