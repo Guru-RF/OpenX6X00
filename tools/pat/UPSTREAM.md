@@ -79,7 +79,7 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   the radio's Winlink page sets) is the widest a connection may use. Pat's gateway list fills in
   each gateway's widest bandwidth (`bw=2000MAX` for one listed as ARDOP 2000), the connect dialog
   takes it over, the browser remembers it, and a connection's `bw=` wins over the config: at the
-  radio's 7 W, 500 and 200 Hz connected where 2000MAX did not (#18). `Connect()` lowers an ARDOP
+  radio's 7 W at most, a 200 Hz session connected where 2000MAX did not (#18). `Connect()` lowers an ARDOP
   `bw=` above the config's Max to `<Max>MAX` and logs it ("ARDOP bandwidth 500MAX, the widest set
   on the radio (Operating > Winlink), not the 2000MAX asked"); a gateway that runs a wider
   bandwidth takes it and negotiates down. A `bw=` at or under it, or none, is left as it is.

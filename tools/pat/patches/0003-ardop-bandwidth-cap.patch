@@ -1,4 +1,4 @@
-From 8230e6fefeacfed2dd878797b17d0c839ab579b5 Mon Sep 17 00:00:00 2001
+From 0df78fc1082359ab1f37ba974813d91093540b2b Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Thu, 29 Oct 2026 20:00:00 +0100
 Subject: [PATCH] app: the config's ARDOP bandwidth is the widest, also for a
@@ -8,7 +8,7 @@ The gateway list fills in each gateway's widest ARDOP bandwidth
 (bw=2000MAX for one listed as ARDOP 2000), the connect dialog takes it
 over and the browser remembers it, and a connection's bw= wins over
 ardop.arq_bandwidth, which the radio's Winlink page sets. On the radio
-(7 W at most) 500 and 200 Hz sessions connected where 2000MAX did not.
+(7 W at most) a 200 Hz session connected where 2000MAX did not.
 
 Connect() now lowers an ARDOP bw= above the config's Max to <Max>MAX
 and says so in the log; a gateway that runs a wider bandwidth takes it
@@ -27,7 +27,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 
 diff --git a/app/ardop_bandwidth.go b/app/ardop_bandwidth.go
 new file mode 100644
-index 0000000..5c94d0d
+index 0000000..6d92361
 --- /dev/null
 +++ b/app/ardop_bandwidth.go
 @@ -0,0 +1,37 @@
@@ -46,8 +46,8 @@ index 0000000..5c94d0d
 +// (OpenX6X00 patch: the radio's Winlink page sets ardop.arq_bandwidth). The gateway list fills
 +// in each gateway's widest bandwidth (bw=2000MAX for a gateway listed as ARDOP 2000), the
 +// connect dialog takes it over, the browser remembers it for the next time, and a connection's
-+// bw= wins over the config. At the radio's 7 W a 500 Hz session connected where 2000MAX did
-+// not.
++// bw= wins over the config. At the radio's 7 W at most, a 200 Hz session connected where
++// 2000MAX did not.
 +//
 +// A bw= at or under the limit, or none, is left as it is. One above it becomes the limit as
 +// <Max>MAX: a gateway that runs a wider bandwidth takes it and the session is negotiated down

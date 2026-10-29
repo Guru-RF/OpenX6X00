@@ -2662,11 +2662,12 @@ Connecting to a gateway:
   session runs at 500 Hz. Up to v0.3.6 the gateway list's bandwidth won, and
   the page's only counted for a connection without one.
   - 500 Hz (the default) is the one to start with. Reported from the air
-    (#18): at the radio's few watts a 500 or 200 Hz session connected at once
-    where 2000MAX did not. ARDOP's calls are the same narrow frames whatever
-    the bandwidth, but a 2000 Hz session starts with four carriers and its
-    most robust frame is 500 Hz wide, while a 200 or 500 Hz session can fall
-    back to ARDOP's most robust frame (200 Hz, one carrier).
+    (#18): at the radio's few watts a 200 Hz session connected at once where
+    the gateway list's 2000MAX did not. ARDOP's calls are the same narrow
+    frames whatever the bandwidth, but a 2000 Hz session starts with four
+    carriers and its most robust frame is 500 Hz wide, while a 200 or 500 Hz
+    session can fall back to ARDOP's most robust frame (200 Hz, one carrier);
+    500 Hz is the faster of the two on a good path.
   - 200 Hz is the most robust, for a weak path, but slower, and a gateway
     fixed at 500 Hz or wider refuses it ("REJECTED ... INCOMPATIBLE BW" in
     `ardopcf.log`). 1000 and 2000 Hz are faster on a good path, with a gateway
@@ -2691,7 +2692,8 @@ Connecting to a gateway:
   Pat has one, and where it was set), or keep the mailbox open during the
   connection to type it there. A new account's first connection over the air
   goes without one: the gateway then sends the account's password in a
-  message, and Pat's log shows it once ("DO NOT LOSE YOUR PASSWORD").
+  message, and Pat's log shows it ("DO NOT LOSE YOUR PASSWORD"; the logs
+  download masks it).
 - The gateway list: the first time, Pat fetches it from winlink.org when the
   radio has internet, and keeps it on the SD card. Without internet it uses
   the list built into Pat (April 2026). Updating it needs the internet.
