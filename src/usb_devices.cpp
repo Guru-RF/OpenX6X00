@@ -17,7 +17,6 @@ extern "C" {
 }
 
 static struct udev *udev;
-static struct udev_device *dev;
 static struct udev_monitor *mon;
 static int fd;
 
@@ -28,38 +27,44 @@ static void notify_device_removed(void *) {
     lv_msg_send(MSG_USB_DEVICE_CHANGED, (void *)USB_DEV_REMOVED);
 }
 
+/* An event waits on the monitor */
+static bool pending() {
+    fd_set         fds;
+    struct timeval tv = {0, 0};
+
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+    return select(fd + 1, &fds, NULL, NULL, &tv) > 0 && FD_ISSET(fd, &fds);
+}
+
 static void wait_new_device() {
-	while (1) {
-		fd_set fds;
-		struct timeval tv;
-		int ret;
+    while (1) {
+        bool added = false, removed = false;
 
-		FD_ZERO(&fds);
-		FD_SET(fd, &fds);
-		tv.tv_sec = 0;
-		tv.tv_usec = 0;
+        /* Every event waiting, then one message of each kind: a plug brings several (the device and its
+         * interfaces, each added and bound, then their input nodes), and one taken every 500 ms spread
+         * them over seconds, each one starting the keyboard's rescans again (#79). At most 64 a round:
+         * an event that cannot be read never holds the thread */
+        for (int n = 0; n < 64 && pending(); n++) {
+            struct udev_device *dev = udev_monitor_receive_device(mon);
 
-		ret = select(fd+1, &fds, NULL, NULL, &tv);
-		if (ret > 0 && FD_ISSET(fd, &fds)) {
-			dev = udev_monitor_receive_device(mon);
             if (dev) {
-                const char* action = udev_device_get_action(dev);
-                if (action && strcmp(action, "add") == 0) {
-                    scheduler_put_noargs(notify_device_added);
-                } else if (action && strcmp(action, "remove") == 0) {
-                    scheduler_put_noargs(notify_device_removed);
-                }
+                const char *action = udev_device_get_action(dev);
+
+                added   |= action && strcmp(action, "add") == 0;
+                removed |= action && strcmp(action, "remove") == 0;
                 udev_device_unref(dev);
             }
-			// if (dev && (strcmp(udev_device_get_action(dev), "add") == 0)) {
-			// 	/* free dev */
-			// 	udev_device_unref(dev);
-            //     return;
-			// }
-		}
-		/* 500 milliseconds */
+        }
+        if (removed) {
+            scheduler_put_noargs(notify_device_removed);
+        }
+        if (added) {
+            scheduler_put_noargs(notify_device_added);
+        }
+        /* 500 milliseconds */
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
-	}
+    }
 }
 
 #ifdef BOARD_X6200
