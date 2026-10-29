@@ -442,13 +442,17 @@ STATION > Band plan (also on the web configurator's Display page, Plan).
 
 Auto takes the region from the first of these that it has: a GPS fix less
 than 10 s old, the QTH locator, the country of the callsign (from cty.dat,
-looked up once, a moment after the start), else Region 1. The dropdown's
-first entry says what Auto takes, "Auto (Region 2)", and the web page from
-what: "Auto: Region 2 from the locator FN31". Auto looks again when the
-locator or the callsign is saved, at each band change, and every 10 s for
-the GPS. The regions are the ITU's (Radio Regulations, Article 5), with the
-countries it puts whole in one region (Russia, Kazakhstan, Mongolia, Turkey,
-the Caucasus and Central Asia in Region 1, all of Iran in Region 3). A
+looked up once, a moment after the start). With none of them (the GPS fix
+lost, or not there yet after a start) it keeps the region the radio had
+last, from one of them or from a plan chosen by hand: the one the band list
+is on (below), so the strip and the band list agree. Region 1 only when it
+never had another. The dropdown's first entry says what Auto takes, "Auto
+(Region 2)", and the web page from what: "Auto: Region 2 from the locator
+FN31", or "Region 2, the last one it had". Auto looks again when the locator
+or the callsign is saved, at each band change, and every 10 s for the GPS.
+The regions are the ITU's (Radio Regulations, Article 5), with the countries
+it puts whole in one region (Russia, Kazakhstan, Mongolia, Turkey, the
+Caucasus and Central Asia in Region 1, all of Iran in Region 3). A
 4-character locator is a square of 2 by 1 degrees: where a border runs
 through one (the Bering Strait, the Amur, around Iran, Turkmenistan and
 Oman's Musandam) its centre can be on the other side. A 6-character locator,
@@ -491,7 +495,8 @@ what count. What follows it:
   own lies where they would go (75m at 3.8-3.9 MHz keeps 80m at 3.8);
   another region later moves them on. Before, a radio in Region 2 tuned to
   7.2-7.3 or 3.9-4.0 MHz was on "Broadcast 41m" or "Broadcast 75m", in AM.
-  Auto with nothing to go by leaves the band list as it is;
+  Auto with nothing to go by takes the band list's region, so it leaves
+  the list as it is;
 - the typical frequencies of Field Ops and the Bands app: in Region 2 and
   the US phone on 80 m at 3.860 and on 40 m at 7.200 MHz, and outside
   Region 1 CW on 6 m at 50.090 MHz (50.060 is among the beacons there).
