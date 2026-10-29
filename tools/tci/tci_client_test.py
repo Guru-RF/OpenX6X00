@@ -335,9 +335,10 @@ def funnel():
     """Issue #58: a funnel made by hand ("tailscale funnel 50001") put TCI, which has no login, on the
     internet. Over Funnel (tailscaled's header) only the browser Panel's own sound and microphone go:
     nothing before "auth TOKEN" of a browser paired at home, within 5 s; then the audio commands and a
-    key with its audio for a session that may transmit; one at a time; closed when its session is
-    revoked; wrong keys pause Funnel. A request from the tailnet (Tailscale's proxy, no Funnel header)
-    is taken as before"""
+    key with its audio for a session that may transmit; one at a time, the same browser's key taking
+    the place of its connection left silent (a phone gone from the WiFi to its mobile data); closed
+    when its session is revoked; wrong keys pause Funnel. A request from the tailnet (Tailscale's
+    proxy, no Funnel header) is taken as before"""
     ws = WS(headers=FUNNEL)
     t0 = time.time()
     got = nothing_for(ws, 2)
@@ -376,6 +377,17 @@ def funnel():
         ws.send(2, struct.pack("<8I", 0, 24000, 0, 0, 0, 512, 2, 1) + bytes(32) + bytes(1024))
     ws.text("trx:0,false;")
     print("funnel: unkeyed:", ws.wait_text("trx:0,false;"))
+    time.sleep(6.5)     # its page gone without a word: nothing from it, the radio's pings unanswered
+    ws2 = WS(headers=FUNNEL.replace("203.0.113.7", "198.51.100.3"))
+    ws2.text("auth " + LISTENER)
+    assert closed_within(ws2, 1), "another browser's key, the first one silent: not closed"
+    print("funnel: the first one silent 6 s, another browser's key: closed")
+    ws2 = WS(headers=FUNNEL.replace("203.0.113.7", "198.51.100.3"))
+    ws2.text("auth:" + TOKEN + ";")
+    ws2.wait_text("ready;")
+    assert closed_within(ws, 2), "the same browser from another network: its connection from before not closed"
+    print("funnel: the same browser from another network: greeted, its connection from before closed")
+    ws = ws2
     open(REVOKED, "w").close()
     t0 = time.time()
     assert closed_within(ws, 3.5), "over Funnel, its session revoked: not closed"

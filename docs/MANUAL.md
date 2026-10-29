@@ -3486,6 +3486,9 @@ What goes on the internet, and what does not:
   keys within ten minutes refuse Funnel for ten minutes (a note on the radio's
   screen). Over TCI only the Panel's own audio and its key go, for a session
   that may transmit; TCI programs cannot pair and do not come over Funnel.
+  The sound and the microphone go to one browser at a time; a phone that
+  changes networks (from the WiFi to its mobile data) has them back within
+  seconds, in place of its connection from before.
 - Never: the web configurator (it has no login: every request from the
   internet gets a 403, also through a funnel set up by hand), TCI programs,
   Pat's mailbox, SSH, rigctld, ardopcf, gpsd.

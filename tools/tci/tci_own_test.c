@@ -57,6 +57,43 @@ static void client_open(int ci) {
     peer[ci] = sv[1];
 }
 
+/* A connection over Tailscale Funnel as tailscaled hands it over: its upgrade request with tailscaled's header,
+ * read by client_read. True when its handshake was taken (the 101 read here) */
+static bool funnel_connect(int ci, const char *addr) {
+    client_t *c = &clients[ci];
+    int       sv[2];
+    char      req[512], resp[512];
+
+    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv) < 0) {
+        perror("socketpair");
+        exit(2);
+    }
+    c->fd       = sv[0];
+    c->fmt_rate = 48000;
+    c->fmt_type = TCI_FLOAT32;
+    c->last_ms = c->ping_ms = now_ms();
+    snprintf(c->ip, sizeof(c->ip), "127.0.0.1");
+    atomic_fetch_add(&nclients, 1);
+    peer[ci] = sv[1];
+    snprintf(req, sizeof(req), "GET / HTTP/1.1\r\nHost: x6200.tail1234.ts.net\r\nUpgrade: websocket\r\n"
+             "Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n"
+             "Tailscale-Funnel-Request: ?1\r\nX-Forwarded-For: %s\r\n\r\n", addr);
+    if (send(peer[ci], req, strlen(req), MSG_NOSIGNAL) != (ssize_t)strlen(req))
+        exit(2);
+    client_read(ci);
+    ssize_t n = recv(peer[ci], resp, sizeof(resp) - 1, 0);
+    return c->fd >= 0 && c->ws && n > 12 && !strncmp(resp, "HTTP/1.1 101", 12);
+}
+
+/* A text frame from client ci as a browser sends it (masked), read by client_read; nothing when it is closed */
+static void funnel_say(int ci, const char *text) {
+    uint8_t f[256] = {0x81, (uint8_t)(0x80 | strlen(text))};   /* a mask of zeros: the text as it is */
+
+    memcpy(f + 6, text, strlen(text));
+    if (clients[ci].fd >= 0 && send(peer[ci], f, 6 + strlen(text), MSG_NOSIGNAL) == (ssize_t)(6 + strlen(text)))
+        client_read(ci);
+}
+
 /* The connection lost, as client_read handles it */
 static void client_gone(int ci) {
     tx_session_end(ci, false);
@@ -546,6 +583,54 @@ static void funnel_takes_no_control(void) {
     check(!on_air() && txs.owner < 0, "B's unkey ends it");
 }
 
+/* Over Tailscale Funnel one browser at a time has the Panel's sound and microphone (#58). A phone that goes from
+ * the WiFi to its mobile data leaves its connection stale, without a word, up until IDLE_MS: the same browser's new
+ * connection, its key the same, takes its place once that one has been silent FUNNEL_STALE_MS, and what it had on
+ * the air ends with it. While its page answers (the Panel and the Screen page in two tabs) the place stays its, and
+ * another browser's key is refused. One connection at the most waits for its key; wrong keys pause Funnel (the
+ * stub's rule: three) */
+static void funnel_same_browser_back(void) {
+    enum { C = 2, D = 3 };
+    const char *op = "auth:0123456789abcdef0123456789abcdef;", *listener = "auth:11111111111111111111111111111111;";
+
+    check(funnel_connect(A, "203.0.113.7"), "A over Funnel: its handshake taken");
+    funnel_say(A, op);
+    check(clients[A].up && strstr(heard(A), "ready;"), "A's key: A greeted");
+    say(A, "trx:0,true,tci;");
+    gui(-1);
+    check(radio_get_modem() && txs.owner == A, "A on the air with its audio");
+    check(!funnel_connect(B, "198.51.100.2") && clients[B].fd < 0, "A's page answers: another connection refused");
+
+    clients[A].last_ms = now_ms() - FUNNEL_STALE_MS - 1;   /* A's page gone without a word */
+    check(funnel_connect(B, "198.51.100.2"), "A silent: another connection's handshake taken");
+    funnel_say(B, listener);
+    check(clients[B].fd < 0 && clients[A].up && txs.owner == A, "another browser's key: refused, A keeps the air");
+    check(funnel_connect(B, "198.51.100.3"), "the same browser from another network: its handshake taken");
+    funnel_say(B, op);
+    check(clients[A].fd < 0 && clients[B].up && strstr(heard(B), "ready;"), "its key: A closed, B greeted");
+    gui(-1);
+    check(!on_air() && txs.owner < 0, "A's transmission ended with it");
+    say(B, "trx:0,true,tci;");
+    gui(-1);
+    check(radio_get_modem() && txs.owner == B, "B keys with its audio");
+    say(B, "trx:0,false;");
+    gui(-1);
+    check(!on_air(), "B's unkey ends it");
+
+    clients[B].last_ms = now_ms() - FUNNEL_STALE_MS - 1;
+    funnel_connect(C, "198.51.100.4");
+    funnel_connect(D, "198.51.100.5");
+    check(clients[C].fd < 0 && clients[D].fd >= 0 && clients[B].up, "a second waiting for its key: the first goes");
+    for (int k = 0; k < 3; k++) {
+        if (k)
+            funnel_connect(D, "198.51.100.5");
+        funnel_say(D, "auth:00000000000000000000000000000007;");
+        check(clients[D].fd < 0 && clients[B].up && remote_server_funnel_paused() == (k == 2),
+              k < 2 ? "a wrong key: closed, B kept" : "the third wrong key: Funnel paused, B kept");
+    }
+    check(!funnel_connect(D, "198.51.100.5"), "paused: a connection over Funnel refused");
+}
+
 static int run(const char *name, void (*fn)(void)) {
     int   st;
     pid_t pid;
@@ -592,6 +677,7 @@ int main(void) {
         {"Two TCI audio starts", two_tci_starts},
         {"TCI audio in DIGU and DIGL", tci_audio_in_dig},
         {"Over Funnel, an unkey or a question from a client that keyed nothing", funnel_takes_no_control},
+        {"Over Funnel, the same browser back from another network", funnel_same_browser_back},
     };
     int n = sizeof(cases) / sizeof(cases[0]), bad = 0;
 

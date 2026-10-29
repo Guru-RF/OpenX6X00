@@ -27,7 +27,8 @@
  *  tailscaled marks as one from the internet gets no greeting until its first text, "auth TOKEN",
  *  is the token of a browser paired at home (remote_sessions.h), within 5 s; then only the audio
  *  commands, and keying with its audio for a session that may transmit (funnel_cmd_ok). One at
- *  a time, closed when its session is revoked; a wrong token counts towards Funnel's pause.
+ *  a time: the same browser back on another network takes the place of its connection left stale
+ *  (funnel_auth). Closed when its session is revoked; a wrong token counts towards Funnel's pause.
  *  TCI programs cannot pair and do not come over Funnel.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -92,6 +93,8 @@
 #define ACC_MAX       (2048 + 2 * AUDIO_FRAMES)   /* a client's RX audio short of a frame, then a read more */
 #define FUNNEL_AUTH_MS  5000        /* over Funnel: the token within this, or the connection goes */
 #define FUNNEL_CHECK_MS 2000        /* over Funnel: its session looked for this often (revoked: it goes) */
+#define FUNNEL_PING_MS  2000        /* over Funnel: silent this long, it is pinged (a page still open answers itself) */
+#define FUNNEL_STALE_MS 6000        /* over Funnel: silent this long, its page may be gone without a word */
 #define TX_SILENCE_MS 500           /* keyed with TCI audio: unkeyed without frames this long */
 #define TX_LIMIT_MS   (180 * 1000)
 #define DRIVE_SPAN    (BOARD_PWR_MAX - 0.1f)   /* drive 0..100 %: 0.1 W to the top of PWR (10 W, the X6200 8 W) */
@@ -1294,27 +1297,46 @@ static void *capture_thread(void *arg) {
 
 /* ---- The socket thread -------------------------------------------------------------- */
 
-/* A connection over Tailscale Funnel (#58), its handshake done: the Panel's sound and microphone, one at a time,
- * and none while Funnel is paused after wrong keys. One that has not given its token yet makes room for it. A
- * funnel made by hand ("tailscale funnel 50001") put TCI, which has no login, on the internet: nothing comes of
- * it now without the token of a browser paired at home */
-static bool funnel_take(client_t *c) {
-    if (remote_server_funnel_paused())
-        return false;
+/* The connection over Funnel that has the Panel's sound and microphone, other than c; NULL none */
+static client_t *funnel_holder(const client_t *c) {
     for (int i = 0; i < MAX_CLIENTS; i++)
         if (&clients[i] != c && clients[i].fd >= 0 && clients[i].funnel && clients[i].up)
-            return false;
+            return &clients[i];
+    return NULL;
+}
+
+/* Its page still open: heard from within FUNNEL_STALE_MS, the answers to FUNNEL_PING_MS's pings at least */
+static bool funnel_heard(const client_t *c) {
+    return now_ms() - c->last_ms < FUNNEL_STALE_MS;
+}
+
+/* A connection over Tailscale Funnel (#58), its handshake done: the Panel's sound and microphone, one at a time,
+ * and none while Funnel is paused after wrong keys. The one that has them keeps them while its page is open: the
+ * Panel and the Screen page of one browser, in two tabs, would take them from each other at every try. One silent
+ * longer may have been left stale: its token decides (funnel_auth). One that has not given its token yet makes room
+ * for it, as on the browser remote's socket. A funnel made by hand ("tailscale funnel 50001") put TCI, which has no
+ * login, on the internet: nothing comes of it now without the token of a browser paired at home */
+static bool funnel_take(client_t *c) {
+    client_t *was = funnel_holder(c);
+
+    if (remote_server_funnel_paused() || (was && funnel_heard(was)))
+        return false;
     for (int i = 0; i < MAX_CLIENTS; i++)
-        if (&clients[i] != c && clients[i].fd >= 0 && clients[i].ws && clients[i].funnel)
+        if (&clients[i] != c && clients[i].fd >= 0 && clients[i].ws && clients[i].funnel && !clients[i].up)
             client_close(&clients[i]);
     return true;
 }
 
 /* The first text over Funnel: "auth TOKEN" (or TCI's "auth:TOKEN;"), the token of a browser paired at home, as
  * the browser remote takes it. A good one: the greeting, then funnel_cmd_ok's commands. A wrong one counts towards
- * Funnel's pause; it, or anything else first, closes the connection */
+ * Funnel's pause; it, or anything else first, closes the connection. Another connection with the sound, silent
+ * for FUNNEL_STALE_MS (funnel_take): the same browser's token takes its place, and what it had on the air ends. A
+ * phone that went from the WiFi to its mobile data left that one stale, without a word, up until IDLE_MS, and the
+ * Panel would have been without its sound and microphone for that minute. Another browser's token is refused, as
+ * is this one when the other has been heard from meanwhile */
 static void funnel_auth(int ci, const char *text) {
     client_t *c = &clients[ci];
+    client_t *was;
     char      tok[sizeof(c->token)] = "";
     char      name[32];
     size_t    l;
@@ -1334,6 +1356,17 @@ static void funnel_auth(int ci, const char *text) {
         LV_LOG_USER("tci: a wrong key over Tailscale Funnel from %s", c->ip);
         client_close(c);
         return;
+    }
+    if ((was = funnel_holder(c)) && (strcmp(was->token, tok) || funnel_heard(was))) {
+        LV_LOG_USER("tci: refused %s over Tailscale Funnel (one at a time)", c->ip);
+        client_close(c);
+        return;
+    }
+    if (was) {
+        LV_LOG_USER("tci: %s over Tailscale Funnel from %s: its connection from %s, silent %d s, closed", name, c->ip,
+                    was->ip, (int)((now_ms() - was->last_ms) / 1000));
+        tx_session_end((int)(was - clients), false);
+        client_close(was);
     }
     snprintf(c->token, sizeof(c->token), "%s", tok);
     c->check_ms = now_ms();
@@ -1617,7 +1650,8 @@ static void *server_thread(void *arg) {
             state_follow(&last, false);
             telemetry(now, &last);
             for (int i = 0; i < MAX_CLIENTS; i++) {
-                client_t *c = &clients[i];
+                client_t *c    = &clients[i];
+                uint64_t  ping = c->funnel ? FUNNEL_PING_MS : PING_MS;
                 if (c->fd < 0)
                     continue;
                 if (now - c->last_ms > IDLE_MS) {
@@ -1636,7 +1670,7 @@ static void *server_thread(void *arg) {
                         tx_session_end(i, false);
                         client_close(c);
                     }
-                } else if (c->up && now - c->last_ms > PING_MS && now - c->ping_ms > PING_MS) {
+                } else if (c->up && now - c->last_ms > ping && now - c->ping_ms > ping) {
                     c->ping_ms = now;
                     client_frame(c, WS_OP_PING, NULL, 0, NULL, 0);
                 }

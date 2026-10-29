@@ -17,8 +17,13 @@ nothing, that an unkey never drops the operator's PTT, and that a refused start 
 which only CW and CW-R refuse (#17). One more has two clients over Tailscale Funnel (#58), one
 whose session may not transmit: the TX state asked, or an unkey from a client that keyed nothing,
 is answered with the state and leaves control with the browser at home; only the session that may
-transmit keys, and its unkey ends it. Each runs in a child process, its clients on socket
-pairs, without a listener. It prints `OWNER OK: n cases`.
+transmit keys, and its unkey ends it. One more has a browser over Funnel on the air, through
+the real handshake with tailscaled's header and its key: while its page answers, another
+connection is refused at the handshake; once it has been silent 6 s (a phone gone from the WiFi
+to its mobile data, its connection left stale), another browser's key is refused and the same
+browser's key from another address takes its place, its transmission ended, the newcomer keying;
+of two waiting for their key the older goes; wrong keys pause Funnel. Each runs in a child
+process, its clients on socket pairs, without a listener. It prints `OWNER OK: n cases`.
 
 Then it builds `src/tci_server.c` and `src/tci_ws.c` (with `src/tci_audio.c` and
 `src/control_owner.c`) on the PC against the stubs in `stubs.c` (the radio, the settings, the
@@ -41,8 +46,9 @@ browser Panel's own sound and microphone may come, with tailscaled's
 the key, closed unanswered; the key of a browser paired at home (the stub's sessions in
 `stubs.c`), then the greeting; a second one over Funnel refused; tuning, mode and drive left
 unanswered and undone; the browser's audio format and RX audio; a key with the radio's own
-microphone answered `trx:0,false;`, one with the page's audio keying and unkeying; the session
-revoked (the file `REVOKED` names exists) closing it; a session that may not transmit refused;
+microphone answered `trx:0,false;`, one with the page's audio keying and unkeying; the first
+one silent 6 s, another browser's key closed and the same browser's key from another address
+greeted, the first one closed; the session revoked (the file `REVOKED` names exists) closing it; a session that may not transmit refused;
 three wrong keys pausing Funnel (the stub's rule); then a request through Tailscale's proxy from
 the tailnet (no such header) and one from the LAN, taken as before. The
 stub keeps what each transmission played in `played.raw` (PLAYED), int16 at 44.1 kHz, for the
