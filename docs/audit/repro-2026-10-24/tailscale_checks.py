@@ -2,12 +2,15 @@
 a local API on a UNIX socket in a temporary folder that answers status, serve-config (with its Etag, If-Match and
 the rule that a port's serve type does not change in one step) and query-feature as tailscaled 1.104.2 does
 (ipn/localapi/serve.go, ipn/ipnlocal/serve.go). Nothing of Tailscale's runs, nothing goes to the network."""
+import ast
+import base64
 import hashlib
 import http.server
 import json
 import os
 import runpy
 import socketserver
+import stat
 import tempfile
 import threading
 from pathlib import Path
@@ -25,6 +28,7 @@ class Fake:
     status = {}
     gets = posts = queries = 0
     changed_meanwhile = False
+    refuse = ''             # tailscaled refusing a new serve config, as it does with no login: "netMap is nil"
     seen_if_match = []
 
     @classmethod
@@ -61,6 +65,8 @@ class LocalAPI(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get('Content-Length') or 0))
         if self.path == '/localapi/v0/serve-config':
+            if Fake.refuse:
+                return self.reply(500, json.dumps({'error': Fake.refuse}))
             Fake.seen_if_match.append(self.headers.get('If-Match'))
             if Fake.changed_meanwhile:      # someone else's change between our GET and our POST
                 Fake.changed_meanwhile = False
@@ -260,12 +266,105 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
               'https://tailscale.com/cap/funnel-ports?ports=400-500': None}}))
 
         # 12. The files the web server writes for the Funnel pages are the ones served, one by one
-        import ast
         tree = ast.parse((repo / 'webserver/src/x6100_webserver/apps.py').read_text())
         web_files = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
                          and any(isinstance(t, ast.Name) and t.id == 'FUNNEL_FILES' for t in n.targets))
         check('the web server writes the files tailscaled serves', tuple(web_files) == tuple(g['FUNNEL_FILES']),
               web_files)
+
+        # 13. Tailscale stopping (off, the shutdown, a start that failed): the radio's funnel and any made by hand go out
+        # of tailscaled first, and out of its state file once it has stopped, so that a version without Funnel, gone
+        # back to by hand, never starts tailscaled with one. The setting stays, for the next start
+        state_dir = Path(td) / 'state'
+        state_dir.mkdir()
+        alive = Path(td) / 'tailscaled.alive'          # a tailscaled runs on the radio's state, for tailscaled_pids()
+        g.update(STATE=str(state_dir), STATE_FILE=str(state_dir / 'tailscaled.state'), BIN=str(Path(td) / 'tailscaled'))
+        g['tailscaled_pids'] = lambda: [4242] if alive.exists() else []
+
+        class Daemon:
+            """The supervisor's tailscaled as stop_daemon sees it; the serve config as it was when it was stopped"""
+            def __init__(self):
+                self.returncode = None
+                alive.touch()
+
+            def poll(self):
+                return self.returncode
+
+            def terminate(self):
+                self.at_stop = json.loads(json.dumps(Fake.serve))
+                self.returncode = 0
+                alive.unlink(missing_ok=True)
+            kill = terminate
+
+            def wait(self, timeout=None):
+                return self.returncode
+
+        def on_and_by_hand():
+            """The radio's funnel on, a funnel made by hand on 8443, serving to the tailnet alone on 8444"""
+            sc, _ = g['funnel_config'](None, NAME, 50002, 50001, True)
+            sc['Web'][NAME + ':8443'] = {'Handlers': {'/': {'Proxy': 'http://127.0.0.1:50001'}}}
+            sc['Web'][NAME + ':8444'] = {'Handlers': {'/': {'Text': 'hello'}}}
+            sc['TCP'].update({'8443': {'HTTPS': True}, '8444': {'HTTPS': True}})
+            sc['AllowFunnel'][NAME + ':8443'] = True
+            return sc
+
+        def tailnet_only(sc):
+            """No funnel, none of the radio's pages, 443 free; the tailnet's own serving (8443 and 8444) as it was"""
+            sc = sc or {}
+            return (not g['funnel_left'](sc) and set(sc.get('Web') or {}) == {NAME + ':8443', NAME + ':8444'}
+                    and set(sc.get('TCP') or {}) == {'8443', '8444'})
+
+        def b64(obj):
+            return base64.b64encode(json.dumps(obj).encode()).decode()
+
+        def stored():
+            """The serve config in the state file"""
+            return json.loads(base64.b64decode(json.loads(Path(g['STATE_FILE']).read_text())['_serve/a1b2']))
+
+        g['cmd_funnel']('on')
+        Fake.serve = on_and_by_hand()
+        d = Daemon()
+        g['stop_tailscaled'](d)
+        check('stopping: the radio\'s funnel and one made by hand out of tailscaled before it stops, the tailnet\'s '
+              'serving kept', tailnet_only(d.at_stop), d.at_stop)
+        check('stopping: tailscaled stopped, the Funnel setting kept for the next start',
+              not alive.exists() and g['funnel_wanted']())
+
+        others = {'_machinekey': base64.b64encode(b'privkey:00ff').decode(),
+                  '_current-profile': base64.b64encode(b'a1b2').decode(),
+                  'profile-a1b2': b64({'ControlURL': 'https://controlplane.tailscale.com', 'WantRunning': True})}
+        Path(g['STATE_FILE']).write_text(json.dumps(dict(others, **{'_serve/a1b2': b64(on_and_by_hand())})))
+        Fake.serve = on_and_by_hand()
+        Fake.refuse = 'netMap is nil'
+        d = Daemon()
+        g['stop_tailscaled'](d)
+        Fake.refuse = ''
+        check('stopping, tailscaled refusing the change (no login): out of its state file once it stopped',
+              g['funnel_left'](d.at_stop) and tailnet_only(stored()), stored())
+        kept = json.loads(Path(g['STATE_FILE']).read_text())
+        check('the state file: the login, the keys and the prefs as they were', {k: kept[k] for k in others} == others)
+        check('the state file: still readable by root alone', stat.S_IMODE(os.stat(g['STATE_FILE']).st_mode) == 0o600)
+
+        Path(g['STATE_FILE']).write_text(json.dumps(dict(others, **{'_serve/a1b2': b64(on_and_by_hand())})))
+        alive.touch()                                  # one a killed supervisor left behind, say
+        g['stop_tailscaled'](None)
+        check('another tailscaled still runs: its state file not written under it', g['funnel_left'](stored()))
+        alive.unlink()
+        Path(g['STATE_FILE']).write_text('{"_serve/a1b2": ')
+        try:
+            g['stop_tailscaled'](None)
+            check('a state file that is no JSON: the stop goes ahead, the file left as it is',
+                  Path(g['STATE_FILE']).read_text() == '{"_serve/a1b2": ')
+        except Exception as e:
+            check('a state file that is no JSON: the stop goes ahead', False, e)
+        Path(g['STATE_FILE']).unlink()
+
+        run_def = next(n for n in ast.parse((repo / 'rootfs/usr/sbin/x6100-tailscale').read_text()).body
+                       if isinstance(n, ast.FunctionDef) and n.name == 'run')
+        calls = [n.func.id for n in ast.walk(run_def) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
+        check('the supervisor stops tailscaled that way alone: turned off, the shutdown, a failed start',
+              calls.count('stop_tailscaled') == 2 and 'stop_daemon' not in calls)
+        g['cmd_funnel']('off')
         server.shutdown()
         server.server_close()
     finally:
