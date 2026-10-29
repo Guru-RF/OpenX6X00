@@ -107,16 +107,22 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   which Pat's varahf transport talks to. Some Winlink RMS gateways do run it, behind RMS Trimode's or BPQ32's
   VARA driver: KO0OOO (its banner gives 7.101.5) and K7EK-10, seen in Mercury's issues (#162, #384, #442); only
   Mercury 1.9.20 and later talk to each other. VARA itself is closed and Windows-only: out.
-  - **Built, experimental, not yet to be chosen**: v1.9.21 vendored as its daemon build (third-party/mercury, two
-    local patches: the TNC and broadcast ports on 127.0.0.1, VERSION answered with a VERSION line so Pat cannot
-    hang), linked into x6x00-mercury, which takes the audio and the PTT through the GUI's modem socket in its
-    protocol 2 (8000 Hz, keys of up to 40 s; ardopcf stays on protocol 1). In the image and the bundle.
-    tools/winlink tests it on the PC: Pat to Pat peer to peer over two stubbed radios.
-  - **Next**: the modem choice (ARDOP or Mercury, one at a time, P2P listening off by default) in x6100-winlink
-    and on Operating > Winlink, with the manual. Then the go/no-go on the bench X6100: Mercury's CPU next to the
-    GUI with `top -H` (idle with LISTEN off and on, and in a session; no "RX backlog" warnings), the temperature,
-    a 30-40 s key at up to 7 W, PTT to RF and unkey to RX audio, the drive level loop on OFDM. Then on the air:
-    P2P with a Mercury station, then a gateway once the Winlink account works.
+  - **Built, experimental, chosen on the Winlink page** (next release): v1.9.21 vendored as its daemon build
+    (third-party/mercury, two local patches: the TNC and broadcast ports on 127.0.0.1, VERSION answered with a
+    VERSION line so Pat cannot hang), linked into x6x00-mercury, which takes the audio and the PTT through the
+    GUI's modem socket in its protocol 2 (8000 Hz, keys of up to 40 s; ardopcf stays on protocol 1). In the image
+    and the bundle. Operating > Winlink's Modem (ARDOP or Mercury, one at a time) and Mercury's bandwidth (500,
+    2300, 2750); x6100-winlink runs x6x00-mercury in place of ardopcf with /run/winlink/mercury.ini, Pat's varahf
+    on 127.0.0.1:8300 (P2P listening off), Mercury's readiness and outcomes, its decoders falling behind ("decoder
+    ring full") said on the page and in Pat's log ([manual](docs/MANUAL.md#mercury-experimental)). tools/winlink
+    tests it on the PC: Pat to Pat peer to peer over two stubbed radios (make modems), the supervisor's and the
+    page's side (winlink_test.py, winlink_web_test.py).
+  - **Next**: the go/no-go on the bench X6100, before a release offers it: Mercury's CPU next to the GUI with
+    `top -H` (idle, and in a session; no "decoder ring full" in mercury.log), the temperature, a 30-40 s key at up
+    to 7 W, PTT to RF and unkey to RX audio, the drive level loop on OFDM (QAM16C2 needs a linear chain). Then on
+    the air: P2P with a Mercury station, then a gateway (KO0OOO, K7EK-10) once the Winlink account works. Upstream
+    reports to post: the VERSION reply (Pat's start race), the daemon build's two missing Android hooks, an option
+    for the TNC ports' address, nanorq's and oblas's licence files, PUBLIC in TNC.md.
 - **XARA** (github.com/x0rro/xara, a VARA-compatible modem in Rust, first release 2026-10-21; #18): a watch
   item, not built. Watch it regularly: its fix for HF calls with an SSID (XARA issue #22, PR #23), the sound-card
   clock drift that makes a VARA peer time out (XARA #20), its releases, and any takedown or statement by EA5HVK

@@ -21,7 +21,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
 - [Wavelog](#wavelog)
-- [Winlink](#winlink)
+- [Winlink](#winlink): [Mercury](#mercury-experimental)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
@@ -2369,7 +2369,7 @@ The menu has General and four groups:
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | Wavelog | every logged QSO to your Wavelog: URL, API key, station profile (one, or Automatic by the radio's callsign), connection test, Send now (writes `/mnt/field/wavelog.conf`, see [Wavelog](#wavelog)) |
-| | Winlink | Winlink email over HF with Pat and ARDOP: Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), ARDOP bandwidth, the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
+| | Winlink | Winlink email over HF with Pat and ARDOP, or Mercury (experimental): Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), the modem, ARDOP's or Mercury's bandwidth, the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV |
@@ -2505,9 +2505,11 @@ radio alone, with no computer and no internet: [Pat](https://getpat.io) is the
 mail program, and its mailbox is a web page you open on a phone, a tablet or a
 laptop on the radio's network; ARDOP is the HF modem
 ([ardopcf](https://github.com/pflarue/ardop)), working through the radio's own
-audio. Pat calls a Winlink RMS gateway, the radio tunes there and transmits,
-and your mail goes out while the new mail comes in. Where: web configurator,
-Operating > Winlink. Off by default; when it is off, Pat and ARDOP do not run.
+audio, or [Mercury](#mercury-experimental) (experimental) in its place. Pat
+calls a Winlink RMS gateway, the radio tunes there and transmits, and your
+mail goes out while the new mail comes in. Where: web configurator,
+Operating > Winlink. Off by default; when it is off, Pat and the modem do not
+run.
 
 Setting it up:
 
@@ -2524,13 +2526,17 @@ Setting it up:
      Winlink on and none set anywhere, the page says so in red at the top
      (see the password below); it is a warning only, since a new account's
      first connection over the air needs none.
+   - Modem: ARDOP (the default), or Mercury (experimental, see
+     [Mercury](#mercury-experimental) below). One runs at a time.
    - ARDOP bandwidth: the widest ARDOP may use, 200, 500 (the default), 1000
      or 2000 Hz. It counts for every connection, also with a gateway that
-     Pat's gateway list shows wider: see "The ARDOP bandwidth" below.
-3. Switch Enabled on. Status says "Running as ON6URE" once Pat and ARDOP run.
-   From then on they start with the radio, also after a new card image.
+     Pat's gateway list shows wider: see "The ARDOP bandwidth" below. With
+     Mercury chosen, Mercury bandwidth in its place: 500, 2300 (the default)
+     or 2750 Hz.
+3. Switch Enabled on. Status says "Running as ON6URE" once Pat and the modem
+   run. From then on they start with the radio, also after a new card image.
    The Before you connect card shows the radio as Winlink will use it, once
-   ARDOP is on the radio's audio; what is red keeps Winlink from
+   the modem is on the radio's audio; what is red keeps Winlink from
    transmitting, or from being heard well:
    - Frequency: where the radio listens, and whether it transmits there too
      ("No TX: split would send on 14.200.000, not 14.105.000", XIT, RIT, a
@@ -2538,7 +2544,8 @@ Setting it up:
    - Mode: Pat's QSY to a gateway sets USB-D (USB is kept).
    - Filter: whether the RX filter (and the TX filter, on a base that has
      one) covers ARDOP's passband at the page's bandwidth: 1250-1750 Hz at
-     500 Hz, 500-2500 Hz at 2000 Hz.
+     500 Hz, 500-2500 Hz at 2000 Hz. Mercury's: 450-2550 Hz at 2300 and
+     2750 Hz, 1000-2000 Hz at 500 Hz.
    - Power: the radio's PWR, at most 7 W for Winlink.
    - Apps: a digital app open (red: close it), or LOCK on (Pat's QSY is not
      made).
@@ -2548,9 +2555,11 @@ Setting it up:
      a minute; so does a QSY not made.
 
    The Connections card keeps apart what is often lumped together:
-   - Service: Pat and ARDOP run.
-   - Modem: ARDOP is on the radio's audio (ardopcf connected to the GUI);
-     "Waiting for the radio's audio" until it is.
+   - Service: Pat and the modem run.
+   - Modem: ARDOP is on the radio's audio (ardopcf connected to the GUI), or
+     Mercury (x6x00-mercury); "Waiting for the radio's audio" until it is.
+     With Mercury, "Ready, but it fell behind the receiver lately" in red
+     when its decoders dropped audio (see [Mercury](#mercury-experimental)).
    - Session: Idle, Calling a gateway or Connected, as Pat says, and in how
      many browsers the mailbox is open: Pat asks there what it needs during
      a connection (go ahead on a busy channel, the password).
@@ -2571,8 +2580,8 @@ Setting it up:
      | Pat could not tune the radio (Unable to QSY) | The radio's screen says why |
 
      The same line goes into Pat's log, so the mailbox shows it too.
-   - Logs, Download: Pat's log, its output, ARDOP's, Pat's event log, the
-     radio's state and the status, as one text file to attach to a bug
+   - Logs, Download: Pat's log, its output, ARDOP's, Mercury's, Pat's event
+     log, the radio's state and the status, as one text file to attach to a bug
      report. The passwords in them are masked: the Winlink page's, the ones
      in Pat's Settings, and the one Pat prints for a new account ("DO NOT LOSE
      YOUR PASSWORD"). The gateways and the subjects of your mail are in it;
@@ -2580,11 +2589,11 @@ Setting it up:
 4. Press Open the mailbox, or open `http://x6100.local:8080/` (`x6200.local`
    on an X6200, or the radio's address): Pat's own page, where you write and
    read your mail. Its Settings page has the rest of Pat's options. The
-   callsign, the locator and the ARDOP and radio settings are set again by
-   the radio each time Pat starts, and so is the password once one is set on
-   the radio's Winlink page: change those there, not in Pat. A password typed
-   in Pat's Settings is kept while the Winlink page has none (up to v0.3.6 it
-   was emptied at Pat's next start, #80).
+   callsign, the locator and the ARDOP, VARA HF (Mercury) and radio settings
+   are set again by the radio each time Pat starts, and so is the password
+   once one is set on the radio's Winlink page: change those there, not in
+   Pat. A password typed in Pat's Settings is kept while the Winlink page has
+   none (up to v0.3.6 it was emptied at Pat's next start, #80).
 
 Connecting to a gateway:
 
@@ -2727,10 +2736,10 @@ Good to know:
   every 100 days) and fetches the forms when you update them.
 - Pat runs behind the GUI and the audio (lower priority).
 - Over SSH, `x6100-winlink status` prints the state, and
-  `/run/winlink/pat.log` and `/run/winlink/ardopcf.log` have the programs'
-  output (in memory). `/run/winlink/radio` is the radio's state as the GUI
-  writes it each second while ARDOP is on its audio (the Before you connect
-  card's).
+  `/run/winlink/pat.log`, `/run/winlink/ardopcf.log` and
+  `/run/winlink/mercury.log` have the programs' output (in memory).
+  `/run/winlink/radio` is the radio's state as the GUI writes it each second
+  while the modem is on its audio (the Before you connect card's).
 
 Sessions with gateways work, as reported on
 [#18](https://github.com/Guru-RF/OpenX6X00/issues/18): KM4GKD on an X6100,
@@ -2751,6 +2760,88 @@ Wiseman, Peter LaRue) come with the firmware: Pat with small changes (its page
 answers only to the radio's names and never through Tailscale Funnel, no calls
 home, the Winlink page's ARDOP bandwidth as the widest, its log open to the
 radio's lines), ardopcf with its audio and PTT through the radio's GUI.
+
+### Mercury (experimental)
+
+[Mercury](https://github.com/Rhizomatica/mercury) is a second HF modem for
+Winlink, from Rhizomatica's HERMES project: OFDM modes up to 2.1 kHz wide,
+faster than ARDOP on a good path, down to an MFSK mode for the weakest
+signals, and a VARA-style connection that Pat drives as its VARA HF transport.
+It comes with the firmware, pinned at version 1.9.21: `x6x00-mercury` is
+Mercury with the radio's GUI as its sound card and PTT, as ardopcf has.
+
+It is experimental. Two stations connected and exchanged mail through it on a
+PC, each with the radio's own Winlink code and Pat, but it has not been on the
+air from a radio yet. It needs far more of the radio's processor than ARDOP:
+how much, and how warm the radio gets, is measured on the bench before a
+release.
+
+Choosing it: on Operating > Winlink, the Station card's Modem, Mercury
+(experimental), and its bandwidth, then Save. One modem runs at a time, since
+the radio's audio takes one: with Winlink on, Pat stops, ARDOP stops, Mercury
+starts and Pat starts again; the same way back to ARDOP. Status says "Running
+as ON6URE" once Pat and Mercury run, and the Connections card's Modem row
+"Mercury on the radio's audio".
+
+Who answers:
+
+- Only Mercury 1.9.20 or later: 1.9.20 and later do not connect to 1.9.19 or
+  older, and Mercury does not talk to VARA or ARDOP at all. Ask the other
+  station which version it runs.
+- Another Mercury station, station to station (P2P). The radio calls; it does
+  not answer calls (P2P listening stays off, as with ARDOP), so the other
+  station listens.
+- The few Winlink RMS gateways that run Mercury behind their VARA driver:
+  KO0OOO (its banner gives 7.101.5 MHz) and K7EK-10 were seen in Mercury's
+  issues in 2026; K7EK finds 30 m works best and 80 and 40 m poorly. Winlink's
+  gateway list has no Mercury: Pat's VARA HF list shows VARA gateways, which do
+  not answer it, and ARDOP's gateways do not either.
+
+Dialling: in the mailbox, Connect, VARA HF as the transport, then the other
+station's callsign as the target and its dial frequency in kHz by hand, and
+Connect. The radio tunes there in USB-D and back afterwards, as with ARDOP.
+The bandwidth field may stay empty: Mercury then takes the Winlink page's.
+
+- The bandwidth: 2300 Hz (the default) lets Mercury use all its modes; 500 Hz
+  keeps it narrow (DATAC3, 562 Hz, at the most), though its most robust mode,
+  the MFSK floor, is still 1000 Hz wide; 2750 Hz has 2300's modes for now. The
+  narrower of the two stations' is used. The RX filter has to cover Mercury's
+  audio: 450-2550 Hz at 2300 and 2750 Hz, 1000-2000 Hz at 500 Hz. The Before
+  you connect card checks it.
+- Mercury's keys are longer than ARDOP's: a call on its MFSK floor took 27 s
+  on the PC, and a round in a session is up to 30 s on the air plus its head
+  and tail. The radio stops a Mercury key after 40 s ("Winlink: TX stopped
+  after 40 s"), an ARDOP one after 30 s. The power is the same, at most 7 W,
+  and everything above holds for Mercury too: simplex, the apps, the SWR hold,
+  a QSY asked during a key.
+- Mercury sends no CW ID (Pat's CWID ON is not one of its commands): the
+  callsigns go in its own call frames.
+
+When it does not work:
+
+- The Connections card's last connection says what happened, as with ARDOP:
+  no answer (the other station needs Mercury 1.9.20 or later, a VARA gateway
+  from Pat's list does not answer it), a dropped link (500 Hz on a weak
+  path), "Pat called through ARDOP, but the radio runs Mercury" (VARA HF in
+  Pat's Connect dialog, or ARDOP on the page), "Mercury was not ready", a
+  bandwidth Mercury does not have (500, 2300 or 2750).
+- The Modem row says "Ready, but it fell behind the receiver lately" in red,
+  and Pat's log "OpenX6X00: Mercury could not keep up with the receiver": one
+  of Mercury's decoders dropped audio ("decoder ring full" in its log) and its
+  connections fail. The radio's processor is short for it: use ARDOP, and send
+  the logs download on [#18](https://github.com/Guru-RF/OpenX6X00/issues/18),
+  it helps the measurement.
+- Mercury's log is `/run/winlink/mercury.log` (in the logs download too), its
+  settings `/run/winlink/mercury.ini`, written at each start: its TNC ports
+  8300 and 8301 for Pat and its broadcast port 8100, all on 127.0.0.1 (which
+  Tailscale's userspace mode also opens to your tailnet, as ARDOP's), no web
+  UI, no message store.
+
+Mercury (GPL-3.0-or-later, Rafael Diniz and Rhizomatica's HERMES project; its
+FreeDV part LGPL-2.1, its iniparser, nanorq and oblas MIT) comes with the
+firmware as upstream has it, with two small changes: its TNC and broadcast
+ports listen on 127.0.0.1 only, and it answers Pat's VERSION with a VERSION
+line, so Pat never hangs starting it (`third-party/mercury/UPSTREAM.md`).
 
 ## Browser panel
 
@@ -3799,7 +3890,7 @@ The DATA partition, readable on a PC.
 | `https/` | the web configurator's HTTPS certificate |
 | `tailscale.conf` | Tailscale on or off: `enabled=0|1` |
 | `tailscale/` | the tailscaled program, downloaded when Tailscale is turned on and checked before every start |
-| `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=200|500|1000|2000` (the widest ARDOP may use) |
+| `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=200|500|1000|2000` (the widest ARDOP may use), `modem=ardop|mercury`, `mercury_bandwidth=500|2300|2750` |
 | `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
 
@@ -3857,7 +3948,7 @@ never the copy in the build tree.
 
 The Winlink modems are built by the GUI's CMake and installed with it, so
 the image and the update bundle carry them: ardopcf (`third-party/ardopcf`)
-and, experimental and not yet to be chosen on the Winlink page,
+and, experimental and chosen on the Winlink page,
 `x6x00-mercury` (`third-party/mercury`: Mercury v1.9.21's daemon build and
 our program around it, which takes its audio and PTT through the GUI's
 modem socket). Pat is built outside, by `tools/pat/build.sh`. In the PC
