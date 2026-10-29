@@ -72,6 +72,7 @@ static int32_t       wf_center_freq;    /* the frequency at the centre of the pi
 static int32_t       mode_lo_offset;
 static int32_t       if_shift;
 static uint8_t       zoom = 1;
+static uint8_t       line_zoom = 1;  /* the zoom the VFO line and the passband were placed at */
 
 static uint8_t       refresh_period = 1;   /* draw one refresh in so many (dialogs slow it down) */
 static uint8_t       refresh_count;
@@ -367,9 +368,14 @@ static void row_pixels(const wf_row_t *row, uint32_t center, uint32_t span, size
     }
 }
 
+/* The zoom the picture is drawn at: the spectrum's, or 1 with the zoom switch of Settings "Line, zoom" off */
+static uint8_t shown_zoom(void) {
+    return params.waterfall_zoom.x ? zoom : 1;
+}
+
 /* The span the picture shows now */
 static uint32_t shown_span(void) {
-    return params.waterfall_zoom.x ? SPAN_HZ / zoom : SPAN_HZ;
+    return SPAN_HZ / shown_zoom();
 }
 
 /* ---- Direct mode ---- */
@@ -514,6 +520,9 @@ static void refresh_waterfall(void *arg) {
         return;
     }
     refresh_count = 0;
+    if (shown_zoom() != line_zoom) {    /* "Line, zoom" switched: the line and the band to the new scale */
+        update_middle_line();
+    }
     if (direct) {
         direct_redraw(__atomic_exchange_n(&new_rows, 0, __ATOMIC_ACQUIRE));
     } else {
@@ -596,8 +605,11 @@ static void image_drawn_cb(lv_event_t *e) {
 /* ---- The VFO line and the passband ---- */
 
 static void update_middle_line(void) {
-    lv_coord_t width = theme_shape.mono ? 3 : zoom / 2 + 3;     /* 1bit: the paper halo of vfo_core_cb() */
-    lv_coord_t vfo_x = (if_shift + waterfall_view_shift()) * zoom * WIDTH / SPAN_HZ;
+    /* At the picture's scale: with the zoom of "Line, zoom" off the waterfall shows 100 kHz at any spectrum zoom,
+     * and the band came out that many times too wide, the line that far off the middle */
+    line_zoom = shown_zoom();
+    lv_coord_t width = theme_shape.mono ? 3 : line_zoom / 2 + 3;     /* 1bit: the paper halo of vfo_core_cb() */
+    lv_coord_t vfo_x = (if_shift + waterfall_view_shift()) * line_zoom * WIDTH / SPAN_HZ;
 
     lv_obj_set_pos(vfo_line, vfo_x + width / 2, 0);
     lv_style_set_line_width(&vfo_line_style, width);
@@ -639,8 +651,8 @@ static void update_middle_line(void) {
             to = high;
             break;
     }
-    lv_coord_t x1 = WIDTH / 2 + vfo_x + from * zoom * WIDTH / SPAN_HZ;
-    lv_coord_t x2 = WIDTH / 2 + vfo_x + to * zoom * WIDTH / SPAN_HZ;
+    lv_coord_t x1 = WIDTH / 2 + vfo_x + from * line_zoom * WIDTH / SPAN_HZ;
+    lv_coord_t x2 = WIDTH / 2 + vfo_x + to * line_zoom * WIDTH / SPAN_HZ;
 
     lv_obj_set_pos(filter_band, x1, 0);
     lv_obj_set_width(filter_band, LV_MAX(x2 - x1, 1));
