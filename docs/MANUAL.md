@@ -458,18 +458,19 @@ cannot know your licence class.
 The US plans: what your class may use shows as in the IARU plans, the parts
 without phone split into CW, DIG and BCN as the ARRL band plan uses them;
 what it may not use is a grey NOT YOUR CLASS (OUT where that does not fit).
-A Technician's segments below 10 m are CW, as the rules have it. 60 m is the
-5351.5-5366.5 kHz band and the four channels around 5332, 5348, 5373 and
-5405 kHz (since January 2026). 40 m phone at 7.075-7.100 MHz shows only
-where it is allowed: west of 130 W or south of 20 N (Alaska, Hawaii, Puerto
+A Technician's segments on 80, 40 and 15 m are CW, as the rules have it.
+60 m is the 5351.5-5366.5 kHz band and the four channels around 5332, 5348,
+5373 and 5405 kHz (since January 2026). 40 m phone at 7.075-7.100 MHz shows
+only where it is allowed: west of 130 W or south of 20 N (Alaska, Hawaii, Puerto
 Rico, the Virgin Islands), known from the GPS, the locator or the callsign
 (KH6, KL7, KP4). In the US choose US and your class, not Region 2: the IARU
 Region 2 plan shows phone where the FCC allows none (7.050-7.125 MHz on the
 mainland, 14.112-14.150 and 21.151-21.200 MHz), and 75 m phone from 3.6 MHz,
 which is Extra and Advanced only.
 
-The plan is guidance only: the radio never stops a transmission for it, and
-your licence and your country's rules are what count. What follows it:
+The plan is guidance only: the key, the paddle and the microphone work
+wherever the radio transmits, and your licence and your country's rules are
+what count. What follows it:
 
 - the strip, and the browser panel's strip (sent again when the plan
   changes);
@@ -479,8 +480,10 @@ your licence and your country's rules are what count. What follows it:
   7000-7030 kHz): tuning up past them in CW turns the radio to LSB, though
   the plan allows CW there too. Turn Mode from band plan off if that is in
   the way;
-- the main screen's [CW line](#cw-from-the-keyboard), which works in a CW
-  segment;
+- the main screen's [CW line](#cw-from-the-keyboard), which keys only in a
+  CW segment: not in NOT YOUR CLASS, and in Region 3 not above 3535 and
+  7030 kHz on 80 and 40 m (the [CW Keyboard](#cw-keyboard) app keys in
+  any segment);
 - the band list: its 160m, 80m, 40m SSB and 6m take the region's edges (80m
   to 4.0 MHz and 40m SSB to 7.3 MHz in Region 2 and the US, 80m to 3.9 MHz
   in Region 3, 160m from 1.8 MHz and 6m to 54 MHz outside Region 1), unless

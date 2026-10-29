@@ -29,7 +29,7 @@
 
 #define WIDTH   800
 #define POOL    16      /* segments in view: a span is 100 kHz at most */
-#define MAX_SEG 128     /* a plan (60 segments at most: US General) and the bands added to the band list */
+#define MAX_SEG 128     /* a plan (62 segments at most: US General, west of 130 W) and the bands of the band list */
 #define BANDS   48
 #define OPA     LV_OPA_80     /* the waterfall shows through a little, the labels stay readable */
 
@@ -176,8 +176,8 @@ static int region_of(int plan) {
 }
 
 /* The segments of plan (bp_plan_t, not Auto) into out, by start. The US ones for the class: what the class does
- * not have is BP_OUT, a Technician's below 10 m CW (97.307(f)(9)) but for the beacons; neighbours of one type
- * merged then. pacific: the US rows for west of 130 W or south of 20 N */
+ * not have is BP_OUT, a Technician's on 80, 40 and 15 m CW (97.307(f)(9)) but for the beacons; neighbours of one
+ * type merged then. pacific: the US rows for west of 130 W or south of 20 N */
 static int plan_build(int plan, bool pacific, bp_seg_t *out) {
     int n = 0;
 
