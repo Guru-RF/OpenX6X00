@@ -107,6 +107,44 @@ static void draw_cb(lv_event_t *e) {
     }
 }
 
+/* The band list as the radio takes it: an inactive broadcast band (ids 100-199) only where no active band is, as
+ * the band lookup lets the active band win there (db.cpp). In Region 2 40m SSB to 7.3 MHz and 80m to 4.0 overlap
+ * Broadcast 41m and Broadcast 75m, and the web page lets a band of your own overlap one: their boxes and names were
+ * drawn over each other */
+static std::vector<BandInfo> read_bands() {
+    std::vector<BandInfo> all = BandsTable::all_bands(), out;
+
+    for (const BandInfo &band : all) {
+        if (band.type == BAND_ACTIVE || band.id < 100 || band.id > 199) {
+            out.push_back(band);
+            continue;
+        }
+        std::vector<BandInfo> parts{band};
+
+        for (const BandInfo &over : all) {
+            if (over.type != BAND_ACTIVE) continue;
+            std::vector<BandInfo> left;
+            for (const BandInfo &p : parts) {
+                if (over.stop_freq <= p.start_freq || over.start_freq >= p.stop_freq) {
+                    left.push_back(p);
+                    continue;
+                }
+                if (over.start_freq > p.start_freq) {
+                    left.push_back(p);
+                    left.back().stop_freq = over.start_freq;
+                }
+                if (over.stop_freq < p.stop_freq) {
+                    left.push_back(p);
+                    left.back().start_freq = over.stop_freq;
+                }
+            }
+            parts = left;
+        }
+        out.insert(out.end(), parts.begin(), parts.end());
+    }
+    return out;
+}
+
 static void set_opa(void *o, int32_t opa) {
     lv_obj_set_style_opa_layered((lv_obj_t *)o, opa, 0);
 }
@@ -136,7 +174,7 @@ static void shift_cb(Subject *subj, void *user_data) {
 }
 
 extern "C" lv_obj_t *band_info_init(lv_obj_t *parent) {
-    bands = BandsTable::all_bands();
+    bands = read_bands();
     strip = lv_obj_create(parent);
     lv_obj_set_size(strip, lv_obj_get_width(parent), STRIP_H);
     lv_obj_align(strip, LV_ALIGN_TOP_MID, 0, 18 - STRIP_H / 2);    /* from the top: the waterfall's height changes */
@@ -166,7 +204,7 @@ extern "C" lv_obj_t *band_info_init(lv_obj_t *parent) {
 }
 
 extern "C" void band_info_reload(void) {
-    bands = BandsTable::all_bands();
+    bands = read_bands();
     if (strip) lv_obj_invalidate(strip);
 }
 
