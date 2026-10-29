@@ -40,6 +40,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     freq_scale.c
     spot_marks.c
     band_plan.c
+    itu_region.c
     cw_field.c
     paddle_keyer.c
     cluster_column.c
