@@ -208,6 +208,7 @@ static void radio_cb(lv_event_t *e) {
         lv_obj_clear_flag(strip, LV_OBJ_FLAG_HIDDEN);
         return;
     }
+    if (theme_kx3) return;   /* KX3Lovers Plus: its bar graph shows SWR and RF, the panel would cover it */
     lv_obj_set_y(panel, DIALOG_Y + 8 + METER_ROW_H);   /* VISION: under the S-meter, framed red for TX */
     update_head();
     lv_obj_set_style_text_color(alc_name, alc_greyed() ? TC(text_mute) : TC(text_value), 0);

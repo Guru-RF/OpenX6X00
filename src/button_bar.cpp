@@ -759,7 +759,7 @@ static void set_btn_text(disp_btn_t *b, const char *text) {
             const lv_font_t *f;
             lv_point_t       ns, vs;
 
-            for (size_t i = 0; i < sizeof(fonts) / sizeof(fonts[0]); i++) {
+            for (size_t i = theme_kx3 ? 3 : 0; i < sizeof(fonts) / sizeof(fonts[0]); i++) {   /* Plus: low */
                 f = fonts[i];
                 lv_txt_get_size(&ns, name, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
                 lv_txt_get_size(&vs, nl + 1, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
@@ -806,6 +806,7 @@ static void set_btn_text(disp_btn_t *b, const char *text) {
         lv_label_set_text(b->label, text);
     }
     lv_obj_set_style_text_font(b->label, theme_shape.vision || btn_narrow(b) ? vision_label_font(b, lv_label_get_text(b->label))
+                                                                              : theme_kx3 ? &sony_24
                                                                               : theme_shape.deck ? &sony_30 : page ? &sony_28 : &sony_30, 0);
     if (page) lv_obj_set_style_text_color(b->label, TC(btn_page_text), 0);
     else lv_obj_remove_local_style_prop(b->label, LV_STYLE_TEXT_COLOR, 0);   /* the button's: btn_text, btn_active_text, btn_off_text */

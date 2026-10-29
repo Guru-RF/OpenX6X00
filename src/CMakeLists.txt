@@ -37,6 +37,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_cw_kbd.c
     theme.c
     freq_strip.c
+    lcd_panel.c
     freq_scale.c
     spot_marks.c
     band_plan.c
