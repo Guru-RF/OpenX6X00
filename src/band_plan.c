@@ -2,6 +2,8 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
+#define _GNU_SOURCE     /* strcasestr */
+
 #include "band_plan.h"
 
 #include "band_names.h"
