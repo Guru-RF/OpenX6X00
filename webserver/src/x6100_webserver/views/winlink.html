@@ -40,6 +40,10 @@
   <div class="dp-row"><div class="dp-lbl"><b>Service</b><span>Pat and ARDOP running</span></div><div class="dp-ctl" id="c-service">-</div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Modem</b><span>ARDOP on the radio's audio</span></div><div class="dp-ctl" id="c-modem">-</div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Session</b><span id="c-browsers">Pat calling a gateway, or connected to one</span></div><div class="dp-ctl" id="c-session">-</div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Logs</b><span>Pat's, ARDOP's and the radio's, as one text file for a bug report, the passwords masked. Gateways and the subjects of your mail are in it</span></div>
+    <div class="dp-ctl"><a class="btn" id="logs" href="/api/winlink/logs" download>Download</a></div>
+  </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <b id="c-last-head">Last connection</b>
     <div id="c-last-text" style="color:var(--dim)">None since Pat started</div>
@@ -182,6 +186,7 @@ var renderState = function(st) {
   $("#pw-state").text(PW_STATE[st.password || (st.password_set ? "page" : "none")] || PW_STATE.none);
   renderConnections(st);
   renderRadio(st);
+  $("#logs").toggle(!!st.host_ok);   /* like the Files page: only by the radio's own names */
   $("#notice").toggle(notes.length > 0);
   $("#notice-text").text(notes.join(" "));
 }

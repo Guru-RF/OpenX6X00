@@ -32,8 +32,9 @@ app = bottle.Bottle()   # the configurator pages and their API
 
 # Reads that hand out what the radio keeps secret, taken only by its own names as the changes are: the Files page
 # serves all of /mnt (the Wavelog, QRZ, HOTA and WWFF keys, backups/backup.tgz with the SSH host keys and the WiFi
-# passwords, the Winlink mail), and the Backup download can hold the WiFi passwords
-HOST_ONLY_READS = ("/files/", "/api/backup/download")
+# passwords, the Winlink mail), the Backup download can hold the WiFi passwords, and the Winlink logs your mail's
+# subjects and gateways
+HOST_ONLY_READS = ("/files/", "/api/backup/download", "/api/winlink/logs")
 # Reads sent as a POST (a form with the selection), with no secret in them: by any name, as the GET reads are (the
 # QSOs and the pictures are on the pages by any name). The cross-site check still applies
 POST_READS = ("/logs/export", "/api/gallery/zip")
@@ -809,6 +810,22 @@ def winlink_page():
 @app.get('/api/winlink')
 def get_winlink():
     return winlink_state()
+
+
+@app.get('/api/winlink/logs')
+def winlink_logs():
+    """Pat's, ardopcf's and the radio's logs as one text file for a bug report; the helper masks the passwords"""
+    try:
+        r = subprocess.run([WINLINK_CMD, "logs"], capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return api_error(500, f"Winlink: {e}")
+    if r.returncode != 0:
+        msg = (r.stderr.decode(errors="replace").strip().splitlines() or [f"exit code {r.returncode}"])[-1]
+        return api_error(500, "Winlink: " + (msg[6:] if msg.startswith("error ") else msg))
+    bottle.response.content_type = "text/plain; charset=utf-8"
+    bottle.response.set_header("Content-Disposition",
+                               f'attachment; filename="winlink-logs-{time.strftime("%Y%m%d-%H%M")}.txt"')
+    return r.stdout
 
 
 @app.post('/api/winlink')

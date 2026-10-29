@@ -2571,6 +2571,12 @@ Setting it up:
      | Pat could not tune the radio (Unable to QSY) | The radio's screen says why |
 
      The same line goes into Pat's log, so the mailbox shows it too.
+   - Logs, Download: Pat's log, its output, ARDOP's, Pat's event log, the
+     radio's state and the status, as one text file to attach to a bug
+     report. The passwords in them are masked: the Winlink page's, the ones
+     in Pat's Settings, and the one Pat prints for a new account ("DO NOT LOSE
+     YOUR PASSWORD"). The gateways and the subjects of your mail are in it;
+     like the Files page, it opens only by the radio's own names.
 4. Press Open the mailbox, or open `http://x6100.local:8080/` (`x6200.local`
    on an X6200, or the radio's address): Pat's own page, where you write and
    read your mail. Its Settings page has the rest of Pat's options. The

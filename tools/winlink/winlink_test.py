@@ -5,8 +5,10 @@ functions. Standard library only:
 
     python3 -B tools/winlink/winlink_test.py [-v]
 """
+import contextlib
 import importlib.machinery
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -404,6 +406,39 @@ class RadioFile(Logs):
         os.utime(self.wl.RADIO, (old, old))
         self.assertEqual(self.wl.read_radio(), {})
         self.assertEqual(self.poll()["modem"], "waiting")
+
+
+class LogDownload(Root):
+    """x6100-winlink logs: one text file for a bug report, every password masked"""
+
+    def test_passwords_masked(self):
+        os.makedirs(self.wl.LIB)
+        with open(self.wl.PASSWORD, "w") as f:
+            f.write("PageSecret1\n")
+        self.wl.write_config({"mycall": "EA5JTT", "locator": "IM98", "bandwidth": 500}, "")
+        cfg = self.pat_config()
+        cfg.update(secure_login_password="PatSecret22", auxiliary_addresses=["EMCOMM-1:AuxSecret333", "N0CALL"])
+        cfg["telnet"]["password"] = "TelnetSecret4"
+        with open(self.wl.PAT_CONFIG, "w") as f:
+            json.dump(cfg, f)
+        with open(self.wl.PAT_OWN_LOG, "w") as f:
+            f.write(fixture("ea5jtt-hb9mm-20m.pat.log") + ";PR: 81234567\n"
+                    "DO NOT LOSE YOUR PASSWORD: NEWACCT9\n2026/10/29 09:56:00 login PageSecret1 / PatSecret22\n")
+        with open(self.wl.EVENT_LOG, "w") as f:
+            f.write(json.dumps({"what": "exchange", "auxiliary_addresses": ["EMCOMM-1:AuxSecret333"]}) + "\n")
+        with open(self.wl.ARDOP_LOG, "w") as f:
+            f.write(ESTABLISHED.format("HB9MM", 2000) + "\n")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(self.wl.cmd_logs(), 0)
+        text = out.getvalue()
+        for secret in ("PageSecret1", "PatSecret22", "AuxSecret333", "TelnetSecret4", "NEWACCT9", "81234567"):
+            self.assertNotIn(secret, text)
+        self.assertIn("DO NOT LOSE YOUR PASSWORD: ***", text)
+        self.assertIn(";PR: ***", text)
+        self.assertIn("Exchange failed: context deadline exceeded", text)
+        self.assertIn("==== ardopcf: /run/winlink/ardopcf.log\n[STATUS: ARQ CONNECTION ESTABLISHED WITH HB9MM", text)
+        self.assertIn("==== the radio (the GUI): /run/winlink/radio\n(none)", text)
 
 
 class Tails(Root):
