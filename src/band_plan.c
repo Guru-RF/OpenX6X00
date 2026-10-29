@@ -368,8 +368,10 @@ void band_plan_reload(void) {
     find_where(&w);
     int plan = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : w.region;
 
-    /* The band list's region edges (80 m to 4 MHz in Region 2 and the US) before it is read */
-    if (cfg_bands_follow_region(region_of(plan))) {
+    /* The band list's region edges (80 m to 4 MHz in Region 2 and the US) before it is read. Auto's Region 1 for
+     * nothing known moves none: the callsign's country comes from a worker 0.1 s after the start, and the rows went
+     * from Region 2 to 1 and back at every start */
+    if (cfg_bands_follow_region(want > BP_PLAN_AUTO || w.how[0] ? region_of(plan) : 0)) {
         band_info_reload();
     }
     int  nb = cfg_bands_active_ids(ids, start, stop, names, BANDS);
