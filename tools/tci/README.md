@@ -32,9 +32,16 @@ left and right), and a transmission as it keys, in the digu of its Mode Data/Pkt
 TX_CHRONO answered with its frame; and
 WSJT-X on a link slower than its RX audio (read at 250 kB/s through a 4 kB receive buffer),
 keyed with the server's queue full: the TX_CHRONOs come ahead of the queued audio, the over
-stays keyed for 3 s, every frame arrives whole. Last, Tailscale Funnel (#58): a connection
-with tailscaled's `Tailscale-Funnel-Request` header is closed before its handshake is
-answered, and one through Tailscale's proxy from the tailnet (no such header) is taken. The
+stays keyed for 3 s, every frame arrives whole. Last, Tailscale Funnel (#58), where only the
+browser Panel's own sound and microphone may come, with tailscaled's
+`Tailscale-Funnel-Request` header: nothing before a key, closed after 5 s; a command before
+the key, closed unanswered; the key of a browser paired at home (the stub's sessions in
+`stubs.c`), then the greeting; a second one over Funnel refused; tuning, mode and drive left
+unanswered and undone; the browser's audio format and RX audio; a key with the radio's own
+microphone answered `trx:0,false;`, one with the page's audio keying and unkeying; the session
+revoked (the file `REVOKED` names exists) closing it; a session that may not transmit refused;
+three wrong keys pausing Funnel (the stub's rule); then a request through Tailscale's proxy from
+the tailnet (no such header) and one from the LAN, taken as before. The
 stub keeps what each transmission played in `played.raw` (PLAYED), int16 at 44.1 kHz, for the
 client test to read: how many samples, the tone, its level.
 `make syntax` only compiles; `make PORT=50411 CONF=/tmp/other.conf` runs on another port and

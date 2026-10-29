@@ -11,10 +11,16 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* The session of a token (32 hex characters), as "auth TOKEN" on the browser remote finds it: its role (0 view,
+ * 1 operate, 2 admin) and whether it may transmit, its name (n bytes, NULL: not asked). False for no session: a
+ * wrong token, or one revoked meanwhile. Any thread */
+bool remote_server_session_check(const char *token, int *role, bool *tx, char *name, size_t n);
 
 /* A wrong token presented over Funnel (addr: the browser's address, from X-Forwarded-For): after ten within ten
  * minutes, Funnel's connections are refused for ten minutes, on both sockets */

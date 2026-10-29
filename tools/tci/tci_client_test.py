@@ -283,17 +283,123 @@ def main():
 FUNNEL = "Tailscale-Funnel-Request: ?1\r\nX-Forwarded-For: 203.0.113.7\r\nX-Forwarded-Proto: https\r\n"
 
 
+REVOKED = os.environ.get("TCI_TEST_REVOKED")  # while it exists, the stub's paired browser is revoked
+TOKEN, LISTENER = "0123456789abcdef0123456789abcdef", "11111111111111111111111111111111"
+
+
+def nothing_for(ws, seconds):
+    """No frame at all for seconds: a close counts as none; what came if anything"""
+    got, end = [], time.time() + seconds
+    ws.s.settimeout(0.05)
+    try:
+        while time.time() < end:
+            try:
+                op, p = ws.frame()
+                got.append((op, p[:40]))
+            except (socket.timeout, TimeoutError):
+                pass
+    except RuntimeError:
+        pass
+    ws.s.settimeout(5)
+    return got
+
+
+def closed_within(ws, seconds):
+    end = time.time() + seconds
+    ws.s.settimeout(0.05)
+    try:
+        while time.time() < end:
+            try:
+                ws.frame()
+            except (socket.timeout, TimeoutError):
+                pass
+    except (RuntimeError, OSError):
+        return True
+    finally:
+        try:
+            ws.s.settimeout(5)
+        except OSError:
+            pass
+    return False
+
+
+def funnel_refused(addr="203.0.113.7"):
+    try:
+        WS(headers=FUNNEL.replace("203.0.113.7", addr))
+    except (RuntimeError, OSError):
+        return True
+    return False
+
+
 def funnel():
     """Issue #58: a funnel made by hand ("tailscale funnel 50001") put TCI, which has no login, on the
-    internet. A connection with tailscaled's Funnel header is closed before the handshake is answered;
-    the same request from the tailnet (Tailscale's proxy, no Funnel header) is taken as before"""
-    try:
-        WS(headers=FUNNEL)
-        raise AssertionError("a connection over Funnel was taken")
-    except (RuntimeError, OSError) as e:
-        print("funnel: refused before the handshake (" + str(e) + ")")
+    internet. Over Funnel (tailscaled's header) only the browser Panel's own sound and microphone go:
+    nothing before "auth TOKEN" of a browser paired at home, within 5 s; then the audio commands and a
+    key with its audio for a session that may transmit; one at a time; closed when its session is
+    revoked; wrong keys pause Funnel. A request from the tailnet (Tailscale's proxy, no Funnel header)
+    is taken as before"""
+    ws = WS(headers=FUNNEL)
+    t0 = time.time()
+    got = nothing_for(ws, 2)
+    assert not got, f"over Funnel before a key: {got}"
+    assert closed_within(ws, 4.5), "over Funnel without a key: not closed"
+    print(f"funnel: nothing before a key, closed after {time.time() - t0:.1f} s")
+
+    ws = WS(headers=FUNNEL)
+    ws.text("audio_start:0;")
+    assert closed_within(ws, 1) and not ws.binary, "over Funnel, a command first: not closed"
+    print("funnel: a command before the key: closed, unanswered")
+
+    ws = WS(headers=FUNNEL)
+    ws.text("auth:" + TOKEN + ";")
+    greeting = []
+    while not greeting or greeting[-1] != "ready;":
+        op, p = ws.frame()
+        if op == 1:
+            greeting.append(p.decode())
+    print(f"funnel: the key of a browser paired at home: the greeting ({len(greeting)} lines)")
+    assert funnel_refused("198.51.100.2"), "a second over Funnel was taken"
+    print("funnel: a second one over Funnel refused")
+    ws.text("vfo:0,0,14250000;modulation:0,cw;drive:0,100;")
+    got = nothing_for(ws, 0.6)
+    assert not [p for op, p in got if op == 1 and p.startswith((b"vfo:", b"modulation:", b"drive:"))], got
+    print("funnel: tuning, mode and drive left unanswered and undone")
+    ws.text("audio_samplerate:24000;audio_stream_sample_type:int16;audio_stream_channels:1;"
+            "audio_stream_samples:512;audio_start:0;")
+    print("funnel:", ws.wait_text("audio_start:0;"), "- RX audio frames:", len(rx_frames(ws, 0.5)))
+    ws.text("trx:0,true;")
+    print("funnel: the radio's own microphone:", ws.wait_text("trx:0,false;"))
+    ws.text("trx:0,true,tci;")
+    print("funnel: keyed with the page's audio:", ws.wait_text("trx:0,true;"))
+    for _ in range(5):
+        ws.wait_chrono()
+        ws.send(2, struct.pack("<8I", 0, 24000, 0, 0, 0, 512, 2, 1) + bytes(32) + bytes(1024))
+    ws.text("trx:0,false;")
+    print("funnel: unkeyed:", ws.wait_text("trx:0,false;"))
+    open(REVOKED, "w").close()
+    t0 = time.time()
+    assert closed_within(ws, 3.5), "over Funnel, its session revoked: not closed"
+    os.remove(REVOKED)
+    print(f"funnel: its session revoked at home: closed after {time.time() - t0:.1f} s")
+
+    ws = WS(headers=FUNNEL)
+    ws.text("auth " + LISTENER)
+    ws.wait_text("ready;")
+    ws.text("trx:0,true,tci;")
+    print("funnel: a session that may not transmit, keying:", ws.wait_text("trx:0,false;"))
+    ws.send(8, struct.pack(">H", 1000))
+
+    for i in range(3):
+        ws = WS(headers=FUNNEL.replace("203.0.113.7", f"198.51.100.{10 + i}"))
+        ws.text("auth:" + "%032x" % (i + 7) + ";")
+        assert closed_within(ws, 1), "a wrong key over Funnel: not closed"
+    assert funnel_refused("198.51.100.20"), "Funnel taken after wrong keys"
+    print("funnel: three wrong keys (the stub's rule): Funnel refused")
     ws = WS(headers="X-Forwarded-For: 100.101.102.104\r\nTailscale-User-Login: op@example.com\r\n")
     print("tailnet through the proxy:", ws.wait_text("protocol:"))
+    ws.send(8, struct.pack(">H", 1000))
+    ws = WS()
+    print("the LAN:", ws.wait_text("protocol:"))
     ws.send(8, struct.pack(">H", 1000))
 
 

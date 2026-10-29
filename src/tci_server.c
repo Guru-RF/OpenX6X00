@@ -23,6 +23,13 @@
  *  radio (control_owner.h) as the knob always did, unless someone is on the air; a browser
  *  that held it sees "TCI client active" and takes it back on purpose (R3).
  *
+ *  Over Tailscale Funnel (#58) only the browser Panel's own sound and microphone: a connection
+ *  tailscaled marks as one from the internet gets no greeting until its first text, "auth TOKEN",
+ *  is the token of a browser paired at home (remote_sessions.h), within 5 s; then only the audio
+ *  commands, and keying with its audio for a session that may transmit (funnel_cmd_ok). One at
+ *  a time, closed when its session is revoked; a wrong token counts towards Funnel's pause.
+ *  TCI programs cannot pair and do not come over Funnel.
+ *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
@@ -32,6 +39,7 @@
 #include "tci_audio.h"
 #include "tci_ws.h"
 #include "control_owner.h"
+#include "remote_sessions.h"
 
 #include "audio.h"
 #include "cfg/cfg_api.h"
@@ -82,6 +90,8 @@
 #define AUDIO_RATE    24000         /* the capture's, and the RX audio's for a client that asks for it */
 #define AUDIO_FRAMES  512           /* a capture read, and a TX_CHRONO's worth at 24 kHz: 21.3 ms */
 #define ACC_MAX       (2048 + 2 * AUDIO_FRAMES)   /* a client's RX audio short of a frame, then a read more */
+#define FUNNEL_AUTH_MS  5000        /* over Funnel: the token within this, or the connection goes */
+#define FUNNEL_CHECK_MS 2000        /* over Funnel: its session looked for this often (revoked: it goes) */
 #define TX_SILENCE_MS 500           /* keyed with TCI audio: unkeyed without frames this long */
 #define TX_LIMIT_MS   (180 * 1000)
 #define DRIVE_SPAN    (BOARD_PWR_MAX - 0.1f)   /* drive 0..100 %: 0.1 W to the top of PWR (10 W, the X6200 8 W) */
@@ -97,8 +107,15 @@ typedef struct {
 
 typedef struct {
     int             fd;
-    bool            up;             /* handshake done */
-    char            ip[48];
+    bool            ws;             /* handshake done: frames are read */
+    bool            up;             /* and it is sent to: at once, or over Funnel once its token is good */
+    bool            funnel;         /* from the internet through Tailscale Funnel: the Panel's sound and mic (#58) */
+    uint64_t        open_ms;        /* when the handshake was done */
+    uint64_t        check_ms;       /* over Funnel: when its session was last found still there */
+    char            token[33];      /* over Funnel: the paired browser's token it gave */
+    int             role;           /* and that session's role (0 view, 1 operate, 2 admin) */
+    bool            tx_ok;          /* and whether it may transmit */
+    char            ip[48];         /* over Funnel the browser's address, from tailscaled's X-Forwarded-For */
     uint8_t         in[IN_SIZE];
     size_t          in_len;
     /* Output, under lock (the capture thread writes here too). out is a ring: out_len bytes from
@@ -464,7 +481,8 @@ static void client_close(client_t *c) {
         c->fd = -1;
         atomic_fetch_sub(&nclients, 1);
     }
-    c->up = false;
+    c->ws = c->up = c->funnel = false;
+    c->token[0] = 0;
     c->out_head = c->out_len = c->out_cut = c->urg_len = c->in_len = c->text_len = 0;
     c->audio_on = c->rx_sensors = c->tx_sensors = false;
     pthread_mutex_unlock(&c->lock);
@@ -833,6 +851,26 @@ static bool tx_free(const rstate_t *s) {
            !atomic_load(&ptt_unkey_due);
 }
 
+/* Over Funnel the Panel's own sound and microphone, nothing more (#58): the audio format, audio on and off, the
+ * TX state, an unkey, and a key with the page's audio ("trx:0,true,tci") for a session that may transmit, looked
+ * up again as it keys (a session revoked meanwhile keys nothing). A key with the radio's own microphone is answered
+ * trx:0,false; anything else is left unanswered. TCI programs do not come over Funnel: they cannot pair */
+static bool funnel_cmd_ok(client_t *c, const char *name, char **a, int n) {
+    if (!strcmp(name, "audio_samplerate") || !strcmp(name, "audio_stream_sample_type") ||
+        !strcmp(name, "audio_stream_channels") || !strcmp(name, "audio_stream_samples") ||
+        !strcmp(name, "audio_start") || !strcmp(name, "audio_stop"))
+        return true;
+    if (strcmp(name, "trx") != 0)
+        return false;
+    if (n < 2 || !parse_bool(a[1]))
+        return true;
+    if (n >= 3 && !strcasecmp(a[2], "tci") && remote_server_session_check(c->token, &c->role, &c->tx_ok, NULL, 0) &&
+        c->role >= 1 && c->tx_ok)
+        return true;
+    client_text(c, "trx:0,false;");
+    return false;
+}
+
 static void handle_cmd(int ci, char *line) {
     client_t *c = &clients[ci];
     char     *name, *a[4];
@@ -842,6 +880,8 @@ static void handle_cmd(int ci, char *line) {
 
     while (*name == ' ' || *name == '\n' || *name == '\r') name++;
     if (!*name)
+        return;
+    if (c->funnel && !funnel_cmd_ok(c, name, a, n))
         return;
     state_read(&s);
 
@@ -1243,6 +1283,60 @@ static void *capture_thread(void *arg) {
 
 /* ---- The socket thread -------------------------------------------------------------- */
 
+/* A connection over Tailscale Funnel (#58), its handshake done: the Panel's sound and microphone, one at a time,
+ * and none while Funnel is paused after wrong keys. One that has not given its token yet makes room for it. A
+ * funnel made by hand ("tailscale funnel 50001") put TCI, which has no login, on the internet: nothing comes of
+ * it now without the token of a browser paired at home */
+static bool funnel_take(client_t *c) {
+    if (remote_server_funnel_paused())
+        return false;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        client_t *o = &clients[i];
+        if (o == c || o->fd < 0 || !o->ws || !o->funnel)
+            continue;
+        if (o->up)
+            return false;
+        client_close(o);
+    }
+    return true;
+}
+
+/* The first text over Funnel: "auth TOKEN" (or TCI's "auth:TOKEN;"), the token of a browser paired at home, as
+ * the browser remote takes it. A good one: the greeting, then funnel_cmd_ok's commands. A wrong one counts towards
+ * Funnel's pause; it, or anything else first, closes the connection */
+static void funnel_auth(int ci, const char *text) {
+    client_t *c = &clients[ci];
+    char      tok[sizeof(c->token)] = "";
+    char      name[32];
+    size_t    l;
+
+    if (!strncmp(text, "auth:", 5) || !strncmp(text, "auth ", 5)) {
+        l = strcspn(text + 5, ";\r\n");
+        if (l == sizeof(tok) - 1) {         /* a token's 32 characters; anything else is a wrong key */
+            memcpy(tok, text + 5, l);
+            tok[l] = 0;
+        }
+    } else {
+        client_close(c);
+        return;
+    }
+    if (!remote_server_session_check(tok, &c->role, &c->tx_ok, name, sizeof(name))) {
+        remote_server_funnel_refused(c->ip);
+        LV_LOG_USER("tci: a wrong key over Tailscale Funnel from %s", c->ip);
+        client_close(c);
+        return;
+    }
+    snprintf(c->token, sizeof(c->token), "%s", tok);
+    c->check_ms = now_ms();
+    pthread_mutex_lock(&c->lock);
+    c->up = true;
+    pthread_mutex_unlock(&c->lock);
+    rstate_t s;
+    state_read(&s);
+    send_greeting(c, &s);
+    LV_LOG_USER("tci: %s's sound over Tailscale Funnel from %s", name, c->ip);
+}
+
 static void client_read(int ci) {
     client_t *c = &clients[ci];
     ssize_t   n = recv(c->fd, c->in + c->in_len, IN_SIZE - c->in_len, MSG_DONTWAIT);
@@ -1257,7 +1351,7 @@ static void client_read(int ci) {
     c->in_len += n;
     c->last_ms = now_ms();
 
-    if (!c->up) {
+    if (!c->ws) {
         char      resp[256];
         ws_peer_t peer;
         int       r = ws_handshake((const char *)c->in, c->in_len, resp, sizeof(resp), &peer);
@@ -1266,10 +1360,9 @@ static void client_read(int ci) {
                 client_close(c);
             return;
         }
-        /* From the internet through Tailscale Funnel ("tailscale funnel 50001" made by hand): TCI has no
-         * login, anyone who found the name would tune, listen and key the transmitter (#58) */
-        if (r > 0 && peer.funnel) {
-            LV_LOG_USER("tci: refused %s over Tailscale Funnel", peer.addr[0] ? peer.addr : "a client");
+        if (r > 0 && peer.funnel && !funnel_take(c)) {
+            LV_LOG_USER("tci: refused %s over Tailscale Funnel (%s)", peer.addr[0] ? peer.addr : "a client",
+                        remote_server_funnel_paused() ? "paused after wrong keys" : "one at a time");
             client_close(c);
             return;
         }
@@ -1277,7 +1370,14 @@ static void client_read(int ci) {
             client_close(c);
             return;
         }
-        c->in_len = 0;
+        c->in_len  = 0;
+        c->ws      = true;
+        c->open_ms = now_ms();
+        if (peer.funnel) {      /* no greeting before its token (funnel_auth, FUNNEL_AUTH_MS) */
+            c->funnel = true;
+            snprintf(c->ip, sizeof(c->ip), "%s", peer.addr[0] ? peer.addr : "-");
+            return;
+        }
         pthread_mutex_lock(&c->lock);
         c->up = true;
         pthread_mutex_unlock(&c->lock);
@@ -1315,11 +1415,16 @@ static void client_read(int ci) {
                 if (f.fin) {
                     c->text[c->text_len] = 0;
                     c->text_len = 0;
-                    handle_text(ci, c->text);
+                    if (c->up)
+                        handle_text(ci, c->text);
+                    else
+                        funnel_auth(ci, c->text);   /* over Funnel, before its token */
                 }
                 break;
             case WS_OP_BINARY:
-                if (f.fin)
+                if (!c->up)
+                    client_close(c);                /* over Funnel, audio before its token */
+                else if (f.fin)
                     handle_tx_audio(ci, f.payload, f.len);
                 break;
             case WS_OP_PING:
@@ -1379,7 +1484,8 @@ static void accept_client(int listen_fd) {
 #endif
         pthread_mutex_lock(&c->lock);
         c->fd          = fd;
-        c->up          = false;
+        c->ws = c->up = c->funnel = false;
+        c->token[0]    = 0;
         c->in_len = c->text_len = 0;
         c->out_head = c->out_len = c->out_cut = c->urg_len = 0;
         c->rx_sensors = c->tx_sensors = c->audio_on = false;
@@ -1508,6 +1614,19 @@ static void *server_thread(void *arg) {
                 if (now - c->last_ms > IDLE_MS) {
                     tx_session_end(i, false);
                     client_close(c);
+                } else if (c->funnel && !c->up && now - c->open_ms > FUNNEL_AUTH_MS) {
+                    LV_LOG_USER("tci: %s over Tailscale Funnel gave no key in time", c->ip);
+                    client_close(c);
+                } else if (c->funnel && c->up && now - c->check_ms > FUNNEL_CHECK_MS) {
+                    /* the browser's session revoked at home (Sessions, Forget all): its sound goes too */
+                    int  role;
+                    bool tx;
+                    c->check_ms = now;
+                    if (!remote_server_session_check(c->token, &role, &tx, NULL, 0)) {
+                        LV_LOG_USER("tci: %s over Tailscale Funnel: its session was revoked", c->ip);
+                        tx_session_end(i, false);
+                        client_close(c);
+                    }
                 } else if (c->up && now - c->last_ms > PING_MS && now - c->ping_ms > PING_MS) {
                     c->ping_ms = now;
                     client_frame(c, WS_OP_PING, NULL, 0, NULL, 0);
@@ -1570,19 +1689,24 @@ void tci_server_set_trust_operate(bool on) {
     conf_write();
 }
 
+/* Those that are up: one over Funnel that has not given its token yet is no client */
 int tci_server_clients(void) {
-    return atomic_load(&nclients);
+    int n = 0;
+
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        n += clients[i].fd >= 0 && clients[i].up;
+    return n;
 }
 
 const char *tci_server_client(void) {
-    static char buf[48];
+    static char buf[64];
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         client_t *c = &clients[i];
         pthread_mutex_lock(&c->lock);
         bool up = c->fd >= 0 && c->up;
         if (up)
-            snprintf(buf, sizeof(buf), "%s", c->ip);
+            snprintf(buf, sizeof(buf), "%s%s", c->ip, c->funnel ? " via Funnel" : "");
         pthread_mutex_unlock(&c->lock);
         if (up)
             return buf;

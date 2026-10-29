@@ -560,6 +560,27 @@ bool remote_server_funnel_paused(void) {
     return now_ms() < atomic_load(&funnel_pause_ms);
 }
 
+bool remote_server_session_check(const char *token, int *role, bool *tx, char *name, size_t n) {
+    uint8_t h[32];
+    int     i = -1;
+
+    if (!token || strlen(token) != TOKEN_LEN)
+        return false;
+    token_hash(token, h);
+    pthread_mutex_lock(&sess_mux);          /* found and read under one lock: a revoke moves the others down */
+    for (int k = 0; k < nsessions; k++)
+        if (ws_same(sessions[k].hash, h, sizeof(h)))
+            i = k;
+    if (i >= 0) {
+        *role = sessions[i].role;
+        *tx   = sessions[i].tx;
+        if (name && n)
+            snprintf(name, n, "%s", sessions[i].name);
+    }
+    pthread_mutex_unlock(&sess_mux);
+    return i >= 0;
+}
+
 static void client_close(client_t *c);
 static void client_text(client_t *c, const char *text);
 static void client_textf(client_t *c, const char *fmt, ...);
