@@ -203,6 +203,7 @@ static atomic_uint     key_keyed;        /* the last start the LVGL thread keyed
 static atomic_uint     key_refused;      /* the last start the LVGL thread refused */
 static atomic_uint     key_cancelled;    /* the last start ended before its key ran: that key keys nothing */
 static int             ptt_owner = -1;   /* the client the radio's own PTT is keyed for (or about to be), -1 none */
+static int             tx_lent = -1;     /* the client that took control for its start alone: it gives it back at the end */
 static bool            ptt_on_air;       /* its key took: the radio was seen on the air since */
 static uint64_t        ptt_keyed_ms;     /* when the socket thread saw its key run, 0 not yet */
 static atomic_uint     ptt_unkey_due;    /* the start whose PTT unkey is queued, 0 none: resent until it ran */
@@ -678,6 +679,7 @@ static void send_greeting(client_t *c, const rstate_t *s) {
 }
 
 static void tx_session_end(int ci, bool drain);
+static void tx_give_back(int ci);
 
 /* What changed since the last look goes to everyone. What became of the last start is read
  * before the state: a transmission seen in the state then came after its key */
@@ -714,6 +716,7 @@ static void state_follow(rstate_t *last, bool first) {
      * a start cancelled since is no one's: it neither ends nor tells the start after it (C01) */
     if (refused == key_gen && (txs.owner >= 0 || ptt_owner >= 0)) {
         client_text(&clients[txs.owner >= 0 ? txs.owner : ptt_owner], "trx:0,false;");
+        tx_give_back(txs.owner >= 0 ? txs.owner : ptt_owner);
         txs.owner = ptt_owner = -1;
     }
     /* The radio's PTT is its client's until the radio is back on receive after the key took; the
@@ -823,10 +826,21 @@ static void audio_fmt_cmd(client_t *c, const char *name, const char *arg) {
         client_textf(c, "audio_stream_samples:%u;", now.samples);
 }
 
+/* A start that took control from someone (a browser keying its microphone through its TCI link, which the
+ * radio cannot tell from the browser's session) gives it back when its transmission ends */
+static void tx_give_back(int ci) {
+    if (ci >= 0 && tx_lent == ci) {
+        ctl_give_back(CTL_TCI, ci);
+        tx_lent = -1;
+    }
+}
+
 /* The client's transmission ends, whichever way it keyed: from the socket thread. A key still
  * on its way to the LVGL thread is cancelled; one that ran meanwhile is undone by the unkey
  * queued after it. */
 static void tx_session_end(int ci, bool drain) {
+    if (txs.owner == ci || ptt_owner == ci)
+        tx_give_back(ci);
     if ((txs.owner == ci || ptt_owner == ci) && atomic_load(&key_keyed) != key_gen &&
         atomic_load(&key_refused) != key_gen)
         atomic_store(&key_cancelled, key_gen);
@@ -914,6 +928,7 @@ static void handle_cmd(int ci, char *line) {
      * tunes during its over (C01). A client trusted to view only is answered with the state */
     bool refused = !strcmp(name, "trx") && n >= 2 && parse_bool(a[1]) && !tx_free(&s);
     bool claim   = !refused && !(n < 2 && strcmp(name, "trx"));
+    bool held    = ctl_holds(CTL_TCI, ci);   /* before a start's claim: whether it takes control for itself */
     bool may     = !rf || release || (atomic_load(&trust_operate) && (!claim || ctl_claim(CTL_TCI, ci, "TCI", true)));
     if (rf && !may && n >= 2) {
         /* the state as it is, as for a command that changes nothing */
@@ -990,6 +1005,7 @@ static void handle_cmd(int ci, char *line) {
                 client_text(c, "trx:0,false;");
             } else {
                 key_gen++;
+                tx_lent = held ? -1 : ci;
                 if (tci) {
                     txs.owner         = ci;
                     txs.start_ms      = now_ms();

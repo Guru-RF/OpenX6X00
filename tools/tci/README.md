@@ -14,7 +14,9 @@ the air comes between a key and the LVGL thread applying it. Each case checks th
 keys the radio and that its client's unkey or leaving ends it, that a cancelled start keys
 nothing, that an unkey never drops the operator's PTT, and that a refused start is answered
 `trx:0,false;` and leaves control where it is. One more keys TCI audio in DIGU and DIGL,
-which only CW and CW-R refuse (#17). One more has two clients over Tailscale Funnel (#58), one
+which only CW and CW-R refuse (#17). One more is a browser keying its microphone through its TCI link: the
+start takes control from the browser's session and its end gives it back, unless a knob took it
+during the over, the browser left, or the client had control before its start. One more has two clients over Tailscale Funnel (#58), one
 whose session may not transmit: the TX state asked, or an unkey from a client that keyed nothing,
 is answered with the state and leaves control with the browser at home; only the session that may
 transmit keys, and its unkey ends it. One more has a browser over Funnel on the air, through
