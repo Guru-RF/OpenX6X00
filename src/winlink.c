@@ -93,7 +93,7 @@
 #define RIG_LINE        256
 #define TUNE_WAIT_MS    700             /* \set_freq waits this long for the LVGL thread (Pat reads for 1 s) */
 #define PENDING_MS      (30 * 1000)     /* a QSY asked on the air is done at the end of it, if within this */
-#define REF_MS          (60 * 1000)     /* Pat's tune or ardopcf's key this recent: a connection under way */
+#define REF_MS          (60 * 1000)     /* Pat's tune or the modem's key this recent: a connection under way */
 
 typedef struct {
     uint8_t  type;
@@ -160,7 +160,7 @@ static int  swr_hold_left_s(void);
 static void swr_hold_said(void);
 static atomic_int    pending_hz;    /* a \set_freq asked on the air, done once it is over; 0 none */
 static atomic_int    missed_hz;     /* a QSY Pat was told was done and that could not be (rig_pending_tune); 0 none */
-/* The frequency of the connection under way: Pat's last tune, or where ardopcf last keyed; 0 none. Written by
+/* The frequency of the connection under way: Pat's last tune, or where the modem last keyed; 0 none. Written by
  * the rig thread under tune_lock, and by the worker in tx_off_freq after its own rig_pending_tune: a \set_freq
  * from then on is kept for later (keying), so never both at once */
 static atomic_int    ref_hz;
@@ -515,7 +515,7 @@ static void qsy_refused(int32_t f, const char *why) {
     said_qsy(f, why);
 }
 
-/* Why ardopcf's key is not taken, the radio's state; NULL: it is, if tx_off_freq agrees */
+/* Why the modem's key is not taken, the radio's state; NULL: it is, if tx_off_freq agrees */
 static const char *tx_refused(void) {
     static char app[64], swr[64];   /* the worker's */
 
@@ -542,13 +542,13 @@ static const char *tx_refused(void) {
     return NULL;
 }
 
-/* Why ardopcf's key would not go out where the radio listens, on the connection's frequency; NULL: it would, on
+/* Why the modem's key would not go out where the radio listens, on the connection's frequency; NULL: it would, on
  * ses.key_hz. Winlink is simplex, the gateway answers on the frequency it is called on. The key goes out on
  * radio_tx_freq() (tx_player), in split the other VFO or the shifted one, and the X6100's base adds the XIT
- * (lo = fg + xit); with RIT the radio, and ARDOP, listen beside the dial. Only a TX shift was refused: plain split
+ * (lo = fg + xit); with RIT the radio, and the modem, listen beside the dial. Only a TX shift was refused: plain split
  * with B elsewhere called the gateway from B (audit C07). Checked here, on what the radio is set to as it keys,
  * after the QSY Pat asked during the last key: it can bring another band's split.
- * The connection's frequency: Pat's last tune (made, or not made: missed_hz), or where ardopcf keyed, while either
+ * The connection's frequency: Pat's last tune (made, or not made: missed_hz), or where the modem keyed, while either
  * is less than REF_MS old; the dial once it is older, so a connection made without a QSY keys where the radio
  * listens. A dial turned, or the other VFO chosen, during a connection keys no more there */
 static const char *tx_off_freq(void) {
@@ -575,7 +575,7 @@ static const char *tx_off_freq(void) {
     if (!ref || now - atomic_load(&ref_ms) >= REF_MS)
         ref = rx;
     atomic_store(&ref_hz, ref);
-    atomic_store(&ref_ms, now);     /* ardopcf keys, keyed or not: its connection goes on */
+    atomic_store(&ref_ms, now);     /* the modem keys, keyed or not: its connection goes on */
     if (rx != ref) {
         snprintf(why, sizeof(why), "the radio left %s MHz", mhz(a, sizeof(a), ref));
         return why;
@@ -626,7 +626,7 @@ static void transmit(void) {
     }
 }
 
-/* The worker: one per connection, it waits for ardopcf's keys */
+/* The worker: one per connection, it waits for the modem's keys */
 static void *tx_thread(void *arg) {
     static uint64_t said;
     (void)arg;
@@ -648,7 +648,7 @@ static void *tx_thread(void *arg) {
         pthread_mutex_lock(&ses.lock);
 
         if (no) {
-            /* ardopcf believes it sends: its audio is thrown away until its P 0 */
+            /* The modem believes it sends: its audio is thrown away until its P 0 */
             ses.key = ses.eos ? KEY_NONE : KEY_DISCARD;
             ring_clear();
             pthread_mutex_unlock(&ses.lock);
@@ -668,7 +668,7 @@ static void *tx_thread(void *arg) {
         transmit();
 
         pthread_mutex_lock(&ses.lock);
-        if (ses.key == KEY_ON) {    /* else ardopcf keyed again meanwhile: that key is next */
+        if (ses.key == KEY_ON) {    /* else the modem keyed again meanwhile: that key is next */
             ses.key    = ses.eos ? KEY_NONE : KEY_DISCARD;
             ses.cut_on = false;
             ring_clear();
@@ -974,7 +974,7 @@ static int rig_do_tune(int32_t f) {
 /* A QSY kept while on the air, now that it is over (the rig thread) or before the next key (the
  * worker): whichever comes first takes it. Pat was told it was done: one that cannot be (an app holds
  * the frequency, the LVGL thread busy, too late) leaves the radio where Pat does not think it is, and
- * ardopcf does not key until it is there or Pat tunes again (missed_hz) */
+ * the modem does not key until it is there or Pat tunes again (missed_hz) */
 static void rig_pending_tune(void) {
     int32_t f;
 
@@ -993,7 +993,7 @@ static void rig_pending_tune(void) {
 
 /* \set_freq: hamlib's code. On the air it is answered at once and done at the end of the
  * transmission: tx_player puts its own dial back as it unkeys, and Pat tunes back a second after
- * its session, while ardopcf may still send its ID. Not on a frequency an app holds */
+ * its session, while the modem may still send (ardopcf its ID). Not on a frequency an app holds */
 static int rig_tune(double hz) {
     int32_t f;
     int     ret = 0;
@@ -1042,7 +1042,7 @@ static bool rig_answer(const char *line, char *reply, size_t size) {
             snprintf(reply, size, "%d\n", on_air() ? 1 : 0);
             break;
         case RIG_SET_PTT:
-            snprintf(reply, size, "RPRT 0\n");      /* ardopcf keys through the socket */
+            snprintf(reply, size, "RPRT 0\n");      /* the modem keys through the socket */
             break;
         case RIG_CHK_VFO:
             snprintf(reply, size, "0\n");
@@ -1182,8 +1182,8 @@ static void *rig_thread(void *arg) {
 
 /* ---- The radio's state for the Winlink page: WINLINK_RADIO_FILE ---------------------- */
 
-/* While ardopcf is connected the radio file is written each second it changed, and every RADIO_KEEP_MS: its
- * readers (the web page, x6100-winlink) take one not written for 15 s for a GUI that is gone. Once ardopcf went
+/* While a modem is connected the radio file is written each second it changed, and every RADIO_KEEP_MS: its
+ * readers (the web page, x6100-winlink) take one not written for 15 s for a GUI that is gone. Once the modem went
  * it is written once more, with modem=none. What a web page cannot ask the radio itself: the frequencies, the
  * simplex check, the filters, the power, the app open, the SWR hold, and the last "no TX" and QSY with their
  * reasons, each with a number that goes up, so the supervisor puts each new one into Pat's log once. A file in
@@ -1193,7 +1193,7 @@ static void *rig_thread(void *arg) {
 
 static pthread_mutex_t said_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct {
-    char     refused[96];       /* the last reason ardopcf's key was not taken */
+    char     refused[96];       /* the last reason the modem's key was not taken */
     unsigned refused_seq;
     time_t   refused_at;
     int32_t  qsy_hz;            /* Pat's last QSY, and why it was not made ("" made) */
