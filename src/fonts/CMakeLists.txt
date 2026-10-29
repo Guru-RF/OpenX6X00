@@ -20,7 +20,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     arial_28.c arial_30.c arial_32.c arial_34.c arial_36.c
     arial_38.c arial_40.c arial_42.c arial_44.c
     arial_60.c
-    power_sym_14.c power_sym_18.c power_sym_22.c                        # the top bar: a plug, Montserrat for the rest
+    power_sym_14.c power_sym_18.c power_sym_22.c                        # the top bar: a plug (Font Awesome 5 Free as LVGL's own symbols: OFL-1.1, icons CC BY 4.0), Montserrat for the rest
     pixel_12.c pixel_14.c pixel_16.c pixel_18.c pixel_20.c pixel_22.c   # 1bit (Terminus Font, OFL-1.1)
     pixel_24.c pixel_28.c pixel_32.c pixel_44.c
     pixel_freq_40.c                                                     # its frequency
