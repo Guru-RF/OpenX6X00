@@ -47,13 +47,10 @@ var showStatus = function(sel, text, error=false) {
   el.toggleClass("error", error);
   el.html('<span class="dot"></span>').append(document.createTextNode(text));
 }
-var fail = function(xhr) { asked = false; showStatus("#status", xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); }
+var fail = function(xhr) { showStatus("#status", xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); }
 var poll = null;
-/* A job this page started, its end not shown yet. One refused at once (a step back to a version before Tailscale
-   Funnel, while Funnel cannot be taken off, #58) can end before the answer that started it comes back */
-var asked = false;
 
-var render = function(st) {
+var render = function(st, mine) {
   $("#running").text("v" + (st.running || "?"));
   if (st.image) {
     $("#image").text(st.image.needed ? "a newer one is out" : "up to date");
@@ -71,9 +68,8 @@ var render = function(st) {
     else if (p[0] == "install") text = "Installing: " + p[1] + " of " + p[2] + " files";
     showStatus(st.job.what == "install" ? "#ustatus" : st.job.what == "rollback" ? "#rstatus" : "#status", text);
     if (!poll) poll = setInterval(refresh, 1000);
-  } else if (poll || (asked && st.job && st.job.what)) {
+  } else if (poll || (mine === true && st.job && st.job.what)) {
     if (poll) { clearInterval(poll); poll = null; }
-    asked = false;
     var r = st.job.result || "";
     var sel = st.job.what == "install" ? "#ustatus" : st.job.what == "rollback" ? "#rstatus" : "#status";
     if (r.startsWith("ok")) showStatus(sel, "Done: " + r.slice(3) + ". The radio software is restarting; this page comes back in a moment.");
@@ -82,6 +78,10 @@ var render = function(st) {
   }
 }
 
+/* The answer to the click that started a job. One refused at once (a step back to a version before Tailscale Funnel,
+   while Funnel cannot be taken off, #58) is over before this answer comes back: its end is shown from it. Any other
+   answer shows an end only while the page polls, so an older one coming in after the click is not taken for it */
+var started = function(st) { render(st, true); }
 var refresh = function() { $.get('/api/update', {}, render); }
 refresh();
 
@@ -103,14 +103,12 @@ $("#check").on("click", function() {
 
 $("#upgrade").on("click", function() {
   if (!confirm("Download and install the latest release? The radio software restarts at the end.")) return;
-  asked = true;
-  $.post('/api/update/upgrade', {}, render).fail(fail);
+  $.post('/api/update/upgrade', {}, started).fail(fail);
 });
 
 $("#rollback").on("click", function() {
   if (!confirm("Put the previous version's files back and restart?")) return;
-  asked = true;
-  $.post('/api/update/rollback', {}, render).fail(function(xhr) { asked = false; showStatus("#rstatus", xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); });
+  $.post('/api/update/rollback', {}, started).fail(function(xhr) { showStatus("#rstatus", xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); });
 });
 
 $("#upl").on("submit", function(e) {
@@ -119,8 +117,7 @@ $("#upl").on("submit", function(e) {
   if (!f) { showStatus("#ustatus", "Choose a file first", true); return; }
   var fd = new FormData(); fd.append("file", f);
   showStatus("#ustatus", "Uploading " + (f.size / 1e6).toFixed(1) + " MB...");
-  asked = true;
   $.ajax({url: "/api/update/upload", type: "POST", data: fd, processData: false, contentType: false, dataType: "json",
-          success: render, error: function(xhr) { asked = false; showStatus("#ustatus", xhr.responseJSON ? xhr.responseJSON.msg : "Upload failed", true); }});
+          success: started, error: function(xhr) { showStatus("#ustatus", xhr.responseJSON ? xhr.responseJSON.msg : "Upload failed", true); }});
 });
 </script>

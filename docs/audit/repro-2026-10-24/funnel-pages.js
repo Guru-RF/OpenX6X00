@@ -172,6 +172,21 @@ const awayButton = p => [...p.doc.querySelectorAll('#ses button')].find(b => b.t
           working + ' / ' + rstatus(p).textContent.slice(0, 60));
   }
   {
+    /* The page's own look at the radio, still out when Go back is pressed, answers after the click with a job of
+       before (an earlier try); then the click's own answer: the step back just refused, over before it came back */
+    const p = page('update.html');
+    p.ctx.setInterval = () => 1;
+    p.ctx.$.post = (url, data, cb) => { const r = p.$.ajax({url: url, type: 'POST', success: cb}); r.fail = () => r; return r; };
+    p.run(p.script, 'views/update.html');
+    const look = p.$.requests.shift();
+    p.$('#rollback').trigger('click');
+    const post = p.$.requests.shift();
+    look.ok({running: '0.3.7', job: {running: false, what: 'rollback', result: 'error nothing to roll back'}});
+    post.ok({running: '0.3.7', job: {running: false, what: 'rollback', result: WHY}});
+    check('an older answer coming in after the click: the step back just refused is what is shown',
+          rstatus(p).textContent === SAID, rstatus(p).textContent.slice(0, 80));
+  }
+  {
     const p = page('update.html');
     p.run(p.script, 'views/update.html');
     p.$.requests.shift().ok({running: '0.3.6', job: {running: false, what: 'rollback', result: 'ok back to 0.3.6'}});
