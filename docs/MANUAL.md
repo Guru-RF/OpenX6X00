@@ -2599,7 +2599,13 @@ Connecting to a gateway:
 - ARDOP keys the radio the way the radio's own digital modes do, and
   identifies with your callsign in CW. The radio does not key for Winlink
   while it is already transmitting, nor for 5 minutes after a high SWR
-  stopped a Winlink transmission; the screen says so.
+  stopped a Winlink transmission. The screen says so as it happens ("TX
+  stopped: SWR 3.2", then "Winlink: no TX for 5 minutes, check the
+  antenna") and at each refused key with the time left ("Winlink: no TX,
+  high SWR, the hold ends in 4 min"); the Winlink page's SWR hold
+  row counts the minutes down, and Pat's log says when it ends ("OpenX6X00:
+  high SWR stopped a Winlink transmission: no TX for 5 minutes, until
+  14:32").
 - Close the radio's digital apps first. While one is open (FT8, FT4, JS8,
   WSPR, PSK, Olivia, JTTY, RTTY, SSTV, WeFax, NavTex) it holds the radio's
   frequency, mode and audio: Winlink does not key ("Winlink: no TX, FT8 is

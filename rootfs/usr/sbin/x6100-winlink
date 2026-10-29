@@ -770,6 +770,7 @@ class Watch:
         self.outcome = Outcome()
         self.modem = False                         # ardopcf on the GUI's audio socket, as its log says
         self.seen = {}                             # the radio file's refused_seq and qsy_seq read last
+        self.swr_hold = None                       # its swr_hold (s) read last
         self.noted = ("", 0.0)                     # the last refusal put into Pat's log, and when
 
     def pat_started(self):
@@ -780,7 +781,17 @@ class Watch:
 
     def radio_said(self, radio):
         """A new "no TX" or QSY not made in the radio file: for the connection under way, and in Pat's log, where
-        Pat itself only sees a connect time out or "Unable to QSY". Not those from before this supervisor"""
+        Pat itself only sees a connect time out or "Unable to QSY". Not those from before this supervisor. So too
+        the hold after an SWR trip as it begins, with when it ends"""
+        try:
+            hold = int(radio.get("swr_hold", "0"))
+        except ValueError:
+            hold = 0
+        if hold and self.swr_hold == 0:
+            until = time.strftime("%H:%M", time.localtime(time.time() + hold))
+            note(f"high SWR stopped a Winlink transmission: no TX for {(hold + 59) // 60} minutes, until {until}. "
+                 "Check the antenna and the tuner")
+        self.swr_hold = hold
         for key in ("refused", "qsy"):
             seq, last = radio.get(key + "_seq", ""), self.seen.get(key)
             self.seen[key] = seq

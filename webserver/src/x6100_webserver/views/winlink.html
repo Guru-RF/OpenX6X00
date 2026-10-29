@@ -30,6 +30,7 @@
   <div class="dp-row"><div class="dp-lbl"><b>Filter</b><span id="r-filter-n"></span></div><div class="dp-ctl" id="r-filter">-</div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Power</b><span id="r-pwr-n"></span></div><div class="dp-ctl" id="r-pwr">-</div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Apps</b><span id="r-app-n"></span></div><div class="dp-ctl" id="r-app">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>SWR hold</b><span id="r-swr-n"></span></div><div class="dp-ctl" id="r-swr">-</div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Last no TX</b><span id="r-refused-n"></span></div><div class="dp-ctl" id="r-refused">-</div></div>
   </div>
   <div class="dp-body" id="radio-none" style="color:var(--dim)">-</div>
@@ -139,6 +140,9 @@ var renderRadio = function(st) {
     "The radio's PWR; Winlink at most " + r.cap.toFixed(0) + " W", false);
   radioRow("app", r.app || "None", r.app ? "Close it: no Winlink TX or QSY while it holds the radio" :
     r.locked ? "LOCK is on: Pat's QSY is not made" : "No app holds the radio", !!r.app || !!r.locked);
+  radioRow("swr", r.swr_hold ? Math.ceil(r.swr_hold / 60) + " min left" : "None", r.swr_hold ?
+    "High SWR stopped a Winlink transmission: no TX until the hold ends. Check the antenna and the tuner" :
+    "5 minutes without TX after high SWR stops a Winlink transmission", r.swr_hold > 0);
   const recent = r.refused && r.refused_age !== null && r.refused_age < 600;
   radioRow("refused", recent ? ago(r.refused_age) : "None", recent ? r.refused : "In the last 10 minutes", recent);
 }

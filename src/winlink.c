@@ -142,6 +142,8 @@ static atomic_bool keying;          /* the worker transmits: on_air() may not sh
 static void rig_pending_tune(void);
 static void said_refused(const char *why);
 static void said_qsy(int32_t hz, const char *why);
+static int  swr_hold_left_s(void);
+static void swr_hold_said(void);
 static atomic_int    pending_hz;    /* a \set_freq asked on the air, done once it is over; 0 none */
 static atomic_int    missed_hz;     /* a QSY Pat was told was done and that could not be (rig_pending_tune); 0 none */
 /* The frequency of the connection under way: Pat's last tune, or where ardopcf last keyed; 0 none. Written by
@@ -500,7 +502,7 @@ static void qsy_refused(int32_t f, const char *why) {
 
 /* Why ardopcf's key is not taken, the radio's state; NULL: it is, if tx_off_freq agrees */
 static const char *tx_refused(void) {
-    static char app[64];    /* the worker's */
+    static char app[64], swr[64];   /* the worker's */
 
     if (app_holds_radio(app, sizeof(app)))
         return app;     /* also while it transmits: the app is what to close */
@@ -516,9 +518,12 @@ static const char *tx_refused(void) {
         key_trips   = radio_swr_trips();    /* counted once */
         swr_trip_ms = unkey_ms;
         LV_LOG_WARN("winlink: SWR trip, no TX for %d minutes", SWR_HOLD_MS / 60000);
+        swr_hold_said();
     }
-    if (swr_trip_ms && now_ms() - swr_trip_ms < SWR_HOLD_MS)
-        return "an SWR trip less than 5 minutes ago";
+    if (swr_hold_left_s()) {
+        snprintf(swr, sizeof(swr), "high SWR, the hold ends in %d min", (swr_hold_left_s() + 59) / 60);
+        return swr;
+    }
     return NULL;
 }
 
@@ -602,6 +607,7 @@ static void transmit(void) {
         key_trips   = radio_swr_trips();
         swr_trip_ms = unkey_ms;
         LV_LOG_WARN("winlink: SWR trip, no TX for %d minutes", SWR_HOLD_MS / 60000);
+        swr_hold_said();
     }
 }
 
@@ -1172,6 +1178,11 @@ static int swr_hold_left_s(void) {
     if (!trip || now - trip >= SWR_HOLD_MS)
         return 0;
     return (int)((SWR_HOLD_MS - (now - trip) + 999) / 1000);
+}
+
+/* The hold begins: on the screen after the guard's own "TX stopped: SWR", and in the radio file (swr_hold) */
+static void swr_hold_said(void) {
+    msg_schedule_text_fmt("Winlink: no TX for %d minutes, check the antenna", SWR_HOLD_MS / 60000);
 }
 
 /* The file's lines into buf */
