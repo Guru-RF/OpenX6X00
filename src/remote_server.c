@@ -72,7 +72,7 @@
  *  refused over Funnel. At most FUNNEL_CLIENTS of the MAX_CLIENTS come from the internet, and
  *  the browser's address (X-Forwarded-For) is shown and logged with "via Funnel". A paired
  *  browser at home gets its key for away with "away", answered "away TOKEN": a session of its
- *  own, "NAME (away)", with its role and TX, the one before replaced (sess_away).
+ *  own, "NAME (away)", with its role and TX, the one that browser made before replaced (sess_away).
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -225,6 +225,8 @@ typedef struct {
     uint64_t created, last;   /* wall clock, seconds */
     char     ip[48];
     bool     funnel;          /* last seen from the internet through Tailscale Funnel, ip the browser's there */
+    bool     away;            /* an away session (sess_away) that knows the browser it was made for: */
+    uint8_t  home[32];        /* the hash of that browser's own session */
 } session_t;
 
 static session_t       sessions[SESS_MAX];
@@ -389,7 +391,8 @@ static bool from_hex(const char *s, uint8_t *out, size_t n) {
     return true;
 }
 
-/* sess_mux held. The hash, never the token (session_t) */
+/* sess_mux held. The hash, never the token (session_t); an away session's last column its browser's session at home
+ * (the hash of its token), "-" for the others */
 static void sess_save_locked(void) {
     char  tmp[sizeof(REMOTE_SESSIONS) + 8];
     FILE *f;
@@ -402,12 +405,15 @@ static void sess_save_locked(void) {
         return;
     }
     for (int i = 0; i < nsessions; i++) {
-        char hex[65];
-        for (int k = 0; k < 32; k++)
+        char hex[65], home[65] = "-";
+        for (int k = 0; k < 32; k++) {
             snprintf(hex + k * 2, 3, "%02x", sessions[i].hash[k]);
-        fprintf(f, "%s\t%s\t%d\t%d\t%llu\t%llu\t%s\t%d\n", hex, sessions[i].name, sessions[i].role,
+            if (sessions[i].away)
+                snprintf(home + k * 2, 3, "%02x", sessions[i].home[k]);
+        }
+        fprintf(f, "%s\t%s\t%d\t%d\t%llu\t%llu\t%s\t%d\t%s\n", hex, sessions[i].name, sessions[i].role,
                 sessions[i].tx ? 1 : 0, (unsigned long long)sessions[i].created, (unsigned long long)sessions[i].last,
-                sessions[i].ip[0] ? sessions[i].ip : "-", sessions[i].funnel ? 1 : 0);
+                sessions[i].ip[0] ? sessions[i].ip : "-", sessions[i].funnel ? 1 : 0, home);
     }
     /* whole on the card before it takes the old file's place: a power cut leaves one or the other */
     if (fflush(f) == 0)
@@ -418,7 +424,8 @@ static void sess_save_locked(void) {
 
 /* The sessions, as sess_save_locked keeps them (a 64-hex hash first). A file from before keeps the token itself
  * (32 hex): it is hashed here and the file written anew, so the browsers paired before stay paired and the tokens
- * are off the card. The old file stays until the new one has taken its place (sess_save_locked) */
+ * are off the card. The old file stays until the new one has taken its place (sess_save_locked). A file without
+ * the last columns (funnel, home) is from before them: none, as then */
 static void sess_load(void) {
     FILE *f = fopen(REMOTE_SESSIONS, "r");
     char  line[256];
@@ -452,6 +459,7 @@ static void sess_load(void) {
                 case 5: x->last = strtoull(tok, NULL, 10); break;
                 case 6: snprintf(x->ip, sizeof(x->ip), "%s", tok); break;
                 case 7: x->funnel = atoi(tok) != 0; break;
+                case 8: x->away = strlen(tok) == 64 && from_hex(tok, x->home, 32); break;
             }
         }
         if (ok && x->name[0])
@@ -481,13 +489,17 @@ static bool random_hex(char *out, size_t n) {
 }
 
 /* sess_mux held: a new session, its token (TOKEN_LEN hex characters) into token, for that browser alone; role -1:
- * the first browser paired is the admin, the others operate. -1 when the table is full */
-static int sess_add_locked(const char *name, const char *ip, int role, bool tx, char token[TOKEN_LEN + 1]) {
+ * the first browser paired is the admin, the others operate; home: an away session's browser (the hash of its own
+ * session), NULL for a browser's own. -1 when the table is full */
+static int sess_add_locked(const char *name, const char *ip, int role, bool tx, const uint8_t *home,
+                           char token[TOKEN_LEN + 1]) {
     if (nsessions == SESS_MAX || !random_hex(token, TOKEN_LEN))
         return -1;
     session_t *x = &sessions[nsessions];
     memset(x, 0, sizeof(*x));
     token_hash(token, x->hash);
+    if ((x->away = home != NULL))
+        memcpy(x->home, home, sizeof(x->home));
     snprintf(x->name, sizeof(x->name), "%s", name);
     x->role    = role >= 0 ? (uint8_t)role : nsessions == 0 ? ROLE_ADMIN : ROLE_OPERATE;
     x->tx      = tx;
@@ -502,7 +514,7 @@ static int sess_add_locked(const char *name, const char *ip, int role, bool tx, 
  * table is full */
 static int sess_new(const char *name, const char *ip, char token[TOKEN_LEN + 1]) {
     pthread_mutex_lock(&sess_mux);
-    int i = sess_add_locked(name, ip, -1, true, token);
+    int i = sess_add_locked(name, ip, -1, true, NULL, token);
     pthread_mutex_unlock(&sess_mux);
     return i;
 }
@@ -613,27 +625,52 @@ static void sess_revoke(int i) {
             clients[k].sess--;
 }
 
+/* sess_mux held: a session of this hash is still there */
+static bool sess_held_locked(const uint8_t hash[32]) {
+    for (int k = 0; k < nsessions; k++)
+        if (!memcmp(sessions[k].hash, hash, 32))
+            return true;
+    return false;
+}
+
+/* The away session made before for the browser whose own session's hash is home, -1 none. Found by that browser,
+ * not by its name, which is cut to fit "NAME (away)": two browsers whose names began alike replaced each other's.
+ * One that does not know its browser (from a file before the home column), or whose browser was revoked since (it
+ * paired again), is found by its name, as before */
+static int sess_away_of(const uint8_t home[32], const char *name) {
+    int r = -1;
+
+    pthread_mutex_lock(&sess_mux);
+    for (int k = 0; k < nsessions && r < 0; k++) {
+        const session_t *x = &sessions[k];
+        if ((x->away && !memcmp(x->home, home, 32)) ||
+            ((!x->away || !sess_held_locked(x->home)) && !strcmp(x->name, name)))
+            r = k;
+    }
+    pthread_mutex_unlock(&sess_mux);
+    return r;
+}
+
 /* "away" (#58): a session of its own for this paired browser's use away from home through Tailscale Funnel, named
  * "NAME (away)", with the role and TX of the browser's session; its token into token, for that browser alone (the
- * page puts it in the link it opens, after '#'). One per browser: the one made before is revoked, its connections
- * closed. -1: no room. Socket thread */
+ * page puts it in the link it opens, after '#'). One per browser: the one it made before is revoked, its
+ * connections closed (sess_away_of). -1: no room. Socket thread */
 static int sess_away(client_t *c, char token[TOKEN_LEN + 1]) {
-    char name[32];
-    int  role, i = -1;
-    bool tx;
+    char    name[32];
+    uint8_t home[32];
+    int     role, i;
+    bool    tx;
 
     pthread_mutex_lock(&sess_mux);
     snprintf(name, sizeof(name), "%.24s (away)", sessions[c->sess].name);
+    memcpy(home, sessions[c->sess].hash, sizeof(home));
     role = sessions[c->sess].role;
     tx   = sessions[c->sess].tx;
-    for (int k = 0; k < nsessions; k++)
-        if (!strcmp(sessions[k].name, name))
-            i = k;
     pthread_mutex_unlock(&sess_mux);
-    if (i >= 0)
+    while ((i = sess_away_of(home, name)) >= 0)
         sess_revoke(i);                         /* moves the sessions after it down, this client's too */
     pthread_mutex_lock(&sess_mux);
-    i = sess_add_locked(name, c->ip, role, tx, token);
+    i = sess_add_locked(name, c->ip, role, tx, home, token);
     pthread_mutex_unlock(&sess_mux);
     if (i >= 0)
         LV_LOG_USER("remote: %s made for use away from home", name);

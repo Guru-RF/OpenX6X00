@@ -312,7 +312,9 @@ static int run_funnel(void) {
 
 /* Issue #58, "Use away from home": a paired browser at home asks for its own key for away; the radio makes a
  * session "NAME (away)" with its role and TX and answers with the token (to that browser alone). Asked again, the
- * one before is revoked: one away key per browser. Not from the internet, not unpaired, not from an away key */
+ * one before is revoked: one away key per browser. Not from the internet, not unpaired, not from an away key. The
+ * one before is that browser's, also when another's name begins with the same 24 characters (the away session's
+ * name is cut to fit); one from a file before the home column, or whose browser paired again, by its name */
 static int run_away(void) {
     client_t *a = open_client(0, ROLE_ADMIN, true), *b = open_client(1, ROLE_OPERATE, true);
     char      first[TOKEN_LEN + 1] = "", second[TOKEN_LEN + 1] = "", cmd[64];
@@ -353,6 +355,57 @@ static int run_away(void) {
     said[3][0] = 0;
     say(v, "away");
     printf("with its away key at home: %s", said[3]);
+
+    char      kp[TOKEN_LEN + 1] = "", kq[TOKEN_LEN + 1] = "", t[TOKEN_LEN + 1] = "", text[2048], line[160];
+    client_t *p = open_client(0, ROLE_OPERATE, true), *q = open_client(1, ROLE_OPERATE, true);
+    p->sess = sess_new("Club station field laptop A", "192.168.1.40", t);
+    q->sess = sess_new("Club station field laptop B", "192.168.1.41", t);
+    say(p, "away");
+    sscanf(said[0], "away %32s", kp);
+    say(q, "away");
+    sscanf(said[1], "away %32s", kq);
+    printf("two browsers named alike for 24 characters: \"%s\", both away keys good=%d\n", sessions[sess_find(kq)].name,
+           sess_find(kp) >= 0 && sess_find(kq) >= 0);
+    said[0][0] = 0;
+    say(p, "away");
+    sscanf(said[0], "away %32s", t);
+    printf("the first one asks again: its own replaced=%d, the other's kept=%d\n", sess_find(kp) < 0 && sess_find(t) >= 0,
+           sess_find(kq) >= 0);
+
+    const char *home = "0123456789abcdef0123456789abcdef", *old = "fedcba9876543210fedcba9876543210";
+    char        hh[65], ho[65];
+    uint8_t     h[32];
+    token_hash(home, h);
+    for (int k = 0; k < 32; k++) snprintf(hh + k * 2, 3, "%02x", h[k]);
+    token_hash(old, h);
+    for (int k = 0; k < 32; k++) snprintf(ho + k * 2, 3, "%02x", h[k]);
+    FILE *fl = fopen(sessions_path, "w");
+    if (!fl) return 2;
+    fprintf(fl, "%s\tKitchen phone\t1\t1\t1761100000\t1761600000\t192.168.1.31\t0\n", hh);
+    fprintf(fl, "%s\tKitchen phone (away)\t1\t1\t1761200000\t1761700000\t203.0.113.7\t1\n", ho);
+    fclose(fl);
+    sess_load();
+    client_t *k = open_client(0, ROLE_OPERATE, true);
+    k->sess = sess_find(home);
+    said[0][0] = 0;
+    say(k, "away");
+    sscanf(said[0], "away %32s", t);
+    file_text(text, sizeof(text));
+    int legacy_gone = sess_find(old) < 0 && !strstr(text, "203.0.113.7");
+    snprintf(line, sizeof(line), "\tKitchen phone (away)\t1\t1\t");
+    char *row = strstr(text, line), *end = row ? strchr(row, '\n') : NULL;
+    printf("a file from before the home column: %d sessions, its away key replaced=%d, the new one knows its "
+           "browser=%d\n", nsessions, legacy_gone && sess_find(t) >= 0,
+           end && end - row > 64 && !strncmp(end - 64, hh, 64));
+    say(k, "unpair");
+    client_t *k2 = open_client(0, ROLE_OPERATE, true);
+    char      t2[TOKEN_LEN + 1] = "", t3[TOKEN_LEN + 1] = "";
+    k2->sess = sess_new("Kitchen phone", "192.168.1.31", t2);
+    said[0][0] = 0;
+    say(k2, "away");
+    sscanf(said[0], "away %32s", t3);
+    printf("revoked at home and paired again: its away key from before replaced=%d, sessions %d\n",
+           sess_find(t) < 0 && sess_find(t3) >= 0, nsessions);
     return 0;
 }
 

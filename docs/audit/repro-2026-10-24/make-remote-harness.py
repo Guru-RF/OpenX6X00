@@ -51,7 +51,7 @@ names = ['role_name', 'sess_key', 'log_sum', 'log_slot', 'log_queued', 'log_answ
          'app_apply', 'app_log_cmd', 'mode_supported', 'panel_put', 'set_refused', 'panel_set', 'role_tell', 'ctl_tell', 'allowed',
          'ptt_down', 'ptt_lease', 'key_code', 'name_clean', 'pair_msg_apply', 'pair_paused_apply', 'pair_show', 'pair_try',
          'wall_s', 'token_hash', 'from_hex', 'sess_save_locked', 'sess_load', 'random_hex', 'sess_add_locked', 'sess_new',
-         'sess_find', 'sess_revoke', 'sess_away', 'handle_text']
+         'sess_find', 'sess_revoke', 'sess_held_locked', 'sess_away_of', 'sess_away', 'handle_text']
 pre = r'''
 #include <ctype.h>
 #include <fcntl.h>

@@ -98,7 +98,11 @@ def main():
             "the admin's away key: admin",
             "from the internet: err an away link is made at home",
             "unpaired: err pair this browser first",
-            "with its away key at home: err this browser has its away link already")).strip())
+            "with its away key at home: err this browser has its away link already",
+            'two browsers named alike for 24 characters: "Club station field lapto (away)", both away keys good=1',
+            "the first one asks again: its own replaced=1, the other's kept=1",
+            "a file from before the home column: 2 sessions, its away key replaced=1, the new one knows its browser=1",
+            "revoked at home and paired again: its away key from before replaced=1, sessions 2")).strip())
         print("#58 session tokens kept hashed:\n" + command([binary, "tokens"], env, contains=(
             "a file from before: 2 sessions loaded, the tokens in the file now=0",
             "3eb1bd439947eb762998e566ccc2e099c791118b2f40579cc4f7da2b5061b7f9\tShack PC\t2\t1",
