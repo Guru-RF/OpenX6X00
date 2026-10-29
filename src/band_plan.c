@@ -121,11 +121,14 @@ typedef enum { LIC_EXTRA, LIC_ADVANCED, LIC_GENERAL, LIC_TECH } lic_t;
 /* The US: what the FCC allows (phone or not, and for which class), the parts without phone split as the ARRL plan
  * uses them. cls: the lowest class that has the segment. No phone below 7.125 MHz on the mainland, nor below 14.150
  * and 21.200 MHz; 75 m phone from 3.6 (Extra), 3.7 (Advanced) and 3.8 MHz (General); 60 m: its 15 kHz and the four
- * channels of 2.8 kHz around 5332, 5348, 5373 and 5405 kHz */
+ * channels of 2.8 kHz around 5332, 5348, 5373 and 5405 kHz. where: 0 everywhere, -1 the mainland only, 1 only
+ * where 97.307(f)(11) has phone at 7.075-7.100 MHz too: west of 130 W or south of 20 N (Alaska, Hawaii, Puerto
+ * Rico, the Virgin Islands), and Regions 1 and 3 */
 static const struct {
     int32_t   start, end;
     bp_type_t type;
     lic_t     cls;
+    int8_t    where;
 } plan_us[] = {
     {  1800000,  1810000, BP_DIG, LIC_GENERAL  }, {  1810000,  1840000, BP_CW,  LIC_GENERAL  },
     {  1840000,  1843000, BP_DIG, LIC_GENERAL  }, {  1843000,  2000000, BP_ALL, LIC_GENERAL  },
@@ -138,7 +141,9 @@ static const struct {
     {  5403600,  5406400, BP_ALL, LIC_GENERAL  },
     {  7000000,  7025000, BP_CW,  LIC_EXTRA    }, {  7025000,  7040000, BP_CW,  LIC_TECH     },
     {  7040000,  7050000, BP_DIG, LIC_TECH     }, {  7050000,  7070000, BP_CW,  LIC_TECH     },
-    {  7070000,  7125000, BP_DIG, LIC_TECH     }, {  7125000,  7175000, BP_ALL, LIC_ADVANCED },
+    {  7070000,  7125000, BP_DIG, LIC_TECH, -1 },
+    {  7070000,  7075000, BP_DIG, LIC_TECH,  1 }, {  7075000,  7100000, BP_ALL, LIC_TECH,  1 },
+    {  7100000,  7125000, BP_DIG, LIC_TECH,  1 }, {  7125000,  7175000, BP_ALL, LIC_ADVANCED },
     {  7175000,  7300000, BP_ALL, LIC_GENERAL  },
     { 10100000, 10130000, BP_CW,  LIC_GENERAL  }, { 10130000, 10150000, BP_DIG, LIC_GENERAL  },
     { 14000000, 14025000, BP_CW,  LIC_EXTRA    }, { 14025000, 14070000, BP_CW,  LIC_GENERAL  },
@@ -172,8 +177,8 @@ static int region_of(int plan) {
 
 /* The segments of plan (bp_plan_t, not Auto) into out, by start. The US ones for the class: what the class does
  * not have is BP_OUT, a Technician's below 10 m CW (97.307(f)(9)) but for the beacons; neighbours of one type
- * merged then */
-static int plan_build(int plan, bp_seg_t *out) {
+ * merged then. pacific: the US rows for west of 130 W or south of 20 N */
+static int plan_build(int plan, bool pacific, bp_seg_t *out) {
     int n = 0;
 
     if (plan < BP_PLAN_US_EXTRA) {
@@ -188,6 +193,9 @@ static int plan_build(int plan, bp_seg_t *out) {
     for (int i = 0; i < LEN(plan_us); i++) {
         bp_type_t t = plan_us[i].type;
 
+        if (plan_us[i].where && (plan_us[i].where > 0) != pacific) {
+            continue;
+        }
         if (lic > plan_us[i].cls) {
             t = BP_OUT;
         } else if (lic == LIC_TECH && plan_us[i].start < 28000000 && t != BP_BCN) {
@@ -226,11 +234,16 @@ static int             ncur;
 static pthread_mutex_t cur_lock = PTHREAD_MUTEX_INITIALIZER;
 static atomic_uint     plan_gen;    /* one up with every change of the segments or the active bands */
 
-/* What Auto takes (Settings and the web page show it): the region, how ("gps", "qth", "call", "" for nothing) and
- * from what (the locator, the callsign). Under cur_lock */
-static int             auto_region = 1;
-static const char     *auto_how    = "";
-static char            auto_at[16];
+/* Where the radio is: the region Auto takes, whether a US plan has phone at 7.075-7.100 MHz, and how it is known
+ * ("gps", "qth", "call", "" for not at all) and from what (the locator, the callsign) for Settings and the web page */
+typedef struct {
+    int         region;
+    bool        pacific;
+    const char *how;
+    char        at[16];
+} where_t;
+
+static where_t         here = {1, false, "", ""};   /* under cur_lock */
 
 /* The callsign's country, for Auto without a locator: looked up on a worker, as cty.dat is read on the first lookup
  * (about 0.1 s). call_asked is the callsign looked up last; call_pos its country's centre. Under cur_lock */
@@ -261,43 +274,41 @@ static void *call_thread(void *arg) {
     return NULL;
 }
 
-/* Auto, the first that answers: a GPS fix under 10 s old (as station_qth()), the QTH locator, the country of the
- * callsign (cty.dat's centre of it; Region 1 until the worker has it), else Region 1. Never a US plan: the licence
- * class cannot be known. LVGL thread */
-static int find_region(const char **how, char *at, size_t size) {
-    double lat, lon;
-    int    age;
+/* The position, the first that answers: a GPS fix under 10 s old (as station_qth()), the QTH locator, the country
+ * of the callsign (cty.dat's centre of it, once the worker has it). False: none. LVGL thread */
+static bool locate(double *lat, double *lon, where_t *w) {
+    int age;
 
-    if (gps_last_fix(&lat, &lon, &age) && age < 10) {
+    if (gps_last_fix(lat, lon, &age) && age < 10) {
         char grid[9];
 
-        qth_pos_to_str(lat, lon, grid);
+        qth_pos_to_str(*lat, *lon, grid);
         grid[6] = 0;
-        snprintf(at, size, "%s", grid);
-        *how = "gps";
-        return itu_region(lat, lon);
+        snprintf(w->at, sizeof(w->at), "%s", grid);
+        w->how = "gps";
+        return true;
     }
     if (qth_grid_check(params.qth.x)) {
-        qth_str_to_pos(params.qth.x, &lat, &lon);
-        snprintf(at, size, "%s", params.qth.x);
-        *how = "qth";
-        return itu_region(lat, lon);
+        qth_str_to_pos(params.qth.x, lat, lon);
+        snprintf(w->at, sizeof(w->at), "%s", params.qth.x);
+        w->how = "qth";
+        return true;
     }
-    *how = "";
-    at[0] = 0;
+    w->how   = "";
+    w->at[0] = 0;
     if (!params.callsign.x[0]) {
-        return 1;
+        return false;
     }
     pthread_mutex_lock(&cur_lock);
     bool asked = strcmp(call_asked, params.callsign.x) == 0, found = asked && call_pos;
 
-    lat = call_lat;
-    lon = call_lon;
+    *lat = call_lat;
+    *lon = call_lon;
     pthread_mutex_unlock(&cur_lock);
     if (found) {
-        snprintf(at, size, "%s", params.callsign.x);
-        *how = "call";
-        return itu_region(lat, lon);
+        snprintf(w->at, sizeof(w->at), "%s", params.callsign.x);
+        w->how = "call";
+        return true;
     }
     bool idle = false;
 
@@ -316,7 +327,17 @@ static int find_region(const char **how, char *at, size_t size) {
             atomic_store(&call_busy, false);
         }
     }
-    return 1;
+    return false;
+}
+
+/* Where the radio is; Region 1 when nothing tells. Auto never takes a US plan: the licence class cannot be known.
+ * East longitudes in Region 2 are the far Aleutians, west of 130 W too */
+static void find_where(where_t *w) {
+    double lat, lon;
+    bool   known = locate(&lat, &lon, w);
+
+    w->region  = known ? itu_region(lat, lon) : 1;
+    w->pacific = known && (w->region != 2 || lon < -130 || lon > 0 || lat < 20);
 }
 
 /* A band's own segment type, from its name as the presets are named ("40m CW", "20m SSB"); its last used mode
@@ -341,21 +362,21 @@ void band_plan_reload(void) {
     static char    last_names[BANDS][16];
     static int     last_nb = -1;
     static bp_seg_t list[MAX_SEG];
-    const char    *how;
-    char           at[sizeof(auto_at)];
-    int            region = find_region(&how, at, sizeof(at));
-    int            want   = param_i_get(cfg_band_region);
-    int            plan   = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : region;
+    where_t        w;
+    int            want = param_i_get(cfg_band_region);
+
+    find_where(&w);
+    int plan = want > BP_PLAN_AUTO && want < BP_PLAN_COUNT ? want : w.region;
 
     /* The band list's region edges (80 m to 4 MHz in Region 2 and the US) before it is read */
     if (cfg_bands_follow_region(region_of(plan))) {
         band_info_reload();
     }
-    int            nb     = cfg_bands_active_ids(ids, start, stop, names, BANDS);
-    int            n      = plan_build(plan, list);
+    int  nb = cfg_bands_active_ids(ids, start, stop, names, BANDS);
+    int  n  = plan_build(plan, w.pacific, list);
     /* The browser panel shows the active bands too: they count as a change of the plan */
-    bool           bands  = nb != last_nb || memcmp(start, last_start, sizeof(start)) || memcmp(stop, last_stop, sizeof(stop))
-                            || memcmp(names, last_names, sizeof(names));
+    bool bands = nb != last_nb || memcmp(start, last_start, sizeof(start)) || memcmp(stop, last_stop, sizeof(stop))
+                 || memcmp(names, last_names, sizeof(names));
 
     if (bands) {
         last_nb = nb;
@@ -392,11 +413,9 @@ void band_plan_reload(void) {
         atomic_fetch_add(&plan_gen, 1);
     }
     memcpy(cur, list, n * sizeof(list[0]));
-    ncur        = n;
-    plan_id     = plan;
-    auto_region = region;
-    auto_how    = how;
-    memcpy(auto_at, at, sizeof(auto_at));
+    ncur    = n;
+    plan_id = plan;
+    here    = w;
     pthread_mutex_unlock(&cur_lock);
 }
 
@@ -409,19 +428,17 @@ void band_plan_follow(void) {
     band_plan_refresh();
 }
 
-/* A GPS fix that comes or goes (or moves the radio into another region) shows within 10 s; the locator and the
- * callsign call band_plan_follow() when saved */
+/* A GPS fix that comes or goes (or moves the radio into another region, or across 130 W) shows within 10 s; the
+ * locator and the callsign call band_plan_follow() when saved */
 static void where_timer_cb(lv_timer_t *t) {
-    const char *how;
-    char        at[sizeof(auto_at)];
-    int         region = find_region(&how, at, sizeof(at));
+    where_t w;
 
+    find_where(&w);
     pthread_mutex_lock(&cur_lock);
-    bool moved = region != auto_region;
+    bool moved = w.region != here.region || w.pacific != here.pacific;
 
     if (!moved) {
-        auto_how = how;
-        memcpy(auto_at, at, sizeof(auto_at));
+        here = w;
     }
     pthread_mutex_unlock(&cur_lock);
     if (moved) {
@@ -442,10 +459,10 @@ int band_plan_region(void) {
 
 int band_plan_auto(const char **how, char *at, size_t size) {
     pthread_mutex_lock(&cur_lock);
-    int region = auto_region;
+    int region = here.region;
 
-    if (how) *how = auto_how;
-    if (at && size) snprintf(at, size, "%s", auto_at);
+    if (how) *how = here.how;
+    if (at && size) snprintf(at, size, "%s", here.at);
     pthread_mutex_unlock(&cur_lock);
     return region;
 }
