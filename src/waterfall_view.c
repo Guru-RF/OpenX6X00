@@ -603,17 +603,29 @@ static void update_middle_line(void) {
     lv_style_set_line_width(&vfo_line_style, width);
 
     /* The passband, same scale as the line: from the VFO up (USB), down
-     * (LSB, CWR) or both ways (AM, FM), as on the spectrum */
+     * (LSB) or both ways (AM, FM), as on the spectrum */
     int32_t low = subject_i_get((SubjectInt*)cfg_cur_filter_low);
     int32_t high = subject_i_get((SubjectInt*)cfg_cur_filter_high);
+    int32_t tone = param_i_get(cfg_key_tone);
     int32_t from, to;
 
     switch ((radio_mode_t) subject_i_get((SubjectInt*)cfg_cur_mode)) {
         case radio_mode_lsb:
         case radio_mode_lsb_dig:
-        case radio_mode_cwr:
             from = -high;
             to = -low;
+            break;
+        /* CW and CWR: the edges are tones, and the signal heard at the key tone is on the line, so
+         * the band is around the line in both, as the spectrum draws it from its LO marker (#34: it
+         * was beside it, a pitch off, above in CW and below in CWR). From the key tone, not from the
+         * LO offset that places the rows: the X6200's offset is still to be checked on the radio */
+        case radio_mode_cw:
+            from = low - tone;
+            to = high - tone;
+            break;
+        case radio_mode_cwr:
+            from = tone - high;
+            to = tone - low;
             break;
         case radio_mode_am:
         case radio_mode_nfm:
@@ -756,6 +768,8 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
     subject_subscribe_delayed((Subject *)cfg_cur_filter_low, on_filter_change, NULL);
     subject_subscribe_delayed((Subject *)cfg_cur_filter_high, on_filter_change, NULL);
     subject_subscribe_delayed((Subject *)cfg_cur_mode, on_filter_change, NULL);
+    /* CW: a new key tone moves the band, the edges changed or not (the low one at 0 stays) */
+    subject_subscribe_delayed((Subject *)cfg_key_tone, on_filter_change, NULL);
     subject_subscribe_delayed((Subject *)cfg_fg_freq, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_mode, on_view_changed, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_wf_palette, on_palette_change, NULL);

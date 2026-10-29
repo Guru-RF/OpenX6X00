@@ -466,6 +466,8 @@ body.app h2, body.app #intro { display:none; }
   /* An old base sends the whole 100 kHz whatever the zoom (the radio zooms the view itself): shown is
    * the zoomed part around the centre, a new base's data is already that wide */
   function visSpan() { return Math.min(span, 100000 / (state ? state.zoom : 1)); }
+  /* The CW pitch: a radio before "kt" sent none, and the default is 700 Hz */
+  function keyTone(s) { return typeof s.kt === "number" ? s.kt : 700; }
   function hzToX(hz) { const v = visSpan(); return (hz - (center - v / 2)) * W / v; }
   function xToHz(x) { const v = visSpan(); return center - v / 2 + x * v / W; }
   function draw() {
@@ -495,11 +497,16 @@ body.app h2, body.app #intro { display:none; }
       ctx.fillStyle = PLAN_COLORS[seg[2]] || "#888"; ctx.globalAlpha = 0.85; ctx.fillRect(x1, SCALE_H * dpr, x2 - x1, PLAN_H * dpr); ctx.globalAlpha = 1;
       if (x2 - x1 > 40 * dpr) { ctx.fillStyle = "#fff"; ctx.font = "bold " + (7 * dpr) + "px system-ui, sans-serif"; ctx.textBaseline = "middle"; ctx.fillText(PLAN_NAMES[seg[2]], (x1 + x2) / 2, SCALE_H * dpr + PLAN_H * dpr / 2); }
     }
-    /* the passband */
+    /* the passband. In CW and CWR the edges are tones, and the signal heard at the key tone is on the
+     * dial: the band is around it in both, as on the radio (#34: it was beside it, a pitch off) */
     const s = state;
     if (s) {
-      const lsb = s.mode === 0 || s.mode === 1 || s.mode === 5, sym = s.mode === 6 || s.mode === 7;
-      const lo = sym ? -s.fhi : lsb ? -s.fhi : s.flo, hi = sym ? s.fhi : lsb ? -s.flo : s.fhi;
+      const kt = keyTone(s);
+      let lo = s.flo, hi = s.fhi;
+      if (s.mode === 0 || s.mode === 1) { lo = -s.fhi; hi = -s.flo; }         /* LSB */
+      else if (s.mode === 4) { lo = s.flo - kt; hi = s.fhi - kt; }            /* CW */
+      else if (s.mode === 5) { lo = kt - s.fhi; hi = kt - s.flo; }            /* CWR */
+      else if (s.mode === 6 || s.mode === 7) lo = -s.fhi;                     /* AM, FM: both sides */
       const x1 = hzToX(s.freq + lo), x2 = hzToX(s.freq + hi);
       ctx.fillStyle = light ? "#0b5fd0" : "#7fc4ff"; ctx.globalAlpha = 0.18; ctx.fillRect(x1, top, x2 - x1, H - top); ctx.globalAlpha = 1;
     }
@@ -638,7 +645,8 @@ body.app h2, body.app #intro { display:none; }
     $box.empty().append($("<h4>").text("Filter"));
     const list = $("<div class='list'>");
     presets.forEach(function(p) {
-      const bw = p[0], lo = cw ? Math.max(0, 700 - bw / 2) : am ? 0 : p[1], hi = cw ? 700 + bw / 2 : am ? bw : p[1] + bw;
+      /* CW: around the key tone, the low edge no lower than 0, as the radio sets it (it was 700 Hz) */
+      const bw = p[0], lo = cw ? Math.max(0, keyTone(s) - bw / 2) : am ? 0 : p[1], hi = lo + bw;
       list.append($("<button type='button' class='b'>").toggleClass("on", s.fhi - s.flo === hi - lo).text(bw >= 1000 ? (bw / 1000).toFixed(1).replace(/\.0$/, "") + "k" : bw).on("click", function() { set("filter", lo, hi); popClose(); }));
     });
     const lo = $("<input type='number' min='0' max='12000' step='10'>").val(s.flo), hi = $("<input type='number' min='0' max='12000' step='10'>").val(s.fhi);

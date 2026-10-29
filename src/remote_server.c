@@ -213,7 +213,7 @@ static atomic_bool     forget_all_due;       /* Settings: every session revoked 
 
 /* What the panel clients are told; read from the radio every PANEL_MS */
 typedef struct {
-    int32_t freq, mode, flo, fhi, agc, pre, att, nb, nr, sql, rfg, vol, pwr10, step, zoom, vfo, atu, bat;
+    int32_t freq, mode, flo, fhi, kt, agc, pre, att, nb, nr, sql, rfg, vol, pwr10, step, zoom, vfo, atu, bat;
     bool    tx, lock;
 } pstate_t;
 
@@ -791,6 +791,7 @@ static void pstate_read(pstate_t *s) {
     s->mode  = cparam_i_get(cfg_cur_mode);
     s->flo   = cparam_i_get(cfg_cur_filter_low);
     s->fhi   = cparam_i_get(cfg_cur_filter_high);
+    s->kt    = param_i_get(cfg_key_tone);       /* CW: the filter edges are tones, the band is around the dial */
     s->agc   = cparam_i_get(cfg_cur_agc);
     s->pre   = cparam_i_get(cfg_cur_pre);
     s->att   = cparam_i_get(cfg_cur_att);
@@ -811,10 +812,10 @@ static void pstate_read(pstate_t *s) {
 
 static void pstate_line(char *buf, size_t n, const pstate_t *s) {
     snprintf(buf, n,
-             "state {\"freq\":%d,\"mode\":%d,\"flo\":%d,\"fhi\":%d,\"agc\":%d,\"pre\":%d,\"att\":%d,\"nb\":%d,"
-             "\"nr\":%d,\"sql\":%d,\"rfg\":%d,\"vol\":%d,\"pwr\":%d.%d,\"step\":%d,\"zoom\":%d,\"vfo\":%d,"
-             "\"atu\":%d,\"bat\":%d,\"tx\":%d,\"lock\":%d}",
-             s->freq, s->mode, s->flo, s->fhi, s->agc, s->pre, s->att, s->nb, s->nr, s->sql, s->rfg, s->vol,
+             "state {\"freq\":%d,\"mode\":%d,\"flo\":%d,\"fhi\":%d,\"kt\":%d,\"agc\":%d,\"pre\":%d,\"att\":%d,"
+             "\"nb\":%d,\"nr\":%d,\"sql\":%d,\"rfg\":%d,\"vol\":%d,\"pwr\":%d.%d,\"step\":%d,\"zoom\":%d,"
+             "\"vfo\":%d,\"atu\":%d,\"bat\":%d,\"tx\":%d,\"lock\":%d}",
+             s->freq, s->mode, s->flo, s->fhi, s->kt, s->agc, s->pre, s->att, s->nb, s->nr, s->sql, s->rfg, s->vol,
              s->pwr10 / 10, s->pwr10 % 10, s->step, s->zoom, s->vfo, s->atu, s->bat, s->tx, s->lock);
 }
 
