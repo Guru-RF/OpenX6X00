@@ -146,6 +146,78 @@ static int run_set(void) {
     return 0;
 }
 
+/* Issue #58: the pairing code had no limit. A burned code (three wrong tries) made room for the next at once:
+ * three guesses a round, a round a second, the code found within the hour, and the first browser paired is the
+ * admin. A browser now gets a new code at most every 30 s, and after each burned code the wait doubles, up to an
+ * hour; a code asked on the radio itself (Settings, Pair code) comes at once and starts the waits over */
+static void wrong_code(client_t *c) {
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "pair %06d Eve", (atoi(pair_code) + 1) % 1000000);
+    say(c, cmd);
+}
+
+static int run_pair(void) {
+    client_t *a = open_client(0, ROLE_VIEW, false);
+    char      waits[128] = "", code[8];
+    int       k = 0;
+
+    a->sess = -1;
+    say(a, "pair?");
+    snprintf(code, sizeof(code), "%s", pair_code);
+    fake_ms += 10000;
+    say(a, "pair?");                                  /* the code still good: shown again, the same one */
+    printf("a code: shown=%d, the same code asked again 10 s later=%d\n", codes_shown, !strcmp(code, pair_code));
+    for (int round = 0; round < 8; round++) {
+        uint64_t burned;
+        say(a, "pair?");
+        if (!pair_code[0]) {
+            printf("no code for round %d: %s", round, said[0]);
+            return 1;
+        }
+        wrong_code(a); wrong_code(a); wrong_code(a);
+        gui_run();
+        burned = fake_ms;
+        said[0][0] = 0;
+        say(a, "pair?");                              /* at once: paused */
+        if (round == 0)
+            printf("asked at once after a burned code: %s", said[0]);
+        while (1) {                                   /* how long until a browser has a code again */
+            fake_ms += 1000;
+            said[0][0] = 0;
+            say(a, "pair?");
+            if (!strncmp(said[0], "pairing code shown", 18))
+                break;
+        }
+        k += snprintf(waits + k, sizeof(waits) - k, " %llu", (unsigned long long)((fake_ms - burned) / 1000));
+    }
+    printf("burned codes, then the wait for a new one in s:%s\n", waits);
+    printf("the radio's screen said: %s\n", shown);
+    wrong_code(a); wrong_code(a); wrong_code(a);     /* the 9th code burned: paused an hour */
+    gui_run();
+    said[0][0] = 0;
+    say(a, "pair?");
+    printf("a browser after the 9th: %s", said[0]);
+    char at_radio[8];
+    int  at_once = pair_show(at_radio, sizeof(at_radio), true) == 0 && at_radio[0];   /* Settings, Pair code */
+    wrong_code(a); wrong_code(a); wrong_code(a);
+    gui_run();
+    fake_ms += 59000;
+    said[0][0] = 0;
+    say(a, "pair?");
+    int one_min = !strncmp(said[0], "err pairing paused: a new code in", 33) && strstr(said[0], " s,") != NULL;
+    printf("asked at the radio: a code at once=%d, burned again: paused 1 min, not an hour=%d\n", at_once, one_min);
+    fake_ms += 2000;
+    say(a, "pair?");
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "pair %s Kitchen phone", pair_code);
+    int before = nsessions;
+    say(a, cmd);
+    int paired = nsessions == before + 1;
+    say(a, "pair 123456 Eve");                        /* no code shown: refused, nothing counted */
+    printf("the right code: paired=%d; a guess with no code shown counted=%d\n", paired, pair_tries != 0);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     ctl_init();
@@ -153,6 +225,7 @@ int main(int argc, char **argv) {
     if (argc >= 2 && !strcmp(argv[1], "ptt")) return run_ptt();
     if (argc >= 2 && !strcmp(argv[1], "log")) return run_log();
     if (argc >= 2 && !strcmp(argv[1], "set")) return run_set();
-    fprintf(stderr, "remote ptt|ping|log|set\n");
+    if (argc >= 2 && !strcmp(argv[1], "pair")) return run_pair();
+    fprintf(stderr, "remote ptt|ping|log|set|pair\n");
     return 2;
 }

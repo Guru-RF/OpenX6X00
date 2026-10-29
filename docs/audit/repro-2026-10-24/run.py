@@ -46,6 +46,8 @@ def main():
               contains=("keyboard cases as they should be",)).strip())
         print("C12 edit flow:\n" + command(["node", HERE / "edit-flow.js"], env,
               contains=("edit-flow cases as they should be",)).strip())
+        print("#58 Tailscale Funnel, the pages:\n" + command(["node", HERE / "funnel-pages.js"], env,
+              contains=("funnel page cases as they should be",)).strip())
 
         # 26 October audit: the browser remote's commands, on the page and in the radio
         print("C02 PTT hold, the page:\n" + command(["node", HERE / "ptt-hold.js"], env).strip())
@@ -71,6 +73,13 @@ def main():
             "the queue-full refusal: err vol: the radio is busy, try again",
             "no such setting: queued=0 err=1 state again=1", "accepted: queued=1 err=0 state again=0")).strip())
         print("C02/C03/C13 (26 October audit): the remote's checks matched the fixes")
+        print("#58 the pairing code's waits:\n" + command([binary, "pair"], env, contains=(
+            "a code: shown=2, the same code asked again 10 s later=1",
+            "asked at once after a burned code: err pairing paused: a new code in 60 s",
+            "burned codes, then the wait for a new one in s: 60 120 240 480 960 1920 3600 3600",
+            "Pairing paused 60 min: three wrong codes",
+            "asked at the radio: a code at once=1, burned again: paused 1 min, not an hour=1",
+            "the right code: paired=1; a guess with no code shown counted=0")).strip())
 
         command([sys.executable, HERE / "make-unkey-harness.py"], env)
         binary = work / "unkey"

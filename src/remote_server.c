@@ -22,7 +22,9 @@
  *  answers rather than by counting (audit C02).
  *
  *  Sessions and control (R3): a new connection may only watch and listen ("role view 0 -").
- *  "pair?" puts a six-digit code on the radio's screen for two minutes; "pair CODE NAME" with
+ *  "pair?" puts a six-digit code on the radio's screen for two minutes (a new code at most every
+ *  30 s, the wait doubling after each code burned by three wrong tries, up to an hour: "err
+ *  pairing paused ..."; a code asked on the radio itself starts the waits over); "pair CODE NAME" with
  *  the right code makes a session (the first one ever is admin, the others operate, with TX),
  *  answered "paired TOKEN ROLE TX"; the page keeps the token and sends "auth TOKEN" at every
  *  connection, answered "role ROLE TX NAME" (view, operate, admin). Keys, knobs, "set", "ft8"
@@ -188,6 +190,8 @@ enum { ROLE_VIEW = 0, ROLE_OPERATE = 1, ROLE_ADMIN = 2 };
 #define PAIR_MS      120000   /* the code stays good this long */
 #define PAIR_SHOW_MS 15000    /* and shows on the screen this long */
 #define PAIR_TRIES   3
+#define PAIR_WAIT_MS 30000    /* a browser gets a new code at most this often */
+#define PAIR_WAIT_MAX_MS (3600 * 1000)   /* the wait doubles after each burned code, up to this */
 #define PTT_LEASE_MS 3000     /* a held PTT without renewal */
 #define PTT_LIMIT_MS (180 * 1000)
 
@@ -207,6 +211,8 @@ static char            pair_code[8];
 static uint64_t        pair_until_ms;
 static atomic_uint_fast64_t pair_hide_ms;   /* until then the mirror is withheld from the unpaired (audit B02) */
 static int             pair_tries;
+static uint64_t        pair_next_ms;                    /* a browser may have a new code from then on */
+static uint64_t        pair_wait_ms = PAIR_WAIT_MS;     /* the wait after the next code: doubled by a burned one */
 static atomic_bool     tx_last;        /* the TX state last told to the clients */
 static atomic_bool     disconnect_all_due;   /* Settings: every socket closed, the sessions kept */
 static atomic_bool     forget_all_due;       /* Settings: every session revoked */
@@ -476,10 +482,32 @@ static void pair_msg_apply(void *arg) {
     msg_schedule_text_ms(PAIR_SHOW_MS, "Pair code: #ffb020 %s#  (2 min)", code);
 }
 
-/* A code, new unless one is still good; shown on the radio's screen. Any thread. */
-static void pair_show(char *out, size_t n) {
+/* LVGL thread: pairing paused, for how many minutes */
+static void pair_paused_apply(void *arg) {
+    msg_schedule_text_ms(PAIR_SHOW_MS, "Pairing paused %d min: three wrong codes. Settings > General > "
+                                       "BROWSER REMOTE > Pair code gives one now", *(int *)arg);
+}
+
+/* A code, new unless one is still good; shown on the radio's screen. Any thread. A browser gets a new code
+ * at most every 30 s, and after each code burned by three wrong tries the wait doubles, up to an hour: 3
+ * guesses a round and a round a second found the code in an hour, and the first browser paired is the admin.
+ * A burned code was also the owner's code gone. at_radio: asked on the radio itself (Settings, Pair code),
+ * which has its code at once and starts the waits over. Returns 0 when the code shows, else the seconds a
+ * browser waits */
+static int pair_show(char *out, size_t n, bool at_radio) {
+    uint64_t now = now_ms();
+
     pthread_mutex_lock(&sess_mux);
-    if (!pair_code[0] || now_ms() > pair_until_ms) {
+    if (at_radio) {
+        pair_wait_ms = PAIR_WAIT_MS;
+        pair_next_ms = 0;
+    }
+    if (!pair_code[0] || now > pair_until_ms) {
+        if (now < pair_next_ms) {
+            int left = (int)((pair_next_ms - now + 999) / 1000);
+            pthread_mutex_unlock(&sess_mux);
+            return left;
+        }
         uint8_t raw[4] = {0};
         int     fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
         if (fd >= 0) {
@@ -488,9 +516,10 @@ static void pair_show(char *out, size_t n) {
         }
         uint32_t v = (raw[0] | raw[1] << 8 | raw[2] << 16 | (uint32_t)raw[3] << 24) % 1000000;
         snprintf(pair_code, sizeof(pair_code), "%06u", v);
-        pair_tries = 0;
+        pair_tries   = 0;
+        pair_next_ms = now + pair_wait_ms;
     }
-    pair_until_ms = now_ms() + PAIR_MS;
+    pair_until_ms = now + PAIR_MS;
     if (out)
         snprintf(out, n, "%s", pair_code);
     pthread_mutex_unlock(&sess_mux);
@@ -498,19 +527,36 @@ static void pair_show(char *out, size_t n) {
      * watch before pairing, holds its frames from the unpaired while the code shows (audit B02) */
     atomic_store(&pair_hide_ms, now_ms() + PAIR_SHOW_MS + 2000);
     scheduler_put_noargs(pair_msg_apply);
+    return 0;
 }
 
-/* The code typed: a session, or -1 (wrong, or no code; three wrong tries burn the code) */
+/* The code typed: a session, or -1 (wrong, or no code; three wrong tries burn the code, and pairing pauses
+ * twice as long as the last time, pair_show) */
 static int pair_try(const char *code, const char *name, const char *ip) {
-    bool ok;
+    uint64_t now = now_ms();
+    bool     good, ok, burned = false;
+    int      paused_min = 0;
 
     pthread_mutex_lock(&sess_mux);
-    ok = pair_code[0] && now_ms() <= pair_until_ms && !strcmp(code, pair_code);
-    if (ok || ++pair_tries >= PAIR_TRIES) {
+    good = pair_code[0] && now <= pair_until_ms;
+    ok   = good && !strcmp(code, pair_code);
+    if (good && !ok && ++pair_tries >= PAIR_TRIES) {
+        burned       = true;
+        pair_wait_ms = pair_wait_ms * 2 > PAIR_WAIT_MAX_MS ? PAIR_WAIT_MAX_MS : pair_wait_ms * 2;
+        pair_next_ms = now + pair_wait_ms;
+        paused_min   = (int)((pair_wait_ms + 59999) / 60000);
+    }
+    if (ok)
+        pair_wait_ms = PAIR_WAIT_MS;
+    if (ok || burned) {
         pair_code[0]  = 0;
         pair_until_ms = 0;
     }
     pthread_mutex_unlock(&sess_mux);
+    if (burned) {
+        LV_LOG_USER("remote: pairing paused %d min after three wrong codes (last from %s)", paused_min, ip);
+        scheduler_put(pair_paused_apply, &paused_min, sizeof(paused_min));
+    }
     return ok ? sess_new(name, ip) : -1;
 }
 
@@ -1656,8 +1702,15 @@ static void handle_text(client_t *c, char *text) {
         role_tell(c);
         ctl_tell(c);
     } else if (!strcmp(a[0], "pair?")) {
-        pair_show(NULL, 0);
-        client_text(c, "pairing code shown on the radio for 2 min");
+        int wait = pair_show(NULL, 0, false);
+        if (!wait)
+            client_text(c, "pairing code shown on the radio for 2 min");
+        else if (wait < 120)
+            client_textf(c, "err pairing paused: a new code in %d s, or Settings > General > BROWSER REMOTE > Pair code "
+                            "on the radio", wait);
+        else
+            client_textf(c, "err pairing paused: a new code in %d min after wrong codes, or Settings > General > "
+                            "BROWSER REMOTE > Pair code on the radio", (wait + 59) / 60);
     } else if (!strcmp(a[0], "unpair")) {
         if (c->sess >= 0)
             sess_revoke(c->sess);     /* closes this socket too */
@@ -2320,8 +2373,9 @@ const char *remote_server_viewer(void) {
     return NULL;
 }
 
+/* Asked on the radio itself: a code at once, the waits a browser has after wrong codes start over */
 void remote_server_pair_code(char *buf, size_t n) {
-    pair_show(buf, n);
+    pair_show(buf, n, true);
 }
 
 int remote_server_sessions(char *buf, size_t n) {

@@ -119,6 +119,8 @@
       }
       if (/^unknown session/.test(body)) { store(TOKEN_KEY, null); this.pending = false; this.role = "view"; this.render(); if (this.o.onChange) this.o.onChange(); }
       else if (/^pairing refused/.test(body) && this.pairing) { this.pairError = body.replace(/^pairing refused: /, ""); this.pairOpen(); }
+      /* no new code yet: a few seconds after the last one, longer after wrong codes (the radio says how long) */
+      else if (/^pairing paused/.test(body) && this.pairing) { this.pairError = "No code on the radio's screen now: " + body.replace(/^pairing paused: /, ""); this.pairOpen(); }
       else if (/^session revoked/.test(body)) { store(TOKEN_KEY, null); this.role = "view"; this.render(); }
       return false;    /* the page shows it too */
     }
