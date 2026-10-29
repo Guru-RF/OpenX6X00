@@ -11,7 +11,7 @@ Settings. Button and option names are written as the radio shows them.
 
 - [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs)
 - [Updating the firmware](#updating-the-firmware)
-- [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
+- [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [TX shift](#tx-shift), [SWR scan and the tuner](#swr-scan-and-the-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
@@ -382,18 +382,9 @@ Over the waterfall. Where: Settings > Display > MAIN SCREEN.
 
 | Option | What it does |
 |---|---|
-| Band plan | the band segments in a strip at the top |
+| Band plan | the band plan's segments in a strip at the top (which plan: see [Band plan](#band-plan)) |
 | Cluster spots | the DX cluster calls at their frequencies (see [DX Cluster](#dx-cluster)) |
 | Cluster column | the spot list in a box on the right |
-
-The band plan strip shows the IARU Region 1 segments (160 m to 6 m, 60 m as
-WRC-15). A band of the band list the IARU plan does not cover (one added on
-the web configurator's Bands page, the top of 6 m, 4 m, 2 m) gets a strip
-too, typed from its name: CW in the name makes a CW segment, DIG, FT8, FT4 or
-DATA a digital one, BCN a beacon one, anything else all modes. "60m CW" at
-5.2585 MHz is a CW segment, so the main screen's
-[CW line](#cw-from-the-keyboard) works there. Broadcast and CB
-get none. A band changed on the web page shows at the next band change.
 
 Zoom and step per mode. Where: Settings > Display > MAIN SCREEN (also on the
 web configurator's Display page).
@@ -432,6 +423,87 @@ Colours, on the web configurator's Display page:
 | Waterfall colours | Theme (default), Classic, Gauss, Grey, Fire, Ice, Rainbow |
 | Trace colour | Theme, or your own |
 | Fill colour | As trace, or your own (the trace is then drawn over it) |
+
+### Band plan
+
+The strip at the top of the waterfall (Settings > Display > MAIN SCREEN >
+Band plan shows or hides it) has the segments of one plan, 160 m to 10 m,
+60 m and 6 m: CW, DIG (narrow band and digital modes, no phone), ALL MODES /
+SSB (phone allowed) and BCN (beacons). Which plan: Settings > General >
+STATION > Band plan (also on the web configurator's Display page, Plan).
+
+| Band plan | What the strip shows |
+|---|---|
+| Auto (the default) | IARU Region 1, 2 or 3, from where the radio is (below) |
+| Region 1 | the IARU Region 1 HF plan (effective 16 October 2020, 60 m as WRC-15), 6 m from its VHF plan |
+| Region 2 | the IARU Region 2 plan (September 2020): 75 m phone up to 4.0 MHz, 40 m up to 7.3 MHz |
+| Region 3 | the IARU Region 3 plan (R3-004 Rev. 2, November 2024): 80 m up to 3.9 MHz, 40 m up to 7.2 MHz, 500 Hz either side of the beacons |
+| US Extra, US Advanced, US General, US Technician | the US sub-bands of 47 CFR Part 97 for that licence class (Technician stands for Novice too), as of October 2026 |
+
+Auto takes the region from the first of these that it has: a GPS fix less
+than 10 s old, the QTH locator, the country of the callsign (from cty.dat,
+looked up once, a moment after the start), else Region 1. The dropdown's
+first entry says what Auto takes, "Auto (Region 2)", and the web page from
+what: "Auto: Region 2 from the locator FN31". Auto looks again when the
+locator or the callsign is saved, at each band change, and every 10 s for
+the GPS. The regions are the ITU's (Radio Regulations, Article 5), with the
+countries it puts whole in one region (Russia, Kazakhstan, Mongolia, Turkey,
+the Caucasus and Central Asia in Region 1, all of Iran in Region 3). A
+4-character locator is a square of 2 by 1 degrees: where a border runs
+through one (the Bering Strait, the Amur, around Iran, Turkmenistan and
+Oman's Musandam) its centre can be on the other side. A 6-character locator,
+the GPS or a plan chosen by hand settles it. Auto never takes a US plan: it
+cannot know your licence class.
+
+The US plans: what your class may use shows as in the IARU plans, the parts
+without phone split into CW, DIG and BCN as the ARRL band plan uses them;
+what it may not use is a grey NOT YOUR CLASS (OUT where that does not fit).
+A Technician's segments below 10 m are CW, as the rules have it. 60 m is the
+5351.5-5366.5 kHz band and the four channels around 5332, 5348, 5373 and
+5405 kHz (since January 2026). 40 m phone at 7.075-7.100 MHz shows only
+where it is allowed: west of 130 W or south of 20 N (Alaska, Hawaii, Puerto
+Rico, the Virgin Islands), known from the GPS, the locator or the callsign
+(KH6, KL7, KP4). In the US choose US and your class, not Region 2: the IARU
+Region 2 plan shows phone where the FCC allows none (7.050-7.125 MHz on the
+mainland, 14.112-14.150 and 21.151-21.200 MHz), and 75 m phone from 3.6 MHz,
+which is Extra and Advanced only.
+
+The plan is guidance only: the radio never stops a transmission for it, and
+your licence and your country's rules are what count. What follows it:
+
+- the strip, and the browser panel's strip (sent again when the plan
+  changes);
+- Mode from band plan (Settings > General > STATION): CW in a CW segment,
+  the band's sideband in an ALL MODES segment; DIG, BCN and NOT YOUR CLASS
+  change nothing. Region 3 has few CW-only parts (80 m 3500-3535 and 40 m
+  7000-7030 kHz): tuning up past them in CW turns the radio to LSB, though
+  the plan allows CW there too. Turn Mode from band plan off if that is in
+  the way;
+- the main screen's [CW line](#cw-from-the-keyboard), which works in a CW
+  segment;
+- the band list: its 160m, 80m, 40m SSB and 6m take the region's edges (80m
+  to 4.0 MHz and 40m SSB to 7.3 MHz in Region 2 and the US, 80m to 3.9 MHz
+  in Region 3, 160m from 1.8 MHz and 6m to 54 MHz outside Region 1), unless
+  they were changed on the web configurator's Bands page; another region
+  later moves them on. Before, a radio in Region 2 tuned to 7.2-7.3 or
+  3.9-4.0 MHz was on "Broadcast 41m" or "Broadcast 75m", in AM. Auto with
+  nothing to go by leaves the band list as it is;
+- the typical frequencies of Field Ops and the Bands app: in Region 2 and
+  the US phone on 80 m at 3.860 and on 40 m at 7.200 MHz, and outside
+  Region 1 CW on 6 m at 50.090 MHz (50.060 is among the beacons there).
+
+A band of the band list the plan does not cover (one added on the web
+configurator's Bands page, the top of 6 m in Region 1, 4 m, 2 m) gets a strip
+too, typed from its name: CW in the name makes a CW segment, DIG, FT8, FT4 or
+DATA a digital one, BCN a beacon one, anything else all modes. "60m CW" at
+5.2585 MHz is a CW segment, so the main screen's
+[CW line](#cw-from-the-keyboard) works there. Broadcast and CB get none. A
+band changed on the web page shows at the next band change.
+
+The plans are our own reduction of the documents to the segment edges and a
+type each: the IARU Region 1, 2 and 3 band plans (iaru-r1.org, iaru-r2.org,
+iaru-r3.org), 47 CFR Part 97 of the FCC (ecfr.gov) and the ARRL band plan
+(arrl.org/band-plan). Thanks to the IARU and the ARRL for them.
 
 ### Screen recording
 
@@ -531,7 +603,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | callsign, QTH locator, Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
+| STATION | callsign, QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)) |
@@ -1926,7 +1998,8 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
 
 - Test beacon sends `TEST DE <call>` in CW (the radio must be in CW), so you
   can see who hears you.
-- Use band (or a press) tunes a typical activation frequency of the band.
+- Use band (or a press) tunes a typical activation frequency of the band,
+  for the band plan's region (see [Band plan](#band-plan)).
 - RBN is connected while the screen is open (the first minute fills the
   counts); it needs WiFi and the callsign.
 - The skimmer data comes from the Reverse Beacon Network
@@ -2094,7 +2167,7 @@ apps: APP (page 3) > Bands, or a long-press action.
 - Each band shows its activity bar and word, the cluster / RBN spot counts
   and who heard you (skimmers, best SNR); the best band is framed.
 - MFK to choose, a press (or Use band) tunes a typical frequency of the band
-  (CW or phone, as the radio's mode).
+  (CW or phone, as the radio's mode; for the band plan's region, see [Band plan](#band-plan)).
 - Test beacon sends `TEST DE <call>` in CW. ESC closes.
 - The numbers are the same as in Field Ops.
 
@@ -2286,7 +2359,7 @@ The menu has General and four groups:
 | Group | Page | Does |
 |---|---|---|
 | | General | index of the pages |
-| Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)) |
+| Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)) |
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
@@ -2380,7 +2453,7 @@ applied on the radio as you change them.
 | Theme | Theme (the radio's screen restarts with the new one) |
 | S-meter | S-meter type (Bars, Needle), Colours (Theme, Scale, Level), Needle lamp; with a preview |
 | Waterfall | Mode (Centered, Fixed), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll |
-| On the waterfall | Band plan, Cluster spots, Cluster column |
+| On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, Magnify ALC |
@@ -2569,7 +2642,7 @@ web page, nothing to install, any device with a browser.
 
 - The spectrum and the waterfall, live from the radio's own FFT (a kilobyte a
   frame, fifteen a second: a tenth of the Screen page's bandwidth), with the
-  frequency scale, the IARU band plan strip, the VFO line and the passband.
+  frequency scale, the band plan strip, the VFO line and the passband.
   Tap or drag to tune, pinch (or Ctrl + the mouse wheel) to zoom, the wheel
   to tune by the step. Colours: Blue, Fire, Ice, Grey.
 - The frequency: tap it for a keypad (kHz). BAND up and down, MODE, STEP,
@@ -2632,7 +2705,8 @@ The page talks to the GUI's remote WebSocket (port 50002, the Screen page's):
 `panel 1` subscribes to the state (`state {...}` as JSON: frequency, mode,
 filter, the switches and the levels, whenever something changes), the
 S-meter (`m <dB>`, ten a second), the TX meters (`t <W> <SWR> <ALC>`), the
-bands and the band plan (`bands`, `plan`), the spots (`spots [...]`) and the
+bands and the band plan (`bands`, `plan`; again when either changes: another
+plan or region, a band edited on the web page), the spots (`spots [...]`) and the
 spectrum as binary frames (16 bytes header `{u16 0xFFFF, u16 bins, u32
 centre Hz, u32 width Hz, u32 sequence}`, then one int8 dB per bin). `set NAME
 VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list),
