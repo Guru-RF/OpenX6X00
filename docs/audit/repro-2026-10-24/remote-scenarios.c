@@ -181,10 +181,13 @@ static int run_pair(void) {
         say(a, "pair?");                              /* at once: paused */
         if (round == 0)
             printf("asked at once after a burned code: %s", said[0]);
-        while (1) {                                   /* how long until a browser has a code again */
+        while (1) {                                   /* how long until a browser has a code again: asked every second */
+            char ask[] = "pair?";
             fake_ms += 1000;
             said[0][0] = 0;
-            say(a, "pair?");
+            quiet = 1;
+            handle_text(a, ask);
+            quiet = 0;
             if (!strncmp(said[0], "pairing code shown", 18))
                 break;
         }

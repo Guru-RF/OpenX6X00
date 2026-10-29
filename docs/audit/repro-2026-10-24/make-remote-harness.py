@@ -142,9 +142,11 @@ static atomic_bool spots_resend;
 '''
 post = r'''
 static char said[MAX_CLIENTS][4096];
+static int  quiet;      /* what the pages are told is kept, not printed (a scenario's waits) */
 static void client_text(client_t *c, const char *t) {
     int i = (int)(c - clients);
-    printf("%7.3f  -> page %d: %s\n", (fake_ms - 1000000) / 1000.0, i, t);
+    if (!quiet)
+        printf("%7.3f  -> page %d: %s\n", (fake_ms - 1000000) / 1000.0, i, t);
     strncat(said[i], t, sizeof(said[i]) - strlen(said[i]) - 2);
     strcat(said[i], "\n");
 }

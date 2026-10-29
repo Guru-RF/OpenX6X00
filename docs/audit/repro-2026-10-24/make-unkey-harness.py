@@ -32,7 +32,9 @@ pre = r'''
 #define AUDIO_RATE 24000
 static bool keyed;
 radio_state_t radio_get_state(void) {return keyed ? RADIO_TX : RADIO_RX;}
-typedef struct {pthread_mutex_t lock; bool rx_sensors,tx_sensors,audio_on; uint32_t fmt_gen;} client_t;
+typedef struct {pthread_mutex_t lock; bool rx_sensors,tx_sensors,audio_on; uint32_t fmt_gen;
+                bool funnel; char token[33]; int role; bool tx_ok;} client_t;   /* funnel: #58, never set here */
+static bool remote_server_session_check(const char *t,int *role,bool *tx,char *name,size_t n) {(void)t;(void)role;(void)tx;(void)name;(void)n;return false;}
 static client_t clients[4];
 typedef struct {int32_t freq,mode,flo,fhi,agc,rit; int drive; bool tx;} rstate_t;
 static atomic_bool trust_operate = true;
@@ -77,4 +79,4 @@ int main(void) {
   return !(!keyed && ends==2 && last_command==-1);   /* fixed (audit B01): both unkeys end the session */
 }
 '''
-(p/'unkey-ownership.c').write_text(pre+'\n'+fn('static bool parse_bool(')+'\n'+fn('static int split_args(')+'\n'+fn('static void handle_cmd(')+'\n'+main)
+(p/'unkey-ownership.c').write_text(pre+'\n'+fn('static bool parse_bool(')+'\n'+fn('static int split_args(')+'\n'+fn('static bool funnel_cmd_ok(')+'\n'+fn('static void handle_cmd(')+'\n'+main)
