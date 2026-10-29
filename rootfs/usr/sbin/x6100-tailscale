@@ -11,7 +11,9 @@
 #   x6100-tailscale off        turn it off; the login is kept
 #   x6100-tailscale logout     forget the login (while it is on, a new one is asked for)
 #   x6100-tailscale hostname   give Tailscale the radio's network name (x6100-hostname calls it)
-#   x6100-tailscale status     the state as key=value lines: state, text, url, name, ip, version
+#   x6100-tailscale funnel on|off   the browser Panel on the internet through Tailscale Funnel, or not
+#   x6100-tailscale status     the state as key=value lines: state, text, url, name, ip, version, and
+#                              funnel (off, starting, enable, on, error), funnel_text, funnel_url, public
 #   x6100-tailscale run        the supervisor itself, started by the commands above
 #
 # The program lives on the DATA partition, which the web pages can write (Backup restore), so its SHA-256
@@ -22,6 +24,16 @@
 # On and off only change the setting: the supervisor follows it within a poll, also during the download,
 # and a supervisor that stops while the setting is back on starts the next one. SIGTERM (S97tailscale
 # stop, at shutdown) stops it and keeps the setting.
+#
+# Funnel (#58) puts https://<name>.<tailnet>.ts.net/panel on the internet: the Panel and the Screen page,
+# which the web server writes to FUNNEL_DIR at its start and tailscaled serves itself (no Python on the
+# internet), and their two sockets, which take nothing over Funnel before the token of a browser paired at
+# home. Nothing else: the web pages, TCI programs, Pat, SSH. It is set through tailscaled's local API, as
+# Tailscale's own command does (that command is not installed), and kept in tailscaled's state: at every
+# start, when the name or a port changes, and once a minute it is set again. The radio owns Funnel: a funnel
+# made by hand (tailscale funnel 50001, from a forum) is taken off the internet; serving to the tailnet
+# alone stays. While Funnel is on, port 443 on the tailnet is its own: the Panel there has a real
+# certificate, the configurator stays on http://<name>/.
 #
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -36,6 +48,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 VERSION = "1.104.2"
@@ -43,7 +56,7 @@ TGZ_URL = f"https://pkgs.tailscale.com/stable/tailscale_{VERSION}_arm.tgz"
 TGZ_SHA256 = "b694ff9c67235da98798b9592a0cc900bc9d1613041f77722ec9bf4ce2d215cf"
 BIN_SHA256 = "9404866023e64385091fe5e9faebe88f9051f035b26785b656c410f174e5eb25"    # tailscaled in it
 
-CONF = "/mnt/tailscale.conf"          # enabled=0|1: on the DATA partition, it survives a new image
+CONF = "/mnt/tailscale.conf"          # enabled=0|1, funnel=0|1: on the DATA partition, it survives a new image
 DIR = "/mnt/tailscale"                # the program (and the download while it runs)
 BIN = os.path.join(DIR, "tailscaled")
 STATE = "/var/lib/tailscale"          # the login: root filesystem only
@@ -59,6 +72,16 @@ POLL = 2                              # s between status reads
 RETRY = 60                            # s before a failed download or start is tried again
 UP_WAIT = 30                          # s for a new tailscaled to answer on its socket
 DROP_KB = 1024
+
+# Funnel (#58): the pages the web server writes at its start (x6100_webserver funnel_render), served by tailscaled
+FUNNEL_DIR = "/run/x6100-funnel"
+FUNNEL_FILES = ("favicon.ico", "css/base.css", "css/siimple-icons.css", "js/jquery-3.7.1.min.js",
+                "js/radio_link.js", "js/radio_session.js")
+FUNNEL_PORT = 443                     # one origin for the tailnet and the internet; 443 gets through most networks
+REMOTE_CONF = "/mnt/remote.conf"      # the browser remote's port= (src/remote_server.c), 50002
+TCI_CONF = "/mnt/tci.conf"            # TCI's port= (src/tci_server.c), 50001
+FUNNEL_CHECK = 60                     # s between looks at the serve config while nothing changed
+FUNNEL_ASK = 300                      # s between asks for the link that enables Funnel on the tailnet
 
 
 class Stopped(Exception):
@@ -76,21 +99,41 @@ class Fail(Exception):
     pass
 
 
-def enabled():
+def conf_read():
+    """The settings as key: value; lines of other keys are kept as they are when one is written"""
+    conf = {}
     try:
         with open(CONF) as f:
-            return any(line.strip() == "enabled=1" for line in f)
+            for line in f:
+                k, sep, v = line.strip().partition("=")
+                if sep:
+                    conf[k] = v
     except OSError:
-        return False
+        pass
+    return conf
 
 
-def set_enabled(on):
+def conf_write(**changes):
+    conf = conf_read()
+    conf.update({k: str(v) for k, v in changes.items()})
     tmp = f"{CONF}.{os.getpid()}"
     with open(tmp, "w") as f:
-        f.write(f"enabled={1 if on else 0}\n")
+        f.write("".join(f"{k}={v}\n" for k, v in conf.items()))
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, CONF)
+
+
+def enabled():
+    return conf_read().get("enabled") == "1"
+
+
+def funnel_wanted():
+    return conf_read().get("funnel") == "1"
+
+
+def set_enabled(on):
+    conf_write(enabled=1 if on else 0)
 
 
 def network_name():
@@ -206,22 +249,34 @@ class _Conn(http.client.HTTPConnection):
         self.sock.connect(SOCK)
 
 
-def api(method, path, body=None):
+class HttpFail(Fail):
+    def __init__(self, text, status):
+        super().__init__(text)
+        self.status = status
+
+
+def api_full(method, path, body=None, headers=None):
+    """(answer, its headers): the answer's JSON, None when empty"""
     c = _Conn("local-tailscaled.sock", timeout=10)
-    headers = {"Sec-Tailscale": "localapi"}
+    hdr = {"Sec-Tailscale": "localapi", **(headers or {})}
     data = None
     if body is not None:
         data = json.dumps(body)
-        headers["Content-Type"] = "application/json"
+        hdr["Content-Type"] = "application/json"
     try:
-        c.request(method, "/localapi/v0/" + path, body=data, headers=headers)
+        c.request(method, "/localapi/v0/" + path, body=data, headers=hdr)
         r = c.getresponse()
         out = r.read()
     finally:
         c.close()
     if r.status >= 300:
-        raise Fail(f"tailscaled: {path}: HTTP {r.status} {out[:120].decode(errors='replace')}")
-    return json.loads(out) if out else None
+        raise HttpFail(f"tailscaled: {path.split('?')[0]}: HTTP {r.status} {out[:160].decode(errors='replace').strip()}",
+                       r.status)
+    return (json.loads(out) if out else None), r.headers
+
+
+def api(method, path, body=None):
+    return api_full(method, path, body)[0]
 
 
 def set_prefs(hostname=None):
@@ -231,6 +286,183 @@ def set_prefs(hostname=None):
     if hostname:
         prefs.update({"Hostname": hostname, "HostnameSet": True})
     api("PATCH", "prefs", prefs)
+
+
+# ---- Funnel (#58) ------------------------------------------------------------------------------
+
+def conf_port(path, default):
+    """port= of the browser remote's or TCI's settings file"""
+    try:
+        with open(path) as f:
+            for line in f:
+                k, sep, v = line.strip().partition("=")
+                if sep and k == "port" and v.isdigit() and 0 < int(v) < 65536:
+                    return int(v)
+    except OSError:
+        pass
+    return default
+
+
+def funnel_handlers(remote_port, tci_port):
+    """What goes on the internet, path by path: the two pages and the files they load, served by tailscaled from
+    FUNNEL_DIR, and their two sockets. Every other path walks up to "/" and is sent to the Panel: nothing reaches
+    the web server, TCI's port for programs, Pat or SSH"""
+    h = {"/": {"Redirect": "/panel"},
+         "/panel": {"Path": f"{FUNNEL_DIR}/panel.html"},
+         "/remote": {"Path": f"{FUNNEL_DIR}/remote.html"},
+         "/ws/remote": {"Proxy": f"http://127.0.0.1:{remote_port}"},
+         "/ws/tci": {"Proxy": f"http://127.0.0.1:{tci_port}"}}
+    for name in FUNNEL_FILES:   # each file on its own: a folder would list its contents
+        h["/static/" + name] = {"Path": f"{FUNNEL_DIR}/static/{name}"}
+    return h
+
+
+def ours(web):
+    """A web server of the serve config is the radio's own (made by funnel_config, under any name and ports)"""
+    h = (web or {}).get("Handlers") or {}
+    return (h.get("/panel") or {}).get("Path") == f"{FUNNEL_DIR}/panel.html"
+
+
+def funnel_config(cur, name, remote_port, tci_port, on):
+    """The serve config to set, from the current one: the radio's own web server on <name>:443 while on, and
+    no other funnel anywhere (AllowFunnel, a foreground session's too). What is served to the tailnet alone
+    stays, but port 443 is the Panel's while Funnel is on. Returns (config, funnels made by hand removed)"""
+    sc = json.loads(json.dumps(cur or {}))
+    hp = f"{name}:{FUNNEL_PORT}"
+    theirs = [k for k, v in (sc.get("AllowFunnel") or {}).items() if v and not (on and k == hp)]
+    for fg in (sc.get("Foreground") or {}).values():
+        theirs += [k for k, v in (fg.get("AllowFunnel") or {}).items() if v]
+        fg.pop("AllowFunnel", None)
+    sc["AllowFunnel"] = {hp: True} if on else {}
+    web = sc.get("Web") or {}
+    for k in [k for k, v in web.items() if ours(v)]:
+        del web[k]
+    tcp = sc.get("TCP") or {}
+    port = str(FUNNEL_PORT)
+    if on:
+        web[hp] = {"Handlers": funnel_handlers(remote_port, tci_port)}
+        tcp[port] = {"HTTPS": True}
+    elif tcp.get(port) == {"HTTPS": True} and not any(k.endswith(f":{port}") for k in web):
+        del tcp[port]
+    sc["Web"], sc["TCP"] = web, tcp
+    for k in ("AllowFunnel", "Web", "TCP", "Foreground"):
+        if not sc.get(k):
+            sc.pop(k, None)
+    return sc, theirs
+
+
+def caps_ok(me):
+    """The tailnet lets this machine funnel on FUNNEL_PORT: HTTPS certificates, the funnel attribute and the port in
+    funnel-ports (ipn.CheckFunnelAccess)"""
+    caps = me.get("CapMap") or {}
+    if "https" not in caps or "funnel" not in caps:
+        return False
+    for attr in caps:
+        if attr.startswith("https://tailscale.com/cap/funnel-ports?"):
+            for part in urllib.parse.parse_qs(urllib.parse.urlsplit(attr).query).get("ports", [""])[0].split(","):
+                first, _, last = part.partition("-")
+                if first.isdigit() and int(first) <= FUNNEL_PORT <= int(last or first):
+                    return True
+    return False
+
+
+class Funnel:
+    """What the supervisor made of Funnel: set again when the wish, the name or a port changed, and every
+    FUNNEL_CHECK s (a serve config changed by hand, or tailscaled's state lost)"""
+
+    def __init__(self):
+        self.key = None
+        self.done = 0.0         # when the serve config was last looked at
+        self.asked = 0.0        # when the enable link was last asked for
+        self.url = ""
+        self.text = ""
+        self.status = {"funnel": "off"}
+
+
+def serve_set(name, remote_port, tci_port, on):
+    """The serve config made right, at most two tries when someone else changed it in between (If-Match).
+    Returns the funnels made by hand that were removed"""
+    for _ in range(3):
+        cur, hdr = api_full("GET", "serve-config")
+        etag = hdr.get("Etag", "")
+        new, theirs = funnel_config(cur, name, remote_port, tci_port, on)
+        if new == (cur or {}):
+            return theirs
+        # A port's serve type cannot change in one step (tailscaled's validateServeConfigUpdate): a raw TCP
+        # forward made by hand on 443 is dropped first
+        old = ((cur or {}).get("TCP") or {}).get(str(FUNNEL_PORT))
+        if on and old and old != {"HTTPS": True}:
+            step = json.loads(json.dumps(cur))
+            del step["TCP"][str(FUNNEL_PORT)]
+            step.pop("AllowFunnel", None)
+            try:
+                api_full("POST", "serve-config", step, {"If-Match": etag})
+            except HttpFail as e:
+                if e.status == 412:
+                    continue
+                raise
+            continue
+        try:
+            api_full("POST", "serve-config", new, {"If-Match": etag})
+            return theirs
+        except HttpFail as e:
+            if e.status != 412:  # 412: changed meanwhile, read again
+                raise
+    raise Fail("the serve config kept changing")
+
+
+def funnel_step(f, st):
+    """Funnel while tailscaled runs: the status fields for the status file"""
+    me = st.get("Self") or {}
+    name = (me.get("DNSName") or "").rstrip(".").lower()
+    want = funnel_wanted()
+    remote_port, tci_port = conf_port(REMOTE_CONF, 50002), conf_port(TCI_CONF, 50001)
+    key = (want, name, remote_port, tci_port, want and caps_ok(me))
+    now = time.time()
+    if key == f.key and now - f.done < FUNNEL_CHECK:
+        return f.status
+    f.key, f.done = key, now
+    try:
+        if not want:
+            theirs = serve_set(name, remote_port, tci_port, False)
+            f.status = {"funnel": "off"}
+            if theirs:
+                f.status["funnel_text"] = "Off; a funnel made by hand was taken off the internet: " + ", ".join(theirs)
+            return f.status
+        if not name:
+            f.status = {"funnel": "error", "funnel_text": "Funnel needs MagicDNS: turn it on in Tailscale's admin console"}
+            return f.status
+        if not caps_ok(me):
+            # The admin console's link that enables HTTPS and Funnel for this tailnet (what Tailscale's command
+            # prints); asked again now and then, the caps are looked for at every poll
+            if not f.url or now - f.asked > FUNNEL_ASK:
+                f.asked = now
+                info = api("POST", "query-feature?feature=funnel") or {}
+                f.url, f.text = info.get("URL") or "", (info.get("Text") or "").strip()
+            serve_set(name, remote_port, tci_port, False)   # meanwhile no funnel made by hand
+            f.status = {"funnel": "enable", "funnel_url": f.url or None,
+                        "funnel_text": "Turn on HTTPS and Funnel for your tailnet: open the link and allow it"
+                                       if f.url else (f.text or "Funnel is not allowed on your tailnet: see "
+                                                                 "Tailscale's admin console, Access controls")}
+            return f.status
+        if not all(os.path.isfile(os.path.join(FUNNEL_DIR, p)) for p in ("panel.html", "remote.html")):
+            f.status = {"funnel": "error", "funnel_text": "The Panel's Funnel pages are missing: restart the web server"}
+            f.done = 0.0                                        # looked for again at the next poll
+            return f.status
+        was = f.status.get("funnel")
+        serve_set(name, remote_port, tci_port, True)
+        f.status = {"funnel": "on", "public": f"https://{name}/panel",
+                    "funnel_text": "On: the Panel is on the internet" if was == "on" else
+                    "On: the Panel is on the internet; its name can take up to 10 minutes to be found everywhere"}
+    except (Fail, OSError, ValueError) as e:
+        f.key = None                                            # tried again at the next poll
+        f.status = {"funnel": "error", "funnel_text": f"Funnel: {e}"}
+    return f.status
+
+
+def funnel_idle():
+    """Funnel's fields while tailscaled is not up (starting, a login wanted)"""
+    return {"funnel": "starting", "funnel_text": "Funnel waits for Tailscale"} if funnel_wanted() else {"funnel": "off"}
 
 
 # ---- the supervisor --------------------------------------------------------------------------
@@ -299,8 +531,8 @@ def nap(seconds):
         time.sleep(min(0.5, end - time.time()))
 
 
-def report(st):
-    """BackendState and the rest, said in a line"""
+def report(st, funnel):
+    """BackendState and the rest, said in a line; funnel: Funnel's fields (funnel_step, funnel_idle)"""
     bs = st.get("BackendState", "")
     me = st.get("Self") or {}
     name = (me.get("DNSName") or "").rstrip(".") or None
@@ -308,13 +540,13 @@ def report(st):
     ip = next((a for a in ips if ":" not in a), ips[0] if ips else None)
     if bs == "Running":
         say("running", "Connected", name=name, ip=ip,
-            tailnet=(st.get("CurrentTailnet") or {}).get("Name"))
+            tailnet=(st.get("CurrentTailnet") or {}).get("Name"), **funnel)
     elif bs == "NeedsLogin" and st.get("AuthURL"):
-        say("login", "Waiting for your login", url=st["AuthURL"])
+        say("login", "Waiting for your login", url=st["AuthURL"], **funnel)
     elif bs == "NeedsMachineAuth":
-        say("approval", "Approve it in Tailscale's admin console", name=name)
+        say("approval", "Approve it in Tailscale's admin console", name=name, **funnel)
     else:
-        say("starting", "Starting Tailscale...")
+        say("starting", "Starting Tailscale...", **funnel)
 
 
 def run():
@@ -331,6 +563,7 @@ def run():
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     daemon = None
     asked = 0.0                                    # when a login link was last asked for
+    fun = Funnel()
     try:
         while not stopping():
             if daemon is None:
@@ -342,6 +575,7 @@ def run():
                     daemon = start_daemon()
                     wait_up(daemon)
                     asked = 0.0
+                    fun = Funnel()                 # a new tailscaled: Funnel set again
                 except Stopped:
                     break
                 except (Fail, OSError, ValueError) as e:
@@ -363,7 +597,7 @@ def run():
                 elif bs == "NeedsLogin" and not st.get("AuthURL") and time.time() - asked > 30:
                     api("POST", "login-interactive")
                     asked = time.time()
-                report(st)
+                report(st, funnel_step(fun, st) if bs == "Running" else funnel_idle())
             except (Fail, OSError, ValueError) as e:
                 say("starting", f"Starting Tailscale... ({e})")
             try:
@@ -454,6 +688,14 @@ def cmd_hostname():
     return 0
 
 
+def cmd_funnel(arg=None):
+    """Only the setting: the running supervisor sets tailscaled within a poll, and the next one at its start"""
+    if arg not in ("on", "off"):
+        raise Fail("funnel on or off")
+    conf_write(funnel=1 if arg == "on" else 0)
+    return 0
+
+
 def cmd_status():
     try:
         with open(STATUS) as f:
@@ -465,11 +707,13 @@ def cmd_status():
 
 def main(argv):
     cmds = {"on": cmd_on, "off": cmd_off, "logout": cmd_logout, "hostname": cmd_hostname,
-            "status": cmd_status, "run": run}
+            "funnel": cmd_funnel, "status": cmd_status, "run": run}
     if argv and argv[0] not in cmds:
         print("usage: x6100-tailscale [" + "|".join(cmds) + "]", file=sys.stderr)
         return 1
     try:
+        if argv and argv[0] == "funnel":
+            return cmd_funnel(argv[1] if len(argv) > 1 else None)
         return cmds[argv[0]]() if argv else cmd_boot()
     except (Fail, OSError) as e:                   # OSError: tailscaled not answering on its socket
         print(f"error {e}", file=sys.stderr)

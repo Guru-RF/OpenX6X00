@@ -37,7 +37,7 @@ def main():
         san = ["-fsanitize=address", "-fno-omit-frame-pointer"]
         gc = ["-Wl,--gc-sections"]
 
-        for script in ("web_checks.py", "log_checks.py", "updater_checks.py", "backup_checks.py"):
+        for script in ("web_checks.py", "log_checks.py", "updater_checks.py", "backup_checks.py", "tailscale_checks.py"):
             output = command([sys.executable, HERE / script], env)
             print(script + ":\n" + output.strip())
 
