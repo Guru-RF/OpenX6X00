@@ -225,11 +225,13 @@ var preview = function() {
   return s + '</svg>';
 }
 
-/* The band plan in use, and what Auto finds on the radio (from its GPS, locator or callsign) */
+/* The band plan in use, and what Auto finds on the radio (from its GPS, locator or callsign, else the region it had
+ * last: "last") */
 const PLAN_HOW = {gps: "the GPS", qth: "the locator", call: "the callsign"};
 var planHint = function() {
   const how = PLAN_HOW[D.band_region_how];
-  const auto = "Region " + D.band_region_auto + (how ? " from " + how + " " + D.band_region_at : ", no GPS, locator or callsign");
+  const auto = "Region " + D.band_region_auto + (how ? " from " + how + " " + D.band_region_at
+    : D.band_region_how === "last" ? ", the last one it had: no GPS, locator or callsign now" : ", no GPS, locator or callsign");
   return D.band_region ? "In use: " + ROWS.band_region[4][D.band_region_now] + " (Auto would take " + auto + ")" : "Auto: " + auto;
 }
 
