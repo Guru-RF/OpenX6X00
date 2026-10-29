@@ -59,6 +59,7 @@ void cfg_pwr_set(float watts);
 /* The highest TX power in W that can be set (BOARD_PWR_MAX; the X6200 on battery BOARD_PWR_MAX_BAT).
  * Only later settings are clipped to it: the power already set is left as it is */
 void cfg_pwr_max_set(float watts);
+float cfg_pwr_max_get(void);
 
 /* The other VFO; with independent VFOs (p_indep_vfo) its own band comes with it */
 void cfg_vfo_toggle(void);

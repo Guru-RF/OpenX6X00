@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -140,6 +141,28 @@ class Modem(Web):
                       '<option value="2300">2300 Hz</option><option value="2750">2750 Hz</option></select>', page)
         self.assertIn('id="row-mercury-bandwidth"', page)
         self.assertIn("modem_choice: $(\"#modem\").val()", page)
+
+
+class Radio(Web):
+    def test_the_cap(self):
+        """The GUI's radio file into the API as numbers: Winlink's cap, and whether it is the X6200's battery's"""
+        with open(apps.WINLINK_RADIO, "w") as f:
+            f.write("modem=connected\nrx=14105000\nmode=USB-D\npwr=5.0\ncap=5.0\ncap_battery=1\napp=\n")
+        r = self.req("GET", "/api/winlink")[1]["radio"]
+        self.assertEqual((r["pwr"], r["cap"], r["cap_battery"], r["app"]), (5.0, 5.0, 1, ""))
+        with open(apps.WINLINK_RADIO, "w") as f:
+            f.write("modem=connected\npwr=10.0\ncap=7.0\n")      # a GUI from before cap_battery
+        r = self.req("GET", "/api/winlink")[1]["radio"]
+        self.assertEqual((r["pwr"], r["cap"], "cap_battery" in r), (10.0, 7.0, False))
+
+
+class Page(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "needs Node")
+    def test_the_page_script(self):
+        """The page's own script on the radio file's values, under Node (winlink_page_test.js)"""
+        r = subprocess.run(["node", os.path.join(HERE, "winlink_page_test.js")], capture_output=True, text=True,
+                           timeout=60)
+        self.assertEqual((r.returncode, r.stdout.strip().splitlines()[-1:]), (0, ["PAGE OK"]), r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

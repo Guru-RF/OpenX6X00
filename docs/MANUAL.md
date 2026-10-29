@@ -2551,7 +2551,8 @@ Setting it up:
      one) covers ARDOP's passband at the page's bandwidth: 1250-1750 Hz at
      500 Hz, 500-2500 Hz at 2000 Hz. Mercury's: 450-2550 Hz at 2300 and
      2750 Hz, 1200-1800 Hz at 500 Hz.
-   - Power: the radio's PWR, at most 7 W for Winlink.
+   - Power: the radio's PWR, at most 7 W for Winlink; 5 W with the X6200 on
+     its battery, which the row says (see [Transmitting](#transmitting)).
    - Apps: a digital app open (red: close it), or LOCK on (Pat's QSY is not
      made).
    - Last no TX: the radio's last reason not to key, in the last 10 minutes.

@@ -1185,9 +1185,9 @@ static void *rig_thread(void *arg) {
 /* While a modem is connected the radio file is written each second it changed, and every RADIO_KEEP_MS: its
  * readers (the web page, x6100-winlink) take one not written for 15 s for a GUI that is gone. Once the modem went
  * it is written once more, with modem=none. What a web page cannot ask the radio itself: the frequencies, the
- * simplex check, the filters, the power, the app open, the SWR hold, and the last "no TX" and QSY with their
- * reasons, each with a number that goes up, so the supervisor puts each new one into Pat's log once. A file in
- * /run, not a port: 127.0.0.1 is open to the tailnet in Tailscale's userspace mode */
+ * simplex check, the filters, the power and Winlink's cap, the app open, the SWR hold, and the last "no TX" and QSY
+ * with their reasons, each with a number that goes up, so the supervisor puts each new one into Pat's log once. A
+ * file in /run, not a port: 127.0.0.1 is open to the tailnet in Tailscale's userspace mode */
 #define RADIO_POLL_MS   1000
 #define RADIO_KEEP_MS   5000
 
@@ -1260,6 +1260,11 @@ static void radio_file_body(char *buf, size_t size, bool modem) {
     int32_t     shift = param_i_get(cfg_band_tx_shift);
     const char *app   = main_screen_digital_app();
     bool        txf   = radio_caps() & HW_CAP_TX_FILTER;  /* 0-0: the base has none (the X6200) */
+    /* The most a key gets: PWR, at most TX_PLAYER_MAX_PWR_W (tx_player), and PWR no higher than its top, which only the
+     * X6200's battery lowers (BOARD_PWR_MAX_BAT, radio.c): cap_battery when that is what holds Winlink */
+    float       top   = cfg_pwr_max_get();
+    float       cap   = LV_MIN(top, TX_PLAYER_MAX_PWR_W);
+    bool        bat   = top < BOARD_PWR_MAX && top < TX_PLAYER_MAX_PWR_W;
     char        simplex[96];
 
     simplex_issue(simplex, sizeof(simplex), rx, tx, xit, rit, shift);
@@ -1267,16 +1272,15 @@ static void radio_file_body(char *buf, size_t size, bool modem) {
     snprintf(buf, size,
              "modem=%s\nrx=%d\ntx=%d\nmode=%s\nsplit=%d\nshift=%d\nrit=%d\nxit=%d\nsimplex=%s\n"
              "filter_low=%d\nfilter_high=%d\ntx_filter_low=%d\ntx_filter_high=%d\npwr=%.1f\ncap=%.1f\n"
-             "app=%s\nlocked=%d\non_air=%d\nswr_hold=%d\n"
+             "cap_battery=%d\napp=%s\nlocked=%d\non_air=%d\nswr_hold=%d\n"
              "refused=%s\nrefused_seq=%u\nrefused_at=%lld\nqsy=%d\nqsy_why=%s\nqsy_seq=%u\nqsy_at=%lld\n",
              modem ? "connected" : "none", (int)rx, (int)tx, channels_mode_name(cparam_i_get(cfg_cur_mode)),
              param_i_get(cfg_band_split) ? 1 : 0, (int)shift, (int)rit, (int)xit, simplex,
              (int)cparam_i_get(cfg_cur_filter_low), (int)cparam_i_get(cfg_cur_filter_high),
              txf ? (int)param_i_get(cfg_tx_filter_low) : 0, txf ? (int)param_i_get(cfg_tx_filter_high) : 0,
-             param_f_get(cfg_pwr),
-             TX_PLAYER_MAX_PWR_W, app ? app : "", main_screen_freq_locked() ? 1 : 0, on_air() ? 1 : 0,
-             swr_hold_left_s(), said.refused, said.refused_seq, (long long)said.refused_at, (int)said.qsy_hz,
-             said.qsy_why, said.qsy_seq, (long long)said.qsy_at);
+             param_f_get(cfg_pwr), cap, bat ? 1 : 0, app ? app : "", main_screen_freq_locked() ? 1 : 0,
+             on_air() ? 1 : 0, swr_hold_left_s(), said.refused, said.refused_seq, (long long)said.refused_at,
+             (int)said.qsy_hz, said.qsy_why, said.qsy_seq, (long long)said.qsy_at);
     pthread_mutex_unlock(&said_lock);
 }
 

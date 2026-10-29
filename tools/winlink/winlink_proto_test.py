@@ -6,7 +6,8 @@ ardopcf's version 1 (12000 Hz, keys of 30 s) and version 2 (the rate and the lon
 the receiver's R messages (their size, how many a second, the tone in them: the GUI records at the session's
 rate), a transmission of a 1 kHz tone (what the player got: as long as what was sent and still 1 kHz, so it
 was resampled from the session's rate), the key limit, the hellos refused (rate, version), messages before
-the hello (ignored) and a second hello (ignored). Prints PROTO OK at the end; exits 1 at the first failure.
+the hello (ignored) and a second hello (ignored). And the radio file the Winlink page reads: Winlink's cap of 7 W,
+5 W with the X6200 on its battery. Prints PROTO OK at the end; exits 1 at the first failure.
 Run from `make` (make test).
 """
 
@@ -22,6 +23,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 HDR = struct.Struct("=BBH")
 PLAY_RATE = 44100
+RADIO_FILE = os.path.join(HERE, "build", "radio")     # WINLINK_RADIO_FILE in stub_env.h, from HERE
 
 
 def fail(msg):
@@ -48,12 +50,14 @@ def tone_hz(samples, rate):
 class Host:
     """winlink_host on its own socket, its log and what it played in a temporary directory."""
 
-    def __init__(self, tmp, name="a", rig_port=14532):
+    def __init__(self, tmp, name="a", rig_port=14532, env=None):
         self.sock = os.path.join(tmp, name + ".sock")
         self.played = os.path.join(tmp, name + ".played")
         self.log = os.path.join(tmp, name + ".log")
-        env = dict(os.environ, WL_SOCK=self.sock, WL_RIG_PORT=str(rig_port), WL_PLAYED=self.played, WL_TONE="1000")
-        self.p = subprocess.Popen([os.path.join(HERE, "winlink_host")], env=env, stderr=open(self.log, "w"))
+        env = dict(os.environ, WL_SOCK=self.sock, WL_RIG_PORT=str(rig_port), WL_PLAYED=self.played, WL_TONE="1000",
+                   **(env or {}))
+        # here: the radio file is build/radio (stub_env.h)
+        self.p = subprocess.Popen([os.path.join(HERE, "winlink_host")], env=env, stderr=open(self.log, "w"), cwd=HERE)
         for _ in range(100):
             if os.path.exists(self.sock):
                 return
@@ -71,6 +75,22 @@ class Host:
                 return True
             time.sleep(0.05)
         return False
+
+    def wait_radio(self, want, timeout=5.0):
+        """Whether the radio file (the Winlink page's) came to have the values in want, a dict of its lines, and
+        those lines as last read"""
+        end, radio = time.time() + timeout, {}
+        while time.time() < end:
+            try:
+                with open(RADIO_FILE) as f:
+                    radio = dict(line.rstrip("\n").split("=", 1) for line in f if "=" in line)
+            except FileNotFoundError:
+                radio = {}
+            if all(radio.get(k) == v for k, v in want.items()):
+                break
+            time.sleep(0.1)
+        got = {k: radio.get(k) for k in want}
+        return got == want, got
 
     def played_count(self):
         try:
@@ -197,6 +217,8 @@ def main():
                   f"1 s sent, 1 s played ({n} samples at 44.1 kHz)")
             hz = tone_hz(played, PLAY_RATE)
             check(abs(hz - 1000) < 15, f"the 1 kHz tone played at 1 kHz ({hz:.0f} Hz)")
+            ok, radio = host.wait_radio({"modem": "connected", "pwr": "5.0", "cap": "7.0", "cap_battery": "0"})
+            check(ok, f"the radio file: PWR 5 W, Winlink's cap 7 W, not the battery's ({radio})")
             m.close()
             gone += 1
             session(host, gone)
@@ -293,6 +315,17 @@ def main():
             msgs, sizes, rx = m2.receiver(0.5)
             check(sizes == {160}, "the new one at its own rate")
             m2.close()
+            m.close()
+        finally:
+            host.stop()
+
+        print("the X6200 on its battery: PWR no higher than 5 W")
+        host = Host(tmp, "b", rig_port=14533, env={"WL_PWR_MAX": "5"})
+        try:
+            m = Modem(host.sock)
+            m.send("H", 1)
+            ok, radio = host.wait_radio({"modem": "connected", "cap": "5.0", "cap_battery": "1"})
+            check(ok, f"the radio file: Winlink's cap 5 W, the battery's ({radio})")
             m.close()
         finally:
             host.stop()

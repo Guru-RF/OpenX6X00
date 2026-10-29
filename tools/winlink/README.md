@@ -15,8 +15,10 @@ long as what was sent and still 1 kHz once played at 44.1 kHz, so it was resampl
 from the session's rate), the key limit of the hello (2 s: stopped after 2 s, the
 message on the screen), a key longer than the GUI allows (40 s), the hellos refused (a
 rate other than 8000 or 12000, no key, version 3: the connection is closed), messages
-before the hello (ignored), a second hello (ignored) and a new connection replacing the
-old one. It prints `PROTO OK`.
+before the hello (ignored), a second hello (ignored), a new connection replacing the
+old one, and the radio file the Winlink page reads (`build/radio` here): Winlink's cap
+of 7 W, and 5 W with the X6200 on its battery (`WL_PWR_MAX=5`, said in `cap_battery`).
+It prints `PROTO OK`.
 
 `make modems` runs `winlink_modems_test.py` with the real modems, in a network
 namespace of its own with loopback only (`unshare -rn`), so Pat reaches nothing
@@ -43,4 +45,6 @@ Also here, in Python alone: `winlink_test.py`, the tests of the supervisor
 outcome of each connection from the logs in `fixtures/`), and
 `winlink_web_test.py`, the web configurator's Winlink page and its API, which
 needs bottle (`PYTHONPATH=<a directory with bottle.py>`). Both run with
-`python3 -B <file>`.
+`python3 -B <file>`. The web test also runs `winlink_page_test.js` when Node is
+there: the page's own script on the audit's small DOM
+(`docs/audit/repro-2026-10-24/browser-dom.js`), its Power row from the radio file.
