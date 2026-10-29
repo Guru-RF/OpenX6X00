@@ -52,6 +52,9 @@ void main_screen_lock_ab(bool lock);
 bool main_screen_freq_locked();
 bool main_screen_band_locked();
 bool main_screen_mode_locked();
+/* The digital app open (FT8, PSK31, Olivia, RTTY...), NULL for none: it holds the radio's frequency, mode and
+ * audio. Any thread (Winlink asks) */
+const char *main_screen_digital_app(void);
 
 /* A jump to a frequency: the spectrum starts over */
 void main_screen_set_freq(uint64_t freq);

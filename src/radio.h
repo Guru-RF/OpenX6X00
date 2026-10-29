@@ -72,6 +72,8 @@ void radio_vol_refresh();
 void radio_set_pwr(float d);
 /* While a digital app is open the radio never goes above TX_PLAYER_MAX_PWR_W */
 void radio_set_digi_cap(bool on);
+/* A digital app is open (radio_set_digi_cap) */
+bool radio_digi_cap(void);
 /* TX audio filter of the baseband, Hz. Not saved: cfg_tx_filter_low/high stay as they are */
 void radio_set_tx_filter(uint16_t from_hz, uint16_t to_hz);
 /* true: NR, NB, DNF and auto DNF off in the baseband (it uses them in DIGI modes too);

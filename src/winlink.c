@@ -456,8 +456,50 @@ static bool tx_abort(void *ctx) {
     return true;
 }
 
+/* ---- What the GUI itself holds: an app, a refused QSY ------------------------------- */
+
+/* A digital app open (FT8, PSK, Olivia, RTTY...) holds the radio's frequency, mode and audio: Winlink would key
+ * between its slots on its frequency, or tune it away. Why, into why; false: none is open. Any thread */
+static bool app_holds_radio(char *why, size_t n) {
+    const char *app = main_screen_digital_app();
+
+    if (!app)
+        return false;
+    snprintf(why, n, "%s is open, close it", app);
+    return true;
+}
+
+/* Why Pat's QSY to f is not made, into why; false: it is made. The LVGL thread */
+static bool tune_refused(int32_t f, char *why, size_t n) {
+    const char *no = NULL;
+
+    if (app_holds_radio(why, n))
+        return true;
+    if (on_air())
+        no = "the radio is on the air";
+    else if (main_screen_freq_locked())
+        no = "the frequency is locked (LOCK)";
+    else if (!cfg_is_valid_hw_freq(f))
+        no = "not a frequency the radio can tune";
+    if (no)
+        snprintf(why, n, "%s", no);
+    return no != NULL;
+}
+
+/* A QSY of Pat's not made: said on the screen, where Pat's log only has "Unable to QSY" */
+static void qsy_refused(int32_t f, const char *why) {
+    char a[16];
+
+    LV_LOG_WARN("winlink: no QSY to %d Hz, %s", (int)f, why);
+    msg_schedule_text_fmt("Winlink: no QSY to %s MHz, %s", mhz(a, sizeof(a), f), why);
+}
+
 /* Why ardopcf's key is not taken, the radio's state; NULL: it is, if tx_off_freq agrees */
 static const char *tx_refused(void) {
+    static char app[64];    /* the worker's */
+
+    if (app_holds_radio(app, sizeof(app)))
+        return app;     /* also while it transmits: the app is what to close */
     /* Our own transmission just ended: the base reports RX on its next packet */
     while (!radio_get_modem() && radio_get_state() != RADIO_RX && now_ms() - unkey_ms < TURN_MS &&
            !atomic_load(&ses.quit))
@@ -800,16 +842,20 @@ static pthread_mutex_t tune_lock = PTHREAD_MUTEX_INITIALIZER;
 static atomic_uint     tune_queued;     /* the tune in the LVGL queue that is still wanted; 0 none */
 static atomic_uint     tune_done;       /* the last one tune_cb made */
 
-/* LVGL thread: Pat's QSY as TCI tunes, then USB-D unless the mode is USB or USB-D already. Not one rig_do_tune
- * took back */
+/* LVGL thread: Pat's QSY as TCI tunes, then USB-D unless the mode is USB or USB-D already; not while the radio
+ * transmits, an app or LOCK holds the frequency, or to one the radio cannot tune, and then the screen says why.
+ * Not one rig_do_tune took back */
 static void tune_cb(void *arg) {
     const tune_t *t  = arg;
     unsigned      id = t->id;
     int32_t       f  = t->hz;
+    char          why[64];
 
     if (!atomic_compare_exchange_strong(&tune_queued, &id, 0))
         return;
-    if (!on_air() && !main_screen_freq_locked() && cfg_is_valid_hw_freq(f)) {
+    if (tune_refused(f, why, sizeof(why))) {
+        qsy_refused(f, why);
+    } else {
         int32_t mode;
 
         backlight_tick();   /* tuned from a program: the screen wakes as for a key */
@@ -878,8 +924,10 @@ static int rig_tune(double hz) {
     if (!(hz >= 1.0 && hz < 2147483647.0))
         return -1;      /* RIG_EINVAL */
     f = (int32_t)llround(hz);
-    if (!cfg_is_valid_hw_freq(f))
+    if (!cfg_is_valid_hw_freq(f)) {
+        qsy_refused(f, "not a frequency the radio can tune");
         return -1;
+    }
     pthread_mutex_lock(&tune_lock);     /* kept or made with no tune of the worker's in between */
     atomic_store(&missed_hz, 0);    /* Pat's QSY before this one is not where Pat waits any more */
     if (on_air() || atomic_load(&keying)) {
@@ -888,6 +936,8 @@ static int rig_tune(double hz) {
     } else {
         atomic_store(&pending_hz, 0);   /* asked again since: the newest wins */
         ret = rig_do_tune(f);
+        if (ret == -5)
+            qsy_refused(f, "the radio was busy, try again");
         atomic_store(&ref_hz, ret == 0 ? f : 0);    /* not made: Pat knows, and waits nowhere */
         atomic_store(&ref_ms, now_ms());
     }

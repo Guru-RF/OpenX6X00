@@ -2552,6 +2552,16 @@ Connecting to a gateway:
   identifies with your callsign in CW. The radio does not key for Winlink
   while it is already transmitting, nor for 5 minutes after a high SWR
   stopped a Winlink transmission; the screen says so.
+- Close the radio's digital apps first. While one is open (FT8, FT4, JS8,
+  WSPR, PSK, Olivia, JTTY, RTTY, SSTV, WeFax, NavTex) it holds the radio's
+  frequency, mode and audio: Winlink does not key ("Winlink: no TX, FT8 is
+  open, close it") and Pat's QSY is not made. Up to v0.3.6 a connection
+  without a QSY could key on the app's frequency, between its slots.
+- When Pat's QSY is not made, the screen says why, where Pat's log only has
+  "Unable to QSY": "Winlink: no QSY to 7.061.500 MHz, FT8 is open, close
+  it", "..., the radio is on the air", "..., the frequency is locked (LOCK)"
+  (the LOCK key, or the browser panel's lock), "..., not a frequency the
+  radio can tune" or "..., the radio was busy, try again".
 - The TX level is the one the radio's digital apps share (see
   [Digital-mode TX level](#digital-mode-tx-level)). It is first judged about
   2 s into a frame (1.3 s for the base to settle, then half a second of
@@ -2576,9 +2586,9 @@ Connecting to a gateway:
   - A QSY Pat asks while the radio transmits is made when the transmission
     ends. A frame ARDOP sends right after that transmission goes out after the
     QSY, as a transmission of its own, on Pat's new frequency. If the radio
-    cannot go there (an app holds the frequency): no key, "Winlink: no TX, the
-    radio could not go to Pat's 7.100.000 MHz", until the radio is on that
-    frequency or Pat tunes again.
+    cannot go there (an app or LOCK holds the frequency): no key, "Winlink: no
+    TX, the radio could not go to Pat's 7.100.000 MHz", until the radio is on
+    that frequency or Pat tunes again.
   - A connection keeps its frequency: the one Pat tuned last, or where ARDOP
     last transmitted. Turn the dial or choose the other VFO between two
     transmissions, and Winlink does not key: "Winlink: no TX, the radio left

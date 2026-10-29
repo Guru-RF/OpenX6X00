@@ -606,6 +606,10 @@ void radio_set_digi_cap(bool on) {
     radio_set_pwr(param_f_get(cfg_pwr));
 }
 
+bool radio_digi_cap(void) {
+    return digi_cap;
+}
+
 void radio_set_tx_filter(uint16_t from_hz, uint16_t to_hz) {
     WITH_RADIO_LOCK(hw_set_i(HW_TX_FILTER_LOW, from_hz); hw_set_i(HW_TX_FILTER_HIGH, to_hz));
 }
