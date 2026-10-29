@@ -139,6 +139,14 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     bool    stopped = false;
     float   peak_w = 0.0f, peak_alc = 0.0f;    /* the highest readings after the settling, and how many */
     int     reads = 0;
+    /* tx_level counts in blocks of BLOCK_SAMPLES (its 1.3 s to settle, its half-second windows), so it is given one
+     * for each BLOCK_SAMPLES of audio, not one a fill. Winlink's fill gives 10 ms at a time: the settling was over
+     * after 0.3 s, the base's overshoot at keying (ALC 5, twice the power) was taken for overdrive, and ARDOP frames
+     * turned the level all the apps share down to the floor and kept it from climbing back (#66). A reading that
+     * comes between two of its blocks waits for the next one, the last reading kept */
+    size_t  played = 0;             /* samples played */
+    float   pwr = 0.0f, alc = 0.0f; /* the last reading */
+    bool    have = false;           /* not yet given to tx_level */
 
     static pthread_t watch;
     if (!watch && pthread_create(&watch, NULL, stall_watch, NULL) == 0) pthread_detach(watch);
@@ -146,10 +154,15 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     atomic_store(&playing, true);
 
     for (;;) {
-        float   pwr = 0.0f, alc = 0.0f;
         bool    fresh = tx_info_refresh(&reading, &alc, &pwr, NULL);
 
-        drive = keep_in_range(drive + tx_level_block(&level, fresh, pwr, alc));
+        have = have || fresh;
+        /* one more each time the audio has gone into a new block: with whole blocks each pass, the short last one
+         * too, as before */
+        if ((size_t)level.blocks <= (played + BLOCK_SAMPLES - 1) / BLOCK_SAMPLES) {
+            drive = keep_in_range(drive + tx_level_block(&level, have, pwr, alc));
+            have = false;
+        }
         if (fresh && level.blocks > TX_LEVEL_SETTLE_BLOCKS) {
             peak_w = LV_MAX(peak_w, pwr);
             peak_alc = LV_MAX(peak_alc, alc);
@@ -169,6 +182,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
             audio_gain_db(block, n, drive, block);
         }
         audio_play(block, n);
+        played += n;
         atomic_store(&last_block_ms, now_ms());
     }
     atomic_store(&playing, false);
