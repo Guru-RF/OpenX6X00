@@ -1,0 +1,823 @@
+/* Mercury Modem — persistent message store
+ *
+ * Copyright (C) 2026 Rhizomatica
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <pthread.h>
+#include <time.h>
+#include <errno.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+#include <direct.h>
+#include <io.h>
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
+
+#include "message_store.h"
+#include "hermes_log.h"
+
+#define MSG_STORE_LOG_TAG "store"
+
+/* Stored message caps.  Chat lines are short; anything longer is more likely a
+ * file transfer chunk than a message, so it is not stored. */
+#define MSG_MAX_TEXT 1024
+#define MSG_MAX_PEER 32
+
+/* A JSONL line: worst case is every text byte needing a \u00xx escape (6x), so
+ * keep the line buffer comfortably above MSG_MAX_TEXT * 6 + overhead. */
+#define MSG_MAX_LINE 8192
+
+/* Per-plane/direction partial-line assembly buffer. */
+#define FEED_BUF_SIZE (MSG_MAX_TEXT + 2)
+
+typedef enum
+{
+    PLANE_ARQ,
+    PLANE_BCAST,
+    PLANE_COUNT
+} plane_t;
+
+typedef enum
+{
+    DIR_RX,
+    DIR_TX,
+    DIR_COUNT
+} dir_t;
+
+static struct
+{
+    bool         enabled;
+    FILE        *fp;                 /* append-mode JSONL file, or NULL */
+    char         path[1024];
+
+    char (*lines)[MSG_MAX_LINE];     /* in-memory ring of raw JSONL lines */
+    uint64_t    *seqs;               /* ...and each one's "seq" */
+    uint64_t     last_seq;           /* the newest seq given (never reused) */
+    int          cap;
+    int          start;              /* index of oldest entry */
+    int          count;
+    int          file_lines;         /* records currently in the JSONL file */
+
+    /* Partial line being assembled per (plane, dir). */
+    char         feed[PLANE_COUNT][DIR_COUNT][FEED_BUF_SIZE];
+    size_t       feed_len[PLANE_COUNT][DIR_COUNT];
+    bool         discarding[PLANE_COUNT][DIR_COUNT];
+} g_store;
+
+/* A statically-initialised mutex, never destroyed.  The ARQ event-loop thread
+ * is not joined before engine shutdown (arq_shutdown() is not called on the
+ * teardown path), so a msg_store_feed() can race the shutdown; keeping the
+ * mutex alive for the process lifetime makes that race harmless — the feed
+ * side locks, sees enabled == false, and returns without touching the ring. */
+static pthread_mutex_t g_store_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void msg_store_lock(void)   { pthread_mutex_lock(&g_store_lock); }
+static void msg_store_unlock(void) { pthread_mutex_unlock(&g_store_lock); }
+
+/* ------------------------------------------------------------------ */
+/*  Time                                                               */
+/* ------------------------------------------------------------------ */
+
+static void msg_store_now(int64_t *sec_out, int *ms_out)
+{
+#if defined(_WIN32)
+    FILETIME ft;
+    uint64_t t;
+    GetSystemTimeAsFileTime(&ft);
+    t = ((uint64_t)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+    t -= 116444736000000000ULL; /* 1601 -> 1970 */
+    *sec_out = (int64_t)(t / 10000000ULL);
+    *ms_out  = (int)((t / 10000ULL) % 1000ULL);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    *sec_out = (int64_t)ts.tv_sec;
+    *ms_out  = (int)(ts.tv_nsec / 1000000);
+#endif
+}
+
+/* ------------------------------------------------------------------ */
+/*  Path                                                               */
+/* ------------------------------------------------------------------ */
+
+static void msg_store_default_path(char *buf, size_t bufsz)
+{
+    const char *base = NULL;
+#if defined(_WIN32)
+    base = getenv("LOCALAPPDATA");
+    if (!base || !base[0]) base = getenv("APPDATA");
+    if (base && base[0])
+        snprintf(buf, bufsz, "%s\\mercury\\messages.jsonl", base);
+    else
+        snprintf(buf, bufsz, "messages.jsonl");
+#elif defined(__APPLE__)
+    base = getenv("HOME");
+    if (base && base[0])
+        snprintf(buf, bufsz, "%s/Library/Application Support/mercury/messages.jsonl", base);
+    else
+        snprintf(buf, bufsz, "messages.jsonl");
+#else
+    base = getenv("XDG_STATE_HOME");
+    if (base && base[0])
+        snprintf(buf, bufsz, "%s/mercury/messages.jsonl", base);
+    else if ((base = getenv("HOME")) && base[0])
+        snprintf(buf, bufsz, "%s/.local/state/mercury/messages.jsonl", base);
+    else
+        snprintf(buf, bufsz, "messages.jsonl");
+#endif
+}
+
+static int msg_store_mkdirs(char *path)
+{
+    char *p;
+
+    for (p = path + 1; *p; p++)
+    {
+        if (*p == '/' || *p == '\\')
+        {
+            char saved = *p;
+            *p = '\0';
+#if defined(_WIN32)
+            (void)_mkdir(path);
+#else
+            (void)mkdir(path, 0755);
+#endif
+            *p = saved;
+        }
+    }
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/*  JSON escaping                                                      */
+/* ------------------------------------------------------------------ */
+
+static size_t json_escape(const char *s, size_t len, char *out, size_t out_cap)
+{
+    size_t o = 0;
+
+    for (size_t i = 0; i < len && o + 8 < out_cap; i++)
+    {
+        unsigned char c = (unsigned char)s[i];
+        switch (c)
+        {
+        case '"':  out[o++] = '\\'; out[o++] = '"';  break;
+        case '\\': out[o++] = '\\'; out[o++] = '\\'; break;
+        case '\n': out[o++] = '\\'; out[o++] = 'n';  break;
+        case '\r': out[o++] = '\\'; out[o++] = 'r';  break;
+        case '\t': out[o++] = '\\'; out[o++] = 't';  break;
+        default:
+            if (c < 0x20)
+            {
+                static const char hex[] = "0123456789abcdef";
+                out[o++] = '\\'; out[o++] = 'u'; out[o++] = '0'; out[o++] = '0';
+                out[o++] = hex[c >> 4];
+                out[o++] = hex[c & 0x0F];
+            }
+            else
+            {
+                out[o++] = (char)c;
+            }
+            break;
+        }
+    }
+    out[o] = '\0';
+    return o;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Text filter                                                        */
+/* ------------------------------------------------------------------ */
+
+/* A control byte cannot appear in a chat message: everything below 0x20 except
+ * tab, CR and LF, plus DEL. */
+static bool msg_store_is_ctl(uint8_t c)
+{
+    return (c < 0x20 && c != '\t' && c != '\r' && c != '\n') || c == 0x7F;
+}
+
+/* Well-formed UTF-8: no overlong encodings, no surrogates, nothing above
+ * U+10FFFF.  Random binary almost never is -- a lone byte >= 0x80, or a lead
+ * byte without its continuation bytes, fails -- while real chat in any
+ * language passes. */
+static bool msg_store_utf8_valid(const uint8_t *s, size_t len)
+{
+    size_t i = 0;
+    while (i < len)
+    {
+        uint8_t c = s[i];
+        size_t n;
+        uint32_t cp, min;
+        if (c < 0x80)      { i++; continue; }
+        else if ((c & 0xE0) == 0xC0) { n = 1; cp = c & 0x1F; min = 0x80; }
+        else if ((c & 0xF0) == 0xE0) { n = 2; cp = c & 0x0F; min = 0x800; }
+        else if ((c & 0xF8) == 0xF0) { n = 3; cp = c & 0x07; min = 0x10000; }
+        else return false;
+        if (i + n >= len)           /* its continuation bytes run past the end */
+            return false;
+        for (size_t k = 1; k <= n; k++)
+        {
+            if ((s[i + k] & 0xC0) != 0x80)
+                return false;
+            cp = (cp << 6) | (s[i + k] & 0x3F);
+        }
+        if (cp < min || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF))
+            return false;
+        i += n + 1;
+    }
+    return true;
+}
+
+/* A line is stored only if it is text: no control bytes (tab and CR allowed)
+ * and well-formed UTF-8.
+ *
+ * Checking control bytes alone let binary through.  A binary frame's control
+ * bytes include its 0x0A bytes, which the feed treats as line breaks, and the
+ * short runs between them are often free of any other control byte -- the
+ * 2026-09-12 broadcast NNCP trial left 23 such fragments of RaptorQ frames in
+ * the chat history.  Those runs are full of bytes >= 0x80 that do not form
+ * UTF-8, which is what the second check catches.  msg_store_feed() also drops
+ * any chunk that carries a control byte, before it is split at all. */
+static bool msg_store_is_text(const uint8_t *data, size_t len)
+{
+    if (len == 0)
+        return false;
+    for (size_t i = 0; i < len; i++)
+    {
+        if (msg_store_is_ctl(data[i]))
+            return false;
+    }
+    return msg_store_utf8_valid(data, len);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Ring                                                               */
+/* ------------------------------------------------------------------ */
+
+static void ring_push(const char *line, size_t len, uint64_t seq)
+{
+    if (g_store.cap <= 0)
+        return;
+
+    size_t n = len;
+    if (n >= MSG_MAX_LINE)
+        n = MSG_MAX_LINE - 1;
+
+    int idx;
+    if (g_store.count < g_store.cap)
+    {
+        idx = (g_store.start + g_store.count) % g_store.cap;
+        g_store.count++;
+    }
+    else
+    {
+        idx = g_store.start;
+        g_store.start = (g_store.start + 1) % g_store.cap;
+    }
+    memcpy(g_store.lines[idx], line, n);
+    g_store.lines[idx][n] = '\0';
+    g_store.seqs[idx] = seq;
+}
+
+/* A loaded line's "seq", or 0 when it has none (a file from before seq). */
+static uint64_t line_seq(const char *line)
+{
+    const char *p = strstr(line, "\"seq\":");
+    return p ? strtoull(p + 6, NULL, 10) : 0;
+}
+
+/* Flush a stdio stream's buffered data through to the storage device.  POSIX
+ * fsync(); Windows _commit(). */
+static bool msg_store_fsync(FILE *f)
+{
+    if (!f)
+        return false;
+#if defined(_WIN32)
+    return _commit(_fileno(f)) == 0;
+#else
+    return fsync(fileno(f)) == 0;
+#endif
+}
+
+/* Atomically replace `path` with `tmp_path`.  POSIX rename() is atomic (a
+ * crash leaves either the old or the new file, never a truncated one); Windows
+ * needs MOVEFILE_REPLACE_EXISTING. */
+static bool msg_store_atomic_replace(const char *tmp_path, const char *path)
+{
+#if defined(_WIN32)
+    return MoveFileExA(tmp_path, path, MOVEFILE_REPLACE_EXISTING) != 0;
+#else
+    return rename(tmp_path, path) == 0;
+#endif
+}
+
+/* Rewrite the JSONL file to mirror the in-memory ring (the last `cap` lines),
+ * oldest first.
+ *
+ * Crash-safe: the new contents are written to "<path>.tmp", fsync'd so they are
+ * durable, and only then atomically renamed over the live file.  A crash or
+ * power loss therefore leaves either the old file or the new one — never a
+ * truncated one — because rename() replaces the directory entry atomically.
+ * Caller holds exclusive access (the store lock on the shutdown path, or the
+ * single-threaded init path) — never the ARQ event-loop thread, which must not
+ * sit through a whole-file rewrite. */
+static void msg_store_rewrite_file_locked(void)
+{
+    char tmp_path[sizeof(g_store.path) + 8];
+    FILE *tmp;
+    bool ok = false;
+
+    if (!g_store.fp || g_store.path[0] == '\0')
+        return;
+
+    fflush(g_store.fp);
+    fclose(g_store.fp);
+    g_store.fp = NULL;
+
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", g_store.path);
+    tmp = fopen(tmp_path, "w");
+    if (!tmp)
+    {
+        HLOGW(MSG_STORE_LOG_TAG, "cannot open %s for rewrite: %s — keeping old file",
+              tmp_path, strerror(errno));
+    }
+    else
+    {
+        ok = true;
+        for (int i = 0; i < g_store.count && ok; i++)
+        {
+            int idx = (g_store.start + i) % g_store.cap;
+            size_t len = strlen(g_store.lines[idx]);
+            if (len > 0 && g_store.lines[idx][len - 1] == '\n')
+                len--;
+            if (fwrite(g_store.lines[idx], 1, len, tmp) != len ||
+                fputc('\n', tmp) == EOF)
+                ok = false;
+        }
+        if (ok && fflush(tmp) != 0)
+            ok = false;
+        if (ok && !msg_store_fsync(tmp))
+            ok = false;
+        if (fclose(tmp) != 0)
+            ok = false;
+
+        if (ok)
+        {
+            if (!msg_store_atomic_replace(tmp_path, g_store.path))
+            {
+                HLOGW(MSG_STORE_LOG_TAG, "replace %s with %s failed: %s — keeping old file",
+                      g_store.path, tmp_path, strerror(errno));
+                remove(tmp_path);
+            }
+        }
+        else
+        {
+            HLOGW(MSG_STORE_LOG_TAG, "rewrite of %s failed — keeping old file",
+                  g_store.path);
+            remove(tmp_path);
+        }
+    }
+
+    /* Reopen for append regardless, so later writes still persist. */
+    g_store.fp = fopen(g_store.path, "a+");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Core                                                               */
+/* ------------------------------------------------------------------ */
+
+static void msg_store_emit(const char *plane, const char *dir, const char *peer,
+                           const uint8_t *text, size_t text_len)
+{
+    char buf[MSG_MAX_LINE];
+    char text_esc[MSG_MAX_LINE];
+    char peer_esc[MSG_MAX_PEER * 2 + 8];
+    int64_t sec;
+    int ms;
+
+    /* Trim one trailing newline (the chat client appends "\n"). */
+    while (text_len > 0 && (text[text_len - 1] == '\n' || text[text_len - 1] == '\r'))
+        text_len--;
+
+    if (text_len == 0 || text_len > MSG_MAX_TEXT)
+        return;
+    if (!msg_store_is_text(text, text_len))
+        return;
+
+    (void)json_escape((const char *)text, text_len, text_esc, sizeof(text_esc));
+    json_escape(peer ? peer : "", peer ? strlen(peer) : 0, peer_esc, sizeof(peer_esc));
+
+    msg_store_now(&sec, &ms);
+
+    uint64_t seq = ++g_store.last_seq;
+    int n = snprintf(buf, sizeof(buf),
+                     "{\"seq\":%llu,\"ts\":%lld,\"ms\":%d,\"plane\":\"%s\",\"dir\":\"%s\","
+                     "\"peer\":\"%s\",\"text\":\"%s\"}",
+                     (unsigned long long)seq, (long long)sec, ms, plane, dir, peer_esc, text_esc);
+    if (n < 0)
+        return;
+    /* Reserve room for the trailing "\n\0": n indexes the newline, n+1 the NUL,
+     * so both must stay inside buf. */
+    if ((size_t)n > sizeof(buf) - 2)
+        n = (int)(sizeof(buf) - 2);
+
+    buf[n] = '\n';
+    buf[n + 1] = '\0';
+
+    ring_push(buf, (size_t)(n + 1), seq);
+
+    if (g_store.fp)
+    {
+        if (fwrite(buf, 1, (size_t)(n + 1), g_store.fp) != (size_t)(n + 1) ||
+            fflush(g_store.fp) != 0)
+        {
+            HLOGW(MSG_STORE_LOG_TAG, "write failed: %s", strerror(errno));
+        }
+        else
+        {
+            /* The file is NOT rewritten here: this runs on the ARQ event-loop
+             * thread (via cb_deliver_rx_data), where a whole-file rewrite would
+             * stall link timing.  Trimming is deferred to init/shutdown, which
+             * run on the main thread. */
+            g_store.file_lines++;
+        }
+    }
+}
+
+void msg_store_feed(const char *plane, const char *dir, const char *peer,
+                    const uint8_t *data, size_t len)
+{
+    plane_t p;
+    dir_t d;
+
+    if (!data || len == 0)
+        return;
+
+    if (strcmp(plane, MSG_PLANE_BCAST) == 0) p = PLANE_BCAST;
+    else                                    p = PLANE_ARQ;
+    if (strcmp(dir, MSG_DIR_TX) == 0) d = DIR_TX;
+    else                              d = DIR_RX;
+
+    msg_store_lock();
+    if (!g_store.enabled)
+    {
+        msg_store_unlock();
+        return;
+    }
+
+    /* A chunk carrying a control byte is binary -- a file transfer, a KISS or
+     * AX.25 frame, RaptorQ symbols -- not chat.  Drop it whole, together with
+     * any partial line it would have completed: split at its 0x0A bytes, the
+     * pieces between them can each look like text.  The next chunk starts
+     * clean, so a chat message in the frame right after a binary one is kept. */
+    for (size_t i = 0; i < len; i++)
+    {
+        if (msg_store_is_ctl(data[i]))
+        {
+            g_store.feed_len[p][d]   = 0;
+            g_store.discarding[p][d] = false;
+            msg_store_unlock();
+            return;
+        }
+    }
+
+    for (size_t i = 0; i < len; i++)
+    {
+        uint8_t c = data[i];
+        if (c == '\n')
+        {
+            if (!g_store.discarding[p][d])
+            {
+                msg_store_emit(plane, dir, peer,
+                               (const uint8_t *)g_store.feed[p][d],
+                               g_store.feed_len[p][d]);
+            }
+            g_store.discarding[p][d] = false;
+            g_store.feed_len[p][d] = 0;
+        }
+        else if (g_store.discarding[p][d])
+        {
+            /* Over-long line: skip everything until the next newline. */
+        }
+        else if (g_store.feed_len[p][d] < FEED_BUF_SIZE - 1)
+        {
+            g_store.feed[p][d][g_store.feed_len[p][d]++] = (char)c;
+        }
+        else
+        {
+            /* Line too long to be a chat message — discard it whole. */
+            g_store.discarding[p][d] = true;
+            g_store.feed_len[p][d] = 0;
+        }
+    }
+    msg_store_unlock();
+}
+
+void msg_store_append(const char *plane, const char *dir, const char *peer,
+                      const char *text)
+{
+    if (!text)
+        return;
+
+    msg_store_lock();
+    if (!g_store.enabled)
+    {
+        msg_store_unlock();
+        return;
+    }
+    msg_store_emit(plane, dir, peer, (const uint8_t *)text, strlen(text));
+    msg_store_unlock();
+}
+
+void msg_store_reset(const char *plane, const char *dir)
+{
+    plane_t p;
+    dir_t d;
+
+    if (strcmp(plane, MSG_PLANE_BCAST) == 0) p = PLANE_BCAST;
+    else                                    p = PLANE_ARQ;
+    if (strcmp(dir, MSG_DIR_TX) == 0) d = DIR_TX;
+    else                              d = DIR_RX;
+
+    msg_store_lock();
+    g_store.feed_len[p][d] = 0;
+    g_store.discarding[p][d] = false;
+    msg_store_unlock();
+}
+
+size_t msg_store_count(void)
+{
+    size_t n = 0;
+    msg_store_lock();
+    if (g_store.enabled)
+        n = (size_t)g_store.count;
+    msg_store_unlock();
+    return n;
+}
+
+size_t msg_store_get(size_t index, char *buf, size_t buf_cap)
+{
+    size_t written = 0;
+
+    if (!buf || buf_cap == 0)
+        return 0;
+
+    msg_store_lock();
+    if (g_store.enabled && index < (size_t)g_store.count)
+    {
+        int idx = (g_store.start + (int)index) % g_store.cap;
+        char *line = g_store.lines[idx];
+        size_t len = strlen(line);
+        if (len > 0 && line[len - 1] == '\n')
+            len--;
+        if (len >= buf_cap)
+            len = buf_cap - 1;
+        memcpy(buf, line, len);
+        buf[len] = '\0';
+        written = len;
+    }
+    msg_store_unlock();
+    return written;
+}
+
+char *msg_store_snapshot(size_t *count_out, size_t *len_out)
+{
+    char *buf = NULL;
+    size_t count = 0;
+    size_t total = 0;
+
+    msg_store_lock();
+    if (g_store.enabled && g_store.count > 0 && g_store.lines)
+    {
+        count = (size_t)g_store.count;
+
+        /* One pass for the exact size, one for the copy — under a single lock,
+         * so the returned count and bytes always describe the same ring. */
+        for (int i = 0; i < g_store.count; i++)
+        {
+            int idx = (g_store.start + i) % g_store.cap;
+            size_t len = strlen(g_store.lines[idx]);
+            if (len > 0 && g_store.lines[idx][len - 1] == '\n')
+                len--;
+            total += len + 1;   /* line + '\n' */
+        }
+
+        buf = malloc(total + 1);
+        if (buf)
+        {
+            size_t off = 0;
+            for (int i = 0; i < g_store.count; i++)
+            {
+                int idx = (g_store.start + i) % g_store.cap;
+                size_t len = strlen(g_store.lines[idx]);
+                if (len > 0 && g_store.lines[idx][len - 1] == '\n')
+                    len--;
+                memcpy(buf + off, g_store.lines[idx], len);
+                buf[off + len] = '\n';
+                off += len + 1;
+            }
+            buf[off] = '\0';
+        }
+        else
+        {
+            /* Allocation failed: report an empty snapshot so the advertised
+             * count and the (zero) emitted lines always agree. */
+            total = 0;
+            count = 0;
+        }
+    }
+    msg_store_unlock();
+
+    if (count_out)
+        *count_out = count;
+    if (len_out)
+        *len_out = total;
+    return buf;
+}
+
+size_t msg_store_since(uint64_t after_seq, char *out, size_t out_cap, uint64_t *last_seq)
+{
+    size_t off = 0;
+    uint64_t last = after_seq;
+
+    if (!out || out_cap == 0)
+        return 0;
+    out[0] = '\0';
+
+    msg_store_lock();
+    for (int i = 0; g_store.enabled && i < g_store.count; i++)
+    {
+        int idx = (g_store.start + i) % g_store.cap;
+        if (g_store.seqs[idx] <= after_seq)
+            continue;
+        size_t len = strlen(g_store.lines[idx]);
+        if (len > 0 && g_store.lines[idx][len - 1] == '\n')
+            len--;
+        if (off + len + 2 > out_cap)        /* line, '\n', NUL: the rest next call */
+            break;
+        memcpy(out + off, g_store.lines[idx], len);
+        out[off + len] = '\n';
+        off += len + 1;
+        last = g_store.seqs[idx];
+    }
+    out[off] = '\0';
+    msg_store_unlock();
+
+    if (last_seq)
+        *last_seq = last;
+    return off;
+}
+
+uint64_t msg_store_last_seq(void)
+{
+    msg_store_lock();
+    uint64_t s = g_store.enabled ? g_store.last_seq : 0;
+    msg_store_unlock();
+    return s;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Init / shutdown                                                    */
+/* ------------------------------------------------------------------ */
+
+int msg_store_init(const char *path, int max_lines)
+{
+    char resolved[1024];
+
+    if (g_store.enabled)
+        msg_store_shutdown();
+
+    memset(&g_store, 0, sizeof(g_store));
+
+    if (max_lines <= 0)
+        max_lines = MSG_STORE_DEFAULT_MAX_LINES;
+
+    if (path && path[0])
+        snprintf(resolved, sizeof(resolved), "%s", path);
+    else
+        msg_store_default_path(resolved, sizeof(resolved));
+
+    msg_store_mkdirs(resolved);
+
+    g_store.cap = max_lines;
+    g_store.lines = calloc((size_t)max_lines, sizeof(*g_store.lines));
+    g_store.seqs = calloc((size_t)max_lines, sizeof(*g_store.seqs));
+    if (!g_store.lines || !g_store.seqs)
+    {
+        HLOGE(MSG_STORE_LOG_TAG, "out of memory allocating %d-entry ring", max_lines);
+        free(g_store.lines);
+        free(g_store.seqs);
+        memset(&g_store, 0, sizeof(g_store));
+        return -1;
+    }
+
+    snprintf(g_store.path, sizeof(g_store.path), "%s", resolved);
+
+    g_store.fp = fopen(resolved, "a+");
+    if (!g_store.fp)
+    {
+        HLOGW(MSG_STORE_LOG_TAG, "cannot open %s for append: %s — messages "
+              "will be kept in memory only", resolved, strerror(errno));
+    }
+
+    /* Load existing messages into the ring so they are available (and survive)
+     * after a restart. */
+    if (g_store.fp)
+    {
+        char line[MSG_MAX_LINE];
+        bool renumbered = false;
+        rewind(g_store.fp);
+        while (fgets(line, sizeof(line), g_store.fp))
+        {
+            size_t len = strlen(line);
+            if (len > 0 && line[len - 1] == '\n')
+                len--;
+            if (len == 0)
+                continue;
+            g_store.file_lines++;
+            line[len] = '\0';
+            /* The seq goes on from the file's: a line without one (written
+             * before seq) or out of order gets the next, in load order, and
+             * the in-memory line says so -- rewritten files then keep it. */
+            uint64_t seq = line_seq(line);
+            if (seq <= g_store.last_seq)
+            {
+                char numbered[MSG_MAX_LINE];
+                seq = g_store.last_seq + 1;
+                int m = line[0] == '{' && !strstr(line, "\"seq\":")
+                        ? snprintf(numbered, sizeof(numbered), "{\"seq\":%llu,%s",
+                                   (unsigned long long)seq, line + 1)
+                        : -1;
+                if (m > 0 && (size_t)m < sizeof(numbered))
+                {
+                    ring_push(numbered, (size_t)m, seq);
+                    g_store.last_seq = seq;
+                    renumbered = true;
+                    continue;
+                }
+            }
+            g_store.last_seq = seq;
+            ring_push(line, len, seq);
+        }
+        /* Reposition for appends (fgets may have hit EOF). */
+        fseek(g_store.fp, 0, SEEK_END);
+
+        /* A file larger than the ring (e.g. written before trimming existed)
+         * is rewritten down to the last `cap` lines so the on-disk size obeys
+         * max_messages from here on. */
+        /* ...and so is a file whose lines were given their seq here, so the
+         * numbers stay the same when older lines are trimmed off the front. */
+        if (g_store.file_lines > g_store.count || renumbered)
+        {
+            msg_store_rewrite_file_locked();
+            g_store.file_lines = g_store.count;
+        }
+    }
+
+    g_store.enabled = true;
+    HLOGI(MSG_STORE_LOG_TAG, "initialised (%s, ring=%d, loaded=%d)",
+          resolved, g_store.cap, g_store.count);
+    return 0;
+}
+
+void msg_store_shutdown(void)
+{
+    msg_store_lock();
+    if (!g_store.enabled)
+    {
+        msg_store_unlock();
+        return;
+    }
+
+    if (g_store.fp)
+    {
+        /* Trim the file down to the ring on a clean shutdown, so the on-disk
+         * size obeys max_messages even if the session appended past the cap.
+         * Runs on the main thread, not the ARQ event loop. */
+        if (g_store.file_lines > g_store.count)
+            msg_store_rewrite_file_locked();
+
+        fflush(g_store.fp);
+        fclose(g_store.fp);
+        g_store.fp = NULL;
+    }
+
+    free(g_store.lines);
+    g_store.lines = NULL;
+    free(g_store.seqs);
+    g_store.seqs = NULL;
+    g_store.cap = 0;
+    g_store.start = 0;
+    g_store.count = 0;
+    g_store.enabled = false;
+    msg_store_unlock();
+}

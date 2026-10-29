@@ -1,0 +1,198 @@
+/* HERMES Modem - Mercury Configuration Utilities
+ *
+ * Copyright (C) 2026 Rhizomatica
+ * Author: Pedro Messetti <pedromessetti.rhizomatica@gmail.com>
+ *
+ * This is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3, or (at your option)
+ * any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+#ifndef CFG_UTILS_H_
+#define CFG_UTILS_H_
+
+#include <stdbool.h>
+#include <stdint.h>
+#include "../radio_io/radio_io.h"
+
+/* Configuration keys (section:key) */
+#define CFG_KEY_UI_ENABLED          "main:ui_enabled"
+#define CFG_KEY_UI_PORT             "main:ui_port"
+#define CFG_KEY_UI_PROTOCOL         "main:ui_protocol"
+#define CFG_KEY_UI_TLS_CERT         "main:ui_tls_cert"
+#define CFG_KEY_UI_TLS_KEY          "main:ui_tls_key"
+
+/* Defaults for wss://.  Overridable because these are only reachable by root
+ * on Linux and do not exist at all on Windows or macOS, which made wss://
+ * impossible to actually use -- or test -- anywhere else. */
+#define CFG_SSL_CERT "/etc/ssl/certs/hermes.radio.crt"
+#define CFG_SSL_KEY  "/etc/ssl/private/hermes.radio.key"
+#define CFG_KEY_WATERFALL_ENABLED   "main:waterfall_enabled"
+/* Legacy radio keys.  Read indefinitely, but cfg_write emits [ptt]. */
+#define CFG_KEY_RADIO_MODEL         "main:radio_model"
+#define CFG_KEY_RADIO_DEVICE        "main:radio_device"
+#define CFG_KEY_INPUT_DEVICE        "main:input_device"
+#define CFG_KEY_OUTPUT_DEVICE       "main:output_device"
+#define CFG_KEY_CAPTURE_CHANNEL     "main:capture_channel"
+#define CFG_KEY_SOUND_SYSTEM        "main:sound_system"
+#define CFG_KEY_ARQ_TCP_BASE_PORT   "main:arq_tcp_base_port"
+#define CFG_KEY_BROADCAST_TCP_PORT  "main:broadcast_tcp_port"
+#define CFG_KEY_CALLSIGN            "main:callsign"
+#define CFG_KEY_VERBOSE             "main:verbose"
+#define CFG_KEY_TRACE               "main:trace"
+#define CFG_KEY_FREEDV_VERBOSITY    "main:freedv_verbosity"
+#define CFG_KEY_HAMLIB_LOG_LEVEL    "main:hamlib_log_level"
+#define CFG_KEY_RADIO_SERIAL_SPEED  "main:radio_serial_speed"
+#define CFG_KEY_PTT_METHOD          "ptt:method"
+#define CFG_KEY_PTT_DEVICE          "ptt:device"
+#define CFG_KEY_PTT_LINE            "ptt:line"
+#define CFG_KEY_PTT_INVERT          "ptt:invert"
+#define CFG_KEY_PTT_CM108_GPIO      "ptt:cm108_gpio"
+#define CFG_KEY_PTT_HAMLIB_MODEL    "ptt:hamlib_model"
+#define CFG_KEY_PTT_HAMLIB_SPEED    "ptt:hamlib_serial_speed"
+#define CFG_KEY_PTT_HAMLIB_CONF     "ptt:hamlib_conf"
+#define CFG_KEY_PTT_HAMLIB_LOG      "ptt:hamlib_log_level"
+#define CFG_KEY_DISCONNECT_DRAIN_TIMEOUT_S "arq:disconnect_drain_timeout_s"
+#define CFG_KEY_TX_GAIN_DB          "audio:tx_gain_db"
+#define CFG_KEY_TX_DELAY_MS         "audio:tx_delay_ms"
+#define CFG_KEY_TNC_KEEPALIVE_S     "tnc:keepalive_s"
+#define CFG_KEY_TNC_BUFFER_REPORT_MS "tnc:buffer_report_ms"
+#define CFG_KEY_ARQ_RETRY_STAGGER_MS          "arq:retry_stagger_ms"
+#define CFG_KEY_ARQ_MFSK_TX_ONLY              "arq:mfsk_tx_only"
+#define CFG_KEY_BUSY_DETECT                   "channel:busy_detect"
+#define CFG_KEY_BUSY_THRESHOLD_DB             "channel:busy_threshold_db"
+#define CFG_KEY_BUSY_HYSTERESIS_DB            "channel:busy_hysteresis_db"
+#define CFG_KEY_BUSY_ON_DEBOUNCE_MS           "channel:busy_on_debounce_ms"
+#define CFG_KEY_BUSY_HANG_MS                  "channel:busy_hang_ms"
+#define CFG_KEY_STORE_ENABLED                 "store:enabled"
+#define CFG_KEY_STORE_PATH                    "store:path"
+#define CFG_KEY_STORE_MAX_MESSAGES            "store:max_messages"
+#define CFG_KEY_HL2_FREQUENCY_HZ    "hl2:frequency_hz"
+#define CFG_KEY_HL2_RX_GAIN_DB      "hl2:rx_gain_db"
+#define CFG_KEY_HL2_TX_DRIVE        "hl2:tx_drive"
+#define CFG_KEY_HL2_PA              "hl2:pa"
+
+/* Max stored callsign length incl. NUL — matches CALLSIGN_MAX_SIZE (arq.h). */
+#define CFG_CALLSIGN_MAX_SIZE 16
+
+/* Holds all values read from the init configuration file */
+typedef struct {
+    bool     ui_enabled;
+    uint16_t ui_port;
+    bool     tls_enabled;           /* false = ws, true = wss */
+    char     tls_cert[512];         /* PEM certificate chain, wss only */
+    char     tls_key[512];          /* PEM private key, wss only */
+    bool     waterfall_enabled;
+    ptt_config_t ptt;               /* selected PTT method and backend config */
+    char     input_device[512];
+    char     output_device[512];
+    int      capture_channel;       /* LEFT / RIGHT / STEREO */
+    int      sound_system;          /* AUDIO_SUBSYSTEM_* or -1 for auto */
+    int      arq_tcp_base_port;
+    int      broadcast_tcp_port;
+    char     callsign[CFG_CALLSIGN_MAX_SIZE]; /* default station callsign, used
+                                               * when no client has set one  */
+    bool     verbose;
+    bool     trace;                 /* TRACE log level: raw decoded frame bytes */
+    int      freedv_verbosity;      /* 0..3 */
+    int      disconnect_drain_timeout_s;/* ARQ: absolute cap (s) on how long an
+                                    * app DISCONNECT stays deferred while
+                                    * draining the last TX bytes. Default 45. */
+    uint32_t removed_keys;              /* bit k: the file sets
+                                         * cfg_removed_key_name(k), which this
+                                         * version ignores (cfg_read)        */
+    int      retry_stagger_ms;          /* ARQ: deterministic per-node retry
+                                         * offset. 0 disables. Default 2000,
+                                         * clamped 0..5000.                  */
+    bool     mfsk_tx_only;              /* ARQ: transmit MFSK only (FSK-only
+                                         * radios).  Default false.          */
+    float    tx_gain_db;            /* Linear-equivalent gain on the modulator
+                                    * TX samples, in dB. 0.0 = no change.
+                                    * Range -20.0 .. +20.0 (clamped). */
+    int      tx_delay_ms;           /* Delay (ms) after PTT ON before audio is
+                                    * sent to the playback device on TX.
+                                    * Default 10 covers the local radio
+                                    * relay's switch time; raise it to give a
+                                    * slow external PTT more time to key up
+                                    * before the signal starts. Clamped
+                                    * 0..2000. */
+    int      tnc_keepalive_s;       /* IAMALIVE interval on the TNC control
+                                    * port. Default 60, clamped 5..600.   */
+    int      tnc_buffer_report_ms;  /* BUFFER report interval on the TNC
+                                    * control port. Default 1000, clamped
+                                    * 100..10000.                          */
+    bool     busy_detect;           /* Channel-busy detector on/off. Default
+                                    * false (opt-in). Emits VARA "BUSY ON/OFF". */
+    int      busy_threshold_db;     /* Passband peak dB above noise floor to
+                                    * call BUSY. Default 10, clamped 3..40.  */
+    int      busy_hysteresis_db;    /* Release hysteresis in dB. Default 3,
+                                    * clamped 0..20.                          */
+    int      busy_on_debounce_ms;   /* Sustain above threshold before BUSY.
+                                    * Default 300, clamped 0..5000.           */
+    int      busy_hang_ms;          /* Sustain below release before CLEAR.
+                                     * Default 1500, clamped 0..10000.         */
+    bool     store_enabled;         /* Persist ARQ/broadcast chat messages to
+                                     * disk. Default true.                     */
+    char     store_path[512];       /* JSONL message-store path; empty = auto
+                                     * (platform data dir).                    */
+    int      store_max_messages;    /* In-memory history ring capacity.
+                                     * Default 500, clamped 1..10000.          */
+    /* -x hl2 (a Hermes-Lite 2 on the network; the radio's address is the
+     * input device). */
+    uint32_t hl2_frequency_hz;      /* dial frequency, USB. 0 = unset: the
+                                     * radio receives but never transmits.  */
+    int      hl2_rx_gain_db;        /* LNA gain, -12..+48. Default 20.       */
+    int      hl2_tx_drive;          /* 0..255 (the HL2 uses 16 steps of
+                                     * 0.5 dB). Default 128.                 */
+    bool     hl2_pa;                /* the 5 W PA; off = the low-power
+                                     * output. Default true.                 */
+} mercury_config;
+
+/* Load configuration from an INI file into |cfg|.
+ * Fields not present in the file keep their existing values (normally the
+ * defaults installed by cfg_set_defaults()).
+ * Returns true on success, false if the file cannot be parsed. */
+bool cfg_read(mercury_config *cfg, const char *ini_path);
+
+/* The name of the k-th [arq] key this version no longer reads (bit k of
+ * mercury_config.removed_keys), or NULL past the last one. */
+const char *cfg_removed_key_name(int k);
+
+/* Write |cfg| to an INI file at |ini_path|.
+ * Returns true on success, false if the file cannot be written. */
+bool cfg_write(const mercury_config *cfg, const char *ini_path);
+
+/* Populate |cfg| with compile/runtime defaults. Call before cfg_read(). */
+void cfg_set_defaults(mercury_config *cfg);
+
+/* Map an AUDIO_SUBSYSTEM_* constant back to its CLI name ("alsa", "oss", ...).
+ * Returns a static string; never NULL. */
+const char *cfg_sound_system_name(int sys);
+
+/* Map a sound-system name ("alsa", "pulse", ...) to the AUDIO_SUBSYSTEM_*
+ * constant.  Returns -1 (auto) for unrecognised strings. */
+int cfg_sound_system_parse(const char *name);
+
+/* Canonical string conversion for PTT methods used by INI, CLI and UI. */
+const char *cfg_ptt_method_name(ptt_method_t method);
+bool cfg_ptt_method_parse(const char *name, ptt_method_t *method);
+/* Select a method on a complete config.  In addition to parsing the method,
+ * the legacy serial_rts alias restores its historical RTS/non-inverted
+ * behavior so stale settings from another serial configuration cannot leak. */
+bool cfg_ptt_config_set_method(ptt_config_t *config, const char *name);
+const char *cfg_ptt_line_name(ptt_line_t line);
+bool cfg_ptt_line_parse(const char *name, ptt_line_t *line);
+const char *cfg_ptt_invert_name(bool invert_rts, bool invert_dtr);
+bool cfg_ptt_invert_parse(const char *name, bool *invert_rts, bool *invert_dtr);
+
+#endif /* CFG_UTILS_H_ */
