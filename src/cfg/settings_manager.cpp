@@ -958,28 +958,37 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
         }
     }
 
+    // What VFOB falls back to with nothing of its own saved on the band: the VFOA value. With VFOA kept on its own
+    // band (VFOB tuned across the edge), what VFOA last had on this band, else `dflt`: VFOA's mode from the band it
+    // stayed on gave VFOB on 7.039 (40m CW) the LSB of 40m SSB, and CW after a VFO key back to 7.050
+    auto a_here = [&](Parameter<int32_t> &a, int32_t dflt) {
+        if (!keep_a) return a.get();
+        std::optional<int32_t> v = storage_policy_for(StorageType::BAND).load_int(band_id, a.db_name());
+        return v ? *v : dflt;
+    };
+
     // VFOB mode/att/pre/agc: kept when VFOB is the inactive VFO of an implicit
-    // switch; else they fall back to the VFOA value when
+    // switch; else they fall back to a_here() when
     // absent (mode copied, att/pre/agc copied on NOT_FOUND).
     if (!keep_b) {
         int rc = p_band_vfob_mode.load(band_id);
         if (rc != SUCCESS) {
-            p_band_vfob_mode.set_quiet(p_band_vfoa_mode.get());
+            p_band_vfob_mode.set_quiet(a_here(p_band_vfoa_mode, resolve_default_mode(p_band_vfob_freq.get(), band_id)));
         }
     }
     if (!keep_b) {
         int rc;
         rc = p_band_vfob_att.load(band_id);
         if (rc == NOT_FOUND) {
-            p_band_vfob_att.set_quiet(p_band_vfoa_att.get());
+            p_band_vfob_att.set_quiet(a_here(p_band_vfoa_att, p_band_vfoa_att.get()));
         }
         rc = p_band_vfob_pre.load(band_id);
         if (rc == NOT_FOUND) {
-            p_band_vfob_pre.set_quiet(p_band_vfoa_pre.get());
+            p_band_vfob_pre.set_quiet(a_here(p_band_vfoa_pre, p_band_vfoa_pre.get()));
         }
         rc = p_band_vfob_agc.load(band_id);
         if (rc == NOT_FOUND) {
-            p_band_vfob_agc.set_quiet(p_band_vfoa_agc.get());
+            p_band_vfob_agc.set_quiet(a_here(p_band_vfoa_agc, p_band_vfoa_agc.get()));
         }
     }
 }
