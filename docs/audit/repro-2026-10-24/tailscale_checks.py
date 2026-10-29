@@ -69,6 +69,10 @@ class LocalAPI(http.server.BaseHTTPRequestHandler):
             if self.headers.get('If-Match') != Fake.etag():
                 return self.reply(412, 'etag mismatch')
             new = json.loads(body)
+            for port in (new.get('TCP') or {}):     # a background listener over a foreground session's
+                if any(port in (fg.get('TCP') or {}) for fg in ((Fake.serve or {}).get('Foreground') or {}).values()):
+                    return self.reply(500, json.dumps({'error': f'updating config: foreground listener already '
+                                                                f'exists for port {port}'}))
             for port, h in (new.get('TCP') or {}).items():
                 old = ((Fake.serve or {}).get('TCP') or {}).get(port)
                 if old and kind(old) != kind(h):
@@ -221,6 +225,21 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
         check('off again: the tailnet\'s 8443 kept', Fake.serve['TCP'].get('8443') == {'HTTPS': True})
         check('off again: the radio\'s own funnel not called one made by hand', 'made by hand' not in
               s.get('funnel_text', ''), s)
+
+        # 9b. On, while "tailscale funnel 443" runs in the foreground over SSH (a CLI installed by hand): tailscaled
+        # refuses the radio's 443, and the hand-made funnel still goes off the internet
+        Fake.serve = {'Foreground': {'ssh-session': {'TCP': {'443': {'HTTPS': True}},
+                                                     'Web': by_hand()['Web'], 'AllowFunnel': {NAME + ':443': True}}}}
+        g['cmd_funnel']('on')
+        f.done -= 61
+        s = step(f, st)
+        fg = Fake.serve['Foreground']['ssh-session']
+        check('a foreground funnel on 443: the radio\'s refused, said', s['funnel'] == 'error' and 'foreground' in
+              s.get('funnel_text', ''), s)
+        check('a foreground funnel on 443: taken off the internet all the same', 'AllowFunnel' not in fg and
+              fg.get('Web') == by_hand()['Web'], Fake.serve)
+        g['cmd_funnel']('off')
+        step(f, st)
 
         # 10. tailscaled not up yet (a login wanted): waiting, or off
         g['cmd_funnel']('on')

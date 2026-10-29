@@ -381,6 +381,18 @@ class Funnel:
         self.status = {"funnel": "off"}
 
 
+def funnels_off(cur, etag, name, remote_port, tci_port):
+    """The radio's own config refused while Funnel is on (port 443 held by a "tailscale funnel" left running in the
+    foreground over SSH, say): no funnel made by hand stays on the internet meanwhile. The radio's own goes with
+    them until the next poll sets it again"""
+    off, theirs = funnel_config(cur, name, remote_port, tci_port, False)
+    if theirs:
+        try:
+            api_full("POST", "serve-config", off, {"If-Match": etag})
+        except (Fail, OSError, ValueError):
+            pass
+
+
 def serve_set(name, remote_port, tci_port, on):
     """The serve config made right, at most two tries when someone else changed it in between (If-Match).
     Returns the funnels made by hand that were removed"""
@@ -402,6 +414,7 @@ def serve_set(name, remote_port, tci_port, on):
             except HttpFail as e:
                 if e.status == 412:
                     continue
+                funnels_off(cur, etag, name, remote_port, tci_port)
                 raise
             continue
         try:
@@ -409,6 +422,8 @@ def serve_set(name, remote_port, tci_port, on):
             return theirs
         except HttpFail as e:
             if e.status != 412:  # 412: changed meanwhile, read again
+                if on:
+                    funnels_off(cur, etag, name, remote_port, tci_port)
                 raise
     raise Fail("the serve config kept changing")
 
