@@ -383,6 +383,16 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
                   f'{type(e).__name__} raised, tailscaled still running: {alive.exists()}')
         Fake.cut = False
         alive.unlink(missing_ok=True)
+        Fake.serve = {'Foreground': {'ssh-session': 'not a serve config'}}     # what funnel_config cannot read
+        d = Daemon()
+        try:
+            g['stop_tailscaled'](d)
+            check('stopping, a serve config the radio cannot make sense of: stopped all the same',
+                  not alive.exists() and d.returncode == 0)
+        except Exception as e:
+            check('stopping, a serve config the radio cannot make sense of: stopped all the same', False,
+                  f'{type(e).__name__} raised, tailscaled still running: {alive.exists()}')
+        alive.unlink(missing_ok=True)
         Path(g['STATE_FILE']).write_text('{"_serve/a1b2": ')
         try:
             g['stop_tailscaled'](None)
@@ -488,6 +498,23 @@ with tempfile.TemporaryDirectory(prefix='x6ts-', dir=os.environ.get('AUDIT_TMP')
         code, out = clear()
         check('funnel-clear, tailscaled not running: out of its state file, the setting off',
               code == 0 and out == 'ok Funnel taken off' and tailnet_only(stored()) and not g['funnel_wanted'](), out)
+        # A tailscaled that came and went meanwhile (a supervisor's start that failed) wrote its own copy over the file
+        # just cleaned: read back, found again, and cleaned again before ok
+        g['cmd_funnel']('on')
+        with_funnel()
+        real_state_funnel_off, came = g['state_funnel_off'], []
+
+        def written_over_once(write=True):
+            found = real_state_funnel_off(write)
+            if found and write and not came:
+                came.append(1)
+                with_funnel()                          # its copy, with the funnel, as it stopped
+            return found
+        g['state_funnel_off'] = written_over_once
+        code, out = clear('3')
+        g['state_funnel_off'] = real_state_funnel_off
+        check('funnel-clear, the file written over meanwhile by a tailscaled that came and went: cleaned again before ok',
+              code == 0 and came and tailnet_only(stored()), out)
         Path(g['STATE_FILE']).write_text('{"_serve/a1b2": ')
         code, out = clear('1')
         check('funnel-clear, a state file that cannot be read: not sure, said', code == 1 and 'state' in out, out)
