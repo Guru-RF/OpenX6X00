@@ -208,6 +208,17 @@ static void set_txpwr(float w) {
     hw_set_f(HW_TXPWR_F, digi_cap && w > TX_PLAYER_MAX_PWR_W ? TX_PLAYER_MAX_PWR_W : w);
 }
 
+/* Whether the base's charging flag counts: on the X6200 only when charging was asked for, as its base (1.0.8)
+ * raises the flag with external power in whatever the setting (#33). The X6100's flag is taken as its base
+ * gives it: nobody has seen that base raise it with the charger off */
+static bool charge_flag_counts(void) {
+#ifdef BOARD_X6200
+    return charger_asked;
+#else
+    return true;
+#endif
+}
+
 static uint32_t min_tx;
 static uint32_t max_tx;
 
@@ -642,7 +653,7 @@ void radio_poweroff() {
 void radio_set_charger(bool on) {
     charger_asked = on;
     WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, on));
-    if (!on && pack_vext >= 30) {
+    if (!charge_flag_counts() && pack_vext >= 30) {
         clock_update_estimate(-1, false);   /* no time to full in the top bar right away */
     }
 }
@@ -1161,7 +1172,7 @@ static void battery_log(const hw_pack_t *p) {
     bat_est_feed(&s);
     int min = bat_est_minutes(0, &chg, &approx);
 
-    if (s.vext >= 3.0f && !charger_asked) {
+    if (s.vext >= 3.0f && !charge_flag_counts()) {
         min = -1;   /* the charger is off: no time to full */
     }
     clock_update_estimate(min, approx);
@@ -1323,8 +1334,8 @@ static bool radio_tick() {
              * with the charger off, when it does not charge (measured on the radio: the battery stays
              * flat). bat_watch above still takes the flag as a sign of external power; from here on
              * it counts only if charging was asked for, as in Xiegu's app: the top bar, the time to
-             * full and the battery log */
-            pack->charging = pack->charging && charger_asked;
+             * full and the battery log (charge_flag_counts: the X6100's as its base gives it) */
+            pack->charging = pack->charging && charge_flag_counts();
             clock_update_no_battery(pack->bat_missing);
             if (bat_watch.counts) {
                 clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, pack->batcap, pack->charging);
