@@ -473,9 +473,10 @@ static void client_close(client_t *c) {
 
 /* ---- The radio, on the LVGL thread -------------------------------------------------- */
 
-static bool voice_mode(int32_t m) {
-    return m == radio_mode_lsb || m == radio_mode_usb || m == radio_mode_am || m == radio_mode_nfm ||
-           m == radio_mode_sam || m == radio_mode_wfm;
+/* The modes TCI audio keys the radio in: all but CW and CW-R. In DIGL and DIGU the modem bit takes
+ * the codec's audio too: the radio's own FT8, PSK, Olivia and Winlink transmit so in USB-D (#17) */
+static bool takes_tx_audio(int32_t m) {
+    return m != radio_mode_cw && m != radio_mode_cwr;
 }
 
 /* tci: the TCI audio session (if there is one); else the radio's own PTT */
@@ -543,7 +544,7 @@ static void apply_cmd(void *arg) {
                 atomic_store(&key_refused, (uint32_t)c->a);
                 break;
             }
-            if (c->tci && voice_mode(cparam_i_get(cfg_cur_mode))) {
+            if (c->tci && takes_tx_audio(cparam_i_get(cfg_cur_mode))) {
                 if (!audio_play_lowlat_begin()) {
                     atomic_store(&key_refused, (uint32_t)c->a);
                     break;
@@ -553,8 +554,8 @@ static void apply_cmd(void *arg) {
                 atomic_store(&txs.keyed, true);
                 radio_set_modem(true);
             } else if (c->tci) {
-                /* CW or a data mode: the audio has no way in, and the radio's own PTT would have
-                 * been keyed with nothing in the session to release it (audit A01) */
+                /* CW or CW-R: the audio has no way in, and the radio's own PTT would have been
+                 * keyed with nothing in the session to release it (audit A01) */
                 atomic_store(&key_refused, (uint32_t)c->a);
                 break;
             } else {

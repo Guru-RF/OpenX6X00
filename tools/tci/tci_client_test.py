@@ -431,9 +431,8 @@ def wsjtx_open():
     rest = tone_check("wsjtx RX, float32 48 kHz stereo", left[:48000], 1000, 48000, 8000 / 32768, image=23000)
     assert rest < 10 ** (-70 / 20)
 
-    # Keyed as WSJT-X keys (Mode USB: digu is refused for TCI audio), every TX_CHRONO answered
-    ws.text("modulation:0,usb;")
-    collect(1.0, lambda: st["mode"] == "usb")
+    # Keyed as WSJT-X keys, in the digu its Mode Data/Pkt set (#17), every TX_CHRONO answered
+    assert st["mode"] == "digu", st["mode"]
     ws.text("trx:0,true,tci;")
     collect(1.2)
     assert st["trx"] is True, "WSJT-X: TCI failed to set ptt"

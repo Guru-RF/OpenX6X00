@@ -13,8 +13,9 @@ leaving, a key lost to a full queue, a key that runs late or one that never puts
 the air comes between a key and the LVGL thread applying it. Each case checks that one start
 keys the radio and that its client's unkey or leaving ends it, that a cancelled start keys
 nothing, that an unkey never drops the operator's PTT, and that a refused start is answered
-`trx:0,false;` and leaves control where it is; each runs in a child process, its clients on
-socket pairs, without a listener. It prints `OWNER OK: n cases`.
+`trx:0,false;` and leaves control where it is. One more keys TCI audio in DIGU and DIGL,
+which only CW and CW-R refuse (#17). Each runs in a child process, its clients on socket
+pairs, without a listener. It prints `OWNER OK: n cases`.
 
 Then it builds `src/tci_server.c` and `src/tci_ws.c` (with `src/tci_audio.c` and
 `src/control_owner.c`) on the PC against the stubs in `stubs.c` (the radio, the settings, the
@@ -27,7 +28,8 @@ transmission ends, nothing of it played), ping. Then four more connections: the 
 pages' format asked for in full; formats out of range and int24 stereo at 48 kHz in frames of
 100; WSJT-X's TCI client ("TCI Client RX1") on Test CAT, its answers read as its parser
 reads them, its RX audio in TCI's defaults (48 kHz float32 stereo: the tone's level, the image,
-left and right), and a transmission as it keys, every TX_CHRONO answered with its frame; and
+left and right), and a transmission as it keys, in the digu of its Mode Data/Pkt, every
+TX_CHRONO answered with its frame; and
 WSJT-X on a link slower than its RX audio (read at 250 kB/s through a 4 kB receive buffer),
 keyed with the server's queue full: the TX_CHRONOs come ahead of the queued audio, the over
 stays keyed for 3 s, every frame arrives whole. The

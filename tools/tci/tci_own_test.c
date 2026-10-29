@@ -493,6 +493,33 @@ static void two_tci_starts(void) {
     check(!on_air(), "A's unkey ends it");
 }
 
+/* TCI audio in DIGU (WSJT-X on Mode Data/Pkt) and DIGL keys the radio, the modem bit taking the
+ * client's audio as the radio's own digital apps do in USB-D; only CW refuses it (#17) */
+static void tci_audio_in_dig(void) {
+    const int   modes[] = {radio_mode_usb_dig, radio_mode_lsb_dig};
+    const char *names[] = {"DIGU", "DIGL"};
+    const char *h;
+    char        what[96];
+
+    client_open(A);
+    for (int i = 0; i < 2; i++) {
+        cparam_i_set(cfg_cur_mode, modes[i]);
+        gui(-1);
+        heard(A);
+        say(A, "trx:0,true,tci;");
+        gui(-1);
+        h = heard(A);
+        snprintf(what, sizeof(what), "in %s A's TCI audio start keys, A hears trx:0,true", names[i]);
+        check(radio_get_modem() && atomic_load(&txs.keyed) && txs.owner == A && strstr(h, "trx:0,true;")
+              && !strstr(h, "trx:0,false;"), what);
+        say(A, "trx:0,false;");
+        gui(-1);
+        h = heard(A);
+        snprintf(what, sizeof(what), "in %s A's unkey ends it, A hears trx:0,false", names[i]);
+        check(!on_air() && !atomic_load(&txs.keyed) && txs.owner < 0 && strstr(h, "trx:0,false;"), what);
+    }
+}
+
 static int run(const char *name, void (*fn)(void)) {
     int   st;
     pid_t pid;
@@ -537,6 +564,7 @@ int main(void) {
         {"A's key reaches the LVGL thread more than a second late", late_key},
         {"Starts ended before their key ran key nothing", cancelled_keys_nothing},
         {"Two TCI audio starts", two_tci_starts},
+        {"TCI audio in DIGU and DIGL", tci_audio_in_dig},
     };
     int n = sizeof(cases) / sizeof(cases[0]), bad = 0;
 

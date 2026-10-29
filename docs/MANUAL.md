@@ -2923,7 +2923,7 @@ program on the network tunes the radio, hears it and keys it.
   still on its way to the radio, is answered `trx:0,false;` and changes
   nothing, not even who has control: the client that keyed still tunes
   during its over. A key the radio refuses (someone on the air, TCI audio in
-  CW or DIGU) is answered `trx:0,false;` too, to the client that sent it
+  CW or CW-R) is answered `trx:0,false;` too, to the client that sent it
   alone, and so is a PTT key that, once at the radio, does not put it on the
   air within a second (a frequency it does not transmit on). A key still on
   its way when its client unkeys or leaves keys nothing, and a client whose
@@ -2964,8 +2964,9 @@ program on the network tunes the radio, hears it and keys it.
   rate with a filter, flat to 9 kHz. The greeting gives the client's format,
   a change is answered with what moved, and every frame's header says its
   rate, type, length and channels.
-- TCI audio on the air (`trx:0,true,tci;`): in LSB, USB, AM and FM, not in
-  CW or DIGL/DIGU, where the key is refused. Every 21.3 ms a `TX_CHRONO`
+- TCI audio on the air (`trx:0,true,tci;`): in every mode but CW and CW-R,
+  where the key is refused. DIGU and DIGL take it as the radio's own FT8,
+  PSK and Winlink take theirs in USB-D. Every 21.3 ms a `TX_CHRONO`
   asks for 21.3 ms of audio in the client's format (1024 samples of each
   channel at 48 kHz, 512 at 24 kHz); the radio takes 8 to 48 kHz in any of
   the four types and transmits the first channel. A frame whose size is not
@@ -2986,9 +2987,10 @@ program on the network tunes the radio, hears it and keys it.
   at twice its size).
   - Settings > Radio: Rig "TCI Client RX1", Network Server the radio's
     address and port (`x6100.local:50001`), PTT Method CAT (the only one TCI
-    has), Mode USB (Data/Pkt puts the radio in DIGU, where TCI audio does not
-    key it; or None, with the radio in USB yourself), Split Operation None or
-    Fake It.
+    has), Mode Data/Pkt (the radio in DIGU, as for its own FT8) or USB; or
+    None, with the radio's mode set yourself. Split Operation None or Fake
+    It. Up to v0.3.6 TCI audio did not go out in DIGU, so Mode had to be
+    USB.
   - Settings > Audio: "Use TCI Audio" on, then restart the program. The Rx
     dB box beside it sets the receive level. Keep it on: their keying always
     sends TCI audio (`trx:0,true,tci;`), so with it off the radio is keyed
