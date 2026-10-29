@@ -56,7 +56,10 @@ connect to 1.9.19 or older), so a new pin is a new test on the air.
 - Mercury itself: GPL-3.0-or-later, Rhizomatica (`LICENSE`, the file
   headers). Anything linked with it, such as our bridge, is GPL-3.0-or-later
   as a whole.
-- `modem/freedv/`: a subset of FreeDV / codec2, LGPL-2.1 (`LICENSE-freedv`).
+- `modem/freedv/`: a subset of FreeDV / codec2, LGPL-2.1 (`LICENSE-freedv`),
+  except KISS FFT in it (`kiss_fft.[ch]`, `kiss_fftr.[ch]`,
+  `_kiss_fft_guts.h`): BSD-3-Clause, Mark Borgerding (the notice in the
+  headers of `kiss_fft.c`, `kiss_fftr.c` and `_kiss_fft_guts.h`).
 - `common/iniparser/`: MIT, Nicolas Devillard (`common/iniparser/LICENSE`).
 - `datalink_broadcast/raptorq/`: nanorq (`lib/`, `include/`) and oblas
   (`deps/obl/`), both MIT, Joseph Calderon. Mercury's tree carries no

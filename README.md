@@ -453,12 +453,13 @@ The GUI is LGPL-2.1-or-later ([LICENSE](LICENSE)); js8core and wsprd
 `src/jtty*`, `src/dialog_jtty.c`) and the PSK Reporter upload
 (`src/pskreporter.c`) are GPLv3, so the firmware image is GPLv3. Mercury, the
 second Winlink modem (vendored in `third-party/mercury`, GPL-3.0-or-later, its
-FreeDV part LGPL-2.1, its iniparser, nanorq and oblas MIT, see its
-[UPSTREAM.md](third-party/mercury/UPSTREAM.md)), and `x6x00-mercury`, our program
-that links it, are GPL-3.0-or-later; both come in the image and the update
-bundle, the source in this repository. ardopcf and Pat are MIT. The web
-server is LGPL-2.1 ([webserver/LICENSE](webserver/LICENSE)). Every file keeps
-the copyright notice of its authors.
+FreeDV part LGPL-2.1 with KISS FFT in it BSD-3-Clause, its iniparser, nanorq and
+oblas MIT, see its [UPSTREAM.md](third-party/mercury/UPSTREAM.md)), and
+`x6x00-mercury`, our program that links it, are GPL-3.0-or-later; both come in
+the image and the update bundle, the source in this repository. ardopcf and
+Pat are MIT. The web server is LGPL-2.1
+([webserver/LICENSE](webserver/LICENSE)). Every file keeps the copyright
+notice of its authors.
 
 ## Credits
 

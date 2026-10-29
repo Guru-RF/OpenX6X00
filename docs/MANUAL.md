@@ -2838,10 +2838,11 @@ When it does not work:
   UI, no message store.
 
 Mercury (GPL-3.0-or-later, Rafael Diniz and Rhizomatica's HERMES project; its
-FreeDV part LGPL-2.1, its iniparser, nanorq and oblas MIT) comes with the
-firmware as upstream has it, with two small changes: its TNC and broadcast
-ports listen on 127.0.0.1 only, and it answers Pat's VERSION with a VERSION
-line, so Pat never hangs starting it (`third-party/mercury/UPSTREAM.md`).
+FreeDV part LGPL-2.1 with KISS FFT in it BSD-3-Clause, its iniparser, nanorq
+and oblas MIT) comes with the firmware as upstream has it, with two small
+changes: its TNC and broadcast ports listen on 127.0.0.1 only, and it answers
+Pat's VERSION with a VERSION line, so Pat never hangs starting it
+(`third-party/mercury/UPSTREAM.md`).
 
 ## Browser panel
 
