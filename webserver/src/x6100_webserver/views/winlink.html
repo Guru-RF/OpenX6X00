@@ -1,13 +1,13 @@
 % rebase('base.html', title='Winlink')
 <h2><svg class="i"><use href="#i-file"/></svg>Winlink</h2>
-<p class="sub">Winlink email over HF from the radio alone, with no computer: <a href="https://getpat.io">Pat</a> is the mail program, its mailbox a web page you open on a phone or a laptop on the radio's network; ARDOP is the modem, through the radio's own audio. When Pat calls a gateway, the radio tunes to it and switches to USB-D. Off by default: when off, Pat and ARDOP do not run.</p>
+<p class="sub">Winlink email over HF from the radio alone, with no computer: <a href="https://getpat.io">Pat</a> is the mail program, its mailbox a web page you open on a phone or a laptop on the radio's network; ARDOP is the modem, or Mercury (experimental), through the radio's own audio. When Pat calls a gateway, the radio tunes to it and switches to USB-D. Off by default: when off, Pat and the modem do not run.</p>
 
 <div class="dp-card" id="notice" style="display:none">
   <div class="dp-body" id="notice-text" style="color:var(--err)"></div>
 </div>
 
 <div class="dp-card">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-file"/></svg></span><div><h3>Winlink<span class="eff">Takes effect: at once</span></h3><p>Pat and ARDOP (ardopcf) on the radio</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-file"/></svg></span><div><h3>Winlink<span class="eff">Takes effect: at once</span></h3><p>Pat and the modem on the radio: ARDOP (ardopcf) or Mercury (x6x00-mercury)</p></div></div>
   <div class="dp-row">
     <div class="dp-lbl"><b>Enabled</b><span>Starts with the radio, also after a new card image</span></div>
     <div class="dp-ctl"><label class="sw" title="Enabled"><input id="enabled" type="checkbox" role="switch" aria-label="Enabled"><i></i></label></div>
@@ -37,12 +37,12 @@
 </div>
 
 <div class="dp-card" id="conn">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-pulse"/></svg></span><div><h3>Connections</h3><p>What Pat and ARDOP are doing, and how the last connection went</p></div></div>
-  <div class="dp-row"><div class="dp-lbl"><b>Service</b><span>Pat and ARDOP running</span></div><div class="dp-ctl" id="c-service">-</div></div>
-  <div class="dp-row"><div class="dp-lbl"><b>Modem</b><span>ARDOP on the radio's audio</span></div><div class="dp-ctl" id="c-modem">-</div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-pulse"/></svg></span><div><h3>Connections</h3><p>What Pat and the modem are doing, and how the last connection went</p></div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Service</b><span>Pat and the modem running</span></div><div class="dp-ctl" id="c-service">-</div></div>
+  <div class="dp-row"><div class="dp-lbl"><b>Modem</b><span id="c-modem-n">ARDOP on the radio's audio</span></div><div class="dp-ctl" id="c-modem">-</div></div>
   <div class="dp-row"><div class="dp-lbl"><b>Session</b><span id="c-browsers">Pat calling a gateway, or connected to one</span></div><div class="dp-ctl" id="c-session">-</div></div>
   <div class="dp-row">
-    <div class="dp-lbl"><b>Logs</b><span>Pat's, ARDOP's and the radio's, as one text file for a bug report, the passwords masked. Gateways and the subjects of your mail are in it</span></div>
+    <div class="dp-lbl"><b>Logs</b><span>Pat's, the modem's and the radio's, as one text file for a bug report, the passwords masked. Gateways and the subjects of your mail are in it</span></div>
     <div class="dp-ctl"><a class="btn" id="logs" href="/api/winlink/logs" download>Download</a></div>
   </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
@@ -53,7 +53,7 @@
 </div>
 
 <form class="dp-card" id="conf">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>Station<span class="eff">Takes effect: Pat restarts with it</span></h3><p>Your Winlink account and what ARDOP may use. Pat's mailbox has its own Settings page for the rest</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>Station<span class="eff">Takes effect: Pat restarts with it</span></h3><p>Your Winlink account, the modem and what it may use. Pat's mailbox has its own Settings page for the rest</p></div></div>
   <div class="dp-row">
     <div class="dp-lbl"><label for="mycall"><b>Callsign</b></label><span>Your Winlink account. Empty: the radio's callsign<span id="radiocall"></span></span></div>
     <div class="dp-ctl"><input id="mycall" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="15"></div>
@@ -67,8 +67,16 @@
     <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="64" placeholder="New password (empty = keep)"></div>
   </div>
   <div class="dp-row">
+    <div class="dp-lbl"><label for="modem"><b>Modem</b></label><span>ARDOP: the gateways in Pat's list. Mercury: faster on a good path, but only with a station that runs Mercury 1.9.20 or later (station to station, or one of the few gateways that run it), dialled by hand in Pat as VARA HF; it costs the radio more processor and heat. One runs at a time</span></div>
+    <div class="dp-ctl"><select id="modem"><option value="ardop">ARDOP</option><option value="mercury">Mercury (experimental)</option></select></div>
+  </div>
+  <div class="dp-row" id="row-bandwidth">
     <div class="dp-lbl"><label for="bandwidth"><b>ARDOP bandwidth</b></label><span>The widest ARDOP may use, also with a gateway the list shows wider (Pat says so in its log). 500 Hz suits the radio's few watts and a crowded band; 200 Hz is the most robust, but a gateway fixed at 500 Hz or wider refuses it; 1000 and 2000 Hz are faster on a good path, with a gateway that runs them</span></div>
     <div class="dp-ctl"><select id="bandwidth"><option value="200">200 Hz</option><option value="500">500 Hz</option><option value="1000">1000 Hz</option><option value="2000">2000 Hz</option></select></div>
+  </div>
+  <div class="dp-row" id="row-mercury-bandwidth">
+    <div class="dp-lbl"><label for="mercury_bandwidth"><b>Mercury bandwidth</b></label><span>What Pat asks Mercury for, unless a connection names another. 2300 Hz uses all of Mercury's modes; 500 Hz keeps it narrow (still 1000 Hz wide at its most robust); 2750 Hz is 2300's modes for now. The narrower of the two stations' is used</span></div>
+    <div class="dp-ctl"><select id="mercury_bandwidth"><option value="500">500 Hz</option><option value="2300">2300 Hz</option><option value="2750">2750 Hz</option></select></div>
   </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
@@ -90,6 +98,7 @@
       <li>Start at 500 Hz, or 200 Hz on a weak path: at the radio's few watts a 200 Hz call connected where the gateway list's 2000 Hz did not. The bandwidth above is the widest, also for a gateway the list shows wider.</li>
       <li>The password is kept on the radio's system partition: not in the Backup, not on the Files page. A new card image asks for it again. The mail itself is on the SD card (<code>/mnt/winlink</code>) and stays.</li>
       <li>Sessions with gateways work: reported on an X6100 on 80 m and from the UK to Germany on 40 m, and an X6200 got as far as the login.</li>
+      <li>Mercury is experimental: tested between two stations on a PC, not yet on the air; how much of the radio's processor it takes is measured on the bench before a release. In the mailbox: Connect, VARA HF, then the other station's call and frequency by hand: the VARA HF gateway list shows VARA gateways, which do not answer Mercury. ARDOP's gateways do not answer it either.</li>
     </ul>
   </div>
 </div>
@@ -104,7 +113,9 @@ var showStatus = function(id, text, error=false) {
 var busy = false;
 const PW_STATE = {page: "set here (hidden)", pat: "set in Pat's own Settings (hidden)", none: "not set"};
 const SERVICE = {running: "Running", starting: "Starting", stopped: "Stopped"};
-const MODEM = {ready: "Ready", waiting: "Waiting for the radio's audio"};
+const MODEM = {ready: "Ready", waiting: "Waiting for the radio's audio",
+               behind: "Ready, but it fell behind the receiver lately: see Pat's log"};
+const MODEM_NAME = {ardop: "ARDOP", mercury: "Mercury"};
 const SESSION = {idle: "Idle", dialing: "Calling a gateway", connected: "Connected", unknown: "-"};
 const LAST = {dialing: "Calling", connected: "Connected", delivered: "Delivered", done: "Done", failed: "Failed"};
 
@@ -119,23 +130,31 @@ var radioRow = function(id, value, note, bad) {
   $("#r-" + id + "-n").text(note).css("color", bad ? "var(--err)" : "");
 }
 
-// The radio's state as the GUI writes it while ARDOP is on its audio (/run/winlink/radio, src/winlink.c)
+// The audio the chosen modem fills, Hz around 1500: ARDOP its bandwidth; Mercury 2100 Hz (DATAC17, QAM16C2) at 2300
+// and 2750, its 1000 Hz MFSK floor at 500
+var modemSpan = function(st) {
+  if (st.modem_choice !== "mercury") return {name: "ARDOP", bw: st.bandwidth, span: st.bandwidth};
+  return {name: "Mercury", bw: st.mercury_bandwidth, span: st.mercury_bandwidth === 500 ? 1000 : 2100};
+}
+
+// The radio's state as the GUI writes it while the modem is on its audio (/run/winlink/radio, src/winlink.c)
 var renderRadio = function(st) {
   const r = st.radio || {};
   const have = r.modem !== undefined;
+  const m = modemSpan(st);
   $("#radio-rows").toggle(have);
   $("#radio-none").toggle(!have).text(st.state === "off" ? "Shown while Winlink is on." :
-    "Shown once ARDOP is on the radio's audio (the GUI running, ARDOP started).");
+    "Shown once " + m.name + " is on the radio's audio (the GUI running, " + m.name + " started).");
   if (!have) return;
   radioRow("freq", mhz(r.rx), r.simplex ? "No TX: " + r.simplex :
     r.tx === r.rx ? "Transmits on the same frequency, as Winlink must" : "TX " + mhz(r.tx), !!r.simplex);
-  radioRow("mode", r.mode, r.mode === "USB-D" ? "" : r.mode === "USB" ? "ARDOP works in USB too" :
+  radioRow("mode", r.mode, r.mode === "USB-D" ? "" : r.mode === "USB" ? m.name + " works in USB too" :
     "Pat's QSY to a gateway sets USB-D", false);
-  const bw = st.bandwidth, lo = 1500 - bw / 2, hi = 1500 + bw / 2;
+  const lo = 1500 - m.span / 2, hi = 1500 + m.span / 2;
   const rxOk = r.filter_low <= lo && r.filter_high >= hi;
   const tx = r.tx_filter_high > 0, txOk = !tx || (r.tx_filter_low <= lo && r.tx_filter_high >= hi);
   radioRow("filter", r.filter_low + "-" + r.filter_high + " Hz",
-    (rxOk && txOk ? "Covers" : "Does not cover") + " ARDOP's " + lo + "-" + hi + " Hz at " + bw + " Hz" +
+    (rxOk && txOk ? "Covers" : "Does not cover") + " " + m.name + "'s " + lo + "-" + hi + " Hz at " + m.bw + " Hz" +
     (tx ? "; TX filter " + r.tx_filter_low + "-" + r.tx_filter_high + " Hz" : "") +
     (rxOk && txOk ? "" : ": widen the " + (rxOk ? "TX" : "RX") + " filter"), !(rxOk && txOk));
   radioRow("pwr", Math.min(r.pwr, r.cap).toFixed(1) + " W", r.pwr > r.cap ?
@@ -154,7 +173,8 @@ var renderRadio = function(st) {
 var renderConnections = function(st) {
   const on = st.state !== "off";
   $("#c-service").text(on && SERVICE[st.service] || "Off");
-  $("#c-modem").text(on && MODEM[st.modem] || "Off");
+  $("#c-modem").text(on && MODEM[st.modem] || "Off").css("color", on && st.modem === "behind" ? "var(--err)" : "");
+  $("#c-modem-n").text((MODEM_NAME[st.modem_choice] || "ARDOP") + " on the radio's audio");
   $("#c-session").text(on && SESSION[st.session] || "Off");
   const n = parseInt(st.browsers, 10);
   $("#c-browsers").text(isNaN(n) || !on ? "Pat calling a gateway, or connected to one" : n ?
@@ -206,8 +226,19 @@ var render = function(st) {
   $("#radioloc").text(st.radio_locator ? " (" + st.radio_locator + ")" : "");
   $("#password").val("");
   $("#bandwidth").val(String(st.bandwidth));
+  $("#modem").val(st.modem_choice || "ardop");
+  $("#mercury_bandwidth").val(String(st.mercury_bandwidth || 2300));
+  showModem();
   form.reset();
 }
+
+// The chosen modem's bandwidth row only
+var showModem = function() {
+  const merc = $("#modem").val() === "mercury";
+  $("#row-bandwidth").toggle(!merc);
+  $("#row-mercury-bandwidth").toggle(merc);
+}
+$("#modem").on("change", showModem);
 
 var refresh = function() { $.get('/api/winlink', {}, renderState); }
 
@@ -240,7 +271,8 @@ $("#conf").on("submit", function(e) {
   e.preventDefault();
   showStatus("#status", "Saving...");
   post({mycall: $("#mycall").val().trim(), locator: $("#locator").val().trim(),
-        bandwidth: parseInt($("#bandwidth").val(), 10), password: $("#password").val()},
+        bandwidth: parseInt($("#bandwidth").val(), 10), modem_choice: $("#modem").val(),
+        mercury_bandwidth: parseInt($("#mercury_bandwidth").val(), 10), password: $("#password").val()},
        function(r) { render(r); showStatus("#status", r.enabled ? "Saved: Pat restarts with it" : "Saved"); });
 });
 

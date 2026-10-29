@@ -37,3 +37,10 @@ v1.0.0 with `tools/pat/patches`, built for linux/amd64).
 
 It prints `MODEMS OK`; `--keep DIR` (run the script by hand) keeps the logs, `--only
 ardop|mercury` runs one.
+
+Also here, in Python alone: `winlink_test.py`, the tests of the supervisor
+(`rootfs/usr/sbin/x6100-winlink`: the settings, Pat's config, Mercury's, the
+outcome of each connection from the logs in `fixtures/`), and
+`winlink_web_test.py`, the web configurator's Winlink page and its API, which
+needs bottle (`PYTHONPATH=<a directory with bottle.py>`). Both run with
+`python3 -B <file>`.
