@@ -1357,17 +1357,22 @@ static bool radio_tick() {
                 battery_log(pack);
             }
 
-            /* The base's warnings: shown when one comes on, and again every 30 s while any lasts */
-            static uint8_t  warns;
-            static uint64_t warn_time;
-            uint8_t         w = pack->bat_hot | pack->pa_hot << 1 | pack->dcin_low << 2 | pack->bat_cold << 3;
+            /* The base's warnings, once its readings count (bat_watch.h): shown when one comes on, and again
+             * every 30 s while any lasts. told: those shown in the last 30 s. One that blinks (the DC input
+             * sagging under the TX current) is not new at each blink: each message stays 4 s and they queue,
+             * so a blink every other reading would have queued them faster than they go. Shown only once
+             * its job is in (the note above radio_tick) */
+            static uint8_t  told;
+            static uint64_t told_time;
+            uint8_t         w = bat_watch.counts
+                                    ? pack->bat_hot | pack->pa_hot << 1 | pack->dcin_low << 2 | pack->bat_cold << 3
+                                    : 0;
+            bool            due = now_time - told_time >= 30000;
 
-            if ((w & ~warns) || (w && now_time - warn_time >= 30000)) {
-                if (scheduler_put(base_warn_cb, &w, sizeof(w))) {
-                    warn_time = now_time;
-                }
+            if (w && ((w & ~told) || due) && scheduler_put(base_warn_cb, &w, sizeof(w))) {
+                told      = due ? w : told | w;
+                told_time = now_time;
             }
-            warns = w;
 
             /* The % sags under the TX current and comes back slowly: the last RX reading holds
              * while transmitting and for 30 s after (also in the top bar, clock.c) */
