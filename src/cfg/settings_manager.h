@@ -16,6 +16,7 @@
 // protect themselves with their own mutexes, and PendingWrites has its own
 // mutex, so concurrent readers of parameter values remain safe.
 
+#include <atomic>
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
@@ -61,6 +62,12 @@ class SettingsManager {
     std::vector<ParamBase *> band_params_;
     std::vector<ParamBase *> mode_params_;
 
+    // The highest TX power p_pwr accepts: BOARD_PWR_MAX, lowered on the X6200's
+    // battery (cfg_pwr_max_set). Declared before p_pwr, whose validator reads it.
+    // CAT, TCI and the web remote hand their sets to the LVGL thread, which also
+    // changes the cap; atomic all the same, as any thread may read a parameter.
+    std::atomic<float> pwr_max_{BOARD_PWR_MAX};
+
     // -- Parameters (public for C-API / UI access; live for the whole program) --
     // All regular GLOBAL/BAND/MODE params are declared with NSDMI here (one
     // line each — the single source of truth). The trailing group argument
@@ -74,8 +81,8 @@ class SettingsManager {
     // clang-format off
     Parameter<int32_t> p_volume{"vol", 30, 0, BOARD_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, 0.1f, BOARD_PWR_MAX,
-        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, [this](float v) { return clip(v, 0.1f, pwr_max_.load()); },
+        StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     Parameter<int32_t> p_squelch{"sql", 0, 0, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_rfgain{"rfgain", 63, 0, 100,

@@ -74,6 +74,10 @@ void cfg_pwr_set(float watts) {
     cfg_sm.p_pwr.set(watts);
 }
 
+void cfg_pwr_max_set(float watts) {
+    cfg_sm.pwr_max_.store(watts);
+}
+
 void cfg_vfo_toggle(void) {
     cfg_sm.vfo_toggle();
 }
