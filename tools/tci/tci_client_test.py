@@ -361,6 +361,23 @@ def funnel():
     print(f"funnel: the key of a browser paired at home: the greeting ({len(greeting)} lines)")
     assert funnel_refused("198.51.100.2"), "a second over Funnel was taken"
     print("funnel: a second one over Funnel refused")
+    # Its page sends nothing while it only listens, but answers the radio's pings (a browser does so itself, also
+    # in a background tab): heard from, it keeps the sound past the 6 s after which a page may be gone, and the
+    # other tab of the same browser (the Panel and the Screen page share its key) is refused at the handshake
+    pings, end = 0, time.time() + 7
+    ws.s.settimeout(0.05)
+    while time.time() < end:
+        try:
+            op, p = ws.frame()
+        except (socket.timeout, TimeoutError):
+            continue
+        if op == 9:
+            ws.send(10, p)
+            pings += 1
+    ws.s.settimeout(5)
+    assert pings >= 2, f"over Funnel, silent 7 s: {pings} pings from the radio"
+    assert funnel_refused("198.51.100.3"), "its page answering the radio's pings 7 s: another connection taken"
+    print(f"funnel: its page answering the radio's pings ({pings} in 7 s): another one still refused")
     ws.text("vfo:0,0,14250000;modulation:0,cw;drive:0,100;")
     got = nothing_for(ws, 0.6)
     assert not [p for op, p in got if op == 1 and p.startswith((b"vfo:", b"modulation:", b"drive:"))], got
