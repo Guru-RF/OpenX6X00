@@ -721,6 +721,7 @@ WINLINK_PROGRAMS = ("/usr/bin/pat", "/usr/bin/ardopcf")
 WINLINK_PORT = 8080                                   # Pat's mailbox
 WINLINK_CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")   # as x6100-winlink checks them
 WINLINK_LOCATOR_RE = re.compile(r"[A-R]{2}[0-9]{2}([A-X]{2})?", re.I)
+WINLINK_BANDWIDTHS = (200, 500, 1000, 2000)           # ARDOP's, the widest Pat may use (as x6100-winlink's)
 winlink_lock = threading.Lock()                       # one change at a time: Off may take 20 s
 
 
@@ -754,7 +755,8 @@ def winlink_state():
     except OSError:
         password_set = False
     st.update(enabled=conf["enabled"] == "1", mycall=conf["mycall"], locator=conf["locator"],
-              bandwidth=2000 if conf["bandwidth"] == "2000" else 500, password_set=password_set,
+              bandwidth=int(conf["bandwidth"]) if conf["bandwidth"] in [str(b) for b in WINLINK_BANDWIDTHS] else 500,
+              password_set=password_set,
               radio_mycall=max(read_callsign().upper().split("/"), key=len),   # ON6URE of ON6URE/P
               radio_locator=read_param("qth"), installed=all(os.access(p, os.X_OK) for p in WINLINK_PROGRAMS),
               host_ok=local_host_ok(), port=WINLINK_PORT)
@@ -812,8 +814,8 @@ def set_winlink():
                 return api_error(400, "Locator: 4 or 6 characters (JO20 or JO20ab); empty for the radio's QTH")
             new["locator"] = loc[:4].upper() + loc[4:].lower()
         if "bandwidth" in data:
-            if data["bandwidth"] not in (500, 2000) or isinstance(data["bandwidth"], bool):
-                return api_error(400, "Bandwidth: 500 or 2000")
+            if data["bandwidth"] not in WINLINK_BANDWIDTHS or isinstance(data["bandwidth"], bool):
+                return api_error(400, "Bandwidth: 200, 500, 1000 or 2000")
             new["bandwidth"] = str(data["bandwidth"])
         password = data.get("password", "")
         password = password.strip() if isinstance(password, str) else None

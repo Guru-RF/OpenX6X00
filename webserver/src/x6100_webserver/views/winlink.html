@@ -37,8 +37,8 @@
     <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="64" placeholder="New password (empty = keep)"></div>
   </div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="bandwidth"><b>ARDOP bandwidth</b></label><span>The widest ARDOP may use. 500 Hz suits most gateways and a crowded band; 2000 Hz is faster on a good path with a gateway that runs it</span></div>
-    <div class="dp-ctl"><select id="bandwidth"><option value="500">500 Hz</option><option value="2000">2000 Hz</option></select></div>
+    <div class="dp-lbl"><label for="bandwidth"><b>ARDOP bandwidth</b></label><span>The widest ARDOP may use, also with a gateway the list shows wider (Pat says so in its log). 500 Hz connects best at the radio's few watts and suits a crowded band; 200 Hz is the most robust, but a gateway fixed at 500 Hz or wider refuses it; 1000 and 2000 Hz are faster on a good path, with a gateway that runs them</span></div>
+    <div class="dp-ctl"><select id="bandwidth"><option value="200">200 Hz</option><option value="500">500 Hz</option><option value="1000">1000 Hz</option><option value="2000">2000 Hz</option></select></div>
   </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">

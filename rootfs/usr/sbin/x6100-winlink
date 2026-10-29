@@ -14,8 +14,9 @@
 #   x6100-winlink stop          stop the supervisor and wait for it, the setting kept (S98winlink stop)
 #   x6100-winlink run           the supervisor itself, started by the commands above
 #
-# The settings are in /mnt/winlink.conf (enabled=0|1, mycall=, locator=, bandwidth=500|2000), written by
-# the web page; an empty callsign or locator is the radio's own (Settings > General: callsign and QTH).
+# The settings are in /mnt/winlink.conf (enabled=0|1, mycall=, locator=, bandwidth=200|500|1000|2000), written
+# by the web page; an empty callsign or locator is the radio's own (Settings > General: callsign and QTH). The
+# bandwidth is the widest ARDOP may use: our Pat lowers a gateway list's wider bw= to it (tools/pat, 0003).
 # Pat's config.json holds the password, so it lives on the root filesystem (/var/lib/winlink/pat), where the
 # web pages cannot read it. It is merged, not written whole: our keys are set (the password when the page has
 # one), every other one is kept, since Pat's own Settings page edits the file too. The mailbox is on the DATA
@@ -68,7 +69,7 @@ RETRY_MAX = 60
 STABLE = 120                           # s of running after which a stop counts as the first again
 PAT_INT_WAIT = (10, 5)                 # s after the first and the second SIGINT
 ARDOP_TERM_WAIT = 5
-BANDWIDTHS = (500, 2000)
+BANDWIDTHS = (200, 500, 1000, 2000)   # Hz, ARDOP's ARQ bandwidths (all as MAX)
 CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")
 LOCATOR_RE = re.compile(r"[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?")
 
@@ -198,7 +199,7 @@ def wanted():
     if not CALL_RE.fullmatch(mycall):
         mycall = base_call(call)
         mycall = mycall if CALL_RE.fullmatch(mycall) else ""
-    bw = int(conf["bandwidth"]) if conf.get("bandwidth") in ("500", "2000") else 500
+    bw = int(conf["bandwidth"]) if conf.get("bandwidth") in [str(b) for b in BANDWIDTHS] else 500
     return {"mycall": mycall, "locator": norm_locator(conf.get("locator", "")) or norm_locator(qth),
             "bandwidth": bw}
 

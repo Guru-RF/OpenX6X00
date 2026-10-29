@@ -2520,9 +2520,9 @@ Setting it up:
      distance from it. Empty takes the radio's QTH.
    - Winlink password: kept on the radio and never shown again (the page says
      "set (hidden)"); a field left empty keeps it.
-   - ARDOP bandwidth: the widest ARDOP may use. 500 Hz suits most gateways and
-     a crowded band; 2000 Hz is faster on a good path, with a gateway that
-     runs ARDOP 2000.
+   - ARDOP bandwidth: the widest ARDOP may use, 200, 500 (the default), 1000
+     or 2000 Hz. It counts for every connection, also with a gateway that
+     Pat's gateway list shows wider: see "The ARDOP bandwidth" below.
 3. Switch Enabled on. Status says "Running as ON6URE" once Pat and ARDOP run.
    From then on they start with the radio, also after a new card image.
 4. Press Open the mailbox, or open `http://x6100.local:8080/` (`x6200.local`
@@ -2584,6 +2584,27 @@ Connecting to a gateway:
     listen (ARDOP hears that frequency too). Pat's tune-back after a session
     is a QSY too, so retuning right after a session and connecting at once
     without a frequency waits that minute.
+- The ARDOP bandwidth: Pat's gateway list fills in each gateway's widest
+  ARDOP bandwidth (2000MAX for a gateway listed as ARDOP 2000), the Connect
+  dialog takes it over and the browser remembers it for the next time. The
+  radio's Pat keeps to the bandwidth on the Winlink page instead: a gateway
+  listed wider is called at that bandwidth, and Pat's log says so ("ARDOP
+  bandwidth 500MAX, the widest set on the radio (Operating > Winlink), not the
+  2000MAX asked"). A gateway that runs 2000 Hz takes a 500 Hz call and the
+  session runs at 500 Hz. Up to v0.3.6 the gateway list's bandwidth won, and
+  the page's only counted for a connection without one.
+  - 500 Hz (the default) is the one to start with. Reported from the air
+    (#18): at the radio's few watts a 500 or 200 Hz session connected at once
+    where 2000MAX did not. ARDOP's calls are the same narrow frames whatever
+    the bandwidth, but a 2000 Hz session starts with four carriers and its
+    most robust frame is 500 Hz wide, while a 200 or 500 Hz session can fall
+    back to ARDOP's most robust frame (200 Hz, one carrier).
+  - 200 Hz is the most robust, for a weak path, but slower, and a gateway
+    fixed at 500 Hz or wider refuses it ("REJECTED ... INCOMPATIBLE BW" in
+    `ardopcf.log`). 1000 and 2000 Hz are faster on a good path, with a gateway
+    that runs them; a gateway fixed at 1000 or 2000 Hz refuses a narrower call.
+  - Pat's Connect dialog still shows the gateway list's bandwidth; what is
+    sent is the narrower of the two.
 - Pat listens before it calls: on a busy frequency it asks in the mailbox
   whether to go ahead.
 - The gateway asks for the password once its welcome is in (the line ending
@@ -3681,7 +3702,7 @@ The DATA partition, readable on a PC.
 | `https/` | the web configurator's HTTPS certificate |
 | `tailscale.conf` | Tailscale on or off: `enabled=0|1` |
 | `tailscale/` | the tailscaled program, downloaded when Tailscale is turned on and checked before every start |
-| `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=500|2000` |
+| `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=200|500|1000|2000` (the widest ARDOP may use) |
 | `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
 

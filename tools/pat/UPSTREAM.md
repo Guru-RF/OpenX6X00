@@ -73,6 +73,15 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   /api/winlink-account/password-recovery-email` (which sent the callsign and the password to
   winlink.org in the URL) answers a placeholder address, which the UI takes for "an address
   is set". Setting an address (PUT) still goes to winlink.org.
+- `0003-ardop-bandwidth-cap.patch`: the config's ARDOP bandwidth (`ardop.arq_bandwidth`, which
+  the radio's Winlink page sets) is the widest a connection may use. Pat's gateway list fills in
+  each gateway's widest bandwidth (`bw=2000MAX` for one listed as ARDOP 2000), the connect dialog
+  takes it over, the browser remembers it, and a connection's `bw=` wins over the config: at the
+  radio's 7 W, 500 and 200 Hz connected where 2000MAX did not (#18). `Connect()` lowers an ARDOP
+  `bw=` above the config's Max to `<Max>MAX` and logs it ("ARDOP bandwidth 500MAX, the widest set
+  on the radio (Operating > Winlink), not the 2000MAX asked"); a gateway that runs a wider
+  bandwidth takes it and negotiates down. A `bw=` at or under it, or none, is left as it is.
+  With a test (`app/ardop_bandwidth_test.go`).
 
 Not a patch: the version report (daily) and the app's own recovery-email check (every 14 days),
 both to api.winlink.org, stay off through `version_reporting_disabled: true` in the config,

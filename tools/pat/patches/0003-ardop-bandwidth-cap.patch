@@ -1,0 +1,148 @@
+From 8230e6fefeacfed2dd878797b17d0c839ab579b5 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Thu, 29 Oct 2026 20:00:00 +0100
+Subject: [PATCH] app: the config's ARDOP bandwidth is the widest, also for a
+ gateway listed wider (OpenX6X00)
+
+The gateway list fills in each gateway's widest ARDOP bandwidth
+(bw=2000MAX for one listed as ARDOP 2000), the connect dialog takes it
+over and the browser remembers it, and a connection's bw= wins over
+ardop.arq_bandwidth, which the radio's Winlink page sets. On the radio
+(7 W at most) 500 and 200 Hz sessions connected where 2000MAX did not.
+
+Connect() now lowers an ARDOP bw= above the config's Max to <Max>MAX
+and says so in the log; a gateway that runs a wider bandwidth takes it
+and the session is negotiated down. A bw= at or under the limit, or
+none, is left as it is; one that is not a bandwidth is left for the
+dialer to refuse. With a test (app/ardop_bandwidth_test.go).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/ardop_bandwidth.go      | 37 ++++++++++++++++++++++++++
+ app/ardop_bandwidth_test.go | 52 +++++++++++++++++++++++++++++++++++++
+ app/connect.go              |  6 +++++
+ 3 files changed, 95 insertions(+)
+ create mode 100644 app/ardop_bandwidth.go
+ create mode 100644 app/ardop_bandwidth_test.go
+
+diff --git a/app/ardop_bandwidth.go b/app/ardop_bandwidth.go
+new file mode 100644
+index 0000000..5c94d0d
+--- /dev/null
++++ b/app/ardop_bandwidth.go
+@@ -0,0 +1,37 @@
++// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
++// Use of this source code is governed by the MIT-license that can be
++// found in the LICENSE file.
++
++package app
++
++import (
++	"github.com/la5nta/wl2k-go/transport"
++	"github.com/la5nta/wl2k-go/transport/ardop"
++)
++
++// capArdopBandwidth keeps an ARDOP connection within the widest ARQ bandwidth of the config
++// (OpenX6X00 patch: the radio's Winlink page sets ardop.arq_bandwidth). The gateway list fills
++// in each gateway's widest bandwidth (bw=2000MAX for a gateway listed as ARDOP 2000), the
++// connect dialog takes it over, the browser remembers it for the next time, and a connection's
++// bw= wins over the config. At the radio's 7 W a 500 Hz session connected where 2000MAX did
++// not.
++//
++// A bw= at or under the limit, or none, is left as it is. One above it becomes the limit as
++// <Max>MAX: a gateway that runs a wider bandwidth takes it and the session is negotiated down
++// to it. A bw= that is not a bandwidth is left for the dialer to refuse. Returns the bw= asked
++// when it was lowered, "" when the URL is as it was.
++func capArdopBandwidth(url *transport.URL, limit ardop.Bandwidth) (asked string) {
++	if url.Scheme != MethodArdop || limit.IsZero() {
++		return ""
++	}
++	str := url.Params.Get("bw")
++	if str == "" {
++		return ""
++	}
++	bw, err := ardop.BandwidthFromString(str)
++	if err != nil || bw.Max <= limit.Max {
++		return ""
++	}
++	url.Params.Set("bw", ardop.Bandwidth{Max: limit.Max}.String())
++	return str
++}
+diff --git a/app/ardop_bandwidth_test.go b/app/ardop_bandwidth_test.go
+new file mode 100644
+index 0000000..3c465a6
+--- /dev/null
++++ b/app/ardop_bandwidth_test.go
+@@ -0,0 +1,52 @@
++package app
++
++import (
++	"testing"
++
++	"github.com/la5nta/wl2k-go/transport"
++	"github.com/la5nta/wl2k-go/transport/ardop"
++)
++
++func TestCapArdopBandwidth(t *testing.T) {
++	tests := []struct {
++		url   string
++		limit ardop.Bandwidth
++		bw    string // the URL's bw= after
++		asked string // what capArdopBandwidth returns
++	}{
++		// the gateway list's bw for an ARDOP 2000 gateway, the radio at 500 or 200
++		{"ardop:///DM6TS?bw=2000MAX&freq=7061.5", ardop.Bandwidth500Max, "500MAX", "2000MAX"},
++		{"ardop:///DM6TS?bw=2000MAX&freq=7061.5", ardop.Bandwidth200Max, "200MAX", "2000MAX"},
++		{"ardop:///HB9MM?bw=1000MAX", ardop.Bandwidth500Max, "500MAX", "1000MAX"},
++		{"ardop:///HB9MM?bw=2000FORCED", ardop.Bandwidth500Max, "500MAX", "2000FORCED"},
++		{"ardop:///HB9MM?bw=2000", ardop.Bandwidth1000Max, "1000MAX", "2000"},
++		// at or under the limit: as asked, FORCED kept
++		{"ardop:///DM6TS?bw=500MAX", ardop.Bandwidth500Max, "500MAX", ""},
++		{"ardop:///DM6TS?bw=200MAX", ardop.Bandwidth500Max, "200MAX", ""},
++		{"ardop:///DM6TS?bw=500FORCED", ardop.Bandwidth500Max, "500FORCED", ""},
++		{"ardop:///DM6TS?bw=2000MAX", ardop.Bandwidth2000Max, "2000MAX", ""},
++		// no bw: the config's ARQBW, which Pat set on the TNC
++		{"ardop:///W4NWG?freq=3587", ardop.Bandwidth500Max, "", ""},
++		// not a bandwidth: left for the dialer, which says so
++		{"ardop:///W4NWG?bw=3000MAX", ardop.Bandwidth500Max, "3000MAX", ""},
++		// no limit in the config, or not ARDOP
++		{"ardop:///DM6TS?bw=2000MAX", ardop.Bandwidth{}, "2000MAX", ""},
++		{"varahf:///DM6TS?bw=2300", ardop.Bandwidth500Max, "2300", ""},
++	}
++	for _, tt := range tests {
++		url, err := transport.ParseURL(tt.url)
++		if err != nil {
++			t.Fatalf("%s: %v", tt.url, err)
++		}
++		asked := capArdopBandwidth(url, tt.limit)
++		if got := url.Params.Get("bw"); got != tt.bw || asked != tt.asked {
++			t.Errorf("%s with %v: bw=%q asked=%q, want bw=%q asked=%q", tt.url, tt.limit, got, asked, tt.bw, tt.asked)
++		}
++	}
++	// the other parameters stay
++	url, _ := transport.ParseURL("ardop:///DM6TS?bw=2000MAX&freq=7061.5&connect_requests=5")
++	capArdopBandwidth(url, ardop.Bandwidth500Max)
++	if url.Params.Get("freq") != "7061.5" || url.Params.Get("connect_requests") != "5" {
++		t.Errorf("the other parameters changed: %v", url.Params)
++	}
++}
+diff --git a/app/connect.go b/app/connect.go
+index 65bf029..a3284f1 100644
+--- a/app/connect.go
++++ b/app/connect.go
+@@ -71,6 +71,12 @@ func (a *App) Connect(connectStr string) (success bool) {
+ 		url.Scheme = a.defaultAX25Method()
+ 	}
+ 
++	// OpenX6X00: the radio's ARDOP bandwidth is the widest, also for a gateway listed wider
++	if asked := capArdopBandwidth(url, a.config.Ardop.ARQBandwidth); asked != "" {
++		log.Printf("ARDOP bandwidth %s, the widest set on the radio (Operating > Winlink), not the %s asked",
++			url.Params.Get("bw"), asked)
++	}
++
+ 	// Init TNCs
+ 	switch url.Scheme {
+ 	case MethodAX25AGWPE:
+-- 
+2.56.0
+
