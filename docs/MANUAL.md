@@ -3588,7 +3588,12 @@ own at the radio (DNS rebinding). Its own names are:
   register `x6100.nl`;
 - the names you add under Other names on the Network page (System > Network):
   a name your own DNS server gives the radio that is not `<name>.<domain>` (an
-  A record such as `shack.example.nl`), or a reverse proxy's name. Whole names
+  A record such as `shack.example.nl`), or a reverse proxy's name. Only names
+  of your own: a page opened by a listed name can change everything the
+  configurator can, so never add a name a web site or a message asks you to
+  add, and a reverse proxy's name only when it serves the radio alone (another
+  site behind the same name could change the radio's settings too) and the
+  internet does not reach it (these pages have no login). Whole names
   only, up to 8: no addresses (they count already), no wildcards, not a
   public suffix alone (`nl`, `co.uk`) and not a single word. The list is kept
   in `/mnt/own_names.conf` on the DATA partition, so it survives a new card
@@ -3601,9 +3606,9 @@ own at the radio (DNS rebinding). Its own names are:
 
 Opened by another name, the page says by which name it was opened, which names
 work (the Tailscale name only while Tailscale runs) and, for a name the list
-takes, that it can be added on the Network page: open that page by one of the
-names that work, add the name, and it works at once. TCI programs, which are
-not browsers, connect by any name.
+takes, that it can be added on the Network page if it is your own: open that
+page by one of the names that work, add the name, and it works at once. TCI
+programs, which are not browsers, connect by any name.
 
 ## SSH
 
@@ -3778,8 +3783,8 @@ Accept. You are then root on the radio; `exit` ends the session.
 - The page says "This page was opened as ..., which is not one of the radio's
   own names": it was opened by a name the radio does not know as its own (an A
   record of your own DNS server). Open it by one of the names the message
-  lists, or add that name on the Network page ([the radio's own
-  names](#the-radios-own-names)).
+  lists, or, when it is a name of your own, add it on the Network page
+  ([the radio's own names](#the-radios-own-names)).
 - `Could not resolve hostname x6100.local` (PuTTY: "Host does not exist"):
   this computer does not resolve `.local` names (some Windows computers, and
   networks that block mDNS). Use the radio's address instead,

@@ -814,7 +814,9 @@ def own_name_error(name):
 
 def not_own_name(why):
     """A refusal's text for a page opened by another name (#105): the name it was opened by, the names that work
-    (the Tailscale name only while Tailscale runs) and where to add that name"""
+    (the Tailscale name only while Tailscale runs) and where to add that name if it is the owner's own. Only then:
+    a site that points a name of its own at the radio can open the radio's own pages by it, this text and all, and
+    then ask the owner to add it"""
     host = request_host()
     addr = radio_address()
     works = [f"its address ({addr})" if addr else "its address"] + own_names()
@@ -824,7 +826,8 @@ def not_own_name(why):
     text = (f"This page was opened as {host}, which is not one of the radio's own names" if host else
             "This page was opened without a name") + f": {why}. Open it by {', '.join(works[:-1])} or {works[-1]}"
     if host and not own_name_error(host):
-        text += f". To use {host}, add it to Other names on System > Network, opened by one of those"
+        text += (f". If {host} is a name your own DNS server or reverse proxy gives the radio, add it to Other "
+                 "names on System > Network, opened by one of those: never a name a web site or a message asks for")
     return text
 
 

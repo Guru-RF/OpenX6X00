@@ -280,6 +280,11 @@ with tempfile.TemporaryDirectory(prefix='x6names-') as td:
         ('the refusal: the names that work',
          str(f'its address, {me}.local, {me}.home.lan, {me}.lan or {me}.tri-angle.nl' in text), 'True'),
         ('the refusal: where to add the name', str('add it to Other names on System > Network' in text), 'True'),
+        # a rebinding site can open the radio's own pages by its name, this text and all: the name is offered only as
+        # the owner's own, never one a site asks for
+        ('the refusal: only a name of the owner\'s own',
+         str('If x6100.fritz.box is a name your own DNS server or reverse proxy gives the radio, add it' in text and
+             'never a name a web site or a message asks for' in text), 'True'),
         ('the refusal: no Tailscale while it is off', str('Tailscale' in text), 'False'),
         ('the refusal for a single name: nothing to add', str('Other names' in refusal('shack')), 'False'),
     ]
