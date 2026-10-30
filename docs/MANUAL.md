@@ -26,7 +26,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
 - [Network name](#network-name)
-- [SSH](#ssh)
+- [SSH](#ssh): [a key on Windows](#a-key-on-windows), [on a Mac or on Linux](#a-key-on-a-mac-or-on-linux), [in PuTTY](#a-key-in-putty), [adding the key on the radio](#adding-the-key-on-the-radio), [the first login](#the-first-login), [after a new card image](#after-a-new-card-image), [when SSH does not let you in](#when-ssh-does-not-let-you-in)
 - [Tailscale](#tailscale): [Tailscale Funnel](#tailscale-funnel)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
@@ -3547,29 +3547,192 @@ not resolve `.local`, the IP address shown in Settings > Wireless still works.
 ## SSH
 
 SSH on the radio takes keys only: logging in with a password is off, because
-every radio came with the same root password. Each computer you log in from
-needs its public key on the radio:
+every radio came with the same root password. Without a key on the radio, SSH
+lets nobody in. The radio's everyday use needs no SSH: the web configurator's
+Files page downloads files from the card, and Backup and Update are there too.
 
-1. On the computer, once: `ssh-keygen -t ed25519` (it keeps the key in
-   `~/.ssh/id_ed25519`, the public half in `~/.ssh/id_ed25519.pub`).
-2. On the web configurator, System > SSH: paste the one line of
-   `id_ed25519.pub` and press Add.
-3. `ssh root@x6100.local` (your radio's name, or its address) logs in.
+A key has two halves, made once on each computer you log in from:
 
-- The page lists the keys (type, comment, fingerprint) and removes one; a
-  removed key can be put back with Undo for twenty seconds. It takes
-  ssh-ed25519, ecdsa-sha2-nistp256/384/521 and ssh-rsa of 3072 bits or more,
-  one key at a time, as `ssh-keygen` writes it (no options in front).
-- The keys are root's, in `/root/.ssh/authorized_keys`. A copy goes to
-  `backups/backup.tgz` on the DATA partition after each change on the page and
-  at every clean power-off, so a new card image takes them back.
-- The page opens only by the radio's address or its own name (as the
-  Tailscale page): a page from another site cannot add a key through your
-  browser.
+- The public half (`id_ed25519.pub`, one line that starts with `ssh-ed25519`)
+  goes on the radio, on the web configurator's System > SSH page.
+- The private half (`id_ed25519`, without `.pub`, or PuTTY's `.ppk` file)
+  stays on the computer. Never paste it anywhere; the SSH page refuses it.
+
+In short: make a key on the computer, paste its public half on System > SSH
+and press Add, then `ssh root@x6100.local`. The radio takes ed25519 keys (the
+ones made below), ECDSA keys and RSA keys of 3072 bits or more. This section
+writes `x6100.local`: an X6200 answers as `x6200.local`, a radio you gave a
+[network name](#network-name) by that name, and every radio by its address.
+
+### A key on Windows
+
+Windows 10 (version 1809 or later) and Windows 11 come with OpenSSH's `ssh`
+and `ssh-keygen` (the OpenSSH Client feature). They run in PowerShell.
+
+1. Press the Windows key, type `PowerShell` and open it.
+2. Type `ssh-keygen -t ed25519` and press Enter. It asks three questions
+   (where to keep the key, and a passphrase twice): press Enter three times.
+   The key is now in `C:\Users\<you>\.ssh\`: `id_ed25519` and
+   `id_ed25519.pub`.
+3. Type `cat ~\.ssh\id_ed25519.pub | clip` and press Enter. The public half
+   is now copied: paste it on the radio
+   ([Adding the key on the radio](#adding-the-key-on-the-radio)).
+4. Then, in PowerShell: `ssh root@x6100.local`
+   ([The first login](#the-first-login)).
+
+- PowerShell says the term 'ssh-keygen' is not recognized: the OpenSSH client
+  is not installed. Press the Windows key, type `Optional features` and open
+  it, then Add a feature (View features on Windows 11): choose OpenSSH
+  Client and install it. Then open PowerShell again.
+- `ssh-keygen` asks "Overwrite (y/n)?": this computer has a key already. Type
+  `n` and go on with step 3 with that key; a new one would lock you out
+  wherever the old one logs in.
+- A passphrase is up to you: it locks the private half on the computer, and
+  `ssh` asks for it at each login ("Enter passphrase for key"). The radio
+  never sees it.
+
+### A key on a Mac or on Linux
+
+1. Open Terminal (on a Mac: Applications > Utilities > Terminal).
+2. Type `ssh-keygen -t ed25519` and press Enter three times, as on Windows.
+   The key is now in `~/.ssh/id_ed25519` and `~/.ssh/id_ed25519.pub`.
+3. Copy the public half. On a Mac, `pbcopy < ~/.ssh/id_ed25519.pub` copies
+   it. On Linux, `cat ~/.ssh/id_ed25519.pub` prints the line: select all of
+   it and copy it (Ctrl+Shift+C in most terminals).
+4. Paste it [on the radio](#adding-the-key-on-the-radio), then
+   `ssh root@x6100.local` ([The first login](#the-first-login)).
+
+### A key in PuTTY
+
+PuTTY keeps the private half in a `.ppk` file made by PuTTYgen, which comes
+with PuTTY. WinSCP takes the same file.
+
+1. Open PuTTYgen. Under Parameters, Type of key to generate: EdDSA, with
+   Ed25519 (255 bits) in Curve to use for generating this key. (PuTTYgen's
+   default, RSA of 2048 bits, is refused by the radio.)
+2. Press Generate and move the mouse over the empty part of the window until
+   the bar is full.
+3. The box Public key for pasting into authorized_keys file (in older
+   versions: into OpenSSH authorized_keys file) now holds the public half, as
+   one line. Right-click in it, Select All, right-click again, Copy, and paste
+   it [on the radio](#adding-the-key-on-the-radio). Not the Save public key
+   button: it writes another format, which the radio does not take.
+4. Press Save private key. Without a passphrase PuTTYgen asks whether to save
+   the key without one: Yes (or type one in Key passphrase and Confirm
+   passphrase first). Keep the `.ppk` file.
+5. In PuTTY, on Session: Host Name `root@x6100.local`, Port 22, SSH. Then
+   Connection > SSH > Auth > Credentials: Private key file for
+   authentication, Browse..., the `.ppk` file. Back on Session, type a name
+   under Saved Sessions and press Save, then Open
+   ([The first login](#the-first-login)). Next time, double-click the name.
+
+WinSCP: New Site, SFTP, Host name `x6100.local`, User name `root`, then
+Advanced... > SSH > Authentication > Private key file: the `.ppk` file (an
+OpenSSH `id_ed25519` chosen there is converted to one).
+
+### Adding the key on the radio
+
+1. In a browser on the radio's network, open the web configurator:
+   `http://x6100.local/`, or `http://` and the radio's address (Settings >
+   Wireless: IP on the WIFI card, Address in use on the ETHERNET card).
+2. System > SSH (or the SSH keys tile on General).
+3. Click in the box under Add a key, paste (Ctrl+V, on a Mac Cmd+V) and press
+   Add. The page says "Added: it logs in from now on", and the list shows the
+   key with its comment (`you@laptop`, the computer's user and name;
+   `eddsa-key-20261030` from PuTTYgen) and its fingerprint.
+
+- Once for each computer, up to 32 keys. The bin (Remove) on a row removes
+  that key; Undo puts it back for twenty seconds. Removing a key does not end
+  a session already open with it.
+- It takes ssh-ed25519, ecdsa-sha2-nistp256/384/521 and ssh-rsa of 3072 bits
+  or more, one key at a time, as `ssh-keygen` writes it (no options in front).
+- The keys are root's, in `/root/.ssh/authorized_keys`.
+- The page opens only by the radio's address, its own name or its Tailscale
+  name, as the Tailscale page: a page from another site cannot add a key
+  through your browser.
 - `/mnt/ssh/authorized_keys` on the DATA partition, which the X6100's card
   images of v0.3.1 to v0.3.5 also read, is no longer read: at the first start
   after the update its keys move into root's file (they show on the page) and
   it is renamed `authorized_keys.imported`.
+
+### The first login
+
+`ssh root@x6100.local` (PuTTY: Open). The first time from a computer, it does
+not know the radio yet and asks:
+
+```
+The authenticity of host 'x6100.local (192.168.1.40)' can't be established.
+ED25519 key fingerprint is SHA256:...
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])?
+```
+
+Type `yes` (the whole word) and press Enter. The computer keeps the radio's
+host key, in `.ssh/known_hosts`, and checks it at every login after that; it
+does not ask again. PuTTY asks the same in its PuTTY Security Alert window:
+Accept. You are then root on the radio; `exit` ends the session.
+
+### After a new card image
+
+- The radio keeps root's keys and its own host keys in `backups/backup.tgz`
+  on the DATA partition, after each change on the SSH page and at every clean
+  power-off.
+- At the first start of a newly written card it takes them back from there:
+  the same keys log in, and the computers see the same radio, with no
+  warning.
+- Writing an image normally keeps the DATA partition (see
+  [Updating the firmware](#updating-the-firmware)). An image written to
+  another card, or to a card a tool wiped, starts without it: add the key
+  again (the computer still has it: copy it as when it was made) and tell the
+  computer to forget the old host key (below).
+- An update (Settings > Info > Update) leaves the keys as they are.
+
+### When SSH does not let you in
+
+- `Permission denied (publickey)`: the radio has no key of this computer.
+  - Check that the SSH page lists it: `ssh-keygen -lf ~/.ssh/id_ed25519.pub`
+    (in PowerShell: `ssh-keygen -lf $env:USERPROFILE\.ssh\id_ed25519.pub`)
+    prints the key's fingerprint, the same `SHA256:...` as on the page.
+  - Log in as root: `ssh root@x6100.local`. Plain `ssh x6100.local` logs in
+    with the computer's user name, which the radio does not have.
+  - A key kept in a file of another name: `ssh -i <file> root@x6100.local`.
+- PuTTY says "No supported authentication methods available (server sent:
+  publickey)": no `.ppk` file in Connection > SSH > Auth > Credentials, or
+  its public half is not on the radio. "Server refused our key": the `.ppk`
+  file is not the one whose public half is on the radio.
+- The page says "An RSA key of 2048 bits: 3072 or more, or an ed25519 key":
+  RSA keys of 2048 bits (the old default of `ssh-keygen`, and still
+  PuTTYgen's) are refused. Make an ed25519 key as above. The old key can stay
+  for other servers: `ssh` tries both.
+- The page says "That is a private key, which stays on your computer": the
+  file without `.pub` was pasted. Paste the line of the `.pub` file.
+- The page says "One key at a time, on one line": the file of PuTTYgen's
+  Save public key (it starts with `---- BEGIN SSH2 PUBLIC KEY ----`), or a
+  line an editor broke in two. Copy the key from PuTTYgen's box (Load with
+  the saved `.ppk` file shows it again), or the `.pub` file's line as above.
+- The page says "Open this page by the radio's address or x6100.local": it
+  was opened by another name (one your router gives it, `x6100.fritz.box`).
+  Open it by the radio's address or `x6100.local`.
+- `Could not resolve hostname x6100.local` (PuTTY: "Host does not exist"):
+  this computer does not resolve `.local` names (some Windows computers, and
+  networks that block mDNS). Use the radio's address instead,
+  `ssh root@192.168.1.40`, from Settings > Wireless.
+- `Connection timed out`: the computer does not reach the radio: a wrong
+  address, or another network (a guest WiFi keeps its devices apart).
+- `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!` and
+  `Host key verification failed.`: the computer knew another host key under
+  that name or address. The card was written without its old DATA partition (above),
+  or another device has that address now. Once you know why,
+  `ssh-keygen -R x6100.local` forgets the old key (and
+  `ssh-keygen -R 192.168.1.40` when you logged in by the address); log in
+  again and answer `yes`. PuTTY says "WARNING - POTENTIAL SECURITY BREACH!":
+  Accept takes the new key.
+- `Too many authentication failures`: the computer offered many keys before
+  this one (an agent holding six or more), and the radio counts each.
+  `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 root@x6100.local` offers
+  only that one.
+- `Enter passphrase for key`: the passphrase given to the key when it was
+  made. The radio itself never asks for a password.
 
 ## Tailscale
 
