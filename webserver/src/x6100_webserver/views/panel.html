@@ -39,6 +39,8 @@
 .b.on { border-color:var(--pon); box-shadow:inset 0 -3px 0 var(--pon); }
 .b.ptt { height:56px; background:#4a1a1a; border-color:#7a2a2a; font-size:15px; color:#fff; }
 .b.ptt.down { background:#e03030; border-color:#e03030; }
+.b.xtune.down { background:#9a6200; border-color:#d08a10; color:#fff; }   /* TUNE for an external tuner on the air */
+.b.xtune.warn { background:#5a3a10; border-color:#8a5a16; }
 .b.lvl { flex-direction:row; justify-content:space-between; padding:0; }
 .b.lvl > span { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; }
 .b.lvl > i { width:34px; align-self:stretch; display:flex; align-items:center; justify-content:center; font:700 18px/1 system-ui,sans-serif; font-style:normal; color:var(--pd); border-left:1px solid var(--pl); }
@@ -208,10 +210,11 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
         <button class="b lvl" data-lvl="pwr"><i data-d="-1">−</i><span><small>POWER</small><span>--</span></span><i data-d="1">+</i></button>
         <button class="b" id="b-filter"><small>FILTER</small><span>--</span></button>
       </div>
-      <div class="row r4">
+      <div class="row r5">
         <button class="b" id="b-tune"><small>knob</small>◀ −</button>
         <button class="b" id="b-tunep"><small>knob</small>+ ▶</button>
         <button class="b" id="b-atune"><small>ATU</small>TUNE</button>
+        <button class="b xtune" id="b-xtune" title="A low-power carrier for a tuner of its own at the antenna, at the radio's TUNE power and time limit (Settings &gt; TX Cal); press again to stop">TUNE<small>external tuner</small></button>
         <button class="b ptt" id="pttbtn">PTT (hold)</button>
       </div>
     </div>
@@ -284,7 +287,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
 <div class="pop" id="pop" hidden><div class="box" id="popbox"></div></div>
 
 <script src="/static/js/radio_link.js?v=2"></script>
-<script src="/static/js/radio_session.js?v=4"></script>
+<script src="/static/js/radio_session.js?v=5"></script>
 <script>
 (function() {
   "use strict";
@@ -300,7 +303,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   const STEPS = [10, 100, 500, 1000, 5000];
   const PLAN_COLORS = ["#2a7fff", "#d08a00", "#2e9e4f", "#b040c0", "#7d8796"];     /* CW, DIG, ALL, BCN, OUT (a US class) */
   const PLAN_NAMES = ["CW", "DIG", "SSB", "BCN", "OUT"];
-  let conf = null, unreachable = false, updating = null, link = null, tlink = null, ses = null, ptt = null;   /* the links are made below */
+  let conf = null, unreachable = false, updating = null, link = null, tlink = null, ses = null, ptt = null, xtune = null;   /* the links are made below */
   let micOn = false, txOn = false, micStream = null;   /* the microphone, asked about by the PTT from the start */
   let state = null, stateAt = 0, bands = [], plan = [], spots = [];
   let frames = 0, bytes = 0, lastStat = Date.now(), lastFrame = 0, lastAudio = 0, fpsText = "", abytes = 0, kbsText = "";
@@ -417,6 +420,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     $('[data-lvl="rfg"] span span').text(s.rfg); $('[data-lvl="pwr"] span span').text(s.pwr.toFixed(1) + " W");
     $("#b-filter span").text(fmtFilter(s));
     if (ptt) ptt.radioTx(!!s.tx);
+    if (xtune) xtune.radio(!!state.tune, state.tune_s);     /* TUNE for an external tuner, as the radio has it */
     markSpots();
   }
   function showMeter(db) {
@@ -981,6 +985,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     try {
       if (ses.onText(head, body)) return;          /* role, ctl, paired, tx, sessions */
       if (head === "err") wantDrop();                /* a change refused (whichever): the radio's values again */
+      if (head === "err" && xtune.err(body)) return; /* a tune refused or stopped by the radio: the TUNE button says so */
       if (head === "err" && ptt.err(body)) return;   /* a refused or ended transmission: the PTT button says so */
       if (head === "state") { state = JSON.parse(body); stateAt = Date.now(); showState(); requestDraw(); }
       else if (head === "m") showMeter(parseFloat(body));
@@ -1024,10 +1029,13 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     onStall: function(on) { stalled(on); },
   });
   /* Who this browser is to the radio and who controls it (R3); the PTT as the radio confirms it (R4) */
-  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); }, onTx: function(on) { ptt.radioTx(on); },
+  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); if (xtune) xtune.render(); }, onTx: function(on) { ptt.radioTx(on); },
     awayUrl: function() { return !FUNNEL && conf && conf.funnel_url ? conf.funnel_url : null; }});   /* Use away from home (#58) */
   ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses, link: link,
     mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
+  /* TUNE for an external tuner (#85): a press, renewed every second while it is on; the radio stops it without */
+  xtune = RadioTune.create({el: document.getElementById("b-xtune"), send: send, status: status, session: ses, link: link});
+  $("#b-xtune").on("click", function() { xtune.press(); });
   /* What touches the air is let go when the link can no longer carry it in time: a held key, a tune on its way, a
    * transmission. The link went (nothing of it is sent again, the radio drops them too), or it stalled: the
    * releases go out behind whatever is stuck, so a late arrival lets go too (audit C02). The operator presses
@@ -1038,6 +1046,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     const hadKeys = Object.keys(held).length > 0 || ptt.state === "tx" || ptt.state === "requesting";
     Object.keys(held).forEach(function(k) { keyUp(k, document.querySelector('[data-key="' + k + '"]')); });
     ptt.lost(why);
+    xtune.lost();                                     /* no renewal gets through: the radio stops it within 3 s */
     return hadKeys;
   }
   function dropped(wasUp) {

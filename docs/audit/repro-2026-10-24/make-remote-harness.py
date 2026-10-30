@@ -1,7 +1,7 @@
 """The browser remote's commands as src/remote_server.c handles them: handle_text and what it calls for keys, the
-PTT lease, the log, "set" and the pairing code, extracted as they are, around stand-ins for the clock, the input
-devices, the GUI thread's queue and the sockets. remote-scenarios.c drives them (26 October audit: C02, C03, C13;
-issue #58: the pairing code's waits)."""
+PTT lease, the log, "set", the pairing code and the TUNE lease, extracted as they are, around stand-ins for the clock,
+the input devices, the GUI thread's queue, the sockets and the radio's TUNE (ext_tune.h). remote-scenarios.c drives
+them (26 October audit: C02, C03, C13; issue #58: the pairing code's waits; #85: TUNE for an external tuner)."""
 import os
 import re
 from pathlib import Path
@@ -44,12 +44,13 @@ parts = [
     between('static const struct { const char *name; int quality; bool half; } pics[PIC_N]', '};'),
     between('typedef enum { P_FREQ', '} pcmd_t;'),
     between('typedef enum { A_FT8_OPEN', '} acmd_t;'),
+    between('typedef struct {\n    int      ci;', '} tcmd_t;'),
     'static pthread_mutex_t app_mux = PTHREAD_MUTEX_INITIALIZER;',
     between('static struct {                     /* the last log commands\' answers', 'static atomic_bool log_pending;'),
 ]
 names = ['role_name', 'sess_key', 'log_sum', 'log_slot', 'log_queued', 'log_answer', 'log_query', 'log_flush',
          'app_apply', 'app_log_cmd', 'mode_supported', 'panel_put', 'set_refused', 'panel_set', 'role_tell', 'ctl_tell', 'allowed',
-         'ptt_down', 'ptt_lease', 'key_code', 'name_clean', 'pair_msg_apply', 'pair_paused_apply', 'pair_show', 'pair_try',
+         'ptt_down', 'ptt_lease', 'tune_apply', 'tune_cmd', 'tune_lease', 'key_code', 'name_clean', 'pair_msg_apply', 'pair_paused_apply', 'pair_show', 'pair_try',
          'wall_s', 'token_hash', 'from_hex', 'sess_save_locked', 'sess_load', 'random_hex', 'sess_add_locked', 'sess_new',
          'sess_find', 'sess_revoke', 'sess_held_locked', 'sess_away_of', 'sess_away', 'handle_text']
 pre = r'''
@@ -139,6 +140,33 @@ static void pair_msg_apply(void *arg);
 static void scheduler_put_noargs(void (*fn)(void *)) { if (fn == pair_msg_apply) codes_shown++; fn(NULL); }
 static atomic_int  npanel;
 static atomic_bool spots_resend;
+/* TUNE for an external tuner (ext_tune.h): the radio's side stood in for; tune_no is why the radio would not tune */
+#define TUNE_BY_RADIO 0
+#define TUNE_BY_PANEL 1
+static int         tune_who = -1, tune_starts, tune_stops;     /* who the tune on the air is for, -1 none */
+static const char *tune_no;
+static const char *ext_tune_refusal(void) { return tune_no; }
+static const char *ext_tune_start(int who) {
+    if (tune_no) return tune_no;
+    if (tune_who < 0) {
+        tune_who = who;
+        tune_starts++;
+        printf("%7.3f  radio: TUNE on, for %s\n", (fake_ms - 1000000) / 1000.0, who ? "a page" : "the radio");
+    }
+    return NULL;
+}
+static void ext_tune_stop(void) {
+    if (tune_who >= 0) {
+        tune_stops++;
+        printf("%7.3f  radio: TUNE stopped\n", (fake_ms - 1000000) / 1000.0);
+    }
+    tune_who = -1;
+}
+static bool ext_tune_stop_owner(int who) {
+    if (tune_who < 0 || tune_who != who) return false;
+    ext_tune_stop();
+    return true;
+}
 '''
 post = r'''
 static char said[MAX_CLIENTS][4096];

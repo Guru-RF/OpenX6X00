@@ -49,6 +49,8 @@ def main():
               contains=("edit-flow cases as they should be",)).strip())
         print("#58 Tailscale Funnel, the pages:\n" + command(["node", HERE / "funnel-pages.js"], env,
               contains=("funnel page cases as they should be",)).strip())
+        print("#85 TUNE for an external tuner, the Panel's side:\n" + command(["node", HERE / "tune-page.js"], env,
+              contains=("All tune page cases as they should be",)).strip())
 
         # 26 October audit: the browser remote's commands, on the page and in the radio
         print("C02 PTT hold, the page:\n" + command(["node", HERE / "ptt-hold.js"], env).strip())
@@ -90,6 +92,16 @@ def main():
             "sha256(64 bytes) = a8ae6e6ee929abea3afcfc5258c8ccd6f85273e0d4626d26c7279f3250f77c8e",
             "sha256(1000000 bytes) = cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0",
             "same=1, differs in the last byte=0")).strip())
+        print("#85 TUNE for an external tuner from the Panel, a lease:\n" + command([binary, "tune"], env, contains=(
+            "the stalled page's tune stopped by the radio: 1, the page told: 1",
+            "late renewals of the ended tune started one: 0",
+            "a new press started one: 1, still on after its renewals: 1",
+            "tune 0 stopped it: 1",
+            "a viewer: err view only; no TX: err this session may not transmit; control at the radio: 1; "
+            "the radio on the air: 1, queued=0; tunes started=0",
+            "the page told: 1",
+            "a tune started after the page let go: 0",
+            "the radio's tune kept by the leases: 1, by a viewer's tune 0: 1, stopped by the page's tune 0: 1")).strip())
         print("#58 a browser over Tailscale Funnel:\n" + command([binary, "funnel"], env, contains=(
             "over Funnel: pair? and pair refused=1, a code shown=0, tries counted=0",
             "over Funnel, a wrong key: closed=1, counted=1; on the LAN: closed=0, watching=1")).strip())

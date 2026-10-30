@@ -429,6 +429,91 @@ static int run_sha(void) {
     return 0;
 }
 
+/* Issue #85: TUNE for an external tuner from the Panel is a lease, as a held PTT is. While the tune is on the page
+ * renews it every second; the radio stops it three seconds after the last renewal (a link that stops delivering),
+ * a renewal of a tune that ended starts nothing, and a new press comes with a new number. A viewer, a session
+ * without TX, control elsewhere and a radio that would not tune are refused with an err; one the radio refuses on
+ * the GUI thread tells the page too; "tune 0" stops the tune, one started at the radio too */
+static void at_t(client_t *c, uint64_t ms, const char *text) {
+    for (; tick <= 1000000 + ms; tick += 100) { fake_ms = tick; tune_lease(c, fake_ms); }
+    fake_ms = 1000000 + ms;
+    if (text) { say(c, text); gui_run(); }
+}
+
+static int run_tune(void) {
+    client_t *c = open_client(0, ROLE_OPERATE, true);
+    int       starts;
+
+    snprintf(sessions[0].name, sizeof(sessions[0].name), "Shack PC");
+    nsessions = 1;
+    tick = fake_ms;
+    at_t(c, 0, "tune 1 1");
+    at_t(c, 1000, "tune 1 1");
+    at_t(c, 2000, "tune 1 1");
+    puts("        -- the link stops delivering");
+    at_t(c, 9000, NULL);
+    printf("the stalled page's tune stopped by the radio: %d, the page told: %d\n", tune_who < 0 && tune_stops == 1,
+           strstr(said[0], "err tune stopped: no renewal from the page") != NULL);
+    puts("        -- the link delivers again: the renewals the page sent before it saw the stall");
+    starts = tune_starts;
+    at_t(c, 9000, "tune 1 1");
+    at_t(c, 9000, "tune 1 1");
+    printf("late renewals of the ended tune started one: %d\n", tune_starts - starts);
+    starts = tune_starts;
+    at_t(c, 10000, "tune 1 2");
+    at_t(c, 11000, "tune 1 2");
+    at_t(c, 12000, "tune 1 2");
+    printf("a new press started one: %d, still on after its renewals: %d\n", tune_starts - starts, tune_who == TUNE_BY_PANEL);
+    at_t(c, 12500, "tune 0");
+    printf("tune 0 stopped it: %d\n", tune_who < 0);
+
+    puts("        -- refused");
+    ctl_release(CTL_BROWSER, 0);
+    client_t *v = open_client(1, ROLE_VIEW, false), *n = open_client(2, ROLE_OPERATE, false);
+    v->sess = -1;
+    starts = tune_starts;
+    say(v, "tune 1 1");
+    say(n, "tune 1 1");
+    gui_run();
+    ctl_claim(CTL_LOCAL, 0, "", true);
+    say(c, "tune 1 3");
+    gui_run();
+    ctl_release(CTL_LOCAL, 0);
+    tune_no = "on the air";
+    say(c, "tune 1 4");
+    int queued = njobs;
+    gui_run();
+    tune_no = NULL;
+    printf("a viewer: %s; no TX: %s; control at the radio: %d; the radio on the air: %d, queued=%d; tunes started=%d\n",
+           strstr(said[1], "err view only") ? "err view only" : "?",
+           strstr(said[2], "err this session may not transmit") ? "err this session may not transmit" : "?",
+           strstr(said[0], "err controlled by the radio's operator") != NULL,
+           strstr(said[0], "err tune: on the air") != NULL, queued, tune_starts - starts);
+    puts("        -- the radio refuses it on the GUI thread, after the page's look");
+    say(c, "tune 1 5");
+    tune_no = "no TX on 7.300 MHz";
+    gui_run();
+    tune_no = NULL;
+    printf("the page told: %d\n", strstr(said[0], "err tune: no TX on 7.300 MHz") != NULL);
+    puts("        -- let go before the GUI thread got to it");
+    starts = tune_starts;
+    say(c, "tune 1 6");
+    say(c, "tune 0");
+    gui_run();
+    printf("a tune started after the page let go: %d\n", tune_starts - starts);
+    puts("        -- one started at the radio: the page's lease does not end it, a viewer's tune 0 neither, its own does");
+    tune_who = TUNE_BY_RADIO;
+    c->tune_on = false;
+    at_t(c, 30000, NULL);
+    int kept = tune_who == TUNE_BY_RADIO;
+    say(v, "tune 0");
+    int kept_viewer = tune_who == TUNE_BY_RADIO;
+    say(c, "tune 0");
+    printf("the radio's tune kept by the leases: %d, by a viewer's tune 0: %d, stopped by the page's tune 0: %d\n", kept,
+           kept_viewer, tune_who < 0);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     ctl_init();
@@ -442,6 +527,7 @@ int main(int argc, char **argv) {
     if (argc >= 2 && !strcmp(argv[1], "log")) return run_log();
     if (argc >= 2 && !strcmp(argv[1], "set")) return run_set();
     if (argc >= 2 && !strcmp(argv[1], "pair")) return run_pair();
-    fprintf(stderr, "remote ptt|ping|log|set|pair|tokens|sha|funnel|away\n");
+    if (argc >= 2 && !strcmp(argv[1], "tune")) return run_tune();
+    fprintf(stderr, "remote ptt|ping|log|set|pair|tokens|sha|funnel|away|tune\n");
     return 2;
 }

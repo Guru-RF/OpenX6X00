@@ -1161,6 +1161,8 @@ Starting and stopping it:
 - The Ext tune button of the digital apps: FT8/FT4/FT2 page 5, JS8 page 7,
   WSPR page 2, SSTV page 3, PSK31/PSK63 and Olivia page 6, JTTY page 5. It
   shows the TUNE power, and Stop while it tunes.
+- The browser Panel's TUNE button (see
+  [Transmitting from the browser](#transmitting-from-the-browser)).
 - The same key or button again stops it at once, faded out. So does a change
   of frequency, mode, band, VFO or split ("TUNE stopped: tuned away"), and
   the time limit ("TUNE over: 15 s limit").
@@ -1202,7 +1204,7 @@ tunes, but only within the tune's own limits:
   from about SWR 2.5 whatever the radio's setting (#87), so a tuner that
   needs several watts to match may not get them there.
 
-Not where the radio may not transmit; the screen says why:
+Not where the radio may not transmit; the screen (and the Panel) says why:
 
 - "No tune: no TX on 7.300 MHz": a frequency the radio does not transmit on
   (a band it only receives, split's other VFO or a TX shift outside one).
@@ -1211,6 +1213,8 @@ Not where the radio may not transmit; the screen says why:
   not sent.
 - "No tune: Winlink in session": a Winlink connection is under way (Pat's
   last QSY or the modem's last key less than a minute ago).
+- From the Panel also: a browser that only watches, a session without TX,
+  control held elsewhere.
 - LOCK does not refuse it: TUNE does not change the frequency that LOCK
   holds (the digital apps that hold LOCK while open have the button too).
 
@@ -2994,7 +2998,9 @@ browser paired at home on any device.
 - The frequency: tap it for a keypad (kHz). BAND up and down, MODE, STEP,
   ZOOM, VFO A/B, LOCK; the knob buttons tune by the step.
 - PRE, ATT, NB, NR, AGC, ATU on and off; VOL, SQL, RF GAIN and POWER with
-  - and +, or a slider on a tap; ATU TUNE (a long press of the key).
+  - and +, or a slider on a tap; ATU TUNE (a long press of the key); TUNE for an
+  external tuner, a press to start and another to stop (see
+  [TUNE for an external tuner](#tune-for-an-external-tuner)).
 - FILTER: presets for the mode and the edges by hand, by the radio's own
   filter rules: in SSB and DIG both edges (presets 1.8 to 3.6 kHz); in CW
   and CW-R the width, around the key tone (100 Hz to 1 kHz), so an edge
@@ -3117,7 +3123,11 @@ the code is for the eyes at the radio); an admin's `sessions` lists the paired b
 ends one; `unpair` forgets the caller's own; `tx 0|1` goes to every client
 when the radio keys or unkeys. `key PTT 1 N` keys the radio's own microphone,
 N the page's number for this press, and is repeated every second as the
-lease; `key PTT 0` lets go (see Transmitting from the browser). Settings > General > BROWSER REMOTE turns the
+lease; `key PTT 0` lets go (see Transmitting from the browser). `tune 1 N`
+starts a TUNE for an external tuner the same way, repeated every second while
+the state says `"tune":1` (`"tune_s"` its time limit); `tune 0` stops it, one
+the radio or another page started too with operate and control; the radio's
+refusals and stops come as `err tune: ...` and `err tune stopped: ...`. Settings > General > BROWSER REMOTE turns the
 server on and off for both pages. A page opens on a tab with `/panel#ft8`,
 `#cw`, `#log`, `#keys` or `#screen`.
 
@@ -3281,6 +3291,18 @@ numbers cannot key the radio's own microphone until it is reloaded: its PTT
 button shows "No TX" and the status line "this session may not transmit
 from a page older than the radio: reload the page". With Mic on (the
 browser's microphone, through the TCI) such a page still transmits.
+
+TUNE for an external tuner (the button beside ATU TUNE) is a press, not a
+hold: Tuning... until the radio says it tunes (within 2 s, else "No tune",
+the radio did not start it), then TUNE with the seconds against its
+limit ("TUNE 4 / 15 s"), the power and SWR on the meter; a press stops it.
+While it is on the page renews it every second as a held PTT is renewed: if
+the link drops or stalls the radio stops the tune three seconds after the
+last renewal it got ("tune stopped: no renewal from the page"), and its time
+limit ends it in any case. A tune started at the radio shows on the button
+too ("from the radio"), and a press stops it. Refused as PTT is (a browser
+that watches, a session without TX, control elsewhere), and where the radio
+would not tune ("No tune" and why).
 
 ### What the FT8 app will do next
 
