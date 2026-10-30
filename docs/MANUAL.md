@@ -1207,9 +1207,11 @@ second), under the transverter's from, to and shift: Off, the default, or
   Settings while on its band, up to the PWR from before.
 - With both VFOs on transverters with a limit (split from 2 m to 70 cm), the
   lower limit holds.
-- WSPR's beacon goes out at the limit when its own power is higher, and
-  reports its own power all the same: set WSPR's Power at the limit or
-  under it there.
+- WSPR's beacon goes out at the limit when its own Power is higher, and
+  reports its own Power all the same. Through a transverter the power to
+  report is what the transverter puts out: set WSPR's Power to that (its
+  steps go up to 5 W), and the radio still drives the transverter at the
+  limit at most.
 - The radio's own tuner does not tune there (the ATU key held, the "tuner
   tune" action): its carrier is the base's own, at a power the radio does
   not set. It says "No tuner: 0.5 W transverter". TUNE for an external
