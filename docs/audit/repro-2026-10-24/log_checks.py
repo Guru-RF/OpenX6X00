@@ -49,6 +49,15 @@ with tempfile.TemporaryDirectory(prefix='x6log-') as td:
     fields=ns['adif_fields'](ns['log_records']('day.adi')[0])
     print('save mode JS8:',result,'fields:',fields)
     assert fields['mode']=='MFSK' and fields['submode']=='JS8'
+    # The keyboard modes as the radio logs them (#92): PSK31 and PSK63 under PSK, JTTY under MFSK (ADIF 3.1.8)
+    for typed,want in (('PSK31',('PSK','PSK31')),('PSK63',('PSK','PSK63')),('JTTY',('MFSK','JTTY')),
+                       ('OLIVIA',('OLIVIA',None)),('RTTY',('RTTY',None))):
+        bottle.request.query={'id':ns['rec_id'](ns['log_records']('day.adi')[0])}
+        bottle.request.json={'mode':typed}
+        ns['put_log_qso']('day.adi',0)
+        fields=ns['adif_fields'](ns['log_records']('day.adi')[0])
+        print('save mode',typed,'-> MODE',fields.get('mode'),'SUBMODE',fields.get('submode'))
+        assert (fields.get('mode'),fields.get('submode'))==want, fields
     # The other station's reference, any programme, written as the radio writes it (TOTA, WCA, MOTA added)
     for typed,want in (('OKR-0150',{'sig':'TOTA','sig_info':'OKR-0150'}),('DL-01156',{'sig':'WCA','sig_info':'DL-01156'}),
                        ('X42018',{'sig':'MOTA','sig_info':'X42018'}),('US-1234',{'sig':'POTA','sig_info':'US-1234','pota_ref':'US-1234'}),
@@ -138,3 +147,25 @@ with tempfile.TemporaryDirectory(prefix='x6log-') as td:
     raw=log.read_bytes()
     print('time 12:05 and NAME René typed:',raw)
     assert b'<TIME_ON:4>1205' in raw and '<NAME:5>René'.encode() in raw and b'<COMMENT:6>tr\xe8s 1 ' in raw and b'<SUBMODE:3>FT4' in raw
+
+# Issue #92: a QSO logged without a mode (USB-D with no app open, away from FT8 and FT4) is not sent to Wavelog;
+# once the Logs page gives it one it goes, as one QSO, the one beside it as before
+with tempfile.TemporaryDirectory(prefix='x6wl-') as td:
+    os.environ['X6100_FIELD_DIR']=td
+    wl=runpy.run_path(str(path.parents[3]/'rootfs/usr/sbin/x6100-wavelog'))
+    ns['settings'].FIELD_DIR=td
+    logs=Path(td)/'logs';logs.mkdir()
+    log=logs/'day.adi'
+    log.write_bytes(b'<CALL:6>DL1ABC <QSO_DATE:8>20261030 <TIME_ON:6>120000 <BAND:3>20m <FREQ:9>14.070000 <RST_SENT:3>599 <eor>\n'
+                    b'<CALL:5>F4ABC <QSO_DATE:8>20261030 <TIME_ON:6>120500 <BAND:3>20m <FREQ:9>14.070000 <MODE:3>PSK <SUBMODE:5>PSK31 <eor>\n')
+    state,queue={},[]
+    wl['collect'](state,queue,1)
+    print('a QSO without a mode and a PSK31 one: queued',[q['call'] for q in queue])
+    assert [q['call'] for q in queue]==['F4ABC']
+    bottle.request.query={'id':ns['rec_id'](ns['log_records']('day.adi')[0])}
+    bottle.request.json={'mode':'PSK63'}
+    ns['put_log_qso']('day.adi',0)
+    wl['collect'](state,queue,1)
+    print('PSK63 set on the Logs page: queued',[q['call'] for q in queue])
+    assert [q['call'] for q in queue]==['F4ABC','DL1ABC']
+    assert '<MODE:3>PSK' in queue[1]['adif'] and '<SUBMODE:5>PSK63' in queue[1]['adif'], queue[1]['adif']

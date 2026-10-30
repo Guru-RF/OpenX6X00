@@ -1594,6 +1594,10 @@ others. Frequency and mode come back when the app closes.
 - Files: `/mnt/psk_macros.txt`, `/mnt/olivia_macros.txt`, `/mnt/psk.conf`
   (squelch).
 - The macros can also be edited on the web configurator's Macros page.
+- The apps don't log QSOs themselves yet. A QSO logged from the browser
+  panel's Log tab while one is open goes into the log in its mode: PSK31 or
+  PSK63 (ADIF mode PSK with that submode) or OLIVIA (see
+  [Browser panel](#browser-panel)).
 
 ### JTTY
 
@@ -1607,7 +1611,9 @@ By default they are the WSJT-X contest keys. In the text, `%M` is your call,
 `%H` the DX call, `%E` "599" and the serial number, sent as one frame. Up to
 80 characters, kept in `/mnt/jtty_macros.txt`, also on the web configurator's
 Macros page. Decoded stations go to PSK Reporter when it is on. TX goes through the same path as FT8 (7 W cap, ALC, SWR
-protection). I haven't made a QSO with it yet, so reports are welcome.
+protection). I haven't made a QSO with it yet, so reports are welcome. A
+QSO logged from the browser panel's Log tab while JTTY is open goes into the
+log as JTTY (ADIF 3.1.8: mode MFSK, submode JTTY).
 
 ### RTTY and WeFax TX
 
@@ -2004,8 +2010,13 @@ the start and the last call.
   back up and rewrite the microSD" or "the microSD could not be written.
   Restart the radio; if it happens again, back up and rewrite the
   microSD". The same goes for the day's log outside Field Ops.
-- The mode logged is FT8 or FT4 when the radio is on an FT8/FT4 frequency,
-  also in USB.
+- The mode logged is the radio's (CW, SSB, AM, FM), and FT8 or FT4 when the
+  radio is on an FT8/FT4 frequency, also in USB. In USB-D or LSB-D anywhere
+  else the radio can't tell the mode: no digital app runs while Field Ops is
+  open, and a program on TCI or the USB audio isn't known. The QSO is then
+  logged without a mode and the radio says so; the screen and the spots say
+  DATA. Set the mode on the web Logs page (PSK31, OLIVIA, RTTY...); until
+  then the QSO doesn't go to Wavelog.
 - Spot: a POTA self-spot on pota.app with the frequency and mode of the radio
   (WiFi needed). The first press shows what will be posted and the button
   reads Spot?; press again within 4 s to post.
@@ -2510,13 +2521,14 @@ Server options: `--host`, `--port`, `--https-port` (0 = off), `--cert-dir`,
 
 ## Wavelog
 
-Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavelog) as well, a few seconds after it is logged: FT8, FT4, FT2, JS8, voice and CW (the phone's logger, the CW keyboard) and the Field Ops activations, all that the web Logs page lists. The radio's own logs stay as they are. Where: web configurator, Operating > Wavelog.
+Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavelog) as well, a few seconds after it is logged: FT8, FT4, FT2, JS8, voice, CW and the keyboard modes (the phone's logger, the CW keyboard) and the Field Ops activations, all that the web Logs page lists. The radio's own logs stay as they are. Where: web configurator, Operating > Wavelog.
 
 - Set up: the Wavelog URL (the address you open Wavelog with), a read & write API key (Wavelog: your account menu, API Keys, Create a read & write key; in Wavelog 3.1 and later under Legacy API Keys (API v1)), then Load, choose the station profile and switch Upload to Wavelog on. Test connection asks Wavelog for its version and the key's rights, with what is typed, before Save: a read-only key, with which every QSO would be refused, fails the test. Test connection, Load and Send now wait for Wavelog one at a time, their buttons off meanwhile. A Wavelog that doesn't answer gives "no connection" after 20 s; a name lookup the radio's network never answers holds the radio's side longer, and Test connection or Load then says, at 40 s, "no answer in 40 s: check the URL, and that the radio can reach that address". The API tokens of Wavelog's API v2 (wl2_...) don't work yet: the page says so at Test connection, Load and Save. The saved key goes only to the server it was saved with: with the URL of another server (your Wavelog moved), type the key again for Test connection, Load and Save.
 - Station profile Automatic: each QSO goes to the Wavelog profile with the callsign the radio logged it with (Settings > General > STATION). With a profile DF8MH and one DF8MH/P in Wavelog, changing the callsign on the radio is all it takes; when several profiles have the callsign, the one Wavelog marks active. A QSO whose callsign has no profile waits, "Wavelog: no station profile for DF8MH/M, 1 QSO waiting", and the others still go; make the profile in Wavelog, then Send now.
 - From the moment it is switched on: the QSOs logged before are not sent. To send an older log, import its ADIF in Wavelog (Files, Logs page, Export).
 - The display says what happened: "Wavelog: DL1ABC uploaded", "Wavelog: DL1ABC was already there" (Wavelog found it as a duplicate), "Wavelog: no connection, 2 QSOs waiting". A failure is shown once, on the QSO that met it.
 - Each QSO goes once. The radio tells QSOs apart by the other station, the date and time to the second, the band, the mode and your station callsign: two QSOs with DL1ABC in the same minute, or one as ON6URE and one as ON6URE/P, are two, and both go. Wavelog itself takes a second QSO with the same station, band and mode within 15 minutes, under the same callsign of yours, for a duplicate.
+- The mode goes as ADIF 3.1.8 has it: PSK31 and PSK63 as mode PSK with that submode, FT4, FT2, JS8 and JTTY as mode MFSK with theirs, FT8, OLIVIA, RTTY, CW, SSB, AM and FM as they are. A QSO logged without a mode (by hand in USB-D or LSB-D with no app open, away from FT8 and FT4) waits on the radio: it goes once the Logs page gives it one, so Wavelog never gets it without a mode and then again with one.
 - Without a network, or behind a WiFi login page, the QSOs wait on the SD card (`/mnt/field/wavelog.queue`) and go at the next QSO, a minute after the next start, every 5 minutes while some wait, or with Send now on the web page.
 - A QSO Wavelog refuses (a record it can't take) goes to `/mnt/field/wavelog.failed.adi` and is not sent again unless it is edited on the Logs page. A refused key stops the upload until a new key is saved; the QSOs wait.
 - A QSO edited on the Logs page after it was sent goes again with the next upload. Wavelog adds QSOs and changes none it has. When the QSO's call, date, time, band, mode and own callsign are as they were (a report or a name corrected), Wavelog keeps its own copy, and the display says "Wavelog: DL1ABC was already there, edit it in Wavelog too". An edit of any of those reaches Wavelog as another QSO: it is added ("uploaded"), or, within 15 minutes of the old one with the same call, band and mode, found as a duplicate ("was already there"); either way the old one is to be corrected or deleted in Wavelog by hand. A QSO edited while it waits (no network) goes as it stands then, once; deleted while it waits, it does not go. A QSO deleted on the Logs page after it was sent stays in Wavelog.
@@ -2913,10 +2925,17 @@ browser paired at home on any device.
   does now and next is a timeline above the list, see below.
 - CW: the radio's CW decoder's text as it comes (in CW mode, Settings > CW);
   LOG takes the last call sign in it to the Log tab.
-- Log: a voice or CW QSO by hand: call, RST sent and received, a name, LOG.
-  It goes to the day's ADIF log on the radio on the radio's frequency and
-  mode (the web Logs page lists it), as a QSO from the CW keyboard does; during
-  a Field Ops activation it counts for the activation.
+- Log: a QSO by hand (voice, CW, or a keyboard mode such as PSK31): call,
+  RST sent and received, a name, LOG. It goes to the day's ADIF log on the
+  radio on the radio's frequency (the web Logs page lists it), as a QSO from
+  the CW keyboard does; during a Field Ops activation it counts for the
+  activation. The mode is the one of the digital app open on the radio
+  (PSK31, PSK63, OLIVIA, JTTY, RTTY, SSTV, FT8, FT4, FT2, JS8, WSPR), else
+  the radio's (CW, SSB, AM, FM, and FT8 or FT4 on their frequencies); the
+  radio's message names it. In USB-D or LSB-D with no app open, away from
+  FT8 and FT4, the radio can't tell (a program on TCI or the USB audio isn't
+  known): the QSO is logged without a mode, the radio says so, and it waits
+  for Wavelog until the mode is set on the Logs page.
 - Keys: the front keys and knobs, for the radio's menus and apps; the Screen
   tab shows the radio's display, so an app opened with APP is worked from
   here. The [Browser remote](#browser-remote) is the same thing full size.

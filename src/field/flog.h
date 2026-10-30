@@ -21,7 +21,8 @@ typedef struct {
     time_t  t;
     char    call[16];
     int32_t freq_hz;
-    char    mode[8];    /* ADIF: CW, SSB, AM, FM, FT8 */
+    char    mode[8];    /* CW, SSB, AM, FM, FT8, FT4, JS8, PSK31, OLIVIA, JTTY, RTTY...; "" not known. One that
+                         * ADIF has as a SUBMODE (FT4, PSK31, JTTY) goes in under its MODE (field_adif_record) */
     char    rst_s[4], rst_r[4];
     char    name[48], qth[48], grid[8], country[32];   /* the other station, from a logbook lookup; "" unknown */
     char    their_ref[16];  /* the other station's reference: park to park, summit to summit...; "" none */
@@ -55,6 +56,13 @@ const char *field_prog_sig(char prog);
 /* "S2S", "P2P", "F2F", "B2B", "H2H", "T2T", "C2C", "M2M", "L2L", "T3" (tile to tile) for a QSO with their reference,
  * "" without */
 const char *field_qso_tag(const field_qso_t *q);
+
+/* The mode a QSO logged by hand goes into the log with (field_qso_t.mode). The digital app open names it: app as
+ * main_screen_digital_app() gives it ("PSK31", "Olivia", "JTTY", "RTTY", "FT4"...), NULL for none. Without one, the
+ * radio's mode (radio_mode_t) does: CW, AM, FM, SSB, and FT8 or FT4 on their dial frequencies (hz) in USB, LSB and
+ * the data modes. "" when it is not known: a data mode with no app open, away from FT8 and FT4. ADIF has no mode
+ * for "some data mode", and the program sending through TCI or the USB audio is not known */
+const char *field_qso_mode(const char *app, int mode, int32_t hz);
 
 /* ADIF band ("20m"), "" outside the amateur bands */
 const char *field_band(int32_t hz);

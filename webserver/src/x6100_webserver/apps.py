@@ -1818,7 +1818,7 @@ def get_logs():
     for log in field_logs():
         for n, rec in enumerate(log_records(log["name"])):
             q = adif_fields(rec)
-            if q.get("submode"):   # MFSK with SUBMODE FT4, JS8, FT2: the submode names it
+            if q.get("submode"):   # MFSK with SUBMODE FT4, JS8, FT2, JTTY, PSK with PSK31: the submode names it
                 q["mode"] = q["submode"]
             qsos.append(dict(q, file=log["name"], n=n, id=rec_id(rec)))
     return {"qsos": qsos, "active": field_active_log()}
@@ -1831,8 +1831,9 @@ LOG_FIELDS = {"call": r'[A-Z0-9/]{3,15}', "qso_date": r'\d{8}', "time_on": r'\d{
               "qth": r'[^<>]{0,40}', "gridsquare": r'([A-R]{2}\d{2}([A-X]{2})?)?', "comment": r'[^<>]{0,80}',
               "sota_ref": r'(%s)?' % SOTA_REF, "pota_ref": r'(%s)?' % POTA_REF,
               "ref": r'[A-Z0-9/ -]{0,15}'}   # the other station's reference, any programme (BEL 002): set_ref
-# The modes ADIF files as a SUBMODE of MFSK (the radio logs FT4, JS8 and FT2 that way)
-SUBMODE_OF = {"FT4": "MFSK", "JS8": "MFSK", "FT2": "MFSK", "FST4": "MFSK", "FST4W": "MFSK", "Q65": "MFSK", "MSK144": "MFSK"}
+# The modes ADIF files as a SUBMODE (the radio logs FT4, JS8, FT2 and JTTY under MFSK, PSK31 and PSK63 under PSK)
+SUBMODE_OF = {"FT4": "MFSK", "JS8": "MFSK", "FT2": "MFSK", "JTTY": "MFSK", "FST4": "MFSK", "FST4W": "MFSK",
+              "Q65": "MFSK", "MSK144": "MFSK", "PSK31": "PSK", "PSK63": "PSK"}
 
 
 def log_unchanged(q, k, v):
@@ -1920,7 +1921,7 @@ def export_logs():
             w.writerow([f.get(c, "") for c in cols])
         body, ext, mime = out.getvalue(), "csv", "text/csv"
     else:
-        body = b"OpenX6X00 log export\n<adif_ver:5>3.1.4 <programid:9>OpenX6X00 <eoh>\n" + \
+        body = b"OpenX6X00 log export\n<adif_ver:5>3.1.8 <programid:9>OpenX6X00 <eoh>\n" + \
                b"".join(rec.strip() + b" <eor>\n" for rec in recs)   # the records' bytes: their lengths hold
         ext, mime = "adi", "text/plain"
     bottle.response.content_type = mime + "; charset=utf-8"

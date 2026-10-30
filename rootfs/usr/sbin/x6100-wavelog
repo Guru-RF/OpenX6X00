@@ -24,7 +24,8 @@
 #                   survives a restart
 #   wavelog.failed.adi   QSOs Wavelog refused (a bad record): kept for the user, not sent again unless edited
 # A QSO is its other station, date and time to the second, band, mode and own station callsign (qso_key); a QSO
-# edited after it was sent is sent again (qso_rev), and when Wavelog keeps the copy it has, the line says so.
+# edited after it was sent is sent again (qso_rev), and when Wavelog keeps the copy it has, the line says so. A QSO
+# with no MODE (logged by hand in a data mode the radio could not name) is not sent until it has one.
 # stations and test take the URL and key from X6100_WAVELOG_URL / X6100_WAVELOG_KEY / X6100_WAVELOG_VERIFY
 # when set (the web page, before Save), else from wavelog.conf. The saved key goes only to the Wavelog it was
 # saved with: a URL of another server needs its own key in X6100_WAVELOG_KEY.
@@ -330,6 +331,10 @@ def collect(state, queue, since):
             t, key, rev = qso_time(f), qso_key(f), qso_rev(f)
             held.add(key)
             if t < since:
+                continue
+            # Logged without a mode (USB-D with no app open, away from FT8 and FT4: #92): it waits on the radio. Sent
+            # so, it would be a QSO with no mode in Wavelog, and once the Logs page gives it one, a second QSO there
+            if not (f.get("mode") or f.get("submode") or "").strip():
                 continue
             adif = rec.decode("utf-8", "replace") + "<eor>"
             q = waiting.get(key)

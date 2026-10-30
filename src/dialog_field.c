@@ -366,40 +366,17 @@ static bool ref_text_ok(const char *r) {
     return true;
 }
 
-/* FT8/FT4 dial frequencies, kHz: in USB or DIG on one of them the mode is that, not SSB */
-static const char *digi_mode(void) {
-    static const int ft8[] = {1840, 3573, 5357, 7074, 10136, 14074, 18100, 21074, 24915, 28074, 50313};
-    static const int ft4[] = {3575, 7047, 10140, 14080, 18104, 21140, 24919, 28180, 50318};
-    int32_t          hz    = cparam_i_get(cfg_fg_freq);
-
-    for (size_t i = 0; i < sizeof(ft8) / sizeof(ft8[0]); i++)
-        if (hz >= ft8[i] * 1000 - 500 && hz <= ft8[i] * 1000 + 3500)
-            return "FT8";
-    for (size_t i = 0; i < sizeof(ft4) / sizeof(ft4[0]); i++)
-        if (hz >= ft4[i] * 1000 - 500 && hz <= ft4[i] * 1000 + 3500)
-            return "FT4";
-    return NULL;
+/* The mode of a QSO logged here: the digital app open (PSK31, Olivia, JTTY, RTTY...), else the radio's mode and
+ * frequency; "" in USB-D or LSB-D with no app, away from FT8 and FT4 (field_qso_mode) */
+static const char *adif_mode(void) {
+    return field_qso_mode(main_screen_digital_app(), cparam_i_get(cfg_cur_mode), cparam_i_get(cfg_fg_freq));
 }
 
-static const char *adif_mode(void) {
-    const char *d = digi_mode();
+/* The mode on the screen and in a spot: the log's, DATA for a data mode it does not know */
+static const char *shown_mode(void) {
+    const char *m = adif_mode();
 
-    switch (cparam_i_get(cfg_cur_mode)) {
-        case radio_mode_cw:
-        case radio_mode_cwr:
-            return "CW";
-        case radio_mode_am:
-        case radio_mode_sam:
-            return "AM";
-        case radio_mode_nfm:
-        case radio_mode_wfm:
-            return "FM";
-        case radio_mode_lsb_dig:
-        case radio_mode_usb_dig:
-            return d ? d : "FT8";
-        default:
-            return d ? d : "SSB";
-    }
+    return m[0] ? m : "DATA";
 }
 
 static bool is_cw(void) {
@@ -1291,7 +1268,7 @@ static void act_update(void) {
     lv_label_set_text(act_band, band[0] ? band : "--");
     freq_text(buf, sizeof(buf), hz);
     lv_label_set_text(act_freq, buf);
-    lv_label_set_text(act_mode, adif_mode());
+    lv_label_set_text(act_mode, shown_mode());
 
     /* S-meter: 9 S units of 6 dB, then +10 .. +40 */
     int db = meter_get_raw_db();
@@ -1325,7 +1302,7 @@ static void build_act(void) {
     lv_coord_t h = body_h - STATUS_H - 10;
     char       t[48];
 
-    snprintf(t, sizeof(t), "%s - ACTIVATION (%s)", prog_name(), adif_mode());
+    snprintf(t, sizeof(t), "%s - ACTIVATION (%s)", prog_name(), shown_mode());
     head_set(prog_icon(), t);
 
     lv_obj_t *p = panel(body, 8, 6, 584, h);
@@ -1631,7 +1608,7 @@ static bool wwff_key(void) {
  * with no site of its own (progs[].site) */
 static bool spot_job(bool qrt) {
     double      khz = cparam_i_get(cfg_fg_freq) / 1000.0;
-    const char *m   = adif_mode();
+    const char *m   = shown_mode();
     const char *cmd = st.ref.type == 'P' ? "pota-spot" : st.ref.type == 'H' ? "hota-spot" : st.ref.type == 'F' ? "wwff-spot" : NULL;
 
     if (!ref_ok(st.ref.ref) || !prog_of(st.ref.type)->site)   /* it goes on a command line */
@@ -1651,7 +1628,7 @@ static void qsy_cb(lv_timer_t *t) {
     if (!st.active || !prog_of(st.ref.type)->site || !qsy.spot_at) {
         return;
     }
-    moved = abs(cparam_i_get(cfg_fg_freq) - spot_hz) >= 1000 || strcmp(adif_mode(), spot_mode);
+    moved = abs(cparam_i_get(cfg_fg_freq) - spot_hz) >= 1000 || strcmp(shown_mode(), spot_mode);
     /* ponytail: TX polled every 500 ms, a shorter transmission is missed */
     if (field_qsy_step(&qsy, param_i_get(cfg_field_respot), moved, radio_get_state() == RADIO_TX, time(NULL))
         && !atomic_load(&busy)) {
@@ -1763,10 +1740,10 @@ static void spot_to(bool cluster) {
         char        comment[48];
         const char *p = prog_name_of(st.ref.type);
         snprintf(comment, sizeof(comment), "%s %s %s", prog_of(st.ref.type)->spot ? prog_of(st.ref.type)->spot : p,
-                 st.ref.ref, adif_mode());
+                 st.ref.ref, shown_mode());
         if (cluster_client_send_spot(cparam_i_get(cfg_fg_freq) / 1000.0, my_call(), comment))
             msg_update_text_fmt("%s spot on the DX clusters: %s %.1f %s", p, st.ref.ref,
-                                cparam_i_get(cfg_fg_freq) / 1000.0, adif_mode());
+                                cparam_i_get(cfg_fg_freq) / 1000.0, shown_mode());
         else
             msg_update_text_fmt("DX cluster not running: no %s spot", p);
         return;
@@ -1774,9 +1751,9 @@ static void spot_to(bool cluster) {
     char        comment[48];
     const char *p = prog_name_of(st.ref.type);
     spot_hz = cparam_i_get(cfg_fg_freq);
-    snprintf(spot_mode, sizeof(spot_mode), "%s", adif_mode());
+    snprintf(spot_mode, sizeof(spot_mode), "%s", shown_mode());
     qsy.spot_at = time(NULL);
-    snprintf(comment, sizeof(comment), "%s %s %s", p, st.ref.ref, adif_mode());
+    snprintf(comment, sizeof(comment), "%s %s %s", p, st.ref.ref, shown_mode());
     if (cluster)
         cluster_client_send_spot(cparam_i_get(cfg_fg_freq) / 1000.0, my_call(), comment);   /* the DX clusters too */
     if ((st.ref.type == 'H' && !hota_key()) || (st.ref.type == 'F' && !wwff_key())) {
@@ -1786,7 +1763,7 @@ static void spot_to(bool cluster) {
         return;
     }
     if (spot_job(false))
-        msg_update_text_fmt("%s spot: %s %.1f %s...", p, st.ref.ref, cparam_i_get(cfg_fg_freq) / 1000.0, adif_mode());
+        msg_update_text_fmt("%s spot: %s %.1f %s...", p, st.ref.ref, cparam_i_get(cfg_fg_freq) / 1000.0, shown_mode());
 }
 
 static void spot(void) {
@@ -1799,7 +1776,7 @@ static void spot_cb(button_data_t *b) {
         spot_armed_at = time(NULL);
         buttons_refresh(&b_spot);
         msg_update_text_fmt("Press Spot again to post %s %.1f %s", st.have_ref ? st.ref.ref : "",
-                            cparam_i_get(cfg_fg_freq) / 1000.0, adif_mode());
+                            cparam_i_get(cfg_fg_freq) / 1000.0, shown_mode());
         return;
     }
     spot_armed = false;
@@ -1867,7 +1844,8 @@ static bool day_log_add(const field_qso_t *q, const char *me) {
     return true;
 }
 
-/* The phone's logger outside Field Ops (QSOs in voice and so on): the day's log, on the radio's frequency and mode */
+/* The phone's logger outside Field Ops (QSOs in voice and so on): the day's log, on the radio's frequency, in the
+ * mode of the digital app open or else the radio's (adif_mode) */
 bool dialog_field_qso_log(const char *text) {
     field_qso_t     q   = {.t = time(NULL), .freq_hz = cparam_i_get(cfg_fg_freq)};
     const char     *rst = is_cw() ? "599" : "59";
@@ -1886,7 +1864,11 @@ bool dialog_field_qso_log(const char *text) {
     snprintf(q.rst_r, sizeof(q.rst_r), "%s", rr[0] ? rr : rst);
     if (!day_log_add(&q, my_call()))
         return false;
-    msg_update_text_fmt("QSO logged: %s %s %s", q.call, q.rst_s, q.rst_r);
+    if (q.mode[0])
+        msg_update_text_fmt("QSO logged: %s %s %s %s", q.call, q.rst_s, q.rst_r, q.mode);
+    else    /* long: it scrolls */
+        msg_schedule_text_ms(9000, "QSO logged: %s %s %s, without a mode (no app open): set it on the Logs page",
+                             q.call, q.rst_s, q.rst_r);
     return true;
 }
 
@@ -1951,7 +1933,12 @@ static bool activation_log_add(const field_qso_t *q) {
     }
     wavelog_kick(true);
     log_load();
-    msg_update_text_fmt("QSO %d: %s %s %s %s", qsos_total, q->call, q->rst_s, q->rst_r, field_qso_tag(q));
+    const char *tag = field_qso_tag(q);
+    if (q->mode[0])
+        msg_update_text_fmt("QSO %d: %s %s %s %s", qsos_total, q->call, q->rst_s, q->rst_r, tag);
+    else    /* USB-D or LSB-D away from FT8 and FT4 (adif_mode); long: it scrolls */
+        msg_schedule_text_ms(9000, "QSO %d: %s %s %s%s%s, logged without a mode: set it on the Logs page", qsos_total,
+                             q->call, q->rst_s, q->rst_r, tag[0] ? " " : "", tag);
     if (dialog.run && (st.screen == SCR_LOG || act_freq))
         refresh();
     return true;
