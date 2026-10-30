@@ -826,8 +826,9 @@ static void audio_fmt_cmd(client_t *c, const char *name, const char *arg) {
         client_textf(c, "audio_stream_samples:%u;", now.samples);
 }
 
-/* A start that took control from someone (a browser keying its microphone through its TCI link, which the
- * radio cannot tell from the browser's session) gives it back when its transmission ends */
+/* A start that took control for itself (a browser keying its microphone through its TCI link, which the
+ * radio cannot tell from the browser's session) gives it back when its transmission ends: free again when it
+ * was free, as after a page opened that keyed before anything else */
 static void tx_give_back(int ci) {
     if (ci >= 0 && tx_lent == ci) {
         ctl_give_back(CTL_TCI, ci);

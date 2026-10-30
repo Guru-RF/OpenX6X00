@@ -557,11 +557,26 @@ static void tci_audio_in_dig(void) {
     }
 }
 
+static bool ctl_free(void) {
+    ctl_info_t o;
+
+    ctl_get(&o);
+    return o.kind == CTL_NONE;
+}
+
 /* A browser keying its microphone through its TCI link: the start takes control from the browser's session, which
- * the radio cannot tell from that link, and its end gives it back; not when the control changed hands during the
- * over (a knob), when the one it came from left, or when the client had it before its start (it tuned) */
+ * the radio cannot tell from that link, and its end gives it back; free again when it was free (a page just opened
+ * keys before anything else) or the one it came from left during the over; not when the control changed hands
+ * during the over (a knob), or when the client had it before its start (it tuned) */
 static void control_given_back(void) {
     client_open(A);
+    say(A, "trx:0,true,tci;");          /* control free: nobody took it yet */
+    gui(-1);
+    check(radio_get_modem() && ctl_holds(CTL_TCI, A), "control free: A's TCI audio start takes it");
+    say(A, "trx:0,false;");
+    gui(-1);
+    check(!on_air() && ctl_free(), "A's unkey: control free again");
+
     ctl_claim(CTL_BROWSER, 0, "Macbook", true);
     say(A, "trx:0,true,tci;");
     gui(-1);
@@ -583,7 +598,7 @@ static void control_given_back(void) {
     ctl_release(CTL_BROWSER, 0);        /* the browser gone during the over */
     say(A, "trx:0,false;");
     gui(-1);
-    check(!on_air() && ctl_holds(CTL_TCI, A), "the browser gone during the over: A keeps control");
+    check(!on_air() && ctl_free(), "the browser gone during the over: control free, as its leaving left it");
 
     ctl_claim(CTL_BROWSER, 0, "Macbook", true);
     say(A, "vfo:0,0,7100000;");         /* A tunes first: control is A's before its start */
