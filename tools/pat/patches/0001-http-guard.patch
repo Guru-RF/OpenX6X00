@@ -12,10 +12,14 @@ The HTTP server's handler is wrapped in a guard:
   Tailscale-Funnel-Request header, and Pat stays on the radio's network
   and the tailnet whatever is funneled by mistake;
 - the Host header must be an IP address, localhost, the hostname,
-  <hostname>.local, end in .ts.net, or be the radio's MagicDNS short
-  name (the first part of name= in /run/tailscale/status, x6200-1 when
-  the tailnet still has an earlier card's machine as x6200), the names
-  the web configurator takes (no DNS rebinding);
+  <hostname>.local, <hostname>.<domain> for a domain the radio's network
+  gives it (the search and domain lines of /etc/resolv.conf, which
+  NetworkManager writes; not a domain that is a public suffix alone,
+  such as nl or co.uk), a name listed in /mnt/own_names.conf (the web
+  configurator's Network page), end in .ts.net, or be the radio's
+  MagicDNS short name (the first part of name= in /run/tailscale/status,
+  x6200-1 when the tailnet still has an earlier card's machine as
+  x6200), the names the web configurator takes (no DNS rebinding);
 - for /api/ and /ws, an Origin header, when present, must name the same
   host:port as Host, and Sec-Fetch-Site, when present, must be
   same-origin or none;
@@ -30,9 +34,9 @@ The HTTP server's handler is wrapped in a guard:
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  api/api.go        |   2 +-
- api/guard.go      | 145 ++++++++++++++++++++++++++++++++++++++++++++++
- api/guard_test.go | 137 +++++++++++++++++++++++++++++++++++++++++++
- 3 files changed, 283 insertions(+), 1 deletion(-)
+ api/guard.go      | 274 ++++++++++++++++++++++++++++++++++++++++++++++
+ api/guard_test.go | 211 +++++++++++++++++++++++++++++++++++
+ 3 files changed, 486 insertions(+), 1 deletion(-)
  create mode 100644 api/guard.go
  create mode 100644 api/guard_test.go
 
@@ -51,10 +55,10 @@ index 7f39760..a1c9308 100644
  	go func() {
 diff --git a/api/guard.go b/api/guard.go
 new file mode 100644
-index 0000000..a852e7e
+index 0000000..900c891
 --- /dev/null
 +++ b/api/guard.go
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,274 @@
 +// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
 +// Use of this source code is governed by the MIT-license that can be
 +// found in the LICENSE file.
@@ -62,12 +66,15 @@ index 0000000..a852e7e
 +package api
 +
 +import (
++	"bytes"
++	"io"
 +	"net"
 +	"net/http"
 +	"net/netip"
 +	"net/url"
 +	"os"
 +	"path"
++	"slices"
 +	"strings"
 +)
 +
@@ -79,10 +86,12 @@ index 0000000..a852e7e
 +//     proxy marks such a request with a Tailscale-Funnel-Request header. Pat is for the
 +//     radio's network and the tailnet only, whatever is funneled by mistake.
 +//   - The Host header must name this machine: an IP address, localhost, the hostname,
-+//     <hostname>.local, a Tailscale name (*.ts.net) or the short name MagicDNS gives the
-+//     radio (the first part of its tailnet name, from x6100-tailscale's status file: x6200-1
-+//     when the tailnet still has an earlier card image's machine as x6200). Any other name is
-+//     one that somebody's DNS points at us (DNS rebinding).
++//     <hostname>.local, <hostname>.<domain> for a domain the radio's network gives it, a name
++//     its owner added on the web configurator's Network page, a Tailscale name (*.ts.net) or
++//     the short name MagicDNS gives the radio (the first part of its tailnet name, from
++//     x6100-tailscale's status file: x6200-1 when the tailnet still has an earlier card
++//     image's machine as x6200). Any other name is one that somebody's DNS points at us (DNS
++//     rebinding).
 +//   - For /api/ and /ws: an Origin header, when present, must name the same host:port as
 +//     Host, and Sec-Fetch-Site, when present, must be same-origin or none.
 +//   - What changes something (/api/connect and /api/disconnect, which take a GET, and any
@@ -138,7 +147,131 @@ index 0000000..a852e7e
 +	}
 +	name, err := os.Hostname()
 +	name = strings.TrimSuffix(strings.ToLower(name), ".")
-+	return err == nil && name != "" && (host == name || host == name+".local")
++	if err == nil && name != "" {
++		if host == name || host == name+".local" {
++			return true
++		}
++		if d, ok := strings.CutPrefix(host, name+"."); ok && slices.Contains(networkDomains(), d) {
++			return true
++		}
++	}
++	return slices.Contains(listedNames(), host)
++}
++
++// The files the radio's own names come from beyond its hostname (OpenX6X00 #105), read at
++// each request (a few hundred bytes). resolvConf is NetworkManager's resolv.conf (the radio's
++// /etc/resolv.conf is a link to /run/NetworkManager/resolv.conf): its search and domain lines
++// are the domains the radio's network gives it, for the connections that are up. ownNames is
++// the list its owner keeps on the web configurator's Network page, a name on each line. The web
++// configurator (local_host_ok) and the radio's sockets (src/tci_ws.c) take the same names.
++var (
++	resolvConf = "/etc/resolv.conf"
++	ownNames   = "/mnt/own_names.conf"
++)
++
++// namesFileMax is the most read of either file, in whole lines.
++const namesFileMax = 4096
++
++// fileLines returns the whole lines of a small file, nil without it. A line cut at
++// namesFileMax is left out, so that no word of it is taken cut short.
++func fileLines(path string) []string {
++	f, err := os.Open(path)
++	if err != nil {
++		return nil
++	}
++	defer f.Close()
++	b := make([]byte, namesFileMax+1)
++	n, _ := io.ReadFull(f, b)
++	b = b[:n]
++	if n > namesFileMax {
++		b = b[:bytes.LastIndexByte(b[:namesFileMax], '\n')+1]
++	}
++	return strings.Split(string(b), "\n")
++}
++
++// privateDomains are the single names routers give their networks that stay out of the
++// public DNS (lan, home and the others are never delegated, internal is ICANN's for private
++// networks). Any other single name has a top-level domain's shape (nl, box), and x6100.<it>
++// could be anyone's.
++var privateDomains = []string{"lan", "home", "localdomain", "internal", "intranet", "corp", "private"}
++
++// registryLabels are a country's second level, where anyone registers names (co.uk, com.au,
++// or.jp): <one of these>.<two letters> is a public suffix alone.
++var registryLabels = []string{"ac", "co", "com", "edu", "go", "gob", "gouv", "gov", "gv", "ltd", "mil", "ne",
++	"net", "nom", "or", "org", "plc", "sch"}
++
++// dnsName tells whether d is a DNS name in lower case: labels of letters, digits and '-' (not
++// first or last), the last one with a letter.
++func dnsName(d string) bool {
++	if d == "" || len(d) > 253 {
++		return false
++	}
++	labels := strings.Split(d, ".")
++	for i, l := range labels {
++		if l == "" || len(l) > 63 || l[0] == '-' || l[len(l)-1] == '-' {
++			return false
++		}
++		letter := false
++		for _, c := range l {
++			switch {
++			case c >= 'a' && c <= 'z':
++				letter = true
++			case c >= '0' && c <= '9', c == '-':
++			default:
++				return false
++			}
++		}
++		if i == len(labels)-1 && !letter {
++			return false
++		}
++	}
++	return true
++}
++
++// domainPrivate tells whether a domain of the radio's network names it: no public suffix on
++// its own, under which anyone may register a name. A single name only when it is one of
++// privateDomains; no country's second level (co.uk).
++func domainPrivate(d string) bool {
++	first, rest, ok := strings.Cut(d, ".")
++	if !ok {
++		return slices.Contains(privateDomains, d)
++	}
++	return dnsName(d) && (strings.Contains(rest, ".") || len(rest) != 2 || !slices.Contains(registryLabels, first))
++}
++
++// lowerWord is a domain or a name as resolv.conf and the list have it: in lower case, without
++// a trailing dot.
++func lowerWord(w string) string {
++	return strings.TrimSuffix(strings.ToLower(w), ".")
++}
++
++// networkDomains are the domains of the radio's network that name it, from resolv.conf's
++// search and domain lines.
++func networkDomains() []string {
++	var found []string
++	for _, line := range fileLines(resolvConf) {
++		f := strings.Fields(line)
++		if len(f) == 0 || (f[0] != "search" && f[0] != "domain") {
++			continue
++		}
++		for _, w := range f[1:] {
++			if d := lowerWord(w); domainPrivate(d) {
++				found = append(found, d)
++			}
++		}
++	}
++	return found
++}
++
++// listedNames are the names the owner added on the Network page: the first word of each line.
++func listedNames() []string {
++	var names []string
++	for _, line := range fileLines(ownNames) {
++		if f := strings.Fields(line); len(f) > 0 && !strings.HasPrefix(f[0], "#") {
++			names = append(names, lowerWord(f[0]))
++		}
++	}
++	return names
 +}
 +
 +// tailscaleStatus is the status file x6100-tailscale keeps; its name= line is the radio's
@@ -202,10 +335,10 @@ index 0000000..a852e7e
 +}
 diff --git a/api/guard_test.go b/api/guard_test.go
 new file mode 100644
-index 0000000..811a01d
+index 0000000..c7acaa6
 --- /dev/null
 +++ b/api/guard_test.go
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,211 @@
 +package api
 +
 +import (
@@ -213,11 +346,21 @@ index 0000000..811a01d
 +	"net/http/httptest"
 +	"os"
 +	"path/filepath"
++	"strings"
 +	"testing"
 +)
 +
++// guardFiles points the guard's files into a new folder, none of them there yet: on no
++// tailnet, no domain from the network, no name listed.
++func guardFiles(t *testing.T) {
++	dir := t.TempDir()
++	tailscaleStatus = filepath.Join(dir, "status")
++	resolvConf = filepath.Join(dir, "resolv.conf")
++	ownNames = filepath.Join(dir, "own_names.conf")
++}
++
 +func TestGuard(t *testing.T) {
-+	tailscaleStatus = filepath.Join(t.TempDir(), "status") // on no tailnet
++	guardFiles(t)
 +	hostname, _ := os.Hostname()
 +	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 +	tests := []struct {
@@ -286,7 +429,7 @@ index 0000000..811a01d
 +// Nothing through Tailscale Funnel: its serve proxy adds Tailscale-Funnel-Request ("?1") to a
 +// request from the internet, which comes with the radio's .ts.net name as Host.
 +func TestGuardFunnel(t *testing.T) {
-+	tailscaleStatus = filepath.Join(t.TempDir(), "status")
++	guardFiles(t)
 +	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 +	for _, tt := range []struct {
 +		method, path, xrw, funnel string
@@ -320,7 +463,7 @@ index 0000000..811a01d
 +
 +// The short name MagicDNS gives the radio, while x6100-tailscale's status file names it.
 +func TestGuardTailnetName(t *testing.T) {
-+	tailscaleStatus = filepath.Join(t.TempDir(), "status")
++	guardFiles(t)
 +	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 +	code := func(host string) int {
 +		r := httptest.NewRequest("GET", "http://x/api/status", nil)
@@ -340,6 +483,70 @@ index 0000000..811a01d
 +		"x6200-2:8080": 403, "tail1234:8080": 403, "x6200-1.evil.example:8080": 403} {
 +		if got := code(host); got != want {
 +			t.Errorf("Host=%q with the tailnet name x6200-1: got %d, want %d", host, got, want)
++		}
++	}
++}
++
++// The radio's own names beyond its hostname (OpenX6X00 #105): <hostname>.<domain> for the
++// domains in resolv.conf's search and domain lines, never a public suffix alone (x6100.nl
++// could be anyone's) nor a domain cut short where the file is read no further, and the names
++// listed on the web configurator's Network page. A site's own name stays refused.
++func TestGuardOwnNames(t *testing.T) {
++	guardFiles(t)
++	hostname, _ := os.Hostname()
++	hostname = strings.ToLower(hostname)
++	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
++	code := func(host string) int {
++		r := httptest.NewRequest("GET", "http://x/api/status", nil)
++		r.Host = host
++		w := httptest.NewRecorder()
++		guard(ok).ServeHTTP(w, r)
++		return w.Code
++	}
++	write := func(path, text string) {
++		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
++			t.Fatal(err)
++		}
++	}
++	write(resolvConf, "# Generated by NetworkManager\nsearch Home.LAN. nl co.uk lan box\n"+
++		"domain tri-angle.nl\nnameserver 192.168.1.1\n")
++	for host, want := range map[string]int{
++		hostname + ".home.lan:8080": 200, hostname + ".lan": 200, hostname + ".tri-angle.nl:8080": 200,
++		hostname + ".nl:8080": 403, hostname + ".co.uk:8080": 403, hostname + ".box:8080": 403,
++		"not-" + hostname + ".home.lan:8080": 403, "home.lan:8080": 403, "x6100.tri-angle.nl:8080": 403,
++	} {
++		if got := code(host); got != want {
++			t.Errorf("Host=%q with the network's domains: got %d, want %d", host, got, want)
++		}
++	}
++	// a search line cut where the file is read no further: example.co of example.co.uk not taken
++	head := strings.Repeat("#", 32) + "\n"
++	line := "search " + strings.Repeat("f.lan ", 600)
++	line += strings.Repeat(" ", namesFileMax-len(head)-len("example.co")-len(line))
++	write(resolvConf, head+line+"example.co.uk\n")
++	if got := code(hostname + ".example.co:8080"); got != 403 {
++		t.Errorf("a domain cut short: got %d, want 403", got)
++	}
++	os.Remove(resolvConf)
++	write(ownNames, "x6100.tri-angle.nl\n# a note\nShack.Example.LAN.\n")
++	for host, want := range map[string]int{
++		"x6100.tri-angle.nl:8080": 200, "X6100.Tri-Angle.NL.": 200, "shack.example.lan:8080": 200,
++		"tri-angle.nl:8080": 403, "x6100.tri-angle.nl.evil.example:8080": 403, "evil.example:8080": 403,
++		"#:8080": 403, "a:8080": 403,
++	} {
++		if got := code(host); got != want {
++			t.Errorf("Host=%q with the names listed: got %d, want %d", host, got, want)
++		}
++	}
++	os.Remove(ownNames)
++	if got := code("x6100.tri-angle.nl:8080"); got != 403 {
++		t.Errorf("x6100.tri-angle.nl taken off the list: got %d, want 403", got)
++	}
++	for d, want := range map[string]bool{"lan": true, "home.arpa": true, "fritz.box": true, "example.co.uk": true,
++		"example.co": true, "nl": false, "box": false, "co.uk": false, "com.au": false, "or.jp": false,
++		"a_b.lan": false, "10.1": false, "-a.lan": false, "": false} {
++		if got := domainPrivate(d); got != want {
++			t.Errorf("domainPrivate(%q) = %v, want %v", d, got, want)
 +		}
 +	}
 +}

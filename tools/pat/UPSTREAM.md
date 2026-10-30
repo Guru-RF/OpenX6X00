@@ -58,9 +58,14 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   network do it. Nothing that came through Tailscale Funnel, from the internet: tailscaled's serve
   proxy marks such a request with a `Tailscale-Funnel-Request` header, and Pat stays on the
   radio's network and the tailnet whatever is funneled by mistake. The Host header must be an IP address, `localhost`, the hostname,
-  `<hostname>.local`, end in `.ts.net`, or be the radio's MagicDNS short name (the first part
-  of `name=` in `/run/tailscale/status`: `x6200-1` while the tailnet still has an earlier
-  card's machine as `x6200`), the names the web configurator takes (no DNS rebinding). For
+  `<hostname>.local`, `<hostname>.<domain>` for a domain the radio's network gives it (the
+  `search` and `domain` lines of `/etc/resolv.conf`, which NetworkManager writes; not a domain
+  that is a public suffix alone, such as `nl` or `co.uk`), a name listed in
+  `/mnt/own_names.conf` (the web configurator's Network page, #105), end in `.ts.net`, or be the
+  radio's MagicDNS short name (the first part of `name=` in `/run/tailscale/status`: `x6200-1`
+  while the tailnet still has an earlier card's machine as `x6200`), the names the web
+  configurator takes (no DNS rebinding). Pat reads the two files itself at each request, by the
+  same rule as the web configurator and the radio's sockets (`src/tci_ws.c`). For
   `/api/` and `/ws`: an Origin header, when present, must name the same host:port as Host,
   and Sec-Fetch-Site, when present, must be `same-origin` or `none`. What changes something
   (`/api/connect` and `/api/disconnect` on any method, every API request that is not a GET or
