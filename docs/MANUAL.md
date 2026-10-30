@@ -3000,6 +3000,26 @@ Good to know:
   Tailscale Funnel. The configurator changes Winlink only when opened by those names
   too. ARDOP and the radio's frequency control for Pat listen on 127.0.0.1,
   which Tailscale (userspace mode) also opens to your tailnet.
+- Anyone can send you a Winlink message (an email to `yourcall@winlink.org`
+  with `//WL2K` in its subject is enough), so the mailbox treats what a
+  message holds as text: the sender and the other addresses, the subject, the
+  attachments' names and the log's lines are shown as they are and never run
+  as part of the page. Up to v0.3.7 that was not so: an attachment named like a
+  piece of a web page ran as a script in the mailbox when its message was
+  opened, and such a script could send mail, connect and transmit (found by a
+  security review on [#105](https://github.com/Guru-RF/OpenX6X00/issues/105)).
+  On v0.3.7 or older, update before you open mail from someone you do not
+  know, or turn Winlink off.
+- An attachment is saved when you click it (under its own name), not opened in
+  a page of the radio's: a `.html` or `.svg` file sent to you opens on your
+  computer, away from the radio, and only if you open it there. A picture
+  (JPEG, PNG, GIF) still opens in a tab of its own. A Winlink form sent to you
+  opens in a tab as before (Pat shows it in a box that cannot reach the
+  mailbox).
+- The mailbox's pages run only Pat's own scripts (a Content-Security-Policy
+  that forbids any other), and a page of the mailbox (port 8080) cannot open
+  the radio's TCI or Panel sockets: a script that ever got into it could not
+  key the radio that way.
 - The password is kept on the radio's system partition (`/var/lib/winlink`),
   out of reach of the web pages: never shown again, not in the Backup, not on
   the Files page. A new card image keeps the settings (`/mnt/winlink.conf`)
@@ -3556,7 +3576,8 @@ above); so are the pairing, the roles, control of the radio and the PTT as
 the radio confirms it (Pairing and control, Transmitting from the browser,
 above): anyone on the network watches, a paired browser operates. The web
 configurator itself has no login: use it on a network you trust. Pages from
-other sites cannot connect (the browser's Origin is checked).
+other sites cannot connect (the browser's Origin is checked), nor can Pat's
+Winlink mailbox (port 8080).
 
 ## TCI server
 
@@ -3611,7 +3632,9 @@ program on the network tunes the radio, hears it and keys it.
   operate. A web page is the exception: a browser names the page's site
   (Origin) when it opens the socket, and the radio refuses a page from any
   site but its own, so a page you happen to visit cannot key the radio
-  through your browser. TCI programs send no Origin and are not affected.
+  through your browser. Pat's Winlink mailbox (port 8080) is refused too: it
+  is the radio's, but it shows what anyone can send by Winlink. TCI programs
+  send no Origin and are not affected.
 - The TCI SERVER card shows the connected client (address), "no client"
   otherwise.
 - What it carries: `vfo`, `modulation` (lsb, usb, cw, cwr, am, nfm, digl,
