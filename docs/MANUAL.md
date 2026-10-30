@@ -3577,7 +3577,9 @@ the radio confirms it (Pairing and control, Transmitting from the browser,
 above): anyone on the network watches, a paired browser operates. The web
 configurator itself has no login: use it on a network you trust. Pages from
 other sites cannot connect (the browser's Origin is checked), nor can Pat's
-Winlink mailbox (port 8080).
+Winlink mailbox (port 8080). So the Panel and the Screen page do not connect
+either when you open them at port 8080 of your own computer, through an SSH
+tunnel or a forwarded port: use another port for that, 8000 for instance.
 
 ## TCI server
 
