@@ -51,10 +51,13 @@ uint8_t bat_cap_of_volts(uint8_t vbat);
  * BAT_CAP_APART apart, until they meet within BAT_CAP_MET with the voltage's at BAT_CAP_STEEP or more.
  * The base counts the charge it sees: a pack charged with the radio off stayed near empty at 8.2 V,
  * in Xiegu's firmware too (#49). From 7.3 V down the voltage's falls through 24, 9 and 3 to 0, where
- * it meets a base stuck at 0 as well as one that counts right: there it does not go back to the base's */
+ * it meets a base stuck at 0 as well as one that counts right: there it does not go back to the base's.
+ * Nor is a stuck base 25 apart there: the voltage's is also taken when the base says 0 % with the
+ * voltage's at BAT_CAP_AT_ZERO or more (7.2 V and up), where one that counts right still had some */
 #define BAT_CAP_APART   25
 #define BAT_CAP_MET     10
 #define BAT_CAP_STEEP   25
+#define BAT_CAP_AT_ZERO 9
 uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap);
 
 #ifdef __cplusplus

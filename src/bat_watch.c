@@ -51,8 +51,10 @@ uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
     int     apart = abs((int)batcap - v);
 
     /* #49's base (1.1.9) said 0-3 % from 8.2 V down. Back to it at the voltage's 9 % (7.2 V), the radio said
-     * 0 % and "connect power" every minute for the 35 to 42 minutes the pack still had */
-    if (apart > BAT_CAP_APART) w->by_volts = true;
+     * 0 % and "connect power" every minute for the 35 to 42 minutes the pack still had. Switched on at 7.3 or
+     * 7.2 V, the two were never 25 apart and it said that from the first reading: a base at 0 % there has lost
+     * count */
+    if (apart > BAT_CAP_APART || (batcap == 0 && v >= BAT_CAP_AT_ZERO)) w->by_volts = true;
     else if (apart <= BAT_CAP_MET && v >= BAT_CAP_STEEP) w->by_volts = false;
     return w->by_volts ? v : batcap;
 }

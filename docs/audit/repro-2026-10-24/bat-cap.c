@@ -44,6 +44,10 @@ int main(void) {
         {83, 100}, {82, 97}, {80, 90}, {78, 78}, {76, 63}, {74, 45}, {73, 26}, {72, 12}, {71, 4}, {69, 1}, {65, 0});
     /* A base stuck higher: it would have stayed at 15 % to the end, under the 10 % warning never */
     RUN("base at 15 %", {75, 15}, {74, 15}, {73, 15}, {72, 15}, {71, 15}, {69, 15});
+    /* #49's radio switched on with the pack at 7.3 V, its base at 0 %: never 25 apart from here down. And a base
+     * that counts right, switched on there: shown as it is, its 0 % at 6.8 V too */
+    RUN("base at 0 % from 7.3 V", {73, 0}, {72, 0}, {73, 0}, {72, 0}, {71, 0}, {70, 0}, {68, 0});
+    RUN("base that counts right from 7.3 V", {73, 26}, {72, 12}, {72, 5}, {71, 3}, {69, 1}, {68, 0}, {65, 0});
     /* The base back, after a charge it saw or once it agrees on the long 7.4 V step */
     RUN("base back after a charge", {81, 2}, {81, 95}, {80, 90});
     RUN("base back at 7.4 V", {75, 0}, {74, 0}, {74, 35}, {73, 22});
