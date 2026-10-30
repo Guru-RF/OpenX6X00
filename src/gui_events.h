@@ -48,6 +48,8 @@ typedef enum {
     /* the others after KEY_MACRO10 of linux/input.h */
     HKEY_SPCH = 0x299, HKEY_TUNER, HKEY_XFC, HKEY_VM, HKEY_NW, HKEY_F1, HKEY_F2,
     HKEY_MODE, HKEY_FIL, HKEY_GENE, HKEY_FINP,
+    /* the X6200's H-22 has these besides */
+    HKEY_F3, HKEY_VOL_UP, HKEY_VOL_DOWN, HKEY_AB, HKEY_BAND_UP, HKEY_BAND_DOWN,
 
     HKEY_UNKNOWN,
 } hkey_t;

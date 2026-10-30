@@ -815,8 +815,14 @@ static const key_row_t key_rows[] = {
     {"DFL", &params.long_dfl, &params.dirty.long_dfl},
     {"F1", &params.press_f1, &params.dirty.press_f1},
     {"F2", &params.press_f2, &params.dirty.press_f2},
+#ifdef BOARD_X6200
+    {"F3", &params.press_f3, &params.dirty.press_f3},       /* the H-22 has an F3, the X6100's mic not */
+#endif
     {"F1 long", &params.long_f1, &params.dirty.long_f1},
     {"F2 long", &params.long_f2, &params.dirty.long_f2},
+#ifdef BOARD_X6200
+    {"F3 long", &params.long_f3, &params.dirty.long_f3},
+#endif
 };
 
 static const key_action_t * key_actions(const key_row_t *k, size_t *n) {

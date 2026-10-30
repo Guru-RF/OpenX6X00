@@ -115,8 +115,10 @@ params_t params = {
 
     .press_f1               = ACTION_STEP_UP,
     .press_f2               = ACTION_NONE,
+    .press_f3               = ACTION_NONE,
     .long_f1                = ACTION_STEP_DOWN,
     .long_f2                = ACTION_NONE,
+    .long_f3                = ACTION_NONE,
 
     .play_gain_db_f         = { .x = 0.0f, .name = "play_gain_db_f"},
     .rec_gain_db_f          = { .x = 0.0f, .name = "rec_gain_db_f"},
@@ -280,10 +282,14 @@ static bool params_load() {
             params.press_f1 = i;
         } else if (strcmp(name, "press_f2") == 0) {
             params.press_f2 = i;
+        } else if (strcmp(name, "press_f3") == 0) {
+            params.press_f3 = i;
         } else if (strcmp(name, "long_f1") == 0) {
             params.long_f1 = i;
         } else if (strcmp(name, "long_f2") == 0) {
             params.long_f2 = i;
+        } else if (strcmp(name, "long_f3") == 0) {
+            params.long_f3 = i;
         }
 
         if (params_load_float(&params.play_gain_db_f, name, f)) continue;
@@ -418,8 +424,10 @@ static bool params_save() {
 
     if (params.dirty.press_f1)              params_write_int("press_f1", params.press_f1, &params.dirty.press_f1);
     if (params.dirty.press_f2)              params_write_int("press_f2", params.press_f2, &params.dirty.press_f2);
+    if (params.dirty.press_f3)              params_write_int("press_f3", params.press_f3, &params.dirty.press_f3);
     if (params.dirty.long_f1)               params_write_int("long_f1", params.long_f1, &params.dirty.long_f1);
     if (params.dirty.long_f2)               params_write_int("long_f2", params.long_f2, &params.dirty.long_f2);
+    if (params.dirty.long_f3)               params_write_int("long_f3", params.long_f3, &params.dirty.long_f3);
 
     params_save_float(&params.play_gain_db_f);
     params_save_float(&params.rec_gain_db_f);

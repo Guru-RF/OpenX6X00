@@ -12,9 +12,10 @@
  * being edited (F-INP), where they are mic keys too; CE and F-INP always type.
  *
  * The codes are the X6100 mic's. The X6200's H-22 is another mic (F1-F3, HOME, the volume keys, A/B, three
- * columns of digits) and sends other codes for most of its keys, which are not known yet (#56): every code the
- * base reports goes into the log with the key it is taken for, so a press of each key gives the H-22's table.
- * Not while a text window is open: its text can be a WiFi password. */
+ * columns of digits): it sends the X6100 mic's codes for 1, 2, F1, F2, the arrows, HOME (CE), # (F-INP), MODE
+ * and V/M, and codes of its own for the others (#56), which the X6200 knows besides. Every code the base reports
+ * goes into the log with the key it is taken for, so a press of each key of another mic gives its table. Not
+ * while a text window is open: its text can be a WiFi password. */
 
 #include "mic_keys.h"
 
@@ -34,7 +35,7 @@ static const struct {
     uint32_t    code;
     hkey_t      key;    /* for a typed key: the character */
     uint8_t     use;
-    const char *name;   /* the X6100 mic's label, for the log */
+    const char *name;   /* the key it is taken for (the X6100 mic's label), for the log */
 } keys[] = {
     {RADIO_HKEY_0, HKEY_0, TYPED_UNLESS_EDITING, "0"},     {RADIO_HKEY_1, HKEY_1, TYPED_UNLESS_EDITING, "1"},
     {RADIO_HKEY_2, HKEY_2, TYPED_UNLESS_EDITING, "2"},     {RADIO_HKEY_3, HKEY_3, TYPED_UNLESS_EDITING, "3"},
@@ -49,6 +50,20 @@ static const struct {
     {RADIO_HKEY_F1, HKEY_F1, MIC_KEY, "F1"},               {RADIO_HKEY_F2, HKEY_F2, MIC_KEY, "F2"},
     {RADIO_HKEY_MODE, HKEY_MODE, MIC_KEY, "MODE"},         {RADIO_HKEY_FIL, HKEY_FIL, MIC_KEY, "FIL"},
     {RADIO_HKEY_GENE, HKEY_GENE, MIC_KEY, "GENE"},
+#ifdef BOARD_X6200
+    /* The H-22's own codes, none of them the X6100 mic's, which the X6200 keeps (its library has them, and
+     * Xiegu's app still takes XFC's). Its * is the dot; HOME is CE (Xiegu's app: backspace), # F-INP (Enter) */
+    {RADIO_HKEY_H22_0, HKEY_0, TYPED_UNLESS_EDITING, "0"},     {RADIO_HKEY_H22_3, HKEY_3, TYPED_UNLESS_EDITING, "3"},
+    {RADIO_HKEY_H22_4, HKEY_4, TYPED_UNLESS_EDITING, "4"},     {RADIO_HKEY_H22_5, HKEY_5, TYPED_UNLESS_EDITING, "5"},
+    {RADIO_HKEY_H22_6, HKEY_6, TYPED_UNLESS_EDITING, "6"},     {RADIO_HKEY_H22_7, HKEY_7, TYPED_UNLESS_EDITING, "7"},
+    {RADIO_HKEY_H22_8, HKEY_8, TYPED_UNLESS_EDITING, "8"},     {RADIO_HKEY_H22_9, HKEY_9, TYPED_UNLESS_EDITING, "9"},
+    {RADIO_HKEY_H22_DOT, HKEY_DOT, TYPED_UNLESS_EDITING, "."}, {RADIO_HKEY_H22_F3, HKEY_F3, MIC_KEY, "F3"},
+    {RADIO_HKEY_H22_VOL_UP, HKEY_VOL_UP, MIC_KEY, "VOL+"},
+    {RADIO_HKEY_H22_VOL_DOWN, HKEY_VOL_DOWN, MIC_KEY, "VOL-"},
+    {RADIO_HKEY_H22_AB, HKEY_AB, MIC_KEY, "A/B"},
+    {RADIO_HKEY_H22_BAND_UP, HKEY_BAND_UP, MIC_KEY, "BAND UP"},
+    {RADIO_HKEY_H22_BAND_DOWN, HKEY_BAND_DOWN, MIC_KEY, "BAND DOWN"},
+#endif
 };
 
 static event_hkey_t cur = {.state = HKEY_RELEASE};    /* the key down, or the last one */
@@ -78,6 +93,10 @@ static bool all_up(void) {
     return cur.state == HKEY_RELEASE || cur.state == HKEY_LONG_RELEASE;
 }
 
+bool hkey_down(uint32_t key) {
+    return (uint32_t)cur.key == key && !all_up();
+}
+
 void hkey_put(uint32_t code) {
     if (code == 0) {
         if (cur.state == HKEY_PRESS || cur.state == HKEY_LONG) {
@@ -96,8 +115,8 @@ void hkey_put(uint32_t code) {
         i++;
     }
     /* Once per press: radio.c passes a code only when it changes. None while a text window is open: the digits
-     * of a WiFi password typed on the mic would be in the log, which goes with bug reports (an unknown code too,
-     * once the H-22's table says which digit it is) */
+     * of a WiFi password typed on the mic would be in the log, which goes with bug reports (an unknown code too:
+     * it can be another mic's digit) */
     if (!textarea_window_is_open()) {
         LV_LOG_USER("hand mic: key 0x%02X (%s)", (unsigned)code,
                     i < sizeof(keys) / sizeof(keys[0]) ? keys[i].name : "unknown");

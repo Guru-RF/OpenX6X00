@@ -34,6 +34,7 @@
 #include "screen_shot.h"
 #include "screen_rec.h"
 #include "key_input.h"
+#include "mic_keys.h"
 #include "app_window.h"
 #include "settings_window.h"
 #include "freq_entry.h"
@@ -697,6 +698,24 @@ static void ptt_key(keypad_state_t state) {
     }
 }
 
+/* A/B, the front key and the H-22's: VFO A/B; long: this VFO copied to the other one. Not while an app holds the
+ * VFOs */
+static void ab_key(bool tap, bool hold) {
+    if (ab_lock) {
+        return;
+    }
+    if (tap) {
+        radio_toggle_vfo();
+        spectrum_clear();
+        tiny_vfo();
+    } else if (hold) {
+        bool on_a = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
+
+        cfg_band_vfo_copy();
+        msg_update_text_fmt("Clone VFO %s", on_a ? "A->B" : "B->A");
+    }
+}
+
 /* Front keys. Most act on the release (a press) or on the long press, not both */
 static void front_key_cb(lv_event_t *e) {
     event_keypad_t *ev   = lv_event_get_param(e);
@@ -765,20 +784,8 @@ static void front_key_cb(lv_event_t *e) {
             }
             break;
 
-        case KEYPAD_AB:     /* long: this VFO copied to the other one */
-            if (ab_lock) {
-                break;
-            }
-            if (tap) {
-                radio_toggle_vfo();
-                spectrum_clear();
-                tiny_vfo();
-            } else if (hold) {
-                bool on_a = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
-
-                cfg_band_vfo_copy();
-                msg_update_text_fmt("Clone VFO %s", on_a ? "A->B" : "B->A");
-            }
+        case KEYPAD_AB:
+            ab_key(tap, hold);
             break;
 
         case KEYPAD_POWER:  /* a press: the screen off/on */
@@ -814,6 +821,40 @@ static void front_key_cb(lv_event_t *e) {
             LV_LOG_WARN("Unsuported key: %u", ev->key);
             break;
     }
+}
+
+/* The H-22's VOL+ and VOL-: the RX volume a step a press, as in Xiegu's app, and on by itself while the key is held
+ * (the X6200's goes to 100). Its message as the VOL knob's */
+#define MIC_VOL_DELAY_MS    400     /* held this long, the steps repeat */
+#define MIC_VOL_REPEAT_MS   100
+
+static lv_timer_t *mic_vol_timer;
+static hkey_t      mic_vol_key;
+
+static void mic_vol_step(void) {
+    uint16_t vol = radio_change_vol(mic_vol_key == HKEY_VOL_UP ? +1 : -1);
+
+    if (!knobs_visible() || vol_get_ctrl() != CTRL_VOL) {
+        msg_update_text_fmt("Volume: %i", vol);
+    }
+}
+
+static void mic_vol_stop(void) {
+    if (mic_vol_timer) {
+        lv_timer_del(mic_vol_timer);
+        mic_vol_timer = NULL;
+    }
+}
+
+/* Asks mic_keys.c whether the key is still down: its release goes to the screen in front, which may be another
+ * one by then (walkie mode) */
+static void mic_vol_repeat_cb(lv_timer_t *t) {
+    if (!hkey_down(mic_vol_key)) {
+        mic_vol_stop();
+        return;
+    }
+    mic_vol_step();
+    lv_timer_set_period(t, MIC_VOL_REPEAT_MS);
 }
 
 /* Hand mic keys */
@@ -917,18 +958,43 @@ static void mic_key_cb(lv_event_t *e) {
             }
             break;
 
-        /* F1, F2: the actions given to them in Settings, pressed and held */
+        /* F1, F2 and the H-22's F3: the actions given to them in Settings, pressed and held */
         case HKEY_F1:
-        case HKEY_F2: {
-            bool f1 = ev->key == HKEY_F1;
+        case HKEY_F2:
+        case HKEY_F3: {
+            bool f1 = ev->key == HKEY_F1, f2 = ev->key == HKEY_F2;
 
             if (tap) {
-                main_screen_action(f1 ? params.press_f1 : params.press_f2);
+                main_screen_action(f1 ? params.press_f1 : f2 ? params.press_f2 : params.press_f3);
             } else if (hold) {
-                main_screen_action(f1 ? params.long_f1 : params.long_f2);
+                main_screen_action(f1 ? params.long_f1 : f2 ? params.long_f2 : params.long_f3);
             }
             break;
         }
+
+        /* The H-22's own keys */
+        case HKEY_VOL_UP:
+        case HKEY_VOL_DOWN:
+            if (ev->state == HKEY_PRESS) {
+                mic_vol_stop();
+                mic_vol_key   = ev->key;
+                mic_vol_step();
+                mic_vol_timer = lv_timer_create(mic_vol_repeat_cb, MIC_VOL_DELAY_MS, NULL);
+            } else if (!hold) {
+                mic_vol_stop();     /* let go */
+            }
+            break;
+
+        case HKEY_AB:       /* as the front A/B key (Xiegu's app takes it for XFC, which here swaps the VFOs) */
+            ab_key(tap, hold);
+            break;
+
+        case HKEY_BAND_UP:  /* as the BAND keys; Xiegu's app knows them, no base was seen sending them */
+        case HKEY_BAND_DOWN:
+            if (tap) {
+                band_step(ev->key == HKEY_BAND_UP);
+            }
+            break;
 
         default:
             LV_LOG_WARN("Unsuported key: %u", ev->key);

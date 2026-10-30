@@ -142,14 +142,21 @@ window is open, which can hold a WiFi password).
 - What the report shows: 3-9, 0 and the dot do nothing on the main screen and in the F-INP box alike, where 1 and 2
   work, and mic_keys.c takes every digit the same way. F2 tells nothing yet: it has no action until one is set in
   Settings > Keys (None by default). F3, HOME and the volume keys are not on the X6100's mic.
-- **Next**: on the bench X6200 with its H-22, on the main screen, each key pressed once in order (F1 F2 F3, the step
-  keys, HOME, the volume keys, A/B, MODE, V/M, 1-9, the dot, 0, F-INP, DWN and UP on the back), and once held; the
-  codes read off the log. A key with no line at all is not in the packet's key word (Xiegu's manual names two data
-  lines on the mic's plug, MDATA and MSVSW): then the packet's other words (`reserved_2`, `reserved_3`, the flag
+- The table, 2026-10-30 (ea4iln-debug, X6200 with v0.3.7 and base 1.0.8, next to what Xiegu's app 1.0.8 does with
+  each code): 1 and 2 0xE1/0xE2, 3-9 0x18-0x1E, 0 0x17, * (the dot) 0x1F, # 0x28 (F-INP), F1/F2/F3 0x48/0x44/0x13,
+  the arrows 0x84/0x04, HOME 0x24 (Xiegu's app: backspace, not a home frequency), VOL+/VOL- 0x14/0x15 (the RX
+  volume +1/-1), A/B 0x16 (Xiegu's app: as XFC), MODE 0xE8, V/M 0x81. The side UP/DOWN keys send nothing (no line,
+  short or held); Xiegu's app knows 0x12/0x11 as band up/down, never seen.
+- Done on main (unreleased): the X6200 knows the H-22's own codes besides the X6100 mic's (no code in common), F3
+  with its own actions (Settings > Keys, X6200 only), VOL+/VOL- the volume a step a press and repeating while held,
+  A/B as the front A/B key, 0x12/0x11 as the BAND keys; the X6100 keeps its mic's table. Harness `mic-keys.c` walks
+  both mics on both boards; manual: Getting started > Hand mic.
+- **Next**: on the bench X6200 with its H-22, on the main screen, each key pressed once (and VOL+, A/B, a digit
+  held): the band on 3-9 and 0, the dot and HOME in the F-INP box, F3 with an action set, the volume stepping on
+  while VOL+ is held and stopping when let go, A/B swapping and its hold copying.
+- Open: the H-22's side UP/DOWN. If they are to work, they are outside the packet's key word (Xiegu's manual names
+  two data lines on the mic's plug, MDATA and MSVSW): the packet's other words (`reserved_2`, `reserved_3`, the flag
   bits the library leaves unnamed) logged when they change, in hw_x6200.c.
-- Then: an H-22 table for the X6200 (the X6100 keeps its mic's), the H-22's own keys (F3 next to F1 and F2 in
-  Settings > Keys, HOME to a frequency set in Settings as in Xiegu's app, the volume keys, A/B), the manual's hand
-  mic section per radio, and the H-22's codes in the harness (`mic-keys.c`).
 
 ## WiFi: a static address, as Ethernet has (#17)
 

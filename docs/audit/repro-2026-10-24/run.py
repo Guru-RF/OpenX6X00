@@ -176,15 +176,34 @@ def main():
         print("C08 WebSocket names (26 October audit, fixed), Tailscale Funnel's requests (#58) and the radio's own "
               "names (#105):\n" + command([binary], env, contains=("46 of 46 cases as they should be",)).strip())
 
-        binary = work / "mic-keys"
-        command([*CC, *cflags, *san, HERE / "mic-keys.c", "src/mic_keys.c", *gc, "-o", binary], env)
-        print("#56 hand mic keys, every code into the log:\n" + command([binary], env, contains=(
-            "main screen, 0xE4: press 3, release 3; log: hand mic: key 0xE4 (3)",
-            "main screen, 0x53: nothing; log: hand mic: key 0x53 (unknown)",
-            "a list focused, 0xE2: typed 2; log: hand mic: key 0xE2 (2)",
-            "a text window open, 0xE1: typed 1 into the text window; log: nothing",
-            "a text window open, 0x53: nothing; log: nothing",
-            "codes 0x01-0xFF: logged 255, known 25, unknown 230")).strip())
+        # The X6100's GUI knows its mic's codes only; the X6200's the H-22's besides (#56: its table off a radio)
+        for board, flags, known, h22 in (
+                ("X6100", [], "known 25, unknown 230", (
+                    "X6100, H-22 3, 0x18: nothing; log: hand mic: key 0x18 (unknown)",
+                    "X6100, H-22 #, 0x28: typed F-INP; log: hand mic: key 0x28 (F-INP)",
+                    "X6100, H-22 VOL+, 0x14: nothing; log: hand mic: key 0x14 (unknown)",
+                    "X6100, the H-22: 25 of 25 keys as they should be",
+                    "X6100, 0x18 held: nothing; VOL+ down while held: 0, after: 0")),
+                ("X6200", ["-DBOARD_X6200"], "known 40, unknown 215", (
+                    "X6200, H-22 3, 0x18: press 3, release 3; log: hand mic: key 0x18 (3)",
+                    "X6200, H-22 *, 0x1F: press ., release .; log: hand mic: key 0x1F (.)",
+                    "X6200, H-22 HOME, 0x24: typed CE; log: hand mic: key 0x24 (CE)",
+                    "X6200, H-22 F3, 0x13: press F3, release F3; log: hand mic: key 0x13 (F3)",
+                    "X6200, H-22 A/B, 0x16: press A/B, release A/B; log: hand mic: key 0x16 (A/B)",
+                    "X6200, the H-22: 25 of 25 keys as they should be",
+                    "X6200, 0x18 held: press 3, long 3, long release 3; VOL+ down while held: 0, after: 0",
+                    "X6200, 0x14 held: press VOL+, long VOL+, long release VOL+; VOL+ down while held: 1, after: 0"))):
+            binary = work / ("mic-keys-" + board.lower())
+            command([*CC, *cflags, *flags, *san, HERE / "mic-keys.c", "src/mic_keys.c", *gc, "-o", binary], env)
+            print(f"#56 hand mic keys, the {board}'s GUI: every code into the log, each key of both mics:\n" + command(
+                [binary], env, contains=(
+                    "main screen, 0xE4: press 3, release 3; log: hand mic: key 0xE4 (3)",
+                    "main screen, 0x53: nothing; log: hand mic: key 0x53 (unknown)",
+                    "a list focused, 0xE2: typed 2; log: hand mic: key 0xE2 (2)",
+                    "a text window open, 0xE1: typed 1 into the text window; log: nothing",
+                    "a text window open, 0x53: nothing; log: nothing",
+                    "codes 0x01-0xFF: logged 255, " + known,
+                    board + ", the X6100 mic: 25 of 25 keys as they should be", *h22)).strip())
 
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")

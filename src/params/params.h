@@ -175,12 +175,14 @@ typedef struct {
     uint8_t             long_dfn;
     uint8_t             long_dfl;
 
-    /* HMic F1, F2 actions */
+    /* HMic F1, F2 actions, and F3 (the X6200's H-22) */
 
     uint8_t             press_f1;
     uint8_t             press_f2;
+    uint8_t             press_f3;
     uint8_t             long_f1;
     uint8_t             long_f2;
+    uint8_t             long_f3;
 
     /* Audio play/rec */
 
@@ -247,8 +249,10 @@ typedef struct {
 
         bool    press_f1;
         bool    press_f2;
+        bool    press_f3;
         bool    long_f1;
         bool    long_f2;
+        bool    long_f3;
 
     } dirty;
 } params_t;
