@@ -766,7 +766,7 @@ the X6200 a screen recording does not raise it (see
 | Card | Options |
 |---|---|
 | WIFI | power, status, IP, networks |
-| NETWORK NAME | the radio's name on the LAN, `x6100` by default: reachable as `<name>.local` (see [Network name](#network-name)) |
+| NETWORK NAME | the radio's name on the LAN, `x6100` by default (`x6200` on an X6200): reachable as `<name>.local` (see [Network name](#network-name)) |
 | TAILSCALE | on/off, status, the radio's name and address on your tailnet, Funnel on/off with Public (the Panel's address on the internet, or what Funnel waits for), the login or the link that allows Funnel as a code to scan, Log out (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
 | ETHERNET | a USB Ethernet adapter: DHCP or a static address (see [Ethernet](#ethernet)) |
 
@@ -3534,9 +3534,9 @@ opens the web configurator and `x6100.local:50001` is the TCI server, on WiFi
 and on Ethernet alike, without knowing the address. Phones, tablets, Macs,
 Linux and current Windows resolve `.local` names out of the box.
 
-The name is `x6100` by default. Change it in Settings > Wireless > NETWORK NAME
-(the keyboard opens; letters, digits and `-`, up to 32) or on the web
-configurator's Network page. It is saved in `/mnt/hostname.conf` on the DATA
+The name is `x6100` by default, `x6200` on an X6200. Change it in Settings >
+Wireless > NETWORK NAME (the keyboard opens; letters, digits and `-`, up to
+32) or on the web configurator's Network page. It is saved in `/mnt/hostname.conf` on the DATA
 partition, so it survives a new card image, and takes effect at once: the
 radio's hostname changes and Avahi announces the new name within a few
 seconds. Two radios on one LAN need two names.
