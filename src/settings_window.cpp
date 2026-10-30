@@ -3509,7 +3509,10 @@ static void make_cluster_page() {
     obj = wl_label(grid, SF(18), theme_hex(TC_text_dim), 0);
     lv_label_set_text(obj, "For the app, the column and the waterfall. Alerts always show.\n"
                            "Activity: none lit = all spots. Max age, spotters, alerts: web Cluster page.");
-    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 0, 7, LV_GRID_ALIGN_CENTER, row, 1);
+    /* wrapped in the card: in DejaVu (VISION's size the more) the second line ran off its right edge */
+    lv_obj_set_width(obj, lv_pct(100));
+    lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
+    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_STRETCH, 0, 7, LV_GRID_ALIGN_CENTER, row, 1);
     row_dsc[row] = LV_GRID_CONTENT;
     row++;
 
