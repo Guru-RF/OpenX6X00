@@ -48,13 +48,14 @@ tune_refusal_t tune_refusal(const tune_ask_t *a);
 /* One tune, as it goes out */
 typedef struct {
     int      tx_mode;   /* the base's mode for it (radio_mode_t), -1: the VFO's own (USB-D already) */
-    int32_t  offset_hz; /* the tone over the TX frequency: the open app's TX audio offset, 0 on it */
+    int32_t  offset_hz; /* the tone from the TX frequency: the open app's TX audio offset, below it in LSB; 0 on it */
     float    pwr_w;
     uint32_t limit_ms;
 } tune_plan_t;
 
-/* mode: the VFO's (radio_mode_t); app_hz: the open app's TX audio offset, 0 none; pwr_w and limit_s: the settings;
- * top_w: the most the radio gives now (its PWR top, lower on the X6200's battery) */
+/* mode: the VFO's (radio_mode_t); app_hz: the open app's TX audio offset, 0 none (in LSB and LSB-D the tone goes that
+ * far below the dial, as the app's audio does); pwr_w and limit_s: the settings; top_w: the most the radio gives now
+ * (its PWR top, lower on the X6200's battery) */
 void tune_plan(tune_plan_t *p, int mode, int32_t app_hz, float pwr_w, float top_w, int limit_s);
 
 /* A tune on the air, for the SWR protection (radio.c keeps it, radio_set_tune) */

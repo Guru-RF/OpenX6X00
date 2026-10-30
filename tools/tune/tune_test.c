@@ -435,7 +435,7 @@ static tune_end_t run(int32_t app_hz, float pwr_w, int limit_s) {
     tune_plan(&p, cfg.mode[cfg.cur], app_hz, pwr_w, 10.0f, limit_s);
     tune_t0 = now_ms();
     tune_end_t e = tune_tx_run(&p, stop_cb, NULL);
-    printf("        tune %.1f W, %u s, tone at +%d Hz: %s after %.2f s on the air, %d key(s), carrier at %d Hz in mode %d\n",
+    printf("        tune %.1f W, %u s, tone at %+d Hz: %s after %.2f s on the air, %d key(s), carrier at %d Hz in mode %d\n",
            p.pwr_w, p.limit_ms / 1000, (int)p.offset_hz, end_name(e), (seen.unkey_ms - seen.key_ms) / 1000.0, seen.keys,
            (int)seen.rf, seen.mode);
     return e;
@@ -477,6 +477,11 @@ static void pure_rules(void) {
     tune_plan(&p, radio_mode_usb, 0, 0.0f, 10.0f, 2);
     check(p.pwr_w == TUNE_PWR_MIN_W && p.limit_ms == TUNE_TIME_MIN_S * 1000, "0 W and 2 s asked: %.1f W, %u s",
           p.pwr_w, p.limit_ms / 1000);
+    tune_plan(&p, radio_mode_lsb, 1900, 1.0f, 10.0f, 15);
+    check(p.tx_mode == radio_mode_usb_dig && p.offset_hz == -1900,
+          "SSTV in LSB (40 m), its picture at 1900 Hz: USB-D for it, the tone 1900 Hz below the dial, where SSTV sends");
+    tune_plan(&p, radio_mode_lsb_dig, 2125, 1.0f, 10.0f, 15);
+    check(p.tx_mode == radio_mode_usb_dig && p.offset_hz == -2125, "RTTY in LSB-D at 2125 Hz: 2125 Hz below the dial");
     tune_plan(&p, radio_mode_usb, -300, 1.0f, 10.0f, 120);
     check(p.offset_hz == 0 && p.limit_ms == TUNE_TIME_MAX_S * 1000, "an offset below 0 and 120 s: on the TX frequency, %u s",
           p.limit_ms / 1000);
@@ -586,6 +591,16 @@ static void transmissions(void) {
     check(seen.unkey_ms - seen.key_ms >= SWR_GUARD_MS && seen.unkey_ms - seen.key_ms < SWR_GUARD_MS + 100,
           "after %llu ms, as any transmission", (unsigned long long)(seen.unkey_ms - seen.key_ms));
     check(as_set(), "after: all put back");
+
+    puts("-- SSTV in LSB on 7.171 MHz, its picture at 1900 Hz (an app that does not move the VFO for its audio)");
+    cfg = (typeof(cfg)){.freq = {7171000, 7171000}, .mode = {radio_mode_lsb, radio_mode_lsb}, .pwr = 5.0f};
+    reset();
+    sc.stop_at_s = 1.0f;
+    e = run(1900, 1.0f, 15);
+    check(e == TUNE_END_STOP && seen.rf == 7169100 && seen.mode == radio_mode_usb_dig,
+          "the carrier on 7.169.100, where SSTV's picture goes out, not 3.8 kHz above it on 7.172.900 (%d)", (int)seen.rf);
+    check(as_set(), "after: 7.171.000 LSB again");
+    cfg = (typeof(cfg)){.freq = {14074000, 14074000}, .mode = {radio_mode_usb_dig, radio_mode_usb_dig}, .pwr = 5.0f};
 
     puts("-- PWR turned up to 10 W during a 1 W tune");
     reset();

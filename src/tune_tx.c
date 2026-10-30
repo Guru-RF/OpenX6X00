@@ -37,12 +37,15 @@ tune_refusal_t tune_refusal(const tune_ask_t *a) {
 
 /* USB-D everywhere: the tone at TX_PLAYER_AUDIO_HZ with the VFO TX_PLAYER_AUDIO_HZ under the TX frequency (tx_player)
  * puts the carrier on it only in the upper sideband, and without the voice modes' processing; an app is in USB-D
- * already */
+ * already. An app in LSB or LSB-D (SSTV on 40 m, RTTY: they keep the mode they were used in) sends its audio below
+ * the dial: the tone goes as far below it, not as far above, where it landed 3.8 kHz from SSTV's picture and over the
+ * band's top edge from a dial just under it */
 void tune_plan(tune_plan_t *p, int mode, int32_t app_hz, float pwr_w, float top_w, int limit_s) {
-    float top = top_w < TUNE_PWR_MAX_W ? top_w : TUNE_PWR_MAX_W;
+    float top   = top_w < TUNE_PWR_MAX_W ? top_w : TUNE_PWR_MAX_W;
+    bool  lower = mode == radio_mode_lsb || mode == radio_mode_lsb_dig;
 
     p->tx_mode   = mode == radio_mode_usb_dig ? -1 : radio_mode_usb_dig;
-    p->offset_hz = app_hz > 0 ? app_hz : 0;
+    p->offset_hz = app_hz > 0 ? (lower ? -app_hz : app_hz) : 0;
     p->pwr_w     = pwr_w > top ? top : pwr_w < TUNE_PWR_MIN_W ? TUNE_PWR_MIN_W : pwr_w;
     if (limit_s < TUNE_TIME_MIN_S) limit_s = TUNE_TIME_MIN_S;
     if (limit_s > TUNE_TIME_MAX_S) limit_s = TUNE_TIME_MAX_S;

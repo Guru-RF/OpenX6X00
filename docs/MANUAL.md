@@ -1176,7 +1176,9 @@ What goes on the air:
 - In a digital app a single tone at the app's TX offset, so it lands where
   the app transmits: FT8 on 14.074 MHz with its TX at 1500 Hz tunes on
   14.075.500. JS8, WSPR, PSK, Olivia and JTTY at their TX frequency, SSTV at
-  1900 Hz, the middle of its picture.
+  1900 Hz, the middle of its picture. An app used in LSB (SSTV on 40 m)
+  sends below the dial, and so does the tune: 7.169.100 for SSTV on 7.171
+  LSB.
 - At the TUNE power, 1.0 W by default, whatever PWR is set to, higher or
   lower; while it tunes the power never goes above it, PWR turned up
   meanwhile included. Where: Settings > TX Cal > EXTERNAL TUNER > TUNE power,

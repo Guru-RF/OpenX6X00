@@ -42,8 +42,8 @@ typedef struct {
     bool       swr;             /* the SWR protection stopped it: it said so itself */
 } over_t;
 
-/* The open app's TX audio offset, where its signal goes over the TX frequency: the tune's tone goes there. 0 without an
- * app (or NavTex, which only listens): the carrier on the TX frequency itself */
+/* The open app's TX audio offset, where its signal goes from the TX frequency (below it in LSB: tune_plan): the tune's
+ * tone goes there. 0 without an app (or NavTex, which only listens): the carrier on the TX frequency itself */
 static int32_t app_offset(void) {
     switch (main_screen_digital_app_action()) {
         case ACTION_APP_FT8:    return params.ft8_tx_freq.x;
