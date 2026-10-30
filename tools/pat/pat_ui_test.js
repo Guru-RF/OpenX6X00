@@ -2,7 +2,8 @@
 /* Pat's web mailbox with patch 0005, in jsdom: what a Winlink message, another station or the network puts on
  * the page is shown as text and never becomes markup. Pat's own page and script (web/dist of a patched Pat
  * source) against a stand-in for Pat's server, which answers with names, addresses and lines such as
- * <img src=x onerror=...>: the message list, the message window (its headers and attachments), the log pane,
+ * <img src=x onerror=...>: the message list, the message window (its headers and attachments, an attachment
+ * other than a picture saved rather than opened), the log pane,
  * the status text, the prompt for the messages to download, an error shown in the status bar and in the
  * composer, the connect dialog's aliases, the gateway list's prediction and the forms' catalog.
  *
@@ -165,6 +166,13 @@ function handlers(root) {
   check('the links to the attachments encoded',
         links.includes(`/api/mailbox/in/${MID}/` + encodeURIComponent(IMG + '.txt')) &&
         links.includes(`/api/mailbox/in/${MID}/a%20b%23c%3Fd.txt`), links);
+  const saved = [...att.querySelectorAll('a.attachment-preview')].filter(a => a.querySelector('.filename'));
+  check('an attachment that is not a picture is saved under its name, not opened in a tab',
+        saved.length === 2 && saved.every(a => a.getAttribute('download') === a.querySelector('.filename').textContent &&
+                                               !a.hasAttribute('target')), saved.map(a => a.outerHTML.slice(0, 120)));
+  const shown = imgs[0] && imgs[0].closest('a');
+  check('the picture opens in a tab', shown && shown.getAttribute('target') === '_blank' && !shown.hasAttribute('download'),
+        shown && shown.outerHTML.slice(0, 120));
   const form = [...att.querySelectorAll('a.btn')].map(a => a.textContent.trim());
   check('the form\'s button', form.length === 1 && form[0] === 'ICS213', form);
   check('no markup from the attachments\' names', handlers(att).length === 0, handlers(att));
