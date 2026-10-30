@@ -1,0 +1,155 @@
+From 1993c81e027e5e23ccf3a8474e83c8be1ca63076 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Thu, 29 Oct 2026 20:30:00 +0100
+Subject: [PATCH] app, api: the log opened for appending, its tail read again
+ after a trim (OpenX6X00)
+
+The radio's supervisor adds lines of its own to Pat's log ("OpenX6X00:
+no TX, FT8 is open, close it", what to do after a failed connection, no
+password set), so that they show in the mailbox's log pane where the
+user is, often on a phone. Pat created its log with os.Create, without
+O_APPEND: a line appended by another process was written over by Pat's
+next one, and a file cut short got Pat's next line at its old offset
+behind a hole of zeros.
+
+The log is opened O_WRONLY|O_CREATE|O_TRUNC|O_APPEND (still emptied at
+each start). tailFile, which feeds the log pane, reads a file that has
+become shorter than what it read again from its start, so the pane
+follows the log through a trim. With a test (api/tail_test.go).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ api/tail_test.go | 59 ++++++++++++++++++++++++++++++++++++++++++++++++
+ api/wshub.go     | 19 +++++++++++++++-
+ app/app.go       |  5 +++-
+ 3 files changed, 81 insertions(+), 2 deletions(-)
+ create mode 100644 api/tail_test.go
+
+diff --git a/api/tail_test.go b/api/tail_test.go
+new file mode 100644
+index 0000000..04b6d68
+--- /dev/null
++++ b/api/tail_test.go
+@@ -0,0 +1,59 @@
++package api
++
++import (
++	"fmt"
++	"os"
++	"path/filepath"
++	"testing"
++	"time"
++)
++
++// Pat's log as the radio has it (OpenX6X00): Pat appends, the supervisor appends notes of its own
++// and trims the file; the mailbox's log pane follows it through the trim.
++func TestTailFileAppendedAndTrimmed(t *testing.T) {
++	path := filepath.Join(t.TempDir(), "pat-own.log")
++	pat, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_APPEND, 0o666) // as app.go opens it
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer pat.Close()
++	fmt.Fprintln(pat, "2026/10/29 12:15:54 QSY ardop: 7061.5")
++
++	lines, done, err := tailFile(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer close(done)
++	expect := func(want string) {
++		t.Helper()
++		select {
++		case got := <-lines:
++			if string(got) != want {
++				t.Fatalf("got %q, want %q", got, want)
++			}
++		case <-time.After(3 * time.Second):
++			t.Fatalf("no line, want %q", want)
++		}
++	}
++	expect("2026/10/29 12:15:54 QSY ardop: 7061.5")
++
++	note, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
++	if err != nil {
++		t.Fatal(err)
++	}
++	fmt.Fprintln(note, "2026/10/29 12:15:55 OpenX6X00: a note")
++	note.Close()
++	expect("2026/10/29 12:15:55 OpenX6X00: a note")
++	fmt.Fprintln(pat, "2026/10/29 12:15:57 Connecting to DM6TS (ardop)...")
++	expect("2026/10/29 12:15:57 Connecting to DM6TS (ardop)...")
++
++	if err := os.Truncate(path, 0); err != nil { // the supervisor trims it
++		t.Fatal(err)
++	}
++	fmt.Fprintln(pat, "after")
++	expect("after")
++	// Pat's next line went to the new end, not where its last one ended (no hole of zeros)
++	if b, _ := os.ReadFile(path); string(b) != "after\n" {
++		t.Errorf("the log after the trim: %q", b)
++	}
++}
+diff --git a/api/wshub.go b/api/wshub.go
+index 2bde1ba..a319af6 100644
+--- a/api/wshub.go
++++ b/api/wshub.go
+@@ -240,7 +240,8 @@ func drainUntilSilence(w *fsnotify.Watcher, silenceDur time.Duration) {
+ 	}
+ }
+ 
+-// Expects the file to never get renamed/truncated or deleted
++// Expects the file to never get renamed or deleted. OpenX6X00: a file cut shorter than what was
++// read (the radio's supervisor trims the log) is read again from its start.
+ func tailFile(path string) (<-chan []byte, chan<- struct{}, error) {
+ 	lines := make(chan []byte)
+ 	done := make(chan struct{})
+@@ -254,6 +255,11 @@ func tailFile(path string) (<-chan []byte, chan<- struct{}, error) {
+ 		for {
+ 			data, _, err := rd.ReadLine()
+ 			if errors.Is(err, io.EOF) {
++				if truncated(file) {
++					file.Seek(0, io.SeekStart)
++					rd.Reset(file)
++					continue
++				}
+ 				time.Sleep(time.Millisecond * 100)
+ 				continue
+ 			}
+@@ -270,6 +276,17 @@ func tailFile(path string) (<-chan []byte, chan<- struct{}, error) {
+ 	return lines, done, nil
+ }
+ 
++// truncated tells whether a file read to its end is now shorter than where it was read to
++// (OpenX6X00).
++func truncated(file *os.File) bool {
++	pos, err := file.Seek(0, io.SeekCurrent)
++	if err != nil {
++		return false
++	}
++	fi, err := file.Stat()
++	return err == nil && fi.Size() < pos
++}
++
+ func (w *WSHub) handleWSMessage(v map[string]json.RawMessage) {
+ 	raw, ok := v["prompt_response"]
+ 	if !ok {
+diff --git a/app/app.go b/app/app.go
+index 0ddc2d0..9df1a15 100644
+--- a/app/app.go
++++ b/app/app.go
+@@ -199,7 +199,10 @@ func (a *App) Run(ctx context.Context, cmd Command, args []string) {
+ 	}
+ 
+ 	// Initialize logger
+-	f, err := os.Create(a.options.LogPath)
++	//
++	// OpenX6X00: opened for appending, so that the radio's supervisor can add lines of its own (the
++	// mailbox's log pane shows them) and trim the file, without either one writing over the other.
++	f, err := os.OpenFile(a.options.LogPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_APPEND, 0o666)
+ 	if err != nil {
+ 		log.Fatalf("Unable to create log file at %s: %v", a.options.LogPath, err)
+ 	}
+-- 
+2.56.0
+

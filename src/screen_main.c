@@ -100,6 +100,7 @@ static lv_coord_t   wf_y;                   /* waterfall top */
  * greys out with it */
 static SubjectInt   *freq_lock;
 static bool         band_lock, mode_lock, ab_lock;
+static press_action_t last_app;     /* the app opened last: a digital one while radio_digi_cap() */
 
 static lv_timer_t *timer_once(lv_timer_cb_t cb, uint32_t ms) {
     lv_timer_t *t = lv_timer_create(cb, ms, NULL);
@@ -451,6 +452,7 @@ void main_screen_start_app(press_action_t app_action) {
         return;
     }
     close_apps();
+    last_app = app_action;      /* before the cap goes on: main_screen_digital_app reads the two together */
 
     /* The digital apps open where they were last used */
     switch (app_action) {
@@ -1185,6 +1187,10 @@ bool main_screen_mode_locked() {
     return mode_lock;
 }
 
+const char *main_screen_digital_app(void) {
+    return radio_digi_cap() ? app_name(last_app) : NULL;
+}
+
 /* A jump, not a turn of the knob: the spectrum starts again */
 void main_screen_set_freq(uint64_t freq) {
     cparam_i_set(cfg_fg_freq, freq);
@@ -1302,6 +1308,12 @@ static void on_band_plan_change(Subject *subj, void *user_data) {
     on_cluster_spots_wf_change(NULL, NULL);
 }
 
+/* Settings > General > Band plan (also on the web Display page): another region or US licence class */
+static void on_band_region_change(Subject *subj, void *user_data) {
+    band_plan_reload();
+    band_plan_refresh();
+}
+
 static void on_cluster_column_change(Subject *subj, void *user_data) {
     if (!param_i_get(cfg_cluster_column)) {
         mfk_cluster_gone();
@@ -1413,6 +1425,7 @@ static void build(void) {
     cluster_column_init(obj, wf_y);
     subject_subscribe_delayed_and_notify((Subject*)cfg_cluster_spots_wf, on_cluster_spots_wf_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_band_plan, on_band_plan_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_band_region, on_band_region_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_band_id, on_band_id_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_wr12, on_wr12_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_cluster_column, on_cluster_column_change, NULL);

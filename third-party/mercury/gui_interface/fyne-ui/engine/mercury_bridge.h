@@ -1,0 +1,180 @@
+/* Mercury C Engine Bridge — CGo integration layer
+ *
+ * Exposes the Mercury HF modem engine as a library so the Fyne Go UI
+ * can drive it in-process (single binary, no subprocess).
+ *
+ * Copyright (C) 2026 Rhizomatica
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+#ifndef MERCURY_BRIDGE_H
+#define MERCURY_BRIDGE_H
+
+#include <stdbool.h>
+
+/* The UI status struct is defined once, in the engine — the bridge hands out
+ * that same type rather than declaring a parallel copy. */
+#include "ui_status.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Start the engine.  argc/argv are the process args forwarded from Go so the
+ * same CLI parser the daemon uses applies here.  default_config is the config
+ * path used when -C is absent; log_path is the engine log file. */
+/* Handle -h/-l/-z/-K (print to terminal); call before creating the window.
+ * Returns non-zero if an info action was handled (the caller should exit). */
+/* Print the startup version banner (same text the daemon prints). */
+void mercury_print_version(void);
+int  mercury_precheck(int argc, char **argv, const char *default_config);
+/* mercury_init() returns 0, MERCURY_INIT_CONFIG_ERROR when the configuration
+ * file cannot be read in full, or -1. */
+#define MERCURY_INIT_CONFIG_ERROR (-2)
+int  mercury_init(int argc, char **argv, const char *default_config, const char *log_path);
+void mercury_shutdown(void);
+void mercury_request_shutdown(void);
+
+/* One-line report of where the engine log is being written, or why the
+ * requested file could not be opened ("writing log to <path>" /
+ * "cannot open log file '<path>': <reason>; file logging disabled").
+ *
+ * The Windows GUI is linked windowsgui, so the stderr warning the engine
+ * prints for a bad -L is invisible; the UI reads this and appends it to its
+ * own ui.log instead.  NULL when no file sink is configured.  Owned by the
+ * engine; copy (Go: C.GoString) before it is next set. */
+const char *mercury_log_status(void);
+
+/* ---- In-process UI link ----------------------------------------------------
+ * The embedded UI pulls state and pushes commands through these calls instead
+ * of opening a websocket back to its own process.  The websocket server keeps
+ * running for remote clients (HERMES web UI, a desktop UI on another machine).
+ *
+ * Pull, not callbacks: the engine's publisher threads never call into Go, so a
+ * busy or stopped UI can never stall the modem, and there is no cgocallback on
+ * the audio-adjacent threads. */
+
+/* Copy the latest status snapshot.  Returns 1 on success, 0 before the engine
+ * has published its first one. */
+int mercury_ui_get_status(ui_status_t *out);
+
+/* Copy the current RX power spectrum (dB).  Returns the number of bins written
+ * (0 if none available yet), and sets *sample_rate_hz and *seq when non-NULL.
+ * `seq` counts FFT frames: poll faster than they are produced and skip the
+ * ones already seen, and the waterfall gets each frame exactly once instead of
+ * aliasing two independent ~20 Hz clocks against each other. */
+int mercury_ui_get_spectrum(float *out, int max_bins, int *sample_rate_hz,
+                            unsigned long long *seq);
+
+/* Run a UI command through the same handler the websocket path uses.
+ * Unused values may be NULL.  Returns 0 on success. */
+int mercury_ui_command(const char *command, const char *value,
+                       const char *value2, const char *value3,
+                       const char *value4, const char *value5,
+                       const char *value6, const char *value7);
+
+/* Pre-load device enumerations from the main thread during engine init.
+ * hamlib backend loading uses a global registry that must be initialised
+ * on a "normal" POSIX thread (not a CGo goroutine which has a different
+ * signal mask and TLS setup).  Calling this from mercury_init() ensures
+ * the radio list is ready before any UI goroutine asks for it. */
+void mercury_ui_preload_device_lists(void);
+
+/* Device pickers.  The websocket path pushes these to a client when it
+ * connects; a local UI asks for them instead.  Both read the same enumerators,
+ * so the two see the same devices and the same selection. */
+int mercury_ui_get_audio_devices(int kind, ui_device_t *out, int max,
+                                 char *selected, int selected_len);
+int mercury_ui_get_radio_list(ui_device_t *out, int max,
+                              char *selected, int selected_len,
+                              char *device_path, int device_path_len,
+                              int *serial_speed,
+                              char *ptt_method, int method_len,
+                              char *ptt_line, int line_len,
+                              char *ptt_invert, int invert_len,
+                              int *cm108_gpio);
+int mercury_ui_get_input_channel(void);
+
+/* Android: the usbfs descriptor the app opened (UsbManager) for the radio's
+ * "usb:VVVV:PPPP[:SERIAL]" device; Hamlib is then handed "usbfd:N".  fd < 0
+ * forgets it. */
+void mercury_ui_set_usb_fd(const char *device, int fd);
+
+/* Android: Java's audio devices (AudioManager), one per line,
+ * "id\tin|out\tname"; the soundcard lists offer them as "dev:<id>". */
+void mercury_ui_set_android_audio_devices(const char *list);
+
+/* Copy the current audio subsystem name ("alsa", "pulse", ...) into `name`.
+ * Never returns NULL; `name` is always NUL-terminated. */
+void mercury_ui_get_audio_system(char *name, int name_len);
+
+/* Copy the space-separated list of audio subsystems this build can run
+ * ("alsa pulse", "wasapi dsound", ...) into `names`; always NUL-terminated. */
+void mercury_ui_get_audio_subsystems(char *names, int names_len);
+
+/* Enable / disable waterfall/spectrum at runtime.  Saves to mercury.ini. */
+void mercury_ui_set_waterfall(bool enabled);
+
+/* Read the TNC TCP ports the engine listens on. */
+void mercury_ui_get_tcp_ports(int *arq_base_port, int *broadcast_port);
+
+/* Copy the persisted ARQ/broadcast chat history (newline-delimited JSONL,
+ * oldest first) into the provided buffer.  Returns the number of bytes written
+ * (excluding the NUL), or 0 if the store is empty or unavailable. */
+int mercury_ui_get_history(char *out, int out_len);
+
+/* Copy the release version string and git hash into the provided buffers. */
+void mercury_ui_get_version(char *version, int version_len,
+                            char *git_hash, int git_hash_len);
+
+/* ---- Broadcast file transmission -------------------------------------------
+ *
+ * Thin pass-through to datalink_broadcast/bcast_file.c.  It exists so the Go UI
+ * does not have to include nanorq's headers, and so the handle crosses CGo as
+ * an opaque pointer.
+ *
+ * The engine does NOT send these frames.  The UI pulls them one at a time and
+ * writes them to the broadcast socket its chat client already holds, so file
+ * transfer and chat share one transport and one set of framing rules. */
+void *mercury_bcast_tx_open(const char *path, int mode, int cycles,
+                            int session_id, char *err, int errlen);
+int   mercury_bcast_tx_next(void *tx, unsigned char *buf, int buflen);
+int   mercury_bcast_tx_frame_size(void *tx);
+void  mercury_bcast_tx_stats(void *tx, int *cycle_now, int *cycles_total,
+                             unsigned long long *frames_sent);
+void  mercury_bcast_tx_source(void *tx, long *file_bytes, int *blocks);
+void  mercury_bcast_tx_close(void *tx);
+int   mercury_bcast_mode_frame_size(int mode);
+int   mercury_bcast_mode_usable(int mode);
+const char *mercury_bcast_mode_name(int mode);
+long  mercury_bcast_max_file_bytes(void);
+
+/* The broadcast mode the engine is running, as a hermes mode index (0..10), or
+ * -1 if it is not one broadcast can use.  Fixed at startup by -m: there is no
+ * runtime mode switch, and both stations must be set to the same one. */
+/* The hermes mode index the engine is running, or -1 if broadcast cannot use
+ * it -- which includes modes the engine runs perfectly well but whose frames
+ * are too small to carry a whole RaptorQ symbol (FSK_LDPC, DATAC15). */
+int   mercury_bcast_engine_mode(void);
+
+/* The same index without the broadcast-usability filter, so a caller can name
+ * the mode in a message explaining why broadcast is unavailable. */
+int   mercury_bcast_engine_mode_raw(void);
+int   mercury_bcast_engine_bitrate(void);
+int   mercury_bcast_engine_bandwidth_hz(void);
+
+/* Receiving.  Frames arrive on the same broadcast socket the chat client holds;
+ * the UI hands each one here and this says whether it was ours. */
+void *mercury_bcast_rx_open(int mode, const char *dir, char *err, int errlen);
+int   mercury_bcast_rx_frame(void *rx, const unsigned char *frame, int len);
+const char *mercury_bcast_rx_last_path(void *rx);
+const char *mercury_bcast_rx_last_name(void *rx);
+const char *mercury_bcast_rx_error(void *rx);
+void  mercury_bcast_rx_stats(void *rx, unsigned long long *symbols, long *expect_bytes);
+void  mercury_bcast_rx_close(void *rx);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

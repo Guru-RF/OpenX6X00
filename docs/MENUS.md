@@ -41,10 +41,10 @@ of text for NavTex.
 
 | Here | There (v0.129) |
 |---|---|
-| General (station, date and time, controls, transverters, WR12 on the X6200, TCI server) | Station, "Call, clock" |
+| General (station and band plan, date and time, controls, transverters, WR12 on the X6200, TCI server) | Station, "Call, clock" |
 | Display (backlight, spectrum, waterfall, main screen, interface) | Display, "Screen, theme" |
 | Audio (RX and TX audio, microphone, VOX, AGC) | Audio, "Mic, VOX, AGC" |
-| Wireless (WiFi, Ethernet) | Wireless |
+| Wireless (WiFi, network name, Tailscale and its Funnel, Ethernet) | Wireless |
 | Bluetooth | Bluetooth |
 | Keys (long presses, hand mic keys, paddle) | Keys, "Keys, paddle" |
 | Cluster (filters, view, PSK Reporter) | Cluster, "Spots" |

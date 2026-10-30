@@ -1,0 +1,18 @@
+2026/10/29 12:15:54 QSY ardop: 7061.5
+2026/10/29 12:15:57 Connecting to DM6TS (ardop)...
+2026/10/29 12:16:17 Connected to DM6TS (ardop)
+RMS Trimode 1.4.4.0 + + INTERMAR-ev.org + +  c/o DM6TS
+M7SVA has 1000 daily minutes remaining with DM6TS (JN49FC)
+{SFI = 93 On 2026-10-29 10:00 UTC}
+[WL2K-5.0-B2FWIHJM$]
+;PQ: 41081516
+CMS via DM6TS >
+>FC EM ECTEM7Q3ODBL 231 201 0
+>F> 95
+FS Y
+Remote accepted ECTEM7Q3ODBL
+Transmitting [ardop test] [offset 0]
+FF
+>FQ
+2026/10/29 12:18:49 Disconnected.
+2026/10/29 12:18:50 QSX ardop: 7061.500

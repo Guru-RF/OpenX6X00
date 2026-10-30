@@ -118,7 +118,7 @@ The authoritative list, with the value of each built-in theme, is
   `alert`, `alert_text`, `alert_bg`, `new`
 - Main screen: `icon_off`, `mode_dig`, `mode_text`, `mode_bg`, `mode_border`, `pill_off_text`, `pill_border`,
   `meter_weak`, `meter_bar`, `meter_over`, `meter_low`, `meter_high`, `bar_high`, `bar_mid`, `alc`, `tx_box`, `vfo_line`, `spot`,
-  `tune_good`, `bp_cw`, `bp_dig`, `bp_ssb`, `bp_bcn`, `bp_text`, `finder_band`, `finder_cursor`
+  `tune_good`, `bp_cw`, `bp_dig`, `bp_ssb`, `bp_bcn`, `bp_out`, `bp_text`, `finder_band`, `finder_cursor`
 - Categories: `pill_hp`, `pill_cat`, `pill_cat_text`, `pill_kbd`, `pill_kbd_text` (Bluetooth devices), `age_mid`,
   `age_old` (cluster spots), `row_alert`, `row_alert_text`, `row_heard`, `row_tx`, `row_to_me`, `row_cq`,
   `row_group`, `row_sel_bar` (JS8), `ft8_cq`, `ft8_cq_worked`, `ft8_cq_same`, `ft8_to_me`, `ft8_tx` (FT8)

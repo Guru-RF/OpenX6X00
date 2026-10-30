@@ -412,7 +412,12 @@ bool hw_flow_read(hw_pack_t *p) {
     p->atu_status = pack->flag.atu_status;
     p->charging   = pack->flag.charging;
     p->vext_flag  = pack->flag.vext;
+    p->bat_hot    = pack->flag.battery_high_temp;
+    p->bat_cold   = pack->flag.battery_low_temp;
+    p->pa_hot     = pack->flag.pa_high_temp;
+    p->dcin_low   = pack->flag.dc_in_too_low;
     p->power_key  = pack->flag.power_key;
+    p->bat_missing = pack->flag.battery_not_found;
     p->tx_power   = pack->tx_power;
     p->vswr       = pack->vswr;
     p->alc_level  = pack->alc_level;

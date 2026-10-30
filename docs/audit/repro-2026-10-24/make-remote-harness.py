@@ -1,6 +1,7 @@
 """The browser remote's commands as src/remote_server.c handles them: handle_text and what it calls for keys, the
-PTT lease, the log and "set", extracted as they are, around stand-ins for the clock, the input devices, the GUI
-thread's queue and the sockets. remote-scenarios.c drives them (26 October audit: C02, C03, C13)."""
+PTT lease, the log, "set" and the pairing code, extracted as they are, around stand-ins for the clock, the input
+devices, the GUI thread's queue and the sockets. remote-scenarios.c drives them (26 October audit: C02, C03, C13;
+issue #58: the pairing code's waits)."""
 import os
 import re
 from pathlib import Path
@@ -27,12 +28,16 @@ def between(first, last):
 
 
 defines = '\n'.join(l for l in s.splitlines()
-                    if re.match(r'#define (MAX_CLIENTS|MAX_HELD|TOKEN_LEN|SESS_MAX|PTT_LEASE_MS|PTT_LIMIT_MS|TEXT_MAX|IN_SIZE|LOG_ANSWERS)\b', l))
+                    if re.match(r'#define (MAX_CLIENTS|MAX_HELD|TOKEN_LEN|SESS_MAX|PTT_LEASE_MS|PTT_LIMIT_MS|TEXT_MAX|IN_SIZE|'
+                                r'LOG_ANSWERS|PAIR_[A-Z_]+)\b', l))
+pairing = '\n'.join(l for l in s.splitlines()     # the pairing code's state, as it is declared
+                    if re.match(r'static [^(]*\bpair_(code|until_ms|hide_ms|tries|next_ms|wait_ms)\b', l))
 parts = [
     defines,
+    pairing,
     'enum { ROLE_VIEW = 0, ROLE_OPERATE = 1, ROLE_ADMIN = 2 };',
     between('typedef struct {\n    int             fd;', '} client_t;'),
-    between('typedef struct {\n    char     token[TOKEN_LEN + 1];', '} session_t;'),
+    between('typedef struct {\n    uint8_t  hash[32];', '} session_t;'),
     'static session_t sessions[SESS_MAX];\nstatic int nsessions;\nstatic client_t clients[MAX_CLIENTS];',
     between('static const struct {\n    const char *name;\n    uint16_t    code;\n} keys[] = {', '\n};'),
     between('enum { PIC_SHARP', '};\n'),
@@ -44,9 +49,14 @@ parts = [
 ]
 names = ['role_name', 'sess_key', 'log_sum', 'log_slot', 'log_queued', 'log_answer', 'log_query', 'log_flush',
          'app_apply', 'app_log_cmd', 'mode_supported', 'panel_put', 'set_refused', 'panel_set', 'role_tell', 'ctl_tell', 'allowed',
-         'ptt_down', 'ptt_lease', 'key_code', 'name_clean', 'handle_text']
+         'ptt_down', 'ptt_lease', 'key_code', 'name_clean', 'pair_msg_apply', 'pair_paused_apply', 'pair_show', 'pair_try',
+         'wall_s', 'token_hash', 'from_hex', 'sess_save_locked', 'sess_load', 'random_hex', 'sess_add_locked', 'sess_new',
+         'sess_find', 'sess_revoke', 'sess_held_locked', 'sess_away_of', 'sess_away', 'handle_text']
 pre = r'''
 #include <ctype.h>
+#include <fcntl.h>
+#include <time.h>
+#include <unistd.h>
 #include <linux/input.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -59,6 +69,9 @@ pre = r'''
 #include <strings.h>
 #include "control_owner.h"
 #include "radio.h"
+#include "tci_ws.h"
+static char sessions_path[512];     /* REMOTE_SESSIONS: a temporary file (remote-scenarios.c) */
+#define REMOTE_SESSIONS sessions_path
 #define LV_LOG_USER(...) ((void)0)
 #define LV_CLAMP(lo, v, hi) ((v) < (lo) ? (lo) : (v) > (hi) ? (hi) : (v))
 #define VERSION "audit"
@@ -107,19 +120,33 @@ static bool scheduler_put(void (*fn)(void *), void *arg, size_t n) {
 static void panel_apply(void *arg) { (void)arg; }
 static void gui_run(void) { for (int i = 0; i < njobs; i++) jobs[i].fn(jobs[i].arg); njobs = 0; }
 static pthread_mutex_t sess_mux = PTHREAD_MUTEX_INITIALIZER;
-static int  sess_find(const char *t) { (void)t; return -1; }
-static void sess_touch(int i, const char *ip) { (void)i; (void)ip; }
-static int  pair_try(const char *code, const char *name, const char *ip) { (void)code; (void)name; (void)ip; return -1; }
-static void pair_show(char *o, size_t n) { (void)o; (void)n; }
-static void sess_revoke(int i) { (void)i; }
+static int  sess_find(const char *token);
+static void sess_touch(int i, const char *ip, bool funnel) { (void)i; (void)ip; (void)funnel; }
+static int  funnel_refused, closed;     /* wrong keys over Funnel counted; sockets closed */
+static void remote_server_funnel_refused(const char *addr) { (void)addr; funnel_refused++; }
+#define client_close(c) (closed++, (c)->fd = -1, (c)->up = false)
+static int  sess_new(const char *name, const char *ip, char *token);
+static void sess_revoke(int i);
+/* the radio's screen: what it showed last, and how many codes */
+static char shown[256];
+static int  codes_shown;
+static void msg_schedule_text_ms(uint32_t ms, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+static void msg_schedule_text_ms(uint32_t ms, const char *fmt, ...) {
+    va_list ap; va_start(ap, fmt); vsnprintf(shown, sizeof(shown), fmt, ap); va_end(ap); (void)ms;
+    printf("%7.3f  radio's screen: %s\n", (fake_ms - 1000000) / 1000.0, shown);
+}
+static void pair_msg_apply(void *arg);
+static void scheduler_put_noargs(void (*fn)(void *)) { if (fn == pair_msg_apply) codes_shown++; fn(NULL); }
 static atomic_int  npanel;
 static atomic_bool spots_resend;
 '''
 post = r'''
-static char said[3][4096];
+static char said[MAX_CLIENTS][4096];
+static int  quiet;      /* what the pages are told is kept, not printed (a scenario's waits) */
 static void client_text(client_t *c, const char *t) {
     int i = (int)(c - clients);
-    printf("%7.3f  -> page %d: %s\n", (fake_ms - 1000000) / 1000.0, i, t);
+    if (!quiet)
+        printf("%7.3f  -> page %d: %s\n", (fake_ms - 1000000) / 1000.0, i, t);
     strncat(said[i], t, sizeof(said[i]) - strlen(said[i]) - 2);
     strcat(said[i], "\n");
 }

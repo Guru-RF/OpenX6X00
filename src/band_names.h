@@ -22,6 +22,8 @@ extern "C" {
 lv_obj_t *band_info_init(lv_obj_t *waterfall);
 /* The VFO moved to freq: redraw and show for a while */
 void band_info_update(int32_t freq);
+/* The band list changed (the band plan's region moved its edges): read it again */
+void band_info_reload(void);
 
 #ifdef __cplusplus
 }

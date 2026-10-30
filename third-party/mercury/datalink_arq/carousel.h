@@ -1,0 +1,408 @@
+/* datalink_arq/carousel.h -- the carousel data plane: erasure-coded rounds
+ *
+ * One connected session moves data both ways.  Per direction the RECEIVER
+ * chooses: what each block still needs, and the next round's mode and size
+ * ("send me up to N frames in mode M").  The receiver chooses the mode because
+ * it is the side whose payload decoder must be bound to it in advance, and the
+ * side that sees what arrives.
+ *
+ * Who keys, and when (docs/CAROUSEL-TURNS.md, proved in specs/turns): the
+ * caller is the session's only timing master (M).  It alone keys on timers of
+ * its own, and only where the callee (S) cannot be on the air.  S keys only in
+ * slots anchored to the end of an M keydown it decoded.  M carries both
+ * directions: it sends its own rounds, which S answers with its poll; and it
+ * polls S for S's rounds, which S sends in its slots.
+ *
+ * Data is cut into blocks of up to CAR_MAX_K pieces of CAR_PIECE bytes,
+ * Reed-Solomon coded (rs_erasure.h): any K pieces rebuild a block, so a poll
+ * says how many pieces a block needs, never which.  Pieces fit every mode, so
+ * a block is never re-encoded when the mode changes.
+ *
+ * At the MFSK floor the control mode no longer gets through, so a round is
+ * answered with a pattern instead (car_io_t.pattern): ACK "keep going", BREAK
+ * "the block you are on is delivered".  There silence also means "keep going":
+ * M continues once S's slot is over, S in its continuation slots.
+ *
+ * This module is the protocol only: no threads, no clock of its own, no I/O
+ * but the callbacks.  tests/sim/carousel_bench.c runs two of them on the sim
+ * channel; the ARQ runtime runs one against the modem.
+ *
+ * Copyright (C) 2026 Rhizomatica
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+#ifndef CAROUSEL_H
+#define CAROUSEL_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "rs_erasure.h"
+
+#define CAR_PIECE        24     /* bytes per piece: fits DATAC15 with the headers */
+/* ...and in a session that starts on the floor: an MFSK frame (98 bytes,
+ * 6 of headers) holds 4 of 23 where it held 3 of 24 -- 92 bytes, not 72.
+ * A whole session uses one size (car_piece_for_start), so blocks
+ * stay uniform; the DATAC rungs carry 4 % less at 23, so only a session
+ * expected to live at the floor takes it. */
+#define CAR_PIECE_FLOOR  23
+#define CAR_MAX_K        96     /* data pieces per block (see carousel.c)        */
+#define CAR_WIN          8      /* open blocks at once                           */
+#define CAR_NLEVELS      7      /* the payload mode ladder (3 bits on the wire) */
+#define CAR_FRAME_MAX    1280   /* largest payload-mode frame, bytes             */
+#define CAR_POLL_BYTES   14     /* a poll fills one control-mode (DATAC16) frame */
+#define CAR_KEYDOWN_MAX  16     /* frames in one keydown (a round)               */
+#define CAR_MLOG         16     /* M's keydowns whose slots may still be open    */
+
+/* One frame of a keydown, as the modem sends it. */
+typedef struct {
+    int      mode;              /* FREEDV_MODE_* */
+    size_t   len;
+    uint8_t  bytes[CAR_FRAME_MAX];
+    uint32_t gap_ms;            /* silence before this frame (not the first) */
+} car_frame_t;
+
+/* What says the peer is on the air (car_io_t.peer_keyed); 0: nothing. */
+enum {
+    CAR_KEYED_SYNC = 1,     /* a decoder is in sync on a frame */
+    CAR_KEYED_PREAMBLE,     /* a frame's preamble was caught: its airtime */
+    CAR_KEYED_NAV,          /* the peer's NAV header: its keydown */
+    CAR_KEYED_BUSY,         /* the energy busy detector (off by default) */
+};
+
+typedef struct {
+    /* Key the radio for these frames, back to back with their gaps.  The
+     * frames are only valid during the call.  The runtime calls
+     * car_on_tx_done() when the keydown has ended. */
+    void   (*keydown)(void *ctx, const car_frame_t *frames, int n);
+    /* Bind the payload decoder to this mode (the control decoder always runs). */
+    void   (*bind_rx)(void *ctx, int mode);
+    /* Is the peer on the air, and by what sign (CAR_KEYED_*, 0: no)?  A
+     * decoder in sync, held for the sync-loss latency after it ends. */
+    int    (*peer_keyed)(void *ctx);
+    /* The application's queue: take up to max bytes; how many are waiting. */
+    size_t (*tx_read)(void *ctx, uint8_t *buf, size_t max);
+    size_t (*tx_pending)(void *ctx);
+    /* Bytes for the application, in order. */
+    void   (*deliver)(void *ctx, const uint8_t *buf, size_t len);
+    /* This many of our bytes have reached the peer. */
+    void   (*tx_confirmed)(void *ctx, size_t len);
+    /* Key a pattern: CAR_PATTERN_ACK or CAR_PATTERN_BREAK.  Optional: without
+     * it the floor polls in the control mode like every other rung.  The
+     * runtime calls car_on_tx_done() when it has ended. */
+    void   (*pattern)(void *ctx, int kind);
+    /* The callee ending the session (car_request_end): key the session's
+     * DISCONNECT now, in the slot the carousel was given. */
+    void   (*end)(void *ctx);
+    /* One line on each decision (optional): what the receiver measured and
+     * chose, what the sender was told.  For debug logs. */
+    void   (*trace)(void *ctx, const char *line);
+    void    *ctx;
+    /* Keys each block's check (the session's CRC seed): a block rebuilt from
+     * another session's pieces fails it. */
+    uint32_t block_key;
+} car_io_t;
+
+enum { CAR_PATTERN_ACK = 0, CAR_PATTERN_BREAK = 1 };
+
+enum { CAR_T_M, CAR_T_S, CAR_T_F, CAR_T_W, CAR_NTIMERS };   /* M's next decision or keydown; S's next slot;
+                                                    * S's fallback to the floor, and its watch
+                                                    * for the round it asked for (listening only) */
+
+typedef struct {
+    uint8_t  id;
+    int      K, len, next, need;          /* next: the next piece index to send */
+    int      app_len;                     /* of len, the application's bytes (the rest: the check) */
+    int      resend;                      /* data piece the receiver waits on, -1 */
+    int      sent;                        /* distinct pieces sent so far (capped) */
+    int      round_sent;                  /* fresh pieces of it in my last round */
+    bool     stopped;                     /* a floor BREAK said it is in; a poll retires it */
+    uint8_t  data[CAR_MAX_K][CAR_PIECE];
+} car_sblock_t;
+
+typedef struct {
+    bool     known, done;
+    uint8_t  id;
+    int      K, len, have;          /* len: with the check */
+    int      delivered;             /* bytes already handed to the application */
+    bool     got[RS_MAX_PIECES];
+    uint8_t  piece[RS_MAX_PIECES][CAR_PIECE];
+} car_rblock_t;
+
+typedef struct {
+    uint64_t e;                     /* when it ended (exact: my own keydown) */
+    uint32_t r, d;                  /* the longest S keydown it allows; S's lateness */
+    uint32_t p;                     /* the period of its continuation slots */
+    uint32_t tg;                    /* when its response slot opens, after it */
+    uint8_t  k;                     /* continuation slots after the response slot */
+    uint8_t  done;                  /* slots I heard S's keydown in, end to end */
+    uint8_t  mk;                    /* its id */
+    bool     pat;                   /* a pattern: S's answers name no id */
+} car_mlog_t;
+
+typedef struct {
+    car_io_t io;
+    bool     master;                /* the caller: the session's only timing master */
+    bool     idle;                  /* nothing in flight either way */
+    int      rx_level;              /* what the payload decoder is bound to */
+    int      snr_level;             /* where the SNR measured here starts the peer */
+    int      max_level;             /* the highest rung the session's bandwidth
+                                     * allows (car_set_max_level) */
+    int      floor_mode;            /* rung 0's mode (car_set_floor_mode) */
+    uint8_t  ctl_deaf;              /* I hear the peer below the control mode
+                                     * (CAR_DEAF_*): its control must reach me
+                                     * on MFSK (reported) */
+    uint8_t  peer_ctl_deaf;         /* ...and the peer, of me, as it reports
+                                     * (or CAR_DEAF_MFSK_TX) */
+    float    snr_ema;               /* SNR of what the peer sends us, smoothed */
+    float    snr_last;              /* ...and its latest reading */
+    uint64_t snr_ms;                /* ...and when it came */
+    bool     snr_valid;
+    uint64_t deadline[CAR_NTIMERS]; /* 0 = disarmed */
+    uint64_t last_carrier_ms;       /* the peer was last heard on the air */
+    uint64_t heard_ms;              /* ...last decoded: a frame or a pattern */
+    bool     tx_busy;               /* our keydown is on the air */
+    uint8_t  held;                  /* why the planned keydown waits (HELD_*):
+                                     * logged once per hold */
+    uint64_t held_since;            /* ...since when, for a busy channel */
+
+    /* M: the turn */
+    int      phase;                 /* sending my data, polling the peer's, or idle */
+    uint64_t phase_start;
+    uint8_t  mk;                    /* id of my next keydown, mod 16 */
+    car_mlog_t mlog[CAR_MLOG];
+    int      nmlog;
+    bool     m_keyed;               /* M: keyed at all this session */
+    bool     m_heard_ever;          /* M: heard S at all this session */
+    int      m_kind;                /* my keydown on the air, */
+    car_mlog_t m_kd;                /* ...its id and the slots it opens, as its log
+                                     * entry will hold them (e, done, tg, pat: then) */
+    int      m_state;               /* waiting for S's answer, or for a free time */
+    int      plan, plan_lv, plan_n; /* the keydown decided */
+    bool     m_heard;               /* S keyed since my last keydown, and I heard it end */
+    bool     s_answered;            /* ...with a poll or a pattern for my round */
+    bool     offered;               /* M: my round offered S its turn as well (offer_both) */
+    uint64_t kd_allowed;            /* M: the length my keydown was checked against FreeFor at */
+    int      overruns;              /* M: keydowns longer than that (a bug: see keydown()) */
+    int      piece;                 /* the session's piece size (0: CAR_PIECE) */
+    uint32_t deliver_seq;           /* deliveries to my application so far */
+    uint32_t seq_at_ask;            /* ...when I last asked or answered */
+    uint64_t plan_not_before;       /* M: an ack-only DONE waits for my application till then */
+    int      last_lv, last_nf;      /* my last round, for a REQ */
+    uint8_t  last_mk;
+    bool     idle_poll;             /* my poll on the air only asks whether S has data */
+    uint32_t idle_backoff_ms;
+    bool     traffic;               /* data moved since I was last idle */
+    int      reqs;                  /* REQs in a row unanswered */
+
+    /* S: the slots */
+    struct {
+        bool     on;
+        uint8_t  mk;                /* the M keydown (its id; patterns carry none) */
+        int      kind;
+        uint64_t eh;                /* its end, as I learned it */
+        uint32_t p;                 /* slot period */
+        uint8_t  k, i;              /* continuation slots; the next slot */
+        bool     sent_round;        /* I sent a round in this anchor's slots */
+        uint32_t d;                 /* its lateness allowance: my start may be this late */
+        bool     waited;            /* its slot 0 already waited for my application */
+    } anc;
+    uint8_t  end_req;               /* S: CAR_END_WISH, my application has hung up and my
+                                     * polls say so (M_END); CAR_END_SLOT, my next slot
+                                     * carries the session's DISCONNECT */
+    int      req_lv, req_n;         /* a REQ: M's round I may not have heard */
+    uint8_t  req_mk;
+    uint8_t  rx_mk;                 /* the M round whose frames I am counting */
+    uint64_t s_tx_end;              /* when my last keydown ended */
+    bool     rx_late;               /* the frame being handled was decoded too late to answer */
+    int      s_prev_lv;             /* the rung M's rounds last came on (-1: none) */
+    bool     s_asked_new;           /* my poll on the air asks M for another rung */
+    int      ok_lv;                 /* the rung of my last round the peer answered (-1: none) */
+    uint64_t peer_data_ms;          /* when a frame of the peer's data last came */
+    bool     fell_back;             /* M: my last round went back to it */
+
+    /* as sender */
+    car_sblock_t sb[CAR_WIN];
+    int      nsb;
+    uint8_t  next_blk_id;
+    int      tx_level, tx_n;        /* as the last poll directed (-1: never polled) */
+    uint8_t  tx_poll_id;            /* the poll my rounds answer (its keydown id) */
+    int      tx_slot;               /* ...in this slot (S) */
+    bool     tx_pat_anchor;         /* ...anchored on a pattern (S) */
+    double   tx_loss;               /* the receiver's loss estimate, for the margin */
+    bool     floor_waiting;         /* my floor round is out: a pattern may come */
+    bool     pat_waiting;           /* my round above the floor is out: a pattern
+                                     * ("it came whole, the same again") may come */
+    int      floor_silent;          /* floor rounds in a row with no answer */
+    uint8_t  floor_blk;             /* the block my last floor round carried */
+    int      peer_snr_level;        /* where the SNR the peer measures starts me */
+    bool     peer_level_known;      /* ...as the peer reported it (ACCEPT, poll) */
+    float    peer_snr_db;           /* how the peer hears me, as its last control
+                                     * frame said (dB) */
+    uint64_t peer_snr_ms;           /* ...and when (0: never) */
+    float    peer_snr_mine;         /* ...and how I heard the peer then (NAN: unknown) */
+    int      rx_data_lv;            /* the rung of the last data frame I took; -1 none */
+    bool     peer_has_data;         /* the peer said it has data for me */
+
+    /* as receiver: the peer's direction, measured here, per rung */
+    struct {
+        double   sent, lost;        /* frames, decayed (measure_level) */
+        int      rounds, dead_run;
+        int      probe_fails;       /* its rounds in a row that lost half */
+        double   p_ok;              /* the delivery it showed when it last delivered */
+        uint32_t round_at;          /* polls, when last measured */
+        uint64_t probe_at, backoff_ms;
+    } rung[CAR_NLEVELS];
+    uint32_t polls;
+    double   loss_est;
+    double   polled_loss;        /* the loss my last poll told the sender */
+    uint8_t  poll_id;               /* my last poll's keydown id (M), or the one I answer (S) */
+    int      poll_level, poll_n;    /* what I asked the peer for */
+    int      round_seen, round_frames;
+    int      round_lv;              /* the rung the frames came on */
+    bool     rx_tail;               /* ...and its last frame among them */
+    bool     status_seen;
+    int      silent_polls;
+    bool     peer_unopened;
+    bool     peer_short;            /* the peer speaks the backlog hint (car_set_short_rung) */
+    uint8_t  peer_backlog;          /* ...and what it last said it holds (BL_*) */
+    int      name_lv;               /* S: the rung my next ack says I listen on (0: none) */
+    size_t   rx_run;                /* bytes delivered since the peer's direction last completed */
+    size_t   peer_last_msg;         /* ...and that size, the last time it did */
+    uint8_t  peer_hi;
+    uint8_t  polled_base;           /* the window base my last poll reported */
+    bool     round_fresh;           /* this round carried a block I do not have yet */
+    int      stale_rounds;          /* floor rounds in a row that carried nothing new */
+    const char *failed;             /* car_failed() */
+    bool     peer_hi_known;
+    car_rblock_t rb[CAR_WIN];
+    uint8_t  rbase;
+    int      done_in_round;
+    bool     rx_break;              /* the last round delivered the block it carried */
+    int      floor_patterns;        /* patterns since my last poll */
+    bool     floor_streaming;       /* a floor round came since my last poll */
+    car_frame_t txbuf[CAR_KEYDOWN_MAX];
+} car_t;
+
+/* Start a connected session.  rx_level: the rung the SNR measured here gives
+ * the peer's direction; tx_level: the rung the peer gave ours (-1: unknown,
+ * then rx_level until the peer's frames say).  car_start_sender() on the
+ * caller, the session's timing master; car_start_receiver() on the callee. */
+void car_init(car_t *c, const car_io_t *io, int rx_level, int tx_level);
+/* Cap both directions at rung lv: a BW500 session stays below the wideband
+ * modes (DATAC1, DATAC17, QAM16C2).  Both ends set the same cap, from the
+ * bandwidth the connect negotiated, after car_init and before starting. */
+void car_set_max_level(car_t *c, int lv);
+/* The highest rung a session bandwidth (Hz, VARA's BW500/BW2300/BW2750)
+ * allows. */
+int  car_max_level_for_bw(int bw_hz);
+/* The session's floor, rung 0 (arq_floor_mode of its bandwidth): the 1 kHz
+ * MFSK unless set.  Both ends set the same, after car_init. */
+void car_set_floor_mode(car_t *c, int mode);
+/* car_t.ctl_deaf: deaf by the SNR reading, or HARD -- deaf though the reading
+ * says the control mode works (the connect got through on MFSK only).  A
+ * reading on an MFSK frame does not clear HARD: MFSK copes with what may be
+ * killing the control mode, a Doppler spread or a multipath the SNR does not
+ * show.  Only a frame of the peer's on an OFDM mode does.  MFSK_TX is deaf
+ * for good: the station transmits only MFSK (arq:mfsk_tx_only, an FSK-only
+ * radio; the connect's TX-MFSK-only bit).  Its peer holds it in ctl_deaf,
+ * the station itself in peer_ctl_deaf; nothing the session hears clears it. */
+enum { CAR_DEAF_SNR = 1, CAR_DEAF_HARD = 2, CAR_DEAF_MFSK_TX = 3 };
+/* Seed, from the connect exchange, whether each end hears the other below the
+ * control mode (CAR_DEAF_*; see ctl_on_floor in carousel.c).  Frames keep
+ * both current, all but MFSK_TX. */
+void car_seed_ctl_deaf(car_t *c, uint8_t mine, uint8_t peers);
+/* The connect's SNRs (0: unknown): mine, the reading of the peer's connect
+ * frame -- the carousel's first, so its first control frame reports one --
+ * and the peer's of mine (the caller has it from the ACCEPT). */
+void car_seed_snr(car_t *c, float mine, float peers);
+/* The peer hears us below the control mode, as it last reported: our control
+ * frames go on MFSK.  The session's own control frames follow the same rule. */
+bool car_peer_ctl_deaf(const car_t *c);
+void car_start_sender(car_t *c, uint64_t now);
+void car_start_receiver(car_t *c, uint64_t now);
+
+/* A frame came in.  control: the control decoder (DATAC16) produced it;
+ * otherwise mode is the payload decoder's.  snr_db: the decoder's estimate
+ * for it, 0 when unknown.  age_ms: how long ago the frame ended (0 when the
+ * decode was immediate); one older than its mode's decode bound is data,
+ * never a time to answer at. */
+bool car_on_frame(car_t *c, uint64_t now, const uint8_t *bytes, size_t len, int mode, bool control,
+                  float snr_db, uint32_t age_ms);   /* true: the caller heard an M_END */
+void car_on_tx_done(car_t *c, uint64_t now);
+/* A pattern was heard: CAR_PATTERN_ACK or CAR_PATTERN_BREAK. */
+void car_on_pattern(car_t *c, uint64_t now, int kind);
+/* Whether a pattern can arrive now (the runtime runs its detector only then). */
+bool car_expect_pattern(const car_t *c);
+/* The application queued data. */
+void car_on_app_data(car_t *c, uint64_t now);
+
+/* The earliest armed deadline (UINT64_MAX: none), and firing what is due. */
+uint64_t car_next_deadline(const car_t *c);
+void     car_on_time(car_t *c, uint64_t now);
+
+/* The ladder rung for an SNR, mapped the way trunk enters a mode from DATAC15. */
+int  car_start_level(float snr_db);
+int  car_level_mode(int level);              /* on the 1 kHz floor's ladder */
+int  car_session_level_mode(const car_t *c, int level);
+/* The session's piece size, from the rung the callee's ACCEPT starts the
+ * caller's rounds on (both ends know it; the FSM also folds it into the
+ * session seed, so ends that disagree hear none of each other's frames). */
+int  car_piece_for_start(int caller_start_level);
+/* The piece size this session cuts its blocks into (tests). */
+int  car_piece(const car_t *c);
+/* For the UI: the mode of my last data round, of the last data frame I took,
+ * and of the rung the peer last reported hearing me on.  -1: none yet. */
+int  car_ui_tx_mode(const car_t *c);
+int  car_ui_rx_mode(const car_t *c);
+int  car_ui_peer_mode(const car_t *c);
+bool car_is_idle(const car_t *c);
+bool car_is_drained(const car_t *c);   /* delivered both ways (a DISCONNECT may go) */
+bool car_rx_verified(const car_t *c);  /* every block heard of has passed its check */
+/* The session can no longer be trusted: a block failed its check, or did not
+ * decode.  What it carried may already be partly delivered (the stream runs
+ * ahead of the check), so the session must end -- never carry on.  NULL: fine. */
+const char *car_failed(const car_t *c);
+/* Keydowns of M's longer than the slot check allowed them: always 0 (tests). */
+int car_overruns(const car_t *c);
+/* For tests, the turn rules checked from outside: does M's log hold a slot,
+ * not yet over, for a keydown of S's on the air over [start, end)?  M keys
+ * clear of every such slot, so S inside one cannot meet M. */
+bool car_slot_reserved(const car_t *m, uint64_t start, uint64_t end);
+/* Every keydown of mine opens with a NAV header this long (0: none), where
+ * car_wants_nav() says the peer may not sense it otherwise (car_set_nav_below_db). */
+void car_set_nav_ms(uint32_t ms);
+void car_set_short_rung(bool on);   /* small backlogs on the shortest rung (default on) */
+void car_set_nav_below_db(float db);
+void car_set_nav_loss(double loss);   /* ...or at this loss estimate (default 0.3) */
+bool car_wants_nav(const car_t *c);
+/* A rung's geometry (bytes of data per frame, frames per full keydown, its
+ * airtime, a round's fixed overhead): for computing bounds. */
+void car_rung_geometry(int lv, bool floor_patterns, int *bytes_per_frame, int *frames,
+                       uint64_t *round_air_ms, uint64_t *overhead_ms);
+
+/* The session's own control keydowns (its DISCONNECT) follow the turn rules
+ * too.  The caller: car_free_at() is the earliest time from now a keydown of
+ * len ms misses every slot the callee could be using; once one has gone out,
+ * car_log_ctl() keeps the callee's reply (tg ms after it) clear of the next.
+ * The callee: car_request_end() makes its next slot call io.end instead of
+ * answering -- it never keys a DISCONNECT on a timer of its own. */
+bool     car_is_master(const car_t *c);
+uint64_t car_free_at(const car_t *c, uint64_t now, uint64_t len);
+void     car_log_ctl(car_t *c, uint64_t end, uint32_t tg);
+void     car_request_end(car_t *c);
+/* The callee whose application has hung up while its DISCONNECT waits for
+ * its data to be acknowledged: car_wish_end() makes its polls say so (type
+ * 3, M_END) once it has all of the caller's.  The caller, with all of the
+ * callee's, then ends the session itself (car_on_frame returns true). */
+enum { CAR_END_NONE, CAR_END_WISH, CAR_END_SLOT };
+void     car_wish_end(car_t *c);
+
+/* How long delivering what is left may take on the rung the session is on:
+ * a few exchanges -- my round, the peer's control answer -- there.  Seconds
+ * on a fast rung; minutes at the MFSK floor. */
+uint64_t car_drain_budget_ms(const car_t *c);
+/* Bytes taken from the application that the peer has not confirmed yet. */
+size_t car_tx_inflight(const car_t *c);
+
+#endif

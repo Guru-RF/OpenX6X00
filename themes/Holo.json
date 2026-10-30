@@ -30,7 +30,7 @@
         "vfo_line": "#ff4444", "spot": "#33b5e5", "mode_text": "#33b5e5", "mode_dig": "#33b5e5",
         "pill_off_text": "#bebebe", "meter_weak": "#0099cc", "meter_bar": "#33b5e5", "meter_over": "#ff4444",
         "meter_low": "#99cc00", "meter_high": "#ff4444",
-        "bp_cw": "#0099cc", "bp_dig": "#ff8800", "bp_ssb": "#669900", "bp_bcn": "#cc0000", "bp_text": "#ffffff"
+        "bp_cw": "#0099cc", "bp_dig": "#ff8800", "bp_ssb": "#669900", "bp_bcn": "#cc0000", "bp_out": "#777777", "bp_text": "#ffffff"
     },
     "radius": 0,
     "radius_btn": 0,

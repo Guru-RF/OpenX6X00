@@ -83,7 +83,7 @@ static int run_ptt(void) {
 static int run_log(void) {
     client_t *a = open_client(0, ROLE_OPERATE, true), *b = open_client(1, ROLE_OPERATE, true);
 
-    snprintf(sessions[0].token, sizeof(sessions[0].token), "%032d", 7);
+    memset(sessions[0].hash, 7, sizeof(sessions[0].hash));
     snprintf(sessions[0].name, sizeof(sessions[0].name), "Shack PC");
     nsessions = 1;
     puts("        -- two tabs, each its QSO number 1, two different contacts");
@@ -146,13 +146,302 @@ static int run_set(void) {
     return 0;
 }
 
+/* Issue #58: the pairing code had no limit. A burned code (three wrong tries) made room for the next at once:
+ * three guesses a round, a round a second, the code found within the hour, and the first browser paired is the
+ * admin. A browser now gets a new code at most every 30 s, and after each burned code the wait doubles, up to an
+ * hour; a code asked on the radio itself (Settings, Pair code) comes at once and starts the waits over */
+static void wrong_code(client_t *c) {
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "pair %06d Eve", (atoi(pair_code) + 1) % 1000000);
+    say(c, cmd);
+}
+
+static int run_pair(void) {
+    client_t *a = open_client(0, ROLE_VIEW, false);
+    char      waits[128] = "", code[8];
+    int       k = 0;
+
+    a->sess = -1;
+    say(a, "pair?");
+    snprintf(code, sizeof(code), "%s", pair_code);
+    fake_ms += 10000;
+    say(a, "pair?");                                  /* the code still good: shown again, the same one */
+    printf("a code: shown=%d, the same code asked again 10 s later=%d\n", codes_shown, !strcmp(code, pair_code));
+    for (int round = 0; round < 8; round++) {
+        uint64_t burned;
+        say(a, "pair?");
+        if (!pair_code[0]) {
+            printf("no code for round %d: %s", round, said[0]);
+            return 1;
+        }
+        wrong_code(a); wrong_code(a); wrong_code(a);
+        gui_run();
+        burned = fake_ms;
+        said[0][0] = 0;
+        say(a, "pair?");                              /* at once: paused */
+        if (round == 0)
+            printf("asked at once after a burned code: %s", said[0]);
+        while (1) {                                   /* how long until a browser has a code again: asked every second */
+            char ask[] = "pair?";
+            fake_ms += 1000;
+            said[0][0] = 0;
+            quiet = 1;
+            handle_text(a, ask);
+            quiet = 0;
+            if (!strncmp(said[0], "pairing code shown", 18))
+                break;
+        }
+        k += snprintf(waits + k, sizeof(waits) - k, " %llu", (unsigned long long)((fake_ms - burned) / 1000));
+    }
+    printf("burned codes, then the wait for a new one in s:%s\n", waits);
+    printf("the radio's screen said: %s\n", shown);
+    wrong_code(a); wrong_code(a); wrong_code(a);     /* the 9th code burned: paused an hour */
+    gui_run();
+    said[0][0] = 0;
+    say(a, "pair?");
+    printf("a browser after the 9th: %s", said[0]);
+    char at_radio[8];
+    int  at_once = pair_show(at_radio, sizeof(at_radio), true) == 0 && at_radio[0];   /* Settings, Pair code */
+    wrong_code(a); wrong_code(a); wrong_code(a);
+    gui_run();
+    fake_ms += 59000;
+    said[0][0] = 0;
+    say(a, "pair?");
+    int one_min = !strncmp(said[0], "err pairing paused: a new code in", 33) && strstr(said[0], " s,") != NULL;
+    printf("asked at the radio: a code at once=%d, burned again: paused 1 min, not an hour=%d\n", at_once, one_min);
+    fake_ms += 2000;
+    say(a, "pair?");
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "pair %s Kitchen phone", pair_code);
+    int before = nsessions;
+    say(a, cmd);
+    int paired = nsessions == before + 1;
+    say(a, "pair 123456 Eve");                        /* no code shown: refused, nothing counted */
+    printf("the right code: paired=%d; a guess with no code shown counted=%d\n", paired, pair_tries != 0);
+    return 0;
+}
+
+/* Issue #58: the tokens of the paired browsers were kept as they are in REMOTE_SESSIONS (/mnt), which the web
+ * configurator's Files page hands out: a token copied from there was that browser's access, from the internet too
+ * with Tailscale Funnel. The radio keeps their SHA-256 now. A file from before is read, its tokens hashed, and
+ * written anew: the browsers paired before stay paired */
+static void file_text(char *buf, size_t n) {
+    FILE  *f = fopen(sessions_path, "r");
+    size_t k = f ? fread(buf, 1, n - 1, f) : 0;
+    buf[k] = 0;
+    if (f) fclose(f);
+}
+
+static int run_tokens(void) {
+    const char *t1 = "0123456789abcdef0123456789abcdef", *t2 = "fedcba9876543210fedcba9876543210";
+    char        text[2048], cmd[128];
+    client_t   *c = open_client(0, ROLE_VIEW, false);
+    FILE       *f = fopen(sessions_path, "w");
+
+    if (!f) return 2;
+    fprintf(f, "%s\tShack PC\t2\t1\t1761000000\t1761500000\t192.168.1.20\n", t1);
+    fprintf(f, "%s\tKitchen phone\t1\t1\t1761100000\t1761600000\t192.168.1.31\n", t2);
+    fprintf(f, "zz23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\tbroken\t1\t1\t0\t0\t-\n");
+    fclose(f);
+    sess_load();
+    file_text(text, sizeof(text));
+    printf("a file from before: %d sessions loaded, the tokens in the file now=%d\n", nsessions,
+           strstr(text, t1) != NULL || strstr(text, t2) != NULL);
+    printf("the file now:\n%s", text);
+    c->sess = -1;
+    snprintf(cmd, sizeof(cmd), "auth %s", t2);
+    say(c, cmd);
+    printf("the phone paired before the update: %s", strstr(said[0], "role operate 1 Kitchen phone") ? "operates" : said[0]);
+    printf("\n");
+    snprintf(cmd, sizeof(cmd), "auth %.31sf", t2);
+    said[0][0] = 0;
+    say(c, cmd);
+    printf("its token with the last digit changed: %s", said[0]);
+    nsessions = 0;
+    sess_load();                                      /* read back as now written */
+    c->sess = -1;
+    snprintf(cmd, sizeof(cmd), "auth %s", t1);
+    said[0][0] = 0;
+    say(c, cmd);
+    printf("read again: %d sessions, the PC paired before: %s\n", nsessions,
+           strstr(said[0], "role admin 1 Shack PC") ? "admin" : said[0]);
+    c->sess = -1;
+    c->role = ROLE_VIEW;
+    pair_code[0] = 0;
+    pair_next_ms = 0;
+    say(c, "pair?");
+    snprintf(cmd, sizeof(cmd), "pair %s Laptop", pair_code);
+    said[0][0] = 0;
+    say(c, cmd);
+    char token[TOKEN_LEN + 1] = "";
+    sscanf(said[0], "paired %32s", token);
+    file_text(text, sizeof(text));
+    uint8_t h[32];
+    char    hex[65];
+    ws_sha256((const uint8_t *)token, strlen(token), h);
+    for (int k = 0; k < 32; k++) snprintf(hex + k * 2, 3, "%02x", h[k]);
+    printf("a new pairing: token handed out=%d, in the file=%d, its hash in the file=%d\n", (int)strlen(token) == TOKEN_LEN,
+           token[0] && strstr(text, token) != NULL, strstr(text, hex) != NULL);
+    return 0;
+}
+
+/* Issue #58: a browser at work over Tailscale Funnel (its token was good) may not pair from there: the code is
+ * neither shown nor burned. A wrong token after a good one closes it and counts towards Funnel's pause, where a
+ * LAN client only falls back to watching */
+static int run_funnel(void) {
+    client_t *f = open_client(0, ROLE_OPERATE, true), *l = open_client(1, ROLE_VIEW, false);
+    char      cmd[64];
+
+    f->funnel = true;
+    l->sess   = -1;
+    pair_code[0] = 0;
+    pair_next_ms = 0;
+    int shown_before = codes_shown;
+    say(f, "pair?");
+    snprintf(cmd, sizeof(cmd), "pair %06d Eve", 123456);
+    say(f, cmd);
+    printf("over Funnel: pair? and pair refused=%d, a code shown=%d, tries counted=%d\n",
+           strstr(said[0], "err pairing refused over the internet") != NULL, codes_shown - shown_before, pair_tries);
+    say(f, "auth 0123456789abcdef0123456789abcdee");
+    int f_closed = f->fd < 0, counted = funnel_refused;
+    say(l, "auth 0123456789abcdef0123456789abcdee");
+    printf("over Funnel, a wrong key: closed=%d, counted=%d; on the LAN: closed=%d, watching=%d\n", f_closed, counted,
+           l->fd < 0, l->role == ROLE_VIEW && l->fd >= 0);
+    return 0;
+}
+
+/* Issue #58, "Use away from home": a paired browser at home asks for its own key for away; the radio makes a
+ * session "NAME (away)" with its role and TX and answers with the token (to that browser alone). Asked again, the
+ * one before is revoked: one away key per browser. Not from the internet, not unpaired, not from an away key. The
+ * one before is that browser's, also when another's name begins with the same 24 characters (the away session's
+ * name is cut to fit); one from a file before the home column, or whose browser paired again, by its name */
+static int run_away(void) {
+    client_t *a = open_client(0, ROLE_ADMIN, true), *b = open_client(1, ROLE_OPERATE, true);
+    char      first[TOKEN_LEN + 1] = "", second[TOKEN_LEN + 1] = "", cmd[64];
+
+    nsessions = 0;
+    a->sess = sess_new("Shack PC", "192.168.1.20", first);          /* the first: admin */
+    b->sess = sess_new("Kitchen phone", "192.168.1.31", first);
+    a->role = sessions[a->sess].role;
+    b->role = sessions[b->sess].role;
+    said[1][0] = 0;
+    say(b, "away");
+    sscanf(said[1], "away %32s", first);
+    int i = sess_find(first);
+    printf("away: answered with a key=%d, its session \"%s\" %s tx=%d\n", (int)strlen(first) == TOKEN_LEN,
+           i >= 0 ? sessions[i].name : "?", i >= 0 ? role_name(sessions[i].role) : "?", i >= 0 && sessions[i].tx);
+    int before = nsessions;
+    said[1][0] = 0;
+    say(b, "away");
+    sscanf(said[1], "away %32s", second);
+    printf("away again: a new key=%d, the one before gone=%d, sessions %d -> %d\n", strcmp(first, second) != 0 &&
+           sess_find(second) >= 0, sess_find(first) < 0, before, nsessions);
+    said[0][0] = 0;
+    say(a, "away");
+    sscanf(said[0], "away %32s", cmd);
+    i = sess_find(cmd);
+    printf("the admin's away key: %s\n", i >= 0 ? role_name(sessions[i].role) : said[0]);
+    client_t *f = open_client(2, ROLE_OPERATE, true);
+    f->funnel = true;
+    f->sess = sess_find(second);
+    say(f, "away");
+    printf("from the internet: %s", said[2]);
+    client_t *v = open_client(3, ROLE_VIEW, false);
+    v->sess = -1;
+    say(v, "away");
+    printf("unpaired: %s", said[3]);
+    v->sess = sess_find(second);
+    v->role = ROLE_OPERATE;
+    said[3][0] = 0;
+    say(v, "away");
+    printf("with its away key at home: %s", said[3]);
+
+    char      kp[TOKEN_LEN + 1] = "", kq[TOKEN_LEN + 1] = "", t[TOKEN_LEN + 1] = "", text[2048], line[160];
+    client_t *p = open_client(0, ROLE_OPERATE, true), *q = open_client(1, ROLE_OPERATE, true);
+    p->sess = sess_new("Club station field laptop A", "192.168.1.40", t);
+    q->sess = sess_new("Club station field laptop B", "192.168.1.41", t);
+    say(p, "away");
+    sscanf(said[0], "away %32s", kp);
+    say(q, "away");
+    sscanf(said[1], "away %32s", kq);
+    printf("two browsers named alike for 24 characters: \"%s\", both away keys good=%d\n", sessions[sess_find(kq)].name,
+           sess_find(kp) >= 0 && sess_find(kq) >= 0);
+    said[0][0] = 0;
+    say(p, "away");
+    sscanf(said[0], "away %32s", t);
+    printf("the first one asks again: its own replaced=%d, the other's kept=%d\n", sess_find(kp) < 0 && sess_find(t) >= 0,
+           sess_find(kq) >= 0);
+
+    const char *home = "0123456789abcdef0123456789abcdef", *old = "fedcba9876543210fedcba9876543210";
+    char        hh[65], ho[65];
+    uint8_t     h[32];
+    token_hash(home, h);
+    for (int k = 0; k < 32; k++) snprintf(hh + k * 2, 3, "%02x", h[k]);
+    token_hash(old, h);
+    for (int k = 0; k < 32; k++) snprintf(ho + k * 2, 3, "%02x", h[k]);
+    FILE *fl = fopen(sessions_path, "w");
+    if (!fl) return 2;
+    fprintf(fl, "%s\tKitchen phone\t1\t1\t1761100000\t1761600000\t192.168.1.31\t0\n", hh);
+    fprintf(fl, "%s\tKitchen phone (away)\t1\t1\t1761200000\t1761700000\t203.0.113.7\t1\n", ho);
+    fclose(fl);
+    sess_load();
+    client_t *k = open_client(0, ROLE_OPERATE, true);
+    k->sess = sess_find(home);
+    said[0][0] = 0;
+    say(k, "away");
+    sscanf(said[0], "away %32s", t);
+    file_text(text, sizeof(text));
+    int legacy_gone = sess_find(old) < 0 && !strstr(text, "203.0.113.7");
+    snprintf(line, sizeof(line), "\tKitchen phone (away)\t1\t1\t");
+    char *row = strstr(text, line), *end = row ? strchr(row, '\n') : NULL;
+    printf("a file from before the home column: %d sessions, its away key replaced=%d, the new one knows its "
+           "browser=%d\n", nsessions, legacy_gone && sess_find(t) >= 0,
+           end && end - row > 64 && !strncmp(end - 64, hh, 64));
+    say(k, "unpair");
+    client_t *k2 = open_client(0, ROLE_OPERATE, true);
+    char      t2[TOKEN_LEN + 1] = "", t3[TOKEN_LEN + 1] = "";
+    k2->sess = sess_new("Kitchen phone", "192.168.1.31", t2);
+    said[0][0] = 0;
+    say(k2, "away");
+    sscanf(said[0], "away %32s", t3);
+    printf("revoked at home and paired again: its away key from before replaced=%d, sessions %d\n",
+           sess_find(t) < 0 && sess_find(t3) >= 0, nsessions);
+    return 0;
+}
+
+/* SHA-256 against the standard's examples and lengths at the padding's edges (55, 56, 64 bytes) */
+static int run_sha(void) {
+    static char mil[1000001];
+    const char *in[] = {"", "abc", "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+                        "0123456789abcdef0123456789abcdef0123456789abcdef0123456", /* 55 */
+                        "0123456789abcdef0123456789abcdef0123456789abcdef01234567", /* 56 */
+                        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", /* 64 */
+                        mil};
+    memset(mil, 'a', 1000000);
+    for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++) {
+        uint8_t h[32];
+        ws_sha256((const uint8_t *)in[i], strlen(in[i]), h);
+        printf("sha256(%zu bytes) = ", strlen(in[i]));
+        for (int k = 0; k < 32; k++) printf("%02x", h[k]);
+        printf("\n");
+    }
+    printf("same=%d, differs in the last byte=%d\n", ws_same("abcd", "abcd", 4), ws_same("abcd", "abce", 4));
+    return 0;
+}
+
 int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     ctl_init();
+    snprintf(sessions_path, sizeof(sessions_path), "%s/remote_sessions.conf", getenv("AUDIT_TMP") ? getenv("AUDIT_TMP") : "/tmp");
+    if (argc >= 2 && !strcmp(argv[1], "tokens")) return run_tokens();
+    if (argc >= 2 && !strcmp(argv[1], "sha")) return run_sha();
+    if (argc >= 2 && !strcmp(argv[1], "funnel")) return run_funnel();
+    if (argc >= 2 && !strcmp(argv[1], "away")) return run_away();
     if (argc >= 2 && !strcmp(argv[1], "ping")) return run_ping();
     if (argc >= 2 && !strcmp(argv[1], "ptt")) return run_ptt();
     if (argc >= 2 && !strcmp(argv[1], "log")) return run_log();
     if (argc >= 2 && !strcmp(argv[1], "set")) return run_set();
-    fprintf(stderr, "remote ptt|ping|log|set\n");
+    if (argc >= 2 && !strcmp(argv[1], "pair")) return run_pair();
+    fprintf(stderr, "remote ptt|ping|log|set|pair|tokens|sha|funnel|away\n");
     return 2;
 }

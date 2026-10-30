@@ -13,6 +13,7 @@
  */
 
 #include "dialog_field.h"
+#include "band_plan.h"
 #include "board.h"
 
 #include "buttons.h"
@@ -2240,7 +2241,7 @@ void dialog_field_tune_band(int band) {
         msg_update_text_fmt("The frequency is locked");
         return;
     }
-    int32_t f = field_band_freq(band, is_cw());
+    int32_t f = field_band_freq(band, is_cw(), band_plan_region());
     main_screen_set_freq(f);
     if (!is_cw() && !main_screen_mode_locked())
         cparam_i_set(cfg_cur_mode, f < 10000000 ? radio_mode_lsb : radio_mode_usb);

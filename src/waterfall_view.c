@@ -72,6 +72,7 @@ static int32_t       wf_center_freq;    /* the frequency at the centre of the pi
 static int32_t       mode_lo_offset;
 static int32_t       if_shift;
 static uint8_t       zoom = 1;
+static uint8_t       line_zoom = 1;  /* the zoom the VFO line and the passband were placed at */
 
 static uint8_t       refresh_period = 1;   /* draw one refresh in so many (dialogs slow it down) */
 static uint8_t       refresh_count;
@@ -367,9 +368,14 @@ static void row_pixels(const wf_row_t *row, uint32_t center, uint32_t span, size
     }
 }
 
+/* The zoom the picture is drawn at: the spectrum's, or 1 with the zoom switch of Settings "Line, zoom" off */
+static uint8_t shown_zoom(void) {
+    return params.waterfall_zoom.x ? zoom : 1;
+}
+
 /* The span the picture shows now */
 static uint32_t shown_span(void) {
-    return params.waterfall_zoom.x ? SPAN_HZ / zoom : SPAN_HZ;
+    return SPAN_HZ / shown_zoom();
 }
 
 /* ---- Direct mode ---- */
@@ -514,6 +520,9 @@ static void refresh_waterfall(void *arg) {
         return;
     }
     refresh_count = 0;
+    if (shown_zoom() != line_zoom) {    /* "Line, zoom" switched: the line and the band to the new scale */
+        update_middle_line();
+    }
     if (direct) {
         direct_redraw(__atomic_exchange_n(&new_rows, 0, __ATOMIC_ACQUIRE));
     } else {
@@ -596,24 +605,39 @@ static void image_drawn_cb(lv_event_t *e) {
 /* ---- The VFO line and the passband ---- */
 
 static void update_middle_line(void) {
-    lv_coord_t width = theme_shape.mono ? 3 : zoom / 2 + 3;     /* 1bit: the paper halo of vfo_core_cb() */
-    lv_coord_t vfo_x = (if_shift + waterfall_view_shift()) * zoom * WIDTH / SPAN_HZ;
+    /* At the picture's scale: with the zoom of "Line, zoom" off the waterfall shows 100 kHz at any spectrum zoom,
+     * and the band came out that many times too wide, the line that far off the middle */
+    line_zoom = shown_zoom();
+    lv_coord_t width = theme_shape.mono ? 3 : line_zoom / 2 + 3;     /* 1bit: the paper halo of vfo_core_cb() */
+    lv_coord_t vfo_x = (if_shift + waterfall_view_shift()) * line_zoom * WIDTH / SPAN_HZ;
 
     lv_obj_set_pos(vfo_line, vfo_x + width / 2, 0);
     lv_style_set_line_width(&vfo_line_style, width);
 
     /* The passband, same scale as the line: from the VFO up (USB), down
-     * (LSB, CWR) or both ways (AM, FM), as on the spectrum */
+     * (LSB) or both ways (AM, FM), as on the spectrum */
     int32_t low = subject_i_get((SubjectInt*)cfg_cur_filter_low);
     int32_t high = subject_i_get((SubjectInt*)cfg_cur_filter_high);
+    int32_t tone = param_i_get(cfg_key_tone);
     int32_t from, to;
 
     switch ((radio_mode_t) subject_i_get((SubjectInt*)cfg_cur_mode)) {
         case radio_mode_lsb:
         case radio_mode_lsb_dig:
-        case radio_mode_cwr:
             from = -high;
             to = -low;
+            break;
+        /* CW and CWR: the edges are tones, and the signal heard at the key tone is on the line, so
+         * the band is around the line in both, as the spectrum draws it from its LO marker (#34: it
+         * was beside it, a pitch off, above in CW and below in CWR). From the key tone, not from the
+         * LO offset that places the rows: the X6200's offset is still to be checked on the radio */
+        case radio_mode_cw:
+            from = low - tone;
+            to = high - tone;
+            break;
+        case radio_mode_cwr:
+            from = tone - high;
+            to = tone - low;
             break;
         case radio_mode_am:
         case radio_mode_nfm:
@@ -627,8 +651,8 @@ static void update_middle_line(void) {
             to = high;
             break;
     }
-    lv_coord_t x1 = WIDTH / 2 + vfo_x + from * zoom * WIDTH / SPAN_HZ;
-    lv_coord_t x2 = WIDTH / 2 + vfo_x + to * zoom * WIDTH / SPAN_HZ;
+    lv_coord_t x1 = WIDTH / 2 + vfo_x + from * line_zoom * WIDTH / SPAN_HZ;
+    lv_coord_t x2 = WIDTH / 2 + vfo_x + to * line_zoom * WIDTH / SPAN_HZ;
 
     lv_obj_set_pos(filter_band, x1, 0);
     lv_obj_set_width(filter_band, LV_MAX(x2 - x1, 1));
@@ -756,6 +780,8 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
     subject_subscribe_delayed((Subject *)cfg_cur_filter_low, on_filter_change, NULL);
     subject_subscribe_delayed((Subject *)cfg_cur_filter_high, on_filter_change, NULL);
     subject_subscribe_delayed((Subject *)cfg_cur_mode, on_filter_change, NULL);
+    /* CW: a new key tone moves the band, the edges changed or not (the low one at 0 stays) */
+    subject_subscribe_delayed((Subject *)cfg_key_tone, on_filter_change, NULL);
     subject_subscribe_delayed((Subject *)cfg_fg_freq, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_mode, on_view_changed, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_wf_palette, on_palette_change, NULL);

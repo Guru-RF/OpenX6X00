@@ -16,6 +16,7 @@
 // protect themselves with their own mutexes, and PendingWrites has its own
 // mutex, so concurrent readers of parameter values remain safe.
 
+#include <atomic>
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
@@ -61,6 +62,12 @@ class SettingsManager {
     std::vector<ParamBase *> band_params_;
     std::vector<ParamBase *> mode_params_;
 
+    // The highest TX power p_pwr accepts: BOARD_PWR_MAX, lowered on the X6200's
+    // battery (cfg_pwr_max_set). Declared before p_pwr, whose validator reads it.
+    // CAT, TCI and the web remote hand their sets to the LVGL thread, which also
+    // changes the cap; atomic all the same, as any thread may read a parameter.
+    std::atomic<float> pwr_max_{BOARD_PWR_MAX};
+
     // -- Parameters (public for C-API / UI access; live for the whole program) --
     // All regular GLOBAL/BAND/MODE params are declared with NSDMI here (one
     // line each — the single source of truth). The trailing group argument
@@ -74,8 +81,8 @@ class SettingsManager {
     // clang-format off
     Parameter<int32_t> p_volume{"vol", 30, 0, BOARD_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, 0.1f, 10.0f,
-        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, [this](float v) { return clip(v, 0.1f, pwr_max_.load()); },
+        StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     Parameter<int32_t> p_squelch{"sql", 0, 0, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_rfgain{"rfgain", 63, 0, 100,
@@ -99,13 +106,10 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_imic{"imic", 30, 0, 50,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-#ifdef BOARD_X6200
-    /* The TX monitor off: the X6200's speaker and built-in microphone share the case, and at 30 the
-     * microphone took the monitor back into the transmission, a loud ringing on PTT in SSB (issue #15) */
+    /* The TX monitor off on both radios: at 30 the microphone took the monitor back into the transmission,
+     * a loud ringing on PTT in SSB on the X6200 (issue #15), and a feedback loop from the X6100's speaker
+     * on PTT and on an app's tones (issue #72) */
     Parameter<int32_t> p_moni{"moni", 0, 0, 100,
-#else
-    Parameter<int32_t> p_moni{"moni", 30, 0, 100,
-#endif
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_atu_enabled{"atu", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
@@ -122,6 +126,15 @@ class SettingsManager {
     // Turning the knob into another band plan segment sets its mode: CW in the CW segment, the
     // sideband of the band in a phone segment (screen_main.c)
     Parameter<int32_t> p_mode_from_plan{"mode_from_plan", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The band plan (band_plan.h bp_plan_t): 0 Auto (the IARU region from where the radio is), 1-3 IARU Region 1,
+    // 2 or 3, 4-7 the US sub-bands of the Extra, Advanced, General or Technician licence
+    Parameter<int32_t> p_band_region{"band_region", 0, 0, 7,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The IARU region whose default edges the band list's 160m, 80m, 40m SSB and 6m were last given (the defaults
+    // in sql/params.sql are Region 1's): a region change moves only the rows still on these (cfg_bands_follow_region).
+    // Auto's region when nothing tells (band_plan.c)
+    Parameter<int32_t> p_band_edges_region{"band_edges_region", 1, 1, 3,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // Zoom and step per mode (Settings > Display): on, each mode group keeps its own waterfall zoom and tuning
     // step, as it always did. Off, one zoom and one step for every mode (zoom_step_scope)
@@ -738,7 +751,8 @@ class SettingsManager {
     void on_mode_zoom_not_found();
 
     // Shared band-switch core: flush, rebind context, switch-time loads and
-    // recomputes. `implicit` selects whether the active VFO's freq+mode is kept.
+    // recomputes. `implicit`: the active VFO's frequency is kept, and the other VFO
+    // too unless the new band has split on (load_band_vfo).
     void switch_band(int new_band_id, bool implicit);
 
     // -- Context switching --
@@ -761,7 +775,7 @@ class SettingsManager {
     static void zoom_step_scope_cb(Subject *subj, void *user_data);
 
     // Switch-time band loads: never loads current_vfo; when `implicit` is true
-    // also keeps the active VFO's freq+mode (loads only the inactive VFO).
+    // the VFOs as load_band_vfo keeps them.
     void load_band_switch(int new_band_id, bool implicit);
 
     // Loads the four VFO params (vfoa_freq, vfoa_mode, vfob_freq, vfob_mode) in
@@ -773,7 +787,8 @@ class SettingsManager {
     //   - vfob_freq: NOT_FOUND -> current vfoa_freq; else clamped as vfoa_freq.
     //   - vfob_mode: NOT_FOUND/error -> current vfoa_mode.
     // Restored/clamped values are applied with set_quiet (no deferred write).
-    // When `implicit` the active VFO's freq+mode is skipped (kept, not loaded).
+    // When `implicit` the active VFO's frequency is kept and the other VFO keeps
+    // all it had, unless the new band has split on (then it is loaded as above).
     void load_band_vfo(int band_id, bool implicit);
 
     // Default mode for a band with none saved: default_mode(freq), AM in the broadcast bands

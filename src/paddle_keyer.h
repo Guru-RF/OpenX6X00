@@ -60,7 +60,8 @@ typedef struct {
 
 bool paddle_midi(paddle_midi_t *m, unsigned char byte, int *note, bool *on);
 
-/* Mouse buttons that are a paddle, not a pointer: no X axis, or with one a keyer adapter (adapter: the USB
+/* Mouse buttons that are a paddle, not a pointer: no X axis (rel_x: relative or absolute, so a touchscreen,
+ * a tablet or a KVM's absolute mouse is a pointer too), or with one a keyer adapter (adapter: the USB
  * device has a serial port or MIDI too, as -Yuan- 3key, Vail) or the HOTSPOTEK paddle 1500:3001. A real
  * mouse is never a paddle: in CW it would key the radio */
 bool paddle_mouse(bool btn_left, bool btn_right, bool rel_x, bool adapter, unsigned vendor, unsigned product);

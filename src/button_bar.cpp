@@ -178,6 +178,11 @@ static void dig_pwr_cb(button_data_t *data) {
         }
     }
     cfg_sm.p_pwr.set(next);
+    /* A step up that the setting did not take is the top it allows now (the X6200 on battery: 5 W),
+     * so round to the first: the button stayed on 5 W there */
+    if (next > p && cfg_sm.p_pwr.get() < p + 0.05f) {
+        cfg_sm.p_pwr.set(steps[0]);
+    }
 }
 
 /* ---- the buttons ---- */

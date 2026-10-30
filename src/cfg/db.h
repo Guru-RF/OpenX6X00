@@ -199,6 +199,8 @@ class BandsTable {
     static BandInfoLoadResult    get_by_freq(uint32_t freq);
     static BandInfoLoadResult    next(int32_t cur_band_id, uint32_t cur_freq, bool up);
     static std::vector<BandInfo> all_bands();
+    // The rows whose default edges differ by IARU region still on region from's: to region to's. The count changed
+    static int                   follow_region(int from, int to);
 
   private:
     // Database handle shared by all statements of this table.

@@ -1,13 +1,16 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  IARU Region 1 band plan (160 m .. 10 m, 6 m) and the bands of the band list it lacks, as a thin coloured strip at
- *  the bottom of the spectrum (top of the waterfall when the spectrum is off), lined up with the frequency row.
+ *  The band plan (160 m .. 10 m, 6 m: IARU Region 1, 2 or 3, or the US sub-bands of a licence class) and the bands
+ *  of the band list it lacks, as a thin coloured strip at the bottom of the spectrum (top of the waterfall when the
+ *  spectrum is off), lined up with the frequency row.
  */
 
 #pragma once
 
 #include "lvgl/lvgl.h"
+
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,9 +18,18 @@ extern "C" {
 
 #define BAND_PLAN_H 18
 
-/* Strip on parent (800 px wide) at y; call after the waterfall is created so it is on top */
-typedef enum { BP_CW, BP_DIG, BP_ALL, BP_BCN } bp_type_t;   /* the segments: CW, digital, all modes, beacons */
+/* The segments: CW, digital, all modes, beacons, and (a US plan) outside the licence class */
+typedef enum { BP_CW, BP_DIG, BP_ALL, BP_BCN, BP_OUT } bp_type_t;
 
+/* The plans, as Settings > General > Band plan lists them (band_region); Auto takes the region from where the
+ * radio is. US Technician is Novice too */
+typedef enum {
+    BP_PLAN_AUTO, BP_PLAN_R1, BP_PLAN_R2, BP_PLAN_R3,
+    BP_PLAN_US_EXTRA, BP_PLAN_US_ADVANCED, BP_PLAN_US_GENERAL, BP_PLAN_US_TECH,
+    BP_PLAN_COUNT
+} bp_plan_t;
+
+/* Strip on parent (800 px wide) at y; call after the waterfall is created so it is on top */
 void band_plan_init(lv_obj_t *parent, lv_coord_t y);
 
 /* Move the strip (spectrum off: it follows the top of the waterfall) */
@@ -32,9 +44,30 @@ bool band_plan_segment(int i, int32_t *start, int32_t *end, int *type);
 /* The setting changed: redraw with the last span */
 void band_plan_refresh(void);
 
-/* The band list may have changed: the IARU segments, and the active bands they do not cover as segments of the
+/* The band list may have changed: the plan's segments, and the active bands they do not cover as segments of the
  * type their name says (CW, DIG/FT8/DATA, BCN, else all modes). LVGL thread */
 void band_plan_reload(void);
+
+/* Where Auto looks may have changed (the QTH locator or the callsign saved): reload and redraw. LVGL thread */
+void band_plan_follow(void);
+
+/* The plan in use (bp_plan_t, never Auto). Any thread */
+int band_plan_now(void);
+
+/* The IARU region of the plan in use: 1, 2 or 3 (the US plans: 2). Any thread */
+int band_plan_region(void);
+
+/* What Auto finds, whatever the setting is: the region (1, 2 or 3); how, unless NULL: "gps", "qth" or "call", with
+ * the locator or the callsign it came from in at (size bytes), "last" when nothing tells now and the radio had Region
+ * 2 or 3 last (the band list's region; at ""), or "" when nothing tells (Region 1). Any thread */
+int band_plan_auto(const char **how, char *at, size_t size);
+
+/* "Region 2", "US General" ("Auto" for 0) */
+const char *band_plan_name(int plan);
+
+/* Changes with every change of the segments or of the active bands: the browser panel sends both again. Any
+ * thread */
+uint32_t band_plan_gen(void);
 
 /* The segment type (bp_type_t) at freq, -1 between the segments */
 int band_plan_type(int32_t freq);

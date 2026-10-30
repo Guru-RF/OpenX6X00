@@ -32,8 +32,9 @@ app = bottle.Bottle()   # the configurator pages and their API
 
 # Reads that hand out what the radio keeps secret, taken only by its own names as the changes are: the Files page
 # serves all of /mnt (the Wavelog, QRZ, HOTA and WWFF keys, backups/backup.tgz with the SSH host keys and the WiFi
-# passwords, the Winlink mail), and the Backup download can hold the WiFi passwords
-HOST_ONLY_READS = ("/files/", "/api/backup/download")
+# passwords, the Winlink mail), the Backup download can hold the WiFi passwords, and the Winlink logs your mail's
+# subjects and gateways
+HOST_ONLY_READS = ("/files/", "/api/backup/download", "/api/winlink/logs")
 # Reads sent as a POST (a form with the selection), with no secret in them: by any name, as the GET reads are (the
 # QSOs and the pictures are on the pages by any name). The cross-site check still applies
 POST_READS = ("/logs/export", "/api/gallery/zip")
@@ -48,6 +49,21 @@ def host_refused():
     return bottle.HTTPError(403, msg)
 
 
+def via_funnel():
+    """The request came from the internet through Tailscale Funnel: tailscaled sets this header on every one of
+    those and drops one a browser sent, so a request from the LAN or the tailnet never has it (#58)"""
+    return bottle.request.get_header("Tailscale-Funnel-Request") is not None
+
+
+def funnel_refused():
+    msg = ("The radio's web pages are not on the internet: open them on the radio's own network or over Tailscale. "
+           "Tailscale Funnel only carries the Panel and the Screen page (Remote > Tailscale)")
+    if bottle.request.path.startswith("/api/"):
+        return bottle.HTTPResponse(json.dumps({"status": "error", "msg": msg}), 403,
+                                   {"Content-Type": "application/json"})
+    return bottle.HTTPError(403, msg)
+
+
 @app.hook('before_request')
 def refuse_other_sites():
     """A request that changes something, sent by a page from another site (a form a browser on the
@@ -55,8 +71,13 @@ def refuse_other_sites():
     host. Browsers mark the request with Sec-Fetch-Site, older ones only with Origin.
     A site that points a name of its own at the radio (DNS rebinding) sends that name as Host and Origin
     alike and passes this: a change, and a read of HOST_ONLY_READS, needs one of the radio's own names
-    (local_host_ok) as well. Before, the Wavelog page sent the key and Files handed it out by any name (audit C08)"""
+    (local_host_ok) as well. Before, the Wavelog page sent the key and Files handed it out by any name (audit C08).
+    A request from the internet through Tailscale Funnel is refused whatever it asks, also a page: these pages have
+    no login, and a funnel made by hand (tailscale funnel 80) would hand anyone the settings, the Files page with
+    the keys, Backup restore and the updates. A Funnel name is a *.ts.net name and passed the name check (#58)"""
     req = bottle.request
+    if via_funnel():
+        raise funnel_refused()
     write = req.method not in ("GET", "HEAD", "OPTIONS")
     change = write and req.path not in POST_READS
     if (change or req.path.startswith(HOST_ONLY_READS)) and not local_host_ok():
@@ -396,6 +417,9 @@ def remote_state():
         r["name_refused"] = (f"Open this page by the radio's address, {socket.gethostname()}.local or its Tailscale "
                              "name: by another name the radio does not take its connection, as a page from another "
                              "site could make your browser connect the same way")
+    ts = tailscale_status()   # Funnel on (#58): the Panel's address on the internet, for "Use away from home"
+    if ts.get("state") == "running" and ts.get("funnel") == "on" and ts.get("public", "").startswith("https://"):
+        r["funnel_url"] = ts["public"]
     return r
 
 
@@ -408,6 +432,54 @@ def remote():
 @app.route('/panel')
 def panel():
     return bottle.template('panel')
+
+
+# Tailscale Funnel (#58): the Panel and the Screen page for the internet, written at the start into a folder in RAM
+# (settings.FUNNEL_DIR) with the files they load. tailscaled serves them itself, path by path
+# (rootfs/usr/sbin/x6100-tailscale, which lists the same files): no request from the internet reaches this server
+FUNNEL_FILES = ("favicon.ico", "css/base.css", "css/siimple-icons.css", "js/jquery-3.7.1.min.js",
+                "js/radio_link.js", "js/radio_session.js")
+
+
+FUNNEL_NAME = re.compile(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+")
+
+
+def funnel_name():
+    """The radio's name on the internet, <name>.<tailnet>.ts.net, as x6100-tailscale had it from tailscaled; "" while
+    there is none (Tailscale off, or not up yet at boot)"""
+    name = tailscale_status().get("name", "").rstrip(".").lower()
+    return name if FUNNEL_NAME.fullmatch(name) else ""
+
+
+def funnel_render(out_dir, name=""):
+    """The two pages with funnel=True (funnel_base.html: no menu, no callsign, nothing of the configurator; their
+    sockets at wss://<name>/ws/remote and /ws/tci, which their Content-Security-Policy names when name is known),
+    and the files, written whole into a new folder that then takes out_dir's place: a page of an older start never
+    mixes with files of this one. A page that loads a file tailscaled does not serve is said in the log"""
+    tmp = out_dir + ".new"
+    shutil.rmtree(tmp, ignore_errors=True)
+    for sub in ("css", "js"):
+        os.makedirs(os.path.join(tmp, "static", sub), mode=0o755)
+    for view in ("panel", "remote"):
+        html = bottle.template(view, funnel=True, funnel_host=name if FUNNEL_NAME.fullmatch(name) else "")
+        loads = set(re.findall(r'(?:src|href)="/static/([^"?]+)', html))
+        if loads - set(FUNNEL_FILES):
+            raise ValueError(f"{view}.html loads {', '.join(sorted(loads - set(FUNNEL_FILES)))}, which Funnel does not "
+                             "serve: add it to FUNNEL_FILES here and in x6100-tailscale")
+        with open(os.path.join(tmp, view + ".html"), "w") as f:
+            f.write(html)
+    for name in FUNNEL_FILES:
+        shutil.copyfile(os.path.join(PACKAGE_DIR, "static", name), os.path.join(tmp, "static", name))
+    for dirpath, _, files in os.walk(tmp):
+        os.chmod(dirpath, 0o755)
+        for name in files:
+            os.chmod(os.path.join(dirpath, name), 0o644)
+    old = out_dir + ".old"
+    shutil.rmtree(old, ignore_errors=True)
+    if os.path.isdir(out_dir):
+        os.replace(out_dir, old)
+    os.replace(tmp, out_dir)
+    shutil.rmtree(old, ignore_errors=True)
 
 
 @app.get('/api/remote')
@@ -583,9 +655,11 @@ def tailscale_status():
         pass
     try:
         with open(TAILSCALE_CONF) as f:
-            st["enabled"] = any(line.strip() == "enabled=1" for line in f)
+            lines = [line.strip() for line in f]
+        st["enabled"] = "enabled=1" in lines
+        st["funnel_wanted"] = "funnel=1" in lines   # Funnel (#58): the setting; "funnel" is what the supervisor made of it
     except OSError:
-        st["enabled"] = False
+        st["enabled"] = st["funnel_wanted"] = False
     return st
 
 
@@ -600,7 +674,10 @@ def local_host_ok():
     page and the Backup download, Tailscale's login link (which would put the radio on that site's tailnet) and
     the list of SSH keys only by these names. Pat's mailbox on port 8080 takes the same names (tools/pat).
     MagicDNS's short name too, which is the tailnet's name for the radio: x6200-1 while the tailnet still has the
-    machine of an earlier card image as x6200"""
+    machine of an earlier card image as x6200. Never a request from the internet through Tailscale Funnel: its
+    name is a *.ts.net name too (#58)"""
+    if via_funnel():
+        return False
     host = (urllib.parse.urlsplit("//" + (bottle.request.get_header("Host") or "")).hostname or "").rstrip(".")
     try:
         ipaddress.ip_address(host)
@@ -620,16 +697,22 @@ def get_tailscale():
     st = tailscale_status()
     if not local_host_ok():
         st.pop("url", None)
+        st.pop("funnel_url", None)   # the admin console's link that allows Funnel: the login's kind of link
     return st
+
+
+# The actions, as the helper's arguments: Funnel (#58) only writes its setting, the supervisor follows it
+TAILSCALE_ACTIONS = {"on": ["on"], "off": ["off"], "logout": ["logout"], "funnel_on": ["funnel", "on"],
+                     "funnel_off": ["funnel", "off"]}
 
 
 @app.post('/api/tailscale')
 def set_tailscale():
     action = (bottle.request.json or {}).get("action")
-    if action not in ("on", "off", "logout"):
-        return api_error(400, "action: on, off or logout")
+    if action not in TAILSCALE_ACTIONS:
+        return api_error(400, "action: on, off, logout, funnel_on or funnel_off")
     try:
-        r = subprocess.run([TAILSCALE_CMD, action], capture_output=True, text=True, timeout=30)
+        r = subprocess.run([TAILSCALE_CMD] + TAILSCALE_ACTIONS[action], capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
         return api_error(500, f"Tailscale: {e}")
     if r.returncode != 0:
@@ -638,22 +721,29 @@ def set_tailscale():
     return tailscale_status()
 
 
-# Winlink (rootfs/usr/sbin/x6100-winlink): Pat and ardopcf under a supervisor that keeps a status file. The page
-# writes the settings (/mnt/winlink.conf), hands a new password to the helper on stdin (it goes to the root
-# filesystem, where these pages never read it back) and runs the helper to apply them and to turn it on or off
+# Winlink (rootfs/usr/sbin/x6100-winlink): Pat and the modem (ardopcf, or Mercury's x6x00-mercury) under a
+# supervisor that keeps a status file. The page writes the settings (/mnt/winlink.conf), hands a new password to the
+# helper on stdin (it goes to the root filesystem, where these pages never read it back) and runs the helper to apply
+# them and to turn it on or off
 WINLINK_CMD = "/usr/sbin/x6100-winlink"
 WINLINK_STATUS = "/run/winlink/status"
+WINLINK_RADIO = "/run/winlink/radio"                  # the GUI's (src/winlink.c), while a modem is on its socket
+WINLINK_RADIO_FRESH = 15                              # s: older is from a GUI that is gone
 WINLINK_CONF = "/mnt/winlink.conf"
 WINLINK_PASSWORD = "/var/lib/winlink/password"
 WINLINK_PROGRAMS = ("/usr/bin/pat", "/usr/bin/ardopcf")
 WINLINK_PORT = 8080                                   # Pat's mailbox
 WINLINK_CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")   # as x6100-winlink checks them
 WINLINK_LOCATOR_RE = re.compile(r"[A-R]{2}[0-9]{2}([A-X]{2})?", re.I)
+WINLINK_BANDWIDTHS = (200, 500, 1000, 2000)           # ARDOP's, the widest Pat may use (as x6100-winlink's)
+WINLINK_MODEMS = ("ardop", "mercury")                 # the modem= choice (as x6100-winlink's), ardop the default
+WINLINK_MERCURY_BANDWIDTHS = (500, 2300, 2750)        # Mercury's, VARA's three (as x6100-winlink's), 2300 the default
 winlink_lock = threading.Lock()                       # one change at a time: Off may take 20 s
 
 
 def winlink_conf():
-    conf = {"enabled": "0", "mycall": "", "locator": "", "bandwidth": "500"}
+    conf = {"enabled": "0", "mycall": "", "locator": "", "bandwidth": "500", "modem": "ardop",
+            "mercury_bandwidth": "2300"}
     try:
         with open(WINLINK_CONF) as f:
             for line in f:
@@ -666,8 +756,10 @@ def winlink_conf():
 
 
 def winlink_state():
-    """The settings, the supervisor's status and the defaults; whether a password is set, never the password"""
-    st = {"state": "off", "text": "Off", "pat": "off", "ardop": "off"}
+    """The settings, the supervisor's status and the defaults; where a password is set, never the password: on this
+    page (password_set), in Pat's own Settings (the supervisor's password=pat, #80) or nowhere. The modem chosen is
+    modem_choice: the status's modem is how the one that runs is doing"""
+    st = {"state": "off", "text": "Off", "pat": "off", "ardop": "off", "mercury": "off"}
     try:
         with open(WINLINK_STATUS) as f:
             for line in f:
@@ -682,11 +774,38 @@ def winlink_state():
     except OSError:
         password_set = False
     st.update(enabled=conf["enabled"] == "1", mycall=conf["mycall"], locator=conf["locator"],
-              bandwidth=2000 if conf["bandwidth"] == "2000" else 500, password_set=password_set,
+              bandwidth=int(conf["bandwidth"]) if conf["bandwidth"] in [str(b) for b in WINLINK_BANDWIDTHS] else 500,
+              modem_choice=conf["modem"] if conf["modem"] in WINLINK_MODEMS else "ardop",
+              mercury_bandwidth=int(conf["mercury_bandwidth"])
+              if conf["mercury_bandwidth"] in [str(b) for b in WINLINK_MERCURY_BANDWIDTHS] else 2300,
+              password_set=password_set,
+              password="page" if password_set else "pat" if st.get("password") == "pat" else "none",
               radio_mycall=max(read_callsign().upper().split("/"), key=len),   # ON6URE of ON6URE/P
               radio_locator=read_param("qth"), installed=all(os.access(p, os.X_OK) for p in WINLINK_PROGRAMS),
-              host_ok=local_host_ok(), port=WINLINK_PORT)
+              host_ok=local_host_ok(), port=WINLINK_PORT, radio=winlink_radio())
     return st
+
+
+def winlink_radio():
+    """The radio's state as the GUI writes it for Winlink: frequencies, mode, the simplex check, filters, power, the
+    app open, the SWR hold, the last refusal and QSY (with how many seconds ago); {} when not written lately"""
+    try:
+        with open(WINLINK_RADIO) as f:
+            if time.time() - os.fstat(f.fileno()).st_mtime > WINLINK_RADIO_FRESH:
+                return {}
+            radio = dict(line.rstrip("\n").split("=", 1) for line in f if "=" in line)
+    except OSError:
+        return {}
+    for k, v in radio.items():
+        if re.fullmatch(r"-?\d+", v):
+            radio[k] = int(v)
+        elif re.fullmatch(r"-?\d+\.\d+", v):
+            radio[k] = float(v)
+    now = int(time.time())
+    for k in ("refused", "qsy"):
+        at = radio.get(k + "_at")
+        radio[k + "_age"] = now - at if isinstance(at, int) and at > 0 else None
+    return radio
 
 
 def winlink_run(args, stdin=None):
@@ -711,10 +830,26 @@ def get_winlink():
     return winlink_state()
 
 
+@app.get('/api/winlink/logs')
+def winlink_logs():
+    """Pat's, the modem's and the radio's logs as one text file for a bug report; the helper masks the passwords"""
+    try:
+        r = subprocess.run([WINLINK_CMD, "logs"], capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return api_error(500, f"Winlink: {e}")
+    if r.returncode != 0:
+        msg = (r.stderr.decode(errors="replace").strip().splitlines() or [f"exit code {r.returncode}"])[-1]
+        return api_error(500, "Winlink: " + (msg[6:] if msg.startswith("error ") else msg))
+    bottle.response.content_type = "text/plain; charset=utf-8"
+    bottle.response.set_header("Content-Disposition",
+                               f'attachment; filename="winlink-logs-{time.strftime("%Y%m%d-%H%M")}.txt"')
+    return r.stdout
+
+
 @app.post('/api/winlink')
 def set_winlink():
-    """Any of enabled, mycall, locator, bandwidth and password; what is not sent stays. An empty callsign or
-    locator is the radio's own, an empty password keeps the one set"""
+    """Any of enabled, mycall, locator, bandwidth, modem_choice (ardop or mercury), mercury_bandwidth and password;
+    what is not sent stays. An empty callsign or locator is the radio's own, an empty password keeps the one set"""
     try:
         data = bottle.request.json
     except ValueError:
@@ -740,9 +875,18 @@ def set_winlink():
                 return api_error(400, "Locator: 4 or 6 characters (JO20 or JO20ab); empty for the radio's QTH")
             new["locator"] = loc[:4].upper() + loc[4:].lower()
         if "bandwidth" in data:
-            if data["bandwidth"] not in (500, 2000) or isinstance(data["bandwidth"], bool):
-                return api_error(400, "Bandwidth: 500 or 2000")
+            if data["bandwidth"] not in WINLINK_BANDWIDTHS or isinstance(data["bandwidth"], bool):
+                return api_error(400, "Bandwidth: 200, 500, 1000 or 2000")
             new["bandwidth"] = str(data["bandwidth"])
+        if "modem_choice" in data:
+            if data["modem_choice"] not in WINLINK_MODEMS:
+                return api_error(400, "Modem: ARDOP or Mercury")
+            new["modem"] = data["modem_choice"]
+        if "mercury_bandwidth" in data:
+            mbw = data["mercury_bandwidth"]
+            if mbw not in WINLINK_MERCURY_BANDWIDTHS or isinstance(mbw, bool):
+                return api_error(400, "Mercury bandwidth: 500, 2300 or 2750")
+            new["mercury_bandwidth"] = str(mbw)
         password = data.get("password", "")
         password = password.strip() if isinstance(password, str) else None
         if password is None or len(password) > 64 or any(ord(c) < 32 or ord(c) == 127 for c in password):
@@ -751,7 +895,7 @@ def set_winlink():
             err = winlink_run(["set-password"], password)
             if err:
                 return api_error(500, "Winlink: " + err)
-        keys = ["enabled", "mycall", "locator", "bandwidth"]
+        keys = ["enabled", "mycall", "locator", "bandwidth", "modem", "mercury_bandwidth"]
         if new != conf:
             try:
                 replace_file(WINLINK_CONF, lambda f: f.write(
@@ -761,7 +905,7 @@ def set_winlink():
         err = None
         if new["enabled"] == "1":
             if password or any(new[k] != conf[k] for k in keys[1:]):
-                err = winlink_run(["apply"])          # Pat restarts with them
+                err = winlink_run(["apply"])          # Pat restarts with them, and the modem when another is chosen
             err = err or winlink_run(["on"])
         elif conf["enabled"] == "1" or "enabled" in data:
             err = winlink_run(["off"])
@@ -1232,6 +1376,11 @@ def field_log_file(name):
 
 WAVELOG_KEYS = ("enabled", "url", "key", "station_id", "station_name", "verify_tls", "since")
 WAVELOG_URL = r"https?://[^\s<>\"'=]{3,200}"
+# Wavelog 3.1 and later make two kinds: API keys ("Legacy API Keys (API v1)", wl and 13 hex, cl... from Cloudlog)
+# and API tokens ("API Tokens (API v2)", wl2_ and 40 hex). x6100-wavelog speaks API v1 (the key in the request),
+# which answers a token "missing or invalid api key", 401: Test connection said only "key refused" (#73)
+WAVELOG_V2_TOKEN = ("That is a Wavelog API token (wl2_..., API v2), which the radio can't use yet: on Wavelog's API "
+                    "page, under Legacy API Keys (API v1), Create a read & write key, and type that key (wl...)")
 
 
 def wavelog_read():
@@ -1290,6 +1439,11 @@ def wavelog_run(cmd, form=None, timeout=330):
         r = subprocess.run([settings.WAVELOG_CMD, cmd], capture_output=True, text=True, timeout=timeout, env=env)
         lines = r.stdout.strip().splitlines()
         return lines[-1] if lines else f"error exit code {r.returncode}"
+    except subprocess.TimeoutExpired:
+        # The helper's own timeouts leave out the name lookup: a name the network's DNS never answers holds it
+        # past them. The page said "Wavelog: Command '['/usr/sbin/x6100-wavelog', 'test']' timed out after 40
+        # seconds" (#73)
+        return f"error no answer in {timeout} s: check the URL, and that the radio can reach that address"
     except (OSError, subprocess.SubprocessError) as e:
         return f"error {e}"
 
@@ -1314,6 +1468,8 @@ def wavelog_form(body, saved=None):
         return None, "The URL starts with http:// or https://, no spaces"
     if key and not re.fullmatch(r"[!-~]{1,128}", key):
         return None, "A key is 1-128 printable characters, no spaces"
+    if key.lower().startswith("wl2_"):
+        return None, WAVELOG_V2_TOKEN
     saved = wavelog_read() if saved is None else saved
     if url and not key and saved.get("key") and wavelog_origin(url) != wavelog_origin(saved.get("url", "")):
         return None, "Another server: type its API key too (the saved key goes only to the server it was saved with)"

@@ -200,7 +200,7 @@ class KnobLine {
         /* the settings' ranges (settings_manager.h) */
         float max = ctrl == CTRL_VOL                                            ? BOARD_VOL_MAX
                   : ctrl == CTRL_SQL || ctrl == CTRL_RFG || ctrl == CTRL_MONI ? 100
-                  : ctrl == CTRL_PWR                                            ? 10
+                  : ctrl == CTRL_PWR                                            ? BOARD_PWR_MAX
                                                                                 : 0;
 
         *level = max > 0 ? atof(val) / max : -1;

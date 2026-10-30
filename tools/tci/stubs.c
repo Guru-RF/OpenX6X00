@@ -14,6 +14,7 @@
 #include "audio.h"
 #include "cfg/cfg_api.h"
 #include "radio.h"
+#include "remote_sessions.h"
 #include "scheduler.h"
 #include "screen_light.h"
 #include "screen_main.h"
@@ -108,6 +109,29 @@ int stub_run(int n) {
     return ran;
 }
 bool scheduler_put_urgent(scheduler_fn_t fn, void *arg, size_t arg_size) { return scheduler_put(fn, arg, arg_size); }
+
+/* ---- the browser remote's sessions (Tailscale Funnel, #58): two paired browsers, one that may transmit and
+ * one that may not; the first is revoked while the file TCI_TEST_REVOKED names exists. Funnel pauses after three
+ * wrong keys here (the remote server's own rule is ten in ten minutes) ---- */
+static int funnel_wrong;
+bool remote_server_session_check(const char *token, int *role, bool *tx, char *name, size_t n) {
+    const char *revoked = getenv("TCI_TEST_REVOKED");
+    bool        op      = token && !strcmp(token, "0123456789abcdef0123456789abcdef") && !(revoked && !access(revoked, F_OK));
+    bool        listen  = token && !strcmp(token, "11111111111111111111111111111111");
+
+    if (!op && !listen)
+        return false;
+    *role = 1;
+    *tx   = op;
+    if (name && n)
+        snprintf(name, n, "%s", op ? "Kitchen phone (away)" : "Listener (away)");
+    return true;
+}
+void remote_server_funnel_refused(const char *addr) {
+    funnel_wrong++;
+    fprintf(stderr, "[stub] a wrong key over Funnel from %s (%d)\n", addr, funnel_wrong);
+}
+bool remote_server_funnel_paused(void) { return funnel_wrong >= 3; }
 
 /* ---- the main screen ---- */
 bool backlight_tick(void) { return false; }

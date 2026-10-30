@@ -19,7 +19,8 @@ extern "C" {
 //   - Implicit switch: when a VFO frequency is tuned into a different band
 //     (via cp_fg_freq or the active p_band_vfo*_freq), an observer triggers a
 //     band switch. The active VFO's frequency that caused the switch is kept,
-//     but its mode/att/pre/agc are loaded from the new band.
+//     but its mode/att/pre/agc are loaded from the new band. The other VFO
+//     keeps all it had, unless the new band has split on.
 //   - Switch mode: the user changed the mode. Save pending mode writes and
 //     load the mode params for the new mode; not the zoom and the step while
 //     every mode shares them (p_zoom_step_per_mode off, zoom_step_scope).
@@ -901,12 +902,18 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     BandInfoLoadResult band         = BandsTable::get_by_id(band_id);
     const bool         have_band    = (band.rc == SUCCESS) && (band.value.id != BAND_UNDEFINED);
 
-    // On an implicit switch only the active VFO's FREQUENCY is preserved (the
-    // value that caused the switch); its mode/att/pre/agc are still loaded from
-    // the new band, exactly like the inactive VFO.
+    // On an implicit switch (the active VFO tuned across a band edge) the active
+    // VFO keeps the frequency that caused the switch; its mode/att/pre/agc are
+    // loaded from the new band. The inactive VFO keeps all it had (keep_a,
+    // keep_b), so tuning A across a band edge does not move B; but not where the
+    // new band has split on (p_band_split is loaded before): the inactive VFO is
+    // then the one the radio transmits on, and comes from the band as on an
+    // explicit switch (kept, 40m CW in split sent on 40m SSB's B, 7.150, not its own 7.025).
+    const bool keep_other = implicit && !p_band_split.get();
+    const bool keep_a = keep_other && active_vfo == RADIO_VFO_B, keep_b = keep_other && active_vfo == RADIO_VFO_A;
 
-    // VFOA frequency: skipped on implicit switch when VFOA is the active VFO.
-    if (!(implicit && active_vfo == RADIO_VFO_A)) {
+    // VFOA frequency: skipped on an implicit switch when VFOA is the active VFO, or kept.
+    if (!(implicit && active_vfo == RADIO_VFO_A) && !keep_a) {
         // vfoa_freq: NOT_FOUND -> band start (or the default), on what the radio can tune (4m has no opening
         // frequency and neither radio tunes 70 MHz); an out-of-range loaded value is clamped.
         int rc = p_band_vfoa_freq.load(band_id);
@@ -922,14 +929,14 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
         }
     }
 
-    // VFOA mode/att/pre/agc: always loaded.
-    {
+    // VFOA mode/att/pre/agc: kept when VFOA is the inactive VFO of an implicit switch.
+    if (!keep_a) {
         int rc = p_band_vfoa_mode.load(band_id);
         if (rc != SUCCESS) {
             p_band_vfoa_mode.set_quiet(resolve_default_mode(p_band_vfoa_freq.get(), band_id));
         }
     }
-    {
+    if (!keep_a) {
         int rc;
         rc = p_band_vfoa_att.load(band_id);
         (void)rc;
@@ -939,8 +946,8 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
         (void)rc;
     }
 
-    // VFOB frequency: skipped on implicit switch when VFOB is the active VFO.
-    if (!(implicit && active_vfo == RADIO_VFO_B)) {
+    // VFOB frequency: skipped on an implicit switch when VFOB is the active VFO, or kept.
+    if (!(implicit && active_vfo == RADIO_VFO_B) && !keep_b) {
         // vfob_freq: copies the current vfoa_freq when absent; clamped like
         // vfoa_freq when loaded.
         int rc = p_band_vfob_freq.load(band_id);
@@ -955,27 +962,37 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
         }
     }
 
-    // VFOB mode/att/pre/agc: always loaded; fall back to the VFOA value when
+    // What VFOB falls back to with nothing of its own saved on the band: the VFOA value. With VFOA kept on its own
+    // band (VFOB tuned across the edge), what VFOA last had on this band, else `dflt`: VFOA's mode from the band it
+    // stayed on gave VFOB on 7.039 (40m CW) the LSB of 40m SSB, and CW after a VFO key back to 7.050
+    auto a_here = [&](Parameter<int32_t> &a, int32_t dflt) {
+        if (!keep_a) return a.get();
+        std::optional<int32_t> v = storage_policy_for(StorageType::BAND).load_int(band_id, a.db_name());
+        return v ? *v : dflt;
+    };
+
+    // VFOB mode/att/pre/agc: kept when VFOB is the inactive VFO of an implicit
+    // switch; else they fall back to a_here() when
     // absent (mode copied, att/pre/agc copied on NOT_FOUND).
-    {
+    if (!keep_b) {
         int rc = p_band_vfob_mode.load(band_id);
         if (rc != SUCCESS) {
-            p_band_vfob_mode.set_quiet(p_band_vfoa_mode.get());
+            p_band_vfob_mode.set_quiet(a_here(p_band_vfoa_mode, resolve_default_mode(p_band_vfob_freq.get(), band_id)));
         }
     }
-    {
+    if (!keep_b) {
         int rc;
         rc = p_band_vfob_att.load(band_id);
         if (rc == NOT_FOUND) {
-            p_band_vfob_att.set_quiet(p_band_vfoa_att.get());
+            p_band_vfob_att.set_quiet(a_here(p_band_vfoa_att, p_band_vfoa_att.get()));
         }
         rc = p_band_vfob_pre.load(band_id);
         if (rc == NOT_FOUND) {
-            p_band_vfob_pre.set_quiet(p_band_vfoa_pre.get());
+            p_band_vfob_pre.set_quiet(a_here(p_band_vfoa_pre, p_band_vfoa_pre.get()));
         }
         rc = p_band_vfob_agc.load(band_id);
         if (rc == NOT_FOUND) {
-            p_band_vfob_agc.set_quiet(p_band_vfoa_agc.get());
+            p_band_vfob_agc.set_quiet(a_here(p_band_vfoa_agc, p_band_vfoa_agc.get()));
         }
     }
 }

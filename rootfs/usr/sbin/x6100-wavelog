@@ -11,7 +11,7 @@
 #                                                            that is not Wavelog's (a WiFi login page)
 #                            "error <message>"               refused (key, station profile): fix it on the web page
 #   x6100-wavelog stations   "ok <json>": the station profiles of the key, [{"id", "name", "call", "grid", "active"}]
-#   x6100-wavelog test       "ok <Wavelog version>"
+#   x6100-wavelog test       "ok <Wavelog version>"; a read-only key is an error
 #
 # <dir> is /mnt/field (env X6100_FIELD_DIR). Files there:
 #   wavelog.conf    written by the web page: enabled=0|1, url=, key=, station_id=, station_name=, verify_tls=0|1,
@@ -53,6 +53,10 @@ LOCK = os.path.join(FIELD_DIR, ".wavelog.lock")
 TIMEOUT = 20
 RUN_LIMIT = 300      # the GUI waits for one run at a time
 KEEP_SENT = 7 * 86400   # a QSO sent is remembered a week; older ones Wavelog itself finds as duplicates
+# Wavelog 3.1 and later also make API tokens (wl2_..., API v2), which the API v1 used here refuses as an unknown key
+# (401): before, the line said only "key refused" (#73). The web page refuses them at Save; this is for a token
+# saved by v0.3.5 or v0.3.6
+V2_TOKEN = "the key is an API v2 token (wl2_): make a legacy API key (API v1)"
 user_agent = f"OpenX6X00/{os.environ.get('X6100_FW') or 'unknown'} (+https://github.com/Guru-RF/OpenX6X00)"
 
 
@@ -149,18 +153,35 @@ def target(conf):
     verify = os.environ.get("X6100_WAVELOG_VERIFY", conf.get("verify_tls", "1")) != "0"
     if not url or not key:
         raise Fail("URL and API key needed")
+    if key.lower().startswith("wl2_"):
+        raise Fail(V2_TOKEN)
     return url, key, verify
 
 
+def key_rights(url, key, verify):
+    """"rw" or "r", as api/auth (Cloudlog's and Wavelog's first call, in every version) says; "" when it can't tell"""
+    try:
+        code, _, text = request(api_url(url, "auth/" + urllib.parse.quote(key, safe="")), None, verify)
+    except (Retry, Fail):
+        return ""
+    m = re.search(r"<rights>\s*(\w+)\s*</rights>", text) if code == 200 else None
+    return m.group(1).lower() if m else ""
+
+
 def cmd_test(conf):
+    """Wavelog's version for the key, which api/version gives a read-only key too: one of those passed the test,
+    and then every QSO was refused, "API key does not have write permissions" (#73)"""
     url, key, verify = target(conf)
     try:
         code, j, text = request(api_url(url, "version"), {"key": key}, verify)
     except Retry as e:
         raise Fail(f"no connection: {e}")
-    if code == 200 and isinstance(j, dict) and j.get("status") == "ok":
-        return f"ok {one_line(j.get('version', '?'), 20)}"
-    raise Fail(refusal(code, j, text))
+    if not (code == 200 and isinstance(j, dict) and j.get("status") == "ok"):
+        raise Fail(refusal(code, j, text))
+    version = one_line(j.get('version', '?'), 20)
+    if key_rights(url, key, verify) == "r":
+        raise Fail(f"the key is read-only (Wavelog {version}): the upload needs a read & write key")
+    return f"ok {version}"
 
 
 def stations(url, key, verify):
@@ -389,6 +410,8 @@ def cmd_sync(conf):
         auto = conf["station_id"] == "auto"
         profiles = None   # auto: read from Wavelog once a run, when a QSO waits
         try:
+            if conf["key"].lower().startswith("wl2_"):   # the QSOs wait for a key
+                raise Fail(V2_TOKEN)
             i = 0
             while i < len(queue):
                 q = queue[i]

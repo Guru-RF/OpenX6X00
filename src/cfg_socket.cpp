@@ -26,6 +26,7 @@
 #include <cmath>
 
 extern "C" {
+    #include "band_plan.h"
     #include "cJSON.h"
     #include "params/params.h"
     #include "radio.h"
@@ -79,6 +80,7 @@ static const struct {
     {"speaker_off", &cfg_sm.p_speaker_off, 0, 1},       /* live: radio.c follows it */
     {"indep_vfo", &cfg_sm.p_indep_vfo, 0, 1},           /* Station: independent VFOs */
     {"mode_from_plan", &cfg_sm.p_mode_from_plan, 0, 1}, /* Station: the mode follows the band plan */
+    {"band_region", &cfg_sm.p_band_region, 0, BP_PLAN_COUNT - 1},  /* Station: the band plan; live, screen_main.c */
     {"birdie_marks", &cfg_sm.p_birdie_marks, 0, 2},     /* Main screen: Birdie Cal's carriers */
     {"zoom_step_per_mode", &cfg_sm.p_zoom_step_per_mode, 0, 1},   /* Main screen: live, zoom_step_scope follows it */
 #ifdef BOARD_X6200
@@ -230,9 +232,15 @@ static int disp_get(char *buf, size_t size) {
                   (int)lroundf(cfg_sm.p_auto_level_offset.get() * 10), params.brightness_normal, params.brightness_idle,
                   params.brightness_timeout, (int)params.brightness_buttons, params.screen_off_min, params.screen_off_always ? 1 : 0,
                   params.theme_name.x);
-    for (int i = 0; i < count && l < (int)size - 40; i++)
+    for (int i = 0; i < count && l < (int)size - 160; i++)   /* room for the band plan after them */
         l += snprintf(buf + l, size - l, "%s\"%s\"", i ? "," : "", names[i]);
-    l += snprintf(buf + l, size - l, "]}\n");
+    l += snprintf(buf + l, size - l, "]");
+    /* The band plan in use and what Auto finds (the locator or the callsign: letters, digits and /) */
+    const char *how;
+    char        at[16];
+    int         region = band_plan_auto(&how, at, sizeof(at));
+    l += snprintf(buf + l, size - l, ",\"band_region_now\":%d,\"band_region_auto\":%d,\"band_region_how\":\"%s\","
+                  "\"band_region_at\":\"%s\"}\n", band_plan_now(), region, how, at);
     return l;
 }
 

@@ -1,0 +1,2 @@
+{"local_addr":"N0AAA","log_time":"2026-10-29T19:46:01.485815924+01:00","network":"vara","operation":"connect varahf:///N0BBB?p2p=true","remote_addr":"N0BBB","success":true,"what":"connect"}
+{"auxiliary_addresses":null,"end":1793299611,"local_addr":"N0AAA","local_locator":"JO21","log_time":"2026-10-29T19:46:51.150945919+01:00","master":false,"mycall":"N0AAA","network":"vara","received":[],"remote_addr":"N0BBB","remote_fw":[{"Proto":"","Addr":"N0BBB"}],"remote_sid":"B2FHMG$","sent":["V2QZ3AYWCTDV"],"start":1793299561,"success":true,"targetcall":"N0BBB","what":"exchange"}

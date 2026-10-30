@@ -1,0 +1,444 @@
+/* Mercury Engine — shared init / teardown implementation
+ *
+ * Copyright (C) 2026 Rhizomatica
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <unistd.h>
+
+#ifdef __linux__
+#include <sched.h>
+#endif
+
+#ifdef _WIN32
+#include <winsock2.h>
+#endif
+
+#include "freedv_api.h"
+#include "arq.h"
+#include "modem.h"
+#include "broadcast.h"
+#include "defines_modem.h"
+#include "audioio/audioio.h"
+#include "tcp_interfaces.h"
+#include "hermes_log.h"
+#include "radio_io.h"
+#include "cfg_utils.h"
+#include "ui_communication.h"
+#include "mercury_engine.h"
+#include "virtual_clock.h"
+#include "message_store.h"
+
+/* cfg_utils.h and arq.h each define their own callsign size; they must stay
+ * equal or the config could hold a callsign longer than the ARQ slot it is
+ * later copied into. */
+_Static_assert(CFG_CALLSIGN_MAX_SIZE == CALLSIGN_MAX_SIZE,
+               "CFG_CALLSIGN_MAX_SIZE must equal CALLSIGN_MAX_SIZE");
+
+/* ---- shared globals ---- */
+_Atomic bool mercury_stop = false;
+static generic_modem_t g_modem;
+static pthread_t g_radio_capture, g_radio_playback;
+static int g_audio_system = -1;
+static ui_ctx_t g_ui_ctx;
+static mercury_config g_mcfg;
+static bool g_initialized = false;
+static char g_input_dev[512];
+static char g_output_dev[512];
+
+static int apply_audio_defaults(int audio_system, char *input_dev, size_t in_size,
+                                char *output_dev, size_t out_size)
+{
+    switch (audio_system)
+    {
+    case AUDIO_SUBSYSTEM_ALSA:
+        if (input_dev[0] == 0)  strcpy(input_dev, "default");
+        if (output_dev[0] == 0) strcpy(output_dev, "default");
+        break;
+    case AUDIO_SUBSYSTEM_PULSE:
+    case AUDIO_SUBSYSTEM_WASAPI:
+    case AUDIO_SUBSYSTEM_DSOUND:
+        break;
+    case AUDIO_SUBSYSTEM_OSS:
+        /* Left empty on purpose: /dev/dsp is a single node and is often
+         * playback-only, so it cannot serve both directions.  audioio's
+         * resolve_device_string() picks the first device enumerated for each
+         * direction, and ffaudio still falls back to /dev/dsp if OSS reports
+         * no devices at all. */
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+/* Payload bit rate of the running modem, in bits/s: the bytes a frame carries
+ * over the time that frame occupies the air.  Derived from the modem itself so
+ * it reflects the mode actually in use. */
+int mercury_engine_modem_bitrate(void)
+{
+    /* Asked through the backend rather than a freedv handle, so it answers for
+     * whichever backend is active -- MFSK is not a freedv mode. */
+    const modem_backend_t *be = g_modem.codec.be;
+    void *ctx = g_modem.codec.ctx;
+    if (!be || !ctx || !be->n_tx_samples || !be->sample_rate) return 0;
+
+    int nsam = be->n_tx_samples(ctx);
+    int fs   = be->sample_rate(ctx);
+    if (nsam <= 0 || fs <= 0) return 0;
+    double secs = (double)nsam / (double)fs;
+    return (int)((double)g_modem.payload_bytes_per_modem_frame * 8.0 / secs + 0.5);
+}
+
+/* Occupied bandwidth of the running modem in Hz, or 0 when the backend cannot
+ * say -- reporting nothing is better than reporting a figure nobody measured. */
+int mercury_engine_modem_bandwidth_hz(void)
+{
+    const modem_backend_t *be = g_modem.codec.be;
+    void *ctx = g_modem.codec.ctx;
+    if (!be || !ctx || !be->bandwidth_hz) return 0;
+    return be->bandwidth_hz(ctx);
+}
+
+/* Test hook: MERCURY_TEST_SHUTDOWN_STALL_MS holds an orderly shutdown open
+ * for that long.  An orderly stop now takes a fraction of a second even
+ * mid-frame, so without this nothing could land a second signal inside one,
+ * and the forced-exit path (second signal: unkey, then exit) would go untested
+ * (tests/integration, TestMercuryTxTestForcedExitUnkeysFirst).  Unset in
+ * normal use. */
+static void test_shutdown_stall(void)
+{
+    const char *v = getenv("MERCURY_TEST_SHUTDOWN_STALL_MS");
+    long ms = v ? strtol(v, NULL, 10) : 0;
+    for (; ms > 0; ms -= 10)
+        hermes_usleep(10000);
+}
+
+/* The engine started the logger (mercury_engine_init), and so stops it. */
+static bool g_engine_owns_log = false;
+static void engine_log_shutdown(void)
+{
+    if (g_engine_owns_log)
+        hermes_log_shutdown();
+    g_engine_owns_log = false;
+}
+
+int mercury_engine_init(const mercury_config *cfg,
+                        const char *config_path,
+                        const char *log_path,
+                        bool log_jsonl,
+                        int startup_mode,
+                        int test_mode)
+{
+    if (g_initialized) return 0;
+
+    mercury_stop = false;
+
+    memcpy(&g_mcfg, cfg, sizeof(mercury_config));
+
+#ifdef _WIN32
+    {
+        WSADATA wsa_data;
+        if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
+        {
+            fprintf(stderr, "mercury_engine: WSAStartup failed\n");
+            return -1;
+        }
+    }
+#endif
+
+    int  audio_system    = cfg->sound_system;
+    bool ui_enabled       = cfg->ui_enabled;
+    uint16_t ui_port      = cfg->ui_port ? cfg->ui_port : 10000;
+    bool tls_enabled      = cfg->tls_enabled;
+    bool waterfall_enabled = cfg->waterfall_enabled;
+    ptt_config_t ptt_config = cfg->ptt;
+    int  freedv_verbosity   = cfg->freedv_verbosity;
+    int  base_tcp_port      = cfg->arq_tcp_base_port;
+    int  broadcast_port     = cfg->broadcast_tcp_port;
+    /* An unset or corrupt value here resolves to 0, which makes the control
+     * listener bind an ephemeral port and the data listener bind port 1 — a
+     * privileged port a normal user cannot open, so the modem tears itself
+     * down.  Treat any unusable value as "use the default".
+     *
+     * Remember what was asked for so the substitution can be reported once the
+     * logger exists (a few lines below).  Doing it silently is how #200 became
+     * hard to diagnose in the first place: the host connects to the configured
+     * port, finds nothing there, and the log says only that Mercury is
+     * listening somewhere else. */
+    const int requested_base_tcp_port  = base_tcp_port;
+    const int requested_broadcast_port = broadcast_port;
+    if (base_tcp_port < 1 || base_tcp_port > 65534)
+        base_tcp_port = DEFAULT_ARQ_PORT;
+    if (broadcast_port < 1 || broadcast_port > 65535)
+        broadcast_port = DEFAULT_BROADCAST_PORT;
+    bool verbose            = cfg->verbose;
+
+    snprintf(g_input_dev,  sizeof(g_input_dev),  "%s", cfg->input_device);
+    snprintf(g_output_dev, sizeof(g_output_dev), "%s", cfg->output_device);
+
+    int rx_input_channel = cfg->capture_channel;
+
+    /* ---- ARQ tuning ---- */
+    arq_set_disconnect_drain_timeout_s(cfg->disconnect_drain_timeout_s);
+    arq_set_retry_stagger_ms(cfg->retry_stagger_ms);
+    arq_set_tx_mfsk_only(cfg->mfsk_tx_only);
+    modem_set_tx_gain(powf(10.0f, cfg->tx_gain_db / 20.0f));
+    modem_set_tx_delay_ms(cfg->tx_delay_ms);
+    modem_set_busy_cfg((float)cfg->busy_threshold_db,
+                       (float)cfg->busy_hysteresis_db,
+                       (uint32_t)cfg->busy_on_debounce_ms,
+                       (uint32_t)cfg->busy_hang_ms);
+    modem_set_busy_detect_enabled(cfg->busy_detect);
+
+    /* ---- pick audio subsystem ---- */
+    g_audio_system = audio_system;
+    if (g_audio_system == -1)
+        g_audio_system = audioio_pick_default_subsystem();
+
+    apply_audio_defaults(g_audio_system, g_input_dev, sizeof(g_input_dev),
+                         g_output_dev, sizeof(g_output_dev));
+
+    /* -x sock is the virtual-clock lockstep bench transport: switch the
+     * process time base BEFORE any modem/ARQ thread starts, so every
+     * time_now_ms() read in this run sees a single (virtual) clock. */
+    if (g_audio_system == AUDIO_SUBSYSTEM_SOCK)
+        virtual_clock_enable(VIRTUAL_CLOCK_EPOCH_MS);
+
+    /* ---- logging ---- */
+    /* A host that runs the logger itself (hermes-radio-daemon: hermes_log_init
+     * first thing in main, then its own level and file) keeps it: the engine
+     * sets the level and the file, and stops the logger, only when it started
+     * it.  Before, mercury_init overrode the host's settings and the shutdown
+     * stopped the host's logger under it, losing its last lines. */
+    int log_rc = hermes_log_init(1024);
+    g_engine_owns_log = (log_rc == 0);
+    if (log_rc == 0)
+    {
+        hermes_log_level_t min_level = cfg->trace ? HERMES_LOG_LEVEL_TRACE
+                                      : verbose ? HERMES_LOG_LEVEL_DEBUG
+                                                : HERMES_LOG_LEVEL_INFO;
+        hermes_log_set_level(min_level);
+        if (log_path && log_path[0])
+            hermes_log_set_file(log_path,
+                                cfg->trace ? HERMES_LOG_LEVEL_TRACE
+                                : verbose ? HERMES_LOG_LEVEL_DEBUG
+                                          : HERMES_LOG_LEVEL_TIMING,
+                                log_jsonl);
+        HLOGI("engine", "Logger initialised (min_level=%s)",
+              cfg->trace ? "TRACE" : verbose ? "DEBUG" : "INFO");
+    }
+    if (log_rc >= 0)
+    {
+        /* Report any port substitution now that there is somewhere to report
+         * it.  Warned, not silent: a host told to use the configured port will
+         * find nothing listening there. */
+        if (requested_base_tcp_port != base_tcp_port)
+            HLOGW("engine", "arq_tcp_base_port %d is unusable (need 1..65534 — the "
+                            "data port is base+1); using %d instead",
+                  requested_base_tcp_port, base_tcp_port);
+        if (requested_broadcast_port != broadcast_port)
+            HLOGW("engine", "broadcast_tcp_port %d is unusable (need 1..65535); "
+                            "using %d instead",
+                  requested_broadcast_port, broadcast_port);
+        /* Keys an older mercury.ini may still set, which do nothing now. */
+        for (int k = 0; cfg_removed_key_name(k); k++)
+            if (cfg->removed_keys & (1u << k))
+                HLOGW("engine", "[arq] %s in the configuration file is no longer "
+                                "used and is ignored; delete it", cfg_removed_key_name(k));
+    }
+    else
+    {
+        fprintf(stderr, "mercury_engine: async logger unavailable\n");
+    }
+
+    /* ---- audio I/O ---- */
+    audioio_hl2_settings hl2 = {
+        .frequency_hz = cfg->hl2_frequency_hz, .rx_gain_db = cfg->hl2_rx_gain_db,
+        .tx_drive = cfg->hl2_tx_drive, .pa = cfg->hl2_pa,
+    };
+    audioio_hl2_set(&hl2);
+    if (!audioio_rings_external(g_audio_system))
+    {
+        HLOGI("engine", "Initialising audio I/O (subsystem=%d)", g_audio_system);
+        if (audioio_init_internal(g_input_dev, g_output_dev, g_audio_system,
+                                  rx_input_channel,
+                                  &g_radio_capture, &g_radio_playback) != 0)
+        {
+            fprintf(stderr, "mercury_engine: audio I/O init failed\n");
+            engine_log_shutdown();
+            return -1;
+        }
+    }
+
+    /* ---- PTT I/O ---- */
+    if (radio_io_init(&ptt_config) != 0)
+    {
+        fprintf(stderr, "mercury_engine: radio init failed\n");
+        if (!audioio_rings_external(g_audio_system))
+            audioio_deinit(&g_radio_capture, &g_radio_playback);
+        engine_log_shutdown();
+        return -1;
+    }
+
+    /* ---- modem ---- */
+    HLOGI("engine", "Initialising modem (mode=%d)", startup_mode);
+    init_modem(&g_modem, startup_mode, 1, test_mode, freedv_verbosity);
+
+    /* A TX/RX test runs inside init_modem() until a signal ends it; by then the
+     * process is on its way out.  Stop here, orderly, rather than bring up ARQ
+     * and the TCP listeners with shutdown already requested: they can refuse
+     * to start, and init then reported a failure -- exit 1, no PTT shutdown --
+     * for what was a clean stop.  radio_io_shutdown() leaves PTT released. */
+    if (test_mode && mercury_stop)
+    {
+        test_shutdown_stall();
+        shutdown_modem(&g_modem);
+        if (!audioio_rings_external(g_audio_system))
+            audioio_deinit(&g_radio_capture, &g_radio_playback);
+        radio_io_shutdown();
+        HLOGI("engine", "Test mode stopped");
+        engine_log_shutdown();
+        return 0;
+    }
+
+    modem_set_spectrum_enabled(ui_enabled && waterfall_enabled);
+
+    tnc_set_intervals(cfg->tnc_keepalive_s, cfg->tnc_buffer_report_ms);
+
+    /* ---- persistent message store ---- */
+    if (cfg->store_enabled)
+    {
+        if (msg_store_init(cfg->store_path, cfg->store_max_messages) != 0)
+            HLOGW("engine", "Message store init failed — chat history will not persist");
+    }
+
+    /* ---- ARQ ---- */
+    if (arq_init(g_modem.payload_bytes_per_modem_frame, g_modem.mode) != EXIT_SUCCESS)
+    {
+        fprintf(stderr, "mercury_engine: ARQ init failed\n");
+        mercury_stop = true;
+        shutdown_modem(&g_modem);
+        if (!audioio_rings_external(g_audio_system))
+            audioio_deinit(&g_radio_capture, &g_radio_playback);
+        engine_log_shutdown();
+        return -1;
+    }
+
+    /* Install the configured default callsign (if any) before any client can
+     * connect, so the UI shows it and CQ frames carry it on first keydown. */
+    if (cfg->callsign[0])
+        arq_set_callsign(cfg->callsign);
+
+    /* ---- broadcast ---- */
+    broadcast_run(&g_modem);
+
+    /* ---- TCP interfaces ---- */
+    HLOGI("engine", "Initialising TCP interfaces (arq=%d, bc=%d)", base_tcp_port, broadcast_port);
+    if (interfaces_init(base_tcp_port, broadcast_port,
+                        g_modem.payload_bytes_per_modem_frame) != EXIT_SUCCESS)
+    {
+        fprintf(stderr, "mercury_engine: TCP init failed\n");
+        mercury_stop = true;
+        interfaces_shutdown();
+        shutdown_modem(&g_modem);
+        if (!audioio_rings_external(g_audio_system))
+            audioio_deinit(&g_radio_capture, &g_radio_playback);
+        engine_log_shutdown();
+        return -1;
+    }
+
+    /* ---- sync g_mcfg with final runtime values ---- */
+    g_mcfg.ui_enabled        = ui_enabled;
+    g_mcfg.ui_port           = ui_port;
+    g_mcfg.tls_enabled       = tls_enabled;
+    g_mcfg.waterfall_enabled = waterfall_enabled;
+    g_mcfg.ptt               = ptt_config;
+    snprintf(g_mcfg.input_device,  sizeof(g_mcfg.input_device),  "%s", g_input_dev);
+    snprintf(g_mcfg.output_device, sizeof(g_mcfg.output_device), "%s", g_output_dev);
+    g_mcfg.capture_channel   = rx_input_channel;
+    g_mcfg.sound_system      = g_audio_system;
+    g_mcfg.arq_tcp_base_port = base_tcp_port;
+    g_mcfg.broadcast_tcp_port = broadcast_port;
+    g_mcfg.verbose           = verbose;
+    g_mcfg.freedv_verbosity  = freedv_verbosity;
+
+    /* ---- UI / WebSocket ---- */
+    if (ui_enabled)
+    {
+        /* No port here: the transport says where the UI goes (a websocket's
+         * URL, or the host program in the daemon build). */
+        HLOGI("engine", "Initialising the UI (tls=%d, waterfall=%d)",
+              tls_enabled, waterfall_enabled);
+        if (ui_comm_init(&g_ui_ctx, ui_port, tls_enabled,
+                         waterfall_enabled ? 1 : 0,
+                         g_audio_system, g_input_dev, g_output_dev, rx_input_channel,
+                         &g_mcfg, config_path) != 0)
+        {
+            HLOGW("engine", "UI communication init failed — running headless");
+        }
+    }
+    else
+    {
+        memset(&g_ui_ctx, 0, sizeof(g_ui_ctx));
+        HLOGI("engine", "UI communication disabled");
+    }
+
+    g_initialized = true;
+    HLOGI("engine", "Mercury engine initialised");
+    return 0;
+}
+
+/* On the bench stations a stop now and then ran past main()'s 10 s
+ * watchdog, always after the audio threads had exited and before the
+ * websocket reported shutting down, and never reproduced off the station.
+ * The step is recorded so the watchdog can name it. */
+static const char *volatile g_shutdown_step;
+
+const char *mercury_engine_shutdown_step(void) { return g_shutdown_step; }
+
+void mercury_engine_shutdown(void)
+{
+    if (!g_initialized) return;
+
+    HLOGI("engine", "Shutting down");
+
+    mercury_stop = true;
+    test_shutdown_stall();
+
+    g_shutdown_step = "tcp interfaces";
+    interfaces_shutdown();
+    g_shutdown_step = "modem";
+    shutdown_modem(&g_modem);
+
+    g_shutdown_step = "audio";
+    if (!audioio_rings_external(g_audio_system))
+        audioio_deinit(&g_radio_capture, &g_radio_playback);
+
+    g_shutdown_step = "ui";
+    ui_comm_shutdown(&g_ui_ctx);
+    g_shutdown_step = "radio io";
+    radio_io_shutdown();
+
+    g_shutdown_step = "message store";
+    msg_store_shutdown();
+    g_shutdown_step = "done";
+
+    HLOGI("engine", "Mercury engine shut down");
+    engine_log_shutdown();
+
+#ifdef _WIN32
+    WSACleanup();
+#endif
+
+    g_initialized = false;
+}
+
+bool mercury_engine_is_initialized(void)
+{
+    return g_initialized;
+}

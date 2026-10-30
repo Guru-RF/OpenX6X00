@@ -55,7 +55,9 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
 - `0001-http-guard.patch`: a guard around Pat's HTTP handler (`api/guard.go`, wrapped in
   `api.ListenAndServe`). Pat has no login, and a plain GET of `/api/connect` keys the
   transmitter, so a web page on another site could make the browser of anyone on the radio's
-  network do it. The Host header must be an IP address, `localhost`, the hostname,
+  network do it. Nothing that came through Tailscale Funnel, from the internet: tailscaled's serve
+  proxy marks such a request with a `Tailscale-Funnel-Request` header, and Pat stays on the
+  radio's network and the tailnet whatever is funneled by mistake. The Host header must be an IP address, `localhost`, the hostname,
   `<hostname>.local`, end in `.ts.net`, or be the radio's MagicDNS short name (the first part
   of `name=` in `/run/tailscale/status`: `x6200-1` while the tailnet still has an earlier
   card's machine as `x6200`), the names the web configurator takes (no DNS rebinding). For
@@ -73,6 +75,21 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   /api/winlink-account/password-recovery-email` (which sent the callsign and the password to
   winlink.org in the URL) answers a placeholder address, which the UI takes for "an address
   is set". Setting an address (PUT) still goes to winlink.org.
+- `0003-ardop-bandwidth-cap.patch`: the config's ARDOP bandwidth (`ardop.arq_bandwidth`, which
+  the radio's Winlink page sets) is the widest a connection may use. Pat's gateway list fills in
+  each gateway's widest bandwidth (`bw=2000MAX` for one listed as ARDOP 2000), the connect dialog
+  takes it over, the browser remembers it, and a connection's `bw=` wins over the config: at the
+  radio's 7 W at most, a 200 Hz session connected where 2000MAX did not (#18). `Connect()` lowers an ARDOP
+  `bw=` above the config's Max to `<Max>MAX` and logs it ("ARDOP bandwidth 500MAX, the widest set
+  on the radio (Operating > Winlink), not the 2000MAX asked"); a gateway that runs a wider
+  bandwidth takes it and negotiates down. A `bw=` at or under it, or none, is left as it is.
+  With a test (`app/ardop_bandwidth_test.go`).
+- `0004-log-append.patch`: Pat's log (`--log`, the mailbox's log pane) is opened with `O_APPEND`
+  (still emptied at each start), where Pat used `os.Create`. The supervisor adds lines of its own
+  to it ("OpenX6X00: ...": a refused transmission, what to do after a failed connection, no
+  password set), which Pat's next line wrote over before, and trims it, which left Pat's next line
+  behind a hole of zeros. The log pane's `tailFile` reads a file that became shorter than what it
+  read again from its start. With a test (`api/tail_test.go`).
 
 Not a patch: the version report (daily) and the app's own recovery-email check (every 14 days),
 both to api.winlink.org, stay off through `version_reporting_disabled: true` in the config,

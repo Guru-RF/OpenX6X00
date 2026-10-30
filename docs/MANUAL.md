@@ -11,7 +11,7 @@ Settings. Button and option names are written as the radio shows them.
 
 - [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs)
 - [Updating the firmware](#updating-the-firmware)
-- [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
+- [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [TX shift](#tx-shift), [SWR scan and the tuner](#swr-scan-and-the-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
@@ -21,13 +21,13 @@ Settings. Button and option names are written as the radio shows them.
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
 - [Wavelog](#wavelog)
-- [Winlink](#winlink)
+- [Winlink](#winlink): [Mercury](#mercury-experimental)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
 - [Network name](#network-name)
 - [SSH](#ssh)
-- [Tailscale](#tailscale)
+- [Tailscale](#tailscale): [Tailscale Funnel](#tailscale-funnel)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
 - [Reference](#reference): [Bluetooth CAT connection](#bluetooth-cat-connection), [CI-V commands](#supported-ci-v-commands), [btcat-ctl](#btcat-ctl), [btaudio-ctl](#btaudio-ctl), [files on /mnt](#files-on-mnt)
@@ -99,7 +99,7 @@ The radio updates itself: Settings > Info > Update, or the Update page of the
 web configurator (System > Update).
 
 - Check asks GitHub for the latest release. Install downloads its update
-  bundle (the GUI, the web pages, the helpers and their data, about 10 MB),
+  bundle (the GUI, the web pages, the helpers and their data, about 14 MB),
   checks every file against the project's signature, puts the files in place
   with the previous ones kept, and restarts the radio software: the screen
   goes dark for a few seconds. Settings, logs and everything on the DATA
@@ -111,6 +111,25 @@ web configurator (System > Update).
 - The web page can also take a bundle file (`OpenX6X00-x6100-vX.Y.Z-update.tar.gz` or `OpenX6X00-x6200-vX.Y.Z-update.tar.gz`
   from the releases page) for a radio without internet, and has a button to go
   back to the previous version by hand.
+- Going back from v0.3.7 to v0.3.6 (that button, or v0.3.6's bundle): the
+  radio first turns [Tailscale Funnel](#tailscale-funnel) off and takes its
+  funnel, and any set up by hand, out of tailscaled. v0.3.6 knows nothing of
+  Funnel: tailscaled would keep the funnel, and v0.3.6's TCI and browser
+  remote would take connections from the internet without a key.
+  - When it cannot make sure of that within half a minute (tailscaled not
+    answering, or not connected: no internet, or waiting for a login, when
+    it keeps the funnel for when it connects), it does not go back, and the
+    page says why: turn Funnel off, or Tailscale itself, wait until it says
+    Off, and try again.
+  - Funnel is then off when you come back to v0.3.7: turn it on again there.
+  - The step back the radio takes by itself after three failed starts tries
+    the same for a few seconds, and goes back whatever came of it.
+  - This was checked against a stand-in of tailscaled, not on a real
+    tailnet.
+- Every paired browser pairs again on v0.3.6, since v0.3.7 keeps only a hash
+  of each browser's key: Forget all (Settings > General > BROWSER REMOTE), on
+  either version, before pairing, so that the first browser paired is the
+  admin again.
 - The bundle is signed; a bundle not made by the project is refused. (For
   building your own: `tools/update/mkbundle.py`, the key in
   `rootfs/usr/share/x6100/update.pub`; a radio with `/mnt/update/allow-unsigned`
@@ -155,6 +174,13 @@ of the band list, from the frequency up or down.
 - A band with no mode saved opens in LSB under 10 MHz and USB above, USB on
   60 m; on the X6200 wide FM on FM broadcast, AM on the airband and NFM in
   what only the WR12 receives.
+- Tuned into another band (the knob from 7.040 in 40m SSB to 7.039 in 40m
+  CW, or a frequency from CAT, TCI, a spot or an app), the radio is on that
+  band: the VFO you tune keeps its frequency and takes the mode, ATT, PRE and
+  AGC last used there; the other VFO stays as it was. Where that band has
+  split on, the other VFO, the one the radio transmits on, comes from the
+  band, as with the band keys. Up to v0.3.6 the other VFO always came from
+  the new band: tuning A across 7.040 moved B.
 
 ### Receiving outside the ham bands
 
@@ -224,6 +250,15 @@ after the screen comes up. The warnings and the power-off at 6.0 V work from
 then on. The GUI log (app_logs) lists what the base sent until then, as
 "battery: start-up reading" lines.
 
+The X6200's base also warns of a battery too hot or too cold, a PA too hot
+and a DC input too low. The radio shows these in the words of Xiegu's own
+firmware: "BATTERY HIGH TEMP!", "BATTERY LOW TEMP!", "PA HIGH TEMP!", "DCIN
+TOO LOW!", several in one message, when one comes on and again every 30
+seconds while any lasts. One that comes and goes (the DC input dipping under
+the TX current) is shown again only after those 30 seconds. Like the battery
+warnings they work once the readings count. The X6100's base does not report
+them.
+
 
 ### Battery time
 
@@ -238,8 +273,14 @@ At the top right the radio shows the charge and the time left:
   front: "~4h28".
 - Charging: the lightning sign with "66%  ~3h05", the time still needed to
   reach a full charge.
-- Charged and still on the external supply: "99%" with the power sign.
-- External supply only, no battery fitted: the external voltage, "12.1v".
+- On the external supply and not charging: the plug sign with the charge,
+  "100%" once charged, or with [Charger](#general-tab) set to Off or Shadow on
+  the X6200. (Up to v0.3.6 a charged battery showed the power sign after the
+  %, and the X6200 showed the lightning sign and a time to full whatever the
+  Charger setting, issue #33.)
+- External supply only, no battery fitted: the plug sign and the external
+  voltage, "12.1v". When the X6200's base reports no battery, a red cross in
+  place of the battery.
 - Just after power-on: nothing, for 15 to 20 seconds, while the base's first
   readings settle (see [low battery](#low-battery)).
 
@@ -360,18 +401,9 @@ Over the waterfall. Where: Settings > Display > MAIN SCREEN.
 
 | Option | What it does |
 |---|---|
-| Band plan | the band segments in a strip at the top |
+| Band plan | the band plan's segments in a strip at the top (which plan: see [Band plan](#band-plan)) |
 | Cluster spots | the DX cluster calls at their frequencies (see [DX Cluster](#dx-cluster)) |
 | Cluster column | the spot list in a box on the right |
-
-The band plan strip shows the IARU Region 1 segments (160 m to 6 m, 60 m as
-WRC-15). A band of the band list the IARU plan does not cover (one added on
-the web configurator's Bands page, the top of 6 m, 4 m, 2 m) gets a strip
-too, typed from its name: CW in the name makes a CW segment, DIG, FT8, FT4 or
-DATA a digital one, BCN a beacon one, anything else all modes. "60m CW" at
-5.2585 MHz is a CW segment, so the main screen's
-[CW line](#cw-from-the-keyboard) works there. Broadcast and CB
-get none. A band changed on the web page shows at the next band change.
 
 Zoom and step per mode. Where: Settings > Display > MAIN SCREEN (also on the
 web configurator's Display page).
@@ -411,6 +443,98 @@ Colours, on the web configurator's Display page:
 | Trace colour | Theme, or your own |
 | Fill colour | As trace, or your own (the trace is then drawn over it) |
 
+### Band plan
+
+The strip at the top of the waterfall (Settings > Display > MAIN SCREEN >
+Band plan shows or hides it) has the segments of one plan, 160 m to 10 m,
+60 m and 6 m: CW, DIG (narrow band and digital modes, no phone), ALL MODES /
+SSB (phone allowed) and BCN (beacons). Which plan: Settings > General >
+STATION > Band plan (also on the web configurator's Display page, Plan).
+
+| Band plan | What the strip shows |
+|---|---|
+| Auto (the default) | IARU Region 1, 2 or 3, from where the radio is (below) |
+| Region 1 | the IARU Region 1 HF plan (effective 16 October 2020, 60 m as WRC-15), 6 m from its VHF plan |
+| Region 2 | the IARU Region 2 plan (September 2020): 75 m phone up to 4.0 MHz, 40 m up to 7.3 MHz |
+| Region 3 | the IARU Region 3 plan (R3-004 Rev. 2, November 2024): 80 m up to 3.9 MHz, 40 m up to 7.2 MHz, 500 Hz either side of the beacons |
+| US Extra, US Advanced, US General, US Technician | the US sub-bands of 47 CFR Part 97 for that licence class (Technician stands for Novice too), as of October 2026 |
+
+Auto takes the region from the first of these that it has: a GPS fix less
+than 10 s old, the QTH locator, the country of the callsign (from cty.dat,
+looked up once, a moment after the start). With none of them (the GPS fix
+lost, or not there yet after a start) it keeps the region the radio had
+last, from one of them or from a plan chosen by hand: the one the band list
+is on (below), so the strip and the band list agree. Region 1 only when it
+never had another. The dropdown's first entry says what Auto takes, "Auto
+(Region 2)", and the web page from what: "Auto: Region 2 from the locator
+FN31", or "Region 2, the last one it had". Auto looks again when the locator
+or the callsign is saved, at each band change, and every 10 s for the GPS.
+The regions are the ITU's (Radio Regulations, Article 5), with the countries
+it puts whole in one region (Russia, Kazakhstan, Mongolia, Turkey, the
+Caucasus and Central Asia in Region 1, all of Iran in Region 3). A
+4-character locator is a square of 2 by 1 degrees: where a border runs
+through one (the Bering Strait, the Amur, around Iran, Turkmenistan and
+Oman's Musandam) its centre can be on the other side. A 6-character locator,
+the GPS or a plan chosen by hand settles it. Auto never takes a US plan: it
+cannot know your licence class.
+
+The US plans: what your class may use shows as in the IARU plans, the parts
+without phone split into CW, DIG and BCN as the ARRL band plan uses them;
+what it may not use is a grey NOT YOUR CLASS (OUT where that does not fit).
+A Technician's segments on 80, 40 and 15 m are CW, as the rules have it.
+60 m is the 5351.5-5366.5 kHz band and the four channels around 5332, 5348,
+5373 and 5405 kHz (since January 2026). 40 m phone at 7.075-7.100 MHz shows
+only where it is allowed: west of 130 W or south of 20 N (Alaska, Hawaii, Puerto
+Rico, the Virgin Islands), known from the GPS, the locator or the callsign
+(KH6, KL7, KP4). In the US choose US and your class, not Region 2: the IARU
+Region 2 plan shows phone where the FCC allows none (7.050-7.125 MHz on the
+mainland, 14.112-14.150 and 21.151-21.200 MHz), and 75 m phone from 3.6 MHz,
+which is Extra and Advanced only.
+
+The plan is guidance only: the key, the paddle and the microphone work
+wherever the radio transmits, and your licence and your country's rules are
+what count. What follows it:
+
+- the strip, and the browser panel's strip (sent again when the plan
+  changes);
+- Mode from band plan (Settings > General > STATION): CW in a CW segment,
+  the band's sideband in an ALL MODES segment; DIG, BCN and NOT YOUR CLASS
+  change nothing. Region 3 has few CW-only parts (80 m 3500-3535 and 40 m
+  7000-7030 kHz): tuning up past them in CW turns the radio to LSB, though
+  the plan allows CW there too. Turn Mode from band plan off if that is in
+  the way;
+- the main screen's [CW line](#cw-from-the-keyboard), which keys only in a
+  CW segment: not in NOT YOUR CLASS, and in Region 3 not above 3535 and
+  7030 kHz on 80 and 40 m (the [CW Keyboard](#cw-keyboard) app keys in
+  any segment);
+- the band list: its 160m, 80m, 40m SSB and 6m take the region's edges (80m
+  to 4.0 MHz and 40m SSB to 7.3 MHz in Region 2 and the US, 80m to 3.9 MHz
+  in Region 3, 160m from 1.8 MHz and 6m to 54 MHz outside Region 1), unless
+  they were changed on the web configurator's Bands page or a band of your
+  own lies where they would go (75m at 3.8-3.9 MHz keeps 80m at 3.8);
+  another region later moves them on. Before, a radio in Region 2 tuned to
+  7.2-7.3 or 3.9-4.0 MHz was on "Broadcast 41m" or "Broadcast 75m", in AM.
+  A radio updated from an older version is on Auto: in Region 2 or 3 its
+  list moves by itself at the first start, as soon as Auto knows the
+  region. Auto with nothing to go by takes the band list's region, so it
+  leaves the list as it is;
+- the typical frequencies of Field Ops and the Bands app: in Region 2 and
+  the US phone on 80 m at 3.860 and on 40 m at 7.200 MHz, and outside
+  Region 1 CW on 6 m at 50.090 MHz (50.060 is among the beacons there).
+
+A band of the band list the plan does not cover (one added on the web
+configurator's Bands page, the top of 6 m in Region 1, 4 m, 2 m) gets a strip
+too, typed from its name: CW in the name makes a CW segment, DIG, FT8, FT4 or
+DATA a digital one, BCN a beacon one, anything else all modes. "60m CW" at
+5.2585 MHz is a CW segment, so the main screen's
+[CW line](#cw-from-the-keyboard) works there. Broadcast and CB get none. A
+band changed on the web page shows at the next band change.
+
+The plans are our own reduction of the documents to the segment edges and a
+type each: the IARU Region 1, 2 and 3 band plans (iaru-r1.org, iaru-r2.org,
+iaru-r3.org), 47 CFR Part 97 of the FCC (ecfr.gov) and the ARRL band plan
+(arrl.org/band-plan). Thanks to the IARU and the ARRL for them.
+
 ### Screen recording
 
 Records the screen and the audio to an AVI file (MJPEG video, 800x480,
@@ -426,7 +550,9 @@ Records the screen and the audio to an AVI file (MJPEG video, 800x480,
   transmission at your own Moni level (0 by default, so it is not recorded).
   The X6200's speaker shares the case with the built-in microphone, and a
   monitor at 30 went round through the microphone into the transmission, a
-  loud ringing on the air (issue #15).
+  loud ringing on the air (issue #15). On the X6100 the raised monitor can do
+  the same while you transmit in SSB with the built-in microphone (issue #72):
+  use a headset or the hand mic away from the speaker while recording.
 - File length: Settings > Audio > SCREEN REC > File length, 1 hour (default),
   45, 30, 15 or 5 minutes. When a file reaches that length it is closed and
   the recording goes on in a new file, named with the time it starts. Stop
@@ -507,7 +633,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | callsign, QTH locator, Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, both VFOs live in the current band) |
+| STATION | callsign, QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)) |
@@ -540,10 +666,14 @@ Whether the base charges: External on the [Info tab](#info-tab), for example
 "12.1 V  charging".
 
 The X6200 with base 1.0.8 goes on reporting "charging" while the radio is on
-and a supply is connected, whatever the setting, so External says "charging"
-then (#33). The setting works all the same: measured by a user with the stock
-charger and the radio on, with Off the battery stayed at 7.8 V and 65 % for 42
-minutes, with On it went from 57 to 64 % in 45 minutes.
+and a supply is connected, whatever the setting (#33). The setting works all
+the same: measured by a user with the stock charger and the radio on, with Off
+the battery stayed at 7.8 V and 65 % for 42 minutes, with On it went from 57 to
+64 % in 45 minutes. So on the X6200 the radio takes the base's "charging" only
+with Charger On, as Xiegu's own firmware does: with Off or Shadow, External
+says "12.1 V" and the top right shows the plug sign with no time to full (up
+to v0.3.6 they said "charging" and showed the lightning sign). The X6100 shows
+what its base reports.
 
 Zone. Where: Settings > General > DATE / TIME > Zone. The change applies at
 once; summer time follows by itself where the zone has it. 24 zones, UTC then
@@ -619,13 +749,15 @@ Compressor on the X6200: its base has three levels, so the ratio chosen (Comp
 on the MFK 2:3 page) goes to the nearest of them: 2:1 and 3:1 as 2:1, 4:1 to
 7:1 as 4:1, 8:1 as 8:1; 1:1 (Off) is off. It is off by default on the X6200.
 
-TX monitor: Moni level (VOL 2:2 page, F1) plays your own transmission on the
-speaker. It is 30 by default on the X6100 and 0 on the X6200. The X6200's
-speaker and built-in microphone share the case: at 30 the microphone picked
-the monitor up and fed it back into the transmission, a loud ringing from the
-moment PTT was pressed in SSB (issue #15). A radio whose Moni level was never
-changed gets the new default with the update; a level you set stays. On the
-X6200 a screen recording does not raise it (see
+TX monitor: Moni level (VOL 2:2 page, F2) plays your own transmission on the
+speaker. It is 0 by default on both radios. At 30, the default in earlier
+releases, the microphone picked the monitor up and fed it back into the
+transmission: on the X6200, whose speaker and built-in microphone share the
+case, a loud ringing from the moment PTT was pressed in SSB (issue #15); on
+the X6100 a feedback loop on PTT and while an app sent its tones (issue #72).
+A radio whose Moni level was never changed gets the new default with the
+update; a level you set stays. To hear yourself again, turn it up there. On
+the X6200 a screen recording does not raise it (see
 [Screen recording](#screen-recording)).
 
 ### Wireless tab
@@ -634,7 +766,7 @@ X6200 a screen recording does not raise it (see
 |---|---|
 | WIFI | power, status, IP, networks |
 | NETWORK NAME | the radio's name on the LAN, `x6100` by default: reachable as `<name>.local` (see [Network name](#network-name)) |
-| TAILSCALE | on/off, status, the radio's name and address on your tailnet, the login as a code to scan, Log out (see [Tailscale](#tailscale)) |
+| TAILSCALE | on/off, status, the radio's name and address on your tailnet, Funnel on/off with Public (the Panel's address on the internet, or what Funnel waits for), the login or the link that allows Funnel as a code to scan, Log out (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
 | ETHERNET | a USB Ethernet adapter: DHCP or a static address (see [Ethernet](#ethernet)) |
 
 WiFi/BT power switches the WiFi and Bluetooth chip (one chip for both): with
@@ -891,6 +1023,22 @@ POWER, below Factory reset, has three lines:
   Auto; default Built-in). The Audio tab's input is not changed.
 
 ## Transmitting
+
+TX power (PWR) goes from 0.1 W to 10 W on the X6100, and to 8 W on the X6200:
+its rating on an external supply. The Power knob control, TX power on WLK 1,
+the browser panel's PWR, TCI's `drive` (100 % is the radio's top: 10 W, or 8 W on the X6200) and CAT stop there.
+Up to v0.3.6 the X6200 also went up to 10 W and asked its base for that
+(issue #53). A setting saved above 8 W comes back as 8 W. The TX meter keeps
+its 0-10 W scale on both radios, so it shows what the radio measures.
+
+On battery the X6200 stops at 5 W, as Xiegu's own firmware (1.0.8) does. The
+radio follows the supply once it has been steady for 5 seconds (and once the
+battery readings count after power-on, see [low battery](#low-battery)). With
+PWR above 5 W when the supply goes, PWR comes down to 5 W and the radio says
+"TX power 5 W on battery". When the supply comes back PWR stays at 5 W: the
+top goes back to 8 W, turn it up yourself. On battery every way of setting
+PWR stops at 5 W: TCI's `drive` from 62 % up gives 5 W, and the browser panel's
+PWR goes back to 5 W. The X6100 has no battery limit.
 
 ### TX shift
 
@@ -1880,7 +2028,8 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
 
 - Test beacon sends `TEST DE <call>` in CW (the radio must be in CW), so you
   can see who hears you.
-- Use band (or a press) tunes a typical activation frequency of the band.
+- Use band (or a press) tunes a typical activation frequency of the band,
+  for the band plan's region (see [Band plan](#band-plan)).
 - RBN is connected while the screen is open (the first minute fills the
   counts); it needs WiFi and the callsign.
 - The skimmer data comes from the Reverse Beacon Network
@@ -2048,7 +2197,7 @@ apps: APP (page 3) > Bands, or a long-press action.
 - Each band shows its activity bar and word, the cluster / RBN spot counts
   and who heard you (skimmers, best SNR); the best band is framed.
 - MFK to choose, a press (or Use band) tunes a typical frequency of the band
-  (CW or phone, as the radio's mode).
+  (CW or phone, as the radio's mode; for the band plan's region, see [Band plan](#band-plan)).
 - Test beacon sends `TEST DE <call>` in CW. ESC closes.
 - The numbers are the same as in Field Ops.
 
@@ -2240,13 +2389,13 @@ The menu has General and four groups:
 | Group | Page | Does |
 |---|---|---|
 | | General | index of the pages |
-| Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)) |
+| Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)) |
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | Wavelog | every logged QSO to your Wavelog: URL, API key, station profile (one, or Automatic by the radio's callsign), connection test, Send now (writes `/mnt/field/wavelog.conf`, see [Wavelog](#wavelog)) |
-| | Winlink | Winlink email over HF with Pat and ARDOP: Enabled, callsign, locator, the Winlink password (write only), ARDOP bandwidth, the status and Open the mailbox (Pat's page on port 8080; writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
+| | Winlink | Winlink email over HF with Pat and ARDOP, or Mercury (experimental): Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), the modem, ARDOP's or Mercury's bandwidth, the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV |
@@ -2334,7 +2483,7 @@ applied on the radio as you change them.
 | Theme | Theme (the radio's screen restarts with the new one) |
 | S-meter | S-meter type (Bars, Needle), Colours (Theme, Scale, Level), Needle lamp; with a preview |
 | Waterfall | Mode (Centered, Fixed), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll |
-| On the waterfall | Band plan, Cluster spots, Cluster column |
+| On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, Magnify ALC |
@@ -2363,7 +2512,7 @@ Server options: `--host`, `--port`, `--https-port` (0 = off), `--cert-dir`,
 
 Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavelog) as well, a few seconds after it is logged: FT8, FT4, FT2, JS8, voice and CW (the phone's logger, the CW keyboard) and the Field Ops activations, all that the web Logs page lists. The radio's own logs stay as they are. Where: web configurator, Operating > Wavelog.
 
-- Set up: the Wavelog URL (the address you open Wavelog with), an API key with read and write rights (Wavelog: your account menu, API Keys), then Load, choose the station profile and switch Upload to Wavelog on. Test connection asks Wavelog for its version, with what is typed, before Save. The saved key goes only to the server it was saved with: with the URL of another server (your Wavelog moved), type the key again for Test connection, Load and Save.
+- Set up: the Wavelog URL (the address you open Wavelog with), a read & write API key (Wavelog: your account menu, API Keys, Create a read & write key; in Wavelog 3.1 and later under Legacy API Keys (API v1)), then Load, choose the station profile and switch Upload to Wavelog on. Test connection asks Wavelog for its version and the key's rights, with what is typed, before Save: a read-only key, with which every QSO would be refused, fails the test. Test connection, Load and Send now wait for Wavelog one at a time, their buttons off meanwhile. A Wavelog that doesn't answer gives "no connection" after 20 s; a name lookup the radio's network never answers holds the radio's side longer, and Test connection or Load then says, at 40 s, "no answer in 40 s: check the URL, and that the radio can reach that address". The API tokens of Wavelog's API v2 (wl2_...) don't work yet: the page says so at Test connection, Load and Save. The saved key goes only to the server it was saved with: with the URL of another server (your Wavelog moved), type the key again for Test connection, Load and Save.
 - Station profile Automatic: each QSO goes to the Wavelog profile with the callsign the radio logged it with (Settings > General > STATION). With a profile DF8MH and one DF8MH/P in Wavelog, changing the callsign on the radio is all it takes; when several profiles have the callsign, the one Wavelog marks active. A QSO whose callsign has no profile waits, "Wavelog: no station profile for DF8MH/M, 1 QSO waiting", and the others still go; make the profile in Wavelog, then Send now.
 - From the moment it is switched on: the QSOs logged before are not sent. To send an older log, import its ADIF in Wavelog (Files, Logs page, Export).
 - The display says what happened: "Wavelog: DL1ABC uploaded", "Wavelog: DL1ABC was already there" (Wavelog found it as a duplicate), "Wavelog: no connection, 2 QSOs waiting". A failure is shown once, on the QSO that met it.
@@ -2372,7 +2521,7 @@ Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavel
 - A QSO Wavelog refuses (a record it can't take) goes to `/mnt/field/wavelog.failed.adi` and is not sent again unless it is edited on the Logs page. A refused key stops the upload until a new key is saved; the QSOs wait.
 - A QSO edited on the Logs page after it was sent goes again with the next upload. Wavelog adds QSOs and changes none it has. When the QSO's call, date, time, band, mode and own callsign are as they were (a report or a name corrected), Wavelog keeps its own copy, and the display says "Wavelog: DL1ABC was already there, edit it in Wavelog too". An edit of any of those reaches Wavelog as another QSO: it is added ("uploaded"), or, within 15 minutes of the old one with the same call, band and mode, found as a duplicate ("was already there"); either way the old one is to be corrected or deleted in Wavelog by hand. A QSO edited while it waits (no network) goes as it stands then, once; deleted while it waits, it does not go. A QSO deleted on the Logs page after it was sent stays in Wavelog.
 - HTTPS is checked against the radio's root certificates. Check the certificate off only for a Wavelog at home with a self-signed certificate.
-- The key is kept in `/mnt/field/wavelog.conf`. The Wavelog page never shows it again and it is not in the Backup, but like the QRZ, HOTA and WWFF keys it can be downloaded from the Files page by anyone who reaches the web configurator (your LAN, and your tailnet with Tailscale on). The upload uses Wavelog's API (`api/qso`, `api/station_info`, `api/version`); QSOs sent through it are not uploaded on to other services by Wavelog at once and get no callbook lookup there.
+- The key is kept in `/mnt/field/wavelog.conf`. The Wavelog page never shows it again and it is not in the Backup, but like the QRZ, HOTA and WWFF keys it can be downloaded from the Files page by anyone who reaches the web configurator (your LAN, and your tailnet with Tailscale on). The upload uses Wavelog's API v1 (`api/qso`, `api/station_info`, `api/version`, `api/auth`); QSOs sent through it are not uploaded on to other services by Wavelog at once and get no callbook lookup there.
 - By hand: `x6100-wavelog sync`, `x6100-wavelog stations`, `x6100-wavelog test` (one line each, as the other helpers).
 
 ## Winlink
@@ -2382,9 +2531,11 @@ radio alone, with no computer and no internet: [Pat](https://getpat.io) is the
 mail program, and its mailbox is a web page you open on a phone, a tablet or a
 laptop on the radio's network; ARDOP is the HF modem
 ([ardopcf](https://github.com/pflarue/ardop)), working through the radio's own
-audio. Pat calls a Winlink RMS gateway, the radio tunes there and transmits,
-and your mail goes out while the new mail comes in. Where: web configurator,
-Operating > Winlink. Off by default; when it is off, Pat and ARDOP do not run.
+audio, or [Mercury](#mercury-experimental) (experimental) in its place. Pat
+calls a Winlink RMS gateway, the radio tunes there and transmits, and your
+mail goes out while the new mail comes in. Where: web configurator,
+Operating > Winlink. Off by default; when it is off, Pat and the modem do not
+run.
 
 Setting it up:
 
@@ -2395,19 +2546,81 @@ Setting it up:
      (Settings > General) without its portable part: ON6URE for ON6URE/P.
    - Locator: sent to the gateway, and Pat's gateway list is sorted by the
      distance from it. Empty takes the radio's QTH.
-   - Winlink password: kept on the radio and never shown again (the page says
-     "set (hidden)"); a field left empty keeps it.
-   - ARDOP bandwidth: the widest ARDOP may use. 500 Hz suits most gateways and
-     a crowded band; 2000 Hz is faster on a good path, with a gateway that
-     runs ARDOP 2000.
-3. Switch Enabled on. Status says "Running as ON6URE" once Pat and ARDOP run.
-   From then on they start with the radio, also after a new card image.
+   - Winlink password: kept on the radio and never shown again; a field left
+     empty keeps it. The row says where the password Pat uses is set: "set
+     here (hidden)", "set in Pat's own Settings (hidden)" or "not set". With
+     Winlink on and none set anywhere, the page says so in red at the top
+     (see the password below); it is a warning only, since a new account's
+     first connection over the air needs none.
+   - Modem: ARDOP (the default), or Mercury (experimental, see
+     [Mercury](#mercury-experimental) below). One runs at a time.
+   - ARDOP bandwidth: the widest ARDOP may use, 200, 500 (the default), 1000
+     or 2000 Hz. It counts for every connection, also with a gateway that
+     Pat's gateway list shows wider: see "The ARDOP bandwidth" below. With
+     Mercury chosen, Mercury bandwidth in its place: 500, 2300 (the default)
+     or 2750 Hz.
+3. Switch Enabled on. Status says "Running as ON6URE" once Pat and the modem
+   run. From then on they start with the radio, also after a new card image.
+   The Before you connect card shows the radio as Winlink will use it, once
+   the modem is on the radio's audio; what is red keeps Winlink from
+   transmitting, or from being heard well:
+   - Frequency: where the radio listens, and whether it transmits there too
+     ("No TX: split would send on 14.200.000, not 14.105.000", XIT, RIT, a
+     TX shift).
+   - Mode: Pat's QSY to a gateway sets USB-D (USB is kept).
+   - Filter: whether the RX filter (and the TX filter, on a base that has
+     one) covers ARDOP's passband at the page's bandwidth: 1250-1750 Hz at
+     500 Hz, 500-2500 Hz at 2000 Hz. Mercury's: 450-2550 Hz at 2300 and
+     2750 Hz, 1200-1800 Hz at 500 Hz.
+   - Power: the radio's PWR, at most 7 W for Winlink; 5 W with the X6200 on
+     its battery, which the row says (see [Transmitting](#transmitting)).
+   - Apps: a digital app open (red: close it), or LOCK on (Pat's QSY is not
+     made).
+   - Last no TX: the radio's last reason not to key, in the last 10 minutes.
+     It also goes into Pat's log ("OpenX6X00: no TX, FT8 is open, close it.
+     Close the app on the radio, then connect again"), once, and again after
+     a minute; so does a QSY not made.
+
+   The Connections card keeps apart what is often lumped together:
+   - Service: Pat and the modem run.
+   - Modem: ARDOP is on the radio's audio (ardopcf connected to the GUI), or
+     Mercury (x6x00-mercury); "Waiting for the radio's audio" until it is.
+     With Mercury, "Ready, but it fell behind the receiver lately" in red
+     when its decoders dropped audio (see [Mercury](#mercury-experimental)).
+   - Session: Idle, Calling a gateway or Connected, as Pat says, and in how
+     many browsers the mailbox is open: Pat asks there what it needs during
+     a connection (go ahead on a busy channel, the password).
+   - Last connection: Calling, Connected (with ARDOP's bandwidth), Delivered
+     ("Done with DM6TS at 500 Hz: 1 sent, 0 received"), Done (nothing to
+     send or receive) or Failed, with what to do next, from Pat's log,
+     ARDOP's and Pat's event log (`/run/winlink`):
+
+     | What happened | What to do |
+     |---|---|
+     | No answer from the gateway (Connect timeout) | Check the power, antenna and SWR, and the radio's screen for "Winlink: no TX"; on a weak path choose 500 or 200 Hz; or another gateway or band |
+     | The gateway refused the bandwidth (INCOMPATIBLE BW) | Choose 500 Hz, or the bandwidth the gateway list gives |
+     | The gateway is busy with another station | Try later, or another gateway |
+     | The frequency stayed busy, or Abort was chosen | Try later, another gateway or band |
+     | The password prompt timed out (context deadline exceeded) | Set the password on this page, or keep the mailbox open to type it |
+     | The gateway refused the password (secure login failed) | Check the password; one set before 31 January 2018 is in capitals |
+     | The link dropped during the exchange | What was delivered counts; connect again, narrower on a weak path |
+     | Pat could not tune the radio (Unable to QSY) | The radio's screen says why |
+
+     The same line goes into Pat's log, so the mailbox shows it too.
+   - Logs, Download: Pat's log, its output, ARDOP's, Mercury's, Pat's event
+     log, the radio's state and the status, as one text file to attach to a bug
+     report. The passwords in them are masked: the Winlink page's, the ones
+     in Pat's Settings, and the one Pat prints for a new account ("DO NOT LOSE
+     YOUR PASSWORD"). The gateways and the subjects of your mail are in it;
+     like the Files page, it opens only by the radio's own names.
 4. Press Open the mailbox, or open `http://x6100.local:8080/` (`x6200.local`
    on an X6200, or the radio's address): Pat's own page, where you write and
    read your mail. Its Settings page has the rest of Pat's options. The
-   callsign, the password, the locator and the ARDOP and radio settings are
-   set again by the radio each time Pat starts: change those on the radio's
-   Winlink page, not in Pat.
+   callsign, the locator and the ARDOP, VARA HF (Mercury) and radio settings
+   are set again by the radio each time Pat starts, and so is the password
+   once one is set on the radio's Winlink page: change those there, not in
+   Pat. A password typed in Pat's Settings is kept while the Winlink page has
+   none (up to v0.3.6 it was emptied at Pat's next start, #80).
 
 Connecting to a gateway:
 
@@ -2422,7 +2635,31 @@ Connecting to a gateway:
 - ARDOP keys the radio the way the radio's own digital modes do, and
   identifies with your callsign in CW. The radio does not key for Winlink
   while it is already transmitting, nor for 5 minutes after a high SWR
-  stopped a Winlink transmission; the screen says so.
+  stopped a Winlink transmission. The screen says so as it happens ("TX
+  stopped: SWR 3.2", then "Winlink: no TX for 5 minutes, check the
+  antenna") and at each refused key with the time left ("Winlink: no TX,
+  high SWR, the hold ends in 4 min"); the Winlink page's SWR hold
+  row counts the minutes down, and Pat's log says when it ends ("OpenX6X00:
+  high SWR stopped a Winlink transmission: no TX for 5 minutes, until
+  14:32").
+- Close the radio's digital apps first. While one is open (FT8, FT4, JS8,
+  WSPR, PSK, Olivia, JTTY, RTTY, SSTV, WeFax, NavTex) it holds the radio's
+  frequency, mode and audio: Winlink does not key ("Winlink: no TX, FT8 is
+  open, close it") and Pat's QSY is not made. One opened while Winlink
+  transmits stops that transmission ("Winlink: TX stopped, FT8 is open").
+  Up to v0.3.6 a connection without a QSY could key on the app's frequency,
+  between its slots.
+- When Pat's QSY is not made, the screen says why, where Pat's log only has
+  "Unable to QSY": "Winlink: no QSY to 7.061.500 MHz, FT8 is open, close
+  it", "..., the radio is on the air", "..., the frequency is locked (LOCK)"
+  (the LOCK key, or the browser panel's lock), "..., not a frequency the
+  radio can tune" or "..., the radio was busy, try again".
+- The TX level is the one the radio's digital apps share (see
+  [Digital-mode TX level](#digital-mode-tx-level)). It is first judged about
+  2 s into a frame (1.3 s for the base to settle, then half a second of
+  readings), so a shorter frame leaves it as it is. Up to v0.3.6 ARDOP frames
+  could pull the level down, frame after frame, until the power fell to a few
+  tenths of a watt (#66). One or two FT8 transmissions bring it back.
 - Winlink transmits only on the frequency the radio listens on, which is the
   gateway's once Pat has tuned there. This is checked as each transmission
   begins, on the band Pat's QSY brought (split and the [TX shift](#tx-shift)
@@ -2441,9 +2678,9 @@ Connecting to a gateway:
   - A QSY Pat asks while the radio transmits is made when the transmission
     ends. A frame ARDOP sends right after that transmission goes out after the
     QSY, as a transmission of its own, on Pat's new frequency. If the radio
-    cannot go there (an app holds the frequency): no key, "Winlink: no TX, the
-    radio could not go to Pat's 7.100.000 MHz", until the radio is on that
-    frequency or Pat tunes again.
+    cannot go there (an app or LOCK holds the frequency): no key, "Winlink: no
+    TX, the radio could not go to Pat's 7.100.000 MHz", until the radio is on
+    that frequency or Pat tunes again.
   - A connection keeps its frequency: the one Pat tuned last, or where ARDOP
     last transmitted. Turn the dial or choose the other VFO between two
     transmissions, and Winlink does not key: "Winlink: no TX, the radio left
@@ -2453,8 +2690,48 @@ Connecting to a gateway:
     listen (ARDOP hears that frequency too). Pat's tune-back after a session
     is a QSY too, so retuning right after a session and connecting at once
     without a frequency waits that minute.
+- The ARDOP bandwidth: Pat's gateway list fills in each gateway's widest
+  ARDOP bandwidth (2000MAX for a gateway listed as ARDOP 2000), the Connect
+  dialog takes it over and the browser remembers it for the next time. The
+  radio's Pat keeps to the bandwidth on the Winlink page instead: a gateway
+  listed wider is called at that bandwidth, and Pat's log says so ("ARDOP
+  bandwidth 500MAX, the widest set on the radio (Operating > Winlink), not the
+  2000MAX asked"). A gateway that runs 2000 Hz takes a 500 Hz call and the
+  session runs at 500 Hz. Up to v0.3.6 the gateway list's bandwidth won, and
+  the page's only counted for a connection without one.
+  - 500 Hz (the default) is the one to start with. Reported from the air
+    (#18): at the radio's few watts a 200 Hz session connected at once where
+    the gateway list's 2000MAX did not. ARDOP's calls are the same narrow
+    frames whatever the bandwidth, but a 2000 Hz session starts with four
+    carriers and its most robust frame is 500 Hz wide, while a 200 or 500 Hz
+    session can fall back to ARDOP's most robust frame (200 Hz, one carrier);
+    500 Hz is the faster of the two on a good path.
+  - 200 Hz is the most robust, for a weak path, but slower, and a gateway
+    fixed at 500 Hz or wider refuses it ("REJECTED ... INCOMPATIBLE BW" in
+    `ardopcf.log`). 1000 and 2000 Hz are faster on a good path, with a gateway
+    that runs them; a gateway fixed at 1000 or 2000 Hz refuses a narrower call.
+  - Pat's Connect dialog still shows the gateway list's bandwidth; what is
+    sent is the narrower of the two.
 - Pat listens before it calls: on a busy frequency it asks in the mailbox
   whether to go ahead.
+- Keep the mailbox open during a connection, on a phone too (a phone that
+  goes to sleep closes it): Pat asks there what it needs, whether to go
+  ahead on a busy frequency and the password when none is set, and gives up
+  when nobody answers (after a minute for the password). The Connections
+  card says in how many browsers the mailbox is open.
+- Lines in the mailbox's log that start with "OpenX6X00:" are the radio's:
+  what Pat cannot see itself. No password set, a transmission or a QSY the
+  radio refused and why, the SWR hold, and how each connection ended with
+  what to do next.
+- The gateway asks for the password once its welcome is in (the line ending
+  in `>`). With none set, Pat asks for it in the mailbox and gives up after a
+  minute: "Exchange failed: context deadline exceeded", and the connection
+  ends. Set the password on the Winlink page (its Password row says whether
+  Pat has one, and where it was set), or keep the mailbox open during the
+  connection to type it there. A new account's first connection over the air
+  goes without one: the gateway then sends the account's password in a
+  message, and Pat's log shows it ("DO NOT LOSE YOUR PASSWORD"; the logs
+  download masks it).
 - The gateway list: the first time, Pat fetches it from winlink.org when the
   radio has internet, and keeps it on the SD card. Without internet it uses
   the list built into Pat (April 2026). Updating it needs the internet.
@@ -2471,7 +2748,8 @@ Good to know:
 - The mailbox answers only to the radio's address and its own names
   (`x6100.local`, the Tailscale name, the short name on your tailnet), and refuses requests from the pages of
   other sites, so a web page you happen to visit cannot use it through your
-  browser. The configurator changes Winlink only when opened by those names
+  browser. It never answers a request that came from the internet through
+  Tailscale Funnel. The configurator changes Winlink only when opened by those names
   too. ARDOP and the radio's frequency control for Pat listen on 127.0.0.1,
   which Tailscale (userspace mode) also opens to your tailnet.
 - The password is kept on the radio's system partition (`/var/lib/winlink`),
@@ -2487,17 +2765,116 @@ Good to know:
   every 100 days) and fetches the forms when you update them.
 - Pat runs behind the GUI and the audio (lower priority).
 - Over SSH, `x6100-winlink status` prints the state, and
-  `/run/winlink/pat.log` and `/run/winlink/ardopcf.log` have the programs'
-  output (in memory).
+  `/run/winlink/pat.log`, `/run/winlink/ardopcf.log` and
+  `/run/winlink/mercury.log` have the programs' output (in memory).
+  `/run/winlink/radio` is the radio's state as the GUI writes it each second
+  while the modem is on its audio (the Before you connect card's).
 
-Tested on an X6200: the receive path, Pat's page and its guard, and ARDOP's
-ID frame on the air (1 W). Not tested yet: a real session with a gateway, and
-the X6100 on the air. Reports are welcome ([#18](https://github.com/Guru-RF/OpenX6X00/issues/18)).
+Sessions with gateways work, as reported on
+[#18](https://github.com/Guru-RF/OpenX6X00/issues/18): KM4GKD on an X6100,
+80 m to W4NWG, a message sent; M7SVA from the UK to DM6TS on 40 m, a message
+sent at 200 Hz (2000MAX did not connect); EA5JTT's X6200 reached HB9MM at
+2000MAX and stopped at the password, which was not set
+([#80](https://github.com/Guru-RF/OpenX6X00/issues/80)). Tested here: the
+receive path, Pat's page and its guard, ARDOP's ID frames on the air at 1 W
+(X6200) and its frames at 5 W into a dummy load (X6100). More reports are
+welcome on #18.
+
+Pat's own Settings has "Listen for inbound P2P traffic": the radio turns it
+off again each time Pat starts. Listening would make the radio transmit,
+unattended, on whatever frequency it is on.
 
 Pat (MIT, Martin Hebnes Pedersen LA5NTA) and ardopcf (MIT, Rick Muething, John
 Wiseman, Peter LaRue) come with the firmware: Pat with small changes (its page
-answers only to the radio's names, no calls home), ardopcf with its audio and
-PTT through the radio's GUI.
+answers only to the radio's names and never through Tailscale Funnel, no calls
+home, the Winlink page's ARDOP bandwidth as the widest, its log open to the
+radio's lines), ardopcf with its audio and PTT through the radio's GUI.
+
+### Mercury (experimental)
+
+[Mercury](https://github.com/Rhizomatica/mercury) is a second HF modem for
+Winlink, from Rhizomatica's HERMES project: OFDM modes up to 2.1 kHz wide,
+faster than ARDOP on a good path, down to an MFSK mode for the weakest
+signals, and a VARA-style connection that Pat drives as its VARA HF transport.
+It comes with the firmware, pinned at version 1.9.21: `x6x00-mercury` is
+Mercury with the radio's GUI as its sound card and PTT, as ardopcf has.
+
+It is experimental. Two stations connected and exchanged mail through it on a
+PC, each with the radio's own Winlink code and Pat, but it has not been on the
+air from a radio yet. It needs far more of the radio's processor than ARDOP:
+on an X6100, into a dummy load, about one of its four cores, the radio at
+39 % of its processor with Mercury listening (18 % with ARDOP) and at most
+51 % during calls, its receiver never falling behind. The X6100 has no
+temperature sensor to read. Not measured on an X6200 yet.
+
+Choosing it: on Operating > Winlink, the Station card's Modem, Mercury
+(experimental), and its bandwidth, then Save. One modem runs at a time, since
+the radio's audio takes one: with Winlink on, Pat stops, ARDOP stops, Mercury
+starts and Pat starts again; the same way back to ARDOP. Status says "Running
+as ON6URE" once Pat and Mercury run, and the Connections card's Modem row
+"Mercury on the radio's audio".
+
+Who answers:
+
+- Only Mercury 1.9.20 or later: 1.9.20 and later do not connect to 1.9.19 or
+  older, and Mercury does not talk to VARA or ARDOP at all. Ask the other
+  station which version it runs.
+- Another Mercury station, station to station (P2P). The radio calls; it does
+  not answer calls (P2P listening stays off, as with ARDOP), so the other
+  station listens.
+- The few Winlink RMS gateways that run Mercury behind their VARA driver:
+  KO0OOO (its banner gives 7.101.5 MHz) and K7EK-10 were seen in Mercury's
+  issues in 2026; K7EK finds 30 m works best and 80 and 40 m poorly. Winlink's
+  gateway list has no Mercury: Pat's VARA HF list shows VARA gateways, which do
+  not answer it, and ARDOP's gateways do not either.
+
+Dialling: in the mailbox, Connect, VARA HF as the transport, then the other
+station's callsign as the target and its dial frequency in kHz by hand, and
+Connect. The radio tunes there in USB-D and back afterwards, as with ARDOP.
+The bandwidth field may stay empty: Mercury then takes the Winlink page's.
+
+- The bandwidth: 2300 Hz (the default) lets Mercury use all its modes; 500 Hz
+  keeps it narrow (DATAC3, 562 Hz, at the most), and its most robust mode, the
+  MFSK floor, is then a 500 Hz MFSK at half the speed (about 27 s a frame);
+  2750 Hz has 2300's modes for now. The narrower of the two stations' is used.
+  The RX filter has to cover Mercury's audio: 450-2550 Hz at 2300 and 2750 Hz,
+  1200-1800 Hz at 500 Hz. The Before you connect card checks it.
+- Mercury's keys are longer than ARDOP's: a call on its MFSK floor took 27 s
+  on the PC, and a round in a session is up to 30 s on the air plus its head
+  and tail. The radio stops a Mercury key after 40 s ("Winlink: TX stopped
+  after 40 s"), an ARDOP one after 30 s. The power is the same, at most 7 W,
+  and everything above holds for Mercury too: simplex, the apps, the SWR hold,
+  a QSY asked during a key.
+- Mercury sends no CW ID (Pat's CWID ON is not one of its commands): the
+  callsigns go in its own call frames.
+
+When it does not work:
+
+- The Connections card's last connection says what happened, as with ARDOP:
+  no answer (the other station needs Mercury 1.9.20 or later, a VARA gateway
+  from Pat's list does not answer it), a dropped link (500 Hz on a weak
+  path), "Pat called through ARDOP, but the radio runs Mercury" (VARA HF in
+  Pat's Connect dialog, or ARDOP on the page), "Mercury was not ready", a
+  bandwidth Mercury does not have (500, 2300 or 2750).
+- The Modem row says "Ready, but it fell behind the receiver lately" in red,
+  and Pat's log "OpenX6X00: Mercury could not keep up with the receiver": one
+  of Mercury's decoders dropped audio, or it threw away audio it had not
+  decoded yet ("decoder ring full" or "RX backlog exceeded" in its log), and
+  its connections fail. The radio's processor is short for it: use ARDOP, and send
+  the logs download on [#18](https://github.com/Guru-RF/OpenX6X00/issues/18),
+  it helps the measurement.
+- Mercury's log is `/run/winlink/mercury.log` (in the logs download too), its
+  settings `/run/winlink/mercury.ini`, written at each start: its TNC ports
+  8300 and 8301 for Pat and its broadcast port 8100, all on 127.0.0.1 (which
+  Tailscale's userspace mode also opens to your tailnet, as ARDOP's), no web
+  UI, no message store.
+
+Mercury (GPL-3.0-or-later, Rafael Diniz and Rhizomatica's HERMES project; its
+FreeDV part LGPL-2.1 with KISS FFT in it BSD-3-Clause, its iniparser, nanorq
+and oblas MIT) comes with the firmware as upstream has it, with two small
+changes: its TNC and broadcast ports listen on 127.0.0.1 only, and it answers
+Pat's VERSION with a VERSION line, so Pat never hangs starting it
+(`third-party/mercury/UPSTREAM.md`).
 
 ## Browser panel
 
@@ -2505,13 +2882,15 @@ The radio worked natively from a browser: `http://x6100.local/panel` (the
 web configurator's Remote > Panel page). Not a picture of the radio's screen
 but the radio's own controls, laid out for a touch screen, on a phone, a
 tablet or a PC, portrait or landscape: what the closed phone app does, as a
-web page, nothing to install, any device with a browser.
+web page, nothing to install, any device with a browser. Away from home it
+works over Tailscale, and with [Tailscale Funnel](#tailscale-funnel) from a
+browser paired at home on any device.
 
 ![The Panel page on a tablet](screenshots/web_panel.png)
 
 - The spectrum and the waterfall, live from the radio's own FFT (a kilobyte a
   frame, fifteen a second: a tenth of the Screen page's bandwidth), with the
-  frequency scale, the IARU band plan strip, the VFO line and the passband.
+  frequency scale, the band plan strip, the VFO line and the passband.
   Tap or drag to tune, pinch (or Ctrl + the mouse wheel) to zoom, the wheel
   to tune by the step. Colours: Blue, Fire, Ice, Grey.
 - The frequency: tap it for a keypad (kHz). BAND up and down, MODE, STEP,
@@ -2574,12 +2953,14 @@ The page talks to the GUI's remote WebSocket (port 50002, the Screen page's):
 `panel 1` subscribes to the state (`state {...}` as JSON: frequency, mode,
 filter, the switches and the levels, whenever something changes), the
 S-meter (`m <dB>`, ten a second), the TX meters (`t <W> <SWR> <ALC>`), the
-bands and the band plan (`bands`, `plan`), the spots (`spots [...]`) and the
+bands and the band plan (`bands`, `plan`; again when either changes: another
+plan or region, a band edited on the web page), the spots (`spots [...]`) and the
 spectrum as binary frames (16 bytes header `{u16 0xFFFF, u16 bins, u32
 centre Hz, u32 width Hz, u32 sequence}`, then one int8 dB per bin). `set NAME
 VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list),
 `agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1), `sql`, `rfg`
-(0-100), `vol` (0-55 on the X6100, 0-100 on the X6200), `pwr` (tenths of a watt), `step`, `zoom` (1-8), `band`
+(0-100), `vol` (0-55 on the X6100, 0-100 on the X6200), `pwr` (tenths of a watt: 1-100,
+1-80 on the X6200, 1-50 there on battery), `step`, `zoom` (1-8), `band`
 (+1/-1), `vfo` (toggle), `filter LO HI`. A `set` the radio refuses is
 answered `err ...` (`err freq: locked (LOCK, or an app holds the
 frequency)`, `err freq: not a frequency this radio tunes`, `err NAME: the
@@ -2608,7 +2989,8 @@ written), `conflict` (the number holds another QSO) or `unknown` (never
 seen, the radio restarted since, or no longer kept). After `size` the radio lists its keys (`keys GEN APP
 ...`: the X6200 has no PRE, V/M, AGC or LOCK key) and, to a panel, `modes 8|10`
 (the X6200 adds SAM and WFM; `set mode` with one the radio has not is answered
-`err mode: not on this radio`) and `volmax 55|100`, the AF volume's range. The greeting `hello <version> <boot>` ends with a
+`err mode: not on this radio`), `volmax 55|100`, the AF volume's range, and `pwrmax 100|80`, the top of
+`pwr` in tenths of a watt. The greeting `hello <version> <boot>` ends with a
 number chosen when the GUI started: a client that sees it change knows the
 radio restarted. Sessions and control: `pair?` puts a code on the radio's
 screen, `pair CODE NAME` answers `paired TOKEN ROLE TX`, `auth TOKEN` at each
@@ -2696,16 +3078,25 @@ is paired once, with a code the radio shows:
    code on its screen for two minutes (Settings > General > BROWSER REMOTE >
    Pair code shows it again, and the card shows it too).
 2. Type the code and a name for the browser ("Kitchen phone", "Shack PC").
-   Three wrong tries burn the code; Pair asks for a new one.
+   Three wrong tries burn the code; Pair asks for a new one. A browser gets a
+   new code at most every 30 s, and after each burned code it waits twice as
+   long as the time before (1 min, 2, 4, up to an hour), with "Pairing paused"
+   on the radio's screen and in the dialog: guessing the six digits from a
+   browser would otherwise take less than an hour. Settings > General >
+   BROWSER REMOTE > Pair code gives a code at once and starts the waits over.
 3. The browser is paired: the bar shows its name, and it stays paired through
    reloads and restarts of either side (a token in the browser's storage,
    shared by the Panel and the Screen page). The radio keeps up to sixteen
-   paired browsers in `/mnt/remote_sessions.conf`.
+   paired browsers in `/mnt/remote_sessions.conf`, each as a hash (SHA-256)
+   of its token: the Files page hands out what is in `/mnt`, and a hash is no
+   use to whoever reads it. A file from before the hashes is converted at the
+   first start; the browsers paired before stay paired.
 
 The first browser ever paired is the admin: it operates the radio and manages
 the others (Sessions in the bar lists them, with their name, their address,
-whether they are connected now and when they were last seen; Revoke ends one
-at once, its open connections included). Every later browser is an operator:
+"via Funnel" for one last seen from the internet, whether they are connected
+now and when they were last seen; Revoke ends one at once, its open
+connections included). Every later browser is an operator:
 it operates the radio but manages nothing. A browser unpairs itself from its
 name in the bar. Settings > General > BROWSER REMOTE > Forget all revokes
 every browser at the radio, for a radio that changes hands or a code that
@@ -2859,7 +3250,9 @@ here it is a web page, nothing to install.
 Where: the Remote link in the web configurator's menu. Settings > General >
 BROWSER REMOTE turns the server on and off (on by default) and shows who is
 watching; the web page offers to turn it on when it is off. The port is in
-`/mnt/remote.conf`. Up to three viewers at a time.
+`/mnt/remote.conf`. Up to four viewers at a time, the Panel and Screen pages
+together, two of them at most from the internet through
+[Tailscale Funnel](#tailscale-funnel).
 
 The screen is streamed even while the radio's panel is dark (Screen off after,
 Screen always off): a radio with its screen off, worked from the browser, is
@@ -2898,13 +3291,19 @@ program on the network tunes the radio, hears it and keys it.
   unless someone is on the air; a browser that was operating sees "TCI
   client active" and takes control back on purpose (Pairing and control,
   under Browser panel).
+- Not on the internet: TCI has no login, so a connection through Tailscale
+  Funnel is refused, also from a funnel set up by hand (`tailscale funnel
+  50001`). The one exception is the browser Panel's own sound and microphone
+  from away, which gives a paired browser's key first and may then only set
+  its audio and key with it ([Tailscale Funnel](#tailscale-funnel)). A TCI
+  program away from home connects over Tailscale on that machine.
 - One transmission at a time: the client that keyed holds it, and its unkey
   or its leaving unkeys the radio, whoever has control by then. Another
   operating client's key meanwhile, also one sent while the first key is
   still on its way to the radio, is answered `trx:0,false;` and changes
   nothing, not even who has control: the client that keyed still tunes
   during its over. A key the radio refuses (someone on the air, TCI audio in
-  CW or DIGU) is answered `trx:0,false;` too, to the client that sent it
+  CW or CW-R) is answered `trx:0,false;` too, to the client that sent it
   alone, and so is a PTT key that, once at the radio, does not put it on the
   air within a second (a frequency it does not transmit on). A key still on
   its way when its client unkeys or leaves keys nothing, and a client whose
@@ -2922,7 +3321,9 @@ program on the network tunes the radio, hears it and keys it.
   otherwise.
 - What it carries: `vfo`, `modulation` (lsb, usb, cw, cwr, am, nfm, digl,
   digu), `rx_filter_band`, `agc_mode`, `rit_enable` / `rit_offset`,
-  `drive` (TX power), `trx` (PTT; `trx:0,true,tci;` keys with the client's
+  `drive` (TX power, 0-100 %: 0.1 W up to 10 W, 8 W on the X6200; on its
+  battery 5 W from 62 % up),
+  `trx` (PTT; `trx:0,true,tci;` keys with the client's
   audio as the microphone), `rx_smeter` and `rx_channel_sensors` (the
   S-meter in dBm, after `rx_sensors_enable:true;`), `tx_sensors` (mic level,
   forward power, SWR, ALC, after `tx_sensors_enable:true;`), the RX audio
@@ -2944,8 +3345,9 @@ program on the network tunes the radio, hears it and keys it.
   rate with a filter, flat to 9 kHz. The greeting gives the client's format,
   a change is answered with what moved, and every frame's header says its
   rate, type, length and channels.
-- TCI audio on the air (`trx:0,true,tci;`): in LSB, USB, AM and FM, not in
-  CW or DIGL/DIGU, where the key is refused. Every 21.3 ms a `TX_CHRONO`
+- TCI audio on the air (`trx:0,true,tci;`): in every mode but CW and CW-R,
+  where the key is refused. DIGU and DIGL take it as the radio's own FT8,
+  PSK and Winlink take theirs in USB-D. Every 21.3 ms a `TX_CHRONO`
   asks for 21.3 ms of audio in the client's format (1024 samples of each
   channel at 48 kHz, 512 at 24 kHz); the radio takes 8 to 48 kHz in any of
   the four types and transmits the first channel. A frame whose size is not
@@ -2966,9 +3368,10 @@ program on the network tunes the radio, hears it and keys it.
   at twice its size).
   - Settings > Radio: Rig "TCI Client RX1", Network Server the radio's
     address and port (`x6100.local:50001`), PTT Method CAT (the only one TCI
-    has), Mode USB (Data/Pkt puts the radio in DIGU, where TCI audio does not
-    key it; or None, with the radio in USB yourself), Split Operation None or
-    Fake It.
+    has), Mode Data/Pkt (the radio in DIGU, as for its own FT8) or USB; or
+    None, with the radio's mode set yourself. Split Operation None or Fake
+    It. Up to v0.3.6 TCI audio did not go out in DIGU, so Mode had to be
+    USB.
   - Settings > Audio: "Use TCI Audio" on, then restart the program. The Rx
     dB box beside it sets the receive level. Keep it on: their keying always
     sends TCI audio (`trx:0,true,tci;`), so with it off the radio is keyed
@@ -3066,6 +3469,12 @@ Good to know:
 - Tailscale runs in userspace mode (the radio's kernel has no TUN device): it
   hands each incoming connection to the radio's own port. The radio itself
   cannot reach the other machines of the tailnet, and needs not.
+- It hands them to the radio's own address, 127.0.0.1, so what listens on
+  this radio only is open to the tailnet too while Tailscale runs: the hamlib
+  port of Winlink (4532, it tunes the radio), ardopcf's host ports (8515 and
+  8516, which can make it transmit while Winlink is on) and gpsd (2947, the
+  radio's position). Another reason to share the radio's machine only with
+  people you would let in at home.
 - Its log upload to Tailscale is off (`--no-logs-no-support`), and so is its
   DNS on the radio.
 - The login (the radio's key) is kept on the radio's root filesystem, out of
@@ -3087,6 +3496,96 @@ Good to know:
 
 The tailscaled program is Tailscale's own build (BSD-3-Clause), fetched from
 pkgs.tailscale.com; OpenX6X00 does not include it.
+
+### Tailscale Funnel
+
+Funnel puts the browser Panel on the internet, for a phone or a PC that does
+not run Tailscale (a work PC, a friend's tablet, a hotel's computer): the
+Panel and the Screen page at `https://<name>.<tailnet>.ts.net/panel`, with
+their sound and microphone, through Tailscale's relays, with nothing opened on
+your router. Only browsers paired at home get in.
+
+What goes on the internet, and what does not:
+
+- The Panel and the Screen page, as pages that tailscaled serves itself: the
+  web server writes them at its start into the radio's memory
+  (`/run/x6100-funnel`), without the menu and nothing of the configurator,
+  and again when the radio's name on the tailnet changes: the pages may
+  connect to that name alone. Any other address on that name leads to the
+  Panel.
+- Their two sockets: the browser remote's (50002) and TCI (50001), which take
+  nothing from the internet, not even a greeting, before the key of a browser
+  paired at home, within 5 s; a wrong key closes the connection, and ten wrong
+  keys within ten minutes refuse Funnel for ten minutes (a note on the radio's
+  screen). Over TCI only the Panel's own audio and its key go, for a session
+  that may transmit; TCI programs cannot pair and do not come over Funnel.
+  The sound and the microphone go to one browser at a time; a phone that
+  changes networks (from the WiFi to its mobile data) has them back within
+  seconds, in place of its connection from before.
+- Never: the web configurator (it has no login: every request from the
+  internet gets a 403, also through a funnel set up by hand), TCI programs,
+  Pat's mailbox, SSH, rigctld, ardopcf, gpsd.
+- At most two browsers come from the internet at once; the home network
+  always has two more. Sessions shows a browser from the internet with its
+  address there and "via Funnel"; the log says so too.
+
+Turning it on:
+
+1. Tailscale is on and Connected (above), and BROWSER REMOTE is on (Settings >
+   General).
+2. Settings > Wireless > TAILSCALE > Funnel on, or Remote > Tailscale >
+   Tailscale Funnel on the web configurator.
+3. The first time, your tailnet must allow it: HTTPS certificates and the
+   "funnel" node attribute (Tailscale's default policy gives it to its
+   members). Until it does, Public on the radio shows a code, and the web page
+   an Allow in Tailscale link: the admin console's own page that turns them on
+   for your tailnet (it needs MagicDNS on). Once allowed, the radio goes on by
+   itself.
+4. Public shows `https://<name>.<tailnet>.ts.net/panel`. The name can take up
+   to ten minutes to be found everywhere, and the first visit waits a few
+   seconds while tailscaled fetches its certificate.
+
+Getting a browser in (pair at home, use from anywhere):
+
+- Pairing is refused over Funnel. Pair the browser at home as always
+  ([Pairing and control](#pairing-and-control)), then, on the Panel at home,
+  press **Use away from home**: the radio makes that browser a key of its own,
+  "NAME (away)", with the same rights, and the page offers the link to the
+  Panel on the internet with the key in it, after `#`, which no server sees.
+  Open it in the same browser and keep the page (a bookmark): it takes the key
+  out of the address bar and remembers it. A new away key replaces the one
+  made before; Revoke in Sessions ends it, as any browser's. The key never
+  shows on the radio's screen, which any viewer may watch.
+- A device with Tailscale on can also open the same address over the tailnet
+  and pair there, as at home.
+- Opened without a key, the page says it is not paired for use away from
+  home, and stops trying.
+
+Good to know:
+
+- The name becomes public: Funnel needs an HTTPS certificate for it, and every
+  certificate is listed in public logs that scanners read, so anyone can find
+  the address. Only paired browsers get in, but pick a network name you do not
+  mind being seen.
+- You remain the control operator of every transmission from away, as your
+  licence requires: the Panel shows the radio's state, and PTT is held by the
+  button and let go when the link stalls.
+- Bandwidth: the sound takes about 50 kB/s each way, the spectrum about
+  15 kB/s, the Screen page's picture much more (Picture: fast helps).
+- While Funnel is on, port 443 on the tailnet is the Panel's (with a real
+  certificate); the configurator stays at `http://<name>/`, and its https page
+  is reached by the radio's address on the LAN.
+- The radio owns Funnel: a funnel set up by hand (`tailscale funnel ...`, the
+  command is not installed on the radio) is taken off the internet within a
+  minute, whether Funnel is on or off; serving to the tailnet alone stays.
+- It stays on through restarts, and after a new card image it comes back by
+  itself once Tailscale has its new login (the name may then be `x6200-1`
+  while the tailnet still has the old machine: remove it in the admin console).
+  Tailscale turned off, and the radio's shutdown, take the funnel out of
+  tailscaled; the next start puts it back within seconds.
+- Over SSH, `x6100-tailscale status` prints `funnel=` (off, starting, enable,
+  on, error) with `funnel_text=` and `public=`; `x6100-tailscale funnel on|off`
+  is the switch. Its setting is `funnel=0|1` in `/mnt/tailscale.conf`.
 
 ## Ethernet
 
@@ -3352,7 +3851,7 @@ Logs page shows them all.
 | `14` | `02` | RF gain (0-255) | yes | yes |
 | `14` | `03` | Squelch (0-255) | yes | yes |
 | `14` | `09` | CW pitch (0-255 = 300-900 Hz) | yes | yes |
-| `14` | `0A` | TX power (0-255 = 0-10 W) | yes | yes |
+| `14` | `0A` | TX power (0-255 = 0-10 W; the X6200 stops at 8 W) | yes | yes |
 | `14` | `15` | Monitor level | yes | - |
 | `15` | `02` | S-meter (Icom scale, 120 = S9, for network clients) | yes | - |
 | `15` | `11` | TX power meter | yes | - |
@@ -3431,7 +3930,7 @@ The DATA partition, readable on a PC.
 | `https/` | the web configurator's HTTPS certificate |
 | `tailscale.conf` | Tailscale on or off: `enabled=0|1` |
 | `tailscale/` | the tailscaled program, downloaded when Tailscale is turned on and checked before every start |
-| `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=500|2000` |
+| `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=200|500|1000|2000` (the widest ARDOP may use), `modem=ardop|mercury`, `mercury_bandwidth=500|2300|2750` |
 | `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
 
@@ -3486,6 +3985,17 @@ x6100-gui-rebuild` (then `make`) in `~/AetherX6100Buildroot/build`. Buildroot
 copies the local GUI sources with `rsync -u`, so a newer file edited inside
 `build/build/x6100-gui-*/` survives a rebuild: always edit this repository,
 never the copy in the build tree.
+
+The Winlink modems are built by the GUI's CMake and installed with it, so
+the image and the update bundle carry them: ardopcf (`third-party/ardopcf`)
+and, experimental and chosen on the Winlink page,
+`x6x00-mercury` (`third-party/mercury`: Mercury v1.9.21's daemon build and
+our program around it, which takes its audio and PTT through the GUI's
+modem socket). Pat is built outside, by `tools/pat/build.sh`. In the PC
+build both modems are built only when named (`cmake --build build-host
+--target ardopcf x6x00-mercury`); `tools/winlink` then tests the GUI's
+modem socket with them, Pat to Pat over Mercury included (see its
+README).
 
 The private tests and UI harnesses of the original author are not part of
 this repository.

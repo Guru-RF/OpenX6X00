@@ -19,6 +19,10 @@
 #   boot-check               before each GUI start (x6100_daemon): a pending version that keeps
 #                            dying is rolled back
 #
+# Going back by hand to a version before Tailscale Funnel (rollback, or the install of its bundle) takes Funnel
+# off first, and refuses when it cannot be sure of that (#58): that version would leave the funnel on the
+# internet. boot-check's own step back tries the same, and goes back whatever came of it.
+#
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
 import hashlib
@@ -56,6 +60,12 @@ TIMEOUT = 30
 RUN_LIMIT = 1800
 LOCK = os.path.join(STATE, "lock")    # one updater at a time: the browser, the GUI and the start loop share it
 LOCK_WAIT = int(os.environ.get("X6100_UPDATE_LOCK_WAIT", "120"))
+TAILSCALE = "/usr/sbin/x6100-tailscale"
+TAILSCALE_STATE = "/var/lib/tailscale/tailscaled.state"   # where tailscaled keeps a funnel between its starts
+FUNNEL_SINCE = (0, 3, 7)              # the first version that knows Tailscale Funnel (#58) and keeps it off by itself
+FUNNEL_WAIT = 30                      # s x6100-tailscale may take to make sure no funnel is left, before a step back
+FUNNEL_QUIET_WAIT = 5                 # s the start loop's own step back gives it
+FUNNEL_QUIET_LIMIT = 20               # s it waits for x6100-tailscale at most then, whatever that one does
 
 
 class Fail(Exception):
@@ -126,6 +136,73 @@ def vtuple(v):
         digits = "".join(ch for ch in part if ch.isdigit())
         out.append(int(digits) if digits else 0)
     return tuple(out)
+
+
+def version_parts(v):
+    """A version's numbers, each part's leading digits: 0.3.6-12-g076be5a is 0.3.6 (vtuple makes 0.3.612076 of
+    it), and what is no version ("unknown", none) is 0"""
+    out = []
+    for part in str(v or "").strip().lstrip("v").split("."):
+        n = len(part) - len(part.lstrip("0123456789"))
+        out.append(int(part[:n]) if n else 0)
+        if n < len(part):                 # -12-g076be5a, rc1: what follows is no version number
+            break
+    return tuple(out)
+
+
+def before_funnel(version):
+    """The version knows nothing of Tailscale Funnel (before 0.3.7), or is not known"""
+    v = version_parts(version)
+    n = max(len(v), len(FUNNEL_SINCE))
+    return v + (0,) * (n - len(v)) < FUNNEL_SINCE + (0,) * (n - len(FUNNEL_SINCE))
+
+
+def version_name(version):
+    return f"v{version}" if version_parts(version) > (0,) else "the version before"
+
+
+def funnel_off_before(version, what):
+    """Going back by hand to a version before Tailscale Funnel (#58): Funnel off first, or not at all. That version never
+    looks at the funnel tailscaled keeps in its state (on the root filesystem, which the step back does not touch), and
+    its TCI and browser remote would take connections from the internet without a key. x6100-tailscale turns the
+    setting off and takes the funnel out of tailscaled, through its local API while it runs, out of its state file while
+    it does not, and waits until it is sure. Fail, saying what to do, when it is not; else the note for the result line"""
+    if not before_funnel(version):
+        return ""
+    name = version_name(version)
+
+    def refused(why):
+        return Fail(f"{what}: Funnel could not be made sure to be off ({why}). {name} knows nothing of Tailscale Funnel "
+                    f"and would leave TCI and the browser remote on the internet without a key: turn Funnel off first, "
+                    f"or Tailscale, wait until it says Off, and try again")
+    if not os.access(TAILSCALE, os.X_OK):
+        if os.path.exists(TAILSCALE_STATE):
+            raise refused("x6100-tailscale is missing")
+        return ""                         # Tailscale never ran on this card
+    try:
+        r = subprocess.run([TAILSCALE, "funnel-clear", str(FUNNEL_WAIT)], stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=FUNNEL_WAIT + 60)
+    except subprocess.TimeoutExpired:
+        raise refused("Tailscale did not answer")
+    except OSError as e:
+        raise refused(e)
+    if r.returncode != 0:
+        why = (r.stderr.strip().splitlines() or [f"exit code {r.returncode}"])[-1]
+        raise refused(why[6:] if why.startswith("error ") else why)
+    return f"; Funnel is off now: {name} knows nothing of it" if "taken off" in r.stdout else ""
+
+
+def funnel_off_quietly(version):
+    """The start loop's own step back (boot-check) to a version before Funnel: Funnel off as funnel_off_before does,
+    but never in the step back's way. A version that keeps dying goes back whatever came of it, within seconds; with
+    Tailscale off or never used x6100-tailscale finds nothing at once, and without it nothing is tried"""
+    if not before_funnel(version) or not os.access(TAILSCALE, os.X_OK):
+        return
+    try:
+        subprocess.run([TAILSCALE, "funnel-clear", str(FUNNEL_QUIET_WAIT)], stdin=subprocess.DEVNULL,
+                       capture_output=True, timeout=FUNNEL_QUIET_LIMIT)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def load(path, default=None):
@@ -396,11 +473,16 @@ def cmd_install(args):
         raise Fail("an interrupted install must be rolled back first")
     progress("verify")
     m = stage(bundle)
+    try:
+        note = funnel_off_before(m["version"], "not installed")     # an older version's bundle (#58)
+    except Fail:
+        shutil.rmtree(os.path.join(WORK, "stage"), ignore_errors=True)
+        raise
     apply(m)
     save(LAST, {"result": "installed", "version": m["version"], "when": time.time()})
     progress("done")
     restart_apps()
-    return f"ok {m['version']}"
+    return f"ok {m['version']}{note}"
 
 
 def cmd_upgrade(args):
@@ -415,6 +497,7 @@ def cmd_rollback(args):
     journal = load(JOURNAL)
     if not journal or journal.get("state") == "rolled back":
         raise Fail("nothing to roll back")
+    note = funnel_off_before(journal.get("from"), "not gone back")   # before any file goes back (#58)
     undo(journal)
     journal["state"] = "rolled back"
     save(JOURNAL, journal)
@@ -422,7 +505,7 @@ def cmd_rollback(args):
         os.remove(PENDING)
     save(LAST, {"result": "rolled back", "version": journal.get("version"), "to": journal.get("from"), "when": time.time()})
     restart_apps()
-    return f"ok back to {journal.get('from')}"
+    return f"ok back to {journal.get('from')}{note}"
 
 
 def cmd_confirm(args):
@@ -454,6 +537,7 @@ def cmd_boot_check(args):
         return "ok"
     pend["starts"] = int(pend.get("starts", 0)) + 1
     if pend["starts"] > MAX_STARTS:
+        funnel_off_quietly(pend.get("from"))
         if journal:
             undo(journal)
             journal["state"] = "rolled back"

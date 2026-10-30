@@ -53,8 +53,13 @@ void cfg_api_stop_flush_thread(void);
 // Load the next/previous band above/below current frequency.
 void cfg_band_load_next(bool up);
 
-/* TX power in W (p_pwr, 0.1..10), saved and applied as Settings does it */
+/* TX power in W (p_pwr, 0.1..BOARD_PWR_MAX), saved and applied as Settings does it */
 void cfg_pwr_set(float watts);
+
+/* The highest TX power in W that can be set (BOARD_PWR_MAX; the X6200 on battery BOARD_PWR_MAX_BAT).
+ * Only later settings are clipped to it: the power already set is left as it is */
+void cfg_pwr_max_set(float watts);
+float cfg_pwr_max_get(void);
 
 /* The other VFO; with independent VFOs (p_indep_vfo) its own band comes with it */
 void cfg_vfo_toggle(void);
@@ -67,6 +72,13 @@ int32_t cfg_default_mode(int32_t freq);
 int cfg_bands_active(int32_t *start, int32_t *stop, char (*names)[16], int max);
 /* The same with the bands' ids (ids may be NULL) */
 int cfg_bands_active_ids(int32_t *ids, int32_t *start, int32_t *stop, char (*names)[16], int max);
+/* The band plan's IARU region (1, 2, 3; the US plans 2; 0 none known, nothing moves): the band list's 160m, 80m,
+ * 40m SSB and 6m still on the edges of the region before take this one's (BandsTable::follow_region). The count of
+ * rows changed. LVGL thread */
+int cfg_bands_follow_region(int region);
+/* The IARU region whose edges the band list's 160m, 80m, 40m SSB and 6m were last given (1, the defaults', until
+ * another region came): the last region the band plan had, for Auto when nothing tells now */
+int cfg_bands_region(void);
 
 // Copy active VFO (freq, mode, agc, att, pre) to inactive VFO.
 void cfg_band_vfo_copy(void);

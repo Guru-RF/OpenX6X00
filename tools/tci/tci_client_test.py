@@ -50,7 +50,8 @@ def played():
 
 
 class WS:
-    def __init__(self, rcvbuf=None):
+    def __init__(self, rcvbuf=None, headers=""):
+        """headers: more request headers, "Name: value\\r\\n" lines (a browser's, Tailscale's proxy's)"""
         self.binary, self.pongs = [], []
         self.rate = None    # bytes a second read at most (a slow link), None: as fast as they come
         if rcvbuf:          # set before connect: the window is offered from it
@@ -62,7 +63,7 @@ class WS:
             self.s = socket.create_connection((HOST, PORT), timeout=5)
         key = base64.b64encode(os.urandom(16)).decode()
         self.s.sendall((f"GET / HTTP/1.1\r\nHost: {HOST}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-                        f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
+                        f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n{headers}\r\n").encode())
         resp = b""
         while b"\r\n\r\n" not in resp:
             chunk = self.s.recv(1024)
@@ -274,7 +275,161 @@ def main():
     formats()
     wsjtx_open()
     wsjtx_slow_link()
+    funnel()
     print("ALL OK")
+
+
+# What Tailscale's proxy adds to a request from the internet through Funnel (tailscaled sets the first itself)
+FUNNEL = "Tailscale-Funnel-Request: ?1\r\nX-Forwarded-For: 203.0.113.7\r\nX-Forwarded-Proto: https\r\n"
+
+
+REVOKED = os.environ.get("TCI_TEST_REVOKED")  # while it exists, the stub's paired browser is revoked
+TOKEN, LISTENER = "0123456789abcdef0123456789abcdef", "11111111111111111111111111111111"
+
+
+def nothing_for(ws, seconds):
+    """No frame at all for seconds: a close counts as none; what came if anything"""
+    got, end = [], time.time() + seconds
+    ws.s.settimeout(0.05)
+    try:
+        while time.time() < end:
+            try:
+                op, p = ws.frame()
+                got.append((op, p[:40]))
+            except (socket.timeout, TimeoutError):
+                pass
+    except RuntimeError:
+        pass
+    ws.s.settimeout(5)
+    return got
+
+
+def closed_within(ws, seconds):
+    end = time.time() + seconds
+    ws.s.settimeout(0.05)
+    try:
+        while time.time() < end:
+            try:
+                ws.frame()
+            except (socket.timeout, TimeoutError):
+                pass
+    except (RuntimeError, OSError):
+        return True
+    finally:
+        try:
+            ws.s.settimeout(5)
+        except OSError:
+            pass
+    return False
+
+
+def funnel_refused(addr="203.0.113.7"):
+    try:
+        WS(headers=FUNNEL.replace("203.0.113.7", addr))
+    except (RuntimeError, OSError):
+        return True
+    return False
+
+
+def funnel():
+    """Issue #58: a funnel made by hand ("tailscale funnel 50001") put TCI, which has no login, on the
+    internet. Over Funnel (tailscaled's header) only the browser Panel's own sound and microphone go:
+    nothing before "auth TOKEN" of a browser paired at home, within 5 s; then the audio commands and a
+    key with its audio for a session that may transmit; one at a time, the same browser's key taking
+    the place of its connection left silent (a phone gone from the WiFi to its mobile data); closed
+    when its session is revoked; wrong keys pause Funnel. A request from the tailnet (Tailscale's
+    proxy, no Funnel header) is taken as before"""
+    ws = WS(headers=FUNNEL)
+    t0 = time.time()
+    got = nothing_for(ws, 2)
+    assert not got, f"over Funnel before a key: {got}"
+    assert closed_within(ws, 4.5), "over Funnel without a key: not closed"
+    print(f"funnel: nothing before a key, closed after {time.time() - t0:.1f} s")
+
+    ws = WS(headers=FUNNEL)
+    ws.text("audio_start:0;")
+    assert closed_within(ws, 1) and not ws.binary, "over Funnel, a command first: not closed"
+    print("funnel: a command before the key: closed, unanswered")
+
+    ws = WS(headers=FUNNEL)
+    ws.text("auth:" + TOKEN + ";")
+    greeting = []
+    while not greeting or greeting[-1] != "ready;":
+        op, p = ws.frame()
+        if op == 1:
+            greeting.append(p.decode())
+    print(f"funnel: the key of a browser paired at home: the greeting ({len(greeting)} lines)")
+    assert funnel_refused("198.51.100.2"), "a second over Funnel was taken"
+    print("funnel: a second one over Funnel refused")
+    # Its page sends nothing while it only listens, but answers the radio's pings (a browser does so itself, also
+    # in a background tab): heard from, it keeps the sound past the 6 s after which a page may be gone, and the
+    # other tab of the same browser (the Panel and the Screen page share its key) is refused at the handshake
+    pings, end = 0, time.time() + 7
+    ws.s.settimeout(0.05)
+    while time.time() < end:
+        try:
+            op, p = ws.frame()
+        except (socket.timeout, TimeoutError):
+            continue
+        if op == 9:
+            ws.send(10, p)
+            pings += 1
+    ws.s.settimeout(5)
+    assert pings >= 2, f"over Funnel, silent 7 s: {pings} pings from the radio"
+    assert funnel_refused("198.51.100.3"), "its page answering the radio's pings 7 s: another connection taken"
+    print(f"funnel: its page answering the radio's pings ({pings} in 7 s): another one still refused")
+    ws.text("vfo:0,0,14250000;modulation:0,cw;drive:0,100;")
+    got = nothing_for(ws, 0.6)
+    assert not [p for op, p in got if op == 1 and p.startswith((b"vfo:", b"modulation:", b"drive:"))], got
+    print("funnel: tuning, mode and drive left unanswered and undone")
+    ws.text("audio_samplerate:24000;audio_stream_sample_type:int16;audio_stream_channels:1;"
+            "audio_stream_samples:512;audio_start:0;")
+    print("funnel:", ws.wait_text("audio_start:0;"), "- RX audio frames:", len(rx_frames(ws, 0.5)))
+    ws.text("trx:0,true;")
+    print("funnel: the radio's own microphone:", ws.wait_text("trx:0,false;"))
+    ws.text("trx:0,true,tci;")
+    print("funnel: keyed with the page's audio:", ws.wait_text("trx:0,true;"))
+    for _ in range(5):
+        ws.wait_chrono()
+        ws.send(2, struct.pack("<8I", 0, 24000, 0, 0, 0, 512, 2, 1) + bytes(32) + bytes(1024))
+    ws.text("trx:0,false;")
+    print("funnel: unkeyed:", ws.wait_text("trx:0,false;"))
+    time.sleep(6.5)     # its page gone without a word: nothing from it, the radio's pings unanswered
+    ws2 = WS(headers=FUNNEL.replace("203.0.113.7", "198.51.100.3"))
+    ws2.text("auth " + LISTENER)
+    assert closed_within(ws2, 1), "another browser's key, the first one silent: not closed"
+    print("funnel: the first one silent 6 s, another browser's key: closed")
+    ws2 = WS(headers=FUNNEL.replace("203.0.113.7", "198.51.100.3"))
+    ws2.text("auth:" + TOKEN + ";")
+    ws2.wait_text("ready;")
+    assert closed_within(ws, 2), "the same browser from another network: its connection from before not closed"
+    print("funnel: the same browser from another network: greeted, its connection from before closed")
+    ws = ws2
+    open(REVOKED, "w").close()
+    t0 = time.time()
+    assert closed_within(ws, 3.5), "over Funnel, its session revoked: not closed"
+    os.remove(REVOKED)
+    print(f"funnel: its session revoked at home: closed after {time.time() - t0:.1f} s")
+
+    ws = WS(headers=FUNNEL)
+    ws.text("auth " + LISTENER)
+    ws.wait_text("ready;")
+    ws.text("trx:0,true,tci;")
+    print("funnel: a session that may not transmit, keying:", ws.wait_text("trx:0,false;"))
+    ws.send(8, struct.pack(">H", 1000))
+
+    for i in range(3):
+        ws = WS(headers=FUNNEL.replace("203.0.113.7", f"198.51.100.{10 + i}"))
+        ws.text("auth:" + "%032x" % (i + 7) + ";")
+        assert closed_within(ws, 1), "a wrong key over Funnel: not closed"
+    assert funnel_refused("198.51.100.20"), "Funnel taken after wrong keys"
+    print("funnel: three wrong keys (the stub's rule): Funnel refused")
+    ws = WS(headers="X-Forwarded-For: 100.101.102.104\r\nTailscale-User-Login: op@example.com\r\n")
+    print("tailnet through the proxy:", ws.wait_text("protocol:"))
+    ws.send(8, struct.pack(">H", 1000))
+    ws = WS()
+    print("the LAN:", ws.wait_text("protocol:"))
+    ws.send(8, struct.pack(">H", 1000))
 
 
 def rx_frames(ws, seconds):
@@ -431,9 +586,8 @@ def wsjtx_open():
     rest = tone_check("wsjtx RX, float32 48 kHz stereo", left[:48000], 1000, 48000, 8000 / 32768, image=23000)
     assert rest < 10 ** (-70 / 20)
 
-    # Keyed as WSJT-X keys (Mode USB: digu is refused for TCI audio), every TX_CHRONO answered
-    ws.text("modulation:0,usb;")
-    collect(1.0, lambda: st["mode"] == "usb")
+    # Keyed as WSJT-X keys, in the digu its Mode Data/Pkt set (#17), every TX_CHRONO answered
+    assert st["mode"] == "digu", st["mode"]
     ws.text("trx:0,true,tci;")
     collect(1.2)
     assert st["trx"] is True, "WSJT-X: TCI failed to set ptt"

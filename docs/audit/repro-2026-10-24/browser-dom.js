@@ -321,6 +321,7 @@ function makeJQuery(doc, win) {
     css(k, v) { if (typeof k === 'object') return this.each((i, el) => Object.assign(el.style, k)); if (v === undefined) return this[0] && this[0].style[k]; return this.each((i, el) => { el.style[k] = v; }); }
     show() { return this.each((i, el) => { el.style.display = ''; }); }
     hide() { return this.each((i, el) => { el.style.display = 'none'; }); }
+    toggle(on) { return this.each((i, el) => { el.style.display = (on === undefined ? el.style.display === 'none' : on) ? '' : 'none'; }); }
   }
   function $(s) {
     if (typeof s === 'function') { s(); return; }

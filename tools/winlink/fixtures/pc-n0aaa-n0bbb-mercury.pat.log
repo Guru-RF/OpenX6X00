@@ -1,0 +1,18 @@
+2026/10/29 19:45:53 VARA modem () initialized
+2026/10/29 19:45:53 Connecting to N0BBB (varahf)...
+2026/10/29 19:45:53 VARA full speed available, registered to N0AAA
+2026/10/29 19:45:53 VARA full speed available, registered to N0AAA
+2026/10/29 19:46:01 Connected to N0BBB (vara)
+;FW: N0BBB
+[Pat-1.0.0-B2FHMG$]
+; N0AAA DE N0BBB (JO21)>
+GZIP_EXPERIMENT: Gzip compression enabled in this session.
+>FD EM V2QZ3AYWCTDV 1842 333 0
+>F> 17
+FS +
+Remote accepted V2QZ3AYWCTDV
+Transmitting [Mercury P2P test 1793299553] [offset 0]
+GZIP_EXPERIMENT: Transmitting gzip compressed message.
+FF
+>FQ
+2026/10/29 19:46:51 Disconnected.

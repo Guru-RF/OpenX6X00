@@ -1,0 +1,1983 @@
+/* HERMES Modem
+ *
+ * Copyright (C) 2025 Rhizomatica
+ * Author: Rafael Diniz <rafael@riseup.net>
+ *
+ * This is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3, or (at your option)
+ * any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdatomic.h>
+#include <sys/types.h>
+#if !defined(_WIN32)
+#include <unistd.h>
+#include <poll.h>
+#include <sys/time.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#endif
+
+#include "os_interop.h"
+
+#include "tcp_interfaces.h"
+#include "arq_tnc.h"
+#include <errno.h>
+#include <string.h>
+#include "ring_buffer_posix.h"
+#include "net.h"
+#include "arq.h"
+#include "defines_modem.h"
+#include "kiss.h"
+#include "modem.h"
+#include "mercury_cli.h"
+#include "framer.h"
+#include "hermes_log.h"
+#include "radio_io.h"
+#include "modem.h"
+#include "message_store.h"
+#include "mercury_version.h"
+
+static pthread_t tid[7];
+static bool tid_started[7];
+static int arq_tcp_base_port_cfg = 0;
+static int broadcast_tcp_port_cfg = 0;
+/* Broadcast wire frame size.  Written by the control-port thread on a
+ * listen-mode change and read by the broadcast client threads, so _Atomic. */
+static _Atomic size_t broadcast_frame_size_cfg = 0;
+/* SNR and bitrate are written by the ARQ FSM thread and read by the UI
+ * publisher thread; use atomics to avoid a data race.  The float SNR is
+ * stored as its raw IEEE-754 bit pattern in a uint32 atomic and
+ * reinterpreted via memcpy on every load (no strict-aliasing violation). */
+static _Atomic uint32_t last_sn_bits = 0;        /* float bits, relaxed */
+static _Atomic uint32_t last_bitrate_sl = 0;
+static _Atomic uint32_t last_bitrate_bps = 0;
+/* The control port's outgoing lines, a byte ring (ring_buffer_posix) the
+ * reactor thread empties on every pass.  A line is never dropped: a full ring
+ * makes the writer wait (write_buffer), and each line goes in whole, under the
+ * ring's lock, so lines never interleave.  It used to be a 256-line channel
+ * that dropped what did not fit -- BUFFER, SN, MONITOR at once, host state
+ * lines after 50 ms -- and a host that missed a BUFFER, a PTT edge or a
+ * DISCONNECTED went out of step.  64 KB is some 3000 lines: full only when
+ * the client stops reading.  Open from init to dispose:
+ * before init a line is refused (the race of issue #200: a notifying thread
+ * that saw the queue not yet there; tnc_queue_line_critical retries it). */
+#define TNC_TXQ_SIZE (64 * 1024)
+static uint8_t tnc_txq_storage[TNC_TXQ_SIZE];
+static cbuf_handle_t tnc_txq = NULL;
+static _Atomic bool tnc_txq_open = false;
+/* A line into the ring; the unit test, which stubs the ring for the
+ * broadcast plane, captures lines here instead. */
+#ifndef TNC_TXQ_PUT
+#define TNC_TXQ_PUT(q, data, len) write_buffer((q), (data), (len))
+#endif
+static atomic_int tnc_last_buffer_sent = -1;
+static atomic_bool bcast_client_done = false;
+/* A broadcast client is attached and its worker drains the RX ring. */
+static atomic_bool bcast_client_present = false;
+/* The host program's tap on every broadcast frame decoded (broadcast_set_rx_tap). */
+static void (*_Atomic bcast_rx_tap)(const uint8_t *frame, size_t len, int mode, float snr);   /* static: starts NULL (clang takes no NULL initializer here) */
+static _Atomic uint8_t bcast_reply_cmd = CMD_DATA;
+
+#if defined(MSG_NOSIGNAL)
+#define HERMES_SEND_FLAGS MSG_NOSIGNAL
+#else
+#define HERMES_SEND_FLAGS 0
+#endif
+
+extern cbuf_handle_t data_tx_buffer_arq;
+extern cbuf_handle_t data_rx_buffer_arq;
+
+extern cbuf_handle_t data_tx_buffer_broadcast;
+extern cbuf_handle_t data_rx_buffer_broadcast;
+
+/* Must match the definition in common/mercury_engine.c: _Atomic, not
+ * volatile.  This global is written from the termination signal handler and
+ * polled by every worker loop; volatile orders nothing between threads, and
+ * declaring the same object differently in different translation units is
+ * undefined behaviour on top of that.  Plain assignment and test still work. */
+extern _Atomic bool mercury_stop;
+
+extern arq_info arq_conn;
+
+/* TNC control-port pacing — runtime-configurable via [tnc] INI keys. */
+static _Atomic uint64_t tnc_keepalive_interval_ms = 60000;
+static _Atomic uint64_t tnc_buffer_report_interval_ms = 1000;
+/* When the last BUFFER line was queued (monotonic_ms), for the repeat below. */
+static _Atomic uint64_t tnc_last_buffer_ms = 0;
+
+/* In a session, with bytes still to confirm and no BUFFER line for this long,
+ * the count is said again.  A VARA client waits for BUFFER to fall before it
+ * writes more, and gives up when none comes for a minute (Pat: "write:
+ * buffer timeout").  Mercury said
+ * BUFFER only when the count changed, and the carousel confirms a block's
+ * bytes only once the whole block is through -- about 60 s of airtime, longer
+ * on a lossy link: a 53 KB Winlink upload died at 1463 bytes after 93 s with
+ * no BUFFER (#397, K7EK-10 at about 0 dB).  Counted from the last BUFFER of
+ * any kind (tnc_send_buffer), so where they come more often nothing changes. */
+#define TNC_BUFFER_REPEAT_MS 50000
+
+bool tnc_buffer_report_due(int buffered, int last_reported, bool connected,
+                           uint64_t now_ms, uint64_t last_sent_ms)
+{
+    if (buffered != last_reported)
+        return true;
+    return connected && buffered > 0 && now_ms - last_sent_ms >= TNC_BUFFER_REPEAT_MS;
+}
+
+void tnc_set_intervals(int keepalive_s, int buffer_report_ms)
+{
+    if (keepalive_s >= 5 && keepalive_s <= 600)
+        atomic_store_explicit(&tnc_keepalive_interval_ms,
+                              (uint64_t)keepalive_s * 1000ULL,
+                              memory_order_relaxed);
+    if (buffer_report_ms >= 100 && buffer_report_ms <= 10000)
+        atomic_store_explicit(&tnc_buffer_report_interval_ms,
+                              (uint64_t)buffer_report_ms,
+                              memory_order_relaxed);
+}
+
+static ssize_t send_all(int socket_fd, const uint8_t *buffer, size_t len)
+{
+    size_t total_sent = 0;
+
+    while (total_sent < len && !mercury_stop && !bcast_client_done)
+    {
+        ssize_t sent = send(socket_fd, (const char *)buffer + total_sent, len - total_sent, HERMES_SEND_FLAGS);
+        if (sent < 0)
+        {
+            int err = sock_errno();
+            if (err == SOCK_EINTR)
+                continue;
+            if (err == SOCK_EAGAIN || err == SOCK_EWOULDBLOCK)
+            {
+                hermes_usleep(20000);
+                continue;
+            }
+            return -1;
+        }
+        if (sent == 0)
+            return -1;
+        total_sent += (size_t)sent;
+    }
+
+    return total_sent == len ? (ssize_t)total_sent : -1;
+}
+
+static int tnc_queue_line(const char *line)
+{
+    if (!line || !atomic_load_explicit(&tnc_txq_open, memory_order_acquire))
+        return -1;
+    size_t len = strlen(line);
+    if (len == 0 || len > TNC_TXQ_SIZE)
+        return -1;
+    return TNC_TXQ_PUT(tnc_txq, (uint8_t *)line, len) == 0 ? 0 : -1;   /* waits while the ring is full */
+}
+
+/* Queue a line that the HOST NEEDS FOR CORRECTNESS, not just for display.
+ *
+ * tnc_queue_line() refuses a line only before the queue opens.  A host driving a transmitter interlock or a frequency scanner
+ * (BPQ32 INTERLOCK, VARA-style scanning) decides whether the radio is busy
+ * from PENDING / PTT ON / PTT OFF; a lost PTT ON leaves it believing we are
+ * receiving while we are keyed, and it will hand the antenna to another port
+ * on top of us.  So a state line retries briefly across that start-up race
+ * (issue #200), and if it still fails says so loudly. */
+#define TNC_CRITICAL_RETRIES   10
+#define TNC_CRITICAL_SLEEP_US  5000   /* 10 x 5 ms = 50 ms worst case */
+
+static int tnc_queue_line_critical(const char *line)
+{
+    for (int i = 0; i < TNC_CRITICAL_RETRIES; i++)
+    {
+        if (tnc_queue_line(line) == 0)
+            return 0;
+        hermes_usleep(TNC_CRITICAL_SLEEP_US);
+    }
+    /* The queued line ends in "\r"; echoing it verbatim into the log makes the
+     * terminal overwrite the start of the message (that stray "\r" is what
+     * turns the report into "' — the TNC channel stayed full...").  Strip CR/LF
+     * so the diagnostic is actually readable. */
+    char clean[64] = {0};
+    if (line)
+    {
+        size_t len = strlen(line);
+        if (len >= sizeof(clean))
+            len = sizeof(clean) - 1;
+        memcpy(clean, line, len);
+        while (len > 0 && (clean[len - 1] == '\r' || clean[len - 1] == '\n'))
+            clean[--len] = '\0';
+    }
+    HLOGE("tcp-ctl", "DROPPED host state notification '%s' — the TNC queue "
+          "was not open for %d ms; a host relying on this for interlock or "
+          "scanning is now out of sync",
+          clean, (TNC_CRITICAL_RETRIES * TNC_CRITICAL_SLEEP_US) / 1000);
+    return -1;
+}
+
+static uint64_t monotonic_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
+}
+
+static int set_nonblocking(int fd)
+{
+    if (fd < 0)
+        return -1;
+    return sock_set_nonblocking(fd);
+}
+
+static int open_listener_socket(int port, int port_type, const char *tag)
+{
+    int fd;
+    int opt = 1;
+    struct sockaddr_in local_addr;
+
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0)
+        return -1;
+
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt)) < 0)
+    {
+        SOCK_CLOSE(fd);
+        return -1;
+    }
+
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);  /* OpenX6X00: this host only */
+    local_addr.sin_port = htons(port);
+
+    if (bind(fd, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0)
+    {
+        SOCK_CLOSE(fd);
+        return -1;
+    }
+    if (listen(fd, 1) < 0)
+    {
+        SOCK_CLOSE(fd);
+        return -1;
+    }
+    if (set_nonblocking(fd) < 0)
+    {
+        SOCK_CLOSE(fd);
+        return -1;
+    }
+
+    net_set_status(port_type, NET_LISTENING);
+    HLOGI(tag, "Listening on 127.0.0.1 TCP port %d", port);
+    return fd;
+}
+
+static int arq_buffered_bytes_snapshot(void)
+{
+    arq_runtime_snapshot_t snapshot;
+    int buffered = 0;
+
+    if (arq_get_runtime_snapshot(&snapshot))
+        buffered = snapshot.tx_backlog_bytes;
+
+    if (buffered < 0)
+        buffered = 0;
+    return buffered;
+}
+
+static void execute_control_command(char *buffer)
+{
+    arq_cmd_msg_t cmd;
+    char temp[16] = {0};
+
+    if (!buffer)
+        return;
+
+    HLOGI("tcp-ctl", "Command received: %s", buffer);
+
+    if (!strncmp(buffer, "MYCALL", strlen("MYCALL")))
+    {
+        /* VARA-style: MYCALL PRIMARY [SECONDARY1 SECONDARY2 ...]
+         * First token sets the primary callsign (clears any previous secondaries).
+         * Remaining space-separated tokens are added as secondary callsigns. */
+        char tmp[256];
+        strncpy(tmp, buffer + strlen("MYCALL"), sizeof(tmp) - 1);
+        tmp[sizeof(tmp) - 1] = '\0';
+
+        char *saveptr = NULL;
+        char *tok = strtok_r(tmp, " \t\r\n", &saveptr);
+        if (!tok)
+        {
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            return;
+        }
+
+        /* Primary callsign */
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_SET_CALLSIGN;
+        snprintf(cmd.arg0, sizeof(cmd.arg0), "%s", tok);
+        /* Kept for the REGISTERED notification below: the secondary loop
+         * reuses cmd, and strtok_r advances past this token. */
+        char primary_call[sizeof(cmd.arg0)];
+        snprintf(primary_call, sizeof(primary_call), "%s", tok);
+        if (arq_submit_tcp_cmd(&cmd) != 0)
+        {
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            return;
+        }
+
+        /* Secondary callsigns (remaining tokens).  Accepted ones are kept so
+         * each can be acknowledged below: "REGISTERED <Call>" is per call
+         * sign in VARA, and Mercury answers for every one of these. */
+        char accepted_secondaries[CALLSIGN_MAX_SECONDARY][CALLSIGN_MAX_SIZE];
+        int  accepted_count = 0;
+        while ((tok = strtok_r(NULL, " \t\r\n", &saveptr)) != NULL)
+        {
+            memset(&cmd, 0, sizeof(cmd));
+            cmd.type = ARQ_CMD_ADD_SECONDARY_CALLSIGN;
+            snprintf(cmd.arg0, sizeof(cmd.arg0), "%s", tok);
+            if (arq_submit_tcp_cmd(&cmd) != 0)  /* best-effort; overflow is logged in arq.c */
+                continue;
+            if (accepted_count < CALLSIGN_MAX_SECONDARY)
+                snprintf(accepted_secondaries[accepted_count++],
+                         CALLSIGN_MAX_SIZE, "%s", tok);
+        }
+
+        tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+
+        /* REGISTERED is emitted here, on this thread, rather than from the ARQ
+         * event loop: OK goes straight out through tcp_write() while queued
+         * lines are flushed by the TNC writer thread, so a REGISTERED produced
+         * over there could reach the host BEFORE this OK -- the more secondary
+         * callsigns MYCALL carries, the wider that window gets.  Sending it
+         * after the write makes the order documented in docs/TNC.md hold by
+         * construction instead of by timing. */
+        tnc_send_registered(primary_call);
+        /* One line per callsign the station now answers for.  Only the ones
+         * the ARQ layer actually took: past CALLSIGN_MAX_SECONDARY it drops
+         * them, and claiming a registration we did not accept would leave the
+         * host addressing a callsign we will never answer. */
+        for (int i = 0; i < accepted_count; i++)
+            tnc_send_registered(accepted_secondaries[i]);
+        return;
+    }
+
+    if (!strncmp(buffer, "LISTEN", strlen("LISTEN")))
+    {
+        memset(&cmd, 0, sizeof(cmd));
+        sscanf(buffer, "LISTEN %15s", temp);
+        if (temp[1] == 'N' || temp[1] == 'Q')
+            cmd.type = ARQ_CMD_LISTEN_ON;
+        if (temp[1] == 'F')
+            cmd.type = ARQ_CMD_LISTEN_OFF;
+        if (cmd.type != ARQ_CMD_NONE && arq_submit_tcp_cmd(&cmd) == 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        else
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        return;
+    }
+
+    /* Match "MONITOR" exactly, or "MONITOR <arg>" -- not any command whose
+     * name merely starts with it ("MONITORING" must not be caught here). */
+    if (!strncmp(buffer, "MONITOR", 7) && (buffer[7] == '\0' || buffer[7] == ' '))
+    {
+        /* VARA-style passive monitor: decode every mode and report each frame.
+         * MONITOR ON / MONITOR OFF toggle it; MONITOR alone reports the state.
+         * The mode is read-only with respect to the link -- the monitor
+         * decoders never feed the ARQ FSM, so nothing is ACKed or keyed. */
+        char arg[16] = {0};
+        if (sscanf(buffer + 7, " %15s", arg) == 1)
+        {
+            /* Case-insensitive whole-word match, not the second letter. */
+            if (!strcasecmp(arg, "ON"))
+            {
+                modem_set_monitor_enabled(true);
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+            }
+            else if (!strcasecmp(arg, "OFF"))
+            {
+                modem_set_monitor_enabled(false);
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+            }
+            else
+            {
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            }
+        }
+        else
+        {
+            bool on = modem_get_monitor_enabled();
+            tcp_write(CTL_TCP_PORT, (uint8_t *)(on ? "MONITOR ON\r" : "MONITOR OFF\r"),
+                      on ? 11 : 12);
+        }
+        return;
+    }
+
+    if (!strncmp(buffer, "PUBLIC", strlen("PUBLIC")))
+    {
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_SET_PUBLIC;
+        sscanf(buffer, "PUBLIC %15s", temp);
+        if (temp[1] == 'N')
+            cmd.flag = true;
+        if (temp[1] == 'F')
+            cmd.flag = false;
+        if (arq_submit_tcp_cmd(&cmd) == 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        else
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        return;
+    }
+
+    if (!strncmp(buffer, "COMPRESSION", strlen("COMPRESSION")))
+    {
+        /* Compatibility no-op: VARA-style clients expect this command. */
+        tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        return;
+    }
+
+    if (!strncmp(buffer, "CHAT", strlen("CHAT")))
+    {
+        /* CHAT ON implies LISTEN ON (VARA compatibility).
+         * CHAT OFF is a no-op — Mercury does not limit idle loops. */
+        sscanf(buffer, "CHAT %15s", temp);
+        if (temp[1] == 'N')
+        {
+            memset(&cmd, 0, sizeof(cmd));
+            cmd.type = ARQ_CMD_LISTEN_ON;
+            if (arq_submit_tcp_cmd(&cmd) == 0)
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+            else
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        }
+        else
+        {
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        }
+        return;
+    }
+
+    if (!strncmp(buffer, "BW", strlen("BW")))
+    {
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_SET_BANDWIDTH;
+        if (sscanf(buffer, "BW%d", &cmd.value) == 1 &&
+            (cmd.value == ARQ_BANDWIDTH_NARROW_HZ ||
+             cmd.value == ARQ_BANDWIDTH_FULL_HZ ||
+             cmd.value == ARQ_BANDWIDTH_TACTICAL_HZ) &&
+            arq_submit_tcp_cmd(&cmd) == 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        else
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        return;
+    }
+
+    if (!strncmp(buffer, "RETRIES", strlen("RETRIES")))
+    {
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_SET_RETRY;
+        if (sscanf(buffer, "RETRIES %d", &cmd.value) == 1 &&
+            cmd.value >= 0 &&
+            arq_submit_tcp_cmd(&cmd) == 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        else
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        return;
+    }
+
+    /* MODE <index>  -- set the idle ("listen") payload mode, same index space
+     * as -m (use -l to list).  MODE alone reports the current one.
+     *
+     * Only accepted while the ARQ link is idle: during a session the carousel
+     * owns the payload mode and would overwrite this within one RX-loop
+     * iteration.  Note this does NOT give a later ARQ connection a head start
+     * -- every session's start rung comes from the connect. */
+    if (!strncmp(buffer, "MODE", strlen("MODE")))
+    {
+        int idx = -1;
+        if (sscanf(buffer, "MODE %d", &idx) == 1)
+        {
+            int count = mercury_cli_mode_count();
+            int rc = (idx >= 0 && idx < count)
+                         ? modem_set_listen_mode(freedv_modes[idx])
+                         : MODEM_LISTEN_MODE_BAD;
+            if (rc == 0)
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+            else if (rc == MODEM_LISTEN_MODE_BUSY)
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"BUSY\r", 5);
+            else
+                tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        }
+        else
+        {
+            /* Report the live mode by index so the answer round-trips as the
+             * argument to a later MODE command. */
+            int mode = modem_get_listen_mode();
+            int count = mercury_cli_mode_count();
+            char reply[64];
+            int n = snprintf(reply, sizeof(reply), "MODE -1 UNKNOWN\r");
+            for (int i = 0; i < count; i++)
+                if (freedv_modes[i] == mode)
+                {
+                    n = snprintf(reply, sizeof(reply), "MODE %d %s\r",
+                                 i, freedv_mode_names[i]);
+                    break;
+                }
+            tcp_write(CTL_TCP_PORT, (uint8_t *)reply, (size_t)n);
+        }
+        return;
+    }
+
+    if (!strncmp(buffer, "CALLINT", strlen("CALLINT")))
+    {
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_SET_CALLINT;
+        if (sscanf(buffer, "CALLINT %d", &cmd.value) == 1 &&
+            cmd.value >= 0 &&
+            arq_submit_tcp_cmd(&cmd) == 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        else
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        return;
+    }
+
+    if (!strncmp(buffer, "BUFFER", strlen("BUFFER")))
+    {
+        int buffered = arq_buffered_bytes_snapshot();
+        tnc_send_buffer((uint32_t)buffered);
+        return;
+    }
+
+    if (!strncmp(buffer, "SN", strlen("SN")))
+    {
+        uint32_t bits = atomic_load_explicit(&last_sn_bits, memory_order_relaxed);
+        float snr;
+        memcpy(&snr, &bits, sizeof snr);
+        tnc_send_sn(snr);
+        return;
+    }
+
+    if (!strncmp(buffer, "BITRATE", strlen("BITRATE")))
+    {
+        uint32_t sl  = atomic_load_explicit(&last_bitrate_sl, memory_order_relaxed);
+        uint32_t bps = atomic_load_explicit(&last_bitrate_bps, memory_order_relaxed);
+        tnc_send_bitrate(sl, bps);
+        return;
+    }
+
+    if (!strncmp(buffer, "P2P", strlen("P2P")))
+    {
+        tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        return;
+    }
+
+    if (!strncmp(buffer, "TUNE", strlen("TUNE")))
+    {
+        /* VARA-compatible tuning carrier, so an ATU can find a match:
+         *   TUNE -<dB>   key TX and hold a ~1 kHz tone at that drive level
+         *   TUNE ?       report the current drive level
+         *   TUNE OFF     unkey
+         * The carrier also stops on its own after modem.c's hard safety
+         * deadline — a keyed tone has no protocol underneath it, so a host
+         * that dies or forgets TUNE OFF must not leave the radio keyed. */
+        char arg[16] = {0};
+        if (sscanf(buffer, "TUNE %15s", arg) != 1)
+        {
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            return;
+        }
+
+        if (!strncasecmp(arg, "OFF", strlen("OFF")))
+        {
+            modem_tune_stop();
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+            return;
+        }
+
+        if (arg[0] == '?')
+        {
+            char reply[32];
+            int n = snprintf(reply, sizeof(reply), "TUNE %g\r",
+                             (double)modem_tune_level_dbfs());
+            tcp_write(CTL_TCP_PORT, (uint8_t *)reply, (size_t)n);
+            return;
+        }
+
+        float dbfs = 0.0f;
+        if (sscanf(arg, "%f", &dbfs) != 1 || modem_tune_start(dbfs) != 0)
+        {
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+            return;
+        }
+        tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        return;
+    }
+
+    if (!strncmp(buffer, "CONNECT", strlen("CONNECT")))
+    {
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_CONNECT;
+        if (sscanf(buffer, "CONNECT %15s %15s", cmd.arg0, cmd.arg1) == 2 &&
+            arq_submit_tcp_cmd(&cmd) == 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        else
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        return;
+    }
+
+    if (!strncmp(buffer, "CQFRAME", strlen("CQFRAME")))
+    {
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_SEND_CQ;
+        if (sscanf(buffer, "CQFRAME %15s %d", cmd.arg0, &cmd.value) == 2 &&
+            (cmd.value == ARQ_BANDWIDTH_NARROW_HZ ||
+             cmd.value == ARQ_BANDWIDTH_FULL_HZ ||
+             cmd.value == ARQ_BANDWIDTH_TACTICAL_HZ) &&
+            arq_submit_tcp_cmd(&cmd) == 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        else
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        return;
+    }
+
+    if (!strncmp(buffer, "DISCONNECT", strlen("DISCONNECT")))
+    {
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_DISCONNECT;
+        if (arq_submit_tcp_cmd(&cmd) == 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        else
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        return;
+    }
+
+    if (!strncmp(buffer, "ABORT", strlen("ABORT")))
+    {
+        /* VARA compatibility: ABORT is a dirty disconnect — clear all
+         * buffers and disconnect immediately without air-side teardown. */
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_ABORT;
+        if (arq_submit_tcp_cmd(&cmd) == 0)
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        else
+            tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+        return;
+    }
+
+    if (!strncmp(buffer, "VERSION", strlen("VERSION")))
+    {
+        /* VARA compatibility: respond with modem identification.
+         * OpenX6X00: as a VERSION line.  Pat's VARA driver waits, with no
+         * timeout, for a reply that starts "VERSION" or "WRONG"; "VARA
+         * version 4.9.0 registered" was neither, and Pat hung starting
+         * the modem unless the WRONG for its CWID ON came after it asked. */
+        static const char version_reply[] = "VERSION Mercury " MERCURY_VERSION "\r";
+        tcp_write(CTL_TCP_PORT, (uint8_t *)version_reply, sizeof(version_reply) - 1);
+        return;
+    }
+
+    if (!strncmp(buffer, "IGNOREKISSDCD", strlen("IGNOREKISSDCD")))
+    {
+        /* VARA compatibility no-op. */
+        tcp_write(CTL_TCP_PORT, (uint8_t *)"OK\r", 3);
+        return;
+    }
+
+    HLOGW("tcp-ctl", "Unknown command: %s", buffer);
+    tcp_write(CTL_TCP_PORT, (uint8_t *)"WRONG\r", 6);
+}
+
+static void process_control_bytes(char *line_buf, int *line_len, const uint8_t *data, ssize_t len)
+{
+    ssize_t i;
+
+    if (!line_buf || !line_len || !data || len <= 0)
+        return;
+
+    for (i = 0; i < len; i++)
+    {
+        if (data[i] == '\r')
+        {
+            line_buf[*line_len] = 0;
+            execute_control_command(line_buf);
+            *line_len = 0;
+            continue;
+        }
+
+        if (*line_len >= TCP_BLOCK_SIZE)
+        {
+            *line_len = 0;
+            HLOGW("tcp-ctl", "ERROR in command parsing: line too long");
+            continue;
+        }
+
+        line_buf[*line_len] = (char)data[i];
+        (*line_len)++;
+    }
+}
+
+static void close_data_client(int *data_client_fd)
+{
+    if (!data_client_fd || *data_client_fd < 0)
+        return;
+
+    SOCK_CLOSE(*data_client_fd);
+    *data_client_fd = -1;
+    cli_data_sockfd = -1;
+    net_set_status(DATA_TCP_PORT, NET_LISTENING);
+    HLOGI("tcp-data", "Data client disconnected");
+}
+
+static void close_ctl_client(int *ctl_client_fd, int *data_client_fd, bool notify_arq)
+{
+    if (!ctl_client_fd || *ctl_client_fd < 0)
+        return;
+
+    SOCK_CLOSE(*ctl_client_fd);
+    *ctl_client_fd = -1;
+    cli_ctl_sockfd = -1;
+    net_set_status(CTL_TCP_PORT, NET_LISTENING);
+    atomic_store_explicit(&tnc_last_buffer_sent, -1, memory_order_relaxed);
+    /* The monitor runs nine extra decoders; a host that crashed or exited
+     * must not leave them spinning until the modem restarts.  Clear it on the
+     * same disconnect that tears down the rest of the host's state. */
+    modem_set_monitor_enabled(false);
+    HLOGI("tcp-ctl", "Control client disconnected");
+
+    if (notify_arq)
+    {
+        arq_cmd_msg_t cmd;
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = ARQ_CMD_CLIENT_DISCONNECT;
+        (void)arq_submit_tcp_cmd(&cmd);
+    }
+
+    close_data_client(data_client_fd);
+}
+
+/* The queued lines to the control client, never dropping a byte: what the
+ * socket does not take now (it is full) is kept, and goes first on the next
+ * pass; the reactor never waits on it.  With no client connected there is no
+ * one to tell, and the lines go, as they always did. */
+static uint8_t tnc_out[TNC_TXQ_SIZE];
+static size_t tnc_out_off = 0, tnc_out_len = 0;
+
+static void drain_tnc_queue_to_ctl(void)
+{
+    if (!tnc_txq)
+        return;
+    for (;;)
+    {
+        if (tnc_out_off == tnc_out_len)
+        {
+            size_t n = size_buffer(tnc_txq);
+            tnc_out_off = tnc_out_len = 0;
+            if (n == 0 || read_buffer(tnc_txq, tnc_out, n) != 0)
+                return;
+            tnc_out_len = n;
+        }
+        ssize_t sent = tcp_send_some(CTL_TCP_PORT, tnc_out + tnc_out_off, tnc_out_len - tnc_out_off);
+        if (sent == 0)
+            return;                                   /* full: the rest next pass */
+        if (sent < 0)
+            tnc_out_off = tnc_out_len;                /* no client, or it is gone */
+        else
+            tnc_out_off += (size_t)sent;
+    }
+}
+
+static void dispose_tnc_tx_queue(void)
+{
+    atomic_store_explicit(&tnc_txq_open, false, memory_order_release);
+    if (tnc_txq)
+        clear_buffer(tnc_txq);
+    tnc_out_off = tnc_out_len = 0;
+    atomic_store_explicit(&tnc_last_buffer_sent, -1, memory_order_relaxed);
+}
+
+void *arq_reactor_thread(void *port)
+{
+    int tcp_base_port = *((int *)port);
+    int ctl_listener = -1;
+    int data_listener = -1;
+    int ctl_client = -1;
+    int data_client = -1;
+    char ctl_line[TCP_BLOCK_SIZE + 1] = {0};
+    int ctl_len = 0;
+    int last_buffer_report = -1;
+    uint64_t next_keepalive_ms = 0;
+    uint64_t next_buffer_report_ms = 0;
+    uint8_t rx_buf[TCP_BLOCK_SIZE];
+    uint8_t tx_buf[DATA_TX_BUFFER_SIZE];
+
+    ctl_listener = open_listener_socket(tcp_base_port, CTL_TCP_PORT, "tcp-ctl");
+    if (ctl_listener < 0)
+    {
+        HLOGE("tcp-ctl", "Could not open TCP port %d", tcp_base_port);
+        mercury_stop = true;
+        return NULL;
+    }
+
+    data_listener = open_listener_socket(tcp_base_port + 1, DATA_TCP_PORT, "tcp-data");
+    if (data_listener < 0)
+    {
+        HLOGE("tcp-data", "Could not open TCP port %d", tcp_base_port + 1);
+        SOCK_CLOSE(ctl_listener);
+        net_set_status(CTL_TCP_PORT, NET_NONE);
+        mercury_stop = true;
+        return NULL;
+    }
+
+    while (!mercury_stop)
+    {
+        struct pollfd pfds[4];
+        int nfds = 0;
+        uint64_t now_ms;
+
+        drain_tnc_queue_to_ctl();
+        memset(pfds, 0, sizeof(pfds));
+        pfds[nfds].fd = ctl_listener;
+        pfds[nfds].events = POLLIN;
+        nfds++;
+
+        pfds[nfds].fd = data_listener;
+        pfds[nfds].events = POLLIN;
+        nfds++;
+
+        if (ctl_client >= 0)
+        {
+            pfds[nfds].fd = ctl_client;
+            pfds[nfds].events = POLLIN | POLLERR | POLLHUP;
+            nfds++;
+        }
+
+        if (data_client >= 0)
+        {
+            pfds[nfds].fd = data_client;
+            pfds[nfds].events = POLLIN | POLLERR | POLLHUP;
+            nfds++;
+        }
+
+        {
+            int poll_rc = poll(pfds, (nfds_t)nfds, 100);
+            if (poll_rc < 0)
+                HLOGW("tcp-poll", "poll() error: %d", sock_errno());
+        }
+        now_ms = monotonic_ms();
+
+        if (pfds[0].revents & POLLIN)
+        {
+            int fd = accept(ctl_listener, NULL, NULL);
+            if (fd >= 0)
+            {
+                if (set_nonblocking(fd) < 0)
+                {
+                    SOCK_CLOSE(fd);
+                }
+                else
+                {
+                    arq_cmd_msg_t cmd;
+                    if (ctl_client >= 0)
+                        close_ctl_client(&ctl_client, &data_client, true);
+                    ctl_client = fd;
+                    cli_ctl_sockfd = fd;
+                    net_set_status(CTL_TCP_PORT, NET_CONNECTED);
+                    memset(&cmd, 0, sizeof(cmd));
+                    cmd.type = ARQ_CMD_CLIENT_CONNECT;
+                    (void)arq_submit_tcp_cmd(&cmd);
+                    next_keepalive_ms = now_ms + atomic_load_explicit(&tnc_keepalive_interval_ms, memory_order_relaxed);
+                    next_buffer_report_ms = now_ms + atomic_load_explicit(&tnc_buffer_report_interval_ms, memory_order_relaxed);
+                    last_buffer_report = -1;
+                    atomic_store_explicit(&tnc_last_buffer_sent, -1, memory_order_relaxed);
+                    ctl_len = 0;
+                    HLOGI("tcp-ctl", "Control client connected");
+                }
+            }
+        }
+
+        if (pfds[1].revents & POLLIN)
+        {
+            int fd = accept(data_listener, NULL, NULL);
+            if (fd >= 0)
+            {
+                if (set_nonblocking(fd) < 0)
+                {
+                    SOCK_CLOSE(fd);
+                }
+                else
+                {
+                    if (data_client >= 0)
+                        close_data_client(&data_client);
+                    /* A client that connects with no session up must not be
+                     * handed bytes some earlier session left behind: they were
+                     * for a reader that is gone.  (With a session up, a client
+                     * reconnecting mid-session still gets its session's data.) */
+                    arq_discard_stale_rx();
+                    data_client = fd;
+                    cli_data_sockfd = fd;
+                    net_set_status(DATA_TCP_PORT, NET_CONNECTED);
+                    HLOGI("tcp-data", "Data client connected");
+                }
+            }
+        }
+
+        /* The data socket before the control socket: an application writes
+         * its last bytes and then DISCONNECT, and a pass that finds both must
+         * queue the bytes first, or the FSM ends a session it thinks drained
+         * and drops them.  (And its pfds index is as poll() saw it: the
+         * control block may close ctl_client.) */
+        if (data_client >= 0)
+        {
+            short events = pfds[(ctl_client >= 0) ? 3 : 2].revents;
+            if (events & (POLLERR | POLLHUP | POLLNVAL))
+            {
+                close_data_client(&data_client);
+            }
+            else if (events & POLLIN)
+            {
+                ssize_t n = recv(data_client, (char *)rx_buf, sizeof(rx_buf), 0);
+                if (n > 0)
+                {
+                    HLOGD("tcp-data", "recv %zd bytes from data client", n);
+                    int queued = arq_submit_tcp_payload(rx_buf, (size_t)n);
+                    if (queued < 0)
+                        HLOGW("tcp-data", "Failed to queue ARQ data frame(s)");
+                    else
+                        tnc_send_buffer((uint32_t)arq_buffered_bytes_snapshot());
+                }
+                else if (n == 0 || (n < 0 && sock_errno() != SOCK_EAGAIN && sock_errno() != SOCK_EWOULDBLOCK && sock_errno() != SOCK_EINTR))
+                {
+                    HLOGW("tcp-data", "Data recv returned %zd (err=%d), closing", n, sock_errno());
+                    close_data_client(&data_client);
+                }
+            }
+        }
+
+        if (ctl_client >= 0)
+        {
+            short events = pfds[2].revents;
+            if (events & (POLLERR | POLLHUP | POLLNVAL))
+            {
+                close_ctl_client(&ctl_client, &data_client, true);
+            }
+            else if (events & POLLIN)
+            {
+                ssize_t n = recv(ctl_client, (char *)rx_buf, sizeof(rx_buf), 0);
+                if (n > 0)
+                {
+                    HLOGD("tcp-ctl", "recv %zd bytes from control client", n);
+                    process_control_bytes(ctl_line, &ctl_len, rx_buf, n);
+                }
+                else if (n == 0 || (n < 0 && sock_errno() != SOCK_EAGAIN && sock_errno() != SOCK_EWOULDBLOCK && sock_errno() != SOCK_EINTR))
+                {
+                    HLOGW("tcp-ctl", "Control recv returned %zd (err=%d), closing", n, sock_errno());
+                    close_ctl_client(&ctl_client, &data_client, true);
+                }
+            }
+        }
+
+        if (ctl_client >= 0)
+        {
+            if (net_get_status(CTL_TCP_PORT) != NET_CONNECTED)
+                close_ctl_client(&ctl_client, &data_client, true);
+            else
+            {
+                if (now_ms >= next_keepalive_ms)
+                {
+                    char imalive[] = "IAMALIVE\r";
+                    (void)tcp_write(CTL_TCP_PORT, (uint8_t *)imalive, strlen(imalive));
+                    next_keepalive_ms = now_ms + atomic_load_explicit(&tnc_keepalive_interval_ms, memory_order_relaxed);
+                }
+                if (now_ms >= next_buffer_report_ms)
+                {
+                    int buffered = arq_buffered_bytes_snapshot();
+                    uint64_t said = atomic_load_explicit(&tnc_last_buffer_ms, memory_order_relaxed);
+                    if (tnc_buffer_report_due(buffered, last_buffer_report, arq_is_link_connected(),
+                                              now_ms, said))
+                    {
+                        /* the same count again: past tnc_send_buffer's
+                         * "unchanged" filter */
+                        if (buffered == last_buffer_report)
+                            atomic_store_explicit(&tnc_last_buffer_sent, -1, memory_order_relaxed);
+                        tnc_send_buffer((uint32_t)buffered);
+                        last_buffer_report = buffered;
+                    }
+                    next_buffer_report_ms = now_ms + atomic_load_explicit(&tnc_buffer_report_interval_ms, memory_order_relaxed);
+                }
+            }
+        }
+
+        if (data_client >= 0)
+        {
+            if (net_get_status(DATA_TCP_PORT) != NET_CONNECTED)
+                close_data_client(&data_client);
+            else
+            {
+                size_t available = size_buffer(data_rx_buffer_arq);
+                if (available > DATA_TX_BUFFER_SIZE)
+                    available = DATA_TX_BUFFER_SIZE;
+                if (available > 0)
+                {
+                    if (read_buffer(data_rx_buffer_arq, tx_buf, available) == 0)
+                    {
+                        /* Bytes were already consumed from the ring, so a
+                         * partial write must not drop them — loop until the
+                         * kernel takes everything (or the socket dies). */
+                        ssize_t sent = tcp_write_all(DATA_TCP_PORT, tx_buf, available);
+                        if (sent < (ssize_t)available)
+                            HLOGW("tcp-data", "DATA write failed (%zd/%zu), socket restarting",
+                                  sent, available);
+                    }
+                }
+            }
+        }
+    }
+
+    close_ctl_client(&ctl_client, &data_client, true);
+    close_data_client(&data_client);
+    drain_tnc_queue_to_ctl();
+    if (ctl_listener >= 0)
+        SOCK_CLOSE(ctl_listener);
+    if (data_listener >= 0)
+        SOCK_CLOSE(data_listener);
+    net_set_status(CTL_TCP_PORT, NET_NONE);
+    net_set_status(DATA_TCP_PORT, NET_NONE);
+    return NULL;
+}
+
+/********** ARQ TCP ports INTERFACES **********/
+void *server_worker_thread_ctl(void *port)
+{
+    HLOGW("tcp", "server_worker_thread_ctl now runs unified ARQ reactor");
+    return arq_reactor_thread(port);
+}
+
+/********** BROADCAST TCP port INTERFACE **********/
+
+/*
+ * Length-prefixed broadcast framing.
+ *
+ * The broadcast datalink uses fixed-size modem frames, so a short VARA/AX.25
+ * frame is zero-padded up to frame_size for TX. Without recording the original
+ * length, the receiver can only hand the client the whole padded frame, and a
+ * VARA client then rejects it because the trailing zeros corrupt
+ * its payload. To fix this we store the real payload length in a 2-byte
+ * big-endian prefix right after the Mercury header and flag it with a header
+ * extension bit, so the receiver delivers the exact original frame. Receivers
+ * fall back to the legacy header-strip when the flag is absent.
+ */
+#define BCAST_LEN_SIZE       2     /* big-endian payload length after the header */
+#define BCAST_EXT_LEN_PREFIX 0x01  /* header extension bit: length prefix present */
+#define BCAST_EXT_KISS_STD   0x02  /* header extension bit: sender framed with
+                                      standard KISS CMD_DATA/CMD_AX25 (0x00), so
+                                      deliver with 0x00 (e.g. Reticulum). Clear =
+                                      VARA compressed-callsign framing, deliver
+                                      with CMD_AX25CALLSIGN (VARA). */
+#define BCAST_EXT_KISS_DATA  0x04  /* header extension bit: sender framed with
+                                      unformatted KISS CMD_DATA (0x02, e.g. a
+                                      VARA beacon/ping), so deliver with 0x02.
+                                      Mutually exclusive with _KISS_STD. */
+
+/*
+ * Normalises a decoded KISS broadcast frame and queues it to
+ * data_tx_buffer_broadcast.
+ *
+ * VARA clients (CMD_AX25 / CMD_AX25CALLSIGN, and CMD_DATA frames that do not
+ * already carry a Mercury header — e.g. a VARA beacon): inject the 1-byte
+ * Mercury PACKET_TYPE_BROADCAST_DATA header plus a 2-byte length prefix
+ * (flagged with BCAST_EXT_LEN_PREFIX), truncate if the payload would overflow,
+ * then zero-pad to frame_size.  The sender's KISS framing is recorded in the
+ * header extension (BCAST_EXT_KISS_STD for 0x00, BCAST_EXT_KISS_DATA for 0x02,
+ * neither for 0x01) so the receiving side can mirror it.
+ *
+ * hermes-broadcast (CMD_DATA): a full modem frame (frame_len == frame_size)
+ * with a Mercury broadcast header already in place — passed raw.  Oversized
+ * CMD_DATA frames are discarded.
+ *
+ * Also latches bcast_reply_cmd so send_thread mirrors the client's framing.
+ *
+ * Returns true if the frame was queued, false if it was discarded.
+ */
+static bool bcast_frame_and_queue(uint8_t *decoded_frame, int frame_len,
+                                  uint8_t kiss_cmd, size_t frame_size);
+
+static bool bcast_process_decoded_frame(uint8_t *decoded_frame, int frame_len,
+                                         uint8_t kiss_cmd, size_t frame_size)
+{
+    /* Latch reply command — same framing style goes back to the client */
+    atomic_store_explicit(&bcast_reply_cmd,
+        (kiss_cmd == CMD_AX25 || kiss_cmd == CMD_AX25CALLSIGN)
+            ? CMD_AX25CALLSIGN : CMD_DATA,
+        memory_order_relaxed);
+    return bcast_frame_and_queue(decoded_frame, frame_len, kiss_cmd, frame_size);
+}
+
+/* A message from the host program (mercury_host_chat_send, plane bcast): a
+ * CMD_DATA message as a client's would be, but leaving the client's reply
+ * framing alone, and refused -- not truncated -- when it does not fit one
+ * frame.  0; -1 with no broadcast frame size yet; -2 too long. */
+int broadcast_send_message(const uint8_t *msg, size_t len)
+{
+    uint8_t frame[MAX_PAYLOAD + 8];
+    size_t frame_size = atomic_load(&broadcast_frame_size_cfg);
+
+    if (frame_size == 0 || frame_size > MAX_PAYLOAD)
+        return -1;
+    if (!msg || len == 0 || len > frame_size - HEADER_SIZE - BCAST_LEN_SIZE)
+        return -2;
+    memcpy(frame, msg, len);
+    return bcast_frame_and_queue(frame, (int)len, CMD_DATA, frame_size) ? 0 : -1;
+}
+
+size_t broadcast_message_max(void)
+{
+    size_t frame_size = atomic_load(&broadcast_frame_size_cfg);
+    return frame_size > HEADER_SIZE + BCAST_LEN_SIZE ? frame_size - HEADER_SIZE - BCAST_LEN_SIZE : 0;
+}
+
+/* Frame a client's (or the host's) payload for the air and queue it: a raw
+ * modem frame as it is, a message behind Mercury's header and length.
+ * decoded_frame must have room for frame_size bytes. */
+static bool bcast_frame_and_queue(uint8_t *decoded_frame, int frame_len,
+                                  uint8_t kiss_cmd, size_t frame_size)
+{
+    /* CMD_DATA is used by two very different clients:
+     *   - hermes-broadcast: a modem frame with a Mercury broadcast header
+     *     already in place (PACKET_TYPE_BROADCAST_CONTROL/_DATA) → pass raw.
+     *   - VARA beacons/pings: an unformatted KISS payload with no Mercury
+     *     header, whose first byte is arbitrary → wrap it like an AX.25 frame
+     *     so the receiver routes it to broadcast.
+     *
+     * The type bits alone are not enough: they are the top 3 of the first
+     * byte, so 64 of 256 arbitrary first bytes look like a broadcast type --
+     * 25%, including the whole lowercase alphabet.  A beacon starting with a
+     * lowercase letter would be passed raw and lost.
+     *
+     * Frame LENGTH cannot be the second test either, tempting as it is.
+     * hermes-broadcast does not always fill the modem frame: transmitter.c
+     * sends payload frames as packet_size + RQ_HEADER_SIZE (== frame_size) but
+     * CONFIG frames as packet_size alone, i.e. RQ_HEADER_SIZE short, and
+     * relies on the zero-padding below to bring them up.  Requiring
+     * frame_len == frame_size drops every config packet, and since its
+     * receiver discards anything that is not exactly frame_size, the far end
+     * never gets the RaptorQ configuration and can never start decoding.
+     *
+     * So validate the WHOLE header byte instead.  hermes-broadcast writes both
+     * of its frame kinds with extension 0 (hermes_write_frame_header(...,
+     * PACKET_RQ_CONFIG/PACKET_RQ_PAYLOAD, 0)), while a beacon's extension bits
+     * are as arbitrary as the rest of its first byte.  Type plus a zero
+     * extension takes the false-positive space from 64/256 to 2/256 (0.8%),
+     * and to ZERO across a-z: the only printable ASCII that still collides is
+     * a leading backtick. */
+    /* Whether a payload is a modem frame or a message is SAID, not guessed.
+     *
+     * CMD_MODEM_FRAME means "already exactly one modem frame, transmit it
+     * untouched".  Every other data-carrying command is a message, and gets
+     * Mercury's 1-byte header and 2-byte length prefix so the far side can
+     * recover its exact length from a frame the modem has zero-padded.
+     *
+     * There used to be an inference for CMD_DATA here, reading the payload's
+     * own first byte to decide.  It was wrong in both directions and could not
+     * be made right, because those are bytes the sender chooses: a message
+     * beginning 0x60..0x9F was passed through unframed, and a real modem frame
+     * sent under any other command was truncated by 3 bytes to make room for a
+     * header it did not need.  That second case silently broke the UI's file
+     * transfer.
+     *
+     * CMD_AX25 and CMD_AX25CALLSIGN are unchanged and always framed, which is
+     * what VARA-compatible clients depend on. */
+    bool is_raw_modem_frame = (kiss_cmd == CMD_MODEM_FRAME);
+
+    /* hermes-broadcast / unformatted CMD_DATA frames never fragment: anything
+     * larger than one modem frame is discarded (0x00/0x01 truncate instead). */
+    if ((kiss_cmd == CMD_DATA || kiss_cmd == CMD_MODEM_FRAME) &&
+        (size_t)frame_len > frame_size)
+    {
+        HLOGW("tcp-bcast", "Discarding broadcast frame: size %d exceeds modem frame size %zu",
+              frame_len, frame_size);
+        return false;
+    }
+
+    bool needs_wrap = !is_raw_modem_frame &&
+                      (kiss_cmd == CMD_AX25 || kiss_cmd == CMD_AX25CALLSIGN ||
+                       kiss_cmd == CMD_DATA);
+
+    if (needs_wrap)
+    {
+        /* Persist the client's chat payload before it is shifted to make room
+         * for the header + length prefix.  Raw hermes-broadcast frames are not
+         * chat and are skipped; the printable-text filter also drops AX.25 /
+         * Reticulum binary frames. */
+        char my_call[CALLSIGN_MAX_SIZE];
+        arq_conn_get_calls(my_call, NULL, NULL, CALLSIGN_MAX_SIZE);
+        msg_store_feed(MSG_PLANE_BCAST, MSG_DIR_TX, my_call, decoded_frame, (size_t)frame_len);
+
+        /* Inject Mercury header + 2-byte payload-length prefix before the
+         * payload, so the receiver can recover the exact frame length (the
+         * modem zero-pads to frame_size). The length prefix is flagged in the
+         * header, along with the sender's KISS framing (0x00 standard, 0x01
+         * VARA callsign-compressed, 0x02 unformatted) so the receiving side can
+         * mirror it. */
+        size_t max_payload = frame_size - HEADER_SIZE - BCAST_LEN_SIZE;
+        if ((size_t)frame_len > max_payload)
+        {
+            HLOGW("tcp-bcast", "Truncating VARA frame from %d to %zu to fit header+len",
+                  frame_len, max_payload);
+            frame_len = (int)max_payload;
+        }
+        uint8_t ext = BCAST_EXT_LEN_PREFIX;
+        if (kiss_cmd == CMD_AX25)
+            ext |= BCAST_EXT_KISS_STD;
+        else if (kiss_cmd == CMD_DATA)
+            ext |= BCAST_EXT_KISS_DATA;
+        memmove(decoded_frame + HEADER_SIZE + BCAST_LEN_SIZE, decoded_frame, (size_t)frame_len);
+        write_frame_header(decoded_frame, PACKET_TYPE_BROADCAST_DATA, ext);
+        decoded_frame[HEADER_SIZE]     = (uint8_t)(((unsigned)frame_len >> 8) & 0xFF);
+        decoded_frame[HEADER_SIZE + 1] = (uint8_t)((unsigned)frame_len & 0xFF);
+        HLOGD("tcp-bcast", "Added Mercury broadcast header+len (cmd=0x%02X, payload=%d bytes)",
+              kiss_cmd, frame_len);
+        frame_len += HEADER_SIZE + BCAST_LEN_SIZE;
+    }
+
+    if ((size_t)frame_len > frame_size)
+    {
+        HLOGW("tcp-bcast", "Discarding broadcast frame: size %d exceeds modem frame size %zu",
+              frame_len, frame_size);
+        return false;
+    }
+
+    if ((size_t)frame_len < frame_size)
+    {
+        HLOGD("tcp-bcast", "Padding broadcast frame from %d to %zu bytes",
+              frame_len, frame_size);
+        memset(decoded_frame + frame_len, 0, frame_size - (size_t)frame_len);
+    }
+
+    write_buffer(data_tx_buffer_broadcast, decoded_frame, frame_size);
+    HLOGI("tcp-bcast", "Broadcast frame queued for TX (%zu bytes, type=0x%02X)",
+          frame_size, frame_header_packet_type(decoded_frame[0]));
+    return true;
+}
+
+/*
+ * Computes the payload slice and KISS command byte to send back to a broadcast
+ * client.
+ *
+ * Length-prefixed frame (BCAST_EXT_LEN_PREFIX set in a BROADCAST_DATA header):
+ * return exactly the original payload (header + 2-byte length stripped,
+ * padding dropped) and reply with the sender's own KISS framing, carried in
+ * the BCAST_EXT_KISS_STD / BCAST_EXT_KISS_DATA header bits: standard 0x00
+ * (CMD_AX25, e.g. Reticulum) when _KISS_STD set, unformatted 0x02 (CMD_DATA,
+ * e.g. a VARA beacon) when _KISS_DATA set, else CMD_AX25CALLSIGN (VARA) —
+ * which is also what frames from pre-extension senders yield. This is detected
+ * from the received frame itself, so it works on a receive-only station
+ * regardless of the latched bcast_reply_cmd.
+ *
+ * Otherwise mirror the latched bcast_reply_cmd:
+ *   CMD_DATA (hermes-broadcast): forward the full frame including the header.
+ *   else (VARA legacy): strip the 1-byte Mercury header only.
+ *
+ * Sets *payload_out and *payload_len_out; returns the reply command byte.
+ */
+static uint8_t bcast_get_tx_payload(uint8_t *frame_buffer, size_t frame_size,
+                                     uint8_t **payload_out, int *payload_len_out)
+{
+    /* A length-prefixed broadcast frame is self-describing: detect it from the
+     * received frame's own header, independent of what the local client last
+     * transmitted (bcast_reply_cmd defaults to CMD_DATA and is reset on every
+     * client connect, so a receive-only station would otherwise forward the raw
+     * padded frame). Deliver exactly the original payload and reply with the
+     * sender's KISS command so a VARA client accepts it. */
+    if (frame_size >= HEADER_SIZE + BCAST_LEN_SIZE &&
+        frame_header_packet_type(frame_buffer[0]) == PACKET_TYPE_BROADCAST_DATA &&
+        (frame_header_extension(frame_buffer[0]) & BCAST_EXT_LEN_PREFIX))
+    {
+        int len = ((int)frame_buffer[HEADER_SIZE] << 8) | (int)frame_buffer[HEADER_SIZE + 1];
+        int max_len = (int)frame_size - HEADER_SIZE - BCAST_LEN_SIZE;
+        if (len < 0) len = 0;
+        if (len > max_len) len = max_len;
+        *payload_out     = frame_buffer + HEADER_SIZE + BCAST_LEN_SIZE;
+        *payload_len_out = len;
+        uint8_t ext = frame_header_extension(frame_buffer[0]);
+        if (ext & BCAST_EXT_KISS_STD)
+            return CMD_AX25;
+        if (ext & BCAST_EXT_KISS_DATA)
+            return CMD_DATA;
+        return CMD_AX25CALLSIGN;
+    }
+
+    /* Legacy / hermes-broadcast frames: mirror the latched client framing. */
+    uint8_t reply_cmd = atomic_load_explicit(&bcast_reply_cmd, memory_order_relaxed);
+    if (reply_cmd == CMD_DATA)
+    {
+        *payload_out     = frame_buffer;
+        *payload_len_out = (int)frame_size;
+    }
+    else
+    {
+        *payload_out     = frame_buffer + HEADER_SIZE;
+        *payload_len_out = (int)frame_size - HEADER_SIZE;
+    }
+    return reply_cmd;
+}
+
+/* Best-effort peer callsign from a "CALLSIGN: message" broadcast payload. */
+static void bcast_store_peer(const uint8_t *payload, int len, char *peer, size_t peer_cap)
+{
+    for (int i = 0; i < len - 1; i++)
+    {
+        if (payload[i] == ':' && payload[i + 1] == ' ')
+        {
+            size_t n = (size_t)i;
+            if (n >= peer_cap)
+                n = peer_cap - 1;
+            memcpy(peer, payload, n);
+            peer[n] = '\0';
+            return;
+        }
+    }
+    peer[0] = '\0';
+}
+
+void broadcast_set_rx_tap(void (*tap)(const uint8_t *frame, size_t len, int mode, float snr))
+{
+    atomic_store(&bcast_rx_tap, tap);
+}
+
+/* Every broadcast frame the modem decodes, at the listen mode's size.
+ *
+ * Received chat is stored here, once, whoever is attached: it used to be
+ * stored by the TCP client's worker only, so a station with no broadcast
+ * client (an embedded host, or nobody at all) kept none of what it heard.
+ * Raw hermes-broadcast/AX.25 frames are filtered out by the store's
+ * printable-text check; the modem's zero padding is trimmed so trailing NULs
+ * don't poison the next line.
+ *
+ * The host's tap sees every frame.  The TCP client gets it only while one is
+ * attached: the RX ring is drained by that client's worker alone, and with
+ * none, a full ring made the modem's RX thread wait for good. */
+void broadcast_rx_frame(const uint8_t *frame, size_t len, int mode, float snr)
+{
+    uint8_t copy[MAX_PAYLOAD + 8];
+    if (!frame || len == 0 || len > MAX_PAYLOAD)
+        return;
+
+    memcpy(copy, frame, len);
+    uint8_t *payload_start;
+    int payload_len;
+    (void)bcast_get_tx_payload(copy, len, &payload_start, &payload_len);
+    if (payload_len > 0)
+    {
+        int text_len = payload_len;
+        while (text_len > 0 && payload_start[text_len - 1] == '\0')
+            text_len--;
+        char peer[CALLSIGN_MAX_SIZE];
+        bcast_store_peer(payload_start, text_len, peer, sizeof(peer));
+        msg_store_feed(MSG_PLANE_BCAST, MSG_DIR_RX, peer, payload_start, (size_t)text_len);
+    }
+
+    void (*tap)(const uint8_t *, size_t, int, float) = atomic_load(&bcast_rx_tap);
+    if (tap)
+        tap(frame, len, mode, snr);
+
+    if (atomic_load(&bcast_client_present))
+        write_buffer(data_rx_buffer_broadcast, (uint8_t *)frame, len);
+}
+
+void *send_thread(void *client_socket_ptr)
+{
+    int client_socket = *((int *)client_socket_ptr);
+    size_t frame_size = atomic_load(&broadcast_frame_size_cfg);
+    uint8_t *frame_buffer = NULL;
+    uint8_t *kiss_buffer = NULL;
+
+    if (frame_size == 0 || frame_size > MAX_PAYLOAD)
+    {
+        HLOGE("tcp-bcast", "Invalid broadcast frame size: %zu", frame_size);
+        return NULL;
+    }
+
+    /* Size for the widest selectable frame, not the current one: a listen-mode
+     * change can grow the frame size under a connected client, and the loop
+     * below re-reads it.  MAX_PAYLOAD is 1213 bytes, so this costs nothing. */
+    frame_buffer = (uint8_t *)malloc(MAX_PAYLOAD);
+    kiss_buffer = (uint8_t *)malloc((MAX_PAYLOAD * 2) + 3);
+
+    if (!frame_buffer || !kiss_buffer)
+    {
+        HLOGE("tcp-bcast", "Failed to allocate memory for send buffer.");
+        free(frame_buffer);
+        free(kiss_buffer);
+        return NULL;
+    }
+
+    while (!mercury_stop && !bcast_client_done)
+    {
+        /* Re-read: a MODE command can change the broadcast framing while this
+         * client stays connected. */
+        frame_size = atomic_load(&broadcast_frame_size_cfg);
+        if (frame_size == 0 || frame_size > MAX_PAYLOAD)
+        {
+            msleep(100);
+            continue;
+        }
+
+        /* Only this worker consumes the RX ring, and the server clears it
+         * after joining us. A full frame therefore cannot disappear between
+         * this size check and read_buffer(). Poll while no frame is ready. */
+        if (size_buffer(data_rx_buffer_broadcast) < frame_size)
+        {
+            msleep(100);
+            continue;
+        }
+
+        if (bcast_client_done)
+            break;
+
+        if (read_buffer(data_rx_buffer_broadcast, frame_buffer, frame_size) < 0)
+            break;
+
+        uint8_t *payload_start;
+        int payload_len;
+        uint8_t reply_cmd = bcast_get_tx_payload(frame_buffer, frame_size,
+                                                  &payload_start, &payload_len);
+        if (payload_len <= 0)
+            continue;
+
+        /* (received chat is stored where the frame is decoded:
+         * broadcast_rx_frame) */
+        int kiss_len = kiss_write_frame(payload_start, payload_len, reply_cmd, kiss_buffer);
+        HLOGI("tcp-bcast", "Sending KISS frame to client: kiss_cmd=0x%02X payload=%d kiss_len=%d",
+              reply_cmd, payload_len, kiss_len);
+        if (send_all(client_socket, kiss_buffer, (size_t)kiss_len) < 0)
+        {
+            if (!mercury_stop && !bcast_client_done)
+                HLOGW("tcp-bcast", "Error sending KISS broadcast frame (err=%d)",
+                      sock_errno());
+            break;
+        }
+    }
+
+    free(frame_buffer);
+    free(kiss_buffer);
+    return NULL;
+}
+
+void *recv_thread(void *client_socket_ptr)
+{
+    int client_socket = *((int *)client_socket_ptr);
+    size_t frame_size = atomic_load(&broadcast_frame_size_cfg);
+    uint8_t *buffer = (uint8_t *)malloc(DATA_TX_BUFFER_SIZE);
+    uint8_t decoded_frame[MAX_PAYLOAD];
+
+    if (!buffer)
+    {
+        HLOGE("tcp-bcast", "Failed to allocate memory for recv buffer.");
+        return NULL;
+    }
+
+    // Reset global KISS parser state for each new client session.
+    kiss_reset_state();
+
+    if (frame_size == 0 || frame_size > MAX_PAYLOAD)
+    {
+        HLOGE("tcp-bcast", "Invalid broadcast frame size: %zu", frame_size);
+        goto cleanup;
+    }
+
+    HLOGI("tcp-bcast", "Receive thread started (expected frame_size=%zu)", frame_size);
+
+    while (!mercury_stop && !bcast_client_done)
+    {
+        ssize_t received = recv(client_socket, (char *)buffer, DATA_TX_BUFFER_SIZE, 0);
+        if (received > 0)
+        {
+            HLOGD("tcp-bcast", "recv %zd bytes from broadcast client", received);
+            for (ssize_t i = 0; i < received; i++)
+            {
+                int frame_len = kiss_read(buffer[i], decoded_frame);
+                if (frame_len <= 0)
+                    continue;
+
+                /* Re-read: see send_thread. */
+                frame_size = atomic_load(&broadcast_frame_size_cfg);
+                uint8_t kiss_cmd = kiss_last_command();
+                HLOGI("tcp-bcast", "KISS frame decoded: cmd=0x%02X len=%d (expected %zu)",
+                      kiss_cmd, frame_len, frame_size);
+
+                if (!bcast_process_decoded_frame(decoded_frame, frame_len, kiss_cmd, frame_size))
+                    continue;
+            }
+        }
+        else if (received == 0)
+        {
+            HLOGI("tcp-bcast", "Client disconnected.");
+            break;
+        }
+        else if (received < 0)
+        {
+            int err = sock_errno();
+            if (err == SOCK_EINTR)
+                continue;
+            if (err == SOCK_EAGAIN || err == SOCK_EWOULDBLOCK)
+            {
+                hermes_usleep(20000);
+                continue;
+            }
+            HLOGW("tcp-bcast", "Error receiving TCP data (err=%d)", err);
+            break;
+        }
+    }
+
+cleanup:
+    free(buffer);
+    return NULL;
+}
+
+
+// Function to handle TCP server logic
+void *tcp_server_thread(void *port_ptr)
+{
+    int tcp_port = *((int *)port_ptr);
+    int tcp_socket, client_socket;
+    int opt = 1;
+    struct sockaddr_in local_addr, client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+
+    // Open TCP socket
+    tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (tcp_socket < 0)
+    {
+        HLOGE("tcp-bcast", "Failed to create TCP socket: %s", strerror(errno));
+        return NULL;
+    }
+
+    if (setsockopt(tcp_socket, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt)) < 0)
+    {
+        HLOGE("tcp-bcast", "Failed to set SO_REUSEADDR: %s", strerror(errno));
+        SOCK_CLOSE(tcp_socket);
+        return NULL;
+    }
+
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);  /* OpenX6X00: this host only */
+    local_addr.sin_port = htons(tcp_port);
+
+    if (bind(tcp_socket, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0)
+    {
+        HLOGE("tcp-bcast", "Failed to bind TCP socket: %s", strerror(errno));
+        SOCK_CLOSE(tcp_socket);
+        return NULL;
+    }
+
+    /* The server owns all descriptors; bounded waits avoid cross-thread close
+     * races and work with both POSIX and Winsock nonblocking sockets. */
+    if (set_nonblocking(tcp_socket) < 0 || listen(tcp_socket, 1) < 0)
+    {
+        HLOGE("tcp-bcast", "Failed to listen on TCP socket: %s", strerror(errno));
+        SOCK_CLOSE(tcp_socket);
+        return NULL;
+    }
+
+    HLOGI("tcp-bcast", "Waiting for a client to connect...");
+
+    while (!mercury_stop)
+    {
+        struct pollfd listener = { .fd = tcp_socket, .events = POLLIN };
+        int ready = poll(&listener, 1, 100);
+        if (mercury_stop)
+            break;
+        if (ready == 0 || (ready < 0 && sock_errno() == SOCK_EINTR))
+            continue;
+        if (ready < 0 || (listener.revents & (POLLERR | POLLHUP | POLLNVAL)))
+            break;
+        client_addr_len = sizeof(client_addr);
+        client_socket = accept(tcp_socket, (struct sockaddr *)&client_addr, &client_addr_len);
+        if (client_socket < 0)
+        {
+            int err = sock_errno();
+            if (err == SOCK_EINTR || err == SOCK_EAGAIN || err == SOCK_EWOULDBLOCK)
+                continue;
+            HLOGE("tcp-bcast", "Failed to accept client connection: %s", strerror(errno));
+            if (mercury_stop)
+                break; // Exit if shutdown flag is set
+            continue; // Retry accepting a connection
+        }
+
+        if (mercury_stop || set_nonblocking(client_socket) < 0)
+        {
+            SOCK_CLOSE(client_socket);
+            continue;
+        }
+#if defined(SO_NOSIGPIPE)
+        setsockopt(client_socket, SOL_SOCKET, SO_NOSIGPIPE, (const char *)&opt, sizeof(opt));
+#endif
+        HLOGI("tcp-bcast", "Client connected.");
+
+        bcast_client_done = false;
+        atomic_store_explicit(&bcast_reply_cmd, CMD_DATA, memory_order_relaxed);
+        atomic_store(&bcast_client_present, true);
+
+        /* New client, clean slate: drop any partial broadcast line left in the
+         * store's feed buffer from the previous client. */
+        msg_store_reset(MSG_PLANE_BCAST, MSG_DIR_RX);
+        msg_store_reset(MSG_PLANE_BCAST, MSG_DIR_TX);
+
+        pthread_t recv_tid, send_tid;
+
+        if (pthread_create(&recv_tid, NULL, recv_thread, &client_socket) != 0)
+        {
+            SOCK_CLOSE(client_socket);
+            continue;
+        }
+        bool send_started = pthread_create(&send_tid, NULL, send_thread, &client_socket) == 0;
+        if (!send_started)
+            bcast_client_done = true;
+
+        /* recv_thread normally notices a clean FIN (recv()==0) and exits on
+         * its own, letting the join below return.  Do not trust that alone:
+         * if the client half-drops the link without a FIN -- or a non-blocking
+         * read races the close -- recv_thread spins on EAGAIN forever and this
+         * thread never returns to accept(), so the listen backlog fills and the
+         * NEXT client's connect() hangs.  Watch the socket directly and, on
+         * hangup/error, shut it down so recv() unblocks.  shutdown() keeps the
+         * descriptor owned by this thread until the join, avoiding the
+         * cross-thread close race. */
+        while (!mercury_stop)
+        {
+            struct pollfd cfd = { .fd = client_socket, .events = POLLIN | POLLERR | POLLHUP };
+            int r = poll(&cfd, 1, 100);
+            if (mercury_stop)
+                break;
+            if (r < 0 && sock_errno() == SOCK_EINTR)
+                continue;
+            if (r <= 0)
+                continue;
+            if (cfd.revents & (POLLERR | POLLHUP | POLLNVAL))
+                break;
+            if (cfd.revents & POLLIN)
+            {
+                /* recv_thread consumes the data; peek to tell data from EOF. */
+                char probe;
+                ssize_t got = recv(client_socket, &probe, 1, MSG_PEEK);
+                if (got == 0)
+                    break; /* EOF: peer sent FIN */
+                if (got < 0 && sock_errno() != SOCK_EAGAIN && sock_errno() != SOCK_EWOULDBLOCK)
+                    break; /* reset or other error */
+            }
+        }
+        SOCK_SHUTDOWN(client_socket);
+        pthread_join(recv_tid, NULL);
+        bcast_client_done = true;
+        atomic_store(&bcast_client_present, false);
+        if (send_started)
+            pthread_join(send_tid, NULL);
+        clear_buffer(data_rx_buffer_broadcast);
+
+        SOCK_CLOSE(client_socket);
+        HLOGI("tcp-bcast", "Waiting for a new client to connect...");
+    }
+
+    SOCK_CLOSE(tcp_socket);
+    return NULL;
+}
+
+/*********** TNC / radio functions ***********/
+void ptt_on()
+{
+    arq_set_trx(TX);
+    if (radio_io_enabled())
+        radio_io_key_on();
+    /* Queue "PTT ON\r" asynchronously so a transient write failure on the
+     * non-blocking CTL socket does NOT set NET_RESTART and kill the DATA
+     * socket (which would send EOF to uucico and abort the UUCP session).
+     * The PTT state change (arq_set_trx(TX)) is already synchronous and
+     * is what the modem RX thread actually polls; the TCP notification to
+     * uucpd is informational only. */
+    (void)tnc_queue_line_critical("PTT ON\r");
+    HLOGI("radio", "TX enabled (PTT ON)");
+}
+
+void ptt_off()
+{
+    arq_set_trx(RX);
+    if (radio_io_enabled())
+        radio_io_key_off();
+    /* Same reasoning as ptt_on(): queue asynchronously. */
+    (void)tnc_queue_line_critical("PTT OFF\r");
+    HLOGI("radio", "TX disabled (PTT OFF)");
+}
+
+void tnc_send_connected()
+{
+    char buffer[128];
+    char my_call[CALLSIGN_MAX_SIZE], src[CALLSIGN_MAX_SIZE], dst[CALLSIGN_MAX_SIZE];
+    arq_conn_get_calls(my_call, src, dst, CALLSIGN_MAX_SIZE);
+    const char *source_call = src[0] ? src : my_call;
+    const char *dest_call   = dst[0] ? dst : my_call;
+    int bw = arq_reported_bandwidth_hz();   /* separate locked call, AFTER the getter returns */
+    snprintf(buffer, sizeof(buffer), "CONNECTED %s %s %d\r",
+             source_call, dest_call, bw);
+    if (tnc_queue_line_critical(buffer) < 0)
+        HLOGW("tcp-ctl", "Error queuing connected message");
+}
+
+void tnc_send_cqframe(const char *source_call, int bw_hz)
+{
+    char buffer[128];
+
+    if (!source_call || source_call[0] == '\0')
+        return;
+
+    snprintf(buffer, sizeof(buffer), "CQFRAME %s %d\r", source_call, bw_hz);
+    if (tnc_queue_line(buffer) < 0)
+        HLOGW("tcp-ctl", "Error queuing CQFRAME message");
+}
+
+void tnc_send_pending()
+{
+    if (tnc_queue_line_critical("PENDING\r") < 0)
+        HLOGW("tcp-ctl", "Error queuing pending message");
+}
+
+void tnc_send_cancelpending()
+{
+    if (tnc_queue_line_critical("CANCELPENDING\r") < 0)
+        HLOGW("tcp-ctl", "Error queuing cancelpending message");
+}
+
+void tnc_send_disconnected()
+{
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "DISCONNECTED\r");
+    if (tnc_queue_line_critical(buffer) < 0)
+    {
+        HLOGW("tcp-ctl", "Error queuing disconnected message");
+        /* A lost DISCONNECTED is unrecoverable for the host: Pat/Winlink sit
+         * there forever waiting for a connect result.  The queue path is
+         * lossy by design (telemetry must not block a modem thread), so when
+         * it is backed up, deliver this one state change straight to the
+         * control socket instead of dropping it.  tcp_write() is mutex-guarded
+         * and non-blocking, so this cannot stall the ARQ event loop. */
+        (void)tcp_write(CTL_TCP_PORT, (uint8_t *)buffer, strlen(buffer));
+    }
+}
+
+void tnc_send_registered(const char *callsign)
+{
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "REGISTERED %s\r", callsign);
+    if (tnc_queue_line_critical(buffer) < 0)
+        HLOGW("tcp-ctl", "Error queuing registered message");
+}
+
+void tnc_send_buffer(uint32_t bytes)
+{
+    char buffer[64];
+    int last = atomic_load_explicit(&tnc_last_buffer_sent, memory_order_relaxed);
+
+    if (last >= 0 && (uint32_t)last == bytes)
+        return;
+
+    snprintf(buffer, sizeof(buffer), "BUFFER %u\r", bytes);
+    if (tnc_queue_line(buffer) == 0)
+    {
+        atomic_store_explicit(&tnc_last_buffer_sent, (int)bytes, memory_order_relaxed);
+        atomic_store_explicit(&tnc_last_buffer_ms, monotonic_ms(), memory_order_relaxed);
+    }
+}
+
+/* TNC notification callbacks registered into the ARQ layer.  Decouples ARQ
+ * from this file: ARQ calls arq_tnc_send_*(), which dispatch here. */
+static const arq_tnc_callbacks_t g_arq_tnc_cbs = {
+    .send_pending       = tnc_send_pending,
+    .send_cancelpending = tnc_send_cancelpending,
+    .send_connected     = tnc_send_connected,
+    .send_cqframe       = tnc_send_cqframe,
+    .send_disconnected  = tnc_send_disconnected,
+    .send_buffer        = tnc_send_buffer,
+    .send_registered    = tnc_send_registered,
+};
+
+void tnc_send_sn(float snr)
+{
+    char buffer[64];
+    uint32_t bits;
+    memcpy(&bits, &snr, sizeof bits);
+    atomic_store_explicit(&last_sn_bits, bits, memory_order_relaxed);
+    snprintf(buffer, sizeof(buffer), "SN %.1f\r", snr);
+    (void)tnc_queue_line(buffer);
+}
+
+void tnc_send_busy(bool busy)
+{
+    /* VARA-compatible channel-occupancy notification: hosts (BPQ32,
+     * Winlink) already understand "BUSY ON" / "BUSY OFF".  Edge-triggered by
+     * the caller (the channel-busy detector), so this only fires on a real
+     * CLEAR<->BUSY transition — which is why it goes out on the critical path
+     * with the other state notifications.  There is no periodic refresh: a
+     * dropped "BUSY ON" leaves a scanning host stepping over an occupied
+     * channel until the next transition, which may be a whole QSO away. */
+    (void)tnc_queue_line_critical(busy ? "BUSY ON\r" : "BUSY OFF\r");
+}
+
+void tnc_send_bitrate(uint32_t speed_level, uint32_t bps)
+{
+    char buffer[64];
+    atomic_store_explicit(&last_bitrate_sl, speed_level, memory_order_relaxed);
+    atomic_store_explicit(&last_bitrate_bps, bps, memory_order_relaxed);
+    snprintf(buffer, sizeof(buffer), "BITRATE (%u) %u BPS\r", speed_level, bps);
+    (void)tnc_queue_line(buffer);
+}
+
+void tnc_send_monitor(const char *mode_name, const char *kind,
+                      const char *detail, float snr_db)
+{
+    char buffer[128];
+
+    if (!mode_name) mode_name = "UNKNOWN";
+    if (!kind)      kind = "FRAME";
+    if (!detail)    detail = "";
+
+    snprintf(buffer, sizeof(buffer), "MONITOR %s %s %s SNR=%.1f\r",
+             mode_name, kind, detail, (double)snr_db);
+    (void)tnc_queue_line(buffer);
+}
+
+float tnc_get_last_snr(void)
+{
+    uint32_t bits = atomic_load_explicit(&last_sn_bits, memory_order_relaxed);
+    float val;
+    memcpy(&val, &bits, sizeof val);
+    return val;
+}
+
+uint32_t tnc_get_last_bitrate_bps(void)
+{
+    return atomic_load_explicit(&last_bitrate_bps, memory_order_relaxed);
+}
+
+void interfaces_set_broadcast_frame_size(size_t broadcast_frame_size)
+{
+    atomic_store(&broadcast_frame_size_cfg, broadcast_frame_size);
+}
+
+size_t interfaces_get_broadcast_frame_size(void)
+{
+    return atomic_load(&broadcast_frame_size_cfg);
+}
+
+/* A listener is up once it is LISTENING -- or already CONNECTED: the HERMES
+ * stations' uucpd connects the instant the port opens, and on a Pi it got in
+ * (and sent MYCALL, LISTEN ON, ...) 18 ms into startup, before this thread
+ * looked.  Waiting for exactly LISTENING then timed out on a healthy port
+ * ("ARQ listeners failed to start (ctl=3 data=3)"), init failed, and the
+ * station sat deaf until the next restart. */
+static bool port_up(int status) { return status == NET_LISTENING || status == NET_CONNECTED; }
+
+static int wait_port_up(int port_type, int timeout_ms)
+{
+    for (int waited = 0; ; waited += 10)
+    {
+        int st = net_get_status(port_type);
+        if (port_up(st) || waited >= timeout_ms)
+            return st;
+        hermes_usleep(10000);
+    }
+}
+
+int interfaces_init(int arq_tcp_base_port, int broadcast_tcp_port, size_t broadcast_frame_size)
+{
+    arq_set_tnc_callbacks(&g_arq_tnc_cbs);
+    arq_tcp_base_port_cfg = arq_tcp_base_port;
+    broadcast_tcp_port_cfg = broadcast_tcp_port;
+    atomic_store(&broadcast_frame_size_cfg, broadcast_frame_size);
+    memset(tid_started, 0, sizeof(tid_started));
+
+    /*************** ARQ TCP ports *******************/
+    net_set_status(CTL_TCP_PORT, NET_NONE);
+    net_set_status(DATA_TCP_PORT, NET_NONE);
+    if (!tnc_txq)
+        tnc_txq = circular_buf_init(tnc_txq_storage, TNC_TXQ_SIZE);
+    atomic_store_explicit(&tnc_txq_open, true, memory_order_release);
+    atomic_store_explicit(&tnc_last_buffer_sent, -1, memory_order_relaxed);
+
+    if (pthread_create(&tid[0], NULL, arq_reactor_thread, (void *)&arq_tcp_base_port_cfg) != 0)
+    {
+        HLOGE("tcp", "Failed to start ARQ reactor thread");
+        dispose_tnc_tx_queue();
+        return EXIT_FAILURE;
+    }
+    tid_started[0] = true;
+
+    /* The reactor opens its two listeners asynchronously.  Wait for both to
+     * reach LISTENING so a bind failure (bad base port, port already in use,
+     * privileged port) is reported here as an init failure, not as a
+     * background mercury_stop that tears the process down *after*
+     * mercury_engine_init() has already returned success — the confusing
+     * "Mercury engine initialised" immediately followed by "Shutting down"
+     * and an alarm-killed shutdown. */
+    int ctl_status  = wait_port_up(CTL_TCP_PORT, 3000);
+    int data_status = wait_port_up(DATA_TCP_PORT, 3000);
+    if (!port_up(ctl_status) || !port_up(data_status))
+    {
+        HLOGE("tcp", "ARQ listeners failed to start (ctl=%d data=%d)",
+              ctl_status, data_status);
+        mercury_stop = true;
+        pthread_join(tid[0], NULL);
+        tid_started[0] = false;
+        dispose_tnc_tx_queue();
+        return EXIT_FAILURE;
+    }
+
+
+    /*************** BROADCAST TCP ports **************/
+    // Create TCP BROADCAST server thread
+    if (pthread_create(&tid[6], NULL, tcp_server_thread, (void *)&broadcast_tcp_port_cfg) != 0)
+    {
+        HLOGE("tcp", "Failed to start broadcast TCP thread");
+        mercury_stop = true;
+        if (tid_started[0])
+        {
+            pthread_join(tid[0], NULL);
+            tid_started[0] = false;
+        }
+        dispose_tnc_tx_queue();
+        return EXIT_FAILURE;
+    }
+    tid_started[6] = true;
+
+    
+    return EXIT_SUCCESS;
+}
+
+void interfaces_shutdown()
+{
+    int i;
+
+    for (i = 0; i < 7; i++)
+    {
+        if (tid_started[i])
+        {
+            pthread_join(tid[i], NULL);
+            tid_started[i] = false;
+        }
+    }
+    dispose_tnc_tx_queue();
+}

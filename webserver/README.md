@@ -18,4 +18,11 @@ screen (Display, Ethernet) need the GUI's configurator socket
 
 Options: `--host`, `--port`, `--https-port` (0 = off), `--cert-dir`, `--db`,
 `--cluster-conf`, `--tci-conf`, `--channels-file`, `--filebrowser-path`,
-`--debug`.
+`--funnel-dir`, `--debug`.
+
+At its start the server writes the Panel and the Screen page for Tailscale
+Funnel into `--funnel-dir` (`/run/x6100-funnel`; empty: not written): the
+pages without the menu, their sockets on the page's own address, and the six
+files they load. tailscaled serves that folder to the internet
+(`rootfs/usr/sbin/x6100-tailscale`); this server answers no request from
+there (one with `Tailscale-Funnel-Request` gets a 403).

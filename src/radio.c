@@ -133,10 +133,42 @@ static void atu_done_cb(void *arg) {
     param_i_set(cfg_atu_enabled, true);
 }
 
+/* The base's warnings, on the LVGL thread: bit 0 battery hot, 1 PA hot, 2 DC in too low,
+ * 3 battery cold, shown in the words of Xiegu's app */
+static void base_warn_cb(void *arg) {
+    static const char *words[] = {"BATTERY HIGH TEMP!", "PA HIGH TEMP!", "DCIN TOO LOW!", "BATTERY LOW TEMP!"};
+    uint8_t            w = *(uint8_t *)arg;
+    char               text[96] = "";
+
+    for (int i = 0; i < 4; i++) {
+        if (w & 1 << i) {
+            snprintf(text + strlen(text), sizeof(text) - strlen(text), "%s%s", text[0] ? "\n" : "", words[i]);
+        }
+    }
+    msg_schedule_long_text_fmt("%s", text);
+}
+
 /* A hand mic key, on the LVGL thread (see the flow handler) */
 static void hkey_sched_cb(void *arg) {
     hkey_put(*(uint32_t *)arg);
 }
+
+#ifdef BOARD_PWR_MAX_BAT
+/* The supply changed (true: external power), on the LVGL thread. On battery the cap drops and a
+ * power set above it comes down to it; back on external power only the cap goes up, the power
+ * stays where it was, as in Xiegu's app */
+static void supply_cb(void *arg) {
+    if (*(bool *)arg) {
+        cfg_pwr_max_set(BOARD_PWR_MAX);
+    } else {
+        cfg_pwr_max_set(BOARD_PWR_MAX_BAT);
+        if (param_f_get(cfg_pwr) > BOARD_PWR_MAX_BAT) {
+            cfg_pwr_set(BOARD_PWR_MAX_BAT);
+            msg_schedule_text_fmt("TX power %0.0f W on battery", BOARD_PWR_MAX_BAT);
+        }
+    }
+}
+#endif
 
 /**********************
  *  STATIC VARIABLES
@@ -169,6 +201,7 @@ static uint64_t         start_time;     /* radio_init() */
 static uint64_t         pack_time;      /* last packet from the base */
 static uint8_t          pack_vbat, pack_vext;   /* its voltages, 0.1 V */
 static volatile int8_t  bat_pct = -1;   /* the battery %, -1 on external power or not measured yet */
+static volatile bool    charger_asked;  /* the charger setting as last applied (Shadow at power-off left out: no bolt then) */
 static bool             mute = false;
 static bool             tci_mute = false;   /* a TCI client transmits: the speaker and the monitor off */
 static bool             rec_moni = false;   /* a screen recording takes the TX audio: the monitor at 30 at least (X6100) */
@@ -188,6 +221,17 @@ static void power_key_cb(void *arg) {
 
 static void set_txpwr(float w) {
     hw_set_f(HW_TXPWR_F, digi_cap && w > TX_PLAYER_MAX_PWR_W ? TX_PLAYER_MAX_PWR_W : w);
+}
+
+/* Whether the base's charging flag counts: on the X6200 only when charging was asked for, as its base (1.0.8)
+ * raises the flag with external power in whatever the setting (#33). The X6100's flag is taken as its base
+ * gives it: nobody has seen that base raise it with the charger off */
+static bool charge_flag_counts(void) {
+#ifdef BOARD_X6200
+    return charger_asked;
+#else
+    return true;
+#endif
 }
 
 static uint32_t min_tx;
@@ -346,7 +390,8 @@ void radio_start() {
         subject_subscribe_and_notify((Subject*)cfg_mode_zoom, on_fw_zoom_change, NULL);
     }
 
-    hw_set_i(HW_CHARGER, params.charger.x == RADIO_CHARGER_ON);
+    charger_asked = params.charger.x == RADIO_CHARGER_ON;
+    hw_set_i(HW_CHARGER, charger_asked);
     hw_set_i(HW_BIAS_DRIVE, params.bias_drive);
     hw_set_i(HW_BIAS_FINAL, params.bias_final);
     hw_set_i(HW_SPMODE, params.spmode.x);
@@ -561,6 +606,10 @@ void radio_set_digi_cap(bool on) {
     radio_set_pwr(param_f_get(cfg_pwr));
 }
 
+bool radio_digi_cap(void) {
+    return digi_cap;
+}
+
 void radio_set_tx_filter(uint16_t from_hz, uint16_t to_hz) {
     WITH_RADIO_LOCK(hw_set_i(HW_TX_FILTER_LOW, from_hz); hw_set_i(HW_TX_FILTER_HIGH, to_hz));
 }
@@ -621,7 +670,11 @@ void radio_poweroff() {
 }
 
 void radio_set_charger(bool on) {
+    charger_asked = on;
     WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, on));
+    if (!charge_flag_counts() && pack_vext >= 30) {
+        clock_update_estimate(-1, false);   /* no time to full in the top bar right away */
+    }
 }
 
 /* Keying from the GUI where the radio does not transmit is refused, with a word on the screen: the X6200's FM
@@ -1138,6 +1191,9 @@ static void battery_log(const hw_pack_t *p) {
     bat_est_feed(&s);
     int min = bat_est_minutes(0, &chg, &approx);
 
+    if (s.vext >= 3.0f && !charge_flag_counts()) {
+        min = -1;   /* the charger is off: no time to full */
+    }
     clock_update_estimate(min, approx);
 
     /* On battery at 10% or less: a warning every minute (the 30 s power-off comes at 6.0 V) */
@@ -1293,9 +1349,33 @@ static bool radio_tick() {
 
             battery_startup_log(&bat_watch, pack);
             battery_model_load();
+            /* The X6200's base (1.0.8) raises its charging flag whenever external power is in, even
+             * with the charger off, when it does not charge (measured on the radio: the battery stays
+             * flat). bat_watch above still takes the flag as a sign of external power; from here on
+             * it counts only if charging was asked for, as in Xiegu's app: the top bar, the time to
+             * full and the battery log (charge_flag_counts: the X6100's as its base gives it) */
+            pack->charging = pack->charging && charge_flag_counts();
+            clock_update_no_battery(pack->bat_missing);
             if (bat_watch.counts) {
                 clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, pack->batcap, pack->charging);
                 battery_log(pack);
+            }
+
+            /* The base's warnings, once its readings count (bat_watch.h): shown when one comes on, and again
+             * every 30 s while any lasts. told: those shown in the last 30 s. One that blinks (the DC input
+             * sagging under the TX current) is not new at each blink: each message stays 4 s and they queue,
+             * so a blink every other reading would have queued them faster than they go. Shown only once
+             * its job is in (the note above radio_tick) */
+            static uint8_t  told;
+            static uint64_t told_time;
+            uint8_t         w = bat_watch.counts
+                                    ? pack->bat_hot | pack->pa_hot << 1 | pack->dcin_low << 2 | pack->bat_cold << 3
+                                    : 0;
+            bool            due = now_time - told_time >= 30000;
+
+            if (w && ((w & ~told) || due) && scheduler_put(base_warn_cb, &w, sizeof(w))) {
+                told      = due ? w : told | w;
+                told_time = now_time;
             }
 
             /* The % sags under the TX current and comes back slowly: the last RX reading holds
@@ -1323,6 +1403,25 @@ static bool radio_tick() {
                     low_power = low;
                 }
             }
+
+#ifdef BOARD_PWR_MAX_BAT
+            /* The TX power cap follows the supply once it has been steady for 5 s, as Xiegu's app
+             * waits. Until the readings count we assume external power, the cap we start with */
+            static bool     supply_ext = true, seen_ext = true;
+            static uint64_t seen_time;
+
+            if (bat_watch.counts && bat_watch.ext != seen_ext) {
+                seen_ext  = bat_watch.ext;
+                seen_time = now_time;
+            }
+            if (seen_ext != supply_ext && now_time - seen_time >= 5000) {
+                bool ext = seen_ext;
+
+                if (scheduler_put(supply_cb, &ext, sizeof(ext))) {
+                    supply_ext = ext;
+                }
+            }
+#endif
         }
         if (pack->psd) {
             dsp_psd(pack->psd, pack->n_psd, pack->psd_span, pack->tx, pack->smeter_dbm);

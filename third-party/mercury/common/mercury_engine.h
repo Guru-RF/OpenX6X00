@@ -1,0 +1,79 @@
+/* Mercury Engine — shared init / teardown
+ *
+ * Extracted from main.c and mercury_bridge.c so both the standalone
+ * CLI binary and the CGo Fyne UI call the same code path.
+ *
+ * Copyright (C) 2026 Rhizomatica
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+#ifndef MERCURY_ENGINE_H
+#define MERCURY_ENGINE_H
+
+#include <stdbool.h>
+#include <stdatomic.h>
+#include <stdint.h>
+#include <pthread.h>
+
+#include "cfg_utils.h"
+#include "ui_communication.h"
+#include "modem.h"
+
+/* Mercury's own run flag: set by the termination signal handler, by
+ * mercury_engine_shutdown(), and by an init that fails after starting threads;
+ * polled by main and by every worker loop.  Named for Mercury rather than the
+ * process because a host (hermes-radio-daemon) links Mercury in, and its own
+ * stop flag must not be the same symbol.  _Atomic rather than volatile: volatile provides no inter-thread
+ * ordering, and the handler-write/thread-read pair is a data race in the
+ * formal sense (ThreadSanitizer reports it at main.c's handler).  Plain
+ * assignment and test still work -- C11 atomics overload them. */
+extern _Atomic bool mercury_stop;
+
+/* ------------------------------------------------------------------ */
+/*  mercury_engine_init()                                              */
+/*                                                                     */
+/*  cfg   – pre-loaded config (defaults + INI applied)                 */
+/*  config_path – path to mercury.ini (used for UI write-back)         */
+/*  log_path – log file path (NULL = no file log)                      */
+/*  log_jsonl – use JSONL format for the log file                      */
+/*  startup_mode – FreeDV mode (e.g. FREEDV_MODE_DATAC3)              */
+/*  test_mode – 0 = normal, 1 = TX test, 2 = RX test                  */
+/*                                                                     */
+/*  Returns 0 on success, non-zero on failure.                         */
+/* ------------------------------------------------------------------ */
+int mercury_engine_init(const mercury_config *cfg,
+                        const char *config_path,
+                        const char *log_path,
+                        bool log_jsonl,
+                        int startup_mode,
+                        int test_mode);
+
+/* ------------------------------------------------------------------ */
+/*  mercury_engine_shutdown()                                          */
+/*                                                                     */
+/*  Call AFTER setting mercury_stop = true.                            */
+/* ------------------------------------------------------------------ */
+void mercury_engine_shutdown(void);
+
+/* The shutdown step in progress ("tcp interfaces", "audio", ...), or NULL
+ * before shutdown starts.  Read by main()'s SIGALRM watchdog, so a shutdown
+ * that hangs says where; a plain pointer load, safe from a signal handler. */
+const char *mercury_engine_shutdown_step(void);
+
+/* Bit rate and bandwidth of the running modem.  Derived from the modem itself
+ * rather than a table, so they describe what is actually on the air.  For the
+ * broadcast mode an operator has to match, see mercury_bcast_engine_mode():
+ * that reports the listen mode, which is what broadcast uses, rather than
+ * whatever rung the ARQ ladder currently sits on. */
+int mercury_engine_modem_bitrate(void);
+int mercury_engine_modem_bandwidth_hz(void);
+
+/* ------------------------------------------------------------------ */
+/*  mercury_engine_is_initialized()                                    */
+/*                                                                     */
+/*  Returns true iff mercury_engine_init() completed successfully      */
+/*  and mercury_engine_shutdown() has not been called.                 */
+/* ------------------------------------------------------------------ */
+bool mercury_engine_is_initialized(void);
+
+#endif

@@ -22,7 +22,9 @@
  *  answers rather than by counting (audit C02).
  *
  *  Sessions and control (R3): a new connection may only watch and listen ("role view 0 -").
- *  "pair?" puts a six-digit code on the radio's screen for two minutes; "pair CODE NAME" with
+ *  "pair?" puts a six-digit code on the radio's screen for two minutes (a new code at most every
+ *  30 s, the wait doubling after each code burned by three wrong tries, up to an hour: "err
+ *  pairing paused ..."; a code asked on the radio itself starts the waits over); "pair CODE NAME" with
  *  the right code makes a session (the first one ever is admin, the others operate, with TX),
  *  answered "paired TOKEN ROLE TX"; the page keeps the token and sends "auth TOKEN" at every
  *  connection, answered "role ROLE TX NAME" (view, operate, admin). Keys, knobs, "set", "ft8"
@@ -39,7 +41,7 @@
  *  The Panel page works the radio natively instead of through a picture of its screen: a client
  *  that sends "panel 1" gets the radio's state as JSON ("state {...}": frequency, mode, filter,
  *  the switches, the levels), the S-meter ("m <dB>", ten a second), the TX meters while on the
- *  air ("t <W> <SWR> <ALC>"), the band list and the band plan once ("bands [...]", "plan [...]"),
+ *  air ("t <W> <SWR> <ALC>"), the band list and the band plan ("bands [...]", "plan [...]", again on a change),
  *  the cluster spots as they change ("spots [...]") and the spectrum as binary frames: 16 bytes
  *  header {u16 0xFFFF, u16 bins, u32 centre Hz, u32 width Hz, u32 sequence}, then one int8 dB
  *  per bin (the waterfall's own FFT, up to 15 a second, a kilobyte each where a screen frame is
@@ -62,6 +64,16 @@
  *  The Origin check of ws_handshake() keeps pages from other sites out; like the TCI server there
  *  is no login: the radio's own network is trusted.
  *
+ *  Tailscale Funnel (#58) brings the Panel and the Screen page from the internet, through
+ *  tailscaled, which marks each such connection (ws_handshake's peer.funnel). One of those gets
+ *  nothing, not even "hello", until its first text is "auth TOKEN" of a browser paired at home,
+ *  within FUNNEL_AUTH_MS; a wrong token closes it, and the tenth within ten minutes refuses
+ *  Funnel for ten (remote_server_funnel_refused, which TCI's Funnel mode calls too). Pairing is
+ *  refused over Funnel. At most FUNNEL_CLIENTS of the MAX_CLIENTS come from the internet, and
+ *  the browser's address (X-Forwarded-For) is shown and logged with "via Funnel". A paired
+ *  browser at home gets its key for away with "away", answered "away TOKEN": a session of its
+ *  own, "NAME (away)", with its role and TX, the one that browser made before replaced (sess_away).
+ *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
@@ -70,6 +82,7 @@
 #include <stdio.h>       /* before jpeglib.h, which wants FILE */
 
 #include "remote_server.h"
+#include "remote_sessions.h"
 #include "control_owner.h"
 #include "front_keys.h"
 #include "msg_box.h"
@@ -116,7 +129,12 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MAX_CLIENTS 3
+#define MAX_CLIENTS 4
+#define FUNNEL_CLIENTS  2           /* from the internet at once: the LAN and the tailnet always keep two */
+#define FUNNEL_AUTH_MS  5000        /* a connection over Funnel presents its token within this, or goes */
+#define FUNNEL_BAD_MAX  10          /* this many wrong tokens over Funnel within FUNNEL_BAD_MS ... */
+#define FUNNEL_BAD_MS   (600 * 1000)
+#define FUNNEL_PAUSE_MS (600 * 1000)  /* ... and Funnel's connections are refused this long */
 #define IN_SIZE     4096
 #define OUT_SIZE    (384 * 1024)    /* two frames at the most */
 #define TEXT_MAX    256
@@ -152,8 +170,11 @@ static const struct { const char *name; int quality; bool half; } pics[PIC_N] = 
 
 typedef struct {
     int             fd;
-    bool            up;
-    char            ip[48];
+    bool            ws;             /* the handshake done: frames are read */
+    bool            up;             /* and it is sent to: at once, or over Funnel once its token is good */
+    bool            funnel;         /* from the internet through Tailscale Funnel (#58) */
+    uint64_t        open_ms;        /* when the handshake was done */
+    char            ip[48];         /* over Funnel the browser's address, from tailscaled's X-Forwarded-For */
     uint8_t         in[IN_SIZE];
     size_t          in_len;
     uint8_t        *out;            /* OUT_SIZE, under lock: the encoder writes here too */
@@ -188,16 +209,24 @@ enum { ROLE_VIEW = 0, ROLE_OPERATE = 1, ROLE_ADMIN = 2 };
 #define PAIR_MS      120000   /* the code stays good this long */
 #define PAIR_SHOW_MS 15000    /* and shows on the screen this long */
 #define PAIR_TRIES   3
+#define PAIR_WAIT_MS 30000    /* a browser gets a new code at most this often */
+#define PAIR_WAIT_MAX_MS (3600 * 1000)   /* the wait doubles after each burned code, up to this */
 #define PTT_LEASE_MS 3000     /* a held PTT without renewal */
 #define PTT_LIMIT_MS (180 * 1000)
 
+/* The token itself goes to the browser once, at pairing; the radio keeps its SHA-256 only: REMOTE_SESSIONS is on
+ * the DATA partition, whose files the web configurator's Files page hands out, and a token copied from there was
+ * the browser's access, from the internet too once Tailscale Funnel is on (#58) */
 typedef struct {
-    char     token[TOKEN_LEN + 1];
+    uint8_t  hash[32];        /* SHA-256 of the token (its 32 hex characters) */
     char     name[32];
     uint8_t  role;
     bool     tx;
     uint64_t created, last;   /* wall clock, seconds */
     char     ip[48];
+    bool     funnel;          /* last seen from the internet through Tailscale Funnel, ip the browser's there */
+    bool     away;            /* an away session (sess_away) that knows the browser it was made for: */
+    uint8_t  home[32];        /* the hash of that browser's own session */
 } session_t;
 
 static session_t       sessions[SESS_MAX];
@@ -207,13 +236,18 @@ static char            pair_code[8];
 static uint64_t        pair_until_ms;
 static atomic_uint_fast64_t pair_hide_ms;   /* until then the mirror is withheld from the unpaired (audit B02) */
 static int             pair_tries;
+static uint64_t        pair_next_ms;                    /* a browser may have a new code from then on */
+static uint64_t        pair_wait_ms = PAIR_WAIT_MS;     /* the wait after the next code: doubled by a burned one */
+static uint64_t        funnel_bad[FUNNEL_BAD_MAX];   /* when the last wrong tokens came over Funnel (sess_mux) */
+static int             funnel_bad_n;
+static atomic_uint_fast64_t funnel_pause_ms;        /* until then nothing over Funnel is taken */
 static atomic_bool     tx_last;        /* the TX state last told to the clients */
 static atomic_bool     disconnect_all_due;   /* Settings: every socket closed, the sessions kept */
 static atomic_bool     forget_all_due;       /* Settings: every session revoked */
 
 /* What the panel clients are told; read from the radio every PANEL_MS */
 typedef struct {
-    int32_t freq, mode, flo, fhi, agc, pre, att, nb, nr, sql, rfg, vol, pwr10, step, zoom, vfo, atu, bat;
+    int32_t freq, mode, flo, fhi, kt, agc, pre, att, nb, nr, sql, rfg, vol, pwr10, step, zoom, vfo, atu, bat;
     bool    tx, lock;
 } pstate_t;
 
@@ -335,9 +369,32 @@ static uint64_t wall_s(void) {
     return (uint64_t)time(NULL);
 }
 
-/* sess_mux held */
+/* A token's hash: SHA-256 of its 32 hex characters */
+static void token_hash(const char *token, uint8_t hash[32]) {
+    ws_sha256((const uint8_t *)token, strlen(token), hash);
+}
+
+/* n bytes of hex (2n characters) into bytes: false unless all are hex digits */
+static bool from_hex(const char *s, uint8_t *out, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        int v = 0;
+        for (int k = 0; k < 2; k++) {
+            char ch = s[i * 2 + k];
+            int  d  = ch >= '0' && ch <= '9' ? ch - '0' : ch >= 'a' && ch <= 'f' ? ch - 'a' + 10
+                    : ch >= 'A' && ch <= 'F' ? ch - 'A' + 10 : -1;
+            if (d < 0)
+                return false;
+            v = v * 16 + d;
+        }
+        out[i] = (uint8_t)v;
+    }
+    return true;
+}
+
+/* sess_mux held. The hash, never the token (session_t); an away session's last column its browser's session at home
+ * (the hash of its token), "-" for the others */
 static void sess_save_locked(void) {
-    char  tmp[80];
+    char  tmp[sizeof(REMOTE_SESSIONS) + 8];
     FILE *f;
 
     snprintf(tmp, sizeof(tmp), "%s.tmp", REMOTE_SESSIONS);
@@ -347,17 +404,32 @@ static void sess_save_locked(void) {
             close(fd);
         return;
     }
-    for (int i = 0; i < nsessions; i++)
-        fprintf(f, "%s\t%s\t%d\t%d\t%llu\t%llu\t%s\n", sessions[i].token, sessions[i].name, sessions[i].role,
+    for (int i = 0; i < nsessions; i++) {
+        char hex[65], home[65] = "-";
+        for (int k = 0; k < 32; k++) {
+            snprintf(hex + k * 2, 3, "%02x", sessions[i].hash[k]);
+            if (sessions[i].away)
+                snprintf(home + k * 2, 3, "%02x", sessions[i].home[k]);
+        }
+        fprintf(f, "%s\t%s\t%d\t%d\t%llu\t%llu\t%s\t%d\t%s\n", hex, sessions[i].name, sessions[i].role,
                 sessions[i].tx ? 1 : 0, (unsigned long long)sessions[i].created, (unsigned long long)sessions[i].last,
-                sessions[i].ip);
+                sessions[i].ip[0] ? sessions[i].ip : "-", sessions[i].funnel ? 1 : 0, home);
+    }
+    /* whole on the card before it takes the old file's place: a power cut leaves one or the other */
+    if (fflush(f) == 0)
+        fsync(fileno(f));
     fclose(f);
     rename(tmp, REMOTE_SESSIONS);
 }
 
+/* The sessions, as sess_save_locked keeps them (a 64-hex hash first). A file from before keeps the token itself
+ * (32 hex): it is hashed here and the file written anew, so the browsers paired before stay paired and the tokens
+ * are off the card. The old file stays until the new one has taken its place (sess_save_locked). A file without
+ * the last columns (funnel, home) is from before them: none, as then */
 static void sess_load(void) {
     FILE *f = fopen(REMOTE_SESSIONS, "r");
     char  line[256];
+    int   plain = 0;
 
     if (!f)
         return;
@@ -366,24 +438,39 @@ static void sess_load(void) {
     while (nsessions < SESS_MAX && fgets(line, sizeof(line), f)) {
         session_t *x = &sessions[nsessions];
         char      *save, *tok;
-        int        k = 0;
+        int        k  = 0;
+        bool       ok = false;
         memset(x, 0, sizeof(*x));
         for (tok = strtok_r(line, "\t\r\n", &save); tok; tok = strtok_r(NULL, "\t\r\n", &save), k++) {
             switch (k) {
-                case 0: snprintf(x->token, sizeof(x->token), "%s", tok); break;
+                case 0:
+                    if (strlen(tok) == 64) {
+                        ok = from_hex(tok, x->hash, 32);
+                    } else if (strlen(tok) == TOKEN_LEN) {   /* a token from before: hashed */
+                        ok = true;
+                        token_hash(tok, x->hash);
+                        plain++;
+                    }
+                    break;
                 case 1: snprintf(x->name, sizeof(x->name), "%s", tok); break;
                 case 2: x->role = (uint8_t)LV_CLAMP(0, atoi(tok), 2); break;
                 case 3: x->tx = atoi(tok) != 0; break;
                 case 4: x->created = strtoull(tok, NULL, 10); break;
                 case 5: x->last = strtoull(tok, NULL, 10); break;
                 case 6: snprintf(x->ip, sizeof(x->ip), "%s", tok); break;
+                case 7: x->funnel = atoi(tok) != 0; break;
+                case 8: x->away = strlen(tok) == 64 && from_hex(tok, x->home, 32); break;
             }
         }
-        if (strlen(x->token) == TOKEN_LEN && x->name[0])
+        if (ok && x->name[0])
             nsessions++;
     }
-    pthread_mutex_unlock(&sess_mux);
     fclose(f);
+    if (plain) {
+        sess_save_locked();
+        LV_LOG_USER("remote: %d paired browser(s) kept as a hash of the token from now on", plain);
+    }
+    pthread_mutex_unlock(&sess_mux);
 }
 
 static bool random_hex(char *out, size_t n) {
@@ -401,44 +488,116 @@ static bool random_hex(char *out, size_t n) {
     return true;
 }
 
-/* A new session for a browser that typed the code; -1 when the table is full */
-static int sess_new(const char *name, const char *ip) {
-    pthread_mutex_lock(&sess_mux);
-    if (nsessions == SESS_MAX || !random_hex(sessions[nsessions].token, TOKEN_LEN)) {
-        pthread_mutex_unlock(&sess_mux);
+/* sess_mux held: a new session, its token (TOKEN_LEN hex characters) into token, for that browser alone; role -1:
+ * the first browser paired is the admin, the others operate; home: an away session's browser (the hash of its own
+ * session), NULL for a browser's own. -1 when the table is full */
+static int sess_add_locked(const char *name, const char *ip, int role, bool tx, const uint8_t *home,
+                           char token[TOKEN_LEN + 1]) {
+    if (nsessions == SESS_MAX || !random_hex(token, TOKEN_LEN))
         return -1;
-    }
     session_t *x = &sessions[nsessions];
+    memset(x, 0, sizeof(*x));
+    token_hash(token, x->hash);
+    if ((x->away = home != NULL))
+        memcpy(x->home, home, sizeof(x->home));
     snprintf(x->name, sizeof(x->name), "%s", name);
-    x->role    = nsessions == 0 ? ROLE_ADMIN : ROLE_OPERATE;   /* the first browser paired is the admin */
-    x->tx      = true;
+    x->role    = role >= 0 ? (uint8_t)role : nsessions == 0 ? ROLE_ADMIN : ROLE_OPERATE;
+    x->tx      = tx;
     x->created = x->last = wall_s();
     snprintf(x->ip, sizeof(x->ip), "%s", ip);
-    int i = nsessions++;
+    nsessions++;
     sess_save_locked();
+    return nsessions - 1;
+}
+
+/* A new session for a browser that typed the code, its token into token, for that browser alone; -1 when the
+ * table is full */
+static int sess_new(const char *name, const char *ip, char token[TOKEN_LEN + 1]) {
+    pthread_mutex_lock(&sess_mux);
+    int i = sess_add_locked(name, ip, -1, true, NULL, token);
     pthread_mutex_unlock(&sess_mux);
     return i;
 }
 
+/* The session of a token, -1 none. Every session is compared, each in the same time: how long the answer took
+ * tells nothing of how much of a guess was right */
 static int sess_find(const char *token) {
-    int r = -1;
+    uint8_t h[32];
+    int     r = -1;
 
+    token_hash(token, h);
     pthread_mutex_lock(&sess_mux);
     for (int i = 0; i < nsessions; i++)
-        if (!strcmp(sessions[i].token, token))
+        if (ws_same(sessions[i].hash, h, sizeof(h)))
             r = i;
     pthread_mutex_unlock(&sess_mux);
     return r;
 }
 
-static void sess_touch(int i, const char *ip) {
+/* The session seen now, from ip (over Funnel: the browser's address on the internet) */
+static void sess_touch(int i, const char *ip, bool funnel) {
     pthread_mutex_lock(&sess_mux);
     if (i >= 0 && i < nsessions) {
         sessions[i].last = wall_s();
         snprintf(sessions[i].ip, sizeof(sessions[i].ip), "%s", ip);
+        sessions[i].funnel = funnel;
         sess_save_locked();
     }
     pthread_mutex_unlock(&sess_mux);
+}
+
+/* LVGL thread: Funnel paused */
+static void funnel_paused_apply(void *arg) {
+    (void)arg;
+    msg_schedule_text_ms(PAIR_SHOW_MS, "Tailscale Funnel paused %d min: wrong keys from the internet",
+                         FUNNEL_PAUSE_MS / 60000);
+}
+
+/* A wrong token over Funnel, on this socket or TCI's: the FUNNEL_BAD_MAXth within FUNNEL_BAD_MS refuses Funnel's
+ * connections for FUNNEL_PAUSE_MS. A token cannot be guessed (128 bits), but whoever tries keeps the radio busy and
+ * its slots for the internet taken (remote_sessions.h). Any thread */
+void remote_server_funnel_refused(const char *addr) {
+    uint64_t now   = now_ms();
+    bool     pause = false;
+
+    pthread_mutex_lock(&sess_mux);
+    funnel_bad[funnel_bad_n++ % FUNNEL_BAD_MAX] = now;
+    /* the slot written next holds the oldest of the last FUNNEL_BAD_MAX */
+    if (funnel_bad_n >= FUNNEL_BAD_MAX && now - funnel_bad[funnel_bad_n % FUNNEL_BAD_MAX] < FUNNEL_BAD_MS &&
+        now >= atomic_load(&funnel_pause_ms))
+        pause = true;
+    pthread_mutex_unlock(&sess_mux);
+    LV_LOG_USER("remote: a wrong key over Tailscale Funnel from %s", addr && addr[0] ? addr : "the internet");
+    if (pause) {
+        atomic_store(&funnel_pause_ms, now + FUNNEL_PAUSE_MS);
+        LV_LOG_USER("remote: Tailscale Funnel paused %d min after %d wrong keys", FUNNEL_PAUSE_MS / 60000, FUNNEL_BAD_MAX);
+        scheduler_put_noargs(funnel_paused_apply);
+    }
+}
+
+bool remote_server_funnel_paused(void) {
+    return now_ms() < atomic_load(&funnel_pause_ms);
+}
+
+bool remote_server_session_check(const char *token, int *role, bool *tx, char *name, size_t n) {
+    uint8_t h[32];
+    int     i = -1;
+
+    if (!token || strlen(token) != TOKEN_LEN)
+        return false;
+    token_hash(token, h);
+    pthread_mutex_lock(&sess_mux);          /* found and read under one lock: a revoke moves the others down */
+    for (int k = 0; k < nsessions; k++)
+        if (ws_same(sessions[k].hash, h, sizeof(h)))
+            i = k;
+    if (i >= 0) {
+        *role = sessions[i].role;
+        *tx   = sessions[i].tx;
+        if (name && n)
+            snprintf(name, n, "%s", sessions[i].name);
+    }
+    pthread_mutex_unlock(&sess_mux);
+    return i >= 0;
 }
 
 static void client_close(client_t *c);
@@ -466,6 +625,58 @@ static void sess_revoke(int i) {
             clients[k].sess--;
 }
 
+/* sess_mux held: a session of this hash is still there */
+static bool sess_held_locked(const uint8_t hash[32]) {
+    for (int k = 0; k < nsessions; k++)
+        if (!memcmp(sessions[k].hash, hash, 32))
+            return true;
+    return false;
+}
+
+/* The away session made before for the browser whose own session's hash is home, -1 none. Found by that browser,
+ * not by its name, which is cut to fit "NAME (away)": two browsers whose names began alike replaced each other's.
+ * One that does not know its browser (from a file before the home column), or whose browser was revoked since (it
+ * paired again), is found by its name, as before */
+static int sess_away_of(const uint8_t home[32], const char *name) {
+    int r = -1;
+
+    pthread_mutex_lock(&sess_mux);
+    for (int k = 0; k < nsessions && r < 0; k++) {
+        const session_t *x = &sessions[k];
+        if ((x->away && !memcmp(x->home, home, 32)) ||
+            ((!x->away || !sess_held_locked(x->home)) && !strcmp(x->name, name)))
+            r = k;
+    }
+    pthread_mutex_unlock(&sess_mux);
+    return r;
+}
+
+/* "away" (#58): a session of its own for this paired browser's use away from home through Tailscale Funnel, named
+ * "NAME (away)", with the role and TX of the browser's session; its token into token, for that browser alone (the
+ * page puts it in the link it opens, after '#'). One per browser: the one it made before is revoked, its
+ * connections closed (sess_away_of). -1: no room. Socket thread */
+static int sess_away(client_t *c, char token[TOKEN_LEN + 1]) {
+    char    name[32];
+    uint8_t home[32];
+    int     role, i;
+    bool    tx;
+
+    pthread_mutex_lock(&sess_mux);
+    snprintf(name, sizeof(name), "%.24s (away)", sessions[c->sess].name);
+    memcpy(home, sessions[c->sess].hash, sizeof(home));
+    role = sessions[c->sess].role;
+    tx   = sessions[c->sess].tx;
+    pthread_mutex_unlock(&sess_mux);
+    while ((i = sess_away_of(home, name)) >= 0)
+        sess_revoke(i);                         /* moves the sessions after it down, this client's too */
+    pthread_mutex_lock(&sess_mux);
+    i = sess_add_locked(name, c->ip, role, tx, home, token);
+    pthread_mutex_unlock(&sess_mux);
+    if (i >= 0)
+        LV_LOG_USER("remote: %s made for use away from home", name);
+    return i;
+}
+
 /* LVGL thread: the code on the radio's screen */
 static void pair_msg_apply(void *arg) {
     (void)arg;
@@ -476,10 +687,32 @@ static void pair_msg_apply(void *arg) {
     msg_schedule_text_ms(PAIR_SHOW_MS, "Pair code: #ffb020 %s#  (2 min)", code);
 }
 
-/* A code, new unless one is still good; shown on the radio's screen. Any thread. */
-static void pair_show(char *out, size_t n) {
+/* LVGL thread: pairing paused, for how many minutes */
+static void pair_paused_apply(void *arg) {
+    msg_schedule_text_ms(PAIR_SHOW_MS, "Pairing paused %d min: three wrong codes. Settings > General > "
+                                       "BROWSER REMOTE > Pair code gives one now", *(int *)arg);
+}
+
+/* A code, new unless one is still good; shown on the radio's screen. Any thread. A browser gets a new code
+ * at most every 30 s, and after each code burned by three wrong tries the wait doubles, up to an hour: 3
+ * guesses a round and a round a second found the code in an hour, and the first browser paired is the admin.
+ * A burned code was also the owner's code gone. at_radio: asked on the radio itself (Settings, Pair code),
+ * which has its code at once and starts the waits over. Returns 0 when the code shows, else the seconds a
+ * browser waits */
+static int pair_show(char *out, size_t n, bool at_radio) {
+    uint64_t now = now_ms();
+
     pthread_mutex_lock(&sess_mux);
-    if (!pair_code[0] || now_ms() > pair_until_ms) {
+    if (at_radio) {
+        pair_wait_ms = PAIR_WAIT_MS;
+        pair_next_ms = 0;
+    }
+    if (!pair_code[0] || now > pair_until_ms) {
+        if (now < pair_next_ms) {
+            int left = (int)((pair_next_ms - now + 999) / 1000);
+            pthread_mutex_unlock(&sess_mux);
+            return left;
+        }
         uint8_t raw[4] = {0};
         int     fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
         if (fd >= 0) {
@@ -488,9 +721,10 @@ static void pair_show(char *out, size_t n) {
         }
         uint32_t v = (raw[0] | raw[1] << 8 | raw[2] << 16 | (uint32_t)raw[3] << 24) % 1000000;
         snprintf(pair_code, sizeof(pair_code), "%06u", v);
-        pair_tries = 0;
+        pair_tries   = 0;
+        pair_next_ms = now + pair_wait_ms;
     }
-    pair_until_ms = now_ms() + PAIR_MS;
+    pair_until_ms = now + PAIR_MS;
     if (out)
         snprintf(out, n, "%s", pair_code);
     pthread_mutex_unlock(&sess_mux);
@@ -498,20 +732,37 @@ static void pair_show(char *out, size_t n) {
      * watch before pairing, holds its frames from the unpaired while the code shows (audit B02) */
     atomic_store(&pair_hide_ms, now_ms() + PAIR_SHOW_MS + 2000);
     scheduler_put_noargs(pair_msg_apply);
+    return 0;
 }
 
-/* The code typed: a session, or -1 (wrong, or no code; three wrong tries burn the code) */
-static int pair_try(const char *code, const char *name, const char *ip) {
-    bool ok;
+/* The code typed: a session and its token, or -1 (wrong, or no code; three wrong tries burn the code, and pairing
+ * pauses twice as long as the last time, pair_show) */
+static int pair_try(const char *code, const char *name, const char *ip, char token[TOKEN_LEN + 1]) {
+    uint64_t now = now_ms();
+    bool     good, ok, burned = false;
+    int      paused_min = 0;
 
     pthread_mutex_lock(&sess_mux);
-    ok = pair_code[0] && now_ms() <= pair_until_ms && !strcmp(code, pair_code);
-    if (ok || ++pair_tries >= PAIR_TRIES) {
+    good = pair_code[0] && now <= pair_until_ms;
+    ok   = good && !strcmp(code, pair_code);
+    if (good && !ok && ++pair_tries >= PAIR_TRIES) {
+        burned       = true;
+        pair_wait_ms = pair_wait_ms * 2 > PAIR_WAIT_MAX_MS ? PAIR_WAIT_MAX_MS : pair_wait_ms * 2;
+        pair_next_ms = now + pair_wait_ms;
+        paused_min   = (int)((pair_wait_ms + 59999) / 60000);
+    }
+    if (ok)
+        pair_wait_ms = PAIR_WAIT_MS;
+    if (ok || burned) {
         pair_code[0]  = 0;
         pair_until_ms = 0;
     }
     pthread_mutex_unlock(&sess_mux);
-    return ok ? sess_new(name, ip) : -1;
+    if (burned) {
+        LV_LOG_USER("remote: pairing paused %d min after three wrong codes (last from %s)", paused_min, ip);
+        scheduler_put(pair_paused_apply, &paused_min, sizeof(paused_min));
+    }
+    return ok ? sess_new(name, ip, token) : -1;
 }
 
 static void wake(void) {
@@ -671,7 +922,9 @@ static void client_close(client_t *c) {
     }
     if (c->panel)
         atomic_fetch_sub(&npanel, 1);
+    c->ws      = false;
     c->up      = false;
+    c->funnel  = false;
     c->panel   = false;
     c->out_len = c->in_len = c->text_len = 0;
     pthread_mutex_unlock(&c->lock);
@@ -710,7 +963,7 @@ static void panel_apply(void *arg) {
         case P_SQL:    param_i_set(cfg_squelch, LV_CLAMP(0, p->a, 100)); break;
         case P_RFG:    param_i_set(cfg_rfgain, LV_CLAMP(0, p->a, 100)); break;
         case P_VOL:    param_i_set(cfg_volume, LV_CLAMP(0, p->a, BOARD_VOL_MAX)); break;
-        case P_PWR:    cfg_pwr_set(LV_CLAMP(1, p->a, 100) / 10.0f); break;
+        case P_PWR:    cfg_pwr_set(LV_CLAMP(1, p->a, (int)(BOARD_PWR_MAX * 10)) / 10.0f); break;
         case P_STEP:   param_i_set(cfg_mode_freq_step, LV_CLAMP(1, p->a, 10000)); break;
         case P_ZOOM:   param_i_set(cfg_mode_zoom, LV_CLAMP(1, p->a, 8)); break;
         case P_BAND:
@@ -791,6 +1044,7 @@ static void pstate_read(pstate_t *s) {
     s->mode  = cparam_i_get(cfg_cur_mode);
     s->flo   = cparam_i_get(cfg_cur_filter_low);
     s->fhi   = cparam_i_get(cfg_cur_filter_high);
+    s->kt    = param_i_get(cfg_key_tone);       /* CW: the filter edges are tones, the band is around the dial */
     s->agc   = cparam_i_get(cfg_cur_agc);
     s->pre   = cparam_i_get(cfg_cur_pre);
     s->att   = cparam_i_get(cfg_cur_att);
@@ -811,10 +1065,10 @@ static void pstate_read(pstate_t *s) {
 
 static void pstate_line(char *buf, size_t n, const pstate_t *s) {
     snprintf(buf, n,
-             "state {\"freq\":%d,\"mode\":%d,\"flo\":%d,\"fhi\":%d,\"agc\":%d,\"pre\":%d,\"att\":%d,\"nb\":%d,"
-             "\"nr\":%d,\"sql\":%d,\"rfg\":%d,\"vol\":%d,\"pwr\":%d.%d,\"step\":%d,\"zoom\":%d,\"vfo\":%d,"
-             "\"atu\":%d,\"bat\":%d,\"tx\":%d,\"lock\":%d}",
-             s->freq, s->mode, s->flo, s->fhi, s->agc, s->pre, s->att, s->nb, s->nr, s->sql, s->rfg, s->vol,
+             "state {\"freq\":%d,\"mode\":%d,\"flo\":%d,\"fhi\":%d,\"kt\":%d,\"agc\":%d,\"pre\":%d,\"att\":%d,"
+             "\"nb\":%d,\"nr\":%d,\"sql\":%d,\"rfg\":%d,\"vol\":%d,\"pwr\":%d.%d,\"step\":%d,\"zoom\":%d,"
+             "\"vfo\":%d,\"atu\":%d,\"bat\":%d,\"tx\":%d,\"lock\":%d}",
+             s->freq, s->mode, s->flo, s->fhi, s->kt, s->agc, s->pre, s->att, s->nb, s->nr, s->sql, s->rfg, s->vol,
              s->pwr10 / 10, s->pwr10 % 10, s->step, s->zoom, s->vfo, s->atu, s->bat, s->tx, s->lock);
 }
 
@@ -910,6 +1164,7 @@ static void panel_hello(client_t *c) {
 
     client_textf(c, "modes %d", radio_caps() & HW_CAP_SAM_WFM ? radio_mode_last + 1 : radio_mode_sam);
     client_textf(c, "volmax %d", BOARD_VOL_MAX);
+    client_textf(c, "pwrmax %d", (int)(BOARD_PWR_MAX * 10));   /* in tenths of a watt, as set pwr */
     int n = cfg_bands_active(start, stop, names, 32);
     k += snprintf(buf + k, sizeof(buf) - k, "bands [");
     for (int i = 0; i < n && k < sizeof(buf) - 64; i++) {
@@ -1123,14 +1378,14 @@ typedef struct {
     uint64_t    sum;        /* A_LOG: its text as sent, hashed (log_sum) */
 } acmd_t;
 
-/* The session a client logs under: its token hashed (FNV-1a); the one value for the unpaired */
+/* The session a client logs under: its token's hash folded (FNV-1a); the one value for the unpaired */
 static uint64_t sess_key(const client_t *c) {
     uint64_t h = 1469598103934665603ULL;
 
     pthread_mutex_lock(&sess_mux);
     if (c->sess >= 0 && c->sess < nsessions)
-        for (const char *p = sessions[c->sess].token; *p; p++)
-            h = (h ^ (uint8_t)*p) * 1099511628211ULL;
+        for (size_t k = 0; k < sizeof(sessions[0].hash); k++)
+            h = (h ^ sessions[c->sess].hash[k]) * 1099511628211ULL;
     pthread_mutex_unlock(&sess_mux);
     return h;
 }
@@ -1328,7 +1583,7 @@ static void *panel_thread(void *arg) {
     pstate_t       last = {0};
     ft8_status_t   ft8_last = {0};
     bool           have_last = false;
-    uint32_t       sp_seq = 0, spots_gen = 0;
+    uint32_t       sp_seq = 0, spots_gen = 0, plan_gen = band_plan_gen();
     uint64_t       state_ms = 0, meter_ms = 0, spots_ms = 0, ft8_ms = 0, ft8_sent_ms = 0;
     char           line[512];
     (void)arg;
@@ -1402,6 +1657,15 @@ static void *panel_thread(void *arg) {
                     client_text(c, line);
                 }
             }
+        }
+
+        /* Another band plan (Settings > General > Band plan, Auto in another region) or band list: both again */
+        uint32_t pg = band_plan_gen();
+        if (pg != plan_gen) {
+            plan_gen = pg;
+            for (int i = 0; i < MAX_CLIENTS; i++)
+                if (clients[i].fd >= 0 && clients[i].up && clients[i].panel && !clients[i].panel_fresh)
+                    panel_hello(&clients[i]);
         }
 
         /* The meters */
@@ -1542,18 +1806,19 @@ static void ptt_lease(client_t *c, uint64_t now) {
 }
 
 static void sessions_tell(client_t *c) {
-    char line[1024];
+    char line[4096];          /* 16 sessions of up to 220 characters: 1 kB held five or six */
     int  n = snprintf(line, sizeof(line), "sessions [");
 
     pthread_mutex_lock(&sess_mux);
-    for (int i = 0; i < nsessions && n < (int)sizeof(line) - 160; i++) {
+    for (int i = 0; i < nsessions && n < (int)sizeof(line) - 240; i++) {
         bool online = false;
         for (int k = 0; k < MAX_CLIENTS; k++)
             if (clients[k].fd >= 0 && clients[k].up && clients[k].sess == i)
                 online = true;
-        n += snprintf(line + n, sizeof(line) - n, "%s{\"n\":%d,\"name\":\"%s\",\"role\":\"%s\",\"tx\":%d,\"last\":%llu,\"ip\":\"%s\",\"online\":%d,\"me\":%d}",
+        n += snprintf(line + n, sizeof(line) - n, "%s{\"n\":%d,\"name\":\"%s\",\"role\":\"%s\",\"tx\":%d,\"last\":%llu,\"ip\":\"%s\",\"funnel\":%d,\"online\":%d,\"me\":%d}",
                       i ? "," : "", i, sessions[i].name, role_name(sessions[i].role), sessions[i].tx ? 1 : 0,
-                      (unsigned long long)sessions[i].last, sessions[i].ip, online ? 1 : 0, c->sess == i ? 1 : 0);
+                      (unsigned long long)sessions[i].last, sessions[i].ip, sessions[i].funnel ? 1 : 0, online ? 1 : 0,
+                      c->sess == i ? 1 : 0);
     }
     pthread_mutex_unlock(&sess_mux);
     snprintf(line + n, sizeof(line) - n, "]");
@@ -1576,6 +1841,12 @@ static void handle_text(client_t *c, char *text) {
     char *a[4] = {0};
     int   n    = 0;
 
+    /* No pairing from the internet: a browser is paired at home and then used from anywhere with its token (#58).
+     * The code is neither shown, nor burned, nor waited for from there */
+    if (c->funnel && !strncmp(text, "pair", 4) && (text[4] == ' ' || text[4] == '?')) {
+        client_text(c, "err pairing refused over the internet: pair this browser at home, then Use away from home");
+        return;
+    }
     if (!strncmp(text, "log ", 4)) {        /* the text as it is: names have spaces */
         if (allowed(c, ROLE_OPERATE, false))
             app_log_cmd(c, 0, text + 4);
@@ -1608,7 +1879,8 @@ static void handle_text(client_t *c, char *text) {
         }
         *sp = 0;
         name_clean(name, sizeof(name), sp + 1);
-        int i = pair_try(text + 5, name, c->ip);
+        char token[TOKEN_LEN + 1];
+        int  i = pair_try(text + 5, name, c->ip, token);
         if (i < 0) {
             client_text(c, "err pairing refused: wrong or expired code (press Pair for a new one)");
             return;
@@ -1616,7 +1888,7 @@ static void handle_text(client_t *c, char *text) {
         c->sess  = i;
         c->role  = sessions[i].role;
         c->tx_ok = sessions[i].tx;
-        client_textf(c, "paired %s %s %d", sessions[i].token, role_name(c->role), c->tx_ok ? 1 : 0);
+        client_textf(c, "paired %s %s %d", token, role_name(c->role), c->tx_ok ? 1 : 0);
         role_tell(c);
         ctl_tell(c);
         LV_LOG_USER("remote: paired %s (%s) as %s", name, c->ip, role_name(c->role));
@@ -1633,6 +1905,12 @@ static void handle_text(client_t *c, char *text) {
             client_text(c, "pong");
     } else if (!strcmp(a[0], "auth") && n >= 2) {
         int i = strlen(a[1]) == TOKEN_LEN ? sess_find(a[1]) : -1;
+        if (i < 0 && c->funnel) {               /* over Funnel there is no watching unpaired: it goes */
+            remote_server_funnel_refused(c->ip);
+            client_text(c, "err unknown session: make a new link at home (Use away from home)");
+            client_close(c);
+            return;
+        }
         if (i < 0) {
             c->sess = -1; c->role = ROLE_VIEW; c->tx_ok = false;
             client_text(c, "err unknown session: pair this browser again");
@@ -1640,18 +1918,38 @@ static void handle_text(client_t *c, char *text) {
             c->sess  = i;
             c->role  = sessions[i].role;
             c->tx_ok = sessions[i].tx;
-            sess_touch(i, c->ip);
+            sess_touch(i, c->ip, c->funnel);
         }
         role_tell(c);
         ctl_tell(c);
     } else if (!strcmp(a[0], "pair?")) {
-        pair_show(NULL, 0);
-        client_text(c, "pairing code shown on the radio for 2 min");
+        int wait = pair_show(NULL, 0, false);
+        if (!wait)
+            client_text(c, "pairing code shown on the radio for 2 min");
+        else if (wait < 120)
+            client_textf(c, "err pairing paused: a new code in %d s, or Settings > General > BROWSER REMOTE > Pair code "
+                            "on the radio", wait);
+        else
+            client_textf(c, "err pairing paused: a new code in %d min after wrong codes, or Settings > General > "
+                            "BROWSER REMOTE > Pair code on the radio", (wait + 59) / 60);
     } else if (!strcmp(a[0], "unpair")) {
         if (c->sess >= 0)
             sess_revoke(c->sess);     /* closes this socket too */
         else
             client_text(c, "err not paired");
+    } else if (!strcmp(a[0], "away")) {    /* "away" -> "away TOKEN" (sess_away); never on the radio's screen */
+        char token[TOKEN_LEN + 1];
+        size_t nl = c->sess >= 0 ? strlen(sessions[c->sess].name) : 0;
+        if (c->funnel)
+            client_text(c, "err an away link is made at home: on the Panel at home, Use away from home");
+        else if (c->sess < 0 || c->role < ROLE_OPERATE)
+            client_text(c, "err pair this browser first: an away link is for a paired browser");
+        else if (nl > 7 && !strcmp(sessions[c->sess].name + nl - 7, " (away)"))
+            client_text(c, "err this browser has its away link already");
+        else if (sess_away(c, token) < 0)
+            client_text(c, "err no room for another browser: revoke one in Sessions");
+        else
+            client_textf(c, "away %s", token);
     } else if (!strcmp(a[0], "control") && n >= 2) {
         if (!strcmp(a[1], "take")) {
             if (!allowed(c, ROLE_OPERATE, false))
@@ -1745,6 +2043,79 @@ static void handle_text(client_t *c, char *text) {
     }
 }
 
+/* What a client is told once it is up: the radio's version and boot, the screen's size, the keys it has, the
+ * role and who controls the radio */
+static void client_greet(client_t *c) {
+    char   line[320] = "keys";
+    size_t k = 4;
+
+    client_textf(c, "hello %s %u", VERSION, boot_id);
+    pthread_mutex_lock(&fmut);
+    int32_t w = sw, h = sh;
+    pthread_mutex_unlock(&fmut);
+    client_textf(c, "size %d %d", w ? w : 800, h ? h : 480);
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]) && k < sizeof(line) - 1; i++)
+        k += snprintf(line + k, sizeof(line) - k, " %s", keys[i].name);
+    client_text(c, line);
+    role_tell(c);
+    ctl_tell(c);
+}
+
+/* A connection over Tailscale Funnel, its handshake done (#58): taken while Funnel is not paused after wrong
+ * keys, and while fewer than FUNNEL_CLIENTS come from the internet; to make room, one of those that has not
+ * presented its token yet goes, never one at work. Nothing is sent to it until its token is good (funnel_auth) */
+static bool funnel_take(client_t *c) {
+    client_t *wait = NULL;
+    int       n    = 0;
+
+    if (remote_server_funnel_paused())
+        return false;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        client_t *o = &clients[i];
+        if (o == c || o->fd < 0 || !o->ws || !o->funnel)
+            continue;
+        n++;
+        if (!o->up && (!wait || o->open_ms < wait->open_ms))
+            wait = o;
+    }
+    if (n < FUNNEL_CLIENTS)
+        return true;
+    if (!wait)
+        return false;
+    client_close(wait);
+    return true;
+}
+
+/* The first text of a connection over Funnel: "auth TOKEN" of a browser paired at home, or it goes. With a good
+ * one it is up as a LAN client authenticated so; a wrong one counts towards Funnel's pause. What it sent before its
+ * token, and a text that is no auth, closes it */
+static void funnel_auth(client_t *c, const char *text) {
+    bool tried = !strncmp(text, "auth ", 5);
+    int  i     = tried && strlen(text + 5) == TOKEN_LEN ? sess_find(text + 5) : -1;
+
+    if (i < 0) {
+        if (tried) {
+            remote_server_funnel_refused(c->ip);
+            pthread_mutex_lock(&c->lock);
+            c->up = true;           /* the one line it gets: neither screen nor panel is on, nothing else goes */
+            pthread_mutex_unlock(&c->lock);
+            client_text(c, "err unknown session: make a new link at home (Use away from home)");
+        }
+        client_close(c);
+        return;
+    }
+    c->sess   = i;
+    c->role   = sessions[i].role;
+    c->tx_ok  = sessions[i].tx;
+    c->screen = true;               /* the Screen page's default; the Panel turns it off */
+    pthread_mutex_lock(&c->lock);
+    c->up = true;
+    pthread_mutex_unlock(&c->lock);
+    sess_touch(i, c->ip, true);
+    client_greet(c);
+    LV_LOG_USER("remote: %s over Tailscale Funnel from %s", sessions[i].name, c->ip);
+}
+
 static void client_read(client_t *c) {
     ssize_t n = recv(c->fd, c->in + c->in_len, IN_SIZE - c->in_len, MSG_DONTWAIT);
 
@@ -1757,36 +2128,40 @@ static void client_read(client_t *c) {
     c->in_len += n;
     c->last_ms = now_ms();
 
-    if (!c->up) {
-        char resp[256];
-        int  r = ws_handshake((const char *)c->in, c->in_len, resp, sizeof(resp));
+    if (!c->ws) {
+        char      resp[256];
+        ws_peer_t peer;
+        int       r = ws_handshake((const char *)c->in, c->in_len, resp, sizeof(resp), &peer);
         if (r == 0) {
             if (c->in_len == IN_SIZE)
                 client_close(c);
+            return;
+        }
+        if (r > 0 && peer.funnel && !funnel_take(c)) {
+            LV_LOG_USER("remote: refused %s over Tailscale Funnel (%s)", peer.addr[0] ? peer.addr : "a browser",
+                        remote_server_funnel_paused() ? "paused after wrong keys" : "two from the internet already");
+            client_close(c);
             return;
         }
         if (r < 0 || send(c->fd, resp, strlen(resp), MSG_NOSIGNAL) < 0) {
             client_close(c);
             return;
         }
-        c->in_len = 0;
+        c->in_len  = 0;
+        c->ws      = true;
+        c->open_ms = now_ms();
+        if (peer.funnel) {
+            /* From the internet through Tailscale Funnel: no screen, spectrum, state or spots, not even the
+             * greeting, before the token of a browser paired at home (funnel_auth, FUNNEL_AUTH_MS) (#58) */
+            c->funnel = true;
+            c->screen = false;
+            snprintf(c->ip, sizeof(c->ip), "%s", peer.addr[0] ? peer.addr : "-");
+            return;
+        }
         pthread_mutex_lock(&c->lock);
         c->up = true;
         pthread_mutex_unlock(&c->lock);
-        client_textf(c, "hello %s %u", VERSION, boot_id);
-        pthread_mutex_lock(&fmut);
-        int32_t w = sw, h = sh;
-        pthread_mutex_unlock(&fmut);
-        client_textf(c, "size %d %d", w ? w : 800, h ? h : 480);
-        {
-            char   line[320] = "keys";
-            size_t k = 4;
-            for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]) && k < sizeof(line) - 1; i++)
-                k += snprintf(line + k, sizeof(line) - k, " %s", keys[i].name);
-            client_text(c, line);
-        }
-        role_tell(c);
-        ctl_tell(c);
+        client_greet(c);
         LV_LOG_USER("remote: viewer %s", c->ip);
         return;
     }
@@ -1817,7 +2192,10 @@ static void client_read(client_t *c) {
                 if (f.fin) {
                     c->text[c->text_len] = 0;
                     c->text_len = 0;
-                    handle_text(c, c->text);
+                    if (c->up)
+                        handle_text(c, c->text);
+                    else
+                        funnel_auth(c, c->text);    /* over Funnel, before its token */
                 }
                 break;
             case WS_OP_PING:
@@ -1831,7 +2209,7 @@ static void client_read(client_t *c) {
                 break;
         }
     }
-    if (c->fd < 0)      /* what it asked closed it: "unpair", or its own session revoked */
+    if (c->fd < 0)      /* what it asked closed it: "unpair", its own session revoked, a token refused */
         return;
     if (pos) {
         c->in_len -= pos;
@@ -1879,7 +2257,9 @@ static void accept_client(int listen_fd) {
 #endif
         pthread_mutex_lock(&c->lock);
         c->fd      = fd;
+        c->ws      = false;
         c->up      = false;
+        c->funnel  = false;
         c->in_len = c->out_len = c->text_len = 0;
         c->nheld   = 0;
         c->screen  = true;
@@ -1984,6 +2364,9 @@ static void *server_thread(void *arg) {
                 if (c->fd < 0)
                     continue;
                 if (now - c->last_ms > IDLE_MS) {
+                    client_close(c);
+                } else if (c->funnel && !c->up && now - c->open_ms > FUNNEL_AUTH_MS) {
+                    LV_LOG_USER("remote: %s over Tailscale Funnel gave no key in time", c->ip);
                     client_close(c);
                 } else if (c->up && now - c->last_ms > PING_MS && now - c->ping_ms > PING_MS) {
                     c->ping_ms = now;
@@ -2290,19 +2673,29 @@ int remote_server_port(void) {
     return atomic_load(&port);
 }
 
+/* Those that are up: one over Funnel that has not given its token yet sees nothing */
 int remote_server_viewers(void) {
-    return atomic_load(&nclients);
+    int n = 0;
+
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        n += clients[i].fd >= 0 && clients[i].up;
+    return n;
 }
 
 const char *remote_server_viewer(void) {
+    static char buf[64];
+
     for (int i = 0; i < MAX_CLIENTS; i++)
-        if (clients[i].fd >= 0 && clients[i].up)
-            return clients[i].ip;
+        if (clients[i].fd >= 0 && clients[i].up) {
+            snprintf(buf, sizeof(buf), "%s%s", clients[i].ip, clients[i].funnel ? " via Funnel" : "");
+            return buf;
+        }
     return NULL;
 }
 
+/* Asked on the radio itself: a code at once, the waits a browser has after wrong codes start over */
 void remote_server_pair_code(char *buf, size_t n) {
-    pair_show(buf, n);
+    pair_show(buf, n, true);
 }
 
 int remote_server_sessions(char *buf, size_t n) {

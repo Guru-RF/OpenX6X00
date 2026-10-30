@@ -115,6 +115,7 @@ bool paddle_mouse(bool btn_left, bool btn_right, bool rel_x, bool adapter, unsig
 
 #include "cfg/cfg_api.h"
 #include "cw_encoder.h"
+#include "input_caps.h"
 #include "radio.h"
 
 #include "lvgl/lvgl.h"
@@ -419,7 +420,9 @@ static bool adapter(const char *dev) {
 }
 
 /* A mouse-button paddle, and a keyboard with the paddle keys other than the one keyboard.c reads.
- * Only USB and Bluetooth ones: the radio's own keys (matrix_keypad) have [ ] and Left Ctrl codes */
+ * Only USB and Bluetooth ones: the radio's own keys (matrix_keypad) have [ ] and Left Ctrl codes.
+ * What each device has comes from sysfs, and only the one taken for a slot is opened: opening a USB
+ * mouse to look stalled the GUI 50 ms a node, on every scan after a plug (#79, input_caps.h) */
 static void scan_input(void) {
     int    map = param_i_get(cfg_paddle_map[PADDLE_SRC_KBD]);
     bool   found[FD_N] = {false};
@@ -427,23 +430,20 @@ static void scan_input(void) {
 
     if (glob("/dev/input/event*", 0, NULL, &g) != 0) return;
     for (size_t i = 0; i < g.gl_pathc && !(found[FD_BTN] && found[FD_KBD2]); i++) {
-        unsigned long   keys[BITS(KEY_MAX)] = {0}, rel[BITS(REL_MAX)] = {0};
-        struct input_id id = {0};
+        unsigned long   keys[BITS(KEY_MAX)], rel[BITS(REL_MAX)], abs[BITS(ABS_MAX)];
+        struct input_id id;
         struct stat     st;
         int             slot = -1;
-        int             n = open(g.gl_pathv[i], O_RDONLY | O_NONBLOCK);
+        int             n;
         bool            adp;
 
-        if (n < 0) continue;
-        if (ioctl(n, EVIOCGBIT(EV_KEY, sizeof(keys)), keys) < 0 || fstat(n, &st) != 0) {
-            close(n);
-            continue;
-        }
-        ioctl(n, EVIOCGBIT(EV_REL, sizeof(rel)), rel);
-        ioctl(n, EVIOCGID, &id);
+        if (stat(g.gl_pathv[i], &st) != 0 || !input_caps_bits(st.st_rdev, "key", keys, BITS(KEY_MAX))) continue;
+        input_caps_bits(st.st_rdev, "rel", rel, BITS(REL_MAX));
+        input_caps_bits(st.st_rdev, "abs", abs, BITS(ABS_MAX));
+        input_caps_id(st.st_rdev, &id);
         adp = id.bustype == BUS_USB && adapter(g.gl_pathv[i]);
         if (!found[FD_BTN] && paddle_mouse(has_bit(keys, BTN_LEFT), has_bit(keys, BTN_RIGHT),
-                                           has_bit(rel, REL_X), adp, id.vendor, id.product)) {
+                                           has_bit(rel, REL_X) || has_bit(abs, ABS_X), adp, id.vendor, id.product)) {
             slot = FD_BTN;
         } else if (!found[FD_KBD2] && (id.bustype == BUS_USB || id.bustype == BUS_BLUETOOTH) &&
                    !is_open(FD_KBD, &st) &&
@@ -452,14 +452,11 @@ static void scan_input(void) {
                     (has_bit(keys, KEY_LEFTBRACE) && has_bit(keys, KEY_RIGHTBRACE)))) {
             slot = FD_KBD2;
         }
-        if (slot < 0) {
-            close(n);
-            continue;
-        }
-        found[slot] = true;
+        if (slot < 0) continue;
         if (is_open(slot, &st)) {
-            close(n);
-        } else {
+            found[slot] = true;
+        } else if ((n = open(g.gl_pathv[i], O_RDONLY | O_NONBLOCK)) >= 0) {   /* failing: the next one */
+            found[slot] = true;
             LV_LOG_USER("Paddle on %s: %s (%04x:%04x)", slot == FD_BTN ? "mouse buttons" : "keys",
                         g.gl_pathv[i], id.vendor, id.product);
             hand_over(slot, n);
