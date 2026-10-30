@@ -3594,8 +3594,9 @@ and `ssh-keygen` (the OpenSSH Client feature). They run in PowerShell.
 ### A key on a Mac or on Linux
 
 1. Open Terminal (on a Mac: Applications > Utilities > Terminal).
-2. Type `ssh-keygen -t ed25519` and press Enter three times, as on Windows.
-   The key is now in `~/.ssh/id_ed25519` and `~/.ssh/id_ed25519.pub`.
+2. Type `ssh-keygen -t ed25519` and press Enter. It asks the same three
+   questions as on Windows: press Enter three times. The key is now in
+   `~/.ssh/id_ed25519` and `~/.ssh/id_ed25519.pub`.
 3. Copy the public half. On a Mac, `pbcopy < ~/.ssh/id_ed25519.pub` copies
    it. On Linux, `cat ~/.ssh/id_ed25519.pub` prints the line: select all of
    it and copy it (Ctrl+Shift+C in most terminals).
