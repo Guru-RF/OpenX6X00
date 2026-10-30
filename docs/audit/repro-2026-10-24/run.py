@@ -173,8 +173,8 @@ def main():
 
         binary = work / "ws-handshake"
         command([*CC, *cflags, *san, HERE / "ws-handshake.c", *gc, "-o", binary], env)
-        print("C08 WebSocket names (26 October audit, fixed), and Tailscale Funnel's requests (#58):\n" + command(
-            [binary], env, contains=("29 of 29 cases as they should be",)).strip())
+        print("C08 WebSocket names (26 October audit, fixed), Tailscale Funnel's requests (#58) and the radio's own "
+              "names (#105):\n" + command([binary], env, contains=("46 of 46 cases as they should be",)).strip())
 
         binary = work / "mic-keys"
         command([*CC, *cflags, *san, HERE / "mic-keys.c", "src/mic_keys.c", *gc, "-o", binary], env)

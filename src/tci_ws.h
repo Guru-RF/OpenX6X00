@@ -49,8 +49,9 @@ typedef struct {
  * Returns 1 and the 101 response in resp when it is a WebSocket upgrade, 0 when the request
  * is not complete yet, -1 when it is complete but not an upgrade we take. A browser's (it
  * sends Origin) is taken from the radio's own pages only, opened by one of its own names: an
- * address, localhost, the hostname, <hostname>.local, *.ts.net or MagicDNS's short name.
- * TCI's and the browser remote's sockets both come here. peer (NULL: not asked) says whether it
+ * address, localhost, the hostname, <hostname>.local, <hostname>.<domain> for a domain of its
+ * network, a name added on the web configurator's Network page, *.ts.net or MagicDNS's short
+ * name (#105). TCI's and the browser remote's sockets both come here. peer (NULL: not asked) says whether it
  * came over Tailscale Funnel: tailscaled sets the header on every request from the internet and
  * drops one the browser sent, so only the internet's requests have it (a client on the LAN that
  * sends it is taken for one from the internet, which only holds it back). The caller decides
