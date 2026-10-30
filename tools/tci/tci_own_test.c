@@ -557,6 +557,44 @@ static void tci_audio_in_dig(void) {
     }
 }
 
+/* A browser keying its microphone through its TCI link: the start takes control from the browser's session, which
+ * the radio cannot tell from that link, and its end gives it back; not when the control changed hands during the
+ * over (a knob), when the one it came from left, or when the client had it before its start (it tuned) */
+static void control_given_back(void) {
+    client_open(A);
+    ctl_claim(CTL_BROWSER, 0, "Macbook", true);
+    say(A, "trx:0,true,tci;");
+    gui(-1);
+    check(radio_get_modem() && txs.owner == A && ctl_holds(CTL_TCI, A), "A's TCI audio start keys, control with A");
+    say(A, "trx:0,false;");
+    gui(-1);
+    check(!on_air() && ctl_holds(CTL_BROWSER, 0), "A's unkey: control back with the browser");
+
+    say(A, "trx:0,true,tci;");
+    gui(-1);
+    ctl_local_input();                  /* a knob at the radio during the over */
+    say(A, "trx:0,false;");
+    gui(-1);
+    check(!on_air() && ctl_holds(CTL_LOCAL, 0), "a knob during the over: control stays at the radio");
+
+    ctl_claim(CTL_BROWSER, 0, "Macbook", true);
+    say(A, "trx:0,true,tci;");
+    gui(-1);
+    ctl_release(CTL_BROWSER, 0);        /* the browser gone during the over */
+    say(A, "trx:0,false;");
+    gui(-1);
+    check(!on_air() && ctl_holds(CTL_TCI, A), "the browser gone during the over: A keeps control");
+
+    ctl_claim(CTL_BROWSER, 0, "Macbook", true);
+    say(A, "vfo:0,0,7100000;");         /* A tunes first: control is A's before its start */
+    gui(-1);
+    say(A, "trx:0,true,tci;");
+    gui(-1);
+    say(A, "trx:0,false;");
+    gui(-1);
+    check(!on_air() && ctl_holds(CTL_TCI, A), "A had control before its start: A keeps it");
+}
+
 /* Over Tailscale Funnel (#58) only the Panel's own sound and its key with it: a session that may not transmit, or
  * one that keyed nothing, asking for the TX state or unkeying is answered with the state and takes no control (the
  * browser at home keeps it, as when that session's browser asks on the browser remote's socket); the session that
@@ -676,6 +714,7 @@ int main(void) {
         {"Starts ended before their key ran key nothing", cancelled_keys_nothing},
         {"Two TCI audio starts", two_tci_starts},
         {"TCI audio in DIGU and DIGL", tci_audio_in_dig},
+        {"A browser's TCI audio start gives the browser its control back at the end", control_given_back},
         {"Over Funnel, an unkey or a question from a client that keyed nothing", funnel_takes_no_control},
         {"Over Funnel, the same browser back from another network", funnel_same_browser_back},
     };

@@ -37,6 +37,9 @@ void ctl_init(void);
  * unless the radio is on the air; without it only a free lease, or one already held. */
 bool ctl_claim(ctl_kind_t kind, int id, const char *name, bool take);
 void ctl_release(ctl_kind_t kind, int id);      /* nothing unless this holder has it */
+/* A holder that took control only for a transmission hands it back when that ends: to the one it
+ * took it from, unless that one left or the control changed hands since; otherwise it keeps it */
+void ctl_give_back(ctl_kind_t kind, int id);
 bool ctl_holds(ctl_kind_t kind, int id);
 void ctl_get(ctl_info_t *out);
 uint32_t ctl_version(void);                     /* one more at every change */
