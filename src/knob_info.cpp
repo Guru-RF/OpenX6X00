@@ -222,6 +222,14 @@ void knobs_init(lv_obj_t *parent) {
 
     vol_line.make(parent, y - LINE_H * 2);
     mfk_line.make(parent, y - LINE_H);
+
+    /* A line as high as its box at least: in VISION's bigger type the boxes are 35 px, the
+     * two lay over each other and the MFK one ran 3 px under the buttons (#82) */
+    lv_obj_update_layout(mfk_line.obj());
+    lv_coord_t h = LV_MAX(LINE_H, lv_obj_get_height(mfk_line.obj()));
+
+    lv_obj_set_y(vol_line.obj(), y - h * 2);
+    lv_obj_set_y(mfk_line.obj(), y - h);
     cfg_sm.p_knob_info.subscribe_delayed_and_notify(knob_info_cb, nullptr);
 }
 
