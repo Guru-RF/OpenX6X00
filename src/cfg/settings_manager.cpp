@@ -311,22 +311,22 @@ void SettingsManager::vfo_toggle() {
     const bool    on_a  = p_band_current_vfo.get() == RADIO_VFO_A;
     const int32_t other = (on_a ? p_vfob_band : p_vfoa_band).get();
 
-    // The other VFO's band only where the radio can still use it: a 2 m left there by v0.3.5 on an X6200 with the
-    // transverters and the WR12 off is not (load_band_vfo would keep its 145.500, and the base be sent it)
-    auto usable = [this](int32_t id) {
-        BandInfoLoadResult b = BandsTable::get_by_id(id);
-        return b.rc == SUCCESS && band_use(b.value.start_freq, b.value.stop_freq) != BAND_USE_NONE;
-    };
-
     (on_a ? p_vfoa_band : p_vfob_band).set(band_id_);
     p_band_current_vfo.set(on_a ? RADIO_VFO_B : RADIO_VFO_A);
-    if (p_indep_vfo.get() && other != BAND_UNDEFINED && other != band_id_ && usable(other)) {
+    if (p_indep_vfo.get() && other != BAND_UNDEFINED && other != band_id_ && band_usable(other)) {
         p_band_id.set(other);   /* explicit switch: the VFO now in use from that band, the other kept (load_band_vfo) */
     } else if (p_band_tx_shift.get() && p_band_split.get()) {
         band_follow(p_band_vfoa_freq.get());    /* a TX shift: the band is A's, B = A + the shift can lie beyond it */
     } else {
         band_follow(fg_freq_get());   /* the VFO now active was tuned into another band while inactive */
     }
+}
+
+// A band the radio can use, for the other VFO's own band (vfo_toggle, load_band_all): a 2 m left there by v0.3.5 on
+// an X6200 with the transverters and the WR12 off is not (load_band_vfo would keep its 145.500, and the base be sent it)
+bool SettingsManager::band_usable(int32_t id) const {
+    BandInfoLoadResult b = BandsTable::get_by_id(id);
+    return b.rc == SUCCESS && band_use(b.value.start_freq, b.value.stop_freq) != BAND_USE_NONE;
 }
 
 void SettingsManager::tx_shift_follow() {
@@ -874,7 +874,15 @@ void SettingsManager::load_band_all(int band_id) {
 
     // VFO params are handled in explicit order (restore/clamp with sibling
     // dependency). Initial full load restores nothing (no implicit skip).
-    load_band_vfo(band_id, false);
+    // Independent VFOs: the other VFO as it was on its own band, where the VFO key takes it back, loaded from there
+    // first and then kept as a band key keeps it (not where this band has split on). Loaded from this band, a restart
+    // showed this band's other VFO; kept from nothing, the GUI's own 14.100 or 14.150
+    const int32_t own   = (p_band_current_vfo.get() == RADIO_VFO_A ? p_vfob_band : p_vfoa_band).get();
+    const bool    other = p_indep_vfo.get() && own != BAND_UNDEFINED && own != band_id && band_usable(own);
+    if (other) {
+        load_band_vfo(own, false, false);
+    }
+    load_band_vfo(band_id, false, other);
 }
 
 void SettingsManager::load_mode_all() {
@@ -897,10 +905,10 @@ void SettingsManager::load_band_switch(int new_band_id, bool implicit) {
         }
         p->load(new_band_id);
     }
-    load_band_vfo(new_band_id, implicit);
+    load_band_vfo(new_band_id, implicit, implicit || p_indep_vfo.get());
 }
 
-void SettingsManager::load_band_vfo(int band_id, bool implicit) {
+void SettingsManager::load_band_vfo(int band_id, bool implicit, bool keep) {
     const int active_vfo = p_band_current_vfo.get();
 
     // BandInfo drives the clamp/restore rules. A missing or undefined band
@@ -916,11 +924,11 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     // new band has split on (p_band_split is loaded before): the inactive VFO is
     // then the one the radio transmits on, and comes from the band as on an
     // explicit switch (kept, 40m CW in split sent on 40m SSB's B, 7.150, not its own 7.025).
-    // With independent VFOs the inactive VFO is kept on every switch, a band key's too: it stays on its own band
-    // (p_vfoa_band, p_vfob_band) until the VFO key brings that band back; loaded from the band key's band, B
+    // With independent VFOs the inactive VFO is kept on every switch, a band key's too (`keep`): it stays on its own
+    // band (p_vfoa_band, p_vfob_band) until the VFO key brings that band back; loaded from the band key's band, B
     // showed what it had there, not its own. Into split the same rule as above: kept, a band key to 15m left in
     // split sent on B's 7.030 (40m), not on the B that 15m transmits on.
-    const bool keep_other = (implicit || p_indep_vfo.get()) && !p_band_split.get();
+    const bool keep_other = keep && !p_band_split.get();
     const bool keep_a = keep_other && active_vfo == RADIO_VFO_B, keep_b = keep_other && active_vfo == RADIO_VFO_A;
 
     // VFOA frequency: skipped on an implicit switch when VFOA is the active VFO, or kept.

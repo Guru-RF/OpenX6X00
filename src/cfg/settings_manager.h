@@ -792,10 +792,14 @@ class SettingsManager {
     //   - vfob_freq: NOT_FOUND -> current vfoa_freq; else clamped as vfoa_freq.
     //   - vfob_mode: NOT_FOUND/error -> current vfoa_mode.
     // Restored/clamped values are applied with set_quiet (no deferred write).
-    // When `implicit` the active VFO's frequency is kept and the other VFO keeps
-    // all it had, as it does on every switch with independent VFOs, unless the
-    // new band has split on (then it is loaded as above).
-    void load_band_vfo(int band_id, bool implicit);
+    // When `implicit` the active VFO's frequency is kept. When `keep` (an implicit
+    // switch, every switch with independent VFOs, a start with the other VFO
+    // loaded from its own band) the other VFO keeps all it had, unless the band
+    // has split on (then it is loaded as above).
+    void load_band_vfo(int band_id, bool implicit, bool keep);
+
+    // The band can be used by the radio as it is set up (band_use): not a 2 m with no transverter or WR12
+    bool band_usable(int32_t id) const;
 
     // Default mode for a band with none saved: default_mode(freq), AM in the broadcast bands
     int32_t resolve_default_mode(int32_t freq, int32_t band_id) const;
