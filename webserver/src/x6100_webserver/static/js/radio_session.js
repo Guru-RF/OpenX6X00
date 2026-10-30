@@ -32,6 +32,8 @@
  *     ptt.lost(why)                 the link went or stalled: whatever was on the air is over (the
  *                                   release goes out when the socket still takes it)
  *     ptt.state                     idle | requesting | tx | releasing | ended | refused | busy
+ *     ptt.micOver()                 a Mic on transmission, press to confirmed end: its TCI link holds
+ *                                   control meanwhile, which the session does not report (#97)
  *   While a radio-microphone PTT is held the key is renewed every second (the radio lets it go
  *   after three seconds without, and after three minutes whatever happens): "key PTT 1 N", N the
  *   press's own number. The radio renews only the hold that keyed, so renewals that arrive after
@@ -120,7 +122,10 @@
       const mine = w[w.length - 1] === "1", who = w[0], name = who === "browser" ? w.slice(1, -1).join(" ") : "";
       const was = this.ctl;
       this.ctl = {who: who, name: name, mine: mine};
-      if (was.mine && !mine && this.o.status) this.o.status(who === "local" ? "Control taken at the radio: Take control to operate from here again" : who === "tci" ? "A TCI client took control: Take control to operate from here again" : who === "browser" ? "Control taken by " + name : "Control released", who !== "none");
+      /* This page's own Mic on keys through its TCI link, which holds control for the over and gives it back after
+       * (#97): not a takeover to report, nor a Take control to ask for */
+      const own = who === "tci" && this.ptt && this.ptt.micOver();
+      if (was.mine && !mine && !own && this.o.status) this.o.status(who === "local" ? "Control taken at the radio: Take control to operate from here again" : who === "tci" ? "A TCI client took control: Take control to operate from here again" : who === "browser" ? "Control taken by " + name : "Control released", who !== "none");
       this.render(); if (this.o.onChange) this.o.onChange();
       return true;
     }
@@ -277,9 +282,12 @@
     this.o = o; this.state = "idle"; this.path = null; this.since = 0; this.timer = null; this.renew = null; this.why = ""; this.tick = null;
     this.hold = 0;    /* the last press's number */
     const self = this;
+    if (o.session) o.session.ptt = this;     /* its Mic on over is no takeover to the session (#97) */
     this.tick = setInterval(function() { if (self.state === "tx") self.render(); }, 1000);
     this.render();
   }
+  /* A transmission of the browser's microphone, from its press until the radio confirmed its end */
+  Ptt.prototype.micOver = function() { return this.path === "mic" && (this.state === "requesting" || this.state === "tx" || this.state === "releasing"); };
   Ptt.prototype.clear = function() { if (this.timer) { clearTimeout(this.timer); this.timer = null; } if (this.renew) { clearInterval(this.renew); this.renew = null; } };
   Ptt.prototype.press = function() {
     const self = this, o = this.o;
