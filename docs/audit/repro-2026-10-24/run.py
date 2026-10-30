@@ -230,6 +230,21 @@ def main():
             "A/B held: VFO copied, \"Clone VFO B->A\"", "A/B let go, an app holding the VFOs: nothing",
             "BAND UP let go: band up", "42 of 42 cases as they should be")).strip())
 
+        # Issue #49: the battery % shown, the base's or the voltage's; down at the steep end of the curve the
+        # voltage's stays, where it met a base stuck at 0 % and gave 0 % with half an hour still in the pack
+        binary = work / "bat-cap"
+        command([*CC, *cflags, *san, HERE / "bat-cap.c", "src/bat_watch.c", *gc, "-o", binary], env)
+        print("#49 the battery % shown:\n" + command([binary], env, contains=(
+            "base at 0-3 %: 8.2 V 98, 8.1 V 94, 8.0 V 88, 7.9 V 84, 7.8 V 80, 7.7 V 73, 7.6 V 65, 7.5 V 56, 7.4 V 42, "
+            "7.3 V 24, 7.2 V 9, 7.3 V 24, 7.2 V 9, 7.1 V 3, 7.0 V 1, 6.9 V 1, 6.8 V 0, 6.5 V 0\n",
+            "base too high: 7.8 V 91, 7.7 V 90, 7.6 V 88, 7.5 V 56, 7.4 V 42, 7.3 V 24, 7.2 V 9, 7.1 V 3, 7.0 V 1, "
+            "6.8 V 0, 6.6 V 0, 6.5 V 0\n",
+            "base that counts right: 8.3 V 100, 8.2 V 97, 8.0 V 90, 7.8 V 78, 7.6 V 63, 7.4 V 45, 7.3 V 26, 7.2 V 12, "
+            "7.1 V 4, 6.9 V 1, 6.5 V 0\n",
+            "base at 15 %: 7.5 V 56, 7.4 V 42, 7.3 V 24, 7.2 V 9, 7.1 V 3, 6.9 V 1\n",
+            "base back after a charge: 8.1 V 94, 8.1 V 95, 8.0 V 90\n",
+            "base back at 7.4 V: 7.5 V 56, 7.4 V 42, 7.4 V 35, 7.3 V 22\n")).strip())
+
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")
         binary = work / "adif-input"

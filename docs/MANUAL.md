@@ -331,6 +331,18 @@ At the top right the radio shows the charge and the time left:
 The "~" stays until the radio has seen at least 2 hours of discharge or 2 full
 charges. Until then take the time as a rough guess.
 
+The % is the base's own count, and a base can lose it: one that never saw the
+charge (a pack charged with the radio off) said 3 % at 8.2 V, in Xiegu's own
+firmware too (issue #49). So on battery, while receiving, the radio checks it
+against what the voltage says (measured on an X6100: 8.2 V 98 %, 7.8 V 80 %,
+7.5 V 56 %, 7.4 V 42 %, 7.3 V 24 %, 7.2 V 9 %, 7.1 V 3 %). When the two are
+more than 25 points apart it shows the voltage's, until they agree within 10
+again, but not from 7.3 V down: on its way to 0 there the voltage's agrees with
+a base stuck at 0 % too. (In v0.3.7 the radio went back to such a base's 0 % at
+7.2 V, and said "connect power" every minute for the half hour the pack still
+had.) The time left and the 10 % warning follow the % shown; the battery log
+keeps the base's.
+
 <!-- IMG battery_estimate_main.png: top right, "45%  2h07" -->
 
 How the radio works it out: there is no fixed table, it learns from how you

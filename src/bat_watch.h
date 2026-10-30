@@ -48,10 +48,13 @@ bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_fla
 uint8_t bat_cap_of_volts(uint8_t vbat);
 
 /* The % to show on battery, on receive: the base's, and the voltage's while the two are more than
- * BAT_CAP_APART apart, until they meet within BAT_CAP_MET. The base counts the charge it sees: a
- * pack charged with the radio off stayed near empty at 8.2 V, in Xiegu's firmware too (#49) */
+ * BAT_CAP_APART apart, until they meet within BAT_CAP_MET with the voltage's at BAT_CAP_STEEP or more.
+ * The base counts the charge it sees: a pack charged with the radio off stayed near empty at 8.2 V,
+ * in Xiegu's firmware too (#49). From 7.3 V down the voltage's falls through 24, 9 and 3 to 0, where
+ * it meets a base stuck at 0 as well as one that counts right: there it does not go back to the base's */
 #define BAT_CAP_APART   25
 #define BAT_CAP_MET     10
+#define BAT_CAP_STEEP   25
 uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap);
 
 #ifdef __cplusplus
