@@ -2928,8 +2928,8 @@ browser paired at home on any device.
 - Log: a QSO by hand (voice, CW, or a keyboard mode such as PSK31): call,
   RST sent and received, a name, LOG. It goes to the day's ADIF log on the
   radio on the radio's frequency (the web Logs page lists it), as a QSO from
-  the CW keyboard does; during a Field Ops activation it counts for the
-  activation. The mode is the one of the digital app open on the radio
+  the CW keyboard does, also during a Field Ops activation: a QSO for the
+  activation is logged with Field Ops' Log QSO. The mode is the one of the digital app open on the radio
   (PSK31, PSK63, OLIVIA, JTTY, RTTY, SSTV, FT8, FT4, FT2, JS8, WSPR), else
   the radio's (CW, SSB, AM, FM, and FT8 or FT4 on their frequencies). In CW
   or CW-R it is CW, also with RTTY or SSTV open (they leave the mode free).
