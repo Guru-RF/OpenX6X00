@@ -13,7 +13,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
-- [Transmitting](#transmitting): [TX shift](#tx-shift), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
+- [Transmitting](#transmitting): [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
@@ -694,7 +694,7 @@ base is too old.
 | STATION | callsign, QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
-| TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)) |
+| TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only, see [TCI server](#tci-server)) |
 
@@ -1169,6 +1169,50 @@ Not tried on the air yet. The hand mic's PTT and the paddle go to the base
 directly, without the GUI's check: what the base does with a VFO B it cannot
 transmit on is its own TX permit.
 
+### Transverter TX power limit
+
+A transverter that takes 0.1 to 1 W of drive can have a TX power limit of its
+own, so that it never gets the radio's full PWR by mistake (#104). Where:
+Settings > General > TRANSVERTERS > 1: TX power limit, W (and 2: for the
+second), under the transverter's from, to and shift: Off, the default, or
+0.1 W up to the radio's top (10 W on the X6100, 8 W on the X6200) in steps of
+0.1 W. Transverters set up before this version have no limit.
+
+- While the radio is tuned through that transverter (the dial in its range,
+  or the frequency it transmits on: split's other VFO, a TX shift), nothing
+  goes out above the limit. PWR stops there whichever way it is set (the
+  Power knob control, TX power on WLK 1, the digital apps' Power button, the
+  browser panel's PWR, TCI's `drive`, CAT), and the base is held to it
+  whatever asks for more: the digital apps, WSPR's own power, TUNE for an
+  external tuner, TCI's audio, Winlink, CW, the voice messages, the SWR scan.
+  The hand mic's PTT and the paddle key the base directly, at the power the
+  radio has set it to: the limit.
+- With PWR above the limit as the radio comes onto that band, PWR comes down
+  to it and the radio says "TX power 0.5 W: transverter 2m" (the band list's
+  name for the band, or the transverter's number). Off it again (a band key,
+  the knob, a memory, CAT, the limit set to Off, the transverter's shift to
+  0), PWR goes back to what it was and the radio says "TX power back to
+  10.0 W", also after a restart on the transverter. A PWR already under the
+  limit is left as it is, and so is one turned down on the transverter: the
+  PWR from before comes back all the same when you leave it.
+- PWR held at the limit follows a new one: another transverter's (2 m at
+  0.5 W, then 70 cm at 1 W: PWR 1.0 W there), or the limit stepped up in
+  Settings while on its band, up to the PWR from before.
+- With both VFOs on transverters with a limit (split from 2 m to 70 cm), the
+  lower limit holds.
+- WSPR's beacon goes out at the limit when its own power is higher, and
+  reports its own power all the same: set WSPR's Power at the limit or
+  under it there.
+- The radio's own tuner does not tune there (the ATU key held, the "tuner
+  tune" action): its carrier is the base's own, at a power the radio does
+  not set. It says "No tuner: 0.5 W transverter". TUNE for an external
+  tuner tunes, at its TUNE power or the limit, whichever is lower.
+- On the X6200 on battery the 5 W top stays: off the transverter PWR comes
+  back to 5 W at most.
+- The Winlink page's Power row says when the limit is what holds Winlink.
+
+Not tried on a radio with a transverter yet: checked on the PC build.
+
 ### SWR scan and the tuner
 
 SWR scan: APP 1:3 > SWR Scan. It transmits a carrier (AM, 1 W, or less when
@@ -1241,7 +1285,8 @@ What goes on the air:
 - At the TUNE power, 1.0 W by default, whatever PWR is set to, higher or
   lower; while it tunes the power never goes above it, PWR turned up
   meanwhile included. Where: Settings > TX Cal > EXTERNAL TUNER > TUNE power,
-  W: 0.1 to 5.0 W. The X6200 on battery stops at its 5 W as always.
+  W: 0.1 to 5.0 W. The X6200 on battery stops at its 5 W as always, and on a
+  transverter's band at its [TX power limit](#transverter-tx-power-limit).
 - For at most the TUNE time limit, 15 s by default. Where: Settings > TX Cal >
   EXTERNAL TUNER > TUNE time limit, s: 5 to 30 s.
 - The TX panel (in an app the TX strip) shows TUNE, EXTERNAL TUNE and the
@@ -2764,7 +2809,8 @@ Setting it up:
      500 Hz, 500-2500 Hz at 2000 Hz. Mercury's: 450-2550 Hz at 2300 and
      2750 Hz, 1200-1800 Hz at 500 Hz.
    - Power: the radio's PWR, at most 7 W for Winlink; 5 W with the X6200 on
-     its battery, which the row says (see [Transmitting](#transmitting)).
+     its battery, or a transverter's TX power limit, which the row says (see
+     [Transmitting](#transmitting)).
    - Apps: a digital app open (red: close it), or LOCK on (Pat's QSY is not
      made).
    - Last no TX: the radio's last reason not to key, in the last 10 minutes.
