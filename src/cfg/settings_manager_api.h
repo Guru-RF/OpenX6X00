@@ -76,8 +76,8 @@ float cfg_transverter_pwr_for(int32_t freq);
 float cfg_transverter_pwr_cap(int32_t rx, int32_t tx);
 
 /* The transverter limit in force (radio.c, LVGL thread), 0 none: PWR stays at or under it, and comes down to it; off
- * the transverter the PWR from before comes back. The get: the limit in force, 0 none */
-pwr_xvtr_t cfg_pwr_xvtr_set(float watts);
+ * the transverters (on_xvtr false) the PWR from before comes back. The get: the limit in force, 0 none */
+pwr_xvtr_t cfg_pwr_xvtr_set(float watts, bool on_xvtr);
 float cfg_pwr_xvtr_get(void);
 
 /* The transverter at freq for the screen: the name of the band list's band there ("2m"), else its number ("1") */

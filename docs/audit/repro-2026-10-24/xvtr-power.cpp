@@ -45,44 +45,46 @@ int main() {
  s->p_transverter_0_shift.set(116000000);
  /* PWR 10 W on HF, onto 2 m */
  s->p_pwr.set(10.0f);
- pwr("onto 2 m", s->pwr_xvtr_set(0.5f));
+ pwr("onto 2 m", s->pwr_xvtr_set(0.5f, true));
  s->p_pwr.set(10.0f);
  std::cout<<"10 W set on 2 m (the knob, the Panel, TCI, CAT): pwr="<<s->p_pwr.get()<<"\n";
  s->p_pwr.set(0.2f);
- pwr("turned down to 0.2 W, off 2 m", s->pwr_xvtr_set(0.0f));
+ pwr("turned down to 0.2 W, off 2 m", s->pwr_xvtr_set(0.0f, false));
  /* under the limit already: left as it is, there and after */
  s->p_pwr.set(0.3f);
- pwr("0.3 W onto 2 m", s->pwr_xvtr_set(0.5f));
- pwr("0.3 W off 2 m", s->pwr_xvtr_set(0.0f));
+ pwr("0.3 W onto 2 m", s->pwr_xvtr_set(0.5f, true));
+ pwr("0.3 W off 2 m", s->pwr_xvtr_set(0.0f, false));
  /* two limits one after the other: PWR at each, the PWR from before the first comes back; one turned down stays */
  s->p_transverter_1_pwr.set(1.0f);
  s->p_pwr.set(10.0f);
- pwr("onto 70 cm at 1 W", s->pwr_xvtr_set(1.0f));
- pwr("onto 2 m at 0.5 W", s->pwr_xvtr_set(0.5f));
- pwr("back on 70 cm", s->pwr_xvtr_set(1.0f));
+ pwr("onto 70 cm at 1 W", s->pwr_xvtr_set(1.0f, true));
+ pwr("onto 2 m at 0.5 W", s->pwr_xvtr_set(0.5f, true));
+ pwr("back on 70 cm", s->pwr_xvtr_set(1.0f, true));
  s->p_pwr.set(0.3f);
- pwr("turned down to 0.3 W, onto 2 m", s->pwr_xvtr_set(0.5f));
- pwr("off both", s->pwr_xvtr_set(0.0f));
- /* the limit stepped up in Settings on its band, from Off: PWR follows it up to the PWR from before, 0.8 W */
+ pwr("turned down to 0.3 W, onto 2 m", s->pwr_xvtr_set(0.5f, true));
+ pwr("off both", s->pwr_xvtr_set(0.0f, false));
+ /* the limit stepped up in Settings on its band, from Off: PWR follows it up to the PWR from before, 0.8 W. Stepped
+  * down to Off again there (next to 0.1 W on the slider): PWR stays, the PWR from before only off the transverter */
  s->p_pwr.set(0.8f);
- pwr("Settings, Off to 0.1 W", s->pwr_xvtr_set(0.1f));
- pwr("0.2 W", s->pwr_xvtr_set(0.2f));
- pwr("0.5 W", s->pwr_xvtr_set(0.5f));
- pwr("1.0 W", s->pwr_xvtr_set(1.0f));
- pwr("down to 0.4 W", s->pwr_xvtr_set(0.4f));
- pwr("Off", s->pwr_xvtr_set(0.0f));
+ pwr("Settings, Off to 0.1 W", s->pwr_xvtr_set(0.1f, true));
+ pwr("0.2 W", s->pwr_xvtr_set(0.2f, true));
+ pwr("0.5 W", s->pwr_xvtr_set(0.5f, true));
+ pwr("1.0 W", s->pwr_xvtr_set(1.0f, true));
+ pwr("down to 0.4 W", s->pwr_xvtr_set(0.4f, true));
+ pwr("Off, on 2 m still", s->pwr_xvtr_set(0.0f, true));
+ pwr("then off 2 m", s->pwr_xvtr_set(0.0f, false));
  /* a restart on 2 m: the PWR from before it is in the settings */
  s->p_pwr.set(10.0f);
- pwr("onto 2 m before a restart", s->pwr_xvtr_set(0.5f));
+ pwr("onto 2 m before a restart", s->pwr_xvtr_set(0.5f, true));
  s->flush_all(); delete s; s=new SettingsManager; s->init_load(nullptr);
  std::cout<<"restart: limit 1="<<s->p_transverter_0_pwr.get()<<" 2="<<s->p_transverter_1_pwr.get()
           <<" pwr="<<s->p_pwr.get()<<" held="<<s->p_pwr_xvtr_held.get()<<" row pwr_max="
           <<TransverterTable::Load<int32_t>(0,"pwr_max").value<<"\n";
- pwr("restart, on 2 m", s->pwr_xvtr_set(0.5f));
- pwr("restart, off 2 m", s->pwr_xvtr_set(0.0f));
+ pwr("restart, on 2 m", s->pwr_xvtr_set(0.5f, true));
+ pwr("restart, off 2 m", s->pwr_xvtr_set(0.0f, false));
  /* the X6200 on its battery meanwhile: back at its top, not above */
  s->p_pwr.set(8.0f);
- pwr("8 W onto 2 m", s->pwr_xvtr_set(0.5f));
+ pwr("8 W onto 2 m", s->pwr_xvtr_set(0.5f, true));
  s->pwr_max_.store(5.0f);
- pwr("on battery, off 2 m", s->pwr_xvtr_set(0.0f));
+ pwr("on battery, off 2 m", s->pwr_xvtr_set(0.0f, false));
 }

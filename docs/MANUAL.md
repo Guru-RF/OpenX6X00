@@ -1190,11 +1190,15 @@ second), under the transverter's from, to and shift: Off, the default, or
 - With PWR above the limit as the radio comes onto that band, PWR comes down
   to it and the radio says "TX power 0.5 W: transverter 2m" (the band list's
   name for the band, or the transverter's number). Off it again (a band key,
-  the knob, a memory, CAT, the limit set to Off, the transverter's shift to
-  0), PWR goes back to what it was and the radio says "TX power back to
-  10.0 W", also after a restart on the transverter. A PWR already under the
-  limit is left as it is, and so is one turned down on the transverter: the
-  PWR from before comes back all the same when you leave it.
+  the knob, a memory, CAT, the transverter's shift to 0), PWR goes back to
+  what it was and the radio says "TX power back to 10.0 W", also after a
+  restart on the transverter. A PWR already under the limit is left as it
+  is, and so is one turned down on the transverter: the PWR from before
+  comes back all the same when you leave it.
+- The limit set to Off while the radio is on its band (Off is the step
+  below 0.1 W), or a move onto a transverter without a limit, leaves PWR
+  where it is: the PWR from before comes back once the radio is off the
+  transverters.
 - PWR held at the limit follows a new one: another transverter's (2 m at
   0.5 W, then 70 cm at 1 W: PWR 1.0 W there), or the limit stepped up in
   Settings while on its band, up to the PWR from before.

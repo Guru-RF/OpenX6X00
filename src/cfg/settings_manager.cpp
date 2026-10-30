@@ -367,7 +367,7 @@ void SettingsManager::tx_shift_set(int32_t hz) {
 }
 
 /* In tenths of a watt, as the settings keep them: 0.3 W is 0.2999 in float */
-SettingsManager::XvtrPwr SettingsManager::pwr_xvtr_set(float w) {
+SettingsManager::XvtrPwr SettingsManager::pwr_xvtr_set(float w, bool on_xvtr) {
     long pwr = std::lround(p_pwr.get() * 10.0f), held = std::lround(p_pwr_xvtr_held.get() * 10.0f);
     long was = std::lround(pwr_xvtr_.load() * 10.0f), lim = std::lround(w * 10.0f), to;
 
@@ -389,7 +389,9 @@ SettingsManager::XvtrPwr SettingsManager::pwr_xvtr_set(float w) {
         p_pwr.set(to / 10.0f);
         return XvtrPwr::HELD;
     }
-    if (held == 0) {
+    /* Still on a transverter: the PWR from before only off it. Off is next to 0.1 W on the limit's slider, one step
+     * too far put 10 W back into the transverter at once */
+    if (held == 0 || on_xvtr) {
         return XvtrPwr::SAME;
     }
     p_pwr_xvtr_held.set(0.0f);

@@ -707,10 +707,12 @@ class SettingsManager {
 
     // A transverter's TX power limit is in force (W), or none (0), on the LVGL thread (radio.c). Coming onto one, a
     // PWR above it comes down to it and the PWR from before is kept (p_pwr_xvtr_held, once: the one from before the
-    // first transverter); off every limit again, that PWR comes back (at most pwr_max_, the X6200's battery).
+    // first transverter); off the transverters again, that PWR comes back (at most pwr_max_, the X6200's battery).
     // A PWR the limit holds down follows a new one (another transverter, the limit stepped up in Settings), up to the
-    // PWR from before; one under the limit, or turned down on the transverter, is left as it is
-    XvtrPwr pwr_xvtr_set(float w);
+    // PWR from before; one under the limit, or turned down on the transverter, is left as it is. `on_xvtr`: the radio
+    // is still tuned through a transverter, one without a limit (the limit stepped down to Off there, the next one to
+    // the slider's 0.1 W, or another transverter with none): PWR stays as it is there, not the PWR from before on it
+    XvtrPwr pwr_xvtr_set(float w, bool on_xvtr);
 
     // What the radio can do somewhere in [lo, hi]: TX where HF 0.1-55 MHz or a transverter with a shift covers part
     // of it, else RX where the X6200 receives (its FM broadcast and airband; 54 MHz-1 GHz with the WR12 on), else

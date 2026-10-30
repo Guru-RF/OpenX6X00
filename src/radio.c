@@ -943,13 +943,14 @@ static void on_transverter_change(Subject *subj, void *user_data) {
 typedef struct {
     float   w;          /* the limit, 0 none */
     int32_t freq;       /* where it comes from: the dial, or the frequency the radio transmits on */
+    bool    on;         /* tuned through a transverter, one without a limit too: the PWR from before only off it */
 } xvtr_pwr_t;
 
 static void xvtr_pwr_cb(void *arg) {
     xvtr_pwr_t *x = arg;
     char        name[24];
 
-    switch (cfg_pwr_xvtr_set(x->w)) {
+    switch (cfg_pwr_xvtr_set(x->w, x->on)) {
         case PWR_XVTR_HELD:
             cfg_transverter_name(x->freq, name, sizeof(name));
             msg_update_text_fmt("TX power %.1f W: transverter %s", param_f_get(cfg_pwr), name);
@@ -966,23 +967,25 @@ static void xvtr_pwr_cb(void *arg) {
  * a TX shift), the lower where both have one. The base goes to it at once, whatever asked for the power last (an app's
  * own, a TUNE's); PWR and the screen after it (xvtr_pwr_cb). The first look (radio_start, no subject) always goes
  * there, a PWR a transverter took down before a restart comes back if the radio starts off it; the base gets PWR
- * right after it, held to the limit */
+ * right after it, held to the limit. Off a limit onto a transverter without one (Off in Settings, 70 cm with none
+ * after 2 m), the PWR from before waits until the radio is off the transverters too */
 static void on_xvtr_pwr_change(Subject *subj, void *user_data) {
-    int32_t    rx = cparam_i_get(cfg_fg_freq), tx = radio_tx_freq();
-    xvtr_pwr_t x  = {cfg_transverter_pwr_cap(rx, tx), 0};
-    bool       changed;
+    static xvtr_pwr_t said = {-1.0f, 0, false};     /* passed on to PWR last: -1 nothing yet */
+    int32_t           rx   = cparam_i_get(cfg_fg_freq), tx = radio_tx_freq();
+    xvtr_pwr_t        x    = {cfg_transverter_pwr_cap(rx, tx), 0,
+                              cfg_transverter_shift_for(rx) != 0 || cfg_transverter_shift_for(tx) != 0};
 
     x.freq = cfg_transverter_pwr_for(rx) == x.w ? rx : tx;
     radio_lock();
-    changed = x.w != xvtr_cap;
-    if (changed) {
+    if (x.w != xvtr_cap) {
         xvtr_cap = x.w;
         if (subj) set_txpwr(txpwr_asked);
     }
     radio_unlock();
-    if (!changed) {
+    if (x.w == said.w && x.on == said.on) {
         return;
     }
+    said = x;
     if (x.w > 0.0f) {
         LV_LOG_USER("Radio TX power at most %.1f W: a transverter at %i", x.w, x.freq);
     }

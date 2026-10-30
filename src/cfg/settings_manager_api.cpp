@@ -90,8 +90,8 @@ float cfg_transverter_pwr_cap(int32_t rx, int32_t tx) {
     return cfg_sm.transverter_pwr_cap(rx, tx);
 }
 
-pwr_xvtr_t cfg_pwr_xvtr_set(float watts) {
-    switch (cfg_sm.pwr_xvtr_set(watts)) {
+pwr_xvtr_t cfg_pwr_xvtr_set(float watts, bool on_xvtr) {
+    switch (cfg_sm.pwr_xvtr_set(watts, on_xvtr)) {
         case SettingsManager::XvtrPwr::HELD:     return PWR_XVTR_HELD;
         case SettingsManager::XvtrPwr::RESTORED: return PWR_XVTR_RESTORED;
         default:                                 return PWR_XVTR_SAME;
