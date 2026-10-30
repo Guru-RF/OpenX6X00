@@ -139,6 +139,17 @@ def main():
                      "-pthread", "-lsqlite3", "-o", binary], env)
             print(source + ":\n" + command([binary], env, contains=markers).strip())
 
+        # Issue #91: the Panel's Filter pop-up against the radio's filter rules: the production SettingsManager
+        # with the remote server's own P_FILTER case, as src/remote_server.c has it
+        server = (REPO / "src/remote_server.c").read_text()
+        start = server.index("        case P_FILTER:")
+        (work / "panel_filter.inc").write_text(server[start:server.index("        case P_ATU:", start)])
+        binary = work / "filter-rules"
+        command([*CXX, "-std=c++20", *common, "-I" + directory, HERE / "filter-rules.cpp", *cfg,
+                 "src/cfg/computed_api.cpp", *gc, "-pthread", "-lsqlite3", "-o", binary], env)
+        print("#91 the Panel's filter presets and edges, as the radio keeps them:\n" + command(
+            ["node", HERE / "panel-filter.js", binary], env, contains=("filter cases as they should be",)).strip())
+
         binary = work / "adif-frequency"
         command([*CC, *cflags, *san, HERE / "adif-frequency.c", *gc, "-o", binary], env)
         command([binary], env)

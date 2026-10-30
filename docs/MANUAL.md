@@ -2908,8 +2908,13 @@ browser paired at home on any device.
 - The frequency: tap it for a keypad (kHz). BAND up and down, MODE, STEP,
   ZOOM, VFO A/B, LOCK; the knob buttons tune by the step.
 - PRE, ATT, NB, NR, AGC, ATU on and off; VOL, SQL, RF GAIN and POWER with
-  - and +, or a slider on a tap; FILTER presets for the mode and the edges by
-  hand; ATU TUNE (a long press of the key).
+  - and +, or a slider on a tap; ATU TUNE (a long press of the key).
+- FILTER: presets for the mode and the edges by hand, by the radio's own
+  filter rules: in SSB and DIG both edges (presets 1.8 to 3.6 kHz); in CW
+  and CW-R the width, around the key tone (100 Hz to 1 kHz); in AM, NFM and
+  SAM the high edge alone, the low one is always 0 (2.5 to 6 kHz); in WFM
+  the same up to 10 kHz (4 to 10 kHz). No edge goes past 6 kHz, 10 kHz in
+  WFM. The preset lit is the one whose edges the radio has.
 - The S-meter, the power and SWR while transmitting, the battery.
 - Spots: the DX cluster's spots as the radio filters them (see
   [DX Cluster](#dx-cluster)), newest first, tap one to tune to it; the calls
@@ -2977,11 +2982,13 @@ bands and the band plan (`bands`, `plan`; again when either changes: another
 plan or region, a band edited on the web page), the spots (`spots [...]`) and the
 spectrum as binary frames (16 bytes header `{u16 0xFFFF, u16 bins, u32
 centre Hz, u32 width Hz, u32 sequence}`, then one int8 dB per bin). `set NAME
-VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list),
+VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list; 8 SAM and 9 WFM on the X6200),
 `agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1), `sql`, `rfg`
 (0-100), `vol` (0-55 on the X6100, 0-100 on the X6200), `pwr` (tenths of a watt: 1-100,
 1-80 on the X6200, 1-50 there on battery), `step`, `zoom` (1-8), `band`
-(+1/-1), `vfo` (toggle), `filter LO HI`. A `set` the radio refuses is
+(+1/-1), `vfo` (toggle), `filter LO HI` (in Hz, as the radio keeps them: in CW
+centred on the key tone, the low edge no lower than 0; in AM and FM LO is
+0). A `set` the radio refuses is
 answered `err ...` (`err freq: locked (LOCK, or an app holds the
 frequency)`, `err freq: not a frequency this radio tunes`, `err NAME: the
 radio is busy, try again`, `err unknown setting NAME`, the role and

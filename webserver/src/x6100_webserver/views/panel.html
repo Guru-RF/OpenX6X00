@@ -117,6 +117,7 @@
 .pad .b.ok { background:var(--pon); border-color:var(--pon); color:#fff; }
 .pop .lohi { display:flex; gap:8px; align-items:center; margin-top:10px; }
 .pop .lohi input[type=number] { width:6em; }
+.pop .fhint { margin-top:8px; font:12px/1.3 system-ui,sans-serif; color:var(--pd); }
 /* Phones and portrait tablets: one column, the radio first */
 @media (max-width: 899px), (orientation: portrait) {
   .pn { flex-direction:column; }
@@ -334,6 +335,36 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     const bw = s.fhi - s.flo;
     return (s.mode === 4 || s.mode === 5) ? bw + "" : (bw >= 1000 ? (bw / 1000).toFixed(1).replace(/\.0$/, "") + "k" : bw + "");
   }
+  /* The radio's filter rules for a mode, on both radios (filter_mode() and filter_high_max() in
+   * src/cfg/settings_manager.cpp, #91): in CW and CW-R a width around the key tone, its low edge no lower than 0;
+   * in AM, NFM and the X6200's SAM and WFM the high edge alone, the low one always 0; in the others both edges.
+   * No edge above 6 kHz, in WFM 10 kHz */
+  function filterKind(mode) { return mode === 4 || mode === 5 ? "cw" : mode >= 6 && mode <= 9 ? "am" : "ssb"; }
+  function filterMax(mode) { return mode === 9 ? 10000 : 6000; }
+  /* The edges the radio keeps for the ones asked, and the page sends those: the radio checks each edge against
+   * the other as it sets it, so edges outside its rules would come out by what it had before */
+  function filterEdges(s, lo, hi) {
+    const max = filterMax(s.mode), kind = filterKind(s.mode);
+    let a = Math.min(lo, hi), b = Math.max(lo, hi);
+    if (kind === "am") return [0, Math.max(1, Math.min(max, b))];
+    if (kind === "cw") {
+      /* an even width: the radio keeps half of it on either side of the key tone */
+      const w = Math.max(10, Math.min(max, Math.round((b - a) / 2) * 2));
+      a = Math.max(0, keyTone(s) - w / 2);
+      return [a, a + w];
+    }
+    b = Math.max(1, Math.min(max, b));
+    return [Math.max(0, Math.min(b - 1, a)), b];
+  }
+  /* The presets of the mode, as the radio sets them: CW widths, AM and FM high edges, SSB and DIG passbands */
+  function filterPresets(s) {
+    const kind = filterKind(s.mode);
+    const p = kind === "cw" ? [[0, 100], [0, 250], [0, 500], [0, 1000]]
+            : s.mode === 9 ? [[0, 4000], [0, 6000], [0, 8000], [0, 10000]]
+            : kind === "am" ? [[0, 2500], [0, 3000], [0, 4000], [0, 5000], [0, 6000]]
+            : [[100, 1900], [100, 2500], [100, 2800], [50, 3050], [50, 3650]];
+    return p.map(function(e) { return filterEdges(s, e[0], e[1]); });
+  }
 
   /* ---- Theme and layout ---- */
   if (pref.theme === "light") pn.dataset.theme = "light";
@@ -481,6 +512,17 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   function visSpan() { return Math.min(span, 100000 / (state ? state.zoom : 1)); }
   /* The CW pitch: a radio before "kt" sent none, and the default is 700 Hz */
   function keyTone(s) { return typeof s.kt === "number" ? s.kt : 700; }
+  /* The passband around the dial, in Hz. In CW and CWR the edges are tones, and the signal heard at the key
+   * tone is on the dial: the band is around it in both, as on the radio (#34: it was beside it, a pitch off).
+   * AM, NFM, SAM and WFM: both sides of the high edge, as the radio draws it (#91: SAM and WFM had one) */
+  function passband(s) {
+    const kt = keyTone(s);
+    if (s.mode === 0 || s.mode === 1) return [-s.fhi, -s.flo];      /* LSB */
+    if (s.mode === 4) return [s.flo - kt, s.fhi - kt];               /* CW */
+    if (s.mode === 5) return [kt - s.fhi, kt - s.flo];               /* CWR */
+    if (filterKind(s.mode) === "am") return [-s.fhi, s.fhi];
+    return [s.flo, s.fhi];
+  }
   function hzToX(hz) { const v = visSpan(); return (hz - (center - v / 2)) * W / v; }
   function xToHz(x) { const v = visSpan(); return center - v / 2 + x * v / W; }
   function draw() {
@@ -510,17 +552,10 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
       ctx.fillStyle = PLAN_COLORS[seg[2]] || "#888"; ctx.globalAlpha = 0.85; ctx.fillRect(x1, SCALE_H * dpr, x2 - x1, PLAN_H * dpr); ctx.globalAlpha = 1;
       if (x2 - x1 > 40 * dpr) { ctx.fillStyle = "#fff"; ctx.font = "bold " + (7 * dpr) + "px system-ui, sans-serif"; ctx.textBaseline = "middle"; ctx.fillText(PLAN_NAMES[seg[2]], (x1 + x2) / 2, SCALE_H * dpr + PLAN_H * dpr / 2); }
     }
-    /* the passband. In CW and CWR the edges are tones, and the signal heard at the key tone is on the
-     * dial: the band is around it in both, as on the radio (#34: it was beside it, a pitch off) */
+    /* the passband */
     const s = state;
     if (s) {
-      const kt = keyTone(s);
-      let lo = s.flo, hi = s.fhi;
-      if (s.mode === 0 || s.mode === 1) { lo = -s.fhi; hi = -s.flo; }         /* LSB */
-      else if (s.mode === 4) { lo = s.flo - kt; hi = s.fhi - kt; }            /* CW */
-      else if (s.mode === 5) { lo = kt - s.fhi; hi = kt - s.flo; }            /* CWR */
-      else if (s.mode === 6 || s.mode === 7) lo = -s.fhi;                     /* AM, FM: both sides */
-      const x1 = hzToX(s.freq + lo), x2 = hzToX(s.freq + hi);
+      const pb = passband(s), x1 = hzToX(s.freq + pb[0]), x2 = hzToX(s.freq + pb[1]);
       ctx.fillStyle = light ? "#0b5fd0" : "#7fc4ff"; ctx.globalAlpha = 0.18; ctx.fillRect(x1, top, x2 - x1, H - top); ctx.globalAlpha = 1;
     }
     /* the trace */
@@ -653,17 +688,20 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   }
   function popFilter() {
     const s = state; if (!s) return;
-    const cw = s.mode === 4 || s.mode === 5, am = s.mode === 6 || s.mode === 7;
-    const presets = cw ? [[100, 50], [250, 125], [500, 250], [1000, 500]] : am ? [[6000, 0], [9000, 0], [12000, 0]] : [[1800, 100], [2400, 100], [2700, 100], [3000, 50], [3600, 50]];
+    const kind = filterKind(s.mode), max = filterMax(s.mode);
     $box.empty().append($("<h4>").text("Filter"));
     const list = $("<div class='list'>");
-    presets.forEach(function(p) {
-      /* CW: around the key tone, the low edge no lower than 0, as the radio sets it (it was 700 Hz) */
-      const bw = p[0], lo = cw ? Math.max(0, keyTone(s) - bw / 2) : am ? 0 : p[1], hi = lo + bw;
-      list.append($("<button type='button' class='b'>").toggleClass("on", s.fhi - s.flo === hi - lo).text(bw >= 1000 ? (bw / 1000).toFixed(1).replace(/\.0$/, "") + "k" : bw).on("click", function() { set("filter", lo, hi); popClose(); }));
+    /* lit: the preset whose edges are the radio's, not one of the same width elsewhere */
+    filterPresets(s).forEach(function(p) {
+      const bw = p[1] - p[0];
+      list.append($("<button type='button' class='b'>").toggleClass("on", s.flo === p[0] && s.fhi === p[1]).text(bw >= 1000 ? (bw / 1000).toFixed(1).replace(/\.0$/, "") + "k" : bw).on("click", function() { set("filter", p[0], p[1]); popClose(); }));
     });
-    const lo = $("<input type='number' min='0' max='12000' step='10'>").val(s.flo), hi = $("<input type='number' min='0' max='12000' step='10'>").val(s.fhi);
-    $box.append(list, $("<div class='lohi'>").append("Low ", lo, " High ", hi, $("<button type='button' class='primary'>Set</button>").on("click", function() { set("filter", parseInt(lo.val(), 10) || 0, parseInt(hi.val(), 10) || 0); popClose(); })));
+    const lo = $("<input type='number' min='0' step='10'>").attr("max", max - 1).val(s.flo).prop("disabled", kind === "am"), hi = $("<input type='number' min='0' step='10'>").attr("max", max).val(s.fhi);
+    const hint = kind === "cw" ? "The width, around the key tone of " + keyTone(s) + " Hz" : kind === "am" ? MODES[s.mode] + ": the high edge alone, the low one is 0" : "Both edges";
+    $box.append(list, $("<div class='lohi'>").append("Low ", lo, " High ", hi, $("<button type='button' class='primary'>Set</button>").on("click", function() {
+      const e = filterEdges(s, parseInt(lo.val(), 10) || 0, parseInt(hi.val(), 10) || 0);
+      set("filter", e[0], e[1]); popClose();
+    })), $("<div class='fhint'>").text(hint + ", up to " + max / 1000 + " kHz"));
     $pop.prop("hidden", false);
   }
 
