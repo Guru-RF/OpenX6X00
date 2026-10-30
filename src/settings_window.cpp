@@ -2747,8 +2747,53 @@ static lv_obj_t *reachable_end(lv_group_t *g, bool last) {
     return NULL;
 }
 
+/* An object, or one inside it, the knob can be on */
+static bool has_control(lv_obj_t *obj) {
+    if (lv_obj_get_group(obj)) return true;
+    for (uint32_t i = 0; i < lv_obj_get_child_cnt(obj); i++) {
+        if (has_control(lv_obj_get_child(obj, i))) return true;
+    }
+    return false;
+}
+
+/* The bottom of a control's row and of the rows under it without a control, up to the next
+ * control or the card's end: its status line and notes (Info's Update, the Cluster filters) */
+static lv_coord_t notes_bottom(lv_obj_t *obj) {
+    lv_area_t a;
+
+    lv_obj_get_coords(obj, &a);
+    while (obj && lv_obj_get_parent(obj) && lv_obj_get_style_layout(lv_obj_get_parent(obj), 0) != LV_LAYOUT_GRID) {
+        obj = lv_obj_get_parent(obj);
+    }
+    if (!obj || !lv_obj_get_parent(obj)) return a.y2;
+
+    lv_obj_t  *g      = lv_obj_get_parent(obj);
+    int        first  = lv_obj_get_style_grid_cell_row_pos(obj, 0);
+    int        last   = first + lv_obj_get_style_grid_cell_row_span(obj, 0) - 1;
+    int        next   = 64;        /* the next row with a control; a card has at most 64 (row_pool) */
+    lv_coord_t bottom = a.y2;
+
+    for (uint32_t i = 0; i < lv_obj_get_child_cnt(g); i++) {
+        lv_obj_t *c = lv_obj_get_child(g, i);
+        int       r = lv_obj_get_style_grid_cell_row_pos(c, 0);
+
+        if (r > last && r < next && has_control(c)) next = r;
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_cnt(g); i++) {
+        lv_obj_t *c = lv_obj_get_child(g, i);
+        int       r = lv_obj_get_style_grid_cell_row_pos(c, 0);
+        lv_area_t ca;
+
+        if (r >= first && r < next && !lv_obj_has_flag(c, LV_OBJ_FLAG_HIDDEN)) {
+            lv_obj_get_coords(c, &ca);
+            bottom = LV_MAX(bottom, ca.y2);
+        }
+    }
+    return bottom;
+}
+
 /* MFK focus: bring the whole row into view, with a margin (the default
- * scroll-on-focus left rows at the bottom edge half hidden) */
+ * scroll-on-focus left rows at the bottom edge half hidden), and its notes under it */
 static void focus_cb(lv_group_t *g) {
     lv_obj_t *obj = lv_group_get_focused(g);
 
@@ -2775,11 +2820,20 @@ static void focus_cb(lv_group_t *g) {
     }
     lv_obj_get_coords(obj, &a);
     lv_obj_get_coords(page, &p);
-    if (a.y2 + margin > p.y2) {
-        lv_obj_scroll_by(page, 0, p.y2 - (a.y2 + margin), LV_ANIM_OFF);
+
+    /* The rows without a control under it come into view with it: 24 px under a control left
+     * a status line in a font with tall lines (DejaVu, VISION's), or on two lines, cut at the
+     * page's bottom edge (#82) */
+    lv_coord_t bottom = LV_MAX(a.y2 + margin, notes_bottom(obj) + 4);
+    lv_coord_t dy     = 0;
+
+    if (bottom > p.y2) {
+        dy = p.y2 - bottom;
     } else if (a.y1 - margin < p.y1) {
-        lv_obj_scroll_by(page, 0, p.y1 - (a.y1 - margin), LV_ANIM_OFF);
+        dy = p.y1 - (a.y1 - margin);
     }
+    if (a.y1 + dy < p.y1 + 8) dy = p.y1 + 8 - a.y1;   /* notes taller than the page: the control stays */
+    if (dy) lv_obj_scroll_by(page, 0, dy, LV_ANIM_OFF);
 }
 
 static void grid_delete() {
