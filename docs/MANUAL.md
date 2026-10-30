@@ -2489,11 +2489,14 @@ download the keys or key the transmitter. Logs > Export and the Gallery's ZIP
 download hold no secret and work by any name; TCI programs, which are not
 browsers, connect by any name as before.
 
-The menu has General and four groups:
+The menu has General and five groups:
 
 | Group | Page | Does |
 |---|---|---|
 | | General | index of the pages |
+| Remote | Panel | the radio's own controls in the browser, for a touch screen (see [Browser panel](#browser-panel)) |
+| | Screen | the radio's screen live, its keys and knobs, the audio both ways (see [Browser remote](#browser-remote)) |
+| | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)) |
@@ -2509,9 +2512,10 @@ The menu has General and four groups:
 | | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages (optionally CW trainer and WiFi) as one file, and restore the parts you choose |
 | System | Display | every display option of the radio (see below) |
 | | Time | local and server time; Sync sets the radio clock from the browser's, in the radio's timezone; NTP sync; timezone |
-| | Ethernet | the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
+| | Network | the radio's [network name](#network-name), and the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
 | | TCI | enable the [TCI server](#tci-server), set its port |
 | | SSH | the keys that may log in over SSH: list, add, remove (passwords are not taken, see [SSH](#ssh)) |
+| | Update | Check and Install the latest release, install a bundle file, go back to the previous version (see [Updating the firmware](#updating-the-firmware)) |
 
 ### Editing, saving, deleting
 
