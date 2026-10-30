@@ -67,6 +67,9 @@ class SettingsManager {
     // CAT, TCI and the web remote hand their sets to the LVGL thread, which also
     // changes the cap; atomic all the same, as any thread may read a parameter.
     std::atomic<float> pwr_max_{BOARD_PWR_MAX};
+    // The TX power limit of the transverter the radio is tuned through, W, 0 none (#104, pwr_xvtr_set): p_pwr is
+    // held to it too, whichever of the two is lower (pwr_top)
+    std::atomic<float> pwr_xvtr_{0.0f};
 
     // -- Parameters (public for C-API / UI access; live for the whole program) --
     // All regular GLOBAL/BAND/MODE params are declared with NSDMI here (one
@@ -81,8 +84,12 @@ class SettingsManager {
     // clang-format off
     Parameter<int32_t> p_volume{"vol", 30, 0, BOARD_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, [this](float v) { return clip(v, 0.1f, pwr_max_.load()); },
+    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, [this](float v) { return clip(v, 0.1f, pwr_top()); },
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
+    // The PWR a transverter's limit took down (pwr_xvtr_set), W, 0 none: it comes back off the transverter, after a
+    // restart on it too
+    Parameter<float, int32_t, 10> p_pwr_xvtr_held{"pwr_xvtr_held", 0.0f, 0.0f, BOARD_PWR_MAX,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_squelch{"sql", 0, 0, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_rfgain{"rfgain", 63, 0, 100,
@@ -508,6 +515,8 @@ class SettingsManager {
     // A shift of 0 is a transverter that is off. The X6200's are off by default: its 2 m and 70 cm are the WR12's,
     // to receive, and the always-on transverters tuned "145.500" to 29.500 MHz and transmitted there, on 10 m.
     // Migration _11 keeps the shift of one set up before. The X6100 keeps upstream's two, on by default
+    // Each has a TX power limit (#104), W in 0.1 W steps up to BOARD_PWR_MAX, 0 none: on its band every transmission
+    // stays at or under it (pwr_xvtr_set, radio.c). Settings from before it have no row: no limit
     // Transverter 0 (2m: 144-150 MHz, IF at 28 MHz)
     Parameter<int32_t> p_transverter_0_from{"from", 144'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
@@ -515,12 +524,16 @@ class SettingsManager {
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
     Parameter<int32_t> p_transverter_0_shift{"shift", HAS_VHF_RX ? 0 : 116'000'000, 0, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
+    Parameter<float, int32_t, 10> p_transverter_0_pwr{"pwr_max", 0.0f, 0.0f, BOARD_PWR_MAX,
+        StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
     // Transverter 1 (70cm: 432-438 MHz, IF at 28 MHz)
     Parameter<int32_t> p_transverter_1_from{"from", 432'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
     Parameter<int32_t> p_transverter_1_to{"to", 438'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
     Parameter<int32_t> p_transverter_1_shift{"shift", HAS_VHF_RX ? 0 : 404'000'000, 0, 500'000'000,
+        StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
+    Parameter<float, int32_t, 10> p_transverter_1_pwr{"pwr_max", 0.0f, 0.0f, BOARD_PWR_MAX,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
 
     // --- MODE params (`mode_params` table) ---
@@ -663,6 +676,41 @@ class SettingsManager {
             return p_transverter_1_shift.get();
         return 0;
     }
+
+    // The TX power limit of the transverter that covers `freq` (as transverter_shift_for finds it), W; 0 when none
+    // covers it or it has no limit
+    float transverter_pwr_for(int32_t freq) const {
+        if (p_transverter_0_shift.get() && freq >= p_transverter_0_from.get() && freq <= p_transverter_0_to.get())
+            return p_transverter_0_pwr.get();
+        if (p_transverter_1_shift.get() && freq >= p_transverter_1_from.get() && freq <= p_transverter_1_to.get())
+            return p_transverter_1_pwr.get();
+        return 0.0f;
+    }
+
+    // The limit the radio is held to, tuned to `rx` and transmitting on `tx` (radio_tx_freq: the other VFO in split, a
+    // TX shift's): the lower of the two transverters' limits where both have one, the one there is, else 0
+    float transverter_pwr_cap(int32_t rx, int32_t tx) const {
+        float a = transverter_pwr_for(rx), b = transverter_pwr_for(tx);
+
+        return a > 0.0f && (b <= 0.0f || a < b) ? a : b;
+    }
+
+    // The most p_pwr can be now: pwr_max_, or a transverter's limit under it
+    float pwr_top() const {
+        float x = pwr_xvtr_.load(), m = pwr_max_.load();
+
+        return x > 0.0f && x < m ? x : m;
+    }
+
+    // What pwr_xvtr_set did to PWR
+    enum class XvtrPwr { SAME, HELD, RESTORED };
+
+    // A transverter's TX power limit is in force (W), or none (0), on the LVGL thread (radio.c). Coming onto one, a
+    // PWR above it comes down to it and the PWR from before is kept (p_pwr_xvtr_held, once: the one from before the
+    // first transverter); off every limit again, that PWR comes back (at most pwr_max_, the X6200's battery).
+    // A PWR the limit holds down follows a new one (another transverter, the limit stepped up in Settings), up to the
+    // PWR from before; one under the limit, or turned down on the transverter, is left as it is
+    XvtrPwr pwr_xvtr_set(float w);
 
     // What the radio can do somewhere in [lo, hi]: TX where HF 0.1-55 MHz or a transverter with a shift covers part
     // of it, else RX where the X6200 receives (its FM broadcast and airband; 54 MHz-1 GHz with the WR12 on), else

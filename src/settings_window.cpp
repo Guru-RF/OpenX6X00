@@ -868,15 +868,35 @@ static void xvrt_cb(lv_event_t *e) {
     ((ParamInt *)lv_event_get_user_data(e))->set(lv_spinbox_get_value(lv_event_get_target(e)) * 1000000L);
 }
 
+/* And its TX power limit (#104), in steps of 0.1 W up to the radio's top, Off at 0: on its band nothing transmits
+ * above it (radio.c) */
+static const char * xvrt_pwr_text(int32_t tenths) {
+    static char s[8];
+
+    if (tenths == 0) return "Off";
+    snprintf(s, sizeof(s), "%i.%i", (int)(tenths / 10), (int)(tenths % 10));
+    return s;
+}
+
+static void xvrt_pwr_cb(lv_event_t *e) {
+    lv_obj_t *obj = lv_event_get_target(e);
+    int32_t   v   = lv_slider_get_value(obj);
+
+    lv_label_set_text((lv_obj_t *)lv_obj_get_user_data(obj), xvrt_pwr_text(v));
+    ((Parameter<float, int32_t, 10> *)lv_event_get_user_data(e))->set(v / 10.0f);
+}
+
 static uint8_t make_transverters(uint8_t row) {
     ParamInt *p[2][3] = {
         {&cfg_sm.p_transverter_0_from, &cfg_sm.p_transverter_0_to, &cfg_sm.p_transverter_0_shift},
         {&cfg_sm.p_transverter_1_from, &cfg_sm.p_transverter_1_to, &cfg_sm.p_transverter_1_shift},
     };
+    Parameter<float, int32_t, 10> *pwr[2] = {&cfg_sm.p_transverter_0_pwr, &cfg_sm.p_transverter_1_pwr};
     const int lo[3] = {70, 70, 0};
 
     for (auto &x : p) {
         char label[32];
+        int  t = x[0]->context_id();
 
         snprintf(label, sizeof(label), "%i: from, to, shift (0 off)", x[0]->context_id() + 1);
         wl_row_label(row, label);
@@ -885,6 +905,14 @@ static uint8_t make_transverters(uint8_t row) {
 
             lv_obj_add_event_cb(sb, xvrt_cb, LV_EVENT_VALUE_CHANGED, x[i]);
         }
+        row++;
+
+        int32_t tenths = lroundf(pwr[t]->get() * 10.0f);
+
+        snprintf(label, sizeof(label), "%i: TX power limit, W", t + 1);
+        wl_row_label(row, label);
+        row_slider(row_cell(row, 4, 3, SMALL_3), tenths, 0, lroundf(BOARD_PWR_MAX * 10.0f), SMALL_3 - 120, xvrt_pwr_cb,
+                   pwr[t], "%s", xvrt_pwr_text(tenths));
         row++;
     }
     return row;

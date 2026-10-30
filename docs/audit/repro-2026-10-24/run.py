@@ -149,6 +149,27 @@ def main():
                          "indep, restart: band=3 vfo=1 A=21000000 B=7030000",
                          "indep, band key into split: band=9 A=21000000 B=21010000 split=1")),
             ("settings-rollback.cpp", ("after rollback and retry volume=42 memory=42",)),
+            # Issue #104: a transverter's TX power limit and PWR under it
+            ("xvtr-power.cpp", ("old settings: limit 1=0 2=0, at 145.5 MHz 0 W", "12 W asked: 10 W",
+                                "limits: 1=0.5 2=0.1",
+                                "cap: 2 m=0.5 20 m=0 20 m split to 2 m=0.5 2 m split to 20 m=0.5 "
+                                "2 m split to 70 cm=0.1 above the range=0",
+                                "transverter 1 off: 2 m=0",
+                                "onto 2 m: held pwr=0.5 held=10 top=0.5",
+                                "10 W set on 2 m (the knob, the Panel, TCI, CAT): pwr=0.5",
+                                "turned down to 0.2 W, off 2 m: restored pwr=10 held=0 top=10",
+                                "0.3 W onto 2 m: same pwr=0.3 held=0 top=0.5",
+                                "0.3 W off 2 m: same pwr=0.3 held=0 top=10",
+                                "onto 2 m at 0.5 W: held pwr=0.5 held=10 top=0.5",
+                                "back on 70 cm: held pwr=1 held=10 top=1",
+                                "turned down to 0.3 W, onto 2 m: same pwr=0.3 held=10 top=0.5",
+                                "off both: restored pwr=10 held=0 top=10",
+                                "Settings, Off to 0.1 W: held pwr=0.1 held=0.8 top=0.1", "0.2 W: held pwr=0.2 held=0.8",
+                                "1.0 W: held pwr=0.8 held=0.8 top=1", "down to 0.4 W: held pwr=0.4 held=0.8",
+                                "Off: restored pwr=0.8 held=0 top=10",
+                                "restart: limit 1=0.5 2=1 pwr=0.5 held=10 row pwr_max=5",
+                                "restart, off 2 m: restored pwr=10 held=0 top=10",
+                                "on battery, off 2 m: restored pwr=5 held=0 top=5")),
         ):
             binary = work / Path(source).stem
             command([*CXX, "-std=c++20", *common, HERE / source, *cfg, *gc,

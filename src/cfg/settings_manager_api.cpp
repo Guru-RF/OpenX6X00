@@ -79,7 +79,39 @@ void cfg_pwr_max_set(float watts) {
 }
 
 float cfg_pwr_max_get(void) {
-    return cfg_sm.pwr_max_.load();
+    return cfg_sm.pwr_top();
+}
+
+float cfg_transverter_pwr_for(int32_t freq) {
+    return cfg_sm.transverter_pwr_for(freq);
+}
+
+float cfg_transverter_pwr_cap(int32_t rx, int32_t tx) {
+    return cfg_sm.transverter_pwr_cap(rx, tx);
+}
+
+pwr_xvtr_t cfg_pwr_xvtr_set(float watts) {
+    switch (cfg_sm.pwr_xvtr_set(watts)) {
+        case SettingsManager::XvtrPwr::HELD:     return PWR_XVTR_HELD;
+        case SettingsManager::XvtrPwr::RESTORED: return PWR_XVTR_RESTORED;
+        default:                                 return PWR_XVTR_SAME;
+    }
+}
+
+float cfg_pwr_xvtr_get(void) {
+    return cfg_sm.pwr_xvtr_.load();
+}
+
+void cfg_transverter_name(int32_t freq, char *buf, size_t size) {
+    BandInfoLoadResult b     = BandsTable::get_by_freq(static_cast<uint32_t>(freq));
+    bool               first = cfg_sm.p_transverter_0_shift.get() && freq >= cfg_sm.p_transverter_0_from.get() &&
+                         freq <= cfg_sm.p_transverter_0_to.get();
+
+    if (b.rc == SUCCESS && b.value.id != BAND_UNDEFINED && !b.value.name.empty()) {
+        snprintf(buf, size, "%s", b.value.name.c_str());
+    } else {
+        snprintf(buf, size, "%d", first ? 1 : 2);     /* as Settings numbers them */
+    }
 }
 
 void cfg_vfo_toggle(void) {

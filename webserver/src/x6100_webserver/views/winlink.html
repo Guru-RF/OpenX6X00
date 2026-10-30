@@ -157,11 +157,14 @@ var renderRadio = function(st) {
     (rxOk && txOk ? "Covers" : "Does not cover") + " " + m.name + "'s " + lo + "-" + hi + " Hz at " + m.bw + " Hz" +
     (tx ? "; TX filter " + r.tx_filter_low + "-" + r.tx_filter_high + " Hz" : "") +
     (rxOk && txOk ? "" : ": widen the " + (rxOk ? "TX" : "RX") + " filter"), !(rxOk && txOk));
-  // cap: the most Winlink sends at (7 W); cap_battery: that is less, the X6200 on its battery holds PWR to 5 W
-  const capWhy = r.cap_battery ? ", as the X6200 runs on its battery" : "";
+  // cap: the most Winlink sends at (7 W); cap_battery: that is less, the X6200 on its battery holds PWR to 5 W;
+  // cap_transverter: a transverter's TX power limit holds it (0.5 W: not "1 W")
+  const capWhy = r.cap_transverter ? ", the transverter's TX power limit" :
+    r.cap_battery ? ", as the X6200 runs on its battery" : "";
+  const capW = r.cap.toFixed(Number.isInteger(r.cap) ? 0 : 1);
   radioRow("pwr", Math.min(r.pwr, r.cap).toFixed(1) + " W", r.pwr > r.cap ?
-    "PWR is " + r.pwr.toFixed(1) + " W: Winlink sends at most " + r.cap.toFixed(0) + " W" + capWhy :
-    "The radio's PWR; Winlink at most " + r.cap.toFixed(0) + " W" + capWhy, false);
+    "PWR is " + r.pwr.toFixed(1) + " W: Winlink sends at most " + capW + " W" + capWhy :
+    "The radio's PWR; Winlink at most " + capW + " W" + capWhy, false);
   radioRow("app", r.app || "None", r.app ? "Close it: no Winlink TX or QSY while it holds the radio" :
     r.locked ? "LOCK is on: Pat's QSY is not made" : "No app holds the radio", !!r.app || !!r.locked);
   radioRow("swr", r.swr_hold ? Math.ceil(r.swr_hold / 60) + " min left" : "None", r.swr_hold ?

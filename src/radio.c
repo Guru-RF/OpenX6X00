@@ -101,6 +101,7 @@ static void radio_unlock();
 
 static void on_vfo_freq_change(Subject *subj, void *user_data);
 static void on_transverter_change(Subject *subj, void *user_data);
+static void on_xvtr_pwr_change(Subject *subj, void *user_data);
 static void on_vfo_mode_change(Subject *subj, void *user_data);
 static void on_vfo_agc_change(Subject *subj, void *user_data);
 static void on_cw_agc_cond_change(Subject *subj, void *user_data);
@@ -208,6 +209,10 @@ static bool             tci_mute = false;   /* a TCI client transmits: the speak
 static bool             rec_moni = false;   /* a screen recording takes the TX audio: the monitor at 30 at least (X6100) */
 static bool             digi_cap;       /* a digital app is open: never above its cap */
 static float            tune_cap;       /* a TUNE for an external tuner: never above its power (under the lock) */
+/* A transverter's TX power limit where the radio is tuned (#104): never above it, 0 none; -1 until first looked at
+ * (on_xvtr_pwr_change). Under the lock, as txpwr_asked: the last power asked of set_txpwr, before its caps */
+static float            xvtr_cap = -1.0f;
+static float            txpwr_asked;
 static pthread_mutex_t  tune_mux = PTHREAD_MUTEX_INITIALIZER;
 static tune_guard_t     tune_guard;     /* that tune, for the SWR protection (under tune_mux) */
 
@@ -224,8 +229,10 @@ static void power_key_cb(void *arg) {
 }
 
 static void set_txpwr(float w) {
+    txpwr_asked = w;
     if (digi_cap && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
     if (tune_cap > 0.0f && w > tune_cap) w = tune_cap;     /* PWR turned up, the battery's top, a restore */
+    if (xvtr_cap > 0.0f && w > xvtr_cap) w = xvtr_cap;     /* whoever asks: PWR, an app's own, TUNE's, TCI, CAT */
     hw_set_f(HW_TXPWR_F, w);
 }
 
@@ -296,6 +303,19 @@ void radio_start() {
     subject_subscribe((Subject*)cfg_transverter_1_from, on_transverter_change, NULL);
     subject_subscribe((Subject*)cfg_transverter_1_to, on_transverter_change, NULL);
     subject_subscribe((Subject*)cfg_transverter_1_shift, on_transverter_change, NULL);
+
+    /* A transverter's TX power limit (#104) follows where the radio listens and transmits and the transverters'
+     * settings; looked at once now, before PWR goes to the base below */
+    Subject *xvtr_by[] = {
+        (Subject*)cfg_fg_freq, (Subject*)cfg_bg_freq, (Subject*)cfg_band_split, (Subject*)cfg_band_tx_shift,
+        (Subject*)cfg_transverter_0_from, (Subject*)cfg_transverter_0_to, (Subject*)cfg_transverter_0_shift,
+        (Subject*)cfg_transverter_0_pwr, (Subject*)cfg_transverter_1_from, (Subject*)cfg_transverter_1_to,
+        (Subject*)cfg_transverter_1_shift, (Subject*)cfg_transverter_1_pwr,
+    };
+    for (size_t i = 0; i < sizeof(xvtr_by) / sizeof(xvtr_by[0]); i++) {
+        subject_subscribe(xvtr_by[i], on_xvtr_pwr_change, NULL);
+    }
+    on_xvtr_pwr_change(NULL, NULL);
 
     subject_subscribe_and_notify((Subject*)cfg_band_vfoa_mode, on_vfo_mode_change, (void*)RADIO_VFO_A);
     subject_subscribe_and_notify((Subject*)cfg_band_vfob_mode, on_vfo_mode_change, (void*)RADIO_VFO_B);
@@ -570,7 +590,16 @@ bool radio_change_spmode(int16_t df) {
 }
 
 void radio_start_atu() {
+    float xvtr;
+
     if (tx_refused()) {
+        return;
+    }
+    /* The tuner's carrier is the base's own, at a power the GUI does not set: not into a transverter with a TX power
+     * limit (#104). What it would tune there is the IF into the transverter. Short: the box scrolls a longer line */
+    WITH_RADIO_LOCK(xvtr = xvtr_cap);
+    if (xvtr > 0.0f) {
+        msg_schedule_text_fmt("No tuner: %.1f W transverter", xvtr);
         return;
     }
     state_move(RADIO_RX, RADIO_ATU_START);
@@ -585,9 +614,9 @@ bool radio_start_swrscan(int32_t from) {
     radio_set_tx_freq(from);
     cparam_i_set(cfg_cur_mode, radio_mode_am);
     radio_lock();
-    /* 1 W is enough to read the SWR; less if PWR is set lower.
+    /* 1 W is enough to read the SWR; less if PWR is set lower, or a transverter's limit (set_txpwr).
      * ponytail: fixed 1 W cap, make it a setting if the bridge reads poorly that low */
-    hw_set_f(HW_TXPWR_F, LV_MIN(param_f_get(cfg_pwr), 1.0f));
+    set_txpwr(LV_MIN(param_f_get(cfg_pwr), 1.0f));
     hw_set_i(HW_SWRSCAN, true);
     radio_unlock();
 
@@ -906,6 +935,62 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
 static void on_transverter_change(Subject *subj, void *user_data) {
     on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
     on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
+}
+
+/* A transverter's TX power limit came or went (#104), on the LVGL thread: PWR and its top follow it, and the screen
+ * says so, as for the X6200's battery. In place of what it said last, not queued after it: the limit stepped in
+ * Settings on its band would stack a message for each step */
+typedef struct {
+    float   w;          /* the limit, 0 none */
+    int32_t freq;       /* where it comes from: the dial, or the frequency the radio transmits on */
+} xvtr_pwr_t;
+
+static void xvtr_pwr_cb(void *arg) {
+    xvtr_pwr_t *x = arg;
+    char        name[24];
+
+    switch (cfg_pwr_xvtr_set(x->w)) {
+        case PWR_XVTR_HELD:
+            cfg_transverter_name(x->freq, name, sizeof(name));
+            msg_update_text_fmt("TX power %.1f W: transverter %s", param_f_get(cfg_pwr), name);
+            break;
+        case PWR_XVTR_RESTORED:
+            msg_update_text_fmt("TX power back to %.1f W", param_f_get(cfg_pwr));
+            break;
+        default:
+            break;
+    }
+}
+
+/* The limit for where the radio is tuned: the dial's transverter, or the one it transmits through (split's other VFO,
+ * a TX shift), the lower where both have one. The base goes to it at once, whatever asked for the power last (an app's
+ * own, a TUNE's); PWR and the screen after it (xvtr_pwr_cb). The first look (radio_start, no subject) always goes
+ * there, a PWR a transverter took down before a restart comes back if the radio starts off it; the base gets PWR
+ * right after it, held to the limit */
+static void on_xvtr_pwr_change(Subject *subj, void *user_data) {
+    int32_t    rx = cparam_i_get(cfg_fg_freq), tx = radio_tx_freq();
+    xvtr_pwr_t x  = {cfg_transverter_pwr_cap(rx, tx), 0};
+    bool       changed;
+
+    x.freq = cfg_transverter_pwr_for(rx) == x.w ? rx : tx;
+    radio_lock();
+    changed = x.w != xvtr_cap;
+    if (changed) {
+        xvtr_cap = x.w;
+        if (subj) set_txpwr(txpwr_asked);
+    }
+    radio_unlock();
+    if (!changed) {
+        return;
+    }
+    if (x.w > 0.0f) {
+        LV_LOG_USER("Radio TX power at most %.1f W: a transverter at %i", x.w, x.freq);
+    }
+    if (scheduler_on_gui_thread()) {
+        xvtr_pwr_cb(&x);
+    } else if (!scheduler_put_urgent(xvtr_pwr_cb, &x, sizeof(x))) {
+        LV_LOG_ERROR("Radio: the transverter's TX power limit not passed on to PWR (the base holds it)");
+    }
 }
 
 static void on_vfo_mode_change(Subject *subj, void *user_data) {
@@ -1581,7 +1666,7 @@ static bool radio_tick() {
 
         switch (tx_watch_power(&tx_watch, now_time, pack->tx)) {
             case TX_WATCH_CUT:
-                WITH_RADIO_LOCK(hw_set_f(HW_TXPWR_F, 0.0f));
+                WITH_RADIO_LOCK(set_txpwr(0.0f));   /* 0 W also if a transverter's limit changes meanwhile */
                 base_guard_log("base still in TX %u ms after PTT off and a write error: TX power set to 0 (vext %.1f V, vbat %.1f V)",
                                TX_WATCH_CUT_MS, pack->vext * 0.1f, pack->vbat * 0.1f);
                 break;

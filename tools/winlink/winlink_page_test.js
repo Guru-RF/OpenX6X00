@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /* The Winlink page's own script (webserver/.../views/winlink.html) under Node, on the small DOM of the audit's
  * browser-dom.js: the Before you connect card from the radio file's values as /api/winlink gives them. The Power
- * row: PWR under Winlink's 7 W, over it, and the X6200 on its battery, where it is 5 W and the row says why.
+ * row: PWR under Winlink's 7 W, over it, the X6200 on its battery, where it is 5 W and the row says why, and a
+ * transverter's TX power limit (#104), 0.5 W, said as such.
  * Prints PAGE OK; exits 1 at the first failure. Run from winlink_web_test.py, or `node winlink_page_test.js` */
 'use strict';
 const {page, between} = require('../../docs/audit/repro-2026-10-24/browser-dom.js');
@@ -26,6 +27,7 @@ function power(radio) {
 }
 
 const UNDER = "The radio's PWR; Winlink at most ", BATTERY = ', as the X6200 runs on its battery';
+const XVTR = ", the transverter's TX power limit";
 let row = power({});
 check('PWR 5 W: 5.0 W, Winlink at most 7 W', row === '5.0 W, ' + UNDER + '7 W', row);
 row = power({pwr: 10.0});
@@ -38,6 +40,10 @@ row = power({pwr: 8.0, cap: 5.0, cap_battery: 1});
 check('on its battery, PWR not down yet: 5.0 W', row === '5.0 W, PWR is 8.0 W: Winlink sends at most 5 W' + BATTERY, row);
 row = power({cap_battery: undefined});
 check('a GUI that writes no cap_battery: as before', row === '5.0 W, ' + UNDER + '7 W', row);
+row = power({pwr: 0.5, cap: 0.5, cap_transverter: 1});
+check('a transverter\'s 0.5 W limit: 0.5 W, at most 0.5 W, and why', row === '0.5 W, ' + UNDER + '0.5 W' + XVTR, row);
+row = power({pwr: 2.0, cap: 0.5, cap_transverter: 1});
+check('on the transverter, PWR not down yet: 0.5 W', row === '0.5 W, PWR is 2.0 W: Winlink sends at most 0.5 W' + XVTR, row);
 
 if (failed) process.exit(1);
 console.log('PAGE OK');

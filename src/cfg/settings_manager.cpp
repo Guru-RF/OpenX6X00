@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <iterator>
 
@@ -93,9 +94,11 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
     p_transverter_0_from.load(0);
     p_transverter_0_to.load(0);
     p_transverter_0_shift.load(0);
+    p_transverter_0_pwr.load(0);
     p_transverter_1_from.load(1);
     p_transverter_1_to.load(1);
     p_transverter_1_shift.load(1);
+    p_transverter_1_pwr.load(1);
 
     // The starting band comes from the persisted global parameter.
     band_id_ = p_band_id.get();
@@ -361,6 +364,37 @@ void SettingsManager::tx_shift_cb(Subject * /*subj*/, void *user_data) {
 void SettingsManager::tx_shift_set(int32_t hz) {
     p_band_tx_shift.set(hz);
     p_band_split.set(hz != 0);
+}
+
+/* In tenths of a watt, as the settings keep them: 0.3 W is 0.2999 in float */
+SettingsManager::XvtrPwr SettingsManager::pwr_xvtr_set(float w) {
+    long pwr = std::lround(p_pwr.get() * 10.0f), held = std::lround(p_pwr_xvtr_held.get() * 10.0f);
+    long was = std::lround(pwr_xvtr_.load() * 10.0f), lim = std::lround(w * 10.0f), to;
+
+    pwr_xvtr_.store(w > 0.0f ? w : 0.0f);
+    if (lim > 0) {
+        if (pwr > lim) {
+            if (held == 0) {
+                p_pwr_xvtr_held.set(p_pwr.get());
+            }
+            to = lim;
+        } else if (held > 0 && pwr == was) {
+            to = std::min(held, lim);   /* held at the limit before: at the new one, or the PWR from before */
+        } else {
+            return XvtrPwr::SAME;
+        }
+        if (to == pwr) {
+            return XvtrPwr::SAME;
+        }
+        p_pwr.set(to / 10.0f);
+        return XvtrPwr::HELD;
+    }
+    if (held == 0) {
+        return XvtrPwr::SAME;
+    }
+    p_pwr_xvtr_held.set(0.0f);
+    p_pwr.set(held / 10.0f);    /* the top is pwr_max_ again: the X6200 on battery stops there */
+    return XvtrPwr::RESTORED;
 }
 
 void SettingsManager::switch_mode(ModeGroup new_group_id) {

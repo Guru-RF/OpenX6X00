@@ -365,6 +365,18 @@ def main():
             m.close()
         finally:
             host.stop()
+
+        print("a transverter's TX power limit of 0.5 W: PWR no higher, and said as the transverter's (#104)")
+        host = Host(tmp, "c", rig_port=14534, env={"WL_PWR_MAX": "0.5", "WL_PWR_XVTR": "0.5"})
+        try:
+            m = Modem(host.sock)
+            m.send("H", 1)
+            ok, radio = host.wait_radio({"modem": "connected", "cap": "0.5", "cap_battery": "0",
+                                         "cap_transverter": "1"})
+            check(ok, f"the radio file: Winlink's cap 0.5 W, the transverter's, not the battery's ({radio})")
+            m.close()
+        finally:
+            host.stop()
     print("PROTO OK")
 
 

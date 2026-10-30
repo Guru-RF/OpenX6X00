@@ -118,6 +118,8 @@ static radio_state_t state = RADIO_RX;     /* RADIO_TX: something else is on the
 static uint32_t      caps  = HW_CAP_TX_LEVEL;
 static bool          split_held, digi_cap;
 static float         tune_cap;
+/* A transverter's TX power limit (#104): the radio's top (cfg_pwr_max_get) and set_txpwr's cap, 0 none */
+static float         xvtr_w;
 static tune_guard_t  guard;
 
 /* What the scenario's antenna and base do, and what was seen on the air */
@@ -154,6 +156,7 @@ static struct {
     size_t   nlast;
     float    tune_w, tune_s;    /* tx_info_set_tune, as last told */
     float    len;           /* tx_info_set_length */
+    float    asked;         /* the first power tx_player asked of the radio (radio_set_pwr), 0 none */
 } seen;
 
 static swr_guard_t swr_guard;
@@ -196,6 +199,7 @@ static void *tune_thread(void *arg) {
 static void set_txpwr(float w) {
     if (digi_cap && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
     if (tune_cap > 0.0f && w > tune_cap) w = tune_cap;
+    if (xvtr_w > 0.0f && w > xvtr_w) w = xvtr_w;
     pwr_changes += base.pwr != w;
     base.pwr = w;
     if (base.modem && w > seen.max_pwr) seen.max_pwr = w;
@@ -274,6 +278,7 @@ void radio_set_modem(bool tx) {
 }
 
 void radio_set_pwr(float w) {
+    if (seen.asked == 0.0f) seen.asked = w;
     set_txpwr(w);
 }
 
@@ -654,6 +659,33 @@ static void transmissions(void) {
     check(params_writes == 0, "the level the apps share untouched");
     caps = HW_CAP_TX_LEVEL;
 
+    puts("-- a 2 m transverter on 28.500 with a TX power limit of 0.5 W (#104): the radio's top 0.5 W, PWR down to it");
+    cfg = (typeof(cfg)){.freq = {28500000, 28500000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 0.5f};
+    xvtr_w = 0.5f;
+    reset();
+    sc.stop_at_s = 1.0f;
+    tune_plan_t xp;
+    tune_plan(&xp, cfg.mode[cfg.cur], 0, 1.0f, cfg_pwr_max_get(), 15);
+    tune_t0 = now_ms();
+    e = tune_tx_run(&xp, stop_cb, NULL);
+    check(e == TUNE_END_STOP && xp.pwr_w == 0.5f && seen.max_pwr == 0.5f && as_set(),
+          "TUNE at its 1.0 W: planned at 0.5 W, 0.5 W on the air (%.1f W), put back", seen.max_pwr);
+    cfg.pwr = 0.2f;     /* turned down on the transverter: WSPR's own power is not PWR */
+    reset();
+    tx_player_set_pwr(5.0f);
+    bool xsent = tx_player_play(slot, 4410, 1500, tx_player_base_gain_offset(), NULL, NULL);
+    tx_player_set_pwr(0.0f);
+    check(xsent && seen.asked == 0.5f && seen.max_pwr == 0.5f && as_set(),
+          "PWR 0.2 W, WSPR's own 5 W beacon: 0.5 W asked (%.1f W), 0.5 W on the air (%.1f W), PWR's 0.2 W after",
+          seen.asked, seen.max_pwr);
+    cfg.pwr = 5.0f;     /* the base's limit first, PWR comes down after it on the LVGL thread */
+    reset();
+    xsent = app_slot() == 1;
+    check(xsent && seen.asked == 0.5f && seen.max_pwr == 0.5f,
+          "an app's slot with PWR still at 5 W: 0.5 W asked (%.1f W), 0.5 W on the air (%.1f W)", seen.asked,
+          seen.max_pwr);
+    xvtr_w = 0.0f;
+
     puts("-- something else on the air (an FT8 slot, PTT): refused before anything moves");
     cfg = (typeof(cfg)){.freq = {14074000, 14074000}, .mode = {radio_mode_usb_dig, radio_mode_usb_dig}, .pwr = 5.0f};
     reset();
@@ -700,7 +732,7 @@ bool cfg_is_tx_freq(int32_t f) {
 }
 
 float cfg_pwr_max_get(void) {
-    return 10.0f;
+    return xvtr_w > 0.0f ? xvtr_w : 10.0f;
 }
 
 static struct {

@@ -209,13 +209,15 @@ extern ParamInt *cfg_mode_zoom;      // p_mode_zoom ("spectrum_factor")
 extern ParamInt *cfg_mode_freq_step; // p_mode_freq_step
 
 // --- Transverter params (OTHER storage, fixed HW conversion) ---
-// Values are Hz (p_transverter_{0,1}_{from,to,shift}).
+// Values are Hz (p_transverter_{0,1}_{from,to,shift}), the TX power limits W (p_transverter_{0,1}_pwr, 0 none).
 extern ParamInt *cfg_transverter_0_from;
 extern ParamInt *cfg_transverter_0_to;
 extern ParamInt *cfg_transverter_0_shift;
+extern ParamFloat *cfg_transverter_0_pwr;
 extern ParamInt *cfg_transverter_1_from;
 extern ParamInt *cfg_transverter_1_to;
 extern ParamInt *cfg_transverter_1_shift;
+extern ParamFloat *cfg_transverter_1_pwr;
 
 // --- Computed params (current operating state, not persisted) ---
 extern ComputedParamInt *cfg_fg_freq;          // cp_fg_freq

@@ -169,6 +169,8 @@ ParamInt         *cfg_transverter_0_shift = nullptr;
 ParamInt         *cfg_transverter_1_from  = nullptr;
 ParamInt         *cfg_transverter_1_to    = nullptr;
 ParamInt         *cfg_transverter_1_shift = nullptr;
+ParamFloat       *cfg_transverter_0_pwr   = nullptr;
+ParamFloat       *cfg_transverter_1_pwr   = nullptr;
 
 // COMPUTED (current operating state)
 ComputedParamInt *cfg_fg_freq             = nullptr;
@@ -347,6 +349,8 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_transverter_1_from  = &cfg_sm.p_transverter_1_from;
     cfg_transverter_1_to    = &cfg_sm.p_transverter_1_to;
     cfg_transverter_1_shift = &cfg_sm.p_transverter_1_shift;
+    cfg_transverter_0_pwr   = &cfg_sm.p_transverter_0_pwr;
+    cfg_transverter_1_pwr   = &cfg_sm.p_transverter_1_pwr;
 
     // COMPUTED (current operating state)
     cfg_fg_freq          = &cfg_sm.cp_fg_freq;

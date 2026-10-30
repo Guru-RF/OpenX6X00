@@ -13,6 +13,7 @@
  *                 (default 1000)
  *    WL_AIR_OUT   the other station's WL_AIR_IN: what this one transmits goes there, as the radio sends it
  *    WL_PWR_MAX   the top of PWR in W, default BOARD_PWR_MAX (the X6200's 8 W); 5 is the X6200 on its battery
+ *    WL_PWR_XVTR  a transverter's TX power limit in force, W (#104), default none; give WL_PWR_MAX the same
  *    WL_APP       a file: while it is there, its text is the digital app open (FT8...), else none is
  *  The receiver has a little noise under what it hears. The player keeps time as the low-latency stream does
  *  (100 ms queued), keys the radio for the whole of it and unkeys once the last sample is out.
@@ -100,6 +101,7 @@ float   param_f_get(const ParamFloat *p) { return p->v; }
 void    cparam_i_set(ComputedParamInt *p, int32_t v) { p->v = v; }
 bool    cfg_is_valid_hw_freq(int32_t f) { return f >= 100000 && f <= 55000000; }
 float   cfg_pwr_max_get(void) { return getenv("WL_PWR_MAX") ? (float)atof(getenv("WL_PWR_MAX")) : BOARD_PWR_MAX; }
+float   cfg_pwr_xvtr_get(void) { return getenv("WL_PWR_XVTR") ? (float)atof(getenv("WL_PWR_XVTR")) : 0.0f; }
 
 /* ---- the radio, the screen, the scheduler (the work done at once: no LVGL thread here) ---- */
 
