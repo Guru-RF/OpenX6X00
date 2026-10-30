@@ -744,6 +744,18 @@ static const lv_font_t *narrow_value_font(disp_btn_t *b, const char *text) {
     return &sony_18;
 }
 
+/* KX3Lovers Plus: its low buttons take one line, in the biggest of these that fits the width */
+static const lv_font_t *kx3_label_font(disp_btn_t *b, const char *text) {
+    static const lv_font_t *const sizes[] = {&sony_24, &sony_20};
+    lv_point_t                    size;
+
+    for (const lv_font_t *f : sizes) {
+        lv_txt_get_size(&size, text, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (size.x <= btn_w(b) - 8) return f;
+    }
+    return &sony_18;
+}
+
 /* "Name:\nvalue" shows a small name over a large value; "(PAGE 1:2)" is a
  * page button, drawn darker; anything else is an action, centred. */
 static void set_btn_text(disp_btn_t *b, const char *text) {
@@ -802,11 +814,17 @@ static void set_btn_text(disp_btn_t *b, const char *text) {
             if (*c != '(' && *c != ')') t[n++] = *c;
         t[n] = '\0';
         lv_label_set_text(b->label, t);
+    } else if (theme_kx3 && strchr(text, '\n')) {   /* Plus: "Spectrum Zoom" on one line, two did not fit */
+        char t[64];
+        snprintf(t, sizeof(t), "%s", text);
+        for (char *c = t; *c; c++)
+            if (*c == '\n') *c = ' ';
+        lv_label_set_text(b->label, t);
     } else {
         lv_label_set_text(b->label, text);
     }
     lv_obj_set_style_text_font(b->label, theme_shape.vision || btn_narrow(b) ? vision_label_font(b, lv_label_get_text(b->label))
-                                                                              : theme_kx3 ? &sony_24
+                                                                              : theme_kx3 ? kx3_label_font(b, lv_label_get_text(b->label))
                                                                               : theme_shape.deck ? &sony_30 : page ? &sony_28 : &sony_30, 0);
     if (page) lv_obj_set_style_text_color(b->label, TC(btn_page_text), 0);
     else lv_obj_remove_local_style_prop(b->label, LV_STYLE_TEXT_COLOR, 0);   /* the button's: btn_text, btn_active_text, btn_off_text */
