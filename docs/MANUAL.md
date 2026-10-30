@@ -3608,23 +3608,25 @@ PuTTY keeps the private half in a `.ppk` file made by PuTTYgen, which comes
 with PuTTY. WinSCP takes the same file.
 
 1. Open PuTTYgen. Under Parameters, Type of key to generate: EdDSA, with
-   Ed25519 (255 bits) in Curve to use for generating this key. (PuTTYgen's
-   default, RSA of 2048 bits, is refused by the radio.)
+   Ed25519 (255 bits) in Curve to use for generating this key (PuTTYgen 0.74
+   and older: Ed25519). PuTTYgen's default, RSA of 2048 bits, is refused by
+   the radio.
 2. Press Generate and move the mouse over the empty part of the window until
    the bar is full.
-3. The box Public key for pasting into authorized_keys file (in older
-   versions: into OpenSSH authorized_keys file) now holds the public half, as
-   one line. Right-click in it, Select All, right-click again, Copy, and paste
-   it [on the radio](#adding-the-key-on-the-radio). Not the Save public key
-   button: it writes another format, which the radio does not take.
+3. The box Public key for pasting into OpenSSH authorized_keys file now holds
+   the public half, as one line. Right-click in it, Select All, right-click
+   again, Copy, and paste it [on the radio](#adding-the-key-on-the-radio).
+   Not the Save public key button: it writes another format, which the radio
+   does not take.
 4. Press Save private key. Without a passphrase PuTTYgen asks whether to save
    the key without one: Yes (or type one in Key passphrase and Confirm
    passphrase first). Keep the `.ppk` file.
 5. In PuTTY, on Session: Host Name `root@x6100.local`, Port 22, SSH. Then
-   Connection > SSH > Auth > Credentials: Private key file for
-   authentication, Browse..., the `.ppk` file. Back on Session, type a name
-   under Saved Sessions and press Save, then Open
-   ([The first login](#the-first-login)). Next time, double-click the name.
+   Connection > SSH > Auth > Credentials (in older versions Connection > SSH >
+   Auth itself): Private key file for authentication, Browse..., the `.ppk`
+   file. Back on Session, type a name under Saved Sessions and press Save,
+   then Open ([The first login](#the-first-login)). Next time, double-click
+   the name.
 
 WinSCP: New Site, SFTP, Host name `x6100.local`, User name `root`, then
 Advanced... > SSH > Authentication > Private key file: the `.ppk` file (an
