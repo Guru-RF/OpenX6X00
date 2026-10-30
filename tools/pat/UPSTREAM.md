@@ -109,26 +109,46 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   gateway list's prediction and the forms' catalog. The message body was sanitized already
   (bluemonday). The template page shows `/api/template`'s preview as markup: the insertion tags'
   values (the subject, sender and body of the message replied to among them) go into it escaped.
-  With a test (`internal/forms/preview_test.go`). An attachment is sent as it came in the message
-  (`serveAttachment`), never as a page of Pat's: before, an `.html` or `.svg` one opened as a page
-  (its type guessed from its name or its first bytes) in a sandbox that let its scripts run, send
-  requests to Pat and open pop-ups. Now `Content-Disposition: attachment`,
-  `application/octet-stream`, `X-Content-Type-Options: nosniff` and `Content-Security-Policy:
-  default-src 'none'; style-src 'unsafe-inline'; sandbox` (runs and loads nothing), and no
-  `Access-Control-Allow-Origin: null`. A JPEG, PNG or GIF (the pictures the message window
-  shows) is still shown in a tab, inline as its own type, under the same policy; the message
-  window saves the others under their names (`download`) rather than opening a tab. A form Pat
-  renders (`rendertohtml=true`) keeps upstream's sandbox, which forms need, and gets nosniff. With
-  a test (`api/attachment_test.go`). The patch changes `web/src` and, to match it,
-  the minified `web/dist/js/app.js` by hand (no node in the build: `--word-diff` of the patched
-  tree against `v1.0.0` shows those changes); `config.js` and `template.js` need none. It should
-  go upstream, its `web/src` part (upstream rebuilds `web/dist`); a report for la5nta/pat is
-  drafted, not sent.
+  With a test (`internal/forms/preview_test.go`).
 
-`pat_ui_test.js` (ours, not in a patch) runs Pat's page and `app.js` from a patched source in
-jsdom, against a stand-in for Pat's server that answers with such names and lines: `NODE_PATH=<a
-node_modules with jsdom> node tools/pat/pat_ui_test.js <patched source>` (its first lines say how
-to make one). Without 0005, 7 of its 40 checks pass.
+  An attachment is sent as it came in the message (`serveAttachment`), never as a page of Pat's:
+  before, an `.html` or `.svg` one opened as a page (its type guessed from its name or its first
+  bytes) in a sandbox that let its scripts run, send requests to Pat and open pop-ups. Now
+  `Content-Disposition: attachment`, `application/octet-stream`, `X-Content-Type-Options:
+  nosniff` and `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`
+  (runs and loads nothing), and no `Access-Control-Allow-Origin: null`. A JPEG, PNG or GIF (the
+  pictures the message window shows) is still shown in a tab, inline as its own type, under the
+  same policy; the message window saves the others under their names (`download`) rather than
+  opening a tab. A form Pat renders (`rendertohtml=true`) keeps upstream's sandbox, which forms
+  need, and gets nosniff. With a test (`api/attachment_test.go`).
+
+  Pat's pages (`/ui`, `/ui/config`, `/ui/template`) and the files under `/dist` come with a
+  Content-Security-Policy whose scripts are Pat's own files only, never inline, so that markup
+  which still reaches a page from a message runs nothing: `default-src 'self'; script-src 'self';
+  style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; object-src
+  'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'` (inline styles, which the
+  pages and Bootstrap set; `data:` pictures, the composer's previews; `ws:` and `wss:` for the
+  browsers in which `'self'` does not cover the socket, such as Safari before 15.4). Not with
+  `PAT_WEB_DEV_ADDR` (upstream's development server runs inline script). The pages' three inline
+  handlers (the prompt's form `onsubmit`, the callsign's `oninput`, Revert's `onclick`) and the
+  one `app.js` wrote (the "reload the page" link) are `data-` attributes that
+  `static/page-handlers.js`, loaded before the bundles, acts on. With tests (`web/csp_test.go`).
+  The Winlink forms Pat serves at `/api/forms` are pages of their own, full of inline script, and
+  get no such policy; they show no message's values (a received form is shown by the attachment
+  handler, in its sandbox).
+
+  The patch changes `web/src` and, to match it, `web/dist` by hand (`app.js`, `index.html`,
+  `config.html`, `static/page-handlers.js`; no node in the build: a `--word-diff` of the patched
+  tree against `v1.0.0` shows the minified changes); `config.js` and `template.js` need none. It
+  should go upstream, its `web/src` and Go parts (upstream rebuilds `web/dist`); a report for
+  la5nta/pat is drafted, not sent.
+
+`pat_ui_test.js` (ours, not in a patch) runs Pat's mailbox and configuration pages and their
+scripts from a patched source in jsdom, against a stand-in for Pat's server that answers with such
+names and lines, and checks that the pages run without inline script: `NODE_PATH=<a node_modules
+with jsdom> node tools/pat/pat_ui_test.js <patched source>` (its first lines say how to make one).
+Without 0005, 8 of its 48 checks pass. An x86 Pat built from the patched source, with such a
+message in its inbox, sent the headers above, and its page in jsdom showed the message as text.
 
 Not a patch: the version report (daily) and the app's own recovery-email check (every 14 days),
 both to api.winlink.org, stay off through `version_reporting_disabled: true` in the config,

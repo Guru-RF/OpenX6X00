@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /* Pat's web mailbox with patch 0005, in jsdom: what a Winlink message, another station or the network puts on
- * the page is shown as text and never becomes markup. Pat's own page and script (web/dist of a patched Pat
+ * the page is shown as text and never becomes markup. Pat's own pages and scripts (web/dist of a patched Pat
  * source) against a stand-in for Pat's server, which answers with names, addresses and lines such as
- * <img src=x onerror=...>: the message list, the message window (its headers and attachments, an attachment
- * other than a picture saved rather than opened), the log pane,
- * the status text, the prompt for the messages to download, an error shown in the status bar and in the
- * composer, the connect dialog's aliases, the gateway list's prediction and the forms' catalog.
+ * <img src=x onerror=...>: the message list, the message window (its headers and attachments, one that is not
+ * a picture saved rather than opened), the log pane, the status text, the prompt for the messages to
+ * download, an error shown in the status bar and in the composer, the connect dialog's aliases, the gateway
+ * list's prediction and the forms' catalog. Also that the mailbox and the configuration page run without
+ * inline script, as their Content-Security-Policy wants (static/page-handlers.js does what their inline
+ * handlers did).
  *
  *     git clone -q -b v1.0.0 https://github.com/la5nta/pat /tmp/pat && git -C /tmp/pat apply tools/pat/patches/*.patch
  *     NODE_PATH=<a node_modules with jsdom> node tools/pat/pat_ui_test.js /tmp/pat
@@ -66,8 +68,8 @@ const server = http.createServer((req, res) => {
     console.log('server:', req.method, req.url);
   const json = (v, code = 200) => { res.writeHead(code, {'Content-Type': 'application/json'}); res.end(JSON.stringify(v)); };
   const text = (v, code) => { res.writeHead(code, {'Content-Type': 'text/plain'}); res.end(v); };
-  if (url.pathname === '/ui') {
-    const page = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8')
+  if (url.pathname === '/ui' || url.pathname === '/ui/config') {
+    const page = fs.readFileSync(path.join(DIST, url.pathname === '/ui' ? 'index.html' : 'config.html'), 'utf8')
       .replace(/\{\{\.AppName\}\}/g, 'Pat').replace(/\{\{\.Version\}\}/g, 'v1.0.0').replace(/\{\{\.Mycall\}\}/g, 'N0CALL');
     res.writeHead(200, {'Content-Type': 'text/html'});
     return res.end(page);
@@ -119,20 +121,31 @@ function handlers(root) {
     .map(e => e.outerHTML.slice(0, 80));
 }
 
-(async () => {
-  await new Promise(r => server.listen(0, '127.0.0.1', r));
-  const base = `http://127.0.0.1:${server.address().port}`;
+/* A page of the stand-in's in jsdom, its scripts run */
+function open(url) {
   const vc = new VirtualConsole();
   vc.on('jsdomError', e => { if (process.env.DEBUG || !/Not implemented/.test(e.message)) console.log('page error: ' + e.message); });
   if (process.env.DEBUG)
     vc.on('error', (...a) => console.log('page console:', ...a)).on('log', (...a) => console.log('page console:', ...a));
-  const dom = await JSDOM.fromURL(base + '/ui', {runScripts: 'dangerously', resources: new ResourceLoader(),
-                                                 pretendToBeVisual: true, virtualConsole: vc, beforeParse: fakeSocket});
+  return JSDOM.fromURL(url, {runScripts: 'dangerously', resources: new ResourceLoader(), pretendToBeVisual: true,
+                             virtualConsole: vc, beforeParse: fakeSocket});
+}
+
+/* Pat's page sends what its inline handlers did to static/page-handlers.js, for the pages' policy (no inline script) */
+function inlineScript(doc) {
+  return handlers(doc.documentElement).concat([...doc.querySelectorAll('script:not([src])')].map(e => e.outerHTML.slice(0, 80)));
+}
+
+(async () => {
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const dom = await open(base + '/ui');
   const w = dom.window, doc = w.document;
   const $ = s => doc.querySelector(s);
   await until(() => $('#folder tbody tr') && $('#aliasSelect option:not([value=""])') && $('#formFolderRoot button'));
   const ws = sockets[sockets.length - 1];
   const send = m => ws.onmessage({data: JSON.stringify(m)});
+  const pageAsLoaded = inlineScript(doc);
 
   console.log('The message list');
   const row = $('#folder tbody tr');
@@ -235,9 +248,41 @@ function handlers(root) {
   check('a form\'s name as text', formButton && formButton.textContent === 'Form ' + IMG, formButton && formButton.textContent);
   check('no markup from the forms', !$('#formFolderRoot img') && !$('#formsVersion img'), $('#formFolderRoot').innerHTML.slice(0, 300));
 
+  console.log('Without inline script (the pages\' Content-Security-Policy)');
+  check('the mailbox page has no inline handler or script', pageAsLoaded.length === 0, pageAsLoaded);
+  check('page-handlers.js is loaded before app.js',
+        [...doc.querySelectorAll('script[src]')].map(e => e.getAttribute('src')).join() === 'dist/static/page-handlers.js,dist/js/app.js',
+        [...doc.querySelectorAll('script[src]')].map(e => e.getAttribute('src')));
+  const promptForm = $('#promptModal form');
+  const enter = new w.Event('submit', {bubbles: true, cancelable: true});
+  promptForm.dispatchEvent(enter);
+  check('Enter in a prompt does not submit its form (the page stays)', promptForm.hasAttribute('data-no-submit') && enter.defaultPrevented);
+  Object.defineProperty($('#composer'), 'getClientRects', {value: () => [{}]}); /* jsdom lays nothing out */
+  send({Status: {connected: false, remote_addr: '', active_listeners: [], http_clients: [], config_hash: 'b'}});
+  const reload = $('#navbar_status a');
+  check('"Configuration has changed": a reload link without inline script',
+        reload && reload.hasAttribute('data-reload') && !reload.hasAttribute('onclick'), reload && reload.outerHTML);
+  const clicked = new w.MouseEvent('click', {bubbles: true, cancelable: true});
+  if (reload)
+    reload.dispatchEvent(clicked);
+  check('the reload link handled by page-handlers.js', clicked.defaultPrevented);
   check('nothing ran', w.ran === undefined, w.ran);
-  console.log(`${cases - fails} of ${cases} checks as they should be`);
   w.close();
+
+  const config = (await open(base + '/ui/config')).window;
+  await until(() => config.document.readyState === 'complete');   /* its scripts run */
+  check('the configuration page has no inline handler or script', inlineScript(config.document).length === 0,
+        inlineScript(config.document));
+  const call = config.document.querySelector('#mycall');
+  call.value = 'on6ure';
+  call.dispatchEvent(new config.Event('input', {bubbles: true}));
+  check('the callsign is upper case as it is typed', call.value === 'ON6URE', call.value);
+  const revert = [...config.document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Revert');
+  check('Revert reloads without inline script', revert && revert.hasAttribute('data-reload') && !revert.hasAttribute('onclick'),
+        revert && revert.outerHTML);
+  config.close();
+
+  console.log(`${cases - fails} of ${cases} checks as they should be`);
   server.close();
   process.exit(fails ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });
