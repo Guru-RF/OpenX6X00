@@ -41,8 +41,7 @@ POST_READS = ("/logs/export", "/api/gallery/zip")
 
 
 def host_refused():
-    msg = (f"Open this page by the radio's address, {socket.gethostname()}.local or its Tailscale name: by another "
-           "name a page from another site could do the same through your browser")
+    msg = not_own_name("by another name a page from another site could do the same through your browser")
     if bottle.request.path.startswith("/api/"):   # the pages show the msg of an API's answer
         return bottle.HTTPResponse(json.dumps({"status": "error", "msg": msg}), 403,
                                    {"Content-Type": "application/json"})
@@ -414,9 +413,8 @@ def remote_state():
     r.update({"tci_enabled": t["enabled"], "tci_port": t["port"],
               "wss_port": settings.WSS_REMOTE_PORT, "wss_tci_port": settings.WSS_TCI_PORT})
     if not local_host_ok():   # the radio takes a page's sockets by these names only (src/tci_ws.c): say so
-        r["name_refused"] = (f"Open this page by the radio's address, {socket.gethostname()}.local or its Tailscale "
-                             "name: by another name the radio does not take its connection, as a page from another "
-                             "site could make your browser connect the same way")
+        r["name_refused"] = not_own_name("by another name the radio does not take its connection, as a page from "
+                                         "another site could make your browser connect the same way")
     ts = tailscale_status()   # Funnel on (#58): the Panel's address on the internet, for "Use away from home"
     if ts.get("state") == "running" and ts.get("funnel") == "on" and ts.get("public", "").startswith("https://"):
         r["funnel_url"] = ts["public"]
@@ -668,28 +666,166 @@ def tailscale_page():
     return bottle.template('tailscale')
 
 
+# The radio's own names (#105). Beyond its addresses, localhost, the hostname, <hostname>.local and its Tailscale
+# names: <hostname>.<domain> for each domain its network gives it (the DHCP domain and search list, which
+# NetworkManager writes to resolv.conf for the connections that are up), and the names the owner lists on the
+# Network page (a name in the owner's own DNS, a reverse proxy's). A site that points a name of its own at the radio
+# (DNS rebinding) has no page at either: the domain is the radio's own network's, the list the owner's. A domain
+# that is a public suffix on its own (nl, co.uk: anyone may register x6100.nl) does not count. The radio's sockets
+# (src/tci_ws.c) and Pat's mailbox (tools/pat, 0001) read the same two files and take the same names
+RESOLV_CONF = "/etc/resolv.conf"        # on the radio a link to NetworkManager's /run/NetworkManager/resolv.conf
+OWN_NAMES_CONF = "/mnt/own_names.conf"  # one name per line, written by the Network page
+OWN_NAMES_MAX = 8
+# Single names routers give their networks that stay out of the public DNS (lan, home and the others are never
+# delegated, internal is ICANN's for private networks): <hostname>.lan counts. Any other single name has a top-level
+# domain's shape (nl, box), and x6100.<it> could be anyone's
+PRIVATE_DOMAINS = ("lan", "home", "localdomain", "internal", "intranet", "corp", "private")
+# A country's second level, where anyone registers names (co.uk, com.au, or.jp): <one of these>.<two letters> is a
+# public suffix alone. The Public Suffix List is not on the radio: these are its common shapes
+REGISTRY_LABELS = ("ac", "co", "com", "edu", "go", "gob", "gouv", "gov", "gv", "ltd", "mil", "ne", "net", "nom", "or",
+                   "org", "plc", "sch")
+# A DNS name in lower case: labels of letters, digits and '-' (not first or last), the last one with a letter (so
+# no address in any of its forms: 10.1, 0x7f.1)
+DNS_NAME_RE = re.compile(r"(?=.{1,253}\Z)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*(?=[a-z0-9-]*[a-z])"
+                         r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?")
+NAMES_FILE_MAX = 4096   # the most read of resolv.conf and own_names.conf, in whole lines (as src/tci_ws.c)
+file_cache = {}
+
+
+def file_lines(path):
+    """The whole lines of a small file, at most NAMES_FILE_MAX bytes (a line cut there is left out, so no word of it
+    is taken cut short), read again only when the file changed (its inode, size or time: NetworkManager and
+    replace_file put a new file in place); [] without it"""
+    try:
+        st = os.stat(path)
+        key = (st.st_ino, st.st_size, st.st_mtime_ns)
+        hit = file_cache.get(path)
+        if hit and hit[0] == key:
+            return hit[1]
+        with open(path, "rb") as f:
+            data = f.read(NAMES_FILE_MAX)
+            if len(data) == NAMES_FILE_MAX and f.read(1):
+                data = data[:data.rfind(b"\n") + 1]
+    except OSError:
+        return []
+    lines = data.decode(errors="replace").split("\n")
+    file_cache[path] = (key, lines)
+    return lines
+
+
+def public_suffix(name):
+    """A name that is a public suffix on its own, under which anyone may register one: a top-level domain's shape
+    (a single name) or a country's second level (co.uk)"""
+    labels = name.split(".")
+    return len(labels) == 1 or (len(labels) == 2 and len(labels[1]) == 2 and labels[0] in REGISTRY_LABELS)
+
+
+def network_domains():
+    """The domains the radio's network gives it, from resolv.conf's search and domain lines, lower case: those that
+    are no public suffix alone, and the private single names (PRIVATE_DOMAINS)"""
+    found = []
+    for line in file_lines(RESOLV_CONF):
+        words = line.split()
+        if words and words[0] in ("search", "domain"):
+            for d in words[1:]:
+                d = d.lower().rstrip(".")
+                if (d in PRIVATE_DOMAINS or (DNS_NAME_RE.fullmatch(d) and not public_suffix(d))) and d not in found:
+                    found.append(d)
+    return found
+
+
+def listed_names():
+    """The names the owner added on the Network page (OWN_NAMES_CONF: a name, the first word, on each line), lower
+    case"""
+    names = []
+    for line in file_lines(OWN_NAMES_CONF):
+        words = line.split()
+        n = words[0].lower().rstrip(".") if words else ""
+        if n and not n.startswith("#") and n not in names:
+            names.append(n)
+    return names
+
+
+def own_names():
+    """The radio's own DNS names but the hostname alone and the Tailscale ones, lower case: <hostname>.local,
+    <hostname>.<domain> for the network's domains, and the listed names"""
+    name = socket.gethostname().lower()
+    names = [name + ".local"] + [f"{name}.{d}" for d in network_domains()]
+    return names + [n for n in listed_names() if n not in names]
+
+
+def request_host():
+    """The name or address the page was opened by (the Host header's), lower case, without port and trailing dot"""
+    return (urllib.parse.urlsplit("//" + (bottle.request.get_header("Host") or "")).hostname or "").rstrip(".")
+
+
 def local_host_ok():
-    """The page opened by an address or by the radio's own name. A page from another site that points its own
-    name at the radio (DNS rebinding) passes the cross-site guard: every change (refuse_other_sites), the Files
-    page and the Backup download, Tailscale's login link (which would put the radio on that site's tailnet) and
-    the list of SSH keys only by these names. Pat's mailbox on port 8080 takes the same names (tools/pat).
-    MagicDNS's short name too, which is the tailnet's name for the radio: x6200-1 while the tailnet still has the
-    machine of an earlier card image as x6200. Never a request from the internet through Tailscale Funnel: its
-    name is a *.ts.net name too (#58)"""
+    """The page opened by an address or by one of the radio's own names (own_names). A page from another site that
+    points its own name at the radio (DNS rebinding) passes the cross-site guard: every change (refuse_other_sites),
+    the Files page and the Backup download, Tailscale's login link (which would put the radio on that site's
+    tailnet) and the list of SSH keys only by these names. Pat's mailbox on port 8080 takes the same names
+    (tools/pat). MagicDNS's short name too, which is the tailnet's name for the radio: x6200-1 while the tailnet
+    still has the machine of an earlier card image as x6200. Never a request from the internet through Tailscale
+    Funnel: its name is a *.ts.net name too (#58)"""
     if via_funnel():
         return False
-    host = (urllib.parse.urlsplit("//" + (bottle.request.get_header("Host") or "")).hostname or "").rstrip(".")
+    host = request_host()
     try:
         ipaddress.ip_address(host)
         return True
     except ValueError:
         pass
-    name = socket.gethostname().lower()
-    names = {"localhost", name, name + ".local"}
+    if host in ("localhost", socket.gethostname().lower()) or host.endswith(".ts.net") or host in own_names():
+        return True
     tailnet = tailscale_status().get("name", "").lower()
-    if tailnet:
-        names.add(tailnet.split(".")[0])
-    return host in names or host.endswith(".ts.net")
+    return bool(tailnet) and host == tailnet.split(".")[0]
+
+
+def radio_address():
+    """The radio's address on the network the request came from, "" when not known (a request through a proxy on
+    the radio itself: Tailscale's, the https sockets')"""
+    peer = bottle.request.environ.get("REMOTE_ADDR", "")
+    try:
+        ip = ipaddress.ip_address(peer)
+        if ip.is_loopback:
+            return ""
+        with socket.socket(socket.AF_INET6 if ip.version == 6 else socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect((peer, 9))   # sends nothing: the route only, and the address it leaves from
+            return s.getsockname()[0]
+    except (ValueError, OSError):
+        return ""
+
+
+def own_name_error(name):
+    """Why a name (lower case) can't be listed as one of the radio's own, "" when it can"""
+    if "*" in name:
+        return f"{name}: no wildcards, one whole name"
+    try:
+        ipaddress.ip_address(name)
+        return f"{name}: an address, and the radio's addresses count already"
+    except ValueError:
+        pass
+    if not DNS_NAME_RE.fullmatch(name):
+        return f"{name}: not a DNS name (letters, digits, '-' and dots)"
+    if public_suffix(name):
+        return f"{name}: give the whole name with its domain, as x6100.example.nl"
+    return ""
+
+
+def not_own_name(why):
+    """A refusal's text for a page opened by another name (#105): the name it was opened by, the names that work
+    (the Tailscale name only while Tailscale runs) and where to add that name"""
+    host = request_host()
+    addr = radio_address()
+    works = [f"its address ({addr})" if addr else "its address"] + own_names()
+    ts = tailscale_status()
+    if ts.get("state") == "running":
+        works.append(f"its Tailscale name ({ts['name'].lower()})" if ts.get("name") else "its Tailscale name")
+    text = (f"This page was opened as {host}, which is not one of the radio's own names" if host else
+            "This page was opened without a name") + f": {why}. Open it by {', '.join(works[:-1])} or {works[-1]}"
+    if host and not own_name_error(host):
+        text += f". To use {host}, add it to Other names on System > Network, opened by one of those"
+    return text
 
 
 @app.get('/api/tailscale')
@@ -783,6 +919,9 @@ def winlink_state():
               radio_mycall=max(read_callsign().upper().split("/"), key=len),   # ON6URE of ON6URE/P
               radio_locator=read_param("qth"), installed=all(os.access(p, os.X_OK) for p in WINLINK_PROGRAMS),
               host_ok=local_host_ok(), port=WINLINK_PORT, radio=winlink_radio())
+    if not st["host_ok"]:   # the page's note: which names work, and where another one is added (#105)
+        st["name_refused"] = not_own_name("by another name a page from another site could change Winlink through "
+                                          "your browser, and the mailbox opens only by the radio's own names too")
     return st
 
 
@@ -1054,8 +1193,8 @@ def ssh_write(lines):
 def ssh_request():
     """The request's JSON object, or the error to answer with: also for a page opened by another site's name"""
     if not local_host_ok():
-        return None, api_error(403, f"Open this page by the radio's address or {socket.gethostname()}.local "
-                                    "to see or change the SSH keys")
+        return None, api_error(403, not_own_name("by another name a page from another site could add a key "
+                                                 "through your browser, so the keys are not shown or changed"))
     try:
         data = bottle.request.json if bottle.request.method != "GET" else {}
     except ValueError:
@@ -2144,6 +2283,61 @@ def hostname_set():
     if r.returncode != 0:
         return api_error(409, r.stderr.strip() or "Name not set")
     return hostname_state()
+
+
+# The radio's own names (#105, local_host_ok): the ones it has from its network, and the ones its owner adds. Not in
+# the Backup, as the network name is not: they are this radio's names on this network, and a second radio that took
+# them from a backup would answer to the first one's
+OWN_NAMES_REFUSED = ("by another name a page from another site could add its own name here through your browser, so "
+                     "this list changes only by one of the radio's own names")
+
+
+def own_names_state():
+    name = socket.gethostname().lower()
+    st = {"names": [name + ".local"] + [f"{name}.{d}" for d in network_domains()], "listed": listed_names(),
+          "max": OWN_NAMES_MAX, "host": request_host(), "host_ok": local_host_ok(), "address": radio_address()}
+    ts = tailscale_status()
+    if ts.get("state") == "running" and ts.get("name"):
+        st["tailscale"] = ts["name"].lower()
+    if not st["host_ok"]:
+        st["refused"] = not_own_name(OWN_NAMES_REFUSED)
+    return st
+
+
+@app.get('/api/own_names')
+def own_names_get():
+    return own_names_state()
+
+
+@app.post('/api/own_names')
+def own_names_set():
+    """The list replaced whole. Only by one of the radio's own names, which refuse_other_sites asks of every change
+    already: a page from another site must never add the name it reached the radio by"""
+    if not local_host_ok():
+        return api_error(403, not_own_name(OWN_NAMES_REFUSED))
+    try:
+        data = bottle.request.json
+    except ValueError:
+        data = None
+    names = data.get("names") if isinstance(data, dict) else None
+    if not isinstance(names, list) or len(names) > 4 * OWN_NAMES_MAX or not all(isinstance(n, str) for n in names):
+        return api_error(400, "Invalid list")
+    clean = []
+    for n in names:
+        n = n.strip().lower().rstrip(".")
+        if n and n not in clean:
+            err = own_name_error(n)
+            if err:
+                return api_error(400, err)
+            clean.append(n)
+    if len(clean) > OWN_NAMES_MAX:
+        return api_error(400, f"Up to {OWN_NAMES_MAX} names")
+    try:
+        replace_file(OWN_NAMES_CONF, lambda f: f.write("".join(n + "\n" for n in clean)))
+    except OSError as e:
+        return api_error(503, f"Can't save the names: {e}")
+    file_cache.pop(OWN_NAMES_CONF, None)   # FAT's times are 2 s apart: read anew whatever the file's
+    return own_names_state()
 
 
 @app.get('/api/network')

@@ -209,7 +209,7 @@ var renderState = function(st) {
   $("#nomailbox").toggle(!up).text(st.enabled ? "Once Pat runs" : "When Winlink is on");
   const notes = [];
   if (!st.installed) notes.push("Pat and ARDOP are not on this radio yet: they come with the update that brings Winlink.");
-  if (!st.host_ok) notes.push("This page was opened by a name the radio does not know as its own. Open it by the radio's address or its .local name to change Winlink; the mailbox only opens by those names too.");
+  if (!st.host_ok) notes.push(st.name_refused ? st.name_refused + "." : "This page was opened by a name the radio does not know as its own. Open it by the radio's address or its .local name to change Winlink; the mailbox only opens by those names too.");
   if (st.enabled && !st.mycall && !st.radio_mycall) notes.push("No callsign: set yours below, or the radio's in Settings > General.");
   if (st.enabled && st.password === "none") notes.push("No Winlink password on the radio: when the gateway asks for it, Pat asks in the mailbox and gives up after a minute (\"context deadline exceeded\"). Set it below before you connect, or keep the mailbox open to type it there. A new account's first connection needs none.");
   $("#pw-state").text(PW_STATE[st.password || (st.password_set ? "page" : "none")] || PW_STATE.none);

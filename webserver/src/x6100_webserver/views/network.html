@@ -1,6 +1,6 @@
 % rebase('base.html', title='Network')
 <h2><svg class="i"><use href="#i-ethernet"/></svg>Network</h2>
-<p class="sub">The radio's name on the LAN, and a USB Ethernet adapter: DHCP, or a fixed address for networks that need one. The same settings as Settings &rarr; Wireless on the radio. WiFi is not touched.</p>
+<p class="sub">The radio's name on the LAN, the other names it answers to, and a USB Ethernet adapter: DHCP, or a fixed address for networks that need one. The same settings as Settings &rarr; Wireless on the radio. WiFi is not touched.</p>
 
 <form class="dp-card" id="nameform">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-network"/></svg></span><div><h3>Network name<span class="eff">Takes effect: now, reachable under the new name in a few seconds</span></h3><p>Any browser on the LAN reaches the radio as <b id="local">x6100.local</b> (mDNS, announced by Avahi), on WiFi and Ethernet alike. The name is kept on the DATA partition.</p></div></div>
@@ -11,6 +11,18 @@
   <div class="dp-row">
     <button type="submit" class="primary">Apply</button>
     <span class="status" id="namestatus"></span>
+  </div>
+</form>
+
+<form class="dp-card" id="ownform">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-globe"/></svg></span><div><h3>Other names<span class="eff">Takes effect: at once</span></h3><p>These pages change settings and open the Files page, and the Panel, the Screen page and the Winlink mailbox connect, only when opened by one of the radio's own names: by any other name a page from another site could do the same through your browser. Its own names now: <span id="ownnow">its address</span>.</p></div></div>
+  <div class="dp-body">
+    <input id="own" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="Other names" placeholder="x6100.example.nl">
+    <p style="margin:10px 0 0;color:var(--dim);font-size:13px">Names your own DNS or a reverse proxy gives the radio, separated by spaces, up to <span id="ownmax">8</span>: whole names, not addresses (those count already), no wildcards. <span id="ownauto"></span></p>
+    <div class="actions">
+      <button type="submit" class="primary">Apply</button>
+      <span class="status" id="ownstatus"></span>
+    </div>
   </div>
 </form>
 
@@ -70,8 +82,32 @@ $("#nameform").on("submit", function(e) {
   const name = $("#hn").val().trim();
   showStatus($("#namestatus"), "Setting...");
   $.ajax({url: "/api/hostname", type: "POST", data: JSON.stringify({name: name}), contentType: "application/json",
-    success: function(d) { renderName(d); showStatus($("#namestatus"), "Set. Reachable as " + d.name + ".local in a few seconds"); },
+    success: function(d) { renderName(d); showStatus($("#namestatus"), "Set. Reachable as " + d.name + ".local in a few seconds"); $.get('/api/own_names', {}, renderOwn); },
     error: function(xhr) { showStatus($("#namestatus"), xhr.responseJSON ? xhr.responseJSON.msg : "Not set", true); }});
+});
+
+/* The other names (#105): changed only by one of the radio's own names, as the radio checks */
+const ownForm = EditFlow.form($("#ownform"), $("#ownstatus"), $("#ownform button[type=submit]"));
+var renderOwn = function(d) {
+  const now = [d.address ? "its address (" + d.address + ")" : "its address"]
+    .concat(d.names, d.listed.filter(function(n) { return d.names.indexOf(n) < 0; }));
+  if (d.tailscale) now.push("its Tailscale name (" + d.tailscale + ")");
+  $("#ownnow").text(now.join(", "));
+  $("#ownmax").text(d.max);
+  const domains = d.names.slice(1);
+  $("#ownauto").text(domains.length ? "From your network, by its domain: " + domains.join(", ") + "." : "");
+  $("#own").val(d.listed.join(" ")).prop("disabled", !d.host_ok);
+  ownForm.reset();
+  if (!d.host_ok) showStatus($("#ownstatus"), d.refused, true);
+}
+$.get('/api/own_names', {}, renderOwn);
+$("#ownform").on("submit", function(e) {
+  e.preventDefault();
+  const names = $("#own").val().split(/[\s,;]+/).filter(function(n) { return n; });
+  showStatus($("#ownstatus"), "Applying...");
+  $.ajax({url: "/api/own_names", type: "POST", data: JSON.stringify({names: names}), contentType: "application/json",
+    success: function(d) { renderOwn(d); showStatus($("#ownstatus"), "Applied"); },
+    error: function(xhr) { showStatus($("#ownstatus"), xhr.responseJSON ? xhr.responseJSON.msg : "Not applied", true); }});
 });
 
 var showStatus = function(el, text, error=false) {
