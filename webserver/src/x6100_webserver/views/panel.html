@@ -699,7 +699,10 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     const lo = $("<input type='number' min='0' step='10'>").attr("max", max - 1).val(s.flo).prop("disabled", kind === "am"), hi = $("<input type='number' min='0' step='10'>").attr("max", max).val(s.fhi);
     const hint = kind === "cw" ? "The width, around the key tone of " + keyTone(s) + " Hz" : kind === "am" ? MODES[s.mode] + ": the high edge alone, the low one is 0" : "Both edges";
     $box.append(list, $("<div class='lohi'>").append("Low ", lo, " High ", hi, $("<button type='button' class='primary'>Set</button>").on("click", function() {
-      const e = filterEdges(s, parseInt(lo.val(), 10) || 0, parseInt(hi.val(), 10) || 0);
+      /* a field left empty, or holding no number (the browser empties one typed "3k"), keeps the radio's edge: it
+       * was 0, which took AM down to 1 Hz */
+      const l = parseInt(lo.val(), 10), h = parseInt(hi.val(), 10);
+      const e = filterEdges(s, isNaN(l) ? s.flo : l, isNaN(h) ? s.fhi : h);
       set("filter", e[0], e[1]); popClose();
     })), $("<div class='fhint'>").text(hint + ", up to " + max / 1000 + " kHz"));
     $pop.prop("hidden", false);

@@ -2914,7 +2914,8 @@ browser paired at home on any device.
   and CW-R the width, around the key tone (100 Hz to 1 kHz); in AM, NFM and
   SAM the high edge alone, the low one is always 0 (2.5 to 6 kHz); in WFM
   the same up to 10 kHz (4 to 10 kHz). No edge goes past 6 kHz, 10 kHz in
-  WFM. The preset lit is the one whose edges the radio has.
+  WFM. A field left empty, or holding no number, keeps its edge. The preset
+  lit is the one whose edges the radio has.
 - The S-meter, the power and SWR while transmitting, the battery.
 - Spots: the DX cluster's spots as the radio filters them (see
   [DX Cluster](#dx-cluster)), newest first, tap one to tune to it; the calls

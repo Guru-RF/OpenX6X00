@@ -7,6 +7,7 @@
  * - with the radio's edges back, the presets lit are the ones whose edges they are: the one tapped, and none
  *   that only has the same width;
  * - the High field goes as far as the radio does, no further; Low is off where the radio keeps no low edge;
+ * - a field emptied (as the browser empties one typed "3k") keeps the radio's edge;
  * - the passband on the panorama: both sides in AM, NFM, SAM and WFM, as the radio's spectrum draws it.
  * node panel-filter.js <filter-rules binary> */
 'use strict';
@@ -43,11 +44,12 @@ function open(st) {
   return {box, presets, lo: inputs[0], hi: inputs[1], set: box.querySelector('.lohi button')};
 }
 function sentBy(el) { p.ctx.sent = []; el.click(); return p.ctx.sent.slice(); }
-/* What the page offers in a mode: each preset's label and what a tap sends; the fields */
-function offers(m, kt) {
+/* What the page offers in a mode: each preset's label and what a tap sends; the fields; def: the radio's own
+ * edges in the mode */
+function offers(m, kt, def) {
   const st = {mode: m, kt, flo: 0, fhi: 1};
   const first = open(st);
-  const out = {presets: [], typed: [], lowOff: !!first.lo.disabled, highMax: first.hi.getAttribute('max')};
+  const out = {presets: [], typed: [], own: [], lowOff: !!first.lo.disabled, highMax: first.hi.getAttribute('max')};
   for (let i = 0; i < first.presets.length; i++) {
     const o = open(st), b = o.presets[i];
     out.presets.push({label: b.textContent, cmd: sentBy(b)});
@@ -61,14 +63,34 @@ function offers(m, kt) {
     o.hi.value = hi;
     out.typed.push({label: 'Low ' + (lo === '' || o.lo.disabled ? '(as it was)' : lo) + ' High ' + hi, cmd: sentBy(o.set)});
   }
+  /* from the radio's own edges: High emptied, Low emptied (where the field takes it), both; null: left as it was */
+  for (const [lo, hi] of [[null, ''], ['', null], ['', '']]) {
+    const o = open(def);
+    if (lo !== null && o.lo.disabled) continue;
+    if (lo !== null) o.lo.value = lo;
+    if (hi !== null) o.hi.value = hi;
+    out.own.push({label: 'from ' + def.flo + '-' + def.fhi + ', ' + [lo === null ? '' : 'Low', hi === null ? '' : 'High'].filter(Boolean).join(' and ') +
+                  ' emptied', cmd: sentBy(o.set), want: [def.flo, def.fhi]});
+  }
   return out;
 }
 const edgesOf = cmd => cmd.length === 1 && /^filter \d+ \d+$/.test(cmd[0]) ? cmd[0].split(' ').slice(1).map(Number) : null;
 
 /* ---- The radio ---- */
+/* Lines to the stand-in, each answered with the radio's state after it */
+function radio(lines) {
+  const run = spawnSync(path.resolve(radioBin), {cwd: REPO, input: lines.join('\n') + '\n', encoding: 'utf8'});
+  if (run.status !== 0) { console.error(run.stdout + run.stderr); throw new Error('the radio stand-in failed'); }
+  const answers = run.stdout.trim().split('\n').map(l => l.split(' ').map(Number));
+  if (answers.length !== lines.length) throw new Error('the radio answered ' + answers.length + ' of ' + lines.length + ' lines');
+  return answers.map(a => ({mode: a[0], kt: a[1], flo: a[2], fhi: a[3]}));
+}
 const groups = [];
 for (let m = 0; m < MODES.length; m++)
-  for (const kt of (m === 4 || m === 5 ? [400, 700, 1200] : [700])) groups.push({m, kt, offer: offers(m, kt)});
+  for (const kt of (m === 4 || m === 5 ? [400, 700, 1200] : [700])) groups.push({m, kt});
+/* the mode's own edges first, for the page to open with */
+const defaults = radio(groups.flatMap(g => ['mode ' + g.m, 'kt ' + g.kt]));
+groups.forEach((g, i) => { g.offer = offers(g.m, g.kt, defaults[2 * i + 1]); });
 const lines = [], at = [];
 const ask = (line, what) => { at.push(what); lines.push(line); };
 for (const g of groups) {
@@ -82,14 +104,9 @@ for (const g of groups) {
     ask('filter 0 99999', null); ask('filter ' + e.join(' '), {g, o, k: 'after wider'});
   }
 }
-const run = spawnSync(path.resolve(radioBin), {cwd: REPO, input: lines.join('\n') + '\n', encoding: 'utf8'});
-if (run.status !== 0) { console.error(run.stdout + run.stderr); throw new Error('the radio stand-in failed'); }
-const answers = run.stdout.trim().split('\n').map(l => l.split(' ').map(Number));
-if (answers.length !== lines.length) throw new Error('the radio answered ' + answers.length + ' of ' + lines.length + ' lines');
-answers.forEach((a, i) => {
+radio(lines).forEach((st, i) => {
   const w = at[i];
   if (!w) return;
-  const st = {mode: a[0], kt: a[1], flo: a[2], fhi: a[3]};
   if (!w.o) { w.g[w.k] = st; return; }
   (w.o.radio = w.o.radio || {})[w.k] = st;
 });
@@ -122,6 +139,7 @@ for (const g of groups) {
     check(grp, what + ', then lit', lit, litWant(r));
     if (preset >= 0) check(grp, 'preset ' + o.label + ' lit once tapped', lit.includes(preset), true);
   }
+  for (const o of g.offer.own) check(grp, o.label + ' sends', edgesOf(o.cmd), o.want);
   /* the passband around the dial, as src/spectrum_view.c draws it */
   const st = Object.assign({}, g.default), kt = st.kt;
   const want = g.m === 0 || g.m === 1 ? [-st.fhi, -st.flo] : g.m === 4 ? [st.flo - kt, st.fhi - kt] : g.m === 5 ? [kt - st.fhi, kt - st.flo]
