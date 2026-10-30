@@ -102,6 +102,7 @@ static void radio_unlock();
 static void on_vfo_freq_change(Subject *subj, void *user_data);
 static void on_transverter_change(Subject *subj, void *user_data);
 static void on_xvtr_pwr_change(Subject *subj, void *user_data);
+static void xvtr_settle_cb(void *arg);
 static void on_vfo_mode_change(Subject *subj, void *user_data);
 static void on_vfo_agc_change(Subject *subj, void *user_data);
 static void on_cw_agc_cond_change(Subject *subj, void *user_data);
@@ -911,6 +912,25 @@ static void on_pwr_change(Subject *subj, void *user_data) {
     WITH_RADIO_LOCK(set_txpwr(subject_f_get((SubjectFloat*)subj)));
 }
 
+/* Under the lock, before a VFO of the base goes to freq: a transverter's TX power limit there, lower than the one in
+ * force, goes to the base first (#104). A band key, a memory, a spot or CAT moves the VFOs before the dial's frequency
+ * is notified (on_xvtr_pwr_change), and with PTT held the base sent PWR on the transverter's IF meanwhile. The VFO in
+ * use counts, and in split the other one; the limit where the radio is tuned is looked at again after the round
+ * (xvtr_settle_cb). True: held here */
+static bool xvtr_hold(radio_vfo_t vfo, int32_t freq) {
+    float w = cfg_transverter_pwr_for(freq);
+
+    if (xvtr_cap < 0.0f || (vfo != param_i_get(cfg_band_current_vfo) && !param_i_get(cfg_band_split))) {
+        return false;   /* not looked at yet (radio_start), or the other VFO out of split */
+    }
+    if (w <= 0.0f || (xvtr_cap > 0.0f && w >= xvtr_cap)) {
+        return false;
+    }
+    xvtr_cap = w;
+    set_txpwr(txpwr_asked);
+    return true;
+}
+
 static void on_vfo_freq_change(Subject *subj, void *user_data) {
     radio_vfo_t vfo = (radio_vfo_t )user_data;
     int32_t new_val;
@@ -922,8 +942,12 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     int32_t shift = cfg_transverter_shift_for(new_val);
     shift += param_i_get(cfg_band_if_shift);
     radio_lock();
+    bool held = xvtr_hold(vfo, new_val);
     bool changed = hw_vfo_set_freq(vfo, new_val - shift);
     radio_unlock();
+    if (held && !scheduler_put_coalesced(xvtr_settle_cb)) {
+        LV_LOG_ERROR("Radio: the transverter's TX power limit not looked at again (the next change does)");
+    }
     if (changed) {
         LV_LOG_USER("Radio set vfo %i freq=%i (%i)", vfo, new_val, new_val - shift);
     }
@@ -968,18 +992,33 @@ static void xvtr_pwr_cb(void *arg) {
  * own, a TUNE's); PWR and the screen after it (xvtr_pwr_cb). The first look (radio_start, no subject) always goes
  * there, a PWR a transverter took down before a restart comes back if the radio starts off it; the base gets PWR
  * right after it, held to the limit. Off a limit onto a transverter without one (Off in Settings, 70 cm with none
- * after 2 m), the PWR from before waits until the radio is off the transverters too */
-static void on_xvtr_pwr_change(Subject *subj, void *user_data) {
+ * after 2 m), the PWR from before waits until the radio is off the transverters too.
+ * A lower limit goes to the base at once; one higher or none, and the PWR from before, after the round of
+ * notifications (xvtr_settle_cb), once the base has left the band: the VFOs, the split bit and the VFO in use move
+ * the base in no set order with this, and with PTT held through a band key the base sent 10 W on the IF meanwhile */
+typedef enum {
+    XVTR_FIRST,         /* radio_start */
+    XVTR_NOTIFIED,      /* where the radio is tuned or a transverter's setting changed */
+    XVTR_SETTLED,       /* after that round */
+} xvtr_look_t;
+
+static void xvtr_pwr_look(xvtr_look_t how) {
     static xvtr_pwr_t said = {-1.0f, 0, false};     /* passed on to PWR last: -1 nothing yet */
     int32_t           rx   = cparam_i_get(cfg_fg_freq), tx = radio_tx_freq();
     xvtr_pwr_t        x    = {cfg_transverter_pwr_cap(rx, tx), 0,
                               cfg_transverter_shift_for(rx) != 0 || cfg_transverter_shift_for(tx) != 0};
+    float             cap;
 
     x.freq = cfg_transverter_pwr_for(rx) == x.w ? rx : tx;
+    WITH_RADIO_LOCK(cap = xvtr_cap);
+    if (how == XVTR_NOTIFIED && !(x.w > 0.0f && (cap <= 0.0f || x.w < cap)) && (x.w != cap || x.on != said.on) &&
+        scheduler_put_coalesced(xvtr_settle_cb)) {
+        return;
+    }
     radio_lock();
     if (x.w != xvtr_cap) {
         xvtr_cap = x.w;
-        if (subj) set_txpwr(txpwr_asked);
+        if (how != XVTR_FIRST) set_txpwr(txpwr_asked);
     }
     radio_unlock();
     if (x.w == said.w && x.on == said.on) {
@@ -994,6 +1033,14 @@ static void on_xvtr_pwr_change(Subject *subj, void *user_data) {
     } else if (!scheduler_put_urgent(xvtr_pwr_cb, &x, sizeof(x))) {
         LV_LOG_ERROR("Radio: the transverter's TX power limit not passed on to PWR (the base holds it)");
     }
+}
+
+static void xvtr_settle_cb(void *arg) {
+    xvtr_pwr_look(XVTR_SETTLED);
+}
+
+static void on_xvtr_pwr_change(Subject *subj, void *user_data) {
+    xvtr_pwr_look(subj ? XVTR_NOTIFIED : XVTR_FIRST);
 }
 
 static void on_vfo_mode_change(Subject *subj, void *user_data) {

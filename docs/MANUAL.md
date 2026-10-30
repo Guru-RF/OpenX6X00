@@ -1186,7 +1186,10 @@ second), under the transverter's from, to and shift: Off, the default, or
   whatever asks for more: the digital apps, WSPR's own power, TUNE for an
   external tuner, TCI's audio, Winlink, CW, the voice messages, the SWR scan.
   The hand mic's PTT and the paddle key the base directly, at the power the
-  radio has set it to: the limit.
+  radio has set it to: the limit. A band key, a memory or a frequency from
+  CAT while the radio transmits: the limit reaches the base before the
+  transverter's frequency does, and PWR goes back up only once the base is
+  off it.
 - With PWR above the limit as the radio comes onto that band, PWR comes down
   to it and the radio says "TX power 0.5 W: transverter 2m" (the band list's
   name for the band, or the transverter's number). Off it again (a band key,
