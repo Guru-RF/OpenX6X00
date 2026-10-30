@@ -66,8 +66,9 @@
  *  "unknown", never logged twice by a retry (R6). A receipt is bound to its QSO: the same number
  *  with another QSO is answered "conflict", never with the other QSO's answer (audit C03).
  *
- *  The Origin check of ws_handshake() keeps pages from other sites out; like the TCI server there
- *  is no login: the radio's own network is trusted.
+ *  The Origin check of ws_handshake() keeps pages from other sites out, and on the radio Pat's
+ *  web mailbox (port 8080) too; like the TCI server there is no login: the radio's own network is
+ *  trusted.
  *
  *  Tailscale Funnel (#58) brings the Panel and the Screen page from the internet, through
  *  tailscaled, which marks each such connection (ws_handshake's peer.funnel). One of those gets

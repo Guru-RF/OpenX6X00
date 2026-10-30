@@ -29,6 +29,17 @@
 #define WS_OWN_NAMES "/mnt/own_names.conf"
 #endif
 
+/* The port of Pat's web mailbox on the radio (x6100-winlink's HTTP_PORT): a page there is one of the
+ * radio's own names, but it shows what anyone can send by Winlink, so a socket from it is refused. On the
+ * PC the web configurator itself is on 8080, and nothing is refused (0) */
+#ifndef WS_REFUSED_ORIGIN_PORT
+#ifdef HOST_BUILD
+#define WS_REFUSED_ORIGIN_PORT 0
+#else
+#define WS_REFUSED_ORIGIN_PORT 8080
+#endif
+#endif
+
 /* ---- SHA-1 (FIPS 180-4), for the handshake only ------------------------------------ */
 
 static uint32_t rol(uint32_t v, int n) {
@@ -217,6 +228,23 @@ static bool host_name(const char *h, size_t n, char *out, size_t out_max) {
         out[i] = (char)tolower((unsigned char)h[i]);
     out[l] = 0;
     return true;
+}
+
+/* The port of a Host header or of an Origin's authority (n bytes), 0 when it names none */
+static unsigned host_port(const char *h, size_t n) {
+    const char *end = h + n, *c;
+    unsigned    port = 0;
+
+    if (n && h[0] == '[') { /* [fe80::1]:8080 */
+        c = memchr(h, ']', n);
+        if (!c || ++c == end || *c != ':')
+            return 0;
+    } else if (!(c = memchr(h, ':', n))) {
+        return 0;
+    }
+    for (c++; c < end && isdigit((unsigned char)*c) && port <= 65535; c++)
+        port = port * 10 + (unsigned)(*c - '0');
+    return port;
 }
 
 /* The radio's MagicDNS short name (the first part of name= in the status file), lower case; "" when none */
@@ -448,6 +476,11 @@ int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max, ws_pe
         char oh[256], hh[256];
         if (!host || !host_name(o, ol - (o - org), oh, sizeof(oh)) || !host_name(host, hl, hh, sizeof(hh)) ||
             strcmp(oh, hh) != 0 || !host_local(hh))
+            return -1;
+        /* ...but not from Pat's mailbox, the radio's other web server: a script that ever runs on its page
+         * (#105's review: Pat v1.0.0 put a message's attachment names into it as markup) cannot key the
+         * radio through TCI, nor open the Panel's socket */
+        if (WS_REFUSED_ORIGIN_PORT && host_port(o, ol - (o - org)) == WS_REFUSED_ORIGIN_PORT)
             return -1;
     }
     /* A Funnel name is a *.ts.net name, and passes the check above: only this header tells the

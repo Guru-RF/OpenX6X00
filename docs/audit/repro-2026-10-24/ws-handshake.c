@@ -9,8 +9,12 @@
  * Issue #105: the radio's own names are also <hostname>.<domain> for the domains its network gives it (resolv.conf's
  * search and domain lines), never for a domain that is a public suffix alone (nl, co.uk, box) or one cut short where
  * the file is read no further, and the names added on the web configurator's Network page (own_names.conf).
+ * The #105 review: on the radio a page at port 8080 is Pat's web mailbox,
+ * whose page put a received message's attachment names in as markup, and its sockets are refused; on the PC
+ * (-DHOST_BUILD) the web configurator itself is on 8080, and they are taken.
  *
  *     cc -std=c11 -D_GNU_SOURCE -Isrc ws-handshake.c -o ws-handshake && ./ws-handshake
+ *     cc -std=c11 -D_GNU_SOURCE -DHOST_BUILD -Isrc ws-handshake.c -o ws-handshake-pc && ./ws-handshake-pc
  *
  * Prints each case; exit status 1 when one is not as it should be. */
 #include <ctype.h>
@@ -78,13 +82,34 @@ int main(void) {
     puts("The radio's own pages, by its names");
     expect("192.168.1.50:50001", "http://192.168.1.50", 1);
     expect("[fe80::1]:50001", "http://[fe80::1]", 1);
+    expect("192.168.1.50:50001", "http://192.168.1.50:80", 1);
+    expect("192.168.1.50:50002", "https://192.168.1.50:443", 1);
+    expect("localhost:50001", "http://localhost:8000", 1); /* the configurator through a tunnel, say */
+#ifdef HOST_BUILD
+    puts("The web configurator on the PC, on port 8080");
     expect("localhost:50001", "http://localhost:8080", 1);
+    expect("127.0.0.1:50002", "http://127.0.0.1:8080", 1);
+#else
+    puts("Pat's web mailbox on the radio, port 8080, by the radio's names: refused");
+    expect("localhost:50001", "http://localhost:8080", -1);
+    expect("192.168.1.50:50001", "http://192.168.1.50:8080", -1);
+    expect("192.168.1.50:50002", "http://192.168.1.50:8080", -1);
+    expect("[fe80::1]:50001", "http://[fe80::1]:8080", -1);
+    expect("x6200-1.tail1234.ts.net:50001", "https://x6200-1.tail1234.ts.net:8080", -1);
+    expect("192.168.1.50:50001", "http://192.168.1.50:80800", 1); /* not 8080 */
+#endif
     snprintf(host, sizeof(host), "%s:50001", own);
     snprintf(origin, sizeof(origin), "http://%s", own);
     expect(host, origin, 1);
     snprintf(host, sizeof(host), "%s.local:50001", own);
     snprintf(origin, sizeof(origin), "https://%s.local", own);
     expect(host, origin, 1);
+    snprintf(origin, sizeof(origin), "http://%s.local:8080", own);
+#ifdef HOST_BUILD
+    expect(host, origin, 1);
+#else
+    expect(host, origin, -1);
+#endif
     for (char *p = host; *p; p++)
         *p = (char)toupper((unsigned char)*p);
     snprintf(origin, sizeof(origin), "http://%s.local.", own);
