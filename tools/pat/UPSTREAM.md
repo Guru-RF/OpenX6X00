@@ -135,7 +135,11 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   `static/page-handlers.js`, loaded before the bundles, acts on. With tests (`web/csp_test.go`).
   The Winlink forms Pat serves at `/api/forms` are pages of their own, full of inline script, and
   get no such policy; they show no message's values (a received form is shown by the attachment
-  handler, in its sandbox).
+  handler, in its sandbox). Every answer of Pat's says `X-Content-Type-Options: nosniff`
+  (`Handler.ServeHTTP`), not only the attachments': the API's JSON and text (the message list, a
+  message, `/api/template`'s preview) hold what messages hold, and a browser takes them for
+  nothing but their own type, never for a page, script or style of Pat's, which is what the
+  policy's `'self'` counts on. With a test (`api/nosniff_test.go`).
 
   The patch changes `web/src` and, to match it, `web/dist` by hand (`app.js`, `index.html`,
   `config.html`, `static/page-handlers.js`; no node in the build: a `--word-diff` of the patched

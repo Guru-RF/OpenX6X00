@@ -1,4 +1,4 @@
-From e118415529496229024d671d7dc42837c97536c3 Mon Sep 17 00:00:00 2001
+From ee705c6ae2ae1a4c3c266a03ee6eebadc08ad202 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Fri, 30 Oct 2026 14:57:10 +0100
 Subject: [PATCH] web, api: a message's strings shown as text, attachments as
@@ -67,6 +67,14 @@ acts on. With tests (web/csp_test.go: the policy on the pages and the
 files; no inline handler, inline script or javascript: address in the
 pages, no inline handler in the bundles' markup).
 
+Every answer of Pat's now says X-Content-Type-Options: nosniff
+(Handler.ServeHTTP), not only the attachments': the API's JSON and text
+(the message list, a message, /api/template's preview) hold what
+messages hold, and a browser takes them for nothing but their own type,
+never for a page, a script or a style of Pat's, which is what the
+policy above counts on for its 'self'. With a test
+(api/nosniff_test.go).
+
 web/dist (app.js, index.html, config.html, static/page-handlers.js) is
 edited to match web/src (the build has no node). config.js and
 template.js need no change: the configuration page shows only Pat's
@@ -75,9 +83,11 @@ by the server.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
+ api/api.go                                    |  8 +-
  api/attachment.go                             | 54 ++++++++++++
  api/attachment_test.go                        | 74 ++++++++++++++++
  api/mailbox.go                                |  5 +-
+ api/nosniff_test.go                           | 34 ++++++++
  internal/forms/builder.go                     | 10 ++-
  internal/forms/forms.go                       | 11 ++-
  internal/forms/preview_test.go                | 69 +++++++++++++++
@@ -103,14 +113,34 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  web/src/js/modules/viewer/index.js            | 61 ++++++-------
  web/src/static/page-handlers.js               | 32 +++++++
  web/web.go                                    | 20 ++++-
- 28 files changed, 465 insertions(+), 80 deletions(-)
+ 30 files changed, 506 insertions(+), 81 deletions(-)
  create mode 100644 api/attachment.go
  create mode 100644 api/attachment_test.go
+ create mode 100644 api/nosniff_test.go
  create mode 100644 internal/forms/preview_test.go
  create mode 100644 web/csp_test.go
  create mode 100644 web/dist/static/page-handlers.js
  create mode 100644 web/src/static/page-handlers.js
 
+diff --git a/api/api.go b/api/api.go
+index 5352b9a..c9a450d 100644
+--- a/api/api.go
++++ b/api/api.go
+@@ -78,7 +78,13 @@ type Handler struct {
+ 	r     *mux.Router
+ }
+ 
+-func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) { h.r.ServeHTTP(w, r) }
++// ServeHTTP answers with the type each answer says it is, and nothing a browser guesses: the API's
++// JSON and text carry what messages hold (subjects, addresses, names), and a browser takes them for
++// no page, script or style of Pat's (nosniff; OpenX6X00 patch).
++func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
++	w.Header().Set("X-Content-Type-Options", "nosniff")
++	h.r.ServeHTTP(w, r)
++}
+ 
+ func NewHandler(app *app.App) *Handler {
+ 	r := mux.NewRouter()
 diff --git a/api/attachment.go b/api/attachment.go
 new file mode 100644
 index 0000000..8a927ef
@@ -281,6 +311,46 @@ index 3922f48..19d2d75 100644
  		http.ServeContent(w, r, f.Name()+".html", msg.Date(), bytes.NewReader([]byte(formRendered)))
  	}
  
+diff --git a/api/nosniff_test.go b/api/nosniff_test.go
+new file mode 100644
+index 0000000..6253c2d
+--- /dev/null
++++ b/api/nosniff_test.go
+@@ -0,0 +1,34 @@
++// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
++// Use of this source code is governed by the MIT-license that can be
++// found in the LICENSE file.
++
++package api
++
++import (
++	"encoding/json"
++	"net/http"
++	"net/http/httptest"
++	"testing"
++
++	"github.com/gorilla/mux"
++)
++
++// Every answer goes out with nosniff: the API's JSON and text, which hold what messages hold, an
++// error, a page or file of the UI (OpenX6X00 patch).
++func TestEveryAnswerNoSniff(t *testing.T) {
++	r := mux.NewRouter()
++	r.HandleFunc("/api/mailbox/{box}", func(w http.ResponseWriter, _ *http.Request) {
++		_ = json.NewEncoder(w).Encode([]string{"<img src=x>"}) // no Content-Type of its own, as Pat's
++	})
++	r.HandleFunc("/api/template", func(w http.ResponseWriter, _ *http.Request) {
++		_, _ = w.Write([]byte("Subj: Re: hello\n"))
++	})
++	h := Handler{r: r}
++	for _, path := range []string{"/api/mailbox/in", "/api/template", "/api/nothing"} {
++		rec := httptest.NewRecorder()
++		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
++		if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
++			t.Errorf("%s: status %d, X-Content-Type-Options %q", path, rec.Code, got)
++		}
++	}
++}
 diff --git a/internal/forms/builder.go b/internal/forms/builder.go
 index 03d37a3..4849479 100644
 --- a/internal/forms/builder.go
