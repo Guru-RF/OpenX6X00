@@ -43,6 +43,7 @@ typedef struct {uint32_t rate,type,ch,samples;} afmt_t;
 static afmt_t audio_fmt(const client_t *c) {(void)c;return (afmt_t){48000,0,2,2048};}
 static void audio_fmt_cmd(client_t *c,const char *name,const char *arg) {(void)c;(void)name;(void)arg;}
 static int ptt_owner;
+static int tx_lent = -1;   /* #97: the start that took control for itself, set by handle_cmd */
 static bool ptt_on_air;
 static uint64_t ptt_ms, ptt_keyed_ms;
 static uint32_t key_gen;
