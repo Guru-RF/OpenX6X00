@@ -443,7 +443,8 @@ docs/                    MANUAL.md, THEMES.md, MENUS.md, UPSTREAM_README.md, aud
 - [Menus](docs/MENUS.md): the icon grids, and how to get the text menus back.
 - [Screenshots](docs/screenshots/README.md): how they are taken.
 - [The TCI server's host test](tools/tci/README.md), [the Winlink modems'](tools/winlink/README.md), the
-  [ITU region's](tools/itu_region/itu_region_test.c) and the [PC build](host/README.md).
+  [ITU region's](tools/itu_region/itu_region_test.c), the [DX cluster bands'](tools/cluster/cluster_bands_test.c)
+  and the [PC build](host/README.md).
 
 ## Licences
 

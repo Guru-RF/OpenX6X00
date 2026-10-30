@@ -674,23 +674,28 @@ static void table_draw_end_cb(lv_event_t *e) {
     bool                  near = abs(s->freq_hz - cparam_i_get(cfg_fg_freq)) <= NEAR_HZ || rows[r] == sel;
     uint16_t              age  = cluster_age_min(s->utc_min, now_min);
     bool                  alert = flt && cluster_alert_match(flt, s) >= 0;
+    bool                  can   = cfg_is_valid_hw_freq(s->freq_hz);   /* greyed: no transverter for it */
 
-    snprintf(text, sizeof(text), "%d.%03d.%d", s->freq_hz / 1000000, (s->freq_hz / 1000) % 1000,
-             (s->freq_hz % 1000) / 100);
+    if (s->freq_hz >= 100000000)    /* 144.300 without the 100 Hz, in the room of 14.074.0 */
+        snprintf(text, sizeof(text), "%d.%03d", s->freq_hz / 1000000, (s->freq_hz / 1000) % 1000);
+    else
+        snprintf(text, sizeof(text), "%d.%03d.%d", s->freq_hz / 1000000, (s->freq_hz / 1000) % 1000,
+                 (s->freq_hz % 1000) / 100);
     /* VISION's bigger type: no spotter, the room to the others */
     bool       v     = theme_shape.vision;
     lv_coord_t call  = v ? 176 : 136, comm = v ? 380 : 410, time_x = v ? 660 : 690;
 
-    draw_text(dsc, FONT_MAIN, 0, v ? 164 : 122, TC(text_value), LV_TEXT_ALIGN_RIGHT, text);
+    draw_text(dsc, FONT_MAIN, 0, v ? 164 : 122, can ? TC(text_value) : TC(text_mute), LV_TEXT_ALIGN_RIGHT, text);
     draw_text(dsc, FONT_MAIN, call, v ? 360 : 290,
-              alert ? lv_color_hex(COLOR_ALERT_TEXT) : near ? lv_color_hex(COLOR_NEAR) : TC(text), LV_TEXT_ALIGN_LEFT,
-              s->dx);
+              alert ? lv_color_hex(COLOR_ALERT_TEXT) : !can ? TC(text_mute) : near ? lv_color_hex(COLOR_NEAR) : TC(text),
+              LV_TEXT_ALIGN_LEFT, s->dx);
     if (age <= NEW_MIN) {
         lv_coord_t w = lv_txt_get_width(s->dx, strlen(s->dx), FONT_MAIN, 0, 0);
         draw_text(dsc, FONT_MAIN, call + w + 4, v ? 376 : 310, lv_color_hex(COLOR_NEW), LV_TEXT_ALIGN_LEFT, "*");
     }
     if (!v) draw_text(dsc, FONT_SMALL, 300, 400, lv_color_hex(COLOR_DIM), LV_TEXT_ALIGN_LEFT, s->spotter);
-    draw_text(dsc, FONT_SMALL, comm, alert ? time_x - 110 : time_x - 10, TC(text_value), LV_TEXT_ALIGN_LEFT, s->comment);
+    draw_text(dsc, FONT_SMALL, comm, alert ? time_x - 110 : time_x - 10, can ? TC(text_value) : TC(text_mute),
+              LV_TEXT_ALIGN_LEFT, s->comment);
     if (alert)
         draw_text(dsc, FONT_SMALL, time_x - 106, time_x - 4, lv_color_hex(COLOR_ALERT_BORDER), LV_TEXT_ALIGN_RIGHT,
                   "ALERT");
@@ -708,9 +713,23 @@ uint32_t dialog_cluster_tuned(char *call, size_t size) {
     return tuned_seq;
 }
 
-void dialog_cluster_tune_spot(const cluster_spot_t *s) {
-    radio_mode_t mode;
+/* Short enough for one line of the message, no scrolling */
+#ifdef BOARD_X6200
+#define NO_TUNE "No transverter/WR12: %d.%03d"
+#else
+#define NO_TUNE "No transverter: %d.%03d MHz"
+#endif
 
+bool dialog_cluster_tune_spot(const cluster_spot_t *s) {
+    radio_mode_t mode;
+    int32_t      f = s->freq_hz;
+
+    /* 4 m, 2 m or 70 cm that no transverter covers (nor the X6200's WR12): said, not tuned. The VFO went to the
+     * nearest frequency it could tune, 55 MHz for 70.200, and stayed there */
+    if (!cfg_is_valid_hw_freq(f)) {
+        msg_update_text_fmt(NO_TUNE, f / 1000000, (f / 1000) % 1000);
+        return false;
+    }
     snprintf(tuned_call, sizeof(tuned_call), "%s", s->dx);
     tuned_seq++;
     switch (cluster_guess_mode(s)) {
@@ -721,16 +740,16 @@ void dialog_cluster_tune_spot(const cluster_spot_t *s) {
         case CLUSTER_MODE_FM:   mode = radio_mode_nfm; break;
         default:                mode = radio_mode_usb; break;
     }
-    main_screen_set_freq(s->freq_hz);
+    main_screen_set_freq(f);
     cparam_i_set(cfg_cur_mode, mode);
-    msg_update_text_fmt("%s %d.%03d.%d", s->dx, s->freq_hz / 1000000, (s->freq_hz / 1000) % 1000,
-                        (s->freq_hz % 1000) / 100);
+    msg_update_text_fmt("%s %d.%03d.%d%s", s->dx, f / 1000000, (f / 1000) % 1000, (f % 1000) / 100,
+                        cfg_is_rx_only_freq(f) ? " - RX only" : "");   /* the X6200's WR12 */
+    return true;
 }
 
 static void tune_to(int idx) {
     if (idx < 0 || idx >= view_count) return;
-    dialog_cluster_tune_spot(&view[idx]);
-    follow_vfo = true;
+    if (dialog_cluster_tune_spot(&view[idx])) follow_vfo = true;   /* refused: the spot stays selected */
 }
 
 static void move_selection(int step) {

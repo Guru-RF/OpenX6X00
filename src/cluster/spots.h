@@ -57,12 +57,13 @@ void cluster_store_expire(cluster_store_t *s, uint16_t now_utc_min, uint16_t max
 /* Age of a spot in minutes (0..1439), across midnight. */
 uint16_t cluster_age_min(uint16_t spot_utc_min, uint16_t now_utc_min);
 
-/* Amateur band index of a frequency, or -1 outside the bands. */
+/* Amateur band index of a frequency, or -1 outside the bands: 160m to 6m, then 4m, 2m and 70cm (at most 16, a bit
+ * each in the filters). The name is "20m", "70cm"; "" for -1. */
 int         cluster_band_of(int32_t hz);
 const char *cluster_band_name(int band);
 
 /* Mode to tune a spot with: from its comment (CW, FT8, SSB, ...), else
- * from the band plan (IARU Region 1). */
+ * from the band plan (IARU Region 1; on 2 m and 70 cm FM also where the Americas have it). */
 cluster_mode_t cluster_guess_mode(const cluster_spot_t *spot);
 
 #ifdef __cplusplus

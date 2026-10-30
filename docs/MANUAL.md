@@ -948,7 +948,7 @@ by itself. The 20 MHz and channel 12 and 13 settings in `x6100-wifi.conf` are
 
 | Card | Options |
 |---|---|
-| CLUSTER FILTERS | Modes (CW, SSB, DIG, AM/FM), Bands (160-6 m), Activity (POTA, SOTA, WWBOTA, HOTA; none lit = all spots) |
+| CLUSTER FILTERS | Modes (CW, SSB, DIG, AM/FM), Bands (160 m to 6 m, 4 m, 2 m, 70 cm), Activity (POTA, SOTA, WWBOTA, HOTA; none lit = all spots) |
 | CLUSTER VIEW | Newest first, All bands, Spot snap hold, Spot snap speed |
 | PSK REPORTER | Report decodes (on by default) |
 
@@ -2000,7 +2000,21 @@ Cluster app (APP > Cluster; pages `(CLUSTER 1:2)` and `(CLUSTER 2:2)`):
 - Turning the MFK browses the list (this stops the VFO following). An MFK
   press or the Tune button tunes to the spot. The mode comes
   from the comment (CW, FT8, SSB, ...) or else from the band plan: CW, USB-D
-  on the FT8/FT4 frequencies, LSB below 10 MHz, USB above.
+  on the FT8/FT4 frequencies, LSB below 10 MHz, USB above; on 4 m, 2 m and
+  70 cm CW at the bottom of the band (below 70.100, 144.100, 432.100), USB-D
+  on 70.154 and 144.174, USB up to 70.250, 144.500 and 432.500, FM above
+  (and on 70 cm below 432.000).
+- 4 m, 2 m and 70 cm (issue #103): their spots are listed like any other,
+  above 100 MHz as `144.300` (no 100 Hz digit). The radio tunes them through
+  the transverter that covers them (Settings > General > TRANSVERTERS; the
+  X6100's two cover 144-150 and 432-438 MHz by default) or, on the X6200,
+  with the WR12 on, to receive ("DG1SMD 144.300.0 - RX only"). A spot no
+  transverter covers (nor the WR12) is grey, and Tune says so
+  ("No transverter: 70.200 MHz", on the X6200 "No transverter/WR12:
+  144.300") and leaves the radio where it is. Up to v0.3.7 those spots were
+  in no band (the band filter hid them, Band showed them only with All), and
+  Tune put the radio on the nearest frequency it could tune instead: 55 MHz
+  for a 4 m spot.
 - Page 1: Band / All switches between the current band and all bands (always
   all when the VFO is outside the amateur bands); the button shows the view
   (`Band / 20m`, `Band / All`). Tune, Mode (All > CW > SSB > DIG, a quick
@@ -2021,10 +2035,15 @@ Filters and alerts. They are saved in `/mnt/cluster.conf`, shared by the
 radio and the web configurator, and apply to the app, the column and the
 waterfall.
 
-- On the radio: modes (CW, SSB, DIG, AM/FM), bands (160-6 m, all on = no
-  filter) and activity (POTA, SOTA, WWBOTA, HOTA, any mix; none lit = all
-  spots). One mode and one band always stay on. A change applies at once.
-  Where: Settings > Cluster > CLUSTER FILTERS.
+- On the radio: modes (CW, SSB, DIG, AM/FM), bands (160 m to 6 m, then
+  4 m, 2 m and 70 cm; all on = no filter) and activity (POTA, SOTA, WWBOTA,
+  HOTA, any mix; none lit = all spots). One mode and one band always stay
+  on. A change applies at once. Where: Settings > Cluster > CLUSTER FILTERS.
+- A band filter set up to v0.3.7 keeps its bands: 4 m, 2 m and 70 cm stay
+  off in it (their spots were hidden by it before too) until you turn them
+  on. With no band filter (all bands on) they are shown, as they were.
+  The bands are kept in `/mnt/cluster.conf` by their number: 2 for 2 m, 70
+  for 70 cm.
 - POTA / SOTA come from the spot comment: the word POTA or SOTA, a park
   reference (`US-1234`, `IT-0123`) or a summit reference (`I/LO-123`,
   `W7W/KG-001`). WWFF references (`IFF-0123`), TOTA towers (`OKR-0150`) and
@@ -2035,7 +2054,9 @@ waterfall.
   wwbota.org and cqhota.app once a minute (WiFi needed) and puts them in the
   same list.
 - On the web configurator (Cluster page): the same modes, bands and activity,
-  plus maximum age and spotters to skip (`*` wildcard).
+  plus maximum age and spotters to skip (`*` wildcard). Up to v0.3.7 the
+  page had no 8 m, and a save there took 8 m out of a filter set on the
+  radio.
 - Heard in (web configurator, Filters card): only the spots whose spotter is
   in one of these countries, typed as prefixes: `PA, ON` for the Netherlands
   and Belgium. Each prefix stands for its whole country by the country list

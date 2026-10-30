@@ -3494,21 +3494,23 @@ static void make_cluster_page() {
     }
     row++;
 
-    /* Two rows of bands, the second right-aligned */
+    /* Six bands a row, 160-20 m and 17-6 m; the last row (4 m, 2 m, 70 cm) right-aligned */
     cf.band_n = 0;
     while (cf.band_n < 16 && cluster_band_name(cf.band_n)[0]) cf.band_n++;
-    int first = (cf.band_n + 1) / 2;
+    int band_rows = (cf.band_n + 5) / 6;
 
     wl_row_label(row, "Bands (m)");
     for (int b = 0; b < cf.band_n; b++) {
-        char name[8];
-        int  r   = b < first ? row : row + 1;
-        int  col = b < first ? 1 + b + (6 - first) : 1 + (b - first) + (6 - (cf.band_n - first));
+        const char *band = cluster_band_name(b);
+        char        name[8];
+        int         r    = b / 6;
+        int         in_r = r < band_rows - 1 ? 6 : cf.band_n - 6 * r;    /* the bands on this row */
 
-        snprintf(name, sizeof(name), "%d", atoi(cluster_band_name(b)));
-        cf.band[b] = cf_toggle(r, col, name, !f->bands || (f->bands & (1u << b)), cf.band);
+        if (strstr(band, "cm")) snprintf(name, sizeof(name), "%s", band);     /* 70cm */
+        else snprintf(name, sizeof(name), "%d", atoi(band));                    /* 20 */
+        cf.band[b] = cf_toggle(row + r, 1 + b % 6 + (6 - in_r), name, !f->bands || (f->bands & (1u << b)), cf.band);
     }
-    row += 2;
+    row += band_rows;
 
     /* Two on a row, two columns each: WWBOTA is wider than a mode */
     wl_row_label(row, "Activity");

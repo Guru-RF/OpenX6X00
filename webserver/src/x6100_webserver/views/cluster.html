@@ -139,9 +139,11 @@
 
 <script src="/static/js/edit_flow.js?v=2"></script>
 <script>
-var bandList = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6];
-bandList.forEach(function(b) { $("#bands").append($("<option>").val(b).text(b + " m")); });
-bandList.forEach(function(b) { $("#fbands").append($("<label>").append($("<input type='checkbox'>").val(b), " " + b + " m")); });
+/* The radio's cluster bands as cluster.conf has them: the number in the name, 70 for 70 cm */
+var bandList = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 8, 6, 4, 2, 70];
+var bandName = function(b) { return Number(b) == 70 ? "70 cm" : b + " m"; };
+bandList.forEach(function(b) { $("#bands").append($("<option>").val(b).text(bandName(b))); });
+bandList.forEach(function(b) { $("#fbands").append($("<label>").append($("<input type='checkbox'>").val(b), " " + bandName(b))); });
 
 var showStatus = function(text, error=false, sel="#status") {
   const el = $(sel);
@@ -181,7 +183,7 @@ var render = function(data) {
   data.alerts.forEach(function(a, i) {
     const row = $("<tr>").css("opacity", a.enabled === false ? 0.5 : 1);
     row.append($("<td>").text(a.pattern));
-    row.append($("<td>").text(a.bands ? a.bands.split(",").join(", ") + " m" : "All"));
+    row.append($("<td>").text(a.bands ? a.bands.split(",").map(bandName).join(", ") : "All"));
     row.append($("<td>").text(a.mode || "Any"));
     row.append($("<td>").text(a.seen || "—"));
     const flip = $("<button class='ghost'>").text(a.enabled === false ? "Turn on" : "Turn off").on("click", function() {

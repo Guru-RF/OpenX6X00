@@ -163,7 +163,8 @@ CLUSTER_DEFAULT_PORT = 8000
 CLUSTER_MAX_SERVERS = 16
 CLUSTER_MAX_ALERTS = 50
 CLUSTER_MODES = ["CW", "SSB", "DIG", "AMFM"]
-CLUSTER_BANDS = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 6]
+# The GUI's cluster bands (src/cluster/spots.c), as cluster.conf has them: the number in the name, 70 for 70 cm
+CLUSTER_BANDS = [160, 80, 60, 40, 30, 20, 17, 15, 12, 10, 8, 6, 4, 2, 70]
 CLUSTER_ACTIVITY = ["POTA", "SOTA", "WWBOTA", "HOTA"]   # the GUI's cluster_act_names
 # Written by the radio GUI: pattern|freq_hz|HH:MM of the last spot that matched
 CLUSTER_ALERTS_SEEN = "/tmp/cluster_alerts_seen"
@@ -2772,11 +2773,12 @@ def cluster_alert_input(data):
     if not isinstance(bands, list):
         return None, cluster_error(400, "Invalid bands")
     try:
-        bands = sorted({int(b) for b in bands}, reverse=True)
+        bands = {int(b) for b in bands}
     except (TypeError, ValueError):
         return None, cluster_error(400, "Invalid bands")
     if any(b not in CLUSTER_BANDS for b in bands):
         return None, cluster_error(400, "Invalid bands")
+    bands = [b for b in CLUSTER_BANDS if b in bands]   # 20,17 as before; 2,70 (70 cm) after 6
     mode = str(data.get("mode", "")).strip().upper()
     if mode not in ("", "CW", "SSB", "DIG"):
         return None, cluster_error(400, "Invalid mode")

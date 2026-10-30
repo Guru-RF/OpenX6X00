@@ -13,8 +13,9 @@ extern dialog_t *dialog_cluster;
  * loaded); it runs when a callsign is set. */
 void dialog_cluster_start_client(void);
 
-/* Tunes the radio to a spot: frequency and the mode its comment / the band plan suggests */
-void dialog_cluster_tune_spot(const cluster_spot_t *s);
+/* Tunes the radio to a spot: frequency and the mode its comment / the band plan suggests. False, and a message,
+ * where the radio cannot tune (4 m, 2 m, 70 cm with no transverter for it, nor the X6200's WR12) */
+bool dialog_cluster_tune_spot(const cluster_spot_t *s);
 /* The call of the last spot tuned on the radio; the result changes at each one */
 uint32_t dialog_cluster_tuned(char *call, size_t size);
 

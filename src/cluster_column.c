@@ -105,19 +105,24 @@ static void show_spot(row_t *r, const cluster_spot_t *s, bool highlighted, const
     uint16_t age   = cluster_age_min(s->utc_min, now);
     uint32_t c     = age_color(age);
     bool     alert = cluster_alert_match(flt, s) >= 0;
+    bool     can   = cfg_is_valid_hw_freq(s->freq_hz);     /* greyed: no transverter for it (All bands) */
     char     buf[16];
 
     snprintf(buf, sizeof buf, "%d", (int)(s->freq_hz / 1000));
     lv_label_set_text(r->freq, buf);
+    /* 144300: six digits, a size smaller to fit, on the line of the call and the mode */
+    lv_obj_set_style_text_font(r->freq, s->freq_hz >= 100000000 ? NF(18) : NF(22), 0);
+    lv_obj_set_style_pad_top(r->freq, s->freq_hz >= 100000000 ? 3 : 0, 0);
     lv_obj_set_width(r->freq, FREQ_W);
     lv_obj_set_style_text_align(r->freq, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_style_text_color(r->freq, lv_color_hex(ink(theme_hex(TC_text_value))), 0);
+    lv_obj_set_style_text_color(r->freq, lv_color_hex(ink(theme_hex(can ? TC_text_value : TC_text_mute))), 0);
     set_alert_bg(r, alert && !highlighted);
     lv_label_set_text(r->call, s->dx);
     set_mode(r->mode, s);
     snprintf(buf, sizeof buf, "%um", age);
     lv_label_set_text(r->age, buf);
-    lv_obj_set_style_text_color(r->call, lv_color_hex(ink(alert ? theme_hex(TC_alert_text) : c)), 0);
+    lv_obj_set_style_text_color(r->call,
+                                lv_color_hex(ink(alert ? theme_hex(TC_alert_text) : can ? c : theme_hex(TC_text_mute))), 0);
     lv_obj_set_style_text_color(r->age, lv_color_hex(ink(c)), 0);
     show_row(r, true);
 }
@@ -230,6 +235,8 @@ static void redraw(void) {
 
             snprintf(buf, sizeof buf, "%d.%03d.%02d", vfo / 1000000, (vfo / 1000) % 1000, (vfo % 1000) / 10);
             lv_label_set_text(r->freq, buf);
+            lv_obj_set_style_text_font(r->freq, NF(22), 0);     /* the row may have had a 2 m spot's */
+            lv_obj_set_style_pad_top(r->freq, 0, 0);
             lv_obj_set_width(r->freq, COL_W - 12);
             lv_obj_set_style_text_align(r->freq, LV_TEXT_ALIGN_CENTER, 0);
             lv_obj_set_style_text_color(r->freq, lv_color_hex(ink(theme_hex(TC_vfo))), 0);

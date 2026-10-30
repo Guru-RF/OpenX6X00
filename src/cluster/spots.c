@@ -14,6 +14,10 @@
 #include <string.h>
 #include <strings.h>
 
+/* Above 6 m the bands a transverter or the X6200's WR12 can reach, as wide as any region has them (issue #103):
+ * 4 m where Region 1 countries have it, 2 m and 70 cm as the Americas do. 23 cm is out of reach (a transverter
+ * goes up to 500 MHz, the WR12 to 1 GHz). Lowest first, as Settings > Cluster lists them; cluster.conf keeps the
+ * bands by name, not by index */
 static const struct {
     const char *name;
     int32_t     low, high;
@@ -22,9 +26,13 @@ static const struct {
     {"40m", 7000000, 7200000},      {"30m", 10100000, 10150000},   {"20m", 14000000, 14350000},
     {"17m", 18068000, 18168000},    {"15m", 21000000, 21450000},   {"12m", 24890000, 24990000},
     {"10m", 28000000, 29700000},    {"8m", 40000000, 42000000},    {"6m", 50000000, 52000000},
+    {"4m", 69900000, 70500000},     {"2m", 144000000, 148000000},  {"70cm", 420000000, 450000000},
 };
 
 #define BANDS_COUNT ((int)(sizeof(bands) / sizeof(bands[0])))
+
+/* A band is a bit of the filters' uint16_t (cluster_filter_t, cluster_alert_t) */
+_Static_assert(BANDS_COUNT <= 16, "more bands than bits in the cluster filters");
 
 int cluster_band_of(int32_t hz) {
     for (int i = 0; i < BANDS_COUNT; i++)
@@ -224,12 +232,23 @@ static const struct {
 } cw_segments[] = {
     {1800000, 1838000},   {3500000, 3570000},   {7000000, 7040000},   {10100000, 10130000},
     {14000000, 14070000}, {18068000, 18095000}, {21000000, 21070000}, {24890000, 24915000},
-    {28000000, 28070000}, {50000000, 50100000},
+    {28000000, 28070000}, {50000000, 50100000}, {69900000, 70100000}, {144000000, 144100000},
+    {432000000, 432100000},
 };
 
 static const int32_t digi_khz[] = {
     1840,  3573,  3575,  5357,  7047,  7074,  10136, 10140, 14074, 14080,
     18100, 18104, 21074, 21140, 24915, 24919, 28074, 28180, 50313, 50318,
+    70154, 144174,
+};
+
+/* FM above the narrow-band parts: 4 m from 70.250, 2 m from 144.500 (the channels, repeaters, APRS, the Americas'
+ * 146-148), 70 cm outside 432.000-432.500 (Region 1's channels and repeaters 430-440, the Americas' 420-450) */
+static const struct {
+    int32_t low, high;
+} fm_segments[] = {
+    {29510000, 29700000}, {70250000, 70500000}, {144500000, 148000000}, {420000000, 432000000},
+    {432500000, 450000000},
 };
 
 cluster_mode_t cluster_guess_mode(const cluster_spot_t *spot) {
@@ -253,6 +272,7 @@ cluster_mode_t cluster_guess_mode(const cluster_spot_t *spot) {
     for (size_t i = 0; i < sizeof(cw_segments) / sizeof(cw_segments[0]); i++)
         if (hz >= cw_segments[i].low && hz < cw_segments[i].high) return CLUSTER_MODE_CW;
     if (hz >= 10100000 && hz <= 10150000) return CLUSTER_MODE_CW; /* 30m: no SSB */
-    if (hz >= 29510000 && hz <= 29700000) return CLUSTER_MODE_FM;
+    for (size_t i = 0; i < sizeof(fm_segments) / sizeof(fm_segments[0]); i++)
+        if (hz >= fm_segments[i].low && hz <= fm_segments[i].high) return CLUSTER_MODE_FM;
     return high ? CLUSTER_MODE_USB : CLUSTER_MODE_LSB;
 }

@@ -67,7 +67,7 @@ time_t cluster_config_mtime(void);
  *   filter_modes=CW,SSB,DIG,AMFM  modes shown (missing: all)
  *   max_age=30                    minutes (0 or missing: the store's own limit)
  *   skip_spotters=K1TTT-#,*-3     spotter calls hidden, * matches any run
- *   filter_bands=40,20,6          bands shown (missing: all)
+ *   filter_bands=40,20,6,2,70     bands shown, as the number in their name: 2 is 2 m, 70 is 70 cm (missing: all)
  *   filter_activity=POTA,SOTA,WWBOTA,HOTA   only these activations (missing: all spots)
  *   filter_spotter_dxcc=PA,ON     only spots heard in these countries: the spotter's call, by cty.dat (missing or
  *                                 no prefix it knows: all). The client drops the others as they come in
