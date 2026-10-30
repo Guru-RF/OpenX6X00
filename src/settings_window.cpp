@@ -2813,27 +2813,30 @@ static void focus_cb(lv_group_t *g) {
         lv_obj_scroll_to_y(page, 0, LV_ANIM_OFF);
         return;
     }
-    if (reachable_end(g, true) == obj) {
-        lv_coord_t below = lv_obj_get_scroll_bottom(page);
-
-        if (below > 0) lv_obj_scroll_by(page, 0, -below, LV_ANIM_OFF);
-        return;
-    }
     lv_obj_get_coords(obj, &a);
     lv_obj_get_coords(page, &p);
 
-    /* The rows without a control under it come into view with it: 24 px under a control left
-     * a status line in a font with tall lines (DejaVu, VISION's), or on two lines, cut at the
-     * page's bottom edge (#82) */
-    lv_coord_t bottom = LV_MAX(a.y2 + margin, notes_bottom(obj) + 4);
-    lv_coord_t dy     = 0;
+    lv_coord_t dy = 0;  /* how far the rows move, down when > 0 */
 
-    if (bottom > p.y2) {
-        dy = p.y2 - bottom;
-    } else if (a.y1 - margin < p.y1) {
-        dy = p.y1 - (a.y1 - margin);
+    if (reachable_end(g, true) == obj) {
+        dy = -lv_obj_get_scroll_bottom(page);
+    } else {
+        /* The rows without a control under it come into view with it: 24 px under a control
+         * left a status line in a font with tall lines (DejaVu, VISION's), or on two lines, cut
+         * at the page's bottom edge (#82) */
+        lv_coord_t bottom = LV_MAX(a.y2 + margin, notes_bottom(obj) + 4);
+
+        if (bottom > p.y2) {
+            dy = p.y2 - bottom;
+        } else if (a.y1 - margin < p.y1) {
+            dy = p.y1 - (a.y1 - margin);
+        }
     }
-    if (a.y1 + dy < p.y1 + 8) dy = p.y1 + 8 - a.y1;   /* notes taller than the page: the control stays */
+    /* The control itself stays in view: Wireless ends more than a page under the Tailscale
+     * switch, the last control the knob reaches while Tailscale is off (Funnel and Log out
+     * disabled), and the page's end took the switch off the top */
+    if (a.y1 + dy < p.y1 + 8) dy = p.y1 + 8 - a.y1;
+    dy = LV_CLAMP(-LV_MAX(lv_obj_get_scroll_bottom(page), 0), dy, LV_MAX(lv_obj_get_scroll_top(page), 0));
     if (dy) lv_obj_scroll_by(page, 0, dy, LV_ANIM_OFF);
 }
 
