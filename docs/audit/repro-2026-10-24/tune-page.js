@@ -60,6 +60,8 @@ paused = true;                                       /* nothing comes back */
 advance(9000);
 check(link.stalled && tune.state === 'ended', 'the link stalls (a ping unanswered for 3 s): the tune is over here, the button says so');
 check(stallAt && !after(stallAt).some(t => /^tune 1/.test(t)), 'no renewal once the stall is seen: the radio stops it 3 s after the last it got');
+check(sent.some(x => x.at === stallAt && x.text === 'tune 0'),
+      'and the stop sent behind the renewals stuck in the link (tune 0): delivered late, they end with it, as a PTT\'s release');
 tune.press();
 check(tune.state === 'refused' && !after(now - 1).some(t => /^tune 1/.test(t)), 'a press while the radio does not answer: refused, nothing sent');
 paused = false;

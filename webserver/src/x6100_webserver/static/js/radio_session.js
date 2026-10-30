@@ -418,9 +418,11 @@
     else this.set("refused", text.replace(/^tune: /, ""));
     return true;
   };
+  /* The stop goes behind the renewals a stalled link still holds, as the PTT's release does: delivered late, they end
+   * with it, not with a tune kept three seconds past the last of them */
   Tune.prototype.lost = function(why) {
     this.radioOn = false;     /* not known any more: the radio stops it within 3 s, and its next state says */
-    if (this.state === "requesting" || this.state === "on") { this.clear(); this.set("ended", why || "The link dropped: the radio stops the tune within 3 s"); }
+    if (this.state === "requesting" || this.state === "on") { this.clear(); this.o.send("tune 0"); this.set("ended", why || "The link dropped: the radio stops the tune within 3 s"); }
     else if (this.state === "stopping") { this.clear(); this.set("idle", ""); }
   };
   Tune.prototype.set = function(state, why) {

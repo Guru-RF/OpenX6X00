@@ -3301,7 +3301,9 @@ limit ("TUNE 4 / 15 s"), the power and SWR on the meter; a press stops it.
 While it is on the page renews it every second as a held PTT is renewed: if
 the link drops or stalls the radio stops the tune three seconds after the
 last renewal it got ("tune stopped: no renewal from the page"), and its time
-limit ends it in any case. A tune started at the radio shows on the button
+limit ends it in any case. On a stall the page also sends the stop behind
+the renewals still stuck in the link, so that if they get through late the
+stop comes with them. A tune started at the radio shows on the button
 too ("from the radio"), and a press stops it. Refused as PTT is (a browser
 that watches, a session without TX, control elsewhere), and where the radio
 would not tune ("No tune" and why).
