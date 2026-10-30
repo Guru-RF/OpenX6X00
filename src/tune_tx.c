@@ -9,6 +9,7 @@
 #include "tune_tx.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <time.h>
 
 #include "audio.h"          /* AUDIO_PLAY_RATE */
@@ -98,9 +99,19 @@ static size_t tone_fill(int16_t *buf, size_t n, void *arg) {
 tune_end_t tune_tx_run(const tune_plan_t *p, tune_stop_fn_t stop, void *ctx) {
     tone_t t = {.p = p, .stop = stop, .ctx = ctx, .fade = -1, .end = TUNE_END_CUT};
 
-    /* On the air since it was asked (an app's slot, PTT): nothing is touched, the other's power least of all.
-     * tx_player looks again as it keys */
-    if (radio_get_modem() || radio_get_state() != RADIO_RX) return TUNE_END_REFUSED;
+    /* The player held from before the radio is set up for the tune until it is back (tx_player_claim). An app's slot
+     * that had started and not keyed yet went out at what the refused tune put back (WSPR's beacon at PWR's 5 W, not
+     * its own 0.2 W), and one that started as the tune's audio ended keyed at the tune's power with the SWR protection
+     * aside. On the air since it was asked (PTT, TCI): nothing is touched, the other's power least of all. tx_player
+     * looks again as it keys */
+    if (!tx_player_claim()) {
+        fprintf(stderr, "tune_tx: another transmission is under way, no tune\n");
+        return TUNE_END_REFUSED;
+    }
+    if (radio_get_modem() || radio_get_state() != RADIO_RX) {
+        tx_player_release();
+        return TUNE_END_REFUSED;
+    }
     t.start_ms = now_ms();
     radio_set_tune(p->pwr_w, p->limit_ms);      /* from now on the power at most the tune's */
     if (p->tx_mode >= 0) radio_set_tx_mode(p->tx_mode);
@@ -114,6 +125,7 @@ tune_end_t tune_tx_run(const tune_plan_t *p, tune_stop_fn_t stop, void *ctx) {
     if (p->tx_mode >= 0) radio_set_tx_mode(-1);     /* after the unkey: tx_player waited for the last block */
     radio_set_tune(0.0f, 0);
     tx_info_set_tune(0.0f, 0.0f);
+    tx_player_release();
     if (!t.keyed) return TUNE_END_REFUSED;
     return whole ? t.end : TUNE_END_CUT;
 }

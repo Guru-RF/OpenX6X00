@@ -38,6 +38,13 @@ float tx_player_base_gain_offset(void);   /* dB to start with: base firmware and
  * level found is not kept for the others */
 void tx_player_set_pwr(float w);
 
+/* The player held by the calling thread from now until its tx_player_release, its tx_player_stream in between: for a
+ * transmission that sets the radio up before it starts and puts it back after (a TUNE's power cap and mode, tune_tx.c),
+ * so that no app's slot starts or keys meanwhile, as during the transmission itself. False: another transmission
+ * holds it, nothing to release */
+bool tx_player_claim(void);
+void tx_player_release(void);
+
 /* Send count samples (AUDIO_PLAY_RATE, not modified) at offset_hz. False when abort
  * stopped it before the end, or when it did not start: the radio on the air already, or another transmission
  * starting in the same moment */

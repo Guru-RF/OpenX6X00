@@ -120,6 +120,8 @@ static struct {
     float    pwr_up;
     float    app_slot_at_s; /* an app's slot starts this far into the tune (0 never) */
     bool     app_slot_at_key;   /* or in the moment the tune has started and not keyed yet */
+    bool     app_slot_at_end;   /* or in the moment its audio is over and it has not put the radio back yet */
+    bool     tune_at_app_key;   /* a tune asked as an app's slot has started and not keyed yet */
     float    stop_at_s;     /* the operator stops it (0 never) */
 } sc;
 
@@ -133,6 +135,8 @@ static struct {
     int      trips;
     int      app_sent;      /* the app's slot: -1 not tried, 0 refused, 1 sent */
     int      app_sent_at_key;
+    int      app_sent_at_end;
+    int      tune_at_app_key;   /* how that tune ended, -1 not asked */
     int16_t  first[2048];   /* the first audio, and the last */
     size_t   nfirst;
     int16_t  last[2048];
@@ -142,10 +146,41 @@ static struct {
 } seen;
 
 static swr_guard_t swr_guard;
-static bool        app_slot_done, app_key_done, pwr_up_done;
+static bool        app_slot_done, app_key_done, app_end_done, tune_key_done, pwr_up_done;
+static bool        in_app;     /* the scenario's own app slot is being sent */
 static int16_t     slot[4410];
 
 static int pwr_changes;      /* the base's power set to another value */
+
+/* The tunes the app's slot sees asked (tune_at_app_key) are never on the air long */
+static bool stop_now(void *ctx) {
+    (void)ctx;
+    return true;
+}
+
+/* An app's slot, on a thread of its own as the apps send theirs (the player's claim is the thread's): sent or not */
+static void *slot_thread(void *arg) {
+    *(int *)arg = tx_player_play(slot, 4410, 1500, tx_player_base_gain_offset(), NULL, NULL);
+    return NULL;
+}
+
+static int app_slot(void) {
+    pthread_t th;
+    int       sent = -1;
+
+    pthread_create(&th, NULL, slot_thread, &sent);
+    pthread_join(th, NULL);
+    return sent;
+}
+
+/* A TUNE asked meanwhile, on its own thread as ext_tune.c runs it: how it ended */
+static void *tune_thread(void *arg) {
+    tune_plan_t p;
+
+    tune_plan(&p, cfg.mode[cfg.cur], 1500, 1.0f, 10.0f, 15);
+    *(int *)arg = tune_tx_run(&p, stop_now, NULL);
+    return NULL;
+}
 
 static void set_txpwr(float w) {
     if (digi_cap && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
@@ -189,7 +224,16 @@ void radio_set_tx_freq(int32_t f) {
     /* tx_player moves the VFO just before it keys: an app's slot that starts now still finds the radio in RX */
     if (sc.app_slot_at_key && !app_key_done && tune_cap > 0.0f && !base.modem) {
         app_key_done = true;
-        seen.app_sent_at_key = tx_player_play(slot, 4410, 1500, tx_player_base_gain_offset(), NULL, NULL);
+        seen.app_sent_at_key = app_slot();
+    }
+    /* The other way round: the app's slot moved the VFO and is about to key, the radio still in RX, as a TUNE is
+     * asked (its own thread on the radio: here tx_player sees the app's transmission under way all the same) */
+    if (sc.tune_at_app_key && in_app && !tune_key_done && !base.modem) {
+        pthread_t th;
+
+        tune_key_done = true;
+        pthread_create(&th, NULL, tune_thread, &seen.tune_at_app_key);
+        pthread_join(th, NULL);
     }
 }
 
@@ -227,6 +271,11 @@ uint32_t radio_caps(void) {
 }
 
 void radio_set_tune(float w, uint32_t limit_ms) {
+    /* The tune's audio is over and it puts the radio back: an app's slot that starts in this moment */
+    if (w == 0.0f && sc.app_slot_at_end && !app_end_done && seen.keys > 0) {
+        app_end_done = true;
+        seen.app_sent_at_end = app_slot();
+    }
     guard    = (tune_guard_t){.pwr_w = w, .start_ms = now_ms(), .limit_ms = limit_ms};
     tune_cap = w;
     set_txpwr(cfg.pwr);
@@ -330,7 +379,7 @@ int audio_play(int16_t *buf, size_t n) {
     }
     if (sc.app_slot_at_s > 0.0f && !app_slot_done && t >= sc.app_slot_at_s) {
         app_slot_done = true;
-        seen.app_sent = tx_player_play(slot, 4410, 1500, tx_player_base_gain_offset(), NULL, NULL);
+        seen.app_sent = app_slot();
     }
     return (int)n;
 }
@@ -351,8 +400,8 @@ static void reset(void) {
     memset(&seen, 0, sizeof(seen));
     sc.swr_limit = 2.0f;
     sc.over      = 1.0f;
-    seen.app_sent = seen.app_sent_at_key = -1;
-    app_slot_done = app_key_done = pwr_up_done = false;
+    seen.app_sent = seen.app_sent_at_key = seen.app_sent_at_end = seen.tune_at_app_key = -1;
+    app_slot_done = app_key_done = app_end_done = tune_key_done = pwr_up_done = false;
     memset(&swr_guard, 0, sizeof(swr_guard));
     atomic_fetch_add(&virt_ns, 5000000000ULL);  /* a new transmission: the guard's gap */
     base.freq[0] = cfg.freq[0];
@@ -504,6 +553,28 @@ static void transmissions(void) {
     check(seen.app_sent == 0 && seen.keys == 1, "FT8's slot starting meanwhile: not sent, no second key");
     check(seen.app_sent_at_key == 0, "nor one that starts as the tune does, before it keys (one transmission at a time)");
     check(as_set(), "after: 14.074.000 USB-D, PWR 5.0 W");
+
+    puts("-- FT8's slot in the moment the tune's audio is over, before the tune has put the radio back");
+    reset();
+    sc.app_slot_at_end = true;
+    sc.stop_at_s       = 1.0f;
+    e = run(1500, 1.0f, 15);
+    check(e == TUNE_END_STOP && seen.app_sent_at_end == 0 && seen.keys == 1,
+          "not sent (it went out at the tune's power, the SWR protection aside), keyed once (%d)", seen.keys);
+    check(as_set(), "after: all put back");
+
+    puts("-- a tune asked as WSPR's beacon at its own 0.2 W has started and not keyed yet");
+    reset();
+    sc.tune_at_app_key = true;
+    tx_player_set_pwr(0.2f);
+    in_app = true;
+    bool beacon = tx_player_play(slot, 4410, 1500, tx_player_base_gain_offset(), NULL, NULL);
+    in_app = false;
+    tx_player_set_pwr(0.0f);
+    check(seen.tune_at_app_key == TUNE_END_REFUSED && beacon && seen.keys == 1,
+          "the tune refused, the beacon sent, keyed once (%d)", seen.keys);
+    check(seen.max_pwr == 0.2f, "the beacon at its own 0.2 W, not PWR's 5 W put back by the tune (%.1f W)", seen.max_pwr);
+    check(as_set(), "after: PWR 5.0 W, nothing of the tune left");
     digi_cap = false;
 
     puts("-- the same antenna, a base that reads 2.5 times the power set (the tune's own power exceeded)");

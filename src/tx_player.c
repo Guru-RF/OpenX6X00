@@ -38,7 +38,8 @@
 #define STALL_MS            3000    /* keyed this long without a block of audio: unkeyed */
 
 static atomic_bool     playing;
-static atomic_bool     busy;       /* a transmission from its start to its end (tx_player_stream) */
+static atomic_bool     busy;       /* a transmission from its start to its end (tx_player_stream, tx_player_claim) */
+static _Thread_local bool claimed; /* this thread's tx_player_claim, until its tx_player_release */
 static atomic_uint_fast64_t last_block_ms;
 /* tx_player_set_pwr: an app's own power, 0 none. The thread's own: a TUNE (tune_tx.c) and WSPR's beacon each set
  * theirs on their thread, and one never went out at the other's */
@@ -97,6 +98,18 @@ void tx_player_set_pwr(float w) {
     own_w = w;
 }
 
+bool tx_player_claim(void) {
+    if (atomic_exchange(&busy, true)) return false;
+    claimed = true;
+    return true;
+}
+
+void tx_player_release(void) {
+    if (!claimed) return;
+    claimed = false;
+    atomic_store(&busy, false);
+}
+
 /* The power a transmission goes out at: the app's own, else the radio's setting; at most the cap */
 static float tx_pwr(void) {
     return LV_MIN(own_w > 0.0f ? own_w : param_f_get(cfg_pwr), TX_PLAYER_MAX_PWR_W);
@@ -104,9 +117,11 @@ static float tx_pwr(void) {
 
 bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, float base_gain,
                       tx_abort_fn_t abort, void *abort_ctx) {
+    bool claim = !claimed;      /* else the caller holds the player (tx_player_claim) and lets it go itself */
+
     /* One transmission at a time from its start: an app's slot and a TUNE (tune_tx.c) that start in the same moment
      * both found the radio in RX below, before either keyed, and played into one another */
-    if (atomic_exchange(&busy, true)) {
+    if (claim && atomic_exchange(&busy, true)) {
         fprintf(stderr, "tx_player: another transmission is under way, this one is not sent\n");
         return false;
     }
@@ -115,7 +130,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
      * out mixed, the TCI session ended under the app, and the app's audio went on into TCI's stream after it
      * was freed. Winlink checks this itself (winlink.c on_air) */
     if (radio_get_modem() || radio_get_state() != RADIO_RX) {
-        atomic_store(&busy, false);
+        if (claim) atomic_store(&busy, false);
         fprintf(stderr, "tx_player: the radio is on the air already, this transmission is not sent\n");
         return false;
     }
@@ -247,7 +262,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
         /* the setting back: RTTY and WeFax left the radio at the cap, also in SSB after */
         radio_set_pwr(param_f_get(cfg_pwr));
     }
-    atomic_store(&busy, false);
+    if (claim) atomic_store(&busy, false);
     return !stopped;
 }
 
