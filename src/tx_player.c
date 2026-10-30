@@ -38,8 +38,11 @@
 #define STALL_MS            3000    /* keyed this long without a block of audio: unkeyed */
 
 static atomic_bool     playing;
+static atomic_bool     busy;       /* a transmission from its start to its end (tx_player_stream) */
 static atomic_uint_fast64_t last_block_ms;
-static float           own_w;      /* tx_player_set_pwr: an app's own power, 0 none */
+/* tx_player_set_pwr: an app's own power, 0 none. The thread's own: a TUNE (tune_tx.c) and WSPR's beacon each set
+ * theirs on their thread, and one never went out at the other's */
+static _Thread_local float own_w;
 
 static uint64_t now_ms(void) {
     struct timespec ts;
@@ -101,11 +104,18 @@ static float tx_pwr(void) {
 
 bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, float base_gain,
                       tx_abort_fn_t abort, void *abort_ctx) {
+    /* One transmission at a time from its start: an app's slot and a TUNE (tune_tx.c) that start in the same moment
+     * both found the radio in RX below, before either keyed, and played into one another */
+    if (atomic_exchange(&busy, true)) {
+        fprintf(stderr, "tx_player: another transmission is under way, this one is not sent\n");
+        return false;
+    }
     /* The radio on the air already (a TCI session, the PTT): not a second transmission over it. With TCI audio
      * keyed in the DIG modes too (#17), an app's slot could start inside a TCI transmission: both waveforms went
      * out mixed, the TCI session ended under the app, and the app's audio went on into TCI's stream after it
      * was freed. Winlink checks this itself (winlink.c on_air) */
     if (radio_get_modem() || radio_get_state() != RADIO_RX) {
+        atomic_store(&busy, false);
         fprintf(stderr, "tx_player: the radio is on the air already, this transmission is not sent\n");
         return false;
     }
@@ -237,6 +247,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
         /* the setting back: RTTY and WeFax left the radio at the cap, also in SSB after */
         radio_set_pwr(param_f_get(cfg_pwr));
     }
+    atomic_store(&busy, false);
     return !stopped;
 }
 

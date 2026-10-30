@@ -32,13 +32,15 @@ typedef size_t (*tx_fill_fn_t)(int16_t *buf, size_t n, void *ctx);
 
 float tx_player_base_gain_offset(void);   /* dB to start with: base firmware and power set */
 
-/* An app's own TX power for what it sends next (WSPR's), in W; 0: the radio's setting, as for the other apps. Set it
- * on the thread that transmits, before tx_player_base_gain_offset and the transmission, and 0 after. The radio's
- * power setting is not changed and is put back after the transmission; the level found is not kept for the others */
+/* An app's own TX power for what it sends next (WSPR's, a TUNE's), in W; 0: the radio's setting, as for the other
+ * apps. The calling thread's: set it on the thread that transmits, before tx_player_base_gain_offset and the
+ * transmission, and 0 after. The radio's power setting is not changed and is put back after the transmission; the
+ * level found is not kept for the others */
 void tx_player_set_pwr(float w);
 
 /* Send count samples (AUDIO_PLAY_RATE, not modified) at offset_hz. False when abort
- * stopped it before the end */
+ * stopped it before the end, or when it did not start: the radio on the air already, or another transmission
+ * starting in the same moment */
 bool tx_player_play(int16_t *samples, uint32_t count, int32_t offset_hz, float base_gain,
                     tx_abort_fn_t abort, void *abort_ctx);
 
