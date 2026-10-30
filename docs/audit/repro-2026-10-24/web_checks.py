@@ -276,6 +276,24 @@ with tempfile.TemporaryDirectory(prefix='x6names-') as td:
          ask('POST', '/api/remote', 'x6100.tri-angle.nl', Sec_Fetch_Site='cross-site'), 'refused 403'),
         ('<hostname>.local, a file:// page: a change', ask('POST', '/api/remote', f'{me}.local', Origin='null'),
          'refused 403'),
+        # a page on another port of the radio's own name: Pat's mailbox (8080), where a received message's attachment
+        # opens and its file names show as they came. The radio's pages send the same port in Origin and Host
+        ('a page of Pat\'s mailbox (port 8080) lists a name', ask('POST', '/api/own_names', f'{me}.local',
+                                                               Origin=f'http://{me}.local:8080'), 'refused 403'),
+        ('a page of Pat\'s mailbox: Go back to the previous version (a form\'s POST, sent without asking first)',
+         ask('POST', '/api/update/rollback', f'{me}.local', Origin=f'http://{me}.local:8080',
+             Sec_Fetch_Site='same-site'), 'refused 403'),
+        ('a page of Pat\'s mailbox by the address: a change', ask('POST', '/api/remote', '192.168.1.40',
+                                                               Origin='http://192.168.1.40:8080'), 'refused 403'),
+        ('a page of Pat\'s mailbox, the request naming port 80: a change',
+         ask('POST', '/api/remote', '192.168.1.40:80', Origin='http://192.168.1.40:8080'), 'refused 403'),
+        ('the https page: a change', ask('POST', '/api/remote', f'{me}.local', Origin=f'https://{me}.local'), 'passes'),
+        ('the pages on a PC on port 8080: a change', ask('POST', '/api/remote', '127.0.0.1:8080',
+                                                         Origin='http://127.0.0.1:8080'), 'passes'),
+        ('an address of IPv6 and its port: a change', ask('POST', '/api/remote', '[fe80::1]:8000',
+                                                          Origin='http://[fe80::1]:8000'), 'passes'),
+        ('a request naming the port 80, the page not: a change', ask('POST', '/api/remote', '192.168.1.40:80',
+                                                                   Origin='http://192.168.1.40'), 'passes'),
     ]
     for bad in ('*.tri-angle.nl', '192.168.1.40', 'nl', 'co.uk', 'shack', '0x7f.1', 'a_b.example.nl'):
         cases.append(('not listed: ' + bad, set_list(f'{me}.local', [bad])[:3], '400'))

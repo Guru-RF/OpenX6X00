@@ -73,7 +73,12 @@ def refuse_other_sites():
     (local_host_ok) as well. Before, the Wavelog page sent the key and Files handed it out by any name (audit C08).
     A request from the internet through Tailscale Funnel is refused whatever it asks, also a page: these pages have
     no login, and a funnel made by hand (tailscale funnel 80) would hand anyone the settings, the Files page with
-    the keys, Backup restore and the updates. A Funnel name is a *.ts.net name and passed the name check (#58)"""
+    the keys, Backup restore and the updates. A Funnel name is a *.ts.net name and passed the name check (#58).
+    The page's port counts too (review of #105): Pat's mailbox is on port 8080 of the same names, opens a received
+    message's attachments there and shows the names of its files as they came, so a script in a message could run
+    on Pat's page. What such a page sends without asking first passed: a form's POST (an update bundle, an older
+    signed one too, Go back to the previous version, Upgrade, the uploads). A change sent as JSON, a PUT or a DELETE
+    the browser asks for first (CORS), which these pages never allow"""
     req = bottle.request
     if via_funnel():
         raise funnel_refused()
@@ -87,9 +92,15 @@ def refuse_other_sites():
         bottle.abort(403, "Cross-site request refused")
     origin = req.headers.get("Origin", "")
     if origin:   # "null" (a file:// page) has no host and is refused too
-        theirs = (urllib.parse.urlsplit(origin).hostname or "").lower()
-        ours = (urllib.parse.urlsplit("//" + req.headers.get("Host", "")).hostname or "").lower()
-        if not theirs or theirs != ours:
+        theirs = urllib.parse.urlsplit(origin)
+        ours = urllib.parse.urlsplit("//" + req.headers.get("Host", ""))
+        # A browser names the port in Origin, as in Host, only when it is not the scheme's own (80, 443): the radio's
+        # pages, by http, https, the tailnet or on a PC on a port of their own, send the same port in both
+        try:
+            same_port = theirs.port is None or theirs.port == ours.port
+        except ValueError:   # no port number
+            same_port = False
+        if not theirs.hostname or theirs.hostname.lower() != (ours.hostname or "").lower() or not same_port:
             bottle.abort(403, "Cross-site request refused")
 
 
