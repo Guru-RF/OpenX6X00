@@ -70,6 +70,7 @@ extern "C" {
 #define ROW_H       44  /* option row and control height */
 #define UPD_ROW_H   36  /* Info page: the Update button and its status line */
 #define UPD_NOTE_H  20
+#define INFO_ROW_H  36  /* Info page: a row of text */
 /* Settings text two sizes over the sony_N it names (readability); VISION already scales it up */
 #define SF(n)       font_down(&sony_##n, theme_shape.vision ? 0 : -2)
 
@@ -4443,12 +4444,16 @@ static void make_bluetooth_page() {
     btaudio_run("status", bt_status_done, (void *)(intptr_t)wl_gen);
 }
 
+/* A row of text, as high as the Update rows: Version to Baseband in option rows left the Update
+ * line under the first control half cut at the page's bottom edge as the page opened with the
+ * taller buttons (62 px: DejaVu, VISION), and the knob does not scroll above the first control (#82) */
 static uint8_t info_row(uint8_t row, const char *label, const char *val) {
     wl_row_label(row, label);
     lv_obj_t *obj = lv_label_create(grid);
     lv_label_set_text(obj, val);
     lv_obj_set_style_text_color(obj, TC(text), 0);
     lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_END, 1, 6, LV_GRID_ALIGN_CENTER, row, 1);
+    row_dsc[row] = INFO_ROW_H;
     return row + 1;
 }
 
