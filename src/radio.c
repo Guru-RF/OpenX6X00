@@ -1384,8 +1384,27 @@ static bool radio_tick() {
              * full and the battery log (charge_flag_counts: the X6100's as its base gives it) */
             pack->charging = pack->charging && charge_flag_counts();
             clock_update_no_battery(pack->bat_missing);
+
+            /* The % sags under the TX current and comes back slowly: the last RX reading holds
+             * while transmitting and for 30 s after (also in the top bar, clock.c). Before the top bar
+             * and the battery log take it: they took the % of the reading before, and at the first
+             * reading on battery that was none, so the base's went in. On #49's radio (the base at 0 %
+             * with a full pack) that gave "Battery 0%: connect power" at each power-on and a time left
+             * from 0h00, climbing back over the first ten minutes */
+            static uint64_t hold_until;
+            static int8_t   held_cap = -1;
+            int8_t          cap = bat_watch.counts && !bat_watch.ext ? pack->batcap : -1;
+
+            if (radio_get_state() == RADIO_TX) hold_until = now_time + 30000;
+            if (now_time < hold_until && held_cap >= 0 && cap >= 0) {
+                cap = held_cap;
+            } else {
+                if (cap >= 0) cap = bat_watch_cap(&bat_watch, pack->vbat, pack->batcap);   /* on receive only */
+                held_cap = cap;
+            }
+            bat_pct = cap;   /* the % on the screen (clock.c) */
             if (bat_watch.counts) {
-                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, pack->batcap, pack->charging);
+                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, cap >= 0 ? cap : pack->batcap, pack->charging);
                 battery_log(pack);
             }
 
@@ -1405,23 +1424,6 @@ static bool radio_tick() {
                 told      = due ? w : told | w;
                 told_time = now_time;
             }
-
-            /* The % sags under the TX current and comes back slowly: the last RX reading holds
-             * while transmitting and for 30 s after (also in the top bar, clock.c) */
-            static uint64_t hold_until;
-            static int8_t   held_cap = -1;
-            int8_t          cap = bat_watch.counts && !bat_watch.ext ? pack->batcap : -1;
-
-            if (radio_get_state() == RADIO_TX) hold_until = now_time + 30000;
-            if (now_time < hold_until && held_cap >= 0 && cap >= 0) {
-                cap = held_cap;
-            } else {
-                if (cap >= 0) cap = bat_watch_cap(&bat_watch, pack->vbat, pack->batcap);   /* on receive only */
-                held_cap = cap;
-            }
-            bat_pct = cap;   /* the % on the screen (clock.c) */
-            if (cap >= 0 && cap != pack->batcap)
-                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, cap, pack->charging);
 
             /* low_power: what the GUI was told (the note above radio_tick) */
             if (bat_watch.low != low_power) {
