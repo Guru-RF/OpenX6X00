@@ -5,7 +5,7 @@
  *  locator and the mode on the right; over the locator the TX audio offset of
  *  FT8/FT4/WSPR (the big digits stay on the dial, as WSJT-X). Always shown; the app dialogs start
  *  below it. A line under the digit the tuning step changes, and NR NB DNF (RIT XIT when set)
- *  left of the locator (VISION: over it), as upstream v1.0.0's step marker and indicators row.
+ *  over the locator, as upstream v1.0.0's step marker and indicators row.
  */
 
 #include <stdbool.h>
@@ -369,37 +369,36 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
     lv_obj_align(col, LV_ALIGN_RIGHT_MID, -14, 0);
 
-    /* Over the locator: the TX offset of the digital apps */
-    tx_label = make_label(col, LV_ALIGN_DEFAULT, 0, v ? &sony_24 : &sony_20, theme_hex(TC_accent));
-    lv_obj_add_flag(tx_label, LV_OBJ_FLAG_HIDDEN);
-
-    /* NR NB DNF RIT XIT on the locator's left, in its row: over it they and the 28 of the locator
-     * were taller than the strip and ran into each other */
-    lv_obj_t *right = lv_obj_create(col);
-    lv_obj_remove_style_all(right);
-    lv_obj_set_size(right, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(right, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(right, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(right, 6, 0);
-
-    lv_obj_t *inds = lv_obj_create(v ? col : right);   /* VISION's big type: no room beside, over it */
-    lv_obj_remove_style_all(inds);
-    lv_obj_set_size(inds, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(inds, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(inds, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(inds, 3, 0);
-    if (v) lv_obj_move_to_index(inds, 0);
-    nr_label = ind_create(inds, "NR");
-    nb_label = ind_create(inds, "NB");
-    dnf_label = ind_create(inds, "DNF");
-    rit_label = ind_create(inds, "RIT");
-    xit_label = ind_create(inds, "XIT");
+    /* Over the locator: NR NB DNF RIT XIT, then the TX offset */
+    lv_obj_t *top = lv_obj_create(col);
+    lv_obj_remove_style_all(top);
+    lv_obj_set_size(top, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(top, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(top, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(top, 3, 0);
+    nr_label = ind_create(top, "NR");
+    nb_label = ind_create(top, "NB");
+    dnf_label = ind_create(top, "DNF");
+    rit_label = ind_create(top, "RIT");
+    xit_label = ind_create(top, "XIT");
     subject_subscribe_delayed((Subject *)cfg_nr, ind_update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_nb, ind_update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_dnf, ind_update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_rit, ind_update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_xit, ind_update_cb, NULL);
     ind_update_cb(NULL, NULL);
+
+    tx_label = make_label(top, LV_ALIGN_DEFAULT, 0, v ? &sony_24 : &sony_20, theme_hex(TC_accent));
+    lv_obj_add_flag(tx_label, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *right = lv_obj_create(col);
+    lv_obj_remove_style_all(right);
+    lv_obj_set_size(right, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(right, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(right, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(right, 6, 0);
+    /* a little lower: under NR NB DNF the 28 of the locator touched them (VISION's strip has the room) */
+    if (!v) lv_obj_set_style_translate_y(right, 4, 0);
 
     qth_dot = lv_obj_create(right);
     lv_obj_remove_style_all(qth_dot);
