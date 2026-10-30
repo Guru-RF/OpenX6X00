@@ -105,7 +105,7 @@ one second.
 | UP, DOWN (H-22: the arrow keys) | both | the [channel](#channels) before or after the last one tuned, its name shown | band up or down |
 | MODE | both | the next mode: LSB, USB, CW, CW-R, AM, NFM (and SAM, WFM on the X6200) | DIG on or off in SSB, like a long press of the front SSB key |
 | V/M | both | the [CHANNELS](#channels) window (not over an app that has the screen) | |
-| VOL+, VOL- | H-22 | the RX volume one step up or down, shown like the VOL knob's | on by itself, about ten steps a second, until let go |
+| VOL+, VOL- | H-22 | the RX volume one step up or down, shown like the VOL knob's | held: on by itself from 0.4 s, before the long press, about ten steps a second until let go |
 | A/B | H-22 | VFO A/B, like the front A/B key (not while an app holds the VFOs) | this VFO copied to the other one |
 | FIL | X6100 | the filter pages, like the front DFL key | the DFL long press action |
 | XFC | X6100 | VFO A/B | |
