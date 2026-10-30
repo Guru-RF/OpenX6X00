@@ -32,6 +32,9 @@ int main() {
  std::cout<<"indep, band key: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<"\n";
  s->vfo_toggle();
  std::cout<<"indep, VFO key: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<" vfo="<<s->p_band_current_vfo.get()<<"\n";
+ /* a restart: back on B, the VFO in use (40m had A saved, by the VFO key that left it) */
+ s->flush_all(); delete s; s=new SettingsManager; s->init_load(nullptr);
+ std::cout<<"indep, restart: band="<<s->p_band_id.get()<<" vfo="<<s->p_band_current_vfo.get()<<" B="<<s->p_band_vfob_freq.get()<<"\n";
  /* independent VFOs, a band key into split: B from 15m (left there in split, B on 21.010), the VFO it transmits on, not B's 7.030 kept */
  s->vfo_toggle();
  s->p_band_id.set(3);

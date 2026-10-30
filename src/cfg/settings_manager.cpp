@@ -296,6 +296,12 @@ void SettingsManager::switch_band(int new_band_id, bool implicit) {
 
         // The band the active VFO is on, for independent VFOs (vfo_toggle)
         (p_band_current_vfo.get() == RADIO_VFO_A ? p_vfoa_band : p_vfob_band).set(new_band_id);
+
+        // The VFO in use, saved with the band it is now in use on: a switch keeps it without writing it, so each band
+        // kept the VFO in use when it was last left there, and a restart came back on that one (B tuned from 20m
+        // into the gap above CB C, or the VFO key's switch to B's band with independent VFOs: A after the restart)
+        pending_writes_.write(StorageKey{StorageType::BAND, band_id_, p_band_current_vfo.db_name()},
+                              p_band_current_vfo.get());
     }
 
     band_switch_active_ = false;

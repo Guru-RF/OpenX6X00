@@ -146,6 +146,7 @@ def main():
                          "after toggle: band=4 A=14100000 B=7100000 vfo=1",
                          "indep, band key: band=9 A=21000000 B=7030000",
                          "indep, VFO key: band=3 A=21000000 B=7030000 vfo=1",
+                         "indep, restart: band=3 vfo=1 B=7030000",
                          "indep, band key into split: band=9 A=21000000 B=21010000 split=1")),
             ("settings-rollback.cpp", ("after rollback and retry volume=42 memory=42",)),
         ):
