@@ -25,12 +25,21 @@
 #include <time.h>
 
 #include "audio.h"
+#include "button_bar.h"
 #include "cfg/cfg_api.h"
+#include "ext_tune.h"
+#include "jtty_tx.h"
+#include "msg_box.h"
+#include "olivia_tx.h"
 #include "params/params.h"
+#include "psk_tx.h"
 #include "radio.h"
+#include "scheduler.h"
+#include "screen_main.h"
 #include "swr_guard.h"
 #include "tune_tx.h"
 #include "tx_player.h"
+#include "winlink.h"
 
 static int cases, good;
 
@@ -123,6 +132,8 @@ static struct {
     bool     app_slot_at_end;   /* or in the moment its audio is over and it has not put the radio back yet */
     bool     tune_at_app_key;   /* a tune asked as an app's slot has started and not keyed yet */
     float    stop_at_s;     /* the operator stops it (0 never) */
+    float    event_at_s;    /* event() this far into a tune of ext_tune.c's (the knob turned, a mode key, a stop) */
+    void   (*event)(void);
 } sc;
 
 static struct {
@@ -146,7 +157,7 @@ static struct {
 } seen;
 
 static swr_guard_t swr_guard;
-static bool        app_slot_done, app_key_done, app_end_done, tune_key_done, pwr_up_done;
+static bool        app_slot_done, app_key_done, app_end_done, tune_key_done, pwr_up_done, event_done;
 static bool        in_app;     /* the scenario's own app slot is being sent */
 static int16_t     slot[4410];
 
@@ -381,6 +392,10 @@ int audio_play(int16_t *buf, size_t n) {
         app_slot_done = true;
         seen.app_sent = app_slot();
     }
+    if (sc.event && !event_done && t >= sc.event_at_s) {
+        event_done = true;
+        sc.event();
+    }
     return (int)n;
 }
 
@@ -401,7 +416,7 @@ static void reset(void) {
     sc.swr_limit = 2.0f;
     sc.over      = 1.0f;
     seen.app_sent = seen.app_sent_at_key = seen.app_sent_at_end = seen.tune_at_app_key = -1;
-    app_slot_done = app_key_done = app_end_done = tune_key_done = pwr_up_done = false;
+    app_slot_done = app_key_done = app_end_done = tune_key_done = pwr_up_done = event_done = false;
     memset(&swr_guard, 0, sizeof(swr_guard));
     atomic_fetch_add(&virt_ns, 5000000000ULL);  /* a new transmission: the guard's gap */
     base.freq[0] = cfg.freq[0];
@@ -649,10 +664,287 @@ static void transmissions(void) {
     state = RADIO_RX;
 }
 
+/* ---- The GUI's side: the real ext_tune.c, its tune on a thread of its own as on the radio ------------------------ */
+
+static struct {
+    float          tune_pwr;    /* Settings > TX Cal > EXTERNAL TUNER */
+    int32_t        tune_time;
+    int32_t        wspr_hz;
+    press_action_t app;         /* the app open, ACTION_NONE none */
+    bool           winlink;     /* a Winlink connection under way */
+} ui = {.tune_pwr = 1.0f, .tune_time = 15, .wspr_hz = 1500};
+
+ParamFloat *cfg_tune_pwr     = (ParamFloat *)&ui.tune_pwr;
+ParamInt   *cfg_tune_time    = (ParamInt *)&ui.tune_time;
+ParamInt   *cfg_wspr_tx_freq = (ParamInt *)&ui.wspr_hz;
+/* The subjects ext_tune.c subscribes to: only their addresses count */
+static char subj[7], cur_mode;
+ParamInt   *cfg_band_vfoa_freq = (ParamInt *)&subj[0], *cfg_band_vfob_freq = (ParamInt *)&subj[1],
+           *cfg_band_vfoa_mode = (ParamInt *)&subj[2], *cfg_band_vfob_mode = (ParamInt *)&subj[3],
+           *cfg_band_current_vfo = (ParamInt *)&subj[4], *cfg_band_split = (ParamInt *)&subj[5],
+           *cfg_band_tx_shift = (ParamInt *)&subj[6];
+ComputedParamInt *cfg_cur_mode = (ComputedParamInt *)&cur_mode;
+
+int32_t param_i_get(const ParamInt *p) {
+    return *(const int32_t *)p;
+}
+
+int32_t cparam_i_get(const ComputedParamInt *p) {
+    (void)p;    /* the mode, the only one ext_tune.c asks for */
+    return cfg.mode[cfg.cur];
+}
+
+/* Where the radio transmits here: 40 m up to 7.200 (Region 1), 20 m, 10 m */
+bool cfg_is_tx_freq(int32_t f) {
+    return (f >= 7000000 && f <= 7200000) || (f >= 14000000 && f <= 14350000) || (f >= 28000000 && f <= 29700000);
+}
+
+float cfg_pwr_max_get(void) {
+    return 10.0f;
+}
+
+static struct {
+    Subject    *subj;
+    observer_cb fn;
+    void       *user_data;
+} subs[16];
+static int nsubs;
+
+Observer *subject_subscribe(Subject *s, observer_cb fn, void *user_data) {
+    if (nsubs < 16) subs[nsubs++] = (typeof(subs[0])){s, fn, user_data};
+    return NULL;
+}
+
+/* The setting changed: its observers, as the subject calls them on the thread that set it */
+static void notify(void *s) {
+    for (int i = 0; i < nsubs; i++)
+        if (subs[i].subj == s) subs[i].fn(subs[i].subj, subs[i].user_data);
+}
+
+button_data_t btn_ext_tune;
+
+void buttons_mark(button_data_t *b, bool on) {
+    b->mark = on;
+}
+
+void buttons_refresh(button_data_t *b) {
+    (void)b;
+}
+
+static pthread_mutex_t said_mux = PTHREAD_MUTEX_INITIALIZER;
+static char            said[128], told[512];   /* the screen's last message, and all of a tune's */
+
+void msg_update_text_fmt(const char *fmt, ...) {
+    va_list ap;
+
+    pthread_mutex_lock(&said_mux);
+    va_start(ap, fmt);
+    vsnprintf(said, sizeof(said), fmt, ap);
+    va_end(ap);
+    snprintf(told + strlen(told), sizeof(told) - strlen(told), "%s%s", told[0] ? " | " : "", said);
+    printf("        screen: %s\n", said);
+    pthread_mutex_unlock(&said_mux);
+}
+
+static bool said_is(const char *text) {
+    pthread_mutex_lock(&said_mux);
+    bool same = !strcmp(said, text);
+    pthread_mutex_unlock(&said_mux);
+    return same;
+}
+
+static atomic_int overs;    /* tunes whose end reached the LVGL thread (over_cb) */
+
+/* The LVGL thread's queue: run at once, on the thread that puts, the argument copied as the queue copies it */
+bool scheduler_put_urgent(scheduler_fn_t fn, void *arg, size_t size) {
+    unsigned char copy[64];
+
+    if (size > sizeof(copy)) return false;
+    memcpy(copy, arg, size);
+    fn(copy);
+    atomic_fetch_add(&overs, 1);
+    return true;
+}
+
+press_action_t main_screen_digital_app_action(void) {
+    return ui.app;
+}
+
+bool winlink_busy(void) {
+    return ui.winlink;
+}
+
+uint16_t psk_tx_get_center(void) {
+    return 1000;
+}
+
+uint16_t olivia_tx_get_center(void) {
+    return 1500;
+}
+
+uint16_t jtty_tx_get_freq(void) {
+    return 1200;
+}
+
+unsigned radio_swr_trips(void) {
+    return (unsigned)seen.trips;
+}
+
+/* What happens during the tune (sc.event): on the tune's thread, as the knob's or the Panel's would on theirs */
+static bool marked, other_stopped, own_stopped;
+
+static void knob(void) {
+    marked = btn_ext_tune.mark && ext_tune_on();
+    notify(cfg_band_vfoa_freq);
+}
+
+static void mode_key(void) {
+    notify(cfg_band_vfoa_mode);
+}
+
+static void split_key(void) {
+    notify(cfg_band_split);
+}
+
+static void key_again(void) {
+    ext_tune_toggle();
+}
+
+static void panel_stop(void) {
+    other_stopped = ext_tune_stop_owner(TUNE_BY_PANEL + 1, false);     /* another page's Stop */
+    own_stopped   = ext_tune_stop_owner(TUNE_BY_PANEL + 2, false);
+}
+
+static void panel_gone(void) {
+    own_stopped = ext_tune_stop_owner(TUNE_BY_PANEL + 2, true);       /* its lease ran out */
+}
+
+/* A tune asked of ext_tune.c by `who` (the key: TUNE_BY_RADIO) on this thread, as the LVGL thread does, and waited
+ * for until its end has reached that thread: the refusal, NULL none */
+static const char *gui_tune(int who) {
+    int         before = atomic_load(&overs);
+    const char *no;
+
+    told[0] = 0;
+    tune_t0 = now_ms();
+    no      = ext_tune_start(who);
+    if (no) return no;
+    for (int i = 0; i < 5000 && atomic_load(&overs) == before; i++) nanosleep(&(struct timespec){0, 1000000}, NULL);
+    printf("        %.2f s on the air, %d key(s), carrier at %d Hz in mode %d\n", (seen.unkey_ms - seen.key_ms) / 1000.0,
+           seen.keys, (int)seen.rf, seen.mode);
+    return NULL;
+}
+
+static double on_air_s(void) {
+    return (seen.unkey_ms - seen.key_ms) / 1000.0;
+}
+
+static void gui_side(void) {
+    const char *no;
+
+    ext_tune_init();
+    puts("-- the GUI's side (ext_tune.c): LSB on 7.150, no app, the key; the main knob turned 1 s in");
+    cfg = (typeof(cfg)){.freq = {7150000, 7100000}, .mode = {radio_mode_lsb, radio_mode_lsb}, .pwr = 5.0f};
+    reset();
+    sc.event_at_s = 1.0f;
+    sc.event      = knob;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.keys == 1 && seen.rf == 7150000 && seen.max_pwr == 1.0f && strstr(told, "TUNE 1.0 W, 15 s at most"),
+          "on the air on 7.150.000 at the TUNE power, 1.0 W, and said so");
+    check(marked && !btn_ext_tune.mark && !ext_tune_on(), "the button marked while it tuned, not after");
+    check(said_is("TUNE stopped: tuned away") && on_air_s() < 1.2, "stopped at once (%.2f s): \"%s\"", on_air_s(), said);
+    check(as_set(), "after: all put back");
+
+    puts("-- FT8 open on 14.074 USB-D, its TX at 1500 Hz, the Ext tune button; a mode key 1 s in");
+    ui.app                = ACTION_APP_FT8;
+    params.ft8_tx_freq.x  = 1500;
+    cfg = (typeof(cfg)){.freq = {14074000, 14074000}, .mode = {radio_mode_usb_dig, radio_mode_usb_dig}, .pwr = 5.0f};
+    reset();
+    sc.event_at_s = 1.0f;
+    sc.event      = mode_key;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.rf == 14075500 && said_is("TUNE stopped: mode changed") && as_set(),
+          "the tone on 14.075.500, where FT8 transmits; \"%s\"", said);
+
+    puts("-- SSTV open in LSB on 7.171, its picture at 1900 Hz; the key again 1 s in");
+    ui.app = ACTION_APP_SSTV;
+    cfg = (typeof(cfg)){.freq = {7171000, 7171000}, .mode = {radio_mode_lsb, radio_mode_lsb}, .pwr = 5.0f};
+    reset();
+    sc.event_at_s = 1.0f;
+    sc.event      = key_again;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.rf == 7169100 && said_is("TUNE stopped") && as_set(), "the tone on 7.169.100, below the dial; \"%s\"",
+          said);
+    ui.app = ACTION_NONE;
+
+    puts("-- split, VFO A 14.200 and B 14.250 USB: split turned off 1 s in");
+    cfg = (typeof(cfg)){.freq = {14200000, 14250000}, .mode = {radio_mode_usb, radio_mode_usb}, .split = true,
+                        .pwr = 5.0f};
+    reset();
+    sc.event_at_s = 1.0f;
+    sc.event      = split_key;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.rf == 14250000 && said_is("TUNE stopped: VFO changed") && as_set(),
+          "the carrier on B's 14.250.000; \"%s\"", said);
+
+    puts("-- TUNE time limit 5 s, nothing else");
+    cfg = (typeof(cfg)){.freq = {14200000, 14200000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 5.0f};
+    ui.tune_time = 5;
+    reset();
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && said_is("TUNE over: 5 s limit") && on_air_s() >= 5.0 && on_air_s() < 5.2 && as_set(),
+          "over at its limit, %.2f s on the air: \"%s\"", on_air_s(), said);
+    ui.tune_time = 99;
+    int top = ext_tune_limit_s();
+    ui.tune_time = 2;
+    check(top == TUNE_TIME_MAX_S && ext_tune_limit_s() == TUNE_TIME_MIN_S, "a time limit out of range told the Panel as "
+          "the tune takes it: %d s, %d s", top, ext_tune_limit_s());
+    ui.tune_time = 15;
+
+    puts("-- a page's tune (the Panel's client 2): another page's Stop leaves it, its own stops it as asked");
+    reset();
+    sc.event_at_s = 1.0f;
+    sc.event      = panel_stop;
+    no = gui_tune(TUNE_BY_PANEL + 2);
+    check(!no && !other_stopped && own_stopped && said_is("TUNE stopped") && as_set(), "\"%s\"", said);
+    puts("-- the same page gone (its lease ran out, its connection closed)");
+    reset();
+    sc.event_at_s = 1.0f;
+    sc.event      = panel_gone;
+    no = gui_tune(TUNE_BY_PANEL + 2);
+    check(!no && own_stopped && said_is("TUNE stopped: browser gone") && as_set(), "\"%s\"", said);
+
+    puts("-- refused, the reason on the screen, nothing on the air");
+    cfg = (typeof(cfg)){.freq = {7250000, 7250000}, .mode = {radio_mode_lsb, radio_mode_lsb}, .pwr = 5.0f};
+    reset();
+    state = RADIO_TX;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(no && !strcmp(no, "no TX on 7.250 MHz") && said_is("No tune: no TX on 7.250 MHz") && !ext_tune_on() &&
+          seen.keys == 0, "7.250 where the radio only receives, on the air too: \"%s\"", said);
+    cfg = (typeof(cfg)){.freq = {14200000, 14200000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 5.0f};
+    reset();
+    state = RADIO_TX;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(no && said_is("No tune: on the air") && !ext_tune_on() && pwr_changes == 0, "something else on the air: \"%s\"",
+          said);
+    reset();
+    ui.winlink = true;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(no && said_is("No tune: Winlink in session") && !ext_tune_on() && seen.keys == 0, "Winlink in session: \"%s\"",
+          said);
+    ui.winlink = false;
+    cfg = (typeof(cfg)){.freq = {7150000, 7150000}, .mode = {radio_mode_lsb, radio_mode_lsb}, .split = true,
+                        .shift = -8000000, .pwr = 5.0f};
+    reset();
+    no = gui_tune(TUNE_BY_RADIO);
+    check(no && said_is("No tune: no TX on -0.850 MHz") && seen.keys == 0, "a TX shift below 0 Hz: \"%s\"", said);
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     pure_rules();
     transmissions();
+    gui_side();
     printf("%d of %d tune cases as they should be\n", good, cases);
     return good == cases ? 0 : 1;
 }
