@@ -182,6 +182,14 @@ of the band list, from the frequency up or down.
   split on, the other VFO, the one the radio transmits on, comes from the
   band, as with the band keys. Up to v0.3.6 the other VFO always came from
   the new band: tuning A across 7.040 moved B.
+- With Independent VFOs on (Settings > General > STATION) a band key moves
+  the VFO you are on only: the other one stays on its own band, frequency
+  and mode, where the VFO key takes it back, after a restart too. Into a
+  band left in split the other VFO, the one the radio transmits on, comes
+  from that band. Split turned on while the other VFO is on another band
+  transmits on that band; the strip shows where. Up to v0.3.7 a band key
+  brought both VFOs of the new band (B on 40m showed 15m's B after A went
+  to 15m), and the VFO key back to B then lost A's frequency.
 
 ### Receiving outside the ham bands
 
@@ -634,7 +642,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | callsign, QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
+| STATION | callsign, QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)) |
