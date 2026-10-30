@@ -25,7 +25,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
-- [Network name](#network-name)
+- [Network name](#network-name): [the radio's own names](#the-radios-own-names)
 - [SSH](#ssh): [a key on Windows](#a-key-on-windows), [on a Mac or on Linux](#a-key-on-a-mac-or-on-linux), [in PuTTY](#a-key-in-putty), [adding the key on the radio](#adding-the-key-on-the-radio), [the first login](#the-first-login), [after a new card image](#after-a-new-card-image), [when SSH does not let you in](#when-ssh-does-not-let-you-in)
 - [Tailscale](#tailscale): [Tailscale Funnel](#tailscale-funnel)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
@@ -2483,19 +2483,21 @@ A small web server (vendored in [webserver/](../webserver/), Python/bottle) runs
 on the radio on port 80. Open `http://x6100.local/` (or `http://<radio IP>/`)
 from any browser on the same network. The radio picks up changes within a few seconds.
 
-A change is taken only from a page opened by the radio's address, its own name
-(`x6100.local`, `x6200.local`, or the [network name](#network-name) you gave
-it) or its Tailscale name (the full `*.ts.net` one, or the short one on your
-tailnet), and the same goes for the Files page and the Backup download, which
+A change is taken only from a page opened by one of the
+[radio's own names](#the-radios-own-names): its address, `x6100.local`
+(`x6200.local`, or the [network name](#network-name) you gave it), its name
+in your network's domain (`x6100.home.lan`), a name you added on the Network
+page, or its Tailscale name (the full `*.ts.net` one, or the short one on your
+tailnet). The same goes for the Files page and the Backup download, which
 hold the keys and passwords kept on the radio, and for the connections of the
-Panel and the Remote page (the Panel's sound too). Opened by another name (one
-your router gives it, `x6100.fritz.box`), the pages show the settings but do
-not save them, the Panel and the Remote page do not connect, and they say by
-which names they do: a web site can point a name of its own at the radio (DNS
-rebinding), and through your browser it could otherwise change settings,
-download the keys or key the transmitter. Logs > Export and the Gallery's ZIP
-download hold no secret and work by any name; TCI programs, which are not
-browsers, connect by any name as before.
+Panel and the Remote page (the Panel's sound too). Opened by another name, the
+pages show the settings but do not save them, the Panel and the Remote page do
+not connect, and they say by which name the page was opened, by which names it
+works and where to add that name: a web site can point a name of its own at the
+radio (DNS rebinding), and through your browser it could otherwise change
+settings, download the keys or key the transmitter. Logs > Export and the
+Gallery's ZIP download hold no secret and work by any name; TCI programs, which
+are not browsers, connect by any name as before.
 
 The menu has General and five groups:
 
@@ -2520,7 +2522,7 @@ The menu has General and five groups:
 | | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages (optionally CW trainer and WiFi) as one file, and restore the parts you choose |
 | System | Display | every display option of the radio (see below) |
 | | Time | local and server time; Sync sets the radio clock from the browser's, in the radio's timezone; NTP sync; timezone |
-| | Network | the radio's [network name](#network-name), and the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
+| | Network | the radio's [network name](#network-name), its [other names](#the-radios-own-names), and the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
 | | TCI | enable the [TCI server](#tci-server), set its port |
 | | SSH | the keys that may log in over SSH: list, add, remove (passwords are not taken, see [SSH](#ssh)) |
 | | Update | Check and Install the latest release, install a bundle file, go back to the previous version (see [Updating the firmware](#updating-the-firmware)) |
@@ -2863,8 +2865,10 @@ Good to know:
   network, and your tailnet with Tailscale on, can read and send your mail and
   make the radio transmit under your callsign. Turn Winlink off on a network
   you do not trust (a campsite's WiFi, a shared hotspot).
-- The mailbox answers only to the radio's address and its own names
-  (`x6100.local`, the Tailscale name, the short name on your tailnet), and refuses requests from the pages of
+- The mailbox answers only to the radio's address and its
+  [own names](#the-radios-own-names) (`x6100.local`, its name in your network's
+  domain, the names added on the Network page, the Tailscale name, the short
+  name on your tailnet), and refuses requests from the pages of
   other sites, so a web page you happen to visit cannot use it through your
   browser. It never answers a request that came from the internet through
   Tailscale Funnel. The configurator changes Winlink only when opened by those names
@@ -3565,6 +3569,42 @@ seconds. Two radios on one LAN need two names.
 Where mDNS is blocked (some corporate or guest networks) or the browser does
 not resolve `.local`, the IP address shown in Settings > Wireless still works.
 
+### The radio's own names
+
+The web configurator takes changes, opens the Files page and the Backup
+download, and the Panel, the Screen page and the Winlink mailbox connect, only
+when the page was opened by one of the radio's own names. By any other name a
+web site could do the same through your browser: it can point a name of its
+own at the radio (DNS rebinding). Its own names are:
+
+- its address, any of them (`http://192.168.1.40/`);
+- its network name: `x6100.local` (`x6200.local`, or the name you gave it);
+- `<name>.<domain>` for the domain your network gives the radio, the one your
+  router's DHCP hands out (`x6100.home.lan`, `x6100.fritz.box`,
+  `x6100.example.nl`), on WiFi and on Ethernet. The Network page shows which
+  ones the radio has now. A domain that is a public suffix on its own (`nl`,
+  `com`, `co.uk`, or a single word other than `lan`, `home`, `localdomain`,
+  `internal`, `intranet`, `corp` and `private`) does not count: anyone could
+  register `x6100.nl`;
+- the names you add under Other names on the Network page (System > Network):
+  a name your own DNS server gives the radio that is not `<name>.<domain>` (an
+  A record such as `shack.example.nl`), or a reverse proxy's name. Whole names
+  only, up to 8: no addresses (they count already), no wildcards, not a
+  public suffix alone (`nl`, `co.uk`) and not a single word. The list is kept
+  in `/mnt/own_names.conf` on the DATA partition, so it survives a new card
+  image. It is not in the Backup, as the network name is not: these are this
+  radio's names on this network. It changes only from a page opened by one of
+  the radio's own names, so a site that reached the radio by a name of its own
+  cannot add that name;
+- with Tailscale on, its Tailscale name (the full `*.ts.net` one, or the short
+  one on your tailnet).
+
+Opened by another name, the page says by which name it was opened, which names
+work (the Tailscale name only while Tailscale runs) and, for a name the list
+takes, that it can be added on the Network page: open that page by one of the
+names that work, add the name, and it works at once. TCI programs, which are
+not browsers, connect by any name.
+
 ## SSH
 
 SSH on the radio takes keys only: logging in with a password is off, because
@@ -3672,9 +3712,9 @@ OpenSSH `id_ed25519` chosen there is converted to one).
 - It takes ssh-ed25519, ecdsa-sha2-nistp256/384/521 and ssh-rsa of 3072 bits
   or more, one key at a time, as `ssh-keygen` writes it (no options in front).
 - The keys are root's, in `/root/.ssh/authorized_keys`.
-- The page opens only by the radio's address, its own name or its Tailscale
-  name, as the Tailscale page: a page from another site cannot add a key
-  through your browser.
+- The page opens only by the radio's address or its
+  [own names](#the-radios-own-names), as the Tailscale page: a page from
+  another site cannot add a key through your browser.
 - `/mnt/ssh/authorized_keys` on the DATA partition, which the X6100's card
   images of v0.3.1 to v0.3.5 also read, is no longer read: at the first start
   after the update its keys move into root's file (they show on the page) and
@@ -3735,9 +3775,11 @@ Accept. You are then root on the radio; `exit` ends the session.
   Save public key (it starts with `---- BEGIN SSH2 PUBLIC KEY ----`), or a
   line an editor broke in two. Copy the key from PuTTYgen's box (Load with
   the saved `.ppk` file shows it again), or the `.pub` file's line as above.
-- The page says "Open this page by the radio's address or x6100.local": it
-  was opened by another name (one your router gives it, `x6100.fritz.box`).
-  Open it by the radio's address or `x6100.local`.
+- The page says "This page was opened as ..., which is not one of the radio's
+  own names": it was opened by a name the radio does not know as its own (an A
+  record of your own DNS server). Open it by one of the names the message
+  lists, or add that name on the Network page ([the radio's own
+  names](#the-radios-own-names)).
 - `Could not resolve hostname x6100.local` (PuTTY: "Host does not exist"):
   this computer does not resolve `.local` names (some Windows computers, and
   networks that block mDNS). Use the radio's address instead,
@@ -4260,6 +4302,8 @@ The DATA partition, readable on a PC.
 | `sstv/` | received SSTV pictures; `tx_pics/` pictures and `tx_text/` text templates to send |
 | `wefax/` | received faxes; `tx_pics/` pictures to send |
 | `https/` | the web configurator's HTTPS certificate |
+| `hostname.conf` | the radio's [network name](#network-name) |
+| `own_names.conf` | the [other names](#the-radios-own-names) the radio answers to, one per line, written by the web configurator's Network page |
 | `tailscale.conf` | Tailscale on or off: `enabled=0|1` |
 | `tailscale/` | the tailscaled program, downloaded when Tailscale is turned on and checked before every start |
 | `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=200|500|1000|2000` (the widest ARDOP may use), `modem=ardop|mercury`, `mercury_bandwidth=500|2300|2750` |
