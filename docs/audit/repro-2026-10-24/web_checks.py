@@ -141,6 +141,13 @@ class GuardBottle:
         raise Refused(status, text)
     request = SimpleNamespace()
 
+class Headers(dict):
+    """A request's headers, their names without case as bottle's request.headers (WSGIHeaderDict) has them: in a
+    plain dict of lower-case names refuse_other_sites's Origin and Sec-Fetch-Site were never found, and no case here
+    ran its Origin check"""
+    def get(self, name, default=None):
+        return dict.get(self, name.lower(), default)
+
 guard = {'bottle': GuardBottle, 'json': json, 'os': os, 'socket': __import__('socket'), 're': re, 'tempfile': tempfile,
          'ipaddress': __import__('ipaddress'), 'urllib': __import__('urllib.parse')}
 # with #105's own names: the domains of the radio's network, the list on the Network page and its routes
@@ -167,7 +174,7 @@ with tempfile.TemporaryDirectory(prefix='x6funnel-') as td:
     def ask(method, path, host, **headers):
         hdr = {k.replace('_', '-').lower(): v for k, v in headers.items()}
         hdr['host'] = host
-        GuardBottle.request = SimpleNamespace(method=method, path=path, headers=hdr, environ={},
+        GuardBottle.request = SimpleNamespace(method=method, path=path, headers=Headers(hdr), environ={},
                                               get_header=lambda name, default=None: hdr.get(name.lower(), default))
         try:
             guard['refuse_other_sites']()
@@ -194,7 +201,7 @@ with tempfile.TemporaryDirectory(prefix='x6funnel-') as td:
          'refused 403'),
     ]
     hdr = {'host': 'x6200.tail1234.ts.net', 'tailscale-funnel-request': '?1'}
-    GuardBottle.request = SimpleNamespace(headers=hdr, get_header=lambda name, default=None: hdr.get(name.lower(), default))
+    GuardBottle.request = SimpleNamespace(headers=Headers(hdr), get_header=lambda name, default=None: hdr.get(name.lower(), default))
     cases.append(('Funnel: local_host_ok', str(guard['local_host_ok']()), 'False'))
     bad = [c for c in cases if c[1] != c[2]]
     for what, got, want in cases:
@@ -223,7 +230,7 @@ with tempfile.TemporaryDirectory(prefix='x6names-') as td:
     def set_list(host, listed):
         """The production route by itself (refuse_other_sites aside): its status and the list it answers"""
         hdr = {'host': host, 'origin': 'http://' + host}
-        GuardBottle.request = SimpleNamespace(method='POST', path='/api/own_names', headers=hdr, environ={},
+        GuardBottle.request = SimpleNamespace(method='POST', path='/api/own_names', headers=Headers(hdr), environ={},
                                               json={'names': listed},
                                               get_header=lambda name, default=None: hdr.get(name.lower(), default))
         GuardBottle.response.status = 200
@@ -263,6 +270,12 @@ with tempfile.TemporaryDirectory(prefix='x6names-') as td:
         ('shack.example.lan listed: a change', change('SHACK.example.lan.'), 'passes'),
         ('a look-alike of a listed name', change('x6100.tri-angle.nl.evil.example'), 'refused 403'),
         ('evil.example, a name listed: still refused', change('evil.example'), 'refused 403'),
+        ('a listed name, the page another site\'s: a change', ask('POST', '/api/remote', 'x6100.tri-angle.nl',
+                                                                Origin='http://evil.example'), 'refused 403'),
+        ('a listed name, the request marked cross-site: a change',
+         ask('POST', '/api/remote', 'x6100.tri-angle.nl', Sec_Fetch_Site='cross-site'), 'refused 403'),
+        ('<hostname>.local, a file:// page: a change', ask('POST', '/api/remote', f'{me}.local', Origin='null'),
+         'refused 403'),
     ]
     for bad in ('*.tri-angle.nl', '192.168.1.40', 'nl', 'co.uk', 'shack', '0x7f.1', 'a_b.example.nl'):
         cases.append(('not listed: ' + bad, set_list(f'{me}.local', [bad])[:3], '400'))
