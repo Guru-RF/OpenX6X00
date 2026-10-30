@@ -3266,12 +3266,19 @@ stays where it is until the transmission ends.
 Release gives it up without anyone taking it. The radio's own keys and knobs
 always take control back (the operator standing at the radio has the last
 word); a browser takes it again on purpose. A TCI client takes it as the
-knob always did, the moment it tunes or keys, unless someone is on the air;
-the TCI page's "Clients may" (or Settings > General > TCI SERVER > Clients)
-set to Listen only makes TCI clients hear and follow the radio without
-tuning or keying it, for a shared network. A browser that loses its link
-loses control with it. Web Logs and the configurator pages are not gated:
-they change settings, not the air.
+knob always did, the moment it tunes or keys, unless someone is on the air.
+When it keys while it does not have control (it tuned nothing, or someone
+took control since), control goes back when that transmission ends: to the
+browser, the radio or the program it came from, or free if it was free or
+that browser left meanwhile; not when a knob at the radio took it during
+the transmission.
+Mic on keys the browser's microphone through the TCI: during such an over
+the bar says "TCI client", and after it control is where it was, with no
+Take control needed. The TCI page's "Clients may" (or Settings > General >
+TCI SERVER > Clients) set to Listen only makes TCI clients hear and follow
+the radio without tuning or keying it, for a shared network. A browser that
+loses its link loses control with it. Web Logs and the configurator pages
+are not gated: they change settings, not the air.
 
 ### Transmitting from the browser
 
@@ -3444,9 +3451,11 @@ program on the network tunes the radio, hears it and keys it.
   a listening client hears and follows the radio, and its tuning and keying
   are answered with the state as it is, unchanged. An operating client takes
   control of the radio the moment it tunes or keys, as the knob always did,
-  unless someone is on the air; a browser that was operating sees "TCI
-  client active" and takes control back on purpose (Pairing and control,
-  under Browser panel).
+  unless someone is on the air. One that keys while it does not have
+  control (it tuned nothing, or someone took control since) gives it back
+  when its transmission ends, to whoever had it (or free); after one that
+  tuned, a browser that was operating sees "TCI client · Take control" and
+  takes control back on purpose (Pairing and control, under Browser panel).
 - Not on the internet: TCI has no login, so a connection through Tailscale
   Funnel is refused, also from a funnel set up by hand (`tailscale funnel
   50001`). The one exception is the browser Panel's own sound and microphone
