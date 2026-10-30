@@ -9,7 +9,7 @@ Settings. Button and option names are written as the radio shows them.
 
 ## Contents
 
-- [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs)
+- [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic)
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
@@ -84,15 +84,50 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Channels, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
-The hand mic F1 and F2 keys (short and long press) are set in the same tab,
-from the quick actions (all but the screenshot), step up and down, NR and NB.
+The hand mic F1 and F2 keys (and the H-22's F3 on the X6200), short and long
+press, are set in the same tab, from the quick actions (all but the
+screenshot), step up and down, NR and NB.
 Where: Settings > Keys > HAND MIC KEYS.
-The hand mic MODE key steps LSB, USB, CW, CW-R, AM, NFM; a long press turns
-DIG on or off in SSB, like a long press of the front SSB key.
-The hand mic FIL key works as the front DFL key: the filter pages, and the
-DFL long press action.
-The hand mic V/M key opens the [CHANNELS](#channels) window; UP and DOWN
-step through the channels (a long press changes band).
+The other hand mic keys: see [Hand mic](#hand-mic).
+
+### Hand mic
+
+The X6100's hand mic and the X6200's H-22 have keys of their own. They work
+on the main screen and with an app open, not in walkie mode. A long press is
+one second.
+
+| Key | Mic | Press | Long press |
+|---|---|---|---|
+| 1-9, 0 | both | the band: 1 = 160 m, 2 = 80 m, 3 = 40 m, 4 = 30 m, 5 = 20 m, 6 = 17 m, 7 = 15 m, 8 = 12 m, 9 = 10 m, 0 = 6 m (not while an app holds the band) | memory 1-9 |
+| F-INP (H-22: #) | both | the frequency box, see below | |
+| F1, F2 | both | the action set in Settings > Keys > HAND MIC KEYS: F1 steps up, F2 does nothing until it has one | F1 steps down, F2 as set |
+| F3 | H-22 | as F2, with its own action (X6200: Settings > Keys > HAND MIC KEYS) | as set |
+| UP, DOWN (H-22: the arrow keys) | both | the [channel](#channels) before or after the last one tuned, its name shown | band up or down |
+| MODE | both | the next mode: LSB, USB, CW, CW-R, AM, NFM (and SAM, WFM on the X6200) | DIG on or off in SSB, like a long press of the front SSB key |
+| V/M | both | the [CHANNELS](#channels) window (not over an app that has the screen) | |
+| VOL+, VOL- | H-22 | the RX volume one step up or down, shown like the VOL knob's | on by itself, about ten steps a second, until let go |
+| A/B | H-22 | VFO A/B, like the front A/B key (not while an app holds the VFOs) | this VFO copied to the other one |
+| FIL | X6100 | the filter pages, like the front DFL key | the DFL long press action |
+| XFC | X6100 | VFO A/B | |
+| SPCH | X6100 | frequency lock on or off | |
+| TUNER | X6100 | the tuner on or off | a tuning cycle (it transmits) |
+| GENE | X6100 | the SWL panel; again: the next station | |
+| NW | X6100 | the station shown in the SWL panel saved as a channel | |
+
+- The frequency box: F-INP (the H-22's #) opens it, not while the frequency
+  is locked. Type the frequency in MHz with the digits and the dot (the
+  H-22's *), 7.074 for 7074 kHz; CE (the H-22's HOME) deletes the last
+  character. F-INP again tunes to it and closes the box; with nothing typed
+  it only closes it.
+- In a list or a text box (the WiFi password) the digits, the dot and CE type
+  instead.
+- The H-22's UP and DOWN keys on its side send nothing the radio can see (an
+  X6200 with base 1.0.8). Xiegu's app has codes for band up and down that may
+  be theirs; if a base sends them, they change band like the BAND keys.
+- Each key pressed goes into the log as `hand mic: key 0x18 (3)`: its code
+  and the key the radio took it for, or "unknown". Not while a text box is
+  open, where the digits can be a WiFi password. A key of another mic that
+  does nothing: send the log lines of its keys in an issue.
 
 ## Updating the firmware
 
@@ -892,7 +927,7 @@ by itself. The 20 MHz and channel 12 and 13 settings in `x6100-wifi.conf` are
 | Card | Options |
 |---|---|
 | FRONT KEYS, LONG PRESS | the long-press action of GEN, APP, KEY, MSG, DFN, DFL (see [Buttons and knobs](#buttons-and-knobs)) |
-| HAND MIC KEYS | F1, F2, F1 long, F2 long |
+| HAND MIC KEYS | F1, F2, F1 long, F2 long; on the X6200 F3 and F3 long too, for the H-22's F3 (see [Hand mic](#hand-mic)) |
 | PADDLE | USB paddles: Connected, the dit/dah of each kind, Learn dit and dah, Swap dit and dah, Serial port (see [USB paddle](#usb-paddle)) |
 
 ### Cluster tab
@@ -2354,8 +2389,9 @@ APP Channels, or the V/M key of the hand mic.
 - Drag picks the channel up and the button becomes Drop: the MFK carries the
   channel up and down, Drop saves the new order.
 - Hand mic: V/M opens the window (not over WeFax, NavTex, SSTV, JS8, PSK,
-  Olivia or JTTY); UP and DOWN tune the channel before or after the last one
-  tuned and show its name for a moment, without opening the window.
+  Olivia or JTTY); UP and DOWN (the H-22's arrow keys) tune the channel
+  before or after the last one tuned and show its name for a moment, without
+  opening the window.
 - Up to 100 channels. They are the same as on the web configurator's Memories
   page; a change made there shows on the radio within a few seconds, unless
   the window is open.
