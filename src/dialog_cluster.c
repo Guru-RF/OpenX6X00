@@ -747,9 +747,11 @@ bool dialog_cluster_tune_spot(const cluster_spot_t *s) {
     return true;
 }
 
+/* Refused: the spot stays selected, as when browsing; following the VFO, the next spot or minute put the
+ * selection back on the spot nearest the VFO, away from a tapped one */
 static void tune_to(int idx) {
     if (idx < 0 || idx >= view_count) return;
-    if (dialog_cluster_tune_spot(&view[idx])) follow_vfo = true;   /* refused: the spot stays selected */
+    follow_vfo = dialog_cluster_tune_spot(&view[idx]);
 }
 
 static void move_selection(int step) {
