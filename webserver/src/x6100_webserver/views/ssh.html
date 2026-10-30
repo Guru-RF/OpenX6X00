@@ -22,7 +22,7 @@
     <textarea id="key" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Public key"
       placeholder="ssh-ed25519 AAAA... you@computer"
       style="width:100%;resize:vertical;background:#0b1422;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font:13px/1.4 ui-monospace,monospace;word-break:break-all"></textarea>
-    <p style="margin:10px 0 0;color:var(--dim);font-size:13px">No key yet? On your computer, <code>ssh-keygen -t ed25519</code> makes one; paste the line of <code>~/.ssh/id_ed25519.pub</code> here (on Windows: <code>type %USERPROFILE%\.ssh\id_ed25519.pub</code>). Taken: ssh-ed25519, ecdsa-sha2-nistp256, -nistp384 and -nistp521, and ssh-rsa of <span id="rsamin">3072</span> bits or more, one key at a time, with no options before it.</p>
+    <p style="margin:10px 0 0;color:var(--dim);font-size:13px">No key yet? On your computer, <code>ssh-keygen -t ed25519</code> makes one; paste the line of <code>~/.ssh/id_ed25519.pub</code> here (on Windows, in PowerShell, <code>cat ~\.ssh\id_ed25519.pub | clip</code> copies it). Taken: ssh-ed25519, ecdsa-sha2-nistp256, -nistp384 and -nistp521, and ssh-rsa of <span id="rsamin">3072</span> bits or more, one key at a time, with no options before it. Step by step for Windows, a Mac, Linux and PuTTY: <a href="https://github.com/Guru-RF/OpenX6X00/blob/main/docs/MANUAL.md#ssh">the manual</a>.</p>
     <div class="actions">
       <button type="submit" class="primary">Add</button>
       <span class="status" id="astatus"></span>
