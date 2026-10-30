@@ -95,6 +95,30 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   password set), which Pat's next line wrote over before, and trims it, which left Pat's next line
   behind a hole of zeros. The log pane's `tailFile` reads a file that became shorter than what it
   read again from its start. With a test (`api/tail_test.go`).
+- `0005-web-ui-xss.patch`: what a received message, another station or the network sends is shown
+  as text in the web mailbox, never as markup. A Winlink message reaches the inbox from anyone who
+  writes to `<call>@winlink.org`, and Pat's page put strings from it into the page with jQuery's
+  `.html()` (or `.append()` of a string): an attachment named `<img src=x onerror=...>` (the name
+  comes unchanged from the message's `File:` line) ran as script on Pat's own page, port 8080,
+  which can read and send mail, connect and transmit, and open the radio's TCI socket. Now text
+  (`.text()`, text nodes, attributes set with `.attr()`): the message window (date, From, To, Cc,
+  the attachments' names, their addresses now encoded), the message list (addresses, date,
+  message ID; `htmlEscape` escapes quotes too), the log pane, the status text (the remote's
+  address), the prompt of the messages to download (senders, subjects), the status bar's
+  messages, the composer's and the password recovery's errors, the connect dialog's aliases, the
+  gateway list's prediction and the forms' catalog. The message body was sanitized already
+  (bluemonday). The template page shows `/api/template`'s preview as markup: the insertion tags'
+  values (the subject, sender and body of the message replied to among them) go into it escaped.
+  With a test (`internal/forms/preview_test.go`). The patch changes `web/src` and, to match it,
+  the minified `web/dist/js/app.js` by hand (no node in the build: `--word-diff` of the patched
+  tree against `v1.0.0` shows those changes); `config.js` and `template.js` need none. It should
+  go upstream, its `web/src` part (upstream rebuilds `web/dist`); a report for la5nta/pat is
+  drafted, not sent.
+
+`pat_ui_test.js` (ours, not in a patch) runs Pat's page and `app.js` from a patched source in
+jsdom, against a stand-in for Pat's server that answers with such names and lines: `NODE_PATH=<a
+node_modules with jsdom> node tools/pat/pat_ui_test.js <patched source>` (its first lines say how
+to make one). Without 0005, 6 of its 38 checks pass.
 
 Not a patch: the version report (daily) and the app's own recovery-email check (every 14 days),
 both to api.winlink.org, stay off through `version_reporting_disabled: true` in the config,
