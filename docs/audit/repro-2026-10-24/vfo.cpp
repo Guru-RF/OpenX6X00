@@ -23,4 +23,13 @@ int main() {
  std::cout<<"persisted B="<<v.value<<" rc="<<v.rc<<"\n";
  s->vfo_toggle();
  std::cout<<"after toggle: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<" vfo="<<s->p_band_current_vfo.get()<<"\n";
+ /* independent VFOs: B, active on 40m, tuned there; a band key on A moves A only; the VFO key brings B back as it was */
+ s->p_indep_vfo.set(1);
+ s->cp_fg_freq.set(7030000);
+ s->vfo_toggle();
+ std::cout<<"indep, on A: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<"\n";
+ s->p_band_id.set(9);
+ std::cout<<"indep, band key: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<"\n";
+ s->vfo_toggle();
+ std::cout<<"indep, VFO key: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<" vfo="<<s->p_band_current_vfo.get()<<"\n";
 }

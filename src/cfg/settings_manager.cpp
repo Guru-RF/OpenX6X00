@@ -909,7 +909,10 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     // new band has split on (p_band_split is loaded before): the inactive VFO is
     // then the one the radio transmits on, and comes from the band as on an
     // explicit switch (kept, 40m CW in split sent on 40m SSB's B, 7.150, not its own 7.025).
-    const bool keep_other = implicit && !p_band_split.get();
+    // With independent VFOs the inactive VFO is kept on every switch, a band key's too: it stays on its own band
+    // (p_vfoa_band, p_vfob_band) until the VFO key brings that band back; loaded from the band key's band, B
+    // showed and transmitted in split what it had there, not its own.
+    const bool keep_other = p_indep_vfo.get() || (implicit && !p_band_split.get());
     const bool keep_a = keep_other && active_vfo == RADIO_VFO_B, keep_b = keep_other && active_vfo == RADIO_VFO_A;
 
     // VFOA frequency: skipped on an implicit switch when VFOA is the active VFO, or kept.
@@ -929,7 +932,7 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
         }
     }
 
-    // VFOA mode/att/pre/agc: kept when VFOA is the inactive VFO of an implicit switch.
+    // VFOA mode/att/pre/agc: kept when VFOA is the inactive VFO kept (keep_a).
     if (!keep_a) {
         int rc = p_band_vfoa_mode.load(band_id);
         if (rc != SUCCESS) {
@@ -971,8 +974,8 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
         return v ? *v : dflt;
     };
 
-    // VFOB mode/att/pre/agc: kept when VFOB is the inactive VFO of an implicit
-    // switch; else they fall back to a_here() when
+    // VFOB mode/att/pre/agc: kept when VFOB is the inactive VFO kept (keep_b);
+    // else they fall back to a_here() when
     // absent (mode copied, att/pre/agc copied on NOT_FOUND).
     if (!keep_b) {
         int rc = p_band_vfob_mode.load(band_id);
