@@ -1,17 +1,20 @@
 import ast
+import csv
 import fcntl
 import hashlib
+import io
 import json
 import os
 import re
 import runpy
 import tempfile
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 path=Path(__file__).resolve().parents[3] / 'webserver/src/x6100_webserver/apps.py'
 tree=ast.parse(path.read_text())
-needed={'field_path','adif_split','adif_tag','adif_set','adif_del','adif_get','edit_qso','adif_fields','log_records','api_error','put_log_qso','rec_id','set_ref','ref_prog','ref_norm','log_unchanged'}
+needed={'field_path','adif_split','adif_tag','adif_set','adif_del','adif_get','edit_qso','adif_fields','log_records','api_error','put_log_qso','rec_id','set_ref','ref_prog','ref_norm','log_unchanged','export_logs'}
 selected=[]
 for node in tree.body:
     if isinstance(node,ast.FunctionDef) and node.name in needed:
@@ -170,3 +173,10 @@ with tempfile.TemporaryDirectory(prefix='x6wl-') as td:
     print('PSK63 set on the Logs page: queued',[q['call'] for q in queue])
     assert [q['call'] for q in queue]==['F4ABC','DL1ABC']
     assert '<MODE:3>PSK' in queue[1]['adif'] and '<SUBMODE:5>PSK63' in queue[1]['adif'], queue[1]['adif']
+    # The Logs page's CSV export: the SUBMODE beside the MODE, so PSK63 and PSK31 do not both come out as PSK
+    ns.update(csv=csv,io=io,time=time)
+    bottle.request.forms={'sel':','.join('day.adi:'+ns['rec_id'](r) for r in ns['log_records']('day.adi')),'fmt':'csv'}
+    bottle.response.set_header=lambda name,value:None
+    rows=list(csv.reader(io.StringIO(ns['export_logs']())))
+    print('CSV export, MODE and SUBMODE:',[r[5:7] for r in rows])
+    assert rows[0][5:7]==['MODE','SUBMODE'] and [r[5:7] for r in rows[1:]]==[['PSK','PSK63'],['PSK','PSK31']], rows

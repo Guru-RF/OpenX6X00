@@ -1911,7 +1911,8 @@ def export_logs():
     recs = [rec for name in sorted(want) for rec in log_records(name) if rec_id(rec) in want[name]]
     stamp = time.strftime("%Y%m%d-%H%M")
     if bottle.request.forms.get("fmt") == "csv":
-        cols = ["qso_date", "time_on", "call", "band", "freq", "mode", "rst_sent", "rst_rcvd", "name", "qth",
+        # SUBMODE beside MODE: PSK31 and PSK63 are both MODE PSK, FT4, JS8 and JTTY all MFSK
+        cols = ["qso_date", "time_on", "call", "band", "freq", "mode", "submode", "rst_sent", "rst_rcvd", "name", "qth",
                 "gridsquare", "sota_ref", "pota_ref", "sig", "sig_info", "my_sota_ref", "my_pota_ref", "my_sig",
                 "my_sig_info", "comment"]
         out = io.StringIO()
