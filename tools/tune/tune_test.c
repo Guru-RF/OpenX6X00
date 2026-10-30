@@ -806,6 +806,10 @@ static void split_key(void) {
     notify(cfg_band_split);
 }
 
+static void shift_set(void) {
+    notify(cfg_band_tx_shift);
+}
+
 static void key_again(void) {
     ext_tune_toggle();
 }
@@ -886,6 +890,16 @@ static void gui_side(void) {
     no = gui_tune(TUNE_BY_RADIO);
     check(!no && seen.rf == 14250000 && said_is("TUNE stopped: VFO changed") && as_set(),
           "the carrier on B's 14.250.000; \"%s\"", said);
+
+    puts("-- a TX shift of +50 kHz on 28.500 USB (split): the shift set to another 1 s in, a TX frequency of its own");
+    cfg = (typeof(cfg)){.freq = {28500000, 28500000}, .mode = {radio_mode_usb, radio_mode_usb}, .split = true,
+                        .shift = 50000, .pwr = 5.0f};
+    reset();
+    sc.event_at_s = 1.0f;
+    sc.event      = shift_set;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.rf == 28550000 && said_is("TUNE stopped: tuned away") && on_air_s() < 1.2 && as_set(),
+          "on the shift's 28.550.000, stopped at once (%.2f s): \"%s\"", on_air_s(), said);
 
     puts("-- TUNE time limit 5 s, nothing else");
     cfg = (typeof(cfg)){.freq = {14200000, 14200000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 5.0f};

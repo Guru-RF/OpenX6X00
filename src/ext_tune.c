@@ -214,4 +214,6 @@ void ext_tune_init(void) {
     subject_subscribe((Subject *)cfg_band_vfob_mode, changed_cb, (void *)WHY_MODE);
     subject_subscribe((Subject *)cfg_band_current_vfo, changed_cb, (void *)WHY_VFO);
     subject_subscribe((Subject *)cfg_band_split, changed_cb, (void *)WHY_VFO);
+    /* the TX frequency of its own in split: the tune stayed on the old one while the TX panel said the new */
+    subject_subscribe((Subject *)cfg_band_tx_shift, changed_cb, (void *)WHY_FREQ);
 }

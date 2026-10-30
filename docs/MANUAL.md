@@ -1163,9 +1163,11 @@ Starting and stopping it:
   shows the TUNE power, and Stop while it tunes.
 - The browser Panel's TUNE button (see
   [Transmitting from the browser](#transmitting-from-the-browser)).
-- The same key or button again stops it at once, faded out. So does a change
-  of frequency, mode, band, VFO or split ("TUNE stopped: tuned away"), and
-  the time limit ("TUNE over: 15 s limit").
+- The same key or button again stops it at once, faded out ("TUNE
+  stopped"). So does a change of frequency, band or TX shift ("TUNE stopped:
+  tuned away"), of mode ("TUNE stopped: mode changed"), of VFO or split
+  ("TUNE stopped: VFO changed"), and the time limit ("TUNE over: 15 s
+  limit").
 
 What goes on the air:
 
