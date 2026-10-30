@@ -6,6 +6,7 @@
  *   mode M          the mode (the X6200's SAM and WFM too: the rules are the settings', not the base's)
  *   kt K            the CW key tone
  *   filter LO HI    as the Panel sends it: panel_set's order of the two values, then panel_apply's P_FILTER
+ *   low V, high V   one edge alone, as the radio's own Filter low and Filter high set it (radio_controls.cpp)
  *   state           nothing changed */
 #include "src/cfg/settings_manager.h"
 #include "src/cfg/computed_api.h"
@@ -66,6 +67,10 @@ int main() {
             if (a > b) std::swap(a, b);
             pcmd_t p = {P_FILTER, a, b};
             panel_filter(&p);
+        } else if (what == "low" || what == "high") {
+            int32_t v;
+            in >> v;
+            (what == "low" ? s->cp_cur_filter_low : s->cp_cur_filter_high).set(v);
         } else if (what != "state") {
             std::cerr << "filter-rules: unknown line: " << line << "\n";
             return 2;

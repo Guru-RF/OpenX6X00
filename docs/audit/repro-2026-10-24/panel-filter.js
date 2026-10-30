@@ -8,6 +8,8 @@
  *   that only has the same width;
  * - the High field goes as far as the radio does, no further; Low is off where the radio keeps no low edge;
  * - a field emptied (as the browser empties one typed "3k") keeps the radio's edge;
+ * - one edge typed alone comes out as the radio's own Filter low or Filter high would make it: in CW the other
+ *   edge moves with it around the key tone (in the other modes it stays);
  * - the passband on the panorama: both sides in AM, NFM, SAM and WFM, as the radio's spectrum draws it.
  * node panel-filter.js <filter-rules binary> */
 'use strict';
@@ -49,7 +51,7 @@ function sentBy(el) { p.ctx.sent = []; el.click(); return p.ctx.sent.slice(); }
 function offers(m, kt, def) {
   const st = {mode: m, kt, flo: 0, fhi: 1};
   const first = open(st);
-  const out = {presets: [], typed: [], own: [], lowOff: !!first.lo.disabled, highMax: first.hi.getAttribute('max')};
+  const out = {presets: [], typed: [], own: [], alone: [], lowOff: !!first.lo.disabled, highMax: first.hi.getAttribute('max')};
   for (let i = 0; i < first.presets.length; i++) {
     const o = open(st), b = o.presets[i];
     out.presets.push({label: b.textContent, cmd: sentBy(b)});
@@ -71,6 +73,18 @@ function offers(m, kt, def) {
     if (hi !== null) o.hi.value = hi;
     out.own.push({label: 'from ' + def.flo + '-' + def.fhi + ', ' + [lo === null ? '' : 'Low', hi === null ? '' : 'High'].filter(Boolean).join(' and ') +
                   ' emptied', cmd: sentBy(o.set), want: [def.flo, def.fhi]});
+  }
+  /* from the radio's own edges, one edge typed: High wider, and in CW past twice a key tone of 400 and 700 Hz;
+   * Low, where the field takes it, either way */
+  const alone = [['high', def.fhi + 200]];
+  if (m === 4 || m === 5) alone.push(['high', 2000]);
+  if (!first.lo.disabled) alone.push(['low', def.flo + 100], ['low', def.flo - 100]);
+  for (const [edge, v] of alone) {
+    if (v < 0) continue;
+    const o = open(def);
+    (edge === 'low' ? o.lo : o.hi).value = String(v);
+    out.alone.push({label: 'from ' + def.flo + '-' + def.fhi + ', ' + (edge === 'low' ? 'Low ' : 'High ') + v + ' alone',
+                    cmd: sentBy(o.set), knob: edge + ' ' + v, def});
   }
   return out;
 }
@@ -97,7 +111,9 @@ for (const g of groups) {
   ask('mode ' + g.m, null); ask('kt ' + g.kt, {g, k: 'default'});
   ask('filter 0 99999', {g, k: 'widest'});
   ask('filter 500 600', {g, k: 'low'});
-  for (const o of g.offer.presets.concat(g.offer.typed)) {
+  /* the radio's own Filter low or high, from the mode's own edges */
+  for (const o of g.offer.alone) { ask('filter ' + o.def.flo + ' ' + o.def.fhi, null); ask(o.knob, {g, o, k: 'knob'}); }
+  for (const o of g.offer.presets.concat(g.offer.typed, g.offer.alone)) {
     const e = edgesOf(o.cmd);
     if (!e) continue;
     ask('filter 0 10', null); ask('filter ' + e.join(' '), {g, o, k: 'after narrower'});
@@ -126,7 +142,7 @@ for (const g of groups) {
   const litFor = st => { const o = open(st); return o.presets.map((b, i) => b.classList.contains('on') ? i : -1).filter(i => i >= 0); };
   const litWant = st => all.map((e, i) => e && e[0] === st.flo && e[1] === st.fhi ? i : -1).filter(i => i >= 0);
   check(grp, 'lit for the mode\'s own passband (' + g.default.flo + '-' + g.default.fhi + ')', litFor(g.default), litWant(g.default));
-  for (const o of g.offer.presets.concat(g.offer.typed)) {
+  for (const o of g.offer.presets.concat(g.offer.typed, g.offer.alone)) {
     const e = edgesOf(o.cmd), preset = g.offer.presets.indexOf(o);
     const what = (preset >= 0 ? 'preset ' + o.label : o.label) + ' sends ' + (e ? e.join('-') : JSON.stringify(o.cmd));
     if (!e) { check(grp, what, 'not sent', 'one "filter LO HI"'); continue; }
@@ -140,6 +156,11 @@ for (const g of groups) {
     if (preset >= 0) check(grp, 'preset ' + o.label + ' lit once tapped', lit.includes(preset), true);
   }
   for (const o of g.offer.own) check(grp, o.label + ' sends', edgesOf(o.cmd), o.want);
+  for (const o of g.offer.alone) {
+    const r = o.radio.knob;
+    check(grp, o.label + ' sends what the radio\'s own Filter ' + o.knob.split(' ')[0] + ' makes of it (' + r.flo + '-' + r.fhi + ')',
+          edgesOf(o.cmd), [r.flo, r.fhi]);
+  }
   /* the passband around the dial, as src/spectrum_view.c draws it */
   const st = Object.assign({}, g.default), kt = st.kt;
   const want = g.m === 0 || g.m === 1 ? [-st.fhi, -st.flo] : g.m === 4 ? [st.flo - kt, st.fhi - kt] : g.m === 5 ? [kt - st.fhi, kt - st.flo]

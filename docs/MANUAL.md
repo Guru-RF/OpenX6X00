@@ -2911,7 +2911,9 @@ browser paired at home on any device.
   - and +, or a slider on a tap; ATU TUNE (a long press of the key).
 - FILTER: presets for the mode and the edges by hand, by the radio's own
   filter rules: in SSB and DIG both edges (presets 1.8 to 3.6 kHz); in CW
-  and CW-R the width, around the key tone (100 Hz to 1 kHz); in AM, NFM and
+  and CW-R the width, around the key tone (100 Hz to 1 kHz), so an edge
+  typed alone takes the other one along, as the radio's own Filter low and
+  Filter high do, and the two typed give their width; in AM, NFM and
   SAM the high edge alone, the low one is always 0 (2.5 to 6 kHz); in WFM
   the same up to 10 kHz (4 to 10 kHz). No edge goes past 6 kHz, 10 kHz in
   WFM. A field left empty, or holding no number, keeps its edge. The preset
