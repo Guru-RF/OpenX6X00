@@ -2748,13 +2748,14 @@ static lv_obj_t *reachable_end(lv_group_t *g, bool last) {
     return NULL;
 }
 
-/* An object, or one inside it, the knob can be on */
-static bool has_control(lv_obj_t *obj) {
-    if (lv_obj_get_group(obj)) return true;
+/* How many objects the knob can be on in an object, itself included */
+static int controls_in(lv_obj_t *obj) {
+    int n = lv_obj_get_group(obj) ? 1 : 0;
+
     for (uint32_t i = 0; i < lv_obj_get_child_cnt(obj); i++) {
-        if (has_control(lv_obj_get_child(obj, i))) return true;
+        n += controls_in(lv_obj_get_child(obj, i));
     }
-    return false;
+    return n;
 }
 
 /* The bottom of a control's row and of the rows under it without a control, up to the next
@@ -2767,6 +2768,9 @@ static lv_coord_t notes_bottom(lv_obj_t *obj) {
         obj = lv_obj_get_parent(obj);
     }
     if (!obj || !lv_obj_get_parent(obj)) return a.y2;
+    /* A row of a list (the Wi-Fi networks, the Bluetooth devices): the rows under it are the list's, not its
+     * notes: with them a step onto the list took the page down to that row at its top, the rows over it gone */
+    if (controls_in(obj) > 1) return a.y2;
 
     lv_obj_t  *g      = lv_obj_get_parent(obj);
     int        first  = lv_obj_get_style_grid_cell_row_pos(obj, 0);
@@ -2778,7 +2782,7 @@ static lv_coord_t notes_bottom(lv_obj_t *obj) {
         lv_obj_t *c = lv_obj_get_child(g, i);
         int       r = lv_obj_get_style_grid_cell_row_pos(c, 0);
 
-        if (r > last && r < next && has_control(c)) next = r;
+        if (r > last && r < next && controls_in(c)) next = r;
     }
     for (uint32_t i = 0; i < lv_obj_get_child_cnt(g); i++) {
         lv_obj_t *c = lv_obj_get_child(g, i);
