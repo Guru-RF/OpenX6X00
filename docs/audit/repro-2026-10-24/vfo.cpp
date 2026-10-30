@@ -32,4 +32,10 @@ int main() {
  std::cout<<"indep, band key: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<"\n";
  s->vfo_toggle();
  std::cout<<"indep, VFO key: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<" vfo="<<s->p_band_current_vfo.get()<<"\n";
+ /* independent VFOs, a band key into split: B from 15m (left there in split, B on 21.010), the VFO it transmits on, not B's 7.030 kept */
+ s->vfo_toggle();
+ s->p_band_id.set(3);
+ assert(sqlite3_exec(db,"INSERT INTO band_params VALUES (9,'split',1),(9,'vfob_freq',21010000)",nullptr,nullptr,nullptr)==SQLITE_OK);
+ s->p_band_id.set(9);
+ std::cout<<"indep, band key into split: band="<<s->p_band_id.get()<<" A="<<s->p_band_vfoa_freq.get()<<" B="<<s->p_band_vfob_freq.get()<<" split="<<s->p_band_split.get()<<"\n";
 }

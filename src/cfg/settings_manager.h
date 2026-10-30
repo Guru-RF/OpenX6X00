@@ -793,7 +793,8 @@ class SettingsManager {
     //   - vfob_mode: NOT_FOUND/error -> current vfoa_mode.
     // Restored/clamped values are applied with set_quiet (no deferred write).
     // When `implicit` the active VFO's frequency is kept and the other VFO keeps
-    // all it had, unless the new band has split on (then it is loaded as above).
+    // all it had, as it does on every switch with independent VFOs, unless the
+    // new band has split on (then it is loaded as above).
     void load_band_vfo(int band_id, bool implicit);
 
     // Default mode for a band with none saved: default_mode(freq), AM in the broadcast bands

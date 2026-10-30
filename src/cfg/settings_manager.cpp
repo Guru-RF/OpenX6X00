@@ -15,7 +15,8 @@ extern "C" {
 //   - Explicit band switch: setting p_band_id triggers an observer that calls
 //     switch_band(implicit=false). Save the pending writes of the current band,
 //     then load all band params of the new band EXCEPT current_vfo (the active
-//     VFO reference stays the same VFO).
+//     VFO reference stays the same VFO). With independent VFOs the other VFO
+//     keeps all it had, as on an implicit switch, unless the new band has split on.
 //   - Implicit switch: when a VFO frequency is tuned into a different band
 //     (via cp_fg_freq or the active p_band_vfo*_freq), an observer triggers a
 //     band switch. The active VFO's frequency that caused the switch is kept,
@@ -314,7 +315,7 @@ void SettingsManager::vfo_toggle() {
     (on_a ? p_vfoa_band : p_vfob_band).set(band_id_);
     p_band_current_vfo.set(on_a ? RADIO_VFO_B : RADIO_VFO_A);
     if (p_indep_vfo.get() && other != BAND_UNDEFINED && other != band_id_ && usable(other)) {
-        p_band_id.set(other);   /* explicit switch: both VFO records of that band are loaded */
+        p_band_id.set(other);   /* explicit switch: the VFO now in use from that band, the other kept (load_band_vfo) */
     } else if (p_band_tx_shift.get() && p_band_split.get()) {
         band_follow(p_band_vfoa_freq.get());    /* a TX shift: the band is A's, B = A + the shift can lie beyond it */
     } else {
@@ -911,8 +912,9 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit) {
     // explicit switch (kept, 40m CW in split sent on 40m SSB's B, 7.150, not its own 7.025).
     // With independent VFOs the inactive VFO is kept on every switch, a band key's too: it stays on its own band
     // (p_vfoa_band, p_vfob_band) until the VFO key brings that band back; loaded from the band key's band, B
-    // showed and transmitted in split what it had there, not its own.
-    const bool keep_other = p_indep_vfo.get() || (implicit && !p_band_split.get());
+    // showed what it had there, not its own. Into split the same rule as above: kept, a band key to 15m left in
+    // split sent on B's 7.030 (40m), not on the B that 15m transmits on.
+    const bool keep_other = (implicit || p_indep_vfo.get()) && !p_band_split.get();
     const bool keep_a = keep_other && active_vfo == RADIO_VFO_B, keep_b = keep_other && active_vfo == RADIO_VFO_A;
 
     // VFOA frequency: skipped on an implicit switch when VFOA is the active VFO, or kept.
