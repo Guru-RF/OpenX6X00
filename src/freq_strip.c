@@ -397,6 +397,8 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     lv_obj_set_flex_flow(right, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(right, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(right, 6, 0);
+    /* a little lower: under NR NB DNF the 28 of the locator touched them (VISION's strip has the room) */
+    if (!v) lv_obj_set_style_translate_y(right, 4, 0);
 
     qth_dot = lv_obj_create(right);
     lv_obj_remove_style_all(qth_dot);
