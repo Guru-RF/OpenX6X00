@@ -87,13 +87,13 @@ const char *field_qso_mode(const char *app, int mode, int32_t hz) {
     };
     const char *ftx = ftx_by_freq(hz);
 
+    /* CW is CW, app or not: RTTY and SSTV leave the radio's mode free, and no app sends in CW */
+    if (mode == radio_mode_cw || mode == radio_mode_cwr)
+        return "CW";
     for (size_t i = 0; app && i < sizeof(apps) / sizeof(apps[0]); i++)
         if (!strcasecmp(app, apps[i][0]))
             return apps[i][1];
     switch (mode) {
-        case radio_mode_cw:
-        case radio_mode_cwr:
-            return "CW";
         case radio_mode_am:
         case radio_mode_sam:
             return "AM";

@@ -58,10 +58,11 @@ const char *field_prog_sig(char prog);
 const char *field_qso_tag(const field_qso_t *q);
 
 /* The mode a QSO logged by hand goes into the log with (field_qso_t.mode). The digital app open names it: app as
- * main_screen_digital_app() gives it ("PSK31", "Olivia", "JTTY", "RTTY", "FT4"...), NULL for none. Without one, the
- * radio's mode (radio_mode_t) does: CW, AM, FM, SSB, and FT8 or FT4 on their dial frequencies (hz) in USB, LSB and
- * the data modes. "" when it is not known: a data mode with no app open, away from FT8 and FT4. ADIF has no mode
- * for "some data mode", and the program sending through TCI or the USB audio is not known */
+ * main_screen_digital_app() gives it ("PSK31", "Olivia", "JTTY", "RTTY", "FT4"...), NULL for none; in CW and CW-R it
+ * is CW all the same. Without one, the radio's mode (radio_mode_t) does: CW, AM, FM, SSB, and FT8 or FT4 on their
+ * dial frequencies (hz) in USB, LSB and the data modes. "" when it is not known: a data mode with no app open, away
+ * from FT8 and FT4. ADIF has no mode for "some data mode", and the program sending through TCI or the USB audio is
+ * not known */
 const char *field_qso_mode(const char *app, int mode, int32_t hz);
 
 /* ADIF band ("20m"), "" outside the amateur bands */

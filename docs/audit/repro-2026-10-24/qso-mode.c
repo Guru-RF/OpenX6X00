@@ -68,6 +68,9 @@ int main(int argc, char **argv) {
     mode_is("FT2", radio_mode_usb_dig, 14084000, "FT2");
     mode_is("JS8", radio_mode_usb_dig, 14078000, "JS8");
     mode_is("SSTV", radio_mode_usb, 14230000, "SSTV");
+    /* CW is CW, app or not: RTTY and SSTV leave the radio's mode free (the CW keyboard's Log with RTTY still open) */
+    mode_is("RTTY", radio_mode_cw, 14080000, "CW");
+    mode_is("SSTV", radio_mode_cwr, 14230000, "CW");
     /* No app: the frequency in a data mode, FT8 or FT4 on theirs, no mode elsewhere (it was FT8) */
     mode_is(NULL, radio_mode_usb_dig, 14074000, "FT8");
     mode_is(NULL, radio_mode_usb_dig, 14080000, "FT4");

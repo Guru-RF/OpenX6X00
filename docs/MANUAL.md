@@ -2931,8 +2931,9 @@ browser paired at home on any device.
   the CW keyboard does; during a Field Ops activation it counts for the
   activation. The mode is the one of the digital app open on the radio
   (PSK31, PSK63, OLIVIA, JTTY, RTTY, SSTV, FT8, FT4, FT2, JS8, WSPR), else
-  the radio's (CW, SSB, AM, FM, and FT8 or FT4 on their frequencies); the
-  radio's message names it. In USB-D or LSB-D with no app open, away from
+  the radio's (CW, SSB, AM, FM, and FT8 or FT4 on their frequencies). In CW
+  or CW-R it is CW, also with RTTY or SSTV open (they leave the mode free).
+  The radio's message names it. In USB-D or LSB-D with no app open, away from
   FT8 and FT4, the radio can't tell (a program on TCI or the USB audio isn't
   known): the QSO is logged without a mode, the radio says so, and it waits
   for Wavelog until the mode is set on the Logs page.

@@ -180,12 +180,12 @@ def main():
         print("#92 the mode of a QSO logged by hand:\n" + command([binary], env, contains=(
             "PSK31, USB-D, 14070.000 kHz: PSK31", "PSK31, USB-D, 14074.500 kHz: PSK31",
             "Olivia, USB-D, 14071.000 kHz: OLIVIA", "JTTY, USB-D, 14090.000 kHz: JTTY",
-            "RTTY, LSB-D, 14080.000 kHz: RTTY", "no app, USB-D, 14074.000 kHz: FT8",
+            "RTTY, LSB-D, 14080.000 kHz: RTTY", "RTTY, CW, 14080.000 kHz: CW", "no app, USB-D, 14074.000 kHz: FT8",
             "no app, USB-D, 14070.000 kHz: (no mode)", "no app, USB, 14200.000 kHz: SSB",
             "record of PSK31: MODE PSK SUBMODE PSK31", "record of OLIVIA: MODE OLIVIA SUBMODE -",
             "record of JTTY: MODE MFSK SUBMODE JTTY", "record of RTTY: MODE RTTY SUBMODE -",
             "record of a QSO with no mode: MODE - SUBMODE -", "the log's header: <ADIF_VER:5>3.1.8 ",
-            "read back: PSK31 PSK63 OLIVIA JTTY RTTY FT4 -", "34 of 34 cases as they should be")).strip())
+            "read back: PSK31 PSK63 OLIVIA JTTY RTTY FT4 -", "36 of 36 cases as they should be")).strip())
         # The apps by the names the frequency strip gives them (screen_main.c's app_name, which
         # main_screen_digital_app returns): a name changed there would log the radio's mode instead
         strip = (REPO / "src/screen_main.c").read_text()
