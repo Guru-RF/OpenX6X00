@@ -3637,7 +3637,8 @@ OpenSSH `id_ed25519` chosen there is converted to one).
 
 1. In a browser on the radio's network, open the web configurator:
    `http://x6100.local/`, or `http://` and the radio's address (Settings >
-   Wireless: IP on the WIFI card, Address in use on the ETHERNET card).
+   Wireless: the first address of IP / Gateway on the WIFI card, or Address
+   in use on the ETHERNET card).
 2. System > SSH (or the SSH keys tile on General).
 3. Click in the box under Add a key, paste (Ctrl+V, on a Mac Cmd+V) and press
    Add. The page says "Added: it logs in from now on", and the list shows the
