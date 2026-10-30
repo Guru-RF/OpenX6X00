@@ -181,11 +181,11 @@ void ext_tune_stop(void) {
     stop_for(WHY_ASKED);
 }
 
-bool ext_tune_stop_owner(int who) {
+bool ext_tune_stop_owner(int who, bool gone) {
     if (!atomic_load(&on) || atomic_load(&owner) != who) {
         return false;
     }
-    stop_for(WHY_LINK);
+    stop_for(gone ? WHY_LINK : WHY_ASKED);
     return true;
 }
 

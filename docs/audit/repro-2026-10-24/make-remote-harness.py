@@ -144,6 +144,7 @@ static atomic_bool spots_resend;
 #define TUNE_BY_RADIO 0
 #define TUNE_BY_PANEL 1
 static int         tune_who = -1, tune_starts, tune_stops;     /* who the tune on the air is for, -1 none */
+static int         tune_gone = -1;     /* the last stop of a page's own: 1 the page went, 0 it asked */
 static const char *tune_no;
 static const char *ext_tune_refusal(void) { return tune_no; }
 static const char *ext_tune_start(int who) {
@@ -162,8 +163,9 @@ static void ext_tune_stop(void) {
     }
     tune_who = -1;
 }
-static bool ext_tune_stop_owner(int who) {
+static bool ext_tune_stop_owner(int who, bool gone) {
     if (tune_who < 0 || tune_who != who) return false;
+    tune_gone = gone;
     ext_tune_stop();
     return true;
 }

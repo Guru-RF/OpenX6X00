@@ -93,10 +93,10 @@ def main():
             "sha256(1000000 bytes) = cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0",
             "same=1, differs in the last byte=0")).strip())
         print("#85 TUNE for an external tuner from the Panel, a lease:\n" + command([binary, "tune"], env, contains=(
-            "the stalled page's tune stopped by the radio: 1, the page told: 1",
+            "the stalled page's tune stopped by the radio: 1, the page told: 1, as the page gone: 1",
             "late renewals of the ended tune started one: 0",
             "a new press started one: 1, still on after its renewals: 1",
-            "tune 0 stopped it: 1",
+            "tune 0 stopped it: 1, as asked, not as the page gone: 1",
             "a viewer: err view only; no TX: err this session may not transmit; control at the radio: 1; "
             "the radio on the air: 1, queued=0; tunes started=0",
             "the page told: 1",

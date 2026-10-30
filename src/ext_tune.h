@@ -37,8 +37,9 @@ void ext_tune_toggle(void);
 /* The tune stopped at its next block of audio, faded out, whoever started it. Any thread */
 void ext_tune_stop(void);
 
-/* The same if `who` started it: true then. Any thread */
-bool ext_tune_stop_owner(int who);
+/* The same if `who` started it: true then. gone: its page went (the Panel's lease ran out, the connection closed),
+ * "TUNE stopped: browser gone" on the screen; else the page asked, "TUNE stopped" as for the key. Any thread */
+bool ext_tune_stop_owner(int who, bool gone);
 
 /* A tune is on the air, or about to be. Any thread */
 bool ext_tune_on(void);

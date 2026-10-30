@@ -927,7 +927,7 @@ static void client_close(client_t *c) {
     atomic_store(&c->tune_want, 0);
     if (c->tune_on) {               /* its TUNE goes with it */
         c->tune_on = false;
-        ext_tune_stop_owner(TUNE_BY_PANEL + (int)(c - clients));
+        ext_tune_stop_owner(TUNE_BY_PANEL + (int)(c - clients), true);
     }
     ctl_release(CTL_BROWSER, (int)(c - clients));
     pthread_mutex_lock(&c->lock);
@@ -1855,8 +1855,9 @@ static void tune_cmd(client_t *c, bool on, const char *hold_text) {
 
         c->tune_on = false;
         atomic_store(&c->tune_want, 0);
-        /* Its own at any time; another's (the radio's, another page's) as anything else that touches the RF side */
-        if (!(own && ext_tune_stop_owner(TUNE_BY_PANEL + t.ci)) && allowed(c, ROLE_OPERATE, true))
+        /* Its own at any time, as asked (not "browser gone" on the radio's screen); another's (the radio's, another
+         * page's) as anything else that touches the RF side */
+        if (!(own && ext_tune_stop_owner(TUNE_BY_PANEL + t.ci, false)) && allowed(c, ROLE_OPERATE, true))
             ext_tune_stop();
         return;
     }
@@ -1898,7 +1899,7 @@ static void tune_lease(client_t *c, uint64_t now) {
         return;
     c->tune_on = false;
     atomic_store(&c->tune_want, 0);
-    if (ext_tune_stop_owner(TUNE_BY_PANEL + (int)(c - clients)))
+    if (ext_tune_stop_owner(TUNE_BY_PANEL + (int)(c - clients), true))
         client_text(c, "err tune stopped: no renewal from the page");
 }
 

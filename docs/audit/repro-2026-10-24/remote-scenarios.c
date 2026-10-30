@@ -452,8 +452,9 @@ static int run_tune(void) {
     at_t(c, 2000, "tune 1 1");
     puts("        -- the link stops delivering");
     at_t(c, 9000, NULL);
-    printf("the stalled page's tune stopped by the radio: %d, the page told: %d\n", tune_who < 0 && tune_stops == 1,
-           strstr(said[0], "err tune stopped: no renewal from the page") != NULL);
+    printf("the stalled page's tune stopped by the radio: %d, the page told: %d, as the page gone: %d\n",
+           tune_who < 0 && tune_stops == 1, strstr(said[0], "err tune stopped: no renewal from the page") != NULL,
+           tune_gone == 1);
     puts("        -- the link delivers again: the renewals the page sent before it saw the stall");
     starts = tune_starts;
     at_t(c, 9000, "tune 1 1");
@@ -464,8 +465,9 @@ static int run_tune(void) {
     at_t(c, 11000, "tune 1 2");
     at_t(c, 12000, "tune 1 2");
     printf("a new press started one: %d, still on after its renewals: %d\n", tune_starts - starts, tune_who == TUNE_BY_PANEL);
+    tune_gone = -1;
     at_t(c, 12500, "tune 0");
-    printf("tune 0 stopped it: %d\n", tune_who < 0);
+    printf("tune 0 stopped it: %d, as asked, not as the page gone: %d\n", tune_who < 0, tune_gone == 0);
 
     puts("        -- refused");
     ctl_release(CTL_BROWSER, 0);
