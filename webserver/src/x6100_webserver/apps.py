@@ -1831,9 +1831,10 @@ LOG_FIELDS = {"call": r'[A-Z0-9/]{3,15}', "qso_date": r'\d{8}', "time_on": r'\d{
               "qth": r'[^<>]{0,40}', "gridsquare": r'([A-R]{2}\d{2}([A-X]{2})?)?', "comment": r'[^<>]{0,80}',
               "sota_ref": r'(%s)?' % SOTA_REF, "pota_ref": r'(%s)?' % POTA_REF,
               "ref": r'[A-Z0-9/ -]{0,15}'}   # the other station's reference, any programme (BEL 002): set_ref
-# The modes ADIF files as a SUBMODE (the radio logs FT4, JS8, FT2 and JTTY under MFSK, PSK31 and PSK63 under PSK)
+# The modes ADIF files as a SUBMODE (the radio logs FT4, JS8, FT2 and JTTY under MFSK, PSK31 and PSK63 under PSK).
+# MSK144 is a MODE of its own in ADIF, as FT8 is
 SUBMODE_OF = {"FT4": "MFSK", "JS8": "MFSK", "FT2": "MFSK", "JTTY": "MFSK", "FST4": "MFSK", "FST4W": "MFSK",
-              "Q65": "MFSK", "MSK144": "MFSK", "PSK31": "PSK", "PSK63": "PSK"}
+              "Q65": "MFSK", "PSK31": "PSK", "PSK63": "PSK"}
 
 
 def log_unchanged(q, k, v):

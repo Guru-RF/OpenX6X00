@@ -49,9 +49,10 @@ with tempfile.TemporaryDirectory(prefix='x6log-') as td:
     fields=ns['adif_fields'](ns['log_records']('day.adi')[0])
     print('save mode JS8:',result,'fields:',fields)
     assert fields['mode']=='MFSK' and fields['submode']=='JS8'
-    # The keyboard modes as the radio logs them (#92): PSK31 and PSK63 under PSK, JTTY under MFSK (ADIF 3.1.8)
+    # The keyboard modes as the radio logs them (#92): PSK31 and PSK63 under PSK, JTTY under MFSK (ADIF 3.1.8);
+    # MSK144 a MODE of its own (it went in as MFSK / MSK144, which ADIF does not have)
     for typed,want in (('PSK31',('PSK','PSK31')),('PSK63',('PSK','PSK63')),('JTTY',('MFSK','JTTY')),
-                       ('OLIVIA',('OLIVIA',None)),('RTTY',('RTTY',None))):
+                       ('OLIVIA',('OLIVIA',None)),('RTTY',('RTTY',None)),('MSK144',('MSK144',None))):
         bottle.request.query={'id':ns['rec_id'](ns['log_records']('day.adi')[0])}
         bottle.request.json={'mode':typed}
         ns['put_log_qso']('day.adi',0)
