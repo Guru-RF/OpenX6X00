@@ -2,8 +2,9 @@
  * Every code the base reports goes into the log once, with the key it is taken for or "unknown", so a press of each
  * key of another mic gives its codes; none while a text window (a WiFi password) is open. Then each key of both
  * mics, the X6100's and the X6200's H-22 (its codes read off an X6200 with base 1.0.8), against what it is to do on
- * the main screen: built as is the X6100's GUI (./mic-keys), with -DBOARD_X6200 the X6200's (./mic-keys-x6200).
- * The X6100 keeps its mic's table; the X6200 knows the H-22's codes besides. */
+ * the main screen: built as is the X6100's GUI (run.py: mic-keys-x6100), with -DBOARD_X6200 the X6200's
+ * (mic-keys-x6200). The X6100 keeps its mic's table; the X6200 knows the H-22's codes besides. What the main screen
+ * then does with the H-22's own keys: mic-screen.c. */
 #include "src/gui_events.h"
 #include "src/key_input.h"
 #include "src/mic_keys.h"

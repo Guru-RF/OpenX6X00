@@ -205,6 +205,31 @@ def main():
                     "codes 0x01-0xFF: logged 255, " + known,
                     board + ", the X6100 mic: 25 of 25 keys as they should be", *h22)).strip())
 
+        # What the main screen does with the H-22's own keys (#56): ab_key(), the VOL+/VOL- repeat and mic_key_cb()
+        # cut out of screen_main.c, each from where it starts to the end of the function named
+        screen = (REPO / "src/screen_main.c").read_text()
+
+        def cut(start, function):
+            a = screen.index(start)
+            b = screen.index("{", screen.index(function, a)) + 1
+            level = 1
+            while level:
+                level += (screen[b] == "{") - (screen[b] == "}")
+                b += 1
+            return screen[a:b] + "\n"
+
+        (work / "mic_screen_keys.c").write_text(cut("static void ab_key(", "static void ab_key(") +
+                                                cut("#define MIC_VOL_DELAY_MS", "static void mic_key_cb("))
+        binary = work / "mic-screen"
+        command([*CC, *cflags, *san, "-I" + str(work), HERE / "mic-screen.c", *gc, "-o", binary], env)
+        print("#56 the H-22's own keys on the main screen:\n" + command([binary], env, contains=(
+            "F3 let go: action 3", "F3 held: action 13",
+            "VOL+ held 0.4 s: volume 32, \"Volume: 32\", every 100 ms",
+            "VOL+ let go after the long press: timer deleted",
+            "VOL+ let go, the release to another screen (walkie mode): timer deleted",
+            "A/B held: VFO copied, \"Clone VFO B->A\"", "A/B let go, an app holding the VFOs: nothing",
+            "BAND UP let go: band up", "42 of 42 cases as they should be")).strip())
+
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")
         binary = work / "adif-input"
