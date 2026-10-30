@@ -70,6 +70,7 @@
 #include "band_plan.h"
 #include "cw_field.h"
 #include "cluster_column.h"
+#include "ext_tune.h"
 #include "screen_light.h"
 #include "button_bar.h"
 #include "recorder.h"
@@ -541,6 +542,7 @@ void main_screen_action(press_action_t action) {
         case ACTION_STEP_UP:        step_freq_step(true); break;
         case ACTION_STEP_DOWN:      step_freq_step(false); break;
         case ACTION_ATU_TUNE:       radio_start_atu(); break;   /* as a long press of the ATU key */
+        case ACTION_EXT_TUNE:       ext_tune_toggle(); break;   /* an external tuner's: started, or stopped */
 
         case ACTION_NR_TOGGLE:      say_state("NR", toggle_param(cfg_nr) ? "On" : "Off"); break;
         case ACTION_NB_TOGGLE:      say_state("NB", toggle_param(cfg_nb) ? "On" : "Off"); break;
@@ -1189,6 +1191,10 @@ bool main_screen_mode_locked() {
 
 const char *main_screen_digital_app(void) {
     return radio_digi_cap() ? app_name(last_app) : NULL;
+}
+
+press_action_t main_screen_digital_app_action(void) {
+    return radio_digi_cap() ? last_app : ACTION_NONE;
 }
 
 /* A jump, not a turn of the knob: the spectrum starts again */

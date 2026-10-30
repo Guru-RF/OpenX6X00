@@ -24,6 +24,7 @@
 #include <string>
 
 extern "C" {
+#include "ext_tune.h"
 #include "screen_rec.h"
 #include "msg_box.h"
 #include "walkie.h"
@@ -185,6 +186,12 @@ static void dig_pwr_cb(button_data_t *data) {
     }
 }
 
+/* TUNE for an external tuner: a press starts it at its own power (the label's), again stops it. ext_tune.c
+ * refreshes and marks it as it starts and ends */
+static const char *ext_tune_label() {
+    return ext_tune_on() ? "Ext tune:\nStop" : text("Ext tune:\n%0.1f W", cfg_sm.p_tune_pwr.get());
+}
+
 /* ---- the buttons ---- */
 
 using label_fn_t = const char *(*)();
@@ -231,6 +238,7 @@ static button_data_t btn_rfg = knob([] { return text("RF gain:\n%i", cfg_sm.p_rf
 button_data_t btn_tx_pwr = knob([] { return text("TX power:\n%0.1f W", cfg_sm.p_pwr.get()); },
                                 CTRL_PWR, &cfg_sm.p_pwr);
 button_data_t btn_dig_pwr = fn_btn(dig_pwr_label, dig_pwr_cb, &cfg_sm.p_pwr);
+button_data_t btn_ext_tune = fn_btn(ext_tune_label, [](button_data_t *) { ext_tune_toggle(); }, &cfg_sm.p_tune_pwr);
 static button_data_t btn_moni = knob([] { return text("Moni level:\n%i", cfg_sm.p_moni.get()); },
                                      CTRL_MONI, &cfg_sm.p_moni);
 

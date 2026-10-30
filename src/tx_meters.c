@@ -49,6 +49,7 @@ static lv_obj_t     *alc_value;
 static lv_obj_t     *alc_name;
 static uint32_t      tx_start;
 static float         tx_len;         /* tx_info_set_length */
+static float         tune_w, tune_len;   /* tx_info_set_tune */
 
 /* Digital apps: a strip under the frequency bar instead of the panel */
 static lv_obj_t     *strip;
@@ -56,6 +57,8 @@ static lv_obj_t     *strip_fill;
 static lv_obj_t     *strip_pwr;
 static lv_obj_t     *strip_swr;
 static lv_obj_t     *strip_time;
+static lv_obj_t     *strip_tag;      /* TX, or TUNE */
+static lv_obj_t     *badge;          /* the panel's */
 
 #define STRIP_BAR_W 260
 
@@ -155,15 +158,22 @@ static void update_head(void) {
     uint32_t  s    = lv_tick_elaps(tx_start) / 1000;
     int32_t   f    = radio_tx_freq();      /* in split the other VFO's, or the TX shift's */
     uint16_t  mhz, khz, hz;
+    float     tune = tune_len;
 
     split_freq(f, &mhz, &khz, &hz);
-    lv_label_set_text_fmt(head_label, "%s - %i.%03i.%03i", info_params_mode_label_get(), mhz, khz, hz);
-    lv_label_set_text_fmt(time_label, "%02u:%02u", (unsigned)(s / 60), (unsigned)(s % 60));
+    lv_label_set_text_fmt(head_label, "%s - %i.%03i.%03i", tune > 0.0f ? "EXTERNAL TUNE" : info_params_mode_label_get(),
+                          mhz, khz, hz);
+    if (tune > 0.0f)
+        lv_label_set_text_fmt(time_label, "%u / %u s", (unsigned)s, (unsigned)(tune + 0.5f));
+    else
+        lv_label_set_text_fmt(time_label, "%02u:%02u", (unsigned)(s / 60), (unsigned)(s % 60));
+    lv_label_set_text(badge, tune > 0.0f ? "TUNE" : "TX");
 }
 
 static void update_strip(void) {
     uint32_t s   = lv_tick_elaps(tx_start) / 1000;
-    float    ref = LV_MAX(param_f_get(cfg_pwr), 0.1f);
+    float    tune = tune_len, len = tune > 0.0f ? tune : tx_len;
+    float    ref = LV_MAX(tune > 0.0f ? tune_w : param_f_get(cfg_pwr), 0.1f);
     /* SWR from 2 yellow, from 3 red (as the panel's bar and the walkie) */
     lv_color_t c = vswr >= 3.0f ? TC(bar_high) : vswr >= 2.0f ? TC(bar_mid) : lv_color_white();
 
@@ -172,14 +182,22 @@ static void update_strip(void) {
     lv_label_set_text_fmt(strip_swr, "%.1f", vswr);
     lv_obj_set_style_text_color(strip_swr, c, 0);
     lv_obj_set_style_border_color(strip, vswr >= 2.0f ? c : lv_color_make(230, 50, 50), 0);
-    if (tx_len > 0.0f)
-        lv_label_set_text_fmt(strip_time, "%u / %u s", (unsigned)s, (unsigned)(tx_len + 0.5f));
+    if (len > 0.0f)
+        lv_label_set_text_fmt(strip_time, "%u / %u s", (unsigned)s, (unsigned)(len + 0.5f));
     else
         lv_label_set_text_fmt(strip_time, "%02u:%02u", (unsigned)(s / 60), (unsigned)(s % 60));
+    lv_label_set_text(strip_tag, tune > 0.0f ? "TUNE" : "TX");
 }
 
 void tx_info_set_length(float seconds) {
     tx_len = seconds;
+}
+
+/* An app's slot that starts during a tune is refused (tx_player), but has set its length by then: the tune's
+ * comes first */
+void tx_info_set_tune(float w, float seconds) {
+    tune_w   = w;
+    tune_len = seconds;
 }
 
 /* The digital apps keep their screen while transmitting: the strip, not the panel */
@@ -257,7 +275,7 @@ lv_obj_t *tx_info_init(lv_obj_t *parent) {
     lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(panel, panel_draw_cb, LV_EVENT_DRAW_MAIN_END, NULL);
 
-    lv_obj_t *badge = make_label(panel, &sony_22, theme_hex(TC_text));
+    badge = make_label(panel, &sony_22, theme_hex(TC_text));
     lv_label_set_text(badge, "TX");
     lv_obj_set_style_bg_color(badge, TC(tx_bg), 0);
     lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
@@ -313,12 +331,12 @@ lv_obj_t *tx_info_init(lv_obj_t *parent) {
 
     lv_obj_t *pill = lv_obj_create(strip);
     lv_obj_remove_style_all(pill);
-    lv_obj_set_size(pill, 68, 30);
+    lv_obj_set_size(pill, 72, 30);
     lv_obj_set_style_bg_color(pill, lv_color_make(230, 50, 50), 0);
     lv_obj_set_style_bg_opa(pill, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, 0);
     lv_obj_align(pill, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_obj_t *l = make_label(pill, &sony_24, 0xFFFFFF);
+    lv_obj_t *l = strip_tag = make_label(pill, &sony_24, 0xFFFFFF);
     lv_label_set_text(l, "TX");
     lv_obj_center(l);
 

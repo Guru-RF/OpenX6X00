@@ -67,6 +67,7 @@ typedef buttons_page_t *buttons_group_t[];
 extern buttons_page_t buttons_page_vol_1;
 extern buttons_page_t buttons_page_rtty;
 extern button_data_t  btn_dig_pwr;   /* TX power steps for the digital apps */
+extern button_data_t  btn_ext_tune;  /* TUNE for an external tuner, on and off (ext_tune.h) */
 extern button_data_t  btn_tx_pwr;    /* TX power on the knob (walkie.c too) */
 
 /* GEN APP KEY DFN DFL VM: the key again shows the next page */

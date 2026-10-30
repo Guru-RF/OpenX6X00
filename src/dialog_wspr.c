@@ -124,7 +124,7 @@ static buttons_page_t btn_page_1 = {
 };
 
 static buttons_page_t btn_page_2 = {
-    .items = {&btn_page2, &btn_pwr, &btn_tx_pct2},
+    .items = {&btn_page2, &btn_pwr, &btn_tx_pct2, &btn_ext_tune},  /* TUNE: at the TX offset, at its own power */
 };
 
 static dialog_t dialog = {

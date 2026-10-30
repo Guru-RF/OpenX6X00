@@ -84,6 +84,14 @@ void radio_set_charger(bool on);
 
 void radio_start_atu();
 
+/* A TUNE for an external tuner (tune_tx.c) is on the air at w W for up to limit_ms: the TX power never above w
+ * meanwhile, whatever sets it, and the SWR protection off for the readings of the tune's own power within its time
+ * (tune_swr_limit). 0: over, the power back to the setting. Any thread */
+void radio_set_tune(float w, uint32_t limit_ms);
+/* The base's mode for a transmission on the VFO that transmits (tx_player's), without the setting; -1: both VFOs
+ * back to their own. Any thread */
+void radio_set_tx_mode(int mode);
+
 /* From RX only, where the radio may transmit (else false, "No TX on ..." said): the VFO that transmits to `from`,
  * then AM at 1 W at most */
 bool radio_start_swrscan(int32_t from);

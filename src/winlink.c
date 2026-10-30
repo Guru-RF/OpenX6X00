@@ -548,6 +548,14 @@ static const char *tx_refused(void) {
     return NULL;
 }
 
+bool winlink_busy(void) {
+    uint64_t at = atomic_load(&ref_ms);
+
+    if (ses.fd < 0)     /* the socket thread's: an int read */
+        return false;
+    return atomic_load(&keying) || (atomic_load(&ref_hz) && at && now_ms() - at < REF_MS);
+}
+
 /* Why the modem's key would not go out where the radio listens, on the connection's frequency; NULL: it would, on
  * ses.key_hz. Winlink is simplex, the gateway answers on the frequency it is called on. The key goes out on
  * radio_tx_freq() (tx_player), in split the other VFO or the shifted one, and the X6100's base adds the XIT

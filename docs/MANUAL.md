@@ -13,7 +13,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
-- [Transmitting](#transmitting): [TX shift](#tx-shift), [SWR scan and the tuner](#swr-scan-and-the-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
+- [Transmitting](#transmitting): [TX shift](#tx-shift), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
@@ -80,11 +80,12 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
 | Kind | Actions |
 |---|---|
-| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, WF mode, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier) |
+| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, WF mode, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Channels, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
-The hand mic F1 and F2 keys (short and long press) are set in the same tab.
+The hand mic F1 and F2 keys (short and long press) are set in the same tab,
+from the quick actions (all but the screenshot), step up and down, NR and NB.
 Where: Settings > Keys > HAND MIC KEYS.
 The hand mic MODE key steps LSB, USB, CW, CW-R, AM, NFM; a long press turns
 DIG on or off in SSB, like a long press of the front SSB key.
@@ -903,6 +904,7 @@ What they do: see [DX Cluster](#dx-cluster).
 | TX CALIBRATION | IQ offsets, band output gain, codec gain |
 | CESSB | on, level |
 | TX PROTECTION | SWR protection |
+| EXTERNAL TUNER | TUNE power, W; TUNE time limit, s (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | S-METER | Preamp, Attenuator, RF gain a step, Measure |
 
 S-meter front end. Where: Settings > TX Cal > S-METER.
@@ -939,6 +941,10 @@ SWR protection. Where: Settings > TX Cal > TX PROTECTION > SWR protection.
 - When the SWR stays over it for 0.3 s, the transmission stops and the radio
   says "TX stopped: SWR 3.4". Short spikes at key-up don't count.
 - Not while the ATU tunes: the tune carrier sees a high SWR on purpose.
+- Nor during a [TUNE for an external tuner](#tune-for-an-external-tuner),
+  for the readings of the tune's own power and within its time limit: its
+  tuner shows a high SWR on purpose too while it matches. Up to v0.3.7 such a
+  tuner was stopped by it ("TX stopped: SWR 3.4", #84).
 - Nothing stays locked: the next PTT or transmission goes out again.
 - It stops what the radio keys itself: CAT PTT, the PTT button, CW messages
   and the CW keyboard, voice messages, the digital apps and the keyboard
@@ -1139,6 +1145,81 @@ normally:
 Not tried on the radio yet: what the X6200's base reports at the end of a
 tune with no match.
 
+### TUNE for an external tuner
+
+TUNE sends a steady low-power carrier for a tuner of its own at the antenna
+(an LDG, an SGC, a MAT) to match on, from any mode and from inside the
+digital apps, without leaving the app or changing the frequency or the mode
+(#85). It is not the radio's own ATU, which tunes itself (the ATU key held,
+see [SWR scan and the tuner](#swr-scan-and-the-tuner)): TUNE works with the
+ATU off.
+
+Starting and stopping it:
+
+- A key: give "TUNE ext. tuner on/off" to a front key's long press or to a
+  hand mic F key (Settings > Keys). It works with an app open.
+- The Ext tune button of the digital apps: FT8/FT4/FT2 page 5, JS8 page 7,
+  WSPR page 2, SSTV page 3, PSK31/PSK63 and Olivia page 6, JTTY page 5. It
+  shows the TUNE power, and Stop while it tunes.
+- The same key or button again stops it at once, faded out. So does a change
+  of frequency, mode, band, VFO or split ("TUNE stopped: tuned away"), and
+  the time limit ("TUNE over: 15 s limit").
+
+What goes on the air:
+
+- Outside the apps a carrier on the frequency the radio transmits on: the
+  dial, in split the other VFO, with a [TX shift](#tx-shift) the shifted one;
+  in SSB, CW, AM and FM alike. The base sends it in USB-D for the tune and
+  goes back to the mode after.
+- In a digital app a single tone at the app's TX offset, so it lands where
+  the app transmits: FT8 on 14.074 MHz with its TX at 1500 Hz tunes on
+  14.075.500. JS8, WSPR, PSK, Olivia and JTTY at their TX frequency, SSTV at
+  1900 Hz, the middle of its picture.
+- At the TUNE power, 1.0 W by default, whatever PWR is set to, higher or
+  lower; while it tunes the power never goes above it, PWR turned up
+  meanwhile included. Where: Settings > TX Cal > EXTERNAL TUNER > TUNE power,
+  W: 0.1 to 5.0 W. The X6200 on battery stops at its 5 W as always.
+- For at most the TUNE time limit, 15 s by default. Where: Settings > TX Cal >
+  EXTERNAL TUNER > TUNE time limit, s: 5 to 30 s.
+- The TX panel (in an app the TX strip) shows TUNE, EXTERNAL TUNE and the
+  frequency, the power, the SWR and the seconds against the limit ("4 / 15
+  s"). Stop it when the tuner's lights say it has matched: nothing tells the
+  radio that it has, so a low SWR does not stop it.
+
+After it everything is as it was: the frequency, the mode, the VFOs and
+split, PWR, the app and its TX offset, the band memories. It writes no
+setting, and the TX level the digital apps share is left alone.
+
+The SWR protection stands aside during the tune, as it does while the ATU
+tunes, but only within the tune's own limits:
+
+- For the readings of the tune's power: up to twice it and 0.2 W (the base
+  overshoots for a moment as it keys, the reading is in 0.1 W steps). A
+  reading over that is protected as any transmission ("TX stopped: SWR 3.4").
+- Until its time limit, and a second after while it unkeys.
+- Everything else keeps the protection as set: PTT, the apps, CW, TCI.
+- The base keeps its own protection: the X6100's base cuts its power back
+  from about SWR 2.5 whatever the radio's setting (#87), so a tuner that
+  needs several watts to match may not get them there.
+
+Not where the radio may not transmit; the screen says why:
+
+- "No tune: no TX on 7.300 MHz": a frequency the radio does not transmit on
+  (a band it only receives, split's other VFO or a TX shift outside one).
+- "No tune: on the air": something else transmits (PTT, an app's slot, TCI,
+  Winlink, the ATU, the SWR scan). An app's slot that comes during a tune is
+  not sent.
+- "No tune: Winlink in session": a Winlink connection is under way (Pat's
+  last QSY or the modem's last key less than a minute ago).
+- LOCK does not refuse it: TUNE does not change the frequency that LOCK
+  holds (the digital apps that hold LOCK while open have the button too).
+
+With an amplifier after the radio, put it in bypass (standby) while the
+tuner matches, and set the TUNE power for the tuner, not for the
+amplifier's drive.
+
+Not tried on a radio yet: checked on the PC build, with a stand-in base.
+
 ### Digital-mode TX level
 
 The apps that transmit from the radio (FT8/FT4, JS8, WSPR, SSTV, RTTY,
@@ -1228,6 +1309,7 @@ Buttons:
 | 2 | Hold Freq, Auto, Force QSO save, Power |
 | 3 | CQ Modifier, Time Sync, Log Map, Live Map |
 | 4 | Freq: Preset / 14.091, Hound: Off / On, Retries, For you |
+| 5 | Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 
 - Show: CQ shows the CQs and the messages to you; All shows all traffic.
 - TX CQ calls CQ. A band key, Freq or Mode ends the CQ: TX CQ goes to
@@ -1404,7 +1486,7 @@ Buttons (the first one of each row turns the page, hold to go back):
 | 4 | AUTO, HB, HB ACK, Settings... (INFO, STATUS, Relay, Groups) |
 | 5 | APRS >, Log QSO, Activ.: Off / POTA / SOTA, Log prompt |
 | 6 | Alerts >, Speed, Decode: All speeds / My speed, Freq: JS8 / GhostNet / kHz |
-| 7 | Power, Map |
+| 7 | Power, Map, Ext tune |
 
 What it does:
 
@@ -1476,7 +1558,9 @@ or NTP).
 - The main knob moves the TX audio offset (1410-1590 Hz).
 - Upload: the spots of each cycle go to WSPRnet (plain HTTP over WiFi). The
   status line counts what was sent and what failed.
-- Page 2: Power and TX %, the same 0, 10, 20, 33, 50 steps as on page 1.
+- Page 2: Power and TX %, the same 0, 10, 20, 33, 50 steps as on page 1,
+  and Ext tune: a carrier at the TX offset for an external tuner, at the
+  TUNE power, not WSPR's (see [TUNE for an external tuner](#tune-for-an-external-tuner)).
 
 ### SSTV, WeFax and NavTex
 
@@ -1519,7 +1603,7 @@ SSTV buttons:
 |---|---|
 | 1 | Start Auto RX, Start Manual RX, RX Mode (Manual RX), TX |
 | 2 | Freq., RX Pics Browser, Delete picture, Auto RX Restart (on: a new VIS during a picture starts a new one) |
-| 3 | Power, Denoise (ON/OFF), Close (ESC also closes) |
+| 3 | Ext tune, Power, Denoise (ON/OFF), Close (ESC also closes) |
 
 Denoise. SSTV 3:3 > Denoise, on by default. When a picture is complete the
 radio saves it as it came off the air (`sstv-20261016-143205.png`), cleans
@@ -1587,7 +1671,8 @@ others. Frequency and mode come back when the app closes.
 - DX call and RST (page 2): the DX call is taken from "DE <call>" in the
   received text, or typed in; hold clears it.
 - TX: Free Text, or the macros (pages 3-5: press sends, hold edits; an empty
-  text deletes). Tokens `<MYCALL>`, `<CALL>`, `<RST>`, `<RSTR>`. Stop TX ends
+  text deletes). Page 6: Ext tune, a carrier at the TX frequency for an
+  external tuner. Tokens `<MYCALL>`, `<CALL>`, `<RST>`, `<RSTR>`. Stop TX ends
   with a short carrier tail (PSK) or after the current block (Olivia). Nothing is sent on
   opening. TX goes through the same path as FT8: power capped at 7 W, ALC
   levelling, SWR protection, the TX strip.
@@ -1610,7 +1695,8 @@ the name and then the text (an empty text deletes, the ones after move up).
 By default they are the WSJT-X contest keys. In the text, `%M` is your call,
 `%H` the DX call, `%E` "599" and the serial number, sent as one frame. Up to
 80 characters, kept in `/mnt/jtty_macros.txt`, also on the web configurator's
-Macros page. Decoded stations go to PSK Reporter when it is on. TX goes through the same path as FT8 (7 W cap, ALC, SWR
+Macros page. Page 5: Ext tune, a carrier at the TX frequency for an external
+tuner. Decoded stations go to PSK Reporter when it is on. TX goes through the same path as FT8 (7 W cap, ALC, SWR
 protection). I haven't made a QSO with it yet, so reports are welcome. A
 QSO logged from the browser panel's Log tab while JTTY is open goes into the
 log as JTTY (ADIF 3.1.8: mode MFSK, submode JTTY).

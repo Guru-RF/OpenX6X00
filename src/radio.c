@@ -43,6 +43,7 @@
 #include "front_keys.h"
 #include "backlight.h"
 #include "swr_guard.h"
+#include "tune_tx.h"
 #include "paddle_keyer.h"
 #include "cw_encoder.h"
 #include "dialog_msg_voice.h"
@@ -206,6 +207,9 @@ static bool             mute = false;
 static bool             tci_mute = false;   /* a TCI client transmits: the speaker and the monitor off */
 static bool             rec_moni = false;   /* a screen recording takes the TX audio: the monitor at 30 at least (X6100) */
 static bool             digi_cap;       /* a digital app is open: never above its cap */
+static float            tune_cap;       /* a TUNE for an external tuner: never above its power (under the lock) */
+static pthread_mutex_t  tune_mux = PTHREAD_MUTEX_INITIALIZER;
+static tune_guard_t     tune_guard;     /* that tune, for the SWR protection (under tune_mux) */
 
 static tx_watch_t       tx_watch;
 static bool             resync_due;     /* resend the whole register block (base_guard.h) */
@@ -220,7 +224,9 @@ static void power_key_cb(void *arg) {
 }
 
 static void set_txpwr(float w) {
-    hw_set_f(HW_TXPWR_F, digi_cap && w > TX_PLAYER_MAX_PWR_W ? TX_PLAYER_MAX_PWR_W : w);
+    if (digi_cap && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
+    if (tune_cap > 0.0f && w > tune_cap) w = tune_cap;     /* PWR turned up, the battery's top, a restore */
+    hw_set_f(HW_TXPWR_F, w);
 }
 
 /* Whether the base's charging flag counts: on the X6200 only when charging was asked for, as its base (1.0.8)
@@ -608,6 +614,28 @@ void radio_set_digi_cap(bool on) {
 
 bool radio_digi_cap(void) {
     return digi_cap;
+}
+
+void radio_set_tune(float w, uint32_t limit_ms) {
+    pthread_mutex_lock(&tune_mux);
+    tune_guard = (tune_guard_t){.pwr_w = w, .start_ms = get_time(), .limit_ms = limit_ms};
+    pthread_mutex_unlock(&tune_mux);
+    radio_lock();
+    tune_cap = w;
+    set_txpwr(param_f_get(cfg_pwr));    /* tx_player sets the tune's own: this is the cap, and the setting after */
+    radio_unlock();
+}
+
+/* The VFO that transmits is the active one: tx_player moves it to the TX frequency, split held off (radio_set_tx_freq) */
+void radio_set_tx_mode(int mode) {
+    radio_lock();
+    if (mode < 0) {
+        hw_vfo_set_mode(RADIO_VFO_A, param_i_get(cfg_band_vfoa_mode));
+        hw_vfo_set_mode(RADIO_VFO_B, param_i_get(cfg_band_vfob_mode));
+    } else {
+        hw_vfo_set_mode(param_i_get(cfg_band_current_vfo), mode);
+    }
+    radio_unlock();
 }
 
 void radio_set_tx_filter(uint16_t from_hz, uint16_t to_hz) {
@@ -1465,8 +1493,15 @@ static bool radio_tick() {
                     /* A stop: the urgent reserve. Dropped even so, swr_guard trips again 300 ms on. One in the
                      * queue at a time: with the GUI thread stalled and TX still on, a trip every ~320 ms took
                      * the reserve in 25 s from those that do not try again (TCI's unkey, FT8's last post).
-                     * Marked before the put, the job may run before the put returns */
-                    if (swr_guard_check(&swr_guard, pack->tx_power * 0.1f, swr, param_i_get(cfg_swr_protect) * 0.1f, now_time) &&
+                     * Marked before the put, the job may run before the put returns. A TUNE for an external
+                     * tuner shows a high SWR on purpose while the tuner matches: none for the readings of its
+                     * own power within its time (tune_swr_limit), as for the ATU's (#84) */
+                    float limit = param_i_get(cfg_swr_protect) * 0.1f;
+
+                    pthread_mutex_lock(&tune_mux);
+                    limit = tune_swr_limit(&tune_guard, pack->tx_power * 0.1f, limit, now_time);
+                    pthread_mutex_unlock(&tune_mux);
+                    if (swr_guard_check(&swr_guard, pack->tx_power * 0.1f, swr, limit, now_time) &&
                         !atomic_exchange(&swr_trip_queued, true) && !scheduler_put_urgent(swr_trip_cb, &swr, sizeof(swr))) {
                         atomic_store(&swr_trip_queued, false);
                     }

@@ -311,12 +311,12 @@ static void macro_hold(int idx);
 
 static char macro_labels[PSK_MACRO_MAX][PSK_MACRO_NAME_LEN + 2];
 
-static buttons_page_t page_1, page_2, page_3, page_4, page_5;
+static buttons_page_t page_1, page_2, page_3, page_4, page_5, page_6;
 
 static button_data_t btn_p1 = {
-    .type = BTN_TEXT, .label = "(PSK 1:5)",
+    .type = BTN_TEXT, .label = "(PSK 1:6)",
     .press = button_next_page_cb, .hold = button_prev_page_cb,
-    .next = &page_2, .prev = &page_5,
+    .next = &page_2, .prev = &page_6,
 };
 static button_data_t btn_text = {
     .type = BTN_TEXT, .label = "Free\nText", .press = text_press_cb,
@@ -334,7 +334,7 @@ static button_data_t btn_sql = {
 };
 
 static button_data_t btn_p2 = {
-    .type = BTN_TEXT, .label = "(PSK 2:5)",
+    .type = BTN_TEXT, .label = "(PSK 2:6)",
     .press = button_next_page_cb, .hold = button_prev_page_cb,
     .next = &page_3, .prev = &page_1,
 };
@@ -389,19 +389,25 @@ static button_data_t *const macro_btns[PSK_MACRO_MAX] = {
 };
 
 static button_data_t btn_p3 = {
-    .type = BTN_TEXT, .label = "(PSK 3:5)",
+    .type = BTN_TEXT, .label = "(PSK 3:6)",
     .press = button_next_page_cb, .hold = button_prev_page_cb,
     .next = &page_4, .prev = &page_2,
 };
 static button_data_t btn_p4 = {
-    .type = BTN_TEXT, .label = "(PSK 4:5)",
+    .type = BTN_TEXT, .label = "(PSK 4:6)",
     .press = button_next_page_cb, .hold = button_prev_page_cb,
     .next = &page_5, .prev = &page_3,
 };
 static button_data_t btn_p5 = {
-    .type = BTN_TEXT, .label = "(PSK 5:5)",
+    .type = BTN_TEXT, .label = "(PSK 5:6)",
     .press = button_next_page_cb, .hold = button_prev_page_cb,
-    .next = &page_1, .prev = &page_4,
+    .next = &page_6, .prev = &page_4,
+};
+/* TUNE for an external tuner, on the centre chosen for TX (ext_tune.h) */
+static button_data_t btn_p6 = {
+    .type = BTN_TEXT, .label = "(PSK 6:6)",
+    .press = button_next_page_cb, .hold = button_prev_page_cb,
+    .next = &page_1, .prev = &page_5,
 };
 
 static buttons_page_t page_1 = {
@@ -418,6 +424,9 @@ static buttons_page_t page_4 = {
 };
 static buttons_page_t page_5 = {
     {&btn_p5, &btn_macro8, &btn_macro9, &btn_macro10, &btn_macro11}
+};
+static buttons_page_t page_6 = {
+    {&btn_p6, &btn_ext_tune}
 };
 
 static dialog_t dialog = {

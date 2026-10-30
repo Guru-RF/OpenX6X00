@@ -552,7 +552,7 @@ static buttons_page_t page_6    = {{&btn_p6, &btn_alerts, &btn_speed, &btn_decod
 /* 7 */
 static button_data_t btn_p7     = PAGE_BUTTON("(JS8 7:7)", &page_1, &page_6);
 static button_data_t btn_map    = {.type = BTN_TEXT, .label = "Map", .press = map_cb};
-static buttons_page_t page_7    = {{&btn_p7, &btn_dig_pwr, &btn_map}};
+static buttons_page_t page_7    = {{&btn_p7, &btn_dig_pwr, &btn_map, &btn_ext_tune}};
 
 static dialog_t dialog = {.run           = false,
                           .construct_cb  = construct_cb,

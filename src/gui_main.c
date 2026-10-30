@@ -47,6 +47,7 @@
 #include "tci_server.h"
 #include "remote_server.h"
 #include "control_owner.h"
+#include "ext_tune.h"
 #include "birdie.h"
 #include "cfg_socket.h"
 #include "clock.h"
@@ -262,6 +263,7 @@ static void services_start(void) {
     cat_init();
     cfg_socket_init();
     ctl_init();
+    ext_tune_init();    /* TUNE for an external tuner: stopped when the radio moves */
     tci_server_init();
     remote_server_init();
     winlink_init();     /* ardopcf's audio and Pat's rigctld: idle until they connect */

@@ -16,6 +16,8 @@
 
 #include "board.h"
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -46,6 +48,10 @@ extern "C" {
 
 /* Starts the modem bridge, the rigctld server and the radio file's writer: once, after audio_init() */
 void winlink_init(void);
+
+/* A Winlink connection holds the radio: the modem connected, and keying, or Pat's tune or the modem's last key less
+ * than a minute ago (a connection under way, as the keys go by it). Any thread: TUNE for an external tuner asks */
+bool winlink_busy(void);
 
 #ifdef __cplusplus
 }

@@ -177,11 +177,11 @@ static void tol_press_cb(button_data_t *b);
 static void clear_press_cb(button_data_t *b);
 static void fkey(int n);
 
-static buttons_page_t page_1, page_2, page_3, page_4;
+static buttons_page_t page_1, page_2, page_3, page_4, page_5;
 
 static button_data_t btn_p1 = {
-    .type = BTN_TEXT, .label = "(JTTY 1:4)",
-    .press = button_next_page_cb, .hold = button_prev_page_cb, .next = &page_2, .prev = &page_4,
+    .type = BTN_TEXT, .label = "(JTTY 1:5)",
+    .press = button_next_page_cb, .hold = button_prev_page_cb, .next = &page_2, .prev = &page_5,
 };
 static button_data_t btn_text = {.type = BTN_TEXT, .label = "Free\nText", .press = text_press_cb};
 static button_data_t btn_stop = {.type = BTN_TEXT, .label = "Stop\nTX", .press = stop_press_cb};
@@ -215,16 +215,21 @@ static button_data_t *const fkey_btns[FKEYS] = {&btn_f1, &btn_f2, &btn_f3, &btn_
                                                  &btn_f5, &btn_f6, &btn_f7, &btn_f8};
 
 static button_data_t btn_p2 = {
-    .type = BTN_TEXT, .label = "(JTTY 2:4)",
+    .type = BTN_TEXT, .label = "(JTTY 2:5)",
     .press = button_next_page_cb, .hold = button_prev_page_cb, .next = &page_3, .prev = &page_1,
 };
 static button_data_t btn_p3 = {
-    .type = BTN_TEXT, .label = "(JTTY 3:4)",
+    .type = BTN_TEXT, .label = "(JTTY 3:5)",
     .press = button_next_page_cb, .hold = button_prev_page_cb, .next = &page_4, .prev = &page_2,
 };
 static button_data_t btn_p4 = {
-    .type = BTN_TEXT, .label = "(JTTY 4:4)",
-    .press = button_next_page_cb, .hold = button_prev_page_cb, .next = &page_1, .prev = &page_3,
+    .type = BTN_TEXT, .label = "(JTTY 4:5)",
+    .press = button_next_page_cb, .hold = button_prev_page_cb, .next = &page_5, .prev = &page_3,
+};
+/* TUNE for an external tuner, on the TX frequency chosen (ext_tune.h) */
+static button_data_t btn_p5 = {
+    .type = BTN_TEXT, .label = "(JTTY 5:5)",
+    .press = button_next_page_cb, .hold = button_prev_page_cb, .next = &page_1, .prev = &page_4,
 };
 static button_data_t btn_serial = {
     .type = BTN_TEXT_FN, .label_fn = serial_label_getter, .press = serial_press_cb, .hold = serial_hold_cb,
@@ -239,6 +244,7 @@ static buttons_page_t page_1 = {{&btn_p1, &btn_text, &btn_stop, &btn_dx, &btn_st
 static buttons_page_t page_2 = {{&btn_p2, &btn_f1, &btn_f2, &btn_f3, &btn_f4}};
 static buttons_page_t page_3 = {{&btn_p3, &btn_f5, &btn_f6, &btn_f7, &btn_f8}};
 static buttons_page_t page_4 = {{&btn_p4, &btn_serial, &btn_tol, &btn_dial, &btn_clear}};
+static buttons_page_t page_5 = {{&btn_p5, &btn_ext_tune}};
 
 static dialog_t dialog = {
     .run = false,

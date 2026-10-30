@@ -56,6 +56,8 @@ bool main_screen_mode_locked();
  * audio. By the name it has now, as in the frequency strip: FT4 once the FT8 app was switched to it, PSK63. Any
  * thread (Winlink asks) */
 const char *main_screen_digital_app(void);
+/* The same as its action (ACTION_APP_FT8 ...), ACTION_NONE when none is open */
+press_action_t main_screen_digital_app_action(void);
 
 /* A jump to a frequency: the spectrum starts over */
 void main_screen_set_freq(uint64_t freq);

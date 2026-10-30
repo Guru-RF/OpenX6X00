@@ -26,5 +26,9 @@ void tx_info_get(float *pwr, float *swr);
  * strip counts up to it, "5 / 15 s". 0 (the TX player at the end): the time alone. Any thread. */
 void tx_info_set_length(float seconds);
 
+/* A TUNE for an external tuner at w W for at most `seconds` (tune_tx.c): the panel and the strip say TUNE and count up
+ * to its limit, the strip's power bar to w. 0: over. Any thread. */
+void tx_info_set_tune(float w, float seconds);
+
 /* The last readings if there is a new one since *seen (then *seen follows); any pointer may be NULL */
 bool tx_info_refresh(uint8_t *seen, float *alc, float *pwr, float *swr);

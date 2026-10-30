@@ -45,6 +45,7 @@ typedef enum {
     ACTION_PRE_TOGGLE,
     ACTION_ATU_TOGGLE,  /* appended after PRE_TOGGLE */
     ACTION_ATU_TUNE,    /* start a tuning cycle: transmits a carrier */
+    ACTION_EXT_TUNE,    /* appended after ATU_TUNE: TUNE for an external tuner, on or off (ext_tune.h) */
 
     ACTION_APP_RTTY = 100,
     ACTION_APP_FT8,

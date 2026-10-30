@@ -215,8 +215,14 @@ bool hw_flow_read(hw_pack_t *p) {
     p->samples    = samples;
     p->n_samples  = SAMPLES;
     p->tx         = tx;
+    /* The SWR it reads in TX: 1.1, or HOST_STUB_SWR (tenths: 34 is an antenna at 3.4 that a tuner still has to match) */
+    static int swr = -1;
+    if (swr < 0) {
+        const char *e = getenv("HOST_STUB_SWR");
+        swr = e && atoi(e) >= 10 && atoi(e) <= 255 ? atoi(e) : 11;
+    }
     p->tx_power   = tx ? (uint8_t)(reg_f[HW_TXPWR_F] * 10.0f + 0.5f) : 0;
-    p->vswr       = tx ? 11 : 0;
+    p->vswr       = tx ? (uint8_t)swr : 0;
     p->alc_level  = 0;
     p->vext       = 0;
     p->vbat       = 78;

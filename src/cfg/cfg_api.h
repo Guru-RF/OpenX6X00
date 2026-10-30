@@ -86,6 +86,8 @@ extern ParamInt         *cfg_spectrum_fill_gradient; // p_spectrum_fill_gradient
 extern ParamInt         *cfg_smeter_bar_color;   // p_smeter_bar_color
 extern ParamInt         *cfg_swr_color;          // p_swr_color
 extern ParamInt         *cfg_swr_protect;        // p_swr_protect
+extern ParamFloat       *cfg_tune_pwr;           // p_tune_pwr
+extern ParamInt         *cfg_tune_time;          // p_tune_time
 extern ParamInt         *cfg_smeter_lamp;        // p_smeter_lamp
 extern ParamInt         *cfg_broadcast_name;     // p_broadcast_name
 extern ParamInt         *cfg_cluster_column;     // p_cluster_column

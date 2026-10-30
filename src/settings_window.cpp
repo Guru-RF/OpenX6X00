@@ -35,6 +35,7 @@ extern "C" {
     #include "params/params.h"
     #include "screen_light.h"
     #include "radio.h"
+    #include "tune_tx.h"
     #include "gui_events.h"
     #include "key_input.h"
     #include "paddle_keyer.h"
@@ -757,6 +758,7 @@ static const key_action_t front_actions[] = {
     {" PRE on/off ", ACTION_PRE_TOGGLE},
     {" Tuner on/off ", ACTION_ATU_TOGGLE},
     {" Tuner: tune ", ACTION_ATU_TUNE},
+    {" TUNE ext. tuner on/off ", ACTION_EXT_TUNE},
     /* Digital modes, in the order of the Modes menu */
     {" APP RTTY ", ACTION_APP_RTTY},
     {" APP FT8 ", ACTION_APP_FT8},
@@ -793,6 +795,7 @@ static const key_action_t mic_actions[] = {
     {" PRE on/off ", ACTION_PRE_TOGGLE},
     {" Tuner on/off ", ACTION_ATU_TOGGLE},
     {" Tuner: tune ", ACTION_ATU_TUNE},
+    {" TUNE ext. tuner on/off ", ACTION_EXT_TUNE},
 };
 
 #define KEY_ROWS_FRONT  6   /* then the hand mic's */
@@ -3561,6 +3564,20 @@ static uint8_t make_swr_protect(uint8_t row) {
     return row + 1;
 }
 
+/* TUNE for an external tuner (ext_tune.h): its own power and its time limit */
+static float_slider_t tune_pwr_fs     = {0.1f, [](float v) { cfg_sm.p_tune_pwr.set(v); }};
+static param_slider_t tune_time_slider = {&cfg_sm.p_tune_time, TUNE_TIME_MIN_S, TUNE_TIME_MAX_S, 1, "%d"};
+
+static uint8_t make_ext_tune(uint8_t row) {
+    wl_row_label(row, "TUNE power, W");
+    float_slider(row_cell(row, 4, 3, SMALL_3), cfg_sm.p_tune_pwr.get(), TUNE_PWR_MIN_W, TUNE_PWR_MAX_W, SMALL_3 - 120,
+                 &tune_pwr_fs);
+    row++;
+    wl_row_label(row, "TUNE time limit, s");
+    param_slider(row_cell(row, 4, 3, SMALL_3), SMALL_3 - 120, &tune_time_slider);   /* as wide as the power's */
+    return row + 1;
+}
+
 static void ptr_clear_cb(lv_event_t *e);
 static lv_obj_t * upd_line(uint8_t row);
 
@@ -3785,6 +3802,10 @@ static void make_txcal_page() {
 
     row = card_begin("TX PROTECTION");
     row = make_swr_protect(row);
+    card_end(row);
+
+    row = card_begin("EXTERNAL TUNER");
+    row = make_ext_tune(row);
     card_end(row);
 
     row = card_begin("S-METER");

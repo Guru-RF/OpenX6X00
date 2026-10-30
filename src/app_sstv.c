@@ -92,7 +92,7 @@ static button_data_t btn_close = { .type = BTN_TEXT, .label = "Close", .press = 
 
 static buttons_page_t page1 = { .items = { &btn_p1, &btn_auto, &btn_manual, &sstv_btn_mode, &sstv_btn_tx } };
 static buttons_page_t page2 = { .items = { &btn_p2, &btn_freq, &sstv_btn_gallery, &sstv_btn_delete, &btn_restart } };
-static buttons_page_t page3 = { .items = { &btn_p3, NULL, &btn_dig_pwr, &btn_denoise, &btn_close } };
+static buttons_page_t page3 = { .items = { &btn_p3, &btn_ext_tune, &btn_dig_pwr, &btn_denoise, &btn_close } };
 
 static dialog_t dialog = {
     .run = false,
