@@ -84,6 +84,10 @@ off the value shows on the message line).
 - X6200: the MFK has an inner ring. The inner ring chooses the MFK's control,
   the next one or the one before on its list, and the outer ring changes its
   value, with no press. The X6100's MFK has no inner ring: it uses the press.
+- A keyboard (USB or Bluetooth) on the main screen: the left and right
+  arrows turn the MFK and Enter is its press (while the CW line is open,
+  Enter sends it); { and } choose VOL's control, [ and ] turn it (in CW
+  they are the paddle).
 - What is on each list is yours to choose. Hold a value button (TX power, RF
   gain, Squelch, the filter edges, RIT, XIT, Spectrum Zoom, WF ref, AGC,
   Comp, IF shift, VOX, PRE, ATT, ATU, Step, NB, NR, DNF, the KEY and CW
