@@ -46,6 +46,7 @@ typedef enum {
     ACTION_ATU_TOGGLE,  /* appended after PRE_TOGGLE */
     ACTION_ATU_TUNE,    /* start a tuning cycle: transmits a carrier */
     ACTION_EXT_TUNE,    /* appended after ATU_TUNE: TUNE for an external tuner, on or off (ext_tune.h) */
+    ACTION_FREQ_LOCK,   /* appended after EXT_TUNE: the user's frequency lock on or off, as the X6100's LOCK key */
 
     ACTION_APP_RTTY = 100,
     ACTION_APP_FT8,

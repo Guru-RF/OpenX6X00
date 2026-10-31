@@ -99,8 +99,8 @@ static uint16_t     freq_height = 36;       /* the frequency scale under the spe
 static lv_coord_t   wf_y;                   /* waterfall top */
 
 /* What an open app keeps the keys from changing. The frequency lock is a subject: the scale
- * greys out with it. It is on while either holds it: the user's lock (LOCK, SPCH, Scroll Lock, the Panel's LOCK),
- * or an open app's hold, which ends with the app and leaves the user's lock as it was */
+ * greys out with it. It is on while either holds it: the user's lock (LOCK, SPCH, Scroll Lock, the Panel's LOCK,
+ * a key given Frequency lock in Settings > Keys), or an open app's hold, which ends with the app and leaves the user's lock as it was */
 static SubjectInt   *freq_lock;
 static bool         user_lock, app_lock;
 static bool         band_lock, mode_lock, ab_lock;
@@ -557,6 +557,7 @@ void main_screen_action(press_action_t action) {
         case ACTION_STEP_DOWN:      step_freq_step(false); break;
         case ACTION_ATU_TUNE:       radio_start_atu(); break;   /* as a long press of the ATU key */
         case ACTION_EXT_TUNE:       ext_tune_toggle(); break;   /* an external tuner's: started, or stopped */
+        case ACTION_FREQ_LOCK:      say_state("Frequency lock", toggle_freq_lock() ? "On" : "Off"); break;
 
         case ACTION_NR_TOGGLE:      say_state("NR", toggle_param(cfg_nr) ? "On" : "Off"); break;
         case ACTION_NB_TOGGLE:      say_state("NB", toggle_param(cfg_nb) ? "On" : "Off"); break;

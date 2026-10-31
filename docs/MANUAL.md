@@ -80,7 +80,7 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
 | Kind | Actions |
 |---|---|
-| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, WF mode, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, WF mode, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Channels, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
@@ -91,7 +91,10 @@ Where: Settings > Keys > HAND MIC KEYS.
 The other hand mic keys: see [Hand mic](#hand-mic).
 
 Frequency lock. The LOCK key (X6100), the X6100 mic's SPCH key, a
-keyboard's Scroll Lock and the browser panel's LOCK turn it on and off.
+keyboard's Scroll Lock, the browser panel's LOCK and any key given
+"Frequency lock on/off" in Settings > Keys (a long press of GEN, APP, KEY,
+MSG, DFN or DFL, a hand mic F key) turn it on and off. The X6200 has no LOCK
+key: give it to one of those.
 While it is on, the main knob and F-INP do not tune, the step mark under the
 frequency goes and the frequency scale greys out, and the browser panel, TCI
 programs, Pat's QSY (Winlink) and Field Ops' band tune are refused. The band
@@ -2947,7 +2950,8 @@ Connecting to a gateway:
 - When Pat's QSY is not made, the screen says why, where Pat's log only has
   "Unable to QSY": "Winlink: no QSY to 7.061.500 MHz, FT8 is open, close
   it", "..., the radio is on the air", "..., the frequency is locked (LOCK)"
-  (the LOCK key, or the browser panel's lock), "..., not a frequency the
+  (the [frequency lock](#buttons-and-knobs): the LOCK key, the browser
+  panel's LOCK, a key given Frequency lock), "..., not a frequency the
   radio can tune" or "..., the radio was busy, try again".
 - The TX level is the one the radio's digital apps share (see
   [Digital-mode TX level](#digital-mode-tx-level)). It is first judged about
