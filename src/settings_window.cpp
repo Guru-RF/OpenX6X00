@@ -819,6 +819,7 @@ static const key_action_t front_actions[] = {
     {" APP SSTV ", ACTION_APP_SSTV},
     {" APP WeFax ", ACTION_APP_WEFAX},
     {" APP NavTex ", ACTION_APP_NAVTEX},
+    {" APP RADE ", ACTION_APP_FREEDV},
     /* Tools */
     {" APP Cluster ", ACTION_APP_CLUSTER},
     {" APP CW Trainer ", ACTION_APP_CWTRAINER},

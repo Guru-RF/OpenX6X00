@@ -77,6 +77,7 @@ typedef enum {
     ACTION_APP_BIRDIE,   /* 125: Birdie Cal */
     ACTION_APP_PROPAGATION, /* 126: band conditions and the NCDXF beacons */
     ACTION_APP_SCAN,     /* 127: Scanner */
+    ACTION_APP_FREEDV,   /* 128: RADE (FreeDV) */
 } press_action_t;
 
 typedef enum {

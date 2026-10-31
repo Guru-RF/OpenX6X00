@@ -14,7 +14,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
-- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
+- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [a PC on Bluetooth](#a-pc-on-bluetooth)
@@ -140,7 +140,7 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 | Kind | Actions |
 |---|---|
 | Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
-| Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
+| Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex, RADE |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
 The hand mic F1 and F2 keys (and the H-22's F3 on the X6200), short and long
@@ -2654,7 +2654,7 @@ it, and the X6100 is not changed.
 ### Opening a mode
 
 APP (page 1) > Modes opens a menu: RTTY, PSK31, PSK63, FT8, FT4, FT2, WSPR, Olivia
-(Contestia too, from the Olivia window's Mode), JTTY, JS8, SSTV, WeFax, NavTex. Turn the MFK to choose, press to open; the last used mode is marked.
+(Contestia too, from the Olivia window's Mode), JTTY, JS8, SSTV, WeFax, NavTex, RADE. Turn the MFK to choose, press to open; the last used mode is marked.
 Pressing Modes again closes the menu.
 
 - Callsign and QTH: Settings > General > STATION.
@@ -3117,6 +3117,34 @@ and its colours; the next press transmits.
   `/mnt/sstv/tx_text`; the default ones are copied there at the first start.
   Received pictures are saved in `/mnt/sstv`.
 - Pictures can be uploaded from the web configurator's Gallery.
+
+### RADE (FreeDV)
+
+APP > Modes > RADE receives FreeDV's RADE V1 digital voice, **receive only**
+(no transmitting, no RADE V2, no Codec 2 modes). The window shows Sync, the
+SNR (dB), the frequency offset (Hz), the input level, where the speech goes
+and what was lost; Freq. opens the FreeDV activity frequencies.
+
+- **The speech comes out on Bluetooth headphones only.** With the base's
+  standard firmware the speaker plays the app's audio only in Play mode, and
+  then the base sends Linux not the receiver's audio but the app's own, so
+  decoding and the speaker don't go together. Connect the headphones before
+  you open the app (it looks again every second). Without them the window says
+  so and the speech is dropped.
+- The signal is 30 carriers from 750 to 2200 Hz above the dial frequency, in
+  USB or LSB alike; the frequencies in the list are the dial's. The receive
+  filter has to pass 750 to 2200 Hz, so wider than the usual 2.4 kHz SSB
+  filter if that one starts above 750 Hz. Keep AGC and noise reduction off,
+  and the input level below "too loud". RADE V1 has no AGC of its own: a level
+  that is too low or too high loses the sync.
+- The raw OFDM noise on the speaker is silenced by AF volume 0 or Settings >
+  RX AUDIO > Speaker always off.
+- Lost: "input" and "speech" count samples that were thrown away because the
+  decoder or the player was behind, "gaps" the breaks in the speech. "decode"
+  and "synth" are the slowest ms for one 120 ms modem frame; above 120 the
+  speech breaks up.
+- Needs a firmware built with RADE (`tools/rade/build.sh`, then CMake
+  `-DRADE_PREFIX=`). Without it the window says "not built into this image".
 
 ### PSK31, PSK63 and Olivia
 

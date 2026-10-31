@@ -70,6 +70,7 @@
 #include "channels.h"
 #include "broadcast_db.h"         /* SWL panel */
 #include "navtex_window.h"
+#include "dialog_freedv.h"
 #include "wefax_window.h"
 #include "dialog_js8.h"
 #include "freq_strip.h"
@@ -496,6 +497,7 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_BIRDIE:     return "Birdie Cal";
         case ACTION_APP_PROPAGATION: return "Propagation";
         case ACTION_APP_SCAN:       return "Scanner";
+        case ACTION_APP_FREEDV:     return "RADE";
         default:                   return NULL;    /* Modes menu: a menu, not an app */
     }
 }
@@ -534,7 +536,7 @@ void main_screen_start_app(press_action_t app_action) {
     /* The digital apps open where they were last used */
     switch (app_action) {
         case ACTION_APP_FT8: case ACTION_APP_JS8: case ACTION_APP_WSPR: case ACTION_APP_SSTV:
-        case ACTION_APP_WEFAX: case ACTION_APP_NAVTEX:
+        case ACTION_APP_WEFAX: case ACTION_APP_NAVTEX: case ACTION_APP_FREEDV:
             dialog_app_memory(app_name(app_action));
             radio_set_digi_cap(true);
             break;
@@ -587,6 +589,7 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_BIRDIE, &dialog_birdie},
         {ACTION_APP_PROPAGATION, &dialog_propagation},
         {ACTION_APP_SCAN, &dialog_scan},
+        {ACTION_APP_FREEDV, &dialog_freedv},
     };
 
     if (app_action == ACTION_APP_RTTY) {
@@ -1082,7 +1085,7 @@ static void mic_key_cb(lv_event_t *e) {
 
         /* Hand mic V/M: the CHANNELS window, not over an app that has the screen */
         case HKEY_VM: {
-            bool app_open = dialog_wefax->run || dialog_navtex->run || dialog_sstv->run || dialog_js8->run ||
+            bool app_open = dialog_wefax->run || dialog_navtex->run || dialog_freedv->run || dialog_sstv->run || dialog_js8->run ||
                             dialog_psk->run || dialog_olivia->run || dialog_jtty->run;
 
             if (!app_open && tap) dialog_construct(dialog_channels, obj);
