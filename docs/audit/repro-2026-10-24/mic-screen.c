@@ -98,7 +98,8 @@ static void cfg_band_vfo_copy(void) { note("VFO copied"); }
 static void band_step(bool up) { note("band %s", up ? "up" : "down"); }
 static void controls_set_band_m(int32_t m) { note("%d m", (int)m); }
 static void mem_load(uint16_t id) { note("memory %u", id); }
-static void toggle_freq_lock(void) { note("lock"); }
+static bool toggle_freq_lock(void) { note("lock"); return true; }
+static void say_lock(bool on) { (void)on; }
 static bool toggle_atu(void) { note("ATU"); return true; }
 static void radio_start_atu(void) { note("ATU tune"); }
 static bool dialog_channels_recall_relative(int d) { note("channel %+d", d); return false; }
