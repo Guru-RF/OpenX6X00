@@ -379,8 +379,8 @@ At the top right the radio shows the charge and the time left:
   "100%" once charged, or with [Charger](#general-tab) set to Off or Shadow on
   the X6200. (Up to v0.3.6 a charged battery showed the power sign after the
   %, and the X6200 showed the lightning sign and a time to full whatever the
-  Charger setting, issue #33. In v0.3.7 an X6100 with Charger Off showed them
-  for its first minute on the supply, issue #108.)
+  Charger setting, issue #33. Up to v0.3.7 an X6100 with Charger Off showed
+  them for its first minute on the supply, issue #108.)
 - External supply only, no battery fitted: the plug sign and the external
   voltage, "12.1v". When the X6200's base reports no battery, a red cross in
   place of the battery.
@@ -803,9 +803,9 @@ with Charger On, as Xiegu's own firmware does: with Off or Shadow, External
 says "12.1 V" and the top right shows the plug sign with no time to full (up
 to v0.3.6 they said "charging" and showed the lightning sign). The X6100 shows
 what its base reports: with Charger Off the plug sign from the moment the
-supply is in. (In v0.3.7 an X6100 with Charger Off showed the lightning sign
-and a time to full for its first minute on the supply, then the plug, issue
-#108.)
+supply is in. (Up to v0.3.7 an X6100 with Charger Off showed the lightning
+sign and a time to full for its first minute on the supply, then the plug,
+issue #108.)
 
 Zone. Where: Settings > General > DATE / TIME > Zone. The change applies at
 once; summer time follows by itself where the zone has it. 24 zones, UTC then
