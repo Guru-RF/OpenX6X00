@@ -21,6 +21,14 @@
 #define BOARD_VOL_MAX       55
 #endif
 
+/* The CW sidetone level's range (KEY > Volume): the X6200's base takes 0..63, a 6-bit field, and
+ * gdyuldin's X6200 GUI goes that far (#110); the X6100 stays at 0..32, as it always was */
+#ifdef BOARD_X6200
+#define BOARD_KEY_VOL_MAX   63
+#else
+#define BOARD_KEY_VOL_MAX   32
+#endif
+
 /* The top of the TX power setting (PWR), in W: the X6100 is a 10 W radio, the X6200 is rated 8 W on an
  * external supply, and gdyuldin's X6200 GUI stops its setting at 8.0 (vol.c). 10 W asked of the X6200
  * went to its base as 10 W (#53). On battery the X6200 stops at 5 W, as Xiegu's app (1.0.8) does

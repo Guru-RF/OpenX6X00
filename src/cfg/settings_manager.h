@@ -343,7 +343,7 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_iambic_mode{"iambic_mode", radio_iambic_a, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_key_vol{"key_vol", 10, 0, 32,
+    Parameter<int32_t> p_key_vol{"key_vol", 10, 0, BOARD_KEY_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_key_train{"key_train", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};

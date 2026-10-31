@@ -1834,6 +1834,10 @@ screen on the radio starts them yet: a control for them is still to come.
 
 ## CW
 
+The keyer's settings are on the KEY button's pages: KEY 1:2 has Speed,
+Volume, Train and Tone, KEY 2:2 Mode, Iambic, QSK time and Ratio. Volume is
+the sidetone's level, 0 to 32 on the X6100 and 0 to 63 on the X6200.
+
 ### CW decoder
 
 In CW mode the decoder buttons are on the CW pages (CW 1:2, 2:2): Decoder
