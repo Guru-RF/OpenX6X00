@@ -109,6 +109,7 @@ int main(int argc, char **argv)
     printf("in: %.1f s  out: %.1f s  sync %d/%d polls  mean SNR %.1f dB\n",
            (double)total / FREEDV_RX_IN_RATE, (double)out_samples / AUDIO_PLAY_RATE, sync_polls, polls,
            sync_polls ? snr_sum / sync_polls : 0.0);
+    printf("callsign \"%s\"  ", s.callsign);
     printf("eoo %u  in_dropped %u  speech_dropped %u  underruns %u  decode_ms_max %d  synth_ms_max %d\n",
            s.eoo_count, s.in_dropped, s.speech_dropped, s.underruns, s.decode_ms_max, s.synth_ms_max);
     return 0;

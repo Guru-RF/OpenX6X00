@@ -3120,29 +3120,50 @@ and its colours; the next press transmits.
 
 ### RADE (FreeDV)
 
-APP > Modes > RADE receives FreeDV's RADE V1 digital voice, **receive only**
-(no transmitting, no RADE V2, no Codec 2 modes). The window shows Sync, the
-SNR (dB), the frequency offset (Hz), the input level, where the speech goes
-and what was lost; Freq. opens the FreeDV activity frequencies.
+APP > Modes > RADE receives and sends FreeDV's RADE V1 digital voice (no RADE
+V2, no Codec 2 modes). The window shows Sync, the SNR (dB), the frequency
+offset (Hz), the input level, where the speech goes and what was lost; Freq.
+opens the FreeDV activity frequencies. The signal is 30 carriers from 750 to
+2200 Hz above the dial frequency, in USB or LSB alike; the frequencies in the
+list are the dial's. The filter has to pass that range (wider than the usual
+2.4 kHz SSB filter if that one starts above 750 Hz). Keep AGC and noise
+reduction off, and the input level below "too loud": RADE V1 has no AGC of its
+own, a level that is too low or too high loses the sync. License and
+callsign: it is amateur radio, send only on the bands and with the privileges
+you hold.
 
-- **The speech comes out on Bluetooth headphones only.** With the base's
-  standard firmware the speaker plays the app's audio only in Play mode, and
-  then the base sends Linux not the receiver's audio but the app's own, so
-  decoding and the speaker don't go together. Connect the headphones before
-  you open the app (it looks again every second). Without them the window says
-  so and the speech is dropped.
-- The signal is 30 carriers from 750 to 2200 Hz above the dial frequency, in
-  USB or LSB alike; the frequencies in the list are the dial's. The receive
-  filter has to pass 750 to 2200 Hz, so wider than the usual 2.4 kHz SSB
-  filter if that one starts above 750 Hz. Keep AGC and noise reduction off,
-  and the input level below "too loud". RADE V1 has no AGC of its own: a level
-  that is too low or too high loses the sync.
-- The raw OFDM noise on the speaker is silenced by AF volume 0 or Settings >
-  RX AUDIO > Speaker always off.
-- Lost: "input" and "speech" count samples that were thrown away because the
-  decoder or the player was behind, "gaps" the breaks in the speech. "decode"
-  and "synth" are the slowest ms for one 120 ms modem frame; above 120 the
-  speech breaks up.
+**Receiving.** The speech comes out on **Bluetooth headphones only**. With the
+base's standard firmware the speaker plays the app's audio only in Play mode,
+and then the base sends Linux not the receiver's audio but the app's own, so
+decoding and the speaker don't go together. Connect the headphones before you
+open the app (it looks again every second); without them the window says so
+and the speech is dropped. The raw OFDM noise on the speaker is silenced by AF
+volume 0 or Settings > RX AUDIO > Speaker always off. "Lost": "input" and
+"speech" count samples thrown away because the decoder or the player was
+behind, "gaps" the breaks in the speech; "decode" and "synth" are the slowest
+ms for one 120 ms modem frame, above 120 the speech breaks up. The callsign
+that the last End-of-Over carried is shown after "last over".
+
+**Sending: record, then send, not live.** Linux records only the hand mic, and
+only while the radio is receiving (the same limit as the
+[voice messages](#recording-voice-messages)); whether it hears the mic while the
+base transmits is not known, so the app works like a voice message:
+- Rec starts the recording from the hand mic and encodes it as you speak (up
+  to 60 s); the receiver is off meanwhile. Press Stop (the same button) to end
+  it. **Do not press the mic's PTT while recording**: the base would send your
+  voice as ordinary SSB. If the radio keys under a recording (the PTT, CAT),
+  the recording is dropped.
+- The window says "encoding" until the over is ready (on a slow encoder a few
+  seconds after the end), then "over ready" with its length. Send keys the
+  radio and plays it, at the digital modes' power (7 W at most) with the level
+  found from the ALC, like FT8. Stop ends the send; the End-of-Over frame at the
+  end of an over carries your callsign (Settings > callsign; the first 8
+  characters), and the receiver shows it. Send again sends the same over once
+  more; Discard drops it, and Rec starts a new one.
+- Send is refused without a callsign set, while another transmission runs, or
+  when the radio does not transmit on this frequency.
+- The built-in microphone cannot be used. The level meter shows the mic's
+  peak while recording; "too loud" is clipping.
 - Needs a firmware built with RADE (`tools/rade/build.sh`, then CMake
   `-DRADE_PREFIX=`). Without it the window says "not built into this image".
 

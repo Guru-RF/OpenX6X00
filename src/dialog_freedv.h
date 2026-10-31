@@ -4,7 +4,9 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif /* __cplusplus */
-extern dialog_t *dialog_freedv;     /* RADE (FreeDV), receive only: the Modes menu opens it */
+#include <stdbool.h>
+extern dialog_t *dialog_freedv;     /* RADE (FreeDV): the Modes menu opens it */
+bool dialog_freedv_is_recording(void);  /* the hand mic goes to the encoder (audio thread) */
 #if defined(__cplusplus)
 }   /* extern "C" */
 #endif /* __cplusplus */

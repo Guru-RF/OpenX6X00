@@ -56,7 +56,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     sstv/denoise.c
     wefax_window.c wefax/decoder.c wefax/encoder.c
     navtex_window.c navtex/sitorb.c navtex/dsc.c
-    dialog_freedv.c freedv_rx.c
+    dialog_freedv.c freedv_rx.c freedv_tx.c
     channel_list.c broadcast_db.c cJSON.c
     text_popup.c cw_encoder.c image_level.c start_trace.c
     cw_beacon.c

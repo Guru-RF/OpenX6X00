@@ -26,6 +26,8 @@
 #include <vector>
 
 #include "dialog_msg_voice.h"
+#include "dialog_freedv.h"
+#include "freedv_tx.h"
 
 extern "C" {
     #include "audio.h"
@@ -668,6 +670,10 @@ void dsp_put_audio_samples(size_t nsamples, int16_t *samples) {
 
     if (dialog_msg_voice_get_state() == MSG_VOICE_RECORD) {
         dialog_msg_voice_put_audio_samples(nsamples, samples);
+        return;
+    }
+    if (dialog_freedv_is_recording()) {     /* RADE: the hand mic goes to the encoder */
+        freedv_tx_put_mic(nsamples, samples);
         return;
     }
     if (recorder_is_on())
