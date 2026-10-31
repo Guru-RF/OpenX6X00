@@ -105,6 +105,7 @@ params_t params = {
 #endif
     .ft8_cq_modifier        = { .x = "",        .name = "ft8_cq_modifier"},
     .sstv_denoise           = { .x = true,      .name = "sstv_denoise" },
+    .cw_qrss_hz             = { { .name = "cw_qrss_30m_hz" }, { .name = "cw_qrss_80m_hz" } },
 
     .long_gen               = ACTION_SCREENSHOT,
     .long_app               = ACTION_APP_RECORDER,
@@ -190,6 +191,12 @@ static bool params_load_js8(params_t *p, const char *name, int32_t i) {
         params_load_bool(&p->js8_custom_on, name, i) ||
         params_load_int32(&p->js8_custom_hz, name, i) ||
         params_load_uint16(&p->js8_tx_freq, name, i);
+}
+
+/* MSG > CW's beacon (#71) */
+static bool params_load_cw_beacon(params_t *p, const char *name, int32_t i) {
+    return params_load_int32(&p->cw_qrss_hz[0], name, i) ||
+        params_load_int32(&p->cw_qrss_hz[1], name, i);
 }
 
 static bool params_load_float(params_float_t *var, const char *name, float x) {
@@ -302,6 +309,7 @@ static bool params_load() {
         if (params_load_bool(&params.mag_freq, name, i)) continue;
         if (params_load_bool(&params.icon_menus, name, i)) continue;
         if (params_load_js8(&params, name, i)) continue;
+        if (params_load_cw_beacon(&params, name, i)) continue;
         if (params_load_bool(&params.sstv_denoise, name, i)) continue;
         if (params_load_bool(&params.ft8_custom_on, name, i)) continue;
         if (params_load_int32(&params.ft8_custom_hz, name, i)) continue;
@@ -379,6 +387,11 @@ static void params_save_js8(params_t *p) {
     params_save_uint16(&p->js8_tx_freq);
 }
 
+static void params_save_cw_beacon(params_t *p) {
+    params_save_int32(&p->cw_qrss_hz[0]);
+    params_save_int32(&p->cw_qrss_hz[1]);
+}
+
 static void params_save_float(params_float_t *var) {
     if (var->dirty) {
         params_write_float(var->name, var->x, &var->dirty);
@@ -445,6 +458,7 @@ static bool params_save() {
     params_save_bool(&params.mag_freq);
     params_save_bool(&params.icon_menus);
     params_save_js8(&params);
+    params_save_cw_beacon(&params);
     params_save_bool(&params.sstv_denoise);
     params_save_bool(&params.ft8_custom_on);
     params_save_int32(&params.ft8_custom_hz);

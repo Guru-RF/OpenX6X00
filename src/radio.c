@@ -227,6 +227,9 @@ static uint64_t         resync_time;
 static uint64_t         block_time;     /* the whole register block last sent (resend_all), radio thread only */
 static volatile bool    morse_on;
 static volatile uint32_t morse_ms;      /* the GUI's CW key last changed */
+static atomic_uint      morse_down_ms;  /* when the GUI's CW key went down (get_time, never 0), 0: up */
+static atomic_uint      morse_limit_ms; /* radio_set_morse_key_limit, 0 none */
+static atomic_uint      morse_cuts;
 static uint64_t         atu_time;       /* the tune asked, then the base last seen in TX for it */
 
 static void power_key_cb(void *arg) {
@@ -901,6 +904,28 @@ void radio_set_morse_key(bool on) {
     morse_on = on;
     morse_ms = get_time();
     hw_pin_set(HW_PIN_MORSE_KEY, on);
+    atomic_store(&morse_down_ms, on ? morse_ms | 1 : 0);
+}
+
+void radio_set_morse_key_limit(uint32_t ms) {
+    atomic_store(&morse_limit_ms, ms);
+}
+
+unsigned radio_morse_key_cuts(void) {
+    return atomic_load(&morse_cuts);
+}
+
+/* The TX time limit of a key-down (QRSS3's, cw_encoder.c): the GUI's key down past it is let go here, on the radio
+ * thread, whatever holds it; the keyer sees the count move and stops */
+static void morse_limit_check(void) {
+    uint32_t limit = atomic_load(&morse_limit_ms);
+    uint32_t down  = atomic_load(&morse_down_ms);
+
+    if (limit && down && (uint32_t)now_time - down > limit) {
+        radio_set_morse_key(false);
+        atomic_fetch_add(&morse_cuts, 1);
+        fprintf(stderr, "radio: the CW key down over %u ms, let go\n", (unsigned)limit);
+    }
 }
 
 /**********************
@@ -1814,6 +1839,7 @@ static void * radio_thread(void *arg) {
         now_time = get_time();
 
         guard_events();
+        morse_limit_check();
 
         if (radio_tick()) {
             usleep(2000);

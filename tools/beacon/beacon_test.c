@@ -1,0 +1,547 @@
+/*
+ *  SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ *  OpenX6X00 - host test of the MSG > CW beacon (#71); see the Makefile.
+ *
+ *  The key: radio_set_morse_key below logs each change on the test's clock. The base: in TX while the key is down and
+ *  for its tail after (the break-in delay), and in TX from elsewhere when a test says so (the mic's PTT). The radio
+ *  thread's TX time limit is a cut at a time a test chooses, as radio.c makes it: the key let go and the count moved.
+ *  The keyer's sleeps move the clock on; events fire on its thread as the clock passes them.
+ *
+ *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
+ */
+
+#include <pthread.h>
+#include <stdarg.h>
+#include <stdatomic.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+
+#include "cfg/cfg_api.h"
+#include "cw_beacon.h"
+#include "cw_encoder.h"
+#include "msg_box.h"
+#include "panel.h"
+#include "params/params.h"
+#include "radio.h"
+#include "util.h"
+
+static int cases, good;
+
+static void check(bool ok, const char *fmt, ...) {
+    va_list ap;
+
+    cases++;
+    good += ok;
+    printf("%s ", ok ? "  ok " : "  BAD");
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+    putchar('\n');
+}
+
+/* ---- The clock: the keyer's sleeps move it on; the test's own thread sleeps for real ---------------------------- */
+
+static _Atomic uint64_t virt_ns = 1000ULL * 1000000000ULL;
+static pthread_t        main_thread;
+
+int __real_clock_gettime(clockid_t c, struct timespec *ts);
+int __real_nanosleep(const struct timespec *req, struct timespec *rem);
+int __real_usleep(useconds_t us);
+
+static bool keyer_thread(void) {
+    return !pthread_equal(pthread_self(), main_thread);
+}
+
+static uint64_t now_ms(void) {
+    return atomic_load(&virt_ns) / 1000000ULL;
+}
+
+uint64_t get_time(void) {
+    return now_ms();
+}
+
+static void tick(void);
+
+int __wrap_clock_gettime(clockid_t c, struct timespec *ts) {
+    if (c != CLOCK_MONOTONIC || !keyer_thread()) {
+        return __real_clock_gettime(c, ts);
+    }
+
+    uint64_t ns = atomic_load(&virt_ns);
+
+    ts->tv_sec  = ns / 1000000000ULL;
+    ts->tv_nsec = ns % 1000000000ULL;
+    return 0;
+}
+
+int __wrap_nanosleep(const struct timespec *req, struct timespec *rem) {
+    if (!keyer_thread()) {
+        return __real_nanosleep(req, rem);
+    }
+    atomic_fetch_add(&virt_ns, (uint64_t)req->tv_sec * 1000000000ULL + req->tv_nsec);
+    tick();
+    return 0;
+}
+
+int __wrap_usleep(useconds_t us) {
+    if (!keyer_thread()) {
+        return __real_usleep(us);
+    }
+    atomic_fetch_add(&virt_ns, (uint64_t)us * 1000ULL);
+    tick();
+    return 0;
+}
+
+/* ---- The settings, the subjects, the screen ------------------------------------------------------------------- */
+
+static char dummies[16];
+ParamInt   *cfg_key_speed        = (ParamInt *)&dummies[0];
+ParamInt   *cfg_key_train        = (ParamInt *)&dummies[1];
+ParamInt   *cfg_qsk_time         = (ParamInt *)&dummies[2];
+ParamFloat *cfg_key_ratio        = (ParamFloat *)&dummies[3];
+ParamInt   *cfg_band_vfoa_freq   = (ParamInt *)&dummies[4];
+ParamInt   *cfg_band_vfob_freq   = (ParamInt *)&dummies[5];
+ParamInt   *cfg_band_vfoa_mode   = (ParamInt *)&dummies[6];
+ParamInt   *cfg_band_vfob_mode   = (ParamInt *)&dummies[7];
+ParamInt   *cfg_band_current_vfo = (ParamInt *)&dummies[8];
+ParamInt   *cfg_band_split       = (ParamInt *)&dummies[9];
+ParamInt   *cfg_band_tx_shift    = (ParamInt *)&dummies[10];
+
+static int qsk = 100;   /* the break-in delay set, ms */
+
+int32_t param_i_get(const ParamInt *p) {
+    if (p == cfg_key_speed) return 20;
+    if (p == cfg_qsk_time) return qsk;
+    return 0;
+}
+
+float param_f_get(const ParamFloat *p) {
+    return p == cfg_key_ratio ? 3.0f : 0.0f;
+}
+
+static struct {
+    Subject    *subj;
+    observer_cb fn;
+    void       *user_data;
+} subs[16];
+static int n_subs;
+
+Observer *subject_subscribe(Subject *subj, observer_cb fn, void *user_data) {
+    subs[n_subs].subj      = subj;
+    subs[n_subs].fn        = fn;
+    subs[n_subs].user_data = user_data;
+    return (Observer *)&subs[n_subs++];
+}
+
+/* A setting changed: its observers, on the thread that changed it (Subject::notify) */
+static void changed(void *subj) {
+    for (int i = 0; i < n_subs; i++) {
+        if (subs[i].subj == subj) {
+            subs[i].fn(subs[i].subj, subs[i].user_data);
+        }
+    }
+}
+
+params_t params = {.cw_encoder_period = 10, .callsign = {"ON6URE"}};
+
+const char *panel_last_call(void) {
+    return "";
+}
+
+static pthread_mutex_t mux = PTHREAD_MUTEX_INITIALIZER;
+static char            said[128];
+
+void msg_schedule_text_fmt(const char *fmt, ...) {
+    va_list ap;
+
+    pthread_mutex_lock(&mux);
+    va_start(ap, fmt);
+    vsnprintf(said, sizeof(said), fmt, ap);
+    va_end(ap);
+    pthread_mutex_unlock(&mux);
+}
+
+/* ---- The key and the base --------------------------------------------------------------------------------------- */
+
+#define KEYLOG_MAX 20000
+
+static struct {
+    uint32_t t;     /* ms from the test's start */
+    bool     on;
+} keylog[KEYLOG_MAX];
+static int      n_key;
+static bool     key_on;
+static uint64_t key_up_ms;
+static uint64_t t0;             /* the test's start, ms */
+static uint32_t tail_ms = 100;  /* the base in TX after the key went up */
+static bool     other_tx;       /* TX from elsewhere */
+static uint32_t limit_ms;       /* radio_set_morse_key_limit */
+static uint32_t limit_max;      /* the highest asked in the test */
+static unsigned cuts;
+static int      qsk_set[64];    /* radio_set_qsk_time, in order */
+static int      n_qsk;
+
+void radio_set_morse_key(bool on) {
+    pthread_mutex_lock(&mux);
+    if (on != key_on && n_key < KEYLOG_MAX) {
+        keylog[n_key].t  = (uint32_t)(now_ms() - t0);
+        keylog[n_key].on = on;
+        n_key++;
+    }
+    if (key_on && !on) {
+        key_up_ms = now_ms();
+    }
+    key_on = on;
+    pthread_mutex_unlock(&mux);
+}
+
+radio_state_t radio_get_state(void) {
+    return key_on || now_ms() - key_up_ms < tail_ms || other_tx ? RADIO_TX : RADIO_RX;
+}
+
+void radio_set_qsk_time(uint16_t ms) {
+    if (n_qsk < 64) qsk_set[n_qsk++] = ms;
+}
+
+void radio_set_morse_key_limit(uint32_t ms) {
+    limit_ms = ms;
+    if (ms > limit_max) limit_max = ms;
+}
+
+unsigned radio_morse_key_cuts(void) {
+    return cuts;
+}
+
+/* ---- Events at a time from the test's start, on the keyer's thread ---------------------------------------------- */
+
+typedef enum { EV_FREQ = 1, EV_MODE, EV_SPLIT, EV_OTHER_TX, EV_CUT, EV_HOLD } ev_t;
+
+static struct {
+    uint32_t at;
+    ev_t     what;
+    bool     done;
+} evs[8];
+static int n_evs;
+
+/* EV_HOLD: the keyer waits there until the test lets it go, the key as it was */
+static atomic_bool held, hold_release;
+
+static void at(uint32_t ms, ev_t what) {
+    evs[n_evs].at     = ms;
+    evs[n_evs].what   = what;
+    evs[n_evs++].done = false;
+}
+
+static void tick(void) {
+    uint64_t t = now_ms() - t0;
+
+    for (int i = 0; i < n_evs; i++) {
+        if (evs[i].done || t < evs[i].at) {
+            continue;
+        }
+        evs[i].done = true;
+        switch (evs[i].what) {
+            case EV_FREQ:       changed(cfg_band_vfoa_freq); break;
+            case EV_MODE:       changed(cfg_band_vfoa_mode); break;
+            case EV_SPLIT:      changed(cfg_band_split); break;
+            case EV_OTHER_TX:   other_tx = true; break;
+            case EV_CUT:        /* as radio.c's morse_limit_check */
+                if (key_on) {
+                    radio_set_morse_key(false);
+                    cuts++;
+                }
+                break;
+            case EV_HOLD:
+                atomic_store(&held, true);
+                while (!atomic_load(&hold_release)) {
+                    struct timespec s = {0, 1000000};
+
+                    __real_nanosleep(&s, NULL);
+                }
+                atomic_store(&held, false);
+                break;
+        }
+    }
+}
+
+/* ---- Helpers ---------------------------------------------------------------------------------------------------- */
+
+static void reset(void) {
+    pthread_mutex_lock(&mux);
+    n_key = 0;
+    key_on = false;
+    said[0] = 0;
+    pthread_mutex_unlock(&mux);
+    n_evs = 0;
+    other_tx = false;
+    tail_ms = 100;
+    qsk = 100;
+    limit_max = 0;
+    n_qsk = 0;
+    atomic_store(&hold_release, false);
+    t0 = now_ms();
+}
+
+/* The keyer done by itself (a send, a stop it found), joined; false: still on after 5 s of real time */
+static bool wait_idle(void) {
+    for (int i = 0; i < 5000; i++) {
+        if (cw_encoder_state() == CW_ENCODER_IDLE) {
+            cw_encoder_stop();
+            return true;
+        }
+        usleep(1000);
+    }
+    return false;
+}
+
+static bool said_is(const char *want) {
+    pthread_mutex_lock(&mux);
+    bool same = strcmp(said, want) == 0;
+    pthread_mutex_unlock(&mux);
+    if (!same) printf("        said \"%s\", want \"%s\"\n", said, want);
+    return same;
+}
+
+/* The key log as elements: on, then off up to the next key down (0 after the last); false if it does not alternate
+ * down, up, from down */
+static int log_elements(cw_el_t *el, int max) {
+    int n = 0;
+
+    for (int i = 0; i + 1 < n_key && n < max; i += 2) {
+        if (!keylog[i].on || keylog[i + 1].on) return -1;
+        el[n].on_ms  = keylog[i + 1].t - keylog[i].t;
+        el[n].off_ms = i + 2 < n_key ? keylog[i + 2].t - keylog[i + 1].t : 0;
+        n++;
+    }
+    return n_key % 2 ? -1 : n;
+}
+
+static bool same_plan(const cw_el_t *a, int na, const cw_el_t *b, int nb) {
+    if (na != nb) {
+        printf("        %d elements, want %d\n", na, nb);
+        return false;
+    }
+    for (int i = 0; i < na; i++) {
+        if (a[i].on_ms != b[i].on_ms || a[i].off_ms != b[i].off_ms) {
+            printf("        element %d: %u on %u off, want %u on %u off\n", i, a[i].on_ms, a[i].off_ms, b[i].on_ms,
+                   b[i].off_ms);
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool key_left_up(void) {
+    return !key_on && limit_ms == 0 && !cw_encoder_qrss3();
+}
+
+/* ---- The rules alone ------------------------------------------------------------------------------------------- */
+
+static bool plan_is(const char *text, const uint32_t *want, int n) {
+    cw_el_t el[64], w[32];
+    int     got = qrss3_plan(text, el, 64);
+
+    for (int i = 0; i < n; i++) {
+        w[i].on_ms  = want[2 * i];
+        w[i].off_ms = want[2 * i + 1];
+    }
+    return same_plan(el, got, w, n);
+}
+
+static void test_plan(void) {
+    puts("QRSS3 elements (cw_beacon.c)");
+
+    static const uint32_t e[] = {3000, 0}, t[] = {9000, 0}, a[] = {3000, 3000, 9000, 0},
+                          et[] = {3000, 9000, 9000, 0}, e_t[] = {3000, 21000, 9000, 0},
+                          ar[] = {3000, 3000, 9000, 3000, 3000, 3000, 9000, 3000, 3000, 0};
+
+    check(plan_is("E", e, 1), "E: a dot of 3 s");
+    check(plan_is("T", t, 1), "T: a dash of 9 s");
+    check(plan_is("A", a, 2), "A: 3 s between the elements of a character");
+    check(plan_is("ET", et, 2), "ET: 9 s between characters");
+    check(plan_is("E T", e_t, 2), "E T: 21 s between words");
+    check(plan_is("  E   T  ", e_t, 2), "spaces at the start and the end not sent, a run of them one word space");
+    check(plan_is("E#T", e_t, 2), "a character the table does not have: a word space");
+    check(plan_is("e", e, 1), "lower case as upper");
+    check(plan_is("<AR>", ar, 5), "the prosign <AR> as one character");
+    check(qrss3_plan("", NULL, 0) == 0 && qrss3_plan("   ", NULL, 0) == 0 && qrss3_plan(NULL, NULL, 0) == 0,
+          "nothing to send: no elements");
+
+    cw_el_t two[2];
+    check(qrss3_plan("TEST", two, 2) == 6 && two[0].on_ms == 9000 && two[0].off_ms == 9000 &&
+          two[1].on_ms == 3000 && two[1].off_ms == 9000, "out too small: all counted, the first ones filled");
+
+    cw_el_t el[512];
+    int     n = qrss3_plan("PARIS", el, 512);
+    check(cw_plan_ms(el, n) == 43 * QRSS3_DOT_MS, "PARIS takes 43 dots (the 50 of PARIS timing less its word space)");
+    n = qrss3_plan("E E", el, 512);
+    check(cw_plan_ms(el, n) == 27000, "E E: 3 s + 21 s + 3 s");
+
+    /* Every character of the table, and the beacon text the issue thinks of */
+    const char *text = "CQ CQ DE ON6URE ON6URE QRSS3 TEST 0123456789 .,?/=+-@!:;'\"$_ <AR> <SK> <BK> <KN> <SOS> K";
+    bool        ok   = true;
+    uint32_t    down = 0;
+
+    n = qrss3_plan(text, el, 512);
+    for (int i = 0; i < n; i++) {
+        uint32_t off = el[i].off_ms;
+
+        ok &= el[i].on_ms == QRSS3_DOT_MS || el[i].on_ms == QRSS3_DASH_MS;
+        ok &= i + 1 < n ? off == QRSS3_DOT_MS || off == QRSS3_DASH_MS || off == QRSS3_WORD_MS : off == 0;
+        if (el[i].on_ms > down) down = el[i].on_ms;
+    }
+    check(ok && down == QRSS3_DASH_MS && n > 100, "%d elements: the key never down more than 9 s, every gap 3, 9 or 21 s",
+          n);
+}
+
+static void test_bands(void) {
+    puts("QRSS3 bands and frequencies");
+    check(qrss_band_of(10140050) == 0 && qrss_band_of(3569900) == 1, "10.140050 is 30 m, 3.569900 is 80 m");
+    check(qrss_band_of(10100000) == 0 && qrss_band_of(10150000) == 0 && qrss_band_of(10150001) == -1 &&
+          qrss_band_of(3499999) == -1 && qrss_band_of(7040000) == -1, "the band edges; 40 m none");
+    check(qrss_freq(0, 0) == 10140050 && qrss_freq(1, 0) == 3569900, "none chosen: the window's middle");
+    check(qrss_bands[0].freq_hz > qrss_bands[0].win_lo_hz && qrss_bands[0].freq_hz < qrss_bands[0].win_hi_hz &&
+          qrss_bands[1].freq_hz > qrss_bands[1].win_lo_hz && qrss_bands[1].freq_hz < qrss_bands[1].win_hi_hz,
+          "the presets inside their windows");
+    check(qrss_freq(0, 10140080) == 10140080 && qrss_freq(0, 7040000) == 10140050,
+          "a choice on the band kept, one off it gives the preset");
+    check(qrss_freq_step(0, 0, 3) == 10140080 && qrss_freq_step(0, 10140080, -3) == 0,
+          "MFK steps of 10 Hz; back on the preset it is 0 again");
+    check(qrss_freq_step(1, 0, -1000000) == 3500000 && qrss_freq_step(1, 3999990, 5) == 4000000,
+          "kept between the band's edges");
+}
+
+/* ---- The keyer, on its thread ---------------------------------------------------------------------------------- */
+
+static void test_qrss_send(void) {
+    puts("QRSS3 sent by cw_encoder.c");
+
+    cw_el_t want[64], got[64];
+    int     nw, ng;
+
+    reset();
+    nw = qrss3_plan("ET E", want, 64);
+    check(cw_encoder_send_qrss3("ET E", false) && cw_encoder_qrss3(), "started");
+    check(wait_idle(), "done by itself");
+    ng = log_elements(got, 64);
+    check(same_plan(got, ng, want, nw), "the key as planned: dot 3 s, 9 s, dash 9 s, 21 s, dot 3 s");
+    check(said_is("") && key_left_up(), "nothing said, the key up, the TX time limit off");
+    check(limit_max == QRSS3_DASH_MS + 1000, "the TX time limit while it sent: 10 s");
+
+    bool qsk_kept = true;
+    for (int i = 0; i < n_qsk; i++) qsk_kept &= qsk_set[i] == qsk;
+    check(qsk_kept, "the break-in delay left as set: the radio receives in every gap");
+
+    /* A long break-in delay, and the base's TX flag later still: its own TX after each element, not someone else's */
+    reset();
+    qsk     = 1000;
+    tail_ms = 2400;
+    nw = qrss3_plan("TEST", want, 64);
+    cw_encoder_send_qrss3("TEST", false);
+    check(wait_idle(), "TEST with a 1 s break-in delay, the base in TX 2.4 s after each element");
+    ng = log_elements(got, 64);
+    check(same_plan(got, ng, want, nw) && said_is(""), "the base's own TX after the key is not taken for another's");
+
+    /* A beacon: the pause after each send, then again */
+    reset();
+    at(27000, EV_FREQ);
+    cw_encoder_send_qrss3("E", true);
+    check(wait_idle(), "a beacon, stopped by a change of frequency");
+    check(n_key == 6 && keylog[0].t == 0 && keylog[1].t == 3000 && keylog[2].t == 13000 && keylog[3].t == 16000 &&
+          keylog[4].t == 26000 && keylog[5].t <= 27050, "sends at 0, 13 and 26 s: the 10 s pause after each");
+    check(said_is("QRSS3 stopped: tuned away") && key_left_up(), "said so, the key up within 50 ms of the change");
+}
+
+static void *stop_thread(void *arg) {
+    (void)arg;
+    cw_encoder_stop();
+    return NULL;
+}
+
+static void test_qrss_stops(void) {
+    puts("QRSS3 stops");
+
+    reset();
+    at(4000, EV_MODE);
+    cw_encoder_send_qrss3("T", true);
+    check(wait_idle() && n_key == 2 && keylog[1].t >= 4000 && keylog[1].t <= 4050,
+          "mode changed during a dash: the key up within 50 ms");
+    check(said_is("QRSS3 stopped: mode changed") && key_left_up(), "said so, nothing keyed after");
+
+    reset();
+    at(5000, EV_SPLIT);
+    cw_encoder_send_qrss3("EE", false);
+    check(wait_idle() && n_key == 2 && said_is("QRSS3 stopped: VFO changed") && key_left_up(),
+          "split turned on in a gap: stopped before the next element");
+
+    /* The mic's PTT in the 9 s gap of EE (3-12 s): another TX, seen once the base's own tail is over */
+    reset();
+    at(5000, EV_OTHER_TX);
+    cw_encoder_send_qrss3("EE", false);
+    check(wait_idle() && n_key == 2 && said_is("QRSS3 stopped: other TX") && key_left_up(),
+          "the radio in TX between elements, from elsewhere: stopped, no element after");
+
+    /* The radio thread's TX time limit let go of the key during the dash */
+    reset();
+    at(4000, EV_CUT);
+    cw_encoder_send_qrss3("TT", true);
+    check(wait_idle() && n_key == 2 && keylog[1].t == 4000, "the key let go by the radio at 4 s, never down again");
+    check(said_is("QRSS3 stopped: key held 10 s") && key_left_up(), "said so");
+
+    /* The front PTT key on a beacon: it stops before PTT keys */
+    reset();
+    cw_encoder_send_qrss3("E", true);
+    usleep(2000);
+    cw_encoder_ptt_pressed();
+    check(cw_encoder_state() == CW_ENCODER_IDLE && said_is("QRSS3 stopped: PTT") && key_left_up(),
+          "the front PTT key: stopped, said so, the key up");
+
+    /* ESC (the dialog closes) in the middle of a dash: the key goes up at once */
+    pthread_t th;
+
+    reset();
+    at(4500, EV_HOLD);
+    cw_encoder_send_qrss3("T", true);
+    while (!atomic_load(&held)) usleep(1000);
+    check(key_on, "held at 4.5 s with the key down");
+    pthread_create(&th, NULL, stop_thread, NULL);
+    usleep(20000);
+    atomic_store(&hold_release, true);
+    pthread_join(th, NULL);
+    check(n_key == 2 && keylog[1].t == 4500 && said_is("") && key_left_up(),
+          "cw_encoder_stop(): the key up at 4.5 s, nothing said");
+}
+
+/* The CW keyer's own path is as it was: a dot at the keyer's speed, the break-in delay held through the message */
+static void test_cw(void) {
+    puts("CW at the keyer's speed");
+    reset();
+    cw_encoder_send("E", false);
+    check(wait_idle() && n_key == 2 && keylog[1].t - keylog[0].t == 60, "E at 20 WPM: a 60 ms dot");
+    check(n_qsk >= 2 && qsk_set[0] == 7 * 60 + 150 && qsk_set[n_qsk - 1] == qsk,
+          "the break-in delay held for a word space and 150 ms, then back");
+    check(key_left_up() && limit_max == 0, "no TX time limit for CW");
+
+    reset();
+    cw_encoder_send("E", true);
+    usleep(2000);
+    cw_encoder_ptt_pressed();
+    check(cw_encoder_state() == CW_ENCODER_IDLE && !key_on && said_is(""), "a CW beacon stops on the front PTT key");
+}
+
+int main(void) {
+    main_thread = pthread_self();
+    test_plan();
+    test_bands();
+    test_qrss_send();
+    test_qrss_stops();
+    test_cw();
+    printf("%d of %d cases ok\n", good, cases);
+    return good == cases ? 0 : 1;
+}

@@ -21,6 +21,22 @@ typedef enum {
 void cw_encoder_send(const char *text, bool beacon);
 void cw_encoder_stop();
 
+/* The text in QRSS3 (cw_beacon.h), on the frequency the radio is on: every element by our own timing of the key,
+ * never down longer than a dash (9 s) and up with the break-in delay as set, so the radio receives in every gap.
+ * Besides cw_encoder_stop() it stops by itself, the screen saying why: a change of frequency, mode, VFO, split or TX
+ * shift, the radio in TX between elements (the mic's PTT, CAT, TCI, the Panel), the key held past its TX time limit
+ * (radio_set_morse_key_limit). False: not started. LVGL thread */
+bool cw_encoder_send_qrss3(const char *text, bool beacon);
+
+/* A QRSS3 send or beacon is on, its pause too. Any thread */
+bool cw_encoder_qrss3(void);
+
+/* Seconds left of the QRSS3 send on the air, 0 none */
+int cw_encoder_send_left(void);
+
+/* The front PTT key, before it keys: a QRSS3 send or a beacon (either speed) stops. LVGL thread */
+void cw_encoder_ptt_pressed(void);
+
 /* While set the key is never closed unless key train is on (the sidetone
  * without transmitting): the CW trainer must not transmit. */
 void cw_encoder_require_train(bool on);

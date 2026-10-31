@@ -135,6 +135,8 @@ typedef struct {
 
     uint16_t            cw_encoder_period;  /* seconds */
     uint16_t            voice_msg_period;   /* seconds */
+    params_int32_t      cw_qrss_hz[2];      /* MSG > CW QRSS3 on 30 m and 80 m (cw_beacon.h): the frequency chosen, Hz,
+                                             * 0 the band's own */
 
     /* RTTY */
 

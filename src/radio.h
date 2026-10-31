@@ -128,6 +128,10 @@ void radio_set_line_in(uint8_t d);
 void radio_set_line_out(uint8_t d);
 
 void radio_set_morse_key(bool on);
+/* The GUI's CW key down for at most ms at a time, 0: no limit (QRSS3's TX time limit): past it the radio thread lets
+ * go of the key and counts it. Any thread */
+void radio_set_morse_key_limit(uint32_t ms);
+unsigned radio_morse_key_cuts(void);
 /* Break-in delay of the base, ms (cfg_qsk_time is the setting; the CW encoder holds TX longer) */
 void radio_set_qsk_time(uint16_t ms);
 /* The TX voice reaches the screen recording only through the monitor: at least 30 while recording */

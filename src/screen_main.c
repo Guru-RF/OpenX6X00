@@ -39,6 +39,7 @@
 #include "settings_window.h"
 #include "freq_entry.h"
 #include "cw_messages.h"
+#include "cw_encoder.h"
 #include "dialog_cw_kbd.h"
 #include "voice_messages.h"
 #include "swrscan_window.h"
@@ -745,6 +746,7 @@ static bool page_key(keypad_key_t key, bool tap, bool hold) {
 static void ptt_key(keypad_state_t state) {
     if (state == KEYPAD_PRESS) {
         dialog_msg_voice_ptt_pressed();
+        cw_encoder_ptt_pressed();   /* a beacon or QRSS3 lets go of the key first */
         radio_set_ptt(true);
         if (cw_mode()) {
             radio_set_morse_key(true);
