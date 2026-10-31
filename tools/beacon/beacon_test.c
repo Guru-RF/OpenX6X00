@@ -562,6 +562,22 @@ static void test_qrss_stops(void) {
     pthread_join(th, NULL);
     check(n_key == 2 && keylog[1].t == 4500 && said_is("") && key_left_up(),
           "cw_encoder_stop(): the key up at 4.5 s, nothing said");
+
+    /* The knob turned on the GUI thread while the keyer sleeps in a dash: the base has the new frequency at once, so
+     * the key goes up then, not at the keyer's next look */
+    bool up_at_once;
+
+    reset();
+    at(4500, EV_HOLD);
+    cw_encoder_send_qrss3("T", true);
+    while (!atomic_load(&held)) usleep(1000);
+    changed(cfg_band_vfoa_freq);
+    pthread_mutex_lock(&mux);
+    up_at_once = !key_on;
+    pthread_mutex_unlock(&mux);
+    atomic_store(&hold_release, true);
+    check(wait_idle() && up_at_once && n_key == 2 && keylog[1].t == 4500 && said_is("QRSS3 stopped: tuned away") &&
+          key_left_up(), "tuned away in the middle of a dash: the key up on the GUI thread, before the keyer looks");
 }
 
 /* ---- The schedule ---------------------------------------------------------------------------------------------- */

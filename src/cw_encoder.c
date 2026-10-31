@@ -156,10 +156,15 @@ static void stop_for(int w) {
 }
 
 /* The radio moved (the knob, a band key, CAT, TCI, the Panel, XIT): the carrier would go out beside the QRSS
- * frequency, where no grabber looks, or outside the band. Any thread */
+ * frequency, where no grabber looks, or outside the band. radio.c's observer came first, so the base has the new
+ * frequency or mode already: the key goes up here and now, not at the keyer's next look, up to 50 ms on. Nothing but
+ * QRSS3 keys while it is on. GUI thread (settings are set there) */
 static void changed_cb(Subject *subj, void *user_data) {
     (void)subj;
-    stop_for((int)(intptr_t)user_data);
+    if (atomic_load(&qrss_on)) {
+        stop_for((int)(intptr_t)user_data);
+        radio_set_morse_key(false);
+    }
 }
 
 /* Once, at the first QRSS3: before it, the move onto its frequency is not taken for one (qrss_on is still off) */
