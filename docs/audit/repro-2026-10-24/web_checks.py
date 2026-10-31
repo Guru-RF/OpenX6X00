@@ -552,6 +552,11 @@ with tempfile.TemporaryDirectory(prefix='x6https-') as td:
                   got.split(b'\r\n\r\n')[-1].decode(), 'page POST /api/upload 300000 ' + hashlib.sha256(body).hexdigest()[:12]))
     got = ask(b'GET /panel HTTP/1.1\r\nHost: x6100.local\r\n\r\n', pieces=3)
     cases.append(('a page\'s head in pieces of 3 bytes', got.split(b'\r\n\r\n')[-1].decode(), 'page GET /panel 0 e3b0c44298fc'))
+    t0 = time.time()
+    got = ask(b'GET /panel HTTP/1.0\nHost: x6100.local\n\n')
+    cases.append(('a head of bare LF line ends (a tool\'s): answered at once, as before (not after the 10 s wait)',
+                  got.split(b'\r\n\r\n')[-1].decode() + (' at once' if time.time() - t0 < 3 else ' late'),
+                  'page GET /panel 0 e3b0c44298fc at once'))
     ports['remote'] = gone
     t0 = time.time()
     got = ask(upgrade('/ws/remote'))

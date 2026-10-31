@@ -194,9 +194,10 @@ HEAD_MAX = 8192   # the GUI takes an upgrade request of 4096 bytes at most (WS_R
 
 
 def read_head(sock):
-    """A request's first bytes: up to the end of its head, HEAD_MAX, or the end of the connection"""
+    """A request's first bytes: up to the end of its head, HEAD_MAX, or the end of the connection. A head of bare LF
+    line ends (a tool's, never a browser's) ends at its blank line too: the web server answers it, as it did before"""
     head = b""
-    while b"\r\n\r\n" not in head and len(head) < HEAD_MAX:
+    while b"\r\n\r\n" not in head and b"\n\n" not in head and len(head) < HEAD_MAX:
         data = sock.recv(HEAD_MAX)
         if not data:
             break
