@@ -14,7 +14,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
-- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [RTTY and WeFax TX](#rtty-and-wefax-tx)
+- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat)
@@ -768,6 +768,7 @@ base is too old.
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only, see [TCI server](#tci-server)) |
+| TEXT LOG | Keyboard modes (on by default), Size limit (1-100 MB, 10 MB by default): what PSK, Olivia and JTTY receive and send, and what RTTY receives, on the card (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 
 Main knob acceleration. Where: Settings > General > CONTROLS > Freq
 acceleration.
@@ -1903,6 +1904,8 @@ others. Frequency and mode come back when the app closes.
 - Files: `/mnt/psk_macros.txt`, `/mnt/olivia_macros.txt`, `/mnt/psk.conf`
   (squelch).
 - The macros can also be edited on the web configurator's Macros page.
+- What is received and sent is kept on the card, a file a day (see
+  [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)).
 - The apps don't log QSOs themselves yet. A QSO logged from the browser
   panel's Log tab while one is open goes into the log in its mode: PSK31 or
   PSK63 (ADIF mode PSK with that submode) or OLIVIA (see
@@ -1924,6 +1927,48 @@ tuner. Decoded stations go to PSK Reporter when it is on. TX goes through the sa
 protection). I haven't made a QSO with it yet, so reports are welcome. A
 QSO logged from the browser panel's Log tab while JTTY is open goes into the
 log as JTTY (ADIF 3.1.8: mode MFSK, submode JTTY).
+
+### Text log of the keyboard modes
+
+What PSK31, PSK63, Olivia and JTTY receive and send, and what RTTY receives,
+is kept on the card: a line for each line, in `/mnt/digi_text/`, one file a
+UTC day (`2026-10-31.txt`). Leave the radio listening and read later what
+came through; the reports you exchange are in the text.
+
+```
+2026-10-31 14:05:12Z 14.071000 PSK31 RX Q87% CQ CQ DE PA3XYZ PA3XYZ K
+2026-10-31 14:05:40Z 14.071000 PSK31 TX - PA3XYZ DE ON6URE ON6URE KN
+2026-10-31 14:07:02Z 14.090850 JTTY RX -12dB CQ PA3XYZ JO21
+2026-10-31 14:09:30Z 14.072500 OLIVIA-8/250 RX Q64% RYRYRY
+```
+
+- Each line: the UTC time the line began, the frequency in MHz where the
+  signal is (the dial plus the decoder's audio frequency in PSK, the centre
+  in Olivia, the lowest tone in JTTY, the RTTY centre), the mode, RX or TX,
+  the app's own figure for the signal averaged over the line, and the text.
+  The figure: Q, the decoder's quality as on the PSK and Olivia status
+  button (0-100 %); dB, JTTY's signal-to-noise in 2500 Hz; `-` none (RTTY
+  has no such figure yet, and what is sent).
+- A received line ends at the decoder's line break, after 10 s without new
+  text, when the frequency moves more than 30 Hz (another station), at 200
+  characters, and when the app closes. A JTTY message is written once,
+  whole, when its last frame is in, or 10 s after its last frame. JTTY
+  keeps every message it decodes in the passband, the dim ones in the panel
+  too, each at its own frequency.
+- PSK keeps what the panel shows: with the squelch on, what the decoder
+  makes of noise is not kept either.
+- Settings > General > TEXT LOG: Keyboard modes (on by default) and Size
+  limit (1-100 MB, 10 MB by default). Past the limit the oldest day's file
+  goes. The newest day's file is never deleted: when it alone reaches the
+  limit, nothing more is kept until the next UTC day (or a higher limit).
+- The lines go to the card as they end, and the radio has the card write
+  them out at most every 15 s: a power cut loses the last quarter minute
+  or so, and a day of listening costs the card little. Nothing is written
+  while the card's DATA partition is not mounted.
+- The web configurator's Logs page lists the days under the QSOs: read one
+  in the browser, download it, or delete it.
+- These lines are not QSOs: to log a QSO in these modes, use the Log tab of
+  the [browser panel](#browser-panel).
 
 ### RTTY and WeFax TX
 
@@ -2760,7 +2805,7 @@ The menu has General and five groups:
 | | Winlink | Winlink email over HF with Pat and ARDOP, or Mercury (experimental): Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), the modem, ARDOP's or Mercury's bandwidth, the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
-| | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV |
+| | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
 | | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages (optionally CW trainer and WiFi) as one file, and restore the parts you choose |
@@ -4489,7 +4534,8 @@ That is normal while JS8 is open.
 
 FT8/FT4 in `/mnt/ft_log.adi`, JS8 in `/mnt/js8call_log.adi`, Field Ops in
 `/mnt/field/logs/`, the QSOs logged outside an activation in the day's log. The web configurator's
-Logs page shows them all.
+Logs page shows them all. What PSK, Olivia and JTTY received and sent, and what RTTY received, is in
+`/mnt/digi_text/`, a file a UTC day, on the Logs page too ([Text log of the keyboard modes](#text-log-of-the-keyboard-modes)).
 
 ## Reference
 
@@ -4595,6 +4641,7 @@ The DATA partition, readable on a PC.
 | `js8_inbox.txt`, `js8_held.txt`, `js8_texts.txt` | JS8 inbox, messages held for others, INFO/STATUS/alert words/groups |
 | `incoming_log.adi` | put an ADIF log here to import it at the next start; a record with neither OPERATOR nor STATION_CALLSIGN is logged under your callsign |
 | `field/` | Field Ops state and activation logs (`field/logs/`) |
+| `digi_text/` | the [text log of the keyboard modes](#text-log-of-the-keyboard-modes): `YYYY-MM-DD.txt`, a file a UTC day |
 | `screenrec/` | screen recordings (AVI) |
 | `themes/` | theme files and folders ([docs/THEMES.md](THEMES.md)) |
 | `sstv/` | received SSTV pictures; `tx_pics/` pictures and `tx_text/` text templates to send |
