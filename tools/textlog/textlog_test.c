@@ -140,6 +140,10 @@ static bool has(const char *text, const char *want) {
 int main(void) {
     const char *t;
 
+    /* A local time 11 h from UTC, whatever the PC's: a line timed or filed by the local clock fails the cases, here
+     * and on a PC that runs on UTC */
+    setenv("TZ", "XST-11", 1);
+    tzset();
     mkdir(BOARD_DATA, 0755);
     fake_now = utc(2026, 10, 31, 14, 5, 12);
 

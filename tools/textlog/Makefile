@@ -4,7 +4,7 @@
 # never, nothing past it), and Off. The real module on its own writer thread, into build/data/digi_text.
 # The sources are copied to build/ first: a quoted #include looks beside the including file before the -I paths,
 # and the shim in stub_include must win over src/ (as in tools/tune). The clock is the test's own (--wrap=time),
-# and the card's fsync calls are counted (--wrap=fsync).
+# and the card's fsync calls are counted (--wrap=fsync). The local time is 11 h from UTC (TZ set in the test).
 # textlog_web_test.py tests the web configurator's side (the Logs page's list, read, download, delete; needs bottle).
 SRC    := ../../src
 DATA   := $(CURDIR)/build/data
