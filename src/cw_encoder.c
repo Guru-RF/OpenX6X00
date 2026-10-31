@@ -155,8 +155,8 @@ static void stop_for(int w) {
     }
 }
 
-/* The radio moved (the knob, a band key, CAT, TCI, the Panel): the carrier would go out beside the QRSS frequency,
- * where no grabber looks, or outside the band. Any thread */
+/* The radio moved (the knob, a band key, CAT, TCI, the Panel, XIT): the carrier would go out beside the QRSS
+ * frequency, where no grabber looks, or outside the band. Any thread */
 static void changed_cb(Subject *subj, void *user_data) {
     (void)subj;
     stop_for((int)(intptr_t)user_data);
@@ -173,6 +173,7 @@ static void watch_init(void) {
     subject_subscribe((Subject *)cfg_band_vfoa_freq, changed_cb, (void *)WHY_FREQ);
     subject_subscribe((Subject *)cfg_band_vfob_freq, changed_cb, (void *)WHY_FREQ);
     subject_subscribe((Subject *)cfg_band_tx_shift, changed_cb, (void *)WHY_FREQ);
+    subject_subscribe((Subject *)cfg_xit, changed_cb, (void *)WHY_FREQ);
     subject_subscribe((Subject *)cfg_band_vfoa_mode, changed_cb, (void *)WHY_MODE);
     subject_subscribe((Subject *)cfg_band_vfob_mode, changed_cb, (void *)WHY_MODE);
     subject_subscribe((Subject *)cfg_band_current_vfo, changed_cb, (void *)WHY_VFO);

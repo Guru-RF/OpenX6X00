@@ -568,7 +568,7 @@ static void open_editor(edit_t what) {
 /* Button actions */
 
 /* QRSS3 where the radio is: CW or CW-R on 30 m or 80 m, moved onto the band's QRSS frequency, which it must transmit
- * on (no split, no TX shift) */
+ * on (no split, no TX shift, no XIT) */
 static void qrss_start(const char *text) {
     radio_mode_t mode = cparam_i_get(cfg_cur_mode);
     int          band = qrss_band();
@@ -585,6 +585,10 @@ static void qrss_start(const char *text) {
     }
     if (param_i_get(cfg_band_split)) {      /* before the move: the carrier would go out on the other VFO */
         msg_update_text_fmt("QRSS3: split or TX shift on");
+        return;
+    }
+    if (param_i_get(cfg_xit)) {     /* the base adds it in TX: the carrier beside the window, or past the band's edge */
+        msg_update_text_fmt("QRSS3: XIT is set (%+i Hz)", (int)param_i_get(cfg_xit));
         return;
     }
     hz = qrss_hz(band);

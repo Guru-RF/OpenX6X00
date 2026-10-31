@@ -129,6 +129,7 @@ ParamInt   *cfg_band_vfob_mode   = (ParamInt *)&dummies[7];
 ParamInt   *cfg_band_current_vfo = (ParamInt *)&dummies[8];
 ParamInt   *cfg_band_split       = (ParamInt *)&dummies[9];
 ParamInt   *cfg_band_tx_shift    = (ParamInt *)&dummies[10];
+ParamInt   *cfg_xit              = (ParamInt *)&dummies[11];
 
 static int qsk = 100;   /* the break-in delay set, ms */
 
@@ -237,7 +238,7 @@ unsigned radio_morse_key_cuts(void) {
 
 /* ---- Events at a time from the test's start, on the keyer's thread ---------------------------------------------- */
 
-typedef enum { EV_FREQ = 1, EV_MODE, EV_SPLIT, EV_OTHER_TX, EV_CUT, EV_HOLD } ev_t;
+typedef enum { EV_FREQ = 1, EV_MODE, EV_SPLIT, EV_OTHER_TX, EV_CUT, EV_HOLD, EV_XIT } ev_t;
 
 static struct {
     uint32_t at;
@@ -267,6 +268,7 @@ static void tick(void) {
             case EV_FREQ:       changed(cfg_band_vfoa_freq); break;
             case EV_MODE:       changed(cfg_band_vfoa_mode); break;
             case EV_SPLIT:      changed(cfg_band_split); break;
+            case EV_XIT:        changed(cfg_xit); break;
             case EV_OTHER_TX:   other_tx = true; break;
             case EV_CUT:        /* as radio.c's morse_limit_check */
                 if (key_on) {
@@ -510,6 +512,13 @@ static void test_qrss_stops(void) {
     cw_encoder_send_qrss3("EE", false);
     check(wait_idle() && n_key == 2 && said_is("QRSS3 stopped: VFO changed") && key_left_up(),
           "split turned on in a gap: stopped before the next element");
+
+    /* XIT turned during a dash: the base adds it to the carrier, which leaves the QRSS frequency */
+    reset();
+    at(6000, EV_XIT);
+    cw_encoder_send_qrss3("T", true);
+    check(wait_idle() && n_key == 2 && keylog[1].t >= 6000 && keylog[1].t <= 6050 &&
+          said_is("QRSS3 stopped: tuned away") && key_left_up(), "XIT changed during a dash: the key up within 50 ms");
 
     /* The mic's PTT in the 9 s gap of EE (3-12 s): another TX, seen once the base's own tail is over */
     reset();

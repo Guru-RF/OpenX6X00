@@ -2224,15 +2224,16 @@ hint counts down the send.
   turn the MFK or VOL (10 Hz steps), press the MFK when done. Kept for each
   band. Look at a grabber first and pick a spot in the window that is free.
 - Refused, with a word on the screen: in another mode, on another band,
-  with the frequency locked, in split or with a TX shift, and where the
+  with the frequency locked, in split or with a TX shift, with XIT set (it
+  would move the carrier out of the window: set it to 0), and where the
   radio may not transmit.
 - The radio times every element itself (the base's keyer does not go that
   slow) and keeps your break-in delay: it receives in every gap (3 s at
   least), with the CW decoder if it is on.
 - It stops on TX (Stop), ESC or closing MSG > CW, the front PTT key, the
   SWR protection, any transmission between the elements (the mic's PTT,
-  CAT, TCI, the Panel), and a change of frequency, band, mode, VFO, split
-  or TX shift (the knob, the band keys, CAT, TCI, the Panel). The screen
+  CAT, TCI, the Panel), and a change of frequency, band, mode, VFO, split,
+  TX shift or XIT (the knob, the band keys, CAT, TCI, the Panel). The screen
   says why: "QRSS3 stopped: tuned away".
 - Its TX time limit: no key-down may last over 10 s (the longest element is
   a 9 s dash). Past that the radio lets go of the key and QRSS3 stops ("QRSS3

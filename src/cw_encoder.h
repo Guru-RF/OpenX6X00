@@ -26,9 +26,9 @@ void cw_encoder_stop();
 
 /* The text in QRSS3 (cw_beacon.h), on the frequency the radio is on: every element by our own timing of the key,
  * never down longer than a dash (9 s) and up with the break-in delay as set, so the radio receives in every gap.
- * Besides cw_encoder_stop() it stops by itself, the screen saying why: a change of frequency, mode, VFO, split or TX
- * shift, the radio in TX between elements (the mic's PTT, CAT, TCI, the Panel), the key held past its TX time limit
- * (radio_set_morse_key_limit). False: not started. LVGL thread */
+ * Besides cw_encoder_stop() it stops by itself, the screen saying why: a change of frequency, mode, VFO, split, TX
+ * shift or XIT, the radio in TX between elements (the mic's PTT, CAT, TCI, the Panel), the key held past its TX time
+ * limit (radio_set_morse_key_limit). False: not started. LVGL thread */
 bool cw_encoder_send_qrss3(const char *text, bool beacon);
 
 /* A QRSS3 send or beacon is on, its pause too. Any thread */
