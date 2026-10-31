@@ -257,6 +257,36 @@ def main():
             "A/B held: VFO copied, \"Clone VFO B->A\"", "A/B let go, an app holding the VFOs: nothing",
             "BAND UP let go: band up", "42 of 42 cases as they should be")).strip())
 
+        # Issue #111: the user's frequency lock and an app's hold, cut out of screen_main.c: from the end of
+        # cw_mode() to the end of toggle_freq_lock(), and main_screen_lock_freq() to main_screen_freq_locked()
+        def end_of(function):
+            b = screen.index("{", screen.index(function)) + 1
+            level = 1
+            while level:
+                level += (screen[b] == "{") - (screen[b] == "}")
+                b += 1
+            return b
+
+        (work / "freq_lock_cut.c").write_text(
+            "#include <stdbool.h>\n#include <stdint.h>\n"
+            "typedef struct SubjectInt SubjectInt;\n"
+            "int32_t subject_i_get(SubjectInt *s);\nvoid subject_i_set(SubjectInt *s, int32_t v);\n"
+            "void freq_strip_set_lock(bool user_lock);\nvoid info_lock_mode(bool lock);\n"
+            "static SubjectInt *freq_lock;\nstatic bool user_lock, app_lock;\n"
+            "static bool band_lock, mode_lock, ab_lock;\n" +
+            screen[end_of("static bool cw_mode("):end_of("toggle_freq_lock(void) {")] + "\n" +
+            screen[screen.index("void main_screen_lock_freq("):end_of("bool main_screen_freq_locked(")] + "\n"
+            "void lock_key(void) { toggle_freq_lock(); }\n"
+            "void lock_init(SubjectInt *s) { freq_lock = s; }\n")
+        binary = work / "freq-lock"
+        command([*CC, *cflags, *san, HERE / "freq-lock.c", work / "freq_lock_cut.c", "-o", binary], env)
+        print("#111 the user's frequency lock and an app's hold:\n" + command([binary], env, contains=(
+            "FT8 closed, the lock set before it: locked 1, user's lock 1, LOCK shown 1",
+            "FT8 opened, no lock: locked 1, user's lock 0, LOCK shown 0",
+            "the Panel's LOCK off, FT8 open: locked 1, user's lock 0, LOCK shown 0",
+            "JS8 closed: locked 1, user's lock 1, LOCK shown 1",
+            "16 of 16 cases as they should be")).strip())
+
         # Issue #49: the battery % shown, the base's or the voltage's; down at the steep end of the curve the
         # voltage's stays, where it met a base stuck at 0 % and gave 0 % with half an hour still in the pack,
         # and is taken there for a base at 0 % from the start (the radio switched on at 7.3 V)
