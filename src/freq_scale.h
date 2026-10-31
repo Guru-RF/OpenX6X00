@@ -19,6 +19,8 @@ extern "C" {
 void freq_scale_init(lv_obj_t *parent, lv_coord_t y);
 /* The labels to y (the spectrum height changed) */
 void freq_scale_set_y(lv_coord_t y);
+void freq_scale_foreground(void);   /* KX3Lovers Plus: over the display */
+void freq_scale_set_width(lv_coord_t w);   /* the right edge label at w (Plus, CW: half the screen) */
 
 /* Span from center - half_width to center + half_width across the width */
 /* Dashed lines under the reference frequencies, over the waterfall */

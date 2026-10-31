@@ -8,6 +8,7 @@
 
 #include "cw_decoder.h"
 
+#include "lcd_panel.h"
 #include "panel.h"
 #include "remote_server.h"
 
@@ -28,6 +29,7 @@ void cw_decoder_text(const char *text) {
         to_text(text);
         return;
     }
+    lcd_panel_cw_text(text);        /* KX3Lovers Plus shows it in its spectrum strip */
     panel_add_text(text);
 }
 

@@ -158,6 +158,7 @@ static int builtin_index(const char *name) {
     for (int i = 0; i < B_COUNT; i++) {
         if (name && strcasecmp(name, builtin_names[i]) == 0) return i;
     }
+    if (name && strcasecmp(name, THEME_KX3_NAME) == 0) return B_COUNT;   /* theme_kx3.inc */
     return -1;
 }
 
@@ -176,6 +177,7 @@ static void theme_set(const theme_set_t *s, size_t n) {
 
 /* Outdoor-Negative: Outdoor with every colour and the waterfall through negative() */
 static void use_builtin(int b) {
+    bool theme_kx3_use(int b); if (theme_kx3_use(b)) return;   /* KX3Lovers Plus: theme_kx3.inc */
     int src = b == B_OUTDOOR_NEG ? B_OUTDOOR : b >= B_VISION ? B_RFGURU : b;
 
     memcpy(colors, builtin_colors[src], sizeof(colors));
@@ -563,6 +565,7 @@ int theme_list(char names[][32], int max) {
     for (int i = 0; i < B_COUNT && n < max; i++) {
         if (i != B_LEGACY) snprintf(names[n++], 32, "%s", builtin_names[i]);
     }
+    if (n < max) snprintf(names[n++], 32, "%s", THEME_KX3_NAME);   /* theme_kx3.inc */
     d = opendir(THEMES_DIR);
     while (d && (e = readdir(d)) && n < max) {
         size_t len = strlen(e->d_name);
@@ -599,3 +602,5 @@ lv_obj_t *theme_icon_img(lv_obj_t *parent, const char *name, int size, lv_color_
     lv_obj_set_style_img_recolor_opa(img, LV_OPA_COVER, 0);
     return img;
 }
+
+#include "theme_kx3.inc"

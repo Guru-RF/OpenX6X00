@@ -34,6 +34,7 @@ extern "C" {
     #include "screen_rec.h"
     #include "rtty.h"
     #include "spectrum.h"
+    #include "theme.h"
     #include "waterfall.h"
 
     #include <math.h>
@@ -226,8 +227,9 @@ static int32_t wf_span() {
     return base_decim ? SPAN_HZ / zoom : SPAN_HZ;
 }
 
+/* KX3Lovers Plus shows its spectrum strip whatever Settings say */
 static bool spectrum_on() {
-    return spectrum_shown && spectrum_enabled.load(std::memory_order_relaxed);
+    return (spectrum_shown || theme_kx3) && spectrum_enabled.load(std::memory_order_relaxed);
 }
 
 /* * Panorama * */

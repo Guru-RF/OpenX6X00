@@ -23,6 +23,7 @@
 #include "rtty.h"
 #include "scheduler.h"
 #include "gui_styles.h"
+#include "lcd_panel.h"
 #include "theme.h"
 #include "util.h"
 #include "waterfall_view.h"
@@ -117,6 +118,7 @@ static lv_coord_t trace_px(lv_coord_t w) {
 static void levels(float *min, float *max) {
     *min = data_tx ? TX_MIN : level_min;
     *max = data_tx ? TX_MAX : level_max;
+    if (theme_kx3 && !data_tx) lcd_panel_levels(min, max);   /* KX3Lovers Plus: its short strip */
 }
 
 /* Fixed mode: a new trace into kept_db at the points it is drawn on; another view, another
@@ -581,6 +583,7 @@ static void direct_render(void) {
         polyline(kept_db, from, to, min, max, 0, theme_shape.mono ? line : kept_color(trace_color(), TC(panel)).full,
                  true);
     }
+    lcd_panel_squeeze(strip, h, POINTS, lv_obj_get_width(obj), bg);   /* KX3Lovers Plus, CW: half wide */
 
 #if USE_DRM
     drm_wf_present(strip, obj->coords.y1, h);
