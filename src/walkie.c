@@ -358,7 +358,7 @@ static button_data_t wlk_atu = KEY_BTN("ATU", KEYPAD_ATU, key_hold_cb);         
 static button_data_t wlk_agc = KEY_BTN("AGC", KEYPAD_AGC, key_hold_cb);         /* held: split */
 static button_data_t wlk_pre = KEY_BTN("PRE", KEYPAD_PRE, key_hold_cb);         /* held: ATT */
 static button_data_t wlk_ab = KEY_BTN("A/B", KEYPAD_AB, key_hold_cb);           /* held: copy */
-static button_data_t wlk_step = KEY_BTN("Step", KEYPAD_FST, key_hold_cb);       /* held: back */
+static button_data_t wlk_step = KEY_BTN("Step", KEYPAD_FST, key_hold_cb);       /* held: FST held (Settings > Keys) */
 static button_data_t wlk_lock = KEY_BTN("Lock", KEYPAD_LOCK, NULL);             /* held would reset */
 static button_data_t wlk_exit = { .type = BTN_TEXT, .label = "Exit\nhold", .hold = exit_cb };
 

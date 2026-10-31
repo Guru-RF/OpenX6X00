@@ -710,7 +710,7 @@ restart.
 |---|---|
 | WLK 1 | MEM/VFO, Band +, Band -, TX power |
 | WLK 2 | AM/FM, SSB (held: DIG), ATU (held: tune, it transmits), PRE (held: ATT) |
-| WLK 3 | AGC (held: split), A/B (held: copy), Step (held: back), Lock |
+| WLK 3 | AGC (held: split), A/B (held: copy), Step (held: as FST held, the step back down unless Settings > Keys gives it another action), Lock (the [frequency lock](#buttons-and-knobs)) |
 | WLK 4 | Store, Clear (held), Vol Sql RF Pwr (the levels page), Exit (held) |
 
 - GEN, KEY, DFN, DFL and VM open their pages as on the main screen.
