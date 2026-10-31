@@ -457,12 +457,15 @@ static void update_cb(lv_timer_t *t) {
     snprintf(buf, sizeof(buf), "%i.%03i.%03i", mhz, khz, hz);
     freq_set(buf);
 
-    /* No repeater offset or tone in this firmware: split is the TX on the other VFO */
+    /* No repeater offset or tone in this firmware: split is the TX on the other VFO. LOCK: the user's frequency
+     * lock (the Lock button) */
+    const char *lock = main_screen_freq_user_locked() ? " - LOCK" : "";
+
     if (param_i_get(cfg_band_split)) {
         split_freq(cparam_i_get(cfg_bg_freq), &mhz, &khz, &hz);
-        snprintf(buf, sizeof(buf), "%s - SPLIT %i.%03i.%03i", info_params_mode_label_get(), mhz, khz, hz);
+        snprintf(buf, sizeof(buf), "%s - SPLIT %i.%03i.%03i%s", info_params_mode_label_get(), mhz, khz, hz, lock);
     } else {
-        snprintf(buf, sizeof(buf), "%s", info_params_mode_label_get());
+        snprintf(buf, sizeof(buf), "%s%s", info_params_mode_label_get(), lock);
     }
     set_text(mode_label, buf);
 

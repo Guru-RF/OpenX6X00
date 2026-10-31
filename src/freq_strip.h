@@ -26,6 +26,8 @@ void      freq_strip_set_offset(int32_t offset_hz);
 void      freq_strip_set_app(const char *name);
 /* An app window opens (true) or closes: the deck's frequency moves up, out from under it */
 void      freq_strip_set_dialog(bool open);
+/* The frequency lock changed: LOCK shown while the user's is on (true) */
+void      freq_strip_set_lock(bool user_lock);
 
 #ifdef __cplusplus
 }

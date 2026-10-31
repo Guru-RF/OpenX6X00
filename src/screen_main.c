@@ -100,7 +100,8 @@ static lv_coord_t   wf_y;                   /* waterfall top */
 
 /* What an open app keeps the keys from changing. The frequency lock is a subject: the scale
  * greys out with it. It is on while either holds it: the user's lock (LOCK, SPCH, Scroll Lock, the Panel's LOCK,
- * a key given Frequency lock in Settings > Keys), or an open app's hold, which ends with the app and leaves the user's lock as it was */
+ * a key given Frequency lock in Settings > Keys), shown by LOCK in the frequency strip, or an open app's hold, which
+ * ends with the app and leaves the user's lock as it was */
 static SubjectInt   *freq_lock;
 static bool         user_lock, app_lock;
 static bool         band_lock, mode_lock, ab_lock;
@@ -122,6 +123,7 @@ static bool cw_mode(void) {
 /* The scale and the frequency strip follow the subject */
 static void freq_lock_update(void) {
     subject_i_set(freq_lock, user_lock || app_lock);
+    freq_strip_set_lock(user_lock);
 }
 
 static void set_user_lock(bool lock) {

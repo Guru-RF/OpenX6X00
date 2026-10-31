@@ -98,10 +98,15 @@ keyboard's Scroll Lock, the browser panel's LOCK and any key given
 MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200 has no
 LOCK key: give it to FST's long press, as on the stock firmware, or to
 another of those.
-While it is on, the main knob and F-INP do not tune, the step mark under the
-frequency goes and the frequency scale greys out, and the browser panel, TCI
-programs, Pat's QSY (Winlink) and Field Ops' band tune are refused. The band
-keys, memories, channels, cluster spots and CAT still tune.
+While it is on, LOCK shows in the frequency strip, the main knob and F-INP
+do not tune, the step mark under the frequency goes and the frequency scale
+greys out, and the browser panel, TCI programs, Pat's QSY (Winlink) and Field
+Ops' band tune are refused. The band keys, memories, channels, cluster spots
+and CAT still tune.
+- LOCK is left of the frequency; in VISION in front of the locator; in Black
+  Metal and Total Black on the right, between the other VFO and the A/B
+  badge, and left of the frequency while an app window is open. On the
+  Walkie Talkie screen it follows the mode ("USB - LOCK").
 - FT8, FT4, JS8, PSK, Olivia, JTTY and WSPR hold the frequency the same way
   while they are open. Their own knob and buttons keep working (in FT8 the
   knob still picks a station or moves the TX offset).
