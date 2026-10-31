@@ -305,6 +305,23 @@ def main():
             "base back after a charge: 8.1 V 94, 8.1 V 95, 8.0 V 90\n",
             "base back at 7.4 V: 7.5 V 56, 7.4 V 42, 7.4 V 35, 7.3 V 22\n")).strip())
 
+        # Issue #108: on external power, battery_log.csv rows replayed through bat_est.c one by one; with the charger
+        # off the plug from the first row (it was the lightning sign and a time to full for a minute), a flag that
+        # comes one row late keeps its time to full from the second, at 90 % and more too
+        binary = work / "bat-est"
+        command([*CC, *cflags, *san, HERE / "bat-est.c", "src/bat_est.c", *gc, "-o", binary], env)
+        print("#108 the time to full on the supply:\n" + command([binary], env, contains=(
+            "Charger Off at 60 %: 60 % plug, 60 % plug, 60 % plug, 60 % plug, 60 % plug\n",
+            "Charger Off at 92 %: 92 % plug, 92 % plug, 92 % plug, 92 % plug, 92 % plug\n",
+            "charging from 60 %: 60 % bolt ~6h31, 60 % bolt ~6h31, 61 % bolt ~6h16, 61 % bolt ~6h16, 62 % bolt ~6h01\n",
+            "charging from 86 %, the flag one row late: 86 % plug, 87 % bolt ~1h44, 87 % bolt ~1h44, 87 % bolt ~1h44, "
+            "88 % bolt ~1h37\n",
+            "charging from 92 %, the flag one row late: 92 % plug, 92 % bolt ~1h06, 93 % bolt ~0h57, 93 % bolt ~0h57, "
+            "94 % bolt ~0h49\n",
+            "charging at 70 %, the flag off for a row: 70 % bolt ~4h03, 70 % bolt ~4h03, 71 % bolt ~3h54, "
+            "71 % bolt ~3h54, 71 % bolt ~3h54\n",
+            "charged to 97 %: 96 % bolt ~0h33, 97 % bolt ~0h25, 97 % plug, 97 % plug, 97 % plug, 97 % plug\n")).strip())
+
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")
         binary = work / "adif-input"

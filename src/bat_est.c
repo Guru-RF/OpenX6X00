@@ -211,7 +211,12 @@ void bat_est_feed(const bat_sample_t *s) {
         stretch_start = s->t;
         memset(seen, 0, sizeof(seen));
         charge_done = false;
-        chg_off = 0;
+        /* As if one reading without the flag came before: a supply's first row without it gives no time to full.
+         * From 0 an X6100 with the charger off showed the lightning sign and a time to full for its first minute
+         * on the supply, then the plug (#108); a first row with the flag sets it to 0 as before. Not 2: at 90 % or
+         * more a first row without it would make 3 and end the charge, and a flag that comes one row late (the
+         * bench X6100's on 24 Oct) would lose the time to full for the whole charge */
+        chg_off = 1;
     }
     have_last = true;
     last = *s;
