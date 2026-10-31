@@ -175,6 +175,7 @@ typedef struct {
     uint8_t             long_msg;
     uint8_t             long_dfn;
     uint8_t             long_dfl;
+    uint8_t             long_fst;   /* the FST key held; a press steps up */
 
     /* HMic F1, F2 actions, and F3 (the X6200's H-22) */
 
@@ -247,6 +248,7 @@ typedef struct {
         bool    long_msg;
         bool    long_dfn;
         bool    long_dfl;
+        bool    long_fst;
 
         bool    press_f1;
         bool    press_f2;

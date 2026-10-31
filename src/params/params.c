@@ -112,6 +112,7 @@ params_t params = {
     .long_msg               = ACTION_RECORDER,
     .long_dfn               = ACTION_NONE,
     .long_dfl               = ACTION_NONE,
+    .long_fst               = ACTION_STEP_DOWN, /* as before it could be set; the stock firmware locks the dial */
 
     .press_f1               = ACTION_STEP_UP,
     .press_f2               = ACTION_NONE,
@@ -278,6 +279,8 @@ static bool params_load() {
             params.long_dfn = i;
         } else if (strcmp(name, "long_dfl") == 0) {
             params.long_dfl = i;
+        } else if (strcmp(name, "long_fst") == 0) {
+            params.long_fst = i;
         } else if (strcmp(name, "press_f1") == 0) {
             params.press_f1 = i;
         } else if (strcmp(name, "press_f2") == 0) {
@@ -421,6 +424,7 @@ static bool params_save() {
     if (params.dirty.long_msg)              params_write_int("long_msg", params.long_msg, &params.dirty.long_msg);
     if (params.dirty.long_dfn)              params_write_int("long_dfn", params.long_dfn, &params.dirty.long_dfn);
     if (params.dirty.long_dfl)              params_write_int("long_dfl", params.long_dfl, &params.dirty.long_dfl);
+    if (params.dirty.long_fst)              params_write_int("long_fst", params.long_fst, &params.dirty.long_fst);
 
     if (params.dirty.press_f1)              params_write_int("press_f1", params.press_f1, &params.dirty.press_f1);
     if (params.dirty.press_f2)              params_write_int("press_f2", params.press_f2, &params.dirty.press_f2);

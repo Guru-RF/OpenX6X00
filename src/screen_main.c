@@ -784,9 +784,11 @@ static void front_key_cb(lv_event_t *e) {
             }
             break;
 
-        case KEYPAD_FST:    /* long: the step back down */
-            if (tap || hold) {
-                step_freq_step(tap);
+        case KEYPAD_FST:    /* long: what Settings > Keys gives it, the step back down unless changed */
+            if (tap) {
+                step_freq_step(true);
+            } else if (hold) {
+                main_screen_action(params.long_fst);
             }
             break;
 

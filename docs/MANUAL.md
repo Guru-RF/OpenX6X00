@@ -75,26 +75,29 @@ button on APP 3:3.
   press.
 
 Long press. Each button group (GEN, APP, KEY, MSG, DFN, DFL) has a
-long-press action.
+long-press action, and so has FST, the tuning step key: a press steps up,
+held it steps down until you give it another action (Frequency lock on/off,
+as on the stock firmware, say).
 Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
 | Kind | Actions |
 |---|---|
-| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, WF mode, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Channels, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
 The hand mic F1 and F2 keys (and the H-22's F3 on the X6200), short and long
 press, are set in the same tab, from the quick actions (all but the
-screenshot), step up and down, NR and NB.
+screenshot), NR and NB.
 Where: Settings > Keys > HAND MIC KEYS.
 The other hand mic keys: see [Hand mic](#hand-mic).
 
 Frequency lock. The LOCK key (X6100), the X6100 mic's SPCH key, a
 keyboard's Scroll Lock, the browser panel's LOCK and any key given
 "Frequency lock on/off" in Settings > Keys (a long press of GEN, APP, KEY,
-MSG, DFN or DFL, a hand mic F key) turn it on and off. The X6200 has no LOCK
-key: give it to one of those.
+MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200 has no
+LOCK key: give it to FST's long press, as on the stock firmware, or to
+another of those.
 While it is on, the main knob and F-INP do not tune, the step mark under the
 frequency goes and the frequency scale greys out, and the browser panel, TCI
 programs, Pat's QSY (Winlink) and Field Ops' band tune are refused. The band
@@ -958,7 +961,7 @@ by itself. The 20 MHz and channel 12 and 13 settings in `x6100-wifi.conf` are
 
 | Card | Options |
 |---|---|
-| FRONT KEYS, LONG PRESS | the long-press action of GEN, APP, KEY, MSG, DFN, DFL (see [Buttons and knobs](#buttons-and-knobs)) |
+| FRONT KEYS, LONG PRESS | the long-press action of GEN, APP, KEY, MSG, DFN, DFL and FST (see [Buttons and knobs](#buttons-and-knobs)) |
 | HAND MIC KEYS | F1, F2, F1 long, F2 long; on the X6200 F3 and F3 long too, for the H-22's F3 (see [Hand mic](#hand-mic)) |
 | PADDLE | USB paddles: Connected, the dit/dah of each kind, Learn dit and dah, Swap dit and dah, Serial port (see [USB paddle](#usb-paddle)) |
 

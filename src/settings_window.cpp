@@ -754,6 +754,8 @@ static const key_action_t front_actions[] = {
     {" Screen rec on/off ", ACTION_SCREEN_REC},
     {" Mute ", ACTION_MUTE},
     {" Frequency lock on/off ", ACTION_FREQ_LOCK},
+    {" Step up ", ACTION_STEP_UP},
+    {" Step down ", ACTION_STEP_DOWN},     /* FST's long press until it is changed */
     {" WF mode ", ACTION_WF_MODE},
     {" ATT on/off ", ACTION_ATT_TOGGLE},
     {" PRE on/off ", ACTION_PRE_TOGGLE},
@@ -800,7 +802,7 @@ static const key_action_t mic_actions[] = {
     {" TUNE ext. tuner on/off ", ACTION_EXT_TUNE},
 };
 
-#define KEY_ROWS_FRONT  6   /* then the hand mic's */
+#define KEY_ROWS_FRONT  7   /* then the hand mic's */
 
 typedef struct {
     const char *label;
@@ -815,6 +817,7 @@ static const key_row_t key_rows[] = {
     {"MSG", &params.long_msg, &params.dirty.long_msg},
     {"DFN", &params.long_dfn, &params.dirty.long_dfn},
     {"DFL", &params.long_dfl, &params.dirty.long_dfl},
+    {"FST", &params.long_fst, &params.dirty.long_fst},     /* the tuning step key: a press steps up */
     {"F1", &params.press_f1, &params.dirty.press_f1},
     {"F2", &params.press_f2, &params.dirty.press_f2},
 #ifdef BOARD_X6200
