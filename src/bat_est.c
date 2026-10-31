@@ -55,6 +55,7 @@ static struct {
 } seen[10];
 static bool     charge_done;
 static int      chg_off;        /* the base's charging flag drops for a reading now and then */
+static bool     chg_seen;       /* the flag came in this stretch: the one chg_off starts with is gone */
 
 static bat_sample_t last;
 static bool         have_last;
@@ -213,10 +214,10 @@ void bat_est_feed(const bat_sample_t *s) {
         charge_done = false;
         /* As if one reading without the flag came before: a supply's first row without it gives no time to full.
          * From 0 an X6100 with the charger off showed the lightning sign and a time to full for its first minute
-         * on the supply, then the plug (#108); a first row with the flag sets it to 0 as before. Not 2: at 90 % or
-         * more a first row without it would make 3 and end the charge, and a flag that comes one row late (the
-         * bench X6100's on 24 Oct) would lose the time to full for the whole charge */
+         * on the supply, then the plug (#108); a first row with the flag sets it to 0 as before. The end of a
+         * charge below does not count that one */
         chg_off = 1;
+        chg_seen = false;
     }
     have_last = true;
     last = *s;
@@ -238,9 +239,12 @@ void bat_est_feed(const bat_sample_t *s) {
 
     if (ext) {
         chg_off = s->charging ? 0 : chg_off + 1;
+        chg_seen |= s->charging;
         if (charge_done) return;
-        /* The charger stops at 95-99 %; lower down the flag can stay off a few minutes */
-        if (s->cap >= 99 || (chg_off >= 3 && s->cap >= 90)) {
+        /* The charger stops at 95-99 %; lower down the flag can stay off a few minutes. Three readings without
+         * it, the one a stretch starts with not counted: at 90 % or more a flag that comes two rows late keeps
+         * its time to full (at power-on the bench X6100's came one row late on 24 Oct, #49's on 30 Oct) */
+        if (s->cap >= 99 || (chg_off - !chg_seen >= 3 && s->cap >= 90)) {
             if (s->t > learned_t) {
                 learn_charge(s->t);
                 learned_t = s->t;

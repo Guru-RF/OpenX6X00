@@ -61,10 +61,12 @@ int main(void) {
     RUN("Charger Off at 92 %", {92, 0}, {92, 0}, {92, 0}, {92, 0}, {92, 0});
     /* Charging, the flag on from the first row */
     RUN("charging from 60 %", {60, 1}, {60, 1}, {61, 1}, {61, 1}, {62, 1});
-    /* The flag one row late, as the bench X6100's on 24 October (86 %) and #49's on 30 October (0 %); at 90 % or
-     * more too, where a first row without it must not end the charge */
+    /* The flag one row late, as the bench X6100's on 24 October (86 %) and #49's on 30 October (0 %), both at
+     * power-on; at 90 % or more too, where rows without it at the start must not end the charge: two rows late
+     * kept its time to full before #108 too */
     RUN("charging from 86 %, the flag one row late", {86, 0}, {87, 1}, {87, 1}, {87, 1}, {88, 1});
     RUN("charging from 92 %, the flag one row late", {92, 0}, {92, 1}, {93, 1}, {93, 1}, {94, 1});
+    RUN("charging from 92 %, the flag two rows late", {92, 0}, {92, 0}, {92, 1}, {93, 1}, {93, 1});
     /* Later in a charge: one row without the flag below 90 % keeps the time to full; the charger stopping near the
      * top shows the plug at once */
     RUN("charging at 70 %, the flag off for a row", {70, 1}, {70, 1}, {71, 0}, {71, 1}, {71, 1});

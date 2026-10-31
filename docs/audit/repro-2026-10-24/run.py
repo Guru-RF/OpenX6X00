@@ -307,7 +307,8 @@ def main():
 
         # Issue #108: on external power, battery_log.csv rows replayed through bat_est.c one by one; with the charger
         # off the plug from the first row (it was the lightning sign and a time to full for a minute), a flag that
-        # comes one row late keeps its time to full from the second, at 90 % and more too
+        # comes one row late keeps its time to full from the second, at 90 % and more too, and two rows late there
+        # from the third (the end of a charge does not count the row a stretch starts with)
         binary = work / "bat-est"
         command([*CC, *cflags, *san, HERE / "bat-est.c", "src/bat_est.c", *gc, "-o", binary], env)
         print("#108 the time to full on the supply:\n" + command([binary], env, contains=(
@@ -318,6 +319,8 @@ def main():
             "88 % bolt ~1h37\n",
             "charging from 92 %, the flag one row late: 92 % plug, 92 % bolt ~1h06, 93 % bolt ~0h57, 93 % bolt ~0h57, "
             "94 % bolt ~0h49\n",
+            "charging from 92 %, the flag two rows late: 92 % plug, 92 % plug, 92 % bolt ~1h06, 93 % bolt ~0h57, "
+            "93 % bolt ~0h57\n",
             "charging at 70 %, the flag off for a row: 70 % bolt ~4h03, 70 % bolt ~4h03, 71 % bolt ~3h54, "
             "71 % bolt ~3h54, 71 % bolt ~3h54\n",
             "charged to 97 %: 96 % bolt ~0h33, 97 % bolt ~0h25, 97 % plug, 97 % plug, 97 % plug, 97 % plug\n")).strip())
