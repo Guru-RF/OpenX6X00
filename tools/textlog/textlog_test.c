@@ -229,6 +229,25 @@ int main(void) {
               "sent: a TX line for each line, '-' for the figure, after the received line that was open");
     }
 
+    fake_now += 60;
+    {
+        char text[256];
+        bool ascii = true;
+
+        memset(text, 'a', 199);
+        snprintf(text + 199, sizeof(text) - 199, "\xc3\xa9 de Ren\xc3\xa9\n");   /* 199 a's, then UTF-8 "é de René" */
+        digi_textlog_tx("PSK31", 14071000, text);
+        digi_textlog_rx("PSK31", 14071000, DIGI_TEXTLOG_SIG_Q, 50, "NOISE \xe9\x9b\xff\n");
+        digi_textlog_drain();
+        t = day("2026-10-31");
+        for (const char *p = t; *p; p++)
+            ascii = ascii && (unsigned char)*p < 128;
+        memset(text, 'a', 199);
+        snprintf(text + 199, sizeof(text) - 199, "?\n");
+        check(ascii && has(t, text) && has(t, "TX - ? de Ren??\n") && has(t, "RX Q50% NOISE ???\n"),
+              "past ASCII: '?' a byte, as PSK and Olivia send it; the file stays plain ASCII, no UTF-8 cut in two");
+    }
+
     printf("Messages (JTTY)\n");
     fake_now = utc(2026, 10, 31, 14, 30, 0);
     digi_textlog_msg("JTTY", 1, 14090850, DIGI_TEXTLOG_SIG_DB, -10, "CQ", false);

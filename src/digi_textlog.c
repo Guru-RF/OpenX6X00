@@ -125,7 +125,7 @@ static void line_begin(line_t *l, bool msg, uint32_t id, const char *mode, uint3
     snprintf(l->mode, sizeof(l->mode), "%s", mode);
 }
 
-/* A character of text: printable, a tab as a space, bytes past ASCII as they came (UTF-8 a sender typed) */
+/* A character of text: printable, a tab as a space */
 static bool text_char(char c) {
     return (unsigned char)c >= ' ' && c != 127;
 }
@@ -133,6 +133,10 @@ static bool text_char(char c) {
 static void line_add(line_t *l, char c) {
     if (c == '\t')
         c = ' ';
+    /* Past ASCII: '?', as PSK and Olivia send it (their alphabets are 7-bit, a macro's "é" goes out as "??"), and
+     * no receiver gives one. So a file is plain ASCII, never a UTF-8 character cut in two at a line's end */
+    if ((unsigned char)c > 127)
+        c = '?';
     if (!text_char(c) || (c == ' ' && (!l->len || l->text[l->len - 1] == ' ')))
         return;     /* no space at the start of a line, nor two in a row */
     l->text[l->len++] = c;

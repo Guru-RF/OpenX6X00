@@ -1949,6 +1949,8 @@ came through; the reports you exchange are in the text.
   The figure: Q, the decoder's quality as on the PSK and Olivia status
   button (0-100 %); dB, JTTY's signal-to-noise in 2500 Hz; `-` none (RTTY
   has no such figure yet, and what is sent).
+- The files are plain ASCII: a character past it (a macro's `é`) is written
+  as `?` for each of its bytes, as PSK and Olivia send it.
 - A received line ends at the decoder's line break, after 10 s without new
   text, when the frequency moves more than 30 Hz (another station), at 200
   characters, and when the app closes. A JTTY message is written once,

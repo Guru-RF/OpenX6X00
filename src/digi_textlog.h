@@ -48,7 +48,8 @@ typedef enum {
 } digi_textlog_sig_t;
 
 /* Received text as the decoder gives it, a character or a few at a time, any thread: onto the open line, which
- * '\n' or '\r' ends (control characters are dropped). sig is the app's figure as the text came */
+ * '\n' or '\r' ends (control characters are dropped, a byte past ASCII is '?'). sig is the app's figure as the text
+ * came */
 void digi_textlog_rx(const char *mode, uint32_t freq_hz, digi_textlog_sig_t kind, int sig, const char *text);
 
 /* A received message that grows frame by frame (JTTY), any thread: its whole text so far, under the receiver's id.
