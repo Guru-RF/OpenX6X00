@@ -136,6 +136,49 @@ static bool toggle_freq_lock(void) {
     return user_lock;
 }
 
+static void say_lock(bool on) {
+    msg_update_text_fmt("%s", on ? "Dial locked" : "Dial unlocked");
+}
+
+/* LOCK held: the base board restart, a way out when the base stops answering (#57), only once LOCK has been held
+ * LOCK_RESET_S seconds more after its long press, counted down on the screen; let go before and nothing happens
+ * (#114: on battery the restart switches the radio off, and a 1 s hold caught people who wanted to lock) */
+#define LOCK_RESET_S 4
+
+static lv_timer_t   *lock_reset_timer;
+static int          lock_reset_left;
+
+static void lock_reset_say(void) {
+    msg_update_text_fmt("Keep holding LOCK to restart: %i s", lock_reset_left);   /* fits the box whole */
+}
+
+static void lock_reset_tick(lv_timer_t *t) {
+    if (--lock_reset_left > 0) {
+        lock_reset_say();
+        return;
+    }
+    lv_timer_del(t);
+    lock_reset_timer = NULL;
+    radio_bb_reset();
+    exit(1);
+}
+
+static void lock_reset_start(void) {
+    if (!lock_reset_timer) {
+        lock_reset_left = LOCK_RESET_S;
+        lock_reset_say();
+        lock_reset_timer = lv_timer_create(lock_reset_tick, 1000, NULL);
+    }
+}
+
+static void lock_reset_stop(void) {
+    if (lock_reset_timer) {
+        lv_timer_del(lock_reset_timer);
+        lock_reset_timer = NULL;
+        msg_update_text_fmt("LOCK let go: no restart");
+    }
+}
+
 /* Pop-up with one line of text (the name of the channel FIL/GENE tuned, WEFAX app messages),
  * gone 1 s after the last call */
 static lv_obj_t     *note_box;
@@ -559,7 +602,7 @@ void main_screen_action(press_action_t action) {
         case ACTION_STEP_DOWN:      step_freq_step(false); break;
         case ACTION_ATU_TUNE:       radio_start_atu(); break;   /* as a long press of the ATU key */
         case ACTION_EXT_TUNE:       ext_tune_toggle(); break;   /* an external tuner's: started, or stopped */
-        case ACTION_FREQ_LOCK:      say_state("Frequency lock", toggle_freq_lock() ? "On" : "Off"); break;
+        case ACTION_FREQ_LOCK:      say_lock(toggle_freq_lock()); break;
 
         case ACTION_NR_TOGGLE:      say_state("NR", toggle_param(cfg_nr) ? "On" : "Off"); break;
         case ACTION_NB_TOGGLE:      say_state("NB", toggle_param(cfg_nb) ? "On" : "Off"); break;
@@ -816,12 +859,13 @@ static void front_key_cb(lv_event_t *e) {
             }
             break;
 
-        case KEYPAD_LOCK:   /* long: the base board reset and a restart of the GUI */
+        case KEYPAD_LOCK:   /* held on past its long press: the base board reset and a restart of the GUI */
             if (tap) {
-                toggle_freq_lock();
+                say_lock(toggle_freq_lock());
             } else if (hold) {
-                radio_bb_reset();
-                exit(1);
+                lock_reset_start();
+            } else if (ev->state == KEYPAD_LONG_RELEASE) {
+                lock_reset_stop();
             }
             break;
 
@@ -898,7 +942,7 @@ static void mic_key_cb(lv_event_t *e) {
 
         case HKEY_SPCH:
             if (tap) {
-                toggle_freq_lock();
+                say_lock(toggle_freq_lock());
             }
             break;
 
@@ -1175,7 +1219,7 @@ static void spectrum_key_cb(lv_event_t *e) {
         case LV_KEY_RIGHT:          main_screen_mfk(+1); break;
         case KEYBOARD_PGUP:         band_step(true); break;
         case KEYBOARD_PGDN:         band_step(false); break;
-        case KEYBOARD_SCRL_LOCK:    toggle_freq_lock(); break;
+        case KEYBOARD_SCRL_LOCK:    say_lock(toggle_freq_lock()); break;
         case KEYBOARD_F9:           dialog_construct(dialog_settings, obj); break;
 
         case KEYBOARD_PRINT:

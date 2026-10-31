@@ -130,7 +130,13 @@ keyboard's Scroll Lock, the browser panel's LOCK and any key given
 "Frequency lock on/off" in Settings > Keys (a long press of GEN, APP, KEY,
 MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200 has no
 LOCK key: give it to FST's long press, as on the stock firmware, or to
-another of those.
+another of those. Each turn says "Dial locked" or "Dial unlocked" on the
+screen.
+Held, the X6100's LOCK key restarts the radio's base board instead, a way
+out when the base stops answering: after the long press the screen counts
+down "Keep holding LOCK to restart: 4 s", and the restart comes 5 s after
+the press; let go before and nothing happens ("LOCK let go: no restart"). On battery
+the restart switches the radio off (switch it on again).
 While it is on, LOCK shows in the frequency strip, the main knob and F-INP
 do not tune, the step mark under the frequency goes and the frequency scale
 greys out, and the browser panel, TCI programs, Pat's QSY (Winlink) and Field
