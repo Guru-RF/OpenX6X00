@@ -85,15 +85,20 @@ off the value shows on the message line).
   the next one or the one before on its list, and the outer ring changes its
   value, with no press. The X6100's MFK has no inner ring: it uses the press.
 - What is on each list is yours to choose. Hold a value button (TX power, RF
-  gain, Squelch, the filter edges, RIT, XIT, Spectrum Zoom, WF ref, Comp, IF
-  shift, NB, NR, DNF, VOX, the KEY and CW values...): each hold steps it from
-  no knob to VOL ("Added to VOL encoder"), then to the MFK ("Moved to MFK
-  encoder"), then off again ("Removed from MFK encoder"). A mark on the left
-  of the button shows which knob it is on, in another colour while that knob
-  turns it.
+  gain, Squelch, the filter edges, RIT, XIT, Spectrum Zoom, WF ref, AGC,
+  Comp, IF shift, VOX, PRE, ATT, ATU, Step, NB, NR, DNF, the KEY and CW
+  values...): each hold steps it from no knob to VOL ("Added to VOL
+  encoder"), then to the MFK ("Moved to MFK encoder"), then off again
+  ("Removed from MFK encoder"). A mark on the left of the button shows which
+  knob it is on, in another colour while that knob turns it.
 - A press of a value button puts it on a knob at once: VOL for Volume,
   Squelch, RF gain, TX power, Moni level and the filter, the MFK for the
-  others. A press of an on/off button (NB, NR, DNF, VOX...) switches it.
+  others. A press of an on/off button (NB, NR, DNF, VOX, PRE, ATT, ATU)
+  switches it; a press of AGC takes it to the next of Off, Slow, Fast, Auto.
+- AGC is on the MFK 2:3 page, PRE, ATT and ATU on VOL 2:2, Step (the tuning
+  step, as FST) on the DFL page. On a knob, a turn steps AGC and Step forward
+  or back and switches PRE, ATT and ATU. Up to v0.3.7 AGC, PRE and ATT could not
+  go on a knob, and there was no ATU or Step button.
 - At first VOL has Volume, RF gain, the filter edges and TX power, and the MFK
   Spectrum Zoom and DNF. Volume never leaves VOL.
 
@@ -290,7 +295,8 @@ of the band list, from the frequency up or down.
   [WR12 receiver](#wr12-receiver-x6200)). In split it is the other VFO's
   frequency, the one the radio would transmit on, that counts.
 - PRE and ATT are on the VOL 2:2 button page (F1 from the main screen), per
-  band. The X6200 has no PRE key, and its receiver is specified with the
+  band, and can go on a knob (see [Buttons and knobs](#buttons-and-knobs)).
+  The X6200 has no PRE key, and its receiver is specified with the
   preamplifier on: turn PRE on when the band sounds quiet.
 
 ### WR12 receiver (X6200)

@@ -95,6 +95,13 @@ static const std::map<int, Knob> knobs = {
                            : m == CLUSTER_FM_DIG ? "DIG" : m == (CLUSTER_FM_CW | CLUSTER_FM_DIG) ? "CW+DIG" : "Some");
     }}},
 
+    {CTRL_AGC, pick("AGC", cfg_sm.cp_cur_agc, {"Off", "Slow", "Fast", "Auto"})},
+    {CTRL_PRE, on_off("PRE", cfg_sm.cp_cur_pre)},
+    {CTRL_ATT, on_off("ATT", cfg_sm.cp_cur_att)},
+    {CTRL_ATU, on_off("ATU", cfg_sm.p_atu_enabled)},
+    {CTRL_STEP, {"Step", &cfg_sm.p_mode_freq_step,
+                 [] { return std::to_string(cfg_sm.p_mode_freq_step.get()) + " Hz"; }}},
+
     {CTRL_DNF, on_off("Notch filter", cfg_sm.p_dnf)},
     {CTRL_DNF_CENTER, num("DNF center", cfg_sm.p_dnf_center)},
     {CTRL_DNF_WIDTH, num("DNF width", cfg_sm.p_dnf_width)},

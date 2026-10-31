@@ -71,6 +71,11 @@ typedef enum {
     CTRL_CLUSTER_ORDER,   /* as CTRL_CLUSTER: MFK only, while the column is shown */
     CTRL_CLUSTER_BANDS,
     CTRL_CLUSTER_MODES,   /* as CTRL_CLUSTER: All, CW, SSB, DIG, CW+DIG, the filter of Settings */
+    CTRL_AGC,             /* Off, Slow, Fast, Auto, as the AGC key */
+    CTRL_PRE,
+    CTRL_ATT,
+    CTRL_ATU,             /* the tuner on or off, as a press of the ATU key */
+    CTRL_STEP,            /* the tuning step, 10 Hz to 5 kHz, as the FST key */
 
     CTRL_FAST_ACCESS_LAST,
 

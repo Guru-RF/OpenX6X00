@@ -257,19 +257,28 @@ static button_data_t btn_zoom = {.type = BTN_TEXT, .label = "Spectrum\nZoom", .p
                                  .hold = knob_bind_hold, .ctrl = CTRL_SPECTRUM_FACTOR, .encoder_allowed = true};
 static button_data_t btn_wf_ref = knob([] { return text("WF ref:\n%+i dB", cfg_sm.p_waterfall_ref.get()); },
                                        CTRL_WF_REF, &cfg_sm.p_waterfall_ref);
-static button_data_t btn_agc = fn_btn(agc_label, [](button_data_t *) { main_screen_agc_next(); }, &cfg_sm.cp_cur_agc);
+/* AGC, PRE, ATT and ATU: a press does what their key does; held, they go on a knob like NB and NR */
+static button_data_t btn_agc = knob_toggle(agc_label, [](button_data_t *) { main_screen_agc_next(); }, CTRL_AGC,
+                                           &cfg_sm.cp_cur_agc);
 /* PRE and ATT: the X6200 has no PRE key (the X6100's PRE key, held: ATT), and its sensitivity is specified with
  * the preamp on; per band, as the keys set them */
-static button_data_t btn_pre = fn_btn([] { return text("PRE:\n%s", on_off(cfg_sm.cp_cur_pre.get())); },
-                                      [](button_data_t *b) {
-                                          cfg_sm.cp_cur_pre.set(!cfg_sm.cp_cur_pre.get());
-                                          buttons_refresh(b);
-                                      }, &cfg_sm.cp_cur_pre);
-static button_data_t btn_att = fn_btn([] { return text("ATT:\n%s", on_off(cfg_sm.cp_cur_att.get())); },
-                                      [](button_data_t *b) {
-                                          cfg_sm.cp_cur_att.set(!cfg_sm.cp_cur_att.get());
-                                          buttons_refresh(b);
-                                      }, &cfg_sm.cp_cur_att);
+static button_data_t btn_pre = knob_toggle([] { return text("PRE:\n%s", on_off(cfg_sm.cp_cur_pre.get())); },
+                                           [](button_data_t *b) {
+                                               cfg_sm.cp_cur_pre.set(!cfg_sm.cp_cur_pre.get());
+                                               buttons_refresh(b);
+                                           }, CTRL_PRE, &cfg_sm.cp_cur_pre);
+static button_data_t btn_att = knob_toggle([] { return text("ATT:\n%s", on_off(cfg_sm.cp_cur_att.get())); },
+                                           [](button_data_t *b) {
+                                               cfg_sm.cp_cur_att.set(!cfg_sm.cp_cur_att.get());
+                                               buttons_refresh(b);
+                                           }, CTRL_ATT, &cfg_sm.cp_cur_att);
+static button_data_t btn_atu = knob_toggle([] { return text("ATU:\n%s", on_off(cfg_sm.p_atu_enabled.get())); },
+                                           [](button_data_t *) {
+                                               cfg_sm.p_atu_enabled.set(!cfg_sm.p_atu_enabled.get());
+                                           }, CTRL_ATU, &cfg_sm.p_atu_enabled);
+/* The tuning step: a press puts it on the MFK, as RIT and XIT; held, it goes on a knob too */
+static button_data_t btn_step = knob([] { return text("Step:\n%i Hz", cfg_sm.p_mode_freq_step.get()); }, CTRL_STEP,
+                                     &cfg_sm.p_mode_freq_step);
 static button_data_t btn_comp = knob([] { return text("Comp:\n%s", params_comp_str_get(cfg_sm.p_comp.get())); },
                                      CTRL_COMP, &cfg_sm.p_comp);
 static button_data_t btn_if_shift = knob([] { return text("IF shift:\n%i", cfg_sm.p_band_if_shift.get()); },
@@ -389,7 +398,7 @@ static button_data_t btn_dfn_p1 = page_btn("(DFN 1:3)"), btn_dfn_p2 = page_btn("
 static button_data_t btn_mem_p1 = page_btn("(MEM 1:2)"), btn_mem_p2 = page_btn("(MEM 2:2)");
 
 buttons_page_t        buttons_page_vol_1 = {{&btn_vol_p1, &btn_vol, &btn_sql, &btn_rfg, &btn_tx_pwr}};
-static buttons_page_t page_vol_2 = {{&btn_vol_p2, &btn_moni, &btn_pre, &btn_att}};
+static buttons_page_t page_vol_2 = {{&btn_vol_p2, &btn_moni, &btn_pre, &btn_att, &btn_atu}};
 static buttons_page_t page_mfk_1 = {{&btn_mfk_p1, &btn_rit, &btn_xit, &btn_zoom, &btn_wf_ref}};
 static buttons_page_t page_mfk_2 = {{&btn_mfk_p2, &btn_agc, &btn_comp, &btn_if_shift, &btn_vox}};
 static buttons_page_t page_mfk_3 = {{&btn_mfk_p3, &btn_wf_mode, &btn_span_wider, &btn_span_narrower, &btn_screen_rec}};
@@ -407,7 +416,8 @@ static buttons_page_t page_dfn_1 = {{&btn_dfn_p1, &btn_dnf, &btn_dnf_center, &bt
 static buttons_page_t page_dfn_2 = {{&btn_dfn_p2, &btn_nb, &btn_nb_level, &btn_nb_width}};
 static buttons_page_t page_dfn_3 = {{&btn_dfn_p3, &btn_nr, &btn_nr_level}};
 
-static buttons_page_t page_dfl = {{&btn_flt_low, &btn_flt_high, &btn_flt_bw}};   /* one page, no page button */
+/* one page, no page button */
+static buttons_page_t page_dfl = {{&btn_flt_low, &btn_flt_high, &btn_flt_bw, &btn_step}};
 
 static buttons_page_t page_mem_1 = {{&btn_mem_p1, &btn_mem[0], &btn_mem[1], &btn_mem[2], &btn_mem[3]}};
 static buttons_page_t page_mem_2 = {{&btn_mem_p2, &btn_mem[4], &btn_mem[5], &btn_mem[6], &btn_mem[7]}};

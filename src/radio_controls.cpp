@@ -17,6 +17,7 @@
 #include "util.hpp"
 
 #include "cfg/settings_manager.h"
+#include "cfg/settings_manager_api.h"
 
 extern "C" {
 #include "cluster/client.h"
@@ -95,6 +96,7 @@ static const struct {
     {CTRL_WF_MODE, &cfg_sm.p_wf_mode, "Waterfall: %s", "Centered", "Fixed"},
     {CTRL_CLUSTER_ORDER, &cfg_sm.p_cluster_order, "Cluster order: %s", "frequency", "newest first"},
     {CTRL_CLUSTER_BANDS, &cfg_sm.p_cluster_all_bands, "Cluster: %s", "current band", "all bands"},
+    {CTRL_ATU, &cfg_sm.p_atu_enabled, "ATU: %s", "Off", "On"},
 };
 
 template <typename T, typename D, int32_t S>
@@ -241,6 +243,34 @@ void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {
             knobs_set_mfk_param(CTRL_CLUSTER_MODES);
             break;
         }
+
+        case CTRL_AGC: {        /* Off, Slow, Fast, Auto and round, a step a detent (main_screen_agc_next) */
+            static const char *const names[] = {"Off", "Slow", "Fast", "Auto"};
+
+            i = cfg_sm.cp_cur_agc.get();
+            if (diff) {
+                cfg_sm.cp_cur_agc.set((i + (diff > 0 ? 1 : 3)) % 4);
+                i = cfg_sm.cp_cur_agc.get();
+            }
+            snprintf(buf, size, "AGC: %s", i >= 0 && i < 4 ? names[i] : "?");
+            break;
+        }
+
+        case CTRL_PRE:          /* per band, as the PRE key and the VOL 2:2 buttons */
+        case CTRL_ATT: {
+            ComputedParameter<int32_t> &p = ctrl == CTRL_PRE ? cfg_sm.cp_cur_pre : cfg_sm.cp_cur_att;
+
+            if (diff) {
+                p.set(!p.get());
+            }
+            snprintf(buf, size, "%s: %s", ctrl == CTRL_PRE ? "PRE" : "ATT", p.get() ? "On" : "Off");
+            break;
+        }
+
+        case CTRL_STEP:         /* 10, 100, 500, 1000, 5000 Hz and round, as FST */
+            i = diff ? cfg_mode_change_freq_step(diff > 0) : cfg_sm.p_mode_freq_step.get();
+            snprintf(buf, size, "Freq step: %i Hz", i);
+            break;
 
         case CTRL_IF_SHIFT:
             if (if_shift_supported()) {
