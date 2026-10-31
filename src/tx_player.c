@@ -104,6 +104,10 @@ bool tx_player_claim(void) {
     return true;
 }
 
+bool tx_player_busy(void) {
+    return atomic_load(&busy);
+}
+
 void tx_player_release(void) {
     if (!claimed) return;
     claimed = false;

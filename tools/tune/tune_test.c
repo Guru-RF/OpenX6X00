@@ -998,6 +998,15 @@ static void gui_side(void) {
     check(no && ui.atu && base.atu && atu_writes == 0 && said_is("No tune: on the air"), "\"%s\", the ATU on", said);
     state = RADIO_RX;
 
+    puts("-- the ATU on, TUNE 5.0 W, an app's slot has taken the player and not keyed yet: refused, the ATU stays on");
+    reset();
+    atu_writes = 0;
+    check(tx_player_claim(), "the slot holds the player");
+    no = gui_tune(TUNE_BY_RADIO);
+    tx_player_release();
+    check(no && ui.atu && base.atu && atu_writes == 0 && seen.keys == 0 && said_is("No tune: on the air"),
+          "\"%s\", nothing on the air, the ATU on (written %d times)", said, atu_writes);
+
     puts("-- the ATU on, TUNE 5.0 W on a transverter limited to 0.5 W: a 0.5 W tune, the ATU as it is");
     cfg = (typeof(cfg)){.freq = {28500000, 28500000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 0.5f};
     xvtr_w = 0.5f;

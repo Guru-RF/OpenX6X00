@@ -45,6 +45,10 @@ void tx_player_set_pwr(float w);
 bool tx_player_claim(void);
 void tx_player_release(void);
 
+/* A transmission holds the player: from the start of its tx_player_stream (an app's slot that has not keyed yet too)
+ * or its claim, to its end. Any thread */
+bool tx_player_busy(void);
+
 /* Send count samples (AUDIO_PLAY_RATE, not modified) at offset_hz. False when abort
  * stopped it before the end, or when it did not start: the radio on the air already, or another transmission
  * starting in the same moment */

@@ -24,6 +24,7 @@
 #include "scheduler.h"
 #include "screen_main.h"
 #include "tune_tx.h"
+#include "tx_player.h"      /* tx_player_busy */
 #include "winlink.h"
 
 /* Why a tune is to stop before its limit */
@@ -110,7 +111,9 @@ const char *ext_tune_refusal(void) {
     int32_t    f = radio_tx_freq();     /* in split the other VFO's, the TX shift's */
     tune_ask_t a = {
         .tx_freq_ok = cfg_is_tx_freq(f),
-        .on_air     = radio_get_modem() || radio_get_state() != RADIO_RX,
+        /* An app's slot that has taken the player and not keyed yet too: the tune's thread found the player held and
+         * went no further, after the ATU had been switched off for it (#87) */
+        .on_air     = radio_get_modem() || radio_get_state() != RADIO_RX || tx_player_busy(),
         .winlink    = winlink_busy(),
     };
 
