@@ -198,6 +198,39 @@ static void bc_fit(lv_coord_t w) {
     lv_label_set_text_fmt(band_label, "#%06x BC#  %s", theme_hex(TC_info), s + 4);
 }
 
+/* The other themes (not VISION, not deck): the band, an open app's name in front (or a memory's name), cut with
+ * dots where it would run into LOCK in front of the frequency, or into the frequency. In a split with an app or
+ * Settings open, LOCK covered the band. Cut here, as bc_fit(), not by the label's own dots, which break on the
+ * app's colour tag */
+static void band_fit(const char *band) {
+    const lv_font_t *font = lv_obj_get_style_text_font(band_label, 0);
+    lv_coord_t       ls = lv_obj_get_style_text_letter_space(band_label, 0);
+    char             t[sizeof(app) + sizeof(bc) + 1], s[sizeof(t) + 4];
+    size_t           a = strlen(app), len, n;
+
+    lv_obj_update_layout(strip);
+
+    lv_coord_t room = lv_obj_get_x(mid) - lv_obj_get_x(band_label) - 12 - lock_room();
+
+    if (lv_obj_get_width(band_label) <= room) return;
+    snprintf(t, sizeof(t), "%s%s%s", app, a ? " " : "", band);
+    len = n = strlen(t);
+    for (;;) {
+        snprintf(s, sizeof(s), "%.*s...", (int)n, t);
+        if (!n || lv_txt_get_width(s, strlen(s), font, ls, LV_TEXT_FLAG_NONE) <= room) break;
+        do n--; while (n && (t[n] & 0xc0) == 0x80);   /* whole UTF-8 letters */
+    }
+    if (a && n <= a && lv_txt_get_width(app, a, font, ls, LV_TEXT_FLAG_NONE) <= room) {
+        lv_label_set_text_fmt(band_label, "#%06x %s#", theme_hex(TC_accent), app);   /* the app whole, no band */
+    } else if (!n || !a) {     /* no colour tag to keep */
+        lv_label_set_text(band_label, s);
+    } else if (n > a) {
+        lv_label_set_text_fmt(band_label, "#%06x %s#%.*s...", theme_hex(TC_accent), app, (int)(n - a), t + a);
+    } else {
+        lv_label_set_text_fmt(band_label, "#%06x %.*s#...", theme_hex(TC_accent), (int)n, t);
+    }
+}
+
 /* VISION's big type: the frequency and the mode move left of the column on the right when it
  * grows (NR NB DNF RIT XIT, the TX offset of the apps), a long note (NAVTEX, a memory) or
  * station ends in dots before them */
@@ -298,6 +331,7 @@ static void update_cb(Subject *subj, void *user_data) {
         lv_obj_add_flag(tx_label, LV_OBJ_FLAG_HIDDEN);
     }
     bc_tagged = band == bc;
+    if (!theme_shape.deck && !theme_shape.vision && !bc_tagged) band_fit(band);
     vision_fit();
     if (lock_tag) lock_place();
 }
