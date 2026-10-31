@@ -44,6 +44,8 @@ input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 
 .card h3 a:hover{color:var(--accent)}
 button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);border-radius:8px;padding:8px 15px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text);font-family:inherit}
 button:hover{border-color:var(--dim)}
+/* hidden holds for a button too: the rule above beats the browser's own [hidden] (#58: Sessions showed to every browser) */
+button[hidden]{display:none}
 .primary{background:var(--accent);color:#111;border-color:var(--accent)}
 .primary:hover{border-color:var(--accent);filter:brightness(1.08)}
 .ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
