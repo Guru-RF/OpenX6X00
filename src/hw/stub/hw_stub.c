@@ -225,19 +225,25 @@ bool hw_flow_read(hw_pack_t *p) {
     p->vswr       = tx ? (uint8_t)swr : 0;
     p->alc_level  = 0;
     /* On battery: 7.8 V and the base's 80 %, or HOST_STUB_BAT ("82,0": 8.2 V with the base at 0 %, #49's
-     * full pack that its base never saw charged) */
-    static int vbat = -1, batcap = 80;
+     * full pack that its base never saw charged). A supply after them, and the charging flag: "79,66,138,1" a pack
+     * at 7.9 V and 66 % charging from 13.8 V, "79,66,138,0" the same with the charger off (#108) */
+    static int vbat = -1, batcap = 80, vext, charging;
     if (vbat < 0) {
         const char *e = getenv("HOST_STUB_BAT");
-        int         v, c;
+        int         v, c, x = 0, g = 0;
 
         vbat = 78;
-        if (e && sscanf(e, "%d,%d", &v, &c) == 2 && v >= 0 && v <= 255 && c >= 0 && c <= 100) {
+        if (e && sscanf(e, "%d,%d,%d,%d", &v, &c, &x, &g) >= 2 && v >= 0 && v <= 255 && c >= 0 && c <= 100 &&
+            x >= 0 && x <= 255) {
             vbat = v;
             batcap = c;
+            vext = x;
+            charging = x > 0 && g;
         }
     }
-    p->vext       = 0;
+    p->vext       = (uint8_t)vext;
+    p->vext_flag  = vext > 0;
+    p->charging   = charging;
     p->vbat       = (uint8_t)vbat;
     p->batcap     = (uint8_t)batcap;
     p->atu_params = (uint32_t)reg_i[HW_ATU_NETWORK];
