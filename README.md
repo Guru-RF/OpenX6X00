@@ -315,7 +315,7 @@ Removed, so that nothing on the radio talks to a server of its own:
 - the X6100 Link phone app and its remote API: the `/link/v2` routes, the
   Link's Remote page, the GUI's remote socket with its spectrum, audio and
   event streams, and the phone voice PTT on UDP 50010;
-- the wfview (Icom LAN) server;
+- the wfview LAN server;
 - the x6100-link.it update channel: its update without the microSD, signed
   packages, update alert, remote updates and Settings Update tab;
 - the diagnostics upload, the site ping and every other telemetry;
@@ -420,8 +420,8 @@ rootfs/                  init scripts, helper scripts (x6100-update, x6100-field
 btcat/ bootanim/         Bluetooth CAT bridge, boot animation
 boot/                    boot logo
 sql/                     the default params.db
-themes/                  the Holo and Material 3 JSON themes to copy by hand; make_rs.py, an
-                         RS-BA1 look cut from a screenshot (personal use, not installed)
+themes/                  the Holo and Material 3 JSON themes to copy by hand; make_rs.py, a
+                         look cut from a screenshot of another maker's software (personal use, not installed)
 buildroot/               local-build.sh and Dockerfile (the image), br2_external/ and x6200/
                          (what it adds to and patches in the buildroot trees),
                          build.sh (the GUI alone with the buildroot toolchain)

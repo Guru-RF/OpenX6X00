@@ -4,7 +4,7 @@ Every colour of the GUI comes from a **role** (background, button, selected
 row, header text, OK, TX...). A theme gives each role a colour, plus a few
 shapes, the font and the waterfall palette.
 
-Built in: **RF.Guru** (default: near-black surfaces, gold for what is on, electric blue as the second accent), **Classic** (black, grey keys, IC-7300 style)
+Built in: **RF.Guru** (default: near-black surfaces, gold for what is on, electric blue as the second accent), **Classic** (black, grey keys, the look of a classic transceiver)
 **Outdoor** (light, for the sun), **Outdoor-Negative** (Outdoor with the
 lightness inverted: dark, the hues kept), **1bit** (black on one white, like a
 monochrome LCD) and, not offered in the menu, Legacy. More themes are JSON files

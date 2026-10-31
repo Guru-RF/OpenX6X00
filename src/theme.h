@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-/* role, RF.Guru, Legacy, Outdoor, Classic (IC-7300 style)
+/* role, RF.Guru, Legacy, Outdoor, Classic
  * a new role: decide its 1bit value too (theme.c onebit_paper[], ink otherwise) */
 #define THEME_COLORS(X) \
     /* screen and the shared boxes (styles.c) */ \

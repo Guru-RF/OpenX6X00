@@ -3072,7 +3072,7 @@ extern "C" void smeter_warn_show(void) {   /* not static: the UI harness shows i
     lv_obj_set_style_text_color(l, TC(text), 0);
     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
     lv_label_set_text(l, "For this band only. Feed -73 dBm and set the reading to S9 on each "
-                         "band you use. -22 dB matches an IC-7300.");
+                         "band you use.");
 
     smeter_warn_timer = lv_timer_create(smeter_warn_close, 5000, NULL);
     lv_timer_set_repeat_count(smeter_warn_timer, 1);

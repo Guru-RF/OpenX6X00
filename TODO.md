@@ -168,7 +168,7 @@ window is open, which can hold a WiFi password).
   the arrows 0x84/0x04, HOME 0x24 (Xiegu's app: backspace, not a home frequency), VOL+/VOL- 0x14/0x15 (the RX
   volume +1/-1), A/B 0x16 (Xiegu's app: as XFC), MODE 0xE8, V/M 0x81. The side UP/DOWN keys send nothing (no line,
   short or held); Xiegu's app knows 0x12/0x11 as band up/down, never seen.
-- Done on main (unreleased): the X6200 knows the H-22's own codes besides the X6100 mic's (no code in common), F3
+- Done in v0.3.8: the X6200 knows the H-22's own codes besides the X6100 mic's (no code in common), F3
   with its own actions (Settings > Keys, X6200 only), VOL+/VOL- the volume a step a press and repeating while held,
   A/B as the front A/B key, 0x12/0x11 as the BAND keys; the X6100 keeps its mic's table. Harness `mic-keys.c` walks
   both mics on both boards; manual: Getting started > Hand mic.

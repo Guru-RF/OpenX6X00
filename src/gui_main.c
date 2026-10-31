@@ -231,7 +231,7 @@ static void settings_load(void) {
     mfk_init();
     vol_init();
     /* The folder for the user's own themes (docs/THEMES.md). None comes with the image any more: the RS
-     * theme that was copied here is cut from a screenshot of Icom's RS-BA1 (themes/make_rs.py) */
+     * theme that was copied here is cut from a screenshot of another maker's remote software (themes/make_rs.py) */
     if (system("mkdir -p " BOARD_DATA "/themes") != 0)
         LV_LOG_WARN("No " BOARD_DATA "/themes folder");
     styles_load(params.theme_name.x);

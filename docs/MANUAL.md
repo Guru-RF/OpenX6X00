@@ -501,7 +501,7 @@ Where: Settings > General > CONTROLS > Per band S-meter cal.
 
 - When you start editing it, a panel "S-METER CALIBRATION" says for 5 s:
   "For this band only. Feed -73 dBm and set the reading to S9 on each band you
-  use. -22 dB matches an IC-7300."
+  use." (On our bench, -22 dB matched another calibrated transceiver.)
 - Change it only while reading a known signal: -73 dBm (S9) from a generator,
   or the same signal on a calibrated radio.
 - A band never calibrated starts at -22 dB, or at the single S-meter cal value
@@ -1446,7 +1446,8 @@ With an amplifier after the radio, put it in bypass (standby) while the
 tuner matches, and set the TUNE power for the tuner, not for the
 amplifier's drive.
 
-Not tried on a radio yet: checked on the PC build, with a stand-in base.
+On the bench X6100 into a dummy load: about 0.9 W at the default 1 W from USB, FT8 and CW, and about 10.9 W at
+10 W with the radio's ATU switched off first. Not tried yet on the X6200, or with a real tuner on an antenna.
 
 ### Digital-mode TX level
 
@@ -2846,7 +2847,7 @@ restart.
 | Theme | Look |
 |---|---|
 | RF.Guru | default: near-black surfaces, gold for what is on, electric blue as the second accent |
-| Classic | black, grey keys, IC-7300 style |
+| Classic | black, grey keys, the look of a classic transceiver |
 | Outdoor | for the sun: light, black text, grey waterfall, S-meter in one grey gradient |
 | Outdoor-Negative | Outdoor with the lightness inverted: dark, white text, the hues kept |
 | VISION | for weak eyes: big type, white digits on dark grey, orange for what is on, aqua frames; the S-meter on a row of its own, always bars |
@@ -2860,8 +2861,8 @@ restart.
 - A folder theme can draw the background, the buttons (normal, active,
   disabled, page), the top bar, the frequency strip, the app windows and the
   encoder LED with PNG images, 9-sliced to the size of each surface.
-- The RS theme (an RS-BA1 look) no longer comes with the image: it is cut
-  from a screenshot of Icom's RS-BA1. `themes/make_rs.py` in the source still
+- The RS theme (another maker's remote-control look) no longer comes with
+  the image: it is cut from a screenshot of that software. `themes/make_rs.py` in the source still
   makes that folder from such a screenshot, for personal use. A card that has
   `/mnt/themes/RS` from an earlier version keeps it.
 - Legacy is kept in the code but not offered in the menu.
@@ -4702,7 +4703,7 @@ Logs page shows them all. What PSK, Olivia and JTTY received and sent, and what 
 | Transport | Bluetooth SPP, RFCOMM channel 1 (or USB CAT) |
 | SPP UUID | `00001101-0000-1000-8000-00805F9B34FB` |
 | Pairing | required once, in the 3-minute pairing window; Just Works, no PIN; device name `X6100` (`BTCAT_ALIAS` in `/etc/default/btcat`) |
-| Protocol | Icom CI-V, radio address `0xA4` |
+| Protocol | CI-V, radio address `0xA4` |
 | Frame | `FE FE A4 <ctrl> <cmd> [sub] [data] FD`; reply `FB` = OK, `FA` = NG |
 | Baud (USB) | 19200 8N1 (ignored over BT) |
 | Hamlib / flrig | rig model Xiegu X6100 |
@@ -4727,7 +4728,7 @@ Logs page shows them all. What PSK, Olivia and JTTY received and sent, and what 
 | `14` | `09` | CW pitch (0-255 = 300-900 Hz) | yes | yes |
 | `14` | `0A` | TX power (0-255 = 0-10 W; the X6200 stops at 8 W) | yes | yes |
 | `14` | `15` | Monitor level | yes | - |
-| `15` | `02` | S-meter (Icom scale, 120 = S9, for network clients) | yes | - |
+| `15` | `02` | S-meter (the CI-V scale, 120 = S9, for network clients) | yes | - |
 | `15` | `11` | TX power meter | yes | - |
 | `15` | `12` | SWR meter | yes | - |
 | `15` | `13` | ALC meter | yes | - |
@@ -4736,7 +4737,7 @@ Logs page shows them all. What PSK, Olivia and JTTY received and sent, and what 
 | `16` | `40` | Noise reduction | yes | yes |
 | `16` | `44` / `46` | Compressor / VOX (always off, write ignored) | yes | - |
 | `19` | `00` | Transceiver ID (returns `A4`) | yes | - |
-| `1A` | `01` | Band (Icom codes `01` 160 m ... `09` 10 m, `10` 6 m, `15` none); write tunes the band's centre | yes | yes |
+| `1A` | `01` | Band (the CI-V codes `01` 160 m ... `09` 10 m, `10` 6 m, `15` none); write tunes the band's centre | yes | yes |
 | `1A` | `03` | IF filter width (BCD index) | yes | - |
 | `1A` | `06` | Data mode + filter; write only adds or drops the data mode (USB ↔ USB-D, LSB ↔ LSB-D) | yes | yes |
 | `1C` | `00` | PTT (`00` RX, `01` TX) | yes | yes |

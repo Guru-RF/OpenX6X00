@@ -239,7 +239,7 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_waterfall_ref{"waterfall_ref", 0, -40, 20,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // S-meter calibration, dB added to the reading. -22: this radio against an IC-7300 on the
+    // S-meter calibration, dB added to the reading. -22: this radio against a calibrated transceiver on the
     // same antenna. Now only the start value of p_band_smeter_cal on bands never calibrated.
     // RF gain is compensated on its own (meter.c)
     Parameter<int32_t> p_smeter_cal{"smeter_cal", -22, -40, 20,
