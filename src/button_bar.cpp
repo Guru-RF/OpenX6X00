@@ -800,18 +800,30 @@ static bool ascii_letter(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
+/* The word of n letters at w is a unit ("2950 Hz", "15 wpm", "20m"); another word after a number is
+ * not ("599 Nr", a JTTY key's name) */
+static bool btn_unit(const char *w, size_t n) {
+    static const char *const units[] = {"Hz", "kHz", "MHz", "W", "dB", "dBm", "wpm", "ms", "s", "min",
+                                        "m", "cm", "km"};
+
+    for (const char *u : units)
+        if (strlen(u) == n && !strncmp(u, w, n)) return true;
+    return false;
+}
+
 /* Capitals (btn_caps), a unit after a number as it is: "Filter high:\n2950 Hz" -> "FILTER HIGH:\n2950 Hz",
  * as the deck's state rows write "STEP 500 Hz" */
 static void btn_upper(char *out, size_t size, const char *text) {
-    bool   unit = false;   /* in the word right after a number */
+    bool   unit = false;   /* in a unit right after a number */
     size_t n    = 0;
 
     for (const char *c = text; *c && n + 1 < size; c++) {
         if (ascii_letter(*c) && (c == text || !ascii_letter(c[-1]))) {
-            const char *p = c;
+            const char *p = c, *e = c;
 
             while (p > text && p[-1] == ' ') p--;
-            unit = p > text && p[-1] >= '0' && p[-1] <= '9';
+            while (ascii_letter(*e)) e++;
+            unit = p > text && p[-1] >= '0' && p[-1] <= '9' && btn_unit(c, e - c);
         }
         out[n++] = !unit && *c >= 'a' && *c <= 'z' ? *c - 'a' + 'A' : *c;
     }
