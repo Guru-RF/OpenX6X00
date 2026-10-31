@@ -138,6 +138,29 @@ static void modes_of_spots(void) {
     }
 }
 
+/* The activity filter's POTA is a park's reference, not the other programmes' that look like one (issue #81: the
+ * LLOTA lakes, on the cluster and from llota.app) */
+static void activity_of_spots(void) {
+    static const struct {
+        const char *comment;
+        uint8_t     act;
+    } want[] = {
+        {"LLOTA LLPL-0123 SSB", 0},          {"LLOTA LLAR-0393 CW", 0},     {"llota llie-10001 ssb", 0},
+        {"LLPL-0123", 0},                    {"POTA US-1234 SSB", CLUSTER_ACT_POTA},
+        {"US-1234 FT8", CLUSTER_ACT_POTA},   {"FR-10234", CLUSTER_ACT_POTA}, {"TOTA OKR-0150 SSB", 0},
+        {"LH ARLHS BEL 002 SSB", 0},         {"WCA DL-01156 CW", 0},        {"SOTA I/LO-123", CLUSTER_ACT_SOTA},
+    };
+    char what[96];
+
+    for (int i = 0; i < LEN(want); i++) {
+        cluster_spot_t s = spot(14285000, "SQ9SZ", want[i].comment);
+
+        snprintf(what, sizeof(what), "\"%s\": activity %d, not %d", want[i].comment, cluster_spot_activity(&s),
+                 want[i].act);
+        check(cluster_spot_activity(&s) == want[i].act, what);
+    }
+}
+
 static void spots_from_the_cluster(void) {
     cluster_spot_t s;
 
@@ -214,6 +237,7 @@ static void filter_saved(void) {
 int main(void) {
     bands_of_frequencies();
     modes_of_spots();
+    activity_of_spots();
     spots_from_the_cluster();
     filter_of_before();
     filter_saved();

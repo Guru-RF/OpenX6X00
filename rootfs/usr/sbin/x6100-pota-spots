@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# The current POTA, WWBOTA and HOTA activator spots (pota.app, wwbota.org, cqhota.app), one a line
-# for the DX cluster client (src/cluster/client.c): freq_hz|activator|spotter|comment|HHMM (UTC).
+# The current POTA, WWBOTA, HOTA and LLOTA activator spots (pota.app, wwbota.org, cqhota.app, llota.app), one a
+# line for the DX cluster client (src/cluster/client.c): freq_hz|activator|spotter|comment|HHMM (UTC).
 # A source that fails gives nothing.
 import json
 import os
@@ -55,4 +55,19 @@ for s in get("https://cqhota.app/api/v1/spots?since=" + since, SITE_AGENT):
             continue
         line(s["freq_khz"], s["callsign"], s.get("spotter"), ("HOTA", s.get("reference"), s.get("mode")), s["created_at"])
     except (KeyError, TypeError, ValueError):
+        pass
+
+# llota.app: a spot ends 30 minutes after its last re-spot (updated_at), or as QRT (is_active false); its history
+# has who spotted it. The frequency is in MHz ("7.1540"), in kHz from 1000 up as llota.app's own page reads it
+for s in get("https://llota.app/api/spots", SITE_AGENT):
+    try:
+        if s.get("is_active") in (False, 0):
+            continue
+        f = float(s["frequency"])
+        history = sorted((h for h in s.get("history") or [] if isinstance(h, dict)),
+                         key=lambda h: str(h.get("timestamp")))
+        spotter = history[-1].get("spotter_callsign") if history else None
+        line(f if f >= 1000 else f * 1000, s["callsign"], spotter, ("LLOTA", s.get("reference"), s.get("mode")),
+             s.get("updated_at") or s["created_at"])
+    except (KeyError, TypeError, ValueError, AttributeError):
         pass

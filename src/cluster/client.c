@@ -49,7 +49,7 @@ static volatile bool   reconnect_requested; /* new server or callsign */
 /* One telnet login. Four more went to other servers of the list with the same call: DXSpider refuses a call
  * already on three nodes of its network ("you are already connected to 3 other nodes"), so the operator's own
  * logger was refused, and a node with that call logged in already bumps the older login off (issue #4). The
- * activator spots of pota.app, wwbota.org and cqhota.app come over HTTPS, another thread, no login */
+ * activator spots of pota.app, wwbota.org, cqhota.app and llota.app come over HTTPS, another thread, no login */
 #ifndef POTA_SPOTS /* the tests point it elsewhere */
 #define POTA_SPOTS       "/usr/sbin/x6100-pota-spots"
 #endif
@@ -380,8 +380,9 @@ static bool prefix_ok(const char *p, size_t n) {
     return letter;
 }
 
-/* US-1234, IT-0123, K-12345 (not a WWFF IFF-0123, a TOTA tower OKR-0150, a WCA castle DL-01156, I-14619 or a
- * lighthouse USA-1286: the shapes Field Ops tells apart, src/field/flog.c field_ref_prog) */
+/* US-1234, IT-0123, K-12345 (not a WWFF IFF-0123, a TOTA tower OKR-0150, a WCA castle DL-01156, I-14619, a
+ * lighthouse USA-1286 or an LLOTA lake LLPL-0001: the shapes Field Ops tells apart, src/field/flog.c
+ * field_ref_prog) */
 static bool park_ref(const char *w) {
     const char *dash = strchr(w, '-');
     if (!dash || strchr(w, '/')) return false;
@@ -389,6 +390,8 @@ static bool park_ref(const char *w) {
     if (!prefix_ok(w, n) || (n >= 2 && strncmp(dash - 2, "FF", 2) == 0)) return false;
     size_t d = strlen(dash + 1);
     if (d < 4 || d > 5 || !all_digits(dash + 1, d)) return false;
+    if (n == 4 && w[0] == 'L' && w[1] == 'L' && isalpha((unsigned char)w[2]) && isalpha((unsigned char)w[3]))
+        return false;                                                                     /* a lake */
     if (n >= 3 && dash[-1] == 'R' && d == 4) return false;                                /* a tower */
     if (n == 3 && isalpha((unsigned char)w[0]) && isalpha((unsigned char)w[1]) && isalpha((unsigned char)w[2]))
         return false;                                                                     /* a lighthouse */
@@ -988,7 +991,7 @@ static void *thread_cb(void *arg) {
     }
 }
 
-/* pota.app's, wwbota.org's and cqhota.app's activator spots, a minute apart, through POTA_SPOTS */
+/* pota.app's, wwbota.org's, cqhota.app's and llota.app's activator spots, a minute apart, through POTA_SPOTS */
 static void *pota_cb(void *arg) {
     (void)arg;
     for (;;) {

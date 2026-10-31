@@ -193,7 +193,8 @@ static const prog_t progs[] = {
      * One QSO activates it, once per tile and UTC day. Its own spots need an account key: the DX clusters only */
     {'G', "TILES",  "tiles",  "Tiles\nOn The Air",   "TILE",   1,  false, false},
     /* Lakes and Lagoons On The Air (llota.app): 10 QSOs, within 200 m of the water. Spotting on llota.app needs the
-     * activator's login there: the DX clusters, "LLOTA LLPL-0001 SSB" */
+     * activator's login there: the DX clusters, "LLOTA LLPL-0001 SSB"; llota.app's spots come in with the others
+     * (x6100-pota-spots) */
     {'K', "LLOTA",  "llota",  "Lakes and\nLagoons",  "LAKE",   10, false, false},
 };
 #define PROG_LETTERS "SPBHFTCMLGK"

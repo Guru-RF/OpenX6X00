@@ -2256,13 +2256,15 @@ waterfall.
   for 70 cm.
 - POTA / SOTA come from the spot comment: the word POTA or SOTA, a park
   reference (`US-1234`, `IT-0123`) or a summit reference (`I/LO-123`,
-  `W7W/KG-001`). WWFF references (`IFF-0123`), TOTA towers (`OKR-0150`) and
-  WCA castles (`DL-01156`) and lighthouses (`USA-1286`) are not taken as POTA.
+  `W7W/KG-001`). WWFF references (`IFF-0123`), TOTA towers (`OKR-0150`),
+  WCA castles (`DL-01156`), lighthouses (`USA-1286`) and LLOTA lakes
+  (`LLPL-0001`) are not taken as POTA.
   WWBOTA: the word WWBOTA (or BOTA) or a bunker (`B/G-0070`); HOTA: the word
   HOTA or a HOTA reference (`RO-H0390`).
 - Besides the cluster, the radio reads the activator spots of pota.app,
-  wwbota.org and cqhota.app once a minute (WiFi needed) and puts them in the
-  same list.
+  wwbota.org, cqhota.app and llota.app once a minute (WiFi needed) and puts
+  them in the same list. A llota.app spot reads `LLOTA LLPL-0123 SSB`, as the
+  radio's own Spot writes it on the DX cluster.
 - On the web configurator (Cluster page): the same modes, bands and activity,
   plus maximum age and spotters to skip (`*` wildcard). Up to v0.3.7 the
   page had no 8 m, and a save there took 8 m out of a filter set on the
@@ -2598,6 +2600,9 @@ has its own tile too, a light blue lake with reeds.
   itself. llota.app takes spots only from an activator logged in on the
   site, so the radio cannot post there: spot yourself on llota.app as well
   if you want its hunters to see you there.
+- The other way round, the radio reads llota.app's spots once a minute and
+  shows them with the DX cluster's (DX Cluster app, the waterfall), as
+  `LLOTA LLPL-0123 SSB`.
 - The log goes to llota.app (your profile, ADIF upload, within 30 days of
   the activation). Download it from the web configurator's Field Ops page.
 
