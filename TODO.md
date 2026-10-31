@@ -75,6 +75,27 @@ bases, X6100 V1.1.9 and X6200 1.0.8, have no CESSB, and the X6200's no TX filter
 - **Maybe also, from the same chain**: r13's other TX options for the stock bases: TX filter (the X6200 has
   none), compressor shape, FM pre-emphasis, a TX equaliser. The band output gain stays base-side.
 
+## FreeDV: RADE and the Codec 2 modes (#37, #52)
+
+Asked 2026-10-27 (#37; #52 asked the same and was closed for it). FreeDV's RADE (https://github.com/freedv/rade_c,
+with the FARGAN vocoder model from the Opus project) as a digital voice mode in APP, and FreeDV's older Codec 2
+modes (1600, 700D) with it. No date.
+
+- **The audio path is there**: RADE is a modem in an SSB passband, and the digital apps (FT8, Winlink) already take
+  the receiver's audio into Linux and transmit audio from Linux (`radio_set_modem()`). What is new: the decoded
+  voice on the speaker while receiving, and the mic recorded in Linux while transmitting (`AUDIO_PLAY_VOICE_REC`),
+  the same path the CESSB entry above needs.
+- **CPU and memory are the question**: fventuri's multithreaded radae-nopy decodes in real time on an X6100, using
+  both cores (https://github.com/fventuri/x6100-buildroot, board/X6100/patches/radae-nopy). The encoder is the
+  heavy part (strijar, on a dual-core ARM), and transmitting needs it next to the GUI and the spectrum. RADE's
+  developers have efficiency work coming (peterbmarks, 2026-10-30): measure again when it is out. The FARGAN
+  model's memory on 1 GB.
+- **Not counted on**: fventuri's base firmware that streams audio and IQ over USART6 to Linux and back is a base
+  of its own, so a card image cannot rely on it.
+- **Codec 2 1600 and 700D** need far less CPU (they run on the SM1000's microcontroller): a first step that
+  needs only the audio path.
+- **Reporting**: FreeDV Reporter (https://qso.freedv.org), later.
+
 ## Winlink over HF: Pat with ARDOP on the radio, Mercury and XARA (#18, #19, #43)
 
 Asked 2026-10-26 (issues #18 and #19). Winlink email from the radio alone, with a phone on its WiFi to read and
