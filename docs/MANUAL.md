@@ -196,7 +196,7 @@ web configurator (System > Update).
   checks every file against the project's signature, puts the files in place
   with the previous ones kept, and restarts the radio software: the screen
   goes dark for a few seconds. Settings, logs and everything on the DATA
-  partition stay as they are.
+  partition stay as they are, your own [boot picture](#boot-picture) too.
 - The new version is "pending" until it has run a minute; then it is
   confirmed. If it does not stay up for a minute three times in a row, the
   start loop puts the previous version back by itself. A power cut during the
@@ -2810,8 +2810,8 @@ The menu has General and five groups:
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
-| | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages (optionally CW trainer and WiFi) as one file, and restore the parts you choose |
-| System | Display | every display option of the radio (see below) |
+| | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture (optionally CW trainer and WiFi) as one file, and restore the parts you choose |
+| System | Display | every display option of the radio, and the [boot picture](#boot-picture) (see below) |
 | | Time | local and server time; Sync sets the radio clock from the browser's, in the radio's timezone; NTP sync; timezone |
 | | Network | the radio's [network name](#network-name), its [other names](#the-radios-own-names), and the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
 | | TCI | enable the [TCI server](#tci-server), set its port |
@@ -2897,6 +2897,7 @@ applied on the radio as you change them.
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate; see [battery time](#battery-time)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, Magnify ALC |
+| Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
 made on first start (valid 10 years, stored in `/mnt/https/`). The browser
@@ -2927,6 +2928,37 @@ Server options: `--host`, `--port`, `--https-port` (0 = off), `--cert-dir`,
 | Cluster | Digital modes |
 |---|---|
 | ![Cluster page](screenshots/web/cluster_desktop.png) | ![Digital modes page](screenshots/web/digital_modes_desktop.png) |
+
+### Boot picture
+
+The picture on the screen while the radio starts, until the main screen
+comes: the built-in logo, which draws itself piece by piece, or a picture
+of your own. Where: web configurator, System > Display, the Boot picture
+card. No SSH needed.
+
+- Your picture: a PNG of 800x480 pixels (the screen's size, landscape), up
+  to 2 MB. Choose it and press Upload; it shows from the next start. The
+  card shows the picture the radio starts with, with its size and date.
+- The page checks the picture before it keeps it and says why when it does
+  not take it: another size ("The picture is 1024x600 pixels: the radio
+  needs 800x480, the screen's size"), not a PNG (a JPEG renamed), or a file
+  cut short or damaged on the way. Scale or crop it to 800x480 in any
+  picture editor and save it as PNG.
+- It fades in as a whole over about 3 seconds, from the colour of its
+  top-left pixel; the built-in logo's steps are made for that logo alone.
+  With the [boot sound](#audio-tab) on it ends with "CQ CQ", as the logo
+  does. What is transparent in it shows black.
+- It is kept on the card's DATA partition (`/mnt/bootlogo.png`), so updates,
+  which put the built-in logo back with the rest of the system, leave it as
+  it is, and so does a new card image that keeps the DATA partition. The
+  [Backup](#web-configurator) takes it along (the Boot picture part) and
+  Restore puts it back.
+- Default removes it: the built-in logo from the next start.
+- A picture the radio can't read gives the built-in logo, never a dark
+  start. One copied to `/mnt/bootlogo.png` by hand (SFTP) is shown as well;
+  if it is of another size or damaged, the card says so, and why. One
+  copied over the system's own `/usr/share/x6100/bootlogo.png`, as was done
+  before this card, is replaced by every update: upload it on the card.
 
 ## Wavelog
 
@@ -4656,6 +4688,7 @@ The DATA partition, readable on a PC.
 | `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=200|500|1000|2000` (the widest ARDOP may use), `modem=ardop|mercury`, `mercury_bandwidth=500|2300|2750` |
 | `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
+| `bootlogo.png` | your own [boot picture](#boot-picture), from the Display page of the web configurator |
 
 `cluster.conf` example (the `host=`/`port=` lines are the server in use, each
 `server=` line is a saved server, `name|host|port`):
