@@ -2685,7 +2685,7 @@ restart.
 | Outdoor | for the sun: light, black text, grey waterfall, S-meter in one grey gradient |
 | Outdoor-Negative | Outdoor with the lightness inverted: dark, white text, the hues kept |
 | VISION | for weak eyes: big type, white digits on dark grey, orange for what is on, aqua frames; the S-meter on a row of its own, always bars |
-| Black Metal | designed by 2E0JFS: two rows of state on top (ATT PRE, NR NB DNF, AGC, SPL ATU, RIT XIT; mode, filter, BW, IF, STEP, scope span), S/SWR/ALC scales beside a big frequency with the 10 Hz digits smaller, the other VFO and an A/B badge, the span edges in the spectrum, one-line buttons; brushed grey panels, cyan for the tuned digit and the encoder's control, Roboto |
+| Black Metal | designed by 2E0JFS: two rows of state on top (ATT PRE, NR NB DNF, AGC, SPL ATU, RIT XIT; mode, filter, BW, IF, STEP, scope span), S/SWR/ALC scales beside a big frequency with the 10 Hz digits smaller, the other VFO and an A/B badge, the span edges in the spectrum, the buttons in capitals at the state rows' size; brushed grey panels, cyan for the tuned digit and the encoder's control, Roboto |
 | Total Black | designed by 2E0JFS: Black Metal on pure black, the buttons marked by a thin grey line on top |
 | 1bit | black on one white, like a monochrome LCD: every pixel ink or paper, a pixel font, inverted boxes for what is on or selected, the frequency in big pixel digits, the S-meter as segments, the spectrum as black bars, the waterfall as dots (the stronger, the denser); its own font and icons |
 | your files | `/mnt/themes/<name>.json`, or a folder `/mnt/themes/<name>/theme.json` with PNG images |
@@ -2708,9 +2708,10 @@ page and in the apps: the page button, an action and a name over its value
 alike. Black Metal and Total Black write them in capitals at the size of their
 state rows, a name and its value on one line where it fits ("VOLUME 30") and
 the name over the value where it does not; a unit after a number keeps its
-case ("2950 Hz"). A text too wide for the size takes the next size down.
-VISION and the walkie screen's buttons fit each text to its button instead. A
-theme file sets the size and the capitals with `btn_text_size` and `btn_caps`.
+case ("2950 Hz"). A text too wide for its button takes the biggest smaller
+size it fits in. VISION and the walkie screen's buttons fit each text to its
+button instead. A theme file sets the size and the capitals with
+`btn_text_size` and `btn_caps`.
 
 Encoder LED. The bottom buttons show which encoder their control is on. The
 control the encoder adjusts now has a red LED, which follows button presses
