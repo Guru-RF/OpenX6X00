@@ -6,13 +6,15 @@
  *  Copyright (c) 2026 Giovanni Ricciardi IU1WXY
  *
  *  CW keyer: memory texts sent with the morse key, once or as a beacon.
- *  Page 1: TX, New, Edit; page 2: Beacon, Delete, QRSS3; page 3: the QRSS3
- *  frequency. Same layout as the voice keyer.
+ *  Page 1: TX, New, Edit; page 2: Beacon, Delete, QRSS3; page 3: the
+ *  beacon's start and end, the QRSS3 frequency. Same layout as the voice
+ *  keyer.
  */
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "app_window.h"
 #include "cw_messages.h"
@@ -47,7 +49,7 @@
 #define COLOR_SEL    theme_hex(TC_sel_text)
 
 typedef enum { EDIT_NONE, EDIT_NEW, EDIT_CHANGE } edit_t;
-typedef enum { ADJ_NONE, ADJ_QRSS } adj_t;     /* what the MFK and VOL change on page 3 */
+typedef enum { ADJ_NONE, ADJ_QRSS, ADJ_START, ADJ_UNTIL } adj_t;     /* what the MFK and VOL change on page 3 */
 
 static uint32_t ids[MAX_MSGS];
 static char    *texts[MAX_MSGS];
@@ -72,10 +74,14 @@ static void beacon_cb(button_data_t *btn);
 static void delete_cb(button_data_t *btn);
 static void qrss_cb(button_data_t *btn);
 static void qfreq_cb(button_data_t *btn);
+static void start_cb(button_data_t *btn);
+static void until_cb(button_data_t *btn);
 static const char *tx_label(void);
 static const char *beacon_label(void);
 static const char *qrss_label(void);
 static const char *qfreq_label(void);
+static const char *start_label(void);
+static const char *until_label(void);
 
 static button_data_t btn_p1 = {.type = BTN_TEXT, .label = "(MSG 1:3)", .press = button_next_page_cb};
 static button_data_t btn_tx = {.type = BTN_TEXT_FN, .label_fn = tx_label, .press = tx_btn_cb};
@@ -90,12 +96,14 @@ static button_data_t btn_qrss = {.type = BTN_TEXT_FN, .label_fn = qrss_label, .p
 static button_data_t btn_close2 = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
 
 static button_data_t btn_p3 = {.type = BTN_TEXT, .label = "(MSG 3:3)", .press = button_next_page_cb};
+static button_data_t btn_start = {.type = BTN_TEXT_FN, .label_fn = start_label, .press = start_cb};
+static button_data_t btn_until = {.type = BTN_TEXT_FN, .label_fn = until_label, .press = until_cb};
 static button_data_t btn_qfreq = {.type = BTN_TEXT_FN, .label_fn = qfreq_label, .press = qfreq_cb};
 static button_data_t btn_close3 = {.type = BTN_TEXT, .label = "Close", .press = close_cb};
 
 buttons_page_t buttons_page_msg_cw_1 = {{&btn_p1, &btn_tx, &btn_new, &btn_edit, &btn_close}};
 buttons_page_t buttons_page_msg_cw_2 = {{&btn_p2, &btn_beacon, &btn_delete, &btn_qrss, &btn_close2}};
-static buttons_page_t page_3 = {{&btn_p3, NULL, NULL, &btn_qfreq, &btn_close3}};
+static buttons_page_t page_3 = {{&btn_p3, &btn_start, &btn_until, &btn_qfreq, &btn_close3}};
 
 static dialog_t dialog = { .construct_cb = window_open, .destruct_cb = window_close, .btn_page = &buttons_page_msg_cw_1 };
 
@@ -162,6 +170,53 @@ static int32_t qrss_hz(int band) {
     return qrss_freq(band, params.cw_qrss_hz[band].x);
 }
 
+/* The beacon's schedule as set (page 3; kept like the pause), what the settings hold checked */
+static bcn_sched_t sched_set(void) {
+    bcn_sched_t s = {params.cw_bcn_start.x, params.cw_bcn_until.x, params.cw_bcn_sends.x, params.cw_bcn_end.x};
+
+    if (s.start_min < BCN_NOW || s.start_min >= 24 * 60) s.start_min = BCN_NOW;
+    if (s.until > BCN_UNTIL_TIME) s.until = BCN_UNTIL_STOP;
+    if (s.sends < 1 || s.sends > BCN_SENDS_MAX) s.sends = 10;
+    if (s.end_min < 0 || s.end_min >= 24 * 60) s.end_min = BCN_NOW;
+    if (s.until == BCN_UNTIL_TIME && s.end_min < 0) s.until = BCN_UNTIL_STOP;
+    return s;
+}
+
+/* The screen clock's minute now, and its time zone's name (UTC unless Settings > General > DATE / TIME has one) */
+static int now_min(void) {
+    return bcn_min_of(time(NULL));
+}
+
+static const char *zone(void) {
+    static char buf[16];
+    time_t      now = time(NULL);
+    struct tm   tm;
+
+    localtime_r(&now, &tm);
+    if (!strftime(buf, sizeof(buf), "%Z", &tm)) buf[0] = 0;
+    return buf;
+}
+
+/* "From 20:00 UTC, 10 sends", "From 20:00 to 21:00 UTC", "Now, until stopped" */
+static const char *sched_words(void) {
+    static char buf[48];
+    char        until[24];
+    bcn_sched_t s = sched_set();
+
+    if (s.until == BCN_UNTIL_TIME && s.start_min < 0)
+        snprintf(buf, sizeof(buf), "Now, until %02i:%02i %s", s.end_min / 60, s.end_min % 60, zone());
+    else if (s.until == BCN_UNTIL_TIME)
+        snprintf(buf, sizeof(buf), "From %02i:%02i to %02i:%02i %s", s.start_min / 60, s.start_min % 60,
+                 s.end_min / 60, s.end_min % 60, zone());
+    else {
+        if (s.until == BCN_UNTIL_SENDS) snprintf(until, sizeof(until), "%i send%s", s.sends, s.sends == 1 ? "" : "s");
+        else snprintf(until, sizeof(until), "until stopped");
+        if (s.start_min < 0) snprintf(buf, sizeof(buf), "Now, %s", until);
+        else snprintf(buf, sizeof(buf), "From %02i:%02i %s, %s", s.start_min / 60, s.start_min % 60, zone(), until);
+    }
+    return buf;
+}
+
 /* 10.140050: into buf of 16 */
 static const char *mhz(char *buf, int32_t hz) {
     snprintf(buf, 16, "%d.%06d", (int)(hz / 1000000), (int)(hz % 1000000));
@@ -189,6 +244,28 @@ static const char *qrss_label(void) {
     return qrss_on ? "QRSS3\nOn" : "QRSS3\nOff";
 }
 
+static const char *start_label(void) {
+    static char buf[24];
+    bcn_sched_t s = sched_set();
+
+    if (s.start_min < 0) return "Start\nNow";
+    snprintf(buf, sizeof(buf), "Start\n%02i:%02i", s.start_min / 60, s.start_min % 60);
+    return buf;
+}
+
+static const char *until_label(void) {
+    static char buf[24];
+    bcn_sched_t s = sched_set();
+
+    if (s.until == BCN_UNTIL_SENDS)
+        snprintf(buf, sizeof(buf), "Until\n%i send%s", s.sends, s.sends == 1 ? "" : "s");
+    else if (s.until == BCN_UNTIL_TIME)
+        snprintf(buf, sizeof(buf), "Until\n%02i:%02i", s.end_min / 60, s.end_min % 60);
+    else
+        return "Until\nStopped";
+    return buf;
+}
+
 static const char *qfreq_label(void) {
     static char buf[32];
     char        f[16];
@@ -207,6 +284,8 @@ static void set_btn(button_data_t *b, bool disabled) {
 static void set_adjust(adj_t a) {
     adjusting = a;
     if (btn_qfreq.mark != (a == ADJ_QRSS)) buttons_mark(&btn_qfreq, a == ADJ_QRSS);
+    if (btn_start.mark != (a == ADJ_START)) buttons_mark(&btn_start, a == ADJ_START);
+    if (btn_until.mark != (a == ADJ_UNTIL)) buttons_mark(&btn_until, a == ADJ_UNTIL);
 }
 
 static void update_buttons(void) {
@@ -220,6 +299,8 @@ static void update_buttons(void) {
     set_btn(&btn_delete, busy || empty);
     set_btn(&btn_qrss, busy);
     set_btn(&btn_qfreq, busy);
+    set_btn(&btn_start, busy);
+    set_btn(&btn_until, busy);
     set_btn(&btn_p1, busy);
     set_btn(&btn_p2, busy);
     set_btn(&btn_p3, busy);
@@ -272,16 +353,36 @@ static void update_status(void) {
             }
             break;
         case CW_ENCODER_BEACON_IDLE: {
-            char buf[32];
+            char        buf[32];
+            bcn_sched_t s = sched_set();
+
             snprintf(buf, sizeof(buf), "BEACON %i s", cw_encoder_pause_left());
             set_state(buf, theme_hex(TC_chip), theme_hex(TC_warn));
-            lv_label_set_text(hint, "TX or PTT: stop");
+            if (s.until == BCN_UNTIL_SENDS)
+                lv_label_set_text_fmt(hint, "%i of %i sent - TX or PTT: stop", cw_encoder_sends_done(), s.sends);
+            else
+                lv_label_set_text_fmt(hint, "%i sent - TX or PTT: stop", cw_encoder_sends_done());
+            break;
+        }
+        case CW_ENCODER_BEACON_WAIT: {
+            char        buf[32];
+            bcn_sched_t s    = sched_set();
+            int         left = cw_encoder_wait_left();
+
+            snprintf(buf, sizeof(buf), "AT %02i:%02i", s.start_min / 60 % 24, s.start_min % 60);
+            set_state(buf, theme_hex(TC_chip), theme_hex(TC_warn));
+            lv_label_set_text_fmt(hint, "Starts in %i:%02i:%02i - TX or PTT: stop", left / 3600, left / 60 % 60,
+                                  left % 60);
             break;
         }
         default:
             set_state("READY", theme_hex(TC_chip), theme_hex(TC_text_head));
             if (adjusting == ADJ_QRSS)
                 lv_label_set_text(hint, "MFK or VOL: 10 Hz steps - press MFK: done");
+            else if (adjusting == ADJ_START || (adjusting == ADJ_UNTIL && sched_set().until == BCN_UNTIL_TIME))
+                lv_label_set_text_fmt(hint, "MFK or VOL: 5 min steps (%s clock) - press MFK: done", zone());
+            else if (adjusting == ADJ_UNTIL)
+                lv_label_set_text(hint, "MFK or VOL: how many - Until: next kind - MFK: done");
             else
                 lv_label_set_text(hint, count ? "MFK: choose - press MFK: edit" : "New: write the first message");
             break;
@@ -291,15 +392,17 @@ static void update_status(void) {
         float secs = text_secs(text);
         char  win[48] = "On 30 m or 80 m only";
 
-        if (band >= 0)
+        if (beacon_on)
+            snprintf(win, sizeof(win), "%s", sched_words());
+        else if (band >= 0)
             snprintf(win, sizeof(win), "Window %s-%s", mhz(lo, qrss_bands[band].win_lo_hz),
                      mhz(hi, qrss_bands[band].win_hi_hz));
         lv_label_set_text_fmt(info_lbl, secs < 120.0f ? "About %.0f s in QRSS3\nBeacon: %s\n%s"
                                                       : "About %.0f min in QRSS3\nBeacon: %s\n%s",
                               secs < 120.0f ? secs : secs / 60.0f, beacon_on ? "on" : "off (page 2)", win);
     } else if (text) {
-        lv_label_set_text_fmt(info_lbl, "About %.0f s at %i WPM\nBeacon: %s", text_secs(text), wpm,
-                              beacon_on ? "on" : "off (page 2)");
+        lv_label_set_text_fmt(info_lbl, "About %.0f s at %i WPM\nBeacon: %s%s%s", text_secs(text), wpm,
+                              beacon_on ? "on" : "off (page 2)", beacon_on ? "\n" : "", beacon_on ? sched_words() : "");
     } else {
         lv_label_set_text(info_lbl, "");
     }
@@ -308,7 +411,8 @@ static void update_status(void) {
 static void timer_cb(lv_timer_t *t) {
     (void)t;
     if (delete_armed && lv_tick_elaps(delete_armed) > CONFIRM_MS) delete_armed = 0;
-    if (adjusting && (buttons_get_cur_page() != &page_3 || sending() || qrss_band() < 0)) set_adjust(ADJ_NONE);
+    if (adjusting && (buttons_get_cur_page() != &page_3 || sending() || (adjusting == ADJ_QRSS && qrss_band() < 0)))
+        set_adjust(ADJ_NONE);
     update_status();
     update_buttons();
 }
@@ -354,12 +458,21 @@ static void move_sel(int step) {
 
 /* Page 3's value, step by step */
 static void adjust(int step) {
-    int band = qrss_band();
+    int         band = qrss_band();
+    bcn_sched_t s    = sched_set();
 
     if (adjusting == ADJ_QRSS && band >= 0) {
         params_int32_set(&params.cw_qrss_hz[band], qrss_freq_step(band, params.cw_qrss_hz[band].x, step));
+    } else if (adjusting == ADJ_START) {
+        params_int32_set(&params.cw_bcn_start, bcn_step_start(s.start_min, step, now_min()));
+    } else if (adjusting == ADJ_UNTIL && s.until == BCN_UNTIL_SENDS) {
+        params_uint16_set(&params.cw_bcn_sends, bcn_step_sends(s.sends, step));
+    } else if (adjusting == ADJ_UNTIL && s.until == BCN_UNTIL_TIME) {
+        params_int32_set(&params.cw_bcn_end, bcn_step_end(s.end_min, step, s.start_min < 0 ? now_min() : s.start_min));
     }
     buttons_refresh(&btn_qfreq);
+    buttons_refresh(&btn_start);
+    buttons_refresh(&btn_until);
     timer_cb(NULL);
 }
 
@@ -405,10 +518,10 @@ static void click_cb(lv_event_t *e) {
     else edit_cb(NULL);
 }
 
-/* PTT stops a beacon during its pause. */
+/* PTT stops a beacon during its pause, and before its start time. */
 static void radio_tx_cb(lv_event_t *e) {
     (void)e;
-    if (cw_encoder_state() == CW_ENCODER_BEACON_IDLE) cw_encoder_stop();
+    if (cw_encoder_state() == CW_ENCODER_BEACON_IDLE || cw_encoder_state() == CW_ENCODER_BEACON_WAIT) cw_encoder_stop();
 }
 
 /* Text editing */
@@ -490,6 +603,10 @@ static void qrss_start(const char *text) {
         msg_update_text_fmt("No TX on %s MHz: receive only", mhz(f, hz));
         return;
     }
+    if (beacon_on) {
+        bcn_sched_t s = sched_set();
+        cw_encoder_schedule(&s);
+    }
     if (!cw_encoder_send_qrss3(text, beacon_on)) msg_update_text_fmt("QRSS3: not started");
 }
 
@@ -497,7 +614,13 @@ static void tx_btn_cb(button_data_t *btn) {
     (void)btn;
     if (sending()) cw_encoder_stop();
     else if (sel_text() && qrss_on) qrss_start(cw_encoder_expand(sel_text()));
-    else if (sel_text()) cw_encoder_send(cw_encoder_expand(sel_text()), beacon_on);
+    else if (sel_text()) {
+        if (beacon_on) {
+            bcn_sched_t s = sched_set();
+            cw_encoder_schedule(&s);
+        }
+        cw_encoder_send(cw_encoder_expand(sel_text()), beacon_on);
+    }
     timer_cb(NULL);
 }
 
@@ -545,6 +668,30 @@ static void qrss_cb(button_data_t *btn) {
     if (sending()) return;
     qrss_on = !qrss_on;
     buttons_refresh(&btn_qrss);
+    timer_cb(NULL);
+}
+
+/* The beacon's start: the MFK changes it while the button is marked */
+static void start_cb(button_data_t *btn) {
+    (void)btn;
+    if (sending()) return;
+    set_adjust(adjusting == ADJ_START ? ADJ_NONE : ADJ_START);
+    timer_cb(NULL);
+}
+
+/* The beacon's end: until stopped, after a number of sends, at a time; the MFK changes the number or the time */
+static void until_cb(button_data_t *btn) {
+    (void)btn;
+    if (sending()) return;
+
+    bcn_sched_t s    = sched_set();
+    int         next = (s.until + 1) % (BCN_UNTIL_TIME + 1);
+
+    if (next == BCN_UNTIL_TIME && s.end_min < 0)    /* an hour on, about */
+        params_int32_set(&params.cw_bcn_end, bcn_step_end(BCN_NOW, 11, s.start_min < 0 ? now_min() : s.start_min));
+    params_uint8_set(&params.cw_bcn_until, next);
+    set_adjust(next == BCN_UNTIL_STOP ? ADJ_NONE : ADJ_UNTIL);
+    buttons_refresh(&btn_until);
     timer_cb(NULL);
 }
 

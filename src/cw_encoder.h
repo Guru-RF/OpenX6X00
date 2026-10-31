@@ -11,11 +11,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "cw_beacon.h"
+
 typedef enum {
     CW_ENCODER_IDLE = 0,
     CW_ENCODER_SEND,
     CW_ENCODER_BEACON,
-    CW_ENCODER_BEACON_IDLE
+    CW_ENCODER_BEACON_IDLE,
+    CW_ENCODER_BEACON_WAIT      /* a beacon before its start time (cw_encoder_schedule), receiving */
 } cw_encoder_state_t;
 
 void cw_encoder_send(const char *text, bool beacon);
@@ -36,6 +39,16 @@ int cw_encoder_send_left(void);
 
 /* The front PTT key, before it keys: a QRSS3 send or a beacon (either speed) stops. LVGL thread */
 void cw_encoder_ptt_pressed(void);
+
+/* The start and the end (cw_beacon.h) of the next beacon sent, that one only: a later one starts at once and runs
+ * until stopped unless given its own. The screen says when a beacon is over by it. LVGL thread */
+void cw_encoder_schedule(const bcn_sched_t *s);
+
+/* Seconds until a beacon's first send (BEACON_WAIT), 0 none */
+int cw_encoder_wait_left(void);
+
+/* The sends of the beacon on the air done so far */
+int cw_encoder_sends_done(void);
 
 /* While set the key is never closed unless key train is on (the sidetone
  * without transmitting): the CW trainer must not transmit. */

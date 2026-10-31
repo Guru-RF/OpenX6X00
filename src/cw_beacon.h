@@ -1,8 +1,9 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - the rules of the MSG > CW beacon (#71), without the radio: the elements of a text in QRSS3 and where
- *  QRSS3 goes on 30 m and 80 m. cw_encoder.c keys them, cw_messages.c shows them, tools/beacon tests them on the PC.
+ *  OpenX6X00 - the rules of the MSG > CW beacon (#71), without the radio: the elements of a text in QRSS3, where
+ *  QRSS3 goes on 30 m and 80 m, and when a beacon starts and ends. cw_encoder.c keys them, cw_messages.c shows them,
+ *  tools/beacon tests them on the PC.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -10,6 +11,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,6 +63,44 @@ int32_t qrss_freq(int band, int32_t chosen);
 /* That frequency moved by steps of QRSS_STEP_HZ, kept on the band; the band's own gives 0 back, so that a change of
  * the preset reaches it */
 int32_t qrss_freq_step(int band, int32_t chosen, int steps);
+
+/* A beacon's schedule (MSG > CW, page 3), on the screen clock: the radio's local time, in the time zone of Settings >
+ * General > DATE / TIME (UTC unless one is set). It starts at once or at a time, and ends when stopped, after a number
+ * of sends, or at a time: no send starts at or after it, the one on the air then is finished */
+typedef enum { BCN_UNTIL_STOP = 0, BCN_UNTIL_SENDS, BCN_UNTIL_TIME } bcn_until_t;
+
+#define BCN_NOW         -1      /* start_min: at once */
+#define BCN_STEP_MIN    5       /* the MFK moves a time by 5 minutes */
+#define BCN_SENDS_MAX   99
+
+typedef struct {
+    int start_min;      /* the minute of the day it starts, BCN_NOW */
+    int until;          /* bcn_until_t */
+    int sends;          /* BCN_UNTIL_SENDS: how many, 1 to BCN_SENDS_MAX */
+    int end_min;        /* BCN_UNTIL_TIME: the minute of the day no send starts from */
+} bcn_sched_t;
+
+/* The next time the clock shows the minute min of the day: now while it shows it already */
+time_t bcn_next(time_t now, int min);
+
+/* When the first send starts: now, or at its start time */
+time_t bcn_start_at(const bcn_sched_t *s, time_t now);
+
+/* BCN_UNTIL_TIME: the first time after the start the clock shows the end (so 24 hours on for the same minute); else 0 */
+time_t bcn_end_at(const bcn_sched_t *s, time_t start);
+
+/* The send number done (1 the first) ended now: when the next one starts, after the pause; 0: the beacon is over, its
+ * sends all sent, or the next would start at or after the end */
+time_t bcn_after_send(const bcn_sched_t *s, time_t end, int done, time_t now, int pause_s);
+
+/* The MFK's steps. The start: at once, then every 5 minutes of a day from the first one after now, round. The end:
+ * every 5 minutes of a day from the first one after `from` (the start, or now), round. The sends: 1 to 99 */
+int bcn_step_start(int cur, int steps, int now_min);
+int bcn_step_end(int cur, int steps, int from_min);
+int bcn_step_sends(int cur, int steps);
+
+/* The minute of the day of t on the screen clock */
+int bcn_min_of(time_t t);
 
 #ifdef __cplusplus
 }

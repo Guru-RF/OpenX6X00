@@ -137,6 +137,10 @@ typedef struct {
     uint16_t            voice_msg_period;   /* seconds */
     params_int32_t      cw_qrss_hz[2];      /* MSG > CW QRSS3 on 30 m and 80 m (cw_beacon.h): the frequency chosen, Hz,
                                              * 0 the band's own */
+    params_int32_t      cw_bcn_start;       /* MSG > CW beacon's schedule (bcn_sched_t): start minute, -1 at once */
+    params_uint8_t      cw_bcn_until;       /* bcn_until_t */
+    params_uint16_t     cw_bcn_sends;
+    params_int32_t      cw_bcn_end;         /* end minute, -1 none chosen yet */
 
     /* RTTY */
 

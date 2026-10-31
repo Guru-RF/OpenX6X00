@@ -106,6 +106,10 @@ params_t params = {
     .ft8_cq_modifier        = { .x = "",        .name = "ft8_cq_modifier"},
     .sstv_denoise           = { .x = true,      .name = "sstv_denoise" },
     .cw_qrss_hz             = { { .name = "cw_qrss_30m_hz" }, { .name = "cw_qrss_80m_hz" } },
+    .cw_bcn_start           = { .x = -1,        .name = "cw_bcn_start" },
+    .cw_bcn_until           = { .x = 0,         .name = "cw_bcn_until", .min = 0, .max = 2 },
+    .cw_bcn_sends           = { .x = 10,        .name = "cw_bcn_sends" },
+    .cw_bcn_end             = { .x = -1,        .name = "cw_bcn_end" },
 
     .long_gen               = ACTION_SCREENSHOT,
     .long_app               = ACTION_APP_RECORDER,
@@ -196,7 +200,11 @@ static bool params_load_js8(params_t *p, const char *name, int32_t i) {
 /* MSG > CW's beacon (#71) */
 static bool params_load_cw_beacon(params_t *p, const char *name, int32_t i) {
     return params_load_int32(&p->cw_qrss_hz[0], name, i) ||
-        params_load_int32(&p->cw_qrss_hz[1], name, i);
+        params_load_int32(&p->cw_qrss_hz[1], name, i) ||
+        params_load_int32(&p->cw_bcn_start, name, i) ||
+        params_load_uint8(&p->cw_bcn_until, name, i) ||
+        params_load_uint16(&p->cw_bcn_sends, name, i) ||
+        params_load_int32(&p->cw_bcn_end, name, i);
 }
 
 static bool params_load_float(params_float_t *var, const char *name, float x) {
@@ -390,6 +398,10 @@ static void params_save_js8(params_t *p) {
 static void params_save_cw_beacon(params_t *p) {
     params_save_int32(&p->cw_qrss_hz[0]);
     params_save_int32(&p->cw_qrss_hz[1]);
+    params_save_int32(&p->cw_bcn_start);
+    params_save_uint8(&p->cw_bcn_until);
+    params_save_uint16(&p->cw_bcn_sends);
+    params_save_int32(&p->cw_bcn_end);
 }
 
 static void params_save_float(params_float_t *var) {

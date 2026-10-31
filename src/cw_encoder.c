@@ -52,6 +52,12 @@ static atomic_bool          qrss_on;    /* a QRSS3 send or beacon, from its star
 static atomic_int           why;
 static volatile int         send_left;  /* seconds of the QRSS3 send on the air */
 
+/* A beacon's schedule: the next one's (cw_encoder_schedule), the running one's */
+static bcn_sched_t          next_sched = {BCN_NOW, BCN_UNTIL_STOP, 1, BCN_NOW};
+static bcn_sched_t          sched;
+static volatile time_t      start_at;   /* when its first send starts */
+static volatile int         sends_done;
+
 static uint8_t get_morse(char *str, char **morse) {
     cw_characters_t *character = &cw_characters[0];
 
@@ -269,6 +275,15 @@ static void qrss_said(void) {
 
 /* ---- The thread ----------------------------------------------------------------------------------------------- */
 
+/* A beacon over by its schedule: the screen says so */
+static void over_said(void) {
+    if (sched.until == BCN_UNTIL_SENDS) {
+        msg_schedule_text_fmt("Beacon over: %i send%s", sched.sends, sched.sends == 1 ? "" : "s");
+    } else {
+        msg_schedule_text_fmt("Beacon over: %02i:%02i", sched.end_min / 60, sched.end_min % 60);
+    }
+}
+
 /* Keys the text (again after a pause, as a beacon) until done or stopped.
  * Stopping is by flag: the key is always released by this thread. */
 static void * endecode_thread(void *arg) {
@@ -276,7 +291,17 @@ static void * endecode_thread(void *arg) {
     long dit_nsec         = 20000000L / (param_i_get(cfg_key_speed)) * 60;
     long dah_nsec         = dit_nsec * param_f_get(cfg_key_ratio);
     long world_space_nsec = dit_nsec * 7;
+    time_t end            = 0;
+    bool   over           = false;
 
+    /* A beacon waits for its start time receiving (BEACON_WAIT, start()); its end comes from the start */
+    if (state != CW_ENCODER_SEND) {
+        end = bcn_end_at(&sched, start_at);
+        while (!stop_req && time(NULL) < start_at) {
+            usleep(100000);
+        }
+        state = CW_ENCODER_BEACON;
+    }
     if (!qrss) {
         hold_tx(world_space_nsec, true);
     }
@@ -305,6 +330,10 @@ static void * endecode_thread(void *arg) {
             if (state == CW_ENCODER_SEND) {
                 break;
             }
+            if (!stop_req && !bcn_after_send(&sched, end, ++sends_done, time(NULL), params.cw_encoder_period)) {
+                over = true;
+                break;
+            }
             state = CW_ENCODER_BEACON_IDLE;
             if (!qrss) {
                 hold_tx(world_space_nsec, false);   /* receive between beacons */
@@ -327,6 +356,9 @@ static void * endecode_thread(void *arg) {
         qrss_said();
         atomic_store(&qrss_on, false);
     }
+    if (over) {
+        over_said();
+    }
     state = CW_ENCODER_IDLE;
     return NULL;
 }
@@ -345,7 +377,7 @@ void cw_encoder_ptt_pressed(void) {
     if (atomic_load(&qrss_on)) {
         stop_for(WHY_PTT);
         cw_encoder_stop();
-    } else if (state == CW_ENCODER_BEACON || state == CW_ENCODER_BEACON_IDLE) {
+    } else if (state == CW_ENCODER_BEACON || state == CW_ENCODER_BEACON_IDLE || state == CW_ENCODER_BEACON_WAIT) {
         cw_encoder_stop();
     }
 }
@@ -378,6 +410,8 @@ const char *cw_encoder_expand(const char *text) {
 
 static bool start(const char *text, bool beacon, bool slow) {
     cw_encoder_stop();
+    sched      = next_sched;    /* for this one only, started or not */
+    next_sched = (bcn_sched_t){BCN_NOW, BCN_UNTIL_STOP, 1, BCN_NOW};
 
     if (!text || !*text) {
         return false;
@@ -407,7 +441,9 @@ static bool start(const char *text, bool beacon, bool slow) {
 
     current_msg = strdup(text);
     current_char = current_msg;
-    state = beacon ? CW_ENCODER_BEACON : CW_ENCODER_SEND;
+    sends_done = 0;
+    start_at = beacon ? bcn_start_at(&sched, time(NULL)) : time(NULL);
+    state = !beacon ? CW_ENCODER_SEND : start_at > time(NULL) ? CW_ENCODER_BEACON_WAIT : CW_ENCODER_BEACON;
 
     pthread_attr_t attr;
     struct sched_param param;
@@ -437,6 +473,23 @@ bool cw_encoder_send_qrss3(const char *text, bool beacon) {
 
 bool cw_encoder_qrss3(void) {
     return atomic_load(&qrss_on);
+}
+
+void cw_encoder_schedule(const bcn_sched_t *s) {
+    next_sched = *s;
+    if (next_sched.sends < 1) {
+        next_sched.sends = 1;
+    }
+}
+
+int cw_encoder_wait_left(void) {
+    time_t left = start_at - time(NULL);
+
+    return state == CW_ENCODER_BEACON_WAIT && left > 0 ? (int)left : 0;
+}
+
+int cw_encoder_sends_done(void) {
+    return sends_done;
 }
 
 int cw_encoder_send_left(void) {
