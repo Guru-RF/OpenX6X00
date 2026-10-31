@@ -1312,8 +1312,9 @@ What goes on the air:
   (it stopped at 5 W before, too little for a tuner that needs about 9 W,
   #87). In a digital app too: the apps' 7 W cap is for their own
   transmissions, not for the tune. The X6200 on battery stops at its 5 W as
-  always, and on a transverter's band at its
-  [TX power limit](#transverter-tx-power-limit).
+  always, a tune under way too once the radio has gone onto its battery
+  (unplugged, after the 5 s it waits for the supply to settle), and on a
+  transverter's band at its [TX power limit](#transverter-tx-power-limit).
 - Above 1 W the radio's own ATU goes off first, on both radios, so the tuner
   at the antenna matches alone. The screen says so ("TUNE 5.0 W, 15 s, ATU
   off"), and the ATU stays off after the tune: a press of the ATU key (or the

@@ -127,6 +127,9 @@ static void on_volume_change(Subject *subj, void *user_data);
 static void recover_processing_audio_inputs();
 #endif
 static bool tx_refused(void);
+#ifdef BOARD_PWR_MAX_BAT
+static void tune_cap_top(float top);
+#endif
 static bool radio_tick();
 static void * radio_thread(void *arg);
 
@@ -165,6 +168,7 @@ static void supply_cb(void *arg) {
         cfg_pwr_max_set(BOARD_PWR_MAX);
     } else {
         cfg_pwr_max_set(BOARD_PWR_MAX_BAT);
+        tune_cap_top(BOARD_PWR_MAX_BAT);
         if (param_f_get(cfg_pwr) > BOARD_PWR_MAX_BAT) {
             cfg_pwr_set(BOARD_PWR_MAX_BAT);
             msg_schedule_text_fmt("TX power %0.0f W on battery", BOARD_PWR_MAX_BAT);
@@ -656,6 +660,20 @@ void radio_set_tune(float w, uint32_t limit_ms) {
     set_txpwr(param_f_get(cfg_pwr));    /* tx_player sets the tune's own: this is the cap, and the setting after */
     radio_unlock();
 }
+
+#ifdef BOARD_PWR_MAX_BAT
+/* The radio went onto its battery, its top down to `top`: a tune on the air above that is held to it now. The tune's
+ * own power (up to 8 W on external power, #87) went to the base as it keyed, and with PWR at the battery's top or
+ * under it nothing set the power again: the tune went on at 8 W on the battery, up to its 30 s */
+static void tune_cap_top(float top) {
+    radio_lock();
+    if (tune_cap > top) {
+        tune_cap = top;
+        set_txpwr(txpwr_asked);
+    }
+    radio_unlock();
+}
+#endif
 
 /* The VFO that transmits is the active one: tx_player moves it to the TX frequency, split held off (radio_set_tx_freq) */
 void radio_set_tx_mode(int mode) {
