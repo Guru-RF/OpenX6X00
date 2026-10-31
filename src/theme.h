@@ -191,6 +191,9 @@ typedef struct {
     int16_t pill_border;    /* border of the info box items (VFO, mode, AGC, PRE, ATT, ATU), 0 = none */
     bool    mode_box;       /* the mode next to the frequency in a box (sel_bg, sel_border), else plain text */
     int16_t btn_gap;        /* more space around the bottom buttons, 0..4 px (pill shapes show their corners) */
+    int16_t btn_text_size;  /* the text on the bottom buttons, one size on every button and page (sony_N, 16..36);
+                             * VISION and the walkie's narrow buttons fit theirs */
+    bool    btn_caps;       /* that text in capitals, a unit after a number kept ("FILTER HIGH 2950 Hz") */
     bool    rule;           /* accent line under the top bar and over the active button (Holo) */
     bool    vision;         /* VISION: big type for weak eyes, a low top bar, a tall frequency strip, the S-meter on a row of its own */
 #define VISION_FONT_STEPS 3 /* VISION: every font this many sizes up, apps and Settings too (fonts_scale) */

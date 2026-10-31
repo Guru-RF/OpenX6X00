@@ -2703,6 +2703,15 @@ restart.
 - File format, images and the list of roles:
   [docs/THEMES.md](THEMES.md).
 
+Button text. Each theme writes the bottom buttons in one text size, on every
+page and in the apps: the page button, an action and a name over its value
+alike. Black Metal and Total Black write them in capitals at the size of their
+state rows, a name and its value on one line where it fits ("VOLUME 30") and
+the name over the value where it does not; a unit after a number keeps its
+case ("2950 Hz"). A text too wide for the size takes the next size down.
+VISION and the walkie screen's buttons fit each text to its button instead. A
+theme file sets the size and the capitals with `btn_text_size` and `btn_caps`.
+
 Encoder LED. The bottom buttons show which encoder their control is on. The
 control the encoder adjusts now has a red LED, which follows button presses
 and encoder changes. A theme can draw the LED with an image.

@@ -45,7 +45,7 @@ Every key is optional: what a file does not set comes from its `base`.
 
 | Key | Meaning |
 |---|---|
-| `base` | `RF.Guru`, `Classic`, `Legacy`, `Outdoor`, `Outdoor-Negative` or `1bit` (default RF.Guru) |
+| `base` | `RF.Guru`, `Classic`, `Legacy`, `Outdoor`, `Outdoor-Negative`, `VISION`, `Black Metal`, `Total Black` or `1bit` (default RF.Guru) |
 | `colors` | role -> `#rrggbb`, roles below |
 | `radius`, `radius_btn`, `radius_popup` | corners of the boxes (top bar, strip, windows), of the bottom buttons, of menus and panels in the apps |
 | `border` | border width of boxes and buttons (3 or more: high contrast boxes) |
@@ -60,6 +60,8 @@ Every key is optional: what a file does not set comes from its `base`.
 | `mode_box` | the mode next to the frequency in a box (`mode_bg`, `mode_border`) instead of plain text |
 | `btn_gap` | 0 to 4: more space around the bottom buttons, so rounded (pill) buttons show all their corners |
 | `rule` | an `accent` line under the top bar and on top of the active button instead of its frame (Holo) |
+| `btn_text_size` | the text on the bottom buttons, one size on every button and page, the apps' too: 16 to 36, the font's sizes (built in: 26 RF.Guru, 28 Outdoor, Outdoor-Negative, Classic and 1bit, 24 Black Metal and Total Black). A text too wide for it takes the next size down. On base `VISION`, and on the walkie screen's narrow buttons, each text is fitted to its button instead |
+| `btn_caps` | that text in capitals, a unit after a number as it is (`FILTER HIGH 2950 Hz`, as Black Metal and Total Black write it) |
 
 The encoder LED shows which encoder a button's control is on (`btn_mark`,
 `btn_mark_assigned`); the control the encoder adjusts now is `btn_mark_active`

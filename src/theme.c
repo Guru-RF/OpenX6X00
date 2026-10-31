@@ -121,18 +121,18 @@ static const char *const color_names[TC_COUNT] = {
 
 static const theme_shape_t builtin_shapes[B_OUTDOOR_NEG] = {
     [B_RFGURU]  = {.radius = 7, .radius_btn = 10, .radius_popup = 10, .border = 1, .box_gradient = true,
-                   .images = 1, .font = -1, .waterfall_table = 0},
+                   .images = 1, .font = -1, .waterfall_table = 0, .btn_text_size = 26},
     [B_LEGACY]  = {.radius = 7, .radius_btn = 10, .radius_popup = 10, .border = 1, .box_gradient = true,
-                   .images = 2, .font = -1, .waterfall_table = 1},
+                   .images = 2, .font = -1, .waterfall_table = 1, .btn_text_size = 26},
     /* Light and high contrast for the sun, in grey: the noise light, weak signals already mid grey,
      * then darker at an even pace up to black, so a strong signal shows how strong it is */
     [B_OUTDOOR] = {.radius = 6, .radius_btn = 8, .radius_popup = 8, .border = 2, .focus_solid = true,
-                   .font = -1, .meter_gradient = true, .mono_cluster = true,
+                   .font = -1, .meter_gradient = true, .mono_cluster = true, .btn_text_size = 28,
                    .waterfall = {0xfafafa, 0xe6e6e6, 0xc8c8c8, 0xa0a0a0, 0x787878, 0x585858, 0x3c3c3c, 0x282828,
                                  0x181818, 0x0a0a0a, 0x000000},
                    .waterfall_n = 11},
     [B_CLASSIC] = {.radius = 3, .radius_btn = 4, .radius_popup = 4, .border = 1, .btn_gradient = true,
-                   .focus_solid = true, .font = FONT_ARIAL,
+                   .focus_solid = true, .font = FONT_ARIAL, .btn_text_size = 28,
                    .waterfall = {0x000000, 0x000060, 0x0040e0, 0x00c8ff, 0xffff00, 0xff6000, 0xffffff},
                    .waterfall_n = 7},
 };
@@ -199,6 +199,8 @@ static void use_builtin(int b) {
         if (b == B_TOTAL_BLACK) theme_set(total_black_colors, sizeof(total_black_colors) / sizeof(total_black_colors[0]));
         theme_shape = (theme_shape_t){.radius_popup = 4, .border = 1, .box_gradient = true,
                                       .btn_gradient = b == B_BLACK_METAL, .font = FONT_RCOND, .deck = true,
+                                      /* the buttons as the state rows: capitals, their size */
+                                      .btn_text_size = 24, .btn_caps = true,
                                       /* black, deep blue, blue, cyan, yellow-green */
                                       .waterfall = {0x000000, 0x000418, 0x00145e, 0x0a5ad2, 0x28c8f0, 0xc8f05a},
                                       .waterfall_n = 6};
@@ -213,7 +215,7 @@ static void use_builtin(int b) {
         theme_shape = (theme_shape_t){.radius = 0, .radius_btn = 0, .radius_popup = 0, .border = 1,
                                       .focus_solid = true, .mono_cluster = true, .images = 0,
                                       .font = FONT_PIXEL, .pill_border = 1, .mode_box = true,
-                                      .mono = true, .ink = ink, .paper = paper,
+                                      .mono = true, .ink = ink, .paper = paper, .btn_text_size = 28,
                                       /* ink density from the noise up (theme_wf_density): paper, then dots */
                                       .waterfall = {0xffffff, 0xffffff, 0xd8d8d8, 0xa8a8a8, 0x707070, 0x383838, 0x000000},
                                       .waterfall_n = 7};
@@ -333,6 +335,8 @@ static bool load_file(const char *name) {
     get_int(root, "btn_gap", &theme_shape.btn_gap);
     theme_shape.btn_gap = theme_shape.btn_gap < 0 ? 0 : theme_shape.btn_gap > 4 ? 4 : theme_shape.btn_gap;
     get_bool(root, "rule", &theme_shape.rule);
+    get_int(root, "btn_text_size", &theme_shape.btn_text_size);
+    get_bool(root, "btn_caps", &theme_shape.btn_caps);
     v = theme_shape.waterfall_steps;
     get_int(root, "waterfall_steps", &v);
     theme_shape.waterfall_steps = v;

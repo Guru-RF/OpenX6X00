@@ -762,49 +762,123 @@ static const lv_font_t *narrow_value_font(disp_btn_t *b, const char *text) {
     return &sony_18;
 }
 
-/* "Name:\nvalue" shows a small name over a large value; "(PAGE 1:2)" is a
- * page button, drawn darker; anything else is an action, centred. */
+/* The theme's one size for the text of every button (theme_shape.btn_text_size), and the sizes
+ * under it for a text too wide for it */
+static const struct {
+    int16_t          size;
+    const lv_font_t *font;
+} btn_sizes[] = {{16, &sony_16}, {18, &sony_18}, {20, &sony_20}, {22, &sony_22}, {24, &sony_24}, {26, &sony_26},
+                 {28, &sony_28}, {30, &sony_30}, {32, &sony_32}, {34, &sony_34}, {36, &sony_36}};
+
+static int btn_size_index() {
+    int i = 0;
+
+    while (i + 1 < (int)ARRAY_SIZE(btn_sizes) && btn_sizes[i + 1].size <= theme_shape.btn_text_size) i++;
+    return i;
+}
+
+/* The text in f, on its one line or two, inside the button */
+static bool btn_fits(disp_btn_t *b, const char *text, const lv_font_t *f) {
+    lv_point_t size;
+
+    lv_txt_get_size(&size, text, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return size.x <= btn_w(b) - 8 && size.y <= btn_h(b);
+}
+
+/* The theme's size, or the biggest under it that the text fits in */
+static const lv_font_t *btn_font(disp_btn_t *b, const char *text) {
+    int i = btn_size_index();
+
+    while (i > 0 && !btn_fits(b, text, btn_sizes[i].font)) i--;
+    return btn_sizes[i].font;
+}
+
+static bool ascii_letter(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+/* Capitals (btn_caps), a unit after a number as it is: "Filter high:\n2950 Hz" -> "FILTER HIGH:\n2950 Hz",
+ * as the deck's state rows write "STEP 500 Hz" */
+static void btn_upper(char *out, size_t size, const char *text) {
+    bool   unit = false;   /* in the word right after a number */
+    size_t n    = 0;
+
+    for (const char *c = text; *c && n + 1 < size; c++) {
+        if (ascii_letter(*c) && (c == text || !ascii_letter(c[-1]))) {
+            const char *p = c;
+
+            while (p > text && p[-1] == ' ') p--;
+            unit = p > text && p[-1] >= '0' && p[-1] <= '9';
+        }
+        out[n++] = !unit && *c >= 'a' && *c <= 'z' ? *c - 'a' + 'A' : *c;
+    }
+    out[n] = '\0';
+}
+
+/* "Name:\nvalue": the name (text_head) over the value, both in the button's size; deck: "Volume 30" on
+ * one line, the name grey, and the name over the value only where one line does not fit */
+static void btn_name_value(disp_btn_t *b, const char *name, const char *value) {
+    char             two[64];
+    const lv_font_t *f   = NULL;
+    bool             one = false;
+    lv_point_t       ns, vs;
+
+    snprintf(two, sizeof(two), "%s\n%s", name, value);
+    for (int i = btn_size_index(); !f; i--) {
+        const lv_font_t *t = btn_sizes[i].font;
+
+        lv_txt_get_size(&ns, name, t, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        lv_txt_get_size(&vs, value, t, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        one = theme_shape.deck && ns.x + 6 + vs.x <= btn_w(b) - 8;
+        if (one || btn_fits(b, two, t) || i == 0) f = t;
+    }
+    lv_label_set_text(b->label, name);
+    lv_obj_set_style_text_font(b->label, f, 0);
+    lv_obj_set_style_text_color(b->label, theme_shape.deck ? TC(text_dim) : TC(text_head), 0);
+    lv_label_set_text(b->value, value);
+    lv_obj_set_style_text_font(b->value, f, 0);
+    if (one) {
+        lv_obj_align(b->label, LV_ALIGN_CENTER, -(vs.x + 6) / 2, 0);
+        lv_obj_align(b->value, LV_ALIGN_CENTER, (ns.x + 6) / 2, 0);
+    } else {   /* the two lines as one block in the middle, as an action's two lines */
+        lv_coord_t h = lv_font_get_line_height(f);
+
+        lv_obj_align(b->label, LV_ALIGN_CENTER, 0, -h / 2);
+        lv_obj_align(b->value, LV_ALIGN_CENTER, 0, h - h / 2);
+    }
+    lv_obj_clear_flag(b->value, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_bg_color(b->parent, TC(btn), 0);
+}
+
+/* "Name:\nvalue" is a name over its value; "(PAGE 1:2)" is a page button, drawn darker; anything
+ * else is an action, centred. All of them in the theme's one size (btn_text_size), in capitals where
+ * the theme says so (btn_caps); VISION and the walkie's narrow buttons fit each text to the button. */
 static void set_btn_text(disp_btn_t *b, const char *text) {
+    bool even = !theme_shape.vision && !btn_narrow(b);
+    char upper[64];
+
+    if (even && theme_shape.btn_caps) {
+        btn_upper(upper, sizeof(upper), text);
+        text = upper;
+    }
     const char *nl = strchr(text, '\n');
 
     if (nl && nl > text && nl[-1] == ':') {
         char name[32];
         snprintf(name, sizeof(name), "%.*s", (int)(nl - text - 1), text);
-        /* Deck: "Volume 30" on one line, the name grey, the value white */
-        if (theme_shape.deck && !btn_narrow(b)) {
-            /* The biggest that fits on one line */
-            static const lv_font_t *const fonts[] = {&sony_30, &sony_28, &sony_26, &sony_24, &sony_20};
-            const lv_font_t *f;
-            lv_point_t       ns, vs;
-
-            for (size_t i = 0; i < sizeof(fonts) / sizeof(fonts[0]); i++) {
-                f = fonts[i];
-                lv_txt_get_size(&ns, name, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-                lv_txt_get_size(&vs, nl + 1, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-                if (ns.x + 6 + vs.x <= btn_w(b) - 8) break;
-            }
-            lv_label_set_text(b->label, name);
-            lv_obj_set_style_text_font(b->label, f, 0);
-            lv_obj_set_style_text_color(b->label, TC(text_dim), 0);
-            lv_obj_align(b->label, LV_ALIGN_CENTER, -(vs.x + 6) / 2, 0);
-            lv_label_set_text(b->value, nl + 1);
-            lv_obj_set_style_text_font(b->value, f, 0);
-            lv_obj_align(b->value, LV_ALIGN_CENTER, (ns.x + 6) / 2, 0);
-            lv_obj_clear_flag(b->value, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_set_style_bg_color(b->parent, TC(btn), 0);
+        if (even) {
+            btn_name_value(b, name, nl + 1);
             return;
         }
-        /* Name over value; one size smaller when the two lines don't fit (taller fonts, btn_gap) */
+        /* A small name over the value; VISION: the value as big as the button takes (capitals and
+         * digits: no overlap); narrow: the biggest that fits its width */
         bool fit = lv_font_get_line_height(&sony_22) + lv_font_get_line_height(&sony_32) + 9
                    <= btn_h(b);
         lv_label_set_text(b->label, name);
-        lv_obj_set_style_text_font(b->label, theme_shape.vision || btn_narrow(b) ? &sony_18 : fit ? &sony_22 : &sony_20, 0);
+        lv_obj_set_style_text_font(b->label, &sony_18, 0);
         lv_obj_set_style_text_color(b->label, TC(text_head), 0);
         lv_obj_align(b->label, LV_ALIGN_TOP_MID, 0, theme_shape.vision ? 0 : fit ? 4 : 2);
-        /* VISION: the value as big as the button takes, the name over it (capitals and digits: no overlap) */
-        lv_obj_set_style_text_font(b->value, btn_narrow(b)        ? narrow_value_font(b, nl + 1)
-                                             : theme_shape.vision ? &sony_30
-                                             : fit                ? &sony_32 : &sony_28, 0);
+        lv_obj_set_style_text_font(b->value, btn_narrow(b) ? narrow_value_font(b, nl + 1) : &sony_30, 0);
         lv_obj_align(b->value, LV_ALIGN_BOTTOM_MID, 0, theme_shape.vision ? 0 : fit ? -5 : -2);
         lv_label_set_text(b->value, nl + 1);
         lv_obj_clear_flag(b->value, LV_OBJ_FLAG_HIDDEN);
@@ -823,8 +897,8 @@ static void set_btn_text(disp_btn_t *b, const char *text) {
     } else {
         lv_label_set_text(b->label, text);
     }
-    lv_obj_set_style_text_font(b->label, theme_shape.vision || btn_narrow(b) ? vision_label_font(b, lv_label_get_text(b->label))
-                                                                              : theme_shape.deck ? &sony_30 : page ? &sony_28 : &sony_30, 0);
+    const char *shown = lv_label_get_text(b->label);
+    lv_obj_set_style_text_font(b->label, even ? btn_font(b, shown) : vision_label_font(b, shown), 0);
     if (page) lv_obj_set_style_text_color(b->label, TC(btn_page_text), 0);
     else lv_obj_remove_local_style_prop(b->label, LV_STYLE_TEXT_COLOR, 0);   /* the button's: btn_text, btn_active_text, btn_off_text */
     lv_obj_center(b->label);
