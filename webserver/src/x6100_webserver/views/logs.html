@@ -1,6 +1,6 @@
 % rebase('base.html', title='Logs')
 <h2><svg class="i"><use href="#i-book"/></svg>Logs</h2>
-<p class="sub">Every QSO on the radio, day by day: the day's logs (FT8, FT4, JS8 and the phone's logger) and the POTA/SOTA activations. Edit a QSO in place, delete QSOs or whole days, export what the filter shows as ADIF or CSV.</p>
+<p class="sub">Every QSO on the radio, day by day: the day's logs (FT8, FT4, JS8 and the phone's logger) and the POTA/SOTA activations. Edit a QSO in place, delete QSOs or whole days, export what the filter shows as ADIF or CSV. Below them, <a href="#textlog">the keyboard modes' text</a>.</p>
 
 <section class="dp-card">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-search"/></svg></span><div><h3>Filter and export</h3><p>Export, and Delete shown, work on the QSOs the filter shows</p></div></div>
@@ -22,6 +22,21 @@
 </section>
 
 <div id="days"></div>
+
+<section class="dp-card" id="textlog">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-file"/></svg></span><div><h3>Keyboard modes' text</h3><p>What PSK31, PSK63, Olivia, JTTY and RTTY received and sent, a line each with the UTC time, the frequency, the mode and the app's signal figure; a file a UTC day. On or off, and the size limit (the oldest day goes): Settings &gt; General &gt; TEXT LOG on the radio</p></div></div>
+  <div class="dp-body tbl">
+  <div class="table-wrap">
+  <table id="tl-files">
+    <thead>
+      <tr><th>Day (UTC)</th><th>Size</th><th></th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  </div>
+  <div class="actions"><span class="status" id="tl-status"></span></div>
+  </div>
+</section>
 
 <form id="export" method="post" action="/logs/export" style="display:none">
   <input name="sel"><input name="fmt">
@@ -156,10 +171,36 @@ var load = function(msg) {
   }).fail(fail);
 }
 
+// The keyboard modes' text log: a day opens in a new tab, Download saves it, Delete removes it
+var showTextlog = function(r, msg) {
+  const body = $("#tl-files tbody").empty();
+  r.files.forEach(function(f) {
+    const url = "/textlog/" + encodeURIComponent(f.name);
+    const view = $("<a target='_blank' rel='noopener'>").attr("href", url).attr("title", "Read it in a new tab").text(f.day);
+    const dl = $("<a class='btn' download style='padding:5px 9px'>").attr("href", url + "?dl=1").attr("title", "Download " + f.name)
+      .html('<svg class="i"><use href="#i-download"/></svg>');
+    const del = button("remove", "si-trash", "Delete this day's text").on("click", () => deleteTextlog(f.name));
+    body.append($("<tr>").append($("<td>").append(view), $("<td>").text(f.size), $("<td class='action-cell'>").append(dl, " ", del)));
+  });
+  if (!r.files.length) body.append($("<tr>").append($("<td colspan=3>").text("No text yet: open PSK, Olivia, JTTY or RTTY on the radio")));
+  const el = $("#tl-status").removeClass("error").html('<span class="dot"></span>');
+  el.append(document.createTextNode(msg || `${r.files.length} day${r.files.length == 1 ? "" : "s"}, ${r.total}`));
+}
+var textlogFail = function(xhr) {
+  $("#tl-status").addClass("error").html('<span class="dot"></span>').append(document.createTextNode(xhr.responseJSON ? xhr.responseJSON.msg : "Failed"));
+}
+var deleteTextlog = function(name) {
+  if (!confirm(`Delete the text of ${name.slice(0, 10)}? Download it first if you still need it: this cannot be undone.`)) return;
+  $.ajax({url: "/api/textlog/" + encodeURIComponent(name), type: "DELETE", dataType: "json",
+          success: r => showTextlog(r, "Deleted " + name), error: textlogFail});
+}
+var loadTextlog = function() { $.get("/api/textlog", {}, r => showTextlog(r)).fail(textlogFail); }
+
 $("#f-text").on("input", render);
 $("#f-band, #f-mode, #f-from, #f-to").on("change", render);
 $("#exp-adi").on("click", () => exportShown("adi"));
 $("#exp-csv").on("click", () => exportShown("csv"));
 $("#del-shown").on("click", () => { const l = shown(); deleteQsos(l, `the ${l.length} QSOs shown`); });
 load();
+loadTextlog();
 </script>

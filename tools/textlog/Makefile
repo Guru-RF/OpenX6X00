@@ -5,6 +5,7 @@
 # The sources are copied to build/ first: a quoted #include looks beside the including file before the -I paths,
 # and the shim in stub_include must win over src/ (as in tools/tune). The clock is the test's own (--wrap=time),
 # and the card's fsync calls are counted (--wrap=fsync).
+# textlog_web_test.py tests the web configurator's side (the Logs page's list, read, download, delete; needs bottle).
 SRC    := ../../src
 DATA   := $(CURDIR)/build/data
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -pthread -I stub_include -DHOST_BUILD=1 -DBOARD_DATA='"$(DATA)"'

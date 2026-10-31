@@ -16,6 +16,7 @@ BACKUP_SAFETY = "/mnt/backup_before_restore"
 GUI_INIT = "/etc/init.d/S95gui"
 CFG_SOCK = "/tmp/x6100_cfg.sock"   # the GUI's configurator socket (src/cfg_socket.cpp): Display, Ethernet pages
 FIELD_DIR = "/mnt/field"            # refs.tsv, qrz.conf, logs/*.adi (rootfs/usr/sbin/x6100-field)
+TEXTLOG_DIR = "/mnt/digi_text"      # the keyboard modes' text, YYYY-MM-DD.txt a UTC day (src/digi_textlog.c, #55)
 FIELD_CMD = "x6100-field"
 WAVELOG_CMD = "x6100-wavelog"       # the Wavelog upload (rootfs/usr/sbin), its settings in FIELD_DIR/wavelog.conf
 HTTPS_PORT = 0                      # set when the HTTPS server runs (the Gallery's in-browser conversion needs it)

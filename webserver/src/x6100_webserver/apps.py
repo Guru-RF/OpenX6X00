@@ -2085,6 +2085,57 @@ def export_logs():
     return body
 
 
+# The keyboard modes' text log (src/digi_textlog.c, #55): <TEXTLOG_DIR>/YYYY-MM-DD.txt, a line for each line PSK31,
+# PSK63, Olivia, JTTY and RTTY received or sent, one file a UTC day; the GUI keeps the folder within the size limit
+# of Settings > General > TEXT LOG. Listed on the Logs page, read in the browser, downloaded, deleted.
+TEXTLOG_NAME = re.compile(r"\d{4}-\d{2}-\d{2}\.txt")
+
+
+def textlog_files():
+    try:
+        names = os.listdir(settings.TEXTLOG_DIR)
+    except OSError:
+        return []
+    files = []
+    for name in names:
+        path = os.path.join(settings.TEXTLOG_DIR, name)
+        if TEXTLOG_NAME.fullmatch(name) and os.path.isfile(path):
+            n = os.stat(path).st_size
+            files.append({"name": name, "day": name[:10], "bytes": n, "size": fmt_size(n)})
+    return sorted(files, key=lambda f: f["name"], reverse=True)
+
+
+@app.get('/api/textlog')
+def get_textlog():
+    files = textlog_files()
+    return {"files": files, "total": fmt_size(sum(f["bytes"] for f in files))}
+
+
+@app.get('/textlog/<name>')
+def textlog_file(name):
+    """A day's text in the browser, or with ?dl=1 as a download. Plain text that is never sniffed into a page: the
+    text is what came over the air, and anyone on the band can send "<script>" """
+    if not TEXTLOG_NAME.fullmatch(name):
+        raise bottle.HTTPError(404, "Not found")
+    r = bottle.static_file(name, root=settings.TEXTLOG_DIR, mimetype="text/plain",
+                           download=name if bottle.request.query.get("dl") else False)
+    r.set_header("X-Content-Type-Options", "nosniff")
+    return r
+
+
+@app.delete('/api/textlog/<name>')
+def delete_textlog(name):
+    if not TEXTLOG_NAME.fullmatch(name):
+        return api_error(400, "Not a day of the text log")
+    try:
+        os.remove(os.path.join(settings.TEXTLOG_DIR, name))
+    except FileNotFoundError:
+        return api_error(404, "Not found")
+    except OSError as e:
+        return api_error(500, f"Can't delete: {e}")
+    return get_textlog()
+
+
 # The GUI's local configurator socket (src/cfg_socket.cpp): one JSON object per line, one answer line
 
 
