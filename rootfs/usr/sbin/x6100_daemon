@@ -13,6 +13,14 @@ pulse_up() {
     pidof pulseaudio > /dev/null
 }
 
+# The CW key into the base: line 203 of gpiochip1 on both radios, active low, held by the GUI. A GUI that ends with the
+# key down (a crash in the middle of a QRSS3 dash, 9 s, or of any element) leaves the line low, and the base sends a
+# carrier until the next GUI opens the line and puts it up. Here it goes up as soon as the GUI is gone, before
+# anything else; gpioset lets go of it again, the level stays
+key_up() {
+    gpioset gpiochip1 203=1 2> /dev/null
+}
+
 # PulseAudio running, or started again: a dead daemon's pid file is cleared first, or the new
 # one refuses to start when that pid lives on in another process
 pulse_ensure() {
@@ -49,6 +57,7 @@ while true; do
     fi
     /usr/sbin/x6100_gui > /tmp/x6100_log.txt 2>&1
     code=$?
+    key_up
     # 128 + the signal when it was killed: 139 a crash (SIGSEGV), 134 an abort, 143 SIGTERM
     [ $starts -le 10 ] && /usr/sbin/x6100-starttrace "x6100_daemon: GUI ended, exit code $code"
     [ "$code" -eq 0 ] || sync

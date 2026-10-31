@@ -60,6 +60,13 @@ stop() {
 		pidof "$DAEMON" > /dev/null || break
 		sleep 0.5
 	done
+	# The CW key line up once the GUI is gone, as the loop does after each GUI (x6100_daemon key_up): the loop went
+	# first, so a GUI stopped with the key down would leave the base sending a carrier
+	for _ in 1 2 3 4 5 6 7 8 9 10; do
+		pidof x6100_gui > /dev/null || break
+		sleep 0.5
+	done
+	gpioset gpiochip1 203=1 2> /dev/null
 	return "$status"
 }
 
