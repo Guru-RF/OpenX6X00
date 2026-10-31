@@ -770,10 +770,13 @@ static const struct {
 } btn_sizes[] = {{16, &sony_16}, {18, &sony_18}, {20, &sony_20}, {22, &sony_22}, {24, &sony_24}, {26, &sony_26},
                  {28, &sony_28}, {30, &sony_30}, {32, &sony_32}, {34, &sony_34}, {36, &sony_36}};
 
-static int btn_size_index() {
+/* The theme's size, smaller where two lines of it do not fit the button's height (a taller font,
+ * btn_gap): then the whole row takes the smaller one, a text on one line as one on two */
+static int btn_size_index(disp_btn_t *b) {
     int i = 0;
 
     while (i + 1 < (int)ARRAY_SIZE(btn_sizes) && btn_sizes[i + 1].size <= theme_shape.btn_text_size) i++;
+    while (i > 0 && 2 * lv_font_get_line_height(btn_sizes[i].font) > btn_h(b)) i--;
     return i;
 }
 
@@ -787,7 +790,7 @@ static bool btn_fits(disp_btn_t *b, const char *text, const lv_font_t *f) {
 
 /* The theme's size, or the biggest under it that the text fits in */
 static const lv_font_t *btn_font(disp_btn_t *b, const char *text) {
-    int i = btn_size_index();
+    int i = btn_size_index(b);
 
     while (i > 0 && !btn_fits(b, text, btn_sizes[i].font)) i--;
     return btn_sizes[i].font;
@@ -824,7 +827,7 @@ static void btn_name_value(disp_btn_t *b, const char *name, const char *value) {
     lv_point_t       ns, vs;
 
     snprintf(two, sizeof(two), "%s\n%s", name, value);
-    for (int i = btn_size_index(); !f; i--) {
+    for (int i = btn_size_index(b); !f; i--) {
         const lv_font_t *t = btn_sizes[i].font;
 
         lv_txt_get_size(&ns, name, t, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
