@@ -77,12 +77,14 @@ class Textlog(unittest.TestCase):
         self.assertEqual(h["content-type"], "text/plain; charset=UTF-8")    # what came over the air is never a page
         self.assertEqual(h["x-content-type-options"], "nosniff")
         self.assertNotIn("content-disposition", h)
+        self.assertEqual(h["cache-control"], "private, no-cache, no-store")   # today's grows: never an old copy
 
     def test_download(self):
         code, h, body = self.req("GET", "/textlog/2026-10-30.txt", "dl=1")
         self.assertEqual(code, 200)
         self.assertEqual(body.decode(), DAY1)
         self.assertIn('attachment; filename="2026-10-30.txt"', h["content-disposition"])
+        self.assertEqual(h["cache-control"], "private, no-cache, no-store")
 
     def test_not_a_day(self):
         for name in ("notes.txt", "..%2Fparams.db", "2026-10-31.txt.bak", "2026-1-31.txt"):

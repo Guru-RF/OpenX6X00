@@ -2114,12 +2114,15 @@ def get_textlog():
 @app.get('/textlog/<name>')
 def textlog_file(name):
     """A day's text in the browser, or with ?dl=1 as a download. Plain text that is never sniffed into a page: the
-    text is what came over the air, and anyone on the band can send "<script>" """
+    text is what came over the air, and anyone on the band can send "<script>". Never kept by the browser either
+    (as Files and the Gallery): today's file grows, and a copy the browser took for fresh by its age (it has a
+    Last-Modified and no Cache-Control) would be shown again without the lines that came since"""
     if not TEXTLOG_NAME.fullmatch(name):
         raise bottle.HTTPError(404, "Not found")
     r = bottle.static_file(name, root=settings.TEXTLOG_DIR, mimetype="text/plain",
                            download=name if bottle.request.query.get("dl") else False)
     r.set_header("X-Content-Type-Options", "nosniff")
+    r.set_header("Cache-Control", "private, no-cache, no-store")
     return r
 
 
