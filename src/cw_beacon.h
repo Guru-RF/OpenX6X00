@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -37,6 +38,11 @@ int qrss3_plan(const char *text, cw_el_t *out, int max);
 
 /* How long the elements take, ms: from the first key down to the last key up */
 uint32_t cw_plan_ms(const cw_el_t *el, int n);
+
+/* QRSS3's TX time limit, on the radio thread (radio.c): the GUI's key, down since down_ms (the low 32 bits of
+ * get_time(), made odd so that it is never 0; 0: up), held longer than limit_ms (0: no limit) at now_ms. A key that
+ * went down after now_ms was read, on another thread or later in the same millisecond, has not been held at all */
+bool key_limit_over(uint32_t now_ms, uint32_t down_ms, uint32_t limit_ms);
 
 /* QRSS3 on a band: the window the grabbers watch, the frequency in it the radio transmits on when the user chose no
  * other (in CW the carrier is on the frequency shown), the band's edges the user may choose one between, and where

@@ -434,6 +434,20 @@ static void test_bands(void) {
           "kept between the band's edges");
 }
 
+/* The radio thread's TX time limit (radio.c morse_limit_check): the key went down at down (made odd), now is when that
+ * thread read its clock. A key down after that read, or in its millisecond, was cut at once: one in a few dozen QRSS3
+ * elements, with the screen saying the key had been held 10 s */
+static void test_key_limit(void) {
+    puts("QRSS3's TX time limit (radio.c)");
+    check(!key_limit_over(5000, 5000 | 1, 10000), "the key down in the millisecond the radio thread read: not held");
+    check(!key_limit_over(5000, 5003, 10000), "the key down after the radio thread read its clock: not held");
+    check(!key_limit_over(15001, 5001, 10000) && key_limit_over(15002, 5001, 10000),
+          "held 10 s: not over; a millisecond more: over");
+    check(!key_limit_over(0x00000800u, 0xFFFFF801u, 10000) && key_limit_over(0x00002800u, 0xFFFFF801u, 10000),
+          "over the wrap of the 32-bit milliseconds: 4 s held not over, 12 s over");
+    check(!key_limit_over(99999, 1, 0) && !key_limit_over(99999, 0, 10000), "no limit, or the key up: never over");
+}
+
 /* ---- The keyer, on its thread ---------------------------------------------------------------------------------- */
 
 static void test_qrss_send(void) {
@@ -716,6 +730,7 @@ int main(void) {
     main_thread = pthread_self();
     test_plan();
     test_bands();
+    test_key_limit();
     test_qrss_send();
     test_qrss_stops();
     test_cw();

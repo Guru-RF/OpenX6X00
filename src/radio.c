@@ -921,7 +921,7 @@ static void morse_limit_check(void) {
     uint32_t limit = atomic_load(&morse_limit_ms);
     uint32_t down  = atomic_load(&morse_down_ms);
 
-    if (limit && down && (uint32_t)now_time - down > limit) {
+    if (key_limit_over((uint32_t)now_time, down, limit)) {
         radio_set_morse_key(false);
         atomic_fetch_add(&morse_cuts, 1);
         fprintf(stderr, "radio: the CW key down over %u ms, let go\n", (unsigned)limit);

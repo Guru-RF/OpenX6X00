@@ -73,6 +73,10 @@ uint32_t cw_plan_ms(const cw_el_t *el, int n) {
     return ms;
 }
 
+bool key_limit_over(uint32_t now_ms, uint32_t down_ms, uint32_t limit_ms) {
+    return limit_ms && down_ms && (int32_t)(now_ms - down_ms) > (int32_t)limit_ms;
+}
+
 int qrss_band_of(int32_t hz) {
     for (int i = 0; i < QRSS_BANDS; i++) {
         if (hz >= qrss_bands[i].lo_hz && hz <= qrss_bands[i].hi_hz) {
