@@ -450,10 +450,12 @@ spectrum comes in only for the span around the VFO, so the side you tune
 away from gets nothing new: there the waterfall goes on with the last
 picture received at those frequencies, and the spectrum shows its last line
 there, dimmed: the last one received after the dial had been still for half a
-second. When what is received is a quarter of the spectrum's span from the
-centre (25 kHz at zoom 1, 12.5 kHz at zoom 2), or the VFO 40% of it, the
-view jumps back and centres on what is received: the VFO, less any IF shift
-(with Smooth scroll on, the waterfall slides there).
+second. When what is received, or the VFO, is 40% of the spectrum's span from
+the centre (40 kHz at zoom 1, 20 kHz at zoom 2), the view jumps back and
+centres on what is received: the VFO, less any IF shift (with Smooth scroll
+on, the waterfall slides there). So the line goes most of the way to the edge
+first, and what you see can be tuned without the picture moving; v0.3.7
+jumped at a quarter of the span (#10).
 
 Over the waterfall. Where: Settings > Display > MAIN SCREEN.
 

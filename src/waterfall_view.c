@@ -551,12 +551,14 @@ int32_t waterfall_view_shift(void) {
     int32_t vfo = cparam_i_get(cfg_fg_freq);
     int32_t half = SPAN_HZ / 2 / param_i_get(cfg_mode_zoom);
 
-    /* The received data (centred on rc) within a quarter of the span of the centre: the side
-     * tuned away from shows the last picture received there, and jumped back sooner less of it
-     * is old (#10; it was 40% of the span). The VFO within 40% as before: an IF shift keeps it
-     * up to that far from rc (on_if_shift_zoom(), screen_main.c), and over the quarter the view
-     * would follow it at every step */
-    if (!view_fixed || abs(rc - view_center) > half / 2 || abs(vfo - view_center) > half * 8 / 10) {
+    /* The received data (centred on rc) and the VFO within 40% of the span of the centre: the
+     * line goes most of the way to the edge before the view jumps back, so what is on the screen
+     * can be tuned without the picture moving, and the side tuned away from shows the last
+     * picture received there (#10). v0.3.7 jumped at a quarter for rc, to show less of that, and
+     * the reporter found it jumped too soon. The VFO's 40%: an IF shift keeps it up to that far
+     * from rc (on_if_shift_zoom(), screen_main.c), and under it the view would follow it at
+     * every step */
+    if (!view_fixed || abs(rc - view_center) > half * 8 / 10 || abs(vfo - view_center) > half * 8 / 10) {
         view_center = rc;
         view_fixed = true;
     }
