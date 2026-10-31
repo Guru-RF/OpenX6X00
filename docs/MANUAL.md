@@ -141,8 +141,8 @@ and CAT still tune.
   badge, and left of the frequency while an app window is open. On the
   Walkie Talkie screen it follows the mode ("USB - LOCK").
 - FT8, FT4, JS8, PSK, Olivia, JTTY and WSPR hold the frequency the same way
-  while they are open. Their own knob and buttons keep working (in FT8 the
-  knob still picks a station or moves the TX offset).
+  while they are open. Their own knobs and buttons keep working (in FT8 the
+  MFK still picks a station and the main knob moves the TX offset).
 - Your lock is apart from the apps' hold: set before an app opened, it is
   still on after the app closes, and an app never turns it on. Up to v0.3.7
   closing the app turned it off.
@@ -1418,7 +1418,8 @@ Not where the radio may not transmit; the screen (and the Panel) says why:
 - From the Panel also: a browser that only watches, a session without TX,
   control held elsewhere.
 - LOCK does not refuse it: TUNE does not change the frequency that LOCK
-  holds (the digital apps that hold LOCK while open have the button too).
+  holds (the digital apps that hold the frequency while open have the button
+  too).
 
 With an amplifier after the radio, put it in bypass (standby) while the
 tuner matches, and set the TUNE power for the tuner, not for the
