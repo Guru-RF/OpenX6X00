@@ -350,6 +350,12 @@ int main(void) {
     psk(3581000, 66, "MORE ROOM\n");
     digi_textlog_drain();
     check(has(day("2026-11-03"), "Q66% MORE ROOM\n"), "a higher limit: the day goes on");
+    make_file("2026-11-01.txt", 1200 * 1024);      /* put there by hand: SSH, a card reader */
+    fake_now += 61;
+    psk(3581000, 66, "A MINUTE ON\n");
+    digi_textlog_drain();
+    check(size_of("2026-11-01.txt") < 0 && has(day("2026-11-03"), "Q66% A MINUTE ON\n"),
+          "an older day put in the folder by hand, the same day: counted again within a minute, and it goes");
 
     printf("Off\n");
     on.v = 0;

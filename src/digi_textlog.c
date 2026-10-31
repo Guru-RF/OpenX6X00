@@ -35,6 +35,7 @@
 #define OUT_MAX (16 * 1024)         /* lines ended, not written yet: past it (a card that hangs) they are dropped */
 #define MB      (1024 * 1024ULL)
 #define PATH_N  (sizeof(DIGI_TEXTLOG_DIR) + 16)   /* the folder, '/' and a day's file name */
+#define COUNT_S 60                  /* the folder is counted again at least this often, s */
 
 typedef struct {
     bool     open;
@@ -69,6 +70,7 @@ static char     sync_path[PATH_N];      /* written since the last fsync */
 static time_t   last_sync;
 static char     last_path[PATH_N];      /* where the total was counted */
 static int64_t  total = -1;             /* bytes in the folder's day files, -1 not counted */
+static time_t   counted;                /* when */
 
 static bool enabled(void) {
     return param_i_get(cfg_textlog) != 0;
@@ -352,10 +354,12 @@ static bool day_write(const char *date, const char *buf, size_t n, time_t now) {
 
     snprintf(name, sizeof(name), "%.10s.txt", date);
     snprintf(path, sizeof(path), DIGI_TEXTLOG_DIR "/%s", name);
-    /* Counted again for another day's file, and when the count says the limit is near: files may have gone on
-     * the web page meanwhile */
-    if (total < 0 || strcmp(path, last_path) != 0 || (uint64_t)total + n > cap) {
-        total = trim(name, n, cap);
+    /* Counted again for another day's file, when the count says the limit is near, and once a minute: files may
+     * have gone on the web page meanwhile, or come by SSH or from a card reader (the oldest goes for those too) */
+    if (total < 0 || strcmp(path, last_path) != 0 || (uint64_t)total + n > cap || now - counted >= COUNT_S ||
+        now < counted) {
+        total   = trim(name, n, cap);
+        counted = now;
         snprintf(last_path, sizeof(last_path), "%s", path);
     }
     if ((uint64_t)total + n > cap)
