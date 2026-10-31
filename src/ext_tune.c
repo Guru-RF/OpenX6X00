@@ -27,7 +27,7 @@
 #include "winlink.h"
 
 /* Why a tune is to stop before its limit */
-typedef enum { WHY_NONE = 0, WHY_ASKED, WHY_FREQ, WHY_MODE, WHY_VFO, WHY_LINK } why_t;
+typedef enum { WHY_NONE = 0, WHY_ASKED, WHY_FREQ, WHY_MODE, WHY_VFO, WHY_LINK, WHY_ATU } why_t;
 
 static atomic_bool on;          /* from the start until its thread has put everything back */
 static atomic_int  why;         /* WHY_NONE: it goes on */
@@ -69,14 +69,14 @@ static void over_cb(void *arg) {
     const over_t *o = arg;
     /* Short: the message box shows about 30 characters still */
     static const char *const whys[] = {"", "", ": tuned away", ": mode changed", ": VFO changed",
-                                       ": browser gone"};
+                                       ": browser gone", ": ATU on"};
 
     switch (o->end) {
         case TUNE_END_LIMIT:
             msg_update_text_fmt("TUNE over: %d s limit", o->limit_s);
             break;
         case TUNE_END_STOP:
-            msg_update_text_fmt("TUNE stopped%s", whys[o->why >= 0 && o->why <= WHY_LINK ? o->why : 0]);
+            msg_update_text_fmt("TUNE stopped%s", whys[o->why >= 0 && o->why <= WHY_ATU ? o->why : 0]);
             break;
         case TUNE_END_CUT:
             if (!o->swr)    /* else "TX stopped: SWR 6.0" is on the screen already */
@@ -221,6 +221,17 @@ static void changed_cb(Subject *subj, void *user_data) {
     stop_for((int)(intptr_t)user_data);
 }
 
+/* The radio's own ATU switched on during a tune above 1 W (its key, the hand mic's TUNER, the action, the Panel): the
+ * tune stops at its next block, faded out, rather than going on through the ATU at that power (#87). At 1 W and less
+ * the ATU may be in, and the tune goes on */
+static void atu_cb(Subject *subj, void *user_data) {
+    (void)subj;
+    (void)user_data;
+    if (param_i_get(cfg_atu_enabled) && atomic_load(&on) && tune_atu_off(&plan)) {
+        stop_for(WHY_ATU);
+    }
+}
+
 void ext_tune_init(void) {
     subject_subscribe((Subject *)cfg_band_vfoa_freq, changed_cb, (void *)WHY_FREQ);
     subject_subscribe((Subject *)cfg_band_vfob_freq, changed_cb, (void *)WHY_FREQ);
@@ -230,4 +241,5 @@ void ext_tune_init(void) {
     subject_subscribe((Subject *)cfg_band_split, changed_cb, (void *)WHY_VFO);
     /* the TX frequency of its own in split: the tune stayed on the old one while the TX panel said the new */
     subject_subscribe((Subject *)cfg_band_tx_shift, changed_cb, (void *)WHY_FREQ);
+    subject_subscribe((Subject *)cfg_atu_enabled, atu_cb, NULL);
 }

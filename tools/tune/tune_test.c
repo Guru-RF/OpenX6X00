@@ -902,6 +902,12 @@ static void key_again(void) {
     ext_tune_toggle();
 }
 
+/* The ATU key's press (or the Panel's ATU) during the tune: the ATU on, its observers told */
+static void atu_key(void) {
+    param_i_set(cfg_atu_enabled, 1);
+    notify(cfg_atu_enabled);
+}
+
 static void panel_stop(void) {
     other_stopped = ext_tune_stop_owner(TUNE_BY_PANEL + 1, false);     /* another page's Stop */
     own_stopped   = ext_tune_stop_owner(TUNE_BY_PANEL + 2, false);
@@ -1005,7 +1011,31 @@ static void gui_side(void) {
     xvtr_w      = 0.0f;
     ui.atu      = 0;
     base.atu    = false;
+
+    puts("-- TUNE 5.0 W with the ATU off, the ATU key pressed 1 s in: the tune stops, not on through the ATU (#87)");
+    cfg = (typeof(cfg)){.freq = {14200000, 14200000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 5.0f};
+    ui.tune_pwr = 5.0f;
+    reset();
+    atu_writes    = 0;
+    sc.event_at_s = 1.0f;
+    sc.event      = atu_key;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.keys == 1 && !seen.atu && said_is("TUNE stopped: ATU on") && on_air_s() < 1.2,
+          "keyed with the ATU out, stopped at once (%.2f s): \"%s\"", on_air_s(), said);
+    check(ui.atu && base.atu && as_set(), "after: the ATU on as pressed, all else put back");
+
+    puts("-- TUNE 1.0 W, the ATU key pressed 1 s in: at 1 W the ATU may be in, the tune goes on");
+    ui.atu      = 0;
+    base.atu    = false;
     ui.tune_pwr = 1.0f;
+    reset();
+    sc.event_at_s = 1.0f;
+    sc.event      = atu_key;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.keys == 1 && ui.atu && said_is("TUNE over: 15 s limit") && on_air_s() > 14.0,
+          "on to its limit (%.2f s): \"%s\"", on_air_s(), said);
+    ui.atu   = 0;
+    base.atu = false;
 
     puts("-- FT8 open on 14.074 USB-D, its TX at 1500 Hz, the Ext tune button; a mode key 1 s in");
     ui.app                = ACTION_APP_FT8;

@@ -8,8 +8,9 @@
  *
  *  The key action (Settings > Keys: a front key held, the hand mic's F keys), the Tune button of the digital apps
  *  and the browser Panel start it, and the same again stops it. Its power and time limit are settings (Settings >
- *  TX Cal > EXTERNAL TUNER); a change of frequency, mode, band, VFO, split or TX shift stops it, and so does the end
- *  of the Panel's lease (remote_server.c). The transmission itself, and what it puts back: tune_tx.c.
+ *  TX Cal > EXTERNAL TUNER); a change of frequency, mode, band, VFO, split or TX shift stops it, so does the ATU
+ *  switched on during a tune above 1 W, and the end of the Panel's lease (remote_server.c). The transmission itself,
+ *  and what it puts back: tune_tx.c.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */

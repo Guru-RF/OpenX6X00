@@ -1289,7 +1289,8 @@ Starting and stopping it:
 - The same key or button again stops it at once, faded out ("TUNE
   stopped"). So does a change of frequency, band or TX shift ("TUNE stopped:
   tuned away"), of mode ("TUNE stopped: mode changed"), of VFO or split
-  ("TUNE stopped: VFO changed"), and the time limit ("TUNE over: 15 s
+  ("TUNE stopped: VFO changed"), the ATU switched on during a tune above
+  1 W ("TUNE stopped: ATU on", below), and the time limit ("TUNE over: 15 s
   limit").
 
 What goes on the air:
@@ -1316,8 +1317,10 @@ What goes on the air:
 - Above 1 W the radio's own ATU goes off first, on both radios, so the tuner
   at the antenna matches alone. The screen says so ("TUNE 5.0 W, 15 s, ATU
   off"), and the ATU stays off after the tune: a press of the ATU key (or the
-  "tuner on/off" action) puts it back on. At 1 W and less, or held to 1 W or
-  less by a transverter's limit, the ATU is left as it is.
+  "tuner on/off" action) puts it back on. Pressed during the tune, it stops
+  the tune: one above 1 W does not go on through the ATU. At 1 W and less, or
+  held to 1 W or less by a transverter's limit, the ATU is left as it is, and
+  may be switched on while it tunes.
 - For at most the TUNE time limit, 15 s by default. Where: Settings > TX Cal >
   EXTERNAL TUNER > TUNE time limit, s: 5 to 30 s.
 - The TX panel (in an app the TX strip) shows TUNE, EXTERNAL TUNE and the
