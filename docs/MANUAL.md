@@ -15,7 +15,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
-- [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages), [CW Trainer](#cw-trainer)
+- [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat)
 - [Themes](#themes)
@@ -2154,7 +2154,8 @@ do not.
 
 ### CW messages
 
-The MSG > CW messages are sent with TX or as a beacon.
+The MSG > CW messages are sent with TX or as a beacon. Page 1: TX, New,
+Edit; page 2: Beacon, Delete, QRSS3; page 3: Start, Until, Freq.
 
 - Edit them on the radio (MSG > CW) or on the web configurator's CW messages
   page (Operating menu): add, edit, delete, 1-64 characters each. The radio
@@ -2162,9 +2163,87 @@ The MSG > CW messages are sent with TX or as a beacon.
 - While a message or beacon is sent, the break-in delay is raised (one word
   space plus 150 ms, at most 1 s), so the transmitter stays keyed through
   the gaps instead of clicking the relay. It goes back to your setting between
-  beacons and when the message ends.
+  beacons and when the message ends. Not in [QRSS3](#qrss3).
 - `{CALL}` is your callsign and `{HIS}` the other station's: the last call
   the decoder confirmed (the one Log QSO offers), e.g. `{HIS} UR 599 599 BK`.
+- The side panel shows how long the message takes as sent (`{CALL}` filled
+  in), whether the beacon is on, and its start and end.
+
+#### CW beacon
+
+- Page 2, Beacon: Off, or the pause after each send: 10, 30, 60 or 120 s.
+  TX then sends the message again after every pause until you stop it. The
+  radio receives in the pauses, with the CW decoder if it is on. It sends at
+  the radio's power (PWR).
+- TX (Stop), the front PTT key, ESC or closing MSG > CW (Close, another menu
+  key, an app) stop it. So does a transmission during a pause: the mic's
+  PTT, CAT, TCI, the Panel. A beacon only runs while MSG > CW is open.
+- Its start and end, page 3, for scheduled CW lessons, bulletins, or a
+  beacon of a set length:
+  - Start: Now, or a time. Press Start, turn the MFK or VOL (5-minute
+    steps), press the MFK when done.
+  - Until: Stopped (until you stop it), a number of sends (1-99) or a time.
+    Each press of Until goes to the next of the three; the MFK or VOL then
+    sets the number or the time; press the MFK when done.
+  - The times are the screen clock's: the radio's local time in the time
+    zone of Settings > General > DATE / TIME, UTC unless you chose one. The
+    panel says which: "From 20:00 UTC, 10 sends". The radio's clock must be
+    right (NTP over WiFi, GPS, or set by hand).
+- With Beacon on, TX arms it. Before its start the panel says "AT 20:00"
+  and the hint counts down; the radio receives meanwhile. A start time gone
+  by today is tomorrow's; one whose minute the clock shows now starts at
+  once.
+- It ends after its sends, or when the next send would start at or after
+  the end time: the send on the air at the end time is finished, not cut
+  off. The screen says "Beacon over: 10 sends" or "Beacon over: 21:00". An
+  end time at the start's minute is 24 hours later.
+- With Beacon off, Start and Until do nothing: TX sends once, at once.
+- After a restart Beacon (and QRSS3) are off, so a restart never starts a
+  beacon by itself. The pause, Start, Until and the QRSS3 frequencies are
+  kept.
+
+#### QRSS3
+
+QRSS3 is very slow CW for receivers that draw a long, narrow waterfall (the
+"grabbers" on the web), read by eye: a dot 3 s, a dash 9 s, 3 s between the
+elements of a character, 9 s between characters, 21 s between words. A
+callsign takes about 3 minutes, `CQ CQ DE {CALL} {CALL} K` about 11; the
+hint counts down the send.
+
+- Page 2, QRSS3 On: TX and Beacon send the message in QRSS3 instead of at
+  the keyer's speed. The beacon's pause, start and end work as above.
+- In CW or CW-R, on 30 m or 80 m. TX moves the radio onto the band's QRSS
+  frequency; in CW the carrier goes out on the frequency shown.
+
+  | Band | QRSS window | Default frequency | Grabbers' receivers (USB) |
+  |---|---|---|---|
+  | 30 m | 10.140000-10.140100 MHz | 10.140050 MHz | 10.138700 MHz |
+  | 80 m | 3.569800-3.570000 MHz | 3.569900 MHz | 3.568600 MHz |
+
+- Page 3, Freq: the QRSS frequency of the band the radio is on. Press Freq,
+  turn the MFK or VOL (10 Hz steps), press the MFK when done. Kept for each
+  band. Look at a grabber first and pick a spot in the window that is free.
+- Refused, with a word on the screen: in another mode, on another band,
+  with the frequency locked, in split or with a TX shift, and where the
+  radio may not transmit.
+- The radio times every element itself (the base's keyer does not go that
+  slow) and keeps your break-in delay: it receives in every gap (3 s at
+  least), with the CW decoder if it is on.
+- It stops on TX (Stop), ESC or closing MSG > CW, the front PTT key, the
+  SWR protection, any transmission between the elements (the mic's PTT,
+  CAT, TCI, the Panel), and a change of frequency, band, mode, VFO, split
+  or TX shift (the knob, the band keys, CAT, TCI, the Panel). The screen
+  says why: "QRSS3 stopped: tuned away".
+- Its TX time limit: no key-down may last over 10 s (the longest element is
+  a 9 s dash). Past that the radio lets go of the key and QRSS3 stops ("QRSS3
+  stopped: key held 10 s").
+- Should the radio's program end while the key is down (a crash in the
+  middle of a dash), the key is let go as soon as it has ended, before it
+  starts again.
+- It sends at PWR and keys about half of the time: on a long beacon mind
+  the radio's heat. QRSS is usually sent at low power.
+- QRSS3 only, for now: not QRSS10 or slower, DFCW or FSK-CW.
+
 ### CW Trainer
 
 APP (page 2) > CW Trainer keys with the radio's own keyer, so it follows the
