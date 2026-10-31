@@ -2086,8 +2086,8 @@ def export_logs():
 
 
 # The keyboard modes' text log (src/digi_textlog.c, #55): <TEXTLOG_DIR>/YYYY-MM-DD.txt, a line for each line PSK31,
-# PSK63, Olivia, JTTY and RTTY received or sent, one file a UTC day; the GUI keeps the folder within the size limit
-# of Settings > General > TEXT LOG. Listed on the Logs page, read in the browser, downloaded, deleted.
+# PSK63, Olivia and JTTY received or sent and RTTY received, one file a UTC day; the GUI keeps the folder within the
+# size limit of Settings > General > TEXT LOG. Listed on the Logs page, read in the browser, downloaded, deleted.
 TEXTLOG_NAME = re.compile(r"\d{4}-\d{2}-\d{2}\.txt")
 
 
