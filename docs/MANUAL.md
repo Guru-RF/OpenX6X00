@@ -2201,7 +2201,9 @@ Edit; page 2: Beacon, Delete, QRSS3; page 3: Start, Until, Freq.
   off. The screen says "Beacon over: 10 sends" or "Beacon over: 21:00". An
   end time earlier in the day than the start is the next day's, one at the
   start's minute 24 hours later: with Start Now and Until 21:00, TX at 21:05
-  runs until 21:00 tomorrow.
+  runs until 21:00 tomorrow. The page says so ("Now, until 21:00 tomorrow",
+  and in the line at the bottom while it waits and runs), so a day of
+  beacon is never a surprise.
 - With Beacon off, Start and Until do nothing: TX sends once, at once.
 - After a restart Beacon (and QRSS3) are off, so a restart never starts a
   beacon by itself. The pause, Start, Until and the QRSS3 frequencies are

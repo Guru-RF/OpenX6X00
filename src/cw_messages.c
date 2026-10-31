@@ -197,17 +197,26 @@ static const char *zone(void) {
     return buf;
 }
 
-/* "From 20:00 UTC, 10 sends", "From 20:00 to 21:00 UTC", "Now, until stopped" */
+/* " tomorrow" when the end comes on the day after today (an end time gone by today, with Start Now, is tomorrow's:
+ * about a day of beacon, #71) */
+static const char *end_day(bcn_sched_t s) {
+    time_t now  = time(NULL);
+    int    days = bcn_end_days(&s, bcn_start_at(&s, now), now);
+
+    return days == 1 ? " tomorrow" : days > 1 ? " day after" : "";
+}
+
+/* "From 20:00 UTC, 10 sends", "From 20:00 to 21:00 UTC", "Now, until 21:00 tomorrow UTC", "Now, until stopped" */
 static const char *sched_words(void) {
-    static char buf[48];
+    static char buf[64];
     char        until[24];
     bcn_sched_t s = sched_set();
 
     if (s.until == BCN_UNTIL_TIME && s.start_min < 0)
-        snprintf(buf, sizeof(buf), "Now, until %02i:%02i %s", s.end_min / 60, s.end_min % 60, zone());
+        snprintf(buf, sizeof(buf), "Now, until %02i:%02i%s %s", s.end_min / 60, s.end_min % 60, end_day(s), zone());
     else if (s.until == BCN_UNTIL_TIME)
-        snprintf(buf, sizeof(buf), "From %02i:%02i to %02i:%02i %s", s.start_min / 60, s.start_min % 60,
-                 s.end_min / 60, s.end_min % 60, zone());
+        snprintf(buf, sizeof(buf), "From %02i:%02i to %02i:%02i%s %s", s.start_min / 60, s.start_min % 60,
+                 s.end_min / 60, s.end_min % 60, end_day(s), zone());
     else {
         if (s.until == BCN_UNTIL_SENDS) snprintf(until, sizeof(until), "%i send%s", s.sends, s.sends == 1 ? "" : "s");
         else snprintf(until, sizeof(until), "until stopped");
@@ -360,6 +369,9 @@ static void update_status(void) {
             set_state(buf, theme_hex(TC_chip), theme_hex(TC_warn));
             if (s.until == BCN_UNTIL_SENDS)
                 lv_label_set_text_fmt(hint, "%i of %i sent - TX or PTT: stop", cw_encoder_sends_done(), s.sends);
+            else if (s.until == BCN_UNTIL_TIME)
+                lv_label_set_text_fmt(hint, "%i sent, until %02i:%02i%s - TX or PTT: stop", cw_encoder_sends_done(),
+                                      s.end_min / 60, s.end_min % 60, end_day(s));
             else
                 lv_label_set_text_fmt(hint, "%i sent - TX or PTT: stop", cw_encoder_sends_done());
             break;
@@ -371,8 +383,12 @@ static void update_status(void) {
 
             snprintf(buf, sizeof(buf), "AT %02i:%02i", s.start_min / 60 % 24, s.start_min % 60);
             set_state(buf, theme_hex(TC_chip), theme_hex(TC_warn));
-            lv_label_set_text_fmt(hint, "Starts in %i:%02i:%02i - TX or PTT: stop", left / 3600, left / 60 % 60,
-                                  left % 60);
+            if (s.until == BCN_UNTIL_TIME)
+                lv_label_set_text_fmt(hint, "Starts in %i:%02i:%02i, until %02i:%02i%s - TX or PTT: stop", left / 3600,
+                                      left / 60 % 60, left % 60, s.end_min / 60, s.end_min % 60, end_day(s));
+            else
+                lv_label_set_text_fmt(hint, "Starts in %i:%02i:%02i - TX or PTT: stop", left / 3600, left / 60 % 60,
+                                      left % 60);
             break;
         }
         default:

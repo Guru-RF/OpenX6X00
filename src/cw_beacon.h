@@ -95,6 +95,11 @@ time_t bcn_start_at(const bcn_sched_t *s, time_t now);
 /* BCN_UNTIL_TIME: the first time after the start the clock shows the end (so 24 hours on for the same minute); else 0 */
 time_t bcn_end_at(const bcn_sched_t *s, time_t start);
 
+/* BCN_UNTIL_TIME: the days from today to the end's day, by the radio's clock: 0 today, 1 tomorrow, 2 the day after
+ * (a start later than now that ends past midnight); 0 without an end time. The page says it (#71: an end time that has
+ * gone by today, with Start Now, is tomorrow's, about a day of beacon) */
+int bcn_end_days(const bcn_sched_t *s, time_t start, time_t now);
+
 /* The send number done (1 the first) ended now: when the next one starts, after the pause; 0: the beacon is over, its
  * sends all sent, or the next would start at or after the end */
 time_t bcn_after_send(const bcn_sched_t *s, time_t end, int done, time_t now, int pause_s);

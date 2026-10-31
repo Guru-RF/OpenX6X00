@@ -156,6 +156,21 @@ time_t bcn_end_at(const bcn_sched_t *s, time_t start) {
     return t > start ? t : at_min(tm, s->end_min, 1);
 }
 
+int bcn_end_days(const bcn_sched_t *s, time_t start, time_t now) {
+    time_t    end = bcn_end_at(s, start);
+    struct tm a, b;
+
+    if (!end) {
+        return 0;
+    }
+    localtime_r(&now, &a);
+    localtime_r(&end, &b);
+    a.tm_hour = b.tm_hour = 12;     /* noon to noon: a day of 23 or 25 hours still counts as one */
+    a.tm_min = b.tm_min = a.tm_sec = b.tm_sec = 0;
+    a.tm_isdst = b.tm_isdst = -1;
+    return (int)((mktime(&b) - mktime(&a) + 43200) / 86400);
+}
+
 time_t bcn_after_send(const bcn_sched_t *s, time_t end, int done, time_t now, int pause_s) {
     time_t next = now + pause_s;
 

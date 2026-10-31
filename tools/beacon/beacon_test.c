@@ -615,8 +615,16 @@ static void test_sched_rules(void) {
     check(bcn_end_at(&at20, t20) == utc(2026, 11, 1, 20, 0, 0), "an end at the start's minute: 24 hours on");
     at20.end_min = HM(1, 0);
     check(bcn_end_at(&at20, t20) == utc(2026, 11, 1, 1, 0, 0), "20:00 to 01:00: past midnight");
+    check(bcn_end_days(&at20, t20, now) == 1, "20:00 to 01:00, at 19:42: the end tomorrow");
+    bcn_sched_t now21 = {BCN_NOW, BCN_UNTIL_TIME, 10, HM(21, 0)}, late = {HM(19, 0), BCN_UNTIL_TIME, 10, HM(1, 0)};
+    check(bcn_end_days(&now21, now, now) == 0, "Start Now at 19:42, until 21:00: today");
+    check(bcn_end_days(&now21, utc(2026, 10, 31, 21, 5, 0), utc(2026, 10, 31, 21, 5, 0)) == 1,
+          "Start Now at 21:05, until 21:00: tomorrow, about a day of beacon (#71)");
+    check(bcn_end_days(&late, bcn_start_at(&late, now), now) == 2,
+          "at 19:42, from 19:00 (tomorrow's) to 01:00: the day after tomorrow");
     at20.until = BCN_UNTIL_SENDS;
     check(bcn_end_at(&at20, t20) == 0, "no end time when it goes by sends");
+    check(bcn_end_days(&at20, t20, now) == 0, "no end time, no day");
 
     bcn_sched_t three = {BCN_NOW, BCN_UNTIL_SENDS, 3, BCN_NOW}, to21 = {BCN_NOW, BCN_UNTIL_TIME, 10, HM(21, 0)};
     time_t      end   = utc(2026, 10, 31, 21, 0, 0);
