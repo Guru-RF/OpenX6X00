@@ -386,6 +386,17 @@ At the top right the radio shows the charge and the time left:
 - Just after power-on: nothing, for 15 to 20 seconds, while the base's first
   readings settle (see [low battery](#low-battery)).
 
+Power display. Where: Settings > Display > MAIN SCREEN (also on the web
+configurator's Display page). What the box shows (issue #108):
+- % + time (the default): the charge and the time, as above.
+- Volts: the battery's level sign and its voltage, "7.9v"; on the external
+  supply also the lightning sign (charging) or the plug, and the supply's
+  voltage: "7.9v  13.8v".
+- Alternate: the two in turn, 5 seconds each.
+
+On battery when low the voltage turns red, as the % does. With no battery
+fitted the box shows the supply's voltage whatever the choice.
+
 The "~" stays until the radio has seen at least 2 hours of discharge or 2 full
 charges. Until then take the time as a rough guess.
 
@@ -432,9 +443,8 @@ Limits:
 - A battery that is getting old loses capacity. The radio follows the change
   after a few discharges, not at once.
 
-The voltage is no longer at the top: read it in the POWER box of the
-[Info tab](#info-tab). The battery log stays on the radio's microSD and is not
-sent anywhere.
+The voltages are also in the POWER box of the [Info tab](#info-tab). The
+battery log stays on the radio's microSD and is not sent anywhere.
 
 ### Status bar
 
@@ -461,7 +471,7 @@ yet, in colour when working:
 | DX | green DX cluster connected; grey connecting or retrying; dark stopped |
 
 In the middle is the [S-meter](#s-meter). On the right: the local time and the
-charge with the time left (see [battery time](#battery-time)).
+charge with the time left, or the voltages (see [battery time](#battery-time)).
 
 ### S-meter
 
@@ -815,7 +825,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | BACKLIGHT | timeout and brightness, buttons brightness (Always Off, Always On, Temporarily On), Screen off (min) (minutes without a key or knob, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser; POWER shows it for the blank time, a minute at least) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
-| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode (see [Waterfall](#waterfall)) |
+| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate; see [battery time](#battery-time)) |
 | INTERFACE | Popups Freq/Info/ALC, Icon menus, Knob info, Theme, Font, Decoder text, FT8/FT4 info |
 
 - Popups Freq/Info/ALC: a big frequency while tuning, a big value of the
@@ -2825,7 +2835,7 @@ applied on the radio as you change them.
 | On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, Magnify ALC |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate; see [battery time](#battery-time)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, Magnify ALC |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
 made on first start (valid 10 years, stored in `/mnt/https/`). The browser

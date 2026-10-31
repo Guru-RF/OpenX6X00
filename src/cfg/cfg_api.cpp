@@ -71,6 +71,7 @@ ParamInt         *cfg_smeter_rfg          = nullptr;
 ParamInt         *cfg_waterfall_speed     = nullptr;
 ParamInt         *cfg_wf_mode             = nullptr;
 ParamText        *cfg_encoder_bind        = nullptr;
+ParamInt         *cfg_power_display       = nullptr;
 ParamInt         *cfg_vox_on              = nullptr;
 ParamInt         *cfg_vox_gain            = nullptr;
 ParamInt         *cfg_vox_ag              = nullptr;
@@ -248,6 +249,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_waterfall_speed  = &cfg_sm.p_waterfall_speed;
     cfg_wf_mode          = &cfg_sm.p_wf_mode;
     cfg_encoder_bind     = &cfg_sm.p_encoder_bind;
+    cfg_power_display    = &cfg_sm.p_power_display;
     cfg_vox_on           = &cfg_sm.p_vox_en;
     cfg_vox_gain         = &cfg_sm.p_vox_gain;
     cfg_vox_ag           = &cfg_sm.p_vox_ag;

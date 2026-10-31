@@ -13,6 +13,7 @@
 #include "theme.h"
 #include "backlight.h"
 #include "msg.h"
+#include "cfg/cfg_api.h"
 
 #include <time.h>
 #include <stdio.h>
@@ -26,6 +27,8 @@ static lv_obj_t         *obj;
 static lv_obj_t         *time_label;
 static lv_obj_t         *sec_label;
 static lv_obj_t         *power_labels[4];  /* battery symbol, volts, ext symbol, volts or % */
+
+#define POWER_TURN_S    5       /* Power display Alternate: each for 5 s */
 
 /* Montserrat has the battery and the bolt but no plug, for external power without charging:
  * fonts/power_sym_*.c add it and fall back to Montserrat for the rest */
@@ -60,6 +63,9 @@ static void show_time() {
     lv_label_set_text_fmt(time_label, "%02i:%02i", t->tm_hour, t->tm_min);
     lv_label_set_text_fmt(sec_label, ":%02i", t->tm_sec);
 
+    int  show = param_i_get(cfg_power_display);
+    bool volts = show == 1 || (show == 2 && now / POWER_TURN_S % 2);   /* else the % and the time */
+
     pthread_mutex_lock(&power_mux);
     const char * bat_sym;
     /* From the base's %, not the voltage: the pack sits at 7.0-7.2 V from 25% down to 5%
@@ -82,7 +88,8 @@ static void show_time() {
             break;
     }
 
-    /* The % and the time left or to full (bat_est.c); the voltages are in Settings > Info */
+    /* The % and the time left or to full (bat_est.c), the voltages, or the two in turn: Settings > Display >
+     * MAIN SCREEN > Power display. Without a battery the supply's voltage, whatever it says */
     if (v_bat < 3.0f && v_ext < 3.0f) {    /* no reading yet: radio.c gives the first some seconds after start */
         for (int i = 0; i < 4; i++)
             lv_label_set_text(power_labels[i], "");
@@ -113,13 +120,25 @@ static void show_time() {
          * over a reading where the flag blinks off */
         bool chg = !full && (est >= 0 || charging);
 
-        lv_label_set_text(power_labels[0], !ext ? bat_sym : chg ? LV_SYMBOL_CHARGE : SYMBOL_PLUG);
-        lv_label_set_text_fmt(power_labels[1], "%i%%", cap_bat);
-        lv_label_set_text(power_labels[2], "");
-        if (est >= 0) {
-            lv_label_set_text_fmt(power_labels[3], "%s%ih%02i", est_approx ? "~" : "", est / 60, est % 60);
+        if (volts) {
+            /* The voltages: the battery's after its level, on a supply its sign and its voltage */
+            lv_label_set_text(power_labels[0], bat_sym);
+            lv_label_set_text_fmt(power_labels[1], "%.1fv", v_bat);
+            lv_label_set_text(power_labels[2], !ext ? "" : chg ? LV_SYMBOL_CHARGE : SYMBOL_PLUG);
+            if (ext) {
+                lv_label_set_text_fmt(power_labels[3], "%.1fv", v_ext);
+            } else {
+                lv_label_set_text(power_labels[3], "");
+            }
         } else {
-            lv_label_set_text(power_labels[3], "");
+            lv_label_set_text(power_labels[0], !ext ? bat_sym : chg ? LV_SYMBOL_CHARGE : SYMBOL_PLUG);
+            lv_label_set_text_fmt(power_labels[1], "%i%%", cap_bat);
+            lv_label_set_text(power_labels[2], "");
+            if (est >= 0) {
+                lv_label_set_text_fmt(power_labels[3], "%s%ih%02i", est_approx ? "~" : "", est / 60, est % 60);
+            } else {
+                lv_label_set_text(power_labels[3], "");
+            }
         }
 
         /* On battery below the guard level (20% or under half an hour left): red */

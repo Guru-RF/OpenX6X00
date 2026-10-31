@@ -453,6 +453,10 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<float, int32_t, 10> p_cessb_power_up{"cessb_power_up", 3.7f, {},
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
+    // Power display (Settings > Display > MAIN SCREEN, live): the box at the top right shows 0 the charge with the
+    // time left or to full, 1 the voltages (the battery's, and the supply's when one is in), 2 the two in turn (clock.c)
+    Parameter<int32_t> p_power_display{"power_display", 0, 0, 2,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // --- BAND params (`band_params` table) ---
     Parameter<int32_t> p_band_current_vfo{"vfo", (int32_t)RADIO_VFO_A, 0, 1,

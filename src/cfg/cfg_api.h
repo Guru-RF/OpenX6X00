@@ -101,6 +101,7 @@ extern ParamInt         *cfg_smeter_rfg;         // p_smeter_rfg
 extern ParamInt         *cfg_waterfall_speed;    // p_waterfall_speed
 extern ParamInt         *cfg_wf_mode;            // p_wf_mode
 extern ParamText        *cfg_encoder_bind;       // p_encoder_bind
+extern ParamInt         *cfg_power_display;      // p_power_display
 
 // VOX
 extern ParamInt *cfg_vox_on;   // p_vox_en
