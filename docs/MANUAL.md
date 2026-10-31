@@ -90,6 +90,19 @@ screenshot), step up and down, NR and NB.
 Where: Settings > Keys > HAND MIC KEYS.
 The other hand mic keys: see [Hand mic](#hand-mic).
 
+Frequency lock. The LOCK key (X6100), the X6100 mic's SPCH key, a
+keyboard's Scroll Lock and the browser panel's LOCK turn it on and off.
+While it is on, the main knob and F-INP do not tune, the step mark under the
+frequency goes and the frequency scale greys out, and the browser panel, TCI
+programs, Pat's QSY (Winlink) and Field Ops' band tune are refused. The band
+keys, memories, channels, cluster spots and CAT still tune.
+- FT8, FT4, JS8, PSK, Olivia, JTTY and WSPR hold the frequency the same way
+  while they are open. Their own knob and buttons keep working (in FT8 the
+  knob still picks a station or moves the TX offset).
+- Your lock is apart from the apps' hold: set before an app opened, it is
+  still on after the app closes, and an app never turns it on. Up to v0.3.7
+  closing the app turned it off.
+
 ### Hand mic
 
 The X6100's hand mic and the X6200's H-22 have keys of their own. They work
@@ -3202,7 +3215,10 @@ browser paired at home on any device.
   Tap or drag to tune, pinch (or Ctrl + the mouse wheel) to zoom, the wheel
   to tune by the step. Colours: Blue, Fire, Ice, Grey.
 - The frequency: tap it for a keypad (kHz). BAND up and down, MODE, STEP,
-  ZOOM, VFO A/B, LOCK; the knob buttons tune by the step.
+  ZOOM, VFO A/B, LOCK; the knob buttons tune by the step. LOCK shows and sets
+  the radio's [frequency lock](#buttons-and-knobs). While an app holds the
+  frequency, the frequency is greyed and stays put, and LOCK stays as you set
+  it.
 - PRE, ATT, NB, NR, AGC, ATU on and off; VOL, SQL, RF GAIN and POWER with
   - and +, or a slider on a tap; ATU TUNE (a long press of the key); TUNE for an
   external tuner, a press to start and another to stop (see
@@ -3277,14 +3293,16 @@ status line says so.
 
 The page talks to the GUI's remote WebSocket (port 50002, the Screen page's):
 `panel 1` subscribes to the state (`state {...}` as JSON: frequency, mode,
-filter, the switches and the levels, whenever something changes), the
+filter, the switches and the levels, whenever something changes; `lock` is 1
+while the frequency is locked by the user or held by an app, `ulock` the
+user's lock alone), the
 S-meter (`m <dB>`, ten a second), the TX meters (`t <W> <SWR> <ALC>`), the
 bands and the band plan (`bands`, `plan`; again when either changes: another
 plan or region, a band edited on the web page), the spots (`spots [...]`) and the
 spectrum as binary frames (16 bytes header `{u16 0xFFFF, u16 bins, u32
 centre Hz, u32 width Hz, u32 sequence}`, then one int8 dB per bin). `set NAME
 VALUE` changes the radio: `freq`, `mode` (0-7, the order of the mode list; 8 SAM and 9 WFM on the X6200),
-`agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1), `sql`, `rfg`
+`agc` (0-3), `pre`, `att`, `nb`, `nr`, `atu`, `lock` (0/1: the user's lock; an app's hold stays), `sql`, `rfg`
 (0-100), `vol` (0-55 on the X6100, 0-100 on the X6200), `pwr` (tenths of a watt: 1-100,
 1-80 on the X6200, 1-50 there on battery), `step`, `zoom` (1-8), `band`
 (+1/-1), `vfo` (toggle), `filter LO HI` (in Hz, as the radio keeps them: in CW

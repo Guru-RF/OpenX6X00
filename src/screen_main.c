@@ -99,8 +99,10 @@ static uint16_t     freq_height = 36;       /* the frequency scale under the spe
 static lv_coord_t   wf_y;                   /* waterfall top */
 
 /* What an open app keeps the keys from changing. The frequency lock is a subject: the scale
- * greys out with it */
+ * greys out with it. It is on while either holds it: the user's lock (LOCK, SPCH, Scroll Lock, the Panel's LOCK),
+ * or an open app's hold, which ends with the app and leaves the user's lock as it was */
 static SubjectInt   *freq_lock;
+static bool         user_lock, app_lock;
 static bool         band_lock, mode_lock, ab_lock;
 static press_action_t last_app;     /* the app opened last: a digital one while radio_digi_cap() */
 
@@ -117,8 +119,19 @@ static bool cw_mode(void) {
     return mode == radio_mode_cw || mode == radio_mode_cwr;
 }
 
-static void toggle_freq_lock(void) {
-    subject_i_set(freq_lock, !subject_i_get(freq_lock));
+/* The scale and the frequency strip follow the subject */
+static void freq_lock_update(void) {
+    subject_i_set(freq_lock, user_lock || app_lock);
+}
+
+static void set_user_lock(bool lock) {
+    user_lock = lock;
+    freq_lock_update();
+}
+
+static bool toggle_freq_lock(void) {
+    set_user_lock(!user_lock);
+    return user_lock;
 }
 
 /* Pop-up with one line of text (the name of the channel FIL/GENE tuned, WEFAX app messages),
@@ -1226,8 +1239,19 @@ void main_screen_keys_enable(bool value) {
     lv_group_set_editing(keyboard_group, false);
 }
 
+/* An app's hold */
 void main_screen_lock_freq(bool lock) {
-    subject_i_set(freq_lock, lock);
+    app_lock = lock;
+    freq_lock_update();
+}
+
+/* The user's lock (the Panel's LOCK) */
+void main_screen_user_lock_freq(bool lock) {
+    set_user_lock(lock);
+}
+
+bool main_screen_freq_user_locked(void) {
+    return user_lock;
 }
 
 void main_screen_lock_band(bool lock) {

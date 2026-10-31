@@ -414,7 +414,8 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     $("#b-step span").text(fmtStep(s.step));
     $("#b-zoom span").text("x" + s.zoom);
     $("#b-agc span").text(AGCS[s.agc]);
-    $("#b-lock span").text(s.lock ? "on" : "off"); $("#b-lock").toggleClass("on", !!s.lock);
+    const ulock = "ulock" in s ? s.ulock : s.lock;     /* the user's LOCK; an app's hold greys the frequency only */
+    $("#b-lock span").text(ulock ? "on" : "off"); $("#b-lock").toggleClass("on", !!ulock);
     ["pre", "att", "nb", "nr", "atu"].forEach(function(k) { $("#b-" + k).toggleClass("on", !!s[k]); });
     $('[data-lvl="vol"] span span').text(s.vol); $('[data-lvl="sql"] span span').text(s.sql);
     $('[data-lvl="rfg"] span span').text(s.rfg); $('[data-lvl="pwr"] span span').text(s.pwr.toFixed(1) + " W");
@@ -752,7 +753,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   $("#b-zoom").on("click", function() { if (state) zoomTo(state.zoom >= 8 ? 1 : state.zoom * 2); });
   $("#b-agc").on("click", function() { if (state) popList("AGC", AGCS.map(function(a, i) { return {t: a, v: i}; }), state.agc, function(v) { set("agc", v); }); });
   $("#b-vfo").on("click", function() { set("vfo", 1); });
-  $("#b-lock").on("click", function() { if (state) set("lock", state.lock ? 0 : 1); });
+  $("#b-lock").on("click", function() { if (state) set("lock", ("ulock" in state ? state.ulock : state.lock) ? 0 : 1); });
   $("#b-bup").on("click", function() { set("band", 1); }); $("#b-bdn").on("click", function() { set("band", -1); });
   $("#b-filter").on("click", popFilter);
   $("#freq").on("click", popFreq);

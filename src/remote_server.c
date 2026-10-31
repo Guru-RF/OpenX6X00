@@ -261,6 +261,7 @@ typedef struct {
     int32_t freq, mode, flo, fhi, kt, agc, pre, att, nb, nr, sql, rfg, vol, pwr10, step, zoom, vfo, atu, bat;
     int32_t tune, tune_s;   /* TUNE for an external tuner on, its time limit */
     bool    tx, lock;
+    bool    ulock;          /* the user's lock alone (LOCK), not an app's hold: the page's LOCK button */
 } pstate_t;
 
 /* A change asked by a panel client, for the LVGL thread */
@@ -1000,7 +1001,7 @@ static void panel_apply(void *arg) {
             }
             break;
         case P_ATU:    param_i_set(cfg_atu_enabled, p->a != 0); break;
-        case P_LOCK:   main_screen_lock_freq(p->a != 0); break;
+        case P_LOCK:   main_screen_user_lock_freq(p->a != 0); break;   /* the user's: an app's hold stays */
     }
 }
 
@@ -1078,6 +1079,7 @@ static void pstate_read(pstate_t *s) {
     s->bat   = radio_get_battery();
     s->tx    = radio_get_state() != RADIO_RX || radio_get_modem();
     s->lock  = main_screen_freq_locked();
+    s->ulock = main_screen_freq_user_locked();
     s->tune  = ext_tune_on();
     s->tune_s = ext_tune_limit_s();
 }
@@ -1086,9 +1088,10 @@ static void pstate_line(char *buf, size_t n, const pstate_t *s) {
     snprintf(buf, n,
              "state {\"freq\":%d,\"mode\":%d,\"flo\":%d,\"fhi\":%d,\"kt\":%d,\"agc\":%d,\"pre\":%d,\"att\":%d,"
              "\"nb\":%d,\"nr\":%d,\"sql\":%d,\"rfg\":%d,\"vol\":%d,\"pwr\":%d.%d,\"step\":%d,\"zoom\":%d,"
-             "\"vfo\":%d,\"atu\":%d,\"bat\":%d,\"tx\":%d,\"lock\":%d,\"tune\":%d,\"tune_s\":%d}",
+             "\"vfo\":%d,\"atu\":%d,\"bat\":%d,\"tx\":%d,\"lock\":%d,\"tune\":%d,\"tune_s\":%d,\"ulock\":%d}",
              s->freq, s->mode, s->flo, s->fhi, s->kt, s->agc, s->pre, s->att, s->nb, s->nr, s->sql, s->rfg, s->vol,
-             s->pwr10 / 10, s->pwr10 % 10, s->step, s->zoom, s->vfo, s->atu, s->bat, s->tx, s->lock, s->tune, s->tune_s);
+             s->pwr10 / 10, s->pwr10 % 10, s->step, s->zoom, s->vfo, s->atu, s->bat, s->tx, s->lock, s->tune, s->tune_s,
+             s->ulock);
 }
 
 /* A string into JSON: quotes and backslashes escaped, control characters dropped */

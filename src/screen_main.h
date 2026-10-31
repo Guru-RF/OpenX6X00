@@ -44,8 +44,11 @@ void main_screen_vol_press(void);
 void main_screen_mfk(int dir);
 void main_screen_agc_next();
 
-/* Locks set by the apps, checked by the web remote */
+/* Locks set by the apps, checked by the web remote. The frequency is locked while an app holds it or the user
+ * locked it (main_screen_freq_locked); the app's hold leaves the user's lock as it was */
 void main_screen_lock_freq(bool lock);
+void main_screen_user_lock_freq(bool lock);
+bool main_screen_freq_user_locked(void);
 void main_screen_lock_band(bool lock);
 void main_screen_lock_mode(bool lock);
 void main_screen_lock_ab(bool lock);
