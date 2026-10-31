@@ -54,6 +54,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     sstv/denoise.c
     wefax_window.c wefax/decoder.c wefax/encoder.c
     navtex_window.c navtex/sitorb.c navtex/dsc.c
+    dialog_freedv.c freedv_rx.c
     channel_list.c broadcast_db.c cJSON.c
     text_popup.c cw_encoder.c image_level.c start_trace.c
     cw_beacon.c
@@ -123,6 +124,21 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     lvgl lvgl::drivers
     ${HW_LIBS} liquid ft8
 )
+
+# RADE (FreeDV): freedv/rade_c and the Opus fork with FARGAN, built outside by tools/rade/build.sh
+# (include/rade and include/opus with the headers, lib/librade.a and lib/libopus.a). Without it the RADE app
+# opens and says so; freedv_rx.c is empty. Opus's DNN symbols are looked up by name inside the
+# libraries, hence --whole-archive for libopus, as rade_c's own CMake does
+set(RADE_PREFIX "" CACHE PATH "RADE built by tools/rade/build.sh (empty: the app without a decoder)")
+if(RADE_PREFIX)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE RADE_ENABLED=1)
+    target_include_directories(${PROJECT_NAME} PRIVATE
+        ${RADE_PREFIX}/include/rade ${RADE_PREFIX}/include/opus ${RADE_PREFIX}/include/opus/dnn
+        ${RADE_PREFIX}/include/opus/celt ${RADE_PREFIX}/include/opus/include)
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        ${RADE_PREFIX}/lib/librade.a
+        -Wl,--whole-archive ${RADE_PREFIX}/lib/libopus.a -Wl,--no-whole-archive m)
+endif()
 
 # For a debug build on the radio add to the target, compile and link:
 #   -g -O0 -fno-omit-frame-pointer -fasynchronous-unwind-tables (link: -g -rdynamic)

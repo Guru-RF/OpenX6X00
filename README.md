@@ -458,7 +458,10 @@ FreeDV part LGPL-2.1 with KISS FFT in it BSD-3-Clause, its iniparser, nanorq and
 oblas MIT, see its [UPSTREAM.md](third-party/mercury/UPSTREAM.md)), and
 `x6x00-mercury`, our program that links it, are GPL-3.0-or-later; both come in
 the image and the update bundle, the source in this repository. ardopcf and
-Pat are MIT. The web server is LGPL-2.1
+Pat are MIT. RADE (the RADE app, receive only, `tools/rade/build.sh`) is
+freedv/rade_c (BSD-2-Clause) with the Opus fork that has the FARGAN vocoder
+(BSD-3-Clause), linked statically into the GUI when built with `-DRADE_PREFIX=`.
+The web server is LGPL-2.1
 ([webserver/LICENSE](webserver/LICENSE)). Every file keeps the copyright
 notice of its authors.
 
