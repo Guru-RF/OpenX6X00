@@ -53,6 +53,7 @@
 #include "jtty_tx.h"
 #include "psk_spec.h"           /* the waterfall of the keyboard modes */
 #include "digi_qso.h"           /* shared QSO state: DX call */
+#include "digi_textlog.h"       /* the text on the card (#55) */
 
 #include <ctype.h>
 #include <math.h>
@@ -379,6 +380,8 @@ static void rx_msg_ui(void *data)
 
     if (!alive)
         return;
+    digi_textlog_msg("JTTY", m->id, (uint32_t)cparam_i_get(cfg_fg_freq) + (uint32_t)lroundf(m->freq),
+                     DIGI_TEXTLOG_SIG_DB, m->snr, m->text, m->complete);
     l = txt_find(m->id);
     win = l ? l->kind == 0 : in_window(m->freq);
     if (!l)
@@ -777,6 +780,7 @@ static void send_text(const char *text, int profile)
     }
     txt_line_t *l = txt_add(2, 0);
     snprintf(l->s, sizeof(l->s), "%s", canon);
+    digi_textlog_tx("JTTY", (uint32_t)cparam_i_get(cfg_fg_freq) + jtty_tx_get_freq(), canon);
     was_tx = true;
     draft_dirty = true;
     refresh_btn(&btn_status);
@@ -1307,6 +1311,7 @@ static void destruct_cb(void)
         usleep(20000);
 
     jtty_rx_stop();
+    digi_textlog_end();
 
     pthread_mutex_lock(&spec_mux);
     if (spec_ok)

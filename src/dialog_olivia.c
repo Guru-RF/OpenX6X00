@@ -49,6 +49,7 @@
 #include "theme.h"
 #include "params/params.h"
 #include "pskreporter.h"
+#include "digi_textlog.h"       /* the text on the card (#55) */
 #include "station.h"
 #include "main.h"
 
@@ -485,6 +486,20 @@ static void text_timer_cb(lv_timer_t *t)
     }
 }
 
+/* The text log's mode and frequency: OLIVIA-8/250, the dial and the audio centre */
+static const char *log_mode(void)
+{
+    static char buf[24];
+
+    snprintf(buf, sizeof(buf), "OLIVIA-%s", olivia_tx_mode_name(olivia_tx_get_mode()));
+    return buf;
+}
+
+static uint32_t sig_freq(void)
+{
+    return (uint32_t)cparam_i_get(cfg_fg_freq) + olivia_tx_get_center();
+}
+
 /* UI thread: one decoded block, at most 8 characters. */
 static void rx_text_ui(void *data)
 {
@@ -493,6 +508,7 @@ static void rx_text_ui(void *data)
 
     if (!alive)
         return;
+    digi_textlog_rx(log_mode(), sig_freq(), DIGI_TEXTLOG_SIG_Q, olivia_app_quality(), s);
 
     snprintf(before, sizeof(before), "%s", digi_qso_dx());
 
@@ -523,6 +539,7 @@ static void tx_echo_cb(const char *text)
 
     if (!alive || !text)
         return;
+    digi_textlog_tx(log_mode(), sig_freq(), text);
 
     /* The line breaks sent around every transmission are for the other
      * station's screen; here each transmission gets its own line. */
@@ -1533,6 +1550,7 @@ static void destruct_cb(void)
     olivia_app_set_text_cb(NULL);
     olivia_app_set_audio_tap(NULL);
     olivia_tx_set_echo_cb(NULL);
+    digi_textlog_end();
 
     pthread_mutex_lock(&spec_mux);
     if (spec_ok)

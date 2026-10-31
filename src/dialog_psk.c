@@ -75,6 +75,7 @@
 #include "psk_spec.h"
 #include "psk_macro.h"
 #include "digi_qso.h"           /* shared QSO state: DX call and RST */
+#include "digi_textlog.h"       /* the text on the card (#55) */
 
 #include <math.h>
 #include <pthread.h>
@@ -587,11 +588,18 @@ static void text_timer_cb(lv_timer_t *t)
     }
 }
 
+/* Where the signal is: the dial and the decoder's audio frequency */
+static uint32_t sig_freq(void)
+{
+    return (uint32_t)cparam_i_get(cfg_fg_freq) + psk_tx_get_center();
+}
+
 /* UI thread: one decoded character. */
 static void rx_char_ui(void *data)
 {
     char c = *(char *)data;
     char before[16];
+    char one[2] = {c, '\0'};
 
     if (!alive)
         return;
@@ -608,6 +616,7 @@ static void rx_char_ui(void *data)
         return;
 
     txt_put(c, false);
+    digi_textlog_rx(mode_name(), sig_freq(), DIGI_TEXTLOG_SIG_Q, psk_rx_quality(), one);   /* as shown: past the squelch */
 
     /* Catch the correspondent's call from "DE <call>". */
     snprintf(before, sizeof(before), "%s", digi_qso_dx());
@@ -633,6 +642,7 @@ static void tx_echo_cb(const char *text)
 
     if (!alive || !text)
         return;
+    digi_textlog_tx(mode_name(), sig_freq(), text);
 
     /* The line breaks sent around every transmission are for the other
      * station's screen; here each transmission gets its own line. */
@@ -1869,6 +1879,7 @@ static void destruct_cb(void)
     psk_rx_set_text_cb(NULL);
     psk_rx_set_audio_tap(NULL);
     psk_tx_set_echo_cb(NULL);
+    digi_textlog_end();
 
     pthread_mutex_lock(&spec_mux);
     if (spec_ok)

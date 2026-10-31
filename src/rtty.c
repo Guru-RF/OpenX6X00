@@ -15,6 +15,7 @@
 #include "util.h"
 #include "msg.h"
 #include "tx_player.h"
+#include "digi_textlog.h"
 
 #include "lvgl/lvgl.h"
 
@@ -221,6 +222,14 @@ static bool is_mark() {
     return rx_symbol[SYMBOL_LEN / 2];
 }
 
+/* The text log's frequency: the middle of mark and space, the RTTY centre the dial's side of the audio */
+static uint32_t log_freq(void) {
+    uint32_t dial = (uint32_t)cparam_i_get(cfg_fg_freq);
+    bool     lsb  = cur_mode == radio_mode_lsb || cur_mode == radio_mode_lsb_dig;
+
+    return lsb ? dial - params.rtty_center : dial + params.rtty_center;
+}
+
 static void add_symbol(float pwr) {
     for (uint8_t i = 1; i < SYMBOL_LEN; i++) {
         rx_symbol[i - 1]     = rx_symbol[i];
@@ -293,6 +302,7 @@ static void add_symbol(float pwr) {
                         char str[2] = {c, 0};
 
                         panel_add_text(str);
+                        digi_textlog_rx("RTTY", log_freq(), DIGI_TEXTLOG_SIG_NONE, 0, str);   /* the card (#55) */
                     }
                 }
                 rx_state = RX_STATE_IDLE;
@@ -388,6 +398,8 @@ bool rtty_scope_get(float *x, float *y, float *offset) {
 }
 
 void rtty_set_state(rtty_state_t x) {
+    if (x == RTTY_OFF && state != RTTY_OFF)
+        digi_textlog_end();     /* the app closes: its last line onto the card */
     state = x;
 }
 

@@ -3026,6 +3026,7 @@ static param_slider_t snap_slow_slider = {&cfg_sm.p_spot_snap_slow, 1, 5, 1, "%i
 static param_slider_t accel_onset_slider = {&cfg_sm.p_freq_accel_onset, 1, 5, 1, "%i"};
 static param_slider_t wf_speed_slider = {&cfg_sm.p_waterfall_speed, 1, 5, 1, "%i"};
 static param_slider_t spectrum_height_slider = {&cfg_sm.p_spectrum_height, 60, 160, 4, "%i px"};
+static param_slider_t textlog_mb_slider = {&cfg_sm.p_textlog_mb, 1, 100, 1, "%i MB"};
 
 /* S-meter cal, when its editing starts: what it is for, before the reading drifts from the truth.
  * Built as the cluster alert (theme roles, popup radius, sony_18 title), framed in the error colour */
@@ -3222,6 +3223,14 @@ static void make_general_page() {
     card_end(row);
     wv_update();
     wv_timer = lv_timer_create(wv_timer_cb, 1000, NULL);   /* deleted by st_delete_cb */
+
+    /* The keyboard modes' text on the card, a file a day (digi_textlog.c, #55); past the limit the oldest day goes */
+    row = card_begin("TEXT LOG");
+    wl_row_label(row, "Keyboard modes");
+    param_switch(row, 1, 3, SMALL_3, cfg_sm.p_textlog);
+    lv_label_set_text(wl_note(row), "PSK, Olivia, JTTY, RTTY: web Logs page");
+    row = make_param_slider(row + 1, "Size limit", &textlog_mb_slider);
+    card_end(row);
 }
 
 /* The Walkie Talkie screen: on (Settings closes, the portrait screen comes up), its knob, its mic */
