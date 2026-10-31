@@ -2176,8 +2176,9 @@ Edit; page 2: Beacon, Delete, QRSS3; page 3: Start, Until, Freq.
   radio receives in the pauses, with the CW decoder if it is on. It sends at
   the radio's power (PWR).
 - TX (Stop), the front PTT key, ESC or closing MSG > CW (Close, another menu
-  key, an app) stop it. So does a transmission during a pause: the mic's
-  PTT, CAT, TCI, the Panel. A beacon only runs while MSG > CW is open.
+  key, an app) stop it. So does a transmission during a pause or before
+  its start: the mic's PTT, CAT, TCI, the Panel. A beacon only runs while
+  MSG > CW is open.
 - Its start and end, page 3, for scheduled CW lessons, bulletins, or a
   beacon of a set length:
   - Start: Now, or a time. Press Start, turn the MFK or VOL (5-minute
@@ -2198,7 +2199,9 @@ Edit; page 2: Beacon, Delete, QRSS3; page 3: Start, Until, Freq.
 - It ends after its sends, or when the next send would start at or after
   the end time: the send on the air at the end time is finished, not cut
   off. The screen says "Beacon over: 10 sends" or "Beacon over: 21:00". An
-  end time at the start's minute is 24 hours later.
+  end time earlier in the day than the start is the next day's, one at the
+  start's minute 24 hours later: with Start Now and Until 21:00, TX at 21:05
+  runs until 21:00 tomorrow.
 - With Beacon off, Start and Until do nothing: TX sends once, at once.
 - After a restart Beacon (and QRSS3) are off, so a restart never starts a
   beacon by itself. The pause, Start, Until and the QRSS3 frequencies are
