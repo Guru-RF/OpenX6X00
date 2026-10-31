@@ -405,3 +405,169 @@ with tempfile.TemporaryDirectory(prefix='x6funnelname-') as td:
         print(('ok   ' if got == want else 'FAIL ') + what + ': ' + got)
     print('Tailscale Funnel pages\' policy (#58): %d of %d cases as they should be' % (len(cases) - len(bad), len(cases)))
     assert not bad
+
+
+# Issue #58: the https page's sockets on the page's own port. The https server (make_https_server, from __main__.py
+# as it is) reads a request's head: GET /ws/remote or /ws/tci with Upgrade: websocket goes to the GUI's browser remote
+# or TCI on 127.0.0.1, its bytes as they came (Origin, Host, Tailscale-Funnel-Request and X-Forwarded-For untouched,
+# nothing added: the GUI's own checks decide, src/tci_ws.c); anything else is a page, read again whole by the web
+# server. Real sockets: the server, two stand-ins for the GUI's sockets and the browser on 127.0.0.1, the
+# certificate made with openssl. The front doors on 50003 and 50004 of v0.3.7's pages (WssProxy) still go through
+import hashlib
+import socket
+import socketserver
+import ssl
+import subprocess
+import time
+
+wanted = {'ThreadingWSGIServer', 'RequestHandler', 'TlsContext', 'pipe', 'read_head', 'ws_port', 'Replay', 'Replayed',
+          'make_https_server', 'WssProxy'}
+nodes = [n for n in main.body if isinstance(n, ast.ClassDef | ast.FunctionDef) and n.name in wanted or
+         isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in ('WS_PATHS', 'HEAD_MAX') for t in n.targets)]
+gui = {}   # what each stand-in of the GUI's sockets got: the bytes, from where
+
+
+class GuiStandIn(socketserver.ThreadingTCPServer):
+    """One of the GUI's WebSocket servers: the head as it came, a 101, then each piece echoed"""
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, name):
+        self.name = name
+        super().__init__(('127.0.0.1', 0), None)
+
+    def finish_request(self, request, client_address):
+        head = b''
+        while b'\r\n\r\n' not in head:
+            data = request.recv(65536)
+            if not data:
+                return
+            head += data
+        gui[self.name] = (head, client_address[0])
+        request.sendall(b'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n')
+        while True:
+            data = request.recv(65536)
+            if not data:
+                break
+            request.sendall(b'echo:' + data)
+
+
+def page_app(environ, start_response):
+    body = environ['wsgi.input'].read(int(environ.get('CONTENT_LENGTH') or 0))
+    start_response('200 OK', [('Content-Type', 'text/plain')])
+    return [('page %s %s %d %s' % (environ['REQUEST_METHOD'], environ['PATH_INFO'], len(body),
+                                    hashlib.sha256(body).hexdigest()[:12])).encode()]
+
+
+remote_gui, tci_gui = GuiStandIn('remote'), GuiStandIn('tci')
+closed = socket.socket()
+closed.bind(('127.0.0.1', 0))
+gone = closed.getsockname()[1]   # bound, never listening: the GUI with its remote off
+closed.close()
+ports = {'remote': remote_gui.server_address[1], 'tci': tci_gui.server_address[1]}
+srv_ns = {'apps': SimpleNamespace(read_remote_conf=lambda: {'port': ports['remote']},
+                                  read_tci_conf=lambda: {'port': ports['tci']}),
+          'socket': socket, 'ssl': ssl, 'io': io, 'threading': threading, 'socketserver': socketserver,
+          'ThreadingMixIn': socketserver.ThreadingMixIn,
+          **{k: getattr(__import__('wsgiref.simple_server', fromlist=['x']), k)
+             for k in ('WSGIRequestHandler', 'WSGIServer', 'make_server')}}
+exec(compile(ast.Module(body=nodes, type_ignores=[]), 'main-https', 'exec'), srv_ns)
+with tempfile.TemporaryDirectory(prefix='x6https-') as td:
+    cert, key = str(Path(td) / 'cert.pem'), str(Path(td) / 'key.pem')
+    subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=x6100',
+                    '-keyout', key, '-out', cert], check=True, capture_output=True)
+    tls = srv_ns['TlsContext'](cert, key)
+    https = srv_ns['make_https_server'](page_app, '127.0.0.1', 0, tls)
+    wss = srv_ns['WssProxy'](('127.0.0.1', 0), tls, lambda: ports['remote'])
+    for s in (remote_gui, tci_gui, https, wss):
+        threading.Thread(target=s.serve_forever, daemon=True).start()
+    client = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    client.check_hostname, client.verify_mode = False, ssl.CERT_NONE
+
+    def ask(raw, port=None, pieces=0, then=b''):
+        """raw sent over TLS (in pieces of that many bytes, a pause between), and what comes back: a page's answer
+        whole; a socket's 101, then (sent after it) and its echo"""
+        gui.clear()
+        got, sent = b'', False
+        with socket.create_connection(('127.0.0.1', port or https.server_address[1]), timeout=5) as plain:
+            with client.wrap_socket(plain) as c:
+                step = pieces or len(raw)
+                for i in range(0, len(raw), step):
+                    c.sendall(raw[i:i + step])
+                    if pieces:
+                        time.sleep(0.02)
+                try:
+                    while True:
+                        data = c.recv(65536)
+                        if not data:
+                            break
+                        got += data
+                        if got.startswith(b'HTTP/1.1 101') and b'\r\n\r\n' in got:
+                            if not then or got.endswith(b'echo:' + then):
+                                break
+                            if not sent:
+                                c.sendall(then)
+                                sent = True
+                except (socket.timeout, ssl.SSLError, OSError):
+                    pass
+        return got
+
+    def upgrade(path, host='x6100.local', origin='https://x6100.local', extra='', upg='Upgrade: websocket'):
+        return ('GET %s HTTP/1.1\r\nHost: %s\r\n%s\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+                'Sec-WebSocket-Version: 13\r\nOrigin: %s\r\n%s\r\n' % (path, host, upg, origin, extra)).encode()
+
+    cases = []
+    head = upgrade('/ws/remote')
+    got = ask(head, then=b'hello')
+    cases.append(('GET /ws/remote with Upgrade: the browser remote, the bytes as they came, from 127.0.0.1',
+                  str(gui.get('remote') == (head, '127.0.0.1') and 'tci' not in gui), 'True'))
+    cases.append(('and both ways after the 101', str(got.startswith(b'HTTP/1.1 101') and got.endswith(b'echo:hello')), 'True'))
+    head = upgrade('/ws/tci')
+    ask(head)
+    cases.append(('GET /ws/tci with Upgrade: TCI', str(gui.get('tci') == (head, '127.0.0.1') and 'remote' not in gui), 'True'))
+    head = upgrade('/ws/remote', 'x6200.tail1234.ts.net', 'https://x6200.tail1234.ts.net',
+                   'Tailscale-Funnel-Request: ?1\r\nX-Forwarded-For: 203.0.113.7\r\n')
+    ask(head)
+    cases.append(('Tailscale-Funnel-Request and X-Forwarded-For handed on as they came, nothing added',
+                  str(gui.get('remote', (b'',))[0] == head), 'True'))
+    head = upgrade('/ws/remote', origin='http://x6100.local:8080')
+    ask(head)
+    cases.append(('a page of port 8080 (Pat\'s mailbox): to the GUI as it came, whose check refuses it',
+                  str(gui.get('remote', (b'',))[0] == head), 'True'))
+    head = upgrade('/ws/remote', upg='upgrade: WebSocket')
+    ask(head, pieces=7)
+    cases.append(('the head in pieces of 7 bytes, the header in other case: the browser remote',
+                  str(gui.get('remote', (b'',))[0] == head), 'True'))
+    cases.append(('GET /ws/remote without Upgrade: a page', ask(upgrade('/ws/remote', upg='X-Nothing: 1'))
+                  .split(b'\r\n\r\n')[-1].decode(), 'page GET /ws/remote 0 e3b0c44298fc'))
+    cases.append(('GET /ws/remote/x with Upgrade: a page', ask(upgrade('/ws/remote/x')).split(b'\r\n\r\n')[-1].decode(),
+                  'page GET /ws/remote/x 0 e3b0c44298fc'))
+    cases.append(('POST /ws/remote with Upgrade: a page', ask(upgrade('/ws/remote').replace(b'GET', b'POST', 1))
+                  .split(b'\r\n\r\n')[-1].decode(), 'page POST /ws/remote 0 e3b0c44298fc'))
+    cases.append(('GET /panel: the page', ask(b'GET /panel HTTP/1.1\r\nHost: x6100.local\r\n\r\n')
+                  .split(b'\r\n\r\n')[-1].decode(), 'page GET /panel 0 e3b0c44298fc'))
+    body = os.urandom(300000)
+    got = ask(b'POST /api/upload HTTP/1.1\r\nHost: x6100.local\r\nContent-Length: %d\r\n\r\n' % len(body) + body)
+    cases.append(('a POST of 300 kB: the page gets it whole (the head read once, read again)',
+                  got.split(b'\r\n\r\n')[-1].decode(), 'page POST /api/upload 300000 ' + hashlib.sha256(body).hexdigest()[:12]))
+    got = ask(b'GET /panel HTTP/1.1\r\nHost: x6100.local\r\n\r\n', pieces=3)
+    cases.append(('a page\'s head in pieces of 3 bytes', got.split(b'\r\n\r\n')[-1].decode(), 'page GET /panel 0 e3b0c44298fc'))
+    ports['remote'] = gone
+    t0 = time.time()
+    got = ask(upgrade('/ws/remote'))
+    cases.append(('the browser remote off: the socket closed at once, no answer',
+                  str(got == b'' and time.time() - t0 < 3), 'True'))
+    cases.append(('and the pages still served', ask(b'GET /panel HTTP/1.1\r\nHost: x6100.local\r\n\r\n')
+                  .split(b'\r\n\r\n')[-1].decode(), 'page GET /panel 0 e3b0c44298fc'))
+    ports['remote'] = remote_gui.server_address[1]
+    head = upgrade('/', 'x6100.local:50003')
+    got = ask(head, port=wss.server_address[1], then=b'hi')
+    cases.append(('the front door of v0.3.7\'s pages (50003): the browser remote, both ways',
+                  str(gui.get('remote', (b'',))[0] == head and got.endswith(b'echo:hi')), 'True'))
+    for s in (https, wss, remote_gui, tci_gui):
+        s.shutdown()
+    bad = [c for c in cases if c[1] != c[2]]
+    for what, got, want in cases:
+        print(('ok   ' if got == want else 'FAIL ') + what + ': ' + got)
+    print('The https page\'s sockets on its own port (#58): %d of %d cases as they should be' % (len(cases) - len(bad), len(cases)))
+    assert not bad

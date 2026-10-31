@@ -12,6 +12,8 @@
  * The #105 review: on the radio a page at port 8080 is Pat's web mailbox,
  * whose page put a received message's attachment names in as markup, and its sockets are refused; on the PC
  * (-DHOST_BUILD) the web configurator itself is on 8080, and they are taken.
+ * Issue #58 again: the https page opens its sockets on its own port, and the web server hands them to the GUI as they
+ * came: Host without a port (443), or with the page's own; the same checks hold.
  *
  *     cc -std=c11 -D_GNU_SOURCE -Isrc ws-handshake.c -o ws-handshake && ./ws-handshake
  *     cc -std=c11 -D_GNU_SOURCE -DHOST_BUILD -Isrc ws-handshake.c -o ws-handshake-pc && ./ws-handshake-pc
@@ -115,6 +117,19 @@ int main(void) {
     snprintf(origin, sizeof(origin), "http://%s.local.", own);
     expect(host, origin, 1);
     expect("x6200-1.tail1234.ts.net:50001", "https://x6200-1.tail1234.ts.net", 1);
+    puts("Issue #58: the https page's sockets on the page's own port, handed on by the web server");
+    expect("192.168.1.50", "https://192.168.1.50", 1);
+    expect("[fe80::1]", "https://[fe80::1]", 1);
+    expect("127.0.0.1:8443", "https://127.0.0.1:8443", 1); /* a PC's https port */
+    expect("x6200-1.tail1234.ts.net", "https://x6200-1.tail1234.ts.net", 1);
+    snprintf(host, sizeof(host), "%s.local", own);
+    snprintf(origin, sizeof(origin), "https://%s.local", own);
+    expect(host, origin, 1);
+    expect("192.168.1.50", "https://evil.example", -1);
+    expect("evil.example", "https://evil.example", -1);
+#ifndef HOST_BUILD
+    expect("192.168.1.50", "http://192.168.1.50:8080", -1); /* Pat's mailbox */
+#endif
     puts("A page of another site");
     expect("192.168.1.50:50001", "http://evil.example", -1);
     expect("[fe80::1]:50001", "http://[fe80::2]", -1);

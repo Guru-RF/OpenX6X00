@@ -1,7 +1,9 @@
 /* Issue #58 (Tailscale Funnel), the pages' side: radio_session.js on the Panel's own markup, the radio a stand-in
  * that answers what the page sends. Pairing paused: the pairing dialog says that no code shows and how long the
  * radio asks to wait, not "a code is on the radio's screen". The away link: its "#t=KEY" stored for the page's
- * address and taken out of the address bar. The pages' sockets on the Funnel page: wss on its own address. */
+ * address and taken out of the address bar. The pages' sockets on the Funnel page: wss on its own address; on the
+ * radio's own https page too, through its https server (#58: on 50003 and 50004 Firefox wanted the certificate
+ * accepted again). */
 'use strict';
 const {page, between} = require('./browser-dom.js');
 
@@ -61,6 +63,29 @@ for (const view of ['panel.html', 'remote.html']) {
   const on = between(src, 'onOpen: function() { greeted = false;', '},');
   check(view + ': the key first on a connection', on.indexOf('ses.onOpen()') >= 0 && on.indexOf('ses.onOpen()') < on.indexOf('send('), on.trim().slice(0, 90));
 }
+/* ---- the radio's own pages: an https page's sockets on its own address and port as well, one certificate; an http
+ * page's on the GUI's ports, as before ---- */
+for (const view of ['panel.html', 'remote.html']) {
+  const p = page(view);
+  p.eval('var FUNNEL = false, secure = true, conf = {port: 50002, tci_port: 50001, wss_port: 50003, wss_tci_port: 50004};' +
+         between(p.source, '  function wsUrl(kind) {', '  $("#httpslink")'));
+  const urls = (protocol, host, hostname, isSecure) => {
+    p.ctx.location = {protocol, host, hostname, hash: '', pathname: '/' + view.replace('.html', ''), search: ''};
+    p.eval('secure = ' + isSecure);
+    return p.eval('wsUrl("remote")') + ' ' + p.eval('wsUrl("tci")');
+  };
+  for (const [what, protocol, host, hostname, isSecure, want] of [
+    ['https, port 443', 'https:', 'x6100.local', 'x6100.local', true, 'wss://x6100.local/ws/remote wss://x6100.local/ws/tci'],
+    ['https on a port of its own (a PC)', 'https:', '127.0.0.1:8443', '127.0.0.1', true,
+     'wss://127.0.0.1:8443/ws/remote wss://127.0.0.1:8443/ws/tci'],
+    ['https by an IPv6 address', 'https:', '[fe80::1]', '[fe80::1]', true, 'wss://[fe80::1]/ws/remote wss://[fe80::1]/ws/tci'],
+    ['http: the GUI\'s own ports', 'http:', '192.168.1.50', '192.168.1.50', false,
+     'ws://192.168.1.50:50002/ ws://192.168.1.50:50001/']]) {
+    const got = urls(protocol, host, hostname, isSecure);
+    check(view + ', ' + what, got === want, got);
+  }
+}
+
 {
   const {p, stored, replaced} = funnelPage('panel.html', '#t=<img src=x>');
   const took = p.eval('RadioSession.takeLink()');

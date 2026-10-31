@@ -3,7 +3,8 @@
 The radio's web pages (bands, digital modes, memories, cluster, Field Ops, logs,
 gallery, backup, display, time, Ethernet, TCI server), served by the radio on
 port 80 (and 443 with a self-signed certificate, for the Gallery's in-browser
-conversion). Python 3 and [bottle](https://bottlepy.org/), LGPL-2.1
+conversion and the browser's microphone on the Panel and the Screen page,
+whose sockets come through the same port at `/ws/remote` and `/ws/tci`). Python 3 and [bottle](https://bottlepy.org/), LGPL-2.1
 ([LICENSE](LICENSE)).
 
 Run on a PC against a copy of the radio's files:

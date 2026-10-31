@@ -97,7 +97,7 @@
   </div>
 </div>
 
-<p class="sub" style="margin-top:14px">Keyboard: F1–F5, ← → the main knob, Shift + ← → faster, [ ] volume, PageUp/PageDown the MFK, Enter the MFK push, Space PTT. Knobs: drag around the ring, or the mouse wheel over it. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/remote</a> (accept the certificate once).</span></p>
+<p class="sub" style="margin-top:14px">Keyboard: F1–F5, ← → the main knob, Shift + ← → faster, [ ] volume, PageUp/PageDown the MFK, Enter the MFK push, Space PTT. Knobs: drag around the ring, or the mouse wheel over it. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/remote</a> (the browser warns of the radio's own certificate: accept it, once for that address).</span></p>
 
 <script src="/static/js/radio_link.js?v=2"></script>
 <script src="/static/js/radio_session.js?v=5"></script>
@@ -116,10 +116,9 @@
   let greeted = false, awayless = false;   /* over Funnel: greeted on this connection; closed unpaired (the Panel's) */
 
   function status(text, error) { $st.toggleClass("error", !!error).html('<span class="dot"></span>').append(document.createTextNode(text)); }
-  function wsUrl(kind) {
-    if (FUNNEL) return "wss://" + location.host + "/ws/" + kind;
-    const port = secure ? (kind === "remote" ? conf.wss_port : conf.wss_tci_port) : (kind === "remote" ? conf.port : conf.tci_port);
-    return (secure ? "wss://" : "ws://") + location.hostname + ":" + port + "/";
+  function wsUrl(kind) {   /* an https page's on its own address and port, as the Panel's (#58) */
+    if (FUNNEL || secure) return "wss://" + location.host + "/ws/" + kind;
+    return "ws://" + location.hostname + ":" + (kind === "remote" ? conf.port : conf.tci_port) + "/";
   }
   $("#httpslink").attr("href", "https://" + location.host.replace(/:\d+$/, "") + "/remote");
   if (FUNNEL) $("#httpsnote").hide();

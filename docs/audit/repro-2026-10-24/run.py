@@ -196,12 +196,13 @@ def main():
         binary = work / "ws-handshake"
         command([*CC, *cflags, *san, HERE / "ws-handshake.c", *gc, "-o", binary], env)
         print("C08 WebSocket names (26 October audit, fixed), Tailscale Funnel's requests (#58), the radio's own "
-              "names (#105) and Pat's mailbox (port 8080) refused on the radio (#105 review):\n" + command(
-            [binary], env, contains=("55 of 55 cases as they should be",)).strip())
+              "names (#105), Pat's mailbox (port 8080) refused on the radio (#105 review) and the https page's "
+              "sockets on its own port (#58):\n" + command(
+            [binary], env, contains=("63 of 63 cases as they should be",)).strip())
         binary = work / "ws-handshake-pc"
         command([*CC, *cflags, *san, "-DHOST_BUILD", HERE / "ws-handshake.c", *gc, "-o", binary], env)
         print("The same on the PC build, whose web configurator is on port 8080:\n" + command(
-            [binary], env, contains=("51 of 51 cases as they should be",)).strip())
+            [binary], env, contains=("58 of 58 cases as they should be",)).strip())
 
         # The X6100's GUI knows its mic's codes only; the X6200's the H-22's besides (#56: its table off a radio)
         for board, flags, known, h22 in (

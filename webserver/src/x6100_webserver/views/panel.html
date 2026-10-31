@@ -282,7 +282,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   </aside>
 </div>
 
-<p class="sub" style="margin-top:12px">Panorama: tap or drag to tune, pinch (or the mouse wheel with Ctrl) to zoom, the wheel to tune by the step. Tap the frequency to type one, a spot to tune to it. Keyboard: ← → tune (Shift: ten steps), [ ] volume, Space PTT. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/panel</a> (accept the certificate once).</span> A browser only watches until it is paired with a code shown on the radio; one paired browser (or the radio's own keys, or a TCI client) controls the radio at a time, and the others take control on purpose.</p>
+<p class="sub" style="margin-top:12px">Panorama: tap or drag to tune, pinch (or the mouse wheel with Ctrl) to zoom, the wheel to tune by the step. Tap the frequency to type one, a spot to tune to it. Keyboard: ← → tune (Shift: ten steps), [ ] volume, Space PTT. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/panel</a> (the browser warns of the radio's own certificate: accept it, once for that address).</span> A browser only watches until it is paired with a code shown on the radio; one paired browser (or the radio's own keys, or a TCI client) controls the radio at a time, and the others take control on purpose.</p>
 
 <div class="pop" id="pop" hidden><div class="box" id="popbox"></div></div>
 
@@ -312,10 +312,12 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   function savePref() { try { localStorage.setItem("x6100panel", JSON.stringify(pref)); } catch (e) {} }
 
   function status(text, error) { $st.toggleClass("error", !!error).html('<span class="dot"></span>').append(document.createTextNode(text)); }
+  /* An https page's sockets on its own address and port, the certificate accepted for the page's (#58): tailscaled
+   * hands the Funnel page's to the radio's ports, the radio's https server its own page's. On 50003 and 50004 Firefox
+   * wanted the certificate accepted again, and refused them without a word */
   function wsUrl(kind) {
-    if (FUNNEL) return "wss://" + location.host + "/ws/" + kind;    /* tailscaled hands them to the radio's ports */
-    const port = secure ? (kind === "remote" ? conf.wss_port : conf.wss_tci_port) : (kind === "remote" ? conf.port : conf.tci_port);
-    return (secure ? "wss://" : "ws://") + location.hostname + ":" + port + "/";
+    if (FUNNEL || secure) return "wss://" + location.host + "/ws/" + kind;
+    return "ws://" + location.hostname + ":" + (kind === "remote" ? conf.port : conf.tci_port) + "/";
   }
   $("#httpslink").attr("href", "https://" + location.host.replace(/:\d+$/, "") + "/panel");
   if (FUNNEL) $("#httpsnote").hide();

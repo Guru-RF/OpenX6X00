@@ -2853,7 +2853,17 @@ applied on the radio as you change them.
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
 made on first start (valid 10 years, stored in `/mnt/https/`). The browser
-shows a certificate warning once; accept it. A certificate that is expired or
+warns about it; accept it (Advanced, then Proceed; Accept the Risk and
+Continue in an older Firefox). The browser keeps that for the address it was opened by: by
+another one (`x6100.local`, the IP address, the Tailscale name) it asks once
+more. The https Panel and Screen page open their sockets on the same port
+(`wss://<address>/ws/remote` and `/ws/tci`, which the server hands on to the
+GUI), so the one certificate covers them too. Up to v0.3.7 they used ports
+50003 and 50004, which Firefox wanted accepted on their own: the page said
+"Connection lost" and gave no pairing code
+([#58](https://github.com/Guru-RF/OpenX6X00/issues/58)). Those two ports
+still answer in this release, for a page left open over the update, and go
+in the next one. A certificate that is expired or
 not valid yet by the radio's clock (one made while the clock was wrong) is
 made anew at the next start, and the browser asks once more. While the clock
 is not set (a date before 2026: no network or GPS yet, a clock chip that lost
@@ -3362,7 +3372,8 @@ have control, does not send the change at all: it says why and opens the
 pairing or Take control dialog. With LOCK on, the frequency stays and the
 status line says so.
 
-The page talks to the GUI's remote WebSocket (port 50002, the Screen page's):
+The page talks to the GUI's remote WebSocket (port 50002, the Screen page's;
+the https page at `wss://<address>/ws/remote`, which the web server hands on):
 `panel 1` subscribes to the state (`state {...}` as JSON: frequency, mode,
 filter, the switches and the levels, whenever something changes; `lock` is 1
 while the frequency is locked by the user or held by an app, `ulock` the
@@ -3684,8 +3695,10 @@ here it is a web page, nothing to install.
 - Mic: the browser's microphone goes to the radio while PTT is held, over the
   TCI server as any TCI client does it. Browsers only give the microphone to
   an https page: open `https://x6100.local/remote` and accept the radio's
-  certificate once. Without Mic, PTT keys the radio's own microphone or hand
-  mic, as the PTT key on the radio does.
+  certificate, once for that address: the page's picture, sound and
+  microphone come through the same port (see HTTPS under
+  [Web configurator](#web-configurator)). Without Mic, PTT keys the radio's
+  own microphone or hand mic, as the PTT key on the radio does.
 - Fullscreen fills the display with the remote; the status line shows the
   frame rate and the bandwidth (about 300-500 kB/s with a moving waterfall).
 
@@ -4116,7 +4129,7 @@ From the laptop or the phone, with Tailscale on: `http://<name>/` (the full
 name, `http://x6200/` with MagicDNS on, or the `100.x.y.z` address), with
 `/panel` and `/remote` after it; a TCI client connects to the same name, port
 50001. The browser's microphone needs the https page (`https://<name>/remote`),
-with the radio's certificate accepted as on the LAN.
+with the radio's certificate accepted for that name, as on the LAN.
 
 Good to know:
 
