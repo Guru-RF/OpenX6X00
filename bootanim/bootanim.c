@@ -10,6 +10,11 @@
  *  name sweeps in, the rule draws from the centre, the subtitle last.
  *  It ends on the full logo, which stays until the GUI takes the screen.
  *
+ *  The owner's own picture (/mnt/bootlogo.png on the DATA partition, from the
+ *  web configurator's Display page; updates leave it there) is shown in its
+ *  place and fades in as a whole: the steps above are made for our logo. One
+ *  that is missing, damaged or not 800x480 gives ours, never a dark start.
+ *
  *  With Settings > Audio > Boot sound on (read from the GUI's params.db),
  *  "CQ CQ" in CW plays on the speaker with the animation.
  *
@@ -55,6 +60,9 @@
 #define CX       400    /* the ring's centre (tools/logo/mklogo.py) */
 #define CY       143
 #define GUI_UP   "/tmp/x6100_gui.drm"   /* written by the GUI once it owns the display */
+#define OWN_LOGO "/mnt/bootlogo.png"    /* the owner's own (webserver apps.py, Boot picture) */
+#define OUR_LOGO "/usr/share/x6100/bootlogo.png"   /* ours, boot/logo.png: every update puts it back */
+#define OWN_FADE_MS SLOW(1900)          /* an own picture fades in as a whole, over our steps' 2.8 s */
 
 static volatile sig_atomic_t stop;      /* SIGTERM from S49bootanim: the codec is needed, the sound stops */
 
@@ -276,16 +284,31 @@ static void on_term(int sig) {
     stop = 1;
 }
 
+/* The PNG at path into logo, true when it is one of the screen's size and read whole. What is transparent in it
+ * shows black (composed onto the buffer, cleared first) */
+static int logo_read(const char *path, uint8_t *logo) {
+    png_image img = {.version = PNG_IMAGE_VERSION};
+
+    if (!png_image_begin_read_from_file(&img, path)) return 0;
+    img.format = PNG_FORMAT_RGB;
+    if (img.width != W || img.height != H) {
+        png_image_free(&img);
+        return 0;
+    }
+    memset(logo, 0, W * H * 3);
+    return png_image_finish_read(&img, NULL, logo, 0, NULL) != 0;
+}
+
 int main(int argc, char **argv) {
-    const char *path = argc > 1 ? argv[1] : "/usr/share/x6100/bootlogo.png";
-    png_image   img  = {.version = PNG_IMAGE_VERSION};
     static uint8_t logo[W * H * 3];
 
     if (access(GUI_UP, F_OK) == 0) return 0;
     signal(SIGTERM, on_term);
-    if (!png_image_begin_read_from_file(&img, path)) return 1;
-    img.format = PNG_FORMAT_RGB;
-    if (img.width != W || img.height != H || !png_image_finish_read(&img, NULL, logo, 0, NULL)) return 1;
+    /* The owner's picture (one named on the command line in its place, to try one by hand), else ours. Before,
+     * a picture that could not be read gave no picture and no boot sound */
+    int own = logo_read(argc > 1 ? argv[1] : OWN_LOGO, logo);
+    if (!own && !logo_read(OUR_LOGO, logo)) return 1;
+    int fade = own ? OWN_FADE_MS : FADE_MS;
 
     /* The panel is 480x800 portrait: landscape (x, y) is fb (y, 799 - x), as the kernel logo */
     int fd = open("/dev/fb0", O_RDWR);
@@ -312,9 +335,9 @@ int main(int argc, char **argv) {
             *(uint32_t *)(fb + o) = PIX(bg[0], bg[1], bg[2]);
             if (p[0] == bg[0] && p[1] == bg[1] && p[2] == bg[2]) continue;
             off[n] = o;
-            t0[n]  = SLOW(start_ms(x, y, p));
+            t0[n]  = own ? 0 : SLOW(start_ms(x, y, p));
             src[n] = (y * W + x) * 3;
-            if (t0[n] + FADE_MS > end) end = t0[n] + FADE_MS;
+            if (t0[n] + fade > end) end = t0[n] + fade;
             n++;
         }
     }
@@ -329,7 +352,7 @@ int main(int argc, char **argv) {
     for (int t = 0;; t += FRAME_MS) {
         if (t > end) t = end;
         for (int i = 0; i < n; i++) {
-            int a = (t - t0[i]) * 256 / FADE_MS;
+            int a = (t - t0[i]) * 256 / fade;
             if (a <= 0) continue;
             if (a > 256) a = 256;
             const uint8_t *p = logo + src[i];

@@ -1,9 +1,10 @@
 #!/bin/sh
 #
 # Boot animation: the logo composes itself on the screen while the rest of
-# the boot goes on, with "CQ CQ" in CW when Settings > Audio > Boot sound is
-# on. In the background, and nothing waits for it (S49bootanim makes sure the
-# codec is free before ALSA and PulseAudio start).
+# the boot goes on (an own boot picture, /mnt/bootlogo.png, fades in instead),
+# with "CQ CQ" in CW when Settings > Audio > Boot sound is on. In the
+# background, and nothing waits for it (S49bootanim makes sure the codec is
+# free before ALSA and PulseAudio start).
 #
 
 case "$1" in

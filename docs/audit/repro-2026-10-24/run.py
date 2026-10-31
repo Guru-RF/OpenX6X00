@@ -325,6 +325,22 @@ def main():
             "charging at 70 %, the flag off for a row: 70 % bolt ~4h03, 70 % bolt ~4h03, 71 % bolt ~3h54, "
             "71 % bolt ~3h54, 71 % bolt ~3h54\n",
             "charged to 97 %: 96 % bolt ~0h33, 97 % bolt ~0h25, 97 % plug, 97 % plug, 97 % plug, 97 % plug\n")).strip())
+        # Issue #101: bootanim/bootanim.c on the PC for each radio, its framebuffer a file and the radio's libraries
+        # stand-ins (bootanim-host.c): the owner's boot picture, and ours when that one can't be read
+        include = work / "bootanim-include"
+        for name in ("gpiod.h", "aether_radio/x6100_control/control.h", "aether_radio/x6200_control/control.h"):
+            (include / name).parent.mkdir(parents=True, exist_ok=True)
+            (include / name).write_text('#include "bootanim-stubs.h"\n')
+        wraps = ",".join("--wrap=" + f for f in ("open", "ioctl", "access", "usleep", "clock_gettime",
+                                                 "png_image_begin_read_from_file", "sqlite3_open_v2"))
+        animations = []
+        for board, flags in (("x6100", []), ("x6200", ["-DBOARD_X6200"])):
+            animations.append(work / ("bootanim-" + board))
+            command([*CC, *cflags, *flags, "-U_FORTIFY_SOURCE", "-I" + str(include), "-I" + str(HERE),
+                     "bootanim/bootanim.c", HERE / "bootanim-host.c", "-Wl," + wraps, "-lpng", "-lsqlite3", "-lasound",
+                     "-lm", "-pthread", "-o", animations[-1]], env)
+        print("#101 the boot picture:\n" + command([sys.executable, HERE / "boot_picture_checks.py", *animations], env,
+              contains=("The boot picture (#101): 26 of 26 cases as they should be",)).strip())
 
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")
