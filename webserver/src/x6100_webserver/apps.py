@@ -4,6 +4,7 @@ try:
 except ImportError:   # images built before python3-zlib was selected
     zlib = None
 import base64
+import binascii
 import csv
 import fcntl
 import hashlib
@@ -2309,6 +2310,107 @@ def display_set():
     if reply.get("t") != "ok":
         return api_error(409, reply.get("err", "Rejected by the radio"))
     return {"status": "OK"}
+
+
+# Boot picture (#101): the owner's own picture for the start, on the Display page. Kept on the DATA partition
+# (settings.BOOT_PICTURE), which updates leave as it is; bootanim/bootanim.c shows it in place of ours, and ours when
+# it can't read it. Checked here before it is kept, so the start doesn't fall back to ours unexplained
+
+BOOT_PICTURE_MAX = 2 * 1024 * 1024
+BOOT_PICTURE_SIZE = (800, 480)   # the screen, landscape (W and H in bootanim.c)
+PNG_DEPTHS = {0: (1, 2, 4, 8, 16), 2: (8, 16), 3: (1, 2, 4, 8), 4: (8, 16), 6: (8, 16)}   # colour type: bit depths
+
+
+def boot_picture_error(data):
+    """Why data is no picture the radio can start with, None when it is one: a PNG of the screen's size, every
+    chunk whole with its checksum up to IEND (an upload cut short, a damaged file). The size cap is the caller's"""
+    if len(data) < 33 or not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "Not a PNG picture"
+    if data[8:16] != b"\0\0\0\x0dIHDR":
+        return "Not a PNG picture: its header is missing"
+    w, h = int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+    if (w, h) != BOOT_PICTURE_SIZE:
+        return f"The picture is {w}x{h} pixels: the radio needs 800x480, the screen's size"
+    depth, colour, compression, filtering, interlace = data[24:29]
+    if depth not in PNG_DEPTHS.get(colour, ()) or compression or filtering or interlace > 1:
+        return "Not a PNG picture the radio can read: an unknown kind of PNG"
+    at, kinds = 8, set()
+    while b"IEND" not in kinds:
+        n = int.from_bytes(data[at:at + 4], "big")
+        if at + 12 + n > len(data):
+            return "The file is cut short: upload it again"
+        if binascii.crc32(data[at + 4:at + 8 + n]) != int.from_bytes(data[at + 8 + n:at + 12 + n], "big"):
+            return "The file is damaged: a checksum in it is wrong"
+        kinds.add(data[at + 4:at + 8])
+        at += 12 + n
+    if b"IDAT" not in kinds:
+        return "Not a PNG picture: it has no picture data"
+    return None
+
+
+def boot_picture_state():
+    """own: a picture of the owner's is kept, with its size, date and why the radio can't show it ("": it can)"""
+    try:
+        with open(settings.BOOT_PICTURE, "rb") as f:
+            data = f.read(BOOT_PICTURE_MAX + 1)
+            when = os.fstat(f.fileno()).st_mtime
+    except FileNotFoundError:
+        return {"own": False}
+    except OSError as e:
+        return {"own": True, "size": "", "date": "", "error": f"It can't be read: {e.strerror}"}
+    whole = len(data) <= BOOT_PICTURE_MAX   # one over 2 MB put there by hand is not checked
+    return {"own": True, "size": fmt_size(len(data)) if whole else "over 2 MB",
+            "date": datetime.fromtimestamp(when).strftime("%Y-%m-%d %H:%M"),
+            "error": (boot_picture_error(data) or "") if whole else ""}
+
+
+@app.get('/api/boot_picture')
+def get_boot_picture():
+    return boot_picture_state()
+
+
+@app.get('/api/boot_picture/png')
+def boot_picture_png():
+    """The picture on the Display page: the owner's when there is one, else ours"""
+    path = settings.BOOT_PICTURE if os.path.isfile(settings.BOOT_PICTURE) else settings.BOOT_PICTURE_BUILTIN
+    response = bottle.static_file(os.path.basename(path), root=os.path.dirname(path), mimetype="image/png")
+    response.set_header("Cache-Control", "private, no-cache, no-store")
+    return response
+
+
+@app.post('/api/boot_picture')
+def set_boot_picture():
+    """A PNG (multipart field "file") kept as the own boot picture, once boot_picture_error finds nothing"""
+    if bottle.request.content_length > BOOT_PICTURE_MAX + 65536:
+        return api_error(413, "Larger than 2 MB")
+    upload = bottle.request.files.get("file")
+    if upload is None:
+        return api_error(400, "No file")
+    data = upload.file.read(BOOT_PICTURE_MAX + 1)
+    if len(data) > BOOT_PICTURE_MAX:
+        return api_error(413, "Larger than 2 MB")
+    err = boot_picture_error(data)
+    if err:
+        return api_error(400, err)
+    try:
+        replace_file(settings.BOOT_PICTURE, lambda f: f.buffer.write(data))   # bytes, through the text file's buffer
+        os.sync()   # the radio is often switched off at once, to see the picture
+    except OSError as e:
+        return api_error(500, f"Can't save the picture: {e}")
+    return dict(boot_picture_state(), status="OK")
+
+
+@app.delete('/api/boot_picture')
+def delete_boot_picture():
+    """Default: the own picture removed, the radio starts with ours again"""
+    try:
+        os.remove(settings.BOOT_PICTURE)
+        os.sync()
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        return api_error(500, f"Can't remove the picture: {e}")
+    return dict(boot_picture_state(), status="OK")
 
 
 # Ethernet: the USB adapter's address, as Settings > Wireless > Ethernet. Read and applied through the

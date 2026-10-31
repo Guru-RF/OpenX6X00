@@ -27,3 +27,5 @@ WSS_TCI_PORT = 0
 FUNNEL_DIR = "/run/x6100-funnel"    # the Panel and the Screen page for Tailscale Funnel, written at the start (#58)
 LOCALTIME = "/etc/localtime"        # Time page: the timezone link
 ZONEINFO = "/usr/share/zoneinfo"
+BOOT_PICTURE = "/mnt/bootlogo.png"  # the owner's own boot picture (Display page), read by bootanim/bootanim.c
+BOOT_PICTURE_BUILTIN = "/usr/share/x6100/bootlogo.png"   # ours, shown when there is none

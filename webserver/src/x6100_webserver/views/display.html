@@ -12,10 +12,32 @@
 .col{display:flex;align-items:center;gap:8px}
 .col input[type=color]{width:38px;height:30px;padding:0;border:1px solid var(--line);border-radius:6px;background:none}
 .col input[type=color]:disabled{opacity:.35}
+/* Boot picture: the screen's 5:3 at the card's width */
+.bp-prev{display:block;width:100%;max-width:400px;aspect-ratio:5/3;margin:0 0 12px;border-radius:8px;border:1px solid var(--line);background:#08090c;object-fit:contain}
+.bp-prev[hidden]{display:none}
+#bp_now.note{color:var(--err)}
 </style>
 
 <div class="dp-foot"><span class="status" id="status" style="margin-left:0"></span></div>
 <div class="dp-grid" id="cards"></div>
+
+<!-- Not a GUI option: the web server keeps it (/api/boot_picture), so it works with the radio's screen down too -->
+<div class="dp-grid">
+<section class="dp-card" id="bootpic">
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-image"/></svg></span><div><h3>Boot picture<span class="eff">Takes effect: at the next start</span></h3><p>On the screen while the radio starts: the built-in logo, or a picture of your own</p></div></div>
+<div class="dp-body">
+<img class="bp-prev" id="bp_img" alt="The picture the radio starts with" hidden>
+<p id="bp_now"></p>
+<p class="sub">A PNG of 800x480 pixels, the screen's size, up to 2 MB. It is kept on the card's DATA partition, so updates leave it as it is, and the Backup takes it along. Default goes back to the built-in logo.</p>
+<input type="file" id="bp_file" accept="image/png,.png" aria-label="Your picture, a PNG of 800x480">
+<div class="actions">
+  <button id="bp_upload" class="primary"><svg class="i"><use href="#i-upload"/></svg>Upload</button>
+  <button id="bp_default">Default</button>
+  <span class="status" id="bp_status"></span>
+</div>
+</div>
+</section>
+</div>
 
 <script>
 const ICONS = {
@@ -280,4 +302,53 @@ var render = function() {
 
 $.ajax({url: "/api/display", dataType: "json", success: function(d) { D = d; render(); },
   error: function(xhr) { showStatus(xhr.responseJSON ? xhr.responseJSON.msg : "Radio not reachable", true); }});
+
+/* Boot picture: what the radio starts with, an upload, Default */
+var bpStatus = function(text, error=false) {
+  const el = $("#bp_status");
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var bpShow = function(st) {
+  $("#bp_img").attr("src", "/api/boot_picture/png?" + Date.now());
+  const about = [st.size, st.date].filter(Boolean).join(", ");
+  const now = !st.own ? "The radio starts with the built-in logo."
+    : st.error ? "Your picture" + (about ? " (" + about + ")" : "") + ", but the radio can't show it and starts with the built-in logo: " + st.error
+    : "The radio starts with your picture (" + about + ").";
+  $("#bp_now").toggleClass("note", !!(st.own && st.error)).text(now);
+  $("#bp_default").prop("disabled", !st.own);
+}
+
+var bpLoad = function() {
+  $.ajax({url: "/api/boot_picture", dataType: "json", timeout: X6100_WAIT_MS, success: bpShow,
+    error: function(xhr, why) { bpStatus(x6100FailText(xhr, why), true); }});
+}
+
+$("#bp_img").on("load", function() { $(this).prop("hidden", false); })
+  .on("error", function() { $(this).prop("hidden", true); });   /* none (the web server on a PC) */
+
+$("#bp_upload").on("click", function() {
+  const f = $("#bp_file")[0].files[0];
+  if (!f) { bpStatus("Choose a picture first", true); return; }
+  const fd = new FormData();
+  fd.append("file", f);
+  $("#bp_upload").prop("disabled", true);
+  bpStatus("Uploading...");
+  $.ajax({url: "/api/boot_picture", type: "POST", data: fd, processData: false, contentType: false, dataType: "json",
+    timeout: X6100_WAIT_MS,
+    success: function(st) { bpShow(st); bpStatus("Saved: the radio starts with it from the next start"); $("#bp_file").val(""); },
+    error: function(xhr, why) { bpStatus(x6100FailText(xhr, why), true); },
+    complete: function() { $("#bp_upload").prop("disabled", false); }});
+});
+
+$("#bp_default").on("click", function() {
+  if (!confirm("Remove your boot picture? The radio starts with the built-in logo again.")) return;
+  bpStatus("Removing...");
+  $.ajax({url: "/api/boot_picture", type: "DELETE", dataType: "json", timeout: X6100_WAIT_MS,
+    success: function(st) { bpShow(st); bpStatus("Removed: the built-in logo from the next start"); },
+    error: function(xhr, why) { bpStatus(x6100FailText(xhr, why), true); }});
+});
+
+bpLoad();
 </script>
