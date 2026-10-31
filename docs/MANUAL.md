@@ -2192,7 +2192,9 @@ Edit; page 2: Beacon, Delete, QRSS3; page 3: Start, Until, Freq.
 - With Beacon on, TX arms it. Before its start the panel says "AT 20:00"
   and the hint counts down; the radio receives meanwhile. A start time gone
   by today is tomorrow's; one whose minute the clock shows now starts at
-  once.
+  once. If the clock is set forward past the start while it waits (NTP when
+  WiFi connects, GPS, by hand), it starts then; past the end time too, it is
+  over without a send.
 - It ends after its sends, or when the next send would start at or after
   the end time: the send on the air at the end time is finished, not cut
   off. The screen says "Beacon over: 10 sends" or "Beacon over: 21:00". An

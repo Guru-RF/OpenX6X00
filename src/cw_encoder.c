@@ -295,19 +295,23 @@ static void * endecode_thread(void *arg) {
     time_t end            = 0;
     bool   over           = false;
 
-    /* A beacon waits for its start time receiving (BEACON_WAIT, start()); its end comes from the start */
+    /* A beacon waits for its start time receiving (BEACON_WAIT, start()); its end comes from the start. A clock set
+     * forward past the start starts it at once, past the end too: over, nothing sent */
     if (state != CW_ENCODER_SEND) {
         end = bcn_end_at(&sched, start_at);
         while (!stop_req && time(NULL) < start_at) {
             usleep(100000);
         }
-        state = CW_ENCODER_BEACON;
+        over = !stop_req && !bcn_may_start(&sched, end, time(NULL));
+        if (!over) {
+            state = CW_ENCODER_BEACON;
+        }
     }
-    if (!qrss) {
+    if (!qrss && !over) {
         hold_tx(world_space_nsec, true);
     }
 
-    while (!stop_req) {
+    while (!stop_req && !over) {
         char    *morse;
         uint8_t len;
 
@@ -342,6 +346,10 @@ static void * endecode_thread(void *arg) {
             for (int t = params.cw_encoder_period * 10; t > 0 && !stop_req; t--) {
                 pause_left = (t + 9) / 10;
                 usleep(100000);
+            }
+            if (!stop_req && !bcn_may_start(&sched, end, time(NULL))) {   /* the pause ran past the end */
+                over = true;
+                break;
             }
             if (!qrss) {
                 hold_tx(world_space_nsec, true);

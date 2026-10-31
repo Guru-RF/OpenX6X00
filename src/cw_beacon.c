@@ -168,6 +168,10 @@ time_t bcn_after_send(const bcn_sched_t *s, time_t end, int done, time_t now, in
     return next;
 }
 
+bool bcn_may_start(const bcn_sched_t *s, time_t end, time_t now) {
+    return s->until != BCN_UNTIL_TIME || !end || now < end;
+}
+
 /* Position p of n round, moved by steps */
 static int round_step(int p, int steps, int n) {
     return ((p + steps) % n + n) % n;

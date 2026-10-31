@@ -106,11 +106,14 @@ int __wrap_nanosleep(const struct timespec *req, struct timespec *rem) {
     return 0;
 }
 
+/* What each sleep takes over its time, as on the radio: the beacon's pause of 100 ms sleeps comes out longer */
+static uint32_t usleep_extra_us;
+
 int __wrap_usleep(useconds_t us) {
     if (!keyer_thread()) {
         return __real_usleep(us);
     }
-    atomic_fetch_add(&virt_ns, (uint64_t)us * 1000ULL);
+    atomic_fetch_add(&virt_ns, ((uint64_t)us + usleep_extra_us) * 1000ULL);
     tick();
     return 0;
 }
@@ -238,7 +241,7 @@ unsigned radio_morse_key_cuts(void) {
 
 /* ---- Events at a time from the test's start, on the keyer's thread ---------------------------------------------- */
 
-typedef enum { EV_FREQ = 1, EV_MODE, EV_SPLIT, EV_OTHER_TX, EV_CUT, EV_HOLD, EV_XIT } ev_t;
+typedef enum { EV_FREQ = 1, EV_MODE, EV_SPLIT, EV_OTHER_TX, EV_CUT, EV_HOLD, EV_XIT, EV_CLOCK } ev_t;
 
 static struct {
     uint32_t at;
@@ -249,6 +252,7 @@ static int n_evs;
 
 /* EV_HOLD: the keyer waits there until the test lets it go, the key as it was */
 static atomic_bool held, hold_release;
+static time_t      clock_set_to;    /* EV_CLOCK: the wall clock set to it (NTP, GPS, by hand) */
 
 static void at(uint32_t ms, ev_t what) {
     evs[n_evs].at     = ms;
@@ -269,6 +273,7 @@ static void tick(void) {
             case EV_MODE:       changed(cfg_band_vfoa_mode); break;
             case EV_SPLIT:      changed(cfg_band_split); break;
             case EV_XIT:        changed(cfg_xit); break;
+            case EV_CLOCK:      wall_at(clock_set_to); break;
             case EV_OTHER_TX:   other_tx = true; break;
             case EV_CUT:        /* as radio.c's morse_limit_check */
                 if (key_on) {
@@ -303,6 +308,7 @@ static void reset(void) {
     qsk = 100;
     limit_max = 0;
     n_qsk = 0;
+    usleep_extra_us = 0;
     atomic_store(&hold_release, false);
     t0 = now_ms();
 }
@@ -608,6 +614,10 @@ static void test_sched_rules(void) {
           bcn_after_send(&to21, end, 5, utc(2026, 10, 31, 20, 59, 45), 30) == 0,
           "until 21:00: none starts at 21:00 or after");
     check(bcn_after_send(&at_once, 0, 500, now, 120) == now + 120, "until stopped: again and again");
+    check(bcn_may_start(&to21, end, end - 1) && !bcn_may_start(&to21, end, end) &&
+          !bcn_may_start(&to21, end, end + 600), "until 21:00: a send may start at 20:59:59, not at 21:00 or after");
+    check(bcn_may_start(&three, 0, end + 600) && bcn_may_start(&at_once, 0, end + 600),
+          "by sends, or until stopped: any time");
 
     /* The screen clock in a time zone with summer time (Belgium) */
     zone_set("CET-1CEST,M3.5.0,M10.5.0/3");
@@ -693,6 +703,39 @@ static void test_sched_keyer(void) {
     cw_encoder_send_qrss3("TT", true);
     check(wait_idle() && n_key == 4 && keylog[3].t == 27000 && said_is("Beacon over: 20:01"),
           "the send on the air at 20:01 goes on to its end, at 20:01:07, and is the last");
+
+    /* The pause runs a little long on the radio (1 ms on each of its 100 ms sleeps here): EEEE ends at 20:00:49.96,
+     * the next would start at 20:00:59 by the clock's second but goes at 20:01:00.06. It is not sent */
+    reset();
+    wall_at(utc(2026, 10, 31, 20, 0, 49));
+    usleep_extra_us = 1000;
+    params.cw_encoder_period = 10;
+    s = (bcn_sched_t){BCN_NOW, BCN_UNTIL_TIME, 10, HM(20, 1)};
+    cw_encoder_schedule(&s);
+    cw_encoder_send("EEEE", true);
+    check(wait_idle() && n_key == 8 && said_is("Beacon over: 20:01") && !key_on,
+          "until 20:01, a pause that ends at 20:01:00.06: no send starts after it");
+
+    /* The clock set forward while the beacon waits (NTP at the WiFi's connect, a GPS fix, by hand) */
+    reset();
+    wall_at(utc(2026, 10, 31, 19, 59, 30));
+    clock_set_to = utc(2026, 10, 31, 20, 45, 0);
+    at(10000, EV_CLOCK);
+    s = (bcn_sched_t){HM(20, 0), BCN_UNTIL_TIME, 10, HM(20, 30)};
+    cw_encoder_schedule(&s);
+    cw_encoder_send_qrss3("E", true);
+    check(wait_idle() && n_key == 0 && said_is("Beacon over: 20:30") && key_left_up(),
+          "20:00 to 20:30, the clock set from 19:59:40 to 20:45: over, nothing sent");
+
+    reset();
+    wall_at(utc(2026, 10, 31, 19, 59, 30));
+    clock_set_to = utc(2026, 10, 31, 20, 10, 0);
+    at(10000, EV_CLOCK);
+    at(20000, EV_FREQ);
+    cw_encoder_schedule(&s);
+    cw_encoder_send_qrss3("E", true);
+    check(wait_idle() && n_key >= 2 && keylog[0].t >= 10000 && keylog[0].t <= 10100,
+          "20:00 to 20:30, the clock set from 19:59:40 to 20:10: it starts at once");
 
     /* At the keyer's speed too: 2 sends of a 60 ms dot, 10 s apart */
     reset();

@@ -99,6 +99,10 @@ time_t bcn_end_at(const bcn_sched_t *s, time_t start);
  * sends all sent, or the next would start at or after the end */
 time_t bcn_after_send(const bcn_sched_t *s, time_t end, int done, time_t now, int pause_s);
 
+/* A send may start now, the first one too: not at or after the end (BCN_UNTIL_TIME). The pause runs a little longer
+ * than set, and the clock may be set forward while the beacon waits or pauses (NTP, GPS, by hand) */
+bool bcn_may_start(const bcn_sched_t *s, time_t end, time_t now);
+
 /* The MFK's steps. The start: at once, then every 5 minutes of a day from the first one after now, round. The end:
  * every 5 minutes of a day from the first one after `from` (the start, or now), round. The sends: 1 to 99 */
 int bcn_step_start(int cur, int steps, int now_min);
