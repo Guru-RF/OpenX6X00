@@ -37,6 +37,8 @@ int __wrap_open(const char *path, int flags, ...) {
     mode = flags & O_CREAT ? va_arg(ap, int) : 0;
     va_end(ap);
     if (strcmp(path, "/dev/fb0") == 0) path = getenv("FB");
+    else if (strcmp(path, "/mnt/bootlogo.png") == 0 && getenv("OWN")) path = getenv("OWN");
+    else if (strcmp(path, "/usr/share/x6100/bootlogo.png") == 0 && getenv("OURS")) path = getenv("OURS");
     return __real_open(path, flags, mode);
 }
 

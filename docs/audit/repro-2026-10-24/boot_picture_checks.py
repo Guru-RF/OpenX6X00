@@ -107,6 +107,22 @@ def png_of(head, *chunks):
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + b"".join(chunks) + chunk(b"IEND", b"")
 
 
+ADAM7 = [(0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2)]
+
+
+def interlaced_png(f):
+    """A real Adam7-interlaced 8-bit RGB PNG of f(x, y) -> (r, g, b): decoded it is the same picture as a plain
+    one, so the bootanim check tells the fix (ours) from the old behaviour (the picture shown, or libpng overrun)"""
+    raw = bytearray()
+    for x0, y0, dx, dy in ADAM7:
+        xs = list(range(x0, W, dx))
+        if not xs:
+            continue
+        for y in range(y0, H, dy):
+            raw += b"\0" + b"".join(bytes(f(x, y)) for x in xs)
+    return png_of((W, H, 8, 2, 1), chunk(b"IDAT", zlib.compress(bytes(raw), 6)))
+
+
 def palette_png():
     """A PNG of 16 colours in a palette, as picture editors save a logo: pixel (x, y) is colour x % 16, (3i, 3i+1, 3i+2)"""
     return png_of((W, H, 8, 3, 0), chunk(b"PLTE", bytes(range(48))),
@@ -114,7 +130,8 @@ def palette_png():
 
 
 def web_checks():
-    ns = production(BOOT_PICTURE_NAMES, ("BOOT_PICTURE_MAX", "BOOT_PICTURE_SIZE", "PNG_DEPTHS"))
+    ns = production(BOOT_PICTURE_NAMES, ("BOOT_PICTURE_MAX", "BOOT_PICTURE_SIZE", "PNG_DEPTHS",
+                                         "PNG_COMPRESSED_CHUNKS", "BOOT_PICTURE_MAX_COMPRESSED_CHUNKS"))
     own = Picture(lambda x, y: ((x + 40) & 255, (y + 20) & 255, (x ^ y) & 255)).png()
     palette = palette_png()
     with tempfile.TemporaryDirectory(prefix="x6bootpic-") as td:
@@ -137,6 +154,9 @@ def web_checks():
         check("a palette PNG (colour type 3)", post(ns, palette), "200 OK")
         check("a grey one of 16 bits", post(ns, png_of((W, H, 16, 0, 0), chunk(b"IDAT", zlib.compress(bytes(H * (1 + 2 * W)))))),
               "200 OK")
+        check("a photo with a colour profile and XMP (iCCP, iTXt): the few taken",
+              post(ns, png_of((W, H, 8, 2, 0), chunk(b"iCCP", b"p\0\0icc"), chunk(b"iTXt", b"XML\0\0\0\0\0x"),
+                              chunk(b"IDAT", b"x"))), "200 OK")
         post(ns, own)
         refused = [
             ("1024x600", Picture(lambda x, y: (x & 255, 0, 0), 1024, 600).png(),
@@ -152,8 +172,17 @@ def web_checks():
             ("a chunk before IHDR", own[:8] + chunk(b"tEXt", b"a\0b") + own[8:], "400 Not a PNG picture: its header is missing"),
             ("RGB of 4 bits, no such PNG", png_of((W, H, 4, 2, 0), chunk(b"IDAT", b"x")),
              "400 Not a PNG picture the radio can read: an unknown kind of PNG"),
-            ("an unknown interlace", png_of((W, H, 8, 2, 2), chunk(b"IDAT", b"x")),
-             "400 Not a PNG picture the radio can read: an unknown kind of PNG"),
+            ("interlaced (Adam7)", png_of((W, H, 8, 2, 1), chunk(b"IDAT", b"x")),
+             "400 The picture is interlaced: save it without interlacing (Adam7 off)"),
+            ("16-bit interlaced (the libpng heap overflow at boot)", png_of((W, H, 16, 2, 1), chunk(b"IDAT", b"x")),
+             "400 The picture is interlaced: save it without interlacing (Adam7 off)"),
+            ("a palette with transparency (the libpng out-of-bounds read at boot)",
+             png_of((W, H, 8, 3, 0), chunk(b"PLTE", bytes(range(48))), chunk(b"tRNS", bytes([128] * 16)),
+                    chunk(b"IDAT", b"x")),
+             "400 The picture is a palette with transparency: save it as a plain RGB or RGBA PNG"),
+            ("a wall of compressed chunks (a decompression bomb for libpng at boot)",
+             png_of((W, H, 8, 2, 0), chunk(b"IDAT", b"x"), *[chunk(b"zTXt", b"k%d\0\0y" % i) for i in range(5)]),
+             "400 The picture carries too much embedded text or colour-profile data: save a plain PNG"),
             ("no picture data", png_of((W, H, 8, 2, 0)), "400 Not a PNG picture: it has no picture data"),
             ("2 MB and a byte", png_of((W, H, 8, 2, 0), chunk(b"IDAT", b"x"), chunk(b"zTXt", bytes(2 * 1024 * 1024 - 64))),
              "413 Larger than 2 MB"),
@@ -209,7 +238,8 @@ def backup_of(members):
 def backup_checks():
     ns = production(BACKUP_NAMES, ("BACKUP_MAX_BYTES", "BACKUP_MAX_MEMBERS", "BACKUP_TEXT_MAX", "BACKUP_NAME",
                                    "BACKUP_DIRS", "BACKUP_GUI_PARTS", "TAR_ERRORS", "MEM_SLOTS", "backup_lock",
-                                   "BOOT_PICTURE_MAX", "BOOT_PICTURE_SIZE", "PNG_DEPTHS"))
+                                   "BOOT_PICTURE_MAX", "BOOT_PICTURE_SIZE", "PNG_DEPTHS", "PNG_COMPRESSED_CHUNKS",
+                                   "BOOT_PICTURE_MAX_COMPRESSED_CHUNKS"))
     gui = []
     ns.update(read_callsign=lambda: "ON6URE", gui_service=lambda action: gui.append(action) or 0,
               gui_stop_for_restore=lambda: gui.append("stop") or None)
@@ -295,7 +325,8 @@ def bootanim_checks(binaries):
     with tempfile.TemporaryDirectory(prefix="x6bootanim-", dir=os.environ.get("AUDIT_TMP")) as td:
         td = Path(td)
         files = {"own": own.png(), "ours": ours.png(), "rgba": rgba.png(), "by_hand": by_hand.png(),
-                 "small": small.png(), "jpeg": b"\xff\xd8\xff\xe0\0\x10JFIF\0" + bytes(4000), "palette": palette_png()}
+                 "small": small.png(), "jpeg": b"\xff\xd8\xff\xe0\0\x10JFIF\0" + bytes(4000), "palette": palette_png(),
+                 "interlaced": interlaced_png(own_f)}
         files["cut"] = files["own"][:len(files["own"]) // 2]
         damaged = bytearray(files["own"])
         damaged[len(damaged) // 2] ^= 0x55   # inside IDAT: its checksum no longer matches
@@ -342,6 +373,7 @@ def bootanim_checks(binaries):
                     ("the owner's cut short", "cut", "ours"),
                     ("the owner's damaged (a checksum in its picture data)", "damaged", "ours"),
                     ("the owner's a JPEG named .png", "jpeg", "ours"),
+                    ("the owner's interlaced (the 16-bit overflow at boot): not decoded, ours", "interlaced", "ours"),
                     ("the owner's with a transparent half", "rgba", "own, the right half black"),
                     ("the owner's in a palette (the web check's, taken there)", "palette", "own, its palette's colours")):
                 rc, read, shot, _ = run(binary, own_file)

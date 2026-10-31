@@ -284,14 +284,29 @@ static void on_term(int sig) {
     stop = 1;
 }
 
-/* The PNG at path into logo, true when it is one of the screen's size and read whole. What is transparent in it
- * shows black (composed onto the buffer, cleared first) */
+/* The PNG's interlace flag (IHDR byte 12), read straight from the file because png_image hides it: 1 (don't
+ * decode it) when it is interlaced or can't be read. The radio's libpng (1.6.39) overran the 8-bit buffer
+ * decoding a 16-bit interlaced picture (fixed upstream in 1.6.51), and this runs at boot as root; the web page
+ * keeps such a file off /mnt, this guards one put there by hand over SSH */
+static int png_interlaced(const char *path) {
+    unsigned char head[29];                   /* the signature (8), the IHDR length and type (8), its 13 bytes */
+    int           fd = open(path, O_RDONLY);
+
+    if (fd < 0) return 1;
+    ssize_t got = read(fd, head, sizeof head);
+    close(fd);
+    return got != (ssize_t)sizeof head || head[28] != 0;
+}
+
+/* The PNG at path into logo, true when it is one of the screen's size, not interlaced, and read whole. What is
+ * transparent in it shows black (composed onto the buffer, cleared first). An interlaced one gives ours, as a
+ * missing or damaged one does: it is never handed to png_image_finish_read */
 static int logo_read(const char *path, uint8_t *logo) {
     png_image img = {.version = PNG_IMAGE_VERSION};
 
     if (!png_image_begin_read_from_file(&img, path)) return 0;
     img.format = PNG_FORMAT_RGB;
-    if (img.width != W || img.height != H) {
+    if (img.width != W || img.height != H || png_interlaced(path)) {
         png_image_free(&img);
         return 0;
     }

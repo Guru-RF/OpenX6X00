@@ -2319,11 +2319,20 @@ def display_set():
 BOOT_PICTURE_MAX = 2 * 1024 * 1024
 BOOT_PICTURE_SIZE = (800, 480)   # the screen, landscape (W and H in bootanim.c)
 PNG_DEPTHS = {0: (1, 2, 4, 8, 16), 2: (8, 16), 3: (1, 2, 4, 8), 4: (8, 16), 6: (8, 16)}   # colour type: bit depths
+# The radio's libpng (1.6.39) reads the picture at boot as root, with its simplified API. A boot picture needs
+# none of these, and each is a way to make that libpng write or read out of bounds, or allocate far past the file:
+# an interlaced picture decoded to 8 bits a channel (a heap overflow before 1.6.51), a palette with transparency
+# (an out-of-bounds read before 1.6.52), and the chunks that carry compressed text or a colour profile (a 2 MB
+# file of them unpacks to more than a gigabyte). zTXt/iTXt/iCCP are kept to a handful: a photo has one or two
+PNG_COMPRESSED_CHUNKS = (b"zTXt", b"iTXt", b"iCCP")
+BOOT_PICTURE_MAX_COMPRESSED_CHUNKS = 4
 
 
 def boot_picture_error(data):
     """Why data is no picture the radio can start with, None when it is one: a PNG of the screen's size, every
-    chunk whole with its checksum up to IEND (an upload cut short, a damaged file). The size cap is the caller's"""
+    chunk whole with its checksum up to IEND (an upload cut short, a damaged file), and none of the shapes that
+    the radio's libpng mishandles at boot (interlaced, a palette with transparency, a wall of compressed chunks).
+    The size cap is the caller's"""
     if len(data) < 33 or not data.startswith(b"\x89PNG\r\n\x1a\n"):
         return "Not a PNG picture"
     if data[8:16] != b"\0\0\0\x0dIHDR":
@@ -2332,19 +2341,27 @@ def boot_picture_error(data):
     if (w, h) != BOOT_PICTURE_SIZE:
         return f"The picture is {w}x{h} pixels: the radio needs 800x480, the screen's size"
     depth, colour, compression, filtering, interlace = data[24:29]
-    if depth not in PNG_DEPTHS.get(colour, ()) or compression or filtering or interlace > 1:
+    if depth not in PNG_DEPTHS.get(colour, ()) or compression or filtering:
         return "Not a PNG picture the radio can read: an unknown kind of PNG"
-    at, kinds = 8, set()
+    if interlace:
+        return "The picture is interlaced: save it without interlacing (Adam7 off)"
+    at, kinds, compressed = 8, set(), 0
     while b"IEND" not in kinds:
         n = int.from_bytes(data[at:at + 4], "big")
         if at + 12 + n > len(data):
             return "The file is cut short: upload it again"
         if binascii.crc32(data[at + 4:at + 8 + n]) != int.from_bytes(data[at + 8 + n:at + 12 + n], "big"):
             return "The file is damaged: a checksum in it is wrong"
-        kinds.add(data[at + 4:at + 8])
+        kind = data[at + 4:at + 8]
+        kinds.add(kind)
+        compressed += kind in PNG_COMPRESSED_CHUNKS
         at += 12 + n
     if b"IDAT" not in kinds:
         return "Not a PNG picture: it has no picture data"
+    if compressed > BOOT_PICTURE_MAX_COMPRESSED_CHUNKS:
+        return "The picture carries too much embedded text or colour-profile data: save a plain PNG"
+    if colour == 3 and b"tRNS" in kinds:
+        return "The picture is a palette with transparency: save it as a plain RGB or RGBA PNG"
     return None
 
 

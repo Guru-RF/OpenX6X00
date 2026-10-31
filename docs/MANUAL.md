@@ -2942,8 +2942,12 @@ card. No SSH needed.
 - The page checks the picture before it keeps it and says why when it does
   not take it: another size ("The picture is 1024x600 pixels: the radio
   needs 800x480, the screen's size"), not a PNG (a JPEG renamed), or a file
-  cut short or damaged on the way. Scale or crop it to 800x480 in any
-  picture editor and save it as PNG.
+  cut short or damaged on the way. It also turns down the few kinds of PNG
+  the radio's picture reader cannot show safely at the start: an interlaced
+  one, a palette one with transparency, or one carrying a lot of embedded
+  text or a colour profile. Scale or crop it to 800x480 in any picture
+  editor and save it as a plain PNG (interlacing off; for transparency pick
+  RGBA, not a palette) and it is taken.
 - It fades in as a whole over about 3 seconds, from the colour of its
   top-left pixel; the built-in logo's steps are made for that logo alone.
   With the [boot sound](#audio-tab) on it ends with "CQ CQ", as the logo
