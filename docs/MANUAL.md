@@ -97,7 +97,8 @@ off the value shows on the message line).
   switches it; a press of AGC takes it to the next of Off, Slow, Fast, Auto.
 - AGC is on the MFK 2:3 page, PRE, ATT and ATU on VOL 2:2, Step (the tuning
   step, as FST) on the DFL page. On a knob, a turn steps AGC and Step forward
-  or back and switches PRE, ATT and ATU. Up to v0.3.7 AGC, PRE and ATT could not
+  or back, stopping at Off and Auto, 10 Hz and 5 kHz (the AGC and FST keys go
+  round), and switches PRE, ATT and ATU. Up to v0.3.7 AGC, PRE and ATT could not
   go on a knob, and there was no ATU or Step button.
 - At first VOL has Volume, RF gain, the filter edges and TX power, and the MFK
   Spectrum Zoom and DNF. Volume never leaves VOL.

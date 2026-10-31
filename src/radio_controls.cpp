@@ -244,12 +244,13 @@ void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {
             break;
         }
 
-        case CTRL_AGC: {        /* Off, Slow, Fast, Auto and round, a step a detent (main_screen_agc_next) */
+        case CTRL_AGC: {        /* Off, Slow, Fast, Auto, a step a detent; it stops at either end. The AGC key goes
+                                 * round, but a knob turned on past Auto landed on Off, the loudest */
             static const char *const names[] = {"Off", "Slow", "Fast", "Auto"};
 
             i = cfg_sm.cp_cur_agc.get();
             if (diff) {
-                cfg_sm.cp_cur_agc.set((i + (diff > 0 ? 1 : 3)) % 4);
+                cfg_sm.cp_cur_agc.set(LV_CLAMP(radio_agc_off, i + (diff > 0 ? 1 : -1), radio_agc_auto));
                 i = cfg_sm.cp_cur_agc.get();
             }
             snprintf(buf, size, "AGC: %s", i >= 0 && i < 4 ? names[i] : "?");
@@ -267,8 +268,12 @@ void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {
             break;
         }
 
-        case CTRL_STEP:         /* 10, 100, 500, 1000, 5000 Hz and round, as FST */
-            i = diff ? cfg_mode_change_freq_step(diff > 0) : cfg_sm.p_mode_freq_step.get();
+        case CTRL_STEP:         /* 10, 100, 500, 1000, 5000 Hz as FST, but stopping at either end: FST goes round,
+                                 * and a knob turned on past 5 kHz landed on 10 Hz */
+            i = cfg_sm.p_mode_freq_step.get();
+            if ((diff > 0 && i < 5000) || (diff < 0 && i > 10)) {
+                i = cfg_mode_change_freq_step(diff > 0);
+            }
             snprintf(buf, size, "Freq step: %i Hz", i);
             break;
 
