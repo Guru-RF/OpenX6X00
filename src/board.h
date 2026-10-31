@@ -68,7 +68,7 @@
 #ifdef BOARD_X6200
 #define BOARD_NAME          "X6200"
 #define BOARD_NAME_LOWER    "x6200"                 /* the default network name, what WSJT-X's protocol is told */
-#define BOARD_DEV_MFK_INNER "/dev/input/event4"     /* the inner ring of the MFK knob (not read yet) */
+#define BOARD_DEV_MFK_INNER "/dev/input/event4"     /* the inner ring of the MFK knob: what the MFK controls */
 #define BOARD_DEV_POWER     NULL                    /* the base reports the POWER key in its packets */
 #else
 #define BOARD_NAME          "X6100"

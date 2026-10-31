@@ -74,6 +74,29 @@ button on APP 3:3.
   nothing; on the main screen it still works as ESC. Held, it is still one
   press.
 
+Knobs. On the main screen the main knob tunes, and VOL and the MFK each turn
+one control of their own list. The two lines over the buttons say which
+control and its value (Settings > Display > INTERFACE > Knob info; with it
+off the value shows on the message line).
+- A press of the knob switches it between changing the value and choosing
+  the control: while it chooses, a turn goes to the next control on its list
+  (the name lit), and the next press changes that one again.
+- X6200: the MFK has an inner ring. The inner ring chooses the MFK's control,
+  the next one or the one before on its list, and the outer ring changes its
+  value, with no press. The X6100's MFK has no inner ring: it uses the press.
+- What is on each list is yours to choose. Hold a value button (TX power, RF
+  gain, Squelch, the filter edges, RIT, XIT, Spectrum Zoom, WF ref, Comp, IF
+  shift, NB, NR, DNF, VOX, the KEY and CW values...): each hold steps it from
+  no knob to VOL ("Added to VOL encoder"), then to the MFK ("Moved to MFK
+  encoder"), then off again ("Removed from MFK encoder"). A mark on the left
+  of the button shows which knob it is on, in another colour while that knob
+  turns it.
+- A press of a value button puts it on a knob at once: VOL for Volume,
+  Squelch, RF gain, TX power, Moni level and the filter, the MFK for the
+  others. A press of an on/off button (NB, NR, DNF, VOX...) switches it.
+- At first VOL has Volume, RF gain, the filter edges and TX power, and the MFK
+  Spectrum Zoom and DNF. Volume never leaves VOL.
+
 Long press. Each button group (GEN, APP, KEY, MSG, DFN, DFL) has a
 long-press action, and so has FST, the tuning step key: a press steps up,
 held it steps down until you give it another action (Frequency lock on/off,
