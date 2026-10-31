@@ -19,6 +19,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_olivia.c olivia.c olivia_app.c olivia_demod.c olivia_macro.c olivia_mod.c olivia_resamp.c
     olivia_rx.c olivia_tx.c
     dialog_jtty.c jtty.c jtty_rx.c jtty_tx.c
+    digi_textlog.c
     tx_player.c tx_level.c
     swr_guard.c tune_tx.c ext_tune.c
     base_guard.c

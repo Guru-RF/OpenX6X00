@@ -183,6 +183,10 @@ extern ParamInt   *cfg_tx_filter_high;       // p_tx_filter_high
 extern ParamInt   *cfg_cessb_on;             // p_cessb_on
 extern ParamFloat *cfg_cessb_power_up;       // p_cessb_power_up
 
+// Text log of the keyboard modes
+extern ParamInt   *cfg_textlog;              // p_textlog
+extern ParamInt   *cfg_textlog_mb;           // p_textlog_mb
+
 // --- BAND params ---
 extern ParamInt   *cfg_band_current_vfo;  // p_band_current_vfo
 extern ParamInt   *cfg_band_if_shift;     // p_band_if_shift

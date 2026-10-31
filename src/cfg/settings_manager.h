@@ -458,6 +458,12 @@ class SettingsManager {
     Parameter<int32_t> p_power_display{"power_display", 0, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
 
+    // Text log of the keyboard modes (digi_textlog.c, #55): on by default, and the most the folder keeps, MB
+    Parameter<int32_t> p_textlog{"textlog", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_textlog_mb{"textlog_mb", 10, 1, 100,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+
     // --- BAND params (`band_params` table) ---
     Parameter<int32_t> p_band_current_vfo{"vfo", (int32_t)RADIO_VFO_A, 0, 1,
         StorageType::BAND, pending_writes_, &band_params_};
