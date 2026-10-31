@@ -2099,9 +2099,13 @@ def textlog_files():
     files = []
     for name in names:
         path = os.path.join(settings.TEXTLOG_DIR, name)
-        if TEXTLOG_NAME.fullmatch(name) and os.path.isfile(path):
+        try:   # the GUI may delete the oldest day (the size limit) while the list is made
+            if not TEXTLOG_NAME.fullmatch(name) or not os.path.isfile(path):
+                continue
             n = os.stat(path).st_size
-            files.append({"name": name, "day": name[:10], "bytes": n, "size": fmt_size(n)})
+        except OSError:
+            continue
+        files.append({"name": name, "day": name[:10], "bytes": n, "size": fmt_size(n)})
     return sorted(files, key=lambda f: f["name"], reverse=True)
 
 

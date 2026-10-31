@@ -65,6 +65,22 @@ class Textlog(unittest.TestCase):
         self.assertEqual(r["files"][1]["bytes"], len(DAY1))
         self.assertEqual(r["total"], "1 kB")
 
+    def test_day_gone_meanwhile(self):
+        """The GUI deletes the oldest day (the size limit) while the list is made: after the look at what it is,
+        before its size is read"""
+        isfile, gone = os.path.isfile, os.path.join(settings.TEXTLOG_DIR, "2026-10-30.txt")
+
+        def isfile_then_gone(path):
+            there = isfile(path)
+            if path == gone and there:
+                os.remove(gone)
+            return there
+        self.addCleanup(setattr, os.path, "isfile", isfile)
+        os.path.isfile = isfile_then_gone
+        code, _, r = self.req("GET", "/api/textlog")
+        self.assertEqual(code, 200)   # before: 500, the file gone between the two looks
+        self.assertEqual([f["name"] for f in r["files"]], ["2026-10-31.txt"])
+
     def test_no_folder(self):
         shutil.rmtree(settings.TEXTLOG_DIR)
         code, _, r = self.req("GET", "/api/textlog")
