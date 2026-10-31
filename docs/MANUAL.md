@@ -1242,8 +1242,8 @@ radio transmits on (the other VFO in split), drawing the SWR as it goes.
 - The sweep stays where the radio transmits. Near the edge of HF (0.1 and
   55 MHz) or of a transverter's range the span moves inside it, with the VFO's
   line off the middle, and a range narrower than the span is swept whole.
-  Before, the radio refused the points outside, and the curve showed there
-  the SWR of the last frequency it could take.
+  Up to v0.3.7 the radio refused the points outside, and the curve showed
+  there the SWR of the last frequency it could take.
 - It starts only from receive. While the radio transmits or the tuner is
   tuning, Run says "SWR scan: not while transmitting or tuning" and nothing
   moves. On a frequency the radio cannot transmit on, it says "No TX on ...
@@ -1308,13 +1308,13 @@ What goes on the air:
 - At the TUNE power, 1.0 W by default, whatever PWR is set to, higher or
   lower; while it tunes the power never goes above it, PWR turned up
   meanwhile included. Where: Settings > TX Cal > EXTERNAL TUNER > TUNE power,
-  W: 0.1 W up to the radio's PWR top, 10 W on the X6100 and 8 W on the X6200
-  (it stopped at 5 W before, too little for a tuner that needs about 9 W,
-  #87). In a digital app too: the apps' 7 W cap is for their own
-  transmissions, not for the tune. The X6200 on battery stops at its 5 W as
-  always, a tune under way too once the radio has gone onto its battery
-  (unplugged, after the 5 s it waits for the supply to settle), and on a
-  transverter's band at its [TX power limit](#transverter-tx-power-limit).
+  W: 0.1 W up to the radio's PWR top, 10 W on the X6100 and 8 W on the X6200,
+  for a tuner that needs about 9 W to match (#87). In a digital app too:
+  the apps' 7 W cap is for their own transmissions, not for the tune. The
+  X6200 on battery stops at its 5 W as always, a tune under way too once the
+  radio has gone onto its battery (unplugged, after the 5 s it waits for the
+  supply to settle), and on a transverter's band at its
+  [TX power limit](#transverter-tx-power-limit).
 - Above 1 W the radio's own ATU goes off first, on both radios, so the tuner
   at the antenna matches alone. The screen says so ("TUNE 5.0 W, 15 s, ATU
   off"), and the ATU stays off after the tune: a press of the ATU key (or the
@@ -1340,6 +1340,8 @@ tunes, but only within the tune's own limits:
 - For the readings of the tune's power: up to twice it and 0.2 W (the base
   overshoots for a moment as it keys, the reading is in 0.1 W steps). A
   reading over that is protected as any transmission ("TX stopped: SWR 3.4").
+  From a TUNE power of about 5 W that is more than the radio gives, so the
+  protection then stands aside for the whole tune, up to its time limit.
 - Until its time limit, and a second after while it unkeys.
 - Everything else keeps the protection as set: PTT, the apps, CW, TCI.
 - The base keeps its own protection: the X6100's base cuts its power back
