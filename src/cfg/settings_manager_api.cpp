@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <iterator>
 
 // SettingsManager-level operations exposed to C. cfg_api_init lives in
 // cfg_api.cpp (it also fills the extern parameter pointers); these are the
@@ -28,6 +29,39 @@ bool cfg_is_rx_only_freq(int32_t freq) {
 
 bool cfg_is_tx_freq(int32_t freq) {
     return cfg_sm.is_tx_freq(freq);
+}
+
+bool cfg_tx_range(int32_t freq, int32_t *lo, int32_t *hi) {
+    struct Range {
+        bool    on;
+        int32_t from, to;
+    };
+    const Range r[] = {
+        {cfg_sm.p_transverter_0_shift.get() != 0, cfg_sm.p_transverter_0_from.get(), cfg_sm.p_transverter_0_to.get()},
+        {cfg_sm.p_transverter_1_shift.get() != 0, cfg_sm.p_transverter_1_from.get(), cfg_sm.p_transverter_1_to.get()},
+        {true, SettingsManager::HF_MIN_FREQ, SettingsManager::HF_MAX_FREQ},
+    };
+
+    for (size_t k = 0; k < std::size(r); k++) {
+        if (!r[k].on || freq < r[k].from || freq > r[k].to) {
+            continue;
+        }
+        *lo = r[k].from;
+        *hi = r[k].to;
+        for (size_t j = 0; j < k; j++) {    /* one before it covers part of it: there the radio goes another way */
+            if (!r[j].on) {
+                continue;
+            }
+            if (r[j].from > freq) {
+                *hi = std::min(*hi, r[j].from - 1);
+            }
+            if (r[j].to < freq) {
+                *lo = std::max(*lo, r[j].to + 1);
+            }
+        }
+        return true;
+    }
+    return false;
 }
 
 bool cfg_band_usable(void) {

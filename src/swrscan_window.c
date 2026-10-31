@@ -22,15 +22,17 @@
 #include <math.h>
 #include <stdio.h>
 
-#define POINTS      50
+#define POINTS      50      /* across a span under 1 MHz */
+#define POINTS_WIDE 100     /* from 1 MHz: one every 25 kHz at 2.5 MHz, so a narrow dip still shows (#107) */
 #define TOP_H       34      /* the frequencies above the grid */
 #define BOTTOM_H    10
 
 static lv_obj_t *plot;
-static float    swr[POINTS];        /* as measured */
-static float    smooth[POINTS];     /* five points averaged, two behind the scan */
+static float    swr[POINTS_WIDE];       /* as measured */
+static float    smooth[POINTS_WIDE];    /* five points averaged, two behind the scan */
+static uint16_t points = POINTS;        /* in this sweep */
 static uint16_t pos;
-static uint32_t f_center, f_low, f_high;
+static int32_t  f_center, f_low, f_high;
 static bool     scanning;
 static bool     lin_scale;          /* else log */
 static int32_t  span_hz;
@@ -58,13 +60,32 @@ static dialog_t dialog = { .construct_cb = open_cb, .destruct_cb = close_cb, .bt
 dialog_t *dialog_swrscan = &dialog;
 
 /* A flat 1.0 line and the scan back at the low edge of the span, around the frequency the radio transmits on
- * (the other VFO in split, a TX shift's) */
+ * (the other VFO in split, a TX shift's). The sweep stays where the radio transmits the same way (#107): a span past
+ * the edge of HF (0.1 or 55 MHz) or of a transverter's range moves inside it, and one wider than the range takes all
+ * of it. A point outside used to be refused by the radio, and the scan read the last frequency again */
 static void reset_scan() {
-    for (int i = 0; i < POINTS; i++) swr[i] = smooth[i] = 1.0f;
+    int32_t lo, hi;
+
+    points = span_hz >= 1000000 ? POINTS_WIDE : POINTS;
+    for (int i = 0; i < points; i++) swr[i] = smooth[i] = 1.0f;
     pos = 0;
     f_center = radio_tx_freq();
     f_low = f_center - span_hz / 2;
     f_high = f_center + span_hz / 2;
+    if (cfg_tx_range(f_center, &lo, &hi)) {
+        if (f_low < lo) {
+            f_high = LV_MIN(f_high + (lo - f_low), hi);
+            f_low = lo;
+        } else if (f_high > hi) {
+            f_low = LV_MAX(f_low - (f_high - hi), lo);
+            f_high = hi;
+        }
+    }
+}
+
+/* The plot's x of a frequency in the sweep */
+static lv_coord_t freq_x(int32_t f, lv_coord_t x0, lv_coord_t w) {
+    return x0 + (int64_t)(f - f_low) * w / (f_high - f_low);
 }
 
 /* SWR to the plot's y from its top: 1 at the bottom, 5 at the top in linear */
@@ -150,20 +171,31 @@ static void draw_cb(lv_event_t *e) {
         draw_text(ctx, &text, x0, p1.y, 0, s, false);
     }
 
-    /* Three frequencies at the quarters, the VFO one in the middle stronger */
-    uint32_t f = f_center - span_hz / 4;
+    /* Three frequencies at the quarters of the sweep, the VFO's in the middle stronger. A sweep moved inside the TX
+     * range (reset_scan) has the VFO elsewhere: its line is drawn there, without a number */
+    bool vfo_drawn = false;
 
-    for (int q = -1; q <= 1; q++, f += span_hz / 4) {
-        p1.x = p2.x = x0 + w / 2 + (w / 4) * q;
+    for (int q = 1; q <= 3; q++) {
+        int32_t f = f_low + (f_high - f_low) / 4 * q;
+        bool    vfo = f == f_center;
+
+        vfo_drawn |= vfo;
+        p1.x = p2.x = x0 + w * q / 4;
         p1.y = top + 4 + 24;
         p2.y = y0 + h;
-        line.color = q ? TC(line) : TC(vfo_line);
-        line.opa = q ? LV_OPA_60 : LV_OPA_COVER;
+        line.color = vfo ? TC(vfo_line) : TC(line);
+        line.opa = vfo ? LV_OPA_COVER : LV_OPA_60;
         lv_draw_line(ctx, &line, &p1, &p2);
 
-        text.color = q ? TC(text_dim) : TC(text);
+        text.color = vfo ? TC(text) : TC(text_dim);
         snprintf(s, sizeof(s), "%i.%03i.%03i", (int)(f / 1000000), (int)(f / 1000 % 1000), (int)(f % 1000));
         draw_text(ctx, &text, p1.x, 0, top + 4, s, true);
+    }
+    if (!vfo_drawn && f_center >= f_low && f_center <= f_high) {
+        p1.x = p2.x = freq_x(f_center, x0, w);
+        line.color = TC(vfo_line);
+        line.opa = LV_OPA_COVER;
+        lv_draw_line(ctx, &line, &p1, &p2);
     }
 
     /* The curve, each piece in the colour of its worse end */
@@ -172,13 +204,13 @@ static void draw_cb(lv_event_t *e) {
     line.round_start = 1;
     line.round_end = 1;
 
-    for (int i = 1; i < POINTS; i++) {
+    for (int i = 1; i < points; i++) {
         float v = LV_MAX(smooth[i - 1], smooth[i]);
 
         line.color = v <= 1.5f ? TC(ok) : v <= 3.0f ? TC(warn) : TC(err);
-        p1.x = x0 + (i - 1) * w / POINTS;
+        p1.x = x0 + (i - 1) * w / points;
         p1.y = y0 + swr_y(smooth[i - 1], h);
-        p2.x = x0 + i * w / POINTS;
+        p2.x = x0 + i * w / points;
         p2.y = y0 + swr_y(smooth[i], h);
         lv_draw_line(ctx, &line, &p1, &p2);
     }
@@ -186,17 +218,17 @@ static void draw_cb(lv_event_t *e) {
 
 /* One reading at the current point, then on to the next frequency */
 static void scan_step(float v) {
-    int mid = (POINTS + pos - 2) % POINTS;
+    int mid = (points + pos - 2) % points;
     float sum = 0.0f;
 
     swr[pos] = v;
     for (int i = mid - 2; i <= mid + 2; i++)
-        sum += swr[LV_CLAMP(0, i, POINTS - 1)];
+        sum += swr[LV_CLAMP(0, i, points - 1)];
     smooth[mid] = sum / 5.0f;
     event_send(plot, LV_EVENT_REFRESH, NULL);
 
-    pos = (pos + 1) % POINTS;
-    radio_set_tx_freq(f_low + (f_high - f_low) * pos / POINTS);
+    pos = (pos + 1) % points;
+    radio_set_tx_freq(f_low + (int64_t)(f_high - f_low) * pos / points);
 }
 
 static void freq_changed(Subject *subj, void *user_data) {
@@ -289,21 +321,24 @@ static void scale_cb(button_data_t *b) {
     param_i_set(cfg_swrscan_linear, !param_i_get(cfg_swrscan_linear));
 }
 
+/* The next span, up to 2500 kHz as the stock firmware has them (#107); one not in the list goes to the first */
 static void span_cb(button_data_t *b) {
-    static const int32_t spans[] = { 50000, 100000, 200000, 500000 };
-    int32_t cur;
+    static const int32_t spans[] = { 50000, 100000, 200000, 500000, 1000000, 1500000, 2000000, 2500000 };
+    const int            n = sizeof(spans) / sizeof(spans[0]);
+    int32_t              cur, next = spans[0];
 
     if (scanning) return;
     cur = param_i_get(cfg_swrscan_span);
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < n; i++) {
         if (spans[i] == cur) {
-            cur = spans[(i + 1) % 4];
+            next = spans[(i + 1) % n];
             break;
         }
     }
-    param_i_set(cfg_swrscan_span, cur);
+    param_i_set(cfg_swrscan_span, next);
 
-    reset_scan();   /* the span is still the old one here: the observer is delayed */
+    span_hz = next;     /* the observer is delayed: the sweep and its frequencies follow now */
+    reset_scan();
     event_send(plot, LV_EVENT_REFRESH, NULL);
 }
 

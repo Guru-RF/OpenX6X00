@@ -1230,7 +1230,18 @@ radio transmits on (the other VFO in split), drawing the SWR as it goes.
 
 - Run starts the sweep and the button turns into Stop. Stop, or closing the
   window, ends it and puts the VFO and the mode back.
-- Span: 50, 100, 200 or 500 kHz (not while scanning). Scale: Log or Linear.
+- Span: 50, 100, 200, 500, 1000, 1500, 2000 or 2500 kHz (not while scanning).
+  Scale: Log or Linear. A sweep takes 50 readings across the span, 100 from
+  1000 kHz up (one every 25 kHz at 2500 kHz), so a wide one takes twice as
+  long.
+- The carrier goes across the whole span, so a wide span sends it outside the
+  amateur band, as the stock firmware's sweep does (500 kHz is already wider
+  than most HF bands).
+- The sweep stays where the radio transmits. Near the edge of HF (0.1 and
+  55 MHz) or of a transverter's range the span moves inside it, with the VFO's
+  line off the middle, and a range narrower than the span is swept whole.
+  Before, the radio refused the points outside, and the curve showed there
+  the SWR of the last frequency it could take.
 - It starts only from receive. While the radio transmits or the tuner is
   tuning, Run says "SWR scan: not while transmitting or tuning" and nothing
   moves. On a frequency the radio cannot transmit on, it says "No TX on ...
