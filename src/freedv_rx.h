@@ -33,6 +33,7 @@ typedef struct {
     int      level_pct;      /* input peak of the last 100 ms, 0..100 (100 = full scale, clipping) */
     bool     audio_out;      /* the headphones are there and the speech goes to them */
     uint32_t eoo_count;      /* End-of-Over frames seen */
+    char     callsign[9];    /* the callsign the last End-of-Over carried (8 characters, trimmed), empty if none */
     uint32_t in_dropped;     /* input samples lost, the decoder was too slow */
     uint32_t speech_dropped; /* speech samples lost, the player was too slow */
     uint32_t underruns;      /* the stream ran dry in the middle of a talk burst (a gap in the speech) */

@@ -81,11 +81,16 @@ Asked 2026-10-27 (#37; #52 asked the same and was closed for it). FreeDV's RADE 
 with the FARGAN vocoder model from the Opus project) as a digital voice mode in APP, and FreeDV's older Codec 2
 modes (1600, 700D) with it. No date.
 
-- **Done (receive only)**: the RADE app in Modes (`src/dialog_freedv.c`, `src/freedv_rx.c`), built with
-  `tools/rade/build.sh` and `-DRADE_PREFIX=`; speech on Bluetooth headphones only. Run on a PC against
-  rade_c's FDV_offair.wav (`tools/freedv_test.sh`): real time on x86 with 44 ms of the 120 ms for decoding. **Not
-  yet run on a radio**: the ARMv7 cross build, the CPU on the A33, the speaker assumption below, and the level
-  from the base are open. TX (the encoder, the mic in Linux), Codec 2 and the speaker remain below.
+- **Done**: the RADE app in Modes (`src/dialog_freedv.c`, `src/freedv_rx.c`, `src/freedv_tx.c`), built with
+  `tools/rade/build.sh` and `-DRADE_PREFIX=`. Receive: speech on Bluetooth headphones only. Transmit: "record, then
+  send" (Rec from the hand mic with the encoding running, then Send through tx_player; the callsign in the
+  End-of-Over, shown by the receiver). Run on a PC against rade_c (`tools/freedv_test.sh`, `tools/freedv_tx_test.sh`):
+  real time on x86, decode 44 ms of the 120 ms per modem frame, encode a few ms; the over matches `rade_tx_wav` in
+  length and (correlation 0.97) waveform. **Not run on a radio**: the ARMv7 cross build, the CPU on the A33, the
+  speaker assumption below, the level from the base, tx_player's level control with a RADE signal, and the hand
+  mic into Linux with the RADE window are open. **Live speech** (no recording step) needs the answer to whether
+  Linux hears the mic while the base transmits from the modem input (CESSB section); Codec 2 and the speaker
+  remain below.
 - **The audio path is there**: RADE is a modem in an SSB passband, and the digital apps (FT8, Winlink) already take
   the receiver's audio into Linux and transmit audio from Linux (`radio_set_modem()`). What is new: the decoded
   voice on the speaker while receiving, and the mic recorded in Linux while transmitting (`AUDIO_PLAY_VOICE_REC`),

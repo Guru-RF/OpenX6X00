@@ -169,8 +169,26 @@ static void *decode_thread(void *arg)
             int pct = peak / 10;
             rx.st.level_pct = pct > 100 ? 100 : pct;
         }
-        if (has_eoo)
+        if (has_eoo) {
             rx.st.eoo_count++;
+            /* 8 characters of 7 bits, the soft bit above 0 is a 1 (rade_v1_text_test.c) */
+            if (eoo && n_eoo >= 8 * 7) {
+                char call[9];
+                int  len = 8;
+
+                for (int i = 0; i < 8; i++) {
+                    unsigned c = 0;
+
+                    for (int b = 0; b < 7; b++)
+                        c |= (unsigned)(eoo[i * 7 + b] > 0.0f) << (6 - b);
+                    call[i] = (c >= 32 && c < 127) ? (char)c : ' ';
+                }
+                while (len > 0 && call[len - 1] == ' ')
+                    len--;
+                memcpy(rx.st.callsign, call, (size_t)len);
+                rx.st.callsign[len] = '\0';
+            }
+        }
         pthread_mutex_unlock(&rx.lock);
 
         if (n_out > 0) {
