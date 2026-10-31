@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# Field Ops (POTA/SOTA/WWBOTA/HOTA/WWFF/TOTA/WCA/MOTA/LH) helper for the GUI and the web server.
+# Field Ops (POTA/SOTA/WWBOTA/HOTA/WWFF/TOTA/WCA/MOTA/LH/LLOTA) helper for the GUI and the web server.
 # Every command prints one line on stdout: "ok ..." or "error <reason>", exit 0/1.
 #
 #   x6100-field update [--skip HF]          the lists -> <dir>/refs.tsv,
-#                                           "ok <parks> <summits> <bunkers> <hota> <wwff> <towers> <castles> <mills> <lights>";
+#                                           "ok <parks> <summits> <bunkers> <hota> <wwff> <towers> <castles> <mills> <lights>
+#                                           <lakes>";
 #                                           --skip: lists not downloaded, kept as they are
 #   x6100-field pota-spot --call C --freq-khz F --ref R --mode M [--comments T]
 #   x6100-field wwbota-spot --call C --freq-khz F --ref R --mode M [--id ID] [--qrt]   "ok <spot id>"
@@ -12,8 +13,8 @@
 #   x6100-field qrz-upload FILE.adi         "ok <sent> <dup>"
 #
 # <dir> is /mnt/field (env X6100_FIELD_DIR). refs.tsv, tab separated, no header:
-#   P ref name lat lon "" ""     S ref name lat lon alt_m points     B/H/F/T/C/M/L ref name lat lon "" ""
-#   T, C, M and L with lat and lon empty when their list has no position for one: found by its reference only;
+#   P ref name lat lon "" ""     S ref name lat lon alt_m points     B/H/F/T/C/M/L/K ref name lat lon "" ""
+#   T, C, M, L and K with lat and lon empty when their list has no position for one: found by its reference only;
 #   L's reference has a space (BEL 002), as the lighthouses' ARLHS numbers are written
 # refs.etag keeps the lists' ETags: an unchanged list is not downloaded again.
 # While updating, .update.progress has one line for the GUI: "<list n> <lists> <bytes> <total> <retry> <name>"
@@ -48,6 +49,8 @@ TOTA_CSV = "https://www.rozhledny.eu/servis/generate_csv.php?ref=ALL&filter=all"
 WCA_CSV = "https://docs.google.com/spreadsheets/d/16-GsekTXYlwdZy9Ho5vaZjKAON4WtCdzRiTSMMDtUJg/export?format=csv&gid=0"
 MOTA_CSV = "https://www.gma.rocks/download/mills.csv"   # data: GMA (gma.rocks), Mills On The Air
 LH_CSV = "https://www.gma.rocks/download/lighthouse.csv"   # data: GMA (gma.rocks), the lighthouses with their ARLHS numbers
+# data: LLOTA (llota.app), the lakes and lagoons, the list behind its reference map (JSON, ~6.4 MB)
+LLOTA_JSON = "https://llota.app/api/public/references"
 WWBOTA_API = os.environ.get("X6100_WWBOTA_API", "https://api.wwbota.org")
 HOTA_API = os.environ.get("X6100_HOTA_API", "https://cqhota.app/api/v1")
 POTA_API = os.environ.get("X6100_POTA_API", "https://api.pota.app")
@@ -58,7 +61,7 @@ LIST_TIMEOUT = 60   # per read: the radio's WiFi can stall for a while
 RETRIES = 5
 # The whole run, after which the helper gives up with "error timed out": the GUI runs one job at a
 # time and would wait forever for a stuck one (a DNS lookup or a connect that never returns)
-RUN_LIMIT = {"update": 2700}   # eight lists, ~85 MB when none is unchanged (the web server waits 2760 s)
+RUN_LIMIT = {"update": 2700}   # ten lists, ~93 MB when none is unchanged (the web server waits 2760 s)
 RUN_LIMIT_DEFAULT = 600
 user_agent = "OpenX6X00/unknown"
 # wwbota.org and cqhota.app: the firmware version (the GUI sets X6100_FW) and a contact
@@ -153,6 +156,7 @@ TOTA_REF = re.compile(r"[A-Z0-9]{2,4}R-\d{4}")       # OKR-0150, DLR-0163, 9MR-0
 WCA_REF = re.compile(r"[A-Z0-9]{1,3}-\d{5}")          # DL-01156, ON-00001, I-14619, 3D2-00001
 MOTA_REF = re.compile(r"X\d{5}")                       # X42018
 LH_REF = re.compile(r"([A-Z]{3})[ -]?(\d{1,4})([A-Z]?)")    # BEL 002, BEL-002, USA 1286, AUS 079H: written "BEL 002"
+LLOTA_REF = re.compile(r"LL[A-Z]{2}-\d{4,5}")         # LLPL-0001, LLAR-0393, LLIE-10001
 JUNK = {"test", "bitte loeschen", "test-m\u00fchle"}    # test rows in the published lists
 
 
@@ -294,8 +298,46 @@ def write_mills(stream, out):
     return n
 
 
+JSON_TOKEN = re.compile(rb'"(?:[^"\\]|\\.)*"|[{}]', re.S)   # a string (a brace in it is text) or a brace
+
+
+def json_objects(data):
+    """The objects of a JSON list (bytes), one at a time, each to be decoded on its own: the whole of LLOTA's
+    6.4 MB as Python objects takes some 60 MB (the lakes' descriptions), one object a few kB"""
+    depth = start = 0
+    for m in JSON_TOKEN.finditer(data):
+        if m[0] == b"{":
+            if not depth:
+                start = m.start()
+            depth += 1
+        elif m[0] == b"}" and depth:
+            depth -= 1
+            if not depth:
+                yield data[start:m.end()]
+
+
+def write_lakes(stream, out):
+    """LLOTA: llota.app's references, a JSON list of {"reference_code", "name", "latitude", "longitude", ...}.
+    Its test reference (LLCL-TEST) is left out; one written in lower case (llro-0156) is taken in capitals"""
+    n = 0
+    seen = set()
+    for text in json_objects(stream.read()):
+        try:
+            row = json.loads(text)
+            ref = clean(str(row.get("reference_code") or "")).upper()
+            if not LLOTA_REF.fullmatch(ref) or ref in seen:
+                continue
+            name = " ".join(str(row.get("name") or "").split())   # "Jezioro \tPowidzkie"
+            out.write(f"K\t{ref}\t{name}\t{position_or_none(row.get('latitude'), row.get('longitude'))}\t\t\n")
+        except (TypeError, ValueError, AttributeError):   # a broken object (ValueError: its JSON, its UTF-8)
+            continue
+        seen.add(ref)
+        n += 1
+    return n
+
+
 PROGS = {"P": "POTA", "S": "SOTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA",
-         "L": "LH"}
+         "L": "LH", "K": "LLOTA"}
 # The answer's counts come in this order: new lists go at the end
 LISTS = (("P", "parks", lambda: POTA_CSV, write_parks, False),
          ("S", "summits", lambda: SOTA_CSV, lambda s, o: write_summits(s, o, date.today()), False),
@@ -307,7 +349,8 @@ LISTS = (("P", "parks", lambda: POTA_CSV, write_parks, False),
          ("T", "towers", lambda: TOTA_CSV, write_towers, True),
          ("C", "castles", lambda: WCA_CSV, write_castles, True),
          ("M", "mills", lambda: MOTA_CSV, write_mills, True),
-         ("L", "lights", lambda: LH_CSV, write_lighthouses, True))
+         ("L", "lights", lambda: LH_CSV, write_lighthouses, True),
+         ("K", "lakes", lambda: LLOTA_JSON, write_lakes, True))
 
 
 def keep_old(path, kind, out):

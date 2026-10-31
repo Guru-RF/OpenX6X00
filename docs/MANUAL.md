@@ -2339,8 +2339,8 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 | **Activation** | **Bands** |
 | ![Activation](screenshots/field_activation.png) | ![Band overview](screenshots/field_bands.png) |
 
-Home: a row of twelve tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
-TOTA, WCA, MOTA, LH, Tiles and Bands. Six and a half fit on the screen (five and a half
+Home: a row of thirteen tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
+TOTA, WCA, MOTA, LH, Tiles, LLOTA and Bands. Six and a half fit on the screen (five and a half
 with VISION): the row scrolls along as the MFK moves, and Bands is one MFK
 step left of LOG. A press opens. On the PC a drag scrolls the row and a click
 opens a tile.
@@ -2357,12 +2357,12 @@ SOTA / POTA, before the activation:
 - Update list (page 2) downloads the reference lists of all the programmes; then it
   works offline. Also from the web configurator's Field Ops page. The radio
   says "Downloading the reference lists: up to half an hour on a slow WiFi",
-  then each list with its progress, "Updating POTA (1/9): x.x / y.y MB" up
-  to LH (9/9),
+  then each list with its progress, "Updating POTA (1/10): x.x / y.y MB" up
+  to LLOTA (10/10),
   and "reading it..." once it is downloaded. A download that stops goes on
   from where it stopped, up to 5 tries ("retry 2 of 5"). At the end:
   "Lists: N POTA, N SOTA, N WWBOTA, N HOTA, N WWFF, N TOTA, N WCA, N MOTA,
-  N LH". A list
+  N LH, N LLOTA". A list
   that could not be fetched keeps its previous entries and is named after:
   "Not updated, kept as it was: <list>: <reason>". A run that hangs (a
   connection that never answers) ends after 45 minutes with "timed out".
@@ -2580,6 +2580,26 @@ activation per tile and UTC day.
 - The log goes to tilesontheair.com (the activation form; the ADIF is
   required from 30 QSOs). Download it from the web configurator's Field Ops
   page.
+
+LLOTA (Lakes and Lagoons On The Air, llota.app; Lagos y Lagunas On The Air)
+has its own tile too, a light blue lake with reeds.
+
+- Update list downloads llota.app's list of lakes and lagoons with the
+  others (some 9,200, each with its position); the list heading says LAKE.
+  A lake is `LLPL-0001`: LL, the country's two letters and the number
+  (Ireland's have five digits, `LLIE-10001`).
+- A valid activation: 10 QSOs, within 200 m of the water's edge. The
+  activation screen counts `QSOs / 10`.
+- The log has `MY_SIG LLOTA` and `MY_SIG_INFO LLPL-0001`, where llota.app
+  finds the lake when you upload it. A QSO with another lake (its
+  reference typed after the call) logs theirs as `SIG LLOTA` and
+  `SIG_INFO`, and the log shows LL2LL.
+- Spot posts `LLOTA LLPL-0001 SSB` on the DX cluster. Nothing is spotted by
+  itself. llota.app takes spots only from an activator logged in on the
+  site, so the radio cannot post there: spot yourself on llota.app as well
+  if you want its hunters to see you there.
+- The log goes to llota.app (your profile, ADIF upload, within 30 days of
+  the activation). Download it from the web configurator's Field Ops page.
 
 ### Bands
 

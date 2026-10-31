@@ -3,8 +3,8 @@
  *
  *  Xiegu X6100 LVGL GUI - Field Ops
  *
- *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Tiles, Bands), a
- *  program (the reference where you are and the nearest ones; during an activation the activation screen:
+ *  Screens: home (a scrolling row of tiles: Log, SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH, Tiles, LLOTA,
+ *  Bands), a program (the reference where you are and the nearest ones; during an activation the activation screen:
  *  frequency, S-meter, CQ, QSO count and time), Bands (activity and who hears you, from RBN) and
  *  the activation log. The dialog covers the whole screen above the buttons; the main
  *  knob still tunes. The network jobs (reference list update, POTA/WWBOTA/HOTA/WWFF spot, QRZ upload) run
@@ -99,7 +99,7 @@ static struct {
     screen_t    screen;
     int         home_sel;
     char        prog;       /* 'S' SOTA, 'P' POTA, 'B' WWBOTA, 'H' HOTA, 'F' WWFF, 'T' TOTA, 'C' WCA, 'M' MOTA, 'L' LH,
-                             * 'G' Tiles */
+                             * 'G' Tiles, 'K' LLOTA */
     bool        have_ref;
     field_ref_t ref;
     bool        active;
@@ -192,8 +192,11 @@ static const prog_t progs[] = {
     /* Tiles on the Air: the 6-character locator square you are in (about 5 x 7 km), from the position, no list.
      * One QSO activates it, once per tile and UTC day. Its own spots need an account key: the DX clusters only */
     {'G', "TILES",  "tiles",  "Tiles\nOn The Air",   "TILE",   1,  false, false},
+    /* Lakes and Lagoons On The Air (llota.app): 10 QSOs, within 200 m of the water. Spotting on llota.app needs the
+     * activator's login there: the DX clusters, "LLOTA LLPL-0001 SSB" */
+    {'K', "LLOTA",  "llota",  "Lakes and\nLagoons",  "LAKE",   10, false, false},
 };
-#define PROG_LETTERS "SPBHFTCMLG"
+#define PROG_LETTERS "SPBHFTCMLGK"
 
 /* The programme of a letter; SOTA for one that is none (a damaged file): DX cluster spots only, never a site's */
 static const prog_t *prog_of(char p) {
@@ -217,6 +220,7 @@ static lv_color_t prog_color(char p) {
         case 'M': return lv_color_mix(TC(ok), TC(vfo), LV_OPA_50);     /* teal */
         case 'L': return TC(err);                                       /* the red of the bands */
         case 'G': return lv_color_mix(TC(ok), TC(warn), LV_OPA_50);     /* lime */
+        case 'K': return lv_color_mix(TC(vfo), TC(text), LV_OPA_60);    /* water, lighter than WWFF's blue */
         default: return TC(text);
     }
 }
@@ -229,7 +233,7 @@ static const struct {
 } tiles[] = {
     {SCR_LOG, 0, "LOG", "log", "Activation\nlog"},
     {SCR_PROG, 'S'}, {SCR_PROG, 'P'}, {SCR_PROG, 'B'}, {SCR_PROG, 'H'}, {SCR_PROG, 'F'},
-    {SCR_PROG, 'T'}, {SCR_PROG, 'C'}, {SCR_PROG, 'M'}, {SCR_PROG, 'L'}, {SCR_PROG, 'G'},
+    {SCR_PROG, 'T'}, {SCR_PROG, 'C'}, {SCR_PROG, 'M'}, {SCR_PROG, 'L'}, {SCR_PROG, 'G'}, {SCR_PROG, 'K'},
     {SCR_BANDS, 0, "BANDS", "bands", "Activity\nRBN, beacon"},
 };
 #define HOME_TILES ((int)(sizeof(tiles) / sizeof(tiles[0])))
@@ -1432,7 +1436,7 @@ static void build_bands(void) {
 /* Logbook */
 
 static void build_log(void) {
-    static const lv_coord_t widths[] = {52, 90, 200, 80, 80, 140};
+    static const lv_coord_t widths[] = {52, 90, 180, 80, 100, 140};   /* MODE: room for "SSB LL2LL" */
     char                    row[120], t[80];   /* room for the reference and the red TEST */
     struct tm               tm;
 
@@ -1736,7 +1740,8 @@ static void spot_to(bool cluster) {
         /* On the DX cluster only. SOTA: SOTAwatch's API needs a client approved by SOTA, APRS2SOTA a
          * registration (RBNHole still spots a CW CQ after an alert on SOTAwatch). TOTA: its cluster takes
          * spots from its own app's key only, and relays them to the DX cluster as "TOTA <ref> <mode>"; WCA
-         * ("WCA <ref>", as its groups ask) and MOTA have no spot API of their own */
+         * ("WCA <ref>", as its groups ask) and MOTA have no spot API of their own; llota.app takes spots from
+         * a logged-in activator only (its activators spot the DX cluster as well, by hand) */
         char        comment[48];
         const char *p = prog_name_of(st.ref.type);
         snprintf(comment, sizeof(comment), "%s %s %s", prog_of(st.ref.type)->spot ? prog_of(st.ref.type)->spot : p,
@@ -2169,13 +2174,14 @@ static void update_done(const char *line) {
     }
     update_text[0] = 0;
     if (!strncmp(line, "ok", 2)) {
-        int         p = 0, s = 0, b = 0, h = 0, w = 0, t = 0, c = 0, m = 0, l = 0;
+        int         p = 0, s = 0, b = 0, h = 0, w = 0, t = 0, c = 0, m = 0, l = 0, k = 0;
         const char *partial = strstr(line, " partial ");
 
-        /* x6100-field's LISTS order; named by programme: the message holds 127 characters */
-        sscanf(line, "ok %d %d %d %d %d %d %d %d %d", &p, &s, &b, &h, &w, &t, &c, &m, &l);
-        msg_update_text_fmt("Lists: %d POTA, %d SOTA, %d WWBOTA, %d HOTA, %d WWFF, %d TOTA, %d WCA, %d MOTA, %d LH",
-                            p, s, b, h, w, t, c, m, l);
+        /* x6100-field's LISTS order; named by programme: the message holds 127 characters (some 120 with six
+         * digits of summits) */
+        sscanf(line, "ok %d %d %d %d %d %d %d %d %d %d", &p, &s, &b, &h, &w, &t, &c, &m, &l, &k);
+        msg_update_text_fmt("Lists: %d POTA, %d SOTA, %d WWBOTA, %d HOTA, %d WWFF, %d TOTA, %d WCA, %d MOTA, %d LH, "
+                            "%d LLOTA", p, s, b, h, w, t, c, m, l, k);
         if (partial)    /* a list that could not be fetched kept its previous entries */
             msg_schedule_text_ms(6000, "Not updated, kept as it was: %s", partial + 9);
         near_lookup(true);

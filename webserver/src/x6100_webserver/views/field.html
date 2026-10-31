@@ -1,6 +1,6 @@
 % rebase('base.html', title='Field')
 <h2><svg class="i"><use href="#i-mountain"/></svg>Field Ops</h2>
-<p class="sub">POTA, SOTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH (lighthouses) and Tiles portable operation: reference lists for the radio, QRZ Logbook upload, HOTA and WWFF spots, activation logs.</p>
+<p class="sub">POTA, SOTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, LH (lighthouses), Tiles and LLOTA (lakes and lagoons) portable operation: reference lists for the radio, QRZ Logbook upload, HOTA and WWFF spots, activation logs.</p>
 
 <form class="dp-card" id="qrz">
   <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>QRZ Logbook<span class="eff">Takes effect: at the next upload</span></h3><p>Up to three profiles, a callsign with its Logbook API key (QRZ.com, Logbook, Settings): the active one takes the uploads. The radio's log page can switch the active profile too. Uploading needs a QRZ.com Logbook API key, which QRZ.com only gives with a paid QRZ.com subscription (XML level or higher).</p></div></div>
@@ -98,7 +98,7 @@ var render = function(data) {
   $("#wkey-state").text(data.wwff_key ? "set (hidden)" : "not set");
   $(".kremove[data-name=hota]").prop("disabled", !data.hota_key);
   $(".kremove[data-name=wwff]").prop("disabled", !data.wwff_key);
-  $("#refs").text(data.refs ? `${data.refs.parks} parks, ${data.refs.summits} summits, ${data.refs.bunkers} bunkers, ${data.refs.hota} HOTA, ${data.refs.wwff} WWFF, ${data.refs.towers} towers, ${data.refs.castles} castles, ${data.refs.mills} mills, ${data.refs.lights} lighthouses · updated ${data.refs.date} · ${data.refs.size}` : "No list yet: press Update (needs internet on the radio).");
+  $("#refs").text(data.refs ? `${data.refs.parks} parks, ${data.refs.summits} summits, ${data.refs.bunkers} bunkers, ${data.refs.hota} HOTA, ${data.refs.wwff} WWFF, ${data.refs.towers} towers, ${data.refs.castles} castles, ${data.refs.mills} mills, ${data.refs.lights} lighthouses, ${data.refs.lakes} lakes · updated ${data.refs.date} · ${data.refs.size}` : "No list yet: press Update (needs internet on the radio).");
   $("#update").prop("disabled", data.update.running);
   if (data.update.running) {
     showStatus("#ustatus", data.update.progress ? "Downloading " + data.update.progress : "Downloading…");

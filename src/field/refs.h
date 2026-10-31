@@ -2,9 +2,9 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
  *  Xiegu X6100 LVGL GUI - Field Ops: parks (POTA), summits (SOTA), bunkers (WWBOTA), HOTA sites, WWFF areas,
- *  towers (TOTA), castles (WCA) and mills (MOTA) near a position, from the list x6100-field update writes (one
- *  reference per line, tab separated: type P/S/B/H/F/T/C/M, ref, name, lat, lon, alt m, points; lat and lon
- *  empty for a castle the list has no position for).
+ *  towers (TOTA), castles (WCA), mills (MOTA), lighthouses (LH) and lakes (LLOTA) near a position, from the list
+ *  x6100-field update writes (one reference per line, tab separated: type P/S/B/H/F/T/C/M/L/K, ref, name, lat, lon,
+ *  alt m, points; lat and lon empty for a castle the list has no position for).
  */
 
 #pragma once
@@ -17,7 +17,7 @@ extern "C" {
 
 typedef struct {
     char  type;         /* 'P' park, 'S' summit, 'B' bunker, 'H' HOTA site, 'F' WWFF area, 'T' tower, 'C' castle, 'M' mill,
-                         * 'L' lighthouse; 'G' a Tiles tile, worked out from the position (no list) */
+                         * 'L' lighthouse, 'K' lake (LLOTA); 'G' a Tiles tile, worked out from the position (no list) */
     char  ref[16];
     char  name[48];
     double lat, lon;    /* NAN when the list has no position for it */

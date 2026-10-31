@@ -1313,7 +1313,7 @@ def set_tci():
 
 field_lock = threading.Lock()
 field_update = {"running": False, "result": ""}
-field_refs_counts = (None, {})   # (mtime, size), {"P": parks, "S": summits, "B": bunkers, "H": HOTA, "F": WWFF, "T": towers, "C": castles, "M": mills, "L": lights}
+field_refs_counts = (None, {})   # (mtime, size), {"P": parks, "S": summits, "B": bunkers, "H": HOTA, "F": WWFF, "T": towers, "C": castles, "M": mills, "L": lights, "K": lakes}
 
 
 def field_path(*names):
@@ -1397,7 +1397,7 @@ def field_refs():
     return {"date": time.strftime("%Y-%m-%d %H:%M", time.localtime(st.st_mtime)), "size": fmt_size(st.st_size),
             "parks": c.get(b"P", 0), "summits": c.get(b"S", 0), "bunkers": c.get(b"B", 0), "hota": c.get(b"H", 0),
             "wwff": c.get(b"F", 0), "towers": c.get(b"T", 0), "castles": c.get(b"C", 0), "mills": c.get(b"M", 0),
-            "lights": c.get(b"L", 0)}
+            "lights": c.get(b"L", 0), "lakes": c.get(b"K", 0)}
 
 
 def field_logs():
@@ -1771,14 +1771,14 @@ SOTA_REF = r'[A-Z0-9]{1,4}/[A-Z]{2}-[0-9]{3}'     # I/LO-123 ([0-9]: \d takes an
 POTA_REF = r'[A-Z0-9]{1,4}-[0-9]{4,5}'            # IT-1234
 # The ADIF SIG of each programme but SOTA (SOTA_REF), by the letter ref_prog gives
 REF_SIG = {"P": "POTA", "B": "WWBOTA", "H": "HOTA", "F": "WWFF", "T": "TOTA", "C": "WCA", "M": "MOTA", "L": "ARLHS",
-           "G": "TILES"}
+           "G": "TILES", "K": "LLOTA"}
 TILE = r'[A-R]{2}[0-9]{2}[A-X]{2}'                # a Tiles tile, JO20ab (the references come here in capitals)
 
 
 def ref_prog(ref):
     """The programme of a reference by its shape, as the radio tells it (src/field/flog.c field_ref_prog): S SOTA,
-    P POTA, B WWBOTA, H HOTA, F WWFF, T TOTA, C WCA, M MOTA, L a lighthouse (BEL 002), G a Tiles tile (JO20ab); ""
-    when it is none of them"""
+    P POTA, B WWBOTA, H HOTA, F WWFF, T TOTA, C WCA, M MOTA, L a lighthouse (BEL 002), G a Tiles tile (JO20ab),
+    K an LLOTA lake (LLPL-0001); "" when it is none of them"""
     if re.fullmatch(r'X[0-9]{5}', ref):                                # X42018
         return "M"
     if re.fullmatch(TILE, ref.upper()):                                # JO20ab
@@ -1796,6 +1796,8 @@ def ref_prog(ref):
         return "H"
     if len(pre) >= 3 and pre.endswith("FF"):                           # DLFF-0123
         return "F"
+    if re.fullmatch(r'LL[A-Z]{2}-[0-9]{4,5}', ref):                    # LLPL-0001, before the towers (LLAR-0001)
+        return "K"
     if 3 <= len(pre) <= 5 and pre.endswith("R") and re.fullmatch(r'[0-9]{4}', num):  # OKR-0150
         return "T"
     if 1 <= len(pre) <= 3 and re.fullmatch(r'[0-9]{5}', num) and (num[0] == "0" or pre == "I"):   # DL-01156

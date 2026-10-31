@@ -5,7 +5,7 @@
 Open firmware for the **Xiegu X6100** and **X6200**: a complete microSD image
 with every digital mode decoded on the radio itself, and sent where the mode
 transmits; the DX cluster on the waterfall; portable activations (SOTA, POTA,
-WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, lighthouses, Tiles) with big outdoor tiles;
+WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, lighthouses, Tiles, LLOTA) with big outdoor tiles;
 themes; Bluetooth headphones and CAT; the radio worked from a browser, as a
 panel of its own or with its own screen live; a web configurator; an update
 from inside the radio; and a **TCI server** so the
@@ -143,7 +143,7 @@ The patched X6100 base comes with its own instructions.
 | **Digital modes** | FT8, FT4 and FT2 (CQ, reply, auto sequence, Hound, POTA tag, ADIF log), JS8 (JS8Call compatible, all four speeds at once, inbox, relays, heartbeats, APRS), WSPR (decode and beacon, WSPRnet upload), PSK31, PSK63, Olivia, JTTY, RTTY, SSTV (receive with VIS, transmit with templates, denoise), WeFax, and NavTex with DSC (receive only). FT8, FT4, FT2, JS8, PSK, Olivia and JTTY decodes go to PSK Reporter (on by default), and the FT8 app sends WSJT-X UDP for GridTracker and loggers. No PC, no sound card cable: APP > Modes. |
 | **CW** | A decoder that copies down to about 0 dB SNR with Parse splitting run-together words, CW as you type (a line on the main screen from a USB or Bluetooth keyboard, and the [CW Keyboard](docs/MANUAL.md#cw-keyboard) app, APP > CW Keyboard, with one or with the on-screen keyboard) with a send queue and Live mode that keys each letter as it is typed, messages with `{CALL}` and `{HIS}`, USB and Bluetooth paddles, a CW trainer. |
 | **DX Cluster** | Spots on the waterfall, in a column beside it and in a full app that follows the VFO; filters by mode, band, activity (POTA, SOTA, WWBOTA, HOTA) and the spotter's country (only the spots heard in PA and ON, say), alerts on calls and prefixes, spot snap when turning slowly; fifteen public servers built in, DXFUN by default. One login, a Link switch, and a login of its own if you set one (your call with `-2`, on the web Cluster page) so a logger can use the call at the same time. |
-| **Field Ops** | A second interface for SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA and lighthouse (LH, ARLHS) activations with big tiles for gloves: the summit or park found from the GPS or the locator, the references of the whole world offline after one Update list with internet, CQ, a log straight to ADIF with the references, self-spots to pota.app, wwbota.org, cqhota.app and the WWFF Spotline (the last two with your own key) and to the DX cluster (the only spot for SOTA, TOTA, WCA, MOTA and LH), QRZ Logbook upload. Tiles on the Air: the 6-character locator square you are in, from the GPS, with the eight around it. |
+| **Field Ops** | A second interface for SOTA, POTA, WWBOTA, HOTA, WWFF, TOTA, WCA, MOTA, lighthouse (LH, ARLHS) and LLOTA (lakes and lagoons) activations with big tiles for gloves: the summit or park found from the GPS or the locator, the references of the whole world offline after one Update list with internet, CQ, a log straight to ADIF with the references, self-spots to pota.app, wwbota.org, cqhota.app and the WWFF Spotline (the last two with your own key) and to the DX cluster (the only spot for SOTA, TOTA, WCA, MOTA, LH and LLOTA), QRZ Logbook upload. Tiles on the Air: the 6-character locator square you are in, from the GPS, with the eight around it. |
 | **Wavelog** | Every QSO the radio logs, in every mode, goes to your own [Wavelog](https://github.com/wavelog/wavelog) a few seconds later: a queue on the SD card while there is no network, the station profile chosen by the radio's callsign (DF8MH, DF8MH/P), the result on the display. |
 | **Winlink** | Winlink email over HF from the radio alone, no computer and no internet: [Pat](https://getpat.io) is the mail program, its mailbox a web page on a phone or a laptop, and ARDOP the modem, through the radio's own audio, or Mercury (experimental: faster, with the few stations that run it). When Pat calls a gateway the radio tunes there in USB-D and keys itself. Turned on in the web configurator, Operating > Winlink, with your callsign, locator and Winlink password; the page shows the radio as Winlink will use it and how each connection went, with what to do next ([manual](docs/MANUAL.md#winlink)). |
 | **Bands** | A live picture of 160 to 6 m from the cluster and the Reverse Beacon Network, and a test beacon that shows who hears you from your own antenna. |
@@ -342,7 +342,7 @@ Added:
   place of the Link's;
 - a **signed update from GitHub Releases**, with rollback and the card-image
   notice, in place of the x6100-link.it channel;
-- the TOTA, WCA, MOTA, lighthouse and Tiles programmes in Field Ops, and the
+- the TOTA, WCA, MOTA, lighthouse, Tiles and LLOTA programmes in Field Ops, and the
   network name (mDNS);
 - the RF.Guru default theme and the OpenX6X00 boot logo;
 - a local configurator socket (`/tmp/x6100_cfg.sock`) for the web pages that
@@ -488,5 +488,6 @@ pixel font, OFL-1.1, src/fonts/LICENSE-Terminus-OFL-1.1.txt). The skimmer spots
 come from the Reverse Beacon Network and the broadcast schedule from the EiBi
 list by Eike Bierwirth. The Field Ops reference lists come from POTA, SOTA,
 WWBOTA, cqhota.app, WWFF, TOTA (OK2IH, wwtota.com), the WCA castle list as
-ON4VT keeps it, and GMA (gma.rocks) for the mills and the lighthouses.
+ON4VT keeps it, GMA (gma.rocks) for the mills and the lighthouses, and LLOTA
+(llota.app) for the lakes and lagoons.
 OpenX6X00 is maintained by RF.Guru (Joeri Van Dooren ON6URE).

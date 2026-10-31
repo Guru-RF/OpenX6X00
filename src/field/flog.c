@@ -400,6 +400,10 @@ char field_ref_prog(const char *ref) {
         return 'H';
     if (pre >= 3 && dash[-1] == 'F' && dash[-2] == 'F')                   /* DLFF-0123 */
         return 'F';
+    /* LLPL-0001, LLIE-10001: LL and two letters, which no POTA prefix has; before the towers (LLAR-0001 ends in R) */
+    if (pre == 4 && ref[0] == 'L' && ref[1] == 'L' && ref[2] >= 'A' && ref[2] <= 'Z' && ref[3] >= 'A' && ref[3] <= 'Z'
+        && (digits_end(dash + 1, 4) || digits_end(dash + 1, 5)))
+        return 'K';
     /* OKR-0150, 9MR-0101, K1R-0029: 2 to 4 before the R, which no POTA prefix has (KR-1308 is a park) */
     if (pre >= 3 && pre <= 5 && dash[-1] == 'R' && digits_end(dash + 1, 4))
         return 'T';
@@ -424,6 +428,7 @@ const char *field_prog_sig(char prog) {
         case 'M': return "MOTA";
         case 'L': return "ARLHS";   /* the lighthouses' numbering; GMA takes the reference from its upload form */
         case 'G': return "TILES";   /* Tiles reads the tile from MY_GRIDSQUARE; MY_SIG names the activation here */
+        case 'K': return "LLOTA";   /* llota.app finds the lake by MY_SIG LLOTA / MY_SIG_INFO in the upload */
         default:  return NULL;
     }
 }
@@ -440,6 +445,7 @@ const char *field_qso_tag(const field_qso_t *q) {
         case 'M': return "M2M";
         case 'L': return "L2L";
         case 'G': return "T3";      /* Tiles' own name for tile to tile */
+        case 'K': return "LL2LL";   /* lake to lake: L2L is the lighthouses' */
         default:  return "";
     }
 }

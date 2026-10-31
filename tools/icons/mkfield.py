@@ -10,6 +10,8 @@ WWBOTA, HOTA, Bands and Log icons the project was forked with:
                              lantern with beams to both sides, on a rock
   tiles_96.png, tiles_64.png Tiles, a map of three by three tiles in the tile's lime, a pin on the bright one in the
                              middle
+  llota_96.png, llota_64.png LLOTA, a lake in the tile's light blue with ripples, in a green shore under two hills,
+                             reeds with their brown heads in front
 
   python3 tools/icons/mkfield.py rootfs/usr/share/x6100/field
 
@@ -50,6 +52,14 @@ LIME_MID = (98, 140, 58, 255)
 LIME_DARK = (70, 104, 40, 255)
 PIN = (30, 41, 59, 255)
 PIN_DOT = (235, 240, 245, 255)
+LAKE = (143, 181, 247, 255)     # the LLOTA tile's accent (theme roles vfo and text mixed)
+LAKE_DARK = (79, 139, 245, 255)
+RIPPLE = (235, 240, 245, 255)
+SHORE = (52, 160, 110, 255)
+HILL = (100, 116, 139, 255)
+HILL_FAR = (148, 163, 184, 255)
+REED = (36, 110, 76, 255)
+CATTAIL = (146, 96, 56, 255)
 
 
 def canvas(size):
@@ -233,14 +243,40 @@ def tiles(size):
     return im.resize((size, size), Image.LANCZOS)
 
 
+def lake(size):
+    im, d, p, u = canvas(size)
+
+    # Two hills behind, the far one lighter
+    d.polygon([p(30, 54), p(64, 12), p(98, 54)], fill=HILL_FAR)
+    d.polygon([p(2, 54), p(32, 22), p(62, 54)], fill=HILL)
+
+    # The shore, the water in it: deeper blue along the far side, the tile's light blue towards you
+    d.ellipse([p(1, 38), p(99, 98)], fill=SHORE)
+    d.ellipse([p(7, 43), p(93, 93)], fill=LAKE_DARK)
+    d.ellipse([p(7, 49), p(93, 93)], fill=LAKE)
+
+    # Ripples: short light arcs on the water
+    for x, y, w in ((20, 64, 22), (46, 73, 24), (26, 82, 16), (58, 58, 14)):
+        d.arc([p(x, y - 3), p(x + w, y + 3)], 200, 340, fill=RIPPLE, width=u(2.4))
+
+    # Reeds in front, on the right: thin stems, brown heads, two blades
+    for x, top in ((74, 28), (81, 36), (88, 32)):
+        d.line([p(x, 94), p(x, top + 9)], fill=REED, width=u(2.4))
+        d.rounded_rectangle([p(x - 2.6, top), p(x + 2.6, top + 12)], radius=u(2.6), fill=CATTAIL)
+        d.line([p(x, top), p(x, top - 5)], fill=REED, width=u(1.6))
+    d.polygon([p(70, 94), p(64, 56), p(73.5, 90)], fill=REED)
+    d.polygon([p(92, 94), p(97, 62), p(89, 90)], fill=REED)
+    return im.resize((size, size), Image.LANCZOS)
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "rootfs/usr/share/x6100/field"
     os.makedirs(out, exist_ok=True)
     for name, draw in (("wwff", leaf), ("tota", tower), ("wca", castle), ("mota", windmill), ("lh", lighthouse),
-                       ("tiles", tiles)):
+                       ("tiles", tiles), ("llota", lake)):
         for size in (96, 64):
             draw(size).save(os.path.join(out, f"{name}_{size}.png"))
-    print(f"wwff, tota, wca, mota, lh and tiles icons in {out}")
+    print(f"wwff, tota, wca, mota, lh, tiles and llota icons in {out}")
 
 
 if __name__ == "__main__":

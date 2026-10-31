@@ -68,6 +68,8 @@ with tempfile.TemporaryDirectory(prefix='x6log-') as td:
                        ('I/LO-123',{'sota_ref':'I/LO-123'}),('BEL-002',{'sig':'ARLHS','sig_info':'BEL 002'}),
                        ('BEL 002',{'sig':'ARLHS','sig_info':'BEL 002'}),('SCO-0144',{'sig':'ARLHS','sig_info':'SCO 144'}),
                        ('LH BEL 2',{'sig':'ARLHS','sig_info':'BEL 002'}),('jo20AB',{'sig':'TILES','sig_info':'JO20ab'}),
+                       ('LLPL-0001',{'sig':'LLOTA','sig_info':'LLPL-0001'}),('llar-0393',{'sig':'LLOTA','sig_info':'LLAR-0393'}),
+                       ('LLIE-10001',{'sig':'LLOTA','sig_info':'LLIE-10001'}),
                        ('OKR-0150',{'sig':'TOTA','sig_info':'OKR-0150'})):
         bottle.request.query={'id':ns['rec_id'](ns['log_records']('day.adi')[0])}
         bottle.request.json={'ref':typed}
