@@ -147,6 +147,25 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   should go upstream, its `web/src` and Go parts (upstream rebuilds `web/dist`); a report for
   la5nta/pat is drafted, not sent.
 
+- `0006-form-reply.patch`: Reply on a received Winlink form (an ICS 213, say) opens the form's
+  reply page, which Pat shows in a CSP sandbox (the attachment handler, `rendertohtml` with
+  `in-reply-to`). The browser sends that page's submit as from no site (`Origin: null`,
+  `Sec-Fetch-Site: cross-site`) and without Pat's `forminstance` cookie (the composer set it
+  500 ms after opening the window; Firefox sends the sandboxed page's submit with the cookie as it
+  was when the window opened, or with none). The guard (0001) answered it 403, and upstream Pat
+  answers it 400 (`named cookie not present`) in Firefox, so the reply never reached the
+  composer. Now the composer sets its key before it opens the reply form and puts it in the
+  form's address (`forminstance=`); `RenderForm` puts it in the form's submit address, and
+  `PostFormDataHandler` keeps the submit under it before any cookie (a number below 10^9 only).
+  The guard lets `POST /api/form` through with `Origin: null` when its Referer is Pat's own origin
+  (`formReply`): no page can set that header, and another site's page, sandboxed or not, sends its
+  own address or none; any other request with `Origin: null` stays refused. `web/dist/js/app.js`
+  by hand, as in 0005. With tests (`api/guard_test.go`, `internal/forms/reply_test.go`). Checked
+  in a headless Firefox with Winlink's Standard Forms 1.1.22.0 (ICS 213 General Message and its
+  `ICS213_SendReply`), on a PC and on the bench X6100: before, "Forbidden: cross-origin request";
+  after, the reply window closes and the reply is in the composer. Upstream's part (the key in the
+  address) should go upstream with the report.
+
 `pat_ui_test.js` (ours, not in a patch) runs Pat's mailbox and configuration pages and their
 scripts from a patched source in jsdom, against a stand-in for Pat's server that answers with such
 names and lines, and checks that the pages run without inline script: `NODE_PATH=<a node_modules

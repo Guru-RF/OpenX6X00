@@ -3016,6 +3016,10 @@ Good to know:
   (JPEG, PNG, GIF) still opens in a tab of its own. A Winlink form sent to you
   opens in a tab as before (Pat shows it in a box that cannot reach the
   mailbox).
+- Reply on a message sent with a Winlink form (an ICS 213, say) opens the
+  form's reply page in a window of its own; its Submit closes that window and
+  puts the reply in the message you are writing, to check and send. On v0.3.7
+  that Submit was refused ("Forbidden: cross-origin request").
 - The mailbox's pages run only Pat's own scripts (a Content-Security-Policy
   that forbids any other), and a page of the mailbox (port 8080) cannot open
   the radio's TCI or Panel sockets: a script that ever got into it could not
