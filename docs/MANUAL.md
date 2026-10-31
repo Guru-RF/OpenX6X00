@@ -1273,7 +1273,7 @@ TUNE sends a steady low-power carrier for a tuner of its own at the antenna
 digital apps, without leaving the app or changing the frequency or the mode
 (#85). It is not the radio's own ATU, which tunes itself (the ATU key held,
 see [SWR scan and the tuner](#swr-scan-and-the-tuner)): TUNE works with the
-ATU off.
+ATU off, and above 1 W switches it off itself (below).
 
 Starting and stopping it:
 
@@ -1305,8 +1305,17 @@ What goes on the air:
 - At the TUNE power, 1.0 W by default, whatever PWR is set to, higher or
   lower; while it tunes the power never goes above it, PWR turned up
   meanwhile included. Where: Settings > TX Cal > EXTERNAL TUNER > TUNE power,
-  W: 0.1 to 5.0 W. The X6200 on battery stops at its 5 W as always, and on a
-  transverter's band at its [TX power limit](#transverter-tx-power-limit).
+  W: 0.1 W up to the radio's PWR top, 10 W on the X6100 and 8 W on the X6200
+  (it stopped at 5 W before, too little for a tuner that needs about 9 W,
+  #87). In a digital app too: the apps' 7 W cap is for their own
+  transmissions, not for the tune. The X6200 on battery stops at its 5 W as
+  always, and on a transverter's band at its
+  [TX power limit](#transverter-tx-power-limit).
+- Above 1 W the radio's own ATU goes off first, on both radios, so the tuner
+  at the antenna matches alone. The screen says so ("TUNE 5.0 W, 15 s, ATU
+  off"), and the ATU stays off after the tune: a press of the ATU key (or the
+  "tuner on/off" action) puts it back on. At 1 W and less, or held to 1 W or
+  less by a transverter's limit, the ATU is left as it is.
 - For at most the TUNE time limit, 15 s by default. Where: Settings > TX Cal >
   EXTERNAL TUNER > TUNE time limit, s: 5 to 30 s.
 - The TX panel (in an app the TX strip) shows TUNE, EXTERNAL TUNE and the
@@ -1316,7 +1325,8 @@ What goes on the air:
 
 After it everything is as it was: the frequency, the mode, the VFOs and
 split, PWR, the app and its TX offset, the band memories. It writes no
-setting, and the TX level the digital apps share is left alone.
+setting but the ATU's off above 1 W, and the TX level the digital apps share
+is left alone.
 
 The SWR protection stands aside during the tune, as it does while the ATU
 tunes, but only within the tune's own limits:
@@ -1384,6 +1394,9 @@ TX power while a digital app is open:
 
 - The power is capped at 7 W. With a higher setting the app says so
   ("Power is limited to 7W"), and the setting comes back when you close it.
+  A TUNE in the app (its Ext tune button, the key) is not held to it: it
+  goes at its own TUNE power, up to the radio's PWR top (see
+  [TUNE for an external tuner](#tune-for-an-external-tuner)).
 - The Power button in the apps sets the power: 0.1, 0.2, 0.5, 1, 2, 3, 5,
   7 W. WSPR's Power button is its own and leaves the radio's power alone (see
   [WSPR](#wspr)).

@@ -19,12 +19,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "board.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define TUNE_PWR_MIN_W  0.1f
-#define TUNE_PWR_MAX_W  5.0f    /* the setting's top: a carrier into whatever the tuner shows while it matches */
+/* The setting's top: the radio's PWR top (#87), 10 W on the X6100 and 8 W on the X6200, for a tuner that needs about
+ * 9 W to match; 5 W on the X6200's battery through tune_plan's top_w. It was 5 W */
+#define TUNE_PWR_MAX_W  BOARD_PWR_MAX
+#define TUNE_ATU_MAX_W  1.0f    /* the most a tune sends with the radio's own ATU on (tune_atu_off) */
 #define TUNE_TIME_MIN_S 5
 #define TUNE_TIME_MAX_S 30
 #define TUNE_GRACE_MS   1000    /* the SWR protection waits this long past the limit: the tune is unkeying */
@@ -57,6 +62,10 @@ typedef struct {
  * far below the dial, as the app's audio does); pwr_w and limit_s: the settings; top_w: the most the radio gives now
  * (its PWR top, lower on the X6200's battery) */
 void tune_plan(tune_plan_t *p, int mode, int32_t app_hz, float pwr_w, float top_w, int limit_s);
+
+/* A tune above TUNE_ATU_MAX_W goes out with the radio's own ATU off, on both radios (#87): the tuner at the antenna
+ * matches it alone. ext_tune.c switches the ATU off before it keys, says so, and leaves it off */
+bool tune_atu_off(const tune_plan_t *p);
 
 /* A tune on the air, for the SWR protection (radio.c keeps it, radio_set_tune) */
 typedef struct {

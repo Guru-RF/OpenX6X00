@@ -144,17 +144,31 @@ const char *ext_tune_start(int who) {
     }
     tune_plan(&plan, cparam_i_get(cfg_cur_mode), app_offset(), param_f_get(cfg_tune_pwr), cfg_pwr_max_get(),
               param_i_get(cfg_tune_time));
+    /* Above 1 W the radio's own ATU goes off first, before the thread keys (radio.c sends it to the base as it is
+     * set), and stays off after (#87) */
+    bool atu_off = tune_atu_off(&plan) && param_i_get(cfg_atu_enabled);
+
+    if (atu_off) {
+        param_i_set(cfg_atu_enabled, false);
+    }
     atomic_store(&why, WHY_NONE);
     atomic_store(&owner, who);
     atomic_store(&limit_s, (int)(plan.limit_ms / 1000));
     atomic_store(&on, true);
     if (pthread_create(&th, NULL, tune_thread, NULL) != 0) {
         atomic_store(&on, false);
+        if (atu_off) {
+            param_i_set(cfg_atu_enabled, true);     /* nothing went out */
+        }
         msg_update_text_fmt("No tune: no thread for it");
         return "no thread for it";
     }
     pthread_detach(th);
-    msg_update_text_fmt("TUNE %.1f W, %d s at most", plan.pwr_w, (int)(plan.limit_ms / 1000));
+    if (atu_off) {
+        msg_update_text_fmt("TUNE %.1f W, %d s, ATU off", plan.pwr_w, (int)(plan.limit_ms / 1000));
+    } else {
+        msg_update_text_fmt("TUNE %.1f W, %d s at most", plan.pwr_w, (int)(plan.limit_ms / 1000));
+    }
     buttons_mark(&btn_ext_tune, true);
     buttons_refresh(&btn_ext_tune);
     return NULL;

@@ -231,7 +231,8 @@ static void power_key_cb(void *arg) {
 
 static void set_txpwr(float w) {
     txpwr_asked = w;
-    if (digi_cap && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
+    /* An app open: its cap, but not over a TUNE's own power (#87), which holds the power to it instead */
+    if (digi_cap && tune_cap <= 0.0f && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
     if (tune_cap > 0.0f && w > tune_cap) w = tune_cap;     /* PWR turned up, the battery's top, a restore */
     if (xvtr_cap > 0.0f && w > xvtr_cap) w = xvtr_cap;     /* whoever asks: PWR, an app's own, TUNE's, TCI, CAT */
     hw_set_f(HW_TXPWR_F, w);

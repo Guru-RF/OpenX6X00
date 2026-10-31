@@ -52,6 +52,10 @@ void tune_plan(tune_plan_t *p, int mode, int32_t app_hz, float pwr_w, float top_
     p->limit_ms  = (uint32_t)limit_s * 1000;
 }
 
+bool tune_atu_off(const tune_plan_t *p) {
+    return p->pwr_w > TUNE_ATU_MAX_W;
+}
+
 float tune_swr_limit(const tune_guard_t *t, float pwr_w, float setting, uint64_t now_ms) {
     uint64_t age = now_ms > t->start_ms ? now_ms - t->start_ms : 0;   /* the radio thread read its clock first */
 

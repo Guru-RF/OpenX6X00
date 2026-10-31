@@ -88,6 +88,7 @@ static struct {
     int     mode[2];
     bool    split, modem;
     float   pwr;
+    bool    atu;        /* its ATU in: radio.c sends the setting (cfg_atu_enabled) to it as it is set */
 } base;
 
 ParamFloat *cfg_pwr = (ParamFloat *)&cfg.pwr;
@@ -140,6 +141,7 @@ static struct {
 
 static struct {
     int      keys;          /* times keyed */
+    bool     atu;           /* the base's ATU in at the key */
     int32_t  rf;            /* where the carrier went at the key: the VFO + the tone in USB */
     int      mode;          /* the base's mode at the key */
     bool     split;         /* its split bit at the key */
@@ -197,7 +199,7 @@ static void *tune_thread(void *arg) {
 }
 
 static void set_txpwr(float w) {
-    if (digi_cap && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
+    if (digi_cap && tune_cap <= 0.0f && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
     if (tune_cap > 0.0f && w > tune_cap) w = tune_cap;
     if (xvtr_w > 0.0f && w > xvtr_w) w = xvtr_w;
     pwr_changes += base.pwr != w;
@@ -263,6 +265,7 @@ void radio_set_modem(bool tx) {
         int m = base.mode[cfg.cur];
 
         seen.keys++;
+        seen.atu     = base.atu;
         seen.rf      = base.freq[cfg.cur] + (m == radio_mode_lsb || m == radio_mode_lsb_dig ? -1 : 1) * TX_PLAYER_AUDIO_HZ;
         seen.mode    = m;
         seen.split   = base.split;
@@ -490,8 +493,14 @@ static void pure_rules(void) {
         all = all && p.tx_mode == radio_mode_usb_dig;
     }
     check(all, "USB, CW, CW-R, AM, NFM, LSB-D, SAM, WFM: USB-D for the tune, the mode back after");
-    tune_plan(&p, radio_mode_usb, 0, 8.0f, 10.0f, 15);
-    check(p.pwr_w == TUNE_PWR_MAX_W, "8 W asked: %.1f W, the setting's top", p.pwr_w);
+    tune_plan(&p, radio_mode_usb, 0, 12.0f, 12.0f, 15);
+    check(p.pwr_w == TUNE_PWR_MAX_W && TUNE_PWR_MAX_W == BOARD_PWR_MAX,
+          "12 W asked: %.1f W, the setting's top, the radio's PWR top (#87)", p.pwr_w);
+    tune_plan(&p, radio_mode_usb, 0, 9.0f, BOARD_PWR_MAX, 15);
+    check(p.pwr_w == (BOARD_PWR_MAX < 9.0f ? BOARD_PWR_MAX : 9.0f), "9 W asked, for a tuner that needs it (#87): %.1f W",
+          p.pwr_w);
+    tune_plan(&p, radio_mode_usb, 0, 8.0f, 5.0f, 15);
+    check(p.pwr_w == 5.0f, "8 W asked with the radio's top at 5 W (the X6200's battery): %.1f W", p.pwr_w);
     tune_plan(&p, radio_mode_usb, 0, 4.0f, 2.5f, 15);
     check(p.pwr_w == 2.5f, "4 W asked with the radio's top at 2.5 W: %.1f W", p.pwr_w);
     tune_plan(&p, radio_mode_usb, 0, 0.0f, 10.0f, 2);
@@ -505,6 +514,22 @@ static void pure_rules(void) {
     tune_plan(&p, radio_mode_usb, -300, 1.0f, 10.0f, 120);
     check(p.offset_hz == 0 && p.limit_ms == TUNE_TIME_MAX_S * 1000, "an offset below 0 and 120 s: on the TX frequency, %u s",
           p.limit_ms / 1000);
+
+    puts("-- the radio's own ATU: off for a tune above 1 W (#87)");
+    static const struct {
+        float asked, top;
+        bool  off;
+    } atu[] = {{0.1f, 10.0f, false}, {0.5f, 10.0f, false}, {1.0f, 10.0f, false}, {1.1f, 10.0f, true},
+               {5.0f, 10.0f, true},  {9.0f, BOARD_PWR_MAX, true}, {5.0f, 0.5f, false}, {5.0f, 1.0f, false}};
+    all = true;
+    for (size_t i = 0; i < sizeof(atu) / sizeof(atu[0]); i++) {
+        tune_plan(&p, radio_mode_usb, 0, atu[i].asked, atu[i].top, 15);
+        printf("        %.1f W asked, the radio's top %.1f W: %.1f W, ATU %s\n", atu[i].asked, atu[i].top, p.pwr_w,
+               tune_atu_off(&p) ? "off" : "as it is");
+        all = all && tune_atu_off(&p) == atu[i].off;
+    }
+    check(all, "0.1, 0.5 and 1.0 W: the ATU as it is; 1.1, 5 and 9 W: off; 5 W held to 0.5 or 1 W (a transverter's "
+          "limit): as it is");
 
     puts("-- the refusals, in the order they are told");
     check(tune_refusal(&(tune_ask_t){.tx_freq_ok = true}) == TUNE_GO, "a frequency it transmits on, in RX: it tunes");
@@ -600,6 +625,25 @@ static void transmissions(void) {
           "the tune refused, the beacon sent, keyed once (%d)", seen.keys);
     check(seen.max_pwr == 0.2f, "the beacon at its own 0.2 W, not PWR's 5 W put back by the tune (%.1f W)", seen.max_pwr);
     check(as_set(), "after: PWR 5.0 W, nothing of the tune left");
+
+    puts("-- FT8 open (the apps' 7 W cap), TUNE at the radio's PWR top (#87)");
+    reset();
+    sc.stop_at_s = 1.0f;
+    e = run(1500, BOARD_PWR_MAX, 15);
+    check(e == TUNE_END_STOP && seen.asked == BOARD_PWR_MAX && seen.max_pwr == BOARD_PWR_MAX,
+          "on the air at %.1f W, asked %.1f W: over the apps' 7 W, the tune's own", seen.max_pwr, seen.asked);
+    check(as_set(), "after: PWR 5.0 W");
+    cfg.pwr = 10.0f;
+    reset();
+    sc.stop_at_s = 1.0f;
+    e = run(1500, 1.0f, 15);
+    check(e == TUNE_END_STOP && seen.max_pwr == 1.0f, "PWR 10 W, a 1 W tune: 1.0 W (%.1f W)", seen.max_pwr);
+    check(base.pwr == TX_PLAYER_MAX_PWR_W, "after it the base back at the apps' 7 W, not PWR's 10 W (%.1f W)", base.pwr);
+    reset();
+    bool sent = app_slot() == 1;
+    check(sent && seen.max_pwr == TX_PLAYER_MAX_PWR_W, "an FT8 slot then, PWR 10 W: %.1f W, the cap as before",
+          seen.max_pwr);
+    cfg.pwr = 5.0f;
     digi_cap = false;
 
     puts("-- the same antenna, a base that reads 2.5 times the power set (the tune's own power exceeded)");
@@ -704,11 +748,14 @@ static struct {
     int32_t        wspr_hz;
     press_action_t app;         /* the app open, ACTION_NONE none */
     bool           winlink;     /* a Winlink connection under way */
+    int32_t        atu;         /* the ATU on (the ATU key, Settings) */
 } ui = {.tune_pwr = 1.0f, .tune_time = 15, .wspr_hz = 1500};
 
 ParamFloat *cfg_tune_pwr     = (ParamFloat *)&ui.tune_pwr;
 ParamInt   *cfg_tune_time    = (ParamInt *)&ui.tune_time;
 ParamInt   *cfg_wspr_tx_freq = (ParamInt *)&ui.wspr_hz;
+ParamInt   *cfg_atu_enabled  = (ParamInt *)&ui.atu;
+static int  atu_writes;         /* the ATU setting written */
 /* The subjects ext_tune.c subscribes to: only their addresses count */
 static char subj[7], cur_mode;
 ParamInt   *cfg_band_vfoa_freq = (ParamInt *)&subj[0], *cfg_band_vfob_freq = (ParamInt *)&subj[1],
@@ -719,6 +766,15 @@ ComputedParamInt *cfg_cur_mode = (ComputedParamInt *)&cur_mode;
 
 int32_t param_i_get(const ParamInt *p) {
     return *(const int32_t *)p;
+}
+
+/* ext_tune.c sets only the ATU: radio.c's observer sends it to the base at once (on_change_i, HW_ATU_ENABLED) */
+void param_i_set(ParamInt *p, int32_t v) {
+    *(int32_t *)p = v;
+    if (p == cfg_atu_enabled) {
+        base.atu = v;
+        atu_writes++;
+    }
 }
 
 int32_t cparam_i_get(const ComputedParamInt *p) {
@@ -732,7 +788,7 @@ bool cfg_is_tx_freq(int32_t f) {
 }
 
 float cfg_pwr_max_get(void) {
-    return xvtr_w > 0.0f ? xvtr_w : 10.0f;
+    return xvtr_w > 0.0f ? xvtr_w : BOARD_PWR_MAX;
 }
 
 static struct {
@@ -890,6 +946,66 @@ static void gui_side(void) {
     check(marked && !btn_ext_tune.mark && !ext_tune_on(), "the button marked while it tuned, not after");
     check(said_is("TUNE stopped: tuned away") && on_air_s() < 1.2, "stopped at once (%.2f s): \"%s\"", on_air_s(), said);
     check(as_set(), "after: all put back");
+
+    puts("-- the radio's own ATU on, TUNE 1.0 W: the ATU as it is (#87)");
+    cfg = (typeof(cfg)){.freq = {14200000, 14200000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 5.0f};
+    ui.atu   = 1;
+    base.atu = true;
+    reset();
+    atu_writes    = 0;
+    sc.event_at_s = 1.0f;
+    sc.event      = key_again;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.keys == 1 && seen.atu && ui.atu && base.atu && atu_writes == 0 &&
+          strstr(told, "TUNE 1.0 W, 15 s at most") && as_set(), "keyed with the ATU in, left on: \"%s\"", told);
+
+    puts("-- the ATU on, TUNE 5.0 W: the ATU off before it keys, said so, and off after");
+    ui.tune_pwr = 5.0f;
+    reset();
+    atu_writes    = 0;
+    sc.event_at_s = 1.0f;
+    sc.event      = key_again;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.keys == 1 && !seen.atu && seen.max_pwr == 5.0f && strstr(told, "TUNE 5.0 W, 15 s, ATU off"),
+          "on the air at %.1f W with the ATU out: \"%s\"", seen.max_pwr, told);
+    check(!ui.atu && !base.atu && atu_writes == 1 && said_is("TUNE stopped") && as_set(),
+          "after: the ATU off still (written once), all else put back");
+
+    puts("-- the ATU off already, TUNE at the radio's PWR top: nothing written");
+    ui.tune_pwr = BOARD_PWR_MAX;
+    reset();
+    atu_writes    = 0;
+    sc.event_at_s = 1.0f;
+    sc.event      = key_again;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && !seen.atu && atu_writes == 0 && seen.max_pwr == BOARD_PWR_MAX && strstr(told, "15 s at most") &&
+          as_set(), "%.1f W, the ATU off as it was: \"%s\"", seen.max_pwr, told);
+
+    puts("-- the ATU on, TUNE 5.0 W refused (something else on the air): the ATU stays on");
+    ui.atu   = 1;
+    base.atu = true;
+    ui.tune_pwr = 5.0f;
+    reset();
+    atu_writes = 0;
+    state      = RADIO_TX;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(no && ui.atu && base.atu && atu_writes == 0 && said_is("No tune: on the air"), "\"%s\", the ATU on", said);
+    state = RADIO_RX;
+
+    puts("-- the ATU on, TUNE 5.0 W on a transverter limited to 0.5 W: a 0.5 W tune, the ATU as it is");
+    cfg = (typeof(cfg)){.freq = {28500000, 28500000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 0.5f};
+    xvtr_w = 0.5f;
+    reset();
+    atu_writes    = 0;
+    sc.event_at_s = 1.0f;
+    sc.event      = key_again;
+    no = gui_tune(TUNE_BY_RADIO);
+    check(!no && seen.atu && ui.atu && atu_writes == 0 && seen.max_pwr == 0.5f && strstr(told, "TUNE 0.5 W, 15 s at most") &&
+          as_set(), "%.1f W with the ATU in: \"%s\"", seen.max_pwr, told);
+    xvtr_w      = 0.0f;
+    ui.atu      = 0;
+    base.atu    = false;
+    ui.tune_pwr = 1.0f;
 
     puts("-- FT8 open on 14.074 USB-D, its TX at 1500 Hz, the Ext tune button; a mode key 1 s in");
     ui.app                = ACTION_APP_FT8;

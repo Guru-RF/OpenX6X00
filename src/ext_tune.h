@@ -3,7 +3,8 @@
  *
  *  OpenX6X00 - TUNE for an external tuner (#85): a low-power carrier from any mode or app, for a tuner of its own
  *  at the antenna (an LDG, an SGC) to match on, without leaving the app or changing the frequency or the mode. Not
- *  the radio's own ATU, which tunes itself (radio_start_atu); this works with it off.
+ *  the radio's own ATU, which tunes itself (radio_start_atu); this works with it off, and a tune above 1 W switches
+ *  it off (tune_atu_off, #87).
  *
  *  The key action (Settings > Keys: a front key held, the hand mic's F keys), the Tune button of the digital apps
  *  and the browser Panel start it, and the same again stops it. Its power and time limit are settings (Settings >

@@ -350,8 +350,9 @@ class SettingsManager {
     // SWR protection: the most SWR a transmission keeps, in tenths (10 = off)
     Parameter<int32_t> p_swr_protect{"swr_protect", 20, 10, 50,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // TUNE for an external tuner (ext_tune.h): its power, W (tune_tx.h's range), and its time limit, s
-    Parameter<float, int32_t, 10> p_tune_pwr{"tune_pwr", 1.0f, 0.1f, 5.0f,
+    // TUNE for an external tuner (ext_tune.h): its power, W (tune_tx.h's range: up to the PWR top, #87), and its time
+    // limit, s
+    Parameter<float, int32_t, 10> p_tune_pwr{"tune_pwr", 1.0f, 0.1f, BOARD_PWR_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_tune_time{"tune_time", 15, 5, 30,
         StorageType::GLOBAL, pending_writes_, &global_params_};

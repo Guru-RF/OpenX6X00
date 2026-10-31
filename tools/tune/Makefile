@@ -6,12 +6,14 @@
 # (a change of frequency, mode, VFO or split, the key again, the limit, the Panel's), the button's mark.
 # The sources are copied to build/ first: a quoted #include looks beside the including file before the -I paths,
 # and the shims in stub_include must win over src/ (as in tools/tci). The clock is the test's own
-# (--wrap=clock_gettime), moved on by the audio played: a 30 s tune takes no 30 s.
+# (--wrap=clock_gettime), moved on by the audio played: a 30 s tune takes no 30 s. It runs for each radio: TUNE's
+# power top is the radio's PWR top (board.h), 10 W on the X6100, 8 W on the X6200 (#87).
 SRC    := ../../src
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -pthread -I stub_include
 COPIED := tune_tx.c tune_tx.h tx_player.c tx_player.h tx_level.c tx_level.h swr_guard.c swr_guard.h audio.h radio_types.h \
-          ext_tune.c ext_tune.h
+          ext_tune.c ext_tune.h board.h
 SHIMS  := $(wildcard stub_include/*.h stub_include/*/*.h)
+SRCS   := tune_test.c build/tune_tx.c build/tx_player.c build/tx_level.c build/swr_guard.c build/ext_tune.c
 
 all: test
 
@@ -19,13 +21,16 @@ build/.copied: $(addprefix $(SRC)/,$(COPIED))
 	mkdir -p build && cp $^ build/ && touch $@
 
 tune_test: tune_test.c build/.copied $(SHIMS)
-	$(CC) $(CFLAGS) -I build -o $@ tune_test.c build/tune_tx.c build/tx_player.c build/tx_level.c build/swr_guard.c \
-		build/ext_tune.c -lm -Wl,--wrap=clock_gettime
+	$(CC) $(CFLAGS) -I build -o $@ $(SRCS) -lm -Wl,--wrap=clock_gettime
 
-test: tune_test
+tune_test_x6200: tune_test.c build/.copied $(SHIMS)
+	$(CC) $(CFLAGS) -DBOARD_X6200 -I build -o $@ $(SRCS) -lm -Wl,--wrap=clock_gettime
+
+test: tune_test tune_test_x6200
 	./tune_test
+	./tune_test_x6200
 
 clean:
-	rm -rf tune_test build
+	rm -rf tune_test tune_test_x6200 build
 
 .PHONY: all test clean
