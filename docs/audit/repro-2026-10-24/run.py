@@ -340,7 +340,7 @@ def main():
                      "bootanim/bootanim.c", HERE / "bootanim-host.c", "-Wl," + wraps, "-lpng", "-lsqlite3", "-lasound",
                      "-lm", "-pthread", "-o", animations[-1]], env)
         print("#101 the boot picture:\n" + command([sys.executable, HERE / "boot_picture_checks.py", *animations], env,
-              contains=("The boot picture (#101): 57 of 57 cases as they should be",)).strip())
+              contains=("The boot picture (#101): 70 of 70 cases as they should be",)).strip())
 
         fixture = work / "truncated.adi"
         fixture.write_bytes(b"<CALL:5")

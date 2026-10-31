@@ -46,6 +46,7 @@ const PARTS = [
   ["voice", "Voice keyer messages", "", true],
   ["cw", "CW trainer progress", "", false],
   ["wifi", "WiFi networks and passwords", "", false],
+  ["bootpic", "Boot picture", "(your own, System > Display)", true],
 ];
 
 var showStatus = function(kind, text, error=false) {
@@ -100,7 +101,7 @@ $("#file").on("change", function() {
         row.append($("<td>").append($("<input type='checkbox'>").attr("value", p[0]).prop("checked", p[3])));
         row.append($("<td>").text(p[1]));
         row.append($("<td>").text(r.parts[p[0]].file));
-        row.append($("<td>").text(r.parts[p[0]].now || "none"));
+        row.append($("<td>").text(r.parts[p[0]].now || (p[0] == "bootpic" ? "the built-in logo" : "none")));
         body.append(row);
       });
       $("#restore").data("token", r.token);   /* names this upload to the restore: a later upload, another tab's, is refused */

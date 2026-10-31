@@ -1,15 +1,22 @@
-"""Issue #101, the boot picture: the web configurator's production routes (the Display page's card), with temporary
-files for the DATA partition and the system's picture. With bootanim programs as arguments (bootanim/bootanim.c built
-with bootanim-host.c, one for each radio): the owner's picture on the screen at the start, and ours when it can't be
-read."""
+"""Issue #101, the boot picture: the web configurator's production routes (the Display page's card) and its Backup and
+Restore, with temporary files for the DATA partition and the system's picture. With bootanim programs as arguments
+(bootanim/bootanim.c built with bootanim-host.c, one for each radio): the owner's picture on the screen at the start,
+and ours when it can't be read."""
 import ast
 import binascii
 import io
 import json
 import os
+import random
+import re
+import secrets
+import shutil
+import sqlite3
 import subprocess
 import sys
+import tarfile
 import tempfile
+import threading
 import zlib
 from array import array
 from datetime import datetime
@@ -55,25 +62,27 @@ def chunk(kind, data):
 
 
 def production(names, consts=()):
-    """apps.py's own functions and constants of these names, run with the stand-ins in the namespace returned"""
+    """apps.py's own functions, classes and constants of these names, run with the stand-ins in the namespace
+    returned"""
     tree = ast.parse(APPS.read_text())
     nodes = []
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name in names:
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in names:
             node.decorator_list = []
             nodes.append(node)
         elif isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id in consts for t in node.targets):
             nodes.append(node)
-    assert {n.name for n in nodes if isinstance(n, ast.FunctionDef)} == set(names), "apps.py changed its names"
+    assert {n.name for n in nodes if not isinstance(n, ast.Assign)} == set(names), "apps.py changed its names"
     ns = {"bottle": FakeBottle, "os": os, "datetime": datetime, "binascii": binascii, "settings": SimpleNamespace(),
-          "tempfile": tempfile}
+          "tempfile": tempfile, "re": re, "json": json, "io": io, "shutil": shutil, "sqlite3": sqlite3,
+          "tarfile": tarfile, "zlib": zlib, "threading": threading, "secrets": secrets}
     exec(compile(ast.Module(body=nodes, type_ignores=[]), "apps-boot-picture", "exec"), ns)
     return ns
 
 
 class FakeBottle:
     request = SimpleNamespace(files={}, content_length=-1)
-    response = SimpleNamespace(status=200)
+    response = SimpleNamespace(status=200, set_header=lambda k, v: None)
 
     @staticmethod
     def static_file(name, root, mimetype=None):
@@ -178,6 +187,100 @@ def web_checks():
           "GET /api/boot_picture/png, DELETE /api/boot_picture, GET /api/boot_picture, POST /api/boot_picture")
 
 
+BACKUP_NAMES = ("backup_files", "backup_member", "backup_current", "plural", "fmt_size", "read_text", "memory_rows",
+                "describe_backup", "check_sqlite", "check_member", "unpack_backup", "backup_error", "download_backup",
+                "backup_stage", "stage_token_path", "stage_token_new", "stage_token", "stage_clear", "stage_files",
+                "install_file", "save_safety_copy", "apply_memory_slots", "restore_backup", "BackupError",
+                "boot_picture_error")
+
+
+def backup_of(members):
+    """A backup file as the Backup page makes one: manifest.json and these members (name -> bytes)"""
+    out = io.BytesIO()
+    with tarfile.open(fileobj=out, mode="w:gz") as tf:
+        for name, data in [("manifest.json", json.dumps({"version": 1, "date": "2026-10-31 12:00"}).encode()),
+                           *members.items()]:
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+    return out.getvalue()
+
+
+def backup_checks():
+    ns = production(BACKUP_NAMES, ("BACKUP_MAX_BYTES", "BACKUP_MAX_MEMBERS", "BACKUP_TEXT_MAX", "BACKUP_NAME",
+                                   "BACKUP_DIRS", "BACKUP_GUI_PARTS", "TAR_ERRORS", "MEM_SLOTS", "backup_lock",
+                                   "BOOT_PICTURE_MAX", "BOOT_PICTURE_SIZE", "PNG_DEPTHS"))
+    gui = []
+    ns.update(read_callsign=lambda: "ON6URE", gui_service=lambda action: gui.append(action) or 0,
+              gui_stop_for_restore=lambda: gui.append("stop") or None)
+    own = Picture(lambda x, y: ((x + 40) & 255, (y + 20) & 255, (x ^ y) & 255)).png()
+    rnd = random.Random(101)   # a picture that does not compress: over BACKUP_TEXT_MAX, under 2 MB
+    noise = png_of((W, H, 8, 2, 0), chunk(b"IDAT", zlib.compress(b"".join(b"\0" + rnd.randbytes(3 * W) for _ in range(H)))))
+    with tempfile.TemporaryDirectory(prefix="x6bootpicbackup-") as td:
+        td = Path(td)
+        mnt = td / "mnt"
+        mnt.mkdir()
+        s = ns["settings"]
+        for name in ("CHANNELS_FILE", "CLUSTER_CONF", "TCI_CONF", "QSO_LOG_DB", "CW_TRAINER_FILE", "DB_PATH"):
+            setattr(s, name, str(mnt / name.lower()))
+        s.VOICE_DIR, s.WIFI_DIR = str(mnt / "msg"), str(td / "wifi")
+        s.BACKUP_WORK, s.BACKUP_SAFETY = str(mnt / "backup_work"), str(mnt / "backup_before_restore")
+        s.BOOT_PICTURE = str(mnt / "bootlogo.png")
+        kept = Path(s.BOOT_PICTURE)
+        parts = lambda: json.dumps(ns["describe_backup"](ns["backup_current"]()))
+        check("Backup, none of the owner's: the parts on the radio", parts(), "{}")
+        kept.write_bytes(own)
+        check("Backup, the owner's: the parts on the radio", parts(), '{"bootpic": "your own, %d kB"}' % (len(own) // 1024))
+        FakeBottle.request.query = {"parts": "bootpic"}
+        with ns["download_backup"]() as f, tarfile.open(fileobj=f) as tf:
+            names = tf.getnames()
+            same = tf.extractfile("bootlogo.png").read() == own
+            manifest = json.load(tf.extractfile("manifest.json"))
+        check("the Backup file of Boot picture: its members", " ".join(names), "manifest.json bootlogo.png")
+        check("  the picture as on the radio, the part in the manifest", f"{same} {manifest['parts']}",
+              "True {'bootpic': 'your own, %d kB'}" % (len(own) // 1024))
+
+        def restore(data, chosen=("bootpic",)):
+            """The Backup page's Restore of a file: its upload (unpacked, checked) and the parts chosen"""
+            archive = td / "upload.tar"
+            archive.write_bytes(data)
+            ns["stage_clear"]()
+            os.makedirs(ns["backup_stage"](), mode=0o700)
+            try:
+                ns["unpack_backup"](str(archive), ns["backup_stage"]())
+            except ns["BackupError"] as e:
+                return f"refused: {e}"
+            FakeBottle.request.json = {"parts": list(chosen), "token": ns["stage_token_new"]()}
+            r = ns["restore_backup"]()
+            return f"restored {r['restored']}, failed {r['failed']}"
+
+        backup = backup_of({"bootlogo.png": own, "cluster.conf": b"host=dxfun.com\nport=8000\n"})
+        kept.write_bytes(palette_png())
+        check("Restore of Boot picture", restore(backup), "restored ['bootpic'], failed {}")
+        check("  the picture back, the one it replaced kept aside, the radio's screen left running",
+              f"{kept.read_bytes() == own} {(mnt / 'backup_before_restore' / 'bootlogo.png').read_bytes() == palette_png()} {gui}",
+              "True True []")
+        kept.write_bytes(palette_png())
+        check("Restore of the cluster alone: the picture left", f"{restore(backup, ('cluster',))} {kept.read_bytes() == palette_png()}",
+              "restored ['cluster'], failed {} True")
+        check("Restore of one over 1 MB, the other parts' cap",
+              f"{restore(backup_of({'bootlogo.png': noise}))} {kept.read_bytes() == noise}",
+              "restored ['bootpic'], failed {} True")
+        small = Picture(lambda x, y: (x & 255, 0, 0), 640, 480).png()
+        refused = [
+            ("640x480", backup_of({"bootlogo.png": small}),
+             "refused: The boot picture in the file: The picture is 640x480 pixels: the radio needs 800x480, the screen's size"),
+            ("cut short", backup_of({"bootlogo.png": own[:-20]}),
+             "refused: The boot picture in the file: The file is cut short: upload it again"),
+            ("over 2 MB", backup_of({"bootlogo.png": own + bytes(2 * 1024 * 1024)}), "refused: The file is too large"),
+            ("a cluster.conf over 1 MB, as before", backup_of({"cluster.conf": b"x" * (1024 * 1024 + 1)}),
+             "refused: The file is too large")]
+        for what, data, want in refused:
+            check(f"Restore of a file with a boot picture {what}" if "cluster" not in what else f"Restore of {what}",
+                  restore(data), want)
+        check("  the picture on the radio left as it was", kept.read_bytes() == noise, "True")
+
+
 def bootanim_checks(binaries):
     # ours: dots on its background colour (the top-left pixel's) all over the screen, so every part of its steps
     # (the ring, the signal (blue over red), the name, the rule, the subtitle, the foot) has some; the owner's: a
@@ -267,6 +370,7 @@ def bootanim_checks(binaries):
 
 
 web_checks()
+backup_checks()
 bootanim_checks(sys.argv[1:])
 bad = [c for c in cases if c[1] != c[2]]
 for what, got, want in cases:

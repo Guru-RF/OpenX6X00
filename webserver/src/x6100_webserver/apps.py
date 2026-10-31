@@ -3298,7 +3298,7 @@ def upload_tx_pic(kind):
 
 BACKUP_MAX_BYTES = 50 * 1024 * 1024   # upload size and total unpacked size
 BACKUP_MAX_MEMBERS = 200
-BACKUP_TEXT_MAX = 1024 * 1024         # any member that is not a .db or .mp3
+BACKUP_TEXT_MAX = 1024 * 1024         # any member that is not a .db, an .mp3 or the boot picture (BOOT_PICTURE_MAX)
 BACKUP_NAME = r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,59}"
 BACKUP_DIRS = (("voice", "msg/", re.compile("msg/" + BACKUP_NAME + r"\.mp3")),
                ("wifi", "wifi/", re.compile("wifi/" + BACKUP_NAME + r"\.nmconnection")))
@@ -3320,7 +3320,8 @@ def backup_files():
             "cluster.conf": ("cluster", settings.CLUSTER_CONF),
             "tci.conf": ("tci", settings.TCI_CONF),
             "qso_log.db": ("qso", settings.QSO_LOG_DB),
-            "cw_trainer.json": ("cw", settings.CW_TRAINER_FILE)}
+            "cw_trainer.json": ("cw", settings.CW_TRAINER_FILE),
+            "bootlogo.png": ("bootpic", settings.BOOT_PICTURE)}
 
 
 def backup_member(name):
@@ -3415,6 +3416,8 @@ def describe_backup(files, date=None):
         wifi = [n for n in files if n.startswith("wifi/")]
         if wifi:
             out["wifi"] = plural(len(wifi), "network")
+        if "bootlogo.png" in files:
+            out["bootpic"] = "your own, " + fmt_size(os.path.getsize(files["bootlogo.png"]))
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
         pass   # a part that can't be read just has no summary
     return out
@@ -3455,6 +3458,11 @@ def check_member(name, path):
         elif name == "cw_trainer.json":
             with open(path) as f:
                 json.load(f)
+        elif name == "bootlogo.png":   # as the Display page takes one: else the radio would start with ours
+            with open(path, "rb") as f:
+                why = boot_picture_error(f.read(BOOT_PICTURE_MAX + 1))
+            if why:
+                raise BackupError(f"The boot picture in the file: {why}")
         elif name.endswith((".conf", ".nmconnection")):
             with open(path, "rb") as f:
                 data = f.read()
@@ -3481,7 +3489,8 @@ def unpack_backup(archive, stage):
                 if m.type not in (tarfile.REGTYPE, tarfile.AREGTYPE) or m.name in seen:
                     raise BackupError(f"Unexpected item in the file: {m.name[:60]!r}")
                 total += m.size
-                if total > BACKUP_MAX_BYTES or (m.size > BACKUP_TEXT_MAX and not m.name.endswith((".db", ".mp3"))):
+                limit = BOOT_PICTURE_MAX if m.name == "bootlogo.png" else BACKUP_TEXT_MAX
+                if total > BACKUP_MAX_BYTES or (m.size > limit and not m.name.endswith((".db", ".mp3"))):
                     raise BackupError("The file is too large")
                 seen.add(m.name)
                 dst = os.path.join(stage, m.name)
