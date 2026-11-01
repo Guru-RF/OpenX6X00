@@ -2649,7 +2649,9 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
 - The first press sends nothing. On the band the radio is on, the radio
   stays where you are; on another band it goes to that band's CW frequency
   (the one Use band tunes), in the CW or CW-R it was in. Listen there: the
-  message box shows the band, the frequency and the seconds left.
+  message box shows the band, the frequency and the seconds left. In split
+  it also shows the frequency the test sends on (the other VFO, or the TX
+  shift), where you are not listening.
 - Press Test beacon again within 10 seconds to send the test there. The
   message box says the band and the frequency it sends on. After a test on
   another band the radio goes back to where it was before the first press,

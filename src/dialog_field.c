@@ -2291,10 +2291,17 @@ static void tb_stay(const char *why) {
     tb_end();
 }
 
-/* Two lines of about 30 characters: the second counts down */
+/* Two lines of about 30 characters: the second counts down. In split it says where the test goes out, the other VFO:
+ * the frequency listened on alone hid that the test keys somewhere nobody listened */
 static void tb_listen_msg(void) {
-    msg_update_text_fmt("Listen first: %s, %.3f MHz\nTest beacon again sends: %i s", field_band_name(tb.band),
-                        tb.hz / 1e6, tb.left);
+    int32_t tx = radio_tx_freq();
+
+    if (tx == tb.hz)
+        msg_update_text_fmt("Listen first: %s, %.3f MHz\nTest beacon again sends: %i s", field_band_name(tb.band),
+                            tb.hz / 1e6, tb.left);
+    else
+        msg_update_text_fmt("Listen first: %s, %.3f MHz\nAgain sends on %.3f MHz: %i s", field_band_name(tb.band),
+                            tb.hz / 1e6, (tx < 0 ? -tx : tx) / 1e6, tb.left);
 }
 
 /* Tuned or another mode since the test began: it ends there (tb_stay) */
