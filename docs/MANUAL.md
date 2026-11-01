@@ -1088,6 +1088,11 @@ An attenuator value you set before this version (with the slider or
 Measure) stays on every band until you set that band's own. The preamp is
 one value for every band, on both radios.
 
+With ATT on, a weak signal, or none, sinks into the radio's own noise, and
+the meter shows that noise as it would be at the antenna: on the X6200,
+with 30 to 50 dB of attenuator, that can be higher than with ATT off. Those
+bars stay grey, as noise.
+
 Measure sets them for your radio, since preamps differ a little. Feed a
 steady carrier, from a signal generator (around -73 dBm, S9) or a strong
 broadcast station, so the meter reads between S5 and S9+20 (on the X6200
