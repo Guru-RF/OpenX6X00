@@ -6,6 +6,8 @@ devices; the events are written into their nodes as if pressed.
   key NAME [ms]     press and release NAME (APP, GEN, KEY, MSG, DFN, DFL, F1..F5, LOCK, PTT, BAND_DOWN,
                     BAND_UP, AM, CW, SSB, AB, PRE, ATU, VM, AGC, FST, VOL, MFK), held ms (default 80)
   long NAME         held 1.3 s: the long press
+  down NAME | up NAME   press NAME and leave it down, let it go: other keys in between
+                    ("down PTT", "key F1", "up PTT": a key tapped while PTT is held)
   mfk N | main N | vol N   turn the knob N detents, clockwise when positive
   inner N           the X6200's inner MFK ring, N detents
   sleep S           wait S seconds (floats allowed)
@@ -75,14 +77,17 @@ if DEV_DIR:   # the PC build: src/host/host_panel.c's FIFOs, one a device, the X
     KNOBS = {k: (f"{DEV_DIR}/{k}", axis, sign) for k, (_, axis, sign) in KNOBS.items() if k != "inner"}
 
 
-def key(name, ms):
+def press(name, down):
     if name.upper() not in KEYS:
         sys.exit(f"no {name.upper()} key on the {MODEL.upper()}")
     code = KEYS[name.upper()]
-    dev = POWER_DEV if code == KEY_POWER else KEYPAD
-    emit(dev, [(EV_KEY, code, 1)])
+    emit(POWER_DEV if code == KEY_POWER else KEYPAD, [(EV_KEY, code, 1 if down else 0)])
+
+
+def key(name, ms):
+    press(name, True)
     time.sleep(ms / 1000)
-    emit(dev, [(EV_KEY, code, 0)])
+    press(name, False)
 
 
 def turn(knob, n):
@@ -123,6 +128,8 @@ def run(lines, take=shot):
             key(w[1], int(w[2]) if len(w) > 2 else 80)
         elif cmd == "long":
             key(w[1], 1300)
+        elif cmd in ("down", "up"):
+            press(w[1], cmd == "down")
         elif cmd in KNOBS:
             turn(cmd, int(w[1]))
         elif cmd == "sleep":
