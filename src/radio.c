@@ -533,6 +533,7 @@ void radio_set_tx_freq(int32_t freq) {
         on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
         on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
         if (atomic_exchange(&split_held, false)) {
+            on_train_hold_change(NULL, NULL);   /* the other VFO transmits again: its CW held, before the bit */
             WITH_RADIO_LOCK(hw_set_i(HW_SPLIT, param_i_get(cfg_band_split)));
         }
         return;
@@ -543,6 +544,7 @@ void radio_set_tx_freq(int32_t freq) {
     }
     if (param_i_get(cfg_band_split) && !atomic_exchange(&split_held, true)) {
         WITH_RADIO_LOCK(hw_set_i(HW_SPLIT, false));
+        on_train_hold_change(NULL, NULL);   /* this VFO transmits now: the other one's CW holds nothing */
     }
     WITH_RADIO_LOCK(hw_vfo_set_freq(vfo, freq - cfg_transverter_shift_for(freq)));
 }
@@ -990,16 +992,20 @@ static bool is_cw_mode(int32_t mode) {
 
 /* KEY Train on, and the VFO in use in CW or CW-R, or in split the other one, which transmits: the power at the base
  * held at 0 W (set_txpwr, #127), in every key mode. Out of CW the power comes back as asked: the apps and the voice
- * modes are not the keyer's, and a digital app's TX level would climb at 0 W */
+ * modes are not the keyer's, and a digital app's TX level would climb at 0 W. While the base's split bit is held off
+ * (radio_set_tx_freq: an app, TCI's audio, a voice message, the SWR scan) the VFO in use transmits, in its own mode:
+ * the other one's CW held an FT8 slot at 0 W. Under the lock: radio_set_tx_freq calls it from the apps' threads */
 static void on_train_hold_change(Subject *subj, void *user_data) {
-    bool    a     = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
-    int32_t mode  = param_i_get(a ? cfg_band_vfoa_mode : cfg_band_vfob_mode);
-    int32_t other = param_i_get(a ? cfg_band_vfob_mode : cfg_band_vfoa_mode);
-    bool    hold  = param_i_get(cfg_key_train) && (is_cw_mode(mode) || (param_i_get(cfg_band_split) && is_cw_mode(other)));
-
     (void)subj;
     (void)user_data;
     radio_lock();
+
+    bool    a     = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
+    int32_t mode  = param_i_get(a ? cfg_band_vfoa_mode : cfg_band_vfob_mode);
+    int32_t other = param_i_get(a ? cfg_band_vfob_mode : cfg_band_vfoa_mode);
+    bool    split = param_i_get(cfg_band_split) && !atomic_load(&split_held);
+    bool    hold  = param_i_get(cfg_key_train) && (is_cw_mode(mode) || (split && is_cw_mode(other)));
+
     if (hold != atomic_load(&train_hold)) {
         atomic_store(&train_hold, hold);
         if (hold) {
