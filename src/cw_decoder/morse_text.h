@@ -39,6 +39,8 @@ class MorseText {
         own_left_ = n > 0 ? n : 0;
         own_run_  = false;
     }
+    /* Our own dits and dahs are still to come */
+    bool owning() const { return own_left_ > 0; }
     /* The last of our own dits and dahs came with the last put(): true once */
     bool own_ended() {
         bool e     = own_ended_;

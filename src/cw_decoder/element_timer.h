@@ -49,6 +49,11 @@ class ElementTimer {
      * Learned, the answer's delay went in as a Farnsworth character gap, and
      * after GAPS_MIN of them the word boundary moved up with it */
     void  turn() { unsure_ = true; }
+    /* The running mark or gap is our own keying (the CW trainer's, at the
+     * speed it gave: expect): not learned. Right after the lock has found the
+     * tone the first dah can come in pieces, and in a histogram expect() had
+     * just started over a few of them set the speed to 50 WPM */
+    void  ours() { unsure_ = true; }
     /* Keying at a known speed follows (the CW trainer's own, at the key
      * speed): a dot more than NEW_SPEED off is taken at once, the histogram
      * started over, instead of after MIN_ENTRIES and CONFIRM estimates */

@@ -169,10 +169,12 @@ static void morse_text_rules(void) {
 
 /* ---- ElementTimer: the pause between the turns ------------------------------------------------------------------- */
 
-/* Keys a code into the timer at `dot` ms in its 8 ms steps, the edges on the steps; the symbols go to m, and after
- * our own last element the timer is told of the turn, as Receiver::detector_step does */
+/* Keys a code into the timer at `dot` ms in its 8 ms steps, the edges on the steps; the symbols go to m. As
+ * Receiver::detector_step does, our own elements are not learned, and after our own last one the timer is told of
+ * the turn */
 static void time_code(cw::ElementTimer &t, cw::MorseText &m, const char *code, int dot, int gap_after) {
     auto step = [&](int dir) {
+        if (m.owning()) t.ours();
         cw::Sym s = t.step(dir, 0.0f);
         if (s != cw::SYM_NONE) {
             m.put(s);

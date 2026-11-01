@@ -52,7 +52,8 @@ class Receiver {
     void  set_apf(bool on, float tone_hz, float q);
     /* The VFO moved: the station is df Hz further up in the audio */
     void  follow_vfo(float df) { lock_.shift(df); }
-    /* The next n dits and dahs are our own keying (MorseText::own) */
+    /* The next n dits and dahs are our own keying (MorseText::own), not
+     * learned (ElementTimer::ours) */
     void  own(int n) { text_.own(n); }
     /* Our own keying follows at wpm (the CW trainer's, ElementTimer::expect) */
     void  expect(float wpm) { timer_.expect(wpm); }
