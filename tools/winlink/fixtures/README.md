@@ -21,7 +21,7 @@ From the PC, Mercury (`tools/winlink`, `make modems`, 2026-10-29):
 Nobody posted ardopcf's console or Pat's event log. The tests give those lines in the words of the code
 that writes them: ardopcf's `[STATUS: ...]` lines (`third-party/ardopcf/src/common/ARQ.c`) and
 `Audio socket ...` lines (`src/linux/SockSound.c`), Pat's events (`app/connect.go`, `app/exchange.go` of
-Pat v1.0.0) and errors (wl2k-go v1.0.1: `Connect timeout`, `aborted while waiting for clear channel`,
+Pat v1.0.0, the same in v1.0.1) and errors (wl2k-go v1.0.1: `Connect timeout`, `aborted while waiting for clear channel`,
 the gateway's `Secure login failed` text from `fbb/handshake_test.go`). With Mercury: Pat-Vara v1.2.0's
 `connect timeout` and `bandwidth ... not supported` (`vara/transport.go`), Pat's `vara initialization
 failed` (`app/connect.go`), and Mercury's `decoder ring full` (`third-party/mercury/modem/modem.c`).

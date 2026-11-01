@@ -3,7 +3,7 @@
 
 1. ardopcf, protocol version 1, as x6100-winlink starts it: it connects at 12000 Hz with keys of 30 s, and the
    ID frame it is asked for (SENDID on its host port) is played whole.
-2. Mercury through x6x00-mercury, protocol version 2, and Pat v1.0.0's varahf transport, as on the radio: two
+2. Mercury through x6x00-mercury, protocol version 2, and Pat v1.0.1's varahf transport, as on the radio: two
    stations, each a winlink_host and a bridge, what one transmits the other hears (with a little noise). Pat B
    listens; Pat A sends B a message peer to peer. Pat starts the modem (Mercury answers VERSION), connects,
    sends, disconnects, and the message is in B's inbox.

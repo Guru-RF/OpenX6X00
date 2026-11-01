@@ -3520,7 +3520,7 @@ Connecting to a gateway:
   download masks it).
 - The gateway list: the first time, Pat fetches it from winlink.org when the
   radio has internet, and keeps it on the SD card. Without internet it uses
-  the list built into Pat (April 2026). Updating it needs the internet.
+  the list built into Pat (November 2026). Updating it needs the internet.
 - With the radio on the internet (WiFi, Ethernet), Pat's Telnet transport
   (Connect, Telnet) sends and fetches the mail with no radio at all: a first
   test of the account and the mailbox.
@@ -3560,6 +3560,10 @@ Good to know:
   form's reply page in a window of its own; its Submit closes that window and
   puts the reply in the message you are writing, to check and send. On v0.3.7
   that Submit was refused ("Forbidden: cross-origin request").
+- A form or a template picked with the message's Template... button opens the same
+  way, in a window of its own (Pat 1.0.1 shows it in the same box as a form
+  sent to you), and its Submit puts it in the message you are writing. A
+  text-only template picked for a reply has the message replied to in it.
 - The mailbox's pages run only Pat's own scripts (a Content-Security-Policy
   that forbids any other), and a page of the mailbox (port 8080) cannot open
   the radio's TCI or Panel sockets: a script that ever got into it could not
@@ -3596,11 +3600,12 @@ Pat's own Settings has "Listen for inbound P2P traffic": the radio turns it
 off again each time Pat starts. Listening would make the radio transmit,
 unattended, on whatever frequency it is on.
 
-Pat (MIT, Martin Hebnes Pedersen LA5NTA) and ardopcf (MIT, Rick Muething, John
-Wiseman, Peter LaRue) come with the firmware: Pat with small changes (its page
-answers only to the radio's names and never through Tailscale Funnel, no calls
-home, the Winlink page's ARDOP bandwidth as the widest, its log open to the
-radio's lines), ardopcf with its audio and PTT through the radio's GUI.
+Pat 1.0.1 (MIT, Martin Hebnes Pedersen LA5NTA) and ardopcf (MIT, Rick Muething,
+John Wiseman, Peter LaRue) come with the firmware: Pat with small changes (its
+page answers only to the radio's names and never through Tailscale Funnel, no
+calls home, the Winlink page's ARDOP bandwidth as the widest, its log open to
+the radio's lines, a reply with a Winlink form or a text-only template that
+reaches the composer), ardopcf with its audio and PTT through the radio's GUI.
 
 ### Mercury (experimental)
 

@@ -27,7 +27,7 @@ namespace of its own with loopback only (`unshare -rn`), so Pat reaches nothing
 outside: no Winlink web service, no CMS. It needs the GUI's PC build with the two
 modems built (`cmake --build build-host --target ardopcf x6x00-mercury`; `make
 BUILD=...` for another build directory) and a Pat for this PC (`make PAT=...`: Pat
-v1.0.0 with `tools/pat/patches`, built for linux/amd64).
+v1.0.1 with `tools/pat/patches`, built for linux/amd64; 2026-11-01: MODEMS OK, 58 s).
 
 - ardopcf, as `x6100-winlink` starts it: it connects in protocol 1 (12000 Hz, keys of
   30 s), and the ID frame asked on its host port (`SENDID`) is played whole (1.75 s).
