@@ -34,6 +34,12 @@
  * most, tx_level.c) took many transmissions to bring the power back */
 #define LEARNED_MIN_DB (-42.0f)
 
+/* The whole gain (the codec's and the samples') never above this: the apps' waveforms peak at 0.8 of full scale
+ * (gfsk.c, tune_tx.c, rtty.c), and over 0 dB the codec cuts them at its full scale, more distortion and no more drive.
+ * The X6200's codec goes to +24 dB: a level learned up there (33.4 dB, #126) sent its base a square wave 14 dB over
+ * the default, and every app (TUNE too) went out that way */
+#define TOTAL_TOP_DB        0.0f
+
 #define BLOCK_SAMPLES       2048    /* audio sent per pass, the ALC is read between passes */
 #define STALL_MS            3000    /* keyed this long without a block of audio: unkeyed */
 
@@ -66,8 +72,8 @@ static void *stall_watch(void *arg) {
     return NULL;
 }
 
-static float keep_in_range(float db) {
-    if (db > DRIVE_TOP_DB) return DRIVE_TOP_DB;
+static float keep_in_range(float db, float top) {
+    if (db > top) return top;
     return db < DRIVE_FLOOR_DB ? DRIVE_FLOOR_DB : db;
 }
 
@@ -151,10 +157,12 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     if (pwr_set) radio_set_pwr(pwr_w);
 
     /* Part of the gain goes to the codec volume (6 dB above the total), the rest is applied
-     * to the samples */
-    float   total = base_gain + LV_MAX(params.ft8_output_gain_offset.x, LEARNED_MIN_DB);
+     * to the samples. The whole at most TOTAL_TOP_DB, also as the level climbs: what is learned stays under it */
+    float   kept  = LV_MAX(params.ft8_output_gain_offset.x, LEARNED_MIN_DB);  /* from the last transmission */
+    float   total = base_gain + LV_MIN(kept, TOTAL_TOP_DB - base_gain);
     float   codec = audio_set_play_vol(total + 6.0f);
     float   drive = total - codec;
+    float   top   = LV_MIN(DRIVE_TOP_DB, TOTAL_TOP_DB - codec);
 
     /* The VFO that transmits moves for the tone: the other one in split (a TX shift), the IF shift put back after */
     int32_t dial = radio_tx_freq();
@@ -201,7 +209,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
         /* one more each time the audio has gone into a new block: with whole blocks each pass, the short last one
          * too, as before */
         if ((size_t)level.blocks <= (played + BLOCK_SAMPLES - 1) / BLOCK_SAMPLES) {
-            drive = keep_in_range(drive + tx_level_block(&level, have, pwr, alc));
+            drive = keep_in_range(drive + tx_level_block(&level, have, pwr, alc), top);
             have = false;
         }
         if (fresh && level.blocks > TX_LEVEL_SETTLE_BLOCKS) {
