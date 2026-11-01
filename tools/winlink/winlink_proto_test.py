@@ -7,7 +7,8 @@ the receiver's R messages (their size, how many a second, the tone in them: the 
 rate), a transmission of a 1 kHz tone (what the player got: as long as what was sent and still 1 kHz, so it
 was resampled from the session's rate), the key limit, the hellos refused (rate, version), messages before
 the hello (ignored) and a second hello (ignored). A digital app opened during a key: stopped, the next key
-refused. And the radio file the Winlink page reads: Winlink's cap of 7 W, 5 W with the X6200 on its battery.
+refused. An SWR trip during a key: the hold on that band and near its frequency, another band keys (#147). And
+the radio file the Winlink page reads: Winlink's cap of 7 W, 5 W with the X6200 on its battery.
 Prints PROTO OK at the end; exits 1 at the first failure.
 Run from `make` (make test).
 """
@@ -57,8 +58,10 @@ class Host:
         self.played = os.path.join(tmp, name + ".played")
         self.log = os.path.join(tmp, name + ".log")
         self.app = os.path.join(tmp, name + ".app")
+        self.swr = os.path.join(tmp, name + ".swr")
+        self.rig_port = rig_port
         env = dict(os.environ, WL_SOCK=self.sock, WL_RIG_PORT=str(rig_port), WL_PLAYED=self.played, WL_TONE="1000",
-                   WL_APP=self.app, **(env or {}))
+                   WL_APP=self.app, WL_SWR=self.swr, **(env or {}))
         # here: the radio file is build/radio (stub_env.h)
         self.p = subprocess.Popen([os.path.join(HERE, "winlink_host")], env=env, stderr=open(self.log, "w"), cwd=HERE)
         for _ in range(100):
@@ -88,16 +91,31 @@ class Host:
             f.write(name)
         os.rename(self.app + ".tmp", self.app)
 
+    def swr_trip(self):
+        """The SWR protection stops the key on the air now, or the next one (WL_SWR)"""
+        open(self.swr, "w").close()
+
+    def tune(self, hz):
+        """Pat's QSY through the rigctld: its answer, "RPRT 0" once the radio is there"""
+        with socket.create_connection(("127.0.0.1", self.rig_port), timeout=3) as s:
+            s.sendall(f"F {hz}\n".encode())
+            return s.recv(64).decode().strip()
+
+    @staticmethod
+    def radio():
+        """The radio file's lines, {} while there is none"""
+        try:
+            with open(RADIO_FILE) as f:
+                return dict(line.rstrip("\n").split("=", 1) for line in f if "=" in line)
+        except FileNotFoundError:
+            return {}
+
     def wait_radio(self, want, timeout=5.0):
         """Whether the radio file (the Winlink page's) came to have the values in want, a dict of its lines, and
         those lines as last read"""
         end, radio = time.time() + timeout, {}
         while time.time() < end:
-            try:
-                with open(RADIO_FILE) as f:
-                    radio = dict(line.rstrip("\n").split("=", 1) for line in f if "=" in line)
-            except FileNotFoundError:
-                radio = {}
+            radio = self.radio()
             if all(radio.get(k) == v for k, v in want.items()):
                 break
             time.sleep(0.1)
@@ -351,6 +369,70 @@ def main():
             tx += 1
             played, stopped = host.wait_played(tx)
             check(not stopped, f"FT4 closed: the next key goes out ({len(played)} samples)")
+            gone = host.text().count("the modem gone")
+            m.close()
+            session(host, gone + 1)
+
+            print("an SWR trip on 30 m: no TX on 30 m for 5 minutes, 40 m keys at once (#147)")
+            m = Modem(host.sock)
+            m.send("H", 1)
+            check(host.wait_log("protocol 1, 12000 Hz, keys of 30 s at most", 3), "the hello")
+            check(host.tune(10145000) == "RPRT 0", "Pat's QSY to 10.145.000 MHz, on 30 m")
+            trips = threading.Timer(0.5, host.swr_trip)
+            trips.start()
+            m.transmit(12000, 2.0)
+            trips.join()
+            tx += 1
+            played, stopped = host.wait_played(tx)
+            n = len(played)
+            check(stopped and n < 1.5 * PLAY_RATE, f"2 s sent, high SWR after 0.5 s: stopped there ({n} samples)")
+            check(host.wait_log("winlink: SWR trip"), "the trip counted for Winlink")
+            m.transmit(12000, 0.5)
+            check(host.wait_log("winlink: not keyed, high SWR"), "the next key on 10.145.000 MHz: refused")
+            check(host.played_count() == tx, "and not keyed")
+            check(host.tune(10120000) == "RPRT 0", "Pat's QSY to 10.120.000 MHz, 30 m still")
+            m.transmit(12000, 0.5)
+            check(host.wait_log("winlink: not keyed, high SWR", 2), "refused there too")
+            check(host.played_count() == tx, "and not keyed")
+            check(host.tune(7102000) == "RPRT 0", "Pat's QSY to 7.102.000 MHz, on 40 m")
+            m.transmit(12000, 0.5)
+            tx += 1
+            played, stopped = host.wait_played(tx)
+            check(not stopped, f"40 m keys during the 30 m hold ({len(played)} samples)")
+            check(host.wait_log("Winlink: no TX on 30m for 5 minutes, check the antenna"), "the hold said with its band")
+            check(host.wait_log("winlink: not keyed, high SWR on 30m, the hold ends in 5 min", 2),
+                  "each refusal names the band and the minutes left")
+            ok, radio = host.wait_radio({"swr_hold_where": "on 30m", "swr_hold_here": "0"})
+            check(ok and 240 < int(host.radio().get("swr_hold", 0)) <= 300,
+                  f"the radio file: the hold on 30 m with its seconds left, not where the radio is ({radio})")
+            check(host.tune(10145000) == "RPRT 0", "back to 10.145.000 MHz")
+            ok, radio = host.wait_radio({"swr_hold_where": "on 30m", "swr_hold_here": "1"})
+            check(ok, f"the radio file: the hold where the radio is ({radio})")
+            m.transmit(12000, 0.5)
+            check(host.wait_log("winlink: not keyed, high SWR on 30m", 3), "the hold is still on 30 m: refused")
+            check(host.played_count() == tx, "and not keyed")
+
+            print("an SWR trip on 7.250 MHz, outside the band table: the hold within 100 kHz of it")
+            check(host.tune(7250000) == "RPRT 0", "Pat's QSY to 7.250.000 MHz")
+            trips = threading.Timer(0.5, host.swr_trip)
+            trips.start()
+            m.transmit(12000, 2.0)
+            trips.join()
+            tx += 1
+            played, stopped = host.wait_played(tx)
+            check(stopped, f"stopped by the SWR protection ({len(played)} samples)")
+            check(host.wait_log("Winlink: no TX near 7.250.000 MHz for 5 minutes, check the antenna"),
+                  "the hold said with its frequency")
+            check(host.tune(7300000) == "RPRT 0", "Pat's QSY to 7.300.000 MHz, 50 kHz from the trip")
+            m.transmit(12000, 0.5)
+            check(host.wait_log("winlink: not keyed, high SWR near 7.250.000 MHz, the hold ends in 5 min"),
+                  "refused, near the trip")
+            check(host.played_count() == tx, "and not keyed")
+            check(host.tune(7400000) == "RPRT 0", "Pat's QSY to 7.400.000 MHz, 150 kHz from it")
+            m.transmit(12000, 0.5)
+            tx += 1
+            played, stopped = host.wait_played(tx)
+            check(not stopped, f"keys there ({len(played)} samples)")
             m.close()
         finally:
             host.stop()

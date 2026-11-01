@@ -1168,7 +1168,8 @@ SWR protection. Where: Settings > TX Cal > TX PROTECTION > SWR protection.
   for the readings of the tune's own power and within its time limit: its
   tuner shows a high SWR on purpose too while it matches. Up to v0.3.7 such a
   tuner was stopped by it ("TX stopped: SWR 3.4", #84).
-- Nothing stays locked: the next PTT or transmission goes out again.
+- Nothing stays locked: the next PTT or transmission goes out again. Only
+  Winlink waits, 5 minutes on that band (see [Winlink](#winlink)).
 - It stops what the radio keys itself: CAT PTT, the PTT button, CW messages
   and the CW keyboard, voice messages, the digital apps and the keyboard
   paddle (it keys again after both paddles are let go). A PTT held on the
@@ -3430,14 +3431,24 @@ Connecting to a gateway:
   the radio's other digital modes.
 - ARDOP keys the radio the way the radio's own digital modes do, and
   identifies with your callsign in CW. The radio does not key for Winlink
-  while it is already transmitting, nor for 5 minutes after a high SWR
-  stopped a Winlink transmission. The screen says so as it happens ("TX
-  stopped: SWR 3.2", then "Winlink: no TX for 5 minutes, check the
-  antenna") and at each refused key with the time left ("Winlink: no TX,
-  high SWR, the hold ends in 4 min"); the Winlink page's SWR hold
-  row counts the minutes down, and Pat's log says when it ends ("OpenX6X00:
-  high SWR stopped a Winlink transmission: no TX for 5 minutes, until
-  14:32").
+  while it is already transmitting, nor, for 5 minutes after a high SWR
+  stopped a Winlink transmission, on the band where that happened: Pat's
+  and ARDOP's next tries go out there, into the same antenna, and are held.
+  The band is the one the screen names under the frequency (30m, 40m), and
+  the hold also covers 100 kHz either side of where it happened (across a
+  band's edge, and outside the bands). Another band transmits at once: call
+  a gateway on a band where the antenna is fine. The hold is the last trip's:
+  a trip on another band moves it there. Up to v0.3.8 the hold was on every
+  band, until its 5 minutes were over or the radio's software restarted
+  (#147). The screen says so as it happens ("TX stopped: SWR 3.2", then
+  "Winlink: no TX on 30m for 5 minutes, check the antenna") and at each
+  refused key with the time left ("Winlink: no TX, high SWR on 30m, the hold
+  ends in 4 min"; outside the bands "near 5.403.500 MHz"); the Winlink
+  page's SWR hold row counts the minutes down, and Pat's log says when it
+  ends ("OpenX6X00: high SWR stopped a Winlink transmission: no TX for 5
+  minutes, until 14:32"). A tune or an SWR scan does not end the hold: the
+  scan's carrier is 1 W, and the SWR protection watches the transmissions
+  themselves, at their power.
 - Close the radio's digital apps first. While one is open (FT8, FT4, JS8,
   WSPR, PSK, Olivia, JTTY, RTTY, SSTV, WeFax, NavTex) it holds the radio's
   frequency, mode and audio: Winlink does not key ("Winlink: no TX, FT8 is

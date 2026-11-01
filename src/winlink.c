@@ -42,6 +42,7 @@
 #include "audio.h"
 #include "cfg/cfg_api.h"
 #include "channel_list.h"
+#include "cluster/spots.h"
 #include "msg.h"
 #include "radio.h"
 #include "scheduler.h"
@@ -86,7 +87,8 @@
 #define OUT_MAX         1024            /* the resampler's output for a block, with room (1 + 2 r n) */
 #define WAIT_MS         10              /* the worker looks at the ring this often while it waits */
 #define SILENCE_MS      500             /* keyed without audio this long: unkeyed */
-#define SWR_HOLD_MS     (5 * 60 * 1000) /* no keying this long after an SWR trip in a Winlink TX */
+#define SWR_HOLD_MS     (5 * 60 * 1000) /* no keying this long after an SWR trip in a Winlink TX, on its band */
+#define SWR_NEAR_HZ     100000          /* and this near the trip's frequency, whatever the band (swr_hold_covers) */
 #define TURN_MS         500             /* after our own TX the base may still report it this long */
 
 #define RIG_CLIENTS     4
@@ -149,7 +151,9 @@ static struct {
 
 /* The worker's, kept from one connection to the next */
 static uint64_t unkey_ms;           /* our last transmission ended */
+static int32_t  unkey_hz;           /* where it went out */
 static atomic_ullong swr_trip_ms;   /* the SWR protection stopped one, 0 never (the radio file reads it) */
+static atomic_int    swr_trip_hz;   /* where that one went out: the hold is there (swr_hold_covers) */
 static unsigned key_trips;          /* radio_swr_trips() when our last key began */
 static atomic_bool keying;          /* the worker transmits: on_air() may not show it yet, or no more */
 
@@ -157,7 +161,8 @@ static void rig_pending_tune(void);
 static void said_refused(const char *why);
 static void said_qsy(int32_t hz, const char *why);
 static int  swr_hold_left_s(void);
-static void swr_hold_said(void);
+static void swr_hold_begin(void);
+static const char *swr_held(int32_t hz);
 static atomic_int    pending_hz;    /* a \set_freq asked on the air, done once it is over; 0 none */
 static atomic_int    missed_hz;     /* a QSY Pat was told was done and that could not be (rig_pending_tune); 0 none */
 /* The frequency of the connection under way: Pat's last tune, or where the modem last keyed; 0 none. Written by
@@ -521,9 +526,9 @@ static void qsy_refused(int32_t f, const char *why) {
     said_qsy(f, why);
 }
 
-/* Why the modem's key is not taken, the radio's state; NULL: it is, if tx_off_freq agrees */
+/* Why the modem's key is not taken, the radio's state; NULL: it is, if tx_off_freq and the SWR hold agree */
 static const char *tx_refused(void) {
-    static char app[64], swr[64];   /* the worker's */
+    static char app[64];    /* the worker's */
 
     if (app_holds_radio(app, sizeof(app)))
         return app;     /* also while it transmits: the app is what to close */
@@ -534,17 +539,9 @@ static const char *tx_refused(void) {
     if (on_air())
         return "the radio is on the air";
     /* A trip the guard reported after our last key ended (its callback runs on the LVGL thread,
-     * maybe after tx_player returned) counts for that key */
-    if (unkey_ms && radio_swr_trips() != key_trips) {
-        key_trips   = radio_swr_trips();    /* counted once */
-        swr_trip_ms = unkey_ms;
-        LV_LOG_WARN("winlink: SWR trip, no TX for %d minutes", SWR_HOLD_MS / 60000);
-        swr_hold_said();
-    }
-    if (swr_hold_left_s()) {
-        snprintf(swr, sizeof(swr), "high SWR, the hold ends in %d min", (swr_hold_left_s() + 59) / 60);
-        return swr;
-    }
+     * maybe after tx_player returned) counts for that key: its hold begins (swr_held) */
+    if (unkey_ms && radio_swr_trips() != key_trips)
+        swr_hold_begin();
     return NULL;
 }
 
@@ -632,12 +629,9 @@ static void transmit(void) {
     if (low)
         audio_play_lowlat_end();
     unkey_ms = now_ms();
-    if (radio_swr_trips() != trips) {
-        key_trips   = radio_swr_trips();
-        swr_trip_ms = unkey_ms;
-        LV_LOG_WARN("winlink: SWR trip, no TX for %d minutes", SWR_HOLD_MS / 60000);
-        swr_hold_said();
-    }
+    unkey_hz = ses.key_hz;
+    if (radio_swr_trips() != trips)
+        swr_hold_begin();
 }
 
 /* The worker: one per connection, it waits for the modem's keys */
@@ -656,7 +650,7 @@ static void *tx_thread(void *arg) {
 
         if (!no) {
             atomic_store(&keying, true);    /* a QSY Pat asks from now on waits for the end of this key */
-            if ((no = tx_off_freq()))
+            if ((no = tx_off_freq()) || (no = swr_held(ses.key_hz)))
                 atomic_store(&keying, false);
         }
         pthread_mutex_lock(&ses.lock);
@@ -1251,7 +1245,7 @@ static void simplex_issue(char *why, size_t n, int32_t rx, int32_t tx, int32_t x
         snprintf(why, n, "split would send on %s, not %s", mhz(a, sizeof(a), tx), mhz(b, sizeof(b), rx));
 }
 
-/* Seconds left of the hold after an SWR trip in a Winlink transmission, 0 none */
+/* Seconds left of the hold after an SWR trip in a Winlink transmission, 0 none. Read before swr_trip_hz */
 static int swr_hold_left_s(void) {
     uint64_t trip = atomic_load(&swr_trip_ms), now = now_ms();
 
@@ -1260,9 +1254,54 @@ static int swr_hold_left_s(void) {
     return (int)((SWR_HOLD_MS - (now - trip) + 999) / 1000);
 }
 
-/* The hold begins: on the screen after the guard's own "TX stopped: SWR", and in the radio file (swr_hold) */
-static void swr_hold_said(void) {
-    msg_schedule_text_fmt("Winlink: no TX for %d minutes, check the antenna", SWR_HOLD_MS / 60000);
+/* The hold of a trip on `trip` Hz covers hz: on the band of the trip, the one the screen names under the frequency
+ * (cluster_band_of: the amateur bands, 160 m to 70 cm), and within SWR_NEAR_HZ of the trip on any band or none (the
+ * table's 80 m and 40 m end at 3.8 and 7.2 MHz, where other regions' go on). The modem's and Pat's tries go out where
+ * the trip was, and are held; another band, where the antenna may well be fine, keys at once. Up to v0.3.8 the hold
+ * was on every band (#147) */
+static bool swr_hold_covers(int32_t trip, int32_t hz) {
+    int band = cluster_band_of(trip);
+
+    return (band >= 0 && cluster_band_of(hz) == band) || llabs((long long)hz - trip) <= SWR_NEAR_HZ;
+}
+
+/* Where the hold of a trip on `trip` Hz is, for the words: "on 30m", "near 7.250.000 MHz" off the bands */
+static const char *swr_hold_where(char *s, size_t size, int32_t trip) {
+    int  band = cluster_band_of(trip);
+    char f[16];
+
+    if (band >= 0)
+        snprintf(s, size, "on %s", cluster_band_name(band));
+    else
+        snprintf(s, size, "near %s MHz", mhz(f, sizeof(f), trip));
+    return s;
+}
+
+/* The SWR protection stopped our last transmission (unkey_ms, unkey_hz): the hold begins there. On the screen after
+ * the guard's own "TX stopped: SWR", and in the radio file (swr_hold). The worker */
+static void swr_hold_begin(void) {
+    char where[32];
+
+    key_trips = radio_swr_trips();      /* counted once */
+    atomic_store(&swr_trip_hz, unkey_hz);   /* before the time: whoever reads the new time reads where too */
+    atomic_store(&swr_trip_ms, unkey_ms);
+    swr_hold_where(where, sizeof(where), unkey_hz);
+    LV_LOG_WARN("winlink: SWR trip on %d Hz, no TX %s for %d minutes", (int)unkey_hz, where, SWR_HOLD_MS / 60000);
+    msg_schedule_text_fmt("Winlink: no TX %s for %d minutes, check the antenna", where, SWR_HOLD_MS / 60000);
+}
+
+/* Why a key on hz is held after an SWR trip; NULL: it is not. The worker, once tx_off_freq has put the key on hz */
+static const char *swr_held(int32_t hz) {
+    static char why[64];    /* the worker's */
+    char        where[32];
+    int         left = swr_hold_left_s();
+    int32_t     trip = atomic_load(&swr_trip_hz);
+
+    if (!left || !swr_hold_covers(trip, hz))
+        return NULL;
+    snprintf(why, sizeof(why), "high SWR %s, the hold ends in %d min", swr_hold_where(where, sizeof(where), trip),
+             (left + 59) / 60);
+    return why;
 }
 
 /* The file's lines into buf */
@@ -1283,21 +1322,29 @@ static void radio_file_body(char *buf, size_t size, bool modem) {
     bool        xvtr  = xv > 0.0f && xv <= top && top < TX_PLAYER_MAX_PWR_W;
     bool        bat   = !xvtr && top < BOARD_PWR_MAX && top < TX_PLAYER_MAX_PWR_W;
     char        simplex[96];
+    /* The hold after an SWR trip: its seconds left, wherever it is; where it is, and whether the radio is there */
+    int         hold  = swr_hold_left_s();
+    int32_t     trip  = atomic_load(&swr_trip_hz);
+    char        where[32] = "";
 
+    if (hold)
+        swr_hold_where(where, sizeof(where), trip);
     simplex_issue(simplex, sizeof(simplex), rx, tx, xit, rit, shift);
     pthread_mutex_lock(&said_lock);
     snprintf(buf, size,
              "modem=%s\nrx=%d\ntx=%d\nmode=%s\nsplit=%d\nshift=%d\nrit=%d\nxit=%d\nsimplex=%s\n"
              "filter_low=%d\nfilter_high=%d\ntx_filter_low=%d\ntx_filter_high=%d\npwr=%.1f\ncap=%.1f\n"
              "cap_battery=%d\ncap_transverter=%d\napp=%s\nlocked=%d\non_air=%d\nswr_hold=%d\n"
-             "refused=%s\nrefused_seq=%u\nrefused_at=%lld\nqsy=%d\nqsy_why=%s\nqsy_seq=%u\nqsy_at=%lld\n",
+             "refused=%s\nrefused_seq=%u\nrefused_at=%lld\nqsy=%d\nqsy_why=%s\nqsy_seq=%u\nqsy_at=%lld\n"
+             "swr_hold_where=%s\nswr_hold_here=%d\n",
              modem ? "connected" : "none", (int)rx, (int)tx, channels_mode_name(cparam_i_get(cfg_cur_mode)),
              param_i_get(cfg_band_split) ? 1 : 0, (int)shift, (int)rit, (int)xit, simplex,
              (int)cparam_i_get(cfg_cur_filter_low), (int)cparam_i_get(cfg_cur_filter_high),
              txf ? (int)param_i_get(cfg_tx_filter_low) : 0, txf ? (int)param_i_get(cfg_tx_filter_high) : 0,
              param_f_get(cfg_pwr), cap, bat ? 1 : 0, xvtr ? 1 : 0, app ? app : "", main_screen_freq_locked() ? 1 : 0,
-             on_air() ? 1 : 0, swr_hold_left_s(), said.refused, said.refused_seq, (long long)said.refused_at,
-             (int)said.qsy_hz, said.qsy_why, said.qsy_seq, (long long)said.qsy_at);
+             on_air() ? 1 : 0, hold, said.refused, said.refused_seq, (long long)said.refused_at,
+             (int)said.qsy_hz, said.qsy_why, said.qsy_seq, (long long)said.qsy_at, where,
+             hold && swr_hold_covers(trip, rx) ? 1 : 0);
     pthread_mutex_unlock(&said_lock);
 }
 
