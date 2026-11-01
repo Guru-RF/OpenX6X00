@@ -73,6 +73,8 @@ const CARDS = [
     ["spectrum_fill_gradient", "Fill gradient", "The fill fading to the background at the bottom", "sw"],
     ["wf_palette", "Waterfall colours", "The theme's, or one of these", "sel", ["Theme", "Classic", "Gauss", "Grey", "Fire", "Ice", "Rainbow"]],
     ["wf_mode", "Mode", "Centered keeps the VFO in the middle, Fixed keeps the span", "seg", ["Centered", "Fixed"]],
+    ["wf_fixed_jump", "Jump at", "Fixed: the view moves on when the VFO line is 40% of the span from the centre, or when the passband or the line reaches the screen's edge (100 Hz from it)", "sel", ["40%", "Passband", "Line"]],
+    ["wf_fixed_after", "Jump to", "Fixed: the line back in the centre, at the other edge to tune on across the screen, or kept at the edge with the view scrolling along", "sel", ["Center", "Other edge", "Scroll"]],
     ["wf_speed", "Speed", "Lines a second, slow to fast", "range", [1, 5, 1, 1, ""]],
     ["auto_level", "Auto level", "Follows the noise floor by itself", "sw"],
     ["auto_level_offset", "Auto level offset", "Darker or brighter than the noise", "range", [-150, 150, 5, 10, " dB"]],
@@ -265,6 +267,7 @@ var reread = function() {
 /* Rows that only matter with another option on */
 var refresh = function() {
   $("#row-auto_level_offset").toggleClass("off", !D.auto_level);
+  $("#row-wf_fixed_jump, #row-wf_fixed_after").toggleClass("off", D.wf_mode !== 1);
   $("#row-spectrum_filled, #row-spectrum_peak, #row-spectrum_height, #row-spectrum_line_color").toggleClass("off", !D.spectrum_show);
   $("#row-spectrum_fill_color, #row-spectrum_fill_gradient").toggleClass("off", !D.spectrum_show || !D.spectrum_filled);
   $("#row-smeter_bar_color").toggleClass("off", D.smeter_color !== 0 || (D.smeter_needle === 1 && D.smeter_lamp === 1));

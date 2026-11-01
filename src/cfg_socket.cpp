@@ -55,6 +55,8 @@ static const struct {
     int32_t             min, max;
 } disp_ints[] = {
     {"wf_mode", &cfg_sm.p_wf_mode, 0, 1},
+    {"wf_fixed_jump", &cfg_sm.p_wf_fixed_jump, 0, 2},  /* Fixed mode: live, waterfall_view.c reads them */
+    {"wf_fixed_after", &cfg_sm.p_wf_fixed_after, 0, 2},
     {"auto_level", &cfg_sm.p_auto_level_enabled, 0, 1},
     {"wf_speed", &cfg_sm.p_waterfall_speed, 1, 5},
     {"band_plan", &cfg_sm.p_band_plan, 0, 1},
