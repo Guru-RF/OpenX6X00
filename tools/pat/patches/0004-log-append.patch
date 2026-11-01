@@ -1,4 +1,4 @@
-From 1993c81e027e5e23ccf3a8474e83c8be1ca63076 Mon Sep 17 00:00:00 2001
+From c2bc3cb03ae0585c2007dbedc12b75ae0d194d4c Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Thu, 29 Oct 2026 20:30:00 +0100
 Subject: [PATCH] app, api: the log opened for appending, its tail read again
@@ -135,10 +135,10 @@ index 2bde1ba..a319af6 100644
  	raw, ok := v["prompt_response"]
  	if !ok {
 diff --git a/app/app.go b/app/app.go
-index 0ddc2d0..9df1a15 100644
+index a6b3124..020d305 100644
 --- a/app/app.go
 +++ b/app/app.go
-@@ -199,7 +199,10 @@ func (a *App) Run(ctx context.Context, cmd Command, args []string) {
+@@ -200,7 +200,10 @@ func (a *App) Run(ctx context.Context, cmd Command, args []string) {
  	}
  
  	// Initialize logger

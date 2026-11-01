@@ -1,4 +1,4 @@
-From 0df78fc1082359ab1f37ba974813d91093540b2b Mon Sep 17 00:00:00 2001
+From 578ac75beeaca1cec2c8dbd0c5cd5f025822a417 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Thu, 29 Oct 2026 20:00:00 +0100
 Subject: [PATCH] app: the config's ARDOP bandwidth is the widest, also for a

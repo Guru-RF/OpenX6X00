@@ -9,7 +9,7 @@
  * inline script, as their Content-Security-Policy wants (static/page-handlers.js does what their inline
  * handlers did).
  *
- *     git clone -q -b v1.0.0 https://github.com/la5nta/pat /tmp/pat && git -C /tmp/pat apply tools/pat/patches/*.patch
+ *     git clone -q -b v1.0.1 https://github.com/la5nta/pat /tmp/pat && git -C /tmp/pat apply tools/pat/patches/*.patch
  *     NODE_PATH=<a node_modules with jsdom> node tools/pat/pat_ui_test.js /tmp/pat
  *
  * Prints each check and "N of N checks as they should be"; exit status 1 when one is not. Against Pat without
@@ -70,7 +70,7 @@ const server = http.createServer((req, res) => {
   const text = (v, code) => { res.writeHead(code, {'Content-Type': 'text/plain'}); res.end(v); };
   if (url.pathname === '/ui' || url.pathname === '/ui/config') {
     const page = fs.readFileSync(path.join(DIST, url.pathname === '/ui' ? 'index.html' : 'config.html'), 'utf8')
-      .replace(/\{\{\.AppName\}\}/g, 'Pat').replace(/\{\{\.Version\}\}/g, 'v1.0.0').replace(/\{\{\.Mycall\}\}/g, 'N0CALL');
+      .replace(/\{\{\.AppName\}\}/g, 'Pat').replace(/\{\{\.Version\}\}/g, 'v1.0.1').replace(/\{\{\.Mycall\}\}/g, 'N0CALL');
     res.writeHead(200, {'Content-Type': 'text/html'});
     return res.end(page);
   }
@@ -245,7 +245,9 @@ function inlineScript(doc) {
         [$('#formsVersion').innerHTML, $('#updateFormsVersion').innerHTML]);
   const folder = $('#formFolderRoot .folder-toggle'), formButton = $('#formFolderRoot .form-item button');
   check('a forms folder\'s name as text', folder && folder.textContent === 'Folder ' + IMG, folder && folder.textContent);
-  check('a form\'s name as text', formButton && formButton.textContent === 'Form ' + IMG, formButton && formButton.textContent);
+  /* Pat v1.0.1 escapes the form's name into the button's markup, between the template's spaces */
+  check('a form\'s name as text', formButton && formButton.textContent.trim() === 'Form ' + IMG,
+        formButton && formButton.textContent);
   check('no markup from the forms', !$('#formFolderRoot img') && !$('#formsVersion img'), $('#formFolderRoot').innerHTML.slice(0, 300));
 
   console.log('Without inline script (the pages\' Content-Security-Policy)');

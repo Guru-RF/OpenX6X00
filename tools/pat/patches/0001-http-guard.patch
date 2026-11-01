@@ -1,4 +1,4 @@
-From 4f02f638041258ed70f0fc3908e4077e3f60f640 Mon Sep 17 00:00:00 2001
+From a3a5f2ed3b7f7f3d149d5b036dc773f4dfd81340 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Mon, 26 Oct 2026 12:19:12 +0100
 Subject: [PATCH] api: refuse requests other sites can make a browser send
@@ -41,7 +41,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  create mode 100644 api/guard_test.go
 
 diff --git a/api/api.go b/api/api.go
-index 7f39760..a1c9308 100644
+index 0bd0d77..e2f27f4 100644
 --- a/api/api.go
 +++ b/api/api.go
 @@ -56,7 +56,7 @@ func ListenAndServe(ctx context.Context, a *app.App, addr string) error {

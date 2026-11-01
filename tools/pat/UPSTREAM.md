@@ -5,9 +5,10 @@ Go. On the radio it is the Winlink client: its web mailbox on port 8080, ARDOP t
 ardopcf, the frequency through the GUI's rigctld-compatible server.
 
 Source: https://github.com/la5nta/pat
-Tag: `v1.0.0`, commit `2e6a8d14baf0268f4e2aa4d01784a54ca935cf52` (2026-04-19). The tag is a
-lightweight tag on an unsigned commit, so `build.sh` checks the commit and stops when it
-differs.
+Tag: `v1.0.1`, commit `2ad31e8fc1f1748ac1b00cac9d88da54e3e0efe2` (2026-11-01). The tag is a
+lightweight tag on an unsigned commit, as `v1.0.0` was, so `build.sh` checks the commit and
+stops when it differs. Before it: `v1.0.0`, commit `2e6a8d14baf0268f4e2aa4d01784a54ca935cf52`
+(2026-04-19).
 License: MIT, Copyright (c) 2020 Martin Hebnes Pedersen (LA5NTA) (`LICENSE` in the source)
 
 Not vendored: `build.sh` clones the tag at build time. `build.sh`, `patches/` and this file
@@ -17,7 +18,8 @@ are ours.
 
 - Go: the official toolchain, `go1.27.3.linux-amd64.tar.gz` from go.dev, SHA-256
   `65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40` (from
-  https://go.dev/dl/?mode=json&include=all). Pat v1.0.0 needs Go 1.24 or newer; buildroot's
+  https://go.dev/dl/?mode=json&include=all). Pat v1.0.1 needs Go 1.26 or newer (`go 1.26.0`
+  in its `go.mod`, for its updated modules; v1.0.0 needed 1.24); buildroot's
   Go (1.20 in both trees) is too old, so Pat is built outside buildroot. The pin is in the
   script, not in the Dockerfile, so the container and the GitHub runner use the same Go.
 - Downloaded once into `$HOME/.cache/openx6x00/go-<version>` (in the container
@@ -27,8 +29,8 @@ are ours.
 - `GOTOOLCHAIN=local GOFLAGS=-mod=readonly`, the public module proxy and checksum database,
   `go mod download` and `go mod verify`: a module that does not match `go.sum` stops the build.
 - `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags="-s -w -buildid="`:
-  one static binary for both radios, about 13.9 MB. Two builds with Go's build cache wiped in
-  between gave the same SHA-256.
+  one static binary for both radios, about 14.1 MB. With v1.0.0, two builds with Go's build
+  cache wiped in between gave the same SHA-256.
 - The binary is kept as `$HOME/.cache/openx6x00/pat/pat-<tag>-go<version>-<hash>/pat`, the
   hash being that of the patches and of `build.sh`; a second run prints that path and
   downloads nothing. Go's module cache (`gopath/`) is read-only, as Go makes it:
@@ -45,12 +47,14 @@ AGWPE, telnet and rigctld over TCP stay.
 
 Name and version: Pat asks forks to consider another name and not to bump the version unless
 they do (`internal/buildinfo/VERSION.go`), since the Winlink CMS uses it. We keep both: it
-reports itself as Pat 1.0.0 with the upstream revision `2e6a8d1`; `go version -m` shows
-`v1.0.0+dirty` (our patches).
+reports itself as Pat 1.0.1 with the upstream revision `2ad31e8` (`pat version`: `Pat v1.0.1
+(2ad31e8) linux/arm - go1.27.3`); `go version -m` shows `v1.0.1+dirty` (our patches).
 
 ## Local patches (`patches/`)
 
-Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them in order.
+Each one made with `git format-patch` against `v1.0.1`; `git apply` takes them in order. On
+the way from `v1.0.0`: 0001 to 0004 rebased as they were (line offsets only); 0005 and 0006
+rebased onto v1.0.1's own changes to the same files (below).
 
 - `0001-http-guard.patch`: a guard around Pat's HTTP handler (`api/guard.go`, wrapped in
   `api.ListenAndServe`). Pat has no login, and a plain GET of `/api/connect` keys the
@@ -100,16 +104,21 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   writes to `<call>@winlink.org`, and Pat's page put strings from it into the page with jQuery's
   `.html()` (or `.append()` of a string): an attachment named `<img src=x onerror=...>` (the name
   comes unchanged from the message's `File:` line) ran as script on Pat's own page, port 8080,
-  which can read and send mail, connect and transmit, and open the radio's TCI socket. Now text
-  (`.text()`, text nodes, attributes set with `.attr()`): the message window (date, From, To, Cc,
-  the attachments' names, their addresses now encoded), the message list (addresses, date,
-  message ID; `htmlEscape` escapes quotes too), the log pane, the status text (the remote's
-  address), the prompt of the messages to download (senders, subjects), the status bar's
-  messages, the composer's and the password recovery's errors, the connect dialog's aliases, the
-  gateway list's prediction and the forms' catalog. The message body was sanitized already
-  (bluemonday). The template page shows `/api/template`'s preview as markup: the insertion tags'
-  values (the subject, sender and body of the message replied to among them) go into it escaped.
-  With a test (`internal/forms/preview_test.go`).
+  which can read and send mail, connect and transmit, and open the radio's TCI socket. Pat
+  v1.0.1 escapes some of them itself ("Harden web UI against untrusted message and form
+  content": the message list's addresses, date and message ID, the message window's From, To,
+  Cc and the attachments' names, the forms' names); the patch keeps the rest. Now text
+  (`.text()`, text nodes, attributes set with `.attr()`): the message window's date and the
+  attachments' addresses (now encoded), the message list's row id (`htmlEscape` escapes quotes
+  too), the log pane, the status text (the remote's address), the prompt of the messages to
+  download (senders, subjects), the status bar's messages, the composer's and the password
+  recovery's errors, the connect dialog's aliases, the gateway list's prediction and the forms'
+  catalog (the folders' names, the version). The message body was sanitized already
+  (bluemonday). The text-only template editor (since v1.0.1 served at `/api/forms` by
+  `RenderTemplateEditor`, where v1.0.0 had `/ui/template` and `/api/template`) shows its
+  template as markup: the insertion tags' values (the subject, sender and body of the message
+  replied to among them) go into it escaped (`readProcessedTemplate`). With a test
+  (`internal/forms/preview_test.go`).
 
   An attachment is sent as it came in the message (`serveAttachment`), never as a page of Pat's:
   before, an `.html` or `.svg` one opened as a page (its type guessed from its name or its first
@@ -119,10 +128,11 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   (runs and loads nothing), and no `Access-Control-Allow-Origin: null`. A JPEG, PNG or GIF (the
   pictures the message window shows) is still shown in a tab, inline as its own type, under the
   same policy; the message window saves the others under their names (`download`) rather than
-  opening a tab. A form Pat renders (`rendertohtml=true`) keeps upstream's sandbox, which forms
+  opening a tab. A form Pat renders (`rendertohtml=true`) keeps upstream's sandbox
+  (`sandboxHandler` since v1.0.1, which also drops `allow-popups-to-escape-sandbox`), which forms
   need, and gets nosniff. With a test (`api/attachment_test.go`).
 
-  Pat's pages (`/ui`, `/ui/config`, `/ui/template`) and the files under `/dist` come with a
+  Pat's pages (`/ui`, `/ui/config`) and the files under `/dist` come with a
   Content-Security-Policy whose scripts are Pat's own files only, never inline, so that markup
   which still reaches a page from a message runs nothing: `default-src 'self'; script-src 'self';
   style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; object-src
@@ -134,18 +144,22 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   one `app.js` wrote (the "reload the page" link) are `data-` attributes that
   `static/page-handlers.js`, loaded before the bundles, acts on. With tests (`web/csp_test.go`).
   The Winlink forms Pat serves at `/api/forms` are pages of their own, full of inline script, and
-  get no such policy; they show no message's values (a received form is shown by the attachment
-  handler, in its sandbox). Every answer of Pat's says `X-Content-Type-Options: nosniff`
-  (`Handler.ServeHTTP`), not only the attachments': the API's JSON and text (the message list, a
-  message, `/api/template`'s preview) hold what messages hold, and a browser takes them for
-  nothing but their own type, never for a page, script or style of Pat's, which is what the
-  policy's `'self'` counts on. With a test (`api/nosniff_test.go`).
+  get no such policy; since v1.0.1 upstream serves them, and the text-only template editor with
+  its template's text in an inline script, in the same CSP sandbox as a rendered form
+  (`sandboxHandler`: the page gets no origin of Pat's, and the guard, 0001, refuses what it sends
+  to the API but a form's submit). Every answer of Pat's says `X-Content-Type-Options: nosniff` (`Handler.ServeHTTP`), not only the attachments':
+  the API's JSON and text (the message list, a message, the template editor) hold what messages
+  hold, and a browser takes them for nothing but their own type, never for a page, script or
+  style of Pat's, which is what the policy's `'self'` counts on. With a test
+  (`api/nosniff_test.go`).
 
   The patch changes `web/src` and, to match it, `web/dist` by hand (`app.js`, `index.html`,
   `config.html`, `static/page-handlers.js`; no node in the build: a `--word-diff` of the patched
-  tree against `v1.0.0` shows the minified changes); `config.js` and `template.js` need none. It
-  should go upstream, its `web/src` and Go parts (upstream rebuilds `web/dist`); a report for
-  la5nta/pat is drafted, not sent.
+  tree against `v1.0.1` shows the minified changes); `config.js` and `template.js` need none.
+  For v1.0.1, whose `app.js` upstream rebuilt, the hand edits were carried over with a 3-way merge
+  of the bundles cut into one statement a line, and where v1.0.1 now escapes the same string
+  the patch takes upstream's code. It should go upstream, its `web/src` and Go parts (upstream
+  rebuilds `web/dist`); a report for la5nta/pat is drafted, not sent.
 
 - `0006-form-reply.patch`: Reply on a received Winlink form (an ICS 213, say) opens the form's
   reply page, which Pat shows in a CSP sandbox (the attachment handler, `rendertohtml` with
@@ -157,20 +171,28 @@ Each one made with `git format-patch` against `v1.0.0`; `git apply` takes them i
   composer. Now the composer sets its key before it opens the reply form and puts it in the
   form's address (`forminstance=`); `RenderForm` puts it in the form's submit address, and
   `PostFormDataHandler` keeps the submit under it before any cookie (a number below 10^9 only).
+  Since v1.0.1 Pat shows a new form and the text-only template editor (`/api/forms`) in that
+  sandbox too: the forms' catalog opens them with the key in their address as well (the cookie
+  is set before they open, but a browser may send a cross-site POST without a cookie that has no
+  SameSite), and their submit addresses keep the address's parameters.
   The guard lets `POST /api/form` through with `Origin: null` when its Referer is Pat's own origin
   (`formReply`): no page can set that header, and another site's page, sandboxed or not, sends its
   own address or none; any other request with `Origin: null` stays refused. `web/dist/js/app.js`
   by hand, as in 0005. With tests (`api/guard_test.go`, `internal/forms/reply_test.go`). Checked
   in a headless Firefox with Winlink's Standard Forms 1.1.22.0 (ICS 213 General Message and its
   `ICS213_SendReply`), on a PC and on the bench X6100: before, "Forbidden: cross-origin request";
-  after, the reply window closes and the reply is in the composer. Upstream's part (the key in the
-  address) should go upstream with the report.
+  after, the reply window closes and the reply is in the composer. Again with v1.0.1 on a PC
+  (Firefox 158, Pat and Firefox in a network namespace with loopback only): a new ICS 213, its
+  reply and a form from the catalog all reach the composer; upstream
+  v1.0.1 alone still answers the reply form `named cookie not present`. Upstream's part (the key
+  in the address) should go upstream with the report.
 
 `pat_ui_test.js` (ours, not in a patch) runs Pat's mailbox and configuration pages and their
 scripts from a patched source in jsdom, against a stand-in for Pat's server that answers with such
 names and lines, and checks that the pages run without inline script: `NODE_PATH=<a node_modules
 with jsdom> node tools/pat/pat_ui_test.js <patched source>` (its first lines say how to make one).
-Without 0005, 8 of its 48 checks pass. An x86 Pat built from the patched source, with such a
+Against v1.0.0 without 0005, 8 of its 48 checks passed; against v1.0.1 without our patches, 18
+do. An x86 Pat built from the patched source, with such a
 message in its inbox, sent the headers above, and its page in jsdom showed the message as text.
 
 Not a patch: the version report (daily) and the app's own recovery-email check (every 14 days),
@@ -188,17 +210,19 @@ recovery-email address when one is set.
 Pat itself, wl2k-go, Pat-Vara and ptc-go: MIT. The other Go modules (`go version -m` of the
 binary):
 
-- MIT: adrg/xdg, aymerick/douceur, clipperhouse/stringish, clipperhouse/uax29, creack/goselect,
+- MIT: adhocore/gronx, adrg/xdg, aymerick/douceur, clipperhouse/uax29, creack/goselect,
   kelseyhightower/envconfig, mattn/go-runewidth, pd0mz/go-maidenhead, peterh/liner,
   go.uber.org/multierr
 - BSD: dario.cat/mergo, albenik/go-serial, fsnotify/fsnotify, gorilla/css, gorilla/mux,
   gorilla/websocket (2-clause), howeyc/crc16, microcosm-cc/bluemonday, paulrosania/go-charset,
-  spf13/pflag, golang.org/x/net, x/sync, x/sys, x/term
-- ISC: nfnt/resize
+  spf13/pflag, golang.org/x/image, x/net, x/sync, x/sys, x/term
 - Apache-2.0: bndr/gotabulate
-- MPL-2.0: hashicorp/go-version v1.8.0, unmodified; its source is at
+- MPL-2.0: hashicorp/go-version v1.9.0, unmodified; its source is at
   https://github.com/hashicorp/go-version
-- GPL-3.0 or Apache-2.0, at the user's choice: gorhill/cronexpr; used here under Apache-2.0
+
+v1.0.1 dropped gorhill/cronexpr (GPL-3.0 or Apache-2.0; the schedule now uses adhocore/gronx),
+nfnt/resize (ISC; the picture conversion now uses golang.org/x/image) and
+clipperhouse/stringish.
 
 The web UI bundle compiled in (`web/dist`): MIT (Bootstrap 3.2, jQuery, URI.js,
 bootstrap-select, bootstrap-tokenfield; `web/dist/static/LICENSES.md` in the source, served by

@@ -18,10 +18,10 @@ set -eo pipefail
 exec 3>&1 1>&2          # stdout is the binary's path only: everything else goes to stderr
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-PAT_TAG=v1.0.0
-PAT_COMMIT=2e6a8d14baf0268f4e2aa4d01784a54ca935cf52
+PAT_TAG=v1.0.1
+PAT_COMMIT=2ad31e8fc1f1748ac1b00cac9d88da54e3e0efe2
 PAT_REPO=https://github.com/la5nta/pat
-# The newest stable Go on 2026-10-26 (Pat v1.0.0 needs 1.24 or newer); the hash is go.dev's
+# The newest stable Go on 2026-10-26 (Pat v1.0.1 needs 1.26 or newer); the hash is go.dev's
 # (https://go.dev/dl/?mode=json&include=all)
 GO_VER=1.27.3
 GO_SHA256=65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40

@@ -1,7 +1,7 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 8a818b5e271b0be1d8098d5b0557fda04e1a9752 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Mon, 26 Oct 2026 12:20:06 +0100
-Subject: [PATCH 2/2] api: no phone-home from the web UI (OpenX6X00)
+Subject: [PATCH] api: no phone-home from the web UI (OpenX6X00)
 
 The web UI asked two things of the internet each time it was opened,
 and the radio asked on its behalf:
@@ -24,7 +24,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  2 files changed, 10 insertions(+), 36 deletions(-)
 
 diff --git a/api/api.go b/api/api.go
-index a1c9308..5352b9a 100644
+index e2f27f4..303c382 100644
 --- a/api/api.go
 +++ b/api/api.go
 @@ -20,14 +20,11 @@ import (
@@ -42,7 +42,7 @@ index a1c9308..5352b9a 100644
  	"github.com/la5nta/wl2k-go/catalog"
  	"github.com/la5nta/wl2k-go/transport/ardop"
  	"github.com/n8jja/Pat-Vara/vara"
-@@ -370,34 +367,11 @@ func (h Handler) ConnectHandler(w http.ResponseWriter, req *http.Request) {
+@@ -387,34 +384,11 @@ func (h Handler) ConnectHandler(w http.ResponseWriter, req *http.Request) {
  	})
  }
  
@@ -105,3 +105,6 @@ index aa3f2ab..ddd81d2 100644
  	case http.MethodPut:
  		var v body
  		if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
+-- 
+2.56.0
+
