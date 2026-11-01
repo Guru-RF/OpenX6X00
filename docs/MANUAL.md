@@ -1084,6 +1084,9 @@ radios' figures for the nearest of those bands:
 | 30 m, 20 m, 17 m, the 25 m to 15 m broadcast bands (10 to 20 MHz) | 39 dB |
 | 15 m and up (over 20 MHz) | 36 dB |
 
+Outside the bands (medium wave, the 120 m and 90 m broadcast bands, the gaps
+between the bands) all frequencies share one value, which starts at 33 dB.
+
 An attenuator value you set before this version (with the slider or
 Measure) stays on every band until you set that band's own. The preamp is
 one value for every band, on both radios.
