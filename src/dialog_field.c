@@ -2209,14 +2209,17 @@ static void update_cb(button_data_t *b) {
     list_update();
 }
 
-/* Test beacon (#135): on the band chosen on the screen, not on the one the radio is on. Away from the radio's band it
- * goes to the band's CW frequency (Use band's), keys TB_SETTLE_MS later and goes back once the send is over and the
- * radio receives again: it never moves the radio while it transmits. The timer is its own, as the Bands app and Field
- * Ops may close while it sends */
+/* Test beacon (#135): on the band chosen on the screen, not on the one the radio is on, and never before the operator
+ * listened there: the band's CW frequency is a calling one. The first press only takes the radio there (away from its
+ * band to the band's CW frequency, Use band's) to listen; a second press within TB_LISTEN_MS sends. No second press in
+ * time, tuned or another mode meanwhile: nothing sent, and the radio stays where it is. After a send away from its band
+ * it goes back where it was before the first press once the send is over and the radio receives again: it never moves
+ * the radio while it transmits. The timer is its own, as the Bands app and Field Ops may close meanwhile */
+#define TB_LISTEN_MS    10000   /* the first press, then the second */
 #define TB_SETTLE_MS    1000    /* the move, then the key: the base's band filters and the ATU's network switch, and
                                  * the X6200's base brings its output up again from 0 over about 1 s (PR #140) */
 
-typedef enum { TB_OFF = 0, TB_SETTLE, TB_SEND, TB_BACK } tb_phase_t;
+typedef enum { TB_OFF = 0, TB_LISTEN, TB_SETTLE, TB_SEND, TB_BACK } tb_phase_t;
 
 static struct {
     lv_timer_t *timer;
@@ -2225,7 +2228,9 @@ static struct {
     int32_t     hz;         /* the radio's frequency while it tests */
     int32_t     back_hz;    /* where it was, 0: it tests there */
     int32_t     back_mode;
-    uint64_t    key_at;
+    uint64_t    key_at;     /* the move and TB_SETTLE_MS */
+    uint64_t    listen_end; /* the first press and TB_LISTEN_MS */
+    int         left;       /* the seconds shown */
     const char *why;        /* stopped: why, "" asked */
 } tb;
 
@@ -2247,8 +2252,9 @@ static const char *tb_no_tx(int band, int32_t *tx) {
 
 /* Over: back where the radio was, unless it was moved meanwhile (the knob, a band key, the Panel, CAT) */
 static void tb_end(void) {
-    bool moved = cparam_i_get(cfg_fg_freq) != tb.hz;
-    bool back  = tb.back_hz && !moved && !main_screen_freq_locked();
+    bool listened = tb.phase == TB_LISTEN;  /* nothing sent */
+    bool moved    = cparam_i_get(cfg_fg_freq) != tb.hz;
+    bool back     = tb.back_hz && !moved && !main_screen_freq_locked();
 
     lv_timer_del(tb.timer);
     tb.timer = NULL;
@@ -2259,8 +2265,14 @@ static void tb_end(void) {
             cparam_i_set(cfg_cur_mode, tb.back_mode);
         LV_LOG_USER("Test beacon: back on %i", (int)tb.back_hz);
     }
-    /* Short: the message box shows about 30 characters at once */
-    if (tb.why && tb.why[0])
+    /* Short: the message box shows about 30 characters a line */
+    if (listened && !tb.why) {  /* Use band, which says where the radio goes */
+        LV_LOG_USER("Test beacon: not sent, Use band");
+    } else if (listened) {
+        LV_LOG_USER("Test beacon: not sent, stays on %i", (int)cparam_i_get(cfg_fg_freq));
+        msg_update_text_fmt("Test beacon not sent%s%s\nThe radio stays on %.4f MHz", tb.why[0] ? ": " : "", tb.why,
+                            cparam_i_get(cfg_fg_freq) / 1e6);
+    } else if (tb.why && tb.why[0])
         msg_update_text_fmt("Test beacon stopped: %s", tb.why);
     else if (back)
         msg_update_text_fmt("Test beacon %s, back on %.3f MHz", tb.why ? "stopped" : "sent", tb.back_hz / 1e6);
@@ -2279,15 +2291,44 @@ static void tb_stay(const char *why) {
     tb_end();
 }
 
+/* Two lines of about 30 characters: the second counts down */
+static void tb_listen_msg(void) {
+    msg_update_text_fmt("Listen first: %s, %.3f MHz\nTest beacon again sends: %i s", field_band_name(tb.band),
+                        tb.hz / 1e6, tb.left);
+}
+
+/* Tuned or another mode since the test began: it ends there (tb_stay) */
+static bool tb_moved(void) {
+    bool listening = tb.phase == TB_LISTEN;     /* short: the first of two lines */
+
+    if (cparam_i_get(cfg_fg_freq) != tb.hz)
+        tb_stay(listening ? "tuned" : "the radio was tuned");
+    else if (!is_cw())
+        tb_stay(listening ? "new mode" : "the mode changed");
+    else
+        return false;
+    return true;
+}
+
 static void tb_timer_cb(lv_timer_t *t) {
     char    text[64];
     int32_t tx;
+    int     left;
 
-    if (cparam_i_get(cfg_fg_freq) != tb.hz || !is_cw()) {
-        tb_stay(cparam_i_get(cfg_fg_freq) != tb.hz ? "the radio was tuned" : "the mode changed");
+    if (tb_moved())
         return;
-    }
     switch (tb.phase) {
+        case TB_LISTEN:
+            if (get_time() >= tb.listen_end) {
+                tb_stay("");
+                return;
+            }
+            left = (int)((tb.listen_end - get_time() + 999) / 1000);
+            if (left != tb.left) {  /* each second: the message box keeps it for 2 s */
+                tb.left = left;
+                tb_listen_msg();
+            }
+            break;
         case TB_SETTLE:
             if (get_time() < tb.key_at)
                 return;
@@ -2319,10 +2360,25 @@ static void tb_timer_cb(lv_timer_t *t) {
 }
 
 void dialog_field_test_beacon(int band) {
-    int32_t     here = cparam_i_get(cfg_fg_freq), mode = cparam_i_get(cfg_cur_mode), f = here, tx;
+    int32_t     here, mode, f, tx, back_hz = 0, back_mode = 0;
     const char *why;
 
-    if (tb.phase != TB_OFF) {   /* again: stops it, and back */
+    if (tb.phase == TB_LISTEN && tb_moved())    /* tuned just now, before the timer saw it */
+        return;
+    if (tb.phase == TB_LISTEN && band == tb.band) {     /* the second press: it sends there */
+        tx       = radio_tx_freq();
+        tb.phase = TB_SETTLE;
+        LV_LOG_USER("Test beacon: %s, sending on %i", field_band_name(band), (int)tx);
+        msg_update_text_fmt("Test beacon on %s, %.3f MHz", field_band_name(band), (tx < 0 ? -tx : tx) / 1e6);
+        return;
+    }
+    if (tb.phase == TB_LISTEN) {    /* another band chosen meanwhile: it listens there instead, the way back kept */
+        back_hz   = tb.back_hz ? tb.back_hz : tb.hz;
+        back_mode = tb.back_mode;
+        lv_timer_del(tb.timer);
+        tb.timer = NULL;
+        tb.phase = TB_OFF;
+    } else if (tb.phase != TB_OFF) {    /* again while it sends: stops it, and back */
         if (tb.phase == TB_SEND)
             cw_encoder_stop();
         if (!tb.why)
@@ -2330,6 +2386,9 @@ void dialog_field_test_beacon(int band) {
         tb.phase = TB_BACK;
         return;
     }
+    here = cparam_i_get(cfg_fg_freq);
+    mode = cparam_i_get(cfg_cur_mode);
+    f    = here;
     if (band < 0 || band >= FIELD_RBN_BANDS)
         return;
     if (!my_call()[0]) {
@@ -2381,9 +2440,16 @@ void dialog_field_test_beacon(int band) {
     tb.back_mode = mode;
     tb.why       = NULL;
     tb.key_at    = get_time() + (tb.back_hz ? TB_SETTLE_MS : 0);
-    tb.phase     = TB_SETTLE;
-    tb.timer     = lv_timer_create(tb_timer_cb, 100, NULL);
-    msg_update_text_fmt("Test beacon on %s, %.3f MHz", field_band_name(band), tx / 1e6);
+    if (back_hz) {
+        tb.back_hz   = back_hz;
+        tb.back_mode = back_mode;
+    }
+    /* Only there to listen: the second press sends */
+    tb.listen_end = get_time() + TB_LISTEN_MS;
+    tb.left       = TB_LISTEN_MS / 1000;
+    tb.phase      = TB_LISTEN;
+    tb.timer      = lv_timer_create(tb_timer_cb, 100, NULL);
+    tb_listen_msg();
 }
 
 static void beacon_cb(button_data_t *b) {
@@ -2398,9 +2464,9 @@ void dialog_field_tune_band(int band) {
         return;
     }
     /* During a test: the band to stay on. On the band tested the frequency is the test's, so the test took it for no
-     * move, sent on and went back to the band before */
+     * move, sent on and went back to the band before. Only listening: nothing to say, Use band says where it goes */
     if (tb.phase != TB_OFF)
-        tb_stay("Use band");
+        tb_stay(tb.phase == TB_LISTEN ? NULL : "Use band");
     int32_t mode = cparam_i_get(cfg_cur_mode);
     bool    cw   = is_cw();
     int32_t f    = field_band_freq(band, cw, band_plan_region());

@@ -2643,16 +2643,27 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
 
 - Test beacon sends `TEST DE <call> <call> <call>` once in CW on the band
   chosen (the highlighted row), so you can see who hears you there. The radio must
-  be in CW or CW-R. On the band the radio is on, it sends where you are. On
-  another band the radio goes to that band's CW frequency (the one Use band
-  tunes), sends a second later, and goes back to where it was once the send
-  is over and the radio receives again. The message box says the band and
-  the frequency. The band you tested keeps that frequency, in CW, as after
-  Use band. Your antenna must suit the band: the test transmits at the power
-  set.
-- Press Test beacon again to stop the test and go back. Tuning, a band key,
-  another mode or Use band during the test also stops it, and the radio
-  stays as you set it.
+  be in CW or CW-R. It takes two presses, so that you listen before you
+  transmit: a band's CW frequency is a calling frequency, and someone may be
+  using it.
+- The first press sends nothing. On the band the radio is on, the radio
+  stays where you are; on another band it goes to that band's CW frequency
+  (the one Use band tunes), in the CW or CW-R it was in. Listen there: the
+  message box shows the band, the frequency and the seconds left.
+- Press Test beacon again within 10 seconds to send the test there. The
+  message box says the band and the frequency it sends on. After a test on
+  another band the radio goes back to where it was before the first press,
+  once the send is over and the radio receives again. The band you tested
+  keeps that frequency, in CW, as after Use band. Your antenna must suit the
+  band: the test transmits at the power set.
+- No second press within the 10 seconds, or tuning, a band key, another mode
+  or Use band in that time: nothing is sent, and the radio stays where it is
+  now (the message box says so). Choosing another band and pressing Test
+  beacon in that time listens on that band instead, and the way back is
+  still where the radio was before the first press.
+- Press Test beacon while it sends to stop the test and go back. Tuning, a
+  band key, another mode or Use band during the send also stops it, and the
+  radio stays as you set it.
 - The screen says why nothing is sent when: the test is on another band and
   the frequency, band or mode is locked; split or a TX shift would put the
   carrier off that band; the radio does not transmit there; it is already
@@ -2856,9 +2867,12 @@ apps: APP (page 3) > Bands, or a long-press action.
 - MFK to choose, a press (or Use band) tunes a typical frequency of the band
   (CW in CW or CW-R, which stays, else phone in the band's sideband; for the band plan's region, see
   [Band plan](#band-plan)).
-- Test beacon sends `TEST DE <call>` in CW on the band chosen, and then goes
-  back to where the radio was, as in [Field Ops](#field-ops-sota--pota). ESC
-  closes. A test that is still sending carries on and comes back by itself.
+- Test beacon takes two presses, as in [Field Ops](#field-ops-sota--pota): the
+  first takes the radio to the band chosen to listen and sends nothing, the
+  second within 10 seconds sends `TEST DE <call>` in CW there, and then the
+  radio goes back to where it was. ESC closes. A test that is still sending
+  carries on and comes back by itself; one waiting for its second press keeps
+  its 10 seconds, then sends nothing, and the radio stays where it is.
 - The numbers are the same as in Field Ops.
 
 ### Birdie Cal

@@ -5,8 +5,9 @@
  *
  *  The band overview of Field Ops (field/bands.c) in the look of the other apps (app_frame):
  *  two columns of bands with their activity bar, cluster and RBN spot counts and who heard
- *  you; the MFK chooses a band, a press tunes a typical frequency of it. Test beacon sends
- *  TEST DE <call> in CW on the band chosen (and back), so the skimmers show who hears you there.
+ *  you; the MFK chooses a band, a press tunes a typical frequency of it. Test beacon listens on
+ *  the band chosen, and a second press sends TEST DE <call> in CW there (and back), so the
+ *  skimmers show who hears you there.
  */
 
 #include "dialog_bands.h"
