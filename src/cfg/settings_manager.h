@@ -251,15 +251,18 @@ class SettingsManager {
     // change: the preamp's gain, the attenuator's depth, and hundredths of a dB for each RF gain
     // step under 100. Defaults measured on one radio; Settings > TX Cal > S-METER > Measure sets
     // them for this one (smeter.c, settings_window.cpp). The X6200's preamp gives about 16 dB (two radios, 14 to
-    // 20 dB on 80, 40, 20 and 10 m, #125); its attenuator is the band's, p_band_smeter_att
+    // 20 dB on 80, 40, 20 and 10 m, #125); its attenuator is the band's, p_band_smeter_att, and the one attenuator
+    // value is the X6100's alone: the X6200 neither reads nor writes the row v0.3.8 stored, left for going back
 #ifdef BOARD_X6200
     Parameter<int32_t> p_smeter_pre{"smeter_pre", 16, 0, 40,
 #else
     Parameter<int32_t> p_smeter_pre{"smeter_pre", 19, 0, 40,
 #endif
         StorageType::GLOBAL, pending_writes_, &global_params_};
+#ifndef BOARD_X6200
     Parameter<int32_t> p_smeter_att{"smeter_att", 15, 0, 40,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+#endif
     Parameter<int32_t> p_smeter_rfg{"smeter_rfg", 60, 0, 200,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // Waterfall lines/s: 1 = 5, 2 = 7.5 (frames averaged, less noisy),
@@ -517,7 +520,7 @@ class SettingsManager {
     // The attenuator's depth on this band, dB, added back to the S-meter reading with ATT on (smeter.c): the
     // X6200's takes 29 to 53 dB off depending on the band (two radios, #125), past the one value p_smeter_att
     // (0..40) the X6100 keeps. Settings > TX Cal > S-METER and its Measure set the band's. A band never set
-    // takes p_smeter_att when one was set before, else the two radios' figure for its frequency (smeter_att_start)
+    // starts from the two radios' figure for its frequency (smeter_att_start), also where v0.3.8 stored its one value
     static constexpr int32_t SMETER_ATT_MAX = 60;
     Parameter<int32_t> p_band_smeter_att{"smeter_att", 33, [](int32_t v) { return clip(v, 0, SMETER_ATT_MAX); },
         StorageType::BAND, pending_writes_, [this] { p_band_smeter_att.set_quiet(smeter_att_start()); },
@@ -893,8 +896,7 @@ class SettingsManager {
     bool band_usable(int32_t id) const;
 
 #ifdef BOARD_X6200
-    // p_band_smeter_att on a band never set: p_smeter_att when the database holds one, else the X6200s' figure
-    // for the band's frequency
+    // p_band_smeter_att on a band never set: the X6200s' figure for the band's frequency
     int32_t smeter_att_start() const;
 #endif
 

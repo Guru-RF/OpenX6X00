@@ -1112,9 +1112,16 @@ radios' figures for the nearest of those bands:
 Outside the bands (medium wave, the 120 m and 90 m broadcast bands, the gaps
 between the bands) all frequencies share one value, which starts at 33 dB.
 
-An attenuator value you set before this version (with the slider or
-Measure) stays on every band until you set that band's own. The preamp is
-one value for every band, on both radios.
+On the X6200 the one attenuator value of v0.3.8 and before (15 dB, or
+what the slider or Measure set) is not used any more: it fit one band at
+most. Every band starts from the table above until you set it or press
+Measure on it. That old value stays stored as it was, so an older version
+finds it again if you go back. The X6100 keeps its one value. The preamp is
+one value for every band, on both radios, and a preamp value set before
+stays.
+
+The meter on the screen, the browser Panel and TCI's `rx_smeter` show the
+same reading, with these corrections in.
 
 With ATT on, a weak signal, or none, sinks into the radio's own noise, and
 the meter shows that noise as it would be at the antenna: on the X6200,
