@@ -243,8 +243,13 @@ static void power_key_cb(void *arg) {
     keypad_power_set(*(bool *)arg);
 }
 
+/* The SWR scan's carrier: 1 W is enough to read the SWR. Held here for as long as the scan runs: PWR set meanwhile
+ * (TCI's drive, the Panel's PWR, the X6200's battery cap) came through on_pwr_change, and the sweep went on at PWR */
+#define SWRSCAN_PWR_W   1.0f
+
 static void set_txpwr(float w) {
     txpwr_asked = w;
+    if (atomic_load(&state) == RADIO_SWRSCAN && w > SWRSCAN_PWR_W) w = SWRSCAN_PWR_W;
     /* An app open: its cap, but not over a TUNE's own power (#87), which holds the power to it instead */
     if (digi_cap && tune_cap <= 0.0f && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
     if (tune_cap > 0.0f && w > tune_cap) w = tune_cap;     /* PWR turned up, the battery's top, a restore */
@@ -665,9 +670,9 @@ bool radio_start_swrscan(int32_t from) {
     radio_set_tx_freq(from);
     cparam_i_set(cfg_cur_mode, SWRSCAN_MODE);
     radio_lock();
-    /* 1 W is enough to read the SWR; less if PWR is set lower, or a transverter's limit (set_txpwr).
+    /* 1 W, held there by set_txpwr (SWRSCAN_PWR_W); less if PWR is set lower, or a transverter's limit.
      * ponytail: fixed 1 W cap, make it a setting if the bridge reads poorly that low */
-    set_txpwr(LV_MIN(param_f_get(cfg_pwr), 1.0f));
+    set_txpwr(param_f_get(cfg_pwr));
 #ifdef BOARD_X6200
     swrscan_peak = swrscan_flat = swrscan_wait = 0;
 #endif
