@@ -2419,12 +2419,14 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
 - Learn and Calls check your answer with the CW decoder, which hears the
   radio's group too. The trainer tells the radio's own characters from
   yours by their dits and dahs, at any speed, and the decoder starts at the
-  key speed. Up to v0.3.8 the end of the radio's last character could be
-  taken for your answer: at 13 WPM and slower, at other speeds now and then
-  or after a few dozen groups. It showed OK while you were still keying,
-  and the next group then ran into your answer, which came out as "?"
-  (issue #144). The pause before your answer no longer stretches the
-  decoder's spacing either.
+  key speed. Let the group end before you answer: a character begun less
+  than two dots after the group's last element runs into it and goes with
+  it (in a group of one "Your turn" stays: key it again). Up to v0.3.8 the
+  end of the radio's last character could be taken for your answer: at
+  13 WPM and slower, at other speeds now and then or after a few dozen groups.
+  It showed OK while you were still keying, and the next group then ran
+  into your answer, which came out as "?" (issue #144). The pause before
+  your answer no longer stretches the decoder's spacing either.
 
 
 ## Apps
