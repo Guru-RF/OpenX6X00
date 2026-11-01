@@ -1140,7 +1140,8 @@ attenuator on, a weaker carrier sinks into the noise), and press Measure.
 For about 12 s the radio reads its meter with everything off, then with PRE
 on, with ATT on, and with the RF gain at 40, a second and a half each, and
 moves the three settings by what was left over. PRE, ATT and the RF gain go
-back as they were, also when you press Stop, leave the tab or transmit. A
+back as they were, also when you press Stop, leave the tab, transmit or
+switch the radio off. A
 reading that wanders more than 3 dB during a step, a carrier outside that
 range, or ATT taking the reading down to S1 (the attenuator value far too
 low: raise it, or feed a stronger carrier) stops the measurement and

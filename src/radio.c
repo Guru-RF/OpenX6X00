@@ -55,6 +55,7 @@
 #include "start_trace.h"
 #include "clock.h"
 #include "wifi.h"
+#include "settings_window.h"
 
 /*********************
  *      DEFINES
@@ -790,6 +791,7 @@ static void save_log(void) {
 void radio_poweroff() {
     save_log();
     screen_rec_shutdown();
+    settings_window_poweroff();     /* a Measure under way: PRE, ATT and the RF gain back before they are saved */
     if (params.charger.x == RADIO_CHARGER_SHADOW) {
         WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, true));
     }

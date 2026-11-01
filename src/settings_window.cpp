@@ -3870,6 +3870,12 @@ static void smc_delete_cb(lv_event_t *e) {
     smc_stop(NULL);
 }
 
+/* Power off: the settings are saved right after (radio_poweroff), and the timer's own stop came too late for them,
+ * so the step's PRE, ATT or RF gain 40 stayed on at the next start. The front end goes back first */
+void settings_window_poweroff(void) {
+    if (smc_timer) smc_stop("Stopped: power off. Nothing changed.");
+}
+
 static uint8_t make_smeter_fe(uint8_t row) {
     int32_t rfg = cfg_sm.p_smeter_rfg.get();
 

@@ -18,6 +18,9 @@ extern "C" {
 
 extern dialog_t *dialog_settings;
 
+/* Before the settings are saved at power off: a Measure under way (TX Cal > S-METER) puts PRE, ATT and the RF gain back */
+void settings_window_poweroff(void);
+
 #ifdef __cplusplus
 }
 #endif
