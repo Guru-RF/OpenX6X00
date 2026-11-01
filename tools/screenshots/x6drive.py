@@ -7,7 +7,8 @@ devices; the events are written into their nodes as if pressed.
                     BAND_UP, AM, CW, SSB, AB, PRE, ATU, VM, AGC, FST, VOL, MFK), held ms (default 80)
   long NAME         held 1.3 s: the long press
   down NAME | up NAME   press NAME and leave it down, let it go: other keys in between
-                    ("down PTT", "key F1", "up PTT": a key tapped while PTT is held)
+                    ("down PTT", "key F1", "up PTT": a key tapped while PTT is held). On the
+                    radio a key still down when the script ends, on an error too, is let go then
   mfk N | main N | vol N   turn the knob N detents, clockwise when positive
   inner N           the X6200's inner MFK ring, N detents
   sleep S           wait S seconds (floats allowed)
@@ -25,6 +26,7 @@ SPDX-License-Identifier: LGPL-2.1-or-later
 Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
 """
 import os
+import signal
 import struct
 import subprocess
 import sys
@@ -77,11 +79,15 @@ if DEV_DIR:   # the PC build: src/host/host_panel.c's FIFOs, one a device, the X
     KNOBS = {k: (f"{DEV_DIR}/{k}", axis, sign) for k, (_, axis, sign) in KNOBS.items() if k != "inner"}
 
 
+HELD = set()    # the keys pressed and not let go yet: run() lets them go at its end
+
+
 def press(name, down):
     if name.upper() not in KEYS:
         sys.exit(f"no {name.upper()} key on the {MODEL.upper()}")
     code = KEYS[name.upper()]
     emit(POWER_DEV if code == KEY_POWER else KEYPAD, [(EV_KEY, code, 1 if down else 0)])
+    (HELD.add if down else HELD.discard)(name.upper())
 
 
 def key(name, ms):
@@ -118,30 +124,43 @@ def shot(name):
 
 
 def run(lines, take=shot):
-    """The commands of a script; take(NAME) for each shot."""
-    for line in lines:
-        w = line.split("#")[0].split()
-        if not w:
-            continue
-        cmd = w[0].lower()
-        if cmd == "key":
-            key(w[1], int(w[2]) if len(w) > 2 else 80)
-        elif cmd == "long":
-            key(w[1], 1300)
-        elif cmd in ("down", "up"):
-            press(w[1], cmd == "down")
-        elif cmd in KNOBS:
-            turn(cmd, int(w[1]))
-        elif cmd == "sleep":
-            time.sleep(float(w[1]))
-        elif cmd == "shot":
-            take(w[1])
-        else:
-            sys.exit(f"unknown command: {line.strip()}")
-        time.sleep(0.35)   # the GUI redraws
+    """The commands of a script; take(NAME) for each shot. On the radio whatever is still down at
+    the end is let go, also when a line fails (a typo, a shot that never came): "down PTT" left
+    alone keeps the radio on the air, and nothing in the GUI ends a held PTT. Not on the PC build:
+    host_shots.py ends the GUI after the script, and a FIFO whose GUI is gone blocks the write"""
+    try:
+        for line in lines:
+            w = line.split("#")[0].split()
+            if not w:
+                continue
+            cmd = w[0].lower()
+            if cmd == "key":
+                key(w[1], int(w[2]) if len(w) > 2 else 80)
+            elif cmd == "long":
+                key(w[1], 1300)
+            elif cmd in ("down", "up"):
+                press(w[1], cmd == "down")
+            elif cmd in KNOBS:
+                turn(cmd, int(w[1]))
+            elif cmd == "sleep":
+                time.sleep(float(w[1]))
+            elif cmd == "shot":
+                take(w[1])
+            else:
+                sys.exit(f"unknown command: {line.strip()}")
+            time.sleep(0.35)   # the GUI redraws
+    finally:
+        for name in list(HELD) if not DEV_DIR else []:
+            try:
+                press(name, False)
+            except OSError as e:
+                print(f"{name} not let go: {e}", file=sys.stderr)
 
 
 def main():
+    # the SSH session gone or killed: out through run()'s finally, not at once
+    signal.signal(signal.SIGHUP, lambda *_: sys.exit("hangup"))
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit("terminated"))
     run(sys.stdin)
     print("done")
 
