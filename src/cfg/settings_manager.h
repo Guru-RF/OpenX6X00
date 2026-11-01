@@ -473,6 +473,15 @@ class SettingsManager {
     Parameter<int32_t> p_textlog_mb{"textlog_mb", 10, 1, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};
 
+    // Waterfall Mode Fixed (Settings > Display > WATERFALL, live, #10): the view moves on when 0 the line (or what is
+    // received) is 40% of the span from the centre, 1 the passband's edge 100 Hz from the screen's edge, 2 the line
+    // 100 Hz from it; and puts the line 0 where it is received (the centre), 1 at the other edge, 2 where it went
+    // out: the view scrolls along (waterfall_view_shift())
+    Parameter<int32_t> p_wf_fixed_jump{"wf_fixed_jump", 0, 0, 2,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    Parameter<int32_t> p_wf_fixed_after{"wf_fixed_after", 0, 0, 2,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+
     // --- BAND params (`band_params` table) ---
     Parameter<int32_t> p_band_current_vfo{"vfo", (int32_t)RADIO_VFO_A, 0, 1,
         StorageType::BAND, pending_writes_, &band_params_};

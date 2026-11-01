@@ -969,6 +969,38 @@ static uint8_t make_spectrum_show(uint8_t row) {
     return row + 1;
 }
 
+/* Waterfall Mode: Fixed has the rows Jump at and Jump to under it (#10), the page again after the
+ * event as for the spectrum */
+static lv_obj_t *wf_mode_dd;
+
+static void wf_mode_page(void *arg) {
+    if (!page) {
+        return;
+    }
+    make_display_page();
+    lv_group_focus_obj(wf_mode_dd);
+}
+
+static void wf_mode_cb(lv_event_t *e) {
+    lv_async_call(wf_mode_page, NULL);
+}
+
+static uint8_t make_wf_mode(uint8_t row) {
+    /* Centered: the VFO stays in the middle. Fixed: the span stays put, the VFO line moves */
+    wl_row_label(row, "Mode");
+    wf_mode_dd = row_choice(row++, 1, 3, SMALL_3, " Centered \n Fixed ", cfg_sm.p_wf_mode.get(), int_choice_cb,
+                            &cfg_sm.p_wf_mode);
+    lv_obj_add_event_cb(wf_mode_dd, wf_mode_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    if (cfg_sm.p_wf_mode.get()) {
+        /* When the view moves on: the line 40% of the span out, or the passband or the line at the
+         * screen's edge; and where the line goes then: back to the centre, to the other edge, or it
+         * stays at the edge and the view scrolls along */
+        row = make_param_choice(row, "Jump at", " 40% \n Passband \n Line ", cfg_sm.p_wf_fixed_jump);
+        row = make_param_choice(row, "Jump to", " Center \n Other edge \n Scroll ", cfg_sm.p_wf_fixed_after);
+    }
+    return row;
+}
+
 /* Spectrum fill, peaks */
 static uint8_t make_spectrum_fill_peak(uint8_t row) {
     wl_row_label(row, "Fill, peaks");
@@ -3919,8 +3951,7 @@ static void make_display_page() {
     card_end(row);
 
     row = card_begin("WATERFALL");
-    /* Centered: the VFO stays in the middle. Fixed: the span stays put, the VFO line moves */
-    row = make_param_choice(row, "Mode", " Centered \n Fixed ", cfg_sm.p_wf_mode);
+    row = make_wf_mode(row);
     row = make_auto_offset(row);
     row = make_grid_min_max(row);
     row = make_waterfall_line_zoom(row);

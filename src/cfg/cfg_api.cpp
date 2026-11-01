@@ -138,6 +138,8 @@ ParamInt         *cfg_cessb_on            = nullptr;
 ParamFloat       *cfg_cessb_power_up      = nullptr;
 ParamInt         *cfg_textlog             = nullptr;
 ParamInt         *cfg_textlog_mb          = nullptr;
+ParamInt         *cfg_wf_fixed_jump       = nullptr;
+ParamInt         *cfg_wf_fixed_after      = nullptr;
 
 // BAND
 ParamInt         *cfg_band_current_vfo    = nullptr;
@@ -325,6 +327,8 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_cessb_power_up   = &cfg_sm.p_cessb_power_up;
     cfg_textlog          = &cfg_sm.p_textlog;
     cfg_textlog_mb       = &cfg_sm.p_textlog_mb;
+    cfg_wf_fixed_jump    = &cfg_sm.p_wf_fixed_jump;
+    cfg_wf_fixed_after   = &cfg_sm.p_wf_fixed_after;
 
     // BAND
     cfg_band_current_vfo = &cfg_sm.p_band_current_vfo;

@@ -1612,6 +1612,13 @@ static void build(void) {
     subject_subscribe_delayed((Subject*)cfg_band_if_shift, on_span_change, NULL);
     subject_subscribe_delayed((Subject*)cfg_wf_mode, on_span_change, NULL);
     subject_subscribe_delayed_and_notify((Subject*)cfg_mode_zoom, on_span_change, NULL);
+    /* Fixed mode: these move the view on too (waterfall_view_shift(): Jump at Passband edge, #10) */
+    subject_subscribe_delayed((Subject*)cfg_wf_fixed_jump, on_span_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_wf_fixed_after, on_span_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_cur_filter_low, on_span_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_cur_filter_high, on_span_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_cur_mode, on_span_change, NULL);
+    subject_subscribe_delayed((Subject*)cfg_key_tone, on_span_change, NULL);
 
     subject_subscribe_delayed_and_notify((Subject*)cfg_bg_freq, on_freq_change, NULL);
 

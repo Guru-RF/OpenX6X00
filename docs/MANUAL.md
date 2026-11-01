@@ -526,6 +526,7 @@ Where: Settings > Display > WATERFALL.
 | Option | What it does |
 |---|---|
 | Mode | Centered keeps the VFO in the middle; Fixed keeps the span (below) |
+| Jump at, Jump to | shown with Fixed: when the view moves on, and where the VFO line goes then (below) |
 | Auto level, offset | the levels follow the noise floor; the offset makes it darker or brighter |
 | Min / max | the manual levels, used when auto level is off |
 | Line, zoom | a line on the VFO; zoom with the waterfall instead of the span |
@@ -533,16 +534,41 @@ Where: Settings > Display > WATERFALL.
 | Speed | 3 = 15 lines/s (default), 4 = 20, 5 = 30; 2 = 7.5 and 1 = 5 average the frames into a line: less noise and less CPU |
 
 In Fixed mode the span stays still and the VFO line moves across it. The
-spectrum comes in only for the span around the VFO, so the side you tune
-away from gets nothing new: there the waterfall goes on with the last
-picture received at those frequencies, and the spectrum shows its last line
-there, dimmed: the last one received after the dial had been still for half a
-second. When what is received, or the VFO, is 40% of the spectrum's span from
-the centre (40 kHz at zoom 1, 20 kHz at zoom 2), the view jumps back and
-centres on what is received: the VFO, less any IF shift (with Smooth scroll
-on, the waterfall slides there). So the line goes most of the way to the edge
-first, and what you see can be tuned without the picture moving; v0.3.7
-jumped at a quarter of the span (#10).
+spectrum comes in only for the span around where the radio listens (the
+screen's span, on both radios), so the side you tune away from gets nothing
+new: there the waterfall goes on with the last picture received at those
+frequencies, and the spectrum shows its last line there, dimmed: the last one
+received after the dial had been still for half a second. With the line at an
+edge, about half the screen is that last picture.
+
+Jump at: when the view moves on.
+
+- 40% (the default): when the VFO, or what is received, is 40% of the
+  spectrum's span from the centre (40 kHz at zoom 1, 20 kHz at zoom 2). The
+  line goes most of the way to the edge first; v0.3.7 jumped at a quarter.
+- Passband: when the edge of the receive filter's passband (or the line
+  itself, beside a USB or LSB passband) comes within 100 Hz of the screen's
+  edge: the whole passband stays on the screen. A passband wider than the
+  screen counts as Line.
+- Line: when the VFO line comes within 100 Hz of the screen's edge.
+
+Jump to: where the line goes then.
+
+- Center (the default): the view centres on what is received, the VFO less
+  any IF shift.
+- Other edge: the line goes to the edge it came from (tuning up, the left
+  one), as far in as Jump at allows, and you tune on across the whole screen.
+  Right after the jump the part more than half a span ahead of the line has
+  nothing received yet: noise in the waterfall, no line in the spectrum, until
+  the line comes nearer.
+- Scroll: no jump. The line stays at the edge it reached and the view scrolls
+  along with each step, as in Centered mode; tuned back, the line moves across
+  the screen again.
+
+A move of more than a screen past the edge (a frequency typed in, another
+band), or a new zoom or filter that leaves the line out, centres the view,
+whatever Jump to is. With Smooth scroll on, the
+picture slides to its new place; the line still moves a step at a time (#10).
 
 Over the waterfall. Where: Settings > Display > MAIN SCREEN.
 

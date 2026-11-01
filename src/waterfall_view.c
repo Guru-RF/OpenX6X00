@@ -542,24 +542,121 @@ void waterfall_refresh_period_set(uint8_t k) {
 
 /* ---- Where the picture is centred ---- */
 
+/* The passband, Hz from the VFO line: from the VFO up (USB), down (LSB) or both ways (AM, FM), as on
+ * the spectrum */
+static void line_passband(int32_t *from, int32_t *to) {
+    int32_t low = subject_i_get((SubjectInt*)cfg_cur_filter_low);
+    int32_t high = subject_i_get((SubjectInt*)cfg_cur_filter_high);
+    int32_t tone = param_i_get(cfg_key_tone);
+    radio_mode_t mode = subject_i_get((SubjectInt*)cfg_cur_mode);
+
+    switch (mode) {
+        case radio_mode_lsb:
+        case radio_mode_lsb_dig:
+            *from = -high;
+            *to = -low;
+            break;
+        /* CW and CWR: the edges are tones, and the signal heard at the key tone is on the line, so
+         * the band is around the line in both, as the spectrum draws it from its CW oscillator (#34: it
+         * was beside it, a pitch off, above in CW and below in CWR). From the key tone, not from the
+         * LO offset that places the rows (the X6200's is 0: its spectrum is centred on the dial). Where
+         * the tone rises as the dial goes up (CW-R; CW too on the X6200, #115) it is heard below an
+         * oscillator the key tone above the dial: a low edge at 0 leaves the band off centre that way */
+        case radio_mode_cw:
+        case radio_mode_cwr:
+            if (radio_cw_tone_dir(mode) > 0) {
+                *from = tone - high;
+                *to = tone - low;
+            } else {
+                *from = low - tone;
+                *to = high - tone;
+            }
+            break;
+        case radio_mode_am:
+        case radio_mode_nfm:
+        case radio_mode_sam:
+        case radio_mode_wfm:
+            *from = -high;
+            *to = high;
+            break;
+        default:
+            *from = low;
+            *to = high;
+            break;
+    }
+}
+
+/* Fixed mode, Settings > Display > WATERFALL (#10): Jump at, and Jump to */
+enum { JUMP_AT_40, JUMP_AT_PASSBAND, JUMP_AT_LINE };
+enum { JUMP_TO_CENTER, JUMP_TO_EDGE, JUMP_TO_SCROLL };
+#define EDGE_HZ     100     /* Jump at Passband and Line: this far from the screen's edge */
+
+/* Where the line may be, Hz from the centre of the view, before the view moves on. 40%: the
+ * received data (centred shift below the line) and the line within 40% of the span of the centre.
+ * The line goes most of the way to the edge first, and the side tuned away from shows the last
+ * picture received there; v0.3.7 jumped at a quarter for the data, to show less of that, and the
+ * reporter found it jumped too soon. The line's 40%: an IF shift keeps it up to that far from the
+ * data (on_if_shift_zoom(), screen_main.c), and under it the view would follow it at every step.
+ * Line: the line EDGE_HZ in from the screen's edges. Passband: the line and the passband
+ * whole on the screen, EDGE_HZ in from its edges (the passband alone left the line on the screen's
+ * last pixel in USB; the two wider than the screen: as Line) */
+static void line_room(int32_t half, int32_t shift, int32_t *lo, int32_t *hi) {
+    int32_t jump = param_i_get(cfg_wf_fixed_jump);
+
+    if (jump == JUMP_AT_40) {
+        int32_t at = half * 8 / 10;
+
+        *lo = LV_MAX(-at, shift - at);
+        *hi = LV_MIN(at, shift + at);
+        return;
+    }
+    *lo = -half + EDGE_HZ;
+    *hi = half - EDGE_HZ;
+    if (jump == JUMP_AT_PASSBAND) {
+        int32_t from, to;
+
+        line_passband(&from, &to);
+        from = LV_MIN(from, 0);     /* the line and its passband, Hz from the line */
+        to = LV_MAX(to, 0);
+        if (to - from <= *hi - *lo) {
+            *lo -= from;
+            *hi -= to;
+        }
+    }
+}
+
 int32_t waterfall_view_shift(void) {
+    static int32_t last_vfo;   /* at the call before: still the same, the limits moved (zoom, filter, mode) */
+
     if (!param_i_get(cfg_wf_mode)) {
         view_fixed = false;
         return 0;
     }
-    int32_t rc = cparam_i_get(cfg_fg_freq) - param_i_get(cfg_band_if_shift);
+    int32_t shift = param_i_get(cfg_band_if_shift);
     int32_t vfo = cparam_i_get(cfg_fg_freq);
+    int32_t rc = vfo - shift;
     int32_t half = SPAN_HZ / 2 / param_i_get(cfg_mode_zoom);
+    int32_t x = vfo - view_center;      /* the line, Hz from the centre of the view */
+    int32_t lo, hi;
+    bool    moved = vfo != last_vfo;
 
-    /* The received data (centred on rc) and the VFO within 40% of the span of the centre: the
-     * line goes most of the way to the edge before the view jumps back, so what is on the screen
-     * can be tuned without the picture moving, and the side tuned away from shows the last
-     * picture received there (#10). v0.3.7 jumped at a quarter for rc, to show less of that, and
-     * the reporter found it jumped too soon. The VFO's 40%: an IF shift keeps it up to that far
-     * from rc (on_if_shift_zoom(), screen_main.c), and under it the view would follow it at
-     * every step */
-    if (!view_fixed || abs(rc - view_center) > half * 8 / 10 || abs(vfo - view_center) > half * 8 / 10) {
-        view_center = rc;
+    last_vfo = vfo;
+    line_room(half, shift, &lo, &hi);
+    if (!view_fixed || x < lo || x > hi) {
+        /* Center: on the received data, the line where Centered mode has it; at an edge, inside the
+         * room (40%: the room is around the data). Tuned out by less than the room again, not a band,
+         * a frequency typed in or another zoom: Other edge puts the line at the edge it came from,
+         * Scroll keeps it at the one it went out of, the view moving along with each step */
+        int32_t to = param_i_get(cfg_wf_fixed_jump) == JUMP_AT_40 ? shift : LV_CLAMP(lo, shift, hi);
+        int32_t after = param_i_get(cfg_wf_fixed_after);
+        bool    stepped = view_fixed && moved && x >= lo - (hi - lo) && x <= hi + (hi - lo);
+
+        if (stepped && after == JUMP_TO_EDGE) {
+            to = x > hi ? lo : hi;
+        } else if (stepped && after == JUMP_TO_SCROLL) {
+            to = x > hi ? hi : lo;
+        }
+        view_center = vfo - to;
         view_fixed = true;
     }
     return rc - view_center;
@@ -616,48 +713,10 @@ static void update_middle_line(void) {
     lv_obj_set_pos(vfo_line, vfo_x + width / 2, 0);
     lv_style_set_line_width(&vfo_line_style, width);
 
-    /* The passband, same scale as the line: from the VFO up (USB), down
-     * (LSB) or both ways (AM, FM), as on the spectrum */
-    int32_t low = subject_i_get((SubjectInt*)cfg_cur_filter_low);
-    int32_t high = subject_i_get((SubjectInt*)cfg_cur_filter_high);
-    int32_t tone = param_i_get(cfg_key_tone);
-    radio_mode_t mode = subject_i_get((SubjectInt*)cfg_cur_mode);
+    /* The passband, same scale as the line */
     int32_t from, to;
 
-    switch (mode) {
-        case radio_mode_lsb:
-        case radio_mode_lsb_dig:
-            from = -high;
-            to = -low;
-            break;
-        /* CW and CWR: the edges are tones, and the signal heard at the key tone is on the line, so
-         * the band is around the line in both, as the spectrum draws it from its CW oscillator (#34: it
-         * was beside it, a pitch off, above in CW and below in CWR). From the key tone, not from the
-         * LO offset that places the rows (the X6200's is 0: its spectrum is centred on the dial). Where
-         * the tone rises as the dial goes up (CW-R; CW too on the X6200, #115) it is heard below an
-         * oscillator the key tone above the dial: a low edge at 0 leaves the band off centre that way */
-        case radio_mode_cw:
-        case radio_mode_cwr:
-            if (radio_cw_tone_dir(mode) > 0) {
-                from = tone - high;
-                to = tone - low;
-            } else {
-                from = low - tone;
-                to = high - tone;
-            }
-            break;
-        case radio_mode_am:
-        case radio_mode_nfm:
-        case radio_mode_sam:
-        case radio_mode_wfm:
-            from = -high;
-            to = high;
-            break;
-        default:
-            from = low;
-            to = high;
-            break;
-    }
+    line_passband(&from, &to);
     lv_coord_t x1 = WIDTH / 2 + vfo_x + from * line_zoom * WIDTH / SPAN_HZ;
     lv_coord_t x2 = WIDTH / 2 + vfo_x + to * line_zoom * WIDTH / SPAN_HZ;
 
@@ -791,6 +850,8 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
     subject_subscribe_delayed((Subject *)cfg_key_tone, on_filter_change, NULL);
     subject_subscribe_delayed((Subject *)cfg_fg_freq, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_mode, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_fixed_jump, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_fixed_after, on_view_changed, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_wf_palette, on_palette_change, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_filter_color, on_filter_color_change, NULL);
     subject_subscribe_and_notify((Subject *)cfg_mode_lo_offset, on_mode_lo_offset_change, NULL);
