@@ -2268,15 +2268,23 @@ static void tb_end(void) {
         msg_update_text_fmt("Test beacon %s", tb.why ? "stopped" : "sent: watch who hears you");
 }
 
+/* Moved meanwhile (the knob, a band key, another VFO or mode, the Panel, CAT): the key up, and the radio stays as it
+ * was put. Going back after another mode undid it, CW again on the band before, and moved the radio at once, in its
+ * break-in delay */
+static void tb_stay(const char *why) {
+    if (tb.phase == TB_SEND)
+        cw_encoder_stop();
+    tb.back_hz = 0;
+    tb.why     = why;
+    tb_end();
+}
+
 static void tb_timer_cb(lv_timer_t *t) {
     char    text[64];
     int32_t tx;
 
     if (cparam_i_get(cfg_fg_freq) != tb.hz || !is_cw()) {
-        if (tb.phase == TB_SEND)
-            cw_encoder_stop();
-        tb.why = cparam_i_get(cfg_fg_freq) != tb.hz ? "the radio was tuned" : "the mode changed";
-        tb_end();
+        tb_stay(cparam_i_get(cfg_fg_freq) != tb.hz ? "the radio was tuned" : "the mode changed");
         return;
     }
     switch (tb.phase) {
