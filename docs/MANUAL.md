@@ -1371,12 +1371,23 @@ Not tried on a radio with a transverter yet: checked on the PC build.
 
 ### SWR scan and the tuner
 
-SWR scan: APP 1:3 > SWR Scan. It transmits a carrier (AM, 1 W, or less when
-PWR is set lower) and sweeps it across the span around the frequency the
-radio transmits on (the other VFO in split), drawing the SWR as it goes.
+SWR scan: APP 1:3 > SWR Scan. It transmits a carrier (AM on the X6100, FM on
+the X6200; 1 W, or less when PWR is set lower) and sweeps it across the span
+around the frequency the radio transmits on (the other VFO in split), drawing
+the SWR as it goes.
 
 - Run starts the sweep and the button turns into Stop. Stop, or closing the
   window, ends it and puts the VFO and the mode back.
+- The carrier stays at 1 W while the scan runs, also when PWR is changed
+  meanwhile (by a TCI program, the browser Panel, or the X6200 going onto its
+  battery).
+- On the X6200 each reading waits until the power is up. Its base (1.0.8)
+  reports no SWR in its own sweep mode, so the radio keys a plain FM carrier,
+  the way the digital apps key (the microphones stay out), and after each step
+  the base brings the power up from 0 in about a second. A sweep of 50 points
+  takes about a minute, one of 100 points (1000 kHz and up) about two; on the
+  X6100 a sweep takes a few seconds. Up to v0.3.8 the X6200's curve stayed at
+  1.0 whatever the antenna.
 - Span: 50, 100, 200, 500, 1000, 1500, 2000 or 2500 kHz (not while scanning).
   Scale: Log or Linear. A sweep takes 50 readings across the span, 100 from
   1000 kHz up (one every 25 kHz at 2500 kHz), so a wide one takes twice as
