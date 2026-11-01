@@ -267,12 +267,12 @@ static int elements_of(const char *s) {
     return n;
 }
 
-/* Morse of every character of s, separated by spaces */
+/* Morse of every character of s, separated by spaces; a place with no character (CWT_NO_CHAR) as it is */
 static void morse_line(const char *s, char *out, size_t size) {
     out[0] = 0;
     for (; *s; s++) {
         size_t n = strlen(out);
-        snprintf(out + n, size - n, "%s%s", n ? "  " : "", morse_of(*s));
+        snprintf(out + n, size - n, "%s%s", n ? "  " : "", *s == CWT_NO_CHAR ? "*" : morse_of(*s));
     }
 }
 
@@ -303,8 +303,7 @@ static void on_text(void *arg) {
     if (t[0] == ' ') {
         heard_end = heard_n > 0;
     } else if (heard_n < (mode == MODE_CALLS ? 12 : 6)) {
-        size_t n = strlen(heard);
-        snprintf(heard + n, HEARD_MAX - n, "%s", strcmp(t, "<?>") == 0 ? "?" : t);
+        cwt_answer_add(heard, HEARD_MAX, t);    /* "<?>" and prosigns as CWT_NO_CHAR, never "?" */
         heard_n++;
     }
     refresh_ui();
@@ -898,7 +897,9 @@ static void refresh_calls(void) {
     }
     lv_obj_set_style_text_color(c_res, lv_color_hex(last_ok ? COLOR_OK : COLOR_BAD), 0);
     lv_label_set_text(c_res, buf);
-    lv_label_set_text(hint, run_done && rev ? "Start: a new run of 50 callsigns" : "Key back the callsign with the paddle. Right: +1 WPM, wrong: -1 WPM.");
+    if (run_done && rev) lv_label_set_text(hint, "Start: a new run of 50 callsigns");
+    else if (rev && strchr(heard, CWT_NO_CHAR)) lv_label_set_text(hint, "* = not a character. Right: +1 WPM, wrong: -1 WPM.");
+    else lv_label_set_text(hint, "Key back the callsign with the paddle. Right: +1 WPM, wrong: -1 WPM.");
 
     fmt_num(score, n1, sizeof(n1));
     lv_label_set_text(c_score, n1);
@@ -1040,7 +1041,9 @@ static void refresh_ui(void) {
             lv_label_set_text(line1, buf);
             snprintf(buf, sizeof(buf), "Heard: #%s %s#   %s", last_ok ? "60ff60" : "ff6060", heard, m2);
             lv_label_set_text(line2, buf);
-            lv_label_set_text(hint, autoplay ? "Next group follows. Pause: stop after this one" : "Start: resume. Skip: another group");
+            snprintf(buf, sizeof(buf), "%s%s", strchr(heard, CWT_NO_CHAR) ? "* = not a character. " : "",
+                     autoplay ? "Next group follows. Pause: stop after this one" : "Start: resume. Skip: another group");
+            lv_label_set_text(hint, buf);
             break;
     }
 

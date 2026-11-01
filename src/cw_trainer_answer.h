@@ -7,6 +7,26 @@
 
 #pragma once
 
+#include <stddef.h>
+#include <string.h>
+
+/* A place of the answer the decoder found no character for: a code not in its table ("<?>": a keying slip, or the
+ * group's last element and the answer run together) or a prosign ("<AR>"). Never in a group or a callsign, so never
+ * right, and shown as it is. Up to v0.3.8 "<?>" became "?", a Koch character itself (level 32 on): a garbled answer
+ * to "?" counted right, and the two looked the same. A prosign went in as its text, one place taking four: the
+ * places after it no longer lined up with the group's, and its letters counted for the group's (the R of "<AR>") */
+#define CWT_NO_CHAR '*'
+
+/* A character from the decoder (not a space) onto the answer heard[] of size bytes: one place each */
+static inline void cwt_answer_add(char *heard, size_t size, const char *t) {
+    size_t n = strlen(heard);
+
+    if (n + 1 < size) {
+        heard[n]     = t[0] && !t[1] ? t[0] : CWT_NO_CHAR;
+        heard[n + 1] = 0;
+    }
+}
+
 #define CWT_ANSWER_MS     3000  /* silence that ends an answer shorter than the group, at least */
 #define CWT_ANSWER_DOTS   30
 #define CWT_ANSWER_LAG_MS 500

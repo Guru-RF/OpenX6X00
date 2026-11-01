@@ -245,6 +245,17 @@ static void element_timer_rules(void) {
           open, closed);
 }
 
+/* ---- The answer: a place for every character -------------------------------------------------------------------- */
+
+static void answer_rules(void) {
+    char        h[32] = "";
+    std::string want  = std::string("K") + CWT_NO_CHAR + CWT_NO_CHAR + "?R";
+
+    for (const char *t : {"K", "<?>", "<AR>", "?", "R"}) cwt_answer_add(h, sizeof(h), t);
+    printf("The answer: one place a character\n");
+    check(want == h, "K, a code in no table, a prosign, ? and R from the decoder: \"%s\", the ? only for the ?", h);
+}
+
 /* ---- Learn and Calls, end to end --------------------------------------------------------------------------------- */
 
 /* dialog_cw_trainer.c */
@@ -272,6 +283,8 @@ struct Scenario {
     int         rounds;
     double      react_min, react_max;   /* the user's answer after the group's sound ended, ms */
     int         user_wpm = 0;   /* a straight key at this speed (as exact), 0: the keyer, at the key speed */
+    int         first    = 0;   /* Learn draws from the level's characters from this one on */
+    bool        garble   = false;   /* the user keys every ? with a dit too many, ..--..., in no table */
 };
 
 struct Result {
@@ -285,6 +298,9 @@ struct Result {
     float word_dots   = 0;   /* the word boundary at the end, in dots */
     float wpm_end     = 0;   /* the decoder's speed at the end */
     int   key_wpm     = 0;   /* ... and the key's (Calls moves it) */
+    int   garbled     = 0;   /* groups whose answer the user garbled (Scenario::garble) */
+    int   garbled_ok  = 0;   /* ... counted right */
+    int   garbled_no  = 0;   /* ... heard as no character where the ? was */
 };
 
 static Result learn(const Scenario &sc, unsigned seed) {
@@ -310,7 +326,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
     enum { READY, PLAYING, LISTEN, RESULT } st = READY;
     std::string target, heard;
     int         heard_n = 0, wpm = sc.wpm, own_req = -1, wpm_req = 0, told_wpm = 0, wpm_seen = 0;
-    bool        heard_end = false, last_ok = false, own_taken = false, lost = false;
+    bool        heard_end = false, last_ok = false, own_taken = false, lost = false, garbled = false;
     double      idle = 0, listen_t = 0, last_rx_t = 0, result_t = 0, user_first_end = 1e12, user_last = -1;
 
     /* play(): the own count, the speed when it is new, then the encoder (cw_encoder.c send_morse); the user keys
@@ -318,7 +334,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
     auto play = [&](double t) {
         if (sc.group > 0) {
             target.clear();
-            for (int i = 0; i < sc.group; i++) target += koch[rng() % sc.level].c;
+            for (int i = 0; i < sc.group; i++) target += koch[sc.first + rng() % (sc.level - sc.first)].c;
         } else {   /* a callsign of new_call()'s shape */
             static const char *const pre[] = {"DL#", "ON#", "G#", "EA8", "IK2", "VK#", "W#", "9A#", "HB9", "2E0"};
             target = pre[rng() % 10];
@@ -349,8 +365,9 @@ static Result learn(const Scenario &sc, unsigned seed) {
         /* the user hears the end of it at once, the capture the sound later; keyed back with the keyer: exact */
         double u = marks.back().off - sc.delay + urand(sc.react_min, sc.react_max);
         double udit = sc.user_wpm > 0 ? 1200.0 / sc.user_wpm : dit, udah = 3 * udit;
+        garbled     = sc.garble && target.find('?') != std::string::npos;
         for (size_t i = 0; i < target.size(); i++) {
-            for (const char *p = morse_of(target[i]); *p; p++) {
+            for (const char *p = garbled && target[i] == '?' ? "..--..." : morse_of(target[i]); *p; p++) {
                 double el = *p == '.' ? udit : udah;
                 marks.push_back({u + sc.delay, u + el + sc.delay});
                 u += el + udit;
@@ -395,11 +412,19 @@ static Result learn(const Scenario &sc, unsigned seed) {
                        (heard_n >= (int)target.size() || heard_end || tick - last_rx_t > cwt_answer_ms(wpm, wpm_seen))) {
                 last_ok = heard == target;
                 r.own_answers += own_taken;
+                if (garbled) {
+                    std::string no = target;
+                    std::replace(no.begin(), no.end(), '?', CWT_NO_CHAR);
+                    r.garbled++;
+                    r.garbled_ok += last_ok;
+                    r.garbled_no += heard == no;
+                }
                 if (!last_ok) {
                     r.wrong++;
                     r.guard_lost += lost;
-                    printf("        group %d: \"%s\" heard as \"%s\"%s\n", r.rounds, target.c_str(), heard.c_str(),
-                           lost ? " (its first character inside GUARD_MS)" : "");
+                    if (!garbled)
+                        printf("        group %d: \"%s\" heard as \"%s\"%s\n", r.rounds, target.c_str(),
+                               heard.c_str(), lost ? " (its first character inside GUARD_MS)" : "");
                 }
                 st       = RESULT;
                 result_t = tick;
@@ -447,7 +472,10 @@ static Result learn(const Scenario &sc, unsigned seed) {
             if (e.s == " ") {
                 heard_end = heard_n > 0;
             } else if (heard_n < (sc.group == 0 ? 12 : 6)) {
-                heard += e.s == "<?>" ? "?" : e.s;
+                char h[32];   /* the trainer's heard[] */
+                snprintf(h, sizeof(h), "%s", heard.c_str());
+                cwt_answer_add(h, sizeof(h), e.s.c_str());
+                heard = h;
                 heard_n++;
             }
         }
@@ -499,6 +527,24 @@ static void end_to_end(void) {
     }
 }
 
+/* An answer the decoder cannot read is no character, not "?": in groups of 3 8 B and ? (the last four of level 32) the
+ * user keys every ? with a dit too many. Once it came out as "?" and counted right */
+static void no_character(void) {
+    printf("An answer that is no character\n");
+    for (int group : {1, 3}) {
+        Scenario sc = {"Learn, 3 8 B ?, the ? keyed ..--...", 15, 30, 32, group, 40, 300, 1200};
+        sc.first    = 28;
+        sc.garble   = true;
+        Result r    = learn(sc, 1);
+        int    other = r.wrong - r.guard_lost - (r.garbled - r.garbled_ok);   /* wrong for another reason */
+
+        check(r.finished && r.garbled > 0 && r.garbled_ok == 0 && r.garbled_no == r.garbled && other == 0,
+              "%s, group %d, %d WPM: %d groups, %d with a ? keyed so: counted right %d times, the ? heard as no "
+              "character %d times; other answers wrong %d", sc.what, group, sc.wpm, r.rounds, r.garbled, r.garbled_ok,
+              r.garbled_no, other);
+    }
+}
+
 /* The first groups after the trainer opens, over and over: the lock finds the tone with the first one, and a dah can
  * come in pieces then; the trainer's count runs out inside its last character, and the decoder learning the pieces
  * took the speed to 50 WPM. 4 groups a run, the sound 30-250 ms behind the key, 4 seeds, at 10, 12 and 15 WPM (faster,
@@ -544,7 +590,9 @@ int main(void) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     morse_text_rules();
     element_timer_rules();
+    answer_rules();
     end_to_end();
+    no_character();
     first_groups();
     printf("%d of %d CW trainer cases as they should be\n", good, cases);
     return good == cases ? 0 : 1;

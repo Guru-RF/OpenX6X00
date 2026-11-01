@@ -2441,6 +2441,14 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   it, and a straight key, down to 5 WPM while the trainer is open (on the
   band it stops at 10). Up to v0.3.8 it stopped at 10 in the trainer too:
   at 5 WPM it read every group and answer wrong (an M as two Ts).
+- A character of your answer the decoder cannot read (dits and dahs that
+  make no character, or a prosign such as AR) shows as `*`, in Learn and
+  Calls, and is wrong; the hint line then says "* = not a character". It
+  takes one place, so the rest of the answer still lines up with the
+  group (the red marks in Calls, Stats in Learn). Up to v0.3.8 it showed
+  as "?", which is itself a character (from level 32): a garbled answer to
+  a "?" counted right. A prosign took four places, and its letters counted
+  for the group's in Stats.
 
 
 ## Apps
