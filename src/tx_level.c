@@ -45,7 +45,10 @@ static bool tx_level_flat(tx_level_t *l, float p) {
 }
 
 static float tx_level_decide(tx_level_t *l) {
-    float p = l->sum_pwr / l->n, a = l->sum_alc / l->n;
+    /* power_hold: the ALC does not follow the drive (the X6200's reads about 0 whatever it gets), so what it reads is
+     * not ours: an ALC over 3 now and then (RF picked up, a base's own state) took the level down 0.75 dB a window and
+     * kept it, from the setting to 0 W in two or three transmissions, then "TX 0 W" and back from the default (#123) */
+    float p = l->sum_pwr / l->n, a = l->power_hold ? 0.0f : l->sum_alc / l->n;
     l->n = l->wb = 0;
     l->sum_pwr = l->sum_alc = 0.0f;
 
