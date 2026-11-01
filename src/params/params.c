@@ -98,8 +98,10 @@ params_t params = {
     .ft8_custom_hz          = { .x = 0,         .name = "ft8_custom_hz" },
 #ifdef BOARD_X6200
     /* Its own name: v0.3.0 to v0.3.3 read the X6200's ALC the wrong way round (as the X6100's) and learned the
-     * drive down to the floor, 40 dB under the power (issues #1, #8); that value is left behind */
-    .ft8_output_gain_offset = { .x = 0.0f,      .name = "ft8_output_gain_offset_v2" },
+     * drive down to the floor, 40 dB under the power (issues #1, #8); that value is left behind. Again after
+     * v0.3.8, which kept the steps made while the base's power still came up after the key: the level climbed to
+     * the codec's top, 33.4 dB (#126). Every X6200 starts once from the default, where it gives its setting at once */
+    .ft8_output_gain_offset = { .x = 0.0f,      .name = "ft8_output_gain_offset_v3" },
 #else
     .ft8_output_gain_offset = { .x = 0.0f,      .name = "ft8_output_gain_offset" },
 #endif
