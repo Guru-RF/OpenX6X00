@@ -637,6 +637,25 @@ void radio_start_atu() {
     state_move(RADIO_RX, RADIO_ATU_START);
 }
 
+/* The X6200's base (1.0.8) transmits in its scan mode but reports SWR 1.0 there, the stock firmware's scan too;
+ * a plain carrier reads it. Keyed as the digital modes are (not radio_set_modem: no app is on air), so the mics
+ * stay out, their gain 0 still lets a voice through; nothing plays to the base meanwhile. In FM: an AM carrier
+ * at 1 W is ~0.2 W, too little for the bridge */
+#ifdef BOARD_X6200
+#define SWRSCAN_TX      HW_MODEM
+#define SWRSCAN_MODE    radio_mode_nfm
+#define SWRSCAN_MIN     24      /* packets, ~1.2 s from a move: the power comes up in about that */
+#define SWRSCAN_FLAT    6       /* packets, ~0.3 s without the power going up: it is up */
+#define SWRSCAN_WAIT    60      /* packets, ~3 s: a power that never settles is read anyway */
+
+static uint8_t  swrscan_peak;
+static uint8_t  swrscan_flat;
+static uint16_t swrscan_wait;           /* packets since the move */
+#else
+#define SWRSCAN_TX      HW_SWRSCAN
+#define SWRSCAN_MODE    radio_mode_am
+#endif
+
 /* Nothing moves before the scan is known to start: the VFO that transmits goes to `from` only then */
 bool radio_start_swrscan(int32_t from) {
     if (tx_refused() || !state_move(RADIO_RX, RADIO_SWRSCAN)) {
@@ -644,12 +663,15 @@ bool radio_start_swrscan(int32_t from) {
     }
 
     radio_set_tx_freq(from);
-    cparam_i_set(cfg_cur_mode, radio_mode_am);
+    cparam_i_set(cfg_cur_mode, SWRSCAN_MODE);
     radio_lock();
     /* 1 W is enough to read the SWR; less if PWR is set lower, or a transverter's limit (set_txpwr).
      * ponytail: fixed 1 W cap, make it a setting if the bridge reads poorly that low */
     set_txpwr(LV_MIN(param_f_get(cfg_pwr), 1.0f));
-    hw_set_i(HW_SWRSCAN, true);
+#ifdef BOARD_X6200
+    swrscan_peak = swrscan_flat = swrscan_wait = 0;
+#endif
+    hw_set_i(SWRSCAN_TX, true);
     radio_unlock();
 
     return true;
@@ -658,7 +680,7 @@ bool radio_start_swrscan(int32_t from) {
 void radio_stop_swrscan() {
     if (state_move(RADIO_SWRSCAN, RADIO_RX)) {
         radio_lock();
-        hw_set_i(HW_SWRSCAN, false);
+        hw_set_i(SWRSCAN_TX, false);
         set_txpwr(param_f_get(cfg_pwr));
         radio_unlock();
     }
@@ -1813,6 +1835,23 @@ static bool radio_tick() {
                 break;
 
             case RADIO_SWRSCAN:
+#ifdef BOARD_X6200
+                /* Not keyed yet, or the power still coming up: it starts from 0 at each move and comes up
+                 * in 0.1 W steps over ~1 s, and the SWR reads low meanwhile (1.0-1.1 at 0.2 W where 0.8 W reads
+                 * 1.5). Where it settles depends on the SWR (0.8 W at 1.5, 0.6 W at 3.4): read once the move is
+                 * SWRSCAN_MIN old and the power stopped going up */
+                if (!pack->tx)
+                    break;
+                if (pack->tx_power > swrscan_peak || pack->tx_power + 1 < swrscan_peak) {
+                    swrscan_peak = pack->tx_power;      /* going up, or a new ramp */
+                    swrscan_flat = 0;
+                } else {
+                    swrscan_flat++;
+                }
+                if ((++swrscan_wait < SWRSCAN_MIN || swrscan_flat < SWRSCAN_FLAT) && swrscan_wait < SWRSCAN_WAIT)
+                    break;
+                swrscan_peak = swrscan_flat = swrscan_wait = 0;
+#endif
                 dialog_swrscan_update(pack->vswr * 0.1f);
                 break;
 
