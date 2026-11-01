@@ -930,13 +930,22 @@ static void mic_key_cb(lv_event_t *e) {
     switch (ev->key) {
         /* The band printed on the key; digits only in F-INP (dialog_freq.c). Long: memory 1-9 */
         case HKEY_0: case HKEY_1: case HKEY_2: case HKEY_3: case HKEY_4:
-        case HKEY_5: case HKEY_6: case HKEY_7: case HKEY_8: case HKEY_9: {
+        case HKEY_5: case HKEY_6: case HKEY_7: case HKEY_8: case HKEY_9:
+#ifdef BOARD_X6200
+        case HKEY_DOT:
+#endif
+        {
+#ifdef BOARD_X6200
+            /* The H-22 prints 5.3 on its 3 and 28 on its dot (index 10) */
+            static const int16_t band_m[11] = {6, 160, 80, 60, 40, 30, 20, 17, 15, 12, 10};
+#else
             static const int16_t band_m[10] = {6, 160, 80, 40, 30, 20, 17, 15, 12, 10};
-            int                  digit      = ev->key - HKEY_0;
+#endif
+            int                  digit      = ev->key == HKEY_DOT ? 10 : ev->key - HKEY_0;
 
             if (tap && !band_lock) {
                 controls_set_band_m(band_m[digit]);
-            } else if (hold && digit > 0) {
+            } else if (hold && digit > 0 && digit < 10) {
                 mem_load(digit);
             }
             break;

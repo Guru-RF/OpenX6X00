@@ -161,8 +161,9 @@ one second.
 
 | Key | Mic | Press | Long press |
 |---|---|---|---|
-| 1-9, 0 | both | the band: 1 = 160 m, 2 = 80 m, 3 = 40 m, 4 = 30 m, 5 = 20 m, 6 = 17 m, 7 = 15 m, 8 = 12 m, 9 = 10 m, 0 = 6 m (not while an app holds the band) | memory 1-9 |
-| F-INP (H-22: #) | both | the frequency box, see below | |
+| 1-9, 0 | both | the band printed on the key (not while an app holds the band). X6100: 1 = 160 m, 2 = 80 m, 3 = 40 m, 4 = 30 m, 5 = 20 m, 6 = 17 m, 7 = 15 m, 8 = 12 m, 9 = 10 m, 0 = 6 m. H-22: 1 = 160 m, 2 = 80 m, 3 = 60 m, 4 = 40 m, 5 = 30 m, 6 = 20 m, 7 = 17 m, 8 = 15 m, 9 = 12 m, 0 = 6 m | memory 1-9 |
+| the dot | H-22 | 10 m (printed 28) | |
+| F-INP (H-22: the red F-INP/ENT) | both | the frequency box, see below | |
 | F1, F2 | both | the action set in Settings > Keys > HAND MIC KEYS: F1 steps up, F2 does nothing until it has one | F1 steps down, F2 as set |
 | F3 | H-22 | as F2, with its own action (X6200: Settings > Keys > HAND MIC KEYS) | as set |
 | UP, DOWN (H-22: the arrow keys) | both | the [channel](#channels) before or after the last one tuned, its name shown | band up or down |
@@ -177,16 +178,14 @@ one second.
 | GENE | X6100 | the SWL panel; again: the next station | |
 | NW | X6100 | the station shown in the SWL panel saved as a channel | |
 
-- The frequency box: F-INP (the H-22's #) opens it, not while the frequency
+- The frequency box: F-INP (the H-22's red F-INP/ENT) opens it, not while the frequency
   is locked. Type the frequency in MHz with the digits and the dot (the
-  H-22's *), 7.074 for 7074 kHz; CE (the H-22's HOME) deletes the last
+  H-22's dot key), 7.074 for 7074 kHz; CE (the H-22's HOME) deletes the last
   character. F-INP again tunes to it and closes the box; with nothing typed
   it only closes it.
 - In a list or a text box (the WiFi password) the digits, the dot and CE type
   instead.
-- The H-22's UP and DOWN keys on its side send nothing the radio can see (an
-  X6200 with base 1.0.8). Xiegu's app has codes for band up and down that may
-  be theirs; if a base sends them, they change band like the BAND keys.
+- The H-22's UP and DOWN keys on its side change band like the BAND keys.
 - Each key pressed goes into the log as `hand mic: key 0x18 (3)`: its code
   and the key the radio took it for, or "unknown". Not while a text box is
   open, where the digits can be a WiFi password. A key of another mic that
