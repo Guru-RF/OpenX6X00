@@ -61,6 +61,7 @@ static float            level_max = TX_MAX;
  * nothing. GUI thread; NAN: nothing */
 static float            kept_db[POINTS];
 static int32_t          kept_view;          /* the view's centre (Hz) they are points of; 0: none */
+static double           kept_at;            /* the centre (Hz) their points are at: kept_view to half a point */
 static uint8_t          kept_zoom;
 static bool             kept_new;           /* a settled trace not kept yet (data_mux) */
 static uint8_t          kept_wait;          /* traces to come before one is settled (data_mux) */
@@ -127,14 +128,31 @@ static void levels(float *min, float *max) {
     *max = data_tx ? TX_MAX : level_max;
 }
 
-/* Fixed mode: a new trace into kept_db at the points it is drawn on; another view, another
- * zoom or Centered mode: none kept. Before each refresh */
+/* Fixed mode: a new trace into kept_db at the points it is drawn on. The view moved on by less
+ * than its span (a jump back, or Jump to Scroll at each step, #10): they move with it by whole
+ * points, so each stays at its frequency, as the waterfall's picture does; with them all cleared
+ * the side tuned away from had nothing while the view scrolled along. Another zoom, a band or
+ * Centered mode: none kept. Before each refresh */
 static void keep_trace(void) {
     int32_t view = param_i_get(cfg_wf_mode) ? vfo_hz - if_shift - waterfall_view_shift() : 0;
+    int32_t span = SPAN_HZ / zoom;
 
-    if (view != kept_view || zoom != kept_zoom) {
+    if (view != kept_view && view && kept_view && zoom == kept_zoom && abs(view - kept_view) < span) {
+        int32_t n = LV_CLAMP(-POINTS, lround((view - kept_at) * POINTS / span), POINTS);
+
+        if (n > 0) {
+            memmove(kept_db, kept_db + n, (POINTS - n) * sizeof(float));
+            for (int i = POINTS - n; i < POINTS; i++) kept_db[i] = NAN;
+        } else if (n < 0) {
+            memmove(kept_db - n, kept_db, (POINTS + n) * sizeof(float));
+            for (int i = 0; i < -n; i++) kept_db[i] = NAN;
+        }
+        kept_at += (double) n * span / POINTS;
+        kept_view = view;
+    } else if (view != kept_view || zoom != kept_zoom) {
         kept_view = view;
         kept_zoom = zoom;
+        kept_at = view;
         for (int i = 0; i < POINTS; i++) {
             kept_db[i] = NAN;
         }
