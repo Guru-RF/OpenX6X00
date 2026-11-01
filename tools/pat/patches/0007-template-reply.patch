@@ -1,0 +1,181 @@
+From 6ae55e7b0d2c94b8f1ebfd1045ea155305224f82 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Sun, 1 Nov 2026 15:14:54 +0100
+Subject: [PATCH] forms: a text-only template opened as a reply has the message
+ replied to (OpenX6X00)
+
+Pat v1.0.1 serves the text-only template editor itself, at /api/forms
+(serveTemplateEditor), where v1.0.0 sent the page to /ui/template and
+its text came from /api/template. It reads the message replied to
+(in-reply-to, such as in/<MID>) with an empty mailbox root, so from
+Pat's working directory: Reply, then a text-only template from the
+forms' catalog, answered 500 (Unable to open file (in/<MID>.b2f)).
+
+GetFormTemplateHandler now takes the mailbox's root, as
+PostFormDataHandler does, and the template editor reads in-reply-to
+there, still only inside it (IsInPath). With a test
+(internal/forms/template_reply_test.go).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ api/api.go                            |  2 +-
+ internal/forms/forms.go               | 19 +++++--
+ internal/forms/reply_test.go          |  2 +-
+ internal/forms/template_reply_test.go | 75 +++++++++++++++++++++++++++
+ 4 files changed, 91 insertions(+), 7 deletions(-)
+ create mode 100644 internal/forms/template_reply_test.go
+
+diff --git a/api/api.go b/api/api.go
+index 094a3cc..c4f4c8d 100644
+--- a/api/api.go
++++ b/api/api.go
+@@ -119,7 +119,7 @@ func NewHandler(app *app.App) *Handler {
+ 	r.HandleFunc("/api/formcatalog", h.FormsManager().GetFormsCatalogHandler).Methods("GET")
+ 	r.HandleFunc("/api/form", h.FormsManager().PostFormDataHandler(h.Mailbox().MBoxPath)).Methods("POST")
+ 	r.HandleFunc("/api/form", h.FormsManager().GetFormDataHandler).Methods("GET")
+-	r.HandleFunc("/api/forms", sandboxHandler(h.FormsManager().GetFormTemplateHandler)).Methods("GET")
++	r.HandleFunc("/api/forms", sandboxHandler(h.FormsManager().GetFormTemplateHandler(h.Mailbox().MBoxPath))).Methods("GET")
+ 	r.PathPrefix("/api/forms/").Handler(http.StripPrefix("/api/forms/", sandboxHandler(h.FormsManager().GetFormAssetHandler))).Methods("GET")
+ 	r.HandleFunc("/api/formsUpdate", h.FormsManager().UpdateFormTemplatesHandler).Methods("POST")
+ 
+diff --git a/internal/forms/forms.go b/internal/forms/forms.go
+index e7a2f6b..7a4eaeb 100644
+--- a/internal/forms/forms.go
++++ b/internal/forms/forms.go
+@@ -356,8 +356,11 @@ func (m *Manager) readProcessedTemplate(templatePath, inReplyTo, mboxRoot string
+ }
+ 
+ // serveTemplateEditor serves the text-only template editor with the processed template content injected.
+-func (m *Manager) serveTemplateEditor(w http.ResponseWriter, r *http.Request, templatePath string) {
+-	templateContent, err := m.readProcessedTemplate(templatePath, r.URL.Query().Get("in-reply-to"), "")
++//
++// The message replied to (in-reply-to) is read from the mailbox, mboxRoot (OpenX6X00 patch: it was
++// read from Pat's working directory, and a reply's template editor answered 500).
++func (m *Manager) serveTemplateEditor(w http.ResponseWriter, r *http.Request, templatePath, mboxRoot string) {
++	templateContent, err := m.readProcessedTemplate(templatePath, r.URL.Query().Get("in-reply-to"), mboxRoot)
+ 	if err != nil {
+ 		if os.IsNotExist(err) {
+ 			http.NotFound(w, r)
+@@ -372,8 +375,14 @@ func (m *Manager) serveTemplateEditor(w http.ResponseWriter, r *http.Request, te
+ 	}
+ }
+ 
+-// GetFormTemplateHandler serves a template's HTML form (filled-in with instance values)
+-func (m *Manager) GetFormTemplateHandler(w http.ResponseWriter, r *http.Request) {
++// GetFormTemplateHandler serves a template's HTML form (filled-in with instance values), or a
++// text-only template's editor; mboxRoot is the mailbox its in-reply-to is in (OpenX6X00 patch).
++func (m *Manager) GetFormTemplateHandler(mboxRoot string) http.HandlerFunc {
++	return func(w http.ResponseWriter, r *http.Request) { m.serveFormTemplate(w, r, mboxRoot) }
++}
++
++// serveFormTemplate serves a template's HTML form (filled-in with instance values)
++func (m *Manager) serveFormTemplate(w http.ResponseWriter, r *http.Request, mboxRoot string) {
+ 	templatePath := r.URL.Query().Get("template")
+ 	if templatePath == "" {
+ 		http.Error(w, "template query param missing", http.StatusBadRequest)
+@@ -400,7 +409,7 @@ func (m *Manager) GetFormTemplateHandler(w http.ResponseWriter, r *http.Request)
+ 	formPath := template.InputFormPath
+ 	if formPath == "" {
+ 		// This is a text-only template. Serve the template editor.
+-		m.serveTemplateEditor(w, r, templatePath)
++		m.serveTemplateEditor(w, r, templatePath, mboxRoot)
+ 		return
+ 	}
+ 
+diff --git a/internal/forms/reply_test.go b/internal/forms/reply_test.go
+index 7f1250a..8c6e81c 100644
+--- a/internal/forms/reply_test.go
++++ b/internal/forms/reply_test.go
+@@ -70,7 +70,7 @@ func TestFormReplyKeyInTheAddress(t *testing.T) {
+ 		t.Fatal(err)
+ 	}
+ 	rec := httptest.NewRecorder()
+-	m.GetFormTemplateHandler(rec, httptest.NewRequest("GET", "/api/forms?template=Test%2FTest+Form.txt&forminstance=123456789", nil))
++	m.GetFormTemplateHandler(mboxDir)(rec, httptest.NewRequest("GET", "/api/forms?template=Test%2FTest+Form.txt&forminstance=123456789", nil))
+ 	page := rec.Body.String()
+ 	if i := strings.Index(page, `action="`); rec.Code != 200 || i < 0 {
+ 		t.Errorf("the new form: status %d: %q", rec.Code, page)
+diff --git a/internal/forms/template_reply_test.go b/internal/forms/template_reply_test.go
+new file mode 100644
+index 0000000..4ad68fb
+--- /dev/null
++++ b/internal/forms/template_reply_test.go
+@@ -0,0 +1,75 @@
++// Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF (OpenX6X00).
++// Use of this source code is governed by the MIT-license that can be
++// found in the LICENSE file.
++
++package forms
++
++import (
++	"net/http"
++	"net/http/httptest"
++	"net/url"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"github.com/la5nta/wl2k-go/fbb"
++	"github.com/la5nta/wl2k-go/mailbox"
++)
++
++// A text-only template opened as a reply (the composer's Reply, then a template from the forms'
++// catalog: /api/forms with in-reply-to) gets the message replied to from the mailbox, not from
++// Pat's working directory (OpenX6X00 patch).
++func TestTemplateEditorReply(t *testing.T) {
++	defer func(f func() bool) { isInternetAvailable = f }(isInternetAvailable)
++	isInternetAvailable = func() bool { return false } // no HEAD request to www.google.com
++	dir := t.TempDir()
++	formsDir, mboxDir := filepath.Join(dir, "forms"), filepath.Join(dir, "mailbox")
++	if err := os.MkdirAll(filepath.Join(mboxDir, "in"), 0o755); err != nil {
++		t.Fatal(err)
++	}
++	var editor string
++	m := NewManager(Config{FormsPath: formsDir, SequencePath: filepath.Join(dir, "sequence"), MyCall: "N0CALL",
++		SequenceFormat: "%03d", RenderTemplateEditor: func(w http.ResponseWriter, text string) error {
++			editor = text
++			return nil
++		}})
++	defer m.Close()
++	const tmpl = "Subj: Re: <MsgOriginalSubject>\nMsg:\n<MsgOriginalBody>\n"
++	if err := os.WriteFile(filepath.Join(formsDir, "Reply.txt"), []byte(tmpl), 0o644); err != nil {
++		t.Fatal(err)
++	}
++	msg := fbb.NewMessage(fbb.Private, "LA5NTA")
++	msg.SetFrom("LA5NTA")
++	msg.AddTo("N0CALL")
++	msg.SetSubject("Water at the school")
++	if err := msg.SetBody("Need 40 l of water."); err != nil {
++		t.Fatal(err)
++	}
++	b, err := msg.Bytes()
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(mboxDir, "in", msg.MID()+mailbox.Ext), b, 0o644); err != nil {
++		t.Fatal(err)
++	}
++
++	q := url.Values{"template": {"Reply.txt"}, "in-reply-to": {"in/" + msg.MID()}}
++	rec := httptest.NewRecorder()
++	m.GetFormTemplateHandler(mboxDir)(rec, httptest.NewRequest("GET", "/api/forms?"+q.Encode(), nil))
++	if rec.Code != http.StatusOK {
++		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
++	}
++	for _, want := range []string{"Subj: Re: Water at the school", "Need 40 l of water."} {
++		if !strings.Contains(editor, want) {
++			t.Errorf("the template editor has no %q: %q", want, editor)
++		}
++	}
++
++	q.Set("in-reply-to", "../../"+msg.MID()) // and nothing outside the mailbox
++	rec = httptest.NewRecorder()
++	m.GetFormTemplateHandler(mboxDir)(rec, httptest.NewRequest("GET", "/api/forms?"+q.Encode(), nil))
++	if rec.Code == http.StatusOK {
++		t.Errorf("an in-reply-to outside the mailbox: status %d", rec.Code)
++	}
++}
+-- 
+2.56.0
+

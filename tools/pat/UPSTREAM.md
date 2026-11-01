@@ -29,8 +29,10 @@ are ours.
 - `GOTOOLCHAIN=local GOFLAGS=-mod=readonly`, the public module proxy and checksum database,
   `go mod download` and `go mod verify`: a module that does not match `go.sum` stops the build.
 - `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags="-s -w -buildid="`:
-  one static binary for both radios, about 14.1 MB. With v1.0.0, two builds with Go's build
-  cache wiped in between gave the same SHA-256.
+  one static binary for both radios, about 14.1 MB (v1.0.1 with our patches: 14090364
+  bytes, SHA-256 `380f76c8ee36e0dfa0b9071b0298a7fbfc15dd128de4b19e8ed1c895c5734509`). With
+  v1.0.0, two builds with Go's build cache wiped in between gave the same SHA-256; with v1.0.1,
+  `build.sh` and a second build of the same patched tree in another directory did.
 - The binary is kept as `$HOME/.cache/openx6x00/pat/pat-<tag>-go<version>-<hash>/pat`, the
   hash being that of the patches and of `build.sh`; a second run prints that path and
   downloads nothing. Go's module cache (`gopath/`) is read-only, as Go makes it:
@@ -54,7 +56,8 @@ reports itself as Pat 1.0.1 with the upstream revision `2ad31e8` (`pat version`:
 
 Each one made with `git format-patch` against `v1.0.1`; `git apply` takes them in order. On
 the way from `v1.0.0`: 0001 to 0004 rebased as they were (line offsets only); 0005 and 0006
-rebased onto v1.0.1's own changes to the same files (below).
+rebased onto v1.0.1's own changes to the same files (below); 0007 is new, for a v1.0.1
+regression.
 
 - `0001-http-guard.patch`: a guard around Pat's HTTP handler (`api/guard.go`, wrapped in
   `api.ListenAndServe`). Pat has no login, and a plain GET of `/api/connect` keys the
@@ -183,9 +186,17 @@ rebased onto v1.0.1's own changes to the same files (below).
   `ICS213_SendReply`), on a PC and on the bench X6100: before, "Forbidden: cross-origin request";
   after, the reply window closes and the reply is in the composer. Again with v1.0.1 on a PC
   (Firefox 158, Pat and Firefox in a network namespace with loopback only): a new ICS 213, its
-  reply and a form from the catalog all reach the composer; upstream
+  reply, a form from the catalog and a text-only reply template all reach the composer; upstream
   v1.0.1 alone still answers the reply form `named cookie not present`. Upstream's part (the key
   in the address) should go upstream with the report.
+- `0007-template-reply.patch`: a text-only template opened as a reply (Reply, then a template
+  without a `Form:` line from the forms' catalog) gets the message replied to. v1.0.1 serves the
+  template editor itself (`serveTemplateEditor`) and reads `in-reply-to` (`in/<MID>`) with an
+  empty mailbox root, so from Pat's working directory: 500, `Unable to open file
+  (in/<MID>.b2f)`, where v1.0.0's `/api/template` had the mailbox. `GetFormTemplateHandler` now
+  takes the mailbox's root, as `PostFormDataHandler` does; `in-reply-to` stays inside it
+  (`IsInPath`). With a test (`internal/forms/template_reply_test.go`). Should go upstream (not
+  reported).
 
 `pat_ui_test.js` (ours, not in a patch) runs Pat's mailbox and configuration pages and their
 scripts from a patched source in jsdom, against a stand-in for Pat's server that answers with such
