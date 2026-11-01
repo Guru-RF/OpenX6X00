@@ -29,8 +29,13 @@ void dialog_field_day_log(const qso_log_record_t *r);
 /* Wavelog live upload (x6100-wavelog): a first try a minute after the start, then after each QSO */
 void dialog_field_wavelog_start(void);
 
-/* Shared with the Bands app: TEST DE <call> in CW; a typical frequency of the band (cluster_band_of()) */
-void dialog_field_test_beacon(void);
+/* Shared with the Bands app, band a field_band_of() index. Test beacon: TEST DE <call> in CW on band, the one chosen on
+ * the screen; on the radio's own band where it is, on another at the band's CW frequency (dialog_field_tune_band's)
+ * and back where the radio was once it is sent. Again while it is on: stops it, and back. Refused, the screen saying
+ * why: no callsign, not in CW or CW-R, MSG > CW sending or a beacon on, the radio in TX, the frequency, band or mode
+ * locked, the radio not transmitting on that band (split, a TX shift, receive only) */
+void dialog_field_test_beacon(int band);
+/* Use band: a typical frequency of the band */
 void dialog_field_tune_band(int band);
 
 #ifdef __cplusplus

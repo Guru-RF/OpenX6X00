@@ -43,6 +43,7 @@
 #include "styles.h"
 #include "textarea_window.h"
 #include "theme.h"
+#include "util.h"
 #include "vol.h"
 
 #include <ctype.h>
@@ -2208,9 +2209,121 @@ static void update_cb(button_data_t *b) {
     list_update();
 }
 
-void dialog_field_test_beacon(void) {
-    char text[64];
+/* Test beacon (#135): on the band chosen on the screen, not on the one the radio is on. Away from the radio's band it
+ * goes to the band's CW frequency (Use band's), keys TB_SETTLE_MS later and goes back once the send is over and the
+ * radio receives again: it never moves the radio while it transmits. The timer is its own, as the Bands app and Field
+ * Ops may close while it sends */
+#define TB_SETTLE_MS    1000    /* the move, then the key: the base's band filters and the ATU's network switch, and
+                                 * the X6200's base brings its output up again from 0 over about 1 s (PR #140) */
 
+typedef enum { TB_OFF = 0, TB_SETTLE, TB_SEND, TB_BACK } tb_phase_t;
+
+static struct {
+    lv_timer_t *timer;
+    tb_phase_t  phase;
+    int         band;
+    int32_t     hz;         /* the radio's frequency while it tests */
+    int32_t     back_hz;    /* where it was, 0: it tests there */
+    int32_t     back_mode;
+    uint64_t    key_at;
+    const char *why;        /* stopped: why, "" asked */
+} tb;
+
+/* Why the radio would not send the test on band, NULL: it would. tx: where it transmits */
+static const char *tb_no_tx(int band, int32_t *tx) {
+    static char why[64];
+    int32_t     f;
+
+    *tx = radio_tx_freq();
+    f   = *tx < 0 ? -*tx : *tx;     /* a TX shift below 0 Hz */
+    if (field_band_of(*tx) != band)     /* split or a TX shift: the other VFO, wherever it is */
+        snprintf(why, sizeof(why), "it sends on %.3f MHz (split or TX shift)", f / 1e6);
+    else if (!cfg_is_tx_freq(*tx))
+        snprintf(why, sizeof(why), "no TX on %.3f MHz", f / 1e6);
+    else
+        return NULL;
+    return why;
+}
+
+/* Over: back where the radio was, unless it was moved meanwhile (the knob, a band key, the Panel, CAT) */
+static void tb_end(void) {
+    bool moved = cparam_i_get(cfg_fg_freq) != tb.hz;
+    bool back  = tb.back_hz && !moved && !main_screen_freq_locked();
+
+    lv_timer_del(tb.timer);
+    tb.timer = NULL;
+    tb.phase = TB_OFF;
+    if (back) {
+        main_screen_set_freq(tb.back_hz);
+        if (cparam_i_get(cfg_cur_mode) != tb.back_mode && !main_screen_mode_locked())
+            cparam_i_set(cfg_cur_mode, tb.back_mode);
+        LV_LOG_USER("Test beacon: back on %i", (int)tb.back_hz);
+    }
+    /* Short: the message box shows about 30 characters at once */
+    if (tb.why && tb.why[0])
+        msg_update_text_fmt("Test beacon stopped: %s", tb.why);
+    else if (back)
+        msg_update_text_fmt("Test beacon %s, back on %.3f MHz", tb.why ? "stopped" : "sent", tb.back_hz / 1e6);
+    else
+        msg_update_text_fmt("Test beacon %s", tb.why ? "stopped" : "sent: watch who hears you");
+}
+
+static void tb_timer_cb(lv_timer_t *t) {
+    char    text[64];
+    int32_t tx;
+
+    if (cparam_i_get(cfg_fg_freq) != tb.hz || !is_cw()) {
+        if (tb.phase == TB_SEND)
+            cw_encoder_stop();
+        tb.why = cparam_i_get(cfg_fg_freq) != tb.hz ? "the radio was tuned" : "the mode changed";
+        tb_end();
+        return;
+    }
+    switch (tb.phase) {
+        case TB_SETTLE:
+            if (get_time() < tb.key_at)
+                return;
+            /* As it was when asked: in the meantime something may have keyed the radio or set split */
+            if (radio_get_state() != RADIO_RX || cw_encoder_state() != CW_ENCODER_IDLE)
+                tb.why = "the radio is busy";
+            else
+                tb.why = tb_no_tx(tb.band, &tx);
+            if (tb.why) {
+                tb.phase = TB_BACK;
+                return;
+            }
+            snprintf(text, sizeof(text), "TEST DE %s %s %s", my_call(), my_call(), my_call());
+            cw_encoder_send(text, false);
+            tb.phase = TB_SEND;
+            break;
+        case TB_SEND:
+            if (cw_encoder_state() == CW_ENCODER_IDLE)
+                tb.phase = TB_BACK;
+            break;
+        case TB_BACK:
+            /* The break-in delay, or another TX: the move waits for the receiver */
+            if (radio_get_state() == RADIO_RX)
+                tb_end();
+            break;
+        default:
+            break;
+    }
+}
+
+void dialog_field_test_beacon(int band) {
+    int32_t     here = cparam_i_get(cfg_fg_freq), mode = cparam_i_get(cfg_cur_mode), f = here, tx;
+    const char *why;
+
+    if (tb.phase != TB_OFF) {   /* again: stops it, and back */
+        if (tb.phase == TB_SEND)
+            cw_encoder_stop();
+        if (!tb.why)
+            tb.why = "";
+        tb.phase = TB_BACK;
+        return;
+    }
+    if (band < 0 || band >= FIELD_RBN_BANDS)
+        return;
     if (!my_call()[0]) {
         msg_update_text_fmt("Set your callsign in Settings");
         return;
@@ -2219,13 +2332,54 @@ void dialog_field_test_beacon(void) {
         msg_update_text_fmt("Test beacon: switch to CW first");
         return;
     }
-    snprintf(text, sizeof(text), "TEST DE %s %s %s", my_call(), my_call(), my_call());
-    cw_encoder_send(text, false);
-    msg_update_text_fmt("Test beacon on the air: watch who hears you");
+    if (cw_encoder_state() != CW_ENCODER_IDLE) {    /* MSG > CW sending, or a beacon in its pause or before its start */
+        msg_update_text_fmt("Test beacon: a CW message or beacon is on (MSG > CW)");
+        return;
+    }
+    if (radio_get_state() != RADIO_RX) {
+        msg_update_text_fmt("Test beacon: the radio is transmitting");
+        return;
+    }
+    if (field_band_of(here) != band) {
+        if (main_screen_freq_locked() || main_screen_band_locked()) {
+            msg_update_text_fmt("Test beacon on %s: the frequency is locked", field_band_name(band));
+            return;
+        }
+        main_screen_set_freq(field_band_freq(band, true, band_plan_region()));
+        f = cparam_i_get(cfg_fg_freq);
+        /* The band's own mode came with it: the test goes in the CW or CW-R the radio was in */
+        if (cparam_i_get(cfg_cur_mode) != mode && !main_screen_mode_locked())
+            cparam_i_set(cfg_cur_mode, mode);
+        why = cparam_i_get(cfg_cur_mode) != mode ? "the mode is locked" : tb_no_tx(band, &tx);
+        if (why) {
+            main_screen_set_freq(here);
+            if (cparam_i_get(cfg_cur_mode) != mode && !main_screen_mode_locked())
+                cparam_i_set(cfg_cur_mode, mode);
+            msg_update_text_fmt("Test beacon on %s: %s", field_band_name(band), why);
+            return;
+        }
+        tb.back_hz = here;
+        LV_LOG_USER("Test beacon: %s on %i, from %i", field_band_name(band), (int)f, (int)here);
+    } else {
+        why = tb_no_tx(band, &tx);
+        if (why) {
+            msg_update_text_fmt("Test beacon on %s: %s", field_band_name(band), why);
+            return;
+        }
+        tb.back_hz = 0;
+    }
+    tb.band      = band;
+    tb.hz        = f;
+    tb.back_mode = mode;
+    tb.why       = NULL;
+    tb.key_at    = get_time() + (tb.back_hz ? TB_SETTLE_MS : 0);
+    tb.phase     = TB_SETTLE;
+    tb.timer     = lv_timer_create(tb_timer_cb, 100, NULL);
+    msg_update_text_fmt("Test beacon on %s, %.3f MHz", field_band_name(band), tx / 1e6);
 }
 
 static void beacon_cb(button_data_t *b) {
-    dialog_field_test_beacon();
+    dialog_field_test_beacon(sel);
 }
 
 void dialog_field_tune_band(int band) {

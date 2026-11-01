@@ -2576,8 +2576,21 @@ Reverse Beacon Network skimmer spots of the last 15 and the skimmers that
 heard you in the last 10 (with the best SNR); the activity as a bar and
 HIGH / GOOD / FAIR / POOR, the best band marked.
 
-- Test beacon sends `TEST DE <call>` in CW (the radio must be in CW), so you
-  can see who hears you.
+- Test beacon sends `TEST DE <call>` three times in CW on the band chosen
+  (the highlighted row), so you can see who hears you there. The radio must
+  be in CW or CW-R. On the band the radio is on, it sends where you are. On
+  another band the radio goes to that band's CW frequency (the one Use band
+  tunes), sends a second later, and goes back to where it was once the send
+  is over and the radio receives again. The message box says the band and
+  the frequency. The band you tested keeps that frequency, in CW, as after
+  Use band. Your antenna must suit the band: the test transmits at the power
+  set.
+- Press Test beacon again to stop the test and go back. Tuning or a band key
+  during the test also stops it, and the radio stays where you tuned.
+- The screen says why nothing is sent when: the frequency, band or mode is
+  locked; split or a TX shift would put the carrier somewhere else; the radio
+  does not transmit there; it is already transmitting; or MSG > CW is sending
+  or has a beacon on.
 - Use band (or a press) tunes a typical activation frequency of the band,
   for the band plan's region (see [Band plan](#band-plan)).
 - RBN is connected while the screen is open (the first minute fills the
@@ -2771,7 +2784,9 @@ apps: APP (page 3) > Bands, or a long-press action.
   and who heard you (skimmers, best SNR); the best band is framed.
 - MFK to choose, a press (or Use band) tunes a typical frequency of the band
   (CW or phone, as the radio's mode; for the band plan's region, see [Band plan](#band-plan)).
-- Test beacon sends `TEST DE <call>` in CW. ESC closes.
+- Test beacon sends `TEST DE <call>` in CW on the band chosen, and then goes
+  back to where the radio was, as in [Field Ops](#field-ops-sota--pota). ESC
+  closes. A test that is still sending carries on and comes back by itself.
 - The numbers are the same as in Field Ops.
 
 ### Birdie Cal
