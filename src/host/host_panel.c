@@ -140,8 +140,13 @@ static int filter(void *unused, SDL_Event *e) {
         default:
             break;
     }
+    /* A key let go goes out as its press did, whatever Ctrl did meanwhile: Ctrl let go before P left PTT pressed
+     * (on the air until the next Ctrl+P), Ctrl pressed before F1 was let go gave F1 its long press */
+    static bool held[sizeof(keys) / sizeof(keys[0])];
+
     for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
-        if (keys[i].sym == sym && (keys[i].mod ? ctrl : !ctrl)) {
+        if (keys[i].sym == sym && (down ? (keys[i].mod ? ctrl : !ctrl) : held[i])) {
+            held[i] = down;
             emit(DEV_KEYPAD, EV_KEY, keys[i].code, down ? 1 : 0);
             return 0;
         }
