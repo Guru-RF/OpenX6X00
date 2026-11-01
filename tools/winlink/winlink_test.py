@@ -401,8 +401,11 @@ class Outcomes(Logs):
         self.assertEqual(k["last_next"], "Close the app on the radio, then connect again")
 
     def test_swr_hold(self):
-        k = self.failed(self.TIMEOUT, refused="high SWR, the hold ends in 4 min")
+        k = self.failed(self.TIMEOUT, refused="high SWR on 20m, the hold ends in 4 min")
+        self.assertEqual(k["last_text"], "No answer from HB9MM: the radio did not transmit, high SWR on 20m, the hold "
+                                         "ends in 4 min")
         self.assertIn("Check the antenna", k["last_next"])
+        self.assertIn("another band keys at once", k["last_next"])
 
     def test_qsy_refused(self):
         k = self.poll(pat="2026/10/29 09:47:01 QSY ardop: 14107.7\n"
@@ -587,27 +590,48 @@ qsy_at=1793296520
 class RadioFile(Logs):
     """The GUI's /run/winlink/radio (src/winlink.c, as the PC build wrote it with FT8 open)"""
 
-    def radio(self, app="", refused="", seq=0, qsy=0, qsy_why="", qsy_seq=0, swr=0):
+    def radio(self, app="", refused="", seq=0, qsy=0, qsy_why="", qsy_seq=0, swr=0, where="", here=None):
+        """here None: a GUI before #147, without the swr_hold_where and swr_hold_here lines"""
         with open(self.wl.RADIO, "w") as f:
             f.write(RADIO.format(app=app, refused=refused, seq=seq, qsy=qsy, qsy_why=qsy_why, qsy_seq=qsy_seq,
                                  swr=swr))
+            if here is not None:
+                f.write(f"swr_hold_where={where}\nswr_hold_here={here}\n")
 
     def test_swr_hold_said_as_it_begins(self):
-        self.radio(swr=120)                                                 # from before this supervisor
+        self.radio(swr=120, where="on 20m", here=1)                        # from before this supervisor
         self.poll()
-        self.radio(swr=0)
+        self.radio(swr=0, here=0)
         self.poll()
         self.assertEqual(self.notes(), [])
+        self.radio(swr=299, where="on 20m", here=1, refused="high SWR on 20m, the hold ends in 5 min", seq=1)
+        self.poll()
+        self.assertRegex(self.notes()[0], r"OpenX6X00: high SWR stopped a Winlink transmission on 20m: no TX there "
+                                          r"for 5 minutes, until \d\d:\d\d; another band transmits. Check the "
+                                          r"antenna and the tuner$")
+        self.assertTrue(self.notes()[1].endswith("no TX, high SWR on 20m, the hold ends in 5 min. Check the "
+                                                 "antenna and the tuner: after a high SWR stopped a Winlink "
+                                                 "transmission the radio keys there again only after 5 minutes; "
+                                                 "another band keys at once"))
+        self.radio(swr=250, where="on 20m", here=0, refused="high SWR on 20m, the hold ends in 5 min", seq=1)
+        self.poll()
+        self.assertEqual(len(self.notes()), 2)                              # on 40m now: the same hold
+        self.radio(swr=300, where="on 40m", here=1, refused="high SWR on 20m, the hold ends in 5 min", seq=1)
+        self.poll()
+        self.assertEqual(len(self.notes()), 3)                              # a trip on 40m: the hold moved there
+        self.assertRegex(self.notes()[2], r"OpenX6X00: high SWR stopped a Winlink transmission on 40m: no TX there "
+                                          r"for 5 minutes, until \d\d:\d\d; another band transmits")
+        self.radio(swr=290, where="on 40m", here=1, refused="high SWR on 20m, the hold ends in 5 min", seq=1)
+        self.poll()
+        self.assertEqual(len(self.notes()), 3)
+
+    def test_swr_hold_of_a_gui_before_147(self):
+        self.radio(swr=0)
+        self.poll()
         self.radio(swr=299, refused="high SWR, the hold ends in 5 min", seq=1)
         self.poll()
         self.assertRegex(self.notes()[0], r"OpenX6X00: high SWR stopped a Winlink transmission: no TX for 5 "
                                           r"minutes, until \d\d:\d\d. Check the antenna and the tuner$")
-        self.assertTrue(self.notes()[1].endswith("no TX, high SWR, the hold ends in 5 min. Check the "
-                                                 "antenna and the tuner: after a high SWR stopped a Winlink "
-                                                 "transmission the radio keys again only after 5 minutes"))
-        self.radio(swr=250, refused="high SWR, the hold ends in 5 min", seq=1)
-        self.poll()
-        self.assertEqual(len(self.notes()), 2)
 
     def test_refusals_into_pats_log_once(self):
         self.radio(app="FT8", refused="FT8 is open, close it", seq=3)     # from before this supervisor

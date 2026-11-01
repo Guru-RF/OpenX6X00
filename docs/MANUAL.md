@@ -3373,6 +3373,9 @@ Setting it up:
      [Transmitting](#transmitting)).
    - Apps: a digital app open (red: close it), or LOCK on (Pat's QSY is not
      made).
+   - SWR hold: after high SWR stopped a Winlink transmission, the minutes
+     left and where ("4 min left on 30m"); red while the radio is in the
+     hold, not when it is on another band, where Winlink transmits.
    - Last no TX: the radio's last reason not to key, in the last 10 minutes.
      It also goes into Pat's log ("OpenX6X00: no TX, FT8 is open, close it.
      Close the app on the radio, then connect again"), once, and again after
@@ -3444,11 +3447,12 @@ Connecting to a gateway:
   "Winlink: no TX on 30m for 5 minutes, check the antenna") and at each
   refused key with the time left ("Winlink: no TX, high SWR on 30m, the hold
   ends in 4 min"; outside the bands "near 5.403.500 MHz"); the Winlink
-  page's SWR hold row counts the minutes down, and Pat's log says when it
-  ends ("OpenX6X00: high SWR stopped a Winlink transmission: no TX for 5
-  minutes, until 14:32"). A tune or an SWR scan does not end the hold: the
-  scan's carrier is 1 W, and the SWR protection watches the transmissions
-  themselves, at their power.
+  page's SWR hold row counts the minutes down and says where, and Pat's log
+  says when it ends ("OpenX6X00: high SWR stopped a Winlink transmission on
+  30m: no TX there for 5 minutes, until 14:32; another band transmits").
+  A tune or an SWR scan does not end the hold: the scan's carrier is 1 W,
+  and the SWR protection watches the transmissions themselves, at their
+  power.
 - Close the radio's digital apps first. While one is open (FT8, FT4, JS8,
   WSPR, PSK, Olivia, JTTY, RTTY, SSTV, WeFax, NavTex) it holds the radio's
   frequency, mode and audio: Winlink does not key ("Winlink: no TX, FT8 is

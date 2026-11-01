@@ -824,7 +824,7 @@ def radio_fix(refused):
         return "Close the app on the radio, then connect again"
     if "swr" in r:
         return ("Check the antenna and the tuner: after a high SWR stopped a Winlink transmission the radio keys "
-                "again only after 5 minutes")
+                "there again only after 5 minutes; another band keys at once")
     if "split" in r or "shift" in r:
         return "Turn split off, or the band's TX shift, then connect again"
     if "rit " in r or "xit " in r:
@@ -876,6 +876,7 @@ class Watch:
         self.behind_noted = 0.0                    # and when that went into Pat's log
         self.seen = {}                             # the radio file's refused_seq and qsy_seq read last
         self.swr_hold = None                       # its swr_hold (s) read last
+        self.swr_where = ""                        # and its swr_hold_where ("on 30m")
         self.noted = ("", 0.0)                     # the last refusal put into Pat's log, and when
 
     def pat_started(self):
@@ -905,16 +906,23 @@ class Watch:
     def radio_said(self, radio):
         """A new "no TX" or QSY not made in the radio file: for the connection under way, and in Pat's log, where
         Pat itself only sees a connect time out or "Unable to QSY". Not those from before this supervisor. So too
-        the hold after an SWR trip as it begins, with when it ends"""
+        the hold after an SWR trip as it begins, with where and when it ends: also one that moves to another band,
+        a trip there during the first one's minutes (#147)"""
         try:
             hold = int(radio.get("swr_hold", "0"))
         except ValueError:
             hold = 0
-        if hold and self.swr_hold == 0:
+        where = radio.get("swr_hold_where", "")    # none from a GUI before #147, whose hold was on every band
+        if hold and self.swr_hold is not None and (self.swr_hold == 0 or where != self.swr_where):
             until = time.strftime("%H:%M", time.localtime(time.time() + hold))
-            note(f"high SWR stopped a Winlink transmission: no TX for {(hold + 59) // 60} minutes, until {until}. "
-                 "Check the antenna and the tuner")
-        self.swr_hold = hold
+            minutes = (hold + 59) // 60
+            if where:
+                note(f"high SWR stopped a Winlink transmission {where}: no TX there for {minutes} minutes, until "
+                     f"{until}; another band transmits. Check the antenna and the tuner")
+            else:
+                note(f"high SWR stopped a Winlink transmission: no TX for {minutes} minutes, until {until}. "
+                     "Check the antenna and the tuner")
+        self.swr_hold, self.swr_where = hold, where
         for key in ("refused", "qsy"):
             seq, last = radio.get(key + "_seq", ""), self.seen.get(key)
             self.seen[key] = seq

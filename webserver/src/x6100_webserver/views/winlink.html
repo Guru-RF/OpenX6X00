@@ -167,9 +167,16 @@ var renderRadio = function(st) {
     "The radio's PWR; Winlink at most " + capW + " W" + capWhy, false);
   radioRow("app", r.app || "None", r.app ? "Close it: no Winlink TX or QSY while it holds the radio" :
     r.locked ? "LOCK is on: Pat's QSY is not made" : "No app holds the radio", !!r.app || !!r.locked);
-  radioRow("swr", r.swr_hold ? Math.ceil(r.swr_hold / 60) + " min left" : "None", r.swr_hold ?
-    "High SWR stopped a Winlink transmission: no TX until the hold ends. Check the antenna and the tuner" :
-    "5 minutes without TX after high SWR stops a Winlink transmission", r.swr_hold > 0);
+  // swr_hold: the seconds left of the hold after an SWR trip, wherever it is; swr_hold_where: where ("on 30m"),
+  // swr_hold_here: the radio's frequency is in it (#147). A GUI without them held every band
+  const swrWhere = r.swr_hold_where ? " " + r.swr_hold_where : "";
+  const swrHere = r.swr_hold > 0 && r.swr_hold_here !== 0;
+  radioRow("swr", r.swr_hold ? Math.ceil(r.swr_hold / 60) + " min left" + swrWhere : "None", !r.swr_hold ?
+    "5 minutes without TX on a band after high SWR stops a Winlink transmission there" : swrHere ?
+    "High SWR stopped a Winlink transmission" + swrWhere + ": no TX " + (swrWhere ? "there " : "") +
+    "until the hold ends. Check the antenna and the tuner" :
+    "High SWR stopped a Winlink transmission" + swrWhere + ". The radio is outside that hold: it transmits here",
+    swrHere);
   const recent = r.refused && r.refused_age !== null && r.refused_age < 600;
   radioRow("refused", recent ? ago(r.refused_age) : "None", recent ? r.refused : "In the last 10 minutes", recent);
 }
