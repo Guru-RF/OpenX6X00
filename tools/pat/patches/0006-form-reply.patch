@@ -1,4 +1,4 @@
-From 777940378d162afcfb5f11298e031003465f8540 Mon Sep 17 00:00:00 2001
+From 5ead9eeac77dd7d28259d45c54a1d1903231b392 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Sun, 1 Nov 2026 15:14:20 +0100
 Subject: [PATCH] forms: a Winlink form and its reply can be sent from their
@@ -37,18 +37,18 @@ internal/forms/reply_test.go.
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  api/guard.go                             |  21 +++-
- api/guard_test.go                        |  44 +++++++++
+ api/guard_test.go                        |  51 ++++++++++
  api/mailbox.go                           |   4 +-
  internal/forms/forms.go                  |  43 +++++++-
  internal/forms/reply_test.go             | 121 +++++++++++++++++++++++
  web/dist/js/app.js                       |   2 +-
  web/src/js/modules/composer/index.js     |  12 ++-
  web/src/js/modules/form-catalog/index.js |   6 +-
- 8 files changed, 241 insertions(+), 12 deletions(-)
+ 8 files changed, 248 insertions(+), 12 deletions(-)
  create mode 100644 internal/forms/reply_test.go
 
 diff --git a/api/guard.go b/api/guard.go
-index 900c891..76b4c0b 100644
+index 900c891..c68a547 100644
 --- a/api/guard.go
 +++ b/api/guard.go
 @@ -32,7 +32,8 @@ import (
@@ -56,8 +56,8 @@ index 900c891..76b4c0b 100644
  //     rebinding).
  //   - For /api/ and /ws: an Origin header, when present, must name the same host:port as
 -//     Host, and Sec-Fetch-Site, when present, must be same-origin or none.
-+//     Host, and Sec-Fetch-Site, when present, must be same-origin or none; but for a Winlink
-+//     form's reply from Pat's own sandboxed page (formReply).
++//     Host, and Sec-Fetch-Site, when present, must be same-origin or none; but for the submit
++//     of a Winlink form from Pat's own sandboxed pages (formReply).
  //   - What changes something (/api/connect and /api/disconnect, which take a GET, and any
  //     API request that is not a GET) must also show it comes from Pat's own page: an
  //     Origin header (checked above), or jQuery's X-Requested-With, which Pat's page sends.
@@ -74,14 +74,14 @@ index 900c891..76b4c0b 100644
  	return false
  }
  
-+// formReply tells whether a request is a Winlink form's reply, submitted from the window Pat's
-+// page opened for it. Pat shows a received form's reply page (the attachment handler, with
-+// rendertohtml and in-reply-to) in a CSP sandbox, so the browser sends its submit as from no
-+// site: Origin: null, Sec-Fetch-Site: cross-site. Its Referer still names Pat's own address
-+// (the origin alone), and no page can set that header: another site's page, sandboxed or not,
-+// sends its own address or none. Only the POST of /api/form, which keeps the reply for Pat's
-+// composer and sends nothing; any other request with Origin: null stays refused. (fromOwnPage
-+// takes its Origin header, null, as checked here.)
++// formReply tells whether a request is a Winlink form's submit from the window Pat's page opened
++// for it: a received form's reply page (the attachment handler, rendertohtml and in-reply-to) or,
++// since v1.0.1, a new form or the text-only template editor (/api/forms), all in a CSP sandbox
++// (sandboxHandler). The browser sends it as from no site: Origin: null (and Sec-Fetch-Site:
++// cross-site, but not to a plain http:// LAN address). Its Referer still names Pat's own origin,
++// and no page can set that header: another site's page, sandboxed or not, sends its own or none.
++// Only the POST of /api/form, which keeps the message for Pat's composer and sends nothing; any
++// other request with Origin: null stays refused. (fromOwnPage takes its Origin, null, as checked.)
 +func formReply(r *http.Request) bool {
 +	if r.Method != http.MethodPost || path.Clean("/"+r.URL.Path) != "/api/form" || r.Header.Get("Origin") != "null" {
 +		return false
@@ -94,16 +94,18 @@ index 900c891..76b4c0b 100644
  // Pat answers on any method, and every request that is not a GET or HEAD.
  func changes(r *http.Request) bool {
 diff --git a/api/guard_test.go b/api/guard_test.go
-index c7acaa6..675101b 100644
+index c7acaa6..04501da 100644
 --- a/api/guard_test.go
 +++ b/api/guard_test.go
-@@ -209,3 +209,47 @@ func TestGuardOwnNames(t *testing.T) {
+@@ -209,3 +209,54 @@ func TestGuardOwnNames(t *testing.T) {
  		}
  	}
  }
 +
-+// A Winlink form's reply comes from Pat's own page in a sandbox: Origin: null, Sec-Fetch-Site:
-+// cross-site and Pat's origin as Referer (what Firefox sent). Only the POST of /api/form passes.
++// A Winlink form's submit (a reply, and since v1.0.1 a new form or the text-only template editor)
++// comes from Pat's own page in a sandbox: Origin: null and Pat's origin as Referer, with
++// Sec-Fetch-Site: cross-site over https:// or to localhost, and without it to a plain http://
++// address on the LAN, as the radio's (what Firefox sent). Only the POST of /api/form passes.
 +func TestGuardFormReply(t *testing.T) {
 +	guardFiles(t)
 +	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
@@ -128,20 +130,25 @@ index c7acaa6..675101b 100644
 +		{"GET", "/api/connect", "null", "http://10.0.0.5:8080/", 403},
 +		{"POST", "/api/form/../mailbox/out", "null", "http://10.0.0.5:8080/", 403},
 +	}
-+	for _, tt := range tests {
-+		r := httptest.NewRequest(tt.method, "http://x"+tt.path, nil)
-+		r.Host = "10.0.0.5:8080"
-+		r.Header.Set("Sec-Fetch-Site", "cross-site")
-+		if tt.origin != "" {
-+			r.Header.Set("Origin", tt.origin)
-+		}
-+		if tt.referer != "" {
-+			r.Header.Set("Referer", tt.referer)
-+		}
-+		w := httptest.NewRecorder()
-+		guard(ok).ServeHTTP(w, r)
-+		if w.Code != tt.want {
-+			t.Errorf("%s %s Origin=%q Referer=%q: got %d, want %d", tt.method, tt.path, tt.origin, tt.referer, w.Code, tt.want)
++	for _, site := range []string{"cross-site", ""} {
++		for _, tt := range tests {
++			r := httptest.NewRequest(tt.method, "http://x"+tt.path, nil)
++			r.Host = "10.0.0.5:8080"
++			if site != "" {
++				r.Header.Set("Sec-Fetch-Site", site)
++			}
++			if tt.origin != "" {
++				r.Header.Set("Origin", tt.origin)
++			}
++			if tt.referer != "" {
++				r.Header.Set("Referer", tt.referer)
++			}
++			w := httptest.NewRecorder()
++			guard(ok).ServeHTTP(w, r)
++			if w.Code != tt.want {
++				t.Errorf("%s %s Origin=%q Referer=%q Sec-Fetch-Site=%q: got %d, want %d", tt.method, tt.path, tt.origin,
++					tt.referer, site, w.Code, tt.want)
++			}
 +		}
 +	}
 +}

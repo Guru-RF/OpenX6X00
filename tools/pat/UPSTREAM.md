@@ -180,15 +180,20 @@ regression.
   SameSite), and their submit addresses keep the address's parameters.
   The guard lets `POST /api/form` through with `Origin: null` when its Referer is Pat's own origin
   (`formReply`): no page can set that header, and another site's page, sandboxed or not, sends its
-  own address or none; any other request with `Origin: null` stays refused. `web/dist/js/app.js`
-  by hand, as in 0005. With tests (`api/guard_test.go`, `internal/forms/reply_test.go`). Checked
-  in a headless Firefox with Winlink's Standard Forms 1.1.22.0 (ICS 213 General Message and its
-  `ICS213_SendReply`), on a PC and on the bench X6100: before, "Forbidden: cross-origin request";
-  after, the reply window closes and the reply is in the composer. Again with v1.0.1 on a PC
-  (Firefox 158, Pat and Firefox in a network namespace with loopback only): a new ICS 213, its
-  reply, a form from the catalog and a text-only reply template all reach the composer; upstream
-  v1.0.1 alone still answers the reply form `named cookie not present`. Upstream's part (the key
-  in the address) should go upstream with the report.
+  own address or none; any other request with `Origin: null` stays refused. Since v1.0.1 that
+  rule carries every form's submit, not only a reply's. A browser adds the header
+  `Sec-Fetch-Site: cross-site` over `https://` or to `localhost` only, not to a plain `http://`
+  address on the LAN such as the radio's: the guard takes the submit either way.
+  `web/dist/js/app.js` by hand, as in 0005. With tests (`api/guard_test.go`, with and without
+  `Sec-Fetch-Site`; `internal/forms/reply_test.go`). Checked in a headless Firefox with Winlink's
+  Standard Forms 1.1.22.0 (ICS 213 General Message and its `ICS213_SendReply`), on a PC and on
+  the bench X6100: before, "Forbidden: cross-origin request"; after, the reply window closes and
+  the reply is in the composer. Again with v1.0.1 on a PC (Firefox 158, Pat and Firefox in a
+  network namespace with loopback only): a new ICS 213, its reply, a form from the catalog and a
+  text-only reply template all reach the composer, also with Pat at a LAN-like address
+  (`http://10.99.0.1`, where Firefox sends no `Sec-Fetch-Site`); upstream v1.0.1 alone still
+  answers the reply form `named cookie not present`. Upstream's part (the key in the address)
+  should go upstream with the report.
 - `0007-template-reply.patch`: a text-only template opened as a reply (Reply, then a template
   without a `Form:` line from the forms' catalog) gets the message replied to. v1.0.1 serves the
   template editor itself (`serveTemplateEditor`) and reads `in-reply-to` (`in/<MID>`) with an
