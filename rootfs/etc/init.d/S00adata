@@ -33,11 +33,13 @@ trace() {
 # lines; sig: those that are not the partition's own entry in the card's table (PART_ENTRY_*), a
 # filesystem, a partition table, a RAID, LVM or LUKS header... (TYPE=, PTTYPE=, USAGE=, ...). sig
 # empty: nothing on it that blkid knows. Two signatures at once (blkid's exit 8) or a probe that
-# failed count as something: such a partition is never formatted
+# failed count as something: such a partition is never formatted. A failed probe (a read error)
+# prints nothing and exits 2, as one that found nothing at all would; but on a partition of the
+# card's table blkid always finds that partition's own entry, so an answer without it is none
 probe() {
     probed=$(blkid -p -o export "$1" 2>/dev/null)
     rc=$?
-    if [ $rc -eq 0 ] || [ $rc -eq 2 ]; then
+    if [ $rc -eq 0 ] && [ -n "$(field PART_ENTRY_NUMBER)" ]; then
         sig=$(printf '%s\n' "$probed" | grep -v -e '^DEVNAME=' -e '^PART_ENTRY_' -e '^$')
     else
         sig="blkid -p exit $rc"
