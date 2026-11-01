@@ -9,10 +9,10 @@
  *  scale), as a level in dB from the default's (the level 0 dB of the apps, where the stock X6200 gives its setting at
  *  once). From its knee up the base holds the power at the setting itself; under it the power falls with the drive.
  *  After the key it comes up at most so fast (PR #140: from 0 in 0.1 W steps after each move); the band, the antenna
- *  or the supply may give less than the setting; its readings come 20 a second, the power in whole tenths cut off, with
- *  noise; the ALC as the scenario reads it (the X6200's reads about 0 whatever the drive). Each scenario sends FT8
- *  transmissions of 12.64 s in a row, the learned level carried from one to the next as on the radio. The clock is
- *  the test's own, moved on by the audio played.
+ *  or the supply may give less than the setting; its readings come 20 a second (2.5 in some scenarios), the power in
+ *  whole tenths cut off, with noise; the ALC as the scenario reads it (the X6200's reads about 0 whatever the drive).
+ *  Each scenario sends FT8 transmissions of 12.64 s in a row, the learned level carried from one to the next as on
+ *  the radio. The clock is the test's own, moved on by the audio played.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -100,6 +100,7 @@ typedef struct {
     float       over;       /* the power read is the output times this, 0 as 1 */
     float       start_db;   /* the learned level the first transmission starts from */
     int         txs;        /* transmissions in a row */
+    int         read_every; /* a reading every this many 50 ms, 0 as 1 (20 a second): fewer, and their noise shows */
 } scenario_t;
 
 static const scenario_t *sc;
@@ -243,11 +244,13 @@ int audio_play(int16_t *buf, size_t n) {
     base.drive_db = 10.0f * log10f((float)(sum / n) / (DEFAULT_RMS * DEFAULT_RMS) + 1e-12f);
     tx.top_drive  = fmaxf(tx.top_drive, base.drive_db);
 
+    static unsigned ticks;
+
     carry_ns += (uint64_t)n * 1000000000ULL / AUDIO_PLAY_RATE;
     while (carry_ns >= 50000000ULL) {
         carry_ns -= 50000000ULL;
         atomic_fetch_add(&virt_ns, 50000000ULL);
-        if (base.modem) base_reading();
+        if (base.modem && ++ticks % (unsigned)(sc->read_every > 0 ? sc->read_every : 1) == 0) base_reading();
     }
     return (int)n;
 }
@@ -338,6 +341,14 @@ int main(int argc, char **argv) {
     static const scenario_t knocked = {"a level knocked 16 dB down (#16), 5 W", 5.0f, -6.0f, 0, 5.0f, 0, 0, 0, 0,
                                        -16.0f, 10};
     static const scenario_t overread = {"the power read 30 % over, 5 W", 5.0f, -6.0f, 0, 5.0f, 0, 0, 0, 1.3f, 0.0f, 30};
+    static const scenario_t reach_slow = {"7 W asked, 6 W on this band, readings +-0.15 W 2.5 a second", 7.0f, -6.0f,
+                                          6.0f, 7.0f, 0, 0, 0.15f, 0, 0.0f, 100, 8};
+    static const scenario_t hover = {"the power a hair under 7 W (6.95), readings +-0.1 W 2.5 a second", 7.0f, -6.0f,
+                                     6.95f, 7.0f, 0, 0, 0.1f, 0, 0.0f, 300, 8};
+    static const scenario_t needy_noisy = {"a radio that needs 4 dB over the default, readings +-0.1 W 2.5 a second",
+                                           5.0f, 4.0f, 0, 7.0f, 0, 0, 0.1f, 0, 0.0f, 40, 8};
+    static const scenario_t needy_reach = {"the same, 4.5 W the most at 5 W asked", 5.0f, 4.0f, 4.5f, 7.0f, 0, 0,
+                                           0.1f, 0, 0.0f, 40, 8};
 
     result_t r;
 
@@ -388,6 +399,23 @@ int main(int argc, char **argv) {
     r = run(&overread, verbose);
     check(r.zero_w == 0 && r.short_txs <= 2, "%s: the level comes down to where the reading fits, %d short, "
           "\"TX 0 W\" %d times", overread.name, r.short_txs, r.zero_w);
+
+    /* The readings' noise and 0.1 W steps against the steps up: none kept that brought nothing, a needed one kept */
+    r = run(&reach_slow, verbose);
+    check(r.level_top <= 0.5f && r.short_txs == 0, "%s: the level at most %.1f dB, %d short", reach_slow.name,
+          r.level_top, r.short_txs);
+
+    r = run(&hover, verbose);
+    check(r.level_end <= 0.5f && r.short_txs == 0, "%s: the level %.1f dB after 300, %d short", hover.name, r.level_end,
+          r.short_txs);
+
+    r = run(&needy_noisy, verbose);
+    check(r.level_end >= 3.5f && r.level_end <= 4.5f && r.short_txs <= 1, "%s: the level %.1f dB, %d short",
+          needy_noisy.name, r.level_end, r.short_txs);
+
+    r = run(&needy_reach, verbose);
+    check(r.level_end >= 3.0f && r.level_end <= 4.5f && r.short_txs <= 1, "%s: the level %.1f dB, %d short",
+          needy_reach.name, r.level_end, r.short_txs);
 
     printf("TXLEVEL %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;

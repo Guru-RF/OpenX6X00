@@ -41,6 +41,7 @@ extern "C" {
 #define TX_LEVEL_UP_SLOW_DB    0.25f /* up a window when near (0.5 dB a second) */
 #define TX_LEVEL_UP_MAX_DB     8.0f  /* the most it ramps up in one transmission */
 #define TX_LEVEL_PWR_STEP_W    0.1f  /* the radio's power reading resolution */
+#define TX_LEVEL_TRIAL_DB      0.5f  /* power_hold: the steps up judged together, from this much */
 
 typedef struct {
     float target_w; /* the power asked for */
@@ -55,6 +56,8 @@ typedef struct {
     float last_up;
     int   flat_n;     /* power_hold: steps up in a row that brought no more power, and their sum */
     float flat_db;
+    float trial_p;    /* power_hold: the power before the steps up on trial, and the climb then */
+    float trial_db;
     float up_db;    /* ramped up so far this transmission */
 } tx_level_t;
 

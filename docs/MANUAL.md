@@ -1471,7 +1471,11 @@ WeFax) set their audio level by themselves.
 - On the X6200 the ALC reading does not follow the audio level, so the level
   goes up until the power reaches the setting and stays there. The ALC it
   reads changes nothing. After the key the X6200's power comes up from 0 by
-  itself; while it is still coming up the level waits.
+  itself; while it is still coming up the level waits. Steps up that bring
+  no more power go back, judged a few together: the power reading moves in
+  0.1 W steps and wobbles, and taken one by one it let the level creep up a
+  little each transmission where the power reads around or under the
+  setting.
 - The level never goes so high that the audio would be clipped. Up to
   v0.3.8 the X6200's could climb there over many transmissions (seen:
   33.4 dB, the audio a square wave 14 dB over the default); since then every
