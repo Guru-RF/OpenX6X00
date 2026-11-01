@@ -13,7 +13,10 @@
  *  Safety: key train is forced on while the app is open and restored when
  *  it closes, whatever closes it (destruct_cb runs for the close button,
  *  another app, a key page, or a mode change caught by the timer).
- *  The encoder is also told to never key while train is off.
+ *  The encoder is also told to never key while train is off. With train on
+ *  radio.c holds the TX power at 0 W (#127): in Manual the X6200's base keyed
+ *  the transmitter at PWR from the KEY jack all the same. That holds for the
+ *  trainer's own keying too.
  *  Calls changes the key speed: it is given back when leaving Calls too.
  */
 

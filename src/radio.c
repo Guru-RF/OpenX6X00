@@ -121,6 +121,7 @@ static void on_fw_zoom_change(Subject *subj, void *user_data);
 static void on_change_i(Subject *subj, void *user_data);
 static void on_change_f(Subject *subj, void *user_data);
 static void on_pwr_change(Subject *subj, void *user_data);
+static void on_train_hold_change(Subject *subj, void *user_data);
 static void on_volume_change(Subject *subj, void *user_data);
 
 #ifndef BOARD_X6200
@@ -218,6 +219,12 @@ static float            tune_cap;       /* a TUNE for an external tuner: never a
  * (on_xvtr_pwr_change). Under the lock, as txpwr_asked: the last power asked of set_txpwr, before its caps */
 static float            xvtr_cap = -1.0f;
 static float            txpwr_asked;
+/* KEY Train in CW or CW-R (#127): the power at the base held at 0 W, whatever keys the radio. In Train the base's keyer
+ * sounds only the sidetone with Auto-L and Auto-R (the X6200's base 1.0.8 goes into TX at 0.0 W), but in Manual its
+ * KEY jack keyed the X6200 at PWR, Train or not. Written under the lock (on_train_hold_change), read by the radio
+ * thread too; train_said: its note on the screen, once while it holds (train_note) */
+static atomic_bool      train_hold;
+static atomic_bool      train_said;
 static pthread_mutex_t  tune_mux = PTHREAD_MUTEX_INITIALIZER;
 static tune_guard_t     tune_guard;     /* that tune, for the SWR protection (under tune_mux) */
 
@@ -242,6 +249,8 @@ static void set_txpwr(float w) {
     if (digi_cap && tune_cap <= 0.0f && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
     if (tune_cap > 0.0f && w > tune_cap) w = tune_cap;     /* PWR turned up, the battery's top, a restore */
     if (xvtr_cap > 0.0f && w > xvtr_cap) w = xvtr_cap;     /* whoever asks: PWR, an app's own, TUNE's, TCI, CAT */
+    /* A TUNE keeps its own power: the base is in USB-D for it, and the user asked for that carrier */
+    if (atomic_load(&train_hold) && tune_cap <= 0.0f) w = 0.0f;
     hw_set_f(HW_TXPWR_F, w);
 }
 
@@ -407,6 +416,17 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_key_ratio, on_change_f, (void*)HW_KEY_RATIO_F);
     subject_subscribe_and_notify((Subject*)cfg_cw_peak_on, on_change_i, (void*)HW_CW_PEAK);
     subject_subscribe_and_notify((Subject*)cfg_cw_peak_q, on_change_i, (void*)HW_CW_PEAK_Q);
+
+    /* KEY Train holds the power at 0 W in CW and CW-R (set_txpwr): looked at again when Train, a VFO's mode, the VFO
+     * in use or split changes (a band key, a memory, CAT and TCI change the mode through them) */
+    Subject *train_by[] = {
+        (Subject*)cfg_key_train, (Subject*)cfg_band_vfoa_mode, (Subject*)cfg_band_vfob_mode,
+        (Subject*)cfg_band_current_vfo, (Subject*)cfg_band_split,
+    };
+    for (size_t i = 0; i < sizeof(train_by) / sizeof(train_by[0]); i++) {
+        subject_subscribe(train_by[i], on_train_hold_change, NULL);
+    }
+    on_train_hold_change(NULL, NULL);
 
     subject_subscribe_and_notify((Subject*)cfg_agc_hang, on_change_i, (void*)HW_AGC_HANG);
     subject_subscribe_and_notify((Subject*)cfg_agc_knee, on_change_i, (void*)HW_AGC_KNEE);
@@ -962,6 +982,48 @@ static void on_change_f(Subject *subj, void *user_data) {
 
 static void on_pwr_change(Subject *subj, void *user_data) {
     WITH_RADIO_LOCK(set_txpwr(subject_f_get((SubjectFloat*)subj)));
+}
+
+static bool is_cw_mode(int32_t mode) {
+    return mode == radio_mode_cw || mode == radio_mode_cwr;
+}
+
+/* KEY Train on, and the VFO in use in CW or CW-R, or in split the other one, which transmits: the power at the base
+ * held at 0 W (set_txpwr, #127), in every key mode. Out of CW the power comes back as asked: the apps and the voice
+ * modes are not the keyer's, and a digital app's TX level would climb at 0 W */
+static void on_train_hold_change(Subject *subj, void *user_data) {
+    bool    a     = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
+    int32_t mode  = param_i_get(a ? cfg_band_vfoa_mode : cfg_band_vfob_mode);
+    int32_t other = param_i_get(a ? cfg_band_vfob_mode : cfg_band_vfoa_mode);
+    bool    hold  = param_i_get(cfg_key_train) && (is_cw_mode(mode) || (param_i_get(cfg_band_split) && is_cw_mode(other)));
+
+    (void)subj;
+    (void)user_data;
+    radio_lock();
+    if (hold != atomic_load(&train_hold)) {
+        atomic_store(&train_hold, hold);
+        if (hold) {
+            atomic_store(&train_said, false);
+        }
+        set_txpwr(txpwr_asked);
+    }
+    radio_unlock();
+}
+
+/* The base went into TX while KEY Train holds the power: the screen says why nothing goes out, once while it holds.
+ * Not in the CW trainer, which is Train's own, nor for a TUNE, which keeps its power. Radio thread */
+static void train_note(void) {
+    bool tuning;
+
+    if (!atomic_load(&train_hold) || cw_trainer_on()) {
+        return;
+    }
+    pthread_mutex_lock(&tune_mux);
+    tuning = tune_guard.pwr_w > 0.0f;
+    pthread_mutex_unlock(&tune_mux);
+    if (!tuning && !atomic_exchange(&train_said, true)) {
+        msg_schedule_text_fmt("KEY Train: sidetone only, 0 W");
+    }
 }
 
 /* Under the lock, before a VFO of the base goes to freq: a transverter's TX power limit there, lower than the one in
@@ -1667,6 +1729,7 @@ static bool radio_tick() {
                     if (notify_rx_tx) {
                         notify_rx_tx(true);
                     }
+                    train_note();
                 }
                 break;
 

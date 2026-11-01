@@ -27,6 +27,8 @@ int cw_get_wpm(void);
 
 /* CW trainer: decode always (the decoder listens to the sidetone) */
 void cw_trainer_set(bool on);
+/* The CW trainer is open (cw_trainer_set): any thread */
+bool cw_trainer_on(void);
 
 #ifdef __cplusplus
 }

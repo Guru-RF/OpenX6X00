@@ -288,6 +288,10 @@ void cw_trainer_set(bool on) {
     trainer = on;
 }
 
+bool cw_trainer_on(void) {
+    return trainer;
+}
+
 float cw_get_tone_freq(void) {
     return tone_freq;
 }
