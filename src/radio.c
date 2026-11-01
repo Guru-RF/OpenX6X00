@@ -649,13 +649,16 @@ void radio_start_atu() {
 #ifdef BOARD_X6200
 #define SWRSCAN_TX      HW_MODEM
 #define SWRSCAN_MODE    radio_mode_nfm
-#define SWRSCAN_MIN     24      /* packets, ~1.2 s from a move: the power comes up in about that */
-#define SWRSCAN_FLAT    6       /* packets, ~0.3 s without the power going up: it is up */
-#define SWRSCAN_WAIT    60      /* packets, ~3 s: a power that never settles is read anyway */
+#define SWRSCAN_MIN_MS  1200    /* from a move: the power comes up in about that */
+#define SWRSCAN_FLAT_MS 300     /* without the power going up: it is up */
+#define SWRSCAN_WAIT_MS 3000    /* a power that never settles is read anyway */
 
-static uint8_t  swrscan_peak;
-static uint8_t  swrscan_flat;
-static uint16_t swrscan_wait;           /* packets since the move */
+/* In ms, not packets: the X6200's come every ~35 ms (hw_x6200.c). The radio thread's own (radio_tick), but for
+ * swrscan_fresh, which radio_start_swrscan sets for it */
+static atomic_bool swrscan_fresh;       /* a new scan: the wait starts afresh */
+static uint8_t     swrscan_peak;        /* the power's top since the move */
+static uint64_t    swrscan_move_ms;     /* the move, or the key */
+static uint64_t    swrscan_up_ms;       /* the power last went up */
 #else
 #define SWRSCAN_TX      HW_SWRSCAN
 #define SWRSCAN_MODE    radio_mode_am
@@ -674,7 +677,7 @@ bool radio_start_swrscan(int32_t from) {
      * ponytail: fixed 1 W cap, make it a setting if the bridge reads poorly that low */
     set_txpwr(param_f_get(cfg_pwr));
 #ifdef BOARD_X6200
-    swrscan_peak = swrscan_flat = swrscan_wait = 0;
+    atomic_store(&swrscan_fresh, true);
 #endif
     hw_set_i(SWRSCAN_TX, true);
     radio_unlock();
@@ -1844,18 +1847,22 @@ static bool radio_tick() {
                 /* Not keyed yet, or the power still coming up: it starts from 0 at each move and comes up
                  * in 0.1 W steps over ~1 s, and the SWR reads low meanwhile (1.0-1.1 at 0.2 W where 0.8 W reads
                  * 1.5). Where it settles depends on the SWR (0.8 W at 1.5, 0.6 W at 3.4): read once the move is
-                 * SWRSCAN_MIN old and the power stopped going up */
+                 * SWRSCAN_MIN_MS old and the power has not gone up for SWRSCAN_FLAT_MS */
+                if (atomic_exchange(&swrscan_fresh, false) || !pack->tx) {
+                    swrscan_peak    = 0;        /* a new scan, or not keyed (yet): the wait counts from the key */
+                    swrscan_move_ms = swrscan_up_ms = now_time;
+                }
                 if (!pack->tx)
                     break;
                 if (pack->tx_power > swrscan_peak || pack->tx_power + 1 < swrscan_peak) {
-                    swrscan_peak = pack->tx_power;      /* going up, or a new ramp */
-                    swrscan_flat = 0;
-                } else {
-                    swrscan_flat++;
+                    swrscan_peak  = pack->tx_power;     /* going up, or a new ramp */
+                    swrscan_up_ms = now_time;
                 }
-                if ((++swrscan_wait < SWRSCAN_MIN || swrscan_flat < SWRSCAN_FLAT) && swrscan_wait < SWRSCAN_WAIT)
+                if ((now_time - swrscan_move_ms < SWRSCAN_MIN_MS || now_time - swrscan_up_ms < SWRSCAN_FLAT_MS) &&
+                    now_time - swrscan_move_ms < SWRSCAN_WAIT_MS)
                     break;
-                swrscan_peak = swrscan_flat = swrscan_wait = 0;
+                swrscan_peak    = 0;            /* read: dialog_swrscan_update moves to the next point */
+                swrscan_move_ms = swrscan_up_ms = now_time;
 #endif
                 dialog_swrscan_update(pack->vswr * 0.1f);
                 break;
