@@ -19,10 +19,12 @@ namespace cw {
 constexpr size_t SLOTS   = 300;
 constexpr float  SLOT_MS = STEP_MS / 2.0f;
 
-/* Speed range: a dot of 24-120 ms (50-10 WPM), 20 WPM to start */
+/* Speed range: a dot of 24-120 ms (50-10 WPM), 20 WPM to start. With the CW
+ * trainer open down to 240 ms, 5 WPM (trainer_range) */
 constexpr float  DOT_START_MS = PARIS_MS / 20.0f;
 constexpr float  DOT_MIN_MS   = PARIS_MS / 50.0f;
 constexpr float  DOT_MAX_MS   = PARIS_MS / 10.0f;
+constexpr float  TRAINER_DOT_MAX_MS = PARIS_MS / 5.0f;
 
 /* Every histogram entry ages by this when a new one comes in */
 constexpr float  AGE = 0.9f;
@@ -58,6 +60,14 @@ class ElementTimer {
      * speed): a dot more than NEW_SPEED off is taken at once, the histogram
      * started over, instead of after MIN_ENTRIES and CONFIRM estimates */
     void  expect(float wpm);
+    /* The CW trainer is open: the speed goes down to 5 WPM, the lowest key
+     * speed, as the trainer keys and a straight key answers it (at 10 WPM a
+     * 5 WPM dit sat on the dit/dah boundary and every element gap was a
+     * character gap); closed, 10 WPM again, a slower speed taken up to it.
+     * Only for the trainer: on the band nothing slower was ever tried, and
+     * the rejection of noise and carriers (lone marks, CARRIER_K, the key
+     * detector's carrier floor after 480 ms down) was set for 10 WPM and up */
+    void  trainer_range(bool on);
 
   private:
     friend struct ElementTimerPeek;   /* tests only */
@@ -94,6 +104,7 @@ class ElementTimer {
     int   gaps_pos_ = 0;
 
     float dot_ms_   = DOT_START_MS;
+    float dot_max_  = DOT_MAX_MS;      /* the slowest speed's dot (trainer_range) */
     float new_dot_  = -1.0f;   /* a different speed, waiting to be confirmed */
     int   new_seen_ = 0;
 

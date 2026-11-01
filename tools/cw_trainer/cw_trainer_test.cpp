@@ -230,6 +230,19 @@ static void element_timer_rules(void) {
           "our K and the answer one word, %zu groups apart before (#144)", before, apart);
     for (int i = 0; i < 30; i++) want += "K* K ";
     check(after <= 330.0f && b == want, "a turn, not learned: the word boundary %.0f ms, every group \"K* K \"", after);
+
+    /* The trainer keys down to 5 WPM, the decoder on the band stops at 10 */
+    cw::ElementTimer r;
+    r.expect(5);
+    float band = r.wpm();
+    r.trainer_range(true);
+    r.expect(5);
+    float open = r.wpm();
+    r.trainer_range(false);
+    float closed = r.wpm();
+    check(std::fabs(band - 10.0f) < 0.01f && std::fabs(open - 5.0f) < 0.01f && std::fabs(closed - 10.0f) < 0.01f,
+          "the speed range: 5 WPM given, on the band %.1f WPM, with the trainer open %.1f, after it closed %.1f", band,
+          open, closed);
 }
 
 /* ---- Learn and Calls, end to end --------------------------------------------------------------------------------- */
@@ -292,6 +305,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
     cw::AudioResampler rs(RATE);
     rx.set_floor_db(8.0f);
     rx.set_band(TONE - 250.0, TONE + 250.0);
+    rx.trainer_range(true);   /* cw.cpp: the trainer is open, before its first block */
 
     enum { READY, PLAYING, LISTEN, RESULT } st = READY;
     std::string target, heard;
@@ -467,6 +481,10 @@ static void end_to_end(void) {
         {"Learn, group 5, all 40", 10, 30, 40, 5, 40, 300, 1200},
         /* the answer slower than the key speed: the end of a short answer by the decoder's speed, not the key's */
         {"Learn, group 3, all 40, a straight key at 10 WPM, KEY Speed", 14, 130, 40, 3, 40, 300, 1200, 10},
+        /* the lowest key speed, the decoder down to it (trainer_range); answered 2 dots after the group or later
+         * (sooner the answer runs into it, see MorseText) */
+        {"Learn, group 1, all 40, answers after 2 dots", 5, 30, 40, 1, 40, 500, 1400},
+        {"Learn, group 5, all 40, answers after 2 dots", 5, 130, 40, 5, 20, 500, 1400},
     };
 
     printf("Learn and Calls: the radio's group and the user's answer, through the decoder\n");

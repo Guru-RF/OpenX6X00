@@ -57,6 +57,8 @@ class Receiver {
     void  own(int n) { text_.own(n); }
     /* Our own keying follows at wpm (the CW trainer's, ElementTimer::expect) */
     void  expect(float wpm) { timer_.expect(wpm); }
+    /* The CW trainer is open: down to 5 WPM (ElementTimer::trainer_range) */
+    void  trainer_range(bool on) { timer_.trainer_range(on); }
 
   private:
     friend struct ReceiverPeek;   /* tests only */

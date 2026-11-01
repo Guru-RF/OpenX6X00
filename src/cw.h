@@ -25,7 +25,8 @@ float cw_get_tone_freq(void);
 /* Decoded speed (WPM), the last one measured */
 int cw_get_wpm(void);
 
-/* CW trainer: decode always (the decoder listens to the sidetone) */
+/* CW trainer: decode always (the decoder listens to the sidetone), its speed down to 5 WPM, the lowest key speed (10
+ * on the band) */
 void cw_trainer_set(bool on);
 /* The CW trainer is open (cw_trainer_set): any thread */
 bool cw_trainer_on(void);

@@ -157,11 +157,19 @@ static void apply_rx_params() {
 }
 
 void cw_put_audio_samples(unsigned int n, float *samples) {
-    bool wanted = decode_on || tune_on || trainer;
+    static bool trainer_range = false;   /* the receiver has the trainer's speed range */
+    bool        tr     = trainer;
+    bool        wanted = decode_on || tune_on || tr;
 
     if (!started || !wanted)
         return;
     apply_rx_params();
+    /* The trainer's speed range (down to 5 WPM) while it is open, the band's (10 WPM) again from the first block
+     * after it closed; set before the trainer's speed, which the range clamps */
+    if (tr != trainer_range) {
+        receiver->trainer_range(tr);
+        trainer_range = tr;
+    }
     int wpm = trainer_wpm.exchange(0);
     if (wpm > 0)
         receiver->expect(wpm);

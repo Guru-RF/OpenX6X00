@@ -2136,7 +2136,8 @@ over the waterfall.
 
 - The receiver comes from gdyuldin x6100_gui 1.0.1: a coherent tone tracker
   that follows the station inside the CW filter, a detector with a noise
-  floor, and a time classifier that learns the speed.
+  floor, and a time classifier that learns the speed, 10 to 50 WPM (in the
+  [CW Trainer](#cw-trainer) from 5).
 - On test signals it copies 98-100% from 20 dB down to 0 dB SNR (in 2.5 kHz)
   and still 97-100% at -3 dB; the old decoder stopped at about +5 dB. The WPM
   reading is within about 0.5 WPM.
@@ -2436,6 +2437,10 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   after it ends. Up to v0.3.8 it was 3 s at every speed: at 10 WPM a
   group's last character of 0 1 9 , or . came out later, the answer was a
   character short and counted wrong (slower, more of them).
+- The trainer keys at the key speed, 5 to 50 WPM, and the decoder follows
+  it, and a straight key, down to 5 WPM while the trainer is open (on the
+  band it stops at 10). Up to v0.3.8 it stopped at 10 in the trainer too:
+  at 5 WPM it read every group and answer wrong (an M as two Ts).
 
 
 ## Apps
