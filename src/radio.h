@@ -107,6 +107,8 @@ void radio_set_modem(bool tx);
 bool radio_get_modem(void);   /* the TX audio from the GUI (apps, recordings), not the mic */
 /* How many times the SWR protection stopped a transmission since the start. Any thread */
 unsigned radio_swr_trips(void);
+/* When it last did, get_time() (CLOCK_MONOTONIC ms), 0 never; set before the count goes up. Any thread */
+uint64_t radio_swr_trip_at(void);
 /* true: the baseband sends our audio to the speaker, the path of voice prompts and the
  * recorder (meanwhile its audio to us is not the receiver); false: the mics again */
 void radio_speaker_play(bool speaker);

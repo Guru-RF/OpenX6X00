@@ -8,5 +8,6 @@ radio_state_t radio_get_state(void);
 bool     radio_get_modem(void);
 int32_t  radio_tx_freq(void);
 unsigned radio_swr_trips(void);
+uint64_t radio_swr_trip_at(void);
 uint32_t radio_caps(void);
 #define HW_CAP_TX_FILTER (1 << 10)

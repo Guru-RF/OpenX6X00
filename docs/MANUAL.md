@@ -3441,9 +3441,11 @@ Connecting to a gateway:
   the hold also covers 100 kHz either side of where it happened (across a
   band's edge, and outside the bands). Another band transmits at once: call
   a gateway on a band where the antenna is fine. The hold is the last trip's:
-  a trip on another band moves it there. Up to v0.3.8 the hold was on every
-  band, until its 5 minutes were over or the radio's software restarted
-  (#147). The screen says so as it happens ("TX stopped: SWR 3.2", then
+  a trip on another band moves it there. A high SWR that stops something
+  else (a PTT, FT8) holds nothing for Winlink. Up to v0.3.8 the hold was on
+  every band, until its 5 minutes were over or the radio's software
+  restarted, and such a stop after a Winlink transmission could start it
+  too (#147). The screen says so as it happens ("TX stopped: SWR 3.2", then
   "Winlink: no TX on 30m for 5 minutes, check the antenna") and at each
   refused key with the time left ("Winlink: no TX, high SWR on 30m, the hold
   ends in 4 min"; outside the bands "near 5.403.500 MHz"); the Winlink

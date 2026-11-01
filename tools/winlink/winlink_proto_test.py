@@ -7,8 +7,9 @@ the receiver's R messages (their size, how many a second, the tone in them: the 
 rate), a transmission of a 1 kHz tone (what the player got: as long as what was sent and still 1 kHz, so it
 was resampled from the session's rate), the key limit, the hellos refused (rate, version), messages before
 the hello (ignored) and a second hello (ignored). A digital app opened during a key: stopped, the next key
-refused. An SWR trip during a key: the hold on that band and near its frequency, another band keys (#147). And
-the radio file the Winlink page reads: Winlink's cap of 7 W, 5 W with the X6200 on its battery.
+refused. An SWR trip during a key: the hold on that band and near its frequency, another band keys (#147); one
+counted as a key ends is that key's, one counted seconds later another transmission's, no hold. And the radio
+file the Winlink page reads: Winlink's cap of 7 W, 5 W with the X6200 on its battery.
 Prints PROTO OK at the end; exits 1 at the first failure.
 Run from `make` (make test).
 """
@@ -59,9 +60,10 @@ class Host:
         self.log = os.path.join(tmp, name + ".log")
         self.app = os.path.join(tmp, name + ".app")
         self.swr = os.path.join(tmp, name + ".swr")
+        self.swr_late = os.path.join(tmp, name + ".swr_late")
         self.rig_port = rig_port
         env = dict(os.environ, WL_SOCK=self.sock, WL_RIG_PORT=str(rig_port), WL_PLAYED=self.played, WL_TONE="1000",
-                   WL_APP=self.app, WL_SWR=self.swr, **(env or {}))
+                   WL_APP=self.app, WL_SWR=self.swr, WL_SWR_LATE=self.swr_late, **(env or {}))
         # here: the radio file is build/radio (stub_env.h)
         self.p = subprocess.Popen([os.path.join(HERE, "winlink_host")], env=env, stderr=open(self.log, "w"), cwd=HERE)
         for _ in range(100):
@@ -94,6 +96,10 @@ class Host:
     def swr_trip(self):
         """The SWR protection stops the key on the air now, or the next one (WL_SWR)"""
         open(self.swr, "w").close()
+
+    def swr_trip_late(self):
+        """A trip the GUI counts at its next look, outside any key (WL_SWR_LATE)"""
+        open(self.swr_late, "w").close()
 
     def tune(self, hz):
         """Pat's QSY through the rigctld: its answer, "RPRT 0" once the radio is there"""
@@ -433,6 +439,27 @@ def main():
             tx += 1
             played, stopped = host.wait_played(tx)
             check(not stopped, f"keys there ({len(played)} samples)")
+
+            print("a trip counted as a key ends is that key's, one 2.5 s later another transmission's (#147)")
+            host.swr_trip_late()
+            m.transmit(12000, 0.5)
+            check(host.wait_log("Winlink: no TX near 7.400.000 MHz for 5 minutes, check the antenna"),
+                  "counted at once after the key on 7.400.000 MHz: the hold there")
+            check(host.wait_log("winlink: not keyed, high SWR near 7.400.000 MHz", 1, 3), "and that key refused")
+            check(host.played_count() == tx, "not keyed")
+            check(host.tune(7102000) == "RPRT 0", "Pat's QSY to 7.102.000 MHz, 40 m")
+            m.transmit(12000, 0.5)
+            tx += 1
+            played, stopped = host.wait_played(tx)
+            check(not stopped, f"keys there ({len(played)} samples)")
+            time.sleep(2.5)
+            host.swr_trip_late()
+            m.transmit(12000, 0.5)
+            tx += 1
+            played, stopped = host.wait_played(tx)
+            check(not stopped, f"a trip 2.5 s after that key: not Winlink's, the next one keys ({len(played)} samples)")
+            check(host.wait_log("another transmission's: no hold"), "the GUI's log says why")
+            check("no TX on 40m" not in host.text(), "and no hold on 40 m said")
             m.close()
         finally:
             host.stop()

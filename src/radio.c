@@ -1584,12 +1584,14 @@ static void battery_startup_log(const bat_watch_t *w, const hw_pack_t *p) {
 
 static swr_guard_t swr_guard;
 static atomic_uint swr_trips;
+static atomic_ullong swr_trip_at;       /* the last one, get_time(); 0 none */
 static atomic_bool swr_trip_queued;     /* a trip's job waits in the queue: one stops TX, more add nothing */
 
 /* SWR protection, on the GUI thread: what the GUI keys lets go (a PTT held on the radio or the
  * mic, VOX and the radio's own keyer are the base's: they may key again) */
 static void swr_trip_cb(void *arg) {
     atomic_store(&swr_trip_queued, false);  /* out of the queue: a trip from now on is posted again */
+    atomic_store(&swr_trip_at, get_time()); /* before the count: whoever sees the trip can tell when */
     atomic_fetch_add(&swr_trips, 1);    /* before the modem bit drops: whoever sees it gone can tell why */
     cw_encoder_stop();
     paddle_keyer_stop();
@@ -1606,6 +1608,10 @@ int radio_get_battery() {
 
 unsigned radio_swr_trips(void) {
     return atomic_load(&swr_trips);
+}
+
+uint64_t radio_swr_trip_at(void) {
+    return atomic_load(&swr_trip_at);
 }
 
 /* The base never keyed for the tuner, or ended a tune without its done flag (no match: more likely on 10 and 15 m

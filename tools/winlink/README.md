@@ -22,7 +22,9 @@ one refused until the app is closed), an SWR trip during a key (`WL_SWR`, #147: 
 10.145 MHz the keys on 30 m are held, also after Pat's QSY to 10.120, while 7.102 MHz
 on 40 m keys at once, the radio file saying where the hold is and whether the radio is
 there; on 7.250 MHz, outside the table's 40 m, the hold covers 7.300 MHz, within
-100 kHz of it, and 7.400 keys), and the radio file the Winlink page reads
+100 kHz of it, and 7.400 keys; `WL_SWR_LATE`, a trip counted outside a key: just
+after one it is that key's, 2.5 s later another transmission's and holds nothing),
+and the radio file the Winlink page reads
 (`build/radio` here): Winlink's cap of 7 W, 5 W with the X6200 on its battery
 (`WL_PWR_MAX=5`, said in `cap_battery`), and 0.5 W under a transverter's TX power limit
 (`WL_PWR_XVTR=0.5`, said in `cap_transverter`, not `cap_battery`). It prints `PROTO OK`.

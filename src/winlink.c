@@ -89,6 +89,7 @@
 #define SILENCE_MS      500             /* keyed without audio this long: unkeyed */
 #define SWR_HOLD_MS     (5 * 60 * 1000) /* no keying this long after an SWR trip in a Winlink TX, on its band */
 #define SWR_NEAR_HZ     100000          /* and this near the trip's frequency, whatever the band (swr_hold_covers) */
+#define SWR_LATE_MS     2000            /* a trip counted this soon after our key ended was that key's (tx_refused) */
 #define TURN_MS         500             /* after our own TX the base may still report it this long */
 
 #define RIG_CLIENTS     4
@@ -539,9 +540,21 @@ static const char *tx_refused(void) {
     if (on_air())
         return "the radio is on the air";
     /* A trip the guard reported after our last key ended (its callback runs on the LVGL thread,
-     * maybe after tx_player returned) counts for that key: its hold begins (swr_held) */
-    if (unkey_ms && radio_swr_trips() != key_trips)
-        swr_hold_begin();
+     * maybe after tx_player returned) counts for that key: its hold begins (swr_held). Only one counted
+     * as it ended: a later one stopped another transmission (a PTT, FT8, maybe on another band) and
+     * holds no Winlink band. Up to v0.3.8 any later one counted too, and said "no TX for 5 minutes"
+     * also hours on (#147) */
+    if (unkey_ms && radio_swr_trips() != key_trips) {
+        int64_t after = (int64_t)(radio_swr_trip_at() - unkey_ms);
+
+        if (after <= SWR_LATE_MS) {
+            swr_hold_begin();
+        } else {
+            key_trips = radio_swr_trips();
+            LV_LOG_WARN("winlink: an SWR trip %lld s after our last key, another transmission's: no hold",
+                        (long long)(after / 1000));
+        }
+    }
     return NULL;
 }
 
