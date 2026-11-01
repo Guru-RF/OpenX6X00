@@ -80,6 +80,10 @@ find_data() {
 rescue() {
     mkdir -p /tmp/sysroot && mount --bind / /tmp/sysroot || return
     if [ -n "$(ls -A /tmp/sysroot/mnt 2>/dev/null)" ]; then
+        # DATA that holds nothing but found_on_system is new as well: the start that made it was cut
+        # short in this copy (seconds of a dark screen before the boot picture: a power cut), the
+        # system's files all still there
+        [ "$(ls -A /mnt)" = found_on_system ] && set -- new
         if mkdir -p /mnt/found_on_system && cp -a /tmp/sysroot/mnt/. /mnt/found_on_system/; then
             where=found_on_system
             if [ "$1" = new ]; then
