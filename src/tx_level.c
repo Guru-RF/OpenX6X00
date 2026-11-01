@@ -74,6 +74,12 @@ static float tx_level_decide(tx_level_t *l) {
              * drive climbed to full scale over a few transmissions */
             d = -l->flat_db;
             l->held = true;
+        } else if (l->power_hold && p - l->prev_p > l->prev_p * (powf(10.0f, l->last_up / 10.0f) - 1.0f)
+                                                    + TX_LEVEL_PWR_STEP_W) {
+            /* The power rose by more than the last step up explains: the base still coming up by itself (the X6200
+             * starts from 0 after each move and comes up in 0.1 W steps, #140). No step until it is up: the steps
+             * made meanwhile were kept as found once it got there, and at 7 W the level climbed about 1 dB a
+             * transmission, to the codec's top (#126) */
         } else if (l->up_db < TX_LEVEL_UP_MAX_DB) {
             /* The ALC under 1: up, faster while far short (under half the
              * setting), then gently into the ALC. */
