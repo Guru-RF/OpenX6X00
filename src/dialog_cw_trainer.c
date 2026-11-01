@@ -29,6 +29,7 @@
 #include "cw.h"
 #include "cw_decoder.h"
 #include "cw_encoder.h"
+#include "cw_trainer_answer.h"
 #include "dialog.h"
 #include "events.h"
 #include "keyboard.h"
@@ -49,7 +50,6 @@
 
 #define TIMER_MS    100
 #define GUARD_MS    600     /* the end of our own sidetone is still being decoded */
-#define ANSWER_MS   3000    /* silence that ends an answer shorter than the group */
 #define NEXT_OK_MS  1000    /* auto mode: pause before the next group */
 #define NEXT_BAD_MS 2500    /* longer after a wrong answer, to read it */
 #define WINDOW      10      /* results the accuracy is measured over */
@@ -156,7 +156,7 @@ static bool     run_done;
 
 /* Practice */
 static char text[TEXT_MAX];
-static int  wpm_seen;
+static int  wpm_seen;       /* the decoder's speed, also for the end of an answer (cwt_answer_ms) */
 
 static lv_obj_t   *head, *head_right, *box, *big, *line1, *line2, *side_score, *side_chars, *hint, *text_lbl;
 static lv_obj_t   *box_r, *calls_cont, *c_sent_cap, *c_call, *c_key_cap, *c_keyed, *c_res, *c_score, *c_stats;
@@ -661,7 +661,8 @@ static void tick_cb(lv_timer_t *t) {
         last_rx_t = listen_t;
         refresh_ui();
     } else if (st == ST_LISTEN && heard_n > 0 &&
-               (heard_n >= (int)strlen(target) || heard_end || lv_tick_elaps(last_rx_t) > ANSWER_MS)) {
+               (heard_n >= (int)strlen(target) || heard_end ||
+                lv_tick_elaps(last_rx_t) > cwt_answer_ms(param_i_get(cfg_key_speed), wpm_seen))) {
         if (mode == MODE_CALLS) evaluate_call();
         else evaluate();
         refresh_ui();

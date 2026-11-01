@@ -2428,6 +2428,14 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   It showed OK while you were still keying, and the next group then ran
   into your answer, which came out as "?" (issue #144). The pause before
   your answer no longer stretches the decoder's spacing either.
+- Your answer ends with its last character, at a word space, or when no
+  new character comes for 3 s, longer at 14 WPM and slower: 30 dots of the
+  key speed or of the speed the decoder hears, whichever is slower (a
+  straight key slower than KEY Speed is waited for too). The decoder gives
+  a character out when the next one starts, the last one about 8 dots
+  after it ends. Up to v0.3.8 it was 3 s at every speed: at 10 WPM a
+  group's last character of 0 1 9 , or . came out later, the answer was a
+  character short and counted wrong (slower, more of them).
 
 
 ## Apps

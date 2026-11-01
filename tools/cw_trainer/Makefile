@@ -6,16 +6,17 @@
 # the capture's 100 ms fragments, the sound 30-150 ms behind the key, at 10-30 WPM, from a decoder at 20 WPM. Every
 # case checks that the radio's own character is never the answer, that no group starts into the answer, that every
 # answer comes out right (but one whose first character the decoder ends inside GUARD_MS: the trainer ignores it, as
-# before), and that the word boundary stays at 5 dots. Last the first 4 groups after the trainer opens, 84 runs of
-# them for each of Learn's groups of 1 and 3 and Calls at 10-15 WPM, the sound 30-250 ms behind the key: the lock
-# finds the tone with the first group, and its first dah can come in pieces then; the same checks, and the
-# decoder's speed at the end.
+# before), and that the word boundary stays at 5 dots; also groups of 5 of all 40 at 10 WPM, and a straight key at
+# 10 WPM answering groups keyed at 14 (the end of a short answer, cwt_answer_ms in src/cw_trainer_answer.h, which the
+# test shares with the trainer). Last the first 4 groups after the trainer opens, 84 runs of them for each of Learn's
+# groups of 1 and 3 and Calls at 10-15 WPM, the sound 30-250 ms behind the key: the lock finds the tone with the
+# first group, and its first dah can come in pieces then; the same checks, and the decoder's speed at the end.
 # DEPS: liquid-dsp (host/build.sh puts it in build-host/deps).
 SRC      := ../../src
 DEPS     ?= ../../build-host/deps
-CXXFLAGS := -std=c++17 -Wall -Wextra -O2 -g -I $(SRC)/cw_decoder -I $(DEPS)/include
+CXXFLAGS := -std=c++17 -Wall -Wextra -O2 -g -I $(SRC)/cw_decoder -I $(SRC) -I $(DEPS)/include
 DECODER  := morse_text.cpp tone_finder.cpp tone_lock.cpp key_detector.cpp element_timer.cpp receiver.cpp
-HEADERS  := $(wildcard $(SRC)/cw_decoder/*.h)
+HEADERS  := $(wildcard $(SRC)/cw_decoder/*.h) $(SRC)/cw_trainer_answer.h
 
 all: test
 

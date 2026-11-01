@@ -9,9 +9,10 @@
  *  Then Learn and Calls end to end: the radio keys a group with the sidetone, the user keys it back, and the decoder
  *  hears both as on the radio, through the app's 11025 Hz audio, the resampler and the capture's 100 ms fragments,
  *  the sound some way behind the key. The trainer's rules are dialog_cw_trainer.c's (tick_cb, on_text, play): its
- *  100 ms timer, GUARD_MS, ANSWER_MS, NEXT_OK_MS, NEXT_BAD_MS, the own count and a new speed given as the group
- *  starts, and cw.cpp hands them to the receiver before its next block. Last the first groups after the trainer
- *  opens, over and over, as the lock finds the tone.
+ *  100 ms timer, GUARD_MS, the end of a short answer (cwt_answer_ms, the trainer's own: src/cw_trainer_answer.h),
+ *  NEXT_OK_MS, NEXT_BAD_MS, the own count and a new speed given as the group starts, and cw.cpp hands them to the
+ *  receiver before its next block, and the decoder's speed to the trainer after a character. Last the first groups
+ *  after the trainer opens, over and over, as the lock finds the tone.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -26,6 +27,8 @@
 #include <random>
 #include <string>
 #include <vector>
+
+#include "cw_trainer_answer.h"
 
 namespace cw {
 struct ReceiverPeek {
@@ -234,7 +237,6 @@ static void element_timer_rules(void) {
 /* dialog_cw_trainer.c */
 #define TIMER_MS    100
 #define GUARD_MS    600
-#define ANSWER_MS   3000
 #define NEXT_OK_MS  1000
 #define NEXT_BAD_MS 2500
 
@@ -256,6 +258,7 @@ struct Scenario {
     int         level, group;   /* Learn; group 0: Calls */
     int         rounds;
     double      react_min, react_max;   /* the user's answer after the group's sound ended, ms */
+    int         user_wpm = 0;   /* a straight key at this speed (as exact), 0: the keyer, at the key speed */
 };
 
 struct Result {
@@ -281,16 +284,18 @@ static Result learn(const Scenario &sc, unsigned seed) {
     struct Text {
         std::string s;
         bool        own;
+        int         wpm;   /* the decoder's speed after it (cw.cpp on_text: cw_decoder_wpm) */
     };
     std::vector<Text> texts;
-    cw::Receiver      rx([&](const char *t, bool own) { texts.push_back({t, own}); }, [](bool) {});
+    cw::Receiver      rx([&](const char *t, bool own) { texts.push_back({t, own, (int)lroundf(rx.wpm())}); },
+                         [](bool) {});
     cw::AudioResampler rs(RATE);
     rx.set_floor_db(8.0f);
     rx.set_band(TONE - 250.0, TONE + 250.0);
 
     enum { READY, PLAYING, LISTEN, RESULT } st = READY;
     std::string target, heard;
-    int         heard_n = 0, wpm = sc.wpm, own_req = -1, wpm_req = 0, told_wpm = 0;
+    int         heard_n = 0, wpm = sc.wpm, own_req = -1, wpm_req = 0, told_wpm = 0, wpm_seen = 0;
     bool        heard_end = false, last_ok = false, own_taken = false, lost = false;
     double      idle = 0, listen_t = 0, last_rx_t = 0, result_t = 0, user_first_end = 1e12, user_last = -1;
 
@@ -329,14 +334,15 @@ static Result learn(const Scenario &sc, unsigned seed) {
 
         /* the user hears the end of it at once, the capture the sound later; keyed back with the keyer: exact */
         double u = marks.back().off - sc.delay + urand(sc.react_min, sc.react_max);
+        double udit = sc.user_wpm > 0 ? 1200.0 / sc.user_wpm : dit, udah = 3 * udit;
         for (size_t i = 0; i < target.size(); i++) {
             for (const char *p = morse_of(target[i]); *p; p++) {
-                double el = *p == '.' ? dit : dah;
+                double el = *p == '.' ? udit : udah;
                 marks.push_back({u + sc.delay, u + el + sc.delay});
-                u += el + dit;
+                u += el + udit;
             }
             if (i == 0) user_first_end = marks.back().off;
-            u += dah - dit;
+            u += udah - udit;
         }
         user_last = marks.back().off;
         st        = PLAYING;
@@ -372,7 +378,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
                 st       = LISTEN;
                 listen_t = last_rx_t = tick;
             } else if (st == LISTEN && heard_n > 0 &&
-                       (heard_n >= (int)target.size() || heard_end || tick - last_rx_t > ANSWER_MS)) {
+                       (heard_n >= (int)target.size() || heard_end || tick - last_rx_t > cwt_answer_ms(wpm, wpm_seen))) {
                 last_ok = heard == target;
                 r.own_answers += own_taken;
                 if (!last_ok) {
@@ -409,8 +415,8 @@ static Result learn(const Scenario &sc, unsigned seed) {
         size_t seen = texts.size();
         rs.process(buf.size(), buf.data(), rx);
 
-        /* on_text, as the fragment's text reaches the LVGL thread */
-        for (; seen < texts.size(); seen++) {
+        /* on_text, as the fragment's text reaches the LVGL thread, and on_wpm after it */
+        for (; seen < texts.size(); wpm_seen = texts[seen].wpm, seen++) {
             const Text &e     = texts[seen];
             bool        guard = st == LISTEN && t1 - listen_t < GUARD_MS;
             if (e.own) {
@@ -457,6 +463,10 @@ static void end_to_end(void) {
         {"Learn, group 5, level 20", 12, 30, 20, 5, 40, 300, 1200},
         {"Learn, group 5, all 40", 20, 30, 40, 5, 40, 300, 1200},
         {"Calls, +1 WPM a call, from", 15, 30, 0, 0, 20, 400, 1200},
+        /* a last character of 19 dots (0 ,) and the decoder's end of it, 3.3 s at 10 WPM: once past a fixed 3 s */
+        {"Learn, group 5, all 40", 10, 30, 40, 5, 40, 300, 1200},
+        /* the answer slower than the key speed: the end of a short answer by the decoder's speed, not the key's */
+        {"Learn, group 3, all 40, a straight key at 10 WPM, KEY Speed", 14, 130, 40, 3, 40, 300, 1200, 10},
     };
 
     printf("Learn and Calls: the radio's group and the user's answer, through the decoder\n");
@@ -482,8 +492,9 @@ static void first_groups(void) {
     } kinds[] = {
         {"Learn, group 1, level 2", 2, 1},
         {"Learn, group 1, all 40", 40, 1},
-        {"Learn, group 3, level 10", 10, 3},   /* level 10: no character of 5 or 6 elements (see ANSWER_MS) */
+        {"Learn, group 3, level 10", 10, 3},   /* level 10: no character of 5 or 6 elements */
         {"Calls", 0, 0},
+        {"Learn, group 3, all 40", 40, 3},     /* with them: a fixed 3 s cut the answer at 10 WPM (cwt_answer_ms) */
     };
 
     printf("The first 4 groups after the trainer opens, the lock finding the tone\n");
