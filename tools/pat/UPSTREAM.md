@@ -32,7 +32,8 @@ are ours.
   one static binary for both radios, about 14.1 MB (v1.0.1 with our patches: 14090364
   bytes, SHA-256 `380f76c8ee36e0dfa0b9071b0298a7fbfc15dd128de4b19e8ed1c895c5734509`). With
   v1.0.0, two builds with Go's build cache wiped in between gave the same SHA-256; with v1.0.1,
-  `build.sh` and a second build of the same patched tree in another directory did.
+  `build.sh` and a build with nothing cached did: a fresh clone in another directory, the Go
+  toolchain downloaded again (its SHA-256 checked) and empty module and build caches.
 - The binary is kept as `$HOME/.cache/openx6x00/pat/pat-<tag>-go<version>-<hash>/pat`, the
   hash being that of the patches and of `build.sh`; a second run prints that path and
   downloads nothing. Go's module cache (`gopath/`) is read-only, as Go makes it:
