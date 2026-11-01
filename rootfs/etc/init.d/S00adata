@@ -21,6 +21,32 @@ trace() {
     [ -x /usr/sbin/x6100-starttrace ] && /usr/sbin/x6100-starttrace "S00adata: $*"
 }
 
+# blkid's low-level probe of the partition $1 (-p: the partition itself, no cache). probed: all its
+# lines; sig: those that are not the partition's own entry in the card's table (PART_ENTRY_*), a
+# filesystem, a partition table, a RAID, LVM or LUKS header... (TYPE=, PTTYPE=, USAGE=, ...). sig
+# empty: nothing on it that blkid knows. Two signatures at once (blkid's exit 8) or a probe that
+# failed count as something: such a partition is never formatted
+probe() {
+    probed=$(blkid -p -o export "$1" 2>/dev/null)
+    rc=$?
+    if [ $rc -eq 0 ] || [ $rc -eq 2 ]; then
+        sig=$(printf '%s\n' "$probed" | grep -v -e '^DEVNAME=' -e '^PART_ENTRY_' -e '^$')
+    else
+        sig="blkid -p exit $rc"
+    fi
+}
+
+# The probe's value of the field $1
+field() {
+    printf '%s\n' "$probed" | sed -n "s/^$1=//p"
+}
+
+# What the probe found, in a word for the trace: the filesystem's type, else its first line
+found() {
+    t=$(field TYPE)
+    [ -n "$t" ] && echo "$t" || printf '%s\n' "$sig" | head -n 1
+}
+
 # dev: the DATA partition; relabel set when it has no label yet
 find_data() {
     relabel=
@@ -108,17 +134,20 @@ start() {
         trace "The new partition is not $DEV: not formatted"
         return
     fi
-    if [ -n "$(blkid "$DEV")" ]; then
+    # By what is on it: the partition's own entry in the card's table, all that blkid prints for
+    # a partition without a filesystem (PARTUUID), is not one
+    probe "$DEV"
+    if [ -n "$sig" ]; then
         # A card image is smaller than the card: a new image leaves the old DATA filesystem
         # where it was, only its partition entry is gone. Made again, it is the same DATA:
         # settings and logs survive the new image (checked and mounted like any other start)
-        if [ "$(blkid -s LABEL -o value "$DEV")" = "DATA" ]; then
+        if [ "$(field TYPE)" = vfat ] && [ "$(field LABEL)" = DATA ]; then
             echo "The DATA filesystem of the previous image is still there: kept"
             check_data
             return
         fi
-        echo "$DEV holds another filesystem: not formatted"
-        trace "$DEV holds another filesystem: not formatted"
+        echo "$DEV holds another filesystem ($(found)): not formatted"
+        trace "$DEV holds another filesystem ($(found)): not formatted"
         return
     fi
     trace "formatting $DEV"
