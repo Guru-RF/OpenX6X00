@@ -29,6 +29,10 @@ int cw_get_wpm(void);
 void cw_trainer_set(bool on);
 /* The CW trainer is open (cw_trainer_set): any thread */
 bool cw_trainer_on(void);
+/* The CW trainer keys a group: the next `elements` dits and dahs the decoder hears are its own, and the characters
+ * they make come to the trainer marked own (cw_decoder_set_sink), however late the decoder ends the last one. 0: no
+ * more of them (the characters started keep their mark). Any thread */
+void cw_trainer_own(int elements);
 
 #ifdef __cplusplus
 }

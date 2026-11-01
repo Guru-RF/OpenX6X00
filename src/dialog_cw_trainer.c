@@ -241,8 +241,10 @@ static bool is_cw(void) {
 static void on_text(void *arg);
 static void on_wpm(void *arg);
 
-/* Audio thread: hand over to the LVGL thread */
-static void sink_text(const char *t) {
+/* Audio thread: hand over to the LVGL thread. Our own group is not the answer, however late
+ * the decoder ends its last character (cw_trainer_own) */
+static void sink_text(const char *t, bool own) {
+    if (own) return;
     scheduler_put(on_text, (void *)t, strlen(t) + 1);
 }
 
@@ -255,6 +257,13 @@ static const char *morse_of(char c) {
         if (koch[i].c == c) return koch[i].morse;
     }
     return "";
+}
+
+/* Dits and dahs of a group or callsign */
+static int elements_of(const char *s) {
+    int n = 0;
+    for (; *s; s++) n += (int)strlen(morse_of(*s));
+    return n;
 }
 
 /* Morse of every character of s, separated by spaces */
@@ -491,6 +500,11 @@ static bool play(void) {
     heard_n  = 0;
     heard_end = false;
     st       = ST_PLAYING;
+    /* The decoder ends our last character when the user starts keying, or after 8.5 dots of
+     * silence: at slow speeds, or with the audio's delay, that was past GUARD_MS, and it was taken
+     * for the answer. The next group then came while the user was still keying, and the two ran
+     * together into one character not in the table: "?" (#144) */
+    cw_trainer_own(elements_of(target));
     cw_encoder_send(target, false);
     return true;
 }
@@ -659,6 +673,7 @@ static void tick_cb(lv_timer_t *t) {
 /* Nothing of a round stays when the mode or the view changes */
 static void stop_round(void) {
     cw_encoder_stop();
+    cw_trainer_own(0);
     autoplay  = false;
     st        = ST_READY;
     target[0] = 0;

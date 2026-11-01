@@ -14,18 +14,18 @@
 #include <stdio.h>
 #include <string.h>
 
-static void (*to_text)(const char *);
+static void (*to_text)(const char *, bool);
 static void (*to_wpm)(int);
 
-void cw_decoder_set_sink(void (*text)(const char *), void (*wpm)(int)) {
+void cw_decoder_set_sink(void (*text)(const char *, bool), void (*wpm)(int)) {
     to_text = text;
     to_wpm  = wpm;
 }
 
-void cw_decoder_text(const char *text) {
+void cw_decoder_text(const char *text, bool own) {
     remote_server_cw_text(text);    /* the browser panel too, wherever the text goes here */
     if (to_text) {
-        to_text(text);
+        to_text(text, own);
         return;
     }
     panel_add_text(text);

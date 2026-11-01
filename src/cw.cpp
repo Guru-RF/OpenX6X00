@@ -38,6 +38,7 @@ static std::atomic<bool> started{false};
 static std::atomic<bool> decode_on{false};
 static std::atomic<bool> tune_on{false};
 static std::atomic<bool> trainer{false};
+static std::atomic<int>  trainer_own{-1};      /* cw_trainer_own's count for the audio thread, -1 none */
 static std::atomic<bool> tune_turned{false};   /* the bars' offset turned round: CW on the X6200 */
 static int32_t key_tone = 0;
 static int32_t band_lo;
@@ -88,7 +89,7 @@ static void on_rx_param_change(Subject *subj, void *user_data);
 static void on_freq_change(Subject *subj, void *user_data);
 static void on_mode_change(Subject *subj, void *user_data);
 
-static void on_text(const char *text);
+static void on_text(const char *text, bool own);
 static void on_keyed(bool on);
 static void on_frame();
 
@@ -160,6 +161,9 @@ void cw_put_audio_samples(unsigned int n, float *samples) {
     if (!started || !wanted)
         return;
     apply_rx_params();
+    int own = trainer_own.exchange(-1);
+    if (own >= 0)
+        receiver->own(own);
     resampler->process(n, samples, *receiver);
 }
 
@@ -188,7 +192,7 @@ static bool squelch(const char *text) {
                 return true;
             }
             sq_pending += text;
-            cw_decoder_text(sq_pending.c_str());
+            cw_decoder_text(sq_pending.c_str(), false);
             sq_pending.clear();
             return false;
         }
@@ -216,18 +220,18 @@ static bool squelch(const char *text) {
     if (++sq_good >= SQ_OPEN) {
         sq_open = true;
         sq_bad  = 0;
-        cw_decoder_text(sq_pending.c_str());
+        cw_decoder_text(sq_pending.c_str(), false);
         sq_pending.clear();
     }
     return false;
 }
 
-static void on_text(const char *text) {
+static void on_text(const char *text, bool own) {
     if (!decode_on && !trainer)
         return;
     if (!trainer && !squelch(text))
         return;
-    cw_decoder_text(text);
+    cw_decoder_text(text, own);
 
     int wpm = lroundf(receiver->wpm());
     if (wpm != wpm_sent) {
@@ -286,6 +290,12 @@ static void on_frame() {
 
 void cw_trainer_set(bool on) {
     trainer = on;
+    if (!on)
+        trainer_own = 0;
+}
+
+void cw_trainer_own(int elements) {
+    trainer_own = elements > 0 ? elements : 0;
 }
 
 bool cw_trainer_on(void) {

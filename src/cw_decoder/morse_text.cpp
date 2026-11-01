@@ -12,20 +12,22 @@
 
 namespace cw {
 
-void MorseText::emit(const char *text) {
+void MorseText::emit(const char *text, bool own) {
     if (out_)
-        out_(text);
+        out_(text, own);
 }
 
 void MorseText::flush() {
     if (len_ > 0) {
         code_[len_] = '\0';
         const char *t = too_long_ ? nullptr : morse_to_text(code_);
-        emit(t ? t : "<?>");
+        emit(t ? t : "<?>", own_code_ && !other_code_);
         space_ = false;
     }
-    len_      = 0;
-    too_long_ = false;
+    len_        = 0;
+    too_long_   = false;
+    own_code_   = false;
+    other_code_ = false;
 }
 
 void MorseText::put(Sym s) {
@@ -36,6 +38,13 @@ void MorseText::put(Sym s) {
                 code_[len_++] = s == SYM_DIT ? '.' : '-';
             else
                 too_long_ = true;
+            if (own_left_ > 0) {
+                own_left_--;
+                own_run_  = true;
+                own_code_ = true;
+            } else {
+                other_code_ = true;
+            }
             break;
 
         case SYM_CHAR_GAP:
@@ -44,8 +53,11 @@ void MorseText::put(Sym s) {
 
         case SYM_WORD_GAP:
             flush();
+            if (own_run_) {
+                own(0);
+            }
             if (!space_) {
-                emit(" ");
+                emit(" ", false);
                 space_ = true;
             }
             break;
