@@ -3638,13 +3638,15 @@ static lv_obj_t * upd_line(uint8_t row);
  * to settle and 1.5 s of readings each, and what was left over moves the three settings.
  * PRE, ATT and the RF gain go back as they were after, also when the page closes or on TX.
  * The X6200's attenuator takes 29 to 53 dB off depending on the band (#125): there its figure is the
- * band's, up to 60 dB, and Measure sets the band's; and the signal has to be S9 or more, so that it
- * stays over the noise with ATT on. The X6100 has one figure, up to 40 dB, and takes S5 or more. */
+ * band's, up to 60 dB, and Measure sets the band's; and the signal has to be about S9 or more, so that
+ * it stays over the noise with ATT on: 3 dB under S9 passes, as its readings are whole dB from the base
+ * and a generator set to S9, -73 dBm, reading a dB under it was refused. The X6100 has one
+ * figure, up to 40 dB, and takes S5 or more. */
 #ifdef BOARD_X6200
 static ParamInt &sm_att = cfg_sm.p_band_smeter_att;
 #define SM_ATT_MAX   SettingsManager::SMETER_ATT_MAX
 #define SM_ATT_WHERE " on this band"
-#define SMC_MIN      S9
+#define SMC_MIN      (S9 - 3)
 #define SMC_MIN_S    "S9"
 #else
 static ParamInt &sm_att = cfg_sm.p_smeter_att;

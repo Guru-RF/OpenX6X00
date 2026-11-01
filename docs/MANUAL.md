@@ -1091,17 +1091,17 @@ one value for every band, on both radios.
 Measure sets them for your radio, since preamps differ a little. Feed a
 steady carrier, from a signal generator (around -73 dBm, S9) or a strong
 broadcast station, so the meter reads between S5 and S9+20 (on the X6200
-between S9 and S9+20: with its attenuator on, a weaker carrier sinks into
-the noise), and press Measure. For about 12 s the radio reads its meter
-with everything off, then with PRE on, with ATT on, and with the RF gain at
-40, a second and a half each, and moves the three settings by what was left
-over. PRE, ATT and the RF gain go back as they were, also when you press
-Stop, leave the tab or transmit. A reading that wanders more than 3 dB
-during a step, a carrier outside that range, or ATT taking the reading down
-to S1 (the attenuator value far too low: raise it, or feed a stronger
-carrier) stops the measurement and changes nothing. A band change stops it
-too ("Stopped: band changed"): PRE and ATT belong to the band, so check them
-on the band you left.
+from about S9 to S9+20, so -73 dBm from a generator will do: with its
+attenuator on, a weaker carrier sinks into the noise), and press Measure.
+For about 12 s the radio reads its meter with everything off, then with PRE
+on, with ATT on, and with the RF gain at 40, a second and a half each, and
+moves the three settings by what was left over. PRE, ATT and the RF gain go
+back as they were, also when you press Stop, leave the tab or transmit. A
+reading that wanders more than 3 dB during a step, a carrier outside that
+range, or ATT taking the reading down to S1 (the attenuator value far too
+low: raise it, or feed a stronger carrier) stops the measurement and
+changes nothing. A band change stops it too ("Stopped: band changed"): PRE
+and ATT belong to the band, so check them on the band you left.
 
 The per band S-meter calibration (Settings > General > CONTROLS) is a
 separate correction, for the band's level with everything off.
