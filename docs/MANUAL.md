@@ -1469,7 +1469,13 @@ WeFax) set their audio level by themselves.
   which has its own power (0.2 W by default): its level would pull the one
   FT8 starts from down.
 - On the X6200 the ALC reading does not follow the audio level, so the level
-  goes up until the power reaches the setting and stays there.
+  goes up until the power reaches the setting and stays there. The ALC it
+  reads changes nothing. After the key the X6200's power comes up from 0 by
+  itself; while it is still coming up the level waits.
+- The level never goes so high that the audio would be clipped. Up to
+  v0.3.8 the X6200's could climb there over many transmissions (seen:
+  33.4 dB, the audio a square wave 14 dB over the default); since then every
+  X6200 starts once from the default level (0 dB) and learns it again.
 - A transmission that reads 0 W from its first second to its end says so:
   "TX 0 W: level -38 dB, Line-in 10". Not at a 0.1 W setting, where the
   power reading (in whole tenths of a watt) can show 0.0 all along. The log
@@ -4700,7 +4706,8 @@ time set in Settings > General > DATE / TIME, and keeps it from then on.
 #### The ALC reads about 1 in FT8 or JS8. Is it too high?
 
 No. The TX level settles with the ALC working a little, with the power at the
-setting. It comes down by itself over 3. See [Digital-mode TX level](#digital-mode-tx-level).
+setting. It comes down by itself over 3. On the X6200 the ALC reading does not
+follow the level and changes nothing. See [Digital-mode TX level](#digital-mode-tx-level).
 
 #### The ALC reads about 5 in CW. Is it too high?
 
