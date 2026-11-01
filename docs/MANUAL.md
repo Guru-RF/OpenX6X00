@@ -2416,6 +2416,15 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   less and less over its first 20 tries; after that it comes up as often as
   the others. Weak and little tried characters come up more often (Stats
   shows the last 20 tries of each).
+- Learn and Calls check your answer with the CW decoder, which hears the
+  radio's group too. The trainer tells the radio's own characters from
+  yours by their dits and dahs, at any speed, and the decoder starts at the
+  key speed. Up to v0.3.8 the end of the radio's last character could be
+  taken for your answer: at 13 WPM and slower, at other speeds now and then
+  or after a few dozen groups. It showed OK while you were still keying,
+  and the next group then ran into your answer, which came out as "?"
+  (issue #144). The pause before your answer no longer stretches the
+  decoder's spacing either.
 
 
 ## Apps
