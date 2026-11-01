@@ -127,11 +127,22 @@ static void morse_text_rules(void) {
         Out           o;
         cw::MorseText m([&](const char *t, bool own) { o.add(t, own); });
         m.own(2);
+        put_code(m, "..-");   /* our M's first dah in two pieces, as the lock finds the tone */
+        m.put(cw::SYM_WORD_GAP);
+        put_code(m, "--");
+        m.put(cw::SYM_WORD_GAP);
+        check(o.s == "U* M ", "our M heard as ..-, one element past the count: still ours, the user's M his: \"%s\"",
+              o.s.c_str());
+    }
+    {
+        Out           o;
+        cw::MorseText m([&](const char *t, bool own) { o.add(t, own); });
+        m.own(2);
         put_code(m, "--");
         m.put(cw::SYM_ELEM_GAP);   /* the user keyed within 1.7 dots of our last dah */
         put_code(m, "-.-");
         m.put(cw::SYM_WORD_GAP);
-        check(o.s == "<?> ", "our M run into the user's K: one character not ours, \"%s\"", o.s.c_str());
+        check(o.s == "<?>* ", "our M run into the user's K: one character, ours, \"%s\"", o.s.c_str());
     }
     {
         Out           o;

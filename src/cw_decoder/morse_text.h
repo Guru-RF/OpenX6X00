@@ -18,10 +18,13 @@ namespace cw {
 /* Collects the elements of a character and looks it up at the character gap.
  * One call of the output per character, prosign ("<AR>") or space (the CW
  * trainer counts calls); a code not in the table comes out as "<?>". Never
- * two spaces in a row. own: the character is of our own keying (own()), the
- * CW trainer's group, not the user's answer. One that also holds an element
- * not ours (the user keyed before our last character had ended) is not: it
- * comes out as the user's, a wrong answer rather than none. */
+ * two spaces in a row. own: the character holds one of our own dits and dahs
+ * (own()), the CW trainer's group, not the user's answer; also with elements
+ * past our count in it: right after the lock has found the tone a dah of ours
+ * can come in pieces, the count then runs out inside our last character, and
+ * its rest was taken for the answer. An answer keyed within 1.7 dots of our
+ * last element runs into it the same way and goes with it (a reaction that
+ * quick is rare): the user keys it again. */
 class MorseText {
   public:
     using Out = std::function<void(const char *text, bool own)>;
@@ -64,7 +67,6 @@ class MorseText {
     bool   own_run_  = false;  /* one of them came */
     bool   own_ended_ = false; /* the last one came (own_ended) */
     bool   own_code_ = false;  /* the character being collected holds one */
-    bool   other_code_ = false; /* ... and one not ours */
 };
 
 } // namespace cw

@@ -21,13 +21,12 @@ void MorseText::flush() {
     if (len_ > 0) {
         code_[len_] = '\0';
         const char *t = too_long_ ? nullptr : morse_to_text(code_);
-        emit(t ? t : "<?>", own_code_ && !other_code_);
+        emit(t ? t : "<?>", own_code_);
         space_ = false;
     }
-    len_        = 0;
-    too_long_   = false;
-    own_code_   = false;
-    other_code_ = false;
+    len_      = 0;
+    too_long_ = false;
+    own_code_ = false;
 }
 
 void MorseText::put(Sym s) {
@@ -42,8 +41,6 @@ void MorseText::put(Sym s) {
                 own_ended_ = --own_left_ == 0;
                 own_run_   = true;
                 own_code_  = true;
-            } else {
-                other_code_ = true;
             }
             break;
 
@@ -53,9 +50,8 @@ void MorseText::put(Sym s) {
 
         case SYM_WORD_GAP:
             flush();
-            if (own_run_) {
+            if (own_run_)
                 own(0);
-            }
             if (!space_) {
                 emit(" ", false);
                 space_ = true;
