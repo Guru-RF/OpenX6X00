@@ -20,7 +20,8 @@
  *  hold it). Overdrive (ALC over 3) brings it down a little. The level
  *  found is kept (tx_player.c), so the next transmission starts there and
  *  stays steady. Pure arithmetic: tests/test_js8.cpp runs it against a
- *  model radio.
+ *  model radio, tools/txlevel against a model X6200 (power_hold: its ALC
+ *  left out, no step while its power still comes up after the key).
  */
 
 #pragma once
