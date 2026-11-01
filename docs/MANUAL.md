@@ -2658,10 +2658,11 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
   once the send is over and the radio receives again. The band you tested
   keeps that frequency, in CW, as after Use band. Your antenna must suit the
   band: the test transmits at the power set.
-- No second press within the 10 seconds, or tuning, a band key, another mode
-  or Use band in that time: nothing is sent, and the radio stays where it is
-  now (the message box says so). Choosing another band and pressing Test
-  beacon in that time listens on that band instead, and the way back is
+- No second press within the 10 seconds, or tuning, a band key or another
+  mode in that time: nothing is sent, the radio stays where it is now, and
+  the message box says so. Use band in that time sends nothing either, and
+  the radio goes where Use band takes it. Choosing another band and pressing
+  Test beacon in that time listens on that band instead, and the way back is
   still where the radio was before the first press.
 - Press Test beacon while it sends to stop the test and go back. Tuning, a
   band key, another mode or Use band during the send also stops it, and the
