@@ -288,6 +288,12 @@ of the band list, from the frequency up or down.
   transmits on that band; the strip shows where. Up to v0.3.7 a band key
   brought both VFOs of the new band (B on 40m showed 15m's B after A went
   to 15m), and the VFO key back to B then lost A's frequency.
+  VFO B on a band it has no frequency of its own on yet (a band key, the VFO
+  key or a restart) starts where VFO A has that band, or at the band's start,
+  in A's mode there, and keeps that as its own. Up to v0.3.8 it kept A's
+  frequency from another band: B on 30m for the first time stayed on 14.326
+  with "20m" on the screen, and the VFO key from A on 6m brought it up on
+  50.000.
 
 ### Receiving outside the ham bands
 
