@@ -39,9 +39,9 @@ void MorseText::put(Sym s) {
             else
                 too_long_ = true;
             if (own_left_ > 0) {
-                own_left_--;
-                own_run_  = true;
-                own_code_ = true;
+                own_ended_ = --own_left_ == 0;
+                own_run_   = true;
+                own_code_  = true;
             } else {
                 other_code_ = true;
             }

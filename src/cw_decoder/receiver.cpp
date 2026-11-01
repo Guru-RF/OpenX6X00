@@ -45,8 +45,12 @@ void Receiver::detector_step(float power) {
     KeyEdge e = keyer_.step(power, step_noise_);
     Sym     s = timer_.step(e.dir, e.back_ms, e.strong);
 
-    if (s != SYM_NONE)
+    if (s != SYM_NONE) {
         text_.put(s);
+        /* After our own last dit or dah the other sender's turn begins */
+        if (text_.own_ended())
+            timer_.turn();
+    }
     if (e.dir != 0 && key_fn_)
         key_fn_(e.dir > 0);
 

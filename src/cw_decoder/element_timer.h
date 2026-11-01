@@ -44,6 +44,11 @@ class ElementTimer {
     /* The lock moved to another tone: the running mark or gap is not learned
      * (it may have been measured on the old tone), the speed is kept */
     void  new_tone() { unsure_ = true; }
+    /* The running gap is the pause between two senders taking turns (the CW
+     * trainer's group, then the user's answer): no gap of either, not learned.
+     * Learned, the answer's delay went in as a Farnsworth character gap, and
+     * after GAPS_MIN of them the word boundary moved up with it */
+    void  turn() { unsure_ = true; }
 
   private:
     friend struct ElementTimerPeek;   /* tests only */

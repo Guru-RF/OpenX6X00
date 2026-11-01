@@ -39,6 +39,12 @@ class MorseText {
         own_left_ = n > 0 ? n : 0;
         own_run_  = false;
     }
+    /* The last of our own dits and dahs came with the last put(): true once */
+    bool own_ended() {
+        bool e     = own_ended_;
+        own_ended_ = false;
+        return e;
+    }
 
   private:
     void flush();
@@ -54,6 +60,7 @@ class MorseText {
 
     int    own_left_ = 0;      /* own elements still to come */
     bool   own_run_  = false;  /* one of them came */
+    bool   own_ended_ = false; /* the last one came (own_ended) */
     bool   own_code_ = false;  /* the character being collected holds one */
     bool   other_code_ = false; /* ... and one not ours */
 };
