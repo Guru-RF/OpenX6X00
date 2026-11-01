@@ -39,6 +39,7 @@ static std::atomic<bool> decode_on{false};
 static std::atomic<bool> tune_on{false};
 static std::atomic<bool> trainer{false};
 static std::atomic<int>  trainer_own{-1};      /* cw_trainer_own's count for the audio thread, -1 none */
+static std::atomic<int>  trainer_wpm{0};       /* cw_trainer_speed's for the audio thread, 0 none */
 static std::atomic<bool> tune_turned{false};   /* the bars' offset turned round: CW on the X6200 */
 static int32_t key_tone = 0;
 static int32_t band_lo;
@@ -161,6 +162,9 @@ void cw_put_audio_samples(unsigned int n, float *samples) {
     if (!started || !wanted)
         return;
     apply_rx_params();
+    int wpm = trainer_wpm.exchange(0);
+    if (wpm > 0)
+        receiver->expect(wpm);
     int own = trainer_own.exchange(-1);
     if (own >= 0)
         receiver->own(own);
@@ -296,6 +300,10 @@ void cw_trainer_set(bool on) {
 
 void cw_trainer_own(int elements) {
     trainer_own = elements > 0 ? elements : 0;
+}
+
+void cw_trainer_speed(int wpm) {
+    trainer_wpm = wpm;
 }
 
 bool cw_trainer_on(void) {

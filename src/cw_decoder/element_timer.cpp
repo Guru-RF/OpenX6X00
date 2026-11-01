@@ -116,6 +116,20 @@ void ElementTimer::set_dot(float ms) {
     retime();
 }
 
+void ElementTimer::expect(float wpm) {
+    float ms = std::clamp(static_cast<float>(PARIS_MS) / wpm, DOT_MIN_MS, DOT_MAX_MS);
+
+    if (std::fabs(ms - dot_ms_) <= NEW_SPEED * dot_ms_)
+        return;
+    hist_.fill(0.0f);
+    hist_n_   = 0;
+    gaps_n_   = 0;
+    dot_ms_   = ms;
+    new_dot_  = -1.0f;
+    new_seen_ = 0;
+    retime();
+}
+
 void ElementTimer::learn(float ms) {
     /* Everything ages, even when the new entry falls outside */
     for (float &h : hist_)

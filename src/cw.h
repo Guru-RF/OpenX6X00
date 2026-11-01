@@ -33,6 +33,9 @@ bool cw_trainer_on(void);
  * they make come to the trainer marked own (cw_decoder_set_sink), however late the decoder ends the last one. 0: no
  * more of them (the characters started keep their mark). Any thread */
 void cw_trainer_own(int elements);
+/* The CW trainer keys at wpm: the decoder takes that speed at once when its own is more than 25% off (as the
+ * trainer opens or the speed changes), else it goes on learning it. Any thread */
+void cw_trainer_speed(int wpm);
 
 #ifdef __cplusplus
 }

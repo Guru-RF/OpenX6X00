@@ -54,6 +54,8 @@ class Receiver {
     void  follow_vfo(float df) { lock_.shift(df); }
     /* The next n dits and dahs are our own keying (MorseText::own) */
     void  own(int n) { text_.own(n); }
+    /* Our own keying follows at wpm (the CW trainer's, ElementTimer::expect) */
+    void  expect(float wpm) { timer_.expect(wpm); }
 
   private:
     friend struct ReceiverPeek;   /* tests only */

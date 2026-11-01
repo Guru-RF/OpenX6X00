@@ -49,6 +49,10 @@ class ElementTimer {
      * Learned, the answer's delay went in as a Farnsworth character gap, and
      * after GAPS_MIN of them the word boundary moved up with it */
     void  turn() { unsure_ = true; }
+    /* Keying at a known speed follows (the CW trainer's own, at the key
+     * speed): a dot more than NEW_SPEED off is taken at once, the histogram
+     * started over, instead of after MIN_ENTRIES and CONFIRM estimates */
+    void  expect(float wpm);
 
   private:
     friend struct ElementTimerPeek;   /* tests only */

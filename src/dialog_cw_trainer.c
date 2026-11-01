@@ -121,6 +121,7 @@ static char     heard[HEARD_MAX];
 static int      heard_n;        /* decoded characters in heard[] */
 static bool     heard_end;      /* word gap after the answer */
 static uint32_t listen_t, last_rx_t;
+static int      told_wpm;       /* the speed the decoder was told (cw_trainer_speed), 0 none */
 static bool     last_ok;
 static bool     autoplay;       /* Start: groups follow each other until Pause */
 static uint32_t result_t;
@@ -505,6 +506,13 @@ static bool play(void) {
      * for the answer. The next group then came while the user was still keying, and the two ran
      * together into one character not in the table: "?" (#144) */
     cw_trainer_own(elements_of(target));
+    /* At the key speed, as the paddle's: opened at 10 WPM, the decoder, still near 20, misread
+     * the second answer. Told when the speed is new, so it learns a straight key's from there */
+    int wpm = param_i_get(cfg_key_speed);
+    if (wpm != told_wpm) {
+        cw_trainer_speed(wpm);
+        told_wpm = wpm;
+    }
     cw_encoder_send(target, false);
     return true;
 }
@@ -1143,6 +1151,7 @@ static void construct_cb(lv_obj_t *parent) {
     mode = MODE_LEARN;
     st   = ST_READY;
     autoplay = false;
+    told_wpm = 0;
     target[0] = heard[0] = text[0] = 0;
     heard_n = tried = right = wpm_seen = 0;
     reset_score();
