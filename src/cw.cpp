@@ -294,8 +294,10 @@ static void on_frame() {
 
 void cw_trainer_set(bool on) {
     trainer = on;
-    if (!on)
+    if (!on) {
         trainer_own = 0;
+        trainer_wpm = 0;    /* not yet handed over: the trainer's speed, not the band's */
+    }
 }
 
 void cw_trainer_own(int elements) {
