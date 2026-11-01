@@ -10,7 +10,8 @@
  *  hears both as on the radio, through the app's 11025 Hz audio, the resampler and the capture's 100 ms fragments,
  *  the sound some way behind the key. The trainer's rules are dialog_cw_trainer.c's (tick_cb, on_text, play): its
  *  100 ms timer, GUARD_MS, ANSWER_MS, NEXT_OK_MS, NEXT_BAD_MS, the own count and a new speed given as the group
- *  starts, and cw.cpp hands them to the receiver before its next block.
+ *  starts, and cw.cpp hands them to the receiver before its next block. Last the first groups after the trainer
+ *  opens, over and over, as the lock finds the tone.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -266,6 +267,8 @@ struct Result {
     int   rounds      = 0;
     bool  finished    = false;
     float word_dots   = 0;   /* the word boundary at the end, in dots */
+    float wpm_end     = 0;   /* the decoder's speed at the end */
+    int   key_wpm     = 0;   /* ... and the key's (Calls moves it) */
 };
 
 static Result learn(const Scenario &sc, unsigned seed) {
@@ -431,6 +434,8 @@ static Result learn(const Scenario &sc, unsigned seed) {
     }
     const cw::ElementTimer &et = cw::ReceiverPeek::timer(rx);
     r.word_dots = cw::ElementTimerPeek::word_from(et) / cw::ElementTimerPeek::dot(et);
+    r.wpm_end   = et.wpm();
+    r.key_wpm   = wpm;
     r.finished  = done;
     if (!done) printf("        stopped after %d groups: no answer heard\n", r.rounds);
     return r;
@@ -466,11 +471,52 @@ static void end_to_end(void) {
     }
 }
 
+/* The first groups after the trainer opens, over and over: the lock finds the tone with the first one, and a dah can
+ * come in pieces then; the trainer's count runs out inside its last character, and the decoder learning the pieces
+ * took the speed to 50 WPM. 4 groups a run, the sound 30-250 ms behind the key, 4 seeds, at 10, 12 and 15 WPM (faster,
+ * the decoder ends the radio's last character inside GUARD_MS anyway) */
+static void first_groups(void) {
+    static const struct {
+        const char *what;
+        int         level, group;
+    } kinds[] = {
+        {"Learn, group 1, level 2", 2, 1},
+        {"Learn, group 1, all 40", 40, 1},
+        {"Learn, group 3, level 10", 10, 3},   /* level 10: no character of 5 or 6 elements (see ANSWER_MS) */
+        {"Calls", 0, 0},
+    };
+
+    printf("The first 4 groups after the trainer opens, the lock finding the tone\n");
+    for (const auto &k : kinds) {
+        int runs = 0, own = 0, into = 0, other = 0, lost = 0, stuck = 0, off = 0;
+        for (int wpm : {10, 12, 15}) {
+            for (double delay : {30.0, 60.0, 90.0, 130.0, 170.0, 210.0, 250.0}) {
+                for (unsigned seed = 1; seed <= 4; seed++) {
+                    Scenario sc = {k.what, wpm, delay, k.level, k.group, 4, 300, 1200};
+                    Result   r  = learn(sc, seed);
+                    runs++;
+                    own += r.own_answers;
+                    into += r.into_answer;
+                    other += r.wrong - r.guard_lost;
+                    lost += r.guard_lost;
+                    stuck += !r.finished;
+                    off += std::fabs(r.wpm_end - r.key_wpm) > 0.25f * r.key_wpm;
+                }
+            }
+        }
+        check(own == 0 && into == 0 && other == 0 && stuck == 0 && off == 0,
+              "%s, 10-15 WPM, %d runs: our own character the answer %d times, a group into the answer %d, answers "
+              "wrong %d (and %d inside GUARD_MS), no answer heard %d, the decoder's speed off at the end %d",
+              k.what, runs, own, into, other, lost, stuck, off);
+    }
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     morse_text_rules();
     element_timer_rules();
     end_to_end();
+    first_groups();
     printf("%d of %d CW trainer cases as they should be\n", good, cases);
     return good == cases ? 0 : 1;
 }
