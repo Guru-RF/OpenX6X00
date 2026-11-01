@@ -1099,8 +1099,12 @@ On the X6200 the attenuator takes much more off, and how much depends on
 the band: two radios showed about 51 to 53 dB on 80 m, 29 to 36 dB on 40 m,
 34 to 43 dB on 20 m and 32 to 40 dB on 10 m. So there the row is
 "Attenuator on this band": each band keeps its own value, and the slider and
-Measure set the band the radio is on. A band never set starts from the two
-radios' figures for the nearest of those bands:
+Measure set the band the radio is on. Those are the bands of the band list:
+40 m CW and 40 m SSB are two, and so are 20 m CW and SSB, and a broadcast
+band is one of its own, so Measure on a broadcast carrier at 7.3 MHz sets
+Broadcast 41m, not 40 m. When it is done, Measure names the band it set. A
+band never set starts from the two radios' figures for the nearest of 80,
+40, 20 and 10 m:
 
 | X6200 bands | Attenuator |
 |---|---|

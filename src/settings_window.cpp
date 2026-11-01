@@ -3828,8 +3828,19 @@ static void smc_timer_cb(lv_timer_t *t) {
     cfg_sm.p_smeter_pre.set(pre);   /* also without the sliders (the page may be gone) */
     sm_att.set(att);
     cfg_sm.p_smeter_rfg.set(rfg);
-    snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i dB" SM_ATT_WHERE ", RF gain %i.%02i dB a step.", pre, att,
+#ifdef BOARD_X6200
+    /* The band by its name: the page follows the band, so "this band" would be another one after a band change, and
+     * a broadcast carrier next to a ham band sets the broadcast band's figure, not the ham band's. PRE and ATT as on
+     * the keys, for the line to hold "Broadcast 41m" */
+    BandInfoLoadResult band = BandsTable::get_by_id(smc_band);
+
+    snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i dB, RF gain %i.%02i dB a step.",
+             band.rc == SUCCESS ? "on " : "outside the bands", band.rc == SUCCESS ? band.value.name.c_str() : "",
+             pre, att, rfg / 100, rfg % 100);
+#else
+    snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i dB, RF gain %i.%02i dB a step.", pre, att,
              rfg / 100, rfg % 100);
+#endif
     smc_note_set(buf);
 }
 
