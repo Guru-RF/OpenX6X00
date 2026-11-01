@@ -2389,10 +2389,16 @@ void dialog_field_tune_band(int band) {
         msg_update_text_fmt("The frequency is locked");
         return;
     }
-    int32_t f = field_band_freq(band, is_cw(), band_plan_region());
+    int32_t mode = cparam_i_get(cfg_cur_mode);
+    bool    cw   = is_cw();
+    int32_t f    = field_band_freq(band, cw, band_plan_region());
+
     main_screen_set_freq(f);
-    if (!is_cw() && !main_screen_mode_locked())
-        cparam_i_set(cfg_cur_mode, f < 10000000 ? radio_mode_lsb : radio_mode_usb);
+    /* The band brought its own mode: in CW the CW or CW-R the radio was in, else the frequency's sideband (USB on
+     * 60 m). From CW, 15 m last left in USB gave its CW frequency in USB */
+    mode = cw ? mode : cfg_default_mode(f);
+    if (cparam_i_get(cfg_cur_mode) != mode && !main_screen_mode_locked())
+        cparam_i_set(cfg_cur_mode, mode);
     msg_update_text_fmt("%s: %.3f MHz", field_band_name(band), f / 1e6);
 }
 

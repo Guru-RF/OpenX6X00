@@ -2592,7 +2592,10 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
   does not transmit there; it is already transmitting; or MSG > CW is sending
   or has a beacon on.
 - Use band (or a press) tunes a typical activation frequency of the band,
-  for the band plan's region (see [Band plan](#band-plan)).
+  for the band plan's region (see [Band plan](#band-plan)). In CW or CW-R
+  it is the band's CW frequency, and the radio stays in CW or CW-R; in any
+  other mode it is the band's phone frequency, in its sideband (LSB below
+  10 MHz, USB above and on 60 m).
 - RBN is connected while the screen is open (the first minute fills the
   counts); it needs WiFi and the callsign.
 - The skimmer data comes from the Reverse Beacon Network
@@ -2783,7 +2786,8 @@ apps: APP (page 3) > Bands, or a long-press action.
 - Each band shows its activity bar and word, the cluster / RBN spot counts
   and who heard you (skimmers, best SNR); the best band is framed.
 - MFK to choose, a press (or Use band) tunes a typical frequency of the band
-  (CW or phone, as the radio's mode; for the band plan's region, see [Band plan](#band-plan)).
+  (CW in CW or CW-R, which stays, else phone in the band's sideband; for the band plan's region, see
+  [Band plan](#band-plan)).
 - Test beacon sends `TEST DE <call>` in CW on the band chosen, and then goes
   back to where the radio was, as in [Field Ops](#field-ops-sota--pota). ESC
   closes. A test that is still sending carries on and comes back by itself.
