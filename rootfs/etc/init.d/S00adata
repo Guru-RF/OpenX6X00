@@ -19,9 +19,12 @@
 # ("holds another filesystem") and every later start left it alone ("not FAT32: not touched"), the
 # radio running on the system's /mnt folder. Such a partition is recognised and formatted at the
 # next start, and the new DATA gets what the radio wrote meanwhile on its top level: the settings,
-# the QSO log and the rest carry over.
+# the QSO log and the rest carry over. DATA that worked before and shows nothing to blkid now (its
+# boot sector gone bad) looks the same, and is left alone.
 LOG=/tmp/data_fsck.log
 P3=/dev/mmcblk0p3
+SYS_TRACE=/var/lib/x6100/start_trace    # the start trace on the system partition (.txt, .1.txt)
+MOUNTED=/var/lib/x6100/data_mounted     # DATA was mounted on this card (set when that stops a format)
 
 # A step into the start trace (x6100-starttrace; rcS writes this script's start and end): the check and
 # the format are what can take long here, on a large or a failing card
@@ -174,6 +177,16 @@ unformatted_data_part() {
     after=$((disk - 1 - p3end))
     if [ $before -lt 0 ] || [ $before -gt 16384 ] || [ $after -lt 0 ] || [ $after -gt $((disk / 100 + 16384)) ]; then
         not_ours="sectors $p3start to $p3end, not the free space after the system"
+        return 1
+    fi
+    # Nor is DATA that a start of this system mounted: with nothing blkid knows on it now, its boot
+    # sector went bad (the kernel rewrites it at each mount, fsck.fat at each start that finds it
+    # dirty: a power cut then), its files still there for a PC's repair tools. Each such start
+    # traced its check on the system partition before the mount ("fsck.fat of", since v0.3.6: the
+    # last start's lines are always there); found once, the mark keeps it for the starts after
+    if [ -e $MOUNTED ] || grep -qs "S00adata: fsck.fat of " $SYS_TRACE.txt $SYS_TRACE.1.txt; then
+        [ -e $MOUNTED ] || { mkdir -p ${MOUNTED%/*} && : > $MOUNTED; } 2>/dev/null
+        not_ours="DATA was mounted at an earlier start: damaged, left for a PC's repair tools"
         return 1
     fi
     return 0

@@ -4836,6 +4836,14 @@ partition alone on the PC. One formatted there as FAT32 is used as DATA, with
 those files in `found_on_system`; one formatted as exFAT or NTFS, or holding
 anything else, is never touched, and the radio goes on without DATA.
 
+A DATA drive that worked and later shows as unknown is a different case: its
+first sector (the boot sector) is most likely damaged, by a power cut while
+the radio wrote it at a start. The radio does not format it either ("not
+touched (DATA was mounted at an earlier start ...)" in the trace) and runs
+without DATA meanwhile. The files are most likely still there: copy them off
+with a PC's FAT repair or recovery tool (FAT32 keeps a copy of that sector)
+before you format the partition as FAT32.
+
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
 Check the clock: FT8 and JS8 need it within about 2 s, WSPR within about a
