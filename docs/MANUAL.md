@@ -4741,7 +4741,10 @@ UTC and the seconds since power-on:
    end", ...), with ", exit N" after one that failed, and "init scripts done"
    after the last. S00adata checks the DATA partition at every start and makes
    it at the first start of a new card; its own lines ("S00adata: fsck.fat of
-   ...", "fsck.fat exit N", "formatting ...") show a check that takes long.
+   ...", "fsck.fat exit N", "formatting ...", "... formatted as DATA and
+   mounted") show a check that takes long. A third partition it leaves alone
+   is said with why ("not touched (it holds ext4)"); see also
+   [no DATA drive](#on-a-pc-the-card-has-no-data-drive-only-an-unknown-partition).
 3. "x6100_daemon: GUI start N" before each start of the GUI, then the GUI's
    own lines:
    1. "GUI start", with the version
@@ -4813,6 +4816,25 @@ version, not of the file, which is kept. That start runs on the default
 settings and saves nothing. A version installed by an update is then not
 confirmed: after three such starts, the next start goes back to the version
 before. Please report it, with the run's log from `app_logs`.
+
+#### On a PC the card has no DATA drive, only an unknown partition
+
+Up to v0.3.8 the first start of a newly written card (a new card, or one a
+tool wiped) made the DATA partition but did not format it: a PC shows the
+card's third partition as unknown or RAW, with no drive, and the start trace
+on the system partition says "holds another filesystem: not formatted", then
+"not FAT32: not touched" at every start. The radio worked, but kept its
+settings, QSO log and the rest in the system partition's own `/mnt` folder,
+which a new card image overwrites.
+
+Now the first start after the update recognises that partition, formats it as
+DATA and moves those files onto it: the radio comes up with its own settings
+and log. The start trace says so ("... is the DATA partition an earlier start
+made and never formatted: formatting it", "... formatted as DATA and mounted",
+"files found in the system's /mnt moved to DATA's top level"). Leave the
+partition alone on the PC. One formatted there as FAT32 is used as DATA, with
+those files in `found_on_system`; one formatted as exFAT or NTFS, or holding
+anything else, is never touched, and the radio goes on without DATA.
 
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
@@ -5022,6 +5044,8 @@ The DATA partition, readable on a PC.
 | `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
 | `bootlogo.png` | your own [boot picture](#boot-picture), from the Display page of the web configurator |
+| `data_fsck.log` | what the last start's check of DATA found, or that the start formatted it and moved the system's `/mnt` files onto it |
+| `found_on_system/` | files the radio wrote into the system partition's `/mnt` folder while DATA was there but not mounted, put here at the next start that mounted it |
 
 `cluster.conf` example (the `host=`/`port=` lines are the server in use, each
 `server=` line is a saved server, `name|host|port`):

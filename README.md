@@ -261,6 +261,12 @@ all the same (the [manual](docs/MANUAL.md#web-configurator) says what it
 holds); a card-wiping tool or a smaller card would lose it. For the
 baseband versions and how to update them, see [The baseband](#the-baseband).
 
+Up to v0.3.8 the first start of a newly written card (new, or wiped) left DATA
+unformatted, and the radio kept its settings and logs on the system partition
+(a PC shows the card's third partition as unknown). Now the first start after
+the update formats it and moves them onto it; leave that partition alone on
+the PC ([more](docs/MANUAL.md#on-a-pc-the-card-has-no-data-drive-only-an-unknown-partition)).
+
 <br clear="right">
 
 ## Tailscale
