@@ -125,6 +125,13 @@ screenshot), NR and NB.
 Where: Settings > Keys > HAND MIC KEYS.
 The other hand mic keys: see [Hand mic](#hand-mic).
 
+Two keys at once. Each key counts on its own: a key pressed while PTT is
+held does what it always does, its long press too, and the radio goes back
+to receive the moment PTT is let go. Up to v0.3.8 a key pressed while PTT
+was held (the PTT key on the side or the browser's PTT) kept the radio on
+the air after PTT was let go, until PTT was pressed again, and a key held
+while another one was pressed lost its long press.
+
 Frequency lock. The LOCK key (X6100), the X6100 mic's SPCH key, a
 keyboard's Scroll Lock, the browser panel's LOCK and any key given
 "Frequency lock on/off" in Settings > Keys (a long press of GEN, APP, KEY,

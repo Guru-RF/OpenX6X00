@@ -8,8 +8,9 @@
 
 /* The radio's buttons (front and top side, the knob presses) from their input devices.
  * A button goes to the screen as EVENT_KEYPAD: press, release, and after the hold time
- * long and its release. The VOL press is an LVGL key of its own (KEY_VOL_PRESS), once a
- * press however long it is held; the MFK press is the button of the MFK encoder (encoder.c). */
+ * long and its release, each button on its own while others are down too. The VOL press
+ * is an LVGL key of its own (KEY_VOL_PRESS), once a press however long it is held; the
+ * MFK press is the button of the MFK encoder (encoder.c). */
 
 #include "front_keys.h"
 
@@ -61,22 +62,36 @@ static const struct {
 #define VOL_PRESS BTN_TRIGGER_HAPPY21
 #define MFK_PRESS BTN_TRIGGER_HAPPY27
 
-static event_keypad_t cur;          /* sent by address: the receivers read it at once */
-static lv_timer_t    *hold_timer;
-static uint32_t       hold_ms = HOLD_MS;
+/* Each key on its own: its press, its long press and its release, whatever else is pressed and let go meanwhile.
+ * With one key remembered a release went missing: the side PTT held, a front key tapped, and the PTT's release
+ * found the tapped key's state and sent nothing, the radio on the air until PTT was pressed again. The browser's
+ * PTT lets go through here too: the end of its lease and its three minutes went missing the same way */
+#define KEYS (KEYPAD_FST + 1)   /* FST is the last key */
+
+static struct {
+    bool        down;
+    bool        long_sent;      /* KEYPAD_LONG went: KEYPAD_LONG_RELEASE on the release */
+    lv_timer_t *hold_timer;
+} key_st[KEYS];
+
+static uint32_t hold_ms = HOLD_MS;
 
 void keypad_set_long_time(uint32_t hold) {
     hold_ms = hold ? hold : HOLD_MS;
 }
 
-static void send(keypad_state_t state) {
-    cur.state = state;
-    lv_event_send(lv_scr_act(), EVENT_KEYPAD, &cur);
+static void send(keypad_key_t key, keypad_state_t state) {
+    event_keypad_t ev = {key, state};   /* sent by address: the receivers read it at once */
+
+    lv_event_send(lv_scr_act(), EVENT_KEYPAD, &ev);
 }
 
 static void held_cb(lv_timer_t *t) {
-    send(KEYPAD_LONG);
-    hold_timer = NULL;      /* one shot: LVGL deletes it */
+    keypad_key_t key = (keypad_key_t)(intptr_t)t->user_data;
+
+    key_st[key].hold_timer = NULL;      /* one shot: LVGL deletes it */
+    key_st[key].long_sent  = true;
+    send(key, KEYPAD_LONG);
 }
 
 static keypad_key_t button_of(uint16_t code) {
@@ -91,20 +106,26 @@ static keypad_key_t button_of(uint16_t code) {
 
 /* One input event a call; value 1 is a press, anything else (release, autorepeat) lets go */
 static void button_event(const struct input_event *in) {
-    cur.key = button_of(in->code);
-    if (hold_timer) {
-        lv_timer_del(hold_timer);
-        hold_timer = NULL;
+    keypad_key_t key = button_of(in->code);
+
+    if ((unsigned)key >= KEYS) {
+        return;     /* a key added after FST, which KEYS has no place for */
+    }
+    if (key_st[key].hold_timer) {
+        lv_timer_del(key_st[key].hold_timer);
+        key_st[key].hold_timer = NULL;
     }
     if (in->value == 1) {
-        send(KEYPAD_PRESS);
+        key_st[key].down      = true;
+        key_st[key].long_sent = false;
+        send(key, KEYPAD_PRESS);
         /* POWER's hold switches the radio off: always the full time, also where an app shortens the rest (JS8) */
-        hold_timer = lv_timer_create(held_cb, cur.key == KEYPAD_POWER ? HOLD_MS : hold_ms, NULL);
-        lv_timer_set_repeat_count(hold_timer, 1);
-    } else if (cur.state == KEYPAD_PRESS) {
-        send(KEYPAD_RELEASE);
-    } else if (cur.state == KEYPAD_LONG) {
-        send(KEYPAD_LONG_RELEASE);
+        key_st[key].hold_timer = lv_timer_create(held_cb, key == KEYPAD_POWER ? HOLD_MS : hold_ms,
+                                                 (void *)(intptr_t)key);
+        lv_timer_set_repeat_count(key_st[key].hold_timer, 1);
+    } else if (key_st[key].down) {
+        key_st[key].down = false;
+        send(key, key_st[key].long_sent ? KEYPAD_LONG_RELEASE : KEYPAD_RELEASE);
     }
 }
 
