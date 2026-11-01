@@ -2576,8 +2576,8 @@ Reverse Beacon Network skimmer spots of the last 15 and the skimmers that
 heard you in the last 10 (with the best SNR); the activity as a bar and
 HIGH / GOOD / FAIR / POOR, the best band marked.
 
-- Test beacon sends `TEST DE <call>` three times in CW on the band chosen
-  (the highlighted row), so you can see who hears you there. The radio must
+- Test beacon sends `TEST DE <call> <call> <call>` once in CW on the band
+  chosen (the highlighted row), so you can see who hears you there. The radio must
   be in CW or CW-R. On the band the radio is on, it sends where you are. On
   another band the radio goes to that band's CW frequency (the one Use band
   tunes), sends a second later, and goes back to where it was once the send
@@ -2588,10 +2588,10 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
 - Press Test beacon again to stop the test and go back. Tuning, a band key,
   another mode or Use band during the test also stops it, and the radio
   stays as you set it.
-- The screen says why nothing is sent when: the frequency, band or mode is
-  locked; split or a TX shift would put the carrier somewhere else; the radio
-  does not transmit there; it is already transmitting; or MSG > CW is sending
-  or has a beacon on.
+- The screen says why nothing is sent when: the test is on another band and
+  the frequency, band or mode is locked; split or a TX shift would put the
+  carrier off that band; the radio does not transmit there; it is already
+  transmitting; or MSG > CW is sending or has a beacon on.
 - Use band (or a press) tunes a typical activation frequency of the band,
   for the band plan's region (see [Band plan](#band-plan)). In CW or CW-R
   it is the band's CW frequency, and the radio stays in CW or CW-R; in any
@@ -2785,7 +2785,9 @@ apps: APP (page 3) > Bands, or a long-press action.
 
 
 - Each band shows its activity bar and word, the cluster / RBN spot counts
-  and who heard you (skimmers, best SNR); the best band is framed.
+  and who heard you (skimmers, best SNR); the best band has a thin frame.
+  The band chosen is the filled row: the MFK moves it, and Test beacon and
+  Use band take it.
 - MFK to choose, a press (or Use band) tunes a typical frequency of the band
   (CW in CW or CW-R, which stays, else phone in the band's sideband; for the band plan's region, see
   [Band plan](#band-plan)).
