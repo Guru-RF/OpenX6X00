@@ -2012,6 +2012,20 @@ The keyer's settings are on the KEY button's pages: KEY 1:2 has Speed,
 Volume, Train and Tone, KEY 2:2 Mode, Iambic, QSK time and Ratio. Volume is
 the sidetone's level, 0 to 32 on the X6100 and 0 to 63 on the X6200.
 
+Train is for practice: the key, the paddle, the CW messages and the
+[CW Trainer](#cw-trainer) sound only the sidetone, and nothing goes out.
+
+- While Train is on and the radio is in CW or CW-R (in split, also when
+  the other VFO, the one that transmits, is), the radio holds its TX power
+  at 0 W, in every key mode. In Manual the X6200's base (1.0.8) transmitted
+  at PWR with Train on, from a key or paddle in the KEY jack, up to v0.3.8
+  (issue #127). With Auto-L and Auto-R its keyer already sent nothing.
+- The screen shows ON AIR at 0.0 W while the key is down, and the first
+  time the key goes down it says "KEY Train: sidetone only, 0 W" (not in
+  the CW Trainer).
+- A TUNE for an external tuner keeps its own power, and out of CW and CW-R
+  (voice, the apps) the power is not held. To transmit CW, turn Train off.
+
 ### CW decoder
 
 In CW mode the decoder buttons are on the CW pages: CW 1:2 has ZAP, CW
@@ -2286,7 +2300,8 @@ hint counts down the send.
 ### CW Trainer
 
 APP (page 2) > CW Trainer keys with the radio's own keyer, so it follows the
-KEY settings. While it is open the radio is in train mode: sidetone only, no TX.
+KEY settings. While it is open the radio is in train mode: sidetone only, no TX,
+its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
 
 - KEY button, page KEY 2:2:
   - Mode: Manual is a straight key, only one paddle contact works. Auto-L and
