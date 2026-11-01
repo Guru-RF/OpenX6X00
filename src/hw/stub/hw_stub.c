@@ -206,6 +206,37 @@ static float front_end_gain(bool pre, bool att) {
     return (pre ? pre_gain : 1.0f) * (att ? att_gain : 1.0f);
 }
 
+/* HOST_STUB_CARRIERS=<Hz>: also a weaker carrier on every multiple of that many Hz, which keeps its frequency as
+ * the dial turns (the 1 kHz one goes along with the dial), to see Waterfall Mode Fixed on a PC (#10). The stream
+ * is drawn the other way up (the 1 kHz carrier shows 1 kHz below the dial in SSB): a carrier f above the centre
+ * goes in at -f. Four levels in turn, so they can be told apart. Up to 1 kHz from the stream's edges: one left out
+ * further in, the Fixed waterfall took it for gone there and kept nothing of it on the side tuned away from */
+static void add_band(float _Complex *s, int32_t center, float gain) {
+    const int64_t   reach = SAMPLE_RATE / 2 - 1000;
+    static int      step = -1;
+    static uint64_t n;          /* samples since the start: each carrier's phase goes on across the packets */
+
+    if (step < 0) {
+        const char *e = getenv("HOST_STUB_CARRIERS");
+        step = e && atoi(e) >= 1000 && atoi(e) <= 50000 ? atoi(e) : 0;
+    }
+    if (!step) {
+        return;
+    }
+    for (int64_t f = ((int64_t)center - reach) / step * step + step; f < (int64_t)center + reach; f += step) {
+        double         w   = -2.0 * M_PI * (double)(f - center) / SAMPLE_RATE;
+        float          amp = gain * TONE_AMP * (0.04f + 0.06f * (float)((f / step) % 4));
+        float _Complex ph  = amp * cexpf(I * (float)fmod(w * (double)n, 2.0 * M_PI));
+        float _Complex rot = cexpf(I * (float)w);
+
+        for (int i = 0; i < SAMPLES; i++) {
+            s[i] += ph;
+            ph *= rot;
+        }
+    }
+    n += SAMPLES;
+}
+
 bool hw_flow_read(hw_pack_t *p) {
     uint64_t now = now_ns();
     const uint64_t period = (uint64_t)SAMPLES * 1000000000ULL / SAMPLE_RATE;   /* 5.12 ms */
@@ -236,6 +267,9 @@ bool hw_flow_read(hw_pack_t *p) {
             tone_phase -= 2.0f * (float)M_PI;
         }
         samples[i] = (gain * re) + (gain * im) * I;
+    }
+    if (!tx) {
+        add_band(samples, vfo[reg_i[HW_VFO_CUR] & 1].freq, gain);
     }
 
     memset(p, 0, sizeof(*p));
