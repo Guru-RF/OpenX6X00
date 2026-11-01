@@ -2585,9 +2585,9 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
   the frequency. The band you tested keeps that frequency, in CW, as after
   Use band. Your antenna must suit the band: the test transmits at the power
   set.
-- Press Test beacon again to stop the test and go back. Tuning, a band key
-  or another mode during the test also stops it, and the radio stays as you
-  set it.
+- Press Test beacon again to stop the test and go back. Tuning, a band key,
+  another mode or Use band during the test also stops it, and the radio
+  stays as you set it.
 - The screen says why nothing is sent when: the frequency, band or mode is
   locked; split or a TX shift would put the carrier somewhere else; the radio
   does not transmit there; it is already transmitting; or MSG > CW is sending
