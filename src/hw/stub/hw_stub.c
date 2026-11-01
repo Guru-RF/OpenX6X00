@@ -188,6 +188,24 @@ static float gauss(void) {
     return r * cosf(2.0f * (float)M_PI * u2);
 }
 
+/* What PRE and ATT do to the stream: twice and half the level, or HOST_STUB_FE in dB ("16,52": a preamp of 16 dB
+ * and an attenuator of 52 dB, an X6200 on 80 m in #125), for the S-meter's corrections and their Measure */
+static float front_end_gain(bool pre, bool att) {
+    static float pre_gain = -1.0f, att_gain = 0.5f;
+
+    if (pre_gain < 0.0f) {
+        const char *e = getenv("HOST_STUB_FE");
+        float       p, a;
+
+        pre_gain = 2.0f;
+        if (e && sscanf(e, "%f,%f", &p, &a) == 2 && p >= 0.0f && p <= 60.0f && a >= 0.0f && a <= 80.0f) {
+            pre_gain = powf(10.0f, p / 20.0f);
+            att_gain = powf(10.0f, -a / 20.0f);
+        }
+    }
+    return (pre ? pre_gain : 1.0f) * (att ? att_gain : 1.0f);
+}
+
 bool hw_flow_read(hw_pack_t *p) {
     uint64_t now = now_ns();
     const uint64_t period = (uint64_t)SAMPLES * 1000000000ULL / SAMPLE_RATE;   /* 5.12 ms */
@@ -204,7 +222,7 @@ bool hw_flow_read(hw_pack_t *p) {
     }
 
     bool  tx   = hw_tx_keyed_by_gui();
-    float gain = (vfo[reg_i[HW_VFO_CUR] & 1].pre ? 2.0f : 1.0f) * (vfo[reg_i[HW_VFO_CUR] & 1].att ? 0.5f : 1.0f);
+    float gain = front_end_gain(vfo[reg_i[HW_VFO_CUR] & 1].pre, vfo[reg_i[HW_VFO_CUR] & 1].att);
     float step = 2.0f * (float)M_PI * TONE_HZ / SAMPLE_RATE;
 
     for (int i = 0; i < SAMPLES; i++) {
