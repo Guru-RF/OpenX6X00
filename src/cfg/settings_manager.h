@@ -250,8 +250,13 @@ class SettingsManager {
     // The front end, dB taken off the S-meter reading so it stays put when PRE, ATT or the RF gain
     // change: the preamp's gain, the attenuator's depth, and hundredths of a dB for each RF gain
     // step under 100. Defaults measured on one radio; Settings > TX Cal > S-METER > Measure sets
-    // them for this one (smeter.c, settings_window.cpp)
+    // them for this one (smeter.c, settings_window.cpp). The X6200's preamp gives about 16 dB (two radios, 14 to
+    // 20 dB on 80, 40, 20 and 10 m, #125); its attenuator is the band's, p_band_smeter_att
+#ifdef BOARD_X6200
+    Parameter<int32_t> p_smeter_pre{"smeter_pre", 16, 0, 40,
+#else
     Parameter<int32_t> p_smeter_pre{"smeter_pre", 19, 0, 40,
+#endif
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_smeter_att{"smeter_att", 15, 0, 40,
         StorageType::GLOBAL, pending_writes_, &global_params_};
@@ -499,6 +504,16 @@ class SettingsManager {
     Parameter<int32_t> p_band_smeter_cal{"smeter_cal", -22, [](int32_t v) { return clip(v, -40, 40); },
         StorageType::BAND, pending_writes_, [this] { p_band_smeter_cal.set_quiet(p_smeter_cal.get()); },
         &band_params_};
+#ifdef BOARD_X6200
+    // The attenuator's depth on this band, dB, added back to the S-meter reading with ATT on (smeter.c): the
+    // X6200's takes 29 to 53 dB off depending on the band (two radios, #125), past the one value p_smeter_att
+    // (0..40) the X6100 keeps. Settings > TX Cal > S-METER and its Measure set the band's. A band never set
+    // takes p_smeter_att when one was set before, else the two radios' figure for its frequency (smeter_att_start)
+    static constexpr int32_t SMETER_ATT_MAX = 60;
+    Parameter<int32_t> p_band_smeter_att{"smeter_att", 33, [](int32_t v) { return clip(v, 0, SMETER_ATT_MAX); },
+        StorageType::BAND, pending_writes_, [this] { p_band_smeter_att.set_quiet(smeter_att_start()); },
+        &band_params_};
+#endif
     // BAND VFO params (context_id = bands_id). These are NOT in the band
     // registry: load_band_vfo() loads them in explicit dependency order so the
     // DB restore/clamp rules can reference already-loaded siblings. Up to 1 GHz: the WR12's top
@@ -867,6 +882,12 @@ class SettingsManager {
 
     // The band can be used by the radio as it is set up (band_use): not a 2 m with no transverter or WR12
     bool band_usable(int32_t id) const;
+
+#ifdef BOARD_X6200
+    // p_band_smeter_att on a band never set: p_smeter_att when the database holds one, else the X6200s' figure
+    // for the band's frequency
+    int32_t smeter_att_start() const;
+#endif
 
     // Default mode for a band with none saved: default_mode(freq), AM in the broadcast bands
     int32_t resolve_default_mode(int32_t freq, int32_t band_id) const;

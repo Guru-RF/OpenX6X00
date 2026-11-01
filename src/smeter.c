@@ -33,8 +33,8 @@ static int64_t          peak_ms;                /* when the peak was set */
 static bool             in_tx;        /* TX: the S-meter at rest, framed red, no readings */
 
 /* PRE and ATT shift the reading (by the settings cfg_smeter_pre / cfg_smeter_att, measured or
- * from Settings > TX Cal > S-METER > Measure) and the noise floor: kept here, meter_update() and
- * meter_set_noise() run in the DSP thread */
+ * from Settings > TX Cal > S-METER > Measure; the X6200's attenuator figure is the band's) and the
+ * noise floor: kept here, meter_update() and meter_set_noise() run in the DSP thread */
 static bool             pre_on, att_on;
 #define FLOOR_DB        14.0f
 

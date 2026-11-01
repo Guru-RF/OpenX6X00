@@ -246,7 +246,11 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_waterfall_ref    = &cfg_sm.p_waterfall_ref;
     cfg_smeter_cal       = &cfg_sm.p_band_smeter_cal;
     cfg_smeter_pre       = &cfg_sm.p_smeter_pre;
+#ifdef BOARD_X6200
+    cfg_smeter_att       = &cfg_sm.p_band_smeter_att;   /* the X6200's attenuator: the band's (#125) */
+#else
     cfg_smeter_att       = &cfg_sm.p_smeter_att;
+#endif
     cfg_smeter_rfg       = &cfg_sm.p_smeter_rfg;
     cfg_waterfall_speed  = &cfg_sm.p_waterfall_speed;
     cfg_wf_mode          = &cfg_sm.p_wf_mode;

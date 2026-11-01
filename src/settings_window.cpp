@@ -3636,9 +3636,25 @@ static lv_obj_t * upd_line(uint8_t row);
  * for this one: on a steady signal (a generator at -73 dBm, or a broadcast carrier well over the
  * noise) the meter is read with everything off, then with PRE, with ATT, and at RF gain 40, 1.5 s
  * to settle and 1.5 s of readings each, and what was left over moves the three settings.
- * PRE, ATT and the RF gain go back as they were after, also when the page closes or on TX. */
+ * PRE, ATT and the RF gain go back as they were after, also when the page closes or on TX.
+ * The X6200's attenuator takes 29 to 53 dB off depending on the band (#125): there its figure is the
+ * band's, up to 60 dB, and Measure sets the band's; and the signal has to be S9 or more, so that it
+ * stays over the noise with ATT on. The X6100 has one figure, up to 40 dB, and takes S5 or more. */
+#ifdef BOARD_X6200
+static ParamInt &sm_att = cfg_sm.p_band_smeter_att;
+#define SM_ATT_MAX   SettingsManager::SMETER_ATT_MAX
+#define SM_ATT_WHERE " on this band"
+#define SMC_MIN      S9
+#define SMC_MIN_S    "S9"
+#else
+static ParamInt &sm_att = cfg_sm.p_smeter_att;
+#define SM_ATT_MAX   40
+#define SM_ATT_WHERE ""
+#define SMC_MIN      S5
+#define SMC_MIN_S    "S5"
+#endif
 static param_slider_t sm_pre_slider = {&cfg_sm.p_smeter_pre, 0, 40, 1, "%i dB"};
-static param_slider_t sm_att_slider = {&cfg_sm.p_smeter_att, 0, 40, 1, "%i dB"};
+static param_slider_t sm_att_slider = {&sm_att, 0, SM_ATT_MAX, 1, "%i dB"};
 
 #define SMC_SETTLE   15     /* ticks of 100 ms */
 #define SMC_SAMPLE   15
@@ -3703,6 +3719,13 @@ static void smc_slider_set(lv_obj_t *sl, int32_t v, int32_t step) {
     lv_event_send(sl, LV_EVENT_VALUE_CHANGED, NULL);
 }
 
+#ifdef BOARD_X6200
+/* Another band, its own attenuator figure: the slider follows */
+static void sm_att_follow(Subject *subj, void *slider) {
+    smc_slider_set((lv_obj_t *)slider, static_cast<SubjectInt *>(subj)->get(), 1);
+}
+#endif
+
 static void smc_timer_cb(lv_timer_t *t) {
     static const char *const names[SMC_STEPS] = {"everything off", "PRE on", "ATT on", "RF gain 40"};
     char buf[128];
@@ -3743,9 +3766,14 @@ static void smc_timer_cb(lv_timer_t *t) {
         smc_stop(buf);
         return;
     }
-    if (smc_step == 0 && (smc_read[0] < S5 || smc_read[0] > S9_20)) {
-        snprintf(buf, sizeof(buf), "The signal reads %.0f dB: feed one between S5 and S9+20. Nothing changed.", smc_read[0]);
+    if (smc_step == 0 && (smc_read[0] < SMC_MIN || smc_read[0] > S9_20)) {
+        snprintf(buf, sizeof(buf), "The signal reads %.0f dB: feed one between " SMC_MIN_S " and S9+20. Nothing changed.", smc_read[0]);
         smc_stop(buf);
+        return;
+    }
+    /* At the meter's floor the reading says nothing of the depth (an attenuator figure far too low) */
+    if (smc_step == 2 && smc_read[2] < S1 + 1) {
+        smc_stop("With ATT it read S1: raise Attenuator first. Nothing changed.");
         return;
     }
     if (++smc_step < SMC_STEPS) {
@@ -3755,7 +3783,7 @@ static void smc_timer_cb(lv_timer_t *t) {
 
     /* The readings came through the present corrections: each moves by what was left over */
     int32_t pre = LV_CLAMP(0, lroundf(cfg_sm.p_smeter_pre.get() + (smc_read[1] - smc_read[0])), 40);
-    int32_t att = LV_CLAMP(0, lroundf(cfg_sm.p_smeter_att.get() + (smc_read[0] - smc_read[2])), 40);
+    int32_t att = LV_CLAMP(0, lroundf(sm_att.get() + (smc_read[0] - smc_read[2])), SM_ATT_MAX);
     int32_t rfg = LV_CLAMP(0, lroundf(cfg_sm.p_smeter_rfg.get() + 100.0f * (smc_read[0] - smc_read[3]) / (100 - SMC_RFG_LOW)), 200);
 
     rfg = (rfg + 2) / 5 * 5;    /* the slider's step */
@@ -3764,9 +3792,10 @@ static void smc_timer_cb(lv_timer_t *t) {
     smc_slider_set(smc_sl[1], att, 1);
     smc_slider_set(smc_sl[2], rfg, 5);
     cfg_sm.p_smeter_pre.set(pre);   /* also without the sliders (the page may be gone) */
-    cfg_sm.p_smeter_att.set(att);
+    sm_att.set(att);
     cfg_sm.p_smeter_rfg.set(rfg);
-    snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i dB, RF gain %i.%02i dB a step.", pre, att, rfg / 100, rfg % 100);
+    snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i dB" SM_ATT_WHERE ", RF gain %i.%02i dB a step.", pre, att,
+             rfg / 100, rfg % 100);
     smc_note_set(buf);
 }
 
@@ -3803,9 +3832,12 @@ static uint8_t make_smeter_fe(uint8_t row) {
     smc_sl[0] = param_slider(row_cell(row, 4, 3, SMALL_3), SMALL_3 - 134, &sm_pre_slider);
     lv_obj_add_event_cb(smc_sl[0], ptr_clear_cb, LV_EVENT_DELETE, &smc_sl[0]);
     row++;
-    wl_row_label(row, "Attenuator");
+    wl_row_label(row, "Attenuator" SM_ATT_WHERE);
     smc_sl[1] = param_slider(row_cell(row, 4, 3, SMALL_3), SMALL_3 - 134, &sm_att_slider);
     lv_obj_add_event_cb(smc_sl[1], ptr_clear_cb, LV_EVENT_DELETE, &smc_sl[1]);
+#ifdef BOARD_X6200
+    observers.emplace_back(sm_att.subscribe(sm_att_follow, smc_sl[1]));
+#endif
     row++;
     wl_row_label(row, "RF gain, a step");
     smc_sl[2] = row_slider(row_cell(row, 4, 3, SMALL_3), rfg / 5, 0, 40, SMALL_3 - 134, sm_rfg_cb, NULL,
@@ -3819,7 +3851,7 @@ static uint8_t make_smeter_fe(uint8_t row) {
     row++;
     smc_note = upd_line(row);
     lv_obj_add_event_cb(smc_note, smc_delete_cb, LV_EVENT_DELETE, NULL);
-    lv_label_set_text(smc_note, "Steady carrier in, S5 to S9+20. PRE, ATT and RF gain are tried, then put back.");
+    lv_label_set_text(smc_note, "Steady carrier in, " SMC_MIN_S " to S9+20. PRE, ATT and RF gain are tried, then put back.");
     row++;
     return row;
 }
