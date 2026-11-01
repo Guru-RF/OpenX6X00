@@ -855,7 +855,8 @@ class SettingsManager {
     //     is undefined/missing); a loaded value outside [start,stop] is clamped
     //     to start_freq.
     //   - vfoa_mode: NOT_FOUND/error -> resolve_default_mode(vfoa_freq).
-    //   - vfob_freq: NOT_FOUND -> current vfoa_freq; else clamped as vfoa_freq.
+    //   - vfob_freq: NOT_FOUND -> current vfoa_freq, or with vfoa kept on its own band the
+    //     vfoa_freq this band restores (then saved as vfob's, with vfob_mode); else clamped as vfoa_freq.
     //   - vfob_mode: NOT_FOUND/error -> current vfoa_mode.
     // Restored/clamped values are applied with set_quiet (no deferred write).
     // When `implicit` the active VFO's frequency is kept. When `keep` (an implicit

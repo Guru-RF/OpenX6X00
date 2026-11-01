@@ -968,21 +968,22 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit, bool keep) {
     const bool keep_other = keep && !p_band_split.get();
     const bool keep_a = keep_other && active_vfo == RADIO_VFO_B, keep_b = keep_other && active_vfo == RADIO_VFO_A;
 
+    // A VFO's frequency on this band from what it has saved here: none, the band start (or the default), on what the
+    // radio can tune (4m has no opening frequency and neither radio tunes 70 MHz); one outside the band, clamped.
+    auto freq_here = [&](std::optional<int32_t> saved) {
+        const int32_t start = static_cast<int32_t>(band.value.start_freq);
+        const int32_t stop  = static_cast<int32_t>(band.value.stop_freq);
+        if (!saved) {
+            return have_band ? clamp_to_valid_hw_freq(start) : default_freq;
+        }
+        return have_band && (*saved < start || *saved > stop) ? clamp_to_valid_hw_freq(*saved) : *saved;
+    };
+
     // VFOA frequency: skipped on an implicit switch when VFOA is the active VFO, or kept.
     if (!(implicit && active_vfo == RADIO_VFO_A) && !keep_a) {
-        // vfoa_freq: NOT_FOUND -> band start (or the default), on what the radio can tune (4m has no opening
-        // frequency and neither radio tunes 70 MHz); an out-of-range loaded value is clamped.
         int rc = p_band_vfoa_freq.load(band_id);
-        if (rc == NOT_FOUND) {
-            p_band_vfoa_freq.set_quiet(have_band ? clamp_to_valid_hw_freq(static_cast<int32_t>(band.value.start_freq))
-                                                 : default_freq);
-        } else if (rc == SUCCESS && have_band) {
-            const int32_t freq = p_band_vfoa_freq.get();
-            if (freq < static_cast<int32_t>(band.value.start_freq) ||
-                freq > static_cast<int32_t>(band.value.stop_freq)) {
-                p_band_vfoa_freq.set_quiet(clamp_to_valid_hw_freq(freq));
-            }
-        }
+        p_band_vfoa_freq.set_quiet(freq_here(rc == SUCCESS ? std::optional<int32_t>(p_band_vfoa_freq.get())
+                                                           : std::nullopt));
     }
 
     // VFOA mode/att/pre/agc: kept when VFOA is the inactive VFO kept (keep_a).
@@ -1002,19 +1003,22 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit, bool keep) {
         (void)rc;
     }
 
-    // VFOB frequency: skipped on an implicit switch when VFOB is the active VFO, or kept.
+    // VFOB frequency: skipped on an implicit switch when VFOB is the active VFO, or kept. Clamped like vfoa_freq when
+    // loaded; none saved, the current vfoa_freq. With VFOA kept on its own band (independent VFOs, VFOB taking this
+    // band by a band key, the VFO key or a restart), the frequency VFOA has on this band, else the band start, as
+    // VFOA comes here: VFOA's own from the band it stayed on put VFOB, on 30m for the first time, on 20m's 14.326 (the
+    // dial on 20m, the band 30m) and, the VFO key back from VFOA on 6m, on 50.000 (#137)
+    bool b_new = false;
     if (!(implicit && active_vfo == RADIO_VFO_B) && !keep_b) {
-        // vfob_freq: copies the current vfoa_freq when absent; clamped like
-        // vfoa_freq when loaded.
         int rc = p_band_vfob_freq.load(band_id);
-        if (rc == NOT_FOUND) {
+        if (rc == SUCCESS) {
+            p_band_vfob_freq.set_quiet(freq_here(p_band_vfob_freq.get()));
+        } else if (keep_a) {
+            p_band_vfob_freq.set_quiet(
+                freq_here(storage_policy_for(StorageType::BAND).load_int(band_id, p_band_vfoa_freq.db_name())));
+            b_new = true;
+        } else {
             p_band_vfob_freq.set_quiet(p_band_vfoa_freq.get());
-        } else if (rc == SUCCESS && have_band) {
-            const int32_t freq = p_band_vfob_freq.get();
-            if (freq < static_cast<int32_t>(band.value.start_freq) ||
-                freq > static_cast<int32_t>(band.value.stop_freq)) {
-                p_band_vfob_freq.set_quiet(clamp_to_valid_hw_freq(freq));
-            }
         }
     }
 
@@ -1049,6 +1053,14 @@ void SettingsManager::load_band_vfo(int band_id, bool implicit, bool keep) {
         rc = p_band_vfob_agc.load(band_id);
         if (rc == NOT_FOUND) {
             p_band_vfob_agc.set_quiet(a_here(p_band_vfoa_agc, p_band_vfoa_agc.get()));
+        }
+    }
+
+    // Where VFOB starts on a band new to it, saved as its own there: not saved, the VFO key away and back found it
+    // where VFOA was on this band by then
+    if (b_new) {
+        for (Parameter<int32_t> *p : {&p_band_vfob_freq, &p_band_vfob_mode}) {
+            pending_writes_.write(StorageKey{StorageType::BAND, band_id, p->db_name()}, p->get());
         }
     }
 }

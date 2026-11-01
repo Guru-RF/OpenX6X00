@@ -147,7 +147,12 @@ def main():
                          "indep, band key: band=9 A=21000000 B=7030000",
                          "indep, VFO key: band=3 A=21000000 B=7030000 vfo=1",
                          "indep, restart: band=3 vfo=1 A=21000000 B=7030000",
-                         "indep, band key into split: band=9 A=21000000 B=21010000 split=1")),
+                         "indep, band key into split: band=9 A=21000000 B=21010000 split=1",
+                         # Issue #137: B on a band it has nothing saved on, where A has that band
+                         "#137 band key, B on 30m the first time: band=5 B=10123990 mode=4 dial=5",
+                         "#137 VFO key from A on 6m: band=5 B=10123990 mode=4",
+                         "#137 A tuned on 30m meanwhile: band=5 B=10123990",
+                         "#137 restart: band=5 vfo=1 B=10123990 mode=4")),
             ("settings-rollback.cpp", ("after rollback and retry volume=42 memory=42",)),
             # Issue #104: a transverter's TX power limit and PWR under it
             ("xvtr-power.cpp", ("old settings: limit 1=0 2=0, at 145.5 MHz 0 W", "12 W asked: 10 W",
