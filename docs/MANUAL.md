@@ -5200,7 +5200,9 @@ meanwhile: the web configurator's Files page shows it.
 
 What to do then:
 
-1. Don't let Windows format the drive when it offers to.
+1. Don't let Windows format the drive when it offers to, and don't delete
+   the partition: the next start makes it again, and formats it when it
+   finds nothing of the old filesystem on it, the mark or not.
 2. The files are most likely still there: copy them off on a PC with a
    recovery tool. TestDisk (free) can usually put the boot sector back from
    its copy; the drive then opens again, and the radio uses it as before.
