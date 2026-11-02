@@ -324,6 +324,7 @@ void FTxQsoProcessor::process_73(ftx_msg_meta_t *meta, std::vector<std::string> 
                 _cur_candidate = NULL;
             }
         } else if (Candidate *aside = find_aside(call_de)) {
+            aside->set_msg_type(meta->type);    // its wait for a call again starts over, as at its other messages
             aside->save_qso(_save_qso_cb, true);
         }
     }

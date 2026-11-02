@@ -667,6 +667,30 @@ static void aside(void) {
     slot_end();
     check(logs_of("A1AAA") == 1, "one entry (%d)", logs_of("A1AAA"));
 
+    begin("A put aside 4 slots, its late 73 logs it: its CQ pressed 3 slots after the 73, no second entry");
+    answered_to_r_report();
+    b = rx("CQ B1BBB JN11");
+    press(b);
+    slot_end();
+    our_slot();
+    slot_end();     /* its RR73 not decoded */
+    our_slot();
+    rx("Q1QQQ A1AAA 73");
+    check(logged_once("A1AAA", "IN80", -5, -10, true), "A logged at its 73");
+    slot_end();
+    our_slot();
+    ftx_msg_meta_t acq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(acq);
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(logs_of("A1AAA") == 1 && next_is("A1AAA Q1QQQ 73"), "one entry (%d), 73 to A (%s)", logs_of("A1AAA"),
+          tx.msg);
+
     begin("Five QSOs put aside: the oldest goes, the others' RR73 still logs them");
     static const char *calls[] = {"A1AAA", "B1BBB", "C1CCC", "D1DDD", "E1EEE"};
     char text[40];
