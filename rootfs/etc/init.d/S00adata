@@ -11,7 +11,7 @@
 # whatever it was called. Looked up by label only, such a card left /mnt unmounted and every
 # setting went into the system partition's /mnt folder, lost at the next start and filling the
 # system. A partition found that way gets the label; what was written into the system's /mnt
-# folder in the meantime is moved onto DATA, in found_on_system.
+# folder in the meantime is moved onto DATA, in found_on_system (rescue).
 #
 # The first start of a freshly written card makes DATA in the free space after the system's two
 # partitions and formats it. Up to v0.3.8 that start took blkid's answer for the new partition, its
@@ -113,6 +113,20 @@ find_data() {
     return 1
 }
 
+# found_on_system, on a DATA that holds nothing else, is the copy of a start cut short when each file in
+# it is the system's of that name, or the start of it (the one the copy was at): the system's files all
+# still there. Up to v0.3.8 a start cut short after its copy left a found_on_system of older files
+# there, perhaps the only copy of those settings: not that one
+cut_copy() {
+    files=$(cd /mnt/found_on_system && find . -type f) || return 1
+    printf '%s\n' "$files" | while IFS= read -r f; do
+        f=${f#./}
+        [ -n "$f" ] || continue
+        [ -f "/tmp/sysroot/mnt/$f" ] || exit 1
+        head -c "$(wc -c < "/mnt/found_on_system/$f")" "/tmp/sysroot/mnt/$f" | cmp -s - "/mnt/found_on_system/$f" || exit 1
+    done
+}
+
 # Files written into the system's own /mnt folder while DATA was not mounted: onto DATA. Into
 # found_on_system when DATA has settings of its own (its files stay as they are); onto DATA's top
 # level when it has none: made at this start ($1 new), formatted on a PC or emptied there, and what
@@ -126,10 +140,10 @@ rescue() {
     if [ -n "$(ls -A /tmp/sysroot/mnt 2>/dev/null)" ]; then
         found=/mnt/found_on_system
         made=
-        # DATA that holds nothing but found_on_system is new as well: the start that made it was cut
-        # short in this copy (seconds of a dark screen before the boot picture: a power cut), the
-        # system's files all still there, and the copy goes on in it
-        if [ "$(ls -A /mnt)" = found_on_system ]; then
+        # DATA that holds nothing but found_on_system is new as well when the start that made it was cut
+        # short in this copy (seconds of a dark screen before the boot picture: a power cut): the copy
+        # goes on in it
+        if [ "$(ls -A /mnt)" = found_on_system ] && cut_copy; then
             set -- new
         else
             i=1

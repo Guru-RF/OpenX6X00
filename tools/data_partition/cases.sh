@@ -412,6 +412,22 @@ if want resume_moved; then
     ok "moved part: DATA's top level kept, its found_on_system as it was, the rest in found_on_system.2, system emptied" '[ "$(cat "$F/fs/3/params.db-shm")" = mine ] && [ "$(tree "$F/fs/3/found_on_system")" = "$first" ] && [ -f "$F/fs/3/found_on_system.2/qso_log.db" ] && [ ! -e "$F/fs/3/qso_log.db" ] && [ -z "$(ls -A "$F/sys_mnt")" ]'
 fi
 
+# DATA that holds nothing but a found_on_system of older files (up to v0.3.8 a start cut short after
+# its copy left one, perhaps the only copy of those settings), then a start without DATA: that
+# found_on_system as it was; the newer files on DATA's top level through found_on_system.2
+if want oldfound; then
+    newcard oldfound $C4G
+    boot old; gui_writes; boot old
+    PATH=$H/bin:$PATH mkfs -t vfat -n DATA "$F/dev/mmcblk0p3"
+    mkdir -p "$F/fs/3/found_on_system/app_logs"
+    echo weekend > "$F/fs/3/found_on_system/params.db"
+    echo older > "$F/fs/3/found_on_system/app_logs/x6100_log_20261031_120000.txt"
+    first=$(tree "$F/fs/3/found_on_system"); firstsums=$(sums "$F/fs/3/found_on_system")
+    boot new
+    ok "older found_on_system: as it was" '[ "$(tree "$F/fs/3/found_on_system")" = "$first" ] && [ "$(sums "$F/fs/3/found_on_system")" = "$firstsums" ]'
+    ok "older found_on_system: the system's files on DATA's top level, no found_on_system.2 left, system emptied" '[ "$(walrow "$F/fs/3")" = "$WALROW" ] && [ -f "$F/fs/3/qso_log.db" ] && [ ! -e "$F/fs/3/found_on_system.2" ] && [ -z "$(ls -A "$F/sys_mnt")" ]'
+fi
+
 # p3 formatted FAT32 on a PC (empty, no DATA label), the radio's settings on the system: those on its
 # top level, the radio comes up with them
 if want pcformat; then
