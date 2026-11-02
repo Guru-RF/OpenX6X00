@@ -21,6 +21,8 @@
 #include "styles.h"              /* fonts */
 #include "radio_types.h"
 #include "theme.h"
+#include "msg_box.h"
+#include "screen_main.h"         /* the locks */
 
 static void window_open_cb(lv_obj_t *parent);
 static void window_close_cb(void);
@@ -186,6 +188,17 @@ static bool tune(int16_t row, bool close) {
     const channel_t *c = row < 0 ? NULL : channels_get(row);
 
     if (!c) return false;
+
+    /* LOCK, or an app holding the frequency or the mode (FT8, WSPR, SSTV on the air...): no recall, as the main
+     * knob does not tune. The hand mic's UP/DOWN tuned past them, keyed too */
+    const char *why = main_screen_freq_user_locked() ? "dial locked"
+                      : main_screen_freq_locked()    ? "the app holds the frequency"
+                      : main_screen_mode_locked()    ? "the app holds the mode"
+                                                     : NULL;
+    if (why) {
+        msg_update_text_fmt("Channel not tuned: %s", why);
+        return false;
+    }
 
     recalled = row;
     cparam_i_set(cfg_fg_freq, c->freq);
