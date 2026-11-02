@@ -128,7 +128,10 @@ static void on_volume_change(Subject *subj, void *user_data);
 #ifndef BOARD_X6200
 static void recover_processing_audio_inputs();
 #endif
-static bool tx_refused(void);
+/* Who keys (tx_refused): the CW Trainer's key goes through outside the amateur bands, at 0 W, its PTT quietly not */
+typedef enum { TX_BY_GUI, TX_BY_PTT, TX_BY_MORSE } tx_by_t;
+static bool tx_refused(tx_by_t by);
+static bool tx_refused_at(int32_t freq, tx_by_t by);
 #ifdef BOARD_PWR_MAX_BAT
 static void tune_cap_top(float top);
 #endif
@@ -544,7 +547,7 @@ void radio_set_tx_freq(int32_t freq) {
         }
         return;
     }
-    if (!cfg_is_tx_freq(freq)) {
+    if (!cfg_is_tx_freq(freq)) {    /* the hardware's check: the bands are tx_refused's, at the key */
         LV_LOG_ERROR("TX freq %i incorrect", freq);
         return;
     }
@@ -630,7 +633,11 @@ bool radio_change_spmode(int16_t df) {
 void radio_start_atu() {
     float xvtr;
 
-    if (tx_refused()) {
+    if (tx_refused(TX_BY_GUI)) {
+        return;
+    }
+    /* In split the base's tuner may key on either VFO, which one the GUI cannot tell: the dial too (#121) */
+    if (param_i_get(cfg_band_split) && tx_refused_at(cparam_i_get(cfg_fg_freq), TX_BY_GUI)) {
         return;
     }
     /* The tuner's carrier is the base's own, at a power the GUI does not set: not into a transverter with a TX power
@@ -667,7 +674,7 @@ static uint64_t    swrscan_up_ms;       /* the power last went up */
 
 /* Nothing moves before the scan is known to start: the VFO that transmits goes to `from` only then */
 bool radio_start_swrscan(int32_t from) {
-    if (tx_refused() || !state_move(RADIO_RX, RADIO_SWRSCAN)) {
+    if (tx_refused(TX_BY_GUI) || !state_move(RADIO_RX, RADIO_SWRSCAN)) {
         return false;
     }
 
@@ -812,31 +819,41 @@ void radio_set_charger(bool on) {
     }
 }
 
-/* Keying from the GUI where the radio does not transmit is refused, with a word on the screen: the X6200's FM
- * broadcast and airband, what the WR12 receives, anything above HF that no transverter covers. Where it transmits:
- * radio_tx_freq, the other VFO in split, wherever a TX shift put it. PTT, the modem
- * (the apps), CW, the tuner and the SWR scan come through here; the base's own TX permit covers its hand-mic PTT
- * and paddle */
-static bool tx_refused(void) {
-    int32_t freq = radio_tx_freq();
+/* KEY Train practice in the CW Trainer (#121): its key sounds the sidetone, at 0 W (train_hold) */
+static bool practice(void) {
+    return atomic_load(&train_hold) && cw_trainer_on();
+}
 
+/* Keying from the GUI where the radio may not transmit is refused, with a word on the screen (cfg_tx_refusal): where
+ * the hardware does not (the X6200's FM broadcast and airband, what the WR12 receives, above HF without a
+ * transverter: "receive only"), and on HF outside the amateur bands with TX outside them off (#121). Where it
+ * transmits: radio_tx_freq, the other VFO in split, wherever a TX shift put it. PTT, the modem (the apps), CW, the
+ * tuner and the SWR scan come through here; what the base keys by itself (its hand-mic PTT, VOX, the KEY jack) is
+ * not, it is held at 0 W there instead (band_hold). The CW Trainer's key goes through outside the bands, where the
+ * hardware transmits, its PTT is refused without a word: the key that follows it sounds */
+static bool tx_refused_at(int32_t freq, tx_by_t by) {
     static uint64_t said;
+    char            text[96];
 
-    if (cfg_is_tx_freq(freq)) {
+    if (!cfg_tx_refusal_text(freq, text, sizeof(text))) {
         return false;
     }
-    if (get_time() - said > 3000) {     /* once, not for every CW element */
-        int32_t f = freq < 0 ? -freq : freq;    /* a TX shift below 0 Hz */
-
+    if (by != TX_BY_GUI && practice() && cfg_is_tx_freq(freq)) {
+        return by == TX_BY_PTT;
+    }
+    if (get_time() - said > 5000) {     /* once, not for every CW element nor each slot of a beacon */
         said = get_time();
-        msg_schedule_text_fmt("No TX on %s%d.%03d MHz: receive only", freq < 0 ? "-" : "", f / 1000000,
-                              f / 1000 % 1000);
+        msg_schedule_long_text_fmt("No TX on %s", text);
     }
     return true;
 }
 
+static bool tx_refused(tx_by_t by) {
+    return tx_refused_at(radio_tx_freq(), by);
+}
+
 void radio_set_ptt(bool tx) {
-    if (tx && tx_refused()) {
+    if (tx && tx_refused(TX_BY_PTT)) {
         return;
     }
     WITH_RADIO_LOCK(hw_set_i(HW_PTT, tx));
@@ -861,7 +878,7 @@ static atomic_bool modem_on;    /* read on other threads (Winlink's on_air) whil
 void radio_set_modem(bool tx) {
     static bool moved;
 
-    if (tx && tx_refused()) {
+    if (tx && tx_refused(TX_BY_GUI)) {
         return;
     }
     if (tx && param_i_get(cfg_band_split) && !atomic_load(&split_held)) {
@@ -960,7 +977,7 @@ void radio_set_rec_moni(bool on) {
 }
 
 void radio_set_morse_key(bool on) {
-    if (on && tx_refused()) {
+    if (on && tx_refused(TX_BY_MORSE)) {
         return;
     }
     morse_on = on;
