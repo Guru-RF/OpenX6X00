@@ -2447,13 +2447,15 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   carrier: dahs and the dits after them were lost (a J heard as W, a Z as
   M).
 - A character of your answer the decoder cannot read (dits and dahs that
-  make no character, or a prosign such as AR) shows as `*`, in Learn and
-  Calls, and is wrong; the hint line then says "* = not a character". It
-  takes one place, so the rest of the answer still lines up with the
-  group (the red marks in Calls, Stats in Learn). Up to v0.3.8 it showed
-  as "?", which is itself a character (from level 32): a garbled answer to
-  a "?" counted right. A prosign took four places, and its letters counted
-  for the group's in Stats.
+  make no character, or a prosign such as AR) shows as `<?>`, in Learn and
+  Calls, as the CW decoder panel shows it, and is never right; the hint
+  line then says "`<?> = not a character`". A `?` heard as one still shows
+  as `?`. It counts as one place, so the rest of the answer is still
+  checked against the group place by place (the red marks in Calls, Stats
+  in Learn); in Calls the characters after it stand a little to the right.
+  Up to v0.3.8 it showed as "?", which is itself a character (from level
+  32): a garbled answer to a "?" counted right. A prosign took four places,
+  and its letters counted for the group's in Stats.
 
 
 ## Apps

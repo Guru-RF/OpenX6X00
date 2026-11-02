@@ -12,10 +12,15 @@
 
 /* A place of the answer the decoder found no character for: a code not in its table ("<?>": a keying slip, or the
  * group's last element and the answer run together) or a prosign ("<AR>"). Never in a group or a callsign, so never
- * right, and shown as it is. Up to v0.3.8 "<?>" became "?", a Koch character itself (level 32 on): a garbled answer
- * to "?" counted right, and the two looked the same. A prosign went in as its text, one place taking four: the
- * places after it no longer lined up with the group's, and its letters counted for the group's (the R of "<AR>") */
+ * right. One byte, one place: the checks go place by place. It shows as CWT_NO_CHAR_SHOWN. Up to v0.3.8 "<?>" became
+ * "?", a Koch character itself (level 32 on): a garbled answer to "?" counted right, and the two looked the same. A
+ * prosign went in as its text, one place taking four: the places after it no longer lined up with the group's, and
+ * its letters counted for the group's (the R of "<AR>") */
 #define CWT_NO_CHAR '*'
+
+/* How a place with no character shows in Learn and Calls: as the CW decoder panel (and Practice) shows a code not in
+ * its table. A "?" heard as "?" shows as "?" */
+#define CWT_NO_CHAR_SHOWN "<?>"
 
 /* A character from the decoder (not a space) onto the answer heard[] of size bytes: one place each */
 static inline void cwt_answer_add(char *heard, size_t size, const char *t) {
@@ -25,6 +30,31 @@ static inline void cwt_answer_add(char *heard, size_t size, const char *t) {
         heard[n]     = t[0] && !t[1] ? t[0] : CWT_NO_CHAR;
         heard[n + 1] = 0;
     }
+}
+
+/* A place of the answer as shown: CWT_NO_CHAR as CWT_NO_CHAR_SHOWN, any other character as it is (in one) */
+static inline const char *cwt_place_shown(char c, char one[2]) {
+    if (c == CWT_NO_CHAR) return CWT_NO_CHAR_SHOWN;
+    one[0] = c;
+    one[1] = 0;
+    return one;
+}
+
+/* The answer heard[] as shown, into out of size bytes (3 bytes a place is room for any answer); whole places only */
+static inline const char *cwt_answer_shown(const char *heard, char *out, size_t size) {
+    char   one[2];
+    size_t n = 0;
+
+    for (; *heard; heard++) {
+        const char *s = cwt_place_shown(*heard, one);
+        size_t      l = strlen(s);
+
+        if (n + l >= size) break;
+        memcpy(out + n, s, l);
+        n += l;
+    }
+    out[n] = 0;
+    return out;
 }
 
 #define CWT_ANSWER_MS     3000  /* silence that ends an answer shorter than the group, at least */

@@ -248,12 +248,17 @@ static void element_timer_rules(void) {
 /* ---- The answer: a place for every character -------------------------------------------------------------------- */
 
 static void answer_rules(void) {
-    char        h[32] = "";
+    char        h[32] = "", shown[3 * 32], small[6];
     std::string want  = std::string("K") + CWT_NO_CHAR + CWT_NO_CHAR + "?R";
 
     for (const char *t : {"K", "<?>", "<AR>", "?", "R"}) cwt_answer_add(h, sizeof(h), t);
     printf("The answer: one place a character\n");
     check(want == h, "K, a code in no table, a prosign, ? and R from the decoder: \"%s\", the ? only for the ?", h);
+    cwt_answer_shown(h, shown, sizeof(shown));
+    cwt_answer_shown(h, small, sizeof(small));
+    check(strcmp(shown, "K<?><?>?R") == 0 && strcmp(small, "K<?>") == 0,
+          "shown as \"%s\", a place with no character as the decoder panel's <?>, the ? as ?; in 6 bytes whole places "
+          "only, \"%s\"", shown, small);
 }
 
 /* ---- Learn and Calls, end to end --------------------------------------------------------------------------------- */

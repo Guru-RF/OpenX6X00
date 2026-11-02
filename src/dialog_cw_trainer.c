@@ -267,12 +267,12 @@ static int elements_of(const char *s) {
     return n;
 }
 
-/* Morse of every character of s, separated by spaces; a place with no character (CWT_NO_CHAR) as it is */
+/* Morse of every character of s, separated by spaces; a place with no character (CWT_NO_CHAR) as "<?>" */
 static void morse_line(const char *s, char *out, size_t size) {
     out[0] = 0;
     for (; *s; s++) {
         size_t n = strlen(out);
-        snprintf(out + n, size - n, "%s%s", n ? "  " : "", *s == CWT_NO_CHAR ? "*" : morse_of(*s));
+        snprintf(out + n, size - n, "%s%s", n ? "  " : "", *s == CWT_NO_CHAR ? CWT_NO_CHAR_SHOWN : morse_of(*s));
     }
 }
 
@@ -865,7 +865,7 @@ static void fmt_num(uint32_t v, char *out, size_t size) {
 }
 
 static void refresh_calls(void) {
-    char buf[200], n1[16], n2[16];
+    char buf[200], n1[16], n2[16], shown[HEARD_MAX * 3], one[2];
     bool rev  = st == ST_RESULT;
     int  done = (st == ST_PLAYING || st == ST_LISTEN) ? call_no - 1 : call_no;
 
@@ -878,14 +878,20 @@ static void refresh_calls(void) {
     lv_obj_set_style_text_color(c_call, lv_color_hex(rev ? theme_hex(TC_text) : (st == ST_READY ? COLOR_HEAD : COLOR_NEW)), 0);
     lv_label_set_text(c_call, rev ? target : (st == ST_PLAYING ? "Listen..." : (st == ST_LISTEN ? "Your turn" : "Press Start")));
 
-    /* wrong characters in red once the call is revealed */
-    char *p = buf;
-    for (int i = 0; heard[i] && rev; i++) {
-        bool bad = target[i] == 0 || heard[i] != target[i];
-        p += bad ? sprintf(p, "#%06x %c#", theme_hex(TC_err), heard[i]) : sprintf(p, "%c", heard[i]);
+    /* Wrong characters in red once the call is revealed, each place against the callsign's own place. A place with
+     * no character is a red "<?>", three characters wide: the places after it move to the right, each still in its
+     * own colour. They never stood exactly under the callsign's in this font (a W is four times as wide as an I),
+     * and the colours go by place, not by where a character stands; "<?>" in one place's width would take a font
+     * too small to read */
+    size_t k = 0;
+    buf[0]   = 0;
+    for (int i = 0; heard[i] && rev && k < sizeof(buf); i++) {
+        bool        bad = target[i] == 0 || heard[i] != target[i];
+        const char *s   = cwt_place_shown(heard[i], one);
+        k += bad ? snprintf(buf + k, sizeof(buf) - k, "#%06x %s#", theme_hex(TC_err), s)
+                 : snprintf(buf + k, sizeof(buf) - k, "%s", s);
     }
-    *p = 0;
-    lv_label_set_text(c_keyed, rev ? buf : heard);
+    lv_label_set_text(c_keyed, rev ? buf : cwt_answer_shown(heard, shown, sizeof(shown)));
 
     buf[0] = 0;
     if (rev) {
@@ -899,7 +905,7 @@ static void refresh_calls(void) {
     lv_obj_set_style_text_color(c_res, lv_color_hex(last_ok ? COLOR_OK : COLOR_BAD), 0);
     lv_label_set_text(c_res, buf);
     if (run_done && rev) lv_label_set_text(hint, "Start: a new run of 50 callsigns");
-    else if (rev && strchr(heard, CWT_NO_CHAR)) lv_label_set_text(hint, "* = not a character. Right: +1 WPM, wrong: -1 WPM.");
+    else if (rev && strchr(heard, CWT_NO_CHAR)) lv_label_set_text(hint, CWT_NO_CHAR_SHOWN " = not a character. Right: +1 WPM, wrong: -1 WPM.");
     else lv_label_set_text(hint, "Key back the callsign with the paddle. Right: +1 WPM, wrong: -1 WPM.");
 
     fmt_num(score, n1, sizeof(n1));
@@ -947,7 +953,7 @@ static void refresh_stats(void) {
 static void refresh_ui(void) {
     bool learn = mode == MODE_LEARN, calls = mode == MODE_CALLS, sv = learn && stats_view;
     int  wpm   = param_i_get(cfg_key_speed);
-    char m1[48], m2[48], buf[160];
+    char m1[48], m2[48], buf[160], shown[HEARD_MAX * 3];
 
     set_btn(&btn_play, mode == MODE_PRACTICE || sv);
     set_btn(&btn_skip, mode == MODE_PRACTICE || sv);
@@ -1006,6 +1012,7 @@ static void refresh_ui(void) {
 
     lv_label_set_text(line1, "");
     lv_label_set_text(line2, "");
+    cwt_answer_shown(heard, shown, sizeof(shown));
     switch (st) {
         case ST_READY:
             lv_label_set_text(big, "Press Play");
@@ -1023,14 +1030,14 @@ static void refresh_ui(void) {
             lv_label_set_text(line2, "");
             break;
         case ST_LISTEN:
-            lv_label_set_text(big, heard[0] ? heard : "Your turn");
+            lv_label_set_text(big, heard[0] ? shown : "Your turn");
             lv_obj_set_style_text_color(big, lv_color_hex(heard[0] ? theme_hex(TC_text) : COLOR_NEW), 0);
             lv_label_set_text(hint, "Key the group with the paddle. Replay: hear it again");
             morse_line(target, m1, sizeof(m1));
             snprintf(buf, sizeof(buf), "Sent:   #%06x %s#   %s", theme_hex(TC_accent), target, m1);
             lv_label_set_text(line1, buf);
             morse_line(heard, m2, sizeof(m2));
-            snprintf(buf, sizeof(buf), "Heard: #%06x %s#   %s", theme_hex(TC_text), heard, m2);
+            snprintf(buf, sizeof(buf), "Heard: #%06x %s#   %s", theme_hex(TC_text), shown, m2);
             lv_label_set_text(line2, heard[0] ? buf : "");
             break;
         case ST_RESULT:
@@ -1040,9 +1047,9 @@ static void refresh_ui(void) {
             morse_line(heard, m2, sizeof(m2));
             snprintf(buf, sizeof(buf), "Sent:   #%06x %s#   %s", theme_hex(TC_accent), target, m1);
             lv_label_set_text(line1, buf);
-            snprintf(buf, sizeof(buf), "Heard: #%s %s#   %s", last_ok ? "60ff60" : "ff6060", heard, m2);
+            snprintf(buf, sizeof(buf), "Heard: #%s %s#   %s", last_ok ? "60ff60" : "ff6060", shown, m2);
             lv_label_set_text(line2, buf);
-            snprintf(buf, sizeof(buf), "%s%s", strchr(heard, CWT_NO_CHAR) ? "* = not a character. " : "",
+            snprintf(buf, sizeof(buf), "%s%s", strchr(heard, CWT_NO_CHAR) ? CWT_NO_CHAR_SHOWN " = not a character. " : "",
                      autoplay ? "Next group follows. Pause: stop after this one" : "Start: resume. Skip: another group");
             lv_label_set_text(hint, buf);
             break;
@@ -1192,6 +1199,11 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_set_pos(line1, 0, 90);
     line2 = label(box, &sony_28, COLOR_DIM);
     lv_obj_set_pos(line2, 0, 140);
+    /* Up to 12 px before the side panel (a label draws a quarter of its line height, 8 px, past its width): an answer
+     * with four places or more that are no character ("<?>", in the answer and in its dits and dahs) is wider, and
+     * is cut there instead of running into the characters in use */
+    lv_obj_set_width(line2, W - SIDE_W - 32);
+    lv_label_set_long_mode(line2, LV_LABEL_LONG_CLIP);
     side_score = label(box, &sony_22, theme_hex(TC_text_value));
     lv_obj_set_width(side_score, SIDE_W - 12);
     lv_obj_set_pos(side_score, W - SIDE_W - 12, 0);

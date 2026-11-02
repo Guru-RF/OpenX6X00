@@ -2,7 +2,8 @@
 # The rules alone: which characters MorseText marks as the trainer's own (MorseText::own), and the pause between the
 # trainer's group and the answer not learned (ElementTimer::turn), the word boundary moving up without it, and the
 # decoder going down to 5 WPM only while the trainer is open (ElementTimer::trainer_range), and the answer holding one
-# place a character, "*" for none (cwt_answer_add in src/cw_trainer_answer.h, which the test shares with the trainer).
+# place a character, CWT_NO_CHAR for none, shown as "<?>" (cwt_answer_add and cwt_answer_shown in
+# src/cw_trainer_answer.h, which the test shares with the trainer).
 # Then Learn and Calls end to end (cw_trainer_test.cpp): the radio keys a group with the sidetone, a user keys it back
 # with the keyer 0.3-1.2 s after hearing it, and the decoder hears both through the app's 11025 Hz audio, the resampler
 # and the capture's 100 ms fragments, the sound 30-150 ms behind the key, at 10-30 WPM, from a decoder at 20 WPM. Every
@@ -13,9 +14,9 @@
 # 0.5-1.4 s after them, and at 5 and 6 WPM with KEY Ratio 4.5 and 4 (dahs of 800-1080 ms: the key detector's carrier
 # floor, KeyDetector::trainer_range), and groups of 5 at 10 WPM with Ratio 4.5 (a 0 of 26.5 dots, cwt_answer_ms). Then
 # groups of 1 and 3 of 3 8 B ? with every ? keyed a dit too many (..--..., no character): never right, the ? heard as
-# "*". Last the first 4 groups after the trainer opens, 84 runs of them for each of Learn's groups of 1 and 3 and Calls
-# at 10-15 WPM, the sound 30-250 ms behind the key: the lock finds the tone with the first group, and its first dah can
-# come in pieces then; the same checks, and the decoder's speed at the end.
+# no character. Last the first 4 groups after the trainer opens, 84 runs of them for each of Learn's groups of 1 and 3
+# and Calls at 10-15 WPM, the sound 30-250 ms behind the key: the lock finds the tone with the first group, and its
+# first dah can come in pieces then; the same checks, and the decoder's speed at the end.
 # DEPS: liquid-dsp (host/build.sh puts it in build-host/deps).
 SRC      := ../../src
 DEPS     ?= ../../build-host/deps
