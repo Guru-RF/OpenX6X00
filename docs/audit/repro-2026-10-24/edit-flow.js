@@ -4,8 +4,8 @@
 'use strict';
 const {page} = require('./browser-dom.js');
 
-function open(view, libs, answers) {
-  const p = page(view);
+function open(view, libs, answers, values) {
+  const p = page(view, values);
   libs.forEach(f => p.run(f));
   p.run(p.script, 'views/' + view);
   for (const a of answers) next(p, a[0]).ok(a[1]);
@@ -162,7 +162,8 @@ scenario(() => {
 const slot = (id, f) => ({id: id, frequency: f, mode: 'USB', agc: 'AUTO', pre: false, att: false});
 const chan = (n, f) => ({name: n, frequency: f, mode: 'USB-D', agc: 'FAST', pre: false, att: false});
 function memories() {
-  return open('memories.html', ['static/js/edit_flow.js'], [['/api/memories', {slots: [slot(1, 14074000), slot(2, null)]}], ['/api/channels', {max: 100, channels: [chan('FT8 20', 14074000)]}]]);
+  return open('memories.html', ['static/js/edit_flow.js'], [['/api/memories', {slots: [slot(1, 14074000), slot(2, null)]}], ['/api/channels', {max: 100, channels: [chan('FT8 20', 14074000)]}]],
+              {'mhz[0]': '0.1', 'mhz[1]': '1000.0'});   /* an X6200's */
 }
 scenario(() => {
   const p = memories();
