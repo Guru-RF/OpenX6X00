@@ -1990,11 +1990,7 @@ static void base_gone_cb(void *arg) {
     msg_schedule_long_text_fmt("No data from the base");
     msg_schedule_long_text_fmt("No spectrum, no SWR protection");
     msg_schedule_long_text_fmt("Baseband: Settings > Info");
-#ifdef BOARD_X6200
-    msg_schedule_long_text_fmt("Below 1.0.7: update it (README)");
-#else
-    msg_schedule_long_text_fmt("Base versions: see the README");
-#endif
+    msg_schedule_long_text_fmt("Base versions: see the README");    /* an X6200's below 1.0.7 is not the only case */
     if (*(bool *)arg) {
         start_trace("base: no data in %u s", BASE_GONE_MS / 1000);
     }

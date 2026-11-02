@@ -5344,8 +5344,7 @@ the other:
 - "No data from the base"
 - "No spectrum, no SWR protection"
 - "Baseband: Settings > Info"
-- on the X6200 "Below 1.0.7: update it (README)", on the X6100 "Base
-  versions: see the README"
+- "Base versions: see the README"
 
 Not in the first 30 s after a start (an X6200 on base 1.0.8 has sent its
 first data 16 s after the start), not while the radio transmits and not for
@@ -5374,6 +5373,14 @@ its data in a form OpenX6X00 does not read: update it (README, Updating the
 baseband). On an X6200 with base 1.0.6 (issues #94 and #95) the waterfall
 stayed black, the needle at S1, with no battery reading and no tuner, until
 the base update.
+
+On an X6200 with base 1.0.7 or 1.0.8 the cause is not known yet. OpenX6X00
+reads 1.0.7's data (our X6200 ran it, and in issue #14 its battery and TX
+readings came through), yet the radio in issue #152 shows these signs on
+1.0.7. Update to 1.0.8 all the same: another X6200 with them got it all
+back that way (issue #47). If it stays on 1.0.8, or on an X6100, open an
+issue with a photo of Settings > Info and `base_i2c.log` from the web
+configurator's Files page.
 
 If only the S-meter stays at S1, -121.0 on an X6200 while the waterfall and
 the battery reading work, that is a fault of base 1.0.7 itself (issue #14):
