@@ -51,12 +51,12 @@ bool base_silent_due(uint64_t now_ms, uint64_t start_ms, uint64_t *last_ms) {
     return true;
 }
 
-bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool keyed, uint64_t *tx_ms, bool said) {
+bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool seen, bool keyed, uint64_t *tx_ms, bool said) {
     if (keyed) {
         *tx_ms = now_ms;
         return false;
     }
-    return !said && now_ms - (pack_ms > *tx_ms ? pack_ms : *tx_ms) >= BASE_GONE_MS;
+    return !said && now_ms - pack_ms >= (seen ? BASE_GONE_MS : BASE_GONE_START_MS) && now_ms - *tx_ms >= BASE_GONE_MS;
 }
 
 bool base_guard_log_free(void) {

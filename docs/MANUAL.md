@@ -5126,7 +5126,7 @@ UTC and the seconds since power-on:
       started"
    8. "first frame": the screen is the GUI's from here on
    9. "battery: readings count", 15 to 20 seconds later
-   10. "base: no data in 30 s" when no data has come from the base since
+   10. "base: no data in 60 s" when no data has come from the base since
        the start (see
        [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move))
 4. "x6100_daemon: GUI ended, exit code N" when the GUI stops (139: it crashed),
@@ -5345,15 +5345,15 @@ readings, the TX meters and the SWR protection all come from that data. The
 digital apps still decode: they work on the audio, and FT8 draws its own
 waterfall from it.
 
-After 30 s without data in receive, the radio says so, one message after
-the other:
+After 30 s without data in receive, or 60 s after a start when none has
+come yet, the radio says so, one message after the other:
 
 - "No data from the base"
 - "No spectrum, no SWR protection"
 - "Baseband: Settings > Info"
 - "Base versions: see the README"
 
-Not in the first 30 s after a start (an X6200 on base 1.0.8 has sent its
+Not in the first 60 s after a start (an X6200 on base 1.0.8 has sent its
 first data 16 s after the start), not while the radio transmits from the
 screen, an app, the CW key, a tune or an SWR scan, and not for 30 s after.
 Without the data the radio cannot see a transmission keyed by the hand mic's
@@ -5361,7 +5361,7 @@ PTT, VOX or the KEY jack, so the messages can come during one, TX on the
 screen or not. It is said once, and again only if the data came back and
 stopped again. The base log (`/mnt/base_i2c.log`) gets "no data from the
 base for N ms: said on the screen", and the start trace "base: no data in
-30 s" when none came since the start.
+60 s" when none came since the start.
 
 Meanwhile:
 

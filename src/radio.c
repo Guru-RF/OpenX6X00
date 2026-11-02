@@ -1993,7 +1993,7 @@ static void base_gone_cb(void *arg) {
     msg_schedule_long_text_fmt("Baseband: Settings > Info");
     msg_schedule_long_text_fmt("Base versions: see the README");    /* an X6200's below 1.0.7 is not the only case */
     if (*(bool *)arg) {
-        start_trace("base: no data in %u s", BASE_GONE_MS / 1000);
+        start_trace("base: no data in %u s", BASE_GONE_START_MS / 1000);
     }
 }
 
@@ -2001,11 +2001,11 @@ static void base_gone_cb(void *arg) {
  * waterfall, the S-meter, the battery, the TX meters and the SWR protection stood still, the tuner and the X6200's
  * POWER key did nothing, and only the base log said so ("base silent"). An X6200 base older than 1.0.7 does that:
  * the library reads the packets as 1.0.7 sends them (README, The baseband). Counted from the start, the last packet
- * or the GUI's last TX (base_gone_due, tools/base_guard tests it): not at a start (one X6200 on 1.0.8 sent its first
- * packet 16 s in, #47), not while the GUI keys, and a GUI restart (an update, LOCK's base restart) counts afresh.
- * The TX state alone does not count as keyed: one the GUI keys nothing in is the base's own or one whose PTT off
- * did not get through (radio_tick), which stays TX, and it is said then too. Said once, again only after packets
- * came (radio_tick) and stopped again. True: its line went to the base log */
+ * or the GUI's last TX (base_gone_due, tools/base_guard tests it): BASE_GONE_START_MS at a start (one X6200 on 1.0.8
+ * sent its first packet 16 s in, #47), not while the GUI keys, and a GUI restart (an update, LOCK's base restart)
+ * counts afresh. The TX state alone does not count as keyed: one the GUI keys nothing in is the base's own or one
+ * whose PTT off did not get through (radio_tick), which stays TX, and it is said then too. Said once, again only
+ * after packets came (radio_tick) and stopped again. True: its line went to the base log */
 static bool base_gone(void) {
     static uint64_t tx_time;
     radio_state_t   s = atomic_load(&state);
@@ -2013,7 +2013,7 @@ static bool base_gone(void) {
     bool            keyed = (s != RADIO_RX && s != RADIO_TX) || hw_tx_keyed_by_gui() || atomic_load(&modem_on) ||
                             morse_on;
 
-    if (!base_gone_due(now_time, pack_time, keyed, &tx_time, gone_said) || !base_guard_log_free()) {
+    if (!base_gone_due(now_time, pack_time, base_seen, keyed, &tx_time, gone_said) || !base_guard_log_free()) {
         return false;   /* a line written in this second: the next reset tries again (radio_tick) */
     }
     if (!scheduler_put(base_gone_cb, &never, sizeof(never))) {

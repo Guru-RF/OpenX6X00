@@ -59,12 +59,14 @@ bool base_guard_log_free(void);
 bool base_silent_due(uint64_t now_ms, uint64_t start_ms, uint64_t *last_ms);
 
 #define BASE_GONE_MS         30000   /* no data from the base this long in receive: said on the screen */
+#define BASE_GONE_START_MS   60000   /* and this long from the start before the first packet: one X6200 on 1.0.8
+                                      * sent its first 16 s in (#47), a slower start must not be told it */
 
 /* No data from the base, said on the screen (#152), looked at in each flow reset: true when it is due, BASE_GONE_MS
- * after the later of the last packet (pack_ms: the start before the first) and the GUI's last TX. keyed: the GUI
- * keys, or a tune, an SWR scan or a power-off is under way (a TX with nothing keying it from the GUI is not);
- * *tx_ms is kept here (0 at first). said: told already, until a packet comes */
-bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool keyed, uint64_t *tx_ms, bool said);
+ * after the last packet (seen: one came; else BASE_GONE_START_MS after pack_ms, the start) and BASE_GONE_MS after
+ * the GUI's last TX. keyed: the GUI keys, or a tune, an SWR scan or a power-off is under way (a TX with nothing
+ * keying it from the GUI is not); *tx_ms is kept here (0 at first). said: told already, until a packet comes */
+bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool seen, bool keyed, uint64_t *tx_ms, bool said);
 
 typedef struct {
     uint64_t armed_until;
