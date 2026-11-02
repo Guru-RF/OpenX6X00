@@ -56,6 +56,7 @@ ParamInt         *cfg_spectrum_fill_gradient = nullptr;
 ParamInt         *cfg_smeter_bar_color = nullptr;
 ParamInt         *cfg_swr_color = nullptr;
 ParamInt         *cfg_swr_protect = nullptr;
+ParamInt         *cfg_tx_outside_bands = nullptr;
 ParamFloat       *cfg_tune_pwr    = nullptr;
 ParamInt         *cfg_tune_time   = nullptr;
 ParamInt         *cfg_smeter_lamp         = nullptr;
@@ -238,6 +239,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_smeter_bar_color = &cfg_sm.p_smeter_bar_color;
     cfg_swr_color        = &cfg_sm.p_swr_color;
     cfg_swr_protect      = &cfg_sm.p_swr_protect;
+    cfg_tx_outside_bands = &cfg_sm.p_tx_outside_bands;
     cfg_tune_pwr         = &cfg_sm.p_tune_pwr;
     cfg_tune_time        = &cfg_sm.p_tune_time;
     cfg_smeter_lamp      = &cfg_sm.p_smeter_lamp;

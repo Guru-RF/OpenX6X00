@@ -320,6 +320,17 @@ static int _13_x6200_stock_transverters() {
     return 0;
 }
 
+/* TX outside the amateur bands (#121) starts off on every radio this update reaches. A radio without the row is off
+ * already (the default); the row goes anyway, belt and braces, so whatever wrote one before (a test build of the
+ * change) starts limited. Runs once, on the version step: the switch set on afterwards stays across updates */
+static int _14_tx_outside_bands_off() {
+    if (sqlite3_exec(db, "DELETE FROM params WHERE name = 'tx_outside_bands';", NULL, NULL, NULL) != SQLITE_OK) {
+        printf("Cannot reset TX outside the amateur bands: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+    return 0;
+}
+
 static int (*migrations[])() = {
     _0_init_migrations,
     _1_create_ftx_table,
@@ -335,6 +346,7 @@ static int (*migrations[])() = {
     _11_x6200_transverters_off,
     _12_line_in_restore,
     _13_x6200_stock_transverters,
+    _14_tx_outside_bands_off,
 };
 
 int migrations_apply(void) {

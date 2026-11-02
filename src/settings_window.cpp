@@ -3907,6 +3907,14 @@ static uint8_t make_smeter_fe(uint8_t row) {
     return row;
 }
 
+/* TX outside the amateur bands (#121): off by default, for operators licensed outside them. The receive-only ranges
+ * stay so. The note on a line of its own: beside the switch, VISION's type ran the label into it */
+static uint8_t make_tx_bands(uint8_t row) {
+    row = make_param_switch(row, "TX outside ham bands", cfg_sm.p_tx_outside_bands);
+    lv_label_set_text(upd_line(row), "Only if licensed outside the amateur bands: MARS, CAP");
+    return row + 1;
+}
+
 /* TX CAL: the transmitter's calibration and CESSB, per band where the base keeps them per band */
 static void make_txcal_page() {
     uint32_t caps = radio_caps();
@@ -3935,6 +3943,7 @@ static void make_txcal_page() {
 
     row = card_begin("TX PROTECTION");
     row = make_swr_protect(row);
+    row = make_tx_bands(row);
     card_end(row);
 
     row = card_begin("EXTERNAL TUNER");

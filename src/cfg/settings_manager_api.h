@@ -37,8 +37,18 @@ band_use_t cfg_band_use(int32_t start, int32_t stop);
 bool cfg_is_valid_hw_freq(int32_t freq);
 /* Received but never transmitted on: the X6200's FM broadcast and airband, the WR12's range */
 bool cfg_is_rx_only_freq(int32_t freq);
-/* Transmitted on: HF, a transverter with a shift */
+/* The hardware transmits on freq: HF, a transverter with a shift. Whether the radio may: cfg_tx_refusal */
 bool cfg_is_tx_freq(int32_t freq);
+/* Why the radio may not transmit on freq (#121), NULL: it may. "receive only": the hardware does not transmit there,
+ * whatever the setting; "outside the amateur bands (Settings > TX Cal)": HF outside them (ham_bands.h) with
+ * Settings > TX Cal > TX outside ham bands off. A transverter's range transmits. Any thread */
+const char *cfg_tx_refusal(int32_t freq);
+/* freq as a refusal names it, "27.185 MHz", with the Hz when there are any, "7.3005 MHz": 500 Hz past 40 m read
+ * "7.300", its edge. Into buf */
+const char *cfg_tx_mhz(int32_t freq, char *buf, size_t size);
+/* The same with the frequency, "27.185 MHz: outside the amateur bands (Settings > TX Cal)", into buf for a
+ * "No TX on ..."; NULL: it may */
+const char *cfg_tx_refusal_text(int32_t freq, char *buf, size_t size);
 /* The frequencies transmitted on the same way as freq, [*lo, *hi] (Hz): the range of the transverter it is on (the
  * first, as cfg_transverter_shift_for), else HF 0.1-55 MHz, cut where a transverter before it in that order starts
  * or ends. False when freq is not transmitted on */

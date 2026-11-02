@@ -1,6 +1,7 @@
 #include "settings_manager_api.h"
 
 #include "db.h"
+#include "ham_bands.h"
 #include "settings_manager.h"
 
 #include <algorithm>
@@ -29,6 +30,43 @@ bool cfg_is_rx_only_freq(int32_t freq) {
 
 bool cfg_is_tx_freq(int32_t freq) {
     return cfg_sm.is_tx_freq(freq);
+}
+
+const char *cfg_tx_refusal(int32_t freq) {
+    switch (ham_tx_check(freq, cfg_sm.is_tx_freq(freq), cfg_sm.transverter_shift_for(freq) != 0,
+                         cfg_sm.p_tx_outside_bands.get())) {
+        case HAM_TX_RX_ONLY:
+            return "receive only";
+        case HAM_TX_OFF_BAND:
+            return "outside the amateur bands (Settings > TX Cal)";
+        default:
+            return NULL;
+    }
+}
+
+const char *cfg_tx_mhz(int32_t freq, char *buf, size_t size) {
+    int32_t f      = freq < 0 ? -freq : freq;   /* a TX shift below 0 Hz */
+    int32_t sub    = f % 1000000;
+    int     digits = 3;
+
+    if (sub % 1000) {
+        for (digits = 6; sub % 10 == 0; digits--) sub /= 10;
+    } else {
+        sub /= 1000;
+    }
+    snprintf(buf, size, "%s%d.%0*d MHz", freq < 0 ? "-" : "", (int)(f / 1000000), digits, (int)sub);
+    return buf;
+}
+
+const char *cfg_tx_refusal_text(int32_t freq, char *buf, size_t size) {
+    const char *why = cfg_tx_refusal(freq);
+    char        mhz[24];
+
+    if (!why) {
+        return NULL;
+    }
+    snprintf(buf, size, "%s: %s", cfg_tx_mhz(freq, mhz, sizeof(mhz)), why);
+    return buf;
 }
 
 bool cfg_tx_range(int32_t freq, int32_t *lo, int32_t *hi) {

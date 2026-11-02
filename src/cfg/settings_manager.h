@@ -361,6 +361,10 @@ class SettingsManager {
     // SWR protection: the most SWR a transmission keeps, in tenths (10 = off)
     Parameter<int32_t> p_swr_protect{"swr_protect", 20, 10, 50,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // TX outside the amateur bands (#121): off, only the amateur bands (ham_bands.c) and a transverter's range
+    // transmit; on, wherever the hardware does, for operators licensed there (MARS, CAP...). Receive-only stays so
+    Parameter<int32_t> p_tx_outside_bands{"tx_outside_bands", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // TUNE for an external tuner (ext_tune.h): its power, W (tune_tx.h's range: up to the PWR top, #87), and its time
     // limit, s
     Parameter<float, int32_t, 10> p_tune_pwr{"tune_pwr", 1.0f, 0.1f, BOARD_PWR_MAX,
