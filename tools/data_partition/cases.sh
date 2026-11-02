@@ -461,8 +461,9 @@ if want firstrun; then
 fi
 
 # DATA made and used, then its boot sector gone (sector 0, or the first 64 KiB or 4 MiB as an SD card's
-# flash page or allocation unit can lose them at a power cut): blkid and parted see nothing on p3. 4 MiB
-# on a 4 GB card takes both FATs' first sectors: the mark tells it apart then
+# flash page or allocation unit can lose them at a power cut): blkid and parted see nothing on p3. The
+# mark tells it apart once the boot sector's copy is gone too, the FATs not looked for then (64 MiB
+# read at every start)
 if want damaged; then
     for v in sector0 first64k first4m; do
         newcard "damaged_$v" $C4G
@@ -479,17 +480,18 @@ if want damaged; then
         ok "damaged DATA ($v): the rest of it as it was" '[ "$(p3sum)" = "$sum" ]'
         case $v in
             sector0)  why="a FAT32 whose boot sector went bad, its copy in sector 6 found" ;;
-            first64k) why="a FAT32 whose boot sector went bad, its FAT found" ;;
+            first64k) why="DATA was mounted at an earlier start, its boot sector gone bad since" ;;
             first4m)  why="DATA was mounted at an earlier start, its boot sector gone bad since" ;;
         esac
         ok "damaged DATA ($v): the trace says why and what to do" 'lasttrace | grep -q "not touched ($why); $HINT_BAD"'
         ok "damaged DATA ($v): the same in data_fsck.log on the system's /mnt" 'syslog_says "$HINT_BAD"'
         ok "damaged DATA ($v): the mark kept" 'marked'
+        ok "damaged DATA ($v): the card marked already, the first 64 MiB not read" '! called "^hexdump"'
         grep "not touched" "$F/out.txt" | sed "s|$F/||g; s/^/    | /"
         gui_writes
         rm -f "$F"/sys_trace*.txt
         boot new
-        ok "damaged DATA ($v), the system's trace gone since: still not formatted" '! called "^mkfs" && ! mounted && [ "$(p3sum)" = "$sum" ]'
+        ok "damaged DATA ($v), the system's trace gone since: still not formatted" '! called "^mkfs" && ! mounted && [ "$(p3sum)" = "$sum" ] && ! called "^hexdump"'
     done
 fi
 

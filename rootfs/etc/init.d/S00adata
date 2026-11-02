@@ -83,15 +83,17 @@ found() {
 # FATs still begins with its media mark (f8 ff ff 0f) at the start of a sector: the first after the
 # sectors reserved before it (32, 64 on a card over 32 GB; other counts on a PC), the second after
 # the first, some 3 MiB in on a 4 GB card, 7 on 16 to 64 GB, 59 on 512 GB. Each sector of the first
-# 64 MiB is looked at (hexdump: util-linux's, the first word of each sector as a number). A
-# partition never formatted has none of these. left: what was found, for the trace
+# 64 MiB is looked at (hexdump: util-linux's, the first word of each sector as a number), but not
+# on a card with the mark (mark_data): that keeps the partition from a format already, and a DATA
+# with none of these left would be read that far at every start, seconds of dark screen. A partition
+# never formatted has none of these. left: what was found, for the trace
 fs_left() {
     left=
     if [ "$(blkid -p -O 3072 -o value -s TYPE "$1" 2>/dev/null)" = vfat ]; then
         left="a FAT32 whose boot sector went bad, its copy in sector 6 found"
     elif [ "$(blkid -p -O 6144 -o value -s TYPE "$1" 2>/dev/null)" = exfat ]; then
         left="an exFAT whose boot sector went bad, its copy in sector 12 found"
-    elif hexdump -v -n 67108864 -e '1/4 "%08x\n" 127/4 ""' "$1" 2>/dev/null | grep -qx 0ffffff8; then
+    elif [ ! -e $MOUNTED ] && hexdump -v -n 67108864 -e '1/4 "%08x\n" 127/4 ""' "$1" 2>/dev/null | grep -qx 0ffffff8; then
         left="a FAT32 whose boot sector went bad, its FAT found"
     fi
     [ -n "$left" ]
