@@ -103,12 +103,13 @@ find_data() {
 }
 
 # Files written into the system's own /mnt folder while DATA was not mounted: onto DATA. Into
-# found_on_system when DATA was there already (its own files stay as they are); onto DATA's top
-# level when it was made at this start ($1 new): empty, and what the radio wrote are its settings,
-# log and the rest. All of it is copied first (params.db with its -wal and -shm), then moved up on
-# DATA, and only then taken off the system; a name DATA has already stays in found_on_system. The
-# copy goes into a folder of its own, never over a file DATA has: found_on_system.2, .3 ... when an
-# earlier start left a found_on_system there (its files perhaps the only copy of those settings)
+# found_on_system when DATA has settings of its own (its files stay as they are); onto DATA's top
+# level when it has none: made at this start ($1 new), formatted on a PC or emptied there, and what
+# the radio wrote are its settings, log and the rest. All of it is copied first (params.db with its
+# -wal and -shm), then moved up on DATA, and only then taken off the system; a name DATA has already
+# stays in found_on_system. The copy goes into a folder of its own, never over a file DATA has:
+# found_on_system.2, .3 ... when an earlier start left a found_on_system there (its files perhaps the
+# only copy of those settings)
 rescue() {
     mkdir -p /tmp/sysroot && mount --bind / /tmp/sysroot || return
     if [ -n "$(ls -A /tmp/sysroot/mnt 2>/dev/null)" ]; then
@@ -124,6 +125,14 @@ rescue() {
             while [ -e "$found" ]; do i=$((i + 1)); found=/mnt/found_on_system.$i; done
             made=1
         fi
+        # So is DATA without settings of its own: the radio comes up with those it kept on the system.
+        # Not one with a params.db -wal, -shm or -journal of its own: SQLite would read that into the
+        # params.db moved beside it
+        db=
+        for f in /mnt/params.db /mnt/params.db-wal /mnt/params.db-shm /mnt/params.db-journal; do
+            [ -e "$f" ] && db=1
+        done
+        [ -n "$db" ] || set -- new
         if mkdir -p "$found" && cp -a /tmp/sysroot/mnt/. "$found/"; then
             where=${found#/mnt/}
             if [ "$1" = new ]; then
