@@ -128,6 +128,8 @@ static void band_settle_cb(void *arg);
 static void band_hold_set(bool hold);
 static bool band_hold_early(radio_vfo_t vfo, int32_t freq);
 static void band_look(bool settled);
+static bool split_keys_dial(void);
+static void split_held_look(void);
 static void on_vox_change(Subject *subj, void *user_data);
 static void on_key_train_change(Subject *subj, void *user_data);
 static void on_volume_change(Subject *subj, void *user_data);
@@ -568,12 +570,21 @@ bool radio_check_freq(int32_t freq) {
     return cfg_is_valid_hw_freq(freq);
 }
 
+/* A VFO's frequency from its own param, in_use: the dial's. The param is set before its observers run, cfg_fg_freq
+ * and cfg_bg_freq only after them (ComputedParameter::set): a dial set through cfg_fg_freq read as the old one
+ * meanwhile, in on_vfo_freq_change and on an app's thread, and a hold went on the old one's word (#121) */
+static int32_t vfo_freq(bool in_use) {
+    bool a = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
+
+    return param_i_get(a == in_use ? cfg_band_vfoa_freq : cfg_band_vfob_freq);
+}
+
 /* With a TX shift the frequency the shift asks for, not the other VFO's: that VFO is held to 100 kHz and up, so a
  * shift below 0 Hz left it at 100 kHz, which can transmit and keyed there. This one is refused (tx_refused) and red
  * on the screen instead */
 int32_t radio_tx_freq(void) {
     int32_t shift = param_i_get(cfg_band_tx_shift);
-    int32_t fg = cparam_i_get(cfg_fg_freq);
+    int32_t fg = vfo_freq(true);
 
     if (!param_i_get(cfg_band_split)) {
         return fg;
@@ -581,11 +592,44 @@ int32_t radio_tx_freq(void) {
     if (shift) {
         return param_i_get(cfg_band_current_vfo) == RADIO_VFO_A ? fg + shift : fg - shift;
     }
-    return cparam_i_get(cfg_bg_freq);
+    return vfo_freq(false);
 }
 
-/* The base's split bit off while the active VFO carries the TX frequency (radio_set_tx_freq) */
+/* The base's split bit off while the active VFO carries the TX frequency (radio_set_tx_freq). cur_on_tx: the base's
+ * VFO in use on radio_set_tx_freq's frequency, not the dial, until on_vfo_freq_change sends it its own again (the
+ * knob turned in an app's slot, the slot's end) */
 static atomic_bool split_held;
+static atomic_bool cur_on_tx;
+
+/* In split, whether the base keys the dial, the VFO in use (#121). The X6200's base does whatever split says: 1.0.8
+ * ignores its split bit and has no TX VFO (2026-10-26: the GUI's CW spotted by RBN on VFO A with B 3 kHz up). Either
+ * base does while split is held off, unless radio_set_tx_freq has that VFO on the TX frequency. Otherwise the other
+ * VFO keys (radio_tx_freq). Out of split the dial is radio_tx_freq */
+static bool split_keys_dial(void) {
+    if (!param_i_get(cfg_band_split)) {
+        return false;
+    }
+    if (atomic_load(&split_held)) {
+        return !atomic_load(&cur_on_tx);
+    }
+#ifdef BOARD_X6200
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool radio_key_refused(int32_t *freq) {
+    int32_t f = radio_tx_freq();
+
+    if (!cfg_tx_refusal(f) && split_keys_dial()) {
+        f = vfo_freq(true);
+    }
+    if (freq) {
+        *freq = f;
+    }
+    return cfg_tx_refusal(f) != NULL;
+}
 
 /* The VFO the radio transmits on to `freq`. In split that is the active VFO, with the base's split bit off until
  * radio_set_tx_freq(0): the X6200's base (1.0.8) sent the apps' tone from VFO A whatever B said, an FT8 CQ at
@@ -597,12 +641,15 @@ void radio_set_tx_freq(int32_t freq) {
 
     if (freq == 0) {
         /* Both VFOs on their own frequency, transverter and IF shift as tuned: the one that transmits can have
-         * changed since (split off during an SWR scan left B on a sweep point); one that did not move is not resent */
+         * changed since (split off during an SWR scan left B on a sweep point); one that did not move is not resent.
+         * split_held until the bit is back: either base keys the VFO in use until then, and the dial it goes back to
+         * is held where the radio may not transmit (band_hold_early, #121) */
         on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
         on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
         if (atomic_exchange(&split_held, false)) {
             on_train_hold_change(NULL, NULL);   /* the other VFO transmits again: its CW held, before the bit */
             WITH_RADIO_LOCK(hw_set_i(HW_SPLIT, param_i_get(cfg_band_split)));
+            split_held_look();  /* on the X6100 the other VFO keys again: the dial's hold goes */
         }
         return;
     }
@@ -610,11 +657,21 @@ void radio_set_tx_freq(int32_t freq) {
         LV_LOG_ERROR("TX freq %i incorrect", freq);
         return;
     }
-    if (param_i_get(cfg_band_split) && !atomic_exchange(&split_held, true)) {
+
+    bool held = param_i_get(cfg_band_split) && !atomic_exchange(&split_held, true);
+
+    if (held) {
+        split_held_look();  /* from the bit on the base keys the VFO in use, still on the dial: held there first */
         WITH_RADIO_LOCK(hw_set_i(HW_SPLIT, false));
         on_train_hold_change(NULL, NULL);   /* this VFO transmits now: the other one's CW holds nothing */
     }
-    WITH_RADIO_LOCK(hw_vfo_set_freq(vfo, freq - cfg_transverter_shift_for(freq)));
+    radio_lock();
+    hw_vfo_set_freq(vfo, freq - cfg_transverter_shift_for(freq));
+    atomic_store(&cur_on_tx, true);
+    radio_unlock();
+    if (held) {
+        split_held_look();  /* the dial no longer keys: its hold goes before the app keys */
+    }
 }
 
 uint16_t radio_change_vol(int16_t df) {
@@ -908,8 +965,11 @@ static bool tx_refused_at(int32_t freq, tx_by_t by) {
     return true;
 }
 
+/* The modem goes out on radio_tx_freq (radio_set_tx_freq moves the VFO in use there), PTT and the GUI's CW key on
+ * the X6200 in split on the dial too (split_keys_dial) */
 static bool tx_refused(tx_by_t by) {
-    return tx_refused_at(radio_tx_freq(), by);
+    return tx_refused_at(radio_tx_freq(), by) ||
+           (by != TX_BY_GUI && split_keys_dial() && tx_refused_at(vfo_freq(true), by));
 }
 
 void radio_set_ptt(bool tx) {
@@ -1145,6 +1205,8 @@ static void train_note(void) {
 /* Under the lock: the hold outside the amateur bands on or off (band_hold). The base gets the power, VOX and Train
  * at once; the user's VOX and Train settings stay as saved (on_vox_change, on_key_train_change) */
 static void band_hold_set(bool hold) {
+    int32_t f;
+
     if (hold == atomic_load(&band_hold)) {
         return;
     }
@@ -1155,7 +1217,9 @@ static void band_hold_set(bool hold) {
     set_txpwr(txpwr_asked);
     hw_set_i(HW_VOX, param_i_get(cfg_vox_on) && !hold);
     hw_set_i(HW_KEY_TRAIN, param_i_get(cfg_key_train) || hold);
-    LV_LOG_USER("Radio TX %s: TX at %i", hold ? "held at 0 W, VOX off, KEY Train on" : "hold off", radio_tx_freq());
+    radio_key_refused(&f);  /* the one refused: the dial where the base keys it (split_keys_dial) */
+    LV_LOG_USER("Radio TX %s: TX at %i%s", hold ? "held at 0 W, VOX off, KEY Train on" : "hold off", f,
+                atomic_load(&off_dial) ? ", Birdie Cal off the dial" : "");
 }
 
 /* VOX and KEY Train to the base as set, VOX off and Train on while band_hold holds. Under the lock, which
@@ -1178,18 +1242,20 @@ static void on_key_train_change(Subject *subj, void *user_data) {
  * not (#121), as xvtr_hold does for a transverter's limit (#104): a band key, a memory, a spot or CAT moves the VFOs
  * before the dial's frequency is notified, and a hand-mic PTT held through it sent PWR there meanwhile. The VFO that
  * transmits counts: the one in use, in split the other one; with a TX shift also the one in use at freq + or - the
- * shift (the other VFO follows it, tx_shift_follow, inside its round). The VFO in use in split is not looked at:
- * split going off and the VFO in use changing come to band_look before the base. Holding too early is harmless, the
- * hold goes only after the round (band_settle_cb). True: held here */
+ * shift (the other VFO follows it, tx_shift_follow, inside its round). The VFO in use in split only where the base
+ * keys it (split_keys_dial: the X6200, split held off): elsewhere split going off and the VFO in use changing come
+ * to band_look before the base. Holding too early is harmless, the hold goes only after the round (band_settle_cb).
+ * True: held here */
 static bool band_hold_early(radio_vfo_t vfo, int32_t freq) {
     bool    cur   = vfo == param_i_get(cfg_band_current_vfo);
     bool    split = param_i_get(cfg_band_split);
     int32_t shift = param_i_get(cfg_band_tx_shift);
+    bool    keys  = cur ? !split || split_keys_dial() : split;
 
     if (!band_looked || atomic_load(&band_hold)) {
         return false;   /* not looked at yet (radio_start), or held already */
     }
-    if ((cur != split && cfg_tx_refusal(freq)) ||
+    if ((keys && cfg_tx_refusal(freq)) ||
         (cur && split && shift && cfg_tx_refusal(vfo == RADIO_VFO_A ? freq + shift : freq - shift))) {
         band_hold_set(true);
         return true;
@@ -1237,9 +1303,10 @@ static void band_look(bool settled) {
     char        text[96];
     const char *no;
     bool        hold, later;
+    int32_t     f;
 
     radio_lock();
-    no    = cfg_tx_refusal_text(radio_tx_freq(), text, sizeof(text));
+    no    = radio_key_refused(&f) ? cfg_tx_refusal_text(f, text, sizeof(text)) : NULL;
     hold  = no || atomic_load(&off_dial);
     later = !settled && (no ? gui_keys() : atomic_load(&band_hold));
     band_looked = true;
@@ -1248,7 +1315,7 @@ static void band_look(bool settled) {
     }
     radio_unlock();
     if (later && !scheduler_put_coalesced(band_settle_cb)) {
-        WITH_RADIO_LOCK(band_hold_set(cfg_tx_refusal(radio_tx_freq()) || atomic_load(&off_dial)));
+        WITH_RADIO_LOCK(band_hold_set(radio_key_refused(NULL) || atomic_load(&off_dial)));
     } else if (settled && no && gui_keys() && scheduler_on_gui_thread()) {
         band_stop(no);
     }
@@ -1259,6 +1326,17 @@ static void band_settle_cb(void *arg) {
     band_look(true);
 }
 
+/* split_held came or went, or the VFO in use reached the TX frequency (radio_set_tx_freq): the base keys the dial
+ * or no longer does (split_keys_dial), its hold with it, at once: an app's tone on a TX frequency in the bands is not
+ * held at 0 W by a dial outside them. Any thread, no stop */
+static void split_held_look(void) {
+    radio_lock();
+    if (band_looked) {
+        band_hold_set(radio_key_refused(NULL) || atomic_load(&off_dial));
+    }
+    radio_unlock();
+}
+
 static void on_band_hold_change(Subject *subj, void *user_data) {
     (void)user_data;
     band_look(subj == NULL);
@@ -1267,12 +1345,13 @@ static void on_band_hold_change(Subject *subj, void *user_data) {
 /* The base went into TX by itself while held (the hand mic's PTT, the KEY jack): the screen says why nothing goes out,
  * once while it holds. Not with KEY Train's own hold (train_note says it) nor in the CW Trainer. Radio thread */
 static void band_note(void) {
-    char text[96];
+    char    text[96];
+    int32_t f;
 
     if (!atomic_load(&band_hold) || atomic_load(&train_hold) || cw_trainer_on() || atomic_exchange(&band_said, true)) {
         return;
     }
-    if (cfg_tx_refusal_text(radio_tx_freq(), text, sizeof(text))) {
+    if (radio_key_refused(&f) && cfg_tx_refusal_text(f, text, sizeof(text))) {
         msg_schedule_long_text_fmt("0 W on %s", text);
     } else {
         msg_schedule_text_fmt("0 W during Birdie Cal");
@@ -1314,6 +1393,9 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     int32_t shift = cfg_transverter_shift_for(new_val);
     shift += param_i_get(cfg_band_if_shift);
     radio_lock();
+    if (vfo == param_i_get(cfg_band_current_vfo)) {
+        atomic_store(&cur_on_tx, false);    /* on the dial, not an app's TX frequency: it keys here (band_hold_early) */
+    }
     bool held = xvtr_hold(vfo, new_val);
     bool band = band_hold_early(vfo, new_val);
     bool changed = hw_vfo_set_freq(vfo, new_val - shift);

@@ -633,12 +633,14 @@ static void qrss_start(const char *text) {
 /* A message or a beacon not started where the radio may not transmit (#121): the keyer would go on with each key
  * refused, a beacon for hours */
 static void tx_btn_cb(button_data_t *btn) {
-    char no[96];
+    char    no[96];
+    int32_t f;
 
     (void)btn;
     if (sending()) cw_encoder_stop();
     else if (sel_text() && qrss_on) qrss_start(cw_encoder_expand(sel_text()));
-    else if (sel_text() && cfg_tx_refusal_text(radio_tx_freq(), no, sizeof(no))) msg_update_text_fmt("No TX on %s", no);
+    else if (sel_text() && radio_key_refused(&f))     /* where the key goes out, on the X6200 in split the dial too */
+        msg_update_text_fmt("No TX on %s", cfg_tx_refusal_text(f, no, sizeof(no)));
     else if (sel_text()) {
         if (beacon_on) {
             bcn_sched_t s = sched_set();

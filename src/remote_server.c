@@ -1791,6 +1791,7 @@ static void ptt_down(client_t *c, const char *hold_text) {
     uint32_t hold = hold_text ? (uint32_t)strtoul(hold_text, NULL, 10) : 0;
     int      k    = 0;
     char     no[96];
+    int32_t  f;
 
     while (k < c->nheld && c->held[k] != BTN_TRIGGER_HAPPY4) k++;
     if (!hold) {
@@ -1809,7 +1810,7 @@ static void ptt_down(client_t *c, const char *hold_text) {
     c->ptt_ms = now_ms();
     if (k < c->nheld)
         return;                                 /* down already: the lease renewed, the three minutes count on */
-    if (cfg_tx_refusal_text(radio_tx_freq(), no, sizeof(no))) {
+    if (radio_key_refused(&f) && cfg_tx_refusal_text(f, no, sizeof(no))) {    /* where the PTT would go out (#121) */
         client_textf(c, "err ptt: no TX on %s", no);
         return;
     }

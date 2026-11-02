@@ -484,7 +484,7 @@ the connections on the second.
 
 | Item | Meaning |
 |---|---|
-| VFO-A / VFO-B | the VFO in use; SPL-A / SPL-B when split is on; with a [TX shift](#tx-shift) the shift ("-600k") or REV; red in split when the radio cannot or may not transmit on the other VFO (receive only, or outside the [amateur bands](#amateur-bands-only)) |
+| VFO-A / VFO-B | the VFO in use; SPL-A / SPL-B when split is on; with a [TX shift](#tx-shift) the shift ("-600k") or REV; red in split when the radio cannot or may not transmit on the other VFO (receive only, or outside the [amateur bands](#amateur-bands-only); not for the X6200's dial) |
 | USB-D, LSB, CW... | the mode |
 | AUTO, FAST, SLOW, OFF | the AGC |
 | PRE, ATT, ATU | highlighted when the preamp, the attenuator or the tuner is on |
@@ -1322,10 +1322,15 @@ bands (MARS, CAP and the like): the radio then transmits wherever it can,
 0.1 to 55 MHz. The receive-only ranges stay receive only.
 
 What is checked: the frequency the radio transmits on, the dial, in split
-the other VFO, with a [TX shift](#tx-shift) the shifted one. Not the
-signal's width, nor XIT, nor where an app's tone lands: LSB keyed at 7.000
-MHz, a dial at 14.3495 MHz with +1.5 kHz of XIT, or an FT8 tone near the
-edge go outside the band. Keep the signal inside the band yourself.
+the other VFO, with a [TX shift](#tx-shift) the shifted one. On the X6200
+in split the dial too, for PTT, CW and what the base keys by itself: its
+base keys the VFO you listen on whatever split says. The apps, TUNE and the
+SWR scan move that VFO to the TX frequency first and are checked there. On
+either radio the dial turned while they transmit in split is checked too:
+that VFO then sends them there. Not the signal's width, nor XIT, nor
+where an app's tone lands: LSB keyed at 7.000 MHz, a dial at 14.3495 MHz
+with +1.5 kHz of XIT, or an FT8 tone near the edge go outside the band.
+Keep the signal inside the band yourself.
 
 Refused there, with "No TX on 27.185 MHz: outside the amateur bands
 (Settings > TX Cal)":
@@ -1343,7 +1348,8 @@ Refused there, with "No TX on 27.185 MHz: outside the amateur bands
   goes out on cannot be told), TUNE for an external tuner, the SWR scan (its
   sweep stays inside the band, see [SWR scan](#swr-scan-and-the-tuner)).
 - In split the VFO on the status bar turns red when the other VFO is
-  outside the bands.
+  outside the bands. The X6200's dial outside them does not turn it red:
+  only the words name it.
 - A transmission under way that comes onto such a frequency (a band key, a
   QSY from CAT, TCI or the Panel while PTT is held, an app's slot, a CW
   message, the switch turned off) is stopped: "TX stopped: no TX on 27.185

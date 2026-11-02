@@ -57,6 +57,11 @@ bool radio_check_freq(int32_t freq);
 /* The frequency the radio transmits on: the other VFO's in split; with a TX shift the active one's + the shift
  * (- on VFO B), also where the other VFO cannot follow (below 100 kHz), so that it is refused */
 int32_t radio_tx_freq(void);
+/* Where PTT and the GUI's CW key would go out and the radio may not transmit (#121, cfg_tx_refusal): radio_tx_freq,
+ * and in split the dial too where the base keys it: always on the X6200, whose base keys it whatever split says; on
+ * either radio while split is held off (an app, TCI's audio, a voice message, the SWR scan) and the VFO in use is back
+ * on the dial. *freq (may be NULL): the one refused, for the words. Any thread */
+bool radio_key_refused(int32_t *freq);
 /* The radio transmits on `freq`, without updating a subject: a digital app's tone, the SWR scan. The active VFO
  * moves; in split the base's split bit is off until 0, which puts both VFOs back on their own frequency, IF shift
  * and all, and split back on */
