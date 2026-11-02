@@ -5351,7 +5351,9 @@ Meanwhile:
   transmit into an antenna you don't know.
 - The tuner says "Tuner: no data from the base" and does not tune.
 - The hand mic's keys do nothing, and on the X6200 the POWER key neither:
-  the base reports them in the same data.
+  the base reports them in the same data. The X6100's POWER key has a line
+  of its own and still switches the radio off (up to v0.3.8 it said "Power
+  off" and saved, but the radio stayed on).
 
 Look at Settings > Info > Baseband and at the table of bases in the
 [README](../README.md#the-baseband). An X6200 base older than 1.0.7 sends

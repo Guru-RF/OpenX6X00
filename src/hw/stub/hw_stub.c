@@ -148,6 +148,7 @@ void hw_vfo_set_pre(radio_vfo_t v, bool on) {
 }
 
 void hw_poweroff(void) {
+    fprintf(stderr, "hw_stub: power off\n");     /* the PC build stays on: its log says it was asked */
 }
 
 bool hw_resend_all(void) {

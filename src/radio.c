@@ -2335,6 +2335,13 @@ static bool radio_tick() {
                 now_time - pack_time > ATU_START_MS) {
                 atu_give_up(s, "Tuner: no data from the base");
             }
+            /* The X6100's POWER key is its own, not in the data: radio_poweroff saved, synced and said "Power off",
+             * and only a packet switched the radio off. With none it stayed on. The switch-off is a register write,
+             * which does not need the data */
+            if (s == RADIO_POWEROFF) {
+                WITH_RADIO_LOCK(hw_poweroff());
+                state_move(RADIO_POWEROFF, RADIO_OFF);
+            }
             if (base_gone()) {
                 silent_logged = now_time;   /* its line instead of a "base silent" one: one a second (base_guard_log) */
             } else if (base_silent_due(now_time, start_time, &silent_logged)) {
