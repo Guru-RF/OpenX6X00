@@ -28,8 +28,9 @@ P3=/dev/mmcblk0p3
 SYS_TRACE=/var/lib/x6100/start_trace    # the start trace on the system partition (.txt, .1.txt)
 MOUNTED=/var/lib/x6100/data_mounted     # DATA mounted on this card, or found gone bad: never formatted
 # What to do with a third partition left alone (the trace, data_fsck.log, the manual): DATA that went
-# bad, anything else
+# bad, a FAT32 the radio cannot use as it is, anything else
 DAMAGED="its files are most likely still there: copy them off on a PC with a recovery tool, then format it there as FAT32"
+CHECK="check it on a PC (chkdsk /f on Windows); if that does not help, copy its files off there and format it as FAT32"
 OTHER="for DATA there, format it as FAT32 on a PC"
 
 # A step into the start trace (x6100-starttrace; rcS writes this script's start and end): the check and
@@ -249,7 +250,15 @@ make_data() {
 unformatted_data_part() {
     todo=$OTHER
     probe $P3
-    if [ -n "$sig" ]; then not_ours="it holds $(found)"; return 1; fi
+    if [ -n "$sig" ]; then
+        not_ours="it holds $(found)"
+        # a FAT32 to blkid that parted does not take (start), damaged or made by an odd tool: a check
+        # on a PC first, not a format
+        if [ "$(field TYPE)" = vfat ] && [ "$(field VERSION)" = FAT32 ]; then
+            not_ours="a FAT32 to blkid, not to parted" todo=$CHECK
+        fi
+        return 1
+    fi
     if [ "$(field PART_ENTRY_SCHEME)" != dos ] || [ "$(field PART_ENTRY_NUMBER)" != 3 ]; then
         not_ours="not in a DOS table"
         return 1
@@ -346,6 +355,14 @@ start() {
         # settings and logs survive the new image (checked and mounted like any other start)
         if [ "$(field TYPE)" = vfat ] && [ "$(field LABEL)" = DATA ]; then
             echo "The DATA filesystem of the previous image is still there: kept"
+            check_data
+            return
+        fi
+        # So is a FAT32 formatted there on a PC (another label): the next start would take it up as
+        # the third partition, FAT32 (find_data), and this one does
+        if [ "$(field TYPE)" = vfat ] && [ "$(field VERSION)" = FAT32 ]; then
+            l=$(field LABEL)
+            echo "A FAT32 filesystem is there, label ${l:-none}: kept as DATA"
             check_data
             return
         fi

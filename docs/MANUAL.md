@@ -5169,11 +5169,14 @@ DATA and moves those files onto it: the radio comes up with its own settings
 and log. The start trace says so ("... is the DATA partition an earlier start
 made and never formatted: formatting it", "... formatted as DATA and mounted",
 "files found in the system's /mnt moved to DATA's top level"). Leave the
-partition alone on the PC. One formatted there as FAT32 is used as DATA, and
-as it has no settings of its own (no `params.db`), those files go onto its
-top level the same way: the radio comes up with its settings and log. One
-formatted as exFAT or NTFS, or holding anything else, is never touched, and
-the radio goes on without DATA.
+partition alone on the PC. One formatted there as FAT32 is used as DATA, also
+at the first start after a new card image, and as it has no settings of its
+own (no `params.db`), those files go onto its top level the same way: the
+radio comes up with its settings and log. One formatted as exFAT, NTFS or
+FAT16 (Windows' "FAT"), or holding anything else, is never touched, and the
+radio goes on without DATA. Nor is a FAT32 that the radio's partition tool
+does not read ("not touched (a FAT32 to blkid, not to parted)"): check it on
+a PC first (chkdsk /f on Windows).
 
 A DATA drive that worked and later shows as unknown is a different case: its
 first sector (the boot sector) is most likely damaged, by a power cut while

@@ -2,6 +2,7 @@
 
 HINT_BAD="its files are most likely still there: copy them off on a PC with a recovery tool, then format it there as FAT32"
 HINT_OTHER="for DATA there, format it as FAT32 on a PC"
+HINT_CHECK="check it on a PC (chkdsk /f on Windows); if that does not help, copy its files off there and format it as FAT32"
 
 if want copy; then
     newcard copydiff $C4G
@@ -47,6 +48,35 @@ if want olddata; then
     ok "2nd start: normal" 'grep -q "Fat32 partition already exists" "$F/out.txt" && mounted'
 fi
 
+# A new image over a third partition formatted on a PC: a FAT32 with another label is DATA at once (the
+# next start would take it up all the same); FAT16, which no start takes up, is left alone, said what to do
+if want pcreimage; then
+    for v in fat32 fat16; do
+        newcard "pcreimage${v#fat}" $C4G     # no "fat32" in its path: start's grep reads parted's lines
+        mkp3; "$H/bin/partprobe"
+        if [ $v = fat32 ]; then
+            PATH=$H/bin:$PATH mkfs -t vfat -n VOLUME "$F/dev/mmcblk0p3"
+        else
+            set -- $(p3geom)
+            /usr/bin/mkfs.vfat -F 16 -s 128 -n VOLUME --offset="$1" "$F/card.img" $(($2 / 2)) > /dev/null
+        fi
+        mkdir -p "$F/fs/3/System Volume Information"; echo mine > "$F/fs/3/notes.txt"
+        uuid=$(pf 3 UUID)
+        sfdisk -q --delete "$F/card.img" 3; "$H/bin/partprobe"
+        boot new
+        if [ $v = fat32 ]; then
+            ok "fat32: kept as DATA at once, checked, labelled, mounted, the card marked" 'grep -q "A FAT32 filesystem is there, label VOLUME: kept as DATA" "$F/out.txt" && ! called "^mkfs" && called "^fsck.fat" && called "^fatlabel .*p3 DATA" && mounted && marked'
+            ok "fat32: the same filesystem, its files as they were" '[ "$(pf 3 UUID)" = "$uuid" ] && [ "$(cat "$F/fs/3/notes.txt")" = mine ]'
+            boot new
+            ok "fat32, next start: normal" 'grep -q "Fat32 partition already exists" "$F/out.txt" && mounted && ! called "^mkfs"'
+        else
+            ok "fat16: not formatted, said what to do" '[ "$(pf 3 VERSION)" = FAT16 ] && grep -q "holds another filesystem (vfat): not formatted; $HINT_OTHER" "$F/out.txt" && ! called "^mkfs" && ! mounted'
+            boot new
+            ok "fat16, next start: not touched (it holds vfat), the same advice" 'grep -q "not FAT32: not touched (it holds vfat); $HINT_OTHER" "$F/out.txt" && ! called "^mkfs" && [ "$(pf 3 UUID)" = "$uuid" ]'
+        fi
+    done
+fi
+
 # A new image over a card whose third partition holds ext4 or NTFS: left alone, and said what to do
 for kind in ext4 ntfs; do
     want "$kind" || continue
@@ -72,7 +102,7 @@ done
 
 if want handmade; then
     # Third partitions with nothing on them that are not as S00adata makes them
-    for v in type83 short four rc8; do
+    for v in type83 short four rc8 blkidonly; do
         newcard "hand_$v" $C4G
         mkp3
         set -- $(p3geom)
@@ -83,9 +113,11 @@ if want handmade; then
             four)   sfdisk -q --delete "$F/card.img" 3
                     printf '%s\n' "$1,$(($2 - 2097152)),c" "$(($1 + $2 - 2097152)),,83" | sfdisk -q -a "$F/card.img" ;;
             rc8)    printf 'rc=8\n' > "$F/probe_override_3" ;;
+            blkidonly) printf 'rc=0\nTYPE=vfat\nVERSION=FAT32\nLABEL=ODD\n' > "$F/probe_override_3" ;;   # parted sees none
         esac
         boot new
         ok "$v: not touched, not formatted" 'grep -q "not FAT32: not touched" "$F/out.txt" && ! called "^mkfs" && ! mounted'
+        [ $v = blkidonly ] && ok "blkidonly: a FAT32 to blkid only, check it on a PC" 'grep -q "not touched (a FAT32 to blkid, not to parted); $HINT_CHECK" "$F/out.txt"'
         grep "not touched" "$F/out.txt" | sed "s|$F/||g; s/^/    | /"
     done
     # The fresh path with a probe that cannot tell (two signatures)
