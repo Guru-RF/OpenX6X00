@@ -131,6 +131,7 @@ var renderSlots = function(data) {
 
 var renderChannels = function(data) {
   max = data.max;
+  if (data.error) showStatus("channels", data.error, true);   // channels.json the radio can't read either: left alone
   return EditFlow.rebuild(chBody, function() { chBody.empty(); data.channels.forEach(function(c, i) { chBody.append(channelRow(c, i, data.channels.length)); }); });
 }
 

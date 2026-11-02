@@ -2823,7 +2823,8 @@ def gui_channel(x):
 def channels_load():
     """channels.json as the GUI reads it (channels_load in src/channel_list.c): the file's object, and each entry
     of its "channels" list the GUI keeps, the first 100, as (its place in the list, the channel). An entry the GUI
-    leaves out is left out alone. No file: no channels. ValueError for a file the GUI can't read either"""
+    leaves out is left out alone. No file: no channels. ValueError for a file the GUI can't read either: the radio
+    keeps the list it has then, and the page must not write over the file"""
     try:
         with open(settings.CHANNELS_FILE, "rb") as f:
             doc = cjson_loads(f.read())
@@ -2839,42 +2840,49 @@ def channels_load():
     return doc, kept
 
 
-def read_channels():
-    """The channels the GUI keeps of channels.json, [] when it can't be read"""
-    try:
-        return [c for _, c in channels_load()[1]]
-    except (OSError, ValueError):
-        return []
+def channels_unreadable(ex):
+    return f"channels.json can't be read ({ex}): the page leaves it as it is. A change in APP → Channels on the " \
+           "radio writes it anew"
 
 
-def write_channels(channels):
+def write_channels(doc):
+    """The file whole again, the bytes of each string as they were read: an entry left as it was means to the GUI
+    what it meant (a name not in UTF-8 too). No NaN or Infinity, which the GUI can't read"""
     def write(f):
-        json.dump({"version": 1, "channels": channels}, f, indent="\t")
+        json.dump(doc, f, indent="\t", ensure_ascii=False, allow_nan=False)
         f.write("\n")
-    replace_file(settings.CHANNELS_FILE, write)
+    replace_file(settings.CHANNELS_FILE, write, encoding="utf-8", errors="surrogateescape")
 
 
 def channels_state():
-    return {"channels": read_channels(), "max": CHANNELS_MAX}
+    try:
+        return {"channels": [c for _, c in channels_load()[1]], "max": CHANNELS_MAX}
+    except (OSError, ValueError) as ex:
+        return {"channels": [], "max": CHANNELS_MAX, "error": channels_unreadable(ex)}
 
 
 def channels_edit(change):
-    """Read, change (raises ValueError), write, return the new list."""
+    """Read, change (raises ValueError), write, return the new list. change(entries, places) changes the file's
+    "channels" list itself; places[i] is where channel i of the page is in it. Every other entry goes back into the
+    file as it was, also one the GUI leaves out: the page never drops what it doesn't show"""
     with config_lock:
-        channels = read_channels()
         try:
-            change(channels)
+            doc, kept = channels_load()
+        except (OSError, ValueError) as ex:
+            return api_error(500, channels_unreadable(ex))
+        try:
+            change(doc["channels"], [place for place, _ in kept])
         except ValueError as ex:
             return api_error(400, str(ex))
         try:
-            write_channels(channels)
-        except OSError as ex:
+            write_channels(doc)
+        except (OSError, ValueError) as ex:
             return api_error(500, f"Can't save: {ex}")
     return channels_state()
 
 
-def check_index(channels, i):
-    if not 0 <= i < len(channels):
+def check_index(places, i):
+    if not 0 <= i < len(places):
         raise ValueError("No such channel")
 
 
@@ -2885,37 +2893,41 @@ def get_channels():
 
 @app.post('/api/channels')
 def add_channel():
-    def change(channels):
-        if len(channels) >= CHANNELS_MAX:
+    def change(entries, places):
+        if len(places) >= CHANNELS_MAX:
             raise ValueError(f"At most {CHANNELS_MAX} channels")
-        channels.append(parse_entry(bottle.request.json, True))
+        entries.append(parse_entry(bottle.request.json, True))
     return channels_edit(change)
 
 
 @app.put('/api/channels/<i:int>')
 def set_channel(i):
-    def change(channels):
-        check_index(channels, i)
-        channels[i] = parse_entry(bottle.request.json, True)
+    def change(entries, places):
+        check_index(places, i)
+        entries[places[i]] = parse_entry(bottle.request.json, True)
     return channels_edit(change)
 
 
 @app.delete('/api/channels/<i:int>')
 def delete_channel(i):
-    def change(channels):
-        check_index(channels, i)
-        del channels[i]
+    def change(entries, places):
+        check_index(places, i)
+        del entries[places[i]]
     return channels_edit(change)
 
 
 @app.post('/api/channels/<i:int>/move')
 def move_channel(i):
-    def change(channels):
-        check_index(channels, i)
+    def change(entries, places):
+        check_index(places, i)
         to = (bottle.request.json or {}).get("to")
-        if isinstance(to, bool) or not isinstance(to, int) or not 0 <= to < len(channels):
+        if isinstance(to, bool) or not isinstance(to, int) or not 0 <= to < len(places):
             raise ValueError("Invalid position")
-        channels.insert(to, channels.pop(i))
+        # The channels change places among themselves; an entry the GUI leaves out stays where it is
+        moved = [entries[p] for p in places]
+        moved.insert(to, moved.pop(i))
+        for p, x in zip(places, moved):
+            entries[p] = x
     return channels_edit(change)
 
 
