@@ -24,10 +24,10 @@
 #include "utils.h"              /* ftx_slot_offset_ns */
 #include "worker.h"
 
-/* FT8 and FT4 go out from 0.5 s into the slot, where the far end reads DT 0, as WSJT-X sends. Started when the slot's
- * last decode and the radio let it, anywhere up to 1.5 s in, the far end read our DT move from one transmission to
- * the next. A fixed lead of the keying and the audio path (PulseAudio, the codec, the base) still adds to it: measured
- * on the air, it comes off here */
+/* FT8 and FT4 go out from 0.5 s into the slot, as WSJT-X sends. Started when the slot's last decode and the radio let
+ * it, anywhere up to 1.5 s in, the far end read our DT move from one transmission to the next. The keying and the
+ * audio path (PulseAudio, the codec, the base) add a fixed lead, not measured yet: the DT the far end reads on the
+ * air, it comes off here, and only then is that DT 0 */
 #define TX_START_NS     500000000LL
 #define FADE_IN_HZ      200     /* a waveform cut into starts with a 1/200 s (5 ms) ramp: no click on the air */
 

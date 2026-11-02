@@ -1660,11 +1660,11 @@ Buttons:
   CQ to call on this frequency"), and one press calls again there. A reply,
   yours or Auto's, takes the CQ's place and turns it off too. TX Call allows
   or stops transmitting; stopping cuts a transmission in progress.
-- An FT8 or FT4 transmission starts 0.5 s into its slot, where the other
-  station reads DT 0, as WSJT-X sends. One that can only start later (a
-  press up to 1.5 s into the slot, an answer after a long last decode)
-  leaves out the part already past, so the rest of the message is where it
-  belongs. FT2 starts as soon as it can (see FT2 below).
+- An FT8 or FT4 transmission starts 0.5 s into its slot, as WSJT-X sends.
+  One that can only start later (a press up to 1.5 s into the slot, an
+  answer after a long last decode) leaves out the part already past, so the
+  rest of the message is where it belongs. FT2 starts as soon as it can (see
+  FT2 below).
 - Hold Freq: your TX offset does not move to the station you answer.
 - Auto: the next message of the QSO is sent by itself, and a station that
   calls you gets an answer, also while you call CQ (what other programs call
