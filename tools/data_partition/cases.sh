@@ -49,16 +49,18 @@ if want olddata; then
 fi
 
 # A new image over a third partition formatted on a PC: a FAT32 with another label is DATA at once (the
-# next start would take it up all the same); FAT16, which no start takes up, is left alone, said what to do
+# next start would take it up all the same); FAT16, which no start takes up, is left alone, said what to do,
+# labelled DATA as well
 if want pcreimage; then
-    for v in fat32 fat16; do
+    for v in fat32 fat16 fat16data; do
         newcard "pcreimage${v#fat}" $C4G     # no "fat32" in its path: start's grep reads parted's lines
         mkp3; "$H/bin/partprobe"
+        l=VOLUME; [ $v = fat16data ] && l=DATA
         if [ $v = fat32 ]; then
-            PATH=$H/bin:$PATH mkfs -t vfat -n VOLUME "$F/dev/mmcblk0p3"
+            PATH=$H/bin:$PATH mkfs -t vfat -n $l "$F/dev/mmcblk0p3"
         else
             set -- $(p3geom)
-            /usr/bin/mkfs.vfat -F 16 -s 128 -n VOLUME --offset="$1" "$F/card.img" $(($2 / 2)) > /dev/null
+            /usr/bin/mkfs.vfat -F 16 -s 128 -n $l --offset="$1" "$F/card.img" $(($2 / 2)) > /dev/null
         fi
         mkdir -p "$F/fs/3/System Volume Information"; echo mine > "$F/fs/3/notes.txt"
         uuid=$(pf 3 UUID)
@@ -70,9 +72,9 @@ if want pcreimage; then
             boot new
             ok "fat32, next start: normal" 'grep -q "Fat32 partition already exists" "$F/out.txt" && mounted && ! called "^mkfs"'
         else
-            ok "fat16: not formatted, said what to do" '[ "$(pf 3 VERSION)" = FAT16 ] && grep -q "holds another filesystem (vfat): not formatted; $HINT_OTHER" "$F/out.txt" && ! called "^mkfs" && ! mounted'
+            ok "$v: not formatted, not checked or mounted, said what to do" '[ "$(pf 3 VERSION)" = FAT16 ] && [ "$(pf 3 LABEL)" = $l ] && grep -q "holds another filesystem (vfat): not formatted; $HINT_OTHER" "$F/out.txt" && ! called "^mkfs" && ! called "^fsck.fat" && ! mounted'
             boot new
-            ok "fat16, next start: not touched (it holds vfat), the same advice" 'grep -q "not FAT32: not touched (it holds vfat); $HINT_OTHER" "$F/out.txt" && ! called "^mkfs" && [ "$(pf 3 UUID)" = "$uuid" ]'
+            ok "$v, next start: not touched (it holds vfat), the same advice" 'grep -q "not FAT32: not touched (it holds vfat); $HINT_OTHER" "$F/out.txt" && ! called "^mkfs" && ! mounted && [ "$(pf 3 UUID)" = "$uuid" ]'
         fi
     done
 fi

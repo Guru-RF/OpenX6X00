@@ -380,19 +380,19 @@ start() {
     if [ -n "$sig" ]; then
         # A card image is smaller than the card: a new image leaves the old DATA filesystem
         # where it was, only its partition entry is gone. Made again, it is the same DATA:
-        # settings and logs survive the new image (checked and mounted like any other start)
-        if [ "$(field TYPE)" = vfat ] && [ "$(field LABEL)" = DATA ]; then
-            echo "The DATA filesystem of the previous image is still there: kept"
-            check_data
-            return
-        fi
+        # settings and logs survive the new image (checked and mounted like any other start).
         # So is a FAT32 formatted there on a PC (another label): the next start would take it up as
-        # the third partition, FAT32 (find_data), and this one does. Not one parted does not read, which
-        # the next start would leave alone (unformatted_data_part)
+        # the third partition, FAT32 (find_data), and this one does. Not one parted does not read,
+        # nor a FAT16 (labelled DATA or not), which the next start would leave alone
+        # (unformatted_data_part)
         if [ "$(field TYPE)" = vfat ] && [ "$(field VERSION)" = FAT32 ]; then
             if parted -m -s /dev/mmcblk0 print | grep -q '^3:[^:]*:[^:]*:[^:]*:fat32:'; then
                 l=$(field LABEL)
-                echo "A FAT32 filesystem is there, label ${l:-none}: kept as DATA"
+                if [ "$l" = DATA ]; then
+                    echo "The DATA filesystem of the previous image is still there: kept"
+                else
+                    echo "A FAT32 filesystem is there, label ${l:-none}: kept as DATA"
+                fi
                 check_data
                 return
             fi
