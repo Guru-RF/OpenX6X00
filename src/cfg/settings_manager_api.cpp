@@ -86,6 +86,9 @@ bool cfg_tx_range(int32_t freq, int32_t *lo, int32_t *hi) {
         }
         *lo = r[k].from;
         *hi = r[k].to;
+        if (k == std::size(r) - 1 && !cfg_sm.p_tx_outside_bands.get() && !ham_band_of(freq, lo, hi)) {
+            return false;   /* HF outside the amateur bands (#121) */
+        }
         for (size_t j = 0; j < k; j++) {    /* one before it covers part of it: there the radio goes another way */
             if (!r[j].on) {
                 continue;

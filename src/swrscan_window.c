@@ -61,13 +61,13 @@ dialog_t *dialog_swrscan = &dialog;
 
 /* A flat 1.0 line and the scan back at the low edge of the span, around the frequency the radio transmits on
  * (the other VFO in split, a TX shift's). The sweep stays where the radio transmits the same way (#107): a span past
- * the edge of HF (0.1 or 55 MHz) or of a transverter's range moves inside it, and one wider than the range takes all
- * of it. A point outside used to be refused by the radio, and the scan read the last frequency again */
+ * the edge of HF (0.1 or 55 MHz), of a transverter's range or of the amateur band (with TX outside the amateur bands
+ * off, #121) moves inside it, and one wider than the range takes all of it: 2.5 MHz on 40 m sweeps 7.0-7.3, the
+ * frequencies on the plot say so. A point outside used to be refused by the radio, and the scan read the last
+ * frequency again. The points as many as the sweep's own width wants */
 static void reset_scan() {
     int32_t lo, hi;
 
-    points = span_hz >= 1000000 ? POINTS_WIDE : POINTS;
-    for (int i = 0; i < points; i++) swr[i] = smooth[i] = 1.0f;
     pos = 0;
     f_center = radio_tx_freq();
     f_low = f_center - span_hz / 2;
@@ -81,6 +81,8 @@ static void reset_scan() {
             f_high = hi;
         }
     }
+    points = f_high - f_low >= 1000000 ? POINTS_WIDE : POINTS;
+    for (int i = 0; i < points; i++) swr[i] = smooth[i] = 1.0f;
 }
 
 /* The plot's x of a frequency in the sweep */
@@ -231,7 +233,15 @@ static void scan_step(float v) {
     radio_set_tx_freq(f_low + (int64_t)(f_high - f_low) * pos / points);
 }
 
+/* The dial moved: the sweep around it again. Moved where the radio may not transmit (#121), the scan stops, as if
+ * Stop was pressed: the VFO settings back as before the scan, the dial with them */
 static void freq_changed(Subject *subj, void *user_data) {
+    char no[96];
+
+    if (scanning && cfg_tx_refusal_text(radio_tx_freq(), no, sizeof(no))) {
+        dialog_swrscan_stop(no);
+        return;
+    }
     reset_scan();
     lv_obj_invalidate(plot);
 }
@@ -359,4 +369,10 @@ static const char *span_label() {
 
 void dialog_swrscan_update(float vswr) {
     if (scanning) scan_step(vswr);
+}
+
+void dialog_swrscan_stop(const char *no) {
+    if (!scanning) return;
+    run_cb(NULL);
+    msg_update_text_fmt("SWR scan stopped: no TX on %s", no);
 }

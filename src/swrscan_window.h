@@ -18,6 +18,9 @@ extern dialog_t *dialog_swrscan;
 
 /* radio.c: one SWR reading from the base while scanning */
 void dialog_swrscan_update(float vswr);
+/* A scan running stops as Stop does, the screen saying "SWR scan stopped: no TX on <no>" (cfg_tx_refusal_text: the
+ * radio moved where it may not transmit, #121). LVGL thread */
+void dialog_swrscan_stop(const char *no);
 
 #ifdef __cplusplus
 }

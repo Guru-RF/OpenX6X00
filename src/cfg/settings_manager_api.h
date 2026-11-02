@@ -51,7 +51,8 @@ const char *cfg_tx_mhz(int32_t freq, char *buf, size_t size);
 const char *cfg_tx_refusal_text(int32_t freq, char *buf, size_t size);
 /* The frequencies transmitted on the same way as freq, [*lo, *hi] (Hz): the range of the transverter it is on (the
  * first, as cfg_transverter_shift_for), else HF 0.1-55 MHz, cut where a transverter before it in that order starts
- * or ends. False when freq is not transmitted on */
+ * or ends; on HF with TX outside the amateur bands off, the amateur band freq is in (#121). False when freq is not
+ * transmitted on */
 bool cfg_tx_range(int32_t freq, int32_t *lo, int32_t *hi);
 /* The band the radio is on is one it can use (band_use over its edges); true between bands */
 bool cfg_band_usable(void);
