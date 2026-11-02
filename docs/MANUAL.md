@@ -1664,9 +1664,13 @@ Buttons:
 - Auto: the next message of the QSO is sent by itself, and a station that
   calls you gets an answer, also while you call CQ (what other programs call
   "Res"). It never calls a CQ on its own. If several stations call you in the
-  same slot and one is a POTA activator, that one is answered first.
+  same slot and one is a POTA activator, that one is answered first. Once
+  your RR73 or 73 has gone out, the next station that calls you is answered
+  at once; if the other station sends again in that slot (it missed your
+  RR73), it gets the RR73 again first.
 - Retries: how many times a message goes out with no answer before the QSO is
-  dropped. Each press steps 3, 4, 5, 6, 8, 10, 12, 15 and back to 3; 6 by default.
+  dropped (its late RR73 still logs it, see Log). Each press steps 3, 4, 5, 6,
+  8, 10, 12, 15 and back to 3; 6 by default.
 - Time Sync: for a clock off by a few seconds with no WiFi or GPS to set
   it. Press it as a slot starts (the signals start, or a clock you trust
   shows :00, :15, :30, :45): the clock moves to the nearest slot start (15 s
@@ -1715,9 +1719,27 @@ list, so they do not scroll away.
 - The strip has no title: a line in the "to you" colour sits on top of it.
   It is hidden when empty.
 
-Log. A QSO is logged by itself when the other station sends R+report or
-RR73 and both reports are known; "Force QSO save" logs by hand. The log is
-`/mnt/ft_log.adi`; the radio says "Saved QSO de ...".
+Log. A QSO is logged by itself once both reports are known, when the other
+station sends R+report (you called CQ), RR73, RRR or 73. It is logged once:
+the same messages again, or a new call from that station soon after, make no
+second entry.
+
+- Moving on before the last message comes does not lose the QSO. Answer
+  another station (a row, the For you strip, the browser's reply), press TX
+  CQ, or let the retries run out, and a QSO whose report went is kept aside
+  for 4 slots (a minute in FT8). Its station's late RR73, RRR or 73, or its
+  R+report when you called CQ, still logs it, with the reports as they were,
+  and gets no answer: the QSO you went on to carries on. Up to 4 QSOs wait
+  like this. A call from that station, or a press on its row, takes the same
+  QSO up again.
+- Hound on or off, or a band or mode change, drops them: in Hound mode only
+  the Fox's RR73 logs, and after a change the station is not heard.
+- "Force QSO save" logs the QSO in progress by hand, once both reports are
+  known. The TX message and the sequence go on as they were: with Auto the
+  station's RR73 gets your 73, and a station that calls you is answered once
+  the other one has been quiet for a slot of yours.
+
+The log is `/mnt/ft_log.adi`; the radio says "Saved QSO de ...".
 
 Log Map. Page 3 > Log Map shows the logged stations on a world map centred on you:
 great-circle paths, a dot and the callsign for each station. Calls and dots
