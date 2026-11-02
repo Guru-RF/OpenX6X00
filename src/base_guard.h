@@ -43,8 +43,13 @@ void base_guard_unkeyed(void);
  * writes lost after all tries; reg: the last register that failed */
 unsigned base_guard_take(unsigned *resent, unsigned *lost, int *reg);
 
-/* A line to /mnt/base_i2c.log (two files of 16 kB at most) and stderr, one per second at most */
+/* A line to /mnt/base_i2c.log (two files of 16 kB at most) and stderr, one per second at most: one more in the
+ * same second is dropped, counted on the next line */
 void base_guard_log(const char *fmt, ...);
+
+/* True when a line now gets into the log: none written in this second yet. For a line that can wait a little (the
+ * flow resets', radio.c), so that it is not the one dropped */
+bool base_guard_log_free(void);
 
 #define BASE_SILENT_START_MS 10000   /* no line for the flow resets of the first 10 s */
 #define BASE_SILENT_EVERY_MS 10000   /* then one line per 10 s at most */

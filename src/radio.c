@@ -2009,8 +2009,8 @@ static bool base_gone(void) {
     bool            keyed = atomic_load(&state) != RADIO_RX || hw_tx_keyed_by_gui() || atomic_load(&modem_on) ||
                             morse_on;
 
-    if (!base_gone_due(now_time, pack_time, keyed, &tx_time, gone_said)) {
-        return false;
+    if (!base_gone_due(now_time, pack_time, keyed, &tx_time, gone_said) || !base_guard_log_free()) {
+        return false;   /* a line written in this second: the next reset tries again (radio_tick) */
     }
     if (!scheduler_put(base_gone_cb, &never, sizeof(never))) {
         return false;   /* the next reset tries again (the note above radio_tick) */
@@ -2047,8 +2047,15 @@ static bool radio_tick() {
     int32_t d = now_time - prev_time;
 
     if (hw_flow_read(pack)) {
+        /* Its gap kept until a line is free: right after a "base silent" line it was dropped (one a second) */
+        static uint32_t again_ms;
+
         if (gone_said) {
-            base_guard_log("data from the base again after %u ms", (unsigned)(now_time - pack_time));
+            again_ms = now_time - pack_time;
+        }
+        if (again_ms && base_guard_log_free()) {
+            base_guard_log("data from the base again after %u ms", (unsigned)again_ms);
+            again_ms = 0;
         }
         base_seen = true;
         gone_said = false;      /* said again if it stops again (base_gone) */
@@ -2335,12 +2342,16 @@ static bool radio_tick() {
             static uint64_t silent_logged;
             radio_state_t   s = atomic_load(&state);
 
+            /* Each step below that writes a line in the base log waits for a second with none yet
+             * (base_guard_log_free): one line a second gets in, and "base silent", every 10 s on its own phase, took
+             * the second now and then. Each can wait a reset or three: a second at most */
+
             /* The tuner's steps above go by the packets: with none (a base whose packets do not decode, #152), a tune
              * asked stayed in its state for good without a word, and tx_player refused every digital TX until the GUI
              * restarted. Given up on both radios once the base has been silent for as long as a tune has to start;
              * the tune bit goes to the base only on a packet, so a base silent from the press on is never asked to tune */
             if ((s == RADIO_ATU_START || s == RADIO_ATU_WAIT || s == RADIO_ATU_RUN) &&
-                now_time - pack_time > ATU_START_MS) {
+                now_time - pack_time > ATU_START_MS && base_guard_log_free()) {
                 atu_give_up(s, "Tuner: no data from the base");
             }
             /* A TX ends on a packet without the TX flag: with none (the data lost while the base keyed, or while the
@@ -2348,7 +2359,8 @@ static bool radio_tick() {
              * and TCI reporting TX, and base_gone never saying it. Back to RX once the base has been silent this long
              * and the GUI keys nothing, its CW past the base's hang; a packet with the TX flag brings TX back */
             if (s == RADIO_TX && now_time - pack_time > NO_DATA_MS && !gui_keys() &&
-                (uint32_t)now_time - morse_ms >= MORSE_HANG_MS && state_move(RADIO_TX, RADIO_RX)) {
+                (uint32_t)now_time - morse_ms >= MORSE_HANG_MS && base_guard_log_free() &&
+                state_move(RADIO_TX, RADIO_RX)) {
                 if (notify_rx_tx) {
                     notify_rx_tx(false);
                 }
@@ -2357,7 +2369,7 @@ static bool radio_tick() {
             /* The SWR scan keys the base at its start and steps on the readings: with none a 1 W carrier went out
              * until Stop, the sweep standing still and the state refusing digital TX. Stopped as its Stop does, the
              * stop asked once (marked before the put: the job may run before the put returns) */
-            if (s == RADIO_SWRSCAN && now_time - pack_time > NO_DATA_MS &&
+            if (s == RADIO_SWRSCAN && now_time - pack_time > NO_DATA_MS && base_guard_log_free() &&
                 !atomic_exchange(&swrscan_stop_asked, true)) {
                 if (scheduler_put_urgent(swrscan_gone_cb, NULL, 0)) {
                     base_guard_log("SWR scan: no data from the base for %u ms, stopped",
@@ -2374,8 +2386,8 @@ static bool radio_tick() {
                 state_move(RADIO_POWEROFF, RADIO_OFF);
             }
             if (base_gone()) {
-                silent_logged = now_time;   /* its line instead of a "base silent" one: one a second (base_guard_log) */
-            } else if (base_silent_due(now_time, start_time, &silent_logged)) {
+                silent_logged = now_time;   /* its line instead of a "base silent" one */
+            } else if (base_guard_log_free() && base_silent_due(now_time, start_time, &silent_logged)) {
                 char vb[8] = "n/a", ve[8] = "n/a";
                 if (pack_vbat) {
                     snprintf(vb, sizeof(vb), "%.1f V", pack_vbat * 0.1f);

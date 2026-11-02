@@ -4,12 +4,25 @@
  *  Host test of src/base_guard.c (#152): when "No data from the base" is said (base_gone_due), run through the flow
  *  resets as radio.c calls it, one every 0.3 s while no packet comes. Not in the first 30 s after a start, 30 s after
  *  the last packet, 30 s after the GUI's own TX however long the silence before it, never while the GUI keys, once,
- *  and again only after a packet came and the data stopped again.
+ *  and again only after a packet came and the data stopped again. Then the base log's one line a second
+ *  (base_guard_log) and base_guard_log_free, which the flow resets' lines wait for, on the test's own clock.
  */
 
 #include "base_guard.h"
 
 #include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+
+static time_t now_s = 1800000000;
+
+time_t __wrap_time(time_t *t) {
+    if (t) {
+        *t = now_s;
+    }
+    return now_s;
+}
 
 #define RESET_MS 300        /* radio.c's FLOW_RESTART_TIMEOUT: a flow reset this often without a packet */
 #define T0       1000000    /* the GUI's start, ms of the monotonic clock */
@@ -109,6 +122,28 @@ int main(void) {
     resets(&r, 300, 40000, NONE, NONE);
     check(r.said, "said at 30 s", 0);
     check(resets(&r, 40300, 200000, 50000, 60000) == NONE, "a TX after it, no packet: not again", 0);
+
+    /* The log: one line a second, the one more dropped and counted on the next; free when this second has none */
+    char  buf[1024] = "";
+    FILE *f;
+
+    unlink("base_guard_test.log");
+    check(base_guard_log_free(), "nothing written yet: free", 0);
+    base_guard_log("first %d", 1);
+    check(!base_guard_log_free(), "a line in this second: not free", 0);
+    base_guard_log("dropped");
+    now_s++;
+    check(base_guard_log_free(), "the next second: free", 0);
+    base_guard_log("second");
+    check(!base_guard_log_free(), "and taken", 0);
+    if ((f = fopen("base_guard_test.log", "r"))) {
+        buf[fread(buf, 1, sizeof(buf) - 1, f)] = 0;
+        fclose(f);
+    }
+    check(strstr(buf, "UTC first 1\n") != NULL, "the first line written", 0);
+    check(strstr(buf, "dropped") == NULL, "the one in the same second dropped", 0);
+    check(strstr(buf, "UTC second (1 more in the same second)\n") != NULL, "counted on the next line", 0);
+    unlink("base_guard_test.log");
 
     printf("base_guard: %d checks, %d failed\n", checks, fails);
     return fails != 0;
