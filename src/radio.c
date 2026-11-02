@@ -976,14 +976,15 @@ void radio_set_rec_moni(bool on) {
     radio_vol_refresh();
 }
 
-void radio_set_morse_key(bool on) {
+bool radio_set_morse_key(bool on) {
     if (on && tx_refused(TX_BY_MORSE)) {
-        return;
+        return false;
     }
     morse_on = on;
     morse_ms = get_time();
     hw_pin_set(HW_PIN_MORSE_KEY, on);
     atomic_store(&morse_down_ms, on ? morse_ms | 1 : 0);
+    return true;
 }
 
 void radio_set_morse_key_limit(uint32_t ms) {

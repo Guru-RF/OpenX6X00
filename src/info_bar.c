@@ -134,6 +134,7 @@ lv_obj_t *info_init(lv_obj_t *parent) {
     subject_subscribe_delayed((Subject *)cfg_band_tx_shift, vfo_update, NULL);
     subject_subscribe_delayed((Subject *)cfg_fg_freq, vfo_update, NULL);    /* where it transmits, for the colour */
     subject_subscribe_delayed((Subject *)cfg_bg_freq, vfo_update, NULL);
+    subject_subscribe_delayed((Subject *)cfg_tx_outside_bands, vfo_update, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_band_split, vfo_update, NULL);
     subject_subscribe_delayed((Subject *)cfg_cur_mode, mode_update, NULL);
     subject_subscribe_delayed_and_notify((Subject *)mode_locked, mode_update, NULL);
@@ -328,7 +329,7 @@ const char *info_params_tx_shift_label(void) {
 }
 
 bool info_tx_blocked(void) {
-    return param_i_get(cfg_band_split) && !cfg_is_tx_freq(radio_tx_freq());
+    return param_i_get(cfg_band_split) && cfg_tx_refusal(radio_tx_freq());     /* outside the amateur bands too (#121) */
 }
 
 const char *info_params_vfo_label_get(void) {

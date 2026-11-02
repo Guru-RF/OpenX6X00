@@ -107,10 +107,11 @@ static void *tune_thread(void *arg) {
 }
 
 const char *ext_tune_refusal(void) {
-    static _Thread_local char text[48];
+    static _Thread_local char text[112];
+    char       no[96];
     int32_t    f = radio_tx_freq();     /* in split the other VFO's, the TX shift's */
     tune_ask_t a = {
-        .tx_freq_ok = cfg_is_tx_freq(f),
+        .tx_freq_ok = !cfg_tx_refusal_text(f, no, sizeof(no)),  /* receive only, outside the amateur bands (#121) */
         /* An app's slot that has taken the player and not keyed yet too: the tune's thread found the player held and
          * went no further, after the ATU had been switched off for it (#87) */
         .on_air     = radio_get_modem() || radio_get_state() != RADIO_RX || tx_player_busy(),
@@ -118,13 +119,9 @@ const char *ext_tune_refusal(void) {
     };
 
     switch (tune_refusal(&a)) {
-        case TUNE_NO_TX: {
-            int32_t m = f < 0 ? -f : f;     /* a TX shift below 0 Hz */
-
-            snprintf(text, sizeof(text), "no TX on %s%d.%03d MHz", f < 0 ? "-" : "", (int)(m / 1000000),
-                     (int)(m / 1000 % 1000));
+        case TUNE_NO_TX:
+            snprintf(text, sizeof(text), "no TX on %s", no);
             return text;
-        }
         case TUNE_ON_AIR:
             return "on the air";
         case TUNE_WINLINK:

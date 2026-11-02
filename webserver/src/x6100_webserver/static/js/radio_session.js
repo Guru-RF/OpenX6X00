@@ -333,11 +333,12 @@
     if (!on && this.state === "ended" && !this.timer) this.timer = setTimeout(function() { if (self.state === "ended") self.set("idle", ""); }, ENDED_MS);
   };
   /* An err while a press waits for "tx 1": the PTT's own refusals (view only, control elsewhere, no TX for this
-   * session) end it, and let go as the 1.5 s timeout does: an err cannot say which command it answers, and this
-   * press may have keyed. Another err (a tune refused, a Take control refused while on the air) leaves it */
+   * session, "ptt: no TX on ...": a frequency the radio may not transmit on, #121) end it, and let go as the 1.5 s
+   * timeout does: an err cannot say which command it answers, and this press may have keyed. Another err (a tune
+   * refused, a Take control refused while on the air) leaves it */
   Ptt.prototype.err = function(text) {
     if (/^ptt released/.test(text)) { this.clear(); if (this.renew) { clearInterval(this.renew); this.renew = null; } if (this.state === "tx" || this.state === "requesting") this.set("ended", "The radio unkeyed: " + text.replace(/^ptt released: /, "")); return true; }
-    if (this.state === "requesting" && /^(controlled by|view only|this session may not transmit)/.test(text)) { this.clear(); this.stopPath(); this.set("refused", text); return true; }
+    if (this.state === "requesting" && /^(controlled by|view only|this session may not transmit|ptt: )/.test(text)) { this.clear(); this.stopPath(); this.set("refused", text.replace(/^ptt: /, "")); return true; }
     return false;
   };
   /* The setting changed (the microphone on or off): an old refusal or ending is no longer the news */

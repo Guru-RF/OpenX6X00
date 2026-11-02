@@ -43,7 +43,7 @@ typedef enum {
 } tune_refusal_t;
 
 typedef struct {
-    bool tx_freq_ok;    /* cfg_is_tx_freq(radio_tx_freq()) */
+    bool tx_freq_ok;    /* !cfg_tx_refusal(radio_tx_freq()): the hardware transmits there and may (#121) */
     bool on_air;
     bool winlink;
 } tune_ask_t;

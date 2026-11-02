@@ -782,9 +782,38 @@ int32_t cparam_i_get(const ComputedParamInt *p) {
     return cfg.mode[cfg.cur];
 }
 
-/* Where the radio transmits here: 40 m up to 7.200 (Region 1), 20 m, 10 m */
+/* Where the radio transmits here: 40 m up to 7.200 (Region 1), 20 m, 10 m; HF elsewhere is outside the amateur bands
+ * (#121), under 0 Hz (a TX shift) receive only */
 bool cfg_is_tx_freq(int32_t f) {
     return (f >= 7000000 && f <= 7200000) || (f >= 14000000 && f <= 14350000) || (f >= 28000000 && f <= 29700000);
+}
+
+const char *cfg_tx_refusal(int32_t f) {
+    return cfg_is_tx_freq(f) ? NULL : f < 0 ? "receive only" : "outside the amateur bands (Settings > TX Cal)";
+}
+
+/* As settings_manager_api.cpp writes them */
+const char *cfg_tx_mhz(int32_t freq, char *buf, size_t size) {
+    int32_t f      = freq < 0 ? -freq : freq;
+    int32_t sub    = f % 1000000;
+    int     digits = 3;
+
+    if (sub % 1000) {
+        for (digits = 6; sub % 10 == 0; digits--) sub /= 10;
+    } else {
+        sub /= 1000;
+    }
+    snprintf(buf, size, "%s%d.%0*d MHz", freq < 0 ? "-" : "", (int)(f / 1000000), digits, (int)sub);
+    return buf;
+}
+
+const char *cfg_tx_refusal_text(int32_t freq, char *buf, size_t size) {
+    const char *why = cfg_tx_refusal(freq);
+    char        mhz[24];
+
+    if (!why) return NULL;
+    snprintf(buf, size, "%s: %s", cfg_tx_mhz(freq, mhz, sizeof(mhz)), why);
+    return buf;
 }
 
 float cfg_pwr_max_get(void) {
@@ -1120,8 +1149,9 @@ static void gui_side(void) {
     reset();
     state = RADIO_TX;
     no = gui_tune(TUNE_BY_RADIO);
-    check(no && !strcmp(no, "no TX on 7.250 MHz") && said_is("No tune: no TX on 7.250 MHz") && !ext_tune_on() &&
-          seen.keys == 0, "7.250 where the radio only receives, on the air too: \"%s\"", said);
+    check(no && !strcmp(no, "no TX on 7.250 MHz: outside the amateur bands (Settings > TX Cal)") &&
+          said_is("No tune: no TX on 7.250 MHz: outside the amateur bands (Settings > TX Cal)") && !ext_tune_on() &&
+          seen.keys == 0, "7.250 where the radio may not transmit, on the air too: \"%s\"", said);
     cfg = (typeof(cfg)){.freq = {14200000, 14200000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 5.0f};
     reset();
     state = RADIO_TX;
@@ -1138,7 +1168,8 @@ static void gui_side(void) {
                         .shift = -8000000, .pwr = 5.0f};
     reset();
     no = gui_tune(TUNE_BY_RADIO);
-    check(no && said_is("No tune: no TX on -0.850 MHz") && seen.keys == 0, "a TX shift below 0 Hz: \"%s\"", said);
+    check(no && said_is("No tune: no TX on -0.850 MHz: receive only") && seen.keys == 0, "a TX shift below 0 Hz: \"%s\"",
+          said);
 }
 
 int main(void) {

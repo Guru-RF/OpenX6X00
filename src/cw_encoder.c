@@ -83,13 +83,13 @@ void cw_encoder_require_train(bool on) {
     need_train = on;
 }
 
-/* Closes the key; with the train requirement and no train, stops instead. */
+/* Closes the key; with the train requirement and no train, or where the radio may not transmit (the radio said why,
+ * #121), stops instead: a beacon went on for hours with each key refused */
 static bool key_down(void) {
-    if (need_train && !param_i_get(cfg_key_train)) {
+    if ((need_train && !param_i_get(cfg_key_train)) || !radio_set_morse_key(true)) {
         stop_req = true;
         return false;
     }
-    radio_set_morse_key(true);
     return true;
 }
 

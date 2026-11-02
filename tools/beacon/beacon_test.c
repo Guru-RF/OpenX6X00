@@ -207,8 +207,12 @@ static uint32_t limit_max;      /* the highest asked in the test */
 static unsigned cuts;
 static int      qsk_set[64];    /* radio_set_qsk_time, in order */
 static int      n_qsk;
+static bool     refuse;         /* a key down refused, as radio.c refuses one where the radio may not transmit (#121) */
 
-void radio_set_morse_key(bool on) {
+bool radio_set_morse_key(bool on) {
+    if (on && refuse) {
+        return false;
+    }
     pthread_mutex_lock(&mux);
     if (on != key_on && n_key < KEYLOG_MAX) {
         keylog[n_key].t  = (uint32_t)(now_ms() - t0);
@@ -220,6 +224,7 @@ void radio_set_morse_key(bool on) {
     }
     key_on = on;
     pthread_mutex_unlock(&mux);
+    return true;
 }
 
 radio_state_t radio_get_state(void) {
@@ -304,6 +309,7 @@ static void reset(void) {
     pthread_mutex_unlock(&mux);
     n_evs = 0;
     other_tx = false;
+    refuse = false;
     tail_ms = 100;
     qsk = 100;
     limit_max = 0;
@@ -800,6 +806,17 @@ static void test_cw(void) {
     usleep(2000);
     cw_encoder_ptt_pressed();
     check(cw_encoder_state() == CW_ENCODER_IDLE && !key_on && said_is(""), "a CW beacon stops on the front PTT key");
+
+    /* The radio refuses the key (outside the amateur bands, #121): the beacon stops at its first element, it went on
+     * for hours with each key refused */
+    reset();
+    refuse = true;
+    cw_encoder_send("TEST", true);
+    check(wait_idle() && n_key == 0 && !key_on, "a CW beacon whose key the radio refuses: stopped, never keyed");
+    reset();
+    refuse = true;
+    cw_encoder_send("EE", false);
+    check(wait_idle() && n_key == 0 && !key_on, "a message refused: stopped, never keyed");
 }
 
 int main(void) {

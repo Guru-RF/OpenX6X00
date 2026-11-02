@@ -589,7 +589,7 @@ static void qrss_start(const char *text) {
     radio_mode_t mode = cparam_i_get(cfg_cur_mode);
     int          band = qrss_band();
     int32_t      hz;
-    char         f[16];
+    char         no[96];
 
     if (mode != radio_mode_cw && mode != radio_mode_cwr) {
         msg_update_text_fmt("QRSS3: in CW or CW-R only");
@@ -619,8 +619,8 @@ static void qrss_start(const char *text) {
         msg_update_text_fmt("QRSS3: split or TX shift on");
         return;
     }
-    if (!cfg_is_tx_freq(hz)) {
-        msg_update_text_fmt("No TX on %s MHz: receive only", mhz(f, hz));
+    if (cfg_tx_refusal_text(hz, no, sizeof(no))) {    /* receive only, outside the amateur bands (#121) */
+        msg_update_text_fmt("No TX on %s", no);
         return;
     }
     if (beacon_on) {
@@ -630,10 +630,15 @@ static void qrss_start(const char *text) {
     if (!cw_encoder_send_qrss3(text, beacon_on)) msg_update_text_fmt("QRSS3: not started");
 }
 
+/* A message or a beacon not started where the radio may not transmit (#121): the keyer would go on with each key
+ * refused, a beacon for hours */
 static void tx_btn_cb(button_data_t *btn) {
+    char no[96];
+
     (void)btn;
     if (sending()) cw_encoder_stop();
     else if (sel_text() && qrss_on) qrss_start(cw_encoder_expand(sel_text()));
+    else if (sel_text() && cfg_tx_refusal_text(radio_tx_freq(), no, sizeof(no))) msg_update_text_fmt("No TX on %s", no);
     else if (sel_text()) {
         if (beacon_on) {
             bcn_sched_t s = sched_set();

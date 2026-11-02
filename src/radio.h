@@ -133,7 +133,8 @@ void radio_usb_to_cat(void);
 void radio_set_line_in(uint8_t d);
 void radio_set_line_out(uint8_t d);
 
-void radio_set_morse_key(bool on);
+/* The GUI's CW key. False: a key down refused where the radio may not transmit (the screen says why, #121) */
+bool radio_set_morse_key(bool on);
 /* The GUI's CW key down for at most ms at a time, 0: no limit (QRSS3's TX time limit): past it the radio thread lets
  * go of the key and counts it. Any thread */
 void radio_set_morse_key_limit(uint32_t ms);
