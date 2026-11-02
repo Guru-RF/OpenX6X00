@@ -48,6 +48,8 @@ void Candidate::set_report(int report) {
 void Candidate::set_msg_type(ftx_msg_type_t msg_type) {
     _last_rx_type = msg_type;
     _quiet_slots = 0;
+    if ((msg_type == FTX_MSG_TYPE_CQ) || (msg_type == FTX_MSG_TYPE_GRID) || (msg_type == FTX_MSG_TYPE_REPORT))
+        _ended = false;     // begun again: a call, a grid or a report goes on until its own end
 }
 
 void Candidate::set_local_snr(int snr) {
@@ -70,10 +72,11 @@ bool Candidate::is_finished() {
     return (_last_rx_type == FTX_MSG_TYPE_73) || (_last_rx_type == FTX_MSG_TYPE_RR73);
 }
 
-/* Logged, and a slot of ours since its station's last message: our RR73 or 73 went (or the message
- * after Force QSO save), a caller may take over (its station repeating would have sent again) */
+/* Ended (logged, nothing begun since), and a slot of ours since its station's last message: our
+ * RR73 or 73 went (or the message after Force QSO save), a caller may take over (its station
+ * repeating would have sent again). A logged QSO taken up again goes on as any other */
 bool Candidate::is_over() {
-    return _saved && _quiet_slots >= 2;
+    return _ended && _quiet_slots >= 2;
 }
 
 /* One more slot without its message: true once our last try (RR73 and 73 go once) had its answer slot, and a slot spare */
@@ -108,11 +111,13 @@ std::string Candidate::get_tx_text(std::string local_callsign, std::string local
     return answer;
 }
 
+/* Logged once; its end again (an R+report, RR73, RRR or 73 repeated) ends it again */
 void Candidate::save_qso(save_qso_cb_t save_qso_cb, bool aside) {
     if (save_qso_cb && can_be_saved()) {
         save_qso_cb(_remote_callsign.c_str(), _grid.c_str(), _rcvd_snr, _sent_snr, aside);
         _saved = true;
     }
+    if (_saved) _ended = true;
 }
 
 FTxQsoProcessor::FTxQsoProcessor(std::string local_callsign, std::string local_qth, save_qso_cb_t save_qso_cb, int max_repeats) {

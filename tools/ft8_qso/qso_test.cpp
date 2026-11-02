@@ -731,6 +731,55 @@ static void new_caller(void) {
     check(next_is("C1CCC Q1QQQ JO21") && logs_of("A1AAA") == 1, "the operator's C goes on, A logged once (%s)",
           tx.msg);
 
+    begin("A logged, the operator calls A again from its CQ: its answer missed once, B's call waits");
+    cq_to_rr73();
+    tx_cq();
+    our_slot();
+    ftx_msg_meta_t acq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(acq);
+    check(next_is("A1AAA Q1QQQ JO21"), "our call to A (%s)", tx.msg);
+    our_slot();
+    slot_end();     /* its answer not decoded */
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("A1AAA Q1QQQ JO21"), "the operator's call to A goes on (%s)", tx.msg);
+
+    begin("A logged aside, the operator presses its report: its RR73 missed once, B's call waits");
+    answered_to_r_report();
+    c = rx("CQ C1CCC JN22");
+    press(c);
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    our_slot();
+    ftx_msg_meta_t report = rx("Q1QQQ A1AAA -05");
+    slot_end();
+    press(report);
+    check(next_is("A1AAA Q1QQQ R-10") && logs_of("A1AAA") == 1, "our R-report to A (%s)", tx.msg);
+    our_slot();
+    slot_end();     /* its RR73 not decoded */
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("A1AAA Q1QQQ R-10"), "our R-report to A goes on (%s)", tx.msg);
+
+    begin("A logged, TX CQ, A calls again: its R+report missed once, B's call waits, then A's RR73");
+    cq_to_rr73();
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80");
+    slot_end();
+    check(next_is("A1AAA Q1QQQ -10"), "our report to A (%s)", tx.msg);
+    our_slot();
+    slot_end();     /* its R+report not decoded */
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("A1AAA Q1QQQ -10"), "our report to A goes on (%s)", tx.msg);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(next_is("A1AAA Q1QQQ RR73") && logs_of("A1AAA") == 1, "RR73 to A, one entry (%s)", tx.msg);
+
     begin("Auto off, after our RR73 B calls: nothing sent by itself, B's row answers it", false);
     tx_cq();
     our_slot();
@@ -775,6 +824,21 @@ static void force(void) {
     rx("Q1QQQ A1AAA RR73");
     slot_end();
     check(logs_of("A1AAA") == 1 && next_is("A1AAA Q1QQQ 73"), "one entry, 73 to A (%s)", tx.msg);
+
+    begin("Force QSO save, A's report again, its RR73: our 73, then B's first call is answered");
+    answered_to_r_report();
+    slot_end();
+    force_save();
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    our_slot();
+    check(times_sent("A1AAA Q1QQQ 73") == 1 && logs_of("A1AAA") == 1, "73 to A went, one entry");
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15"), "B answered at its first call (%s)", tx.msg);
 
     begin("Force QSO save, A quiet, then B calls: B answered");
     answered_to_r_report();

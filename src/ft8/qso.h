@@ -73,6 +73,7 @@ class Candidate {
     int            _rcvd_snr;
     int            _sent_snr;
     bool           _saved=false;
+    bool           _ended=false;    /* logged, and not begun again since (a call, a grid or a report) */
     int            _quiet_slots=0;  /* slots since its last message (put aside: since then too) */
 };
 
