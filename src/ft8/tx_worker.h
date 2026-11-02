@@ -28,14 +28,18 @@ extern "C" {
 
 #include "../tx_player.h"   /* tx_abort_fn_t, the caller's stop */
 
-/* Transmit tx_text. Returns true on normal completion (or no-op when
- * sample generation fails); returns false if the abort callback fired
- * mid-transmit. */
-bool tx_worker_run(const char    *tx_text,
-                   int32_t        audio_sample_rate,
-                   float          base_gain_offset,
-                   tx_abort_fn_t  abort_check,
-                   void          *abort_check_ctx);
+typedef enum {
+    TX_WORKER_SENT,     /* to its end, or nothing made to send (sample generation failed) */
+    TX_WORKER_STOPPED,  /* the abort callback fired, or the player did not key (the radio on the air already) */
+    TX_WORKER_LATE,     /* FT8/FT4 not keyed: so late into its slot that more than a fifth would be left out */
+} tx_worker_rc_t;
+
+/* Transmit tx_text */
+tx_worker_rc_t tx_worker_run(const char    *tx_text,
+                             int32_t        audio_sample_rate,
+                             float          base_gain_offset,
+                             tx_abort_fn_t  abort_check,
+                             void          *abort_check_ctx);
 
 #ifdef __cplusplus
 }

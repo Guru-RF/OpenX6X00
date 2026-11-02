@@ -1663,8 +1663,11 @@ Buttons:
 - An FT8 or FT4 transmission starts 0.5 s into its slot, as WSJT-X sends.
   One that can only start later (a press up to 1.5 s into the slot, an
   answer after a long last decode) leaves out the part already past, so the
-  rest of the message is where it belongs. FT2 starts as soon as it can (see
-  FT2 below).
+  rest of the message is where it belongs. One so late that more than a
+  fifth of it would be left out (2.5 s of FT8, 1.0 s of FT4; the clock set
+  while FT8 is open) is not sent: the radio says "TX not sent: too late into
+  the slot", and the message goes in your next slot, its retry not used up.
+  FT2 starts as soon as it can (see FT2 below).
 - Hold Freq: your TX offset does not move to the station you answer.
 - Auto: the next message of the QSO is sent by itself, and a station that
   calls you gets an answer, also while you call CQ (what other programs call

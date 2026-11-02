@@ -1575,13 +1575,15 @@ static bool transmit(const slot_info_t *slot, float sec) {
     }
 
     add_tx_row(out.msg);
-    tx_worker_run(out.msg, AUDIO_PLAY_RATE, base_gain_offset, tx_stopped_cb, NULL);
 
-    /* It counts for the message that went out, not for one the operator chose meanwhile */
+    tx_worker_rc_t rc = tx_worker_run(out.msg, AUDIO_PLAY_RATE, base_gain_offset, tx_stopped_cb, NULL);
+
+    /* It counts for the message that went out, not for one the operator chose meanwhile. One too late into its slot
+     * to key (the clock stepped since the slot's tick, a long last decode) did not go: its repeat is kept */
     qso_lock();
     sending = false;
     j = (ui_job_t){.tx_gen = tx_gen};
-    if (tx_gen == gen) {
+    if (tx_gen == gen && rc != TX_WORKER_LATE) {
         if (tx_msg.repeats > 0) tx_msg.repeats--;
         if (tx_msg.repeats == 0) {      /* given up: a CQ ends with it */
             j.cq_off      = !strncmp(tx_msg.msg, "CQ", 2);
@@ -1589,6 +1591,10 @@ static bool transmit(const slot_info_t *slot, float sec) {
         }
     }
     qso_unlock();
+    if (rc == TX_WORKER_LATE) {
+        add_info("TX not sent: too late into the slot");
+        return false;
+    }
     if (j.cq_off) ui_post(&j);
     return true;
 }
