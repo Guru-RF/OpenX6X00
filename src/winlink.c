@@ -574,10 +574,12 @@ bool winlink_busy(void) {
  * after the QSY Pat asked during the last key: it can bring another band's split.
  * The connection's frequency: Pat's last tune (made, or not made: missed_hz), or where the modem keyed, while either
  * is less than REF_MS old; the dial once it is older, so a connection made without a QSY keys where the radio
- * listens. A dial turned, or the other VFO chosen, during a connection keys no more there */
+ * listens. A dial turned, or the other VFO chosen, during a connection keys no more there. Last, where the radio may
+ * not transmit (#121): the page says why, not only the radio's own note */
 static const char *tx_off_freq(void) {
     static char why[96];    /* the worker's */
     char        a[16], b[16];
+    const char *no;
     int32_t     rx, tx, xit, rit, missed, ref;
     uint64_t    now;
 
@@ -616,6 +618,10 @@ static const char *tx_off_freq(void) {
         if (param_i_get(cfg_band_tx_shift))
             return "a TX shift is set on this band";
         snprintf(why, sizeof(why), "split would send on %s, not %s", mhz(a, sizeof(a), tx), mhz(b, sizeof(b), rx));
+        return why;
+    }
+    if ((no = cfg_tx_refusal(tx))) {
+        snprintf(why, sizeof(why), "%s MHz: %s", mhz(a, sizeof(a), tx), no);
         return why;
     }
     ses.key_hz = rx;
@@ -1242,10 +1248,11 @@ static void said_qsy(int32_t hz, const char *why) {
     pthread_mutex_unlock(&said_lock);
 }
 
-/* What would keep a key off the frequency the radio listens on, in tx_off_freq's words, into why; "" none. On the
- * values given: for the page before a connection, while tx_off_freq decides at the key */
+/* What would keep a key off the frequency the radio listens on, or off the air there (#121), in tx_off_freq's words,
+ * into why; "" none. On the values given: for the page before a connection, while tx_off_freq decides at the key */
 static void simplex_issue(char *why, size_t n, int32_t rx, int32_t tx, int32_t xit, int32_t rit, int32_t shift) {
-    char a[16], b[16];
+    char        a[16], b[16];
+    const char *no;
 
     why[0] = 0;
     if (xit)
@@ -1256,6 +1263,8 @@ static void simplex_issue(char *why, size_t n, int32_t rx, int32_t tx, int32_t x
         snprintf(why, n, "a TX shift is set on this band");
     else if (tx != rx)
         snprintf(why, n, "split would send on %s, not %s", mhz(a, sizeof(a), tx), mhz(b, sizeof(b), rx));
+    else if ((no = cfg_tx_refusal(tx)))
+        snprintf(why, n, "%s MHz: %s", mhz(a, sizeof(a), tx), no);
 }
 
 /* Seconds left of the hold after an SWR trip in a Winlink transmission, 0 none. Read before swr_trip_hz */

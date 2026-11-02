@@ -105,6 +105,8 @@ int32_t cparam_i_get(const ComputedParamInt *p) { return p->v; }
 float   param_f_get(const ParamFloat *p) { return p->v; }
 void    cparam_i_set(ComputedParamInt *p, int32_t v) { p->v = v; }
 bool    cfg_is_valid_hw_freq(int32_t f) { return f >= 100000 && f <= 55000000; }
+/* Why the radio may not transmit (#121): WL_TX_NO's words anywhere, none without it */
+const char *cfg_tx_refusal(int32_t f) { (void)f; return getenv("WL_TX_NO"); }
 float   cfg_pwr_max_get(void) { return getenv("WL_PWR_MAX") ? (float)atof(getenv("WL_PWR_MAX")) : BOARD_PWR_MAX; }
 float   cfg_pwr_xvtr_get(void) { return getenv("WL_PWR_XVTR") ? (float)atof(getenv("WL_PWR_XVTR")) : 0.0f; }
 

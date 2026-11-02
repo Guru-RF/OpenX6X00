@@ -475,6 +475,23 @@ def main():
         finally:
             host.stop()
 
+        print("a frequency the radio may not transmit on (#121): the key refused, the page told why")
+        host = Host(tmp, "d", rig_port=14535, env={"WL_TX_NO": "outside the amateur bands (Settings > TX Cal)"})
+        try:
+            m = Modem(host.sock)
+            m.send("H", 2, [12000, 30])
+            check(host.wait_log("protocol 2, 12000 Hz"), "the hello")
+            why = "14.105.000 MHz: outside the amateur bands (Settings > TX Cal)"
+            ok, radio = host.wait_radio({"modem": "connected", "simplex": why})
+            check(ok, f"the radio file before a key says why ({radio})")
+            m.transmit(12000, 0.5)
+            check(host.wait_log("winlink: not keyed, " + why), "the key refused, the log says why")
+            ok, radio = host.wait_radio({"refused": why})
+            check(ok and host.played_count() == 0, f"the page's refused line says it, nothing played ({radio})")
+            m.close()
+        finally:
+            host.stop()
+
         print("a transverter's TX power limit of 0.5 W: PWR no higher, and said as the transverter's (#104)")
         host = Host(tmp, "c", rig_port=14534, env={"WL_PWR_MAX": "0.5", "WL_PWR_XVTR": "0.5"})
         try:

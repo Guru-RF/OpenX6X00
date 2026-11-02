@@ -10,6 +10,7 @@ int32_t cparam_i_get(const ComputedParamInt *p);
 float   param_f_get(const ParamFloat *p);
 void    cparam_i_set(ComputedParamInt *p, int32_t value);
 bool    cfg_is_valid_hw_freq(int32_t freq);
+const char *cfg_tx_refusal(int32_t freq);
 float   cfg_pwr_max_get(void);
 float   cfg_pwr_xvtr_get(void);
 extern ParamInt *cfg_xit, *cfg_rit, *cfg_band_tx_shift, *cfg_band_split, *cfg_tx_filter_low, *cfg_tx_filter_high;
