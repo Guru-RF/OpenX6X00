@@ -106,27 +106,40 @@ find_data() {
 # found_on_system when DATA was there already (its own files stay as they are); onto DATA's top
 # level when it was made at this start ($1 new): empty, and what the radio wrote are its settings,
 # log and the rest. All of it is copied first (params.db with its -wal and -shm), then moved up on
-# DATA, and only then taken off the system; a name DATA has already stays in found_on_system
+# DATA, and only then taken off the system; a name DATA has already stays in found_on_system. The
+# copy goes into a folder of its own, never over a file DATA has: found_on_system.2, .3 ... when an
+# earlier start left a found_on_system there (its files perhaps the only copy of those settings)
 rescue() {
     mkdir -p /tmp/sysroot && mount --bind / /tmp/sysroot || return
     if [ -n "$(ls -A /tmp/sysroot/mnt 2>/dev/null)" ]; then
+        found=/mnt/found_on_system
+        made=
         # DATA that holds nothing but found_on_system is new as well: the start that made it was cut
         # short in this copy (seconds of a dark screen before the boot picture: a power cut), the
-        # system's files all still there
-        [ "$(ls -A /mnt)" = found_on_system ] && set -- new
-        if mkdir -p /mnt/found_on_system && cp -a /tmp/sysroot/mnt/. /mnt/found_on_system/; then
-            where=found_on_system
+        # system's files all still there, and the copy goes on in it
+        if [ "$(ls -A /mnt)" = found_on_system ]; then
+            set -- new
+        else
+            i=1
+            while [ -e "$found" ]; do i=$((i + 1)); found=/mnt/found_on_system.$i; done
+            made=1
+        fi
+        if mkdir -p "$found" && cp -a /tmp/sysroot/mnt/. "$found/"; then
+            where=${found#/mnt/}
             if [ "$1" = new ]; then
-                for f in /mnt/found_on_system/* /mnt/found_on_system/.[!.]*; do
+                for f in "$found"/* "$found"/.[!.]*; do
                     [ -e "$f" ] || continue
                     [ -e "/mnt/${f##*/}" ] || mv "$f" /mnt/
                 done
                 where="DATA's top level: the settings and logs carry over"
-                rmdir /mnt/found_on_system 2>/dev/null || where="$where (a name DATA had already: in found_on_system)"
+                rmdir "$found" 2>/dev/null || where="$where (a name DATA had already: in ${found#/mnt/})"
             fi
             rm -rf /tmp/sysroot/mnt/* /tmp/sysroot/mnt/.[!.]*
             echo "files found in the system's /mnt moved to $where"
         else
+            # what this start copied goes again (the system's files stay): no folder more on DATA at
+            # each start that cannot copy them
+            [ -n "$made" ] && rm -rf "$found"
             echo "files found in the system's /mnt not all copied onto DATA: left there"
         fi
     fi
