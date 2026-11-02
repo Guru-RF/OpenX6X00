@@ -558,26 +558,27 @@ class SettingsManager {
     // context_id is the fixed transverter number (0 or 1) — never switched. NOT registered
     // in any load-all registry (group = nullptr): they are loaded individually
     // in init_load() with explicit load(0)/load(1). Values are frequencies in Hz.
-    // A shift of 0 is a transverter that is off. The X6200's are off by default: its 2 m and 70 cm are the WR12's,
-    // to receive, and the always-on transverters tuned "145.500" to 29.500 MHz and transmitted there, on 10 m.
-    // Migration _11 keeps the shift of one set up before. The X6100 keeps upstream's two, on by default
+    // A shift of 0 is a transverter that is off, the default on both radios: on, "145.500" was tuned to 29.500 MHz
+    // and a transmission on 2 m or 70 cm sent its 28-34 MHz IF with nothing connected, past the amateur-band limit
+    // (#121); the X6200's 2 m and 70 cm are the WR12's, to receive. Migrations _11 (X6200) and _15 (X6100) keep the
+    // shift of one set up before
     // Each has a TX power limit (#104), W in 0.1 W steps up to BOARD_PWR_MAX, 0 none: on its band every transmission
     // stays at or under it (pwr_xvtr_set, radio.c). Settings from before it have no row: no limit
-    // Transverter 0 (2m: 144-150 MHz, IF at 28 MHz)
+    // Transverter 0 (2m: 144-150 MHz, IF at 28 MHz with a shift of 116 MHz)
     Parameter<int32_t> p_transverter_0_from{"from", 144'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
     Parameter<int32_t> p_transverter_0_to{"to", 150'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
-    Parameter<int32_t> p_transverter_0_shift{"shift", HAS_VHF_RX ? 0 : 116'000'000, 0, 500'000'000,
+    Parameter<int32_t> p_transverter_0_shift{"shift", 0, 0, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
     Parameter<float, int32_t, 10> p_transverter_0_pwr{"pwr_max", 0.0f, 0.0f, BOARD_PWR_MAX,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
-    // Transverter 1 (70cm: 432-438 MHz, IF at 28 MHz)
+    // Transverter 1 (70cm: 432-438 MHz, IF at 28 MHz with a shift of 404 MHz)
     Parameter<int32_t> p_transverter_1_from{"from", 432'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
     Parameter<int32_t> p_transverter_1_to{"to", 438'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
-    Parameter<int32_t> p_transverter_1_shift{"shift", HAS_VHF_RX ? 0 : 404'000'000, 0, 500'000'000,
+    Parameter<int32_t> p_transverter_1_shift{"shift", 0, 0, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
     Parameter<float, int32_t, 10> p_transverter_1_pwr{"pwr_max", 0.0f, 0.0f, BOARD_PWR_MAX,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};

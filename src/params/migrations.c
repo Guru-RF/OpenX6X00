@@ -268,7 +268,7 @@ static int _10_band_60m() {
 
 /* The X6200's two transverters are off by default now (a shift of 0, settings_manager.h): its 2 m and 70 cm are the
  * WR12's, to receive. One set up before (a row saved for it) keeps its shift, the old default where only its edges
- * were changed. The X6100 keeps its transverters as they were */
+ * were changed. The X6100's: _15 */
 static int _11_x6200_transverters_off() {
 #ifdef BOARD_X6200
     if (sqlite3_exec(db,
@@ -331,6 +331,31 @@ static int _14_tx_outside_bands_off() {
     return 0;
 }
 
+/* The X6100's two transverters are off by default now too (a shift of 0, settings_manager.h): on from the start, a
+ * transmission on 2 m or 70 cm sent its 28-34 MHz IF with nothing connected, and a transverter's range passes the
+ * amateur-band limit (#121). _11's rule: one set up before (a row saved for it) keeps its shift, the old default where
+ * only its edges or its TX power limit were changed; one never touched is off. As in _13: gdyuldin's stock X6100 GUI
+ * saves both at their defaults when it first loads them, six rows (144-150 shift 116, 432-438 shift 404). Exactly
+ * those six and nothing else are the stock GUI's, not the user's (ours saves a value only when it is changed): they
+ * go first */
+static int _15_x6100_transverters_off() {
+#ifndef BOARD_X6200
+    if (sqlite3_exec(db,
+                     "DELETE FROM transverter WHERE (SELECT count(*) FROM transverter) = 6 AND 6 = "
+                     "(SELECT count(*) FROM transverter AS t JOIN (VALUES "
+                     "(0, 'from', 144000000), (0, 'to', 150000000), (0, 'shift', 116000000), "
+                     "(1, 'from', 432000000), (1, 'to', 438000000), (1, 'shift', 404000000)) AS s "
+                     "ON t.id = s.column1 AND t.name = s.column2 AND t.val = s.column3);"
+                     "INSERT OR IGNORE INTO transverter SELECT DISTINCT id, 'shift', "
+                     "CASE id WHEN 0 THEN 116000000 ELSE 404000000 END FROM transverter WHERE id IN (0, 1);",
+                     NULL, NULL, NULL) != SQLITE_OK) {
+        printf("Cannot keep the transverters: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+#endif
+    return 0;
+}
+
 static int (*migrations[])() = {
     _0_init_migrations,
     _1_create_ftx_table,
@@ -347,6 +372,7 @@ static int (*migrations[])() = {
     _12_line_in_restore,
     _13_x6200_stock_transverters,
     _14_tx_outside_bands_off,
+    _15_x6100_transverters_off,
 };
 
 int migrations_apply(void) {

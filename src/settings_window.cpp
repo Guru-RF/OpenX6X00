@@ -868,7 +868,7 @@ static uint8_t make_key_rows(uint8_t row, int first, int last) {
     return row;
 }
 
-/* Transverters: the band they cover (from, to) and the shift, in MHz; a shift of 0 is off (the X6200's default) */
+/* Transverters: the band they cover (from, to) and the shift, in MHz; a shift of 0 is off (the default) */
 static void xvrt_cb(lv_event_t *e) {
     ((ParamInt *)lv_event_get_user_data(e))->set(lv_spinbox_get_value(lv_event_get_target(e)) * 1000000L);
 }

@@ -266,13 +266,16 @@ The BAND keys (and the hand mic's long UP/DOWN, the keyboard's PgUp/PgDn, the
 Walkie Talkie's Band buttons, the browser panel) step through the active bands
 of the band list, from the frequency up or down.
 
-- They skip a band the radio cannot tune: 4 m (70 MHz), and on the X6200 2 m
-  and 70 cm, unless a transverter (Settings > General > TRANSVERTERS) or, on
+- They skip a band the radio cannot tune: 4 m (70 MHz), 2 m and 70 cm,
+  unless a transverter that is on (Settings > General > TRANSVERTERS) or, on
   the X6200, the WR12 covers it (see [WR12 receiver](#wr12-receiver-x6200)).
   The band plan strip, Birdie Cal and the browser panel's band list leave them
   out the same way.
-- 2 m and 70 cm on the X6100 are transverter bands (Settings > General >
-  TRANSVERTERS): they stay on the band keys while a transverter covers them.
+- Both transverters are off by default, on the X6100 too: up to v0.3.8 the
+  X6100's two were on, and 2 m and 70 cm were on its band keys (see
+  [Amateur bands only](#amateur-bands-only)). An X6100 left on 2 m or 70 cm
+  whose transverter is now off starts on the band below that it can tune (6 m
+  with the default band list).
 - 60 m (5351.5-5366.5 kHz, WRC-15) is on the band keys, between 80 m and
   40 m. It opens at 5.360 MHz in USB, the sideband used there. A radio
   updated from an older version gets it too, unless a band of its own already
@@ -350,13 +353,13 @@ the web Display page, Receiver card). Off by default.
   radio writes there what is on the HOST port ("USB on HOST: ..."), what it
   would need to detect the WR12 by itself.
 - The X6200's two transverters (2 m and 70 cm, 28 MHz IF) are off by default,
-  so that 2 m and 70 cm are the WR12's. Older versions had them always on:
-  "145.500" was tuned and transmitted on 29.500 MHz, on 10 m. A transverter
-  set up in Settings before the update keeps its shift. The three that
-  gdyuldin's X6200 firmware saves (4 m, 2 m and 70 cm through a 28 MHz IF)
-  are not taken for yours when they are exactly its values and nothing else
-  is set: they are removed, and the transverters are off. To use one, set
-  its shift in Settings > General > TRANSVERTERS (0 is off).
+  as the X6100's, so that 2 m and 70 cm are the WR12's. Older versions had
+  them always on: "145.500" was tuned and transmitted on 29.500 MHz, on 10 m.
+  A transverter set up in Settings before the update keeps its shift. The
+  three that gdyuldin's X6200 firmware saves (4 m, 2 m and 70 cm through a
+  28 MHz IF) are not taken for yours when they are exactly its values and
+  nothing else is set: they are removed, and the transverters are off. To
+  use one, set its shift in Settings > General > TRANSVERTERS (0 is off).
 
 ### Low battery
 
@@ -821,7 +824,7 @@ base is too old.
 | STATION | callsign (an empty field clears it), QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
-| TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
+| TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only, see [TCI server](#tci-server)) |
 | TEXT LOG | Keyboard modes (on by default), Size limit (1-100 MB, 10 MB by default): what PSK, Olivia and JTTY receive and send, and what RTTY receives, on the card (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
@@ -1279,9 +1282,9 @@ PWR goes back to 5 W. The X6100 has no battery limit.
 
 ### Amateur bands only
 
-By default the radio transmits only inside the amateur bands and on a
-transverter's range, and never on the X6200's receive-only ranges (#121). Up
-to v0.3.8 it transmitted anywhere from 0.1 to 55 MHz.
+By default the radio transmits only inside the amateur bands and on the range
+of a transverter you turned on, and never on the X6200's receive-only ranges
+(#121). Up to v0.3.8 it transmitted anywhere from 0.1 to 55 MHz.
 
 | Band | From | To |
 |---|---|---|
@@ -1392,11 +1395,18 @@ Left uncovered:
   given up, but what goes out in between is the base's.
 - What the base itself permits or refuses there is not known.
 
-Transverters: a transverter's range transmits as you set it up. On the X6100
-both transverters are on from the start (2 m and 70 cm through a 28 MHz IF):
-with nothing connected, the 2 m and 70 cm band keys send that IF, 28 to 34
-MHz, into the antenna, 29.7 to 34 MHz of it outside 10 m. Set the shift of a
-transverter you do not have to 0 (Settings > General > TRANSVERTERS).
+Transverters: a transverter's range transmits as you set it up. Both are off
+by default (a shift of 0), on the X6100 too. Up to v0.3.8 the X6100's two
+were on from the start (2 m and 70 cm through a 28 MHz IF): with nothing
+connected, transmitting on 2 m or 70 cm (PTT, an app, CW) sent that IF, 28
+to 34 MHz, into the antenna, 29.7 to 34 MHz of it outside 10 m. An X6100
+updated from then keeps a transverter you set up (from, to, shift or TX
+power limit changed) with its shift; one never changed is off. The two that
+gdyuldin's X6100 firmware saves (144-150 MHz with a shift of 116 MHz,
+432-438 MHz with 404 MHz) are not taken for yours when they are exactly its
+values and nothing else is set: both are off. If you used one as it came,
+set its shift again in Settings > General > TRANSVERTERS: 116 MHz for 2 m,
+404 MHz for 70 cm (a 28 MHz IF).
 
 Not tried on the air yet: checked on the PC build and in the host tests.
 
@@ -2725,9 +2735,9 @@ Cluster app (APP > Cluster; pages `(CLUSTER 1:2)` and `(CLUSTER 2:2)`):
 - 4 m, 2 m and 70 cm (issue #103): their spots are listed like any other,
   above 100 MHz as `144.300` (no 100 Hz digit). The radio tunes them through
   the transverter that covers them (Settings > General > TRANSVERTERS; the
-  X6100's two cover 144-150 and 432-438 MHz by default) or, on the X6200,
-  with the WR12 on, to receive ("DG1SMD 144.300.0 - RX only"). A spot no
-  transverter covers (nor the WR12) is grey, and Tune says so
+  two cover 144-150 and 432-438 MHz once a shift is set, off by default) or,
+  on the X6200, with the WR12 on, to receive ("DG1SMD 144.300.0 - RX only").
+  A spot no transverter covers (nor the WR12) is grey, and Tune says so
   ("No transverter: 70.200 MHz", on the X6200 "No transverter/WR12:
   144.300") and leaves the radio where it is. Up to v0.3.7 those spots were
   in no band (the band filter hid them, Band showed them only with All), and
