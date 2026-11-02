@@ -72,6 +72,7 @@
 #define BOX_Y       44
 #define BOX_H       (DIALOG_H - BOX_Y - 34)
 #define SIDE_W      270
+#define LINE_W      (W - SIDE_W - 24)   /* Learn's Heard line: up to 12 px before the side panel */
 #define CALLS_X     18      /* Calls: call box, score box */
 #define CALLS_W     480
 #define SCORE_X     508
@@ -950,10 +951,30 @@ static void refresh_stats(void) {
     lv_label_set_text(hint, "Last 20 tries per character. Weak ones (red, yellow) come up more often in Learn.");
 }
 
+/* A line of Learn into the label l: its head, the characters as shown in color, then the dits and dahs of as many of
+ * the places as fit before the side panel, whole places only. A "<?>" takes three characters' room in the answer and
+ * again in the dits and dahs: two of them in a group of 5 could run into the side panel, and so could long characters
+ * (five ? in the default font, a third of the groups of 5 at level 40 in the 1bit theme's). Cut at the label's edge
+ * instead, half a place stayed: a lone "<", or a dah that looked like a dit */
+static void group_line(lv_obj_t *l, const char *head, uint32_t color, const char *shown, const char *places) {
+    const lv_font_t *font = lv_obj_get_style_text_font(l, 0);
+    lv_coord_t       ls   = lv_obj_get_style_text_letter_space(l, 0);
+    char             buf[160], part[HEARD_MAX], m[48];
+
+    for (size_t n = strlen(places);; n--) {
+        memcpy(part, places, n);
+        part[n] = 0;
+        morse_line(part, m, sizeof(m));
+        snprintf(buf, sizeof(buf), "%s#%06x %s#   %s", head, color, shown, m);
+        if (n == 0 || lv_txt_get_width(buf, strlen(buf), font, ls, LV_TEXT_FLAG_RECOLOR) <= LINE_W) break;
+    }
+    lv_label_set_text(l, buf);
+}
+
 static void refresh_ui(void) {
     bool learn = mode == MODE_LEARN, calls = mode == MODE_CALLS, sv = learn && stats_view;
     int  wpm   = param_i_get(cfg_key_speed);
-    char m1[48], m2[48], buf[160], shown[HEARD_MAX * 3];
+    char m1[48], buf[160], shown[HEARD_MAX * 3];
 
     set_btn(&btn_play, mode == MODE_PRACTICE || sv);
     set_btn(&btn_skip, mode == MODE_PRACTICE || sv);
@@ -1036,19 +1057,15 @@ static void refresh_ui(void) {
             morse_line(target, m1, sizeof(m1));
             snprintf(buf, sizeof(buf), "Sent:   #%06x %s#   %s", theme_hex(TC_accent), target, m1);
             lv_label_set_text(line1, buf);
-            morse_line(heard, m2, sizeof(m2));
-            snprintf(buf, sizeof(buf), "Heard: #%06x %s#   %s", theme_hex(TC_text), shown, m2);
-            lv_label_set_text(line2, heard[0] ? buf : "");
+            if (heard[0]) group_line(line2, "Heard: ", theme_hex(TC_text), shown, heard);
             break;
         case ST_RESULT:
             lv_label_set_text(big, last_ok ? "OK" : "WRONG");
             lv_obj_set_style_text_color(big, lv_color_hex(last_ok ? COLOR_OK : COLOR_BAD), 0);
             morse_line(target, m1, sizeof(m1));
-            morse_line(heard, m2, sizeof(m2));
             snprintf(buf, sizeof(buf), "Sent:   #%06x %s#   %s", theme_hex(TC_accent), target, m1);
             lv_label_set_text(line1, buf);
-            snprintf(buf, sizeof(buf), "Heard: #%s %s#   %s", last_ok ? "60ff60" : "ff6060", shown, m2);
-            lv_label_set_text(line2, buf);
+            group_line(line2, "Heard: ", last_ok ? 0x60ff60 : 0xff6060, shown, heard);
             snprintf(buf, sizeof(buf), "%s%s", strchr(heard, CWT_NO_CHAR) ? CWT_NO_CHAR_SHOWN " = not a character. " : "",
                      autoplay ? "Next group follows. Pause: stop after this one" : "Start: resume. Skip: another group");
             lv_label_set_text(hint, buf);
@@ -1199,10 +1216,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_set_pos(line1, 0, 90);
     line2 = label(box, &sony_28, COLOR_DIM);
     lv_obj_set_pos(line2, 0, 140);
-    /* Up to 12 px before the side panel (a label draws a quarter of its line height, 8 px, past its width): an answer
-     * with four places or more that are no character ("<?>", in the answer and in its dits and dahs) is wider, and
-     * is cut there instead of running into the characters in use */
-    lv_obj_set_width(line2, W - SIDE_W - 32);
+    lv_obj_set_width(line2, LINE_W);    /* group_line() fits its text; what still does not fit is cut, not wrapped */
     lv_label_set_long_mode(line2, LV_LABEL_LONG_CLIP);
     side_score = label(box, &sony_22, theme_hex(TC_text_value));
     lv_obj_set_width(side_score, SIDE_W - 12);
