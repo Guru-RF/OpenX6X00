@@ -1,0 +1,4 @@
+#!/bin/bash
+. "$(dirname "$0")/../lib.sh"
+callog "fatlabel $*"
+exit 0

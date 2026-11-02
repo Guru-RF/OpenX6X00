@@ -1,0 +1,79 @@
+#!/bin/bash
+# util-linux 2.38's blkid as the radio has it, for the card file: the real probe of the partition's
+# region, and for a partition without a filesystem only its PARTUUID (plain) or PART_ENTRY_* (-p)
+. "$(dirname "$0")/../lib.sh"
+callog "blkid $*"
+low= fmt= tag= label= dev= off=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -p) low=1 ;;
+        -o) fmt=$2; shift ;;
+        -s) tag=$2; shift ;;
+        -L) label=$2; shift ;;
+        -O) off=$2; shift ;;
+        -*) echo "blkid shim: option $1" >&2; exit 4 ;;
+        *) dev=$1 ;;
+    esac
+    shift
+done
+
+if [ -n "$label" ]; then
+    for n in $(sfdisk -d "$CARD" 2>/dev/null | sed -n "s|^${CARD}\([0-9]*\) :.*|\1|p"); do
+        realprobe "$n"
+        if [ "$prc" = 0 ] && printf '%s\n' "$plines" | grep -qx "LABEL=$label"; then
+            echo "${DEVP}p$n"
+            exit 0
+        fi
+    done
+    exit 2
+fi
+
+n=$(partnum "$dev")
+[ -n "$n" ] && [ -e "$dev" ] || { echo "blkid shim: $dev not a partition" >&2; exit 2; }
+set -- $(geom "$n")
+start=$1 size=$2 type=$3
+# 2.38 for a probe that could not read the partition (an I/O error, a device gone): nothing, exit 2
+[ -f "$F/probe_fail_$n" ] && exit 2
+if [ -n "$off" ]; then
+    pl=$($BLKID -p -o export -O $((start * 512 + off)) -S $((size * 512 - off)) "$CARD" 2>/dev/null); r=$?
+    [ $r -eq 0 ] || exit $r
+    pl=$(printf '%s\n' "$pl" | grep -v -e '^DEVNAME=' -e '^$')
+    if [ -n "$tag" ]; then v=$(printf '%s\n' "$pl" | sed -n "s/^$tag=//p"); [ -n "$v" ] || exit 2; echo "$v"; exit 0; fi
+    echo "DEVNAME=$dev"; printf '%s\n' "$pl"; exit 0
+fi
+realprobe "$n"
+if [ "$prc" = 8 ]; then
+    echo "$dev: ambivalent result (probably more filesystems on the device, use wipefs(8) to see more details)" >&2
+    exit 8
+fi
+[ "$prc" = 0 ] || plines=
+partuuid=$PART_UUID_BASE-$(printf %02d "$n")
+
+if [ -n "$low" ]; then
+    # -p -o export
+    [ "$fmt" = export ] || { echo "blkid shim: -p without -o export" >&2; exit 4; }
+    echo "DEVNAME=$dev"
+    [ -n "$plines" ] && printf '%s\n' "$plines"
+    echo "PART_ENTRY_SCHEME=dos"
+    echo "PART_ENTRY_UUID=$partuuid"
+    echo "PART_ENTRY_TYPE=0x$(printf %x $((16#$type)))"
+    echo "PART_ENTRY_NUMBER=$n"
+    echo "PART_ENTRY_OFFSET=$start"
+    echo "PART_ENTRY_SIZE=$size"
+    echo "PART_ENTRY_DISK=179:0"
+    exit 0
+fi
+
+all=$(printf '%s\n' "$plines" | grep -E '^(LABEL|UUID|BLOCK_SIZE|TYPE|SEC_TYPE)=')
+all=$(printf '%s\n%s\n' "$all" "PARTUUID=$partuuid" | grep -v '^$')
+if [ -n "$tag" ]; then
+    v=$(printf '%s\n' "$all" | sed -n "s/^$tag=//p")
+    [ -n "$v" ] || exit 2
+    if [ "$fmt" = value ]; then echo "$v"; else echo "$dev: $tag=\"$v\""; fi
+    exit 0
+fi
+# plain: every tag, the partition's PARTUUID always among them (2.38: also without a filesystem)
+printf '%s: ' "$dev"
+printf '%s\n' "$all" | sed 's/^\([A-Z_]*\)=\(.*\)$/\1="\2"/' | tr '\n' ' ' | sed 's/ $//'
+echo
+exit 0

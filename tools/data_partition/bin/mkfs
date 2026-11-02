@@ -1,0 +1,23 @@
+#!/bin/bash
+# mkfs -t vfat -n LABEL DEV: the real mkfs.vfat into the partition's region of the card file; the
+# filesystem's files (the fake mount's folder, fs/N) start empty
+. "$(dirname "$0")/../lib.sh"
+callog "mkfs $*"
+[ -f "$F/fail_mkfs" ] && { echo "mkfs shim: failing on purpose" >&2; exit 1; }
+t= l= dev=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -t) t=$2; shift ;;
+        -n) l=$2; shift ;;
+        *) dev=$1 ;;
+    esac
+    shift
+done
+[ "$t" = vfat ] || { echo "mkfs shim: type $t" >&2; exit 1; }
+n=$(partnum "$dev")
+set -- $(geom "$n")
+[ -n "$1" ] || { echo "mkfs shim: $dev not on the card" >&2; exit 1; }
+/usr/bin/mkfs.vfat -n "$l" --offset="$1" "$CARD" $(($2 / 2)) > /dev/null || exit 1
+rm -rf "$F/fs/$n"
+mkdir -p "$F/fs/$n"
+exit 0

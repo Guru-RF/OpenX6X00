@@ -1,0 +1,5 @@
+#!/bin/bash
+# The radio's own x6100-starttrace (from the worktree), on the fake radio's places
+: "${F:?}" "${WT:?}"
+X6100_START_TRACE_DATA=$F/mnt X6100_START_TRACE_SYS=$F/sys_trace.txt X6100_START_TRACE_RUN=$F/pending \
+    X6100_START_TRACE_MOUNTS=$F/mounts exec sh "$WT/rootfs/usr/sbin/x6100-starttrace" "$@"

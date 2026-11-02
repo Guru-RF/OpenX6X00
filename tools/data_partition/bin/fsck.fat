@@ -1,0 +1,6 @@
+#!/bin/bash
+# The check itself is not emulated: logged, clean (exit 0) unless <F>/fsck_rc says otherwise
+. "$(dirname "$0")/../lib.sh"
+callog "fsck.fat $*"
+echo "fsck.fat 4.2 (shim)"
+exit "$(cat "$F/fsck_rc" 2>/dev/null || echo 0)"

@@ -434,8 +434,9 @@ buildroot/               local-build.sh and Dockerfile (the image), br2_external
 host/                    the GUI on a PC (SDL, stub radio)
 tools/                   screenshots/ (drive.py, grab.py, pull.py), update/ (the bundle),
                          tci/ and winlink/ (the TCI server's and the Winlink modem socket's host
-                         tests), itu_region/ (the band plan's Auto region, a host test), icons/,
-                         logo/ and fonts/
+                         tests), itu_region/ (the band plan's Auto region, a host test),
+                         data_partition/ (S00adata on fake cards, a host test), icons/, logo/ and
+                         fonts/
 assets/                  the logo's fonts and marks
 docs/                    MANUAL.md, THEMES.md, MENUS.md, UPSTREAM_README.md, audit/,
                          screenshots/ (taken by script on an X6200)
@@ -449,8 +450,8 @@ docs/                    MANUAL.md, THEMES.md, MENUS.md, UPSTREAM_README.md, aud
 - [Menus](docs/MENUS.md): the icon grids, and how to get the text menus back.
 - [Screenshots](docs/screenshots/README.md): how they are taken.
 - [The TCI server's host test](tools/tci/README.md), [the Winlink modems'](tools/winlink/README.md), the
-  [ITU region's](tools/itu_region/itu_region_test.c), the [DX cluster bands'](tools/cluster/cluster_bands_test.c)
-  and the [PC build](host/README.md).
+  [ITU region's](tools/itu_region/itu_region_test.c), the [DX cluster bands'](tools/cluster/cluster_bands_test.c),
+  the [DATA partition's](tools/data_partition/Makefile) and the [PC build](host/README.md).
 
 ## Licences
 

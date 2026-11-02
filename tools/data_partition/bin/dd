@@ -1,0 +1,31 @@
+#!/bin/bash
+# dd if=<a partition of the card> bs=512 ...: the card file at the partition's offset. Anything else is the
+# dd after this one in PATH (the host's, or the image's busybox): x6100-starttrace's appends
+here=$(cd "$(dirname "$0")" && pwd)
+dev=
+for a in "$@"; do
+    case "$a" in if=*) dev=${a#if=} ;; esac
+done
+case "$dev" in
+    "$F"/dev/mmcblk0p[0-9]*)
+        . "$here/../lib.sh"
+        callog "dd $*"
+        set -- $(geom "$(partnum "$dev")") "$@"
+        start=$1 size=$2; shift 3
+        bs= skip=0 count=
+        for a in "$@"; do
+            case "$a" in
+                if=*) ;;
+                bs=*) bs=${a#bs=} ;;
+                skip=*) skip=${a#skip=} ;;
+                count=*) count=${a#count=} ;;
+                *) echo "dd shim: $a" >&2; exit 1 ;;
+            esac
+        done
+        [ "$bs" = 512 ] && [ -n "$count" ] || { echo "dd shim: bs=512 and count= only" >&2; exit 1; }
+        [ $((skip + count)) -le "$size" ] || count=$((size - skip))
+        exec /usr/bin/dd if="$CARD" bs=512 skip=$((start + skip)) count=$count status=none
+        ;;
+esac
+PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vx "$here" | paste -sd:)
+exec dd "$@"

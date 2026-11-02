@@ -1,0 +1,13 @@
+#!/bin/bash
+. "$(dirname "$0")/../lib.sh"
+callog "umount $*"
+dir=$1
+grep -q " $dir " "$F/mounts" || { echo "umount: $dir: not mounted" >&2; exit 32; }
+if [ "$dir" = "$F/mnt" ]; then
+    ln -sfn "$F/sys_mnt" "$dir"
+else
+    rm -f "$dir/mnt"
+fi
+grep -v " $dir " "$F/mounts" > "$F/mounts.new"
+mv "$F/mounts.new" "$F/mounts"
+exit 0

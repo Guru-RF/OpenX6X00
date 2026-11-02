@@ -1,0 +1,24 @@
+#!/bin/bash
+# mount DEV <F>/mnt: <F>/mnt, a link to the system's folder (sys_mnt), points at the filesystem's
+# files (fs/N) instead, when the region holds vfat. mount --bind / <F>/sysroot: its mnt is sys_mnt
+. "$(dirname "$0")/../lib.sh"
+callog "mount $*"
+if [ "$1" = --bind ] && [ "$2" = / ]; then
+    ln -sfn "$F/sys_mnt" "$3/mnt" || exit 1
+    echo "/dev/root $3 ext4 rw 0 0" >> "$F/mounts"
+    exit 0
+fi
+dev=$1 dir=$2
+[ "$dir" = "$F/mnt" ] || { echo "mount shim: $dir" >&2; exit 1; }
+grep -q " $dir " "$F/mounts" && { echo "mount: $dir busy" >&2; exit 32; }
+n=$(partnum "$dev")
+[ -n "$n" ] || exit 32
+realprobe "$n"
+if [ "$prc" != 0 ] || ! printf '%s\n' "$plines" | grep -qx 'TYPE=vfat'; then
+    echo "mount: $dir: wrong fs type, bad option, bad superblock on $dev" >&2
+    exit 32
+fi
+mkdir -p "$F/fs/$n"
+ln -sfn "$F/fs/$n" "$dir"
+echo "$dev $dir vfat rw 0 0" >> "$F/mounts"
+exit 0
