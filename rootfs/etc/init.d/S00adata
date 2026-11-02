@@ -132,9 +132,10 @@ cut_copy() {
 # level when it has none: made at this start ($1 new), formatted on a PC or emptied there, and what
 # the radio wrote are its settings, log and the rest. All of it is copied first (params.db with its
 # -wal and -shm), then moved up on DATA, and only then, once it is on the card, taken off the system;
-# a name DATA has already stays in found_on_system. The copy goes into a folder of its own, never over
-# a file DATA has: found_on_system.2, .3 ... when an earlier start left a found_on_system there (its
-# files perhaps the only copy of those settings)
+# a name DATA has already stays in found_on_system, and a database with its -wal, -shm and -journal
+# when DATA has one of those names. The copy goes into a folder of its own, never over a file DATA
+# has: found_on_system.2, .3 ... when an earlier start left a found_on_system there (its files
+# perhaps the only copy of those settings)
 rescue() {
     mkdir -p /tmp/sysroot && mount --bind / /tmp/sysroot || return
     if [ -n "$(ls -A /tmp/sysroot/mnt 2>/dev/null)" ]; then
@@ -161,9 +162,15 @@ rescue() {
         if mkdir -p "$found" && cp -a /tmp/sysroot/mnt/. "$found/"; then
             where=${found#/mnt/}
             if [ "$1" = new ]; then
+                # A database goes up with its -wal, -shm and -journal or stays with them: SQLite reads
+                # a journal into the database of its name, one of DATA's own as well
+                had=$(ls -A /mnt)
                 for f in "$found"/* "$found"/.[!.]*; do
                     [ -e "$f" ] || continue
-                    [ -e "/mnt/${f##*/}" ] || mv "$f" /mnt/
+                    n=${f##*/}
+                    b=${n%-wal}; b=${b%-shm}; b=${b%-journal}
+                    printf '%s\n' "$had" | grep -qxF -e "$b" -e "$b-wal" -e "$b-shm" -e "$b-journal" && continue
+                    [ -e "/mnt/$n" ] || mv "$f" /mnt/
                 done
                 where="DATA's top level: the settings and logs carry over"
                 rmdir "$found" 2>/dev/null || where="$where (a name DATA had already: in ${found#/mnt/})"

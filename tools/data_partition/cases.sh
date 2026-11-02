@@ -464,6 +464,33 @@ if want straywal; then
     ok "a -wal of its own: kept, nothing next to it, the system's files in found_on_system" '[ "$(cat "$F/fs/3/params.db-wal")" = stray ] && [ ! -e "$F/fs/3/params.db" ] && [ "$(walrow "$F/fs/3/found_on_system")" = "$WALROW" ] && [ -z "$(ls -A "$F/sys_mnt")" ]'
 fi
 
+# DATA formatted on a PC, a database of its own there or a journal of one (the QSO log copied back from
+# the old DATA, a -journal left by a power cut), the system's qso_log.db with a hot -journal (a power cut
+# in a change): those two stay together in found_on_system, DATA's as they were
+if want journal; then
+    for v in ownlog strayjournal; do
+        newcard "journal_$v" $C4G
+        boot old; gui_writes; boot old
+        python3 -I "$H/mkjournal.py" "$F/sys_mnt/qso_log.db"
+        ok "set up ($v): the system's qso_log.db with a hot -journal" '[ -s "$F/sys_mnt/qso_log.db-journal" ] && [ "$(logrows "$F/sys_mnt" qsos)" = "ok 200" ]'
+        PATH=$H/bin:$PATH mkfs -t vfat -n "NO NAME" "$F/dev/mmcblk0p3"
+        if [ $v = ownlog ]; then
+            python3 -I -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute('create table mine(call text, pad text)'); [c.execute('insert into mine values(?, ?)', ('MINE%d' % i, 'm' * 400)) for i in range(300)]; c.commit()" "$F/fs/3/qso_log.db"
+            cp "$F/fs/3/qso_log.db" "$F/mine.db"
+        else
+            echo stray > "$F/fs/3/qso_log.db-journal"
+        fi
+        boot new
+        if [ $v = ownlog ]; then
+            ok "own log: DATA's qso_log.db as it was, no -journal beside it, SQLite reads it" 'cmp -s "$F/fs/3/qso_log.db" "$F/mine.db" && [ ! -e "$F/fs/3/qso_log.db-journal" ] && [ "$(logrows "$F/fs/3" mine)" = "ok 300" ]'
+        else
+            ok "stray journal: as it was, no qso_log.db beside it" '[ "$(cat "$F/fs/3/qso_log.db-journal")" = stray ] && [ ! -e "$F/fs/3/qso_log.db" ]'
+        fi
+        ok "$v: the system's qso_log.db with its -journal in found_on_system, SQLite reads it" '[ -s "$F/fs/3/found_on_system/qso_log.db-journal" ] && [ "$(logrows "$F/fs/3/found_on_system" qsos)" = "ok 200" ]'
+        ok "$v: params.db with its -wal on top, the system emptied" '[ "$(walrow "$F/fs/3")" = "$WALROW" ] && [ -z "$(ls -A "$F/sys_mnt")" ]'
+    done
+fi
+
 # The normal start (FAT32 DATA there): the same tool calls as v0.3.8's script, in the same order
 if want samepath; then
     newcard samepath $C4G

@@ -161,6 +161,14 @@ walrow() {
     rm -rf "$tmp"
 }
 WALROW="[('only_in_wal',)]"
+# qso_log.db in folder $1 as SQLite reads it, from a copy with its -journal: integrity_check and the rows
+# of table $2
+logrows() {
+    tmp=$(mktemp -d "$RUNS/log.XXXX")
+    cp -a "$1"/qso_log.db* "$tmp/"
+    python3 -I -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print(c.execute('pragma integrity_check').fetchone()[0], c.execute('select count(*) from ' + sys.argv[2]).fetchone()[0])" "$tmp/qso_log.db" "$2" 2>&1 | tail -n 1
+    rm -rf "$tmp"
+}
 # A listing of folder $1 (names, then contents) without the radio's own two files there
 tree() { (cd "$1" && find . -path ./app_logs/start_trace.txt -prune -o -path ./data_fsck.log -prune -o -print | sort | md5sum); }
 sums() { (cd "$1" && find . -type f ! -path ./app_logs/start_trace.txt ! -path ./data_fsck.log | sort | xargs md5sum | md5sum); }
