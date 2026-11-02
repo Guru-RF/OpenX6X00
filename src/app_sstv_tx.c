@@ -23,6 +23,7 @@
 #include "keyboard.h"
 #include "msg.h"
 #include "params/params.h"
+#include "screen_main.h"
 #include "sstv/sstv_png.h"
 #include "sstv/sstv_tx.h"
 #include "styles.h"
@@ -629,9 +630,20 @@ static void *tx_thread(void *arg)
     return NULL;
 }
 
+/* On the air the frequency, band, mode and VFO stay where the picture goes out (the main knob, the band and mode
+ * keys moved them, keyed). The apps' hold, apart from the user's LOCK */
+static void on_air_hold(bool on)
+{
+    main_screen_lock_freq(on);
+    main_screen_lock_band(on);
+    main_screen_lock_mode(on);
+    main_screen_lock_ab(on);
+}
+
 /* Back to listening after any transmission, sent, stopped or failed */
 static void on_air_end(void)
 {
+    on_air_hold(false);
     sstv_tx_state = SSTV_TX_OFF;
     step = STEP_NONE;
     sstv_btn_tx.label = "TX";
@@ -678,6 +690,7 @@ static bool on_air_start(sstv_mode_t mode)
     }
     if (sstv_btn_tx.disp_btn) buttons_refresh(&sstv_btn_tx);
     sstv_controls();
+    on_air_hold(true);     /* a failed start lets go in on_air_end() */
 
     int rc = pthread_create(&thread, NULL, tx_thread, NULL);
     if (rc) {
@@ -1329,6 +1342,7 @@ void sstv_tx_close(void)
         pthread_join(thread, NULL);
         thread_on = false;
     }
+    on_air_hold(false);
     running = keyed = false;
     sstv_btn_tx.label = "TX";
     sstv_tx_state = SSTV_TX_OFF;

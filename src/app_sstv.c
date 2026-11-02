@@ -302,6 +302,8 @@ void sstv_controls(void)
     bool a = auto_on || auto_rec || auto_ready || auto_dec;
     bool m = man_rec || man_ready || man_dec;
 
+    /* the list tunes: not from TX setup on, a row tapped while on the air moved the VFO */
+    buttons_disabled(&btn_freq, sstv_tx_state != SSTV_TX_OFF);
     if (sstv_tx_state != SSTV_TX_OFF) {
         buttons_disabled(&btn_auto, true);
         buttons_disabled(&btn_manual, true);
@@ -843,6 +845,8 @@ static void delete_cb(button_data_t *b)
 static void tx_cb(button_data_t *b)
 {
     (void)b;
+    if (sstv_tx_state == SSTV_TX_OFF && freq_list_is_open())
+        freq_list_close();      /* TX setup on: the list goes, Freq. waits for the end of TX */
     sstv_tx_button();
 }
 
@@ -1154,6 +1158,7 @@ static void destruct_cb(void)
     btn_manual.label = "Start\nManual RX";
     sstv_btn_mode.label = "RX Mode\nAuto";
     page1.items[3] = &sstv_btn_mode;
+    btn_freq.disabled = false;      /* closed during TX */
     sstv_gallery_close();
     radio_set_pwr(param_f_get(cfg_pwr));   /* the power cap ends with the app */
 

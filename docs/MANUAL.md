@@ -156,6 +156,8 @@ and CAT still tune.
 - FT8, FT4, JS8, PSK, Olivia, JTTY and WSPR hold the frequency the same way
   while they are open. Their own knobs and buttons keep working (in FT8 the
   MFK still picks a station and the main knob moves the TX offset).
+- SSTV holds the frequency, the band and the mode while it transmits a
+  picture, from "Preparing ... TX" to the end or Halt TX.
 - Your lock is apart from the apps' hold: set before an app opened, it is
   still on after the app closes, and an app never turns it on. Up to v0.3.7
   closing the app turned it off.
@@ -1984,6 +1986,10 @@ and its colours; the next press transmits.
 
 - TX Mode chooses Martin, Scottie or Robot. Cancel TX goes back. Halt TX
   stops on the air.
+- While a picture goes out the main knob, the band and mode keys and A/B
+  leave the frequency, band and mode as they are, as in FT8. Freq. (page 2)
+  is off from TX setup to the end of TX: choose the calling frequency
+  before TX.
 - TX goes through the same player as FT8 and WSPR: power at most 7 W, level
   set from the ALC and the power.
 - Pictures are in `/mnt/sstv/tx_pics`, text templates in
