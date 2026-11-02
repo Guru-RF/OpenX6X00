@@ -5382,9 +5382,11 @@ Meanwhile:
   through. Up to v0.3.8 it stayed in TX, and the digital apps did not
   transmit, until a restart.
 - The hand mic's keys do nothing, and on the X6200 the POWER key neither:
-  the base reports them in the same data. The X6100's POWER key has a line
-  of its own and still switches the radio off (up to v0.3.8 it said "Power
-  off" and saved, but the radio stayed on).
+  the base reports them in the same data. An X6200 POWER key the data
+  stopped on while down counts as let go, so a tap cannot turn into a
+  power-off. The X6100's POWER key has a line of its own and still
+  switches the radio off (up to v0.3.8 it said "Power off" and saved, but
+  the radio stayed on).
 
 Look at Settings > Info > Baseband and at the table of bases in the
 [README](../README.md#the-baseband). An X6200 base older than 1.0.7 sends

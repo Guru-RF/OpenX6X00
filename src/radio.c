@@ -2075,6 +2075,8 @@ static uint32_t atu_network;        /* the tuner's network, for atu_done_cb */
 static bool     atu_network_due;    /* found, its job not in the queue yet */
 
 static bool radio_tick() {
+    static bool power_was;      /* the X6200's POWER key as the GUI was told it (the packets, the flow resets) */
+
     if (now_time < prev_time) {
         prev_time = now_time;
     }
@@ -2195,8 +2197,6 @@ static bool radio_tick() {
 
         /* The POWER key where the base reports it (the X6200): to the GUI thread as a key. power_was: what
          * the GUI was told (the note above radio_tick) */
-        static bool power_was;
-
         if (pack->power_key != power_was) {
             bool down = pack->power_key;
 
@@ -2421,6 +2421,16 @@ static bool radio_tick() {
                                    (unsigned)(now_time - pack_time));
                 } else {
                     atomic_store(&swrscan_stop_asked, false);   /* the next reset tries again */
+                }
+            }
+            /* The X6200's POWER key is in the data alone: a tap whose release fell into a gap stayed down, and its
+             * hold timer (front_keys.c) made it a power-off, which the step below now carries out at once. A key
+             * the data no longer reports is let go */
+            if (power_was) {
+                bool down = false;
+
+                if (scheduler_put_urgent(power_key_cb, &down, sizeof(down))) {
+                    power_was = false;
                 }
             }
             /* The X6100's POWER key is its own, not in the data: radio_poweroff saved, synced and said "Power off",
