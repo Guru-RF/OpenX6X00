@@ -15,6 +15,7 @@
 
 #include "lvgl/lvgl.h"
 #include "msg_encode.h"     /* ftx_call_is_standard */
+#include "utils.h"          /* ftx_qth_square */
 
 /* text goes on the air as written: encoded and decoded back the same, "CQ_POTA" read as "CQ POTA". Zeroed first:
  * free text leaves payload[9], the message type, as it was */
@@ -44,6 +45,7 @@ bool cq_make_message(const char *callsign,
                      const char *cq_mod,
                      char       *out) {
     char buf[FTX_MAX_MESSAGE_LENGTH];
+    char grid[5];
 
     /* Not a base call (PA/ON6URE, KF0QGT/6Y): a type 4 CQ, no room for a grid or a modifier. ft8_lib 73b0db8
      * leaves the grid out by itself, and refuses "CQ_POTA PA/ON6URE" altogether */
@@ -51,7 +53,9 @@ bool cq_make_message(const char *callsign,
         int n = cq_mod[0] ? snprintf(buf, sizeof(buf), "CQ_%s %s", cq_mod, callsign)
                           : snprintf(buf, sizeof(buf), "CQ %s", callsign);
 
-        if (qth[0] && n > 0 && n < (int)sizeof(buf)) snprintf(buf + n, sizeof(buf) - n, " %.4s", qth);
+        /* "jo21cv" as "JO21": a lower-case one went out as a report, "CQ ON6URE +00" */
+        ftx_qth_square(qth, grid);
+        if (grid[0] && n > 0 && n < (int)sizeof(buf)) snprintf(buf + n, sizeof(buf) - n, " %s", grid);
         if (goes_out(buf)) {
             strcpy(out, buf);   /* "CQ_POTA" kept: "CQ POTA" encoded again at TX is a type 4 "CQ POTA", no call */
             return true;

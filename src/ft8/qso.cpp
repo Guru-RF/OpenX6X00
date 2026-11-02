@@ -138,12 +138,11 @@ void Candidate::save_qso(save_qso_cb_t save_qso_cb, bool aside) {
 }
 
 FTxQsoProcessor::FTxQsoProcessor(std::string local_callsign, std::string local_qth, save_qso_cb_t save_qso_cb, int max_repeats) {
+    char square[5];
+
     _local_callsign = local_callsign;
-    if (local_qth.size() > 4) {
-        _local_qth = local_qth.substr(0, 4);
-    } else {
-        _local_qth = local_qth;
-    }
+    ftx_qth_square(local_qth.c_str(), square);  // "jo21cv" as "JO21": a lower-case one went out as a report
+    _local_qth = square;
     _save_qso_cb = save_qso_cb;
     _max_repeats = max_repeats;
 }
@@ -622,7 +621,8 @@ static std::string make_answer_text(ftx_msg_type_t last_rx_type, std::string rem
             len = snprintf(answer, 35, "<%s> %s", remote_callsign.c_str(), local_callsign.c_str());
             break;
         }
-        len = snprintf(answer, 35, "%s %s %s", remote_callsign.c_str(), local_callsign.c_str(), grid.c_str());
+        len = snprintf(answer, 35, grid.empty() ? "%s %s" : "%s %s %s", remote_callsign.c_str(), local_callsign.c_str(),
+                       grid.c_str());
         break;
     case FTX_MSG_TYPE_GRID:
         len = snprintf(answer, 35, "%s %s %+03d", remote_callsign.c_str(), local_callsign.c_str(), local_snr);

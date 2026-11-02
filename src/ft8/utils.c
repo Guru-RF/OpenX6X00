@@ -6,6 +6,8 @@
 #include <math.h>
 #include <sys/timex.h>
 
+#include "../qth/qth.h"     /* qth_grid_check */
+
 #define SYNC_MAX_ERR_US 1000000     /* ntpd's maximum error, under which the clock is right for FT8 */
 
 /**
@@ -44,6 +46,15 @@ bool is_cq_modifier(const char *text) {
         }
     }
     return false;
+}
+
+void ftx_qth_square(const char *qth, char *out) {
+    char sq[5] = "";
+
+    out[0] = '\0';
+    if (!qth || strlen(qth) < 4) return;
+    for (int i = 0; i < 4; i++) sq[i] = (char)toupper((unsigned char)qth[i]);
+    if (qth_grid_check(sq)) strcpy(out, sq);
 }
 
 int64_t ftx_slot_offset_ns(int64_t sec, long nsec, float slot) {

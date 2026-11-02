@@ -22,7 +22,7 @@ extern "C" {
 #endif
 
 /* The CQ as it goes on the air, into out (FTX_MAX_MESSAGE_LENGTH, caller's):
- *   "CQ <callsign> <grid>", "CQ <callsign>" with no QTH set
+ *   "CQ <callsign> <grid>", "CQ <callsign>" with no QTH set (the grid the QTH's square, upper case: "JO21")
  *   "CQ_<mod> <callsign> <grid>"         (with a modifier: "CQ POTA ..." on the air)
  *   "CQ <callsign>"                      (a call that is not a base call, PA/ON6URE: a type 4 CQ, no room for
  *                                         the grid or the modifier)

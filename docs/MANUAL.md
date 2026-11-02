@@ -1668,6 +1668,8 @@ Buttons:
   clock set while FT8 is open) is not sent: the radio says "TX not sent: too
   late into the slot", and the message goes in your next slot, its retry not
   used up. FT2 starts as soon as it can (see FT2 below).
+- Your grid in a CQ, an answer or a Hound call is the QTH's square in
+  capitals: jo21cv goes as JO21. A QTH of 2 characters (JO) sends none.
 - Hold Freq: your TX offset does not move to the station you answer.
 - Auto: the next message of the QSO is sent by itself, and a station that
   calls you gets an answer, also while you call CQ (what other programs call

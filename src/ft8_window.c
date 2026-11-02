@@ -864,7 +864,7 @@ static void tx_cq_cb(button_data_t *btn) {
         return;
     }
     /* "CQ PA/ON6URE": a call that is not a base call leaves no room for the QTH and the modifier set */
-    bool short_cq = (params.ft8_cq_modifier.x[0] || station_qth()[0]) && !strchr(cq + 3, ' ');
+    bool short_cq = (params.ft8_cq_modifier.x[0] || station_qth()[0]) && !ftx_call_is_standard(params.callsign.x);
 
     subject_i_set(cq_enabled, true);
     subject_i_set(tx_enabled, true);
@@ -872,7 +872,8 @@ static void tx_cq_cb(button_data_t *btn) {
     strcpy(tx_msg.msg, cq);
     tx_odd = first_tx_slot_odd();
     /* "CQ_DX ON6URE JO21" goes out as "CQ DX ..." */
-    msg_schedule_text_fmt("Next TX: %s%s%s", tx_msg.msg[2] == '_' ? "CQ " : "", tx_msg.msg + (tx_msg.msg[2] == '_' ? 3 : 0),
+    msg_schedule_text_fmt("Next TX: %s%s%s", tx_msg.msg[2] == '_' ? "CQ " : "",
+                          tx_msg.msg + (tx_msg.msg[2] == '_' ? 3 : 0),
                           short_cq ? " (no QTH or modifier with this call)" : "");
     tx_msg.repeats = param_i_get(cfg_ft8_max_repeats);
     ftx_qso_processor_reset(qso);

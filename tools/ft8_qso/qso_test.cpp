@@ -77,11 +77,11 @@ static bool is_pota(const char *call) {
     return pota_call && !strcmp(call, pota_call);
 }
 
-/* me_std: our call as ft8_window.c finds it (msg_encode.c ftx_call_is_standard) */
+/* me_std: our call as ft8_window.c finds it (msg_encode.c ftx_call_is_standard); qth: the QTH setting, as typed */
 static void begin(const char *name, bool auto_on = true, int max_repeats = 6, const char *me = ME,
-                  bool me_std = true) {
+                  bool me_std = true, const char *qth = MY_QTH "CV") {
     if (qso) ftx_qso_processor_delete(qso);
-    qso = ftx_qso_processor_init(me, MY_QTH "CV", on_saved, max_repeats);
+    qso = ftx_qso_processor_init(me, qth, on_saved, max_repeats);
     ftx_qso_processor_set_is_pota(qso, is_pota);
     ftx_qso_processor_set_auto(qso, auto_on);
     ftx_qso_processor_set_local_standard(qso, me_std);
@@ -1382,6 +1382,27 @@ static void own_call(void) {
     check(!m.to_me && !tx.msg[0], "\"<...> PA/A1AAA\" is not to us, nothing queued");
 }
 
+/* ---- The QTH in our answers ------------------------------------------------------------------------------------ */
+
+/* The settings take a locator in either case and of 2 characters; the answer carries its square in upper case, or
+ * none: "A1AAA Q1QQQ jo21" went out as the report "A1AAA Q1QQQ +00" */
+static void own_qth(void) {
+    const char *typed[] = {"jo21cv", "Jo21", "JO21CV", "JO", ""};
+    const char *answer[] = {"A1AAA " ME " JO21", "A1AAA " ME " JO21", "A1AAA " ME " JO21", "A1AAA " ME,
+                            "A1AAA " ME};
+
+    for (size_t i = 0; i < sizeof(typed) / sizeof(typed[0]); i++) {
+        char name[80];
+
+        snprintf(name, sizeof(name), "QTH \"%s\": the answer to A's CQ", typed[i]);
+        begin(name, true, 6, ME, true, typed[i]);
+        ftx_msg_meta_t cq = rx("CQ A1AAA IN80");
+        slot_end();
+        press(cq);
+        check(next_is(answer[i]), "%s (%s)", answer[i], tx.msg);
+    }
+}
+
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "-v");
     good_paths();
@@ -1392,6 +1413,7 @@ int main(int argc, char **argv) {
     new_caller();
     force();
     own_call();
+    own_qth();
     ftx_qso_processor_delete(qso);
     printf("FT8 QSO %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;

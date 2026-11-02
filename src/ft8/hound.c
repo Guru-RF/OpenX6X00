@@ -19,15 +19,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "utils.h"      /* ftx_qth_square */
+
 void hound_call(hound_t *h, const char *my_call, const char *my_grid, const char *fox, const char *fox_grid,
                 time_t now, char *tx) {
+    char square[5];
+
     memset(h, 0, sizeof(*h));
     snprintf(h->my_call, sizeof(h->my_call), "%s", my_call);
     snprintf(h->fox, sizeof(h->fox), "%s", fox);
     snprintf(h->fox_grid, sizeof(h->fox_grid), "%s", fox_grid);
     h->stage = HOUND_CALLING;
     h->since = now;
-    snprintf(tx, 35, "%s %s %.4s", fox, my_call, my_grid);
+    ftx_qth_square(my_grid, square);    /* "jo21cv" as "JO21" */
+    snprintf(tx, 35, square[0] ? "%s %s %s" : "%s %s", fox, my_call, square);
 }
 
 static hound_event_t reply(hound_t *h, const char *rpt, int snr, int freq_hz, time_t now, char *tx) {
