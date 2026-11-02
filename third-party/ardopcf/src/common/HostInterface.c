@@ -1070,8 +1070,8 @@ void ProcessCommandFromHost(char * strCMD)
 			goto cmddone;
 		}
 
-		if (strcmp(ptrParams, "ARQ") != 0 && strcmp(ptrParams, "RXO") == 0
-			&& strcmp(ptrParams, "FEC") == 0
+		if (strcmp(ptrParams, "ARQ") != 0 && strcmp(ptrParams, "RXO") != 0
+			&& strcmp(ptrParams, "FEC") != 0
 		) {
 			snprintf(strFault, sizeof(strFault), "Syntax Err: %s %s", strCMD, ptrParams);
 			goto cmddone;

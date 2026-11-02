@@ -66,3 +66,7 @@ Each one is its own commit on top of the pristine import.
   call that gets no answer reports `STATUS CONNECT TO <call> FAILED` on the
   host port and the console, not `END ARQ CALL` (the test was inverted).
   Host and log text only.
+- `src/common/HostInterface.c`, from upstream `906a38c` (develop, its
+  PROTOCOLMODE test only, not its comment typos): `PROTOCOLMODE` with a mode
+  other than ARQ, RXO or FEC answers `FAULT Syntax Err`, instead of
+  `PROTOCOLMODE now <mode>` with the mode quietly set to ARQ.

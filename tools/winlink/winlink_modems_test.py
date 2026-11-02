@@ -3,7 +3,8 @@
 
 1. ardopcf, protocol version 1, as x6100-winlink starts it: it connects at 12000 Hz with keys of 30 s, and the
    ID frame it is asked for (SENDID on its host port) is played whole. A call nobody answers ends in
-   CONNECT TO <call> FAILED, on the host port and on its console (x6100-winlink's "no answer").
+   CONNECT TO <call> FAILED, on the host port and on its console (x6100-winlink's "no answer"). PROTOCOLMODE
+   takes FEC and ARQ (Pat's); a mode it does not have is a FAULT and leaves the mode as it was.
 2. Mercury through x6x00-mercury, protocol version 2, and Pat v1.0.1's varahf transport, as on the radio: two
    stations, each a winlink_host and a bridge, what one transmits the other hears (with a little noise). Pat B
    listens; Pat A sends B a message peer to peer. Pat starts the modem (Mercury answers VERSION), connects,
@@ -157,6 +158,13 @@ def ardop_test(procs, tmp, ardopcf):
     check(b"NEWSTATE DISC" in r and f"STATUS {failed}".encode() in r,
           f"a call nobody answers: NEWSTATE DISC, STATUS {failed}")
     check(f"[STATUS: {failed}]" in text(log), "and its console says so")
+    c.sendall(b"PROTOCOLMODE FEC\rPROTOCOLMODE BOGUS\rPROTOCOLMODE\rPROTOCOLMODE ARQ\r")   # ARQ: Pat's init
+    r = read_until(c, lambda r: b"\rPROTOCOLMODE now ARQ\r" in b"\r" + r, 5)
+    print("   ardopcf answered:", r.decode(errors="replace").replace("\r", " | ").strip())
+    check([l for l in r.split(b"\r") if l.startswith((b"PROTOCOLMODE", b"FAULT"))]
+          == [b"PROTOCOLMODE now FEC", b"FAULT Syntax Err: PROTOCOLMODE BOGUS", b"PROTOCOLMODE FEC",
+              b"PROTOCOLMODE now ARQ"],
+          "PROTOCOLMODE FEC and ARQ taken; a mode other than ARQ, RXO or FEC: FAULT, the mode still FEC")
     c.close()
     procs.stop(a)
     check(wait_for(lambda: "the modem gone" in text(h["log"]), 5), "ardopcf gone: the GUI saw it go")
