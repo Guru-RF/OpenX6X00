@@ -107,7 +107,7 @@ The settings that need a newer base are hidden when the base is too old.
 
 | Baseband | What it is | With OpenX6X00 |
 |---|---|---|
-| Older than 1.0.7 | Xiegu's earlier bases (1.0.6 in issues #94 and #95) | Does not work: update the base. OpenX6X00 reads the base's data in the form 1.0.7 brought in, as 1.0.8 sends it too. On 1.0.6 the waterfall stayed black, the S-meter at S1, with no battery reading and a tuner that did not tune, until the base update. After 30 s without the base's data the radio says "No data from the base" ([manual](docs/MANUAL.md#the-waterfall-stays-black-and-the-s-meter-does-not-move)). |
+| Older than 1.0.7 | Xiegu's earlier bases (1.0.6 in issues #94 and #95) | Not supported: update the base. OpenX6X00 reads the base's data in the form 1.0.7 brought in, as 1.0.8 sends it too. On 1.0.6 the waterfall stayed black, the S-meter at S1, with no battery reading and a tuner that did not tune, until the base update. The SWR protection and the TX meters come from the same data. The sound comes another way, so listening and the digital apps can still work. After 30 s without the base's data the radio says "No data from the base" ([manual](docs/MANUAL.md#the-waterfall-stays-black-and-the-s-meter-does-not-move)). |
 | 1.0.7 | Xiegu's base | Works, with a fault of the base: its S-meter can stick at -255 dBm, which OpenX6X00 shows as S1, -121.0 (issue #14, where the battery and TX readings still came through). 1.0.8 fixes it. |
 | 1.0.8 (August 2026) | Fixes the CW keyer speed and an S-meter stuck at -255 dBm, adds CW macros | Works. The bench X6200 runs it. |
 
