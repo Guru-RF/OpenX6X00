@@ -25,6 +25,7 @@ extern short Dummy;
 extern int DriveLevel;
 extern BOOL WriteTxWav;
 extern unsigned int LastIDFrameTime;
+extern unsigned int tmrFinalID;
 
 int wg_send_txframet(int cnum, const char *frame);
 
@@ -625,7 +626,15 @@ void RemodulateLastFrame()
 		if (bytEncodedBytes[0] >= 0x7A && bytEncodedBytes[0] <= 0x7D)
 			Mod4FSK600BdDataAndPlay(bytEncodedBytes[0], bytEncodedBytes, EncLen, intCalcLeader);  // Modulate Data frame
 		else
+		{
 			Mod4FSKDataAndPlay(bytEncodedBytes[0], bytEncodedBytes, EncLen, intCalcLeader);  // Modulate Data frame
+			if ((bytEncodedBytes[0] >= ConReqmin && bytEncodedBytes[0] <= ConReqmax) || bytEncodedBytes[0] == PING)
+			{
+				// ConReq and Ping frames also satisfy legal ID requirements
+				tmrFinalID = 0;
+				LastIDFrameTime = 0;
+			}
+		}
 
 		return;
 	}

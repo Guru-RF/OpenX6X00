@@ -21,15 +21,19 @@ build/.copied: $(addprefix $(SRC)/,$(COPIED) $(CLUSTER))
 winlink_host: stubs.c build/.copied $(wildcard stub_include/*.h stub_include/*/*.h)
 	$(CC) $(CFLAGS) -I build -include stub_include/stub_env.h -o $@ stubs.c build/winlink.c build/cluster/spots.c -L $(DEPS)/lib -Wl,-rpath,$(abspath $(DEPS))/lib -lliquid -lm
 
+# ardopcf's clock 10 minutes on at each SIGUSR1 (LD_PRELOAD), for its 10 minute ID in winlink_modems_test.py
+clockskip.so: clockskip.c
+	$(CC) -std=gnu11 -Wall -Wextra -O1 -shared -fPIC -o $@ $< -ldl
+
 test: winlink_host
 	python3 -I winlink_proto_test.py
 
 # In a network namespace of its own with loopback only (unshare -rn): Pat reaches nothing outside it, no
 # Winlink web service, no CMS
-modems: winlink_host
+modems: winlink_host clockskip.so
 	unshare -rn sh -c 'ip link set lo up && python3 -I winlink_modems_test.py --ardopcf $(BUILD)/third-party/ardopcf/ardopcf --mercury $(BUILD)/third-party/mercury/x6x00-mercury --pat $(PAT)'
 
 clean:
-	rm -rf winlink_host build
+	rm -rf winlink_host clockskip.so build
 
 .PHONY: all test modems clean

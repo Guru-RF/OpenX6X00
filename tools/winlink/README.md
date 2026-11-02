@@ -41,6 +41,10 @@ v1.0.1 with `tools/pat/patches`, built for linux/amd64; 2026-11-01: MODEMS OK, 5
   A call nobody answers (`ARQCALL N0BBB 2`): two ConReq frames, then `NEWSTATE DISC`
   and `STATUS CONNECT TO N0BBB FAILED`, and on its console the
   `[STATUS: CONNECT TO N0BBB FAILED]` that `x6100-winlink` reads as no answer (8 s).
+  Then its clock 10 minutes on (`clockskip.so`, built here, as its `LD_PRELOAD`: each
+  SIGUSR1 moves `CLOCK_MONOTONIC` on 10 minutes): no 10 minute ID, the ConReq frames
+  carried its call; after a `TXFRAME DataNAK` (no call in it), the ID frame. Its
+  channel is noise only: a tone is a busy channel, which holds that ID back.
   `PROTOCOLMODE FEC`, then `BOGUS`: `FAULT Syntax Err`, the mode still FEC;
   `PROTOCOLMODE ARQ`, as Pat sets it: `PROTOCOLMODE now ARQ`.
 - Mercury: two stations, each a `winlink_host` and an `x6x00-mercury`, what one

@@ -70,3 +70,8 @@ Each one is its own commit on top of the pristine import.
   PROTOCOLMODE test only, not its comment typos): `PROTOCOLMODE` with a mode
   other than ARQ, RXO or FEC answers `FAULT Syntax Err`, instead of
   `PROTOCOLMODE now <mode>` with the mode quietly set to ARQ.
+- `src/common/ARQ.c`, `src/common/ARDOPC.c`, `src/common/Modulate.c`, from
+  upstream `971957f` (develop, its ID part only, not its reconfiguration
+  feature): a ConReq or Ping frame (and its repeats) counts as an ID, as it
+  carries our call, so no 10 minute ID frame follows a call nobody answered
+  (it keyed by itself about 9 minutes after the call).

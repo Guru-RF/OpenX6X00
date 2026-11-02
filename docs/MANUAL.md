@@ -3481,7 +3481,9 @@ Connecting to a gateway:
   after the session. The power is the radio's setting, at most 7 W, as for
   the radio's other digital modes.
 - ARDOP keys the radio the way the radio's own digital modes do, and
-  identifies with your callsign in CW. The radio does not key for Winlink
+  identifies with your callsign in CW. Its call carries your callsign too
+  and counts as an ID: no ID frame keys the radio by itself about 9 minutes
+  after a call nobody answered. The radio does not key for Winlink
   while it is already transmitting, nor, for 5 minutes after a high SWR
   stopped a Winlink transmission, on the band where that happened: Pat's
   and ARDOP's next tries go out there, into the same antenna, and are held.

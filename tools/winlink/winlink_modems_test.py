@@ -3,8 +3,10 @@
 
 1. ardopcf, protocol version 1, as x6100-winlink starts it: it connects at 12000 Hz with keys of 30 s, and the
    ID frame it is asked for (SENDID on its host port) is played whole. A call nobody answers ends in
-   CONNECT TO <call> FAILED, on the host port and on its console (x6100-winlink's "no answer"). PROTOCOLMODE
-   takes FEC and ARQ (Pat's); a mode it does not have is a FAULT and leaves the mode as it was.
+   CONNECT TO <call> FAILED, on the host port and on its console (x6100-winlink's "no answer"). Its clock then
+   10 minutes on (clockskip.so): no 10 minute ID, the ConReq frames carried its call; after a DataNAK frame (no
+   call in it), the 10 minute ID. PROTOCOLMODE takes FEC and ARQ (Pat's); a mode it does not have is a FAULT
+   and leaves the mode as it was.
 2. Mercury through x6x00-mercury, protocol version 2, and Pat v1.0.1's varahf transport, as on the radio: two
    stations, each a winlink_host and a bridge, what one transmits the other hears (with a little noise). Pat B
    listens; Pat A sends B a message peer to peer. Pat starts the modem (Mercury answers VERSION), connects,
@@ -124,9 +126,14 @@ def read_until(c, done, timeout):
 
 def ardop_test(procs, tmp, ardopcf):
     print("ardopcf, protocol 1")
-    h = host(procs, tmp, "ardop", 14540)
+    # nobody on its air: noise only, not busy (a tone is busy, and the 10 minute ID waits for a channel not busy)
+    h = host(procs, tmp, "ardop", 14540, os.path.join(tmp, "air-ardop"))
     log = os.path.join(tmp, "ardopcf.log")
-    a = procs.start([ardopcf, "--nologfile", "18515", f"SOCK:{h['sock']}", f"SOCK:{h['sock']}"], log)
+    skip = os.path.join(HERE, "clockskip.so")       # its LD_PRELOAD: each SIGUSR1, its clock 10 minutes on
+    if not os.path.exists(skip):
+        fail(f"{skip} is not there: make clockskip.so")
+    a = procs.start([ardopcf, "--nologfile", "18515", f"SOCK:{h['sock']}", f"SOCK:{h['sock']}"], log,
+                    env=dict(os.environ, LD_PRELOAD=skip))
     check(wait_for(lambda: "the modem connected, protocol 1, 12000 Hz, keys of 30 s at most" in text(h["log"]), 10),
           "ardopcf connected: 12000 Hz, keys of 30 s")
     if not wait_for(lambda: _port_open(18515), 10):
@@ -158,6 +165,16 @@ def ardop_test(procs, tmp, ardopcf):
     check(b"NEWSTATE DISC" in r and f"STATUS {failed}".encode() in r,
           f"a call nobody answers: NEWSTATE DISC, STATUS {failed}")
     check(f"[STATUS: {failed}]" in text(log), "and its console says so")
+    def ids():
+        return text(log).count("Sending Frame Type IDFrame")
+    id0, keys = ids(), len(played(h))
+    a.send_signal(signal.SIGUSR1)
+    check(not wait_for(lambda: ids() > id0, 3), "10 minutes on, no 10 minute ID: the ConReq frames carried our call")
+    c.sendall(b"TXFRAME DataNAK\r")                  # a frame without our call
+    check(wait_for(lambda: len(played(h)) == keys + 1, 10), "a DataNAK frame keyed the radio")
+    a.send_signal(signal.SIGUSR1)
+    check(wait_for(lambda: ids() == id0 + 1 and len(played(h)) == keys + 2, 10),
+          "10 minutes on, its 10 minute ID keyed the radio")
     c.sendall(b"PROTOCOLMODE FEC\rPROTOCOLMODE BOGUS\rPROTOCOLMODE\rPROTOCOLMODE ARQ\r")   # ARQ: Pat's init
     r = read_until(c, lambda r: b"\rPROTOCOLMODE now ARQ\r" in b"\r" + r, 5)
     print("   ardopcf answered:", r.decode(errors="replace").replace("\r", " | ").strip())

@@ -2246,6 +2246,8 @@ void SendPING(const StationId* mycall, const StationId* target, int intRpt)
 	blnEnbARQRpt = TRUE;
 
 	Mod4FSKDataAndPlay(PING, &bytEncodedBytes[0], EncLen, LeaderLength);  // only returns when all sent
+	tmrFinalID = 0;
+	LastIDFrameTime = 0;  // Ping frame also satisfies legal ID requirements
 
 	blnAbort = False;
 	dttTimeoutTrip = Now;
