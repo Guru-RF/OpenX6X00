@@ -132,9 +132,12 @@ static void close_window(dialog_t *d) {
 
     /* Closed by a key (ESC): after the key LVGL sends CANCEL to the focused object. destruct_cb
      * usually takes that object out of the group first, so LVGL cannot see it go and the CANCEL
-     * hit freed memory (closing Modes with VOL crashed) */
+     * hit freed memory (closing Modes with VOL crashed). The reset leaves a press time of 0: a
+     * keyboard key still down was a long press repeating into the spectrum once it had the keys
+     * back (a held ESC flipped VOL), so it counts again only once released */
     if (indev && d->obj) {
         lv_indev_reset(indev, d->obj);
+        lv_indev_wait_release(indev);
     }
     if (d->destruct_cb) {
         d->destruct_cb();
