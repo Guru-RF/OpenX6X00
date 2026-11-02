@@ -57,6 +57,7 @@ class Candidate {
     bool is_finished();
     bool is_over();
     bool can_be_saved();
+    bool is_saved();
     bool sent_report();
     void sent(std::string text);
     bool quiet_slot(int max_repeats);

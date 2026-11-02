@@ -983,6 +983,114 @@ static void force(void) {
     answered_to_r_report();
     force_save();
     check(!force_save() && logs_of("A1AAA") == 1, "one entry (%d)", logs_of("A1AAA"));
+
+    /* Logged before our R-report went: kept aside all the same, its station's report again goes on with it */
+    begin("Force QSO save before our R-report went, TX CQ, A's report again: our R-report, its RR73 no second entry");
+    cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    check(force_save() && logged_once("A1AAA", "IN80", -5, -10, false), "logged: rcvd -05, sent -10");
+    tx_cq();
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    slot_end();
+    check(next_is("A1AAA Q1QQQ R-10"), "our R-report to A (%s)", tx.msg);
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(logs_of("A1AAA") == 1 && next_is("A1AAA Q1QQQ 73"), "one entry (%d), 73 to A (%s)", logs_of("A1AAA"),
+          tx.msg);
+
+    begin("Force QSO save before our R-report went, Hound on and off, A's report again: its RR73 no second entry");
+    cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    force_save();
+    hound();
+    slot_end();
+    hound();
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(logs_of("A1AAA") == 1 && next_is("A1AAA Q1QQQ 73"), "one entry (%d), 73 to A (%s)", logs_of("A1AAA"),
+          tx.msg);
+
+    begin("Force QSO save, B's CQ pressed before our R-report went, A repeats while B's QSO runs: one entry for A");
+    cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    ftx_msg_meta_t b = rx("CQ B1BBB JN11");
+    force_save();
+    press(b);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    rx("Q1QQQ B1BBB -03");
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    rx("Q1QQQ B1BBB RR73");
+    slot_end();
+    our_slot();     /* our 73 to B */
+    rx("Q1QQQ A1AAA -05");
+    slot_end();
+    check(next_is("A1AAA Q1QQQ R-10"), "B's QSO over: our R-report to A (%s)", tx.msg);
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(logs_of("A1AAA") == 1 && logged_once("B1BBB", "JN11", -3, -10, false), "A once (%d), B logged",
+          logs_of("A1AAA"));
+
+    begin("Force QSO save, B's CQ pressed before our R-report went, then A's report row: one entry for A");
+    cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    our_slot();
+    ftx_msg_meta_t report = rx("Q1QQQ A1AAA -05");
+    force_save();
+    b = rx("CQ B1BBB JN11");
+    press(b);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    slot_end();
+    press(report);
+    check(next_is("A1AAA Q1QQQ R-10"), "our R-report to A (%s)", tx.msg);
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(logs_of("A1AAA") == 1 && next_is("A1AAA Q1QQQ 73"), "one entry (%d), 73 to A (%s)", logs_of("A1AAA"),
+          tx.msg);
+
+    begin("A's 73 crosses our R-report (logged before it went), A calls again: one entry for A");
+    cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    rx("Q1QQQ A1AAA 73");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -5, -10, false) && !ftx_qso_processor_has_current(qso), "A logged at its 73");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80", -14);
+    slot_end();
+    check(next_is("A1AAA Q1QQQ -14"), "A answered (%s)", tx.msg);
+    our_slot();
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(logs_of("A1AAA") == 1 && next_is("A1AAA Q1QQQ RR73"), "one entry (%d), RR73 to A (%s)", logs_of("A1AAA"),
+          tx.msg);
 }
 
 int main(int argc, char **argv) {

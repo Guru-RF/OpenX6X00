@@ -89,6 +89,10 @@ bool Candidate::can_be_saved() {
     return (!_remote_callsign.empty()) && (_rcvd_snr != DEFAULT_SNR) && (_sent_snr != DEFAULT_SNR) && !_saved;
 }
 
+bool Candidate::is_saved() {
+    return _saved;
+}
+
 /* Our report went out (transmit() said so), not only made: its station can still end the QSO */
 bool Candidate::sent_report() {
     return _report_out;
@@ -398,11 +402,13 @@ void FTxQsoProcessor::clear() {
 }
 
 /* No longer the current QSO (or the next): kept aside once our report went out, so that its
- * station's late R+report, RR73, RRR or 73 still logs it, and logs it once. One whose report was
- * only made (the operator moved on before our slot) goes: its station never had it */
+ * station's late R+report, RR73, RRR or 73 still logs it, and logs it once. One logged is kept
+ * too, sent or not (Force QSO save before our slot): its station calling again goes on with it,
+ * never a second entry. One whose report was only made (the operator moved on before our slot)
+ * goes: its station never had it */
 void FTxQsoProcessor::put_aside(Candidate *candidate) {
     if (candidate == NULL) return;
-    if (!candidate->sent_report()) {
+    if (!candidate->sent_report() && !candidate->is_saved()) {
         delete candidate;
         return;
     }
