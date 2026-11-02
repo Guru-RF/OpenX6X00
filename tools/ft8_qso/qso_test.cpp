@@ -564,6 +564,48 @@ static void moved_on(void) {
     check(next_is("B1BBB Q1QQQ -15"), "B answered at its next call (%s)", tx.msg);
 }
 
+/* ---- The report logged: the one of ours that went out -------------------------------------------------------- */
+
+static void report_out(void) {
+    begin("Our report to A out, A's grid again: the new report goes, A's R+report logs that one");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80", -10);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80", -14);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -12, -14, false), "logged with sent -14");
+
+    begin("Our report to A out, A's grid again, TX CQ before the new one went: A's R+report logs the one out");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80", -10);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80", -14);
+    tx_cq();
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -12, -10, false) && !times_sent("A1AAA Q1QQQ -14"), "logged with sent -10");
+
+    begin("Our R-report to A out, A's report again, B pressed before the new one went: A's RR73 logs the one out");
+    answered_to_r_report();
+    rx("Q1QQQ A1AAA -05", -14);
+    ftx_msg_meta_t b = rx("CQ B1BBB JN11");
+    press(b);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -5, -10, true) && !times_sent("A1AAA Q1QQQ R-14"), "logged with sent -10");
+}
+
 /* ---- The QSOs put aside: how long, how many, once each ------------------------------------------------------ */
 
 static void aside(void) {
@@ -1170,6 +1212,7 @@ int main(int argc, char **argv) {
     good_paths();
     incomplete();
     moved_on();
+    report_out();
     aside();
     new_caller();
     force();

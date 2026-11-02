@@ -35,6 +35,7 @@ Candidate::Candidate(std::string remote_callsign) {
     _remote_callsign = remote_callsign;
     _sent_snr = DEFAULT_SNR;
     _rcvd_snr = DEFAULT_SNR;
+    _out_snr  = DEFAULT_SNR;
 }
 
 void Candidate::set_grid(std::string grid) {
@@ -100,7 +101,10 @@ bool Candidate::sent_report() {
 
 /* A message of ours went out: our report, when it is the one made last for this QSO */
 void Candidate::sent(std::string text) {
-    if (!_report_text.empty() && (text == _report_text)) _report_out = true;
+    if (!_report_text.empty() && (text == _report_text)) {
+        _report_out = true;
+        _out_snr    = _sent_snr;
+    }
 }
 
 void Candidate::set_aside() {
@@ -121,10 +125,11 @@ std::string Candidate::get_tx_text(std::string local_callsign, std::string local
     return answer;
 }
 
-/* Logged once; its end again (an R+report, RR73, RRR or 73 repeated) ends it again */
+/* Logged once, with the report of ours that went out (one made only, if none did: Force QSO save);
+ * its end again (an R+report, RR73, RRR or 73 repeated) ends it again */
 void Candidate::save_qso(save_qso_cb_t save_qso_cb, bool aside) {
     if (save_qso_cb && can_be_saved()) {
-        save_qso_cb(_remote_callsign.c_str(), _grid.c_str(), _rcvd_snr, _sent_snr, aside);
+        save_qso_cb(_remote_callsign.c_str(), _grid.c_str(), _rcvd_snr, _report_out ? _out_snr : _sent_snr, aside);
         _saved = true;
     }
     if (_saved) _ended = true;

@@ -79,6 +79,7 @@ class Candidate {
     int            _quiet_slots=0;  /* slots since its last message (put aside: since then too) */
     std::string    _report_text;    /* our report (or R-report) as made last */
     bool           _report_out=false;   /* a report of ours went out */
+    int            _out_snr;        /* the report in it, the one logged: one made since may never go */
 };
 
 class FTxQsoProcessor {
