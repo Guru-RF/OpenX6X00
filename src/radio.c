@@ -2367,7 +2367,8 @@ static bool radio_tick() {
             || hw_tx_keyed_by_gui()
             || morse_on || (uint32_t)now_time - morse_ms < MORSE_HANG_MS;
 
-        if (state == RADIO_TX && gui_tx) {
+        /* Not by the CW key's hang: a paddle in the KEY jack answering a CW message within it is the base's TX */
+        if (state == RADIO_TX && (hw_tx_keyed_by_gui() || morse_on)) {
             tx_by_gui = true;
         }
         if (tx_watch_check(&tx_watch, now_time, pack->tx, gui_tx)) {
