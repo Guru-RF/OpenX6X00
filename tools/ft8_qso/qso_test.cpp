@@ -116,14 +116,19 @@ static void slot_end() {
     ftx_qso_processor_start_new_slot(qso);
 }
 
-/* Our slot: the queued message goes out (transmit(): one repeat less, none left and it is cleared), the slot ends */
-static void our_slot() {
+/* The queued message goes out (transmit(): one repeat less, none left and it is cleared) */
+static void went() {
     if (tx.msg[0]) {
         sent.push_back(tx.msg);
         say("    tx %s\n", tx.msg);
         if (tx.repeats > 0) tx.repeats--;
         if (tx.repeats == 0) tx.msg[0] = '\0';
     }
+}
+
+/* Our slot: the queued message goes out, the slot ends */
+static void our_slot() {
+    went();
     slot_end();
 }
 
@@ -548,6 +553,74 @@ static void aside(void) {
     rx("Q1QQQ E1EEE RR73");
     check(logged.size() == 2 && logs_of("B1BBB") == 1 && logs_of("E1EEE") == 1, "B and E logged, A not (%zu)",
           logged.size());
+
+    /* B logged, then C, D and E each worked to our R-report, as if in a slot of their own (the slots' ends left
+     * out, so that none put aside expires): B is the oldest of four put aside */
+    begin("B logged, the oldest of four put aside: a press on its CQ takes the same QSO up, no second entry");
+    static const char *cde[] = {"C1CCC", "D1DDD", "E1EEE"};
+    b = rx("CQ B1BBB JN11");
+    press(b);
+    went();
+    rx("Q1QQQ B1BBB -05");
+    went();
+    rx("Q1QQQ B1BBB RR73");
+    for (auto call : cde) {
+        snprintf(text, sizeof(text), "CQ %s IN80", call);
+        ftx_msg_meta_t m = rx(text);
+        press(m);
+        went();
+        snprintf(text, sizeof(text), "Q1QQQ %s -05", call);
+        rx(text);
+        went();
+    }
+    ftx_msg_meta_t a = rx("CQ A1AAA IN80");
+    press(a);
+    went();
+    rx("Q1QQQ A1AAA -05");
+    went();
+    press(b);
+    check(next_is("B1BBB Q1QQQ JO21"), "our call to B (%s)", tx.msg);
+    went();
+    rx("Q1QQQ B1BBB -05");
+    went();
+    rx("Q1QQQ B1BBB RR73");
+    rx("Q1QQQ A1AAA RR73");
+    rx("Q1QQQ C1CCC RR73");
+    check(logs_of("B1BBB") == 1 && logs_of("A1AAA") == 1 && logs_of("C1CCC") == 1,
+          "B once, A and C at their RR73 (B %d, A %d, C %d)", logs_of("B1BBB"), logs_of("A1AAA"), logs_of("C1CCC"));
+
+    begin("B logged, the oldest of four put aside: B calls once our RR73 to A went, no second entry");
+    b = rx("CQ B1BBB JN11");
+    press(b);
+    went();
+    rx("Q1QQQ B1BBB -05");
+    went();
+    rx("Q1QQQ B1BBB RR73");
+    for (auto call : cde) {
+        snprintf(text, sizeof(text), "CQ %s IN80", call);
+        ftx_msg_meta_t m = rx(text);
+        press(m);
+        went();
+        snprintf(text, sizeof(text), "Q1QQQ %s -05", call);
+        rx(text);
+        went();
+    }
+    tx_cq();
+    went();
+    rx("Q1QQQ A1AAA IN80");
+    went();
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15"), "B answered (%s)", tx.msg);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ B1BBB R-03");
+    slot_end();
+    check(logs_of("B1BBB") == 1 && logged_once("A1AAA", "IN80", -12, -10, false),
+          "B once (%d), A once", logs_of("B1BBB"));
+    check(next_is("B1BBB Q1QQQ RR73"), "RR73 to B (%s)", tx.msg);
 
     begin("A station waiting as the next is pressed: one QSO for it");
     tx_cq();

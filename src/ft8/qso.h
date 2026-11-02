@@ -131,6 +131,7 @@ class FTxQsoProcessor {
     Candidate  *find_aside(std::string call);
     Candidate  *take_aside(std::string call);
     Candidate  *candidate_for(std::string call);
+    void        take_over(std::string call);
     bool        take_back(std::string call);
 };
 #else

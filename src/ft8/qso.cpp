@@ -403,10 +403,24 @@ Candidate *FTxQsoProcessor::take_aside(std::string call) {
     return NULL;
 }
 
-/* The station's QSO: the one put aside if any (so a logged one is not logged again), or a new one */
+/* The station's QSO, taken from where it is: the next one, the one put aside (so a logged one is not
+ * logged again), or a new one */
 Candidate *FTxQsoProcessor::candidate_for(std::string call) {
+    if ((_next_candidate != NULL) && _next_candidate->match_callsign(call)) {
+        Candidate *candidate = _next_candidate;
+        _next_candidate = NULL;
+        return candidate;
+    }
     Candidate *candidate = take_aside(call);
     return candidate ? candidate : new Candidate(call);
+}
+
+/* The station's QSO becomes the current one, the current goes aside: taken out first, as putting
+ * one aside may drop the oldest there */
+void FTxQsoProcessor::take_over(std::string call) {
+    Candidate *candidate = candidate_for(call);
+    put_aside(_cur_candidate);
+    _cur_candidate = candidate;
 }
 
 /* The station whose logged QSO a caller took over in this slot sends again (our RR73 or 73 was
@@ -477,20 +491,18 @@ bool FTxQsoProcessor::force_save_qso() {
 
 Candidate **FTxQsoProcessor::get_candidate_to_update(std::string call_de) {
     bool pota = _is_pota && _is_pota(call_de.c_str());
-    if ((_cur_candidate != NULL) && _cur_candidate->is_over() && !_cur_candidate->match_callsign(call_de)) {
-        // Logged, our last message out: the caller gets the answer, not after the slots it waits out
-        _gave_way = _cur_candidate->callsign();
-        put_aside(_cur_candidate);
-        _cur_candidate = NULL;
-    }
     if (_cur_candidate == NULL) {
         // Start new QSO
         _cur_candidate = candidate_for(call_de);
         _cur_fresh = !pota;
+    } else if (_cur_candidate->is_over() && !_cur_candidate->match_callsign(call_de)) {
+        // Logged, our last message out: the caller gets the answer, not after the slots it waits out
+        _gave_way = _cur_candidate->callsign();
+        take_over(call_de);
+        _cur_fresh = !pota;
     } else if (_cur_fresh && pota) {
         // Callers in the same slot: a POTA activator goes first
-        put_aside(_cur_candidate);
-        _cur_candidate = candidate_for(call_de);
+        take_over(call_de);
         _cur_fresh = false;
     }
     Candidate **candidate_to_update = NULL;
@@ -507,16 +519,8 @@ Candidate *FTxQsoProcessor::get_or_create_cur_candidate(std::string remote_calls
     _cur_fresh = false;     // the operator chose
     _gave_way.clear();
     // Try to continue current QSO
-    if ((_cur_candidate != NULL) && !_cur_candidate->match_callsign(remote_callsign)) {
-        put_aside(_cur_candidate);
-        _cur_candidate = NULL;
-    }
-    if ((_cur_candidate == NULL) && (_next_candidate != NULL) && _next_candidate->match_callsign(remote_callsign)) {
-        _cur_candidate = _next_candidate;
-        _next_candidate = NULL;
-    }
-    if (_cur_candidate == NULL) {
-        _cur_candidate = candidate_for(remote_callsign);
+    if ((_cur_candidate == NULL) || !_cur_candidate->match_callsign(remote_callsign)) {
+        take_over(remote_callsign);
     }
     return _cur_candidate;
 }
