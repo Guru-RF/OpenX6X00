@@ -44,6 +44,9 @@ class KeyDetector {
         muted_   = true;
         carrier_ = 0.0f;
     }
+    /* The CW trainer is open, down to 5 WPM (ElementTimer::trainer_range): a
+     * mark raises the carrier floor only after 1.92 s, not 480 ms */
+    void  trainer_range(bool on) { trainer_ = on; }
 
     /* Last step, for the tests and the SNR shown */
     float on_level() const { return on_lvl_; }
@@ -76,6 +79,7 @@ class KeyDetector {
     bool   muted_     = true;
     float  carrier_   = 0.0f;   /* 5th percentile of power/noise */
     int    down_steps_ = 0;
+    bool   trainer_    = false; /* trainer_range */
 
     float  mark_peak_  = 0.0f;
     float  last_power_ = 0.0f;

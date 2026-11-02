@@ -26,6 +26,10 @@ constexpr float  PCT_NOISE   = 0.05129f;
 constexpr float  CARRIER_K   = 2.0f;
 constexpr float  PCT_STEP    = 0.02f;
 constexpr int    CARRIER_STEPS = 60;    /* 480 ms down, longer than a 10 WPM dash */
+/* With the CW trainer open (down to 5 WPM): 1.92 s, 8 dots at 5 WPM, where the element timer takes a mark for a
+ * carrier too. At 480 ms each dah of 5-9 WPM raised the floor (a 5 WPM dah is 720 ms, 1080 at KEY Ratio 4.5), the
+ * dahs of a 0 more and more, until its last dahs and the dits after them were lost */
+constexpr int    TRAINER_CARRIER_STEPS = 240;
 constexpr float  CARRIER_UP  = 1.05f;   /* per step, once it is a carrier */
 
 /* A mark alone must peak this much over the decode floor (see ElementTimer) */
@@ -48,7 +52,7 @@ KeyEdge KeyDetector::step(float power, float noise) {
     }
     if (muted_) {
         power = 0.0f;   /* the noise floors are still settling */
-    } else if (down_steps_ > CARRIER_STEPS) {
+    } else if (down_steps_ > (trainer_ ? TRAINER_CARRIER_STEPS : CARRIER_STEPS)) {
         carrier_ *= CARRIER_UP;
     } else {
         /* Quantile tracking: up a little when over, down when under */

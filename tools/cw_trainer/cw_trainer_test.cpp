@@ -285,6 +285,7 @@ struct Scenario {
     int         user_wpm = 0;   /* a straight key at this speed (as exact), 0: the keyer, at the key speed */
     int         first    = 0;   /* Learn draws from the level's characters from this one on */
     bool        garble   = false;   /* the user keys every ? with a dit too many, ..--..., in no table */
+    double      ratio    = 3.0;     /* KEY Ratio, dah to dit: the encoder's group and the keyer's answer */
 };
 
 struct Result {
@@ -351,7 +352,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
         own_req = elements_of(target);
         if (wpm != told_wpm) wpm_req = told_wpm = wpm;
 
-        double dit = 1200.0 / wpm, dah = 3 * dit, k = t;
+        double dit = 1200.0 / wpm, dah = sc.ratio * dit, k = t;   /* the character gap a dah too (send_morse) */
         for (char c : target) {
             for (const char *p = morse_of(c); *p; p++) {
                 double el = *p == '.' ? dit : dah;
@@ -362,9 +363,10 @@ static Result learn(const Scenario &sc, unsigned seed) {
         }
         idle = k;
 
-        /* the user hears the end of it at once, the capture the sound later; keyed back with the keyer: exact */
+        /* the user hears the end of it at once, the capture the sound later; keyed back with the keyer: exact,
+         * its dahs at KEY Ratio (a straight key's 3 dots), the character gaps the user's own 3 dots */
         double u = marks.back().off - sc.delay + urand(sc.react_min, sc.react_max);
-        double udit = sc.user_wpm > 0 ? 1200.0 / sc.user_wpm : dit, udah = 3 * udit;
+        double udit = sc.user_wpm > 0 ? 1200.0 / sc.user_wpm : dit, udah = (sc.user_wpm > 0 ? 3 : sc.ratio) * udit;
         garbled     = sc.garble && target.find('?') != std::string::npos;
         for (size_t i = 0; i < target.size(); i++) {
             for (const char *p = garbled && target[i] == '?' ? "..--..." : morse_of(target[i]); *p; p++) {
@@ -373,7 +375,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
                 u += el + udit;
             }
             if (i == 0) user_first_end = marks.back().off;
-            u += udah - udit;
+            u += 2 * udit;
         }
         user_last = marks.back().off;
         st        = PLAYING;
@@ -513,6 +515,10 @@ static void end_to_end(void) {
          * (sooner the answer runs into it, see MorseText) */
         {"Learn, group 1, all 40, answers after 2 dots", 5, 30, 40, 1, 40, 500, 1400},
         {"Learn, group 5, all 40, answers after 2 dots", 5, 130, 40, 5, 20, 500, 1400},
+        /* a long KEY Ratio at the slow speeds: dahs of 800-1080 ms, once past the key detector's carrier floor after
+         * 480 ms (KeyDetector::trainer_range) */
+        {"Learn, group 5, all 40, KEY Ratio 4.5, answers after 2 dots", 5, 130, 40, 5, 20, 500, 1400, 0, 0, false, 4.5},
+        {"Learn, group 3, all 40, KEY Ratio 4, answers after 2 dots", 6, 30, 40, 3, 40, 500, 1400, 0, 0, false, 4.0},
     };
 
     printf("Learn and Calls: the radio's group and the user's answer, through the decoder\n");

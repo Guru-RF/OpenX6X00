@@ -2440,7 +2440,10 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
 - The trainer keys at the key speed, 5 to 50 WPM, and the decoder follows
   it, and a straight key, down to 5 WPM while the trainer is open (on the
   band it stops at 10). Up to v0.3.8 it stopped at 10 in the trainer too:
-  at 5 WPM it read every group and answer wrong (an M as two Ts).
+  at 5 WPM it read every group and answer wrong (an M as two Ts). Below
+  10 WPM with KEY Ratio over 3 it also took a long dah for a steady
+  carrier: dahs and the dits after them were lost (a J heard as W, a Z as
+  M).
 - A character of your answer the decoder cannot read (dits and dahs that
   make no character, or a prosign such as AR) shows as `*`, in Learn and
   Calls, and is wrong; the hint line then says "* = not a character". It
