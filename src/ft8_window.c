@@ -99,9 +99,12 @@ static int cur_proto(void) {
 }
 
 /* Any other value counts as FT2 */
-static const proto_info_t *proto(void) {
-    int p = cur_proto();
+static const proto_info_t *proto_of(int p) {
     return &protos[p == FTX_PROTOCOL_FT8 || p == FTX_PROTOCOL_FT4 ? p : (int)FTX_PROTOCOL_FT2];
+}
+
+static const proto_info_t *proto(void) {
+    return proto_of(cur_proto());
 }
 
 static const char *mode_name(void) {
@@ -151,6 +154,12 @@ static atomic_bool     sending;
 /* The decoder runs for this window: off from the start of decoder_stop, so that what the thread
  * still does before its join (a last decode answered, the slot for it) sends nothing */
 static bool            decoder_on;
+/* The dial and the mode the decoder's audio is of, from just before a change of either here
+ * until the decoder restarts: a QSO its last decodes complete is logged with them, not the new
+ * ones (rx_hold). Under qso_mux */
+static bool            rx_held;
+static int64_t         rx_dial;
+static int             rx_proto;
 
 /* save_qso() runs on the decoder thread and on the GUI (Force QSO save): one at a time, so that two
  * records don't mix in the ADIF file; the last QSO saved goes with them (the panel's status reads
@@ -336,6 +345,8 @@ typedef struct {
     char     grid[16];
     int      rcvd, sent;
     bool     aside;     /* a QSO the sequence had put aside: the cursor is the current one's */
+    int64_t  dial;      /* the dial and the mode its decodes were of */
+    int      proto;
     uint32_t tx_gen;    /* of the step that completed it */
 } done_qso_t;
 
@@ -359,11 +370,11 @@ static void save_qso(const done_qso_t *d) {
     const char *call = d->call, *grid = d->grid;
     const int   rcvd = d->rcvd, sent = d->sent;
     time_t now = time(NULL);
-    int64_t dial = cparam_i_get(cfg_fg_freq);
+    int64_t dial = d->dial;
     char  *canon = util_canonize_callsign(call, false);
 
-    qso_log_record_t rec = qso_log_record_create(params.callsign.x, canon, now, proto()->log_mode, sent, rcvd,
-                                                 dial, NULL, NULL, station_qth(), grid);
+    qso_log_record_t rec = qso_log_record_create(params.callsign.x, canon, now, proto_of(d->proto)->log_mode, sent,
+                                                 rcvd, dial, NULL, NULL, station_qth(), grid);
     free(canon);
 
     pthread_mutex_lock(&save_mux);
@@ -376,7 +387,7 @@ static void save_qso(const done_qso_t *d) {
     saved_job_t job = {.rec = rec, .ui = {.cursor_off = !d->aside, .tx_gen = d->tx_gen, .win_gen = win_gen}};
 
     gui_post(save_qso_apply, &job, sizeof(job));
-    ft8_udp_log_qso(now, rec.remote_call, grid, (uint64_t)cparam_i_get(cfg_fg_freq), mode_name(), sent, rcvd,
+    ft8_udp_log_qso(now, rec.remote_call, grid, (uint64_t)dial, ftx_protocol_name(d->proto), sent, rcvd,
                     (int)param_f_get(cfg_pwr), params.callsign.x, station_qth());
 
     if (strlen(grid) >= 4) {
@@ -408,6 +419,8 @@ static void qso_completed(const char *call, const char *grid, const int rcvd, co
     d->rcvd   = rcvd;
     d->sent   = sent;
     d->aside  = aside;
+    d->dial   = rx_held ? rx_dial : cparam_i_get(cfg_fg_freq);
+    d->proto  = rx_held ? rx_proto : cur_proto();
     d->tx_gen = tx_gen;
 }
 
@@ -456,6 +469,7 @@ static void decoder_start(void) {
     qso_lock();     /* the panel's status reads it */
     qso        = p;
     decoder_on = true;
+    rx_held    = false;
     qso_unlock();
 
     audio_worker_cb_t cb = {
@@ -596,6 +610,18 @@ static void clear_view(void) {
     lv_event_send(table_view_obj(), LV_EVENT_KEY, &up);
 }
 
+/* Before a change of dial frequency or mode, which restarts the decoder (on), or none after all
+ * (off): until it restarts, the old decoder's QSOs are logged with the dial and mode of before */
+static void rx_hold(bool on) {
+    int64_t dial = cparam_i_get(cfg_fg_freq);
+
+    qso_lock();
+    rx_held  = on;
+    rx_dial  = dial;
+    rx_proto = cur_proto();
+    qso_unlock();
+}
+
 /* The decoder again from the start: after a change of dial frequency or mode. The queued
  * message goes with it, and TX CQ with a CQ: left on, it called nothing, and took two presses
  * to call again (#28). Returns whether a CQ ended */
@@ -620,7 +646,11 @@ static void retuned(void) {
 }
 
 static void band_cb(lv_event_t *e) {
-    if (!load_band(lv_event_get_code(e) == EVENT_BAND_UP ? 1 : -1)) return;
+    rx_hold(true);
+    if (!load_band(lv_event_get_code(e) == EVENT_BAND_UP ? 1 : -1)) {
+        rx_hold(false);
+        return;
+    }
     if (params.ft8_custom_on.x) params_bool_set(&params.ft8_custom_on, false); /* back to the presets */
     retuned();
 }
@@ -769,6 +799,7 @@ static void mode_cb(button_data_t *btn) {
     int next = cur_proto() == FTX_PROTOCOL_FT8 ? FTX_PROTOCOL_FT4
              : cur_proto() == FTX_PROTOCOL_FT4 ? FTX_PROTOCOL_FT2 : FTX_PROTOCOL_FT8;
 
+    rx_hold(true);
     param_i_set(cfg_ft8_protocol, next);
     freq_strip_set_app(ftx_protocol_name(next));
     decoder_restart();      /* a CQ ends with no note: TX CQ is next to Mode */
@@ -958,6 +989,7 @@ static void preset_cb(lv_event_t *e) {
     freq_close();
     if (i < 0) return;   /* Close */
     params_bool_set(&params.ft8_custom_on, false);
+    rx_hold(true);
     cparam_i_set(cfg_fg_freq, presets[i].freq);
     load_band(0);
     retuned();
@@ -1172,6 +1204,7 @@ static bool freq_typed(void) {
     }
     params_bool_set(&params.ft8_custom_on, text[0] != '\0');
     kb_close();
+    rx_hold(true);
     load_base();
     retuned();
     buttons_refresh(&button_freq);
