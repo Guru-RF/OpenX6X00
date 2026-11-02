@@ -2407,13 +2407,17 @@ KEY settings. While it is open the radio is in train mode: sidetone only, no TX,
 its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
 
 - KEY button, page KEY 2:2:
-  - Mode: Manual is a straight key, only one paddle contact works. Auto-L and
-    Auto-R are the iambic keyer for a paddle; L and R swap which side gives
-    dits and dahs.
+  - Mode: Manual is a straight key: the keyer makes no dits and dahs, the
+    contacts key the radio directly. With a paddle in the KEY jack of an
+    X6200 (base 1.0.8) either contact keys, so the paddle works as a
+    sideswiper (issue #109; not checked on the X6100 yet). A USB or Bluetooth
+    paddle keys from its dit contact only. Auto-L and Auto-R are the iambic
+    keyer for a paddle; L and R swap which side gives dits and dahs.
   - Iambic: A or B.
   - QSK time and Ratio are on the same page.
-- With a paddle, set Mode to Auto-L or Auto-R before opening the trainer. On
-  Manual only one side of the paddle keys.
+- With a paddle, set Mode to Auto-L or Auto-R before opening the trainer, for
+  the keyer's dits and dahs. On Manual the paddle is a straight key (on an
+  X6200, from the KEY jack, a sideswiper).
 - Learn (Koch) plays groups of the characters of your level. The level's
   newest character comes up in about one place of three while it is new,
   less and less over its first 20 tries; after that it comes up as often as
