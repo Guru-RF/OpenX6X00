@@ -62,6 +62,12 @@ int32_t radio_tx_freq(void);
  * either radio while split is held off (an app, TCI's audio, a voice message, the SWR scan) and the VFO in use is back
  * on the dial. *freq (may be NULL): the one refused, for the words. Any thread */
 bool radio_key_refused(int32_t *freq);
+/* Why the radio does not transmit on freq, on the screen (#121): "<what> on 27.185 MHz", then "Out of band:
+ * Settings > TX Cal" or "Receive only there", each a line the message box shows whole in every font (DejaVu, the
+ * widest: 570 px at most of about 580), all but "Scan stopped on" 100 MHz and up with 1 Hz digits (592 px: it
+ * scrolls a little); the frequency, the reason and the setting in one line scrolled out before the setting showed.
+ * now: over what shows, else after the messages waiting. False: it may transmit there, nothing said. Any thread */
+bool radio_say_no_tx(const char *what, int32_t freq, bool now);
 /* The radio transmits on `freq`, without updating a subject: a digital app's tone, the SWR scan. The active VFO
  * moves; in split the base's split bit is off until 0, which puts both VFOs back on their own frequency, IF shift
  * and all, and split back on */

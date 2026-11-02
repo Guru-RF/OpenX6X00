@@ -313,17 +313,16 @@ of the band list, from the frequency up or down.
 - The X6200 also receives FM broadcast (87.5-108 MHz, wide FM) and the airband
   (118-137 MHz, AM), as its specification has it: two bands, FM broadcast and
   Airband, after 6 m on the band keys. They are receive only: PTT, the digital
-  apps, CW from the keyboard, the tuner and the SWR scan are refused there,
-  with "No TX on 100.000 MHz: receive only".
+  apps, CW from the keyboard, the tuner and the SWR scan are refused there:
+  "No TX on 100.000 MHz", then "Receive only there".
 - The same refusal holds anywhere the radio does not transmit: above 55 MHz
   without a transverter, and what the WR12 receives unless a transverter with
   a shift covers it (the transverter wins, see
   [WR12 receiver](#wr12-receiver-x6200)). In split it is the other VFO's
   frequency, the one the radio would transmit on, that counts.
 - On HF outside the amateur bands (CB, the broadcast bands, marine) the radio
-  does not transmit either, by default: "No TX on 27.185 MHz: outside the
-  amateur bands (Settings > TX Cal)". See
-  [Amateur bands only](#amateur-bands-only).
+  does not transmit either, by default: "No TX on 27.185 MHz", then "Out of
+  band: Settings > TX Cal". See [Amateur bands only](#amateur-bands-only).
 - PRE and ATT are on the VOL 2:2 button page (F1 from the main screen), per
   band, and can go on a knob (see [Buttons and knobs](#buttons-and-knobs)).
   The X6200 has no PRE key, and its receiver is specified with the
@@ -1332,8 +1331,11 @@ where an app's tone lands: LSB keyed at 7.000 MHz, a dial at 14.3495 MHz
 with +1.5 kHz of XIT, or an FT8 tone near the edge go outside the band.
 Keep the signal inside the band yourself.
 
-Refused there, with "No TX on 27.185 MHz: outside the amateur bands
-(Settings > TX Cal)":
+Refused there. The screen says "No TX on 27.185 MHz" and then, in a line
+of its own, "Out of band: Settings > TX Cal" ("Receive only there" where
+the radio cannot transmit at all). The browser Panel and Winlink's page
+give the frequency and the reason in one line, "... outside the amateur
+bands (Settings > TX Cal)". What is refused:
 
 - PTT: the PTT key, the walkie screen, CAT, TCI, the browser Panel and
   remote sessions (the page shows the reason, see
@@ -1352,8 +1354,8 @@ Refused there, with "No TX on 27.185 MHz: outside the amateur bands
   only the words name it.
 - A transmission under way that comes onto such a frequency (a band key, a
   QSY from CAT, TCI or the Panel while PTT is held, an app's slot, a CW
-  message, the switch turned off) is stopped: "TX stopped: no TX on 27.185
-  MHz: ...". The power is at 0 W until it stops; the tuner gives up
+  message, the switch turned off) is stopped: "TX stopped on 27.185 MHz",
+  then why. The power is at 0 W until it stops; the tuner gives up
   ("Tuner stopped"), the SWR scan stops as its Stop does.
 - The [CW Trainer](#cw-trainer) keeps working on any frequency the radio can
   transmit on: its key sounds the sidetone at 0 W, its PTT does nothing
@@ -1370,8 +1372,8 @@ instead:
 - KEY Train on. On the X6100 a paddle in the KEY jack in Auto-L or Auto-R
   should then only sound the sidetone (not checked on the bench yet); the
   X6200's base goes into TX at 0 W with Train (#127).
-- The first time the base keys while held the radio says "0 W on 27.185 MHz:
-  outside the amateur bands (Settings > TX Cal)".
+- The first time the base keys while held the radio says "0 W on 27.185
+  MHz", then "Out of band: Settings > TX Cal".
 - The hold comes before the base moves: a band key or a QSY from CAT with the
   hand mic's PTT held does not send PWR outside the bands meanwhile. It goes
   once the radio is back in a band.
@@ -1557,9 +1559,8 @@ the SWR as it goes.
   outside, and the curve showed there the SWR of the last frequency it could
   take.
 - The dial moved outside the bands during a scan (a band key, the knob, CAT)
-  stops it as Stop does, the VFO and the mode back as before the scan: "SWR
-  scan stopped: no TX on 26.055 MHz: outside the amateur bands (Settings >
-  TX Cal)".
+  stops it as Stop does, the VFO and the mode back as before the scan: "Scan
+  stopped on 26.055 MHz", then "Out of band: Settings > TX Cal".
 - It starts only from receive. While the radio transmits or the tuner is
   tuning, Run says "SWR scan: not while transmitting or tuning" and nothing
   moves. On a frequency the radio may not transmit on, it says "No TX on ...
@@ -1666,10 +1667,12 @@ tunes, but only within the tune's own limits:
 
 Not where the radio may not transmit; the screen (and the Panel) says why:
 
-- "No tune: no TX on 27.185 MHz: outside the amateur bands (Settings > TX
-  Cal)", or "...: receive only": a frequency the radio may not transmit on
-  (outside the [amateur bands](#amateur-bands-only), a band it only
-  receives, split's other VFO or a TX shift there).
+- "No tune on 27.185 MHz", then "Out of band: Settings > TX Cal" or
+  "Receive only there" (the Panel: "no TX on 27.185 MHz: outside the
+  amateur bands (Settings > TX Cal)", or "...: receive only"): a frequency
+  the radio may not transmit on (outside the
+  [amateur bands](#amateur-bands-only), a band it only receives, split's
+  other VFO or a TX shift there).
 - "No tune: on the air": something else transmits (PTT, an app's slot, TCI,
   Winlink, the ATU, the SWR scan). An app's slot that comes during a tune is
   not sent.

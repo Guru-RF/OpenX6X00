@@ -236,10 +236,10 @@ static void scan_step(float v) {
 /* The dial moved: the sweep around it again. Moved where the radio may not transmit (#121), the scan stops, as if
  * Stop was pressed: the VFO settings back as before the scan, the dial with them */
 static void freq_changed(Subject *subj, void *user_data) {
-    char no[96];
+    int32_t tx = radio_tx_freq();
 
-    if (scanning && cfg_tx_refusal_text(radio_tx_freq(), no, sizeof(no))) {
-        dialog_swrscan_stop(no);
+    if (scanning && cfg_tx_refusal(tx)) {
+        dialog_swrscan_stop(tx);
         return;
     }
     reset_scan();
@@ -371,8 +371,8 @@ void dialog_swrscan_update(float vswr) {
     if (scanning) scan_step(vswr);
 }
 
-void dialog_swrscan_stop(const char *no) {
+void dialog_swrscan_stop(int32_t freq) {
     if (!scanning) return;
     run_cb(NULL);
-    msg_update_text_fmt("SWR scan stopped: no TX on %s", no);
+    if (!radio_say_no_tx("Scan stopped", freq, true)) msg_update_text_fmt("Scan stopped");   /* fits whole (#121) */
 }

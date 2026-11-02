@@ -139,7 +139,8 @@ const char *ext_tune_start(int who) {
         return NULL;
     }
     if ((no = ext_tune_refusal())) {
-        msg_update_text_fmt("No tune: %s", no);
+        /* The frequency first (#121), each line whole on the screen; the Panel gets no as it is */
+        if (!radio_say_no_tx("No tune", radio_tx_freq(), true)) msg_update_text_fmt("No tune: %s", no);
         return no;
     }
     tune_plan(&plan, cparam_i_get(cfg_cur_mode), app_offset(), param_f_get(cfg_tune_pwr), cfg_pwr_max_get(),

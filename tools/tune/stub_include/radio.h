@@ -10,6 +10,7 @@ radio_state_t radio_get_state(void);
 bool          radio_get_modem(void);
 void          radio_set_modem(bool tx);
 int32_t       radio_tx_freq(void);
+bool          radio_say_no_tx(const char *what, int32_t freq, bool now);
 void          radio_set_tx_freq(int32_t freq);
 void          radio_set_pwr(float w);
 uint32_t      radio_caps(void);

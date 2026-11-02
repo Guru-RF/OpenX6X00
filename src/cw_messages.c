@@ -589,7 +589,6 @@ static void qrss_start(const char *text) {
     radio_mode_t mode = cparam_i_get(cfg_cur_mode);
     int          band = qrss_band();
     int32_t      hz;
-    char         no[96];
 
     if (mode != radio_mode_cw && mode != radio_mode_cwr) {
         msg_update_text_fmt("QRSS3: in CW or CW-R only");
@@ -619,8 +618,7 @@ static void qrss_start(const char *text) {
         msg_update_text_fmt("QRSS3: split or TX shift on");
         return;
     }
-    if (cfg_tx_refusal_text(hz, no, sizeof(no))) {    /* receive only, outside the amateur bands (#121) */
-        msg_update_text_fmt("No TX on %s", no);
+    if (radio_say_no_tx("No TX", hz, true)) {    /* receive only, outside the amateur bands (#121) */
         return;
     }
     if (beacon_on) {
@@ -633,14 +631,13 @@ static void qrss_start(const char *text) {
 /* A message or a beacon not started where the radio may not transmit (#121): the keyer would go on with each key
  * refused, a beacon for hours */
 static void tx_btn_cb(button_data_t *btn) {
-    char    no[96];
     int32_t f;
 
     (void)btn;
     if (sending()) cw_encoder_stop();
     else if (sel_text() && qrss_on) qrss_start(cw_encoder_expand(sel_text()));
     else if (sel_text() && radio_key_refused(&f))     /* where the key goes out, on the X6200 in split the dial too */
-        msg_update_text_fmt("No TX on %s", cfg_tx_refusal_text(f, no, sizeof(no)));
+        radio_say_no_tx("No TX", f, true);
     else if (sel_text()) {
         if (beacon_on) {
             bcn_sched_t s = sched_set();

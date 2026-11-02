@@ -950,9 +950,8 @@ static bool practice(void) {
  * hardware transmits, its PTT is refused without a word: the key that follows it sounds */
 static bool tx_refused_at(int32_t freq, tx_by_t by) {
     static uint64_t said;
-    char            text[96];
 
-    if (!cfg_tx_refusal_text(freq, text, sizeof(text))) {
+    if (!cfg_tx_refusal(freq)) {
         return false;
     }
     if (by != TX_BY_GUI && practice() && cfg_is_tx_freq(freq)) {
@@ -960,8 +959,25 @@ static bool tx_refused_at(int32_t freq, tx_by_t by) {
     }
     if (get_time() - said > 5000) {     /* once, not for every CW element nor each slot of a beacon */
         said = get_time();
-        msg_schedule_long_text_fmt("No TX on %s", text);
+        radio_say_no_tx("No TX", freq, false);
     }
+    return true;
+}
+
+bool radio_say_no_tx(const char *what, int32_t freq, bool now) {
+    char mhz[24];
+
+    if (!cfg_tx_refusal(freq)) {
+        return false;
+    }
+    cfg_tx_mhz(freq, mhz, sizeof(mhz));
+    if (now) {
+        msg_update_text_fmt("%s on %s", what, mhz);
+    } else {
+        msg_schedule_text_fmt("%s on %s", what, mhz);
+    }
+    /* Where the hardware transmits it is the bands (cfg_tx_refusal): where the switch is */
+    msg_schedule_text_fmt("%s", cfg_is_tx_freq(freq) ? "Out of band: Settings > TX Cal" : "Receive only there");
     return true;
 }
 
@@ -1274,11 +1290,11 @@ static bool gui_keys(void) {
 /* The GUI's own TX on where the radio may not transmit, after a move, the switch or a band key while it keys (#121),
  * on the GUI thread: let go as swr_trip_cb does, the CW Trainer's key excepted. Held at 0 W meanwhile; it went on
  * there, an app's slot learning its level from 0 W. The SWR scan stops as its Stop does, the tuner gives up */
-static void band_stop(const char *no) {
+static void band_stop(int32_t freq) {
     radio_state_t s = atomic_load(&state);
 
     if (s == RADIO_SWRSCAN) {
-        dialog_swrscan_stop(no);
+        dialog_swrscan_stop(freq);
         return;
     }
     atomic_fetch_add(&band_stops, 1);   /* before the modem bit drops: tx_player keeps no level from it */
@@ -1293,20 +1309,18 @@ static void band_stop(const char *no) {
     dialog_msg_voice_ptt_pressed();
     radio_set_modem(false);     /* the digital apps see it and stop (tx_player.c) */
     radio_set_ptt(false);
-    msg_schedule_long_text_fmt("TX stopped: no TX on %s", no);
+    radio_say_no_tx("TX stopped", freq, false);
 }
 
 /* Looked at again: where the radio may not transmit it holds at once; elsewhere the hold goes only after the round of
  * notifications (settled: band_settle_cb), once the base has the VFOs, split and the VFO in use that came with it, as
  * xvtr_pwr_look (at once if that job cannot be queued). The GUI's own TX still on there is stopped after the round */
 static void band_look(bool settled) {
-    char        text[96];
-    const char *no;
-    bool        hold, later;
-    int32_t     f;
+    bool    no, hold, later;
+    int32_t f;
 
     radio_lock();
-    no    = radio_key_refused(&f) ? cfg_tx_refusal_text(f, text, sizeof(text)) : NULL;
+    no    = radio_key_refused(&f);
     hold  = no || atomic_load(&off_dial);
     later = !settled && (no ? gui_keys() : atomic_load(&band_hold));
     band_looked = true;
@@ -1317,7 +1331,7 @@ static void band_look(bool settled) {
     if (later && !scheduler_put_coalesced(band_settle_cb)) {
         WITH_RADIO_LOCK(band_hold_set(radio_key_refused(NULL) || atomic_load(&off_dial)));
     } else if (settled && no && gui_keys() && scheduler_on_gui_thread()) {
-        band_stop(no);
+        band_stop(f);
     }
 }
 
@@ -1345,14 +1359,13 @@ static void on_band_hold_change(Subject *subj, void *user_data) {
 /* The base went into TX by itself while held (the hand mic's PTT, the KEY jack): the screen says why nothing goes out,
  * once while it holds. Not with KEY Train's own hold (train_note says it) nor in the CW Trainer. Radio thread */
 static void band_note(void) {
-    char    text[96];
     int32_t f;
 
     if (!atomic_load(&band_hold) || atomic_load(&train_hold) || cw_trainer_on() || atomic_exchange(&band_said, true)) {
         return;
     }
-    if (radio_key_refused(&f) && cfg_tx_refusal_text(f, text, sizeof(text))) {
-        msg_schedule_long_text_fmt("0 W on %s", text);
+    if (radio_key_refused(&f)) {
+        radio_say_no_tx("0 W", f, false);
     } else {
         msg_schedule_text_fmt("0 W during Birdie Cal");
     }

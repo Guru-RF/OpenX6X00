@@ -792,7 +792,7 @@ const char *cfg_tx_refusal(int32_t f) {
     return cfg_is_tx_freq(f) ? NULL : f < 0 ? "receive only" : "outside the amateur bands (Settings > TX Cal)";
 }
 
-/* As settings_manager_api.cpp writes them */
+/* A copy of settings_manager_api.cpp's two: change both (the refusal at 7.2005 MHz below runs the Hz digits) */
 const char *cfg_tx_mhz(int32_t freq, char *buf, size_t size) {
     int32_t f      = freq < 0 ? -freq : freq;
     int32_t sub    = f % 1000000;
@@ -861,6 +861,20 @@ void msg_update_text_fmt(const char *fmt, ...) {
     snprintf(told + strlen(told), sizeof(told) - strlen(told), "%s%s", told[0] ? " | " : "", said);
     printf("        screen: %s\n", said);
     pthread_mutex_unlock(&said_mux);
+}
+
+/* As radio.c says it: the frequency, then why on a line of its own (that one only printed, said keeps the first).
+ * Here cfg_is_tx_freq is the bands too: the reason tells them apart */
+bool radio_say_no_tx(const char *what, int32_t freq, bool now) {
+    const char *why = cfg_tx_refusal(freq);
+    char        mhz[24];
+
+    if (!why) return false;
+    cfg_tx_mhz(freq, mhz, sizeof(mhz));
+    if (now) msg_update_text_fmt("%s on %s", what, mhz);
+    else msg_schedule_text_fmt("%s on %s", what, mhz);
+    msg_schedule_text_fmt("%s", strcmp(why, "receive only") ? "Out of band: Settings > TX Cal" : "Receive only there");
+    return true;
 }
 
 static bool said_is(const char *text) {
@@ -1154,8 +1168,14 @@ static void gui_side(void) {
     state = RADIO_TX;
     no = gui_tune(TUNE_BY_RADIO);
     check(no && !strcmp(no, "no TX on 7.250 MHz: outside the amateur bands (Settings > TX Cal)") &&
-          said_is("No tune: no TX on 7.250 MHz: outside the amateur bands (Settings > TX Cal)") && !ext_tune_on() &&
-          seen.keys == 0, "7.250 where the radio may not transmit, on the air too: \"%s\"", said);
+          said_is("No tune on 7.250 MHz") && !ext_tune_on() && seen.keys == 0,
+          "7.250 where the radio may not transmit, on the air too: \"%s\", the Panel's \"%s\"", said, no);
+    cfg = (typeof(cfg)){.freq = {7200500, 7200500}, .mode = {radio_mode_lsb, radio_mode_lsb}, .pwr = 5.0f};
+    reset();
+    no = gui_tune(TUNE_BY_RADIO);
+    check(no && !strcmp(no, "no TX on 7.2005 MHz: outside the amateur bands (Settings > TX Cal)") &&
+          said_is("No tune on 7.2005 MHz") && !ext_tune_on() && seen.keys == 0,
+          "500 Hz past the stub's 40 m, named with its Hz, not as the edge: \"%s\", the Panel's \"%s\"", said, no);
     cfg = (typeof(cfg)){.freq = {14200000, 14200000}, .mode = {radio_mode_usb, radio_mode_usb}, .pwr = 5.0f};
     reset();
     state = RADIO_TX;
@@ -1172,8 +1192,8 @@ static void gui_side(void) {
                         .shift = -8000000, .pwr = 5.0f};
     reset();
     no = gui_tune(TUNE_BY_RADIO);
-    check(no && said_is("No tune: no TX on -0.850 MHz: receive only") && seen.keys == 0, "a TX shift below 0 Hz: \"%s\"",
-          said);
+    check(no && !strcmp(no, "no TX on -0.850 MHz: receive only") && said_is("No tune on -0.850 MHz") && seen.keys == 0,
+          "a TX shift below 0 Hz: \"%s\", the Panel's \"%s\"", said, no);
 }
 
 int main(void) {

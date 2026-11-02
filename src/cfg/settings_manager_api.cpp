@@ -44,6 +44,7 @@ const char *cfg_tx_refusal(int32_t freq) {
     }
 }
 
+/* tools/tune/tune_test.c keeps a copy of this one and cfg_tx_refusal_text: change both */
 const char *cfg_tx_mhz(int32_t freq, char *buf, size_t size) {
     int32_t f      = freq < 0 ? -freq : freq;   /* a TX shift below 0 Hz */
     int32_t sub    = f % 1000000;
