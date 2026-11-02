@@ -1317,11 +1317,12 @@ of a transverter you turned on, and never on the X6200's receive-only ranges
   5.060-5.250 MHz, Japan's 4.630 MHz emergency channel.
 
 TX outside ham bands. Where: Settings > TX Cal > TX PROTECTION > TX outside
-ham bands. Off by default, and off on every radio after the update to this
-version, whatever it was before; a backup restored afterwards brings its
-own. Turn it on only if you are licensed to transmit outside the amateur
-bands (MARS, CAP and the like): the radio then transmits wherever it can,
-0.1 to 55 MHz. The receive-only ranges stay receive only.
+ham bands (also on the web Display page, Transmitter card). Off by default,
+and off on every radio after the update to this version, whatever it was
+before; a backup restored afterwards brings its own. Turn it on only if you
+are licensed to transmit outside the amateur bands (MARS, CAP and the like):
+the radio then transmits wherever it can, 0.1 to 55 MHz. The receive-only
+ranges stay receive only.
 
 What is checked: the frequency the radio transmits on, the dial, in split
 the other VFO, with a [TX shift](#tx-shift) the shifted one. On the X6200
@@ -3421,7 +3422,7 @@ The menu has General and five groups:
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
 | | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture (optionally CW trainer and WiFi) as one file, and restore the parts you choose |
-| System | Display | every display option of the radio, and the [boot picture](#boot-picture) (see below) |
+| System | Display | every display option of the radio, a few station options of the other tabs (independent VFOs, the band plan, the WR12, [TX outside ham bands](#amateur-bands-only) in the Transmitter card), and the [boot picture](#boot-picture) (see below) |
 | | Time | local and server time; Sync sets the radio clock from the browser's, in the radio's timezone; NTP sync; timezone |
 | | Network | the radio's [network name](#network-name), its [other names](#the-radios-own-names), and the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
 | | TCI | enable the [TCI server](#tci-server), set its port |
@@ -3495,8 +3496,9 @@ and reopen the window to see the changes.
   are converted to PNG in the browser).
 - Convert AVI to MP4 in the browser (HTTPS page only) or on the radio.
 
-Display page (System > Display): the same options as Settings > Display,
-applied on the radio as you change them.
+Display page (System > Display): the options of Settings > Display and a
+few station options of the other tabs, applied on the radio as you change
+them.
 
 | Card | Options |
 |---|---|
@@ -3506,6 +3508,7 @@ applied on the radio as you change them.
 | On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
+| Transmitter | TX outside ham bands (Settings > TX Cal; see [Amateur bands only](#amateur-bands-only)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, Magnify ALC |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
