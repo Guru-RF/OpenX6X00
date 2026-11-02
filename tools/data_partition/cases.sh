@@ -253,6 +253,33 @@ if want copyfail; then
     ok "readable again: into found_on_system, the system emptied" '[ -f "$F/fs/3/found_on_system/unreadable" ] && [ -f "$F/fs/3/found_on_system/params.db-wal" ] && [ -z "$(ls -A "$F/sys_mnt")" ]'
 fi
 
+# The copy fails at the start that formats DATA (a card v0.3.8 left without it): DATA, with no settings of
+# its own, is not used at that start (the GUI would write its defaults there, and the next start keep them,
+# the real ones into found_on_system); the radio comes up with those it kept on the system and logs a QSO
+# there. Each next start copies them again, the one that can onto DATA's top level
+if want copyfail_new; then
+    for v in format pcformat; do
+        newcard "copyfail_new_$v" $C4G
+        boot old; gui_writes; boot old
+        [ $v = pcformat ] && PATH=$H/bin:$PATH mkfs -t vfat -n "NO NAME" "$F/dev/mmcblk0p3"
+        echo s > "$F/sys_mnt/unreadable"; chmod 000 "$F/sys_mnt/unreadable"
+        boot new
+        ok "$v, copy failed: DATA not mounted, the system's files there, nothing left on DATA" '! mounted && [ -f "$F/sys_mnt/params.db-wal" ] && [ -f "$F/sys_mnt/qso_log.db" ] && [ -z "$(ls -A "$F/fs/3")" ]'
+        if [ $v = format ]; then
+            ok "format: formatted, the trace says not mounted and why" 'called "^mkfs" && lasttrace | grep -q "formatted as DATA, not mounted: files found in the system.s [^ ]*mnt not all copied onto it, the radio runs on them"'
+        else
+            ok "pcformat: the trace says not mounted and why" '! called "^mkfs" && lasttrace | grep -q "DATA not mounted at this start: without settings of its own, the radio comes up with those it kept on the system"'
+        fi
+        ok "$v: data_fsck.log on the system's /mnt (the Files page) says so" 'syslog_says "not all copied onto DATA: left there" && syslog_says "^DATA not mounted at this start"'
+        sqlite3 "$F/mnt/qso_log.db" "create table if not exists q(c); insert into q values('DL2XYZ')"    # where the GUI writes
+        boot new
+        ok "$v, next start, still unreadable: the same, DATA still empty" '! called "^mkfs" && ! mounted && [ -z "$(ls -A "$F/fs/3")" ] && lasttrace | grep -q "DATA not mounted at this start"'
+        chmod 600 "$F/sys_mnt/unreadable"
+        boot new
+        ok "$v, readable again: DATA mounted, every file on its top level, the setting in the -wal, the system emptied" 'mounted && ! called "^mkfs" && [ "$(walrow "$F/fs/3")" = "$WALROW" ] && [ -f "$F/fs/3/unreadable" ] && [ "$(sqlite3 "$F/fs/3/qso_log.db" "select count(*) from q")" = 2 ] && [ ! -e "$F/fs/3/found_on_system" ] && [ -z "$(ls -A "$F/sys_mnt")" ]'
+    done
+fi
+
 # DATA mounted under v0.3.8, its boot sector lost, then many v0.3.8 starts without it (the radio runs
 # on the system's /mnt), then the update: the trace line that told of the mount is gone
 if want rotated; then

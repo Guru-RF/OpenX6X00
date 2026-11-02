@@ -136,7 +136,8 @@ cut_copy() {
 # a name DATA has already stays in found_on_system, and a database with its -wal, -shm and -journal
 # when DATA has one of those names. The copy goes into a folder of its own, never over a file DATA
 # has: found_on_system.2, .3 ... when an earlier start left a found_on_system there (its files
-# perhaps the only copy of those settings)
+# perhaps the only copy of those settings). When they cannot all be copied, they stay on the system,
+# and DATA without settings of its own is unmounted again
 rescue() {
     mkdir -p /tmp/sysroot && mount --bind / /tmp/sysroot || return
     if [ -n "$(ls -A /tmp/sysroot/mnt 2>/dev/null)" ]; then
@@ -187,6 +188,12 @@ rescue() {
             # each start that cannot copy them
             [ -n "$made" ] && rm -rf "$found"
             echo "files found in the system's /mnt not all copied onto DATA: left there"
+            # Nor is DATA without settings of its own used then: the radio would come up with the
+            # defaults there, which the next start keeps, the system's going into found_on_system. It
+            # comes up with those it kept on the system, as before; the next start copies them again
+            if [ "$1" = new ] && umount /mnt; then
+                echo "DATA not mounted at this start: without settings of its own, the radio comes up with those it kept on the system"
+            fi
         fi
     fi
     umount /tmp/sysroot
@@ -217,11 +224,13 @@ check_data() {
         fi
     } 2>&1 | grep -v -e "conversion" -e "CP850" > $LOG
     tail -n 40 $LOG > /mnt/data_fsck.log 2>/dev/null
+    if l=$(grep "^DATA not mounted" $LOG); then trace "$l"; fi
 }
 
 # The partition $1, which holds nothing blkid knows, formatted as DATA and mounted, with what the
-# radio wrote into the system's /mnt folder before (a card that ran without DATA) on its top level.
-# Nothing is traced from the mount until then: the trace's own app_logs folder would be in the way
+# radio wrote into the system's /mnt folder before (a card that ran without DATA) on its top level;
+# not mounted when those cannot all be copied (rescue). Nothing is traced from the mount until then:
+# the trace's own app_logs folder would be in the way
 make_data() {
     trace "formatting $1"
     mkfs -t vfat -n DATA "$1" || { echo "Formatting $1 failed"; trace "formatting $1 failed"; return; }
@@ -238,6 +247,10 @@ make_data() {
         rescue new
     } 2>&1 | grep -v "can't preserve" > $LOG
     tail -n 40 $LOG > /mnt/data_fsck.log 2>/dev/null
+    if ! grep -q " /mnt " /proc/mounts; then
+        trace "$1 formatted as DATA, not mounted: files found in the system's /mnt not all copied onto it, the radio runs on them"
+        return
+    fi
     trace "$1 formatted as DATA and mounted"
     if moved=$(grep "^files found" $LOG); then trace "$moved"; fi
 }

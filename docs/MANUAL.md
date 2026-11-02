@@ -5171,17 +5171,21 @@ Now the first start after the update recognises that partition, formats it as
 DATA and moves those files onto it: the radio comes up with its own settings
 and log. The start trace says so ("... is the DATA partition an earlier start
 made and never formatted: formatting it", "... formatted as DATA and mounted",
-"files found in the system's /mnt moved to DATA's top level"). Leave the
-partition alone on the PC. One formatted there as FAT32 is used as DATA, and
-as it has no settings of its own (no `params.db`), those files go onto its
-top level the same way: the radio comes up with its settings and log. It is
-DATA at the first start after a new card image too, but the settings and log
-kept on the system partition go with the old image then: update the radio
-instead (Settings > Info > Update), or download the Backup first. One
-formatted as exFAT, NTFS or FAT16 (Windows' "FAT"), or holding anything else,
-is never touched, and the radio goes on without DATA. Nor is a FAT32 that the
-radio's partition tool does not read ("not touched (a FAT32 to blkid, not to
-parted)"): check it on a PC first (chkdsk /f on Windows).
+"files found in the system's /mnt moved to DATA's top level"). When they
+cannot all be copied onto it (a card error), they stay where they are and that
+start does not use DATA ("... formatted as DATA, not mounted: files found in
+the system's /mnt not all copied onto it, ..."): the radio comes up with them,
+and the next start copies them again. Leave the partition alone on the PC. One
+formatted there as FAT32 is used as DATA, and as it has no settings of its own
+(no `params.db`), those files go onto its top level the same way: the radio
+comes up with its settings and log. It is DATA at the first start after a new
+card image too, but the settings and log kept on the system partition go with
+the old image then: update the radio instead (Settings > Info > Update), or
+download the Backup first. One formatted as exFAT, NTFS or FAT16 (Windows'
+"FAT"), or holding anything else, is never touched, and the radio goes on
+without DATA. Nor is a FAT32 that the radio's partition tool does not read
+("not touched (a FAT32 to blkid, not to parted)"): check it on a PC first
+(chkdsk /f on Windows).
 
 A DATA drive that worked and later shows as unknown is a different case: its
 first sector (the boot sector) is most likely damaged, by a power cut while
@@ -5436,7 +5440,7 @@ The DATA partition, readable on a PC.
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
 | `bootlogo.png` | your own [boot picture](#boot-picture), from the Display page of the web configurator |
 | `data_fsck.log` | what the last start's check of DATA found, or that the start formatted it and moved the system's `/mnt` files onto it. While the radio runs without DATA, why it left the partition alone and what to do, in the system's `/mnt` folder it runs on (the Files page shows that one then) |
-| `found_on_system/` | files the radio wrote into the system partition's `/mnt` folder while DATA was there but not mounted, put here at the next start that mounted it; `found_on_system.2/`, `.3/` ... when one is there already (nothing on DATA is written over). A DATA without settings of its own (no `params.db`, as after a format on a PC) gets them on its top level instead, the names it has already left here (a database with its `-wal`, `-shm` and `-journal` when DATA has one of those names: SQLite reads a journal into the database of its name) |
+| `found_on_system/` | files the radio wrote into the system partition's `/mnt` folder while DATA was there but not mounted, put here at the next start that mounted it; `found_on_system.2/`, `.3/` ... when one is there already (nothing on DATA is written over). A DATA without settings of its own (no `params.db`, as after a format on a PC) gets them on its top level instead, the names it has already left here (a database with its `-wal`, `-shm` and `-journal` when DATA has one of those names: SQLite reads a journal into the database of its name). Files that cannot all be copied stay on the system partition, and such a DATA is not used at that start: the radio comes up with the settings kept there, and the next start tries again |
 
 `cluster.conf` example (the `host=`/`port=` lines are the server in use, each
 `server=` line is a saved server, `name|host|port`):
