@@ -546,7 +546,8 @@ static void meter_draw_cb(lv_event_t *e) {
 }
 
 /* TX: the reading at rest and "TX" in red in place of the value, the box framed red.
- * RX: the value in its own colour again, the frame of the style */
+ * RX: the value in its own colour again, the frame of the style, blank until the next reading: with no data from
+ * the base (#152, a tune given up for it) "TX" stayed on the meter in receive */
 static void radio_cb(lv_event_t *e) {
     in_tx = lv_event_get_code(e) == EVENT_RADIO_TX;
     if (in_tx) {
@@ -556,6 +557,7 @@ static void radio_cb(lv_event_t *e) {
         lv_obj_set_style_border_color(obj, TC(err), 0);
         lv_obj_set_style_border_width(obj, 5, 0);
     } else {
+        lv_label_set_text(db_val_label, "");
         lv_obj_set_style_text_color(db_val_label, TC(text), 0);
         db_label_place();
         lv_obj_remove_local_style_prop(obj, LV_STYLE_BORDER_COLOR, 0);
