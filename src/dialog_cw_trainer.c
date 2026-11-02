@@ -661,7 +661,8 @@ static void tick_cb(lv_timer_t *t) {
         refresh_ui();
     } else if (st == ST_LISTEN && heard_n > 0 &&
                (heard_n >= (int)strlen(target) || heard_end ||
-                lv_tick_elaps(last_rx_t) > cwt_answer_ms(param_i_get(cfg_key_speed), wpm_seen))) {
+                lv_tick_elaps(last_rx_t) > cwt_answer_ms(param_i_get(cfg_key_speed), wpm_seen,
+                                                         param_f_get(cfg_key_ratio)))) {
         if (mode == MODE_CALLS) evaluate_call();
         else evaluate();
         refresh_ui();

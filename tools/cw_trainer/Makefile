@@ -11,10 +11,11 @@
 # before), and that the word boundary stays at 5 dots; also groups of 5 of all 40 at 10 WPM, a straight key at 10 WPM
 # answering groups keyed at 14 (the end of a short answer, cwt_answer_ms), groups of 1 and 5 at 5 WPM, answered
 # 0.5-1.4 s after them, and at 5 and 6 WPM with KEY Ratio 4.5 and 4 (dahs of 800-1080 ms: the key detector's carrier
-# floor, KeyDetector::trainer_range). Then groups of 1 and 3 of 3 8 B ? with every ? keyed a dit too many (..--..., no
-# character): never right, the ? heard as "*". Last the first 4 groups after the trainer opens, 84 runs of them for
-# each of Learn's groups of 1 and 3 and Calls at 10-15 WPM, the sound 30-250 ms behind the key: the lock finds the tone
-# with the first group, and its first dah can come in pieces then; the same checks, and the decoder's speed at the end.
+# floor, KeyDetector::trainer_range), and groups of 5 at 10 WPM with Ratio 4.5 (a 0 of 26.5 dots, cwt_answer_ms). Then
+# groups of 1 and 3 of 3 8 B ? with every ? keyed a dit too many (..--..., no character): never right, the ? heard as
+# "*". Last the first 4 groups after the trainer opens, 84 runs of them for each of Learn's groups of 1 and 3 and Calls
+# at 10-15 WPM, the sound 30-250 ms behind the key: the lock finds the tone with the first group, and its first dah can
+# come in pieces then; the same checks, and the decoder's speed at the end.
 # DEPS: liquid-dsp (host/build.sh puts it in build-host/deps).
 SRC      := ../../src
 DEPS     ?= ../../build-host/deps

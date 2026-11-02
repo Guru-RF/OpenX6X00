@@ -2430,13 +2430,15 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   into your answer, which came out as "?" (issue #144). The pause before
   your answer no longer stretches the decoder's spacing either.
 - Your answer ends with its last character, at a word space, or when no
-  new character comes for 3 s, longer at 14 WPM and slower: 30 dots of the
-  key speed or of the speed the decoder hears, whichever is slower (a
-  straight key slower than KEY Speed is waited for too). The decoder gives
-  a character out when the next one starts, the last one about 8 dots
-  after it ends. Up to v0.3.8 it was 3 s at every speed: at 10 WPM a
-  group's last character of 0 1 9 , or . came out later, the answer was a
-  character short and counted wrong (slower, more of them).
+  new character comes for 3 s, longer at slow speeds: 30 dots and half a
+  second (from 14 WPM down), with KEY Ratio over 3 more (37.5 dots at
+  4.5), in dots of the key speed or of the speed the decoder hears,
+  whichever is slower (a straight key slower than KEY Speed is waited for
+  too). The decoder gives a character out when the next one starts, the
+  last one about 8 dots after it ends. Up to v0.3.8 it was 3 s at every
+  speed: at 10 WPM, when the group ended in 0 1 9 , or . the answer's last
+  character came out later, the answer was a character short and counted
+  wrong (slower, more of them).
 - The trainer keys at the key speed, 5 to 50 WPM, and the decoder follows
   it, and a straight key, down to 5 WPM while the trainer is open (on the
   band it stops at 10). Up to v0.3.8 it stopped at 10 in the trainer too:

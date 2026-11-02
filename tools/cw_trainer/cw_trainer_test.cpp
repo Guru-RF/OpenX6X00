@@ -411,7 +411,8 @@ static Result learn(const Scenario &sc, unsigned seed) {
                 st       = LISTEN;
                 listen_t = last_rx_t = tick;
             } else if (st == LISTEN && heard_n > 0 &&
-                       (heard_n >= (int)target.size() || heard_end || tick - last_rx_t > cwt_answer_ms(wpm, wpm_seen))) {
+                       (heard_n >= (int)target.size() || heard_end ||
+                        tick - last_rx_t > cwt_answer_ms(wpm, wpm_seen, sc.ratio))) {
                 last_ok = heard == target;
                 r.own_answers += own_taken;
                 if (garbled) {
@@ -519,6 +520,8 @@ static void end_to_end(void) {
          * 480 ms (KeyDetector::trainer_range) */
         {"Learn, group 5, all 40, KEY Ratio 4.5, answers after 2 dots", 5, 130, 40, 5, 20, 500, 1400, 0, 0, false, 4.5},
         {"Learn, group 3, all 40, KEY Ratio 4, answers after 2 dots", 6, 30, 40, 3, 40, 500, 1400, 0, 0, false, 4.0},
+        /* a 0 at Ratio 4.5 (26.5 dots) and the decoder's end of it: once past 30 dots (cwt_answer_ms) */
+        {"Learn, group 5, all 40, KEY Ratio 4.5", 10, 30, 40, 5, 40, 300, 1200, 0, 0, false, 4.5},
     };
 
     printf("Learn and Calls: the radio's group and the user's answer, through the decoder\n");
