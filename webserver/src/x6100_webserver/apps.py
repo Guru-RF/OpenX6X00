@@ -2882,17 +2882,28 @@ def channels_state():
         return {"channels": [], "max": CHANNELS_MAX, "error": channels_unreadable(ex)}
 
 
+class ChannelsChanged(Exception):
+    """The channel a change names is not the one the page showed: the list changed since"""
+
+
+CHANNELS_CHANGED = "The channel list changed meanwhile, on the radio or in another tab: nothing was changed, and " \
+                   "the page shows the radio's list now"
+
+
 def channels_edit(change):
-    """Read, change (raises ValueError), write, return the new list. change(entries, places) changes the file's
-    "channels" list itself; places[i] is where channel i of the page is in it. Every other entry goes back into the
-    file as it was, also one the GUI leaves out: the page never drops what it doesn't show"""
+    """Read, change (raises ValueError or ChannelsChanged), write, return the new list. change(entries, kept)
+    changes the file's "channels" list itself; kept[i] is (where channel i of the page is in it, the channel). Every
+    other entry goes back into the file as it was, also one the GUI leaves out: the page never drops what it doesn't
+    show. ChannelsChanged: 409 with the list as it is, and nothing written"""
     with config_lock:
         try:
             doc, kept = channels_load()
         except (OSError, ValueError) as ex:
             return api_error(500, channels_unreadable(ex))
         try:
-            change(doc["channels"], [place for place, _ in kept])
+            change(doc["channels"], kept)
+        except ChannelsChanged:
+            return dict(api_error(409, CHANNELS_CHANGED), channels=[c for _, c in kept], max=CHANNELS_MAX)
         except ValueError as ex:
             return api_error(400, str(ex))
         try:
@@ -2902,9 +2913,20 @@ def channels_edit(change):
     return channels_state()
 
 
-def check_index(places, i):
-    if not 0 <= i < len(places):
-        raise ValueError("No such channel")
+def shown_place(kept, i, was):
+    """Where channel i of the page is in the file, when it is still the channel the page showed there (was, as
+    GET gave it): else ChannelsChanged. By its place alone a change hit another channel once the list had changed
+    under the page: one deleted or moved on the radio or in another tab, a move of the page's own still on its way"""
+    if not 0 <= i < len(kept) or not isinstance(was, dict) or any(was.get(k) != v for k, v in kept[i][1].items()):
+        raise ChannelsChanged()
+    return kept[i][0]
+
+
+def channel_request():
+    data = bottle.request.json
+    if not isinstance(data, dict):
+        raise ValueError("Invalid request")
+    return data
 
 
 @app.get('/api/channels')
@@ -2914,37 +2936,41 @@ def get_channels():
 
 @app.post('/api/channels')
 def add_channel():
-    def change(entries, places):
-        if len(places) >= CHANNELS_MAX:
+    def change(entries, kept):
+        if len(kept) >= CHANNELS_MAX:
             raise ValueError(f"At most {CHANNELS_MAX} channels")
         entries.append(parse_entry(bottle.request.json, True))
     return channels_edit(change)
 
 
+# A change to channel i says which channel it means: "was", the channel as the page showed it
 @app.put('/api/channels/<i:int>')
 def set_channel(i):
-    def change(entries, places):
-        check_index(places, i)
-        entries[places[i]] = parse_entry(bottle.request.json, True)
+    def change(entries, kept):
+        data = channel_request()
+        entries[shown_place(kept, i, data.get("was"))] = parse_entry(data, True)
     return channels_edit(change)
 
 
 @app.delete('/api/channels/<i:int>')
 def delete_channel(i):
-    def change(entries, places):
-        check_index(places, i)
-        del entries[places[i]]
+    def change(entries, kept):
+        del entries[shown_place(kept, i, channel_request().get("was"))]
     return channels_edit(change)
 
 
+# The body: to, the place it goes to; was; past, the channel the page showed at place to
 @app.post('/api/channels/<i:int>/move')
 def move_channel(i):
-    def change(entries, places):
-        check_index(places, i)
-        to = (bottle.request.json or {}).get("to")
-        if isinstance(to, bool) or not isinstance(to, int) or not 0 <= to < len(places):
+    def change(entries, kept):
+        data = channel_request()
+        to = data.get("to")
+        if isinstance(to, bool) or not isinstance(to, int):
             raise ValueError("Invalid position")
+        shown_place(kept, i, data.get("was"))
+        shown_place(kept, to, data.get("past"))
         # The channels change places among themselves; an entry the GUI leaves out stays where it is
+        places = [p for p, _ in kept]
         moved = [entries[p] for p in places]
         moved.insert(to, moved.pop(i))
         for p, x in zip(places, moved):

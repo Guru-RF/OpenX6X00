@@ -214,6 +214,26 @@ class Memories(unittest.TestCase):
         self.assertEqual(code, 200, r)
         return r
 
+    # A change to a channel as the page sends it: the channel as the page shows it, "was" (and the one at the
+    # place it moves to, "past"); shown: the list the page shows, by default the radio's now
+
+    def put(self, i, new, shown=None):
+        shown = shown or self.channels()
+        return self.req("PUT", f"/api/channels/{i}", {**new, "was": shown[i]})
+
+    def delete(self, i, shown=None):
+        shown = shown or self.channels()
+        return self.req("DELETE", f"/api/channels/{i}", {"was": shown[i]})
+
+    def move(self, i, to, shown=None):
+        shown = shown or self.channels()
+        return self.req("POST", f"/api/channels/{i}/move", {"to": to, "was": shown[i], "past": shown[to]})
+
+    def done(self, answer):
+        code, r = answer
+        self.assertEqual(code, 200, r)
+        return r
+
     # Reading
 
     def test_presets(self):
@@ -288,7 +308,7 @@ class Memories(unittest.TestCase):
         for i in (0, 7, len(places) - 1):
             before = meaning(self.read())
             new = ch(f"EDITED {i}", 10_000_000 + i, "AM", "SLOW", True, True)
-            r = self.ok("PUT", f"/api/channels/{i}", new)
+            r = self.done(self.put(i, new))
             self.assertEqual(r["channels"][i], new)
             before[places[i]] = json.dumps(new)
             self.assertEqual(meaning(self.read()), before)
@@ -298,7 +318,7 @@ class Memories(unittest.TestCase):
         shown = self.channels()
         for i in (len(places) - 1, 7, 0):
             before = meaning(self.read())
-            r = self.ok("DELETE", f"/api/channels/{i}")
+            r = self.done(self.delete(i))
             del shown[i]
             self.assertEqual(r["channels"], shown)
             del before[places[i]]
@@ -310,7 +330,7 @@ class Memories(unittest.TestCase):
         _, places = self.mixed()
         for i, to in ((0, 1), (5, 6), (6, 5), (len(places) - 1, 0), (2, len(places) - 1)):
             before, shown = meaning(self.read()), self.channels()
-            r = self.ok("POST", f"/api/channels/{i}/move", {"to": to})
+            r = self.done(self.move(i, to))
             shown.insert(to, shown.pop(i))
             self.assertEqual(r["channels"], shown)
             now = meaning(self.read())
@@ -325,12 +345,66 @@ class Memories(unittest.TestCase):
         self.mixed()
         before, shown = meaning(self.read()), self.channels()
         gone = shown[3]
-        self.ok("DELETE", "/api/channels/3")
+        self.done(self.delete(3))
         r = self.ok("POST", "/api/channels", gone)
-        self.ok("POST", f"/api/channels/{len(r['channels']) - 1}/move", {"to": 3})
+        self.done(self.move(len(r["channels"]) - 1, 3))
         self.assertEqual(self.channels(), shown)
         now = meaning(self.read())
         self.assertEqual(sorted(now), sorted(before))
+
+    def stale(self, answer, before):
+        """A change the page made on a list that changed meanwhile: 409, the radio's list with it, the file as it
+        was"""
+        code, r = answer
+        self.assertEqual((code, r.get("msg")), (409, apps.CHANNELS_CHANGED))
+        self.assertEqual(r["channels"], self.channels())
+        self.assertEqual(self.read(), before)
+
+    def test_stale_page_changes_nothing(self):
+        """The page shows A B C D; on the radio APP > Channels deletes A, or moves D to the top. A Save, a Delete
+        or a move of the page then changes nothing (v0.3.8: the channel now at that place, C(CW) over D, B deleted
+        for A)"""
+        abcd = [ch(n, 7_000_000 + k * 100_000) for k, n in enumerate("ABCD")]
+        for radio in (abcd[1:], abcd[3:] + abcd[:3], [{"left": "out"}] + abcd[1:]):
+            self.write(abcd)
+            shown = self.channels()
+            before = self.write(radio)
+            self.stale(self.put(2, {**abcd[2], "mode": "CW"}, shown), before)
+            self.stale(self.delete(0, shown), before)
+            self.stale(self.delete(1, shown), before)
+            self.stale(self.move(3, 2, shown), before)
+            self.stale(self.move(0, 1, shown), before)
+        # B changed on the radio: a change of B, or a move past it, changes nothing; one of C still goes
+        self.write(abcd)
+        shown = self.channels()
+        before = self.write([abcd[0], {**abcd[1], "agc": "FAST"}] + abcd[2:])
+        self.stale(self.put(1, {**abcd[1], "mode": "CW"}, shown), before)
+        self.stale(self.delete(1, shown), before)
+        self.stale(self.move(2, 1, shown), before)
+        self.done(self.put(2, {**abcd[2], "mode": "CW"}, shown))
+        before = self.read()
+        self.stale(self.put(9, abcd[0], [abcd[0]] * 10), before)              # no channel at that place now
+        self.stale(self.req("DELETE", "/api/channels/0", {}), before)        # no "was": a page from before this
+        code, _ = self.req("DELETE", "/api/channels/0")
+        self.assertEqual(code, 400)
+        self.assertEqual(self.read(), before)
+
+    def test_own_changes_in_a_row(self):
+        """The page's own changes go one at a time, each made on the list it showed when clicked: a Save of C
+        queued behind a move of D above it changes nothing (v0.3.8: C(CW) put over D); twice Up on D moves it once"""
+        self.write([ch(n, 7_000_000 + k * 1000) for k, n in enumerate("ABCDEF")])
+        shown = self.channels()
+        self.done(self.move(3, 2, shown))
+        before = self.read()
+        self.stale(self.put(2, {**shown[2], "mode": "CW"}, shown), before)
+        self.stale(self.move(3, 2, shown), before)
+        self.stale(self.delete(3, shown), before)
+        self.assertEqual([c["name"] for c in self.channels()], list("ABDCEF"))
+        # Saves of other rows (Save all) don't move anything: each still finds its channel
+        for i in (0, 1, 4, 5):
+            self.done(self.put(i, {**shown[i], "agc": "OFF"}, shown))
+        self.assertEqual([(c["name"], c["agc"]) for c in self.channels()],
+                         [("A", "OFF"), ("B", "OFF"), ("D", "AUTO"), ("C", "AUTO"), ("E", "OFF"), ("F", "OFF")])
 
     def test_unreadable_left_alone(self):
         """A file the GUI can't read either: the page says so and changes nothing (v0.3.8: Add wrote over it)"""
@@ -341,10 +415,11 @@ class Memories(unittest.TestCase):
             code, r = self.req("GET", "/api/channels")
             self.assertEqual((code, r["channels"]), (200, []))
             self.assertIn("can't be read", r.get("error", ""), raw)
+            was = ch("N", 7_074_000)
             for method, path, body in (("POST", "/api/channels", ch("NEW", 7_074_000)),
-                                       ("PUT", "/api/channels/0", ch("NEW", 7_074_000)),
-                                       ("DELETE", "/api/channels/0", None),
-                                       ("POST", "/api/channels/0/move", {"to": 0})):
+                                       ("PUT", "/api/channels/0", {**ch("NEW", 7_074_000), "was": was}),
+                                       ("DELETE", "/api/channels/0", {"was": was}),
+                                       ("POST", "/api/channels/0/move", {"to": 0, "was": was, "past": was})):
                 code, r = self.req(method, path, body)
                 self.assertGreaterEqual(code, 400, (raw, method, path))
                 self.assertEqual(self.read(), raw)
@@ -362,11 +437,11 @@ class Memories(unittest.TestCase):
             self.write(gui_presets()[:2])
             for f in good:
                 self.ok("POST", "/api/channels", ch("OK", f))
-                self.ok("PUT", "/api/channels/0", ch("OK", f))
+                self.done(self.put(0, ch("OK", f)))
             for f in bad:
                 code, r = self.req("POST", "/api/channels", ch("NO", f))
                 self.assertEqual((code, r["msg"]), (400, msg), f)
-                code, r = self.req("PUT", "/api/channels/0", ch("NO", f))
+                code, r = self.put(0, ch("NO", f))
                 self.assertEqual((code, r["msg"]), (400, msg), f)
             self.assertEqual(len(self.channels()), 2 + len(good))
 
