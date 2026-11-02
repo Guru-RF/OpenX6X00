@@ -69,6 +69,14 @@ void station_callsign_edit(lv_obj_t *text) {
 bool station_callsign_save(const char *callsign) {
     char buf[256];
 
+    /* An empty field clears it (the FT8 check refused it: "too long"); the apps that need one say so */
+    if (!callsign[0]) {
+        params_str_set(&params.callsign, "");
+        band_plan_follow();
+        msg_schedule_text_fmt("Callsign cleared");
+        return true;
+    }
+
     // Try encode
     snprintf(buf, sizeof(buf), "CQ %s AA00", callsign);
     if (!check_ftx_msg_encoding(buf)) {
