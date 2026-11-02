@@ -21,11 +21,12 @@
 # next start, and the new DATA gets what the radio wrote meanwhile on its top level: the settings,
 # the QSO log and the rest carry over. DATA that worked before and shows nothing to blkid now (its
 # boot sector gone bad) looks the same, and is left alone: what is left of it tells it apart, or the
-# trace of a start that mounted it. Nor is what is left of it formatted after a new image.
+# mark each start that mounts DATA leaves on the system partition. Nor is what is left of it
+# formatted after a new image.
 LOG=/tmp/data_fsck.log
 P3=/dev/mmcblk0p3
 SYS_TRACE=/var/lib/x6100/start_trace    # the start trace on the system partition (.txt, .1.txt)
-MOUNTED=/var/lib/x6100/data_mounted     # DATA was mounted on this card, or found gone bad: never formatted
+MOUNTED=/var/lib/x6100/data_mounted     # DATA mounted on this card, or found gone bad: never formatted
 # What to do with DATA left alone because it went bad (the trace, the manual)
 DAMAGED="its files are most likely still there: copy them off on a PC with a recovery tool, then format it there as FAT32"
 
@@ -148,6 +149,7 @@ check_data() {
             # a label only on a filesystem fsck left clean: not worth a write into a broken one
             [ -n "$relabel" ] && [ $rc -le 1 ] && { fatlabel "$dev" DATA && echo "label DATA set"; }
             if mount "$dev" /mnt; then
+                mark_data
                 rescue
             else
                 echo "mount failed"
@@ -169,6 +171,8 @@ make_data() {
         trace "mount of $1 failed"
         return
     fi
+    # From here on its files may be the only copy (rescue below)
+    mark_data
     {
         echo "$(date '+%Y-%m-%d %H:%M:%S'), up $(cut -d' ' -f1 /proc/uptime) s"
         echo "$1 formatted as DATA"
@@ -214,10 +218,10 @@ unformatted_data_part() {
     fi
     # Nor is DATA that went bad: with nothing blkid knows on it now, its boot sector went bad (the
     # kernel rewrites it at each mount, fsck.fat at each start that finds it dirty: a power cut then),
-    # its files still there for a PC's repair tools. What is left of it says so (fs_left); else a
-    # start of this system that mounted it traced its check on the system partition before the mount
-    # ("fsck.fat of", since v0.3.6: the last start's lines are always there). Found once, the mark
-    # keeps it for the starts after
+    # its files still there for a PC's repair tools. What is left of it says so (fs_left); else the
+    # mark of a start that mounted it, or (a card that mounted it only on v0.3.6 to v0.3.8) the check
+    # such a start traced on the system partition before the mount ("fsck.fat of": the last start's
+    # lines are always there). Found once, the mark keeps it for the starts after
     if fs_left $P3; then
         mark_data
         not_ours="$left; $DAMAGED"

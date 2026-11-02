@@ -5178,9 +5178,9 @@ the radio wrote it at a start. The radio does not format it, and runs without
 DATA meanwhile, on the system partition's `/mnt` folder. It tells such a
 partition from a new one by what is left of the filesystem: the copy of the
 boot sector that FAT32 keeps in its sector 6 (exFAT in sector 12), or, when
-the card lost the sectors around it too, the first FAT that follows them; and
-by the trace of a start that mounted it. A new card image written over the
-card changes none of that. The start trace says why at every start: "not
+the card lost the sectors around it too, the first FAT that follows them. And
+by the mark each start that mounts DATA leaves on the system partition, which
+a new card image takes with it. The start trace says why at every start: "not
 touched (a FAT32 whose boot sector went bad, its copy in sector 6 found; ...)"
 or "not touched (DATA was mounted at an earlier start, its boot sector gone
 bad since; ...)", and at the first start of a new image "... holds a FAT32
@@ -5196,10 +5196,10 @@ What to do then:
    FAT32 on the PC: the next start uses it as DATA.
 
 The radio formats such a partition only when it finds nothing of the old
-filesystem and no trace of a start that mounted it: more than the first
-16 KiB lost (32 KiB on a card over 32 GB; for a DATA formatted on a PC, more
-than its first 3 KiB), and a new image written since or many starts without
-DATA on v0.3.8 or older.
+filesystem and no mark: more than the first 16 KiB lost (32 KiB on a card
+over 32 GB; for a DATA formatted on a PC, more than its first 3 KiB), and a
+new image written since, or DATA last mounted by v0.3.8 or older and many
+starts without it after that.
 
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
