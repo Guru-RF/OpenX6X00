@@ -3697,7 +3697,12 @@ Setting it up:
    are set again by the radio each time Pat starts, and so is the password
    once one is set on the radio's Winlink page: change those there, not in
    Pat. A password typed in Pat's Settings is kept while the Winlink page has
-   none (up to v0.3.6 it was emptied at Pat's next start, #80).
+   none (up to v0.3.6 it was emptied at Pat's next start, #80). The radio's
+   rig is x6x00 in Settings > Rig Control > Hamlib rigs (TCP, 127.0.0.1:4532,
+   the radio's own rigctld), and it is the Rig of the ARDOP and Vara HF
+   sections. Its values are grey there like Pat's examples, but they are the
+   radio's: leave them as they are. The radio writes them again each time it
+   starts Pat, so an edit saved in Pat's Settings lasts only until then.
 
 Connecting to a gateway:
 
