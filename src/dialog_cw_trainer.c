@@ -1059,7 +1059,7 @@ static void refresh_ui(void) {
             lv_label_set_text(big, last_ok ? "OK" : "WRONG");
             lv_obj_set_style_text_color(big, lv_color_hex(last_ok ? COLOR_OK : COLOR_BAD), 0);
             group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target);
-            group_line(line2, "Heard: ", last_ok ? 0x60ff60 : 0xff6060, shown, heard);
+            group_line(line2, "Heard: ", last_ok ? COLOR_OK : COLOR_BAD, shown, heard);
             snprintf(buf, sizeof(buf), "%s%s", strchr(heard, CWT_NO_CHAR) ? CWT_NO_CHAR_SHOWN " = not a character. " : "",
                      autoplay ? "Next group follows. Pause: stop after this one" : "Start: resume. Skip: another group");
             lv_label_set_text(hint, buf);
