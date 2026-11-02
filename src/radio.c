@@ -68,6 +68,7 @@
 #define MORSE_HANG_MS       3000    /* the base holds TX for the QSK time after the GUI's CW key */
 #define ATU_START_MS        3000    /* the base keys for the tuner within this, or the tune is given up */
 #define ATU_NO_MATCH_MS     1000    /* back in RX this long without the tuner's done flag: no match */
+#define NO_DATA_MS          3000    /* no packet this long: a TX or an SWR scan that only a packet ends is ended */
 #define BASE_GONE_MS        30000   /* no packet from the base this long in receive: said on the screen (base_gone) */
 
 #define FILTER_2_OFFSET 60
@@ -2334,6 +2335,17 @@ static bool radio_tick() {
             if ((s == RADIO_ATU_START || s == RADIO_ATU_WAIT || s == RADIO_ATU_RUN) &&
                 now_time - pack_time > ATU_START_MS) {
                 atu_give_up(s, "Tuner: no data from the base");
+            }
+            /* A TX ends on a packet without the TX flag: with none (the data lost while the base keyed, or while the
+             * GUI did and let go since) the state stayed RADIO_TX for good, tx_player refusing every digital TX, CAT
+             * and TCI reporting TX, and base_gone never saying it. Back to RX once the base has been silent this long
+             * and the GUI keys nothing, its CW past the base's hang; a packet with the TX flag brings TX back */
+            if (s == RADIO_TX && now_time - pack_time > NO_DATA_MS && !gui_keys() &&
+                (uint32_t)now_time - morse_ms >= MORSE_HANG_MS && state_move(RADIO_TX, RADIO_RX)) {
+                if (notify_rx_tx) {
+                    notify_rx_tx(false);
+                }
+                base_guard_log("TX: no data from the base for %u ms, back to RX", (unsigned)(now_time - pack_time));
             }
             /* The X6100's POWER key is its own, not in the data: radio_poweroff saved, synced and said "Power off",
              * and only a packet switched the radio off. With none it stayed on. The switch-off is a register write,
