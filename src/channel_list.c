@@ -16,10 +16,12 @@
 #include "channel_list.h"
 #include "board.h"
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "cJSON.h"
 #include "cfg/cfg_api.h"
@@ -197,10 +199,18 @@ static bool write_file(const char *text) {
 
     if (!f) return false;
 
-    bool ok = fputs(text, f) != EOF && fputc('\n', f) != EOF;
+    /* On the card before the rename: /mnt is FAT, written out about 30 s later, and a power cut in between
+     * left a short or empty list. A card error is a failed save */
+    bool ok = fputs(text, f) != EOF && fputc('\n', f) != EOF && fflush(f) == 0 && fsync(fileno(f)) == 0;
 
     ok = fclose(f) == 0 && ok;
     if (ok && rename(CHANNELS_TMP, CHANNELS_FILE) == 0) {
+        int dfd = open(BOARD_DATA, O_RDONLY | O_DIRECTORY);     /* the rename too */
+
+        if (dfd >= 0) {
+            fsync(dfd);
+            close(dfd);
+        }
         file_mtime(&file_time);
         return true;
     }
