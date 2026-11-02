@@ -935,16 +935,17 @@ static void mic_key_cb(lv_event_t *e) {
         case HKEY_DOT:
 #endif
         {
-#ifdef BOARD_X6200
-            /* The H-22 prints 5.3 on its 3 and 28 on its dot (index 10) */
-            static const int16_t band_m[11] = {6, 160, 80, 60, 40, 30, 20, 17, 15, 12, 10};
-#else
+            /* The X6100 mic's print, on the X6200 too. The H-22 prints 5.3 on its 3 and 28 on its dot (index 10):
+             * it sends its own codes for those keys, the X6100 mic's only for 1 and 2, the same bands on both (#145) */
             static const int16_t band_m[10] = {6, 160, 80, 40, 30, 20, 17, 15, 12, 10};
-#endif
+            static const int16_t h22_m[11]  = {6, 160, 80, 60, 40, 30, 20, 17, 15, 12, 10};
             int                  digit      = ev->key == HKEY_DOT ? 10 : ev->key - HKEY_0;
 
+            if (digit == 10 && !ev->h22) {
+                break;      /* the X6100 mic's dot has no band */
+            }
             if (tap && !band_lock) {
-                controls_set_band_m(band_m[digit]);
+                controls_set_band_m(ev->h22 ? h22_m[digit] : band_m[digit]);
             } else if (hold && digit > 0 && digit < 10) {
                 mem_load(digit);
             }

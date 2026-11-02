@@ -171,7 +171,7 @@ one second.
 
 | Key | Mic | Press | Long press |
 |---|---|---|---|
-| 1-9, 0 | both | the band printed on the key (not while an app holds the band). X6100: 1 = 160 m, 2 = 80 m, 3 = 40 m, 4 = 30 m, 5 = 20 m, 6 = 17 m, 7 = 15 m, 8 = 12 m, 9 = 10 m, 0 = 6 m. H-22: 1 = 160 m, 2 = 80 m, 3 = 60 m, 4 = 40 m, 5 = 30 m, 6 = 20 m, 7 = 17 m, 8 = 15 m, 9 = 12 m, 0 = 6 m | memory 1-9 |
+| 1-9, 0 | both | the band printed on the key (not while an app holds the band). The X6100 mic, on either radio: 1 = 160 m, 2 = 80 m, 3 = 40 m, 4 = 30 m, 5 = 20 m, 6 = 17 m, 7 = 15 m, 8 = 12 m, 9 = 10 m, 0 = 6 m. H-22: 1 = 160 m, 2 = 80 m, 3 = 60 m, 4 = 40 m, 5 = 30 m, 6 = 20 m, 7 = 17 m, 8 = 15 m, 9 = 12 m, 0 = 6 m | memory 1-9 |
 | the dot | H-22 | 10 m (printed 28) | |
 | F-INP (H-22: the red F-INP/ENT) | both | the frequency box, see below | |
 | F1, F2 | both | the action set in Settings > Keys > HAND MIC KEYS: F1 steps up, F2 does nothing until it has one | F1 steps down, F2 as set |
@@ -196,6 +196,9 @@ one second.
 - In a list or a text box (the WiFi password) the digits, the dot and CE type
   instead.
 - The H-22's UP and DOWN keys on its side change band like the BAND keys.
+- The X6100's hand mic works on the X6200 too, its keys as in this table: the
+  digits go to the bands printed on them (3 = 40 m) and its dot to none. The
+  radio tells it from the H-22 by the codes the keys send.
 - Each key pressed goes into the log as `hand mic: key 0x18 (3)`: its code
   and the key the radio took it for, or "unknown". Not while a text box is
   open, where the digits can be a WiFi password. A key of another mic that

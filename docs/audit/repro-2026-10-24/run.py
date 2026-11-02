@@ -209,7 +209,8 @@ def main():
         print("The same on the PC build, whose web configurator is on port 8080:\n" + command(
             [binary], env, contains=("58 of 58 cases as they should be",)).strip())
 
-        # The X6100's GUI knows its mic's codes only; the X6200's the H-22's besides (#56: its table off a radio)
+        # The X6100's GUI knows its mic's codes only; the X6200's the H-22's besides (#56: its table off a radio),
+        # a key sent with one of them marked as the H-22's, the X6100 mic's keys not (#145)
         for board, flags, known, h22 in (
                 ("X6100", [], "known 25, unknown 230", (
                     "X6100, H-22 3, 0x18: nothing; log: hand mic: key 0x18 (unknown)",
@@ -218,14 +219,19 @@ def main():
                     "X6100, the H-22: 25 of 25 keys as they should be",
                     "X6100, 0x18 held: nothing; VOL+ down while held: 0, after: 0")),
                 ("X6200", ["-DBOARD_X6200"], "known 40, unknown 215", (
-                    "X6200, H-22 3, 0x18: press 3, release 3; log: hand mic: key 0x18 (3)",
-                    "X6200, H-22 *, 0x1F: press ., release .; log: hand mic: key 0x1F (.)",
+                    "X6200, X6100 mic 3, 0xE4: press 3, release 3; log: hand mic: key 0xE4 (3)",
+                    "X6200, X6100 mic ., 0x21: press ., release .; log: hand mic: key 0x21 (.)",
+                    "X6200, H-22 1, 0xE1: press 1, release 1; log: hand mic: key 0xE1 (1)",
+                    "X6200, H-22 3, 0x18: press 3 (H-22), release 3 (H-22); log: hand mic: key 0x18 (3)",
+                    "X6200, H-22 *, 0x1F: press . (H-22), release . (H-22); log: hand mic: key 0x1F (.)",
                     "X6200, H-22 HOME, 0x24: typed CE; log: hand mic: key 0x24 (CE)",
-                    "X6200, H-22 F3, 0x13: press F3, release F3; log: hand mic: key 0x13 (F3)",
-                    "X6200, H-22 A/B, 0x16: press A/B, release A/B; log: hand mic: key 0x16 (A/B)",
+                    "X6200, H-22 F3, 0x13: press F3 (H-22), release F3 (H-22); log: hand mic: key 0x13 (F3)",
+                    "X6200, H-22 A/B, 0x16: press A/B (H-22), release A/B (H-22); log: hand mic: key 0x16 (A/B)",
                     "X6200, the H-22: 25 of 25 keys as they should be",
-                    "X6200, 0x18 held: press 3, long 3, long release 3; VOL+ down while held: 0, after: 0",
-                    "X6200, 0x14 held: press VOL+, long VOL+, long release VOL+; VOL+ down while held: 1, after: 0"))):
+                    "X6200, 0x18 held: press 3 (H-22), long 3 (H-22), long release 3 (H-22); "
+                    "VOL+ down while held: 0, after: 0",
+                    "X6200, 0x14 held: press VOL+ (H-22), long VOL+ (H-22), long release VOL+ (H-22); "
+                    "VOL+ down while held: 1, after: 0"))):
             binary = work / ("mic-keys-" + board.lower())
             command([*CC, *cflags, *flags, *san, HERE / "mic-keys.c", "src/mic_keys.c", *gc, "-o", binary], env)
             print(f"#56 hand mic keys, the {board}'s GUI: every code into the log, each key of both mics:\n" + command(
@@ -253,16 +259,25 @@ def main():
 
         (work / "mic_screen_keys.c").write_text(cut("static void ab_key(", "static void ab_key(") +
                                                 cut("#define MIC_VOL_DELAY_MS", "static void mic_key_cb("))
-        binary = work / "mic-screen"
-        command([*CC, *cflags, *san, "-I" + str(work), HERE / "mic-screen.c", *gc, "-o", binary], env)
-        print("#56 the H-22's own keys on the main screen:\n" + command([binary], env, contains=(
-            "F3 let go: action 3", "F3 held: action 13",
-            "VOL+ held 0.4 s: volume 32, \"Volume: 32\", every 100 ms",
-            "VOL+ let go after the long press: timer deleted",
-            "VOL+ let go, the release to another screen (walkie mode): timer deleted",
-            "A/B held: VFO copied, \"Clone VFO B->A\"", "A/B let go, an app holding the VFOs: nothing",
-            "XFC let go, an app holding the VFOs: nothing", "XFC let go: VFO A, spectrum cleared",
-            "BAND UP let go: band up", "44 of 44 cases as they should be")).strip())
+        # Built as the X6100's GUI and as the X6200's: the digits by the print of the mic they came from (#145)
+        for board, flags, digits in (
+                ("X6100", [], ("3 let go: 40 m", "9 let go: 10 m", "50 of 50 cases as they should be")),
+                ("X6200", ["-DBOARD_X6200"], (
+                    "3 let go: 40 m", "9 let go: 10 m", "the dot let go: nothing",
+                    "the H-22's 3 (5.3) let go: 60 m", "the H-22's 3 held: memory 3",
+                    "the H-22's 9 (24) let go: 12 m", "the H-22's dot (28) let go: 10 m",
+                    "the H-22's dot held: nothing", "62 of 62 cases as they should be"))):
+            binary = work / ("mic-screen-" + board.lower())
+            command([*CC, *cflags, *flags, *san, "-I" + str(work), HERE / "mic-screen.c", *gc, "-o", binary], env)
+            output = command([binary], env, contains=(
+                "F3 let go: action 3", "F3 held: action 13",
+                "VOL+ held 0.4 s: volume 32, \"Volume: 32\", every 100 ms",
+                "VOL+ let go after the long press: timer deleted",
+                "VOL+ let go, the release to another screen (walkie mode): timer deleted",
+                "A/B held: VFO copied, \"Clone VFO B->A\"", "A/B let go, an app holding the VFOs: nothing",
+                "XFC let go, an app holding the VFOs: nothing", "XFC let go: VFO A, spectrum cleared",
+                "BAND UP let go: band up", *digits))
+            print(f"#56 the H-22's own keys on the main screen, the {board}'s GUI:\n" + output.strip())
 
         # Issue #111: the user's frequency lock and an app's hold, cut out of screen_main.c: from the end of
         # cw_mode() to the end of toggle_freq_lock(), and main_screen_lock_freq() to main_screen_freq_locked()

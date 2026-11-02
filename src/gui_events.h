@@ -62,6 +62,7 @@ typedef enum {
 typedef struct {
     hkey_t       key;
     hkey_state_t state;
+    bool         h22;   /* sent with one of the H-22's own codes (RADIO_HKEY_H22_*, the X6200) */
 } event_hkey_t;
 
 /* LVGL keys of the VOL knob (rotary.c, keypad.c), after KEY_MACRO1; the LVGL ones are

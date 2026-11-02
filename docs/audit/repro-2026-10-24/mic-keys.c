@@ -3,7 +3,8 @@
  * key of another mic gives its codes; none while a text window (a WiFi password) is open. Then each key of both
  * mics, the X6100's and the X6200's H-22 (its codes read off an X6200 with base 1.0.8), against what it is to do on
  * the main screen: built as is the X6100's GUI (run.py: mic-keys-x6100), with -DBOARD_X6200 the X6200's
- * (mic-keys-x6200). The X6100 keeps its mic's table; the X6200 knows the H-22's codes besides. What the main screen
+ * (mic-keys-x6200). The X6100 keeps its mic's table; the X6200 knows the H-22's codes besides, and a key sent with
+ * one of them goes to the main screen marked "(H-22)", the X6100 mic's keys unmarked (#145). What the main screen
  * then does with the H-22's own keys: mic-screen.c. */
 #include "src/gui_events.h"
 #include "src/key_input.h"
@@ -94,9 +95,9 @@ bool textarea_window_type(uint32_t key) {
 void event_send(lv_obj_t *obj, lv_event_code_t code, void *param) {
     static const char *state[] = {"press", "release", "long", "long release"};
     event_hkey_t      *e       = param;
-    char               b[32];
+    char               b[40];
 
-    snprintf(b, sizeof(b), "%s %s", state[e->state], key_name(e->key));
+    snprintf(b, sizeof(b), "%s %s%s", state[e->state], key_name(e->key), e->h22 ? " (H-22)" : "");
     note(did, sizeof(did), b);
     free(param);
 }
@@ -116,8 +117,9 @@ static void press(const char *where, uint32_t code) {
 }
 
 /* Each key of a mic, and the key it is to be taken for on each radio (NULL: unknown, nothing happens). On the main
- * screen a key goes to it as a mic key (press, release), the digits and the dot too (the band on the key); CE and
- * F-INP are typed; the log names the key, as the press does */
+ * screen a key goes to it as a mic key (press, release), the digits and the dot too (the band on the key), marked
+ * "(H-22)" on the X6200 when the X6100 does not know its code; CE and F-INP are typed; the log names the key, as the
+ * press does */
 typedef struct {
     uint32_t    code;
     const char *label;
@@ -181,6 +183,7 @@ static bool walk(const char *mic, const mic_key_t *k, size_t n) {
     editing = true;
     for (size_t i = 0; i < n; i++) {
         const char *key = WANT(k[i]);
+        const char *own = k[i].x6100 ? "" : " (H-22)";
         char        want[64], want_log[64];
 
         if (!key) {
@@ -188,7 +191,7 @@ static bool walk(const char *mic, const mic_key_t *k, size_t n) {
         } else if (strcmp(key, "CE") == 0 || strcmp(key, "F-INP") == 0) {
             snprintf(want, sizeof(want), "typed %s", key);
         } else {
-            snprintf(want, sizeof(want), "press %s, release %s", key, key);
+            snprintf(want, sizeof(want), "press %s%s, release %s%s", key, own, key, own);
         }
         snprintf(want_log, sizeof(want_log), "hand mic: key 0x%02X (%s)", (unsigned)k[i].code, key ? key : "unknown");
         *did = *logged = 0;

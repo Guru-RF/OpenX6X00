@@ -3,7 +3,8 @@
  * mic_screen_keys.c, and they run here with what they call stood in for: F3's own actions next to F1's and F2's,
  * VOL+/VOL- a step a press and on by themselves while held (after MIC_VOL_DELAY_MS, every MIC_VOL_REPEAT_MS) until
  * let go, also when the release went to another screen, A/B as the front A/B key and the X6100 mic's XFC
- * with its hold, and the BAND codes.
+ * with its hold, and the BAND codes. The digits by the print of the mic they came from (#145): the X6100 mic's on
+ * both radios, the H-22's on the X6200 (run.py: mic-screen-x6200, built with -DBOARD_X6200).
  * Ends "N of N cases as they should be". */
 #include "src/cfg/encoder_bind_types.h"
 #include "src/gui_events.h"
@@ -28,6 +29,7 @@ static void note(const char *fmt, ...) {
 enum { cfg_band_current_vfo, cfg_cur_mode };
 
 static bool         ab_lock, band_lock, mode_lock, knobs_shown;
+static bool         h22;                /* the keys sent with the H-22's own codes */
 static cfg_ctrl_t   vol_ctrl = CTRL_VOL;
 static int32_t      vfo      = RADIO_VFO_A, mode = radio_mode_usb, volume = 30;
 static uint32_t     down;               /* the mic key mic_keys.c has down (hkey_down) */
@@ -129,7 +131,7 @@ static void check(const char *what, const char *want) {
 /* A key's event as mic_keys.c posts it to the main screen */
 static void key(const char *what, hkey_t k, hkey_state_t state, const char *want) {
     *did = 0;
-    ev   = (event_hkey_t){.key = k, .state = state};
+    ev   = (event_hkey_t){.key = k, .state = state, .h22 = h22};
     if (state == HKEY_PRESS || state == HKEY_LONG) {
         down = k;
     } else {
@@ -211,10 +213,39 @@ int main(void) {
     key("BAND DOWN let go", HKEY_BAND_DOWN, HKEY_RELEASE, "band down");
     key("BAND UP held", HKEY_BAND_UP, HKEY_LONG, "nothing");
 
-    /* The digits as before: the band, held a memory */
+    /* The digits: the band printed on the key, held a memory. The X6100 mic's print on both radios; the H-22 sends
+     * its 1 and 2 with the X6100 mic's codes, the same bands */
     key("3 let go", HKEY_3, HKEY_RELEASE, "40 m");
     key("3 held", HKEY_3, HKEY_LONG, "memory 3");
     key("0 let go", HKEY_0, HKEY_RELEASE, "6 m");
+    key("1 let go", HKEY_1, HKEY_RELEASE, "160 m");
+    key("2 let go", HKEY_2, HKEY_RELEASE, "80 m");
+    key("4 let go", HKEY_4, HKEY_RELEASE, "30 m");
+    key("9 let go", HKEY_9, HKEY_RELEASE, "10 m");
+    key("9 held", HKEY_9, HKEY_LONG, "memory 9");
+    band_lock = true;
+    key("3 let go, an app holding the band", HKEY_3, HKEY_RELEASE, "nothing");
+    band_lock = false;
+#ifdef BOARD_X6200
+    key("the dot let go", HKEY_DOT, HKEY_RELEASE, "nothing");
+    key("the dot held", HKEY_DOT, HKEY_LONG, "nothing");
+
+    /* The H-22's own codes: its print, 5.3 on its 3 and 28 on its dot */
+    h22 = true;
+    key("the H-22's 3 (5.3) let go", HKEY_3, HKEY_RELEASE, "60 m");
+    key("the H-22's 3 held", HKEY_3, HKEY_LONG, "memory 3");
+    key("the H-22's 4 (7) let go", HKEY_4, HKEY_RELEASE, "40 m");
+    key("the H-22's 5 (10) let go", HKEY_5, HKEY_RELEASE, "30 m");
+    key("the H-22's 9 (24) let go", HKEY_9, HKEY_RELEASE, "12 m");
+    key("the H-22's 9 held", HKEY_9, HKEY_LONG, "memory 9");
+    key("the H-22's 0 (50) let go", HKEY_0, HKEY_RELEASE, "6 m");
+    key("the H-22's dot (28) let go", HKEY_DOT, HKEY_RELEASE, "10 m");
+    key("the H-22's dot held", HKEY_DOT, HKEY_LONG, "nothing");
+    band_lock = true;
+    key("the H-22's dot let go, an app holding the band", HKEY_DOT, HKEY_RELEASE, "nothing");
+    band_lock = false;
+    h22 = false;
+#endif
 
     printf("%d of %d cases as they should be\n", good, cases);
     return good == cases ? 0 : 1;
