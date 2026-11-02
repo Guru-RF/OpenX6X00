@@ -3254,18 +3254,22 @@ APP Channels, or the V/M key of the hand mic.
   before or after the last one tuned and show its name for a moment, without
   opening the window. With LOCK on or an app holding the frequency or the
   mode they do not tune either.
-- Up to 100 channels. They are the same as on the web configurator's Memories
-  page; a change made there shows on the radio within a few seconds, unless
-  the window is open. The page lists them all, on any frequency: an entry of
-  `channels.json` that the radio leaves out (a field missing or of the wrong
-  kind, an unknown mode or AGC) is left out there too, alone. A change made
-  on the page (add, save, delete, up, down) leaves every other entry of the
-  file as it was, one the page does not list too (the radio drops that one
-  at its next change of the list). A file the radio cannot read either is
-  left alone: the page says so and changes nothing. Up to v0.3.8 one
-  channel above 56 MHz (an X6200's on FM broadcast or the airband, the
-  WR12's, a transverter's) left the page's list empty, and an Add there then
-  replaced all the channels with the new one.
+- Up to 100 channels. They are the same as on the web configurator's
+  Memories page; a change made there shows on the radio within a few
+  seconds, unless the window is open. The window has the list it read when
+  it opened, and a change made in it (Add, Delete, Edit, Drop) writes that
+  list over the file: the page's changes since the window opened are lost. A
+  change the radio saves while the page is writing its own is kept: the page
+  makes its change again on the radio's list. The page lists them all, on
+  any frequency: an entry of `channels.json` that the radio leaves out (a
+  field missing or of the wrong kind, an unknown mode or AGC) is left out
+  there too, alone. A change made on the page (add, save, delete, up, down)
+  leaves every other entry of the file as it was, one the page does not list
+  too (the radio drops that one at its next change of the list). A file the
+  radio cannot read either is left alone: the page says so and changes
+  nothing. Up to v0.3.8 one channel above 56 MHz (an X6200's on FM broadcast
+  or the airband, the WR12's, a transverter's) left the page's list empty,
+  and an Add there then replaced all the channels with the new one.
 - A Save, Delete, Up or Down on the page names the channel as the page shows
   it. When the list changed meanwhile (a channel deleted or moved on the
   radio or in another tab, a move of the page's own still on its way) it

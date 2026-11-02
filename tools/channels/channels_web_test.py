@@ -459,6 +459,45 @@ class Memories(unittest.TestCase):
         self.assertEqual([(c["name"], c["agc"]) for c in self.channels()],
                          [("A", "OFF"), ("B", "OFF"), ("D", "AUTO"), ("C", "AUTO"), ("E", "OFF"), ("F", "OFF")])
 
+    def gui_saves_meanwhile(self, *lists):
+        """The GUI saves these lists, one each time the page is about to put its file in place"""
+        real, lists = apps.write_channels, list(lists)
+
+        def write(doc, ready):
+            if lists:
+                self.write(lists.pop(0))
+            return real(doc, ready)
+        apps.write_channels = write
+        self.addCleanup(setattr, apps, "write_channels", real)
+
+    def test_gui_save_meanwhile(self):
+        """A save of the GUI's that lands while the page writes is kept: the page's change is made again on its
+        list (until now the list the page had read went over it, the GUI's change gone)"""
+        abcd = [ch(n, 7_000_000 + k * 100_000) for k, n in enumerate("ABCD")]
+        a2 = {**abcd[0], "name": "A2"}
+        self.write(abcd)
+        shown = self.channels()
+        self.gui_saves_meanwhile([a2] + abcd[1:])               # APP > Channels renames A
+        r = self.done(self.put(2, {**abcd[2], "mode": "CW"}, shown))
+        self.assertEqual(json.loads(self.read())["channels"], [a2, abcd[1], {**abcd[2], "mode": "CW"}, abcd[3]])
+        self.assertEqual(r["channels"], json.loads(self.read())["channels"])
+        self.write(abcd)
+        self.gui_saves_meanwhile(abcd[1:])                     # ... deletes A
+        self.ok("POST", "/api/channels", ch("NEW", 7_074_000))
+        self.assertEqual(json.loads(self.read())["channels"], abcd[1:] + [ch("NEW", 7_074_000)])
+        self.write(abcd)
+        self.gui_saves_meanwhile(abcd[1:])                     # ... deletes A: C is no longer channel 2
+        self.stale(self.put(2, {**abcd[2], "mode": "CW"}, shown), self.gui_file(abcd[1:]))
+        self.write(abcd)
+        self.gui_saves_meanwhile(abcd[1:], abcd[2:])           # twice: 409, the GUI's list as it is
+        code, r = self.req("POST", "/api/channels", ch("NEW", 7_074_000))
+        self.stale((code, r), self.gui_file(abcd[2:]))
+        self.assertEqual(sorted(os.listdir(self.root)), ["channels.json", "compatible", "params.db"])
+
+    @staticmethod
+    def gui_file(entries):
+        return json.dumps({"version": 1, "channels": entries}, indent="\t").encode()
+
     def test_unreadable_left_alone(self):
         """A file the GUI can't read either: the page says so and changes nothing (v0.3.8: Add wrote over it)"""
         for raw in (b'{"version": 1, "channels": [', b"", b'[1, 2]', b'{"channels": {"a": 1}}',

@@ -43,7 +43,7 @@ const TUNE_MHZ = [{{mhz[0]}}, {{mhz[1]}}];
 let max = 100;
 const slotsBody = $("#slots>tbody"), chBody = $("#channels>tbody");
 EditFlow.effect($("#slots").closest(".dp-card").find("h3"), "at the next tap of the MEM button");
-EditFlow.effect($("#channels").closest(".dp-card").find("h3"), "on the radio within a few seconds, unless APP → Channels is open there");
+EditFlow.effect($("#channels").closest(".dp-card").find("h3"), "on the radio within a few seconds, unless APP → Channels is open there: a change made in it then writes its list over the page's changes");
 
 var showStatus = function(kind, text, error=false) {
   const el = $("#status_" + kind);

@@ -276,8 +276,9 @@ def cluster_option_lines(opts):
 config_lock = threading.RLock()   # cluster_update() holds it around write_cluster_conf()
 
 
-def replace_file(path, write, mode=0o644, **kw):
-    """The file written whole through a unique temporary name next to it, then put in place in one step."""
+def replace_file(path, write, mode=0o644, ready=None, **kw):
+    """The file written whole through a unique temporary name next to it, then put in place in one step. ready():
+    called with the new file on the card, just before that step, which it stops by raising"""
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=os.path.basename(path) + ".", suffix=".tmp")
     try:
         os.chmod(tmp, mode)
@@ -285,6 +286,8 @@ def replace_file(path, write, mode=0o644, **kw):
             write(f)
             f.flush()
             os.fsync(f.fileno())   # /mnt is FAT on the SD card, as the GUI does
+        if ready:
+            ready()
         os.replace(tmp, path)
     except BaseException:
         try:
@@ -2848,16 +2851,23 @@ def gui_channel(x):
     return {"name": name, "frequency": int(freq), "mode": mode, "agc": agc, "pre": pre, "att": att}
 
 
-def channels_load():
-    """channels.json as the GUI reads it (channels_load in src/channel_list.c): the file's object, and each entry
-    of its "channels" list the GUI keeps, the first 100, as (its place in the list, the channel). An entry the GUI
-    leaves out is left out alone. No file: no channels. ValueError for a file the GUI can't read either: the radio
-    keeps the list it has then, and the page must not write over the file"""
+def channels_read():
+    """channels.json's bytes, None for no file"""
     try:
         with open(settings.CHANNELS_FILE, "rb") as f:
-            doc = cjson_loads(f.read())
+            return f.read()
     except FileNotFoundError:
+        return None
+
+
+def channels_load(data):
+    """channels.json as the GUI reads it (channels_load in src/channel_list.c), from its bytes: the file's object,
+    and each entry of its "channels" list the GUI keeps, the first 100, as (its place in the list, the channel). An
+    entry the GUI leaves out is left out alone. None, no file: no channels. ValueError for a file the GUI can't
+    read either: the radio keeps the list it has then, and the page must not write over the file"""
+    if data is None:
         return {"version": 1, "channels": []}, []
+    doc = cjson_loads(data)
     if not isinstance(doc, dict) or not isinstance(doc.get("channels"), list):
         raise ValueError("no list of channels in it")
     kept = []
@@ -2873,18 +2883,18 @@ def channels_unreadable(ex):
            "radio writes it anew"
 
 
-def write_channels(doc):
+def write_channels(doc, ready):
     """The file whole again, the bytes of each string as they were read: an entry left as it was means to the GUI
-    what it meant (a name not in UTF-8 too). No NaN or Infinity, which the GUI can't read"""
+    what it meant (a name not in UTF-8 too). No NaN or Infinity, which the GUI can't read. ready: replace_file's"""
     def write(f):
         json.dump(doc, f, indent="\t", ensure_ascii=False, allow_nan=False)
         f.write("\n")
-    replace_file(settings.CHANNELS_FILE, write, encoding="utf-8", errors="surrogateescape")
+    replace_file(settings.CHANNELS_FILE, write, ready=ready, encoding="utf-8", errors="surrogateescape")
 
 
 def channels_state():
     try:
-        return {"channels": [c for _, c in channels_load()[1]], "max": CHANNELS_MAX}
+        return {"channels": [c for _, c in channels_load(channels_read())[1]], "max": CHANNELS_MAX}
     except (OSError, ValueError) as ex:
         return {"channels": [], "max": CHANNELS_MAX, "error": channels_unreadable(ex)}
 
@@ -2897,27 +2907,41 @@ CHANNELS_CHANGED = "The channel list changed meanwhile, on the radio or in anoth
                    "the page shows the radio's list now"
 
 
+class ChannelsWritten(Exception):
+    """channels.json is no longer what the page read: the GUI saved its list meanwhile"""
+
+
 def channels_edit(change):
     """Read, change (raises ValueError or ChannelsChanged), write, return the new list and what change() returns.
     change(entries, kept) changes the file's "channels" list itself; kept[i] is (where channel i of the page is in
-    it, the channel). Every
-    other entry goes back into the file as it was, also one the GUI leaves out: the page never drops what it doesn't
-    show. ChannelsChanged: 409 with the list as it is, and nothing written"""
+    it, the channel). Every other entry goes back into the file as it was, also one the GUI leaves out: the page
+    never drops what it doesn't show. ChannelsChanged: 409 with the list as it is, and nothing written.
+    A save of the GUI's that lands between the read and the write is not written over: the change is made again
+    on the GUI's list, once; a second one is a 409 too"""
+    def unchanged():
+        if channels_read() != data:
+            raise ChannelsWritten()
     with config_lock:
-        try:
-            doc, kept = channels_load()
-        except (OSError, ValueError) as ex:
-            return api_error(500, channels_unreadable(ex))
-        try:
-            more = change(doc["channels"], kept)
-        except ChannelsChanged:
-            return dict(api_error(409, CHANNELS_CHANGED), channels=[c for _, c in kept], max=CHANNELS_MAX)
-        except ValueError as ex:
-            return api_error(400, str(ex))
-        try:
-            write_channels(doc)
-        except (OSError, ValueError) as ex:
-            return api_error(500, f"Can't save: {ex}")
+        for last in (False, True):
+            try:
+                data = channels_read()
+                doc, kept = channels_load(data)
+            except (OSError, ValueError) as ex:
+                return api_error(500, channels_unreadable(ex))
+            try:
+                more = change(doc["channels"], kept)
+            except ChannelsChanged:
+                return dict(api_error(409, CHANNELS_CHANGED), channels=[c for _, c in kept], max=CHANNELS_MAX)
+            except ValueError as ex:
+                return api_error(400, str(ex))
+            try:
+                write_channels(doc, unchanged)
+                break
+            except ChannelsWritten:
+                if last:
+                    return dict(api_error(409, CHANNELS_CHANGED), **channels_state())
+            except (OSError, ValueError) as ex:
+                return api_error(500, f"Can't save: {ex}")
     return dict(channels_state(), **(more or {}))
 
 
