@@ -230,6 +230,15 @@ scenario(() => {
   tr('FT8 40|7074000').querySelector('.remove').click();
   req = next(p, '/api/channels/0');
   check('Memories, Delete says which channel goes', {type: req.type, body: req.body}, {type: 'DELETE', body: {was: chan('FT8 40', 7074000)}});
+  /* Undo hands back what the delete's answer gave, as it is: the server puts the entry back as the file had it */
+  const deleted = {entry: '{"name": "FT8 40", "frequency": 7074000.5, "mode": "USB-D", "agc": "FAST", "pre": false, "att": false, "note": 1}', place: 3};
+  req.ok({max: 100, channels: [chan('FT8 80', 3573000)], deleted: deleted});
+  p.doc.querySelector('#status_channels button').click();
+  req = next(p, '/api/channels/restore');
+  check('Memories, Undo of a delete', {type: req.type, body: req.body}, {type: 'POST', body: deleted});
+  req.ok({max: 100, channels: [chan('FT8 40', 7074000), chan('FT8 80', 3573000)]});
+  check('Memories, then brought back', {rows: p.doc.querySelectorAll('#channels tbody tr').length, status: p.doc.querySelector('#status_channels').textContent},
+        {rows: 2, status: 'Brought back'});
 });
 
 /* ---- Macros ---- */

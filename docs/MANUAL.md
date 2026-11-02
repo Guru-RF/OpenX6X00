@@ -3281,6 +3281,13 @@ APP Channels, or the V/M key of the hand mic.
   slot to the nearest frequency it can. Up to v0.3.8 both took 0.1-56 MHz
   only, so a MEM slot saved on an X6200's FM broadcast or airband could not
   be saved on the page.
+- A Save on the page changes in the channel what was changed there: a name
+  or a frequency left as the page shows it stays as the file has it, also
+  one the page would not take (a name outside printable ASCII or over 31
+  bytes, which the page shows cut to the radio's 31, a frequency outside
+  those ranges or with a fraction of a hertz), and so do the entry's other
+  keys. A changed name or frequency has to fit. Undo of a delete puts the
+  entry back as the file had it, at its place.
 - A channel whose name starts with WEFAX also shows in the WeFax app's Freq.
   list ([SSTV, WeFax and NavTex](#sstv-wefax-and-navtex)). Its frequency is
   the dial, 1.5 kHz below the fax station's: 7793.5 kHz for a station on

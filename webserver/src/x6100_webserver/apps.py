@@ -2189,13 +2189,20 @@ def tune_ranges():
     return TUNE_RANGES[radio_model()]
 
 
-def parse_entry(data, named):
-    """Validated slot/channel dict from request JSON; ValueError with a message."""
+def parse_entry(data, named, shown=None):
+    """Validated slot/channel dict from request JSON; ValueError with a message. shown: the channel as the page
+    showed it; a field the request leaves as shown is not checked and not in the dict, so the entry keeps it as the
+    file has it (a name or a frequency the page would not take, a fraction of a hertz)"""
     if not isinstance(data, dict):
         raise ValueError("Invalid request")
+    shown = shown or {}
+
+    def same(key):
+        return key in shown and type(data.get(key)) is type(shown[key]) and data.get(key) == shown[key]
     freq = data.get("frequency")
     ranges = tune_ranges()
-    if isinstance(freq, bool) or not isinstance(freq, int) or not any(lo <= freq <= hi for lo, hi in ranges):
+    if not same("frequency") and (isinstance(freq, bool) or not isinstance(freq, int)
+                                  or not any(lo <= freq <= hi for lo, hi in ranges)):
         raise ValueError("Frequency must be " + " or ".join(f"{lo / 1e6:g}-{hi / 1e6:g}" for lo, hi in ranges)
                          + " MHz")
     if data.get("mode") not in MODES:
@@ -2208,10 +2215,10 @@ def parse_entry(data, named):
     entry = {"frequency": freq, "mode": data["mode"], "agc": data["agc"], "pre": data["pre"], "att": data["att"]}
     if named:
         name = data.get("name")
-        if not isinstance(name, str) or not CHANNEL_NAME_RE.fullmatch(name):
+        if not same("name") and (not isinstance(name, str) or not CHANNEL_NAME_RE.fullmatch(name)):
             raise ValueError("Invalid name: up to 31 printable ASCII characters")
         entry = {"name": name, **entry}
-    return entry
+    return {k: v for k, v in entry.items() if not same(k)}
 
 
 def api_error(status, msg):
@@ -2891,8 +2898,9 @@ CHANNELS_CHANGED = "The channel list changed meanwhile, on the radio or in anoth
 
 
 def channels_edit(change):
-    """Read, change (raises ValueError or ChannelsChanged), write, return the new list. change(entries, kept)
-    changes the file's "channels" list itself; kept[i] is (where channel i of the page is in it, the channel). Every
+    """Read, change (raises ValueError or ChannelsChanged), write, return the new list and what change() returns.
+    change(entries, kept) changes the file's "channels" list itself; kept[i] is (where channel i of the page is in
+    it, the channel). Every
     other entry goes back into the file as it was, also one the GUI leaves out: the page never drops what it doesn't
     show. ChannelsChanged: 409 with the list as it is, and nothing written"""
     with config_lock:
@@ -2901,7 +2909,7 @@ def channels_edit(change):
         except (OSError, ValueError) as ex:
             return api_error(500, channels_unreadable(ex))
         try:
-            change(doc["channels"], kept)
+            more = change(doc["channels"], kept)
         except ChannelsChanged:
             return dict(api_error(409, CHANNELS_CHANGED), channels=[c for _, c in kept], max=CHANNELS_MAX)
         except ValueError as ex:
@@ -2910,7 +2918,7 @@ def channels_edit(change):
             write_channels(doc)
         except (OSError, ValueError) as ex:
             return api_error(500, f"Can't save: {ex}")
-    return channels_state()
+    return dict(channels_state(), **(more or {}))
 
 
 def shown_place(kept, i, was):
@@ -2948,14 +2956,37 @@ def add_channel():
 def set_channel(i):
     def change(entries, kept):
         data = channel_request()
-        entries[shown_place(kept, i, data.get("was"))] = parse_entry(data, True)
+        place = shown_place(kept, i, data.get("was"))
+        # Into the entry: what the page left as it showed it stays as the file has it, the entry's other keys too
+        entries[place] = {**entries[place], **parse_entry(data, True, kept[i][1])}
     return channels_edit(change)
 
 
 @app.delete('/api/channels/<i:int>')
 def delete_channel(i):
     def change(entries, kept):
-        del entries[shown_place(kept, i, channel_request().get("was"))]
+        place = shown_place(kept, i, channel_request().get("was"))
+        # For Undo: the entry as the file had it, as JSON text the page hands back as it is (/restore)
+        return {"deleted": {"entry": json.dumps(entries.pop(place), ensure_ascii=False), "place": place}}
+    return channels_edit(change)
+
+
+# Undo of a delete: the entry its answer gave, put back at its place in the file as it was, a name or a frequency
+# the page would not take too, and its other keys. Any entry the GUI keeps, as there is room for 100
+@app.post('/api/channels/restore')
+def restore_channel():
+    def change(entries, kept):
+        data = channel_request()
+        place, text = data.get("place"), data.get("entry")
+        try:
+            entry = cjson_loads(text.encode("utf-8", "surrogateescape"))
+        except (AttributeError, ValueError):
+            entry = None
+        if gui_channel(entry) is None or isinstance(place, bool) or not isinstance(place, int):
+            raise ValueError("Invalid request")
+        if len(kept) >= CHANNELS_MAX:
+            raise ValueError(f"At most {CHANNELS_MAX} channels")
+        entries.insert(min(max(place, 0), len(entries)), entry)
     return channels_edit(change)
 
 

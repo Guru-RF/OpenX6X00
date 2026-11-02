@@ -166,12 +166,9 @@ var channelRow = function(c, i, list) {
     if (!EditFlow.confirmDelete("the channel " + chanText(c), "It is gone from APP → Channels on the radio.")) return;
     call("channels", "DELETE", "/api/channels/" + i, {was: c}, null, function(r) {
       renderChannels(r);
+      // Undo hands back what the answer gave: the entry as channels.json had it, put back at its place there
       EditFlow.undo($("#status_channels"), "Deleted " + chanText(c) + ".", function() {
-        call("channels", "POST", "/api/channels", {name: c.name, frequency: c.frequency, mode: c.mode, agc: c.agc, pre: c.pre, att: c.att}, null, function(r2) {
-          const back = r2.channels.length - 1;
-          if (back > i) call("channels", "POST", "/api/channels/" + back + "/move", {to: i, was: r2.channels[back], past: r2.channels[i]}, null, function(r3) { renderChannels(r3); showStatus("channels", "Brought back"); });
-          else { renderChannels(r2); showStatus("channels", "Brought back"); }
-        });
+        call("channels", "POST", "/api/channels/restore", r.deleted, null, function(r2) { renderChannels(r2); showStatus("channels", "Brought back"); });
       });
     });
   }));

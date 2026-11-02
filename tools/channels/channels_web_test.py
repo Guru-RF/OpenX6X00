@@ -341,16 +341,69 @@ class Memories(unittest.TestCase):
             self.assertEqual([now[p] for p in places], order)
 
     def test_undo_of_a_delete(self):
-        """What the page does for Undo after a delete: the channel added again at the end, moved back"""
-        self.mixed()
+        """What the page does for Undo after a delete: what the delete answered with, handed back as it is. The
+        entry comes back as it was at its place, also one whose name or frequency a request can't have, whose
+        name is not UTF-8, or that has keys of its own (until now: added again through the request rules, so
+        refused for "M\u00e9t\u00e9o", or with its name cut to 31 bytes and its fraction of a hertz gone)"""
+        _, places = self.mixed()
         before, shown = meaning(self.read()), self.channels()
-        gone = shown[3]
-        self.done(self.delete(3))
-        r = self.ok("POST", "/api/channels", gone)
-        self.done(self.move(len(r["channels"]) - 1, 3))
-        self.assertEqual(self.channels(), shown)
-        now = meaning(self.read())
-        self.assertEqual(sorted(now), sorted(before))
+        for i in range(len(places)):
+            r = self.done(self.delete(i))
+            self.assertEqual(len(r["channels"]), len(places) - 1)
+            r = self.ok("POST", "/api/channels/restore", r["deleted"])
+            self.assertEqual(r["channels"], shown)
+            self.assertEqual(meaning(self.read()), before)
+        self.assertIn(b'"TOW\xc9R"', self.read())
+        self.write([ch("A", 7_000_000), {**ch("NOTE", 7_100_000), "note": "keep me", "n": [1.0, 2]}])
+        before = meaning(self.read())
+        r = self.ok("POST", "/api/channels/restore", self.done(self.delete(1))["deleted"])
+        self.assertEqual(meaning(self.read()), before)
+
+    def test_undo_refused(self):
+        """/restore takes back an entry the radio keeps, as there is room for it, and nothing else"""
+        self.write([ch(f"C{i}", 7_000_000 + i) for i in range(99)])
+        gone = self.done(self.delete(5))["deleted"]
+        self.ok("POST", "/api/channels", ch("ONE MORE", 7_074_000))
+        self.ok("POST", "/api/channels", ch("100", 7_074_000))
+        before = self.read()
+        code, r = self.req("POST", "/api/channels/restore", gone)
+        self.assertEqual((code, r["msg"]), (400, "At most 100 channels"))
+        self.done(self.delete(99))
+        before = self.read()
+        for bad in ({**gone, "entry": json.dumps(ch("ZERO", 0))}, {**gone, "entry": "{"}, {**gone, "entry": 5},
+                    {**gone, "place": "5"}, {"entry": gone["entry"]}, "not an object"):
+            code, r = self.req("POST", "/api/channels/restore", bad)
+            self.assertEqual((code, r["msg"]), (400, "Invalid request"), bad)
+            self.assertEqual(self.read(), before)
+        self.ok("POST", "/api/channels/restore", {**gone, "place": 1000})       # at the end, as the list is now
+        self.assertEqual(self.channels()[-1]["name"], "C5")
+
+    def test_save_keeps_what_it_leaves(self):
+        """A Save changes in the entry what was changed on the page: a name or a frequency left as shown stays as
+        the file has it, one the page would not take too, and so do the entry's other keys (until now the whole
+        entry from the request: a mode change of "M\u00e9t\u00e9o" refused, a name cut, a fraction of a hertz
+        and a key of its own gone)"""
+        self.model(X6100)
+        entries = [x for x in OUT_OF_RANGE if x["name"] in ("", "DCF77", "M\u00e9t\u00e9o", "HALF", "TAB\tIN IT")]
+        entries += [{**ch("NOTE", 7_100_000), "note": "keep me"},
+                    ch("A NAME OF FORTY CHARACTERS, NINE MORE...", 3_573_000)]
+        self.write(entries)
+        for i, x in enumerate(entries):
+            new = {**self.channels()[i], "mode": "CW", "att": True}
+            self.done(self.put(i, new))
+            want = {**x, "mode": "CW", "att": True}
+            self.assertEqual(json.loads(self.read())["channels"][i], want)
+        # A change has to fit: the name or the frequency changed, it is checked
+        before = self.read()
+        code, r = self.put(1, {**self.channels()[1], "frequency": 77_600})
+        self.assertEqual((code, r["msg"]), (400, "Frequency must be 0.1-55 or 70-500 MHz"))
+        code, r = self.put(2, {**self.channels()[2], "name": "M\u00e9t\u00e9o 2"})
+        self.assertEqual((code, r["msg"]), (400, "Invalid name: up to 31 printable ASCII characters"))
+        code, r = self.put(3, {**self.channels()[3], "frequency": 14_074_000.0})     # not whole hertz: changed
+        self.assertEqual(code, 400)
+        self.assertEqual(self.read(), before)
+        self.done(self.put(2, {**self.channels()[2], "name": "METEO"}))
+        self.assertEqual(json.loads(self.read())["channels"][2]["name"], "METEO")
 
     def stale(self, answer, before):
         """A change the page made on a list that changed meanwhile: 409, the radio's list with it, the file as it
