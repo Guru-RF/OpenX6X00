@@ -1142,8 +1142,9 @@ bars stay grey, as noise.
 Measure sets them for your radio, since preamps differ a little. Feed a
 steady carrier, from a signal generator (around -73 dBm, S9) or a strong
 broadcast station, so the meter reads between S5 and S9+20 (on the X6200
-from about S9 to S9+20, so -73 dBm from a generator will do: with its
-attenuator on, a weaker carrier sinks into the noise), and press Measure.
+from about S9 to S9+20: feed about -55 dBm, S9+18, from a generator. With
+its 30 to 50 dB of attenuator on, a carrier at S9 sinks into the noise and
+the reading wanders: "Not steady"), and press Measure.
 For about 12 s the radio reads its meter with everything off, then with PRE
 on, with ATT on, and with the RF gain at 40, a second and a half each, and
 moves the three settings by what was left over. PRE, ATT and the RF gain go
