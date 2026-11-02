@@ -1217,9 +1217,10 @@ keyed. The radio watches for it; there is nothing to set.
     back: see
     [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move).
   - "TX: no data from the base for N ms, back to RX": the data stopped during
-    a transmission, and PTT, the apps and the CW key have let go. N is 3000
-    or more for one the radio keyed, 30000 or more for one the hand mic's
-    PTT, VOX or the KEY jack keyed.
+    a transmission, PTT, the apps and the CW key have let go, and no
+    register block failed since ("register block not sent"). N is 3000 or
+    more for one the radio keyed, 30000 or more for one the hand mic's PTT,
+    VOX or the KEY jack keyed.
   - "SWR scan: no data from the base for N ms, stopped".
 
 ### Info tab
@@ -5356,11 +5357,11 @@ Not in the first 30 s after a start (an X6200 on base 1.0.8 has sent its
 first data 16 s after the start), not while the radio transmits from the
 screen, an app, the CW key, a tune or an SWR scan, and not for 30 s after.
 Without the data the radio cannot see a transmission keyed by the hand mic's
-PTT, VOX or the KEY jack, so the messages can come during one. It is said
-once, and again only if the data came back and stopped again. The base log
-(`/mnt/base_i2c.log`) gets "no data from the base for N ms: said on the
-screen", and the start trace "base: no data in 30 s" when none came since
-the start.
+PTT, VOX or the KEY jack, so the messages can come during one, TX on the
+screen or not. It is said once, and again only if the data came back and
+stopped again. The base log (`/mnt/base_i2c.log`) gets "no data from the
+base for N ms: said on the screen", and the start trace "base: no data in
+30 s" when none came since the start.
 
 Meanwhile:
 
@@ -5373,8 +5374,11 @@ Meanwhile:
   3 s after) and the data has been gone for 3 s, then the radio is back in
   receive. One keyed by the hand mic's PTT, VOX or the KEY jack the radio
   cannot see let go: it shows TX until the data has been gone for 30 s,
-  then receive even if it is still keyed. Up to v0.3.8 it stayed in TX,
-  and the digital apps did not transmit, until a restart.
+  then receive even if it is still keyed. If the radio's commands to the
+  base fail as well (the base log says "register block not sent"), its PTT
+  off may not have reached the base: the radio shows TX until one gets
+  through. Up to v0.3.8 it stayed in TX, and the digital apps did not
+  transmit, until a restart.
 - The hand mic's keys do nothing, and on the X6200 the POWER key neither:
   the base reports them in the same data. The X6100's POWER key has a line
   of its own and still switches the radio off (up to v0.3.8 it said "Power

@@ -2002,13 +2002,15 @@ static void base_gone_cb(void *arg) {
  * POWER key did nothing, and only the base log said so ("base silent"). An X6200 base older than 1.0.7 does that:
  * the library reads the packets as 1.0.7 sends them (README, The baseband). Counted from the start, the last packet
  * or the GUI's last TX (base_gone_due, tools/base_guard tests it): not at a start (one X6200 on 1.0.8 sent its first
- * packet 16 s in, #47), not while the GUI keys or the base is in TX, and a GUI restart (an update, LOCK's base
- * restart) counts afresh. Said once, again only after packets came (radio_tick) and stopped again. True: its line
- * went to the base log */
+ * packet 16 s in, #47), not while the GUI keys, and a GUI restart (an update, LOCK's base restart) counts afresh.
+ * The TX state alone does not count as keyed: one the GUI keys nothing in is the base's own or one whose PTT off
+ * did not get through (radio_tick), which stays TX, and it is said then too. Said once, again only after packets
+ * came (radio_tick) and stopped again. True: its line went to the base log */
 static bool base_gone(void) {
     static uint64_t tx_time;
+    radio_state_t   s = atomic_load(&state);
     bool            never = !base_seen;
-    bool            keyed = atomic_load(&state) != RADIO_RX || hw_tx_keyed_by_gui() || atomic_load(&modem_on) ||
+    bool            keyed = (s != RADIO_RX && s != RADIO_TX) || hw_tx_keyed_by_gui() || atomic_load(&modem_on) ||
                             morse_on;
 
     if (!base_gone_due(now_time, pack_time, keyed, &tx_time, gone_said) || !base_guard_log_free()) {
@@ -2366,9 +2368,12 @@ static bool radio_tick() {
              * and the GUI keys nothing, its CW past the base's hang; a packet with the TX flag brings TX back. A TX
              * the GUI never keyed is the base's own (the hand mic's PTT, VOX, the KEY jack), which the GUI cannot see
              * let go: it waits as long as the notice (base_gone), the base taken for gone, not 3 s into a gap while
-             * still keyed, CAT, TCI and the remote saying RX and a remote client free to take control */
+             * still keyed, CAT, TCI and the remote saying RX and a remote client free to take control. Nor while the
+             * register block is due (resync_due): a base that hangs also NAKs on I2C, and the GUI's PTT off that
+             * failed with it may not have reached it. TX is what the screen should say then; tx_watch, which resends
+             * and cuts the power, needs packets. The first block that gets through clears it */
             if (s == RADIO_TX && now_time - pack_time > (tx_by_gui ? NO_DATA_MS : BASE_GONE_MS) && !gui_keys() &&
-                (uint32_t)now_time - morse_ms >= MORSE_HANG_MS && base_guard_log_free() &&
+                (uint32_t)now_time - morse_ms >= MORSE_HANG_MS && !resync_due && base_guard_log_free() &&
                 state_move(RADIO_TX, RADIO_RX)) {
                 if (notify_rx_tx) {
                     notify_rx_tx(false);

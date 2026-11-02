@@ -62,7 +62,8 @@ bool base_silent_due(uint64_t now_ms, uint64_t start_ms, uint64_t *last_ms);
 
 /* No data from the base, said on the screen (#152), looked at in each flow reset: true when it is due, BASE_GONE_MS
  * after the later of the last packet (pack_ms: the start before the first) and the GUI's last TX. keyed: the GUI
- * keys, or the radio is not in receive; *tx_ms is kept here (0 at first). said: told already, until a packet comes */
+ * keys, or a tune, an SWR scan or a power-off is under way (a TX with nothing keying it from the GUI is not);
+ * *tx_ms is kept here (0 at first). said: told already, until a packet comes */
 bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool keyed, uint64_t *tx_ms, bool said);
 
 typedef struct {
