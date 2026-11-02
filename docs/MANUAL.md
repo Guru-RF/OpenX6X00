@@ -5200,7 +5200,11 @@ What to do then:
    recovery tool. TestDisk (free) can usually put the boot sector back from
    its copy; the drive then opens again, and the radio uses it as before.
 3. Then, or when nothing on it is worth keeping, format the partition as
-   FAT32 on the PC: the next start uses it as DATA.
+   FAT32 on the PC: the next start uses it as DATA, with the settings, QSO
+   log and the rest the radio kept on the system partition meanwhile on its
+   top level. Windows' own tools format FAT32 only up to 32 GB: for the DATA
+   of a larger card use a FAT32 formatting tool (exFAT or NTFS is never
+   used).
 
 The radio formats such a partition only when it finds nothing of the old
 filesystem and no mark: more than the first 16 KiB lost (32 KiB on a card
