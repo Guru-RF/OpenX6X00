@@ -172,9 +172,16 @@ window is open, which can hold a WiFi password).
   with its own actions (Settings > Keys, X6200 only), VOL+/VOL- the volume a step a press and repeating while held,
   A/B as the front A/B key, 0x12/0x11 as the BAND keys; the X6100 keeps its mic's table. Harness `mic-keys.c` walks
   both mics on both boards; manual: Getting started > Hand mic.
+- After v0.3.8 (#145): PR #136 gave every digit on the X6200 the H-22's band, the X6100 mic's too (its 3 at 60 m).
+  A key sent with one of the H-22's own codes is marked now and takes the H-22's print, the rest the X6100 mic's.
+  This rests on the X6100 mic sending its own codes on the X6200, as the X6200 library's table has them: no log of
+  it from a radio yet (on v0.3.8, which #145 reports right, 0xE4 and 0x18 both give 40 m).
 - **Next**: on the bench X6200 with its H-22, on the main screen, each key pressed once (and VOL+, A/B, a digit
   held): the band on 3-9 and 0, the dot and HOME in the F-INP box, F3 with an action set, the volume stepping on
-  while VOL+ is held and stopping when let go, A/B swapping and its hold copying.
+  while VOL+ is held and stopping when let go, A/B swapping and its hold copying. Then the X6100's mic in the same
+  radio (#145): 3, 9 and the dot on the main screen log `hand mic: key 0xE4 (3)`, `0xA4 (9)` and `0x21 (.)` and
+  give 40 m, 10 m and no band, and the H-22's 3 again `0x18 (3)` and 60 m. If the X6100 mic sends 0x18 there, the
+  radio cannot tell the mics apart by their codes: the manual's line that it does goes, and #145 is open again.
 - Open: the H-22's side UP/DOWN. If they are to work, they are outside the packet's key word (Xiegu's manual names
   two data lines on the mic's plug, MDATA and MSVSW): the packet's other words (`reserved_2`, `reserved_3`, the flag
   bits the library leaves unnamed) logged when they change, in hw_x6200.c.
