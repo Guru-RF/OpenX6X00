@@ -280,6 +280,35 @@ if want copyfail_new; then
     done
 fi
 
+# The check does not leave DATA clean (fsck.fat's exit 1 after its second pass: errors still there, or a
+# check that stopped on a read error): no label written, the system's files stay where they are. A DATA
+# with settings of its own is used all the same; one without is not, the radio comes up with those it kept
+# on the system. The next clean check moves them
+if want unclean; then
+    for v in own none; do
+        newcard "unclean_$v" $C4G
+        boot old; gui_writes; boot old
+        PATH=$H/bin:$PATH mkfs -t vfat -n VOLUME "$F/dev/mmcblk0p3"
+        [ $v = own ] && echo top > "$F/fs/3/params.db"
+        echo 1 > "$F/fsck_rc"
+        boot new
+        ok "$v, not clean: checked twice, no label written, the system's files there, none on DATA" '[ "$(grep -c "^fsck.fat" "$F/calls.log")" = 2 ] && ! called "^fatlabel" && [ -f "$F/sys_mnt/params.db-wal" ] && [ -f "$F/sys_mnt/qso_log.db" ] && [ ! -e "$F/fs/3/found_on_system" ] && [ ! -e "$F/fs/3/qso_log.db" ]'
+        if [ $v = own ]; then
+            ok "own, not clean: DATA mounted with its settings, its data_fsck.log says why the files stay" 'mounted && [ "$(cat "$F/fs/3/params.db")" = top ] && grep -q "check not clean: files found in the system.s [^ ]*mnt left there" "$F/fs/3/data_fsck.log"'
+        else
+            ok "none, not clean: DATA not mounted, said in the trace and in data_fsck.log on the system's /mnt" '! mounted && [ -z "$(ls -A "$F/fs/3")" ] && lasttrace | grep -q "DATA not mounted at this start" && syslog_says "check not clean"'
+        fi
+        rm -f "$F/fsck_rc"
+        boot new
+        ok "$v, clean: labelled, mounted, the system emptied" 'called "^fatlabel .*p3 DATA" && mounted && [ -z "$(ls -A "$F/sys_mnt")" ]'
+        if [ $v = own ]; then
+            ok "own, clean: the system's files in found_on_system, DATA's settings kept" '[ "$(cat "$F/fs/3/params.db")" = top ] && [ "$(walrow "$F/fs/3/found_on_system")" = "$WALROW" ]'
+        else
+            ok "none, clean: the settings on DATA's top level" '[ "$(walrow "$F/fs/3")" = "$WALROW" ] && [ ! -e "$F/fs/3/found_on_system" ]'
+        fi
+    done
+fi
+
 # DATA mounted under v0.3.8, its boot sector lost, then many v0.3.8 starts without it (the radio runs
 # on the system's /mnt), then the update: the trace line that told of the mount is gone
 if want rotated; then

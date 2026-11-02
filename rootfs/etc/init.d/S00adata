@@ -136,18 +136,21 @@ cut_copy() {
 # a name DATA has already stays in found_on_system, and a database with its -wal, -shm and -journal
 # when DATA has one of those names. The copy goes into a folder of its own, never over a file DATA
 # has: found_on_system.2, .3 ... when an earlier start left a found_on_system there (its files
-# perhaps the only copy of those settings). When they cannot all be copied, they stay on the system,
-# and DATA without settings of its own is unmounted again
+# perhaps the only copy of those settings). They stay on the system when they cannot all be copied,
+# or when the check did not leave DATA clean ($1 unchecked), and DATA without settings of its own is
+# unmounted again then
 rescue() {
     mkdir -p /tmp/sysroot && mount --bind / /tmp/sysroot || return
     if [ -n "$(ls -A /tmp/sysroot/mnt 2>/dev/null)" ]; then
+        new=
+        [ "$1" = new ] && new=1
         found=/mnt/found_on_system
         made=
         # DATA that holds nothing but found_on_system is new as well when the start that made it was cut
         # short in this copy (seconds of a dark screen before the boot picture: a power cut): the copy
         # goes on in it
         if [ "$(ls -A /mnt)" = found_on_system ] && cut_copy; then
-            set -- new
+            new=1
         else
             i=1
             while [ -e "$found" ]; do i=$((i + 1)); found=/mnt/found_on_system.$i; done
@@ -160,10 +163,16 @@ rescue() {
         for f in /mnt/params.db /mnt/params.db-wal /mnt/params.db-shm /mnt/params.db-journal; do
             [ -e "$f" ] && db=1
         done
-        [ -n "$db" ] || set -- new
-        if mkdir -p "$found" && cp -a /tmp/sysroot/mnt/. "$found/"; then
+        [ -n "$db" ] || new=1
+        kept=
+        if [ "$1" = unchecked ]; then
+            # Not onto DATA the check could not vouch for: fsck.fat's exit 1 after its second pass is
+            # errors still there, or a check that stopped (a read error, a FAT it cannot read)
+            echo "check not clean: files found in the system's /mnt left there"
+            kept=1
+        elif mkdir -p "$found" && cp -a /tmp/sysroot/mnt/. "$found/"; then
             where=${found#/mnt/}
-            if [ "$1" = new ]; then
+            if [ -n "$new" ]; then
                 # A database goes up with its -wal, -shm and -journal or stays with them: SQLite reads
                 # a journal into the database of its name, one of DATA's own as well
                 had=$(ls -A /mnt)
@@ -188,12 +197,14 @@ rescue() {
             # each start that cannot copy them
             [ -n "$made" ] && rm -rf "$found"
             echo "files found in the system's /mnt not all copied onto DATA: left there"
-            # Nor is DATA without settings of its own used then: the radio would come up with the
-            # defaults there, which the next start keeps, the system's going into found_on_system. It
-            # comes up with those it kept on the system, as before; the next start copies them again
-            if [ "$1" = new ] && umount /mnt; then
-                echo "DATA not mounted at this start: without settings of its own, the radio comes up with those it kept on the system"
-            fi
+            kept=1
+        fi
+        # Left on the system: nor is DATA without settings of its own used then. The radio would come
+        # up with the defaults there, which the next start keeps, the system's going into
+        # found_on_system. It comes up with those it kept on the system, as before; the next start
+        # tries again
+        if [ -n "$kept" ] && [ -n "$new" ] && umount /mnt; then
+            echo "DATA not mounted at this start: without settings of its own, the radio comes up with those it kept on the system"
         fi
     fi
     umount /tmp/sysroot
@@ -213,10 +224,10 @@ check_data() {
             echo "fsck.fat exit $rc"
             trace "fsck.fat exit $rc"
             # a label only on a filesystem fsck left clean: not worth a write into a broken one
-            [ -n "$relabel" ] && [ $rc -le 1 ] && { fatlabel "$dev" DATA && echo "label DATA set"; }
+            [ -n "$relabel" ] && [ $rc -eq 0 ] && { fatlabel "$dev" DATA && echo "label DATA set"; }
             if mount "$dev" /mnt; then
                 mark_data
-                rescue
+                if [ $rc -eq 0 ]; then rescue; else rescue unchecked; fi
             else
                 echo "mount failed; $CHECK"
                 trace "mount of $dev failed; $CHECK"
