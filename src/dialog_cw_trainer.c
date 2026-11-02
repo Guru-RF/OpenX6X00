@@ -72,7 +72,7 @@
 #define BOX_Y       44
 #define BOX_H       (DIALOG_H - BOX_Y - 34)
 #define SIDE_W      270
-#define LINE_W      (W - SIDE_W - 24)   /* Learn's Heard line: up to 12 px before the side panel */
+#define LINE_W      (W - SIDE_W - 24)   /* Learn's Sent and Heard lines: up to 12 px before the side panel */
 #define CALLS_X     18      /* Calls: call box, score box */
 #define CALLS_W     480
 #define SCORE_X     508
@@ -951,11 +951,11 @@ static void refresh_stats(void) {
     lv_label_set_text(hint, "Last 20 tries per character. Weak ones (red, yellow) come up more often in Learn.");
 }
 
-/* A line of Learn into the label l: its head, the characters as shown in color, then the dits and dahs of as many of
- * the places as fit before the side panel, whole places only. A "<?>" takes three characters' room in the answer and
- * again in the dits and dahs: two of them in a group of 5 could run into the side panel, and so could long characters
- * (five ? in the default font, a third of the groups of 5 at level 40 in the 1bit theme's). Cut at the label's edge
- * instead, half a place stayed: a lone "<", or a dah that looked like a dit */
+/* A line of Learn into the label l, Sent or Heard: its head, the characters as shown in color, then the dits and dahs
+ * of as many of the places as fit before the side panel, whole places only. A "<?>" takes three characters' room in
+ * the answer and again in the dits and dahs: two of them in a group of 5 could run into the side panel, and so could
+ * long characters on either line (five ? in the default font, a third to half of the groups of 5 at level 40 in the
+ * 1bit theme's). Cut at the label's edge instead, half a place stayed: a lone "<", or a dah that looked like a dit */
 static void group_line(lv_obj_t *l, const char *head, uint32_t color, const char *shown, const char *places) {
     const lv_font_t *font = lv_obj_get_style_text_font(l, 0);
     lv_coord_t       ls   = lv_obj_get_style_text_letter_space(l, 0);
@@ -974,7 +974,7 @@ static void group_line(lv_obj_t *l, const char *head, uint32_t color, const char
 static void refresh_ui(void) {
     bool learn = mode == MODE_LEARN, calls = mode == MODE_CALLS, sv = learn && stats_view;
     int  wpm   = param_i_get(cfg_key_speed);
-    char m1[48], buf[160], shown[HEARD_MAX * 3];
+    char buf[160], shown[HEARD_MAX * 3];
 
     set_btn(&btn_play, mode == MODE_PRACTICE || sv);
     set_btn(&btn_skip, mode == MODE_PRACTICE || sv);
@@ -1045,26 +1045,20 @@ static void refresh_ui(void) {
             lv_obj_set_style_text_color(big, lv_color_hex(COLOR_NEW), 0);
             lv_label_set_text(hint, "The radio keys the group (sidetone only)");
             /* The group stays on screen while playing and answering, to memorise it */
-            morse_line(target, m1, sizeof(m1));
-            snprintf(buf, sizeof(buf), "Sent:   #%06x %s#   %s", theme_hex(TC_accent), target, m1);
-            lv_label_set_text(line1, buf);
+            group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target);
             lv_label_set_text(line2, "");
             break;
         case ST_LISTEN:
             lv_label_set_text(big, heard[0] ? shown : "Your turn");
             lv_obj_set_style_text_color(big, lv_color_hex(heard[0] ? theme_hex(TC_text) : COLOR_NEW), 0);
             lv_label_set_text(hint, "Key the group with the paddle. Replay: hear it again");
-            morse_line(target, m1, sizeof(m1));
-            snprintf(buf, sizeof(buf), "Sent:   #%06x %s#   %s", theme_hex(TC_accent), target, m1);
-            lv_label_set_text(line1, buf);
+            group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target);
             if (heard[0]) group_line(line2, "Heard: ", theme_hex(TC_text), shown, heard);
             break;
         case ST_RESULT:
             lv_label_set_text(big, last_ok ? "OK" : "WRONG");
             lv_obj_set_style_text_color(big, lv_color_hex(last_ok ? COLOR_OK : COLOR_BAD), 0);
-            morse_line(target, m1, sizeof(m1));
-            snprintf(buf, sizeof(buf), "Sent:   #%06x %s#   %s", theme_hex(TC_accent), target, m1);
-            lv_label_set_text(line1, buf);
+            group_line(line1, "Sent:   ", theme_hex(TC_accent), target, target);
             group_line(line2, "Heard: ", last_ok ? 0x60ff60 : 0xff6060, shown, heard);
             snprintf(buf, sizeof(buf), "%s%s", strchr(heard, CWT_NO_CHAR) ? CWT_NO_CHAR_SHOWN " = not a character. " : "",
                      autoplay ? "Next group follows. Pause: stop after this one" : "Start: resume. Skip: another group");
@@ -1216,7 +1210,10 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_set_pos(line1, 0, 90);
     line2 = label(box, &sony_28, COLOR_DIM);
     lv_obj_set_pos(line2, 0, 140);
-    lv_obj_set_width(line2, LINE_W);    /* group_line() fits its text; what still does not fit is cut, not wrapped */
+    /* group_line() fits their text; what still does not fit is cut, not wrapped */
+    lv_obj_set_width(line1, LINE_W);
+    lv_label_set_long_mode(line1, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(line2, LINE_W);
     lv_label_set_long_mode(line2, LV_LABEL_LONG_CLIP);
     side_score = label(box, &sony_22, theme_hex(TC_text_value));
     lv_obj_set_width(side_score, SIDE_W - 12);

@@ -2453,9 +2453,9 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   as `?`. It counts as one place, so the rest of the answer is still
   checked against the group place by place (the red marks in Calls, Stats
   in Learn); in Calls the characters after it stand a little to the right.
-  In Learn, when the Heard line is too long for the screen (several of
-  them in a group of 5, or five long characters such as ?), its dits and
-  dahs stop at the last character that fits.
+  In Learn, when the Sent or Heard line is too long for the screen
+  (several of them in a group of 5, or five long characters such as ?),
+  its dits and dahs stop at the last character that fits.
   Up to v0.3.8 it showed as "?", which is itself a character (from level
   32): a garbled answer to a "?" counted right. A prosign took four places,
   and its letters counted for the group's in Stats.
