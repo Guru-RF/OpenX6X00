@@ -5360,6 +5360,10 @@ baseband). On an X6200 with base 1.0.6 (issues #94 and #95) the waterfall
 stayed black, the needle at S1, with no battery reading and no tuner, until
 the base update.
 
+If only the S-meter stays at S1, -121.0 on an X6200 while the waterfall and
+the battery reading work, that is a fault of base 1.0.7 itself (issue #14):
+1.0.8 fixes it.
+
 #### The main screen's waterfall stands still
 
 That is normal while JS8 is open.
