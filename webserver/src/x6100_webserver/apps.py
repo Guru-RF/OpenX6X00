@@ -2161,7 +2161,7 @@ def cfg_connect(timeout):
 
 
 # Memories: MEM button slots (params.db, table `memory`) and named channels
-# (channels.json, same format as the radio GUI, src/channels.c)
+# (channels.json, same format as the radio GUI, src/channel_list.c)
 # Names and enum values are x6100_mode_t / x6100_agc_t from x6100_control
 MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CWR", "AM", "NFM", "SAM", "WFM"]
 AGCS = ["OFF", "SLOW", "FAST", "AUTO"]
@@ -2786,15 +2786,65 @@ def set_js8_texts():
     return read_js8_texts()
 
 
-def read_channels():
-    """Valid channels from channels.json; invalid ones are skipped like the GUI does."""
+def cjson_loads(data):
+    """JSON bytes read as the GUI's cJSON_Parse reads them (src/cJSON.c): a UTF-8 BOM and anything after the value
+    ignored, control characters in a string taken and its bytes as they are (UTF-8 or not, kept by surrogateescape),
+    the first value of a key given twice; no NaN or Infinity. ValueError for what it can't read"""
+    def first(pairs):
+        obj = {}
+        for k, v in pairs:
+            obj.setdefault(k, v)
+        return obj
+
+    def constant(name):
+        raise ValueError(f"{name} is not JSON")
+    text = data.decode("utf-8", "surrogateescape")
+    text = text[1:] if text.startswith("\ufeff") else text
+    dec = json.JSONDecoder(object_pairs_hook=first, parse_constant=constant, strict=False)
+    return dec.raw_decode(text.lstrip(" \t\n\r"))[0]
+
+
+def gui_channel(x):
+    """The channel the GUI makes of an entry of channels.json (parse_entry in src/channel_list.c), None for one it
+    leaves out: a name, a frequency of 1 Hz to 4294967295 Hz (a fraction cut off), a mode and an AGC it knows, PRE
+    and ATT true or false. Its name as the GUI holds it, up to a NUL and at most 31 bytes"""
+    if not isinstance(x, dict):
+        return None
+    name, freq, mode, agc, pre, att = (x.get(k) for k in ("name", "frequency", "mode", "agc", "pre", "att"))
+    if not isinstance(name, str) or isinstance(freq, bool) or not isinstance(freq, (int, float)) \
+            or not isinstance(pre, bool) or not isinstance(att, bool):
+        return None
+    if not 0 < freq <= 0xFFFFFFFF or mode not in MODES or agc not in AGCS:
+        return None
+    name = name.partition("\0")[0].encode("utf-8", "surrogateescape")[:31].decode("utf-8", "surrogateescape")
+    return {"name": name, "frequency": int(freq), "mode": mode, "agc": agc, "pre": pre, "att": att}
+
+
+def channels_load():
+    """channels.json as the GUI reads it (channels_load in src/channel_list.c): the file's object, and each entry
+    of its "channels" list the GUI keeps, the first 100, as (its place in the list, the channel). An entry the GUI
+    leaves out is left out alone. No file: no channels. ValueError for a file the GUI can't read either"""
     try:
-        with open(settings.CHANNELS_FILE) as f:
-            items = json.load(f)["channels"]
-        items = [parse_entry(x, True) for x in items if isinstance(x, dict)] if isinstance(items, list) else []
-    except (OSError, ValueError, KeyError, TypeError):
+        with open(settings.CHANNELS_FILE, "rb") as f:
+            doc = cjson_loads(f.read())
+    except FileNotFoundError:
+        return {"version": 1, "channels": []}, []
+    if not isinstance(doc, dict) or not isinstance(doc.get("channels"), list):
+        raise ValueError("no list of channels in it")
+    kept = []
+    for place, x in enumerate(doc["channels"]):
+        c = gui_channel(x)
+        if c and len(kept) < CHANNELS_MAX:
+            kept.append((place, c))
+    return doc, kept
+
+
+def read_channels():
+    """The channels the GUI keeps of channels.json, [] when it can't be read"""
+    try:
+        return [c for _, c in channels_load()[1]]
+    except (OSError, ValueError):
         return []
-    return items[:CHANNELS_MAX]
 
 
 def write_channels(channels):

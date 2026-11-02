@@ -3256,7 +3256,11 @@ APP Channels, or the V/M key of the hand mic.
   mode they do not tune either.
 - Up to 100 channels. They are the same as on the web configurator's Memories
   page; a change made there shows on the radio within a few seconds, unless
-  the window is open.
+  the window is open. The page lists them all, on any frequency: an entry of
+  `channels.json` that the radio leaves out (a field missing or of the wrong
+  kind, an unknown mode or AGC) is left out there too, alone. Up to v0.3.8 one
+  channel above 56 MHz (an X6200's on FM broadcast or the airband, the
+  WR12's, a transverter's) left the page's list empty.
 - A channel whose name starts with WEFAX also shows in the WeFax app's Freq.
   list ([SSTV, WeFax and NavTex](#sstv-wefax-and-navtex)). Its frequency is
   the dial, 1.5 kHz below the fax station's: 7793.5 kHz for a station on
