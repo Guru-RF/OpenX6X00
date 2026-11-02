@@ -1265,7 +1265,7 @@ static void force(void) {
           tx.msg);
 }
 
-/* ---- A non-standard call of ours (U03, SP2KMO's upstream d10ae10) ------------------------------------------ */
+/* ---- A non-standard call of ours (SP2KMO's upstream d10ae10), or of the other station ------------------------- */
 
 /* KF0QGT/6Y, PA/ON6URE: as WSJT-X, the answers without a report are type 4 with our call in plain text ("<A1AAA>
  * KF0QGT/6Y"), the reports type 1 with our call hashed (the text "A1AAA KF0QGT/6Y -10", on the air "A1AAA
@@ -1347,6 +1347,39 @@ static void own_call(void) {
     rx("Q1QQQ/P A1AAA R-05");
     slot_end();
     check(next_is("A1AAA Q1QQQ/P RR73"), "type 1 RR73 (%s)", tx.msg);
+
+    /* A compound call answers our CQ as WSJT-X (and our own firmware) sends it: type 4, its call in plain text, ours
+     * from its hash, no grid. Our report goes type 1 with its call hashed ("<PA/A1AAA> Q1QQQ -10" on the air) */
+    begin("A compound call answers our CQ with \"<Q1QQQ> PA/A1AAA\": our report, its R+report logs it, our RR73");
+    tx_cq();
+    our_slot();
+    m = rx("<" ME "> PA/A1AAA", -10);
+    check(m.to_me && m.type == FTX_MSG_TYPE_GRID && !strcmp(m.call_de, "PA/A1AAA") && !m.grid[0],
+          "to us, a call without a grid from PA/A1AAA (type %d, '%s')", m.type, m.call_de);
+    slot_end();
+    check(next_is("PA/A1AAA " ME " -10"), "our report (%s)", tx.msg);
+    our_slot();
+    rx(ME " <PA/A1AAA> R-12", -11);
+    slot_end();
+    check(logged_once("PA/A1AAA", "", -12, -10, false), "logged at its R+report: no grid, rcvd -12, sent -10");
+    check(next_is("PA/A1AAA " ME " RR73"), "RR73 (%s)", tx.msg);
+
+    begin("Auto off: the same call pressed in the list gets our report", false);
+    tx_cq();
+    our_slot();
+    m = rx("<" ME "> PA/A1AAA", -8);
+    slot_end();
+    check(next_is("CQ " ME " " MY_QTH), "nothing answered by itself (%s)", tx.msg);
+    press(m);
+    check(next_is("PA/A1AAA " ME " -08"), "our report (%s)", tx.msg);
+
+    begin("Two words that are not a call to us: free text, another station's, ours unknown");
+    m = rx(ME " TNX");
+    check(!m.to_me && m.type == FXT_MSG_TYPE_OTHER, "free text \"" ME " TNX\" is no call (type %d)", m.type);
+    m = rx("<B1BBB> PA/A1AAA");
+    check(!m.to_me && !tx.msg[0], "\"<B1BBB> PA/A1AAA\" is not to us, nothing queued");
+    m = rx("<...> PA/A1AAA");
+    check(!m.to_me && !tx.msg[0], "\"<...> PA/A1AAA\" is not to us, nothing queued");
 }
 
 int main(int argc, char **argv) {

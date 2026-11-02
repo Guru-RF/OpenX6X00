@@ -187,6 +187,11 @@ void FTxQsoProcessor::add_rx_text(std::string text, const int snr, ftx_msg_meta_
 
     if (tokens[0] == "CQ") {
         process_cq(meta, tokens, snr);
+    } else if ((tokens.size() == 2) && (tokens[0] == _local_callsign) && (text.find('<') != text.npos)) {
+        // "<ON6URE> PA/W1ABC": a non-standard call answers our CQ the way WSJT-X sends it, type 4 with no grid. Free
+        // text has no brackets
+        tokens.push_back("");
+        process_grid(meta, tokens, snr, *tx_msg);
     } else if (tokens.size() >= 3) {
         if (tokens[2] == "73") {
             process_73(meta, tokens, snr, *tx_msg);
