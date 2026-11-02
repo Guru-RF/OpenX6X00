@@ -3266,12 +3266,14 @@ APP Channels, or the V/M key of the hand mic.
   channel above 56 MHz (an X6200's on FM broadcast or the airband, the
   WR12's, a transverter's) left the page's list empty, and an Add there then
   replaced all the channels with the new one.
-- A channel saved on the Memories page takes the frequencies the radio
-  tunes: 0.1-55 MHz, and 70-500 MHz for a transverter, on the X6100;
-  0.1-1000 MHz on the X6200 (FM broadcast, the airband, the WR12,
-  transverters). Whether the transverter or the WR12 is on does not matter:
-  while it is off, the radio tunes such a channel to the nearest frequency
-  it can.
+- A channel saved on the Memories page, and a MEM slot there, takes the
+  frequencies the radio tunes: 0.1-55 MHz, and 70-500 MHz for a
+  transverter, on the X6100; 0.1-1000 MHz on the X6200 (FM broadcast, the
+  airband, the WR12, transverters). Whether the transverter or the WR12 is
+  on does not matter: while it is off, the radio tunes such a channel or
+  slot to the nearest frequency it can. Up to v0.3.8 both took 0.1-56 MHz
+  only, so a MEM slot saved on an X6200's FM broadcast or airband could not
+  be saved on the page.
 - A channel whose name starts with WEFAX also shows in the WeFax app's Freq.
   list ([SSTV, WeFax and NavTex](#sstv-wefax-and-navtex)). Its frequency is
   the dial, 1.5 kHz below the fax station's: 7793.5 kHz for a station on
@@ -3456,7 +3458,7 @@ The menu has General and five groups:
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies |
-| | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)) |
+| | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)), on the frequencies the radio tunes |
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | Wavelog | every logged QSO to your Wavelog: URL, API key, station profile (one, or Automatic by the radio's callsign), connection test, Send now (writes `/mnt/field/wavelog.conf`, see [Wavelog](#wavelog)) |

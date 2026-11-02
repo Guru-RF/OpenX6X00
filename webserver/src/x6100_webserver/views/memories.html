@@ -37,8 +37,9 @@
 // Same names as x6100_mode_t / x6100_agc_t
 const MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CWR", "AM", "NFM", "SAM", "WFM"];
 const AGCS = ["OFF", "SLOW", "FAST", "AUTO"];
-// What the radio tunes for a channel, MHz, the lowest and the highest (apps.py TUNE_RANGES: on the X6100 not 55-70)
-const CHANNEL_MHZ = [{{mhz[0]}}, {{mhz[1]}}];
+// What the radio tunes for a MEM slot or a channel, MHz, the lowest and the highest (apps.py TUNE_RANGES: on the
+// X6100 not 55-70)
+const TUNE_MHZ = [{{mhz[0]}}, {{mhz[1]}}];
 let max = 100;
 const slotsBody = $("#slots>tbody"), chBody = $("#channels>tbody");
 EditFlow.effect($("#slots").closest(".dp-card").find("h3"), "at the next tap of the MEM button");
@@ -68,8 +69,7 @@ var makeRow = function(d, named) {
   else row.append($("<td>").text(d.id));
   // Shown in MHz, at least 3 decimals and up to 6, so 14,074,500 Hz reads 14.0745 (audit A13)
   const shown = d.frequency ? (d.frequency / 1e6).toFixed(6).replace(/(\.\d{3}\d*?)0+$/, "$1") : "";
-  const mhz = named ? CHANNEL_MHZ : [0.5, 56];
-  cell($("<input class='freq' type='number' step='any'>").attr({min: mhz[0], max: mhz[1]}).val(shown).data({hz: d.frequency, shown: shown}));
+  cell($("<input class='freq' type='number' step='any'>").attr({min: TUNE_MHZ[0], max: TUNE_MHZ[1]}).val(shown).data({hz: d.frequency, shown: shown}));
   row.children().last().addClass("freq_cell");
   cell(select(MODES, d.mode || "USB").addClass("mode"));
   cell(select(AGCS, d.agc || "AUTO").addClass("agc"));
