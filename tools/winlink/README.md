@@ -38,6 +38,9 @@ v1.0.1 with `tools/pat/patches`, built for linux/amd64; 2026-11-01: MODEMS OK, 5
 
 - ardopcf, as `x6100-winlink` starts it: it connects in protocol 1 (12000 Hz, keys of
   30 s), and the ID frame asked on its host port (`SENDID`) is played whole (1.75 s).
+  A call nobody answers (`ARQCALL N0BBB 2`): two ConReq frames, then `NEWSTATE DISC`
+  and `STATUS CONNECT TO N0BBB FAILED`, and on its console the
+  `[STATUS: CONNECT TO N0BBB FAILED]` that `x6100-winlink` reads as no answer (8 s).
 - Mercury: two stations, each a `winlink_host` and an `x6x00-mercury`, what one
   transmits the other hears with a little noise under it. Mercury answers Pat's
   `VERSION` with a `VERSION` line even when the `WRONG` for `CWID ON` came first (the

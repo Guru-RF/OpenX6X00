@@ -2,7 +2,8 @@
 """The real Winlink modems against src/winlink.c on the PC (winlink_host).
 
 1. ardopcf, protocol version 1, as x6100-winlink starts it: it connects at 12000 Hz with keys of 30 s, and the
-   ID frame it is asked for (SENDID on its host port) is played whole.
+   ID frame it is asked for (SENDID on its host port) is played whole. A call nobody answers ends in
+   CONNECT TO <call> FAILED, on the host port and on its console (x6100-winlink's "no answer").
 2. Mercury through x6x00-mercury, protocol version 2, and Pat v1.0.1's varahf transport, as on the radio: two
    stations, each a winlink_host and a bridge, what one transmits the other hears (with a little noise). Pat B
    listens; Pat A sends B a message peer to peer. Pat starts the modem (Mercury answers VERSION), connects,
@@ -105,6 +106,21 @@ def played(h):
     return [(int(l.split()[1]), l.split()[3] == "1") for l in text(h["played"] + ".log").splitlines()]
 
 
+def read_until(c, done, timeout):
+    """What ardopcf's host port says until done(what) or the timeout."""
+    got, end = b"", time.time() + timeout
+    c.settimeout(0.5)
+    while time.time() < end and not done(got):
+        try:
+            d = c.recv(4096)
+        except socket.timeout:
+            continue
+        if not d:
+            break
+        got += d
+    return got
+
+
 def ardop_test(procs, tmp, ardopcf):
     print("ardopcf, protocol 1")
     h = host(procs, tmp, "ardop", 14540)
@@ -134,6 +150,13 @@ def ardop_test(procs, tmp, ardopcf):
     n, stopped = played(h)[0]
     check(not stopped and 1.0 * PLAY_RATE <= n <= 3.0 * PLAY_RATE,
           f"and was played whole: {n / PLAY_RATE:.2f} s at 44.1 kHz")
+    c.sendall(f"ARQCALL {CALL_B} 2\r".encode())       # nobody there: two ConReq frames, then it gives up
+    r = read_until(c, lambda r: b"STATUS " in r and r.endswith(b"\r"), 30)
+    print("   ardopcf answered:", r.decode(errors="replace").replace("\r", " | ").strip())
+    failed = f"CONNECT TO {CALL_B} FAILED"
+    check(b"NEWSTATE DISC" in r and f"STATUS {failed}".encode() in r,
+          f"a call nobody answers: NEWSTATE DISC, STATUS {failed}")
+    check(f"[STATUS: {failed}]" in text(log), "and its console says so")
     c.close()
     procs.stop(a)
     check(wait_for(lambda: "the modem gone" in text(h["log"]), 5), "ardopcf gone: the GUI saw it go")

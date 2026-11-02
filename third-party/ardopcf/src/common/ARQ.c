@@ -410,7 +410,7 @@ BOOL GetNextARQFrame()
 			displayCall(0x20, "");
 			wg_send_rcall(0, "");
 
-			if (!stationid_ok(&ARQStationRemote))
+			if (stationid_ok(&ARQStationRemote))
 			{
 				ZF_LOGI("[STATUS: CONNECT TO %s FAILED]", ARQStationRemote.str);
 				snprintf(HostCmd, sizeof(HostCmd), "STATUS CONNECT TO %s FAILED!", ARQStationRemote.str);

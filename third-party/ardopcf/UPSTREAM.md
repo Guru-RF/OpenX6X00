@@ -62,3 +62,7 @@ Each one is its own commit on top of the pristine import.
 - `lib/rawhid/rawhid.c`: on Linux `CM108Handle` is the file descriptor its
   `read`/`write`/`close` calls take, not a `hid_device *` (an int-conversion
   warning with older gcc, an error with gcc 14 and later).
+- `src/common/ARQ.c`, from upstream `2b1e6d5` (develop, after 1.0.4.1.3): a
+  call that gets no answer reports `STATUS CONNECT TO <call> FAILED` on the
+  host port and the console, not `END ARQ CALL` (the test was inverted).
+  Host and log text only.
