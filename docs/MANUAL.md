@@ -5182,10 +5182,10 @@ comes up with its settings and log. It is DATA at the first start after a new
 card image too, but the settings and log kept on the system partition go with
 the old image then: update the radio instead (Settings > Info > Update), or
 download the Backup first. One formatted as exFAT, NTFS or FAT16 (Windows'
-"FAT"), or holding anything else, is never touched, and the radio goes on
-without DATA. Nor is a FAT32 that the radio's partition tool does not read
-("not touched (a FAT32 to blkid, not to parted)"): check it on a PC first
-(chkdsk /f on Windows).
+"FAT"), named DATA or not, or holding anything else, is never touched, and the
+radio goes on without DATA. Nor is a FAT32 that the radio's partition tool
+does not read ("not touched (a FAT32 to blkid, not to parted)"): check it on a
+PC first (chkdsk /f on Windows).
 
 A DATA drive that worked and later shows as unknown is a different case: its
 first sector (the boot sector) is most likely damaged, by a power cut while
