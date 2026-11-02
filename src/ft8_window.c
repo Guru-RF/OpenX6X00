@@ -61,6 +61,7 @@
 #include "ft8/cq_scheduler.h"
 #include "ft8/ft2.h"
 #include "ft8/hound.h"
+#include "ft8/msg_encode.h"
 #include "ft8/qso.h"
 #include "ft8/decode_list.h"
 #include "ft8/tx_worker.h"
@@ -249,12 +250,15 @@ static struct {
 static void qso_lock(void);
 static void qso_unlock(void);
 
-/* The station in QSO: the first word of the next transmission ("DXCALL MYCALL ..."), none for a CQ */
+/* The station in QSO: the first word of the next transmission ("DXCALL MYCALL ...", "<DXCALL> MYCALL RR73" with a
+ * non-standard call of ours), none for a CQ ("CQ_POTA" too) */
 static void udp_dx_call(char dx[16]) {
     qso_lock();
-    snprintf(dx, 16, "%.*s", (int)strcspn(tx_msg.msg, " "), tx_msg.msg);
+    const char *m = tx_msg.msg + (tx_msg.msg[0] == '<');
+
+    snprintf(dx, 16, "%.*s", (int)strcspn(m, " >"), m);
     qso_unlock();
-    if (!strcmp(dx, "CQ")) dx[0] = '\0';
+    if (!strcmp(dx, "CQ") || !strncmp(dx, "CQ_", 3)) dx[0] = '\0';
 }
 
 static void udp_status(void) {
@@ -465,6 +469,9 @@ static void decoder_start(void) {
 
     ftx_qso_processor_set_is_pota(p, pota_spotted);
     ftx_qso_processor_set_auto(p, param_i_get(cfg_ft8_auto));     /* the setting, not qso.cpp's default (on) */
+    /* A call like KF0QGT/6Y answers in the type 4 form, with the hash of it kept for the calls to us */
+    ftx_qso_processor_set_local_standard(p, !params.callsign.x[0] || ftx_call_is_standard(params.callsign.x));
+    ftx_worker_set_own_call(params.callsign.x);
     ftx_qso_processor_set_hound(p, hound_on);                     /* a restart in Hound mode stays in it */
     qso_lock();     /* the panel's status reads it */
     qso        = p;

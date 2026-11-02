@@ -1756,6 +1756,18 @@ second entry.
 
 The log is `/mnt/ft_log.adi`; the radio says "Saved QSO de ...".
 
+A compound or long callsign. FT8 packs a base call, with /P or /R at most
+(ON6URE, ON6URE/P), together with a grid or a report. Any other call of
+yours (PA/ON6URE, ON6URE/MM, KF0QGT/6Y, OT4ABCD, up to 11 characters; the
+callsign setting says "Callsign is long, QTH will be omitted") goes the way
+WSJT-X sends it: in full in the messages without a report, `<W1ABC>
+PA/ON6URE` to a CQ and `<W1ABC> PA/ON6URE RR73` or `73` at the end, the
+other station's call as a hash; in the reports as a hash (`W1ABC
+<PA/ON6URE> R-10` on the air), which the other station knows from your
+first message. So a station that has not heard you before can answer you,
+and a call to you (`<PA/ON6URE> W1ABC -05`) decodes from the first slot
+on, also after a long pause. These QSOs carry no grid.
+
 Log Map. Page 3 > Log Map shows the logged stations on a world map centred on you:
 great-circle paths, a dot and the callsign for each station. Calls and dots
 are larger since v0.119. ESC or Log Map closes it.

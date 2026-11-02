@@ -134,13 +134,18 @@ static bool closed_with(const char *call) {
     return false;
 }
 
-/* Our message "[time] DX OURCALL RR73": DX, the first word that is not the time */
+/* Our message "[time] DX OURCALL RR73": DX, the first word that is not the time; "<DX> OURCALL RR73" (a
+ * non-standard call of ours) too */
 static void closed_add(const char *text) {
     char call[16];
 
     for (const char *w = text; *w; ) {
         size_t n = strcspn(w, " ");
         if (n && n < sizeof(call) && !memchr(w, ':', n)) {
+            if (n > 2 && w[0] == '<' && w[n - 1] == '>') {
+                w++;
+                n -= 2;
+            }
             memcpy(call, w, n);
             call[n] = '\0';
             if (strcmp(call, "CQ")) {
@@ -184,9 +189,10 @@ static void pin_sent(const char *text) {
     if (!ends_with(text, " 73") && !ends_with(text, "RR73")) return;
     closed_add(text);
     for (int i = pin.n - 1; i >= 0; i--) {
-        char word[16];
+        char word[16], hashed[18];
         snprintf(word, sizeof(word), " %s ", pin.cd[i].meta.call_de);
-        if (strstr(text, word)) {
+        snprintf(hashed, sizeof(hashed), " <%s> ", pin.cd[i].meta.call_de);
+        if (strstr(text, word) || strstr(text, hashed)) {
             pin_remove(i);
             gone = true;
         }

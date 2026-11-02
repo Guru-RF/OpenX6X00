@@ -28,6 +28,10 @@ void ftx_worker_free();
 /// @brief Reset state before receiving new time slot
 void ftx_worker_reset();
 
+/// @brief Our callsign, kept in the callsign hash table so that a reply to a non-standard one ("<KF0QGT/6Y> W1ABC
+/// -05") decodes. Set before ftx_worker_init()
+void ftx_worker_set_own_call(const char *call);
+
 /// @brief Generate audio samples for TX
 /// @param[in] text message to send
 /// @param[in] signal_freq base signal frequency

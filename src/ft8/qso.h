@@ -66,7 +66,7 @@ class Candidate {
     bool aside_slot();
     void save_qso(save_qso_cb_t save_qso_cb, bool aside = false);
 
-    std::string get_tx_text(std::string local_callsign, std::string local_qth);
+    std::string get_tx_text(std::string local_callsign, std::string local_qth, bool local_std = true);
 
   private:
     std::string    _remote_callsign;
@@ -103,6 +103,9 @@ class FTxQsoProcessor {
     void process_cq(ftx_msg_meta_t *meta, std::vector<std::string> &tokens, const int snr);
 
     void set_auto(bool);
+    /// @brief Our call is a standard one (the default): false for one like KF0QGT/6Y, PA/ON6URE, which answers as
+    /// WSJT-X does, "<W1ABC> KF0QGT/6Y" to a CQ and "<W1ABC> KF0QGT/6Y RR73|73" (type 4, our call in plain text)
+    void set_local_standard(bool);
     void set_max_repeats(int);
     void set_is_pota(is_pota_cb_t);
     void set_hound(bool on);
@@ -119,6 +122,7 @@ class FTxQsoProcessor {
   private:
     bool          _auto    = true;
     bool          _have_tx = false;
+    bool          _local_std = true;
     std::string   _local_callsign;
     std::string   _local_qth;
     save_qso_cb_t _save_qso_cb;
@@ -160,6 +164,8 @@ extern void             ftx_qso_processor_delete(FTxQsoProcessor *p);
 extern void ftx_qso_processor_add_rx_text(FTxQsoProcessor *p, const char *text, const int snr, ftx_msg_meta_t *meta,
                                           ftx_tx_msg_t *tx_msg);
 extern void ftx_qso_processor_set_auto(FTxQsoProcessor *p, bool);
+/* Our call is standard (msg_encode.h ftx_call_is_standard): true by default */
+extern void ftx_qso_processor_set_local_standard(FTxQsoProcessor *p, bool);
 extern void ftx_qso_processor_set_max_repeats(FTxQsoProcessor *p, int max_repeats);
 extern void ftx_qso_processor_set_is_pota(FTxQsoProcessor *p, is_pota_cb_t is_pota);
 /* A message of ours goes out (transmit()): a QSO is kept aside only once its report went out */

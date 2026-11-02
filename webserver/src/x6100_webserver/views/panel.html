@@ -810,7 +810,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     if (f.sending || f.cq || (f.next && f.tx)) ftStopped = false;
     const slotS = f.slot ? f.slot / 1000 : 15, inS = Math.ceil(ftSlotIn() / 1000), msg = f.next || "";
     const queued = !!msg, armed = !!f.tx, cq = /^CQ /.test(msg) || msg.startsWith("CQ_");
-    const dx = queued && !cq ? msg.split(" ")[0] : "";
+    const dx = queued && !cq ? msg.split(" ")[0].replace(/^<(.*)>$/, "$1") : "";   /* "<W1ABC> KF0QGT/6Y": W1ABC */
     /* the steps: which is current, which are done, what each says */
     const stage = !f.open ? "" : f.sending ? "sending" : queued && armed ? "slot" : queued ? "queued" : f.logged_s >= 0 && f.logged_s < 90 ? "logged" : "listen";
     const order = ["listen", "queued", "slot", "sending", "logged"], at = order.indexOf(stage);

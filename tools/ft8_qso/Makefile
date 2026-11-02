@@ -5,7 +5,8 @@
 # station's. The good paths (we call CQ, we answer one, RRR, a 73 for an RR73 missed, RR73 in a multi-stream message,
 # other stations in between, Auto off, a POTA caller first), and #150's: the operator moves on (another station, TX CQ)
 # or the retries run out before the station's last message comes, a new caller once our RR73 or 73 went, and Force
-# QSO save. Each checks what is logged: once, with the right reports, never a QSO that was not complete.
+# QSO save. Each checks what is logged: once, with the right reports, never a QSO that was not complete. A
+# non-standard call of ours (KF0QGT/6Y): its answers as WSJT-X makes them, type 4 without a report.
 # qso.cpp's own warnings under -Wextra (a switch without FXT_MSG_TYPE_OTHER, an snr unused, the R+report case falling
 # through to the report's on purpose) are left off.
 SRC      := ../../src

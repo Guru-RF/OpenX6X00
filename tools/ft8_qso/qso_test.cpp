@@ -77,11 +77,14 @@ static bool is_pota(const char *call) {
     return pota_call && !strcmp(call, pota_call);
 }
 
-static void begin(const char *name, bool auto_on = true, int max_repeats = 6) {
+/* me_std: our call as ft8_window.c finds it (msg_encode.c ftx_call_is_standard) */
+static void begin(const char *name, bool auto_on = true, int max_repeats = 6, const char *me = ME,
+                  bool me_std = true) {
     if (qso) ftx_qso_processor_delete(qso);
-    qso = ftx_qso_processor_init(ME, MY_QTH "CV", on_saved, max_repeats);
+    qso = ftx_qso_processor_init(me, MY_QTH "CV", on_saved, max_repeats);
     ftx_qso_processor_set_is_pota(qso, is_pota);
     ftx_qso_processor_set_auto(qso, auto_on);
+    ftx_qso_processor_set_local_standard(qso, me_std);
     memset(&tx, 0, sizeof(tx));
     logged.clear();
     sent.clear();
@@ -1262,6 +1265,90 @@ static void force(void) {
           tx.msg);
 }
 
+/* ---- A non-standard call of ours (U03, SP2KMO's upstream d10ae10) ------------------------------------------ */
+
+/* KF0QGT/6Y, PA/ON6URE: as WSJT-X, the answers without a report are type 4 with our call in plain text ("<A1AAA>
+ * KF0QGT/6Y"), the reports type 1 with our call hashed (the text "A1AAA KF0QGT/6Y -10", on the air "A1AAA
+ * <KF0QGT/6Y> -10"). The other station's messages come with our call in brackets, from the hash table worker.c keeps
+ * it in */
+#define LONG "KF0QGT/6Y"
+
+static void own_call(void) {
+    begin("A non-standard call of ours answers A's CQ: our call in plain text, the reports as usual, A's RR73 logs it",
+          true, 6, LONG, false);
+    ftx_msg_meta_t cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    check(next_is("<A1AAA> " LONG), "type 4 answer, no grid (%s)", tx.msg);
+    our_slot();
+    ftx_msg_meta_t m = rx("<" LONG "> A1AAA -05", -10);
+    check(m.to_me, "\"<" LONG "> A1AAA -05\" is to us");
+    slot_end();
+    check(next_is("A1AAA " LONG " R-10"), "our R-report, type 1 (%s)", tx.msg);
+    our_slot();
+    rx("<" LONG "> A1AAA RR73");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -5, -10, false), "logged at its RR73: rcvd -05, sent -10");
+    check(next_is("<A1AAA> " LONG " 73"), "type 4 73 (%s)", tx.msg);
+    our_slot();
+    slot_end();
+    our_slot();
+    check(times_sent("<A1AAA> " LONG " 73") == 1 && !tx.msg[0], "73 sent once, nothing after it");
+
+    begin("A non-standard call of ours calls CQ: A answers, our report, its R+report logs it, our RR73 type 4", true, 6,
+          LONG, false);
+    snprintf(tx.msg, sizeof(tx.msg), "CQ %s", LONG);    /* cq_make_message: no grid, no modifier with this call */
+    tx.repeats = retries;
+    ftx_qso_processor_reset(qso);
+    our_slot();
+    rx("<" LONG "> A1AAA IN80", -10);
+    slot_end();
+    check(next_is("A1AAA " LONG " -10"), "our report to A, type 1 (%s)", tx.msg);
+    our_slot();
+    rx("<" LONG "> A1AAA R-12", -11);
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -12, -10, false), "logged at its R+report: rcvd -12, sent -10");
+    check(next_is("<A1AAA> " LONG " RR73"), "type 4 RR73 (%s)", tx.msg);
+
+    begin("A non-standard call of ours: our R-report out, B's CQ pressed, A's late RR73 logs A aside", true, 6, LONG,
+          false);
+    cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    our_slot();
+    rx("<" LONG "> A1AAA -05", -10);
+    slot_end();
+    our_slot();
+    ftx_msg_meta_t cq_b = rx("CQ B1BBB JN11");
+    slot_end();
+    press(cq_b);
+    check(next_is("<B1BBB> " LONG), "B answered, type 4 (%s)", tx.msg);
+    our_slot();
+    rx("<" LONG "> A1AAA RR73");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -5, -10, true), "A logged aside at its late RR73");
+
+    begin("A non-standard call of ours not in the table: \"<...> A1AAA -05\" is not to us, nothing queued", true, 6,
+          LONG, false);
+    cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    our_slot();
+    m = rx("<...> A1AAA -05");
+    slot_end();
+    check(!m.to_me && next_is("<A1AAA> " LONG), "not to us, our call again (%s)", tx.msg);
+
+    begin("Our call with /P is standard: the answer keeps the grid", true, 6, "Q1QQQ/P", true);
+    cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    check(next_is("A1AAA Q1QQQ/P JO21"), "type 1 with the grid (%s)", tx.msg);
+    our_slot();
+    rx("Q1QQQ/P A1AAA R-05");
+    slot_end();
+    check(next_is("A1AAA Q1QQQ/P RR73"), "type 1 RR73 (%s)", tx.msg);
+}
+
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "-v");
     good_paths();
@@ -1271,6 +1358,7 @@ int main(int argc, char **argv) {
     aside();
     new_caller();
     force();
+    own_call();
     ftx_qso_processor_delete(qso);
     printf("FT8 QSO %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;
