@@ -1846,6 +1846,9 @@ and the WSJT-X team, GPL v3):
   and TX stops. Decodes from the second period (other Hounds) are ignored.
 - TX CQ and Hold Freq do nothing in Hound mode. The RX rows show the state,
   e.g. "Hound: calling H49A". Hound is off each time the app opens.
+- A compound or long callsign of yours (PA/ON6URE; see above) goes to the
+  Fox only as a hash, not in full as in the other QSOs: a Fox that has not
+  heard it in full reads "H49A <...> JO21" and cannot work you.
 
 The multi-stream messages are now decoded in any FT8 session (ft8_lib left
 them out); the Fox's call shows as `<...>` until its CQ has been heard.
