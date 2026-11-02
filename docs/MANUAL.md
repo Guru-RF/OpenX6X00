@@ -1881,7 +1881,9 @@ or NTP).
   the TX next button reads Stop TX. A press takes the beacon off the air at
   once and turns TX % to 0 and TX next off. The rest of that cycle is idle;
   the next cycles receive until you press TX % or TX next again. Closing WSPR
-  (ESC) also stops a beacon.
+  (ESC) also stops a beacon and turns TX % to 0.
+- WSPR always opens with TX % at 0, also after a power-off with WSPR open:
+  no beacon goes out until you press TX % or TX next.
 - Power (page 2) is WSPR's own: 0.1, 0.2, 0.5, 1, 2 or 5 W, 0.2 W by
   default. The radio's power setting is not changed: the radio goes to
   WSPR's power for each beacon and back to its own after it. These steps

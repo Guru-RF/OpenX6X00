@@ -687,6 +687,8 @@ static void construct_cb(lv_obj_t *parent) {
     btn_tx_pct2.subj = (Subject *)cfg_wspr_tx_pct;
     btn_upload.subj = (Subject *)cfg_wspr_upload;
     btn_pwr.subj = (Subject *)cfg_wspr_dbm;
+    /* TX % is saved: off at every start, also after a power cut with WSPR open, so no beacon goes out unasked */
+    param_i_set(cfg_wspr_tx_pct, 0);
     atomic_store(&tx_next, false);
     subject_i_set(tx_next_subj, NEXT_OFF);
     buttons_load_page(&btn_page_1);
@@ -758,6 +760,7 @@ static void destruct_cb(void) {
         pthread_join(cycle_thread, NULL);
         cycle_thread_run = false;
     }
+    param_i_set(cfg_wspr_tx_pct, 0);
     if (timer) {
         lv_timer_del(timer);
         timer = NULL;
