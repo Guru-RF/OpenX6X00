@@ -116,9 +116,11 @@ static bool is_ft2(void) {
     return cur_proto() == (int)FTX_PROTOCOL_FT2;
 }
 
-/* A transmission may start this late into its slot: FT2 lasts 2.52 s and must end inside 3.75 s */
+/* A transmission may start this late into its slot: FT2 lasts 2.52 s and must end inside 3.75 s. FT8 and FT4 leave
+ * out what is past 0.5 s (tx_worker.c): up to 1.0 s of FT8's 12.64 s, 0.5 s of FT4's 5.04 s, and the time of the
+ * slot's last decode on top (the sec checked is read before it); past a fifth tx_worker.c does not key */
 static float tx_start_limit(void) {
-    return is_ft2() ? 0.8f : 1.5f;
+    return is_ft2() ? 0.8f : cur_proto() == (int)FTX_PROTOCOL_FT4 ? 1.0f : 1.5f;
 }
 
 /* ---- state ---- */
