@@ -239,6 +239,14 @@ void freq_list_open(lv_obj_t *parent, const char *title, const freq_list_item_t 
 
 void freq_list_close(void) {
     if (!panel) return;
+    /* Closed by its own key (ESC, ENTER on a keyboard): after the key LVGL sends CANCEL or PRESSED to the panel,
+     * and out of the group LVGL cannot see it go (freed memory). The key counts again once released, or ENTER's
+     * release went to the window behind */
+    lv_indev_t *indev = lv_indev_get_act();
+    if (indev) {
+        lv_indev_reset(indev, panel);
+        lv_indev_wait_release(indev);
+    }
     lv_group_remove_obj(panel);
     lv_obj_del(panel);
     panel = NULL;
