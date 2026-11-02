@@ -33,7 +33,9 @@ typedef struct {
     int  repeats;
 } ftx_tx_msg_t;
 
-typedef void (*save_qso_cb_t)(const char *remote_callsign, const char *remote_grid, const int r_snr, const int s_snr);
+/* aside: a QSO the sequence had put aside (another one is current), ended late by its station */
+typedef void (*save_qso_cb_t)(const char *remote_callsign, const char *remote_grid, const int r_snr, const int s_snr,
+                              bool aside);
 typedef bool (*is_pota_cb_t)(const char *callsign);
 
 #ifdef __cplusplus
@@ -53,8 +55,11 @@ class Candidate {
     bool match_callsign(std::string callsign);
     bool is_finished();
     bool can_be_saved();
+    bool sent_report();
     bool quiet_slot(int max_repeats);
-    void save_qso(save_qso_cb_t save_qso_cb);
+    void set_aside();
+    bool aside_slot();
+    void save_qso(save_qso_cb_t save_qso_cb, bool aside = false);
 
     std::string get_tx_text(std::string local_callsign, std::string local_qth);
 
@@ -66,7 +71,7 @@ class Candidate {
     int            _rcvd_snr;
     int            _sent_snr;
     bool           _saved=false;
-    int            _quiet_slots=0;  /* slots since its last message */
+    int            _quiet_slots=0;  /* slots since its last message (put aside: since then too) */
 };
 
 class FTxQsoProcessor {
@@ -93,6 +98,7 @@ class FTxQsoProcessor {
     void set_is_pota(is_pota_cb_t);
     void start_new_slot();
     void reset();
+    void clear();
     void start_qso(ftx_msg_meta_t *meta, ftx_tx_msg_t *tx_msg);
 
     bool can_save_qso();
@@ -112,9 +118,16 @@ class FTxQsoProcessor {
     ftx_msg_type_t _last_rx_type;
     Candidate     *_next_candidate = NULL;
     Candidate     *_cur_candidate  = NULL;
+    /* QSOs no longer current whose station may still end them (or did, logged): one per station,
+     * the oldest first */
+    std::vector<Candidate *> _aside;
 
     Candidate **get_candidate_to_update(std::string call_de);
     Candidate  *get_or_create_cur_candidate(std::string remote_callsign);
+    void        put_aside(Candidate *candidate);
+    Candidate  *find_aside(std::string call);
+    Candidate  *take_aside(std::string call);
+    Candidate  *candidate_for(std::string call);
 };
 #else
 typedef struct FTxQsoProcessor FTxQsoProcessor;
@@ -132,7 +145,10 @@ extern void ftx_qso_processor_set_auto(FTxQsoProcessor *p, bool);
 extern void ftx_qso_processor_set_max_repeats(FTxQsoProcessor *p, int max_repeats);
 extern void ftx_qso_processor_set_is_pota(FTxQsoProcessor *p, is_pota_cb_t is_pota);
 extern void ftx_qso_processor_start_new_slot(FTxQsoProcessor *p);
+/* No current QSO: put aside, its station's late message still logs it (TX CQ) */
 extern void ftx_qso_processor_reset(FTxQsoProcessor *p);
+/* No QSO at all, none put aside (Hound on or off: the sequence's QSOs are not logged there) */
+extern void ftx_qso_processor_clear(FTxQsoProcessor *p);
 extern void ftx_qso_processor_start_qso(FTxQsoProcessor *p, ftx_msg_meta_t *meta, ftx_tx_msg_t *tx_msg);
 
 extern bool ftx_qso_processor_can_save_qso(FTxQsoProcessor *p);

@@ -2,6 +2,8 @@
 #include "qso.h"
 
 #define DEFAULT_SNR 100
+#define ASIDE_SLOTS 4       /* a QSO put aside waits this many slots for its station's late message */
+#define ASIDE_MAX   4       /* QSOs put aside at most, the oldest goes */
 
 extern "C" {
     #include "../qth/qth.h"
@@ -74,6 +76,20 @@ bool Candidate::can_be_saved() {
     return (!_remote_callsign.empty()) && (_rcvd_snr != DEFAULT_SNR) && (_sent_snr != DEFAULT_SNR) && !_saved;
 }
 
+/* Our report went (or is about to): its station can still end the QSO */
+bool Candidate::sent_report() {
+    return _sent_snr != DEFAULT_SNR;
+}
+
+void Candidate::set_aside() {
+    _quiet_slots = 0;
+}
+
+/* One more slot aside without its message: true once it has waited long enough */
+bool Candidate::aside_slot() {
+    return ++_quiet_slots > ASIDE_SLOTS;
+}
+
 std::string Candidate::get_tx_text(std::string local_callsign, std::string local_qth) {
     std::string answer = make_answer_text(_last_rx_type, _remote_callsign, local_callsign, _local_snr, local_qth);
     if ((_last_rx_type == FTX_MSG_TYPE_GRID) || (_last_rx_type == FTX_MSG_TYPE_REPORT)) {
@@ -82,9 +98,9 @@ std::string Candidate::get_tx_text(std::string local_callsign, std::string local
     return answer;
 }
 
-void Candidate::save_qso(save_qso_cb_t save_qso_cb) {
+void Candidate::save_qso(save_qso_cb_t save_qso_cb, bool aside) {
     if (save_qso_cb && can_be_saved()) {
-        save_qso_cb(_remote_callsign.c_str(), _grid.c_str(), _rcvd_snr, _sent_snr);
+        save_qso_cb(_remote_callsign.c_str(), _grid.c_str(), _rcvd_snr, _sent_snr, aside);
         _saved = true;
     }
 }
@@ -101,10 +117,7 @@ FTxQsoProcessor::FTxQsoProcessor(std::string local_callsign, std::string local_q
 }
 
 FTxQsoProcessor::~FTxQsoProcessor() {
-    if (_cur_candidate != NULL)
-        delete _cur_candidate;
-    if (_next_candidate != NULL)
-        delete _next_candidate;
+    clear();
 }
 
 void FTxQsoProcessor::add_rx_text(std::string text, const int snr, ftx_msg_meta_t *meta, ftx_tx_msg_t *tx_msg) {
@@ -222,6 +235,12 @@ void FTxQsoProcessor::process_r_report(ftx_msg_meta_t *meta, std::vector<std::st
                 tx_msg.repeats = 1;
                 strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth).c_str());
             }
+        } else if (Candidate *aside = find_aside(call_de)) {
+            /* A QSO we moved on from (we called CQ): logged now, not answered */
+            aside->set_msg_type(meta->type);
+            aside->set_local_snr(snr);
+            aside->set_rcvd_snr(rcvd_snr);
+            aside->save_qso(_save_qso_cb, true);
         }
     }
 }
@@ -242,6 +261,11 @@ void FTxQsoProcessor::process_rr73(ftx_msg_meta_t *meta, std::vector<std::string
                 tx_msg.repeats = 1;
                 strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth).c_str());
             }
+        } else if (Candidate *aside = find_aside(call_de)) {
+            /* A QSO we moved on from: logged now, no 73 for it */
+            aside->set_msg_type(meta->type);
+            aside->set_local_snr(snr);
+            aside->save_qso(_save_qso_cb, true);
         }
     }
 }
@@ -257,7 +281,7 @@ void FTxQsoProcessor::process_73(ftx_msg_meta_t *meta, std::vector<std::string> 
         if ((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) {
             /* Their 73 ends the QSO as well as an RR73 we missed: logged if both reports went */
             _cur_candidate->save_qso(_save_qso_cb);
-            delete _cur_candidate;
+            put_aside(_cur_candidate);
             if (_next_candidate != NULL) {
                 _cur_candidate = _next_candidate;
                 _next_candidate = NULL;
@@ -268,6 +292,8 @@ void FTxQsoProcessor::process_73(ftx_msg_meta_t *meta, std::vector<std::string> 
             } else {
                 _cur_candidate = NULL;
             }
+        } else if (Candidate *aside = find_aside(call_de)) {
+            aside->save_qso(_save_qso_cb, true);
         }
     }
 }
@@ -300,26 +326,75 @@ void FTxQsoProcessor::set_is_pota(is_pota_cb_t cb) {
 
 void FTxQsoProcessor::start_new_slot() {
     _cur_fresh = false;
+    for (auto it = _aside.begin(); it != _aside.end();) {
+        if ((*it)->aside_slot()) {
+            delete *it;
+            it = _aside.erase(it);
+        } else {
+            ++it;
+        }
+    }
     if (_cur_candidate != NULL && _cur_candidate->quiet_slot(_max_repeats)) {
-        // Given up, or over without a 73: the next caller gets the answer
-        delete _cur_candidate;
+        // Given up, or over without a 73: the next caller gets the answer, a late message still logs it
+        put_aside(_cur_candidate);
         _cur_candidate = NULL;
     }
     if (_next_candidate != NULL) {
-        delete _next_candidate;
+        put_aside(_next_candidate);
         _next_candidate = NULL;
     }
 }
 
 void FTxQsoProcessor::reset() {
-    if (_cur_candidate != NULL) {
-        delete _cur_candidate;
-        _cur_candidate = NULL;
+    put_aside(_cur_candidate);
+    _cur_candidate = NULL;
+    put_aside(_next_candidate);
+    _next_candidate = NULL;
+}
+
+void FTxQsoProcessor::clear() {
+    reset();
+    for (auto candidate : _aside) delete candidate;
+    _aside.clear();
+}
+
+/* No longer the current QSO (or the next): kept aside once our report went, so that its station's
+ * late R+report, RR73, RRR or 73 still logs it, and logs it once */
+void FTxQsoProcessor::put_aside(Candidate *candidate) {
+    if (candidate == NULL) return;
+    if (!candidate->sent_report()) {
+        delete candidate;
+        return;
     }
-    if (_next_candidate != NULL) {
-        delete _next_candidate;
-        _next_candidate = NULL;
+    if (_aside.size() >= ASIDE_MAX) {
+        delete _aside.front();
+        _aside.erase(_aside.begin());
     }
+    candidate->set_aside();
+    _aside.push_back(candidate);
+}
+
+Candidate *FTxQsoProcessor::find_aside(std::string call) {
+    for (auto candidate : _aside)
+        if (candidate->match_callsign(call)) return candidate;
+    return NULL;
+}
+
+Candidate *FTxQsoProcessor::take_aside(std::string call) {
+    for (auto it = _aside.begin(); it != _aside.end(); ++it) {
+        if ((*it)->match_callsign(call)) {
+            Candidate *candidate = *it;
+            _aside.erase(it);
+            return candidate;
+        }
+    }
+    return NULL;
+}
+
+/* The station's QSO: the one put aside if any (so a logged one is not logged again), or a new one */
+Candidate *FTxQsoProcessor::candidate_for(std::string call) {
+    Candidate *candidate = take_aside(call);
+    return candidate ? candidate : new Candidate(call);
 }
 
 void FTxQsoProcessor::start_qso(ftx_msg_meta_t *meta, ftx_tx_msg_t *tx_msg) {
@@ -361,7 +436,7 @@ bool FTxQsoProcessor::can_save_qso() {
 bool FTxQsoProcessor::force_save_qso() {
     if (_cur_candidate) {
         _cur_candidate->save_qso(_save_qso_cb);
-        delete _cur_candidate;
+        put_aside(_cur_candidate);
         _cur_candidate = NULL;
         return true;
     } else {
@@ -373,19 +448,19 @@ Candidate **FTxQsoProcessor::get_candidate_to_update(std::string call_de) {
     bool pota = _is_pota && _is_pota(call_de.c_str());
     if (_cur_candidate == NULL) {
         // Start new QSO
-        _cur_candidate = new Candidate(call_de);
+        _cur_candidate = candidate_for(call_de);
         _cur_fresh = !pota;
     } else if (_cur_fresh && pota) {
         // Callers in the same slot: a POTA activator goes first
-        delete _cur_candidate;
-        _cur_candidate = new Candidate(call_de);
+        put_aside(_cur_candidate);
+        _cur_candidate = candidate_for(call_de);
         _cur_fresh = false;
     }
     Candidate **candidate_to_update = NULL;
     if (_cur_candidate->match_callsign(call_de)) {
         candidate_to_update = &_cur_candidate;
     } else if (_next_candidate == NULL) {
-        _next_candidate = new Candidate(call_de);
+        _next_candidate = candidate_for(call_de);
         candidate_to_update = &_next_candidate;
     }
     return candidate_to_update;
@@ -395,11 +470,15 @@ Candidate *FTxQsoProcessor::get_or_create_cur_candidate(std::string remote_calls
     _cur_fresh = false;     // the operator chose
     // Try to continue current QSO
     if ((_cur_candidate != NULL) && !_cur_candidate->match_callsign(remote_callsign)) {
-        delete _cur_candidate;
+        put_aside(_cur_candidate);
         _cur_candidate = NULL;
     }
+    if ((_cur_candidate == NULL) && (_next_candidate != NULL) && _next_candidate->match_callsign(remote_callsign)) {
+        _cur_candidate = _next_candidate;
+        _next_candidate = NULL;
+    }
     if (_cur_candidate == NULL) {
-        _cur_candidate = new Candidate(remote_callsign);
+        _cur_candidate = candidate_for(remote_callsign);
     }
     return _cur_candidate;
 }
@@ -459,6 +538,10 @@ void ftx_qso_processor_start_new_slot(FTxQsoProcessor *p) {
 
 void ftx_qso_processor_reset(FTxQsoProcessor *p) {
     p->reset();
+}
+
+void ftx_qso_processor_clear(FTxQsoProcessor *p) {
+    p->clear();
 }
 
 void ftx_qso_processor_add_rx_text(FTxQsoProcessor *p, const char *text, const int snr, ftx_msg_meta_t *meta,

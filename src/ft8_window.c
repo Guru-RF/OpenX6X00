@@ -335,6 +335,7 @@ typedef struct {
     char     call[32];
     char     grid[16];
     int      rcvd, sent;
+    bool     aside;     /* a QSO the sequence had put aside: the cursor is the current one's */
     uint32_t tx_gen;    /* of the step that completed it */
 } done_qso_t;
 
@@ -372,7 +373,7 @@ static void save_qso(const done_qso_t *d) {
     last_logged_at = now;
     pthread_mutex_unlock(&save_mux);
 
-    saved_job_t job = {.rec = rec, .ui = {.cursor_off = true, .tx_gen = d->tx_gen, .win_gen = win_gen}};
+    saved_job_t job = {.rec = rec, .ui = {.cursor_off = !d->aside, .tx_gen = d->tx_gen, .win_gen = win_gen}};
 
     gui_post(save_qso_apply, &job, sizeof(job));
     ft8_udp_log_qso(now, rec.remote_call, grid, (uint64_t)cparam_i_get(cfg_fg_freq), mode_name(), sent, rcvd,
@@ -395,7 +396,7 @@ static int        done_n;
 
 /* The processor's save callback, and Hound's RR73: under qso_mux, so noted only. The candidate
  * that called it may be gone once the lock is free */
-static void qso_completed(const char *call, const char *grid, const int rcvd, const int sent) {
+static void qso_completed(const char *call, const char *grid, const int rcvd, const int sent, bool aside) {
     if (done_n == (int)ARRAY_SIZE(done_qsos)) {
         LV_LOG_ERROR("FT8: a QSO with %s completed, no room to save it", call);
         return;
@@ -406,6 +407,7 @@ static void qso_completed(const char *call, const char *grid, const int rcvd, co
     snprintf(d->grid, sizeof(d->grid), "%s", grid);
     d->rcvd   = rcvd;
     d->sent   = sent;
+    d->aside  = aside;
     d->tx_gen = tx_gen;
 }
 
@@ -1053,7 +1055,7 @@ static void freq_hold_cb(button_data_t *btn) {
     msg_schedule_text_fmt("Dial frequency (14091 or 14.091), empty for the presets");
 }
 
-/* DXpedition Hound: on or off, a QSO or a CQ in progress stops */
+/* DXpedition Hound: on or off, a QSO or a CQ in progress stops, none kept aside (only Hound logs there) */
 static void hound_cb(button_data_t *btn) {
     if (kb_open) return;
     if (!hound_on && cur_proto() != FTX_PROTOCOL_FT8) {
@@ -1066,7 +1068,7 @@ static void hound_cb(button_data_t *btn) {
     hound_on = !hound_on;
     tx_msg.msg[0] = '\0';
     memset(&hound, 0, sizeof(hound));
-    ftx_qso_processor_reset(qso);
+    ftx_qso_processor_clear(qso);
     tx_gen++;
     qso_unlock();
     lv_finder_clear_cursor(finder);
@@ -1298,7 +1300,7 @@ static void hound_rx_text(const char *text, int snr, float freq_hz, bool odd, ui
         msg_schedule_text_fmt("Next TX: %s", tx_msg.msg);
     } else if (ev == HOUND_LOGGED) {
         tx_msg.msg[0] = '\0';
-        qso_completed(hound.fox, hound.fox_grid, hound.rcvd, hound.sent);
+        qso_completed(hound.fox, hound.fox_grid, hound.rcvd, hound.sent, false);
         add_info("Hound: QSO with %s logged", hound.fox);
     } else if (was != HOUND_IDLE && hound.stage == HOUND_IDLE) {
         tx_msg.msg[0] = '\0';
