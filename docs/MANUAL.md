@@ -5214,8 +5214,12 @@ What to do then:
 The radio formats such a partition only when it finds nothing of the old
 filesystem and no mark: more than the first 16 KiB lost (32 KiB on a card
 over 32 GB; for a DATA formatted on a PC, more than its first 3 KiB), and a
-new image written since, or DATA last mounted by v0.3.8 or older and many
-starts without it after that.
+new image written since, or DATA last mounted by v0.3.8 or older (by v0.3.5
+or older, whose starts leave no trace, or with many starts without it since).
+The other way round, a card whose third partition held a FAT32 before (an
+earlier DATA) and was wiped by a tool that clears only its first sectors can
+be taken for a damaged DATA and left alone: formatting the partition as
+FAT32 on a PC settles it.
 
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
