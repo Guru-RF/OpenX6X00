@@ -255,7 +255,9 @@ web configurator (System > Update).
     "New card image for this version: ..." until the new image is on the card,
     and the radio says it once at the first start of each version.
   - Writing a new image keeps the settings and logs on the DATA partition (see
-    [Install](#getting-started)); download the Backup first all the same.
+    [Install](#getting-started)), and leaves alone one that went bad (see
+    [no DATA drive](#on-a-pc-the-card-has-no-data-drive-only-an-unknown-partition));
+    download the Backup first all the same.
   - How it knows: every card image carries its level for its radio in
     `/etc/openx6x00-image`, which no update touches, and each version lists the
     level it wants in `/usr/share/x6100/image-required`. Images up to v0.3.3
@@ -5172,11 +5174,32 @@ anything else, is never touched, and the radio goes on without DATA.
 
 A DATA drive that worked and later shows as unknown is a different case: its
 first sector (the boot sector) is most likely damaged, by a power cut while
-the radio wrote it at a start. The radio does not format it either ("not
-touched (DATA was mounted at an earlier start ...)" in the trace) and runs
-without DATA meanwhile. The files are most likely still there: copy them off
-with a PC's FAT repair or recovery tool (FAT32 keeps a copy of that sector)
-before you format the partition as FAT32.
+the radio wrote it at a start. The radio does not format it, and runs without
+DATA meanwhile, on the system partition's `/mnt` folder. It tells such a
+partition from a new one by what is left of the filesystem: the copy of the
+boot sector that FAT32 keeps in its sector 6 (exFAT in sector 12), or, when
+the card lost the sectors around it too, the first FAT that follows them; and
+by the trace of a start that mounted it. A new card image written over the
+card changes none of that. The start trace says why at every start: "not
+touched (a FAT32 whose boot sector went bad, its copy in sector 6 found; ...)"
+or "not touched (DATA was mounted at an earlier start, its boot sector gone
+bad since; ...)", and at the first start of a new image "... holds a FAT32
+whose boot sector went bad, ...: not formatted; ...".
+
+What to do then:
+
+1. Don't let Windows format the drive when it offers to.
+2. The files are most likely still there: copy them off on a PC with a
+   recovery tool. TestDisk (free) can usually put the boot sector back from
+   its copy; the drive then opens again, and the radio uses it as before.
+3. Then, or when nothing on it is worth keeping, format the partition as
+   FAT32 on the PC: the next start uses it as DATA.
+
+The radio formats such a partition only when it finds nothing of the old
+filesystem and no trace of a start that mounted it: more than the first
+16 KiB lost (32 KiB on a card over 32 GB; for a DATA formatted on a PC, more
+than its first 3 KiB), and a new image written since or many starts without
+DATA on v0.3.8 or older.
 
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 

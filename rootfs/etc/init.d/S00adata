@@ -20,11 +20,14 @@
 # radio running on the system's /mnt folder. Such a partition is recognised and formatted at the
 # next start, and the new DATA gets what the radio wrote meanwhile on its top level: the settings,
 # the QSO log and the rest carry over. DATA that worked before and shows nothing to blkid now (its
-# boot sector gone bad) looks the same, and is left alone.
+# boot sector gone bad) looks the same, and is left alone: what is left of it tells it apart, or the
+# trace of a start that mounted it. Nor is what is left of it formatted after a new image.
 LOG=/tmp/data_fsck.log
 P3=/dev/mmcblk0p3
 SYS_TRACE=/var/lib/x6100/start_trace    # the start trace on the system partition (.txt, .1.txt)
-MOUNTED=/var/lib/x6100/data_mounted     # DATA was mounted on this card (set when that stops a format)
+MOUNTED=/var/lib/x6100/data_mounted     # DATA was mounted on this card, or found gone bad: never formatted
+# What to do with DATA left alone because it went bad (the trace, the manual)
+DAMAGED="its files are most likely still there: copy them off on a PC with a recovery tool, then format it there as FAT32"
 
 # A step into the start trace (x6100-starttrace; rcS writes this script's start and end): the check and
 # the format are what can take long here, on a large or a failing card
@@ -58,6 +61,32 @@ field() {
 found() {
     t=$(field TYPE)
     [ -n "$t" ] && echo "$t" || printf '%s\n' "$sig" | head -n 1
+}
+
+# What is left on the partition $1, which shows nothing to blkid at its start, of a FAT32 (or exFAT)
+# whose boot sector went bad: FAT32 keeps a copy of that sector in sector 6 and exFAT of its own in
+# sector 12, which blkid reads as filesystems of their own 3 and 6 KiB in. A card that loses a sector
+# at a power cut can lose the 4 or 16 KiB around it, that copy with it: the first FAT, after the 32
+# sectors mkfs.fat reserves (64 on a card over 32 GB), then still begins with its media mark. A
+# partition never formatted has none of these. left: what was found, for the trace
+fs_left() {
+    left=
+    if [ "$(blkid -p -O 3072 -o value -s TYPE "$1" 2>/dev/null)" = vfat ]; then
+        left="a FAT32 whose boot sector went bad, its copy in sector 6 found"
+    elif [ "$(blkid -p -O 6144 -o value -s TYPE "$1" 2>/dev/null)" = exfat ]; then
+        left="an exFAT whose boot sector went bad, its copy in sector 12 found"
+    else
+        for s in 32 64; do
+            [ "$(dd if="$1" bs=512 skip=$s count=1 2>/dev/null | od -An -tx1 -N4 | tr -d ' \n')" = f8ffff0f ] &&
+                left="a FAT32 whose boot sector went bad, its first FAT found"
+        done
+    fi
+    [ -n "$left" ]
+}
+
+# DATA mounted on this card, or found gone bad: the mark keeps it from ever being formatted (above)
+mark_data() {
+    [ -e $MOUNTED ] || { mkdir -p ${MOUNTED%/*} && : > $MOUNTED; } 2>/dev/null
 }
 
 # dev: the DATA partition; relabel set when it has no label yet
@@ -183,14 +212,20 @@ unformatted_data_part() {
         not_ours="sectors $p3start to $p3end, not the free space after the system"
         return 1
     fi
-    # Nor is DATA that a start of this system mounted: with nothing blkid knows on it now, its boot
-    # sector went bad (the kernel rewrites it at each mount, fsck.fat at each start that finds it
-    # dirty: a power cut then), its files still there for a PC's repair tools. Each such start
-    # traced its check on the system partition before the mount ("fsck.fat of", since v0.3.6: the
-    # last start's lines are always there); found once, the mark keeps it for the starts after
+    # Nor is DATA that went bad: with nothing blkid knows on it now, its boot sector went bad (the
+    # kernel rewrites it at each mount, fsck.fat at each start that finds it dirty: a power cut then),
+    # its files still there for a PC's repair tools. What is left of it says so (fs_left); else a
+    # start of this system that mounted it traced its check on the system partition before the mount
+    # ("fsck.fat of", since v0.3.6: the last start's lines are always there). Found once, the mark
+    # keeps it for the starts after
+    if fs_left $P3; then
+        mark_data
+        not_ours="$left; $DAMAGED"
+        return 1
+    fi
     if [ -e $MOUNTED ] || grep -qs "S00adata: fsck.fat of " $SYS_TRACE.txt $SYS_TRACE.1.txt; then
-        [ -e $MOUNTED ] || { mkdir -p ${MOUNTED%/*} && : > $MOUNTED; } 2>/dev/null
-        not_ours="DATA was mounted at an earlier start: damaged, left for a PC's repair tools"
+        mark_data
+        not_ours="DATA was mounted at an earlier start, its boot sector gone bad since; $DAMAGED"
         return 1
     fi
     return 0
@@ -254,6 +289,13 @@ start() {
         fi
         echo "$DEV holds another filesystem ($(found)): not formatted"
         trace "$DEV holds another filesystem ($(found)): not formatted"
+        return
+    fi
+    # Nor what is left of DATA whose boot sector went bad before the new image (the system's mark and
+    # trace went with it)
+    if fs_left "$DEV"; then
+        echo "$DEV holds $left: not formatted; $DAMAGED"
+        trace "$DEV holds $left: not formatted; $DAMAGED"
         return
     fi
     make_data "$DEV"
