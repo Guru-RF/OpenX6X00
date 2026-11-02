@@ -131,10 +131,10 @@ cut_copy() {
 # found_on_system when DATA has settings of its own (its files stay as they are); onto DATA's top
 # level when it has none: made at this start ($1 new), formatted on a PC or emptied there, and what
 # the radio wrote are its settings, log and the rest. All of it is copied first (params.db with its
-# -wal and -shm), then moved up on DATA, and only then taken off the system; a name DATA has already
-# stays in found_on_system. The copy goes into a folder of its own, never over a file DATA has:
-# found_on_system.2, .3 ... when an earlier start left a found_on_system there (its files perhaps the
-# only copy of those settings)
+# -wal and -shm), then moved up on DATA, and only then, once it is on the card, taken off the system;
+# a name DATA has already stays in found_on_system. The copy goes into a folder of its own, never over
+# a file DATA has: found_on_system.2, .3 ... when an earlier start left a found_on_system there (its
+# files perhaps the only copy of those settings)
 rescue() {
     mkdir -p /tmp/sysroot && mount --bind / /tmp/sysroot || return
     if [ -n "$(ls -A /tmp/sysroot/mnt 2>/dev/null)" ]; then
@@ -168,6 +168,10 @@ rescue() {
                 where="DATA's top level: the settings and logs carry over"
                 rmdir "$found" 2>/dev/null || where="$where (a name DATA had already: in ${found#/mnt/})"
             fi
+            # DATA is mounted without sync: its copies can wait some 30 s in memory, the system's files
+            # are gone from the card within 5 s (a power cut then lost both). On the card first, the
+            # mark with them
+            sync
             rm -rf /tmp/sysroot/mnt/* /tmp/sysroot/mnt/.[!.]*
             echo "files found in the system's /mnt moved to $where"
         else

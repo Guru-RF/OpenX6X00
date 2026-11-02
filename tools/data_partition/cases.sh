@@ -104,9 +104,10 @@ stuck() {
     boot old
     ok "old script, next start: not touched" 'grep -q "A third partition exists and is not FAT32: not touched" "$F/out.txt" && ! mounted'
     ok "set up: the WAL row needs the -wal" '[ "$(walrow "$F/sys_mnt" nowal)" = "[]" ] && [ "$(walrow "$F/sys_mnt")" = "$WALROW" ]'
-    before=$(tree "$F/sys_mnt"); sums=$(sums "$F/sys_mnt")
+    before=$(tree "$F/sys_mnt"); sums=$(sums "$F/sys_mnt"); n=$(ls -A "$F/sys_mnt" | wc -l)
     boot new
     ok "recognised and formatted" 'grep -q "is the DATA partition an earlier start made and never formatted: formatting it" "$F/out.txt" && called "^mkfs"'
+    ok "synced with every file on DATA and still on the system, before they go there" 'grep -qx "sync, system /mnt $n, /mnt $n" "$F/calls.log"'
     ok "p3 vfat DATA FAT32, mounted, the card marked" '[ "$(pf 3 TYPE)" = vfat ] && [ "$(pf 3 LABEL)" = DATA ] && [ "$(pf 3 VERSION)" = FAT32 ] && mounted && marked'
     ok "every file on DATA's top level, same names and contents" '[ "$(tree "$F/fs/3")" = "$before" ] && [ "$(sums "$F/fs/3")" = "$sums" ]'
     ok "params.db with its -wal: the last setting there" '[ -f "$F/fs/3/params.db-wal" ] && [ -f "$F/fs/3/params.db-shm" ] && [ "$(walrow "$F/fs/3")" = "$WALROW" ]'
@@ -477,5 +478,5 @@ if want samepath; then
     cp "$F/calls.log" "$F/calls_old2.txt"
     gui_writes
     boot new
-    ok "start with files left on the system (the existing case): the same tool calls" 'diff "$F/calls_old2.txt" "$F/calls.log" > /dev/null'
+    ok "start with files left on the system (the existing case): the same tool calls, and a sync" 'diff "$F/calls_old2.txt" <(grep -v "^sync" "$F/calls.log") > /dev/null && called "^sync, system /mnt [1-9]"'
 fi

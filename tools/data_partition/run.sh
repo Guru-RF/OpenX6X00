@@ -3,8 +3,8 @@
 # (made here with sfdisk: the same bytes as genimage's, X6100 and X6200 alike), the shims in bin/ for blkid
 # (util-linux 2.38's answers, the real probe of the partition's region), parted (the real one on the file),
 # mkfs (the real mkfs.vfat at the partition's offset), mount (a link to a folder per filesystem), dd (a
-# partition's sectors from the card file), and the radio's own x6100-starttrace. "old" is v0.3.8's script
-# (from git), "new" the one under test.
+# partition's sectors from the card file), sync (logged, with what the system's /mnt and /mnt hold then),
+# and the radio's own x6100-starttrace. "old" is v0.3.8's script (from git), "new" the one under test.
 #   NEW=<script>     another script under test          ONLY="fresh rotated ..."  only those cases
 #   KEEP=1           the card files kept in build/runs (sparse, up to 64 GB each; a copy without
 #                    --sparse fills the disk): by default they go at the end, the rest stays

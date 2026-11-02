@@ -1,0 +1,5 @@
+#!/bin/bash
+# sync: logged, with the number of entries in the system's /mnt folder and in /mnt (DATA when mounted)
+. "$(dirname "$0")/../lib.sh"
+callog "sync, system /mnt $(ls -A "$F/sys_mnt" | wc -l), /mnt $(ls -A "$F/mnt/" | wc -l)"
+exit 0
