@@ -16,6 +16,7 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <string.h>
@@ -1957,6 +1958,29 @@ uint64_t radio_swr_trip_at(void) {
     return atomic_load(&swr_trip_at);
 }
 
+/* A flow reset's line for the base log: now if this second has no line yet (base_guard_log_free), else from the
+ * first tick that finds one free (radio_tick), the step it tells of acting at once. One line a second gets in, and
+ * "base silent" (every 10 s) or "register block not sent" (every 200 ms while I2C fails too) take the second: a tune
+ * or an SWR scan's carrier that waited for a free one stayed on for seconds. One kept, a newer one in its place.
+ * Radio thread */
+static char later_line[160];
+
+static void later_flush(void) {
+    if (later_line[0] && base_guard_log_free()) {
+        base_guard_log("%s", later_line);
+        later_line[0] = 0;
+    }
+}
+
+static void log_later(const char *fmt, ...) {
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(later_line, sizeof(later_line), fmt, ap);
+    va_end(ap);
+    later_flush();
+}
+
 /* The base never keyed for the tuner, or ended a tune without its done flag (no match: more likely on 10 and 15 m
  * with a real antenna). The GUI stayed in the tuner's state for good with the tune bit set: no new tune, the SWR
  * scan refused, CAT and TCI reporting TX (#25). Now the tune bit off, back to RX, a word on the screen and a line in
@@ -1977,7 +2001,7 @@ static void atu_give_up(radio_state_t from, const char *why) {
     }
     if (now_time - pack_time > FLOW_RESTART_TIMEOUT) {
         /* from the flow resets: the packet's fields are the last one's, seconds old (a TX that was) */
-        base_guard_log("ATU: %s for %u ms", why, (unsigned)(now_time - pack_time));
+        log_later("ATU: %s for %u ms", why, (unsigned)(now_time - pack_time));
     } else {
         base_guard_log("ATU: %s (tx %d, atu_status %d, atu_params %08x)", why, pack->tx, pack->atu_status,
                        (unsigned)pack->atu_params);
@@ -2080,6 +2104,7 @@ static bool radio_tick() {
     if (now_time < prev_time) {
         prev_time = now_time;
     }
+    later_flush();
 
     int32_t d = now_time - prev_time;
 
@@ -2381,16 +2406,15 @@ static bool radio_tick() {
             static uint64_t silent_logged;
             radio_state_t   s = atomic_load(&state);
 
-            /* Each step below that writes a line in the base log waits for a second with none yet
-             * (base_guard_log_free): one line a second gets in, and "base silent", every 10 s on its own phase, took
-             * the second now and then. Each can wait a reset or three: a second at most */
+            /* The steps below act at once, their line in the base log through log_later: in the first second
+             * with none yet */
 
             /* The tuner's steps above go by the packets: with none (a base whose packets do not decode, #152), a tune
              * asked stayed in its state for good without a word, and tx_player refused every digital TX until the GUI
              * restarted. Given up on both radios once the base has been silent for as long as a tune has to start;
              * the tune bit goes to the base only on a packet, so a base silent from the press on is never asked to tune */
             if ((s == RADIO_ATU_START || s == RADIO_ATU_WAIT || s == RADIO_ATU_RUN) &&
-                now_time - pack_time > ATU_START_MS && base_guard_log_free()) {
+                now_time - pack_time > ATU_START_MS) {
                 atu_give_up(s, "Tuner: no data from the base");
             }
             /* A TX ends on a packet without the TX flag: with none (the data lost while the base keyed, or while the
@@ -2404,21 +2428,19 @@ static bool radio_tick() {
              * failed with it may not have reached it. TX is what the screen should say then; tx_watch, which resends
              * and cuts the power, needs packets. The first block that gets through clears it */
             if (s == RADIO_TX && now_time - pack_time > (tx_by_gui ? NO_DATA_MS : BASE_GONE_MS) && !gui_keys() &&
-                (uint32_t)now_time - morse_ms >= MORSE_HANG_MS && !resync_due && base_guard_log_free() &&
-                state_move(RADIO_TX, RADIO_RX)) {
+                (uint32_t)now_time - morse_ms >= MORSE_HANG_MS && !resync_due && state_move(RADIO_TX, RADIO_RX)) {
                 if (notify_rx_tx) {
                     notify_rx_tx(false);
                 }
-                base_guard_log("TX: no data from the base for %u ms, back to RX", (unsigned)(now_time - pack_time));
+                log_later("TX: no data from the base for %u ms, back to RX", (unsigned)(now_time - pack_time));
             }
             /* The SWR scan keys the base at its start and steps on the readings: with none a 1 W carrier went out
              * until Stop, the sweep standing still and the state refusing digital TX. Stopped as its Stop does, the
              * stop asked once (marked before the put: the job may run before the put returns) */
-            if (s == RADIO_SWRSCAN && now_time - pack_time > NO_DATA_MS && base_guard_log_free() &&
+            if (s == RADIO_SWRSCAN && now_time - pack_time > NO_DATA_MS &&
                 !atomic_exchange(&swrscan_stop_asked, true)) {
                 if (scheduler_put_urgent(swrscan_gone_cb, NULL, 0)) {
-                    base_guard_log("SWR scan: no data from the base for %u ms, stopped",
-                                   (unsigned)(now_time - pack_time));
+                    log_later("SWR scan: no data from the base for %u ms, stopped", (unsigned)(now_time - pack_time));
                 } else {
                     atomic_store(&swrscan_stop_asked, false);   /* the next reset tries again */
                 }
