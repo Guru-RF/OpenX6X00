@@ -2004,7 +2004,11 @@ others. Frequency and mode come back when the app closes.
 - Received text in the panel under the waterfall, sent text in the TX
   colour; the size follows Settings > Display > Decoder text, as RTTY and CW.
 - Mode (page 1): PSK31 (31.25 Bd) or PSK63 (62.5 Bd), same Varicode; Olivia
-  8/250 (default), 16/500 or 32/1000. The status button shows the audio
+  8/250 (default), 16/500 or 32/1000, then Contestia (CT on the button) 4/250,
+  8/250, 4/500, 8/500, 16/500, 8/1000, 16/1000 or 32/1000. Contestia is Olivia
+  with a block half as long: about twice the speed for 1.5-3 dB of sensitivity,
+  capitals only, and what it has no character for goes out as `?`. It works
+  with fldigi. The status button shows the audio
   frequency and the lock quality; press resyncs, hold clears the text.
 - PSK squelch (page 2, SQL): text is shown only while the decoder's quality
   (how tightly the symbols sit on 0 and 180 degrees, the Q on the button)
@@ -2031,7 +2035,7 @@ others. Frequency and mode come back when the app closes.
   [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)).
 - The apps don't log QSOs themselves yet. A QSO logged from the browser
   panel's Log tab while one is open goes into the log in its mode: PSK31 or
-  PSK63 (ADIF mode PSK with that submode) or OLIVIA (see
+  PSK63 (ADIF mode PSK with that submode), OLIVIA or CONTESTI (see
   [Browser panel](#browser-panel)).
 
 ### JTTY
@@ -3338,7 +3342,7 @@ Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavel
 - From the moment it is switched on: the QSOs logged before are not sent. To send an older log, import its ADIF in Wavelog (Files, Logs page, Export).
 - The display says what happened: "Wavelog: DL1ABC uploaded", "Wavelog: DL1ABC was already there" (Wavelog found it as a duplicate), "Wavelog: no connection, 2 QSOs waiting". A failure is shown once, on the QSO that met it.
 - Each QSO goes once. The radio tells QSOs apart by the other station, the date and time to the second, the band, the mode and your station callsign: two QSOs with DL1ABC in the same minute, or one as ON6URE and one as ON6URE/P, are two, and both go. Wavelog itself takes a second QSO with the same station, band and mode within 15 minutes, under the same callsign of yours, for a duplicate.
-- The mode goes as ADIF 3.1.8 has it: PSK31 and PSK63 as mode PSK with that submode, FT4, FT2, JS8 and JTTY as mode MFSK with theirs, FT8, OLIVIA, RTTY, CW, SSB, AM and FM as they are. A QSO logged without a mode (by hand in USB-D or LSB-D with no app open, away from FT8 and FT4) waits on the radio: it goes once the Logs page gives it one, so Wavelog never gets it without a mode and then again with one.
+- The mode goes as ADIF 3.1.8 has it: PSK31 and PSK63 as mode PSK with that submode, FT4, FT2, JS8 and JTTY as mode MFSK with theirs, FT8, OLIVIA, CONTESTI, RTTY, CW, SSB, AM and FM as they are. A QSO logged without a mode (by hand in USB-D or LSB-D with no app open, away from FT8 and FT4) waits on the radio: it goes once the Logs page gives it one, so Wavelog never gets it without a mode and then again with one.
 - Without a network, or behind a WiFi login page, the QSOs wait on the SD card (`/mnt/field/wavelog.queue`) and go at the next QSO, a minute after the next start, every 5 minutes while some wait, or with Send now on the web page.
 - A QSO Wavelog refuses (a record it can't take) goes to `/mnt/field/wavelog.failed.adi` and is not sent again unless it is edited on the Logs page. A refused key stops the upload until a new key is saved; the QSOs wait.
 - A QSO edited on the Logs page after it was sent goes again with the next upload. Wavelog adds QSOs and changes none it has. When the QSO's call, date, time, band, mode and own callsign are as they were (a report or a name corrected), Wavelog keeps its own copy, and the display says "Wavelog: DL1ABC was already there, edit it in Wavelog too". An edit of any of those reaches Wavelog as another QSO: it is added ("uploaded"), or, within 15 minutes of the old one with the same call, band and mode, found as a duplicate ("was already there"); either way the old one is to be corrected or deleted in Wavelog by hand. A QSO edited while it waits (no network) goes as it stands then, once; deleted while it waits, it does not go. A QSO deleted on the Logs page after it was sent stays in Wavelog.

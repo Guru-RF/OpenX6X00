@@ -21,10 +21,6 @@
 #include "olivia.h"
 #include "olivia_demod.h"
 
-/* Slices per block - the number of block phases to try. */
-#define OLIVIA_BLOCK_SLICES \
-    (OLIVIA_BLOCK_SYMBOLS * OLIVIA_SLICES_PER_SYMBOL)
-
 /* FHT figure above which the synchronisation counts as certain.
  * Below 3.0 decoding is unreliable, 3.5-4 is the edge of usefulness. */
 #define OLIVIA_SYNC_THRESHOLD 3.5f
@@ -44,11 +40,13 @@ typedef struct {
     int margin_bins;   /* margin in FFT bins                  */
     int offset_step;   /* hypothesis step in bins             */
     int bits;
+    float lock_threshold; /* FHT figure a hypothesis must reach to lock */
+    int block_slices;  /* slices per block - the block phases to try */
 
     /* Soft decision history: [slice][offset][bit].
      * Exactly one block back is kept. */
     float *hist;
-    int slice_pos;     /* current position in the history, 0..255 */
+    int slice_pos;     /* current position in the history, 0..block_slices-1 */
 
     /* Average figures for each hypothesis: [phase][offset]. */
     float *score;
@@ -66,7 +64,7 @@ typedef struct {
     int sweeps;        /* full passes over all phases */
 
     int locked;
-    int lock_phase;    /* block phase 0..255                  */
+    int lock_phase;    /* block phase                        */
     int lock_offset;   /* offset in FFT BINS                  */
     int lock_rev;      /* locked on the reversed tone order   */
     int lock_variant;  /* variant index after lock            */
@@ -83,8 +81,9 @@ typedef struct {
  * margin: how many tones to search either way. 4 is sensible - at
  * 32/1000 it gives +-125 Hz of tuning tolerance.
  */
-int olivia_rx_init(olivia_rx_t *rx, int tones, int bandwidth,
-                   int sample_rate, double lower_edge, int margin);
+int olivia_rx_init(olivia_rx_t *rx, olivia_proto_t proto, int tones,
+                   int bandwidth, int sample_rate, double lower_edge,
+                   int margin);
 
 void olivia_rx_free(olivia_rx_t *rx);
 

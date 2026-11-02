@@ -40,15 +40,15 @@ static int is_pow2(int v)
     return v > 0 && (v & (v - 1)) == 0;
 }
 
-int olivia_mod_init(olivia_mod_t *mod, int tones, int bandwidth,
-                    int sample_rate, double lower_edge)
+int olivia_mod_init(olivia_mod_t *mod, olivia_proto_t proto, int tones,
+                    int bandwidth, int sample_rate, double lower_edge)
 {
     int i, f;
     double scale;
 
     memset(mod, 0, sizeof(*mod));
 
-    if (olivia_cfg_init(&mod->cfg, tones, bandwidth) < 0)
+    if (olivia_cfg_init(&mod->cfg, proto, tones, bandwidth) < 0)
         return -1;
 
     if (sample_rate <= 0 || sample_rate % bandwidth != 0)
@@ -183,7 +183,7 @@ double olivia_mod_tone_freq(const olivia_mod_t *mod, int tone)
 
 int olivia_mod_block_samples(const olivia_mod_t *mod)
 {
-    return OLIVIA_BLOCK_SYMBOLS * mod->symbol_separ;
+    return mod->cfg.block_symbols * mod->symbol_separ;
 }
 
 /* Add one shaped symbol to the overlap buffer. */
@@ -243,13 +243,13 @@ int olivia_mod_symbol(olivia_mod_t *mod, uint8_t symbol, float *out)
 
 int olivia_mod_block(olivia_mod_t *mod, const uint8_t *chars, float *out)
 {
-    uint8_t symbols[OLIVIA_BLOCK_SYMBOLS];
+    uint8_t symbols[OLIVIA_MAX_SYMBOLS];
     int t;
     int n = 0;
 
     olivia_encode_block(&mod->cfg, chars, symbols);
 
-    for (t = 0; t < OLIVIA_BLOCK_SYMBOLS; t++)
+    for (t = 0; t < mod->cfg.block_symbols; t++)
         n += olivia_mod_symbol(mod, symbols[t], out + n);
 
     return n;

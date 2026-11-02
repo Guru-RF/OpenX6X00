@@ -29,6 +29,14 @@ typedef enum {
     OLIVIA_MODE_8_250 = 0,
     OLIVIA_MODE_16_500,
     OLIVIA_MODE_32_1000,
+    CONTESTIA_MODE_4_250,
+    CONTESTIA_MODE_8_250,
+    CONTESTIA_MODE_4_500,
+    CONTESTIA_MODE_8_500,
+    CONTESTIA_MODE_16_500,
+    CONTESTIA_MODE_8_1000,
+    CONTESTIA_MODE_16_1000,
+    CONTESTIA_MODE_32_1000,
     OLIVIA_MODE_COUNT
 } olivia_mode_t;
 
@@ -37,6 +45,13 @@ void          olivia_tx_set_mode(olivia_mode_t mode);
 
 /* Name of a variant for a button, e.g. "32/1000". */
 const char *olivia_tx_mode_name(olivia_mode_t mode);
+
+/* Which system a variant belongs to: an olivia_proto_t (olivia.h), an int
+ * here as this header stays free of it. */
+int olivia_tx_mode_proto(olivia_mode_t mode);
+
+/* That system's name, "Olivia" or "Contestia". */
+const char *olivia_tx_mode_family(olivia_mode_t mode);
 
 /* Number of tones and bandwidth of a variant. */
 int olivia_tx_mode_tones(olivia_mode_t mode);

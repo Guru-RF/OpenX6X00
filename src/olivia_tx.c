@@ -43,13 +43,22 @@
 #define CENTER_DEFAULT   1500
 
 static const struct {
+    olivia_proto_t proto;
     int tones;
     int bandwidth;
     const char *name;
 } mode_table[OLIVIA_MODE_COUNT] = {
-    {  8,  250, "8/250"   },
-    { 16,  500, "16/500"  },
-    { 32, 1000, "32/1000" },
+    { OLIVIA_PROTO_OLIVIA,     8,  250, "8/250"   },
+    { OLIVIA_PROTO_OLIVIA,    16,  500, "16/500"  },
+    { OLIVIA_PROTO_OLIVIA,    32, 1000, "32/1000" },
+    { OLIVIA_PROTO_CONTESTIA,  4,  250, "4/250"   },
+    { OLIVIA_PROTO_CONTESTIA,  8,  250, "8/250"   },
+    { OLIVIA_PROTO_CONTESTIA,  4,  500, "4/500"   },
+    { OLIVIA_PROTO_CONTESTIA,  8,  500, "8/500"   },
+    { OLIVIA_PROTO_CONTESTIA, 16,  500, "16/500"  },
+    { OLIVIA_PROTO_CONTESTIA,  8, 1000, "8/1000"  },
+    { OLIVIA_PROTO_CONTESTIA, 16, 1000, "16/1000" },
+    { OLIVIA_PROTO_CONTESTIA, 32, 1000, "32/1000" },
 };
 
 static pthread_t     tx_thread;
@@ -76,6 +85,15 @@ void olivia_tx_set_mode(olivia_mode_t mode) {
 const char *olivia_tx_mode_name(olivia_mode_t mode) {
     if (mode < 0 || mode >= OLIVIA_MODE_COUNT) return "?";
     return mode_table[mode].name;
+}
+
+int olivia_tx_mode_proto(olivia_mode_t mode) {
+    if (mode < 0 || mode >= OLIVIA_MODE_COUNT) return OLIVIA_PROTO_OLIVIA;
+    return mode_table[mode].proto;
+}
+
+const char *olivia_tx_mode_family(olivia_mode_t mode) {
+    return olivia_tx_mode_proto(mode) == OLIVIA_PROTO_CONTESTIA ? "Contestia" : "Olivia";
 }
 
 int olivia_tx_mode_tones(olivia_mode_t mode) {
@@ -129,9 +147,8 @@ static bool next_block(mod_t *m) {
             if (m->text_pos < m->text_len) {
                 unsigned char c = (unsigned char)tx_text[m->text_pos++];
 
-                if (c == '\n') c = '\r';    /* Olivia uses CR */
-                if (c > 127)   c = '?';     /* the alphabet is 7-bit */
-                chars[i] = c;
+                if (c == '\n') c = '\r';    /* both systems use CR */
+                chars[i] = olivia_char_encode(&m->mod.cfg, c);
             } else {
                 chars[i] = 0;               /* padding with zeros */
             }
@@ -177,8 +194,8 @@ static void *tx_thread_fn(void *arg) {
 
     /* Around the centre chosen on the waterfall, the VFO left where it is (the offset
      * TX_PLAYER_AUDIO_HZ asks tx_player for no shift) */
-    if (olivia_mod_init(&m.mod, mode_table[cur_mode].tones, bw, OLIVIA_NOMINAL_RATE,
-                        center_hz - bw / 2.0) == 0) {
+    if (olivia_mod_init(&m.mod, mode_table[cur_mode].proto, mode_table[cur_mode].tones, bw,
+                        OLIVIA_NOMINAL_RATE, center_hz - bw / 2.0) == 0) {
         if (olivia_resamp_init(&m.res, OLIVIA_NOMINAL_RATE, AUDIO_PLAY_RATE) == 0) {
             m.blk_samples = olivia_mod_block_samples(&m.mod);
             m.blk = malloc(sizeof(float) * m.blk_samples);

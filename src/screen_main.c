@@ -478,7 +478,7 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_BANDS:      return "Bands";
         case ACTION_APP_SNAKE:      return "Snake";
         case ACTION_APP_PSK:        return dialog_psk_is_63() ? "PSK63" : "PSK31";
-        case ACTION_APP_OLIVIA:     return "Olivia";
+        case ACTION_APP_OLIVIA:     return dialog_olivia_is_contestia() ? "Contestia" : "Olivia";
         case ACTION_APP_JTTY:       return "JTTY";
         case ACTION_APP_CHANNELS:   return "Channels";
         case ACTION_APP_BIRDIE:     return "Birdie Cal";

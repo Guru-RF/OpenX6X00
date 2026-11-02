@@ -40,14 +40,15 @@ static int is_pow2(int v)
     return v > 0 && (v & (v - 1)) == 0;
 }
 
-int olivia_demod_init(olivia_demod_t *d, int tones, int bandwidth,
-                      int sample_rate, double lower_edge, int margin)
+int olivia_demod_init(olivia_demod_t *d, olivia_proto_t proto, int tones,
+                      int bandwidth, int sample_rate, double lower_edge,
+                      int margin)
 {
     int i, f, n, bits, j;
 
     memset(d, 0, sizeof(*d));
 
-    if (olivia_cfg_init(&d->cfg, tones, bandwidth) < 0)
+    if (olivia_cfg_init(&d->cfg, proto, tones, bandwidth) < 0)
         return -1;
 
     if (sample_rate <= 0 || sample_rate % bandwidth != 0)
