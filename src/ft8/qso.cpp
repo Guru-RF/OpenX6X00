@@ -465,11 +465,19 @@ bool FTxQsoProcessor::take_back(std::string call) {
     return take_ahead(call);
 }
 
-/* No QSO in progress, or only a caller of this slot: the station whose QSO we moved on from sends
- * its R+report late (we called CQ). Its QSO is the current one again, for our RR73, without which
- * that station can't end it; the caller is the next */
+/* No QSO in progress (none, or one over), or only a caller of this slot: the station whose QSO we
+ * moved on from sends its R+report late (we called CQ). Its QSO is the current one again, for our
+ * RR73, without which that station can't end it; the caller is the next. One over gives way as to
+ * a caller, and is back if its station sends again in this slot */
 bool FTxQsoProcessor::take_up(std::string call) {
-    if (_hound || ((_cur_candidate != NULL) && !_cur_fresh)) return false;
+    if (_hound || (find_aside(call) == NULL)) return false;
+    if ((_cur_candidate != NULL) && _cur_candidate->is_over()) {
+        _gave_way = _cur_candidate->callsign();
+        take_over(call);
+        _cur_fresh = false;
+        return true;
+    }
+    if ((_cur_candidate != NULL) && !_cur_fresh) return false;
     return take_ahead(call);
 }
 
