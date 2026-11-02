@@ -1618,7 +1618,8 @@ normally:
   cause of issue #25, no SWR scan after a tune on 10 m and 15 m.
 - Each case goes into the base log (`/mnt/base_i2c.log`) with what the base
   reported, for example "ATU: Tuner: no match (tx 0, atu_status 0,
-  atu_params 00000000)".
+  atu_params 00000000)". Without data it says for how long instead: "ATU:
+  Tuner: no data from the base for 3120 ms".
 
 Not tried on the radio yet: what the X6200's base reports at the end of a
 tune with no match.

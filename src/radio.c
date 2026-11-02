@@ -1960,7 +1960,7 @@ uint64_t radio_swr_trip_at(void) {
  * with a real antenna). The GUI stayed in the tuner's state for good with the tune bit set: no new tune, the SWR
  * scan refused, CAT and TCI reporting TX (#25). Now the tune bit off, back to RX, a word on the screen and a line in
  * the base log with what the base reported. Also a tune given up where the radio may not transmit (#121), and one
- * the base sends no data for (#152) */
+ * the base sends no data for (#152), its line with how long */
 static void atu_give_up(radio_state_t from, const char *why) {
     WITH_RADIO_LOCK(hw_set_i(HW_ATU_TUNE, false));
 #ifndef BOARD_X6200
@@ -1974,8 +1974,13 @@ static void atu_give_up(radio_state_t from, const char *why) {
     if (from == RADIO_ATU_RUN && notify_rx_tx) {
         notify_rx_tx(false);
     }
-    base_guard_log("ATU: %s (tx %d, atu_status %d, atu_params %08x)", why, pack->tx, pack->atu_status,
-                   (unsigned)pack->atu_params);
+    if (now_time - pack_time > FLOW_RESTART_TIMEOUT) {
+        /* from the flow resets: the packet's fields are the last one's, seconds old (a TX that was) */
+        base_guard_log("ATU: %s for %u ms", why, (unsigned)(now_time - pack_time));
+    } else {
+        base_guard_log("ATU: %s (tx %d, atu_status %d, atu_params %08x)", why, pack->tx, pack->atu_status,
+                       (unsigned)pack->atu_params);
+    }
     msg_schedule_text_fmt("%s", why);
 }
 
