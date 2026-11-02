@@ -1340,7 +1340,8 @@ the radio cannot transmit at all). The browser Panel and Winlink's page
 give the frequency and the reason in one line, "... outside the amateur
 bands (Settings > TX Cal)". What is refused:
 
-- PTT: the PTT key, the walkie screen, CAT, TCI, the browser Panel and
+- PTT: the PTT key, the walkie screen, CAT (it answers NG, see
+  [CI-V commands](#supported-ci-v-commands)), TCI, the browser Panel and
   remote sessions (the page shows the reason, see
   [Transmitting from the browser](#transmitting-from-the-browser)).
 - The digital apps (FT8, FT4, FT2, JS8, WSPR, PSK, Olivia, JTTY, RTTY, SSTV,
@@ -5301,7 +5302,7 @@ Logs page shows them all. What PSK, Olivia and JTTY received and sent, and what 
 | `1A` | `01` | Band (the CI-V codes `01` 160 m ... `09` 10 m, `10` 6 m, `15` none); write tunes the band's centre | yes | yes |
 | `1A` | `03` | IF filter width (BCD index) | yes | - |
 | `1A` | `06` | Data mode + filter; write only adds or drops the data mode (USB ↔ USB-D, LSB ↔ LSB-D) | yes | yes |
-| `1C` | `00` | PTT (`00` RX, `01` TX) | yes | yes |
+| `1C` | `00` | PTT (`00` RX, `01` TX); a TX the radio refuses (outside the [amateur bands](#amateur-bands-only), receive only) answers NG (`FA`) | yes | yes |
 | `25` | `00` / `01` | Frequency of selected / unselected VFO | yes | yes |
 | `26` | `00` / `01` | Mode + data mode of selected / unselected VFO | yes | yes |
 | `27` | `10` / `11` | Scope on (always) / wave data output: accepted, a stub | yes | yes |

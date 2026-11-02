@@ -112,7 +112,8 @@ bool radio_start_swrscan(int32_t from);
 void radio_stop_swrscan();
 
 void radio_poweroff();
-void radio_set_ptt(bool tx);
+/* PTT from the GUI. False: a key down refused where the radio may not transmit (the screen says why, #121) */
+bool radio_set_ptt(bool tx);
 /* The mic of the baseband without saving it (radio_mic_sel_t), -1: back to cfg_mic */
 void radio_set_mic_override(int mic);
 /* The mic in use: the override, else cfg_mic */

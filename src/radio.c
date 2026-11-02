@@ -988,11 +988,12 @@ static bool tx_refused(tx_by_t by) {
            (by != TX_BY_GUI && split_keys_dial() && tx_refused_at(vfo_freq(true), by));
 }
 
-void radio_set_ptt(bool tx) {
+bool radio_set_ptt(bool tx) {
     if (tx && tx_refused(TX_BY_PTT)) {
-        return;
+        return false;
     }
     WITH_RADIO_LOCK(hw_set_i(HW_PTT, tx));
+    return true;
 }
 
 static int mic_override = -1;      /* the walkie screen's mic, cfg_mic stays as saved */

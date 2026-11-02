@@ -57,10 +57,11 @@ void    cfg_pwr_set(float w) { pwr.v = w; fprintf(stderr, "[stub] power %.1f W\n
 static bool ptt, modem;
 bool stub_tx_refused;
 radio_state_t radio_get_state(void) { return ptt || modem ? RADIO_TX : RADIO_RX; }
-void radio_set_ptt(bool tx) {
-    if (tx && stub_tx_refused) return;
+bool radio_set_ptt(bool tx) {
+    if (tx && stub_tx_refused) return false;
     ptt = tx;
     fprintf(stderr, "[stub] ptt %d\n", tx);
+    return true;
 }
 void radio_set_modem(bool tx) {
     if (tx && stub_tx_refused) return;

@@ -6,7 +6,7 @@
 typedef enum { RADIO_RX = 0, RADIO_TX, RADIO_ATU_START, RADIO_ATU_WAIT, RADIO_ATU_RUN, RADIO_SWRSCAN, RADIO_POWEROFF,
                RADIO_OFF } radio_state_t;
 radio_state_t radio_get_state(void);
-void radio_set_ptt(bool tx);
+bool radio_set_ptt(bool tx);
 void radio_set_modem(bool tx);
 bool radio_get_modem(void);
 void radio_set_pwr(float d);

@@ -962,17 +962,23 @@ static Frame *process_req(const Frame *req) {
                     resp->set_payload_len(3);
                     resp->data[1] = (radio_get_state() == RADIO_RX) ? 0 : 1;
                 } else {
+                    bool ok = true;
+
                     switch (req->data[1]) {
                         case 0:
                             radio_set_ptt(false);
                             break;
 
                         case 1:
-                            radio_set_ptt(true);
+                            ok = radio_set_ptt(true);   /* refused where the radio may not transmit (#121) */
                             break;
                     }
-                    resp->set_payload_len(3);
-                    resp->data[1] = CODE_OK;
+                    if (ok) {
+                        resp->set_payload_len(3);
+                        resp->data[1] = CODE_OK;
+                    } else {
+                        resp->set_code(CODE_NG);    /* the client shows the refusal, not a TX that never was */
+                    }
                 }
             }
             break;
