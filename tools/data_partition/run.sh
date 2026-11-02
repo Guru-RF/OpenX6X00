@@ -7,7 +7,8 @@
 # and the radio's own x6100-starttrace. "old" is v0.3.8's script (from git), "new" the one under test.
 #   NEW=<script>     another script under test          ONLY="fresh rotated ..."  only those cases
 #   KEEP=1           the card files kept in build/runs (sparse, up to 64 GB each; a copy without
-#                    --sparse fills the disk): by default they go at the end, the rest stays
+#                    --sparse fills the disk): by default they go at the end, or when the run is
+#                    stopped (Ctrl-C, kill; not kill -9: then `make clean`), the rest stays
 #   TARGET=<buildroot target>: busybox's applets and blkid from it (qemu-arm-static), IMGSH=1 its bash too
 H=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$H/../.." && pwd)
@@ -22,6 +23,8 @@ pass=0 fail=0
 fails=
 
 mkdir -p "$RUNS"
+[ -n "$KEEP" ] || trap 'rm -f "$RUNS"/*/card.img' EXIT
+trap 'exit 130' INT TERM HUP
 [ -s "$OLD" ] || git -C "$REPO" show v0.3.8:rootfs/etc/init.d/S00adata > "$OLD" || exit 1
 # The card image's first sector: its two partitions, the boot partition and the system's
 MBR=$B/mbr.bin
@@ -36,7 +39,7 @@ if [ -n "$TARGET" ]; then
     export BLKID="qemu-arm-static -L $TARGET $TARGET/sbin/blkid"
     BB=$B/bbbin
     mkdir -p "$BB"
-    for a in cat cp cut date dd grep head ls mkdir mv od rm rmdir sed tail tr wc; do
+    for a in cat cmp cp cut date dd find grep head ls mkdir mv od rm rmdir sed tail tr wc; do
         printf '#!/bin/sh\nexec qemu-arm-static -L %s %s/bin/busybox %s "$@"\n' "$TARGET" "$TARGET" $a > "$BB/$a"
         chmod +x "$BB/$a"
     done
@@ -181,7 +184,6 @@ C64G=124735488
 
 . "$H/cases.sh"
 
-[ -n "$KEEP" ] || rm -f "$RUNS"/*/card.img
 echo
 echo "$pass passed, $fail failed$fails"
 [ $fail -eq 0 ]
