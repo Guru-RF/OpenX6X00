@@ -1727,20 +1727,23 @@ second entry.
 - Moving on before the last message comes does not lose the QSO. Answer
   another station (a row, the For you strip, the browser's reply), press TX
   CQ, turn Hound on or off, or let the retries run out, and a QSO whose
-  report has gone out is kept aside for 4 slots (a minute in FT8). Its
-  station's late RR73, RRR or 73, or its R+report when you called CQ, still
-  logs it, with the reports as they were. Up to 4 QSOs wait like this.
+  report has gone out, or that is logged already, is kept aside for 4 slots
+  (a minute in FT8), counted again at each message of its station. Its late
+  RR73, RRR or 73, or its R+report when you called CQ, still logs it, with
+  its report and the last of yours that went out (not one made since that
+  never went). Up to 4 QSOs wait like this.
 - While another QSO is in progress, a late message gets no answer: the QSO
-  you went on to carries on. With none in progress (you pressed TX CQ, or
-  the retries ran out), a late R+report makes its QSO the one in progress
+  you went on to carries on. With none in progress (you pressed TX CQ, the
+  retries ran out, or the QSO you went on to has ended: logged, and your RR73
+  or 73 gone out), a late R+report makes its QSO the one in progress
   again, and with Auto it gets your RR73, so that the other station can log
   the QSO too; that ends the CQ, as any answer of Auto's does. In Hound mode
   no late message is answered, and the Fox's QSO is logged by Hound alone.
 - A call from that station, or a press on its row, takes the same QSO up
   again, and it goes on as any QSO does.
-- A band or mode change drops them, as the station is no longer heard. A
-  QSO that the old band's last decodes complete is still logged with the old
-  band and mode.
+- A band key, Freq or Mode change drops them, as the station is no longer
+  heard there. A QSO that the last decodes from before the change complete
+  is still logged with the old dial frequency and mode.
 - "Force QSO save" logs the QSO in progress by hand, once both reports are
   known. The TX message and the sequence go on as they were: with Auto the
   station's RR73 gets your 73, and a station that calls you is answered once
