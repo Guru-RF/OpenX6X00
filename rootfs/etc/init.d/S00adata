@@ -79,8 +79,11 @@ found() {
 # What is left on the partition $1, which shows nothing to blkid at its start, of a FAT32 (or exFAT)
 # whose boot sector went bad: FAT32 keeps a copy of that sector in sector 6 and exFAT of its own in
 # sector 12, which blkid reads as filesystems of their own 3 and 6 KiB in. A card that loses a sector
-# at a power cut can lose the 4 or 16 KiB around it, that copy with it: the first FAT, after the 32
-# sectors mkfs.fat reserves (64 on a card over 32 GB), then still begins with its media mark. A
+# at a power cut can lose the 4 KiB to some MiB around it, that copy with it. Then one of FAT32's two
+# FATs still begins with its media mark (f8 ff ff 0f) at the start of a sector: the first after the
+# sectors reserved before it (32, 64 on a card over 32 GB; other counts on a PC), the second after
+# the first, some 3 MiB in on a 4 GB card, 7 on 16 to 64 GB, 59 on 512 GB. Each sector of the first
+# 64 MiB is looked at (hexdump: util-linux's, the first word of each sector as a number). A
 # partition never formatted has none of these. left: what was found, for the trace
 fs_left() {
     left=
@@ -88,11 +91,8 @@ fs_left() {
         left="a FAT32 whose boot sector went bad, its copy in sector 6 found"
     elif [ "$(blkid -p -O 6144 -o value -s TYPE "$1" 2>/dev/null)" = exfat ]; then
         left="an exFAT whose boot sector went bad, its copy in sector 12 found"
-    else
-        for s in 32 64; do
-            [ "$(dd if="$1" bs=512 skip=$s count=1 2>/dev/null | od -An -tx1 -N4 | tr -d ' \n')" = f8ffff0f ] &&
-                left="a FAT32 whose boot sector went bad, its first FAT found"
-        done
+    elif hexdump -v -n 67108864 -e '1/4 "%08x\n" 127/4 ""' "$1" 2>/dev/null | grep -qx 0ffffff8; then
+        left="a FAT32 whose boot sector went bad, its FAT found"
     fi
     [ -n "$left" ]
 }

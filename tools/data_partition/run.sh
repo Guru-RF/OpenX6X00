@@ -2,14 +2,15 @@
 # S00adata (rootfs/etc/init.d) on fake cards: sparse card files with the card image's own partition table
 # (made here with sfdisk: the same bytes as genimage's, X6100 and X6200 alike), the shims in bin/ for blkid
 # (util-linux 2.38's answers, the real probe of the partition's region), parted (the real one on the file),
-# mkfs (the real mkfs.vfat at the partition's offset), mount (a link to a folder per filesystem), dd (a
-# partition's sectors from the card file), sync (logged, with what the system's /mnt and /mnt hold then),
-# and the radio's own x6100-starttrace. "old" is v0.3.8's script (from git), "new" the one under test.
+# mkfs (the real mkfs.vfat at the partition's offset), mount (a link to a folder per filesystem), dd and
+# hexdump (a partition's sectors from the card file), sync (logged, with what the system's /mnt and /mnt
+# hold then), and the radio's own x6100-starttrace. "old" is v0.3.8's script (from git), "new" the one
+# under test.
 #   NEW=<script>     another script under test          ONLY="fresh rotated ..."  only those cases
 #   KEEP=1           the card files kept in build/runs (sparse, up to 64 GB each; a copy without
 #                    --sparse fills the disk): by default they go at the end, or when the run is
 #                    stopped (Ctrl-C, kill; not kill -9: then `make clean`), the rest stays
-#   TARGET=<buildroot target>: busybox's applets and blkid from it (qemu-arm-static), IMGSH=1 its bash too
+#   TARGET=<buildroot target>: busybox's applets, blkid and hexdump from it (qemu-arm-static), IMGSH=1 its bash too
 H=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$H/../.." && pwd)
 WT=$REPO
@@ -36,7 +37,7 @@ if [ ! -s "$MBR" ]; then
 fi
 BB=
 if [ -n "$TARGET" ]; then
-    export BLKID="qemu-arm-static -L $TARGET $TARGET/sbin/blkid"
+    export BLKID="qemu-arm-static -L $TARGET $TARGET/sbin/blkid" HEXDUMP="qemu-arm-static -L $TARGET $TARGET/usr/bin/hexdump"
     BB=$B/bbbin
     mkdir -p "$BB"
     for a in cat cmp cp cut date dd find grep head ls mkdir mv od rm rmdir sed tail tr wc; do
@@ -123,7 +124,7 @@ p3geom() { (. "$H/lib.sh"; geom 3); }
 # p3's region from sector 1 on, 32 MiB of it: what a lost boot sector leaves of a FAT32 (backup boot
 # sector, FSInfo, both FATs on a 4 GB card)
 p3sum() { set -- $(p3geom); dd if="$F/card.img" bs=512 skip=$(($1 + 1)) count=65536 status=none | md5sum; }
-# The first $1 sectors of p3 gone (zeros): sector 0 alone, a card's 4 or 16 KiB page, 64 KiB
+# The first $1 sectors of p3 gone (zeros): sector 0 alone, a card's 4 or 16 KiB page, 64 KiB, 4 MiB
 zero_p3() { n=$1; set -- $(p3geom); dd if=/dev/zero of="$F/card.img" bs=512 seek=$1 count=$n conv=notrunc status=none; }
 # The card written with a new image: the table back to two partitions, a new system partition (no
 # trace, no mark, an empty /mnt folder); what lies past the image stays

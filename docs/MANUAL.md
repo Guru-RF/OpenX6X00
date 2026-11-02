@@ -5186,9 +5186,9 @@ the radio wrote it at a start. The radio does not format it, and runs without
 DATA meanwhile, on the system partition's `/mnt` folder. It tells such a
 partition from a new one by what is left of the filesystem: the copy of the
 boot sector that FAT32 keeps in its sector 6 (exFAT in sector 12), or, when
-the card lost the sectors around it too, the first FAT that follows them. And
-by the mark each start that mounts DATA leaves on the system partition, which
-a new card image takes with it. The start trace says why at every start, and
+the card lost the sectors around it too, one of the two FATs (its tables of
+where the files lie) that follow them. And by the mark each start that mounts
+DATA leaves on the system partition, which a new card image takes with it. The start trace says why at every start, and
 what to do: "not touched (a FAT32 whose boot sector went bad, its copy in
 sector 6 found); its files are most likely still there: copy them off on a PC
 with a recovery tool, then format it there as FAT32", or "not touched (DATA
@@ -5214,10 +5214,11 @@ What to do then:
    used).
 
 The radio formats such a partition only when it finds nothing of the old
-filesystem and no mark: more than the first 16 KiB lost (32 KiB on a card
-over 32 GB; for a DATA formatted on a PC, more than its first 3 KiB), and a
-new image written since, or DATA last mounted by v0.3.8 or older (by v0.3.5
-or older, whose starts leave no trace, or with many starts without it since).
+filesystem and no mark: everything up to its second FAT lost (more than the
+first 3 MiB on a 4 GB card, 7 MiB on 16 to 64 GB, 15 MiB on 128 GB; on a card
+over 512 GB more than the first 32 KiB), and a new image written since, or
+DATA last mounted by v0.3.8 or older (by v0.3.5 or older, whose starts leave
+no trace, or with many starts without it since).
 The other way round, a card whose third partition held a FAT32 before (an
 earlier DATA) and was wiped by a tool that clears only its first sectors can
 be taken for a damaged DATA and left alone: formatting the partition as

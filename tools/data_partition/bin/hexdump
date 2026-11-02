@@ -1,0 +1,21 @@
+#!/bin/bash
+# hexdump -v -n LEN -e FORMAT <a partition of the card>: the real hexdump (the host's, or under TARGET the
+# image's util-linux one) on the card file from the partition's offset, LEN cut at its end
+. "$(dirname "$0")/../lib.sh"
+callog "hexdump $*"
+args=() dev= len=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -v) args+=(-v) ;;
+        -n) len=$2; shift ;;
+        -e) args+=(-e "$2"); shift ;;
+        -*) echo "hexdump shim: option $1" >&2; exit 1 ;;
+        *) dev=$1 ;;
+    esac
+    shift
+done
+n=$(partnum "$dev")
+[ -n "$n" ] && [ -e "$dev" ] || { echo "hexdump shim: $dev not a partition" >&2; exit 1; }
+set -- $(geom "$n")
+[ -n "$len" ] && [ "$len" -le $(($2 * 512)) ] || len=$(($2 * 512))
+exec $HEXDUMP "${args[@]}" -s $(($1 * 512)) -n "$len" "$CARD"

@@ -5,8 +5,9 @@ PATH=/usr/bin:$PATH
 CARD=$F/card.img
 DEVP=$F/dev/mmcblk0
 PART_UUID_BASE=9c9f3471
-# The real probe: the host's blkid, or (TARGET) the image's own util-linux 2.38 under qemu
+# The real probe and hexdump: the host's, or (TARGET) the image's own util-linux 2.38 under qemu
 BLKID=${BLKID:-/usr/bin/blkid}
+HEXDUMP=${HEXDUMP:-/usr/bin/hexdump}
 
 # "start size type" of partition $1 from the card's table (sectors, hex type without 0x)
 geom() {

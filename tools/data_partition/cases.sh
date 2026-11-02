@@ -256,7 +256,7 @@ fi
 # DATA mounted under v0.3.8, its boot sector lost, then many v0.3.8 starts without it (the radio runs
 # on the system's /mnt), then the update: the trace line that told of the mount is gone
 if want rotated; then
-    for v in sector0 page0; do
+    for v in sector0 page0 first64k; do
         newcard "rotated_$v" $C4G
         boot old                                   # fresh card under v0.3.8: p3 made, left unformatted
         PATH=$H/bin:$PATH mkfs -t vfat -n VOLUME "$F/dev/mmcblk0p3"    # the PC formats it FAT32
@@ -264,7 +264,7 @@ if want rotated; then
         boot old                                   # v0.3.8 checks and mounts it
         ok "set up: v0.3.8 mounted the PC's FAT32, traced its check" 'mounted && grep -q "S00adata: fsck.fat of" "$F/sys_trace.txt"'
         echo top > "$F/fs/3/params.db"; echo log > "$F/fs/3/qso_log.db"
-        n=1; [ $v = page0 ] && n=8
+        n=1; [ $v = page0 ] && n=8; [ $v = first64k ] && n=128
         zero_p3 $n
         sum=$(p3sum)
         i=0
@@ -285,7 +285,8 @@ fi
 
 # DATA made and used, its first sectors lost, then the card written with a new image (the table back to
 # two partitions, a new system partition: no trace, no mark). Sector 0 alone: its copy in sector 6; a
-# card's 4 or 16 KiB page: the first FAT, after mkfs.fat's 32 reserved sectors (64 on a card over 32 GB)
+# card's 4 or 16 KiB page: the first FAT, after mkfs.fat's 32 reserved sectors (64 on a card over 32 GB);
+# 64 KiB, or 4 MiB on a 64 GB card (a card's allocation unit): the second FAT, after the first
 reimaged() {
     newcard "$1" "$2"
     boot new; echo top > "$F/fs/3/params.db"; echo log > "$F/fs/3/qso_log.db"; boot new
@@ -306,19 +307,24 @@ if want reimage; then
     boot new
     ok "reimage_new, next start: not touched, the card marked" '! called "^mkfs" && [ "$(regionsum)" = "$sum" ] && grep -q "not touched (a FAT32 whose boot sector went bad, its copy in sector 6 found); $HINT_BAD" "$F/out.txt" && marked'
     reimaged reimage_page0 $C4G 8 new
-    ok "reimage_page0: its first FAT found" 'grep -q "holds a FAT32 whose boot sector went bad, its first FAT found: not formatted" "$F/out.txt"'
+    ok "reimage_page0: its FAT found" 'grep -q "holds a FAT32 whose boot sector went bad, its FAT found: not formatted; $HINT_BAD" "$F/out.txt"'
     reimaged reimage_16k $C4G 32 new
     reimaged reimage_page0_64g $C64G 8 new
-    ok "reimage_page0_64g: mkfs.fat reserved 64 sectors there, its first FAT found" '[ "$rsv" = 64 ] && grep -q "its first FAT found" "$F/out.txt"'
-    # 64 KiB lost: nothing of the FAT32 left where this looks (the first FAT goes from 16 or 32 KiB in):
-    # with no trace of a mount on this system either, the region is taken for an empty one
-    newcard reimage_64k $C4G
+    ok "reimage_page0_64g: mkfs.fat reserved 64 sectors there, its FAT found" '[ "$rsv" = 64 ] && grep -q "its FAT found" "$F/out.txt"'
+    reimaged reimage_64k $C4G 128 new
+    ok "reimage_64k: the first FAT gone too, the second found" 'grep -q "holds a FAT32 whose boot sector went bad, its FAT found: not formatted; $HINT_BAD" "$F/out.txt"'
+    reimaged reimage_4m_64g $C64G 8192 new
+    ok "reimage_4m_64g: the second FAT found, 7 MiB in" 'grep -q "its FAT found: not formatted" "$F/out.txt"'
+    # 4 MiB lost on a 4 GB card: both FATs' first sectors with it (the second begins 3 MiB in), nothing
+    # of the FAT32 left where this looks; with no trace of a mount on this system either, the region is
+    # taken for an empty one
+    newcard reimage_4m $C4G
     boot new; echo top > "$F/fs/3/params.db"; boot new
-    zero_p3 128; reimage; boot new
+    zero_p3 8192; reimage; boot new
     if called "^mkfs"; then
-        echo "  NOTE reimage_64k: 64 KiB lost, then a new image: formatted (nothing left to recognise; the known limit)"
+        echo "  NOTE reimage_4m: 4 MiB lost on a 4 GB card, then a new image: formatted (nothing left to recognise; the known limit)"
     else
-        echo "  NOTE reimage_64k: 64 KiB lost, then a new image: not formatted"
+        echo "  NOTE reimage_4m: 4 MiB lost on a 4 GB card, then a new image: not formatted"
     fi
 fi
 
@@ -396,27 +402,29 @@ if want firstrun; then
     done
 fi
 
-# DATA made and used, then its boot sector gone (sector 0, or the first 64 KiB as an SD card's flash
-# page can lose them at a power cut): blkid and parted see nothing on p3
+# DATA made and used, then its boot sector gone (sector 0, or the first 64 KiB or 4 MiB as an SD card's
+# flash page or allocation unit can lose them at a power cut): blkid and parted see nothing on p3. 4 MiB
+# on a 4 GB card takes both FATs' first sectors: the mark tells it apart then
 if want damaged; then
-    for v in sector0 first64k; do
+    for v in sector0 first64k first4m; do
         newcard "damaged_$v" $C4G
         boot new
         echo top > "$F/fs/3/params.db"; echo log > "$F/fs/3/qso_log.db"
         boot new
         ok "set up: a normal start, its check in the system partition's trace" 'grep -q "S00adata: fsck.fat of" "$F/sys_trace.txt" && mounted'
-        n=1; [ $v = first64k ] && n=128
+        n=1; [ $v = first64k ] && n=128; [ $v = first4m ] && n=8192
         zero_p3 $n
         ok "set up: nothing blkid or parted knows on p3 now" '[ -z "$(pf 3 TYPE)" ] && ! parted -m -s "$F/card.img" print | grep -q fat32'
         sum=$(p3sum)
         boot new
         ok "damaged DATA ($v): not formatted, not mounted" '! called "^mkfs" && ! mounted'
         ok "damaged DATA ($v): the rest of it as it was" '[ "$(p3sum)" = "$sum" ]'
-        if [ $v = sector0 ]; then
-            ok "damaged DATA ($v): the trace says why and what to do" 'lasttrace | grep -q "not touched (a FAT32 whose boot sector went bad, its copy in sector 6 found); $HINT_BAD"'
-        else
-            ok "damaged DATA ($v): the trace says why and what to do" 'lasttrace | grep -q "not touched (DATA was mounted at an earlier start, its boot sector gone bad since); $HINT_BAD"'
-        fi
+        case $v in
+            sector0)  why="a FAT32 whose boot sector went bad, its copy in sector 6 found" ;;
+            first64k) why="a FAT32 whose boot sector went bad, its FAT found" ;;
+            first4m)  why="DATA was mounted at an earlier start, its boot sector gone bad since" ;;
+        esac
+        ok "damaged DATA ($v): the trace says why and what to do" 'lasttrace | grep -q "not touched ($why); $HINT_BAD"'
         ok "damaged DATA ($v): the same in data_fsck.log on the system's /mnt" 'syslog_says "$HINT_BAD"'
         ok "damaged DATA ($v): the mark kept" 'marked'
         grep "not touched" "$F/out.txt" | sed "s|$F/||g; s/^/    | /"

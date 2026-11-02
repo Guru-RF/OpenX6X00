@@ -2,7 +2,7 @@
 # cases.sh. Each case is a fake card: a sparse file with the card image's partition table (X6100 and X6200 alike),
 # the script run on it through the shims in bin/ (the real parted, mkfs.vfat and blkid on the card file, mount as a
 # link to a folder per filesystem), with the radio's own x6100-starttrace. A fresh card; a new image over a sound
-# DATA, a damaged one (sector 0, 4 or 16 KiB, 64 KiB lost; a 4 and a 64 GB card), exFAT, ext4, NTFS, a PC's FAT32
+# DATA, a damaged one (sector 0, 4 or 16 KiB, 64 KiB, 4 MiB lost; a 4 and a 64 GB card), exFAT, ext4, NTFS, a PC's FAT32
 # or FAT16; a card v0.3.8 left without DATA; DATA damaged after 40 v0.3.8 starts without it, or after its first
 # run; DATA formatted on a PC (empty, Windows' folder, files of its own, a stray -wal, a QSO log or journal of its
 # own beside the system's hot -journal); copies that fail or are cut short, a v0.3.8 found_on_system of older
