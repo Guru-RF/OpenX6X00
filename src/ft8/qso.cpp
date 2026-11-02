@@ -89,9 +89,14 @@ bool Candidate::can_be_saved() {
     return (!_remote_callsign.empty()) && (_rcvd_snr != DEFAULT_SNR) && (_sent_snr != DEFAULT_SNR) && !_saved;
 }
 
-/* Our report went (or is about to): its station can still end the QSO */
+/* Our report went out (transmit() said so), not only made: its station can still end the QSO */
 bool Candidate::sent_report() {
-    return _sent_snr != DEFAULT_SNR;
+    return _report_out;
+}
+
+/* A message of ours went out: our report, when it is the one made last for this QSO */
+void Candidate::sent(std::string text) {
+    if (!_report_text.empty() && (text == _report_text)) _report_out = true;
 }
 
 void Candidate::set_aside() {
@@ -107,6 +112,7 @@ std::string Candidate::get_tx_text(std::string local_callsign, std::string local
     std::string answer = make_answer_text(_last_rx_type, _remote_callsign, local_callsign, _local_snr, local_qth);
     if ((_last_rx_type == FTX_MSG_TYPE_GRID) || (_last_rx_type == FTX_MSG_TYPE_REPORT)) {
         _sent_snr = _local_snr;
+        _report_text = answer;
     }
     return answer;
 }
@@ -339,6 +345,13 @@ void FTxQsoProcessor::set_is_pota(is_pota_cb_t cb) {
     _is_pota = cb;
 }
 
+/* A message of ours went out: the QSO whose report it is has it out */
+void FTxQsoProcessor::sent(std::string text) {
+    if (_cur_candidate) _cur_candidate->sent(text);
+    if (_next_candidate) _next_candidate->sent(text);
+    for (auto candidate : _aside) candidate->sent(text);
+}
+
 void FTxQsoProcessor::start_new_slot() {
     _cur_fresh = false;
     _gave_way.clear();
@@ -375,8 +388,9 @@ void FTxQsoProcessor::clear() {
     _aside.clear();
 }
 
-/* No longer the current QSO (or the next): kept aside once our report went, so that its station's
- * late R+report, RR73, RRR or 73 still logs it, and logs it once */
+/* No longer the current QSO (or the next): kept aside once our report went out, so that its
+ * station's late R+report, RR73, RRR or 73 still logs it, and logs it once. One whose report was
+ * only made (the operator moved on before our slot) goes: its station never had it */
 void FTxQsoProcessor::put_aside(Candidate *candidate) {
     if (candidate == NULL) return;
     if (!candidate->sent_report()) {
@@ -577,6 +591,10 @@ void ftx_qso_processor_set_max_repeats(FTxQsoProcessor *p, int max_repeats) {
 
 void ftx_qso_processor_set_is_pota(FTxQsoProcessor *p, is_pota_cb_t is_pota) {
     p->set_is_pota(is_pota);
+}
+
+void ftx_qso_processor_sent(FTxQsoProcessor *p, const char *text) {
+    if (p) p->sent(text);
 }
 
 void ftx_qso_processor_start_new_slot(FTxQsoProcessor *p) {

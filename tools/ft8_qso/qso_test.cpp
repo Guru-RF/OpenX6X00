@@ -116,9 +116,10 @@ static void slot_end() {
     ftx_qso_processor_start_new_slot(qso);
 }
 
-/* The queued message goes out (transmit(): one repeat less, none left and it is cleared) */
+/* The queued message goes out (transmit(): the processor told, one repeat less, none left and it is cleared) */
 static void went() {
     if (tx.msg[0]) {
+        ftx_qso_processor_sent(qso, tx.msg);
         sent.push_back(tx.msg);
         say("    tx %s\n", tx.msg);
         if (tx.repeats > 0) tx.repeats--;
@@ -351,6 +352,24 @@ static void incomplete(void) {
     slot_end();
     check(logged.empty(), "nothing logged (%zu)", logged.size());
 
+    begin("We answer A's CQ, its report comes, B pressed before our R-report went: A's 73 logs nothing");
+    cq = rx("CQ A1AAA IN80");
+    b  = rx("CQ B1BBB JN11");
+    slot_end();
+    press(cq);
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    slot_end();
+    check(next_is("A1AAA Q1QQQ R-10"), "our R-report to A made (%s)", tx.msg);
+    press(b);
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA 73");
+    slot_end();
+    check(logged.empty() && !times_sent("A1AAA Q1QQQ R-10"), "nothing logged (%zu)", logged.size());
+
     begin("We call CQ, A answers: its RR73 or 73 without its R+report logs nothing");
     tx_cq();
     our_slot();
@@ -540,12 +559,14 @@ static void aside(void) {
     begin("Five QSOs put aside: the oldest goes, the others' RR73 still logs them");
     static const char *calls[] = {"A1AAA", "B1BBB", "C1CCC", "D1DDD", "E1EEE"};
     char text[40];
-    for (auto call : calls) {
+    for (auto call : calls) {      /* each to our R-report, the slots' ends left out (none expires) */
         snprintf(text, sizeof(text), "CQ %s IN80", call);
         ftx_msg_meta_t m = rx(text);
         press(m);
+        went();
         snprintf(text, sizeof(text), "Q1QQQ %s -05", call);
         rx(text);
+        went();
     }
     tx_cq();     /* E1EEE aside too: A1AAA, the oldest of five, goes */
     rx("Q1QQQ A1AAA RR73");

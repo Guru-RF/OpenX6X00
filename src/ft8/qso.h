@@ -58,6 +58,7 @@ class Candidate {
     bool is_over();
     bool can_be_saved();
     bool sent_report();
+    void sent(std::string text);
     bool quiet_slot(int max_repeats);
     void set_aside();
     bool aside_slot();
@@ -75,6 +76,8 @@ class Candidate {
     bool           _saved=false;
     bool           _ended=false;    /* logged, and not begun again since (a call, a grid or a report) */
     int            _quiet_slots=0;  /* slots since its last message (put aside: since then too) */
+    std::string    _report_text;    /* our report (or R-report) as made last */
+    bool           _report_out=false;   /* a report of ours went out */
 };
 
 class FTxQsoProcessor {
@@ -99,6 +102,7 @@ class FTxQsoProcessor {
     void set_auto(bool);
     void set_max_repeats(int);
     void set_is_pota(is_pota_cb_t);
+    void sent(std::string text);
     void start_new_slot();
     void reset();
     void clear();
@@ -150,6 +154,8 @@ extern void ftx_qso_processor_add_rx_text(FTxQsoProcessor *p, const char *text, 
 extern void ftx_qso_processor_set_auto(FTxQsoProcessor *p, bool);
 extern void ftx_qso_processor_set_max_repeats(FTxQsoProcessor *p, int max_repeats);
 extern void ftx_qso_processor_set_is_pota(FTxQsoProcessor *p, is_pota_cb_t is_pota);
+/* A message of ours goes out (transmit()): a QSO is kept aside only once its report went out */
+extern void ftx_qso_processor_sent(FTxQsoProcessor *p, const char *text);
 extern void ftx_qso_processor_start_new_slot(FTxQsoProcessor *p);
 /* No current QSO: put aside, its station's late message still logs it (TX CQ) */
 extern void ftx_qso_processor_reset(FTxQsoProcessor *p);

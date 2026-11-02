@@ -1502,6 +1502,7 @@ static bool transmit(const slot_info_t *slot, float sec) {
     out     = tx_msg;
     gen     = tx_gen;
     sending = true;     /* a stop from now on clears it */
+    if (!hound_on) ftx_qso_processor_sent(qso, out.msg);   /* our report out: its QSO may be kept aside */
     qso_unlock();
     if (j.txfreq) {
         /* Hound's offset to the GUI, whose queue may keep it waiting: stopped or changed meanwhile,
