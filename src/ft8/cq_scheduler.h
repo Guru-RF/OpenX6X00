@@ -15,18 +15,20 @@
 
 #pragma once
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Build a canonical FT8 CQ message of the form
- *   "CQ <callsign> <grid>"               (no modifier)
- *   "CQ_<mod> <callsign> <grid>"         (with modifier)
- * The result is written to 'out' (caller-allocated). Behaviour matches
- * the historical make_cq_msg() in dialog_ft8.c: the message is round-
- * tripped through ftx_message_{encode,decode} for validation, and any
- * codec error is logged via LV_LOG_USER but does NOT clear 'out'. */
-void cq_make_message(const char *callsign,
+/* The CQ as it goes on the air, into out (FTX_MAX_MESSAGE_LENGTH, caller's):
+ *   "CQ <callsign> <grid>", "CQ <callsign>" with no QTH set
+ *   "CQ_<mod> <callsign> <grid>"         (with a modifier: "CQ POTA ..." on the air)
+ *   "CQ <callsign>"                      (a call that is not a base call, PA/ON6URE: a type 4 CQ, no room for
+ *                                         the grid or the modifier)
+ * Each is round-tripped through ftx_message_{encode,decode} and must come back the same. False, out empty: not even
+ * "CQ <callsign>" goes (logged with LV_LOG_USER; the caller tells the user) */
+bool cq_make_message(const char *callsign,
                      const char *qth,
                      const char *cq_mod,
                      char       *out);

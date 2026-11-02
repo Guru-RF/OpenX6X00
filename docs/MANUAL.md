@@ -1766,7 +1766,11 @@ other station's call as a hash; in the reports as a hash (`W1ABC
 <PA/ON6URE> R-10` on the air), which the other station knows from your
 first message. So a station that has not heard you before can answer you,
 and a call to you (`<PA/ON6URE> W1ABC -05`) decodes from the first slot
-on, also after a long pause. These QSOs carry no grid.
+on, also after a long pause. These QSOs carry no grid. Your CQ is
+`CQ PA/ON6URE`, with no room for the QTH or a CQ Modifier: TX CQ says
+"Next TX: CQ PA/ON6URE (no QTH or modifier with this call)". A CQ that does
+not encode at all (a callsign too long for FT8) is refused at TX CQ, "No
+CQ: callsign ... does not fit FT8", and CQ stays off.
 
 Log Map. Page 3 > Log Map shows the logged stations on a world map centred on you:
 great-circle paths, a dot and the callsign for each station. Calls and dots
