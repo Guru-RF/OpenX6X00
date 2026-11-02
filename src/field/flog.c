@@ -47,7 +47,7 @@ static size_t field(char *buf, size_t size, size_t len, const char *tag, const c
 }
 
 /* The log's modes that ADIF has as a SUBMODE, with their MODE (ADIF 3.1.8: JTTY came in 3.1.8, FT2 in 3.1.7).
- * FT8, RTTY, OLIVIA, SSTV, WSPR and the others stand on their own */
+ * FT8, RTTY, OLIVIA, CONTESTI (so spelled in ADIF), SSTV, WSPR and the others stand on their own */
 static const struct {
     const char *sub, *mode;
 } submodes[] = {
@@ -83,7 +83,7 @@ const char *field_qso_mode(const char *app, int mode, int32_t hz) {
     static const char *const apps[][2] = {
         {"FT8", "FT8"},     {"FT4", "FT4"},       {"FT2", "FT2"},   {"JS8", "JS8"},   {"PSK31", "PSK31"},
         {"PSK63", "PSK63"}, {"Olivia", "OLIVIA"}, {"JTTY", "JTTY"}, {"RTTY", "RTTY"}, {"SSTV", "SSTV"},
-        {"WSPR", "WSPR"},
+        {"WSPR", "WSPR"},   {"Contestia", "CONTESTI"},
     };
     const char *ftx = ftx_by_freq(hz);
 

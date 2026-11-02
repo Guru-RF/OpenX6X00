@@ -25,7 +25,7 @@ typedef struct {
     char     grid[7];   /* "" when the message has none */
     uint32_t freq_hz;   /* dial + audio offset */
     int8_t   snr;
-    char     mode[8];   /* "FT8", "FT4", "FT2", "JS8", "PSK31", "PSK63", "OLIVIA" */
+    char     mode[10];  /* "FT8", "FT4", "FT2", "JS8", "PSK31", "PSK63", "OLIVIA", "CONTESTIA" */
     uint32_t t;         /* when heard, UTC seconds */
 } pskr_spot_t;
 

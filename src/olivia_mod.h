@@ -45,8 +45,8 @@ typedef struct {
  * (typically 500; in fldigi it is the cursor frequency minus half the
  * bandwidth). Returns 0, or -1 for invalid parameters.
  */
-int olivia_mod_init(olivia_mod_t *mod, int tones, int bandwidth,
-                    int sample_rate, double lower_edge);
+int olivia_mod_init(olivia_mod_t *mod, olivia_proto_t proto, int tones,
+                    int bandwidth, int sample_rate, double lower_edge);
 
 void olivia_mod_free(olivia_mod_t *mod);
 
@@ -64,7 +64,7 @@ void olivia_mod_seed(olivia_mod_t *mod, uint32_t seed);
 int olivia_mod_symbol(olivia_mod_t *mod, uint8_t symbol, float *out);
 
 /*
- * Send a whole block: cfg.bits characters -> 64 * symbol_separ samples.
+ * Send a whole block: cfg.bits codes -> block_symbols * symbol_separ samples.
  * Returns the number of samples.
  */
 int olivia_mod_block(olivia_mod_t *mod, const uint8_t *chars, float *out);

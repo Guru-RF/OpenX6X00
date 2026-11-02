@@ -56,6 +56,7 @@
 #include "widgets/lv_waterfall.h"
 #include "widgets/lv_finder.h"
 
+#include "olivia.h"
 #include "olivia_app.h"
 #include "olivia_tx.h"
 #include "olivia_macro.h"
@@ -486,12 +487,18 @@ static void text_timer_cb(lv_timer_t *t)
     }
 }
 
+bool dialog_olivia_is_contestia(void)
+{
+    return olivia_tx_mode_proto(olivia_tx_get_mode()) == OLIVIA_PROTO_CONTESTIA;
+}
+
 /* The text log's mode and frequency: OLIVIA-8/250, the dial and the audio centre */
 static const char *log_mode(void)
 {
     static char buf[24];
 
-    snprintf(buf, sizeof(buf), "OLIVIA-%s", olivia_tx_mode_name(olivia_tx_get_mode()));
+    snprintf(buf, sizeof(buf), "%s-%s", dialog_olivia_is_contestia() ? "CONTESTIA" : "OLIVIA",
+             olivia_tx_mode_name(olivia_tx_get_mode()));
     return buf;
 }
 
@@ -518,7 +525,8 @@ static void rx_text_ui(void *data)
         const char *de = digi_qso_feed_rx(*s);
         if (de && param_i_get(cfg_pskreporter))     /* no S/N figure in these modes: 0 dB */
             pskr_spot(params.callsign.x, station_qth(), VERSION, de, "",
-                      (uint32_t)cparam_i_get(cfg_fg_freq) + olivia_tx_get_center(), 0, "OLIVIA");
+                      (uint32_t)cparam_i_get(cfg_fg_freq) + olivia_tx_get_center(), 0,
+                      dialog_olivia_is_contestia() ? "CONTESTIA" : "OLIVIA");
     }
 
     if (strcmp(before, digi_qso_dx()) != 0)
@@ -945,7 +953,8 @@ static const char *mode_label_getter(void)
 {
     static char buf[24];
 
-    snprintf(buf, sizeof(buf), "Mode\n%s", olivia_tx_mode_name(olivia_tx_get_mode()));
+    snprintf(buf, sizeof(buf), "Mode\n%s%s", dialog_olivia_is_contestia() ? "CT " : "",
+             olivia_tx_mode_name(olivia_tx_get_mode()));
     return buf;
 }
 
@@ -1058,7 +1067,7 @@ static void send_text(const char *text)
     snprintf(buf, sizeof(buf), "\n%s\n", text);
 
     if (olivia_tx_send(buf)) {
-        msg_update_text_fmt("Olivia %s TX...",
+        msg_update_text_fmt("%s %s TX...", olivia_tx_mode_family(olivia_tx_get_mode()),
                             olivia_tx_mode_name(olivia_tx_get_mode()));
         refresh_btn(&btn_status);
     } else {
@@ -1120,7 +1129,7 @@ static void mode_press_cb(button_data_t *b)
     set_center((int)olivia_tx_get_center());
     rebuild_rx();
 
-    msg_update_text_fmt("Olivia %s", olivia_tx_mode_name(m));
+    msg_update_text_fmt("%s %s", olivia_tx_mode_family(m), olivia_tx_mode_name(m));
     buttons_refresh(b);
 }
 

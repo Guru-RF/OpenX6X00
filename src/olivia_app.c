@@ -65,7 +65,7 @@ static void on_text(void *user, const uint8_t *chars, int count) {
     stat_blocks++;
 
     for (int i = 0; i < count && o < OLIVIA_MAX_BITS; i++) {
-        unsigned char c = chars[i] & 0x7f;
+        unsigned char c = olivia_char_decode(&rx.cfg, chars[i] & 0x7f);
 
         /*
          * Olivia has no idle at the modulation level - the transmitter
@@ -111,7 +111,8 @@ static bool setup(void) {
     cfg_bw     = olivia_tx_mode_bandwidth(olivia_tx_get_mode());
     cfg_center = olivia_tx_get_center();
 
-    if (olivia_rx_init(&rx, cfg_tones, cfg_bw, OLIVIA_RX_RATE,
+    if (olivia_rx_init(&rx, (olivia_proto_t)olivia_tx_mode_proto(olivia_tx_get_mode()),
+                       cfg_tones, cfg_bw, OLIVIA_RX_RATE,
                        (double)cfg_center - cfg_bw / 2.0,
                        TUNE_MARGIN) < 0) {
         return false;

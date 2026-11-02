@@ -16,6 +16,9 @@ extern "C" {
 
 extern dialog_t *dialog_olivia;
 
+/* The window's Mode button has stepped to a Contestia variant. */
+bool dialog_olivia_is_contestia(void);
+
 
 #ifdef __cplusplus
 }

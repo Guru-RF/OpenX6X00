@@ -52,7 +52,8 @@ typedef struct {
     int *bit_rev;
 } olivia_demod_t;
 
-int olivia_demod_init(olivia_demod_t *d, int tones, int bandwidth,
+int olivia_demod_init(olivia_demod_t *d, olivia_proto_t proto, int tones,
+                      int bandwidth,
                       int sample_rate, double lower_edge, int margin);
 
 void olivia_demod_free(olivia_demod_t *d);

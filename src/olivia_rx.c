@@ -4,10 +4,10 @@
  *
  * The core of the synchronisation:
  *
- * There are 256 block phases times (2*margin+1) frequency offsets. Trying
- * them all on every slice would be unaffordable. But a block lasts
- * exactly 256 slices, so each slice COMPLETES exactly one block phase -
- * the one numbered (slice number mod 256). So per slice there are only
+ * There are 256 block phases (Contestia: 128) times (2*margin+1) frequency
+ * offsets. Trying them all on every slice would be unaffordable. But a
+ * block lasts exactly that many slices, so each slice COMPLETES exactly one
+ * block phase - the slice number modulo the block. So per slice there are only
  * as many evaluations as there are frequency offsets.
  *
  * For each hypothesis an average FHT figure is kept (peak divided by the
@@ -33,16 +33,28 @@
  * and offset unless it scores clearly better (see the lock decision). */
 #define OLIVIA_REV_TIE 0.8f
 
+/*
+ * Contestia's lock figures, by tones. The figure averages one FHT per
+ * character in the block, so few tones average little, and the short block
+ * has less room above the noise: at Olivia's 3.5 noise alone locked in 110 of
+ * 200 receiver starts at 4/250, 37 at 8/250 and 6 at 16/500. These bring that
+ * to 0-1 of 200 with no loss of copy (tools/olivia, --sweep).
+ */
+#define CONTESTIA_LOCK_4_TONES 5.5f
+#define CONTESTIA_LOCK_8_TONES 4.5f
+#define CONTESTIA_LOCK_MANY    3.8f
+
 /* ------------------------------------------------------------------ */
 
-int olivia_rx_init(olivia_rx_t *rx, int tones, int bandwidth,
-                   int sample_rate, double lower_edge, int margin)
+int olivia_rx_init(olivia_rx_t *rx, olivia_proto_t proto, int tones,
+                   int bandwidth, int sample_rate, double lower_edge,
+                   int margin)
 {
     size_t hist_len, score_len;
 
     memset(rx, 0, sizeof(*rx));
 
-    if (olivia_demod_init(&rx->demod, tones, bandwidth, sample_rate,
+    if (olivia_demod_init(&rx->demod, proto, tones, bandwidth, sample_rate,
                           lower_edge, margin) < 0)
         return -1;
 
@@ -54,9 +66,15 @@ int olivia_rx_init(olivia_rx_t *rx, int tones, int bandwidth,
     rx->margin_bins = margin * rx->demod.carrier_separ;
     rx->offset_step = rx->demod.offset_step;
     rx->variants = rx->offsets * 2;
+    rx->block_slices = rx->cfg.block_symbols * OLIVIA_SLICES_PER_SYMBOL;
+    rx->lock_threshold = OLIVIA_SYNC_THRESHOLD;
+    if (proto == OLIVIA_PROTO_CONTESTIA)
+        rx->lock_threshold = tones <= 4 ? CONTESTIA_LOCK_4_TONES
+                           : tones == 8 ? CONTESTIA_LOCK_8_TONES
+                                        : CONTESTIA_LOCK_MANY;
 
-    hist_len = (size_t)OLIVIA_BLOCK_SLICES * rx->variants * rx->bits;
-    score_len = (size_t)OLIVIA_BLOCK_SLICES * rx->variants;
+    hist_len = (size_t)rx->block_slices * rx->variants * rx->bits;
+    score_len = (size_t)rx->block_slices * rx->variants;
 
     rx->hist = calloc(hist_len, sizeof(float));
     rx->score = calloc(score_len, sizeof(float));
@@ -101,7 +119,7 @@ void olivia_rx_set_callback(olivia_rx_t *rx, olivia_rx_text_cb cb, void *user)
 
 void olivia_rx_reset(olivia_rx_t *rx)
 {
-    size_t score_len = (size_t)OLIVIA_BLOCK_SLICES * rx->variants;
+    size_t score_len = (size_t)rx->block_slices * rx->variants;
 
     memset(rx->score, 0, score_len * sizeof(float));
     memset(rx->count, 0, score_len * sizeof(uint16_t));
@@ -136,7 +154,7 @@ float olivia_rx_best_hypothesis(const olivia_rx_t *rx, int *offset_bins)
         return 0.0f;
     }
 
-    for (p = 0; p < OLIVIA_BLOCK_SLICES; p++) {
+    for (p = 0; p < rx->block_slices; p++) {
         for (o = 0; o < rx->variants; o++) {
             size_t i = (size_t)p * rx->variants + o;
 
@@ -173,24 +191,24 @@ double olivia_rx_freq_error(const olivia_rx_t *rx)
  */
 static float eval_block(olivia_rx_t *rx, int offset_idx, uint8_t *chars)
 {
-    float ordered[OLIVIA_BLOCK_SYMBOLS * OLIVIA_MAX_BITS];
+    float ordered[OLIVIA_MAX_SYMBOLS * OLIVIA_MAX_BITS];
     float snr[OLIVIA_MAX_BITS];
     uint8_t local[OLIVIA_MAX_BITS];
     int bits = rx->bits;
+    int symbols = rx->cfg.block_symbols;
     int t, b;
     float sum = 0.0f;
 
-    for (t = 0; t < OLIVIA_BLOCK_SYMBOLS; t++) {
+    for (t = 0; t < symbols; t++) {
         /*
-         * Symbol t of the block lies (63 - t) symbols before the
-         * current slice, i.e. 4*(63-t) slices back.
+         * Symbol t of the block lies (symbols - 1 - t) symbols before
+         * the current slice, 4 slices each.
          */
-        int back = OLIVIA_SLICES_PER_SYMBOL *
-                   (OLIVIA_BLOCK_SYMBOLS - 1 - t);
+        int back = OLIVIA_SLICES_PER_SYMBOL * (symbols - 1 - t);
         int slot = rx->slice_pos - back;
 
         while (slot < 0)
-            slot += OLIVIA_BLOCK_SLICES;
+            slot += rx->block_slices;
 
         for (b = 0; b < bits; b++)
             ordered[t * bits + b] =
@@ -231,8 +249,8 @@ static void process_slice(olivia_rx_t *rx, const float *in)
     rx->slices_seen++;
 
     /* Until a whole block of history is in, there is nothing to judge. */
-    if (rx->slices_seen < OLIVIA_BLOCK_SLICES) {
-        rx->slice_pos = (rx->slice_pos + 1) % OLIVIA_BLOCK_SLICES;
+    if (rx->slices_seen < rx->block_slices) {
+        rx->slice_pos = (rx->slice_pos + 1) % rx->block_slices;
         return;
     }
 
@@ -250,7 +268,7 @@ static void process_slice(olivia_rx_t *rx, const float *in)
             if (rx->bad_blocks >= 3) {
                 /* The signal is gone - back to searching. */
                 olivia_rx_reset(rx);
-                rx->slice_pos = (rx->slice_pos + 1) % OLIVIA_BLOCK_SLICES;
+                rx->slice_pos = (rx->slice_pos + 1) % rx->block_slices;
                 return;
             }
         } else {
@@ -300,12 +318,12 @@ static void process_slice(olivia_rx_t *rx, const float *in)
          */
         ready = (rx->sweeps >= 2);
 
-        if (ready && best > OLIVIA_SYNC_THRESHOLD) {
+        if (ready && best > rx->lock_threshold) {
             int p, o;
             float global_best = best;
             int global_phase = phase;
 
-            for (p = 0; p < OLIVIA_BLOCK_SLICES; p++) {
+            for (p = 0; p < rx->block_slices; p++) {
                 for (o = 0; o < rx->variants; o++) {
                     size_t idx = (size_t)p * rx->variants + o;
 
@@ -353,7 +371,7 @@ static void process_slice(olivia_rx_t *rx, const float *in)
         }
     }
 
-    rx->slice_pos = (rx->slice_pos + 1) % OLIVIA_BLOCK_SLICES;
+    rx->slice_pos = (rx->slice_pos + 1) % rx->block_slices;
     if (rx->slice_pos == 0)
         rx->sweeps++;
 }

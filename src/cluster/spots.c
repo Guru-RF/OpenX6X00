@@ -259,7 +259,7 @@ cluster_mode_t cluster_guess_mode(const cluster_spot_t *spot) {
     if (has_word(c, "CW")) return CLUSTER_MODE_CW;
     if (has_word(c, "FT8") || has_word(c, "FT4") || has_word(c, "RTTY") || has_word(c, "PSK") ||
         has_word(c, "PSK31") || has_word(c, "JS8") || has_word(c, "DIGI") || has_word(c, "DATA") ||
-        has_word(c, "SSTV") || has_word(c, "OLIVIA"))
+        has_word(c, "SSTV") || has_word(c, "OLIVIA") || has_word(c, "CONTESTIA"))
         return CLUSTER_MODE_DIGI;
     if (has_word(c, "LSB")) return CLUSTER_MODE_LSB;
     if (has_word(c, "USB")) return CLUSTER_MODE_USB;
