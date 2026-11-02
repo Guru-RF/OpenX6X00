@@ -14,7 +14,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
-- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
+- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [a PC on Bluetooth](#a-pc-on-bluetooth)
@@ -116,7 +116,7 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 | Kind | Actions |
 |---|---|
 | Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
-| Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
+| Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex, RADE |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Channels, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
 The hand mic F1 and F2 keys (and the H-22's F3 on the X6200), short and long
@@ -1626,7 +1626,7 @@ receiving and turns it on only when transmitting.
 ### Opening a mode
 
 APP (page 1) > Modes opens a menu: RTTY, PSK31, PSK63, FT8, FT4, FT2, WSPR, Olivia,
-JTTY, JS8, SSTV, WeFax, NavTex. Turn the MFK to choose, press to open; the last used mode is marked.
+JTTY, JS8, SSTV, WeFax, NavTex, RADE. Turn the MFK to choose, press to open; the last used mode is marked.
 Pressing Modes again closes the menu.
 
 - Callsign and QTH: Settings > General > STATION.
@@ -1987,6 +1987,55 @@ and its colours; the next press transmits.
   `/mnt/sstv/tx_text`; the default ones are copied there at the first start.
   Received pictures are saved in `/mnt/sstv`.
 - Pictures can be uploaded from the web configurator's Gallery.
+
+### RADE (FreeDV)
+
+APP > Modes > RADE receives and sends FreeDV's RADE V1 digital voice (no RADE
+V2, no Codec 2 modes). The window shows Sync, the SNR (dB), the frequency
+offset (Hz), the input level, where the speech goes and what was lost; Freq.
+opens the FreeDV activity frequencies. The signal is 30 carriers from 750 to
+2200 Hz above the dial frequency, in USB or LSB alike; the frequencies in the
+list are the dial's. The filter has to pass that range (wider than the usual
+2.4 kHz SSB filter if that one starts above 750 Hz). Keep AGC and noise
+reduction off, and the input level below "too loud": RADE V1 has no AGC of its
+own, a level that is too low or too high loses the sync. License and
+callsign: it is amateur radio, send only on the bands and with the privileges
+you hold.
+
+**Receiving.** The speech comes out on **Bluetooth headphones only**. With the
+base's standard firmware the speaker plays the app's audio only in Play mode,
+and then the base sends Linux not the receiver's audio but the app's own, so
+decoding and the speaker don't go together. Connect the headphones before you
+open the app (it looks again every second); without them the window says so
+and the speech is dropped. The raw OFDM noise on the speaker is silenced by AF
+volume 0 or Settings > RX AUDIO > Speaker always off. "Lost": "input" and
+"speech" count samples thrown away because the decoder or the player was
+behind, "gaps" the breaks in the speech; "decode" and "synth" are the slowest
+ms for one 120 ms modem frame, above 120 the speech breaks up. The callsign
+that the last End-of-Over carried is shown after "last over".
+
+**Sending: record, then send, not live.** Linux records only the hand mic, and
+only while the radio is receiving (the same limit as the
+[voice messages](#recording-voice-messages)); whether it hears the mic while the
+base transmits is not known, so the app works like a voice message:
+- Rec starts the recording from the hand mic and encodes it as you speak (up
+  to 60 s); the receiver is off meanwhile. Press Stop (the same button) to end
+  it. **Do not press the mic's PTT while recording**: the base would send your
+  voice as ordinary SSB. If the radio keys under a recording (the PTT, CAT),
+  the recording is dropped.
+- The window says "encoding" until the over is ready (on a slow encoder a few
+  seconds after the end), then "over ready" with its length. Send keys the
+  radio and plays it, at the digital modes' power (7 W at most) with the level
+  found from the ALC, like FT8. Stop ends the send; the End-of-Over frame at the
+  end of an over carries your callsign (Settings > callsign; the first 8
+  characters), and the receiver shows it. Send again sends the same over once
+  more; Discard drops it, and Rec starts a new one.
+- Send is refused without a callsign set, while another transmission runs, or
+  when the radio does not transmit on this frequency.
+- The built-in microphone cannot be used. The level meter shows the mic's
+  peak while recording; "too loud" is clipping.
+- Needs a firmware built with RADE (`tools/rade/build.sh`, then CMake
+  `-DRADE_PREFIX=`). Without it the window says "not built into this image".
 
 ### PSK31, PSK63 and Olivia
 

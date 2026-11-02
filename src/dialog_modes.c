@@ -64,6 +64,7 @@ static const struct {
     {"SSTV", "", ACTION_APP_SSTV, -1, "image"},
     {"WeFax", "", ACTION_APP_WEFAX, -1, "image"},
     {"NavTex", "", ACTION_APP_NAVTEX, -1, "navtex"},
+    {"RADE", "FreeDV", ACTION_APP_FREEDV, -1, "text"},
 };
 
 #define MODES_N ((int)(sizeof(modes) / sizeof(modes[0])))
