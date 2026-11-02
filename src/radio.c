@@ -1287,6 +1287,24 @@ static bool gui_keys(void) {
            hw_tx_keyed_by_gui() || atomic_load(&modem_on) || (morse_on && !practice());
 }
 
+/* The radio's tuner on, in split, with the dial where the radio may not transmit: which VFO its carrier goes out on
+ * the GUI cannot tell (radio_start_atu), so the dial counts on both radios, where radio_key_refused counts it on the
+ * X6200 only. Its carrier is the base's own, which the hold does not hold: not held, given up. *freq (may be NULL):
+ * the dial */
+static bool atu_dial_refused(int32_t *freq) {
+    radio_state_t s = atomic_load(&state);
+    int32_t       f = vfo_freq(true);
+
+    if ((s != RADIO_ATU_START && s != RADIO_ATU_WAIT && s != RADIO_ATU_RUN) || !param_i_get(cfg_band_split) ||
+        !cfg_tx_refusal(f)) {
+        return false;
+    }
+    if (freq) {
+        *freq = f;
+    }
+    return true;
+}
+
 /* The GUI's own TX on where the radio may not transmit, after a move, the switch or a band key while it keys (#121),
  * on the GUI thread: let go as swr_trip_cb does, the CW Trainer's key excepted. Held at 0 W meanwhile; it went on
  * there, an app's slot learning its level from 0 W. The SWR scan stops as its Stop does, the tuner gives up */
@@ -1316,13 +1334,14 @@ static void band_stop(int32_t freq) {
  * notifications (settled: band_settle_cb), once the base has the VFOs, split and the VFO in use that came with it, as
  * xvtr_pwr_look (at once if that job cannot be queued). The GUI's own TX still on there is stopped after the round */
 static void band_look(bool settled) {
-    bool    no, hold, later;
+    bool    no, stop, hold, later;
     int32_t f;
 
     radio_lock();
     no    = radio_key_refused(&f);
+    stop  = no || atu_dial_refused(&f);     /* the tuner in split: on the dial too, stopped without a hold */
     hold  = no || atomic_load(&off_dial);
-    later = !settled && (no ? gui_keys() : atomic_load(&band_hold));
+    later = !settled && (stop ? gui_keys() : atomic_load(&band_hold));
     band_looked = true;
     if (hold || !later) {
         band_hold_set(hold);
@@ -1330,7 +1349,7 @@ static void band_look(bool settled) {
     radio_unlock();
     if (later && !scheduler_put_coalesced(band_settle_cb)) {
         WITH_RADIO_LOCK(band_hold_set(radio_key_refused(NULL) || atomic_load(&off_dial)));
-    } else if (settled && no && gui_keys() && scheduler_on_gui_thread()) {
+    } else if (settled && stop && gui_keys() && scheduler_on_gui_thread()) {
         band_stop(f);
     }
 }
@@ -2128,8 +2147,7 @@ static bool radio_tick() {
                 /* Moved where the radio may not transmit since the press, or the switch turned off (#121): its
                  * carrier is the base's own, which the hold's 0 W does not hold, so it never starts. In split either
                  * VFO, as radio_start_atu */
-                if (atomic_exchange(&atu_band_stop, false) || atomic_load(&band_hold) ||
-                    (param_i_get(cfg_band_split) && cfg_tx_refusal(cparam_i_get(cfg_fg_freq)))) {
+                if (atomic_exchange(&atu_band_stop, false) || atomic_load(&band_hold) || atu_dial_refused(NULL)) {
                     atu_give_up(RADIO_ATU_START, "Tuner stopped");
                     break;
                 }

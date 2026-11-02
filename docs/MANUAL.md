@@ -1346,9 +1346,10 @@ bands (Settings > TX Cal)". What is refused:
 - CW: the CW messages and beacons (not started there; one moved out stops),
   QRSS3, the CW keyboard, the USB paddle, the PTT key in CW, Field Ops' test
   beacon.
-- The radio's tuner (in split checked on both VFOs: which one its carrier
-  goes out on cannot be told), TUNE for an external tuner, the SWR scan (its
-  sweep stays inside the band, see [SWR scan](#swr-scan-and-the-tuner)).
+- The radio's tuner (in split checked on both VFOs, at its start and while
+  it tunes: which one its carrier goes out on cannot be told), TUNE for an
+  external tuner, the SWR scan (its sweep stays inside the band, see
+  [SWR scan](#swr-scan-and-the-tuner)).
 - In split the VFO on the status bar turns red when the other VFO is
   outside the bands. The X6200's dial outside them does not turn it red:
   only the words name it.
