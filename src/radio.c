@@ -68,6 +68,7 @@
 #define MORSE_HANG_MS       3000    /* the base holds TX for the QSK time after the GUI's CW key */
 #define ATU_START_MS        3000    /* the base keys for the tuner within this, or the tune is given up */
 #define ATU_NO_MATCH_MS     1000    /* back in RX this long without the tuner's done flag: no match */
+#define BASE_GONE_MS        30000   /* no packet from the base this long in receive: said on the screen (base_gone) */
 
 #define FILTER_2_OFFSET 60
 #define FILTER_2_OFFSET_IN 20
@@ -220,6 +221,8 @@ static uint64_t         prev_time;
 static uint64_t         idle_time;
 static uint64_t         start_time;     /* radio_init() */
 static uint64_t         pack_time;      /* last packet from the base */
+static bool             base_seen;      /* a packet came in this run */
+static bool             gone_said;      /* "No data from the base" said, until a packet comes (base_gone) */
 static uint8_t          pack_vbat, pack_vext;   /* its voltages, 0.1 V */
 static volatile int8_t  bat_pct = -1;   /* the battery %, -1 on external power or not measured yet */
 static volatile bool    charger_asked;  /* the charger setting as last applied (Shadow at power-off left out: no bolt then) */
@@ -1976,6 +1979,49 @@ static void atu_give_up(radio_state_t from, const char *why) {
     msg_schedule_text_fmt("%s", why);
 }
 
+/* On the GUI thread: the base sent nothing for BASE_GONE_MS (base_gone). A line each, whole in every font (DejaVu,
+ * the widest: 558 px at most), as long as the base's own warnings; arg: none since the start, a start stage then */
+static void base_gone_cb(void *arg) {
+    msg_schedule_long_text_fmt("No data from the base");
+    msg_schedule_long_text_fmt("No spectrum, no SWR protection");
+    msg_schedule_long_text_fmt("Baseband: Settings > Info");
+#ifdef BOARD_X6200
+    msg_schedule_long_text_fmt("Below 1.0.7: update it (README)");
+#else
+    msg_schedule_long_text_fmt("Base versions: see the README");
+#endif
+    if (*(bool *)arg) {
+        start_trace("base: no data in %u s", BASE_GONE_MS / 1000);
+    }
+}
+
+/* No packet from the base for BASE_GONE_MS in receive, looked at in the flow resets (#152). The spectrum, the
+ * waterfall, the S-meter, the battery, the TX meters and the SWR protection stood still, the tuner and the X6200's
+ * POWER key did nothing, and only the base log said so ("base silent"). An X6200 base older than 1.0.7 does that:
+ * the library reads the packets as 1.0.7 sends them (README, The baseband). Counted from the start, the last packet
+ * or the GUI's last TX: not at a start (one X6200 on 1.0.8 sent its first packet 16 s in, #47), not while the GUI
+ * keys or the base is in TX, and a GUI restart (an update, LOCK's base restart) counts afresh. Said once, again only
+ * after packets came (radio_tick) and stopped again. True: its line went to the base log */
+static bool base_gone(void) {
+    static uint64_t tx_time;
+    bool            never = !base_seen;
+
+    if (atomic_load(&state) != RADIO_RX || hw_tx_keyed_by_gui() || atomic_load(&modem_on) || morse_on) {
+        tx_time = now_time;
+        return false;
+    }
+    if (gone_said || now_time - (pack_time > tx_time ? pack_time : tx_time) < BASE_GONE_MS) {
+        return false;
+    }
+    if (!scheduler_put(base_gone_cb, &never, sizeof(never))) {
+        return false;   /* the next reset tries again (the note above radio_tick) */
+    }
+    gone_said = true;
+    base_guard_log("no data from the base for %u ms%s: said on the screen", (unsigned)(now_time - pack_time),
+                   never ? ", none since the start" : "");
+    return true;
+}
+
 /* What the base reports by a change alone goes to the GUI thread once: the low battery, the POWER key, a hand mic
  * key, the tuner's network. Nothing posts it again, so a job dropped by a full queue was lost for good: a POWER
  * release lost let the hold timer turn a tap into a power-off, a low battery lost never started the 30 s
@@ -1993,6 +2039,11 @@ static bool radio_tick() {
     int32_t d = now_time - prev_time;
 
     if (hw_flow_read(pack)) {
+        if (gone_said) {
+            base_guard_log("data from the base again after %u ms", (unsigned)(now_time - pack_time));
+        }
+        base_seen = true;
+        gone_said = false;      /* said again if it stops again (base_gone) */
         prev_time = now_time;
         pack_time = now_time;
         pack_vbat = pack->vbat;
@@ -2284,7 +2335,9 @@ static bool radio_tick() {
                 now_time - pack_time > ATU_START_MS) {
                 atu_give_up(s, "Tuner: no data from the base");
             }
-            if (base_silent_due(now_time, start_time, &silent_logged)) {
+            if (base_gone()) {
+                silent_logged = now_time;   /* its line instead of a "base silent" one: one a second (base_guard_log) */
+            } else if (base_silent_due(now_time, start_time, &silent_logged)) {
                 char vb[8] = "n/a", ve[8] = "n/a";
                 if (pack_vbat) {
                     snprintf(vb, sizeof(vb), "%.1f V", pack_vbat * 0.1f);

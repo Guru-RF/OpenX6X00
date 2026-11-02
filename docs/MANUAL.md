@@ -1211,6 +1211,10 @@ keyed. The radio watches for it; there is nothing to set.
   - "base silent for N ms, battery 8.2 V, external 13.8 V": the base sent
     nothing for more than 0.3 s. Not in the first 10 s after start, at most
     one line every 10 s.
+  - "no data from the base for N ms: said on the screen" (", none since the
+    start" when none came at all), then "data from the base again after N
+    ms" once it comes back: see
+    [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move).
 
 ### Info tab
 
@@ -1594,7 +1598,9 @@ normally:
 - If the base goes back to receive without reporting a match, the radio
   waits 1 s and then says "Tuner: no match".
 - If the base has sent no data for 3 s (the waterfall and the S-meter stand
-  still), the radio says "Tuner: no data from the base". A tune asked then
+  still, see
+  [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move)),
+  the radio says "Tuner: no data from the base". A tune asked then
   never starts; one under way is switched off. Up to v0.3.8 the radio stayed
   in its tuning state, without a word, and refused every transmission of the
   digital apps until a restart (issue #152).
@@ -5314,6 +5320,45 @@ program on the PC takes its audio from the USB cable or [TCI](#tci-server).
 
 Black Metal, Total Black, 1bit and theme files that set a font have their own
 and keep it: pick another theme to see the font you chose.
+
+#### The waterfall stays black and the S-meter does not move
+
+The radio gets no data from its base, the board that receives and
+transmits. The spectrum, the waterfall, the S-meter, the battery and supply
+readings, the TX meters and the SWR protection all come from that data. The
+digital apps still decode: they work on the audio, and FT8 draws its own
+waterfall from it.
+
+After 30 s without data in receive, the radio says so, one message after
+the other:
+
+- "No data from the base"
+- "No spectrum, no SWR protection"
+- "Baseband: Settings > Info"
+- on the X6200 "Below 1.0.7: update it (README)", on the X6100 "Base
+  versions: see the README"
+
+Not in the first 30 s after a start (an X6200 on base 1.0.8 has sent its
+first data 16 s after the start), not while the radio transmits and not for
+30 s after. It is said once, and again only if the data came back and
+stopped again. The base log (`/mnt/base_i2c.log`) gets "no data from the
+base for N ms: said on the screen", and the start trace "base: no data in
+30 s" when none came since the start.
+
+Meanwhile:
+
+- The radio transmits without SWR protection and shows no power: don't
+  transmit into an antenna you don't know.
+- The tuner says "Tuner: no data from the base" and does not tune.
+- The hand mic's keys do nothing, and on the X6200 the POWER key neither:
+  the base reports them in the same data.
+
+Look at Settings > Info > Baseband and at the table of bases in the
+[README](../README.md#the-baseband). An X6200 base older than 1.0.7 sends
+its data in a form OpenX6X00 does not read: update it (README, Updating the
+baseband). On an X6200 with base 1.0.6 (issues #94 and #95) the waterfall
+stayed black, the needle at S1, with no battery reading and no tuner, until
+the base update.
 
 #### The main screen's waterfall stands still
 
