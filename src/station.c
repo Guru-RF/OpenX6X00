@@ -25,6 +25,8 @@ static bool check_ftx_msg_encoding(const char *text) {
     ftx_message_rc_t rc;
     ftx_message_t msg;
     char decoded[128];
+    /* Zeroed: free text leaves payload[9], which tells the decoder the message type, as it was */
+    ftx_message_init(&msg);
     rc = ftx_message_encode(&msg, NULL, text);
     if (rc != FTX_MESSAGE_RC_OK) {
         return false;

@@ -28,6 +28,7 @@ void cq_make_message(const char *callsign,
 
     ftx_message_rc_t rc;
     ftx_message_t    msg;
+    ftx_message_init(&msg);     /* free text leaves payload[9] (the message type) as it was */
     rc = ftx_message_encode(&msg, NULL, buf);
     if (rc != FTX_MESSAGE_RC_OK) {
         LV_LOG_USER("Error: %d while encoding message: '%s'", rc, buf);
