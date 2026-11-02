@@ -1217,10 +1217,10 @@ keyed. The radio watches for it; there is nothing to set.
     back: see
     [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move).
   - "TX: no data from the base for N ms, back to RX": the data stopped during
-    a transmission, PTT, the apps and the CW key have let go, and no
-    register block failed since ("register block not sent"). N is 3000 or
-    more for one the radio keyed, 30000 or more for one the hand mic's PTT,
-    VOX or the KEY jack keyed.
+    a transmission, PTT, the apps and the CW key have let go, and the
+    register block gets through (its last try wrote no "register block not
+    sent"). N is 3000 or more for one the radio keyed, 30000 or more for one
+    the hand mic's PTT, VOX or the KEY jack keyed.
   - "SWR scan: no data from the base for N ms, stopped".
 
 ### Info tab
