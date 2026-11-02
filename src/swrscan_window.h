@@ -21,6 +21,8 @@ void dialog_swrscan_update(float vswr);
 /* A scan running stops as Stop does, the screen saying "Scan stopped on <freq>" and why (radio_say_no_tx: the radio
  * moved where it may not transmit, #121). LVGL thread */
 void dialog_swrscan_stop(int32_t freq);
+/* A scan running stops as Stop does, the screen saying why (radio.c: no data from the base). LVGL thread */
+void dialog_swrscan_give_up(const char *why);
 
 #ifdef __cplusplus
 }

@@ -2023,6 +2023,15 @@ static bool base_gone(void) {
     return true;
 }
 
+/* On the GUI thread: the SWR scan stopped for want of data (radio_tick), asked once until it has run. "SWR scan: no
+ * data from the base" fits whole (DejaVu 38: 570 px) */
+static atomic_bool swrscan_stop_asked;
+
+static void swrscan_gone_cb(void *arg) {
+    dialog_swrscan_give_up("SWR scan: no data from the base");
+    atomic_store(&swrscan_stop_asked, false);
+}
+
 /* What the base reports by a change alone goes to the GUI thread once: the low battery, the POWER key, a hand mic
  * key, the tuner's network. Nothing posts it again, so a job dropped by a full queue was lost for good: a POWER
  * release lost let the hold timer turn a tap into a power-off, a low battery lost never started the 30 s
@@ -2346,6 +2355,18 @@ static bool radio_tick() {
                     notify_rx_tx(false);
                 }
                 base_guard_log("TX: no data from the base for %u ms, back to RX", (unsigned)(now_time - pack_time));
+            }
+            /* The SWR scan keys the base at its start and steps on the readings: with none a 1 W carrier went out
+             * until Stop, the sweep standing still and the state refusing digital TX. Stopped as its Stop does, the
+             * stop asked once (marked before the put: the job may run before the put returns) */
+            if (s == RADIO_SWRSCAN && now_time - pack_time > NO_DATA_MS &&
+                !atomic_exchange(&swrscan_stop_asked, true)) {
+                if (scheduler_put_urgent(swrscan_gone_cb, NULL, 0)) {
+                    base_guard_log("SWR scan: no data from the base for %u ms, stopped",
+                                   (unsigned)(now_time - pack_time));
+                } else {
+                    atomic_store(&swrscan_stop_asked, false);   /* the next reset tries again */
+                }
             }
             /* The X6100's POWER key is its own, not in the data: radio_poweroff saved, synced and said "Power off",
              * and only a packet switched the radio off. With none it stayed on. The switch-off is a register write,

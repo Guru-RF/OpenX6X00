@@ -376,3 +376,9 @@ void dialog_swrscan_stop(int32_t freq) {
     run_cb(NULL);
     if (!radio_say_no_tx("Scan stopped", freq, true)) msg_update_text_fmt("Scan stopped");   /* fits whole (#121) */
 }
+
+void dialog_swrscan_give_up(const char *why) {
+    if (!scanning) return;
+    run_cb(NULL);
+    msg_update_text_fmt("%s", why);
+}

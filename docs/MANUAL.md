@@ -1217,6 +1217,7 @@ keyed. The radio watches for it; there is nothing to set.
     [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move).
   - "TX: no data from the base for N ms, back to RX": the data stopped during
     a transmission, and PTT, the apps and the CW key have let go.
+  - "SWR scan: no data from the base for N ms, stopped".
 
 ### Info tab
 
@@ -1590,6 +1591,11 @@ the SWR as it goes.
   tuning, Run says "SWR scan: not while transmitting or tuning" and nothing
   moves. On a frequency the radio may not transmit on, it says "No TX on ...
   MHz" and why.
+- The sweep steps on the base's readings. If the base sends no data for
+  3 s, the scan stops as Stop does and the radio says "SWR scan: no data
+  from the base" (see
+  [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move)).
+  Up to v0.3.8 its carrier stayed on until Stop, the sweep standing still.
 
 The tuner (the ATU key held, or the "tuner tune" action) transmits a carrier
 until it has found a match. The radio now gives up a tune that does not end
@@ -5351,7 +5357,8 @@ Meanwhile:
 
 - The radio transmits without SWR protection and shows no power: don't
   transmit into an antenna you don't know.
-- The tuner says "Tuner: no data from the base" and does not tune.
+- The tuner says "Tuner: no data from the base" and does not tune, and an
+  SWR scan stops with "SWR scan: no data from the base".
 - A transmission the data stopped in shows TX until 3 s after PTT, the app
   or the CW key let go, then the radio is back in receive. Up to v0.3.8 it
   stayed in TX, and the digital apps did not transmit, until a restart.
