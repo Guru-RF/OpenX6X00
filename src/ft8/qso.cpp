@@ -346,6 +346,14 @@ void FTxQsoProcessor::set_is_pota(is_pota_cb_t cb) {
     _is_pota = cb;
 }
 
+/* Hound on or off: no QSO in progress, the ones with our report out kept aside for their late
+ * message. In Hound mode our messages are Hound's: none of the sequence's goes out, so no QSO it
+ * makes there is kept aside, and a late R+report is not taken up for an RR73 that can't go */
+void FTxQsoProcessor::set_hound(bool on) {
+    reset();
+    _hound = on;
+}
+
 /* A message of ours went out: the QSO whose report it is has it out */
 void FTxQsoProcessor::sent(std::string text) {
     if (_cur_candidate) _cur_candidate->sent(text);
@@ -455,7 +463,7 @@ bool FTxQsoProcessor::take_back(std::string call) {
  * its R+report late (we called CQ). Its QSO is the current one again, for our RR73, without which
  * that station can't end it; the caller is the next */
 bool FTxQsoProcessor::take_up(std::string call) {
-    if ((_cur_candidate != NULL) && !_cur_fresh) return false;
+    if (_hound || ((_cur_candidate != NULL) && !_cur_fresh)) return false;
     return take_ahead(call);
 }
 
@@ -615,12 +623,12 @@ void ftx_qso_processor_start_new_slot(FTxQsoProcessor *p) {
     p->start_new_slot();
 }
 
-void ftx_qso_processor_reset(FTxQsoProcessor *p) {
-    p->reset();
+void ftx_qso_processor_set_hound(FTxQsoProcessor *p, bool on) {
+    p->set_hound(on);
 }
 
-void ftx_qso_processor_clear(FTxQsoProcessor *p) {
-    p->clear();
+void ftx_qso_processor_reset(FTxQsoProcessor *p) {
+    p->reset();
 }
 
 void ftx_qso_processor_add_rx_text(FTxQsoProcessor *p, const char *text, const int snr, ftx_msg_meta_t *meta,

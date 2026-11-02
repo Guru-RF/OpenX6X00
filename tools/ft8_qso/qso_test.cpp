@@ -51,6 +51,8 @@ static FTxQsoProcessor         *qso;
 static ftx_tx_msg_t             tx;
 static int                      retries;
 static const char              *pota_call;
+static bool                     hound_on;
+static const char              *fox;        /* the Fox Hound calls */
 static char                     said[200];  /* -v: what was logged, said after the step that logged it */
 
 static void on_saved(const char *call, const char *grid, const int rcvd, const int sent_snr, bool aside) {
@@ -85,6 +87,8 @@ static void begin(const char *name, bool auto_on = true, int max_repeats = 6) {
     sent.clear();
     retries   = max_repeats;
     pota_call = NULL;
+    hound_on  = false;
+    fox       = NULL;
     printf("%s\n", name);
 }
 
@@ -99,15 +103,18 @@ static ftx_msg_meta_t rx(const char *text, int snr = -10) {
     return meta;
 }
 
-/* In Hound mode the sequence's answers are not sent and its QSOs not logged (add_rx_text drops them) */
+/* In Hound mode the sequence's answers are not sent, and of its QSOs only one put aside is logged, not the Fox's
+ * (add_rx_text drops the others: Hound logs its own) */
 static void rx_hound(const char *text, int snr = -10) {
     ftx_msg_meta_t meta = {};
     ftx_tx_msg_t   ignored = {};
-    size_t         n = logged.size();
+    size_t         n = logged.size(), kept = n;
 
     ftx_qso_processor_add_rx_text(qso, text, snr, &meta, &ignored);
-    logged.resize(n);
-    said[0] = '\0';
+    for (size_t i = n; i < logged.size(); i++)
+        if (logged[i].aside && (!fox || logged[i].call != fox)) logged[kept++] = logged[i];
+    logged.resize(kept);
+    if (kept == n) said[0] = '\0';
     say("    rx %-36s(Hound)\n", text);
 }
 
@@ -159,9 +166,10 @@ static bool force_save() {
 
 /* Hound on or off (hound_cb) */
 static void hound() {
+    hound_on  = !hound_on;
     tx.msg[0] = '\0';
-    ftx_qso_processor_clear(qso);
-    say("    Hound\n");
+    ftx_qso_processor_set_hound(qso, hound_on);
+    say("    Hound %s\n", hound_on ? "on" : "off");
 }
 
 static int logs_of(const char *call) {
@@ -720,15 +728,43 @@ static void aside(void) {
     check(logged_once("B1BBB", "JN11", -9, -15, false), "B logged once");
     check(!tx.msg[0], "its 73 queues nothing more for B (%s)", tx.msg);
 
-    begin("Hound on, then off: no QSO kept aside from before it or from Hound mode");
+    begin("Hound on after our R-report to A: A's late RR73 logs it once, the Fox's QSO is Hound's alone");
     answered_to_r_report();
     hound();
+    fox = "F1FOX";
     rx_hound("Q1QQQ F1FOX -08");
     rx_hound("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -5, -10, true), "A logged once at its late RR73");
+    rx_hound("Q1QQQ RR73; B1BBB <F1FOX> -07");
     slot_end();
     hound();
     rx("Q1QQQ A1AAA RR73");
     rx("Q1QQQ RR73; B1BBB <F1FOX> -07");
+    slot_end();
+    check(logged.size() == 1 && !logs_of("F1FOX"), "nothing more, after Hound off too (%zu)", logged.size());
+
+    begin("Hound on after our report to A (we called CQ): A's late R+report logs it, no RR73 (Hound sends)");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80");
+    slot_end();
+    our_slot();
+    hound();
+    rx_hound("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -12, -10, true) && !ftx_qso_processor_has_current(qso),
+          "A logged once, not taken up");
+
+    begin("Hound mode: a station that sends us a report and an RR73 logs nothing, then or after Hound off");
+    hound();
+    rx_hound("Q1QQQ C1CCC -05");
+    slot_end();
+    slot_end();
+    rx_hound("Q1QQQ C1CCC RR73");
+    slot_end();
+    hound();
+    rx("Q1QQQ C1CCC RR73");
     check(logged.empty(), "nothing logged (%zu)", logged.size());
 }
 

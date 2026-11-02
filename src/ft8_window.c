@@ -389,9 +389,9 @@ static void save_qso(const done_qso_t *d) {
     }
 }
 
-/* The QSO completed in a step under qso_mux, for qso_unlock(): the processor's, or in Hound mode
- * Hound's own (add_rx_text drops the processor's there) */
-static done_qso_t done_qsos[1];
+/* The QSOs completed in a step under qso_mux, for qso_unlock(): the processor's, in Hound mode
+ * only one it had put aside (add_rx_text drops the others there), and Hound's own */
+static done_qso_t done_qsos[2];
 static int        done_n;
 
 /* The processor's save callback, and Hound's RR73: under qso_mux, so noted only. The candidate
@@ -452,6 +452,7 @@ static void decoder_start(void) {
 
     ftx_qso_processor_set_is_pota(p, pota_spotted);
     ftx_qso_processor_set_auto(p, param_i_get(cfg_ft8_auto));     /* the setting, not qso.cpp's default (on) */
+    ftx_qso_processor_set_hound(p, hound_on);                     /* a restart in Hound mode stays in it */
     qso_lock();     /* the panel's status reads it */
     qso        = p;
     decoder_on = true;
@@ -775,6 +776,7 @@ static void mode_cb(button_data_t *btn) {
     if (next != FTX_PROTOCOL_FT8) {
         qso_lock();
         hound_on = false;
+        ftx_qso_processor_set_hound(qso, false);
         qso_unlock();
     }
     load_band(0);
@@ -1055,7 +1057,8 @@ static void freq_hold_cb(button_data_t *btn) {
     msg_schedule_text_fmt("Dial frequency (14091 or 14.091), empty for the presets");
 }
 
-/* DXpedition Hound: on or off, a QSO or a CQ in progress stops, none kept aside (only Hound logs there) */
+/* DXpedition Hound: on or off, a QSO or a CQ in progress stops, a QSO with our report out is kept
+ * aside for its station's late message */
 static void hound_cb(button_data_t *btn) {
     if (kb_open) return;
     if (!hound_on && cur_proto() != FTX_PROTOCOL_FT8) {
@@ -1068,7 +1071,7 @@ static void hound_cb(button_data_t *btn) {
     hound_on = !hound_on;
     tx_msg.msg[0] = '\0';
     memset(&hound, 0, sizeof(hound));
-    ftx_qso_processor_clear(qso);
+    ftx_qso_processor_set_hound(qso, hound_on);
     tx_gen++;
     qso_unlock();
     lv_finder_clear_cursor(finder);
@@ -1350,9 +1353,13 @@ static void add_rx_text(int16_t snr, const char *text, bool odd, float freq_hz, 
     ftx_qso_processor_add_rx_text(qso, text, snr, &meta, hound_on ? &ignored : &tx_msg);
 
     if (hound_on) {
-        /* The processor follows the Fox too, its answers unsent, and may complete the QSO: Hound's
-         * RR73 alone logs it */
-        done_n = done;
+        /* The processor follows the Fox too, its answers unsent, and may complete that QSO: Hound's
+         * RR73 alone logs it. A QSO it had put aside, from before Hound on, is logged at its
+         * station's late message, unless that station is the Fox */
+        int kept = done;
+        for (int i = done; i < done_n; i++)
+            if (done_qsos[i].aside && strcmp(done_qsos[i].call, hound.fox)) done_qsos[kept++] = done_qsos[i];
+        done_n = kept;
         hound_rx_text(text, snr, freq_hz, odd, &j);
     } else if (tx_msg.msg[0] && strcmp(was, tx_msg.msg)) {    /* the sequence answers it */
         j.cursor    = true;

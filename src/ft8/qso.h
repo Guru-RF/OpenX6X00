@@ -102,6 +102,7 @@ class FTxQsoProcessor {
     void set_auto(bool);
     void set_max_repeats(int);
     void set_is_pota(is_pota_cb_t);
+    void set_hound(bool on);
     void sent(std::string text);
     void start_new_slot();
     void reset();
@@ -122,6 +123,7 @@ class FTxQsoProcessor {
     is_pota_cb_t  _is_pota = NULL;
     bool          _cur_fresh = false;   /* the current QSO is a non-POTA caller of this slot, not answered yet */
     std::string   _gave_way;            /* the logged QSO a caller took over in this slot: back if its station sends */
+    bool          _hound = false;       /* Hound mode: our messages are Hound's, not the sequence's */
 
     ftx_msg_type_t _last_rx_type;
     Candidate     *_next_candidate = NULL;
@@ -161,8 +163,8 @@ extern void ftx_qso_processor_sent(FTxQsoProcessor *p, const char *text);
 extern void ftx_qso_processor_start_new_slot(FTxQsoProcessor *p);
 /* No current QSO: put aside, its station's late message still logs it (TX CQ) */
 extern void ftx_qso_processor_reset(FTxQsoProcessor *p);
-/* No QSO at all, none put aside (Hound on or off: the sequence's QSOs are not logged there) */
-extern void ftx_qso_processor_clear(FTxQsoProcessor *p);
+/* Hound on or off: no current QSO, the ones put aside still logged at their late message */
+extern void ftx_qso_processor_set_hound(FTxQsoProcessor *p, bool on);
 extern void ftx_qso_processor_start_qso(FTxQsoProcessor *p, ftx_msg_meta_t *meta, ftx_tx_msg_t *tx_msg);
 
 extern bool ftx_qso_processor_can_save_qso(FTxQsoProcessor *p);
