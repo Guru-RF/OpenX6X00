@@ -261,7 +261,8 @@ def main():
             "VOL+ let go after the long press: timer deleted",
             "VOL+ let go, the release to another screen (walkie mode): timer deleted",
             "A/B held: VFO copied, \"Clone VFO B->A\"", "A/B let go, an app holding the VFOs: nothing",
-            "BAND UP let go: band up", "42 of 42 cases as they should be")).strip())
+            "XFC let go, an app holding the VFOs: nothing", "XFC let go: VFO A, spectrum cleared",
+            "BAND UP let go: band up", "44 of 44 cases as they should be")).strip())
 
         # Issue #111: the user's frequency lock and an app's hold, cut out of screen_main.c: from the end of
         # cw_mode() to the end of toggle_freq_lock(), and main_screen_lock_freq() to main_screen_freq_locked()

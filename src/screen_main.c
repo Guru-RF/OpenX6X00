@@ -965,8 +965,8 @@ static void mic_key_cb(lv_event_t *e) {
             }
             break;
 
-        case HKEY_XFC:
-            if (tap) {
+        case HKEY_XFC:     /* VFO A/B, not while an app holds the VFOs (as ab_key()) */
+            if (tap && !ab_lock) {
                 radio_toggle_vfo();
                 spectrum_clear();
             }

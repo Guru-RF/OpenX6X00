@@ -182,7 +182,7 @@ one second.
 | VOL+, VOL- | H-22 | the RX volume one step up or down, shown like the VOL knob's | held: on by itself from 0.4 s, before the long press, about ten steps a second until let go |
 | A/B | H-22 | VFO A/B, like the front A/B key (not while an app holds the VFOs) | this VFO copied to the other one |
 | FIL | X6100 | the filter pages, like the front DFL key | the DFL long press action |
-| XFC | X6100 | VFO A/B | |
+| XFC | X6100 | VFO A/B (not while an app holds the VFOs) | |
 | SPCH | X6100 | frequency lock on or off | |
 | TUNER | X6100 | the tuner on or off | a tuning cycle (it transmits) |
 | GENE | X6100 | the SWL panel; again: the next station | |

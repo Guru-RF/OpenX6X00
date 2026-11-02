@@ -2,7 +2,8 @@
  * cuts ab_key(), the VOL+/VOL- repeat and mic_key_cb() out of the production src/screen_main.c into
  * mic_screen_keys.c, and they run here with what they call stood in for: F3's own actions next to F1's and F2's,
  * VOL+/VOL- a step a press and on by themselves while held (after MIC_VOL_DELAY_MS, every MIC_VOL_REPEAT_MS) until
- * let go, also when the release went to another screen, A/B as the front A/B key, and the BAND codes.
+ * let go, also when the release went to another screen, A/B as the front A/B key and the X6100 mic's XFC
+ * with its hold, and the BAND codes.
  * Ends "N of N cases as they should be". */
 #include "src/cfg/encoder_bind_types.h"
 #include "src/gui_events.h"
@@ -199,7 +200,11 @@ int main(void) {
     ab_lock = true;
     key("A/B let go, an app holding the VFOs", HKEY_AB, HKEY_RELEASE, "nothing");
     key("A/B held, an app holding the VFOs", HKEY_AB, HKEY_LONG, "nothing");
+    key("XFC let go, an app holding the VFOs", HKEY_XFC, HKEY_RELEASE, "nothing");
     ab_lock = false;
+
+    /* The X6100 mic's XFC: VFO A/B, the same hold */
+    key("XFC let go", HKEY_XFC, HKEY_RELEASE, "VFO A, spectrum cleared");
 
     /* The band up and down codes of Xiegu's app, as the BAND keys */
     key("BAND UP let go", HKEY_BAND_UP, HKEY_RELEASE, "band up");
