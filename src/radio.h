@@ -50,6 +50,9 @@ radio_state_t radio_get_state();
  * (Birdie Cal's scan). The apps' tones and the SWR scan go to radio_set_tx_freq
  */
 void radio_set_freq(int32_t freq);
+/* Both VFOs back on their own frequency as it is now, after radio_set_freq (Birdie Cal's end): the hold that
+ * radio_set_freq put on lasts until this */
+void radio_set_freq_dial(void);
 bool radio_check_freq(int32_t freq);
 /* The frequency the radio transmits on: the other VFO's in split; with a TX shift the active one's + the shift
  * (- on VFO B), also where the other VFO cannot follow (below 100 kHz), so that it is refused */
@@ -107,6 +110,9 @@ void radio_set_modem(bool tx);
 bool radio_get_modem(void);   /* the TX audio from the GUI (apps, recordings), not the mic */
 /* How many times the SWR protection stopped a transmission since the start. Any thread */
 unsigned radio_swr_trips(void);
+/* How many times the radio stopped the GUI's own TX where it may not transmit (#121: moved outside the amateur bands
+ * while keyed, or the switch turned off), held at 0 W before. Any thread */
+unsigned radio_band_stops(void);
 /* When it last did, get_time() (CLOCK_MONOTONIC ms), 0 never; set before the count goes up. Any thread */
 uint64_t radio_swr_trip_at(void);
 /* true: the baseband sends our audio to the speaker, the path of voice prompts and the

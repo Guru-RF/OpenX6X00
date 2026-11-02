@@ -907,6 +907,10 @@ unsigned radio_swr_trips(void) {
     return (unsigned)seen.trips;
 }
 
+unsigned radio_band_stops(void) {
+    return 0;
+}
+
 /* What happens during the tune (sc.event): on the tune's thread, as the knob's or the Panel's would on theirs */
 static bool marked, other_stopped, own_stopped;
 

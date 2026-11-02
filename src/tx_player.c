@@ -150,6 +150,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
 
     float   pwr_w = tx_pwr();
     bool    own = own_w > 0.0f;
+    unsigned band_stops = radio_band_stops();
     /* The cap (RTTY and WeFax over 7 W) or an app's own power (WSPR's 0.2 W): the radio there for this transmission,
      * its setting back after */
     bool    pwr_set = pwr_w != param_f_get(cfg_pwr);
@@ -260,6 +261,9 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     if (own) {
         /* An app's own power (a 0.2 W WSPR beacon): what it found is not kept, it would pull the level the other apps
          * start from (FT8 at 5 W) down with it */
+    } else if (radio_band_stops() != band_stops) {
+        /* Stopped by the radio where it may not transmit (#121): held at 0 W before the stop, its readings are not the
+         * band's. On the X6100 the level climbing at 0 W was kept for every app */
     } else if (level.power_hold && no_rf) {
         /* Nothing came out: the next transmission from the default, where the X6200 gives the setting at once, not
          * 8 dB a transmission up from a level near the floor */

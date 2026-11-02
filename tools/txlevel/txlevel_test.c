@@ -127,6 +127,8 @@ static struct {
 static uint8_t  reading_id;
 static float    reading_pwr, reading_alc;
 static unsigned rnd = 1;
+static float    stop_at_s;      /* radio.c's band_stop this far into a transmission (#121), 0 none */
+static unsigned band_stops;
 
 static float rnd01(void) {
     rnd = rnd * 1103515245u + 12345u;
@@ -160,6 +162,10 @@ void radio_set_pwr(float w) {
 
 uint32_t radio_caps(void) {
     return HW_CAP_TX_LEVEL | HW_CAP_TX_NO_ALC;
+}
+
+unsigned radio_band_stops(void) {
+    return band_stops;
 }
 
 /* The X6200's AIF1 DA0 */
@@ -251,6 +257,10 @@ int audio_play(int16_t *buf, size_t n) {
         carry_ns -= 50000000ULL;
         atomic_fetch_add(&virt_ns, 50000000ULL);
         if (base.modem && ++ticks % (unsigned)(sc->read_every > 0 ? sc->read_every : 1) == 0) base_reading();
+        if (base.modem && stop_at_s > 0.0f && (atomic_load(&virt_ns) - base.key_ns) / 1e9f >= stop_at_s) {
+            band_stops++;       /* as band_stop: the count, then the modem bit */
+            base.modem = false;
+        }
     }
     return (int)n;
 }
@@ -395,6 +405,16 @@ int main(int argc, char **argv) {
     r = run(&knocked, verbose);
     check(r.last_at2 >= 4.9f && r.short_txs <= 1, "%s: back at %.1f W, %d short", knocked.name, r.last_at2,
           r.short_txs);
+
+    /* The radio stopped the transmission 6 s in, moved outside the amateur bands (#121): what it climbed is not kept */
+    static const scenario_t knocked1 = {"the same, one transmission", 5.0f, -6.0f, 0, 5.0f, 0, 0, 0, 0, -16.0f, 1, 0};
+    r = run(&knocked1, verbose);
+    float climbed = r.level_end;
+    stop_at_s = 6.0f;
+    r = run(&knocked1, verbose);
+    stop_at_s = 0.0f;
+    check(climbed > -16.0f && r.level_end == -16.0f, "%s, stopped by the radio 6 s in: the level stays at %.1f dB "
+          "(%.1f dB without the stop)", knocked1.name, r.level_end, climbed);
 
     r = run(&overread, verbose);
     check(r.zero_w == 0 && r.short_txs <= 2, "%s: the level comes down to where the reading fits, %d short, "

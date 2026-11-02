@@ -275,7 +275,6 @@ static void *scan_thread(void *arg) {
     int32_t  start[64], stop[64];
     char     names[64][16];
     int      bands = cfg_bands_active(start, stop, names, 64);
-    int32_t  dial  = cparam_i_get(cfg_fg_freq);
     uint32_t span  = 0;
     float    a[WATERFALL_NFFT], b[WATERFALL_NFFT];
     uint16_t pa[64], pb[64];
@@ -324,7 +323,7 @@ static void *scan_thread(void *arg) {
         }
         if (in_band) progress(false, "%s: %d new", names[bi], in_band);
     }
-    radio_set_freq(dial);
+    radio_set_freq_dial();     /* the dial may have moved meanwhile: there, not where the scan started (#121) */
     list_save();
     atomic_store(&scanning, false);
     const char *how = atomic_load(&stop_req) ? "Stopped" : "Done";

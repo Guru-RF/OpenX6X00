@@ -12,3 +12,4 @@ int32_t       radio_tx_freq(void);
 void          radio_set_tx_freq(int32_t freq);
 void          radio_set_pwr(float w);
 uint32_t      radio_caps(void);
+unsigned      radio_band_stops(void);
