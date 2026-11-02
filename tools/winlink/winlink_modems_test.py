@@ -4,9 +4,9 @@
 1. ardopcf, protocol version 1, as x6100-winlink starts it: it connects at 12000 Hz with keys of 30 s, and the
    ID frame it is asked for (SENDID on its host port) is played whole. A call nobody answers ends in
    CONNECT TO <call> FAILED, on the host port and on its console (x6100-winlink's "no answer"). Its clock then
-   10 minutes on (clockskip.so): no 10 minute ID, the ConReq frames carried its call; after a DataNAK frame (no
-   call in it), the 10 minute ID. PROTOCOLMODE takes FEC and ARQ (Pat's); a mode it does not have is a FAULT
-   and leaves the mode as it was.
+   10 minutes on (clockskip.so): no 10 minute ID, the ConReq frames carried its call; the same after a call of
+   one ConReq (no repeat) and after a Ping; after a DataNAK frame (no call in it), the 10 minute ID.
+   PROTOCOLMODE takes FEC and ARQ (Pat's); a mode it does not have is a FAULT and leaves the mode as it was.
 2. Mercury through x6x00-mercury, protocol version 2, and Pat v1.0.1's varahf transport, as on the radio: two
    stations, each a winlink_host and a bridge, what one transmits the other hears (with a little noise). Pat B
    listens; Pat A sends B a message peer to peer. Pat starts the modem (Mercury answers VERSION), connects,
@@ -167,13 +167,28 @@ def ardop_test(procs, tmp, ardopcf):
     check(f"[STATUS: {failed}]" in text(log), "and its console says so")
     def ids():
         return text(log).count("Sending Frame Type IDFrame")
-    id0, keys = ids(), len(played(h))
-    a.send_signal(signal.SIGUSR1)
-    check(not wait_for(lambda: ids() > id0, 3), "10 minutes on, no 10 minute ID: the ConReq frames carried our call")
+    id0 = ids()
+    def no_id(what):
+        a.send_signal(signal.SIGUSR1)
+        check(not wait_for(lambda: ids() > id0, 3), f"10 minutes on, no 10 minute ID: {what} carried our call")
+    no_id("the ConReq and its repeat")                # the repeat: RemodulateLastFrame
+    keys = len(played(h))
+    c.sendall(f"ARQCALL {CALL_B} 1\r".encode())       # one ConReq, no repeat: SendARQConnectRequest only
+    r = read_until(c, lambda r: b"STATUS " in r and r.endswith(b"\r"), 30)
+    print("   ardopcf answered:", r.decode(errors="replace").replace("\r", " | ").strip())
+    check(f"STATUS {failed}".encode() in r and len(played(h)) == keys + 1, f"one ConReq, no repeat, {failed}")
+    no_id("the one ConReq")
+    c.sendall(f"PING {CALL_B} 1\r".encode())          # one Ping, nobody answers
+    r = read_until(c, lambda r: r.endswith(b"\r"), 5)
+    check(f"PING {CALL_B} 1".encode() in r.split(b"\r") and wait_for(lambda: len(played(h)) == keys + 2, 10),
+          "a Ping keyed the radio")
+    time.sleep(3)                                     # its repeat time (2 s) gone: the Pings are over, no repeat
+    check(len(played(h)) == keys + 2, "and was not repeated")
+    no_id("the Ping")
     c.sendall(b"TXFRAME DataNAK\r")                  # a frame without our call
-    check(wait_for(lambda: len(played(h)) == keys + 1, 10), "a DataNAK frame keyed the radio")
+    check(wait_for(lambda: len(played(h)) == keys + 3, 10), "a DataNAK frame keyed the radio")
     a.send_signal(signal.SIGUSR1)
-    check(wait_for(lambda: ids() == id0 + 1 and len(played(h)) == keys + 2, 10),
+    check(wait_for(lambda: ids() == id0 + 1 and len(played(h)) == keys + 4, 10),
           "10 minutes on, its 10 minute ID keyed the radio")
     c.sendall(b"PROTOCOLMODE FEC\rPROTOCOLMODE BOGUS\rPROTOCOLMODE\rPROTOCOLMODE ARQ\r")   # ARQ: Pat's init
     r = read_until(c, lambda r: b"\rPROTOCOLMODE now ARQ\r" in b"\r" + r, 5)

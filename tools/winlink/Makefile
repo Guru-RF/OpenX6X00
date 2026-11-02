@@ -23,7 +23,7 @@ winlink_host: stubs.c build/.copied $(wildcard stub_include/*.h stub_include/*/*
 
 # ardopcf's clock 10 minutes on at each SIGUSR1 (LD_PRELOAD), for its 10 minute ID in winlink_modems_test.py
 clockskip.so: clockskip.c
-	$(CC) -std=gnu11 -Wall -Wextra -O1 -shared -fPIC -o $@ $< -ldl
+	$(CC) -std=gnu11 -Wall -Wextra -O1 -pthread -shared -fPIC -o $@ $< -ldl
 
 test: winlink_host
 	python3 -I winlink_proto_test.py

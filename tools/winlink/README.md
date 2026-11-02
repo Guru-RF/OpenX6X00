@@ -43,7 +43,8 @@ v1.0.1 with `tools/pat/patches`, built for linux/amd64; 2026-11-01: MODEMS OK, 5
   `[STATUS: CONNECT TO N0BBB FAILED]` that `x6100-winlink` reads as no answer (8 s).
   Then its clock 10 minutes on (`clockskip.so`, built here, as its `LD_PRELOAD`: each
   SIGUSR1 moves `CLOCK_MONOTONIC` on 10 minutes): no 10 minute ID, the ConReq frames
-  carried its call; after a `TXFRAME DataNAK` (no call in it), the ID frame. Its
+  carried its call; the same after `ARQCALL N0BBB 1` (one ConReq, no repeat) and after
+  `PING N0BBB 1`; after a `TXFRAME DataNAK` (no call in it), the ID frame. Its
   channel is noise only: a tone is a busy channel, which holds that ID back.
   `PROTOCOLMODE FEC`, then `BOGUS`: `FAULT Syntax Err`, the mode still FEC;
   `PROTOCOLMODE ARQ`, as Pat sets it: `PROTOCOLMODE now ARQ`.
