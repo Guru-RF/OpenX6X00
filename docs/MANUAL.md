@@ -13,7 +13,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
-- [Transmitting](#transmitting): [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
+- [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
@@ -320,6 +320,10 @@ of the band list, from the frequency up or down.
   a shift covers it (the transverter wins, see
   [WR12 receiver](#wr12-receiver-x6200)). In split it is the other VFO's
   frequency, the one the radio would transmit on, that counts.
+- On HF outside the amateur bands (CB, the broadcast bands, marine) the radio
+  does not transmit either, by default: "No TX on 27.185 MHz: outside the
+  amateur bands (Settings > TX Cal)". See
+  [Amateur bands only](#amateur-bands-only).
 - PRE and ATT are on the VOL 2:2 button page (F1 from the main screen), per
   band, and can go on a knob (see [Buttons and knobs](#buttons-and-knobs)).
   The X6200 has no PRE key, and its receiver is specified with the
@@ -480,7 +484,7 @@ the connections on the second.
 
 | Item | Meaning |
 |---|---|
-| VFO-A / VFO-B | the VFO in use; SPL-A / SPL-B when split is on; with a [TX shift](#tx-shift) the shift ("-600k") or REV; red in split when the radio cannot transmit on the other VFO |
+| VFO-A / VFO-B | the VFO in use; SPL-A / SPL-B when split is on; with a [TX shift](#tx-shift) the shift ("-600k") or REV; red in split when the radio cannot or may not transmit on the other VFO (receive only, or outside the [amateur bands](#amateur-bands-only)) |
 | USB-D, LSB, CW... | the mode |
 | AUTO, FAST, SLOW, OFF | the AGC |
 | PRE, ATT, ATU | highlighted when the preamp, the attenuator or the tuner is on |
@@ -1088,7 +1092,7 @@ What they do: see [DX Cluster](#dx-cluster).
 |---|---|
 | TX CALIBRATION | IQ offsets, band output gain, codec gain |
 | CESSB | on, level |
-| TX PROTECTION | SWR protection |
+| TX PROTECTION | SWR protection, TX outside ham bands (see [Amateur bands only](#amateur-bands-only)) |
 | EXTERNAL TUNER | TUNE power, W; TUNE time limit, s (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | S-METER | Preamp, Attenuator, RF gain a step, Measure |
 
@@ -1274,6 +1278,119 @@ top goes back to 8 W, turn it up yourself. On battery every way of setting
 PWR stops at 5 W: TCI's `drive` from 62 % up gives 5 W, and the browser panel's
 PWR goes back to 5 W. The X6100 has no battery limit.
 
+### Amateur bands only
+
+By default the radio transmits only inside the amateur bands and on a
+transverter's range, and never on the X6200's receive-only ranges (#121). Up
+to v0.3.8 it transmitted anywhere from 0.1 to 55 MHz.
+
+| Band | From | To |
+|---|---|---|
+| 2200 m | 135.7 kHz | 137.8 kHz |
+| 630 m | 472 kHz | 479 kHz |
+| 160 m | 1.800 MHz | 2.000 MHz |
+| 80 m | 3.500 MHz | 4.000 MHz |
+| Alaska emergency channel | 5.167 MHz | 5.168 MHz (its carrier, 5167.5 kHz USB) |
+| 60 m | 5.250 MHz | 5.450 MHz |
+| 40 m | 7.000 MHz | 7.300 MHz |
+| 30 m | 10.100 MHz | 10.150 MHz |
+| 20 m | 14.000 MHz | 14.350 MHz |
+| 17 m | 18.068 MHz | 18.168 MHz |
+| 15 m | 21.000 MHz | 21.450 MHz |
+| 12 m | 24.890 MHz | 24.990 MHz |
+| 10 m | 28.000 MHz | 29.700 MHz |
+| 8 m | 40.000 MHz | 45.000 MHz |
+| 6 m | 50.000 MHz | 54.000 MHz |
+
+- One table for every country: the amateur bands of ITU Regions 1, 2 and 3
+  together, and the national bands wider than those (60 m as some countries
+  have it, 8 m as Ireland's band plan; the other countries' 8 m slots,
+  40.66-40.70 MHz, are inside). Your licence decides inside it: 1.85-2.0,
+  3.8-4.0 and 7.2-7.3 MHz, 52-54 MHz and 60 m outside your country's
+  channels are amateur bands somewhere, maybe not where you are. The radio
+  stops only clear out-of-band TX: CB, marine, broadcast, MARS and other
+  channels outside the bands, cordless phones.
+- Not in the table, the switch below covers them: Ireland's blocks at 30-40,
+  45-49 and 54-55 MHz (Irish operators turn it on for those), Somalia's
+  5.060-5.250 MHz, Japan's 4.630 MHz emergency channel.
+
+TX outside ham bands. Where: Settings > TX Cal > TX PROTECTION > TX outside
+ham bands. Off by default, and off on every radio after the update to this
+version, whatever it was before; a backup restored afterwards brings its
+own. Turn it on only if you are licensed to transmit outside the amateur
+bands (MARS, CAP and the like): the radio then transmits wherever it can,
+0.1 to 55 MHz. The receive-only ranges stay receive only.
+
+What is checked: the frequency the radio transmits on, the dial, in split
+the other VFO, with a [TX shift](#tx-shift) the shifted one. Not the
+signal's width, nor XIT, nor where an app's tone lands: LSB keyed at 7.000
+MHz, a dial at 14.3495 MHz with +1.5 kHz of XIT, or an FT8 tone near the
+edge go outside the band. Keep the signal inside the band yourself.
+
+Refused there, with "No TX on 27.185 MHz: outside the amateur bands
+(Settings > TX Cal)":
+
+- PTT: the PTT key, the walkie screen, CAT, TCI, the browser Panel and
+  remote sessions (the page shows the reason, see
+  [Transmitting from the browser](#transmitting-from-the-browser)).
+- The digital apps (FT8, FT4, FT2, JS8, WSPR, PSK, Olivia, JTTY, RTTY, SSTV,
+  WeFax), the voice messages, Winlink with ARDOP or Mercury (its page says
+  why, see [Winlink](#winlink)).
+- CW: the CW messages and beacons (not started there; one moved out stops),
+  QRSS3, the CW keyboard, the USB paddle, the PTT key in CW, Field Ops' test
+  beacon.
+- The radio's tuner (in split checked on both VFOs: which one its carrier
+  goes out on cannot be told), TUNE for an external tuner, the SWR scan (its
+  sweep stays inside the band, see [SWR scan](#swr-scan-and-the-tuner)).
+- In split the VFO on the status bar turns red when the other VFO is
+  outside the bands.
+- A transmission under way that comes onto such a frequency (a band key, a
+  QSY from CAT, TCI or the Panel while PTT is held, an app's slot, a CW
+  message, the switch turned off) is stopped: "TX stopped: no TX on 27.185
+  MHz: ...". The power is at 0 W until it stops; the tuner gives up
+  ("Tuner stopped"), the SWR scan stops as its Stop does.
+- The [CW Trainer](#cw-trainer) keeps working on any frequency the radio can
+  transmit on: its key sounds the sidetone at 0 W, its PTT does nothing
+  there. KEY Train outside the trainer (the key, the paddle, a message) is
+  refused as any CW is.
+
+What the radio's base keys by itself, the hand mic's PTT, VOX and the KEY
+jack, the radio cannot refuse. Outside the amateur bands it holds the base
+instead:
+
+- The TX power at 0 W, whatever asks for more.
+- VOX off. Your VOX setting stays as it is and comes back in the bands;
+  nothing on the screen says it is off meanwhile.
+- KEY Train on. On the X6100 a paddle in the KEY jack in Auto-L or Auto-R
+  should then only sound the sidetone (not checked on the bench yet); the
+  X6200's base goes into TX at 0 W with Train (#127).
+- The first time the base keys while held the radio says "0 W on 27.185 MHz:
+  outside the amateur bands (Settings > TX Cal)".
+- The hold comes before the base moves: a band key or a QSY from CAT with the
+  hand mic's PTT held does not send PWR outside the bands meanwhile. It goes
+  once the radio is back in a band.
+- Birdie Cal holds the base the same way for its whole run (it tunes the CB
+  bands of the band list too), until both VFOs are back where you tuned
+  them.
+
+Left uncovered:
+
+- The hand mic's PTT and a straight key in the KEY jack in Manual still put
+  the base into TX, at 0 W. What either radio puts out at 0 W has not been
+  measured yet.
+- The radio's tuner carrier is the base's own, at a power the radio does not
+  set: a tune is refused at its start, and one whose dial is moved out is
+  given up, but what goes out in between is the base's.
+- What the base itself permits or refuses there is not known.
+
+Transverters: a transverter's range transmits as you set it up. On the X6100
+both transverters are on from the start (2 m and 70 cm through a 28 MHz IF):
+with nothing connected, the 2 m and 70 cm band keys send that IF, 28 to 34
+MHz, into the antenna, 29.7 to 34 MHz of it outside 10 m. Set the shift of a
+transverter you do not have to 0 (Settings > General > TRANSVERTERS).
+
+Not tried on the air yet: checked on the PC build and in the host tests.
+
 ### TX shift
 
 A band can transmit at a fixed distance from where it listens: an FM
@@ -1302,14 +1419,17 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
 - While the shift is on, VFO B is the shift's: a frequency or a mode written
   to B (CAT, A=B) goes back to A + the shift in A's mode (on REV the other
   way round).
-- The radio transmits only where it can (HF, a transverter that is on). Where
-  the shift takes B off it (below 0 Hz too, where B itself stops at 100 kHz),
-  the VFO on the status bar turns red (in Black Metal and Total Black the
-  other VFO's frequency), and PTT, the apps, CW, the tuner and the SWR scan
-  are refused with "No TX on ... MHz". The web Bands page saves a shift only
-  where the whole band, shifted, can transmit (6 m with +5000 kHz, 55-58.9
-  MHz, is refused); the Settings row takes any shift, and B is then red and
-  refused where it cannot.
+- The radio transmits only where it can and may (the
+  [amateur bands](#amateur-bands-only), a transverter that is on). Where
+  the shift takes B off them (below 0 Hz too, where B itself stops at 100
+  kHz), the VFO on the status bar turns red (in Black Metal and Total Black
+  the other VFO's frequency), and PTT, the apps, CW, the tuner and the SWR
+  scan are refused with "No TX on ... MHz" and the reason. The web Bands
+  page checks a shift against what the hardware can do, not the amateur
+  bands: it saves one only where the whole band, shifted, can transmit (6 m
+  with +5000 kHz, 55-58.9 MHz, is refused), so a shift it saves can still
+  take B outside the amateur bands, red and refused there as above. The
+  Settings row takes any shift.
 - The digital apps (FT8, FT4, JS8, WSPR, RTTY, SSTV...), the SWR scan, the
   voice messages and TCI's audio go out on the TX frequency, so they work in
   split and with a shift: for each transmission the VFO you listen on moves
@@ -1338,7 +1458,8 @@ Two examples:
 
 Not tried on the air yet. The hand mic's PTT and the paddle go to the base
 directly, without the GUI's check: what the base does with a VFO B it cannot
-transmit on is its own TX permit.
+transmit on is its own TX permit. Outside the amateur bands the radio holds
+the base at 0 W for them (see [Amateur bands only](#amateur-bands-only)).
 
 ### Transverter TX power limit
 
@@ -1416,18 +1537,27 @@ the SWR as it goes.
   Scale: Log or Linear. A sweep takes 50 readings across the span, 100 from
   1000 kHz up (one every 25 kHz at 2500 kHz), so a wide one takes twice as
   long.
-- The carrier goes across the whole span, so a wide span sends it outside the
-  amateur band, as the stock firmware's sweep does (500 kHz is already wider
-  than most HF bands).
+- The sweep stays inside the amateur band (see
+  [Amateur bands only](#amateur-bands-only)): 2500 kHz on 40 m sweeps 7.000
+  to 7.300 MHz, 30 m 50 kHz at most. The frequencies on the plot show the
+  sweep, the Span button the span asked; the readings follow the sweep's
+  width (100 from 1000 kHz of it). Up to v0.3.8 a wide span sent the carrier
+  outside the band, as the stock firmware's sweep does; with TX outside ham
+  bands on it still does.
 - The sweep stays where the radio transmits. Near the edge of HF (0.1 and
-  55 MHz) or of a transverter's range the span moves inside it, with the VFO's
-  line off the middle, and a range narrower than the span is swept whole.
-  Up to v0.3.7 the radio refused the points outside, and the curve showed
-  there the SWR of the last frequency it could take.
+  55 MHz), of a transverter's range or of the amateur band the span moves
+  inside it, with the VFO's line off the middle, and a range narrower than
+  the span is swept whole. Up to v0.3.7 the radio refused the points
+  outside, and the curve showed there the SWR of the last frequency it could
+  take.
+- The dial moved outside the bands during a scan (a band key, the knob, CAT)
+  stops it as Stop does, the VFO and the mode back as before the scan: "SWR
+  scan stopped: no TX on 26.055 MHz: outside the amateur bands (Settings >
+  TX Cal)".
 - It starts only from receive. While the radio transmits or the tuner is
   tuning, Run says "SWR scan: not while transmitting or tuning" and nothing
-  moves. On a frequency the radio cannot transmit on, it says "No TX on ...
-  MHz".
+  moves. On a frequency the radio may not transmit on, it says "No TX on ...
+  MHz" and why.
 
 The tuner (the ATU key held, or the "tuner tune" action) transmits a carrier
 until it has found a match. The radio now gives up a tune that does not end
@@ -1530,8 +1660,10 @@ tunes, but only within the tune's own limits:
 
 Not where the radio may not transmit; the screen (and the Panel) says why:
 
-- "No tune: no TX on 7.300 MHz": a frequency the radio does not transmit on
-  (a band it only receives, split's other VFO or a TX shift outside one).
+- "No tune: no TX on 27.185 MHz: outside the amateur bands (Settings > TX
+  Cal)", or "...: receive only": a frequency the radio may not transmit on
+  (outside the [amateur bands](#amateur-bands-only), a band it only
+  receives, split's other VFO or a TX shift there).
 - "No tune: on the air": something else transmits (PTT, an app's slot, TCI,
   Winlink, the ATU, the SWR scan). An app's slot that comes during a tune is
   not sent.
@@ -2200,6 +2332,9 @@ Train is for practice: the key, the paddle, the CW messages and the
   the CW Trainer).
 - A TUNE for an external tuner keeps its own power, and out of CW and CW-R
   (voice, the apps) the power is not held. To transmit CW, turn Train off.
+- Outside the amateur bands only the CW Trainer keeps sounding; Train with
+  the key, the paddle or the messages is refused there as any CW is (see
+  [Amateur bands only](#amateur-bands-only)).
 
 ### CW decoder
 
@@ -2287,7 +2422,7 @@ open it too (Settings > Keys > FRONT KEYS, LONG PRESS: APP CW Keyboard).
 - It keys in CW or CW-R. In another mode the box on the right reads NOT CW
   and nothing is taken ("Set CW mode to transmit"). Unlike the main screen's
   line it does not need the CW segment; where the radio may not transmit it
-  says "No TX on ...: receive only" and keys nothing.
+  says "No TX on ..." and why, and keys nothing.
 - With a USB or Bluetooth keyboard: type the line under the log, Enter keys
   it, lines typed while sending wait in a queue. Backspace corrects; Esc
   stops what is on the air and queued, and with nothing to stop closes the
@@ -2396,6 +2531,9 @@ Edit; page 2: Beacon, Delete, QRSS3; page 3: Start, Until, Freq.
   TX then sends the message again after every pause until you stop it. The
   radio receives in the pauses, with the CW decoder if it is on. It sends at
   the radio's power (PWR).
+- Not started where the radio may not transmit ("No TX on ...", see
+  [Amateur bands only](#amateur-bands-only)); one moved there stops at its
+  next element.
 - TX (Stop), the front PTT key, ESC or closing MSG > CW (Close, another menu
   key, an app) stop it. So does a transmission during a pause or before
   its start: the mic's PTT, CAT, TCI, the Panel. A beacon only runs while
@@ -3600,6 +3738,11 @@ Connecting to a gateway:
     set (+500 Hz)" or "Winlink: no TX, RIT is set (+500 Hz)". XIT moves the
     transmission off the gateway's frequency, RIT moves what ARDOP hears. Set
     them to 0.
+  - A frequency the radio may not transmit on (outside the
+    [amateur bands](#amateur-bands-only), receive only): no key, "Winlink:
+    no TX, 27.185.000 MHz: outside the amateur bands (Settings > TX Cal)",
+    on the page's last connection and its line before a connection too.
+    Pat's QSY there is still made.
   - Split turned on, the other VFO chosen, XIT set or the dial turned while
     Winlink transmits: that transmission stops, "Winlink: TX stopped, it left
     14.105.000 MHz".
@@ -4158,6 +4301,10 @@ keys the radio across a gap: a reconnect never re-presses PTT, and every
 press has a number of its own that its renewals carry. A hold the radio let
 go (the lease ran out, three minutes, a release) stays over: renewals of it
 that a stalled link delivers late are ignored, only a new press keys again.
+A press where the radio may not transmit (outside the
+[amateur bands](#amateur-bands-only), receive only) is refused with the
+reason, "no TX on 27.185 MHz: outside the amateur bands (Settings > TX
+Cal)", and nothing is keyed.
 A Panel or Screen page left open since before the update that brought the
 numbers cannot key the radio's own microphone until it is reloaded: its PTT
 button shows "No TX" and the status line "this session may not transmit
