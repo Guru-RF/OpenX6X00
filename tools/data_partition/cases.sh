@@ -188,6 +188,29 @@ if want foundtwice; then
     ok "a third: found_on_system.3" '[ -f "$F/fs/3/found_on_system.3/qso_log.db" ] && [ "$(cat "$F/fs/3/found_on_system/params.db")" = weekend ]'
 fi
 
+# A start that cannot use DATA for another reason says why and what to do, in data_fsck.log on the
+# system's /mnt too: DATA not found (FAT32 to parted, nothing to blkid), its mount failing, the
+# partition just made without a device
+if want failsays; then
+    newcard notfound $C4G
+    boot new
+    printf 'rc=2\n' > "$F/probe_override_3"
+    boot new
+    ok "not found: said what to do, in data_fsck.log on the system's /mnt too" 'grep -q "DATA partition not found (none labelled DATA, the third not FAT32 to blkid); $HINT_CHECK" "$F/out.txt" && syslog_says "chkdsk" && lasttrace | grep -q "DATA partition not found" && ! mounted && ! called "^mkfs"'
+    newcard mountfail $C4G
+    boot new
+    touch "$F/fail_mount"
+    boot new
+    ok "mount fails: said what to do, in data_fsck.log on the system's /mnt too" 'lasttrace | grep -q "mount of .* failed; $HINT_CHECK" && syslog_says "mount failed; $HINT_CHECK" && ! mounted && ! called "^mkfs"'
+    newcard nodev $C4G
+    touch "$F/no_dev_3"
+    boot new
+    ok "no device for the new partition: not formatted, said what to do" 'grep -q "The new partition .*p3 has no device yet: not formatted; switch the radio off and on again" "$F/out.txt" && syslog_says "off and on again" && ! called "^mkfs"'
+    rm -f "$F/no_dev_3"
+    boot new
+    ok "next start: the never formatted DATA, formatted" 'called "^mkfs" && mounted'
+fi
+
 if want nofree; then
     newcard nofree 1116160
     boot new

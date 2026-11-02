@@ -10,6 +10,7 @@ if [ "$1" = --bind ] && [ "$2" = / ]; then
 fi
 dev=$1 dir=$2
 [ "$dir" = "$F/mnt" ] || { echo "mount shim: $dir" >&2; exit 1; }
+[ -f "$F/fail_mount" ] && { echo "mount: $dir: can't read superblock on $dev (shim, on purpose)" >&2; exit 32; }
 grep -q " $dir " "$F/mounts" && { echo "mount: $dir busy" >&2; exit 32; }
 n=$(partnum "$dev")
 [ -n "$n" ] || exit 32

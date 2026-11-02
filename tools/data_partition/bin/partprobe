@@ -1,9 +1,9 @@
 #!/bin/bash
-# The kernel's partition devices: a file per partition in the card's table
+# The kernel's partition devices: a file per partition in the card's table (none for N while <F>/no_dev_N is there)
 . "$(dirname "$0")/../lib.sh"
 callog "partprobe $*"
 rm -f "$DEVP"p*
 for n in $(sfdisk -d "$CARD" 2>/dev/null | sed -n "s|^${CARD}\([0-9]*\) :.*|\1|p"); do
-    : > "${DEVP}p$n"
+    [ -f "$F/no_dev_$n" ] || : > "${DEVP}p$n"
 done
 exit 0

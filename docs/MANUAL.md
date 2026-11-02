@@ -5080,7 +5080,9 @@ UTC and the seconds since power-on:
    ...", "fsck.fat exit N", "formatting ...", "... formatted as DATA and
    mounted") show a check that takes long. A third partition it leaves alone
    is said with why and what to do ("not touched (it holds ext4); for DATA
-   there, format it as FAT32 on a PC"), in `data_fsck.log` too; see also
+   there, format it as FAT32 on a PC"), in `data_fsck.log` too, and so is a
+   DATA it cannot find or mount ("DATA partition not found ...", "mount of
+   ... failed; check it on a PC (chkdsk /f on Windows) ..."); see also
    [no DATA drive](#on-a-pc-the-card-has-no-data-drive-only-an-unknown-partition).
 3. "x6100_daemon: GUI start N" before each start of the GUI, then the GUI's
    own lines:

@@ -193,7 +193,7 @@ rescue() {
 }
 
 check_data() {
-    find_data || { echo "DATA partition not found" > $LOG; trace "DATA partition not found"; return; }
+    find_data || { alone "DATA partition not found (none labelled DATA, the third not FAT32 to blkid); $CHECK"; return; }
     if grep -q " /mnt " /proc/mounts; then umount /mnt; fi
     {
         echo "$(date '+%Y-%m-%d %H:%M:%S'), up $(cut -d' ' -f1 /proc/uptime) s"
@@ -211,8 +211,8 @@ check_data() {
                 mark_data
                 rescue
             else
-                echo "mount failed"
-                trace "mount of $dev failed"
+                echo "mount failed; $CHECK"
+                trace "mount of $dev failed; $CHECK"
             fi
         fi
     } 2>&1 | grep -v -e "conversion" -e "CP850" > $LOG
@@ -341,9 +341,13 @@ start() {
     partprobe /dev/mmcblk0
     NEW=$(parted -m -s /dev/mmcblk0 print | tail -n1 | cut -d: -f1)
     DEV=/dev/mmcblk0p$NEW
-    if [ "$NEW" != "3" ] || [ ! -b "$DEV" ]; then
-        echo "The new partition is not $DEV: not formatted"
-        trace "The new partition is not $DEV: not formatted"
+    if [ "$NEW" != "3" ]; then
+        alone "The new partition is $DEV, not the third: not formatted; $OTHER"
+        return
+    fi
+    # (the kernel reads the card's table at the next start: the partition is there then)
+    if [ ! -b "$DEV" ]; then
+        alone "The new partition $DEV has no device yet: not formatted; switch the radio off and on again"
         return
     fi
     # By what is on it: the partition's own entry in the card's table, all that blkid prints for
