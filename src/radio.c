@@ -1985,14 +1985,28 @@ static void atu_give_up(radio_state_t from, const char *why) {
     msg_schedule_text_fmt("%s", why);
 }
 
-/* On the GUI thread: the base sent nothing for BASE_GONE_MS (base_gone). A line each, whole in every font (DejaVu,
- * the widest: 558 px at most), as long as the base's own warnings; arg: none since the start, a start stage then */
+/* The notice's lines (base_gone), whole in every font (DejaVu, the widest: 558 px at most), each as long as the base's
+ * own warnings */
+static const char *const gone_lines[] = {
+    "No data from the base",
+    "No spectrum, no SWR protection",
+    "Baseband: Settings > Info",
+    "Base versions: see the README",    /* an X6200's below 1.0.7 is not the only case */
+};
+
+#define GONE_LINE_MS        4000    /* the notice's next line as the one before goes (msg_box's long message) */
+
+typedef struct {
+    uint8_t line;       /* in gone_lines */
+    bool    never;      /* none since the start: a start stage too */
+} gone_line_t;
+
+/* On the GUI thread: a line of the notice */
 static void base_gone_cb(void *arg) {
-    msg_schedule_long_text_fmt("No data from the base");
-    msg_schedule_long_text_fmt("No spectrum, no SWR protection");
-    msg_schedule_long_text_fmt("Baseband: Settings > Info");
-    msg_schedule_long_text_fmt("Base versions: see the README");    /* an X6200's below 1.0.7 is not the only case */
-    if (*(bool *)arg) {
+    gone_line_t *g = arg;
+
+    msg_schedule_long_text_fmt("%s", gone_lines[g->line]);
+    if (g->never) {
         start_trace("base: no data in %u s", BASE_GONE_START_MS / 1000);
     }
 }
@@ -2005,23 +2019,40 @@ static void base_gone_cb(void *arg) {
  * sent its first packet 16 s in, #47), not while the GUI keys, and a GUI restart (an update, LOCK's base restart)
  * counts afresh. The TX state alone does not count as keyed: one the GUI keys nothing in is the base's own or one
  * whose PTT off did not get through (radio_tick), which stays TX, and it is said then too. Said once, again only
- * after packets came (radio_tick) and stopped again. True: its line went to the base log */
+ * after packets came (radio_tick) and stopped again. The first line at once, each next one GONE_LINE_MS on from the
+ * resets, so none comes once the data is back: all four queued at once stayed 16 s after it, and held up any other
+ * message (the tuner's) as long. True: its line went to the base log */
 static bool base_gone(void) {
-    static uint64_t tx_time;
+    static uint64_t tx_time, line_time;
+    static uint8_t  line;       /* the next line of the notice */
     radio_state_t   s = atomic_load(&state);
-    bool            never = !base_seen;
     bool            keyed = (s != RADIO_RX && s != RADIO_TX) || hw_tx_keyed_by_gui() || atomic_load(&modem_on) ||
                             morse_on;
+    bool            due = base_gone_due(now_time, pack_time, base_seen, keyed, &tx_time, gone_said);
+    gone_line_t     g = {.line = 0, .never = !base_seen};
 
-    if (!base_gone_due(now_time, pack_time, base_seen, keyed, &tx_time, gone_said) || !base_guard_log_free()) {
+    if (gone_said) {
+        if (line < ARRAY_SIZE(gone_lines) && now_time - line_time >= GONE_LINE_MS) {
+            g.line = line;
+            g.never = false;
+            if (scheduler_put(base_gone_cb, &g, sizeof(g))) {
+                line++;
+                line_time = now_time;
+            }
+        }
+        return false;
+    }
+    if (!due || !base_guard_log_free()) {
         return false;   /* a line written in this second: the next reset tries again (radio_tick) */
     }
-    if (!scheduler_put(base_gone_cb, &never, sizeof(never))) {
+    if (!scheduler_put(base_gone_cb, &g, sizeof(g))) {
         return false;   /* the next reset tries again (the note above radio_tick) */
     }
     gone_said = true;
+    line = 1;
+    line_time = now_time;
     base_guard_log("no data from the base for %u ms%s: said on the screen", (unsigned)(now_time - pack_time),
-                   never ? ", none since the start" : "");
+                   g.never ? ", none since the start" : "");
     return true;
 }
 

@@ -5346,12 +5346,14 @@ digital apps still decode: they work on the audio, and FT8 draws its own
 waterfall from it.
 
 After 30 s without data in receive, or 60 s after a start when none has
-come yet, the radio says so, one message after the other:
+come yet, the radio says so, one message after the other, 4 s each:
 
 - "No data from the base"
 - "No spectrum, no SWR protection"
 - "Baseband: Settings > Info"
 - "Base versions: see the README"
+
+If the data comes back meanwhile, the ones still to come are left out.
 
 Not in the first 60 s after a start (an X6200 on base 1.0.8 has sent its
 first data 16 s after the start), not while the radio transmits from the
