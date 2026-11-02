@@ -5249,10 +5249,10 @@ What to do then:
 
 The radio formats such a partition only when it finds nothing of the old
 filesystem and no mark: everything up to its second FAT lost (more than the
-first 3 MiB on a 4 GB card, 7 MiB on 16 to 64 GB, 15 MiB on 128 GB; on a card
-over 512 GB more than the first 32 KiB), and a new image written since, or
-DATA last mounted by v0.3.8 or older (by v0.3.5 or older, whose starts leave
-no trace, or with many starts without it since).
+first 3 MiB on a 4 GB card, 7 MiB on 8 to 64 GB, 15 MiB on 128 GB, 30 MiB on
+256 GB, 60 MiB on 512 GB; on a larger card more than the first 32 KiB), and a
+new image written since, or DATA last mounted by v0.3.8 or older (by v0.3.5
+or older, whose starts leave no trace, or with many starts without it since).
 The other way round, a card whose third partition held a FAT32 before (an
 earlier DATA) and was wiped by a tool that clears only its first sectors can
 be taken for a damaged DATA and left alone: formatting the partition as

@@ -82,7 +82,7 @@ found() {
 # at a power cut can lose the 4 KiB to some MiB around it, that copy with it. Then one of FAT32's two
 # FATs still begins with its media mark (f8 ff ff 0f) at the start of a sector: the first after the
 # sectors reserved before it (32, 64 on a card over 32 GB; other counts on a PC), the second after
-# the first, some 3 MiB in on a 4 GB card, 7 on 16 to 64 GB, 59 on 512 GB. Each sector of the first
+# the first, some 3 MiB in on a 4 GB card, 7 on 8 to 64 GB, 60 on 512 GB. Each sector of the first
 # 64 MiB is looked at (hexdump: util-linux's, the first word of each sector as a number), but not
 # on a card with the mark (mark_data): that keeps the partition from a format already, and a DATA
 # with none of these left would be read that far at every start, seconds of dark screen. A partition
