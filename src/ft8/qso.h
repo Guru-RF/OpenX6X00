@@ -138,6 +138,8 @@ class FTxQsoProcessor {
     Candidate  *candidate_for(std::string call);
     void        take_over(std::string call);
     bool        take_back(std::string call);
+    bool        take_up(std::string call);
+    bool        take_ahead(std::string call);
 };
 #else
 typedef struct FTxQsoProcessor FTxQsoProcessor;

@@ -493,6 +493,67 @@ static void moved_on(void) {
     rx("Q1QQQ A1AAA R-12");
     slot_end();
     check(logs_of("A1AAA") == 1, "its R+report again: no second entry (%d)", logs_of("A1AAA"));
+
+    begin("#150: we call CQ, report to A, the operator presses TX CQ, then A's R+report comes: our RR73");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80");
+    slot_end();
+    our_slot();
+    tx_cq();
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -12, -10, false), "A logged once at its R+report, rcvd -12 sent -10");
+    check(next_is("A1AAA Q1QQQ RR73") && ftx_qso_processor_has_current(qso), "RR73 to A, the CQ ends (%s)",
+          tx.msg);
+    our_slot();
+    rx("Q1QQQ A1AAA 73");
+    slot_end();
+    check(times_sent("A1AAA Q1QQQ RR73") == 1 && logs_of("A1AAA") == 1, "RR73 sent once, its 73 no second entry");
+
+    begin("#150: we call CQ, our report to A runs out of retries, then A's R+report comes: our RR73");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80");
+    for (int i = 0; i < 7; i++) {
+        slot_end();
+        our_slot();
+    }
+    check(!ftx_qso_processor_has_current(qso) && times_sent("A1AAA Q1QQQ -10") == 6, "given up after 6 reports");
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -12, -10, false) && next_is("A1AAA Q1QQQ RR73"), "A logged, RR73 to A (%s)",
+          tx.msg);
+
+    begin("#150: TX CQ after our report to A, B's call then A's R+report in one slot: our RR73 to A first");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80");
+    slot_end();
+    our_slot();
+    tx_cq();
+    rx("Q1QQQ B1BBB JN11", -15);
+    rx("Q1QQQ A1AAA R-12");
+    check(next_is("A1AAA Q1QQQ RR73") && logs_of("A1AAA") == 1, "RR73 to A, A logged (%s)", tx.msg);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15"), "B answered at its next call (%s)", tx.msg);
+
+    begin("#150: TX CQ after our report to A, A's R+report then B's call in one slot: our RR73 to A first");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80");
+    slot_end();
+    our_slot();
+    tx_cq();
+    rx("Q1QQQ A1AAA R-12");
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("A1AAA Q1QQQ RR73") && logs_of("A1AAA") == 1, "RR73 to A, A logged (%s)", tx.msg);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15"), "B answered at its next call (%s)", tx.msg);
 }
 
 /* ---- The QSOs put aside: how long, how many, once each ------------------------------------------------------ */

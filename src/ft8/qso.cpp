@@ -247,7 +247,8 @@ void FTxQsoProcessor::process_r_report(ftx_msg_meta_t *meta, std::vector<std::st
     strcpy(meta->call_de, call_de.c_str());
     if (call_to == _local_callsign) {
         meta->to_me = true;
-        if (((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) || take_back(call_de)) {
+        if (((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) || take_back(call_de) ||
+            take_up(call_de)) {
             _cur_candidate->set_msg_type(meta->type);
             _cur_candidate->set_local_snr(snr);
             _cur_candidate->set_rcvd_snr(rcvd_snr);
@@ -257,7 +258,7 @@ void FTxQsoProcessor::process_r_report(ftx_msg_meta_t *meta, std::vector<std::st
                 strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth).c_str());
             }
         } else if (Candidate *aside = find_aside(call_de)) {
-            /* A QSO we moved on from (we called CQ): logged now, not answered */
+            /* A QSO we moved on from (we called CQ), another in progress: logged now, not answered */
             aside->set_msg_type(meta->type);
             aside->set_local_snr(snr);
             aside->set_rcvd_snr(rcvd_snr);
@@ -447,6 +448,19 @@ void FTxQsoProcessor::take_over(std::string call) {
 bool FTxQsoProcessor::take_back(std::string call) {
     if (_gave_way.empty() || _gave_way != call) return false;
     _gave_way.clear();
+    return take_ahead(call);
+}
+
+/* No QSO in progress, or only a caller of this slot: the station whose QSO we moved on from sends
+ * its R+report late (we called CQ). Its QSO is the current one again, for our RR73, without which
+ * that station can't end it; the caller is the next */
+bool FTxQsoProcessor::take_up(std::string call) {
+    if ((_cur_candidate != NULL) && !_cur_fresh) return false;
+    return take_ahead(call);
+}
+
+/* The station's QSO put aside is the current one again, the current one (if any) the next */
+bool FTxQsoProcessor::take_ahead(std::string call) {
     Candidate *candidate = take_aside(call);
     if (candidate == NULL) return false;
     if (_next_candidate == NULL) {
