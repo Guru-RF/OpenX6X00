@@ -3687,22 +3687,23 @@ Setting it up:
    - Logs, Download: Pat's log, its output, ARDOP's, Mercury's, Pat's event
      log, the radio's state and the status, as one text file to attach to a bug
      report. The passwords in them are masked: the Winlink page's, the ones
-     in Pat's Settings, and the one Pat prints for a new account ("DO NOT LOSE
-     YOUR PASSWORD"). The gateways and the subjects of your mail are in it;
-     like the Files page, it opens only by the radio's own names.
+     on Pat's Configure page, and the one Pat prints for a new account ("DO
+     NOT LOSE YOUR PASSWORD"). The gateways and the subjects of your mail are
+     in it; like the Files page, it opens only by the radio's own names.
 4. Press Open the mailbox, or open `http://x6100.local:8080/` (`x6200.local`
    on an X6200, or the radio's address): Pat's own page, where you write and
-   read your mail. Its Settings page has the rest of Pat's options. The
-   callsign, the locator and the ARDOP, VARA HF (Mercury) and radio settings
-   are set again by the radio each time Pat starts, and so is the password
-   once one is set on the radio's Winlink page: change those there, not in
-   Pat. A password typed in Pat's Settings is kept while the Winlink page has
-   none (up to v0.3.6 it was emptied at Pat's next start, #80). The radio's
-   rig is x6x00 in Settings > Rig Control > Hamlib rigs (TCP, 127.0.0.1:4532,
-   the radio's own rigctld), and it is the Rig of the ARDOP and Vara HF
-   sections. Its values are grey there like Pat's examples, but they are the
-   radio's: leave them as they are. The radio writes them again each time it
-   starts Pat, so an edit saved in Pat's Settings lasts only until then.
+   read your mail. Its Configure page (Action > Configure) has the rest of
+   Pat's options. The callsign, the locator and the ARDOP, VARA HF (Mercury)
+   and radio settings are set again by the radio each time Pat starts, and so
+   is the password once one is set on the radio's Winlink page: change those
+   there, not in Pat. A password typed on Pat's Configure page is kept while
+   the Winlink page has none (up to v0.3.6 it was emptied at Pat's next
+   start, #80). The radio's rig is x6x00 on that page, under Rig Control >
+   Hamlib rigs (TCP, 127.0.0.1:4532, the radio's own rigctld), and it is the
+   Rig of the ARDOP and Vara HF sections. Its values are grey there like
+   Pat's examples, but they are the radio's: leave them as they are. The
+   radio writes them again each time it starts Pat, so an edit saved there
+   lasts only until then.
 
 Connecting to a gateway:
 
@@ -3913,7 +3914,7 @@ receive path, Pat's page and its guard, ARDOP's ID frames on the air at 1 W
 (X6200) and its frames at 5 W into a dummy load (X6100). More reports are
 welcome on #18.
 
-Pat's own Settings has "Listen for inbound P2P traffic": the radio turns it
+Pat's Configure page has "Listen for inbound P2P traffic": the radio turns it
 off again each time Pat starts. Listening would make the radio transmit,
 unattended, on whatever frequency it is on.
 
