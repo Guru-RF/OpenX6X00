@@ -1217,7 +1217,9 @@ keyed. The radio watches for it; there is nothing to set.
     back: see
     [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move).
   - "TX: no data from the base for N ms, back to RX": the data stopped during
-    a transmission, and PTT, the apps and the CW key have let go.
+    a transmission, and PTT, the apps and the CW key have let go. N is 3000
+    or more for one the radio keyed, 30000 or more for one the hand mic's
+    PTT, VOX or the KEY jack keyed.
   - "SWR scan: no data from the base for N ms, stopped".
 
 ### Info tab
@@ -5366,9 +5368,13 @@ Meanwhile:
   transmit into an antenna you don't know.
 - The tuner says "Tuner: no data from the base" and does not tune, and an
   SWR scan stops with "SWR scan: no data from the base".
-- A transmission the data stopped in shows TX until 3 s after PTT, the app
-  or the CW key let go, then the radio is back in receive. Up to v0.3.8 it
-  stayed in TX, and the digital apps did not transmit, until a restart.
+- A transmission from the screen, an app or the CW key that the data
+  stopped in shows TX until PTT, the app or the CW key let go (the CW key
+  3 s after) and the data has been gone for 3 s, then the radio is back in
+  receive. One keyed by the hand mic's PTT, VOX or the KEY jack the radio
+  cannot see let go: it shows TX until the data has been gone for 30 s,
+  then receive even if it is still keyed. Up to v0.3.8 it stayed in TX,
+  and the digital apps did not transmit, until a restart.
 - The hand mic's keys do nothing, and on the X6200 the POWER key neither:
   the base reports them in the same data. The X6100's POWER key has a line
   of its own and still switches the radio off (up to v0.3.8 it said "Power

@@ -223,6 +223,7 @@ static uint64_t         start_time;     /* radio_init() */
 static uint64_t         pack_time;      /* last packet from the base */
 static bool             base_seen;      /* a packet came in this run */
 static bool             gone_said;      /* "No data from the base" said, until a packet comes (base_gone) */
+static bool             tx_by_gui;      /* the GUI keyed the TX under way (PTT, an app, the CW key): radio thread */
 static uint8_t          pack_vbat, pack_vext;   /* its voltages, 0.1 V */
 static volatile int8_t  bat_pct = -1;   /* the battery %, -1 on external power or not measured yet */
 static volatile bool    charger_asked;  /* the charger setting as last applied (Shadow at power-off left out: no bolt then) */
@@ -2177,6 +2178,7 @@ static bool radio_tick() {
         switch (state) {
             case RADIO_RX:
                 if (pack->tx && state_move(RADIO_RX, RADIO_TX)) {
+                    tx_by_gui = false;  /* set below while the GUI keys it */
                     if (notify_rx_tx) {
                         notify_rx_tx(true);
                     }
@@ -2307,6 +2309,9 @@ static bool radio_tick() {
             || hw_tx_keyed_by_gui()
             || morse_on || (uint32_t)now_time - morse_ms < MORSE_HANG_MS;
 
+        if (state == RADIO_TX && gui_tx) {
+            tx_by_gui = true;
+        }
         if (tx_watch_check(&tx_watch, now_time, pack->tx, gui_tx)) {
             base_guard_log("base still in TX %u ms after an un-key or write error, nothing keying it from the GUI: PTT off resent",
                            TX_WATCH_HOLD_MS);
@@ -2358,8 +2363,11 @@ static bool radio_tick() {
             /* A TX ends on a packet without the TX flag: with none (the data lost while the base keyed, or while the
              * GUI did and let go since) the state stayed RADIO_TX for good, tx_player refusing every digital TX, CAT
              * and TCI reporting TX, and base_gone never saying it. Back to RX once the base has been silent this long
-             * and the GUI keys nothing, its CW past the base's hang; a packet with the TX flag brings TX back */
-            if (s == RADIO_TX && now_time - pack_time > NO_DATA_MS && !gui_keys() &&
+             * and the GUI keys nothing, its CW past the base's hang; a packet with the TX flag brings TX back. A TX
+             * the GUI never keyed is the base's own (the hand mic's PTT, VOX, the KEY jack), which the GUI cannot see
+             * let go: it waits as long as the notice (base_gone), the base taken for gone, not 3 s into a gap while
+             * still keyed, CAT, TCI and the remote saying RX and a remote client free to take control */
+            if (s == RADIO_TX && now_time - pack_time > (tx_by_gui ? NO_DATA_MS : BASE_GONE_MS) && !gui_keys() &&
                 (uint32_t)now_time - morse_ms >= MORSE_HANG_MS && base_guard_log_free() &&
                 state_move(RADIO_TX, RADIO_RX)) {
                 if (notify_rx_tx) {
