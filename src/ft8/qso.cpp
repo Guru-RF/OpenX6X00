@@ -70,8 +70,8 @@ bool Candidate::is_finished() {
     return (_last_rx_type == FTX_MSG_TYPE_73) || (_last_rx_type == FTX_MSG_TYPE_RR73);
 }
 
-/* Logged, and a slot of ours since its station's last message: our RR73 or 73 went, a caller may
- * take over (its station repeating would have sent again) */
+/* Logged, and a slot of ours since its station's last message: our RR73 or 73 went (or the message
+ * after Force QSO save), a caller may take over (its station repeating would have sent again) */
 bool Candidate::is_over() {
     return _saved && _quiet_slots >= 2;
 }
@@ -462,12 +462,13 @@ bool FTxQsoProcessor::can_save_qso() {
     return _cur_candidate && _cur_candidate->can_be_saved();
 }
 
+/* Logged by hand, as the desktop FT8 program logs: the TX message and the sequence go on, its
+ * RR73 gets our 73, a report again our R-report, never a second entry. A caller takes over once
+ * it is over (is_over) */
 bool FTxQsoProcessor::force_save_qso() {
     _gave_way.clear();
     if (_cur_candidate) {
         _cur_candidate->save_qso(_save_qso_cb);
-        put_aside(_cur_candidate);
-        _cur_candidate = NULL;
         return true;
     } else {
         return false;

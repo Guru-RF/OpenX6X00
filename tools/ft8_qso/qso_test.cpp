@@ -51,10 +51,24 @@ static FTxQsoProcessor         *qso;
 static ftx_tx_msg_t             tx;
 static int                      retries;
 static const char              *pota_call;
+static char                     said[200];  /* -v: what was logged, said after the step that logged it */
 
 static void on_saved(const char *call, const char *grid, const int rcvd, const int sent_snr, bool aside) {
     logged.push_back({call, grid, rcvd, sent_snr, aside});
-    if (verbose) printf("      logged %s %s rcvd %d sent %d%s\n", call, grid, rcvd, sent_snr, aside ? " (aside)" : "");
+    snprintf(said, sizeof(said), "      logged %s %s rcvd %d sent %d%s\n", call, grid, rcvd, sent_snr,
+             aside ? " (aside)" : "");
+}
+
+static void say(const char *fmt, ...) {
+    va_list ap;
+
+    if (verbose) {
+        va_start(ap, fmt);
+        vprintf(fmt, ap);
+        va_end(ap);
+        fputs(said, stdout);
+    }
+    said[0] = '\0';
 }
 
 static bool is_pota(const char *call) {
@@ -81,7 +95,7 @@ static ftx_msg_meta_t rx(const char *text, int snr = -10) {
 
     snprintf(was, sizeof(was), "%s", tx.msg);
     ftx_qso_processor_add_rx_text(qso, text, snr, &meta, &tx);
-    if (verbose) printf("    rx %-36s%s%s\n", text, strcmp(was, tx.msg) ? "next: " : "", strcmp(was, tx.msg) ? tx.msg : "");
+    say("    rx %-36s%s%s\n", text, strcmp(was, tx.msg) ? "next: " : "", strcmp(was, tx.msg) ? tx.msg : "");
     return meta;
 }
 
@@ -93,7 +107,8 @@ static void rx_hound(const char *text, int snr = -10) {
 
     ftx_qso_processor_add_rx_text(qso, text, snr, &meta, &ignored);
     logged.resize(n);
-    if (verbose) printf("    rx %-36s(Hound)\n", text);
+    said[0] = '\0';
+    say("    rx %-36s(Hound)\n", text);
 }
 
 /* The slot's end: its last decode came before it */
@@ -105,7 +120,7 @@ static void slot_end() {
 static void our_slot() {
     if (tx.msg[0]) {
         sent.push_back(tx.msg);
-        if (verbose) printf("    tx %s\n", tx.msg);
+        say("    tx %s\n", tx.msg);
         if (tx.repeats > 0) tx.repeats--;
         if (tx.repeats == 0) tx.msg[0] = '\0';
     }
@@ -117,7 +132,7 @@ static void press(const ftx_msg_meta_t &row) {
     ftx_msg_meta_t meta = row;
 
     ftx_qso_processor_start_qso(qso, &meta, &tx);
-    if (verbose) printf("    press %s, next: %s\n", row.call_de, tx.msg);
+    say("    press %s, next: %s\n", row.call_de, tx.msg);
 }
 
 /* TX CQ (tx_cq_cb) */
@@ -125,14 +140,22 @@ static void tx_cq() {
     snprintf(tx.msg, sizeof(tx.msg), "CQ %s %s", ME, MY_QTH);
     tx.repeats = retries;
     ftx_qso_processor_reset(qso);
-    if (verbose) printf("    TX CQ\n");
+    say("    TX CQ\n");
+}
+
+/* Force QSO save (force_save_cb) */
+static bool force_save() {
+    bool saved = ftx_qso_processor_can_save_qso(qso) && ftx_qso_processor_force_save_qso(qso);
+
+    say("    Force QSO save: %s\n", saved ? "saved" : "Can't save incomplete QSO");
+    return saved;
 }
 
 /* Hound on or off (hound_cb) */
 static void hound() {
     tx.msg[0] = '\0';
     ftx_qso_processor_clear(qso);
-    if (verbose) printf("    Hound\n");
+    say("    Hound\n");
 }
 
 static int logs_of(const char *call) {
@@ -652,6 +675,61 @@ static void new_caller(void) {
     check(next_is("B1BBB Q1QQQ -15") && logged_once("A1AAA", "IN80", -12, -10, false), "B's row: our report to B");
 }
 
+/* ---- Force QSO save ------------------------------------------------------------------------------------------ */
+
+static void force(void) {
+    begin("Force QSO save after our R-report: logged, the TX message stays, A's RR73 gets our 73");
+    answered_to_r_report();
+    slot_end();     /* its RR73 missed */
+    check(force_save() && logged_once("A1AAA", "IN80", -5, -10, false), "logged: rcvd -05, sent -10");
+    check(next_is("A1AAA Q1QQQ R-10") && ftx_qso_processor_has_current(qso), "the R-report stays queued (%s)", tx.msg);
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(next_is("A1AAA Q1QQQ 73") && logs_of("A1AAA") == 1, "73 to A, one entry (%s)", tx.msg);
+    our_slot();
+    check(!tx.msg[0], "nothing more queued (%s)", tx.msg);
+
+    begin("Force QSO save, then A's report again: our R-report again, never a second entry");
+    answered_to_r_report();
+    slot_end();
+    force_save();
+    our_slot();
+    rx("Q1QQQ A1AAA -05");
+    slot_end();
+    check(next_is("A1AAA Q1QQQ R-10"), "our R-report to A (%s)", tx.msg);
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(logs_of("A1AAA") == 1 && next_is("A1AAA Q1QQQ 73"), "one entry, 73 to A (%s)", tx.msg);
+
+    begin("Force QSO save, A quiet, then B calls: B answered");
+    answered_to_r_report();
+    slot_end();
+    force_save();
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15"), "B answered (%s)", tx.msg);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA RR73");
+    rx("Q1QQQ B1BBB R-03");
+    slot_end();
+    check(logs_of("A1AAA") == 1 && logged_once("B1BBB", "JN11", -3, -15, false), "A once, B logged");
+
+    begin("Force QSO save with no report from A: refused, nothing logged");
+    ftx_msg_meta_t cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    our_slot();
+    check(!force_save() && logged.empty(), "refused");
+
+    begin("Force QSO save twice: refused the second time, one entry");
+    answered_to_r_report();
+    force_save();
+    check(!force_save() && logs_of("A1AAA") == 1, "one entry (%d)", logs_of("A1AAA"));
+}
+
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "-v");
     good_paths();
@@ -659,6 +737,7 @@ int main(int argc, char **argv) {
     moved_on();
     aside();
     new_caller();
+    force();
     ftx_qso_processor_delete(qso);
     printf("FT8 QSO %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;
