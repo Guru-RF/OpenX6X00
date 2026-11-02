@@ -1387,8 +1387,8 @@ static void add_rx_text(int16_t snr, const char *text, bool odd, float freq_hz, 
 
     if (hound_on) {
         /* The processor follows the Fox too, its answers unsent, and may complete that QSO: Hound's
-         * RR73 alone logs it. A QSO it had put aside, from before Hound on, is logged at its
-         * station's late message, unless that station is the Fox */
+         * RR73 alone logs it. A QSO from before Hound on (aside set) is logged at its station's late
+         * message, unless that station is the Fox */
         int kept = done;
         for (int i = done; i < done_n; i++)
             if (done_qsos[i].aside && strcmp(done_qsos[i].call, hound.fox)) done_qsos[kept++] = done_qsos[i];

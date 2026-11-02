@@ -33,7 +33,8 @@ typedef struct {
     int  repeats;
 } ftx_tx_msg_t;
 
-/* aside: a QSO the sequence had put aside (another one is current), ended late by its station */
+/* aside: a QSO the sequence had put aside (another one is current), ended late by its station; in
+ * Hound mode also one from before Hound on that its station took up again (Hound's is in progress) */
 typedef void (*save_qso_cb_t)(const char *remote_callsign, const char *remote_grid, const int r_snr, const int s_snr,
                               bool aside);
 typedef bool (*is_pota_cb_t)(const char *callsign);
@@ -136,6 +137,7 @@ class FTxQsoProcessor {
 
     Candidate **get_candidate_to_update(std::string call_de);
     Candidate  *get_or_create_cur_candidate(std::string remote_callsign);
+    void        save_current();
     void        put_aside(Candidate *candidate);
     Candidate  *find_aside(std::string call);
     Candidate  *take_aside(std::string call);

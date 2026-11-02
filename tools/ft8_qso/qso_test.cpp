@@ -798,6 +798,37 @@ static void aside(void) {
     check(logged_once("A1AAA", "IN80", -12, -10, true) && !ftx_qso_processor_has_current(qso),
           "A logged once, not taken up");
 
+    begin("Hound on after our report to A (we called CQ), A calls again in Hound mode: its R+report logs it once");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80");
+    slot_end();
+    our_slot();
+    hound();
+    fox = "F1FOX";
+    rx_hound("Q1QQQ A1AAA IN80", -14);
+    slot_end();
+    slot_end();
+    rx_hound("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -12, -10, true), "A logged once, sent -10 (the report that went out)");
+    hound();
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(logs_of("A1AAA") == 1 && next_is("A1AAA Q1QQQ RR73"), "Hound off, its R+report again: RR73 to A (%s)",
+          tx.msg);
+
+    begin("Hound on after our R-report to A, A's report again in Hound mode, its RR73: logged once");
+    answered_to_r_report();
+    hound();
+    fox = "F1FOX";
+    rx_hound("Q1QQQ A1AAA -05", -14);
+    slot_end();
+    slot_end();
+    rx_hound("Q1QQQ A1AAA RR73");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -5, -10, true), "A logged once, sent -10");
+
     begin("Hound mode: a station that sends us a report and an RR73 logs nothing, then or after Hound off");
     hound();
     rx_hound("Q1QQQ C1CCC -05");

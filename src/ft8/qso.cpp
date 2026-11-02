@@ -261,7 +261,7 @@ void FTxQsoProcessor::process_r_report(ftx_msg_meta_t *meta, std::vector<std::st
             _cur_candidate->set_msg_type(meta->type);
             _cur_candidate->set_local_snr(snr);
             _cur_candidate->set_rcvd_snr(rcvd_snr);
-            _cur_candidate->save_qso(_save_qso_cb);
+            save_current();
             if (_auto) {
                 tx_msg.repeats = 1;
                 strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth).c_str());
@@ -287,7 +287,7 @@ void FTxQsoProcessor::process_rr73(ftx_msg_meta_t *meta, std::vector<std::string
         if (((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) || take_back(call_de)) {
             _cur_candidate->set_msg_type(meta->type);
             _cur_candidate->set_local_snr(snr);
-            _cur_candidate->save_qso(_save_qso_cb);
+            save_current();
             if (_auto) {
                 tx_msg.repeats = 1;
                 strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth).c_str());
@@ -311,7 +311,7 @@ void FTxQsoProcessor::process_73(ftx_msg_meta_t *meta, std::vector<std::string> 
         meta->to_me = true;
         if ((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) {
             /* Their 73 ends the QSO as well as an RR73 we missed: logged if both reports went */
-            _cur_candidate->save_qso(_save_qso_cb);
+            save_current();
             put_aside(_cur_candidate);
             if (_next_candidate != NULL) {
                 _cur_candidate = _next_candidate;
@@ -327,6 +327,13 @@ void FTxQsoProcessor::process_73(ftx_msg_meta_t *meta, std::vector<std::string> 
             aside->save_qso(_save_qso_cb, true);
         }
     }
+}
+
+/* The current QSO ends: logged. In Hound mode the current one follows Hound's QSO, its answers
+ * unsent, and Hound logs that one (add_rx_text drops this save); one from before Hound on, our
+ * report out, that its station took up again is logged as one put aside */
+void FTxQsoProcessor::save_current() {
+    _cur_candidate->save_qso(_save_qso_cb, _hound && _cur_candidate->sent_report());
 }
 
 void FTxQsoProcessor::process_cq(ftx_msg_meta_t *meta, std::vector<std::string> &tokens, const int snr) {
