@@ -1593,9 +1593,14 @@ normally:
   radio says "Tuner did not start".
 - If the base goes back to receive without reporting a match, the radio
   waits 1 s and then says "Tuner: no match".
-- In both cases the tune is switched off and the radio is back in receive.
-  Before, it stayed in its tuning state: a new tune and the SWR scan did
-  nothing, and CAT and TCI reported TX until a restart. That is the likely
+- If the base has sent no data for 3 s (the waterfall and the S-meter stand
+  still), the radio says "Tuner: no data from the base". A tune asked then
+  never starts; one under way is switched off. Up to v0.3.8 the radio stayed
+  in its tuning state, without a word, and refused every transmission of the
+  digital apps until a restart (issue #152).
+- In all these cases the tune is switched off and the radio is back in
+  receive. Before, it stayed in its tuning state: a new tune and the SWR scan
+  did nothing, and CAT and TCI reported TX until a restart. That is the likely
   cause of issue #25, no SWR scan after a tune on 10 m and 15 m.
 - Each case goes into the base log (`/mnt/base_i2c.log`) with what the base
   reported, for example "ATU: Tuner: no match (tx 0, atu_status 0,

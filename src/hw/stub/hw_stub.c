@@ -237,10 +237,40 @@ static void add_band(float _Complex *s, int32_t center, float gain) {
     n += SAMPLES;
 }
 
+/* HOST_STUB_SILENT="<from>,<to>,...": no packets between those ms after the first read, as from a base whose packets
+ * do not decode (#152: an X6200 base older than 1.0.7); a last <from> without its <to> holds for good, "0" none at all */
+static bool silent(uint64_t now) {
+    static int64_t  edge[8];
+    static int      edges = -1;
+    static uint64_t first;
+
+    if (edges < 0) {
+        const char *e = getenv("HOST_STUB_SILENT");
+        char       *end;
+
+        edges = 0;
+        first = now;
+        while (e && *e && edges < 8) {
+            edge[edges++] = strtoll(e, &end, 10);
+            e = *end == ',' ? end + 1 : "";
+        }
+    }
+    bool    in = false;
+    int64_t ms = (int64_t)((now - first) / 1000000);
+
+    for (int i = 0; i < edges && ms >= edge[i]; i++) {
+        in = !in;
+    }
+    return in;
+}
+
 bool hw_flow_read(hw_pack_t *p) {
     uint64_t now = now_ns();
     const uint64_t period = (uint64_t)SAMPLES * 1000000000ULL / SAMPLE_RATE;   /* 5.12 ms */
 
+    if (silent(now)) {
+        return false;
+    }
     if (next_pack_ns == 0) {
         next_pack_ns = now;
     }

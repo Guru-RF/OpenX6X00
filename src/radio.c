@@ -1956,7 +1956,8 @@ uint64_t radio_swr_trip_at(void) {
 /* The base never keyed for the tuner, or ended a tune without its done flag (no match: more likely on 10 and 15 m
  * with a real antenna). The GUI stayed in the tuner's state for good with the tune bit set: no new tune, the SWR
  * scan refused, CAT and TCI reporting TX (#25). Now the tune bit off, back to RX, a word on the screen and a line in
- * the base log with what the base reported. Also a tune given up where the radio may not transmit (#121) */
+ * the base log with what the base reported. Also a tune given up where the radio may not transmit (#121), and one
+ * the base sends no data for (#152) */
 static void atu_give_up(radio_state_t from, const char *why) {
     WITH_RADIO_LOCK(hw_set_i(HW_ATU_TUNE, false));
 #ifndef BOARD_X6200
@@ -2273,6 +2274,16 @@ static bool radio_tick() {
         if (d > FLOW_RESTART_TIMEOUT) {
             LV_LOG_WARN("Flow reset");
             static uint64_t silent_logged;
+            radio_state_t   s = atomic_load(&state);
+
+            /* The tuner's steps above go by the packets: with none (a base whose packets do not decode, #152), a tune
+             * asked stayed in its state for good without a word, and tx_player refused every digital TX until the GUI
+             * restarted. Given up on both radios once the base has been silent for as long as a tune has to start;
+             * the tune bit goes to the base only on a packet, so a base silent from the press on is never asked to tune */
+            if ((s == RADIO_ATU_START || s == RADIO_ATU_WAIT || s == RADIO_ATU_RUN) &&
+                now_time - pack_time > ATU_START_MS) {
+                atu_give_up(s, "Tuner: no data from the base");
+            }
             if (base_silent_due(now_time, start_time, &silent_logged)) {
                 char vb[8] = "n/a", ve[8] = "n/a";
                 if (pack_vbat) {
