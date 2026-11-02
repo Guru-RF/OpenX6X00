@@ -53,6 +53,13 @@ void base_guard_log(const char *fmt, ...);
  * *last_ms: the last line (0 at first) */
 bool base_silent_due(uint64_t now_ms, uint64_t start_ms, uint64_t *last_ms);
 
+#define BASE_GONE_MS         30000   /* no data from the base this long in receive: said on the screen */
+
+/* No data from the base, said on the screen (#152), looked at in each flow reset: true when it is due, BASE_GONE_MS
+ * after the later of the last packet (pack_ms: the start before the first) and the GUI's last TX. keyed: the GUI
+ * keys, or the radio is not in receive; *tx_ms is kept here (0 at first). said: told already, until a packet comes */
+bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool keyed, uint64_t *tx_ms, bool said);
+
 typedef struct {
     uint64_t armed_until;
     bool     run;           /* base in TX with nothing keying it from the GUI, since run_start */

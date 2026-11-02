@@ -69,7 +69,6 @@
 #define ATU_START_MS        3000    /* the base keys for the tuner within this, or the tune is given up */
 #define ATU_NO_MATCH_MS     1000    /* back in RX this long without the tuner's done flag: no match */
 #define NO_DATA_MS          3000    /* no packet this long: a TX or an SWR scan that only a packet ends is ended */
-#define BASE_GONE_MS        30000   /* no packet from the base this long in receive: said on the screen (base_gone) */
 
 #define FILTER_2_OFFSET 60
 #define FILTER_2_OFFSET_IN 20
@@ -2000,18 +1999,17 @@ static void base_gone_cb(void *arg) {
  * waterfall, the S-meter, the battery, the TX meters and the SWR protection stood still, the tuner and the X6200's
  * POWER key did nothing, and only the base log said so ("base silent"). An X6200 base older than 1.0.7 does that:
  * the library reads the packets as 1.0.7 sends them (README, The baseband). Counted from the start, the last packet
- * or the GUI's last TX: not at a start (one X6200 on 1.0.8 sent its first packet 16 s in, #47), not while the GUI
- * keys or the base is in TX, and a GUI restart (an update, LOCK's base restart) counts afresh. Said once, again only
- * after packets came (radio_tick) and stopped again. True: its line went to the base log */
+ * or the GUI's last TX (base_gone_due, tools/base_guard tests it): not at a start (one X6200 on 1.0.8 sent its first
+ * packet 16 s in, #47), not while the GUI keys or the base is in TX, and a GUI restart (an update, LOCK's base
+ * restart) counts afresh. Said once, again only after packets came (radio_tick) and stopped again. True: its line
+ * went to the base log */
 static bool base_gone(void) {
     static uint64_t tx_time;
     bool            never = !base_seen;
+    bool            keyed = atomic_load(&state) != RADIO_RX || hw_tx_keyed_by_gui() || atomic_load(&modem_on) ||
+                            morse_on;
 
-    if (atomic_load(&state) != RADIO_RX || hw_tx_keyed_by_gui() || atomic_load(&modem_on) || morse_on) {
-        tx_time = now_time;
-        return false;
-    }
-    if (gone_said || now_time - (pack_time > tx_time ? pack_time : tx_time) < BASE_GONE_MS) {
+    if (!base_gone_due(now_time, pack_time, keyed, &tx_time, gone_said)) {
         return false;
     }
     if (!scheduler_put(base_gone_cb, &never, sizeof(never))) {

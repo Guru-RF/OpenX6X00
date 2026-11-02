@@ -50,6 +50,14 @@ bool base_silent_due(uint64_t now_ms, uint64_t start_ms, uint64_t *last_ms) {
     return true;
 }
 
+bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool keyed, uint64_t *tx_ms, bool said) {
+    if (keyed) {
+        *tx_ms = now_ms;
+        return false;
+    }
+    return !said && now_ms - (pack_ms > *tx_ms ? pack_ms : *tx_ms) >= BASE_GONE_MS;
+}
+
 void base_guard_log(const char *fmt, ...) {
     static time_t   last;
     static unsigned skipped;
