@@ -2169,6 +2169,25 @@ MEM_SLOTS = range(1, 10)  # MEM_HKEY_MAX_ID in src/main_screen.h; 10 is the GUI'
 FREQ_MIN, FREQ_MAX = 100000, 56000000  # the GUI HF range (HF_MIN_FREQ)
 CHANNELS_MAX = 100
 CHANNEL_NAME_RE = re.compile(r"[ -~]{0,31}")
+# Where the radio tunes a channel, Hz: it takes any other frequency to the nearest edge (clamp_to_valid_hw_freq,
+# src/cfg/settings_manager.h). HF, and 70-500 MHz through a transverter; the X6200 also FM broadcast and the airband
+# and the WR12's 54 MHz-1 GHz, so all of 0.1-1000 MHz. The model's, whatever is on now: a channel for a transverter
+# or the WR12 stays good while it is off
+TUNE_RANGES = {"x6100": ((100_000, 55_000_000), (70_000_000, 500_000_000)),
+               "x6200": ((100_000, 1_000_000_000),)}
+
+
+def radio_model():
+    """x6100 or x6200, from the device tree, as x6100-update tells them apart"""
+    try:
+        with open(settings.DEVICE_TREE, "rb") as f:
+            return "x6200" if b"xiegu,x6200" in f.read() else "x6100"
+    except OSError:
+        return "x6100"
+
+
+def tune_ranges():
+    return TUNE_RANGES[radio_model()]
 
 
 def parse_entry(data, named):
@@ -2176,8 +2195,10 @@ def parse_entry(data, named):
     if not isinstance(data, dict):
         raise ValueError("Invalid request")
     freq = data.get("frequency")
-    if isinstance(freq, bool) or not isinstance(freq, int) or not FREQ_MIN <= freq <= FREQ_MAX:
-        raise ValueError("Frequency must be between 0.5 and 56 MHz")
+    ranges = tune_ranges() if named else ((FREQ_MIN, FREQ_MAX),)   # MEM slots: HF
+    if isinstance(freq, bool) or not isinstance(freq, int) or not any(lo <= freq <= hi for lo, hi in ranges):
+        raise ValueError("Frequency must be " + " or ".join(f"{lo / 1e6:g}-{hi / 1e6:g}" for lo, hi in ranges)
+                         + " MHz")
     if data.get("mode") not in MODES:
         raise ValueError("Invalid mode")
     if data.get("agc") not in AGCS:
@@ -2201,7 +2222,8 @@ def api_error(status, msg):
 
 @app.route('/memories')
 def memories():
-    return bottle.template('memories')
+    ranges = tune_ranges()
+    return bottle.template('memories', mhz=(ranges[0][0] / 1e6, ranges[-1][1] / 1e6))
 
 
 def read_slots(dbcon):

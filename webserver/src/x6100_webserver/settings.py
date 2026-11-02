@@ -29,3 +29,4 @@ LOCALTIME = "/etc/localtime"        # Time page: the timezone link
 ZONEINFO = "/usr/share/zoneinfo"
 BOOT_PICTURE = "/mnt/bootlogo.png"  # the owner's own boot picture (Display page), read by bootanim/bootanim.c
 BOOT_PICTURE_BUILTIN = "/usr/share/x6100/bootlogo.png"   # ours, shown when there is none
+DEVICE_TREE = "/proc/device-tree/compatible"   # "xiegu,x6200" in it on an X6200 (Memories page: what a channel takes)

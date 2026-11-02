@@ -3266,6 +3266,12 @@ APP Channels, or the V/M key of the hand mic.
   channel above 56 MHz (an X6200's on FM broadcast or the airband, the
   WR12's, a transverter's) left the page's list empty, and an Add there then
   replaced all the channels with the new one.
+- A channel saved on the Memories page takes the frequencies the radio
+  tunes: 0.1-55 MHz, and 70-500 MHz for a transverter, on the X6100;
+  0.1-1000 MHz on the X6200 (FM broadcast, the airband, the WR12,
+  transverters). Whether the transverter or the WR12 is on does not matter:
+  while it is off, the radio tunes such a channel to the nearest frequency
+  it can.
 - A channel whose name starts with WEFAX also shows in the WeFax app's Freq.
   list ([SSTV, WeFax and NavTex](#sstv-wefax-and-navtex)). Its frequency is
   the dial, 1.5 kHz below the fax station's: 7793.5 kHz for a station on
