@@ -363,11 +363,16 @@ start() {
             return
         fi
         # So is a FAT32 formatted there on a PC (another label): the next start would take it up as
-        # the third partition, FAT32 (find_data), and this one does
+        # the third partition, FAT32 (find_data), and this one does. Not one parted does not read, which
+        # the next start would leave alone (unformatted_data_part)
         if [ "$(field TYPE)" = vfat ] && [ "$(field VERSION)" = FAT32 ]; then
-            l=$(field LABEL)
-            echo "A FAT32 filesystem is there, label ${l:-none}: kept as DATA"
-            check_data
+            if parted -m -s /dev/mmcblk0 print | grep -q '^3:[^:]*:[^:]*:[^:]*:fat32:'; then
+                l=$(field LABEL)
+                echo "A FAT32 filesystem is there, label ${l:-none}: kept as DATA"
+                check_data
+                return
+            fi
+            alone "$DEV holds a FAT32 to blkid, not to parted: not formatted; $CHECK"
             return
         fi
         alone "$DEV holds another filesystem ($(found)): not formatted; $OTHER"

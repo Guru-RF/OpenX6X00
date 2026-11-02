@@ -125,6 +125,13 @@ if want handmade; then
     printf 'rc=8\n' > "$F/probe_override_3"
     boot new
     ok "fresh, blkid exit 8: not formatted" 'grep -q "holds another filesystem (blkid -p exit 8): not formatted" "$F/out.txt" && ! called "^mkfs"'
+    # and with a FAT32 that only blkid reads: not taken up, as the next start would not either
+    newcard fresh_blkidonly $C4G
+    printf 'rc=0\nTYPE=vfat\nVERSION=FAT32\nLABEL=ODD\n' > "$F/probe_override_3"
+    boot new
+    ok "fresh, a FAT32 to blkid only: not formatted, not mounted, check it on a PC" 'grep -q "holds a FAT32 to blkid, not to parted: not formatted; $HINT_CHECK" "$F/out.txt" && ! called "^mkfs" && ! called "^fsck.fat" && ! mounted'
+    boot new
+    ok "fresh, a FAT32 to blkid only, next start: the same" 'grep -q "not touched (a FAT32 to blkid, not to parted); $HINT_CHECK" "$F/out.txt" && ! called "^mkfs" && ! mounted'
 fi
 
 # A card a v0.3.8 first start left without DATA (made, never formatted), the radio on the system's /mnt
