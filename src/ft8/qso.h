@@ -53,7 +53,9 @@ class Candidate {
     void set_local_snr(int snr);
     void set_rcvd_snr(int snr);
     bool match_callsign(std::string callsign);
+    std::string callsign();
     bool is_finished();
+    bool is_over();
     bool can_be_saved();
     bool sent_report();
     bool quiet_slot(int max_repeats);
@@ -114,6 +116,7 @@ class FTxQsoProcessor {
     int           _max_repeats = -1;
     is_pota_cb_t  _is_pota = NULL;
     bool          _cur_fresh = false;   /* the current QSO is a non-POTA caller of this slot, not answered yet */
+    std::string   _gave_way;            /* the logged QSO a caller took over in this slot: back if its station sends */
 
     ftx_msg_type_t _last_rx_type;
     Candidate     *_next_candidate = NULL;
@@ -128,6 +131,7 @@ class FTxQsoProcessor {
     Candidate  *find_aside(std::string call);
     Candidate  *take_aside(std::string call);
     Candidate  *candidate_for(std::string call);
+    bool        take_back(std::string call);
 };
 #else
 typedef struct FTxQsoProcessor FTxQsoProcessor;

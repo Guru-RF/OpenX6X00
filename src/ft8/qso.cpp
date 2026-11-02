@@ -62,8 +62,18 @@ bool Candidate::match_callsign(std::string callsign) {
     return callsign == _remote_callsign;
 }
 
+std::string Candidate::callsign() {
+    return _remote_callsign;
+}
+
 bool Candidate::is_finished() {
     return (_last_rx_type == FTX_MSG_TYPE_73) || (_last_rx_type == FTX_MSG_TYPE_RR73);
+}
+
+/* Logged, and a slot of ours since its station's last message: our RR73 or 73 went, a caller may
+ * take over (its station repeating would have sent again) */
+bool Candidate::is_over() {
+    return _saved && _quiet_slots >= 2;
 }
 
 /* One more slot without its message: true once our last try (RR73 and 73 go once) had its answer slot, and a slot spare */
@@ -226,7 +236,7 @@ void FTxQsoProcessor::process_r_report(ftx_msg_meta_t *meta, std::vector<std::st
     strcpy(meta->call_de, call_de.c_str());
     if (call_to == _local_callsign) {
         meta->to_me = true;
-        if ((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) {
+        if (((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) || take_back(call_de)) {
             _cur_candidate->set_msg_type(meta->type);
             _cur_candidate->set_local_snr(snr);
             _cur_candidate->set_rcvd_snr(rcvd_snr);
@@ -253,7 +263,7 @@ void FTxQsoProcessor::process_rr73(ftx_msg_meta_t *meta, std::vector<std::string
     strcpy(meta->call_de, call_de.c_str());
     if (call_to == _local_callsign) {
         meta->to_me = true;
-        if ((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) {
+        if (((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) || take_back(call_de)) {
             _cur_candidate->set_msg_type(meta->type);
             _cur_candidate->set_local_snr(snr);
             _cur_candidate->save_qso(_save_qso_cb);
@@ -326,6 +336,7 @@ void FTxQsoProcessor::set_is_pota(is_pota_cb_t cb) {
 
 void FTxQsoProcessor::start_new_slot() {
     _cur_fresh = false;
+    _gave_way.clear();
     for (auto it = _aside.begin(); it != _aside.end();) {
         if ((*it)->aside_slot()) {
             delete *it;
@@ -346,6 +357,7 @@ void FTxQsoProcessor::start_new_slot() {
 }
 
 void FTxQsoProcessor::reset() {
+    _gave_way.clear();
     put_aside(_cur_candidate);
     _cur_candidate = NULL;
     put_aside(_next_candidate);
@@ -397,6 +409,23 @@ Candidate *FTxQsoProcessor::candidate_for(std::string call) {
     return candidate ? candidate : new Candidate(call);
 }
 
+/* The station whose logged QSO a caller took over in this slot sends again (our RR73 or 73 was
+ * missed): its QSO is the current one again, the caller the next, as it would have been */
+bool FTxQsoProcessor::take_back(std::string call) {
+    if (_gave_way.empty() || _gave_way != call) return false;
+    _gave_way.clear();
+    Candidate *candidate = take_aside(call);
+    if (candidate == NULL) return false;
+    if (_next_candidate == NULL) {
+        _next_candidate = _cur_candidate;
+    } else {
+        put_aside(_cur_candidate);
+    }
+    _cur_candidate = candidate;
+    _cur_fresh = false;
+    return true;
+}
+
 void FTxQsoProcessor::start_qso(ftx_msg_meta_t *meta, ftx_tx_msg_t *tx_msg) {
     auto type = meta->type;
     if (!meta->to_me) {
@@ -434,6 +463,7 @@ bool FTxQsoProcessor::can_save_qso() {
 }
 
 bool FTxQsoProcessor::force_save_qso() {
+    _gave_way.clear();
     if (_cur_candidate) {
         _cur_candidate->save_qso(_save_qso_cb);
         put_aside(_cur_candidate);
@@ -446,6 +476,12 @@ bool FTxQsoProcessor::force_save_qso() {
 
 Candidate **FTxQsoProcessor::get_candidate_to_update(std::string call_de) {
     bool pota = _is_pota && _is_pota(call_de.c_str());
+    if ((_cur_candidate != NULL) && _cur_candidate->is_over() && !_cur_candidate->match_callsign(call_de)) {
+        // Logged, our last message out: the caller gets the answer, not after the slots it waits out
+        _gave_way = _cur_candidate->callsign();
+        put_aside(_cur_candidate);
+        _cur_candidate = NULL;
+    }
     if (_cur_candidate == NULL) {
         // Start new QSO
         _cur_candidate = candidate_for(call_de);
@@ -468,6 +504,7 @@ Candidate **FTxQsoProcessor::get_candidate_to_update(std::string call_de) {
 
 Candidate *FTxQsoProcessor::get_or_create_cur_candidate(std::string remote_callsign) {
     _cur_fresh = false;     // the operator chose
+    _gave_way.clear();
     // Try to continue current QSO
     if ((_cur_candidate != NULL) && !_cur_candidate->match_callsign(remote_callsign)) {
         put_aside(_cur_candidate);

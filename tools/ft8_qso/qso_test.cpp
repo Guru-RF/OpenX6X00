@@ -554,12 +554,111 @@ static void aside(void) {
     check(logged.empty(), "nothing logged (%zu)", logged.size());
 }
 
+/* ---- A new caller after our last message: answered at once ------------------------------------------------- */
+
+/* We call CQ, A answers, its R+report logs it, our RR73 goes out */
+static void cq_to_rr73(void) {
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80");
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    our_slot();
+}
+
+static void new_caller(void) {
+    begin("We call CQ, our RR73 to A went, no 73: B's first call is answered");
+    cq_to_rr73();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15"), "B answered at its first call (%s)", tx.msg);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ A1AAA 73");
+    rx("Q1QQQ B1BBB R-03");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -12, -10, false) && logged_once("B1BBB", "JN11", -3, -15, false),
+          "A logged once, B at its R+report, A's late 73 no second entry");
+    check(next_is("B1BBB Q1QQQ RR73"), "RR73 to B (%s)", tx.msg);
+
+    begin("We answer A's CQ, our 73 to its RR73 went: B's first call is answered");
+    answered_to_r_report();
+    rx("Q1QQQ A1AAA RR73");
+    slot_end();
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15"), "B answered at its first call (%s)", tx.msg);
+    check(logged_once("A1AAA", "IN80", -5, -10, false), "A logged once");
+
+    begin("B calls in the slot of A's R+report: our RR73 to A first, B answered after it");
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80");
+    slot_end();
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    check(next_is("A1AAA Q1QQQ RR73"), "RR73 to A (%s)", tx.msg);
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15"), "B answered at its next call (%s)", tx.msg);
+
+    begin("After our RR73, B's call then A's R+report again in one slot: A gets its RR73 again");
+    cq_to_rr73();
+    rx("Q1QQQ B1BBB JN11", -15);
+    rx("Q1QQQ A1AAA R-12");
+    check(next_is("A1AAA Q1QQQ RR73"), "RR73 to A again (%s)", tx.msg);
+    slot_end();
+    our_slot();
+    check(times_sent("A1AAA Q1QQQ RR73") == 2 && logs_of("A1AAA") == 1, "RR73 sent twice, A logged once");
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15"), "B answered at its next call (%s)", tx.msg);
+
+    begin("After our RR73, A's R+report again then B's call in one slot: A gets its RR73 again");
+    cq_to_rr73();
+    rx("Q1QQQ A1AAA R-12");
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("A1AAA Q1QQQ RR73"), "RR73 to A again (%s)", tx.msg);
+    slot_end();
+    our_slot();
+    rx("Q1QQQ B1BBB JN11", -15);
+    check(next_is("B1BBB Q1QQQ -15") && logs_of("A1AAA") == 1, "B answered at its next call, A logged once");
+
+    begin("After our RR73 B's call is taken, the operator presses C: A's R+report again stays aside");
+    cq_to_rr73();
+    rx("Q1QQQ B1BBB JN11", -15);
+    ftx_msg_meta_t c = rx("CQ C1CCC JN22");
+    press(c);
+    rx("Q1QQQ A1AAA R-12");
+    check(next_is("C1CCC Q1QQQ JO21") && logs_of("A1AAA") == 1, "the operator's C goes on, A logged once (%s)",
+          tx.msg);
+
+    begin("Auto off, after our RR73 B calls: nothing sent by itself, B's row answers it", false);
+    tx_cq();
+    our_slot();
+    ftx_msg_meta_t a = rx("Q1QQQ A1AAA IN80");
+    slot_end();
+    press(a);
+    our_slot();
+    ftx_msg_meta_t r = rx("Q1QQQ A1AAA R-12");
+    slot_end();
+    press(r);
+    our_slot();
+    ftx_msg_meta_t b = rx("Q1QQQ B1BBB JN11", -15);
+    check(!tx.msg[0], "nothing queued (%s)", tx.msg);
+    press(b);
+    check(next_is("B1BBB Q1QQQ -15") && logged_once("A1AAA", "IN80", -12, -10, false), "B's row: our report to B");
+}
+
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "-v");
     good_paths();
     incomplete();
     moved_on();
     aside();
+    new_caller();
     ftx_qso_processor_delete(qso);
     printf("FT8 QSO %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;
