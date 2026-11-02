@@ -27,13 +27,24 @@ LOG=/tmp/data_fsck.log
 P3=/dev/mmcblk0p3
 SYS_TRACE=/var/lib/x6100/start_trace    # the start trace on the system partition (.txt, .1.txt)
 MOUNTED=/var/lib/x6100/data_mounted     # DATA mounted on this card, or found gone bad: never formatted
-# What to do with DATA left alone because it went bad (the trace, the manual)
+# What to do with a third partition left alone (the trace, data_fsck.log, the manual): DATA that went
+# bad, anything else
 DAMAGED="its files are most likely still there: copy them off on a PC with a recovery tool, then format it there as FAT32"
+OTHER="for DATA there, format it as FAT32 on a PC"
 
 # A step into the start trace (x6100-starttrace; rcS writes this script's start and end): the check and
 # the format are what can take long here, on a large or a failing card
 trace() {
     [ -x /usr/sbin/x6100-starttrace ] && /usr/sbin/x6100-starttrace "S00adata: $*"
+}
+
+# DATA left alone, not formatted: why and what to do, on the console, in the trace and in data_fsck.log
+# in the system's /mnt folder the radio runs on then, which the web configurator's Files page shows
+alone() {
+    echo "$*"
+    trace "$*"
+    { echo "$(date '+%Y-%m-%d %H:%M:%S'), up $(cut -d' ' -f1 /proc/uptime) s"; echo "$*"; } > $LOG
+    cp $LOG /mnt/data_fsck.log 2>/dev/null
 }
 
 # blkid's low-level probe of the partition $1 (-p: the partition itself, no cache). probed: all its
@@ -209,8 +220,9 @@ make_data() {
 # last of three in a DOS table, FAT32 by its type (0x0c, 0x0b), from the end of the second partition
 # to the end of the card (parted's alignment and the rounded end it is given leave up to 8 MiB
 # before it, and 1 % of the card and 8 MiB after it), and nothing on it that blkid knows. Anything
-# else is left alone, why in not_ours
+# else is left alone, why in not_ours, what to do in todo
 unformatted_data_part() {
+    todo=$OTHER
     probe $P3
     if [ -n "$sig" ]; then not_ours="it holds $(found)"; return 1; fi
     if [ "$(field PART_ENTRY_SCHEME)" != dos ] || [ "$(field PART_ENTRY_NUMBER)" != 3 ]; then
@@ -246,12 +258,12 @@ unformatted_data_part() {
     # lines are always there). Found once, the mark keeps it for the starts after
     if fs_left $P3; then
         mark_data
-        not_ours="$left; $DAMAGED"
+        not_ours=$left todo=$DAMAGED
         return 1
     fi
     if [ -e $MOUNTED ] || grep -qs "S00adata: fsck.fat of " $SYS_TRACE.txt $SYS_TRACE.1.txt; then
         mark_data
-        not_ours="DATA was mounted at an earlier start, its boot sector gone bad since; $DAMAGED"
+        not_ours="DATA was mounted at an earlier start, its boot sector gone bad since" todo=$DAMAGED
         return 1
     fi
     return 0
@@ -275,8 +287,7 @@ start() {
             make_data $P3
             return
         fi
-        echo "A third partition exists and is not FAT32: not touched ($not_ours)"
-        trace "A third partition exists and is not FAT32: not touched ($not_ours)"
+        alone "A third partition exists and is not FAT32: not touched ($not_ours); $todo"
         return
     fi
     FREE_INFO=$(parted -sm /dev/mmcblk0 print free | tail -n1 | grep free)
@@ -313,15 +324,13 @@ start() {
             check_data
             return
         fi
-        echo "$DEV holds another filesystem ($(found)): not formatted"
-        trace "$DEV holds another filesystem ($(found)): not formatted"
+        alone "$DEV holds another filesystem ($(found)): not formatted; $OTHER"
         return
     fi
     # Nor what is left of DATA whose boot sector went bad before the new image (the system's mark and
     # trace went with it)
     if fs_left "$DEV"; then
-        echo "$DEV holds $left: not formatted; $DAMAGED"
-        trace "$DEV holds $left: not formatted; $DAMAGED"
+        alone "$DEV holds $left: not formatted; $DAMAGED"
         return
     fi
     make_data "$DEV"

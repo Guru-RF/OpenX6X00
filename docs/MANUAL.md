@@ -5079,7 +5079,8 @@ UTC and the seconds since power-on:
    it at the first start of a new card; its own lines ("S00adata: fsck.fat of
    ...", "fsck.fat exit N", "formatting ...", "... formatted as DATA and
    mounted") show a check that takes long. A third partition it leaves alone
-   is said with why ("not touched (it holds ext4)"); see also
+   is said with why and what to do ("not touched (it holds ext4); for DATA
+   there, format it as FAT32 on a PC"), in `data_fsck.log` too; see also
    [no DATA drive](#on-a-pc-the-card-has-no-data-drive-only-an-unknown-partition).
 3. "x6100_daemon: GUI start N" before each start of the GUI, then the GUI's
    own lines:
@@ -5182,11 +5183,15 @@ partition from a new one by what is left of the filesystem: the copy of the
 boot sector that FAT32 keeps in its sector 6 (exFAT in sector 12), or, when
 the card lost the sectors around it too, the first FAT that follows them. And
 by the mark each start that mounts DATA leaves on the system partition, which
-a new card image takes with it. The start trace says why at every start: "not
-touched (a FAT32 whose boot sector went bad, its copy in sector 6 found; ...)"
-or "not touched (DATA was mounted at an earlier start, its boot sector gone
-bad since; ...)", and at the first start of a new image "... holds a FAT32
-whose boot sector went bad, ...: not formatted; ...".
+a new card image takes with it. The start trace says why at every start, and
+what to do: "not touched (a FAT32 whose boot sector went bad, its copy in
+sector 6 found); its files are most likely still there: copy them off on a PC
+with a recovery tool, then format it there as FAT32", or "not touched (DATA
+was mounted at an earlier start, its boot sector gone bad since); ...", and
+at the first start of a new image "... holds a FAT32 whose boot sector went
+bad, ...: not formatted; ...". Those lines are on the system partition, but
+the same is in `data_fsck.log` in the `/mnt` folder the radio runs on
+meanwhile: the web configurator's Files page shows it.
 
 What to do then:
 
@@ -5411,7 +5416,7 @@ The DATA partition, readable on a PC.
 | `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
 | `bootlogo.png` | your own [boot picture](#boot-picture), from the Display page of the web configurator |
-| `data_fsck.log` | what the last start's check of DATA found, or that the start formatted it and moved the system's `/mnt` files onto it |
+| `data_fsck.log` | what the last start's check of DATA found, or that the start formatted it and moved the system's `/mnt` files onto it. While the radio runs without DATA, why it left the partition alone and what to do, in the system's `/mnt` folder it runs on (the Files page shows that one then) |
 | `found_on_system/` | files the radio wrote into the system partition's `/mnt` folder while DATA was there but not mounted, put here at the next start that mounted it; `found_on_system.2/`, `.3/` ... when one is there already (nothing on DATA is written over). A DATA without settings of its own (no `params.db`, as after a format on a PC) gets them on its top level instead, the names it has already left here |
 
 `cluster.conf` example (the `host=`/`port=` lines are the server in use, each
