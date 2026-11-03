@@ -173,6 +173,7 @@ the same GUI. How they are taken: [docs/screenshots](docs/screenshots/README.md)
 |---|---|
 | ![The APP menu](docs/screenshots/apps_grid.png) **APP**: the apps and tools, each with a line on what it does | ![DX Cluster app](docs/screenshots/cluster.png) **[DX Cluster](docs/MANUAL.md#dx-cluster)** on 20 m: 85 spots, the list following the VFO |
 | ![Bands app](docs/screenshots/bands.png) **[Bands](docs/MANUAL.md#bands)**: 160 to 6 m from the cluster and the RBN, the best band framed | ![Channels](docs/screenshots/channels.png) **[Channels](docs/MANUAL.md#channels)**: NavTex, VOLMET and the DWD weather stations |
+| ![3D waterfall](docs/screenshots/waterfall_3d.png) **[3D waterfall](docs/MANUAL.md#waterfall)**: the last seconds in perspective, coloured by strength, the newest trace in red (PC build, its one test carrier) | ![3D waterfall, 1bit](docs/screenshots/waterfall_3d_1bit.png) **3D in the 1bit theme**: a line drawing, the level scale on the walls |
 
 ### Digital modes
 

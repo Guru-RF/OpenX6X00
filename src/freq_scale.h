@@ -29,6 +29,12 @@ void freq_scale_lines_set_y(lv_coord_t y);
 
 void freq_scale_update(int32_t center, int32_t half_width, uint32_t color);
 
+/* The reference frequencies shown: their x (0..799) and Hz, at most max; how many */
+int freq_scale_refs(int32_t *x, int32_t *hz, int max);
+
+/* The dashed lines hidden (the 3D waterfall draws its own) or shown with their labels */
+void freq_scale_lines_hide(bool hide);
+
 #ifdef __cplusplus
 }
 #endif

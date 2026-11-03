@@ -21,6 +21,9 @@ static lv_obj_t *refs[MAX_REFS];
 static lv_obj_t *lines[MAX_REFS];  /* dashed, down the waterfall */
 static lv_point_t line_pts[2];     /* theirs: from the top of the waterfall to lines_bottom */
 static lv_coord_t lines_bottom;
+static int32_t    ref_x[MAX_REFS], ref_hz[MAX_REFS];  /* the references shown (freq_scale_refs()) */
+static int        ref_n;
+static bool       lines_hidden;
 
 static lv_obj_t *make_label(lv_obj_t *parent, lv_coord_t x, lv_coord_t y) {
     lv_obj_t *l = lv_label_create(parent);
@@ -87,6 +90,28 @@ void freq_scale_lines_set_y(lv_coord_t y) {
     }
 }
 
+int freq_scale_refs(int32_t *x, int32_t *hz, int max) {
+    int n = ref_n < max ? ref_n : max;
+
+    for (int i = 0; i < n; i++) {
+        x[i] = ref_x[i];
+        hz[i] = ref_hz[i];
+    }
+    return n;
+}
+
+void freq_scale_lines_hide(bool hide) {
+    if (hide == lines_hidden) {
+        return;
+    }
+    lines_hidden = hide;
+    for (int i = 0; i < MAX_REFS; i++) {
+        if (!lines[i]) continue;
+        if (hide) lv_obj_add_flag(lines[i], LV_OBJ_FLAG_HIDDEN);
+        else if (i < ref_n) lv_obj_clear_flag(lines[i], LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 void freq_scale_update(int32_t center, int32_t half_width, uint32_t color) {
     static const int32_t mult[] = {1, 2, 5};
     int32_t              left   = center - half_width;
@@ -118,10 +143,13 @@ void freq_scale_update(int32_t center, int32_t half_width, uint32_t color) {
         lv_obj_clear_flag(refs[n], LV_OBJ_FLAG_HIDDEN);
         if (lines[n]) {
             lv_obj_set_x(lines[n], x);
-            lv_obj_clear_flag(lines[n], LV_OBJ_FLAG_HIDDEN);
+            if (!lines_hidden) lv_obj_clear_flag(lines[n], LV_OBJ_FLAG_HIDDEN);
         }
+        ref_x[n] = x;
+        ref_hz[n] = f;
         n++;
     }
+    ref_n = n;
     for (; n < MAX_REFS; n++) {
         lv_obj_add_flag(refs[n], LV_OBJ_FLAG_HIDDEN);
         if (lines[n]) {

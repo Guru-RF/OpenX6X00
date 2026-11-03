@@ -141,6 +141,10 @@ static const char *wf_mode_label() {
     return cfg_sm.p_wf_mode.get() ? "WF\nFixed" : "WF\nCenter";
 }
 
+static const char *wf_3d_label() {
+    return cfg_sm.p_wf_3d.get() ? "WF:\n3D" : "WF:\n2D";
+}
+
 /* Label shows the span the button selects */
 static const char *span_label(int32_t zoom) {
     static char buf[2][24];
@@ -288,6 +292,13 @@ static button_data_t btn_if_shift = knob([] { return text("IF shift:\n%i", cfg_s
 static button_data_t btn_vox = knob_toggle([] { return text("VOX:\n%s", on_off(cfg_sm.p_vox_en.get())); },
                                            controls_toggle_vox, CTRL_VOX_ON, &cfg_sm.p_vox_en);
 static button_data_t btn_wf_mode = knob_toggle(wf_mode_label, controls_toggle_wf_mode, CTRL_WF_MODE, &cfg_sm.p_wf_mode);
+static button_data_t btn_wf_3d = knob_toggle(wf_3d_label, controls_toggle_wf_3d, CTRL_WF_3D, &cfg_sm.p_wf_3d);
+static button_data_t btn_3d_depth = knob([] { return text("3D depth:\n%i", cfg_sm.p_wf_3d_depth.get()); },
+                                         CTRL_WF_3D_DEPTH, &cfg_sm.p_wf_3d_depth);
+static button_data_t btn_3d_tilt = knob([] { return text("3D tilt:\n%i", cfg_sm.p_wf_3d_tilt.get()); },
+                                        CTRL_WF_3D_TILT, &cfg_sm.p_wf_3d_tilt);
+static button_data_t btn_3d_floor = knob([] { return text("3D floor:\n+%i", cfg_sm.p_wf_3d_floor.get()); },
+                                         CTRL_WF_3D_FLOOR, &cfg_sm.p_wf_3d_floor);
 static button_data_t btn_span_wider = fn_btn(span_wider_label, controls_span_wider, &cfg_sm.p_mode_zoom);
 static button_data_t btn_span_narrower = fn_btn(span_narrower_label, controls_span_narrower, &cfg_sm.p_mode_zoom);
 static button_data_t btn_screen_rec = fn_btn(screen_rec_label, [](button_data_t *) { screen_rec_toggle(); }, NULL);
@@ -389,8 +400,8 @@ buttons_page_t buttons_page_rtty = {{&btn_rtty_p1, &btn_rtty_rate, &btn_rtty_shi
 /* ---- pages and groups; buttons_init() links the page buttons of a group in a ring ---- */
 
 static button_data_t btn_vol_p1 = page_btn("(VOL 1:2)"), btn_vol_p2 = page_btn("(VOL 2:2)");
-static button_data_t btn_mfk_p1 = page_btn("(MFK 1:3)"), btn_mfk_p2 = page_btn("(MFK 2:3)"),
-                     btn_mfk_p3 = page_btn("(MFK 3:3)");
+static button_data_t btn_mfk_p1 = page_btn("(MFK 1:4)"), btn_mfk_p2 = page_btn("(MFK 2:4)"),
+                     btn_mfk_p3 = page_btn("(MFK 3:4)"), btn_mfk_p4 = page_btn("(MFK 4:4)");
 static button_data_t btn_app_p1 = page_btn("(APP 1:3)"), btn_app_p2 = page_btn("(APP 2:3)"),
                      btn_app_p3 = page_btn("(APP 3:3)");
 static button_data_t btn_key_p1 = page_btn("(KEY 1:2)"), btn_key_p2 = page_btn("(KEY 2:2)");
@@ -404,10 +415,11 @@ static buttons_page_t page_vol_2 = {{&btn_vol_p2, &btn_moni, &btn_pre, &btn_att,
 static buttons_page_t page_mfk_1 = {{&btn_mfk_p1, &btn_rit, &btn_xit, &btn_zoom, &btn_wf_ref}};
 static buttons_page_t page_mfk_2 = {{&btn_mfk_p2, &btn_agc, &btn_comp, &btn_if_shift, &btn_vox}};
 static buttons_page_t page_mfk_3 = {{&btn_mfk_p3, &btn_wf_mode, &btn_span_wider, &btn_span_narrower, &btn_screen_rec}};
+static buttons_page_t page_mfk_4 = {{&btn_mfk_p4, &btn_wf_3d, &btn_3d_depth, &btn_3d_tilt, &btn_3d_floor}};
 
 static buttons_page_t page_app_1 = {{&btn_app_p1, &btn_modes, &btn_cluster, &btn_swr, &btn_rec}};
 static buttons_page_t page_app_2 = {{&btn_app_p2, &btn_settings, &btn_cwt, &btn_field, &btn_chans}};
-static buttons_page_t page_app_3 = {{&btn_app_p3, &btn_bands, &btn_gps, &btn_screen_rec, &btn_cwkbd}};   /* Screen rec: the MFK 3:3 one too */
+static buttons_page_t page_app_3 = {{&btn_app_p3, &btn_bands, &btn_gps, &btn_screen_rec, &btn_cwkbd}};   /* Screen rec: the MFK 3:4 one too */
 
 static buttons_page_t page_key_1 = {{&btn_key_p1, &btn_key_speed, &btn_key_vol, &btn_key_train, &btn_key_tone}};
 static buttons_page_t page_key_2 = {{&btn_key_p2, &btn_key_mode, &btn_iambic, &btn_qsk, &btn_ratio}};
@@ -424,7 +436,7 @@ static buttons_page_t page_dfl = {{&btn_flt_low, &btn_flt_high, &btn_flt_bw, &bt
 static buttons_page_t page_mem_1 = {{&btn_mem_p1, &btn_mem[0], &btn_mem[1], &btn_mem[2], &btn_mem[3]}};
 static buttons_page_t page_mem_2 = {{&btn_mem_p2, &btn_mem[4], &btn_mem[5], &btn_mem[6], &btn_mem[7]}};
 
-buttons_group_t buttons_group_gen = {&buttons_page_vol_1, &page_vol_2, &page_mfk_1, &page_mfk_2, &page_mfk_3};
+buttons_group_t buttons_group_gen = {&buttons_page_vol_1, &page_vol_2, &page_mfk_1, &page_mfk_2, &page_mfk_3, &page_mfk_4};
 buttons_group_t buttons_group_app = {&page_app_1, &page_app_2, &page_app_3};
 buttons_group_t buttons_group_key = {&page_key_1, &page_key_2, &page_cw_1, &page_cw_2};
 buttons_group_t buttons_group_dfn = {&page_dfn_1, &page_dfn_2, &page_dfn_3};

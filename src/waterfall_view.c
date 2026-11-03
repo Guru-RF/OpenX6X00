@@ -23,6 +23,7 @@
 #include "theme.h"
 #include "mono.h"
 #include "util.h"
+#include "freq_scale.h"
 #include "lv_drivers/display/drm.h"
 
 #include <math.h>
@@ -45,6 +46,7 @@ typedef struct {
     uint32_t width;     /* Hz of the data; 0: empty */
     uint8_t  floor;     /* 75th percentile: above it the row has signals */
     uint8_t  seq;       /* 1bit: the dither row it keeps while it scrolls down */
+    uint32_t num;       /* its number, counted from the start: 3D keeps every third */
     bool     kept;      /* the values around the data are set */
 } wf_row_t;
 
@@ -222,7 +224,8 @@ static void keep_around(wf_row_t *row, const float *db, float min, float max, bo
     row->kept = true;
 }
 
-static uint8_t row_seq;     /* 1bit: the next row's dither row */
+static uint8_t  row_seq;    /* 1bit: the next row's dither row */
+static uint32_t row_count;  /* rows written: their numbers (3D) */
 
 void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint32_t width_hz) {
     /* After a retune the base's next rows may still be of the frequency before: from rest, the two
@@ -318,6 +321,7 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
     while (id < 255 && (n += hist[id]) < size * 3 / 4) id++;
     row->floor = id;
     row->seq = row_seq++;
+    row->num = ++row_count;
 
     /* Not the picture of TX: after it the same frequencies are received again */
     row->kept = false;
@@ -495,6 +499,468 @@ static void direct_redraw(int new_row) {
 #endif
 }
 
+/* ---- 3D: the last rows as traces one behind the other ---- */
+
+/* Settings > Display > WATERFALL, 3D: the newest row in front at the bottom, older ones behind it,
+ * each higher up and narrower, towards a vanishing point on the VFO line (it stays straight through
+ * them all).
+ *
+ * The traces glide: each is one row, every D3_STEP-th by its number, and stays that row while it
+ * moves back by a fraction of the spacing at each new row (picked by age, the stack stood still and
+ * then jumped a whole spacing at every third row). The newest row is in front whatever its number:
+ * the live trace.
+ *
+ * Drawn front to back with a horizon per column (the floating horizon of the old surface plots): a
+ * trace shows only where it rises above all those in front of it, down to its own foot. The noise
+ * floor is cut away (each row's floor, its 75th percentile, and Floor levels above it): only signals
+ * stand up, over a black floor with a grid, a back wall and side walls of the level scale, and lines
+ * from the frequency scale's reference frequencies to the vanishing point, labelled at the front.
+ * Each pixel has the colour of its height on the strength scale (3D colours), the ridges lighter
+ * with their top pixel antialiased, the back darker. The newest trace is drawn over it all as an
+ * antialiased line of its own colour, along the front edge where there is nothing, and its peaks
+ * held a moment above it (Peaks).
+ *
+ * Every refresh draws the whole picture; the rows are those of the waterfall, at the frequency of
+ * the view now, so tuning and the zoom move the traces as they move the waterfall */
+#define D3_STEP     3       /* rows from one trace to the next */
+#define D3_LABELS   (MAX_D3_REFS + 2)
+#define MAX_D3_REFS 8
+#define D3_LABEL_H  18      /* the front labels' row, under the floor */
+#define D3_GRID     0x2c3848
+#define D3_WALL     0x222c3a
+#define D3_PEAK_DECAY 90.0f /* levels a second the held peaks come down */
+
+enum { D3_STRENGTH, D3_WATERFALL, D3_BLUE };    /* Settings, 3D colours */
+
+static int32_t      d3_vanish = WIDTH / 2;  /* the vanishing point, x: the VFO line (update_middle_line()) */
+static uint32_t     d3_ramp[256];
+static int32_t      d3_ramp_of = -1;        /* the 3D colours d3_ramp was made for */
+static float        d3_peak[WIDTH];         /* held levels of the newest trace, by screen x */
+static int32_t      d3_peak_center;         /* the view they were held at */
+static uint32_t     d3_peak_span;
+static uint32_t     d3_peak_tick;
+static lv_obj_t    *d3_labels[D3_LABELS];   /* the reference frequencies at the front edge */
+static int32_t      d3_label_hz[D3_LABELS];
+static lv_coord_t   d3_label_y = -1;
+
+static bool d3_on(void) {
+    return param_i_get(cfg_wf_3d);
+}
+
+/* The colours by height and the newest trace's */
+static const uint32_t *d3_palette(uint32_t *accent) {
+    /* Strength: dark blue at the floor, cyan, green, yellow, orange, red for the strongest */
+    static const uint32_t strength[] = {0x001048, 0x0030c0, 0x0090ff, 0x00e0c0, 0x40f040, 0xd8f000, 0xffa000, 0xff3000};
+    /* Blue: one hue, brighter with the level */
+    static const uint32_t blue[] = {0x000a28, 0x0028a0, 0x1070ff, 0x60b0ff, 0xd8f0ff};
+    int32_t c = param_i_get(cfg_wf_3d_colors);
+
+    if (c == D3_WATERFALL) {
+        *accent = 0xffffff;
+        return wf_palette;
+    }
+    if (c != d3_ramp_of) {
+        if (c == D3_BLUE) {
+            theme_ramp_palette(blue, sizeof(blue) / sizeof(blue[0]), 0, d3_ramp);
+        } else {
+            theme_ramp_palette(strength, sizeof(strength) / sizeof(strength[0]), 0, d3_ramp);
+        }
+        d3_ramp_of = c;
+    }
+    *accent = c == D3_BLUE ? 0xe8f6ff : 0xff4020;
+    return d3_ramp;
+}
+
+/* c at a/256 of its brightness */
+static inline uint32_t d3_dim(uint32_t c, uint32_t a) {
+    uint32_t rb = ((c & 0x00ff00ffu) * a >> 8) & 0x00ff00ffu;
+    uint32_t g = ((c & 0x0000ff00u) * a >> 8) & 0x0000ff00u;
+
+    return rb | g | 0xff000000u;
+}
+
+/* c a third of the way to white */
+static inline uint32_t d3_light(uint32_t c) {
+    uint32_t r = (c >> 16) & 0xff, g = (c >> 8) & 0xff, b = c & 0xff;
+
+    return (r + (255 - r) / 3) << 16 | (g + (255 - g) / 3) << 8 | (b + (255 - b) / 3);
+}
+
+/* src over dst, a of 255 */
+static inline uint32_t d3_blend(uint32_t dst, uint32_t src, uint32_t a) {
+    uint32_t rb = ((dst & 0x00ff00ffu) * (255u - a) + (src & 0x00ff00ffu) * a + 0x00800080u) >> 8;
+    uint32_t g = ((dst & 0x0000ff00u) * (255u - a) + (src & 0x0000ff00u) * a + 0x00008000u) >> 8;
+
+    return (rb & 0x00ff00ffu) | (g & 0x0000ff00u) | 0xff000000u;
+}
+
+typedef struct {
+    uint32_t *buf;
+    bool      portrait;     /* as wfp: landscape x at row WIDTH - 1 - x, y at its column; else the LVGL image */
+    int32_t   h;
+    bool      mono;         /* 1bit: no partial pixels, the lines dotted */
+} d3_target_t;
+
+static inline uint32_t *d3_at(const d3_target_t *o, int32_t x, int32_t y) {
+    return o->portrait ? &o->buf[(WIDTH - 1 - x) * o->h + y] : &o->buf[y * WIDTH + x];
+}
+
+/* A pixel at coverage a (0..1) */
+static inline void d3_px(const d3_target_t *o, int32_t x, int32_t y, uint32_t c, float a) {
+    if (x < 0 || x >= WIDTH || y < 0 || y >= o->h || a <= 0.0f) {
+        return;
+    }
+    uint32_t *p = d3_at(o, x, y);
+
+    if (o->mono) {
+        if (a >= 0.5f) *p = c;
+    } else {
+        *p = a >= 1.0f ? c | 0xff000000u : d3_blend(*p, c, (uint32_t)(a * 255.0f + 0.5f));
+    }
+}
+
+/* An antialiased line (Wu's), at opacity op; 1bit: every other pixel of whole ones */
+static void d3_line(const d3_target_t *o, float x0, float y0, float x1, float y1, uint32_t c, float op) {
+    bool  steep = fabsf(y1 - y0) > fabsf(x1 - x0);
+    float t;
+
+    if (steep) {
+        t = x0; x0 = y0; y0 = t;
+        t = x1; x1 = y1; y1 = t;
+    }
+    if (x0 > x1) {
+        t = x0; x0 = x1; x1 = t;
+        t = y0; y0 = y1; y1 = t;
+    }
+    float dx = x1 - x0;
+    float g = dx == 0.0f ? 0.0f : (y1 - y0) / dx;
+    float y = y0 + g * (roundf(x0) - x0);
+
+    for (int32_t x = roundf(x0); x <= roundf(x1); x++, y += g) {
+        int32_t yi = floorf(y);
+        float   f = y - yi;
+
+        if (o->mono) {
+            if (!(x & 1)) {
+                if (steep) d3_px(o, lroundf(y), x, c, 1.0f);
+                else d3_px(o, x, lroundf(y), c, 1.0f);
+            }
+        } else if (steep) {
+            d3_px(o, yi, x, c, (1.0f - f) * op);
+            d3_px(o, yi + 1, x, c, f * op);
+        } else {
+            d3_px(o, x, yi, c, (1.0f - f) * op);
+            d3_px(o, x, yi + 1, c, f * op);
+        }
+    }
+}
+
+/* The scene: from the settings and the height seen */
+typedef struct {
+    float hv;       /* the height seen: the buttons and the labels' row are over the bottom */
+    float amp;      /* the front trace's full scale, px */
+    float rise;     /* the back trace's foot this far above the front one's */
+    float shrink;   /* the back trace this much as wide as the front one */
+    float cx;       /* the vanishing point's x */
+    int32_t span;   /* rows from the front to the back */
+} d3_scene_t;
+
+/* Depth t (0 in front, 1 at the back): the scale and the foot */
+static inline void d3_place(const d3_scene_t *sc, float t, float *s, float *foot) {
+    *s = 1.0f - (1.0f - sc->shrink) * t;
+    *foot = sc->hv - 2 - t * sc->rise;
+}
+
+static inline float d3_x(const d3_scene_t *sc, float fx, float s) {
+    return sc->cx + (fx - sc->cx) * s;
+}
+
+/* The reference frequencies of the scale on the floor, the floor's edges and lines across it, the
+ * back wall and the side walls with the level scale at quarters */
+static void d3_grid(const d3_target_t *o, const d3_scene_t *sc, const int32_t *ref_x, int n_refs) {
+    uint32_t grid = o->mono ? theme_shape.ink : D3_GRID;
+    uint32_t wall = o->mono ? theme_shape.ink : D3_WALL;
+    float    s0, f0, s1, f1;
+
+    d3_place(sc, 0, &s0, &f0);
+    d3_place(sc, 1, &s1, &f1);
+    float l0 = d3_x(sc, 0, s1), r0 = d3_x(sc, WIDTH - 1, s1);   /* the back corners */
+
+    /* Across the floor every quarter of the depth, its front and back edges */
+    for (int k = 0; k <= 4; k++) {
+        float s, f;
+
+        d3_place(sc, k / 4.0f, &s, &f);
+        d3_line(o, d3_x(sc, 0, s), f, d3_x(sc, WIDTH - 1, s), f, grid, k == 0 ? 0.9f : 0.6f);
+    }
+    /* Along it: the floor's sides and the reference frequencies */
+    d3_line(o, 0, f0, l0, f1, grid, 0.8f);
+    d3_line(o, WIDTH - 1, f0, r0, f1, grid, 0.8f);
+    for (int i = 0; i < n_refs; i++) {
+        d3_line(o, ref_x[i], f0, d3_x(sc, ref_x[i], s1), f1, grid, 0.7f);
+    }
+    /* The back wall and the side walls: the level scale at quarters, the wall's edges */
+    float top_b = f1 - sc->amp * s1;
+
+    for (int k = 1; k <= 4; k++) {
+        float yb = f1 - sc->amp * s1 * k / 4.0f, yf = f0 - sc->amp * k / 4.0f;
+
+        d3_line(o, l0, yb, r0, yb, wall, 0.8f);
+        d3_line(o, 0, yf, l0, yb, wall, 0.5f);
+        d3_line(o, WIDTH - 1, yf, r0, yb, wall, 0.5f);
+    }
+    d3_line(o, l0, f1, l0, top_b, wall, 0.9f);
+    d3_line(o, r0, f1, r0, top_b, wall, 0.9f);
+}
+
+/* One trace: lv (levels by the view's pixel) at depth t, its horizon kept; the top of each column
+ * into tops (the newest), NAN where it is not drawn */
+static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *lv, int32_t cut, float t,
+                     const uint32_t *pal, int16_t *horizon, float *tops) {
+    float    s, foot;
+
+    d3_place(sc, t, &s, &foot);
+    float    a = sc->amp * s / 255.0f;      /* px a level */
+    float    per_px = 1.0f / a;             /* levels a px */
+    float    cx = sc->cx;
+    int32_t  x0 = LV_MAX(0, (int32_t) ceilf(cx - cx * s));
+    int32_t  x1 = LV_MIN(WIDTH - 1, (int32_t) floorf(cx + (WIDTH - 1 - cx) * s));
+    uint32_t fog = 256 - (uint32_t)(t * 150.0f);    /* the back ones darker */
+    int32_t  bottom_max = (int32_t) foot + 1;
+    int32_t  step = o->portrait ? 1 : WIDTH;    /* buf from one landscape y to the next */
+    uint32_t ink = theme_shape.ink | 0xff000000u, paper = theme_shape.paper | 0xff000000u;
+    int32_t  prev = -1;                     /* the top drawn in the column before; -1: none */
+
+    for (int32_t x = x0; x <= x1; x++) {
+        /* The view's pixels under this one: the highest of them, so a narrow carrier stays at the back */
+        float   u0 = cx + (x - cx) / s, u1 = cx + (x + 1 - cx) / s;
+        int32_t i0 = LV_CLAMP(0, (int32_t) u0, WIDTH - 1);
+        int32_t i1 = LV_CLAMP(i0, (int32_t) u1, WIDTH - 1);
+        int32_t v;
+
+        if (i1 > i0 + 1) {
+            v = lv[i0];
+            for (int32_t i = i0 + 1; i < i1; i++) {
+                v = LV_MAX(v, lv[i]);
+            }
+        } else {
+            /* Between two pixels: linear, the front trace's slopes smooth */
+            float f = u0 - i0;
+
+            v = i0 + 1 < WIDTH ? lroundf(lv[i0] + (lv[i0 + 1] - lv[i0]) * f) : lv[i0];
+        }
+        /* Above the floor, to the whole scale */
+        v = v > cut ? (v - cut) * 255 / (255 - cut) : 0;
+
+        float   topf = LV_MAX(0.0f, foot - v * a);
+        int32_t top = (int32_t) topf;       /* its pixel, covered 1 - (topf - top) */
+
+        if (tops) {
+            tops[x] = foot - v * a;
+        }
+        if (v == 0 || top >= horizon[x]) {
+            prev = -1;
+            continue;                       /* the floor, or behind the traces in front */
+        }
+        int32_t   bottom = LV_MIN(horizon[x], bottom_max);
+        /* The ridge joined to the column before: down to its top where it is lower, up to it where it is
+         * higher (all of that above the horizon: seen) */
+        int32_t   r0 = prev >= 0 ? LV_MIN(top + 1, prev) : top + 1;
+        int32_t   r1 = prev >= 0 ? LV_MAX(top + 1, LV_MIN(prev, bottom - 1)) : top + 1;
+        uint32_t  ridge = o->mono ? ink : d3_dim(d3_light(pal[v]), fog);
+
+        if (o->mono) {
+            r0 = LV_MIN(r0, top);
+            *d3_at(o, x, top) = ink;
+        } else {
+            d3_px(o, x, top, ridge, 1.0f - (topf - top));
+        }
+        uint32_t *p = d3_at(o, x, top);
+
+        for (int32_t y = r0; y <= top; y++) {
+            *d3_at(o, x, y) = ridge;
+        }
+        for (int32_t y = top + 1; y < bottom; y++) {
+            p += step;
+            if (y <= r1) {
+                *p = ridge;
+            } else if (o->mono) {
+                *p = paper;
+            } else {
+                int32_t l = (foot - y) * per_px;   /* the level at this height */
+
+                *p = d3_dim(pal[LV_CLAMP(0, l, 255)], fog * 3 / 4);
+            }
+        }
+        horizon[x] = LV_MIN(r0, top);
+        prev = top + 1;
+    }
+}
+
+/* The view's pixels of a row, smoothed 1 4 6 4 1: a surface, not grains */
+static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
+    uint8_t raw[WIDTH];
+
+    row_pixels(row, wf_center_freq, span, 0, WIDTH, raw);
+    for (int32_t i = 0; i < WIDTH; i++) {
+        int32_t a = raw[LV_MAX(i - 2, 0)], b = raw[LV_MAX(i - 1, 0)], c = raw[i];
+        int32_t d = raw[LV_MIN(i + 1, WIDTH - 1)], e = raw[LV_MIN(i + 2, WIDTH - 1)];
+
+        lv[i] = (a + 4 * b + 6 * c + 4 * d + e + 8) >> 4;
+    }
+}
+
+static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_refs) {
+    d3_target_t     o = {buf, portrait, height, theme_shape.mono};
+    int32_t         h = height;
+    uint32_t        span = shown_span();
+    uint32_t        accent;
+    const uint32_t *pal = d3_palette(&accent);
+    uint32_t        bg = o.mono ? theme_shape.paper | 0xff000000u : TC(panel).full | 0xff000000u;
+    int32_t         tilt = param_i_get(cfg_wf_3d_tilt);   /* 0 flat on .. 10 seen from above */
+    int32_t         cut_add = param_i_get(cfg_wf_3d_floor);
+    d3_scene_t      sc;
+    int16_t         horizon[WIDTH];         /* the highest pixel drawn in each column: none, the bottom */
+    float           front[WIDTH];           /* the newest trace's top in each column */
+    uint8_t         lv[WIDTH];
+
+    sc.hv = LV_MAX(h / 2, h - buttons_h - 4 - D3_LABEL_H);
+    sc.amp = sc.hv * (0.75f - 0.04f * tilt);
+    sc.rise = sc.hv - sc.amp - 4;
+    sc.shrink = 0.9f - 0.05f * tilt;
+    sc.cx = d3_vanish;
+    sc.span = LV_MIN(param_i_get(cfg_wf_3d_depth) * D3_STEP, h - 1);
+
+    for (int32_t i = 0; i < WIDTH * h; i++) {
+        buf[i] = bg;
+    }
+    for (int32_t x = 0; x < WIDTH; x++) {
+        horizon[x] = h;
+        front[x] = NAN;
+    }
+    d3_grid(&o, &sc, ref_x, n_refs);
+
+    /* The newest in front, then each D3_STEP-th row by its number, at its age's depth */
+    const wf_row_t *newest_row = row_at(0);
+
+    for (int32_t age = 0; age <= sc.span; age++) {
+        const wf_row_t *row = row_at(age);
+
+        if (!row->width || (age > 0 && row->num % D3_STEP)) {
+            continue;
+        }
+        d3_levels(row, span, lv);
+        d3_trace(&o, &sc, lv, LV_MIN(row->floor + cut_add, 254), (float) age / sc.span, pal, horizon,
+                 age == 0 ? front : NULL);
+    }
+    if (!newest_row->width) {
+        return;
+    }
+
+    /* The held peaks of the newest trace, a thin line over it; again from it on a new view */
+    float s0, f0;
+
+    d3_place(&sc, 0, &s0, &f0);
+    uint32_t now = lv_tick_get();
+    float    fall = (now - d3_peak_tick) / 1000.0f * D3_PEAK_DECAY * sc.amp / 255.0f;   /* px */
+    bool     peaks = param_i_get(cfg_wf_3d_peak);
+
+    if (d3_peak_center != wf_center_freq || d3_peak_span != span || fall > sc.amp) {
+        for (int32_t x = 0; x < WIDTH; x++) d3_peak[x] = f0;
+        d3_peak_center = wf_center_freq;
+        d3_peak_span = span;
+        fall = 0;
+    }
+    d3_peak_tick = now;
+    for (int32_t x = 0; x < WIDTH; x++) {
+        float y = isnan(front[x]) ? f0 : front[x];
+
+        d3_peak[x] = LV_MIN(LV_MIN(d3_peak[x] + fall, f0), y);
+    }
+    if (peaks) {
+        uint32_t pc = o.mono ? theme_shape.ink : d3_light(accent & 0xffffff);
+
+        for (int32_t x = 1; x < WIDTH; x++) {
+            if (d3_peak[x] < f0 - 1 || d3_peak[x - 1] < f0 - 1) {
+                d3_line(&o, x - 1, d3_peak[x - 1], x, d3_peak[x], pc, 0.55f);
+            }
+        }
+    }
+
+    /* The newest trace over it all: 2 px, antialiased, its columns joined */
+    uint32_t lc = o.mono ? theme_shape.ink : accent & 0xffffff;
+
+    for (int32_t x = 1; x < WIDTH; x++) {
+        if (isnan(front[x]) || isnan(front[x - 1])) {
+            continue;
+        }
+        d3_line(&o, x - 1, front[x - 1], x, front[x], lc, 1.0f);
+        d3_line(&o, x - 1, front[x - 1] + 1, x, front[x] + 1, lc, 1.0f);
+    }
+}
+
+/* The reference frequencies under the front edge of the floor; hidden out of 3D */
+static void d3_labels_update(bool on, const int32_t *ref_x, const int32_t *ref_hz, int n, lv_coord_t y) {
+    for (int i = 0; i < D3_LABELS; i++) {
+        if (!d3_labels[i]) {
+            d3_labels[i] = lv_label_create(obj);
+            lv_obj_set_style_text_font(d3_labels[i], &sony_16, 0);
+            lv_obj_set_style_text_color(d3_labels[i], TC(text_dim), 0);
+            lv_obj_set_width(d3_labels[i], 80);
+            lv_obj_set_style_text_align(d3_labels[i], LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_clear_flag(d3_labels[i], LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_flag(d3_labels[i], LV_OBJ_FLAG_HIDDEN);
+            d3_label_hz[i] = -1;
+        }
+        bool show = on && i < n;
+
+        if (show) {
+            if (d3_label_hz[i] != ref_hz[i]) {
+                uint16_t mhz, khz, hz;
+
+                split_freq(ref_hz[i], &mhz, &khz, &hz);
+                lv_label_set_text_fmt(d3_labels[i], "%i.%03i", mhz, khz);
+                d3_label_hz[i] = ref_hz[i];
+            }
+            if (lv_obj_get_x(d3_labels[i]) != ref_x[i] - 40 || y != d3_label_y) {
+                lv_obj_set_pos(d3_labels[i], ref_x[i] - 40, y);
+            }
+        }
+        if (show == lv_obj_has_flag(d3_labels[i], LV_OBJ_FLAG_HIDDEN)) {
+            if (show) lv_obj_clear_flag(d3_labels[i], LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(d3_labels[i], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    d3_label_y = y;
+}
+
+static void d3_redraw(void) {
+    int32_t ref_x[MAX_D3_REFS], ref_hz[MAX_D3_REFS];
+    int     n = freq_scale_refs(ref_x, ref_hz, MAX_D3_REFS);
+
+    if (!shown(obj)) {
+        return;
+    }
+    __atomic_store_n(&new_rows, 0, __ATOMIC_RELEASE);
+    if (direct) {
+        lv_area_t a;
+
+        d3_render(wfp, true, ref_x, n);
+        wfp_head = 0;
+        wfp_full = true;            /* the waterfall again whole when 3D is switched off */
+        lv_obj_get_coords(obj, &a);
+#if USE_DRM
+        drm_wf_present_ring(wfp, a.y1, height, wfp_head);
+#endif
+    } else {
+        d3_render((uint32_t *) frame->data, false, ref_x, n);
+        lv_obj_invalidate(img);
+    }
+    lv_coord_t hv = LV_MAX(height / 2, height - buttons_h - 4 - D3_LABEL_H);
+
+    d3_labels_update(true, ref_x, ref_hz, n, hv);
+}
+
 /* ---- No planes: the whole image again at each refresh ---- */
 
 static void image_redraw(void) {
@@ -522,6 +988,15 @@ static void refresh_waterfall(void *arg) {
     refresh_count = 0;
     if (shown_zoom() != line_zoom) {    /* "Line, zoom" switched: the line and the band to the new scale */
         update_middle_line();
+    }
+    freq_scale_lines_hide(d3_on());     /* 3D: the reference frequencies on its floor instead */
+    if (d3_on()) {
+        d3_redraw();
+        return;
+    }
+    if (d3_label_y >= 0) {
+        d3_labels_update(false, NULL, NULL, 0, 0);     /* out of 3D: its labels away */
+        d3_label_y = -1;
     }
     if (direct) {
         direct_redraw(__atomic_exchange_n(&new_rows, 0, __ATOMIC_ACQUIRE));
@@ -711,6 +1186,7 @@ static void update_middle_line(void) {
     lv_coord_t vfo_x = (if_shift + waterfall_view_shift()) * line_zoom * WIDTH / SPAN_HZ;
 
     lv_obj_set_pos(vfo_line, vfo_x + width / 2, 0);
+    d3_vanish = LV_CLAMP(0, WIDTH / 2 + vfo_x, WIDTH - 1);
     lv_style_set_line_width(&vfo_line_style, width);
 
     /* The passband, same scale as the line */
@@ -811,6 +1287,10 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
 
     obj = lv_obj_create(parent);
     lv_obj_add_style(obj, &waterfall_style, 0);
+    for (int i = 0; i < D3_LABELS; i++) {
+        d3_labels[i] = NULL;        /* the old ones went with the old waterfall (a new theme) */
+    }
+    d3_label_y = -1;
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_style_init(&vfo_line_style);
@@ -850,6 +1330,12 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
     subject_subscribe_delayed((Subject *)cfg_key_tone, on_filter_change, NULL);
     subject_subscribe_delayed((Subject *)cfg_fg_freq, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_mode, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_3d, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_3d_colors, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_3d_depth, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_3d_tilt, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_3d_floor, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_3d_peak, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_fixed_jump, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_fixed_after, on_view_changed, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_wf_palette, on_palette_change, NULL);

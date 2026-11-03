@@ -102,6 +102,12 @@ extern ParamInt         *cfg_smeter_att;         // p_smeter_att (X6200: p_band_
 extern ParamInt         *cfg_smeter_rfg;         // p_smeter_rfg
 extern ParamInt         *cfg_waterfall_speed;    // p_waterfall_speed
 extern ParamInt         *cfg_wf_mode;            // p_wf_mode
+extern ParamInt         *cfg_wf_3d;              // p_wf_3d
+extern ParamInt         *cfg_wf_3d_colors;       // p_wf_3d_colors
+extern ParamInt         *cfg_wf_3d_depth;        // p_wf_3d_depth
+extern ParamInt         *cfg_wf_3d_tilt;         // p_wf_3d_tilt
+extern ParamInt         *cfg_wf_3d_floor;        // p_wf_3d_floor
+extern ParamInt         *cfg_wf_3d_peak;         // p_wf_3d_peak
 extern ParamText        *cfg_encoder_bind;       // p_encoder_bind
 extern ParamInt         *cfg_power_display;      // p_power_display
 

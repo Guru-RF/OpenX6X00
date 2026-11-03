@@ -100,7 +100,7 @@ line).
   Squelch, RF gain, TX power, Moni level and the filter, the MFK for the
   others. A press of an on/off button (NB, NR, DNF, VOX, PRE, ATT, ATU)
   switches it; a press of AGC takes it to the next of Off, Slow, Fast, Auto.
-- AGC is on the MFK 2:3 page, PRE, ATT and ATU on VOL 2:2, Step (the tuning
+- AGC is on the MFK 2:4 page, PRE, ATT and ATU on VOL 2:2, Step (the tuning
   step, as FST) on the DFL page. On a knob, a turn steps AGC and Step forward
   or back, stopping at Off and Auto, 10 Hz and 5 kHz (the AGC and FST keys go
   round), and switches PRE, ATT and ATU. Up to v0.3.7 AGC, PRE and ATT could not
@@ -707,6 +707,10 @@ Where: Settings > Display > WATERFALL.
 
 | Option | What it does |
 |---|---|
+| 3D | the last 6 seconds as traces one behind the other, the newest in front (below) |
+| 3D colours | shown with 3D: Strength (blue, green, yellow, red as the signal grows), Waterfall (the waterfall's colours), Blue |
+| 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how much above the noise floor is cut away |
+| 3D peaks | shown with 3D: the newest trace's peaks held a moment |
 | Mode | Centered keeps the VFO in the middle; Fixed keeps the span (below) |
 | Jump at, Jump to | shown with Fixed: when the view moves on, and where the VFO line goes then (below) |
 | Auto level, offset | the levels follow the noise floor; the offset makes it darker or brighter |
@@ -714,6 +718,29 @@ Where: Settings > Display > WATERFALL.
 | Line, zoom | a line on the VFO; zoom with the waterfall instead of the span |
 | Smooth scroll | scrolls by pixels instead of lines |
 | Speed | 3 = 15 lines/s (default), 4 = 20, 5 = 30; 2 = 7.5 and 1 = 5 average the frames into a line: less noise and less CPU |
+
+With 3D on, the waterfall area shows the spectrum in perspective, as on
+some other makers' radios: the newest trace at the bottom, every third line
+before it a little higher up and narrower, the oldest (about 6 seconds back
+at 32 traces, 3D depth) at the top. They narrow towards the VFO line, which
+stays straight through them all, and glide back a little at each new line.
+The noise floor is cut away (3D floor sets how much above it goes too): only
+signals stand up, and a trace shows only where it rises above those in front
+of it. Each point has the colour of its height on the 3D colours scale
+(Strength: from blue at the floor through green and yellow to red for the
+strongest), the ridges lighter, the older traces darker. The newest trace is
+drawn over it all as a line of its own (red, with Blue white), along the
+front edge where there is no signal, its peaks held a moment above it
+(3D peaks). The floor has a grid, the back and side walls a line at each
+quarter of the level scale, and the reference frequencies of the scale above
+run back to the VFO line, labelled at the front edge. 3D tilt goes from the
+front (0: tall traces, little depth) to from above (10). In the 1bit theme it
+is a line drawing. Each trace stays at the frequency it was received on, so a
+retune or a new zoom moves them as it moves the waterfall, and a drifting
+signal leaves a slanted trail. Speed sets how far back the stack goes.
+Switched on and off live, also from the web configurator's Display page, the
+MFK 4:4 page (3D on/off, and Depth, Tilt and Floor on the knob), or a front
+key's long press or a hand mic F key set to "WF 3D on/off" (Settings > Keys).
 
 In Fixed mode the span stays still and the VFO line moves across it. The
 spectrum comes in only for the span around where the radio listens (the
@@ -1120,7 +1147,7 @@ Line-in and Play / Rec gain are separate settings:
   A Line-in you set on its own slider afterwards stays as it is.
 
 Compressor on the X6200: its base has three levels, so the ratio chosen (Comp
-on the MFK 2:3 page) goes to the nearest of them: 2:1 and 3:1 as 2:1, 4:1 to
+on the MFK 2:4 page) goes to the nearest of them: 2:1 and 3:1 as 2:1, 4:1 to
 7:1 as 4:1, 8:1 as 8:1; 1:1 (Off) is off. It is off by default on the X6200.
 
 TX monitor: Moni level (VOL 2:2 page, F2) plays your own transmission on the
@@ -3853,7 +3880,7 @@ them.
 |---|---|
 | Theme | Theme (the radio's screen restarts with the new one) |
 | S-meter | S-meter type (Bars, Needle), Colours (Theme, Scale, Level), Needle lamp; with a preview |
-| Waterfall | Mode (Centered, Fixed), Jump at (40%, Passband, Line) and Jump to (Center, Other edge, Scroll), greyed unless Mode is Fixed (see [Waterfall](#waterfall)), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll |
+| Waterfall | 3D, 3D colours (Strength, Waterfall, Blue), 3D depth, tilt, floor, peaks (shown with 3D), Mode (Centered, Fixed), Jump at (40%, Passband, Line) and Jump to (Center, Other edge, Scroll), greyed unless Mode is Fixed (see [Waterfall](#waterfall)), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll |
 | On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |

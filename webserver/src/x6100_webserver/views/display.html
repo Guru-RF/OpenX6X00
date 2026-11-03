@@ -73,6 +73,12 @@ const CARDS = [
     ["spectrum_fill_color", "Fill colour", "As the trace, or your own", "color", "As trace"],
     ["spectrum_fill_gradient", "Fill gradient", "The fill fading to the background at the bottom", "sw"],
     ["wf_palette", "Waterfall colours", "The theme's, or one of these", "sel", ["Theme", "Classic", "Gauss", "Grey", "Fire", "Ice", "Rainbow"]],
+    ["wf_3d", "3D", "The last seconds as traces one behind the other, the newest in front", "sw"],
+    ["wf_3d_colors", "3D colours", "3D: by signal strength, the waterfall's, or blue", "sel", ["Strength", "Waterfall", "Blue"]],
+    ["wf_3d_depth", "3D depth", "3D: the traces shown, every third line", "range", [8, 64, 4, 1, " traces"]],
+    ["wf_3d_tilt", "3D tilt", "3D: seen from the front (tall traces) to from above (more depth)", "range", [0, 10, 1, 1, ""]],
+    ["wf_3d_floor", "3D floor", "3D: how much above the noise floor is cut away", "range", [0, 40, 2, 1, ""]],
+    ["wf_3d_peak", "3D peaks", "3D: the newest trace's peaks held a moment", "sw"],
     ["wf_mode", "Mode", "Centered keeps the VFO in the middle, Fixed keeps the span", "seg", ["Centered", "Fixed"]],
     ["wf_fixed_jump", "Jump at", "Fixed: the view moves on when the VFO line is 40% of the span from the centre, or when the passband or the line reaches the screen's edge (100 Hz from it)", "sel", ["40%", "Passband", "Line"]],
     ["wf_fixed_after", "Jump to", "Fixed: the line back in the centre, at the other edge to tune on across the screen, or kept at the edge with the view scrolling along", "sel", ["Center", "Other edge", "Scroll"]],
@@ -272,6 +278,7 @@ var reread = function() {
 var refresh = function() {
   $("#row-auto_level_offset").toggleClass("off", !D.auto_level);
   $("#row-wf_fixed_jump, #row-wf_fixed_after").toggleClass("off", D.wf_mode !== 1);
+  $("#row-wf_3d_colors, #row-wf_3d_depth, #row-wf_3d_tilt, #row-wf_3d_floor, #row-wf_3d_peak").toggleClass("off", !D.wf_3d);
   $("#row-spectrum_filled, #row-spectrum_peak, #row-spectrum_height, #row-spectrum_line_color").toggleClass("off", !D.spectrum_show);
   $("#row-spectrum_fill_color, #row-spectrum_fill_gradient").toggleClass("off", !D.spectrum_show || !D.spectrum_filled);
   $("#row-smeter_bar_color").toggleClass("off", D.smeter_color !== 0 || (D.smeter_needle === 1 && D.smeter_lamp === 1));
