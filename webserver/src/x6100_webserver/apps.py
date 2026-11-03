@@ -2827,11 +2827,29 @@ def set_js8_texts():
     return read_js8_texts()
 
 
+CJSON_NESTING_LIMIT = 1000   # src/cJSON.h: lists and objects within each other, at most
+# A \u escape of half a UTF-16 pair (1: high, 2: the low after it, 3: a low alone), or any other escape
+SURROGATE_ESCAPE_RE = re.compile(r"\\(?:u([dD][89abAB][0-9a-fA-F]{2})(?:\\u([dD][c-fC-F][0-9a-fA-F]{2}))?"
+                                 r"|u[dD][c-fC-F][0-9a-fA-F]{2}()|.)", re.S)
+
+
+def nesting(doc):
+    deepest, todo = 0, [(doc, 1)]
+    while todo:
+        x, depth = todo.pop()
+        if isinstance(x, (dict, list)):
+            deepest = max(deepest, depth)
+            todo.extend((v, depth + 1) for v in (x.values() if isinstance(x, dict) else x))
+    return deepest
+
+
 def cjson_loads(data):
-    """JSON bytes read as the GUI's cJSON_Parse reads them (src/cJSON.c): a UTF-8 BOM and anything after the value
-    ignored, control characters in a string taken and its bytes as they are (UTF-8 or not, kept by surrogateescape),
-    the first value of a key given twice; no NaN or Infinity. ValueError for what it can't read, and for a number
-    too big for a double (1e400): cJSON takes it as infinite, which can't be written back as JSON"""
+    """JSON bytes read as the GUI's cJSON_Parse reads them (src/cJSON.c): up to the first NUL byte (a C string), a
+    UTF-8 BOM and bytes 1-32 before the value and anything after it ignored, control characters in a string taken
+    and its bytes as they are (UTF-8 or not, kept by surrogateescape), the first value of a key given twice; no NaN
+    or Infinity, no \\u escape of half a UTF-16 pair, at most 1000 lists and objects deep. ValueError for what it
+    can't read, and for a number too big for a double (1e400): cJSON takes it as infinite, which can't be written
+    back as JSON"""
     def first(pairs):
         obj = {}
         for k, v in pairs:
@@ -2846,25 +2864,40 @@ def cjson_loads(data):
         if abs(x) == float("inf"):
             raise ValueError(f"{text} is too big a number")
         return x
-    text = data.decode("utf-8", "surrogateescape")
+    head, nul, _ = data.partition(b"\0")
+    text = head.decode("utf-8", "surrogateescape")
     text = text[1:] if text.startswith("\ufeff") else text
+    text = text.lstrip("".join(map(chr, range(1, 33))))
     dec = json.JSONDecoder(object_pairs_hook=first, parse_constant=constant, parse_float=number, strict=False)
-    return dec.raw_decode(text.lstrip(" \t\n\r"))[0]
+    try:
+        doc, end = dec.raw_decode(text)
+    except RecursionError:
+        raise ValueError("lists or objects nested too deep") from None
+    except ValueError as ex:
+        raise ValueError(f"{ex}; the radio reads up to the NUL byte at byte {len(head)}" if nul else str(ex)) \
+            from None
+    for m in SURROGATE_ESCAPE_RE.finditer(text, 0, end):
+        if (m.group(1) and not m.group(2)) or m.group(3) is not None:
+            raise ValueError(f"{m.group(0)[:6]} is half a UTF-16 pair")
+    if nesting(doc) > CJSON_NESTING_LIMIT:
+        raise ValueError(f"lists or objects more than {CJSON_NESTING_LIMIT} deep")
+    return doc
 
 
 def gui_channel(x):
     """The channel the GUI makes of an entry of channels.json (parse_entry in src/channel_list.c), None for one it
     leaves out: a name, a frequency of 1 Hz to 4294967295 Hz (a fraction cut off), a mode and an AGC it knows, PRE
-    and ATT true or false. Its name as the GUI holds it, up to a NUL and at most 31 bytes"""
+    and ATT true or false, each string as the GUI holds it, up to a NUL; the name at most 31 bytes"""
     if not isinstance(x, dict):
         return None
-    name, freq, mode, agc, pre, att = (x.get(k) for k in ("name", "frequency", "mode", "agc", "pre", "att"))
+    name, freq, mode, agc, pre, att = (x.get(k).partition("\0")[0] if isinstance(x.get(k), str) else x.get(k)
+                                       for k in ("name", "frequency", "mode", "agc", "pre", "att"))
     if not isinstance(name, str) or isinstance(freq, bool) or not isinstance(freq, (int, float)) \
             or not isinstance(pre, bool) or not isinstance(att, bool):
         return None
     if not 0 < freq <= 0xFFFFFFFF or mode not in MODES or agc not in AGCS:
         return None
-    name = name.partition("\0")[0].encode("utf-8", "surrogateescape")[:31].decode("utf-8", "surrogateescape")
+    name = name.encode("utf-8", "surrogateescape")[:31].decode("utf-8", "surrogateescape")
     return {"name": name, "frequency": int(freq), "mode": mode, "agc": agc, "pre": pre, "att": att}
 
 
@@ -2977,6 +3010,8 @@ def channels_edit(change):
                     return dict(api_error(409, CHANNELS_CHANGED), **channels_state())
             except (OSError, ValueError) as ex:
                 return api_error(500, f"Can't save: {ex}")
+            except RecursionError:   # json.dump, on a file this Python reads but can't write back
+                return api_error(500, "Can't save: channels.json is nested too deep for the page")
     return dict(channels_state(), **(more or {}))
 
 

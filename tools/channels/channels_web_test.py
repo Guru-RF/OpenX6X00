@@ -547,6 +547,67 @@ class Memories(unittest.TestCase):
                 self.assertGreaterEqual(code, 400, (raw, method, path))
                 self.assertEqual(self.read(), raw)
 
+    def test_as_cjson_reads_more(self):
+        r"""cJSON reads the text up to a NUL byte, skips bytes 1-32 before the value, refuses a \u escape of half a
+        UTF-16 pair and more than 1000 lists and objects within each other; the GUI's strings end at a NUL. The
+        page reads the file so too: one the radio can't read is left as it is, one it reads is listed (until now a
+        NUL byte in a string or a lone \udc80 read, and an Add turned them into a file the radio reads: \u0000,
+        a raw 0x80 byte)"""
+        a = json.dumps(ch("A", 7_000_000)).encode()
+        for raw in (b'{"version": 1, "channels": [{"name": "A\0B", "frequency": 7000000, "mode": "USB", '
+                    b'"agc": "AUTO", "pre": false, "att": false}]}',
+                    b'\0' + b'{"version": 1, "channels": [%s]}' % a,
+                    b'{"version": 1, "channels": [%s, {"name": "X\\udc80"}]}' % a,
+                    b'{"version": 1, "channels": [%s, {"name": "X\\ud800"}]}' % a,
+                    b'{"version": 1, "channels": [%s, {"name": "X\\uD800\\u0041"}]}' % a,
+                    b'{"version": 1, "channels": [%s, {"name": "X\\u0041\\uDFFF"}]}' % a,
+                    b'{"version": 1, "x": %s, "channels": [%s]}' % (b"[" * 1000 + b"]" * 1000, a),
+                    b'{"version": 1, "x": %s, "channels": [%s]}' % (b"[" * 200000 + b"]" * 200000, a)):
+            self.write(raw=raw)
+            code, r = self.req("GET", "/api/channels")
+            self.assertEqual((code, r["channels"]), (200, []), raw[:80])
+            self.assertIn("can't be read", r.get("error", ""), raw[:80])
+            code, r = self.req("POST", "/api/channels", ch("NEW", 7_074_000))
+            self.assertEqual(code, 500, raw[:80])
+            self.assertEqual(self.read(), raw)
+        for raw, names in ((b'{"version": 1, "channels": [%s]}\0{"left": "over"' % a, ["A"]),
+                           (b'\x0c\x0b\x01 {"version": 1, "channels": [%s]}' % a, ["A"]),
+                           (b'{"version": 1, "channels": [%s, %s, %s]}' % (
+                               a, json.dumps(ch("X\\udc80", 7_100_000)).encode(),
+                               json.dumps(ch("PAIR", 7_200_000)).encode().replace(b"PAIR", b"\\ud83d\\ude00 \\\\udc80")),
+                            ["A", "X\\udc80", "\U0001f600 \\udc80"]),
+                           (b'{"version": 1, "channels": [{"name": "M\\u0000ODE", "frequency": 7000000, '
+                            b'"mode": "USB\\u0000x", "agc": "AUTO\\u0000", "pre": false, "att": false}]}', ["M"]),
+                           (b'{"version": 1, "x": %s, "channels": [%s]}' % (b"[" * 100 + b"]" * 100, a), ["A"])):
+            self.write(raw=raw)
+            self.assertEqual([c["name"] for c in self.channels()], names, raw[:80])
+            self.ok("POST", "/api/channels", ch("NEW", 7_074_000))
+            self.assertEqual([c["name"] for c in self.channels()], names + ["NEW"], raw[:80])
+        self.assertEqual(self.channels()[0]["mode"], "USB")
+
+    def test_too_deep_to_write(self):
+        """A file the page reads but can't write back, nested too deep for its Python (999 lists in each other, the
+        radio's limit 1000): the reason, and the file as it was (until now a 500 page of bottle's)"""
+        self.write(raw=b'{"version": 1, "x": %s, "channels": [%s]}' % (b"[" * 999 + b"]" * 999,
+                                                                     json.dumps(ch("A", 7_000_000)).encode()))
+        self.assertEqual(len(self.channels()), 1)
+        before = self.read()
+        code, r = self.req("POST", "/api/channels", ch("NEW", 7_074_000))
+        if code == 500:      # as deep as this Python goes
+            self.assertEqual(r["msg"], "Can't save: channels.json is nested too deep for the page")
+            self.assertEqual(self.read(), before)
+        self.write([ch("A", 7_000_000)])
+        before, real = self.read(), json.dump
+
+        def dump(*a, **kw):
+            raise RecursionError("maximum recursion depth exceeded")
+        json.dump = dump
+        self.addCleanup(setattr, json, "dump", real)
+        code, r = self.req("POST", "/api/channels", ch("NEW", 7_074_000))
+        self.assertEqual((code, r["msg"]), (500, "Can't save: channels.json is nested too deep for the page"))
+        self.assertEqual(self.read(), before)
+        self.assertEqual(sorted(os.listdir(self.root)), ["channels.json", "compatible", "params.db"])
+
     def test_too_big_a_number(self):
         """A number too big for a double anywhere in the file (1e400: cJSON's infinity), which can't be written
         back as JSON: the page says why and changes nothing (until now listed, and every change a 500 "Out of range
