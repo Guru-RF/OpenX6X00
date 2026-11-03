@@ -231,7 +231,7 @@ static void knob_info_cb(Subject *subj, void *user_data) {
 }
 
 void knobs_init(lv_obj_t *parent) {
-    lv_coord_t y = 480 - BTN_HEIGHT - 5;     /* just over the buttons */
+    lv_coord_t y = BOARD_DISP_H - BTN_HEIGHT - 5;     /* just over the buttons */
 
     vol_line.make(parent, y - LINE_H * 2);
     mfk_line.make(parent, y - LINE_H);

@@ -5,6 +5,7 @@
 #include "spot_marks.h"
 #include "birdie.h"
 
+#include "board.h"
 #include "cluster/client.h"
 #include "cluster_column.h"
 #include "dxcc.h"
@@ -19,7 +20,7 @@
 #include <string.h>
 #include <time.h>
 
-#define WIDTH    800
+#define WIDTH    BOARD_DISP_W
 #define ROWS     2
 #define ROW_H    (SPOT_MARKS_H / ROWS)
 #define POOL     24

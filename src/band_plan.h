@@ -29,7 +29,7 @@ typedef enum {
     BP_PLAN_COUNT
 } bp_plan_t;
 
-/* Strip on parent (800 px wide) at y; call after the waterfall is created so it is on top */
+/* Strip on parent (BOARD_DISP_W px wide) at y; call after the waterfall is created so it is on top */
 void band_plan_init(lv_obj_t *parent, lv_coord_t y);
 
 /* Move the strip (spectrum off: it follows the top of the waterfall) */

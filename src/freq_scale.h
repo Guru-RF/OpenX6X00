@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-/* Labels on parent (800 px wide) at y */
+/* Labels on parent (BOARD_DISP_W px wide) at y */
 void freq_scale_init(lv_obj_t *parent, lv_coord_t y);
 /* The labels to y (the spectrum height changed) */
 void freq_scale_set_y(lv_coord_t y);

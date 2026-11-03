@@ -42,14 +42,18 @@
 #define LV_DRV_INDEV_I2C_WR(data)
 #define LV_DRV_INDEV_I2C_READ(last_read) 0
 
+#ifndef BOARD_DISP_W
+#include "src/board.h"
+#endif
+
 /* An SDL window instead of the panel: the host build (-DHOST_BUILD=ON) sets USE_SDL */
 #ifndef USE_SDL
 #define USE_SDL         0
 #endif
 #define USE_SDL_GPU     0
 #if USE_SDL
-#define SDL_HOR_RES         800
-#define SDL_VER_RES         480
+#define SDL_HOR_RES         BOARD_DISP_W
+#define SDL_VER_RES         BOARD_DISP_H
 #define SDL_ZOOM            1
 #define SDL_DOUBLE_BUFFERED 0
 #define SDL_INCLUDE_PATH    <SDL2/SDL.h>

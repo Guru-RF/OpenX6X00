@@ -130,7 +130,7 @@ void screenshot_take() {
     }
 #if USE_DRM
     /* the waterfall is on a plane of its own, under the see-through GUI */
-    if (s->snap.header.w == 800 && s->snap.header.h == 480) {
+    if (s->snap.header.w == BOARD_DISP_W && s->snap.header.h == BOARD_DISP_H) {
         drm_compose_landscape((uint32_t *)s->argb);
     }
 #endif

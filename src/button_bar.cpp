@@ -10,6 +10,7 @@
  */
 #include "button_bar.h"
 
+#include "board.h"
 #include "radio_controls.h"
 #include "util.h"
 #include "radio.h"
@@ -590,7 +591,7 @@ static void make_slot(disp_btn_t *s, lv_obj_t *parent, lv_coord_t x, uint8_t idx
     lv_obj_add_style(f, &btn_active_style, LV_STATE_CHECKED);
     lv_obj_add_style(f, &btn_disabled_style, LV_STATE_DISABLED);
     /* Drawn buttons: 1 px apart on every side, more when the theme says (btn_gap) */
-    lv_obj_set_pos(f, x + BTN_INSET, 480 - BTN_HEIGHT + BTN_INSET);
+    lv_obj_set_pos(f, x + BTN_INSET, BOARD_DISP_H - BTN_HEIGHT + BTN_INSET);
     lv_obj_set_size(f, BTN_WIDTH - 2 * BTN_INSET, BTN_HEIGHT - 2 * BTN_INSET);
     lv_obj_add_flag(f, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(f, slot_event_cb, LV_EVENT_PRESSED, (void *)(intptr_t)idx);
@@ -684,7 +685,7 @@ void buttons_horizontal(lv_obj_t *parent) {
 
         lv_obj_set_parent(f, parent);
         lv_obj_move_to_index(f, land_index[i]);
-        lv_obj_set_pos(f, i * BTN_WIDTH + BTN_INSET, 480 - BTN_HEIGHT + BTN_INSET);
+        lv_obj_set_pos(f, i * BTN_WIDTH + BTN_INSET, BOARD_DISP_H - BTN_HEIGHT + BTN_INSET);
         lv_obj_set_size(f, BTN_WIDTH - 2 * BTN_INSET, BTN_HEIGHT - 2 * BTN_INSET);
         lv_obj_remove_local_style_prop(f, LV_STYLE_BG_IMG_SRC, LV_STATE_CHECKED);
         lv_obj_remove_local_style_prop(f, LV_STYLE_BG_IMG_SRC, LV_STATE_DISABLED);

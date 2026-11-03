@@ -29,6 +29,13 @@
 #include <linux/fb.h>
 #endif /* USE_BSD_FBDEV */
 
+#ifndef BOARD_DISP_W
+#include "src/board.h"
+#endif
+#ifndef BOARD_FB_ROTATE_90
+#define BOARD_FB_ROTATE_90 1
+#endif
+
 /*********************
  *      DEFINES
  *********************/
@@ -65,7 +72,11 @@ struct bsd_fb_fix_info{
 /**********************
  *  STATIC PROTOTYPES
  **********************/
+#if BOARD_FB_ROTATE_90
 static void rotate_area(const lv_area_t *area, const uint32_t *src);
+#else
+static void copy_area(const lv_area_t *area, const uint32_t *src);
+#endif
 
 /**********************
  *  STATIC VARIABLES
@@ -104,10 +115,11 @@ void fbdev_init(void)
     }
     LV_LOG_INFO("The framebuffer device was opened successfully");
 
-    // Make sure that the display is on.
+    /* simplefb rejects FBIOBLANK (EINVAL). The X6100 driver accepts it.
+     * A failure must not skip the map: nothing is drawn, and the panel
+     * keeps whatever the previous process left there. */
     if (ioctl(fbfd, FBIOBLANK, FB_BLANK_UNBLANK) != 0) {
         perror("ioctl(FBIOBLANK)");
-        return;
     }
 
 #if USE_BSD_FBDEV
@@ -182,16 +194,36 @@ void fbdev_exit(void)
  */
 void fbdev_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * color_p)
 {
-    if(fbp == NULL ||
-            area->x2 < 0 ||
+    if (fbp == NULL) {
+        static int told;
+
+        if (!told) {
+            fprintf(stderr, "fbdev: framebuffer is not mapped, the panel is not being drawn\n");
+            told = 1;
+        }
+        lv_disp_flush_ready(drv);
+        return;
+    }
+#if BOARD_FB_ROTATE_90
+    if(area->x2 < 0 ||
             area->y2 < 0 ||
             area->x1 > (int32_t)vinfo.yres - 1 ||
             area->y1 > (int32_t)vinfo.xres - 1) {
+#else
+    if(area->x2 < 0 ||
+            area->y2 < 0 ||
+            area->x1 > (int32_t)vinfo.xres - 1 ||
+            area->y1 > (int32_t)vinfo.yres - 1) {
+#endif
         lv_disp_flush_ready(drv);
         return;
     }
 
+#if BOARD_FB_ROTATE_90
     rotate_area(area, (const uint32_t *)color_p);
+#else
+    copy_area(area, (const uint32_t *)color_p);
+#endif
     lv_disp_flush_ready(drv);
 }
 
@@ -215,6 +247,29 @@ void fbdev_set_offset(uint32_t xoffset, uint32_t yoffset) {
  *   STATIC FUNCTIONS
  **********************/
 
+#if !BOARD_FB_ROTATE_90
+static void copy_area(const lv_area_t *area, const uint32_t *src) {
+    uint32_t *fb     = (uint32_t *)fbp;
+    int32_t   stride = finfo.line_length / 4;
+    int32_t   w      = area->x2 - area->x1 + 1;
+    int32_t   x1     = LV_MAX(area->x1, 0);
+    int32_t   x2     = LV_MIN(area->x2, (int32_t)vinfo.xres - 1);
+    int32_t   y1     = LV_MAX(area->y1, 0);
+    int32_t   y2     = LV_MIN(area->y2, (int32_t)vinfo.yres - 1);
+
+    if (vinfo.bits_per_pixel != 32 || x1 > x2 || y1 > y2) {
+        return;
+    }
+    for (int32_t y = y1; y <= y2; y++) {
+        const uint32_t *s = src + (y - area->y1) * w + (x1 - area->x1);
+        uint32_t       *d = fb + y * stride + x1;
+
+        memcpy(d, s, (size_t)(x2 - x1 + 1) * 4);
+    }
+}
+#endif
+
+#if BOARD_FB_ROTATE_90
 /* The LVGL area (landscape, src is area-sized) rotated 90° counter-clockwise
  * straight into the portrait framebuffer: pixel (x, y) goes to row
  * yres - 1 - x, column y. 4x4 blocks with NEON, the edges one by one */
@@ -263,5 +318,6 @@ static void rotate_area(const lv_area_t *area, const uint32_t *src) {
         }
     }
 }
+#endif /* BOARD_FB_ROTATE_90 */
 
 #endif

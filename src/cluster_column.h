@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-/* Box on parent (800 px wide), from y to the bottom buttons; call after the waterfall */
+/* Box on parent (BOARD_DISP_W px wide), from y to the bottom buttons; call after the waterfall */
 void cluster_column_init(lv_obj_t *parent, lv_coord_t y);
 
 /* The waterfall top moved */

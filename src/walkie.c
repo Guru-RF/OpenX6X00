@@ -3,7 +3,7 @@
  *
  *  Xiegu X6100 LVGL GUI
  *
- *  Walkie Talkie: a portrait screen (480x800, the knobs on top) in place of
+ *  Walkie Talkie: a portrait screen (the panel turned, 480x800 on the X6100) in place of
  *  the main one, which is still built and does the radio work unseen. On and
  *  off live: built the first time, then kept.
  */
@@ -38,7 +38,7 @@
 #include <string.h>
 #include <time.h>
 
-#define W           480
+#define W           BOARD_DISP_H
 #define SIDE_W      104             /* the bottom buttons, in a column on the left edge */
 #define SIDE_KEY_H  160             /* the F keys are 160 px apart, as the landscape buttons */
 #define X0          (SIDE_W + 8)    /* the rest of the screen */
@@ -525,7 +525,7 @@ static void build(void) {
 
     scr = lv_obj_create(NULL);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
-    styles_theme_box(&scr_style, TC_bg, TC_bg, TC_bg, 0, TI_bg, W, 800);
+    styles_theme_box(&scr_style, TC_bg, TC_bg, TC_bg, 0, TI_bg, W, BOARD_DISP_W);
     lv_obj_add_style(scr, &scr_style, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);         /* opaque: nothing of the waterfall plane */
     lv_obj_set_style_border_color(scr, TC(tx), 0);

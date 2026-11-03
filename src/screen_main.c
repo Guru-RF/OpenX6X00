@@ -10,6 +10,7 @@
  */
 
 #include "screen_main.h"
+#include "board.h"
 
 #include "ft8/ft2.h"
 #include "gui_styles.h"
@@ -1744,7 +1745,7 @@ static void on_spectrum_layout_change(Subject *subj, void *user_data) {
         return;     /* the height of a spectrum that is off */
     }
     wf_y = y;
-    waterfall_set_height(480 - y);
+    waterfall_set_height(BOARD_DISP_H - y);
     on_cluster_spots_wf_change(NULL, NULL);     /* waterfall, its lines, band plan, spots, cluster column */
     panel_keep_below(wf_y - 8);
 }
@@ -1811,9 +1812,9 @@ static void build(void) {
     waterfall = waterfall_init(obj);
     waterfall_min_max_reset();
     lv_obj_set_y(waterfall, y);
-    waterfall_set_height(480 - y);
+    waterfall_set_height(BOARD_DISP_H - y);
     band_plan_init(obj, y);   /* the top of the waterfall */
-    freq_scale_lines_init(obj, y, 480 - y);
+    freq_scale_lines_init(obj, y, BOARD_DISP_H - y);
     spot_marks_init(obj, y, spot_tag_y);   /* laid out by on_cluster_spots_wf_change() */
     cluster_column_init(obj, wf_y);
     subject_subscribe_delayed_and_notify((Subject*)cfg_cluster_spots_wf, on_cluster_spots_wf_change, NULL);
@@ -1851,7 +1852,7 @@ static void build(void) {
         lv_obj_t *rule = lv_obj_create(obj);
         lv_obj_remove_style_all(rule);
         lv_obj_set_pos(rule, 0, TOP_BAR_HEIGHT - TOP_BAR_MARGIN);
-        lv_obj_set_size(rule, 800, TOP_BAR_MARGIN);
+        lv_obj_set_size(rule, BOARD_DISP_W, TOP_BAR_MARGIN);
         lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(rule, TC(accent), 0);
     }

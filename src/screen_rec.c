@@ -54,8 +54,8 @@
 #define SCREEN_REC_WARN_MIN 10              /* "almost full" when less than this is left */
 #define SPLIT_BYTES         3000000000u     /* a new file well before the 4 GB AVI limit */
 
-#define W       800
-#define H       480
+#define W       BOARD_DISP_W
+#define H       BOARD_DISP_H
 #define QUEUE   3
 #define RING    (1 << 17)       /* audio samples, about 3 s */
 

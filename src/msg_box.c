@@ -47,7 +47,7 @@ static void hide_cb(lv_timer_t *t) {
     fade_to(LV_OPA_TRANSP);
 }
 
-/* Walkie Talkie turns the display to portrait (480 x 800) while the top layer keeps the
+/* Walkie Talkie turns the display to portrait (BOARD_DISP_H x BOARD_DISP_W) while the top layer keeps the
  * landscape size: the layer as the display, the box in it, the text wrapped in portrait */
 static void place(void) {
     lv_coord_t w = lv_disp_get_hor_res(NULL), h = lv_disp_get_ver_res(NULL);

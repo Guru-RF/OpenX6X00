@@ -849,7 +849,7 @@ static void construct_cb(lv_obj_t *parent) {
     head_mid = make_label(dialog.obj, VF(22), head_color);
     lv_obj_set_width(head_mid, 250);
     lv_obj_set_style_text_align(head_mid, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(head_mid, 800 / 2 - 125 + 40, 12);
+    lv_obj_set_pos(head_mid, BOARD_DISP_W / 2 - 125 + 40, 12);
     head_right = make_label(dialog.obj, VF(22), head_color);
     lv_obj_set_width(head_right, 260);
     lv_obj_set_style_text_align(head_right, LV_TEXT_ALIGN_RIGHT, 0);

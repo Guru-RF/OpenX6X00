@@ -68,9 +68,9 @@ static const struct {
 
 #define MODES_N ((int)(sizeof(modes) / sizeof(modes[0])))
 
-/* 80 + 333 = 413 with 2 x 7 rows of 37: stays clear of the buttons (480 - BUTTONS_H_MAX = 418). */
-_Static_assert(BOX_Y + BOX_H <= 480 - BUTTONS_H_MAX, "Modes menu overlaps the buttons");
-_Static_assert(BOX_Y + T_BOX_H <= 480 - BUTTONS_H_MAX, "Modes grid overlaps the buttons");
+/* 80 + 333 = 413 with 2 x 7 rows of 37: stays clear of the buttons (BOARD_DISP_H - BUTTONS_H_MAX = 418). */
+_Static_assert(BOX_Y + BOX_H <= BOARD_DISP_H - BUTTONS_H_MAX, "Modes menu overlaps the buttons");
+_Static_assert(BOX_Y + T_BOX_H <= BOARD_DISP_H - BUTTONS_H_MAX, "Modes grid overlaps the buttons");
 
 static bool tiles;      /* drawn as the icon grid */
 
@@ -185,7 +185,7 @@ static void construct_cb(lv_obj_t *parent) {
     dialog.obj    = box;
     lv_obj_remove_style_all(box);
     lv_obj_set_size(box, BOX_W, tiles ? T_BOX_H : BOX_H);
-    lv_obj_set_pos(box, (800 - BOX_W) / 2, BOX_Y);
+    lv_obj_set_pos(box, (BOARD_DISP_W - BOX_W) / 2, BOX_Y);
     lv_obj_add_style(box, &popup_style, 0);
     lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
 

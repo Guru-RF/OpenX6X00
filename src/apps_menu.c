@@ -63,7 +63,7 @@ static const struct {
 #define ROWS_N ((APPS_N + COLS - 1) / COLS)
 #define BOX_H  (HEAD_H + ROWS_N * TILE_H + (ROWS_N - 1) * GAP + HINT_H + PAD)
 
-_Static_assert(BOX_Y + BOX_H <= 480 - BUTTONS_H_MAX, "APP grid overlaps the buttons");
+_Static_assert(BOX_Y + BOX_H <= BOARD_DISP_H - BUTTONS_H_MAX, "APP grid overlaps the buttons");
 
 static void construct_cb(lv_obj_t *parent);
 static void destruct_cb(void);
@@ -176,7 +176,7 @@ static void construct_cb(lv_obj_t *parent) {
     dialog.obj    = box;
     lv_obj_remove_style_all(box);
     lv_obj_set_size(box, BOX_W, BOX_H);
-    lv_obj_set_pos(box, (800 - BOX_W) / 2, BOX_Y);
+    lv_obj_set_pos(box, (BOARD_DISP_W - BOX_W) / 2, BOX_Y);
     lv_obj_add_style(box, &popup_style, 0);
     lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -224,7 +224,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_t *hint = lv_label_create(box);
     lv_obj_set_style_text_font(hint, &sony_20, 0);
     lv_obj_set_style_text_color(hint, TC(text_dim), 0);
-    lv_label_set_text(hint, "MFK: choose - press: open - APP or ESC: close");
+    lv_label_set_text(hint, "MFK: choose - press: open - clock, APP or ESC: close");
     lv_obj_set_pos(hint, 22, HEAD_H + ROWS_N * TILE_H + (ROWS_N - 1) * GAP + 4);
 
     show_sel();

@@ -10,9 +10,14 @@
 
 #pragma once
 
-/* The panel, landscape */
+/* The panel, landscape. BOARD_FB_ROTATE_90 says whether the framebuffer is
+ * portrait and needs a 90° blit (X6100/X6200: yes). A landscape framebuffer
+ * sets it to 0; drm/fbdev then copy without rotating. */
 #define BOARD_DISP_W        800
 #define BOARD_DISP_H        480
+#ifndef BOARD_FB_ROTATE_90
+#define BOARD_FB_ROTATE_90  1
+#endif
 
 /* The AF volume's range, the base's own: the X6200 takes 0..100 (gdyuldin's X6200 GUI, 0d504863), the X6100 0..55 */
 #ifdef BOARD_X6200

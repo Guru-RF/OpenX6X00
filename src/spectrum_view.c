@@ -35,7 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define POINTS      800         /* points of the trace, one a pixel across the screen */
+#define POINTS      BOARD_DISP_W         /* points of the trace, one a pixel across the screen */
 #define SPAN_HZ     100000      /* shown at zoom 1 */
 #define TX_MIN      S4          /* the scale in TX, and the automatic one before the DSP sets it */
 #define TX_MAX      S9_20

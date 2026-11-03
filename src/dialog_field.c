@@ -81,7 +81,7 @@
 #define WAVELOG_SYNC "x6100-wavelog sync 2>/dev/null"
 #define WAVELOG_RETRY (5 * 60 * 1000)   /* ms: the next try while QSOs wait for the network */
 
-#define W           800
+#define W           BOARD_DISP_W
 #define HEAD_H      46
 #define STATUS_H    34
 #define MAX_NEAR    30
@@ -2801,7 +2801,7 @@ static void timer_cb(lv_timer_t *t) {
 }
 
 static void construct_cb(lv_obj_t *parent) {
-    lv_coord_t h = 480 - BUTTONS_H;
+    lv_coord_t h = BOARD_DISP_H - BUTTONS_H;
 
     if (!st_loaded) {
         state_load();
