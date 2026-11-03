@@ -404,8 +404,10 @@ radio (issue #33, see [Charger](#general-tab)); it is a flat battery it does
 not hold. So there the radio says "Low battery, DC IN under 12 V! Turning off
 in 30s." and switches off as on battery. With a flat battery, charge it with
 the radio off for a while first, or use a supply that reads 12.0 V or more on
-the radio (the X6200's manual asks for 12 to 13.8 V on DC IN for charging). On
-the X6100 any supply stops it, as before.
+the radio (the X6200's manual asks for 12 to 13.8 V on DC IN for charging).
+When the base reports no battery (the red cross at the top right) there is
+none to protect, and the power-off never starts, on any supply. On the X6100
+any supply stops it, as before.
 
 The supply's voltage comes in 0.1 V steps, so on the X6200 one close to 12.0 V
 reads on both sides of it. The radio takes it for 12.0 V or more once it has

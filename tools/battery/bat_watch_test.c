@@ -23,6 +23,7 @@ static int         fails, checks;
 static bat_watch_t w;
 static uint64_t    now;
 static bool        on_tx;   /* the readings feed() gives are on TX */
+static bool        no_bat;  /* and with the base's no battery */
 
 static void check(bool ok, const char *what, long v) {
     checks++;
@@ -35,8 +36,9 @@ static void check(bool ok, const char *what, long v) {
 /* A fresh start: the first reading at T0 */
 static void start(void) {
     memset(&w, 0, sizeof(w));
-    now   = T0;
-    on_tx = false;
+    now    = T0;
+    on_tx  = false;
+    no_bat = false;
 }
 
 /* Readings every READ_MS for ms: when low first changed, in ms into the stretch, or NONE */
@@ -44,7 +46,7 @@ static long feed(uint8_t vbat, uint8_t vext, bool flag, bool charging, long ms) 
     long changed = NONE;
 
     for (long t = 0; t < ms; t += READ_MS, now += READ_MS) {
-        if (bat_watch_reading(&w, vbat, vext, flag, charging, on_tx, now) && changed == NONE) {
+        if (bat_watch_reading(&w, vbat, vext, flag, charging, no_bat, on_tx, now) && changed == NONE) {
             changed = t;
         }
     }
@@ -160,6 +162,16 @@ int main(void) {
     settled(BAT_LOW, 122);
     t = feed(BAT_LOW, 118, true, true, 5000);
     check(t == 4 * READ_MS && w.low, "12.2 V, then 11.8 V on receive: the power-off at the fifth reading", t);
+
+    /* The base finds no battery: never, whatever vbat says (the stock charger without a pack); ends a running one */
+    start();
+    no_bat = true;
+    check(feed(50, 118, true, true, 600000) == NONE, "no battery found, 5.0 V on vbat, on 11.8 V: never", 0);
+    settled(BAT_LOW + 5, 118);
+    feed(BAT_LOW, 118, true, true, 5000);
+    no_bat = true;
+    t      = feed(BAT_LOW, 118, true, true, 5000);
+    check(t == 0 && !w.low, "low on 11.8 V, then no battery found: back at once", t);
 
     /* #160, 2 November: switched on again on the charger (11.6-11.8 V), the battery fell from 6.9 to 6.4 V in
      * 2 minutes and the base cut the power. Here 0.1 V every 24 s from the first reading, the cut at 6.4 V */

@@ -48,9 +48,10 @@ typedef struct {
     uint8_t  under_reads;   /* the X6200: receive readings in a row under BOARD_BAT_EXT_MIN */
 } bat_watch_t;
 
-/* One reading; tx: the base transmits. True when low changed */
-bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, bool tx,
-                       uint64_t now_ms);
+/* One reading; bat_missing: the base found no battery (the X6200's says so), tx: the base transmits. True when low
+ * changed */
+bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, bool bat_missing,
+                       bool tx, uint64_t now_ms);
 
 /* The % of a pack at vbat (0.1 V) on battery and receive: what an X6100 base (1.1.8) reports there,
  * from its discharge 8.3 to 6.4 V on the bench */
