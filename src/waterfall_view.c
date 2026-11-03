@@ -566,6 +566,7 @@ static struct {
     int32_t  center;        /* the view they are of */
     uint32_t span;
     int32_t  cut;           /* the floor cut they are above */
+    int32_t  scale;         /* their height a level above it, in 1/256 (d3_scale()) */
     uint8_t  lv[WIDTH];     /* above the cut, to the whole scale; 0: the floor */
     uint8_t  blk[WIDTH / 8 + 1];    /* an 8 px block has something above the floor (or its next pixel has) */
 } d3_cache[D3_CACHE];
@@ -910,7 +911,9 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
     }
 }
 
-/* The view's pixels of a row, smoothed 1 4 6 4 1: a surface, not grains */
+/* The view's pixels of a row, smoothed 1 4 6 4 1 but never below the pixel itself: the noise a surface, not
+ * grains, and a signal of a pixel or two (CW and FT8 at 50 kHz and wider: 62 Hz and more a pixel) at its own
+ * height; smoothed alone, a recording of real traffic showed them at four tenths of it */
 static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
     uint8_t raw[WIDTH];
 
@@ -919,7 +922,7 @@ static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
         int32_t a = raw[LV_MAX(i - 2, 0)], b = raw[LV_MAX(i - 1, 0)], c = raw[i];
         int32_t d = raw[LV_MIN(i + 1, WIDTH - 1)], e = raw[LV_MIN(i + 2, WIDTH - 1)];
 
-        lv[i] = (a + 4 * b + 6 * c + 4 * d + e + 8) >> 4;
+        lv[i] = LV_MAX(c, (a + 4 * b + 6 * c + 4 * d + e + 8) >> 4);
     }
 }
 
@@ -941,11 +944,30 @@ static float d3_phase(uint16_t top) {
     return LV_MIN(1.0f, (float) since / every);
 }
 
-/* Levels to above the floor cut (cut and below: 0, the rest to the whole scale), and where there is something */
-static void d3_cut(uint8_t *lv, int32_t cut, uint8_t *blk) {
+/* The height of a level above the floor cut, in 1/256 of a level of the whole height: 3D range dB above the floor
+ * is the whole height. The rows' levels are the waterfall's colours, from its min to its max: their dB a level from
+ * the levels now (the scale of the colours is wider, so the colours have room; on it a signal 30 dB above the
+ * noise, real traffic on a wire, stood a third of the height) */
+static int32_t d3_scale(void) {
+    static int32_t held;            /* moved only by more than 4 %: auto level moves a little all the time, and each
+                                     * new scale works out the levels of every trace again */
+    float          min, max;
+
+    waterfall_get_levels(false, &min, &max);
+    int32_t now = LV_CLAMP(64, (int32_t)((max - min) / param_i_get(cfg_wf_3d_range) * 256.0f), 64 * 256);
+
+    if (LV_ABS(now - held) * 25 > held) {
+        held = now;
+    }
+    return held;
+}
+
+/* Levels to above the floor cut (cut and below: 0, the rest at scale/256 a level, to the whole height), and where
+ * there is something */
+static void d3_cut(uint8_t *lv, int32_t cut, int32_t scale, uint8_t *blk) {
     memset(blk, 0, WIDTH / 8 + 1);
     for (int32_t i = 0; i < WIDTH; i++) {
-        int32_t v = lv[i] > cut ? (lv[i] - cut) * 255 / (255 - cut) : 0;
+        int32_t v = lv[i] > cut ? LV_MIN(255, ((lv[i] - cut) * scale) >> 8) : 0;
 
         lv[i] = v;
         if (v) {
@@ -957,23 +979,24 @@ static void d3_cut(uint8_t *lv, int32_t cut, uint8_t *blk) {
 
 /* A trace's levels above the floor and its blocks: kept for the rows of the stack (every D3_STEP-th), worked
  * out for the newest */
-static const uint8_t *d3_levels_of(const wf_row_t *row, uint32_t span, int32_t cut, uint8_t *scratch,
+static const uint8_t *d3_levels_of(const wf_row_t *row, uint32_t span, int32_t cut, int32_t scale, uint8_t *scratch,
                                    uint8_t *scratch_blk, const uint8_t **blk) {
     if (row->num % D3_STEP) {
         d3_levels(row, span, scratch);
-        d3_cut(scratch, cut, scratch_blk);
+        d3_cut(scratch, cut, scale, scratch_blk);
         *blk = scratch_blk;
         return scratch;
     }
     typeof(d3_cache[0]) *c = &d3_cache[row->num / D3_STEP % D3_CACHE];
 
-    if (c->num != row->num || c->center != wf_center_freq || c->span != span || c->cut != cut) {
+    if (c->num != row->num || c->center != wf_center_freq || c->span != span || c->cut != cut || c->scale != scale) {
         d3_levels(row, span, c->lv);
-        d3_cut(c->lv, cut, c->blk);
+        d3_cut(c->lv, cut, scale, c->blk);
         c->num = row->num;
         c->center = wf_center_freq;
         c->span = span;
         c->cut = cut;
+        c->scale = scale;
     }
     *blk = c->blk;
     return c->lv;
@@ -1052,6 +1075,7 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
     uint32_t        bg = o.mono ? theme_shape.paper | 0xff000000u : TC(panel).full | 0xff000000u;
     int32_t         tilt = param_i_get(cfg_wf_3d_tilt);   /* 0 flat on .. 10 seen from above */
     int32_t         cut_add = param_i_get(cfg_wf_3d_floor);
+    int32_t         scale = d3_scale();
     d3_scene_t      sc;
     int16_t         horizon[WIDTH];         /* the highest pixel drawn in each column: none, the bottom */
     float           front[WIDTH];           /* the newest trace's top in each column */
@@ -1084,7 +1108,7 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
             continue;
         }
         const uint8_t *blk;
-        const uint8_t *levels = d3_levels_of(row, span, LV_MIN(row->floor + cut_add, 254), lv, lv_blk, &blk);
+        const uint8_t *levels = d3_levels_of(row, span, LV_MIN(row->floor + cut_add, 254), scale, lv, lv_blk, &blk);
 
         d3_trace(&o, &sc, levels, blk, t, pal, horizon, age == 0 ? front : NULL);
     }
@@ -1604,6 +1628,7 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
     subject_subscribe_delayed((Subject *)cfg_wf_3d_tilt, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_3d_floor, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_3d_peak, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_3d_range, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_fixed_jump, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_fixed_after, on_view_changed, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_wf_palette, on_palette_change, NULL);

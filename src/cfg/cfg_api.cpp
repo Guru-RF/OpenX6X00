@@ -78,6 +78,7 @@ ParamInt         *cfg_wf_3d_depth         = nullptr;
 ParamInt         *cfg_wf_3d_tilt          = nullptr;
 ParamInt         *cfg_wf_3d_floor         = nullptr;
 ParamInt         *cfg_wf_3d_peak          = nullptr;
+ParamInt         *cfg_wf_3d_range         = nullptr;
 ParamText        *cfg_encoder_bind        = nullptr;
 ParamInt         *cfg_power_display       = nullptr;
 ParamInt         *cfg_vox_on              = nullptr;
@@ -272,6 +273,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_wf_3d_tilt       = &cfg_sm.p_wf_3d_tilt;
     cfg_wf_3d_floor      = &cfg_sm.p_wf_3d_floor;
     cfg_wf_3d_peak       = &cfg_sm.p_wf_3d_peak;
+    cfg_wf_3d_range      = &cfg_sm.p_wf_3d_range;
     cfg_encoder_bind     = &cfg_sm.p_encoder_bind;
     cfg_power_display    = &cfg_sm.p_power_display;
     cfg_vox_on           = &cfg_sm.p_vox_en;

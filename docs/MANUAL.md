@@ -710,6 +710,7 @@ Where: Settings > Display > WATERFALL.
 | 3D | the last 6 seconds as traces one behind the other, the newest in front (below) |
 | 3D colours | shown with 3D: Strength (blue, green, yellow, red as the signal grows), Waterfall (the waterfall's colours), Blue |
 | 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how much above the noise floor is cut away |
+| 3D range | shown with 3D: the dB above the noise floor at a trace's full height (20-60, 40 by default); less makes weak signals taller |
 | 3D peaks | shown with 3D: the newest trace's peaks held a moment |
 | Mode | Centered keeps the VFO in the middle; Fixed keeps the span (below) |
 | Jump at, Jump to | shown with Fixed: when the view moves on, and where the VFO line goes then (below) |
@@ -735,7 +736,10 @@ front edge where there is no signal, its peaks held a moment above it
 (3D peaks). The floor has a grid, the back and side walls a line at each
 quarter of the level scale, and the reference frequencies of the scale above
 run back to the VFO line, labelled at the front edge. 3D tilt goes from the
-front (0: tall traces, little depth) to from above (10). In the 1bit theme it
+front (0: tall traces, little depth) to from above (10). A trace's height is
+its dB above the noise floor, the full height 3D range dB: on a quiet wire
+antenna, where signals stand 10 or 15 dB out of the noise, 20 dB shows them
+tall; with S9 signals 40 dB keeps them on the screen. In the 1bit theme it
 is a line drawing. Each trace stays at the frequency it was received on, so a
 retune or a new zoom moves them as it moves the waterfall, and a drifting
 signal leaves a slanted trail. Speed sets how far back the stack goes.
@@ -3881,7 +3885,7 @@ them.
 |---|---|
 | Theme | Theme (the radio's screen restarts with the new one) |
 | S-meter | S-meter type (Bars, Needle), Colours (Theme, Scale, Level), Needle lamp; with a preview |
-| Waterfall | 3D, 3D colours (Strength, Waterfall, Blue), 3D depth, tilt, floor, peaks (shown with 3D), Mode (Centered, Fixed), Jump at (40%, Passband, Line) and Jump to (Center, Other edge, Scroll), greyed unless Mode is Fixed (see [Waterfall](#waterfall)), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll |
+| Waterfall | 3D, 3D colours (Strength, Waterfall, Blue), 3D depth, tilt, floor, range, peaks (shown with 3D), Mode (Centered, Fixed), Jump at (40%, Passband, Line) and Jump to (Center, Other edge, Scroll), greyed unless Mode is Fixed (see [Waterfall](#waterfall)), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll |
 | On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |

@@ -291,6 +291,9 @@ class SettingsManager {
     // 3D floor: levels (of 255) above each row's noise floor cut away with it
     Parameter<int32_t> p_wf_3d_floor{"wf_3d_floor", 6, 0, 40,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // 3D range: the dB above the noise floor a trace's full height is (weak signals taller with less)
+    Parameter<int32_t> p_wf_3d_range{"wf_3d_range", 40, 20, 60,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // 3D peaks: the newest trace's peaks held a moment
     Parameter<int32_t> p_wf_3d_peak{"wf_3d_peak", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};

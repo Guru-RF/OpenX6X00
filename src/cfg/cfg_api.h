@@ -108,6 +108,7 @@ extern ParamInt         *cfg_wf_3d_depth;        // p_wf_3d_depth
 extern ParamInt         *cfg_wf_3d_tilt;         // p_wf_3d_tilt
 extern ParamInt         *cfg_wf_3d_floor;        // p_wf_3d_floor
 extern ParamInt         *cfg_wf_3d_peak;         // p_wf_3d_peak
+extern ParamInt         *cfg_wf_3d_range;        // p_wf_3d_range
 extern ParamText        *cfg_encoder_bind;       // p_encoder_bind
 extern ParamInt         *cfg_power_display;      // p_power_display
 

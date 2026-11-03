@@ -78,6 +78,7 @@ const CARDS = [
     ["wf_3d_depth", "3D depth", "3D: the traces shown, every third line", "range", [8, 64, 4, 1, " traces"]],
     ["wf_3d_tilt", "3D tilt", "3D: seen from the front (tall traces) to from above (more depth)", "range", [0, 10, 1, 1, ""]],
     ["wf_3d_floor", "3D floor", "3D: how much above the noise floor is cut away", "range", [0, 40, 2, 1, ""]],
+    ["wf_3d_range", "3D range", "3D: the dB above the noise floor at the full height; less makes weak signals taller", "range", [20, 60, 5, 1, " dB"]],
     ["wf_3d_peak", "3D peaks", "3D: the newest trace's peaks held a moment", "sw"],
     ["wf_mode", "Mode", "Centered keeps the VFO in the middle, Fixed keeps the span", "seg", ["Centered", "Fixed"]],
     ["wf_fixed_jump", "Jump at", "Fixed: the view moves on when the VFO line is 40% of the span from the centre, or when the passband or the line reaches the screen's edge (100 Hz from it)", "sel", ["40%", "Passband", "Line"]],
@@ -278,7 +279,7 @@ var reread = function() {
 var refresh = function() {
   $("#row-auto_level_offset").toggleClass("off", !D.auto_level);
   $("#row-wf_fixed_jump, #row-wf_fixed_after").toggleClass("off", D.wf_mode !== 1);
-  $("#row-wf_3d_colors, #row-wf_3d_depth, #row-wf_3d_tilt, #row-wf_3d_floor, #row-wf_3d_peak").toggleClass("off", !D.wf_3d);
+  $("#row-wf_3d_colors, #row-wf_3d_depth, #row-wf_3d_tilt, #row-wf_3d_floor, #row-wf_3d_range, #row-wf_3d_peak").toggleClass("off", !D.wf_3d);
   $("#row-spectrum_filled, #row-spectrum_peak, #row-spectrum_height, #row-spectrum_line_color").toggleClass("off", !D.spectrum_show);
   $("#row-spectrum_fill_color, #row-spectrum_fill_gradient").toggleClass("off", !D.spectrum_show || !D.spectrum_filled);
   $("#row-smeter_bar_color").toggleClass("off", D.smeter_color !== 0 || (D.smeter_needle === 1 && D.smeter_lamp === 1));

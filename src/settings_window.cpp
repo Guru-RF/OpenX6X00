@@ -3145,6 +3145,7 @@ static lv_obj_t *wf_3d_sw;
 static param_slider_t wf_3d_depth_slider = {&cfg_sm.p_wf_3d_depth, 8, 64, 4, "%i traces"};
 static param_slider_t wf_3d_tilt_slider  = {&cfg_sm.p_wf_3d_tilt, 0, 10, 1, "%i"};
 static param_slider_t wf_3d_floor_slider = {&cfg_sm.p_wf_3d_floor, 0, 40, 2, "+%i"};
+static param_slider_t wf_3d_range_slider = {&cfg_sm.p_wf_3d_range, 20, 60, 5, "%i dB"};
 
 static void wf_3d_page(void *arg) {
     if (!page) {
@@ -3167,6 +3168,7 @@ static uint8_t make_wf_3d(uint8_t row) {
         row = make_param_slider(row, "3D depth", &wf_3d_depth_slider);
         row = make_param_slider(row, "3D tilt", &wf_3d_tilt_slider);
         row = make_param_slider(row, "3D floor", &wf_3d_floor_slider);
+        row = make_param_slider(row, "3D range", &wf_3d_range_slider);
         row = make_param_switch(row, "3D peaks", cfg_sm.p_wf_3d_peak);
     }
     return row;

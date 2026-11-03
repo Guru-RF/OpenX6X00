@@ -61,6 +61,7 @@ static const struct {
     {"wf_3d_tilt", &cfg_sm.p_wf_3d_tilt, 0, 10},
     {"wf_3d_floor", &cfg_sm.p_wf_3d_floor, 0, 40},
     {"wf_3d_peak", &cfg_sm.p_wf_3d_peak, 0, 1},
+    {"wf_3d_range", &cfg_sm.p_wf_3d_range, 20, 60},
     {"wf_fixed_jump", &cfg_sm.p_wf_fixed_jump, 0, 2},  /* Fixed mode: live, waterfall_view.c reads them */
     {"wf_fixed_after", &cfg_sm.p_wf_fixed_after, 0, 2},
     {"auto_level", &cfg_sm.p_auto_level_enabled, 0, 1},
