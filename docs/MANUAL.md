@@ -5117,7 +5117,10 @@ What goes on the internet, and what does not:
   (`/run/x6100-funnel`), without the menu and nothing of the configurator,
   and again when the radio's name on the tailnet changes: the pages may
   connect to that name alone. Any other address on that name leads to the
-  Panel.
+  Panel. Before a key, that is all anyone gets: the pages are the same on
+  every radio of a version but for that name, with no callsign and nothing of
+  the radio's state, and their files carry no time, so they do not tell when
+  the radio last started.
 - Their two sockets: the browser remote's (50002) and TCI (50001), which take
   nothing from the internet, not even a greeting, before the key of a browser
   paired at home, within 5 s; a wrong key closes the connection, and ten wrong

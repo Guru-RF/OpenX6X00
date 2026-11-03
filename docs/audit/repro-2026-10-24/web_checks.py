@@ -406,6 +406,35 @@ with tempfile.TemporaryDirectory(prefix='x6funnelname-') as td:
     print('Tailscale Funnel pages\' policy (#58): %d of %d cases as they should be' % (len(cases) - len(bad), len(cases)))
     assert not bad
 
+# Issue #58: what anyone on the internet gets before a key, the Funnel pages and their files, served by tailscaled with
+# Go's file server, which names a file's time in Last-Modified: the time the web server wrote them, when the radio
+# last started. funnel_render (apps.py as it is, the template a stand-in) writes them with time 0, which Go takes for
+# none: no Last-Modified, and no 304 for a page a browser kept
+nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'funnel_render'] + \
+        [n for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in ('FUNNEL_FILES', 'FUNNEL_NAME')
+                                                                    for t in n.targets)]
+pages = SimpleNamespace(template=lambda view, **kw: '<!doctype html><title>%s</title><link href="/static/css/base.css?v=1">' % view)
+render = {'bottle': pages, 'os': os, 're': re, 'shutil': shutil,
+          'PACKAGE_DIR': str(repo / 'webserver/src/x6100_webserver')}
+exec(compile(ast.Module(body=nodes, type_ignores=[]), 'apps-funnel-render', 'exec'), render)
+with tempfile.TemporaryDirectory(prefix='x6funnelrender-') as td:
+    out = os.path.join(td, 'x6100-funnel')
+    render['funnel_render'](out, 'x6200.tail1234.ts.net')
+    files = sorted(os.path.relpath(os.path.join(d, f), out) for d, _, fs in os.walk(out) for f in fs)
+    times = sorted({os.stat(os.path.join(out, f)).st_mtime for f in files})
+    modes = sorted({oct(os.stat(os.path.join(out, f)).st_mode & 0o777) for f in files})
+    cases = [
+        ('the two pages and the files they load, nothing else', ' '.join(files),
+         ' '.join(sorted(['panel.html', 'remote.html'] + ['static/' + f for f in render['FUNNEL_FILES']]))),
+        ('every one with time 0: no Last-Modified from tailscaled', repr(times), '[0.0]'),
+        ('readable by tailscaled', ' '.join(modes), '0o644'),
+    ]
+    bad = [c for c in cases if c[1] != c[2]]
+    for what, got, want in cases:
+        print(('ok   ' if got == want else 'FAIL ') + what + ': ' + got)
+    print('Tailscale Funnel pages\' files (#58): %d of %d cases as they should be' % (len(cases) - len(bad), len(cases)))
+    assert not bad
+
 
 # Issue #58: the https page's sockets on the page's own port. The https server (make_https_server, from __main__.py
 # as it is) reads a request's head: GET /ws/remote or /ws/tci with Upgrade: websocket goes to the GUI's browser remote
