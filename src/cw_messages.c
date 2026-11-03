@@ -606,6 +606,9 @@ static void qrss_start(const char *text) {
         msg_update_text_fmt("QRSS3: XIT is set (%+i Hz)", (int)param_i_get(cfg_xit));
         return;
     }
+    if (radio_say_no_data("No TX", true)) {     /* none from the base (#152): before the dial moves */
+        return;
+    }
     hz = qrss_hz(band);
     if (cparam_i_get(cfg_fg_freq) != hz) {
         if (main_screen_freq_locked()) {
@@ -619,9 +622,6 @@ static void qrss_start(const char *text) {
         return;
     }
     if (radio_say_no_tx("No TX", hz, true)) {    /* receive only, outside the amateur bands (#121) */
-        return;
-    }
-    if (radio_say_no_data("No TX", true)) {     /* none from the base (#152) */
         return;
     }
     if (beacon_on) {
