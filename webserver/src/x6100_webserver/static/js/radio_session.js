@@ -300,9 +300,10 @@
   function Ptt(o) {
     this.o = o; this.state = "idle"; this.path = null; this.since = 0; this.timer = null; this.renew = null; this.why = ""; this.tick = null;
     this.hold = 0;    /* the last press's number */
+    this.holds = null;    /* while a refusal's cause lasts (set) */
     const self = this;
     if (o.session) o.session.ptt = this;     /* its Mic on over is no takeover to the session (#97) */
-    this.tick = setInterval(function() { if (self.state === "tx") self.render(); }, 1000);
+    this.tick = setInterval(function() { if (self.state === "tx" || self.state === "refused") self.render(); }, 1000);
     this.render();
   }
   /* A transmission of the browser's microphone, from its press until the radio confirmed its end */
@@ -366,16 +367,18 @@
   Ptt.prototype.lost = function(why) {
     if (this.state === "requesting" || this.state === "tx" || this.state === "releasing") { this.clear(); this.stopPath(); this.set("ended", why || "The link dropped: the transmission is over"); }
   };
-  /* holds: how long the status line keeps why (status) */
+  /* holds: how long the status line keeps why (status), and the button a refusal (render) */
   Ptt.prototype.set = function(state, why, holds) {
     const self = this;
     this.clear();
-    this.state = state; this.why = why || "";
+    this.state = state; this.why = why || ""; this.holds = holds || null;
     if (why && this.o.status) this.o.status(why, state !== "idle", holds);
     if (state === "ended" || state === "refused") this.timer = setTimeout(function() { if (self.state === state) self.set("idle", ""); }, ENDED_MS);
     this.render();
   };
+  /* A refusal whose cause has gone (control back here, the radio answering again) goes with it, not 5 s later (#58) */
   Ptt.prototype.render = function() {
+    if (this.state === "refused" && this.holds && !this.holds()) { this.set("idle", ""); return; }
     const el = this.o.el; if (!el) return;
     const mic = this.o.mic && this.o.mic.wanted();
     let main, sub = "TX audio: " + (mic ? "browser microphone" : "microphone at the radio");
@@ -397,9 +400,9 @@
   const TUNE_START_MS = 2000;
   function Tune(o) {
     this.o = o; this.state = "idle"; this.hold = 0; this.renew = null; this.timer = null; this.since = 0; this.limit = 0;
-    this.why = ""; this.radioOn = false;
+    this.why = ""; this.radioOn = false; this.holds = null;
     const self = this;
-    this.tick = setInterval(function() { if (self.state === "on" || (self.state === "idle" && self.radioOn)) self.render(); }, 1000);
+    this.tick = setInterval(function() { if (self.state === "on" || self.state === "refused" || (self.state === "idle" && self.radioOn)) self.render(); }, 1000);
     this.render();
   }
   Tune.prototype.clear = function() { if (this.timer) { clearTimeout(this.timer); this.timer = null; } if (this.renew) { clearInterval(this.renew); this.renew = null; } };
@@ -459,12 +462,13 @@
   Tune.prototype.set = function(state, why, holds) {
     const self = this;
     this.clear();
-    this.state = state; this.why = why || "";
+    this.state = state; this.why = why || ""; this.holds = holds || null;
     if (why && this.o.status) this.o.status(why, state === "ended" || state === "refused", holds);
     if (state === "ended" || state === "refused") this.timer = setTimeout(function() { if (self.state === state) self.set("idle", ""); }, ENDED_MS);
     this.render();
   };
   Tune.prototype.render = function() {
+    if (this.state === "refused" && this.holds && !this.holds()) { this.set("idle", ""); return; }    /* as the PTT's */
     const el = this.o.el; if (!el) return;
     let main, sub = "external tuner";
     const s = Math.floor((Date.now() - this.since) / 1000), lim = this.limit ? " / " + this.limit + " s" : "";

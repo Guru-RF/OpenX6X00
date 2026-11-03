@@ -195,6 +195,7 @@ const FIRST = 'The radio is operated at the radio: Take control first';
   g.text('tx 0');
   g.second();
   check('the radio back on receive: "on the air" gone', g.st() === '', g.st());
+  check('and the TUNE button free', g.p.doc.getElementById('b-xtune').textContent === 'TUNEexternal tuner', g.p.doc.getElementById('b-xtune').textContent);
 }
 {
   const g = panel();
@@ -277,6 +278,37 @@ const FIRST = 'The radio is operated at the radio: Take control first';
   check('Panel: news stays ("QSO logged" through changes of control)', g.st() === 'QSO logged', g.st());
 }
 
+/* ---- the PTT and TUNE buttons: a refusal goes with its cause too, not 5 s later ---- */
+const button = (g, id) => g.p.doc.getElementById(id).textContent;
+{
+  const g = panel();
+  inControl(g);
+  g.text('ctl local 0');
+  g.p.eval('xtune.press()');
+  check('Panel: TUNE refused while operated at the radio, the button says so', /^No tune/.test(button(g, 'b-xtune')), button(g, 'b-xtune'));
+  g.p.eval('ses.ctlClick()');
+  g.text('ctl browser Firat 1');
+  check('control back: the TUNE button free at once', button(g, 'b-xtune') === 'TUNEexternal tuner', button(g, 'b-xtune'));
+}
+{
+  const g = panel();
+  inControl(g);
+  g.p.eval('link.stalled = true; ptt.press()');
+  check('Panel: PTT refused while the radio does not answer', /^No TXThe radio does not answer/.test(button(g, 'pttbtn')), button(g, 'pttbtn'));
+  g.p.eval('link.stalled = false');
+  g.second();
+  check('it answers again: the PTT button free within a second', /^PTT \(hold\)/.test(button(g, 'pttbtn')), button(g, 'pttbtn'));
+}
+{
+  /* a refusal that says what was refused, not how things are, stays its 5 s */
+  const g = panel();
+  inControl(g);
+  g.p.eval('ptt.press()');
+  g.text('err ptt: no TX on 27185000: outside the amateur bands (Settings > TX Cal)');
+  g.second();
+  check('Panel: PTT refused on a frequency without TX, the button keeps it', /^No TXno TX on 27185000/.test(button(g, 'pttbtn')), button(g, 'pttbtn'));
+}
+
 /* ---- the Screen page ---- */
 {
   const g = screen();
@@ -289,6 +321,17 @@ const FIRST = 'The radio is operated at the radio: Take control first';
   g.p.$(g.button('.spop', 'Take control')).trigger('click');
   g.text('ctl browser Firat 1');
   check('control back: the refusal gone, in control', g.st() === 'In control: this browser operates the radio', g.st());
+}
+{
+  const g = screen();
+  inControl(g);
+  g.text('ctl local 0');
+  g.p.eval('ptt.press()');
+  check('Screen: PTT refused while operated at the radio, the button says so', /^No TXThe radio is operated at the radio/.test(button(g, 'pttbtn')), button(g, 'pttbtn'));
+  g.p.eval('ses.ctlClick()');
+  g.text('ctl browser Firat 1');
+  check('control back: the PTT button free at once, as the status line says "In control"', /^PTT \(hold\)/.test(button(g, 'pttbtn')) &&
+        g.st() === 'In control: this browser operates the radio', button(g, 'pttbtn'));
 }
 {
   const g = screen();

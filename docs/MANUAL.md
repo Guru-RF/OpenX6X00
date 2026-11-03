@@ -4515,6 +4515,10 @@ shows what the radio did, never what the page hoped:
   microphone went away, the page lost sight of the key (a tab switch, a call
   on the phone), the lease ran out. The operator presses again, on purpose.
 - TX (not this browser), while the radio is keyed from elsewhere.
+- No TX and the reason, for 5 s after a refused press. A reason that is how
+  things are (control elsewhere, the radio not answering, the microphone not
+  ready) goes once it is no longer so: after Take control the button is
+  PTT (hold) again at once.
 
 A held PTT is a lease. With the radio's microphone the page renews the key
 every second: three seconds without a renewal (the link gone, the page
@@ -4550,7 +4554,9 @@ the renewals still stuck in the link, so that if they get through late the
 stop comes with them. A tune started at the radio shows on the button
 too ("from the radio"), and a press stops it. Refused as PTT is (a browser
 that watches, a session without TX, control elsewhere), and where the radio
-would not tune ("No tune" and why).
+would not tune ("No tune" and why); as with PTT, "No tune" goes once its
+reason does (control back here, the radio back on receive after "on the
+air").
 
 ### What the FT8 app will do next
 
