@@ -117,6 +117,7 @@ bool paddle_mouse(bool btn_left, bool btn_right, bool rel_x, bool adapter, unsig
 #include "cw_encoder.h"
 #include "input_caps.h"
 #include "radio.h"
+#include "wr12.h"
 
 #include "lvgl/lvgl.h"
 
@@ -465,16 +466,19 @@ static void scan_input(void) {
     globfree(&g);
 }
 
-/* The first device of the pattern into the slot, if it is not the one open already */
+/* The first device of the pattern into the slot, if it is not the one open already. Not the X6200's WR12 with WR12 on
+ * HOST on, a USB serial port too (#134): its port is the WR12 driver's, and its line state no paddle's contacts */
 static void scan_one(int slot, const char *pattern, const char *pattern2, int flags) {
     glob_t      g;
     struct stat st;
+    size_t      i = 0;
     int         n;
 
     if (glob(pattern, 0, NULL, &g) != 0 && (!pattern2 || glob(pattern2, 0, NULL, &g) != 0)) return;
-    if (stat(g.gl_pathv[0], &st) == 0 && !is_open(slot, &st) && (n = open(g.gl_pathv[0], flags)) >= 0) {
-        LV_LOG_USER("Paddle on %s", g.gl_pathv[0]);
-        if (slot == FD_SER) snprintf(ser_name, sizeof(ser_name), "%s", g.gl_pathv[0] + 5);   /* no /dev/ */
+    while (i < g.gl_pathc && slot == FD_SER && wr12_port(g.gl_pathv[i])) i++;
+    if (i < g.gl_pathc && stat(g.gl_pathv[i], &st) == 0 && !is_open(slot, &st) && (n = open(g.gl_pathv[i], flags)) >= 0) {
+        LV_LOG_USER("Paddle on %s", g.gl_pathv[i]);
+        if (slot == FD_SER) snprintf(ser_name, sizeof(ser_name), "%s", g.gl_pathv[i] + 5);   /* no /dev/ */
         hand_over(slot, n);
     }
     globfree(&g);

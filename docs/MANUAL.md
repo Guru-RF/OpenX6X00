@@ -2733,7 +2733,8 @@ kinds:
 - USB serial (CH340, FTDI, CP210x, PL2303, CDC ACM): the paddle on the
   modem lines, default CTS = dit, DSR = dah. Off by default: turn on Serial
   port. The first ttyUSB or ttyACM port is read; the radio's own ports are
-  never touched.
+  never touched, nor on an X6200 the WR12's while WR12 on HOST is on (see
+  [WR12 receiver](#wr12-receiver-x6200)).
 
 In CW or CW-R the contacts key the radio; out of CW they do nothing. The
 keyer follows the KEY buttons in CW (mode, iambic A/B, speed, ratio).
