@@ -2196,7 +2196,7 @@ static bool radio_tick() {
              * the battery log and time left, its warnings and the power-off wait until they count */
             static bat_watch_t bat_watch;
 
-            bat_watch_reading(&bat_watch, pack->vbat, pack->vext, pack->vext_flag, pack->charging, now_time);
+            bat_watch_reading(&bat_watch, pack->vbat, pack->vext, pack->vext_flag, pack->charging, pack->tx, now_time);
 
             battery_startup_log(&bat_watch, pack);
             battery_model_load();

@@ -32,6 +32,7 @@ extern "C" {
 #define BAT_NONE        30      /* under 3.0 V: no battery, none fitted or nothing measured yet (clock.c) */
 #define BAT_EXT         90      /* on the jack: external power whatever the flags say */
 #define BAT_SETTLE_MS   15000   /* after the first reading with a voltage: twice the climb #17 saw */
+#define BAT_HELD_MS     5000    /* the X6200: DC IN at BOARD_BAT_EXT_MIN so long holds the battery up (bat_watch.c) */
 
 typedef struct {
     uint64_t settle_at;     /* the readings count from then on; 0 before the first with a voltage */
@@ -42,10 +43,14 @@ typedef struct {
     bool     by_volts;      /* the % shown is the voltage's, not the base's (bat_watch_cap) */
     uint8_t  cap_vbat;      /* the voltage the voltage's % is of (bat_watch_cap); 0 none yet */
     uint8_t  up_reads;      /* readings in a row over cap_vbat */
+    bool     held;          /* the X6200: on a supply that holds the battery up (bat_watch.c) */
+    uint64_t over_since;    /* the X6200: the first of the readings in a row at BOARD_BAT_EXT_MIN and more; 0 none */
+    uint8_t  under_reads;   /* the X6200: receive readings in a row under BOARD_BAT_EXT_MIN */
 } bat_watch_t;
 
-/* One reading. True when low changed */
-bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, uint64_t now_ms);
+/* One reading; tx: the base transmits. True when low changed */
+bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, bool tx,
+                       uint64_t now_ms);
 
 /* The % of a pack at vbat (0.1 V) on battery and receive: what an X6100 base (1.1.8) reports there,
  * from its discharge 8.3 to 6.4 V on the bench */

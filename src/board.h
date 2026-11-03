@@ -46,11 +46,12 @@
  * #160, on receive with WiFi and Bluetooth on, the first 6.8 V reading came 4-5 min before its cut, 6.7 V about
  * 2.5 min. 6.8 V, where the voltage's % reaches 0 (bat_cap_of_volts), leaves minutes after the 30 s, also for a TX
  * at the end, which brings the cut nearer.
- * BOARD_BAT_EXT_MIN: on the X6200 only DC IN that the base reads at 12.0 V and more stops it, its manual's least for
- * charging (12-13.8 V). Xiegu's 12 V 1 A charger reads 11.7-11.8 V, so it is under. In #160 a charger at 11.6-11.8 V
- * did not hold a flat battery up: with the radio on it fell from 6.9 to 6.4 V in 2 minutes and the base cut the power
- * again, its flags saying external power all the same (its charging flag comes with any supply, radio.c). With the
- * battery at 7.7-7.8 V the stock charger ran the radio (#33). On the X6100 any external power stops it, as before */
+ * BOARD_BAT_EXT_MIN: on the X6200 only DC IN that the base reads at 12.0 V and more stops it (with hysteresis,
+ * bat_watch.c), its manual's least for charging (12-13.8 V). Xiegu's 12 V 1 A charger reads 11.7-11.8 V, so it is
+ * under. In #160 a charger at 11.6-11.8 V did not hold a flat battery up: with the radio on it fell from 6.9 to 6.4 V
+ * in 2 minutes and the base cut the power again, its flags saying external power all the same (its charging flag
+ * comes with any supply, radio.c). With the battery at 7.7-7.8 V the stock charger ran the radio (#33). On the X6100
+ * any external power stops it, as before */
 #ifdef BOARD_X6200
 #define BOARD_BAT_LOW       68
 #define BOARD_BAT_EXT_MIN   120

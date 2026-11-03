@@ -390,7 +390,7 @@ minutes before the cut, also when a transmission at the end brings it nearer.
 6.0 V. The battery sags under the TX current, so with a few % left a long
 transmission can bring the warning; back at 7.0 V (the X6100: 6.2 V) before
 the 30 s are over, or on a supply (on the X6200 one the radio reads at 12.0 V
-or more), the power-off is called off.
+or more, see below), the power-off is called off.
 
 On the X6200 a supply the radio reads under 12.0 V does not stop the
 power-off: External in the POWER box of the [Info tab](#info-tab), or the
@@ -406,6 +406,15 @@ in 30s." and switches off as on battery. With a flat battery, charge it with
 the radio off for a while first, or use a supply that reads 12.0 V or more on
 the radio (the X6200's manual asks for 12 to 13.8 V on DC IN for charging). On
 the X6100 any supply stops it, as before.
+
+The supply's voltage comes in 0.1 V steps, so on the X6200 one close to 12.0 V
+reads on both sides of it. The radio takes it for 12.0 V or more once it has
+read so for 5 seconds in a row (at once from 12.2 V), and for under once it
+reads under 12.0 V three times in a row on receive (about a second), or at once
+when it is gone. So such a supply starts the power-off once and the radio
+switches off, or it does not start it. A supply that dips under 12.0 V only
+while transmitting (as with "DCIN TOO LOW!", below) still counts as 12.0 V or
+more.
 
 Right after power-on the base may not have measured the battery yet: one
 X6100 reported nothing for about 3 seconds, then a charge that climbed to the

@@ -8,7 +8,8 @@
 
 #include <stdlib.h>
 
-bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, uint64_t now_ms) {
+bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, bool tx,
+                       uint64_t now_ms) {
     bool measured = vbat >= BAT_NONE || vext >= BAT_NONE;
 
     /* External power: the flag alone is not enough, charging an empty battery it stayed clear with
@@ -23,10 +24,25 @@ bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_fla
     }
 
     /* External power that holds the battery up: on the X6200 only DC IN at BOARD_BAT_EXT_MIN and more (board.h),
-     * under it the battery ran the radio down to the base's cut with the flags saying external power */
+     * under it the battery ran the radio down to the base's cut with the flags saying external power. With
+     * hysteresis: DC IN comes in 0.1 V steps, and taken from each reading a supply close to 12.0 V started the
+     * power-off and called it off again over and over, or with every other reading at 12.0 V never started it.
+     * Held after BAT_HELD_MS of readings in a row at BOARD_BAT_EXT_MIN and more, at once from 0.2 V over; no longer
+     * after BAT_LOW_READS receive readings in a row under it, at once with no supply at all. The readings on TX
+     * don't take it down: the supply sags under the TX current (the DCIN TOO LOW blink) */
 #ifdef BOARD_BAT_EXT_MIN
-    bool held = vext >= BOARD_BAT_EXT_MIN;
+    if (vext >= BOARD_BAT_EXT_MIN) {
+        w->under_reads = 0;
+        if (!w->over_since) w->over_since = now_ms;
+        if (vext >= BOARD_BAT_EXT_MIN + BAT_HYSTERESIS || now_ms - w->over_since >= BAT_HELD_MS) w->held = true;
+    } else {
+        w->over_since = 0;
+        if (!tx && w->under_reads < BAT_LOW_READS) w->under_reads++;
+        if (w->under_reads >= BAT_LOW_READS || vext < BAT_NONE) w->held = false;
+    }
+    bool held = w->held;
 #else
+    (void)tx;
     bool held = w->ext;
 #endif
 

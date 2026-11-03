@@ -5,7 +5,8 @@
  *  supply every 0.4 s. Built as the X6100 (6.0 V) and as the X6200 (BOARD_X6200, 6.8 V): not before the readings
  *  count, at BAT_LOW three readings in a row, back off at BAT_HIGH, not on external power (on the X6200 12.0 V and
  *  more on DC IN); and on the X6200 #160's discharges, on battery and on a charger under 12 V, the power-off's 30 s
- *  and the save done before the base's own cut. Then the voltage's % (bat_watch_cap) on a 0.1 V step.
+ *  and the save done before the base's own cut, and a supply close to 12.0 V or one that sags on TX. Then the
+ *  voltage's % (bat_watch_cap) on a 0.1 V step.
  */
 
 #include "bat_watch.h"
@@ -21,6 +22,7 @@
 static int         fails, checks;
 static bat_watch_t w;
 static uint64_t    now;
+static bool        on_tx;   /* the readings feed() gives are on TX */
 
 static void check(bool ok, const char *what, long v) {
     checks++;
@@ -33,7 +35,8 @@ static void check(bool ok, const char *what, long v) {
 /* A fresh start: the first reading at T0 */
 static void start(void) {
     memset(&w, 0, sizeof(w));
-    now = T0;
+    now   = T0;
+    on_tx = false;
 }
 
 /* Readings every READ_MS for ms: when low first changed, in ms into the stretch, or NONE */
@@ -41,7 +44,7 @@ static long feed(uint8_t vbat, uint8_t vext, bool flag, bool charging, long ms) 
     long changed = NONE;
 
     for (long t = 0; t < ms; t += READ_MS, now += READ_MS) {
-        if (bat_watch_reading(&w, vbat, vext, flag, charging, now) && changed == NONE) {
+        if (bat_watch_reading(&w, vbat, vext, flag, charging, on_tx, now) && changed == NONE) {
             changed = t;
         }
     }
@@ -97,7 +100,7 @@ int main(void) {
     feed(BAT_LOW, 0, false, false, 5000);
     t = feed(BAT_LOW, 138, true, true, 5000);
     check(t == 0 && !w.low, "low, then a 13.8 V supply: back at once", t);
-    settled(BAT_LOW + 5, 0);
+    settled(BAT_LOW + 5, 120);
     check(feed(BAT_LOW, 120, true, true, 600000) == NONE, "at BAT_LOW on 12.0 V: never", 0);
 
 #ifdef BOARD_X6200
@@ -110,9 +113,53 @@ int main(void) {
     t = feed(BAT_LOW, 119, false, false, 5000);
     check(t == 2 * READ_MS && w.low, "the X6200 at 6.8 V on 11.9 V without the flags: the power-off", t);
     check(feed(BAT_LOW, 116, true, true, 60000) == NONE && w.low, "then a charger at 11.6 V: still low", 0);
-    t = feed(BAT_LOW, 120, true, true, 5000);
-    check(t == 0 && !w.low, "then 12.0 V: back at once", t);
+    t = feed(BAT_LOW, 120, true, true, 10000);
+    check(t >= BAT_HELD_MS && t < BAT_HELD_MS + READ_MS && !w.low, "then 12.0 V: back after 5 s", t);
+    t = feed(BAT_LOW, 116, true, true, 5000);
+    check(t == 4 * READ_MS && w.low, "11.6 V again: the power-off at the fifth reading", t);
+    t = feed(BAT_LOW, 122, true, true, 5000);
+    check(t == 0 && !w.low, "then 12.2 V: back at once", t);
     check(feed(BAT_LOW - 3, 138, true, false, 600000) == NONE, "a flat battery on 13.8 V, Charger Off: never", 0);
+
+    /* DC IN close to 12.0 V comes on both sides of it, 0.1 V steps: one start of the power-off, and the radio off.
+     * Taken from each reading, 11.9 V three times and 12.0 V once started and ended it 75 times in 2 min, each with
+     * a 4 s message, and with every other reading at 12.0 V it never started */
+    for (int pattern = 0; pattern < 2; pattern++) {
+        int changes = 0;
+
+        settled(BAT_LOW + 5, 119);
+        for (int i = 0; i < 300; i++) {     /* 2 min */
+            changes += feed(BAT_LOW, (pattern ? i % 2 : i % 4 == 3) ? 120 : 119, true, true, READ_MS) != NONE;
+        }
+        check(changes == 1 && w.low,
+              pattern ? "DC IN 11.9/12.0 V in turn: one start, the radio off"
+                      : "DC IN 11.9 V three times, 12.0 V once: one start, the radio off", changes);
+    }
+
+    /* A flat battery on a supply at 12.2 or 12.0 V that sags to 11.8 V on each TX, FT8's 15 s on and 15 s off, the
+     * battery sagging with it: never, it is not started and called off at each TX */
+    for (uint8_t v = 120; v <= 122; v += 2) {
+        long changed = NONE;
+
+        settled(BAT_LOW, v);
+        for (int i = 0; i < 20 && changed == NONE; i++) {   /* 10 min */
+            on_tx   = true;
+            changed = feed(BAT_LOW - 2, 118, true, true, 15000);
+            on_tx   = false;
+            if (changed == NONE) changed = feed(BAT_LOW, v, true, true, 15000);
+        }
+        check(changed == NONE, v > 120 ? "on 12.2 V, 11.8 V on each TX: never" : "on 12.0 V, 11.8 V on each TX: never",
+              changed);
+    }
+
+    /* The supply gone: at once, also on TX; one that falls under 12.0 V on receive, after three readings */
+    settled(BAT_LOW, 138);
+    on_tx = true;
+    t     = feed(BAT_LOW, 0, false, false, 5000);
+    check(t == 2 * READ_MS && w.low, "the supply pulled on TX: the power-off at the third reading", t);
+    settled(BAT_LOW, 122);
+    t = feed(BAT_LOW, 118, true, true, 5000);
+    check(t == 4 * READ_MS && w.low, "12.2 V, then 11.8 V on receive: the power-off at the fifth reading", t);
 
     /* #160, 2 November: switched on again on the charger (11.6-11.8 V), the battery fell from 6.9 to 6.4 V in
      * 2 minutes and the base cut the power. Here 0.1 V every 24 s from the first reading, the cut at 6.4 V */
