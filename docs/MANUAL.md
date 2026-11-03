@@ -1451,9 +1451,11 @@ the [amateur bands](#amateur-bands-only) refuse outside them:
   WeFax), the voice messages, Winlink with ARDOP or Mercury.
 - CW: the CW messages and beacons, QRSS3, the CW keyboard, the USB paddle,
   the PTT key in CW, Field Ops' test beacon. A message, a beacon and QRSS3
-  are not started, and the test beacon says "Test beacon on 20m: no data
-  from the base". Each element is a key of its own: one under way stops at
-  its next element once the data has been gone for 3 s.
+  are not started. The test beacon says "Test beacon on 20m: no data from
+  the base" at the first press, and "Test beacon stopped: no data from the
+  base" if the data stops before the second press sends. Each element is a
+  key of its own: one under way stops at its next element once the data has
+  been gone for 3 s.
 - The radio's tuner, the SWR scan, TUNE for an external tuner ("No tune: no
   data from the base"; the Panel's TUNE gives the same reason).
 - The [CW Trainer](#cw-trainer) keeps sounding its sidetone at 0 W; its PTT
