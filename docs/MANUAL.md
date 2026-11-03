@@ -435,11 +435,18 @@ Display page, Receiver card). Off by default.
   OpenX6X00 so far, so the IF, the I/Q swap and the gains are still to be
   checked on a radio. What was tried, on a PC against a stand-in WR12: the
   set-up, the commands for each move, the answers (ERROR, none, late),
-  unplugging it in the middle of a command, and when TX is held and when it
-  goes free again. Reports are welcome, with the log of the run
-  (`/mnt/app_logs/`): at every start the radio writes there what is on the
-  HOST port ("USB on HOST: ..."), and each answer of the WR12 when it
-  changes ("wr12: AT+BYPASS=0: OK").
+  unplugging it in the middle of a command, one that keeps stopping to
+  answer or never stops sending, the GUI stopped while it receives and the
+  start loop after a crash, and when TX is held and when it goes free
+  again. And the radio's side against stand-ins for the settings,
+  the base and the WR12's driver: the hold at 0 W before the radio's
+  receiver goes onto the IF and until the WR12 is back in its bypass, the
+  I/Q swap with it, the knob, a band key, the VFOs swapped, the switch off
+  and the WR12 unplugged while it receives, Birdie Cal, 54.5 MHz with TX
+  outside the bands on, a transverter over 2 m. Reports are welcome, with
+  the log of the run (`/mnt/app_logs/`): at every start the radio writes
+  there what is on the HOST port ("USB on HOST: ..."), and each answer of
+  the WR12 when it changes ("wr12: AT+BYPASS=0: OK").
 - gpsd leaves the WR12 alone. The WR12 is a USB serial port (USB id
   0483:5740, `/dev/ttyACM0` when it is the only one), and plugged in at boot
   it was handed to gpsd as a GPS, which then read what it said. A USB GPS
