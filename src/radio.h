@@ -68,6 +68,13 @@ bool radio_key_refused(int32_t *freq);
  * scrolls a little); the frequency, the reason and the setting in one line scrolled out before the setting showed.
  * now: over what shows, else after the messages waiting. False: it may transmit there, nothing said. Any thread */
 bool radio_say_no_tx(const char *what, int32_t freq, bool now);
+/* The base sends no data (#152): none for NO_DATA_MS, or none since the start (base_no_data). PTT, the modem, the
+ * GUI's CW key, the tuner and the SWR scan are refused meanwhile. Any thread */
+bool radio_no_data(void);
+/* Why then, on the screen: "<what>: no data from the base", then "Baseband: Settings > Info", each whole in every
+ * font (DejaVu 38: 536 px at most for "No tune"). now: over what shows, else after the messages waiting. False: the
+ * data flows, nothing said. Any thread */
+bool radio_say_no_data(const char *what, bool now);
 /* The radio transmits on `freq`, without updating a subject: a digital app's tone, the SWR scan. The active VFO
  * moves; in split the base's split bit is off until 0, which puts both VFOs back on their own frequency, IF shift
  * and all, and split back on */
@@ -106,13 +113,14 @@ void radio_set_tune(float w, uint32_t limit_ms);
  * back to their own. Any thread */
 void radio_set_tx_mode(int mode);
 
-/* From RX only, where the radio may transmit (else false, "No TX on ..." said): the VFO that transmits to `from`,
- * then AM at 1 W at most */
+/* From RX only, where the radio may transmit and with data from the base (else false, "No TX on ..." or "No TX: no
+ * data from the base" said): the VFO that transmits to `from`, then AM at 1 W at most */
 bool radio_start_swrscan(int32_t from);
 void radio_stop_swrscan();
 
 void radio_poweroff();
-/* PTT from the GUI. False: a key down refused where the radio may not transmit (the screen says why, #121) */
+/* PTT from the GUI. False: a key down refused where the radio may not transmit (the screen says why, #121), or while
+ * the base sends no data (#152) */
 bool radio_set_ptt(bool tx);
 /* The mic of the baseband without saving it (radio_mic_sel_t), -1: back to cfg_mic */
 void radio_set_mic_override(int mic);
@@ -151,7 +159,8 @@ void radio_usb_to_cat(void);
 void radio_set_line_in(uint8_t d);
 void radio_set_line_out(uint8_t d);
 
-/* The GUI's CW key. False: a key down refused where the radio may not transmit (the screen says why, #121) */
+/* The GUI's CW key. False: a key down refused where the radio may not transmit (the screen says why, #121), or while
+ * the base sends no data (#152) */
 bool radio_set_morse_key(bool on);
 /* The GUI's CW key down for at most ms at a time, 0: no limit (QRSS3's TX time limit): past it the radio thread lets
  * go of the key and counts it. Any thread */

@@ -13,7 +13,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
-- [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
+- [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
@@ -1429,6 +1429,51 @@ set its shift again in Settings > General > TRANSVERTERS: 116 MHz for 2 m,
 
 Not tried on the air yet: checked on the PC build and in the host tests.
 
+### No TX without data from the base
+
+The radio does not transmit what it keys itself while its base, the board
+that receives and transmits, sends it no data: none for 3 s, or none yet
+since the start (issue #152). The SWR protection, the power and SWR
+readings and TX on the screen all come from that data; without it a
+transmission would go out unwatched. While the data comes nothing changes:
+it comes many times a second (every 5 ms on the X6100, every 35 ms on the
+X6200), and the 3 s count from the last of it.
+
+When it refuses, the screen says "No TX: no data from the base" and then,
+in a line of its own, "Baseband: Settings > Info". What is refused is what
+the [amateur bands](#amateur-bands-only) refuse outside them:
+
+- PTT: the PTT key, the walkie screen, CAT (it answers NG, see
+  [CI-V commands](#supported-ci-v-commands)), TCI, the browser Panel and
+  remote sessions.
+- The digital apps (FT8, FT4, FT2, JS8, WSPR, PSK, Olivia, JTTY, RTTY, SSTV,
+  WeFax), the voice messages, Winlink with ARDOP or Mercury.
+- CW: the CW messages and beacons, QRSS3, the CW keyboard, the USB paddle,
+  the PTT key in CW, Field Ops' test beacon. Each element is a key of its
+  own: a message or beacon stops at its next element once the data has
+  been gone for 3 s.
+- The radio's tuner, TUNE for an external tuner, the SWR scan.
+- The [CW Trainer](#cw-trainer) keeps sounding its sidetone at 0 W; its PTT
+  does nothing, as outside the bands.
+
+At a start the first data can take a while: an X6200 on base 1.0.8 sent its
+first 16 s after the start (issue #47). A transmission asked before it is
+refused with the same words; once the waterfall moves, ask again.
+
+Not cut by this: a transmission on the air when the data stops (PTT held, an
+app's slot, a voice message). The radio goes back to receive once it is let
+go and the data has been gone for 3 s, and a tune or an SWR scan is given up
+3 s after the last data (see
+[The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move)).
+
+What the base keys by itself, the hand mic's PTT, VOX and the KEY jack, the
+radio cannot refuse: those still go out without data, with no SWR
+protection and no power reading. Don't transmit that way into an antenna
+you don't know.
+
+Not tried on the radio yet: checked on the PC build and in the host test
+(`tools/base_guard`).
+
 ### TX shift
 
 A band can transmit at a fixed distance from where it listens: an FM
@@ -1594,10 +1639,11 @@ the SWR as it goes.
 - It starts only from receive. While the radio transmits or the tuner is
   tuning, Run says "SWR scan: not while transmitting or tuning" and nothing
   moves. On a frequency the radio may not transmit on, it says "No TX on ...
-  MHz" and why.
-- The sweep steps on the base's readings. If the base sends no data for
-  3 s, the scan stops as Stop does and the radio says "SWR scan: no data
-  from the base" (see
+  MHz" and why; while the base sends no data, "No TX: no data from the base"
+  (see [No TX without data from the base](#no-tx-without-data-from-the-base)).
+- The sweep steps on the base's readings. If the data stops during a scan,
+  the scan stops as Stop does 3 s after the last data and the radio says
+  "SWR scan: no data from the base" (see
   [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move)).
   Up to v0.3.8 its carrier stayed on until Stop, the sweep standing still.
 
@@ -1609,13 +1655,16 @@ normally:
   radio says "Tuner did not start".
 - If the base goes back to receive without reporting a match, the radio
   waits 1 s and then says "Tuner: no match".
-- If the base has sent no data for 3 s (the waterfall and the S-meter stand
-  still, see
-  [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move)),
-  the radio says "Tuner: no data from the base". A tune asked then
-  never starts; one under way is switched off. Up to v0.3.8 the radio stayed
-  in its tuning state, without a word, and refused every transmission of the
-  digital apps until a restart (found while looking into issue #152).
+- A tune asked while the base sends no data (none for 3 s, or none yet
+  since the start) is refused: "No TX: no data from the base" (see
+  [No TX without data from the base](#no-tx-without-data-from-the-base)).
+  If the data stops during a tune, or less than 3 s before it was asked,
+  the radio switches it off 3 s after the last data and says "Tuner: no
+  data from the base" (the waterfall and the S-meter stand still, see
+  [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move)).
+  Up to v0.3.8 the radio stayed in its tuning state, without a word, and
+  refused every transmission of the digital apps until a restart (found
+  while looking into issue #152).
 - In all these cases the tune is switched off and the radio is back in
   receive. Before, it stayed in its tuning state: a new tune and the SWR scan
   did nothing, and CAT and TCI reported TX until a restart. That is the likely
@@ -4573,11 +4622,11 @@ program on the network tunes the radio, hears it and keys it.
   during its over. A key the radio refuses (someone on the air, TCI audio in
   CW or CW-R) is answered `trx:0,false;` too, to the client that sent it
   alone, and so is a PTT key that, once at the radio, does not put it on the
-  air within a second (a frequency it does not transmit on). A key still on
-  its way when its client unkeys or leaves keys nothing, and a client whose
-  key was refused or cancelled unkeys nothing: a transmission keyed
-  meanwhile with the PTT key on the radio or the browser's PTT stays on the
-  air.
+  air within a second (a frequency it does not transmit on, no data from the
+  base). A key still on its way when its client unkeys or leaves keys
+  nothing, and a client whose key was refused or cancelled unkeys nothing:
+  a transmission keyed meanwhile with the PTT key on the radio or the
+  browser's PTT stays on the air.
 - There is no login or pairing for TCI clients: enable it only on a network
   you trust, or set Listen only, and turn it off when it is not needed.
   Anyone who reaches the port can key the transmitter when clients may
@@ -5409,10 +5458,15 @@ base for N ms: said on the screen", and the start trace "base: no data in
 
 Meanwhile:
 
-- The radio transmits without SWR protection and shows no power: don't
-  transmit into an antenna you don't know.
-- The tuner says "Tuner: no data from the base" and does not tune, and an
-  SWR scan stops with "SWR scan: no data from the base".
+- What the radio keys itself is refused from 3 s without data, and before
+  the first data after a start: PTT, the apps, CW, the tuner, TUNE and the
+  SWR scan, with "No TX: no data from the base" (see
+  [No TX without data from the base](#no-tx-without-data-from-the-base)).
+  The hand mic's PTT, VOX and the KEY jack still transmit, without SWR
+  protection and with no power reading: don't transmit that way into an
+  antenna you don't know.
+- A tune or an SWR scan the data stops in is given up 3 s after the last
+  data: "Tuner: no data from the base", "SWR scan: no data from the base".
 - A transmission from the screen, an app or the CW key that the data
   stopped in shows TX until PTT, the app or the CW key let go (the CW key
   3 s after) and the data has been gone for 3 s, then the radio is back in
@@ -5506,7 +5560,7 @@ Logs page shows them all. What PSK, Olivia and JTTY received and sent, and what 
 | `1A` | `01` | Band (the CI-V codes `01` 160 m ... `09` 10 m, `10` 6 m, `15` none); write tunes the band's centre | yes | yes |
 | `1A` | `03` | IF filter width (BCD index) | yes | - |
 | `1A` | `06` | Data mode + filter; write only adds or drops the data mode (USB ↔ USB-D, LSB ↔ LSB-D) | yes | yes |
-| `1C` | `00` | PTT (`00` RX, `01` TX); a TX the radio refuses (outside the [amateur bands](#amateur-bands-only), receive only) answers NG (`FA`) | yes | yes |
+| `1C` | `00` | PTT (`00` RX, `01` TX); a TX the radio refuses (outside the [amateur bands](#amateur-bands-only), receive only, [no data from the base](#no-tx-without-data-from-the-base)) answers NG (`FA`) | yes | yes |
 | `25` | `00` / `01` | Frequency of selected / unselected VFO | yes | yes |
 | `26` | `00` / `01` | Mode + data mode of selected / unselected VFO | yes | yes |
 | `27` | `10` / `11` | Scope on (always) / wave data output: accepted, a stub | yes | yes |

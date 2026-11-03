@@ -59,6 +59,10 @@ bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool seen, bool keyed, uin
     return !said && now_ms - pack_ms >= (seen ? BASE_GONE_MS : BASE_GONE_START_MS) && now_ms - *tx_ms >= BASE_GONE_MS;
 }
 
+bool base_no_data(uint64_t now_ms, uint64_t pack_ms, bool seen) {
+    return !seen || (now_ms > pack_ms && now_ms - pack_ms >= NO_DATA_MS);
+}
+
 bool base_guard_log_free(void) {
     return time(NULL) != logged;
 }

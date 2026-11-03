@@ -68,6 +68,15 @@ bool base_silent_due(uint64_t now_ms, uint64_t start_ms, uint64_t *last_ms);
  * keying it from the GUI is not); *tx_ms is kept here (0 at first). said: told already, until a packet comes */
 bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool seen, bool keyed, uint64_t *tx_ms, bool said);
 
+#define NO_DATA_MS           3000    /* no packet this long: what the GUI keys is refused (base_no_data), and a TX or an
+                                      * SWR scan under way that only a packet ends is ended (radio.c) */
+
+/* No TX from the GUI while the base sends no data (#152): without it there is no SWR protection, no power or SWR
+ * reading and no TX on the screen. True when no packet came since the start (seen false), or none for NO_DATA_MS
+ * after pack_ms, the last one; packets come every 5 ms (X6100) or 35 ms (X6200). A now_ms before pack_ms (another
+ * thread's clock, read as the radio thread took a packet) is data */
+bool base_no_data(uint64_t now_ms, uint64_t pack_ms, bool seen);
+
 typedef struct {
     uint64_t armed_until;
     bool     run;           /* base in TX with nothing keying it from the GUI, since run_start */

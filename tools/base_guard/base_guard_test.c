@@ -4,8 +4,10 @@
  *  Host test of src/base_guard.c (#152): when "No data from the base" is said (base_gone_due), run through the flow
  *  resets as radio.c calls it, one every 0.3 s while no packet comes. 60 s after a start with no packet yet, 30 s
  *  after the last packet, 30 s after the GUI's own TX however long the silence before it, never while the GUI keys,
- *  once, and again only after a packet came and the data stopped again. Then the base log's one line a second
- *  (base_guard_log) and base_guard_log_free, which the flow resets' lines wait for, on the test's own clock.
+ *  once, and again only after a packet came and the data stopped again. Then when the GUI's TX is refused for want of
+ *  data (base_no_data): before the first packet, and NO_DATA_MS after the last; never while packets come, at every ms
+ *  between them, nor in a gap shorter than that. Then the base log's one line a second (base_guard_log) and
+ *  base_guard_log_free, which the flow resets' lines wait for, on the test's own clock.
  */
 
 #include "base_guard.h"
@@ -62,6 +64,19 @@ static long resets(run_t *r, long from, long to, long kf, long kt) {
         }
     }
     return first;
+}
+
+/* Packets every `every` ms from `from` to `to` (ms after T0), the TX asked at each ms in between: how many times it was
+ * refused */
+static long refused_while_flowing(long from, long to, long every) {
+    long n = 0;
+
+    for (long p = from; p <= to; p += every) {
+        for (long t = p; t < p + every; t++) {
+            n += base_no_data(T0 + t, T0 + p, true);
+        }
+    }
+    return n;
 }
 
 /* A packet at t: what radio_tick does */
@@ -135,6 +150,33 @@ int main(void) {
     resets(&r, 300, 70000, NONE, NONE);
     check(r.said, "said at 60 s", 0);
     check(resets(&r, 70300, 200000, 80000, 90000) == NONE, "a TX after it, no packet: not again", 0);
+
+    /* The GUI's TX without data (#152): refused before the first packet, however long that takes */
+    check(base_no_data(T0, T0, false), "at the start, no packet yet: refused", 0);
+    check(base_no_data(T0 + 1000, T0, false), "1 s in, no packet yet: refused", 1000);
+    check(base_no_data(T0 + 16000, T0, false), "16 s in, no packet yet (#47's 1.0.8): refused", 16000);
+    check(base_no_data(T0 + 600000, T0, false), "10 min in, none ever (a base older than 1.0.7): refused", 600000);
+
+    /* With data: allowed from the packet on, up to NO_DATA_MS after it; refused from there */
+    check(!base_no_data(T0 + 16000, T0 + 16000, true), "the first packet 16 s in, TX at once: allowed", 16000);
+    check(!base_no_data(T0 + 20035, T0 + 20000, true), "35 ms after a packet (the X6200's pace): allowed", 35);
+    check(!base_no_data(T0 + 20000 + NO_DATA_MS - 1, T0 + 20000, true), "2.999 s after the last packet: allowed",
+          NO_DATA_MS - 1);
+    check(base_no_data(T0 + 20000 + NO_DATA_MS, T0 + 20000, true), "3 s after the last packet: refused", NO_DATA_MS);
+    check(base_no_data(T0 + 80000, T0 + 20000, true), "a minute after it: refused", 60000);
+    check(!base_no_data(T0 + 80000, T0 + 80000, true), "a packet again: allowed at once", 0);
+    check(!base_no_data(T0 + 19990, T0 + 20000, true), "a packet newer than the clock read (another thread): allowed",
+          -10);
+
+    /* Never while the data flows: an hour of the X6100's 5 ms packets and the X6200's 35 ms ones, the TX asked at
+     * each ms; nor through gaps up to just under NO_DATA_MS (a flow reset is 0.3 s, the slowest seen in TX ~1 s) */
+    check(refused_while_flowing(0, 3600000, 5) == 0, "X6100, packets every 5 ms for an hour: never refused", 0);
+    check(refused_while_flowing(0, 3600000, 35) == 0, "X6200, packets every 35 ms for an hour: never refused", 0);
+    check(refused_while_flowing(16000, 76000, 1000) == 0, "packets 1 s apart: never refused", 0);
+    check(refused_while_flowing(16000, 76000, NO_DATA_MS) == 0, "packets 3 s apart, TX up to 2.999 s after each: never "
+          "refused", 0);
+    check(refused_while_flowing(16000, 76000, NO_DATA_MS + 1) == 20, "3.001 s apart: refused the last 1 ms of each gap",
+          refused_while_flowing(16000, 76000, NO_DATA_MS + 1));
 
     /* The log: one line a second, the one more dropped and counted on the next; free when this second has none */
     char  buf[1024] = "";

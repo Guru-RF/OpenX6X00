@@ -69,7 +69,6 @@
 #define MORSE_HANG_MS       3000    /* the base holds TX for the QSK time after the GUI's CW key */
 #define ATU_START_MS        3000    /* the base keys for the tuner within this, or the tune is given up */
 #define ATU_NO_MATCH_MS     1000    /* back in RX this long without the tuner's done flag: no match */
-#define NO_DATA_MS          3000    /* no packet this long: a TX or an SWR scan that only a packet ends is ended */
 
 #define FILTER_2_OFFSET 60
 #define FILTER_2_OFFSET_IN 20
@@ -223,6 +222,7 @@ static uint64_t         idle_time;
 static uint64_t         start_time;     /* radio_init() */
 static uint64_t         pack_time;      /* last packet from the base */
 static bool             base_seen;      /* a packet came in this run */
+static atomic_uint_fast64_t data_time;  /* pack_time for the other threads (radio_no_data), 0 before the first packet */
 static bool             gone_said;      /* "No data from the base" said, until a packet comes (base_gone) */
 static bool             tx_by_gui;      /* the GUI keyed the TX under way (PTT, an app, the CW key): radio thread */
 static uint8_t          pack_vbat, pack_vext;   /* its voltages, 0.1 V */
@@ -986,11 +986,52 @@ bool radio_say_no_tx(const char *what, int32_t freq, bool now) {
     return true;
 }
 
+bool radio_no_data(void) {
+    uint64_t pack = atomic_load(&data_time);    /* before the clock: never a packet newer than now */
+
+    return base_no_data(get_time(), pack, pack != 0);
+}
+
+bool radio_say_no_data(const char *what, bool now) {
+    if (!radio_no_data()) {
+        return false;
+    }
+    if (now) {
+        msg_update_text_fmt("%s: no data from the base", what);
+    } else {
+        msg_schedule_text_fmt("%s: no data from the base", what);
+    }
+    msg_schedule_text_fmt("Baseband: Settings > Info");     /* the notice's pointer (base_gone) */
+    return true;
+}
+
+/* While the base sends no data (#152, radio_no_data) what the GUI keys is refused, said as tx_refused_at says its own:
+ * the radio would transmit with no SWR protection, no power reading and no TX on the screen. A normal start's first
+ * packet can take 16 s (#47): a key before it is refused too, one pressed again after it goes. What the base keys by
+ * itself (the hand mic's PTT, VOX, the KEY jack) is not the GUI's to refuse. The CW Trainer's key still sounds at 0 W,
+ * its PTT quietly not, as outside the bands. A TX under way as the data stops: the flow resets end it (radio_tick) */
+static bool no_data_refused(tx_by_t by) {
+    static uint64_t said;
+
+    if (!radio_no_data()) {
+        return false;
+    }
+    if (by != TX_BY_GUI && practice()) {
+        return by == TX_BY_PTT;
+    }
+    if (get_time() - said > 5000) {     /* once, not for every CW element nor each slot of a beacon */
+        said = get_time();
+        radio_say_no_data("No TX", false);
+    }
+    return true;
+}
+
 /* The modem goes out on radio_tx_freq (radio_set_tx_freq moves the VFO in use there), PTT and the GUI's CW key on
- * the X6200 in split on the dial too (split_keys_dial) */
+ * the X6200 in split on the dial too (split_keys_dial). Where it may, not without data from the base either */
 static bool tx_refused(tx_by_t by) {
     return tx_refused_at(radio_tx_freq(), by) ||
-           (by != TX_BY_GUI && split_keys_dial() && tx_refused_at(vfo_freq(true), by));
+           (by != TX_BY_GUI && split_keys_dial() && tx_refused_at(vfo_freq(true), by)) ||
+           no_data_refused(by);
 }
 
 bool radio_set_ptt(bool tx) {
@@ -2123,6 +2164,7 @@ static bool radio_tick() {
         gone_said = false;      /* said again if it stops again (base_gone) */
         prev_time = now_time;
         pack_time = now_time;
+        atomic_store(&data_time, now_time);
         pack_vbat = pack->vbat;
         pack_vext = pack->vext;
 
