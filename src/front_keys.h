@@ -30,6 +30,11 @@ keypad_t *keypad_init(char *dev_name);
  * browser. GUI thread; a press then a release, like the key */
 void keypad_power_set(bool down);
 
+/* One already-decoded button, the same press / hold / release as a matrix key. value 1 is the
+ * press; 0 is the release. GUI thread. For a board whose keys are not the X6100's
+ * BTN_TRIGGER_HAPPY codes */
+void keypad_button(keypad_key_t key, int value);
+
 /* Bottom buttons: a hold is a press longer than this many ms (0: back to 1 s), for an app
  * that wants quicker holds while it is open. POWER keeps 1 s: its hold switches the radio off */
 void keypad_set_long_time(uint32_t hold);
