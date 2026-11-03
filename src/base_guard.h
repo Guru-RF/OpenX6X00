@@ -73,8 +73,8 @@ bool base_gone_due(uint64_t now_ms, uint64_t pack_ms, bool seen, bool keyed, uin
 
 /* No TX from the GUI while the base sends no data (#152): without it there is no SWR protection, no power or SWR
  * reading and no TX on the screen. True when no packet came since the start (seen false), or none for NO_DATA_MS
- * after pack_ms, the last one; packets come every 5 ms (X6100) or 35 ms (X6200). A now_ms before pack_ms (another
- * thread's clock, read as the radio thread took a packet) is data */
+ * after pack_ms, the last one; packets come many times a second (the X6200's every ~35 ms), a gap of 0.3 s is a flow
+ * reset. A now_ms before pack_ms (another thread's clock, read as the radio thread took a packet) is data */
 bool base_no_data(uint64_t now_ms, uint64_t pack_ms, bool seen);
 
 typedef struct {

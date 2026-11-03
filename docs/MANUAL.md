@@ -1436,8 +1436,8 @@ that receives and transmits, sends it no data: none for 3 s, or none yet
 since the start (issue #152). The SWR protection, the power and SWR
 readings and TX on the screen all come from that data; without it a
 transmission would go out unwatched. While the data comes nothing changes:
-it comes many times a second (every 5 ms on the X6100, every 35 ms on the
-X6200), and the 3 s count from the last of it.
+it comes many times a second (on the X6200 every 35 ms), and the 3 s count
+from the last of it.
 
 When it refuses, the screen says "No TX: no data from the base" and then,
 in a line of its own, "Baseband: Settings > Info". What is refused is what
