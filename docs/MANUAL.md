@@ -413,9 +413,14 @@ Display page, Receiver card). Off by default.
   has been unplugged for 3 s (back sooner, after a reset on USB, it is set up
   again first); a WR12 that stops answering keeps it held. A GUI that is
   stopped (a restart, an update or its Rollback, a shutdown) puts the WR12
-  back in its bypass on its way out, without waiting for the answer. A GUI
-  started while a WR12 is out of its bypass, or may be (after an update, or
-  a crash), holds the same way until it has set the WR12 up again.
+  back in its bypass on its way out, without waiting for the answer; after
+  a GUI that ended another way (a crash), the radio's start loop does, and
+  says so at the end of that run's log ("x6100-wr12-bypass: ttyACM0:
+  AT+BYPASS=1 sent"). A GUI started while a WR12 is out of its bypass, or
+  may be (after an update, or a crash), holds the same way until it has set
+  the WR12 up again. Versions before this one know nothing of the WR12: to
+  go back to one (Rollback, or an older bundle), first turn the dial below
+  54 MHz or WR12 on HOST off.
 - Unplug the WR12 with the dial below 54 MHz or the switch off: unplugged
   while it receives, the radio cannot put it back in its bypass, and whether
   a WR12 without power passes the antenna through is not known yet.

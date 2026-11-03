@@ -58,6 +58,9 @@ while true; do
     /usr/sbin/x6100_gui > /tmp/x6100_log.txt 2>&1
     code=$?
     key_up
+    # The X6200's WR12 back in its bypass should this GUI have left it out (a crash, an exit): the GUI after it may
+    # know no WR12 (#134). Its line, if any, at the end of this GUI's log
+    /usr/sbin/x6100-wr12-bypass >> /tmp/x6100_log.txt 2>&1
     # 128 + the signal when it was killed: 139 a crash (SIGSEGV), 134 an abort, 143 SIGTERM
     [ $starts -le 10 ] && /usr/sbin/x6100-starttrace "x6100_daemon: GUI ended, exit code $code"
     [ "$code" -eq 0 ] || sync

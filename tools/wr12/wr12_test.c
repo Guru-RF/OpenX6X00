@@ -10,7 +10,8 @@
  *  and on its way back to the bypass, for good or back within GONE_MS as after a reset on USB), plugged in again as
  *  ttyACM1 beside a GPS on ttyACM0, an echo before the answers, the serial paddle's question, and the log: each
  *  answer once, not one line a command. Last, a GUI stopped with SIGTERM while the WR12 is out of its bypass (this
- *  program again, as `wr12_test term`, its log in wr12_term.log).
+ *  program again, as `wr12_test term`, its log in wr12_term.log), and the start loop's AT+BYPASS=1 after a GUI that
+ *  ended any way (rootfs/usr/sbin/x6100-wr12-bypass, run by sh on the stand-ins).
  *
  *  The TX rules are wr12_tx_block's, which cfg_tx_refusal says first and so radio.c's refusals and its hold at 0 W
  *  follow: TX held from the moment the radio asks the WR12 out of its bypass until the WR12 is seen back in it (its OK
@@ -32,6 +33,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -391,6 +393,24 @@ static bool marked(void) {
     return access(MARK, F_OK) == 0;
 }
 
+/* The start loop's x6100-wr12-bypass on the stand-ins; what it said into out */
+static void loop_bypass(char *out, size_t size) {
+    FILE  *f;
+    size_t k = 0;
+
+    out[0] = 0;
+    if (system("X6100_WR12_SYS=test.d/sys X6100_WR12_DEV=test.d/dev X6100_WR12_MARK=" MARK
+               " sh ../../rootfs/usr/sbin/x6100-wr12-bypass > test.d/bypass.out 2>&1") != 0) {
+        snprintf(out, size, "(it failed)");
+        return;
+    }
+    if ((f = fopen("test.d/bypass.out", "r"))) {
+        k = fread(out, 1, size - 1, f);
+        fclose(f);
+    }
+    out[k] = 0;
+}
+
 /* `wr12_test term`: a GUI receiving 98 MHz through the WR12, until the test stops it with SIGTERM */
 static int term_child(void) {
     if (!freopen("wr12_term.log", "w", stderr)) return 1;
@@ -684,6 +704,29 @@ int main(int argc, char **argv) {
         check(cmds_since(m, "AT+BYPASS=1") == 1 && last_is("AT+BYPASS=1"), "SIGTERM: AT+BYPASS=1, last thing");
         check(WIFSIGNALED(st) && WTERMSIG(st) == SIGTERM, "SIGTERM: the GUI ends as SIGTERM ends it (%#x)", st);
         check(marked(), "SIGTERM: the mark kept for the GUI after it");
+    }
+
+    /* The start loop after a GUI that ended any way (a crash), and S95gui stop: with the mark, AT+BYPASS=1 to the
+     * port with the WR12's USB id and to no other (the GPS on ttyACM0, a file here, stays empty), the mark kept for
+     * the next GUI; without the mark (the WR12 seen in its bypass, an X6100), nothing */
+    {
+        char        said[256];
+        struct stat st;
+
+        unlink("test.d/dev/ttyACM0");
+        fclose(fopen("test.d/dev/ttyACM0", "w"));
+        m = cmds_mark();
+        loop_bypass(said, sizeof(said));
+        sleep_ms(50);
+        check(cmds_since(m, "AT+BYPASS=1") == 1 && cmds_mark() - m == 1, "the start loop: AT+BYPASS=1 to the WR12");
+        check(is(said, "x6100-wr12-bypass: ttyACM1: AT+BYPASS=1 sent\n"), "the start loop: its line (%s)", said);
+        check(stat("test.d/dev/ttyACM0", &st) == 0 && st.st_size == 0, "the start loop: nothing to the GPS");
+        check(marked(), "the start loop: the mark kept");
+        unlink(MARK);
+        m = cmds_mark();
+        loop_bypass(said, sizeof(said));
+        sleep_ms(50);
+        check(cmds_mark() == m && said[0] == 0, "the start loop, no mark: nothing (%s)", said);
     }
 
     printf("%d checks, %d failed\n", checks, fails);

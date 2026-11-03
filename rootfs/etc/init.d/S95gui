@@ -67,6 +67,9 @@ stop() {
 		sleep 0.5
 	done
 	gpioset gpiochip1 203=1 2> /dev/null
+	# And the X6200's WR12 back in its bypass should the GUI have left it out, as the loop does too (#134): the GUI
+	# does it itself at SIGTERM, this is for one that could not
+	/usr/sbin/x6100-wr12-bypass | logger -t S95gui 2> /dev/null
 	return "$status"
 }
 

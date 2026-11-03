@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# OpenX6X00: the X6200's WR12 receiver on the HOST port (#134) put back in its bypass, the antenna straight through to
+# the radio, once the GUI has ended, whichever way: x6100_daemon after each GUI (a crash too), S95gui stop. The GUI
+# does it itself when it is stopped (src/wr12.c, on_term); this is for one that could not. Only with the mark the
+# GUI leaves while the WR12 may be out of its bypass (/tmp/wr12-out), so never on an X6100. Each ttyACM port with
+# the WR12's USB id (STM's 0483:5740) gets AT+BYPASS=1, raw at 115200 as the GUI sets it up; the answer is not read
+# and the mark stays: the next GUI holds TX until it has seen the WR12 back in its bypass. A port that takes the
+# command in no 2 s is given up, and the start loop goes on. A line for each on standard output.
+#
+# X6100_WR12_SYS, _DEV and _MARK name other places (tools/wr12).
+#
+
+SYS=${X6100_WR12_SYS:-/sys/class/tty}
+DEV=${X6100_WR12_DEV:-/dev}
+MARK=${X6100_WR12_MARK:-/tmp/wr12-out}
+
+[ -e "$MARK" ] || exit 0
+for t in "$SYS"/ttyACM*; do
+    u=$t/device/..
+    [ "$(cat "$u/idVendor" 2> /dev/null):$(cat "$u/idProduct" 2> /dev/null)" = "0483:5740" ] || continue
+    n=${t##*/}
+    # No echo of its answer back to it; CLOCAL: the open does not wait for a carrier
+    ( stty -F "$DEV/$n" raw -echo clocal 115200 && printf 'AT+BYPASS=1\r\n' > "$DEV/$n" ) 2> /dev/null &
+    p=$!
+    ( sleep 2; kill $p ) 2> /dev/null &
+    w=$!
+    if wait $p; then
+        r="AT+BYPASS=1 sent"
+    else
+        r="AT+BYPASS=1 could not be sent"
+    fi
+    kill $w 2> /dev/null
+    echo "x6100-wr12-bypass: $n: $r"
+done
+exit 0
