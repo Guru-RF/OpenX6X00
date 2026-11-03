@@ -287,7 +287,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
 <div class="pop" id="pop" hidden><div class="box" id="popbox"></div></div>
 
 <script src="/static/js/radio_link.js?v=2"></script>
-<script src="/static/js/radio_session.js?v=5"></script>
+<script src="/static/js/radio_session.js?v=6"></script>
 <script>
 (function() {
   "use strict";
@@ -311,7 +311,12 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   try { pref = JSON.parse(localStorage.getItem("x6100panel") || "{}"); } catch (e) {}
   function savePref() { try { localStorage.setItem("x6100panel", JSON.stringify(pref)); } catch (e) {} }
 
-  function status(text, error) { $st.toggleClass("error", !!error).html('<span class="dot"></span>').append(document.createTextNode(text)); }
+  /* The status line: news ("QSO logged"), or how things are ("Take control first", "On the air"). A text of the
+   * second kind comes with holds(), true while it is so, and goes once it is not: statusCheck() at a change of
+   * access or control, and every second (#58: "Take control first" stayed up after control had come back) */
+  let stHolds = null;
+  function status(text, error, holds) { stHolds = holds || null; $st.toggleClass("error", !!error).html('<span class="dot"></span>').append(document.createTextNode(text)); }
+  function statusCheck() { if (stHolds && !stHolds()) { stHolds = null; $st.removeClass("error").empty(); } }
   /* An https page's sockets on its own address and port, the certificate accepted for the page's (#58): tailscaled
    * hands the Funnel page's to the radio's ports, the radio's https server its own page's. On 50003 and 50004 Firefox
    * wanted the certificate accepted again, and refused them without a word */
@@ -328,7 +333,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   /* A change for the radio: not while it does not answer, it would arrive late, after whatever the operator did
    * next (audit C02). Releases and stops go with send(): late, they still let go */
   function act(s) {
-    if (link && link.stalled) { status("The radio does not answer: nothing is sent until it does", true); return false; }
+    if (link && link.stalled) { status("The radio does not answer: nothing is sent until it does", true, function() { return link.stalled; }); return false; }
     return send(s);
   }
   function set(name, v, v2) { return act("set " + name + " " + v + (v2 !== undefined ? " " + v2 : "")); }
@@ -396,9 +401,10 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   function wantDrop() { if (Object.keys(want).length) { want = {}; showState(); } }
   /* May the page ask for a change and show it as asked? Not when it knows the radio would refuse: the reason,
    * and the dialog that changes it */
+  function refusal() { return !link.up ? "No link to the radio: nothing is sent" : link.stalled ? "The radio does not answer: nothing is sent until it does" : ses.can(); }
   function mayAct() {
-    const no = !link.up ? "No link to the radio: nothing is sent" : link.stalled ? "The radio does not answer: nothing is sent until it does" : ses.can();
-    if (no) { status(no, true); if (link.up && !link.stalled) ses.explain(); }
+    const no = refusal();
+    if (no) { status(no, true, function() { return refusal() === no; }); if (link.up && !link.stalled) ses.explain(); }
     return !no;
   }
   function showState() {
@@ -608,7 +614,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   let drag = null, pinch = null, tuneTimer = null, tuneWant = null;
   function tuneTo(hz) {
     if (!state) return;
-    if (state.lock) { status("LOCK is on (or an app holds the frequency): the radio stays on " + fmtFreq(state.freq), true); return; }
+    if (state.lock) { status("LOCK is on (or an app holds the frequency): the radio stays on " + fmtFreq(state.freq), true, function() { return !!state && !!state.lock; }); return; }
     if (!mayAct()) return;
     hz = Math.round(hz);
     tuneWant = hz;
@@ -1006,7 +1012,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
       else if (head === "ft8r") addFt8Row(JSON.parse(body));
       else if (head === "cw") addCw(JSON.parse(body));
       else if (head === "logged") { const a = body.split(" "); if (a.length > 1) logAnswer(a[0], a[1]); else status(body === "ok" ? "QSO logged" : "QSO not logged (see the radio)", body !== "ok"); }
-      else if (head === "err") status(body, true);
+      else if (head === "err") status(body, true, ses.holds(body));
     } catch (e) { status("Bad message: " + e, true); }
   }
   link = RadioLink.create({
@@ -1034,7 +1040,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     onStall: function(on) { stalled(on); },
   });
   /* Who this browser is to the radio and who controls it (R3); the PTT as the radio confirms it (R4) */
-  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); if (xtune) xtune.render(); }, onTx: function(on) { ptt.radioTx(on); },
+  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); if (xtune) xtune.render(); statusCheck(); }, onTx: function(on) { ptt.radioTx(on); },
     awayUrl: function() { return !FUNNEL && conf && conf.funnel_url ? conf.funnel_url : null; }});   /* Use away from home (#58) */
   ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses, link: link,
     mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
@@ -1063,7 +1069,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   }
   function stalled(on) {
     radio.classList.toggle("stale", on);
-    if (on && letGo("The radio does not answer: the transmission is ended here. Press PTT again when it answers")) status("The radio does not answer: keys released, press again when it answers", true);
+    if (on && letGo("The radio does not answer: the transmission is ended here. Press PTT again when it answers")) status("The radio does not answer: keys released, press again when it answers", true, function() { return link.stalled; });
     view();
   }
   function stateLine() { return state && stateAt ? "What is shown is from " + RadioLink.age(Date.now() - stateAt) + " ago. " : "Nothing from the radio yet. "; }
@@ -1116,7 +1122,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     fpsText = (frames / dt).toFixed(0) + " fps, " + (bytes / dt / 1024).toFixed(0) + " kB/s"; kbsText = (abytes / dt / 1024).toFixed(0) + " kB/s";
     frames = 0; bytes = 0; abytes = 0;
   }, 2000);
-  setInterval(function() { showHealth(); view(); logTick(); if (state && Object.keys(want).length) showState(); }, 1000);
+  setInterval(function() { showHealth(); view(); logTick(); statusCheck(); if (state && Object.keys(want).length) showState(); }, 1000);
 
   /* ---- Keys (the Keys tab, PTT) ---- */
   const held = {};
@@ -1216,7 +1222,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
       micState = "asking"; status("Asking the browser for the microphone...");
       navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true}, video: false}).then(function(s) {
         if (req !== micReq) { s.getTracks().forEach(function(t) { t.stop(); }); return; }
-        micStream = s; micState = "ready"; status("Microphone ready: PTT transmits the browser's microphone");
+        micStream = s; micState = "ready"; status("Microphone ready: PTT transmits the browser's microphone", false, function() { return micStream === s; });
         s.getTracks().forEach(function(t) { t.onended = function() { if (micStream === s) { micState = "off"; micOn = false; $("#mic").attr("aria-pressed", "false"); micStream = null; ptt.lost("The microphone went away: transmission ended"); ptt.render(); } }; });
         if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
         ptt.render();

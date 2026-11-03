@@ -4291,7 +4291,10 @@ shows again; a change neither confirmed nor refused within two seconds goes
 back to the radio's value too. A browser that only watches, or does not
 have control, does not send the change at all: it says why and opens the
 pairing or Take control dialog. With LOCK on, the frequency stays and the
-status line says so.
+status line says so. A text of the status line that says how things are
+("Take control first", "On the air", "LOCK is on", "The radio does not
+answer") goes once it is no longer so, within a second; news ("QSO logged")
+stays until the next.
 
 The page talks to the GUI's remote WebSocket (port 50002, the Screen page's;
 the https page at `wss://<address>/ws/remote`, which the web server hands on):
@@ -4474,7 +4477,8 @@ radio · Take control" (someone used the radio's own keys or knobs), "TCI
 client · Take control". A key, a knob or a setting pressed in a browser
 without control is not sent to the radio: a Take control dialog opens, says
 who has control, and its button brings control here (as the button in the
-bar does at any time). One exception: while the radio transmits, control
+bar does at any time); the status line then says "In control", and no longer
+"Take control first". One exception: while the radio transmits, control
 stays where it is until the transmission ends.
 Release gives it up without anyone taking it. The radio's own keys and knobs
 always take control back (the operator standing at the radio has the last

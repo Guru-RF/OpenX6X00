@@ -100,7 +100,7 @@
 <p class="sub" style="margin-top:14px">Keyboard: F1–F5, ← → the main knob, Shift + ← → faster, [ ] volume, PageUp/PageDown the MFK, Enter the MFK push, Space PTT. Knobs: drag around the ring, or the mouse wheel over it. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/remote</a> (the browser warns of the radio's own certificate: accept it, once for that address).</span></p>
 
 <script src="/static/js/radio_link.js?v=2"></script>
-<script src="/static/js/radio_session.js?v=5"></script>
+<script src="/static/js/radio_session.js?v=6"></script>
 <script>
 (function() {
   "use strict";
@@ -115,7 +115,11 @@
   let frames = 0, bytes = 0, lastStat = Date.now(), lastFrame = 0, lastAudio = 0, abytes = 0, fpsText = "", kbsText = "";
   let greeted = false, awayless = false;   /* over Funnel: greeted on this connection; closed unpaired (the Panel's) */
 
-  function status(text, error) { $st.toggleClass("error", !!error).html('<span class="dot"></span>').append(document.createTextNode(text)); }
+  /* The status line: news, or how things are ("Take control first", "On the air"), which comes with holds() and
+   * goes once it is not so: statusCheck() at a change of access or control, and every second (#58) */
+  let stHolds = null;
+  function status(text, error, holds) { stHolds = holds || null; $st.toggleClass("error", !!error).html('<span class="dot"></span>').append(document.createTextNode(text)); }
+  function statusCheck() { if (stHolds && !stHolds()) { stHolds = null; $st.removeClass("error").empty(); } }
   function wsUrl(kind) {   /* an https page's on its own address and port, as the Panel's (#58) */
     if (FUNNEL || secure) return "wss://" + location.host + "/ws/" + kind;
     return "ws://" + location.hostname + ":" + (kind === "remote" ? conf.port : conf.tci_port) + "/";
@@ -157,7 +161,7 @@
   /* A key or a knob for the radio: not while it does not answer, it would arrive late, after whatever the operator
    * did next (audit C02). Releases go with send(): late, they still let go */
   function act(s) {
-    if (link && link.stalled) { status("The radio does not answer: nothing is sent until it does", true); return false; }
+    if (link && link.stalled) { status("The radio does not answer: nothing is sent until it does", true, function() { return link.stalled; }); return false; }
     return send(s);
   }
 
@@ -196,7 +200,7 @@
       if (ses.onText(w[0], body)) return;             /* role, ctl, paired, tx, sessions */
       if (w[0] === "size") { cv.width = +w[1]; cv.height = +w[2]; $("#screen").toggleClass("portrait", +w[2] > +w[1]); }
       else if (w[0] === "keys") keysHave(w.slice(1));   /* the keys this radio has: the others greyed (the X6200 has no PRE, V/M, AGC or LOCK) */
-      else if (w[0] === "err") { if (!ptt.err(body)) status(body, true); }
+      else if (w[0] === "err") { if (!ptt.err(body)) status(body, true, ses.holds(body)); }
     },
     onBinary: showFrame,
     onClose: function(gen, retry, wasUp) {
@@ -206,7 +210,7 @@
     onStall: function(on) { stalled(on); },
   });
   /* Who this browser is to the radio and who controls it (R3); the PTT as the radio confirms it (R4) */
-  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); }, onTx: function(on) { ptt.radioTx(on); }});
+  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); statusCheck(); }, onTx: function(on) { ptt.radioTx(on); }});
   ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses, link: link,
     mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
   /* What touches the air is let go when the link can no longer carry it in time: a held key, knob turns not sent
@@ -229,7 +233,7 @@
   }
   function stalled(on) {
     screenEl.classList.toggle("stale", on); panelEl.classList.toggle("stale", on);
-    if (on && letGo("The radio does not answer: the transmission is ended here. Press PTT again when it answers")) status("The radio does not answer: keys released, press again when it answers", true);
+    if (on && letGo("The radio does not answer: the transmission is ended here. Press PTT again when it answers")) status("The radio does not answer: keys released, press again when it answers", true, function() { return link.stalled; });
     view();
   }
   function pictureLine() { return lastFrame ? "The picture is from " + RadioLink.age(Date.now() - lastFrame) + " ago. " : "No picture from the radio yet. "; }
@@ -277,7 +281,7 @@
     if (link.up) ses.chips().forEach(function(c) { ch.push(c); });
     RadioLink.health(document.getElementById("hl"), ch);
   }
-  setInterval(function() { showHealth(); view(); }, 1000);
+  setInterval(function() { showHealth(); view(); statusCheck(); }, 1000);
 
   /* ---- Keys ---- */
   const held = {};
@@ -412,7 +416,7 @@
       micState = "asking"; status("Asking the browser for the microphone...");
       navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true}, video: false}).then(function(s) {
         if (req !== micReq) { s.getTracks().forEach(function(t) { t.stop(); }); return; }   /* Off, or On again, came first */
-        micStream = s; micState = "ready"; status("Microphone ready: PTT transmits the browser's microphone");
+        micStream = s; micState = "ready"; status("Microphone ready: PTT transmits the browser's microphone", false, function() { return micStream === s; });
         s.getTracks().forEach(function(t) { t.onended = function() { if (micStream === s) { micState = "off"; micOn = false; $("#mic").attr("aria-pressed", "false"); micStream = null; ptt.lost("The microphone went away: transmission ended"); ptt.render(); } }; });
         if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
         ptt.render();

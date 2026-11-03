@@ -49,6 +49,8 @@ def main():
               contains=("edit-flow cases as they should be",)).strip())
         print("#58 Tailscale Funnel, the pages:\n" + command(["node", HERE / "funnel-pages.js"], env,
               contains=("funnel page cases as they should be",)).strip())
+        print("#58 the status line of the Panel and the Screen page:\n" + command(["node", HERE / "status-line.js"], env,
+              contains=("status line cases as they should be",)).strip())
         print("#85 TUNE for an external tuner, the Panel's side:\n" + command(["node", HERE / "tune-page.js"], env,
               contains=("All tune page cases as they should be",)).strip())
 
