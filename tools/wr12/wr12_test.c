@@ -519,7 +519,8 @@ int main(int argc, char **argv) {
     sleep_ms(100);
     check(cmds_since(m, "AT+FREQ=98100000") == 1 && cmds_since(m, "AT+BYPASS") == 0, "98.1 MHz: AT+FREQ alone");
 
-    /* 7 MHz: back in its bypass, TX held until its OK (late here, within the time an answer has), free after */
+    /* 7 MHz: back in its bypass, TX held until its OK (late here, within the time an answer has), free 50 ms after
+     * (SETTLE_MS, for its relay) */
     fw.slow_ms = 100;
     fw_text(fw.slow, "AT+BYPASS=1");
     m = cmds_mark();
@@ -531,6 +532,13 @@ int main(int argc, char **argv) {
     check(is(wr12_tx_block(), "WR12 not in bypass"), "7 MHz: still held while its answer is on its way");
     WAIT_FOR(!wr12_tx_block(), 1000);
     check(!wr12_tx_block(), "7 MHz: TX free after its OK");
+    {
+        uint64_t sent, free_at = now_ms();
+
+        check(cmd_times(m, "AT+BYPASS=1", &sent, 1) == 1 && free_at - sent >= 100 + 50 - 10,
+              "7 MHz: TX free 50 ms after its OK, not at once (%lld ms after AT+BYPASS=1, its OK at 100)",
+              (long long)(free_at - sent));
+    }
     check(!marked(), "7 MHz: the mark gone");
     fw_text(fw.slow, "");
     expect("7 MHz", m, (const char *const[]){"AT+BYPASS=1"}, 1, true);

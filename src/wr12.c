@@ -75,6 +75,7 @@
 #define STEP_MS     100     /* between the commands of the set-up */
 #define DEFER_MS    50      /* the radio in TX: AT+BYPASS=0 tried again */
 #define TERM_MS     20      /* SIGTERM: AT+BYPASS=1 this long on its way over USB before the GUI ends */
+#define SETTLE_MS   50      /* back in its bypass after being out, or maybe: TX free this long after its OK */
 #define DRAIN_MAX   4096    /* what waits before a command, dropped: more than this, or for longer than DRAIN_MS, */
 #define DRAIN_MS    50      /* and it is taken for a port that never stops sending */
 #define FAILS       3       /* commands unanswered in a row: not answering */
@@ -414,6 +415,21 @@ static void set_out(bool o) {
     }
 }
 
+/* Its OK to AT+BYPASS=1: in its bypass, TX free. After being out, or maybe, SETTLE_MS later: whether the WR12 says OK
+ * before or after its relay has settled is not known, and a CAT PTT can follow TX going free within milliseconds */
+static void back_in(void) {
+    bool o;
+
+    bypass = 1;
+    pthread_mutex_lock(&mux);
+    o = out;
+    pthread_mutex_unlock(&mux);
+    if (o) {
+        sleep_ms(SETTLE_MS);
+    }
+    set_out(false);
+}
+
 /* Out of its bypass only while the GUI still wants it, decided with out set under mux: a wr12_want that takes rx back
  * after this finds out set, and TX stays held until the bypass is seen again */
 static bool go_out(void) {
@@ -508,11 +524,10 @@ static bool start(const char *name, bool on) {
         lose(a != ANS_ERROR);   /* an ERROR was said already */
         return false;
     }
-    bypass     = 1;
     quiet_sets = 0;
     none_said  = false;
     up_ms      = now_ms();
-    set_out(false);
+    back_in();
     atomic_store(&ready, true);
     if (!found_said) {
         found_said = true;
@@ -665,8 +680,7 @@ static void *run(void *arg) {
                 continue;
             }
             if (a == ANS_OK) {
-                bypass = 1;
-                set_out(false);
+                back_in();
             } else {
                 bypass = -1;
                 continue;       /* again at the keepalive's pace, TX held meanwhile */
