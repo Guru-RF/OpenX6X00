@@ -140,6 +140,7 @@ typedef enum {
     HW_NB_WIDTH,
     HW_NR,
     HW_NR_LEVEL,
+    HW_IQ_SWAP,         /* the X6200 with the WR12: I and Q of its IF the other way round; compared first, as a register */
     HW_PARAM_COUNT
 } hw_param_t;
 

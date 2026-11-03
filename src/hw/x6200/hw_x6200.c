@@ -71,6 +71,9 @@ static x6200_mode_t lib_mode(radio_mode_t m) {
 
 /* Bits of x6200_sple_atue_trx that key the radio from the GUI */
 #define TX_BITS (x6200_iptt | x6200_modem_trx | x6200_atu_tune | x6200_swrscan_trx | x6200_calibration_trx)
+/* And the one that has the base take the WR12's IF with I and Q swapped (#134), which the control library has no name
+ * or setter for */
+#define IQ_SWAP 0x800000
 
 #define PSD_BINS    512     /* dB bins in a packet, the lowest frequency first */
 #define PSD_OFFSET  126.0f  /* bin value 126 is 0 dBm: the stock X6200 GUI's constant */
@@ -296,6 +299,16 @@ bool hw_set_i(hw_param_t p, int32_t v) {
         case HW_NB_WIDTH:       x6200_control_nb_width_set(v); break;
         case HW_NR:             x6200_control_nr_set(v); break;
         case HW_NR_LEVEL:       x6200_control_nr_level_set(v); break;
+        /* Read and written back as the library's setters do with the bits beside it (radio.c holds its lock): the
+         * library's copy of the register keeps it, and the keepalive sends that copy every second (hw_resend_all) */
+        case HW_IQ_SWAP: {
+            uint32_t r = x6200_control_get(x6200_sple_atue_trx);
+            uint32_t n = v ? r | IQ_SWAP : r & ~(uint32_t)IQ_SWAP;
+
+            if (n == r) return false;
+            x6200_control_cmd(x6200_sple_atue_trx, n);
+            break;
+        }
         /* The X6100 patched firmware's extras: this base has no register for them */
         case HW_TX_I_OFFSET:
         case HW_TX_Q_OFFSET:
