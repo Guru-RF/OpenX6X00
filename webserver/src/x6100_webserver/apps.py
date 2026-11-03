@@ -482,7 +482,10 @@ def funnel_render(out_dir, name=""):
     mixes with files of this one. A page that loads a file tailscaled does not serve is said in the log.
     Each file's time is 0 (1970), which tailscaled's file server (Go's) takes for none: no Last-Modified, which told
     anyone on the internet, paired or not, when the radio last started (it writes them then), and no 304 for a page
-    a browser kept from an older version (#58)"""
+    a browser kept from an older version (#58). So a browser loads them whole at each visit, over the radio's own
+    connection. A time fixed per version would keep the 304s, but none comes with the package (the updater writes
+    its files at the install), and with any fixed time a browser keeps a page unasked for a tenth of its age (its
+    heuristic freshness), past an update too"""
     tmp = out_dir + ".new"
     shutil.rmtree(tmp, ignore_errors=True)
     for sub in ("css", "js"):

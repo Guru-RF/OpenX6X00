@@ -5126,7 +5126,9 @@ What goes on the internet, and what does not:
   Panel. Before a key, that is all anyone gets: the pages are the same on
   every radio of a version but for that name, with no callsign and nothing of
   the radio's state, and their files carry no time, so they do not tell when
-  the radio last started.
+  the radio last started. A browser therefore loads them whole at each visit
+  and reload, about 265 kB for the Panel and 206 kB for the Screen page, over
+  the radio's own connection (tailscaled runs on the radio).
 - Their two sockets: the browser remote's (50002) and TCI (50001), which take
   nothing from the internet, not even a greeting, before the key of a browser
   paired at home, within 5 s; a wrong key closes the connection, and ten wrong
