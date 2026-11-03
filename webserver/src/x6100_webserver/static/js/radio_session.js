@@ -166,11 +166,14 @@
     }
     return false;
   };
-  /* The radio's refusals about this browser's access or control hold as long as their cause (#58) */
+  /* The radio's refusals about this browser's access or control hold as long as their cause (#58). One because the
+   * radio is on the air holds while it is, and for its first second in any case: the radio tells its TX state after
+   * the command it refused, so a Take control sent just as it keyed is refused before this page hears "tx 1" */
+  const TX_TOLD_MS = 1000;
   Session.prototype.holds = function(err) {
-    const self = this;
+    const self = this, at = Date.now();
     if (/^(view only|controlled by)/.test(err)) return function() { return !!self.can(); };
-    if (/^busy: the radio is transmitting/.test(err)) return function() { return self.radioTx; };
+    if (/^busy: the radio is transmitting/.test(err)) return function() { return self.radioTx || Date.now() - at < TX_TOLD_MS; };
     return null;
   };
   Session.prototype.can = function() {

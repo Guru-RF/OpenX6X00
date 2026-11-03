@@ -14,10 +14,14 @@ function check(what, ok, got) {
   console.log((ok ? 'ok    ' : 'WRONG ') + what + (got !== undefined ? ': ' + JSON.stringify(got) : ''));
 }
 
-/* What both pages need around their own code: the link to the radio, what it was sent, the page's tick */
+/* What both pages need around their own code: the link to the radio, what it was sent, the page's tick, a clock
+ * that moves when told (second(): a second gone, every timer that ticks each second run, the PTT's and TUNE's too) */
 function stand(p) {
   const ticks = [];
-  p.ctx.setInterval = fn => { ticks.push(fn); return ticks.length; };
+  let clock = Date.now();
+  p.ctx.setInterval = fn => ticks.push({fn, on: true});            /* its id: its place + 1 */
+  p.ctx.clearInterval = id => { if (ticks[id - 1]) ticks[id - 1].on = false; };
+  p.ctx.Date = Object.assign(function(...a) { return a.length ? new Date(...a) : new Date(clock); }, {now: () => clock});
   p.eval(`var stHolds = null, FUNNEL = false, secure = false, conf = {enabled: true, tci_enabled: true}, sent = [];
     var link = {up: true, stalled: false, gen: 1, send: function(s) { sent.push(s); return true; }, close: function() {}, tryNow: function() {}, retryIn: function() { return 0; }};
     var tlink = {up: false, send: function() { return false; }, tryNow: function() {}, close: function() {}};
@@ -30,6 +34,7 @@ function stand(p) {
     dialog: () => { const b = p.doc.querySelector('.spop'); return b && !b.hasAttribute('hidden') ? b.querySelector('.sbox').textContent : ''; },
     button: (scope, text) => [...p.doc.querySelectorAll(scope + ' button')].find(b => b.textContent === text),
     ticks,
+    second: () => { clock += 1000; ticks.filter(t => t.on).forEach(t => t.fn()); },
     sent: () => p.ctx.sent.splice(0),
   };
 }
@@ -53,7 +58,7 @@ function panel() {
   p.eval(between(src, '  function letGo(why) {', '  function stateLine()'));
   const n = t.ticks.length;
   p.eval(between(src, '  setInterval(function() { showHealth(); view(); logTick();', '\n'));
-  t.tick = t.ticks[n];                                     /* the page's own every second */
+  t.tick = t.ticks[n].fn;                                     /* the page's own every second */
   t.text = (s) => p.eval('onText(' + JSON.stringify(s) + ')');
   return {p, ...t};
 }
@@ -73,7 +78,7 @@ function screen() {
   p.eval(between(src, '  function letGo(why) {', '  function pictureLine()'));
   const n = t.ticks.length;
   p.eval(between(src, '  setInterval(function() { showHealth(); view();', '\n'));
-  t.tick = t.ticks[n];
+  t.tick = t.ticks[n].fn;
   t.text = (s) => p.eval('pageOnText(' + JSON.stringify(s) + ')');
   return {p, ...t};
 }
@@ -230,6 +235,22 @@ const FIRST = 'The radio is operated at the radio: Take control first';
   g.p.eval('tlink.up = true');
   g.tick();
   check('the microphone ready: "Microphone not ready" gone', g.st() === '', g.st());
+}
+{
+  /* the radio keyed by another place just as Take control went: refused, and its "tx 1" comes after the refusal */
+  const g = panel();
+  inControl(g);
+  g.text('ctl local 0');
+  g.p.eval('ses.ctlClick()');
+  g.text('err busy: the radio is transmitting, control stays where it is');
+  g.text('ctl local 0');
+  check('Panel: Take control refused by the radio as it keyed, said', /^busy: the radio is transmitting/.test(g.st()), g.st());
+  g.text('tx 1');
+  g.second(); g.second();
+  check('and kept while the radio transmits', /^busy: the radio is transmitting/.test(g.st()), g.st());
+  g.text('tx 0');
+  g.second();
+  check('the radio back on receive: the refusal gone', g.st() === '', g.st());
 }
 {
   const g = panel();
