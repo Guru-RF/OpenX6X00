@@ -3273,11 +3273,17 @@ APP Channels, or the V/M key of the hand mic.
   Add there then replaced all the channels with the new one.
 - A Save, Delete, Up or Down on the page names the channel as the page shows
   it. When the list changed meanwhile (a channel deleted or moved on the
-  radio or in another tab, a move of the page's own still on its way) it
-  changes nothing: the page says so and shows the radio's list, what was
-  typed kept for another Save. Up to v0.3.8 it hit the channel that had
-  taken that place: a Save wrote over another channel, a Delete took
-  another one.
+  radio or in another tab) it changes nothing: the page says so and shows
+  the radio's list, what was typed kept for another Save. Up to v0.3.8 it
+  hit the channel that had taken that place: a Save wrote over another
+  channel, a Delete took another one.
+- The page's own changes go to the radio one at a time. One clicked while
+  another is still on its way goes out after its answer, to the channel
+  where that answer shows it: Up twice moves a channel two places, a Save
+  then an Up or a Delete before the answer moves or deletes the channel as
+  saved. One on a channel that is no longer in the list (Delete, then Up on
+  it) changes nothing, and the page says so. Up to v0.3.8 a second Up
+  before the first answer undid the first.
 - A channel saved on the Memories page, and a MEM slot there, takes the
   frequencies the radio tunes: 0.1-55 MHz, and 70-500 MHz for a
   transverter, on the X6100; 0.1-1000 MHz on the X6200 (FM broadcast, the

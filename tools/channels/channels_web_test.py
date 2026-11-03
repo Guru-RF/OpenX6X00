@@ -443,8 +443,10 @@ class Memories(unittest.TestCase):
         self.assertEqual(self.read(), before)
 
     def test_own_changes_in_a_row(self):
-        """The page's own changes go one at a time, each made on the list it showed when clicked: a Save of C
-        queued behind a move of D above it changes nothing (v0.3.8: C(CW) put over D); twice Up on D moves it once"""
+        """Changes made on the list from before a change of the page's own, as the page sent them when it took
+        the places of the click: a Save of C queued behind a move of D above it changes nothing (v0.3.8: C(CW) put
+        over D); twice Up on D moves it once. The page now takes them when the request goes out, from the answer
+        before (the edit-flow harness has those cases)"""
         self.write([ch(n, 7_000_000 + k * 1000) for k, n in enumerate("ABCDEF")])
         shown = self.channels()
         self.done(self.move(3, 2, shown))

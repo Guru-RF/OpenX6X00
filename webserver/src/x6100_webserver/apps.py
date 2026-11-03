@@ -2971,9 +2971,8 @@ class ChannelsChanged(Exception):
     """The channel a change names is not the one the page showed: the list changed since"""
 
 
-CHANNELS_CHANGED = "The channel list changed since the page showed it (on the radio, in another tab, or by a " \
-                   "change of this page's still on its way): nothing was changed, and the page shows the radio's " \
-                   "list now"
+CHANNELS_CHANGED = "The channel list changed since the page showed it, on the radio or in another tab: nothing was " \
+                   "changed, and the page shows the radio's list now"
 
 
 class ChannelsWritten(Exception):
@@ -3019,7 +3018,8 @@ def channels_edit(change):
 def shown_place(kept, i, was):
     """Where channel i of the page is in the file, when it is still the channel the page showed there (was, as
     GET gave it): else ChannelsChanged. By its place alone a change hit another channel once the list had changed
-    under the page: one deleted or moved on the radio or in another tab, a move of the page's own still on its way"""
+    under the page: one deleted or moved on the radio or in another tab. The page's own changes go one at a time,
+    each made with the places the answer before gave"""
     if not 0 <= i < len(kept) or not isinstance(was, dict) or any(was.get(k) != v for k, v in kept[i][1].items()):
         raise ChannelsChanged()
     return kept[i][0]

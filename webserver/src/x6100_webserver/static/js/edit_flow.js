@@ -18,7 +18,8 @@
  *                                     still hold what was sent, else the newer edit stays Unsaved
  *   EditFlow.failed(tk, text)         its failure: Failed, the draft kept, Save tries again
  *   EditFlow.ajax(body, settings)     $.ajax for a change to the list in the table body: one request
- *                                     of a table on its way at a time, the next after its answer
+ *                                     of a table on its way at a time, the next after its answer;
+ *                                     settings() a function: called when its turn comes, null sends nothing
  *   EditFlow.rebuild(body, build)     build() fills the table again from the radio's list; the rows
  *                                     being edited keep their drafts (a row the radio changed
  *                                     meanwhile says so: Reload takes the radio's, Save keeps yours)
@@ -94,7 +95,9 @@ window.EditFlow = (function() {
   /* The changes to one table go out one at a time, each after the answer to the one before: the web server
    * answers in threads, so of two on their way at once (Save all) the later answer could carry the older
    * list, and a row would show what the radio no longer has, or a new entry vanish (audit C12). A row
-   * waiting its turn says Saving..., and sends what it held when Save was pressed */
+   * waiting its turn says Saving..., and sends what it held when Save was pressed. Settings given as a function
+   * are made when their turn comes, on the page as the answers before left it: a change that names an entry by
+   * its place takes the place it has then (#158) */
   const queues = new WeakMap();
   function ajax(body, settings) {
     const el = $(body)[0];
@@ -104,9 +107,10 @@ window.EditFlow = (function() {
     if (q.length === 1) send(q);
   }
   function send(q) {
-    const s = q[0];
-    let over = false;
+    let over = false, s = null;
     const next = function() { if (over) return; over = true; q.shift(); if (q.length) send(q); };
+    try { s = typeof q[0] === "function" ? q[0]() : q[0]; } finally { if (!s) next(); }
+    if (!s) return;
     $.ajax(Object.assign({}, s, {
       success: function() { try { if (s.success) s.success.apply(this, arguments); } finally { next(); } },
       error: function() { try { if (s.error) s.error.apply(this, arguments); } finally { next(); } }}));

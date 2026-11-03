@@ -32,7 +32,7 @@
 </div>
 </section>
 
-<script src="/static/js/edit_flow.js?v=2"></script>
+<script src="/static/js/edit_flow.js?v=3"></script>
 <script>
 // Same names as x6100_mode_t / x6100_agc_t
 const MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CWR", "AM", "NFM", "SAM", "WFM"];
@@ -41,6 +41,7 @@ const AGCS = ["OFF", "SLOW", "FAST", "AUTO"];
 // X6100 not 55-70)
 const TUNE_MHZ = [{{mhz[0]}}, {{mhz[1]}}];
 let max = 100;
+let shownList = [];   // the channel list as the page shows it, from the radio's last answer
 const slotsBody = $("#slots>tbody"), chBody = $("#channels>tbody");
 EditFlow.effect($("#slots").closest(".dp-card").find("h3"), "at the next tap of the MEM button");
 EditFlow.effect($("#channels").closest(".dp-card").find("h3"), "on the radio within a few seconds, unless APP → Channels is open there: a change made in it then writes its list over the page's changes");
@@ -92,17 +93,21 @@ var readRow = function(row, named) {
 
 /* type url payload, then done(list), one request of the table at a time (EditFlow.ajax); on an error the
  * row of the save tk (EditFlow.submit) says why and keeps what was typed. 409: the channel list changed since
- * the page showed it and nothing was changed; the radio's list comes with it, the drafts kept */
+ * the page showed it and nothing was changed; the radio's list comes with it, the drafts kept. url can be a
+ * function, called when the request's turn comes: it gives {url, payload}, or null to send nothing */
 var call = function(kind, type, url, payload, tk, done) {
-  EditFlow.ajax(kind === "slots" ? slotsBody : chBody, {
-    url: url, type: type, data: payload ? JSON.stringify(payload) : undefined,
-    contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
-    success: function(r) { done(r); },
-    error: function(xhr, why) {
-      const msg = x6100FailText(xhr, why);
-      if (xhr.status === 409 && kind === "channels" && xhr.responseJSON && xhr.responseJSON.channels) renderChannels(xhr.responseJSON);
-      if (tk && $("tr[data-tk='" + tk + "']").length) EditFlow.failed(tk, msg); else showStatus(kind, msg, true);
-    }
+  EditFlow.ajax(kind === "slots" ? slotsBody : chBody, function() {
+    const to = typeof url === "function" ? url() : {url: url, payload: payload};
+    return to && {
+      url: to.url, type: type, data: to.payload ? JSON.stringify(to.payload) : undefined,
+      contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
+      success: function(r) { done(r); },
+      error: function(xhr, why) {
+        const msg = x6100FailText(xhr, why);
+        if (xhr.status === 409 && kind === "channels" && xhr.responseJSON && xhr.responseJSON.channels) renderChannels(xhr.responseJSON);
+        if (tk && $("tr[data-tk='" + tk + "']").length) EditFlow.failed(tk, msg); else showStatus(kind, msg, true);
+      }
+    };
   });
 }
 
@@ -134,40 +139,78 @@ var renderSlots = function(data) {
   });
 }
 
+// The table is built again for each answer: later leads from a row to the one built for the same channel, by
+// its key (of two alike the first to the first)
+const later = new WeakMap();
 var renderChannels = function(data) {
   max = data.max;
+  shownList = data.channels;
   if (data.error) showStatus("channels", data.error, true);   // channels.json the radio can't read either: left alone
-  return EditFlow.rebuild(chBody, function() { chBody.empty(); data.channels.forEach(function(c, i) { chBody.append(channelRow(c, i, data.channels)); }); });
+  const before = chBody.children("tr").get(), built = {};
+  const rows = EditFlow.rebuild(chBody, function() { chBody.empty(); data.channels.forEach(function(c, i) { chBody.append(channelRow(c, i, data.channels)); }); });
+  chBody.children("tr").each(function() { const k = $(this).attr("data-key"); (built[k] = built[k] || []).push(this); });
+  before.forEach(function(el) { const k = $(el).attr("data-key"), now = k && built[k] && built[k].shift(); if (now && now !== el) later.set(el, now); });
+  return rows;
 }
+
+// The row a click was on, as the page shows it now (the answers to the page's changes before it may have moved
+// or renamed its channel); null once its channel is no longer in the list
+var liveRow = function(row) {
+  let el = row[0];
+  while (el && el.parentNode !== chBody[0]) el = later.get(el);
+  return el ? $(el) : null;
+}
+var gone = function() { showStatus("channels", "That channel is no longer in the list: nothing was changed", true); return null; }
 
 var chanText = function(c) { return '"' + c.name + '" (' + (c.frequency / 1e6).toFixed(3) + " MHz " + c.mode + ")"; }
 
 // i is null for a new, not yet saved channel; list is the radio's list it is in. The row's key is what names
 // the channel on the radio, not its place: a delete above it moves it without losing its draft. A change to
 // the channel says which one it means (was, past: as the page shows them), so one made on a list that changed
-// meanwhile changes nothing (409) rather than another channel
+// meanwhile changes nothing (409) rather than another channel. Its place, was and past are taken when it goes
+// out, after the answers to the page's own changes before it: a Save then an Up before the answer moves the
+// channel as saved, and Up twice moves it two places
 var channelRow = function(c, i, list) {
-  const row = makeRow(c, true).attr("data-key", i === null ? "" : c.name + "|" + c.frequency + "|" + c.mode);
+  const row = makeRow(c, true).attr("data-key", i === null ? "" : c.name + "|" + c.frequency + "|" + c.mode).data({chan: c, place: i});
   const actions = $("<td class='action-cell'>").appendTo(row);
-  const move = function(to) { call("channels", "POST", "/api/channels/" + i + "/move", {to: to, was: c, past: list[to]}, null, renderChannels); };
+  const move = function(by) {
+    call("channels", "POST", function() {
+      const now = liveRow(row); if (!now) return gone();
+      const at = now.data("place"), to = at + by;
+      if (to < 0 || to >= shownList.length) return null;   // at the end already: a move before this one took it there
+      return {url: "/api/channels/" + at + "/move", payload: {to: to, was: now.data("chan"), past: shownList[to]}};
+    }, null, null, renderChannels);
+  };
   if (i !== null) {
-    actions.append(button("up", "", "Up").text("↑").prop("disabled", i == 0).on("click", function() { move(i - 1); }));
-    actions.append(" ", button("down", "", "Down").text("↓").prop("disabled", i == list.length - 1).on("click", function() { move(i + 1); }));
+    actions.append(button("up", "", "Up").text("↑").prop("disabled", i == 0).on("click", function() { move(-1); }));
+    actions.append(" ", button("down", "", "Down").text("↓").prop("disabled", i == list.length - 1).on("click", function() { move(1); }));
   }
   const save = function() {
     const tk = EditFlow.submit(row); if (!tk) return;
-    const d = readRow(row, true);
+    const d = readRow(row, true), key = d.name + "|" + d.frequency + "|" + d.mode;
     if (i === null) call("channels", "POST", "/api/channels", d, tk, function(r) { EditFlow.saved(tk, function() { row.remove(); return renderChannels(r)[d.name.trim() + "|" + d.frequency + "|" + d.mode]; }); });
-    else call("channels", "PUT", "/api/channels/" + i, Object.assign({was: c}, d), tk, function(r) { EditFlow.saved(tk, function() { return renderChannels(r)[d.name + "|" + d.frequency + "|" + d.mode]; }); });
+    else call("channels", "PUT", function() {
+      const now = liveRow(row); if (!now) return gone();
+      return {url: "/api/channels/" + now.data("place"), payload: Object.assign({was: now.data("chan")}, d)};
+    }, null, tk, function(r) {
+      // A rename or a new mode gives the row another key: a change clicked meanwhile finds the channel by later
+      const was = liveRow(row);
+      EditFlow.saved(tk, function() { const now = renderChannels(r)[key]; if (was && now && !later.has(was[0])) later.set(was[0], now[0]); return now; });
+    });
   };
   actions.append(" ", button("save", "si-disk", "Save").on("click", save));
   actions.append(" ", button("remove", "si-trash", "Delete").on("click", function() {
     if (i === null) { row.remove(); EditFlow.tools(null, chBody); return; }
     if (!EditFlow.confirmDelete("the channel " + chanText(c), "It is gone from APP → Channels on the radio.")) return;
-    call("channels", "DELETE", "/api/channels/" + i, {was: c}, null, function(r) {
+    let was = c;
+    call("channels", "DELETE", function() {
+      const now = liveRow(row); if (!now) return gone();
+      was = now.data("chan");
+      return {url: "/api/channels/" + now.data("place"), payload: {was: was}};
+    }, null, null, function(r) {
       renderChannels(r);
       // Undo hands back what the answer gave: the entry as channels.json had it, put back at its place there
-      EditFlow.undo($("#status_channels"), "Deleted " + chanText(c) + ".", function() {
+      EditFlow.undo($("#status_channels"), "Deleted " + chanText(was) + ".", function() {
         call("channels", "POST", "/api/channels/restore", r.deleted, null, function(r2) { renderChannels(r2); showStatus("channels", "Brought back"); });
       });
     });
