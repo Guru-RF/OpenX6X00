@@ -16,6 +16,6 @@ test: wr12_test
 	./wr12_test
 
 clean:
-	rm -rf wr12_test wr12_test.log test.d
+	rm -rf wr12_test wr12_test.log wr12_term.log test.d
 
 .PHONY: all test clean

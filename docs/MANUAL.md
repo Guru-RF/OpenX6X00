@@ -411,9 +411,11 @@ Display page, Receiver card). Off by default.
   amateur bands, and the WR12 does not leave its bypass while the radio is
   in TX. That holds until the WR12 answers that it is back in its bypass, or
   has been unplugged for 3 s (back sooner, after a reset on USB, it is set up
-  again first); a WR12 that stops answering keeps it held. A GUI started
-  while a WR12 is out of its bypass (after an update, or a crash) holds the
-  same way until it has set the WR12 up again.
+  again first); a WR12 that stops answering keeps it held. A GUI that is
+  stopped (a restart, an update or its Rollback, a shutdown) puts the WR12
+  back in its bypass on its way out, without waiting for the answer. A GUI
+  started while a WR12 is out of its bypass, or may be (after an update, or
+  a crash), holds the same way until it has set the WR12 up again.
 - Unplug the WR12 with the dial below 54 MHz or the switch off: unplugged
   while it receives, the radio cannot put it back in its bypass, and whether
   a WR12 without power passes the antenna through is not known yet.

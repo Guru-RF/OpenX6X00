@@ -9,7 +9,8 @@
  *
  *  One thread has the port: the GUI says what it wants (wr12_want) and reads the state, and never waits for the WR12.
  *  Each answer goes into the log when it differs from the last one to that command, so a knob turned or the
- *  keepalive add nothing; the screen hears once that the WR12 is found, lost, or answered ERROR.
+ *  keepalive add nothing; the screen hears once that the WR12 is found, lost, or answered ERROR. Stopped with SIGTERM,
+ *  the GUI puts it back in its bypass on its way out (on_term).
  *
  *  Copyright (c) 2026 RF.Guru
  */
@@ -24,6 +25,7 @@
 #include <glob.h>
 #include <poll.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
@@ -65,6 +67,7 @@
 #define BACK_MS     250     /* gone from USB out of its bypass: looked for again this often meanwhile */
 #define STEP_MS     100     /* between the commands of the set-up */
 #define DEFER_MS    50      /* the radio in TX: AT+BYPASS=0 tried again */
+#define TERM_MS     20      /* SIGTERM: AT+BYPASS=1 this long on its way over USB before the GUI ends */
 #define FAILS       3       /* commands unanswered in a row: not answering */
 #define NOTES       4
 
@@ -91,6 +94,10 @@ static atomic_bool     ready;
 static atomic_bool     notify_due;
 static bool          (*notify_fn)(void);
 static bool          (*keyed_fn)(void);
+
+/* The port for on_term, -1 none open; dying: on_term under way, the thread sends nothing more */
+static atomic_int      sig_fd = -1;
+static atomic_bool     dying;
 
 /* The thread's own: the port, the WR12 as its answers left it */
 static int             fd = -1;
@@ -262,7 +269,22 @@ static bool port_open(const char *name) {
     }
     tcflush(fd, TCIOFLUSH);
     snprintf(port, sizeof(port), "%s", name);
+    atomic_store(&sig_fd, fd);
     return true;
+}
+
+/* on_term under way: this thread neither sends nor lets the port go any more, until the GUI ends */
+static void stay_if_dying(void) {
+    while (atomic_load(&dying)) {
+        pause();
+    }
+}
+
+static void port_close(void) {
+    stay_if_dying();
+    atomic_store(&sig_fd, -1);
+    close(fd);
+    fd = -1;
 }
 
 /* What waits on the port, dropped: an answer too late for its command is not the next one's. False: it went */
@@ -284,6 +306,7 @@ static answer_t command(const char *cmd) {
     uint64_t end;
     answer_t a = ANS_NONE;
 
+    stay_if_dying();
     sent_ms = now_ms();
     end = sent_ms + ANSWER_MS;
     if (!drain() || write(fd, out, n) != n) {
@@ -383,8 +406,7 @@ static void lose(bool quiet) {
     bool gone = !is_wr12(port);
     bool was  = atomic_exchange(&ready, false);
 
-    close(fd);
-    fd        = -1;
+    port_close();
     bypass    = -1;
     freq_sent = 0;
     fails     = 0;
@@ -590,8 +612,7 @@ static void *run(void *arg) {
             o = out;
             pthread_mutex_unlock(&mux);
             if (!o && bypass == 1) {
-                close(fd);
-                fd = -1;
+                port_close();
                 atomic_store(&ready, false);
                 fprintf(stderr, "wr12: WR12 on HOST off, %s let go\n", port);
                 tell();
@@ -610,9 +631,30 @@ static void *run(void *arg) {
     return NULL;
 }
 
+/* SIGTERM, which S95gui stops the GUI with (a restart, an update or its rollback, a shutdown): the WR12 back in its
+ * bypass on the GUI's way out. The GUI after this one may be a version that knows no WR12, and would transmit into
+ * it. The thread stopped first (dying), a command of its own on its way let go, then AT+BYPASS=1 and TERM_MS for it
+ * to leave over USB; its answer is not waited for: the mark stays, and the next GUI that knows the WR12 holds TX
+ * until it has seen it. Then the GUI ends as SIGTERM ends it (exit code 143 in x6100_daemon). Only calls a signal
+ * handler may make */
+static void on_term(int sig) {
+    static const char cmd[] = "AT+BYPASS=1\r\n";
+    int               f;
+
+    atomic_store(&dying, true);
+    poll(NULL, 0, 5);
+    f = atomic_load(&sig_fd);
+    if (f >= 0 && write(f, cmd, sizeof(cmd) - 1) > 0) {
+        poll(NULL, 0, TERM_MS);
+    }
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
 void wr12_init(bool (*notify)(void), bool (*keyed)(void)) {
     pthread_condattr_t a;
     pthread_t          t;
+    struct sigaction   sa = {.sa_handler = on_term, .sa_flags = SA_RESTART};
 
     notify_fn = notify;
     keyed_fn  = keyed;
@@ -626,10 +668,13 @@ void wr12_init(bool (*notify)(void), bool (*keyed)(void)) {
     if (out) {
         fprintf(stderr, "wr12: left out of its bypass by the GUI before: TX held until it is back in it\n");
     }
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTERM, &sa, NULL);
     pthread_create(&t, NULL, run, NULL);
     pthread_detach(t);
 #else
     (void)t;
+    (void)sa;
 #endif
 }
 

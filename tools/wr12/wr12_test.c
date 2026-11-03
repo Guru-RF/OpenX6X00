@@ -9,7 +9,8 @@
  *  set-up, to AT+FREQ, to AT+BYPASS=1), a WR12 that stops answering, unplugged in the middle of a command (receiving,
  *  and on its way back to the bypass, for good or back within GONE_MS as after a reset on USB), plugged in again as
  *  ttyACM1 beside a GPS on ttyACM0, an echo before the answers, the serial paddle's question, and the log: each
- *  answer once, not one line a command.
+ *  answer once, not one line a command. Last, a GUI stopped with SIGTERM while the WR12 is out of its bypass (this
+ *  program again, as `wr12_test term`, its log in wr12_term.log).
  *
  *  The TX rules are wr12_tx_block's, which cfg_tx_refusal says first and so radio.c's refusals and its hold at 0 W
  *  follow: TX held from the moment the radio asks the WR12 out of its bypass until the WR12 is seen back in it (its OK
@@ -23,6 +24,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -31,6 +33,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -255,6 +258,16 @@ static int cmds_mark(void) {
     return n;
 }
 
+/* The last command it was sent is this one */
+static bool last_is(const char *cmd) {
+    bool ok;
+
+    pthread_mutex_lock(&fw_mux);
+    ok = n_cmds > 0 && strcmp(cmds[n_cmds - 1], cmd) == 0;
+    pthread_mutex_unlock(&fw_mux);
+    return ok;
+}
+
 static int cmds_since(int from, const char *prefix) {
     int n = 0;
 
@@ -378,9 +391,19 @@ static bool marked(void) {
     return access(MARK, F_OK) == 0;
 }
 
-int main(void) {
+/* `wr12_test term`: a GUI receiving 98 MHz through the WR12, until the test stops it with SIGTERM */
+static int term_child(void) {
+    if (!freopen("wr12_term.log", "w", stderr)) return 1;
+    setvbuf(stderr, NULL, _IONBF, 0);
+    wr12_init(on_notify, on_keyed);
+    wr12_want(true, true, 98000000);
+    for (;;) pause();
+}
+
+int main(int argc, char **argv) {
     int m;
 
+    if (argc > 1 && strcmp(argv[1], "term") == 0) return term_child();
     if (system("rm -rf test.d && mkdir -p test.d/sys test.d/dev") != 0) return 1;
     if (!freopen("wr12_test.log", "w", stderr)) return 1;
     setvbuf(stderr, NULL, _IONBF, 0);
@@ -638,9 +661,35 @@ int main(void) {
         check(log_lines("wr12: none on USB") <= 2, "the log: none on USB, once a time");
     }
 
+    /* A GUI stopped with SIGTERM while the WR12 is out of its bypass (S95gui stop: a restart, an update or its
+     * rollback, a shutdown): AT+BYPASS=1 last thing, the GUI ended as SIGTERM ends it, the mark kept for the GUI
+     * after it, which holds TX until it has seen the WR12 back in its bypass */
+    {
+        pid_t p;
+        int   st = 0;
+
+        m = cmds_mark();
+        p = fork();
+        if (p == 0) {
+            execl("/proc/self/exe", "wr12_test", "term", (char *)NULL);
+            _exit(127);
+        }
+        WAIT_FOR(cmds_since(m, "AT+BYPASS=0") == 1, 3000);
+        sleep_ms(50);
+        check(cmds_since(m, "AT+BYPASS=0") == 1 && marked(), "SIGTERM: a GUI receiving through the WR12");
+        m = cmds_mark();
+        kill(p, SIGTERM);
+        waitpid(p, &st, 0);
+        sleep_ms(50);
+        check(cmds_since(m, "AT+BYPASS=1") == 1 && last_is("AT+BYPASS=1"), "SIGTERM: AT+BYPASS=1, last thing");
+        check(WIFSIGNALED(st) && WTERMSIG(st) == SIGTERM, "SIGTERM: the GUI ends as SIGTERM ends it (%#x)", st);
+        check(marked(), "SIGTERM: the mark kept for the GUI after it");
+    }
+
     printf("%d checks, %d failed\n", checks, fails);
     if (!fails) {
         unlink("wr12_test.log");
+        unlink("wr12_term.log");
         if (system("rm -rf test.d") != 0) return 1;
     }
     return fails != 0;
