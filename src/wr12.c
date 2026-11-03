@@ -59,6 +59,10 @@
 #ifndef RETRY_MS
 #define RETRY_MS    2000    /* none found, or a set-up that failed: looked for again */
 #endif
+#ifndef GONE_MS
+#define GONE_MS     3000    /* gone from USB this long out of its bypass: taken for unplugged, not reset */
+#endif
+#define BACK_MS     250     /* gone from USB out of its bypass: looked for again this often meanwhile */
 #define STEP_MS     100     /* between the commands of the set-up */
 #define DEFER_MS    50      /* the radio in TX: AT+BYPASS=0 tried again */
 #define FAILS       3       /* commands unanswered in a row: not answering */
@@ -98,6 +102,8 @@ static int             fails;           /* unanswered in a row */
 static bool            quiet_said;      /* "not answering" on the screen, until it answers or goes */
 static int             quiet_sets;      /* set-ups unanswered since: the first one may come before it is up */
 static bool            none_said;       /* "none on USB" in the log, until one is found or the switch goes off */
+static int             open_err;        /* the errno of the last open that failed, logged once */
+static uint64_t        gone_ms;         /* gone from USB out of its bypass since, 0: not */
 
 /* The last answer logged for each command (AT+FREQ whatever its frequency), and whether its ERROR is on the screen yet */
 static struct {
@@ -236,9 +242,13 @@ static bool port_open(const char *name) {
     snprintf(path, sizeof(path), WR12_DEV "/%s", name);
     fd = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0) {
-        fprintf(stderr, "wr12: %s: %s\n", path, strerror(errno));
+        if (errno != open_err) {
+            open_err = errno;
+            fprintf(stderr, "wr12: %s: %s\n", path, strerror(errno));
+        }
         return false;
     }
+    open_err = 0;
     /* 115200 8N1, no flow control, raw. VMIN 1: a read with nothing there is EAGAIN, 0 only once it is unplugged */
     if (tcgetattr(fd, &t) == 0) {
         cfmakeraw(&t);
@@ -321,7 +331,7 @@ static answer_t command(const char *cmd) {
     return a;
 }
 
-/* Marked on the card's tmpfs while it may be out of its bypass: a GUI started after this one stopped knows */
+/* Marked in /tmp (in memory) while it may be out of its bypass: a GUI started after this one stopped knows */
 static void mark(bool on) {
     if (on) {
         FILE *f = fopen(WR12_MARK, "w");
@@ -365,8 +375,9 @@ static bool go_out(void) {
     return go;
 }
 
-/* The port let go. Unplugged (its USB id gone): it is in no state any more, out goes. Still there: what it was asked
- * last may still hold, out stays, and TX with it. quiet: it stopped answering, said once on the screen */
+/* The port let go. Unplugged (its USB id gone): out goes once it has stayed away GONE_MS (run); back before that it
+ * was only reset on USB, still powered and maybe out of its bypass, and is set up again first. Still there: what it
+ * was asked last may still hold, out stays, and TX with it. quiet: it stopped answering, said once on the screen */
 static void lose(bool quiet) {
     bool gone = !is_wr12(port);
     bool was  = atomic_exchange(&ready, false);
@@ -380,7 +391,6 @@ static void lose(bool quiet) {
         fprintf(stderr, "wr12: %s %s\n", port, gone ? "unplugged" : quiet ? "not answering, let go" : "let go");
     }
     if (gone) {
-        set_out(false);
         n_said     = 0;     /* plugged in again: its answers logged afresh */
         quiet_said = false;
         quiet_sets = 0;
@@ -495,9 +505,23 @@ static void *run(void *arg) {
                     none_said = true;
                 }
                 quiet_said = false;
+                if (o && !gone_ms) {
+                    gone_ms = now;
+                }
+                if (o && now - gone_ms < GONE_MS) {
+                    retry_at = now + BACK_MS;   /* back soon if it was only reset on USB */
+                    wait     = BACK_MS;
+                    continue;
+                }
+                if (o) {
+                    fprintf(stderr, "wr12: gone from USB out of its bypass for %u ms: taken for unplugged, TX free\n",
+                            (unsigned)(now - gone_ms));
+                }
+                gone_ms = 0;
                 set_out(false);     /* unplugged: none to bring back */
                 continue;
             }
+            gone_ms = 0;
             if (!start(name, on)) {
                 continue;
             }

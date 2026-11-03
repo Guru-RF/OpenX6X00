@@ -7,8 +7,9 @@
  *  mark), WR12 on HOST off (nothing sent), on (gpsd told to let go, the set-up in order, the keepalive), 98 MHz
  *  (AT+FREQ, AT+BYPASS=0, not while the radio is in TX), 98.1 MHz, 7 MHz, off while receiving, ERROR answers (in the
  *  set-up, to AT+FREQ, to AT+BYPASS=1), a WR12 that stops answering, unplugged in the middle of a command (receiving,
- *  and on its way back to the bypass), plugged in again as ttyACM1 beside a GPS on ttyACM0, an echo before the
- *  answers, the serial paddle's question, and the log: each answer once, not one line a command.
+ *  and on its way back to the bypass, for good or back within GONE_MS as after a reset on USB), plugged in again as
+ *  ttyACM1 beside a GPS on ttyACM0, an echo before the answers, the serial paddle's question, and the log: each
+ *  answer once, not one line a command.
  *
  *  The TX rules are wr12_tx_block's, which cfg_tx_refusal says first and so radio.c's refusals and its hold at 0 W
  *  follow: TX held from the moment the radio asks the WR12 out of its bypass until the WR12 is seen back in it (its OK
@@ -566,13 +567,35 @@ int main(void) {
     check(wr12_port("/dev/ttyACM1") && !wr12_port("/dev/ttyACM0"), "the WR12 by its USB id, not its name");
     check(notes("WR12 found on HOST") == found + 1, "plugged in again: said");
 
-    /* Unplugged on its way back to the bypass: TX held until then, free once it is gone */
+    /* Gone from USB on its way back to the bypass, and back within GONE_MS (a reset on USB, the WR12 still powered
+     * and maybe out of its bypass): TX held throughout, the WR12 set up again first, then free */
+    int unplugged = notes("WR12 unplugged");
+
     fw_text(fw.unplug, "AT+BYPASS=1");
     wr12_want(true, false, 145000000);
-    check(is(wr12_tx_block(), "WR12 not in bypass"), "unplugged on the way back: held at first");
+    check(is(wr12_tx_block(), "WR12 not in bypass"), "gone on the way back: held at first");
+    WAIT_FOR(!wr12_ready(), 1000);
+    sleep_ms(100);
+    check(!wr12_ready() && is(wr12_tx_block(), "WR12 not in bypass"), "gone from USB out of its bypass: held a while");
+    check(notes("WR12 unplugged") == unplugged + 1, "gone on the way back: said");
+    fw_text(fw.unplug, "");
+    m = cmds_mark();
+    plug("ttyACM1");
+    WAIT_FOR(wr12_ready() && !wr12_tx_block(), 2000);
+    check(wr12_ready() && !wr12_tx_block(), "back within the time: set up, in its bypass, then TX free");
+    expect("back within the time", m, SETUP, N_SETUP, true);
+
+    /* Unplugged on its way back to the bypass for good: TX held for GONE_MS, then free */
+    m = cmds_mark();
+    wr12_want(true, true, 145000000);
+    WAIT_FOR(cmds_since(m, "AT+BYPASS=0") == 1, 1000);
+    fw_text(fw.unplug, "AT+BYPASS=1");
+    wr12_want(true, false, 145000000);
+    WAIT_FOR(!wr12_ready(), 1000);
+    check(is(wr12_tx_block(), "WR12 not in bypass"), "unplugged on the way back: held a while");
     WAIT_FOR(!wr12_tx_block(), 2000);
-    check(!wr12_tx_block() && !wr12_ready(), "unplugged on the way back: TX free, let go");
-    check(notes("WR12 unplugged") == 2, "unplugged on the way back: said");
+    check(!wr12_tx_block() && !wr12_ready(), "unplugged on the way back for good: TX free, let go");
+    check(notes("WR12 unplugged") == unplugged + 2, "unplugged on the way back: said");
     fw_text(fw.unplug, "");
 
     /* A WR12 that echoes the command before its answer */
@@ -599,7 +622,7 @@ int main(void) {
         int ayt = cmds_since(0, "AT+AYT"), ok = log_lines("wr12: AT+AYT: OK");
 
         check(ayt >= 5 && ok == 1, "the log: AT+AYT sent %d times, its OK logged %d times", ayt, ok);
-        check(log_lines("wr12: AT+BYPASS=0: OK") == 3 && log_lines("wr12: ttyACM0 let go") == 0,
+        check(log_lines("wr12: AT+BYPASS=0: OK") == 4 && log_lines("wr12: ttyACM0 let go") == 0,
               "the log: AT+BYPASS=0's OK once a plug-in (%d), no line for each set-up that failed",
               log_lines("wr12: AT+BYPASS=0: OK"));
         check(log_lines("wr12: AT+FREQ=98100000") == 0, "the log: an AT+FREQ answered as the last one, not logged");

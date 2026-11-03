@@ -410,7 +410,8 @@ Display page, Receiver card). Off by default.
   the KEY jack) is held at 0 W with VOX off and KEY Train on, as outside the
   amateur bands, and the WR12 does not leave its bypass while the radio is
   in TX. That holds until the WR12 answers that it is back in its bypass, or
-  is unplugged; a WR12 that stops answering keeps it held. A GUI started
+  has been unplugged for 3 s (back sooner, after a reset on USB, it is set up
+  again first); a WR12 that stops answering keeps it held. A GUI started
   while a WR12 is out of its bypass (after an update, or a crash) holds the
   same way until it has set the WR12 up again.
 - Unplug the WR12 with the dial below 54 MHz or the switch off: unplugged

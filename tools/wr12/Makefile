@@ -5,7 +5,7 @@
 SRC    := ../../src
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -pthread -I $(SRC) -DBOARD_X6200=1 \
           -DWR12_SYS='"test.d/sys"' -DWR12_DEV='"test.d/dev"' -DWR12_GPSD='"test.d/gpsd.sock"' \
-          -DWR12_MARK='"test.d/wr12-out"' -DANSWER_MS=150 -DAYT_MS=400 -DRETRY_MS=300
+          -DWR12_MARK='"test.d/wr12-out"' -DANSWER_MS=150 -DAYT_MS=400 -DRETRY_MS=300 -DGONE_MS=600
 
 all: test
 
