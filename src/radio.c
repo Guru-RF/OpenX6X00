@@ -2022,15 +2022,25 @@ static void log_later(const char *fmt, ...) {
     later_flush();
 }
 
+#ifndef BOARD_X6200
+/* A tune given up for want of data: the X6100's 0.1 W key after it waits for the first packet back (radio_tick), as
+ * nothing the GUI keys goes out without data (#152). Radio thread */
+static bool recover_due;
+#endif
+
 /* The base never keyed for the tuner, or ended a tune without its done flag (no match: more likely on 10 and 15 m
  * with a real antenna). The GUI stayed in the tuner's state for good with the tune bit set: no new tune, the SWR
  * scan refused, CAT and TCI reporting TX (#25). Now the tune bit off, back to RX, a word on the screen and a line in
  * the base log with what the base reported. Also a tune given up where the radio may not transmit (#121), and one
  * the base sends no data for (#152), its line with how long */
 static void atu_give_up(radio_state_t from, const char *why) {
+    bool flow = now_time - pack_time > FLOW_RESTART_TIMEOUT;    /* from the flow resets: no data for seconds */
+
     WITH_RADIO_LOCK(hw_set_i(HW_ATU_TUNE, false));
 #ifndef BOARD_X6200
-    if (from == RADIO_ATU_RUN) {
+    if (from == RADIO_ATU_RUN && flow) {
+        recover_due = true;
+    } else if (from == RADIO_ATU_RUN) {
         recover_processing_audio_inputs();      /* as after a tune that found its network */
     }
 #endif
@@ -2040,7 +2050,7 @@ static void atu_give_up(radio_state_t from, const char *why) {
     if (from == RADIO_ATU_RUN && notify_rx_tx) {
         notify_rx_tx(false);
     }
-    if (now_time - pack_time > FLOW_RESTART_TIMEOUT) {
+    if (flow) {
         /* from the flow resets: the packet's fields are the last one's, seconds old (a TX that was) */
         log_later("ATU: %s for %u ms", why, (unsigned)(now_time - pack_time));
     } else {
@@ -2160,6 +2170,16 @@ static bool radio_tick() {
             base_guard_log("data from the base again after %u ms", (unsigned)again_ms);
             again_ms = 0;
         }
+#ifndef BOARD_X6200
+        /* Before the other threads see the data and may key, which its end would cut. Not while the base transmits
+         * by itself (the hand mic's PTT, its tune still on): dropped then */
+        if (recover_due) {
+            recover_due = false;
+            if (!pack->tx && atomic_load(&state) == RADIO_RX) {
+                recover_processing_audio_inputs();
+            }
+        }
+#endif
         base_seen = true;
         gone_said = false;      /* said again if it stops again (base_gone) */
         prev_time = now_time;

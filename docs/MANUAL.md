@@ -1665,6 +1665,10 @@ normally:
   the radio switches it off 3 s after the last data and says "Tuner: no
   data from the base" (the waterfall and the S-meter stand still, see
   [The waterfall stays black](#the-waterfall-stays-black-and-the-s-meter-does-not-move)).
+  On the X6100 the short key at 0.1 W (50 ms) that ends every tune, which
+  brings back the base's sound inputs from the GUI and the USB sound card,
+  then waits for the data to come back; none if the base is transmitting
+  by itself then.
   Up to v0.3.8 the radio stayed in its tuning state, without a word, and
   refused every transmission of the digital apps until a restart (found
   while looking into issue #152).
