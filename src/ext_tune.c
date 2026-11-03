@@ -84,8 +84,9 @@ static void over_cb(void *arg) {
                 msg_update_text_fmt("TUNE stopped by the radio");
             break;
         case TUNE_END_REFUSED:
-            /* the radio refused the key: on the air, or the data stopped since the start's look (#152) */
-            if (!radio_say_no_data("No tune", true)) msg_update_text_fmt("No tune: on the air");
+            /* the radio refused the key: on the air, or the data stopped since the start's look (#152), whose
+             * refusal in radio.c gave the pointer to Settings > Info already */
+            msg_update_text_fmt("No tune: %s", radio_no_data() ? "no data from the base" : "on the air");
             break;
     }
     buttons_mark(&btn_ext_tune, false);

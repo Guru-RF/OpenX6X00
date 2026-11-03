@@ -105,14 +105,17 @@ void params_float_set(params_float_t *p, float v) {
     params_writes++;
 }
 
+static int pointers;     /* "Baseband: Settings > Info" lines asked (#152) */
+
 void msg_schedule_text_fmt(const char *fmt, ...) {
+    char    text[128];
     va_list ap;
 
-    printf("        screen: ");
     va_start(ap, fmt);
-    vprintf(fmt, ap);
+    vsnprintf(text, sizeof(text), fmt, ap);
     va_end(ap);
-    putchar('\n');
+    printf("        screen: %s\n", text);
+    if (!strncmp(text, "Baseband", 8)) pointers++;
 }
 
 static radio_state_t state = RADIO_RX;     /* RADIO_TX: something else is on the air */
@@ -1236,10 +1239,12 @@ static void gui_side(void) {
     reset();
     atomic_store(&no_data_calls, 0);
     atomic_store(&no_data_from, 2);     /* data at the start's look, none by the key */
+    pointers = 0;
     no = gui_tune(TUNE_BY_RADIO);
     atomic_store(&no_data_from, 0);
-    check(!no && said_is("No tune: no data from the base") && !ext_tune_on() && seen.keys == 0 && as_set(),
-          "the data gone between the look and the key: refused at the key, said so: \"%s\"", said);
+    /* radio.c's refusal of the key gives the pointer (this stand-in's refuses quietly): none of the tune's own */
+    check(!no && said_is("No tune: no data from the base") && !ext_tune_on() && seen.keys == 0 && as_set() &&
+          pointers == 0, "the data gone between the look and the key: refused at the key, said so: \"%s\"", said);
     cfg = (typeof(cfg)){.freq = {7150000, 7150000}, .mode = {radio_mode_lsb, radio_mode_lsb}, .split = true,
                         .shift = -8000000, .pwr = 5.0f};
     reset();
