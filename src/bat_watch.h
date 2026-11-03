@@ -40,6 +40,8 @@ typedef struct {
     bool     counts;        /* the last reading is the battery's and the supply's */
     bool     ext;           /* the last reading: on external power */
     bool     by_volts;      /* the % shown is the voltage's, not the base's (bat_watch_cap) */
+    uint8_t  cap_vbat;      /* the voltage the voltage's % is of (bat_watch_cap); 0 none yet */
+    uint8_t  up_reads;      /* readings in a row over cap_vbat */
 } bat_watch_t;
 
 /* One reading. True when low changed */
@@ -60,6 +62,11 @@ uint8_t bat_cap_of_volts(uint8_t vbat);
 #define BAT_CAP_MET     10
 #define BAT_CAP_STEEP   25
 #define BAT_CAP_AT_ZERO 9
+
+/* The voltage's % follows a voltage down at once, back up 0.1 V only after BAT_CAP_UP_READS readings in a row over
+ * it (about 1 min), 0.2 V or more at once: on a 0.1 V step the readings go back and forth, and the % with them,
+ * 24 and 9 % in turn at 7.3 and 7.2 V (#160). From the first reading again after external power */
+#define BAT_CAP_UP_READS 150
 uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap);
 
 #ifdef __cplusplus

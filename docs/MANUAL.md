@@ -468,15 +468,20 @@ The % is the base's own count, and a base can lose it: one that never saw the
 charge (a pack charged with the radio off) said 3 % at 8.2 V, in Xiegu's own
 firmware too (issue #49). So on battery, while receiving, the radio checks it
 against what the voltage says (measured on an X6100: 8.2 V 98 %, 7.8 V 80 %,
-7.5 V 56 %, 7.4 V 42 %, 7.3 V 24 %, 7.2 V 9 %, 7.1 V 3 %). When the two are
+7.5 V 56 %, 7.4 V 42 %, 7.3 V 24 %, 7.2 V 9 %, 7.1 V 3 %, 6.9 V 1 %, 6.8 V
+0 %). When the two are
 more than 25 points apart it shows the voltage's, until they agree within 10
 again, but not from 7.3 V down: on its way to 0 there the voltage's agrees with
 a base stuck at 0 % too. A base at 0 % with the pack at 7.2 V or more has lost
 count as well: the radio shows the voltage's then too, also when it is switched
 on that low. (In v0.3.7 the radio went back to such a base's 0 % at 7.2 V, or
 showed it from the start when switched on at 7.3 or 7.2 V, and said "connect
-power" every minute while the pack still had half an hour or more.) The time
-left and the 10 % warning follow the % shown; the battery log keeps the base's.
+power" every minute while the pack still had half an hour or more.) The
+voltage comes in 0.1 V steps and goes back and forth on a step, so the % from
+the voltage goes down at once and back up a step only after about a minute
+there, or at once for 0.2 V more (up to v0.3.8 it went 24 % and 9 % in turn at
+7.3 and 7.2 V, issue #160). The time left and the 10 % warning follow the %
+shown; the battery log keeps the base's.
 
 <!-- IMG battery_estimate_main.png: top right, "45%  2h07" -->
 

@@ -18,6 +18,9 @@ bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_fla
         w->settle_at = now_ms + BAT_SETTLE_MS;
     }
     w->counts = measured && w->settle_at && now_ms >= w->settle_at;
+    if (w->ext || !w->counts) {
+        w->cap_vbat = 0;    /* the voltage's % from the next reading on battery as it is (bat_watch_cap) */
+    }
 
     /* External power that holds the battery up: on the X6200 only DC IN at BOARD_BAT_EXT_MIN and more (board.h),
      * under it the battery ran the radio down to the base's cut with the flags saying external power */
@@ -55,7 +58,15 @@ uint8_t bat_cap_of_volts(uint8_t vbat) {
 }
 
 uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
-    uint8_t v = bat_cap_of_volts(vbat);
+    /* Back up a step only once the battery stays there: after a TX, which radio.c holds the % over for 30 s, it
+     * can still be coming back */
+    w->up_reads = vbat > w->cap_vbat && w->up_reads < BAT_CAP_UP_READS ? w->up_reads + 1 : 0;
+    if (!w->cap_vbat || vbat < w->cap_vbat || vbat > w->cap_vbat + 1 || w->up_reads >= BAT_CAP_UP_READS) {
+        w->cap_vbat = vbat;
+        w->up_reads = 0;
+    }
+
+    uint8_t v = bat_cap_of_volts(w->cap_vbat);
     int     apart = abs((int)batcap - v);
 
     /* #49's base (1.1.9) said 0-3 % from 8.2 V down. Back to it at the voltage's 9 % (7.2 V), the radio said

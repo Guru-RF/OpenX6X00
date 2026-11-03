@@ -5,7 +5,7 @@
  *  supply every 0.4 s. Built as the X6100 (6.0 V) and as the X6200 (BOARD_X6200, 6.8 V): not before the readings
  *  count, at BAT_LOW three readings in a row, back off at BAT_HIGH, not on external power (on the X6200 12.0 V and
  *  more on DC IN); and on the X6200 #160's discharges, on battery and on a charger under 12 V, the power-off's 30 s
- *  and the save done before the base's own cut.
+ *  and the save done before the base's own cut. Then the voltage's % (bat_watch_cap) on a 0.1 V step.
  */
 
 #include "bat_watch.h"
@@ -155,6 +155,42 @@ int main(void) {
     settled(70, 0);
     check(feed(61, 0, false, false, 600000) == NONE, "the X6100 at 6.1 V: running", 0);
 #endif
+
+    /* The voltage's % on a 0.1 V step (#160: 24 and 9 % in turn), with a base stuck at 0 % (#49) so that the voltage's
+     * is shown: down at once, back up 0.1 V after BAT_CAP_UP_READS readings in a row over it, 0.2 V at once */
+    settled(73, 0);
+    check(bat_watch_cap(&w, 73, 0) == 24, "7.3 V: 24 %", w.cap_vbat);
+    check(bat_watch_cap(&w, 72, 0) == 9, "7.2 V: 9 % at once", w.cap_vbat);
+    int flips = 0;
+
+    for (int i = 0; i < 1000; i++) {    /* 7.3, 7.2, 7.3, 7.3, 7.2 ... for some 7 min, the last 7.2 */
+        flips += bat_watch_cap(&w, i % 3 == 1 || i == 999 ? 72 : 73, 0) != 9;
+    }
+    check(flips == 0, "on the 7.3/7.2 V step: 9 % throughout", flips);
+    for (int i = 1; i < BAT_CAP_UP_READS; i++) {
+        flips += bat_watch_cap(&w, 73, 0) != 9;
+    }
+    check(flips == 0, "7.3 V again: 9 % for a minute", flips);
+    check(bat_watch_cap(&w, 73, 0) == 24, "then 24 %", w.cap_vbat);
+    check(bat_watch_cap(&w, 71, 0) == 3 && bat_watch_cap(&w, 73, 0) == 24, "7.1 V, then 7.3 V: 24 % at once", 0);
+
+    /* A TX: the % held (radio.c), then the battery a step under for a while as it comes back */
+    check(bat_watch_cap(&w, 72, 0) == 9, "after a TX at 7.2 V: 9 %", 0);
+    for (int i = 0; i < BAT_CAP_UP_READS; i++) {
+        bat_watch_cap(&w, 73, 0);
+    }
+    check(bat_watch_cap(&w, 73, 0) == 24, "back at 7.3 V for a minute: 24 % again", w.cap_vbat);
+
+    /* External power: from the first reading on battery again, as it is */
+    check(bat_watch_cap(&w, 72, 0) == 9, "7.2 V: 9 %", 0);
+    feed(73, 138, true, true, 5000);
+    feed(73, 0, false, false, READ_MS);
+    check(bat_watch_cap(&w, 73, 0) == 24, "a short charge to 7.3 V: 24 % at once", w.cap_vbat);
+
+    /* A base that counts right (the bench X6100, 1.1.8) is shown as it is, on the step too */
+    settled(73, 0);
+    check(bat_watch_cap(&w, 73, 26) == 26 && bat_watch_cap(&w, 72, 20) == 20 && bat_watch_cap(&w, 73, 19) == 19,
+          "a base that counts right: its own %", 0);
 
     printf("bat_watch (%s): %d checks, %d failed\n", BOARD_BAT_LOW == 68 ? "X6200" : "X6100", checks, fails);
     return fails != 0;

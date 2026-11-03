@@ -31,7 +31,7 @@ static void run(const char *name, const reading_t *r, int n) {
 int main(void) {
     /* #49's X6100 (base 1.1.9), its discharge of 27-28 October: 0-3 % all the way, a pack charged with the radio off.
      * The pack still ran 80 minutes from the first 7.3 V, 42 from 7.2 V and 15 from 7.1 V; 7.3 and 7.2 V
-     * alternated at the step */
+     * alternated at the step, where the % stays at 9 (#160: back up 0.1 V only after a minute there) */
     RUN("base at 0-3 %",
         {82, 3}, {81, 2}, {80, 1}, {79, 0}, {78, 0}, {77, 0}, {76, 0}, {75, 0}, {74, 0}, {73, 0}, {72, 0}, {73, 0},
         {72, 0}, {71, 0}, {70, 0}, {69, 0}, {68, 0}, {65, 0});
