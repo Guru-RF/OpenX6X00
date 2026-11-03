@@ -84,7 +84,8 @@ static void over_cb(void *arg) {
                 msg_update_text_fmt("TUNE stopped by the radio");
             break;
         case TUNE_END_REFUSED:
-            msg_update_text_fmt("No tune: on the air");
+            /* the radio refused the key: on the air, or the data stopped since the start's look (#152) */
+            if (!radio_say_no_data("No tune", true)) msg_update_text_fmt("No tune: on the air");
             break;
     }
     buttons_mark(&btn_ext_tune, false);
@@ -112,6 +113,7 @@ const char *ext_tune_refusal(void) {
     int32_t    f = radio_tx_freq();     /* in split the other VFO's, the TX shift's */
     tune_ask_t a = {
         .tx_freq_ok = !cfg_tx_refusal_text(f, no, sizeof(no)),  /* receive only, outside the amateur bands (#121) */
+        .no_data    = radio_no_data(),     /* none from the base (#152): the ATU is not switched off for nothing */
         /* An app's slot that has taken the player and not keyed yet too: the tune's thread found the player held and
          * went no further, after the ATU had been switched off for it (#87) */
         .on_air     = radio_get_modem() || radio_get_state() != RADIO_RX || tx_player_busy(),
@@ -122,6 +124,8 @@ const char *ext_tune_refusal(void) {
         case TUNE_NO_TX:
             snprintf(text, sizeof(text), "no TX on %s", no);
             return text;
+        case TUNE_NO_DATA:
+            return "no data from the base";
         case TUNE_ON_AIR:
             return "on the air";
         case TUNE_WINLINK:
@@ -139,8 +143,9 @@ const char *ext_tune_start(int who) {
         return NULL;
     }
     if ((no = ext_tune_refusal())) {
-        /* The frequency first (#121), each line whole on the screen; the Panel gets no as it is */
-        if (!radio_say_no_tx("No tune", radio_tx_freq(), true)) msg_update_text_fmt("No tune: %s", no);
+        /* The frequency first (#121), then the data (#152), each line whole on the screen; the Panel gets no as it is */
+        if (!radio_say_no_tx("No tune", radio_tx_freq(), true) && !radio_say_no_data("No tune", true))
+            msg_update_text_fmt("No tune: %s", no);
         return no;
     }
     tune_plan(&plan, cparam_i_get(cfg_cur_mode), app_offset(), param_f_get(cfg_tune_pwr), cfg_pwr_max_get(),

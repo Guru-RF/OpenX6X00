@@ -38,12 +38,14 @@ extern "C" {
 typedef enum {
     TUNE_GO = 0,
     TUNE_NO_TX,         /* it does not transmit on its TX frequency: the band, split, a TX shift */
+    TUNE_NO_DATA,       /* the base sends no data (#152, radio_no_data): no SWR protection, no power reading */
     TUNE_ON_AIR,        /* it transmits already: PTT, an app, TCI, Winlink, CW, the ATU, the SWR scan */
     TUNE_WINLINK,       /* a Winlink connection is under way */
 } tune_refusal_t;
 
 typedef struct {
     bool tx_freq_ok;    /* !cfg_tx_refusal(radio_tx_freq()): the hardware transmits there and may (#121) */
+    bool no_data;       /* radio_no_data() */
     bool on_air;
     bool winlink;
 } tune_ask_t;

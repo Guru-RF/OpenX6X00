@@ -621,6 +621,9 @@ static void qrss_start(const char *text) {
     if (radio_say_no_tx("No TX", hz, true)) {    /* receive only, outside the amateur bands (#121) */
         return;
     }
+    if (radio_say_no_data("No TX", true)) {     /* none from the base (#152) */
+        return;
+    }
     if (beacon_on) {
         bcn_sched_t s = sched_set();
         cw_encoder_schedule(&s);
@@ -628,8 +631,8 @@ static void qrss_start(const char *text) {
     if (!cw_encoder_send_qrss3(text, beacon_on)) msg_update_text_fmt("QRSS3: not started");
 }
 
-/* A message or a beacon not started where the radio may not transmit (#121): the keyer would go on with each key
- * refused, a beacon for hours */
+/* A message or a beacon not started where the radio may not transmit (#121), nor while the base sends no data (#152):
+ * the keyer would go on with each key refused, a beacon for hours */
 static void tx_btn_cb(button_data_t *btn) {
     int32_t f;
 
@@ -638,7 +641,7 @@ static void tx_btn_cb(button_data_t *btn) {
     else if (sel_text() && qrss_on) qrss_start(cw_encoder_expand(sel_text()));
     else if (sel_text() && radio_key_refused(&f))     /* where the key goes out, on the X6200 in split the dial too */
         radio_say_no_tx("No TX", f, true);
-    else if (sel_text()) {
+    else if (sel_text() && !radio_say_no_data("No TX", true)) {
         if (beacon_on) {
             bcn_sched_t s = sched_set();
             cw_encoder_schedule(&s);

@@ -110,6 +110,8 @@ enum { radio_mode_sam = 8, radio_mode_last = 9 };
 static int  radio_caps(void) { return 0; }
 static bool radio_key_refused(int32_t *f) { *f = 14074000; return false; }     /* in band: the PTT's #121 check passes */
 static const char *cfg_tx_refusal_text(int32_t f, char *b, size_t n) { (void)f; (void)b; (void)n; return NULL; }
+static bool base_silent;    /* the base sends no data (#152): the PTT refused */
+static bool radio_no_data(void) { return base_silent; }
 static bool queue_full;
 static struct { void (*fn)(void *); unsigned char arg[512]; } jobs[64];
 static int  njobs;

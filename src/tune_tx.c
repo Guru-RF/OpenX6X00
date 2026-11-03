@@ -30,6 +30,7 @@ static uint64_t now_ms(void) {
 
 tune_refusal_t tune_refusal(const tune_ask_t *a) {
     if (!a->tx_freq_ok) return TUNE_NO_TX;
+    if (a->no_data) return TUNE_NO_DATA;
     if (a->on_air) return TUNE_ON_AIR;
     if (a->winlink) return TUNE_WINLINK;
     return TUNE_GO;

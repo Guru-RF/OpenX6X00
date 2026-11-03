@@ -1445,14 +1445,17 @@ the [amateur bands](#amateur-bands-only) refuse outside them:
 
 - PTT: the PTT key, the walkie screen, CAT (it answers NG, see
   [CI-V commands](#supported-ci-v-commands)), TCI, the browser Panel and
-  remote sessions.
+  remote sessions (the page shows the reason, "no data from the base", see
+  [Transmitting from the browser](#transmitting-from-the-browser)).
 - The digital apps (FT8, FT4, FT2, JS8, WSPR, PSK, Olivia, JTTY, RTTY, SSTV,
   WeFax), the voice messages, Winlink with ARDOP or Mercury.
 - CW: the CW messages and beacons, QRSS3, the CW keyboard, the USB paddle,
-  the PTT key in CW, Field Ops' test beacon. Each element is a key of its
-  own: a message or beacon stops at its next element once the data has
-  been gone for 3 s.
-- The radio's tuner, TUNE for an external tuner, the SWR scan.
+  the PTT key in CW, Field Ops' test beacon. A message, a beacon and QRSS3
+  are not started, and the test beacon says "Test beacon on 20m: no data
+  from the base". Each element is a key of its own: one under way stops at
+  its next element once the data has been gone for 3 s.
+- The radio's tuner, the SWR scan, TUNE for an external tuner ("No tune: no
+  data from the base"; the Panel's TUNE gives the same reason).
 - The [CW Trainer](#cw-trainer) keeps sounding its sidetone at 0 W; its PTT
   does nothing, as outside the bands.
 
@@ -1765,6 +1768,10 @@ Not where the radio may not transmit; the screen (and the Panel) says why:
   the radio may not transmit on (outside the
   [amateur bands](#amateur-bands-only), a band it only receives, split's
   other VFO or a TX shift there).
+- "No tune: no data from the base", then "Baseband: Settings > Info" (the
+  Panel: "no data from the base"): the base sends no data (see
+  [No TX without data from the base](#no-tx-without-data-from-the-base)).
+  The radio's ATU is left as it is.
 - "No tune: on the air": something else transmits (PTT, an app's slot, TCI,
   Winlink, the ATU, the SWR scan). An app's slot that comes during a tune is
   not sent.
@@ -2522,8 +2529,9 @@ open it too (Settings > Keys > FRONT KEYS, LONG PRESS: APP CW Keyboard).
 
 - It keys in CW or CW-R. In another mode the box on the right reads NOT CW
   and nothing is taken ("Set CW mode to transmit"). Unlike the main screen's
-  line it does not need the CW segment; where the radio may not transmit it
-  says "No TX on ..." and why, and keys nothing.
+  line it does not need the CW segment; where the radio may not transmit, or
+  while the base sends no data, it says "No TX on ..." or "No TX: no data
+  from the base" and why, and keys nothing.
 - With a USB or Bluetooth keyboard: type the line under the log, Enter keys
   it, lines typed while sending wait in a queue. Backspace corrects; Esc
   stops what is on the air and queued, and with nothing to stop closes the
@@ -2634,7 +2642,10 @@ Edit; page 2: Beacon, Delete, QRSS3; page 3: Start, Until, Freq.
   the radio's power (PWR).
 - Not started where the radio may not transmit ("No TX on ...", see
   [Amateur bands only](#amateur-bands-only)); one moved there stops at its
-  next element.
+  next element. Nor while the base sends no data ("No TX: no data from the
+  base", see [No TX without data from the base](#no-tx-without-data-from-the-base));
+  one the data stops in stops at its next element once it has been gone for
+  3 s.
 - TX (Stop), the front PTT key, ESC or closing MSG > CW (Close, another menu
   key, an app) stop it. So does a transmission during a pause or before
   its start: the mic's PTT, CAT, TCI, the Panel. A beacon only runs while
@@ -2692,8 +2703,8 @@ hint counts down the send.
   band. Look at a grabber first and pick a spot in the window that is free.
 - Refused, with a word on the screen: in another mode, on another band,
   with the frequency locked, in split or with a TX shift, with XIT set (it
-  would move the carrier out of the window: set it to 0), and where the
-  radio may not transmit.
+  would move the carrier out of the window: set it to 0), where the radio
+  may not transmit, and while the base sends no data.
 - The radio times every element itself (the base's keyer does not go that
   slow) and keeps your break-in delay: it receives in every gap (3 s at
   least), with the CW decoder if it is on.
@@ -3048,8 +3059,10 @@ HIGH / GOOD / FAIR / POOR, the best band marked.
   radio stays as you set it.
 - The screen says why nothing is sent when: the test is on another band and
   the frequency, band or mode is locked; split or a TX shift would put the
-  carrier off that band; the radio does not transmit there; it is already
-  transmitting; or MSG > CW is sending or has a beacon on.
+  carrier off that band; the radio does not transmit there; the base sends
+  no data ("no data from the base", see
+  [No TX without data from the base](#no-tx-without-data-from-the-base)); it
+  is already transmitting; or MSG > CW is sending or has a beacon on.
 - Use band (or a press) tunes a typical activation frequency of the band,
   for the band plan's region (see [Band plan](#band-plan)). In CW or CW-R
   it is the band's CW frequency, and the radio stays in CW or CW-R; in any
@@ -4455,7 +4468,9 @@ that a stalled link delivers late are ignored, only a new press keys again.
 A press where the radio may not transmit (outside the
 [amateur bands](#amateur-bands-only), receive only) is refused with the
 reason, "no TX on 27.185 MHz: outside the amateur bands (Settings > TX
-Cal)", and nothing is keyed.
+Cal)", and nothing is keyed. So is a press while the base sends no data,
+with "no data from the base" (see
+[No TX without data from the base](#no-tx-without-data-from-the-base)).
 A Panel or Screen page left open since before the update that brought the
 numbers cannot key the radio's own microphone until it is reloaded: its PTT
 button shows "No TX" and the status line "this session may not transmit

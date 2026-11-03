@@ -75,6 +75,18 @@ static int run_ptt(void) {
     downs = key_downs;
     at(c, 23000, "key PTT 1");
     printf("a page without numbers keyed the radio: %d, told to reload: %d\n", key_downs - downs, strstr(said[0], "reload the page") != NULL);
+
+    puts("        -- a press while the base sends no data (#152), then one with the data back");
+    base_silent = true;
+    downs = key_downs;
+    at(c, 25000, "key PTT 1 4");
+    printf("no data from the base: keyed the radio: %d, told why: %d\n", key_downs - downs,
+           strstr(said[0], "err ptt: no data from the base") != NULL);
+    base_silent = false;
+    downs = key_downs;
+    at(c, 26000, "key PTT 1 5");
+    printf("the data back, a new press keyed the radio: %d\n", key_downs - downs);
+    at(c, 26500, "key PTT 0");
     return 0;
 }
 

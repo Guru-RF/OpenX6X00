@@ -2246,6 +2246,8 @@ static const char *tb_no_tx(int band, int32_t *tx) {
         snprintf(why, sizeof(why), "it sends on %.3f MHz (split or TX shift)", f / 1e6);
     else if (cfg_tx_refusal_text(*tx, no, sizeof(no)))     /* receive only, outside the amateur bands (#121) */
         snprintf(why, sizeof(why), "no TX on %s", no);
+    else if (radio_no_data())       /* none from the base (#152) */
+        snprintf(why, sizeof(why), "no data from the base");
     else
         return NULL;
     return why;
