@@ -2885,11 +2885,28 @@ def channels_unreadable(ex):
 
 def write_channels(doc, ready):
     """The file whole again, the bytes of each string as they were read: an entry left as it was means to the GUI
-    what it meant (a name not in UTF-8 too). No NaN or Infinity, which the GUI can't read. ready: replace_file's"""
+    what it meant (a name not in UTF-8 too). No NaN or Infinity, which the GUI can't read. ready: replace_file's.
+    The GUI sees a change of the file by its time (channels_reload_if_changed), which FAT keeps to 2 s: a second
+    write within those left it the same, and the radio on the list before until APP > Channels was opened. So the
+    new file's time is later than the one it replaces"""
     def write(f):
         json.dump(doc, f, indent="\t", ensure_ascii=False, allow_nan=False)
         f.write("\n")
-    replace_file(settings.CHANNELS_FILE, write, ready=ready, encoding="utf-8", errors="surrogateescape")
+    before = []
+
+    def check():
+        ready()
+        try:
+            before.append(os.stat(settings.CHANNELS_FILE).st_mtime_ns)
+        except FileNotFoundError:
+            pass
+    replace_file(settings.CHANNELS_FILE, write, ready=check, encoding="utf-8", errors="surrogateescape")
+    try:
+        st = os.stat(settings.CHANNELS_FILE)
+        if before and st.st_mtime_ns <= before[0]:
+            os.utime(settings.CHANNELS_FILE, ns=(st.st_atime_ns, before[0] + 2_000_000_000))
+    except OSError:
+        pass   # saved all the same
 
 
 def channels_state():

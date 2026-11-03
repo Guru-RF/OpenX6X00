@@ -494,6 +494,21 @@ class Memories(unittest.TestCase):
         self.stale((code, r), self.gui_file(abcd[2:]))
         self.assertEqual(sorted(os.listdir(self.root)), ["channels.json", "compatible", "params.db"])
 
+    def test_file_time_later(self):
+        """The GUI reloads the file when its time differs from the one it read, which FAT keeps to 2 s: the page's
+        file is later than the one it replaced (until now a second change within 2 s did not reach the radio)"""
+        self.write([ch("A", 7_000_000)])
+        st = os.stat(settings.CHANNELS_FILE)
+        os.utime(settings.CHANNELS_FILE, ns=(st.st_atime_ns, st.st_mtime_ns + 10_000_000_000))   # as if in one 2 s
+        old = os.stat(settings.CHANNELS_FILE).st_mtime_ns
+        self.ok("POST", "/api/channels", ch("B", 7_100_000))
+        self.assertEqual(os.stat(settings.CHANNELS_FILE).st_mtime_ns, old + 2_000_000_000)
+        self.done(self.delete(0))
+        self.assertEqual(os.stat(settings.CHANNELS_FILE).st_mtime_ns, old + 4_000_000_000)
+        os.utime(settings.CHANNELS_FILE, ns=(st.st_atime_ns, st.st_mtime_ns - 10_000_000_000))  # older: its own time
+        self.ok("POST", "/api/channels", ch("C", 7_200_000))
+        self.assertGreater(os.stat(settings.CHANNELS_FILE).st_mtime_ns, st.st_mtime_ns - 1_000_000_000)
+
     @staticmethod
     def gui_file(entries):
         return json.dumps({"version": 1, "channels": entries}, indent="\t").encode()
