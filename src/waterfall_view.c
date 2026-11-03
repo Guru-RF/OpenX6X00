@@ -47,6 +47,7 @@ typedef struct {
     uint8_t  floor;     /* 75th percentile: above it the row has signals */
     uint8_t  seq;       /* 1bit: the dither row it keeps while it scrolls down */
     uint32_t num;       /* its number, counted from the start: 3D keeps every third */
+    uint32_t ms;        /* when it came (get_time()): 3D moves the traces between rows */
     bool     kept;      /* the values around the data are set */
 } wf_row_t;
 
@@ -330,6 +331,7 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
     row->floor = id;
     row->seq = row_seq++;
     row->num = ++row_count;
+    row->ms = (uint32_t) get_time();
 
     /* Not the picture of TX: after it the same frequencies are received again */
     row->kept = false;
@@ -553,6 +555,8 @@ static lv_obj_t    *d3_labels[D3_LABELS];   /* the reference frequencies at the 
 static int32_t      d3_label_hz[D3_LABELS];
 static lv_coord_t   d3_label_y = -1;
 static uint32_t     d3_last_ms;             /* when the last picture was drawn */
+static float        d3_drawn_phase = 1.0f;  /* the phase of the last picture (d3_phase()) */
+static lv_timer_t  *d3_frames;              /* moves the traces between rows */
 static lv_timer_t  *d3_later;               /* a picture asked for too soon: drawn then */
 
 /* The levels of the traces, kept while the view stays: only a new row's are worked out (row_pixels() and the
@@ -561,8 +565,21 @@ static struct {
     uint32_t num;           /* the row's number; 0: none */
     int32_t  center;        /* the view they are of */
     uint32_t span;
-    uint8_t  lv[WIDTH];
+    int32_t  cut;           /* the floor cut they are above */
+    uint8_t  lv[WIDTH];     /* above the cut, to the whole scale; 0: the floor */
+    uint8_t  blk[WIDTH / 8 + 1];    /* an 8 px block has something above the floor (or its next pixel has) */
 } d3_cache[D3_CACHE];
+
+/* What the last picture drew over the background in the buffer, by column (lo > hi: nothing): the next one puts
+ * back only that from the background, not all of it (its copy was a third of a picture) */
+static int16_t      d3_dirty_lo[WIDTH], d3_dirty_hi[WIDTH];
+static uint32_t    *d3_drawn_buf;           /* the buffer they are of; NULL: not known (2D drew in it) */
+/* Column x drawn from lo to hi over the background */
+static inline void d3_dirty(int32_t x, int32_t lo, int32_t hi) {
+    if (lo < d3_dirty_lo[x]) d3_dirty_lo[x] = lo;
+    if (hi > d3_dirty_hi[x]) d3_dirty_hi[x] = hi;
+}
+
 
 /* The background (the panel, the grid, the walls): the same picture until the scene changes, drawn again then
  * (its antialiased lines, at every picture, were most of the work) */
@@ -685,6 +702,23 @@ static void d3_line(const d3_target_t *o, float x0, float y0, float x1, float y1
     }
 }
 
+/* Column x of a line from the column before: from ya (the column before) to yb, th px thick, its ends
+ * antialiased. A line across the screen in one of these a column: Wu's lines of one column each, two calls a
+ * column for the newest trace, were most of what was left of a picture */
+static void d3_join(const d3_target_t *o, int32_t x, float ya, float yb, float th, uint32_t c, float op) {
+    float   lo = LV_MIN(ya, yb), hi = LV_MAX(ya, yb) + th;
+    int32_t y0 = LV_MAX(0, (int32_t) floorf(lo)), y1 = LV_MIN(o->h - 1, (int32_t) ceilf(hi) - 1);
+
+    for (int32_t y = y0; y <= y1; y++) {
+        float cov = LV_MIN((float)(y + 1), hi) - LV_MAX((float) y, lo);
+
+        d3_px(o, x, y, c, LV_MIN(cov, 1.0f) * op);
+    }
+    if (y0 <= y1 && x >= 0 && x < WIDTH) {
+        d3_dirty(x, y0, y1);
+    }
+}
+
 /* The scene: from the settings and the height seen */
 typedef struct {
     float hv;       /* the height seen: the buttons and the labels' row are over the bottom */
@@ -745,13 +779,23 @@ static void d3_grid(const d3_target_t *o, const d3_scene_t *sc, const int32_t *r
 
 /* One trace: lv (levels by the view's pixel) at depth t, its horizon kept; the top of each column
  * into tops (the newest), NAN where it is not drawn */
-static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *lv, int32_t cut, float t,
+static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *lv, const uint8_t *blk, float t,
                      const uint32_t *pal, int16_t *horizon, float *tops) {
     float    s, foot;
 
     d3_place(sc, t, &s, &foot);
     float    a = sc->amp * s / 255.0f;      /* px a level */
     float    per_px = 1.0f / a;             /* levels a px */
+    /* The colours of this trace, worked out once each as they are needed (a colour worked out at every pixel of
+     * the ribbons was half the picture): the ribbon's by the pixels above the foot, the ridge's by the level */
+    int32_t  foot_px = (int32_t) foot;
+    float    foot_frac = foot - foot_px;
+    uint32_t fill_lut[MAX_HEIGHT + 1];
+    int32_t  fill_n = 0;                    /* fill_lut[0 .. fill_n - 1] worked out */
+    uint32_t ridge_lut[256];
+    uint8_t  ridge_have[256];
+
+    memset(ridge_have, 0, sizeof(ridge_have));
     float    cx = sc->cx;
     float    inv_s = 1.0f / s;
     int32_t  x0 = LV_MAX(0, (int32_t) ceilf(cx - cx * s));
@@ -762,12 +806,33 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
     uint32_t ink = theme_shape.ink | 0xff000000u, paper = theme_shape.paper | 0xff000000u;
     int32_t  prev = -1;                     /* the top drawn in the column before; -1: none */
 
-    for (int32_t x = x0; x <= x1; x++) {
+    float    u0 = cx + (x0 - cx) * inv_s;  /* the view's pixel under column x, moved on a column at a time */
+
+    for (int32_t x = x0; x <= x1; x++, u0 += inv_s) {
         /* The view's pixels under this one: the highest of them, so a narrow carrier stays at the back */
-        float   u0 = cx + (x - cx) * inv_s, u1 = u0 + inv_s;
         int32_t i0 = LV_CLAMP(0, (int32_t) u0, WIDTH - 1);
-        int32_t i1 = LV_CLAMP(i0, (int32_t) u1, WIDTH - 1);
+        int32_t i1 = LV_CLAMP(i0, (int32_t)(u0 + inv_s), WIDTH - 1);
         int32_t v;
+
+        if (!blk[i0 >> 3] && !blk[i1 >> 3]) {
+            /* Nothing above the floor there (most of a quiet band): on to the column whose pixels reach the next
+             * block with something, all of it the floor (a column at a time, that was most of a trace's work) */
+            int32_t b = (i1 >> 3) + 1;
+
+            while (b <= (WIDTH - 1) >> 3 && !blk[b]) {
+                b++;
+            }
+            int32_t xn = b > (WIDTH - 1) >> 3 ? x1 + 1 : (int32_t) ceilf(cx + ((b << 3) - 1 - inv_s - cx) * s);
+
+            xn = LV_CLAMP(x + 1, xn, x1 + 1);
+            if (tops) {
+                for (int32_t k = x; k < xn; k++) tops[k] = foot;
+            }
+            prev = -1;
+            x = xn - 1;
+            u0 = cx + (x - cx) * inv_s;     /* the loop moves both on to xn */
+            continue;
+        }
 
         if (i1 > i0 + 1) {
             v = lv[i0];
@@ -778,11 +843,9 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
             /* Between two pixels: linear, the front trace's slopes smooth */
             float f = u0 - i0;
 
-            v = i0 + 1 < WIDTH ? lroundf(lv[i0] + (lv[i0 + 1] - lv[i0]) * f) : lv[i0];
+            /* rounded by + 0.5 (both are levels, 0 or more): lroundf() is a call of the library */
+            v = i0 + 1 < WIDTH ? (int32_t)(lv[i0] + (lv[i0 + 1] - lv[i0]) * f + 0.5f) : lv[i0];
         }
-        /* Above the floor, to the whole scale */
-        v = v > cut ? (v - cut) * 255 / (255 - cut) : 0;
-
         float   topf = LV_MAX(0.0f, foot - v * a);
         int32_t top = (int32_t) topf;       /* its pixel, covered 1 - (topf - top) */
 
@@ -798,7 +861,17 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
          * higher (all of that above the horizon: seen) */
         int32_t   r0 = prev >= 0 ? LV_MIN(top + 1, prev) : top + 1;
         int32_t   r1 = prev >= 0 ? LV_MAX(top + 1, LV_MIN(prev, bottom - 1)) : top + 1;
-        uint32_t  ridge = o->mono ? ink : d3_dim(d3_light(pal[v]), fog);
+        uint32_t  ridge;
+
+        if (o->mono) {
+            ridge = ink;
+        } else {
+            if (!ridge_have[v]) {
+                ridge_lut[v] = d3_dim(d3_light(pal[v]), fog);
+                ridge_have[v] = 1;
+            }
+            ridge = ridge_lut[v];
+        }
 
         if (o->mono) {
             r0 = LV_MIN(r0, top);
@@ -818,12 +891,21 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
             } else if (o->mono) {
                 *p = paper;
             } else {
-                int32_t l = (foot - y) * per_px;   /* the level at this height */
+                int32_t k = foot_px - y;            /* px above the foot */
 
-                *p = d3_dim(pal[LV_CLAMP(0, l, 255)], fog * 3 / 4);
+                if (k < 0) {
+                    k = 0;
+                }
+                while (fill_n <= k) {               /* the colour of the level at that height */
+                    int32_t l = (fill_n + foot_frac) * per_px;
+
+                    fill_lut[fill_n++] = d3_dim(pal[LV_CLAMP(0, l, 255)], fog * 3 / 4);
+                }
+                *p = fill_lut[k];
             }
         }
         horizon[x] = LV_MIN(r0, top);
+        d3_dirty(x, horizon[x], bottom - 1);
         prev = top + 1;
     }
 }
@@ -841,20 +923,59 @@ static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
     }
 }
 
-/* A trace's levels: kept for the rows of the stack (every D3_STEP-th), worked out for the newest */
-static const uint8_t *d3_levels_of(const wf_row_t *row, uint32_t span, uint8_t *scratch) {
+/* How far the newest row is to the next, 0 when it came to 1 when the next is due (the rows' interval from the
+ * last 8): the traces are drawn that much of a row further back, so they move on at every picture, not at every
+ * row. 1 when it is late: no further than where the next row puts them */
+static float d3_phase(uint16_t top) {
+    const wf_row_t *a = row_from(top, 0), *b = row_from(top, 8);
+
+    if (!a->width || !b->width || height <= 9) {
+        return 0.0f;
+    }
+    uint32_t every = (a->ms - b->ms) / 8;
+    uint32_t since = (uint32_t) get_time() - a->ms;
+
+    if (every == 0 || every > 1000) {
+        return 0.0f;                        /* rows from before a pause, or none yet */
+    }
+    return LV_MIN(1.0f, (float) since / every);
+}
+
+/* Levels to above the floor cut (cut and below: 0, the rest to the whole scale), and where there is something */
+static void d3_cut(uint8_t *lv, int32_t cut, uint8_t *blk) {
+    memset(blk, 0, WIDTH / 8 + 1);
+    for (int32_t i = 0; i < WIDTH; i++) {
+        int32_t v = lv[i] > cut ? (lv[i] - cut) * 255 / (255 - cut) : 0;
+
+        lv[i] = v;
+        if (v) {
+            blk[i >> 3] = 1;
+            if (i > 0) blk[(i - 1) >> 3] = 1;   /* the pixel before reads this one between them */
+        }
+    }
+}
+
+/* A trace's levels above the floor and its blocks: kept for the rows of the stack (every D3_STEP-th), worked
+ * out for the newest */
+static const uint8_t *d3_levels_of(const wf_row_t *row, uint32_t span, int32_t cut, uint8_t *scratch,
+                                   uint8_t *scratch_blk, const uint8_t **blk) {
     if (row->num % D3_STEP) {
         d3_levels(row, span, scratch);
+        d3_cut(scratch, cut, scratch_blk);
+        *blk = scratch_blk;
         return scratch;
     }
     typeof(d3_cache[0]) *c = &d3_cache[row->num / D3_STEP % D3_CACHE];
 
-    if (c->num != row->num || c->center != wf_center_freq || c->span != span) {
+    if (c->num != row->num || c->center != wf_center_freq || c->span != span || c->cut != cut) {
         d3_levels(row, span, c->lv);
+        d3_cut(c->lv, cut, c->blk);
         c->num = row->num;
         c->center = wf_center_freq;
         c->span = span;
+        c->cut = cut;
     }
+    *blk = c->blk;
     return c->lv;
 }
 
@@ -887,7 +1008,25 @@ static void d3_background(const d3_target_t *o, const d3_scene_t *sc, uint32_t b
         d3_bg_of.n_refs = n_refs;
         memcpy(d3_bg_of.ref_x, ref_x, n_refs * sizeof(int32_t));
     }
-    if (d3_bg) {
+    if (d3_bg && same && d3_drawn_buf == o->buf) {
+        /* Only what the last picture drew over it */
+        for (int32_t x = 0; x < WIDTH; x++) {
+            int32_t lo = d3_dirty_lo[x], hi = LV_MIN(d3_dirty_hi[x], o->h - 1);
+
+            if (lo > hi) {
+                continue;
+            }
+            if (o->portrait) {
+                size_t at = (size_t)(WIDTH - 1 - x) * o->h + lo;
+
+                memcpy(o->buf + at, d3_bg + at, (hi - lo + 1) * sizeof(uint32_t));
+            } else {
+                for (int32_t y = lo; y <= hi; y++) {
+                    o->buf[y * WIDTH + x] = d3_bg[y * WIDTH + x];
+                }
+            }
+        }
+    } else if (d3_bg) {
         memcpy(o->buf, d3_bg, n * sizeof(uint32_t));
     } else {                                /* no memory for it: drawn here */
         for (size_t i = 0; i < n; i++) {
@@ -895,7 +1034,13 @@ static void d3_background(const d3_target_t *o, const d3_scene_t *sc, uint32_t b
         }
         d3_grid(o, sc, ref_x, n_refs);
     }
+    for (int32_t x = 0; x < WIDTH; x++) {
+        d3_dirty_lo[x] = INT16_MAX;
+        d3_dirty_hi[x] = -1;
+    }
+    d3_drawn_buf = d3_bg ? o->buf : NULL;
 }
+
 
 __attribute__((noinline))   /* one picture: measurable on its own */
 static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_refs) {
@@ -910,7 +1055,7 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
     d3_scene_t      sc;
     int16_t         horizon[WIDTH];         /* the highest pixel drawn in each column: none, the bottom */
     float           front[WIDTH];           /* the newest trace's top in each column */
-    uint8_t         lv[WIDTH];
+    uint8_t         lv[WIDTH], lv_blk[WIDTH / 8 + 1];
 
     sc.hv = LV_MAX(h / 2, h - buttons_h - 4 - D3_LABEL_H);
     sc.amp = sc.hv * (0.75f - 0.04f * tilt);
@@ -929,16 +1074,21 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
      * this moment */
     uint16_t        top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
     const wf_row_t *newest_row = row_from(top, 0);
+    float           phase = d3_phase(top);
 
     for (int32_t age = 0; age <= sc.span; age++) {
         const wf_row_t *row = row_from(top, age);
+        float           t = (age + phase) / sc.span;
 
-        if (!row->width || (age > 0 && row->num % D3_STEP)) {
+        if (!row->width || (age > 0 && row->num % D3_STEP) || t > 1.0f) {
             continue;
         }
-        d3_trace(&o, &sc, d3_levels_of(row, span, lv), LV_MIN(row->floor + cut_add, 254), (float) age / sc.span,
-                 pal, horizon, age == 0 ? front : NULL);
+        const uint8_t *blk;
+        const uint8_t *levels = d3_levels_of(row, span, LV_MIN(row->floor + cut_add, 254), lv, lv_blk, &blk);
+
+        d3_trace(&o, &sc, levels, blk, t, pal, horizon, age == 0 ? front : NULL);
     }
+    d3_drawn_phase = phase;
     if (!newest_row->width) {
         return;
     }
@@ -946,7 +1096,7 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
     /* The held peaks of the newest trace, a thin line over it; again from it on a new view */
     float s0, f0;
 
-    d3_place(&sc, 0, &s0, &f0);
+    d3_place(&sc, phase / sc.span, &s0, &f0);
     uint32_t now = lv_tick_get();
     float    fall = (now - d3_peak_tick) / 1000.0f * D3_PEAK_DECAY * sc.amp / 255.0f;   /* px */
     bool     peaks = param_i_get(cfg_wf_3d_peak);
@@ -968,7 +1118,7 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
 
         for (int32_t x = 1; x < WIDTH; x++) {
             if (d3_peak[x] < f0 - 1 || d3_peak[x - 1] < f0 - 1) {
-                d3_line(&o, x - 1, d3_peak[x - 1], x, d3_peak[x], pc, 0.55f);
+                d3_join(&o, x, d3_peak[x - 1], d3_peak[x], 1.0f, pc, 0.55f);
             }
         }
     }
@@ -976,12 +1126,11 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
     /* The newest trace over it all: 2 px, antialiased, its columns joined */
     uint32_t lc = o.mono ? theme_shape.ink : accent & 0xffffff;
 
-    for (int32_t x = 1; x < WIDTH; x++) {
-        if (isnan(front[x]) || isnan(front[x - 1])) {
+    for (int32_t x = 0; x < WIDTH; x++) {
+        if (isnan(front[x])) {
             continue;
         }
-        d3_line(&o, x - 1, front[x - 1], x, front[x], lc, 1.0f);
-        d3_line(&o, x - 1, front[x - 1] + 1, x, front[x] + 1, lc, 1.0f);
+        d3_join(&o, x, x > 0 && !isnan(front[x - 1]) ? front[x - 1] : front[x], front[x], 2.0f, lc, 1.0f);
     }
 }
 
@@ -1029,6 +1178,13 @@ static void d3_later_cb(lv_timer_t *t) {
     }
 }
 
+/* Every D3_MIN_MS while the traces are on their way to the next row; nothing once they are there (no rows: still) */
+static void d3_frames_cb(lv_timer_t *t) {
+    if (d3_on() && d3_drawn_phase < 1.0f) {
+        d3_redraw();
+    }
+}
+
 static void d3_redraw(void) {
     int32_t  ref_x[MAX_D3_REFS], ref_hz[MAX_D3_REFS];
     int      n = freq_scale_refs(ref_x, ref_hz, MAX_D3_REFS);
@@ -1047,6 +1203,9 @@ static void d3_redraw(void) {
         return;
     }
     d3_last_ms = lv_tick_get();
+    if (!d3_frames) {
+        d3_frames = lv_timer_create(d3_frames_cb, D3_MIN_MS, NULL);
+    }
     __atomic_store_n(&new_rows, 0, __ATOMIC_RELEASE);
     if (direct) {
         lv_area_t a;
@@ -1104,6 +1263,7 @@ static void refresh_waterfall(void *arg) {
         d3_labels_update(false, NULL, NULL, 0, 0);     /* out of 3D: its labels away */
         d3_label_y = -1;
     }
+    d3_drawn_buf = NULL;            /* 2D draws over it: 3D again from the whole background */
     if (direct) {
         direct_redraw(__atomic_exchange_n(&new_rows, 0, __ATOMIC_ACQUIRE));
     } else {
@@ -1487,6 +1647,7 @@ void waterfall_set_height(lv_coord_t h) {
         }
         wfp_head = 0;
         wfp_full = true;
+        d3_drawn_buf = NULL;
         if (!direct) {
             lv_img_buf_free(frame);
             frame = lv_img_buf_alloc(WIDTH, height, LV_IMG_CF_TRUE_COLOR);

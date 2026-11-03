@@ -723,7 +723,8 @@ With 3D on, the waterfall area shows the spectrum in perspective, as on
 some other makers' radios: the newest trace at the bottom, every third line
 before it a little higher up and narrower, the oldest (about 6 seconds back
 at 32 traces, 3D depth) at the top. They narrow towards the VFO line, which
-stays straight through them all, and glide back a little at each new line.
+stays straight through them all, and move back smoothly, a little at every
+picture (30 a second), not a step at each new line.
 The noise floor is cut away (3D floor sets how much above it goes too): only
 signals stand up, and a trace shows only where it rises above those in front
 of it. Each point has the colour of its height on the 3D colours scale
