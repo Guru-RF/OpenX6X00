@@ -575,7 +575,7 @@ bool winlink_busy(void) {
  * The connection's frequency: Pat's last tune (made, or not made: missed_hz), or where the modem keyed, while either
  * is less than REF_MS old; the dial once it is older, so a connection made without a QSY keys where the radio
  * listens. A dial turned, or the other VFO chosen, during a connection keys no more there. Last, where the radio may
- * not transmit (#121): the page says why, not only the radio's own note */
+ * not transmit (#121), and the base sending no data (#152): the page says why, not only the radio's own note */
 static const char *tx_off_freq(void) {
     static char why[96];    /* the worker's */
     char        a[16], b[16];
@@ -624,6 +624,8 @@ static const char *tx_off_freq(void) {
         snprintf(why, sizeof(why), "%s MHz: %s", mhz(a, sizeof(a), tx), no);
         return why;
     }
+    if (radio_no_data())
+        return "no data from the base";
     ses.key_hz = rx;
     return NULL;
 }
@@ -1248,9 +1250,11 @@ static void said_qsy(int32_t hz, const char *why) {
     pthread_mutex_unlock(&said_lock);
 }
 
-/* What would keep a key off the frequency the radio listens on, or off the air there (#121), in tx_off_freq's words,
- * into why; "" none. On the values given: for the page before a connection, while tx_off_freq decides at the key */
-static void simplex_issue(char *why, size_t n, int32_t rx, int32_t tx, int32_t xit, int32_t rit, int32_t shift) {
+/* What would keep a key off the frequency the radio listens on, or off the air there (#121; no_data: the base sends
+ * none, #152), in tx_off_freq's words, into why; "" none. On the values given: for the page before a connection,
+ * while tx_off_freq decides at the key */
+static void simplex_issue(char *why, size_t n, int32_t rx, int32_t tx, int32_t xit, int32_t rit, int32_t shift,
+                          bool no_data) {
     char        a[16], b[16];
     const char *no;
 
@@ -1265,6 +1269,8 @@ static void simplex_issue(char *why, size_t n, int32_t rx, int32_t tx, int32_t x
         snprintf(why, n, "split would send on %s, not %s", mhz(a, sizeof(a), tx), mhz(b, sizeof(b), rx));
     else if ((no = cfg_tx_refusal(tx)))
         snprintf(why, n, "%s MHz: %s", mhz(a, sizeof(a), tx), no);
+    else if (no_data)
+        snprintf(why, n, "no data from the base");
 }
 
 /* Seconds left of the hold after an SWR trip in a Winlink transmission, 0 none. Read before swr_trip_hz */
@@ -1351,7 +1357,7 @@ static void radio_file_body(char *buf, size_t size, bool modem) {
 
     if (hold)
         swr_hold_where(where, sizeof(where), trip);
-    simplex_issue(simplex, sizeof(simplex), rx, tx, xit, rit, shift);
+    simplex_issue(simplex, sizeof(simplex), rx, tx, xit, rit, shift, radio_no_data());
     pthread_mutex_lock(&said_lock);
     snprintf(buf, size,
              "modem=%s\nrx=%d\ntx=%d\nmode=%s\nsplit=%d\nshift=%d\nrit=%d\nxit=%d\nsimplex=%s\n"

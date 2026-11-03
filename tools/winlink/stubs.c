@@ -14,6 +14,7 @@
  *    WL_AIR_OUT   the other station's WL_AIR_IN: what this one transmits goes there, as the radio sends it
  *    WL_PWR_MAX   the top of PWR in W, default BOARD_PWR_MAX (the X6200's 8 W); 5 is the X6200 on its battery
  *    WL_PWR_XVTR  a transverter's TX power limit in force, W (#104), default none; give WL_PWR_MAX the same
+ *    WL_NO_DATA   set: the base sends no data (#152, radio_no_data), the radio's TX refused
  *    WL_APP       a file: while it is there, its text is the digital app open (FT8...), else none is
  *    WL_SWR       a file: when it is there during a key, the SWR protection stops that key as radio.c's does (a trip
  *                 counted, the radio unkeyed, "TX stopped: SWR 3.0"), and the file goes: one trip each
@@ -132,6 +133,7 @@ unsigned radio_swr_trips(void) {
 }
 
 radio_state_t radio_get_state(void) { return atomic_load(&keyed) ? RADIO_TX : RADIO_RX; }
+bool          radio_no_data(void) { return getenv("WL_NO_DATA") != NULL; }
 bool          radio_get_modem(void) { return atomic_load(&keyed); }
 int32_t       radio_tx_freq(void) { return freq.v; }
 uint64_t      radio_swr_trip_at(void) { return atomic_load(&swr_trip_at); }

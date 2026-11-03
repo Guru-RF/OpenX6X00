@@ -3770,7 +3770,7 @@ Setting it up:
    transmitting, or from being heard well:
    - Frequency: where the radio listens, and whether it transmits there too
      ("No TX: split would send on 14.200.000, not 14.105.000", XIT, RIT, a
-     TX shift).
+     TX shift, outside the amateur bands, "No TX: no data from the base").
    - Mode: Pat's QSY to a gateway sets USB-D (USB is kept).
    - Filter: whether the RX filter (and the TX filter, on a base that has
      one) covers ARDOP's passband at the page's bandwidth: 1250-1750 Hz at
@@ -3925,6 +3925,10 @@ Connecting to a gateway:
     listen (ARDOP hears that frequency too). Pat's tune-back after a session
     is a QSY too, so retuning right after a session and connecting at once
     without a frequency waits that minute.
+- While the base sends no data (see
+  [No TX without data from the base](#no-tx-without-data-from-the-base)):
+  no key, "Winlink: no TX, no data from the base", on the page's last
+  connection and its line before a connection too.
 - The ARDOP bandwidth: Pat's gateway list fills in each gateway's widest
   ARDOP bandwidth (2000MAX for a gateway listed as ARDOP 2000), the Connect
   dialog takes it over and the browser remembers it for the next time. The
