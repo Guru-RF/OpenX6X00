@@ -370,19 +370,34 @@ the web Display page, Receiver card). Off by default.
 ### Low battery
 
 On battery, at 10% or less the radio shows a message every minute: "Battery
-8%: about 15 min left" (the minutes when it knows them), and from 5%
-"Battery 5%: connect power". At 6.0 V it shows "Low battery! Turning off in
-30s" and switches itself off to protect the battery. As a guide, on my radio
-receiving with WiFi and Bluetooth on, 10% left about 22 minutes and 5% about
-12.
+8%: about 15 min left" (the minutes when it knows them), and from 5% "Battery
+5%: connect power". At 6.0 V (the X6200: 6.8 V) it shows "Low battery! Turning
+off in 30s", and 30 seconds later it sets the charger back On (see
+[Charger](#general-tab)), saves and switches itself off to protect the
+battery. As a guide, on my radio receiving with WiFi and Bluetooth on, 10%
+left about 22 minutes and 5% about 12.
+
+The X6200's base (1.0.8) cuts the power by itself at about 6.4 to 6.6 V, at
+once and without a word: nothing is saved, this run's log does not reach
+app_logs, and with Charger Off or Shadow the charger is not set back On, so
+the flat radio does not charge on the supply while it is off. Up to v0.3.8 the
+radio's own power-off came at 6.0 V on the X6200 too, so the base always came
+first (issue #160). In that issue, on receive with WiFi and Bluetooth on, the
+first 6.8 V came 4 to 5 minutes before the base's cut and 6.7 V about 2.5
+minutes before, so the warning, the 30 s, the charger and the save are done
+minutes before the cut, also when a transmission at the end brings it nearer.
+6.8 V is also where the % from the voltage (below) reaches 0. The X6100 keeps
+6.0 V. The battery sags under the TX current, so with a few % left a long
+transmission can bring the warning; back at 7.0 V (the X6100: 6.2 V) before
+the 30 s are over, the power-off is called off.
 
 Right after power-on the base may not have measured the battery yet: one
 X6100 reported nothing for about 3 seconds, then a charge that climbed to the
 real one over about 7 more. The radio does not take those first readings: the
 box at the top right stays empty, and the battery's readings count from about
 15 seconds after the base's first reading with a voltage, some 15 to 20 seconds
-after the screen comes up. The warnings and the power-off at 6.0 V work from
-then on. The GUI log (app_logs) lists what the base sent until then, as
+after the screen comes up. The warnings and the power-off work from then on.
+The GUI log (app_logs) lists what the base sent until then, as
 "battery: start-up reading" lines.
 
 The X6200's base also warns of a battery too hot or too cold, a PA too hot

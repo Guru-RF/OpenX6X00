@@ -1896,7 +1896,7 @@ static void battery_log(const hw_pack_t *p) {
     }
     clock_update_estimate(min, approx);
 
-    /* On battery at 10% or less: a warning every minute (the 30 s power-off comes at 6.0 V) */
+    /* On battery at 10% or less: a warning every minute (the 30 s power-off comes at BAT_LOW, bat_watch.h) */
     if (s.vext < 3.0f && s.vbat >= 3.0f && s.cap <= 10) {
         int w[2] = { s.cap, min };
 

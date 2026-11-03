@@ -149,7 +149,7 @@ The patched X6100 base comes with its own instructions.
 | **Winlink** | Winlink email over HF from the radio alone, no computer and no internet: [Pat](https://getpat.io) is the mail program, its mailbox a web page on a phone or a laptop, and ARDOP the modem, through the radio's own audio, or Mercury (experimental: faster, with the few stations that run it). When Pat calls a gateway the radio tunes there in USB-D and keys itself. Turned on in the web configurator, Operating > Winlink, with your callsign, locator and Winlink password; the page shows the radio as Winlink will use it and how each connection went, with what to do next ([manual](docs/MANUAL.md#winlink)). |
 | **Bands** | A live picture of 160 to 6 m from the cluster and the Reverse Beacon Network, and a test beacon that shows who hears you from your own antenna. |
 | **Radio** | Band plan strip for IARU Region 1, 2 or 3, Auto from the GPS, the locator or the callsign, or the US sub-bands of your licence class with the rest in grey (60 m too, and a strip for each band you add; guidance only, it never stops the key or the microphone), 60 m on the band keys, which step over a band the radio cannot tune (4 m), a TX shift per band for FM repeaters and a QO-100 IF (split kept by itself, REV on the VFO key), Birdie Cal (the radio's own carriers found, marked, notched), S-meter in bars or a needle, long-press actions on every key, editable bands, memories and channels, the broadcast bands in AM, transverters (off by default), RX recorder, screen recording and screenshots, voice messages, SWR scan, Walkie Talkie portrait mode, PRE and ATT on the VOL 2:2 page, local time on screen with UTC in the logs. |
-| **X6200** | SAM and WFM on the AM key, zoom 1 to 4 over the base's 384 kHz, the two-ring MFK, FM broadcast (87.5-108 MHz) and the airband (118-137 MHz) to receive after 6 m on the band keys, a WR12 switch for Xiegu's 54 MHz-1 GHz receiver on the HOST port (2 m and 70 cm to receive; not yet tried with a WR12, [manual](docs/MANUAL.md#wr12-receiver-x6200)), PRE and ATT on the VOL 2:2 page since it has no PRE key, the volume over the base's whole range (0 to 100). |
+| **X6200** | SAM and WFM on the AM key, zoom 1 to 4 over the base's 384 kHz, the two-ring MFK, FM broadcast (87.5-108 MHz) and the airband (118-137 MHz) to receive after 6 m on the band keys, a WR12 switch for Xiegu's 54 MHz-1 GHz receiver on the HOST port (2 m and 70 cm to receive; not yet tried with a WR12, [manual](docs/MANUAL.md#wr12-receiver-x6200)), PRE and ATT on the VOL 2:2 page since it has no PRE key, the volume over the base's whole range (0 to 100), the low-battery power-off at 6.8 V, minutes before the base cuts the power by itself ([manual](docs/MANUAL.md#low-battery)). |
 | **Screen** | DRM/KMS output with the GUI on a transparent layer over a waterfall drawn one line at a time, about half the CPU of the old path; a main knob with every detent timed in its own thread and acceleration that grows with the speed. |
 | **Themes** | Every colour, corner, font and waterfall palette comes from the theme. RF.Guru, Classic, Outdoor, Outdoor-Negative, VISION, Black Metal, Total Black and 1bit come with the image; Holo and Material 3 are in [themes/](themes) to copy to the card; your own go on the card too ([docs/THEMES.md](docs/THEMES.md)). |
 | **Wireless** | WiFi (a failed join says why on the screen), a USB Ethernet adapter with DHCP or a fixed address, USB tethering, a network name of your own; Bluetooth CAT for three clients, headphones and keyboards with pairings that survive a new image. |
@@ -437,7 +437,8 @@ tools/                   screenshots/ (drive.py, grab.py, pull.py), update/ (the
                          tci/ and winlink/ (the TCI server's and the Winlink modem socket's host
                          tests), itu_region/ (the band plan's Auto region, a host test),
                          data_partition/ (S00adata on fake cards, a host test), channels/ (the
-                         web Memories page, a host test), icons/, logo/ and fonts/
+                         web Memories page, a host test), battery/ (the low-battery power-off and
+                         the battery %, a host test), icons/, logo/ and fonts/
 assets/                  the logo's fonts and marks
 docs/                    MANUAL.md, THEMES.md, MENUS.md, UPSTREAM_README.md, audit/,
                          screenshots/ (taken by script on an X6200)
@@ -452,8 +453,8 @@ docs/                    MANUAL.md, THEMES.md, MENUS.md, UPSTREAM_README.md, aud
 - [Screenshots](docs/screenshots/README.md): how they are taken.
 - [The TCI server's host test](tools/tci/README.md), [the Winlink modems'](tools/winlink/README.md), the
   [ITU region's](tools/itu_region/itu_region_test.c), the [DX cluster bands'](tools/cluster/cluster_bands_test.c),
-  the [DATA partition's](tools/data_partition/Makefile), the [web Memories page's](tools/channels/Makefile) and the
-  [PC build](host/README.md).
+  the [DATA partition's](tools/data_partition/Makefile), the [web Memories page's](tools/channels/Makefile), the
+  [battery readings'](tools/battery/bat_watch_test.c) and the [PC build](host/README.md).
 
 ## Licences
 

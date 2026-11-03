@@ -19,7 +19,7 @@ bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_fla
     }
     w->counts = measured && w->settle_at && now_ms >= w->settle_at;
 
-    /* Only on a change, with hysteresis: around 6.0 V the 30 s power-off timer was started and
+    /* Only on a change, with hysteresis: around BAT_LOW the 30 s power-off timer was started and
      * stopped over and over. Low only after 3 readings in a row: one of the base's first packets
      * (0 V on both) alone started "Low battery!" with a full battery on the charger. And only on a
      * battery that is there and measured: under 3 V there is none, or no reading yet */

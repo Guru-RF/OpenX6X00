@@ -40,6 +40,18 @@
 #define BOARD_PWR_MAX       10.0f
 #endif
 
+/* The low-battery power-off (bat_watch.c), the battery's voltage in 0.1 V: from there "Low battery! Turning off in
+ * 30s.", then the charger set back On, the save and the radio off. The X6100 runs to 6.0 V, as it always did. The
+ * X6200's base (1.0.8) cuts the power by itself at about 6.4-6.6 V, with nothing saved and the run's log lost: in
+ * #160, on receive with WiFi and Bluetooth on, the first 6.8 V reading came 4-5 min before its cut, 6.7 V about
+ * 2.5 min. 6.8 V, where the voltage's % reaches 0 (bat_cap_of_volts), leaves minutes after the 30 s, also for a TX
+ * at the end, which brings the cut nearer */
+#ifdef BOARD_X6200
+#define BOARD_BAT_LOW       68
+#else
+#define BOARD_BAT_LOW       60
+#endif
+
 #ifdef HOST_BUILD
 /* The GUI on a PC (cmake -DHOST_BUILD=ON): an SDL window for the panel, the stub radio, and the
  * front keys and knobs as FIFOs under the data directory that host/host_panel.c writes the PC's
