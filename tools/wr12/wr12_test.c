@@ -9,7 +9,8 @@
  *  set-up, to AT+FREQ, to AT+BYPASS=1), a WR12 that stops answering, unplugged in the middle of a command (receiving,
  *  and on its way back to the bypass, for good or back within GONE_MS as after a reset on USB), plugged in again as
  *  ttyACM1 beside a GPS on ttyACM0, an echo before the answers, the serial paddle's question, and the log: each
- *  answer once, not one line a command. Last, a GUI stopped with SIGTERM while the WR12 is out of its bypass (this
+ *  answer once, not one line a command. A WR12 that takes the set-up but answers AT+AYT too late, again and again:
+ *  said once, set up again later each time. Last, a GUI stopped with SIGTERM while the WR12 is out of its bypass (this
  *  program again, as `wr12_test term`, its log in wr12_term.log), and the start loop's AT+BYPASS=1 after a GUI that
  *  ended any way (rootfs/usr/sbin/x6100-wr12-bypass, run by sh on the stand-ins).
  *
@@ -84,6 +85,7 @@ static bool is(const char *a, const char *b) {
 
 static pthread_mutex_t fw_mux = PTHREAD_MUTEX_INITIALIZER;
 static char            cmds[MAX_CMDS][40];      /* what it was sent, in order */
+static uint64_t        cmd_ms[MAX_CMDS];        /* and when */
 static int             n_cmds;
 static struct {
     int      master;            /* the pty's own side, -1: none */
@@ -186,7 +188,10 @@ static void *fw_run(void *arg) {
             line[len] = 0;
             len = 0;
             pthread_mutex_lock(&fw_mux);
-            if (n_cmds < MAX_CMDS) snprintf(cmds[n_cmds++], sizeof(cmds[0]), "%.39s", line);
+            if (n_cmds < MAX_CMDS) {
+                cmd_ms[n_cmds] = now_ms();
+                snprintf(cmds[n_cmds++], sizeof(cmds[0]), "%.39s", line);
+            }
             unplug = starts(line, fw.unplug);
             if (starts(line, fw.error)) ans = "ERROR\r\n";
             if (fw.cr) {
@@ -256,6 +261,18 @@ static int cmds_mark(void) {
 
     pthread_mutex_lock(&fw_mux);
     n = n_cmds;
+    pthread_mutex_unlock(&fw_mux);
+    return n;
+}
+
+/* When the commands from `from` on starting with prefix came, into t (max of them); how many */
+static int cmd_times(int from, const char *prefix, uint64_t *t, int max) {
+    int n = 0;
+
+    pthread_mutex_lock(&fw_mux);
+    for (int i = from; i < n_cmds && n < max; i++) {
+        if (starts(cmds[i], prefix)) t[n++] = cmd_ms[i];
+    }
     pthread_mutex_unlock(&fw_mux);
     return n;
 }
@@ -679,6 +696,68 @@ int main(int argc, char **argv) {
         check(log_lines("wr12: AT+LNAGAIN=15: ERROR") == 1, "the log: the set-up's ERROR, once (%d)",
               log_lines("wr12: AT+LNAGAIN=15: ERROR"));
         check(log_lines("wr12: none on USB") <= 2, "the log: none on USB, once a time");
+    }
+
+    /* A WR12 that takes the set-up but answers AT+AYT too late, again and again: let go each time, set up again
+     * later each time (RETRY_MS, twice that, then no later than BACKOFF_MS), said once on the screen and once in the
+     * log. One that worked STABLE_MS before it stopped answering: a new trouble, said again, RETRY_MS again. The
+     * driver's loop looks again AYT_MS after a let-go at the soonest: RETRY_MS (300) counts as 400 here, so the set-ups
+     * come 2.65 s, 2.85 s, 2.85 s apart (2.65 s each time before) */
+    {
+        uint64_t t[8], ayt[64];
+        int      found = notes("WR12 found on HOST"), quiet = notes("WR12 not answering");
+        int      log_found = log_lines("wr12: found on"), log_lost = log_lines("not answering, let go");
+        int      n, k;
+
+        fw_set(NULL, &fw.echo, false);
+        fw_set(NULL, &fw.cr, false);
+        pthread_mutex_lock(&fw_mux);
+        fw.slow_ms = 200;
+        pthread_mutex_unlock(&fw_mux);
+        fw_text(fw.slow, "AT+AYT");
+        m = cmds_mark();
+        wr12_want(true, false, 0);
+        WAIT_FOR(cmds_since(m, "AT+INIT") >= 4, 12000);
+        n = cmd_times(m, "AT+INIT", t, 8);
+        check(n >= 4, "AYT late: set up again and again (%d)", n);
+        if (n >= 4) {
+            int64_t g1 = t[1] - t[0], g2 = t[2] - t[1], g3 = t[3] - t[2];
+
+            check(g2 - g1 >= 150 && g3 - g2 > -100 && g3 - g2 < 100,
+                  "AYT late: set up again later each time, up to BACKOFF_MS (%lld, %lld, %lld ms)", (long long)g1,
+                  (long long)g2, (long long)g3);
+        }
+        check(notes("WR12 found on HOST") == found + 1, "AYT late: found said once on the screen (%d)",
+              notes("WR12 found on HOST") - found);
+        check(notes("WR12 not answering") == quiet + 1, "AYT late: not answering said once on the screen (%d)",
+              notes("WR12 not answering") - quiet);
+        check(log_lines("wr12: found on") == log_found + 1 && log_lines("not answering, let go") == log_lost + 1,
+              "AYT late: found and let go, once each in the log (%d, %d)", log_lines("wr12: found on") - log_found,
+              log_lines("not answering, let go") - log_lost);
+
+        /* Answering in time again for longer than STABLE_MS, then late again: said again, set up again after
+         * RETRY_MS (400 ms after the let-go as above, which comes ANSWER_MS after the third AT+AYT unanswered: 550 ms;
+         * 750 ms with BACKOFF_MS) */
+        fw_text(fw.slow, "");
+        WAIT_FOR(wr12_ready(), 2000);
+        sleep_ms(2800);
+        check(wr12_ready(), "AYT in time again: stays set up");
+        m = cmds_mark();
+        fw_text(fw.slow, "AT+AYT");
+        WAIT_FOR(cmds_since(m, "AT+INIT") >= 1, 3000);
+        n = cmd_times(m, "AT+INIT", t, 1);
+        k = cmd_times(m, "AT+AYT", ayt, 64);
+        check(n == 1 && k >= 3 && t[0] - ayt[k - 1] < 650,
+              "late again after STABLE_MS: set up again after RETRY_MS (%lld ms after the last AT+AYT)",
+              n == 1 && k ? (long long)(t[0] - ayt[k - 1]) : -1LL);
+        WAIT_FOR(wr12_ready(), 2000);
+        check(notes("WR12 not answering") == quiet + 2 && notes("WR12 found on HOST") == found + 2,
+              "late again after STABLE_MS: said again (%d, %d)", notes("WR12 not answering") - quiet,
+              notes("WR12 found on HOST") - found);
+        fw_text(fw.slow, "");
+        wr12_want(false, false, 0);
+        WAIT_FOR(!wr12_ready() && !wr12_tx_block(), 3000);
+        check(!wr12_ready() && !wr12_tx_block(), "AYT late, then off: let go, TX free");
     }
 
     /* A GUI stopped with SIGTERM while the WR12 is out of its bypass (S95gui stop: a restart, an update or its

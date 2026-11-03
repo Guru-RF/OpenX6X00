@@ -9,7 +9,8 @@
  *
  *  One thread has the port: the GUI says what it wants (wr12_want) and reads the state, and never waits for the WR12.
  *  Each answer goes into the log when it differs from the last one to that command, so a knob turned or the
- *  keepalive add nothing; the screen hears once that the WR12 is found, lost, or answered ERROR. Stopped with SIGTERM,
+ *  keepalive add nothing; the screen hears once that the WR12 is found, lost, or answered ERROR, and one set up that
+ *  then stops answering, again and again, is said once and set up again less and less often. Stopped with SIGTERM,
  *  the GUI puts it back in its bypass on its way out (on_term).
  *
  *  Copyright (c) 2026 RF.Guru
@@ -64,6 +65,12 @@
 #ifndef GONE_MS
 #define GONE_MS     3000    /* gone from USB this long out of its bypass: taken for unplugged, not reset */
 #endif
+#ifndef BACKOFF_MS
+#define BACKOFF_MS  30000   /* let go after a set-up: set up again after RETRY_MS, doubled each time up to this */
+#endif
+#ifndef STABLE_MS
+#define STABLE_MS   600000  /* set up this long before it was let go: a new trouble, said again, RETRY_MS again */
+#endif
 #define BACK_MS     250     /* gone from USB out of its bypass: looked for again this often meanwhile */
 #define STEP_MS     100     /* between the commands of the set-up */
 #define DEFER_MS    50      /* the radio in TX: AT+BYPASS=0 tried again */
@@ -106,8 +113,15 @@ static int             bypass = -1;     /* 1 in its bypass, 0 out, -1 not known 
 static int32_t         freq_sent;       /* the last AT+FREQ answered OK, 0 none */
 static uint64_t        sent_ms;         /* the last command */
 static int             fails;           /* unanswered in a row */
-static bool            quiet_said;      /* "not answering" on the screen, until it answers or goes */
-static int             quiet_sets;      /* set-ups unanswered since: the first one may come before it is up */
+/* Said once a plug-in (forget): found (the log, and the screen with WR12 on HOST on), not answering (the screen), let
+ * go after a set-up (the log) */
+static bool            found_said;
+static bool            quiet_said;
+static bool            lost_said;
+static int             quiet_sets;      /* set-ups unanswered since one answered: the first may come too soon */
+static unsigned        backoff_ms;      /* let go after a set-up: set up again after this, doubled each time, 0 none */
+static uint64_t        up_ms;           /* set up at */
+static uint64_t        retry_at;        /* not looked for, nor set up, before this */
 static bool            none_said;       /* "none on USB" in the log, until one is found or the switch goes off */
 static int             open_err;        /* the errno of the last open that failed, logged once */
 static uint64_t        gone_ms;         /* gone from USB out of its bypass since, 0: not */
@@ -399,28 +413,53 @@ static bool go_out(void) {
     return go;
 }
 
+/* What is said once a plug-in, afresh, and the set-ups at their first pace: unplugged, WR12 on HOST turned on or off,
+ * or let go after it had worked STABLE_MS */
+static void forget(void) {
+    found_said = false;
+    quiet_said = false;
+    lost_said  = false;
+    quiet_sets = 0;
+    backoff_ms = 0;
+}
+
 /* The port let go. Unplugged (its USB id gone): out goes once it has stayed away GONE_MS (run); back before that it
  * was only reset on USB, still powered and maybe out of its bypass, and is set up again first. Still there: what it
- * was asked last may still hold, out stays, and TX with it. quiet: it stopped answering, said once on the screen */
+ * was asked last may still hold, out stays, and TX with it; set up again after RETRY_MS, twice that the next time,
+ * and so on up to BACKOFF_MS, said once (a WR12 that takes the set-up but not the keepalive: no flood on the screen
+ * nor in the log, nor its relay and the base back and forth every few seconds). quiet: it stopped answering */
 static void lose(bool quiet) {
-    bool gone = !is_wr12(port);
-    bool was  = atomic_exchange(&ready, false);
+    bool     gone = !is_wr12(port);
+    bool     was  = atomic_exchange(&ready, false);
+    uint64_t now  = now_ms();
 
     port_close();
     bypass    = -1;
     freq_sent = 0;
     fails     = 0;
-    if (gone || was) {      /* a set-up that failed again is in the log by its answer */
-        fprintf(stderr, "wr12: %s %s\n", port, gone ? "unplugged" : quiet ? "not answering, let go" : "let go");
-    }
-    if (gone) {
-        n_said     = 0;     /* plugged in again: its answers logged afresh */
-        quiet_said = false;
-        quiet_sets = 0;
+    if (gone) {             /* a set-up that failed again is in the log by its answer */
+        fprintf(stderr, "wr12: %s unplugged\n", port);
+        n_said = 0;         /* plugged in again: its answers logged afresh */
+        forget();
         if (was) {
             note("%s", "WR12 unplugged");
         }
-    } else if (quiet && !quiet_said && (was || ++quiet_sets >= 2)) {
+    } else if (was) {
+        if (now - up_ms >= STABLE_MS) {
+            forget();
+        }
+        backoff_ms = !backoff_ms ? RETRY_MS : backoff_ms >= BACKOFF_MS / 2 ? BACKOFF_MS : backoff_ms * 2;
+        retry_at   = now + backoff_ms;
+        if (!lost_said) {
+            lost_said = true;
+            fprintf(stderr, "wr12: %s %s; set up again in %u ms, later each time it happens again (said once)\n",
+                    port, quiet ? "not answering, let go" : "let go", backoff_ms);
+        }
+        if (quiet && !quiet_said) {
+            quiet_said = true;
+            note("%s", "WR12 not answering");
+        }
+    } else if (quiet && !quiet_said && ++quiet_sets >= 2) {
         quiet_said = true;
         note("%s", "WR12 not answering");
     }
@@ -450,14 +489,17 @@ static bool start(const char *name, bool on) {
         return false;
     }
     bypass     = 1;
-    quiet_said = false;
     quiet_sets = 0;
     none_said  = false;
+    up_ms      = now_ms();
     set_out(false);
     atomic_store(&ready, true);
-    fprintf(stderr, "wr12: found on " WR12_DEV "/%s, set up, in its bypass\n", port);
-    if (on) {
-        note("%s", "WR12 found on HOST");
+    if (!found_said) {
+        found_said = true;
+        fprintf(stderr, "wr12: found on " WR12_DEV "/%s, set up, in its bypass\n", port);
+        if (on) {
+            note("%s", "WR12 found on HOST");
+        }
     }
     tell();
     return true;
@@ -475,7 +517,7 @@ static bool answered(answer_t a) {
 static void *run(void *arg) {
     unsigned gen = 0;
     unsigned wait = AYT_MS;
-    uint64_t retry_at = 0;
+    bool     on_was = false;
 
     (void)arg;
     for (;;) {
@@ -507,6 +549,11 @@ static void *run(void *arg) {
         }
         now  = now_ms();
         wait = atomic_load(&notify_due) ? 200 : AYT_MS;
+        if (on != on_was) {     /* WR12 on HOST turned on or off: at once, said afresh */
+            on_was   = on;
+            retry_at = 0;
+            forget();
+        }
 
         /* None open: looked for while WR12 on HOST is on, or while one may still be out of its bypass */
         if (fd < 0) {
@@ -527,7 +574,7 @@ static void *run(void *arg) {
                     fprintf(stderr, "wr12: none on USB (%s:%s)\n", WR12_VID, WR12_PID);
                     none_said = true;
                 }
-                quiet_said = false;
+                forget();
                 if (o && !gone_ms) {
                     gone_ms = now;
                 }

@@ -389,8 +389,12 @@ Display page, Receiver card). Off by default.
 - On, the radio looks for the WR12 on USB by its id (0483:5740), sets it up
   (AT+INIT, its gains and AGCs) and puts it in its bypass, as the WR12
   starts up. The screen says "WR12 found on HOST", and "WR12 unplugged",
-  "WR12 not answering" or "WR12: ERROR to AT+..." when that happens. Off,
-  the radio puts it back in its bypass and lets it go.
+  "WR12 not answering" or "WR12: ERROR to AT+..." when that happens, each
+  once, not at every try. A WR12 that takes the set-up but stops answering,
+  again and again, is said once until it is unplugged or the switch turned,
+  and set up again 2 s after, then twice as long each time, up to 30 s;
+  after 10 minutes of working, a new trouble is said again. Off, the radio
+  puts it back in its bypass and lets it go.
 - Receiving through it: with the dial from 54 MHz up, the radio tunes the
   WR12 to the dial (AT+FREQ), takes it out of its bypass (AT+BYPASS=0) and
   puts its own receiver on the WR12's IF, 5.06 MHz, with I and Q swapped.
