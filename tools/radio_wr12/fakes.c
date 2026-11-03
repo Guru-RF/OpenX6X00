@@ -756,13 +756,24 @@ uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
     return batcap;
 }
 
-bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, uint64_t now_ms) {
+bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, bool bat_missing,
+                       bool tx, uint64_t now_ms) {
     (void)w;
     (void)vbat;
     (void)vext;
     (void)vext_flag;
     (void)charging;
+    (void)bat_missing;
+    (void)tx;
     (void)now_ms;
+    return false;
+}
+
+/* The base's data taken as flowing (#152's rule, which tools/base_guard tests): the radio thread is not started here */
+bool __wrap_base_no_data(uint64_t now_ms, uint64_t pack_ms, bool seen) {
+    (void)now_ms;
+    (void)pack_ms;
+    (void)seen;
     return false;
 }
 

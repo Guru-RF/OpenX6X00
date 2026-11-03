@@ -2,8 +2,9 @@
 # as the PC build compiles it for the X6200 (BOARD_X6200, HOST_BUILD), with the real hw_stub.c, base_guard.c and
 # ham_bands.c, and stand-ins for the settings, the WR12's driver and the rest of the GUI (fakes.c). What radio.c
 # sends the base is caught on its way to hw_stub.c (--wrap); the radio's own thread is not started (--wrap of
-# pthread_create): no packets, the base never keys by itself. See radio_wr12_test.c for the cases, fakes.h for the
-# stand-ins; radio.c's log goes to radio_wr12_test.log here, removed after a run that passed.
+# pthread_create): no packets, the base never keys by itself, and its data is taken as flowing (--wrap of
+# base_no_data: these cases are the WR12's; tools/base_guard tests the no-data rule, #152). See radio_wr12_test.c for
+# the cases, fakes.h for the stand-ins; radio.c's log goes to radio_wr12_test.log here, removed after a run that passed.
 # radio.c's headers want what the PC build has (host/README.md): LVGL beside src/ (LVGL), liquid-dsp's headers
 # (DEPS, as host/build.sh puts them in build-host/deps), and libnm's (pkg-config).
 TOP    := ../..
@@ -18,7 +19,7 @@ INC    := -I $(TOP) -I $(SRC) -I $(SRC)/cfg -I $(DEPS)/include -isystem $(LVGL) 
 GUI    := -std=gnu11 -O1 -g -pthread $(DEFS) $(INC)
 CFLAGS := $(GUI) -Wall -Wextra -Wno-comment
 WRAPS  := -Wl,--wrap=hw_vfo_set_freq -Wl,--wrap=hw_set_i -Wl,--wrap=hw_set_f -Wl,--wrap=pthread_create \
-          -Wl,--wrap=pthread_detach
+          -Wl,--wrap=pthread_detach -Wl,--wrap=base_no_data
 
 all: test
 
