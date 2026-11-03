@@ -600,8 +600,14 @@ static void *run(void *arg) {
                 continue;
             }
             if (now < retry_at) {
-                wait = (unsigned)(retry_at - now);
-                continue;
+                /* Waiting to set it up again after a let-go, up to BACKOFF_MS: unplugged meanwhile (to be plugged in
+                 * again, most likely), looked for at once and said afresh. Looked at every AYT_MS */
+                if (backoff_ms && !is_wr12(port)) {
+                    forget();
+                } else {
+                    wait = (unsigned)(retry_at - now < AYT_MS ? retry_at - now : AYT_MS);
+                    continue;
+                }
             }
             retry_at = now + RETRY_MS;
             if (!find(name, sizeof(name))) {
