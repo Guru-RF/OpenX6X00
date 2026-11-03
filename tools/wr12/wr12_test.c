@@ -10,8 +10,9 @@
  *  and on its way back to the bypass), plugged in again as ttyACM1 beside a GPS on ttyACM0, an echo before the
  *  answers, the serial paddle's question, and the log: each answer once, not one line a command.
  *
- *  The TX rules are wr12_tx_block's: TX held from the moment the radio asks the WR12 out of its bypass until the WR12
- *  is seen back in it (its OK to AT+BYPASS=1), or is unplugged; free at once when it never left the bypass.
+ *  The TX rules are wr12_tx_block's, which cfg_tx_refusal says first and so radio.c's refusals and its hold at 0 W
+ *  follow: TX held from the moment the radio asks the WR12 out of its bypass until the WR12 is seen back in it (its OK
+ *  to AT+BYPASS=1), or is unplugged; free at once when it never left the bypass.
  */
 
 #define _GNU_SOURCE

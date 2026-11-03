@@ -387,6 +387,16 @@ the web Display page, Receiver card). Off by default.
   through to the radio, as the WR12 starts up. The screen says "WR12 found on
   HOST", and "WR12 unplugged", "WR12 not answering" or "WR12: ERROR to
   AT+..." when that happens. Off, the radio lets it go, in its bypass.
+- While the WR12 is out of its bypass, or may be, nothing transmits, on any
+  frequency: PTT, the apps, CW (the CW Trainer's key too), TUNE, the tuner
+  and the SWR scan are refused ("No TX on 7.074 MHz", then "WR12 receiving:
+  no TX" or "WR12 not in
+  bypass: no TX"), and what the base keys by itself (the hand mic's PTT, VOX,
+  the KEY jack) is held at 0 W with VOX off and KEY Train on, as outside the
+  amateur bands. That holds until the WR12 answers that it is back in its
+  bypass, or is unplugged; a WR12 that stops answering keeps it held. A GUI
+  started while a WR12 is out of its bypass (after an update, or a crash)
+  holds the same way until it has set the WR12 up again.
 - Not tested yet: whether the base tunes through the WR12 by itself when it is
   given a frequency above 137 MHz, as this switch assumes. Reports are
   welcome, with the log of the run (`/mnt/app_logs/`): at every start the

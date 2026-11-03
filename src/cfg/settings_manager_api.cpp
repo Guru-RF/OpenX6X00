@@ -5,6 +5,7 @@
 #include "settings_manager.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <iterator>
 
@@ -32,7 +33,24 @@ bool cfg_is_tx_freq(int32_t freq) {
     return cfg_sm.is_tx_freq(freq);
 }
 
+static std::atomic<const char *(*)(void)> tx_block{nullptr};
+
+void cfg_tx_block_set(const char *(*block)(void)) {
+    tx_block.store(block);
+}
+
+const char *cfg_tx_block(void) {
+    const char *(*block)(void) = tx_block.load();
+
+    return block ? block() : nullptr;
+}
+
 const char *cfg_tx_refusal(int32_t freq) {
+    const char *block = cfg_tx_block();
+
+    if (block) {
+        return block;
+    }
     switch (ham_tx_check(freq, cfg_sm.is_tx_freq(freq), cfg_sm.transverter_shift_for(freq) != 0,
                          cfg_sm.p_tx_outside_bands.get())) {
         case HAM_TX_RX_ONLY:

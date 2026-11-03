@@ -32,7 +32,7 @@ void wr12_want(bool on, bool rx, int32_t hz);
 bool wr12_ready(void);
 
 /* Why nothing may transmit now, NULL when the WR12 has nothing against it: asked out of its bypass, or not seen back in
- * it (no OK to AT+BYPASS=1 since AT+BYPASS=0, and still plugged in). Any thread */
+ * it (no OK to AT+BYPASS=1 since AT+BYPASS=0, and still plugged in). cfg_tx_refusal says it first. Any thread */
 const char *wr12_tx_block(void);
 
 /* The next line for the screen (found, lost, an ERROR answer), into buf; false: none */

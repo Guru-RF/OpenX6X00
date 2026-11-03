@@ -351,8 +351,11 @@ void radio_start() {
     cfg_hw_caps_set(hw_caps());     /* the LO offset from them, before the first frame */
     start_trace("base: version %s", hw_base_ver_str());
 #ifdef BOARD_X6200
-    /* The WR12 on the HOST port (wr12.c, #134): its thread, and WR12 on HOST, before the VFOs go to the base */
+    /* The WR12 on the HOST port (wr12.c, #134): its thread, and WR12 on HOST, before the VFOs go to the base. While
+     * it is out of its bypass, or may be, nothing transmits anywhere (cfg_tx_refusal), from the first look at the
+     * hold below on: one a GUI before this one left out of it too */
     wr12_init(wr12_notify, wr12_keyed);
+    cfg_tx_block_set(wr12_tx_block);
     subject_subscribe_and_notify((Subject*)cfg_wr12, on_wr12_change, NULL);
 #endif
     /* What the digital TX level comes from, for a report of an app at 0 W (#16); the base version was nowhere */
@@ -962,14 +965,15 @@ static bool practice(void) {
  * transmits: radio_tx_freq, the other VFO in split, wherever a TX shift put it. PTT, the modem (the apps), CW, the
  * tuner and the SWR scan come through here; what the base keys by itself (its hand-mic PTT, VOX, the KEY jack) is
  * not, it is held at 0 W there instead (band_hold). The CW Trainer's key goes through outside the bands, where the
- * hardware transmits, its PTT is refused without a word: the key that follows it sounds */
+ * hardware transmits, its PTT is refused without a word: the key that follows it sounds. Not while the X6200's WR12
+ * is out of its bypass, or may be (cfg_tx_block, #134): then nothing goes, anywhere */
 static bool tx_refused_at(int32_t freq, tx_by_t by) {
     static uint64_t said;
 
     if (!cfg_tx_refusal(freq)) {
         return false;
     }
-    if (by != TX_BY_GUI && practice() && cfg_is_tx_freq(freq)) {
+    if (by != TX_BY_GUI && practice() && cfg_is_tx_freq(freq) && !cfg_tx_block()) {
         return by == TX_BY_PTT;
     }
     if (get_time() - said > 5000) {     /* once, not for every CW element nor each slot of a beacon */
@@ -980,7 +984,8 @@ static bool tx_refused_at(int32_t freq, tx_by_t by) {
 }
 
 bool radio_say_no_tx(const char *what, int32_t freq, bool now) {
-    char mhz[24];
+    char        mhz[24];
+    const char *block = cfg_tx_block();
 
     if (!cfg_tx_refusal(freq)) {
         return false;
@@ -991,8 +996,12 @@ bool radio_say_no_tx(const char *what, int32_t freq, bool now) {
     } else {
         msg_schedule_text_fmt("%s on %s", what, mhz);
     }
-    /* Where the hardware transmits it is the bands (cfg_tx_refusal): where the switch is */
-    msg_schedule_text_fmt("%s", cfg_is_tx_freq(freq) ? "Out of band: Settings > TX Cal" : "Receive only there");
+    /* Where the hardware transmits it is the bands (cfg_tx_refusal): where the switch is. The WR12 holds it anywhere */
+    if (block) {
+        msg_schedule_text_fmt("%s: no TX", block);
+    } else {
+        msg_schedule_text_fmt("%s", cfg_is_tx_freq(freq) ? "Out of band: Settings > TX Cal" : "Receive only there");
+    }
     return true;
 }
 
@@ -1455,7 +1464,8 @@ unsigned radio_band_stops(void) {
 #ifdef BOARD_X6200
 /* ---- The WR12 on the HOST port (wr12.c, #134) ---- */
 
-/* On the GUI thread: what the WR12's thread has to say (found, lost, an ERROR answer) */
+/* On the GUI thread: what the WR12's thread has to say (found, lost, an ERROR answer), and the hold looked at again:
+ * TX goes free once the WR12 is seen back in its bypass, or unplugged (cfg_tx_block) */
 static void wr12_changed_cb(void *arg) {
     char note[64];
 
@@ -1463,6 +1473,7 @@ static void wr12_changed_cb(void *arg) {
     while (wr12_note(note, sizeof(note))) {
         msg_schedule_text_fmt("%s", note);
     }
+    band_look(true);
 }
 
 /* From the WR12's thread: its news to the GUI thread. False: the queue is full, it asks again */

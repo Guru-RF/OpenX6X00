@@ -41,8 +41,14 @@ bool cfg_is_rx_only_freq(int32_t freq);
 bool cfg_is_tx_freq(int32_t freq);
 /* Why the radio may not transmit on freq (#121), NULL: it may. "receive only": the hardware does not transmit there,
  * whatever the setting; "outside the amateur bands (Settings > TX Cal)": HF outside them (ham_bands.h) with
- * Settings > TX Cal > TX outside ham bands off. A transverter's range transmits. Any thread */
+ * Settings > TX Cal > TX outside ham bands off. A transverter's range transmits. Before those, what keeps the radio
+ * from transmitting anywhere for now (cfg_tx_block). Any thread */
 const char *cfg_tx_refusal(int32_t freq);
+/* What keeps the radio from transmitting on any frequency for now, its words or NULL: the X6200's WR12 out of its
+ * bypass or asked out of it (wr12_tx_block, #134). Set once at the start (radio.c); the function is called on any
+ * thread. The get: its words now, NULL nothing */
+void        cfg_tx_block_set(const char *(*block)(void));
+const char *cfg_tx_block(void);
 /* freq as a refusal names it, "27.185 MHz", with the Hz when there are any, "7.3005 MHz": 500 Hz past 40 m read
  * "7.300", its edge. Into buf */
 const char *cfg_tx_mhz(int32_t freq, char *buf, size_t size);
