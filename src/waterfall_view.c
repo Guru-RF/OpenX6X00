@@ -147,6 +147,14 @@ static wf_row_t *row_at(int32_t age) {
     return &rows[(__atomic_load_n(&newest, __ATOMIC_ACQUIRE) - age + ring) % ring];
 }
 
+/* As row_at(), from the newest row of one moment: a picture drawn from many rows stays one picture
+ * when the DSP thread writes a row meanwhile */
+static wf_row_t *row_from(uint16_t top, int32_t age) {
+    int32_t ring = height + 1;
+
+    return &rows[(top - age + ring) % ring];
+}
+
 /* ---- Rows from the DSP thread ---- */
 
 /* A part out of the row's band (tuned away from it) shows the row's own noise, its
@@ -529,6 +537,8 @@ static void direct_redraw(int new_row) {
 #define D3_GRID     0x2c3848
 #define D3_WALL     0x222c3a
 #define D3_PEAK_DECAY 90.0f /* levels a second the held peaks come down */
+#define D3_MIN_MS   33      /* at most a picture so often (30 a second) while tuning; the last one later */
+#define D3_CACHE    72      /* rows whose levels are kept (every D3_STEP-th: up to 64 traces and a few) */
 
 enum { D3_STRENGTH, D3_WATERFALL, D3_BLUE };    /* Settings, 3D colours */
 
@@ -542,6 +552,26 @@ static uint32_t     d3_peak_tick;
 static lv_obj_t    *d3_labels[D3_LABELS];   /* the reference frequencies at the front edge */
 static int32_t      d3_label_hz[D3_LABELS];
 static lv_coord_t   d3_label_y = -1;
+static uint32_t     d3_last_ms;             /* when the last picture was drawn */
+static lv_timer_t  *d3_later;               /* a picture asked for too soon: drawn then */
+
+/* The levels of the traces, kept while the view stays: only a new row's are worked out (row_pixels() and the
+ * smoothing were a sixth of a picture's work, at every row for every trace) */
+static struct {
+    uint32_t num;           /* the row's number; 0: none */
+    int32_t  center;        /* the view they are of */
+    uint32_t span;
+    uint8_t  lv[WIDTH];
+} d3_cache[D3_CACHE];
+
+/* The background (the panel, the grid, the walls): the same picture until the scene changes, drawn again then
+ * (its antialiased lines, at every picture, were most of the work) */
+static uint32_t    *d3_bg;
+static struct {
+    int32_t  h, hv, cx, tilt, n_refs, ref_x[MAX_D3_REFS];
+    uint32_t panel;
+    bool     portrait, mono;
+} d3_bg_of;
 
 static bool d3_on(void) {
     return param_i_get(cfg_wf_3d);
@@ -613,7 +643,7 @@ static inline void d3_px(const d3_target_t *o, int32_t x, int32_t y, uint32_t c,
     uint32_t *p = d3_at(o, x, y);
 
     if (o->mono) {
-        if (a >= 0.5f) *p = c;
+        if (a >= 0.5f) *p = c | 0xff000000u;
     } else {
         *p = a >= 1.0f ? c | 0xff000000u : d3_blend(*p, c, (uint32_t)(a * 255.0f + 0.5f));
     }
@@ -723,6 +753,7 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
     float    a = sc->amp * s / 255.0f;      /* px a level */
     float    per_px = 1.0f / a;             /* levels a px */
     float    cx = sc->cx;
+    float    inv_s = 1.0f / s;
     int32_t  x0 = LV_MAX(0, (int32_t) ceilf(cx - cx * s));
     int32_t  x1 = LV_MIN(WIDTH - 1, (int32_t) floorf(cx + (WIDTH - 1 - cx) * s));
     uint32_t fog = 256 - (uint32_t)(t * 150.0f);    /* the back ones darker */
@@ -733,7 +764,7 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
 
     for (int32_t x = x0; x <= x1; x++) {
         /* The view's pixels under this one: the highest of them, so a narrow carrier stays at the back */
-        float   u0 = cx + (x - cx) / s, u1 = cx + (x + 1 - cx) / s;
+        float   u0 = cx + (x - cx) * inv_s, u1 = u0 + inv_s;
         int32_t i0 = LV_CLAMP(0, (int32_t) u0, WIDTH - 1);
         int32_t i1 = LV_CLAMP(i0, (int32_t) u1, WIDTH - 1);
         int32_t v;
@@ -777,7 +808,7 @@ static void d3_trace(const d3_target_t *o, const d3_scene_t *sc, const uint8_t *
         }
         uint32_t *p = d3_at(o, x, top);
 
-        for (int32_t y = r0; y <= top; y++) {
+        for (int32_t y = r0; y < top; y++) {     /* up to the column before (its top pixel antialiased) */
             *d3_at(o, x, y) = ridge;
         }
         for (int32_t y = top + 1; y < bottom; y++) {
@@ -810,6 +841,63 @@ static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
     }
 }
 
+/* A trace's levels: kept for the rows of the stack (every D3_STEP-th), worked out for the newest */
+static const uint8_t *d3_levels_of(const wf_row_t *row, uint32_t span, uint8_t *scratch) {
+    if (row->num % D3_STEP) {
+        d3_levels(row, span, scratch);
+        return scratch;
+    }
+    typeof(d3_cache[0]) *c = &d3_cache[row->num / D3_STEP % D3_CACHE];
+
+    if (c->num != row->num || c->center != wf_center_freq || c->span != span) {
+        d3_levels(row, span, c->lv);
+        c->num = row->num;
+        c->center = wf_center_freq;
+        c->span = span;
+    }
+    return c->lv;
+}
+
+/* The background into buf: again from the scene when it changed */
+static void d3_background(const d3_target_t *o, const d3_scene_t *sc, uint32_t bg, int32_t tilt,
+                          const int32_t *ref_x, int n_refs) {
+    size_t n = (size_t) WIDTH * o->h;
+    bool   same = d3_bg && d3_bg_of.h == o->h && d3_bg_of.hv == (int32_t) sc->hv && d3_bg_of.cx == (int32_t) sc->cx && d3_bg_of.tilt == tilt &&
+                  d3_bg_of.panel == bg && d3_bg_of.portrait == o->portrait && d3_bg_of.mono == o->mono &&
+                  d3_bg_of.n_refs == n_refs && !memcmp(d3_bg_of.ref_x, ref_x, n_refs * sizeof(int32_t));
+
+    if (!d3_bg) {
+        d3_bg = malloc(sizeof(uint32_t) * WIDTH * MAX_HEIGHT);
+    }
+    if (!same && d3_bg) {
+        d3_target_t b = *o;
+
+        b.buf = d3_bg;
+        for (size_t i = 0; i < n; i++) {
+            d3_bg[i] = bg;
+        }
+        d3_grid(&b, sc, ref_x, n_refs);
+        d3_bg_of.h = o->h;
+        d3_bg_of.hv = sc->hv;
+        d3_bg_of.cx = sc->cx;
+        d3_bg_of.tilt = tilt;
+        d3_bg_of.panel = bg;
+        d3_bg_of.portrait = o->portrait;
+        d3_bg_of.mono = o->mono;
+        d3_bg_of.n_refs = n_refs;
+        memcpy(d3_bg_of.ref_x, ref_x, n_refs * sizeof(int32_t));
+    }
+    if (d3_bg) {
+        memcpy(o->buf, d3_bg, n * sizeof(uint32_t));
+    } else {                                /* no memory for it: drawn here */
+        for (size_t i = 0; i < n; i++) {
+            o->buf[i] = bg;
+        }
+        d3_grid(o, sc, ref_x, n_refs);
+    }
+}
+
+__attribute__((noinline))   /* one picture: measurable on its own */
 static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_refs) {
     d3_target_t     o = {buf, portrait, height, theme_shape.mono};
     int32_t         h = height;
@@ -829,29 +917,27 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
     sc.rise = sc.hv - sc.amp - 4;
     sc.shrink = 0.9f - 0.05f * tilt;
     sc.cx = d3_vanish;
-    sc.span = LV_MIN(param_i_get(cfg_wf_3d_depth) * D3_STEP, h - 1);
+    sc.span = LV_MAX(1, LV_MIN(param_i_get(cfg_wf_3d_depth) * D3_STEP, h - 1));
 
-    for (int32_t i = 0; i < WIDTH * h; i++) {
-        buf[i] = bg;
-    }
+    d3_background(&o, &sc, bg, tilt, ref_x, n_refs);
     for (int32_t x = 0; x < WIDTH; x++) {
         horizon[x] = h;
         front[x] = NAN;
     }
-    d3_grid(&o, &sc, ref_x, n_refs);
 
-    /* The newest in front, then each D3_STEP-th row by its number, at its age's depth */
-    const wf_row_t *newest_row = row_at(0);
+    /* The newest in front, then each D3_STEP-th row by its number, at its age's depth; all from the newest of
+     * this moment */
+    uint16_t        top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
+    const wf_row_t *newest_row = row_from(top, 0);
 
     for (int32_t age = 0; age <= sc.span; age++) {
-        const wf_row_t *row = row_at(age);
+        const wf_row_t *row = row_from(top, age);
 
         if (!row->width || (age > 0 && row->num % D3_STEP)) {
             continue;
         }
-        d3_levels(row, span, lv);
-        d3_trace(&o, &sc, lv, LV_MIN(row->floor + cut_add, 254), (float) age / sc.span, pal, horizon,
-                 age == 0 ? front : NULL);
+        d3_trace(&o, &sc, d3_levels_of(row, span, lv), LV_MIN(row->floor + cut_add, 254), (float) age / sc.span,
+                 pal, horizon, age == 0 ? front : NULL);
     }
     if (!newest_row->width) {
         return;
@@ -934,13 +1020,33 @@ static void d3_labels_update(bool on, const int32_t *ref_x, const int32_t *ref_h
     d3_label_y = y;
 }
 
+static void d3_redraw(void);
+
+static void d3_later_cb(lv_timer_t *t) {
+    d3_later = NULL;                /* a single run: LVGL deletes it */
+    if (d3_on()) {
+        d3_redraw();
+    }
+}
+
 static void d3_redraw(void) {
-    int32_t ref_x[MAX_D3_REFS], ref_hz[MAX_D3_REFS];
-    int     n = freq_scale_refs(ref_x, ref_hz, MAX_D3_REFS);
+    int32_t  ref_x[MAX_D3_REFS], ref_hz[MAX_D3_REFS];
+    int      n = freq_scale_refs(ref_x, ref_hz, MAX_D3_REFS);
+    uint32_t since = lv_tick_elaps(d3_last_ms);
 
     if (!shown(obj)) {
         return;
     }
+    /* Tuning asks at each step of the scroll, 50 a second: the whole picture each time was a third of a core. At
+     * most one in D3_MIN_MS, and one at its end so the last step is drawn */
+    if (since < D3_MIN_MS) {
+        if (!d3_later) {
+            d3_later = lv_timer_create(d3_later_cb, D3_MIN_MS - since, NULL);
+            lv_timer_set_repeat_count(d3_later, 1);
+        }
+        return;
+    }
+    d3_last_ms = lv_tick_get();
     __atomic_store_n(&new_rows, 0, __ATOMIC_RELEASE);
     if (direct) {
         lv_area_t a;
@@ -1186,7 +1292,9 @@ static void update_middle_line(void) {
     lv_coord_t vfo_x = (if_shift + waterfall_view_shift()) * line_zoom * WIDTH / SPAN_HZ;
 
     lv_obj_set_pos(vfo_line, vfo_x + width / 2, 0);
-    d3_vanish = LV_CLAMP(0, WIDTH / 2 + vfo_x, WIDTH - 1);
+    /* 3D: towards the VFO line, straight through the stack; in Fixed mode the line moves across a still view, and
+     * the stack with it at every step: there the view's centre */
+    d3_vanish = param_i_get(cfg_wf_mode) ? WIDTH / 2 : LV_CLAMP(0, WIDTH / 2 + vfo_x, WIDTH - 1);
     lv_style_set_line_width(&vfo_line_style, width);
 
     /* The passband, same scale as the line */
