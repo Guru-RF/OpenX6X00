@@ -509,6 +509,22 @@ class Memories(unittest.TestCase):
         self.ok("POST", "/api/channels", ch("C", 7_200_000))
         self.assertGreater(os.stat(settings.CHANNELS_FILE).st_mtime_ns, st.st_mtime_ns - 1_000_000_000)
 
+    def test_on_the_card(self):
+        """The new file and then its folder, the rename, are on the card before the answer, as the GUI's own
+        save does (until now the folder not: a power cut could leave the old list)"""
+        synced, real = [], os.fsync
+
+        def fsync(fd):
+            synced.append(os.readlink(f"/proc/self/fd/{fd}"))
+            return real(fd)
+        os.fsync = fsync
+        self.addCleanup(setattr, os, "fsync", real)
+        self.write([ch("A", 7_000_000)])
+        self.ok("POST", "/api/channels", ch("B", 7_100_000))
+        self.assertEqual(len(synced), 2, synced)
+        self.assertTrue(os.path.basename(synced[0]).startswith("channels.json."), synced)
+        self.assertEqual(synced[1], os.path.realpath(self.root))
+
     @staticmethod
     def gui_file(entries):
         return json.dumps({"version": 1, "channels": entries}, indent="\t").encode()

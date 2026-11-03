@@ -295,6 +295,16 @@ def replace_file(path, write, mode=0o644, ready=None, **kw):
         except OSError:
             pass
         raise
+    # The rename on the card too, as the GUI does for channels.json (channel_list.c): FAT writes the folder out
+    # later, and a power cut in between could leave the old file after the page said Saved
+    try:
+        dfd = os.open(os.path.dirname(path) or ".", os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
+    except OSError:
+        pass
 
 
 def write_cluster_conf(host, port, servers, opts=None):
