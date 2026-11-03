@@ -629,6 +629,31 @@ class Memories(unittest.TestCase):
         self.ok("POST", "/api/channels", ch("NEW", 7_074_000))            # a tiny one is 0, a long integer as it is
         self.assertIn(b'"big": %d' % 10 ** 30, self.read())
 
+    def test_backup(self):
+        """The Backup page counts the channels the radio takes from a backup's channels.json and restores one the
+        radio reads, by the same rules (until now every entry counted, and a BOM, a control character in a name or
+        text after the value made the file "not valid")"""
+        path = os.path.join(self.root, "backup-channels.json")
+        a = json.dumps(ch("A", 7_000_000)).encode()
+        for raw, count in ((json.dumps({"version": 1, "channels": gui_presets()}).encode(), len(gui_presets())),
+                           (b'\xef\xbb\xbf{"version": 1, "channels": [%s, {"name": "\x01\xe9", "frequency": 7100000, '
+                            b'"mode": "AM", "agc": "OFF", "pre": true, "att": false}]}\nleft over' % a, 2),
+                           (json.dumps({"version": 1, "channels": LEFT_OUT + OUT_OF_RANGE}).encode(), len(OUT_OF_RANGE)),
+                           (json.dumps({"channels": [ch(f"C{i}", 7_000_000 + i) for i in range(110)]}).encode(), 100),
+                           (b'{"version": 1e400, "channels": [%s, {"name": "BIG", "frequency": 1e400, "mode": "USB", '
+                            b'"agc": "AUTO", "pre": false, "att": false}]}' % a, 1)):
+            with open(path, "wb") as f:
+                f.write(raw)
+            self.assertEqual(apps.describe_backup({"channels.json": path})["memories"],
+                             "0 slots, " + apps.plural(count, "channel"))
+            apps.check_member("channels.json", path)
+        for raw in (b'{"version": 1, "channels": [', b'[1]', b'{"channels": {}}', b'{"channels": [{"name": "A\0"}]}'):
+            with open(path, "wb") as f:
+                f.write(raw)
+            self.assertEqual(apps.describe_backup({"channels.json": path})["memories"], "0 slots, 0 channels")
+            with self.assertRaises(apps.BackupError):
+                apps.check_member("channels.json", path)
+
     # What a request takes: where the radio tunes, on each model
 
     def test_channel_ranges(self):

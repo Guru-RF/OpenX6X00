@@ -2843,13 +2843,13 @@ def nesting(doc):
     return deepest
 
 
-def cjson_loads(data):
+def cjson_loads(data, finite=True):
     """JSON bytes read as the GUI's cJSON_Parse reads them (src/cJSON.c): up to the first NUL byte (a C string), a
     UTF-8 BOM and bytes 1-32 before the value and anything after it ignored, control characters in a string taken
     and its bytes as they are (UTF-8 or not, kept by surrogateescape), the first value of a key given twice; no NaN
     or Infinity, no \\u escape of half a UTF-16 pair, at most 1000 lists and objects deep. ValueError for what it
-    can't read, and for a number too big for a double (1e400): cJSON takes it as infinite, which can't be written
-    back as JSON"""
+    can't read, and with finite for a number too big for a double (1e400): cJSON takes it as infinite, which can't
+    be written back as JSON"""
     def first(pairs):
         obj = {}
         for k, v in pairs:
@@ -2861,7 +2861,7 @@ def cjson_loads(data):
 
     def number(text):
         x = float(text)
-        if abs(x) == float("inf"):
+        if finite and abs(x) == float("inf"):
             raise ValueError(f"{text} is too big a number")
         return x
     head, nul, _ = data.partition(b"\0")
@@ -2910,15 +2910,15 @@ def channels_read():
         return None
 
 
-def channels_load(data):
+def channels_load(data, finite=True):
     """channels.json as the GUI reads it (channels_load in src/channel_list.c), from its bytes: the file's object,
     and each entry of its "channels" list the GUI keeps, the first 100, as (its place in the list, the channel). An
     entry the GUI leaves out is left out alone. None, no file: no channels. ValueError for a file the GUI can't
-    read either: the radio keeps the list it has then, and the page must not write over the file (and for one
-    with a number too big, which the page can't write back)"""
+    read either: the radio keeps the list it has then, and the page must not write over the file (and, with
+    finite, for one with a number too big, which the page can't write back)"""
     if data is None:
         return {"version": 1, "channels": []}, []
-    doc = cjson_loads(data)
+    doc = cjson_loads(data, finite)
     if not isinstance(doc, dict) or not isinstance(doc.get("channels"), list):
         raise ValueError("no list of channels in it")
     kept = []
@@ -3644,9 +3644,9 @@ def describe_backup(files, date=None):
         if "channels.json" in files or "memory_slots.json" in files:
             slots = len({r[0] for r in memory_rows(files["memory_slots.json"]) if r[1] == "vfoa_freq" and r[0] in MEM_SLOTS}) \
                 if "memory_slots.json" in files else 0
-            try:
-                with open(files["channels.json"]) as f:
-                    chans = len(json.load(f)["channels"])
+            try:   # the channels the radio takes from it, as the Memories page lists them
+                with open(files["channels.json"], "rb") as f:
+                    chans = len(channels_load(f.read(), finite=False)[1])
             except (KeyError, OSError, ValueError, TypeError):
                 chans = 0
             out["memories"] = f"{plural(slots, 'slot')}, {plural(chans, 'channel')}"
@@ -3704,10 +3704,9 @@ def check_member(name, path):
                     isinstance(r, list) and len(r) == 3 and isinstance(r[0], int) and isinstance(r[1], str) and len(r[1]) <= 32
                     and isinstance(r[2], (int, float)) and not isinstance(r[2], bool) for r in rows):
                 raise ValueError
-        elif name == "channels.json":
-            with open(path) as f:
-                if not isinstance(json.load(f)["channels"], list):
-                    raise ValueError
+        elif name == "channels.json":   # one the radio reads, as the Memories page reads it
+            with open(path, "rb") as f:
+                channels_load(f.read(), finite=False)
         elif name == "cw_trainer.json":
             with open(path) as f:
                 json.load(f)
