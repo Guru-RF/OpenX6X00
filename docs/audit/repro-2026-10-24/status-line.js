@@ -183,6 +183,20 @@ const FIRST = 'The radio is operated at the radio: Take control first';
   check('the tune stopped here: "TUNE on the air" gone', g.st() === '', g.st());
 }
 {
+  /* TUNE pressed while the radio transmits from elsewhere: the radio refuses it */
+  const g = panel();
+  inControl(g);
+  g.text('tx 1');
+  g.p.eval('xtune.press()');
+  g.text('err tune: on the air');
+  check('Panel: TUNE refused while the radio is on the air', g.st() === 'on the air' && g.error(), g.st());
+  g.second();
+  check('kept while the radio transmits', g.st() === 'on the air', g.st());
+  g.text('tx 0');
+  g.second();
+  check('the radio back on receive: "on the air" gone', g.st() === '', g.st());
+}
+{
   const g = panel();
   inControl(g);
   g.text('state ' + JSON.stringify({freq: 7030000, lock: 1}));
