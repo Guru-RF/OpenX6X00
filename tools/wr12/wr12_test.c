@@ -472,6 +472,7 @@ int main(int argc, char **argv) {
     WAIT_FOR(!wr12_tx_block(), 3000);
     check(!wr12_tx_block(), "the mark: TX free once AT+BYPASS=1 is answered OK");
     expect("the mark: the set-up, WR12 on HOST off", 0, SETUP, N_SETUP, false);
+    WAIT_FOR(!marked(), 100);   /* removed just after TX goes free (set_out): a mark left by a crash holds, no harm */
     check(!marked(), "the mark: gone with it");
     WAIT_FOR(!wr12_ready(), 1000);
     check(!wr12_ready(), "the mark: the port let go, WR12 on HOST off");
@@ -539,6 +540,7 @@ int main(int argc, char **argv) {
               "7 MHz: TX free 50 ms after its OK, not at once (%lld ms after AT+BYPASS=1, its OK at 100)",
               (long long)(free_at - sent));
     }
+    WAIT_FOR(!marked(), 100);
     check(!marked(), "7 MHz: the mark gone");
     fw_text(fw.slow, "");
     expect("7 MHz", m, (const char *const[]){"AT+BYPASS=1"}, 1, true);
