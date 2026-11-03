@@ -421,7 +421,10 @@ Display page, Receiver card). Off by default.
   Per band S-meter cal (Settings > General > CONTROLS) sets it for each band.
 - Not tried with a WR12 yet: nothing has been received through a WR12 with
   OpenX6X00 so far, so the IF, the I/Q swap and the gains are still to be
-  checked on a radio. Reports are welcome, with the log of the run
+  checked on a radio. What was tried, on a PC against a stand-in WR12: the
+  set-up, the commands for each move, the answers (ERROR, none, late),
+  unplugging it in the middle of a command, and when TX is held and when it
+  goes free again. Reports are welcome, with the log of the run
   (`/mnt/app_logs/`): at every start the radio writes there what is on the
   HOST port ("USB on HOST: ..."), and each answer of the WR12 when it
   changes ("wr12: AT+BYPASS=0: OK").
