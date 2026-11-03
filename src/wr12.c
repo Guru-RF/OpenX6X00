@@ -75,10 +75,13 @@
 #define STEP_MS     100     /* between the commands of the set-up */
 #define DEFER_MS    50      /* the radio in TX: AT+BYPASS=0 tried again */
 #define TERM_MS     20      /* SIGTERM: AT+BYPASS=1 this long on its way over USB before the GUI ends */
+#define DRAIN_MAX   4096    /* what waits before a command, dropped: more than this, or for longer than DRAIN_MS, */
+#define DRAIN_MS    50      /* and it is taken for a port that never stops sending */
 #define FAILS       3       /* commands unanswered in a row: not answering */
 #define NOTES       4
 
 typedef enum { ANS_OK, ANS_ERROR, ANS_NONE, ANS_GONE } answer_t;
+typedef enum { DRAINED, DRAIN_GONE, DRAIN_ENDLESS } drain_t;
 
 static const char *const answer_words[] = {"OK", "ERROR", "no answer", "the port went"};
 
@@ -123,6 +126,7 @@ static unsigned        backoff_ms;      /* let go after a set-up: set up again a
 static uint64_t        up_ms;           /* set up at */
 static uint64_t        retry_at;        /* not looked for, nor set up, before this */
 static bool            none_said;       /* "none on USB" in the log, until one is found or the switch goes off */
+static bool            endless_said;    /* "keeps sending" in the log, once a plug-in */
 static int             open_err;        /* the errno of the last open that failed, logged once */
 static uint64_t        gone_ms;         /* gone from USB out of its bypass since, 0: not */
 
@@ -301,14 +305,27 @@ static void port_close(void) {
     fd = -1;
 }
 
-/* What waits on the port, dropped: an answer too late for its command is not the next one's. False: it went */
-static bool drain(void) {
-    char    buf[256];
-    ssize_t n;
+/* What waits on the port, dropped: an answer too late for its command is not the next one's. DRAIN_GONE: the port
+ * went. DRAIN_ENDLESS: more than DRAIN_MAX, or still coming after DRAIN_MS (a device with the WR12's USB id that
+ * never stops, a WR12 stuck in a DUMP): the command is then not sent and counts as unanswered, so that this thread
+ * is not held here for good and FAILS and lose() see to it */
+static drain_t drain(void) {
+    char     buf[256];
+    size_t   got = 0;
+    uint64_t end = now_ms() + DRAIN_MS;
+    ssize_t  n;
 
     while ((n = read(fd, buf, sizeof(buf))) > 0) {
+        got += (size_t)n;
+        if (got > DRAIN_MAX || now_ms() >= end) {
+            if (!endless_said) {
+                endless_said = true;
+                fprintf(stderr, "wr12: %s keeps sending: taken for not answering\n", port);
+            }
+            return DRAIN_ENDLESS;
+        }
     }
-    return n < 0 && (errno == EAGAIN || errno == EINTR);
+    return n < 0 && (errno == EAGAIN || errno == EINTR) ? DRAINED : DRAIN_GONE;
 }
 
 /* One command, and its answer: the first line with ERROR or OK in it (an echo before it is passed over), a line ending
@@ -319,14 +336,16 @@ static answer_t command(const char *cmd) {
     int      n = snprintf(out, sizeof(out), "%s\r\n", cmd);
     uint64_t end;
     answer_t a = ANS_NONE;
+    drain_t  d;
 
     stay_if_dying();
     sent_ms = now_ms();
     end = sent_ms + ANSWER_MS;
-    if (!drain() || write(fd, out, n) != n) {
+    d = drain();
+    if (d == DRAIN_GONE || (d == DRAINED && write(fd, out, n) != n)) {
         a = ANS_GONE;
     }
-    while (a == ANS_NONE) {
+    while (a == ANS_NONE && d == DRAINED) {
         int64_t       left = (int64_t)(end - now_ms());
         struct pollfd p = {fd, POLLIN, 0};
         char          buf[64];
@@ -416,11 +435,12 @@ static bool go_out(void) {
 /* What is said once a plug-in, afresh, and the set-ups at their first pace: unplugged, WR12 on HOST turned on or off,
  * or let go after it had worked STABLE_MS */
 static void forget(void) {
-    found_said = false;
-    quiet_said = false;
-    lost_said  = false;
-    quiet_sets = 0;
-    backoff_ms = 0;
+    found_said   = false;
+    quiet_said   = false;
+    lost_said    = false;
+    endless_said = false;
+    quiet_sets   = 0;
+    backoff_ms   = 0;
 }
 
 /* The port let go. Unplugged (its USB id gone): out goes once it has stayed away GONE_MS (run); back before that it

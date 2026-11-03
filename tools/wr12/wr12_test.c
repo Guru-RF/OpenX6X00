@@ -10,9 +10,9 @@
  *  and on its way back to the bypass, for good or back within GONE_MS as after a reset on USB), plugged in again as
  *  ttyACM1 beside a GPS on ttyACM0, an echo before the answers, the serial paddle's question, and the log: each
  *  answer once, not one line a command. A WR12 that takes the set-up but answers AT+AYT too late, again and again:
- *  said once, set up again later each time. Last, a GUI stopped with SIGTERM while the WR12 is out of its bypass (this
- *  program again, as `wr12_test term`, its log in wr12_term.log), and the start loop's AT+BYPASS=1 after a GUI that
- *  ended any way (rootfs/usr/sbin/x6100-wr12-bypass, run by sh on the stand-ins).
+ *  said once, set up again later each time. One that never stops sending. Last, a GUI stopped with SIGTERM while the
+ *  WR12 is out of its bypass (this program again, as `wr12_test term`, its log in wr12_term.log), and the start
+ *  loop's AT+BYPASS=1 after a GUI that ended any way (rootfs/usr/sbin/x6100-wr12-bypass, run by sh on the stand-ins).
  *
  *  The TX rules are wr12_tx_block's, which cfg_tx_refusal says first and so radio.c's refusals and its hold at 0 W
  *  follow: TX held from the moment the radio asks the WR12 out of its bypass until the WR12 is seen back in it (its OK
@@ -93,6 +93,7 @@ static struct {
     bool     silent;            /* answers nothing */
     bool     echo;              /* sends each command back before its answer */
     bool     cr;                /* ends its lines with \r alone */
+    bool     endless;           /* sends lines of its own, without end, as fast as the port takes them */
     char     error[40];         /* a command starting with this answered ERROR */
     char     unplug[40];        /* unplugged at the first command starting with this, unanswered */
     char     slow[40];          /* a command starting with this answered slow_ms late */
@@ -165,8 +166,23 @@ static void *fw_run(void *arg) {
         struct pollfd p = {m, POLLIN, 0};
         char          buf[64];
         ssize_t       k;
+        bool          endless;
 
-        if (poll(&p, 1, 20) <= 0 || !(p.revents & POLLIN)) {
+        pthread_mutex_lock(&fw_mux);
+        endless = fw.endless;
+        pthread_mutex_unlock(&fw_mux);
+        if (endless) {
+            static const char dump[] = "REG 05 = 1F\r\nREG 06 = 80\r\nREG 07 = 00\r\nREG 08 = C0\r\n";
+            char              lots[4096];
+
+            for (size_t i = 0; i + sizeof(dump) - 1 <= sizeof(lots); i += sizeof(dump) - 1) {
+                memcpy(lots + i, dump, sizeof(dump) - 1);
+            }
+            if (write(m, lots, sizeof(lots) - sizeof(lots) % (sizeof(dump) - 1)) < 0) {
+            }
+        }
+        if (poll(&p, 1, endless ? 0 : 20) <= 0 || !(p.revents & POLLIN)) {
+            if (endless) continue;
             sleep_ms(2);    /* the driver let go of its side: hung up until it opens it again */
             continue;
         }
@@ -229,6 +245,7 @@ static void plug(const char *name) {
         printf("FAIL no pty: %s\n", strerror(errno));
         exit(1);
     }
+    fcntl(m, F_SETFL, fcntl(m, F_GETFL) | O_NONBLOCK);     /* sending without end: never held up by it */
     snprintf(fw.name, sizeof(fw.name), "%s", name);
     fw.master = m;
     sys_add(name, "0483", "5740");
@@ -758,6 +775,24 @@ int main(int argc, char **argv) {
         wr12_want(false, false, 0);
         WAIT_FOR(!wr12_ready() && !wr12_tx_block(), 3000);
         check(!wr12_ready() && !wr12_tx_block(), "AYT late, then off: let go, TX free");
+    }
+
+    /* A device with the WR12's USB id that never stops sending (a WR12 stuck in a DUMP): the driver is not held
+     * draining it, takes it for one that does not answer and keeps to WR12 on HOST; once it is quiet again, set up */
+    {
+        int quiet = notes("WR12 not answering");
+
+        fw_set(NULL, &fw.endless, true);
+        wr12_want(true, false, 0);
+        WAIT_FOR(notes("WR12 not answering") > quiet, 3000);
+        check(notes("WR12 not answering") == quiet + 1 && !wr12_ready(), "sending without end: not answering, said");
+        check(log_lines("keeps sending") == 1, "sending without end: in the log once (%d)", log_lines("keeps sending"));
+        fw_set(NULL, &fw.endless, false);
+        WAIT_FOR(wr12_ready(), 3000);
+        check(wr12_ready(), "quiet again: set up");
+        wr12_want(false, false, 0);
+        WAIT_FOR(!wr12_ready() && !wr12_tx_block(), 3000);
+        check(!wr12_ready() && !wr12_tx_block(), "sending without end, then off: let go, TX free");
     }
 
     /* A GUI stopped with SIGTERM while the WR12 is out of its bypass (S95gui stop: a restart, an update or its
