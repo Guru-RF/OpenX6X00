@@ -2417,6 +2417,10 @@ void dialog_field_test_beacon(int band) {
         msg_update_text_fmt("Test beacon: the radio is transmitting");
         return;
     }
+    if (radio_no_data()) {      /* none from the base (#152): before the dial moves, as QRSS3 */
+        msg_update_text_fmt("Test beacon on %s: no data from the base", field_band_name(band));
+        return;
+    }
     if (field_band_of(here) != band) {
         if (main_screen_freq_locked() || main_screen_band_locked()) {
             msg_update_text_fmt("Test beacon on %s: the frequency is locked", field_band_name(band));
