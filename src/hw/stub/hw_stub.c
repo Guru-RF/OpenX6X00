@@ -2,7 +2,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
  *  OpenX6X00 - a radio made of nothing, behind hw.h: every setting is kept and read back, the
- *  packet stream is noise with one carrier 1 kHz up, the battery sits at 7.8 V. For the GUI on a
+ *  packet stream is noise with one carrier 1 kHz up (or a recording, HOST_STUB_IQ), the battery sits at 7.8 V. For the GUI on a
  *  desktop (cmake -DHW_BACKEND=stub) and as the template for a new radio's backend: everything
  *  hw.h asks for, in the order of hw.h, with nothing else to read around it.
  *
@@ -265,6 +265,41 @@ static bool silent(uint64_t now) {
     return in;
 }
 
+/* HOST_STUB_IQ=<file>: the stream from a recording instead of the noise and the carrier, to see real signals on a
+ * PC: 100 kS/s complex float32 (I and Q interleaved, the host's byte order), centred on the dial, drawn the other
+ * way up as the stream is (a signal f above the dial at -f), played round and round. Read whole at the first
+ * packet; NULL: none, or it could not be read (then the noise) */
+static float _Complex *iq_rec;
+static size_t          iq_len, iq_pos;
+
+static void iq_load(void) {
+    static bool tried;
+    const char *e = getenv("HOST_STUB_IQ");
+    FILE       *f;
+    long        n;
+
+    if (tried || !e) {
+        return;
+    }
+    tried = true;
+    if (!(f = fopen(e, "rb"))) {
+        fprintf(stderr, "HOST_STUB_IQ: %s: cannot open\n", e);
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    n = ftell(f) / (long) sizeof(float _Complex);
+    fseek(f, 0, SEEK_SET);
+    if (n > 0 && (iq_rec = malloc((size_t) n * sizeof(float _Complex)))) {
+        iq_len = fread(iq_rec, sizeof(float _Complex), (size_t) n, f);
+    }
+    fclose(f);
+    if (!iq_len) {
+        free(iq_rec);
+        iq_rec = NULL;
+        fprintf(stderr, "HOST_STUB_IQ: %s: nothing read\n", e);
+    }
+}
+
 bool hw_flow_read(hw_pack_t *p) {
     uint64_t now = now_ns();
     const uint64_t period = (uint64_t)SAMPLES * 1000000000ULL / SAMPLE_RATE;   /* 5.12 ms */
@@ -287,7 +322,12 @@ bool hw_flow_read(hw_pack_t *p) {
     float gain = front_end_gain(vfo[reg_i[HW_VFO_CUR] & 1].pre, vfo[reg_i[HW_VFO_CUR] & 1].att);
     float step = 2.0f * (float)M_PI * TONE_HZ / SAMPLE_RATE;
 
-    for (int i = 0; i < SAMPLES; i++) {
+    iq_load();
+    for (int i = 0; i < SAMPLES && iq_rec; i++) {
+        samples[i] = gain * (tx ? 0.0f : iq_rec[iq_pos]) + gain * NOISE_RMS * 0.1f * (gauss() + gauss() * I);
+        iq_pos = (iq_pos + 1) % iq_len;
+    }
+    for (int i = 0; i < SAMPLES && !iq_rec; i++) {
         float re = NOISE_RMS * gauss(), im = NOISE_RMS * gauss();
         if (!tx) {
             re += TONE_AMP * cosf(tone_phase);

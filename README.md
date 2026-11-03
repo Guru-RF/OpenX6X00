@@ -174,6 +174,7 @@ the same GUI. How they are taken: [docs/screenshots](docs/screenshots/README.md)
 | ![The APP menu](docs/screenshots/apps_grid.png) **APP**: the apps and tools, each with a line on what it does | ![DX Cluster app](docs/screenshots/cluster.png) **[DX Cluster](docs/MANUAL.md#dx-cluster)** on 20 m: 85 spots, the list following the VFO |
 | ![Bands app](docs/screenshots/bands.png) **[Bands](docs/MANUAL.md#bands)**: 160 to 6 m from the cluster and the RBN, the best band framed | ![Channels](docs/screenshots/channels.png) **[Channels](docs/MANUAL.md#channels)**: NavTex, VOLMET and the DWD weather stations |
 | ![3D waterfall](docs/screenshots/waterfall_3d.png) **[3D waterfall](docs/MANUAL.md#waterfall)**: the last seconds in perspective, coloured by strength, the newest trace in red (PC build, its one test carrier) | ![3D waterfall, 1bit](docs/screenshots/waterfall_3d_1bit.png) **3D in the 1bit theme**: a line drawing, the level scale on the walls |
+| ![3D waterfall on real 20 m traffic](docs/screenshots/waterfall_3d_real.gif) | **3D on real traffic**: 20 m around 14.080 MHz, the FT8 signals at 14.074 and a station at 14.090 moving back in time, in real time (3D range 20 dB, 50 kHz). The PC build playing a recording by EA4GPZ ([CC BY 4.0](https://doi.org/10.5281/zenodo.853388)) |
 
 ### Digital modes
 
