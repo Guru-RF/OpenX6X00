@@ -2830,7 +2830,8 @@ def set_js8_texts():
 def cjson_loads(data):
     """JSON bytes read as the GUI's cJSON_Parse reads them (src/cJSON.c): a UTF-8 BOM and anything after the value
     ignored, control characters in a string taken and its bytes as they are (UTF-8 or not, kept by surrogateescape),
-    the first value of a key given twice; no NaN or Infinity. ValueError for what it can't read"""
+    the first value of a key given twice; no NaN or Infinity. ValueError for what it can't read, and for a number
+    too big for a double (1e400): cJSON takes it as infinite, which can't be written back as JSON"""
     def first(pairs):
         obj = {}
         for k, v in pairs:
@@ -2839,9 +2840,15 @@ def cjson_loads(data):
 
     def constant(name):
         raise ValueError(f"{name} is not JSON")
+
+    def number(text):
+        x = float(text)
+        if abs(x) == float("inf"):
+            raise ValueError(f"{text} is too big a number")
+        return x
     text = data.decode("utf-8", "surrogateescape")
     text = text[1:] if text.startswith("\ufeff") else text
-    dec = json.JSONDecoder(object_pairs_hook=first, parse_constant=constant, strict=False)
+    dec = json.JSONDecoder(object_pairs_hook=first, parse_constant=constant, parse_float=number, strict=False)
     return dec.raw_decode(text.lstrip(" \t\n\r"))[0]
 
 
@@ -2874,7 +2881,8 @@ def channels_load(data):
     """channels.json as the GUI reads it (channels_load in src/channel_list.c), from its bytes: the file's object,
     and each entry of its "channels" list the GUI keeps, the first 100, as (its place in the list, the channel). An
     entry the GUI leaves out is left out alone. None, no file: no channels. ValueError for a file the GUI can't
-    read either: the radio keeps the list it has then, and the page must not write over the file"""
+    read either: the radio keeps the list it has then, and the page must not write over the file (and for one
+    with a number too big, which the page can't write back)"""
     if data is None:
         return {"version": 1, "channels": []}, []
     doc = cjson_loads(data)

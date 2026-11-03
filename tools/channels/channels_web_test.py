@@ -547,6 +547,27 @@ class Memories(unittest.TestCase):
                 self.assertGreaterEqual(code, 400, (raw, method, path))
                 self.assertEqual(self.read(), raw)
 
+    def test_too_big_a_number(self):
+        """A number too big for a double anywhere in the file (1e400: cJSON's infinity), which can't be written
+        back as JSON: the page says why and changes nothing (until now listed, and every change a 500 "Out of range
+        float values are not JSON compliant")"""
+        good = json.dumps(ch("A", 7_000_000)).encode()
+        for raw in (b'{"version": 1, "channels": [%s, {"name": "BIG", "frequency": 1e400, "mode": "USB", '
+                    b'"agc": "AUTO", "pre": false, "att": false}]}' % good,
+                    b'{"version": 1e999, "channels": [%s]}' % good,
+                    b'{"version": 1, "x": [-1E+400], "channels": [%s]}' % good):
+            self.write(raw=raw)
+            code, r = self.req("GET", "/api/channels")
+            self.assertEqual((code, r["channels"]), (200, []))
+            self.assertIn("too big a number", r.get("error", ""), raw)
+            code, r = self.req("POST", "/api/channels", ch("NEW", 7_074_000))
+            self.assertEqual(code, 500)
+            self.assertIn("too big a number", r["msg"])
+            self.assertEqual(self.read(), raw)
+        self.write(raw=b'{"version": 1, "x": 1e-400, "big": %d, "channels": [%s]}' % (10 ** 30, good))
+        self.ok("POST", "/api/channels", ch("NEW", 7_074_000))            # a tiny one is 0, a long integer as it is
+        self.assertIn(b'"big": %d' % 10 ** 30, self.read())
+
     # What a request takes: where the radio tunes, on each model
 
     def test_channel_ranges(self):

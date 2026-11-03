@@ -3266,10 +3266,11 @@ APP Channels, or the V/M key of the hand mic.
   there too, alone. A change made on the page (add, save, delete, up, down)
   leaves every other entry of the file as it was, one the page does not list
   too (the radio drops that one at its next change of the list). A file the
-  radio cannot read either is left alone: the page says so and changes
-  nothing. Up to v0.3.8 one channel above 56 MHz (an X6200's on FM broadcast
-  or the airband, the WR12's, a transverter's) left the page's list empty,
-  and an Add there then replaced all the channels with the new one.
+  radio cannot read either is left alone, and so is one with a number too
+  big to write back (1e400): the page says so and changes nothing. Up to
+  v0.3.8 one channel above 56 MHz (an X6200's on FM broadcast or the
+  airband, the WR12's, a transverter's) left the page's list empty, and an
+  Add there then replaced all the channels with the new one.
 - A Save, Delete, Up or Down on the page names the channel as the page shows
   it. When the list changed meanwhile (a channel deleted or moved on the
   radio or in another tab, a move of the page's own still on its way) it
