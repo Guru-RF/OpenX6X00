@@ -85,6 +85,7 @@ static struct {
     char     name[16];          /* "ttyACM0" */
     bool     silent;            /* answers nothing */
     bool     echo;              /* sends each command back before its answer */
+    bool     cr;                /* ends its lines with \r alone */
     char     error[40];         /* a command starting with this answered ERROR */
     char     unplug[40];        /* unplugged at the first command starting with this, unanswered */
     char     slow[40];          /* a command starting with this answered slow_ms late */
@@ -168,6 +169,7 @@ static void *fw_run(void *arg) {
         }
         for (ssize_t i = 0; i < k; i++) {
             const char *ans = "OK\r\n";
+            const char *eol = "\r\n";
             bool        unplug, silent, echo;
             unsigned    delay;
 
@@ -182,6 +184,10 @@ static void *fw_run(void *arg) {
             if (n_cmds < MAX_CMDS) snprintf(cmds[n_cmds++], sizeof(cmds[0]), "%.39s", line);
             unplug = starts(line, fw.unplug);
             if (starts(line, fw.error)) ans = "ERROR\r\n";
+            if (fw.cr) {
+                ans = starts(line, fw.error) ? "ERROR\r" : "OK\r";
+                eol = "\r";
+            }
             delay  = starts(line, fw.slow) ? fw.slow_ms : 0;
             silent = fw.silent;
             echo   = fw.echo;
@@ -192,7 +198,7 @@ static void *fw_run(void *arg) {
             }
             if (silent) continue;
             if (delay) sleep_ms(delay);
-            if (echo && (write(m, line, strlen(line)) < 0 || write(m, "\r\n", 2) < 0)) continue;
+            if (echo && (write(m, line, strlen(line)) < 0 || write(m, eol, strlen(eol)) < 0)) continue;
             if (write(m, ans, strlen(ans)) < 0) continue;
         }
     }
@@ -598,11 +604,12 @@ int main(void) {
     check(notes("WR12 unplugged") == unplugged + 2, "unplugged on the way back: said");
     fw_text(fw.unplug, "");
 
-    /* A WR12 that echoes the command before its answer */
+    /* A WR12 that echoes the command before its answer, its lines ending in \r alone */
     fw_set(NULL, &fw.echo, true);
+    fw_set(NULL, &fw.cr, true);
     plug("ttyACM1");
     WAIT_FOR(wr12_ready(), 3000);
-    check(wr12_ready(), "an echo before the answers: set up");
+    check(wr12_ready(), "an echo before the answers, \\r alone: set up");
     m = cmds_mark();
     wr12_want(true, true, 70200000);
     WAIT_FOR(cmds_since(m, "AT+BYPASS=0") == 1, 1000);

@@ -275,7 +275,8 @@ static bool drain(void) {
     return n < 0 && (errno == EAGAIN || errno == EINTR);
 }
 
-/* One command, and its answer: the first line with ERROR or OK in it (an echo before it is passed over) */
+/* One command, and its answer: the first line with ERROR or OK in it (an echo before it is passed over), a line ending
+ * in \r, \n or both */
 static answer_t command(const char *cmd) {
     char     out[64], line[128];
     size_t   len = 0;
@@ -315,8 +316,8 @@ static answer_t command(const char *cmd) {
             break;
         }
         for (ssize_t i = 0; i < k && a == ANS_NONE; i++) {
-            if (buf[i] != '\n') {
-                if (buf[i] != '\r' && len < sizeof(line) - 1) {
+            if (buf[i] != '\n' && buf[i] != '\r') {
+                if (len < sizeof(line) - 1) {
                     line[len++] = buf[i];
                 }
                 continue;
