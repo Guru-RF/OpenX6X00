@@ -33,6 +33,10 @@ bool cfg_is_tx_freq(int32_t freq) {
     return cfg_sm.is_tx_freq(freq);
 }
 
+bool cfg_wr12_freq(int32_t freq) {
+    return cfg_sm.wr12_freq(freq);
+}
+
 static std::atomic<const char *(*)(void)> tx_block{nullptr};
 
 void cfg_tx_block_set(const char *(*block)(void)) {

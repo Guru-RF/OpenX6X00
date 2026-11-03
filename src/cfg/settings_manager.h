@@ -160,7 +160,7 @@ class SettingsManager {
     Parameter<int32_t> p_indep_vfo{"indep_vfo", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // The WR12, Xiegu's receiver on the X6200's HOST port, is there (Settings > General): 54 MHz-1 GHz to receive.
-    // A setting until the radio can tell it is plugged in; read only on the X6200 (band_use)
+    // On, the radio looks for it, sets it up and receives through it (wr12.c, radio.c); read only on the X6200
     Parameter<int32_t> p_wr12{"wr12", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_vfoa_band{"vfoa_band", BAND_UNDEFINED, BAND_UNDEFINED, 1000000,
@@ -729,6 +729,13 @@ class SettingsManager {
         if (p_transverter_1_shift.get() && freq >= p_transverter_1_from.get() && freq <= p_transverter_1_to.get())
             return p_transverter_1_shift.get();
         return 0;
+    }
+
+    // The WR12 receives `freq`: on the X6200 with p_wr12 on, 54 MHz-1 GHz, where no transverter with a shift covers it
+    // (a transverter wins, as in band_use). From 54 MHz up, 54-55 MHz too, which the radio otherwise has itself
+    bool wr12_freq(int32_t freq) const {
+        return HAS_VHF_RX && p_wr12.get() && freq >= WR12_MIN_FREQ && freq <= WR12_MAX_FREQ
+            && transverter_shift_for(freq) == 0;
     }
 
     // The TX power limit of the transverter that covers `freq` (as transverter_shift_for finds it), W; 0 when none

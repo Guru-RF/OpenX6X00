@@ -3238,7 +3238,7 @@ static void make_general_page() {
 
 #ifdef BOARD_X6200
     /* Xiegu's WR12 on the HOST port: 54 MHz-1 GHz to receive; the band keys and the band plan follow it at once
-     * (screen_main.c). A switch until the radio can tell it is plugged in */
+     * (screen_main.c), and the radio drives the WR12 while it is on (wr12.c, radio.c, #134) */
     row = card_begin("WR12 RECEIVER");
     wl_row_label(row, "WR12 on HOST");
     param_switch(row, 1, 3, SMALL_3, cfg_sm.p_wr12);

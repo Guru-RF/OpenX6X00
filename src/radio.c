@@ -135,6 +135,8 @@ static void split_held_look(void);
 static void on_vox_change(Subject *subj, void *user_data);
 static void on_key_train_change(Subject *subj, void *user_data);
 static void on_volume_change(Subject *subj, void *user_data);
+static bool wr12_takes(int32_t freq);
+static void wr12_follow(bool rx, int32_t dial);
 
 #ifndef BOARD_X6200
 static void recover_processing_audio_inputs();
@@ -416,6 +418,9 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_band_vfob_pre, on_vfo_pre_change, (void*)RADIO_VFO_B);
 
     subject_subscribe_and_notify((Subject*)cfg_band_current_vfo, on_change_i, (void*)HW_VFO_CUR);
+#ifdef BOARD_X6200
+    subject_subscribe((Subject*)cfg_band_current_vfo, on_wr12_change, NULL);  /* once the base has it: the WR12 follows */
+#endif
     subject_subscribe_and_notify((Subject*)cfg_band_split, on_change_i, (void*)HW_SPLIT);
     subject_subscribe_and_notify((Subject*)cfg_rfgain, on_change_i, (void*)HW_RFG);
 
@@ -569,6 +574,9 @@ void radio_set_freq(int32_t freq) {
         band_hold_set(true);
     }
     hw_vfo_set_freq(vfo, freq - shift);
+    if (off) {
+        wr12_follow(false, freq);   /* the base's own receiver for the run: the X6200's WR12 in its bypass (#134) */
+    }
     radio_unlock();
     if (!off) band_look(true);
 }
@@ -581,6 +589,10 @@ void radio_set_freq_dial(void) {
     on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
     on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
     atomic_store(&off_dial, false);
+#ifdef BOARD_X6200
+    /* Where the WR12 receives, the base back on its IF and the WR12 out of its bypass, now that the run is over */
+    on_vfo_freq_change(NULL, (void *)(intptr_t)param_i_get(cfg_band_current_vfo));
+#endif
     band_look(true);
 }
 
@@ -639,14 +651,15 @@ static bool split_keys_dial(void) {
 
 bool radio_key_refused(int32_t *freq) {
     int32_t f = radio_tx_freq();
+    bool    wr12 = wr12_takes(vfo_freq(true));  /* the base on the X6200's WR12's IF, or on its way: nothing keys (#134) */
 
-    if (!cfg_tx_refusal(f) && split_keys_dial()) {
+    if (wr12 || (!cfg_tx_refusal(f) && split_keys_dial())) {
         f = vfo_freq(true);
     }
     if (freq) {
         *freq = f;
     }
-    return cfg_tx_refusal(f) != NULL;
+    return wr12 || cfg_tx_refusal(f) != NULL;
 }
 
 /* The VFO the radio transmits on to `freq`. In split that is the active VFO, with the base's split bit off until
@@ -1464,8 +1477,35 @@ unsigned radio_band_stops(void) {
 #ifdef BOARD_X6200
 /* ---- The WR12 on the HOST port (wr12.c, #134) ---- */
 
-/* On the GUI thread: what the WR12's thread has to say (found, lost, an ERROR answer), and the hold looked at again:
- * TX goes free once the WR12 is seen back in its bypass, or unplugged (cfg_tx_block) */
+/* The base listens on the WR12's IF for the VFO in use at freq: where the WR12 receives (WR12 on HOST, 54 MHz-1 GHz
+ * that no transverter covers: cfg_wr12_freq), once it is set up, and not while Birdie Cal has the base off the dial */
+static bool wr12_takes(int32_t freq) {
+    return cfg_wr12_freq(freq) && wr12_ready() && !atomic_load(&off_dial);
+}
+
+/* Under the lock, the VFO in use just sent to the base: the WR12 follows the dial. Out of its bypass on it where the
+ * base is on its IF (rx: held at 0 W already, by cfg_tx_refusal from wr12_want on), the base taking the IF's I and Q
+ * the other way round; in its bypass elsewhere, IQ as it was. WR12 on HOST off: the WR12 let go */
+static void wr12_follow(bool rx, int32_t dial) {
+    hw_set_i(HW_IQ_SWAP, rx);
+    wr12_want(param_i_get(cfg_wr12), rx, dial);
+}
+
+/* Both VFOs to the base again, the WR12 following the one in use (on_vfo_freq_change), the one no longer in use back on
+ * its own frequency. Not while Birdie Cal has the base off the dial: the WR12 in its bypass then, and the VFOs go back
+ * at the run's end (radio_set_freq_dial) */
+static void wr12_retune(void) {
+    if (atomic_load(&off_dial)) {
+        WITH_RADIO_LOCK(wr12_follow(false, vfo_freq(true)));
+        return;
+    }
+    on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
+    on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
+}
+
+/* On the GUI thread: what the WR12's thread has to say (found, lost, an ERROR answer); the base onto its IF now that it
+ * is set up, or back on the dial, and the hold looked at again: TX goes free once the WR12 is seen back in its
+ * bypass, or unplugged (cfg_tx_block) */
 static void wr12_changed_cb(void *arg) {
     char note[64];
 
@@ -1473,6 +1513,7 @@ static void wr12_changed_cb(void *arg) {
     while (wr12_note(note, sizeof(note))) {
         msg_schedule_text_fmt("%s", note);
     }
+    wr12_retune();
     band_look(true);
 }
 
@@ -1486,10 +1527,22 @@ static bool wr12_keyed(void) {
     return atomic_load(&state) != RADIO_RX || atomic_load(&modem_on) || morse_on;
 }
 
-/* Settings > General > WR12 on HOST (also the web Display page): the WR12 looked for and set up, or let go */
+/* Settings > General > WR12 on HOST (also the web Display page), or another VFO in use: the WR12 looked for or let
+ * go, and following the dial */
 static void on_wr12_change(Subject *subj, void *user_data) {
+    (void)subj;
     (void)user_data;
-    wr12_want(subject_i_get((SubjectInt*)subj), false, 0);
+    wr12_retune();
+}
+#else
+static bool wr12_takes(int32_t freq) {
+    (void)freq;
+    return false;
+}
+
+static void wr12_follow(bool rx, int32_t dial) {
+    (void)rx;
+    (void)dial;
 }
 #endif
 
@@ -1523,12 +1576,23 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     int32_t shift = cfg_transverter_shift_for(new_val);
     shift += param_i_get(cfg_band_if_shift);
     radio_lock();
-    if (vfo == param_i_get(cfg_band_current_vfo)) {
+    bool cur = vfo == param_i_get(cfg_band_current_vfo);
+    if (cur) {
         atomic_store(&cur_on_tx, false);    /* on the dial, not an app's TX frequency: it keys here (band_hold_early) */
+    }
+    /* The VFO in use where the X6200's WR12 receives (#134): the base on the WR12's IF, held at 0 W before it goes
+     * there whatever the frequency allows (54-55 MHz with TX outside the bands on); the other VFO on its own */
+    bool    wr12 = cur && wr12_takes(new_val);
+    int32_t base = wr12 ? WR12_IF_HZ : new_val - shift;
+    if (wr12) {
+        band_hold_set(true);
     }
     bool held = xvtr_hold(vfo, new_val);
     bool band = band_hold_early(vfo, new_val);
-    bool changed = hw_vfo_set_freq(vfo, new_val - shift);
+    bool changed = hw_vfo_set_freq(vfo, base);
+    if (cur) {
+        wr12_follow(wr12, new_val);
+    }
     radio_unlock();
     if (held && !scheduler_put_coalesced(xvtr_settle_cb)) {
         LV_LOG_ERROR("Radio: the transverter's TX power limit not looked at again (the next change does)");
@@ -1537,7 +1601,7 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
         LV_LOG_ERROR("Radio: the hold outside the amateur bands not looked at again (the next change does)");
     }
     if (changed) {
-        LV_LOG_USER("Radio set vfo %i freq=%i (%i)", vfo, new_val, new_val - shift);
+        LV_LOG_USER("Radio set vfo %i freq=%i (%i)", vfo, new_val, base);
     }
 }
 

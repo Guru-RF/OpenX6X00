@@ -357,7 +357,9 @@ of the band list, from the frequency up or down.
   without a transverter, and what the WR12 receives unless a transverter with
   a shift covers it (the transverter wins, see
   [WR12 receiver](#wr12-receiver-x6200)). In split it is the other VFO's
-  frequency, the one the radio would transmit on, that counts.
+  frequency, the one the radio would transmit on, that counts. While the
+  X6200 receives through its WR12, nothing transmits at all, in split on HF
+  neither.
 - On HF outside the amateur bands (CB, the broadcast bands, marine) the radio
   does not transmit either, by default: "No TX on 27.185 MHz", then "Out of
   band: Settings > TX Cal". See [Amateur bands only](#amateur-bands-only).
@@ -369,39 +371,59 @@ of the band list, from the frequency up or down.
 ### WR12 receiver (X6200)
 
 Xiegu's WR12 is a receiver for the X6200's HOST port: 54 MHz to 1 GHz,
-receive only. The radio cannot tell yet that it is plugged in, so a switch
-says so. Where: Settings > General > WR12 RECEIVER > WR12 on HOST (also on
-the web Display page, Receiver card). Off by default.
+receive only. It sits between the antenna and the radio. In its bypass the
+antenna goes straight through to the radio; out of it the WR12 receives, and
+the radio listens to it on the WR12's IF. A switch says that a WR12 is
+there: Settings > General > WR12 RECEIVER > WR12 on HOST (also on the web
+Display page, Receiver card). Off by default.
 
 - On: the bands of the band list between 54 MHz and 1 GHz come onto the band
   keys and the band plan (4 m, 2 m, 70 cm with the default list), and the
   knob and the keypad go up to 1 GHz. They open in NFM. Everything there is
   receive only (PTT, the apps, CW, the tuner and the SWR scan are refused with
   a message), unless a transverter with a shift covers it: the transverter
-  wins and transmits on its IF. Set its shift to 0 to leave that range to the
-  WR12.
+  wins and transmits on its IF, and the WR12 stays in its bypass there. Set
+  its shift to 0 to leave that range to the WR12.
 - Off again while on one of those bands: the radio goes to the band below
   (the airband from 2 m).
 - On, the radio looks for the WR12 on USB by its id (0483:5740), sets it up
-  (its gains and AGCs) and keeps it in its bypass, the antenna straight
-  through to the radio, as the WR12 starts up. The screen says "WR12 found on
-  HOST", and "WR12 unplugged", "WR12 not answering" or "WR12: ERROR to
-  AT+..." when that happens. Off, the radio lets it go, in its bypass.
+  (AT+INIT, its gains and AGCs) and puts it in its bypass, as the WR12
+  starts up. The screen says "WR12 found on HOST", and "WR12 unplugged",
+  "WR12 not answering" or "WR12: ERROR to AT+..." when that happens. Off,
+  the radio puts it back in its bypass and lets it go.
+- Receiving through it: with the dial from 54 MHz up, the radio tunes the
+  WR12 to the dial (AT+FREQ), takes it out of its bypass (AT+BYPASS=0) and
+  puts its own receiver on the WR12's IF, 5.06 MHz, with I and Q swapped.
+  FM broadcast and the airband go through the WR12 too, as does 54-55 MHz,
+  which the radio otherwise receives itself. The screen, the S-meter's band
+  settings, CAT and TCI keep the dial's frequency; only the radio's receiver
+  is on the IF. Below 54 MHz or with the switch off, the WR12 goes back to
+  its bypass and the radio back to the dial; with the WR12 unplugged or not
+  answering, the radio goes back to the dial at once. The VFO not in use
+  keeps its own frequency: the WR12 follows the VFO in use. Birdie Cal runs
+  on the radio's own receiver, the WR12 in its bypass meanwhile.
 - While the WR12 is out of its bypass, or may be, nothing transmits, on any
-  frequency: PTT, the apps, CW (the CW Trainer's key too), TUNE, the tuner
-  and the SWR scan are refused ("No TX on 7.074 MHz", then "WR12 receiving:
-  no TX" or "WR12 not in
-  bypass: no TX"), and what the base keys by itself (the hand mic's PTT, VOX,
+  frequency, in split on HF too: PTT, the apps, CW (the CW Trainer's key
+  too), TUNE, the tuner and the SWR scan are refused ("No TX on 98.000 MHz",
+  then "WR12 receiving: no TX", or after a move below 54 MHz "WR12 not in
+  bypass: no TX"). What the base keys by itself (the hand mic's PTT, VOX,
   the KEY jack) is held at 0 W with VOX off and KEY Train on, as outside the
-  amateur bands. That holds until the WR12 answers that it is back in its
-  bypass, or is unplugged; a WR12 that stops answering keeps it held. A GUI
-  started while a WR12 is out of its bypass (after an update, or a crash)
-  holds the same way until it has set the WR12 up again.
-- Not tested yet: whether the base tunes through the WR12 by itself when it is
-  given a frequency above 137 MHz, as this switch assumes. Reports are
-  welcome, with the log of the run (`/mnt/app_logs/`): at every start the
-  radio writes there what is on the HOST port ("USB on HOST: ..."), what it
-  would need to detect the WR12 by itself.
+  amateur bands, and the WR12 does not leave its bypass while the radio is
+  in TX. That holds until the WR12 answers that it is back in its bypass, or
+  is unplugged; a WR12 that stops answering keeps it held. A GUI started
+  while a WR12 is out of its bypass (after an update, or a crash) holds the
+  same way until it has set the WR12 up again.
+- Unplug the WR12 with the dial below 54 MHz or the switch off: unplugged
+  while it receives, the radio cannot put it back in its bypass, and whether
+  a WR12 without power passes the antenna through is not known yet.
+- The S-meter reads what the radio gets from the WR12, its gain included;
+  Per band S-meter cal (Settings > General > CONTROLS) sets it for each band.
+- Not tried with a WR12 yet: nothing has been received through a WR12 with
+  OpenX6X00 so far, so the IF, the I/Q swap and the gains are still to be
+  checked on a radio. Reports are welcome, with the log of the run
+  (`/mnt/app_logs/`): at every start the radio writes there what is on the
+  HOST port ("USB on HOST: ..."), and each answer of the WR12 when it
+  changes ("wr12: AT+BYPASS=0: OK").
 - gpsd leaves the WR12 alone. The WR12 is a USB serial port (USB id
   0483:5740, `/dev/ttyACM0` when it is the only one), and plugged in at boot
   it was handed to gpsd as a GPS, which then read what it said. A USB GPS

@@ -37,6 +37,8 @@ band_use_t cfg_band_use(int32_t start, int32_t stop);
 bool cfg_is_valid_hw_freq(int32_t freq);
 /* Received but never transmitted on: the X6200's FM broadcast and airband, the WR12's range */
 bool cfg_is_rx_only_freq(int32_t freq);
+/* The X6200's WR12 receives freq: WR12 on HOST on, 54 MHz-1 GHz that no transverter covers (#134) */
+bool cfg_wr12_freq(int32_t freq);
 /* The hardware transmits on freq: HF, a transverter with a shift. Whether the radio may: cfg_tx_refusal */
 bool cfg_is_tx_freq(int32_t freq);
 /* Why the radio may not transmit on freq (#121), NULL: it may. "receive only": the hardware does not transmit there,
