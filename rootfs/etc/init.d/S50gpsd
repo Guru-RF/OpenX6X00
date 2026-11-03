@@ -9,10 +9,20 @@ DAEMON=/usr/sbin/$NAME
 PIDFILE=/var/run/$NAME.pid
 [ -r /etc/default/gpsd ] && . /etc/default/gpsd
 
+# The WR12 receiver on an X6200's HOST port is a USB serial port too (0483:5740, /dev/ttyACM0 when it is the only
+# one), not a GPS: the GUI drives it (#134). Plugged in at boot it was handed to gpsd here, which then read its
+# answers. A GPS plugged in later comes through udev (25-gpsd.rules), which lists GPS receivers only
+is_wr12() {
+        n=$(readlink -f $1)
+        n=/sys/class/tty/${n##*/}/device/..
+        grep -q "xiegu,x6200" /proc/device-tree/compatible 2>/dev/null &&
+                [ "$(cat $n/idVendor 2>/dev/null):$(cat $n/idProduct 2>/dev/null)" = "0483:5740" ]
+}
+
 start() {
         printf "Starting $NAME: "
         DEVICES=""
-        for d in /dev/ttyACM0 /dev/gps0; do [ -e $d ] && DEVICES="$DEVICES $d"; done
+        for d in /dev/ttyACM0 /dev/gps0; do [ -e $d ] && ! is_wr12 $d && DEVICES="$DEVICES $d"; done
         start-stop-daemon -S -q -p $PIDFILE --exec $DAEMON -- -P $PIDFILE -F $GPSD_SOCKET $GPSD_OPTIONS $DEVICES && echo "OK" || echo "Failed"
 }
 stop() {

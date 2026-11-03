@@ -387,6 +387,10 @@ the web Display page, Receiver card). Off by default.
   welcome, with the log of the run (`/mnt/app_logs/`): at every start the
   radio writes there what is on the HOST port ("USB on HOST: ..."), what it
   would need to detect the WR12 by itself.
+- gpsd leaves the WR12 alone. The WR12 is a USB serial port (USB id
+  0483:5740, `/dev/ttyACM0` when it is the only one), and plugged in at boot
+  it was handed to gpsd as a GPS, which then read what it said. A USB GPS
+  works as before, at boot and plugged in later.
 - The X6200's two transverters (2 m and 70 cm, 28 MHz IF) are off by default,
   as the X6100's, so that 2 m and 70 cm are the WR12's. Older versions had
   them always on: "145.500" was tuned and transmitted on 29.500 MHz, on 10 m.

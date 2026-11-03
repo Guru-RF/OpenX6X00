@@ -185,6 +185,8 @@ rm -f $BOARD/rootfs-overlay/etc/init.d/S01create_data   # S00adata does it, with
 rm -f $BOARD/rootfs-overlay/etc/init.d/S00adata $BOARD/rootfs-overlay/etc/NetworkManager/dispatcher.d/99-ntp-sync.sh
 # The WiFi and SSH backup at shutdown and restore at boot too (rootfs/etc/init.d, since v0.3.4)
 rm -f $BOARD/rootfs-overlay/etc/init.d/S04restore_backup_config
+# And gpsd's start, which leaves an X6200's WR12 alone (rootfs/etc/init.d/S50gpsd, #134)
+rm -f $BOARD/rootfs-overlay/etc/init.d/S50gpsd
 # And sshd_config, keys only (rootfs/etc/ssh): the upstream overlay's lets root in with the image's password
 rm -f $BOARD/rootfs-overlay/etc/ssh/sshd_config
 # The card image's level for this radio (rootfs/usr/share/x6100/image-required), stamped where no update writes:
