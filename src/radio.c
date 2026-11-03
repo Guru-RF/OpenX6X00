@@ -1522,9 +1522,10 @@ static bool wr12_notify(void) {
     return scheduler_put_coalesced(wr12_changed_cb);
 }
 
-/* The radio is in TX, or the GUI keys it: the WR12 stays in its bypass meanwhile. Any thread */
+/* The radio is in TX, or the GUI keys it (a PTT, the modem or the tuner's bit set before the base reports TX, the CW
+ * Trainer's key too): the WR12 stays in its bypass meanwhile. Any thread */
 static bool wr12_keyed(void) {
-    return atomic_load(&state) != RADIO_RX || atomic_load(&modem_on) || morse_on;
+    return atomic_load(&state) != RADIO_RX || gui_keys() || morse_on;
 }
 
 /* Settings > General > WR12 on HOST (also the web Display page), or another VFO in use: the WR12 looked for or let
