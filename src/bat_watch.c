@@ -19,16 +19,24 @@ bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_fla
     }
     w->counts = measured && w->settle_at && now_ms >= w->settle_at;
 
+    /* External power that holds the battery up: on the X6200 only DC IN at BOARD_BAT_EXT_MIN and more (board.h),
+     * under it the battery ran the radio down to the base's cut with the flags saying external power */
+#ifdef BOARD_BAT_EXT_MIN
+    bool held = vext >= BOARD_BAT_EXT_MIN;
+#else
+    bool held = w->ext;
+#endif
+
     /* Only on a change, with hysteresis: around BAT_LOW the 30 s power-off timer was started and
      * stopped over and over. Low only after 3 readings in a row: one of the base's first packets
      * (0 V on both) alone started "Low battery!" with a full battery on the charger. And only on a
      * battery that is there and measured: under 3 V there is none, or no reading yet */
-    bool battery_low = w->counts && !w->ext && vbat >= BAT_NONE && vbat <= BAT_LOW;
+    bool battery_low = w->counts && !held && vbat >= BAT_NONE && vbat <= BAT_LOW;
 
     w->low_reads = battery_low ? (w->low_reads < BAT_LOW_READS ? w->low_reads + 1 : BAT_LOW_READS) : 0;
 
     bool enter = w->low_reads >= BAT_LOW_READS;
-    bool leave = w->ext || vbat >= BAT_HIGH;
+    bool leave = held || vbat >= BAT_HIGH;
 
     if ((!w->low && enter) || (w->low && leave)) {
         w->low = !w->low;

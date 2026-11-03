@@ -22,6 +22,7 @@
 #include "msg_box.h"
 #include "msg_note.h"
 #include "clock.h"
+#include "board.h"
 #include "cw_tune_view.h"
 #include "info_bar.h"
 #include "smeter.h"
@@ -1689,6 +1690,18 @@ void main_screen_notify_low_power(bool is_low) {
         }
     } else if (!power_off_timer) {
         power_off_timer = timer_once(power_off_cb, 30000);
+#ifdef BOARD_BAT_EXT_MIN
+        /* On a supply too low to hold the battery up (board.h): the radio is plugged in, say why */
+        float   ext, bat;
+        uint8_t cap;
+        bool    chg;
+
+        clock_power_get(&ext, &bat, &cap, &chg);
+        if (ext >= 3.0f) {
+            msg_schedule_long_text_fmt("Low battery, DC IN under %d V! Turning off in 30s.", BOARD_BAT_EXT_MIN / 10);
+            return;
+        }
+#endif
         msg_schedule_long_text_fmt("Low battery! Turning off in 30s.");
     }
 }

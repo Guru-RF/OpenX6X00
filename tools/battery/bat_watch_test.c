@@ -3,8 +3,9 @@
  *
  *  Host test of src/bat_watch.c (#160): the low-battery power-off as radio.c feeds it, one reading of the base's
  *  supply every 0.4 s. Built as the X6100 (6.0 V) and as the X6200 (BOARD_X6200, 6.8 V): not before the readings
- *  count, at BAT_LOW three readings in a row, back off at BAT_HIGH, not on external power; and on the X6200 #160's
- *  discharges, the power-off's 30 s and the save done minutes before the base's own cut.
+ *  count, at BAT_LOW three readings in a row, back off at BAT_HIGH, not on external power (on the X6200 12.0 V and
+ *  more on DC IN); and on the X6200 #160's discharges, on battery and on a charger under 12 V, the power-off's 30 s
+ *  and the save done before the base's own cut.
  */
 
 #include "bat_watch.h"
@@ -96,6 +97,40 @@ int main(void) {
     feed(BAT_LOW, 0, false, false, 5000);
     t = feed(BAT_LOW, 138, true, true, 5000);
     check(t == 0 && !w.low, "low, then a 13.8 V supply: back at once", t);
+    settled(BAT_LOW + 5, 0);
+    check(feed(BAT_LOW, 120, true, true, 600000) == NONE, "at BAT_LOW on 12.0 V: never", 0);
+
+#ifdef BOARD_X6200
+    /* Under 12.0 V on DC IN the X6200's battery ran the radio (#160): whatever the flags say (its charging flag comes
+     * with any supply), the power-off as on battery; plugged in once it runs, it goes on; 12.0 V and more ends it */
+    settled(BAT_LOW + 5, 0);
+    t = feed(BAT_LOW, 117, true, true, 5000);
+    check(t == 2 * READ_MS && w.low && w.ext, "the X6200 at 6.8 V on 11.7 V, the flags on: the power-off", t);
+    settled(BAT_LOW + 5, 0);
+    t = feed(BAT_LOW, 119, false, false, 5000);
+    check(t == 2 * READ_MS && w.low, "the X6200 at 6.8 V on 11.9 V without the flags: the power-off", t);
+    check(feed(BAT_LOW, 116, true, true, 60000) == NONE && w.low, "then a charger at 11.6 V: still low", 0);
+    t = feed(BAT_LOW, 120, true, true, 5000);
+    check(t == 0 && !w.low, "then 12.0 V: back at once", t);
+    check(feed(BAT_LOW - 3, 138, true, false, 600000) == NONE, "a flat battery on 13.8 V, Charger Off: never", 0);
+
+    /* #160, 2 November: switched on again on the charger (11.6-11.8 V), the battery fell from 6.9 to 6.4 V in
+     * 2 minutes and the base cut the power. Here 0.1 V every 24 s from the first reading, the cut at 6.4 V */
+    start();
+    long low_on = NONE;
+
+    for (int step = 0; step < 5 && low_on == NONE; step++) {
+        if ((t = feed(69 - step, step % 2 ? 116 : 118, true, true, 24000)) != NONE) low_on = step * 24000 + t;
+    }
+    check(low_on != NONE && low_on + OFF_MS < 120000 - 30000, "#160 on the charger at 11.6-11.8 V: off before the cut",
+          low_on == NONE ? -1 : (120000 - low_on - OFF_MS) / 1000);
+    printf("#160 on the charger: \"Low battery!\" %.1f s after the first reading, the radio off %ld s before the cut\n",
+           low_on / 1000.0, (120000 - low_on - OFF_MS) / 1000);
+#else
+    /* The X6100 on a supply whatever its voltage: 11.7 V on the jack and both flags clear (#17's charger) */
+    settled(BAT_LOW + 5, 0);
+    check(feed(BAT_LOW - 1, 117, false, false, 600000) == NONE, "the X6100 on 11.7 V, the flags clear: never", 0);
+#endif
 
 #ifdef BOARD_X6200
     /* #160, 1 and 2 November: on battery, receive, WiFi and BT on. The first 6.8 V reading 4-5 min before the base cut
