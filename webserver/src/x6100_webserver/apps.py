@@ -2971,8 +2971,9 @@ class ChannelsChanged(Exception):
     """The channel a change names is not the one the page showed: the list changed since"""
 
 
-CHANNELS_CHANGED = "The channel list changed meanwhile, on the radio or in another tab: nothing was changed, and " \
-                   "the page shows the radio's list now"
+CHANNELS_CHANGED = "The channel list changed since the page showed it (on the radio, in another tab, or by a " \
+                   "change of this page's still on its way): nothing was changed, and the page shows the radio's " \
+                   "list now"
 
 
 class ChannelsWritten(Exception):
