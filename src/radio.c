@@ -57,6 +57,7 @@
 #include "clock.h"
 #include "wifi.h"
 #include "settings_window.h"
+#include "wr12.h"
 
 /*********************
  *      DEFINES
@@ -137,6 +138,10 @@ static void on_volume_change(Subject *subj, void *user_data);
 
 #ifndef BOARD_X6200
 static void recover_processing_audio_inputs();
+#else
+static bool wr12_notify(void);
+static bool wr12_keyed(void);
+static void on_wr12_change(Subject *subj, void *user_data);
 #endif
 /* Who keys (tx_refused): the CW Trainer's key goes through outside the amateur bands, at 0 W, its PTT quietly not */
 typedef enum { TX_BY_GUI, TX_BY_PTT, TX_BY_MORSE } tx_by_t;
@@ -345,6 +350,11 @@ void radio_start() {
     base_ver = hw_base_ver();
     cfg_hw_caps_set(hw_caps());     /* the LO offset from them, before the first frame */
     start_trace("base: version %s", hw_base_ver_str());
+#ifdef BOARD_X6200
+    /* The WR12 on the HOST port (wr12.c, #134): its thread, and WR12 on HOST, before the VFOs go to the base */
+    wr12_init(wr12_notify, wr12_keyed);
+    subject_subscribe_and_notify((Subject*)cfg_wr12, on_wr12_change, NULL);
+#endif
     /* What the digital TX level comes from, for a report of an app at 0 W (#16); the base version was nowhere */
     fprintf(stderr, "radio: base %s, line_in %u, line_out %u, play %.1f dB, rec %.1f dB, digital level %.1f dB\n",
             hw_base_ver_str(), params.line_in, params.line_out, params.play_gain_db_f.x, params.rec_gain_db_f.x,
@@ -1441,6 +1451,36 @@ static void band_note(void) {
 unsigned radio_band_stops(void) {
     return atomic_load(&band_stops);
 }
+
+#ifdef BOARD_X6200
+/* ---- The WR12 on the HOST port (wr12.c, #134) ---- */
+
+/* On the GUI thread: what the WR12's thread has to say (found, lost, an ERROR answer) */
+static void wr12_changed_cb(void *arg) {
+    char note[64];
+
+    (void)arg;
+    while (wr12_note(note, sizeof(note))) {
+        msg_schedule_text_fmt("%s", note);
+    }
+}
+
+/* From the WR12's thread: its news to the GUI thread. False: the queue is full, it asks again */
+static bool wr12_notify(void) {
+    return scheduler_put_coalesced(wr12_changed_cb);
+}
+
+/* The radio is in TX, or the GUI keys it: the WR12 stays in its bypass meanwhile. Any thread */
+static bool wr12_keyed(void) {
+    return atomic_load(&state) != RADIO_RX || atomic_load(&modem_on) || morse_on;
+}
+
+/* Settings > General > WR12 on HOST (also the web Display page): the WR12 looked for and set up, or let go */
+static void on_wr12_change(Subject *subj, void *user_data) {
+    (void)user_data;
+    wr12_want(subject_i_get((SubjectInt*)subj), false, 0);
+}
+#endif
 
 /* Under the lock, before a VFO of the base goes to freq: a transverter's TX power limit there, lower than the one in
  * force, goes to the base first (#104). A band key, a memory, a spot or CAT moves the VFOs before the dial's frequency

@@ -382,6 +382,11 @@ the web Display page, Receiver card). Off by default.
   WR12.
 - Off again while on one of those bands: the radio goes to the band below
   (the airband from 2 m).
+- On, the radio looks for the WR12 on USB by its id (0483:5740), sets it up
+  (its gains and AGCs) and keeps it in its bypass, the antenna straight
+  through to the radio, as the WR12 starts up. The screen says "WR12 found on
+  HOST", and "WR12 unplugged", "WR12 not answering" or "WR12: ERROR to
+  AT+..." when that happens. Off, the radio lets it go, in its bypass.
 - Not tested yet: whether the base tunes through the WR12 by itself when it is
   given a frequency above 137 MHz, as this switch assumes. Reports are
   welcome, with the log of the run (`/mnt/app_logs/`): at every start the
