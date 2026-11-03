@@ -4,7 +4,7 @@
  * line, act and mayAct, onText, the session, PTT and TUNE as they make them, the stall, the second's tick) with the
  * production radio_session.js on each page's own markup; the radio a stand-in that answers as remote_server.c does.
  * Each "how things are" text goes once it is not so: control moved, the radio answering again, back on receive, the
- * tune over, LOCK off, the radio no longer on the air; news ("QSO logged") stays. */
+ * tune over, LOCK off, the radio no longer on the air, the microphone ready; news ("QSO logged") stays. */
 'use strict';
 const {page, between} = require('./browser-dom.js');
 
@@ -210,6 +210,26 @@ const FIRST = 'The radio is operated at the radio: Take control first';
   g.text('tx 0');
   g.tick();
   check('the radio back on receive: that text gone', g.st() === '', g.st());
+}
+{
+  const g = panel();
+  inControl(g);
+  g.text('tx 1');                                          /* another place on the air */
+  g.p.eval('ptt.press()');
+  check('Panel: PTT pressed while the radio transmits from elsewhere', g.st() === 'The radio is transmitting already' && g.error(), g.st());
+  g.text('tx 0');
+  g.tick();
+  check('the radio back on receive: "transmitting already" gone', g.st() === '', g.st());
+}
+{
+  const g = panel();
+  inControl(g);
+  g.p.eval('micOn = true; micStream = {}; tlink.up = false');   /* Mic on, its sound link not up yet */
+  g.p.eval('ptt.press()');
+  check('Panel: PTT with the browser microphone not ready, refused', /^Microphone not ready/.test(g.st()), g.st());
+  g.p.eval('tlink.up = true');
+  g.tick();
+  check('the microphone ready: "Microphone not ready" gone', g.st() === '', g.st());
 }
 {
   const g = panel();

@@ -309,12 +309,12 @@
     const self = this, o = this.o;
     if (this.state === "requesting" || this.state === "tx") return;
     if (this.state === "releasing") { this.why = "Wait: the radio is still unkeying"; this.render(); return; }
-    if (this.state === "busy") { this.set("busy", "The radio is transmitting already"); return; }
+    if (this.state === "busy") { this.set("busy", "The radio is transmitting already", function() { return self.state === "busy"; }); return; }
     if (o.link && o.link.stalled) { this.set("refused", "The radio does not answer: no transmission until it does", function() { return o.link.stalled; }); return; }
     const no = o.session ? o.session.can() : "";
     if (no) { this.set("refused", no, function() { return o.session.can() === no; }); return; }
     const mic = o.mic && o.mic.wanted();
-    if (mic && !o.mic.ready()) { this.set("refused", "Microphone not ready: no transmission (the radio's own microphone is not used in its place)"); return; }
+    if (mic && !o.mic.ready()) { this.set("refused", "Microphone not ready: no transmission (the radio's own microphone is not used in its place)", function() { return o.mic.wanted() && !o.mic.ready(); }); return; }
     this.path = mic ? "mic" : "radio"; this.since = Date.now();
     this.clear();
     let sent;
