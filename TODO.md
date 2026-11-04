@@ -173,9 +173,14 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     the shared digital level on XARA's frames (drive-db 0). The CW ID with an ON call at each session's end and after
     a call with no answer, heard whole on a receiver; the station that did not end the link keys about 3 s silent
     first, waiting out the other's ID: tx_level takes no readings in silence nor in the 0.75 s after it
-    (tools/txlevel), so on the X6100 ft8_output_gain_offset should read the same before and after a session the
-    other station ends with its ID. A call cancelled in Pat (Dialing..., then the second click that forces it): the
-    ID at once on the call's frequency, Pat's tune back after it (0003; make modems tunes half a second after ABORT).
+    (tools/txlevel). Check that key on its own, in the GUI's log (/tmp/x6100_log.txt, then app_logs/): each key that
+    moved the shared level has a "tx_player: level A -> B dB, N windows decided in M blocks, S of them silent" line.
+    The ID-wait key (S about 58 to 77, 2.7 to 3.6 s) should have none, or N at most (M - S - 16) / 12 (about 3) and
+    no more of a rise than the radio's own ID key at the end of a session it ends (S 0); before the fix about 7
+    windows, 3 or 4 of them stepping up on the silence. The level before and after a whole session says nothing: on
+    the X6100 every key's level is kept, and the session's data keys and the ID's audio move it too. A call
+    cancelled in Pat (Dialing..., then the second click that forces it): the ID at once on the call's frequency,
+    Pat's tune back after it (0003; make modems tunes half a second after ABORT).
   - **Then on the air**: yo4cil against his own gateway (YO4CIL, VARA and ARDOP on 4 bands), free speed first; a
     test build announced on #120 first.
   - **Upstream**: 0002 is prepared as a patch for x0rro/xara's main with a PR text (not sent yet); drop 0002 once

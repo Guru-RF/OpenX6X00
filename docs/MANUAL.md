@@ -2014,6 +2014,10 @@ WeFax) set their audio level by themselves.
   Line-in of 0 is the other known cause: see [Audio tab](#audio-tab).
 - At start the log has a line with the base's version, Line-in, Line-out,
   Play and Rec gain and the level kept.
+- Each transmission that moved the level kept adds a line to the log: the
+  level before and after, the windows (half a second each) that decided it,
+  and the blocks of silence in it ("tx_player: level -6.50 -> -5.75 dB,
+  3 windows decided in 122 blocks, 64 of them silent").
 
 While the AF volume is 0, or the speaker is muted (the mute action, Bluetooth
 headphones with Mute speaker, a TCI client transmitting), the TX monitor is

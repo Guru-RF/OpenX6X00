@@ -28,12 +28,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "audio.h"
 #include "cfg/cfg_api.h"
 #include "msg.h"
 #include "params/params.h"
 #include "radio.h"
+#include "tx_level.h"
 #include "tx_meters.h"
 #include "tx_player.h"
 
@@ -355,6 +357,47 @@ static result_t run(const scenario_t *s, bool verbose) {
     return r;
 }
 
+/* The same, and what tx_player logged meanwhile (its stderr) in log */
+static result_t run_logged(const scenario_t *s, bool verbose, char *log, size_t size) {
+    FILE    *t     = tmpfile();
+    int      saved = dup(2);
+    result_t r;
+
+    fflush(stderr);
+    dup2(fileno(t), 2);
+    r = run(s, verbose);
+    fflush(stderr);
+    dup2(saved, 2);
+    close(saved);
+    rewind(t);
+    log[fread(log, 1, size - 1, t)] = 0;
+    fclose(t);
+    return r;
+}
+
+/* tx_player's line for each key that moved the level: how many, and whether each decided only in the audio after its
+ * silence (blocks of 2048 samples, the first TX_LEVEL_QUIET_BLOCKS of sound after it not counted), every window at
+ * most a fast step up */
+static int level_lines(const char *log, int silent_want, int *bad) {
+    int n = 0;
+
+    *bad = 0;
+    for (const char *l = log; (l = strstr(l, "tx_player: level ")); l++) {
+        float from, to;
+        int   windows, blocks, silent;
+
+        if (sscanf(l, "tx_player: level %f -> %f dB, %d windows decided in %d blocks, %d of them silent", &from, &to,
+                   &windows, &blocks, &silent) != 5) {
+            (*bad)++;
+            continue;
+        }
+        n++;
+        *bad += silent != silent_want || windows > (blocks - silent - TX_LEVEL_QUIET_BLOCKS) / TX_LEVEL_WINDOW_BLOCKS
+             || to - from > windows * TX_LEVEL_UP_FAST_DB + 0.01f;
+    }
+    return n;
+}
+
 int main(int argc, char **argv) {
     bool verbose = argc > 1 && !strcmp(argv[1], "-v");
 
@@ -486,9 +529,16 @@ int main(int argc, char **argv) {
     /* Their audio still counts: from 2.5 dB under, they bring the level up to where the ALC reads about 1 */
     static const scenario_t id_low = {.name = "the same, from 2.5 dB under", .pwr = 5.0f, .knee_db = -6.0f,
                                       .start_db = -6.5f, .txs = 30, .quiet_s = 3.0f, .alc_db = 0.6f, .lag_s = 0.5f};
-    r = run(&id_low, verbose);
+    static char             log[16384];
+    int                     bad, silent = (int)(id_low.quiet_s * AUDIO_PLAY_RATE) / 2048;
+
+    r = run_logged(&id_low, verbose, log, sizeof(log));
     check(r.level_end >= -4.75f && r.level_end <= -3.5f, "%s: the level %.1f dB after %d", id_low.name, r.level_end,
           id_low.txs);
+    /* What the bench reads in the GUI's log: before, about 7 windows of such a key were decided, 4 in its silence */
+    int lines = level_lines(log, silent, &bad);
+    check(lines > 0 && bad == 0, "%s: %d keys logged the level they moved, each with its %d blocks of silence and "
+          "windows decided only in the audio after them (%d not)", id_low.name, lines, silent, bad);
 
     static const scenario_t id_x6200 = {.name = "the bench X6200, XARA's keys with 3.6 s of silence before the CW ID",
                                         .pwr = 7.0f, .knee_db = -6.0f, .ramp_w_s = 7.0f, .txs = 30, .quiet_s = 3.6f,

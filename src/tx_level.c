@@ -27,6 +27,7 @@ float tx_level_block(tx_level_t *l, bool sound, bool have, float pwr_w, float al
      * and the window it cut into starts again */
     l->sound = sound ? l->sound + 1 : 0;
     if (!sound) {
+        l->silent++;
         l->n = l->wb = 0;
         l->sum_pwr = l->sum_alc = 0.0f;
     }
@@ -87,6 +88,7 @@ static float tx_level_decide(tx_level_t *l) {
      * not ours: an ALC over 3 now and then (RF picked up, a base's own state) took the level down 0.75 dB a window and
      * kept it, from the setting to 0 W in two or three transmissions, then "TX 0 W" and back from the default (#123) */
     float p = l->sum_pwr / l->n, a = l->power_hold ? 0.0f : l->sum_alc / l->n;
+    l->windows++;
     l->n = l->wb = 0;
     l->sum_pwr = l->sum_alc = 0.0f;
 

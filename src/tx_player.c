@@ -9,7 +9,7 @@
 #include <math.h>                 /* log10f */
 #include <pthread.h>
 #include <stdatomic.h>
-#include <stdio.h>               /* the 0 W line in the log */
+#include <stdio.h>               /* the log's lines: 0 W, the level moved */
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -159,7 +159,8 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
 
     /* Part of the gain goes to the codec volume (6 dB above the total), the rest is applied
      * to the samples. The whole at most TOTAL_TOP_DB, also as the level climbs: what is learned stays under it */
-    float   kept  = LV_MAX(params.ft8_output_gain_offset.x, LEARNED_MIN_DB);  /* from the last transmission */
+    float   was   = params.ft8_output_gain_offset.x;
+    float   kept  = LV_MAX(was, LEARNED_MIN_DB);  /* from the last transmission */
     float   total = base_gain + LV_MIN(kept, TOTAL_TOP_DB - base_gain);
     float   codec = audio_set_play_vol(total + 6.0f);
     float   drive = total - codec;
@@ -275,6 +276,12 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
         params_float_set(&params.ft8_output_gain_offset, learned);
     } else if (params.ft8_output_gain_offset.x < 0.0f && learned > params.ft8_output_gain_offset.x) {
         params_float_set(&params.ft8_output_gain_offset, LV_MIN(learned, 0.0f));
+    }
+    /* The level all the digital apps share moved: by how many windows, and how much of the key was silent (XARA's wait
+     * for the other station's CW ID), so that a bench check or a report tells one key's change from another's */
+    if (params.ft8_output_gain_offset.x != was) {
+        fprintf(stderr, "tx_player: level %.2f -> %.2f dB, %d windows decided in %d blocks, %d of them silent\n", was,
+                params.ft8_output_gain_offset.x, level.windows, level.blocks, level.silent);
     }
     audio_play_wait();          /* the last block out before unkeying */
     radio_set_modem(false);     /* unkeyed: back to the dial frequency */

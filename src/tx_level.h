@@ -64,6 +64,8 @@ typedef struct {
     float trial_db;
     float up_db;    /* ramped up so far this transmission */
     int   sound;    /* blocks of sound in a row, since the start or the last block of silence */
+    int   windows;  /* decisions made this transmission, and its blocks of silence (tx_player.c's log line) */
+    int   silent;
 } tx_level_t;
 
 void tx_level_start(tx_level_t *l, float target_w);
