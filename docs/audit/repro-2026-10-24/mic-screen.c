@@ -114,6 +114,7 @@ static void mode_key(keypad_key_t key, bool hold) { note("DIG"); }
 static void swl_gene(void) { note("SWL"); }
 static void swl_save_channel(void) { note("NW"); }
 static void main_screen_action(int action) { note("action %d", action); }
+static bool main_screen_buttons_wake(void) { return false; }   /* Hide buttons (#128): off here, the buttons up */
 
 #include "mic_screen_keys.c"
 
