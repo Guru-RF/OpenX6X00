@@ -2080,21 +2080,27 @@ base log (`/mnt/base_i2c.log`) at each start:
 - "3360 / 3820, own or an old version's" (log: "PA bias 3360/3820: either
   this radio's own or left by an older version until the base loses
   power"). The base keeps in the block the bias last sent to it, until it
-  loses power. After an older version ran, or Aether Radio's X6200 GUI, the
-  block shows 3360 / 3820 until then, and a radio whose own values are those
-  reads the same. To be sure, take the battery and the supply out for a
-  minute: at the next start the radio reads its own. Whether a normal
-  power-off with the battery in is enough is not known yet.
+  loses power. After an older version ran, or Aether Radio's X6200 GUI, or
+  a start of this one on the fixed 3360 / 3820 (the two "fixed" lines
+  below), the block shows 3360 / 3820 until then, and a radio whose own
+  values are those reads the same. To be sure, take the battery and the
+  supply out for a minute: at the next start the radio reads its own.
+  Whether a normal power-off with the battery in is enough is not known
+  yet.
 - "3360 / 3820, fixed (base: N / M)" (log: "PA bias N/M in the base's
   calibration block is out of range (drive 3024-3696, final 3438-4095): the
   fixed 3360/3820 instead"). A value is taken from the block only within
   10 % of 3360 (driver) and 3820 (final), and under 4096; the two X6200s
   known are 1 % apart. If either is out, both go back to 3360 / 3820. The
   X6100's 450 / 650, which versions before 0.3.4 sent to the X6200, land
-  here until the base loses power.
+  here at the first start after such a version.
 - "3360 / 3820, fixed (not read)" (log: "PA bias: the base's calibration
   block could not be read: the fixed 3360/3820 instead"). The radio tries
   the read three times before it gives up.
+
+After a start on either "fixed" line the base keeps the 3360 / 3820 it was
+sent, so every later start shows "own or an old version's" until the base
+loses power.
 
 The bias goes to the base once at the start. The radio sends its whole
 register block to the base every second and after a write error, the bias
