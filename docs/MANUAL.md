@@ -584,9 +584,9 @@ Total Black light their own scales: the S row becomes PO, 0 to 10 W, and the
 SWR and ALC rows get their bars. Back on receive the S-meter starts again
 from the next reading. The TX panel shows the same readings big, when
 Settings > Display > INTERFACE > Popups Freq/Info/ALC has ALC on (see the
-[Display tab](#display-tab)). Up to v0.3.8 the S-meter only said "TX" (in
-Black Metal and Total Black its SWR and ALC scales stayed empty) and the TX
-panel came up whatever that setting (issue #166).
+[Display tab](#display-tab)). Up to v0.3.8 the S-meter said "TX" (Black
+Metal and Total Black: the scales at rest, their SWR and ALC never lit), and
+the TX panel came up whatever that setting (issue #166).
 
 Per band S-meter calibration. Each band has its own correction, -40 to
 +40 dB in 1 dB steps; the value shown is the one of the band the radio is on.
