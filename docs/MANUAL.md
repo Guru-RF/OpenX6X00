@@ -4428,14 +4428,15 @@ gives.
   Before you connect card checks it.
 - XARA's keys are a few seconds long (6 s at the most on the PC, with the CW
   ID). The radio stops one after 30 s ("Winlink: TX stopped after 30 s").
-- XARA identifies in CW as each session ends, since Pat asks it to (CWID ON),
-  with any callsign: yours without its SSID, at about 28 words a minute, at
-  the end of its last transmission. When the other station ended the link,
-  the radio first waits out that station's ID, keyed and silent (about 3 s),
-  then sends its own. The ID is part of a key like the rest of XARA's audio:
-  the radio's checks and power hold for it, and the silent wait leaves the
-  TX level as it was. XARA 0.1.3 itself sends one only with a US callsign
-  (such as K1ABC or N0AAA); ours with any, a European one too.
+- XARA identifies in CW as each session ends, and after a call that got no
+  answer or that you cancelled, since Pat asks it to (CWID ON), with any
+  callsign: yours without its SSID, at about 28 words a minute, at the end
+  of its last transmission. When the other station ended the link and
+  identifies too, the radio first waits out its ID, keyed and silent (about
+  3 s), then sends its own. The ID is part of a key like the rest of XARA's
+  audio: the radio's checks and power hold for it, and the silent wait
+  leaves the TX level as it was. XARA 0.1.3 itself sends one only with a US
+  callsign (such as K1ABC or N0AAA); ours with any, a European one too.
 
 The radio calls; it does not answer calls. XARA starts with listening off,
 and on the radio Pat never turns it on (P2P listening stays off, as with
@@ -4452,6 +4453,8 @@ When it does not work:
   page), "XARA was not ready", a bandwidth XARA does not have (500, 2300 or
   2750). A delivered connection says its speed: "Done with YO4CIL at 2300 Hz
   at VARA's free speed: 1 sent, 0 received".
+- After a call that got no answer, the radio keys once more for a few
+  seconds: that is its CW ID, not another call.
 - The Modem row says "Ready, but it fell behind the receiver lately" in red,
   and Pat's log "OpenX6X00: XARA could not keep up with the receiver": XARA
   fell behind the radio's audio ("xara is falling behind real time" in its

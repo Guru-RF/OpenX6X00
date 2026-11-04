@@ -116,23 +116,24 @@ engineering for compatibility with a protocol is lawful in Europe, so XARA is fi
 ## The CW ID
 
 XARA 0.1.3 answers Pat's `CWID ON` with OK in HF and does not act on it (`tnc.rs`:
-`Command::Gateway | Command::Cwid(_) => M::CWID_GATEWAY`; the HF session's `cwid` is set only in its tests). It
-sends a CW ID at the end of a session only when `cwid` is set or its callsign is of the US kind
-(`crates/xara-arq/src/hf/session.rs`, `cwid()`; `is_us_call` in `crates/xara-phy/src/call.rs`: roughly, 4 to 6
-letters and digits, one digit as the second or third character, starting with K, N or W, or with AA to AL), so
-with a call from outside the US there was none. Patch 0002 makes `CWID ON` set `cwid`, so with Pat XARA identifies
-with any callsign; the US rule stays as it is.
+`Command::Gateway | Command::Cwid(_) => M::CWID_GATEWAY`; the HF session's `cwid` is set only in its tests). It sends
+a CW ID at the end of a session, and after a call that got no answer or was cancelled (`UnableToConnect`, then
+`close(0)`), only when `cwid` is set or its callsign is of the US kind (`crates/xara-arq/src/hf/session.rs`,
+`cwid()`; `is_us_call` in `crates/xara-phy/src/call.rs`: roughly, 4 to 6 letters and digits, one digit as the second
+or third character, starting with K, N or W, or with AA to AL), so with a call from outside the US there was none.
+Patch 0002 makes `CWID ON` set `cwid`, so with Pat XARA identifies with any callsign; the US rule stays as it is.
 
 The ID (`crates/xara-phy/src/cwid.rs`, `station/hf.rs`): the callsign without its SSID, at about 28 words a minute
 (units of 2048 samples at 48 kHz), 9.6 dB under the drive. The QRT that ends a link says whether its sender will
-identify (code 3, or 46 without); it sends its ID right after it (in the same key on the PC). The other station
-waits out that ID, keyed and silent, for 9 to 12 blank words (`QRT_CWID_BLANKS`, about 3 s), then sends its own. On
-the radio the ID is XARA's audio like any other: T messages between a P 1 and its P 0 on the GUI's socket, keyed by
-the GUI only after its checks (`src/winlink.c`, `tx_refused`, `tx_off_freq`, `swr_held`), played through `tx_player`
-at the radio's power and digital level, and stopped by `tx_abort` like any key. The silent wait does not move that
-level: the GUI's level loop (`tx_level.c`) takes no readings in whole blocks of zeros nor in the 0.75 s of audio
-after them. Before it did, and each such key took the level all the digital apps share up by 1-2 dB (`tools/txlevel`:
-on a model X6100 towards where the ALC reads 3, on a model X6200 to the codec's top).
+identify (code 3, or 46 without); it sends its ID right after it (in the same key on the PC). After a 3 the other
+station waits out that ID, keyed and silent, for 9 to 12 blank words (`QRT_CWID_BLANKS`, about 3 s), then sends its
+own; after a 46 it sends its own at once. On the radio the ID is XARA's audio like any other: T messages between a
+P 1 and its P 0 on the GUI's socket, keyed by the GUI only after its checks (`src/winlink.c`, `tx_refused`,
+`tx_off_freq`, `swr_held`), played through `tx_player` at the radio's power and digital level, and stopped by
+`tx_abort` like any key. The silent wait does not move that level: the GUI's level loop (`tx_level.c`) takes no
+readings in whole blocks of zeros nor in the 0.75 s of audio after them. Before it did, and each such key took the
+level all the digital apps share up by 1-2 dB (`tools/txlevel`: on a model X6100 towards where the ALC reads 3, on a
+model X6200 to the codec's top).
 
 `make modems` shows it: with ON4AAA and ON4BBB at the free speed both stations identify (the last keys 4.1 and
 5.9 s, played whole), as with N0AAA and N0BBB at full speed; A's call before any Pat, whose host sent no `CWID

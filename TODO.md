@@ -169,10 +169,12 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     underrun (XARA's audio comes just in time, the stream's 60 ms prebuf is the only cushion) would cut a frame:
     listen for gaps in the dummy load's audio. P2P between the X6100 and the X6200 into dummy loads at 2300 Hz,
     free and ticked; a 30 s key; the PA's linearity on the full-speed OFDM levels (PAPR 8-9 dB) at up to 7 W and
-    the shared digital level on XARA's frames (drive-db 0). The CW ID with an ON call at each session's end, heard
-    whole on a receiver; the station that did not end the link keys about 3 s silent first, waiting out the other's
-    ID: tx_level takes no readings in silence nor in the 0.75 s after it (tools/txlevel), so on the X6100
-    ft8_output_gain_offset should read the same before and after a session the other station ends with its ID.
+    the shared digital level on XARA's frames (drive-db 0). The CW ID with an ON call at each session's end and after
+    a call with no answer, heard whole on a receiver; the station that did not end the link keys about 3 s silent
+    first, waiting out the other's ID: tx_level takes no readings in silence nor in the 0.75 s after it
+    (tools/txlevel), so on the X6100 ft8_output_gain_offset should read the same before and after a session the
+    other station ends with its ID. A call cancelled in Pat: Pat-VARA's Abort says DISCONNECTED at once and Pat tunes
+    back, while XARA keys its ID only once the call's reply window is over: on which frequency does it go out?
   - **Then on the air**: yo4cil against his own gateway (YO4CIL, VARA and ARDOP on 4 bands), free speed first; a
     test build announced on #120 first.
   - **Upstream**: 0002 is prepared as a patch for x0rro/xara's main with a PR text (not sent yet); drop 0002 once
