@@ -4339,9 +4339,9 @@ The speed:
   as a registered VARA station does, and the link may use every level ("full
   speed (VARA HF licence ticked)"). The radio always calls (it answers no
   call, below), so its own setting is the one that counts on its links.
-- XARA's author builds his own releases without the faster levels, out of
-  respect for VARA's author, and leaves them to those with a licence; the box
-  leaves them to you in the same way.
+- XARA's author ships his own builds without the faster levels, so that
+  using them takes a build of one's own. This firmware has them built in, off,
+  behind the box: ticking it is your statement that you hold a licence.
 
 Dialling: in the mailbox, Connect, VARA HF as the transport, then a gateway
 from the VARA HF gateway list, or another station's callsign and dial
