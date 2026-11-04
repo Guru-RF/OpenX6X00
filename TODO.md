@@ -236,6 +236,10 @@ two PC builds only: not on a radio, nor in the PC build's window.
   and the box itself: nothing. In CW with the CW line open: the box opens, the line stays. Field Ops, a test
   activation: `F4ABC 59 57` logs 59 sent, 57 received. Then the X6100 (the light is the console's: KDSKBLED on
   /dev/tty0).
+- **Next, the same bench**: PgUp and PgDn step the band, Scroll Lock says "Dial locked" / "Dial unlocked", Print
+  Screen takes a screenshot, all on the main screen (none of them reached the GUI on the radio up to v0.3.8,
+  src/kbd_keymap.c); in the WiFi password box and the quick log's box they type nothing. The Scroll Lock light is
+  the console's own, which turns at each press: it can show the lock the wrong way round (left as it is).
 - Open: more chords, a line each in kbd_hyper.c's table, when asked for.
 
 ## WiFi: a static address, as Ethernet has (#17)

@@ -230,7 +230,13 @@ one second.
 A USB keyboard, or a Bluetooth one paired in Settings > Bluetooth > DEVICES,
 types in the text boxes and the apps. On the main screen it has the keys for
 the knobs (see [Buttons and knobs](#buttons-and-knobs)), F9 for Settings, `f`
-for the frequency box and, in CW, the [CW line](#cw-from-the-keyboard).
+for the frequency box and, in CW, the [CW line](#cw-from-the-keyboard). And:
+
+- PgUp and PgDn: the next band up or down, as the [BAND keys](#band-keys).
+- Scroll Lock: the [frequency lock](#buttons-and-knobs) on or off.
+- Print Screen: a screenshot.
+- These four work on the main screen only: in an app, Settings, a list or a
+  text box they do nothing. Up to v0.3.8 they did nothing on the radio.
 
 CapsLock is the keyboard's hyper key: held, the key pressed with it does
 something on the radio instead of typing. A key every keyboard has: small

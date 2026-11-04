@@ -6,7 +6,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     gui_main.c screen_main.c walkie.c gui_styles.c mono.c wf_palettes.c
     spectrum_view.c radio.c dsp.cpp util.cpp
     waterfall_view.c knob_device.c key_input.c input_caps.c mfk_device.c
-    gui_events.c msg_box.c msg_note.c front_keys.c kbd_rollover.c kbd_hyper.c
+    gui_events.c msg_box.c msg_note.c front_keys.c kbd_rollover.c kbd_hyper.c kbd_keymap.c
     mic_keys.c clock.c bat_est.c bat_watch.c info_bar.c smeter.c
     band_names.cpp tx_meters.c
     audio.c mfk_control.cpp cw.cpp cw_decoder.c cw_parse.c text_panel.cpp

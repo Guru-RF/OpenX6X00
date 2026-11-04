@@ -16,6 +16,7 @@
 #include "cw_field.h"
 #include "input_caps.h"
 #include "kbd_hyper.h"
+#include "kbd_keymap.h"
 #include "kbd_rollover.h"
 #include "paddle_keyer.h"
 #include "pubsub_ids.h"
@@ -132,8 +133,13 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
         *key      = xkb_process_key(ev.code, ev.value);     /* xkb follows Shift from these too */
         *scancode = ev.code;
         *state    = ev.value;
-        if (ev.code >= KEY_F1 && ev.code <= KEY_F10) {
-            *key = KEYBOARD_F1 + ev.code - KEY_F1;          /* xkb gives no character for them */
+        if (kbd_keymap(ev.code)) {
+            *key = kbd_keymap(ev.code);                     /* xkb gives no character for them */
+        }
+        /* PgUp, PgDn, Scroll Lock and Print Screen pressed away from the main screen: nowhere to go (a text box
+         * would type them); let go, they still reach LVGL, which only takes the release of the key it holds */
+        if (ev.value != 0 && kbd_keymap_main_only(ev.code) && !main_screen_has_keys()) {
+            continue;
         }
         return true;
     }

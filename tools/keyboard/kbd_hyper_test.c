@@ -34,19 +34,22 @@ typedef struct {
 static char name(uint16_t code) {
     static const struct { uint16_t code; char c; } names[] = {
         {KEY_A, 'a'}, {KEY_K, 'k'}, {KEY_L, 'l'}, {KEY_X, 'x'}, {KEY_LEFTSHIFT, 's'}, {KEY_LEFTCTRL, 'c'},
-        {KEY_RIGHTALT, 'g'}, {KEY_ENTER, 'e'}, {KEY_F10, 'f'},
+        {KEY_RIGHTALT, 'g'}, {KEY_ENTER, 'e'}, {KEY_F10, 'f'}, {KEY_PAGEUP, 'u'}, {KEY_PAGEDOWN, 'd'},
+        {KEY_SCROLLLOCK, 'o'}, {KEY_SYSRQ, 'p'},
     };
     for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
         if (names[i].code == code) return names[i].c;
     return '?';
 }
 
-/* events: "C" CapsLock, "a" "k" "l" "x" letters, "s" Shift, "c" Ctrl, "g" AltGr, "e" Enter, "f" F10; each as
- * +key (down), -key (up), *key (auto-repeat), separated by spaces */
+/* events: "C" CapsLock, "a" "k" "l" "x" letters, "s" Shift, "c" Ctrl, "g" AltGr, "e" Enter, "f" F10, "u" PgUp,
+ * "d" PgDn, "o" Scroll Lock, "p" Print Screen; each as +key (down), -key (up), *key (auto-repeat), separated by
+ * spaces */
 static out_t run(kbd_hyper_t *h, const char *events) {
     static const struct { char c; uint16_t code; } keys[] = {
         {'C', KEY_CAPSLOCK}, {'a', KEY_A}, {'k', KEY_K}, {'l', KEY_L}, {'x', KEY_X}, {'s', KEY_LEFTSHIFT},
-        {'c', KEY_LEFTCTRL}, {'g', KEY_RIGHTALT}, {'e', KEY_ENTER}, {'f', KEY_F10},
+        {'c', KEY_LEFTCTRL}, {'g', KEY_RIGHTALT}, {'e', KEY_ENTER}, {'f', KEY_F10}, {'u', KEY_PAGEUP},
+        {'d', KEY_PAGEDOWN}, {'o', KEY_SCROLLLOCK}, {'p', KEY_SYSRQ},
     };
     out_t  o = {0};
     size_t n = 0;
@@ -122,6 +125,9 @@ int main(void) {
     expect("+C +l -l +l -l -C", "", 0, 2, 0, "CapsLock+L twice in one hold");
     expect("+C +k -k -C", "", 0, 0, 1, "CapsLock+K: no action, nothing typed");
     expect("+C +e -e +f -f -C", "", 0, 0, 2, "CapsLock+Enter, CapsLock+F10: nothing");
+    expect("+u -u +d -d +o -o +p -p", "UuDdOoPp", 0, 0, 0, "PgUp, PgDn, Scroll Lock, Print Screen alone go through");
+    expect("+C +u -u +d *d -d +o -o +p -p -C", "", 0, 0, 4,
+           "CapsLock with PgUp, PgDn, Scroll Lock, Print Screen: chords, dropped");
     expect("+C +s +l -l -s -C", "Ss", 0, 1, 0, "CapsLock+Shift+L: Shift goes through");
     expect("+s +C +l -l -C -s", "Ss", 0, 1, 0, "Shift held, then CapsLock+L");
     expect("+C +c -c -C", "Cc", 1, 0, 0, "CapsLock with Ctrl only is a tap");
