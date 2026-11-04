@@ -11,6 +11,10 @@
    stations, each a winlink_host and a bridge, what one transmits the other hears (with a little noise). Pat B
    listens; Pat A sends B a message peer to peer. Pat starts the modem (Mercury answers VERSION), connects,
    sends, disconnects, and the message is in B's inbox.
+3. XARA (our patched build, its --audio x6x00 on the GUI's socket, protocol version 2 at 12000 Hz) and Pat's varahf,
+   the same way, twice: with the settings x6100-winlink writes for the free speed (no `registered`), B's XARA says
+   LINK UNREGISTERED and no level goes past VARA's free 4; with `registered` on A (the Winlink page's VARA licence
+   tick box), B's says LINK REGISTERED, as VARA's callee follows the caller's bit. Both stop on SIGTERM.
 
 Run it in a network namespace with loopback only (`make modems` does, with unshare -rn): Pat then reaches
 nothing outside, no Winlink web service, no CMS. Pat's own account check before a connect is also skipped
@@ -22,6 +26,7 @@ import argparse
 import array
 import json
 import os
+import re
 import shutil
 import signal
 import socket
@@ -351,19 +356,144 @@ def mercury_test(procs, tmp, mercury, pat):
               f"station {n}: x6x00-mercury stopped on SIGTERM, the GUI saw it go")
 
 
+def supervisor(root):
+    """rootfs/usr/sbin/x6100-winlink as a module, its paths under root"""
+    import importlib.machinery
+    import importlib.util
+    os.environ["X6100_WINLINK_ROOT"] = root
+    path = os.path.join(HERE, "..", "..", "rootfs", "usr", "sbin", "x6100-winlink")
+    loader = importlib.machinery.SourceFileLoader("x6100_winlink", path)
+    mod = importlib.util.module_from_spec(importlib.util.spec_from_loader("x6100_winlink", loader))
+    sys.dont_write_bytecode = True
+    loader.exec_module(mod)
+    return mod
+
+
+def xara_conf(path, call, sock, port, registered):
+    """xara.conf as x6100-winlink writes it (its own xara_conf), with this test's socket and port"""
+    wl = supervisor(os.path.dirname(path))
+    want = {"mycall": call, "xara_bandwidth": 2300, "vara_licence": registered, "xara_path_ms": ""}
+    body = wl.xara_conf(want).replace(wl.ARDOP_SOCK, sock).replace(f"port = {wl.MERCURY_PORT}\n", f"port = {port}\n")
+    if sock not in body or f"port = {port}\n" not in body:
+        fail("x6100-winlink's xara.conf has no socket or port line this test can set")
+    with open(path, "w") as f:
+        f.write(body)
+
+
+def xara_station(procs, tmp, name, call, port, xara, air_in, air_out, registered):
+    h = host(procs, tmp, name, 14550 + port % 100, air_in, air_out)
+    home = os.path.join(tmp, name + "-home")
+    os.makedirs(home)
+    conf = os.path.join(tmp, name + "-xara.conf")
+    xara_conf(conf, call, h["sock"], port, registered)
+    # As x6100-winlink starts it: no XARA_* or STATE_DIRECTORY (no saved web UI settings), HOME of its own
+    env = {k: v for k, v in os.environ.items() if not k.startswith("XARA_") and k != "STATE_DIRECTORY"}
+    env.update(HOME=home, XDG_CONFIG_HOME=os.path.join(home, ".config"))
+    log = os.path.join(tmp, name + "-xara.log")
+    x = procs.start([xara, "--config", conf], log, env)
+    return h, x, log
+
+
+def levels(log):
+    """The speed levels XARA reported to Pat (BITRATE (n) ...), sent and heard"""
+    return [int(m) for m in re.findall(r"< BITRATE \((\d+)\)", text(log))]
+
+
+def xara_test(procs, tmp, xara, pat, registered):
+    tag = "full" if registered else "free"
+    print(f"XARA through --audio x6x00, protocol 2, and Pat's varahf, two stations, "
+          f"{'registered on A (the licence tick box)' if registered else 'the free speed'}")
+    port_a, port_b = (18340, 18350) if registered else (18320, 18330)
+    air_a, air_b = os.path.join(tmp, "air-xa-" + tag), os.path.join(tmp, "air-xb-" + tag)
+    ha, xa, la = xara_station(procs, tmp, "xa-" + tag, CALL_A, port_a, xara, air_a, air_b, registered)
+    hb, xb, lb = xara_station(procs, tmp, "xb-" + tag, CALL_B, port_b, xara, air_b, air_a, False)
+    for h, log, n in ((ha, la, "A"), (hb, lb, "B")):
+        check(wait_for(lambda: "the modem connected, protocol 2, 12000 Hz, keys of 30 s at most" in text(h["log"]), 15),
+              f"station {n}: XARA connected, 12000 Hz, keys of 30 s")
+        check(wait_for(lambda: f"connected to the GUI's socket {h['sock']}" in text(log), 5),
+              f"station {n}: and says so in its log, as x6100-winlink reads it")
+    # From its log, not by a connection: XARA takes one client on its port and refuses the next while it has one
+    for port, log, n in ((port_a, la, "A"), (port_b, lb, "B")):
+        check(wait_for(lambda: f"cmd 127.0.0.1:{port} data 127.0.0.1:{port + 1}" in text(log), 10),
+              f"station {n}: XARA's commands on 127.0.0.1:{port}, its data on {port + 1}")
+    c = socket.create_connection(("127.0.0.1", port_a), timeout=5)
+    got, end = b"", time.time() + 3
+    c.sendall(b"VERSION\r")
+    while not any(l.startswith(b"VERSION") for l in got.split(b"\r")) and time.time() < end:
+        got += c.recv(4096)
+    c.close()
+    line = next((l for l in got.split(b"\r") if l.startswith(b"VERSION")), b"").decode()
+    check(line == "VERSION VARA HF v4.9.0", f"VERSION answered with a VERSION line, what Pat waits for ({line!r})")
+
+    da, db = pat_env(tmp, "xa-" + tag, CALL_A), pat_env(tmp, "xb-" + tag, CALL_B)
+    argv, env = pat_cmd(pat, db, port_b, CALL_B, "interactive", listen=True)
+    pb = procs.start(argv, os.path.join(db, "out.txt"), env, stdin=subprocess.PIPE)
+    check(wait_for(lambda: "Listening for incoming traffic on varahf" in text(os.path.join(db, "out.txt")), 20),
+          "Pat B started XARA and listens on varahf")
+    subject = f"XARA P2P test {tag} {int(time.time())}"
+    body = "Sent by Pat over XARA on the GUI's modem socket.\n" * 30
+    argv, env = pat_cmd(pat, da, port_a, CALL_A, "compose", "--p2p-only", "-s", subject, CALL_B)
+    r = subprocess.run(argv, input=body, text=True, env=env, capture_output=True, timeout=30)
+    check(r.returncode == 0, f"Pat A composed a message to {CALL_B} ({len(body)} bytes)")
+
+    print("   connecting (VARA HF at 2300 Hz on the PC's two stations)")
+    out_a = os.path.join(da, "connect.txt")
+    argv, env = pat_cmd(pat, da, port_a, CALL_A, "connect", f"varahf:///{CALL_B}?p2p=true")
+    t0 = time.time()
+    with open(out_a, "w") as f:
+        r = subprocess.run(argv, stdout=f, stderr=subprocess.STDOUT, env=env, timeout=600)
+    secs = time.time() - t0
+    out = text(out_a) + text(os.path.join(da, "pat.log"))
+    print("   Pat A:\n     " + "\n     ".join(text(out_a).strip().splitlines()[-25:]))
+    check("VARA modem (" in out and ") initialized" in out, "Pat A started XARA")
+    check("Connected to" in out, "Pat A connected to B")
+    check(r.returncode == 0, f"Pat A's session ended well ({secs:.0f} s)")
+    inbox = os.path.join(db, "mbox", CALL_B, "in")
+    got = [n for n in os.listdir(inbox)] if os.path.isdir(inbox) else []
+    check(any(subject in text(os.path.join(inbox, n)) for n in got), f"the message is in B's inbox ({len(got)} there)")
+
+    lv = levels(la) + levels(lb)
+    check(lv, f"both XARAs reported the speed: levels {sorted(set(lv))}")
+    if registered:
+        check("< REGISTERED " + CALL_A in text(la), "A's XARA says REGISTERED with its call (the tick box's line)")
+        check("< LINK REGISTERED" in text(lb), "B's XARA says LINK REGISTERED: it follows the caller's bit")
+        check(max(lv) > 4, f"and the link went past the free levels (the highest {max(lv)})")
+    else:
+        check("< REGISTERED " + CALL_A not in text(la), "A's XARA says REGISTERED without a call: not registered")
+        check("< LINK UNREGISTERED" in text(lb) and "< LINK REGISTERED" not in text(lb),
+              "B's XARA says LINK UNREGISTERED")
+        check(max(lv) <= 4, f"no level past the free 4 (the highest {max(lv)})")
+    keys_a, keys_b = played(ha), played(hb)
+    check(keys_a and keys_b, f"both radios keyed: A {len(keys_a)} times, B {len(keys_b)} times")
+    longest = max(n for n, _ in keys_a + keys_b) / PLAY_RATE
+    check(not any(s for _, s in keys_a + keys_b), f"no key stopped by the GUI (the longest {longest:.1f} s)")
+    pb.stdin.close()
+    procs.stop(pb)
+    for x, h, n in ((xa, ha, "A"), (xb, hb, "B")):
+        procs.stop(x)
+        # 130: XARA's own code for a stop by a signal, the PTT released
+        check(x.returncode == 130 and wait_for(lambda: "the modem gone" in text(h["log"]), 5),
+              f"station {n}: XARA stopped on SIGTERM, the GUI saw it go")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ardopcf", required=True)
     ap.add_argument("--mercury", required=True)
+    ap.add_argument("--xara", help="XARA built for this PC (tools/xara/build.sh --host); without it, no XARA test")
     ap.add_argument("--pat", required=True)
     ap.add_argument("--keep", help="keep the logs in this directory")
-    ap.add_argument("--only", choices=("ardop", "mercury"))
+    ap.add_argument("--only", choices=("ardop", "mercury", "xara"))
     a = ap.parse_args()
-    for p in (a.ardopcf, a.mercury) if a.only is None else ((a.ardopcf,) if a.only == "ardop" else (a.mercury,)):
-        if not os.access(p, os.X_OK):
-            fail(f"{p} is not there: cmake --build <the GUI's PC build> --target ardopcf x6x00-mercury")
-    if _port_open(18300) or _port_open(18515):
-        fail("ports 18300 or 18515 are taken")
+    need = {"ardop": [a.ardopcf], "mercury": [a.mercury], "xara": [a.xara]}
+    for p in sum(need.values(), []) if a.only is None else need[a.only]:
+        if p and not os.access(p, os.X_OK):
+            fail(f"{p} is not there: cmake --build <the GUI's PC build> --target ardopcf x6x00-mercury, "
+                 "and tools/xara/build.sh --host for XARA")
+    if a.only == "xara" and not a.xara:
+        fail("--only xara needs --xara")
+    if any(_port_open(p) for p in (18300, 18515, 18320, 18340)):
+        fail("ports 18300, 18320, 18340 or 18515 are taken")
     tmp = tempfile.mkdtemp(prefix="winlink-modems-")
     procs = Procs()
     try:
@@ -371,6 +501,12 @@ def main():
             ardop_test(procs, tmp, os.path.abspath(a.ardopcf))
         if a.only in (None, "mercury"):
             mercury_test(procs, tmp, os.path.abspath(a.mercury), shutil.which(a.pat) or os.path.abspath(a.pat))
+        if a.only in (None, "xara") and not a.xara:
+            print("XARA: not tested, no --xara (tools/xara/build.sh --host builds it)")
+        if a.only in (None, "xara") and a.xara:
+            for registered in (False, True):
+                xara_test(procs, tmp, os.path.abspath(a.xara), shutil.which(a.pat) or os.path.abspath(a.pat),
+                          registered)
     finally:
         procs.stop_all()
         if a.keep:

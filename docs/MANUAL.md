@@ -5982,8 +5982,8 @@ our program around it, which takes its audio and PTT through the GUI's
 modem socket). Pat is built outside, by `tools/pat/build.sh`. In the PC
 build both modems are built only when named (`cmake --build build-host
 --target ardopcf x6x00-mercury`); `tools/winlink` then tests the GUI's
-modem socket with them, Pat to Pat over Mercury included (see its
-README).
+modem socket with them, Pat to Pat over Mercury and over XARA included
+(see its README).
 
 XARA, the third Winlink modem (experimental), is built outside too, by
 `tools/xara/build.sh`: the pinned v0.1.3 release's source and vendored
@@ -5994,7 +5994,7 @@ with the buildroot tree's own gcc, which `local-build.sh` makes first
 (`make toolchain`), it is installed as `/usr/bin/xara`, its licence and the
 notices of the Rust crates in it in `/usr/share/x6100/licenses/xara`
 (`tools/xara/UPSTREAM.md`). `tools/xara/build.sh --host` builds it for the
-PC, for `tools/winlink`'s tests.
+PC, for `tools/winlink`'s `make modems`.
 
 The private tests and UI harnesses of the original author are not part of
 this repository.

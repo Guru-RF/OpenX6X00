@@ -17,10 +17,11 @@ from the session's rate), XARA's way of sending (protocol 2 at 12000 Hz with key
 30 s, its audio in 10 ms T messages when they are due and none ahead, 20 ms of
 silence after it, then P 0: played whole, never unkeyed for want of audio), the key
 limit of the hello (2 s: stopped after 2 s, the message on the screen), a key longer
-than the GUI allows (40 s), the hellos refused (a rate other than 8000 or 12000, no key, version 3: the connection is closed), messages
-before the hello (ignored), a second hello (ignored), a new connection replacing the
-old one, a digital app opened during a key (`WL_APP`: the key stopped there, the next
-one refused until the app is closed), an SWR trip during a key (`WL_SWR`, #147: on
+than the GUI allows (40 s), the hellos refused (a rate other than 8000 or 12000, no
+key, version 3: the connection is closed), messages before the hello (ignored), a
+second hello (ignored), a new connection replacing the old one, a digital app opened
+during a key (`WL_APP`: the key stopped there, the next one refused until the app is
+closed), an SWR trip during a key (`WL_SWR`, #147: on
 10.145 MHz the keys on 30 m are held, also after Pat's QSY to 10.120, while 7.102 MHz
 on 40 m keys at once, the radio file saying where the hold is and whether the radio is
 there; on 7.250 MHz, outside the table's 40 m, the hold covers 7.300 MHz, within
@@ -35,8 +36,11 @@ and the radio file the Winlink page reads
 namespace of its own with loopback only (`unshare -rn`), so Pat reaches nothing
 outside: no Winlink web service, no CMS. It needs the GUI's PC build with the two
 modems built (`cmake --build build-host --target ardopcf x6x00-mercury`; `make
-BUILD=...` for another build directory) and a Pat for this PC (`make PAT=...`: Pat
-v1.0.1 with `tools/pat/patches`, built for linux/amd64; 2026-11-01: MODEMS OK, 58 s).
+BUILD=...` for another build directory), a Pat for this PC (`make PAT=...`: Pat
+v1.0.1 with `tools/pat/patches`, built for linux/amd64; 2026-11-01: MODEMS OK, 58 s)
+and XARA for this PC (`make XARA=...`; by default `tools/xara/build.sh --host` builds
+it, the first time with a download of about 150 MB, then it only gives the path;
+`XARA=` leaves XARA out).
 
 - ardopcf, as `x6100-winlink` starts it: it connects in protocol 1 (12000 Hz, keys of
   30 s), and the ID frame asked on its host port (`SENDID`) is played whole (1.75 s).
@@ -57,9 +61,23 @@ v1.0.1 with `tools/pat/patches`, built for linux/amd64; 2026-11-01: MODEMS OK, 5
   peer to peer (`varahf:///N0BBB?p2p=true`): connected, sent, disconnected, the message
   in B's inbox, no key stopped by the GUI, both bridges stop on SIGTERM. About a minute
   (2026-10-29: 58 s, six keys a station, the longest 3.8 s).
+- XARA: two stations the same way, each a `winlink_host` and our patched XARA
+  (`tools/xara`), started as `x6100-winlink` starts it (`xara --config` with the
+  settings it writes, no `XARA_*` or `STATE_DIRECTORY`): it connects in protocol 2
+  (12000 Hz, keys of 30 s), says so in its log as the supervisor reads it, and
+  answers `VERSION` with `VERSION VARA HF v4.9.0`. Pat B listens on varahf; Pat A
+  sends B a message peer to peer, twice. At the free speed (no `registered`): A's XARA
+  says `REGISTERED` without a call, B's `LINK UNREGISTERED`, no level past VARA's free
+  4. With `registered` on A, as the Winlink page's VARA HF licence box asks: A's says
+  `REGISTERED N0AAA`, B's `LINK REGISTERED` (the callee follows the caller's bit) and
+  the link goes past level 4. Each time: connected, the message in B's inbox, no key
+  stopped by the GUI, both XARAs stop on SIGTERM (their code 130). About two and a
+  half minutes (2026-11-04, three runs: 89-96 s at the free speed, levels 2 to 4;
+  61-62 s at full speed, up to level 9, 10 and 13; keys of 5.2 s at the most). The
+  whole `make modems`: 247 s.
 
 It prints `MODEMS OK`; `--keep DIR` (run the script by hand) keeps the logs, `--only
-ardop|mercury` runs one.
+ardop|mercury|xara` runs one.
 
 Also here, in Python alone: `winlink_test.py`, the tests of the supervisor
 (`rootfs/usr/sbin/x6100-winlink`: the settings, Pat's config, Mercury's and

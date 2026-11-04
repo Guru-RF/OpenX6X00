@@ -4,11 +4,14 @@
 # paths, and the shims in stub_include must win over src/. The band table (cluster/spots.c, the SWR hold's bands)
 # is the real one, in build/cluster/.
 # DEPS: liquid-dsp (host/build.sh puts it in build-host/deps). BUILD: the GUI's PC build, where
-# `cmake --build $(BUILD) --target ardopcf x6x00-mercury` made the two modems. PAT: a Pat for this PC.
+# `cmake --build $(BUILD) --target ardopcf x6x00-mercury` made the two modems. PAT: a Pat for this PC. XARA: XARA
+# for this PC, by default what tools/xara/build.sh --host builds (its pinned Rust, kept in $HOME/.cache/openx6x00;
+# the first time it downloads about 150 MB, then it only prints the path); XARA= leaves XARA out
 SRC    := ../../src
 DEPS   ?= ../../build-host/deps
 BUILD  ?= ../../build-host
 PAT    ?= pat
+XARA   ?= $(shell bash ../xara/build.sh --host)
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -pthread -I stub_include -I $(DEPS)/include
 COPIED := winlink.c winlink.h
 CLUSTER := cluster/spots.c cluster/spots.h
@@ -31,7 +34,7 @@ test: winlink_host
 # In a network namespace of its own with loopback only (unshare -rn): Pat reaches nothing outside it, no
 # Winlink web service, no CMS
 modems: winlink_host clockskip.so
-	unshare -rn sh -c 'ip link set lo up && python3 -I winlink_modems_test.py --ardopcf $(BUILD)/third-party/ardopcf/ardopcf --mercury $(BUILD)/third-party/mercury/x6x00-mercury --pat $(PAT)'
+	unshare -rn sh -c 'ip link set lo up && python3 -I winlink_modems_test.py --ardopcf $(BUILD)/third-party/ardopcf/ardopcf --mercury $(BUILD)/third-party/mercury/x6x00-mercury --xara "$(XARA)" --pat $(PAT)'
 
 clean:
 	rm -rf winlink_host clockskip.so build
