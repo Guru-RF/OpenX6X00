@@ -184,35 +184,36 @@ void cw_field_log_open(void) {
     }
 }
 
+bool cw_field_message(int n) {
+    char msgs[5][PARAMS_MSG_CW_LEN];
+
+    if (!ready() || n < 1 || n > 5 || params_msg_cw_list(msgs, n) < n) {
+        return false;
+    }
+    cw_field_send_text(msgs[n - 1]);
+    timer_cb(NULL);
+    return true;
+}
+
+bool cw_field_log_line(void) {
+    if (!ready() || !input[0]) {
+        return false;
+    }
+    cw_field_log_qso(input);
+    input[0] = 0;
+    timer_cb(NULL);
+    return true;
+}
+
 bool cw_field_key(uint32_t key) {
-    size_t len  = strlen(input);
-    bool   fkey = key >= KEYBOARD_F1 && key <= KEYBOARD_F5;   /* MSG > CW messages 1-5 */
+    size_t len = strlen(input);
 
     if (!ready()) {
         return false;
     }
-    /* Hidden: a letter, digit or F1-F5 opens it, the other keys keep their main screen use */
-    if (lv_obj_has_flag(field, LV_OBJ_FLAG_HIDDEN) && !(key < 127 && isalnum((int)key)) && !fkey) {
+    /* Hidden: a letter or digit opens it, the other keys keep their main screen use */
+    if (lv_obj_has_flag(field, LV_OBJ_FLAG_HIDDEN) && !(key < 127 && isalnum((int)key))) {
         return false;
-    }
-    if (fkey) {
-        char msgs[5][PARAMS_MSG_CW_LEN];
-        int  i = key - KEYBOARD_F1;
-
-        if (params_msg_cw_list(msgs, i + 1) <= i) {
-            return false;
-        }
-        cw_field_send_text(msgs[i]);
-        timer_cb(NULL);
-        return true;
-    }
-    if (key == KEYBOARD_F10) {     /* the line is the QSO to log, not sent */
-        if (input[0]) {
-            cw_field_log_qso(input);
-            input[0] = 0;
-        }
-        timer_cb(NULL);
-        return true;
     }
     switch (key) {
         case LV_KEY_ENTER:

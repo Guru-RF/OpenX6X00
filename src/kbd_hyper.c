@@ -12,13 +12,17 @@
 
 #define LONG_BITS (8 * sizeof(long))
 
-/* CapsLock + a key, by scancode: where it is on the keyboard, whatever its layout prints on it. A new
- * chord is a line here and its action in key_input.c */
+/* CapsLock + a key, by scancode: where it is on a US keyboard, as the radio types (on an AZERTY one Q is the key
+ * marked A). A chord is added here, a line; main_screen_chord (screen_main.c) runs its action and chooses where it
+ * goes (Q in CW with a line typed, 1-8 in JTTY) */
 static const struct {
     uint16_t           code;
     kbd_hyper_action_t action;
 } chords[] = {
-    {KEY_L, HYPER_LOG_QSO},
+    {KEY_Q, HYPER_LOG_QSO},      {KEY_L, HYPER_LOCK},         {KEY_P, HYPER_SCREENSHOT},   {KEY_S, HYPER_SETTINGS},
+    {KEY_F, HYPER_FREQ},         {KEY_UP, HYPER_BAND_UP},     {KEY_DOWN, HYPER_BAND_DOWN},
+    {KEY_1, HYPER_KEY_1},        {KEY_2, HYPER_KEY_2},        {KEY_3, HYPER_KEY_3},        {KEY_4, HYPER_KEY_4},
+    {KEY_5, HYPER_KEY_5},        {KEY_6, HYPER_KEY_6},        {KEY_7, HYPER_KEY_7},        {KEY_8, HYPER_KEY_8},
 };
 
 /* Held with CapsLock, these still reach xkb: Shift let go during a chord would otherwise stay down there */

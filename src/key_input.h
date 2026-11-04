@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "kbd_keymap.h"    /* KEYBOARD_F1 ... */
+#include "kbd_keymap.h"    /* KEYBOARD_SCRL_LOCK, KEYBOARD_PRINT */
 #include "lvgl/lvgl.h"
 
 /* The group of the knobs, the buttons and the keyboard: the focused widget gets their keys */

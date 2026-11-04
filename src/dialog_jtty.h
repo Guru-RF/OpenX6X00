@@ -14,6 +14,9 @@ extern "C" {
 
 extern dialog_t *dialog_jtty;
 
+/* CapsLock+1 to 8 on a keyboard: macro n (1-8) sent, as its button. False: JTTY does not have the keyboard */
+bool dialog_jtty_macro(int n);
+
 
 #ifdef __cplusplus
 }

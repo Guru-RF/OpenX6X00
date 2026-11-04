@@ -3,11 +3,11 @@
  *
  *  OpenX6X00 - CapsLock as a hyper key on a USB or Bluetooth keyboard (kbd_hyper.c)
  *
- *  While CapsLock is held, a key pressed with it is a chord: CapsLock+L opens the quick QSO log. A chord's
- *  keys are never typed, and CapsLock held for a chord leaves Caps Lock as it was. CapsLock tapped alone,
- *  no key pressed while it was down, is Caps Lock as before; it turns when the tap ends. Shift, Ctrl, Alt
- *  and the Meta keys go through as usual while it is held. Here only what each key event becomes, from the
- *  scancodes: key_input.c does it.
+ *  While CapsLock is held, a key pressed with it is a chord: CapsLock+Q logs a QSO, and the others in
+ *  kbd_hyper.c's table. A chord's keys are never typed, and CapsLock held for a chord leaves Caps
+ *  Lock as it was. CapsLock tapped alone, no key pressed while it was down, is Caps Lock as before; it turns
+ *  when the tap ends. Shift, Ctrl, Alt and the Meta keys go through as usual while it is held. Here only what
+ *  each key event becomes, from the scancodes: key_input.c does it.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -22,10 +22,24 @@
 extern "C" {
 #endif
 
-/* What a chord does (key_input.c runs it); the table of chords is in kbd_hyper.c */
+/* What a chord does (screen_main.c's main_screen_chord runs it); the table of chords is in kbd_hyper.c */
 typedef enum {
     HYPER_NONE = 0,     /* a chord with no action: nothing at all */
-    HYPER_LOG_QSO,      /* L: the main screen's quick QSO log */
+    HYPER_LOG_QSO,      /* Q: in CW the CW line's QSO logged, else the main screen's quick QSO log */
+    HYPER_LOCK,         /* L: the dial lock on or off, as Scroll Lock */
+    HYPER_SCREENSHOT,   /* P: a screenshot, as Print Screen */
+    HYPER_SETTINGS,     /* S: Settings */
+    HYPER_FREQ,         /* F: the frequency box, as f (also in CW, where f goes into the CW line) */
+    HYPER_BAND_UP,      /* Up: the next band up, as the BAND keys */
+    HYPER_BAND_DOWN,    /* Down: the next band down */
+    HYPER_KEY_1,        /* 1 to 8, in order: CW messages 1-5 on the main screen, JTTY's macros 1-8 */
+    HYPER_KEY_2,
+    HYPER_KEY_3,
+    HYPER_KEY_4,
+    HYPER_KEY_5,
+    HYPER_KEY_6,
+    HYPER_KEY_7,
+    HYPER_KEY_8,
 } kbd_hyper_action_t;
 
 /* What becomes of one key event */

@@ -154,11 +154,11 @@ the radio on the air after PTT was let go, until PTT was pressed again,
 and a key held while another one was pressed lost its long press.
 
 Frequency lock. The LOCK key (X6100), the X6100 mic's SPCH key, a
-keyboard's Scroll Lock, the browser panel's LOCK and any key given
-"Frequency lock on/off" in Settings > Keys (a long press of GEN, APP, KEY,
-MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200 has no
-LOCK key: give it to FST's long press, as on the stock firmware, or to
-another of those. Each turn says "Dial locked" or "Dial unlocked" on the
+keyboard's Scroll Lock or CapsLock+L, the browser panel's LOCK and any key
+given "Frequency lock on/off" in Settings > Keys (a long press of GEN, APP,
+KEY, MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200
+has no LOCK key: give it to FST's long press, as on the stock firmware, or
+to another of those. Each turn says "Dial locked" or "Dial unlocked" on the
 screen.
 Held, the X6100's LOCK key restarts the radio's base board instead, a way
 out when the base stops answering: after the long press the screen counts
@@ -229,33 +229,50 @@ one second.
 
 A USB keyboard, or a Bluetooth one paired in Settings > Bluetooth > DEVICES,
 types in the text boxes and the apps. On the main screen it has the keys for
-the knobs (see [Buttons and knobs](#buttons-and-knobs)), F9 for Settings, `f`
-for the frequency box and, in CW, the [CW line](#cw-from-the-keyboard). And:
+the knobs (see [Buttons and knobs](#buttons-and-knobs)), `f` for the
+frequency box and, in CW, the [CW line](#cw-from-the-keyboard). Scroll Lock
+turns the [frequency lock](#buttons-and-knobs) on and off and Print Screen
+takes a screenshot, both on the main screen only.
 
-- PgUp and PgDn: the next band up or down, as the [BAND keys](#band-keys).
-- Scroll Lock: the [frequency lock](#buttons-and-knobs) on or off.
-- Print Screen: a screenshot.
-- These four work on the main screen only: in an app, Settings, a list or a
-  text box they do nothing. Up to v0.3.8 they did nothing on the radio.
+CapsLock is the keyboard's shortcut key: held, the key pressed with it does
+something on the radio instead of typing. Every keyboard has it, small and
+Bluetooth ones too, which often have no F keys, or only with Fn.
 
-CapsLock is the keyboard's hyper key: held, the key pressed with it does
-something on the radio instead of typing. A key every keyboard has: small
-and Bluetooth keyboards often have no F keys, or only with Fn.
+| CapsLock + | Does | Where |
+|---|---|---|
+| Q | Log a QSO: in CW the line typed in the [CW line](#cw-from-the-keyboard), not sent; else the [quick QSO log](#quick-qso-log)'s box opens | main screen |
+| L | The [frequency lock](#buttons-and-knobs) on or off, as Scroll Lock | main screen |
+| P | A screenshot, as Print Screen | everywhere |
+| S | Settings | main screen |
+| F | The frequency box, as `f`, also in CW, where `f` goes into the CW line | main screen |
+| 1 to 5 | In CW, the MSG > CW messages 1 to 5, keyed from the [CW line](#cw-from-the-keyboard) | main screen |
+| 1 to 8 | [JTTY](#jtty)'s macros F1 to F8, as their buttons | JTTY |
+| Up, Down | The next band up or down, as the [BAND keys](#band-keys) | main screen |
 
-- CapsLock+L opens the [quick QSO log](#quick-qso-log) on the main screen,
-  in any mode. The other letters do nothing with it yet.
-- A key pressed while CapsLock is held is never typed, and Caps Lock stays
-  as it was, on or off. The keyboard's Caps Lock light can come on while
-  CapsLock is held, and goes back when the other key goes down.
+- Main screen: no app, Settings, list or text box open. Elsewhere these
+  chords do nothing, and type nothing.
+- The keys count by their place on a US keyboard, as the radio types: on an
+  AZERTY keyboard CapsLock+Q is the key marked A.
+- A key pressed while CapsLock is held is never typed, in the CW line, the
+  quick log's box or a text box neither, and Caps Lock stays as it was, on
+  or off. The keyboard's Caps Lock light can come on while CapsLock is held,
+  and goes back when the other key goes down.
+- A chord acts once a press: held, it does not repeat (one band a press).
 - CapsLock tapped alone, nothing pressed with it, is Caps Lock as before:
   it turns when you let it go. Shift, Ctrl and Alt work with it as usual.
-- In an app, Settings, a list or a text box (the quick log's own box too)
-  CapsLock+L does nothing: no letter is typed and nothing opens.
+
+Up to v0.3.8 the keyboard's F keys did some of this: F1-F5 keyed the CW
+messages in CW, F10 logged the CW line, F9 opened Settings, F1-F8 sent
+JTTY's macros, and F4 was Start in the CW Trainer and Edit in MSG > CW
+(Enter still does both). They do nothing now, and neither do PgUp and PgDn.
+Up to v0.3.8 this Manual had PgUp and PgDn for the band and Scroll Lock for
+the lock, and the code Print Screen for a screenshot, but none of the four
+did anything on the radio.
 
 #### Quick QSO log
 
 A QSO logged from the main screen in any mode, the waterfall and the spots
-on it still in view: CapsLock+L, or the Log QSO button (KEY until the page
+on it still in view: CapsLock+Q, or the Log QSO button (KEY until the page
 reads CW 1:2, then F5), opens a one-line box near the top,
 `Call [sent [rcvd]]:`.
 
@@ -270,8 +287,10 @@ reads CW 1:2, then F5), opens a one-line box near the top,
   [Wavelog](#wavelog) gets it when it is set up.
 - With a keyboard no on-screen keyboard opens. Without one the on-screen
   keyboard does (the Log QSO button).
-- In CW, with the [CW line](#cw-from-the-keyboard) open, F10 logs the line
-  typed in it the same way, instead of sending it.
+- In CW, with a line typed in the [CW line](#cw-from-the-keyboard),
+  CapsLock+Q logs that line the same way instead of sending it, and the box
+  does not open. With nothing typed it opens the box. Up to v0.3.8 F10 logged
+  the line.
 
 ## Updating the firmware
 
@@ -337,9 +356,9 @@ web configurator (System > Update).
 
 ### Band keys
 
-The BAND keys (and the hand mic's long UP/DOWN, the keyboard's PgUp/PgDn, the
-Walkie Talkie's Band buttons, the browser panel) step through the active bands
-of the band list, from the frequency up or down.
+The BAND keys (and the hand mic's long UP/DOWN, a keyboard's CapsLock+Up and
+Down, the Walkie Talkie's Band buttons, the browser panel) step through the
+active bands of the band list, from the frequency up or down.
 
 - They skip a band the radio cannot tune: 4 m (70 MHz), 2 m and 70 cm,
   unless a transverter that is on (Settings > General > TRANSVERTERS) or, on
@@ -2606,6 +2625,8 @@ frequency of the band in USB-D (14.090 on 20 m). The layout is the same as
 RTTY and PSK: received text in the panel under the waterfall, sent text in
 the TX colour. F1-F8 (pages 2 and 3) are macros: press sends, hold edits
 the name and then the text (an empty text deletes, the ones after move up).
+With a keyboard CapsLock+1 to CapsLock+8 send them too (up to v0.3.8 its F1
+to F8 did).
 By default they are the WSJT-X contest keys. In the text, `%M` is your call,
 `%H` the DX call, `%E` "599" and the serial number, sent as one frame. Up to
 80 characters, kept in `/mnt/jtty_macros.txt`, also on the web configurator's
@@ -2763,8 +2784,11 @@ again when it reconnects.
   same as KEY > Speed), and goes back to its control when the line closes.
 - When everything is sent the line goes away. Out of CW mode or out of the
   CW segment nothing new is sent and the line is cleared.
-- F1 to F5 key the MSG > CW messages 1 to 5 (in list order) as if typed
-  and sent with Enter; Esc stops them. An F key with no message does nothing.
+- CapsLock+1 to CapsLock+5 key the MSG > CW messages 1 to 5 (in list order)
+  as if typed and sent with Enter; Esc stops them. A number with no message
+  does nothing. CapsLock+Q logs the line typed instead of sending it (see
+  [Quick QSO log](#quick-qso-log)), and CapsLock+F opens the frequency box,
+  as `f` does outside CW. Up to v0.3.8 F1 to F5 keyed the messages.
 - In a CW message `{CALL}` is your callsign (Settings > General > STATION),
   also with TX in MSG > CW; with no callsign set it stays as written.
 - Until the line is open, the other keys (- = and so on) work as usual; in

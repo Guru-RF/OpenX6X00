@@ -4,8 +4,9 @@
  *  Host test of CapsLock as the keyboard's hyper key (src/kbd_hyper.c; issue #175). Key events go in as evdev
  *  sends them, and come out as key_input.c uses them: the keys typed (passed on to xkb and LVGL), the times Caps
  *  Lock turned, the chords' actions. CapsLock tapped alone is Caps Lock; held, a key with it is a chord, never
- *  typed, and Caps Lock stays as it was; CapsLock+L is the quick QSO log, the other letters do nothing yet. Keys
- *  pressed before CapsLock, and Shift, Ctrl, Alt and Meta, go through.
+ *  typed, once per press (its repeats and release dropped, whichever goes up first), and Caps Lock stays as it was.
+ *  The table: Q log a QSO, L the dial lock, P a screenshot, S Settings, F the frequency box, Up and Down the band,
+ *  1-8 the CW messages and JTTY's macros; the other keys (the F keys, PgUp and PgDn too) do nothing with it. Keys pressed before CapsLock, and Shift, Ctrl, Alt and Meta, go through.
  */
 
 #include "kbd_hyper.h"
@@ -23,76 +24,97 @@ static void check(bool ok, const char *what) {
     }
 }
 
-/* What key_input.c makes of the events */
-typedef struct {
-    char typed[64];     /* the events passed on: a letter per key, upper case down, lower case up, r a repeat */
-    int  caps;          /* Caps Lock turned */
-    int  log_qso;       /* chords with the quick QSO log */
-    int  none;          /* chords with no action */
-} out_t;
+/* The keys of the cases, a character each */
+static const struct {
+    char     c;
+    uint16_t code;
+} keys[] = {
+    {'C', KEY_CAPSLOCK}, {'a', KEY_A},        {'k', KEY_K},        {'l', KEY_L},          {'x', KEY_X},
+    {'q', KEY_Q},        {'p', KEY_P},        {'s', KEY_S},        {'f', KEY_F},          {'1', KEY_1},
+    {'2', KEY_2},        {'3', KEY_3},        {'4', KEY_4},        {'5', KEY_5},          {'6', KEY_6},
+    {'7', KEY_7},        {'8', KEY_8},        {'9', KEY_9},        {'0', KEY_0},          {'^', KEY_UP},
+    {'v', KEY_DOWN},     {'<', KEY_LEFT},     {'_', KEY_SPACE},    {'S', KEY_LEFTSHIFT},  {'R', KEY_LEFTCTRL},
+    {'G', KEY_RIGHTALT}, {'E', KEY_ENTER},    {'U', KEY_PAGEUP},   {'D', KEY_PAGEDOWN},   {'O', KEY_SCROLLLOCK},
+    {'P', KEY_SYSRQ},    {'!', KEY_F1},       {'@', KEY_F5},       {'#', KEY_F9},         {'$', KEY_F10},
+};
 
-static char name(uint16_t code) {
-    static const struct { uint16_t code; char c; } names[] = {
-        {KEY_A, 'a'}, {KEY_K, 'k'}, {KEY_L, 'l'}, {KEY_X, 'x'}, {KEY_LEFTSHIFT, 's'}, {KEY_LEFTCTRL, 'c'},
-        {KEY_RIGHTALT, 'g'}, {KEY_ENTER, 'e'}, {KEY_F10, 'f'}, {KEY_PAGEUP, 'u'}, {KEY_PAGEDOWN, 'd'},
-        {KEY_SCROLLLOCK, 'o'}, {KEY_SYSRQ, 'p'},
-    };
-    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
-        if (names[i].code == code) return names[i].c;
+static uint16_t code_of(char c) {
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+        if (keys[i].c == c) return keys[i].code;
+    printf("no key '%c' in the test\n", c);
+    return 0;
+}
+
+static char name_of(uint16_t code) {
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+        if (keys[i].code == code) return keys[i].c;
     return '?';
 }
 
-/* events: "C" CapsLock, "a" "k" "l" "x" letters, "s" Shift, "c" Ctrl, "g" AltGr, "e" Enter, "f" F10, "u" PgUp,
- * "d" PgDn, "o" Scroll Lock, "p" Print Screen; each as +key (down), -key (up), *key (auto-repeat), separated by
- * spaces */
+/* An action as a character: what main_screen_chord would do */
+static char action_name(kbd_hyper_action_t a) {
+    switch (a) {
+        case HYPER_NONE:        return '.';
+        case HYPER_LOG_QSO:     return 'Q';
+        case HYPER_LOCK:        return 'L';
+        case HYPER_SCREENSHOT:  return 'P';
+        case HYPER_SETTINGS:    return 'S';
+        case HYPER_FREQ:        return 'F';
+        case HYPER_BAND_UP:     return '^';
+        case HYPER_BAND_DOWN:   return 'v';
+        default:
+            if (a >= HYPER_KEY_1 && a <= HYPER_KEY_8) return (char)('1' + a - HYPER_KEY_1);
+            return '?';
+    }
+}
+
+/* What key_input.c makes of the events */
+typedef struct {
+    char typed[128];    /* the events passed on: +k down, -k up, *k a repeat */
+    int  caps;          /* Caps Lock turned */
+    char chords[64];    /* the chords' actions, a character each (action_name) */
+} out_t;
+
+/* events: +k (down), -k (up), *k (auto-repeat) for each key k of keys[], separated by spaces */
 static out_t run(kbd_hyper_t *h, const char *events) {
-    static const struct { char c; uint16_t code; } keys[] = {
-        {'C', KEY_CAPSLOCK}, {'a', KEY_A}, {'k', KEY_K}, {'l', KEY_L}, {'x', KEY_X}, {'s', KEY_LEFTSHIFT},
-        {'c', KEY_LEFTCTRL}, {'g', KEY_RIGHTALT}, {'e', KEY_ENTER}, {'f', KEY_F10}, {'u', KEY_PAGEUP},
-        {'d', KEY_PAGEDOWN}, {'o', KEY_SCROLLLOCK}, {'p', KEY_SYSRQ},
-    };
     out_t  o = {0};
-    size_t n = 0;
+    size_t t = 0, c = 0;
 
     for (const char *p = events; *p; p++) {
         if (*p == ' ') continue;
         int      state = *p == '+' ? 1 : *p == '-' ? 0 : 2;
-        uint16_t code  = 0;
+        uint16_t code  = code_of(p[1]);
 
-        for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
-            if (keys[i].c == p[1]) code = keys[i].code;
         p++;
         kbd_hyper_action_t action = HYPER_NONE;
         switch (kbd_hyper_key(h, code, state, &action)) {
             case HYPER_PASS:
-                if (n + 2 < sizeof(o.typed)) {
-                    char c = name(code);
-                    o.typed[n++] = state == 2 ? 'r' : state == 1 ? (char)(c - 32) : c;
+                if (t + 3 < sizeof(o.typed)) {
+                    o.typed[t++] = state == 1 ? '+' : state == 0 ? '-' : '*';
+                    o.typed[t++] = name_of(code);
                 }
                 break;
             case HYPER_CAPS:
                 o.caps++;
                 break;
             case HYPER_CHORD:
-                if (action == HYPER_LOG_QSO) o.log_qso++;
-                else if (action == HYPER_NONE) o.none++;
+                if (c + 2 < sizeof(o.chords)) o.chords[c++] = action_name(action);
                 break;
             case HYPER_DROP:
                 break;
         }
     }
-    o.typed[n] = 0;
     return o;
 }
 
-static void expect(const char *events, const char *typed, int caps, int log_qso, int none, const char *what) {
+static void expect(const char *events, const char *typed, int caps, const char *chords, const char *what) {
     kbd_hyper_t h = {0};
     out_t       o = run(&h, events);
-    char        line[200];
+    char        line[300];
 
-    snprintf(line, sizeof(line), "%s (%s): typed \"%s\" want \"%s\", Caps Lock %d want %d, quick log %d want %d, "
-             "no action %d want %d", what, events, o.typed, typed, o.caps, caps, o.log_qso, log_qso, o.none, none);
-    check(!strcmp(o.typed, typed) && o.caps == caps && o.log_qso == log_qso && o.none == none, line);
+    snprintf(line, sizeof(line), "%s (%s): typed \"%s\" want \"%s\", Caps Lock %d want %d, chords \"%s\" want \"%s\"",
+             what, events, o.typed, typed, o.caps, caps, o.chords, chords);
+    check(!strcmp(o.typed, typed) && o.caps == caps && !strcmp(o.chords, chords), line);
     check(!h.held, "CapsLock still held after the case");
     for (size_t i = 0; i < sizeof(h.taken) / sizeof(h.taken[0]); i++)
         if (h.taken[i]) {
@@ -101,45 +123,108 @@ static void expect(const char *events, const char *typed, int caps, int log_qso,
         }
 }
 
+/* Every chord in the table, and no other key with an action */
 static void table(void) {
-    check(kbd_hyper_action(KEY_L) == HYPER_LOG_QSO, "CapsLock+L is not the quick QSO log");
+    static const struct {
+        uint16_t           code;
+        kbd_hyper_action_t action;
+        const char        *name;
+    } want[] = {
+        {KEY_Q, HYPER_LOG_QSO, "Q"},     {KEY_L, HYPER_LOCK, "L"},           {KEY_P, HYPER_SCREENSHOT, "P"},
+        {KEY_S, HYPER_SETTINGS, "S"},    {KEY_F, HYPER_FREQ, "F"},           {KEY_UP, HYPER_BAND_UP, "Up"},
+        {KEY_DOWN, HYPER_BAND_DOWN, "Down"}, {KEY_1, HYPER_KEY_1, "1"},   {KEY_2, HYPER_KEY_2, "2"},
+        {KEY_3, HYPER_KEY_3, "3"},       {KEY_4, HYPER_KEY_4, "4"},          {KEY_5, HYPER_KEY_5, "5"},
+        {KEY_6, HYPER_KEY_6, "6"},       {KEY_7, HYPER_KEY_7, "7"},          {KEY_8, HYPER_KEY_8, "8"},
+    };
+    char line[96];
+    int  with = 0;
+
+    for (size_t i = 0; i < sizeof(want) / sizeof(want[0]); i++) {
+        snprintf(line, sizeof(line), "CapsLock+%s: action %d, want %d", want[i].name, kbd_hyper_action(want[i].code),
+                 want[i].action);
+        check(kbd_hyper_action(want[i].code) == want[i].action, line);
+    }
     for (uint16_t code = 0; code < KEY_CNT; code++)
-        if (code != KEY_L && kbd_hyper_action(code) != HYPER_NONE) {
-            char line[64];
-            snprintf(line, sizeof(line), "CapsLock+key %u has an action: only L has one", code);
-            check(false, line);
-        }
+        with += kbd_hyper_action(code) != HYPER_NONE;
+    snprintf(line, sizeof(line), "%d keys have a chord, want %zu", with, sizeof(want) / sizeof(want[0]));
+    check(with == (int)(sizeof(want) / sizeof(want[0])), line);
+    /* Gone: the F keys and PgUp/PgDn have no chord, nor 9, 0, the left arrow, Enter */
+    static const uint16_t none[] = {KEY_F1, KEY_F4, KEY_F5, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, KEY_PAGEUP,
+                                    KEY_PAGEDOWN, KEY_9, KEY_0, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_A, KEY_KP1,
+                                    KEY_SPACE};
+    for (size_t i = 0; i < sizeof(none) / sizeof(none[0]); i++) {
+        snprintf(line, sizeof(line), "CapsLock+key %u has an action", none[i]);
+        check(kbd_hyper_action(none[i]) == HYPER_NONE, line);
+    }
 }
 
 int main(void) {
     table();
 
-    expect("+a -a +x -x", "AaXx", 0, 0, 0, "typing without CapsLock");
-    expect("+C -C", "", 1, 0, 0, "CapsLock tapped alone");
-    expect("+C *C *C -C", "", 1, 0, 0, "CapsLock held alone, repeating");
-    expect("+C -C +a -a +C -C", "Aa", 2, 0, 0, "Caps Lock on, a letter, off");
-    expect("+C +l -l -C", "", 0, 1, 0, "CapsLock+L");
-    expect("+C +l *l *l -l -C", "", 0, 1, 0, "CapsLock+L held, repeating");
-    expect("+C +l -C -l", "", 0, 1, 0, "CapsLock let go before L");
-    expect("+C +l -C *l -l +a -a", "Aa", 0, 1, 0, "L's repeat and release after CapsLock dropped, then typing");
-    expect("+C +l -l +l -l -C", "", 0, 2, 0, "CapsLock+L twice in one hold");
-    expect("+C +k -k -C", "", 0, 0, 1, "CapsLock+K: no action, nothing typed");
-    expect("+C +e -e +f -f -C", "", 0, 0, 2, "CapsLock+Enter, CapsLock+F10: nothing");
-    expect("+u -u +d -d +o -o +p -p", "UuDdOoPp", 0, 0, 0, "PgUp, PgDn, Scroll Lock, Print Screen alone go through");
-    expect("+C +u -u +d *d -d +o -o +p -p -C", "", 0, 0, 4,
-           "CapsLock with PgUp, PgDn, Scroll Lock, Print Screen: chords, dropped");
-    expect("+C +s +l -l -s -C", "Ss", 0, 1, 0, "CapsLock+Shift+L: Shift goes through");
-    expect("+s +C +l -l -C -s", "Ss", 0, 1, 0, "Shift held, then CapsLock+L");
-    expect("+C +c -c -C", "Cc", 1, 0, 0, "CapsLock with Ctrl only is a tap");
-    expect("+C +g +l -l -g -C", "Gg", 0, 1, 0, "AltGr with the chord goes through");
-    expect("+a +C *a -a -C", "Ara", 1, 0, 0, "a key down before CapsLock repeats and goes up");
-    expect("+a +C +l -a -l -C", "Aa", 0, 1, 0, "a key down before, then CapsLock+L");
-    expect("-C -l +a -a", "lAa", 0, 0, 0, "releases of keys never seen down: CapsLock's dropped, the others on");
+    /* Caps Lock itself, and typing */
+    expect("+a -a +x -x", "+a-a+x-x", 0, "", "typing without CapsLock");
+    expect("+C -C", "", 1, "", "CapsLock tapped alone");
+    expect("+C *C *C -C", "", 1, "", "CapsLock held alone, repeating");
+    expect("+C -C +a -a +C -C", "+a-a", 2, "", "Caps Lock on, a letter, off");
+    expect("+q -q +l -l +p -p +s -s +f -f +_ -_ +1 -1", "+q-q+l-l+p-p+s-s+f-f+_-_+1-1", 0, "",
+           "the chord keys alone type as usual");
+    expect("+^ -^ +v -v", "+^-^+v-v", 0, "", "the arrows alone go through");
+
+    /* Each chord, in both release orders */
+    static const char chord_keys[] = "qlpsf^v12345678";
+    static const char chord_want[] = "QLPSF^v12345678";
+    for (size_t i = 0; chord_keys[i]; i++) {
+        char ev[64], want[2] = {chord_want[i], 0}, what[64];
+
+        snprintf(ev, sizeof(ev), "+C +%c -%c -C", chord_keys[i], chord_keys[i]);
+        snprintf(what, sizeof(what), "CapsLock+%c, the key up first", chord_keys[i]);
+        expect(ev, "", 0, want, what);
+        snprintf(ev, sizeof(ev), "+C +%c -C -%c +a -a", chord_keys[i], chord_keys[i]);
+        snprintf(what, sizeof(what), "CapsLock+%c, CapsLock up first", chord_keys[i]);
+        expect(ev, "+a-a", 0, want, what);
+        snprintf(ev, sizeof(ev), "+C +%c *%c *%c *%c -%c -C", chord_keys[i], chord_keys[i], chord_keys[i],
+                 chord_keys[i], chord_keys[i]);
+        snprintf(what, sizeof(what), "CapsLock+%c held, repeating: once", chord_keys[i]);
+        expect(ev, "", 0, want, what);
+        snprintf(ev, sizeof(ev), "+C +%c -C *%c *%c -%c", chord_keys[i], chord_keys[i], chord_keys[i],
+                 chord_keys[i]);
+        snprintf(what, sizeof(what), "CapsLock+%c, repeats after CapsLock went up", chord_keys[i]);
+        expect(ev, "", 0, want, what);
+    }
+
+    /* More chords in one hold, and held together */
+    expect("+C +q -q +q -q -C", "", 0, "QQ", "CapsLock+Q twice in one hold");
+    expect("+C +^ -^ +^ -^ +^ -^ -C", "", 0, "^^^", "CapsLock+Up three times: three bands");
+    expect("+C +^ *^ *^ *^ -^ +v *v -v -C", "", 0, "^v", "CapsLock+Up then Down held: one band each");
+    expect("+C +l -C +C -l -C", "", 1, "L", "L held over a second CapsLock tap: one chord, the tap is Caps Lock");
+    expect("+C +_ -_ -C", "", 0, ".", "CapsLock+Space: no action, no space typed");
+    expect("+C +1 +2 -1 -2 -C", "", 0, "12", "CapsLock+1 and 2 overlapping");
+    expect("+C +l +q -C -q -l", "", 0, "LQ", "two chord keys, CapsLock up first, then both");
+    expect("+C +k -k -C", "", 0, ".", "CapsLock+K: no action, nothing typed");
+    expect("+C +9 -9 +0 -0 +< -< +E -E -C", "", 0, "....", "CapsLock+9, 0, Left, Enter: nothing");
+
+    /* The F keys and PgUp/PgDn: no chord, and alone they go on as any key (kbd_keymap gives them nothing) */
+    expect("+C +! -! +@ -@ +# -# +$ -$ +U -U +D -D -C", "", 0, "......",
+           "CapsLock with F1, F5, F9, F10, PgUp, PgDn: dropped, no action");
+    expect("+! -! +$ -$ +U -U +D -D +O -O +P -P", "+!-!+$-$+U-U+D-D+O-O+P-P", 0, "",
+           "F1, F10, PgUp, PgDn, Scroll Lock, Print Screen alone go through");
+    expect("+C +O -O +P -P -C", "", 0, "..", "CapsLock with Scroll Lock, Print Screen: chords, dropped");
+
+    /* Modifiers, and keys down before CapsLock */
+    expect("+C +S +q -q -S -C", "+S-S", 0, "Q", "CapsLock+Shift+Q: Shift goes through");
+    expect("+S +C +q -q -C -S", "+S-S", 0, "Q", "Shift held, then CapsLock+Q");
+    expect("+C +R -R -C", "+R-R", 1, "", "CapsLock with Ctrl only is a tap");
+    expect("+C +G +l -l -G -C", "+G-G", 0, "L", "AltGr with the chord goes through");
+    expect("+a +C *a -a -C", "+a*a-a", 1, "", "a key down before CapsLock repeats and goes up");
+    expect("+a +C +q -a -q -C", "+a-a", 0, "Q", "a key down before, then CapsLock+Q");
+    expect("+_ +C *_ -_ -C", "+_*_-_", 1, "", "Space down before CapsLock: typed, repeats");
+    expect("+^ +C *^ +v -^ -v -C", "+^*^-^", 0, "v", "Up held before CapsLock, then CapsLock+Down");
+    expect("-C -l +a -a", "-l+a-a", 0, "", "releases of keys never seen down: CapsLock's dropped, the others on");
 
     /* The state carries over between events of different calls, as key_input.c keeps it */
     kbd_hyper_t h = {0};
-    out_t       a = run(&h, "+C +l"), b = run(&h, "-l -C +a -a");
-    check(a.log_qso == 1 && !b.caps && !strcmp(b.typed, "Aa"), "a chord over two reads of the keyboard");
+    out_t       a = run(&h, "+C +q"), b = run(&h, "-q -C +a -a");
+    check(!strcmp(a.chords, "Q") && !b.caps && !strcmp(b.typed, "+a-a"), "a chord over two reads of the keyboard");
 
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;

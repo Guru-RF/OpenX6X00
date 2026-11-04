@@ -84,6 +84,7 @@
 #include "radio_controls.h"
 #include "apps_menu.h"
 #include "dialog_birdie.h"
+#include "kbd_hyper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1313,10 +1314,7 @@ static void spectrum_key_cb(lv_event_t *e) {
         case '}':  case KEY_VOL_RIGHT_SELECT:   vol_change_ctrl(+1); break;
         case LV_KEY_LEFT:           main_screen_mfk(-1); break;
         case LV_KEY_RIGHT:          main_screen_mfk(+1); break;
-        case KEYBOARD_PGUP:         band_step(true); break;
-        case KEYBOARD_PGDN:         band_step(false); break;
         case KEYBOARD_SCRL_LOCK:    say_lock(toggle_freq_lock()); break;
-        case KEYBOARD_F9:           dialog_construct(dialog_settings, obj); break;
 
         case KEYBOARD_PRINT:
         case KEYBOARD_PRINT_SCR:
@@ -1390,11 +1388,48 @@ bool main_screen_has_keys(void) {
     return spectrum && lv_group_get_focused(keyboard_group) == spectrum && !dialog_is_run();
 }
 
-/* CapsLock+L on a keyboard (key_input.c): the quick QSO log, the box of the Log QSO button, only while
- * the main screen has the keyboard. In an app, a dialog or a text box the chord does nothing */
-void main_screen_log_qso(void) {
-    if (main_screen_has_keys()) {
-        cw_field_log_open();
+/* CapsLock and a key (key_input.c, kbd_hyper.c's table): what each chord does, and where. The main screen's act only
+ * while it has the keyboard, where they bring hidden buttons back as a key does; in an app, a dialog or a text box
+ * they do nothing. The screenshot is taken everywhere, as a long press given it is; 1-8 are JTTY's macros while it
+ * has the keyboard */
+void main_screen_chord(int action) {
+    bool here = main_screen_has_keys();
+
+    if (here) {
+        main_screen_buttons_wake();
+    }
+    if (action == HYPER_SCREENSHOT) {
+        screenshot_take();
+        return;
+    }
+    if (action >= HYPER_KEY_1 && action <= HYPER_KEY_8) {
+        int n = action - HYPER_KEY_1 + 1;
+
+        if (!dialog_jtty_macro(n) && here && n <= 5) {
+            cw_field_message(n);    /* in CW, where the CW line keys */
+        }
+        return;
+    }
+    if (!here) {
+        return;
+    }
+    switch ((kbd_hyper_action_t)action) {
+        case HYPER_LOG_QSO:         /* in CW the line typed is the QSO, else the box of the Log QSO button */
+            if (!cw_field_log_line()) {
+                cw_field_log_open();
+            }
+            break;
+        case HYPER_LOCK:            say_lock(toggle_freq_lock()); break;
+        case HYPER_SETTINGS:        dialog_construct(dialog_settings, obj); break;
+        case HYPER_BAND_UP:         band_step(true); break;
+        case HYPER_BAND_DOWN:       band_step(false); break;
+        case HYPER_FREQ:            /* as f, also in CW where f goes into the CW line */
+            if (!subject_i_get(freq_lock)) {
+                dialog_construct(dialog_freq, obj);
+            }
+            break;
+        default:
+            break;
     }
 }
 

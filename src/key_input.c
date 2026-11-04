@@ -8,7 +8,7 @@
 
 /* The input group every knob and button feeds, and the USB (or Bluetooth) keyboard:
  * found at start and again whenever a USB device comes or goes. CapsLock is its hyper key
- * (kbd_hyper.h): CapsLock+L opens the quick QSO log. */
+ * (kbd_hyper.h): CapsLock+Q logs a QSO, and the others. */
 
 #include "key_input.h"
 
@@ -74,13 +74,7 @@ static void caps_light(void) {
 
 /* A chord's action, after the read of its key: it opens windows and moves the keyboard's focus */
 static void chord_run(void *arg) {
-    switch ((kbd_hyper_action_t)(intptr_t)arg) {
-        case HYPER_LOG_QSO:
-            main_screen_log_qso();
-            break;
-        default:
-            break;
-    }
+    main_screen_chord((int)(intptr_t)arg);
 }
 
 void keyboard_chord(int action) {
@@ -136,8 +130,8 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
         if (kbd_keymap(ev.code)) {
             *key = kbd_keymap(ev.code);                     /* xkb gives no character for them */
         }
-        /* PgUp, PgDn, Scroll Lock and Print Screen pressed away from the main screen: nowhere to go (a text box
-         * would type them); let go, they still reach LVGL, which only takes the release of the key it holds */
+        /* Scroll Lock and Print Screen pressed away from the main screen: nowhere to go (a text box would type
+         * them); let go, they still reach LVGL, which only takes the release of the key it holds */
         if (ev.value != 0 && kbd_keymap_main_only(ev.code) && !main_screen_has_keys()) {
             continue;
         }

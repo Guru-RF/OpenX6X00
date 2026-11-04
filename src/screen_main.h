@@ -37,8 +37,8 @@ void main_screen_keys_enable(bool on);
 /* The keyboard's keys go to the main screen: no app, dialog, list or text box took them */
 bool main_screen_has_keys(void);
 
-/* CapsLock+L: the quick QSO log, when the main screen has the keyboard */
-void main_screen_log_qso(void);
+/* CapsLock held with a key: the chord's kbd_hyper_action_t (kbd_hyper.h), run once the key's read is over */
+void main_screen_chord(int action);
 
 /* A key, or a window opened or closed: the buttons back if Settings > Display > Hide buttons hid them, and hidden
  * again after its time without a key. True when they were hidden */

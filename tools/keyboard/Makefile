@@ -1,6 +1,6 @@
-# Host tests of the keyboard (#175): `make` builds them and runs them. kbd_hyper_test: CapsLock as the hyper key
-# (src/kbd_hyper.c); kbd_keymap_test: the keys with no character, by scancode (src/kbd_keymap.c). See the .c files
-# for the cases.
+# Host tests of the keyboard (#175): `make` builds them and runs them. kbd_hyper_test: CapsLock as the hyper key and
+# its chords (src/kbd_hyper.c); kbd_keymap_test: the keys with no character, by scancode (src/kbd_keymap.c). See the
+# .c files for the cases.
 SRC    := ../../src
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC)
 
