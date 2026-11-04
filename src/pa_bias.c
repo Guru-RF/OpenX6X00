@@ -1,11 +1,12 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - the X6200's PA bias from its base's calibration block (pa_bias.h, #173). Xiegu's app (1.0.8) reads
- *  the block (507 bytes from I2C register 0x100) and logs "Bias drive" and "Bias final" from 16-bit words at its
- *  bytes 281 and 283, low byte first; ea4iln read 3326/3843 there on a cold start of his radio and saw that app send
- *  register 41 = 0x0f030cfe. The base also keeps in those bytes what was last written to register 41, until it loses
- *  power: after a version that sent 3360/3820 the block shows those.
+ *  OpenX6X00 - the X6200's PA bias from its base's calibration block (pa_bias.h, #173). Xiegu's app reads the block
+ *  (507 bytes from I2C register 0x100) and logs "Bias drive" and "Bias final" from 16-bit words at its bytes 281 and
+ *  283, low byte first (seen in the disassembly of its 1.0.7); ea4iln read 3326/3843 there on a cold start of his
+ *  radio and saw its 1.0.8 send register 41 = 0x0f030cfe, the same pair. The base also keeps in those bytes what was
+ *  last written to register 41, until it loses power: after 3360/3820 went out (an older version, or the fallback
+ *  here) the block shows those.
  *
  *  The guard: the two X6200s seen are 1 % apart (3360/3820 and 3326/3843). A value is taken within 10 % of the fixed
  *  one and under 4096 (all four fit 12 bits, though the field is 16 wide); 0 and 0xffff, a block never written or
