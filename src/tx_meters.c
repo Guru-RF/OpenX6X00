@@ -293,9 +293,9 @@ static void cell_text(lv_draw_ctx_t *draw_ctx, const lv_font_t *font, lv_color_t
     lv_draw_label(draw_ctx, &dsc, &a, text, NULL);
 }
 
-/* The S-meter box while transmitting (smeter.c; the deck's scales draw their own): the three readings, each with
- * its name and value, in rows with the panel's bars, or side by side in a wide, low box (VISION's meter row): no
- * room for bars there, the values big beside their names */
+/* The S-meter box while transmitting with neither view up (smeter.c; the deck's scales draw their own): the three
+ * readings, each with its name and value, in rows with the panel's bars, or side by side in a wide, low box
+ * (VISION's meter row): no room for bars there, the values big beside their names */
 void tx_meters_draw(lv_obj_t *box, lv_draw_ctx_t *draw_ctx) {
     lv_coord_t       pad = lv_obj_get_style_border_width(box, LV_PART_MAIN) + 1;
     lv_coord_t       x0 = box->coords.x1 + pad + 5, y0 = box->coords.y1 + pad;
@@ -334,7 +334,7 @@ void tx_meters_draw(lv_obj_t *box, lv_draw_ctx_t *draw_ctx) {
 }
 
 lv_obj_t *tx_info_init(lv_obj_t *parent) {
-    /* Carries the TX/RX events (the S-meter box shows the readings, framed red: smeter.c) */
+    /* Carries the TX/RX events (the S-meter box is framed red, with the readings when neither view is up: smeter.c) */
     obj = lv_obj_create(parent);
     lv_obj_add_style(obj, &tx_info_style, 0);
     /* Solid: LVGL caches gradients by size, the S-meter's would be reused */
