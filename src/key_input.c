@@ -115,6 +115,16 @@ static bool hyper_key(const struct input_event *ev) {
     }
 }
 
+/* The keyboard open went away: unplugged, its Bluetooth link lost, another one in its place. The releases of its keys
+ * never come: the key LVGL holds is let go, or LVGL repeats it into the screen (a frequency step, the volume, a letter
+ * keyed in CW Live) until a keyboard opens again; LVGL releases the key it holds. A PTT its CapsLock+Space keyed lets
+ * go too */
+static void keyboard_gone(void) {
+    kbd_keys.down   = false;
+    kbd_keys.queued = false;
+    main_screen_keyboard_gone();
+}
+
 /* Key events of the keyboard, the character from xkb (layout and Shift) */
 static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state) {
     struct input_event ev;
@@ -150,7 +160,7 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
     }
     if (n < 0 && errno == ENODEV && !dead) {
         dead = true;
-        main_screen_keyboard_gone();
+        keyboard_gone();
     }
     return false;
 }
@@ -240,7 +250,7 @@ static void open_keyboard(char *path) {
 }
 
 /* A keyboard there and not open (or a different one: unplugged and back): open it; none: not ready. The one open
- * gone, or another in its place: a PTT its CapsLock+Space keyed lets go */
+ * gone, or another in its place: keyboard_gone() */
 static void check_keyboard(void) {
     char       *path = find_keyboard();
     struct stat st;
@@ -248,13 +258,13 @@ static void check_keyboard(void) {
     if (path && stat(path, &st) == 0) {
         if (!ready || st.st_rdev != kbd_rdev || st.st_ino != kbd_ino) {
             if (ready) {
-                main_screen_keyboard_gone();
+                keyboard_gone();
             }
             open_keyboard(path);
         }
     } else {
         if (ready) {
-            main_screen_keyboard_gone();
+            keyboard_gone();
         }
         ready = false;
     }
