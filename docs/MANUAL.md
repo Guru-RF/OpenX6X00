@@ -5249,12 +5249,24 @@ A USB Ethernet adapter in the radio's USB port gives it a wired connection
 instead of WiFi. Adapters with the common chips work (ASIX, Realtek
 RTL8152/8153, CDC Ethernet/NCM). It can be plugged in at any time.
 
-While the adapter is connected (cable in, address got) the WiFi radio is
+While the adapter is connected with a gateway (cable in, an address and a
+gateway got: the cable is the radio's way to the internet) the WiFi radio is
 held off: the info bar shows a USB plug in the WiFi cell, lit, and the
 WiFi status says "Ethernet in use". The WiFi/BT chip
 stays on, so Bluetooth keeps working. Pull the cable or the adapter and
 WiFi comes back on its own. An adapter plugged in without a cable shows the
 plug unlit, and WiFi stays as it was.
+
+A cable without a gateway, to a computer for the web configurator or the
+TCI server, reaches only its own subnet: WiFi stays on and keeps the
+internet (update check, spots, Wavelog), its DNS servers first, and the
+info bar's cell stays WiFi's. For such a cable set Mode to Static with an
+address in the computer's subnet and leave Gateway and DNS empty. A gateway
+that is the computer itself takes the internet off WiFi, and it works only
+when the computer shares its internet on that port; DHCP works there too
+then, since the sharing hands out the addresses. In DHCP mode a cable to a
+computer that gives no addresses never connects: the radio asks for 45
+seconds, gives up and asks again later, and WiFi is left alone.
 
 Where: Settings > Wireless > ETHERNET, or the Network page of the web
 configurator (System > Network). Both show the same settings. The ETHERNET
@@ -5279,10 +5291,10 @@ valid, the subnet's network or broadcast address, and a gateway outside the
 subnet. The setting is kept across restarts and belongs to the port, not to
 one adapter: another adapter gets the same address.
 
-WiFi and Ethernet together: with a gateway set, internet traffic goes over
-the cable and WiFi stays connected for its own network. Leave the gateway
-empty and the cable reaches only its subnet, while internet stays on WiFi.
-Changing Ethernet never touches the WiFi settings.
+WiFi and Ethernet together: a cable with a gateway carries the internet and
+holds WiFi off, as above. Leave the gateway empty and the cable reaches only
+its subnet, while internet stays on WiFi. Changing Ethernet never touches
+the WiFi settings.
 
 ### USB tethering
 
