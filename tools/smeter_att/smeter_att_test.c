@@ -3,8 +3,9 @@
  *
  *  Host test of src/cfg/smeter_att.c (#125): every band of sql/params.sql takes the figure of its group (the bands
  *  written out here, by id, as the manual lists them), outside the bands 40 m's, the groups' edges by the middle of
- *  a band, every figure inside the slider's 0 to 60 dB, and the manual's table ("X6200 bands | Attenuator") and its
- *  value outside the bands the same as the code's.
+ *  a band, every figure under the top (SMETER_ATT_MAX) so that Measure can go past it, the deepest attenuator seen
+ *  inside the top, and the manual's table ("X6200 bands | Attenuator"), its value outside the bands and its range
+ *  ("| Attenuator | ... X6200: 0 to 70 dB") the same as the code's.
  *    smeter_att_test <params.sql> <MANUAL.md>
  */
 
@@ -23,6 +24,11 @@ static void check(int ok, const char *what, long v) {
         printf("FAIL %s: %ld\n", what, v);
     }
 }
+
+/* The deepest an X6200's attenuator was seen to go, dB, and how far that reading wandered: 80 m on the other radio,
+ * 4 November (#125). The top has to hold it */
+#define DEEPEST_DB 62
+#define DEEPEST_SPREAD 2
 
 /* The groups, by the middle of a band: under 5 MHz, to 10, to 20, above. The figures the code must give */
 enum { G80, G40, G20, G10, GROUPS };
@@ -80,15 +86,19 @@ static void bands_of_sql(const char *path) {
     }
 }
 
-/* The manual's table: a "| ... | 51 dB |" row for each group, in order, then "which starts at 35 dB" outside them */
+/* The manual's table: a "| ... | 51 dB |" row for each group, in order, then "which starts at 35 dB" outside them.
+ * Before it the settings' table, the attenuator's range: "| Attenuator | 0 to 40 dB (X6200: 0 to 70 dB, ..." */
 static void manual_table(const char *path) {
     FILE *f = fopen(path, "r");
     char  line[512];
-    int   row = -2, outside = -1;
+    int   row = -2, outside = -1, top = -1;
 
     check(f != NULL, "MANUAL.md opened", 0);
     if (!f) return;
     while (fgets(line, sizeof(line), f)) {
+        char *range = strstr(line, "| Attenuator | 0 to ");
+
+        if (range && (range = strstr(range, "X6200: 0 to "))) top = atoi(range + strlen("X6200: 0 to "));
         if (row == -2) {
             if (strstr(line, "| X6200 bands | Attenuator |")) row = -1;     /* then the |---| line */
             continue;
@@ -118,6 +128,7 @@ static void manual_table(const char *path) {
     fclose(f);
     check(row == GROUPS, "the manual's table, a row for each group", row);
     check(outside == smeter_att_start_band(0, 0), "the manual's value outside the bands", outside);
+    check(top == SMETER_ATT_MAX, "the manual's range, the code's top", top);
 }
 
 int main(int argc, char **argv) {
@@ -126,8 +137,10 @@ int main(int argc, char **argv) {
         return 2;
     }
     for (int g = 0; g < GROUPS; g++) {
-        check(group_db[g] > 0 && group_db[g] <= 60, "inside the slider's 0 to 60 dB", group_db[g]);
+        check(group_db[g] > 0 && group_db[g] < SMETER_ATT_MAX, "a start under the top, Measure can go past it",
+              group_db[g]);
     }
+    check(DEEPEST_DB + DEEPEST_SPREAD <= SMETER_ATT_MAX, "the deepest attenuator seen, inside the top", DEEPEST_DB);
     check(smeter_att_start_band(0, 0) == group_db[G40], "outside the bands: 40 m's", smeter_att_start_band(0, 0));
 
     /* The edges, by the middle */

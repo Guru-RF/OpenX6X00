@@ -1290,7 +1290,7 @@ are settings, with the figures measured on one radio as defaults.
 | Setting | Range | Default |
 |---|---|---|
 | Preamp | 0 to 40 dB | 19 dB (X6200: 16 dB) |
-| Attenuator | 0 to 40 dB (X6200: 0 to 60 dB, one for each band) | 15 dB (X6200: by band, below) |
+| Attenuator | 0 to 40 dB (X6200: 0 to 70 dB, one for each band) | 15 dB (X6200: by band, below) |
 | RF gain, a step | 0.00 to 2.00 dB | 0.60 dB |
 
 On the X6200 the attenuator takes much more off, and how much depends on the
