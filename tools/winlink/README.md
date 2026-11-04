@@ -62,10 +62,13 @@ It prints `MODEMS OK`; `--keep DIR` (run the script by hand) keeps the logs, `--
 ardop|mercury` runs one.
 
 Also here, in Python alone: `winlink_test.py`, the tests of the supervisor
-(`rootfs/usr/sbin/x6100-winlink`: the settings, Pat's config, Mercury's, the
-outcome of each connection from the logs in `fixtures/`), and
-`winlink_web_test.py`, the web configurator's Winlink page and its API, which
-needs bottle (`PYTHONPATH=<a directory with bottle.py>`). Both run with
-`python3 -B <file>`. The web test also runs `winlink_page_test.js` when Node is
-there: the page's own script on the audit's small DOM
-(`docs/audit/repro-2026-10-24/browser-dom.js`), its Power row from the radio file.
+(`rootfs/usr/sbin/x6100-winlink`: the settings, Pat's config, Mercury's and
+XARA's, XARA's callsign, its speed and the VARA HF licence tick, the outcome of
+each connection from the logs in `fixtures/`), and `winlink_web_test.py`, the web
+configurator's Winlink page and its API, which needs bottle 0.13
+(`PYTHONPATH=<a directory with bottle.py>`; 0.12 does not import on Python 3.13
+and later). Both run with `python3 -B <file>`. The web test also runs
+`winlink_page_test.js` when Node is there: the page's own script on the audit's
+small DOM (`docs/audit/repro-2026-10-24/browser-dom.js`), its Power row from the
+radio file, the Filter row for XARA's bandwidths, XARA's speed in the Modem row
+and the Station card's rows for the modem chosen.

@@ -21,7 +21,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
 - [Wavelog](#wavelog)
-- [Winlink](#winlink): [Mercury](#mercury-experimental)
+- [Winlink](#winlink): [Mercury](#mercury-experimental), [XARA](#xara-experimental)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
 - [TCI server](#tci-server)
@@ -1474,8 +1474,8 @@ bands (Settings > TX Cal)". What is refused:
   remote sessions (the page shows the reason, see
   [Transmitting from the browser](#transmitting-from-the-browser)).
 - The digital apps (FT8, FT4, FT2, JS8, WSPR, PSK, Olivia, JTTY, RTTY, SSTV,
-  WeFax), the voice messages, Winlink with ARDOP or Mercury (its page says
-  why, see [Winlink](#winlink)).
+  WeFax), the voice messages, Winlink with ARDOP, Mercury or XARA (its page
+  says why, see [Winlink](#winlink)).
 - CW: the CW messages and beacons (not started there; one moved out stops),
   QRSS3, the CW keyboard, the USB paddle, the PTT key in CW, Field Ops' test
   beacon.
@@ -1559,7 +1559,7 @@ the [amateur bands](#amateur-bands-only) refuse outside them:
   remote sessions (the page shows the reason, "no data from the base", see
   [Transmitting from the browser](#transmitting-from-the-browser)).
 - The digital apps (FT8, FT4, FT2, JS8, WSPR, PSK, Olivia, JTTY, RTTY, SSTV,
-  WeFax), the voice messages, Winlink with ARDOP or Mercury.
+  WeFax), the voice messages, Winlink with ARDOP, Mercury or XARA.
 - CW: the CW messages and beacons, QRSS3, the CW keyboard, the USB paddle,
   the PTT key in CW, Field Ops' test beacon. A message, a beacon and QRSS3
   are not started. The test beacon says "Test beacon on 20m: no data from
@@ -3677,7 +3677,7 @@ The menu has General and five groups:
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | Wavelog | every logged QSO to your Wavelog: URL, API key, station profile (one, or Automatic by the radio's callsign), connection test, Send now (writes `/mnt/field/wavelog.conf`, see [Wavelog](#wavelog)) |
-| | Winlink | Winlink email over HF with Pat and ARDOP, or Mercury (experimental): Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), the modem, ARDOP's or Mercury's bandwidth, the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
+| | Winlink | Winlink email over HF with Pat and ARDOP, or Mercury or XARA (both experimental): Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), the modem, ARDOP's, Mercury's or XARA's bandwidth, the VARA HF licence tick box (XARA's full speed; the radio does not check it), the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
@@ -3874,7 +3874,8 @@ radio alone, with no computer and no internet: [Pat](https://getpat.io) is the
 mail program, and its mailbox is a web page you open on a phone, a tablet or a
 laptop on the radio's network; ARDOP is the HF modem
 ([ardopcf](https://github.com/pflarue/ardop)), working through the radio's own
-audio, or [Mercury](#mercury-experimental) (experimental) in its place. Pat
+audio, or [Mercury](#mercury-experimental) or [XARA](#xara-experimental), which
+speaks VARA HF (both experimental), in its place. Pat
 calls a Winlink RMS gateway, the radio tunes there and transmits, and your
 mail goes out while the new mail comes in. Where: web configurator,
 Operating > Winlink. Off by default; when it is off, Pat and the modem do not
@@ -3895,13 +3896,18 @@ Setting it up:
      Winlink on and none set anywhere, the page says so in red at the top
      (see the password below); it is a warning only, since a new account's
      first connection over the air needs none.
-   - Modem: ARDOP (the default), or Mercury (experimental, see
-     [Mercury](#mercury-experimental) below). One runs at a time.
+   - Modem: ARDOP (the default), Mercury (experimental, see
+     [Mercury](#mercury-experimental) below) or XARA (experimental,
+     VARA-compatible, see [XARA](#xara-experimental) below). One runs at a
+     time.
    - ARDOP bandwidth: the widest ARDOP may use, 200, 500 (the default), 1000
      or 2000 Hz. It counts for every connection, also with a gateway that
      Pat's gateway list shows wider: see "The ARDOP bandwidth" below. With
      Mercury chosen, Mercury bandwidth in its place: 500, 2300 (the default)
-     or 2750 Hz.
+     or 2750 Hz. With XARA, XARA bandwidth (500, 2300, the default, or 2750
+     Hz) and VARA HF licence, off by default: tick it only if you hold a
+     VARA HF licence of your own. The radio does not check it; off, XARA runs
+     VARA's free speed levels.
 3. Switch Enabled on. Status says "Running as ON6URE" once Pat and the modem
    run. From then on they start with the radio, also after a new card image.
    The Before you connect card shows the radio as Winlink will use it, once
@@ -3914,7 +3920,8 @@ Setting it up:
    - Filter: whether the RX filter (and the TX filter, on a base that has
      one) covers ARDOP's passband at the page's bandwidth: 1250-1750 Hz at
      500 Hz, 500-2500 Hz at 2000 Hz. Mercury's: 450-2550 Hz at 2300 and
-     2750 Hz, 1200-1800 Hz at 500 Hz.
+     2750 Hz, 1200-1800 Hz at 500 Hz. XARA's, VARA HF's carriers: 350-2650
+     Hz at 2300 Hz, 120-2880 Hz at 2750 Hz, 1240-1760 Hz at 500 Hz.
    - Power: the radio's PWR, at most 7 W for Winlink; 5 W with the X6200 on
      its battery, or a transverter's TX power limit, which the row says (see
      [Transmitting](#transmitting)).
@@ -3931,16 +3938,20 @@ Setting it up:
    The Connections card keeps apart what is often lumped together:
    - Service: Pat and the modem run.
    - Modem: ARDOP is on the radio's audio (ardopcf connected to the GUI), or
-     Mercury (x6x00-mercury); "Waiting for the radio's audio" until it is.
-     With Mercury, "Ready, but it fell behind the receiver lately" in red
-     when its decoders dropped audio (see [Mercury](#mercury-experimental)).
+     Mercury (x6x00-mercury), or XARA; "Waiting for the radio's audio" until
+     it is. With Mercury or XARA, "Ready, but it fell behind the receiver
+     lately" in red when it could not keep up (see
+     [Mercury](#mercury-experimental)). With XARA, the speed it says it runs
+     at: "VARA's free speed levels", or "full speed (VARA HF licence
+     ticked)".
    - Session: Idle, Calling a gateway or Connected, as Pat says, and in how
      many browsers the mailbox is open: Pat asks there what it needs during
      a connection (go ahead on a busy channel, the password).
-   - Last connection: Calling, Connected (with ARDOP's bandwidth), Delivered
-     ("Done with DM6TS at 500 Hz: 1 sent, 0 received"), Done (nothing to
-     send or receive) or Failed, with what to do next, from Pat's log,
-     ARDOP's and Pat's event log (`/run/winlink`):
+   - Last connection: Calling, Connected (with ARDOP's or XARA's
+     bandwidth, and XARA's speed), Delivered ("Done with DM6TS at 500 Hz: 1
+     sent, 0 received"), Done (nothing to send or receive) or Failed, with
+     what to do next, from Pat's log, ARDOP's or XARA's and Pat's event log
+     (`/run/winlink`):
 
      | What happened | What to do |
      |---|---|
@@ -3954,8 +3965,9 @@ Setting it up:
      | Pat could not tune the radio (Unable to QSY) | The radio's screen says why |
 
      The same line goes into Pat's log, so the mailbox shows it too.
-   - Logs, Download: Pat's log, its output, ARDOP's, Mercury's, Pat's event
-     log, the radio's state and the status, as one text file to attach to a bug
+   - Logs, Download: Pat's log, its output, ARDOP's, Mercury's, XARA's (and
+     its settings), Pat's event log, the radio's state and the status, as one
+     text file to attach to a bug
      report. The passwords in them are masked: the Winlink page's, the ones
      on Pat's Configure page, and the one Pat prints for a new account ("DO
      NOT LOSE YOUR PASSWORD"). The gateways and the subjects of your mail are
@@ -3963,9 +3975,9 @@ Setting it up:
 4. Press Open the mailbox, or open `http://x6100.local:8080/` (`x6200.local`
    on an X6200, or the radio's address): Pat's own page, where you write and
    read your mail. Its Configure page (Action > Configure) has the rest of
-   Pat's options. The callsign, the locator and the ARDOP, VARA HF (Mercury)
-   and radio settings are set again by the radio each time Pat starts, and so
-   is the password once one is set on the radio's Winlink page: change those
+   Pat's options. The callsign, the locator and the ARDOP, VARA HF (Mercury,
+   XARA) and radio settings are set again by the radio each time Pat starts,
+   and so is the password once one is set on the radio's Winlink page: change those
    there, not in Pat. A password typed on Pat's Configure page is kept while
    the Winlink page has none (up to v0.3.6 it was emptied at Pat's next
    start, #80). The radio's rig is x6x00 on that page, under Rig Control >
@@ -4285,6 +4297,93 @@ and oblas MIT) comes with the firmware as upstream has it, with two small
 changes: its TNC and broadcast ports listen on 127.0.0.1 only, and it answers
 Pat's VERSION with a VERSION line, so Pat never hangs starting it
 (`third-party/mercury/UPSTREAM.md`).
+
+### XARA (experimental)
+
+[XARA](https://github.com/x0rro/xara) is a third HF modem for Winlink: an
+independent program by another author (x0rro) that speaks VARA HF on the air
+and VARA's interface to Pat. So the VARA HF gateways in Pat's list answer it,
+where they do not answer Mercury. It comes with the firmware, pinned at
+version 0.1.3 and built from its source with one change of ours: the radio's
+GUI is its sound card and PTT, as for ardopcf and Mercury. Every transmission
+goes through the radio's own TX path, as for the other digital modes: the
+amateur bands only, simplex, at most 7 W, the SWR hold, no TX while a digital
+app is open.
+
+It is experimental. Two stations exchanged mail through it on a PC, each with
+the radio's own Winlink code and Pat, at the free speed and at full speed. It
+has not been on the air from a radio yet, nor against VARA itself or a VARA
+gateway, and its processor load on the radios and its timing through the
+radio's audio are not measured yet. XARA itself is young (its first release
+came out on 21 October 2026) and still changes fast.
+
+Choosing it: on Operating > Winlink, the Station card's Modem, XARA
+(experimental, VARA-compatible), its bandwidth and the VARA HF licence box
+(below), then Save. One modem runs at a time, as with Mercury.
+
+XARA needs your callsign, the Winlink page's or the radio's (Settings >
+General): 1 to 7 letters and digits, with an SSID from -1 to -19 if any, not
+N0CALL. With none, or one it does not take, the Status says so and XARA does
+not start.
+
+The speed:
+
+- VARA HF has free speed levels, and faster ones for those who bought a
+  licence. On the air the difference is one bit in the caller's connect
+  frame: the station called follows it, and nothing else is checked.
+- By default XARA runs VARA's free levels (1 to 4), without compression, as a
+  VARA without a licence does. The Connections card's Modem row says "VARA's
+  free speed levels".
+- The VARA HF licence box: tick it only if you hold a VARA HF licence of your
+  own. It is your statement; the radio does not check it. Ticked, XARA calls
+  as a registered VARA station does, and the link may use every level ("full
+  speed (VARA HF licence ticked)"). The radio always calls (it does not listen
+  for calls), so its own setting is the one that counts on its links.
+- XARA's author builds his own releases without the faster levels, out of
+  respect for VARA's author, and leaves them to those with a licence; the box
+  leaves them to you in the same way.
+
+Dialling: in the mailbox, Connect, VARA HF as the transport, then a gateway
+from the VARA HF gateway list, or another station's callsign and dial
+frequency by hand, and Connect. The radio tunes there in USB-D and back
+afterwards, as with ARDOP. The bandwidth field may stay empty: XARA then
+takes the Winlink page's. Call a gateway at the bandwidth its list entry
+gives.
+
+- The bandwidth: VARA HF's 500, 2300 (the default) or 2750 Hz. The RX filter,
+  and the TX filter on a base that has one, have to cover XARA's audio:
+  350-2650 Hz at 2300 Hz, 120-2880 Hz at 2750 Hz, 1240-1760 Hz at 500 Hz. The
+  Before you connect card checks it.
+- XARA's keys are a few seconds long (5 s at the most on the PC). The radio
+  stops one after 30 s ("Winlink: TX stopped after 30 s").
+- XARA identifies in CW as it closes a session (Pat asks for it, CWID ON).
+
+When it does not work:
+
+- The Connections card's last connection says what happened, as with ARDOP
+  and Mercury: no answer (call the gateway at the bandwidth Pat's list gives
+  it), a dropped link (500 Hz on a weak path), "Pat called through ARDOP, but
+  the radio runs XARA" (VARA HF in Pat's Connect dialog, or ARDOP on the
+  page), "XARA was not ready", a bandwidth XARA does not have (500, 2300 or
+  2750). A delivered connection says its speed: "Done with YO4CIL at 2300 Hz
+  at VARA's free speed: 1 sent, 0 received".
+- The Modem row says "Ready, but it fell behind the receiver lately" in red,
+  and Pat's log "OpenX6X00: XARA could not keep up with the receiver": XARA
+  fell behind the radio's audio ("xara is falling behind real time" in its
+  log), and its connections fail. The radio's processor is short for it: use
+  ARDOP, and send the logs download on
+  [#120](https://github.com/Guru-RF/OpenX6X00/issues/120), it helps the
+  measurement.
+- XARA's log is `/run/winlink/xara.log` (in the logs download too), its
+  settings `/run/winlink/xara.conf`, written at each start: its commands on
+  127.0.0.1:8300 and its data on 8301 (which Tailscale's userspace mode also
+  opens to your tailnet, as ARDOP's), no KISS port, no web UI of its own.
+
+XARA (MIT, x0rro) comes with the firmware built from its v0.1.3 release with
+one change of ours, its sound card and PTT through the radio's GUI
+(`tools/xara/UPSTREAM.md`). The Rust crates in it are MIT (some also
+Apache-2.0, Zlib or 0BSD) and the Rust standard library Apache-2.0 or MIT;
+their texts are on the radio in `/usr/share/x6100/licenses/xara`.
 
 ## Browser panel
 

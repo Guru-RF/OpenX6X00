@@ -1,13 +1,13 @@
 % rebase('base.html', title='Winlink')
 <h2><svg class="i"><use href="#i-file"/></svg>Winlink</h2>
-<p class="sub">Winlink email over HF from the radio alone, with no computer: <a href="https://getpat.io">Pat</a> is the mail program, its mailbox a web page you open on a phone or a laptop on the radio's network; ARDOP is the modem, or Mercury (experimental), through the radio's own audio. When Pat calls a gateway, the radio tunes to it and switches to USB-D. Off by default: when off, Pat and the modem do not run.</p>
+<p class="sub">Winlink email over HF from the radio alone, with no computer: <a href="https://getpat.io">Pat</a> is the mail program, its mailbox a web page you open on a phone or a laptop on the radio's network; ARDOP is the modem, or Mercury or XARA (both experimental; XARA speaks VARA HF), through the radio's own audio. When Pat calls a gateway, the radio tunes to it and switches to USB-D. Off by default: when off, Pat and the modem do not run.</p>
 
 <div class="dp-card" id="notice" style="display:none">
   <div class="dp-body" id="notice-text" style="color:var(--err)"></div>
 </div>
 
 <div class="dp-card">
-  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-file"/></svg></span><div><h3>Winlink<span class="eff">Takes effect: at once</span></h3><p>Pat and the modem on the radio: ARDOP (ardopcf) or Mercury (x6x00-mercury)</p></div></div>
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-file"/></svg></span><div><h3>Winlink<span class="eff">Takes effect: at once</span></h3><p>Pat and the modem on the radio: ARDOP (ardopcf), Mercury (x6x00-mercury) or XARA (xara)</p></div></div>
   <div class="dp-row">
     <div class="dp-lbl"><b>Enabled</b><span>Starts with the radio, also after a new card image</span></div>
     <div class="dp-ctl"><label class="sw" title="Enabled"><input id="enabled" type="checkbox" role="switch" aria-label="Enabled"><i></i></label></div>
@@ -67,8 +67,8 @@
     <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="64" placeholder="New password (empty = keep)"></div>
   </div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="modem"><b>Modem</b></label><span>ARDOP: the gateways in Pat's list. Mercury: faster on a good path, but only with a station that runs Mercury 1.9.20 or later (station to station, or one of the few gateways that run it), dialled by hand in Pat as VARA HF; it costs the radio more processor and heat. One runs at a time</span></div>
-    <div class="dp-ctl"><select id="modem"><option value="ardop">ARDOP</option><option value="mercury">Mercury (experimental)</option></select></div>
+    <div class="dp-lbl"><label for="modem"><b>Modem</b></label><span>ARDOP: the gateways in Pat's list. Mercury: faster on a good path, but only with a station that runs Mercury 1.9.20 or later (station to station, or one of the few gateways that run it), dialled by hand in Pat as VARA HF. XARA: speaks VARA HF, so the VARA HF gateways in Pat's list answer it (Connect, VARA HF), at VARA's free speed unless you tick your VARA HF licence below. Mercury and XARA cost the radio more processor and heat. One runs at a time</span></div>
+    <div class="dp-ctl"><select id="modem"><option value="ardop">ARDOP</option><option value="mercury">Mercury (experimental)</option><option value="xara">XARA (experimental, VARA-compatible)</option></select></div>
   </div>
   <div class="dp-row" id="row-bandwidth">
     <div class="dp-lbl"><label for="bandwidth"><b>ARDOP bandwidth</b></label><span>The widest ARDOP may use, also with a gateway the list shows wider (Pat says so in its log). 500 Hz suits the radio's few watts and a crowded band; 200 Hz is the most robust, but a gateway fixed at 500 Hz or wider refuses it; 1000 and 2000 Hz are faster on a good path, with a gateway that runs them</span></div>
@@ -77,6 +77,14 @@
   <div class="dp-row" id="row-mercury-bandwidth">
     <div class="dp-lbl"><label for="mercury_bandwidth"><b>Mercury bandwidth</b></label><span>What Pat asks Mercury for, unless a connection names another. 2300 Hz uses all of Mercury's modes; 500 Hz keeps it within about 560 Hz, its most robust mode then a 500 Hz MFSK at half the speed (27 s a frame); 2750 Hz is 2300's modes for now. The narrower of the two stations' is used</span></div>
     <div class="dp-ctl"><select id="mercury_bandwidth"><option value="500">500 Hz</option><option value="2300">2300 Hz</option><option value="2750">2750 Hz</option></select></div>
+  </div>
+  <div class="dp-row" id="row-xara-bandwidth">
+    <div class="dp-lbl"><label for="xara_bandwidth"><b>XARA bandwidth</b></label><span>What Pat asks XARA for, unless a connection names another: VARA HF's 500, 2300 or 2750 Hz. Call a gateway at the bandwidth Pat's VARA HF list gives it; 2300 Hz is the usual one, 500 Hz keeps to about 520 Hz on a crowded band</span></div>
+    <div class="dp-ctl"><select id="xara_bandwidth"><option value="500">500 Hz</option><option value="2300">2300 Hz</option><option value="2750">2750 Hz</option></select></div>
+  </div>
+  <div class="dp-row" id="row-vara-licence">
+    <div class="dp-lbl"><label for="vara_licence"><b>VARA HF licence</b></label><span>Tick only if you hold a VARA HF licence of your own; the radio does not check it. Off: VARA's free speed levels (1 to 4). On: XARA calls as a registered VARA station does, and the link may use every speed level</span></div>
+    <div class="dp-ctl"><label class="sw" title="VARA HF licence"><input id="vara_licence" type="checkbox" role="switch" aria-label="VARA HF licence"><i></i></label></div>
   </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
@@ -99,6 +107,7 @@
       <li>The password is kept on the radio's system partition: not in the Backup, not on the Files page. A new card image asks for it again. The mail itself is on the SD card (<code>/mnt/winlink</code>) and stays.</li>
       <li>Sessions with gateways work: reported on an X6100 on 80 m and from the UK to Germany on 40 m, and an X6200 got as far as the login.</li>
       <li>Mercury is experimental: tested between two stations on a PC, not yet on the air; on an X6100 it takes about one of the radio's four processor cores (not measured on an X6200 yet). In the mailbox: Connect, VARA HF, then the other station's call and frequency by hand: the VARA HF gateway list shows VARA gateways, which do not answer Mercury. ARDOP's gateways do not answer it either.</li>
+      <li>XARA is experimental: a VARA-compatible modem by another author (MIT licence), not VARA itself. Tested between two stations on a PC, not yet on the air from a radio or with a VARA gateway, and its processor load on the radios is not measured yet. In the mailbox: Connect, VARA HF, then a gateway from Pat's VARA HF list. It needs your callsign (up to 7 letters and digits, an SSID from -1 to -19). The VARA HF licence box is your own statement; the radio does not check it.</li>
     </ul>
   </div>
 </div>
@@ -115,7 +124,8 @@ const PW_STATE = {page: "set here (hidden)", pat: "set in Pat's own Settings (hi
 const SERVICE = {running: "Running", starting: "Starting", stopped: "Stopped"};
 const MODEM = {ready: "Ready", waiting: "Waiting for the radio's audio",
                behind: "Ready, but it fell behind the receiver lately: see Pat's log"};
-const MODEM_NAME = {ardop: "ARDOP", mercury: "Mercury"};
+const MODEM_NAME = {ardop: "ARDOP", mercury: "Mercury", xara: "XARA"};
+const SPEED = {free: "VARA's free speed levels", full: "full speed (VARA HF licence ticked)"};
 const SESSION = {idle: "Idle", dialing: "Calling a gateway", connected: "Connected", unknown: "-"};
 const LAST = {dialing: "Calling", connected: "Connected", delivered: "Delivered", done: "Done", failed: "Failed"};
 
@@ -131,8 +141,12 @@ var radioRow = function(id, value, note, bad) {
 }
 
 // The audio the chosen modem fills, Hz around 1500: ARDOP its bandwidth; Mercury 2100 Hz (DATAC17, QAM16C2) at 2300
-// and 2750; at 500 600 Hz, DATAC3's 562 the widest (its MFSK floor is the 500 Hz one there, MERCURY_MODE_MFSK_N32)
+// and 2750; at 500 600 Hz, DATAC3's 562 the widest (its MFSK floor is the 500 Hz one there, MERCURY_MODE_MFSK_N32).
+// XARA: VARA HF's OFDM carriers, its widest (xara-phy hf/level.rs, bins of 46.875 Hz): 1242-1758 Hz at 500,
+// 352-2648 at 2300, 117-2883 at 2750
 var modemSpan = function(st) {
+  if (st.modem_choice === "xara")
+    return {name: "XARA", bw: st.xara_bandwidth, span: {500: 520, 2750: 2760}[st.xara_bandwidth] || 2300};
   if (st.modem_choice !== "mercury") return {name: "ARDOP", bw: st.bandwidth, span: st.bandwidth};
   return {name: "Mercury", bw: st.mercury_bandwidth, span: st.mercury_bandwidth === 500 ? 600 : 2100};
 }
@@ -185,7 +199,10 @@ var renderRadio = function(st) {
 var renderConnections = function(st) {
   const on = st.state !== "off";
   $("#c-service").text(on && SERVICE[st.service] || "Off");
-  $("#c-modem").text(on && MODEM[st.modem] || "Off").css("color", on && st.modem === "behind" ? "var(--err)" : "");
+  // XARA's speed as it says it runs, after Pat's MYCALL: the free levels unless the licence is ticked
+  const speed = on && st.modem_choice === "xara" && MODEM[st.modem] && SPEED[st.speed];
+  $("#c-modem").text((on && MODEM[st.modem] || "Off") + (speed ? ", " + speed : ""))
+    .css("color", on && st.modem === "behind" ? "var(--err)" : "");
   $("#c-modem-n").text((MODEM_NAME[st.modem_choice] || "ARDOP") + " on the radio's audio");
   $("#c-session").text(on && SESSION[st.session] || "Off");
   const n = parseInt(st.browsers, 10);
@@ -219,6 +236,7 @@ var renderState = function(st) {
   $("#nomailbox").toggle(!up).text(st.enabled ? "Once Pat runs" : "When Winlink is on");
   const notes = [];
   if (!st.installed) notes.push("Pat and ARDOP are not on this radio yet: they come with the update that brings Winlink.");
+  else if (st.modem_choice === "xara" && !st.xara_installed) notes.push("XARA is not on this radio yet: it comes with the update that brings it. Choose ARDOP or Mercury meanwhile.");
   if (!st.host_ok) notes.push(st.name_refused ? st.name_refused + "." : "This page was opened by a name the radio does not know as its own. Open it by the radio's address or its .local name to change Winlink; the mailbox only opens by those names too.");
   if (st.enabled && !st.mycall && !st.radio_mycall) notes.push("No callsign: set yours below, or the radio's in Settings > General.");
   if (st.enabled && st.password === "none") notes.push("No Winlink password on the radio: when the gateway asks for it, Pat asks in the mailbox and gives up after a minute (\"context deadline exceeded\"). Set it below before you connect, or keep the mailbox open to type it there. A new account's first connection needs none.");
@@ -240,15 +258,18 @@ var render = function(st) {
   $("#bandwidth").val(String(st.bandwidth));
   $("#modem").val(st.modem_choice || "ardop");
   $("#mercury_bandwidth").val(String(st.mercury_bandwidth || 2300));
+  $("#xara_bandwidth").val(String(st.xara_bandwidth || 2300));
+  $("#vara_licence").prop("checked", !!st.vara_licence);
   showModem();
   form.reset();
 }
 
-// The chosen modem's bandwidth row only
+// The chosen modem's rows only: its bandwidth, and with XARA the VARA HF licence
 var showModem = function() {
-  const merc = $("#modem").val() === "mercury";
-  $("#row-bandwidth").toggle(!merc);
-  $("#row-mercury-bandwidth").toggle(merc);
+  const modem = $("#modem").val();
+  $("#row-bandwidth").toggle(modem === "ardop");
+  $("#row-mercury-bandwidth").toggle(modem === "mercury");
+  $("#row-xara-bandwidth, #row-vara-licence").toggle(modem === "xara");
 }
 $("#modem").on("change", showModem);
 
@@ -284,7 +305,9 @@ $("#conf").on("submit", function(e) {
   showStatus("#status", "Saving...");
   post({mycall: $("#mycall").val().trim(), locator: $("#locator").val().trim(),
         bandwidth: parseInt($("#bandwidth").val(), 10), modem_choice: $("#modem").val(),
-        mercury_bandwidth: parseInt($("#mercury_bandwidth").val(), 10), password: $("#password").val()},
+        mercury_bandwidth: parseInt($("#mercury_bandwidth").val(), 10),
+        xara_bandwidth: parseInt($("#xara_bandwidth").val(), 10), vara_licence: $("#vara_licence").prop("checked"),
+        password: $("#password").val()},
        function(r) { render(r); showStatus("#status", r.enabled ? "Saved: Pat restarts with it" : "Saved"); });
 });
 

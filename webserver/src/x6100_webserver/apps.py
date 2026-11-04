@@ -893,7 +893,7 @@ def set_tailscale():
     return tailscale_status()
 
 
-# Winlink (rootfs/usr/sbin/x6100-winlink): Pat and the modem (ardopcf, or Mercury's x6x00-mercury) under a
+# Winlink (rootfs/usr/sbin/x6100-winlink): Pat and the modem (ardopcf, Mercury's x6x00-mercury or XARA) under a
 # supervisor that keeps a status file. The page writes the settings (/mnt/winlink.conf), hands a new password to the
 # helper on stdin (it goes to the root filesystem, where these pages never read it back) and runs the helper to apply
 # them and to turn it on or off
@@ -904,18 +904,20 @@ WINLINK_RADIO_FRESH = 15                              # s: older is from a GUI t
 WINLINK_CONF = "/mnt/winlink.conf"
 WINLINK_PASSWORD = "/var/lib/winlink/password"
 WINLINK_PROGRAMS = ("/usr/bin/pat", "/usr/bin/ardopcf")
+WINLINK_XARA = "/usr/bin/xara"                        # not on a radio updated from before it
 WINLINK_PORT = 8080                                   # Pat's mailbox
 WINLINK_CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")   # as x6100-winlink checks them
 WINLINK_LOCATOR_RE = re.compile(r"[A-R]{2}[0-9]{2}([A-X]{2})?", re.I)
 WINLINK_BANDWIDTHS = (200, 500, 1000, 2000)           # ARDOP's, the widest Pat may use (as x6100-winlink's)
-WINLINK_MODEMS = ("ardop", "mercury")                 # the modem= choice (as x6100-winlink's), ardop the default
+WINLINK_MODEMS = ("ardop", "mercury", "xara")         # the modem= choice (as x6100-winlink's), ardop the default
 WINLINK_MERCURY_BANDWIDTHS = (500, 2300, 2750)        # Mercury's, VARA's three (as x6100-winlink's), 2300 the default
+WINLINK_XARA_BANDWIDTHS = (500, 2300, 2750)           # XARA's, VARA HF's own three, 2300 the default
 winlink_lock = threading.Lock()                       # one change at a time: Off may take 20 s
 
 
 def winlink_conf():
     conf = {"enabled": "0", "mycall": "", "locator": "", "bandwidth": "500", "modem": "ardop",
-            "mercury_bandwidth": "2300"}
+            "mercury_bandwidth": "2300", "xara_bandwidth": "2300", "vara_licence": "0"}
     try:
         with open(WINLINK_CONF) as f:
             for line in f:
@@ -930,8 +932,9 @@ def winlink_conf():
 def winlink_state():
     """The settings, the supervisor's status and the defaults; where a password is set, never the password: on this
     page (password_set), in Pat's own Settings (the supervisor's password=pat, #80) or nowhere. The modem chosen is
-    modem_choice: the status's modem is how the one that runs is doing"""
-    st = {"state": "off", "text": "Off", "pat": "off", "ardop": "off", "mercury": "off"}
+    modem_choice: the status's modem is how the one that runs is doing. vara_licence: the user's own word that they
+    hold a VARA HF licence (XARA's full speed), which nothing checks"""
+    st = {"state": "off", "text": "Off", "pat": "off", "ardop": "off", "mercury": "off", "xara": "off"}
     try:
         with open(WINLINK_STATUS) as f:
             for line in f:
@@ -950,6 +953,9 @@ def winlink_state():
               modem_choice=conf["modem"] if conf["modem"] in WINLINK_MODEMS else "ardop",
               mercury_bandwidth=int(conf["mercury_bandwidth"])
               if conf["mercury_bandwidth"] in [str(b) for b in WINLINK_MERCURY_BANDWIDTHS] else 2300,
+              xara_bandwidth=int(conf["xara_bandwidth"])
+              if conf["xara_bandwidth"] in [str(b) for b in WINLINK_XARA_BANDWIDTHS] else 2300,
+              vara_licence=conf["vara_licence"] == "1", xara_installed=os.access(WINLINK_XARA, os.X_OK),
               password_set=password_set,
               password="page" if password_set else "pat" if st.get("password") == "pat" else "none",
               radio_mycall=max(read_callsign().upper().split("/"), key=len),   # ON6URE of ON6URE/P
@@ -1023,8 +1029,9 @@ def winlink_logs():
 
 @app.post('/api/winlink')
 def set_winlink():
-    """Any of enabled, mycall, locator, bandwidth, modem_choice (ardop or mercury), mercury_bandwidth and password;
-    what is not sent stays. An empty callsign or locator is the radio's own, an empty password keeps the one set"""
+    """Any of enabled, mycall, locator, bandwidth, modem_choice (ardop, mercury or xara), mercury_bandwidth,
+    xara_bandwidth, vara_licence and password; what is not sent stays. An empty callsign or locator is the radio's own,
+    an empty password keeps the one set"""
     try:
         data = bottle.request.json
     except ValueError:
@@ -1055,13 +1062,22 @@ def set_winlink():
             new["bandwidth"] = str(data["bandwidth"])
         if "modem_choice" in data:
             if data["modem_choice"] not in WINLINK_MODEMS:
-                return api_error(400, "Modem: ARDOP or Mercury")
+                return api_error(400, "Modem: ARDOP, Mercury or XARA")
             new["modem"] = data["modem_choice"]
         if "mercury_bandwidth" in data:
             mbw = data["mercury_bandwidth"]
             if mbw not in WINLINK_MERCURY_BANDWIDTHS or isinstance(mbw, bool):
                 return api_error(400, "Mercury bandwidth: 500, 2300 or 2750")
             new["mercury_bandwidth"] = str(mbw)
+        if "xara_bandwidth" in data:
+            xbw = data["xara_bandwidth"]
+            if xbw not in WINLINK_XARA_BANDWIDTHS or isinstance(xbw, bool):
+                return api_error(400, "XARA bandwidth: 500, 2300 or 2750")
+            new["xara_bandwidth"] = str(xbw)
+        if "vara_licence" in data:
+            if not isinstance(data["vara_licence"], bool):
+                return api_error(400, "VARA HF licence: true or false")
+            new["vara_licence"] = "1" if data["vara_licence"] else "0"
         password = data.get("password", "")
         password = password.strip() if isinstance(password, str) else None
         if password is None or len(password) > 64 or any(ord(c) < 32 or ord(c) == 127 for c in password):
@@ -1070,7 +1086,8 @@ def set_winlink():
             err = winlink_run(["set-password"], password)
             if err:
                 return api_error(500, "Winlink: " + err)
-        keys = ["enabled", "mycall", "locator", "bandwidth", "modem", "mercury_bandwidth"]
+        keys = ["enabled", "mycall", "locator", "bandwidth", "modem", "mercury_bandwidth", "xara_bandwidth",
+                "vara_licence"]
         if new != conf:
             try:
                 replace_file(WINLINK_CONF, lambda f: f.write(
@@ -1080,7 +1097,8 @@ def set_winlink():
         err = None
         if new["enabled"] == "1":
             if password or any(new[k] != conf[k] for k in keys[1:]):
-                err = winlink_run(["apply"])          # Pat restarts with them, and the modem when another is chosen
+                err = winlink_run(["apply"])          # Pat restarts with them, the modem when another is chosen
+                                                      # and XARA when its own settings changed
             err = err or winlink_run(["on"])
         elif conf["enabled"] == "1" or "enabled" in data:
             err = winlink_run(["off"])

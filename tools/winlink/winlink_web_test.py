@@ -40,7 +40,7 @@ class Web(unittest.TestCase):
         con.close()
         self.calls = []
         for k in ("WINLINK_CONF", "WINLINK_STATUS", "WINLINK_PASSWORD", "WINLINK_RADIO", "WINLINK_PROGRAMS",
-                  "winlink_run"):
+                  "WINLINK_XARA", "winlink_run"):
             self.addCleanup(setattr, apps, k, getattr(apps, k))
         self.addCleanup(setattr, settings, "DB_PATH", settings.DB_PATH)
         settings.DB_PATH = db
@@ -49,6 +49,7 @@ class Web(unittest.TestCase):
         apps.WINLINK_PASSWORD = os.path.join(self.root, "password")
         apps.WINLINK_RADIO = os.path.join(self.root, "radio")
         apps.WINLINK_PROGRAMS = ()
+        apps.WINLINK_XARA = os.path.join(self.root, "xara")      # not there: a radio updated from before it
         apps.winlink_run = lambda args, stdin=None: self.calls.append(args)
 
     def req(self, method, path, body=None):
@@ -99,7 +100,8 @@ class Modem(Web):
         self.assertEqual(code, 200, st)
         self.assertEqual((st["modem_choice"], st["mercury_bandwidth"]), ("mercury", 2750))
         self.assertEqual(self.conf(), {"enabled": "0", "mycall": "", "locator": "", "bandwidth": "500",
-                                       "modem": "mercury", "mercury_bandwidth": "2750"})
+                                       "modem": "mercury", "mercury_bandwidth": "2750", "xara_bandwidth": "2300",
+                                       "vara_licence": "0"})
         self.assertEqual(self.calls, [])                # saved only: nothing runs
 
     def test_chosen_while_on(self):
@@ -119,10 +121,10 @@ class Modem(Web):
         self.assertEqual(self.conf()["mercury_bandwidth"], "500")
 
     def test_refused(self):
-        for body, msg in (({"modem_choice": "vara"}, "Modem: ARDOP or Mercury"),
-                          ({"modem_choice": "Mercury"}, "Modem: ARDOP or Mercury"),
-                          ({"modem_choice": 1}, "Modem: ARDOP or Mercury"),
-                          ({"modem_choice": None}, "Modem: ARDOP or Mercury"),
+        for body, msg in (({"modem_choice": "vara"}, "Modem: ARDOP, Mercury or XARA"),
+                          ({"modem_choice": "Mercury"}, "Modem: ARDOP, Mercury or XARA"),
+                          ({"modem_choice": 1}, "Modem: ARDOP, Mercury or XARA"),
+                          ({"modem_choice": None}, "Modem: ARDOP, Mercury or XARA"),
                           ({"mercury_bandwidth": 2000}, "Mercury bandwidth: 500, 2300 or 2750"),
                           ({"mercury_bandwidth": "2300"}, "Mercury bandwidth: 500, 2300 or 2750"),
                           ({"mercury_bandwidth": True}, "Mercury bandwidth: 500, 2300 or 2750"),
@@ -136,11 +138,76 @@ class Modem(Web):
         code, page = self.req("GET", "/winlink")
         self.assertEqual(code, 200)
         self.assertIn('<select id="modem"><option value="ardop">ARDOP</option>'
-                      '<option value="mercury">Mercury (experimental)</option></select>', page)
+                      '<option value="mercury">Mercury (experimental)</option>'
+                      '<option value="xara">XARA (experimental, VARA-compatible)</option></select>', page)
         self.assertIn('<select id="mercury_bandwidth"><option value="500">500 Hz</option>'
                       '<option value="2300">2300 Hz</option><option value="2750">2750 Hz</option></select>', page)
         self.assertIn('id="row-mercury-bandwidth"', page)
         self.assertIn("modem_choice: $(\"#modem\").val()", page)
+
+
+class Xara(Web):
+    """modem=xara, xara_bandwidth and vara_licence: the user's word for a VARA HF licence, off by default, which
+    nothing checks"""
+
+    def test_defaults(self):
+        st = self.req("GET", "/api/winlink")[1]
+        self.assertEqual((st["xara_bandwidth"], st["vara_licence"], st["xara"], st["xara_installed"]),
+                         (2300, False, "off", False))
+        with open(apps.WINLINK_CONF, "w") as f:
+            f.write("enabled=0\nmodem=xara\nxara_bandwidth=2000\nvara_licence=yes\n")
+        st = self.req("GET", "/api/winlink")[1]
+        self.assertEqual((st["modem_choice"], st["xara_bandwidth"], st["vara_licence"]), ("xara", 2300, False))
+        with open(apps.WINLINK_XARA, "w") as f:
+            f.write("#!/bin/sh\n")
+        os.chmod(apps.WINLINK_XARA, 0o755)
+        self.assertTrue(self.req("GET", "/api/winlink")[1]["xara_installed"])
+
+    def test_chosen_with_the_licence_ticked(self):
+        code, st = self.req("POST", "/api/winlink", {"modem_choice": "xara", "xara_bandwidth": 500,
+                                                     "vara_licence": True})
+        self.assertEqual(code, 200, st)
+        self.assertEqual((st["modem_choice"], st["xara_bandwidth"], st["vara_licence"]), ("xara", 500, True))
+        self.assertEqual(self.conf(), {"enabled": "0", "mycall": "", "locator": "", "bandwidth": "500",
+                                       "modem": "xara", "mercury_bandwidth": "2300", "xara_bandwidth": "500",
+                                       "vara_licence": "1"})
+        self.assertEqual(self.calls, [])
+
+    def test_the_tick_applied_while_on(self):
+        """XARA starts again with or without `registered` (the supervisor), Pat with the settings"""
+        with open(apps.WINLINK_CONF, "w") as f:
+            f.write("enabled=1\nmycall=ON6URE\nlocator=\nbandwidth=500\nmodem=xara\n")
+        self.req("POST", "/api/winlink", {"vara_licence": True})
+        self.assertEqual((self.calls, self.conf()["vara_licence"]), ([["apply"], ["on"]], "1"))
+        self.calls.clear()
+        self.req("POST", "/api/winlink", {"vara_licence": True, "xara_bandwidth": 2300})
+        self.assertEqual(self.calls, [["on"]])          # nothing changed
+        self.req("POST", "/api/winlink", {"vara_licence": False})
+        self.assertEqual((self.calls, self.conf()["vara_licence"]), ([["on"], ["apply"], ["on"]], "0"))
+
+    def test_refused(self):
+        for body, msg in (({"xara_bandwidth": 2000}, "XARA bandwidth: 500, 2300 or 2750"),
+                          ({"xara_bandwidth": "500"}, "XARA bandwidth: 500, 2300 or 2750"),
+                          ({"xara_bandwidth": True}, "XARA bandwidth: 500, 2300 or 2750"),
+                          ({"vara_licence": 1}, "VARA HF licence: true or false"),
+                          ({"vara_licence": "yes"}, "VARA HF licence: true or false"),
+                          ({"vara_licence": None}, "VARA HF licence: true or false")):
+            code, r = self.req("POST", "/api/winlink", body)
+            self.assertEqual((code, r.get("msg")), (400, msg), body)
+        self.assertFalse(os.path.exists(apps.WINLINK_CONF))
+        self.assertEqual(self.calls, [])
+
+    def test_the_page(self):
+        page = self.req("GET", "/winlink")[1]
+        self.assertIn('<select id="xara_bandwidth"><option value="500">500 Hz</option>'
+                      '<option value="2300">2300 Hz</option><option value="2750">2750 Hz</option></select>', page)
+        self.assertIn('id="row-vara-licence"', page)
+        self.assertIn('<input id="vara_licence" type="checkbox" role="switch" aria-label="VARA HF licence">', page)
+        # the user's own statement, and that the radio takes it as it is
+        self.assertIn("Tick only if you hold a VARA HF licence of your own; the radio does not check it. Off: VARA's "
+                      "free speed levels (1 to 4).", page)
+        self.assertIn('vara_licence: $("#vara_licence").prop("checked")', page)
+        self.assertIn('$("#vara_licence").prop("checked", !!st.vara_licence);', page)
 
 
 class Radio(Web):
