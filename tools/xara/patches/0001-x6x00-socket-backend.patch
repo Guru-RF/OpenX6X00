@@ -1,4 +1,4 @@
-From 740d535a431f02d6aaae6ebcd791a9bc37800868 Mon Sep 17 00:00:00 2001
+From 14d5d4f829e6498376b3592741cdc95b4af9f6a6 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Wed, 4 Nov 2026 14:00:00 +0100
 Subject: [PATCH] audio, ptt: the X6100/X6200 radio's own software as the sound
@@ -26,20 +26,20 @@ playback stream as constants, 25, 50 and 80 ms until they are measured on
 the radios; --x6x00-path-ms CAPTURE,KEYING,OUT sets them. No rate
 matching: queue false.
 
-main.rs checks the options together as for trusdx (one socket for both,
---ptt x6x00 with --audio x6x00 and the other way round, no
---tx-buffer-ms) and gives the PTT from the backend. With --audio x6x00
-the station starts with listening off: it answers no call until its host
-sends LISTEN ON, which Pat does only to listen. XARA runs from the
-radio's start and has no host until Pat calls out, so an answer would
-key the radio with nobody there. With unit tests on a fake GUI (the
-hello, R paced and resampled, zeros while keyed and without the GUI, T
-only between P 1 and P 0, the held first block, a GUI that goes and
-comes back, one that closes at once tried once a second, the stop's P 0)
-and main.rs's own (a call to a station made for the radio is not
-answered, the same station with another backend answers it). One
-upstream test assumed the default backend is built, which in a build
-with x6x00 alone it is not.
+main.rs checks the options together, as upstream does for its
+serial-radio backend (one socket for both, --ptt x6x00 with --audio
+x6x00 and the other way round, no --tx-buffer-ms) and gives the PTT from
+the backend. With --audio x6x00 the station starts with listening off:
+it answers no call until its host sends LISTEN ON, which Pat does only
+to listen. XARA runs from the radio's start and has no host until Pat
+calls out, so an answer would key the radio with nobody there. With unit
+tests on a fake GUI (the hello, R paced and resampled, zeros while keyed
+and without the GUI, T only between P 1 and P 0, the held first block, a
+GUI that goes and comes back, one that closes at once tried once a
+second, the stop's P 0) and main.rs's own (a call to a station made for
+the radio is not answered, the same station with another backend answers
+it). One upstream test assumed the default backend is built, which in a
+build with x6x00 alone it is not.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---

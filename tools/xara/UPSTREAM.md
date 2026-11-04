@@ -71,17 +71,16 @@ Made with `git format-patch` against the release's source; `git apply` takes it.
   GUI's checks and the base keying) and the GUI's low-latency playback stream (prebuf 60 ms, tlength 100 ms) as 25,
   50 and 80 ms, guesses until they are measured on the radios; `--x6x00-path-ms CAPTURE,KEYING,OUT` sets them (the
   supervisor's `xara_path_ms=`). No rate matching (`queue: false`): during receive XARA's clock is the GUI's capture.
-  `main.rs` checks the options together, as upstream does for its trusdx backend. With `--audio x6x00` the station
-  starts with listening off (`listen_at_start`): it answers no call until its host sends `LISTEN ON`, which Pat sends
-  only to listen, never on the radio. Upstream starts listening, until a host says `LISTEN OFF` or goes; on the
-  radio XARA runs from the start with no host until Pat calls out, and an answer would key the radio with nobody
+  `main.rs` checks the options together, as upstream does for its serial-radio backend. With `--audio x6x00` the
+  station starts with listening off (`listen_at_start`): it answers no call until its host sends `LISTEN ON`, which
+  Pat sends only to listen, never on the radio. Upstream starts listening, until a host says `LISTEN OFF` or goes; on
+  the radio XARA runs from the start with no host until Pat calls out, and an answer would key the radio with nobody
   there. With unit tests on a fake GUI (the hello, R paced and resampled, zeros while keyed and without the GUI, T
   only between P 1 and P 0, the held first block, a GUI that goes and comes back, one that closes at once tried once
   a second and not more, XARA's stop sending P 0) and `main.rs`'s own (a call to a station made for the radio is not
-  answered; the same station with another backend answers it). One upstream test took the default backend (ALSA)
-  for built; in a build with `x6x00` alone it is not, and the test now allows that. `cargo test` of the workspace
-  with the patch: 465 passed (pulse, alsa, registered, x6x00), and 187 of the `xara` crate with `x6x00` alone,
-  2026-11-04.
+  answered; the same station with another backend answers it). One upstream test took the default backend (ALSA) for
+  built; in a build with `x6x00` alone it is not, and the test now allows that. `cargo test` of the workspace with
+  the patch: 465 passed (pulse, alsa, registered, x6x00), and 187 of the `xara` crate with `x6x00` alone, 2026-11-04.
 
 ## Free speed, and the `registered` feature
 
@@ -96,10 +95,10 @@ download a binary from him and use VARA's paid speed without a licence, and does
 (x0rro/xara#9, #31). His MIT licence allows building it. The owner's decision for OpenX6X00 (4 November 2026): the
 feature is built in, and off. The radio runs XARA at the free levels; only when the user ticks the Winlink page's
 "VARA HF licence" box, their own statement that they hold a VARA HF licence, does the supervisor add `registered`
-to XARA's settings. Nothing on the radio checks the statement, as nothing in VARA does; the page says so. DigiPi is
-reported to do the same with a tick box (yo4cil on OpenX6X00#120; its public repository predates XARA). The radio
-always calls (it answers no call: the patch starts XARA with listening off and Pat never turns it on there), so its
-bit is the one that counts on its links.
+to XARA's settings. Nothing on the radio checks the statement, as nothing in VARA does; the page says so. Another
+setup is reported to do the same with a tick box (yo4cil on OpenX6X00#120). The radio always calls (it answers no
+call: the patch starts XARA with listening off and Pat never turns it on there), so its bit is the one that counts on
+its links.
 
 XARA is an independently written program that speaks VARA's protocol. The owner's view (4 November 2026): reverse
 engineering for compatibility with a protocol is lawful in Europe, so XARA is fine to ship.
