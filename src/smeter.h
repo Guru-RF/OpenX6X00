@@ -34,6 +34,9 @@ void meter_update(float db, float beta);
 /* From the DSP: the noise floor in the filter, in dB; the bars under it stay grey */
 void meter_set_noise(float db);
 
+/* New TX readings (tx_meters.c, LVGL thread): the box shows them while transmitting */
+void meter_tx_redraw(void);
+
 /* The needle dial on any box (the walkie screen), at the current reading */
 void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx);
 

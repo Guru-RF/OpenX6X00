@@ -18,6 +18,7 @@
 #include "theme.h"
 #include "util.h"
 #include "info_bar.h"
+#include "smeter.h"            /* meter_tx_redraw */
 #include "radio.h"             /* radio_tx_freq */
 #include "rtty.h"
 #include "ft8_window.h"
@@ -81,21 +82,42 @@ static bool alc_greyed(void) {
     return cur_mode == radio_mode_cw || cur_mode == radio_mode_cwr;
 }
 
-/* One bar row: SLICES slices, lit up to val; SWR turns yellow then red. */
-static void draw_bar(lv_draw_ctx_t *draw_ctx, lv_coord_t x1, lv_coord_t y1, float min, float max, float val,
-                     bool swr, uint32_t on_color) {
+/* The three readings: names and scales */
+static const char *const row_name[] = {"PWR", "SWR", "ALC"};
+static const float       row_min[]  = {0.0f, SWR_MIN, 0.0f};
+static const float       row_max[]  = {PWR_MAX, SWR_MAX, ALC_MAX};
+
+static float row_val(int row) {
+    return row == 0 ? pwr : row == 1 ? vswr : alc;
+}
+
+/* SWR in its own colour (web Display page), else the theme's; after dl2zw's SWR colour, OpenX6100 */
+static uint32_t row_color(int row) {
+    int32_t swr_own = param_i_get(cfg_swr_color);
+
+    if (row == 1) return swr_own < 0 ? theme_hex(TC_line) : (uint32_t)swr_own;
+    if (row == 2) return alc_greyed() ? theme_hex(TC_text_mute) : theme_hex(TC_alc);
+    return theme_hex(TC_line);
+}
+
+/* One bar row, w x h in slices, lit up to the reading; SWR turns yellow then red. */
+static void draw_bar(lv_draw_ctx_t *draw_ctx, lv_coord_t x1, lv_coord_t y1, lv_coord_t w, lv_coord_t h, int slices,
+                     int row) {
     lv_draw_rect_dsc_t rect_dsc;
     lv_area_t          area;
-    lv_coord_t         slice_w = BARS_W / SLICES;
-    int                lit = (LV_MAX(val, min) - min) / (max - min) * SLICES + 0.5f;
+    float              min = row_min[row], max = row_max[row];
+    bool               swr = row == 1;
+    uint32_t           on_color = row_color(row);
+    lv_coord_t         slice_w = w / slices;
+    int                lit = (LV_MAX(row_val(row), min) - min) / (max - min) * slices + 0.5f;
 
     lv_draw_rect_dsc_init(&rect_dsc);
     rect_dsc.bg_opa = LV_OPA_COVER;
     area.y1 = y1;
-    area.y2 = y1 + 19;
+    area.y2 = y1 + h - 1;
 
-    for (int i = 0; i < SLICES; i++) {
-        float v = min + (max - min) * i / SLICES;
+    for (int i = 0; i < slices; i++) {
+        float v = min + (max - min) * i / slices;
 
         if (i >= lit) {
             rect_dsc.bg_color = TC(chip);
@@ -121,12 +143,9 @@ static void panel_draw_cb(lv_event_t *e) {
     lv_coord_t     x1       = o->coords.x1 + BARS_X;
     lv_coord_t     y1       = o->coords.y1 + ROW_Y + 4;
 
-    draw_bar(draw_ctx, x1, y1, 0.0f, PWR_MAX, pwr, false, theme_hex(TC_line));
-    /* SWR in its own colour (web Display page), else the theme's; after dl2zw's SWR colour, OpenX6100 */
-    int32_t swr_own = param_i_get(cfg_swr_color);
-    draw_bar(draw_ctx, x1, y1 + ROW_STEP, SWR_MIN, SWR_MAX, vswr, true, swr_own < 0 ? theme_hex(TC_line) : swr_own);
-    draw_bar(draw_ctx, x1, y1 + 2 * ROW_STEP, 0.0f, ALC_MAX, alc, false,
-             alc_greyed() ? theme_hex(TC_text_mute) : theme_hex(TC_alc));
+    for (int i = 0; i < 3; i++) {
+        draw_bar(draw_ctx, x1, y1 + i * ROW_STEP, BARS_W, 20, SLICES, i);
+    }
 
     /* PWR scale under its bar */
     lv_draw_label_dsc_t label_dsc;
@@ -210,7 +229,8 @@ static bool digital_app_open(void) {
     return rtty_get_state() != RTTY_OFF;
 }
 
-/* TX: the readings from zero, the strip or the panel (under the frequency strip). RX: all hidden */
+/* TX: the readings from zero, the strip or the panel (under the frequency strip), the panel only with Settings >
+ * Display > INTERFACE > Popups ALC on: the S-meter box shows the readings in any case (#166). RX: all hidden */
 static void radio_cb(lv_event_t *e) {
     if (lv_event_get_code(e) == EVENT_RADIO_RX) {
         lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
@@ -226,7 +246,9 @@ static void radio_cb(lv_event_t *e) {
         lv_obj_clear_flag(strip, LV_OBJ_FLAG_HIDDEN);
         return;
     }
-    lv_obj_set_y(panel, DIALOG_Y + 8 + METER_ROW_H);   /* VISION: under the S-meter, framed red for TX */
+    if (!params.mag_alc.x) return;
+    /* Framed red for TX. VISION: under the S-meter row; deck: under the frequency panel, off its S/SWR/ALC scales */
+    lv_obj_set_y(panel, theme_shape.deck ? FREQ_STRIP_Y + FREQ_STRIP_H + 8 : DIALOG_Y + 8 + METER_ROW_H);
     update_head();
     lv_obj_set_style_text_color(alc_name, alc_greyed() ? TC(text_mute) : TC(text_value), 0);
     lv_obj_set_style_text_color(alc_value, alc_greyed() ? TC(text_mute) : TC(text), 0);
@@ -234,8 +256,9 @@ static void radio_cb(lv_event_t *e) {
     lv_obj_move_foreground(panel);
 }
 
-/* In the LVGL thread: the new readings on whichever view is shown */
+/* In the LVGL thread: the new readings on the S-meter box and on whichever view is shown */
 static void update_tx_info(void *unused) {
+    meter_tx_redraw();
     if (!lv_obj_has_flag(strip, LV_OBJ_FLAG_HIDDEN)) {
         update_strip();
     } else if (!lv_obj_has_flag(panel, LV_OBJ_FLAG_HIDDEN)) {
@@ -247,8 +270,63 @@ static void update_tx_info(void *unused) {
     }
 }
 
+/* Text in a cell, centred up and down */
+static void cell_text(lv_draw_ctx_t *draw_ctx, const lv_font_t *font, lv_color_t color, lv_text_align_t align,
+                      lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h, const char *text) {
+    lv_draw_label_dsc_t dsc;
+    lv_coord_t          line = lv_font_get_line_height(font);
+    lv_area_t           a = {.x1 = x, .y1 = y + (h - line) / 2, .x2 = x + w - 1};
+
+    a.y2 = a.y1 + line - 1;
+    lv_draw_label_dsc_init(&dsc);
+    dsc.font  = font;
+    dsc.color = color;
+    dsc.align = align;
+    lv_draw_label(draw_ctx, &dsc, &a, text, NULL);
+}
+
+/* The S-meter box while transmitting (smeter.c; the deck's scales draw their own): the three readings, each with
+ * its name and value, in rows with the panel's bars, or side by side in a wide, low box (VISION's meter row): no
+ * room for bars there, the values big beside their names */
+void tx_meters_draw(lv_obj_t *box, lv_draw_ctx_t *draw_ctx) {
+    lv_coord_t       pad = lv_obj_get_style_border_width(box, LV_PART_MAIN) + 1;
+    lv_coord_t       x0 = box->coords.x1 + pad + 5, y0 = box->coords.y1 + pad;
+    lv_coord_t       w = lv_obj_get_width(box) - 2 * (pad + 5), h = lv_obj_get_height(box) - 2 * pad;
+    bool             side = w > 6 * h;
+    const lv_font_t *font = side ? &sony_16 : &sony_18, *value_font = side ? &sony_24 : font;
+    lv_coord_t       gap = side ? 24 : 0;     /* between the cells side by side */
+    lv_coord_t       cell_w = side ? (w - 2 * gap) / 3 : w, cell_h = side ? h : h / 3;
+    lv_point_t       sz;
+    char             text[12];
+
+    lv_txt_get_size(&sz, "PWR", font, 0, 0, LV_COORD_MAX, 0);
+    lv_coord_t name_w = sz.x + 8;
+    lv_txt_get_size(&sz, "10.0 W", value_font, 0, 0, LV_COORD_MAX, 0);
+    lv_coord_t value_w = sz.x;
+    lv_coord_t bar_w = cell_w - name_w - value_w - 6;
+    lv_coord_t bar_h = LV_MIN(10, cell_h - 6);
+
+    for (int i = 0; i < 3; i++) {
+        lv_coord_t x = side ? x0 + i * (cell_w + gap) : x0, y = side ? y0 : y0 + i * cell_h;
+        float      v = row_val(i);
+        bool       grey = i == 2 && alc_greyed();
+
+        cell_text(draw_ctx, font, grey ? TC(text_mute) : TC(text_value), LV_TEXT_ALIGN_LEFT, x, y, name_w, cell_h,
+                  row_name[i]);
+        if (!side) {
+            draw_bar(draw_ctx, x + name_w, y + (cell_h - bar_h) / 2, bar_w, bar_h, LV_CLAMP(10, bar_w / 6, SLICES), i);
+        }
+        /* SWR from 2 yellow, from 3 red, as its bar */
+        snprintf(text, sizeof(text), i ? "%.1f" : "%.1f W", v);
+        cell_text(draw_ctx, value_font,
+                  i == 1 && v >= 3.0f ? TC(bar_high) : i == 1 && v >= 2.0f ? TC(bar_mid) : grey ? TC(text_mute) : TC(text),
+                  side ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_RIGHT, side ? x + name_w : x + cell_w - value_w, y, value_w,
+                  cell_h, text);
+    }
+}
+
 lv_obj_t *tx_info_init(lv_obj_t *parent) {
-    /* Carries the TX/RX events (the S-meter stays on screen, framed red: meter.c) */
+    /* Carries the TX/RX events (the S-meter box shows the readings, framed red: smeter.c) */
     obj = lv_obj_create(parent);
     lv_obj_add_style(obj, &tx_info_style, 0);
     /* Solid: LVGL caches gradients by size, the S-meter's would be reused */
@@ -398,6 +476,11 @@ void tx_info_update(float p, float s, float a) {
 void tx_info_get(float *p, float *s) {
     *p = pwr;
     *s = vswr;
+}
+
+float tx_info_get_alc(bool *greyed) {
+    *greyed = alc_greyed();
+    return alc;
 }
 
 bool tx_info_refresh(uint8_t *seen, float *alc_p, float *pwr_p, float *vswr_p) {

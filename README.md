@@ -40,8 +40,9 @@ these; please give:
    in. A photo of the screen helps, above all of a message or of the TX
    panel.
 4. **Power and antenna**: an external supply or the battery; an antenna, a
-   tuner or a dummy load. For a transmit problem, give what the TX panel shows
-   (PWR, SWR, ALC), and what an external wattmeter shows if you have one.
+   tuner or a dummy load. For a transmit problem, give what the TX panel or
+   the S-meter box shows while transmitting (PWR, SWR, ALC), and what an
+   external wattmeter shows if you have one.
 5. **The logs**, from the card's DATA partition: attach the newest files of
    the `app_logs` folder, from the card in a PC or from the web configurator's
    Files page. Each run of the radio software leaves one `x6100_log_*.txt`.

@@ -7,6 +7,7 @@
  */
 
 #include "smeter.h"
+#include "tx_meters.h"
 #include "gui_styles.h"
 #include "theme.h"
 #include "gui_events.h"
@@ -30,7 +31,7 @@ static float            noise_level = S_MIN;    /* the bars under it stay grey *
 
 static float            meter_peak = S1;
 static int64_t          peak_ms;                /* when the peak was set */
-static bool             in_tx;        /* TX: the S-meter at rest, framed red, no readings */
+static bool             in_tx;        /* TX: no reading from the receiver, the TX readings instead, framed red */
 
 /* PRE and ATT shift the reading (by the settings cfg_smeter_pre / cfg_smeter_att, measured or
  * from Settings > TX Cal > S-METER > Measure; the X6200's attenuator figure is the band's) and the
@@ -353,19 +354,8 @@ void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     lv_draw_line(draw_ctx, &line_dsc, &c, &tip);
 }
 
-/* TX: the whole box veiled red */
-static void tx_veil(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
-    lv_draw_rect_dsc_t dsc;
-
-    lv_draw_rect_dsc_init(&dsc);
-    dsc.bg_color = TC(err);
-    dsc.bg_opa   = LV_OPA_30;
-    dsc.radius   = lv_obj_get_style_radius(o, LV_PART_MAIN);
-    lv_draw_rect(draw_ctx, &dsc, &o->coords);
-}
-
-/* Deck: S, SWR and ALC scales stacked, a thin segmented bar under the S numbers (the SWR and ALC
- * readings are in the TX info box that covers this one while transmitting) */
+/* Deck: S, SWR and ALC scales stacked, a thin segmented bar under the S numbers; while transmitting the S row
+ * is PO, 0 to 10 W, and the three rows have their bars (#166) */
 static void label_at(lv_draw_ctx_t *draw_ctx, lv_draw_label_dsc_t *dsc, lv_coord_t cx, lv_coord_t y, const char *txt,
                      bool left) {
     lv_point_t sz;
@@ -384,28 +374,81 @@ static lv_coord_t deck_x(float db) {   /* S1 at 58, S9 at 154, +40 at 233 */
     return db <= S9 ? 58 + (db - S1) * 2 : 154 + (db - S9) * 79 / (S9_40 - S9);
 }
 
+/* Deck, transmitting: segments as the S row's under each scale, lit up to the reading: the power (0 at 58, 10 W
+ * at 233), the SWR (1 at 58, 5 at 258; yellow from 2, red from 3) and the ALC (0 at 60, 10 at 260) */
+static void deck_tx_bars(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
+    float              pwr, swr, alc;
+    bool               alc_grey;
+    lv_draw_rect_dsc_t rect;
+
+    tx_info_get(&pwr, &swr);
+    alc = tx_info_get_alc(&alc_grey);
+
+    const struct {
+        lv_coord_t y, lit;
+        int        n;
+    } row[] = {
+        {27, 58 + LV_CLAMP(0.0f, pwr, 10.0f) * 17.5f, 31},
+        {57, 58 + (LV_CLAMP(1.0f, swr, 5.0f) - 1.0f) * 50.0f, 35},
+        {87, 60 + LV_CLAMP(0.0f, alc, 10.0f) * 20.0f, 35},
+    };
+
+    lv_draw_rect_dsc_init(&rect);
+    for (int r = 0; r < 3; r++) {
+        lv_area_t a = {.y1 = obj->coords.y1 + row[r].y, .y2 = obj->coords.y1 + row[r].y + 6};
+
+        for (int i = 0; i < row[r].n; i++) {
+            lv_coord_t x = 66 + i * 11 / 2;
+
+            a.x1 = obj->coords.x1 + x;
+            a.x2 = a.x1 + 3;
+            rect.bg_color = x > row[r].lit             ? TC(track)
+                          : r == 1 && x >= 158         ? TC(bar_high)
+                          : r == 1 && x >= 108         ? TC(bar_mid)
+                          : r == 2 && alc_grey         ? TC(text_mute)
+                                                       : TC(meter_bar);
+            lv_draw_rect(draw_ctx, &rect, &a);
+        }
+    }
+}
+
 static void deck_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     static const char *const s_num[] = {"1", "3", "5", "7", "9"}, *const swr[] = {"1", "2", "3", "4", ">5"};
     lv_draw_label_dsc_t      dsc;
     lv_draw_rect_dsc_t       rect;
     lv_coord_t               x0 = obj->coords.x1, y0 = obj->coords.y1;
     char                     txt[4];
+    bool                     alc_grey = false;
 
+    if (in_tx) tx_info_get_alc(&alc_grey);
     lv_draw_label_dsc_init(&dsc);
     dsc.font  = &sony_20;
     dsc.color = TC(text);
-    label_at(draw_ctx, &dsc, x0 + 14, y0 + 17, "S", true);
-    for (int i = 0; i < 5; i++) label_at(draw_ctx, &dsc, x0 + 58 + i * 24, y0 + 4, s_num[i], false);
-    dsc.color = TC(meter_over);
-    label_at(draw_ctx, &dsc, x0 + 193, y0 + 4, "+20", false);
-    label_at(draw_ctx, &dsc, x0 + 233, y0 + 4, "+40", false);
-    dsc.color = TC(text_mute);
+    if (in_tx) {
+        label_at(draw_ctx, &dsc, x0 + 14, y0 + 17, "PO", true);
+        for (int i = 0; i <= 5; i++) {
+            snprintf(txt, sizeof(txt), "%d", i * 2);
+            label_at(draw_ctx, &dsc, x0 + 58 + i * 35, y0 + 4, txt, false);
+        }
+    } else {
+        label_at(draw_ctx, &dsc, x0 + 14, y0 + 17, "S", true);
+        for (int i = 0; i < 5; i++) label_at(draw_ctx, &dsc, x0 + 58 + i * 24, y0 + 4, s_num[i], false);
+        dsc.color = TC(meter_over);
+        label_at(draw_ctx, &dsc, x0 + 193, y0 + 4, "+20", false);
+        label_at(draw_ctx, &dsc, x0 + 233, y0 + 4, "+40", false);
+    }
+    dsc.color = in_tx ? TC(text) : TC(text_mute);   /* SWR and ALC lit while transmitting, ALC grey in CW */
     label_at(draw_ctx, &dsc, x0 + 14, y0 + 47, "SWR", true);
-    label_at(draw_ctx, &dsc, x0 + 14, y0 + 77, "ALC", true);
     for (int i = 0; i < 5; i++) label_at(draw_ctx, &dsc, x0 + 58 + i * 50, y0 + 35, swr[i], false);
+    if (alc_grey) dsc.color = TC(text_mute);
+    label_at(draw_ctx, &dsc, x0 + 14, y0 + 77, "ALC", true);
     for (int i = 0; i <= 5; i++) {
         snprintf(txt, sizeof(txt), "%d", i * 2);
         label_at(draw_ctx, &dsc, x0 + 60 + i * 40, y0 + 65, txt, false);
+    }
+    if (in_tx) {
+        deck_tx_bars(obj, draw_ctx);
+        return;
     }
 
     /* 31 segments to +40: lit to the level, the peak bright */
@@ -539,31 +582,34 @@ static void meter_draw_cb(lv_event_t *e) {
         deck_draw(o, draw_ctx);
         return;
     }
-    if (theme_shape.mono) bars_draw_mono(o, draw_ctx);
+    if (in_tx) tx_meters_draw(o, draw_ctx);
+    else if (theme_shape.mono) bars_draw_mono(o, draw_ctx);
     else if (needle_on()) meter_needle_draw(o, draw_ctx);
     else bars_draw(o, draw_ctx);
-    if (in_tx) tx_veil(o, draw_ctx);
 }
 
-/* TX: the reading at rest and "TX" in red in place of the value, the box framed red.
- * RX: the value in its own colour again, the frame of the style, blank until the next reading: with no data from
- * the base (#152, a tune given up for it) "TX" stayed on the meter in receive */
+/* TX: the receiver gives no reading, so the box shows the power, SWR and ALC, framed red, its value hidden (the
+ * TX panel, when Settings has it, shows them big: #166).
+ * RX: the value again, the frame of the style, blank until the next reading: with no data from the base (#152, a
+ * tune given up for it) "TX" stayed on the meter in receive */
 static void radio_cb(lv_event_t *e) {
     in_tx = lv_event_get_code(e) == EVENT_RADIO_TX;
     if (in_tx) {
         meter_db = meter_db_raw = meter_peak = S1;
-        lv_label_set_text(db_val_label, "TX");
-        lv_obj_set_style_text_color(db_val_label, TC(err), 0);
+        lv_obj_add_flag(db_val_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_style_border_color(obj, TC(err), 0);
         lv_obj_set_style_border_width(obj, 5, 0);
     } else {
         lv_label_set_text(db_val_label, "");
-        lv_obj_set_style_text_color(db_val_label, TC(text), 0);
-        db_label_place();
+        if (!theme_shape.deck) lv_obj_clear_flag(db_val_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_local_style_prop(obj, LV_STYLE_BORDER_COLOR, 0);
         lv_obj_remove_local_style_prop(obj, LV_STYLE_BORDER_WIDTH, 0);
     }
     lv_obj_invalidate(obj);
+}
+
+void meter_tx_redraw(void) {
+    if (in_tx && obj) lv_obj_invalidate(obj);
 }
 
 lv_obj_t *meter_init(lv_obj_t *parent) {
