@@ -5885,5 +5885,16 @@ build both modems are built only when named (`cmake --build build-host
 modem socket with them, Pat to Pat over Mercury included (see its
 README).
 
+XARA, the third Winlink modem (experimental), is built outside too, by
+`tools/xara/build.sh`: the pinned v0.1.3 release's source and vendored
+crates, the official Rust 1.99.1 (buildroot's Rust is too old), each
+download's SHA-256 checked and kept in `$HOME/.cache/openx6x00`, with our
+patch that gives it the GUI's modem socket as its sound card and PTT. Linked
+with the buildroot tree's own gcc, which `local-build.sh` makes first
+(`make toolchain`), it is installed as `/usr/bin/xara`, its licence and the
+notices of the Rust crates in it in `/usr/share/x6100/licenses/xara`
+(`tools/xara/UPSTREAM.md`). `tools/xara/build.sh --host` builds it for the
+PC, for `tools/winlink`'s tests.
+
 The private tests and UI harnesses of the original author are not part of
 this repository.

@@ -103,6 +103,17 @@ else()
         if(PAT_BINARY)
                 install(PROGRAMS ${PAT_BINARY} DESTINATION bin RENAME pat)
         endif()
+        # XARA, the VARA-compatible Winlink modem (experimental): built outside too, by tools/xara/build.sh with
+        # its own pinned Rust, and installed as /usr/bin/xara. Its licence and the notices of what is compiled
+        # into it (the doc/ beside the binary) go to /usr/share/x6100/licenses/xara: buildroot drops
+        # /usr/share/doc from the image
+        set(XARA_BINARY "" CACHE FILEPATH "XARA for the radio (tools/xara/build.sh)")
+        if(XARA_BINARY)
+                get_filename_component(XARA_DIR ${XARA_BINARY} DIRECTORY)
+                install(PROGRAMS ${XARA_BINARY} DESTINATION bin RENAME xara)
+                install(FILES ${XARA_DIR}/doc/LICENSE ${XARA_DIR}/doc/THIRD-PARTY
+                        ${XARA_DIR}/doc/rust-std-COPYRIGHT.html.gz DESTINATION share/x6100/licenses/xara)
+        endif()
         # The apps' version, for the web configurator and the scripts. Read at configure time, so a
         # changed main.h must configure again: a plain rebuild left the old number in the file (and
         # in the update bundle, whose radios then thought they ran 0.1.0)

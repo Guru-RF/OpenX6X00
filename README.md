@@ -434,7 +434,9 @@ buildroot/               local-build.sh and Dockerfile (the image), br2_external
                          (what it adds to and patches in the buildroot trees),
                          build.sh (the GUI alone with the buildroot toolchain)
 host/                    the GUI on a PC (SDL, stub radio)
-tools/                   screenshots/ (drive.py, grab.py, pull.py), update/ (the bundle),
+tools/                   screenshots/ (drive.py, grab.py, pull.py), update/ (the bundle), pat/ and
+                         xara/ (the Winlink client and the VARA-compatible modem, built from their
+                         pinned releases with our patches),
                          tci/ and winlink/ (the TCI server's and the Winlink modem socket's host
                          tests), itu_region/ (the band plan's Auto region, a host test),
                          data_partition/ (S00adata on fake cards, a host test), channels/ (the
@@ -470,7 +472,11 @@ FreeDV part LGPL-2.1 with KISS FFT in it BSD-3-Clause, its iniparser, nanorq and
 oblas MIT, see its [UPSTREAM.md](third-party/mercury/UPSTREAM.md)), and
 `x6x00-mercury`, our program that links it, are GPL-3.0-or-later; both come in
 the image and the update bundle, the source in this repository. ardopcf and
-Pat are MIT. The web server is LGPL-2.1
+Pat are MIT. XARA, the third Winlink modem (built from its release by
+`tools/xara/build.sh`, with our patch), is MIT, and so are the Rust crates in it
+as used here (some also Apache-2.0, Zlib or 0BSD), with the Rust standard library
+Apache-2.0 or MIT; their texts are in the image (`/usr/share/x6100/licenses/xara`),
+see [tools/xara/UPSTREAM.md](tools/xara/UPSTREAM.md). The web server is LGPL-2.1
 ([webserver/LICENSE](webserver/LICENSE)). Every file keeps the copyright
 notice of its authors.
 
