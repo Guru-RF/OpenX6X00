@@ -77,7 +77,8 @@ button on APP 3:3.
 Knobs. On the main screen the main knob tunes, and VOL and the MFK each turn
 one control of their own list. The two lines over the buttons say which
 control and its value (Settings > Display > INTERFACE > Knob info; with it
-off the value shows on the message line).
+off, or while Hide buttons has hidden them, the value shows on the message
+line).
 - A press of the knob switches it between changing the value and choosing
   the control: while it chooses, a turn goes to the next control on its list
   (the name lit), and the next press changes that one again.
@@ -106,6 +107,24 @@ off the value shows on the message line).
   go on a knob, and there was no ATU or Step button.
 - At first VOL has Volume, RF gain, the filter edges and TX power, and the MFK
   Spectrum Zoom and DNF. Volume never leaves VOL.
+
+Hide buttons. With Settings > Display > INTERFACE > Hide buttons at After
+3 s, After 5 s or After 10 s (Off by default), the five buttons and the two
+knob lines over them hide on the main screen once that long has gone by
+without a key, and the waterfall shows down to the bottom of the screen.
+- Any key brings them back: a front key, a hand mic key, a keyboard key. It
+  also does its usual job (GEN goes to its next page, ATU switches the
+  tuner), except F1-F5: their press only brings the buttons back, so a
+  button you can't see is never pressed. Press it again to use it.
+- The main knob tunes and the buttons stay hidden. VOL and the MFK, turned
+  or pressed, leave them hidden too: their control and value show on the
+  message line, as with Knob info off. While the buttons show, a turn or a
+  press of VOL or the MFK keeps them a while longer, the main knob does not.
+  A keyboard's keys for the knobs (- and =, [ ] { }, the left and right
+  arrows, Enter, ESC) count as the knobs.
+- Only on the main screen: an app (FT8, RTTY, CW Trainer...), Settings and
+  the APP grid keep their buttons, and the walkie screen always shows them.
+  After an app closes they hide again once the time has gone by.
 
 Long press. Each button group (GEN, APP, KEY, MSG, DFN, DFL) has a
 long-press action, and so has FST, the tuning step key: a press steps up,
@@ -969,7 +988,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
-| INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Theme, Font, Decoder text, FT8/FT4 info |
+| INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Theme, Font, Decoder text, FT8/FT4 info |
 
 - Popups Freq/Info/TX (Popups Freq/Info/ALC up to v0.3.8), three switches:
   - Freq (off by default): the new frequency, big in the middle of the
@@ -990,6 +1009,9 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
   the Settings tabs; off, APP shows its button pages only, Modes a list and
   the tabs their numbers. It shows the next time they open.
 - Knob info: the value shown while a knob turns.
+- Hide buttons (Off by default): on the main screen the buttons and the knob
+  lines hide after 3, 5 or 10 s without a key, and the next key brings them
+  back (see [Buttons and knobs](#buttons-and-knobs)).
 - Theme: see [Themes](#themes). A new theme applies at once, without a restart.
 - Font: Sony Sketch, Roboto or DejaVu (default). A new font applies at once.
   Themes with their own font (Black Metal, Total Black, 1bit, a theme file that

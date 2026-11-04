@@ -219,6 +219,8 @@ class KnobLine {
 static KnobLine &vol_line = *new KnobLine(LV_SYMBOL_UP);
 static KnobLine &mfk_line = *new KnobLine(LV_SYMBOL_DOWN);
 static bool      enabled;
+static bool      wanted = true;     /* knobs_display(): no window or decoder text over them */
+static bool      tucked;            /* hidden with the buttons (Hide buttons, button_bar.cpp) */
 
 static void knob_info_cb(Subject *subj, void *user_data) {
     enabled = cfg_sm.p_knob_info.get();
@@ -237,16 +239,29 @@ void knobs_init(lv_obj_t *parent) {
 
     lv_obj_set_y(vol_line.obj(), y - h * 2);
     lv_obj_set_y(mfk_line.obj(), y - h);
+    tucked = false;     /* made shown, as the buttons are (buttons_init()) */
     cfg_sm.p_knob_info.subscribe_delayed_and_notify(knob_info_cb, nullptr);
 }
 
-void knobs_display(bool on) {
+static void show_lines() {
     for (lv_obj_t *l : {vol_line.obj(), mfk_line.obj()}) {
-        if (on && enabled) {
+        if (wanted && enabled && !tucked) {
             lv_obj_clear_flag(l, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(l, LV_OBJ_FLAG_HIDDEN);
         }
+    }
+}
+
+void knobs_display(bool on) {
+    wanted = on;
+    show_lines();
+}
+
+void knobs_hide(bool hide) {
+    tucked = hide;
+    if (vol_line.obj()) {
+        show_lines();
     }
 }
 

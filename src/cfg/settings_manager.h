@@ -131,6 +131,10 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     Parameter<int32_t> p_knob_info{"knob_info", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Hide buttons (Settings > Display > INTERFACE, live, #128): on the main screen the five buttons and the knob
+    // lines hide after 0 never (the default), 1 3 s, 2 5 s, 3 10 s without a key (screen_main.c)
+    Parameter<int32_t> p_buttons_hide{"buttons_hide", 0, 0, 3,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Independent VFOs: A and B each keep their own band, a VFO switch brings its band back
     // (vfo_toggle). Off: both VFOs live in the current band, as the radio does it.
     // Turning the knob into another band plan segment sets its mode: CW in the CW segment, the

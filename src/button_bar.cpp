@@ -14,6 +14,7 @@
 #include "util.h"
 #include "radio.h"
 #include "tx_player.h"
+#include "knob_info.h"
 #include "cfg/settings_manager.h"
 #include "cfg/encoder_defaults.h"
 
@@ -46,6 +47,7 @@ struct _disp_button_t {
 
 static disp_btn_t      slots[BUTTONS];
 static buttons_page_t *cur_page;
+static bool            hidden;       /* buttons_hide() */
 static std::string     knob_binds;   /* cfg encoder_bind as last notified: a char a control */
 
 static void slot_refresh(disp_btn_t *s);
@@ -599,7 +601,19 @@ void buttons_init(lv_obj_t *parent) {
         }
     }
     for (int i = 0; i < BUTTONS; i++) make_slot(&slots[i], parent, i * BTN_WIDTH);
+    hidden = false;     /* made shown (a theme change), the knob lines too (knobs_init()) */
     cfg_sm.p_encoder_bind.subscribe_delayed_and_notify(knob_binds_cb, NULL);
+}
+
+void buttons_hide(bool hide) {
+    if (hide == hidden) return;
+    hidden = hide;
+    for (disp_btn_t &s : slots) set_hidden(s.parent, hide);
+    knobs_hide(hide);
+}
+
+bool buttons_hidden() {
+    return hidden;
 }
 
 static uint32_t land_index[BUTTONS];   /* their place among the main screen's children */
@@ -607,6 +621,7 @@ static uint32_t land_index[BUTTONS];   /* their place among the main screen's ch
 void buttons_vertical(lv_obj_t *parent, lv_coord_t w, lv_coord_t h) {
     lv_coord_t bw = w - 2 * BTN_INSET, bh = h - 2 * BTN_INSET;
 
+    buttons_hide(false);    /* Hide buttons is the main screen's: the walkie's column always shows */
     for (uint8_t i = 0; i < BUTTONS; i++) {
         lv_obj_t           *f = slots[i].parent;
         const lv_img_dsc_t *img;

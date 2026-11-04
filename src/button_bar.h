@@ -83,6 +83,9 @@ void            buttons_init(lv_obj_t *parent);
 void            buttons_vertical(lv_obj_t *parent, lv_coord_t w, lv_coord_t h);
 /* Back in a row at the bottom of parent, where they were (the main screen) */
 void            buttons_horizontal(lv_obj_t *parent);
+/* The five and the knob lines over them hidden, or shown again (Settings > Display > Hide buttons, screen_main.c) */
+void            buttons_hide(bool hide);
+bool            buttons_hidden();
 /* Show the button again (label, mark, disabled) if it is on screen */
 void            buttons_refresh(button_data_t *data);
 void            buttons_refresh_marks();

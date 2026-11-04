@@ -27,6 +27,8 @@ void knobs_set_mfk_state(bool edit);
 
 /* Shown when on and enabled in Settings (off while a dialog covers them) */
 void knobs_display(bool on);
+/* Hidden with the buttons (Settings > Display > Hide buttons), whatever knobs_display() says; back as it says */
+void knobs_hide(bool hide);
 bool knobs_visible();
 
 /* For an app that draws the knobs itself (Field Ops): what VOL (vol true) or MFK controls, its value,

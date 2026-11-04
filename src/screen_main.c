@@ -508,6 +508,8 @@ void main_screen_close_app(void) {
 }
 
 void main_screen_start_app(press_action_t app_action) {
+    main_screen_buttons_wake();     /* the app's buttons seen, also when it is opened from afar */
+
     /* Modes again closes its menu. */
     if (app_action == ACTION_APP_MODES && dialog_type_is_run(dialog_modes)) {
         dialog_destruct();
@@ -778,12 +780,77 @@ static void ab_key(bool tap, bool hold) {
     }
 }
 
+/* Settings > Display > Hide buttons (#128): on the main screen the five buttons and the knob lines over them hide
+ * after 3, 5 or 10 s without a key, the waterfall seen down to the bottom. A key brings them back and does what it
+ * does, but for F1-F5, whose press only brings them back: a button not seen is never pressed. The main knob tunes
+ * with them hidden; VOL and the MFK too, their value on the message line (as with Knob info off), and while the
+ * buttons show a turn or a press of them counts as a key. Never over an app (its window, RTTY) or in walkie mode */
+static const uint32_t hide_ms[] = {0, 3000, 5000, 10000};   /* the setting: Off, 3 s, 5 s, 10 s */
+
+static lv_timer_t   *hide_timer;
+static keypad_key_t woke_key;       /* the F key whose press brought them back: the rest of it does nothing */
+
+static void hide_arm(void);
+
+static void hide_cb(lv_timer_t *t) {
+    hide_timer = NULL;      /* one shot: LVGL deletes it */
+    if (dialog_is_run() || rtty_get_state() != RTTY_OFF || walkie_on()) {
+        hide_arm();         /* the app's buttons stay: counted again, for when it closes */
+        return;
+    }
+    buttons_hide(true);
+}
+
+/* The time from now; none with the setting off */
+static void hide_arm(void) {
+    int32_t i = param_i_get(cfg_buttons_hide);
+
+    if (hide_timer) {
+        lv_timer_del(hide_timer);
+        hide_timer = NULL;
+    }
+    if (i > 0 && i < (int32_t)(sizeof(hide_ms) / sizeof(hide_ms[0]))) {
+        hide_timer = timer_once(hide_cb, hide_ms[i]);
+    }
+}
+
+/* In walkie mode they are never hidden (buttons_vertical()): counted only, for the main screen after it */
+bool main_screen_buttons_wake(void) {
+    bool was = buttons_hidden();
+
+    buttons_hide(false);
+    hide_arm();
+    return was;
+}
+
+/* VOL and the MFK: hidden the buttons stay so, shown they stay a while longer */
+static void buttons_keep(void) {
+    if (!buttons_hidden()) {
+        hide_arm();
+    }
+}
+
+/* Changed in Settings or on the web Display page: shown again (Off), counted from now */
+static void on_buttons_hide_change(Subject *subj, void *user_data) {
+    main_screen_buttons_wake();
+}
+
 /* Front keys. Most act on the release (a press) or on the long press, not both */
 static void front_key_cb(lv_event_t *e) {
     event_keypad_t *ev   = lv_event_get_param(e);
     bool            tap  = ev->state == KEYPAD_RELEASE;
     bool            hold = ev->state == KEYPAD_LONG;
+    bool            woke = main_screen_buttons_wake();
 
+    if (woke && ev->state == KEYPAD_PRESS && ev->key >= KEYPAD_F1 && ev->key <= KEYPAD_F5) {
+        woke_key = ev->key;
+    }
+    if (woke_key != KEYPAD_UNKNOWN && ev->key == woke_key) {
+        if (ev->state == KEYPAD_RELEASE || ev->state == KEYPAD_LONG_RELEASE) {
+            woke_key = KEYPAD_UNKNOWN;
+        }
+        return;
+    }
     if (page_key(ev->key, tap, hold)) {
         return;
     }
@@ -928,6 +995,7 @@ static void mic_key_cb(lv_event_t *e) {
     bool            tap  = ev->state == HKEY_RELEASE;
     bool            hold = ev->state == HKEY_LONG;
 
+    main_screen_buttons_wake();     /* a key: the buttons back (Hide buttons) */
     switch (ev->key) {
         /* The band printed on the key; digits only in F-INP (dialog_freq.c). Long: memory 1-9 */
         case HKEY_0: case HKEY_1: case HKEY_2: case HKEY_3: case HKEY_4:
@@ -1214,6 +1282,20 @@ static void spectrum_key_cb(lv_event_t *e) {
     if (key == KEY_VOL_PRESS) {
         key = LV_KEY_ESC;   /* on the main screen VOL press does what ESC does */
     }
+    /* Hide buttons: the knobs and the keyboard's keys for them leave the buttons hidden, VOL and the MFK keep
+     * them while shown; any other key brings them back */
+    switch (key) {
+        case '-': case '=':
+            break;
+        case '[': case ']': case '{': case '}': case LV_KEY_LEFT: case LV_KEY_RIGHT: case LV_KEY_ESC:
+        case KEY_VOL_LEFT_EDIT: case KEY_VOL_RIGHT_EDIT: case KEY_VOL_LEFT_SELECT: case KEY_VOL_RIGHT_SELECT:
+        case KEY_MFK_PREV: case KEY_MFK_NEXT:
+            buttons_keep();
+            break;
+        default:
+            main_screen_buttons_wake();
+            break;
+    }
     if (cw_field_key(key)) {
         return;
     }
@@ -1265,6 +1347,7 @@ static void spectrum_pressed_cb(lv_event_t *e) {
     /* The keyboard Enter that sent the CW field line */
     if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_KEYPAD && cw_field_visible()) return;
     if (dialog_cluster_alert_press()) return;
+    buttons_keep();
     main_screen_mfk(0);
 }
 
@@ -1635,6 +1718,9 @@ static void build(void) {
 
     subject_subscribe_delayed((Subject*)cfg_band_if_shift, on_if_shift_zoom, NULL);
     subject_subscribe_delayed((Subject*)cfg_mode_zoom, on_if_shift_zoom, NULL);
+
+    /* the new buttons counted from now (a theme change) */
+    subject_subscribe_delayed_and_notify((Subject*)cfg_buttons_hide, on_buttons_hide_change, NULL);
 }
 
 /* A theme change, live: the open app closes, the main screen is built again with the new

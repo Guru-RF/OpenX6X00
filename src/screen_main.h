@@ -34,6 +34,10 @@ void main_screen_set_theme(const char *name);
 /* The keyboard to the spectrum; a dialog takes it away while open */
 void main_screen_keys_enable(bool on);
 
+/* A key, or a window opened or closed: the buttons back if Settings > Display > Hide buttons hid them, and hidden
+ * again after its time without a key. True when they were hidden */
+bool main_screen_buttons_wake(void);
+
 /* Apps and the actions a long press or a hand mic F key can be given */
 void main_screen_start_app(press_action_t app);
 void main_screen_close_app(void);

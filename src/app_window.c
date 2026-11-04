@@ -95,6 +95,7 @@ void dialog_restore_radio_on_close(void) {
 static void open_window(dialog_t *d, lv_obj_t *parent) {
     int32_t freq, mode;
 
+    main_screen_buttons_wake();     /* the window's buttons seen (Hide buttons) */
     knobs_display(false);
     waterfall_refresh_period_set(2);    /* the waterfall slower under a window */
     main_screen_keys_enable(false);
@@ -163,6 +164,7 @@ static void close_window(dialog_t *d) {
         buttons_load_page(d->prev_page);
     }
     main_screen_keys_enable(true);
+    main_screen_buttons_wake();     /* Hide buttons: counted from the close */
 }
 
 void dialog_destruct() {
