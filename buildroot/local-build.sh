@@ -113,6 +113,9 @@ grep -E "^(${GUI_VAR}|X6100_WEBSERVER)_SITE" $GUI_MK $WEB_MK
 # The backend: the GUI's CMake defaults to the X6100. Before the eval line: what a .mk sets after
 # $(eval $(cmake-package)) the package never sees
 sed -i "/_CONF_OPTS += -DHW_BACKEND=/d" $GUI_MK
+# Not synced into the build: the worktrees under .claude (gigabytes) and the PC's own builds
+grep -q "^${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS" $GUI_MK || sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = --exclude /.claude --exclude /build --exclude /build-host\n\n&|" $GUI_MK
+grep -q "^${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = --exclude /.claude" $GUI_MK
 sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_CONF_OPTS += -DHW_BACKEND=$MODEL\n\n&|" $GUI_MK
 grep -q "^${GUI_VAR}_CONF_OPTS += -DHW_BACKEND=$MODEL" $GUI_MK
 
@@ -324,6 +327,21 @@ if ls $BR/build/build/$GUI_PKG-*/.stamp_built > /dev/null 2>&1; then
         done
     done
     rm -rf $BR/build/target/usr/lib/python3*/site-packages/x6100_webserver* $BR/build/target/usr/bin/x6100_webserver
+    # The sync is buildroot's `rsync -au`: a file newer in the build directory than in the source is kept. A build
+    # from a worktree (GUI_DIR) leaves its files newer than another tree's, and the next build from there kept them:
+    # a bundle of main went out with a branch's GUI. What differs from the source goes first, so the sync copies it
+    # (what earlier builds synced of the worktrees and the PC's builds, no longer synced, goes too)
+    for d in $BR/build/build/$GUI_PKG-*/ $BR/build/build/x6100-webserver-*/; do
+        [ -d "$d" ] || continue
+        case $d in *webserver*) src=$GUI/webserver ;; *) src=$GUI; rm -rf "$d/.claude" "$d/build" "$d/build-host" ;; esac
+        (cd "$d" && find . -type f -not -path './CMakeFiles/*' -not -name '.stamp_*' -not -name .openx6x00) |
+            while read -r f; do
+                if [ -f "$src/$f" ] && ! cmp -s "$src/$f" "$d/$f"; then
+                    echo "   $f differs from $src: synced again"
+                    rm -f "$d/$f"
+                fi
+            done
+    done
     # The GUI is configured again, not only rebuilt: its options (HW_BACKEND above) live in CMake's
     # cache, which a rebuild keeps
     make $GUI_PKG-reconfigure x6100-webserver-rebuild
