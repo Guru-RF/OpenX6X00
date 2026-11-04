@@ -1564,8 +1564,6 @@ static void accept_client(int listen_fd) {
 
 static void telemetry(uint64_t now, const rstate_t *s) {
     static uint64_t smeter_ms, txsens_ms;
-    static uint8_t  seen;
-    static float    alc;
 
     if (!s->tx && now - smeter_ms >= SMETER_MS) {
         smeter_ms = now;
@@ -1575,11 +1573,11 @@ static void telemetry(uint64_t now, const rstate_t *s) {
             if (clients[i].fd >= 0 && clients[i].up && clients[i].rx_sensors)
                 client_textf(&clients[i], "rx_channel_sensors:0,0,%.1f;", (double)db);
     }
+    /* From the key on, before the base's first TX packet: 0 until this TX's first reading, not the last TX's (#53) */
     if (s->tx && now - txsens_ms >= TXSENS_MS) {
         txsens_ms = now;
-        float pwr, swr;
+        float pwr, swr, alc = tx_info_get_alc(NULL);
         tx_info_get(&pwr, &swr);
-        tx_info_refresh(&seen, &alc, NULL, NULL);
         for (int i = 0; i < MAX_CLIENTS; i++)
             if (clients[i].fd >= 0 && clients[i].up && clients[i].tx_sensors)
                 client_textf(&clients[i], "tx_sensors:0,%.1f,%.1f,%.1f,%.2f,%.1f;", -20.0, (double)pwr, (double)pwr,

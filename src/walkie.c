@@ -501,6 +501,8 @@ static void update_cb(lv_timer_t *t) {
         lv_label_set_text(rxtx_label, tx ? "TX" : "RX");
         if (!tx)
             lv_label_set_text(tx_label, "");
+        else
+            tx_pwr = tx_swr = tx_alc = 0.0f;    /* the bars from 0, not the last TX's readings (#53) */
     }
     if (tx && tx_info_refresh(&tx_msg_id, &tx_alc, &tx_pwr, &tx_swr)) {
         /* SWR from 2 a warning in yellow, from 3 in red (the bar colours of the TX panel) */

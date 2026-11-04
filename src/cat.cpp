@@ -788,9 +788,9 @@ static Frame *process_req(const Frame *req) {
 
         case C_RD_SQSM:
             if (data_size == 1) {
-                static float alc, pwr, swr;
-                static uint8_t msg_id;
-                tx_info_refresh(&msg_id, &alc, &pwr, &swr);
+                /* The readings as they are: 0 in RX and in a TX until its first, not the last TX's kept (#53) */
+                float pwr, swr, alc = tx_info_get_alc(NULL);
+                tx_info_get(&pwr, &swr);
                 uint8_t val;
                 switch (req->data[0]) {
                     case 0x02: // S-meter
@@ -810,7 +810,8 @@ static Frame *process_req(const Frame *req) {
                         to_bcd_be(&resp->data[1], val, 3);
                         break;
                     case 0x12:  // SWR
-                        val = -21 * swr * swr + 134 * swr - 122;
+                        /* from 0 up: 1.0 and the 0 of no reading give 0, not a negative number made a byte */
+                        val = LV_CLAMP(0.0f, -21 * swr * swr + 134 * swr - 122, 255.0f);
                         resp->set_payload_len(4);
                         to_bcd_be(&resp->data[1], val, 3);
                         break;

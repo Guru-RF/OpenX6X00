@@ -2144,6 +2144,16 @@ static void log_later(const char *fmt, ...) {
 static bool recover_due;
 #endif
 
+/* Out of TX or a tune: the TX meters' readings back to 0 (tx_info_clear), then the GUI told. Here, in the radio thread
+ * that stores them, nothing of the TX that ended comes after: they stay 0 all through RX, and each transmission's
+ * start from 0, also for a reader that looks before the base's first TX packet (TCI as it keys, #53) */
+static void tx_over(void) {
+    tx_info_clear();
+    if (notify_rx_tx) {
+        notify_rx_tx(false);
+    }
+}
+
 /* The base never keyed for the tuner, or ended a tune without its done flag (no match: more likely on 10 and 15 m
  * with a real antenna). The GUI stayed in the tuner's state for good with the tune bit set: no new tune, the SWR
  * scan refused, CAT and TCI reporting TX (#25). Now the tune bit off, back to RX, a word on the screen and a line in
@@ -2163,8 +2173,8 @@ static void atu_give_up(radio_state_t from, const char *why) {
     if (!state_move(from, RADIO_RX)) {
         return;     /* powering off meanwhile */
     }
-    if (from == RADIO_ATU_RUN && notify_rx_tx) {
-        notify_rx_tx(false);
+    if (from == RADIO_ATU_RUN) {
+        tx_over();
     }
     if (flow) {
         /* from the flow resets: the packet's fields are the last one's, seconds old (a TX that was) */
@@ -2426,9 +2436,7 @@ static bool radio_tick() {
 
             case RADIO_TX:
                 if (!pack->tx && state_move(RADIO_TX, RADIO_RX)) {
-                    if (notify_rx_tx) {
-                        notify_rx_tx(false);
-                    }
+                    tx_over();
                 } else {
                     // printf("%d, %d\n", pack->tx_power, pack->alc_level);
                     tx_info_update(pack->tx_power * 0.1f, pack->vswr * 0.1f, pack->alc_level * 0.1f);
@@ -2492,9 +2500,7 @@ static bool radio_tick() {
                     /* The X6100's: it keys the modem at 0.1 W; gdyuldin's X6200 GUI dropped it */
                     recover_processing_audio_inputs();
 #endif
-                    if (notify_rx_tx) {
-                        notify_rx_tx(false);
-                    }
+                    tx_over();
 
                     // TODO: change with observer on atu->loaded change
                     WITH_RADIO_LOCK(hw_set_i(HW_ATU_NETWORK, pack->atu_params));
@@ -2609,9 +2615,7 @@ static bool radio_tick() {
              * and cuts the power, needs packets. The first block that gets through clears it */
             if (s == RADIO_TX && now_time - pack_time > (tx_by_gui ? NO_DATA_MS : BASE_GONE_MS) && !gui_keys() &&
                 (uint32_t)now_time - morse_ms >= MORSE_HANG_MS && !resync_due && state_move(RADIO_TX, RADIO_RX)) {
-                if (notify_rx_tx) {
-                    notify_rx_tx(false);
-                }
+                tx_over();
                 log_later("TX: no data from the base for %u ms, back to RX", (unsigned)(now_time - pack_time));
             }
             /* The SWR scan keys the base at its start and steps on the readings: with none a 1 W carrier went out

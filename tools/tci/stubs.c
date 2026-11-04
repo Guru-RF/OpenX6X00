@@ -146,12 +146,9 @@ int16_t meter_get_raw_db(void) {
     return (int16_t)(-100 + (n++ % 30));
 }
 void tx_info_get(float *p, float *s) { *p = 5.0f; *s = 1.3f; }
-bool tx_info_refresh(uint8_t *seen, float *alc, float *p, float *s) {
-    (*seen)++;
-    if (alc) *alc = 0.4f;
-    if (p) *p = 5.0f;
-    if (s) *s = 1.3f;
-    return true;
+float tx_info_get_alc(bool *greyed) {
+    if (greyed) *greyed = false;
+    return 0.4f;
 }
 
 /* ---- the audio out: what each transmission played, counted, and kept in the file

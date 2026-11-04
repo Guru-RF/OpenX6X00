@@ -23,13 +23,18 @@ bool tx_info_shown(void);
 /* The S-meter box while transmitting with neither up (not the deck's scales): power, SWR and ALC */
 void tx_meters_draw(lv_obj_t *box, lv_draw_ctx_t *draw_ctx);
 
-/* A reading from the base (any thread): power in W, SWR, ALC as the base sends it */
+/* A reading from the base (the radio thread): power in W, SWR, ALC as the base sends it */
 void tx_info_update(float pwr, float swr, float alc);
 
-/* The last power and SWR */
+/* The radio out of TX or a tune (radio.c, in the radio thread, as tx_info_update): the readings back to 0, the next
+ * transmission's start from there. Not a reading: tx_info_refresh does not tell of it (#53) */
+void tx_info_clear(void);
+
+/* The last power and SWR; 0 in RX and in a TX until the base's first reading */
 void tx_info_get(float *pwr, float *swr);
 
-/* The last ALC; *greyed when it only tells how far the base turned its own carrier down (CW, CW-R) */
+/* The last ALC, as the power; *greyed (unless NULL) when it only tells how far the base turned its own carrier down
+ * (CW, CW-R) */
 float tx_info_get_alc(bool *greyed);
 
 /* The length of the transmission starting, seconds (a slot: FT8 15, JS8 by its speed, WSPR 120): the
