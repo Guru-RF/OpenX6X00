@@ -12,7 +12,7 @@
 #include <stdint.h>
 #include "lvgl/lvgl.h"
 
-/* The TX views: the panel under the frequency strip (Settings > Display > INTERFACE > Popups ALC), the strip over
+/* The TX views: the panel under the frequency strip (Settings > Display > INTERFACE > Popups TX), the strip over
  * the digital apps. Returns the object that takes the TX and RX events */
 lv_obj_t *tx_info_init(lv_obj_t *parent);
 

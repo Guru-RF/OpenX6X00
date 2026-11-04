@@ -583,7 +583,7 @@ shows the three values side by side, big, without bars. Black Metal and
 Total Black light their own scales: the S row becomes PO, 0 to 10 W, and the
 SWR and ALC rows get their bars. Back on receive the S-meter starts again
 from the next reading. The TX panel shows the same readings big, when
-Settings > Display > INTERFACE > Popups Freq/Info/ALC has ALC on (see the
+Settings > Display > INTERFACE > Popups Freq/Info/TX has TX on (see the
 [Display tab](#display-tab)). Up to v0.3.8 the S-meter said "TX" (Black
 Metal and Total Black: the scales at rest, their SWR and ALC never lit), and
 the TX panel came up whatever that setting (issue #166).
@@ -956,14 +956,14 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
-| INTERFACE | Popups Freq/Info/ALC, Icon menus, Knob info, Theme, Font, Decoder text, FT8/FT4 info |
+| INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Theme, Font, Decoder text, FT8/FT4 info |
 
-- Popups Freq/Info/ALC, three switches:
+- Popups Freq/Info/TX (Popups Freq/Info/ALC up to v0.3.8), three switches:
   - Freq (off by default): the new frequency, big in the middle of the
     screen, while tuning.
   - Info (off by default): a short note in the middle of the screen when a
     key switches the VFO, split, the AGC, PRE, ATT or the ATU.
-  - ALC (on by default): the TX panel while transmitting, under the
+  - TX (on by default): the TX panel while transmitting, under the
     frequency strip: the power, SWR and ALC big with their bars, the mode,
     the TX frequency and the time on the air. Off, the panel does not come
     up; the S-meter box shows the power, SWR and ALC in any case (see
@@ -1812,7 +1812,7 @@ What goes on the air:
   EXTERNAL TUNER > TUNE time limit, s: 5 to 30 s.
 - The TX panel (in an app the TX strip) shows TUNE, EXTERNAL TUNE and the
   frequency, the power, the SWR and the seconds against the limit ("4 / 15
-  s"). With the TX panel off (Popups Freq/Info/ALC, see the
+  s"). With the TX panel off (Popups Freq/Info/TX, see the
   [Display tab](#display-tab)) the S-meter box shows the power and the SWR,
   without the seconds. Stop it when the tuner's lights say it has matched:
   nothing tells the radio that it has, so a low SWR does not stop it.
@@ -3719,7 +3719,7 @@ them.
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX outside ham bands (Settings > TX Cal; see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups ALC) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate

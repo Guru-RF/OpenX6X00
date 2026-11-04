@@ -729,11 +729,11 @@ static uint8_t make_audio_gain(uint8_t row) {
     return row + 1;
 }
 
-/* Popups on the main screen: frequency, info, ALC (the TX panel: tx_meters.c) */
+/* Popups on the main screen: frequency, info, the TX panel (tx_meters.c; its key is still mag_alc) */
 static uint8_t make_mag(uint8_t row) {
     params_bool_t *p[] = {&params.mag_freq, &params.mag_info, &params.mag_alc};
 
-    wl_row_label(row, "Popups Freq/Info/ALC");
+    wl_row_label(row, "Popups Freq/Info/TX");
     for (int i = 0; i < 3; i++) {
         bool_switch(row, 1 + 2 * i, 3, SMALL_2, p[i]);
     }

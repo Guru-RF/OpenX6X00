@@ -230,7 +230,7 @@ static bool digital_app_open(void) {
 }
 
 /* TX: the readings from zero, the strip or the panel (under the frequency strip), the panel only with Settings >
- * Display > INTERFACE > Popups ALC on: the S-meter box shows the readings in any case (#166). RX: all hidden */
+ * Display > INTERFACE > Popups TX on: the S-meter box shows the readings in any case (#166). RX: all hidden */
 static void radio_cb(lv_event_t *e) {
     if (lv_event_get_code(e) == EVENT_RADIO_RX) {
         lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
