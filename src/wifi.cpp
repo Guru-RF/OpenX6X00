@@ -1001,12 +1001,19 @@ static void eth_refresh_cb(lv_timer_t *t) {
         changed  = in.present != eth_info.present || in.connected != eth_info.connected || hold != eth_holds_wifi;
         eth_info = in;
     }
+    /* Logged at each change of the cable's state. Apply in the settings activates the profile
+     * again, so a gateway emptied there can pass through "not connected" first */
+    if (hold != eth_holds_wifi || in.connected != eth_up) {
+        LV_LOG_USER("Ethernet %s: WiFi radio %s",
+                    hold           ? "connected with a gateway"
+                    : in.connected ? "connected without a gateway"
+                    : in.present   ? "not connected"
+                                   : "gone",
+                    hold != eth_holds_wifi ? (hold ? "off" : "on") : "stays on");
+    }
     eth_up = in.connected;
     if (hold != eth_holds_wifi) {
         eth_holds_wifi = hold;
-        LV_LOG_USER("Ethernet %s: WiFi radio %s",
-                    hold ? "connected with a gateway" : in.connected ? "connected without a gateway" : "gone",
-                    hold ? "off" : "on");
         wifi_radio_enable(!hold);
         if (hold && scan_timer) {
             lv_timer_del(scan_timer);
