@@ -291,6 +291,13 @@ of the band list, from the frequency up or down.
 - A band with no mode saved opens in LSB under 10 MHz and USB above, USB on
   60 m; on the X6200 wide FM on FM broadcast, AM on the airband and NFM in
   what only the WR12 receives.
+- A band opens on the frequency last used there. One saved there that lies
+  outside the band (VFO A tuned by CAT while VFO B was in use, or the band's
+  edges moved by another band plan region) opens at the band's start, as a
+  band never used does. Up to v0.3.8 the radio went to that frequency: 40m
+  chosen put the dial on 20m, and the next key went on from there, so the
+  BAND keys and the browser's BAND buttons could step between 20m and 30m
+  only, until the other bands were tuned by hand (#168).
 - Tuned into another band (the knob from 7.040 in 40m SSB to 7.039 in 40m
   CW, or a frequency from CAT, TCI, a spot or an app), the radio is on that
   band: the VFO you tune keeps its frequency and takes the mode, ATT, PRE and

@@ -197,6 +197,37 @@ def main():
         print("#91 the Panel's filter presets and edges, as the radio keeps them:\n" + command(
             ["node", HERE / "panel-filter.js", binary], env, contains=("filter cases as they should be",)).strip())
 
+        # Issue #168: the browser's band keys (the remote server's own P_BAND case) and the radio's (band_step in
+        # src/screen_main.c) on the production SettingsManager and cfg_band_load_next
+        start = server.index("        case P_BAND:")
+        screen = (REPO / "src/screen_main.c").read_text()
+        step = screen.index("static void band_step(bool up) {")
+        (work / "band_keys.inc").write_text(
+            "static void panel_band(const pcmd_t *p) {\n    switch (p->id) {\n"
+            + server[start:server.index("        case P_VFO:", start)] + "    }\n}\n\n"
+            + screen[step:screen.index("\n}\n", step) + 3])
+        command([*CC, *cflags, "-c", "src/cfg/ham_bands.c", "-o", work / "ham_bands.o"], env)
+        binary = work / "band-keys"
+        command([*CXX, "-std=c++20", *common, "-I" + directory, HERE / "band-keys.cpp", *cfg,
+                 "src/cfg/settings_manager_api.cpp", work / "ham_bands.o", *gc, "-pthread", "-lsqlite3", "-o", binary],
+                env)
+        every_band = "80m, 60m, 40m CW, 40m SSB, 30m, 20m CW, 20m SSB, 17m, 15m, 12m, CB A, CB B, CB C, CB D, 10m, 6m"
+        print("#168 the band keys from the browser and on the radio:\n" + command([binary], env, contains=(
+            "new radio, the Panel's BAND up from 160m: " + every_band + "; the dial outside the band chosen: 0",
+            "new radio, the Panel's BAND down from 6m: " + ", ".join(every_band.split(", ")[-2::-1])
+            + ", 160m; the dial outside the band chosen: 0",
+            "#168 the Panel's BAND up from 30m: 20m CW, 20m SSB, 17m, 15m, 12m, CB A, CB B, CB C, CB D, 10m, 6m, 6m, "
+            "6m, 6m, 6m; the dial outside the band chosen: 0",
+            "#168 the Panel's BAND down from 6m: 10m, CB D, CB C, CB B, CB A, 12m, 15m, 17m, 20m SSB, 20m CW, 30m, "
+            "40m SSB, 40m CW, 60m, 80m; the dial outside the band chosen: 0",
+            "#168 the radio's BAND keys as the Panel's: same=1",
+            "#168 40m SSB tuned to 7.100, away and back: 7100000 on 40m SSB; 20m SSB: 14100000",
+            "#168 CAT's VFO A on 14.200 while B was in use on 40m SSB, then A: 20m SSB; the Panel's BAND down: "
+            "20m CW, 30m, 40m SSB on 7040000; the dial outside the band chosen: 0",
+            "#168 VFO B in use, the Panel's BAND up from 30m: same as on A=1; the dial outside the band chosen: 0",
+            "locked: 20m SSB state again=1",
+            "REV with a TX shift on 10m, away and back: vfo=1 B=30000000 A=29500000 band=10m")).strip())
+
         binary = work / "adif-frequency"
         command([*CC, *cflags, *san, HERE / "adif-frequency.c", *gc, "-o", binary], env)
         command([binary], env)
