@@ -173,8 +173,10 @@ static int filter(void *unused, SDL_Event *e) {
         kbd_hyper_action(evdev_code(sc)) == HYPER_NONE) {
         caps_held = false;
     }
-    if (caps_held && !mod_key(sym)) {
-        if (down && !e->key.repeat && evdev_code(sc)) {
+    /* A key let go goes on below, as kbd_hyper.c lets it: one pressed before CapsLock (Ctrl+P's PTT, Enter, F1) is
+     * let go as it was pressed, and a chord key's release lets go of nothing. Dropped, it left that front key down */
+    if (caps_held && down && !mod_key(sym)) {
+        if (!e->key.repeat && evdev_code(sc)) {
             caps_chord = true;
             keyboard_chord(kbd_hyper_action(evdev_code(sc)));
         }
