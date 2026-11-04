@@ -147,11 +147,27 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     gateway (KO0OOO, K7EK-10) once the Winlink account works. Upstream reports to post: the VERSION reply (Pat's
     start race), the daemon build's two missing Android hooks, an option for the TNC ports' address, nanorq's and
     oblas's licence files, PUBLIC in TNC.md.
-- **XARA** (github.com/x0rro/xara, a VARA-compatible modem in Rust, first release 2026-10-21; #18): a watch
-  item, not built. Watch it regularly: its fix for HF calls with an SSID (XARA issue #22, PR #23), the sound-card
-  clock drift that makes a VARA peer time out (XARA #20), its releases, and any takedown or statement by EA5HVK
-  (VARA's author). Implement it when it stabilises; earlier has no added value. Never its "registered" feature
-  (VARA's paid speed without a licence).
+- **XARA** (github.com/x0rro/xara, MIT, a VARA-compatible modem in Rust; #120): built, experimental, the third
+  Winlink modem (branch gh44-xara, 2026-11-04; the owner's decision of 4 November). v0.1.3 from its release
+  tarballs with a pinned Rust 1.99.1 (tools/xara, its UPSTREAM.md), our patch 0001 for the GUI's modem socket
+  (--audio x6x00, --ptt x6x00). VARA's free speed by default; its `registered` feature is compiled in and used only
+  with the Winlink page's VARA HF licence tick box, the user's own statement, which nothing checks. Tested between
+  two stations on a PC only (make modems: free, levels 3-4; ticked, up to level 9).
+  - **Bench** (the owner; no air yet): `top -H` on the X6100 and the X6200 with XARA listening and in calls (48 kHz
+    f64 DSP next to the GUI; "xara is falling behind real time" in xara.log). The audio path XARA times its
+    replies by: path()'s 25/50/80 ms (capture, keying, out) are guesses; measure with XARA's `--record` (a FLAC
+    with PTT) against the GUI's log and the dummy load, per radio, then set them (xara_path_ms= for the test, the
+    patch's PATH_MS after). VARA calling XARA leaves about 150 ms of margin for XARA's answer. A GUI playback
+    underrun (XARA's audio comes just in time, the stream's 60 ms prebuf is the only cushion) would cut a frame:
+    listen for gaps in the dummy load's audio. P2P between the X6100 and the X6200 into dummy loads at 2300 Hz,
+    free and ticked; a 30 s key; the PA's linearity on the full-speed OFDM levels (PAPR 8-9 dB) at up to 7 W and
+    the shared digital level on XARA's frames (drive-db 0).
+  - **Then on the air**: yo4cil against his own gateway (YO4CIL, VARA and ARDOP on 4 bands), free speed first; a
+    test build announced on #120 first.
+  - **Watch**: 0.1.4, "a significant departure from 0.1.3 (libxara is coming)": the patch then needs a rebase, or a
+    program of ours that links libxara as x6x00-mercury links Mercury. Its open PRs for slow audio paths (#39 the
+    extra answer lead, #40 the detector before a reply deadline, #38 the ACK margin), #37; any statement by EA5HVK
+    (VARA's author).
 
 ## X6200: the H-22 hand mic's keys (#56)
 
