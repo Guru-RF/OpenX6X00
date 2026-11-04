@@ -6080,7 +6080,9 @@ doesn't answer and the tree's `buildroot/dl/uboot/` hasn't got the file,
 inside is the release's byte for byte, and bzip2 gives back the release
 tarball itself. Whichever site it came from, the script checks the file
 against the release's SHA-256, since buildroot checks none for a U-Boot
-version of one's own.
+version of one's own. A U-Boot version the script has no SHA-256 for
+stops the build; bumping the version means adding its release SHA-256 to
+the table in `uboot_source` too.
 
 The private tests and UI harnesses of the original author are not part of
 this repository.

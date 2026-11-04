@@ -210,7 +210,8 @@ if [ $MODEL = x6100 ]; then
     # had a 2025 binary written over the 2023.01 buildroot built: it switches the DRAM supply on in an order
     # mainline put back in 2025.04 (1dadb246a3) because it hung boards of this family at the kernel start, and a
     # radio of #21 stopped there with our card and started with IU1WXY's v0.131, whose U-Boot 2026.07 is the only
-    # real difference (same kernel, same device tree). The dtsi adds U-Boot's own nodes
+    # real difference (same kernel, same device tree). The dtsi adds U-Boot's own nodes. Another version needs its
+    # release SHA-256 in uboot_source's table below, or the build stops there
     sed -i 's/^BR2_TARGET_UBOOT_CUSTOM_VERSION_VALUE=.*/BR2_TARGET_UBOOT_CUSTOM_VERSION_VALUE="2026.07"/' $DEFCONFIG
     grep -q "^BR2_TARGET_UBOOT_NEEDS_PYTHON3=y" $DEFCONFIG || echo "BR2_TARGET_UBOOT_NEEDS_PYTHON3=y" >> $DEFCONFIG
     sed -i 's|^\(BR2_TARGET_UBOOT_CUSTOM_DTS_PATH=".*/sun8i-r16-x6100\.dts\)"$|\1 $(BR2_EXTERNAL_X6100_PATH)/board/X6100/u-boot/sun8i-r16-x6100-u-boot.dtsi"|' $DEFCONFIG
@@ -256,14 +257,15 @@ cd $BR/build
 # 2023.01). When that site doesn't answer (down for days in November 2026, PR #154) and buildroot's download folder
 # hasn't got the file, it is made from U-Boot's tag archive on GitHub: the tar in it is the release's byte for byte,
 # and bzip2 gives back the release tarball itself. buildroot checks no hash for a U-Boot version of one's own, so
-# the release's is checked here, wherever the file came from
+# the release's is checked here, wherever the file came from, and a version not in the table stops the build until
+# its release SHA-256 is added
 uboot_source() {
     local ver sha f
     ver=$(sed -n 's/^BR2_TARGET_UBOOT_VERSION="\(.*\)"$/\1/p' .config)
     case $ver in
         2023.01) sha=69423bad380f89a0916636e89e6dcbd2e4512d584308d922d1039d1e4331950f ;;
         2026.07) sha=78e8bfc382fe388f9b55aa1daf8c563522a037779b5d4c349d1415e381f1243e ;;  # as in IU1WXY's v0.131 sources
-        *) echo "   U-Boot $ver: no hash for it here, buildroot gets it unchecked"; return 0 ;;
+        *) echo "U-Boot $ver: no release SHA-256 for it in local-build.sh's table (uboot_source), add it there"; return 1 ;;
     esac
     f=$BR/buildroot/dl/uboot/u-boot-$ver.tar.bz2
     if [ ! -s $f ] && ! curl -sfIL --max-time 30 -o /dev/null https://ftp.denx.de/pub/u-boot/u-boot-$ver.tar.bz2; then
