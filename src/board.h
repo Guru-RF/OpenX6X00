@@ -36,9 +36,24 @@
 #ifdef BOARD_X6200
 #define BOARD_PWR_MAX       8.0f
 #define BOARD_PWR_MAX_BAT   5.0f
+#define BOARD_XVTR0_SHIFT   0           /* 2 m and 70 cm are the WR12's, to receive */
+#define BOARD_XVTR1_SHIFT   0
 #else
 #define BOARD_PWR_MAX       10.0f
+#define BOARD_XVTR0_SHIFT   116000000   /* 2 m, IF at 28 MHz */
+#define BOARD_XVTR1_SHIFT   404000000   /* 70 cm, IF at 28 MHz */
 #endif
+
+/* The rest of the radio's ranges. The same on the X6100 and the X6200; the settings manager reads them. */
+#define BOARD_PWR_MIN       0.1f        /* PWR and the external tuner's TUNE power */
+#define BOARD_SQL_MAX       100
+#define BOARD_RFG_MAX       100
+#define BOARD_RIT_MAX       1500
+#define BOARD_XIT_MAX       1500
+#define BOARD_MIC_MAX       50
+#define BOARD_NB_MAX        100
+#define BOARD_HF_MIN_HZ     100000      /* upstream f6c97fa */
+#define BOARD_HF_MAX_HZ     55000000
 
 /* The low-battery power-off (bat_watch.c), the battery's voltage in 0.1 V: from there "Low battery! Turning off in
  * 30s.", then the charger set back On, the save and the radio off. The X6100 runs to 6.0 V, as it always did. The
