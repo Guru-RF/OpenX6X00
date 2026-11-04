@@ -34,6 +34,9 @@ void main_screen_set_theme(const char *name);
 /* The keyboard to the spectrum; a dialog takes it away while open */
 void main_screen_keys_enable(bool on);
 
+/* CapsLock+L: the quick QSO log, when the main screen has the keyboard */
+void main_screen_log_qso(void);
+
 /* A key, or a window opened or closed: the buttons back if Settings > Display > Hide buttons hid them, and hidden
  * again after its time without a key. True when they were hidden */
 bool main_screen_buttons_wake(void);

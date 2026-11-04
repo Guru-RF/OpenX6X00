@@ -38,3 +38,6 @@ void keyboard_init();
 
 /* A keyboard is plugged in and open */
 bool keyboard_ready();
+
+/* What CapsLock and a key held together do, a kbd_hyper_action_t (kbd_hyper.h): run once the key's read is over */
+void keyboard_chord(int action);

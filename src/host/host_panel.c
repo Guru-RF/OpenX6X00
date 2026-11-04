@@ -14,13 +14,15 @@
  *      Ctrl+B A/B   Ctrl+R PRE   Ctrl+T ATU   Ctrl+V V/M   Ctrl+G AGC   Ctrl+F FST   Ctrl+P PTT
  *
  *  The keys taken here never reach the SDL keyboard driver, the rest of the keyboard types
- *  into the GUI as a USB keyboard would.
+ *  into the GUI as a USB keyboard would. CapsLock held with a letter is a chord, as on the radio
+ *  (kbd_hyper.h: CapsLock+L the quick QSO log); this PC's own Caps Lock still turns at each press.
  *
  *  Copyright (c) 2026 RF.Guru
  */
 
 #include "host_panel.h"
 #include "../board.h"
+#include "../kbd_hyper.h"
 #include "../key_input.h"
 #include "lv_drivers/sdl/sdl.h"
 
@@ -73,6 +75,12 @@ static const struct {
 #define VOL_PRESS BTN_TRIGGER_HAPPY21
 #define MFK_PRESS BTN_TRIGGER_HAPPY27
 
+/* The letters' evdev codes, A to Z as SDL's scancodes go: the chords are named by them */
+static const uint16_t letter_code[26] = {
+    KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M,
+    KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z,
+};
+
 static void emit(int dev, uint16_t type, uint16_t code, int32_t value) {
     struct input_event ev[2];
 
@@ -100,6 +108,11 @@ static void knob(int dev, int n) {
     }
 }
 
+static bool mod_key(SDL_Keycode sym) {
+    return sym == SDLK_LSHIFT || sym == SDLK_RSHIFT || sym == SDLK_LCTRL || sym == SDLK_RCTRL || sym == SDLK_LALT ||
+           sym == SDLK_RALT || sym == SDLK_LGUI || sym == SDLK_RGUI;
+}
+
 /* Before SDL queues an event: the ones that are the radio's keys and knobs are taken here
  * (return 0 drops them), the rest go on to the SDL keyboard and mouse drivers */
 static int filter(void *unused, SDL_Event *e) {
@@ -113,14 +126,33 @@ static int filter(void *unused, SDL_Event *e) {
         knob(m & KMOD_SHIFT ? DEV_VOL : m & KMOD_CTRL ? DEV_MFK : DEV_MAIN, n);
         return 0;
     }
+    /* CapsLock held: a letter pressed is its chord, and no key types meanwhile (the text of a key comes on
+     * its own, SDL_TEXTINPUT). Shift, Ctrl, Alt and the Meta keys go through, as kbd_hyper.c lets them */
+    static bool caps_held;
+
+    if (e->type == SDL_TEXTINPUT && caps_held) {
+        return 0;
+    }
     if (e->type != SDL_KEYDOWN && e->type != SDL_KEYUP) {
         return 1;
     }
-    bool        down  = e->type == SDL_KEYDOWN;
-    SDL_Keycode sym   = e->key.keysym.sym;
-    uint16_t    mod   = e->key.keysym.mod;
-    bool        ctrl  = mod & KMOD_CTRL;
-    bool        shift = mod & KMOD_SHIFT;
+    bool         down  = e->type == SDL_KEYDOWN;
+    SDL_Keycode  sym   = e->key.keysym.sym;
+    SDL_Scancode sc    = e->key.keysym.scancode;
+    uint16_t     mod   = e->key.keysym.mod;
+    bool         ctrl  = mod & KMOD_CTRL;
+    bool         shift = mod & KMOD_SHIFT;
+
+    if (sym == SDLK_CAPSLOCK) {
+        caps_held = down;
+        return 0;
+    }
+    if (caps_held && !mod_key(sym)) {
+        if (down && !e->key.repeat && sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z) {
+            keyboard_chord(kbd_hyper_action(letter_code[sc - SDL_SCANCODE_A]));
+        }
+        return 0;
+    }
 
     if (e->key.repeat && !(sym == SDLK_LEFT || sym == SDLK_RIGHT || sym == SDLK_UP || sym == SDLK_DOWN)) {
         return 0;   /* a held front key is one press (the long press is the driver's) */

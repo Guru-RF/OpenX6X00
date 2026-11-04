@@ -1385,6 +1385,14 @@ void main_screen_keys_enable(bool value) {
     lv_group_set_editing(keyboard_group, false);
 }
 
+/* CapsLock+L on a keyboard (key_input.c): the quick QSO log, the box of the Log QSO button, only while
+ * the main screen has the keyboard. In an app, a dialog or a text box the chord does nothing */
+void main_screen_log_qso(void) {
+    if (spectrum && lv_group_get_focused(keyboard_group) == spectrum && !dialog_is_run()) {
+        cw_field_log_open();
+    }
+}
+
 /* An app's hold */
 void main_screen_lock_freq(bool lock) {
     app_lock = lock;

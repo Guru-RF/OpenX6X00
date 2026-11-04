@@ -7,16 +7,19 @@
  */
 
 /* The input group every knob and button feeds, and the USB (or Bluetooth) keyboard:
- * found at start and again whenever a USB device comes or goes. */
+ * found at start and again whenever a USB device comes or goes. CapsLock is its hyper key
+ * (kbd_hyper.h): CapsLock+L opens the quick QSO log. */
 
 #include "key_input.h"
 
 #include "cw_encoder.h"
 #include "cw_field.h"
 #include "input_caps.h"
+#include "kbd_hyper.h"
 #include "kbd_rollover.h"
 #include "paddle_keyer.h"
 #include "pubsub_ids.h"
+#include "screen_main.h"
 #include "usb_devices.h"
 
 #include "lv_drivers/indev/evdev.h"
@@ -25,7 +28,10 @@
 #include <fcntl.h>
 #include <glob.h>
 #include <linux/input.h>
+#include <linux/kd.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -47,6 +53,62 @@ static dev_t          kbd_rdev;     /* the one open: a different node (unplugged
 static ino_t          kbd_ino;
 static lv_timer_t    *rescan_timer;
 static int            rescans_left;
+static kbd_hyper_t    hyper;        /* CapsLock held for a chord */
+static bool           caps;         /* Caps Lock on, as xkb has it: only a CapsLock tapped alone turns it */
+
+/* The keyboard's Caps Lock light to ours. The light is the kernel console's (/dev/tty0), which turns
+ * it at every CapsLock press, also one held for a chord: put back at the chord, and set at each
+ * keyboard opened (its xkb starts with Caps Lock off) */
+static void caps_light(void) {
+    static int    fd = -2;
+    unsigned char leds;
+
+    if (fd == -2) {
+        fd = open("/dev/tty0", O_RDONLY | O_NOCTTY | O_CLOEXEC);
+    }
+    if (fd >= 0 && ioctl(fd, KDGKBLED, &leds) == 0 && !(leds & K_CAPSLOCK) != !caps) {
+        ioctl(fd, KDSKBLED, (unsigned long)(caps ? leds | K_CAPSLOCK : leds & ~K_CAPSLOCK));
+    }
+}
+
+/* A chord's action, after the read of its key: it opens windows and moves the keyboard's focus */
+static void chord_run(void *arg) {
+    switch ((kbd_hyper_action_t)(intptr_t)arg) {
+        case HYPER_LOG_QSO:
+            main_screen_log_qso();
+            break;
+        default:
+            break;
+    }
+}
+
+void keyboard_chord(int action) {
+    if (action != HYPER_NONE) {
+        lv_async_call(chord_run, (void *)(intptr_t)action);
+    }
+}
+
+/* CapsLock as the hyper key: false when the event goes no further */
+static bool hyper_key(const struct input_event *ev) {
+    kbd_hyper_action_t action = HYPER_NONE;
+
+    switch (kbd_hyper_key(&hyper, ev->code, ev->value, &action)) {
+        case HYPER_PASS:
+            return true;
+        case HYPER_CAPS:            /* tapped alone: Caps Lock, as before */
+            xkb_process_key(KEY_CAPSLOCK, 1);
+            xkb_process_key(KEY_CAPSLOCK, 0);
+            caps = !caps;
+            caps_light();
+            return false;
+        case HYPER_CHORD:
+            caps_light();
+            keyboard_chord(action);
+            return false;
+        default:
+            return false;
+    }
+}
 
 /* Key events of the keyboard, the character from xkb (layout and Shift) */
 static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state) {
@@ -62,6 +124,9 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
             if (ev.value == 1 && cw_encoder_state() != CW_ENCODER_IDLE && !cw_field_key(LV_KEY_ESC)) {
                 cw_encoder_stop();
             }
+            continue;
+        }
+        if (!hyper_key(&ev)) {
             continue;
         }
         *key      = xkb_process_key(ev.code, ev.value);     /* xkb follows Shift from these too */
@@ -144,6 +209,9 @@ static void open_keyboard(char *path) {
     kbd_rdev = st.st_rdev;
     kbd_ino  = st.st_ino;
     kbd_keys = (kbd_keys_t){0};
+    hyper    = (kbd_hyper_t){0};
+    caps     = false;
+    caps_light();
     paddle_keyer_open(path);
 
     if (kbd_drv.type == LV_INDEV_TYPE_NONE) {
