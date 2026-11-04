@@ -26,7 +26,7 @@ static void check(int ok, const char *what, long v) {
 
 /* The groups, by the middle of a band: under 5 MHz, to 10, to 20, above. The figures the code must give */
 enum { G80, G40, G20, G10, GROUPS };
-static const int32_t group_db[GROUPS] = {46, 35, 34, 32};
+static const int32_t group_db[GROUPS] = {51, 35, 34, 32};
 
 /* Each band of the list, by id, in the manual's groups */
 static const struct {
@@ -80,7 +80,7 @@ static void bands_of_sql(const char *path) {
     }
 }
 
-/* The manual's table: a "| ... | 46 dB |" row for each group, in order, then "which starts at 35 dB" outside them */
+/* The manual's table: a "| ... | 51 dB |" row for each group, in order, then "which starts at 35 dB" outside them */
 static void manual_table(const char *path) {
     FILE *f = fopen(path, "r");
     char  line[512];

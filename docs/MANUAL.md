@@ -1203,19 +1203,19 @@ are settings, with the figures measured on one radio as defaults.
 | RF gain, a step | 0.00 to 2.00 dB | 0.60 dB |
 
 On the X6200 the attenuator takes much more off, and how much depends on the
-band and on the radio: two radios showed about 40 and 51 dB on 80 m and 29
-and 40 dB on 40 m, and one of them 34 dB on 20 m and 32 dB on 10 m. So there
-the row is "Attenuator on this band": each band keeps its own value, and the
+band and on the radio: one radio showed about 51 dB on 80 m, 29 dB on 40 m,
+34 dB on 20 m and 32 dB on 10 m, another 40 dB or more on 40 m. So there the
+row is "Attenuator on this band": each band keeps its own value, and the
 slider and Measure set the band the radio is on. Those are the bands of the
 band list: 40 m CW and 40 m SSB are two, and so are 20 m CW and SSB, and a
 broadcast band is one of its own, so Measure on a broadcast carrier at
 7.3 MHz sets Broadcast 41m, not 40 m. When it is done, Measure names the
-band it set. A band never set starts from the mean of those figures for the
-nearest of 80, 40, 20 and 10 m:
+band it set. A band never set starts from the figure of the nearest of 80,
+40, 20 and 10 m, on 40 m the two radios' mean:
 
 | X6200 bands | Attenuator |
 |---|---|
-| 160 m, 80 m, the 75 m and 60 m broadcast bands (under 5 MHz) | 46 dB |
+| 160 m, 80 m, the 75 m and 60 m broadcast bands (under 5 MHz) | 51 dB |
 | 60 m, 40 m, the 49 m to 31 m broadcast bands (5 to 10 MHz) | 35 dB |
 | 30 m, 20 m, 17 m, the 25 m to 15 m broadcast bands (10 to 20 MHz) | 34 dB |
 | 15 m and up (over 20 MHz) | 32 dB |
