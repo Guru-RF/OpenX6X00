@@ -73,8 +73,14 @@ kbd_hyper_use_t kbd_hyper_key(kbd_hyper_t *h, uint16_t code, int state, kbd_hype
     if (!h->held || state != 1 || modifier(code)) {
         return HYPER_PASS;
     }
+    *action = kbd_hyper_action(code);
+    /* No chord with it, and none yet in this hold: fast typing, the key down before the CapsLock tapped is up. It was
+     * lost, and Caps Lock did not turn: now it turns, the key types, and the hold is over */
+    if (*action == HYPER_NONE && !h->chord) {
+        h->held = false;
+        return HYPER_CAPS_PASS;
+    }
     *word   |= bit;
     h->chord = true;
-    *action  = kbd_hyper_action(code);
     return HYPER_CHORD;
 }

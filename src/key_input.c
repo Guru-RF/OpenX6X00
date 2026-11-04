@@ -85,6 +85,14 @@ void keyboard_chord(int action) {
     }
 }
 
+/* A CapsLock tap: Caps Lock turns in xkb, and its light */
+static void caps_turn(void) {
+    xkb_process_key(KEY_CAPSLOCK, 1);
+    xkb_process_key(KEY_CAPSLOCK, 0);
+    caps = !caps;
+    caps_light();
+}
+
 /* CapsLock as the hyper key: false when the event goes no further */
 static bool hyper_key(const struct input_event *ev) {
     kbd_hyper_action_t action = HYPER_NONE;
@@ -93,11 +101,11 @@ static bool hyper_key(const struct input_event *ev) {
         case HYPER_PASS:
             return true;
         case HYPER_CAPS:            /* tapped alone: Caps Lock, as before */
-            xkb_process_key(KEY_CAPSLOCK, 1);
-            xkb_process_key(KEY_CAPSLOCK, 0);
-            caps = !caps;
-            caps_light();
+            caps_turn();
             return false;
+        case HYPER_CAPS_PASS:       /* the tap, then the key typed over it: in that order */
+            caps_turn();
+            return true;
         case HYPER_CHORD:
             caps_light();
             keyboard_chord(action);

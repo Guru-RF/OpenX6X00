@@ -145,8 +145,9 @@ static int filter(void *unused, SDL_Event *e) {
         return 0;
     }
     /* CapsLock held: a key pressed is its chord, once (not its repeats), and no key types meanwhile (the text of a
-     * key comes on its own, SDL_TEXTINPUT). Shift, Ctrl, Alt and the Meta keys go through, as kbd_hyper.c lets them */
-    static bool caps_held;
+     * key comes on its own, SDL_TEXTINPUT). Shift, Ctrl, Alt and the Meta keys go through, as kbd_hyper.c lets them.
+     * A key with no chord pressed before any chord is typing over a CapsLock tap: it types, and the hold is over */
+    static bool caps_held, caps_chord;
 
     if (e->type == SDL_TEXTINPUT && caps_held) {
         return 0;
@@ -162,11 +163,19 @@ static int filter(void *unused, SDL_Event *e) {
     bool         shift = mod & KMOD_SHIFT;
 
     if (sym == SDLK_CAPSLOCK) {
-        caps_held = down;
+        if (down != caps_held) {
+            caps_held  = down;
+            caps_chord = false;
+        }
         return 0;
+    }
+    if (caps_held && down && !e->key.repeat && !mod_key(sym) && !caps_chord &&
+        kbd_hyper_action(evdev_code(sc)) == HYPER_NONE) {
+        caps_held = false;
     }
     if (caps_held && !mod_key(sym)) {
         if (down && !e->key.repeat && evdev_code(sc)) {
+            caps_chord = true;
             keyboard_chord(kbd_hyper_action(evdev_code(sc)));
         }
         return 0;

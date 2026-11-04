@@ -255,13 +255,16 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
 - The keys count by their place on a US keyboard, as the radio types. The
   letters are in the same place on AZERTY and QWERTZ keyboards; on an AZERTY
   one CapsLock+1 is the key marked & and 1.
-- A key pressed while CapsLock is held is never typed, in the CW line, the
-  quick log's box or a text box neither, and Caps Lock stays as it was, on
-  or off. The keyboard's Caps Lock light can come on while CapsLock is held,
-  and goes back when the other key goes down.
+- A chord's key is never typed, in the CW line, the quick log's box or a
+  text box neither, and Caps Lock stays as it was, on or off. The
+  keyboard's Caps Lock light can come on while CapsLock is held, and goes
+  back when the other key goes down.
 - A chord acts once a press: held, it does not repeat (one band a press).
 - CapsLock tapped alone, nothing pressed with it, is Caps Lock as before:
   it turns when you let it go. Shift, Ctrl and Alt work with it as usual.
+- A key with no chord (A, Q, 9, Enter) pressed while CapsLock is still
+  down, as the first key, is fast typing: Caps Lock turns and the key
+  types. A chord's key typed that fast is the chord: let CapsLock go first.
 
 PTT from the keyboard. CapsLock+Space keys the radio as its PTT key does,
 with the same refusals where the radio may not transmit, the 0 W hold, the

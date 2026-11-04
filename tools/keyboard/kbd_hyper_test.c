@@ -7,7 +7,8 @@
  *  typed, once per press (its repeats and release dropped, whichever goes up first), and Caps Lock stays as it was.
  *  The table: L log a QSO, K the dial lock, P a screenshot, S Settings, F the frequency box, Up and Down the band,
  *  Space PTT, 1-8 the CW messages and JTTY's macros; the other keys (the F keys, PgUp and PgDn too) do nothing with
- *  it. Keys pressed before CapsLock, and Shift, Ctrl, Alt and Meta, go through.
+ *  it. Keys pressed before CapsLock, and Shift, Ctrl, Alt and Meta, go through. A key with no chord pressed first
+ *  while CapsLock is down is fast typing over a tap: Caps Lock turns and the key types.
  */
 
 #include "kbd_hyper.h"
@@ -98,6 +99,13 @@ static out_t run(kbd_hyper_t *h, const char *events) {
                 break;
             case HYPER_CAPS:
                 o.caps++;
+                break;
+            case HYPER_CAPS_PASS:   /* Caps Lock turns, then the key goes on (key_input.c, in that order) */
+                o.caps++;
+                if (t + 3 < sizeof(o.typed)) {
+                    o.typed[t++] = '+';
+                    o.typed[t++] = name_of(code);
+                }
                 break;
             case HYPER_CHORD:
                 if (c + 2 < sizeof(o.chords)) o.chords[c++] = action_name(action);
@@ -203,15 +211,25 @@ int main(void) {
     expect("+C +_ -C +C -_ -C", "", 1, "_", "Space held over a second CapsLock tap: one chord, the tap is Caps Lock");
     expect("+C +1 +2 -1 -2 -C", "", 0, "12", "CapsLock+1 and 2 overlapping");
     expect("+C +k +l -C -l -k", "", 0, "KL", "two chord keys, CapsLock up first, then both");
-    expect("+C +q -q -C", "", 0, ".", "CapsLock+Q: no action, nothing typed");
-    expect("+C +9 -9 +0 -0 +< -< +E -E -C", "", 0, "....", "CapsLock+9, 0, Left, Enter: nothing");
+    expect("+C +l -l +q -q -C", "", 0, "L.", "CapsLock+L then Q (no chord) in the same hold: Q does nothing");
+    expect("+C +l -l +9 -9 +< -< +E -E -C", "", 0, "L...", "after a chord, 9, Left, Enter in the hold: nothing");
+
+    /* A key with no chord first: typing over a CapsLock tap (it lost the key and left Caps Lock as it was) */
+    expect("+C +x -C -x +a -a", "+x-x+a-a", 1, "", "x down before the tapped CapsLock is up: Caps Lock, x types");
+    expect("+C +q -q -C", "+q-q", 1, "", "CapsLock+Q (no chord): a tap, then q");
+    expect("+C +9 -9 +0 -0 +< -< +E -E -C", "+9-9+0-0+<-<+E-E", 1, "", "CapsLock+9, 0, Left, Enter: a tap, typed");
+    expect("+C +a +x -C -a -x", "+a+x-a-x", 1, "", "two keys over the tap: both type, Caps Lock once");
+    expect("+C +x +l -x -l -C", "+x+l-x-l", 1, "", "x then L in the same hold: the hold was a tap, L types");
+    expect("+C +S +x -x -S -C", "+S+x-x-S", 1, "", "CapsLock, Shift, then x over the tap: Shift and x type");
+    expect("+C +x *x *x -x -C", "+x*x*x-x", 1, "", "x over the tap, repeating: its repeats type");
 
     /* The F keys and PgUp/PgDn: no chord, and alone they go on as any key (kbd_keymap gives them nothing) */
-    expect("+C +! -! +@ -@ +# -# +$ -$ +U -U +D -D -C", "", 0, "......",
-           "CapsLock with F1, F5, F9, F10, PgUp, PgDn: dropped, no action");
+    expect("+C +! -! +@ -@ +# -# +$ -$ +U -U +D -D -C", "+!-!+@-@+#-#+$-$+U-U+D-D", 1, "",
+           "CapsLock with F1, F5, F9, F10, PgUp, PgDn: no chord, a tap and the keys");
+    expect("+C +l -l +! -! +U -U -C", "", 0, "L..", "F1 and PgUp after a chord in the hold: dropped, no action");
     expect("+! -! +$ -$ +U -U +D -D +O -O +P -P", "+!-!+$-$+U-U+D-D+O-O+P-P", 0, "",
            "F1, F10, PgUp, PgDn, Scroll Lock, Print Screen alone go through");
-    expect("+C +O -O +P -P -C", "", 0, "..", "CapsLock with Scroll Lock, Print Screen: chords, dropped");
+    expect("+C +O -O +P -P -C", "+O-O+P-P", 1, "", "CapsLock with Scroll Lock, Print Screen: no chord, a tap");
 
     /* Modifiers, and keys down before CapsLock */
     expect("+C +S +l -l -S -C", "+S-S", 0, "L", "CapsLock+Shift+L: Shift goes through");

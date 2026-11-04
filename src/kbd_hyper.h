@@ -6,7 +6,8 @@
  *  While CapsLock is held, a key pressed with it is a chord: CapsLock+L logs a QSO, CapsLock+Space is PTT, and
  *  the others in kbd_hyper.c's table. A chord's keys are never typed, and CapsLock held for a chord leaves Caps
  *  Lock as it was. CapsLock tapped alone, no key pressed while it was down, is Caps Lock as before; it turns
- *  when the tap ends. Shift, Ctrl, Alt and the Meta keys go through as usual while it is held. Here only what
+ *  when the tap ends. A key with no chord pressed first while it is down is typing that overlaps the tap (the key
+ *  down before CapsLock is up): Caps Lock turns then, and the key types. Shift, Ctrl, Alt and the Meta keys go through as usual while it is held. Here only what
  *  each key event becomes, from the scancodes: key_input.c does it.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -48,6 +49,8 @@ typedef enum {
     HYPER_PASS,         /* an ordinary key: on to xkb and LVGL */
     HYPER_DROP,         /* CapsLock's own, or a chord key's repeat or release: nobody sees it */
     HYPER_CAPS,         /* CapsLock let go after a tap alone: Caps Lock turns (the event is dropped too) */
+    HYPER_CAPS_PASS,    /* a key with no chord, the first one while CapsLock is down: Caps Lock turns, then the key
+                         * goes on as HYPER_PASS; CapsLock's release is dropped after it */
     HYPER_CHORD,        /* a key down while CapsLock is held: its action, the key dropped */
 } kbd_hyper_use_t;
 
