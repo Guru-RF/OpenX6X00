@@ -1,4 +1,4 @@
-From a5cff206e1425c5eaeb7b7052d1614f1385b3ce9 Mon Sep 17 00:00:00 2001
+From ce7c9ec11a56273e04d13fd3d4385905cc6b1bf2 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Wed, 4 Nov 2026 14:00:00 +0100
 Subject: [PATCH] audio, ptt: the X6100/X6200 radio's own software as the sound
@@ -31,19 +31,19 @@ main.rs checks the options together as for trusdx (one socket for both,
 --tx-buffer-ms) and gives the PTT from the backend. With unit tests on a
 fake GUI (the hello, R paced and resampled, zeros while keyed and without
 the GUI, T only between P 1 and P 0, the held first block, a GUI that
-goes and comes back, the stop's P 0) and main.rs's own. One upstream test
-assumed the default backend is built, which in a build with x6x00 alone
-it is not.
+goes and comes back, one that closes at once tried once a second, the
+stop's P 0) and main.rs's own. One upstream test assumed the default
+backend is built, which in a build with x6x00 alone it is not.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  README.md                      |   3 +
  crates/xara/Cargo.toml         |   1 +
  crates/xara/src/audio/mod.rs   |  18 +-
- crates/xara/src/audio/x6x00.rs | 691 +++++++++++++++++++++++++++++++++
+ crates/xara/src/audio/x6x00.rs | 710 +++++++++++++++++++++++++++++++++
  crates/xara/src/main.rs        |  71 +++-
  crates/xara/src/ptt.rs         |   7 +
- 6 files changed, 787 insertions(+), 4 deletions(-)
+ 6 files changed, 806 insertions(+), 4 deletions(-)
  create mode 100644 crates/xara/src/audio/x6x00.rs
 
 diff --git a/README.md b/README.md
@@ -173,10 +173,10 @@ index 2defe71..44d5cec 100644
  }
 diff --git a/crates/xara/src/audio/x6x00.rs b/crates/xara/src/audio/x6x00.rs
 new file mode 100644
-index 0000000..5a9b5e5
+index 0000000..c15ebe7
 --- /dev/null
 +++ b/crates/xara/src/audio/x6x00.rs
-@@ -0,0 +1,691 @@
+@@ -0,0 +1,710 @@
 +//! OpenX6X00: the radio's own software (the GUI) as the sound card and the PTT, on the X6100 and the X6200
 +//! (`--audio x6x00 --ptt x6x00`). A patch of OpenX6X00's, under XARA's MIT licence.
 +//!
@@ -400,22 +400,27 @@ index 0000000..5a9b5e5
 +    }
 +
 +    fn run(&self) {
-+        let (mut said, mut buf) = (false, vec![0u8; HDR + 2 * T_MAX]);
++        let (mut said, mut buf, mut next) = (false, vec![0u8; HDR + 2 * T_MAX], Instant::now());
 +        while !self.stop.load(Ordering::SeqCst) {
 +            let fd = lock(&self.tx).fd.clone();
 +            let Some(fd) = fd else {
++                // Once a second at most, also after a GUI that closed at once or another modem that took the socket
++                self.nap(next.saturating_duration_since(Instant::now()));
++                if self.stop.load(Ordering::SeqCst) {
++                    break;
++                }
++                next = Instant::now() + RETRY;
 +                match connect(&self.path).map(|fd| self.hello(fd)) {
 +                    Ok(true) => {
 +                        say!("connected to the GUI's socket {}", self.path);
 +                        said = false;
 +                    }
-+                    Ok(false) => self.nap(RETRY),
++                    Ok(false) => {}
 +                    Err(e) => {
 +                        if !said {
 +                            say!("the GUI's socket {} is not there yet ({e}), trying again every second", self.path);
 +                        }
 +                        said = true;
-+                        self.nap(RETRY);
 +                    }
 +                }
 +                continue;
@@ -852,6 +857,20 @@ index 0000000..5a9b5e5
 +        let mut b = [0u8; 8];
 +        // SAFETY: b is 8 writable bytes.
 +        assert_eq!(unsafe { libc::recv(c.as_raw_fd(), b.as_mut_ptr().cast(), 8, libc::MSG_DONTWAIT) }, 0, "and closes");
++    }
++
++    #[test]
++    fn a_gui_that_closes_at_once_is_tried_once_a_second() {
++        let mut gui = Gui::new("closes");
++        let _io = X6x00Io::open(&gui.path, &gui.path, true).unwrap();
++        let (t, mut tries) = (Instant::now(), 0);
++        while t.elapsed() < Duration::from_millis(2500) {
++            if gui.accept(Duration::from_millis(50)) {
++                tries += 1;
++                gui.conn = None;
++            }
++        }
++        assert!((2..=4).contains(&tries), "{tries} connections in 2.5 s");
 +    }
 +
 +    #[test]

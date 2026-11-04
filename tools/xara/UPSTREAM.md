@@ -36,9 +36,9 @@ file are ours.
   the GUI's toolchain, after `make toolchain`).
 - Checked: a 32-bit ARM ELF that needs only `libc.so.6`, `libm.so.6`, `libgcc_s.so.1` and `ld-linux-armhf.so.3`, and
   glibc 2.36 at most (it needs 2.35). Stripped, the build's directories left out of it
-  (`--remap-path-prefix`): 2513732 bytes, SHA-256 `221e5a61605b4b913dd4d89389c059a6d31154238e99d4d16375d11a5763f61a`
-  with the X6200 tree's gcc, the same from two builds in different directories. Under qemu with either radio's
-  libraries it starts, `--version` says `xara 0.1.3` and `--registered` is taken.
+  (`--remap-path-prefix`): 2513732 bytes, SHA-256 `151cd429d9a91ed6599b550faafaa10bd95c2559bb774dbfbf1addb8b345bbf5`,
+  the same with the X6100 tree's gcc and the X6200 tree's, and from two builds in different directories. Under qemu
+  with either radio's libraries it starts, `--version` says `xara 0.1.3` and `--registered` is taken.
 - Kept as `$HOME/.cache/openx6x00/xara/xara-0.1.3-rust1.99.1-<target>-<hash>/xara`, the hash being that of the
   patches, of `build.sh` and of the linker (its version, target and C library); a second run prints that path and
   downloads nothing. Beside it `doc/`: XARA's `LICENSE`, `THIRD-PARTY` (each crate compiled in, from `cargo tree`,
@@ -73,9 +73,10 @@ Made with `git format-patch` against the release's source; `git apply` takes it.
   supervisor's `xara_path_ms=`). No rate matching (`queue: false`): during receive XARA's clock is the GUI's capture.
   `main.rs` checks the options together, as upstream does for its trusdx backend. With unit tests on a fake GUI
   (the hello, R paced and resampled, zeros while keyed and without the GUI, T only between P 1 and P 0, the held
-  first block, a GUI that goes and comes back, XARA's stop sending P 0) and `main.rs`'s own. One upstream test took
+  first block, a GUI that goes and comes back, one that closes at once tried once a second and not more, XARA's
+  stop sending P 0) and `main.rs`'s own. One upstream test took
   the default backend (ALSA) for built; in a build with `x6x00` alone it is not, and the test now allows that.
-  `cargo test` of the workspace with the patch: 463 passed (pulse, alsa, registered, x6x00), and 185 of the `xara`
+  `cargo test` of the workspace with the patch: 464 passed (pulse, alsa, registered, x6x00), and 186 of the `xara`
   crate with `x6x00` alone, 2026-11-04.
 
 ## Free speed, and the `registered` feature
