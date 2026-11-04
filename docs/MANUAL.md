@@ -581,15 +581,17 @@ on both radios, and the S-meter box is framed red. With the TX panel on
 default; see the [Display tab](#display-tab)) the panel shows the power, SWR
 and ALC big, and the S-meter stays at rest with "TX" in red in place of its
 value (Black Metal and Total Black: their scales at rest). It does the same
-under a digital app's TX strip, which shows the power and the SWR. With the
-TX panel off, the S-meter box shows the transmitter instead: PWR (0-10 W),
-SWR (1-5, yellow from 2, red from 3) and ALC (0-10, grey in CW, see
-[ALC in CW](#alc-in-cw)), each with its bar and its value. VISION shows the
-three values side by side, big, without bars. Black Metal and Total Black
-light their own scales: the S row becomes PO, 0 to 10 W, and the SWR and ALC
-rows get their bars. Back on receive the S-meter starts again from the next
-reading. Up to v0.3.8 the TX panel came up whatever that switch, and the box
-never showed the readings (issue #166).
+under a digital app's TX strip, which shows the power and the SWR, and during
+a [TUNE for an external tuner](#tune-for-an-external-tuner), which always
+brings up the panel. With the TX panel off, the S-meter box shows the
+transmitter instead: PWR (0-10 W), SWR (1-5, yellow from 2, red from 3) and
+ALC (0-10, grey in CW, see [ALC in CW](#alc-in-cw)), each with its bar and
+its value. VISION shows the three values side by side, big, without bars.
+Black Metal and Total Black light their own scales: the S row becomes PO, 0
+to 10 W, and the SWR and ALC rows get their bars. Back on receive the
+S-meter starts again from the next reading. Up to v0.3.8 the TX panel came
+up whatever that switch, and the box never showed the readings (issue
+#166).
 
 Per band S-meter calibration. Each band has its own correction, -40 to
 +40 dB in 1 dB steps; the value shown is the one of the band the radio is on.
@@ -970,8 +972,10 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
     frequency strip: the power, SWR and ALC big with their bars, the mode,
     the TX frequency and the time on the air; the S-meter says "TX". Off,
     the panel does not come up and the S-meter box shows the power, SWR and
-    ALC instead (see [S-meter](#s-meter)). The digital apps keep their TX
-    strip either way.
+    ALC instead (see [S-meter](#s-meter)), except for a
+    [TUNE for an external tuner](#tune-for-an-external-tuner): it always
+    brings up the panel, for its seconds against the limit. The digital apps
+    keep their TX strip either way.
 - Icon menus (on by default): the APP grid (see
   [Buttons and knobs](#buttons-and-knobs)), APP > Modes as tiles and icons on
   the Settings tabs; off, APP shows its button pages only, Modes a list and
@@ -1816,10 +1820,10 @@ What goes on the air:
   EXTERNAL TUNER > TUNE time limit, s: 5 to 30 s.
 - The TX panel (in an app the TX strip) shows TUNE, EXTERNAL TUNE and the
   frequency, the power, the SWR and the seconds against the limit ("4 / 15
-  s"). With the TX panel off (Popups Freq/Info/TX, see the
-  [Display tab](#display-tab)) the S-meter box shows the power and the SWR,
-  without the seconds. Stop it when the tuner's lights say it has matched:
-  nothing tells the radio that it has, so a low SWR does not stop it.
+  s"), also with the TX panel switched off (Popups Freq/Info/TX, see the
+  [Display tab](#display-tab)). Stop it when the tuner's lights say it has
+  matched: nothing tells the radio that it has, so a low SWR does not stop
+  it.
 
 After it everything is as it was: the frequency, the mode, the VFOs and
 split, PWR, the app and its TX offset, the band memories. It writes no

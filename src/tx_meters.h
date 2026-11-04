@@ -12,8 +12,8 @@
 #include <stdint.h>
 #include "lvgl/lvgl.h"
 
-/* The TX views: the panel under the frequency strip (Settings > Display > INTERFACE > Popups TX), the strip over
- * the digital apps. Returns the object that takes the TX and RX events */
+/* The TX views: the panel under the frequency strip (Settings > Display > INTERFACE > Popups TX, and every TUNE for
+ * an external tuner), the strip over the digital apps. Returns the object that takes the TX and RX events */
 lv_obj_t *tx_info_init(lv_obj_t *parent);
 
 /* At the TX event (LVGL thread): this TX's readings on the panel or the apps' strip; if not, the S-meter box shows

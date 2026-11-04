@@ -229,11 +229,12 @@ static bool digital_app_open(void) {
     return rtty_get_state() != RTTY_OFF;
 }
 
-/* This TX on the apps' strip, or on the panel with Settings > Display > INTERFACE > Popups TX on; else the S-meter
- * box shows the readings, once and not twice (#166). From the apps open and the setting, not from what is on screen:
- * the S-meter asks first (screen_main.c rx_tx_cb) */
+/* This TX on the apps' strip, or on the panel: with Settings > Display > INTERFACE > Popups TX on, and for a TUNE
+ * for an external tuner whatever the switch (its seconds against the limit, "4 / 15 s"; tune_len is set before it
+ * keys). Else the S-meter box shows the readings, once and not twice (#166). From the apps open, the setting and the
+ * tune, not from what is on screen: the S-meter asks first (screen_main.c rx_tx_cb) */
 bool tx_info_shown(void) {
-    return digital_app_open() || params.mag_alc.x;
+    return digital_app_open() || params.mag_alc.x || tune_len > 0.0f;
 }
 
 /* TX: the readings from zero, the strip or the panel (under the frequency strip), or neither: tx_info_shown().
