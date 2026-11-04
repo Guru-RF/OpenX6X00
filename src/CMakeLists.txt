@@ -61,7 +61,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     cw_tune_view.c adif.c qso_log.c scheduler.cpp
     wifi_window.c wifi.cpp btaudio.cpp bt_dev.c radio_controls.cpp
     usb_devices.cpp knob_info.cpp
-    wr12.c
+    wr12.c pa_bias.c
     dialog_wspr.c app_frame.c
     dialog_field.c
     dialog_bands.c

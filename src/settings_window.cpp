@@ -5043,6 +5043,11 @@ static void make_info_page() {
     row = info_row(row, "Project", "OpenX6X00 by RF.Guru");
     row = info_row(row, "Source", "github.com/Guru-RF/OpenX6X00");
     row = info_row(row, "Baseband", radio_base_ver_str());
+#ifdef BOARD_X6200
+    char bias[48];
+    radio_pa_bias_info(bias, sizeof(bias));
+    row = info_row(row, "PA bias", bias);
+#endif
     row = make_update(row);
     row = make_broadcast_list(row);
     row = make_factory_reset(row);

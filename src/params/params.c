@@ -54,15 +54,9 @@ params_t params = {
     .clock_tx_timeout       = 1,
 
     .charger                = { .x = 1, .min = 0, .max = 2, .name = "charger"},
-#ifdef BOARD_X6200
-    /* The X6200's PA bias as the OEM app writes it (0x0eec0d20: drive 3360, final 3820), as gdyuldin's X6200 GUI
-     * does; the X6100's 450/650 went to it before */
-    .bias_drive             = 3360,
-    .bias_final             = 3820,
-#else
+    /* The X6100's PA bias. The X6200 takes its base's own (pa_bias.c, #173) */
     .bias_drive             = 450,
     .bias_final             = 650,
-#endif
     .line_in                = 10,
     .line_out               = 10,
     .spmode                 = { .x = false,             .name = "spmode" },

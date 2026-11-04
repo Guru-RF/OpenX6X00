@@ -58,6 +58,7 @@
 #include "wifi.h"
 #include "settings_window.h"
 #include "wr12.h"
+#include "pa_bias.h"
 
 /*********************
  *      DEFINES
@@ -144,6 +145,7 @@ static void recover_processing_audio_inputs();
 static bool wr12_notify(void);
 static bool wr12_keyed(void);
 static void on_wr12_change(Subject *subj, void *user_data);
+static void pa_bias_send(void);
 #endif
 /* Who keys (tx_refused): the CW Trainer's key goes through outside the amateur bands, at 0 W, its PTT quietly not */
 typedef enum { TX_BY_GUI, TX_BY_PTT, TX_BY_MORSE } tx_by_t;
@@ -517,8 +519,12 @@ void radio_start() {
 
     charger_asked = params.charger.x == RADIO_CHARGER_ON;
     hw_set_i(HW_CHARGER, charger_asked);
+#ifdef BOARD_X6200
+    pa_bias_send();
+#else
     hw_set_i(HW_BIAS_DRIVE, params.bias_drive);
     hw_set_i(HW_BIAS_FINAL, params.bias_final);
+#endif
     hw_set_i(HW_SPMODE, params.spmode.x);
     hw_set_i(HW_LINE_IN, params.line_in);
     hw_set_i(HW_LINE_OUT, params.line_out);
@@ -1157,6 +1163,29 @@ int radio_cw_tone_dir(radio_mode_t mode) {
 const char *radio_base_ver_str(void) {
     return hw_base_ver_str();
 }
+
+#ifdef BOARD_X6200
+static pa_bias_t pa_bias;
+
+/* The PA bias of this radio's base, from its calibration block as it was before this run (pa_bias.c, #173), to the
+ * base and to the base log. Once: the library's copy of register 41 keeps it, and the keepalive and every resend of
+ * the register block (hw_resend_all) send that copy */
+static void pa_bias_send(void) {
+    size_t         len;
+    const uint8_t *block = hw_cal_block(&len);
+    char           line[160];
+
+    pa_bias = pa_bias_pick(block, len);
+    pa_bias_log_line(&pa_bias, line, sizeof(line));
+    base_guard_log("PA %s", line);
+    hw_set_i(HW_BIAS_DRIVE, pa_bias.drive);
+    hw_set_i(HW_BIAS_FINAL, pa_bias.final);
+}
+
+void radio_pa_bias_info(char *buf, size_t size) {
+    pa_bias_info(&pa_bias, buf, size);
+}
+#endif
 
 void radio_wifi_power(bool on) {
     hw_pin_set(HW_PIN_WIFI, on);

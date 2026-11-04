@@ -13,7 +13,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
-- [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw)
+- [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
@@ -1404,7 +1404,9 @@ keyed. The radio watches for it; there is nothing to set.
 ### Info tab
 
 The FIRMWARE card: the project, where its source is, the firmware version and
-the baseband version, then the broadcast list and the factory reset (below).
+the baseband version, on the X6200 the PA bias in use and where it came from
+("3326 / 3843, the radio's own", see [PA bias](#pa-bias-x6200)), then the
+broadcast list and the factory reset (below).
 
 Broadcast list, Update: the timetable of the broadcast stations (EiBi,
 eibispace.de) for the current season: A from the end of March to the end of
@@ -2058,6 +2060,44 @@ receiving and turns it on only when transmitting.
   > MICROPHONE), also in Walkie Talkie mode.
 - The recording keeps 250-3000 Hz, what SSB sends, without the radio's own
   hum and whistles.
+
+### PA bias (X6200)
+
+Each X6200's base has its own PA bias from the factory, one value for the
+driver and one for the final, in its calibration block. Xiegu's firmware
+reads them at the start and sends them to the base. The X6200 now does the
+same: at each start it reads the block before it sends anything to the base,
+and sends those values. Versions 0.3.4 to 0.3.8 sent 3360 / 3820 to every
+X6200, the values of another radio (issue #173). The X6100 sends its 450 /
+650 as before. There is no setting for it.
+
+Where to see it: Settings > Info > FIRMWARE > PA bias, and one line in the
+base log (`/mnt/base_i2c.log`) at each start:
+
+- "3326 / 3843, the radio's own" (log: "PA bias 3326/3843 (drive/final):
+  this radio's own, from the base's calibration block"). The numbers are
+  your radio's.
+- "3360 / 3820, own or an old version's" (log: "PA bias 3360/3820: either
+  this radio's own or left by an older version until the base loses
+  power"). The base keeps in the block the bias last sent to it, until it
+  loses power. After an older version ran, or Aether Radio's X6200 GUI, the
+  block shows 3360 / 3820 until then, and a radio whose own values are those
+  reads the same. To be sure, take the battery and the supply out for a
+  minute: at the next start the radio reads its own. Whether a normal
+  power-off with the battery in is enough is not known yet.
+- "3360 / 3820, fixed (base: N / M)" (log: "PA bias N/M in the base's
+  calibration block is out of range (drive 3024-3696, final 3438-4095): the
+  fixed 3360/3820 instead"). A value is taken from the block only within
+  10 % of 3360 (driver) and 3820 (final), and under 4096; the two X6200s
+  known are 1 % apart. If either is out, both go back to 3360 / 3820. The
+  X6100's 450 / 650, which versions before 0.3.4 sent to the X6200, land
+  here until the base loses power.
+- "3360 / 3820, fixed (not read)" (log: "PA bias: the base's calibration
+  block could not be read: the fixed 3360/3820 instead").
+
+The bias goes to the base once at the start. The radio sends its whole
+register block to the base every second and after a write error, the bias
+in it, so it stays until the radio software stops.
 
 ## Digital modes
 

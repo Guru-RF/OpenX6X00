@@ -58,6 +58,14 @@ void hw_start(void) {
     next_pack_ns = 0;
 }
 
+#ifdef BOARD_X6200
+/* No base, no block: the fixed bias */
+const uint8_t *hw_cal_block(size_t *len) {
+    *len = 0;
+    return NULL;
+}
+#endif
+
 radio_base_ver_t hw_base_ver(void) {
     return (radio_base_ver_t){0, 0, 0, 0};
 }
