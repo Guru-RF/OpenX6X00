@@ -36,12 +36,8 @@
 #ifdef BOARD_X6200
 #define BOARD_PWR_MAX       8.0f
 #define BOARD_PWR_MAX_BAT   5.0f
-#define BOARD_XVTR0_SHIFT   0           /* 2 m and 70 cm are the WR12's, to receive */
-#define BOARD_XVTR1_SHIFT   0
 #else
 #define BOARD_PWR_MAX       10.0f
-#define BOARD_XVTR0_SHIFT   116000000   /* 2 m, IF at 28 MHz */
-#define BOARD_XVTR1_SHIFT   404000000   /* 70 cm, IF at 28 MHz */
 #endif
 
 /* The rest of the radio's ranges. The same on the X6100 and the X6200; the settings manager reads them. */
