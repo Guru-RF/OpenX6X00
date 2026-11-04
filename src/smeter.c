@@ -57,7 +57,7 @@ static void keep_bool(Subject *subj, void *user_data) {
 }
 
 static void show_value(void *unused) {
-    if (in_tx) return;     /* "TX" stays */
+    if (in_tx) return;     /* TX: the value stays hidden, the TX readings are drawn */
     if (!theme_shape.vision) {
         lv_label_set_text_fmt(db_val_label, "%.1f", meter_db_raw);
     } else if (meter_db_raw < S9 + 1) {   /* 6 dB a unit */

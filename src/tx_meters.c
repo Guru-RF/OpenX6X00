@@ -40,7 +40,7 @@ static float         pwr, vswr, alc;
 static uint8_t       msg_id;          /* one more with each reading (tx_info_refresh()) */
 static radio_mode_t  cur_mode;        /* followed from the first mode change on */
 
-static lv_obj_t     *obj;        /* "TX" in the S-meter box */
+static lv_obj_t     *obj;        /* carries the TX and RX events, never shown */
 static lv_obj_t     *panel;      /* big TX panel under the top bars */
 static lv_obj_t     *head_label;
 static lv_obj_t     *time_label;
