@@ -1426,8 +1426,10 @@ static void kbd_ptt_let_go(const char *why) {
 static void kbd_ptt_tick_cb(lv_timer_t *t) {
     backlight_tick();   /* on the air with no key held: the screen stays lit, TX in view */
     switch (kbd_ptt_tick(&kbd_ptt, radio_get_ptt(), radio_get_state() != RADIO_RX, radio_no_data(), get_time())) {
-        case KBD_PTT_ENDED:     /* let go another way, which says why (the SWR, outside the bands) */
+        case KBD_PTT_ENDED:     /* let go another way, which says why (the SWR, outside the bands), or not (the PTT
+                                 * key, CAT, TCI): after it, that the next chord keys and does not let go */
             kbd_ptt_off();
+            msg_schedule_text_fmt("PTT off: CapsLock+Space for on");
             break;
         case KBD_PTT_LET_GO:
             kbd_ptt_let_go("PTT off: not on the air");

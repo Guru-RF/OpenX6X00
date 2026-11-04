@@ -280,7 +280,8 @@ on the air does not keep the radio there. While it is on the screen stays
 lit.
 
 - It follows the radio. Let go another way (the PTT key, the SWR
-  protection, CAT), the next CapsLock+Space keys again.
+  protection, CAT), the next CapsLock+Space keys again: the screen says
+  `PTT off: CapsLock+Space for on`, after what ended it says why.
 - A press where the radio may not transmit keys nothing ("No TX on ...").
   A key that has not got the radio on the air after 2 s, or a radio back on
   receive by itself, is let go: `PTT off: not on the air`.
