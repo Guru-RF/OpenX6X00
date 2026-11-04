@@ -115,7 +115,9 @@ without a key, and the waterfall shows down to the bottom of the screen.
 - Any key brings them back: a front key, a hand mic key, a keyboard key. It
   also does its usual job (GEN goes to its next page, ATU switches the
   tuner), except F1-F5: their press only brings the buttons back, so a
-  button you can't see is never pressed. Press it again to use it.
+  button you can't see is never pressed. Press it again to use it. F1-F5
+  from a browser (the Panel's Keys tab, the Screen page) are the same: the
+  first press only brings the radio's buttons back.
 - The main knob tunes and the buttons stay hidden. VOL and the MFK, turned
   or pressed, leave them hidden too: their control and value show on the
   message line, as with Knob info off. While the buttons show, a turn or a
