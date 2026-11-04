@@ -124,6 +124,7 @@ static void modes_of_spots(void) {
         {144300000, "FM", CLUSTER_MODE_FM},       {29600000, "", CLUSTER_MODE_FM},
         {50313000, "", CLUSTER_MODE_DIGI},        {50150000, "", CLUSTER_MODE_USB},
         {14025000, "", CLUSTER_MODE_CW},          {7150000, "", CLUSTER_MODE_LSB},
+        {14200000, "OLIVIA 8/250", CLUSTER_MODE_DIGI}, {14200000, "CONTESTIA 4/250", CLUSTER_MODE_DIGI},
     };
     static const char *names[] = {"CW", "LSB", "USB", "DIGI", "AM", "FM"};
     char what[96];
