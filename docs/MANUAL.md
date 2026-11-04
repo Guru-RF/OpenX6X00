@@ -1202,34 +1202,34 @@ are settings, with the figures measured on one radio as defaults.
 | Attenuator | 0 to 40 dB (X6200: 0 to 60 dB, one for each band) | 15 dB (X6200: by band, below) |
 | RF gain, a step | 0.00 to 2.00 dB | 0.60 dB |
 
-On the X6200 the attenuator takes much more off, and how much depends on
-the band: two radios showed about 51 to 53 dB on 80 m, 29 to 36 dB on 40 m,
-34 to 43 dB on 20 m and 32 to 40 dB on 10 m. So there the row is
-"Attenuator on this band": each band keeps its own value, and the slider and
-Measure set the band the radio is on. Those are the bands of the band list:
-40 m CW and 40 m SSB are two, and so are 20 m CW and SSB, and a broadcast
-band is one of its own, so Measure on a broadcast carrier at 7.3 MHz sets
-Broadcast 41m, not 40 m. When it is done, Measure names the band it set. A
-band never set starts from the two radios' figures for the nearest of 80,
-40, 20 and 10 m:
+On the X6200 the attenuator takes much more off, and how much depends on the
+band and on the radio: two radios showed about 40 and 51 dB on 80 m and 29
+and 40 dB on 40 m, and one of them 34 dB on 20 m and 32 dB on 10 m. So there
+the row is "Attenuator on this band": each band keeps its own value, and the
+slider and Measure set the band the radio is on. Those are the bands of the
+band list: 40 m CW and 40 m SSB are two, and so are 20 m CW and SSB, and a
+broadcast band is one of its own, so Measure on a broadcast carrier at
+7.3 MHz sets Broadcast 41m, not 40 m. When it is done, Measure names the
+band it set. A band never set starts from the mean of those figures for the
+nearest of 80, 40, 20 and 10 m:
 
 | X6200 bands | Attenuator |
 |---|---|
-| 160 m, 80 m, the 75 m and 60 m broadcast bands (under 5 MHz) | 52 dB |
-| 60 m, 40 m, the 49 m to 31 m broadcast bands (5 to 10 MHz) | 33 dB |
-| 30 m, 20 m, 17 m, the 25 m to 15 m broadcast bands (10 to 20 MHz) | 39 dB |
-| 15 m and up (over 20 MHz) | 36 dB |
+| 160 m, 80 m, the 75 m and 60 m broadcast bands (under 5 MHz) | 46 dB |
+| 60 m, 40 m, the 49 m to 31 m broadcast bands (5 to 10 MHz) | 35 dB |
+| 30 m, 20 m, 17 m, the 25 m to 15 m broadcast bands (10 to 20 MHz) | 34 dB |
+| 15 m and up (over 20 MHz) | 32 dB |
 
 Outside the bands (medium wave, the 120 m and 90 m broadcast bands, the gaps
-between the bands) all frequencies share one value, which starts at 33 dB.
+between the bands) all frequencies share one value, which starts at 35 dB.
 
-On the X6200 the one attenuator value of v0.3.8 and before (15 dB, or
-what the slider or Measure set) is not used any more: it fit one band at
-most. Every band starts from the table above until you set it or press
-Measure on it. That old value stays stored as it was, so an older version
-finds it again if you go back. The X6100 keeps its one value. The preamp is
-one value for every band, on both radios, and a preamp value set before
-stays.
+On the X6200 the one attenuator value of v0.3.8 and before (15 dB, or what
+the slider or Measure set) is not used any more: it fit one band at most.
+Every band starts from the table above until you set it or press Measure on
+it, and a band set keeps its value, also when a later version changes the
+table. That old value stays stored as it was, so an older version finds it
+again if you go back. The X6100 keeps its one value. The preamp is one value
+for every band, on both radios, and a preamp value set before stays.
 
 The meter on the screen, the browser Panel and TCI's `rx_smeter` show the
 same reading, with these corrections in.
@@ -1243,8 +1243,9 @@ Measure sets them for your radio, since preamps differ a little. Feed a
 steady carrier, from a signal generator (around -73 dBm, S9) or a strong
 broadcast station, so the meter reads between S5 and S9+20 (on the X6200
 from about S9 to S9+20: feed about -55 dBm, S9+18, from a generator. With
-its 30 to 50 dB of attenuator on, a carrier at S9 sinks into the noise and
-the reading wanders: "Not steady"), and press Measure.
+its 30 to 50 dB of attenuator on, a weaker carrier comes close to the
+radio's own noise and the reading can wander: "Not steady"), and press
+Measure.
 For about 12 s the radio reads its meter with everything off, then with PRE
 on, with ATT on, and with the RF gain at 40, a second and a half each, and
 moves the three settings by what was left over. PRE, ATT and the RF gain go

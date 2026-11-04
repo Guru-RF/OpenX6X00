@@ -189,8 +189,8 @@ static float gauss(void) {
     return r * cosf(2.0f * (float)M_PI * u2);
 }
 
-/* What PRE and ATT do to the stream: twice and half the level, or HOST_STUB_FE in dB ("16,52": a preamp of 16 dB
- * and an attenuator of 52 dB, an X6200 on 80 m in #125), for the S-meter's corrections and their Measure */
+/* What PRE and ATT do to the stream: twice and half the level, or HOST_STUB_FE in dB ("16,51": a preamp of 16 dB
+ * and an attenuator of 51 dB, an X6200 on 80 m in #125), for the S-meter's corrections and their Measure */
 static float front_end_gain(bool pre, bool att) {
     static float pre_gain = -1.0f, att_gain = 0.5f;
 
