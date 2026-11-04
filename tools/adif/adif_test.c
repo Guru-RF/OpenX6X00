@@ -1,15 +1,16 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  Host test of the FT8 app's log (src/adif.c, issue #174): an FT8, FT4, FT2 or JS8 QSO goes into ft_log.adi as the
- *  same record the day's log has for it (src/field/flog.c, through dialog_field_day_log), the log the web
- *  configurator's Logs page lists and exports. Before, the two wrote the same QSO in two ways (TIME_ON 1802 and
- *  180259, BAND 40M and 40m, FREQ 7.0740 and 7.074000, empty fields), and LoTW given both files took it for two
- *  QSOs. The record of #174's QSO is the one the Logs page exported for it; ft_log.adi reads back (adif_read, the
+ *  Host test of the FT8 app's log (src/adif.c, issue #174): an FT8, FT4 or FT2 QSO goes into ft_log.adi as the same
+ *  record the day's log has for it (src/field/flog.c, through dialog_field_day_log), the log the web configurator's
+ *  Logs page lists and exports. A JS8 QSO goes through the same formatter here, though the radio logs it in
+ *  js8call_log.adi and the day's log, never in ft_log.adi. Before, the two wrote the same QSO in two ways (TIME_ON
+ *  1802 and 180259, BAND 40M and 40m, FREQ 7.0740 and 7.074000, empty fields), and LoTW given both files took it for
+ *  two QSOs. The record of #174's QSO is the one the Logs page exported for it; ft_log.adi reads back (adif_read, the
  *  import's reader) with its seconds. Both files start with the same header (field_adif_header): a line naming the
- *  log, ADIF 3.1.8, PROGRAMID OpenX6X00 and the firmware's version (X6100_FW, as the GUI sets it), where
- *  ft_log.adi had PROGRAMVERSION 1.0.0 and ADIF_VER 3.14 and started with a tag (no header, to ADIF). An
- *  ft_log.adi the older firmware started goes on with the new records, and reads back whole.
+ *  log, ADIF 3.1.8, PROGRAMID OpenX6X00 and the firmware's version (X6100_FW, as the GUI sets it), where ft_log.adi
+ *  had PROGRAMVERSION 1.0.0 and ADIF_VER 3.14 and started with a tag (no header, to ADIF). An ft_log.adi the older
+ *  firmware started goes on with the new records, and reads back whole.
  */
 
 #include "adif.h"
@@ -91,7 +92,8 @@ static void issue_qso(void) {
     }
 }
 
-/* The QSOs of each app, on HF and 6 m: the same record in ft_log.adi and the day's log, without empty fields */
+/* The QSOs of each app, on HF and 6 m: the same record in ft_log.adi and the day's log, without empty fields (JS8
+ * for the formatter only: on the radio it never reaches ft_log.adi) */
 static void both_logs(void) {
     const qso_log_record_t qsos[] = {
         qso("EA5KDD", T174, MODE_FT8, 2, -6, 7074000, "IN81"),
