@@ -64,7 +64,7 @@ body:
     id: power
     attributes:
       label: Power and antenna
-      description: "An external supply or the battery; an antenna, a tuner or a dummy load. For a transmit problem, what the TX panel shows (PWR, SWR, ALC), and what an external wattmeter shows if you have one."
+      description: "An external supply or the battery; an antenna, a tuner or a dummy load. For a transmit problem, what the TX panel or the S-meter box shows while transmitting (PWR, SWR, ALC), and what an external wattmeter shows if you have one."
   - type: textarea
     id: logs
     attributes:

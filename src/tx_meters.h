@@ -16,7 +16,11 @@
  * the digital apps. Returns the object that takes the TX and RX events */
 lv_obj_t *tx_info_init(lv_obj_t *parent);
 
-/* The S-meter box while transmitting (not the deck's scales): power, SWR and ALC */
+/* At the TX event (LVGL thread): this TX's readings on the panel or the apps' strip; if not, the S-meter box shows
+ * them (#166) */
+bool tx_info_shown(void);
+
+/* The S-meter box while transmitting with neither up (not the deck's scales): power, SWR and ALC */
 void tx_meters_draw(lv_obj_t *box, lv_draw_ctx_t *draw_ctx);
 
 /* A reading from the base (any thread): power in W, SWR, ALC as the base sends it */

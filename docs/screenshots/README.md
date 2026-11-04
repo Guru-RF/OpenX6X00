@@ -24,7 +24,3 @@ Volts: the battery's and the supply's voltage), `swr_scan_2500.png` (the 2500 kH
 (TUNE for an external tuner at 10 W); and from the web configurator in Firefox, `web_display_bootpic.png` (the
 Boot picture card) and `web_logs_textlog.png` (the keyboard modes' text log). The other shots still show the button text of v0.3.7 (every theme has
 one button text size since v0.3.8): they are taken again on the X6200 on an antenna.
-
-`tune_ext.png` still shows the S-meter of v0.3.8 while transmitting, the needle at rest with "TX" on it. After v0.3.8
-the box shows the power, SWR and ALC there instead (issue #166), so this shot is to be taken again with the next
-release's shots.

@@ -31,7 +31,8 @@ static float            noise_level = S_MIN;    /* the bars under it stay grey *
 
 static float            meter_peak = S1;
 static int64_t          peak_ms;                /* when the peak was set */
-static bool             in_tx;        /* TX: no reading from the receiver, the TX readings instead, framed red */
+static bool             in_tx;        /* TX: no reading from the receiver, framed red */
+static bool             tx_readings;  /* TX with neither the TX panel nor the apps' strip: their readings here (#166) */
 
 /* PRE and ATT shift the reading (by the settings cfg_smeter_pre / cfg_smeter_att, measured or
  * from Settings > TX Cal > S-METER > Measure; the X6200's attenuator figure is the band's) and the
@@ -57,7 +58,7 @@ static void keep_bool(Subject *subj, void *user_data) {
 }
 
 static void show_value(void *unused) {
-    if (in_tx) return;     /* TX: the value stays hidden, the TX readings are drawn */
+    if (in_tx) return;     /* TX: "TX" stays, or the value stays hidden and the TX readings are drawn */
     if (!theme_shape.vision) {
         lv_label_set_text_fmt(db_val_label, "%.1f", meter_db_raw);
     } else if (meter_db_raw < S9 + 1) {   /* 6 dB a unit */
@@ -354,8 +355,19 @@ void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     lv_draw_line(draw_ctx, &line_dsc, &c, &tip);
 }
 
-/* Deck: S, SWR and ALC scales stacked, a thin segmented bar under the S numbers; while transmitting the S row
- * is PO, 0 to 10 W, and the three rows have their bars (#166) */
+/* TX with the TX panel or the apps' strip up: the whole box veiled red */
+static void tx_veil(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
+    lv_draw_rect_dsc_t dsc;
+
+    lv_draw_rect_dsc_init(&dsc);
+    dsc.bg_color = TC(err);
+    dsc.bg_opa   = LV_OPA_30;
+    dsc.radius   = lv_obj_get_style_radius(o, LV_PART_MAIN);
+    lv_draw_rect(draw_ctx, &dsc, &o->coords);
+}
+
+/* Deck: S, SWR and ALC scales stacked, a thin segmented bar under the S numbers; with the TX readings in the box
+ * the S row is PO, 0 to 10 W, and the three rows have their bars (#166) */
 static void label_at(lv_draw_ctx_t *draw_ctx, lv_draw_label_dsc_t *dsc, lv_coord_t cx, lv_coord_t y, const char *txt,
                      bool left) {
     lv_point_t sz;
@@ -374,9 +386,9 @@ static lv_coord_t deck_x(float db) {   /* S1 at 58, S9 at 154, +40 at 233 */
     return db <= S9 ? 58 + (db - S1) * 2 : 154 + (db - S9) * 79 / (S9_40 - S9);
 }
 
-/* Deck, transmitting: segments as the S row's under each scale, lit up to the reading: the power (0 at 58, 10 W
- * at 233), the SWR (1 at 58, 5 at 258; yellow from 2, red from 3, below 2 in the web Display page's SWR colour
- * when one is set) and the ALC (0 at 60, 10 at 260) */
+/* Deck, the TX readings in the box: segments as the S row's under each scale, lit up to the reading: the power (0
+ * at 58, 10 W at 233), the SWR (1 at 58, 5 at 258; yellow from 2, red from 3, below 2 in the web Display page's SWR
+ * colour when one is set) and the ALC (0 at 60, 10 at 260) */
 static void deck_tx_bars(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     float              pwr, swr, alc;
     bool               alc_grey;
@@ -423,11 +435,11 @@ static void deck_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     char                     txt[4];
     bool                     alc_grey = false;
 
-    if (in_tx) tx_info_get_alc(&alc_grey);
+    if (tx_readings) tx_info_get_alc(&alc_grey);
     lv_draw_label_dsc_init(&dsc);
     dsc.font  = &sony_20;
     dsc.color = TC(text);
-    if (in_tx) {
+    if (tx_readings) {
         label_at(draw_ctx, &dsc, x0 + 14, y0 + 17, "PO", true);
         for (int i = 0; i <= 5; i++) {
             snprintf(txt, sizeof(txt), "%d", i * 2);
@@ -440,7 +452,7 @@ static void deck_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
         label_at(draw_ctx, &dsc, x0 + 193, y0 + 4, "+20", false);
         label_at(draw_ctx, &dsc, x0 + 233, y0 + 4, "+40", false);
     }
-    dsc.color = in_tx ? TC(text) : TC(text_mute);   /* SWR and ALC lit while transmitting, ALC grey in CW */
+    dsc.color = tx_readings ? TC(text) : TC(text_mute);   /* SWR and ALC lit with the TX readings, ALC grey in CW */
     label_at(draw_ctx, &dsc, x0 + 14, y0 + 47, "SWR", true);
     for (int i = 0; i < 5; i++) label_at(draw_ctx, &dsc, x0 + 58 + i * 50, y0 + 35, swr[i], false);
     if (alc_grey) dsc.color = TC(text_mute);
@@ -449,7 +461,7 @@ static void deck_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
         snprintf(txt, sizeof(txt), "%d", i * 2);
         label_at(draw_ctx, &dsc, x0 + 60 + i * 40, y0 + 65, txt, false);
     }
-    if (in_tx) {
+    if (tx_readings) {
         deck_tx_bars(obj, draw_ctx);
         return;
     }
@@ -585,25 +597,35 @@ static void meter_draw_cb(lv_event_t *e) {
         deck_draw(o, draw_ctx);
         return;
     }
-    if (in_tx) tx_meters_draw(o, draw_ctx);
+    if (tx_readings) tx_meters_draw(o, draw_ctx);
     else if (theme_shape.mono) bars_draw_mono(o, draw_ctx);
     else if (needle_on()) meter_needle_draw(o, draw_ctx);
     else bars_draw(o, draw_ctx);
+    if (in_tx && !tx_readings) tx_veil(o, draw_ctx);
 }
 
-/* TX: the receiver gives no reading, so the box shows the power, SWR and ALC, framed red, its value hidden (the
- * TX panel, when Settings has it, shows them big: #166).
- * RX: the value again, the frame of the style, blank until the next reading: with no data from the base (#152, a
- * tune given up for it) "TX" stayed on the meter in receive */
+/* TX: the receiver gives no reading; the box framed red. With the TX panel or the apps' strip up (tx_info_shown(),
+ * they show the readings big) the reading at rest and "TX" in red in place of the value, as up to v0.3.8; with
+ * neither, the box shows the power, SWR and ALC, its value hidden (#166).
+ * RX: the value in its own colour again, the frame of the style, blank until the next reading: with no data from
+ * the base (#152, a tune given up for it) "TX" stayed on the meter in receive */
 static void radio_cb(lv_event_t *e) {
     in_tx = lv_event_get_code(e) == EVENT_RADIO_TX;
+    tx_readings = in_tx && !tx_info_shown();
     if (in_tx) {
         meter_db = meter_db_raw = meter_peak = S1;
-        lv_obj_add_flag(db_val_label, LV_OBJ_FLAG_HIDDEN);
+        if (tx_readings) {
+            lv_obj_add_flag(db_val_label, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_label_set_text(db_val_label, "TX");
+            lv_obj_set_style_text_color(db_val_label, TC(err), 0);
+        }
         lv_obj_set_style_border_color(obj, TC(err), 0);
         lv_obj_set_style_border_width(obj, 5, 0);
     } else {
         lv_label_set_text(db_val_label, "");
+        lv_obj_set_style_text_color(db_val_label, TC(text), 0);
+        db_label_place();
         if (!theme_shape.deck) lv_obj_clear_flag(db_val_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_local_style_prop(obj, LV_STYLE_BORDER_COLOR, 0);
         lv_obj_remove_local_style_prop(obj, LV_STYLE_BORDER_WIDTH, 0);
@@ -612,7 +634,7 @@ static void radio_cb(lv_event_t *e) {
 }
 
 void meter_tx_redraw(void) {
-    if (in_tx && obj) lv_obj_invalidate(obj);
+    if (tx_readings && obj) lv_obj_invalidate(obj);
 }
 
 lv_obj_t *meter_init(lv_obj_t *parent) {

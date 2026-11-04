@@ -576,17 +576,20 @@ Display page).
 The VISION theme always uses bars.
 
 While transmitting. The receiver gives no reading while the radio transmits,
-on both radios, so the S-meter box shows the transmitter instead, framed
-red: PWR (0-10 W), SWR (1-5, yellow from 2, red from 3) and ALC (0-10, grey
-in CW, see [ALC in CW](#alc-in-cw)), each with its bar and its value. VISION
-shows the three values side by side, big, without bars. Black Metal and
-Total Black light their own scales: the S row becomes PO, 0 to 10 W, and the
-SWR and ALC rows get their bars. Back on receive the S-meter starts again
-from the next reading. The TX panel shows the same readings big, when
-Settings > Display > INTERFACE > Popups Freq/Info/TX has TX on (see the
-[Display tab](#display-tab)). Up to v0.3.8 the S-meter said "TX" (Black
-Metal and Total Black: the scales at rest, their SWR and ALC never lit), and
-the TX panel came up whatever that setting (issue #166).
+on both radios, and the S-meter box is framed red. With the TX panel on
+(Settings > Display > INTERFACE > Popups Freq/Info/TX, the TX switch, on by
+default; see the [Display tab](#display-tab)) the panel shows the power, SWR
+and ALC big, and the S-meter stays at rest with "TX" in red in place of its
+value (Black Metal and Total Black: their scales at rest). It does the same
+under a digital app's TX strip, which shows the power and the SWR. With the
+TX panel off, the S-meter box shows the transmitter instead: PWR (0-10 W),
+SWR (1-5, yellow from 2, red from 3) and ALC (0-10, grey in CW, see
+[ALC in CW](#alc-in-cw)), each with its bar and its value. VISION shows the
+three values side by side, big, without bars. Black Metal and Total Black
+light their own scales: the S row becomes PO, 0 to 10 W, and the SWR and ALC
+rows get their bars. Back on receive the S-meter starts again from the next
+reading. Up to v0.3.8 the TX panel came up whatever that switch, and the box
+never showed the readings (issue #166).
 
 Per band S-meter calibration. Each band has its own correction, -40 to
 +40 dB in 1 dB steps; the value shown is the one of the band the radio is on.
@@ -965,9 +968,10 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
     key switches the VFO, split, the AGC, PRE, ATT or the ATU.
   - TX (on by default): the TX panel while transmitting, under the
     frequency strip: the power, SWR and ALC big with their bars, the mode,
-    the TX frequency and the time on the air. Off, the panel does not come
-    up; the S-meter box shows the power, SWR and ALC in any case (see
-    [S-meter](#s-meter)). The digital apps keep their TX strip either way.
+    the TX frequency and the time on the air; the S-meter says "TX". Off,
+    the panel does not come up and the S-meter box shows the power, SWR and
+    ALC instead (see [S-meter](#s-meter)). The digital apps keep their TX
+    strip either way.
 - Icon menus (on by default): the APP grid (see
   [Buttons and knobs](#buttons-and-knobs)), APP > Modes as tiles and icons on
   the Settings tabs; off, APP shows its button pages only, Modes a list and

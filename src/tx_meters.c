@@ -229,8 +229,15 @@ static bool digital_app_open(void) {
     return rtty_get_state() != RTTY_OFF;
 }
 
-/* TX: the readings from zero, the strip or the panel (under the frequency strip), the panel only with Settings >
- * Display > INTERFACE > Popups TX on: the S-meter box shows the readings in any case (#166). RX: all hidden */
+/* This TX on the apps' strip, or on the panel with Settings > Display > INTERFACE > Popups TX on; else the S-meter
+ * box shows the readings, once and not twice (#166). From the apps open and the setting, not from what is on screen:
+ * the S-meter asks first (screen_main.c rx_tx_cb) */
+bool tx_info_shown(void) {
+    return digital_app_open() || params.mag_alc.x;
+}
+
+/* TX: the readings from zero, the strip or the panel (under the frequency strip), or neither: tx_info_shown().
+ * RX: all hidden */
 static void radio_cb(lv_event_t *e) {
     if (lv_event_get_code(e) == EVENT_RADIO_RX) {
         lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
@@ -246,7 +253,7 @@ static void radio_cb(lv_event_t *e) {
         lv_obj_clear_flag(strip, LV_OBJ_FLAG_HIDDEN);
         return;
     }
-    if (!params.mag_alc.x) return;
+    if (!tx_info_shown()) return;   /* the S-meter box has them */
     /* Framed red for TX. VISION: under the S-meter row; deck: under the frequency panel, off its S/SWR/ALC scales */
     lv_obj_set_y(panel, theme_shape.deck ? FREQ_STRIP_Y + FREQ_STRIP_H + 8 : DIALOG_Y + 8 + METER_ROW_H);
     update_head();
