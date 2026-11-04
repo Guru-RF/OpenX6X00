@@ -84,3 +84,12 @@ kbd_hyper_use_t kbd_hyper_key(kbd_hyper_t *h, uint16_t code, int state, kbd_hype
     h->chord = true;
     return HYPER_CHORD;
 }
+
+void kbd_hyper_sync(kbd_hyper_t *h, const unsigned long down[KBD_HYPER_LONGS]) {
+    if (!(down[KEY_CAPSLOCK / LONG_BITS] & (1UL << (KEY_CAPSLOCK % LONG_BITS)))) {
+        h->held = false;
+    }
+    for (size_t i = 0; i < KBD_HYPER_LONGS; i++) {
+        h->taken[i] &= down[i];
+    }
+}

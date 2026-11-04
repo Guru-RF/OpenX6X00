@@ -8,7 +8,8 @@
  *  The table: L log a QSO, K the dial lock, P a screenshot, S Settings, F the frequency box, Up and Down the band,
  *  Space PTT, 1-8 the CW messages and JTTY's macros; the other keys (the F keys, PgUp and PgDn too) do nothing with
  *  it. Keys pressed before CapsLock, and Shift, Ctrl, Alt and Meta, go through. A key with no chord pressed first
- *  while CapsLock is down is fast typing over a tap: Caps Lock turns and the key types.
+ *  while CapsLock is down is fast typing over a tap: Caps Lock turns and the key types. Events lost to a full queue
+ *  (SYN_DROPPED, kbd_hyper_sync): a key up since is let go, CapsLock's release lost leaves no hold behind.
  */
 
 #include "kbd_hyper.h"
@@ -115,6 +116,18 @@ static out_t run(kbd_hyper_t *h, const char *events) {
         }
     }
     return o;
+}
+
+/* kbd_hyper_sync with these keys down (characters of keys[]), as key_input.c gives it after SYN_DROPPED */
+static void sync_down(kbd_hyper_t *h, const char *down) {
+    unsigned long bits[KBD_HYPER_LONGS] = {0};
+
+    for (const char *p = down; *p; p++) {
+        uint16_t code = code_of(*p);
+
+        bits[code / (8 * sizeof(long))] |= 1UL << (code % (8 * sizeof(long)));
+    }
+    kbd_hyper_sync(h, bits);
 }
 
 static void expect(const char *events, const char *typed, int caps, const char *chords, const char *what) {
@@ -246,6 +259,34 @@ int main(void) {
     kbd_hyper_t h = {0};
     out_t       a = run(&h, "+C +l"), b = run(&h, "-l -C +a -a");
     check(!strcmp(a.chords, "L") && !b.caps && !strcmp(b.typed, "+a-a"), "a chord over two reads of the keyboard");
+
+    /* Events lost (SYN_DROPPED): what went up meanwhile is let go, a press lost starts nothing */
+    h = (kbd_hyper_t){0};
+    a = run(&h, "+C +s");
+    sync_down(&h, "");
+    b = run(&h, "+_ -_ +a -a");
+    check(!strcmp(a.chords, "S") && !strcmp(b.typed, "+_-_+a-a") && !b.chords[0] && !b.caps,
+          "CapsLock's and S's releases lost: Space and a type, no PTT, no Caps Lock");
+    check(!h.held, "CapsLock's release lost: no hold after the sync");
+    h = (kbd_hyper_t){0};
+    run(&h, "+C +s -C");
+    sync_down(&h, "");
+    b = run(&h, "+s -s");
+    check(!strcmp(b.typed, "+s-s"), "S's release lost: its next press types");
+    h = (kbd_hyper_t){0};
+    run(&h, "+C +s");
+    sync_down(&h, "Cs");
+    b = run(&h, "*s -s +p -p -C");
+    check(!b.typed[0] && !strcmp(b.chords, "P") && !b.caps, "nothing lost up (CapsLock and S down): the hold goes on");
+    h = (kbd_hyper_t){0};
+    sync_down(&h, "C");
+    b = run(&h, "+p -p -C");
+    check(!strcmp(b.typed, "+p-p") && !b.chords[0] && !b.caps, "CapsLock's press lost: no hold, P types");
+    h = (kbd_hyper_t){0};
+    run(&h, "+C +x");
+    sync_down(&h, "Cx");
+    b = run(&h, "-x -C");
+    check(!strcmp(b.typed, "-x") && !b.caps, "a tap typed over, then a sync: as before");
 
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;

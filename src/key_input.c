@@ -125,12 +125,36 @@ static void keyboard_gone(void) {
     main_screen_keyboard_gone();
 }
 
+/* The kernel's queue of the keyboard's events overflowed (64 of them, a second of one key's repeat while the GUI is
+ * busy) and the events in it are gone, a release among them maybe: CapsLock's left it held for good (every key a
+ * chord, Space PTT on the main screen), LVGL's key's left it pressed. The keys down are read back: what went up
+ * meanwhile is let go. True with LVGL's key's release in *scancode, *key and *state */
+static bool resync(uint16_t *scancode, uint32_t *key, int *state) {
+    unsigned long down[KBD_HYPER_LONGS] = {0};     /* a failed read: all up, no hold and no key held */
+
+    ioctl(evdev_fd, EVIOCGKEY(sizeof(down)), down);
+    kbd_hyper_sync(&hyper, down);
+    if (!kbd_keys.down || BIT_SET(down, kbd_keys.code)) {
+        return false;
+    }
+    *scancode = kbd_keys.code;
+    *key      = kbd_keys.key;
+    *state    = 0;
+    return true;
+}
+
 /* Key events of the keyboard, the character from xkb (layout and Shift) */
 static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state) {
     struct input_event ev;
     ssize_t            n;
 
     while ((n = read(evdev_fd, &ev, sizeof(ev))) > 0) {
+        if (ev.type == EV_SYN && ev.code == SYN_DROPPED) {
+            if (resync(scancode, key, state)) {
+                return true;
+            }
+            continue;
+        }
         if (ev.type != EV_KEY) {
             continue;
         }

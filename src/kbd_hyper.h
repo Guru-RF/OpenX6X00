@@ -7,8 +7,9 @@
  *  the others in kbd_hyper.c's table. A chord's keys are never typed, and CapsLock held for a chord leaves Caps
  *  Lock as it was. CapsLock tapped alone, no key pressed while it was down, is Caps Lock as before; it turns
  *  when the tap ends. A key with no chord pressed first while it is down is typing that overlaps the tap (the key
- *  down before CapsLock is up): Caps Lock turns then, and the key types. Shift, Ctrl, Alt and the Meta keys go through as usual while it is held. Here only what
- *  each key event becomes, from the scancodes: key_input.c does it.
+ *  down before CapsLock is up): Caps Lock turns then, and the key types. Shift, Ctrl, Alt and the Meta keys go
+ *  through as usual while it is held. Here only what each key event becomes, from the scancodes: key_input.c does
+ *  it.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -54,14 +55,21 @@ typedef enum {
     HYPER_CHORD,        /* a key down while CapsLock is held: its action, the key dropped */
 } kbd_hyper_use_t;
 
+#define KBD_HYPER_LONGS ((KEY_CNT + 8 * sizeof(long) - 1) / (8 * sizeof(long)))     /* a bit for each key */
+
 typedef struct kbd_hyper {
-    bool          held;     /* CapsLock down */
-    bool          chord;    /* a key went down while it was: no Caps Lock at its release */
-    unsigned long taken[(KEY_CNT + 8 * sizeof(long) - 1) / (8 * sizeof(long))];   /* chord keys still down */
+    bool          held;                     /* CapsLock down */
+    bool          chord;                    /* a key went down while it was: no Caps Lock at its release */
+    unsigned long taken[KBD_HYPER_LONGS];   /* chord keys still down */
 } kbd_hyper_t;
 
 /* One evdev key event (state 0 up, 1 down, 2 auto-repeat). HYPER_CHORD gives the chord's action in *action */
 kbd_hyper_use_t kbd_hyper_key(kbd_hyper_t *h, uint16_t code, int state, kbd_hyper_action_t *action);
+
+/* Key events were lost (the kernel's queue full: SYN_DROPPED). down: the keys down now, as EVIOCGKEY gives them. A key
+ * up since counts as let go: CapsLock's release lost no longer holds it (every key a chord until it was pressed
+ * again), a chord key's no longer drops that key's next press. A press lost starts nothing: no chord, no hold */
+void kbd_hyper_sync(kbd_hyper_t *h, const unsigned long down[KBD_HYPER_LONGS]);
 
 /* The action of CapsLock + the key with this scancode, HYPER_NONE when it has none */
 kbd_hyper_action_t kbd_hyper_action(uint16_t code);
