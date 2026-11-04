@@ -171,7 +171,8 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     free and ticked; a 30 s key; the PA's linearity on the full-speed OFDM levels (PAPR 8-9 dB) at up to 7 W and
     the shared digital level on XARA's frames (drive-db 0). The CW ID with an ON call at each session's end, heard
     whole on a receiver; the station that did not end the link keys about 3 s silent first, waiting out the other's
-    ID: what the GUI's level loop (tx_level, which sees no power then) does with the level after it.
+    ID: tx_level takes no readings in silence nor in the 0.75 s after it (tools/txlevel), so on the X6100
+    ft8_output_gain_offset should read the same before and after a session the other station ends with its ID.
   - **Then on the air**: yo4cil against his own gateway (YO4CIL, VARA and ARDOP on 4 bands), free speed first; a
     test build announced on #120 first.
   - **Upstream**: 0002 is prepared as a patch for x0rro/xara's main with a PR text (not sent yet); drop 0002 once

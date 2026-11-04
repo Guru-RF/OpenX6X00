@@ -129,8 +129,10 @@ identify (code 3, or 46 without); it sends its ID right after it (in the same ke
 waits out that ID, keyed and silent, for 9 to 12 blank words (`QRT_CWID_BLANKS`, about 3 s), then sends its own. On
 the radio the ID is XARA's audio like any other: T messages between a P 1 and its P 0 on the GUI's socket, keyed by
 the GUI only after its checks (`src/winlink.c`, `tx_refused`, `tx_off_freq`, `swr_held`), played through `tx_player`
-at the radio's power and digital level, and stopped by `tx_abort` like any key. The GUI's level loop sees the silent
-wait as a key with no power for those 3 s: one for the bench (TODO.md).
+at the radio's power and digital level, and stopped by `tx_abort` like any key. The silent wait does not move that
+level: the GUI's level loop (`tx_level.c`) takes no readings in whole blocks of zeros nor in the 0.75 s of audio
+after them. Before it did, and each such key took the level all the digital apps share up by 1-2 dB (`tools/txlevel`:
+on a model X6100 towards where the ALC reads 3, on a model X6200 to the codec's top).
 
 `make modems` shows it: with ON4AAA and ON4BBB at the free speed both stations identify (the last keys 4.1 and
 5.9 s, played whole), as with N0AAA and N0BBB at full speed; A's call before any Pat, whose host sent no `CWID

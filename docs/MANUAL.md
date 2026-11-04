@@ -1986,6 +1986,10 @@ WeFax) set their audio level by themselves.
 - In the first second or so of a transmission nothing changes. Then, while
   the ALC reads under 1, the level goes up slowly and stops there; when the
   ALC goes over 3 or the power is well over the setting, it comes down.
+- Silence in a transmission changes nothing either: no power then is not a
+  level too low. [XARA](#xara-experimental) keeps the radio keyed and silent
+  for about 3 s while it waits out the other station's CW ID. The readings
+  count again about 0.75 s after the audio is back.
 - The level found is kept for the next transmission. Not from a WSPR beacon,
   which has its own power (0.2 W by default): its level would pull the one
   FT8 starts from down.
@@ -4429,9 +4433,9 @@ gives.
   the end of its last transmission. When the other station ended the link,
   the radio first waits out that station's ID, keyed and silent (about 3 s),
   then sends its own. The ID is part of a key like the rest of XARA's audio:
-  the radio's checks, power and level hold for it. XARA 0.1.3 itself sends
-  one only with a US callsign (such as K1ABC or N0AAA); ours with any, a
-  European one too.
+  the radio's checks and power hold for it, and the silent wait leaves the
+  TX level as it was. XARA 0.1.3 itself sends one only with a US callsign
+  (such as K1ABC or N0AAA); ours with any, a European one too.
 
 The radio calls; it does not answer calls. XARA starts with listening off,
 and on the radio Pat never turns it on (P2P listening stays off, as with

@@ -197,6 +197,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     size_t  played = 0;             /* samples played */
     float   pwr = 0.0f, alc = 0.0f; /* the last reading */
     bool    have = false;           /* not yet given to tx_level */
+    bool    quiet = false;          /* only zeros played since tx_level's last block (tx_level.c: no readings then) */
 
     static pthread_t watch;
     if (!watch && pthread_create(&watch, NULL, stall_watch, NULL) == 0) pthread_detach(watch);
@@ -210,10 +211,11 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
         /* one more each time the audio has gone into a new block: with whole blocks each pass, the short last one
          * too, as before */
         if ((size_t)level.blocks <= (played + BLOCK_SAMPLES - 1) / BLOCK_SAMPLES) {
-            drive = keep_in_range(drive + tx_level_block(&level, have, pwr, alc), top);
+            drive = keep_in_range(drive + tx_level_block(&level, !quiet, have, pwr, alc), top);
             have = false;
+            quiet = true;
         }
-        if (fresh && level.blocks > TX_LEVEL_SETTLE_BLOCKS) {
+        if (fresh && tx_level_counts(&level)) {
             peak_w = LV_MAX(peak_w, pwr);
             peak_alc = LV_MAX(peak_alc, alc);
             reads++;
@@ -222,6 +224,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
         size_t n = fill(block, BLOCK_SAMPLES, fill_ctx);
 
         if (n == 0) break;
+        for (size_t i = 0; quiet && i < n; i++) quiet = block[i] == 0;
         /* the app's stop, or the modem dropped by the SWR protection (radio.c) */
         stopped = (abort && abort(abort_ctx)) || !radio_get_modem();
         if (stopped) break;

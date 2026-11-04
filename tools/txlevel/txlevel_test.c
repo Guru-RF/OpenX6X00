@@ -1,8 +1,8 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - host test of the digital apps' TX level on the X6200 (src/tx_player.c, src/tx_level.c, #126 #123 #16);
- *  see the Makefile.
+ *  OpenX6X00 - host test of the digital apps' TX level on the X6200 (src/tx_player.c, src/tx_level.c, #126 #123 #16),
+ *  and an X6100's with XARA's keys (#120); see the Makefile.
  *
  *  The base: a model X6200 behind the real tx_player.c and tx_level.c. What it is driven with is the audio played, the
  *  samples' gain and the codec's (the X6200's AIF1 DA0: -120 to +24 dB in 0.75 dB steps, its output cut at full
@@ -10,9 +10,11 @@
  *  once). From its knee up the base holds the power at the setting itself; under it the power falls with the drive.
  *  After the key it comes up at most so fast (PR #140: from 0 in 0.1 W steps after each move); the band, the antenna
  *  or the supply may give less than the setting; its readings come 20 a second (2.5 in some scenarios), the power in
- *  whole tenths cut off, with noise; the ALC as the scenario reads it (the X6200's reads about 0 whatever the drive).
- *  Each scenario sends FT8 transmissions of 12.64 s in a row, the learned level carried from one to the next as on
- *  the radio. The clock is the test's own, moved on by the audio played.
+ *  whole tenths cut off, with noise; the ALC as the scenario reads it (the X6200's reads about 0 whatever the drive),
+ *  or an X6100's, which follows the drive from the knee up; the readings at once or a little late. Each scenario sends
+ *  FT8 transmissions of 12.64 s in a row, or XARA's keys that wait out the other station's CW ID in silence first, the
+ *  learned level carried from one to the next as on the radio. The clock is the test's own, moved on by the audio
+ *  played.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -101,6 +103,9 @@ typedef struct {
     float       start_db;   /* the learned level the first transmission starts from */
     int         txs;        /* transmissions in a row */
     int         read_every; /* a reading every this many 50 ms, 0 as 1 (20 a second): fewer, and their noise shows */
+    float       quiet_s;    /* each key this long in silence, then 2.6 s of audio (XARA after the other's QRT), 0 FT8 */
+    float       alc_db;     /* an X6100: its ALC follows the drive, this much a dB over the knee; 0 the X6200's */
+    float       lag_s;      /* the readings show the base this long before (the audio queued, the base's own lag) */
 } scenario_t;
 
 static const scenario_t *sc;
@@ -161,7 +166,7 @@ void radio_set_pwr(float w) {
 }
 
 uint32_t radio_caps(void) {
-    return HW_CAP_TX_LEVEL | HW_CAP_TX_NO_ALC;
+    return sc->alc_db > 0.0f ? HW_CAP_TX_LEVEL : HW_CAP_TX_LEVEL | HW_CAP_TX_NO_ALC;
 }
 
 unsigned radio_band_stops(void) {
@@ -194,11 +199,18 @@ void audio_gain_db_transition(int16_t *buf, size_t n, float g1, float g2, int16_
 #define TONE_AMP    (32767.0f * 0.8f)
 #define DEFAULT_RMS (TONE_AMP / sqrtf(2.0f) * powf(10.0f, -9.4f / 20.0f))
 
+/* The drive of the last 3.2 s, a 50 ms tick each, for readings that come late */
+#define DRIVE_HIST 64
+
+static float    drive_hist[DRIVE_HIST];
+static unsigned drive_ticks;
+
 /* One reading of the base: what it puts out for the drive, after the key, at the band's top */
 static void base_reading(void) {
-    float s   = (atomic_load(&virt_ns) - base.key_ns) / 1e9f;
-    float set = base.pwr > 0.0f ? base.pwr : setting;
-    float p   = base.drive_db >= sc->knee_db ? set : set * powf(10.0f, (base.drive_db - sc->knee_db) / 10.0f);
+    float s     = (atomic_load(&virt_ns) - base.key_ns) / 1e9f;
+    float set   = base.pwr > 0.0f ? base.pwr : setting;
+    float drive = drive_hist[(drive_ticks - 1 - (unsigned)lrintf(sc->lag_s / 0.05f)) % DRIVE_HIST];
+    float p     = drive >= sc->knee_db ? set : set * powf(10.0f, (drive - sc->knee_db) / 10.0f);
 
     if (sc->reach_w > 0.0f && p > sc->reach_w) p = sc->reach_w;
     if (sc->ramp_w_s > 0.0f) p = fminf(p, floorf(s * sc->ramp_w_s * 10.0f) / 10.0f);
@@ -206,6 +218,7 @@ static void base_reading(void) {
     p += sc->noise_w * (2.0f * rnd01() - 1.0f);
     reading_pwr = p > 0.0f ? floorf(p * 10.0f + 1e-4f) / 10.0f : 0.0f;
     reading_alc = sc->alc_share > 0.0f && rnd01() < sc->alc_share ? sc->alc : 0.0f;
+    if (sc->alc_db > 0.0f) reading_alc = fminf(10.0f, fmaxf(reading_alc, (drive - sc->knee_db) * sc->alc_db));
     reading_id++;
 
     if (s >= 2.0f && tx.at2 < 0.0f) tx.at2 = reading_pwr;
@@ -256,6 +269,7 @@ int audio_play(int16_t *buf, size_t n) {
     while (carry_ns >= 50000000ULL) {
         carry_ns -= 50000000ULL;
         atomic_fetch_add(&virt_ns, 50000000ULL);
+        drive_hist[drive_ticks++ % DRIVE_HIST] = base.drive_db;
         if (base.modem && ++ticks % (unsigned)(sc->read_every > 0 ? sc->read_every : 1) == 0) base_reading();
         if (base.modem && stop_at_s > 0.0f && (atomic_load(&virt_ns) - base.key_ns) / 1e9f >= stop_at_s) {
             band_stops++;       /* as band_stop: the count, then the modem bit */
@@ -274,11 +288,26 @@ void audio_play_wait(void) {
 
 static int16_t ft8[FT8_SAMPLES];
 
-/* One FT8 transmission; the base starts from 0 W, as after each move */
+/* XARA's key after the other station's QRT (code 3): keyed in silence while that station identifies (9 to 12 blank
+ * words, 2.7-3.6 s), then its own CW ID, here 2.6 s of tone */
+#define ID_SAMPLES (AUDIO_PLAY_RATE * 26 / 10)
+
+static int16_t idkey[AUDIO_PLAY_RATE * 4 + ID_SAMPLES];
+
+/* One FT8 transmission, or one such key; the base starts from 0 W, as after each move */
 static void send(void) {
     tx = (typeof(tx)){.at2 = -1.0f, .min = 99.0f, .top_drive = -99.0f};
     base.drive_db = -99.0f;
-    tx_player_play(ft8, FT8_SAMPLES, 1325, tx_player_base_gain_offset(), NULL, NULL);
+    for (int i = 0; i < DRIVE_HIST; i++) drive_hist[i] = -99.0f;
+    if (sc->quiet_s > 0.0f) {
+        uint32_t quiet = (uint32_t)(sc->quiet_s * AUDIO_PLAY_RATE);
+
+        memset(idkey, 0, quiet * sizeof(int16_t));
+        memcpy(idkey + quiet, ft8, ID_SAMPLES * sizeof(int16_t));
+        tx_player_play(idkey, quiet + ID_SAMPLES, 1325, tx_player_base_gain_offset(), NULL, NULL);
+    } else {
+        tx_player_play(ft8, FT8_SAMPLES, 1325, tx_player_base_gain_offset(), NULL, NULL);
+    }
     atomic_fetch_add(&virt_ns, 2360000000ULL);      /* the rest of the slot */
 }
 
@@ -362,7 +391,7 @@ int main(int argc, char **argv) {
 
     result_t r;
 
-    printf("The X6200's level across FT8 transmissions\n");
+    printf("The level across transmissions: FT8 on the X6200, then an X6100, and XARA's keys with silence\n");
     r = run(&bench, verbose);
     check(r.first_at2 >= 6.9f && r.lowest >= 6.9f, "%s: %.1f W from the first, never under %.1f W", bench.name,
           r.first_at2, r.lowest);
@@ -436,6 +465,37 @@ int main(int argc, char **argv) {
     r = run(&needy_reach, verbose);
     check(r.level_end >= 3.0f && r.level_end <= 4.5f && r.short_txs <= 1, "%s: the level %.1f dB, %d short",
           needy_reach.name, r.level_end, r.short_txs);
+
+    /* An X6100's ALC follows the drive: the level settles where it reads about 1 */
+    static const scenario_t x6100 = {.name = "an X6100 (its ALC 0.6 a dB over the knee), 5 W", .pwr = 5.0f,
+                                     .knee_db = -6.0f, .start_db = -8.0f, .txs = 10, .alc_db = 0.6f};
+    r = run(&x6100, verbose);
+    check(r.level_end >= -4.75f && r.level_end <= -3.5f && r.short_txs <= 1, "%s: the level %.1f dB, ALC about 1, "
+          "%d short", x6100.name, r.level_end, r.short_txs);
+
+    /* XARA's keys after the other station's QRT: the silence before its CW ID is not a power short of the setting.
+     * It moved the level up 0.5 dB a window, kept for every app: on the X6100 towards where the ALC reads 3, on the
+     * X6200 to the codec's top. The readings come half a second late */
+    static const scenario_t id_x6100 = {.name = "the same, XARA's keys with 3 s of silence before the CW ID",
+                                        .pwr = 5.0f, .knee_db = -6.0f, .start_db = -4.0f, .txs = 30, .quiet_s = 3.0f,
+                                        .alc_db = 0.6f, .lag_s = 0.5f};
+    r = run(&id_x6100, verbose);
+    check(r.level_top <= -3.5f && r.level_end >= -4.5f, "%s: the level %.1f dB after %d, at most %.1f dB",
+          id_x6100.name, r.level_end, id_x6100.txs, r.level_top);
+
+    /* Their audio still counts: from 2.5 dB under, they bring the level up to where the ALC reads about 1 */
+    static const scenario_t id_low = {.name = "the same, from 2.5 dB under", .pwr = 5.0f, .knee_db = -6.0f,
+                                      .start_db = -6.5f, .txs = 30, .quiet_s = 3.0f, .alc_db = 0.6f, .lag_s = 0.5f};
+    r = run(&id_low, verbose);
+    check(r.level_end >= -4.75f && r.level_end <= -3.5f, "%s: the level %.1f dB after %d", id_low.name, r.level_end,
+          id_low.txs);
+
+    static const scenario_t id_x6200 = {.name = "the bench X6200, XARA's keys with 3.6 s of silence before the CW ID",
+                                        .pwr = 7.0f, .knee_db = -6.0f, .ramp_w_s = 7.0f, .txs = 30, .quiet_s = 3.6f,
+                                        .lag_s = 0.5f};
+    r = run(&id_x6200, verbose);
+    check(r.level_top <= 0.5f && r.level_end >= -0.5f, "%s: the level %.1f dB after %d, at most %.1f dB",
+          id_x6200.name, r.level_end, id_x6200.txs, r.level_top);
 
     printf("TXLEVEL %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;

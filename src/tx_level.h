@@ -19,9 +19,10 @@
  *  work) or the power reads over the setting (a base whose ALC does not
  *  hold it). Overdrive (ALC over 3) brings it down a little. The level
  *  found is kept (tx_player.c), so the next transmission starts there and
- *  stays steady. Pure arithmetic: tests/test_js8.cpp runs it against a
- *  model radio, tools/txlevel against a model X6200 (power_hold: its ALC
- *  left out, no step while its power still comes up after the key).
+ *  stays steady. Silence in a key gives it no readings (below). Pure
+ *  arithmetic: tests/test_js8.cpp runs it against a model radio,
+ *  tools/txlevel against a model X6200 (power_hold: its ALC left out, no
+ *  step while its power still comes up after the key) and a model X6100.
  */
 
 #pragma once
@@ -42,6 +43,9 @@ extern "C" {
 #define TX_LEVEL_UP_MAX_DB     8.0f  /* the most it ramps up in one transmission */
 #define TX_LEVEL_PWR_STEP_W    0.1f  /* the radio's power reading resolution */
 #define TX_LEVEL_TRIAL_DB      0.5f  /* power_hold: the steps up judged together, from this much */
+/* After a block of silence, this many blocks of sound (about 0.75 s) before a reading counts again: the readings lag
+ * the audio (its queue, the base's 2.5 readings a second) */
+#define TX_LEVEL_QUIET_BLOCKS  16
 
 typedef struct {
     float target_w; /* the power asked for */
@@ -59,13 +63,17 @@ typedef struct {
     float trial_p;    /* power_hold: the power before the steps up on trial, and the climb then */
     float trial_db;
     float up_db;    /* ramped up so far this transmission */
+    int   sound;    /* blocks of sound in a row, since the start or the last block of silence */
 } tx_level_t;
 
 void tx_level_start(tx_level_t *l, float target_w);
 
-/* One block played; `have` a new reading (power in W, ALC 0-10). Returns
- * the gain change to make now, in dB. */
-float tx_level_block(tx_level_t *l, bool have, float pwr_w, float alc);
+/* One block played; `sound` its audio not all zeros, `have` a new reading
+ * (power in W, ALC 0-10). Returns the gain change to make now, in dB. */
+float tx_level_block(tx_level_t *l, bool sound, bool have, float pwr_w, float alc);
+
+/* A reading now counts: the PA settled, and no silence in the last TX_LEVEL_QUIET_BLOCKS */
+bool tx_level_counts(const tx_level_t *l);
 
 #ifdef __cplusplus
 }
