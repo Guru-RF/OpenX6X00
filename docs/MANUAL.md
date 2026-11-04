@@ -2093,7 +2093,8 @@ base log (`/mnt/base_i2c.log`) at each start:
   X6100's 450 / 650, which versions before 0.3.4 sent to the X6200, land
   here until the base loses power.
 - "3360 / 3820, fixed (not read)" (log: "PA bias: the base's calibration
-  block could not be read: the fixed 3360/3820 instead").
+  block could not be read: the fixed 3360/3820 instead"). The radio tries
+  the read three times before it gives up.
 
 The bias goes to the base once at the start. The radio sends its whole
 register block to the base every second and after a write error, the bias

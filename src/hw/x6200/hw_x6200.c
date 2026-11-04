@@ -171,10 +171,13 @@ static bool base_read(int fd, uint16_t reg, uint8_t *buf, uint16_t len) {
  * nobody; a patch for that would need a new card image, as an update brings the GUI and not the library. So it is
  * read here first, on a descriptor of its own, as the library reads it: nothing else talks to the base yet (the
  * radio thread starts later), and the kernel does each transfer whole. It waits for the base as the library would,
- * a minute at most; the library then waits on by itself */
+ * a minute at most; the library then waits on by itself. The read gets the writes' tries (x6200_control_cmd above):
+ * one failed transfer would leave this run on the fixed bias, and the base would keep that in the block for every
+ * later start until it loses power */
 static void cal_block_read(void) {
     int     fd = open(BASE_I2C, O_RDWR);
     uint8_t ready = 0;
+    int     fails = 0;
 
     if (fd < 0) {
         fprintf(stderr, "hw_x6200: calibration block: %s: %s\n", BASE_I2C, strerror(errno));
@@ -183,9 +186,15 @@ static void cal_block_read(void) {
     for (int i = 0; i < BASE_WAIT_S && !(base_read(fd, BASE_READY, &ready, 1) && ready); i++) {
         sleep(1);
     }
-    cal_read = ready && base_read(fd, BASE_CAL, cal, sizeof(cal));
-    if (!cal_read) {
-        fprintf(stderr, "hw_x6200: calibration block not read (base %s)\n", ready ? "ready" : "not ready");
+    while (ready && !(cal_read = base_read(fd, BASE_CAL, cal, sizeof(cal))) && ++fails < TRIES) {
+        usleep(RETRY_US);
+    }
+    if (!ready) {
+        fprintf(stderr, "hw_x6200: calibration block not read (base not ready)\n");
+    } else if (!cal_read) {
+        fprintf(stderr, "hw_x6200: calibration block not read (%d tries)\n", TRIES);
+    } else if (fails) {
+        fprintf(stderr, "hw_x6200: calibration block read at try %d\n", fails + 1);
     }
     close(fd);
 }
