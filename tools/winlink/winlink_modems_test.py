@@ -402,11 +402,28 @@ def xara_station(procs, tmp, name, call, port, xara, air_in, air_out, registered
     return h, x, log
 
 
+def xara_client(port, timeout=3):
+    """A client on XARA's command port. XARA takes one at a time: while it has one its port listens for no other, and
+    it listens again only once it sees that one gone, so a client right after another can be refused. Tried again"""
+    got = []
+
+    def once():
+        try:
+            got.append(socket.create_connection(("127.0.0.1", port), timeout=5))
+            return True
+        except ConnectionRefusedError:
+            return False
+
+    if not wait_for(once, timeout):
+        fail(f"XARA took no client on 127.0.0.1:{port} in {timeout} s")
+    return got[0]
+
+
 def unanswered_call(ha, hb, la, lb, port_a, call_a, call_b):
     """A's XARA calls B's, which x6100-winlink started and no Pat has used: B does not answer and does not key, so a
     radio left with Winlink on does not transmit for whoever calls it. Our patch starts XARA with listening off on
     the radio; Pat sends LISTEN ON only to listen, which it never does there"""
-    c = socket.create_connection(("127.0.0.1", port_a), timeout=5)
+    c = xara_client(port_a)     # right after the VERSION client
     c.sendall(f"CONNECT {call_a} {call_b}\r".encode())
     check(wait_for(lambda: len(played(ha)) >= 3, 40),
           f"A's XARA called {call_b}, which has no Pat: {len(played(ha))} calls")
