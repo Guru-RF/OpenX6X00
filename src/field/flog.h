@@ -21,7 +21,7 @@ typedef struct {
     time_t  t;
     char    call[16];
     int32_t freq_hz;
-    char    mode[8];    /* CW, SSB, AM, FM, FT8, FT4, JS8, PSK31, OLIVIA, JTTY, RTTY...; "" not known. One that
+    char    mode[16];   /* CW, SSB, AM, FM, FT8, FT4, JS8, PSK31, OLIVIA, CONTESTI, JTTY, RTTY...; "" not known. One that
                          * ADIF has as a SUBMODE (FT4, PSK31, JTTY) goes in under its MODE (field_adif_record) */
     char    rst_s[4], rst_r[4];
     char    name[48], qth[48], grid[8], country[32];   /* the other station, from a logbook lookup; "" unknown */

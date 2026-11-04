@@ -161,7 +161,7 @@ static time_t      spot_armed_at;
  * or another mode) once we transmitted there and stayed QSY_SETTLE_S (field/qsy.c) */
 static lv_timer_t *qsy_timer;
 static int32_t     spot_hz;      /* where the last spot said we are */
-static char        spot_mode[8];
+static char        spot_mode[16];      /* as field_qso_t.mode */
 static field_qsy_t qsy;
 
 /* The programmes */

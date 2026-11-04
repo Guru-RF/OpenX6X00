@@ -7,9 +7,11 @@
  *  country's two letters and four or five digits: 1,181 of llota.app's lakes (LLAR, LLTR, LLFR, LLBR, LLPR, LLGR,
  *  LLCR) end their prefix in R as the towers do, the others have a park's shape. The web configurator's Logs page
  *  tells them apart the same way (webserver apps.py ref_prog; docs/audit/repro-2026-10-24/log_checks.py).
+ *  And a mode name as long as Contestia's ADIF CONTESTI kept whole in the record and when the log is read (#154).
  */
 
 #include "field/flog.h"
+#include "radio_types.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -104,10 +106,31 @@ static void records(void) {
     }
 }
 
+/* A mode name of 8 characters, Contestia's CONTESTI, is kept whole in the record and when the log is read back
+ * (#154) */
+static void modes(void) {
+    const char     *path = "field_refs_test.adi";
+    field_station_t sta  = {.call = "SQ9SZ", .grid = "JO90", .prog = 'P', .ref = "US-1234"};
+    field_qso_t     q    = {.t = 1793000000, .call = "SP9ABC", .freq_hz = 14072500, .rst_s = "599", .rst_r = "579"};
+    field_qso_t     back[2];
+    char            rec[768];
+
+    snprintf(q.mode, sizeof(q.mode), "%s", field_qso_mode("Contestia", radio_mode_usb, q.freq_hz));
+    check(!strcmp(q.mode, "CONTESTI"), "Contestia's QSO: mode not CONTESTI");
+    field_adif_record(rec, sizeof(rec), &q, &sta);
+    check(strstr(rec, "<MODE:8>CONTESTI ") != NULL, "Contestia's record: no <MODE:8>CONTESTI");
+    remove(path);
+    check(field_log_add(path, &q, &sta), "Contestia's QSO: not logged");
+    check(field_log_read(path, back, LEN(back)) == 1 && !strcmp(back[0].mode, "CONTESTI"),
+          "Contestia's QSO read back: mode not CONTESTI");
+    remove(path);
+}
+
 int main(void) {
     programmes();
     tags();
     records();
+    modes();
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;
 }

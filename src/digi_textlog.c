@@ -42,7 +42,7 @@ typedef struct {
     bool     msg;                   /* a message (digi_textlog_msg) rather than the stream */
     bool     tx;                    /* sent */
     uint32_t id;
-    char     mode[16];
+    char     mode[24];              /* as dialog_olivia.c log_mode(): CONTESTIA-32/1000 */
     uint32_t freq;
     time_t   start, last;
     unsigned seq;                   /* when it last grew, in updates: the order of the messages */

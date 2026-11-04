@@ -196,6 +196,19 @@ int main(void) {
     check(has(t, "14.072500 OLIVIA-8/250 RX Q64% RYRY\n") && has(t, "14.071000 PSK31 RX Q88% NEXT\n"),
           "another mode's text ends the open line");
 
+    /* Contestia's longest names (dialog_olivia.c log_mode()) in a block's few characters at a time, as the Olivia
+     * window hands them over: one line, not a line a block (#154) */
+    fake_now += 60;
+    digi_textlog_rx("CONTESTIA-32/1000", 14072500, DIGI_TEXTLOG_SIG_Q, 70, "CQ CQ");
+    digi_textlog_rx("CONTESTIA-32/1000", 14072500, DIGI_TEXTLOG_SIG_Q, 70, " DE O");
+    digi_textlog_rx("CONTESTIA-32/1000", 14072500, DIGI_TEXTLOG_SIG_Q, 70, "N6URE\n");
+    digi_textlog_tx("CONTESTIA-16/1000", 14072500, "ON6URE DE PA3XYZ\n");
+    digi_textlog_drain();
+    t = day("2026-10-31");
+    check(has(t, "14.072500 CONTESTIA-32/1000 RX Q70% CQ CQ DE ON6URE\n") &&
+              has(t, "14.072500 CONTESTIA-16/1000 TX - ON6URE DE PA3XYZ\n"),
+          "a mode name of 17 characters is kept whole, and its blocks make one line");
+
     fake_now += 60;
     {
         char long_text[451];
@@ -264,7 +277,7 @@ int main(void) {
     t = day("2026-10-31");
     check(has(t, "2026-10-31 14:30:00Z 14.090850 JTTY RX -12dB CQ PA3XYZ JO21\n") && !strstr(t, "JTTY RX -10dB CQ\n"),
           "a message is written once, whole, when it is complete; S/N averaged over its frames");
-    check(!strstr(t, "TEST"), "the other message, still growing, is not written yet");
+    check(!strstr(t, "JTTY RX -5dB TEST"), "the other message, still growing, is not written yet");
     fake_now += DIGI_TEXTLOG_PAUSE_S;
     digi_textlog_drain();
     check(has(day("2026-10-31"), "2026-10-31 14:30:00Z 14.091400 JTTY RX -5dB TEST\n"),
