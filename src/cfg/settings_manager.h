@@ -87,22 +87,22 @@ class SettingsManager {
     // clang-format off
     Parameter<int32_t> p_volume{"vol", 30, 0, BOARD_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, [this](float v) { return clip(v, 0.1f, pwr_top()); },
+    Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, [this](float v) { return clip(v, BOARD_PWR_MIN, pwr_top()); },
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     // The PWR a transverter's limit took down (pwr_xvtr_set), W, 0 none: it comes back off the transverter, after a
     // restart on it too
     Parameter<float, int32_t, 10> p_pwr_xvtr_held{"pwr_xvtr_held", 0.0f, 0.0f, BOARD_PWR_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_squelch{"sql", 0, 0, 100,
+    Parameter<int32_t> p_squelch{"sql", 0, 0, BOARD_SQL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_rfgain{"rfgain", 63, 0, 100,
+    Parameter<int32_t> p_rfgain{"rfgain", 63, 0, BOARD_RFG_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_wefax_align{"wefax_align", 0, -1300, 1300, StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_wefax_tilt{"wefax_tilt", 0, -400, 400, StorageType::GLOBAL, pending_writes_, &global_params_};
 
-    Parameter<int32_t> p_rit{"rit", 0, -1500, 1500,
+    Parameter<int32_t> p_rit{"rit", 0, -BOARD_RIT_MAX, BOARD_RIT_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_xit{"xit", 0, -1500, 1500,
+    Parameter<int32_t> p_xit{"xit", 0, -BOARD_XIT_MAX, BOARD_XIT_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // Current band id, persisted in the global `params` table (mirrors the
     // legacy cfg.band_id). Restored at init_load to pick the starting band;
@@ -112,9 +112,9 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     Parameter<int32_t> p_mic{"mic", radio_mic_auto, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_hmic{"hmic", 20, 0, 50,
+    Parameter<int32_t> p_hmic{"hmic", 20, 0, BOARD_MIC_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_imic{"imic", 30, 0, 50,
+    Parameter<int32_t> p_imic{"imic", 30, 0, BOARD_MIC_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     /* The TX monitor off on both radios: at 30 the microphone took the monitor back into the transmission,
      * a loud ringing on PTT in SSB on the X6200 (issue #15), and a feedback loop from the X6100's speaker
@@ -363,7 +363,7 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // TUNE for an external tuner (ext_tune.h): its power, W (tune_tx.h's range: up to the PWR top, #87), and its time
     // limit, s
-    Parameter<float, int32_t, 10> p_tune_pwr{"tune_pwr", 1.0f, 0.1f, BOARD_PWR_MAX,
+    Parameter<float, int32_t, 10> p_tune_pwr{"tune_pwr", 1.0f, BOARD_PWR_MIN, BOARD_PWR_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_tune_time{"tune_time", 15, 5, 30,
         StorageType::GLOBAL, pending_writes_, &global_params_};
@@ -431,9 +431,9 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_nb{"nb", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_nb_level{"nb_level", 10, 0, 100,
+    Parameter<int32_t> p_nb_level{"nb_level", 10, 0, BOARD_NB_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_nb_width{"nb_width", 10, 0, 100,
+    Parameter<int32_t> p_nb_width{"nb_width", 10, 0, BOARD_NB_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_nr{"nr", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
@@ -564,7 +564,7 @@ class SettingsManager {
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
     Parameter<int32_t> p_transverter_0_to{"to", 150'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
-    Parameter<int32_t> p_transverter_0_shift{"shift", HAS_VHF_RX ? 0 : 116'000'000, 0, 500'000'000,
+    Parameter<int32_t> p_transverter_0_shift{"shift", BOARD_XVTR0_SHIFT, 0, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
     Parameter<float, int32_t, 10> p_transverter_0_pwr{"pwr_max", 0.0f, 0.0f, BOARD_PWR_MAX,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 0};
@@ -573,7 +573,7 @@ class SettingsManager {
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
     Parameter<int32_t> p_transverter_1_to{"to", 438'000'000, 70'000'000, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
-    Parameter<int32_t> p_transverter_1_shift{"shift", HAS_VHF_RX ? 0 : 404'000'000, 0, 500'000'000,
+    Parameter<int32_t> p_transverter_1_shift{"shift", BOARD_XVTR1_SHIFT, 0, 500'000'000,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
     Parameter<float, int32_t, 10> p_transverter_1_pwr{"pwr_max", 0.0f, 0.0f, BOARD_PWR_MAX,
         StorageType::TRANSVERTER, pending_writes_, nullptr, 1};
@@ -676,10 +676,10 @@ class SettingsManager {
     // and not -1, which load() and flush_storage() take for "the bound one" and "any"
     static constexpr int MODE_ALL = 100;
 
-    // Hardware-usable frequency range limits (in Hz). HF is the native
+    // Hardware-usable frequency range (Hz), from board.h. HF is the native
     // 0.1-55 MHz band; anything above must be covered by a transverter.
-    static constexpr int32_t HF_MIN_FREQ = 100'000;     /* upstream f6c97fa */
-    static constexpr int32_t HF_MAX_FREQ = 55'000'000;
+    static constexpr int32_t HF_MIN_FREQ = BOARD_HF_MIN_HZ;
+    static constexpr int32_t HF_MAX_FREQ = BOARD_HF_MAX_HZ;
     // The X6200 also receives FM broadcast (88-108 MHz, wide FM) and the airband (108-136 MHz, AM), as its
     // specification and the OEM firmware have it; receive only (issue #9)
     static constexpr int32_t VHF_RX_MIN_FREQ = 87'500'000;
