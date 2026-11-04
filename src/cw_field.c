@@ -177,7 +177,9 @@ static bool log_cancel(void) {
 void cw_field_log_open(void) {
     main_screen_keys_enable(false);
     textarea_window_open_w_label(log_ok, log_cancel, "Call [sent [rcvd]]: ");
-    if (*panel_last_call()) {                   /* the last call the decoder wrote, ready to log */
+    /* The last call the decoder wrote, ready to log, while its text is on the screen: a hidden panel keeps its text,
+     * and in SSB after CW the box had the CW decoder's last call in it */
+    if (panel_shown() && *panel_last_call()) {
         char line[24];
         snprintf(line, sizeof(line), "%s ", panel_last_call());
         textarea_window_set(line);

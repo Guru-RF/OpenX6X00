@@ -315,7 +315,9 @@ reads CW 1:2, then F5), opens a one-line box near the top,
 - Type the call, then the report you sent and the one you received, and
   press Enter: `F4ABC 59 57`. A report left out is 59, 599 in CW. Esc
   closes the box without logging. Field Ops' Log QSO takes the same order.
-- In CW the call the decoder confirmed last is in the box already.
+- In CW with the decoder's text on the screen (and in RTTY) the call it
+  confirmed last is in the box already. Not in SSB after CW: the call heard
+  in CW stays out.
 - The radio says `QSO logged: F4ABC 59 57 SSB`. The QSO goes into the day's
   log, `/mnt/field/logs/YYYYMMDD.adi` (a file a UTC day), with the time, the
   radio's frequency and its mode (SSB in USB and LSB), never into a Field
