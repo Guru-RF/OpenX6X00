@@ -970,9 +970,10 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
     key switches the VFO, split, the AGC, PRE, ATT or the ATU.
   - TX (on by default): the TX panel while transmitting, under the
     frequency strip: the power, SWR and ALC big with their bars, the mode,
-    the TX frequency and the time on the air; the S-meter says "TX". Off,
-    the panel does not come up and the S-meter box shows the power, SWR and
-    ALC instead (see [S-meter](#s-meter)), except for a
+    the TX frequency and the time on the air; the S-meter rests with "TX"
+    (Black Metal and Total Black: their scales at rest). Off, the panel
+    does not come up and the S-meter box shows the power, SWR and ALC
+    instead (see [S-meter](#s-meter)), except for a
     [TUNE for an external tuner](#tune-for-an-external-tuner): it always
     brings up the panel, for its seconds against the limit. The digital apps
     keep their TX strip either way.
