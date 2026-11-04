@@ -525,7 +525,8 @@ class SettingsManager {
     // X6200's takes 29 to 51 dB off depending on the band and the radio (two radios, #125), past the one value
     // p_smeter_att (0..40) the X6100 keeps. Settings > TX Cal > S-METER and its Measure set the band's. A band never
     // set starts from the radios' figure for its frequency (smeter_att_start, smeter_att.c), also where v0.3.8 stored
-    // its one value; that start is never written, so a band set keeps its own and the others follow a new figure
+    // its one value; that start is never written, so a band set keeps its own and the others follow a new figure.
+    // Measure writes the band's also when it comes out at the start (store())
     static constexpr int32_t SMETER_ATT_MAX = 60;
     Parameter<int32_t> p_band_smeter_att{"smeter_att", 35, [](int32_t v) { return clip(v, 0, SMETER_ATT_MAX); },
         StorageType::BAND, pending_writes_, [this] { p_band_smeter_att.set_quiet(smeter_att_start()); },

@@ -3829,6 +3829,10 @@ static void smc_timer_cb(lv_timer_t *t) {
     sm_att.set(att);
     cfg_sm.p_smeter_rfg.set(rfg);
 #ifdef BOARD_X6200
+    /* The band's row also when Measure came out at the band's start, which set() does not write: so the band keeps
+     * its measured figure when a later version changes the start (smeter_att.c) */
+    sm_att.store();
+
     /* The band by its name: the page follows the band, so "this band" would be another one after a band change, and
      * a broadcast carrier next to a ham band sets the broadcast band's figure, not the ham band's. PRE and ATT as on
      * the keys, for the line to hold "Broadcast 41m" */

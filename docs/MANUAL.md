@@ -1226,10 +1226,11 @@ between the bands) all frequencies share one value, which starts at 35 dB.
 On the X6200 the one attenuator value of v0.3.8 and before (15 dB, or what
 the slider or Measure set) is not used any more: it fit one band at most.
 Every band starts from the table above until you set it or press Measure on
-it, and a band set keeps its value, also when a later version changes the
-table. That old value stays stored as it was, so an older version finds it
-again if you go back. The X6100 keeps its one value. The preamp is one value
-for every band, on both radios, and a preamp value set before stays.
+it. From then on it keeps its own value, also when a later version changes
+the table, and also when Measure came out at the table's figure. That old
+value stays stored as it was, so an older version finds it again if you go
+back. The X6100 keeps its one value. The preamp is one value for every band,
+on both radios, and a preamp value set before stays.
 
 The meter on the screen, the browser Panel and TCI's `rx_smeter` show the
 same reading, with these corrections in.

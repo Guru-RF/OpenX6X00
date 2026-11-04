@@ -154,6 +154,13 @@ class Parameter : public SubjectT<ValueType>, public ParamBase {
         SubjectT<ValueType>::set(on_grid(v));
     }
 
+    // Enqueues the value as it is, also when unchanged: set() writes only a
+    // change, so a value that came from on_not_found (a start that is never
+    // written) gets its row this way, and a load finds that row from then on.
+    void store() {
+        sink_.write(StorageKey{storage_, context_id_, db_name_}, to_db_value(SubjectT<ValueType>::get()));
+    }
+
     // Load from the storage policy matching storage(). Returns rc (SUCCESS or
     // NOT_FOUND); on SUCCESS the stored DB value is converted back and applied
     // quietly. NOT_FOUND keeps the current value and may trigger on_not_found_.
