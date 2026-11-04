@@ -8,7 +8,7 @@
 
 /* The input group every knob and button feeds, and the USB (or Bluetooth) keyboard:
  * found at start and again whenever a USB device comes or goes. CapsLock is its hyper key
- * (kbd_hyper.h): CapsLock+Q logs a QSO, CapsLock+Space is PTT, and the others. */
+ * (kbd_hyper.h): CapsLock+L logs a QSO, CapsLock+Space is PTT, and the others. */
 
 #include "key_input.h"
 

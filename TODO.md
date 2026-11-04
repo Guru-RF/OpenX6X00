@@ -226,20 +226,20 @@ window is open, which can hold a WiFi password).
 ## Keyboard: CapsLock's chords, the quick QSO log and PTT, on a radio (#175)
 
 Asked 2026-11-04 (F4ESO, X6200, random SSB QSOs logged from a Bluetooth keyboard). Done after v0.3.8: CapsLock is
-the keyboard's hyper key (src/kbd_hyper.c), the one way to shortcuts, so they work on any keyboard: Q logs a QSO (the
-CW line's in CW, else the main screen's Log QSO box), L the dial lock, P a screenshot, S Settings, F the frequency
-box, 1-5 the CW messages (1-8 JTTY's macros), Up/Down the band, Space a PTT toggle (src/kbd_ptt.c). The keyboard's
-F keys and PgUp/PgDn do nothing any more. Field Ops' Log QSO takes the report sent first, as the box does. Checked
+the keyboard's hyper key (src/kbd_hyper.c), the one way to shortcuts, so they work on any keyboard: L logs a QSO (the
+CW line's in CW, else the main screen's Log QSO box; the owner: "reuse L"), K the dial lock, P a screenshot,
+S Settings, F the frequency box, 1-5 the CW messages (1-8 JTTY's macros), Up/Down the band, Space a PTT toggle
+(src/kbd_ptt.c). The keyboard's F keys and PgUp/PgDn do nothing any more. Field Ops' Log QSO takes the report sent first, as the box does. Checked
 with tools/keyboard (kbd_hyper, kbd_keymap, kbd_ptt) and the two PC builds only: not on a radio, nor in the PC
 build's window.
-- **Next**: on the bench X6200 with a USB keyboard and a Bluetooth one, on the main screen in USB: CapsLock+Q opens
-  `Call [sent [rcvd]]:`, `F4ABC 59 57` and Enter log `QSO logged: F4ABC 59 57 SSB` (59 sent on the Logs page), no Q
-  typed and Caps Lock still off after it (a letter typed comes out small), the Caps Lock light off again once Q
-  went down. CapsLock tapped alone: the light and capitals on, tapped again both off. CapsLock+Q in Settings, FT8
-  and the box itself: nothing. In CW with `F4ABC 599` typed in the CW line: CapsLock+Q logs it, the line empties,
+- **Next**: on the bench X6200 with a USB keyboard and a Bluetooth one, on the main screen in USB: CapsLock+L opens
+  `Call [sent [rcvd]]:`, `F4ABC 59 57` and Enter log `QSO logged: F4ABC 59 57 SSB` (59 sent on the Logs page), no L
+  typed and Caps Lock still off after it (a letter typed comes out small), the Caps Lock light off again once L
+  went down. CapsLock tapped alone: the light and capitals on, tapped again both off. CapsLock+L in Settings, FT8
+  and the box itself: nothing. In CW with `F4ABC 599` typed in the CW line: CapsLock+L logs it, the line empties,
   nothing keyed; with the line empty (sending) the box opens and the line stays. Field Ops, a test activation:
   `F4ABC 59 57` logs 59 sent, 57 received. Then the X6100 (the light is the console's: KDSKBLED on /dev/tty0).
-- **Next, the same bench**: CapsLock+L and Scroll Lock say "Dial locked" / "Dial unlocked"; CapsLock+P and Print
+- **Next, the same bench**: CapsLock+K and Scroll Lock say "Dial locked" / "Dial unlocked"; CapsLock+P and Print
   Screen take a screenshot (P also in Settings, an app and the quick log's box); CapsLock+S opens Settings; CapsLock+F
   the frequency box, in CW too (f goes into the CW line there); CapsLock+Up/Down one band a press, held too; in CW
   CapsLock+1-5 key the CW messages; in JTTY CapsLock+1-8 its macros. F1-F10, PgUp and PgDn: nothing anywhere. In

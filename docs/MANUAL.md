@@ -154,7 +154,7 @@ the radio on the air after PTT was let go, until PTT was pressed again,
 and a key held while another one was pressed lost its long press.
 
 Frequency lock. The LOCK key (X6100), the X6100 mic's SPCH key, a
-keyboard's Scroll Lock or CapsLock+L, the browser panel's LOCK and any key
+keyboard's Scroll Lock or CapsLock+K, the browser panel's LOCK and any key
 given "Frequency lock on/off" in Settings > Keys (a long press of GEN, APP,
 KEY, MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200
 has no LOCK key: give it to FST's long press, as on the stock firmware, or
@@ -240,8 +240,8 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
 
 | CapsLock + | Does | Where |
 |---|---|---|
-| Q | Log a QSO: in CW the line typed in the [CW line](#cw-from-the-keyboard), not sent; else the [quick QSO log](#quick-qso-log)'s box opens | main screen |
-| L | The [frequency lock](#buttons-and-knobs) on or off, as Scroll Lock | main screen |
+| L | Log a QSO: in CW the line typed in the [CW line](#cw-from-the-keyboard), not sent; else the [quick QSO log](#quick-qso-log)'s box opens | main screen |
+| K | The [frequency lock](#buttons-and-knobs) on or off, as Scroll Lock | main screen |
 | P | A screenshot, as Print Screen | everywhere |
 | S | Settings | main screen |
 | F | The frequency box, as `f`, also in CW, where `f` goes into the CW line | main screen |
@@ -252,8 +252,9 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
 
 - Main screen: no app, Settings, list or text box open. Elsewhere these
   chords do nothing, and type nothing.
-- The keys count by their place on a US keyboard, as the radio types: on an
-  AZERTY keyboard CapsLock+Q is the key marked A.
+- The keys count by their place on a US keyboard, as the radio types. The
+  letters are in the same place on AZERTY and QWERTZ keyboards; on an AZERTY
+  one CapsLock+1 is the key marked & and 1.
 - A key pressed while CapsLock is held is never typed, in the CW line, the
   quick log's box or a text box neither, and Caps Lock stays as it was, on
   or off. The keyboard's Caps Lock light can come on while CapsLock is held,
@@ -292,7 +293,7 @@ did anything on the radio.
 #### Quick QSO log
 
 A QSO logged from the main screen in any mode, the waterfall and the spots
-on it still in view: CapsLock+Q, or the Log QSO button (KEY until the page
+on it still in view: CapsLock+L, or the Log QSO button (KEY until the page
 reads CW 1:2, then F5), opens a one-line box near the top,
 `Call [sent [rcvd]]:`.
 
@@ -308,7 +309,7 @@ reads CW 1:2, then F5), opens a one-line box near the top,
 - With a keyboard no on-screen keyboard opens. Without one the on-screen
   keyboard does (the Log QSO button).
 - In CW, with a line typed in the [CW line](#cw-from-the-keyboard),
-  CapsLock+Q logs that line the same way instead of sending it, and the box
+  CapsLock+L logs that line the same way instead of sending it, and the box
   does not open. With nothing typed it opens the box. Up to v0.3.8 F10 logged
   the line.
 
@@ -2806,7 +2807,7 @@ again when it reconnects.
   CW segment nothing new is sent and the line is cleared.
 - CapsLock+1 to CapsLock+5 key the MSG > CW messages 1 to 5 (in list order)
   as if typed and sent with Enter; Esc stops them. A number with no message
-  does nothing. CapsLock+Q logs the line typed instead of sending it (see
+  does nothing. CapsLock+L logs the line typed instead of sending it (see
   [Quick QSO log](#quick-qso-log)), and CapsLock+F opens the frequency box,
   as `f` does outside CW. Up to v0.3.8 F1 to F5 keyed the messages.
 - In a CW message `{CALL}` is your callsign (Settings > General > STATION),

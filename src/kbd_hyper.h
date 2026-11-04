@@ -3,7 +3,7 @@
  *
  *  OpenX6X00 - CapsLock as a hyper key on a USB or Bluetooth keyboard (kbd_hyper.c)
  *
- *  While CapsLock is held, a key pressed with it is a chord: CapsLock+Q logs a QSO, CapsLock+Space is PTT, and
+ *  While CapsLock is held, a key pressed with it is a chord: CapsLock+L logs a QSO, CapsLock+Space is PTT, and
  *  the others in kbd_hyper.c's table. A chord's keys are never typed, and CapsLock held for a chord leaves Caps
  *  Lock as it was. CapsLock tapped alone, no key pressed while it was down, is Caps Lock as before; it turns
  *  when the tap ends. Shift, Ctrl, Alt and the Meta keys go through as usual while it is held. Here only what
@@ -25,8 +25,8 @@ extern "C" {
 /* What a chord does (screen_main.c's main_screen_chord runs it); the table of chords is in kbd_hyper.c */
 typedef enum {
     HYPER_NONE = 0,     /* a chord with no action: nothing at all */
-    HYPER_LOG_QSO,      /* Q: in CW the CW line's QSO logged, else the main screen's quick QSO log */
-    HYPER_LOCK,         /* L: the dial lock on or off, as Scroll Lock */
+    HYPER_LOG_QSO,      /* L: in CW the CW line's QSO logged, else the main screen's quick QSO log */
+    HYPER_LOCK,         /* K: the dial lock on or off, as Scroll Lock */
     HYPER_SCREENSHOT,   /* P: a screenshot, as Print Screen */
     HYPER_SETTINGS,     /* S: Settings */
     HYPER_FREQ,         /* F: the frequency box, as f (also in CW, where f goes into the CW line) */

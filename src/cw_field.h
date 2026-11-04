@@ -22,7 +22,7 @@ bool cw_field_key(uint32_t key);
  * where the field keys. False: not there, or no such message */
 bool cw_field_message(int n);
 
-/* CapsLock+Q (screen_main.c): the line typed is the QSO to log (cw_field_log_qso), cleared and not sent. False: not
+/* CapsLock+L (screen_main.c): the line typed is the QSO to log (cw_field_log_qso), cleared and not sent. False: not
  * where the field keys, or nothing typed */
 bool cw_field_log_line(void);
 

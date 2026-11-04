@@ -12,14 +12,15 @@
 
 #define LONG_BITS (8 * sizeof(long))
 
-/* CapsLock + a key, by scancode: where it is on a US keyboard, as the radio types (on an AZERTY one Q is the key
- * marked A). A chord is added here, a line; main_screen_chord (screen_main.c) runs its action and chooses where it
- * goes (Q in CW with a line typed, 1-8 in JTTY) */
+/* CapsLock + a key, by scancode: where it is on a US keyboard, as the radio types (the letters here are in the same
+ * place on AZERTY and QWERTZ ones; on AZERTY 1 is the key marked & and 1). A chord is added here, a line;
+ * main_screen_chord (screen_main.c) runs its action and chooses where it goes (L in CW with a line typed, 1-8 in
+ * JTTY) */
 static const struct {
     uint16_t           code;
     kbd_hyper_action_t action;
 } chords[] = {
-    {KEY_Q, HYPER_LOG_QSO},      {KEY_L, HYPER_LOCK},         {KEY_P, HYPER_SCREENSHOT},   {KEY_S, HYPER_SETTINGS},
+    {KEY_L, HYPER_LOG_QSO},      {KEY_K, HYPER_LOCK},         {KEY_P, HYPER_SCREENSHOT},   {KEY_S, HYPER_SETTINGS},
     {KEY_F, HYPER_FREQ},         {KEY_UP, HYPER_BAND_UP},     {KEY_DOWN, HYPER_BAND_DOWN}, {KEY_SPACE, HYPER_PTT},
     {KEY_1, HYPER_KEY_1},        {KEY_2, HYPER_KEY_2},        {KEY_3, HYPER_KEY_3},        {KEY_4, HYPER_KEY_4},
     {KEY_5, HYPER_KEY_5},        {KEY_6, HYPER_KEY_6},        {KEY_7, HYPER_KEY_7},        {KEY_8, HYPER_KEY_8},

@@ -15,7 +15,7 @@
  *
  *  The keys taken here never reach the SDL keyboard driver, the rest of the keyboard types
  *  into the GUI as a USB keyboard would. CapsLock held with a key is a chord, as on the radio
- *  (kbd_hyper.h: CapsLock+Q logs a QSO, CapsLock+Space is PTT...); this PC's own Caps Lock still
+ *  (kbd_hyper.h: CapsLock+L logs a QSO, CapsLock+Space is PTT...); this PC's own Caps Lock still
  *  turns at each press. The F keys and PageUp/PageDown here are the radio's front keys, not a
  *  keyboard's (a keyboard's do nothing on the radio).
  *
