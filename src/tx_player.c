@@ -278,8 +278,9 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
         params_float_set(&params.ft8_output_gain_offset, LV_MIN(learned, 0.0f));
     }
     /* The level all the digital apps share moved: by how many windows, and how much of the key was silent (XARA's wait
-     * for the other station's CW ID), so that a bench check or a report tells one key's change from another's */
-    if (params.ft8_output_gain_offset.x != was) {
+     * for the other station's CW ID), so that a bench check or a report tells one key's change from another's. At the
+     * precision it is printed: the level rebuilt through the codec's steps can come back a float step away unmoved */
+    if (fabsf(params.ft8_output_gain_offset.x - was) >= 0.005f) {
         fprintf(stderr, "tx_player: level %.2f -> %.2f dB, %d windows decided in %d blocks, %d of them silent\n", was,
                 params.ft8_output_gain_offset.x, level.windows, level.blocks, level.silent);
     }
