@@ -1349,6 +1349,13 @@ low: raise it, or feed a stronger carrier) stops the measurement and
 changes nothing. A band change stops it too ("Stopped: band changed"): PRE
 and ATT belong to the band, so check them on the band you left.
 
+The attenuator value stops at its top, 70 dB on the X6200 and 40 dB on the
+X6100. When Measure comes out there it says so, and leaves the RF gain to
+its slider for the line to fit:
+"Done on 80m: PRE 16 dB, ATT 70, the top, so 70 or more." The attenuator
+then takes that much off or more, and with ATT on the meter reads low by
+whatever it takes off over the top.
+
 The per band S-meter calibration (Settings > General > CONTROLS) is a
 separate correction, for the band's level with everything off.
 

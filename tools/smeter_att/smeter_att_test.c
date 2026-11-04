@@ -4,8 +4,9 @@
  *  Host test of src/cfg/smeter_att.c (#125): every band of sql/params.sql takes the figure of its group (the bands
  *  written out here, by id, as the manual lists them), outside the bands 40 m's, the groups' edges by the middle of
  *  a band, every figure under the top (SMETER_ATT_MAX) so that Measure can go past it, the deepest attenuator seen
- *  inside the top, and the manual's table ("X6200 bands | Attenuator"), its value outside the bands and its range
- *  ("| Attenuator | ... X6200: 0 to 70 dB") the same as the code's.
+ *  inside the top, and the manual's table ("X6200 bands | Attenuator"), its value outside the bands, its range
+ *  ("| Attenuator | ... X6200: 0 to 70 dB") and Measure's line at the top ("ATT 70, the top, so 70 or more") the
+ *  same as the code's.
  *    smeter_att_test <params.sql> <MANUAL.md>
  */
 
@@ -131,6 +132,28 @@ static void manual_table(const char *path) {
     check(top == SMETER_ATT_MAX, "the manual's range, the code's top", top);
 }
 
+/* Measure at the top, as the manual quotes its line (settings_window.cpp): "... ATT 70, the top, so 70 or more." */
+static void manual_measure_top(const char *path) {
+    FILE *f = fopen(path, "r");
+    char  line[512];
+    int   found = 0;
+
+    if (!f) return;
+    while (fgets(line, sizeof(line), f)) {
+        for (char *s = strstr(line, "ATT "); s; s = strstr(s + 1, "ATT ")) {
+            int at, more;
+
+            if (sscanf(s, "ATT %d, the top, so %d or more", &at, &more) == 2) {
+                found++;
+                check(at == SMETER_ATT_MAX && more == SMETER_ATT_MAX, "the manual's Measure at the top, the code's",
+                      at);
+            }
+        }
+    }
+    fclose(f);
+    check(found > 0, "the manual quotes Measure at the top", found);
+}
+
 int main(int argc, char **argv) {
     if (argc != 3) {
         fprintf(stderr, "usage: smeter_att_test <params.sql> <MANUAL.md>\n");
@@ -156,6 +179,7 @@ int main(int argc, char **argv) {
 
     bands_of_sql(argv[1]);
     manual_table(argv[2]);
+    manual_measure_top(argv[2]);
 
     printf("smeter_att: %d checks, %d failed\n", checks, fails);
     return fails != 0;

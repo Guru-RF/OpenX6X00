@@ -3821,6 +3821,10 @@ static void smc_timer_cb(lv_timer_t *t) {
     int32_t rfg = LV_CLAMP(0, lroundf(cfg_sm.p_smeter_rfg.get() + 100.0f * (smc_read[0] - smc_read[3]) / (100 - SMC_RFG_LOW)), 200);
 
     rfg = (rfg + 2) / 5 * 5;    /* the slider's step */
+    /* At its top the attenuator takes that much off or more, and the line says so (#125); the RF gain then only on
+     * its slider, for the line to fit */
+    bool att_top = att == SM_ATT_MAX;
+
     smc_stop(NULL);
     smc_slider_set(smc_sl[0], pre, 1);
     smc_slider_set(smc_sl[1], att, 1);
@@ -3837,13 +3841,22 @@ static void smc_timer_cb(lv_timer_t *t) {
      * a broadcast carrier next to a ham band sets the broadcast band's figure, not the ham band's. PRE and ATT as on
      * the keys, for the line to hold "Broadcast 41m" */
     BandInfoLoadResult band = BandsTable::get_by_id(smc_band);
+    const char        *on   = band.rc == SUCCESS ? "on " : "outside the bands";
+    const char        *name = band.rc == SUCCESS ? band.value.name.c_str() : "";
 
-    snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i dB, RF gain %i.%02i dB a step.",
-             band.rc == SUCCESS ? "on " : "outside the bands", band.rc == SUCCESS ? band.value.name.c_str() : "",
-             pre, att, rfg / 100, rfg % 100);
+    if (att_top) {
+        snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i, the top, so %i or more.", on, name, pre, att, att);
+    } else {
+        snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i dB, RF gain %i.%02i dB a step.", on, name, pre, att,
+                 rfg / 100, rfg % 100);
+    }
 #else
-    snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i dB, RF gain %i.%02i dB a step.", pre, att,
-             rfg / 100, rfg % 100);
+    if (att_top) {
+        snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i, the top, so %i or more.", pre, att, att);
+    } else {
+        snprintf(buf, sizeof(buf), "Done: preamp %i dB, attenuator %i dB, RF gain %i.%02i dB a step.", pre, att,
+                 rfg / 100, rfg % 100);
+    }
 #endif
     smc_note_set(buf);
 }
