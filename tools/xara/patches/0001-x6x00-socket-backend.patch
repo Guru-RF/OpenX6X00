@@ -1,4 +1,4 @@
-From ce7c9ec11a56273e04d13fd3d4385905cc6b1bf2 Mon Sep 17 00:00:00 2001
+From 740d535a431f02d6aaae6ebcd791a9bc37800868 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Wed, 4 Nov 2026 14:00:00 +0100
 Subject: [PATCH] audio, ptt: the X6100/X6200 radio's own software as the sound
@@ -28,37 +28,44 @@ matching: queue false.
 
 main.rs checks the options together as for trusdx (one socket for both,
 --ptt x6x00 with --audio x6x00 and the other way round, no
---tx-buffer-ms) and gives the PTT from the backend. With unit tests on a
-fake GUI (the hello, R paced and resampled, zeros while keyed and without
-the GUI, T only between P 1 and P 0, the held first block, a GUI that
-goes and comes back, one that closes at once tried once a second, the
-stop's P 0) and main.rs's own. One upstream test assumed the default
-backend is built, which in a build with x6x00 alone it is not.
+--tx-buffer-ms) and gives the PTT from the backend. With --audio x6x00
+the station starts with listening off: it answers no call until its host
+sends LISTEN ON, which Pat does only to listen. XARA runs from the
+radio's start and has no host until Pat calls out, so an answer would
+key the radio with nobody there. With unit tests on a fake GUI (the
+hello, R paced and resampled, zeros while keyed and without the GUI, T
+only between P 1 and P 0, the held first block, a GUI that goes and
+comes back, one that closes at once tried once a second, the stop's P 0)
+and main.rs's own (a call to a station made for the radio is not
+answered, the same station with another backend answers it). One
+upstream test assumed the default backend is built, which in a build
+with x6x00 alone it is not.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- README.md                      |   3 +
+ README.md                      |   4 +
  crates/xara/Cargo.toml         |   1 +
  crates/xara/src/audio/mod.rs   |  18 +-
  crates/xara/src/audio/x6x00.rs | 710 +++++++++++++++++++++++++++++++++
- crates/xara/src/main.rs        |  71 +++-
+ crates/xara/src/main.rs        | 114 +++++-
  crates/xara/src/ptt.rs         |   7 +
- 6 files changed, 806 insertions(+), 4 deletions(-)
+ 6 files changed, 850 insertions(+), 4 deletions(-)
  create mode 100644 crates/xara/src/audio/x6x00.rs
 
 diff --git a/README.md b/README.md
-index d41b358..297c374 100644
+index d41b358..c1b8fcd 100644
 --- a/README.md
 +++ b/README.md
-@@ -62,6 +62,7 @@ container on x86_64:
+@@ -62,6 +62,8 @@ container on x86_64:
      --call CALL             your callsign (required)
  
      --audio BACKEND         pulse, alsa or coreaudio; default pulse on linux/bsd and coreaudio on macOS
-+                            (x6x00: the X6100/X6200 radio's own software, OpenX6X00's build only)
++                            (x6x00: the X6100/X6200 radio's own software, OpenX6X00's build only;
++                            it answers no call until its host sends LISTEN ON)
      --list-devices          list capture and playback devices for --audio
      --capture SOURCE        audio source
      --playback SINK         audio sink
-@@ -117,6 +118,8 @@ summary of settings:
+@@ -117,6 +119,8 @@ summary of settings:
      --ptt cm108:DEV[:GPIO]      cm108/cm119 HID GPIO (default GPIO: 3)
      --ptt cm108:VID:PID[:GPIO]  cm108/cm119 by hex USB id (stable across boots)
      --ptt rigctld[:HOST:PORT]   hamlib rigctld CAT on HOST:PORT
@@ -888,7 +895,7 @@ index 0000000..c15ebe7
 +    }
 +}
 diff --git a/crates/xara/src/main.rs b/crates/xara/src/main.rs
-index 4512a32..c2c35d2 100644
+index 4512a32..9841b6b 100644
 --- a/crates/xara/src/main.rs
 +++ b/crates/xara/src/main.rs
 @@ -62,6 +62,7 @@ struct Args {
@@ -907,7 +914,7 @@ index 4512a32..c2c35d2 100644
          record: None,
          log: None,
          hf_given: false,
-@@ -106,6 +108,14 @@ fn defaults() -> Args {
+@@ -106,6 +108,22 @@ fn defaults() -> Args {
      }
  }
  
@@ -919,10 +926,18 @@ index 4512a32..c2c35d2 100644
 +    }
 +}
 +
++/// The radio (--audio x6x00) answers no call until its host sends LISTEN ON, which Pat sends only to listen: XARA
++/// runs from the radio's start, with no host until Pat calls out, and an answer would key the radio unattended
++fn listen_at_start(a: &Args, station: &mut impl Modem) {
++    if a.audio == Backend::X6x00 {
++        station.set_listen(false);
++    }
++}
++
  fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) -> Result<(), String> {
      if a.ui.take(k, &mut v)? {
          return Ok(());
-@@ -160,6 +170,8 @@ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) ->
+@@ -160,6 +178,8 @@ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) ->
          "--ptt-max-s" => a.timing.max_on = Duration::from_secs(num(k, &v()?)?),
          #[cfg(feature = "trusdx")]
          "--trusdx-speaker" => a.trusdx_speaker = true,
@@ -931,7 +946,7 @@ index 4512a32..c2c35d2 100644
          "--record" => a.record = Some(PathBuf::from(v()?)),
          "--log" => a.log = Some(PathBuf::from(v()?)),
          "--list-devices" => a.list_devices = true,
-@@ -170,6 +182,7 @@ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) ->
+@@ -170,6 +190,7 @@ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) ->
          #[cfg(feature = "registered")]
          "--offer-level" => a.offer_level = Some(num(k, &v()?)?),
          _ if k == "--trusdx-speaker" => return Err(format!("{k}: xara was built without the trusdx feature")),
@@ -939,7 +954,7 @@ index 4512a32..c2c35d2 100644
          _ => return Err(format!("unknown option {k}")),
      }
      Ok(())
-@@ -252,6 +265,21 @@ fn check(a: &Args) -> Result<(), String> {
+@@ -252,6 +273,21 @@ fn check(a: &Args) -> Result<(), String> {
      if trusdx && a.tx_buffer_ms.is_some() {
          return Err("--tx-buffer-ms does not apply to --audio trusdx".into());
      }
@@ -961,7 +976,23 @@ index 4512a32..c2c35d2 100644
      if a.timing.lead > Duration::from_secs(1) || a.timing.tail > Duration::from_secs(1) {
          return Err("--ptt-lead-ms and --ptt-tail-ms must be <= 1000".into());
      }
-@@ -582,6 +610,7 @@ fn pump(
+@@ -502,6 +538,7 @@ fn run(
+             if !a.digi.is_empty() {
+                 say!("FM digipeater {}", a.digi);
+             }
++            listen_at_start(a, &mut station);
+             serve(a, io, tx, Tnc::new(station, host), settings, stop, rec)
+         }
+         None => {
+@@ -512,6 +549,7 @@ fn run(
+             cfg.host.registered = a.registered;
+             let mut station = station::hf::Station::new(cfg, opts);
+             station.set_persistence(a.persistence);
++            listen_at_start(a, &mut station);
+             serve(a, io, tx, Tnc::new(station, host), settings, stop, rec)
+         }
+     }
+@@ -582,6 +620,7 @@ fn pump(
          Some(spec) => {
              let dev = match spec {
                  PttSpec::Trusdx => io.ptt().ok_or_else(|| std::io::Error::other("--ptt trusdx needs --audio trusdx")),
@@ -969,7 +1000,7 @@ index 4512a32..c2c35d2 100644
                  s => s.open(),
              };
              let dev = match dev {
-@@ -769,6 +798,10 @@ fn real_main() -> Result<ExitCode, String> {
+@@ -769,6 +808,10 @@ fn real_main() -> Result<ExitCode, String> {
          xara::ptt::wait_released(SECOND_SIGNAL_GRACE);
      })
      .map_err(|e| format!("signals: {e}"))?;
@@ -980,7 +1011,7 @@ index 4512a32..c2c35d2 100644
      let (mut a, io) = open_audio(&argv, a, applied.then_some(&saved), &mut error).map_err(|e| e.to_string())?;
      if let Some(d) = &dir {
          say!("settings in {}", d.join(settings::FILE).display());
-@@ -910,9 +943,11 @@ mod tests {
+@@ -910,9 +953,11 @@ mod tests {
          let a = parse(&argv("--list-devices")).unwrap().unwrap();
          assert!(a.list_devices);
          assert_eq!(a.audio, Backend::default());
@@ -994,7 +1025,7 @@ index 4512a32..c2c35d2 100644
          );
          for b in [Backend::Pulse, Backend::Alsa].into_iter().filter(|b| b.built()) {
              let p = conf("conf-list", &format!("call = N1CALL\naudio = {}\n", b.name()));
-@@ -941,6 +976,38 @@ mod tests {
+@@ -941,6 +986,71 @@ mod tests {
          b("--audio trusdx --capture /dev/a --playback /dev/a --radio --ptt trusdx --trusdx-speaker").unwrap();
      }
  
@@ -1028,6 +1059,39 @@ index 4512a32..c2c35d2 100644
 +        assert_eq!((a.call.as_str(), a.radio, a.x6x00_path_ms), ("N1CALL", true, Some([25, 50, 80])));
 +        assert_eq!(a.registered, cfg!(feature = "registered"));
 +        std::fs::remove_dir_all(p.parent().unwrap()).unwrap();
++    }
++
++    #[test]
++    fn x6x00_answers_no_call_until_its_host_listens() {
++        // N0CALL calls N1CALL, made as run() makes it: on the radio it does not answer, with another backend it does
++        let answers = |args: &str| {
++            let a = build(&argv(&format!("--call N1CALL {args}")), &Pairs::new()).unwrap();
++            let mut called = station::hf::Station::new(hf::Config::new(a.bw, &a.call), Options::default());
++            listen_at_start(&a, &mut called);
++            let mut caller = station::hf::Station::new(hf::Config::new(a.bw, "N0CALL"), Options::default());
++            assert!(caller.connect("N0CALL", "N1CALL", &[]));
++            // 10 s of audio in 10 ms blocks, each station hearing the other's last block
++            let (mut call, mut answer) = (vec![0.0; 480], vec![0.0; 480]);
++            for _ in 0..1000 {
++                let heard = std::mem::replace(&mut answer, vec![0.0; 480]);
++                call.fill(0.0);
++                caller.process(&heard, &mut call);
++                called.process(&call, &mut answer);
++                while caller.pop().is_some() {}
++                let mut keyed = false;
++                while let Some(r) = called.pop() {
++                    keyed |= r == station::Report::Ptt(true);
++                }
++                if keyed || answer.iter().any(|&s| s != 0.0) {
++                    return true;
++                }
++            }
++            false
++        };
++        if Backend::X6x00.built() {
++            assert!(!answers("--audio x6x00 --capture /run/ardop.sock --playback /run/ardop.sock --radio --ptt x6x00"));
++        }
++        assert!(answers("--capture c --playback p"));
 +    }
 +
      #[test]

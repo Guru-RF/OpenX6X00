@@ -14,7 +14,9 @@
 3. XARA (our patched build, its --audio x6x00 on the GUI's socket, protocol version 2 at 12000 Hz) and Pat's varahf,
    the same way, twice: with the settings x6100-winlink writes for the free speed (no `registered`), B's XARA says
    LINK UNREGISTERED and no level goes past VARA's free 4; with `registered` on A (the Winlink page's VARA licence
-   tick box), B's says LINK REGISTERED, as VARA's callee follows the caller's bit. Both stop on SIGTERM.
+   tick box), B's says LINK REGISTERED, as VARA's callee follows the caller's bit. Both stop on SIGTERM. First, at
+   the free speed and before any Pat: A's XARA calls B's, which neither answers nor keys (on the radio XARA starts
+   with listening off; Pat B's listen turns it on).
 
 Run it in a network namespace with loopback only (`make modems` does, with unshare -rn): Pat then reaches
 nothing outside, no Winlink web service, no CMS. Pat's own account check before a connect is also skipped
@@ -394,6 +396,23 @@ def xara_station(procs, tmp, name, call, port, xara, air_in, air_out, registered
     return h, x, log
 
 
+def unanswered_call(ha, hb, la, lb, port_a, call_a, call_b):
+    """A's XARA calls B's, which x6100-winlink started and no Pat has used: B does not answer and does not key, so a
+    radio left with Winlink on does not transmit for whoever calls it. Our patch starts XARA with listening off on
+    the radio; Pat sends LISTEN ON only to listen, which it never does there"""
+    c = socket.create_connection(("127.0.0.1", port_a), timeout=5)
+    c.sendall(f"CONNECT {call_a} {call_b}\r".encode())
+    check(wait_for(lambda: len(played(ha)) >= 3, 40),
+          f"A's XARA called {call_b}, which has no Pat: {len(played(ha))} calls")
+    time.sleep(3)
+    tx_b = [l.strip() for l in text(lb).splitlines() if "  tx " in l or "PENDING" in l or "PTT ON" in l]
+    check(not played(hb) and not tx_b, f"B's XARA did not answer and did not key ({len(played(hb))} keys, {tx_b[:3]})")
+    c.sendall(b"ABORT\r")
+    got = read_until(c, lambda g: b"DISCONNECTED\r" in g, 15)
+    c.close()
+    check(b"DISCONNECTED\r" in got, "A's XARA gave the call up on ABORT")
+
+
 def levels(log):
     """The speed levels XARA reported to Pat (BITRATE (n) ...), sent and heard"""
     return [int(m) for m in re.findall(r"< BITRATE \((\d+)\)", text(log))]
@@ -424,6 +443,8 @@ def xara_test(procs, tmp, xara, pat, registered):
     c.close()
     line = next((l for l in got.split(b"\r") if l.startswith(b"VERSION")), b"").decode()
     check(line == "VERSION VARA HF v4.9.0", f"VERSION answered with a VERSION line, what Pat waits for ({line!r})")
+    if not registered:
+        unanswered_call(ha, hb, la, lb, port_a, CALL_A, CALL_B)
 
     da, db = pat_env(tmp, "xa-" + tag, CALL_A), pat_env(tmp, "xb-" + tag, CALL_B)
     argv, env = pat_cmd(pat, db, port_b, CALL_B, "interactive", listen=True)

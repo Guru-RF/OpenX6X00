@@ -65,7 +65,10 @@ it, the first time with a download of about 150 MB, then it only gives the path;
   (`tools/xara`), started as `x6100-winlink` starts it (`xara --config` with the
   settings it writes, no `XARA_*` or `STATE_DIRECTORY`): it connects in protocol 2
   (12000 Hz, keys of 30 s), says so in its log as the supervisor reads it, and
-  answers `VERSION` with `VERSION VARA HF v4.9.0`. Pat B listens on varahf; Pat A
+  answers `VERSION` with `VERSION VARA HF v4.9.0`. First, at the free speed and
+  before any Pat, A's XARA calls B's (`CONNECT` on its host port): B neither answers
+  nor keys, since on the radio XARA starts with listening off, and A gives the call
+  up on `ABORT` (about 12 s). Pat B listens on varahf (its `LISTEN ON`); Pat A
   sends B a message peer to peer, twice. At the free speed (no `registered`): A's XARA
   says `REGISTERED` without a call, B's `LINK UNREGISTERED`, no level past VARA's free
   4. With `registered` on A, as the Winlink page's VARA HF licence box asks: A's says

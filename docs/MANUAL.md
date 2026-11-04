@@ -4337,8 +4337,8 @@ The speed:
 - The VARA HF licence box: tick it only if you hold a VARA HF licence of your
   own. It is your statement; the radio does not check it. Ticked, XARA calls
   as a registered VARA station does, and the link may use every level ("full
-  speed (VARA HF licence ticked)"). The radio always calls (it does not listen
-  for calls), so its own setting is the one that counts on its links.
+  speed (VARA HF licence ticked)"). The radio always calls (it answers no
+  call, below), so its own setting is the one that counts on its links.
 - XARA's author builds his own releases without the faster levels, out of
   respect for VARA's author, and leaves them to those with a licence; the box
   leaves them to you in the same way.
@@ -4357,6 +4357,12 @@ gives.
 - XARA's keys are a few seconds long (5 s at the most on the PC). The radio
   stops one after 30 s ("Winlink: TX stopped after 30 s").
 - XARA identifies in CW as it closes a session (Pat asks for it, CWID ON).
+
+The radio calls; it does not answer calls. XARA starts with listening off,
+and on the radio Pat never turns it on (P2P listening stays off, as with
+ARDOP). So a station that calls your callsign over VARA HF gets no answer,
+and the radio does not transmit for it, also with Winlink on and nobody at
+the radio.
 
 When it does not work:
 
