@@ -80,6 +80,31 @@ int main() {
     std::cout << "new radio, the Panel's BAND down from 6m: " << presses(true, false, 16)
               << "; the dial outside the band chosen: " << outside << "\n";
 
+    /* Independent VFOs on (Settings > General > STATION), the VFO key on 30m: VFO B comes up on its own band, 160m
+     * here, and on a band it has no frequency of its own on yet starts where A has that band (#137). Up to v0.3.8 B
+     * took A's frequency there, the 10.100 of 30m where A stayed: up went 80m, 30m, 20m CW, 30m, 20m CW..., down 40m
+     * SSB, 40m CW, 40m SSB..., the dial on 10.100 all along (outside the band chosen 24 times of 32), until each band
+     * had been tuned with B. The likeliest way to #168; the VFO key back to A, or Independent VFOs off, got all back */
+    cfg_sm.p_indep_vfo.set(1);
+    on(5);
+    cfg_sm.vfo_toggle();
+    std::string indep_on   = where();
+    std::string indep_up   = presses(true, true, 16);
+    int         indep_out  = outside;
+    std::string indep_down = presses(true, false, 16);
+    indep_out += outside;
+    std::cout << "#168 Independent VFOs, the VFO key to B on 30m: B on " << indep_on
+              << "; the Panel's BAND up: " << indep_up << "; down: " << indep_down
+              << "; the dial outside the band chosen: " << indep_out << "\n";
+
+    /* Back on A with Independent VFOs off, and B's rows gone again: the cases below are on a radio that never used B */
+    cfg_sm.vfo_toggle();
+    cfg_sm.p_indep_vfo.set(0);
+    on(1);
+    cfg_sm.flush_all();
+    assert(sqlite3_exec(db, "DELETE FROM band_params WHERE name LIKE 'vfob_%'", nullptr, nullptr, nullptr) ==
+           SQLITE_OK);
+
     /* #168: each band but 20 m and 30 m has a frequency saved on 20 m or 30 m (CAT tuning VFO A while B was in use,
      * edges changed under it, an older version). Up to v0.3.8 a key went to that frequency and the next one went on
      * from there: 20 m and 30 m only, until the others were tuned by hand */

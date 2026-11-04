@@ -212,10 +212,12 @@ def main():
                  "src/cfg/settings_manager_api.cpp", work / "ham_bands.o", *gc, "-pthread", "-lsqlite3", "-o", binary],
                 env)
         every_band = "80m, 60m, 40m CW, 40m SSB, 30m, 20m CW, 20m SSB, 17m, 15m, 12m, CB A, CB B, CB C, CB D, 10m, 6m"
+        every_band_down = ", ".join(every_band.split(", ")[-2::-1]) + ", 160m"
         print("#168 the band keys from the browser and on the radio:\n" + command([binary], env, contains=(
             "new radio, the Panel's BAND up from 160m: " + every_band + "; the dial outside the band chosen: 0",
-            "new radio, the Panel's BAND down from 6m: " + ", ".join(every_band.split(", ")[-2::-1])
-            + ", 160m; the dial outside the band chosen: 0",
+            "new radio, the Panel's BAND down from 6m: " + every_band_down + "; the dial outside the band chosen: 0",
+            "#168 Independent VFOs, the VFO key to B on 30m: B on 160m; the Panel's BAND up: " + every_band
+            + "; down: " + every_band_down + "; the dial outside the band chosen: 0",
             "#168 the Panel's BAND up from 30m: 20m CW, 20m SSB, 17m, 15m, 12m, CB A, CB B, CB C, CB D, 10m, 6m, 6m, "
             "6m, 6m, 6m; the dial outside the band chosen: 0",
             "#168 the Panel's BAND down from 6m: 10m, CB D, CB C, CB B, CB A, 12m, 15m, 17m, 20m SSB, 20m CW, 30m, "
