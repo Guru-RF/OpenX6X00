@@ -59,6 +59,7 @@
 #include "settings_window.h"
 #include "wr12.h"
 #include "pa_bias.h"
+#include "freq_strip.h"
 
 /*********************
  *      DEFINES
@@ -1529,14 +1530,28 @@ static void wr12_follow(bool rx, int32_t dial) {
 
 /* Both VFOs to the base again, the WR12 following the one in use (on_vfo_freq_change), the one no longer in use back on
  * its own frequency. Not while Birdie Cal has the base off the dial: the WR12 in its bypass then, and the VFOs go back
- * at the run's end (radio_set_freq_dial) */
+ * at the run's end (radio_set_freq_dial).
+ * While the WR12 is in use (WR12 on HOST, set up) the base's own TX outside its band table is shut, as Xiegu's app
+ * always has it: on the WR12's IF the hand mic's PTT, VOX and the KEY jack key the base by itself, held at 0 W here,
+ * and the base then does not key at all. Shut before the base goes onto the IF, open again only once both VFOs are
+ * back on their own frequency: two writes of the base's calibration block a WR12 session, not one each 54 MHz
+ * crossing (hw_x6200.c, in the base's RAM: a GUI started after this one opens it again, x6200_control_init) */
 static void wr12_retune(void) {
+    bool use = param_i_get(cfg_wr12) && wr12_ready();
+
+    if (use) {
+        WITH_RADIO_LOCK(hw_set_i(HW_OPEN_TX, false));
+    }
     if (atomic_load(&off_dial)) {
         WITH_RADIO_LOCK(wr12_follow(false, vfo_freq(true)));
-        return;
+    } else {
+        on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
+        on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
     }
-    on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
-    on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
+    if (!use) {
+        WITH_RADIO_LOCK(hw_set_i(HW_OPEN_TX, true));
+    }
+    freq_strip_set_wr12(use);
 }
 
 /* On the GUI thread: what the WR12's thread has to say (found, lost, an ERROR answer); the base onto its IF now that it

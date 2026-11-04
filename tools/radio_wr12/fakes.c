@@ -32,6 +32,7 @@
 #include "dialog_msg_voice.h"
 #include "dialog_swrscan.h"
 #include "dsp.h"
+#include "freq_strip.h"
 #include "front_keys.h"
 #include "hkey.h"
 #include "hw/hw.h"
@@ -890,6 +891,10 @@ void tx_info_update(float pwr, float swr, float alc) {
 }
 
 void tx_info_clear(void) {
+}
+
+void freq_strip_set_wr12(bool in_use) {
+    (void)in_use;
 }
 
 wifi_status_t wifi_get_status() {

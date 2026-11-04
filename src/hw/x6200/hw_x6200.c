@@ -298,6 +298,61 @@ int32_t hw_get_i(hw_param_t p) {
     }
 }
 
+/* The base's TX outside its own band table: byte 280 of its calibration block, 1 open. x6200_control_init reads the
+ * block at 0x0100 and sends it back whole at 0xf000 with it at 1 (the only write of the block, at the start); Xiegu's
+ * app sends it at 0 (fullband-tx=disable in /etc/xgradio/xgradio.conf), and the base then keys only inside the band
+ * table of the same block (160 to 6 m; 60 m 5.332-5.405 MHz), whatever the VFO and the TX bits say. The base keeps
+ * the block in RAM: at a cold start it reads 0 again, saving it is host_cmd 0x8005 (Xiegu's factory menu only), so
+ * this writes no flash. Read back and sent whole as the library does, the library's own bytes kept: it has no setter
+ * for it. Each transfer is one I2C_RDWR, which the kernel runs with the adapter locked, so the library's traffic on
+ * its own descriptor of /dev/i2c-0 does not cut into it. -1: not known (the library failed to set it) */
+#define BASE_I2C_ADDR       0x72
+#define BASE_CAL_READ       0x0100
+#define BASE_CAL_WRITE      0xf000
+#define BASE_CAL_LEN        507
+#define BASE_CAL_OPEN_TX    280
+
+static int open_tx = 1;
+
+static bool open_tx_set(bool on) {
+    uint8_t                    block[2 + BASE_CAL_LEN];
+    uint8_t                    reg[2] = {BASE_CAL_READ >> 8, BASE_CAL_READ & 0xff};
+    struct i2c_msg             rd_msgs[] = {
+        {.addr = BASE_I2C_ADDR, .flags = 0, .len = sizeof(reg), .buf = reg},
+        {.addr = BASE_I2C_ADDR, .flags = I2C_M_RD, .len = BASE_CAL_LEN, .buf = block + 2},
+    };
+    struct i2c_msg             wr_msg = {.addr = BASE_I2C_ADDR, .flags = 0, .len = sizeof(block), .buf = block};
+    struct i2c_rdwr_ioctl_data rd = {.msgs = rd_msgs, .nmsgs = 2};
+    struct i2c_rdwr_ioctl_data wr = {.msgs = &wr_msg, .nmsgs = 1};
+    int                        fd = open("/dev/i2c-0", O_RDWR);
+    bool                       ok;
+
+    if (fd < 0) {
+        fprintf(stderr, "hw_x6200: TX outside the band table not %s: /dev/i2c-0: %s\n", on ? "opened" : "shut",
+                strerror(errno));
+        open_tx = -1;
+        return false;
+    }
+    ok = ioctl(fd, I2C_RDWR, &rd) >= 0;
+    if (ok && block[2 + BASE_CAL_OPEN_TX] > 1) {    /* as the library: not the layout it knows, left alone */
+        fprintf(stderr, "hw_x6200: calibration byte %d is %u, TX outside the band table left as it is\n",
+                BASE_CAL_OPEN_TX, block[2 + BASE_CAL_OPEN_TX]);
+        close(fd);
+        open_tx = -1;
+        return false;
+    }
+    if (ok) {
+        block[0] = BASE_CAL_WRITE >> 8;
+        block[1] = BASE_CAL_WRITE & 0xff;
+        block[2 + BASE_CAL_OPEN_TX] = on;
+        ok = ioctl(fd, I2C_RDWR, &wr) >= 0;
+    }
+    close(fd);
+    open_tx = ok ? on : -1;
+    fprintf(stderr, "hw_x6200: TX outside the band table %s%s\n", on ? "open" : "shut", ok ? "" : ": failed");
+    return ok;
+}
+
 static void dnf_apply(void) {
     x6200_control_dnf_set(!dnf_on ? x6200_dnf_off : dnf_auto ? x6200_dnf_auto : x6200_dnf_manual);
 }
@@ -392,6 +447,9 @@ bool hw_set_i(hw_param_t p, int32_t v) {
             x6200_control_cmd(x6200_sple_atue_trx, n);
             break;
         }
+        case HW_OPEN_TX:
+            if (open_tx == (v != 0)) return false;
+            return open_tx_set(v != 0);
         /* The X6100 patched firmware's extras: this base has no register for them */
         case HW_TX_I_OFFSET:
         case HW_TX_Q_OFFSET:
