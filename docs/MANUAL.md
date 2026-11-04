@@ -253,6 +253,8 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
 - Main screen: no app, Settings, list or text box open, not in [Walkie
   Talkie mode](#walkie-talkie-mode). Elsewhere these chords do nothing, and
   type nothing: in walkie mode CapsLock+Space keys nothing (it still lets go).
+  RTTY receives on the main screen, with no window of its own: there the
+  chords work, and CapsLock+L logs the QSO as RTTY.
 - The keys count by their place on a US keyboard, as the radio types. The
   letters are in the same place on AZERTY and QWERTZ keyboards; on an AZERTY
   one CapsLock+1 is the key marked & and 1.
@@ -281,7 +283,8 @@ lit.
 
 - It follows the radio. Let go another way (the PTT key, the SWR
   protection, CAT), the next CapsLock+Space keys again: the screen says
-  `PTT off: CapsLock+Space for on`, after what ended it says why.
+  `PTT off: CapsLock+Space for on`, after the SWR protection's or the band
+  stop's own message.
 - A press where the radio may not transmit keys nothing ("No TX on ...").
   A key that has not got the radio on the air after 2 s, or a radio back on
   receive by itself, is let go: `PTT off: not on the air`.
@@ -306,6 +309,10 @@ JTTY's macros, and F4 was Start in the CW Trainer and Edit in MSG > CW
 Up to v0.3.8 this Manual had PgUp and PgDn for the band and Scroll Lock for
 the lock, and the code Print Screen for a screenshot, but none of the four
 did anything on the radio.
+
+Not tried on a radio yet: checked in the host tests (`tools/keyboard`) and
+on the PC build. The Caps Lock light, the Bluetooth link lost and the PTT
+have not run on hardware.
 
 #### Quick QSO log
 
@@ -2828,7 +2835,9 @@ again when it reconnects.
   as if typed and sent with Enter; Esc stops them. A number with no message
   does nothing. CapsLock+L logs the line typed instead of sending it (see
   [Quick QSO log](#quick-qso-log)), and CapsLock+F opens the frequency box,
-  as `f` does outside CW. Up to v0.3.8 F1 to F5 keyed the messages.
+  as `f` does outside CW. Like any window (Settings, an app) it drops what
+  waits to be sent and empties the line; a message on the air finishes. Up
+  to v0.3.8 F1 to F5 keyed the messages.
 - In a CW message `{CALL}` is your callsign (Settings > General > STATION),
   also with TX in MSG > CW; with no callsign set it stays as written.
 - Until the line is open, the other keys (- = and so on) work as usual; in

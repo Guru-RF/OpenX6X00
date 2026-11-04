@@ -244,7 +244,9 @@ the PC build's window.
   the frequency box, in CW too (f goes into the CW line there); CapsLock+Up/Down one band a press, held too; in CW
   CapsLock+1-5 key the CW messages; in JTTY CapsLock+1-8 its macros. F1-F10, PgUp and PgDn: nothing anywhere. In
   the WiFi password box and the quick log's box none of them types. The Scroll Lock light is the console's own,
-  which turns at each press: it can show the lock the wrong way round (left as it is).
+  which turns at each press: it can show the lock the wrong way round (left as it is). CapsLock tapped and A typed
+  fast over it: a capital A, Caps Lock on. In walkie mode CapsLock+S, L and Space: nothing. The screen dark (Screen
+  off 1 min): the first CapsLock+L only lights it. In USB after CW with a call decoded: CapsLock+L's box empty.
 - **Next, PTT, into a dummy load**: CapsLock+Space keys (`PTT on: CapsLock+Space for off`, the TX panel or the S-meter
   box's power and SWR), again lets go; in CW the carrier. Then, each while keyed: the side PTT pressed and let go
   (unkeyed, `PTT off: CapsLock+Space for on`; the next chord keys), Settings opened from the front key then
