@@ -280,11 +280,12 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     </div>
     <div class="tab" id="tab-screen"><div class="screen"><canvas id="scv" width="800" height="480"></canvas></div></div>
   </aside>
+  <!-- inside #pn: its colours are #pn's (dark or light), and Fullscreen shows #pn alone -->
+  <div class="pop" id="pop" hidden><div class="box" id="popbox"></div></div>
 </div>
 
 <p class="sub" style="margin-top:12px">Panorama: tap or drag to tune, pinch (or the mouse wheel with Ctrl) to zoom, the wheel to tune by the step. Tap the frequency to type one, a spot to tune to it. Keyboard: ← → tune (Shift: ten steps), [ ] volume, Space PTT. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/panel</a> (the browser warns of the radio's own certificate: accept it, once for that address).</span> A browser only watches until it is paired with a code shown on the radio; one paired browser (or the radio's own keys, or a TCI client) controls the radio at a time, and the others take control on purpose.</p>
 
-<div class="pop" id="pop" hidden><div class="box" id="popbox"></div></div>
 
 <script src="/static/js/radio_link.js?v=2"></script>
 <script src="/static/js/radio_session.js?v=6"></script>
