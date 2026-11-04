@@ -1283,11 +1283,12 @@ static void spectrum_key_cb(lv_event_t *e) {
         key = LV_KEY_ESC;   /* on the main screen VOL press does what ESC does */
     }
     /* Hide buttons: the knobs and the keyboard's keys for them leave the buttons hidden, VOL and the MFK keep
-     * them while shown; any other key brings them back */
+     * them while shown; any other key brings them back. A keyboard's Enter (the MFK press) comes here before
+     * spectrum_pressed_cb() */
     switch (key) {
         case '-': case '=':
             break;
-        case '[': case ']': case '{': case '}': case LV_KEY_LEFT: case LV_KEY_RIGHT: case LV_KEY_ESC:
+        case '[': case ']': case '{': case '}': case LV_KEY_LEFT: case LV_KEY_RIGHT: case LV_KEY_ESC: case LV_KEY_ENTER:
         case KEY_VOL_LEFT_EDIT: case KEY_VOL_RIGHT_EDIT: case KEY_VOL_LEFT_SELECT: case KEY_VOL_RIGHT_SELECT:
         case KEY_MFK_PREV: case KEY_MFK_NEXT:
             buttons_keep();
