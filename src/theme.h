@@ -209,6 +209,8 @@ typedef struct {
 } theme_shape_t;
 
 extern theme_shape_t theme_shape;
+extern bool theme_amber;          /* Amber Trey (theme_amber.inc): its display (lcd_panel.c) */
+#define THEME_AMBER_NAME "Amber Trey"
 
 uint32_t theme_hex(theme_color_t c);
 #define TC(role) lv_color_hex(theme_hex(TC_##role))

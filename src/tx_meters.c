@@ -254,6 +254,7 @@ static void radio_cb(lv_event_t *e) {
         lv_obj_clear_flag(strip, LV_OBJ_FLAG_HIDDEN);
         return;
     }
+    if (theme_amber) return;   /* Amber Trey: its bar graph shows SWR and RF, the panel would cover it */
     if (!tx_info_shown()) return;   /* the S-meter box has them */
     /* Framed red for TX. VISION: under the S-meter row; deck: under the frequency panel, off its S/SWR/ALC scales */
     lv_obj_set_y(panel, theme_shape.deck ? FREQ_STRIP_Y + FREQ_STRIP_H + 8 : DIALOG_Y + 8 + METER_ROW_H);

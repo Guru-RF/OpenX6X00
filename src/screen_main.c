@@ -68,6 +68,7 @@
 #include "wefax_window.h"
 #include "dialog_js8.h"
 #include "freq_strip.h"
+#include "lcd_panel.h"
 #include "freq_scale.h"
 #include "spot_marks.h"
 #include "band_plan.h"
@@ -1570,6 +1571,13 @@ static void on_cluster_column_change(Subject *subj, void *user_data) {
 static lv_coord_t spectrum_layout(void) {
     lv_coord_t y = 0;
 
+    if (theme_amber) {   /* Amber Trey: a strip in the display, always (lcd_panel.c) */
+        lv_obj_remove_local_style_prop(spectrum, LV_STYLE_OPA, 0);
+        spectrum_height = LCD_PLUS_STRIP_H;
+        lv_obj_set_y(spectrum, LCD_PLUS_STRIP_Y);
+        lv_obj_set_height(spectrum, spectrum_height);
+        return LCD_PLUS_STRIP_Y + spectrum_height;
+    }
     if (param_i_get(cfg_spectrum_show)) {
         y = FREQ_STRIP_Y + FREQ_STRIP_H + METER_ROW_H;     /* VISION: under the S-meter's row */
         spectrum_height = param_i_get(cfg_spectrum_height);
@@ -1683,6 +1691,16 @@ static void build(void) {
     clock_init(obj);    /* deck: over the info rows */
     freq_strip_init(obj);
     meter = meter_init(obj);    /* deck: on the frequency panel */
+    /* Amber Trey: the display over everything above the buttons, the spectrum strip and its edge
+     * frequencies over it */
+    if (theme_amber) {
+        lcd_panel_init(obj, 480 - BUTTONS_H);
+        lv_obj_set_style_border_width(spectrum, 1, 0);
+        lv_obj_set_style_border_color(spectrum, TC(text), 0);
+        lv_obj_move_foreground(spectrum);
+        freq_scale_foreground();
+        lcd_panel_set_strip(spectrum);
+    }
     tx_info = tx_info_init(obj);
 
     /* Holo: an accent line between the top bar and the frequency strip */
