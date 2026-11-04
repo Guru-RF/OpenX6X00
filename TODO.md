@@ -226,14 +226,16 @@ window is open, which can hold a WiFi password).
 ## Keyboard: CapsLock+L, the quick QSO log, on a radio (#175)
 
 Asked 2026-11-04 (F4ESO, X6200, random SSB QSOs logged from a Bluetooth keyboard). Done after v0.3.8: CapsLock is
-the keyboard's hyper key (src/kbd_hyper.c), CapsLock+L opens the main screen's Log QSO box in any mode. Checked
-with kbd_hyper's cases (tools/keyboard) and the two PC builds only: not on a radio, nor in the PC build's window.
+the keyboard's hyper key (src/kbd_hyper.c), CapsLock+L opens the main screen's Log QSO box in any mode, and Field
+Ops' Log QSO takes the report sent first, as that box does. Checked with kbd_hyper's cases (tools/keyboard) and the
+two PC builds only: not on a radio, nor in the PC build's window.
 - **Next**: on the bench X6200 with a USB keyboard and a Bluetooth one, on the main screen in USB: CapsLock+L opens
   `Call [sent [rcvd]]:`, `F4ABC 59 57` and Enter log `QSO logged: F4ABC 59 57 SSB` (59 sent on the Logs page), no L
   typed and Caps Lock still off after it (a letter typed comes out small), the Caps Lock light off again once L
   went down. CapsLock tapped alone: the light and capitals on, tapped again both off. CapsLock+L in Settings, FT8
-  and the box itself: nothing. In CW with the CW line open: the box opens, the line stays. Then the X6100 (the
-  light is the console's: KDSKBLED on /dev/tty0).
+  and the box itself: nothing. In CW with the CW line open: the box opens, the line stays. Field Ops, a test
+  activation: `F4ABC 59 57` logs 59 sent, 57 received. Then the X6100 (the light is the console's: KDSKBLED on
+  /dev/tty0).
 - Open: more chords, a line each in kbd_hyper.c's table, when asked for.
 
 ## WiFi: a static address, as Ethernet has (#17)

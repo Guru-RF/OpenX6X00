@@ -255,7 +255,7 @@ reads CW 1:2, then F5), opens a one-line box near the top,
 
 - Type the call, then the report you sent and the one you received, and
   press Enter: `F4ABC 59 57`. A report left out is 59, 599 in CW. Esc
-  closes the box without logging.
+  closes the box without logging. Field Ops' Log QSO takes the same order.
 - In CW the call the decoder confirmed last is in the box already.
 - The radio says `QSO logged: F4ABC 59 57 SSB`. The QSO goes into the day's
   log, `/mnt/field/logs/YYYYMMDD.adi` (a file a UTC day), with the time, the
@@ -3238,8 +3238,10 @@ the start and the last call.
   hand mic only (see [recording voice messages](#recording-voice-messages)). It is `CQ SOTA` /
   `CQ POTA` in `/mnt/msg`, so MSG > Voice lists it too. CQ again while it is
   on air stops it.
-- Log QSO: type `CALL`, or `CALL rst_rcvd rst_sent` (default 599 in CW, 59
-  otherwise). Each QSO goes to the SD card at once, in
+- Log QSO: type `CALL`, or `CALL rst_sent rst_rcvd`, the report you sent
+  first, as in the main screen's [quick QSO log](#quick-qso-log) (default 599
+  in CW, 59 otherwise): `F4ABC 59 57` is 59 sent, 57 received. Up to v0.3.8
+  Field Ops took the report received first. Each QSO goes to the SD card at once, in
   `/mnt/field/logs/<date>-<time>_<ref>.adi` with `MY_SOTA_REF` or
   `MY_SIG POTA` / `MY_POTA_REF`. The logs can be downloaded from the web
   configurator's Field Ops page.
