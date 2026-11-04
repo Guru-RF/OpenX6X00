@@ -10,9 +10,7 @@
 #endif
 
 #include "adif.h"
-
-#include "util.h"
-#include "qth/qth.h"
+#include "board.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,17 +30,6 @@
 struct adif_log_s {
     FILE *fd;
 };
-
-static void write_header(FILE *fd);
-
-static void write_str(FILE *fd, const char * key, const char * val);
-static void write_int(FILE *fd, const char * key, int val);
-static void write_rst(FILE *fd, const char *key, int val, qso_log_mode_t mode);
-
-static void write_date_time(FILE *fd, time_t time);
-static void write_freq(FILE *fd, float freq_mhz);
-static void write_band(FILE *fd, qso_log_band_t band);
-static void write_mode(FILE *fd, qso_log_mode_t mode);
 
 static void copy_str(char * dst, char * src, size_t val_len, size_t dst_len);
 static char * extract_str(const char * src, size_t src_len);
@@ -65,7 +52,9 @@ adif_log adif_log_init(const char * path) {
     } else {
         log->fd = log_fd;
         if (new_file) {
-            write_header(log->fd);
+            /* the day's log's header (#174). Before: PROGRAMVERSION 1.0.0, ADIF_VER 3.14, and the file
+             * started with a tag, which in ADIF means it has no header */
+            field_adif_header(log->fd, BOARD_NAME " FT8, FT4 and FT2 log");
         }
     }
     return log;
@@ -76,33 +65,48 @@ void adif_log_close(adif_log l) {
     fclose(l->fd);
 }
 
+field_qso_t adif_field_qso(const qso_log_record_t *r) {
+    /* The log's modes by their names in field_qso_t: field_adif_record() writes FT4, FT2 and JS8 as MFSK with
+     * that SUBMODE. MODE_OTHER has none, and goes without a MODE */
+    static const char *const names[] = {
+        [MODE_SSB] = "SSB", [MODE_AM] = "AM",   [MODE_FM] = "FM",     [MODE_CW] = "CW",   [MODE_FT8] = "FT8",
+        [MODE_FT4] = "FT4", [MODE_RTTY] = "RTTY", [MODE_JS8] = "JS8", [MODE_FT2] = "FT2",
+    };
+    /* The dial in Hz as the day's log always took it: float arithmetic, which gives the dial frequencies back
+     * whole (7074000, 28074000) */
+    field_qso_t q = {.t = r->time, .freq_hz = (int32_t)(r->freq_mhz * 1e6f + 0.5f)};
+    /* The digital reports signed in two digits ("+01", "-05"), as in every logbook; the others as they are (599) */
+    bool digi = r->mode == MODE_FT8 || r->mode == MODE_FT4 || r->mode == MODE_FT2 || r->mode == MODE_JS8;
+
+    if ((unsigned)r->mode < sizeof(names) / sizeof(names[0]) && names[r->mode])
+        snprintf(q.mode, sizeof(q.mode), "%s", names[r->mode]);
+    snprintf(q.call, sizeof(q.call), "%s", r->remote_call);
+    snprintf(q.rst_s, sizeof(q.rst_s), digi ? "%+03d" : "%d", r->rsts);
+    snprintf(q.rst_r, sizeof(q.rst_r), digi ? "%+03d" : "%d", r->rstr);
+    snprintf(q.name, sizeof(q.name), "%s", r->name);
+    snprintf(q.qth, sizeof(q.qth), "%s", r->qth);
+    snprintf(q.grid, sizeof(q.grid), "%s", r->remote_grid);
+    return q;
+}
+
+/* The record the day's log has for the same QSO (dialog_field_day_log): the time to the second, the band as
+ * ADIF writes it ("40m"), the frequency in MHz to the Hz, no empty fields. A logbook or LoTW given both files
+ * finds the same QSO twice, not two QSOs a minute apart (#174). An activation's log, which takes the QSO instead
+ * of the day's while one runs, has the same call, date, time, band, frequency and mode, with the activation's
+ * reference fields besides. The other station's distance is left to the logbook, from GRIDSQUARE and
+ * MY_GRIDSQUARE */
 void adif_add_qso(adif_log l, qso_log_record_t qso)
 {
-    if (!l) return;     /* the day's log says why (dialog_field_day_log) */
-    write_str(l->fd, "STATION_CALLSIGN", qso.local_call);
-    write_str(l->fd, "OPERATOR", qso.local_call);
-    write_str(l->fd, "CALL", qso.remote_call);
-    write_date_time(l->fd, qso.time);
-    write_mode(l->fd, qso.mode);
-    write_str(l->fd, "NAME", NULL);
-    write_str(l->fd, "QTH", NULL);
-    write_rst(l->fd, "RST_SENT", qso.rsts, qso.mode);
-    write_str(l->fd, "STX", NULL);
-    write_rst(l->fd, "RST_RCVD", qso.rstr, qso.mode);
-    write_band(l->fd, qso.band);
-    write_freq(l->fd, qso.freq_mhz);
-    write_str(l->fd, "GRIDSQUARE", qso.remote_grid);
-    write_str(l->fd, "MY_GRIDSQUARE", qso.local_grid);
-    /* ADIF DISTANCE, km between the two locators, when both are known */
-    if (strlen(qso.local_grid) >= 4 && strlen(qso.remote_grid) >= 4 &&
-        qth_grid_check(qso.local_grid) && qth_grid_check(qso.remote_grid)) {
-        double lat1, lon1, lat2, lon2;
+    field_station_t sta = {0};
+    field_qso_t     q;
+    char            rec[768];
 
-        qth_str_to_pos(qso.local_grid, &lat1, &lon1);
-        qth_str_to_pos(qso.remote_grid, &lat2, &lon2);
-        write_int(l->fd, "DISTANCE", (int)(qth_pos_dist(lat1, lon1, lat2, lon2) + 0.5));
-    }
-    fprintf(l->fd, "<EOR>\r\n");
+    if (!l) return;     /* the day's log says why (dialog_field_day_log) */
+    q = adif_field_qso(&qso);
+    snprintf(sta.call, sizeof(sta.call), "%s", qso.local_call);
+    snprintf(sta.grid, sizeof(sta.grid), "%s", qso.local_grid);
+    field_adif_record(rec, sizeof(rec), &q, &sta);
+    fputs(rec, l->fd);
     fflush(l->fd);
 }
 
@@ -319,84 +323,6 @@ int adif_read(const char * path, qso_log_record_t ** records, int *skipped) {
     free(data);
     return (int)count;
 }
-
-static void write_header(FILE *fd) {
-    fprintf(fd, "<PROGRAMID:9>OpenX6X00\r\n");
-    fprintf(fd, "<PROGRAMVERSION:5>1.0.0\r\n");
-    fprintf(fd, "<ADIF_VER:4>3.14\r\n");
-    fprintf(fd, "<EOH>\r\n");
-}
-
-static void write_str(FILE *fd, const char * key, const char * val) {
-    if (val == NULL) {
-        fprintf(fd, "<%s:0>", key);
-    } else {
-        size_t l = strlen(val);
-        fprintf(fd, "<%s:%i>%s", key, l, val);
-    }
-}
-
-static void write_int(FILE *fd, const char * key, int val) {
-    char str_val[8];
-    sprintf(str_val, "%i", val);
-    write_str(fd, key, str_val);
-}
-
-/* The reports of the digital modes are signed dB in two digits, as every logbook writes
- * them ("+01", "-05"); the others as they are (599) */
-static void write_rst(FILE *fd, const char *key, int val, qso_log_mode_t mode) {
-    char str_val[8];
-
-    if (mode == MODE_FT8 || mode == MODE_FT4 || mode == MODE_FT2 || mode == MODE_JS8)
-        snprintf(str_val, sizeof(str_val), "%+03i", val);
-    else
-        snprintf(str_val, sizeof(str_val), "%i", val);
-    write_str(fd, key, str_val);
-}
-
-static void write_date_time(FILE *fd, time_t time) {
-    struct tm *ts = gmtime(&time);
-    fprintf(fd, "<QSO_DATE:8>%04i%02i%02i", ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday);
-    fprintf(fd, "<QSO_DATE_OFF:8>%04i%02i%02i", ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday);
-    fprintf(fd, "<TIME_ON:4>%02i%02i", ts->tm_hour, ts->tm_min);
-    fprintf(fd, "<TIME_OFF:4>%02i%02i", ts->tm_hour, ts->tm_min);
-}
-
-static void write_freq(FILE *fd, float freq_mhz) {
-    char str_freq[16];      /* "145.5000" is nine bytes with its terminator: eight overflowed (audit B03) */
-    snprintf(str_freq, sizeof(str_freq), "%0.4f", freq_mhz);
-    write_str(fd, "FREQ", str_freq);
-}
-
-static void write_band(FILE *fd, qso_log_band_t band) {
-    if (band == BAND_OTHER) {
-        write_str(fd, "BAND", "");
-    } else {
-        char str_band[16];
-        snprintf(str_band, sizeof(str_band), "%dM", band);
-        write_str(fd, "BAND", str_band);
-    }
-}
-
-static void write_mode(FILE *fd, qso_log_mode_t mode) {
-    /* ADIF MODE and SUBMODE of each log mode; MODE_OTHER (and anything unknown) writes both empty */
-    static const char *const adif_mode[][2] = {
-        [MODE_SSB]  = {"SSB", NULL},
-        [MODE_AM]   = {"AM", NULL},
-        [MODE_FM]   = {"FM", NULL},
-        [MODE_CW]   = {"CW", NULL},
-        [MODE_FT8]  = {"FT8", NULL},
-        [MODE_FT4]  = {"MFSK", "FT4"},
-        [MODE_RTTY] = {"RTTY", NULL},
-        [MODE_JS8]  = {"MFSK", "JS8"},
-        [MODE_FT2]  = {"MFSK", "FT2"},
-    };
-    bool known = (unsigned)mode < sizeof(adif_mode) / sizeof(adif_mode[0]);
-
-    write_str(fd, "MODE", known ? adif_mode[mode][0] : NULL);
-    write_str(fd, "SUBMODE", known ? adif_mode[mode][1] : NULL);
-}
-
 
 static void copy_str(char * dst, char * src, size_t val_len, size_t dst_len) {
     if (val_len > (dst_len - 1)) {

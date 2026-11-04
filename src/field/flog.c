@@ -163,6 +163,15 @@ size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const fie
     return n < size ? n : size - 1;
 }
 
+int field_adif_header(FILE *f, const char *title) {
+    const char *ver = getenv("X6100_FW");
+
+    if (!ver || !ver[0])
+        return fprintf(f, "%s\n<ADIF_VER:5>3.1.8 <PROGRAMID:9>OpenX6X00 <eoh>\n", title);
+    return fprintf(f, "%s\n<ADIF_VER:5>3.1.8 <PROGRAMID:9>OpenX6X00 <PROGRAMVERSION:%zu>%s <eoh>\n", title,
+                   strlen(ver), ver);
+}
+
 bool field_log_add(const char *path, const field_qso_t *q, const field_station_t *st) {
     char  rec[768], dir[256];
     int   mk = 0, err = 0;
@@ -199,7 +208,7 @@ bool field_log_add(const char *path, const field_qso_t *q, const field_station_t
         return false;
     }
     if (is_new)
-        fprintf(f, BOARD_NAME " Field Ops log\n<ADIF_VER:5>3.1.8 <PROGRAMID:9>OpenX6X00 <eoh>\n");
+        field_adif_header(f, BOARD_NAME " Field Ops log");
     field_adif_record(rec, sizeof(rec), q, st);
     if (fputs(rec, f) < 0 || fflush(f) != 0)
         err = errno;

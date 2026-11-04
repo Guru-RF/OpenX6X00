@@ -2193,7 +2193,15 @@ second entry.
   station's RR73 gets your 73, and a station that calls you is answered once
   the other one has been quiet for a slot of yours.
 
-The log is `/mnt/ft_log.adi`; the radio says "Saved QSO de ...".
+The log is `/mnt/ft_log.adi`; the radio says "Saved QSO de ...". The QSO
+also goes into the day's log, which the web configurator's Logs page lists
+and exports, as the same ADIF record: the time to the second, the band as
+ADIF writes it (`40m`), the frequency in MHz to the Hz, no empty fields.
+While an activation runs it goes into the activation's log instead, with
+the same call, date, time to the second, band, frequency and mode, and the
+activation's fields besides: its reference (MY_SOTA_REF, MY_POTA_REF or
+MY_SIG and MY_SIG_INFO) and, in Tiles, the tile as MY_GRIDSQUARE. For LoTW,
+upload one of the two (see [Where are my logs?](#where-are-my-logs)).
 
 A compound or long callsign. FT8 packs a base call, with /P or /R at most
 (ON6URE, ON6URE/P), together with a grid or a report. Any other call of
@@ -5899,6 +5907,24 @@ FT8/FT4 in `/mnt/ft_log.adi`, JS8 in `/mnt/js8call_log.adi`, Field Ops in
 `/mnt/field/logs/`, the QSOs logged outside an activation in the day's log. The web configurator's
 Logs page shows them all. What PSK, Olivia, Contestia and JTTY received and sent, and what RTTY received, is in
 `/mnt/digi_text/`, a file a UTC day, on the Logs page too ([Text log of the keyboard modes](#text-log-of-the-keyboard-modes)).
+
+An FT8, FT4 or FT2 QSO is in two of them, `ft_log.adi` and the day's log
+(or the activation's), and a JS8 QSO in `js8call_log.adi` and that log. For
+LoTW or another logbook, upload one source, the Logs page's Export ADIF: it
+has every QSO (FT8, FT4, FT2, JS8, the ones logged by hand, the
+activations), the other files one app's each. LoTW tells QSOs apart by call,
+band, mode, date and time, and `ft_log.adi` and the day's log once wrote the
+time in two ways (`1802` and `180259`): the same QSO uploaded from both
+counted twice. `ft_log.adi` and the day's log write it as the same record
+now (issue #174); an activation's log has the same call, date, time to the
+second, band, frequency and mode, with the activation's reference fields
+besides. The records `ft_log.adi` got before stay as they were written. A
+band set on the Logs page goes in the same way (`20m`). `ft_log.adi`,
+the day's and the activations' logs and the export start with the same
+header: a line naming the file, ADIF_VER 3.1.8, PROGRAMID OpenX6X00 and
+PROGRAMVERSION, the firmware's version (Settings > Info). An `ft_log.adi`
+begun before keeps the header it had (PROGRAMVERSION 1.0.0, ADIF_VER 3.14);
+`js8call_log.adi` keeps desktop JS8Call's.
 
 ## Reference
 

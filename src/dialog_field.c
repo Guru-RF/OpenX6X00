@@ -13,6 +13,7 @@
  */
 
 #include "dialog_field.h"
+#include "adif.h"
 #include "band_plan.h"
 #include "board.h"
 
@@ -1879,18 +1880,10 @@ bool dialog_field_qso_log(const char *text) {
     return true;
 }
 
-/* FT8, FT4 and JS8 QSOs into the day's log too, next to the phone's */
+/* FT8, FT4, FT2 and JS8 QSOs into the day's log too, next to the phone's: the QSO as ft_log.adi has it (adif.c) */
 void dialog_field_day_log(const qso_log_record_t *r) {
-    field_qso_t q = {.t = r->time, .freq_hz = (int32_t)(r->freq_mhz * 1e6f + 0.5f)};
+    field_qso_t q = adif_field_qso(r);
 
-    snprintf(q.call, sizeof(q.call), "%s", r->remote_call);
-    snprintf(q.mode, sizeof(q.mode), "%s", r->mode == MODE_FT4 ? "FT4" : r->mode == MODE_JS8 ? "JS8" : r->mode == MODE_FT2 ? "FT2" : "FT8");
-    /* The digital reports signed in two digits ("+01", "-05"), as in every logbook */
-    bool digi = r->mode == MODE_FT8 || r->mode == MODE_FT4 || r->mode == MODE_FT2 || r->mode == MODE_JS8;
-    snprintf(q.rst_s, sizeof(q.rst_s), digi ? "%+03d" : "%d", r->rsts);
-    snprintf(q.rst_r, sizeof(q.rst_r), digi ? "%+03d" : "%d", r->rstr);
-    snprintf(q.name, sizeof(q.name), "%s", r->name);
-    snprintf(q.grid, sizeof(q.grid), "%s", r->remote_grid);
     /* An activation going on: the QSO counts for it and goes in its log, as the voice QSOs
      * logged here do; otherwise in the day's log. Not both: the web page lists every log */
     if (st.active)
