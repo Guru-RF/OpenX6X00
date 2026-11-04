@@ -976,7 +976,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
     instead (see [S-meter](#s-meter)), except for a
     [TUNE for an external tuner](#tune-for-an-external-tuner): it always
     brings up the panel, for its seconds against the limit. The digital apps
-    keep their TX strip either way.
+    keep their TX strip (power and SWR) either way, the S-meter at rest.
 - Icon menus (on by default): the APP grid (see
   [Buttons and knobs](#buttons-and-knobs)), APP > Modes as tiles and icons on
   the Settings tabs; off, APP shows its button pages only, Modes a list and
