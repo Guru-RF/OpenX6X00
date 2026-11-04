@@ -52,6 +52,7 @@
 #include "digi_textlog.h"       /* the text on the card (#55) */
 #include "station.h"
 #include "main.h"
+#include "freq_strip.h"
 
 #include "widgets/lv_waterfall.h"
 #include "widgets/lv_finder.h"
@@ -1141,6 +1142,7 @@ static void mode_press_cb(button_data_t *b)
     rebuild_rx();
 
     msg_update_text_fmt("%s %s", olivia_tx_mode_family(m), olivia_tx_mode_name(m));
+    freq_strip_set_app(family());   /* as screen_main.c's app_name() gives it at the opening */
     buttons_refresh(b);
 }
 
