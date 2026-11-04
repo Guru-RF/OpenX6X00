@@ -7,13 +7,15 @@
 # BOTTLE: a folder with bottle.py, as in tools/channels. TARGETS: the buildroot target folders of the radio images,
 # by default those built next to this repository. KEEP=1 keeps NetworkManager's log (the folder is printed).
 # `make v038` runs the same test on v0.3.8's web server, which has to fail it: it called nmcli, which the radios do
-# not have, and a restored WiFi network was known only at the next start.
+# not have, and a restored WiFi network was known only at the next start. It must fail exactly the cases in
+# V038_FAILS, with no error: a test that could not run (an error in setUpModule) proves nothing.
 TOP       := ../..
 BOTTLE    ?= $(patsubst %/,%,$(dir $(firstword $(wildcard \
                  $(TOP)/../AetherX6200Buildroot/build/build/python-bottle-*/bottle.py \
                  $(TOP)/../AetherX6100Buildroot/build/build/python-bottle-*/bottle.py))))
 TARGETS   ?= $(wildcard $(TOP)/../AetherX6200Buildroot/build/target $(TOP)/../AetherX6100Buildroot/build/target)
 WEBSERVER ?=
+V038_FAILS = test_changed_network test_network_in_use_replaced test_new_network
 RUN        = mkdir -p build/tmp && TMPDIR=$(CURDIR)/build/tmp BOTTLE=$(if $(BOTTLE),$(abspath $(BOTTLE))) \
              TARGETS="$(abspath $(TARGETS))" WEBSERVER=$(WEBSERVER) unshare -rmn python3 -I -B wifi_restore_test.py
 
@@ -28,6 +30,8 @@ v038:
 	git -C $(TOP) archive v0.3.8 webserver/src | tar -x -C build/v038
 	if $(RUN) > build/v038.log 2>&1; then echo "v0.3.8 passes the test: it should fail it"; exit 1; fi
 	grep -E "^(FAIL|ERROR):|^Ran |^FAILED" build/v038.log
+	for t in $(V038_FAILS); do grep -q "^FAIL: $$t " build/v038.log || { echo "v0.3.8 did not fail $$t"; exit 1; }; done
+	grep -qx "FAILED (failures=$(words $(V038_FAILS)))" build/v038.log || { echo "v0.3.8 failed otherwise"; exit 1; }
 	@echo "v0.3.8 fails the test, as it should"
 
 clean:
