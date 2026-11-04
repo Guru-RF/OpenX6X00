@@ -265,6 +265,9 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
 - A key with no chord (A, Q, 9, Enter) pressed while CapsLock is still
   down, as the first key, is fast typing: Caps Lock turns and the key
   types. A chord's key typed that fast is the chord: let CapsLock go first.
+- The keyboard's keys keep the screen lit, as the radio's own do. On a
+  dark screen (Settings > Display > BACKLIGHT > Screen off) the first
+  chord only lights it, press it again; a key typed types as usual.
 
 PTT from the keyboard. CapsLock+Space keys the radio as its PTT key does,
 with the same refusals where the radio may not transmit, the 0 W hold, the
@@ -272,7 +275,8 @@ SWR protection and the stuck TX watch; in CW it keys the carrier, as the
 PTT key does. The screen says `PTT on: CapsLock+Space for off` and shows TX
 as for any transmission (the TX panel, or the power and SWR in the S-meter
 box). CapsLock+Space again lets go, from any screen: a window opened while
-on the air does not keep the radio there.
+on the air does not keep the radio there. While it is on the screen stays
+lit.
 
 - It follows the radio. Let go another way (the PTT key, the SWR
   protection, CAT), the next CapsLock+Space keys again.

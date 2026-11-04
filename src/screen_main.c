@@ -1423,6 +1423,7 @@ static void kbd_ptt_let_go(const char *why) {
 }
 
 static void kbd_ptt_tick_cb(lv_timer_t *t) {
+    backlight_tick();   /* on the air with no key held: the screen stays lit, TX in view */
     switch (kbd_ptt_tick(&kbd_ptt, radio_get_ptt(), radio_get_state() != RADIO_RX, radio_no_data(), get_time())) {
         case KBD_PTT_ENDED:     /* let go another way, which says why (the SWR, outside the bands) */
             kbd_ptt_off();

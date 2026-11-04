@@ -20,6 +20,7 @@
 #include "kbd_rollover.h"
 #include "paddle_keyer.h"
 #include "pubsub_ids.h"
+#include "screen_light.h"
 #include "screen_main.h"
 #include "usb_devices.h"
 
@@ -58,6 +59,7 @@ static int            rescans_left;
 static kbd_hyper_t    hyper;        /* CapsLock held for a chord */
 static bool           dead;         /* the open keyboard's node reads ENODEV: unplugged, or its Bluetooth link gone */
 static bool           caps;         /* Caps Lock on, as xkb has it: only a CapsLock tapped alone turns it */
+static bool           woke_hold;    /* the press of the CapsLock held woke the screen: its first chord only did that */
 
 /* The keyboard's Caps Lock light to ours. The light is the kernel console's (/dev/tty0), which turns
  * it at every CapsLock press, also one held for a chord: put back at the chord, and set at each
@@ -93,10 +95,13 @@ static void caps_turn(void) {
     caps_light();
 }
 
-/* CapsLock as the hyper key: false when the event goes no further */
-static bool hyper_key(const struct input_event *ev) {
+/* CapsLock as the hyper key: false when the event goes no further. woke: this press woke the screen */
+static bool hyper_key(const struct input_event *ev, bool woke) {
     kbd_hyper_action_t action = HYPER_NONE;
 
+    if (ev->code == KEY_CAPSLOCK && ev->value == 1) {
+        woke_hold = woke;
+    }
     switch (kbd_hyper_key(&hyper, ev->code, ev->value, &action)) {
         case HYPER_PASS:
             return true;
@@ -108,7 +113,13 @@ static bool hyper_key(const struct input_event *ev) {
             return true;
         case HYPER_CHORD:
             caps_light();
-            keyboard_chord(action);
+            /* A chord on a dark screen only lights it, as a front key's press: CapsLock+Space keyed unseen, no TX
+             * on the screen */
+            if (woke || woke_hold) {
+                woke_hold = false;
+            } else {
+                keyboard_chord(action);
+            }
             return false;
         default:
             return false;
@@ -158,6 +169,9 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
         if (ev.type != EV_KEY) {
             continue;
         }
+        /* A key at the radio, as the front keys and the knobs: the screen stays lit, a dark one wakes */
+        bool woke = backlight_tick() && ev.value == 1;
+
         /* In CW [ ] and the paddle keys are the paddle (paddle_keyer.c): a press stops a
          * message on air, as a break */
         if (paddle_keyer_key(ev.code)) {
@@ -166,7 +180,7 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
             }
             continue;
         }
-        if (!hyper_key(&ev)) {
+        if (!hyper_key(&ev, woke)) {
             continue;
         }
         *key      = xkb_process_key(ev.code, ev.value);     /* xkb follows Shift from these too */
