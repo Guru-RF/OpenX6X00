@@ -22,13 +22,17 @@ void kbd_ptt_keyed(kbd_ptt_t *p, bool ok, uint64_t now_ms) {
     p->keyed_ms = now_ms;
 }
 
-kbd_ptt_tick_t kbd_ptt_tick(kbd_ptt_t *p, bool ptt, bool tx, uint64_t now_ms) {
+kbd_ptt_tick_t kbd_ptt_tick(kbd_ptt_t *p, bool ptt, bool tx, bool no_data, uint64_t now_ms) {
     if (!p->on) {
         return KBD_PTT_STAY;
     }
     if (!ptt) {
         p->on = false;
         return KBD_PTT_ENDED;
+    }
+    if (no_data || now_ms - p->keyed_ms > KBD_PTT_LIMIT_MS) {
+        p->on = false;
+        return no_data ? KBD_PTT_NO_DATA : KBD_PTT_TIME_UP;
     }
     if (tx) {
         p->on_air = true;

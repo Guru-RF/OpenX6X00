@@ -1423,12 +1423,18 @@ static void kbd_ptt_let_go(const char *why) {
 }
 
 static void kbd_ptt_tick_cb(lv_timer_t *t) {
-    switch (kbd_ptt_tick(&kbd_ptt, radio_get_ptt(), radio_get_state() != RADIO_RX, get_time())) {
+    switch (kbd_ptt_tick(&kbd_ptt, radio_get_ptt(), radio_get_state() != RADIO_RX, radio_no_data(), get_time())) {
         case KBD_PTT_ENDED:     /* let go another way, which says why (the SWR, outside the bands) */
             kbd_ptt_off();
             break;
         case KBD_PTT_LET_GO:
             kbd_ptt_let_go("PTT off: not on the air");
+            break;
+        case KBD_PTT_NO_DATA:
+            kbd_ptt_let_go("PTT off: no data from the base");
+            break;
+        case KBD_PTT_TIME_UP:
+            kbd_ptt_let_go("PTT off: three minutes on the air");
             break;
         default:
             break;

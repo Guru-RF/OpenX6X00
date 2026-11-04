@@ -280,10 +280,18 @@ on the air does not keep the radio there.
   A key that has not got the radio on the air after 2 s, or a radio back on
   receive by itself, is let go: `PTT off: not on the air`.
 - The keyboard unplugged, or its Bluetooth link lost, lets go: `PTT off:
-  keyboard gone`.
+  keyboard gone`. A Bluetooth link can take some seconds to count as
+  lost. A wireless keyboard whose USB receiver stays plugged in is not
+  seen as gone when the keyboard itself goes quiet (a flat battery, out of
+  range): the three minutes below end it then.
+- No data from the base for 3 s while it is on lets go: `PTT off: no data
+  from the base`. Without it the radio has no SWR protection and no power
+  reading.
 - As the PTT key does, it gives control to the radio's operator: a browser
   or a TCI client neither keys nor takes control while it is on.
-- There is no time limit: it stays on the air until you let go.
+- It lets go three minutes after it keyed, as the browser's PTT does:
+  `PTT off: three minutes on the air`. CapsLock+Space keys again for three
+  more.
 
 Up to v0.3.8 the keyboard's F keys did some of this: F1-F5 keyed the CW
 messages in CW, F10 logged the CW line, F9 opened Settings, F1-F8 sent

@@ -249,9 +249,10 @@ build's window.
   S-meter box's power and SWR), again lets go; in CW the carrier. Then, each while keyed: the side PTT pressed and
   let go (unkeyed; the next chord keys), Settings opened from the front key then CapsLock+Space (lets go), the USB
   keyboard pulled and the Bluetooth one switched off (`PTT off: keyboard gone`), CW keyed then the mode to USB and
-  CapsLock+Space (no carrier left down), CAT PTT off in CW (no carrier left down). Out of band: `No TX on ...`, the
-  next chord tries again. A browser paired meanwhile: its PTT refused ("controlled by the radio's operator").
-- Open: a time limit for the PTT toggle (none now, as the PTT key); more chords, a line each in kbd_hyper.c's table.
+  CapsLock+Space (no carrier left down), CAT PTT off in CW (no carrier left down), three minutes keyed (`PTT off:
+  three minutes on the air`). Out of band: `No TX on ...`, the next chord tries again. A browser paired meanwhile:
+  its PTT refused ("controlled by the radio's operator").
+- Open: more chords, a line each in kbd_hyper.c's table.
 
 ## WiFi: a static address, as Ethernet has (#17)
 
