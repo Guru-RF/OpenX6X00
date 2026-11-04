@@ -9,7 +9,7 @@ Settings. Button and option names are written as the radio shows them.
 
 ## Contents
 
-- [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic)
+- [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
@@ -224,6 +224,54 @@ one second.
   and the key the radio took it for, or "unknown". Not while a text box is
   open, where the digits can be a WiFi password. A key of another mic that
   does nothing: send the log lines of its keys in an issue.
+
+### Keyboard
+
+A USB keyboard, or a Bluetooth one paired in Settings > Bluetooth > DEVICES,
+types in the text boxes and the apps. On the main screen it has the keys for
+the knobs (see [Buttons and knobs](#buttons-and-knobs)), F9 for Settings, `f`
+for the frequency box and, in CW, the [CW line](#cw-from-the-keyboard). And:
+
+- PgUp and PgDn: the next band up or down, as the [BAND keys](#band-keys).
+- Scroll Lock: the [frequency lock](#buttons-and-knobs) on or off.
+- Print Screen: a screenshot.
+- These four work on the main screen only: in an app, Settings, a list or a
+  text box they do nothing. Up to v0.3.8 they did nothing on the radio.
+
+CapsLock is the keyboard's hyper key: held, the key pressed with it does
+something on the radio instead of typing. A key every keyboard has: small
+and Bluetooth keyboards often have no F keys, or only with Fn.
+
+- CapsLock+L opens the [quick QSO log](#quick-qso-log) on the main screen,
+  in any mode. The other letters do nothing with it yet.
+- A key pressed while CapsLock is held is never typed, and Caps Lock stays
+  as it was, on or off. The keyboard's Caps Lock light can come on while
+  CapsLock is held, and goes back when the other key goes down.
+- CapsLock tapped alone, nothing pressed with it, is Caps Lock as before:
+  it turns when you let it go. Shift, Ctrl and Alt work with it as usual.
+- In an app, Settings, a list or a text box (the quick log's own box too)
+  CapsLock+L does nothing: no letter is typed and nothing opens.
+
+#### Quick QSO log
+
+A QSO logged from the main screen in any mode, the waterfall and the spots
+on it still in view: CapsLock+L, or the Log QSO button (KEY until the page
+reads CW 1:2, then F5), opens a one-line box near the top,
+`Call [sent [rcvd]]:`.
+
+- Type the call, then the report you sent and the one you received, and
+  press Enter: `F4ABC 59 57`. A report left out is 59, 599 in CW. Esc
+  closes the box without logging. Field Ops' Log QSO takes the same order.
+- In CW the call the decoder confirmed last is in the box already.
+- The radio says `QSO logged: F4ABC 59 57 SSB`. The QSO goes into the day's
+  log, `/mnt/field/logs/YYYYMMDD.adi` (a file a UTC day), with the time, the
+  radio's frequency and its mode (SSB in USB and LSB), never into a Field
+  Ops activation's log. The web configurator's Logs page lists it, and
+  [Wavelog](#wavelog) gets it when it is set up.
+- With a keyboard no on-screen keyboard opens. Without one the on-screen
+  keyboard does (the Log QSO button).
+- In CW, with the [CW line](#cw-from-the-keyboard) open, F10 logs the line
+  typed in it the same way, instead of sending it.
 
 ## Updating the firmware
 
@@ -2665,7 +2713,7 @@ Train is for practice: the key, the paddle, the CW messages and the
 ### CW decoder
 
 In CW mode the decoder buttons are on the CW pages: CW 1:2 has ZAP, CW
-peak, CW peak Q and Log QSO, CW 2:2 Decoder on/off, Tuner (tuning
+peak, CW peak Q and Log QSO (the [quick QSO log](#quick-qso-log)), CW 2:2 Decoder on/off, Tuner (tuning
 indicator), Dec SNR and Parse. Text and speed (WPM) appear in the panel
 over the waterfall.
 
@@ -3211,8 +3259,10 @@ the start and the last call.
   hand mic only (see [recording voice messages](#recording-voice-messages)). It is `CQ SOTA` /
   `CQ POTA` in `/mnt/msg`, so MSG > Voice lists it too. CQ again while it is
   on air stops it.
-- Log QSO: type `CALL`, or `CALL rst_rcvd rst_sent` (default 599 in CW, 59
-  otherwise). Each QSO goes to the SD card at once, in
+- Log QSO: type `CALL`, or `CALL rst_sent rst_rcvd`, the report you sent
+  first, as in the main screen's [quick QSO log](#quick-qso-log) (default 599
+  in CW, 59 otherwise): `F4ABC 59 57` is 59 sent, 57 received. Up to v0.3.8
+  Field Ops took the report received first. Each QSO goes to the SD card at once, in
   `/mnt/field/logs/<date>-<time>_<ref>.adi` with `MY_SOTA_REF` or
   `MY_SIG POTA` / `MY_POTA_REF`. The logs can be downloaded from the web
   configurator's Field Ops page.

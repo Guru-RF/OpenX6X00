@@ -21,7 +21,8 @@ bool cw_field_key(uint32_t key);
 /* A line to key after the queue, as typed plus Enter ({CALL} expanded) */
 void cw_field_send_text(const char *text);
 
-/* Log a QSO into the day's log: "CALL [rst sent [rst rcvd]]", 599 when left out */
+/* Log a QSO into the day's log: "CALL [rst sent [rst rcvd]]", the order of Field Ops' Log QSO; a report left out
+ * is 599 in CW, 59 otherwise */
 void cw_field_log_qso(const char *text);
 
 /* The "Log QSO" button: a line to type the QSO in (keyboard or on-screen keys) */

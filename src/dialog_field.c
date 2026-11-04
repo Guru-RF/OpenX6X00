@@ -1360,7 +1360,7 @@ static void build_act(void) {
         lv_obj_set_style_text_align(*vals[k], LV_TEXT_ALIGN_CENTER, 0);
     }
     act_update();
-    lv_label_set_text(status, is_cw() ? "CQ calls in CW.  Log QSO: call [rst rcvd [rst sent]]"
+    lv_label_set_text(status, is_cw() ? "CQ calls in CW.  Log QSO: call [rst sent [rst rcvd]]"
                                       : "CQ sends your voice CQ (Rec CQ: page 2).  Log QSO: call [rst...]");
     buttons_load_page(&page_act1);
 }
@@ -1944,7 +1944,8 @@ static bool activation_log_add(const field_qso_t *q) {
     return true;
 }
 
-/* Log QSO on the radio: "CALL [rst received [rst sent]]" */
+/* Log QSO on the radio: "CALL [rst sent [rst received]]", the order of the main screen's box (cw_field.c); up to
+ * v0.3.8 the report received came first */
 
 static void kbd_end(void) {
     textarea_window_close();
@@ -1968,7 +1969,7 @@ static bool wca_pad(const char *ref, char *out, size_t size) {
 
 static bool log_ok(void) {
     const char *v = textarea_window_get();
-    char        text[160], *words[8], *save, call[32] = "", r1[8] = "", r2[8] = "";
+    char        text[160], *words[8], *save, call[32] = "", rs[8] = "", rr[8] = "";
     int         nw = 0, n_rst = 0;
     bool        lh_word = false;    /* the word before was LH or ARLHS: a lighthouse's number follows */
     field_qso_t more = {0};
@@ -1978,7 +1979,7 @@ static bool log_ok(void) {
         for (char *p = t; *p; p++) *p = toupper((unsigned char)*p);
         words[nw++] = t;
     }
-    /* "CALL [rst rcvd [rst sent]] [their reference]": a word shaped as a reference is theirs */
+    /* "CALL [rst sent [rst rcvd]] [their reference]": a word shaped as a reference is theirs */
     if (nw >= 1) {
         snprintf(call, sizeof(call), "%s", words[0]);
         for (int i = 1; i < nw; i++) {
@@ -2028,11 +2029,11 @@ static bool log_ok(void) {
             if (field_ref_prog(w))
                 snprintf(more.their_ref, sizeof(more.their_ref), "%s", w);
             else if (n_rst == 0)
-                snprintf(r1, sizeof(r1), "%s", w), n_rst++;
+                snprintf(rs, sizeof(rs), "%s", w), n_rst++;
             else if (n_rst == 1)
-                snprintf(r2, sizeof(r2), "%s", w), n_rst++;
+                snprintf(rr, sizeof(rr), "%s", w), n_rst++;
         }
-        if (!log_add(call, r2, r1, &more))
+        if (!log_add(call, rs, rr, &more))
             msg_update_text_fmt("Log: \"%s\" is not a callsign", call);
     }
     kbd_end();
@@ -2051,7 +2052,7 @@ static void log_cb(button_data_t *b) {
     }
     kbd_open = true;
     lv_group_remove_obj(dialog.obj);
-    textarea_window_open_w_label(log_ok, kbd_cancel, "Call [rst rcvd [sent]] [their ref]: ");
+    textarea_window_open_w_label(log_ok, kbd_cancel, "Call [sent [rcvd]] [their ref]: ");
 }
 
 static bool set_ref(const char *in) {

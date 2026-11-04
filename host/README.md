@@ -43,6 +43,7 @@ Everything else typed goes into the GUI as a USB keyboard would.
 | Ctrl+B, Ctrl+R, Ctrl+T      | A/B, PRE, ATU                 |
 | Ctrl+V, Ctrl+G, Ctrl+F      | V/M, AGC, FST                 |
 | Ctrl+P                      | PTT (the stub only pretends)  |
+| CapsLock+L                  | the quick QSO log, as a USB keyboard's CapsLock+L (this PC's Caps Lock still turns) |
 
 The mouse is a pointer: what is clickable on the screen can be clicked.
 
