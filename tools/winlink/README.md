@@ -61,23 +61,26 @@ it, the first time with a download of about 150 MB, then it only gives the path;
   peer to peer (`varahf:///N0BBB?p2p=true`): connected, sent, disconnected, the message
   in B's inbox, no key stopped by the GUI, both bridges stop on SIGTERM. About a minute
   (2026-10-29: 58 s, six keys a station, the longest 3.8 s).
-- XARA: two stations the same way, each a `winlink_host` and our patched XARA
-  (`tools/xara`), started as `x6100-winlink` starts it (`xara --config` with the
-  settings it writes, no `XARA_*` or `STATE_DIRECTORY`): it connects in protocol 2
-  (12000 Hz, keys of 30 s), says so in its log as the supervisor reads it, and
-  answers `VERSION` with `VERSION VARA HF v4.9.0`. First, at the free speed and
-  before any Pat, A's XARA calls B's (`CONNECT` on its host port): B neither answers
-  nor keys, since on the radio XARA starts with listening off, and A gives the call
-  up on `ABORT` (about 12 s). Pat B listens on varahf (its `LISTEN ON`); Pat A
-  sends B a message peer to peer, twice. At the free speed (no `registered`): A's XARA
-  says `REGISTERED` without a call, B's `LINK UNREGISTERED`, no level past VARA's free
-  4. With `registered` on A, as the Winlink page's VARA HF licence box asks: A's says
-  `REGISTERED N0AAA`, B's `LINK REGISTERED` (the callee follows the caller's bit) and
-  the link goes past level 4. Each time: connected, the message in B's inbox, no key
-  stopped by the GUI, both XARAs stop on SIGTERM (their code 130). About two and a
-  half minutes (2026-11-04, three runs: 89-96 s at the free speed, levels 2 to 4;
-  61-62 s at full speed, up to level 9, 10 and 13; keys of 5.2 s at the most). The
-  whole `make modems`: 247 s.
+- XARA: two stations the same way (ON4AAA and ON4BBB at the free speed, N0AAA and
+  N0BBB at full speed), each a `winlink_host` and our patched XARA (`tools/xara`),
+  started as `x6100-winlink` starts it (`xara --config` with the settings it writes,
+  no `XARA_*` or `STATE_DIRECTORY`): it connects in protocol 2 (12000 Hz, keys of
+  30 s), says so in its log as the supervisor reads it, and answers `VERSION` with
+  `VERSION VARA HF v4.9.0`. First, at the free speed and before any Pat, A's XARA
+  calls B's (`CONNECT` on its host port): B neither answers nor keys, since on the
+  radio XARA starts with listening off, and A gives the call up on `ABORT`. Pat B
+  listens on varahf (its `LISTEN ON`); Pat A sends B a message peer to peer, twice. At
+  the free speed (no `registered`): A's XARA says `REGISTERED` without a call, B's
+  `LINK UNREGISTERED`, no level past VARA's free 4. With `registered` on A, as the
+  Winlink page's VARA HF licence box asks: A's says `REGISTERED N0AAA`, B's `LINK
+  REGISTERED` (the callee follows the caller's bit) and the link goes past level 4.
+  Pat asks for a CW ID (`CWID ON`) each time; XARA 0.1.3 sends one only with a US
+  call, so the first run sends none and the second one does. Each time: connected, the
+  message in B's inbox, no key stopped by the GUI, both XARAs stop on SIGTERM (their
+  code 130). About two and a half minutes, and 12 s for the unanswered call
+  (2026-11-04, seven runs: 89-97 s at the free speed, levels 2 to 4; 60-62 s at full
+  speed, the highest level 9 to 14; keys of 5.2 s at the most). The whole `make
+  modems`: 257 s.
 
 It prints `MODEMS OK`; `--keep DIR` (run the script by hand) keeps the logs, `--only
 ardop|mercury|xara` runs one.

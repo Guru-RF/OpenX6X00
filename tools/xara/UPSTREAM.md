@@ -104,6 +104,15 @@ bit is the one that counts on its links.
 XARA is an independently written program that speaks VARA's protocol. The owner's view (4 November 2026): reverse
 engineering for compatibility with a protocol is lawful in Europe, so XARA is fine to ship.
 
+## The CW ID
+
+Not changed by the patch. XARA 0.1.3 answers Pat's `CWID ON` with OK in HF and does not act on it (`tnc.rs`:
+`Command::Gateway | Command::Cwid(_) => M::CWID_GATEWAY`; the HF session's `cwid` is set only in its tests). It
+sends a CW ID at the end of a session only when its callsign is of the US kind (`is_us_call` in
+`crates/xara-phy/src/call.rs`: roughly, 4 to 6 letters and digits, one digit as the second or third character,
+starting with K, N or W, or with AA to AL), so with a call from outside the US there is none. `make modems` shows
+both: no CW ID at the free speed, with ON4AAA and ON4BBB; one at full speed, with N0AAA and N0BBB.
+
 ## Licences of what is compiled in
 
 - XARA: MIT, Copyright (c) 2026 x0rro.

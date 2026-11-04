@@ -16,7 +16,8 @@
    LINK UNREGISTERED and no level goes past VARA's free 4; with `registered` on A (the Winlink page's VARA licence
    tick box), B's says LINK REGISTERED, as VARA's callee follows the caller's bit. Both stop on SIGTERM. First, at
    the free speed and before any Pat: A's XARA calls B's, which neither answers nor keys (on the radio XARA starts
-   with listening off; Pat B's listen turns it on).
+   with listening off; Pat B's listen turns it on). The free run has calls of a European kind (ON4AAA, ON4BBB), the
+   registered one US calls: XARA 0.1.3 takes Pat's CWID ON but identifies in CW only with a US call.
 
 Run it in a network namespace with loopback only (`make modems` does, with unshare -rn): Pat then reaches
 nothing outside, no Winlink web service, no CMS. Pat's own account check before a connect is also skipped
@@ -40,6 +41,8 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLAY_RATE = 44100
 CALL_A, CALL_B = "N0AAA", "N0BBB"
+# Calls that are not of the US kind, for XARA's run at the free speed: XARA 0.1.3 identifies in CW only with a US call
+CALL_EU_A, CALL_EU_B = "ON4AAA", "ON4BBB"
 
 
 def fail(msg):
@@ -420,12 +423,14 @@ def levels(log):
 
 def xara_test(procs, tmp, xara, pat, registered):
     tag = "full" if registered else "free"
-    print(f"XARA through --audio x6x00, protocol 2, and Pat's varahf, two stations, "
+    # The free run with calls of a European kind, the registered one with US calls: the CW ID differs (below)
+    call_a, call_b = (CALL_A, CALL_B) if registered else (CALL_EU_A, CALL_EU_B)
+    print(f"XARA through --audio x6x00, protocol 2, and Pat's varahf, two stations ({call_a}, {call_b}), "
           f"{'registered on A (the licence tick box)' if registered else 'the free speed'}")
     port_a, port_b = (18340, 18350) if registered else (18320, 18330)
     air_a, air_b = os.path.join(tmp, "air-xa-" + tag), os.path.join(tmp, "air-xb-" + tag)
-    ha, xa, la = xara_station(procs, tmp, "xa-" + tag, CALL_A, port_a, xara, air_a, air_b, registered)
-    hb, xb, lb = xara_station(procs, tmp, "xb-" + tag, CALL_B, port_b, xara, air_b, air_a, False)
+    ha, xa, la = xara_station(procs, tmp, "xa-" + tag, call_a, port_a, xara, air_a, air_b, registered)
+    hb, xb, lb = xara_station(procs, tmp, "xb-" + tag, call_b, port_b, xara, air_b, air_a, False)
     for h, log, n in ((ha, la, "A"), (hb, lb, "B")):
         check(wait_for(lambda: "the modem connected, protocol 2, 12000 Hz, keys of 30 s at most" in text(h["log"]), 15),
               f"station {n}: XARA connected, 12000 Hz, keys of 30 s")
@@ -444,22 +449,22 @@ def xara_test(procs, tmp, xara, pat, registered):
     line = next((l for l in got.split(b"\r") if l.startswith(b"VERSION")), b"").decode()
     check(line == "VERSION VARA HF v4.9.0", f"VERSION answered with a VERSION line, what Pat waits for ({line!r})")
     if not registered:
-        unanswered_call(ha, hb, la, lb, port_a, CALL_A, CALL_B)
+        unanswered_call(ha, hb, la, lb, port_a, call_a, call_b)
 
-    da, db = pat_env(tmp, "xa-" + tag, CALL_A), pat_env(tmp, "xb-" + tag, CALL_B)
-    argv, env = pat_cmd(pat, db, port_b, CALL_B, "interactive", listen=True)
+    da, db = pat_env(tmp, "xa-" + tag, call_a), pat_env(tmp, "xb-" + tag, call_b)
+    argv, env = pat_cmd(pat, db, port_b, call_b, "interactive", listen=True)
     pb = procs.start(argv, os.path.join(db, "out.txt"), env, stdin=subprocess.PIPE)
     check(wait_for(lambda: "Listening for incoming traffic on varahf" in text(os.path.join(db, "out.txt")), 20),
           "Pat B started XARA and listens on varahf")
     subject = f"XARA P2P test {tag} {int(time.time())}"
     body = "Sent by Pat over XARA on the GUI's modem socket.\n" * 30
-    argv, env = pat_cmd(pat, da, port_a, CALL_A, "compose", "--p2p-only", "-s", subject, CALL_B)
+    argv, env = pat_cmd(pat, da, port_a, call_a, "compose", "--p2p-only", "-s", subject, call_b)
     r = subprocess.run(argv, input=body, text=True, env=env, capture_output=True, timeout=30)
-    check(r.returncode == 0, f"Pat A composed a message to {CALL_B} ({len(body)} bytes)")
+    check(r.returncode == 0, f"Pat A composed a message to {call_b} ({len(body)} bytes)")
 
     print("   connecting (VARA HF at 2300 Hz on the PC's two stations)")
     out_a = os.path.join(da, "connect.txt")
-    argv, env = pat_cmd(pat, da, port_a, CALL_A, "connect", f"varahf:///{CALL_B}?p2p=true")
+    argv, env = pat_cmd(pat, da, port_a, call_a, "connect", f"varahf:///{call_b}?p2p=true")
     t0 = time.time()
     with open(out_a, "w") as f:
         r = subprocess.run(argv, stdout=f, stderr=subprocess.STDOUT, env=env, timeout=600)
@@ -469,21 +474,28 @@ def xara_test(procs, tmp, xara, pat, registered):
     check("VARA modem (" in out and ") initialized" in out, "Pat A started XARA")
     check("Connected to" in out, "Pat A connected to B")
     check(r.returncode == 0, f"Pat A's session ended well ({secs:.0f} s)")
-    inbox = os.path.join(db, "mbox", CALL_B, "in")
+    inbox = os.path.join(db, "mbox", call_b, "in")
     got = [n for n in os.listdir(inbox)] if os.path.isdir(inbox) else []
     check(any(subject in text(os.path.join(inbox, n)) for n in got), f"the message is in B's inbox ({len(got)} there)")
 
     lv = levels(la) + levels(lb)
     check(lv, f"both XARAs reported the speed: levels {sorted(set(lv))}")
     if registered:
-        check("< REGISTERED " + CALL_A in text(la), "A's XARA says REGISTERED with its call (the tick box's line)")
+        check("< REGISTERED " + call_a in text(la), "A's XARA says REGISTERED with its call (the tick box's line)")
         check("< LINK REGISTERED" in text(lb), "B's XARA says LINK REGISTERED: it follows the caller's bit")
         check(max(lv) > 4, f"and the link went past the free levels (the highest {max(lv)})")
     else:
-        check("< REGISTERED " + CALL_A not in text(la), "A's XARA says REGISTERED without a call: not registered")
+        check("< REGISTERED " + call_a not in text(la), "A's XARA says REGISTERED without a call: not registered")
         check("< LINK UNREGISTERED" in text(lb) and "< LINK REGISTERED" not in text(lb),
               "B's XARA says LINK UNREGISTERED")
         check(max(lv) <= 4, f"no level past the free 4 (the highest {max(lv)})")
+    # XARA 0.1.3 answers Pat's CWID ON with OK and drops it: it identifies in CW only with a US call
+    check("> Cwid(true)" in text(la), "Pat asked A's XARA for a CW ID (CWID ON)")
+    cw = sum(text(log).count("  tx cw") for log in (la, lb))
+    if registered:
+        check(cw > 0, f"a CW ID at the end with US calls ({cw})")
+    else:
+        check(cw == 0, "no CW ID with calls of another kind, CWID ON or not")
     keys_a, keys_b = played(ha), played(hb)
     check(keys_a and keys_b, f"both radios keyed: A {len(keys_a)} times, B {len(keys_b)} times")
     longest = max(n for n, _ in keys_a + keys_b) / PLAY_RATE

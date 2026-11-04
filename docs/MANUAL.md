@@ -4356,7 +4356,10 @@ gives.
   Before you connect card checks it.
 - XARA's keys are a few seconds long (5 s at the most on the PC). The radio
   stops one after 30 s ("Winlink: TX stopped after 30 s").
-- XARA identifies in CW as it closes a session (Pat asks for it, CWID ON).
+- XARA 0.1.3 identifies in CW at the end of a session only with a US
+  callsign (such as K1ABC or N0AAA). It takes Pat's CWID ON but does not act
+  on it, so with any other callsign, a European one for instance, it sends no
+  CW ID.
 
 The radio calls; it does not answer calls. XARA starts with listening off,
 and on the radio Pat never turns it on (P2P listening stays off, as with
