@@ -303,7 +303,9 @@ fi
 # would stay there and be installed again (an old S01create_data was), as would what an earlier
 # build put in target/. A directory that held another GUI's sources (the stock X6200 GUI, in a tree
 # built stock before) is wiped once: its files would be compiled along with ours
-if ls $BR/build/build/$GUI_PKG-*/.stamp_built > /dev/null 2>&1; then
+# A tree whose GUI was configured before, also one whose last build failed in the GUI (.stamp_built gone): the
+# first-build path below skipped the web server's reinstall there, and the bundle went without it
+if ls $BR/build/build/$GUI_PKG-*/.stamp_configured > /dev/null 2>&1; then
     for d in $BR/build/build/$GUI_PKG-*/; do
         [ -d "$d" ] && [ ! -f "$d/.openx6x00" ] && { echo "   wiping $d (not synced from OpenX6X00 before)"; rm -rf "$d"; }
     done
