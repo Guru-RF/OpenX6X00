@@ -78,9 +78,9 @@ it, the first time with a download of about 150 MB, then it only gives the path;
   call, so the first run sends none and the second one does. Each time: connected, the
   message in B's inbox, no key stopped by the GUI, both XARAs stop on SIGTERM (their
   code 130). About two and a half minutes, and 12 s for the unanswered call
-  (2026-11-04, seven runs: 89-97 s at the free speed, levels 2 to 4; 60-62 s at full
+  (2026-11-04, eight runs: 89-112 s at the free speed, levels 2 to 4; 60-62 s at full
   speed, the highest level 9 to 14; keys of 5.2 s at the most). The whole `make
-  modems`: 257 s.
+  modems`: 257 and 266 s.
 
 It prints `MODEMS OK`; `--keep DIR` (run the script by hand) keeps the logs, `--only
 ardop|mercury|xara` runs one.

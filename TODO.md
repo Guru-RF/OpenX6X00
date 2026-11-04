@@ -152,7 +152,7 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
   tarballs with a pinned Rust 1.99.1 (tools/xara, its UPSTREAM.md), our patch 0001 for the GUI's modem socket
   (--audio x6x00, --ptt x6x00). VARA's free speed by default; its `registered` feature is compiled in and used only
   with the Winlink page's VARA HF licence tick box, the user's own statement, which nothing checks. Tested between
-  two stations on a PC only (make modems: free, levels 3-4; ticked, up to level 9).
+  two stations on a PC only (make modems, eight runs: free, levels 2 to 4; ticked, the highest level 9 to 14).
   - **Bench** (the owner; no air yet): `top -H` on the X6100 and the X6200 with XARA listening and in calls (48 kHz
     f64 DSP next to the GUI; "xara is falling behind real time" in xara.log). The audio path XARA times its
     replies by: path()'s 25/50/80 ms (capture, keying, out) are guesses; measure with XARA's `--record` (a FLAC
