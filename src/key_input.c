@@ -8,7 +8,7 @@
 
 /* The input group every knob and button feeds, and the USB (or Bluetooth) keyboard:
  * found at start and again whenever a USB device comes or goes. CapsLock is its hyper key
- * (kbd_hyper.h): CapsLock+Q logs a QSO, and the others. */
+ * (kbd_hyper.h): CapsLock+Q logs a QSO, CapsLock+Space is PTT, and the others. */
 
 #include "key_input.h"
 
@@ -26,6 +26,7 @@
 #include "lv_drivers/indev/evdev.h"
 #include "lv_drivers/indev/xkb.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
 #include <linux/input.h>
@@ -55,6 +56,7 @@ static ino_t          kbd_ino;
 static lv_timer_t    *rescan_timer;
 static int            rescans_left;
 static kbd_hyper_t    hyper;        /* CapsLock held for a chord */
+static bool           dead;         /* the open keyboard's node reads ENODEV: unplugged, or its Bluetooth link gone */
 static bool           caps;         /* Caps Lock on, as xkb has it: only a CapsLock tapped alone turns it */
 
 /* The keyboard's Caps Lock light to ours. The light is the kernel console's (/dev/tty0), which turns
@@ -108,8 +110,9 @@ static bool hyper_key(const struct input_event *ev) {
 /* Key events of the keyboard, the character from xkb (layout and Shift) */
 static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state) {
     struct input_event ev;
+    ssize_t            n;
 
-    while (read(evdev_fd, &ev, sizeof(ev)) > 0) {
+    while ((n = read(evdev_fd, &ev, sizeof(ev))) > 0) {
         if (ev.type != EV_KEY) {
             continue;
         }
@@ -136,6 +139,10 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
             continue;
         }
         return true;
+    }
+    if (n < 0 && errno == ENODEV && !dead) {
+        dead = true;
+        main_screen_keyboard_gone();
     }
     return false;
 }
@@ -210,6 +217,7 @@ static void open_keyboard(char *path) {
     kbd_ino  = st.st_ino;
     kbd_keys = (kbd_keys_t){0};
     hyper    = (kbd_hyper_t){0};
+    dead     = false;
     caps     = false;
     caps_light();
     paddle_keyer_open(path);
@@ -223,16 +231,23 @@ static void open_keyboard(char *path) {
     ready = true;
 }
 
-/* A keyboard there and not open (or a different one: unplugged and back): open it; none: not ready */
+/* A keyboard there and not open (or a different one: unplugged and back): open it; none: not ready. The one open
+ * gone, or another in its place: a PTT its CapsLock+Space keyed lets go */
 static void check_keyboard(void) {
     char       *path = find_keyboard();
     struct stat st;
 
     if (path && stat(path, &st) == 0) {
         if (!ready || st.st_rdev != kbd_rdev || st.st_ino != kbd_ino) {
+            if (ready) {
+                main_screen_keyboard_gone();
+            }
             open_keyboard(path);
         }
     } else {
+        if (ready) {
+            main_screen_keyboard_gone();
+        }
         ready = false;
     }
     paddle_keyer_scan();   /* after the keyboard: a second one with the paddle keys is the paddle */

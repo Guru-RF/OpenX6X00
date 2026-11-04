@@ -6,7 +6,8 @@
  *  Lock turned, the chords' actions. CapsLock tapped alone is Caps Lock; held, a key with it is a chord, never
  *  typed, once per press (its repeats and release dropped, whichever goes up first), and Caps Lock stays as it was.
  *  The table: Q log a QSO, L the dial lock, P a screenshot, S Settings, F the frequency box, Up and Down the band,
- *  1-8 the CW messages and JTTY's macros; the other keys (the F keys, PgUp and PgDn too) do nothing with it. Keys pressed before CapsLock, and Shift, Ctrl, Alt and Meta, go through.
+ *  Space PTT, 1-8 the CW messages and JTTY's macros; the other keys (the F keys, PgUp and PgDn too) do nothing with
+ *  it. Keys pressed before CapsLock, and Shift, Ctrl, Alt and Meta, go through.
  */
 
 #include "kbd_hyper.h"
@@ -62,6 +63,7 @@ static char action_name(kbd_hyper_action_t a) {
         case HYPER_FREQ:        return 'F';
         case HYPER_BAND_UP:     return '^';
         case HYPER_BAND_DOWN:   return 'v';
+        case HYPER_PTT:         return '_';
         default:
             if (a >= HYPER_KEY_1 && a <= HYPER_KEY_8) return (char)('1' + a - HYPER_KEY_1);
             return '?';
@@ -132,9 +134,10 @@ static void table(void) {
     } want[] = {
         {KEY_Q, HYPER_LOG_QSO, "Q"},     {KEY_L, HYPER_LOCK, "L"},           {KEY_P, HYPER_SCREENSHOT, "P"},
         {KEY_S, HYPER_SETTINGS, "S"},    {KEY_F, HYPER_FREQ, "F"},           {KEY_UP, HYPER_BAND_UP, "Up"},
-        {KEY_DOWN, HYPER_BAND_DOWN, "Down"}, {KEY_1, HYPER_KEY_1, "1"},   {KEY_2, HYPER_KEY_2, "2"},
-        {KEY_3, HYPER_KEY_3, "3"},       {KEY_4, HYPER_KEY_4, "4"},          {KEY_5, HYPER_KEY_5, "5"},
-        {KEY_6, HYPER_KEY_6, "6"},       {KEY_7, HYPER_KEY_7, "7"},          {KEY_8, HYPER_KEY_8, "8"},
+        {KEY_DOWN, HYPER_BAND_DOWN, "Down"}, {KEY_SPACE, HYPER_PTT, "Space"}, {KEY_1, HYPER_KEY_1, "1"},
+        {KEY_2, HYPER_KEY_2, "2"},       {KEY_3, HYPER_KEY_3, "3"},          {KEY_4, HYPER_KEY_4, "4"},
+        {KEY_5, HYPER_KEY_5, "5"},       {KEY_6, HYPER_KEY_6, "6"},          {KEY_7, HYPER_KEY_7, "7"},
+        {KEY_8, HYPER_KEY_8, "8"},
     };
     char line[96];
     int  with = 0;
@@ -150,8 +153,7 @@ static void table(void) {
     check(with == (int)(sizeof(want) / sizeof(want[0])), line);
     /* Gone: the F keys and PgUp/PgDn have no chord, nor 9, 0, the left arrow, Enter */
     static const uint16_t none[] = {KEY_F1, KEY_F4, KEY_F5, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, KEY_PAGEUP,
-                                    KEY_PAGEDOWN, KEY_9, KEY_0, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_A, KEY_KP1,
-                                    KEY_SPACE};
+                                    KEY_PAGEDOWN, KEY_9, KEY_0, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_A, KEY_KP1};
     for (size_t i = 0; i < sizeof(none) / sizeof(none[0]); i++) {
         snprintf(line, sizeof(line), "CapsLock+key %u has an action", none[i]);
         check(kbd_hyper_action(none[i]) == HYPER_NONE, line);
@@ -171,8 +173,8 @@ int main(void) {
     expect("+^ -^ +v -v", "+^-^+v-v", 0, "", "the arrows alone go through");
 
     /* Each chord, in both release orders */
-    static const char chord_keys[] = "qlpsf^v12345678";
-    static const char chord_want[] = "QLPSF^v12345678";
+    static const char chord_keys[] = "qlpsf^v_12345678";
+    static const char chord_want[] = "QLPSF^v_12345678";
     for (size_t i = 0; chord_keys[i]; i++) {
         char ev[64], want[2] = {chord_want[i], 0}, what[64];
 
@@ -196,8 +198,8 @@ int main(void) {
     expect("+C +q -q +q -q -C", "", 0, "QQ", "CapsLock+Q twice in one hold");
     expect("+C +^ -^ +^ -^ +^ -^ -C", "", 0, "^^^", "CapsLock+Up three times: three bands");
     expect("+C +^ *^ *^ *^ -^ +v *v -v -C", "", 0, "^v", "CapsLock+Up then Down held: one band each");
-    expect("+C +l -C +C -l -C", "", 1, "L", "L held over a second CapsLock tap: one chord, the tap is Caps Lock");
-    expect("+C +_ -_ -C", "", 0, ".", "CapsLock+Space: no action, no space typed");
+    expect("+C +_ -_ +_ -_ -C", "", 0, "__", "CapsLock+Space twice: on, off");
+    expect("+C +_ -C +C -_ -C", "", 1, "_", "Space held over a second CapsLock tap: one chord, the tap is Caps Lock");
     expect("+C +1 +2 -1 -2 -C", "", 0, "12", "CapsLock+1 and 2 overlapping");
     expect("+C +l +q -C -q -l", "", 0, "LQ", "two chord keys, CapsLock up first, then both");
     expect("+C +k -k -C", "", 0, ".", "CapsLock+K: no action, nothing typed");
@@ -217,7 +219,7 @@ int main(void) {
     expect("+C +G +l -l -G -C", "+G-G", 0, "L", "AltGr with the chord goes through");
     expect("+a +C *a -a -C", "+a*a-a", 1, "", "a key down before CapsLock repeats and goes up");
     expect("+a +C +q -a -q -C", "+a-a", 0, "Q", "a key down before, then CapsLock+Q");
-    expect("+_ +C *_ -_ -C", "+_*_-_", 1, "", "Space down before CapsLock: typed, repeats");
+    expect("+_ +C *_ -_ -C", "+_*_-_", 1, "", "Space down before CapsLock: typed, repeats, no PTT");
     expect("+^ +C *^ +v -^ -v -C", "+^*^-^", 0, "v", "Up held before CapsLock, then CapsLock+Down");
     expect("-C -l +a -a", "-l+a-a", 0, "", "releases of keys never seen down: CapsLock's dropped, the others on");
 

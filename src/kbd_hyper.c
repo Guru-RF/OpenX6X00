@@ -20,7 +20,7 @@ static const struct {
     kbd_hyper_action_t action;
 } chords[] = {
     {KEY_Q, HYPER_LOG_QSO},      {KEY_L, HYPER_LOCK},         {KEY_P, HYPER_SCREENSHOT},   {KEY_S, HYPER_SETTINGS},
-    {KEY_F, HYPER_FREQ},         {KEY_UP, HYPER_BAND_UP},     {KEY_DOWN, HYPER_BAND_DOWN},
+    {KEY_F, HYPER_FREQ},         {KEY_UP, HYPER_BAND_UP},     {KEY_DOWN, HYPER_BAND_DOWN}, {KEY_SPACE, HYPER_PTT},
     {KEY_1, HYPER_KEY_1},        {KEY_2, HYPER_KEY_2},        {KEY_3, HYPER_KEY_3},        {KEY_4, HYPER_KEY_4},
     {KEY_5, HYPER_KEY_5},        {KEY_6, HYPER_KEY_6},        {KEY_7, HYPER_KEY_7},        {KEY_8, HYPER_KEY_8},
 };

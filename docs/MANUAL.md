@@ -248,6 +248,7 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
 | 1 to 5 | In CW, the MSG > CW messages 1 to 5, keyed from the [CW line](#cw-from-the-keyboard) | main screen |
 | 1 to 8 | [JTTY](#jtty)'s macros F1 to F8, as their buttons | JTTY |
 | Up, Down | The next band up or down, as the [BAND keys](#band-keys) | main screen |
+| Space | PTT on, and at the next press off (below) | on: main screen; off: everywhere |
 
 - Main screen: no app, Settings, list or text box open. Elsewhere these
   chords do nothing, and type nothing.
@@ -260,6 +261,25 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
 - A chord acts once a press: held, it does not repeat (one band a press).
 - CapsLock tapped alone, nothing pressed with it, is Caps Lock as before:
   it turns when you let it go. Shift, Ctrl and Alt work with it as usual.
+
+PTT from the keyboard. CapsLock+Space keys the radio as its PTT key does,
+with the same refusals where the radio may not transmit, the 0 W hold, the
+SWR protection and the stuck TX watch; in CW it keys the carrier, as the
+PTT key does. The screen says `PTT on: CapsLock+Space for off` and shows TX
+as for any transmission (the TX panel, or the power and SWR in the S-meter
+box). CapsLock+Space again lets go, from any screen: a window opened while
+on the air does not keep the radio there.
+
+- It follows the radio. Let go another way (the PTT key, the SWR
+  protection, CAT), the next CapsLock+Space keys again.
+- A press where the radio may not transmit keys nothing ("No TX on ...").
+  A key that has not got the radio on the air after 2 s, or a radio back on
+  receive by itself, is let go: `PTT off: not on the air`.
+- The keyboard unplugged, or its Bluetooth link lost, lets go: `PTT off:
+  keyboard gone`.
+- As the PTT key does, it gives control to the radio's operator: a browser
+  or a TCI client neither keys nor takes control while it is on.
+- There is no time limit: it stays on the air until you let go.
 
 Up to v0.3.8 the keyboard's F keys did some of this: F1-F5 keyed the CW
 messages in CW, F10 logged the CW line, F9 opened Settings, F1-F8 sent

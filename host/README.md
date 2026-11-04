@@ -45,7 +45,8 @@ here are the radio's front keys; a USB keyboard's do nothing on the radio.
 | Ctrl+V, Ctrl+G, Ctrl+F      | V/M, AGC, FST                 |
 | Ctrl+P                      | PTT (the stub only pretends)  |
 | CapsLock+Q, L, P, S, F      | a USB keyboard's chords (docs/MANUAL.md, Keyboard): log a QSO, lock, screenshot, Settings, frequency box |
-| CapsLock+1 .. 8, Up / Down  | CW messages 1-5 (JTTY's macros 1-8), band up / down (this PC's Caps Lock still turns with each chord) |
+| CapsLock+1 .. 8, Up / Down  | CW messages 1-5 (JTTY's macros 1-8), band up / down |
+| CapsLock+Space              | PTT on, again off, as a USB keyboard's (this PC's Caps Lock still turns with each chord) |
 
 The mouse is a pointer: what is clickable on the screen can be clicked.
 
