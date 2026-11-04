@@ -17,7 +17,9 @@
    tick box), B's says LINK REGISTERED, as VARA's callee follows the caller's bit. Both stop on SIGTERM. First, at
    the free speed and before any Pat: A's XARA calls B's, which neither answers nor keys (on the radio XARA starts
    with listening off; Pat B's listen turns it on). The free run has calls of a European kind (ON4AAA, ON4BBB), the
-   registered one US calls: XARA 0.1.3 takes Pat's CWID ON but identifies in CW only with a US call.
+   registered one US calls. Both XARAs identify in CW as Pat's session closes, with either kind: Pat sends CWID ON,
+   which upstream's XARA 0.1.3 takes only for a US call and our patch 0002 for any. Before any Pat, with no CWID ON,
+   A's call that B does not answer ends without one with the European call, as upstream's does.
 
 Run it in a network namespace with loopback only (`make modems` does, with unshare -rn): Pat then reaches
 nothing outside, no Winlink web service, no CMS. Pat's own account check before a connect is also skipped
@@ -41,7 +43,8 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLAY_RATE = 44100
 CALL_A, CALL_B = "N0AAA", "N0BBB"
-# Calls that are not of the US kind, for XARA's run at the free speed: XARA 0.1.3 identifies in CW only with a US call
+# Calls that are not of the US kind, for XARA's run at the free speed: without CWID ON from its host XARA identifies in
+# CW only with a US call
 CALL_EU_A, CALL_EU_B = "ON4AAA", "ON4BBB"
 
 
@@ -414,6 +417,7 @@ def unanswered_call(ha, hb, la, lb, port_a, call_a, call_b):
     got = read_until(c, lambda g: b"DISCONNECTED\r" in g, 15)
     c.close()
     check(b"DISCONNECTED\r" in got, "A's XARA gave the call up on ABORT")
+    check("  tx cw" not in text(la), f"and sent no CW ID: its host sent no CWID ON, and {call_a} is not a US call")
 
 
 def levels(log):
@@ -489,13 +493,17 @@ def xara_test(procs, tmp, xara, pat, registered):
         check("< LINK UNREGISTERED" in text(lb) and "< LINK REGISTERED" not in text(lb),
               "B's XARA says LINK UNREGISTERED")
         check(max(lv) <= 4, f"no level past the free 4 (the highest {max(lv)})")
-    # XARA 0.1.3 answers Pat's CWID ON with OK and drops it: it identifies in CW only with a US call
-    check("> Cwid(true)" in text(la), "Pat asked A's XARA for a CW ID (CWID ON)")
-    cw = sum(text(log).count("  tx cw") for log in (la, lb))
-    if registered:
-        check(cw > 0, f"a CW ID at the end with US calls ({cw})")
-    else:
-        check(cw == 0, "no CW ID with calls of another kind, CWID ON or not")
+    # Pat sends CWID ON as it starts the modem, and each side identifies in CW as the session closes, whatever the
+    # kind of call (patch 0002; upstream's XARA 0.1.3 drops CWID ON and identifies only with a US call). The ID is the
+    # end of a key like any other, through the GUI's socket and checks: played whole. B's waits out A's (blank words)
+    kind = "US" if registered else "European"
+    for log, h, n in ((la, ha, "A"), (lb, hb, "B")):
+        check("> Cwid(true)" in text(log), f"Pat asked {n}'s XARA for a CW ID (CWID ON)")
+        ided = lambda: "  tx cw" in text(log) and text(log).rfind("< DISCONNECTED") > text(log).rfind("  tx cw")
+        check(wait_for(ided, 20), f"{n}'s XARA identified in CW as the session closed ({kind} calls)")
+        time.sleep(1)   # the GUI plays out the key's last audio after P 0, then logs it
+        n_s, stopped = played(h)[-1]
+        check(n_s / PLAY_RATE >= 2.0 and not stopped, f"its last key, the ID's, played whole ({n_s / PLAY_RATE:.1f} s)")
     keys_a, keys_b = played(ha), played(hb)
     check(keys_a and keys_b, f"both radios keyed: A {len(keys_a)} times, B {len(keys_b)} times")
     longest = max(n for n, _ in keys_a + keys_b) / PLAY_RATE

@@ -476,7 +476,7 @@ oblas MIT, see its [UPSTREAM.md](third-party/mercury/UPSTREAM.md)), and
 `x6x00-mercury`, our program that links it, are GPL-3.0-or-later; both come in
 the image and the update bundle, the source in this repository. ardopcf and
 Pat are MIT. XARA, the third Winlink modem (built from its release by
-`tools/xara/build.sh`, with our patch), is MIT, and so are the Rust crates in it
+`tools/xara/build.sh`, with our patches), is MIT, and so are the Rust crates in it
 as used here (some also Apache-2.0, Zlib or 0BSD), with the Rust standard library
 Apache-2.0 or MIT; their texts are in the image (`/usr/share/x6100/licenses/xara`),
 see [tools/xara/UPSTREAM.md](tools/xara/UPSTREAM.md). The web server is LGPL-2.1

@@ -156,9 +156,11 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
 - **XARA** (github.com/x0rro/xara, MIT, a VARA-compatible modem in Rust; #120): built, experimental, the third
   Winlink modem (branch gh44-xara, 2026-11-04; the owner's decision of 4 November). v0.1.3 from its release
   tarballs with a pinned Rust 1.99.1 (tools/xara, its UPSTREAM.md), our patch 0001 for the GUI's modem socket
-  (--audio x6x00, --ptt x6x00). VARA's free speed by default; its `registered` feature is compiled in and used only
-  with the Winlink page's VARA HF licence tick box, the user's own statement, which nothing checks. Tested between
-  two stations on a PC only (make modems, eight runs: free, levels 2 to 4; ticked, the highest level 9 to 14).
+  (--audio x6x00, --ptt x6x00) and 0002 for the CW ID with any callsign when Pat asks (CWID ON; the owner's decision
+  of 4 November: 0.1.3 identifies only with a US call). VARA's free speed by default; its `registered` feature is
+  compiled in and used only with the Winlink page's VARA HF licence tick box, the user's own statement, which nothing
+  checks. Tested between two stations on a PC only (make modems, eight runs: free, levels 2 to 4; ticked, the
+  highest level 9 to 14).
   - **Bench** (the owner; no air yet): `top -H` on the X6100 and the X6200 with XARA listening and in calls (48 kHz
     f64 DSP next to the GUI; "xara is falling behind real time" in xara.log). The audio path XARA times its
     replies by: path()'s 25/50/80 ms (capture, keying, out) are guesses; measure with XARA's `--record` (a FLAC
@@ -167,10 +169,14 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     underrun (XARA's audio comes just in time, the stream's 60 ms prebuf is the only cushion) would cut a frame:
     listen for gaps in the dummy load's audio. P2P between the X6100 and the X6200 into dummy loads at 2300 Hz,
     free and ticked; a 30 s key; the PA's linearity on the full-speed OFDM levels (PAPR 8-9 dB) at up to 7 W and
-    the shared digital level on XARA's frames (drive-db 0).
+    the shared digital level on XARA's frames (drive-db 0). The CW ID with an ON call at each session's end, heard
+    whole on a receiver; the station that did not end the link keys about 3 s silent first, waiting out the other's
+    ID: what the GUI's level loop (tx_level, which sees no power then) does with the level after it.
   - **Then on the air**: yo4cil against his own gateway (YO4CIL, VARA and ARDOP on 4 bands), free speed first; a
     test build announced on #120 first.
-  - **Watch**: 0.1.4, "a significant departure from 0.1.3 (libxara is coming)": the patch then needs a rebase, or a
+  - **Upstream**: 0002 is prepared as a patch for x0rro/xara's main with a PR text (not sent yet); drop 0002 once
+    upstream acts on CWID ON.
+  - **Watch**: 0.1.4, "a significant departure from 0.1.3 (libxara is coming)": 0001 then needs a rebase, or a
     program of ours that links libxara as x6x00-mercury links Mercury. Its open PRs for slow audio paths (#39 the
     extra answer lead, #40 the detector before a reply deadline, #38 the ACK margin), #37; any statement by EA5HVK
     (VARA's author).

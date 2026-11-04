@@ -31,6 +31,8 @@
 # unless vara_licence=1, the user's own word that they hold a VARA HF licence, which nothing here checks: then its
 # `registered` line, and full speed. xara_path_ms=CAPTURE,KEYING,OUT (not on the page) is for measuring XARA's timing
 # on the bench. Pat listens for no P2P call with any modem, and XARA answers none before Pat asks (tools/xara).
+# Pat asks its VARA HF modem for a CW ID (CWID ON) as it starts it: XARA then identifies as each session closes,
+# whatever the callsign (our patch 0002; XARA 0.1.3 alone only with a US one), Mercury not (not one of its commands).
 # Pat's config.json holds the password, so it lives on the root filesystem (/var/lib/winlink/pat), where the
 # web pages cannot read it. It is merged, not written whole: our keys are set (the password when the page has
 # one), every other one is kept, since Pat's own Settings page edits the file too. The mailbox is on the DATA

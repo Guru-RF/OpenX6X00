@@ -36,9 +36,9 @@ file are ours.
   the GUI's toolchain, after `make toolchain`).
 - Checked: a 32-bit ARM ELF that needs only `libc.so.6`, `libm.so.6`, `libgcc_s.so.1` and `ld-linux-armhf.so.3`, and
   glibc 2.36 at most (it needs 2.35). Stripped, the build's directories left out of it
-  (`--remap-path-prefix`): 2513732 bytes, SHA-256 `182ce95e159d2d9e34bb37c6a08dc596f4f085d6925b5c0956a4ababe5306553`,
-  the same with the X6100 tree's gcc and the X6200 tree's, and from two builds in different directories. Under qemu
-  with either radio's libraries it starts, `--version` says `xara 0.1.3` and `--registered` is taken.
+  (`--remap-path-prefix`): 2513732 bytes, SHA-256 `da039a563deec763de495dfe1e5e13f4015472cd9a4d4798be689daf3cdea3bb`
+  with both patches, the same with the X6100 tree's gcc and the X6200 tree's, from builds in different directories.
+  Under qemu with either radio's libraries it starts and `--version` says `xara 0.1.3`.
 - Kept as `$HOME/.cache/openx6x00/xara/xara-0.1.3-rust1.99.1-<target>-<hash>/xara`, the hash being that of the
   patches, of `build.sh` and of the linker (its version, target and C library); a second run prints that path and
   downloads nothing. Beside it `doc/`: XARA's `LICENSE`, `THIRD-PARTY` (each crate compiled in, from `cargo tree`,
@@ -51,9 +51,9 @@ file are ours.
 The upstream ARMv7 release binary is not used: it links PulseAudio and ALSA, has neither our backend nor the
 `registered` feature.
 
-## The local patch (`patches/`)
+## The local patches (`patches/`)
 
-Made with `git format-patch` against the release's source; `git apply` takes it.
+Made with `git format-patch`; `build.sh` applies them in order with `git apply`.
 
 - `0001-x6x00-socket-backend.patch` (MIT, as XARA): `--audio x6x00` and `--ptt x6x00`, the radio's GUI as XARA's
   sound card and PTT through the GUI's Winlink modem socket (`src/winlink.c`, the one ardopcf and Mercury use;
@@ -79,8 +79,18 @@ Made with `git format-patch` against the release's source; `git apply` takes it.
   only between P 1 and P 0, the held first block, a GUI that goes and comes back, one that closes at once tried once
   a second and not more, XARA's stop sending P 0) and `main.rs`'s own (a call to a station made for the radio is not
   answered; the same station with another backend answers it). One upstream test took the default backend (ALSA) for
-  built; in a build with `x6x00` alone it is not, and the test now allows that. `cargo test` of the workspace with
-  the patch: 465 passed (pulse, alsa, registered, x6x00), and 187 of the `xara` crate with `x6x00` alone, 2026-11-04.
+  built; in a build with `x6x00` alone it is not, and the test now allows that.
+- `0002-cwid-from-the-host.patch` (MIT, as XARA): XARA acts on its host's `CWID ON` and `CWID OFF`, which 0.1.3
+  answers OK and drops (below). `CWID ON` sets the HF session's `cwid`, so XARA identifies in CW as each session
+  closes, whatever the callsign; `CWID OFF` clears it. Without either nothing changes, and a US call identifies
+  after `CWID OFF` too, as in 0.1.3; VARA FM still answers WRONG. Pat sends `CWID ON` each time it starts its
+  varahf modem. The owner's decision (4 November 2026): the radio identifies with any callsign. It touches none of
+  0001's files: it is the patch prepared for upstream, as it is, made on x0rro/xara's main (still v0.1.3 on 4
+  November), with a test in upstream's own harness (`cwid_follows_the_host` in `tests/host_protocol.rs`, which fails
+  on 0.1.3).
+
+`cargo test` with both patches (Rust 1.99.1, 2026-11-04): the workspace with pulse, alsa, registered and x6x00, 466
+passed; the `xara` crate with `registered` and `x6x00` alone, 188.
 
 ## Free speed, and the `registered` feature
 
@@ -97,7 +107,7 @@ feature is built in, and off. The radio runs XARA at the free levels; only when 
 "VARA HF licence" box, their own statement that they hold a VARA HF licence, does the supervisor add `registered`
 to XARA's settings. Nothing on the radio checks the statement, as nothing in VARA does; the page says so. Another
 setup is reported to do the same with a tick box (yo4cil on OpenX6X00#120). The radio always calls (it answers no
-call: the patch starts XARA with listening off and Pat never turns it on there), so its bit is the one that counts on
+call: patch 0001 starts XARA with listening off and Pat never turns it on there), so its bit is the one that counts on
 its links.
 
 XARA is an independently written program that speaks VARA's protocol. The owner's view (4 November 2026): reverse
@@ -105,12 +115,26 @@ engineering for compatibility with a protocol is lawful in Europe, so XARA is fi
 
 ## The CW ID
 
-Not changed by the patch. XARA 0.1.3 answers Pat's `CWID ON` with OK in HF and does not act on it (`tnc.rs`:
+XARA 0.1.3 answers Pat's `CWID ON` with OK in HF and does not act on it (`tnc.rs`:
 `Command::Gateway | Command::Cwid(_) => M::CWID_GATEWAY`; the HF session's `cwid` is set only in its tests). It
-sends a CW ID at the end of a session only when its callsign is of the US kind (`is_us_call` in
-`crates/xara-phy/src/call.rs`: roughly, 4 to 6 letters and digits, one digit as the second or third character,
-starting with K, N or W, or with AA to AL), so with a call from outside the US there is none. `make modems` shows
-both: no CW ID at the free speed, with ON4AAA and ON4BBB; one at full speed, with N0AAA and N0BBB.
+sends a CW ID at the end of a session only when `cwid` is set or its callsign is of the US kind
+(`crates/xara-arq/src/hf/session.rs`, `cwid()`; `is_us_call` in `crates/xara-phy/src/call.rs`: roughly, 4 to 6
+letters and digits, one digit as the second or third character, starting with K, N or W, or with AA to AL), so
+with a call from outside the US there was none. Patch 0002 makes `CWID ON` set `cwid`, so with Pat XARA identifies
+with any callsign; the US rule stays as it is.
+
+The ID (`crates/xara-phy/src/cwid.rs`, `station/hf.rs`): the callsign without its SSID, at about 28 words a minute
+(units of 2048 samples at 48 kHz), 9.6 dB under the drive. The QRT that ends a link says whether its sender will
+identify (code 3, or 46 without); it sends its ID right after it (in the same key on the PC). The other station
+waits out that ID, keyed and silent, for 9 to 12 blank words (`QRT_CWID_BLANKS`, about 3 s), then sends its own. On
+the radio the ID is XARA's audio like any other: T messages between a P 1 and its P 0 on the GUI's socket, keyed by
+the GUI only after its checks (`src/winlink.c`, `tx_refused`, `tx_off_freq`, `swr_held`), played through `tx_player`
+at the radio's power and digital level, and stopped by `tx_abort` like any key. The GUI's level loop sees the silent
+wait as a key with no power for those 3 s: one for the bench (TODO.md).
+
+`make modems` shows it: with ON4AAA and ON4BBB at the free speed both stations identify (the last keys 4.1 and
+5.9 s, played whole), as with N0AAA and N0BBB at full speed; A's call before any Pat, whose host sent no `CWID
+ON`, ends without one with ON4AAA, as in 0.1.3.
 
 ## Licences of what is compiled in
 
@@ -126,7 +150,8 @@ All three in `/usr/share/x6100/licenses/xara` on the radio.
 ## A newer version
 
 XARA moves fast: 0.1.4 is announced as "a significant departure from the design of 0.1.3 (libxara is coming)", so
-the patch will need a rebase, or a program of ours that links libxara as `x6x00-mercury` links Mercury. A new pin
+0001 will need a rebase, or a program of ours that links libxara as `x6x00-mercury` links Mercury. Drop 0002 once
+upstream acts on `CWID ON` itself (with that patch or a change of its own); keep `make modems`' CW ID checks. A new pin
 is a new test: `cargo test`, `tools/winlink`'s `make modems`, the bench radios, then the air. Change the version,
 the commit and the two hashes in `build.sh` (and the Rust version and its four hashes if `.rust-version` moved),
 rebase `patches/`, and update this file.
