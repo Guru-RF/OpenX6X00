@@ -3780,7 +3780,7 @@ them.
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX outside ham bands (Settings > TX Cal; see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Icon menus, Knob info, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
