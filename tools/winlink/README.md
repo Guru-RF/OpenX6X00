@@ -13,9 +13,11 @@ does, in protocol 1 (ardopcf: 12000 Hz, keys of 30 s) and protocol 2 (the rate a
 longest key in the hello). For each: the R messages (their size, 50 a second, the tone
 in them, so the GUI records at the session's rate), a transmission of a 1 kHz tone (as
 long as what was sent and still 1 kHz once played at 44.1 kHz, so it was resampled
-from the session's rate), the key limit of the hello (2 s: stopped after 2 s, the
-message on the screen), a key longer than the GUI allows (40 s), the hellos refused (a
-rate other than 8000 or 12000, no key, version 3: the connection is closed), messages
+from the session's rate), XARA's way of sending (protocol 2 at 12000 Hz with keys of
+30 s, its audio in 10 ms T messages when they are due and none ahead, 20 ms of
+silence after it, then P 0: played whole, never unkeyed for want of audio), the key
+limit of the hello (2 s: stopped after 2 s, the message on the screen), a key longer
+than the GUI allows (40 s), the hellos refused (a rate other than 8000 or 12000, no key, version 3: the connection is closed), messages
 before the hello (ignored), a second hello (ignored), a new connection replacing the
 old one, a digital app opened during a key (`WL_APP`: the key stopped there, the next
 one refused until the app is closed), an SWR trip during a key (`WL_SWR`, #147: on

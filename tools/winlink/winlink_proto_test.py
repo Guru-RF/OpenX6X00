@@ -6,7 +6,9 @@ ardopcf's version 1 (12000 Hz, keys of 30 s) and version 2 (the rate and the lon
 the receiver's R messages (their size, how many a second, the tone in them: the GUI records at the session's
 rate), a transmission of a 1 kHz tone (what the player got: as long as what was sent and still 1 kHz, so it
 was resampled from the session's rate), the key limit, the hellos refused (rate, version), messages before
-the hello (ignored) and a second hello (ignored). A digital app opened during a key: stopped, the next key
+the hello (ignored) and a second hello (ignored). XARA's way of sending (its x6x00 backend, tools/xara): the audio
+in 10 ms T messages on the wall clock, none ahead of it, the first right after P 1, silence to the end of its PTT
+tail, then P 0: played whole. A digital app opened during a key: stopped, the next key
 refused. An SWR trip during a key: the hold on that band and near its frequency, another band keys (#147); one
 counted as a key ends is that key's, one counted seconds later another transmission's, no hold. And the radio
 file the Winlink page reads: Winlink's cap of 7 W, 5 W with the X6200 on its battery.
@@ -219,6 +221,24 @@ class Modem:
                 time.sleep(0.005)
         self.send("P", 0)
 
+    def transmit_xara(self, seconds, tail=0.02, hz=1000.0, amplitude=10000):
+        """As XARA's --audio x6x00 sends at 12000 Hz: P 1, then its audio loop's 10 ms blocks as T messages of 120
+        samples when they are due and not before (its first block was held for the P 1 and comes with it),
+        silence for its PTT tail, P 0"""
+        import math
+        rate, block = 12000, 120
+        total, quiet = int(rate * seconds), int(rate * tail)
+        audio = [int(amplitude * math.sin(2 * math.pi * hz * i / rate)) for i in range(total)] + [0] * quiet
+        self.send("P", 1)
+        t0, sent = time.time(), 0
+        while sent < len(audio):
+            if sent <= (time.time() - t0) * rate:
+                self.send("T", 0, audio[sent:sent + block])
+                sent += block
+            else:
+                time.sleep(0.002)
+        self.send("P", 0)
+
     def close(self):
         self.s.close()
 
@@ -287,6 +307,24 @@ def main():
             check(host.wait_log("protocol 2, 12000 Hz, keys of 35 s at most"), "the hello: 12000 Hz, keys of 35 s")
             msgs, sizes, rx = m.receiver(1.0)
             check(sizes == {240}, f"R messages of 240 samples ({sizes})")
+            m.close()
+            gone += 1
+            session(host, gone)
+
+            print("version 2, 12000 Hz, keys of 30 s (xara), its audio just in time")
+            m = Modem(host.sock)
+            m.send("H", 2, [12000, 30])
+            check(host.wait_log("the modem connected, protocol 2, 12000 Hz, keys of 30 s at most"),
+                  "the hello: 12000 Hz, keys of 30 s")
+            m.transmit_xara(1.5)
+            tx += 1
+            played, stopped = host.wait_played(tx)
+            n = len(played)
+            check(not stopped and 0.97 * 1.52 * PLAY_RATE <= n <= 1.03 * 1.52 * PLAY_RATE,
+                  f"1.5 s and the 20 ms tail sent, as much played ({n} samples at 44.1 kHz)")
+            hz = tone_hz(played, PLAY_RATE)
+            check(abs(hz - 1000) < 15, f"the 1 kHz tone played at 1 kHz ({hz:.0f} Hz)")
+            check("no audio from the modem" not in host.text(), "never unkeyed for want of audio")
             m.close()
             gone += 1
             session(host, gone)

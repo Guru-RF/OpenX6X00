@@ -1,0 +1,1055 @@
+From a5cff206e1425c5eaeb7b7052d1614f1385b3ce9 Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Wed, 4 Nov 2026 14:00:00 +0100
+Subject: [PATCH] audio, ptt: the X6100/X6200 radio's own software as the sound
+ card and PTT (OpenX6X00)
+
+On the radios, OpenX6X00's GUI owns the audio and the keying: ardopcf and
+Mercury reach them through its Winlink modem socket, and XARA now does
+too. --audio x6x00 with --capture and --playback both the socket
+(/run/ardop.sock) and --ptt x6x00, behind a cargo feature of the same
+name.
+
+audio/x6x00.rs: a thread connects, and again every second while the GUI
+is not there, and says hello in the socket's protocol 2 (12000 Hz, keys
+of 30 s at most, XARA's own watchdog). The receiver comes in 20 ms R
+messages, up to 48 kHz with XARA's resampler; read() is paced by it and
+returns zeros at the wall clock's pace while the radio transmits (no R
+then) or the GUI is away. write() takes the audio down to 12 kHz and
+sends it as T only between a P 1 and its P 0, which the PTT sends under
+the same lock, so a transmission is exactly what the GUI was asked to
+key; what the pump writes in the moment before the PTT thread keys is
+held and sent right after the P 1. P 0 makes the GUI play out every T it
+has, then unkey. path() gives the capture (the GUI's 20 ms fragments and
+the resamplers), the key (the GUI's checks and the base) and the GUI's
+playback stream as constants, 25, 50 and 80 ms until they are measured on
+the radios; --x6x00-path-ms CAPTURE,KEYING,OUT sets them. No rate
+matching: queue false.
+
+main.rs checks the options together as for trusdx (one socket for both,
+--ptt x6x00 with --audio x6x00 and the other way round, no
+--tx-buffer-ms) and gives the PTT from the backend. With unit tests on a
+fake GUI (the hello, R paced and resampled, zeros while keyed and without
+the GUI, T only between P 1 and P 0, the held first block, a GUI that
+goes and comes back, the stop's P 0) and main.rs's own. One upstream test
+assumed the default backend is built, which in a build with x6x00 alone
+it is not.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ README.md                      |   3 +
+ crates/xara/Cargo.toml         |   1 +
+ crates/xara/src/audio/mod.rs   |  18 +-
+ crates/xara/src/audio/x6x00.rs | 691 +++++++++++++++++++++++++++++++++
+ crates/xara/src/main.rs        |  71 +++-
+ crates/xara/src/ptt.rs         |   7 +
+ 6 files changed, 787 insertions(+), 4 deletions(-)
+ create mode 100644 crates/xara/src/audio/x6x00.rs
+
+diff --git a/README.md b/README.md
+index d41b358..297c374 100644
+--- a/README.md
++++ b/README.md
+@@ -62,6 +62,7 @@ container on x86_64:
+     --call CALL             your callsign (required)
+ 
+     --audio BACKEND         pulse, alsa or coreaudio; default pulse on linux/bsd and coreaudio on macOS
++                            (x6x00: the X6100/X6200 radio's own software, OpenX6X00's build only)
+     --list-devices          list capture and playback devices for --audio
+     --capture SOURCE        audio source
+     --playback SINK         audio sink
+@@ -117,6 +118,8 @@ summary of settings:
+     --ptt cm108:DEV[:GPIO]      cm108/cm119 HID GPIO (default GPIO: 3)
+     --ptt cm108:VID:PID[:GPIO]  cm108/cm119 by hex USB id (stable across boots)
+     --ptt rigctld[:HOST:PORT]   hamlib rigctld CAT on HOST:PORT
++    --ptt x6x00                 the X6100/X6200 radio's own software, with --audio x6x00
++    --x6x00-path-ms C,K,O       --audio x6x00's capture, keying and output latency (default 25,50,80)
+ 
+     --ptt-lead-ms N             PTT held for N ms before xmit (default: 0)
+     --ptt-tail-ms N             PTT held for N ms after xmit (default: 100)
+diff --git a/crates/xara/Cargo.toml b/crates/xara/Cargo.toml
+index 02bf173..ae1ead6 100644
+--- a/crates/xara/Cargo.toml
++++ b/crates/xara/Cargo.toml
+@@ -28,5 +28,6 @@ pulse = []
+ alsa = ["dep:alsa-sys"]
+ registered = []
+ trusdx = []
++x6x00 = []
+ fixed-turbo = ["xara-phy/fixed-turbo"]
+ float-turbo = ["xara-phy/float-turbo"]
+diff --git a/crates/xara/src/audio/mod.rs b/crates/xara/src/audio/mod.rs
+index 2defe71..44d5cec 100644
+--- a/crates/xara/src/audio/mod.rs
++++ b/crates/xara/src/audio/mod.rs
+@@ -14,8 +14,10 @@ pub mod ratematch;
+ #[cfg(feature = "trusdx")]
+ pub mod trusdx;
+ pub mod txpath;
++#[cfg(feature = "x6x00")]
++pub mod x6x00;
+ 
+-#[cfg(not(any(pulse, alsa, coreaudio, feature = "trusdx")))]
++#[cfg(not(any(pulse, alsa, coreaudio, feature = "trusdx", feature = "x6x00")))]
+ compile_error!("xara needs an audio backend: enable the pulse or alsa feature, or build on macOS for CoreAudio");
+ 
+ use std::collections::VecDeque;
+@@ -171,6 +173,7 @@ pub enum Backend {
+     Alsa,
+     CoreAudio,
+     Trusdx,
++    X6x00,
+ }
+ 
+ impl Default for Backend {
+@@ -194,6 +197,7 @@ impl std::str::FromStr for Backend {
+             "alsa" => Self::Alsa,
+             "coreaudio" => Self::CoreAudio,
+             "trusdx" => Self::Trusdx,
++            "x6x00" => Self::X6x00,
+             _ => {
+                 let built: Vec<_> = Self::ALL.into_iter().filter(|b| b.built()).map(Self::name).collect();
+                 return Err(format!("--audio {s:?}: expected {}", crate::cli::either(&built)));
+@@ -204,7 +208,7 @@ impl std::str::FromStr for Backend {
+ }
+ 
+ impl Backend {
+-    const ALL: [Self; 4] = [Self::Pulse, Self::Alsa, Self::CoreAudio, Self::Trusdx];
++    const ALL: [Self; 5] = [Self::Pulse, Self::Alsa, Self::CoreAudio, Self::Trusdx, Self::X6x00];
+ 
+     pub fn built(self) -> bool {
+         match self {
+@@ -212,6 +216,7 @@ impl Backend {
+             Self::Alsa => cfg!(alsa),
+             Self::CoreAudio => cfg!(coreaudio),
+             Self::Trusdx => cfg!(feature = "trusdx"),
++            Self::X6x00 => cfg!(feature = "x6x00"),
+         }
+     }
+ 
+@@ -221,6 +226,7 @@ impl Backend {
+             Self::Alsa => "alsa",
+             Self::CoreAudio => "coreaudio",
+             Self::Trusdx => "trusdx",
++            Self::X6x00 => "x6x00",
+         }
+     }
+ }
+@@ -257,6 +263,8 @@ pub fn open(
+         Backend::CoreAudio => Ok(Box::new(coreaudio::CoreAudioIo::open(capture, playback, radio, tx)?)),
+         #[cfg(feature = "trusdx")]
+         Backend::Trusdx => Ok(Box::new(trusdx::TrusdxIo::open(capture, playback, radio, speaker)?)),
++        #[cfg(feature = "x6x00")]
++        Backend::X6x00 => Ok(Box::new(x6x00::X6x00Io::open(capture, playback, radio)?)),
+         _ => Err(unbuilt(b)),
+     }
+ }
+@@ -272,6 +280,8 @@ pub fn check_playback(b: Backend, playback: &str, radio: bool) -> io::Result<()>
+         Backend::CoreAudio => coreaudio::check(playback, radio),
+         #[cfg(feature = "trusdx")]
+         Backend::Trusdx => trusdx::check(playback),
++        #[cfg(feature = "x6x00")]
++        Backend::X6x00 => x6x00::check(playback),
+         _ => Err(unbuilt(b)),
+     }
+ }
+@@ -286,6 +296,8 @@ pub fn list(b: Backend) -> io::Result<(DeviceList, DeviceList)> {
+         Backend::CoreAudio => coreaudio::list(),
+         #[cfg(feature = "trusdx")]
+         Backend::Trusdx => trusdx::list(),
++        #[cfg(feature = "x6x00")]
++        Backend::X6x00 => x6x00::list(),
+         _ => Err(unbuilt(b)),
+     }
+ }
+@@ -300,6 +312,8 @@ pub fn open_capture(b: Backend, capture: &str) -> io::Result<Box<dyn Audio>> {
+         Backend::CoreAudio => Ok(Box::new(coreaudio::CoreAudioIo::open_capture(capture)?)),
+         #[cfg(feature = "trusdx")]
+         Backend::Trusdx => Ok(Box::new(trusdx::TrusdxIo::open_capture(capture)?)),
++        #[cfg(feature = "x6x00")]
++        Backend::X6x00 => Ok(Box::new(x6x00::X6x00Io::open_capture(capture)?)),
+         _ => Err(unbuilt(b)),
+     }
+ }
+diff --git a/crates/xara/src/audio/x6x00.rs b/crates/xara/src/audio/x6x00.rs
+new file mode 100644
+index 0000000..5a9b5e5
+--- /dev/null
++++ b/crates/xara/src/audio/x6x00.rs
+@@ -0,0 +1,691 @@
++//! OpenX6X00: the radio's own software (the GUI) as the sound card and the PTT, on the X6100 and the X6200
++//! (`--audio x6x00 --ptt x6x00`). A patch of OpenX6X00's, under XARA's MIT licence.
++//!
++//! The GUI owns the radio's audio and its keying. Its Winlink modem socket (`src/winlink.c` in OpenX6X00, the
++//! one ardopcf and Mercury use) is a UNIX SOCK_SEQPACKET socket, `--capture` and `--playback` both (on the radio
++//! /run/ardop.sock), one message a packet: a 4-byte header {type, arg, n} in host byte order, then n samples,
++//! mono, signed 16 bits, at the session's rate. On each connect XARA says hello in protocol 2 (H: 12000 Hz, keys
++//! of KEY_S at most); the GUI sends the receiver in 20 ms blocks (R, none while the radio is on the air); XARA
++//! sends P 1 to key, its audio as T and P 0, after which the GUI plays out every T it has and unkeys. The GUI
++//! keys the radio with the checks it has for its own digital modes: the bands, simplex, the power caps, the SWR
++//! hold.
++//!
++//! The receiver goes up from 12 kHz to XARA's 48 kHz, and read() is paced by it: zeros at the wall clock's pace
++//! while the radio transmits or the GUI is away. XARA's audio goes down to 12 kHz and out as T only between a P 1
++//! and its P 0, sent under one lock with them; what XARA writes in the moment before its PTT thread keys is held
++//! and sent right after the P 1. A thread connects, and again every second while the GUI is not there; XARA runs
++//! on meanwhile and a key goes nowhere (the GUI cuts a transmission whose client goes).
++
++use std::collections::VecDeque;
++use std::io;
++use std::mem::size_of;
++use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
++use std::sync::atomic::{AtomicBool, Ordering};
++use std::sync::{Arc, Condvar, Mutex, PoisonError};
++use std::thread::{self, JoinHandle};
++use std::time::{Duration, Instant};
++
++use super::ratematch::Queue;
++use super::{Audio, DeviceList, Path, RATE, capture_only, quantize, sample};
++use crate::lock;
++use crate::ptt::Ptt;
++use crate::resample::Resampler;
++
++pub const SOCKET: &str = "/run/ardop.sock";
++const PROTO: u8 = 2;
++const GUI_RATE: u32 = 12000;
++// The longest key the GUI is asked to allow: XARA's own watchdog (--ptt-max-s) defaults to as much
++const KEY_S: i16 = 30;
++const T_MAX: usize = 1200;
++const HDR: usize = 4;
++const RETRY: Duration = Duration::from_secs(1);
++const LOOK: Duration = Duration::from_millis(100);
++const SEND_WAIT: Duration = Duration::from_millis(500);
++const KEEP: usize = 2 * RATE as usize;
++const KEEP_AFTER_DROP: usize = RATE as usize / 10;
++const JITTER: Duration = Duration::from_millis(60);
++const STREAMING: Duration = Duration::from_millis(300);
++const HELD_MAX: usize = GUI_RATE as usize / 2;
++// What XARA times its replies by, until measured on the radios (--x6x00-path-ms): the GUI's capture in 20 ms
++// fragments and the resamplers; the GUI's key (its checks, the base keying); its low-latency playback stream
++// (prebuf 60 ms, tlength 100 ms)
++pub const PATH_MS: [usize; 3] = [25, 50, 80];
++static PATH: Mutex<[usize; 3]> = Mutex::new(PATH_MS);
++
++/// capture, keying and out of path(), in ms: `--x6x00-path-ms`
++pub fn set_path_ms(ms: [usize; 3]) {
++    *lock(&PATH) = ms;
++}
++
++fn message(kind: u8, arg: u8, s: &[i16]) -> Vec<u8> {
++    let mut m = Vec::with_capacity(HDR + 2 * s.len());
++    m.extend_from_slice(&[kind, arg]);
++    m.extend_from_slice(&(s.len() as u16).to_ne_bytes());
++    s.iter().for_each(|v| m.extend_from_slice(&v.to_ne_bytes()));
++    m
++}
++
++fn connect(path: &str) -> io::Result<OwnedFd> {
++    // SAFETY: a sockaddr_un is plain data, all zeros a valid one.
++    let mut a: libc::sockaddr_un = unsafe { std::mem::zeroed() };
++    a.sun_family = libc::AF_UNIX as libc::sa_family_t;
++    if path.len() >= a.sun_path.len() {
++        return Err(io::Error::other(format!("{path}: too long for a socket")));
++    }
++    a.sun_path.iter_mut().zip(path.bytes()).for_each(|(d, s)| *d = s as libc::c_char);
++    // SAFETY: socket() returns a new fd or -1.
++    let fd = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_SEQPACKET | libc::SOCK_CLOEXEC, 0) };
++    if fd < 0 {
++        return Err(io::Error::last_os_error());
++    }
++    // SAFETY: fd is open and ours alone.
++    let fd = unsafe { OwnedFd::from_raw_fd(fd) };
++    let len = size_of::<libc::sockaddr_un>() as libc::socklen_t;
++    // SAFETY: a is a filled sockaddr_un of len bytes.
++    if unsafe { libc::connect(fd.as_raw_fd(), (&raw const a).cast(), len) } != 0 {
++        return Err(io::Error::last_os_error());
++    }
++    let tv = libc::timeval { tv_sec: 0, tv_usec: SEND_WAIT.as_micros() as libc::suseconds_t };
++    let n = size_of::<libc::timeval>() as libc::socklen_t;
++    // SAFETY: tv is a timeval of n bytes. A send the GUI takes nothing of for this long fails
++    unsafe { libc::setsockopt(fd.as_raw_fd(), libc::SOL_SOCKET, libc::SO_SNDTIMEO, (&raw const tv).cast(), n) };
++    Ok(fd)
++}
++
++fn send(fd: &OwnedFd, m: &[u8]) -> io::Result<()> {
++    // SAFETY: m is m.len() readable bytes. A packet goes whole or not at all
++    match unsafe { libc::send(fd.as_raw_fd(), m.as_ptr().cast(), m.len(), libc::MSG_NOSIGNAL) } {
++        n if n < 0 => Err(io::Error::last_os_error()),
++        _ => Ok(()),
++    }
++}
++
++struct Tx {
++    fd: Option<Arc<OwnedFd>>,
++    on: bool,
++    held: Vec<i16>,
++    closed: bool,
++}
++
++struct Rx {
++    pcm: VecDeque<i16>,
++    up: Resampler,
++    heard: Option<Instant>,
++}
++
++struct Link {
++    path: String,
++    tx: Mutex<Tx>,
++    rx: Mutex<Rx>,
++    ready: Condvar,
++    keyed: AtomicBool,
++    stop: AtomicBool,
++}
++
++impl Link {
++    fn new(path: &str) -> Self {
++        let up = Resampler::new(f64::from(GUI_RATE), f64::from(RATE)).expect("the GUI's rate");
++        Self {
++            path: path.into(),
++            tx: Mutex::new(Tx { fd: None, on: false, held: Vec::new(), closed: false }),
++            rx: Mutex::new(Rx { pcm: VecDeque::new(), up, heard: None }),
++            ready: Condvar::new(),
++            keyed: AtomicBool::new(false),
++            stop: AtomicBool::new(false),
++        }
++    }
++
++    fn gone(&self, t: &mut Tx, why: &str) {
++        if let Some(fd) = t.fd.take() {
++            // SAFETY: fd is open; the reader's poll and recv on it end
++            unsafe { libc::shutdown(fd.as_raw_fd(), libc::SHUT_RDWR) };
++            say!("the GUI's socket closed: {why}");
++        }
++        (t.on, t.held) = (false, Vec::new());
++        self.keyed.store(false, Ordering::SeqCst);
++    }
++
++    fn send(&self, t: &mut Tx, m: &[u8]) -> bool {
++        let Some(fd) = &t.fd else { return false };
++        match send(fd, m) {
++            Ok(()) => true,
++            Err(e) => {
++                let why = match e.kind() {
++                    io::ErrorKind::WouldBlock => "the GUI took nothing for 0.5 s".to_string(),
++                    _ => e.to_string(),
++                };
++                self.gone(t, &why);
++                false
++            }
++        }
++    }
++
++    fn audio(&self, t: &mut Tx, s: &[i16]) {
++        for c in s.chunks(T_MAX) {
++            if !self.send(t, &message(b'T', 0, c)) {
++                return;
++            }
++        }
++    }
++
++    fn key(&self, on: bool) {
++        let t = &mut *lock(&self.tx);
++        if on && !t.on && !t.closed && self.send(t, &message(b'P', 1, &[])) {
++            t.on = true;
++            self.keyed.store(true, Ordering::SeqCst);
++            let held = std::mem::take(&mut t.held);
++            self.audio(t, &held);
++        } else if !on {
++            if t.on {
++                self.send(t, &message(b'P', 0, &[]));
++            }
++            (t.on, t.held) = (false, Vec::new());
++            self.keyed.store(false, Ordering::SeqCst);
++        }
++    }
++
++    fn receive(&self, m: &[u8]) {
++        let n = match m {
++            [b'R', _, a, b, ..] => usize::from(u16::from_ne_bytes([*a, *b])),
++            _ => return,
++        };
++        if m.len() != HDR + 2 * n {
++            return;
++        }
++        let x: Vec<f64> = m[HDR..].chunks_exact(2).map(|c| sample(i16::from_ne_bytes([c[0], c[1]]))).collect();
++        let mut rx = lock(&self.rx);
++        let up = rx.up.process(&x);
++        rx.pcm.extend(up.into_iter().map(quantize));
++        rx.heard = Some(Instant::now());
++        if rx.pcm.len() > KEEP {
++            let n = rx.pcm.len() - KEEP_AFTER_DROP;
++            rx.pcm.drain(..n);
++        }
++        self.ready.notify_all();
++    }
++
++    fn nap(&self, d: Duration) {
++        let until = Instant::now() + d;
++        while !self.stop.load(Ordering::SeqCst) && Instant::now() < until {
++            thread::sleep(LOOK.min(until.saturating_duration_since(Instant::now())));
++        }
++    }
++
++    fn hello(&self, fd: OwnedFd) -> bool {
++        let t = &mut *lock(&self.tx);
++        if t.closed {
++            return false;
++        }
++        t.fd = Some(Arc::new(fd));
++        self.send(t, &message(b'H', PROTO, &[GUI_RATE as i16, KEY_S]))
++    }
++
++    fn run(&self) {
++        let (mut said, mut buf) = (false, vec![0u8; HDR + 2 * T_MAX]);
++        while !self.stop.load(Ordering::SeqCst) {
++            let fd = lock(&self.tx).fd.clone();
++            let Some(fd) = fd else {
++                match connect(&self.path).map(|fd| self.hello(fd)) {
++                    Ok(true) => {
++                        say!("connected to the GUI's socket {}", self.path);
++                        said = false;
++                    }
++                    Ok(false) => self.nap(RETRY),
++                    Err(e) => {
++                        if !said {
++                            say!("the GUI's socket {} is not there yet ({e}), trying again every second", self.path);
++                        }
++                        said = true;
++                        self.nap(RETRY);
++                    }
++                }
++                continue;
++            };
++            let mut p = libc::pollfd { fd: fd.as_raw_fd(), events: libc::POLLIN, revents: 0 };
++            // SAFETY: p is one valid pollfd.
++            if unsafe { libc::poll(&mut p, 1, LOOK.as_millis() as libc::c_int) } <= 0 {
++                continue;
++            }
++            for _ in 0..64 {
++                // SAFETY: buf is buf.len() writable bytes.
++                let n = unsafe { libc::recv(fd.as_raw_fd(), buf.as_mut_ptr().cast(), buf.len(), libc::MSG_DONTWAIT) };
++                let why = match n {
++                    0 => "the GUI went away".to_string(),
++                    n if n > 0 => {
++                        self.receive(&buf[..n as usize]);
++                        continue;
++                    }
++                    _ => match io::Error::last_os_error() {
++                        e if e.kind() == io::ErrorKind::Interrupted => continue,
++                        e if e.kind() == io::ErrorKind::WouldBlock => break,
++                        e => e.to_string(),
++                    },
++                };
++                let t = &mut *lock(&self.tx);
++                if t.fd.as_ref().is_some_and(|f| Arc::ptr_eq(f, &fd)) {
++                    self.gone(t, &why);
++                }
++                break;
++            }
++        }
++    }
++}
++
++struct X6x00Ptt(Arc<Link>);
++
++impl Ptt for X6x00Ptt {
++    fn set(&mut self, on: bool) -> io::Result<()> {
++        self.0.key(on);
++        Ok(())
++    }
++
++    fn describe(&self) -> String {
++        format!("the GUI's modem socket {}", self.0.path)
++    }
++}
++
++fn check_path(path: &str) -> io::Result<()> {
++    if path.starts_with('/') {
++        Ok(())
++    } else {
++        Err(io::Error::other(format!("--audio x6x00: {path:?} is not a socket path (the GUI's: {SOCKET})")))
++    }
++}
++
++pub fn check(playback: &str) -> io::Result<()> {
++    check_path(playback)
++}
++
++pub fn list() -> io::Result<(DeviceList, DeviceList)> {
++    let s = vec![(SOCKET.to_string(), "the GUI's modem socket".to_string())];
++    Ok((s.clone(), s))
++}
++
++pub struct X6x00Io {
++    link: Arc<Link>,
++    playback: bool,
++    radio: bool,
++    reader: Option<JoinHandle<()>>,
++    down: Resampler,
++    last: Option<Instant>,
++    x: Vec<f64>,
++}
++
++impl X6x00Io {
++    pub fn open(capture: &str, playback: &str, radio: bool) -> io::Result<Self> {
++        if capture != playback {
++            return Err(io::Error::other("--audio x6x00: --capture and --playback must be the same socket"));
++        }
++        Self::start(capture, true, radio)
++    }
++
++    pub fn open_capture(capture: &str) -> io::Result<Self> {
++        Self::start(capture, false, false)
++    }
++
++    fn start(path: &str, playback: bool, radio: bool) -> io::Result<Self> {
++        check_path(path)?;
++        let link = Arc::new(Link::new(path));
++        let l = link.clone();
++        let reader = Some(thread::Builder::new().name("x6x00".into()).spawn(move || l.run())?);
++        let down = Resampler::new(f64::from(RATE), f64::from(GUI_RATE)).expect("the GUI's rate");
++        Ok(Self { link, playback, radio, reader, down, last: None, x: Vec::new() })
++    }
++}
++
++impl Audio for X6x00Io {
++    fn read(&mut self, x: &mut [i16]) -> io::Result<()> {
++        let block = Duration::from_secs_f64(x.len() as f64 / f64::from(RATE));
++        let due = self.last.map_or_else(Instant::now, |t| t + block);
++        let idle = !self.link.keyed.load(Ordering::SeqCst);
++        let mut rx = lock(&self.link.rx);
++        loop {
++            if rx.pcm.len() >= x.len() {
++                break;
++            }
++            let now = Instant::now();
++            let streaming = idle && rx.heard.is_some_and(|t| now.duration_since(t) < STREAMING);
++            let until = if streaming { due + JITTER } else { due };
++            let Some(left) = until.checked_duration_since(now).filter(|d| !d.is_zero()) else { break };
++            rx = self.link.ready.wait_timeout(rx, left).unwrap_or_else(PoisonError::into_inner).0;
++        }
++        let n = rx.pcm.len().min(x.len());
++        for (o, s) in x.iter_mut().zip(rx.pcm.drain(..n).chain(std::iter::repeat(0))) {
++            *o = s;
++        }
++        drop(rx);
++        let now = Instant::now();
++        self.last = Some(if n == x.len() || now > due + STREAMING { now } else { due });
++        Ok(())
++    }
++
++    fn write(&mut self, x: &[i16]) -> io::Result<()> {
++        if !self.playback {
++            return Err(capture_only());
++        }
++        if !self.radio {
++            return Ok(());
++        }
++        self.x.clear();
++        self.x.extend(x.iter().map(|&v| sample(v)));
++        let s: Vec<i16> = self.down.process(&self.x).into_iter().map(quantize).collect();
++        let l = &self.link;
++        let t = &mut *lock(&l.tx);
++        if t.on {
++            l.audio(t, &s);
++        } else if !t.closed && (!t.held.is_empty() || s.iter().any(|&v| v != 0)) {
++            t.held.extend_from_slice(&s);
++            let over = t.held.len().saturating_sub(HELD_MAX);
++            t.held.drain(..over);
++        }
++        Ok(())
++    }
++
++    fn queued(&mut self) -> io::Result<Option<Queue>> {
++        if !self.playback {
++            return Err(capture_only());
++        }
++        Ok(None)
++    }
++
++    fn backlog(&mut self) -> io::Result<Option<usize>> {
++        Ok(Some(lock(&self.link.rx).pcm.len()))
++    }
++
++    fn path(&mut self) -> io::Result<Path> {
++        let [capture, keying, out] = *lock(&PATH);
++        let ms = |n: usize| n * (RATE / 1000) as usize;
++        let tx = |n: usize| if self.radio { ms(n) } else { 0 };
++        Ok(Path { capture: Some(ms(capture)), keying: tx(keying), out: tx(out), queue: false })
++    }
++
++    fn ptt(&self) -> Option<Box<dyn Ptt>> {
++        self.radio.then(|| Box::new(X6x00Ptt(self.link.clone())) as Box<dyn Ptt>)
++    }
++}
++
++impl Drop for X6x00Io {
++    fn drop(&mut self) {
++        self.link.key(false);
++        {
++            let t = &mut *lock(&self.link.tx);
++            t.closed = true;
++            if let Some(fd) = t.fd.take() {
++                // SAFETY: fd is open; the GUI sees XARA go now, not when the PTT's copy of the link goes
++                unsafe { libc::shutdown(fd.as_raw_fd(), libc::SHUT_RDWR) };
++            }
++        }
++        self.link.stop.store(true, Ordering::SeqCst);
++        if let Some(r) = self.reader.take() {
++            let _ = r.join();
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::audio::BLOCK;
++
++    // The GUI's side of the socket: it listens, takes one modem, and reads and sends whole messages
++    struct Gui {
++        path: String,
++        listen: OwnedFd,
++        conn: Option<OwnedFd>,
++    }
++
++    fn sockaddr(path: &str) -> libc::sockaddr_un {
++        // SAFETY: plain data, zeros a valid value.
++        let mut a: libc::sockaddr_un = unsafe { std::mem::zeroed() };
++        a.sun_family = libc::AF_UNIX as libc::sa_family_t;
++        a.sun_path.iter_mut().zip(path.bytes()).for_each(|(d, s)| *d = s as libc::c_char);
++        a
++    }
++
++    fn ready(fd: &OwnedFd, d: Duration) -> bool {
++        let mut p = libc::pollfd { fd: fd.as_raw_fd(), events: libc::POLLIN, revents: 0 };
++        // SAFETY: one valid pollfd.
++        unsafe { libc::poll(&mut p, 1, d.as_millis() as libc::c_int) > 0 }
++    }
++
++    impl Gui {
++        fn new(name: &str) -> Self {
++            let path = std::env::temp_dir().join(format!("xara-x6x00-{name}-{}.sock", std::process::id()));
++            let path = path.to_string_lossy().into_owned();
++            let _ = std::fs::remove_file(&path);
++            let a = sockaddr(&path);
++            // SAFETY: a new socket bound to a and listening, or a test failure.
++            let listen = unsafe {
++                let fd = libc::socket(libc::AF_UNIX, libc::SOCK_SEQPACKET | libc::SOCK_CLOEXEC, 0);
++                assert!(fd >= 0);
++                let n = size_of::<libc::sockaddr_un>() as libc::socklen_t;
++                assert_eq!(libc::bind(fd, (&raw const a).cast(), n), 0);
++                assert_eq!(libc::listen(fd, 2), 0);
++                OwnedFd::from_raw_fd(fd)
++            };
++            Self { path, listen, conn: None }
++        }
++
++        fn accept(&mut self, d: Duration) -> bool {
++            if !ready(&self.listen, d) {
++                return false;
++            }
++            // SAFETY: listen is a listening socket; the result a new fd or -1.
++            let fd = unsafe { libc::accept4(self.listen.as_raw_fd(), std::ptr::null_mut(), std::ptr::null_mut(), 0) };
++            assert!(fd >= 0);
++            // SAFETY: a new fd, ours.
++            self.conn = Some(unsafe { OwnedFd::from_raw_fd(fd) });
++            true
++        }
++
++        fn take(&self, d: Duration) -> Option<(u8, u8, Vec<i16>)> {
++            let c = self.conn.as_ref()?;
++            if !ready(c, d) {
++                return None;
++            }
++            let mut buf = [0u8; HDR + 2 * T_MAX];
++            // SAFETY: buf is buf.len() writable bytes.
++            let n = unsafe { libc::recv(c.as_raw_fd(), buf.as_mut_ptr().cast(), buf.len(), 0) };
++            if n < HDR as isize {
++                return None;
++            }
++            let k = usize::from(u16::from_ne_bytes([buf[2], buf[3]]));
++            assert_eq!(n as usize, HDR + 2 * k, "a message of its length");
++            let s = buf[HDR..n as usize].chunks_exact(2).map(|c| i16::from_ne_bytes([c[0], c[1]])).collect();
++            Some((buf[0], buf[1], s))
++        }
++
++        fn all(&self, d: Duration) -> Vec<(u8, u8, Vec<i16>)> {
++            std::iter::from_fn(|| self.take(d)).collect()
++        }
++
++        fn rx(&self, s: &[i16]) {
++            send(self.conn.as_ref().unwrap(), &message(b'R', 0, s)).unwrap();
++        }
++    }
++
++    impl Drop for Gui {
++        fn drop(&mut self) {
++            let _ = std::fs::remove_file(&self.path);
++        }
++    }
++
++    const SOON: Duration = Duration::from_millis(50);
++    const WAIT: Duration = Duration::from_secs(2);
++
++    fn tone(n: usize, hz: f64, rate: f64, at: usize) -> Vec<i16> {
++        (at..at + n).map(|i| (8000.0 * (2.0 * std::f64::consts::PI * hz * i as f64 / rate).sin()) as i16).collect()
++    }
++
++    fn connected(name: &str) -> (Gui, X6x00Io, Box<dyn Ptt>) {
++        let mut gui = Gui::new(name);
++        let io = X6x00Io::open(&gui.path, &gui.path, true).unwrap();
++        assert!(gui.accept(WAIT), "XARA connects");
++        let ptt = io.ptt().unwrap();
++        (gui, io, ptt)
++    }
++
++    #[test]
++    fn each_connection_says_hello_in_protocol_2() {
++        let (gui, _io, _ptt) = connected("hello");
++        assert_eq!(gui.take(WAIT), Some((b'H', 2, vec![12000, 30])), "12000 Hz, keys of 30 s at most");
++        assert_eq!(gui.take(SOON), None);
++    }
++
++    #[test]
++    fn the_receiver_comes_up_to_48_khz_and_paces_the_reads() {
++        let (gui, mut io, _ptt) = connected("rx");
++        gui.take(WAIT);
++        let mut x = [0i16; BLOCK];
++        let (mut got, t) = (Vec::new(), Instant::now());
++        for k in 0..25 {
++            gui.rx(&tone(240, 1000.0, 12000.0, 240 * k));
++            thread::sleep(Duration::from_millis(20));
++            while io.backlog().unwrap().unwrap() >= BLOCK {
++                io.read(&mut x).unwrap();
++                got.extend_from_slice(&x);
++            }
++        }
++        assert!(t.elapsed() < Duration::from_millis(900), "{:?}", t.elapsed());
++        assert_eq!(got.len(), 25 * 960 / BLOCK * BLOCK - BLOCK, "960 samples for each 20 ms R, one block left");
++        let at = |i: usize| f64::from(got[i]) / 8000.0;
++        // 1 kHz at 48 kHz: 48 samples a cycle, the level kept
++        let peak = got[2000..].iter().map(|&s| s.unsigned_abs()).max().unwrap();
++        assert!((7600..=8400).contains(&peak), "{peak}");
++        let crossings = (2000..got.len() - 1).filter(|&i| at(i) < 0.0 && at(i + 1) >= 0.0).count();
++        let cycles = (got.len() - 2001) as f64 / 48.0;
++        assert!((crossings as f64 - cycles).abs() <= 2.0, "{crossings} for {cycles:.0}");
++        // a read with nothing come waits for the next R: streaming, the GUI is a little late now and then
++        let t = Instant::now();
++        let late = thread::spawn(move || {
++            thread::sleep(Duration::from_millis(40));
++            gui.rx(&tone(240, 1000.0, 12000.0, 0));
++            gui
++        });
++        io.read(&mut x).unwrap();
++        io.read(&mut x).unwrap();
++        assert!(t.elapsed() >= Duration::from_millis(35) && x.iter().any(|&s| s != 0), "{:?}", t.elapsed());
++        drop(late.join().unwrap());
++    }
++
++    #[test]
++    fn without_the_gui_the_reads_keep_the_wall_clock() {
++        let gui = Gui::new("none");
++        let path = gui.path.clone();
++        drop(gui);
++        let mut io = X6x00Io::open(&path, &path, true).unwrap();
++        let mut x = [1i16; BLOCK];
++        let t = Instant::now();
++        for _ in 0..20 {
++            io.read(&mut x).unwrap();
++        }
++        let took = t.elapsed();
++        assert!(x.iter().all(|&s| s == 0));
++        assert!(took >= Duration::from_millis(190) && took < Duration::from_millis(300), "{took:?}");
++        let mut ptt = io.ptt().unwrap();
++        ptt.set(true).unwrap();
++        io.write(&tone(BLOCK, 1500.0, 48000.0, 0)).unwrap();
++        ptt.set(false).unwrap();
++    }
++
++    #[test]
++    fn audio_goes_out_only_between_p1_and_p0() {
++        let (gui, mut io, mut ptt) = connected("tx");
++        gui.take(WAIT);
++        let (quiet, loud) = ([0i16; BLOCK], tone(BLOCK, 1500.0, 48000.0, 0));
++        io.write(&quiet).unwrap();
++        assert_eq!(gui.take(SOON), None, "nothing unkeyed");
++        // XARA's pump writes the first block of a key before its PTT thread keys: held, then sent after P 1
++        io.write(&loud).unwrap();
++        assert_eq!(gui.take(SOON), None);
++        ptt.set(true).unwrap();
++        let m = gui.all(SOON);
++        assert_eq!((m[0].0, m[0].1, m[0].2.len()), (b'P', 1, 0));
++        assert!(m[1..].iter().all(|(k, _, _)| *k == b'T'));
++        let held: usize = m[1..].iter().map(|(_, _, s)| s.len()).sum();
++        assert!((100..=BLOCK / 4).contains(&held), "the block before the key, at 12 kHz: {held}");
++        for _ in 0..10 {
++            io.write(&loud).unwrap();
++        }
++        let m = gui.all(SOON);
++        assert!(m.iter().all(|(k, _, s)| *k == b'T' && s.len() <= T_MAX));
++        let sent: Vec<i16> = m.into_iter().flat_map(|(_, _, s)| s).collect();
++        assert!((1150..=1200).contains(&sent.len()), "100 ms at 12 kHz: {}", sent.len());
++        let peak = sent[200..].iter().map(|&s| s.unsigned_abs()).max().unwrap();
++        assert!((7600..=8400).contains(&peak), "{peak}");
++        io.write(&quiet).unwrap();
++        assert!(gui.all(SOON).iter().all(|(k, _, _)| *k == b'T'), "silence while keyed goes too");
++        ptt.set(false).unwrap();
++        assert_eq!(gui.all(SOON), vec![(b'P', 0, vec![])]);
++        io.write(&quiet).unwrap();
++        assert_eq!(gui.take(SOON), None, "nothing after P 0");
++        // a key whose PTT never came: its audio is not sent with the next one
++        io.write(&loud).unwrap();
++        ptt.set(false).unwrap();
++        ptt.set(true).unwrap();
++        assert_eq!(gui.all(SOON), vec![(b'P', 1, vec![])]);
++        ptt.release().unwrap();
++        assert_eq!(gui.all(SOON), vec![(b'P', 0, vec![])]);
++    }
++
++    #[test]
++    fn the_receiver_stops_counting_as_a_stream_while_keyed() {
++        let (gui, mut io, mut ptt) = connected("keyed");
++        gui.take(WAIT);
++        gui.rx(&tone(240, 1000.0, 12000.0, 0));
++        thread::sleep(SOON);
++        let mut x = [0i16; BLOCK];
++        io.read(&mut x).unwrap();
++        io.read(&mut x).unwrap();
++        ptt.set(true).unwrap();
++        // no R comes while the radio transmits: zeros at the wall clock's pace, no wait for R
++        let t = Instant::now();
++        for _ in 0..10 {
++            io.read(&mut x).unwrap();
++        }
++        assert!(x.iter().all(|&s| s == 0));
++        assert!(t.elapsed() < Duration::from_millis(160), "{:?}", t.elapsed());
++        ptt.set(false).unwrap();
++    }
++
++    #[test]
++    fn a_gui_that_goes_is_connected_again_and_a_key_goes_nowhere() {
++        let (mut gui, mut io, mut ptt) = connected("again");
++        gui.take(WAIT);
++        ptt.set(true).unwrap();
++        assert_eq!(gui.take(WAIT).map(|m| m.0), Some(b'P'));
++        gui.conn = None;
++        thread::sleep(Duration::from_millis(200));
++        io.write(&tone(BLOCK, 1500.0, 48000.0, 0)).unwrap();
++        assert!(gui.accept(Duration::from_millis(1500)), "connected again within a second or so");
++        assert_eq!(gui.take(WAIT), Some((b'H', 2, vec![12000, 30])));
++        io.write(&tone(BLOCK, 1500.0, 48000.0, 0)).unwrap();
++        assert_eq!(gui.take(SOON), None, "the rest of a key cut by the GUI is not sent to the next connection");
++        ptt.set(false).unwrap();
++        assert_eq!(gui.take(SOON), None, "and no P 0 without its P 1");
++        ptt.set(true).unwrap();
++        assert_eq!(gui.take(WAIT), Some((b'P', 1, vec![])), "the next key goes out");
++        drop(ptt);
++        drop(io);
++        assert_eq!(gui.take(WAIT), Some((b'P', 0, vec![])), "XARA stopping unkeys");
++        assert_eq!(gui.take(SOON), None);
++        let c = gui.conn.as_ref().unwrap();
++        let mut b = [0u8; 8];
++        // SAFETY: b is 8 writable bytes.
++        assert_eq!(unsafe { libc::recv(c.as_raw_fd(), b.as_mut_ptr().cast(), 8, libc::MSG_DONTWAIT) }, 0, "and closes");
++    }
++
++    #[test]
++    fn a_path_takes_the_constants_and_x6x00_needs_one_socket() {
++        let gui = Gui::new("path");
++        let mut io = X6x00Io::open(&gui.path, &gui.path, true).unwrap();
++        let p = io.path().unwrap();
++        let ms = |n: usize| n * 48;
++        assert_eq!(p, Path { capture: Some(ms(25)), keying: ms(50), out: ms(80), queue: false });
++        let mut rx = X6x00Io::open_capture(&gui.path).unwrap();
++        assert_eq!(rx.path().unwrap(), Path { capture: Some(ms(25)), keying: 0, out: 0, queue: false });
++        assert!(rx.write(&[0; BLOCK]).is_err() && rx.ptt().is_none());
++        assert!(X6x00Io::open(&gui.path, "/run/other.sock", true).is_err());
++        assert!(X6x00Io::open("ardop.sock", "ardop.sock", true).is_err());
++    }
++}
+diff --git a/crates/xara/src/main.rs b/crates/xara/src/main.rs
+index 4512a32..c2c35d2 100644
+--- a/crates/xara/src/main.rs
++++ b/crates/xara/src/main.rs
+@@ -62,6 +62,7 @@ struct Args {
+     ptt: Option<PttSpec>,
+     timing: PttTiming,
+     trusdx_speaker: bool,
++    x6x00_path_ms: Option<[usize; 3]>,
+     record: Option<PathBuf>,
+     log: Option<PathBuf>,
+     hf_given: bool,
+@@ -99,6 +100,7 @@ fn defaults() -> Args {
+         ptt: None,
+         timing: PttTiming::default(),
+         trusdx_speaker: false,
++        x6x00_path_ms: None,
+         record: None,
+         log: None,
+         hf_given: false,
+@@ -106,6 +108,14 @@ fn defaults() -> Args {
+     }
+ }
+ 
++fn path_ms(k: &str, v: &str) -> Result<[usize; 3], String> {
++    let ms: Vec<usize> = v.split(',').map(|n| num(k, n.trim())).collect::<Result<_, _>>()?;
++    match ms[..] {
++        [capture, keying, out] if ms.iter().all(|&n| n <= 1000) => Ok([capture, keying, out]),
++        _ => Err(format!("{k}: CAPTURE,KEYING,OUT in ms, each 0-1000, not {v}")),
++    }
++}
++
+ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) -> Result<(), String> {
+     if a.ui.take(k, &mut v)? {
+         return Ok(());
+@@ -160,6 +170,8 @@ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) ->
+         "--ptt-max-s" => a.timing.max_on = Duration::from_secs(num(k, &v()?)?),
+         #[cfg(feature = "trusdx")]
+         "--trusdx-speaker" => a.trusdx_speaker = true,
++        #[cfg(feature = "x6x00")]
++        "--x6x00-path-ms" => a.x6x00_path_ms = Some(path_ms(k, &v()?)?),
+         "--record" => a.record = Some(PathBuf::from(v()?)),
+         "--log" => a.log = Some(PathBuf::from(v()?)),
+         "--list-devices" => a.list_devices = true,
+@@ -170,6 +182,7 @@ fn take(a: &mut Args, k: &str, mut v: impl FnMut() -> Result<String, String>) ->
+         #[cfg(feature = "registered")]
+         "--offer-level" => a.offer_level = Some(num(k, &v()?)?),
+         _ if k == "--trusdx-speaker" => return Err(format!("{k}: xara was built without the trusdx feature")),
++        _ if k == "--x6x00-path-ms" => return Err(format!("{k}: xara was built without the x6x00 feature")),
+         _ => return Err(format!("unknown option {k}")),
+     }
+     Ok(())
+@@ -252,6 +265,21 @@ fn check(a: &Args) -> Result<(), String> {
+     if trusdx && a.tx_buffer_ms.is_some() {
+         return Err("--tx-buffer-ms does not apply to --audio trusdx".into());
+     }
++    let x6x00 = a.audio == Backend::X6x00;
++    match (x6x00, a.ptt == Some(PttSpec::X6x00)) {
++        (false, true) => return Err("--ptt x6x00 needs --audio x6x00".into()),
++        (true, false) if a.radio => return Err("--audio x6x00 keys the radio through its GUI: use --ptt x6x00".into()),
++        _ => {}
++    }
++    if x6x00 && a.capture != a.playback {
++        return Err("--audio x6x00: --capture and --playback must be the same socket".into());
++    }
++    if x6x00 && a.tx_buffer_ms.is_some() {
++        return Err("--tx-buffer-ms does not apply to --audio x6x00".into());
++    }
++    if a.x6x00_path_ms.is_some() && !x6x00 {
++        return Err("--x6x00-path-ms needs --audio x6x00".into());
++    }
+     if a.timing.lead > Duration::from_secs(1) || a.timing.tail > Duration::from_secs(1) {
+         return Err("--ptt-lead-ms and --ptt-tail-ms must be <= 1000".into());
+     }
+@@ -582,6 +610,7 @@ fn pump(
+         Some(spec) => {
+             let dev = match spec {
+                 PttSpec::Trusdx => io.ptt().ok_or_else(|| std::io::Error::other("--ptt trusdx needs --audio trusdx")),
++                PttSpec::X6x00 => io.ptt().ok_or_else(|| std::io::Error::other("--ptt x6x00 needs --audio x6x00")),
+                 s => s.open(),
+             };
+             let dev = match dev {
+@@ -769,6 +798,10 @@ fn real_main() -> Result<ExitCode, String> {
+         xara::ptt::wait_released(SECOND_SIGNAL_GRACE);
+     })
+     .map_err(|e| format!("signals: {e}"))?;
++    #[cfg(feature = "x6x00")]
++    if let Some(ms) = a.x6x00_path_ms {
++        xara::audio::x6x00::set_path_ms(ms);
++    }
+     let (mut a, io) = open_audio(&argv, a, applied.then_some(&saved), &mut error).map_err(|e| e.to_string())?;
+     if let Some(d) = &dir {
+         say!("settings in {}", d.join(settings::FILE).display());
+@@ -910,9 +943,11 @@ mod tests {
+         let a = parse(&argv("--list-devices")).unwrap().unwrap();
+         assert!(a.list_devices);
+         assert_eq!(a.audio, Backend::default());
++        let d = Backend::default();
+         assert!(
+-            parse(&argv("--list-devices --audio jack"))
+-                .is_err_and(|e| e.contains(&format!("expected {}", Backend::default().name())))
++            parse(&argv("--list-devices --audio jack")).is_err_and(
++                |e| e.contains("expected ") && (!d.built() || e.contains(&format!("expected {}", d.name())))
++            )
+         );
+         for b in [Backend::Pulse, Backend::Alsa].into_iter().filter(|b| b.built()) {
+             let p = conf("conf-list", &format!("call = N1CALL\naudio = {}\n", b.name()));
+@@ -941,6 +976,38 @@ mod tests {
+         b("--audio trusdx --capture /dev/a --playback /dev/a --radio --ptt trusdx --trusdx-speaker").unwrap();
+     }
+ 
++    #[test]
++    fn x6x00_options_are_checked_together() {
++        let b = |s: &str| build(&argv(&format!("--call N2CALL {s}")), &Pairs::new());
++        let err = |s: &str, want: &str| assert!(b(s).is_err_and(|e| e.contains(want)), "{s}: {:?}", b(s).err());
++        if !Backend::X6x00.built() {
++            err("--capture a --playback a --x6x00-path-ms 1,2,3", "built without the x6x00 feature");
++            return err("--audio x6x00 --capture /run/s --playback /run/s", "built without the x6x00 feature");
++        }
++        let sock = "--audio x6x00 --capture /run/ardop.sock --playback /run/ardop.sock";
++        err(&format!("{sock} --radio --ptt vox"), "use --ptt x6x00");
++        err("--capture a --playback a --radio --ptt x6x00", "--ptt x6x00 needs --audio x6x00");
++        err("--audio x6x00 --capture /run/a.sock --playback /run/b.sock", "must be the same socket");
++        err(&format!("{sock} --tx-buffer-ms 100"), "does not apply to --audio x6x00");
++        err("--capture a --playback a --x6x00-path-ms 25,50,80", "--x6x00-path-ms needs --audio x6x00");
++        for bad in ["25,50", "25,50,80,1", "25,x,80", "25,50,1001", ""] {
++            err(&format!("{sock} --x6x00-path-ms {bad}"), "--x6x00-path-ms");
++        }
++        let a = b(&format!("{sock} --radio --ptt x6x00 --x6x00-path-ms 30,40,90")).unwrap();
++        assert_eq!((a.audio, a.ptt, a.x6x00_path_ms), (Backend::X6x00, Some(PttSpec::X6x00), Some([30, 40, 90])));
++        let registered = if cfg!(feature = "registered") { "registered\n" } else { "" };
++        let text = format!(
++            "call = N1CALL\naudio = x6x00\ncapture = /run/ardop.sock\nplayback = /run/ardop.sock\nradio\nptt = x6x00\n\
++             x6x00-path-ms = 25,50,80\n{registered}"
++        );
++        let p = conf("conf-x6x00", &text);
++        let (_, all) = with_config(&argv(&format!("--config {}", p.display()))).unwrap();
++        let a = parse(&all).unwrap().unwrap();
++        assert_eq!((a.call.as_str(), a.radio, a.x6x00_path_ms), ("N1CALL", true, Some([25, 50, 80])));
++        assert_eq!(a.registered, cfg!(feature = "registered"));
++        std::fs::remove_dir_all(p.parent().unwrap()).unwrap();
++    }
++
+     #[test]
+     fn tx_buffer_sizes_the_queue_from_the_command_line_or_a_config() {
+         let a = parse(&argv("--call N2CALL --capture c --playback p")).unwrap().unwrap();
+diff --git a/crates/xara/src/ptt.rs b/crates/xara/src/ptt.rs
+index 1877313..ca9da4d 100644
+--- a/crates/xara/src/ptt.rs
++++ b/crates/xara/src/ptt.rs
+@@ -32,6 +32,7 @@ pub enum PttSpec {
+     Cm108Usb { vendor: u16, product: u16, gpio: u8 },
+     Rigctld(String),
+     Trusdx,
++    X6x00,
+ }
+ 
+ pub const RIGCTLD_DEFAULT: &str = "127.0.0.1:4532";
+@@ -61,6 +62,8 @@ impl PttSpec {
+                 Err("--ptt trusdx: xara was built without the trusdx feature".into())
+             }
+             "trusdx" if rest.is_empty() => Ok(Self::Trusdx),
++            "x6x00" if !cfg!(feature = "x6x00") => Err("--ptt x6x00: xara was built without the x6x00 feature".into()),
++            "x6x00" if rest.is_empty() => Ok(Self::X6x00),
+             "rigctld" => Ok(Self::Rigctld(if rest.is_empty() { RIGCTLD_DEFAULT.into() } else { rest.into() })),
+             _ => {
+                 let cm108 = if cfg!(target_os = "macos") { "cm108:VID:PID[:GPIO]" } else { "cm108:DEV|VID:PID[:GPIO]" };
+@@ -68,6 +71,9 @@ impl PttSpec {
+                 if cfg!(feature = "trusdx") {
+                     all.push("trusdx");
+                 }
++                if cfg!(feature = "x6x00") {
++                    all.push("x6x00");
++                }
+                 Err(format!("--ptt {s:?}: expected {}", crate::cli::either(&all)))
+             }
+         }
+@@ -96,6 +102,7 @@ impl PttSpec {
+             Self::Cm108Usb { vendor, product, gpio } => cm108_usb(*vendor, *product, *gpio)?,
+             Self::Rigctld(a) => Box::new(Rigctld::open(a)?),
+             Self::Trusdx => return Err(io::Error::other("--ptt trusdx comes with --audio trusdx")),
++            Self::X6x00 => return Err(io::Error::other("--ptt x6x00 comes with --audio x6x00")),
+         })
+     }
+ }

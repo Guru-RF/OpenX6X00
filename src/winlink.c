@@ -3,13 +3,14 @@
  *
  *  OpenX6X00 - Winlink: the radio's side of the Winlink modems and Pat (winlink.h)
  *
- *  The modem bridge. The modem, ardopcf or Mercury's bridge x6x00-mercury, connects to WINLINK_ARDOP_SOCK
- *  (SOCK_SEQPACKET) and every packet is one message: a 4-byte header {type, arg, n} (host byte order), then
- *  n samples, mono, signed 16 bits, at the session's rate.
+ *  The modem bridge. The modem, ardopcf, Mercury's bridge x6x00-mercury or XARA (its x6x00 backend, tools/xara),
+ *  connects to WINLINK_ARDOP_SOCK (SOCK_SEQPACKET) and every packet is one message: a 4-byte header {type, arg,
+ *  n} (host byte order), then n samples, mono, signed 16 bits, at the session's rate.
  *    H  modem -> GUI  hello on each connect, arg = the protocol version, the first message.
  *                     Version 1 (ardopcf): n = 0, 12000 Hz, a key of 30 s at most.
  *                     Version 2: n = 2, {the rate, 8000 or 12000 Hz; the longest key the modem
- *                     may need, in seconds}; the GUI keys for KEY_MAX_S at most
+ *                     may need, in seconds}; the GUI keys for KEY_MAX_S at most. Mercury: 8000 Hz,
+ *                     40 s; XARA: 12000 Hz, 30 s
  *    R  GUI -> modem  the receiver, 20 ms a message (240 samples at 12000 Hz, 160 at 8000); none
  *                     while the radio transmits, and dropped when the socket is full
  *    T  modem -> GUI  audio to send, n <= 1200
