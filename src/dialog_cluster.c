@@ -153,7 +153,7 @@ static int      server_port;
 static time_t   conf_mtime;
 static bool     link_on; /* the Link switch as load_server() last read it: what the client was told */
 static char     client_call[sizeof(params.callsign.x)];
-static bool     wifi_was_up;
+static bool     net_was_up, wifi_was_up;
 
 /* Reads the server and (re)starts the client: a running one reconnects
  * only when the server or the callsign changed. */
@@ -174,9 +174,11 @@ static void load_server(void) {
 static void background_cb(lv_timer_t *t) {
     (void)t;
     if (cluster_config_mtime() != conf_mtime || strcmp(client_call, params.callsign.x) != 0) load_server();
-    bool up = net_connected();
-    if (up && !wifi_was_up) cluster_client_retry();
-    wifi_was_up = up;
+    /* a network that comes up: WiFi too when a cable without a gateway was there first */
+    bool up = net_connected(), wifi_up = wifi_get_status() == WIFI_CONNECTED;
+    if ((up && !net_was_up) || (wifi_up && !wifi_was_up)) cluster_client_retry();
+    net_was_up  = up;
+    wifi_was_up = wifi_up;
     alert_scan();
     link_write();
 }
@@ -504,7 +506,7 @@ static uint32_t link_status(char *text, size_t size, const char **word) {
                 snprintf(text, size, "Logged in as %s", detail + 13);
                 return theme_hex(TC_ok);
             }
-            snprintf(text, size, "%s - logging in...", wifi_eth_active() ? "Ethernet" : "WiFi");
+            snprintf(text, size, "%s - logging in...", wifi_get_status() == WIFI_CONNECTED ? "WiFi" : "Ethernet");
             return theme_hex(TC_warn);
         case CLUSTER_CONNECTING:
             *word = "connecting";

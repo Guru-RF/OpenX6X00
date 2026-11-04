@@ -355,22 +355,23 @@ static void icon_box(lv_obj_t *o, bool on) {
 }
 
 /* The network cell: the WiFi symbol, or the USB one with a wired adapter plugged in (lit when
- * it is connected with a gateway; WiFi is held off then). A cable without a gateway leaves the
- * cell to WiFi, which carries the internet then */
+ * it is connected). A cable without a gateway leaves WiFi on: while WiFi is connected the cell is
+ * WiFi's, which carries the internet then (wifi_get_status() says WIFI_OFF while a cable with a
+ * gateway holds it off) */
 static void wifi_icon_update(void *arg) {
     wifi_status_t st = wifi_get_status();
     lv_color_t    c  = st == WIFI_CONNECTED ? TC(ok) : st == WIFI_OFF ? TC(icon_off) : lv_color_hex(COLOR_ICON_IDLE);
     eth_info_t    eth;
 
     eth_get_info(&eth);
-    bool usb = wifi_eth_active() || (eth.present && !eth.connected);
+    bool usb = eth.present && (!eth.connected || st != WIFI_CONNECTED);
 
     if (usb) {
-        c = wifi_eth_active() ? TC(ok) : lv_color_hex(COLOR_ICON_IDLE);
+        c = eth.connected ? TC(ok) : lv_color_hex(COLOR_ICON_IDLE);
     }
     lv_label_set_text(items[INFO_WIFI], usb ? LV_SYMBOL_USB : LV_SYMBOL_WIFI);
     lv_obj_set_style_text_color(items[INFO_WIFI], c, 0);
-    icon_box(items[INFO_WIFI], usb ? wifi_eth_active() : st == WIFI_CONNECTED);
+    icon_box(items[INFO_WIFI], usb ? eth.connected : st == WIFI_CONNECTED);
 }
 
 /* Sent from NetworkManager's thread: the icon is set on the LVGL one (a theme change may be

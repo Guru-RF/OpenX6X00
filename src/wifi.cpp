@@ -213,7 +213,7 @@ bool wifi_eth_active(void) {
 }
 
 bool net_connected(void) {
-    return eth_holds_wifi || status == WIFI_CONNECTED;
+    return eth_up || status == WIFI_CONNECTED;
 }
 
 /* NetworkManager's WirelessEnabled (the rfkill soft switch of wlan0), asynchronously */

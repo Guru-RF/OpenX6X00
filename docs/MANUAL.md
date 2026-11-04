@@ -5260,13 +5260,15 @@ plug unlit, and WiFi stays as it was.
 A cable without a gateway, to a computer for the web configurator or the
 TCI server, reaches only its own subnet: WiFi stays on and keeps the
 internet (update check, spots, Wavelog), its DNS servers first, and the
-info bar's cell stays WiFi's. For such a cable set Mode to Static with an
-address in the computer's subnet and leave Gateway and DNS empty. A gateway
-that is the computer itself takes the internet off WiFi, and it works only
-when the computer shares its internet on that port; DHCP works there too
-then, since the sharing hands out the addresses. In DHCP mode a cable to a
-computer that gives no addresses never connects: the radio asks for 45
-seconds, gives up and asks again later, and WiFi is left alone.
+info bar's cell stays WiFi's while WiFi is connected (with WiFi off or no
+WiFi network in reach it shows the plug, lit). For such a cable set Mode to
+Static with an address in the computer's subnet and leave Gateway and DNS
+empty. A gateway that is the computer itself takes the internet off WiFi,
+and it works only when the computer shares its internet on that port; DHCP
+works there too then, since the sharing hands out the addresses. In DHCP
+mode a cable to a computer that gives no addresses never connects: the
+radio asks for 45 seconds, gives up and asks again later, and WiFi is left
+alone.
 
 Where: Settings > Wireless > ETHERNET, or the Network page of the web
 configurator (System > Network). Both show the same settings. The ETHERNET

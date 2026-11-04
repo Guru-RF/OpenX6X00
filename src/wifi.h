@@ -115,7 +115,8 @@ void eth_get_info(eth_info_t *info);
  * the adapter goes. A cable without a gateway leaves WiFi alone. */
 bool wifi_eth_active(void);
 
-/* Any thread: the radio has a network, by WiFi or by a wired adapter with a gateway */
+/* Any thread: the radio has a network, by WiFi or by a wired adapter (also one without a gateway,
+ * to a computer: a cluster node on it is in reach) */
 bool net_connected(void);
 
 /* Any thread: NULL or what is wrong. A field alone, or the whole set (netmask normalized to dotted) */
