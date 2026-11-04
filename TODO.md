@@ -81,6 +81,12 @@ Asked 2026-10-27 (#37; #52 asked the same and was closed for it). FreeDV's RADE 
 with the FARGAN vocoder model from the Opus project) as a digital voice mode in APP, and FreeDV's older Codec 2
 modes (1600, 700D) with it. No date.
 
+- **Open work: draft PR #130** (jochenhammes, 2026-10-31, in place of #129): RADE V1 as APP > Modes > RADE, receive
+  (the speech to Bluetooth headphones only) and send as record-then-send, like a voice message, through
+  `tx_player_stream()`; RADE V2 and the Codec 2 modes are not in it. Run on a PC only so far. Before a merge: a run
+  on an X6100 and an X6200 (its decode, synthesis and encode times, the GUI's CPU), its build (tools/rade/build.sh,
+  run by hand for now) from local-build.sh with every download pinned and checked, the licence notices on the
+  radio, V1 only for the size, and a TX power of its own instead of the level the digital apps share.
 - **The audio path is there**: RADE is a modem in an SSB passband, and the digital apps (FT8, Winlink) already take
   the receiver's audio into Linux and transmit audio from Linux (`radio_set_modem()`). What is new: the decoded
   voice on the speaker while receiving, and the mic recorded in Linux while transmitting (`AUDIO_PLAY_VOICE_REC`),
@@ -92,7 +98,7 @@ modes (1600, 700D) with it. No date.
   model's memory on 1 GB.
 - **Not counted on**: fventuri's base firmware that streams audio and IQ over USART6 to Linux and back is a base
   of its own, so a card image cannot rely on it.
-- **Codec 2 1600 and 700D** need far less CPU (they run on the SM1000's microcontroller): a first step that
+- **Codec 2 1600 and 700D** need far less CPU (they run on a microcontroller): a first step that
   needs only the audio path.
 - **Reporting**: FreeDV Reporter (https://qso.freedv.org), later.
 
@@ -214,3 +220,36 @@ The https Panel and Screen page open their sockets on the page's own port since 
 (`wss://<address>/ws/remote` and `/ws/tci`, make_https_server in webserver/.../__main__.py). 50003 and 50004
 (WssProxy, start_wss_proxies, /api/remote's wss_port and wss_tci_port) stay for that one release, for a page left open
 over the update, and go in the release after it.
+
+## PSK, Olivia and JTTY: a Log QSO button in the apps (#55)
+
+Asked 2026-10-27 (#55). FT8, FT4 and FT2 log their QSOs by themselves, and JS8 has Log QSO (page 5, and its popup
+at 73 or SK); the keyboard apps log nothing themselves (docs/MANUAL.md, PSK31, PSK63 and Olivia: "The apps don't log
+QSOs themselves yet"). Today a QSO from them goes into the log only from the browser panel's Log tab, in the app's
+mode (#92), and since v0.3.8 the text log keeps what they receive and send (/mnt/digi_text), which is not a log of
+QSOs.
+
+- **The button**: on a page of PSK31, PSK63, Olivia (Contestia too) and JTTY, and of RTTY once it sends. It takes the
+  DX call and the two RSTs the apps already keep (src/digi_qso.c, shared by them), the time, the frequency and the
+  mode as the Log tab gives it, into the radio's log as JS8 does (`qso_log_record_create()` and
+  `qso_log_record_save()`, `dialog_field_day_log()`; src/js8_window.c): so it shows on the Logs page and goes to
+  Wavelog and Field Ops.
+- **Only on a press** at first: the end of a QSO is hard to tell in a keyboard mode, so no offer at 73 or SK as JS8
+  makes (the #55 reply of 29 October). The reporter cared most about the text and the reports, which the text log
+  now keeps.
+
+## CW Trainer: the receiver turned down while it is open (#110)
+
+Asked 2026-10-31 (joanpao, #110). The trainer leaves the receiver as it is in Learn, Practice and Calls, so the
+band's noise plays under the side tone, and the trainer's decoder, which listens to the side tone to check the
+keying, hears it too: while it waits for an answer, noise can come out as extra letters. The idea: the trainer turns
+the RF gain down by itself while it is open and gives it back when it closes, as it already does with key train and
+the mode (src/dialog_cw_trainer.c, `construct_cb()` and `destruct_cb()`). By hand today: RF gain to 0 before opening
+it (the #110 reply of 31 October).
+
+- **To check first, on both radios**: that the side tone stays as loud with the RF gain at 0 (the X6200's is made in
+  the base and follows the volume) and that the decoder still hears it, in all three modes.
+- **How**: given back on every exit, as key train is. The RF gain is a saved setting (`rfgain`, sent to the base by
+  radio.c as `HW_RFG`): better to set the base's gain alone and leave the setting as it is, so a power-off with the
+  trainer open doesn't leave the radio deaf at the next start. Meanwhile the S-meter's correction for the RF gain
+  (src/smeter.c) and the browser panel's RF gain (`P_RFG`) should see the gain the user set.
