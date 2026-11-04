@@ -34,7 +34,7 @@ void main_screen_set_theme(const char *name);
 /* The keyboard to the spectrum; a dialog takes it away while open */
 void main_screen_keys_enable(bool on);
 
-/* The keyboard's keys go to the main screen: no app, dialog, list or text box took them */
+/* The keyboard's keys go to the main screen: no app, dialog, list or text box took them, not in walkie mode */
 bool main_screen_has_keys(void);
 
 /* CapsLock held with a key: the chord's kbd_hyper_action_t (kbd_hyper.h), run once the key's read is over */

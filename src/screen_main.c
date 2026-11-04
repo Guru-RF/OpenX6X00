@@ -1388,9 +1388,10 @@ void main_screen_keys_enable(bool value) {
     lv_group_set_editing(keyboard_group, false);
 }
 
-/* No app, dialog, list or text box took the keyboard */
+/* No app, dialog, list or text box took the keyboard, and the main screen is the one shown: the walkie screen leaves
+ * the spectrum focused, and a window opened from there (Settings, the frequency box, the quick log) went unseen */
 bool main_screen_has_keys(void) {
-    return spectrum && lv_group_get_focused(keyboard_group) == spectrum && !dialog_is_run();
+    return spectrum && lv_group_get_focused(keyboard_group) == spectrum && !dialog_is_run() && !walkie_on();
 }
 
 /* CapsLock+Space (kbd_ptt.h): PTT on the way the PTT key keys it (ptt_key: its refusals, the hold outside the bands,

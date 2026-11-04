@@ -250,8 +250,9 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
 | Up, Down | The next band up or down, as the [BAND keys](#band-keys) | main screen |
 | Space | PTT on, and at the next press off (below) | on: main screen; off: everywhere |
 
-- Main screen: no app, Settings, list or text box open. Elsewhere these
-  chords do nothing, and type nothing.
+- Main screen: no app, Settings, list or text box open, not in [Walkie
+  Talkie mode](#walkie-talkie-mode). Elsewhere these chords do nothing, and
+  type nothing: in walkie mode CapsLock+Space keys nothing (it still lets go).
 - The keys count by their place on a US keyboard, as the radio types. The
   letters are in the same place on AZERTY and QWERTZ keyboards; on an AZERTY
   one CapsLock+1 is the key marked & and 1.
