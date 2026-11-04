@@ -1290,7 +1290,7 @@ are settings, with the figures measured on one radio as defaults.
 | Setting | Range | Default |
 |---|---|---|
 | Preamp | 0 to 40 dB | 19 dB (X6200: 16 dB) |
-| Attenuator | 0 to 40 dB (X6200: 0 to 60 dB, one for each band) | 15 dB (X6200: by band, below) |
+| Attenuator | 0 to 40 dB (X6200: 0 to 70 dB, one for each band) | 15 dB (X6200: by band, below) |
 | RF gain, a step | 0.00 to 2.00 dB | 0.60 dB |
 
 On the X6200 the attenuator takes much more off, and how much depends on the
@@ -1348,6 +1348,13 @@ range, or ATT taking the reading down to S1 (the attenuator value far too
 low: raise it, or feed a stronger carrier) stops the measurement and
 changes nothing. A band change stops it too ("Stopped: band changed"): PRE
 and ATT belong to the band, so check them on the band you left.
+
+The attenuator value stops at its top, 70 dB on the X6200 and 40 dB on the
+X6100. When Measure comes out there it says so, and leaves the RF gain to
+its slider for the line to fit:
+"Done on 80m: PRE 16 dB, ATT 70, the top, so 70 or more." The attenuator
+then takes that much off or more, and with ATT on the meter reads low by
+whatever it takes off over the top.
 
 The per band S-meter calibration (Settings > General > CONTROLS) is a
 separate correction, for the band's level with everything off.
