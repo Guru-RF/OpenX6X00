@@ -77,14 +77,22 @@ it, the first time with a download of about 150 MB, then it only gives the path;
   Pat asks for a CW ID (`CWID ON`) each time, and both XARAs identify in CW as the
   session closes, with the European calls too (our patch 0002; XARA 0.1.3 drops `CWID
   ON` and identifies only with a US call): the key that ends with the ID is played
-  whole. A's unanswered call, whose host sent no `CWID ON`, ends without one. Each
-  time: connected, the message in B's inbox, no key stopped by the GUI, both XARAs stop
-  on SIGTERM (their code 130). About two and a half minutes, and 12 s for the
-  unanswered call (2026-11-04, eight runs: 89-112 s at the free speed, levels 2 to 4;
-  60-62 s at full speed, the highest level 9 to 14; keys of 5.2 s at the most). With
-  0002, 2026-11-04, two runs: 96 and 98 s free, 61 and 62 s full, the highest level 9;
-  the IDs' keys 3.9 to 4.1 s (A's, after its QRT) and 5.6 to 5.9 s (B's, which waits
-  out A's ID first), the longest. The whole `make modems`: 257, 266 and 266 s.
+  whole. A's unanswered call, whose host sent no `CWID ON`, ends without one. Then,
+  with `CWID ON`, A's next call is cancelled in its reply window (`ABORT`, as Pat's
+  force disconnect) and A's radio tuned elsewhere half a second later (`F` on its
+  rigctld, as Pat's tune back): the ID is the only key after the `ABORT`, played whole
+  on the call's frequency (each key's is in `WL_PLAYED.log`), and the radio goes where
+  it was tuned once that key is over (our patch 0003; XARA 0.1.3 waits out the reply
+  window, 1.3 s, and its ID went out on the frequency tuned to). Each time: connected,
+  the message in B's inbox, no key stopped by the GUI, both XARAs stop on SIGTERM
+  (their code 130). About two and a half minutes, and 12 s for the unanswered call
+  (2026-11-04, eight runs: 89-112 s at the free speed, levels 2 to 4; 60-62 s at full
+  speed, the highest level 9 to 14; keys of 5.2 s at the most). With 0002, 2026-11-04,
+  two runs: 96 and 98 s free, 61 and 62 s full, the highest level 9; the IDs' keys
+  3.9 to 4.1 s (A's, after its QRT) and 5.6 to 5.9 s (B's, which waits out A's ID
+  first), the longest. The whole `make modems`: 257, 266 and 266 s. With 0003 and the
+  cancelled call, 2026-11-04: 258 s, its ID 2.8 s; without 0003 it fails there, the ID
+  on the frequency tuned to.
 
 It prints `MODEMS OK`; `--keep DIR` (run the script by hand) keeps the logs, `--only
 ardop|mercury|xara` runs one.

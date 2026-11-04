@@ -8,7 +8,7 @@
  *    WL_SOCK      the modem socket (WINLINK_ARDOP_SOCK), default /tmp/winlink-test.sock
  *    WL_RIG_PORT  the rigctld's port, default 14532
  *    WL_PLAYED    each transmission is written here when it ends (int16, 44.1 kHz), and a line is added to
- *                 WL_PLAYED.log: "played <samples> stopped <0|1>"
+ *                 WL_PLAYED.log: "played <samples> stopped <0|1> freq <the frequency it went out on, Hz>"
  *    WL_AIR_IN    a UNIX datagram socket this station hears the other on; without it, a tone of WL_TONE Hz
  *                 (default 1000)
  *    WL_AIR_OUT   the other station's WL_AIR_IN: what this one transmits goes there, as the radio sends it
@@ -333,7 +333,7 @@ static void swr_check(void) {
 
 float tx_player_base_gain_offset(void) { return 0.0f; }
 
-static void played_write(const int16_t *s, size_t n, bool stopped) {
+static void played_write(const int16_t *s, size_t n, bool stopped, int32_t hz) {
     const char *path = getenv("WL_PLAYED");
     char        tmp[4096], log[4096];
     FILE       *f;
@@ -348,7 +348,7 @@ static void played_write(const int16_t *s, size_t n, bool stopped) {
         rename(tmp, path);
     }
     if ((f = fopen(log, "a"))) {
-        fprintf(f, "played %zu stopped %d\n", n, stopped);
+        fprintf(f, "played %zu stopped %d freq %d\n", n, stopped, (int)hz);
         fclose(f);
     }
 }
@@ -360,6 +360,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     size_t   played = 0, cap = 0;
     bool     stopped = false;
     uint64_t t0 = now_us();
+    int32_t  hz = radio_tx_freq();      /* a QSY asked meanwhile is made once the key is over */
 
     (void)offset_hz;
     (void)base_gain;
@@ -388,7 +389,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     atomic_store(&keyed, false);
     fprintf(stderr, "[stub] unkeyed: %zu samples, %.2f s%s\n", played, played / (double)PLAY_RATE,
             stopped ? ", stopped" : "");
-    played_write(all, played, stopped);
+    played_write(all, played, stopped, hz);
     free(all);
     return !stopped;
 }

@@ -19,7 +19,10 @@
    with listening off; Pat B's listen turns it on). The free run has calls of a European kind (ON4AAA, ON4BBB), the
    registered one US calls. Both XARAs identify in CW as Pat's session closes, with either kind: Pat sends CWID ON,
    which upstream's XARA 0.1.3 takes only for a US call and our patch 0002 for any. Before any Pat, with no CWID ON,
-   A's call that B does not answer ends without one with the European call, as upstream's does.
+   A's call that B does not answer ends without one with the European call, as upstream's does. Then, with CWID ON,
+   a call cancelled in its reply window (ABORT, as Pat's force disconnect) and a tune elsewhere half a second later,
+   as Pat's tune back: A's XARA keys its ID at once (patch 0003), on the call's frequency, and the radio tunes after
+   that key.
 
 Run it in a network namespace with loopback only (`make modems` does, with unshare -rn): Pat then reaches
 nothing outside, no Winlink web service, no CMS. Pat's own account check before a connect is also skipped
@@ -105,7 +108,7 @@ class Procs:
 def host(procs, tmp, name, rig_port, air_in=None, air_out=None):
     """A winlink_host: its socket, its log, what it played."""
     h = {"sock": os.path.join(tmp, name + ".sock"), "log": os.path.join(tmp, name + "-gui.log"),
-         "played": os.path.join(tmp, name + ".played")}
+         "played": os.path.join(tmp, name + ".played"), "rig": rig_port}
     env = dict(os.environ, WL_SOCK=h["sock"], WL_RIG_PORT=str(rig_port), WL_PLAYED=h["played"])
     if air_in:
         env["WL_AIR_IN"] = air_in
@@ -120,6 +123,18 @@ def host(procs, tmp, name, rig_port, air_in=None, air_out=None):
 def played(h):
     """The transmissions of a winlink_host so far: (samples, stopped) each."""
     return [(int(l.split()[1]), l.split()[3] == "1") for l in text(h["played"] + ".log").splitlines()]
+
+
+def freqs(h):
+    """The frequency each transmission of a winlink_host went out on, Hz"""
+    return [int(l.split()[5]) for l in text(h["played"] + ".log").splitlines()]
+
+
+def rig(h, cmd):
+    """One command to a winlink_host's rigctld (Pat's hamlib rig), its answer"""
+    with socket.create_connection(("127.0.0.1", h["rig"]), timeout=3) as s:
+        s.sendall(cmd.encode() + b"\n")
+        return s.recv(64).decode().strip()
 
 
 def read_until(c, done, timeout):
@@ -437,6 +452,31 @@ def unanswered_call(ha, hb, la, lb, port_a, call_a, call_b):
     check("  tx cw" not in text(la), f"and sent no CW ID: its host sent no CWID ON, and {call_a} is not a US call")
 
 
+def cancelled_call(ha, la, port_a, call_a, call_b):
+    """A call cancelled in its reply window, then a tune elsewhere: Pat's force disconnect (ABORT, and DISCONNECTED
+    faked at once), then a second later its tune back to where the radio was (here half a second, inside the 1.3 s
+    reply window that upstream's 0.1.3 waits out before its ID, which then went out there). With CWID ON, A's XARA
+    keys its CW ID at once (patch 0003), on the call's frequency, and the radio tunes once that key is over"""
+    c = xara_client(port_a)
+    keys, call_hz, ids = len(played(ha)), int(rig(ha, "f")), text(la).count("  tx cw")
+    c.sendall(f"CWID ON\rCONNECT {call_a} {call_b}\r".encode())
+    check(wait_for(lambda: len(played(ha)) > keys, 10), f"A's XARA called {call_b} again, with CWID ON")
+    c.sendall(b"ABORT\r")      # in the reply window: the request is played out
+    time.sleep(0.5)
+    away = call_hz + 3000
+    check(rig(ha, f"F {away}") == "RPRT 0", f"a tune to {away} Hz half a second after the ABORT, answered at once")
+    got = read_until(c, lambda g: b"DISCONNECTED\r" in g, 15)
+    c.close()
+    check(b"DISCONNECTED\r" in got and text(la).count("  tx cw") == ids + 1,
+          "A's XARA gave the call up on ABORT, and identified in CW")
+    time.sleep(1)   # the GUI plays out the key's last audio after P 0, then logs it
+    after, hz = played(ha)[keys + 1:], freqs(ha)[keys + 1:]
+    check(len(after) == 1 and not after[0][1] and after[0][0] / PLAY_RATE >= 2.0 and hz == [call_hz],
+          f"its ID was the only key after the ABORT, played whole on the call's {call_hz} Hz "
+          f"({[(round(n / PLAY_RATE, 1), f) for (n, _), f in zip(after, hz)]})")
+    check(rig(ha, "f") == str(away), f"and the radio went to {away} Hz after it")
+
+
 def levels(log):
     """The speed levels XARA reported to Pat (BITRATE (n) ...), sent and heard"""
     return [int(m) for m in re.findall(r"< BITRATE \((\d+)\)", text(log))]
@@ -471,6 +511,8 @@ def xara_test(procs, tmp, xara, pat, registered):
     check(line == "VERSION VARA HF v4.9.0", f"VERSION answered with a VERSION line, what Pat waits for ({line!r})")
     if not registered:
         unanswered_call(ha, hb, la, lb, port_a, call_a, call_b)
+        cancelled_call(ha, la, port_a, call_a, call_b)
+    marks = {la: len(text(la)), lb: len(text(lb))}    # the session's part of the logs, from here
 
     da, db = pat_env(tmp, "xa-" + tag, call_a), pat_env(tmp, "xb-" + tag, call_b)
     argv, env = pat_cmd(pat, db, port_b, call_b, "interactive", listen=True)
@@ -515,8 +557,9 @@ def xara_test(procs, tmp, xara, pat, registered):
     # end of a key like any other, through the GUI's socket and checks: played whole. B's waits out A's (blank words)
     kind = "US" if registered else "European"
     for log, h, n in ((la, ha, "A"), (lb, hb, "B")):
-        check("> Cwid(true)" in text(log), f"Pat asked {n}'s XARA for a CW ID (CWID ON)")
-        ided = lambda: "  tx cw" in text(log) and text(log).rfind("< DISCONNECTED") > text(log).rfind("  tx cw")
+        since = lambda: text(log)[marks[log]:]
+        check("> Cwid(true)" in since(), f"Pat asked {n}'s XARA for a CW ID (CWID ON)")
+        ided = lambda: "  tx cw" in since() and since().rfind("< DISCONNECTED") > since().rfind("  tx cw")
         check(wait_for(ided, 20), f"{n}'s XARA identified in CW as the session closed ({kind} calls)")
         time.sleep(1)   # the GUI plays out the key's last audio after P 0, then logs it
         n_s, stopped = played(h)[-1]

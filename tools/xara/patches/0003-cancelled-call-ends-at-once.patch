@@ -1,0 +1,124 @@
+From 92a85717bad62ce13e2800cbc24284dd2490590e Mon Sep 17 00:00:00 2001
+From: Joeri Van Dooren <ure@on6ure.be>
+Date: Wed, 4 Nov 2026 18:18:38 +0100
+Subject: [PATCH] A call the host cancels ends at once, with its CW ID
+
+DISCONNECT or ABORT while calling used up the retries and nothing more:
+the call still waited out its reply window, then gave up and sent its
+CW ID. By then the host may have moved on. Pat's second click on a call
+it is cancelling ends the dial at once (Pat-VARA's Abort says
+DISCONNECTED itself), and a second later Pat tunes the radio back to
+where it was before the call, so the ID went out on that frequency,
+which the user never chose for the call.
+
+Now the call gives up as soon as it is cancelled, as when its last reply
+window ends: UnableToConnect, then the CW ID if there is one, then
+DISCONNECTED. When its connect request is still on the air, it gives up
+as the request ends, and the ID goes out in the same key. A reply that
+would have come in the window is not waited for: the host asked to stop.
+
+a_cancelled_call_ends_at_once cancels a call in its reply window and
+during its request, with and without CWID ON. Without this change the ID
+keys 1.28 s after DISCONNECT, in a key of its own.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ crates/xara-arq/src/hf/session.rs  | 15 +++++++++---
+ crates/xara/tests/host_protocol.rs | 37 ++++++++++++++++++++++++++++++
+ 2 files changed, 49 insertions(+), 3 deletions(-)
+
+diff --git a/crates/xara-arq/src/hf/session.rs b/crates/xara-arq/src/hf/session.rs
+index e2f7752..9975494 100644
+--- a/crates/xara-arq/src/hf/session.rs
++++ b/crates/xara-arq/src/hf/session.rs
+@@ -558,6 +558,11 @@ impl Session {
+         }
+     }
+ 
++    fn give_up(&mut self) {
++        self.core.host(HostEvent::UnableToConnect);
++        self.close(0);
++    }
++
+     pub fn connect(&mut self, now: Time, mycall: Option<&str>, remote: &str) {
+         if self.state != State::Listen {
+             return;
+@@ -616,7 +621,8 @@ impl Session {
+     pub fn abort(&mut self, now: Time) {
+         match self.state {
+             State::Listen | State::Closing | State::Qrt => {}
+-            State::Calling => self.attempts = self.cfg.host.retries,
++            State::Calling if self.core.transmitting => self.link.disc_now = true,
++            State::Calling => self.give_up(),
+             _ => {
+                 self.link.disc_now = true;
+                 match self.state {
+@@ -664,6 +670,10 @@ impl Session {
+         }
+         let draw = self.carry.break_draw.take();
+         let w = match self.state {
++            State::Calling if self.link.disc_now => {
++                self.give_up();
++                None
++            }
+             State::Calling => Some(self.carry.timing.reply_window(Fmt::F1)),
+             State::HeaderSent | State::Sending => Some(match self.req_fmt {
+                 Some(_) => self.carry.timing.reply_window(Fmt::F0),
+@@ -741,8 +751,7 @@ impl Session {
+                 if self.attempts < self.cfg.host.retries {
+                     self.request(now);
+                 } else {
+-                    self.core.host(HostEvent::UnableToConnect);
+-                    self.close(0);
++                    self.give_up();
+                 }
+             }
+             State::HeaderSent | State::Sending => {
+diff --git a/crates/xara/tests/host_protocol.rs b/crates/xara/tests/host_protocol.rs
+index 33ce6fa..e434712 100644
+--- a/crates/xara/tests/host_protocol.rs
++++ b/crates/xara/tests/host_protocol.rs
+@@ -256,6 +256,43 @@ fn cwid_follows_the_host() {
+     assert_eq!(failed_call("N0CALL", &["CWID OFF"]), (3, false));
+ }
+ 
++#[test]
++fn a_cancelled_call_ends_at_once() {
++    let cancelled = |cwid: &str, on_air: bool| {
++        let mut lab = Lab::new(1);
++        let mut c = lab.attach(0);
++        lab.settle();
++        for l in ["MYCALL XX0A", "BW2300", "RETRIES 5", cwid] {
++            assert_eq!(ask(&mut lab, &mut c, format!("{l}\r").as_bytes(), 1), ["OK"], "{l}");
++        }
++        let start = c.len();
++        c.send("CONNECT XX0A N1CALL");
++        let cl = c.lines.clone();
++        let first = if on_air { "PTT ON" } else { "PTT OFF" };
++        assert!(lab.run_until(5.0, |_| cl.lock().unwrap()[start..].iter().any(|l| l == first)));
++        let (t0, n) = (lab.now(), c.len());
++        c.send("DISCONNECT");
++        let mut after: Vec<(String, f64)> = Vec::new();
++        while !after.iter().any(|(l, _)| l == "DISCONNECTED") {
++            let seen = n + after.len();
++            assert!(lab.run_until(10.0, |_| cl.lock().unwrap().len() > seen), "{:?}", c.since(start));
++            let t = lab.now() - t0;
++            after.extend(c.since(seen).into_iter().map(|l| (l, t)));
++        }
++        let at = |w: &str| after.iter().find(|(l, _)| l == w).map_or(f64::NAN, |(_, t)| *t);
++        let keys = c.since(start).iter().filter(|l| *l == "PTT ON").count();
++        (at("PTT ON"), at("PTT OFF"), at("DISCONNECTED"), keys)
++    };
++    let (on, off, gone, keys) = cancelled("CWID ON", false);
++    assert!(on < 0.2 && off > 2.0 && gone >= off && keys == 2, "{on} {off} {gone} {keys}");
++    let (on, off, gone, keys) = cancelled("CWID ON", true);
++    assert!(on.is_nan() && off > 3.0 && gone >= off && keys == 1, "{on} {off} {gone} {keys}");
++    let (on, off, gone, keys) = cancelled("CWID OFF", false);
++    assert!(on.is_nan() && off.is_nan() && gone < 0.2 && keys == 1, "{on} {off} {gone} {keys}");
++    let (on, off, gone, keys) = cancelled("CWID OFF", true);
++    assert!(on.is_nan() && off < 2.5 && gone >= off && keys == 1, "{on} {off} {gone} {keys}");
++}
++
+ #[test]
+ fn registered_and_iamalive() {
+     let mut lab = Lab::new(1);

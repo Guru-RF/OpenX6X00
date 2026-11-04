@@ -2,8 +2,8 @@
 # OpenX6X00 - XARA (the VARA-compatible HF modem, https://github.com/x0rro/xara) for the radios: one ARMv7
 # binary for the X6100 and the X6200, built with the official Rust toolchain at the pinned version, from the
 # pinned release's source and vendored crates (their SHA-256 checked), with our patches (patches/*.patch, in
-# order) on top: the GUI's Winlink socket as its sound card and PTT (--audio x6x00, --ptt x6x00), and its CW ID
-# when Pat asks for one (CWID ON) whatever the callsign. Its
+# order) on top: the GUI's Winlink socket as its sound card and PTT (--audio x6x00, --ptt x6x00), its CW ID when
+# Pat asks for one (CWID ON) whatever the callsign, and a call its host cancels given up at once. Its
 # `registered` feature is built in; it does nothing until xara is started with `registered` (the Winlink page's
 # VARA licence tick box, off by default). See UPSTREAM.md.
 #

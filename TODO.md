@@ -156,8 +156,9 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
 - **XARA** (github.com/x0rro/xara, MIT, a VARA-compatible modem in Rust; #120): built, experimental, the third
   Winlink modem (branch gh44-xara, 2026-11-04; the owner's decision of 4 November). v0.1.3 from its release
   tarballs with a pinned Rust 1.99.1 (tools/xara, its UPSTREAM.md), our patch 0001 for the GUI's modem socket
-  (--audio x6x00, --ptt x6x00) and 0002 for the CW ID with any callsign when Pat asks (CWID ON; the owner's decision
-  of 4 November: 0.1.3 identifies only with a US call). VARA's free speed by default; its `registered` feature is
+  (--audio x6x00, --ptt x6x00), 0002 for the CW ID with any callsign when Pat asks (CWID ON; the owner's decision
+  of 4 November: 0.1.3 identifies only with a US call) and 0003, a call Pat cancels given up at once, its ID on the
+  call's frequency before Pat tunes back. VARA's free speed by default; its `registered` feature is
   compiled in and used only with the Winlink page's VARA HF licence tick box, the user's own statement, which nothing
   checks. Tested between two stations on a PC only (make modems, eight runs: free, levels 2 to 4; ticked, the
   highest level 9 to 14).
@@ -173,12 +174,12 @@ write it: Pat (getpat.io, Go, MIT) as the client, ARDOP as the HF modem.
     a call with no answer, heard whole on a receiver; the station that did not end the link keys about 3 s silent
     first, waiting out the other's ID: tx_level takes no readings in silence nor in the 0.75 s after it
     (tools/txlevel), so on the X6100 ft8_output_gain_offset should read the same before and after a session the
-    other station ends with its ID. A call cancelled in Pat: Pat-VARA's Abort says DISCONNECTED at once and Pat tunes
-    back, while XARA keys its ID only once the call's reply window is over: on which frequency does it go out?
+    other station ends with its ID. A call cancelled in Pat (Dialing..., then the second click that forces it): the
+    ID at once on the call's frequency, Pat's tune back after it (0003; make modems tunes half a second after ABORT).
   - **Then on the air**: yo4cil against his own gateway (YO4CIL, VARA and ARDOP on 4 bands), free speed first; a
     test build announced on #120 first.
   - **Upstream**: 0002 is prepared as a patch for x0rro/xara's main with a PR text (not sent yet); drop 0002 once
-    upstream acts on CWID ON.
+    upstream acts on CWID ON. 0003 is not offered yet (0.1.3 waits the same way with a US call).
   - **Watch**: 0.1.4, "a significant departure from 0.1.3 (libxara is coming)": 0001 then needs a rebase, or a
     program of ours that links libxara as x6x00-mercury links Mercury. Its open PRs for slow audio paths (#39 the
     extra answer lead, #40 the detector before a reply deadline, #38 the ACK margin), #37; any statement by EA5HVK

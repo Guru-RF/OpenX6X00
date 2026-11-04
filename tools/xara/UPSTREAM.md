@@ -36,8 +36,9 @@ file are ours.
   the GUI's toolchain, after `make toolchain`).
 - Checked: a 32-bit ARM ELF that needs only `libc.so.6`, `libm.so.6`, `libgcc_s.so.1` and `ld-linux-armhf.so.3`, and
   glibc 2.36 at most (it needs 2.35). Stripped, the build's directories left out of it
-  (`--remap-path-prefix`): 2513732 bytes, SHA-256 `da039a563deec763de495dfe1e5e13f4015472cd9a4d4798be689daf3cdea3bb`
-  with both patches, the same with the X6100 tree's gcc and the X6200 tree's, from builds in different directories.
+  (`--remap-path-prefix`): 2513732 bytes, SHA-256 `90d7844db1abb0354d4d03394e2f4155ef975eaee98437150ad29ab160ca8a18`
+  with the three patches, the same with the X6100 tree's gcc and the X6200 tree's, from builds in different
+  directories.
   Under qemu with either radio's libraries it starts and `--version` says `xara 0.1.3`.
 - Kept as `$HOME/.cache/openx6x00/xara/xara-0.1.3-rust1.99.1-<target>-<hash>/xara`, the hash being that of the
   patches, of `build.sh` and of the linker (its version, target and C library); a second run prints that path and
@@ -88,9 +89,15 @@ Made with `git format-patch`; `build.sh` applies them in order with `git apply`.
   0001's files: it is the patch prepared for upstream, as it is, made on x0rro/xara's main (still v0.1.3 on 4
   November), with a test in upstream's own harness (`cwid_follows_the_host` in `tests/host_protocol.rs`, which fails
   on 0.1.3).
+- `0003-cancelled-call-ends-at-once.patch` (MIT, as XARA): a call its host cancels (`DISCONNECT` or `ABORT` while
+  calling) gives up at once, as when its last reply window ends: `UnableToConnect`, the CW ID if there is one, then
+  `DISCONNECTED`; when its request is still on the air, as the request ends, the ID in the same key. 0.1.3 only used
+  up the call's retries, so the call still waited out its reply window, then identified (below). On top of 0002 (its
+  test sits beside 0002's), with a test in upstream's harness (`a_cancelled_call_ends_at_once`, which fails without
+  it: the ID keyed 1.28 s after `DISCONNECT`, in a key of its own).
 
-`cargo test` with both patches (Rust 1.99.1, 2026-11-04): the workspace with pulse, alsa, registered and x6x00, 466
-passed; the `xara` crate with `registered` and `x6x00` alone, 188.
+`cargo test` with the three patches (Rust 1.99.1, 2026-11-04): the workspace with pulse, alsa, registered and x6x00,
+467 passed; the `xara` crate with `registered` and `x6x00` alone, 189.
 
 ## Free speed, and the `registered` feature
 
@@ -123,6 +130,14 @@ a CW ID at the end of a session, and after a call that got no answer or was canc
 or third character, starting with K, N or W, or with AA to AL), so with a call from outside the US there was none.
 Patch 0002 makes `CWID ON` set `cwid`, so with Pat XARA identifies with any callsign; the US rule stays as it is.
 
+A call the host cancelled (`DISCONNECT` or `ABORT` while calling) only had its retries used up in 0.1.3: it waited out
+its reply window (about 1.3 s after the request at 2300 Hz), then gave up and identified. Pat's force disconnect (the
+second click on a call it is cancelling: Pat-VARA's `Abort` says `DISCONNECTED` itself) ends Pat's dial at once, and a
+second later Pat tunes the radio back to where it was before the call. The GUI keys the modem where Pat last tuned
+(`tx_off_freq`), so the ID went out there, on a frequency nobody chose for the call. Patch 0003 gives the call up at
+once: the ID keys straight away, or in the same key as a request still on the air, and the GUI holds a tune asked
+during a key until the key is over (`rig_tune`), so the ID goes out on the call's frequency.
+
 The ID (`crates/xara-phy/src/cwid.rs`, `station/hf.rs`): the callsign without its SSID, at about 28 words a minute
 (units of 2048 samples at 48 kHz), 9.6 dB under the drive. The QRT that ends a link says whether its sender will
 identify (code 3, or 46 without); it sends its ID right after it (in the same key on the PC). After a 3 the other
@@ -137,7 +152,9 @@ model X6200 to the codec's top).
 
 `make modems` shows it: with ON4AAA and ON4BBB at the free speed both stations identify (the last keys 4.1 and
 5.9 s, played whole), as with N0AAA and N0BBB at full speed; A's call before any Pat, whose host sent no `CWID
-ON`, ends without one with ON4AAA, as in 0.1.3.
+ON`, ends without one with ON4AAA, as in 0.1.3. With `CWID ON`, A's next call is cancelled in its reply window
+(`ABORT`) and the radio tuned elsewhere half a second later: its ID is the only key after the `ABORT`, played whole on
+the call's frequency, and the radio goes where it was tuned after it.
 
 ## Licences of what is compiled in
 
@@ -154,7 +171,9 @@ All three in `/usr/share/x6100/licenses/xara` on the radio.
 
 XARA moves fast: 0.1.4 is announced as "a significant departure from the design of 0.1.3 (libxara is coming)", so
 0001 will need a rebase, or a program of ours that links libxara as `x6x00-mercury` links Mercury. Drop 0002 once
-upstream acts on `CWID ON` itself (with that patch or a change of its own); keep `make modems`' CW ID checks. A new pin
+upstream acts on `CWID ON` itself (with that patch or a change of its own), and 0003 once a cancelled call gives up at
+once there (0.1.3 waits the same way with a US call; 0003 is not offered upstream yet); keep `make modems`' CW ID
+checks. A new pin
 is a new test: `cargo test`, `tools/winlink`'s `make modems`, the bench radios, then the air. Change the version,
 the commit and the two hashes in `build.sh` (and the Rust version and its four hashes if `.rust-version` moved),
 rebase `patches/`, and update this file.

@@ -4376,11 +4376,12 @@ Pat's VERSION with a VERSION line, so Pat never hangs starting it
 independent program by another author (x0rro) that speaks VARA HF on the air
 and VARA's interface to Pat. So the VARA HF gateways in Pat's list answer it,
 where they do not answer Mercury. It comes with the firmware, pinned at
-version 0.1.3 and built from its source with two changes of ours: the radio's
-GUI is its sound card and PTT, as for ardopcf and Mercury, and it identifies
-in CW with any callsign (below). Every transmission goes through the radio's
-own TX path, as for the other digital modes: the amateur bands only, simplex,
-at most 7 W, the SWR hold, no TX while a digital app is open.
+version 0.1.3 and built from its source with three changes of ours: the
+radio's GUI is its sound card and PTT, as for ardopcf and Mercury, it
+identifies in CW with any callsign, and a call you cancel ends at once
+(below). Every transmission goes through the radio's own TX path, as for the
+other digital modes: the amateur bands only, simplex, at most 7 W, the SWR
+hold, no TX while a digital app is open.
 
 It is experimental. Two stations exchanged mail through it on a PC, each with
 the radio's own Winlink code and Pat, at the free speed and at full speed. It
@@ -4430,13 +4431,18 @@ gives.
   ID). The radio stops one after 30 s ("Winlink: TX stopped after 30 s").
 - XARA identifies in CW as each session ends, and after a call that got no
   answer or that you cancelled, since Pat asks it to (CWID ON), with any
-  callsign: yours without its SSID, at about 28 words a minute, at the end
-  of its last transmission. When the other station ended the link and
-  identifies too, the radio first waits out its ID, keyed and silent (about
-  3 s), then sends its own. The ID is part of a key like the rest of XARA's
-  audio: the radio's checks and power hold for it, and the silent wait
-  leaves the TX level as it was. XARA 0.1.3 itself sends one only with a US
-  callsign (such as K1ABC or N0AAA); ours with any, a European one too.
+  callsign: yours without its SSID, at about 28 words a minute, at the end of
+  its last transmission. A call you cancel in Pat ends at once, and its ID
+  goes out straight away (or in the same transmission, when the call was
+  still on the air), on the call's frequency: the radio tunes back for Pat
+  only after it. When the other station ended the link and identifies too,
+  the radio first waits out its ID, keyed and silent (about 3 s), then sends
+  its own. The ID is part of a key like the rest of XARA's audio: the radio's
+  checks and power hold for it, and the silent wait leaves the TX level as it
+  was. XARA 0.1.3 itself sends one only with a US callsign (such as K1ABC or
+  N0AAA), and after a cancelled call only once the call's wait for an answer
+  is over, when Pat may have tuned the radio back already; ours with any, a
+  European one too, and at once.
 
 The radio calls; it does not answer calls. XARA starts with listening off,
 and on the radio Pat never turns it on (P2P listening stays off, as with
@@ -4453,8 +4459,8 @@ When it does not work:
   page), "XARA was not ready", a bandwidth XARA does not have (500, 2300 or
   2750). A delivered connection says its speed: "Done with YO4CIL at 2300 Hz
   at VARA's free speed: 1 sent, 0 received".
-- After a call that got no answer, the radio keys once more for a few
-  seconds: that is its CW ID, not another call.
+- After a call that got no answer, or right after you cancel one, the radio
+  keys once more for a few seconds: that is its CW ID, not another call.
 - The Modem row says "Ready, but it fell behind the receiver lately" in red,
   and Pat's log "OpenX6X00: XARA could not keep up with the receiver": XARA
   fell behind the radio's audio ("xara is falling behind real time" in its
@@ -4468,11 +4474,11 @@ When it does not work:
   opens to your tailnet, as ARDOP's), no KISS port, no web UI of its own.
 
 XARA (MIT, x0rro) comes with the firmware built from its v0.1.3 release with
-two changes of ours, its sound card and PTT through the radio's GUI and its
-CW ID with any callsign (`tools/xara/UPSTREAM.md`). The Rust crates in it are
-MIT (some also Apache-2.0, Zlib or 0BSD) and the Rust standard library
-Apache-2.0 or MIT; their texts are on the radio in
-`/usr/share/x6100/licenses/xara`.
+three changes of ours: its sound card and PTT through the radio's GUI, its CW
+ID with any callsign, and a cancelled call that ends at once
+(`tools/xara/UPSTREAM.md`). The Rust crates in it are MIT (some also
+Apache-2.0, Zlib or 0BSD) and the Rust standard library Apache-2.0 or MIT;
+their texts are on the radio in `/usr/share/x6100/licenses/xara`.
 
 ## Browser panel
 
@@ -6078,12 +6084,13 @@ XARA, the third Winlink modem (experimental), is built outside too, by
 `tools/xara/build.sh`: the pinned v0.1.3 release's source and vendored
 crates, the official Rust 1.99.1 (buildroot's Rust is too old), each
 download's SHA-256 checked and kept in `$HOME/.cache/openx6x00`, with our
-patch that gives it the GUI's modem socket as its sound card and PTT. Linked
-with the buildroot tree's own gcc, which `local-build.sh` makes first
-(`make toolchain`), it is installed as `/usr/bin/xara`, its licence and the
-notices of the Rust crates in it in `/usr/share/x6100/licenses/xara`
-(`tools/xara/UPSTREAM.md`). `tools/xara/build.sh --host` builds it for the
-PC, for `tools/winlink`'s `make modems`.
+patches: the GUI's modem socket as its sound card and PTT, its CW ID with any
+callsign, a cancelled call that ends at once. Linked with the buildroot
+tree's own gcc, which `local-build.sh` makes first (`make toolchain`), it is
+installed as `/usr/bin/xara`, its licence and the notices of the Rust crates
+in it in `/usr/share/x6100/licenses/xara` (`tools/xara/UPSTREAM.md`).
+`tools/xara/build.sh --host` builds it for the PC, for `tools/winlink`'s
+`make modems`.
 
 U-Boot's release tarball comes from ftp.denx.de; buildroot's own mirror
 has the X6100's 2026.07 but not the X6200's 2023.01. When ftp.denx.de
