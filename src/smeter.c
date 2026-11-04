@@ -375,10 +375,12 @@ static lv_coord_t deck_x(float db) {   /* S1 at 58, S9 at 154, +40 at 233 */
 }
 
 /* Deck, transmitting: segments as the S row's under each scale, lit up to the reading: the power (0 at 58, 10 W
- * at 233), the SWR (1 at 58, 5 at 258; yellow from 2, red from 3) and the ALC (0 at 60, 10 at 260) */
+ * at 233), the SWR (1 at 58, 5 at 258; yellow from 2, red from 3, below 2 in the web Display page's SWR colour
+ * when one is set) and the ALC (0 at 60, 10 at 260) */
 static void deck_tx_bars(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
     float              pwr, swr, alc;
     bool               alc_grey;
+    int32_t            swr_own = param_i_get(cfg_swr_color);
     lv_draw_rect_dsc_t rect;
 
     tx_info_get(&pwr, &swr);
@@ -405,6 +407,7 @@ static void deck_tx_bars(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
             rect.bg_color = x > row[r].lit             ? TC(track)
                           : r == 1 && x >= 158         ? TC(bar_high)
                           : r == 1 && x >= 108         ? TC(bar_mid)
+                          : r == 1 && swr_own >= 0     ? lv_color_hex(swr_own)
                           : r == 2 && alc_grey         ? TC(text_mute)
                                                        : TC(meter_bar);
             lv_draw_rect(draw_ctx, &rect, &a);
