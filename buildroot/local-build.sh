@@ -329,16 +329,18 @@ if ls $BR/build/build/$GUI_PKG-*/.stamp_built > /dev/null 2>&1; then
     rm -rf $BR/build/target/usr/lib/python3*/site-packages/x6100_webserver* $BR/build/target/usr/bin/x6100_webserver
     # The sync is buildroot's `rsync -au`: a file newer in the build directory than in the source is kept. A build
     # from a worktree (GUI_DIR) leaves its files newer than another tree's, and the next build from there kept them:
-    # a bundle of main went out with a branch's GUI. What differs from the source goes first, so the sync copies it
-    # (what earlier builds synced of the worktrees and the PC's builds, no longer synced, goes too)
+    # a bundle of main went out with a branch's GUI. What differs from the source is copied in now, with the time
+    # of now: the sync then leaves it, and make compiles it again (the sync would bring the source's older time,
+    # older than the objects of the other tree's file). What earlier builds synced of the worktrees and the PC's
+    # builds, no longer synced, goes
     for d in $BR/build/build/$GUI_PKG-*/ $BR/build/build/x6100-webserver-*/; do
         [ -d "$d" ] || continue
         case $d in *webserver*) src=$GUI/webserver ;; *) src=$GUI; rm -rf "$d/.claude" "$d/build" "$d/build-host" ;; esac
         (cd "$d" && find . -type f -not -path './CMakeFiles/*' -not -name '.stamp_*' -not -name .openx6x00) |
             while read -r f; do
                 if [ -f "$src/$f" ] && ! cmp -s "$src/$f" "$d/$f"; then
-                    echo "   $f differs from $src: synced again"
-                    rm -f "$d/$f"
+                    echo "   $f differs from $src: copied in again"
+                    cp "$src/$f" "$d/$f"
                 fi
             done
     done
