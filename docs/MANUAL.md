@@ -4173,8 +4173,9 @@ Good to know:
   every 100 days) and fetches the forms when you update them.
 - Pat runs behind the GUI and the audio (lower priority).
 - Over SSH, `x6100-winlink status` prints the state, and
-  `/run/winlink/pat.log`, `/run/winlink/ardopcf.log` and
-  `/run/winlink/mercury.log` have the programs' output (in memory).
+  `/run/winlink/pat.log`, `/run/winlink/ardopcf.log`,
+  `/run/winlink/mercury.log` and `/run/winlink/xara.log` have the programs'
+  output (in memory).
   `/run/winlink/radio` is the radio's state as the GUI writes it each second
   while the modem is on its audio (the Before you connect card's).
 
@@ -5815,7 +5816,7 @@ The DATA partition, readable on a PC.
 | `own_names.conf` | the [other names](#the-radios-own-names) the radio answers to, one per line, written by the web configurator's Network page |
 | `tailscale.conf` | Tailscale on or off: `enabled=0|1` |
 | `tailscale/` | the tailscaled program, downloaded when Tailscale is turned on and checked before every start |
-| `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=200|500|1000|2000` (the widest ARDOP may use), `modem=ardop|mercury`, `mercury_bandwidth=500|2300|2750` |
+| `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=200|500|1000|2000` (the widest ARDOP may use), `modem=ardop|mercury|xara`, `mercury_bandwidth=500|2300|2750`, `xara_bandwidth=500|2300|2750`, `vara_licence=0|1` (1: you say you hold a VARA HF licence, XARA's full speed; nothing checks it), and for measuring on the bench, not on the page, `xara_path_ms=CAPTURE,KEYING,OUT` (XARA's audio path in ms, default 25,50,80) |
 | `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
 | `bootlogo.png` | your own [boot picture](#boot-picture), from the Display page of the web configurator |

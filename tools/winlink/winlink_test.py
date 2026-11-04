@@ -77,7 +77,8 @@ class Bandwidth(Root):
             self.assertEqual(self.wl.wanted()["bandwidth"], 500, bw)
 
 
-WANT = {"mycall": "ON6URE", "locator": "JO20ab", "bandwidth": 500, "modem": "ardop", "mercury_bandwidth": 2300}
+WANT = {"mycall": "ON6URE", "locator": "JO20ab", "bandwidth": 500, "modem": "ardop", "mercury_bandwidth": 2300,
+        "xara_bandwidth": 2300, "vara_licence": False, "xara_path_ms": ""}
 
 
 class Modem(Root):
@@ -159,16 +160,122 @@ class Modem(Root):
         self.assertIn("ardop=stopped\nmercury=off\n", st)
 
     def test_modem_states(self):
-        modems = {"ardop": Running(alive=False), "mercury": Running()}
-        self.assertEqual(self.wl.modem_states(modems, "ardop"), {"ardop": "stopped", "mercury": "running"})
+        modems = {"ardop": Running(alive=False), "mercury": Running(), "xara": Running(alive=False)}
+        self.assertEqual(self.wl.modem_states(modems, "ardop"),
+                         {"ardop": "stopped", "mercury": "running", "xara": "off"})
         modems["mercury"] = Running(alive=False)
-        self.assertEqual(self.wl.modem_states(modems, "mercury"), {"ardop": "off", "mercury": "stopped"})
+        self.assertEqual(self.wl.modem_states(modems, "mercury"), {"ardop": "off", "mercury": "stopped", "xara": "off"})
+        modems["xara"] = Running()
+        self.assertEqual(self.wl.modem_states(modems, "xara"), {"ardop": "off", "mercury": "off", "xara": "running"})
 
     def test_turned_on_keeps_the_choice(self):
         self.conf(enabled=0, mycall="ON6URE", modem="mercury", mercury_bandwidth=500)
         self.wl.set_enabled(True)
         self.assertEqual(read(self.wl.CONF), "enabled=1\nmycall=ON6URE\nlocator=\nbandwidth=500\nmodem=mercury\n"
-                                             "mercury_bandwidth=500\n")
+                                             "mercury_bandwidth=500\nxara_bandwidth=2300\nvara_licence=0\n")
+
+
+class Xara(Root):
+    """modem=xara, xara_bandwidth and vara_licence: Pat's varahf, XARA's settings, its start and its callsign"""
+
+    def test_defaults(self):
+        self.conf(enabled=1, mycall="ON6URE", modem="xara")
+        want = self.wl.wanted()
+        self.assertEqual((want["modem"], want["xara_bandwidth"], want["vara_licence"], want["xara_path_ms"]),
+                         ("xara", 2300, False, ""))
+        for bw, licence, path in (("2000", "yes", "25,50"), ("", "true", "1,2,3,4"), ("500MAX", "2", "25,50,1001")):
+            self.conf(enabled=1, mycall="ON6URE", modem="xara", xara_bandwidth=bw, vara_licence=licence,
+                      xara_path_ms=path)
+            want = self.wl.wanted()
+            self.assertEqual((want["xara_bandwidth"], want["vara_licence"], want["xara_path_ms"]), (2300, False, ""))
+        self.conf(enabled=1, mycall="ON6URE", modem="xara", xara_bandwidth=500, vara_licence=1, xara_path_ms="30,60,90")
+        want = self.wl.wanted()
+        self.assertEqual((want["xara_bandwidth"], want["vara_licence"], want["xara_path_ms"]), (500, True, "30,60,90"))
+
+    def test_varahf_takes_the_chosen_modems_bandwidth(self):
+        for modem, bw in (("xara", 500), ("xara", 2750), ("mercury", 2300)):
+            self.wl.write_config(dict(WANT, modem=modem, xara_bandwidth=bw, mercury_bandwidth=2300), "")
+            self.assertEqual(self.pat_config()["varahf"], {"addr": "127.0.0.1:8300", "bandwidth": bw, "rig": "x6x00",
+                                                           "ptt_ctrl": False})
+
+    def conf_lines(self, want):
+        return [ln for ln in self.wl.xara_conf(want).splitlines() if not ln.startswith("#")]
+
+    def test_xara_conf_free_by_default(self):
+        sock = f"{self.root}/run/ardop.sock"
+        self.assertEqual(self.conf_lines(dict(WANT, modem="xara")),
+                         ["call = ON6URE", "hf = 2300", "audio = x6x00", f"capture = {sock}", f"playback = {sock}",
+                          "radio", "ptt = x6x00", "ptt-tail-ms = 20", "port = 8300", "kiss-port = off",
+                          "drive-db = 0"])
+
+    def test_xara_conf_registered_only_with_the_licence_ticked(self):
+        lines = self.conf_lines(dict(WANT, modem="xara", xara_bandwidth=500, vara_licence=True))
+        self.assertEqual(lines[1], "hf = 500")
+        self.assertEqual(lines[-1], "registered")
+        self.assertNotIn("registered", self.conf_lines(dict(WANT, modem="xara")))
+        lines = self.conf_lines(dict(WANT, modem="xara", xara_path_ms="30,60,90"))
+        self.assertEqual(lines[-1], "x6x00-path-ms = 30,60,90")
+
+    def fake(self):
+        os.makedirs(os.path.dirname(self.wl.XARA), exist_ok=True)
+        with open(self.wl.XARA, "w") as f:
+            f.write('#!/bin/sh\necho "$@" > args\necho "${XARA_UI_TOKEN-none} ${STATE_DIRECTORY-none} '
+                    '${XDG_CONFIG_HOME-none} $HOME" > env\n')
+        os.chmod(self.wl.XARA, 0o755)
+
+    def test_xara_started(self):
+        """xara --config with its settings, no XARA_* or STATE_DIRECTORY from outside (saved web UI settings would
+        override ours), HOME in RAM"""
+        self.fake()
+        for k, v in (("XARA_UI_TOKEN", "from-outside"), ("STATE_DIRECTORY", "/var/lib/xara"),
+                     ("XDG_CONFIG_HOME", "/root/.config")):
+            os.environ[k] = v
+            self.addCleanup(os.environ.pop, k, None)
+        xara = self.wl.Program("XARA (xara)", self.wl.XARA_LOG)
+        self.wl.start_xara(xara, dict(WANT, modem="xara", vara_licence=True))
+        xara.proc.wait(10)
+        self.assertEqual(read(os.path.join(self.wl.RUN, "args")).split(), ["--config", self.wl.XARA_CONF])
+        self.assertEqual(read(os.path.join(self.wl.RUN, "env")).split(), ["none", "none", "none", self.wl.RUN])
+        self.assertEqual(read(self.wl.XARA_CONF), self.wl.xara_conf(dict(WANT, modem="xara", vara_licence=True)))
+        self.assertEqual(xara.settings, read(self.wl.XARA_CONF))     # started again when it would differ
+
+    def test_a_callsign_xara_takes(self):
+        for call in ("ON6URE", "ON6URE-5", "ON6URE-05", "ON6URE-19", "K1A", "PA0ABCD-1"):
+            self.assertEqual(self.wl.xara_refused(dict(WANT, mycall=call)), "", call)
+        self.assertIn("XARA needs your callsign", self.wl.xara_refused(dict(WANT, mycall="")))
+        for call in ("PA0ABCDE", "ON6URE-0", "ON6URE-00", "ON6URE-20", "ON6URE-99", "N0CALL", "N0CALL-5"):
+            self.assertIn(f"XARA does not take {call} as a callsign", self.wl.xara_refused(dict(WANT, mycall=call)))
+        self.fake()
+        xara = self.wl.Program("XARA (xara)", self.wl.XARA_LOG)
+        with self.assertRaises(ValueError):                         # never started without one
+            self.wl.start_xara(xara, dict(WANT, modem="xara", mycall=""))
+        self.assertIsNone(xara.proc)
+
+    def test_status_names_xara(self):
+        self.wl.report(Running(), Running(), dict(WANT, modem="xara"), {"modem": "waiting"})
+        st = read(self.wl.STATUS)
+        self.assertIn("text=Running as ON6URE; XARA waits for the radio's audio (the GUI)\n", st)
+        self.assertIn("ardop=off\nmercury=off\nxara=running\n", st)
+        refused = self.wl.xara_refused(dict(WANT, mycall=""))
+        self.wl.report(Running(), Running(alive=False), dict(WANT, modem="xara", mycall=""), {"modem": "off"}, refused)
+        st = read(self.wl.STATUS)
+        self.assertIn("state=error\ntext=XARA needs your callsign: set it on the Winlink page", st)
+        self.assertIn("xara=stopped\n", st)
+
+    def test_status_without_a_supervisor(self):
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.wl.cmd_status()
+        self.assertIn("mercury=off\nxara=off\npassword=none\n", out.getvalue())
+
+    def test_logs_have_xaras(self):
+        with open(self.wl.XARA_LOG, "w") as f:
+            f.write("xara: connected to the GUI's socket /run/ardop.sock\n")
+        with open(self.wl.XARA_CONF, "w") as f:
+            f.write(self.wl.xara_conf(dict(WANT, modem="xara")))
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.wl.cmd_logs()
+        self.assertIn("==== XARA (xara): /run/winlink/xara.log\nxara: connected to the GUI's socket", out.getvalue())
+        self.assertIn("==== XARA's settings: /run/winlink/xara.conf\n", out.getvalue())
 
 
 class Password(Root):
@@ -271,7 +378,7 @@ class Logs(Root):
         super().setUp()
         self.pat_status = {"connected": False, "dialing": False, "http_clients": []}
         self.wl.pat_status = lambda: self.pat_status
-        for path in (self.wl.PAT_OWN_LOG, self.wl.ARDOP_LOG, self.wl.MERCURY_LOG, self.wl.EVENT_LOG):
+        for path in (self.wl.PAT_OWN_LOG, self.wl.ARDOP_LOG, self.wl.MERCURY_LOG, self.wl.XARA_LOG, self.wl.EVENT_LOG):
             open(path, "w").close()
         self.watch = self.wl.Watch()
 
@@ -279,13 +386,15 @@ class Logs(Root):
         with open(path, "a") as f:
             f.write(text if text.endswith("\n") else text + "\n")
 
-    def poll(self, pat="", ardop="", events=(), mercury="", kind="ardop"):
+    def poll(self, pat="", ardop="", events=(), mercury="", kind="ardop", xara=""):
         if pat:
             self.add(self.wl.PAT_OWN_LOG, pat)
         if ardop:
             self.add(self.wl.ARDOP_LOG, ardop)
         if mercury:
             self.add(self.wl.MERCURY_LOG, mercury)
+        if xara:
+            self.add(self.wl.XARA_LOG, xara)
         for e in events:
             self.add(self.wl.EVENT_LOG, e if isinstance(e, str) else json.dumps(e))
         return self.watch.poll(Running(), Running(), kind)
@@ -538,8 +647,8 @@ class MercuryOutcomes(Logs):
         k = self.poll(pat="2026/10/29 20:11:00 vara initialization failed: couldn't connect to VARA command port: "
                           "dial tcp 127.0.0.1:8300: connect: connection refused")
         self.assertEqual(k["last_text"], "Pat called through VARA HF, but the radio runs ARDOP")
-        self.assertEqual(k["last_next"], "Choose ARDOP in Pat's Connect dialog, or Mercury as the modem on the "
-                                         "Winlink page")
+        self.assertEqual(k["last_next"], "Choose ARDOP in Pat's Connect dialog, or Mercury or XARA as the modem on "
+                                         "the Winlink page")
 
     def test_not_ready(self):
         k = self.poll(pat="2026/10/29 20:11:00 vara initialization failed: couldn't connect to VARA command port: "
@@ -556,6 +665,108 @@ class MercuryOutcomes(Logs):
                           "2026/10/29 20:10:03 Unable to establish connection to remote: bandwidth 1000 not supported",
                       kind="mercury")
         self.assertEqual(k["last_text"], "Mercury has no 1000 Hz: the connection asked for it")
+
+
+class XaraOutcomes(Logs):
+    """With XARA: Pat's varahf lines, our patch's socket lines and the VARA host protocol XARA echoes (the PC test's
+    logs, tools/winlink: Pat A to Pat B over XARA, the free speed)"""
+
+    def test_pc_p2p_delivered_at_the_free_speed(self):
+        log = fixture("pc-n0aaa-n0bbb-xara.xara.log").splitlines(keepends=True)
+        k = self.poll(xara="".join(log[:6]), kind="xara")
+        self.assertEqual(k["modem"], "ready")                         # on the GUI's socket
+        self.assertNotIn("speed", k)                                  # no REGISTERED line yet: Pat's MYCALL first
+        pat = fixture("pc-n0aaa-n0bbb-xara.pat.log").splitlines(keepends=True)
+        k = self.poll(pat="".join(pat[:3]), xara="".join(log[6:60]), kind="xara")
+        self.assertEqual((k["last_result"], k["last_gateway"], k["last_bw"], k["last_speed"]),
+                         ("connected", "N0BBB", 2300, "free"))
+        self.assertEqual(k["last_text"], "Connected to N0BBB at 2300 Hz at VARA's free speed, exchanging mail")
+        self.assertEqual(k["speed"], "free")
+        k = self.poll(pat="".join(pat[3:]), xara="".join(log[60:]),
+                      events=fixture("pc-n0aaa-n0bbb-xara.events.log").splitlines(), kind="xara")
+        self.assertEqual(k["last_result"], "delivered")
+        self.assertEqual(k["last_text"], "Done with N0BBB at 2300 Hz at VARA's free speed: 1 sent, 0 received")
+        self.assertEqual([n.split(" ", 2)[2] for n in self.notes()], ["OpenX6X00: " + k["last_text"]])
+
+    def test_full_speed_from_xaras_own_line(self):
+        """The licence ticked: XARA says REGISTERED with our call after Pat's MYCALL, and the radio, the caller,
+        sets the bit on its link; also when the link came up before that line"""
+        for order in ("registered first", "connected first"):
+            self.setUp()
+            reg, con = "     5.310 < REGISTERED N0AAA", "     8.160 < CONNECTED N0AAA N0BBB 2300"
+            lines = [reg, con] if order == "registered first" else [con, reg]
+            k = self.poll(pat="2026/11/04 13:41:00 Connecting to N0BBB (varahf)...\n"
+                              "2026/11/04 13:41:08 Connected to N0BBB (vara)",
+                          xara="xara: connected to the GUI's socket /run/ardop.sock\n" + "\n".join(lines), kind="xara")
+            self.assertEqual((k["speed"], k["last_speed"]), ("full", "full"), order)
+            self.assertEqual(k["last_text"], "Connected to N0BBB at 2300 Hz at full speed, exchanging mail")
+
+    def test_link_lines_are_the_callees(self):
+        k = self.poll(pat="2026/11/04 13:41:00 Connecting to N0BBB (varahf)...\n",
+                      xara="     7.590 < CONNECTED N0BBB N0AAA 500\n     7.590 < LINK UNREGISTERED", kind="xara")
+        self.assertEqual((k["last_bw"], k["last_speed"]), (500, "free"))
+        k = self.poll(pat="2026/11/04 13:42:00 Connecting to N0CCC (varahf)...\n",
+                      xara="     9.000 < CONNECTED N0DDD N0EEE 2300", kind="xara")     # another link's: left out
+        self.assertEqual((k["last_gateway"], k["last_bw"], k["last_speed"]), ("N0CCC", "", ""))
+
+    def test_mercurys_lines_are_not_xaras(self):
+        """Mercury and XARA share Pat's varahf: the hints are the chosen modem's"""
+        k = self.poll(pat="2026/11/04 13:10:00 QSY varahf: 7101.5\n"
+                          "2026/11/04 13:10:03 Connecting to YO4CIL (varahf)...\n"
+                          "2026/11/04 13:10:58 Unable to establish connection to remote: connect timeout", kind="xara")
+        self.assertEqual((k["last_result"], k["last_text"]), ("failed", "No answer from YO4CIL on 7.101.500"))
+        self.assertNotIn("Mercury", k["last_next"])
+        self.assertIn("call the gateway at the bandwidth Pat's VARA HF list gives it", k["last_next"])
+        k = self.poll(pat="2026/11/04 13:20:03 Connecting to N0BBB (varahf)...\n"
+                          "2026/11/04 13:20:12 Connected to N0BBB (vara)\n"
+                          "2026/11/04 13:21:00 Exchange failed: EOF", kind="xara")
+        self.assertIn("on a weak path choose 500 Hz for XARA on the Winlink page", k["last_next"])
+        k = self.poll(pat="2026/11/04 13:22:03 Connecting to N0BBB (varahf)...\n"
+                          "2026/11/04 13:22:03 Unable to establish connection to remote: bandwidth 1000 not supported",
+                      kind="xara")
+        self.assertEqual(k["last_text"], "XARA has no 1000 Hz: the connection asked for it")
+        self.assertEqual(k["last_next"], "Choose 500, 2300 or 2750 Hz for the connection, or none: XARA then takes "
+                                         "the Winlink page's")
+
+    def test_the_other_transport_and_not_ready(self):
+        k = self.poll(pat="2026/11/04 13:10:00 ARDOP TNC initialization failed: dial tcp 127.0.0.1:8515: "
+                          "connect: connection refused", kind="xara")
+        self.assertEqual(k["last_text"], "Pat called through ARDOP, but the radio runs XARA")
+        self.assertEqual(k["last_next"], "Choose VARA HF in Pat's Connect dialog (XARA speaks it), or ARDOP as the "
+                                         "modem on the Winlink page")
+        k = self.poll(pat="2026/11/04 13:11:00 vara initialization failed: couldn't connect to VARA command port: "
+                          "dial tcp 127.0.0.1:8300: connect: connection refused", kind="xara")
+        self.assertEqual(k["last_text"], "XARA was not ready")
+
+    def test_modem_follows_xaras_socket_lines(self):
+        self.assertEqual(self.poll(kind="xara")["modem"], "waiting")
+        self.assertEqual(self.poll(xara="xara: the GUI's socket /run/ardop.sock is not there yet (No such file or "
+                                        "directory (os error 2)), trying again every second", kind="xara")["modem"],
+                         "waiting")
+        self.assertEqual(self.poll(xara="xara: connected to the GUI's socket /run/ardop.sock", kind="xara")["modem"],
+                         "ready")
+        self.assertEqual(self.poll(xara="xara: the GUI's socket closed: the GUI went away", kind="xara")["modem"],
+                         "waiting")
+        # ARDOP chosen after XARA: XARA's last lines come after ardopcf is on the socket
+        self.watch.modem_started()
+        k = self.poll(ardop="Audio socket /run/ardop.sock connected",
+                      xara="xara: the GUI's socket closed: the GUI went away")
+        self.assertEqual(k["modem"], "ready")
+        self.watch.modem_started()
+        k = self.poll(ardop="Audio socket /run/ardop.sock closed: the other end went away",
+                      xara="xara: connected to the GUI's socket /run/ardop.sock", kind="xara")
+        self.assertEqual(k["modem"], "ready")
+
+    def test_behind(self):
+        self.poll(xara="xara: connected to the GUI's socket /run/ardop.sock", kind="xara")
+        behind = "xara: audio: 120 ms of capture waiting to be read (xara is falling behind real time: CPU overload?)"
+        self.assertEqual(self.poll(xara=behind, kind="xara")["modem"], "behind")
+        self.assertEqual(len(self.notes()), 1)
+        self.assertIn("OpenX6X00: XARA could not keep up with the receiver", self.notes()[0])
+        self.poll(xara=behind.replace("120", "240"), kind="xara")
+        self.assertEqual(len(self.notes()), 1, "once in ten minutes")
+        self.watch.behind -= self.wl.MERCURY_BEHIND
+        self.assertEqual(self.poll(kind="xara")["modem"], "ready")
 
 
 RADIO = """modem=connected

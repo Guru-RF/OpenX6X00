@@ -1,0 +1,16 @@
+2026/11/04 13:38:18 VARA modem (VARA HF v4.9.0) initialized
+2026/11/04 13:38:18 Connecting to N0BBB (varahf)...
+2026/11/04 13:38:25 Connected to N0BBB (vara)
+;FW: N0BBB
+[Pat-1.0.1-B2FHMG$]
+; N0AAA DE N0BBB (JO21)>
+GZIP_EXPERIMENT: Gzip compression enabled in this session.
+>FD EM 56N4L3CU7QJR 1830 323 0
+>F> 7B
+FS +
+Remote accepted 56N4L3CU7QJR
+Transmitting [XARA P2P test free 1793795898] [offset 0]
+GZIP_EXPERIMENT: Transmitting gzip compressed message.
+FF
+>FQ
+2026/11/04 13:39:46 Disconnected.

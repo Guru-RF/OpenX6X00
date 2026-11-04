@@ -1,0 +1,169 @@
+xara: config /run/winlink/xara.conf
+xara: connected to the GUI's socket /run/ardop.sock
+xara: audio: TX path 155 ms = capture 25 + backlog 0 + lead 0 + keying 50 + device 80
+xara 0.1.3: N0AAA 2300 Hz, cmd 127.0.0.1:18320 data 127.0.0.1:18321, /run/ardop.sock -> /run/ardop.sock
+xara: RADIO MODE: transmitting into "/run/ardop.sock", PTT the GUI's modem socket /run/ardop.sock, lead 0 ms, tail 20ms, watchdog 30s
+     0.000   expect [] x1
+     0.080 < BUSY ON
+     0.080 > Version
+     0.080 < VERSION VARA HF v4.9.0
+     0.090 < BUSY OFF
+     0.200 < BUSY ON
+     0.200 < BUSY OFF
+     0.200 > Public(true)
+     0.200 < OK
+     0.200 > Cwid(true)
+     0.200 < OK
+     0.200 > Compression(Text)
+     0.200 < OK
+     0.200 > Mycall(Ok(["N0AAA"]))
+     0.200 < OK
+     0.200 > Listen(false)
+     0.200 < OK
+     0.200 > Version
+     0.200 < VERSION VARA HF v4.9.0
+     0.220 > Bw(Hz2300)
+     0.220 < OK
+     0.220 > P2pSession
+     0.220 < OK
+     0.220 > Connect { mycall: "N0AAA", remote: "N0BBB" }
+     0.220 < OK
+     0.220   tx c26 f0+ Calling
+     0.230 < PTT ON
+     0.230 < BUSY ON
+     2.100 < PTT OFF
+     3.070   rx c18 f1 hits 15 sn 2.6 end 3.040 Calling
+     3.070   tx L4x1 HeaderSent
+     3.070 < UNENCRYPTED LINK
+     3.070 < BITRATE (4)  175 bps TX
+     3.080 < PTT ON
+     5.200 < REGISTERED
+     5.200 < ENCRYPTION DISABLED
+     7.550 < PTT OFF
+     8.100   rx c49 f2 hits 14 sn 10.9 end 8.064 HeaderSent
+     8.100 < CONNECTED N0AAA N0BBB 2300
+     8.100   expect [4] x1
+     8.100   tx c54 f1 Receiving
+     8.110 < PTT ON
+     8.920 < PTT OFF
+    13.300   rx L4 [+] end 13.257 Receiving
+    13.300 < SN 19.6
+    13.300   expect [] x1
+    13.300   tx c49 f2 Break
+    13.300 < BITRATE (4)  175 bps RX
+    13.310 < PTT ON
+    13.900 < PTT OFF
+    14.650   rx c14 f1 hits 15 sn 10.8 end 14.613 Break
+    14.650   tx L4x1 Sending
+    14.650 < BITRATE (4)  175 bps TX
+    14.660 < PTT ON
+    19.130 < PTT OFF
+    19.620   rx c49 f2 hits 14 sn 10.8 end 19.584 Sending
+    19.620 < BUFFER 0
+    19.620   expect [4] x1
+    19.620   tx c14 f1 Receiving
+    19.630 < PTT ON
+    20.480 < PTT OFF
+    21.020   rx c50 f2 hits 14 sn 15.1 end 20.987 Receiving
+    21.020   expect [] x1
+    21.020   tx c49 f1 Break
+    21.030 < PTT ON
+    21.880 < PTT OFF
+    22.320   rx c14 f2 hits 14 sn 8.2 end 22.288 Break
+    22.320   tx L4x1 Sending
+    22.320 < BITRATE (4)  175 bps TX
+    22.330 < PTT ON
+    26.800 < PTT OFF
+    27.250   rx c49 f2 hits 14 sn 21.9 end 27.216 Sending
+    27.250 < BUFFER 0
+    27.250   expect [4] x1
+    27.250   tx c14 f1 Receiving
+    27.260 < PTT ON
+    28.110 < PTT OFF
+    32.420   rx L4 [+] end 32.377 Receiving
+    32.420 < SN 19.6
+    32.420   expect [] x1
+    32.420   tx c49 f2 Break
+    32.420 < BITRATE (4)  175 bps RX
+    32.430 < PTT ON
+    33.020 < PTT OFF
+    33.780   rx c14 f1 hits 15 sn 9.2 end 33.749 Break
+    33.780   tx L4x1 Sending
+    33.780 < BITRATE (4)  175 bps TX
+    33.790 < PTT ON
+    38.260 < PTT OFF
+    38.580   rx c1 f2 hits 12 sn 13.4 end 38.549 Sending
+    38.580 < BUFFER 274
+    38.580   tx L4x1 Sending
+    38.580 < BITRATE (4)  175 bps TX
+    38.590 < PTT ON
+    43.060 < PTT OFF
+    43.390   rx c2 f2 hits 13 sn 13.3 end 43.360 Sending
+    43.390   tx L3x1 Sending
+    43.390 < BITRATE (3)  82 bps TX
+    43.400 < PTT ON
+    48.520 < PTT OFF
+    49.180   rx c7 f1 hits 14 sn 4.1 end 49.147 Sending
+    49.180 < BUFFER 227
+    49.180   tx L4x1 Sending
+    49.180 < BITRATE (4)  175 bps TX
+    49.190 < PTT ON
+    53.660 < PTT OFF
+    54.320   rx c1 f1 hits 14 sn 18.7 end 54.288 Sending
+    54.320 < BUFFER 138
+    54.320   tx L4x1 Sending
+    54.320 < BITRATE (4)  175 bps TX
+    54.330 < PTT ON
+    58.800 < PTT OFF
+    59.460   rx c1 f1 hits 14 sn 24.0 end 59.429 Sending
+    59.460 < BUFFER 49
+    59.460   tx L4x1 Sending
+    59.460 < BITRATE (4)  175 bps TX
+    59.470 < PTT ON
+    60.000 < IAMALIVE
+    63.940 < PTT OFF
+    64.740   rx c49 f1 hits 15 sn 10.1 end 64.709 Sending
+    64.740 < BUFFER 0
+    64.740   expect [4] x1
+    64.740   tx c14 f1 Receiving
+    64.750 < PTT ON
+    65.600 < PTT OFF
+    66.360   rx c50 f1 hits 15 sn 28.9 end 66.331 Receiving
+    66.360   expect [] x1
+    66.360   tx c49 f1 Break
+    66.370 < PTT ON
+    67.220 < PTT OFF
+    67.920   rx c14 f1 hits 15 sn 17.1 end 67.883 Break
+    67.920   tx L4x1 Sending
+    67.920 < BITRATE (4)  175 bps TX
+    67.930 < PTT ON
+    72.400 < PTT OFF
+    72.900   rx c49 f2 hits 14 sn 10.9 end 72.864 Sending
+    72.900 < BUFFER 0
+    72.900   expect [4] x1
+    72.900   tx c14 f1 Receiving
+    72.910 < PTT ON
+    73.760 < PTT OFF
+    78.090   rx L4 [+] end 78.047 Receiving
+    78.090 < SN 19.8
+    78.090   expect [] x1
+    78.090   tx c49 f2 Break
+    78.090 < BITRATE (4)  175 bps RX
+    78.100 < PTT ON
+    78.690 < PTT OFF
+    79.460   rx c14 f1 hits 15 sn 6.5 end 79.424 Break
+    79.460   tx L4x1 Sending
+    79.460 < BITRATE (4)  175 bps TX
+    79.470 < PTT ON
+    80.100 > Disconnect
+    80.100 < OK
+    83.940 < PTT OFF
+    84.390   rx c49 f2 hits 14 sn 11.0 end 84.357 Sending
+    84.390 < BUFFER 0
+    84.390   tx c3 f0 Qrt
+    84.400 < PTT ON
+    85.760   tx cw Closing
+    88.240 < PTT OFF
+    88.240 < DISCONNECTED
+    88.240 > Bw(Hz2300)
+    88.240 < OK

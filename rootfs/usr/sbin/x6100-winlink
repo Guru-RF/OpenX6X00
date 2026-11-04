@@ -1,31 +1,36 @@
 #!/usr/bin/env python3
 # OpenX6X00 - Winlink: email over HF from the radio alone. Pat (getpat.io) is the client: its web mailbox on
-# port 8080 is used from a phone or a laptop. The modem is ARDOP (ardopcf), or Mercury (x6x00-mercury,
-# experimental), one at a time: its audio and PTT go through the GUI (the socket /run/ardop.sock, which takes one
-# modem), which owns the radio's audio and keys it as for its other digital modes, and tunes the radio for Pat as
-# a rigctld on 127.0.0.1:4532. The programs come with the firmware (/usr/bin). Off by default; when off, nothing
-# runs.
+# port 8080 is used from a phone or a laptop. The modem is ARDOP (ardopcf), Mercury (x6x00-mercury, experimental)
+# or XARA (xara, experimental, VARA-compatible), one at a time: its audio and PTT go through the GUI (the socket
+# /run/ardop.sock, which takes one modem), which owns the radio's audio and keys it as for its other digital modes,
+# and tunes the radio for Pat as a rigctld on 127.0.0.1:4532. The programs come with the firmware (/usr/bin). Off by
+# default; when off, nothing runs.
 #
 #   x6100-winlink               at boot (S98winlink): start the supervisor when Winlink is on
 #   x6100-winlink on            turn it on: start Pat and the modem
 #   x6100-winlink off           turn it off: Pat and the modem stop
 #   x6100-winlink apply         write Pat's config again from the settings; Pat restarts when they changed, and
-#                               the modem when another one was chosen
+#                               the modem when another one was chosen (XARA also when its own settings changed)
 #   x6100-winlink set-password  the Winlink password, read from stdin (the web page): never on a command line
-#   x6100-winlink status        the state as key=value lines: state, text, pat, ardop, mercury, password, and
-#                               the outcomes kept apart: service, modem, session, browsers, last_* (the last
-#                               connection: result, gateway, freq, bandwidths, counts, text, next)
+#   x6100-winlink status        the state as key=value lines: state, text, pat, ardop, mercury, xara, password, and
+#                               the outcomes kept apart: service, modem, speed (XARA's), session, browsers,
+#                               last_* (the last connection: result, gateway, freq, bandwidths, speed, counts,
+#                               text, next)
 #   x6100-winlink logs          the logs as one text file on stdout, for a bug report (the web page's
 #                               download): every password in them masked
 #   x6100-winlink stop          stop the supervisor and wait for it, the setting kept (S98winlink stop)
 #   x6100-winlink run           the supervisor itself, started by the commands above
 #
 # The settings are in /mnt/winlink.conf (enabled=0|1, mycall=, locator=, bandwidth=200|500|1000|2000,
-# modem=ardop|mercury, mercury_bandwidth=500|2300|2750), written by the web page; an empty callsign or locator is
-# the radio's own (Settings > General: callsign and QTH). The bandwidth is the widest ARDOP may use: our Pat lowers
-# a gateway list's wider bw= to it (tools/pat, 0003). modem=mercury runs Mercury in place of ardopcf, with its
-# settings in /run/winlink/mercury.ini; Pat reaches it as its VARA HF transport (varahf) on 127.0.0.1:8300, at
-# mercury_bandwidth unless a connection asks another. Pat listens for no P2P call with either modem.
+# modem=ardop|mercury|xara, mercury_bandwidth=500|2300|2750, xara_bandwidth=500|2300|2750, vara_licence=0|1), written
+# by the web page; an empty callsign or locator is the radio's own (Settings > General: callsign and QTH). The
+# bandwidth is the widest ARDOP may use: our Pat lowers a gateway list's wider bw= to it (tools/pat, 0003).
+# modem=mercury runs Mercury in place of ardopcf, with its settings in /run/winlink/mercury.ini; modem=xara runs XARA,
+# with its settings in /run/winlink/xara.conf. Pat reaches either as its VARA HF transport (varahf) on
+# 127.0.0.1:8300, at the modem's bandwidth unless a connection asks another. XARA runs at VARA's free speed levels
+# unless vara_licence=1, the user's own word that they hold a VARA HF licence, which nothing here checks: then its
+# `registered` line, and full speed. xara_path_ms=CAPTURE,KEYING,OUT (not on the page) is for measuring XARA's timing
+# on the bench. Pat listens for no P2P call with any modem.
 # Pat's config.json holds the password, so it lives on the root filesystem (/var/lib/winlink/pat), where the
 # web pages cannot read it. It is merged, not written whole: our keys are set (the password when the page has
 # one), every other one is kept, since Pat's own Settings page edits the file too. The mailbox is on the DATA
@@ -72,6 +77,8 @@ PAT_OWN_LOG = os.path.join(RUN, "pat-own.log")   # Pat's --log: the mailbox's lo
 ARDOP_LOG = os.path.join(RUN, "ardopcf.log")
 MERCURY_LOG = os.path.join(RUN, "mercury.log")
 MERCURY_INI = os.path.join(RUN, "mercury.ini")   # Mercury's settings, written at each start of it
+XARA_LOG = os.path.join(RUN, "xara.log")
+XARA_CONF = os.path.join(RUN, "xara.conf")       # XARA's settings (its --config), written at each start of it
 EVENT_LOG = os.path.join(RUN, "eventlog.json")   # Pat's --event-log
 RADIO = os.path.join(RUN, "radio")    # the GUI's (src/winlink.c): the radio's state while a modem is on its socket
 RADIO_FRESH = 15                      # s: an older radio file is from a GUI that is gone
@@ -80,9 +87,10 @@ LOG_MAX = 256 * 1024
 PAT = ROOT + "/usr/bin/pat"
 ARDOPCF = ROOT + "/usr/bin/ardopcf"
 MERCURY = ROOT + "/usr/bin/x6x00-mercury"
+XARA = ROOT + "/usr/bin/xara"
 ARDOP_SOCK = ROOT + "/run/ardop.sock"  # the GUI's audio and PTT bridge (src/winlink.c), for either modem
 ARDOP_PORT = 8515                      # ardopcf's host port on 127.0.0.1 (data on 8516)
-MERCURY_PORT = 8300                    # Mercury's TNC port on 127.0.0.1, Pat's varahf (data on 8301)
+MERCURY_PORT = 8300                    # Mercury's TNC port on 127.0.0.1, Pat's varahf (data on 8301); XARA's too
 MERCURY_BROADCAST_PORT = 8100          # its broadcast port, on 127.0.0.1 too: nothing here uses it
 HTTP_PORT = 8080                       # Pat's web mailbox
 RIG = "x6x00"                          # the name of the GUI's rigctld in Pat's config
@@ -93,16 +101,23 @@ STABLE = 120                           # s of running after which a stop counts 
 PAT_INT_WAIT = (10, 5)                 # s after the first and the second SIGINT
 MODEM_TERM_WAIT = 10                   # s after SIGTERM: ardopcf stops at once, Mercury gives itself 10 s
 BANDWIDTHS = (200, 500, 1000, 2000)   # Hz, ARDOP's ARQ bandwidths (all as MAX)
-MODEMS = ("ardop", "mercury")          # the modem= choice, ardop the default
+MODEMS = ("ardop", "mercury", "xara")  # the modem= choice, ardop the default
 MERCURY_BANDWIDTHS = (500, 2300, 2750)  # Hz, VARA's BW500, BW2300 and BW2750, which Mercury takes; 2300 the default
-MODEM_NAMES = {"ardop": "ARDOP", "mercury": "Mercury"}
-MODEM_PROGRAMS = {"ardop": ARDOPCF, "mercury": MERCURY}
-TRANSPORTS = {"ardop": "ardop", "mercury": "varahf"}   # Pat's transport for each modem
+XARA_BANDWIDTHS = (500, 2300, 2750)     # Hz, VARA HF's own three, XARA's --hf; 2300 the default
+MODEM_NAMES = {"ardop": "ARDOP", "mercury": "Mercury", "xara": "XARA"}
+MODEM_PROGRAMS = {"ardop": ARDOPCF, "mercury": MERCURY, "xara": XARA}
+TRANSPORTS = {"ardop": "ardop", "mercury": "varahf", "xara": "varahf"}   # Pat's transport for each modem
 TRANSPORT_NAMES = {"ardop": "ARDOP", "varahf": "VARA HF"}   # as Pat's Connect dialog names them
 MERCURY_BEHIND = 600                   # s: one of MERCURY_BEHIND_SAID this recent marks the modem behind
 # Mercury's warnings that its receiver fell behind (modem/modem.c): a decoder thread dropped audio, or the capture
 # backlog passed its cap and was thrown away undecoded
 MERCURY_BEHIND_SAID = ("decoder ring full", "RX backlog exceeded")
+# XARA's (audio/mod.rs, Behind): the capture waiting to be read grew past 100 ms
+XARA_BEHIND_SAID = ("xara is falling behind real time",)
+# A callsign XARA starts with (xara-host's valid_call): 1-7 letters and digits, an SSID -1 to -19, not N0CALL
+XARA_CALL_RE = re.compile(r"[A-Z0-9]{1,7}(-([1-9]|0[1-9]|1[0-9]))?")
+XARA_PATH_RE = re.compile(r"\d{1,4},\d{1,4},\d{1,4}")      # xara_path_ms: XARA's --x6x00-path-ms
+XARA_TAIL_MS = 20                      # XARA's PTT tail: the GUI plays out all it was sent after P 0 anyway
 CALL_RE = re.compile(r"[A-Z0-9]{3,12}(-[0-9]{1,2})?")
 LOCATOR_RE = re.compile(r"[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?")
 
@@ -166,9 +181,10 @@ def set_enabled(on):
     conf = read_conf()
     if conf.get("enabled") == ("1" if on else "0"):
         return
-    conf = {"mycall": "", "locator": "", "bandwidth": "500", "modem": "ardop", "mercury_bandwidth": "2300", **conf,
-            "enabled": "1" if on else "0"}
-    first = ["enabled", "mycall", "locator", "bandwidth", "modem", "mercury_bandwidth"]
+    conf = {"mycall": "", "locator": "", "bandwidth": "500", "modem": "ardop", "mercury_bandwidth": "2300",
+            "xara_bandwidth": "2300", "vara_licence": "0", **conf, "enabled": "1" if on else "0"}
+    first = ["enabled", "mycall", "locator", "bandwidth", "modem", "mercury_bandwidth", "xara_bandwidth",
+             "vara_licence"]
     tmp = f"{CONF}.{os.getpid()}"
     with open(tmp, "w") as f:
         f.write("".join(f"{k}={conf[k]}\n" for k in first + [k for k in conf if k not in first]))
@@ -252,9 +268,14 @@ def wanted():
     bw = int(conf["bandwidth"]) if conf.get("bandwidth") in [str(b) for b in BANDWIDTHS] else 500
     mbw = conf.get("mercury_bandwidth")
     mbw = int(mbw) if mbw in [str(b) for b in MERCURY_BANDWIDTHS] else 2300
+    xbw = conf.get("xara_bandwidth")
+    xbw = int(xbw) if xbw in [str(b) for b in XARA_BANDWIDTHS] else 2300
+    path = conf.get("xara_path_ms", "")
+    path = path if XARA_PATH_RE.fullmatch(path) and all(int(n) <= 1000 for n in path.split(",")) else ""
     return {"mycall": mycall, "locator": norm_locator(conf.get("locator", "")) or norm_locator(qth),
             "bandwidth": bw, "modem": conf.get("modem") if conf.get("modem") in MODEMS else "ardop",
-            "mercury_bandwidth": mbw}
+            "mercury_bandwidth": mbw, "xara_bandwidth": xbw, "vara_licence": conf.get("vara_licence") == "1",
+            "xara_path_ms": path}
 
 
 def write_config(want, password):
@@ -299,10 +320,10 @@ def write_config(want, password):
         sub("ardop").update({"addr": f"127.0.0.1:{ARDOP_PORT}", "rig": RIG, "ptt_ctrl": False,
                              "beacon_interval": 0, "cwid_enabled": True,
                              "arq_bandwidth": {"Forced": False, "Max": want["bandwidth"]}})
-        # Mercury, which speaks VARA's TCP protocol: Pat tunes through the GUI and keys nothing, Mercury keys
-        # through the GUI's socket as ardopcf does
-        sub("varahf").update({"addr": f"127.0.0.1:{MERCURY_PORT}", "bandwidth": want["mercury_bandwidth"],
-                              "rig": RIG, "ptt_ctrl": False})
+        # Mercury and XARA, which speak VARA's TCP protocol: Pat tunes through the GUI and keys nothing, the modem
+        # keys through the GUI's socket as ardopcf does. The bandwidth is the chosen one's
+        vbw = want.get("xara_bandwidth", 2300) if want.get("modem") == "xara" else want["mercury_bandwidth"]
+        sub("varahf").update({"addr": f"127.0.0.1:{MERCURY_PORT}", "bandwidth": vbw, "rig": RIG, "ptt_ctrl": False})
         sub("prediction")["engine"] = "disabled"
         body = json.dumps(cfg, indent=2) + "\n"
         if body == old:
@@ -317,11 +338,11 @@ def write_config(want, password):
         return True
 
 
-def say(state, text, pat="off", ardop="off", mercury="off", **more):
+def say(state, text, pat="off", ardop="off", mercury="off", xara="off", **more):
     """The status file the web page reads: written when it changes. Never the password, also not in a
     program's last log line; where it is set (password_where) is. more: the outcome keys (Watch)"""
     pw = read_password()
-    fields = {"state": state, "text": text, "pat": pat, "ardop": ardop, "mercury": mercury,
+    fields = {"state": state, "text": text, "pat": pat, "ardop": ardop, "mercury": mercury, "xara": xara,
               "password": password_where(), **more}
     if pw:
         for k in ("text", "last_text", "last_next"):     # the free text: a program's or the gateway's words
@@ -367,7 +388,7 @@ class Program:
         self.next = 0.0
         self.why = ""
         self.answered = False                      # Pat: its web mailbox answered since this start
-        self.settings = None                       # Pat: what it was started with
+        self.settings = None                       # Pat and XARA: what it was started with
 
     def alive(self):
         return self.proc is not None and self.proc.poll() is None
@@ -424,7 +445,7 @@ def stop_pat(p):
 
 
 def stop_modem(p):
-    """ardopcf or x6x00-mercury: SIGTERM, then SIGKILL if it still runs"""
+    """ardopcf, x6x00-mercury or xara: SIGTERM, then SIGKILL if it still runs"""
     if p is None or p.poll() is not None:
         return
     p.terminate()
@@ -465,6 +486,55 @@ def start_mercury(mercury, want):
     mercury.start([MERCURY, f"SOCK:{ARDOP_SOCK}", "-C", MERCURY_INI], env=env)
 
 
+def xara_refused(want):
+    """Why XARA cannot start with these settings, "" when it can: it refuses to start without a callsign of
+    its own kind (N0CALL neither)"""
+    call = want["mycall"]
+    if not call:
+        return ("XARA needs your callsign: set it on the Winlink page (Operating > Winlink), or the radio's in "
+                "Settings > General")
+    if not XARA_CALL_RE.fullmatch(call) or call.split("-")[0] == "N0CALL":
+        return (f"XARA does not take {call} as a callsign: 1 to 7 letters and digits, an SSID from -1 to -19 "
+                "(Operating > Winlink)")
+    return ""
+
+
+def xara_conf(want):
+    """XARA's settings, key = value lines of its command-line options (xara --config): the callsign and the bandwidth
+    (Pat sends its own MYCALL and BW too), the GUI's socket as its sound card and PTT (our patch, tools/xara), a
+    short PTT tail (the GUI plays out what it was sent after P 0), its commands on 127.0.0.1:8300 and data on 8301
+    (XARA's default address), no KISS port, its full drive (the GUI sets the level), `registered` only with the
+    VARA licence ticked. No web UI and no state directory: nothing saved there can override these"""
+    lines = [f"call = {want['mycall']}", f"hf = {want['xara_bandwidth']}", "audio = x6x00",
+             f"capture = {ARDOP_SOCK}", f"playback = {ARDOP_SOCK}", "radio", "ptt = x6x00",
+             f"ptt-tail-ms = {XARA_TAIL_MS}", f"port = {MERCURY_PORT}", "kiss-port = off", "drive-db = 0"]
+    if want.get("xara_path_ms"):
+        lines.append(f"x6x00-path-ms = {want['xara_path_ms']}")
+    if want["vara_licence"]:
+        lines.append("registered")
+    return ("# Written by x6100-winlink at each start of XARA: changes here are lost. vara_licence=1 in "
+            "/mnt/winlink.conf (the Winlink page's VARA HF licence) adds `registered`\n" + "\n".join(lines) + "\n")
+
+
+def start_xara(xara, want):
+    why = xara_refused(want)
+    if why:
+        raise ValueError(why)
+    body = xara_conf(want)
+    os.makedirs(RUN, exist_ok=True)
+    tmp = f"{XARA_CONF}.{os.getpid()}"
+    with open(tmp, "w") as f:
+        f.write(body)
+    os.replace(tmp, XARA_CONF)
+    # XARA takes XARA_* variables (a web UI token, a recording's part) and saves web UI settings in STATE_DIRECTORY,
+    # which would override ours: none from outside. Its HOME is in RAM; with --config it reads no other config file
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith("XARA_") and k not in ("STATE_DIRECTORY", "XDG_CONFIG_HOME")}
+    env["HOME"] = RUN
+    xara.start([XARA, "--config", XARA_CONF], env=env)
+    xara.settings = body
+
+
 def start_pat(pat, want):
     password = read_password()
     write_config(want, password)
@@ -493,7 +563,7 @@ def answers(port):
 
 
 def trim_logs():
-    for path in (PAT_LOG, PAT_OWN_LOG, ARDOP_LOG, MERCURY_LOG, EVENT_LOG):
+    for path in (PAT_LOG, PAT_OWN_LOG, ARDOP_LOG, MERCURY_LOG, XARA_LOG, EVENT_LOG):
         try:
             if os.path.getsize(path) > LOG_MAX:
                 os.truncate(path, 0)               # opened for appending: the program goes on from 0
@@ -538,20 +608,23 @@ def nap(seconds):
 
 # ---- what a connection came to ---------------------------------------------------------------
 #
-# Kept apart in the status file: the service (Pat and the modem run), the modem (ardopcf or x6x00-mercury on the
-# GUI's audio socket), the session (Pat dialing or connected, its /api/status) and the last connection: dialing,
+# Kept apart in the status file: the service (Pat and the modem run), the modem (ardopcf, x6x00-mercury or xara on
+# the GUI's audio socket), the session (Pat dialing or connected, its /api/status) and the last connection: dialing,
 # connected to the gateway, mail delivered, or failed, with what to do next, which also goes into Pat's log. Read
-# from four logs, each followed from where it was last read: Pat's own (its lines, and the session's text),
+# from five logs, each followed from where it was last read: Pat's own (its lines, and the session's text),
 # ardopcf's console (the [STATUS: ...] lines of its ARQ.c), Mercury's (x6x00-mercury's lines on the socket, and its
-# decoders falling behind) and Pat's event log (a JSON "exchange" a connection, app/exchange.go: a message is in its
-# "sent" only once the gateway confirmed it). ardopcf's lines have no time: those read in a poll count for the
-# connection Pat's lines of that poll leave under way. With Mercury, Pat's transport is varahf: its lines say so
-# ("Connecting to N0BBB (varahf)...", "vara initialization failed: ...", Pat-Vara's errors).
+# decoders falling behind), XARA's (its lines on the socket, falling behind, and the VARA host protocol it echoes:
+# REGISTERED, which says its speed, and CONNECTED with the bandwidth) and Pat's event log (a JSON "exchange" a
+# connection, app/exchange.go: a message is in its "sent" only once the gateway confirmed it). ardopcf's and XARA's
+# lines have no time of day: those read in a poll count for the connection Pat's lines of that poll leave under
+# way. With Mercury and XARA, Pat's transport is varahf: its lines say so ("Connecting to N0BBB (varahf)...", "vara
+# initialization failed: ...", Pat-Vara's errors).
 
 PAT_TIME_RE = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d)(?:\.\d+)? (.*)$")
 ARDOP_STATUS_RE = re.compile(r"\[STATUS: (.*)\]\s*$")
 PAT_QSY_RE = re.compile(r"QSY (ardop|varahf): (.*)$")
 PAT_CONNECTING_RE = re.compile(r"Connecting to (\S+) \((ardop|varahf)\)\.\.\.$")
+XARA_ECHO_RE = re.compile(r"^\s*[\d.]+ < (.*)$")       # a reply XARA sent Pat, as its console echoes it
 
 
 class Tail:
@@ -596,14 +669,16 @@ def mhz(hz):
 class Connection:
     """One connection Pat made or tried, as the logs tell it"""
 
-    def __init__(self, gateway="", at=0.0, freq=0, transport="ardop"):
+    def __init__(self, gateway="", at=0.0, freq=0, transport="ardop", modem="ardop"):
         self.gateway, self.at, self.freq = gateway, at, freq
-        self.transport = transport                 # Pat's: ardop (ARDOP) or varahf (Mercury)
+        self.transport = transport                 # Pat's: ardop (ARDOP) or varahf (Mercury, XARA)
+        self.modem = modem                         # the one chosen on the Winlink page as it began
         self.stage = "dialing"                     # dialing, connected, done, failed
         self.failed_in = ""                        # "dial" or "exchange": where it failed
         self.error = ""                            # Pat's words for it
         self.bw_asked = self.bw_capped = ""        # the gateway list's bw= and the radio's (tools/pat, 0003)
-        self.bw = 0                                # Hz, the session's (ardopcf)
+        self.bw = 0                                # Hz, the session's (ardopcf, XARA)
+        self.speed = ""                            # XARA's link: "free" (VARA's free levels) or "full"
         self.busy_wait = False                     # Pat waited for a clear channel
         self.ardop = ""                            # ardopcf's word: no answer, bandwidth, busy, rejected
         self.accepted = self.receiving = 0         # Pat's log: proposals the gateway accepted, messages coming in
@@ -621,9 +696,10 @@ class Outcome:
         self.qsy_via = "ardop"                     # its transport, for an "Unable to QSY" after it
         self.capped = ("", "")                     # our Pat's bandwidth line, for the next "Connecting"
         self.chosen = "ardop"                      # the modem on the Winlink page
+        self.xara_full = None                      # XARA runs registered (full speed), as its REGISTERED line says
 
     def _new(self, gateway, at, transport="ardop"):
-        self.last = Connection(gateway, at, self.qsy, transport)
+        self.last = Connection(gateway, at, self.qsy, transport, self.chosen)
         self.last.bw_asked, self.last.bw_capped = self.capped
         self.qsy, self.capped = 0, ("", "")        # this connection's: one without a QSY is not on that frequency
         return self.last
@@ -712,6 +788,33 @@ class Outcome:
         elif st.startswith("ARQ CONNECTION REJECTED BY"):
             c.ardop = c.ardop or "rejected"
 
+    def xara_line(self, line):
+        """A reply of XARA's to Pat, as its console echoes it. REGISTERED after Pat's MYCALL: with our calls when it
+        runs registered (the VARA licence ticked), alone when not. On the air the caller's bit counts, and the radio
+        always calls: a link it makes runs at its own speed. CONNECTED <caller> <callee> <Hz>: the link's bandwidth.
+        LINK REGISTERED or UNREGISTERED is the callee's word for the caller's bit (a call to us, which Pat does not
+        listen for)"""
+        m = XARA_ECHO_RE.match(line)
+        if not m:
+            return
+        r = m.group(1).split()
+        c = self.last
+        if r[:1] == ["REGISTERED"]:
+            self.xara_full = len(r) > 1
+            if c is not None and c.transport == "varahf" and c.bw and not c.speed:
+                c.speed = "full" if self.xara_full else "free"     # a connect made at once, within its 5 s
+            return
+        if c is None or c.transport != "varahf" or c.failed_in == "dial":
+            return                                 # also when Pat's end of it was read first
+        if len(r) == 4 and r[0] == "CONNECTED" and r[3].isdigit() and c.gateway.upper() in (r[1], r[2]):
+            c.bw = int(r[3])
+            if self.xara_full is not None and not c.speed:
+                c.speed = "full" if self.xara_full else "free"
+        elif r[:2] == ["LINK", "REGISTERED"]:
+            c.speed = "full"
+        elif r[:2] == ["LINK", "UNREGISTERED"]:
+            c.speed = "free"
+
     def event(self, line):
         """A line of Pat's event log: its exchange has the messages sent (confirmed) and received"""
         try:
@@ -738,19 +841,26 @@ class Outcome:
         result, text, nxt = judge(c, self.chosen)
         return {"last_result": result, "last_time": int(c.at), "last_gateway": c.gateway, "last_freq": c.freq or "",
                 "last_bw": c.bw or "", "last_bw_asked": c.bw_asked, "last_bw_capped": c.bw_capped,
+                "last_speed": c.speed,
                 "last_sent": "" if c.sent is None else c.sent,
                 "last_received": "" if c.received is None else c.received, "last_text": text, "last_next": nxt}
 
 
 def judge(c, chosen="ardop"):
     """(result, what happened, what to do next) of a connection: dialing, connected, delivered, done or failed.
-    chosen: the modem on the Winlink page"""
+    chosen: the modem on the Winlink page now; c.modem the one when the connection began, through which it went
+    when Pat's transport is that modem's"""
     gw = c.gateway or "the gateway"
     on = f" on {mhz(c.freq)}" if c.freq else ""
     at = f" at {c.bw} Hz" if c.bw else ""
     low = c.error.lower()
-    mercury = c.transport == "varahf"
-    narrow = "choose 500 Hz for Mercury on the Winlink page" if mercury else "choose 500 or 200 Hz"
+    vara = c.transport == "varahf"
+    via = c.modem if c.modem in MODEMS else chosen
+    name = MODEM_NAMES[via] if TRANSPORTS[via] == c.transport else TRANSPORT_NAMES.get(c.transport, "the modem")
+    mercury, xara = vara and via == "mercury", vara and via == "xara"
+    narrow = f"choose 500 Hz for {name} on the Winlink page" if vara else "choose 500 or 200 Hz"
+    # XARA's speed as its link said it: the free levels unless the VARA licence was ticked
+    at += {"free": " at VARA's free speed", "full": " at full speed"}.get(c.speed, "") if xara else ""
     if c.stage == "dialing":
         if c.refused:
             return "dialing", f"Calling {gw}{on}, but the radio does not transmit: {c.refused}", radio_fix(c.refused)
@@ -784,17 +894,18 @@ def judge(c, chosen="ardop"):
             "The radio's screen says why (an app open, LOCK, on the air): fix that, then connect again")
     if low.startswith(("ardop tnc initialization failed", "vara initialization failed")):
         if c.transport != TRANSPORTS[chosen]:
+            others = " or ".join(MODEM_NAMES[m] for m in MODEMS if TRANSPORTS[m] == c.transport)
+            speaks = f" ({MODEM_NAMES[chosen]} speaks it)" if TRANSPORTS[chosen] == "varahf" else ""
             return "failed", (f"Pat called through {TRANSPORT_NAMES[c.transport]}, but the radio runs "
                               f"{MODEM_NAMES[chosen]}"), (
-                f"Choose {TRANSPORT_NAMES[TRANSPORTS[chosen]]} in Pat's Connect dialog"
-                f"{' (Mercury speaks it)' if chosen == 'mercury' else ''}, or {'Mercury' if mercury else 'ARDOP'} as "
+                f"Choose {TRANSPORT_NAMES[TRANSPORTS[chosen]]} in Pat's Connect dialog{speaks}, or {others} as "
                 "the modem on the Winlink page")
-        return "failed", f"{'Mercury' if mercury else 'ARDOP'} was not ready", (
+        return "failed", f"{MODEM_NAMES[chosen]} was not ready", (
             "Wait until the Winlink page says the modem is ready, then connect again")
     bw = re.fullmatch(r"bandwidth (\S+) not supported", low)
     if bw:
-        return "failed", f"Mercury has no {bw.group(1)} Hz: the connection asked for it", (
-            "Choose 500, 2300 or 2750 Hz for the connection, or none: Mercury then takes the Winlink page's")
+        return "failed", f"{name} has no {bw.group(1)} Hz: the connection asked for it", (
+            f"Choose 500, 2300 or 2750 Hz for the connection, or none: {name} then takes the Winlink page's")
     if c.refused:
         return "failed", f"No answer from {gw}: the radio did not transmit, {c.refused}", radio_fix(c.refused)
     if c.ardop == "bandwidth":
@@ -810,6 +921,10 @@ def judge(c, chosen="ardop"):
             "Check the power, the antenna and the SWR, and the radio's screen for \"Winlink: no TX\". The other "
             "station needs Mercury 1.9.20 or later: a VARA gateway from Pat's list does not answer it. Or try "
             "another band")
+    if xara and "connect timeout" in low:
+        return "failed", f"No answer from {gw}{on}", (
+            "Check the power, the antenna and the SWR, and the radio's screen for \"Winlink: no TX\"; call the "
+            "gateway at the bandwidth Pat's VARA HF list gives it; or try another gateway or band from that list")
     if c.ardop in ("no answer", "rejected") or "connect timeout" in low:
         return "failed", f"No answer from {gw}{on}" + (" (it rejected the call)" if c.ardop == "rejected" else ""), (
             "Check the power, the antenna and the SWR, and the radio's screen for \"Winlink: no TX\"; on a weak path "
@@ -869,10 +984,11 @@ class Watch:
         self.pat_log = Tail(PAT_OWN_LOG)
         self.ardop_log = Tail(ARDOP_LOG)
         self.mercury_log = Tail(MERCURY_LOG)
+        self.xara_log = Tail(XARA_LOG)
         self.events = Tail(EVENT_LOG)
         self.outcome = Outcome()
         self.modem = False                         # the modem on the GUI's audio socket, as its log says
-        self.behind = 0.0                          # Mercury's decoders last dropped audio, as its log says
+        self.behind = 0.0                          # Mercury or XARA last fell behind the receiver, as its log says
         self.behind_noted = 0.0                    # and when that went into Pat's log
         self.seen = {}                             # the radio file's refused_seq and qsy_seq read last
         self.swr_hold = None                       # its swr_hold (s) read last
@@ -886,6 +1002,7 @@ class Watch:
     def modem_started(self):
         self.modem = False
         self.behind = 0.0
+        self.outcome.xara_full = None              # said again after Pat's MYCALL
 
     def mercury_line(self, line):
         """A line of Mercury's log: x6x00-mercury on the GUI's socket or not, and its receiver falling behind
@@ -902,6 +1019,23 @@ class Watch:
                     "processor is short for it, and its connections may fail. ARDOP needs far less (Operating > "
                     "Winlink); the logs download from that page helps us measure it"):
                 self.behind_noted = self.behind
+
+    def xara_line(self, line):
+        """A line of XARA's log: on the GUI's socket or not (our patch's lines, tools/xara), its receiver falling
+        behind (XARA_BEHIND_SAID: the radio's processor short for it), and its replies to Pat (Outcome)"""
+        if line.startswith("xara: connected to the GUI's socket "):
+            self.modem = True
+        elif line.startswith("xara: the GUI's socket ") and (" closed" in line or " is not there yet" in line):
+            self.modem = False
+        elif any(w in line for w in XARA_BEHIND_SAID):
+            self.behind = time.time()
+            if self.behind - self.behind_noted >= MERCURY_BEHIND and note(
+                    "XARA could not keep up with the receiver (it fell behind real time): the radio's processor is "
+                    "short for it, and its connections may fail. ARDOP needs far less (Operating > Winlink); the "
+                    "logs download from that page helps us measure it"):
+                self.behind_noted = self.behind
+        else:
+            self.outcome.xara_line(line)
 
     def radio_said(self, radio):
         """A new "no TX" or QSY not made in the radio file: for the connection under way, and in Pat's log, where
@@ -959,6 +1093,9 @@ class Watch:
         for line in self.mercury_log.lines():
             if kind == "mercury":
                 self.mercury_line(line)
+        for line in self.xara_log.lines():
+            if kind == "xara":
+                self.xara_line(line)
         for line in self.events.lines():
             o.event(line)
         radio = read_radio()
@@ -966,7 +1103,7 @@ class Watch:
             self.modem = radio.get("modem") == "connected"     # the GUI's word over the modem's log
             self.radio_said(radio)
         up = pat.alive() and pat.answered
-        behind = kind == "mercury" and time.time() - self.behind < MERCURY_BEHIND
+        behind = kind in ("mercury", "xara") and time.time() - self.behind < MERCURY_BEHIND
         keys = {"service": "running" if up and modem.alive() else "starting" if pat.alive() or modem.alive() else
                 "stopped",
                 "modem": ("behind" if behind else "ready") if modem.alive() and self.modem else
@@ -977,6 +1114,8 @@ class Watch:
         else:
             keys["session"] = "connected" if st.get("connected") else "dialing" if st.get("dialing") else "idle"
             keys["browsers"] = len(st.get("http_clients") or [])
+        if kind == "xara" and o.xara_full is not None:
+            keys["speed"] = "full" if o.xara_full else "free"     # XARA's own word, after Pat's MYCALL
         keys.update(o.result())
         c = o.last
         if c is not None and c.stage in ("done", "failed") and not c.noted:
@@ -985,18 +1124,21 @@ class Watch:
 
 
 def modem_states(modems, kind):
-    """The status file's ardop= and mercury=: running, stopped (the chosen one, not running now) or off"""
+    """The status file's ardop=, mercury= and xara=: running, stopped (the chosen one, not running now) or off"""
     return {k: "running" if p.alive() else "stopped" if k == kind else "off" for k, p in modems.items()}
 
 
-def report(pat, modem, want, keys):
-    """modem: the chosen one's Program, the other one stopped"""
+def report(pat, modem, want, keys, refused=""):
+    """modem: the chosen one's Program, the others stopped. refused: why the chosen modem may not start (XARA
+    without a callsign it takes)"""
     kind = want.get("modem", "ardop")
     name = MODEM_NAMES[kind]
     st = {"pat": "running" if pat.alive() and pat.answered else "starting" if pat.alive() else "stopped",
           **{k: "off" for k in MODEMS}, kind: "running" if modem.alive() else "stopped", **keys}
     waiting = [p for p in (modem, pat) if not p.alive()]
-    if waiting:
+    if refused:
+        say("error", refused, **st)
+    elif waiting:
         p = waiting[0]
         say("error", f"{p.why}; starting it again in {p.wait_left()} s", **st)
     elif st["pat"] != "running":
@@ -1025,8 +1167,9 @@ def run():
     lock.flush()
     pat = Program("Pat", PAT_LOG)
     modems = {"ardop": Program("ARDOP (ardopcf)", ARDOP_LOG),
-              "mercury": Program("Mercury (x6x00-mercury)", MERCURY_LOG)}
-    starts = {"ardop": start_ardop, "mercury": start_mercury}
+              "mercury": Program("Mercury (x6x00-mercury)", MERCURY_LOG),
+              "xara": Program("XARA (xara)", XARA_LOG)}
+    starts = {"ardop": start_ardop, "mercury": start_mercury, "xara": start_xara}
     watch = Watch()
     kind = "ardop"
     try:
@@ -1038,9 +1181,11 @@ def run():
             missing = [p for p in (PAT, MODEM_PROGRAMS[kind]) if not os.access(p, os.X_OK)]
             if missing:
                 say("error", f"{os.path.basename(missing[0])} is not on this radio: it comes with the update "
-                             "that brings Winlink")
+                             f"that brings {'XARA' if missing[0] == XARA else 'Winlink'}")
                 nap(RETRY_MAX)
                 continue
+            # XARA does not start without a callsign of its kind: said, and not tried until the settings change
+            refused = xara_refused(want) if kind == "xara" else ""
             now = (want, hashlib.sha256(read_password().encode()).hexdigest())
             for p in (*modems.values(), pat):
                 p.reap()                           # stopped by itself: tried again later
@@ -1059,8 +1204,15 @@ def run():
                     stop_modem(p.proc)
                     p.proc = None
                     p.next = p.fails = 0
+            # XARA's own settings changed (the callsign, the bandwidth, the licence tick): started again with them
+            if kind == "xara" and modem.alive() and (refused or modem.settings != xara_conf(want)):
+                stop_modem(modem.proc)
+                modem.proc = None
+                modem.next = modem.fails = 0
             # The modem first: Pat connects to it the first time it needs the modem, and again when it went
             for p, start in ((modem, lambda p: starts[kind](p, want)), (pat, lambda p: start_pat(p, want))):
+                if p is modem and refused:
+                    continue
                 if not p.alive() and time.time() >= p.next:
                     try:
                         start(p)
@@ -1071,7 +1223,7 @@ def run():
                 pat.answered = answers(HTTP_PORT)
                 if pat.answered:
                     pat_up(want)
-            report(pat, modem, want, watch.poll(pat, modem, kind))
+            report(pat, modem, want, watch.poll(pat, modem, kind), refused)
             trim_logs()
             nap(POLL)
     finally:
@@ -1194,7 +1346,8 @@ def cmd_status():
         with open(STATUS) as f:
             sys.stdout.write(f.read())
     except OSError:
-        sys.stdout.write(f"state=off\ntext=Off\npat=off\nardop=off\nmercury=off\npassword={password_where()}\n")
+        sys.stdout.write(f"state=off\ntext=Off\npat=off\nardop=off\nmercury=off\nxara=off\n"
+                         f"password={password_where()}\n")
     return 0
 
 
@@ -1235,13 +1388,13 @@ def mask(text, hidden):
 
 def cmd_logs():
     """The Winlink logs as one text file on stdout: the status, the radio file, Pat's log (the mailbox's), what
-    Pat wrote to its output, ardopcf's console, Mercury's log and Pat's event log, each its last LOG_MAX bytes,
-    masked"""
+    Pat wrote to its output, ardopcf's console, Mercury's log, XARA's settings and log and Pat's event log, each its
+    last LOG_MAX bytes, masked"""
     hidden = secrets()
     parts = [f"OpenX6X00 Winlink logs, {time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n"]
     for title, path in (("status", STATUS), ("the radio (the GUI)", RADIO), ("Pat's log", PAT_OWN_LOG),
                         ("Pat's output", PAT_LOG), ("ardopcf", ARDOP_LOG), ("Mercury (x6x00-mercury)", MERCURY_LOG),
-                        ("Pat's event log", EVENT_LOG)):
+                        ("XARA's settings", XARA_CONF), ("XARA (xara)", XARA_LOG), ("Pat's event log", EVENT_LOG)):
         try:
             with open(path, "rb") as f:
                 f.seek(max(0, os.fstat(f.fileno()).st_size - LOG_MAX))
