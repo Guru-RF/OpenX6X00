@@ -3564,6 +3564,10 @@ BACKUP_NAME = r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,59}"
 BACKUP_DIRS = (("voice", "msg/", re.compile("msg/" + BACKUP_NAME + r"\.mp3")),
                ("wifi", "wifi/", re.compile("wifi/" + BACKUP_NAME + r"\.nmconnection")))
 BACKUP_GUI_PARTS = ("settings", "memories", "qso", "cw")   # files the GUI owns: restore with it stopped
+# NetworkManager reads its profile files again, the restored WiFi networks among them: the D-Bus call that
+# `nmcli connection reload` makes. The radios have no nmcli, and no D-Bus module for Python; dbus-send comes with D-Bus
+NM_RELOAD = ["dbus-send", "--system", "--print-reply", "--dest=org.freedesktop.NetworkManager",
+             "/org/freedesktop/NetworkManager/Settings", "org.freedesktop.NetworkManager.Settings.ReloadConnections"]
 TAR_ERRORS = (tarfile.TarError, EOFError, OSError) + ((zlib.error,) if zlib else ())
 
 backup_lock = threading.Lock()
@@ -4044,7 +4048,7 @@ def restore_backup():
             os.sync()
             if "wifi" in restored:
                 try:
-                    subprocess.run(["nmcli", "connection", "reload"], capture_output=True, timeout=20)
+                    subprocess.run(NM_RELOAD, capture_output=True, timeout=20)
                 except (OSError, subprocess.SubprocessError):
                     pass
         finally:

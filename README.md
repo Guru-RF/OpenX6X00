@@ -455,6 +455,7 @@ docs/                    MANUAL.md, THEMES.md, MENUS.md, UPSTREAM_README.md, aud
 - [The TCI server's host test](tools/tci/README.md), [the Winlink modems'](tools/winlink/README.md), the
   [ITU region's](tools/itu_region/itu_region_test.c), the [DX cluster bands'](tools/cluster/cluster_bands_test.c),
   the [DATA partition's](tools/data_partition/Makefile), the [web Memories page's](tools/channels/Makefile), the
+  [web Backup page's WiFi restore](tools/wifi_restore/Makefile), the
   [battery readings'](tools/battery/bat_watch_test.c) and the [PC build](host/README.md).
 
 ## Licences
