@@ -1,7 +1,7 @@
 # Host test of the keyboard modes' text log (src/digi_textlog.c, #55): `make` builds and runs it. How the lines are
-# put together (the decoder's line break, a pause, a move of the frequency, another mode, a long line, a message
-# that grows, what is sent), how they look, the day each goes to, the size limit (the oldest day goes, the newest
-# never, nothing past it), and Off. The real module on its own writer thread, into build/data/digi_text.
+# put together (the decoder's line break, a pause, a move of the frequency, another mode, a long mode name, a long
+# line, a message that grows, what is sent), how they look, the day each goes to, the size limit (the oldest day goes,
+# the newest never, nothing past it), and Off. The real module on its own writer thread, into build/data/digi_text.
 # The sources are copied to build/ first: a quoted #include looks beside the including file before the -I paths,
 # and the shim in stub_include must win over src/ (as in tools/tune). The clock is the test's own (--wrap=time),
 # and the card's fsync calls are counted (--wrap=fsync). The local time is 11 h from UTC (TZ set in the test).

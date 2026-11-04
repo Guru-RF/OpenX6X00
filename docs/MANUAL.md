@@ -818,7 +818,7 @@ base is too old.
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off (the X6200's default, see [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only, see [TCI server](#tci-server)) |
-| TEXT LOG | Keyboard modes (on by default), Size limit (1-100 MB, 10 MB by default): what PSK, Olivia and JTTY receive and send, and what RTTY receives, on the card (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
+| TEXT LOG | Keyboard modes (on by default), Size limit (1-100 MB, 10 MB by default): what PSK, Olivia, Contestia and JTTY receive and send, and what RTTY receives, on the card (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 
 Main knob acceleration. Where: Settings > General > CONTROLS > Freq
 acceleration.
@@ -1625,8 +1625,8 @@ receiving and turns it on only when transmitting.
 
 ### Opening a mode
 
-APP (page 1) > Modes opens a menu: RTTY, PSK31, PSK63, FT8, FT4, FT2, WSPR, Olivia,
-JTTY, JS8, SSTV, WeFax, NavTex. Turn the MFK to choose, press to open; the last used mode is marked.
+APP (page 1) > Modes opens a menu: RTTY, PSK31, PSK63, FT8, FT4, FT2, WSPR, Olivia
+(Contestia too, from the Olivia window's Mode), JTTY, JS8, SSTV, WeFax, NavTex. Turn the MFK to choose, press to open; the last used mode is marked.
 Pressing Modes again closes the menu.
 
 - Callsign and QTH: Settings > General > STATION.
@@ -1738,7 +1738,7 @@ carries the call, its grid when the message had one, dial + audio frequency,
 SNR and mode. Your own transmissions are never reported. With no network the
 batch is dropped quietly; nothing waits on it, the decoding goes on. Search
 your call on pskreporter.info to see the spots after a few minutes.
-In PSK31, PSK63 and Olivia the text is free, so a station is reported when the
+In PSK31, PSK63, Olivia and Contestia the text is free, so a station is reported when the
 decoder reads "DE <call>" (as in "CQ CQ DE IK1ABC"), with no grid and 0 dB SNR,
 because these modes give no S/N figure.
 
@@ -1991,7 +1991,8 @@ and its colours; the next press transmits.
 ### PSK31, PSK63 and Olivia
 
 Keyboard-to-keyboard modes, ported from SP2KMO's OpenX6100 PSK31 and Olivia
-work (randal007's merge). APP > Modes > PSK31, PSK63 or Olivia. The radio
+work (randal007's merge). APP > Modes > PSK31, PSK63 or Olivia; Contestia is
+in the Olivia window, from its Mode button. The radio
 goes to the nearest standard dial frequency in USB-D (PSK 14.070, 7.040,
 3.580...; Olivia 14.071, 7.071, 3.5815...); the BAND keys step through the
 others. Frequency and mode come back when the app closes.
@@ -2006,10 +2007,13 @@ others. Frequency and mode come back when the app closes.
 - Mode (page 1): PSK31 (31.25 Bd) or PSK63 (62.5 Bd), same Varicode; Olivia
   8/250 (default), 16/500 or 32/1000, then Contestia (CT on the button) 4/250,
   8/250, 4/500, 8/500, 16/500, 8/1000, 16/1000 or 32/1000. Contestia is Olivia
-  with a block half as long: about twice the speed for 1.5-3 dB of sensitivity,
-  capitals only, and what it has no character for goes out as `?`. It works
-  with fldigi. The status button shows the audio
-  frequency and the lock quality; press resyncs, hold clears the text.
+  with a block half as long: about twice the speed, for about 2 dB of
+  sensitivity at the same tones and bandwidth (in the host test, 75% copy at
+  -13 dB SNR in 2500 Hz in Contestia 8/250, -15 dB in Olivia 8/250), capitals
+  only, and what it has no character for goes out as `?`. It is made
+  to fldigi's Contestia (the same block, scrambling sequence and alphabet) but
+  has not yet been tried against fldigi on the air. The status button shows the
+  audio frequency and the lock quality; press resyncs, hold clears the text.
 - PSK squelch (page 2, SQL): text is shown only while the decoder's quality
   (how tightly the symbols sit on 0 and 180 degrees, the Q on the button)
   is at the threshold or above, and for 1.5 s after it drops. Noise alone
@@ -2025,7 +2029,7 @@ others. Frequency and mode come back when the app closes.
 - TX: Free Text, or the macros (pages 3-5: press sends, hold edits; an empty
   text deletes). Page 6: Ext tune, a carrier at the TX frequency for an
   external tuner. Tokens `<MYCALL>`, `<CALL>`, `<RST>`, `<RSTR>`. Stop TX ends
-  with a short carrier tail (PSK) or after the current block (Olivia). Nothing is sent on
+  with a short carrier tail (PSK) or after the current block (Olivia, Contestia). Nothing is sent on
   opening. TX goes through the same path as FT8: power capped at 7 W, ALC
   levelling, SWR protection, the TX strip.
 - Files: `/mnt/psk_macros.txt`, `/mnt/olivia_macros.txt`, `/mnt/psk.conf`
@@ -2057,8 +2061,8 @@ log as JTTY (ADIF 3.1.8: mode MFSK, submode JTTY).
 
 ### Text log of the keyboard modes
 
-What PSK31, PSK63, Olivia and JTTY receive and send, and what RTTY receives,
-is kept on the card: a line for each line, in `/mnt/digi_text/`, one file a
+What PSK31, PSK63, Olivia, Contestia and JTTY receive and send, and what RTTY
+receives, is kept on the card: a line for each line, in `/mnt/digi_text/`, one file a
 UTC day (`2026-10-31.txt`). Leave the radio listening and read later what
 came through; the reports you exchange are in the text.
 
@@ -2067,11 +2071,12 @@ came through; the reports you exchange are in the text.
 2026-10-31 14:05:40Z 14.071000 PSK31 TX - PA3XYZ DE ON6URE ON6URE KN
 2026-10-31 14:07:02Z 14.090850 JTTY RX -12dB CQ PA3XYZ JO21
 2026-10-31 14:09:30Z 14.072500 OLIVIA-8/250 RX Q64% RYRYRY
+2026-10-31 14:11:05Z 14.072500 CONTESTIA-16/1000 RX Q71% CQ CQ DE PA3XYZ
 ```
 
 - Each line: the UTC time the line began, the frequency in MHz where the
   signal is (the dial plus the decoder's audio frequency in PSK, the centre
-  in Olivia, the lowest tone in JTTY, the RTTY centre), the mode, RX or TX,
+  in Olivia and Contestia, the lowest tone in JTTY, the RTTY centre), the mode, RX or TX,
   the app's own figure for the signal averaged over the line, and the text.
   The figure: Q, the decoder's quality as on the PSK and Olivia status
   button (0-100 %); dB, JTTY's signal-to-noise in 2500 Hz; `-` none (RTTY
@@ -3806,7 +3811,7 @@ browser paired at home on any device.
   radio on the radio's frequency (the web Logs page lists it), as a QSO from
   the CW keyboard does, also during a Field Ops activation: a QSO for the
   activation is logged with Field Ops' Log QSO. The mode is the one of the digital app open on the radio
-  (PSK31, PSK63, OLIVIA, JTTY, RTTY, SSTV, FT8, FT4, FT2, JS8, WSPR), else
+  (PSK31, PSK63, OLIVIA, CONTESTI, JTTY, RTTY, SSTV, FT8, FT4, FT2, JS8, WSPR), else
   the radio's (CW, SSB, AM, FM, and FT8 or FT4 on their frequencies). In CW
   or CW-R it is CW, also with RTTY or SSTV open (they leave the mode free).
   The radio's message names it. In USB-D or LSB-D with no app open, away from
@@ -5001,7 +5006,7 @@ That is normal while JS8 is open.
 
 FT8/FT4 in `/mnt/ft_log.adi`, JS8 in `/mnt/js8call_log.adi`, Field Ops in
 `/mnt/field/logs/`, the QSOs logged outside an activation in the day's log. The web configurator's
-Logs page shows them all. What PSK, Olivia and JTTY received and sent, and what RTTY received, is in
+Logs page shows them all. What PSK, Olivia, Contestia and JTTY received and sent, and what RTTY received, is in
 `/mnt/digi_text/`, a file a UTC day, on the Logs page too ([Text log of the keyboard modes](#text-log-of-the-keyboard-modes)).
 
 ## Reference

@@ -1,5 +1,5 @@
-# Host test of Field Ops' references (src/field/flog.c, issue #81): `make` builds it and runs it. See
-# field_refs_test.c for the cases.
+# Host test of Field Ops' references and log modes (src/field/flog.c, issues #81, #154): `make` builds it and runs
+# it. See field_refs_test.c for the cases.
 SRC    := ../../src
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC)
 

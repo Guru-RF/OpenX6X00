@@ -1,11 +1,12 @@
 /*
- * olivia_test.c - host test of the Olivia modem (src/olivia*.c)
+ * olivia_test.c - host test of the Olivia and Contestia modem (src/olivia*.c)
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
  * Golden values: hashes of the symbols and the audio of fixed blocks, taken
  * from the code before it learned a second protocol. A change here means
  * Olivia changed on the air. Loopback: text through the modulator, noise and
- * a tuning error, into the receiver, and back out.
+ * a tuning error, into the receiver, and back out, framed as the radio
+ * sends it (4 blocks of run-in, the text, 1 closing block).
  */
 
 #include <math.h>
@@ -163,8 +164,9 @@ static int loopback(int proto, int tones, int bw, const char *msg,
     n = olivia_mod_block_samples(&mod);
     audio = malloc(sizeof(float) * n);
 
-    /* 4 blocks of run-in, the text, 2 closing blocks, as olivia_tx.c does. */
-    blocks = 4 + (int)((msg_len + bits - 1) / bits) + 3;
+    /* What olivia_tx.c sends: LEAD_BLOCKS (4) of run-in, the text, TAIL_BLOCKS (1) closing block. So the last
+     * characters have to arrive with no more signal after them than the radio gives. */
+    blocks = 4 + (int)((msg_len + bits - 1) / bits) + 1;
     sig_pow = 0.0;
 
     for (int b = 0; b < blocks; b++) {
