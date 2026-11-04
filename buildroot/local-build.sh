@@ -252,14 +252,35 @@ grep -q "^${GUI_VAR}_CONF_OPTS += -DXARA_BINARY=$XARA_BIN" $GUI_MK
 
 echo "== Build"
 cd $BR/build
+# U-Boot's release tarball comes from ftp.denx.de (buildroot's mirror has the X6100's 2026.07, not the X6200's
+# 2023.01). When that site doesn't answer (down for days in November 2026, PR #154) and buildroot's download folder
+# hasn't got the file, it is made from U-Boot's tag archive on GitHub: the tar in it is the release's byte for byte,
+# and bzip2 gives back the release tarball itself. buildroot checks no hash for a U-Boot version of one's own, so
+# the release's is checked here, wherever the file came from
+uboot_source() {
+    local ver sha f
+    ver=$(sed -n 's/^BR2_TARGET_UBOOT_VERSION="\(.*\)"$/\1/p' .config)
+    case $ver in
+        2023.01) sha=69423bad380f89a0916636e89e6dcbd2e4512d584308d922d1039d1e4331950f ;;
+        2026.07) sha=78e8bfc382fe388f9b55aa1daf8c563522a037779b5d4c349d1415e381f1243e ;;  # as in IU1WXY's v0.131 sources
+        *) echo "   U-Boot $ver: no hash for it here, buildroot gets it unchecked"; return 0 ;;
+    esac
+    f=$BR/buildroot/dl/uboot/u-boot-$ver.tar.bz2
+    if [ ! -s $f ] && ! curl -sfIL --max-time 30 -o /dev/null https://ftp.denx.de/pub/u-boot/u-boot-$ver.tar.bz2; then
+        echo "   U-Boot $ver: ftp.denx.de doesn't answer, the release tarball is made from its tag on GitHub"
+        mkdir -p ${f%/*}
+        curl -sSfL --retry 3 https://github.com/u-boot/u-boot/archive/refs/tags/v$ver.tar.gz | gunzip | bzip2 > $f.part
+        echo "$sha  $f.part" | sha256sum -c - || { rm -f $f.part; return 1; }
+        mv $f.part $f
+    fi
+    make uboot-source
+    echo "$sha  $f" | sha256sum -c -
+}
 if [ $MODEL = x6100 ]; then
     # A U-Boot configured here before its defconfig turned mkeficapsule off is configured again
     grep -qs "^CONFIG_TOOLS_MKEFICAPSULE=y" $BR/build/build/uboot-2026.07/.config && make uboot-dirclean
-    # buildroot checks no hash for a U-Boot version of one's own: this one is the release's
-    # (ftp.denx.de, the same file as in IU1WXY's v0.131 sources)
-    make uboot-source
-    echo "78e8bfc382fe388f9b55aa1daf8c563522a037779b5d4c349d1415e381f1243e  $BR/buildroot/dl/uboot/u-boot-2026.07.tar.bz2" | sha256sum -c -
 fi
+uboot_source
 make lame mpg123
 make libsndfile-dirclean
 # A package patched after an earlier build here is built again: buildroot applies patches at extraction only

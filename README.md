@@ -374,7 +374,10 @@ run) when upstream has commits the fork has not, and names upstream's other bran
 with newer work (pull requests on their way) as a note. The X6100's upstream is
 gdyuldin's tree, moved to OpenX6100. `buildroot/local-build.sh` patches the
 buildroot tree (local GUI and web server, `boost` and `fftw-single` for JS8,
-no RHVoice, the boot logo), builds it and makes the update bundle. The GitHub
+no RHVoice, the boot logo), builds it and makes the update bundle. U-Boot's
+release tarball is checked against its SHA-256; when ftp.denx.de doesn't answer,
+the script makes it from U-Boot's tag on GitHub (the tar inside is the
+release's, and bzip2 gives back the release tarball). The GitHub
 Actions workflow (`.github/workflows/main.yml`, *Build image*, run by hand,
 about two hours, both radios side by side) runs that script and uploads
 `OpenX6X00-x6100-<ref>-sdcard.img.zip` and `OpenX6X00-x6200-<ref>-sdcard.img.zip`

@@ -6073,5 +6073,14 @@ notices of the Rust crates in it in `/usr/share/x6100/licenses/xara`
 (`tools/xara/UPSTREAM.md`). `tools/xara/build.sh --host` builds it for the
 PC, for `tools/winlink`'s `make modems`.
 
+U-Boot's release tarball comes from ftp.denx.de; buildroot's own mirror
+has the X6100's 2026.07 but not the X6200's 2023.01. When ftp.denx.de
+doesn't answer and the tree's `buildroot/dl/uboot/` hasn't got the file,
+`local-build.sh` makes it from U-Boot's tag archive on GitHub: the tar
+inside is the release's byte for byte, and bzip2 gives back the release
+tarball itself. Whichever site it came from, the script checks the file
+against the release's SHA-256, since buildroot checks none for a U-Boot
+version of one's own.
+
 The private tests and UI harnesses of the original author are not part of
 this repository.
