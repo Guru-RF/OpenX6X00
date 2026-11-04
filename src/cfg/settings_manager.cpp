@@ -1,5 +1,7 @@
 #include "settings_manager.h"
 
+#include "smeter_att.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -334,18 +336,13 @@ bool SettingsManager::band_usable(int32_t id) const {
 }
 
 #ifdef BOARD_X6200
-// The X6200's attenuator on a band never set (#125): what two X6200s showed on a steady carrier, 53 and 51 dB on 80 m,
-// 36 and 29 on 40 m, 43 and 34 on 20 m, 40 and 32 on 10 m, their mean, each band taking that of the nearest of the
-// four by the middle of the band. Measure gives a band its own. The one value of v0.3.8 and before (params
-// "smeter_att": 15 dB, or a Measure on one band) is not taken: it fit one band at most. Its row stays, for going back
+// The X6200's attenuator on a band never set (#125): the figure for the band's frequency (smeter_att.c). The one value
+// of v0.3.8 and before (params "smeter_att": 15 dB, or a Measure on one band) is not taken: it fit one band at most.
+// Its row stays, for going back
 int32_t SettingsManager::smeter_att_start() const {
-    BandInfoLoadResult b  = BandsTable::get_by_id(p_band_smeter_att.context_id());
-    uint32_t           hz = b.rc == SUCCESS ? b.value.start_freq / 2 + b.value.stop_freq / 2 : 7'100'000;
+    BandInfoLoadResult b = BandsTable::get_by_id(p_band_smeter_att.context_id());
 
-    if (hz < 5'000'000) return 52;      /* 80 m: 160 m and the broadcast bands up to 60 m too */
-    if (hz < 10'000'000) return 33;     /* 40 m: 60 m to the 31 m broadcast band */
-    if (hz < 20'000'000) return 39;     /* 20 m: 30 m to the 15 m broadcast band */
-    return 36;                          /* 10 m: 15 m and up */
+    return b.rc == SUCCESS ? smeter_att_start_band(b.value.start_freq, b.value.stop_freq) : smeter_att_start_band(0, 0);
 }
 #endif
 
