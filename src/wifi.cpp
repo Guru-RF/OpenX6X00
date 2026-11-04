@@ -70,6 +70,7 @@ static wifi_status_t status = WIFI_OFF;
 static bool          scanning = false;
 static uint64_t      last_scan;
 static bool          eth_holds_wifi;   /* a wired adapter is connected with a gateway: WiFi's radio off for it */
+static bool          eth_up;           /* a wired adapter is connected, with or without a gateway */
 
 static void loop_iterations_cb(lv_timer_t *);
 static void update_scan_status_cb(lv_timer_t *t);
@@ -112,11 +113,12 @@ static void wifi_log(const char *ssid) {
 }
 
 /* No network in reach for three minutes, WiFi on and not connected: the chip is powered off
- * and on again, two seconds apart. Now and then it stops seeing any network until it is. */
+ * and on again, two seconds apart. Now and then it stops seeing any network until it is. Not
+ * while a cable is connected: the radio has a network then, and the restart would cut Bluetooth */
 static void no_network_cb(lv_timer_t *t) {
     static int empty;
 
-    if (status != WIFI_DISCONNECTED || !device || eth_holds_wifi) {
+    if (status != WIFI_DISCONNECTED || !device || eth_up) {
         empty = 0;
         return;
     }
@@ -999,6 +1001,7 @@ static void eth_refresh_cb(lv_timer_t *t) {
         changed  = in.present != eth_info.present || in.connected != eth_info.connected || hold != eth_holds_wifi;
         eth_info = in;
     }
+    eth_up = in.connected;
     if (hold != eth_holds_wifi) {
         eth_holds_wifi = hold;
         LV_LOG_USER("Ethernet %s: WiFi radio %s",
