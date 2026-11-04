@@ -9,13 +9,16 @@ Run in namespaces of its own (unshare -rmn): no network but loopback, NetworkMan
 place, so nothing of this PC's network is touched. The web server's commands find only the programs that every
 radio image in TARGETS has (links to this PC's in a folder of their own, PATH as on the radio): no nmcli there.
 
-1. A network the radio did not have: NetworkManager has it once the restore answers, without a restart.
+1. A network the radio did not have: NetworkManager has it a moment after the restore answers, without a restart.
 2. A network it had, with another SSID in the backup: NetworkManager has the SSID of the backup.
 3. NetworkManager not reachable: the restore still puts the file in place and says so, as before; the
    network is known at NetworkManager's next start.
+4. The profile of the link the browser is on (here a dummy link with a static address, as an Ethernet one),
+   replaced by another radio's (another UUID, another address): the answer is out before NetworkManager leaves
+   that link, then the restored profile is the active one.
 
 What NetworkManager has is read with this PC's nmcli (the test's own look, not the web server's).
-WEBSERVER=<a webserver/src> tests another web server (make v038: v0.3.8's, which has to fail 1 and 2).
+WEBSERVER=<a webserver/src> tests another web server (make v038: v0.3.8's, which has to fail 1, 2 and 4).
 """
 import glob
 import io
@@ -26,6 +29,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 import types
 import unittest
@@ -72,6 +76,8 @@ BUS_CONF = f"""<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configu
 """
 UUID_HOME = "6a1d3c1e-0b7e-4b55-9d0e-2f3a4b5c6d01"
 UUID_CLUB = "6a1d3c1e-0b7e-4b55-9d0e-2f3a4b5c6d02"
+UUID_ETH = "6a1d3c1e-0b7e-4b55-9d0e-2f3a4b5c6d03"
+UUID_ETH_OTHER = "7b2e4d2f-1c8f-4c66-8e1f-3a4b5c6d7e04"     # the same profile on another radio: its own UUID
 procs = []
 work = None
 
@@ -120,6 +126,30 @@ def known():
         if kind == "802-11-wireless":
             out[name] = nm("-g", "802-11-wireless.ssid", "connection", "show", uid).stdout.strip()
     return out
+
+
+def link():
+    """The profile active on the test's wired link and the link's address: (UUID, address), else None"""
+    for line in nm("-t", "-f", "UUID,DEVICE,STATE", "connection", "show", "--active").stdout.splitlines():
+        uid, dev, state = line.rsplit(":", 2)
+        if dev == "dum0" and state == "activated":
+            return uid, nm("-g", "IP4.ADDRESS", "device", "show", "dum0").stdout.strip()
+    return None
+
+
+def until(get, want, secs=20):
+    """get() once it gives want, or what it gives after secs"""
+    end = time.monotonic() + secs
+    while (got := get()) != want and time.monotonic() < end:
+        time.sleep(0.2)
+    return got
+
+
+def reloaded():
+    """The web server's reload of NetworkManager, made a moment after the restore's answer, has run"""
+    for t in threading.enumerate():
+        if t is not threading.main_thread():
+            t.join(60)
 
 
 def setUpModule():
@@ -182,6 +212,12 @@ def profile(name, ssid, uid):
             "[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=ignore\n").encode()
 
 
+def wired(uid, addr):
+    """The Ethernet profile with a static address, on a dummy link: there is no cable here"""
+    return (f"[connection]\nid=Ethernet\nuuid={uid}\ntype=dummy\ninterface-name=dum0\n\n[dummy]\n\n"
+            f"[ipv4]\nmethod=manual\naddress1={addr}/24\n\n[ipv6]\nmethod=disabled\n").encode()
+
+
 def backup(members):
     """A backup file as the Backup page downloads it: manifest.json and the members, gzipped"""
     buf = io.BytesIO()
@@ -207,6 +243,7 @@ class WifiRestore(unittest.TestCase):
             os.remove(os.path.join(settings.WIFI_DIR, n))
         nm("connection", "reload")
         self.assertEqual(known(), {})
+        self.assertIsNone(until(link, None))
 
     def have(self, name, data):
         """A network the radio has: its file, and NetworkManager knows it"""
@@ -238,6 +275,7 @@ class WifiRestore(unittest.TestCase):
         r = self.restore({"wifi/Home.nmconnection": profile("Home", "HomeNet", UUID_HOME),
                           "wifi/Club.nmconnection": profile("Club", "ClubNet", UUID_CLUB)})
         self.assertEqual((r["restored"], r["failed"], r["gui_restarted"]), (["wifi"], {}, False))
+        reloaded()
         self.assertEqual(known(), {"Home": "HomeNet", "Club": "ClubNet"})
         self.assertEqual(os.stat(os.path.join(settings.WIFI_DIR, "Home.nmconnection")).st_mode & 0o777, 0o600)
 
@@ -246,6 +284,7 @@ class WifiRestore(unittest.TestCase):
         self.assertEqual(known(), {"Home": "OldNet"})
         r = self.restore({"wifi/Home.nmconnection": profile("Home", "HomeNet", UUID_HOME)})
         self.assertEqual((r["restored"], r["failed"]), (["wifi"], {}))
+        reloaded()
         self.assertEqual(known(), {"Home": "HomeNet"})
         with open(os.path.join(settings.BACKUP_SAFETY, "wifi", "Home.nmconnection"), "rb") as f:
             self.assertIn(b"ssid=OldNet", f.read())    # the radio's own, kept
@@ -254,10 +293,20 @@ class WifiRestore(unittest.TestCase):
         os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:path=/run/no-bus-here"
         r = self.restore({"wifi/Home.nmconnection": profile("Home", "HomeNet", UUID_HOME)})
         self.assertEqual((r["restored"], r["failed"]), (["wifi"], {}))
+        reloaded()      # with no bus to reach
         self.assertTrue(os.path.isfile(os.path.join(settings.WIFI_DIR, "Home.nmconnection")))
         self.assertEqual(known(), {})
         nm("connection", "reload")      # as NetworkManager's next start reads it
         self.assertEqual(known(), {"Home": "HomeNet"})
+
+    def test_network_in_use_replaced(self):
+        self.have("Ethernet.nmconnection", wired(UUID_ETH, "10.9.0.2"))
+        self.assertEqual(until(link, (UUID_ETH, "10.9.0.2/24")), (UUID_ETH, "10.9.0.2/24"))
+        r = self.restore({"wifi/Ethernet.nmconnection": wired(UUID_ETH_OTHER, "10.9.0.3")})
+        self.assertEqual(link(), (UUID_ETH, "10.9.0.2/24"))     # the answer went out on the link it came in on
+        self.assertEqual((r["restored"], r["failed"]), (["wifi"], {}))
+        reloaded()
+        self.assertEqual(until(link, (UUID_ETH_OTHER, "10.9.0.3/24")), (UUID_ETH_OTHER, "10.9.0.3/24"))
 
 
 if __name__ == "__main__":

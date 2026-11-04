@@ -3568,6 +3568,7 @@ BACKUP_GUI_PARTS = ("settings", "memories", "qso", "cw")   # files the GUI owns:
 # `nmcli connection reload` makes. The radios have no nmcli, and no D-Bus module for Python; dbus-send comes with D-Bus
 NM_RELOAD = ["dbus-send", "--system", "--print-reply", "--dest=org.freedesktop.NetworkManager",
              "/org/freedesktop/NetworkManager/Settings", "org.freedesktop.NetworkManager.Settings.ReloadConnections"]
+NM_RELOAD_DELAY = 2   # s after the restore's answer, see nm_reload_later
 TAR_ERRORS = (tarfile.TarError, EOFError, OSError) + ((zlib.error,) if zlib else ())
 
 backup_lock = threading.Lock()
@@ -3994,6 +3995,22 @@ def gui_stop_for_restore():
     return f"The radio screen did not stop (exit {rc}): nothing was replaced"
 
 
+def nm_reload_later():
+    """NetworkManager reads the restored networks a moment after the restore's answer has gone out. A restored
+    file that replaces the network the radio is on with another profile (another radio's, a new UUID) makes it
+    leave that network and join the restored one: the browser's link drops meanwhile, and with another radio's
+    static Ethernet address the radio moves to that address. A reload that fails leaves them to the next start"""
+    def reload():
+        try:
+            subprocess.run(NM_RELOAD, capture_output=True, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    t = threading.Timer(NM_RELOAD_DELAY, reload)
+    t.daemon = True
+    t.start()
+
+
 @app.post('/api/backup/restore')
 def restore_backup():
     body = bottle.request.json or {}
@@ -4046,11 +4063,6 @@ def restore_backup():
                 except (OSError, sqlite3.Error, ValueError, KeyError) as e:
                     failed[part] = str(e)
             os.sync()
-            if "wifi" in restored:
-                try:
-                    subprocess.run(NM_RELOAD, capture_output=True, timeout=20)
-                except (OSError, subprocess.SubprocessError):
-                    pass
         finally:
             if gui:
                 try:
@@ -4061,6 +4073,8 @@ def restore_backup():
                 except (OSError, subprocess.SubprocessError) as e:
                     failed["gui"] = f"Can't start the radio screen: {e}"
             stage_clear()
+        if "wifi" in restored:
+            nm_reload_later()
         restored = [p for p in restored if p not in failed]
         return {"restored": restored, "failed": failed, "gui_restarted": gui_up}
     finally:

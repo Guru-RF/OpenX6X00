@@ -3648,7 +3648,7 @@ The menu has General and five groups:
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
-| | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture (optionally CW trainer and WiFi) as one file, and restore the parts you choose (restored WiFi networks are taken at once, no restart needed) |
+| | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture (optionally CW trainer and WiFi) as one file, and restore the parts you choose (restored WiFi networks are taken a few seconds after, no restart needed; see below) |
 | System | Display | every display option of the radio, a few station options of the other tabs (independent VFOs, the band plan, the WR12, [TX outside ham bands](#amateur-bands-only) in the Transmitter card), and the [boot picture](#boot-picture) (see below) |
 | | Time | local and server time; Sync sets the radio clock from the browser's, in the radio's timezone; NTP sync; timezone |
 | | Network | the radio's [network name](#network-name), its [other names](#the-radios-own-names), and the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
@@ -3722,6 +3722,17 @@ and reopen the window to see the changes.
 - Upload several pictures into the SSTV and WeFax TX folders (other formats
   are converted to PNG in the browser).
 - Convert AVI to MP4 in the browser (HTTPS page only) or on the radio.
+
+Backup page (Files > Backup): the WiFi part holds every saved WiFi network
+and the [Ethernet](#ethernet) setting (the files in
+`/etc/NetworkManager/system-connections`). Restored, they are taken a few
+seconds after the page says Restored, with no restart. A restored one that
+replaces the network the radio is on with another profile of the same name
+(one from another radio, or from before the radio was flashed again and the
+network joined anew) makes the radio leave that network and join the
+restored one: the link to the browser drops for a few seconds. A restored
+Ethernet setting with another radio's static address moves the radio to
+that address; open the web configurator there.
 
 Display page (System > Display): the options of Settings > Display and a
 few station options of the other tabs, applied on the radio as you change
