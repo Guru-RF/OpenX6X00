@@ -2,11 +2,13 @@
 """Tests of the web configurator's ADIF export (#174: Logs > Export ADIF, /logs/export) on a PC, through bottle's
 WSGI app, the logs in a new temporary directory. The header is the one the radio's own logs have
 (src/field/flog.c field_adif_header): ADIF 3.1.8, PROGRAMID OpenX6X00 and the firmware's version; the records go
-out as the day's log has them, the one for #174's QSO as ft_log.adi has it too (adif_test.c). See the Makefile:
+out as the day's log has them, the one for #174's QSO as ft_log.adi has it too (adif_test.c). A band edited on the
+Logs page goes in as the radio writes it, 20m. See the Makefile:
 
     BOTTLE=<a directory with bottle.py> python3 -I -B tools/adif/adif_web_test.py [-v]
 """
 import io
+import json
 import os
 import shutil
 import sys
@@ -57,9 +59,9 @@ class Export(unittest.TestCase):
         with open(settings.APP_VERSION, "w") as f:
             f.write("0.3.8\n")
 
-    def req(self, method, path, body=b"", ctype="application/x-www-form-urlencoded"):
-        env = {"REQUEST_METHOD": method, "PATH_INFO": path, "HTTP_HOST": "192.168.1.10", "CONTENT_TYPE": ctype,
-               "CONTENT_LENGTH": str(len(body)), "wsgi.input": io.BytesIO(body)}
+    def req(self, method, path, body=b"", ctype="application/x-www-form-urlencoded", query=""):
+        env = {"REQUEST_METHOD": method, "PATH_INFO": path, "QUERY_STRING": query, "HTTP_HOST": "192.168.1.10",
+               "CONTENT_TYPE": ctype, "CONTENT_LENGTH": str(len(body)), "wsgi.input": io.BytesIO(body)}
         setup_testing_defaults(env)
         got = {}
 
@@ -86,6 +88,25 @@ class Export(unittest.TestCase):
         code, out = self.export()
         self.assertEqual(code, 200)
         self.assertEqual(out, b"OpenX6X00 log export\n<ADIF_VER:5>3.1.8 <PROGRAMID:9>OpenX6X00 <eoh>\n" + REC)
+
+    def put(self, data):
+        rid = apps.rec_id(apps.log_records("20261104.adi")[0])
+        return self.req("PUT", "/api/logs/20261104.adi/0", json.dumps(data).encode(), "application/json", "id=" + rid)
+
+    def test_edit_band(self):
+        """A band set on the Logs page goes in as the radio writes it, 20m; the page sends each column back, in
+        capitals: a band not changed leaves the record as it was"""
+        with open(self.log, "rb") as f:
+            before = f.read()
+        code, _ = self.put({"call": "EA5KDD", "band": "40M", "freq": "7.074000", "time_on": "1802"})
+        self.assertEqual(code, 200)
+        with open(self.log, "rb") as f:
+            self.assertEqual(f.read(), before)
+        code, _ = self.put({"band": "20M", "freq": "14.074000"})
+        self.assertEqual(code, 200)
+        with open(self.log, "rb") as f:
+            self.assertEqual(f.read(), before.replace(b"<BAND:3>40m <FREQ:8>7.074000",
+                                                      b"<BAND:3>20m <FREQ:9>14.074000"))
 
     def test_csv(self):
         code, out = self.export("csv")

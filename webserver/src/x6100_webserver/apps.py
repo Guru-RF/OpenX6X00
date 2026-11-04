@@ -2090,6 +2090,8 @@ def put_log_qso(name, n):
                 else:
                     rec = adif_del(adif_set(rec, "MODE", v) if v else adif_del(rec, "MODE"), "SUBMODE")
             else:
+                # A band as the radio writes it, 40m: the page sends it in capitals (#174)
+                v = v.lower() if k == "band" else v
                 rec = adif_set(rec, k.upper(), v) if v else adif_del(rec, k.upper())
         return rec
     return edit_qso(name, n, change, bottle.request.query.get("id", "")) or {"status": "OK"}
