@@ -5913,7 +5913,12 @@ activations), the other files one app's each. LoTW tells QSOs apart by call,
 band, mode, date and time, and `ft_log.adi` and the day's log once wrote the
 time in two ways (`1802` and `180259`): the same QSO uploaded from both
 counted twice. Both write it as the same record now (issue #174); the
-records `ft_log.adi` got before stay as they were written.
+records `ft_log.adi` got before stay as they were written. `ft_log.adi`,
+the day's and the activations' logs and the export start with the same
+header: a line naming the file, ADIF_VER 3.1.8, PROGRAMID OpenX6X00 and
+PROGRAMVERSION, the firmware's version (Settings > Info). An `ft_log.adi`
+begun before keeps the header it had (PROGRAMVERSION 1.0.0, ADIF_VER 3.14);
+`js8call_log.adi` keeps desktop JS8Call's.
 
 ## Reference
 

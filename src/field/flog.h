@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <time.h>
 
 #ifdef __cplusplus
@@ -70,6 +71,11 @@ const char *field_band(int32_t hz);
 
 /* One ADIF record (with <eor>) into buf; returns its length */
 size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const field_station_t *st);
+
+/* The header of an ADIF log the radio writes (field_log_add's, ft_log.adi's): title as its first line (a file that
+ * starts with a tag has no header in ADIF), the ADIF version, the program and its version, from X6100_FW (set by
+ * the GUI at its start; left out when not set). fprintf's result */
+int field_adif_header(FILE *f, const char *title);
 
 /* Appends the QSO (a header first when the file is new) */
 bool field_log_add(const char *path, const field_qso_t *q, const field_station_t *st);

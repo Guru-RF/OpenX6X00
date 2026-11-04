@@ -6,7 +6,10 @@
  *  configurator's Logs page lists and exports. Before, the two wrote the same QSO in two ways (TIME_ON 1802 and
  *  180259, BAND 40M and 40m, FREQ 7.0740 and 7.074000, empty fields), and LoTW given both files took it for two
  *  QSOs. The record of #174's QSO is the one the Logs page exported for it; ft_log.adi reads back (adif_read, the
- *  import's reader) with its seconds.
+ *  import's reader) with its seconds. Both files start with the same header (field_adif_header): a line naming the
+ *  log, ADIF 3.1.8, PROGRAMID OpenX6X00 and the firmware's version (X6100_FW, as the GUI sets it), where
+ *  ft_log.adi had PROGRAMVERSION 1.0.0 and ADIF_VER 3.14 and started with a tag (no header, to ADIF). An
+ *  ft_log.adi the older firmware started goes on with the new records, and reads back whole.
  */
 
 #include "adif.h"
@@ -147,9 +150,73 @@ static void both_logs(void) {
     free(back);
 }
 
+/* The two logs' headers, with the firmware's version and without (a PC test with no X6100_FW) */
+static void headers(void) {
+    static const char tail[] = "\n<ADIF_VER:5>3.1.8 <PROGRAMID:9>OpenX6X00 <PROGRAMVERSION:5>0.3.8 <eoh>\n";
+    char              want[160], got[160];
+    FILE             *f;
+    size_t            n;
+
+    snprintf(want, sizeof(want), "X6100 FT8, FT4 and FT2 log%s<CALL:", tail);
+    f = fopen("build/ft_log.adi", "r");
+    n = f ? fread(got, 1, strlen(want), f) : 0;
+    got[n] = 0;
+    if (f) fclose(f);
+    check(!strcmp(got, want), "ft_log.adi's header: not as the day's log's");
+    snprintf(want, sizeof(want), "X6100 Field Ops log%s<CALL:", tail);
+    f = fopen("build/day.adi", "r");
+    n = f ? fread(got, 1, strlen(want), f) : 0;
+    got[n] = 0;
+    if (f) fclose(f);
+    check(!strcmp(got, want), "the day's log's header: not the same");
+
+    unsetenv("X6100_FW");
+    f = fopen("build/header.adi", "w+");
+    field_adif_header(f, "X6100 FT8, FT4 and FT2 log");
+    rewind(f);
+    n = fread(got, 1, sizeof(got) - 1, f);
+    got[n] = 0;
+    fclose(f);
+    check(!strcmp(got, "X6100 FT8, FT4 and FT2 log\n<ADIF_VER:5>3.1.8 <PROGRAMID:9>OpenX6X00 <eoh>\n"),
+          "header without X6100_FW: not without PROGRAMVERSION");
+    setenv("X6100_FW", "0.3.8", 1);
+}
+
+/* An ft_log.adi the older firmware started (its header, #174's QSO as it wrote it) goes on with the new records */
+static void older_file(void) {
+    static const char old[] = "<PROGRAMID:9>OpenX6X00\r\n<PROGRAMVERSION:5>1.0.0\r\n<ADIF_VER:4>3.14\r\n<EOH>\r\n"
+                              "<STATION_CALLSIGN:6>EA5JTT<OPERATOR:6>EA5JTT<CALL:6>EA5KDD<QSO_DATE:8>20261104"
+                              "<QSO_DATE_OFF:8>20261104<TIME_ON:4>1802<TIME_OFF:4>1802<MODE:3>FT8<SUBMODE:0>"
+                              "<NAME:0><QTH:0><RST_SENT:3>+02<STX:0><RST_RCVD:3>-06<BAND:3>40M<FREQ:6>7.0740"
+                              "<GRIDSQUARE:4>IN81<MY_GRIDSQUARE:6>IM99TL<DISTANCE:3>316<EOR>\r\n";
+    FILE             *f = fopen("build/ft_log.adi", "w");
+    adif_log          l;
+
+    fputs(old, f);
+    fclose(f);
+    l = adif_log_init("build/ft_log.adi");
+    adif_add_qso(l, qso("DL1ABC", T174 + 75, MODE_FT4, -12, -9, 14080000, "JO62"));
+    adif_log_close(l);
+
+    qso_log_record_t *back = NULL;
+    int               n = adif_read("build/ft_log.adi", &back, NULL);
+
+    check(n == 2, "older ft_log.adi with a new QSO: not 2 QSOs read back");
+    check(n == 2 && back[0].time == T174 - 59 && back[0].band == BAND_40M && back[0].mode == MODE_FT8,
+          "older ft_log.adi: its QSO not read back at 18:02 on 40M");
+    check(n == 2 && back[1].time == T174 + 75 && back[1].mode == MODE_FT4 && !strcmp(back[1].remote_call, "DL1ABC"),
+          "older ft_log.adi: the new QSO not read back");
+    check(strstr(body("build/ft_log.adi"), "<EOR>\r\n<CALL:6>DL1ABC <QSO_DATE:8>20261104 <TIME_ON:6>180414 ") != NULL,
+          "older ft_log.adi: the new record not after the old one");
+    free(back);
+}
+
 int main(void) {
+    setenv("X6100_FW", "0.3.8", 1);     /* gui_main.c's */
     issue_qso();
     both_logs();
+    headers();
+    older_file();
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;
 }

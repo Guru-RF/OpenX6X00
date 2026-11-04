@@ -341,7 +341,8 @@ static void gui_loop(void) {
 int main(void) {
     scheduler_init();   /* this is the GUI thread */
     start_trace("GUI start, %s", VERSION);
-    setenv("X6100_FW", strrchr(VERSION, 'v') + 1, 1);   /* the helpers' User-Agent (x6100-field, spots) */
+    /* the helpers' User-Agent (x6100-field, spots), the logs' PROGRAMVERSION (field_adif_header) */
+    setenv("X6100_FW", strrchr(VERSION, 'v') + 1, 1);
     clock_tz_init();
     lv_init();
     panel_open();

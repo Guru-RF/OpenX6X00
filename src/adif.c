@@ -10,6 +10,7 @@
 #endif
 
 #include "adif.h"
+#include "board.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,8 +30,6 @@
 struct adif_log_s {
     FILE *fd;
 };
-
-static void write_header(FILE *fd);
 
 static void copy_str(char * dst, char * src, size_t val_len, size_t dst_len);
 static char * extract_str(const char * src, size_t src_len);
@@ -53,7 +52,9 @@ adif_log adif_log_init(const char * path) {
     } else {
         log->fd = log_fd;
         if (new_file) {
-            write_header(log->fd);
+            /* the day's log's header (#174). Before: PROGRAMVERSION 1.0.0, ADIF_VER 3.14, and the file
+             * started with a tag, which in ADIF means it has no header */
+            field_adif_header(log->fd, BOARD_NAME " FT8, FT4 and FT2 log");
         }
     }
     return log;
@@ -319,13 +320,6 @@ int adif_read(const char * path, qso_log_record_t ** records, int *skipped) {
     if (broken && skipped) (*skipped)++;    /* a last record without its <EOR> */
     free(data);
     return (int)count;
-}
-
-static void write_header(FILE *fd) {
-    fprintf(fd, "<PROGRAMID:9>OpenX6X00\r\n");
-    fprintf(fd, "<PROGRAMVERSION:5>1.0.0\r\n");
-    fprintf(fd, "<ADIF_VER:4>3.14\r\n");
-    fprintf(fd, "<EOH>\r\n");
 }
 
 static void copy_str(char * dst, char * src, size_t val_len, size_t dst_len) {
