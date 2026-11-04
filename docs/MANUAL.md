@@ -2194,11 +2194,14 @@ second entry.
   the other one has been quiet for a slot of yours.
 
 The log is `/mnt/ft_log.adi`; the radio says "Saved QSO de ...". The QSO
-also goes into the day's log (an activation's while one runs), which the
-web configurator's Logs page lists and exports, as the same ADIF record:
-the time to the second, the band as ADIF writes it (`40m`), the frequency
-in MHz to the Hz, no empty fields. For LoTW, upload one of the two (see
-[Where are my logs?](#where-are-my-logs)).
+also goes into the day's log, which the web configurator's Logs page lists
+and exports, as the same ADIF record: the time to the second, the band as
+ADIF writes it (`40m`), the frequency in MHz to the Hz, no empty fields.
+While an activation runs it goes into the activation's log instead, with
+the same call, date, time to the second, band, frequency and mode, and the
+activation's fields besides: its reference (MY_SOTA_REF, MY_POTA_REF or
+MY_SIG and MY_SIG_INFO) and, in Tiles, the tile as MY_GRIDSQUARE. For LoTW,
+upload one of the two (see [Where are my logs?](#where-are-my-logs)).
 
 A compound or long callsign. FT8 packs a base call, with /P or /R at most
 (ON6URE, ON6URE/P), together with a grid or a report. Any other call of
@@ -5912,9 +5915,11 @@ has every QSO (FT8, FT4, FT2, JS8, the ones logged by hand, the
 activations), the other files one app's each. LoTW tells QSOs apart by call,
 band, mode, date and time, and `ft_log.adi` and the day's log once wrote the
 time in two ways (`1802` and `180259`): the same QSO uploaded from both
-counted twice. Both write it as the same record now (issue #174); the
-records `ft_log.adi` got before stay as they were written. A band set on the
-Logs page goes in the same way (`20m`). `ft_log.adi`,
+counted twice. `ft_log.adi` and the day's log write it as the same record
+now (issue #174); an activation's log has the same call, date, time to the
+second, band, frequency and mode, with the activation's reference fields
+besides. The records `ft_log.adi` got before stay as they were written. A
+band set on the Logs page goes in the same way (`20m`). `ft_log.adi`,
 the day's and the activations' logs and the export start with the same
 header: a line naming the file, ADIF_VER 3.1.8, PROGRAMID OpenX6X00 and
 PROGRAMVERSION, the firmware's version (Settings > Info). An `ft_log.adi`

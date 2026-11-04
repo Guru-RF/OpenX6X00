@@ -91,8 +91,10 @@ field_qso_t adif_field_qso(const qso_log_record_t *r) {
 
 /* The record the day's log has for the same QSO (dialog_field_day_log): the time to the second, the band as
  * ADIF writes it ("40m"), the frequency in MHz to the Hz, no empty fields. A logbook or LoTW given both files
- * finds the same QSO twice, not two QSOs a minute apart (#174). The other station's distance is left to the
- * logbook, from GRIDSQUARE and MY_GRIDSQUARE */
+ * finds the same QSO twice, not two QSOs a minute apart (#174). An activation's log, which takes the QSO instead
+ * of the day's while one runs, has the same call, date, time, band, frequency and mode, with the activation's
+ * reference fields besides. The other station's distance is left to the logbook, from GRIDSQUARE and
+ * MY_GRIDSQUARE */
 void adif_add_qso(adif_log l, qso_log_record_t qso)
 {
     field_station_t sta = {0};
