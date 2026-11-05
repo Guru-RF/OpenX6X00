@@ -231,9 +231,9 @@ def main():
             "REV with a TX shift on 10m, away and back: vfo=1 B=30000000 A=29500000 band=10m")).strip())
 
         binary = work / "adif-frequency"
-        command([*CC, *cflags, *san, HERE / "adif-frequency.c", *gc, "-o", binary], env)
+        command([*CC, *cflags, *san, HERE / "adif-frequency.c", "src/field/flog.c", *gc, "-o", binary], env)
         command([binary], env)
-        print("B03 (fixed): the ADIF formatter writes 145.5 MHz within its buffer")
+        print("B03 (fixed): the ADIF formatter writes 145.5 MHz within its buffer (since #174 the day's log's)")
 
         binary = work / "ws-handshake"
         command([*CC, *cflags, *san, HERE / "ws-handshake.c", *gc, "-o", binary], env)
