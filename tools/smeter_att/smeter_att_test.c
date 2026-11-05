@@ -6,8 +6,8 @@
  *  a band, every figure under the top (SMETER_ATT_MAX) so that Measure can go past it, the deepest attenuator seen
  *  inside the top, and the manual's table ("X6200 bands | Attenuator"), its value outside the bands, its range
  *  ("| Attenuator | ... X6200: 0 to 70 dB") and Measure's line at the top ("ATT 70, the top, so 70 or more") the
- *  same as the code's. And the S-meter cal a band never calibrated starts at, on either radio, the same in the
- *  manual ("A band never calibrated starts at -22 dB on the X6100 and +11 dB on the X6200") as in smeter_att.h.
+ *  same as the code's. And the S-meter cal a band never calibrated starts at, one for both radios, the same in
+ *  the manual ("A band never calibrated starts at -22 dB on both radios") as in smeter_att.h.
  *  And the bands that share both (smeter_share_group): 40m CW and SSB, 20m CW and SSB, no other band of the list,
  *  40m SSB on Region 2's edges too, the ranges' edges by the middle of a band, and the manual's ranges ("from 7.000 to
  *  7.300 MHz share one value, and those from 14.000 to 14.350 MHz another") the code's.
@@ -191,21 +191,19 @@ static char *manual_text(const char *path) {
     return text;
 }
 
-/* The manual's S-meter cal start, its sentence across lines: "... starts at -22 dB on the X6100 and +11 dB on the
- * X6200" */
+/* The manual's S-meter cal start, its sentence across lines: "... starts at -22 dB on both radios" */
 static void manual_cal_start(const char *path) {
     char *text = manual_text(path);
-    int   x6100 = 99, x6200 = 99;
+    int   start = 99, end = 0;
 
     if (!text) return;
     char *s = strstr(text, "A band never calibrated starts at ");
 
     check(s != NULL, "the manual says where a band never calibrated starts", 0);
     if (!s) return;
-    sscanf(s + strlen("A band never calibrated starts at "), "%d dB on the X6100 and %d dB on the X6200", &x6100,
-           &x6200);
-    check(x6100 == SMETER_CAL_START_X6100, "the manual's cal start on the X6100, the code's", x6100);
-    check(x6200 == SMETER_CAL_START_X6200, "the manual's cal start on the X6200, the code's", x6200);
+    sscanf(s + strlen("A band never calibrated starts at "), "%d dB on both radios%n", &start, &end);
+    check(end > 0, "the manual's cal start, one for both radios", 0);
+    check(start == SMETER_CAL_START, "the manual's cal start, the code's", start);
 }
 
 /* The manual's ranges of the bands that share, their sentence across lines: "... the bands whose middle lies from
