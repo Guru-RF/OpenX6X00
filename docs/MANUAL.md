@@ -611,7 +611,9 @@ hold a flat battery up: with the radio on it fell from 6.9 to 6.4 V in 2
 minutes and the base cut the power again, while the radio took the charger for
 external power. With the battery at 7.7 to 7.8 V the stock charger did run the
 radio (issue #33, see [Charger](#general-tab)); it is a flat battery it does
-not hold. So there the radio says "Low battery, DC IN under 12 V! Turning off
+not hold. Without a battery that charger did not start the radio at all, and
+with one a restart over SSH ended with the base switching off (0 of 3), where
+a 13.5 V supply did both every time. So there the radio says "Low battery, DC IN under 12 V! Turning off
 in 30s." and switches off as on battery. With a flat battery, charge it with
 the radio off for a while first, or use a supply that reads 12.0 V or more on
 the radio (the X6200's manual asks for 12 to 13.8 V on DC IN for charging).
