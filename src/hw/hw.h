@@ -16,6 +16,7 @@
 
 #include <complex.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "../radio_types.h"
@@ -151,6 +152,12 @@ bool hw_control_init(void);
 void hw_bb_reset(void);
 /* The base answered: what it needs once (its sample format, the IF shift at rest) */
 void hw_start(void);
+
+#ifdef BOARD_X6200
+/* The base's calibration block (pa_bias.h) as it was before this run wrote to the base, read by hw_control_init;
+ * its length in *len. NULL: not read */
+const uint8_t *hw_cal_block(size_t *len);
+#endif
 
 radio_base_ver_t hw_base_ver(void);
 const char      *hw_base_ver_str(void);

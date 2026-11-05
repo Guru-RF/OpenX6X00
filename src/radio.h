@@ -9,6 +9,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "radio_types.h"
@@ -147,6 +148,10 @@ void radio_set_play_mode(audio_play_mode_t mode);
 /* The base's firmware version, and as the base prints it */
 radio_base_ver_t radio_base_ver(void);
 const char *radio_base_ver_str(void);
+#ifdef BOARD_X6200
+/* The PA bias sent and where it came from, for Settings > Info (pa_bias.h) */
+void radio_pa_bias_info(char *buf, size_t size);
+#endif
 /* HW_CAP_* bits (radio_types.h): what the base does itself */
 uint32_t radio_caps(void);
 /* CW and CW-R as the base receives them: 1 when the tone rises as the dial goes up (CW-R; CW too with

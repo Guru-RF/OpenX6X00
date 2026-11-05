@@ -13,6 +13,7 @@
 #define _GNU_SOURCE
 #include "../hw.h"
 #include "../../base_guard.h"
+#include "../../pa_bias.h"
 
 #include <aether_radio/x6200_control/control.h>
 #include <aether_radio/x6200_control/low/flow.h>
@@ -21,10 +22,14 @@
 #include <ctype.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <linux/i2c.h>
+#include <linux/i2c-dev.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 /* The GUI's enums (radio_types.h) are the library's numbers, except the modes: the X6200 has
@@ -138,7 +143,71 @@ bool hw_init(void) {
     return pack != NULL;
 }
 
+/* ---- The calibration block ---------------------------------------------------------------- */
+
+#define BASE_I2C        "/dev/i2c-0"    /* the base on the bus and address the library uses */
+#define BASE_ADDR       0x72
+#define BASE_READY      0x2000          /* not 0 once the base is ready: x6200_control_init waits for it */
+#define BASE_CAL        0x100           /* the calibration block */
+#define BASE_WAIT_S     60
+
+static uint8_t cal[PA_BIAS_BLOCK_LEN];
+static bool    cal_read;
+
+/* A read as the library's own: the register's address high byte first, then the bytes, in one transfer */
+static bool base_read(int fd, uint16_t reg, uint8_t *buf, uint16_t len) {
+    uint8_t addr[2] = { reg >> 8, reg & 0xff };
+    struct i2c_msg msgs[] = {
+        { .addr = BASE_ADDR, .flags = 0, .len = sizeof(addr), .buf = addr },
+        { .addr = BASE_ADDR, .flags = I2C_M_RD, .len = len, .buf = buf },
+    };
+    struct i2c_rdwr_ioctl_data rdwr = { .msgs = msgs, .nmsgs = 2 };
+
+    return ioctl(fd, I2C_RDWR, &rdwr) >= 0;
+}
+
+/* The block as the base has it before x6200_control_init writes the whole register block, register 41 (the PA bias)
+ * at 0 in it, and before radio.c sends the bias (#173). The library reads the block in there too but hands it to
+ * nobody; a patch for that would need a new card image, as an update brings the GUI and not the library. So it is
+ * read here first, on a descriptor of its own, as the library reads it: nothing else talks to the base yet (the
+ * radio thread starts later), and the kernel does each transfer whole. It waits for the base as the library would,
+ * a minute at most; the library then waits on by itself. The read gets the writes' tries (x6200_control_cmd above):
+ * one failed transfer would leave this run on the fixed bias, and the base would keep that in the block for every
+ * later start until it loses power */
+static void cal_block_read(void) {
+    int     fd = open(BASE_I2C, O_RDWR);
+    uint8_t ready = 0;
+    int     fails = 0;
+
+    if (fd < 0) {
+        fprintf(stderr, "hw_x6200: calibration block: %s: %s\n", BASE_I2C, strerror(errno));
+        return;
+    }
+    for (int i = 0; i < BASE_WAIT_S && !(base_read(fd, BASE_READY, &ready, 1) && ready); i++) {
+        sleep(1);
+    }
+    while (ready && !(cal_read = base_read(fd, BASE_CAL, cal, sizeof(cal))) && ++fails < TRIES) {
+        usleep(RETRY_US);
+    }
+    if (!ready) {
+        fprintf(stderr, "hw_x6200: calibration block not read (base not ready)\n");
+    } else if (!cal_read) {
+        fprintf(stderr, "hw_x6200: calibration block not read (%d tries)\n", TRIES);
+    } else if (fails) {
+        fprintf(stderr, "hw_x6200: calibration block read at try %d\n", fails + 1);
+    }
+    close(fd);
+}
+
+const uint8_t *hw_cal_block(size_t *len) {
+    *len = cal_read ? sizeof(cal) : 0;
+    return cal_read ? cal : NULL;
+}
+
 bool hw_control_init(void) {
+    if (!cal_read) {
+        cal_block_read();
+    }
     return x6200_control_init();
 }
 
