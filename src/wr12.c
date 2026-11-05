@@ -6,6 +6,8 @@
  *  lists them; an R820T-type tuner inside). Set up with AT+INIT, its gains and AGCs, and AT+BYPASS=1: the antenna
  *  straight through to the radio, as it starts up. To receive, AT+FREQ=<Hz> and AT+BYPASS=0, the base meanwhile on
  *  the WR12's IF (radio.c); AT+AYT keeps the line alive. The commands and their order as ea4iln reported them in #134.
+ *  A command within about 2 ms of its last answer goes unanswered (measured on a WR12: none at 0 ms, a third at 1 ms,
+ *  all from 2 ms on): nothing goes to it sooner than GAP_MS after it last sent anything, on_term's AT+BYPASS=1 too.
  *
  *  One thread has the port: the GUI says what it wants (wr12_want) and reads the state, and never waits for the WR12.
  *  Each answer goes into the log when it differs from the last one to that command, so a knob turned or the
@@ -73,8 +75,10 @@
 #endif
 #define BACK_MS     250     /* gone from USB out of its bypass: looked for again this often meanwhile */
 #define STEP_MS     100     /* between the commands of the set-up */
+#define GAP_MS      10      /* the WR12 quiet this long before a command, well past the 2 ms it is deaf after its OK */
 #define DEFER_MS    50      /* the radio in TX: AT+BYPASS=0 tried again */
 #define TERM_MS     20      /* SIGTERM: AT+BYPASS=1 this long on its way over USB before the GUI ends */
+#define ASKED_MS    25      /* SIGTERM: a command of the thread's on its way, its answer waited for this long at most */
 #define SETTLE_MS   50      /* back in its bypass after being out, or maybe: TX free this long after its OK */
 #define DRAIN_MAX   4096    /* what waits before a command, dropped: more than this, or for longer than DRAIN_MS, */
 #define DRAIN_MS    50      /* and it is taken for a port that never stops sending */
@@ -106,9 +110,13 @@ static atomic_bool     notify_due;
 static bool          (*notify_fn)(void);
 static bool          (*keyed_fn)(void);
 
-/* The port for on_term, -1 none open; dying: on_term under way, the thread sends nothing more */
+/* The port for on_term, -1 none open; dying: on_term under way, the thread sends nothing more; asked: a command of
+ * the thread's sent or about to be, its answer not in yet nor its time up; heard_ms: when the WR12 last sent anything
+ * (now_ms, its low 32 bits: whole in one load, in on_term too) */
 static atomic_int      sig_fd = -1;
 static atomic_bool     dying;
+static atomic_bool     asked;
+static atomic_uint     heard_ms;
 
 /* The thread's own: the port, the WR12 as its answers left it */
 static int             fd = -1;
@@ -151,6 +159,18 @@ static void sleep_ms(unsigned ms) {
 
     while (nanosleep(&t, &t) != 0 && errno == EINTR) {
     }
+}
+
+/* The WR12 sent something just now; how long it has been quiet since (from on_term too: clock_gettime is a call a
+ * signal handler may make) */
+static void heard(void) {
+    atomic_store(&heard_ms, (unsigned)now_ms());
+}
+
+static unsigned quiet_ms(void) {
+    unsigned h = atomic_load(&heard_ms);    /* before the clock: a heard() meanwhile then cannot make it wrap */
+
+    return (unsigned)now_ms() - h;
 }
 
 /* The GUI told (notify_fn) that something changed; again from the loop while its queue is full */
@@ -292,9 +312,11 @@ static bool port_open(const char *name) {
     return true;
 }
 
-/* on_term under way: this thread neither sends nor lets the port go any more, until the GUI ends */
+/* on_term under way: this thread neither sends nor lets the port go any more, until the GUI ends; the command it was
+ * about to send not asked, so that on_term does not wait for its answer */
 static void stay_if_dying(void) {
     while (atomic_load(&dying)) {
+        atomic_store(&asked, false);
         pause();
     }
 }
@@ -306,27 +328,41 @@ static void port_close(void) {
     fd = -1;
 }
 
-/* What waits on the port, dropped: an answer too late for its command is not the next one's. DRAIN_GONE: the port
- * went. DRAIN_ENDLESS: more than DRAIN_MAX, or still coming after DRAIN_MS (a device with the WR12's USB id that
- * never stops, a WR12 stuck in a DUMP): the command is then not sent and counts as unanswered, so that this thread
- * is not held here for good and FAILS and lose() see to it */
+/* What waits on the port, dropped, until the WR12 has been quiet GAP_MS: an answer too late for its command is not
+ * the next one's, and a command too soon after an answer goes unanswered. DRAIN_GONE: the port went. DRAIN_ENDLESS:
+ * more than DRAIN_MAX, or still coming after DRAIN_MS (a device with the WR12's USB id that never stops, a WR12 stuck
+ * in a DUMP): the command is then not sent and counts as unanswered, so that this thread is not held here for good
+ * and FAILS and lose() see to it */
 static drain_t drain(void) {
     char     buf[256];
     size_t   got = 0;
     uint64_t end = now_ms() + DRAIN_MS;
     ssize_t  n;
 
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        got += (size_t)n;
-        if (got > DRAIN_MAX || now_ms() >= end) {
-            if (!endless_said) {
-                endless_said = true;
-                fprintf(stderr, "wr12: %s keeps sending: taken for not answering\n", port);
+    for (;;) {
+        unsigned      quiet = quiet_ms();
+        struct pollfd p = {fd, POLLIN, 0};
+
+        if ((n = read(fd, buf, sizeof(buf))) > 0) {
+            heard();
+            got += (size_t)n;
+            if (got > DRAIN_MAX || now_ms() >= end) {
+                if (!endless_said) {
+                    endless_said = true;
+                    fprintf(stderr, "wr12: %s keeps sending: taken for not answering\n", port);
+                }
+                return DRAIN_ENDLESS;
             }
-            return DRAIN_ENDLESS;
+            continue;
         }
+        if (n == 0 || (errno != EAGAIN && errno != EINTR)) {
+            return DRAIN_GONE;
+        }
+        if (quiet >= GAP_MS) {
+            return DRAINED;
+        }
+        poll(&p, 1, (int)(GAP_MS - quiet));     /* what comes meanwhile is dropped too, and waited out */
     }
-    return n < 0 && (errno == EAGAIN || errno == EINTR) ? DRAINED : DRAIN_GONE;
 }
 
 /* One command, and its answer: the first line with ERROR or OK in it (an echo before it is passed over), a line ending
@@ -339,10 +375,11 @@ static answer_t command(const char *cmd) {
     answer_t a = ANS_NONE;
     drain_t  d;
 
-    stay_if_dying();
+    d = drain();
+    atomic_store(&asked, d == DRAINED);     /* before dying is looked at: on_term sees it, or this thread sees dying */
+    stay_if_dying();                        /* after drain's wait: on_term may have begun during it */
     sent_ms = now_ms();
     end = sent_ms + ANSWER_MS;
-    d = drain();
     if (d == DRAIN_GONE || (d == DRAINED && write(fd, out, n) != n)) {
         a = ANS_GONE;
     }
@@ -372,6 +409,9 @@ static answer_t command(const char *cmd) {
             a = ANS_GONE;
             break;
         }
+        if (k > 0) {
+            heard();
+        }
         for (ssize_t i = 0; i < k && a == ANS_NONE; i++) {
             if (buf[i] != '\n' && buf[i] != '\r') {
                 if (len < sizeof(line) - 1) {
@@ -384,6 +424,7 @@ static answer_t command(const char *cmd) {
             a = strstr(line, "ERROR") ? ANS_ERROR : strstr(line, "OK") ? ANS_OK : ANS_NONE;
         }
     }
+    atomic_store(&asked, false);
     fails = a == ANS_NONE ? fails + 1 : 0;
     said_answer(cmd, a, true);
     return a;
@@ -720,16 +761,23 @@ static void *run(void *arg) {
 
 /* SIGTERM, which S95gui stops the GUI with (a restart, an update or its rollback, a shutdown): the WR12 back in its
  * bypass on the GUI's way out. The GUI after this one may be a version that knows no WR12, and would transmit into
- * it. The thread stopped first (dying), a command of its own on its way let go, then AT+BYPASS=1 and TERM_MS for it
- * to leave over USB; its answer is not waited for: the mark stays, and the next GUI that knows the WR12 holds TX
- * until it has seen it. Then the GUI ends as SIGTERM ends it (exit code 143 in x6100_daemon). Only calls a signal
- * handler may make */
+ * it. The thread stopped first (dying), a command of its own on its way let go and its answer waited for (ASKED_MS
+ * at most), then AT+BYPASS=1, no sooner than GAP_MS after the WR12 last sent anything (twice that at most, for a port
+ * that keeps sending), and TERM_MS for it to leave over USB; its answer is not waited for: the mark stays, and the
+ * next GUI that knows the WR12 holds TX until it has seen it. Then the GUI ends as SIGTERM ends it (exit code 143 in
+ * x6100_daemon), some 70 ms after it at most. Only calls a signal handler may make */
 static void on_term(int sig) {
     static const char cmd[] = "AT+BYPASS=1\r\n";
     int               f;
 
     atomic_store(&dying, true);
     poll(NULL, 0, 5);
+    for (int i = 0; i < ASKED_MS && atomic_load(&asked); i++) {
+        poll(NULL, 0, 1);
+    }
+    for (int i = 0; i < 2 * GAP_MS && quiet_ms() < GAP_MS; i++) {
+        poll(NULL, 0, 1);   /* what the thread hears meanwhile waited out too */
+    }
     f = atomic_load(&sig_fd);
     if (f >= 0 && write(f, cmd, sizeof(cmd) - 1) > 0) {
         poll(NULL, 0, TERM_MS);
