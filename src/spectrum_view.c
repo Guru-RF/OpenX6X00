@@ -367,6 +367,13 @@ void spectrum_draw_cb(lv_event_t *e) {
     lv_draw_line_dsc_t line;
     lv_draw_rect_dsc_t band;
 
+    /* Spectrum off (main_screen parks this under the top chrome at OPA_TRANSP): do not
+     * paint — LVGL still runs DRAW_MAIN_END, and a translucent S-meter would show the
+     * trace behind it. Same gate as direct_render(). */
+    if (lv_obj_get_style_opa(o, 0) < LV_OPA_MIN) {
+        return;
+    }
+
     lv_draw_line_dsc_init(&line);
     line.color = fill_color();
     line.width = 1;
@@ -615,6 +622,9 @@ static void direct_render(void) {
 
 static void spectrum_refresh(void *data) {
     keep_trace();
+    if (lv_obj_get_style_opa(obj, 0) < LV_OPA_MIN) {
+        return;     /* parked under the top chrome while Settings > Display > Spectrum is off */
+    }
     if (!direct) {
         lv_obj_invalidate(obj);
     } else if (lv_obj_get_screen(obj) == lv_scr_act()) {    /* not under the walkie screen */
