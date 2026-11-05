@@ -499,7 +499,8 @@ the Mercury modem; SP2KMO the Bluetooth tab, PSK31, PSK63 and Olivia, the
 WSJT-X UDP output, the FT8 country and distance, and FT2 (IU8LMC's mode);
 randal007 the PSK and Olivia merge, the Bluetooth scan and
 recovery, the JS8 map, the high-SWR guard and the digital-mode drive level;
-2E0JFS the Black Metal and Total Black themes. Libraries: LVGL, cJSON, FFTW,
+2E0JFS the Black Metal and Total Black themes; OM0WT the Amber Trey theme.
+Libraries: LVGL, cJSON, FFTW,
 liquid-dsp, ft8_lib, libpng, Boost, Eigen, CRCpp, bottle, jQuery, mp4-muxer,
 PulseAudio, BlueZ. The country list is AD1C's cty.dat. The band plans are our
 reduction of the IARU Region 1, 2 and 3 band plans, 47 CFR Part 97 (FCC) and
