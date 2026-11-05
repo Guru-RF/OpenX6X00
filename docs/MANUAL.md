@@ -1204,8 +1204,8 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
   back (see [Buttons and knobs](#buttons-and-knobs)).
 - Theme: see [Themes](#themes). A new theme applies at once, without a restart.
 - Font: Sony Sketch, Roboto or DejaVu (default). A new font applies at once.
-  Themes with their own font (Black Metal, Total Black, 1bit, Amber Trey, a
-  theme file that sets one) keep it.
+  Themes with their own font (Classic, Black Metal, Total Black, 1bit,
+  Amber Trey, a theme file that sets one) keep it.
 - Broadcast names (from v0.127): tuned to a broadcast station on the air,
   the frequency strip shows "BC <station name>" in a light blue box instead
   of the band name. The names come from the broadcast list (see the
@@ -3869,7 +3869,7 @@ restart.
 | Theme | Look |
 |---|---|
 | RF.Guru | default: near-black surfaces, gold for what is on, electric blue as the second accent |
-| Classic | black, grey keys, the look of a classic transceiver |
+| Classic | black, grey keys, the look of a classic transceiver; Arial, its own font |
 | Outdoor | for the sun: light, black text, grey waterfall, S-meter in one grey gradient |
 | Outdoor-Negative | Outdoor with the lightness inverted: dark, white text, the hues kept |
 | VISION | for weak eyes: big type, white digits on dark grey, orange for what is on, aqua frames; the S-meter on a row of its own, always bars |
@@ -6006,8 +6006,8 @@ program on the PC takes its audio from the USB cable or [TCI](#tci-server).
 
 #### The new font did not change anything
 
-Black Metal, Total Black, 1bit, Amber Trey and theme files that set a font have
-their own and keep it: pick another theme to see the font you chose.
+Classic, Black Metal, Total Black, 1bit, Amber Trey and theme files that set a
+font have their own and keep it: pick another theme to see the font you chose.
 
 #### The waterfall stays black and the S-meter does not move
 

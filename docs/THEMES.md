@@ -61,7 +61,7 @@ Every key is optional: what a file does not set comes from its `base`.
 | `border` | border width of boxes and buttons (3 or more: high contrast boxes) |
 | `btn_gradient`, `box_gradient` | vertical gradient `btn` -> `btn_grad` on the buttons, `bar` -> `bar_grad` etc. on the boxes |
 | `focus_solid` | the focused control in Settings is filled with `focus` (else half see-through) |
-| `font` | `sony`, `roboto`, `dejavu`, `arial` or `pixel` (1bit's); without it the font chosen in Settings |
+| `font` | `sony`, `roboto`, `dejavu`, `arial` or `pixel` (1bit's); without it the base's own (Arial on Classic, Roboto Condensed on Black Metal, Total Black and Amber Trey, pixel on 1bit), on the other bases the font chosen in Settings |
 | `ink`, `paper` | on base `1bit` only: its two colours (`#000000` and `#efece2`), say a green LCD that still has only two |
 | `waterfall` | 2 to 16 colours from weak to strong signal |
 | `waterfall_steps` | 0 smooth, else that many flat bands |
