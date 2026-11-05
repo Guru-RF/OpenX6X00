@@ -5943,7 +5943,7 @@ Logs page shows them all. What PSK, Olivia, Contestia and JTTY received and sent
 | `14` | `15` | Monitor level | yes | - |
 | `15` | `02` | S-meter (the CI-V scale, 120 = S9, for network clients) | yes | - |
 | `15` | `11` | TX power meter (0 in receive, and in a transmission until its first reading) | yes | - |
-| `15` | `12` | SWR meter (0 for SWR 1.0, and as the power meter) | yes | - |
+| `15` | `12` | SWR meter, on the CI-V scale: 0 = SWR 1.0, 48 = 1.5, 80 = 2.0, 120 = 3.0, 200 = 5.0, the most the radio reads (as the power meter: 0 before a reading). Up to v0.3.8 it turned down above SWR 3.2: SWR 5 gave 23, which a CAT program reads as 1.2 | yes | - |
 | `15` | `13` | ALC meter (as the power meter) | yes | - |
 | `16` | `02` | Preamp | yes | yes |
 | `16` | `22` | Noise blanker | yes | yes |
