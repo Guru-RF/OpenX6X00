@@ -294,8 +294,9 @@ class SettingsManager {
     // Spectrum and waterfall: 0 = VFO centered (the view follows it), 1 = fixed span (the VFO line moves)
     Parameter<int32_t> p_wf_mode{"wf_mode", 0, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // Waterfall drawn in 3D: the last rows as traces one behind the other (waterfall_view.c)
-    Parameter<int32_t> p_wf_3d{"wf_3d", false, 0, 1,
+    // Waterfall drawn in 3D: the last rows as traces one behind the other (waterfall_view.c). On by default: only a
+    // change is stored, so a radio that never switched it gets 3D, and one switched off keeps its stored 0
+    Parameter<int32_t> p_wf_3d{"wf_3d", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // 3D colours: 0 by strength (blue, green, yellow, red), 1 the waterfall's, 2 blue
     Parameter<int32_t> p_wf_3d_colors{"wf_3d_colors", 0, 0, 2,

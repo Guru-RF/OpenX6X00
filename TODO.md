@@ -3,8 +3,9 @@
 ## Waterfall: the 3D band scope on the radios (PR #161, merged)
 
 Merged on main 5 November (Calin Rigo, timerealm, PR #161, squashed): Settings > Display > WATERFALL > 3D, all
-drawing in src/waterfall_view.c (its "3D" section), for the DRM plane and the LVGL image. Off by default; under the
-Amber Trey display it stays off. Run on the PC build only: d3_render() 0.18-0.65 ms a picture there (our timing, his
+drawing in src/waterfall_view.c (its "3D" section), for the DRM plane and the LVGL image. On by default since 5
+November (the owner's call): a radio that never switched it starts in 3D, one switched off keeps its stored 0; under
+the Amber Trey display it stays off. Run on the PC build only: d3_render() 0.18-0.65 ms a picture there (our timing, his
 ~175 us), the GUI thread from 46 % to 84-88 % of a PC core with 3D on, most of it LVGL drawing the picture, as the PC
 has no DRM planes. The radios take the DRM path, which nobody has run yet; drm_wf_present_ring() then runs up to 30
 times a second instead of 15. 1.5 MB for the background, allocated the first time 3D is on.
@@ -15,7 +16,8 @@ times a second instead of 15. 1.5 MB for the background, allocated the first tim
   3D glide on and off; FT8 decodes and CW keying with 3D on; the 1bit theme and the MFK 4:4 page; Hide buttons on
   (the front edge down to the bottom while hidden); walkie mode and the screen dark draw nothing (read from the code
   only), a remote viewer still gets the picture. If 30 pictures a second are heavy on the X6100, 3D glide off is the
-  step at each row. He has no X6100; his `top` numbers from an X6200 may come first.
+  step at each row. He has no X6100; his `top` numbers from an X6200 may come first. As it is on by default: an
+  update from v0.3.8 starts in 3D, and a radio with 3D switched off stays flat after the next update.
 - **After that**: 3D shots for the README gallery from the radio, on an antenna. The front labels sit under the Knob
   info lines at the bottom left (seen on the PC build, zoomed in).
 

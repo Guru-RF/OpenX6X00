@@ -868,7 +868,7 @@ Where: Settings > Display > WATERFALL.
 | Line, zoom | a line on the VFO; zoom with the waterfall instead of the span |
 | Smooth scroll | scrolls by pixels instead of lines |
 | Speed | 3 = 15 lines/s (default), 4 = 20, 5 = 30; 2 = 7.5 and 1 = 5 average the frames into a line: less noise and less CPU |
-| 3D | the last 6 seconds as traces one behind the other, the newest in front (below) |
+| 3D | the last 6 seconds as traces one behind the other, the newest in front (below); on by default, off for the flat waterfall |
 | 3D colours | shown with 3D: Strength (blue, green, yellow, red as the signal grows), Waterfall (the waterfall's colours), Blue |
 | 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how much above the noise floor is cut away |
 | 3D range | shown with 3D: the dB above the noise floor at a trace's full height (20-60, 40 by default); less makes weak signals taller |
@@ -903,6 +903,8 @@ signal leaves a slanted trail. Speed sets how far back the stack goes.
 Switched on and off live, also from the web configurator's Display page, the
 MFK 4:4 page (3D on/off, and Depth, Tilt and Floor on the knob), or a front
 key's long press or a hand mic F key set to "WF 3D on/off" (Settings > Keys).
+3D is on by default: a radio updated from v0.3.8, which had no 3D, starts
+with it. Once switched off it stays off, over later updates too.
 
 In Fixed mode the span stays still and the VFO line moves across it. The
 spectrum comes in only for the span around where the radio listens (the
