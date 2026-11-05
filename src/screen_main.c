@@ -48,6 +48,7 @@
 #include "gps_window.h"
 #include "dialog_field.h"
 #include "dialog_bands.h"
+#include "ops_room.h"
 #include "dialog_snake.h"
 #include "qth_entry.h"
 #include "recorder_window.h"
@@ -1770,6 +1771,7 @@ lv_obj_t * main_screen() {
     lv_obj_add_event_cb(obj, rx_tx_cb, EVENT_RADIO_TX, NULL);
     lv_obj_add_event_cb(obj, rx_tx_cb, EVENT_RADIO_RX, NULL);
     lv_obj_add_event_cb(obj, screen_update_cb, EVENT_SCREEN_UPDATE, NULL);
+    ops_room_init(obj);
 
     lv_obj_add_style(obj, &background_style, LV_PART_MAIN);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);

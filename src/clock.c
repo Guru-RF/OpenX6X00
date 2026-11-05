@@ -7,6 +7,7 @@
  */
 
 #include "clock.h"
+#include "ops_room.h"
 #include "board.h"
 
 #include "styles.h"
@@ -94,6 +95,10 @@ static void show_time() {
 
     now = time(NULL);
     t = localtime(&now);
+    if (theme_shape.ops_room) {     /* drawn in draw_cb */
+        lv_obj_invalidate(obj);
+        return;
+    }
 
     lv_label_set_text_fmt(time_label, "%02i:%02i", t->tm_hour, t->tm_min);
     lv_label_set_text_fmt(sec_label, ":%02i", t->tm_sec);
@@ -199,6 +204,19 @@ static void show_time() {
     pthread_mutex_unlock(&power_mux);
 }
 
+/* Ops Room: the time in 7-segment digits between INTERNAL / EXTERNAL and the charge, and the time
+ * the battery has left as the activity limit under it (ops_room.c draws) */
+static void draw_cb(lv_event_t *e) {
+    time_t     now = time(NULL);
+    struct tm *t = localtime(&now);
+
+    pthread_mutex_lock(&power_mux);
+    ops_room_clock_t c = {.h = t->tm_hour, .m = t->tm_min, .s = t->tm_sec, .cap = cap_bat,
+                          .ext = charging || v_ext > 3.0f, .est_min = est_min, .known = v_bat >= 3.0f || v_ext >= 3.0f};
+    pthread_mutex_unlock(&power_mux);
+    ops_room_clock_draw(lv_event_get_target(e), lv_event_get_draw_ctx(e), &c);
+}
+
 lv_obj_t * clock_init(lv_obj_t * parent) {
     if (!obj) pthread_mutex_init(&power_mux, NULL);
 
@@ -206,6 +224,7 @@ lv_obj_t * clock_init(lv_obj_t * parent) {
 
     lv_obj_add_style(obj, &clock_style, 0);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    if (theme_shape.ops_room) lv_obj_add_event_cb(obj, draw_cb, LV_EVENT_DRAW_MAIN_END, NULL);
 
     lv_obj_t *row = lv_obj_create(obj);
     lv_obj_remove_style_all(row);
@@ -264,6 +283,10 @@ lv_obj_t * clock_init(lv_obj_t * parent) {
         lv_obj_set_style_text_color(power_labels[3], TC(text_mute), 0);
     }
 
+    if (theme_shape.ops_room) {
+        lv_obj_add_flag(lv_obj_get_parent(time_label), LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_HIDDEN);
+    }
     show_time();
     if (!timer_time_sync) {     /* not again on a theme change */
         lv_timer_create(show_time, 500, NULL);

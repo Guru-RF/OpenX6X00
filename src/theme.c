@@ -339,6 +339,7 @@ static bool load_file(const char *name) {
     get_bool(root, "rule", &theme_shape.rule);
     get_int(root, "btn_text_size", &theme_shape.btn_text_size);
     get_bool(root, "btn_caps", &theme_shape.btn_caps);
+    get_bool(root, "ops_room", &theme_shape.ops_room);
     v = theme_shape.waterfall_steps;
     get_int(root, "waterfall_steps", &v);
     theme_shape.waterfall_steps = v;
@@ -349,7 +350,8 @@ static bool load_file(const char *name) {
                            !strcasecmp(font, "dejavu") ? FONT_DEJAVU :
                            !strcasecmp(font, "arial") ? FONT_ARIAL :
                            !strcasecmp(font, "pixel") ? FONT_PIXEL :
-                           !strcasecmp(font, "sony") ? FONT_SONY : -1;
+                           !strcasecmp(font, "sony") ? FONT_SONY :
+                           !strcasecmp(font, "rcond") ? FONT_RCOND : -1;    /* Roboto Condensed, the deck themes' */
     }
     const cJSON *wf = cJSON_GetObjectItemCaseSensitive(root, "waterfall");
     if (cJSON_IsArray(wf) && cJSON_GetArraySize(wf) >= 2) {
