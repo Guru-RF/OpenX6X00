@@ -195,6 +195,7 @@ typedef struct {
                              * VISION and the walkie's narrow buttons fit theirs */
     bool    btn_caps;       /* that text in capitals, a unit after a number kept ("FILTER HIGH 2950 Hz") */
     bool    rule;           /* accent line under the top bar and over the active button (Holo) */
+    bool    codec;          /* Codec: the S-meter as a SIGNAL bar of segments, the scale under it (smeter.c) */
     bool    vision;         /* VISION: big type for weak eyes, a low top bar, a tall frequency strip, the S-meter on a row of its own */
 #define VISION_FONT_STEPS 3 /* VISION: every font this many sizes up, apps and Settings too (fonts_scale) */
     bool    deck;           /* Black Metal, Total Black: two rows of state on top, S/SWR/ALC scales beside a big
