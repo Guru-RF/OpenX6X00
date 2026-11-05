@@ -691,7 +691,8 @@ up whatever that switch, and the box never showed the readings (issue
 
 Each transmission's power, SWR and ALC start from 0, on the radio, on the
 browser panel, over TCI and over CAT, until the radio's first reading of it.
-Up to v0.3.8 a transmission could start with the last one's readings: a
+TCI sends that SWR as 1.0, the least an SWR can be. Up to v0.3.8 a
+transmission could start with the last one's readings: a
 1 W transmission right after an 8 W one read 7.9 W over TCI as it keyed,
 before any of its audio went out (issue #53).
 
@@ -5019,7 +5020,7 @@ program on the network tunes the radio, hears it and keys it.
   audio as the microphone), `rx_smeter` and `rx_channel_sensors` (the
   S-meter in dBm, after `rx_sensors_enable:true;`), `tx_sensors` (mic level,
   forward power, SWR, ALC, after `tx_sensors_enable:true;`; 0 from the key
-  until the radio's first reading), the RX audio
+  until the radio's first reading, the SWR 1.0, never less), the RX audio
   stream (`audio_start`, in the client's format, below) and the TX audio
   frames the client answers to each `TX_CHRONO`. The greeting ends with
   `start;` then `ready;`: the radio is running, as ExpertSDR3 says of an SDR

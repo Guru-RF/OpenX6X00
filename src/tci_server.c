@@ -1573,11 +1573,13 @@ static void telemetry(uint64_t now, const rstate_t *s) {
             if (clients[i].fd >= 0 && clients[i].up && clients[i].rx_sensors)
                 client_textf(&clients[i], "rx_channel_sensors:0,0,%.1f;", (double)db);
     }
-    /* From the key on, before the base's first TX packet: 0 until this TX's first reading, not the last TX's (#53) */
+    /* From the key on, before the base's first TX packet: 0 until this TX's first reading, not the last TX's (#53).
+     * The SWR then 1.0, the least an SWR can be: a client may take the return loss from it, which has none below 1 */
     if (s->tx && now - txsens_ms >= TXSENS_MS) {
         txsens_ms = now;
         float pwr, swr, alc = tx_info_get_alc(NULL);
         tx_info_get(&pwr, &swr);
+        swr = fmaxf(swr, 1.0f);
         for (int i = 0; i < MAX_CLIENTS; i++)
             if (clients[i].fd >= 0 && clients[i].up && clients[i].tx_sensors)
                 client_textf(&clients[i], "tx_sensors:0,%.1f,%.1f,%.1f,%.2f,%.1f;", -20.0, (double)pwr, (double)pwr,

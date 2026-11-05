@@ -140,15 +140,15 @@ bool main_screen_freq_locked(void) { return false; }
 bool main_screen_mode_locked(void) { return false; }
 void main_screen_set_freq(uint64_t f) { freq.v = (int32_t)f; }
 
-/* ---- the meters: an S-meter that breathes, 50 W out ---- */
+/* ---- the meters: an S-meter that breathes; in TX the 0 before the base's first reading (tx_info_clear) ---- */
 int16_t meter_get_raw_db(void) {
     static int n;
     return (int16_t)(-100 + (n++ % 30));
 }
-void tx_info_get(float *p, float *s) { *p = 5.0f; *s = 1.3f; }
+void tx_info_get(float *p, float *s) { *p = 0.0f; *s = 0.0f; }
 float tx_info_get_alc(bool *greyed) {
     if (greyed) *greyed = false;
-    return 0.4f;
+    return 0.0f;
 }
 
 /* ---- the audio out: what each transmission played, counted, and kept in the file
