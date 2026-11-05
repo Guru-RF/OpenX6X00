@@ -44,7 +44,8 @@ Everything else typed goes into the GUI as a USB keyboard would.
 | Ctrl+V, Ctrl+G, Ctrl+F      | V/M, AGC, FST                 |
 | Ctrl+P                      | PTT (the stub only pretends)  |
 
-The mouse is a pointer: what is clickable on the screen can be clicked.
+The mouse is a pointer: what is clickable on the screen can be clicked. The F1–F5
+slots on the bottom bar take a click and a hold the same way the front keys do.
 
 ## What is not there
 

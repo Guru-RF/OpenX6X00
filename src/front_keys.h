@@ -32,7 +32,8 @@ void keypad_power_set(bool down);
 
 /* One already-decoded button, the same press / hold / release as a matrix key. value 1 is the
  * press; 0 is the release. GUI thread. For a board whose keys are not the X6100's
- * BTN_TRIGGER_HAPPY codes */
+ * BTN_TRIGGER_HAPPY codes. The caller runs ctl_local_input() and backlight_tick() first on a
+ * press, as keypad_power_set() does: this path does not. */
 void keypad_button(keypad_key_t key, int value);
 
 /* Bottom buttons: a hold is a press longer than this many ms (0: back to 1 s), for an app

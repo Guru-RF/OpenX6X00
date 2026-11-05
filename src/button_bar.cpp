@@ -30,6 +30,9 @@ extern "C" {
 #include "msg_box.h"
 #include "walkie.h"
 #include "cw_field.h"
+#include "front_keys.h"
+#include "control_owner.h"
+#include "screen_light.h"
 }
 
 #define STATE_ASSIGNED LV_STATE_USER_1  /* bound to a knob in the knob binds */
@@ -545,13 +548,21 @@ static lv_obj_t *make_mark(lv_obj_t *btn, lv_coord_t x, lv_coord_t y) {
     return m;
 }
 
+/* Pointer on an F-slot: press and release the same key the front panel uses, so the
+ * hold time (HOLD_MS / keypad_set_long_time) and Hide-buttons wake match a real key. */
 static void slot_event_cb(lv_event_t *e) {
-    uint8_t n = (uint8_t)(intptr_t)lv_event_get_user_data(e);
+    uint8_t         n    = (uint8_t)(intptr_t)lv_event_get_user_data(e);
+    lv_event_code_t code = lv_event_get_code(e);
+    keypad_key_t    key  = (keypad_key_t)(KEYPAD_F1 + n);
 
-    if (lv_event_get_code(e) == LV_EVENT_SHORT_CLICKED) {
-        buttons_press(n, false);
-    } else if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) {
-        buttons_press(n, true);
+    if (code == LV_EVENT_PRESSED) {
+        ctl_local_input();
+        if (backlight_tick()) {
+            return;     /* woke the screen: that was the press's job */
+        }
+        keypad_button(key, 1);
+    } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+        keypad_button(key, 0);
     }
 }
 
@@ -568,8 +579,9 @@ static void make_slot(disp_btn_t *s, lv_obj_t *parent, lv_coord_t x, uint8_t idx
     lv_obj_set_pos(f, x + BTN_INSET, 480 - BTN_HEIGHT + BTN_INSET);
     lv_obj_set_size(f, BTN_WIDTH - 2 * BTN_INSET, BTN_HEIGHT - 2 * BTN_INSET);
     lv_obj_add_flag(f, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(f, slot_event_cb, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)idx);
-    lv_obj_add_event_cb(f, slot_event_cb, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)idx);
+    lv_obj_add_event_cb(f, slot_event_cb, LV_EVENT_PRESSED, (void *)(intptr_t)idx);
+    lv_obj_add_event_cb(f, slot_event_cb, LV_EVENT_RELEASED, (void *)(intptr_t)idx);
+    lv_obj_add_event_cb(f, slot_event_cb, LV_EVENT_PRESS_LOST, (void *)(intptr_t)idx);
 
     /* Knob marks: a bar on the left edge, green VOL, blue MFK, or the theme's LED */
     lv_coord_t mx = theme_shape.mark[1] ? theme_shape.mark[0] : 0;
