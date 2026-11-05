@@ -2,9 +2,9 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
  *  OpenX6X00 - a radio made of nothing, behind hw.h: every setting is kept and read back, the
- *  packet stream is noise with one carrier 1 kHz up (or a recording, HOST_STUB_IQ), the battery sits at 7.8 V. For the GUI on a
- *  desktop (cmake -DHW_BACKEND=stub) and as the template for a new radio's backend: everything
- *  hw.h asks for, in the order of hw.h, with nothing else to read around it.
+ *  packet stream is noise with one carrier 1 kHz up (or a recording, HOST_STUB_IQ), the battery sits
+ *  at 7.8 V. For the GUI on a desktop (cmake -DHW_BACKEND=stub) and as the template for a new radio's
+ *  backend: everything hw.h asks for, in the order of hw.h, with nothing else to read around it.
  *
  *  Copyright (c) 2026 RF.Guru
  */

@@ -27,7 +27,7 @@ GPS.
 The stub radio's stream is noise with one carrier. `HOST_STUB_IQ=<file>` plays a recording instead, round and
 round: 100 kS/s complex float32 (I and Q interleaved), centred on the dial and the other way up as the radio's
 stream is (a signal f above the dial at -f). Tune the GUI to the frequency it was recorded around, so the scale
-reads true. `docs/screenshots/waterfall_3d_real.gif` was made this way.
+reads true.
 
 ## Keys
 

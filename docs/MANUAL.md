@@ -136,7 +136,7 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
 | Kind | Actions |
 |---|---|
-| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Channels, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
@@ -707,11 +707,6 @@ Where: Settings > Display > WATERFALL.
 
 | Option | What it does |
 |---|---|
-| 3D | the last 6 seconds as traces one behind the other, the newest in front (below) |
-| 3D colours | shown with 3D: Strength (blue, green, yellow, red as the signal grows), Waterfall (the waterfall's colours), Blue |
-| 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how much above the noise floor is cut away |
-| 3D range | shown with 3D: the dB above the noise floor at a trace's full height (20-60, 40 by default); less makes weak signals taller |
-| 3D peaks | shown with 3D: the newest trace's peaks held a moment |
 | Mode | Centered keeps the VFO in the middle; Fixed keeps the span (below) |
 | Jump at, Jump to | shown with Fixed: when the view moves on, and where the VFO line goes then (below) |
 | Auto level, offset | the levels follow the noise floor; the offset makes it darker or brighter |
@@ -719,13 +714,20 @@ Where: Settings > Display > WATERFALL.
 | Line, zoom | a line on the VFO; zoom with the waterfall instead of the span |
 | Smooth scroll | scrolls by pixels instead of lines |
 | Speed | 3 = 15 lines/s (default), 4 = 20, 5 = 30; 2 = 7.5 and 1 = 5 average the frames into a line: less noise and less CPU |
+| 3D | the last 6 seconds as traces one behind the other, the newest in front (below) |
+| 3D colours | shown with 3D: Strength (blue, green, yellow, red as the signal grows), Waterfall (the waterfall's colours), Blue |
+| 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how much above the noise floor is cut away |
+| 3D range | shown with 3D: the dB above the noise floor at a trace's full height (20-60, 40 by default); less makes weak signals taller |
+| 3D peaks | shown with 3D: the newest trace's peaks held a moment |
+| 3D glide | shown with 3D: the traces move back smoothly, 30 pictures a second (on by default); off, a step at each new line: less CPU |
 
 With 3D on, the waterfall area shows the spectrum in perspective, as on
 some other makers' radios: the newest trace at the bottom, every third line
 before it a little higher up and narrower, the oldest (about 6 seconds back
 at 32 traces, 3D depth) at the top. They narrow towards the VFO line, which
 stays straight through them all, and move back smoothly, a little at every
-picture (30 a second), not a step at each new line.
+picture (30 a second), not a step at each new line (3D glide off: a step at
+each line, for less CPU).
 The noise floor is cut away (3D floor sets how much above it goes too): only
 signals stand up, and a trace shows only where it rises above those in front
 of it. Each point has the colour of its height on the 3D colours scale
@@ -3885,7 +3887,7 @@ them.
 |---|---|
 | Theme | Theme (the radio's screen restarts with the new one) |
 | S-meter | S-meter type (Bars, Needle), Colours (Theme, Scale, Level), Needle lamp; with a preview |
-| Waterfall | 3D, 3D colours (Strength, Waterfall, Blue), 3D depth, tilt, floor, range, peaks (shown with 3D), Mode (Centered, Fixed), Jump at (40%, Passband, Line) and Jump to (Center, Other edge, Scroll), greyed unless Mode is Fixed (see [Waterfall](#waterfall)), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll |
+| Waterfall | Mode (Centered, Fixed), Jump at (40%, Passband, Line) and Jump to (Center, Other edge, Scroll), greyed unless Mode is Fixed (see [Waterfall](#waterfall)), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll, 3D, 3D colours (Strength, Waterfall, Blue), 3D depth, tilt, floor, range, peaks, glide (shown with 3D) |
 | On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |

@@ -24,6 +24,9 @@
 #include "mono.h"
 #include "util.h"
 #include "freq_scale.h"
+#include "screen_light.h"
+#include "button_bar.h"
+#include "walkie.h"
 #include "lv_drivers/display/drm.h"
 
 #include <math.h>
@@ -533,8 +536,8 @@ static void direct_redraw(int new_row) {
  * Every refresh draws the whole picture; the rows are those of the waterfall, at the frequency of
  * the view now, so tuning and the zoom move the traces as they move the waterfall */
 #define D3_STEP     3       /* rows from one trace to the next */
-#define D3_LABELS   (MAX_D3_REFS + 2)
 #define MAX_D3_REFS 8
+#define D3_LABELS   MAX_D3_REFS
 #define D3_LABEL_H  18      /* the front labels' row, under the floor */
 #define D3_GRID     0x2c3848
 #define D3_WALL     0x222c3a
@@ -590,6 +593,12 @@ static struct {
     uint32_t panel;
     bool     portrait, mono;
 } d3_bg_of;
+
+/* The front edge of the floor, with the labels under it: above the buttons, or down to the bottom while they are
+ * hidden (Settings > Display > Hide buttons) */
+static int32_t d3_front(int32_t h) {
+    return LV_MAX(h / 2, h - (buttons_hidden() ? 0 : buttons_h) - 4 - D3_LABEL_H);
+}
 
 static bool d3_on(void) {
     return param_i_get(cfg_wf_3d);
@@ -932,6 +941,9 @@ static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
 static float d3_phase(uint16_t top) {
     const wf_row_t *a = row_from(top, 0), *b = row_from(top, 8);
 
+    if (!param_i_get(cfg_wf_3d_glide)) {
+        return 0.0f;                        /* 3D glide off: the traces stay at their rows, a step at each one */
+    }
     if (!a->width || !b->width || height <= 9) {
         return 0.0f;
     }
@@ -1006,8 +1018,9 @@ static const uint8_t *d3_levels_of(const wf_row_t *row, uint32_t span, int32_t c
 static void d3_background(const d3_target_t *o, const d3_scene_t *sc, uint32_t bg, int32_t tilt,
                           const int32_t *ref_x, int n_refs) {
     size_t n = (size_t) WIDTH * o->h;
-    bool   same = d3_bg && d3_bg_of.h == o->h && d3_bg_of.hv == (int32_t) sc->hv && d3_bg_of.cx == (int32_t) sc->cx && d3_bg_of.tilt == tilt &&
-                  d3_bg_of.panel == bg && d3_bg_of.portrait == o->portrait && d3_bg_of.mono == o->mono &&
+    bool   same = d3_bg && d3_bg_of.h == o->h && d3_bg_of.hv == (int32_t) sc->hv &&
+                  d3_bg_of.cx == (int32_t) sc->cx && d3_bg_of.tilt == tilt && d3_bg_of.panel == bg &&
+                  d3_bg_of.portrait == o->portrait && d3_bg_of.mono == o->mono &&
                   d3_bg_of.n_refs == n_refs && !memcmp(d3_bg_of.ref_x, ref_x, n_refs * sizeof(int32_t));
 
     if (!d3_bg) {
@@ -1081,7 +1094,7 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
     float           front[WIDTH];           /* the newest trace's top in each column */
     uint8_t         lv[WIDTH], lv_blk[WIDTH / 8 + 1];
 
-    sc.hv = LV_MAX(h / 2, h - buttons_h - 4 - D3_LABEL_H);
+    sc.hv = d3_front(h);
     sc.amp = sc.hv * (0.75f - 0.04f * tilt);
     sc.rise = sc.hv - sc.amp - 4;
     sc.shrink = 0.9f - 0.05f * tilt;
@@ -1195,17 +1208,27 @@ static void d3_labels_update(bool on, const int32_t *ref_x, const int32_t *ref_h
 
 static void d3_redraw(void);
 
+/* Whether a picture is seen: not under a window (the waterfall a refresh in refresh_period then, as 2D, without
+ * the glide's pictures between), not in the walkie screen (the main screen is not loaded, not hidden), not with the
+ * screen dark (unless the remote screen is watched) */
+static bool d3_seen(void) {
+    return shown(obj) && refresh_period == 1 && !walkie_on() && backlight_seen();
+}
+
 static void d3_later_cb(lv_timer_t *t) {
     d3_later = NULL;                /* a single run: LVGL deletes it */
-    if (d3_on()) {
+    if (d3_on() && d3_seen()) {
         d3_redraw();
     }
 }
 
-/* Every D3_MIN_MS while the traces are on their way to the next row; nothing once they are there (no rows: still) */
+/* Every D3_MIN_MS while the traces are on their way to the next row; paused once they are there (no rows: still),
+ * with 3D off, glide off or nothing seen. A picture from a new row starts it again */
 static void d3_frames_cb(lv_timer_t *t) {
-    if (d3_on() && d3_drawn_phase < 1.0f) {
+    if (d3_on() && param_i_get(cfg_wf_3d_glide) && d3_drawn_phase < 1.0f && d3_seen()) {
         d3_redraw();
+    } else {
+        lv_timer_pause(t);
     }
 }
 
@@ -1214,7 +1237,8 @@ static void d3_redraw(void) {
     int      n = freq_scale_refs(ref_x, ref_hz, MAX_D3_REFS);
     uint32_t since = lv_tick_elaps(d3_last_ms);
 
-    if (!shown(obj)) {
+    if (!shown(obj) || walkie_on() || !backlight_seen()) {
+        d3_drawn_buf = NULL;        /* the plane may have been drawn over: the whole background again */
         return;
     }
     /* Tuning asks at each step of the scroll, 50 a second: the whole picture each time was a third of a core. At
@@ -1227,8 +1251,12 @@ static void d3_redraw(void) {
         return;
     }
     d3_last_ms = lv_tick_get();
-    if (!d3_frames) {
-        d3_frames = lv_timer_create(d3_frames_cb, D3_MIN_MS, NULL);
+    if (param_i_get(cfg_wf_3d_glide) && d3_seen()) {
+        if (!d3_frames) {
+            d3_frames = lv_timer_create(d3_frames_cb, D3_MIN_MS, NULL);
+        } else {
+            lv_timer_resume(d3_frames);  /* pauses itself when there is nothing to move */
+        }
     }
     __atomic_store_n(&new_rows, 0, __ATOMIC_RELEASE);
     if (direct) {
@@ -1245,7 +1273,7 @@ static void d3_redraw(void) {
         d3_render((uint32_t *) frame->data, false, ref_x, n);
         lv_obj_invalidate(img);
     }
-    lv_coord_t hv = LV_MAX(height / 2, height - buttons_h - 4 - D3_LABEL_H);
+    lv_coord_t hv = d3_front(height);
 
     d3_labels_update(true, ref_x, ref_hz, n, hv);
 }
@@ -1282,6 +1310,9 @@ static void refresh_waterfall(void *arg) {
     if (d3_on()) {
         d3_redraw();
         return;
+    }
+    if (d3_frames) {
+        lv_timer_pause(d3_frames);  /* out of 3D: no glide */
     }
     if (d3_label_y >= 0) {
         d3_labels_update(false, NULL, NULL, 0, 0);     /* out of 3D: its labels away */
@@ -1628,6 +1659,7 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
     subject_subscribe_delayed((Subject *)cfg_wf_3d_tilt, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_3d_floor, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_3d_peak, on_view_changed, NULL);
+    subject_subscribe_delayed((Subject *)cfg_wf_3d_glide, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_3d_range, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_fixed_jump, on_view_changed, NULL);
     subject_subscribe_delayed((Subject *)cfg_wf_fixed_after, on_view_changed, NULL);

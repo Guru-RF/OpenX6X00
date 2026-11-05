@@ -3170,10 +3170,10 @@ static uint8_t make_wf_3d(uint8_t row) {
         row = make_param_slider(row, "3D floor", &wf_3d_floor_slider);
         row = make_param_slider(row, "3D range", &wf_3d_range_slider);
         row = make_param_switch(row, "3D peaks", cfg_sm.p_wf_3d_peak);
+        row = make_param_switch(row, "3D glide", cfg_sm.p_wf_3d_glide);
     }
     return row;
 }
-
 
 /* The microphone input: Audio > MICROPHONE (p_mic) and the walkie's own (p_walkie_mic).
  * Same order as radio_mic_builtin, radio_mic_handle, radio_mic_auto. */
@@ -4018,7 +4018,6 @@ static void make_display_page() {
     card_end(row);
 
     row = card_begin("WATERFALL");
-    row = make_wf_3d(row);
     row = make_wf_mode(row);
     row = make_auto_offset(row);
     row = make_grid_min_max(row);
@@ -4026,6 +4025,7 @@ static void make_display_page() {
     wl_row_label(row, "Smooth scroll");
     bool_switch(row++, 4, 3, SMALL_3, &params.waterfall_smooth_scroll);
     row = make_param_slider(row, "Speed", &wf_speed_slider);
+    row = make_wf_3d(row);
     card_end(row);
 
     /* Overlays: shown with or without the spectrum */

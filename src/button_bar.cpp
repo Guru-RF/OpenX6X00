@@ -142,7 +142,7 @@ static const char *wf_mode_label() {
 }
 
 static const char *wf_3d_label() {
-    return cfg_sm.p_wf_3d.get() ? "WF:\n3D" : "WF:\n2D";
+    return cfg_sm.p_wf_3d.get() ? "WF\n3D" : "WF\n2D";
 }
 
 /* Label shows the span the button selects */
@@ -419,7 +419,8 @@ static buttons_page_t page_mfk_4 = {{&btn_mfk_p4, &btn_wf_3d, &btn_3d_depth, &bt
 
 static buttons_page_t page_app_1 = {{&btn_app_p1, &btn_modes, &btn_cluster, &btn_swr, &btn_rec}};
 static buttons_page_t page_app_2 = {{&btn_app_p2, &btn_settings, &btn_cwt, &btn_field, &btn_chans}};
-static buttons_page_t page_app_3 = {{&btn_app_p3, &btn_bands, &btn_gps, &btn_screen_rec, &btn_cwkbd}};   /* Screen rec: the MFK 3:4 one too */
+/* Screen rec: the MFK 3:4 one too */
+static buttons_page_t page_app_3 = {{&btn_app_p3, &btn_bands, &btn_gps, &btn_screen_rec, &btn_cwkbd}};
 
 static buttons_page_t page_key_1 = {{&btn_key_p1, &btn_key_speed, &btn_key_vol, &btn_key_train, &btn_key_tone}};
 static buttons_page_t page_key_2 = {{&btn_key_p2, &btn_key_mode, &btn_iambic, &btn_qsk, &btn_ratio}};
@@ -436,7 +437,8 @@ static buttons_page_t page_dfl = {{&btn_flt_low, &btn_flt_high, &btn_flt_bw, &bt
 static buttons_page_t page_mem_1 = {{&btn_mem_p1, &btn_mem[0], &btn_mem[1], &btn_mem[2], &btn_mem[3]}};
 static buttons_page_t page_mem_2 = {{&btn_mem_p2, &btn_mem[4], &btn_mem[5], &btn_mem[6], &btn_mem[7]}};
 
-buttons_group_t buttons_group_gen = {&buttons_page_vol_1, &page_vol_2, &page_mfk_1, &page_mfk_2, &page_mfk_3, &page_mfk_4};
+buttons_group_t buttons_group_gen = {&buttons_page_vol_1, &page_vol_2,
+                                     &page_mfk_1, &page_mfk_2, &page_mfk_3, &page_mfk_4};
 buttons_group_t buttons_group_app = {&page_app_1, &page_app_2, &page_app_3};
 buttons_group_t buttons_group_key = {&page_key_1, &page_key_2, &page_cw_1, &page_cw_2};
 buttons_group_t buttons_group_dfn = {&page_dfn_1, &page_dfn_2, &page_dfn_3};
