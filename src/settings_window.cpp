@@ -3669,7 +3669,7 @@ static lv_obj_t * upd_line(uint8_t row);
  * noise) the meter is read with everything off, then with PRE, with ATT, and at RF gain 40, 1.5 s
  * to settle and 1.5 s of readings each, and what was left over moves the three settings.
  * PRE, ATT and the RF gain go back as they were after, also when the page closes or on TX.
- * The X6200's attenuator takes 29 to about 62 dB off depending on the band and the radio (#125): there its
+ * The X6200's attenuator takes 24 to about 62 dB off depending on the band and the radio (#125): there its
  * figure is the band's, up to 70 dB, and Measure sets the band's; and the signal has to be about S9 or
  * more, so that it stays over the noise with ATT on: 3 dB under S9 passes, as its readings are whole dB
  * from the base and a generator set to S9, -73 dBm, reading a dB under it was refused. The X6100 has one

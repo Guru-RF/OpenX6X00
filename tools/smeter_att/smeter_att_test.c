@@ -32,22 +32,23 @@ static void check(int ok, const char *what, long v) {
 #define DEEPEST_DB 62
 #define DEEPEST_SPREAD 2
 
-/* The groups, by the middle of a band: under 5 MHz, to 10, to 20, above. The figures the code must give */
-enum { G80, G40, G20, G10, GROUPS };
-static const int32_t group_db[GROUPS] = {51, 35, 34, 32};
+/* The groups, by the middle of a band: under 2.5 MHz, to 5, above. The figures the code must give */
+enum { G160, G80, G40, GROUPS };
+static const int32_t group_db[GROUPS] = {59, 51, 34};
 
-/* Each band of the list, by id, in the manual's groups */
+/* Each band of the list, by id, in the manual's groups. G40: 40 m's figure, from 60 m up */
 static const struct {
     int id, group;
 } want[] = {
-    {1, G80}, {2, G80}, {100, G80}, {101, G80},                 /* 160m, 80m, Broadcast 75m and 60m */
+    {1, G160},                                                  /* 160m */
+    {2, G80}, {100, G80}, {101, G80},                           /* 80m, Broadcast 75m and 60m */
     {13, G40}, {3, G40}, {4, G40}, {102, G40}, {103, G40},      /* 60m, 40m CW and SSB, Broadcast 49m and 41m */
     {104, G40},                                                 /* Broadcast 31m */
-    {5, G20}, {6, G20}, {7, G20}, {8, G20}, {105, G20},         /* 30m, 20m CW and SSB, 17m, Broadcast 25m */
-    {106, G20}, {107, G20}, {108, G20}, {109, G20},             /* Broadcast 22m to 15m */
-    {9, G10}, {10, G10}, {11, G10}, {12, G10}, {110, G10},      /* 15m, 12m, 10m, 6m, Broadcast 13m */
-    {111, G10}, {201, G10}, {202, G10}, {203, G10}, {204, G10}, /* Broadcast 11m, CB A to D */
-    {300, G10}, {301, G10}, {302, G10},                         /* 4m, 2m, 70cm: a transverter's */
+    {5, G40}, {6, G40}, {7, G40}, {8, G40}, {105, G40},         /* 30m, 20m CW and SSB, 17m, Broadcast 25m */
+    {106, G40}, {107, G40}, {108, G40}, {109, G40},             /* Broadcast 22m to 15m */
+    {9, G40}, {10, G40}, {11, G40}, {12, G40}, {110, G40},      /* 15m, 12m, 10m, 6m, Broadcast 13m */
+    {111, G40}, {201, G40}, {202, G40}, {203, G40}, {204, G40}, /* Broadcast 11m, CB A to D */
+    {300, G40}, {301, G40}, {302, G40},                         /* 4m, 2m, 70cm: a transverter's */
 };
 
 #define WANT_N ((int)(sizeof(want) / sizeof(want[0])))
@@ -193,15 +194,14 @@ int main(int argc, char **argv) {
     check(smeter_att_start_band(0, 0) == group_db[G40], "outside the bands: 40 m's", smeter_att_start_band(0, 0));
 
     /* The edges, by the middle */
+    check(smeter_att_start_band(2499999, 2499999) == group_db[G160], "just under 2.5 MHz: 160 m's", 2499999);
+    check(smeter_att_start_band(2500000, 2500000) == group_db[G80], "2.5 MHz: 80 m's", 2500000);
+    check(smeter_att_start_band(2400000, 2600000) == group_db[G80], "a band round 2.5 MHz, its middle on it", 2500000);
     check(smeter_att_start_band(4999999, 4999999) == group_db[G80], "just under 5 MHz: 80 m's", 4999999);
     check(smeter_att_start_band(5000000, 5000000) == group_db[G40], "5 MHz: 40 m's", 5000000);
     check(smeter_att_start_band(4900000, 5100000) == group_db[G40], "a band round 5 MHz, its middle on it", 5000000);
-    check(smeter_att_start_band(9999999, 9999999) == group_db[G40], "just under 10 MHz: 40 m's", 9999999);
-    check(smeter_att_start_band(10000000, 10000000) == group_db[G20], "10 MHz: 20 m's", 10000000);
-    check(smeter_att_start_band(19999999, 19999999) == group_db[G20], "just under 20 MHz: 20 m's", 19999999);
-    check(smeter_att_start_band(20000000, 20000000) == group_db[G10], "20 MHz: 10 m's", 20000000);
-    check(smeter_att_start_band(999000000, 1000000000) == group_db[G10], "the WR12's top, no overflow", 1000000000);
-    check(smeter_att_start_band(135700, 137800) == group_db[G80], "2200 m, a band of your own: 80 m's", 135700);
+    check(smeter_att_start_band(999000000, 1000000000) == group_db[G40], "the WR12's top, no overflow", 1000000000);
+    check(smeter_att_start_band(135700, 137800) == group_db[G160], "2200 m, a band of your own: 160 m's", 135700);
 
     bands_of_sql(argv[1]);
     manual_table(argv[2]);

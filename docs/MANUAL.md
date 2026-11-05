@@ -1425,25 +1425,27 @@ are settings, with the figures measured on one radio as defaults.
 | RF gain, a step | 0.00 to 2.00 dB | 0.60 dB |
 
 On the X6200 the attenuator takes much more off, and how much depends on the
-band and on the radio: one radio showed about 51 dB on 80 m, 29 dB on 40 m,
-34 dB on 20 m and 32 dB on 10 m, another 40 dB or more on 40 m. So there the
-row is "Attenuator on this band": each band keeps its own value, and the
-slider and Measure set the band the radio is on. Those are the bands of the
+band and on the radio: one radio showed 59 dB on 160 m, 39 to 51 dB on 80 m
+and 24 to 30 dB from 60 m to 10 m, another 40 to about 62 dB on 80 m and
+about 40 dB on 40, 20 and 10 m. So there the row is "Attenuator on this
+band": each band keeps its own value, and the slider and Measure set the
+band the radio is on. Those are the bands of the
 band list: 40 m CW and 40 m SSB are two, and so are 20 m CW and SSB, and a
 broadcast band is one of its own, so Measure on a broadcast carrier at
 7.3 MHz sets Broadcast 41m, not 40 m. When it is done, Measure names the
-band it set. A band never set starts from the figure of the nearest of 80,
-40, 20 and 10 m, on 40 m the two radios' mean:
+band it set. A band never set starts from these figures: on 160 m one
+radio's, on 80 m one in the middle of the four seen there, and from 5 MHz up
+one between the two radios:
 
 | X6200 bands | Attenuator |
 |---|---|
-| 160 m, 80 m, the 75 m and 60 m broadcast bands (under 5 MHz) | 51 dB |
-| 60 m, 40 m, the 49 m to 31 m broadcast bands (5 to 10 MHz) | 35 dB |
-| 30 m, 20 m, 17 m, the 25 m to 15 m broadcast bands (10 to 20 MHz) | 34 dB |
-| 15 m and up (over 20 MHz) | 32 dB |
+| 160 m (under 2.5 MHz) | 59 dB |
+| 80 m, the 75 m and 60 m broadcast bands (2.5 to 5 MHz) | 51 dB |
+| 60 m and up, the 49 m broadcast band and up (over 5 MHz) | 34 dB |
 
 Outside the bands (medium wave, the 120 m and 90 m broadcast bands, the gaps
-between the bands) all frequencies share one value, which starts at 35 dB.
+between the bands) all frequencies share one value, which starts at 34 dB, as
+on 40 m.
 
 On the X6200 the one attenuator value of v0.3.8 and before (15 dB, or what
 the slider or Measure set) is not used any more: it fit one band at most.
@@ -1459,14 +1461,14 @@ same reading, with these corrections in.
 
 With ATT on, a weak signal, or none, sinks into the radio's own noise, and
 the meter shows that noise as it would be at the antenna: on the X6200,
-with 30 to 50 dB of attenuator, that can be higher than with ATT off. Those
+with 24 to 60 dB of attenuator, that can be higher than with ATT off. Those
 bars stay grey, as noise.
 
 Measure sets them for your radio, since preamps differ a little. Feed a
 steady carrier, from a signal generator (around -73 dBm, S9) or a strong
 broadcast station, so the meter reads between S5 and S9+20 (on the X6200
 from about S9 to S9+20: feed about -55 dBm, S9+18, from a generator. With
-its 30 to 50 dB of attenuator on, a weaker carrier comes close to the
+its 24 to 60 dB of attenuator on, a weaker carrier comes close to the
 radio's own noise and the reading can wander: "Not steady"), and press
 Measure.
 For about 12 s the radio reads its meter with everything off, then with PRE
