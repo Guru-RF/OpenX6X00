@@ -294,6 +294,30 @@ class SettingsManager {
     // Spectrum and waterfall: 0 = VFO centered (the view follows it), 1 = fixed span (the VFO line moves)
     Parameter<int32_t> p_wf_mode{"wf_mode", 0, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Waterfall drawn in 3D: the last rows as traces one behind the other (waterfall_view.c)
+    Parameter<int32_t> p_wf_3d{"wf_3d", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // 3D colours: 0 by strength (blue, green, yellow, red), 1 the waterfall's, 2 blue
+    Parameter<int32_t> p_wf_3d_colors{"wf_3d_colors", 0, 0, 2,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // 3D depth: the traces shown, every third row (8-64: 1.6-13 s at 15 lines/s)
+    Parameter<int32_t> p_wf_3d_depth{"wf_3d_depth", 32, 8, 64,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // 3D tilt: 0 seen from the front (tall traces, little depth) to 10 from above
+    Parameter<int32_t> p_wf_3d_tilt{"wf_3d_tilt", 5, 0, 10,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // 3D floor: levels (of 255) above each row's noise floor cut away with it
+    Parameter<int32_t> p_wf_3d_floor{"wf_3d_floor", 6, 0, 40,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // 3D range: the dB above the noise floor a trace's full height is (weak signals taller with less)
+    Parameter<int32_t> p_wf_3d_range{"wf_3d_range", 40, 20, 60,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // 3D peaks: the newest trace's peaks held a moment
+    Parameter<int32_t> p_wf_3d_peak{"wf_3d_peak", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // 3D glide: the traces move back at every picture (30 a second); off: a step at each new row, less CPU
+    Parameter<int32_t> p_wf_3d_glide{"wf_3d_glide", true, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // String mapping encoder (cfg_ctrl_t) positions to bind values
     // (ENCODER_BIND_VOL/ENCODER_BIND_MFK/ENCODER_BIND_NONE). GLOBAL: persisted in the flat `params` table under key
     // "encoder_bind", matching the legacy src/cfg key for DB compatibility.

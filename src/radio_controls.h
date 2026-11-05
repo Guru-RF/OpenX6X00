@@ -41,6 +41,7 @@ void controls_toggle_nr(button_data_t *data);
 
 void controls_toggle_vox(button_data_t *data);
 void controls_toggle_wf_mode(button_data_t *data);
+void controls_toggle_wf_3d(button_data_t *data);
 void controls_span_wider(button_data_t *data);
 void controls_span_narrower(button_data_t *data);
 

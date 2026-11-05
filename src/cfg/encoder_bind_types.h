@@ -76,6 +76,10 @@ typedef enum {
     CTRL_ATT,
     CTRL_ATU,             /* the tuner on or off, as a press of the ATU key */
     CTRL_STEP,            /* the tuning step, 10 Hz to 5 kHz, as the FST key */
+    CTRL_WF_3D,           /* the 3D waterfall on or off */
+    CTRL_WF_3D_DEPTH,     /* its traces, tilt and floor cut (Settings > Display > WATERFALL) */
+    CTRL_WF_3D_TILT,
+    CTRL_WF_3D_FLOOR,
 
     CTRL_FAST_ACCESS_LAST,
 
