@@ -1,5 +1,33 @@
 # To do
 
+## Waterfall: a 3D band scope, the last seconds in perspective (PR #161)
+
+Offered 2026-11-03 (timerealm, PR #161); first of the enhancements, once the open bugs are fixed (the owner, 5
+November). The waterfall area as a 3D band scope: the last rows as traces one behind the other, the newest in front,
+narrowing towards the VFO line, coloured by their height above the noise floor. Settings > Display > WATERFALL > 3D
+with 3D colours, depth, tilt, floor, range, peaks and glide at the end of the card (the web Display card too), an MFK
+4:4 page (WF 2D/3D, depth, tilt, floor), WF 3D on/off as a long-press and hand mic action, the manual. All drawing in
+src/waterfall_view.c (its "3D" section), for the DRM plane and the LVGL image; HOST_STUB_IQ plays a recording in the
+PC build. Reviewed 4 November; his changes of 5 November (3b80cfb) settle all four points and the smaller ones:
+nothing drawn under a window, in walkie mode or with the screen dark (`d3_seen()`, `backlight_seen()`), a 3D glide
+switch, the PC shots out of the gallery. Branch on main 4102104, no conflict then.
+
+- **Run on the PC build only**: d3_render() 0.18-0.65 ms a picture there (our timing, his ~175 us), the GUI thread
+  from 46 % to 84-88 % of a PC core with 3D on, most of it LVGL drawing the picture, as the PC has no DRM planes.
+  The radios take the DRM path, which nobody has run yet; drm_wf_present_ring() then runs up to 30 times a second
+  instead of 15. 1.5 MB for the background, allocated the first time 3D is on.
+- **Before a merge, on an X6100 and an X6200, 3D on and off**: the DRM path (the picture the right way round, the
+  labels at the front edge, the 2D waterfall back whole after 3D, a theme change and a new spectrum height with 3D
+  on); CPU with `top -d 1 -p $(pidof x6100_gui)` in 2D and 3D receiving on a busy band, the dial turning fast, depth
+  64, FT8 open, 3D glide on and off; FT8 decodes and CW keying with 3D on; the 1bit theme and the MFK 4:4 page; Hide
+  buttons on (the front edge down to the bottom while hidden); walkie mode and the screen dark draw nothing (read
+  from the code only, by both of us), a remote viewer still gets the picture. If 30 pictures a second are heavy on
+  the X6100, 3D glide off is the step at each row. He has no X6100; his `top` numbers from an X6200 may come first.
+- **At the merge**: a rebase on the main of then. a0fee3c adds the recording's line with the receiver's model to
+  docs/screenshots/README.md and 3b80cfb takes it out again, so a merge commit keeps that name in our history:
+  squash, or ask him to fold it out. Old encoder bind strings get the four new controls unbound and ACTION_WF_3D is
+  stored by value: no migration. 3D shots for the README gallery from the radio, on an antenna, once it runs there.
+
 ## FT8/FT4/FT2: answer other stations' CQs by themselves (when not worked yet)
 
 Asked 2026-10-24. Today Auto answers the stations that call *you*, also while you call CQ (what
@@ -268,3 +296,33 @@ it (the #110 reply of 31 October).
   radio.c as `HW_RFG`): better to set the base's gain alone and leave the setting as it is, so a power-off with the
   trainer open doesn't leave the radio deaf at the next start. Meanwhile the S-meter's correction for the RF gain
   (src/smeter.c) and the browser panel's RF gain (`P_RFG`) should see the gain the user set.
+
+## Winlink: VOACAP predictions in Pat's gateway list (#153)
+
+Asked 2026-11-02 (km4gkd, #153). Pat's gateway list (the mailbox's Connect dialog) has a VOACAP column with each
+gateway's predicted path quality; on the radio it stays hidden, because x6100-winlink sets Pat's `prediction` engine
+to `disabled` (the image has no `voacapl`). The wish: that column on the radio, to choose a gateway and a frequency in
+the field. For the reporter a minute or two for the list to fill in is fine, and so is a VOACAP server on the device
+Winlink is used from (the #153 replies of 3 and 4 November).
+
+- **How Pat predicts**: it writes a deck (method 30, the CCIR maps, 50 W: app/rmslist.go and
+  internal/propagation/voacap/encode.go in Pat v1.0.1), runs `voacapl` with an itshfbc data tree once per gateway
+  frequency, as many at a time as GOMAXPROCS (all four cores), and reads its printed listing. Its `voacap-api` engine
+  POSTs the same deck to `<address>/predict` and reads the same listing back.
+- **The engine**: `voacapl` is Fortran, which the radios' build does not compile. hfcast-engine
+  (github.com/jonathanmcsweet/hfcast-engine, linked on #153 by doodlecomms, 5 November) is VOACAP translated into
+  Rust (Apache-2.0, no dependencies, rust-version 1.87), checked cell by cell against the Fortran, with the
+  coefficients compiled in through its `embedded-coefficients` feature (a build from the repository only) so no
+  itshfbc tree; it covers method 30 with the CCIR maps. It would build with tools/xara's pinned Rust (1.99.1, armv7).
+  It takes JSON (its `predict`) or a library call, not Pat's deck: a small program of ours on the library, Pat's deck
+  in and the method-30 listing out (its `api::listing`), either as a `voacapl` for Pat's `voacap` engine or as a
+  server on 127.0.0.1 for Pat's `voacap-api` engine, which needs no Pat patch.
+- **Speed**: fewer workers than Pat's default, next to the GUI; a full gateway list measured on an X6100. A prediction
+  must never disturb a Winlink session or the radio.
+- **Power**: our Pat build predicts for the radio's 7 W at most instead of Pat's fixed 50 W, or the list looks better
+  than the radio can do.
+- **The data's status**: hfcast's own notes (NOTICE, docs/licence.md, embedded/README.md) leave the redistribution of
+  the coefficient files partly open (CCIR Reports 322 and 340, which ITU-R Study Group 3 publishes "free from any
+  copyright assertions", plus NTIA/ITS work). The same data comes in `voacapl`'s itshfbc, so either route ships it:
+  settle it before an image carries it.
+- **Then** x6100-winlink sets the engine when the program is in the image, instead of `disabled`.
