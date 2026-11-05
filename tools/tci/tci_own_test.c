@@ -9,7 +9,9 @@
  *  when that client says so or leaves; a start ended before its key ran keys nothing, an unkey
  *  never drops a PTT the operator keyed, a refused start takes no control. Each case runs in a
  *  child process: a server as it starts. A client is one end of a socket pair, what the server
- *  tells it is read from the other. No listener.
+ *  tells it is read from the other. No listener. Every case runs three times: its commands as
+ *  written, in capitals (Hamlib's TCI backend) and in mixed case, which TCI says are the same;
+ *  the answers are the same, in lower case.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -26,6 +28,14 @@ int         stub_run(int n);
 static int      peer[MAX_CLIENTS];
 static rstate_t last;
 static int      failed;
+static int      letters;    /* how a client writes its commands: 0 as the case has them, 1 in capitals, 2 mixed */
+
+/* The first n characters of s written as letters says ("trx:0,true,tci;": TRX:0,TRUE,TCI; or TrX:0,TrUe,tCi;) */
+static void lettered(char *s, size_t n) {
+    for (size_t i = 0; s[i] && i < n; i++)
+        if (letters == 1 || (letters == 2 && i % 2 == 0))
+            s[i] = (char)toupper((unsigned char)s[i]);
+}
 
 /* The server as tci_server_init leaves it, without its threads: the case calls their steps */
 static void server_start(void) {
@@ -85,11 +95,13 @@ static bool funnel_connect(int ci, const char *addr) {
     return c->fd >= 0 && c->ws && n > 12 && !strncmp(resp, "HTTP/1.1 101", 12);
 }
 
-/* A text frame from client ci as a browser sends it (masked), read by client_read; nothing when it is closed */
+/* A text frame from client ci as a browser sends it (masked), read by client_read; nothing when it is closed. Its
+ * word ("auth") as letters says, the token as it is */
 static void funnel_say(int ci, const char *text) {
     uint8_t f[256] = {0x81, (uint8_t)(0x80 | strlen(text))};   /* a mask of zeros: the text as it is */
 
     memcpy(f + 6, text, strlen(text));
+    lettered((char *)f + 6, strcspn(text, ": "));
     if (clients[ci].fd >= 0 && send(peer[ci], f, 6 + strlen(text), MSG_NOSIGNAL) == (ssize_t)(6 + strlen(text)))
         client_read(ci);
 }
@@ -100,10 +112,12 @@ static void client_gone(int ci) {
     client_close(&clients[ci]);
 }
 
+/* Commands from client ci, as letters says */
 static void say(int ci, const char *cmd) {
     char line[256];
 
     snprintf(line, sizeof(line), "%s", cmd);
+    lettered(line, sizeof(line));
     handle_text(ci, line);
 }
 
@@ -610,6 +624,27 @@ static void control_given_back(void) {
     check(!on_air() && ctl_holds(CTL_TCI, A), "A had control before its start: A keeps it");
 }
 
+/* Listen only: tuning, the mode, filter, AGC, RIT, drive and a key are answered with the state as it is; nothing goes
+ * to the LVGL thread and control stays where it is */
+static void listen_only(void) {
+    const char *h;
+
+    client_open(A);
+    ctl_claim(CTL_BROWSER, 0, "Shack PC", true);
+    atomic_store(&trust_operate, false);
+    say(A, "vfo:0,0,14074000;modulation:0,usb;rx_filter_band:0,100,3000;agc_mode:0,slow;rit_offset:0,100;");
+    say(A, "drive:0,80;trx:0,true,tci;");
+    h = heard(A);
+    check(strstr(h, "vfo:0,0,7074000;") && strstr(h, "modulation:0,lsb;") && strstr(h, "rx_filter_band:0,-2700,-300;")
+          && strstr(h, "agc_mode:0,fast;") && strstr(h, "rit_offset:0,0;") && strstr(h, "drive:0,")
+          && strstr(h, "trx:0,false;"), "each answered with the state");
+    check(stub_run(-1) == 0 && !on_air() && ctl_holds(CTL_BROWSER, 0), "nothing done, control stays with the browser");
+    atomic_store(&trust_operate, true);
+    say(A, "vfo:0,0,14074000;");
+    gui(-1);
+    check(cparam_i_get(cfg_fg_freq) == 14074000 && ctl_holds(CTL_TCI, A), "on Operate A tunes and takes control");
+}
+
 /* Over Tailscale Funnel (#58) only the Panel's own sound and its key with it: a session that may not transmit, or
  * one that keyed nothing, asking for the TX state or unkeying is answered with the state and takes no control (the
  * browser at home keeps it, as when that session's browser asks on the browser remote's socket); the session that
@@ -730,17 +765,23 @@ int main(void) {
         {"Two TCI audio starts", two_tci_starts},
         {"TCI audio in DIGU and DIGL", tci_audio_in_dig},
         {"A browser's TCI audio start gives the browser its control back at the end", control_given_back},
+        {"Listen only: a client's tuning and key answered with the state", listen_only},
         {"Over Funnel, an unkey or a question from a client that keyed nothing", funnel_takes_no_control},
         {"Over Funnel, the same browser back from another network", funnel_same_browser_back},
     };
-    int n = sizeof(cases) / sizeof(cases[0]), bad = 0;
+    static const char *const written[] = {"", ", in capitals", ", in mixed case"};
+    int  n = sizeof(cases) / sizeof(cases[0]), bad = 0;
+    char name[160];
 
-    for (int i = 0; i < n; i++)
-        bad += run(cases[i].name, cases[i].fn);
+    for (letters = 0; letters < 3; letters++)
+        for (int i = 0; i < n; i++) {
+            snprintf(name, sizeof(name), "%s%s", cases[i].name, written[letters]);
+            bad += run(name, cases[i].fn);
+        }
     if (bad) {
-        printf("OWNER FAILED: %d of %d cases\n", bad, n);
+        printf("OWNER FAILED: %d of %d cases\n", bad, 3 * n);
         return 1;
     }
-    printf("OWNER OK: %d cases\n", n);
+    printf("OWNER OK: %d cases, each as written, in capitals and in mixed case\n", n);
     return 0;
 }

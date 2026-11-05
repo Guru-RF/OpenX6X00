@@ -25,8 +25,13 @@ the real handshake with tailscaled's header and its key: while its page answers,
 connection is refused at the handshake; once it has been silent 6 s (a phone gone from the WiFi
 to its mobile data, its connection left stale), another browser's key is refused and the same
 browser's key from another address takes its place, its transmission ended, the newcomer keying;
-of two waiting for their key the older goes; wrong keys pause Funnel. Each runs in a child
-process, its clients on socket pairs, without a listener. It prints `OWNER OK: n cases`.
+of two waiting for their key the older goes; wrong keys pause Funnel. One more has a client on
+Listen only: its tuning, mode, filter, AGC, RIT, drive and key answered with the state, nothing
+done, control left with the browser. Each runs in a child process, its clients on socket pairs,
+without a listener, and three times: the clients' commands as written, in capitals (as Hamlib's
+TCI backend sends them, `TRX:0,TRUE,TCI;`, `AUTH:` over Funnel) and in mixed case
+(`TrX:0,TrUe,tCi;`), which TCI says are the same: the same answers, in lower case. It prints
+`OWNER OK: n cases, each as written, in capitals and in mixed case`.
 
 Then it builds `src/tci_server.c` and `src/tci_ws.c` (with `src/tci_audio.c` and
 `src/control_owner.c`) on the PC against the stubs in `stubs.c` (the radio, the settings, the
@@ -44,14 +49,18 @@ left and right), and a transmission as it keys, in the digu of its Mode Data/Pkt
 TX_CHRONO answered with its frame; and
 WSJT-X on a link slower than its RX audio (read at 250 kB/s through a 4 kB receive buffer),
 keyed with the server's queue full: the TX_CHRONOs come ahead of the queued audio, the over
-stays keyed for 3 s, every frame arrives whole. Last, Tailscale Funnel (#58), where only the
+stays keyed for 3 s, every frame arrives whole. Then a connection in capitals and mixed case, as
+Hamlib's TCI backend and fldigi's TCI build send their commands (`VFO:`, `MODULATION:0,CW;`,
+`TRX:0,true,Vac;`, `TRX:0,true,tci;`, `AUDIO_STREAM_SAMPLE_TYPE:INT16;`): each taken as in lower
+case, every answer's name in lower case. Last, Tailscale Funnel (#58), where only the
 browser Panel's own sound and microphone may come, with tailscaled's
 `Tailscale-Funnel-Request` header: nothing before a key, closed after 5 s; a command before
 the key, closed unanswered; the key of a browser paired at home (the stub's sessions in
 `stubs.c`), then the greeting; a second one over Funnel refused, also after 7 s in which the
 first sent nothing but answered the radio's pings (the other tab of the same browser); tuning,
-mode and drive left unanswered and undone; the browser's audio format and RX audio; a key with
-the radio's own microphone answered `trx:0,false;`, one with the page's audio keying and
+mode and drive left unanswered and undone, also in capitals; the browser's audio format and RX
+audio; a key with the radio's own microphone answered `trx:0,false;` (also `TRX:0,TRUE;`), one
+with the page's audio keying and
 unkeying; the first one silent 6 s, another browser's key closed and the same browser's key
 from another address greeted, the first one closed; the session revoked (the file `REVOKED`
 names exists) closing it; a session that may not transmit refused; three wrong keys pausing

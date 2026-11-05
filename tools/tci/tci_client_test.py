@@ -2,7 +2,8 @@
 """A TCI client of the plainest kind, for the host test of src/tci_server.c (see Makefile):
 a raw WebSocket on 127.0.0.1:50001 (TCI_TEST_PORT) that walks through what the VFO-Knob does
 on a connection, what the browser pages ask for, the audio formats, then what WSJT-X's TCI
-client does when it opens, hears and transmits. Standard library only."""
+client does when it opens, hears and transmits, and commands in capitals and mixed case.
+Standard library only."""
 import base64
 import hashlib
 import math
@@ -52,7 +53,7 @@ def played():
 class WS:
     def __init__(self, rcvbuf=None, headers=""):
         """headers: more request headers, "Name: value\\r\\n" lines (a browser's, Tailscale's proxy's)"""
-        self.binary, self.pongs = [], []
+        self.binary, self.pongs, self.texts = [], [], []
         self.rate = None    # bytes a second read at most (a slow link), None: as fast as they come
         if rcvbuf:          # set before connect: the window is offered from it
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -134,6 +135,7 @@ class WS:
             op, p = self.frame()
             if op == 1:
                 line = p.decode()
+                self.texts.append(line)
                 if line.startswith(prefix):
                     return line
             elif op == 2:
@@ -278,6 +280,7 @@ def main():
     formats()
     wsjtx_open()
     wsjtx_slow_link()
+    capitals()
     funnel()
     print("ALL OK")
 
@@ -382,14 +385,17 @@ def funnel():
     assert funnel_refused("198.51.100.3"), "its page answering the radio's pings 7 s: another connection taken"
     print(f"funnel: its page answering the radio's pings ({pings} in 7 s): another one still refused")
     ws.text("vfo:0,0,14250000;modulation:0,cw;drive:0,100;")
+    ws.text("VFO:0,0,14250000;Modulation:0,CW;DRIVE:0,100;")
     got = nothing_for(ws, 0.6)
     assert not [p for op, p in got if op == 1 and p.startswith((b"vfo:", b"modulation:", b"drive:"))], got
-    print("funnel: tuning, mode and drive left unanswered and undone")
+    print("funnel: tuning, mode and drive, also in capitals, left unanswered and undone")
     ws.text("audio_samplerate:24000;audio_stream_sample_type:int16;audio_stream_channels:1;"
             "audio_stream_samples:512;audio_start:0;")
     print("funnel:", ws.wait_text("audio_start:0;"), "- RX audio frames:", len(rx_frames(ws, 0.5)))
     ws.text("trx:0,true;")
-    print("funnel: the radio's own microphone:", ws.wait_text("trx:0,false;"))
+    print("funnel: the radio's own microphone:", ws.wait_text("trx:0,false;"), end=" ")
+    ws.text("TRX:0,TRUE;")
+    print("in capitals:", ws.wait_text("trx:0,false;"))
     ws.text("trx:0,true,tci;")
     print("funnel: keyed with the page's audio:", ws.wait_text("trx:0,true;"))
     for _ in range(5):
@@ -432,6 +438,59 @@ def funnel():
     ws.send(8, struct.pack(">H", 1000))
     ws = WS()
     print("the LAN:", ws.wait_text("protocol:"))
+    ws.send(8, struct.pack(">H", 1000))
+
+
+def capitals():
+    """TCI says the case of the letters does not matter (TCI 2.1, 3.1): Hamlib's TCI backend sends its
+    commands in capitals (VFO:, MODULATION:, TRX:0,true,Vac;), fldigi's TCI build keys with TRX:, and the
+    words (USB, TRUE, TCI, INT16) may come in any case. Each is taken as its lower case is, and every
+    answer is in lower case"""
+    ws = WS()
+    ws.wait_text("ready;")
+    ws.text("RX_SENSORS_ENABLE:true,200;TX_SENSORS_ENABLE:FALSE,200;")
+    print("capitals:", ws.wait_text("rx_sensors_enable:true;"), ws.wait_text("tx_sensors_enable:false;"))
+    ws.text("VFO:0,0,10136000;")
+    print("capitals:", ws.wait_text("vfo:0,0,10136000;"), end=" ")
+    ws.text("VFO:0,0;")
+    ws.wait_text("vfo:0,0,10136000;")
+    ws.text("MODULATION:0,CW;")
+    print(ws.wait_text("modulation:0,cw;"), end=" ")
+    ws.text("AGC_MODE:0,SLOW;")
+    print(ws.wait_text("agc_mode:0,slow;"), end=" ")
+    ws.text("DRIVE:0,40;")
+    print(ws.wait_text("drive:0,40;"), end=" ")
+    ws.text("SPLIT_ENABLE:0;")
+    print(ws.wait_text("split_enable:0,false;"))
+    ws.text("Modulation:0,DigU;")
+    print("mixed case:", ws.wait_text("modulation:0,digu;"))
+    ws.text("TRX:0;")
+    ws.wait_text("trx:0,false;")
+    ws.text("TRX:0,true,Vac;")              # Hamlib's PTT with data: the radio's own PTT
+    print("capitals, keyed:", ws.wait_text("trx:0,true;"), end=" ")
+    ws.text("TRX:0,FALSE;")
+    print("unkeyed:", ws.wait_text("trx:0,false;"))
+    ws.text("Audio_SampleRate:24000;AUDIO_STREAM_SAMPLE_TYPE:INT16;Audio_Stream_Channels:1;AUDIO_STREAM_SAMPLES:512;")
+    print("mixed case:", ws.wait_text("audio_samplerate:24000;"), ws.wait_text("audio_stream_sample_type:int16;"),
+          ws.wait_text("audio_stream_channels:1;"), ws.wait_text("audio_stream_samples:512;"))
+    time.sleep(0.2)
+    ws.text("TRX:0,true,tci;")              # fldigi's TCI build keying
+    print("capitals, keyed with TCI audio:", ws.wait_text("trx:0,true;"), end=" ")
+    for _ in range(5):
+        ws.wait_chrono()
+        ws.send(2, struct.pack("<8I", 0, 24000, 0, 0, 0, 512, 2, 1) + bytes(32) + bytes(1024))
+    ws.text("Trx:0,False;")
+    print("unkeyed:", ws.wait_text("trx:0,false;"))
+    ws.text("AUDIO_START:0;")
+    ws.wait_text("audio_start:0;")
+    rx = rx_frames(ws, 0.5)
+    hdr = struct.unpack("<8I", rx[0][:32])
+    assert len(rx[0]) == 64 + 1024 and hdr[1:3] == (24000, 0) and hdr[5:8] == (512, 1, 1), hdr
+    ws.text("Audio_Stop:0;")
+    ws.wait_text("audio_stop:0;")
+    names = {t.split(":", 1)[0].split(";", 1)[0] for t in ws.texts}
+    assert all(n == n.lower() for n in names), sorted(names)
+    print(f"capitals: RX audio in int16 at 24 kHz, {len(ws.texts)} answers, every name in lower case")
     ws.send(8, struct.pack(">H", 1000))
 
 

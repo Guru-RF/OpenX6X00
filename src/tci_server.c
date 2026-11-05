@@ -910,6 +910,12 @@ static void handle_cmd(int ci, char *line) {
     while (*name == ' ' || *name == '\n' || *name == '\r') name++;
     if (!*name)
         return;
+    /* The case of the letters does not matter (TCI 2.1, 3.1): Hamlib's TCI backend sends VFO:, TRX:. The name in
+     * lower case from here on, so Funnel's commands, the trust rules and control see a command in capitals as the
+     * same one, and the answer is in lower case as always. The words in the arguments (true, usb, tci, int16) are
+     * taken in any case where they are read */
+    for (char *p = name; *p; p++)
+        *p = (char)tolower((unsigned char)*p);
     if (c->funnel && !funnel_cmd_ok(c, name, a, n))
         return;
     state_read(&s);
@@ -1344,13 +1350,13 @@ static bool funnel_take(client_t *c) {
     return true;
 }
 
-/* The first text over Funnel: "auth TOKEN" (or TCI's "auth:TOKEN;"), the token of a browser paired at home, as
- * the browser remote takes it. A good one: the greeting, then funnel_cmd_ok's commands. A wrong one counts towards
- * Funnel's pause; it, or anything else first, closes the connection. Another connection with the sound, silent
- * for FUNNEL_STALE_MS (funnel_take): the same browser's token takes its place, and what it had on the air ends. A
- * phone that went from the WiFi to its mobile data left that one stale, without a word, up until IDLE_MS, and the
- * Panel would have been without its sound and microphone for that minute. Another browser's token is refused, as
- * is this one when the other has been heard from meanwhile */
+/* The first text over Funnel: "auth TOKEN" (or TCI's "auth:TOKEN;", the word in any case), the token of a browser
+ * paired at home, as the browser remote takes it. A good one: the greeting, then funnel_cmd_ok's commands. A wrong
+ * one counts towards Funnel's pause; it, or anything else first, closes the connection. Another connection with the
+ * sound, silent for FUNNEL_STALE_MS (funnel_take): the same browser's token takes its place, and what it had on the
+ * air ends. A phone that went from the WiFi to its mobile data left that one stale, without a word, up until
+ * IDLE_MS, and the Panel would have been without its sound and microphone for that minute. Another browser's token
+ * is refused, as is this one when the other has been heard from meanwhile */
 static void funnel_auth(int ci, const char *text) {
     client_t *c = &clients[ci];
     client_t *was;
@@ -1358,7 +1364,7 @@ static void funnel_auth(int ci, const char *text) {
     char      name[32];
     size_t    l;
 
-    if (!strncmp(text, "auth:", 5) || !strncmp(text, "auth ", 5)) {
+    if (!strncasecmp(text, "auth:", 5) || !strncasecmp(text, "auth ", 5)) {
         l = strcspn(text + 5, ";\r\n");
         if (l == sizeof(tok) - 1) {         /* a token's 32 characters; anything else is a wrong key */
             memcpy(tok, text + 5, l);

@@ -5241,6 +5241,10 @@ program on the network tunes the radio, hears it and keys it.
 - Other clients: anything that talks to AetherSDR or ExpertSDR3 over TCI
   (loggers, CW keyers) should work for what the radio has; what it does not
   have is answered with the radio's own value.
+- Commands in any case, as TCI says the case of the letters does not matter:
+  `VFO:0,0,7074000;` and `TRX:0,TRUE,TCI;` (Hamlib's TCI backend sends its
+  commands in capitals) are `vfo:0,0,7074000;` and `trx:0,true,tci;`, the
+  words in them too (`USB`, `INT16`). The radio answers in lower case.
 - WSJT-X, WSJT-X Improved and JTDX: CAT and audio over the one connection,
   no sound card or cable. The audio takes about 3 Mbit/s from the radio, and
   about 6 Mbit/s more from the PC while it transmits (they send each TX frame
