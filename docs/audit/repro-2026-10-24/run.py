@@ -143,8 +143,8 @@ def main():
         print("B07 log receipts (fixed):\n" + command([binary], env,
               contains=("browser 0: logged 1 ok", "browser 1: logged 1 unknown", "writes=2")).strip())
 
-        cfg = ["src/cfg/settings_manager.cpp", "src/cfg/subject.cpp",
-               "src/cfg/pending_writes.cpp", "src/cfg/storage_policy.cpp", "src/cfg/db.cpp"]
+        cfg = ["src/cfg/settings_manager.cpp", "src/cfg/subject.cpp", "src/cfg/pending_writes.cpp",
+               "src/cfg/storage_policy.cpp", "src/cfg/db.cpp", "src/cfg/smeter_att.c"]
         for source, markers in (
             ("vfo.cpp", ("after B=7100000: band=7 A=14100000 B=7100000 mode=2", "persisted B=7100000",
                          "after toggle: band=4 A=14100000 B=7100000 vfo=1",

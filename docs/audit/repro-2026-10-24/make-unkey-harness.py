@@ -25,6 +25,7 @@ pre = r'''
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <ctype.h>
 #include <stdatomic.h>
 #include <pthread.h>
 #include <stdarg.h>
