@@ -80,28 +80,29 @@ build PC (tx-test-2026-10-24.txt, i2c-baseline-2026-10-24.txt) and /mnt/baseband
   in the GUI as a workaround, the external-voltage report, and Xiegu's stock V1.1.9 base (found unflashed
   on the radio's eMMC: OpenX6X00 already enables zoom and IF shift for it) as the low-risk alternative.
 
-## CESSB on Xiegu's newest bases, X6100 and X6200 (and the other TX options with it)
+## CESSB in the base firmware, X6100 and X6200 (later: once there is a stable build)
 
-Asked 2026-10-25; CESSB first, the rest when it comes for free. CESSB (controlled-envelope SSB, W9GR) gives
-SSB more average power without splatter: the SSB envelope is clipped and the overshoot the filtering brings
-back is controlled. Today only gdyuldin's patched X6100 base has it (x6100_base_patch rev 12 and up,
-`HW_CAP_CESSB`, Settings > TX CAL), and r13 is not usable on V1.1.8 radios (the section above). Xiegu's newest
-bases, X6100 V1.1.9 and X6200 1.0.8, have no CESSB, and the X6200's no TX filter either
+Asked 2026-10-25 (CESSB first, the other TX options when they come for free); the owner, 5 November: CESSB is only
+possible in the base's firmware, so this waits until OpenX6X00 has a stable build. CESSB (controlled-envelope SSB,
+W9GR) gives SSB more average power without splatter: the SSB envelope is clipped and the overshoot the filtering
+brings back is controlled. Today only gdyuldin's patched X6100 base has it (x6100_base_patch rev 12 and up, built on
+Xiegu's base V1.1.6; `HW_CAP_CESSB`, Settings > TX CAL), and r13 is not usable on V1.1.8 radios (the section above).
+Xiegu's newest bases, X6100 V1.1.9 and X6200 1.0.8, have no CESSB, and the X6200's no TX filter either
 (src/hw/x6200/hw_x6200.c, `hw_caps()`).
 
-- **The idea**: do it in the GUI, on the voice path, so it works on both radios and any base. The mic is
-  recorded by Linux, processed and played into the transmitter the way voice messages, FT8, TCI and the
-  browser panel already transmit (`radio_set_modem()`; `AUDIO_PLAY_ON` mutes the base's mic inputs,
-  src/radio.c). Chain: TX filter (band-pass), compressor, CESSB (Hilbert to the complex envelope, clip,
-  filter, overshoot clip), then a fixed level into the base so its ALC stays out of it.
-- **To find out first**: whether both radios' mics (hand and built-in) can be recorded by Linux while the base
-  transmits from the modem input (voice messages record the mic: `AUDIO_PLAY_VOICE_REC`); the delay from mic
-  to RF (aim under 40 ms: PulseAudio's buffers) and a monitor that hears the processed audio; who keys (the
-  hand mic's PTT keys the base, the GUI must key the modem path instead), VOX; the X6200 base's compressor
-  off meanwhile; power and ALC (the X6200 holds power without ALC, `HW_CAP_TX_NO_ALC`); a measurement
-  (average power at the same peak, splatter seen on a second receiver).
-- **Maybe also, from the same chain**: r13's other TX options for the stock bases: TX filter (the X6200 has
-  none), compressor shape, FM pre-emphasis, a TX equaliser. The band output gain stays base-side.
+- **Not on the Linux side.** The SSB signal is made in the base: its SSB filter, ALC and PA come after anything
+  the GUI could do to the audio, so an envelope controlled on the audio would not stay controlled (the filtering
+  after the clipper brings the overshoot back), and the GUI cannot see or steer those stages: the base doesn't
+  expose them. The idea of a CESSB chain on the voice path (the mic recorded by Linux and played into the
+  transmitter as voice messages are) is dropped for that reason; the same goes for a wider SSB bandwidth (#69).
+- **The way**: see whether the bases' firmware can be reverse-engineered, as gdyuldin did for the X6100 from V1.1.6,
+  and CESSB added for both radios: X6100 V1.1.8/V1.1.9 and the X6200's 1.0.8. Reverse engineering for
+  interoperability is allowed in the EU. Start from gdyuldin's patch (what it hooks, how the GUI controls it),
+  then the X6200 base, which is another firmware.
+- **With it, maybe**: r13's other TX options on the stock bases: a TX filter (the X6200 has none), the compressor's
+  shape, FM pre-emphasis, a TX equaliser.
+- **Before any image carries a patched base**: how it is flashed and rolled back safely (flashing a base needs the
+  owner's go), and that a radio without it keeps working as today.
 
 ## FreeDV: RADE and the Codec 2 modes (#37, #52)
 
