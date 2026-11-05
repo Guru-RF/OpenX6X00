@@ -3,16 +3,19 @@
  *
  *  Host test of src/wr12.c, the X6200's WR12 driver (#134), against a stand-in WR12 on a pty that answers each
  *  command OK (or ERROR, late, nothing, or unplugs itself on one), found by its USB id in a stand-in sysfs
- *  (test.d/sys), with gpsd's control socket stood in too. In order: a WR12 the GUI before left out of its bypass (the
- *  mark), WR12 on HOST off (nothing sent), on (gpsd told to let go, the set-up in order, the keepalive), 98 MHz
- *  (AT+FREQ, AT+BYPASS=0, not while the radio is in TX), 98.1 MHz, 7 MHz, off while receiving, ERROR answers (in the
- *  set-up, to AT+FREQ, to AT+BYPASS=1), a WR12 that stops answering, unplugged in the middle of a command (receiving,
- *  and on its way back to the bypass, for good or back within GONE_MS as after a reset on USB), plugged in again as
- *  ttyACM1 beside a GPS on ttyACM0, an echo before the answers, the serial paddle's question, and the log: each
- *  answer once, not one line a command. A WR12 that takes the set-up but answers AT+AYT too late, again and again:
- *  said once, set up again later each time. One that never stops sending. Last, a GUI stopped with SIGTERM while the
- *  WR12 is out of its bypass (this program again, as `wr12_test term`, its log in wr12_term.log), and the start
- *  loop's AT+BYPASS=1 after a GUI that ended any way (rootfs/usr/sbin/x6100-wr12-bypass, run by sh on the stand-ins).
+ *  (test.d/sys), with gpsd's control socket stood in too. As a WR12 does (measured), it leaves a command that comes
+ *  within 2 ms of its last answer unanswered (DEAF_US): the driver sends none so soon, the whole run. In order: a
+ *  WR12 the GUI before left out of its bypass (the mark), WR12 on HOST off (nothing sent), on (gpsd told to let go,
+ *  the set-up in order, the keepalive), 98 MHz (AT+FREQ, AT+BYPASS=0, not while the radio is in TX), 98.1 MHz,
+ *  7 MHz, 98 MHz out of TX (AT+BYPASS=0 straight after AT+FREQ's OK, and heard), off while receiving, ERROR answers
+ *  (in the set-up, to AT+FREQ, to AT+BYPASS=1), a WR12 that stops answering, unplugged in the middle of a command
+ *  (receiving, and on its way back to the bypass, for good or back within GONE_MS as after a reset on USB), plugged
+ *  in again as ttyACM1 beside a GPS on ttyACM0, an echo before the answers, the serial paddle's question, and the
+ *  log: each answer once, not one line a command. A WR12 that takes the set-up but answers AT+AYT too late, again
+ *  and again: said once, set up again later each time. One that never stops sending. Last, a GUI stopped with
+ *  SIGTERM while the WR12 is out of its bypass, in the middle of an AT+AYT (this program again, as `wr12_test term`,
+ *  its log in wr12_term.log), and the start loop's AT+BYPASS=1 after a GUI that ended any way
+ *  (rootfs/usr/sbin/x6100-wr12-bypass, run by sh on the stand-ins).
  *
  *  The TX rules are wr12_tx_block's, which cfg_tx_refusal says first and so radio.c's refusals and its hold at 0 W
  *  follow: TX held from the moment the radio asks the WR12 out of its bypass until the WR12 is seen back in it (its OK
@@ -65,6 +68,13 @@ static uint64_t now_ms(void) {
     return (uint64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
+static uint64_t now_us(void) {
+    struct timespec t;
+
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
+}
+
 static void sleep_ms(unsigned ms) {
     usleep(ms * 1000);
 }
@@ -82,10 +92,12 @@ static bool is(const char *a, const char *b) {
 /* ---- The stand-in WR12 ------------------------------------------------------------------------------------------- */
 
 #define MAX_CMDS 2048
+#define DEAF_US  2000   /* a command this soon after its last answer goes unanswered, as on a WR12 (measured) */
 
 static pthread_mutex_t fw_mux = PTHREAD_MUTEX_INITIALIZER;
 static char            cmds[MAX_CMDS][40];      /* what it was sent, in order */
 static uint64_t        cmd_ms[MAX_CMDS];        /* and when */
+static uint64_t        cmd_gap[MAX_CMDS];       /* and how long after its last answer, in us (UINT64_MAX: none) */
 static int             n_cmds;
 static struct {
     int      master;            /* the pty's own side, -1: none */
@@ -98,6 +110,8 @@ static struct {
     char     unplug[40];        /* unplugged at the first command starting with this, unanswered */
     char     slow[40];          /* a command starting with this answered slow_ms late */
     unsigned slow_ms;
+    char     term[40];          /* the first command starting with this: SIGTERM to term_pid, then its answer */
+    pid_t    term_pid;
 } fw = {.master = -1};
 static pthread_t   fw_thread;
 static bool        fw_running;
@@ -157,9 +171,10 @@ static void fw_gone(void) {
 }
 
 static void *fw_run(void *arg) {
-    char   line[64];
-    size_t len = 0;
-    int    m = fw.master;
+    char     line[64];
+    size_t   len = 0;
+    int      m = fw.master;
+    uint64_t answered = 0;  /* its last answer, in us; 0 none yet */
 
     (void)arg;
     while (!atomic_load(&fw_stop)) {
@@ -195,6 +210,8 @@ static void *fw_run(void *arg) {
             const char *eol = "\r\n";
             bool        unplug, silent, echo;
             unsigned    delay;
+            uint64_t    gap;
+            pid_t       term;
 
             if (buf[i] == '\r') continue;
             if (buf[i] != '\n') {
@@ -203,9 +220,11 @@ static void *fw_run(void *arg) {
             }
             line[len] = 0;
             len = 0;
+            gap = answered ? now_us() - answered : UINT64_MAX;
             pthread_mutex_lock(&fw_mux);
             if (n_cmds < MAX_CMDS) {
-                cmd_ms[n_cmds] = now_ms();
+                cmd_ms[n_cmds]  = now_ms();
+                cmd_gap[n_cmds] = gap;
                 snprintf(cmds[n_cmds++], sizeof(cmds[0]), "%.39s", line);
             }
             unplug = starts(line, fw.unplug);
@@ -217,15 +236,19 @@ static void *fw_run(void *arg) {
             delay  = starts(line, fw.slow) ? fw.slow_ms : 0;
             silent = fw.silent;
             echo   = fw.echo;
+            term   = starts(line, fw.term) ? fw.term_pid : 0;
+            if (term) fw.term[0] = 0;
             pthread_mutex_unlock(&fw_mux);
             if (unplug) {
                 fw_gone();
                 return NULL;
             }
-            if (silent) continue;
+            if (term) kill(term, SIGTERM);
+            if (silent || gap < DEAF_US) continue;  /* so soon after its last answer: unanswered, as on a WR12 */
             if (delay) sleep_ms(delay);
             if (echo && (write(m, line, strlen(line)) < 0 || write(m, eol, strlen(eol)) < 0)) continue;
             if (write(m, ans, strlen(ans)) < 0) continue;
+            answered = now_us();
         }
     }
     return NULL;
@@ -311,6 +334,32 @@ static int cmds_since(int from, const char *prefix) {
     for (int i = from; i < n_cmds; i++) n += starts(cmds[i], prefix);
     pthread_mutex_unlock(&fw_mux);
     return n;
+}
+
+/* The commands from `from` on that came within DEAF_US of its last answer, and went unanswered */
+static int deaf_since(int from) {
+    int n = 0;
+
+    pthread_mutex_lock(&fw_mux);
+    for (int i = from; i < n_cmds; i++) n += cmd_gap[i] < DEAF_US;
+    pthread_mutex_unlock(&fw_mux);
+    return n;
+}
+
+/* How long after its last answer the first command from `from` on starting with prefix came, in us; -1: none such,
+ * or no answer before it */
+static long long gap_us(int from, const char *prefix) {
+    long long g = -1;
+
+    pthread_mutex_lock(&fw_mux);
+    for (int i = from; i < n_cmds; i++) {
+        if (starts(cmds[i], prefix)) {
+            g = cmd_gap[i] == UINT64_MAX ? -1 : (long long)cmd_gap[i];
+            break;
+        }
+    }
+    pthread_mutex_unlock(&fw_mux);
+    return g;
 }
 
 /* The commands from `from` on are these, in this order, and no more than these (more: more) */
@@ -545,6 +594,24 @@ int main(int argc, char **argv) {
     fw_text(fw.slow, "");
     expect("7 MHz", m, (const char *const[]){"AT+BYPASS=1"}, 1, true);
     check(cmds_since(m, "AT+FREQ") == 0, "7 MHz: no AT+FREQ");
+
+    /* 98 MHz out of TX: AT+BYPASS=0 straight after AT+FREQ's OK, but no sooner than 10 ms after it (GAP_MS): heard,
+     * answered the first time, not again at the keepalive's pace after "no answer" */
+    m = cmds_mark();
+    wr12_want(true, true, 98000000);
+    WAIT_FOR(cmds_since(m, "AT+BYPASS=0") == 1, 1000);
+    sleep_ms(200);      /* past the time an answer has, 150 ms here */
+    expect("98 MHz out of TX", m, (const char *const[]){"AT+FREQ=98000000", "AT+BYPASS=0"}, 2, false);
+    {
+        long long gap = gap_us(m, "AT+BYPASS=0");
+
+        check(deaf_since(m) == 0 && gap >= 8000 && gap < 100000,
+              "98 MHz out of TX: AT+BYPASS=0 some 10 ms after AT+FREQ's OK, heard (%lld us after it)", gap);
+    }
+    check(log_lines("wr12: AT+BYPASS=0: no answer") == 0, "98 MHz out of TX: AT+BYPASS=0 answered");
+    wr12_want(true, false, 98000000);
+    WAIT_FOR(!wr12_tx_block(), 1000);
+    check(!wr12_tx_block(), "98 MHz out of TX, then back in its bypass: TX free");
 
     /* Asked out while the radio keys and back before it stops: never out, TX free at once */
     atomic_store(&keyed, true);
@@ -824,10 +891,15 @@ int main(int argc, char **argv) {
 
     /* A GUI stopped with SIGTERM while the WR12 is out of its bypass (S95gui stop: a restart, an update or its
      * rollback, a shutdown): AT+BYPASS=1 last thing, the GUI ended as SIGTERM ends it, the mark kept for the GUI
-     * after it, which holds TX until it has seen the WR12 back in its bypass */
+     * after it, which holds TX until it has seen the WR12 back in its bypass. The SIGTERM comes from the stand-in as
+     * an AT+AYT reaches it, its OK 8 ms later (the slowest answer measured but AT+INIT's): after on_term's first
+     * 5 ms, so that AT+BYPASS=1 then would cross it, and right after it would go unheard; on_term waits for that OK,
+     * then GAP_MS, and is heard */
     {
-        pid_t p;
-        int   st = 0;
+        pid_t    p;
+        int      st = 0;
+        bool     ended = false;
+        uint64_t ayt = 0, bypass = 0;
 
         m = cmds_mark();
         p = fork();
@@ -839,10 +911,28 @@ int main(int argc, char **argv) {
         sleep_ms(50);
         check(cmds_since(m, "AT+BYPASS=0") == 1 && marked(), "SIGTERM: a GUI receiving through the WR12");
         m = cmds_mark();
-        kill(p, SIGTERM);
-        waitpid(p, &st, 0);
+        pthread_mutex_lock(&fw_mux);
+        fw.slow_ms  = 8;
+        fw.term_pid = p;
+        pthread_mutex_unlock(&fw_mux);
+        fw_text(fw.slow, "AT+AYT");
+        fw_text(fw.term, "AT+AYT");
+        WAIT_FOR((ended = waitpid(p, &st, WNOHANG) == p), 3000);
+        if (!ended) {
+            kill(p, SIGTERM);
+            waitpid(p, &st, 0);
+        }
+        fw_text(fw.slow, "");
+        fw_text(fw.term, "");
         sleep_ms(50);
+        check(ended, "SIGTERM: sent by the stand-in at the GUI's AT+AYT");
         check(cmds_since(m, "AT+BYPASS=1") == 1 && last_is("AT+BYPASS=1"), "SIGTERM: AT+BYPASS=1, last thing");
+        check(deaf_since(m) == 0 && gap_us(m, "AT+BYPASS=1") >= 8000,
+              "SIGTERM in the middle of AT+AYT: AT+BYPASS=1 some 10 ms after its OK, heard (%lld us after it)",
+              gap_us(m, "AT+BYPASS=1"));
+        check(cmd_times(m, "AT+AYT", &ayt, 1) == 1 && cmd_times(m, "AT+BYPASS=1", &bypass, 1) == 1 &&
+                  bypass - ayt < 30,
+              "SIGTERM: AT+BYPASS=1 no later than it needs (%lld ms after the signal)", (long long)(bypass - ayt));
         check(WIFSIGNALED(st) && WTERMSIG(st) == SIGTERM, "SIGTERM: the GUI ends as SIGTERM ends it (%#x)", st);
         check(marked(), "SIGTERM: the mark kept for the GUI after it");
     }
@@ -869,6 +959,9 @@ int main(int argc, char **argv) {
         sleep_ms(50);
         check(cmds_mark() == m && said[0] == 0, "the start loop, no mark: nothing (%s)", said);
     }
+
+    /* Nothing, the whole run, within the 2 ms after an answer that a WR12 does not hear */
+    check(deaf_since(0) == 0, "no command within 2 ms of an answer, the whole run (%d)", deaf_since(0));
 
     printf("%d checks, %d failed\n", checks, fails);
     if (!fails) {
