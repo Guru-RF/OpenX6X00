@@ -104,10 +104,8 @@ static keypad_key_t button_of(uint16_t code) {
     return KEYPAD_UNKNOWN;
 }
 
-/* One input event a call; value 1 is a press, anything else (release, autorepeat) lets go */
-static void button_event(const struct input_event *in) {
-    keypad_key_t key = button_of(in->code);
-
+/* One already-decoded button; value 1 is a press, anything else (release, autorepeat) lets go */
+void keypad_button(keypad_key_t key, int value) {
     if ((unsigned)key >= KEYS) {
         return;     /* a key added after FST, which KEYS has no place for */
     }
@@ -115,7 +113,7 @@ static void button_event(const struct input_event *in) {
         lv_timer_del(key_st[key].hold_timer);
         key_st[key].hold_timer = NULL;
     }
-    if (in->value == 1) {
+    if (value == 1) {
         key_st[key].down      = true;
         key_st[key].long_sent = false;
         send(key, KEYPAD_PRESS);
@@ -127,6 +125,11 @@ static void button_event(const struct input_event *in) {
         key_st[key].down = false;
         send(key, key_st[key].long_sent ? KEYPAD_LONG_RELEASE : KEYPAD_RELEASE);
     }
+}
+
+/* One input event a call */
+static void button_event(const struct input_event *in) {
+    keypad_button(button_of(in->code), in->value);
 }
 
 static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {

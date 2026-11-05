@@ -30,6 +30,9 @@ extern "C" {
 #include "msg_box.h"
 #include "walkie.h"
 #include "cw_field.h"
+#include "front_keys.h"
+#include "control_owner.h"
+#include "screen_light.h"
 }
 
 #define STATE_ASSIGNED LV_STATE_USER_1  /* bound to a knob in the knob binds */
@@ -538,14 +541,32 @@ static lv_obj_t *make_mark(lv_obj_t *btn, lv_coord_t x, lv_coord_t y) {
     lv_obj_t *m = lv_obj_create(btn);
 
     lv_obj_set_pos(m, x, y);
-    lv_obj_clear_flag(m, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(m, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_style(m, &btn_mark_style, 0);
     lv_obj_add_style(m, &btn_mark_assigned_style, STATE_ASSIGNED);
     lv_obj_add_style(m, &btn_mark_active_style, STATE_ACTIVE);
     return m;
 }
 
-static void make_slot(disp_btn_t *s, lv_obj_t *parent, lv_coord_t x) {
+/* Pointer on an F-slot: press and release the same key the front panel uses, so the
+ * hold time (HOLD_MS / keypad_set_long_time) and Hide-buttons wake match a real key. */
+static void slot_event_cb(lv_event_t *e) {
+    uint8_t         n    = (uint8_t)(intptr_t)lv_event_get_user_data(e);
+    lv_event_code_t code = lv_event_get_code(e);
+    keypad_key_t    key  = (keypad_key_t)(KEYPAD_F1 + n);
+
+    if (code == LV_EVENT_PRESSED) {
+        ctl_local_input();
+        if (backlight_tick()) {
+            return;     /* woke the screen: that was the press's job */
+        }
+        keypad_button(key, 1);
+    } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+        keypad_button(key, 0);
+    }
+}
+
+static void make_slot(disp_btn_t *s, lv_obj_t *parent, lv_coord_t x, uint8_t idx) {
     lv_obj_t *f = lv_obj_create(parent);
 
     s->parent = f;
@@ -557,6 +578,10 @@ static void make_slot(disp_btn_t *s, lv_obj_t *parent, lv_coord_t x) {
     /* Drawn buttons: 1 px apart on every side, more when the theme says (btn_gap) */
     lv_obj_set_pos(f, x + BTN_INSET, 480 - BTN_HEIGHT + BTN_INSET);
     lv_obj_set_size(f, BTN_WIDTH - 2 * BTN_INSET, BTN_HEIGHT - 2 * BTN_INSET);
+    lv_obj_add_flag(f, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(f, slot_event_cb, LV_EVENT_PRESSED, (void *)(intptr_t)idx);
+    lv_obj_add_event_cb(f, slot_event_cb, LV_EVENT_RELEASED, (void *)(intptr_t)idx);
+    lv_obj_add_event_cb(f, slot_event_cb, LV_EVENT_PRESS_LOST, (void *)(intptr_t)idx);
 
     /* Knob marks: a bar on the left edge, green VOL, blue MFK, or the theme's LED */
     lv_coord_t mx = theme_shape.mark[1] ? theme_shape.mark[0] : 0;
@@ -574,12 +599,14 @@ static void make_slot(disp_btn_t *s, lv_obj_t *parent, lv_coord_t x) {
     s->label = lv_label_create(f);
     lv_obj_center(s->label);
     lv_obj_set_style_text_align(s->label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_clear_flag(s->label, LV_OBJ_FLAG_CLICKABLE);
 
     s->value = lv_label_create(f);
     lv_obj_set_style_text_font(s->value, &sony_32, 0);
     lv_obj_set_style_text_color(s->value, TC(btn_text), 0);
     lv_obj_align(s->value, LV_ALIGN_BOTTOM_MID, 0, -5);
     lv_obj_add_flag(s->value, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(s->value, LV_OBJ_FLAG_CLICKABLE);
 }
 
 static void knob_binds_cb(Subject *subj, void *user_data) {
@@ -600,7 +627,7 @@ void buttons_init(lv_obj_t *parent) {
             first->prev = g.pages[(i + g.n - 1) % g.n];
         }
     }
-    for (int i = 0; i < BUTTONS; i++) make_slot(&slots[i], parent, i * BTN_WIDTH);
+    for (int i = 0; i < BUTTONS; i++) make_slot(&slots[i], parent, i * BTN_WIDTH, (uint8_t)i);
     hidden = false;     /* made shown (a theme change), the knob lines too (knobs_init()) */
     cfg_sm.p_encoder_bind.subscribe_delayed_and_notify(knob_binds_cb, NULL);
 }
