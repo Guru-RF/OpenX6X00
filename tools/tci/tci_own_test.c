@@ -665,6 +665,98 @@ static void dds_and_unknown(void) {
           "dds then vfo, as Hamlib sets a frequency: the vfo tunes");
 }
 
+/* A question takes no control: a vfo without its frequency, a trx without true or false, the filter without its two
+ * edges, the mode, AGC, RIT and drive without their value. Hamlib's TCI backend asks VFO:0,0; and TRX:0; at every
+ * poll: each is answered with the state, nothing is done, and the browser or the program that has control keeps it,
+ * also during the asking client's own transmission, after it and during another's. What sets something takes
+ * control as before, also a value the radio has already, and a trx true or false; Listen only asks the same */
+static void questions_take_no_control(void) {
+    struct {
+        const char *ask;
+        char        answer[48];
+    } q[] = {
+        {"vfo:0,0;", "vfo:0,0,7074000;"},
+        {"vfo:0;", "vfo:0,0,7074000;"},
+        {"vfo;", "vfo:0,0,7074000;"},
+        {"trx:0;", "trx:0,false;"},
+        {"trx;", "trx:0,false;"},
+        {"modulation:0;", "modulation:0,lsb;"},
+        {"rx_filter_band:0;", "rx_filter_band:0,-2700,-300;"},
+        {"rx_filter_band:0,300;", "rx_filter_band:0,-2700,-300;"},  /* one edge: no filter to set */
+        {"agc_mode:0;", "agc_mode:0,fast;"},
+        {"rit_enable:0;", "rit_enable:0,false;"},
+        {"rit_offset:0;", "rit_offset:0,0;"},
+        {"drive:0;", ""},                                           /* the stub's power as TCI's drive, below */
+    };
+    static const char *const sets[] = {     /* the second vfo sets the frequency the radio has by then */
+        "vfo:0,0,14074000;", "vfo:0,0,14074000;", "modulation:0,usb;", "rx_filter_band:0,100,3000;",
+        "agc_mode:0,slow;", "rit_offset:0,100;", "rit_enable:0,false;", "drive:0,80;", "trx:0,false;",
+    };
+    int         nq = sizeof(q) / sizeof(q[0]);
+    const char *h;
+    char        what[128];
+    rstate_t    s;
+    bool        idle;
+
+    state_read(&s);
+    snprintf(q[nq - 1].answer, sizeof(q[nq - 1].answer), "drive:0,%d;", s.drive);
+    client_open(A);
+    client_open(B);
+    for (int i = 0; i < nq; i++) {
+        ctl_claim(CTL_BROWSER, 0, "Shack PC", true);
+        say(A, q[i].ask);
+        h    = heard(A);
+        idle = stub_run(-1) == 0;
+        snprintf(what, sizeof(what), "%s answered %s, nothing done, control stays with the browser", q[i].ask,
+                 q[i].answer);
+        check(!strcmp(h, q[i].answer) && idle && ctl_holds(CTL_BROWSER, 0), what);
+    }
+
+    say(B, "vfo:0,0,7100000;");             /* B tunes: control is B's */
+    gui(-1);
+    check(cparam_i_get(cfg_fg_freq) == 7100000 && ctl_holds(CTL_TCI, B), "B tunes and takes control");
+    heard(A);
+    say(A, "dds:0;vfo:0,0;trx:0;");         /* Hamlib's poll */
+    check(!strcmp(heard(A), "dds:0,7100000;vfo:0,0,7100000;trx:0,false;") && ctl_holds(CTL_TCI, B),
+          "A's poll answered, control stays with B");
+
+    ctl_claim(CTL_BROWSER, 0, "Shack PC", true);
+    say(A, "trx:0,true;");                  /* A keys: control is A's for its transmission */
+    gui(-1);
+    check(on_air() && ptt_owner == A && ctl_holds(CTL_TCI, A), "A's start keys, control with A");
+    heard(A);
+    heard(B);
+    say(A, "trx:0;");
+    say(B, "vfo:0,0;trx:0;");
+    check(!strcmp(heard(A), "trx:0,true;") && !strcmp(heard(B), "vfo:0,0,7100000;trx:0,true;") &&
+          ctl_holds(CTL_TCI, A), "A's and B's polls during A's transmission: control stays with A");
+    say(A, "trx:0,false;");
+    gui(-1);
+    check(!on_air() && ctl_holds(CTL_BROWSER, 0), "A's unkey ends it, control back with the browser");
+    heard(A);
+    say(A, "vfo:0,0;trx:0;");
+    check(!strcmp(heard(A), "vfo:0,0,7100000;trx:0,false;") && ctl_holds(CTL_BROWSER, 0),
+          "A's poll after its transmission: control stays with the browser");
+
+    for (size_t i = 0; i < sizeof(sets) / sizeof(sets[0]); i++) {
+        ctl_claim(CTL_BROWSER, 0, "Shack PC", true);
+        say(A, sets[i]);
+        gui(-1);
+        snprintf(what, sizeof(what), "%s takes control%s", sets[i],
+                 i && !strcmp(sets[i], sets[i - 1]) ? ", the frequency the radio has" : "");
+        check(ctl_holds(CTL_TCI, A), what);
+    }
+    check(cparam_i_get(cfg_fg_freq) == 14074000 && cparam_i_get(cfg_cur_mode) == radio_mode_usb &&
+          cparam_i_get(cfg_cur_agc) == radio_agc_slow, "the sets are done");
+
+    ctl_claim(CTL_BROWSER, 0, "Shack PC", true);
+    atomic_store(&trust_operate, false);    /* Listen only */
+    heard(A);
+    say(A, "vfo:0,0;trx:0;");
+    check(!strcmp(heard(A), "vfo:0,0,14074000;trx:0,false;") && stub_run(-1) == 0 && ctl_holds(CTL_BROWSER, 0),
+          "on Listen only A's poll answered, control stays with the browser");
+}
+
 /* Over Tailscale Funnel (#58) only the Panel's own sound and its key with it: a session that may not transmit, or
  * one that keyed nothing, asking for the TX state or unkeying is answered with the state and takes no control (the
  * browser at home keeps it, as when that session's browser asks on the browser remote's socket); the session that
@@ -787,6 +879,7 @@ int main(void) {
         {"A browser's TCI audio start gives the browser its control back at the end", control_given_back},
         {"Listen only: a client's tuning and key answered with the state", listen_only},
         {"dds answered with the frequency, an unknown command with nothing", dds_and_unknown},
+        {"A question (Hamlib's poll) takes no control, a set does", questions_take_no_control},
         {"Over Funnel, an unkey or a question from a client that keyed nothing", funnel_takes_no_control},
         {"Over Funnel, the same browser back from another network", funnel_same_browser_back},
     };

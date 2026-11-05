@@ -29,7 +29,14 @@ of two waiting for their key the older goes; wrong keys pause Funnel. One more h
 Listen only: its tuning, mode, filter, AGC, RIT, drive and key answered with the state, nothing
 done, control left with the browser. One more sends `dds` (Hamlib's TCI backend sends one before
 each `vfo`): answered with the frequency, set or asked, nothing done; an unknown command left
-unanswered; the `vfo` after a `dds` tunes. Each runs in a child process, its clients on socket
+unanswered; the `vfo` after a `dds` tunes. One more has a client asking while a browser has
+control (Hamlib's TCI backend asks `VFO:0,0;` and `TRX:0;` at every poll): a `vfo` without its
+frequency, a `trx` without true or false, the filter without its two edges, the mode, AGC, RIT
+and drive without their value, each answered with the state, nothing done; control stays where
+it is: with the browser, with another client that tuned, with the asking client during its own
+transmission, with the browser again after it, which that transmission's end gave it back to.
+Every set takes control as before, a `trx` true or false too, also a value the radio has
+already. Each runs in a child process, its clients on socket
 pairs, without a listener, and three times: the clients' commands as written, in capitals (as
 Hamlib's TCI backend sends them, `TRX:0,TRUE,TCI;`, `AUTH:` over Funnel) and in mixed case
 (`TrX:0,TrUe,tCi;`), which TCI says are the same: the same answers, in lower case. It prints

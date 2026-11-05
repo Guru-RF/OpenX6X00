@@ -19,9 +19,10 @@
  *
  *  A TCI client has no pairing: /mnt/tci.conf says what it may do (trust=operate, the default,
  *  as before: it tunes, changes the mode and keys; trust=view: it only hears and follows, its
- *  commands are answered with the state as it is). An operating client takes control of the
- *  radio (control_owner.h) as the knob always did, unless someone is on the air; a browser
- *  that held it sees "TCI client active" and takes it back on purpose (R3).
+ *  commands are answered with the state as it is). An operating client that sets something takes
+ *  control of the radio (control_owner.h) as the knob always did, unless someone is on the air;
+ *  a browser that held it sees "TCI client active" and takes it back on purpose (R3). A question
+ *  (vfo:0,0;, trx:0;) is answered with the state and takes no control.
  *
  *  Over Tailscale Funnel (#58) only the browser Panel's own sound and microphone: a connection
  *  tailscaled marks as one from the internet gets no greeting until its first text, "auth TOKEN",
@@ -873,8 +874,8 @@ static bool tx_free(const rstate_t *s) {
  * TX state, an unkey, and a key with the page's audio ("trx:0,true,tci") for a session that may transmit, looked
  * up again as it keys (a session revoked meanwhile keys nothing). A key with the radio's own microphone is answered
  * trx:0,false; anything else is left unanswered. The TX state asked, or an unkey from a client whose transmission
- * it is not, is answered with the state here: handle_cmd would take control of the radio for it as for a TCI
- * program, and a session that may only listen, or not transmit, takes no control on the browser remote either.
+ * it is not, is answered with the state here: handle_cmd would take control of the radio for that unkey as for a
+ * TCI program, and a session that may only listen, or not transmit, takes no control on the browser remote either.
  * TCI programs do not come over Funnel: they cannot pair */
 static bool funnel_cmd_ok(client_t *c, const char *name, char **a, int n) {
     int ci = (int)(c - clients);
@@ -934,7 +935,12 @@ static void handle_cmd(int ci, char *line) {
      * where it is, with the client whose start is on its way or on the air, which then still
      * tunes during its over (C01). A client trusted to view only is answered with the state */
     bool refused = !strcmp(name, "trx") && n >= 2 && parse_bool(a[1]) && !tx_free(&s);
-    bool claim   = !refused && !(n < 2 && strcmp(name, "trx"));
+    /* A question takes no control: a vfo without its frequency (vfo:0,0;), a trx without true or false, the filter
+     * without its two edges, the others without their value. It is answered with the state below, so a program that
+     * polls (Hamlib's TCI backend asks VFO:0,0; and TRX:0; at every poll) leaves control with a browser that has it.
+     * What sets something takes it, a trx true or false too */
+    bool asks    = n < (!strcmp(name, "vfo") || !strcmp(name, "rx_filter_band") ? 3 : 2);
+    bool claim   = !refused && !asks;
     bool held    = ctl_holds(CTL_TCI, ci);   /* before a start's claim: whether it takes control for itself */
     bool may     = !rf || release || (atomic_load(&trust_operate) && (!claim || ctl_claim(CTL_TCI, ci, "TCI", true)));
     if (rf && !may && n >= 2) {

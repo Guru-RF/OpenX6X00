@@ -4961,6 +4961,8 @@ Release gives it up without anyone taking it. The radio's own keys and knobs
 always take control back (the operator standing at the radio has the last
 word); a browser takes it again on purpose. A TCI client takes it as the
 knob always did, the moment it tunes or keys, unless someone is on the air.
+What it only asks (the frequency, the TX state: a logger through Hamlib asks
+at every poll) takes nothing, and control stays where it is.
 When it keys while it does not have control (it tuned nothing, or someone
 took control since), control goes back when that transmission ends: to the
 browser, the radio or the program it came from, or free if it was free or
@@ -5162,7 +5164,12 @@ program on the network tunes the radio, hears it and keys it.
   a listening client hears and follows the radio, and its tuning and keying
   are answered with the state as it is, unchanged. An operating client takes
   control of the radio the moment it tunes or keys, as the knob always did,
-  unless someone is on the air. One that keys while it does not have
+  unless someone is on the air. What it only asks takes no control and is
+  answered with the state: `vfo:0,0;`, `trx:0;`, and `modulation`,
+  `rx_filter_band`, `agc_mode`, `rit_enable`, `rit_offset` or `drive`
+  without a value. Hamlib's TCI backend asks `VFO:0,0;` and `TRX:0;` at
+  every poll, so a program that polls through it leaves control with the
+  browser or the program that has it. One that keys while it does not have
   control (it tuned nothing, or someone took control since) gives it back
   when its transmission ends, to whoever had it (or free); after one that
   tuned, a browser that was operating sees "TCI client · Take control" and
