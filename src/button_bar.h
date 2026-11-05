@@ -20,7 +20,7 @@
 #define BUTTONS     5
 #define BTN_HEIGHT  BUTTONS_H
 #define BTN_WIDTH   160
-#define BTN_INSET   (1 + theme_shape.btn_gap)   /* space on every side of a drawn button */
+#define BTN_INSET   (theme_amber ? 0 : 1 + theme_shape.btn_gap)   /* space on every side of a drawn button; Amber Trey: none */
 
 #ifdef __cplusplus
 #include "params/params.h"

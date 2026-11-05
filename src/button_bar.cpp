@@ -818,7 +818,7 @@ static int btn_size_index(disp_btn_t *b) {
     int i = 0;
 
     while (i + 1 < (int)ARRAY_SIZE(btn_sizes) && btn_sizes[i + 1].size <= theme_shape.btn_text_size) i++;
-    while (i > 0 && 2 * lv_font_get_line_height(btn_sizes[i].font) > btn_h(b)) i--;
+    while (!theme_amber && i > 0 && 2 * lv_font_get_line_height(btn_sizes[i].font) > btn_h(b)) i--;   /* Amber Trey: one line */
     return i;
 }
 
@@ -950,6 +950,12 @@ static void set_btn_text(disp_btn_t *b, const char *text) {
         for (const char *c = text; *c && n < sizeof(t) - 1; c++)
             if (*c != '(' && *c != ')') t[n++] = *c;
         t[n] = '\0';
+        lv_label_set_text(b->label, t);
+    } else if (theme_amber && strchr(text, '\n')) {   /* Amber Trey: "Spectrum Zoom" on one line, two did not fit */
+        char t[64];
+        snprintf(t, sizeof(t), "%s", text);
+        for (char *c = t; *c; c++)
+            if (*c == '\n') *c = ' ';
         lv_label_set_text(b->label, t);
     } else {
         lv_label_set_text(b->label, text);
