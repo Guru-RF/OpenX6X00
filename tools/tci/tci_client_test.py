@@ -195,7 +195,10 @@ def main():
     ws.text("trx:0,true;")
     print(ws.wait_text("trx:0,true;"))
     ws.text("tx_sensors_enable:true;")
-    print(ws.wait_text("tx_sensors:0,"))
+    sens = ws.wait_text("tx_sensors:0,")
+    print(sens)
+    # before the radio's first reading (#53): 0 W and ALC 0, the SWR 1.0 and never under it
+    assert sens == "tx_sensors:0,-20.0,0.0,0.0,1.00,0.0;", sens
     ws.text("trx:0,false;")
     print(ws.wait_text("trx:0,false;"))
 

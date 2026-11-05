@@ -35,7 +35,8 @@
 #define SWR_MAX     5.0f
 #define ALC_MAX     10.0f
 
-/* The readings of this TX: smoothed, except in the digital modes where each tone counts */
+/* The readings of this TX: smoothed, except in the digital modes where each tone counts. Written in the radio thread
+ * alone (tx_info_update, tx_info_clear), read in any */
 static float         pwr, vswr, alc;
 static uint8_t       msg_id;          /* one more with each reading (tx_info_refresh()) */
 static radio_mode_t  cur_mode;        /* followed from the first mode change on */
@@ -237,7 +238,16 @@ bool tx_info_shown(void) {
     return digital_app_open() || params.mag_alc.x || tune_len > 0.0f;
 }
 
-/* TX: the readings from zero, the strip or the panel (under the frequency strip), or neither: tx_info_shown().
+/* The panel's three numbers, from the readings its bars are drawn from */
+static void panel_values(void) {
+    lv_label_set_text_fmt(pwr_value, "%.1f W", pwr);
+    lv_label_set_text_fmt(swr_value, "%.1f", vswr);
+    lv_label_set_text_fmt(alc_value, "%.1f", alc);
+}
+
+/* TX: the strip or the panel (under the frequency strip), or neither: tx_info_shown(). The readings are 0 until the
+ * base's first of this TX (tx_info_clear at the end of the last), or already this TX's: not set here, in this thread.
+ * The strip and the panel's numbers show them as they open (the numbers showed the last TX's, #53).
  * RX: all hidden */
 static void radio_cb(lv_event_t *e) {
     if (lv_event_get_code(e) == EVENT_RADIO_RX) {
@@ -246,7 +256,6 @@ static void radio_cb(lv_event_t *e) {
         lv_obj_add_flag(strip, LV_OBJ_FLAG_HIDDEN);
         return;
     }
-    pwr = vswr = alc = 0.0f;
     tx_start = lv_tick_get();
 
     if (digital_app_open()) {
@@ -260,6 +269,7 @@ static void radio_cb(lv_event_t *e) {
     update_head();
     lv_obj_set_style_text_color(alc_name, alc_greyed() ? TC(text_mute) : TC(text_value), 0);
     lv_obj_set_style_text_color(alc_value, alc_greyed() ? TC(text_mute) : TC(text), 0);
+    panel_values();
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(panel);
 }
@@ -270,9 +280,7 @@ static void update_tx_info(void *unused) {
     if (!lv_obj_has_flag(strip, LV_OBJ_FLAG_HIDDEN)) {
         update_strip();
     } else if (!lv_obj_has_flag(panel, LV_OBJ_FLAG_HIDDEN)) {
-        lv_label_set_text_fmt(pwr_value, "%.1f W", pwr);
-        lv_label_set_text_fmt(swr_value, "%.1f", vswr);
-        lv_label_set_text_fmt(alc_value, "%.1f", alc);
+        panel_values();
         update_head();
         lv_obj_invalidate(panel);
     }
@@ -464,8 +472,9 @@ lv_obj_t *tx_info_init(lv_obj_t *parent) {
     return obj;
 }
 
-/* From the base, in its thread. The ALC from 0 (at rest) up: the X6100 backend turns its count round, the
- * X6200 sends it this way (as gdyuldin's X6200 GUI reads it, 34ec351 "Invert ALC") */
+/* From the base, in the radio thread. The ALC from 0 (at rest) up: the X6100 backend turns its count round, the
+ * X6200 sends it this way (as gdyuldin's X6200 GUI reads it, 34ec351 "Invert ALC"). From 0 lpf takes the reading as
+ * it is */
 void tx_info_update(float p, float s, float a) {
     s = LV_MIN(SWR_MAX, s);
     if (cur_mode == radio_mode_lsb_dig || cur_mode == radio_mode_usb_dig) {
@@ -481,13 +490,22 @@ void tx_info_update(float p, float s, float a) {
     scheduler_put_coalesced(update_tx_info);
 }
 
+/* The radio thread, out of TX or a tune (radio.c tx_over). They went to 0 at the TX event, in the LVGL thread: after
+ * the base's first TX packet (in a busy GUI after the next ones too, smoothed from the last TX's readings in the modes
+ * but the digital ones), after TCI had read them as it keyed (a 1 W TX right after an 8 W one read 7.9 W first, bench
+ * X6200, #53), and at times between the read and the write of an lpf here. msg_id stays: tx_player and the SWR guard
+ * of JS8 wait for a reading, not for this */
+void tx_info_clear(void) {
+    pwr = vswr = alc = 0.0f;
+}
+
 void tx_info_get(float *p, float *s) {
     *p = pwr;
     *s = vswr;
 }
 
 float tx_info_get_alc(bool *greyed) {
-    *greyed = alc_greyed();
+    if (greyed) *greyed = alc_greyed();
     return alc;
 }
 

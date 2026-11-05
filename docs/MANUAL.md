@@ -803,6 +803,13 @@ S-meter starts again from the next reading. Up to v0.3.8 the TX panel came
 up whatever that switch, and the box never showed the readings (issue
 #166).
 
+Each transmission's power, SWR and ALC start from 0, on the radio, on the
+browser panel, over TCI and over CAT, until the radio's first reading of it.
+TCI sends that SWR as 1.0, the least an SWR can be. Up to v0.3.8 a
+transmission could start with the last one's readings: a
+1 W transmission right after an 8 W one read 7.9 W over TCI as it keyed,
+before any of its audio went out (issue #53).
+
 Per band S-meter calibration. Each band has its own correction, -40 to
 +40 dB in 1 dB steps; the value shown is the one of the band the radio is on.
 Where: Settings > General > CONTROLS > Per band S-meter cal.
@@ -5150,7 +5157,8 @@ program on the network tunes the radio, hears it and keys it.
   `trx` (PTT; `trx:0,true,tci;` keys with the client's
   audio as the microphone), `rx_smeter` and `rx_channel_sensors` (the
   S-meter in dBm, after `rx_sensors_enable:true;`), `tx_sensors` (mic level,
-  forward power, SWR, ALC, after `tx_sensors_enable:true;`), the RX audio
+  forward power, SWR, ALC, after `tx_sensors_enable:true;`; 0 from the key
+  until the radio's first reading, the SWR 1.0, never less), the RX audio
   stream (`audio_start`, in the client's format, below) and the TX audio
   frames the client answers to each `TX_CHRONO`. The greeting ends with
   `start;` then `ready;`: the radio is running, as ExpertSDR3 says of an SDR
@@ -6091,9 +6099,9 @@ begun before keeps the header it had (PROGRAMVERSION 1.0.0, ADIF_VER 3.14);
 | `14` | `0A` | TX power (0-255 = 0-10 W; the X6200 stops at 8 W) | yes | yes |
 | `14` | `15` | Monitor level | yes | - |
 | `15` | `02` | S-meter (the CI-V scale, 120 = S9, for network clients) | yes | - |
-| `15` | `11` | TX power meter | yes | - |
-| `15` | `12` | SWR meter | yes | - |
-| `15` | `13` | ALC meter | yes | - |
+| `15` | `11` | TX power meter (0 in receive, and in a transmission until its first reading) | yes | - |
+| `15` | `12` | SWR meter, on the CI-V scale: 0 = SWR 1.0, 48 = 1.5, 80 = 2.0, 120 = 3.0, 200 = 5.0, the most the radio reads (as the power meter: 0 before a reading). Up to v0.3.8 it turned down above SWR 3.2: SWR 5 gave 23, which a CAT program reads as 1.2 | yes | - |
+| `15` | `13` | ALC meter (as the power meter) | yes | - |
 | `16` | `02` | Preamp | yes | yes |
 | `16` | `22` | Noise blanker | yes | yes |
 | `16` | `40` | Noise reduction | yes | yes |

@@ -1697,10 +1697,8 @@ static void *panel_thread(void *arg) {
         if (now - meter_ms >= METER_MS) {
             meter_ms = now;
             if (last.tx) {
-                float pwr = 0, swr = 0, alc = 0;
-                uint8_t seen = 0;
+                float pwr = 0, swr = 0, alc = tx_info_get_alc(NULL);   /* 0 until this TX's first reading (#53) */
                 tx_info_get(&pwr, &swr);
-                tx_info_refresh(&seen, &alc, NULL, NULL);
                 snprintf(line, sizeof(line), "t %.1f %.2f %.1f", (double)pwr, (double)swr, (double)alc);
             } else {
                 snprintf(line, sizeof(line), "m %.1f", (double)meter_get_db());
