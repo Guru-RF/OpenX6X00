@@ -489,7 +489,9 @@ receive only. It sits between the antenna and the radio. In its bypass the
 antenna goes straight through to the radio; out of it the WR12 receives, and
 the radio listens to it on the WR12's IF. A switch says that a WR12 is
 there: Settings > General > WR12 RECEIVER > WR12 on HOST (also on the web
-Display page, Receiver card). Off by default.
+Display page, Receiver card). Off by default. New to the WR12? [The WR12,
+step by step](WR12.md) explains connecting it, listening and what the screen
+says, in plain words.
 
 - On: the bands of the band list between 54 MHz and 1 GHz come onto the band
   keys and the band plan (4 m, 2 m, 70 cm with the default list), and the
