@@ -816,11 +816,21 @@ Where: Settings > General > CONTROLS > Per band S-meter cal.
 
 - When you start editing it, a panel "S-METER CALIBRATION" says for 5 s:
   "For this band only. Feed -73 dBm and set the reading to S9 on each band you
-  use." (On our bench, -22 dB matched another calibrated transceiver.)
+  use."
 - Change it only while reading a known signal: -73 dBm (S9) from a generator,
   or the same signal on a calibrated radio.
-- A band never calibrated starts at -22 dB, or at the single S-meter cal value
-  set before.
+- A band never calibrated starts at -22 dB on the X6100 and +11 dB on the
+  X6200, or at the single S-meter cal value set before. On the X6100, -22 dB
+  matched another calibrated transceiver on our bench. The X6200 shows the
+  level its base sends, on another scale: +11 dB is the mean of two X6200s
+  calibrated band by band with a generator, 14 figures from +7 to +14 dB on
+  ten bands from 160 m to 10 m.
+- Up to v0.3.8 the X6200 started at -22 dB too, so a band never calibrated
+  read 30 to 35 dB low there, S3 for an S9 carrier. On the bands you never
+  calibrated, an X6200 now reads about 33 dB higher than before. A band you
+  calibrated keeps its own value.
+- On the X6200, calibrate a band before you press Measure on it (Settings >
+  TX Cal > S-METER): Measure wants the meter to read about S9 to S9+20.
 
 ### Waterfall
 

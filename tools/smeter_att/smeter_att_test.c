@@ -6,7 +6,8 @@
  *  a band, every figure under the top (SMETER_ATT_MAX) so that Measure can go past it, the deepest attenuator seen
  *  inside the top, and the manual's table ("X6200 bands | Attenuator"), its value outside the bands, its range
  *  ("| Attenuator | ... X6200: 0 to 70 dB") and Measure's line at the top ("ATT 70, the top, so 70 or more") the
- *  same as the code's.
+ *  same as the code's. And the S-meter cal a band never calibrated starts at, on either radio, the same in the
+ *  manual ("A band never calibrated starts at -22 dB on the X6100 and +11 dB on the X6200") as in smeter_att.h.
  *    smeter_att_test <params.sql> <MANUAL.md>
  */
 
@@ -154,6 +155,31 @@ static void manual_measure_top(const char *path) {
     check(found > 0, "the manual quotes Measure at the top", found);
 }
 
+/* The manual's S-meter cal start, its sentence across lines: "... starts at -22 dB on the X6100 and +11 dB on the
+ * X6200" */
+static void manual_cal_start(const char *path) {
+    static char text[1 << 20];
+    FILE       *f = fopen(path, "r");
+    size_t      n;
+    int         x6100 = 99, x6200 = 99;
+
+    if (!f) return;
+    n = fread(text, 1, sizeof(text) - 1, f);
+    fclose(f);
+    text[n] = '\0';
+    for (char *c = text; *c; c++) {
+        if (*c == '\n') *c = ' ';
+    }
+    char *s = strstr(text, "A band never calibrated starts at ");
+
+    check(s != NULL, "the manual says where a band never calibrated starts", 0);
+    if (!s) return;
+    sscanf(s + strlen("A band never calibrated starts at "), "%d dB on the X6100 and %d dB on the X6200", &x6100,
+           &x6200);
+    check(x6100 == SMETER_CAL_START_X6100, "the manual's cal start on the X6100, the code's", x6100);
+    check(x6200 == SMETER_CAL_START_X6200, "the manual's cal start on the X6200, the code's", x6200);
+}
+
 int main(int argc, char **argv) {
     if (argc != 3) {
         fprintf(stderr, "usage: smeter_att_test <params.sql> <MANUAL.md>\n");
@@ -180,6 +206,7 @@ int main(int argc, char **argv) {
     bands_of_sql(argv[1]);
     manual_table(argv[2]);
     manual_measure_top(argv[2]);
+    manual_cal_start(argv[2]);
 
     printf("smeter_att: %d checks, %d failed\n", checks, fails);
     return fails != 0;

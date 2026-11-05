@@ -247,10 +247,11 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_waterfall_ref{"waterfall_ref", 0, -40, 20,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // S-meter calibration, dB added to the reading. -22: this radio against a calibrated transceiver on the
-    // same antenna. Now only the start value of p_band_smeter_cal on bands never calibrated.
+    // S-meter calibration, dB added to the reading. -22 on the X6100: one X6100 against a calibrated transceiver on
+    // the same antenna; +11 on the X6200, whose base sends another scale (SMETER_CAL_START, smeter_att.h, #125). Now
+    // only the start value of p_band_smeter_cal on bands never calibrated.
     // RF gain is compensated on its own (meter.c)
-    Parameter<int32_t> p_smeter_cal{"smeter_cal", -22, -40, 20,
+    Parameter<int32_t> p_smeter_cal{"smeter_cal", SMETER_CAL_START, -40, 20,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // The front end, dB taken off the S-meter reading so it stays put when PRE, ATT or the RF gain
     // change: the preamp's gain, the attenuator's depth, and hundredths of a dB for each RF gain
@@ -521,8 +522,8 @@ class SettingsManager {
     Parameter<float, int32_t, 10> p_band_dac_offset{"dac_offset", 0.0f, {},
         StorageType::BAND, pending_writes_, {}, &band_params_};
     // S-meter calibration of this band, dB (Settings, S-meter cal): the baseband reads a
-    // different level on each band. A band never set takes the old global smeter_cal
-    Parameter<int32_t> p_band_smeter_cal{"smeter_cal", -22, [](int32_t v) { return clip(v, -40, 40); },
+    // different level on each band. A band never set takes the old global smeter_cal, SMETER_CAL_START unless set
+    Parameter<int32_t> p_band_smeter_cal{"smeter_cal", SMETER_CAL_START, [](int32_t v) { return clip(v, -40, 40); },
         StorageType::BAND, pending_writes_, [this] { p_band_smeter_cal.set_quiet(p_smeter_cal.get()); },
         &band_params_};
 #ifdef BOARD_X6200
