@@ -32,6 +32,7 @@
 #include "dialog_msg_voice.h"
 #include "dialog_swrscan.h"
 #include "dsp.h"
+#include "freq_strip.h"
 #include "front_keys.h"
 #include "hkey.h"
 #include "hw/hw.h"
@@ -584,7 +585,7 @@ void start_trace(const char *fmt, ...) {
 
 /* ---- The base: what radio.c sends it, on its way to hw_stub.c ---------------------------------------------------- */
 
-base_t base = {.vfo = {-1, -1}, .pwr = -1.0f};
+base_t base = {.vfo = {-1, -1}, .pwr = -1.0f, .open_tx = 1};
 
 /* The stand-in WR12's state (below): what radio.c asked, whether it is out of its bypass */
 want_t      want;
@@ -595,17 +596,18 @@ bool __real_hw_set_i(hw_param_t p, int32_t v);
 bool __real_hw_set_f(hw_param_t p, float v);
 
 /* After every write to the base and every wr12_want: the VFO in use on the WR12's IF, or the WR12 out of its bypass or
- * asked out of it, and not held, or keyed */
+ * asked out of it, and not held, or keyed, or the base's own TX outside its band table open */
 static void base_look(const char *what) {
-    bool        held = base.pwr == 0.0f && !base.vox && base.train && !base.ptt && !base.modem;
+    bool        held = base.pwr == 0.0f && !base.vox && base.train && !base.ptt && !base.modem && base.open_tx == 0;
     const char *why  = base.vfo[base.cur] == WR12_IF_HZ ? "the VFO in use on the IF"
                        : out                         ? "the WR12 out of its bypass"
                        : want.rx                     ? "the WR12 asked out of its bypass"
                                                      : NULL;
 
     if (why && !held && !base.violations++) {
-        snprintf(base.first, sizeof(base.first), "%s: %s, VFO %c, PWR %.1f W, VOX %d, Train %d, PTT %d, modem %d", what,
-                 why, "AB"[base.cur], base.pwr, base.vox, base.train, base.ptt, base.modem);
+        snprintf(base.first, sizeof(base.first),
+                 "%s: %s, VFO %c, PWR %.1f W, VOX %d, Train %d, PTT %d, modem %d, open TX %d", what, why,
+                 "AB"[base.cur], base.pwr, base.vox, base.train, base.ptt, base.modem, base.open_tx);
     }
 }
 
@@ -623,6 +625,7 @@ bool __wrap_hw_set_i(hw_param_t p, int32_t v) {
         case HW_IQ_SWAP:    base.iq = v; break;
         case HW_PTT:        base.ptt = v; break;
         case HW_MODEM:      base.modem = v; break;
+        case HW_OPEN_TX:    base.open_tx = v; break;
         default:            break;
     }
     base_look("a setting");
@@ -716,6 +719,10 @@ void wr12_lost(void) {
 void wr12_gone(void) {
     out = false;
     wr12_notify_fn();
+}
+
+void fake_start_out(void) {
+    out = true;
 }
 
 /* ---- The rest, as an idle radio: nothing on the air, nothing open --------------------------------------------- */
@@ -890,6 +897,10 @@ void tx_info_update(float pwr, float swr, float alc) {
 }
 
 void tx_info_clear(void) {
+}
+
+void freq_strip_set_wr12(bool in_use) {
+    (void)in_use;
 }
 
 wifi_status_t wifi_get_status() {

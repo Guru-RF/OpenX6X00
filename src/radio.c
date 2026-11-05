@@ -59,6 +59,7 @@
 #include "settings_window.h"
 #include "wr12.h"
 #include "pa_bias.h"
+#include "freq_strip.h"
 
 /*********************
  *      DEFINES
@@ -138,6 +139,7 @@ static void on_key_train_change(Subject *subj, void *user_data);
 static void on_volume_change(Subject *subj, void *user_data);
 static bool wr12_takes(int32_t freq);
 static void wr12_follow(bool rx, int32_t dial);
+static void open_tx_ask(bool open);
 
 #ifndef BOARD_X6200
 static void recover_processing_audio_inputs();
@@ -1519,24 +1521,62 @@ static bool wr12_takes(int32_t freq) {
     return cfg_wr12_freq(freq) && wr12_ready() && !atomic_load(&off_dial);
 }
 
+/* The base's own TX outside its band table (HW_OPEN_TX, byte 280 of its calibration block), a second layer under our
+ * hold while the WR12 receives: the hand mic's PTT, VOX and the KEY jack key the base by itself, held at 0 W, and
+ * with it shut the base keys nothing at all outside 160-6 m, as Xiegu's app always has it. Shut exactly while we
+ * refuse every TX anyway (on the WR12's IF, the WR12 asked out of its bypass or not seen back in it), open otherwise,
+ * so nothing changes on HF: our table has bands the base's has not (2200 m, 630 m, 60 m wider, 8 m). In the base's
+ * RAM: x6200_control_init opens it at every start. What was asked last is kept apart from what the base has
+ * (hw_x6200.c): a shut or an open that failed is tried again at the next change, not at every step of the dial, as
+ * each try holds the radio lock about 0.2 s. A failure is said on the screen once, until one goes through */
+static bool        open_tx_asked = true;
+static atomic_bool open_tx_said;
+static atomic_int  open_tx_failed;     /* what failed last: 1 the open, 0 the shut */
+
+static void open_tx_failed_cb(void *arg) {
+    (void)arg;
+    msg_schedule_text_fmt(atomic_load(&open_tx_failed) ? "Base still keys only inside its own band table"
+                                                       : "Base's band table not set: TX held at 0 W only");
+}
+
+/* Under the lock */
+static void open_tx_ask(bool open) {
+    if (open == open_tx_asked) {
+        return;
+    }
+    open_tx_asked = open;
+    if (hw_set_i(HW_OPEN_TX, open)) {
+        atomic_store(&open_tx_said, false);
+        return;
+    }
+    atomic_store(&open_tx_failed, open);
+    if (!atomic_exchange(&open_tx_said, true) && !scheduler_put_coalesced(open_tx_failed_cb)) {
+        LV_LOG_ERROR("Radio: the base's band table failure not said on the screen (in the base log)");
+    }
+}
+
 /* Under the lock, the VFO in use just sent to the base: the WR12 follows the dial. Out of its bypass on it where the
  * base is on its IF (rx: held at 0 W already, by cfg_tx_refusal from wr12_want on), the base taking the IF's I and Q
- * the other way round; in its bypass elsewhere, IQ as it was. WR12 on HOST off: the WR12 let go */
+ * the other way round; in its bypass elsewhere, IQ as it was. WR12 on HOST off: the WR12 let go. Then the base's own
+ * TX outside its band table: shut while the WR12 is asked out or not seen back in its bypass, open once it is */
 static void wr12_follow(bool rx, int32_t dial) {
     hw_set_i(HW_IQ_SWAP, rx);
     wr12_want(param_i_get(cfg_wr12), rx, dial);
+    open_tx_ask(!rx && !wr12_tx_block());
 }
 
 /* Both VFOs to the base again, the WR12 following the one in use (on_vfo_freq_change), the one no longer in use back on
  * its own frequency. Not while Birdie Cal has the base off the dial: the WR12 in its bypass then, and the VFOs go back
- * at the run's end (radio_set_freq_dial) */
+ * at the run's end (radio_set_freq_dial). The WR12 tag in the frequency strip while it is in use (WR12 on HOST, set
+ * up) */
 static void wr12_retune(void) {
     if (atomic_load(&off_dial)) {
         WITH_RADIO_LOCK(wr12_follow(false, vfo_freq(true)));
-        return;
+    } else {
+        on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
+        on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
     }
-    on_vfo_freq_change(NULL, (void *)RADIO_VFO_A);
-    on_vfo_freq_change(NULL, (void *)RADIO_VFO_B);
+    freq_strip_set_wr12(param_i_get(cfg_wr12) && wr12_ready());
 }
 
 /* On the GUI thread: what the WR12's thread has to say (found, lost, an ERROR answer); the base onto its IF now that it
@@ -1581,6 +1621,10 @@ static void wr12_follow(bool rx, int32_t dial) {
     (void)rx;
     (void)dial;
 }
+
+static void open_tx_ask(bool open) {
+    (void)open;
+}
 #endif
 
 /* Under the lock, before a VFO of the base goes to freq: a transverter's TX power limit there, lower than the one in
@@ -1623,6 +1667,7 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     int32_t base = wr12 ? WR12_IF_HZ : new_val - shift;
     if (wr12) {
         band_hold_set(true);
+        open_tx_ask(false);     /* and the base keys nothing outside its band table, before it goes there */
     }
     bool held = xvtr_hold(vfo, new_val);
     bool band = band_hold_early(vfo, new_val);

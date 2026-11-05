@@ -55,6 +55,8 @@ int freq_strip_step_char(const char *text, int32_t step, bool *big) {
 static char      app[16];
 static lv_obj_t *strip, *band_label, *freq_label, *mode_label, *qth_dot, *qth_label, *tx_label;
 static lv_obj_t *nr_label, *nb_label, *dnf_label, *rit_label, *xit_label;
+static lv_obj_t *wr12_label;        /* WR12 while the X6200's WR12 is in use, kept over a new strip */
+static bool      wr12_shown;
 static lv_obj_t *freq_small, *other_label, *vfo_badge;   /* deck: the 10 Hz digits, the other VFO, A or B */
 static lv_obj_t *mid, *col;
 static bool      bc_tagged;         /* VISION: the band label is the broadcast tag */
@@ -476,6 +478,11 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     lv_obj_set_flex_flow(top, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(top, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(top, 3, 0);
+    wr12_label = ind_create(top, "WR12");
+    lv_obj_set_style_text_color(wr12_label, TC(bg), 0);     /* as the deck's A/B badge */
+    lv_obj_set_style_bg_color(wr12_label, TC(info), 0);
+    lv_obj_set_style_bg_opa(wr12_label, LV_OPA_COVER, 0);
+    if (!wr12_shown) lv_obj_add_flag(wr12_label, LV_OBJ_FLAG_HIDDEN);   /* fitted with the others below */
     nr_label = ind_create(top, "NR");
     nb_label = ind_create(top, "NB");
     dnf_label = ind_create(top, "DNF");
@@ -591,6 +598,17 @@ void freq_strip_set_lock(bool user_lock) {
 void freq_strip_set_offset(int32_t offset_hz) {
     tx_offset = offset_hz;
     if (strip) update_cb(NULL, NULL);
+}
+
+void freq_strip_set_wr12(bool in_use) {
+    if (in_use == wr12_shown) {
+        return;     /* each word of the WR12's driver comes here: VISION refits only on a change */
+    }
+    wr12_shown = in_use;
+    if (!wr12_label) return;
+    if (in_use) lv_obj_clear_flag(wr12_label, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(wr12_label, LV_OBJ_FLAG_HIDDEN);
+    vision_fit();
 }
 
 #endif

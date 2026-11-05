@@ -48,9 +48,9 @@ static bool held(void) {
     return base.pwr == 0.0f && !base.vox && base.train;
 }
 
-/* As the radio stood before the WR12: PWR 5 W, VOX on, KEY Train off */
+/* As the radio stood before the WR12: PWR 5 W, VOX on, KEY Train off, the base's own TX outside its band table open */
 static bool as_set(void) {
-    return base.pwr == 5.0f && base.vox && !base.train;
+    return base.pwr == 5.0f && base.vox && !base.train && base.open_tx == 1;
 }
 
 /* The VFO in use at the base, its frequency, IQ, and the WR12 asked out on hz (0: in its bypass) */
@@ -67,7 +67,50 @@ static void none_yet(const char *what) {
           base.first);
 }
 
-int main(void) {
+/* "start-out": a GUI started while the WR12 may be out of its bypass (after a crash or an update), WR12 on HOST on and
+ * the dial on 145.5 MHz. Held from the start, the base's own TX outside its band table shut before the set-up is
+ * done, and still while the WR12 is on its way back into its bypass; open with TX as set once it is */
+static int start_out(void) {
+    if (!freopen("radio_wr12_start.log", "w", stderr)) return 1;
+    setvbuf(stderr, NULL, _IONBF, 0);
+    fake_cfg_init();
+    set_i(cfg_wr12, 1);
+    set_i(cfg_band_vfoa_freq, 145500000);
+    fake_start_out();
+    radio_init();
+    radio_start();
+    gui_run();
+
+    /* radio_start sends the VFOs before PWR, VOX and Train (the hold is worked out first): until then the base has
+     * the library's own start values, the stand-in's -1 W. Looked at from the end of the start on */
+    base.violations = 0;
+    check(held() && base.open_tx == 0, "start, maybe out: held, open TX %d", base.open_tx);
+    none_yet("start, maybe out");
+    clock_add(6000);
+    said_clear();
+    check(!radio_set_ptt(true) && !base.ptt, "start, maybe out: PTT refused");
+    wr12_found();
+    gui_run();
+    base_is("start, set up", A, WR12_IF_HZ, true, 145500000);
+    check(held() && base.open_tx == 0, "start, set up: held, open TX %d", base.open_tx);
+    wr12_went_out();
+    knob(7074000);
+    gui_run();
+    base_is("start, then 7 MHz", A, 7074000, false, 0);
+    check(held() && base.open_tx == 0, "start, then 7 MHz: held until the WR12's OK, open TX %d", base.open_tx);
+    wr12_back_in();
+    gui_run();
+    check(as_set(), "start, the WR12 in its bypass: TX as set, open TX %d", base.open_tx);
+    none_yet("start, maybe out");
+
+    fails += fake_errors;
+    printf("start-out: %d checks, %d failed\n", checks, fails);
+    if (!fails) remove("radio_wr12_start.log");
+    return fails != 0;
+}
+
+int main(int argc, char **argv) {
+    if (argc > 1 && !strcmp(argv[1], "start-out")) return start_out();
     if (!freopen("radio_wr12_test.log", "w", stderr)) return 1;
     setvbuf(stderr, NULL, _IONBF, 0);
     fake_cfg_init();

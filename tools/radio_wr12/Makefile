@@ -33,8 +33,9 @@ radio_wr12_test: radio_wr12_test.c fakes.c fakes.h build/radio.o $(SRC)/hw/stub/
 
 test: radio_wr12_test
 	./radio_wr12_test
+	./radio_wr12_test start-out
 
 clean:
-	rm -rf radio_wr12_test radio_wr12_test.log build
+	rm -rf radio_wr12_test radio_wr12_test.log radio_wr12_start.log build
 
 .PHONY: all test clean
