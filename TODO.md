@@ -10,14 +10,17 @@ the Amber Trey display it stays off. Run on the PC build only: d3_render() 0.18-
 has no DRM planes. The radios take the DRM path, which nobody has run yet; drm_wf_present_ring() then runs up to 30
 times a second instead of 15. 1.5 MB for the background, allocated the first time 3D is on.
 
-- **On an X6100 and an X6200, 3D on and off**: the DRM path (the picture the right way round, the labels at the
-  front edge, the 2D waterfall back whole after 3D, a theme change and a new spectrum height with 3D on); CPU with
-  `top -d 1 -p $(pidof x6100_gui)` in 2D and 3D receiving on a busy band, the dial turning fast, depth 64, FT8 open,
-  3D glide on and off; FT8 decodes and CW keying with 3D on; the 1bit theme and the MFK 4:4 page; Hide buttons on
-  (the front edge down to the bottom while hidden); walkie mode and the screen dark draw nothing (read from the code
-  only), a remote viewer still gets the picture. If 30 pictures a second are heavy on the X6100, 3D glide off is the
-  step at each row. He has no X6100; his `top` numbers from an X6200 may come first. As it is on by default: an
-  update from v0.3.8 starts in 3D, and a radio with 3D switched off stays flat after the next update.
+- **Before the next release, on an X6100 and an X6200, 3D on and off**: the DRM path (the picture the right way round,
+  the labels at the front edge, the 2D waterfall back whole after 3D, a theme change and a new spectrum height with 3D
+  on); CPU with `top -d 1 -p $(pidof x6100_gui)` in 2D and 3D receiving on a busy band, the dial turning fast, depth
+  64, FT8 open, 3D glide on and off; FT8 decodes and CW keying with 3D on; the 1bit theme and the MFK 4:4 page; Hide
+  buttons on (the front edge down to the bottom while hidden); walkie mode and the screen dark draw nothing (read from
+  the code only), a remote viewer still gets the picture. If 30 pictures a second are heavy on the X6100, 3D glide off
+  is the step at each row. He has no X6100; his `top` numbers from an X6200 may come first. As it is on by default: an
+  update from v0.3.8 starts in 3D, and a radio with 3D switched off stays flat after the next update. So the release
+  waits for this check on both radios. If the DRM path draws wrongly, takes the CPU FT8 needs, or the GUI falls over
+  in 3D, the default goes back to 0 for that release: a GUI that does not stay up cannot switch it off (the web
+  Display page goes through the GUI's socket), only wf_3d = 0 in params.db on the card would.
 - **After that**: 3D shots for the README gallery from the radio, on an antenna. The front labels sit under the Knob
   info lines at the bottom left (seen on the PC build, zoomed in).
 
