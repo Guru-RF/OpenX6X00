@@ -1,32 +1,23 @@
 # To do
 
-## Waterfall: a 3D band scope, the last seconds in perspective (PR #161)
+## Waterfall: the 3D band scope on the radios (PR #161, merged)
 
-Offered 2026-11-03 (timerealm, PR #161); first of the enhancements, once the open bugs are fixed (the owner, 5
-November). The waterfall area as a 3D band scope: the last rows as traces one behind the other, the newest in front,
-narrowing towards the VFO line, coloured by their height above the noise floor. Settings > Display > WATERFALL > 3D
-with 3D colours, depth, tilt, floor, range, peaks and glide at the end of the card (the web Display card too), an MFK
-4:4 page (WF 2D/3D, depth, tilt, floor), WF 3D on/off as a long-press and hand mic action, the manual. All drawing in
-src/waterfall_view.c (its "3D" section), for the DRM plane and the LVGL image; HOST_STUB_IQ plays a recording in the
-PC build. Reviewed 4 November; his changes of 5 November (3b80cfb) settle all four points and the smaller ones:
-nothing drawn under a window, in walkie mode or with the screen dark (`d3_seen()`, `backlight_seen()`), a 3D glide
-switch, the PC shots out of the gallery. Branch on main 4102104, no conflict then.
+Merged on main 5 November (Calin Rigo, timerealm, PR #161, squashed): Settings > Display > WATERFALL > 3D, all
+drawing in src/waterfall_view.c (its "3D" section), for the DRM plane and the LVGL image. Off by default; under the
+Amber Trey display it stays off. Run on the PC build only: d3_render() 0.18-0.65 ms a picture there (our timing, his
+~175 us), the GUI thread from 46 % to 84-88 % of a PC core with 3D on, most of it LVGL drawing the picture, as the PC
+has no DRM planes. The radios take the DRM path, which nobody has run yet; drm_wf_present_ring() then runs up to 30
+times a second instead of 15. 1.5 MB for the background, allocated the first time 3D is on.
 
-- **Run on the PC build only**: d3_render() 0.18-0.65 ms a picture there (our timing, his ~175 us), the GUI thread
-  from 46 % to 84-88 % of a PC core with 3D on, most of it LVGL drawing the picture, as the PC has no DRM planes.
-  The radios take the DRM path, which nobody has run yet; drm_wf_present_ring() then runs up to 30 times a second
-  instead of 15. 1.5 MB for the background, allocated the first time 3D is on.
-- **Before a merge, on an X6100 and an X6200, 3D on and off**: the DRM path (the picture the right way round, the
-  labels at the front edge, the 2D waterfall back whole after 3D, a theme change and a new spectrum height with 3D
-  on); CPU with `top -d 1 -p $(pidof x6100_gui)` in 2D and 3D receiving on a busy band, the dial turning fast, depth
-  64, FT8 open, 3D glide on and off; FT8 decodes and CW keying with 3D on; the 1bit theme and the MFK 4:4 page; Hide
-  buttons on (the front edge down to the bottom while hidden); walkie mode and the screen dark draw nothing (read
-  from the code only, by both of us), a remote viewer still gets the picture. If 30 pictures a second are heavy on
-  the X6100, 3D glide off is the step at each row. He has no X6100; his `top` numbers from an X6200 may come first.
-- **At the merge**: a rebase on the main of then. a0fee3c adds the recording's line with the receiver's model to
-  docs/screenshots/README.md and 3b80cfb takes it out again, so a merge commit keeps that name in our history:
-  squash, or ask him to fold it out. Old encoder bind strings get the four new controls unbound and ACTION_WF_3D is
-  stored by value: no migration. 3D shots for the README gallery from the radio, on an antenna, once it runs there.
+- **On an X6100 and an X6200, 3D on and off**: the DRM path (the picture the right way round, the labels at the
+  front edge, the 2D waterfall back whole after 3D, a theme change and a new spectrum height with 3D on); CPU with
+  `top -d 1 -p $(pidof x6100_gui)` in 2D and 3D receiving on a busy band, the dial turning fast, depth 64, FT8 open,
+  3D glide on and off; FT8 decodes and CW keying with 3D on; the 1bit theme and the MFK 4:4 page; Hide buttons on
+  (the front edge down to the bottom while hidden); walkie mode and the screen dark draw nothing (read from the code
+  only), a remote viewer still gets the picture. If 30 pictures a second are heavy on the X6100, 3D glide off is the
+  step at each row. He has no X6100; his `top` numbers from an X6200 may come first.
+- **After that**: 3D shots for the README gallery from the radio, on an antenna. The front labels sit under the Knob
+  info lines at the bottom left (seen on the PC build, zoomed in).
 
 ## FT8/FT4/FT2: answer other stations' CQs by themselves (when not worked yet)
 
