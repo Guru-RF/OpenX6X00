@@ -3,8 +3,9 @@
  *
  *  OpenX6X00 - the S-meter on a band never set (#125): the calibration it starts from on either radio, and the
  *  X6200's attenuator figure, which the S-meter adds back with ATT on (smeter.c) until the band has its own, from
- *  Settings > TX Cal > S-METER or its Measure (p_band_smeter_att). tools/smeter_att checks them on the band list,
- *  against the top and against the manual's figures, table and range.
+ *  Settings > TX Cal > S-METER or its Measure (p_band_smeter_att); and the bands that share both, the CW and SSB
+ *  parts of 40 m and 20 m. tools/smeter_att checks them on the band list, against the top and against the manual's
+ *  figures, table and range.
  */
 
 #pragma once
@@ -35,6 +36,14 @@ extern "C" {
 /* dB, for a band from start_hz to stop_hz, by its middle. 0 and 0: outside the bands (medium wave, the 120 m and 90 m
  * broadcast bands, the gaps between the bands), which share one value */
 int32_t smeter_att_start_band(uint32_t start_hz, uint32_t stop_hz);
+
+/* The amateur band whose parts share the S-meter cal and the X6200's attenuator figure, for a band from start_hz to
+ * stop_hz by its middle: 40 for 7.000 to 7.300 MHz (40m CW and 40m SSB), 20 for 14.000 to 14.350 MHz (20m CW and
+ * 20m SSB), 0 for a band that shares with none. The receiver is the same across each, and DL9RP's calibration at
+ * 7.100 left 7.020 at the start (#125). By frequency, not by id or name: the web page renames a band and moves its
+ * edges in place, and adds bands, so an id or a name can stand for another band. Broadcast 41m (7.200 to 7.500)
+ * keeps its own; 40m SSB to 7.300 in Region 2 still shares */
+int32_t smeter_share_group(uint32_t start_hz, uint32_t stop_hz);
 
 #ifdef __cplusplus
 }

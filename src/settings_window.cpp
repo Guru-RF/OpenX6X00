@@ -3839,13 +3839,22 @@ static void smc_timer_cb(lv_timer_t *t) {
 
     /* The band by its name: the page follows the band, so "this band" would be another one after a band change, and
      * a broadcast carrier next to a ham band sets the broadcast band's figure, not the ham band's. PRE and ATT as on
-     * the keys, for the line to hold "Broadcast 41m" */
-    BandInfoLoadResult band = BandsTable::get_by_id(smc_band);
-    const char        *on   = band.rc == SUCCESS ? "on " : "outside the bands";
-    const char        *name = band.rc == SUCCESS ? band.value.name.c_str() : "";
+     * the keys, for the line to hold "Broadcast 41m". On 40 m and 20 m every part the figure went to, "40m CW and
+     * 40m SSB" (smeter_parts, #125), and the RF gain then only on its slider, for the line to fit */
+    std::vector<BandInfo> parts = SettingsManager::smeter_parts(smc_band);
+    std::string           set_on;
+
+    for (size_t i = 0; i < parts.size(); i++) {
+        set_on += i == 0 ? "" : i + 1 < parts.size() ? ", " : " and ";
+        set_on += parts[i].name;
+    }
+    const char *on   = parts.empty() ? "outside the bands" : "on ";
+    const char *name = set_on.c_str();
 
     if (att_top) {
         snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i, the top, so %i or more.", on, name, pre, att, att);
+    } else if (parts.size() > 1) {
+        snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i dB.", on, name, pre, att);
     } else {
         snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i dB, RF gain %i.%02i dB a step.", on, name, pre, att,
                  rfg / 100, rfg % 100);

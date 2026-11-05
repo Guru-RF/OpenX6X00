@@ -8,6 +8,9 @@
  *  ("| Attenuator | ... X6200: 0 to 70 dB") and Measure's line at the top ("ATT 70, the top, so 70 or more") the
  *  same as the code's. And the S-meter cal a band never calibrated starts at, on either radio, the same in the
  *  manual ("A band never calibrated starts at -22 dB on the X6100 and +11 dB on the X6200") as in smeter_att.h.
+ *  And the bands that share both (smeter_share_group): 40m CW and SSB, 20m CW and SSB, no other band of the list,
+ *  40m SSB on Region 2's edges too, the ranges' edges by the middle of a band, and the manual's ranges ("from 7.000 to
+ *  7.300 MHz share one value, and those from 14.000 to 14.350 MHz another") the code's.
  *    smeter_att_test <params.sql> <MANUAL.md>
  */
 
@@ -53,6 +56,18 @@ static const struct {
 
 #define WANT_N ((int)(sizeof(want) / sizeof(want[0])))
 
+/* The bands of the list that share the S-meter figures, by id, with their group; every other band shares none */
+static const struct {
+    int id, group;
+} shared[] = {{3, 40}, {4, 40}, {6, 20}, {7, 20}};
+
+static int shared_group(int id) {
+    for (size_t i = 0; i < sizeof(shared) / sizeof(shared[0]); i++) {
+        if (shared[i].id == id) return shared[i].group;
+    }
+    return 0;
+}
+
 /* The rows of "INSERT INTO bands VALUES": (id, 'name', start, stop, type) */
 static void bands_of_sql(const char *path) {
     FILE *f = fopen(path, "r");
@@ -80,6 +95,7 @@ static void bands_of_sql(const char *path) {
             seen[i]++;
             check(smeter_att_start_band(start, stop) == group_db[want[i].group], "a band's figure, its group's", id);
         }
+        check(smeter_share_group(start, stop) == shared_group(id), "a band's share, 40m and 20m CW and SSB only", id);
         if (strchr(line, ';')) break;   /* the last row */
     }
     fclose(f);
@@ -156,21 +172,32 @@ static void manual_measure_top(const char *path) {
     check(found > 0, "the manual quotes Measure at the top", found);
 }
 
+/* The manual as one line, each run of spaces and line ends one space, for a sentence across lines (a list item's go
+ * on indented) */
+static char *manual_text(const char *path) {
+    static char text[1 << 20];
+    FILE       *f = fopen(path, "r");
+    size_t      n, o = 0;
+
+    if (!f) return NULL;
+    n = fread(text, 1, sizeof(text) - 1, f);
+    fclose(f);
+    for (size_t i = 0; i < n; i++) {
+        int space = text[i] == ' ' || text[i] == '\n';
+
+        if (!space || o == 0 || text[o - 1] != ' ') text[o++] = space ? ' ' : text[i];
+    }
+    text[o] = '\0';
+    return text;
+}
+
 /* The manual's S-meter cal start, its sentence across lines: "... starts at -22 dB on the X6100 and +11 dB on the
  * X6200" */
 static void manual_cal_start(const char *path) {
-    static char text[1 << 20];
-    FILE       *f = fopen(path, "r");
-    size_t      n;
-    int         x6100 = 99, x6200 = 99;
+    char *text = manual_text(path);
+    int   x6100 = 99, x6200 = 99;
 
-    if (!f) return;
-    n = fread(text, 1, sizeof(text) - 1, f);
-    fclose(f);
-    text[n] = '\0';
-    for (char *c = text; *c; c++) {
-        if (*c == '\n') *c = ' ';
-    }
+    if (!text) return;
     char *s = strstr(text, "A band never calibrated starts at ");
 
     check(s != NULL, "the manual says where a band never calibrated starts", 0);
@@ -179,6 +206,33 @@ static void manual_cal_start(const char *path) {
            &x6200);
     check(x6100 == SMETER_CAL_START_X6100, "the manual's cal start on the X6100, the code's", x6100);
     check(x6200 == SMETER_CAL_START_X6200, "the manual's cal start on the X6200, the code's", x6200);
+}
+
+/* The manual's ranges of the bands that share, their sentence across lines: "... the bands whose middle lies from
+ * 7.000 to 7.300 MHz share one value, and those from 14.000 to 14.350 MHz another." Each range's edges by the middle
+ * of a band, against the code's */
+static void manual_share(const char *path) {
+    char     *text = manual_text(path);
+    double    mhz[4] = {0};
+    const int group[2] = {40, 20};
+
+    if (!text) return;
+    char *s = strstr(text, "the bands whose middle lies from ");
+
+    check(s != NULL, "the manual says which bands share", 0);
+    if (!s) return;
+    check(sscanf(s + strlen("the bands whose middle lies from "),
+                 "%lf to %lf MHz share one value, and those from %lf to %lf MHz another", &mhz[0], &mhz[1], &mhz[2],
+                 &mhz[3]) == 4,
+          "the manual's two ranges", 0);
+    for (int r = 0; r < 2; r++) {
+        uint32_t lo = (uint32_t)(mhz[2 * r] * 1e6 + 0.5), hi = (uint32_t)(mhz[2 * r + 1] * 1e6 + 0.5);
+
+        check(smeter_share_group(lo, lo) == group[r], "the manual's range, from its start", lo);
+        check(smeter_share_group(lo - 1, lo - 1) == 0, "the manual's range, nothing under it", lo);
+        check(smeter_share_group(hi - 1, hi - 1) == group[r], "the manual's range, up to its end", hi);
+        check(smeter_share_group(hi, hi) == 0, "the manual's range, nothing from its end", hi);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -203,10 +257,18 @@ int main(int argc, char **argv) {
     check(smeter_att_start_band(999000000, 1000000000) == group_db[G40], "the WR12's top, no overflow", 1000000000);
     check(smeter_att_start_band(135700, 137800) == group_db[G160], "2200 m, a band of your own: 160 m's", 135700);
 
+    /* The bands that share */
+    check(smeter_share_group(7040000, 7300000) == 40, "40m SSB on Region 2's edges: 40 m's", 7300000);
+    check(smeter_share_group(7200000, 7500000) == 0, "Broadcast 41m: none", 7200000);
+    check(smeter_share_group(7000000, 7200000) == 40, "40m in one band: 40 m's", 7000000);
+    check(smeter_share_group(0, 0) == 0, "outside the bands: none", 0);
+    check(smeter_share_group(10100000, 10150000) == 0, "a part moved to 30 m: none", 10100000);
+
     bands_of_sql(argv[1]);
     manual_table(argv[2]);
     manual_measure_top(argv[2]);
     manual_cal_start(argv[2]);
+    manual_share(argv[2]);
 
     printf("smeter_att: %d checks, %d failed\n", checks, fails);
     return fails != 0;

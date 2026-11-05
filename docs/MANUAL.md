@@ -811,7 +811,8 @@ transmission could start with the last one's readings: a
 before any of its audio went out (issue #53).
 
 Per band S-meter calibration. Each band has its own correction, -40 to
-+40 dB in 1 dB steps; the value shown is the one of the band the radio is on.
++40 dB in 1 dB steps (the CW and SSB parts of 40 m and 20 m share one,
+below); the value shown is the one of the band the radio is on.
 Where: Settings > General > CONTROLS > Per band S-meter cal.
 
 - When you start editing it, a panel "S-METER CALIBRATION" says for 5 s:
@@ -831,6 +832,24 @@ Where: Settings > General > CONTROLS > Per band S-meter cal.
   calibrated keeps its own value.
 - On the X6200, calibrate a band before you press Measure on it (Settings >
   TX Cal > S-METER): Measure wants the meter to read about S9 to S9+20.
+- 40m CW and 40m SSB are two bands of the band list, and so are 20m CW and
+  20m SSB, but each pair shares one calibration, and on the X6200 one
+  attenuator figure too (Settings > TX Cal > S-METER): the receiver is the
+  same in both parts. Set on one part, the calibration with its slider or
+  the attenuator with its slider or Measure, it is set on the other part
+  too, and a part never set takes the other part's value before the start
+  above. Nothing else is shared: each part
+  keeps its own VFOs, mode, PRE and ATT, and the frequency picks the part,
+  not the mode (CW on 7.100 MHz is 40m SSB).
+- Which bands share goes by frequency, not by name: the bands whose middle
+  lies from 7.000 to 7.300 MHz share one value, and those from 14.000 to
+  14.350 MHz another. A part renamed, or moved on the web page within those
+  ranges, still shares (40m SSB to 7.300 MHz in Region 2 does), one moved
+  out of them keeps its own, and a band you add within them shares too.
+  Broadcast 41m (7.200 to 7.500 MHz) keeps its own.
+- Where the two parts already hold different values, set on an earlier
+  version, each keeps its own until you set one of them: then both take
+  that one.
 
 ### Waterfall
 
@@ -1429,13 +1448,15 @@ band and on the radio: one radio showed 59 dB on 160 m, 39 to 51 dB on 80 m
 and 24 to 30 dB from 60 m to 10 m, another 40 to about 62 dB on 80 m and
 about 40 dB on 40, 20 and 10 m. So there the row is "Attenuator on this
 band": each band keeps its own value, and the slider and Measure set the
-band the radio is on. Those are the bands of the
-band list: 40 m CW and 40 m SSB are two, and so are 20 m CW and SSB, and a
-broadcast band is one of its own, so Measure on a broadcast carrier at
-7.3 MHz sets Broadcast 41m, not 40 m. When it is done, Measure names the
-band it set. A band never set starts from these figures: on 160 m one
-radio's, on 80 m one in the middle of the four seen there, and from 5 MHz up
-one between the two radios:
+band the radio is on. Those are the bands of the band list, but for the CW
+and SSB parts of 40 m and 20 m, which share one figure as they share their
+calibration (see [S-meter](#s-meter)). A broadcast band is one of its own,
+so Measure on a broadcast carrier at 7.3 MHz sets Broadcast 41m, not 40 m.
+When it is done, Measure names the band it set, or both parts, and then
+leaves the RF gain to its slider for the line to fit: "Done on 40m CW and
+40m SSB: PRE 16 dB, ATT 34 dB." A band never set starts from these figures:
+on 160 m one radio's, on 80 m one in the middle of the four seen there, and
+from 5 MHz up one between the two radios:
 
 | X6200 bands | Attenuator |
 |---|---|

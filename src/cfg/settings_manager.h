@@ -20,6 +20,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -47,6 +48,19 @@ enum ModeGroup {
     MODE_GROUP_WFM = radio_mode_wfm,    /* its own filter width */
 };
 
+// The writes of the S-meter figures the parts of 40 m and 20 m share (#125): each one to every part of the band
+// (SettingsManager::smeter_parts), so a set on 40m SSB, by the slider or by Measure, sets 40m CW too
+class SmeterShareSink : public WriteSink {
+  public:
+    explicit SmeterShareSink(WriteSink &to) : to_(to) {}
+    void write(const StorageKey &key, int32_t value) override;
+    void write(const StorageKey &key, float value) override { to_.write(key, value); }
+    void write(const StorageKey &key, const std::string &value) override { to_.write(key, value); }
+
+  private:
+    WriteSink &to_;
+};
+
 class SettingsManager {
   public:
     // Deferred-write buffer (PendingWrites). Declared BEFORE the parameters
@@ -55,6 +69,8 @@ class SettingsManager {
     // Public because it is the shared sink of the managed parameters;
     // flushing goes through the manager methods (flush_all / flush_storage).
     PendingWrites pending_writes_;
+    // The sink of the S-meter cal and the X6200's attenuator figure: into pending_writes_, for every part
+    SmeterShareSink smeter_share_sink_{pending_writes_};
 
     // Parameter registries (non-owning). MUST be declared before any Parameter
     // member — self-registration in NSDMI constructors pushes into these
@@ -522,9 +538,12 @@ class SettingsManager {
     Parameter<float, int32_t, 10> p_band_dac_offset{"dac_offset", 0.0f, {},
         StorageType::BAND, pending_writes_, {}, &band_params_};
     // S-meter calibration of this band, dB (Settings, S-meter cal): the baseband reads a
-    // different level on each band. A band never set takes the old global smeter_cal, SMETER_CAL_START unless set
+    // different level on each band. A band never set takes the old global smeter_cal, SMETER_CAL_START unless set.
+    // The parts of 40 m and 20 m share it (smeter_parts): a set writes them all, and a part never set takes the
+    // row of another part first
     Parameter<int32_t> p_band_smeter_cal{"smeter_cal", SMETER_CAL_START, [](int32_t v) { return clip(v, -40, 40); },
-        StorageType::BAND, pending_writes_, [this] { p_band_smeter_cal.set_quiet(p_smeter_cal.get()); },
+        StorageType::BAND, smeter_share_sink_,
+        [this] { p_band_smeter_cal.set_quiet(smeter_shared_row(p_band_smeter_cal).value_or(p_smeter_cal.get())); },
         &band_params_};
 #ifdef BOARD_X6200
     // The attenuator's depth on this band, dB, added back to the S-meter reading with ATT on (smeter.c): the
@@ -532,9 +551,11 @@ class SettingsManager {
     // p_smeter_att (0..40) the X6100 keeps. Settings > TX Cal > S-METER and its Measure set the band's. A band never
     // set starts from the radios' figure for its frequency (smeter_att_start, smeter_att.c), also where v0.3.8 stored
     // its one value; that start is never written, so a band set keeps its own and the others follow a new figure.
-    // Measure writes the band's also when it comes out at the start (store()). Up to SMETER_ATT_MAX (smeter_att.h)
+    // Measure writes the band's also when it comes out at the start (store()). Up to SMETER_ATT_MAX (smeter_att.h).
+    // Shared by the parts of 40 m and 20 m, as p_band_smeter_cal
     Parameter<int32_t> p_band_smeter_att{"smeter_att", 34, [](int32_t v) { return clip(v, 0, SMETER_ATT_MAX); },
-        StorageType::BAND, pending_writes_, [this] { p_band_smeter_att.set_quiet(smeter_att_start()); },
+        StorageType::BAND, smeter_share_sink_,
+        [this] { p_band_smeter_att.set_quiet(smeter_shared_row(p_band_smeter_att).value_or(smeter_att_start())); },
         &band_params_};
 #endif
     // BAND VFO params (context_id = bands_id). These are NOT in the band
@@ -808,6 +829,12 @@ class SettingsManager {
     // WR12 receives
     int32_t default_mode(int32_t freq) const;
 
+    // The bands that share the S-meter cal and the X6200's attenuator figure with band_id, by frequency
+    // (smeter_share_group): the parts of 40 m, or of 20 m, band_id among them, in the order of the band list. Only
+    // band_id's own where it shares with none, nothing outside the bands. Read from the list each time: the web page
+    // edits it while the radio runs
+    static std::vector<BandInfo> smeter_parts(int32_t band_id);
+
   private:
     // active VFO frequency of the current band (compute fn for cp_fg_freq).
     int32_t fg_freq_get();
@@ -918,6 +945,8 @@ class SettingsManager {
     // p_band_smeter_att on a band never set: the X6200s' figure for the band's frequency
     int32_t smeter_att_start() const;
 #endif
+    // A shared S-meter figure on a part with no row of its own: the row of another part of the band, if one has it
+    std::optional<int32_t> smeter_shared_row(const ParamBase &p) const;
 
     // Default mode for a band with none saved: default_mode(freq), AM in the broadcast bands
     int32_t resolve_default_mode(int32_t freq, int32_t band_id) const;

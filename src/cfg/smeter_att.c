@@ -11,7 +11,8 @@
  *  From 5 MHz up one figure, 34 dB: each radio is close to flat there, and they differ by about 14 dB. The first
  *  took 24 to 30 dB off on eight bands from 60 m to 10 m (5 November), about 27; the other about 41, from 40 dB on
  *  40 m (Measure at -55 dBm at v0.3.8's top, and the readings of 3 November), 43 on 20 m and 40 on 10 m.
- *  Outside the bands 40 m's
+ *  Outside the bands 40 m's.
+ *  And the parts of 40 m and 20 m that share the S-meter figures, by frequency (smeter_share_group, smeter_att.h)
  */
 
 #include "smeter_att.h"
@@ -23,4 +24,12 @@ int32_t smeter_att_start_band(uint32_t start_hz, uint32_t stop_hz) {
     if (hz < 2500000) return 59;        /* 160 m */
     if (hz < 5000000) return 51;        /* 80 m, the 75 m and 60 m broadcast bands too */
     return 34;                          /* 60 m and up */
+}
+
+int32_t smeter_share_group(uint32_t start_hz, uint32_t stop_hz) {
+    uint32_t hz = start_hz / 2 + stop_hz / 2;
+
+    if (hz >= 7000000 && hz < 7300000) return 40;
+    if (hz >= 14000000 && hz < 14350000) return 20;
+    return 0;
 }
