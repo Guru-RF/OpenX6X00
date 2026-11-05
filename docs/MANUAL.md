@@ -817,7 +817,8 @@ Where: Settings > General > CONTROLS > Per band S-meter cal.
 
 - When you start editing it, a panel "S-METER CALIBRATION" says for 5 s:
   "For this band only. Feed -73 dBm and set the reading to S9 on each band you
-  use."
+  use." On 40 m and 20 m it names both parts (below): "For 40m CW and 40m SSB
+  only. ..."
 - Change it only while reading a known signal: -73 dBm (S9) from a generator,
   or the same signal on a calibrated radio.
 - A band never calibrated starts at -22 dB on the X6100 and +11 dB on the
