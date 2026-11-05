@@ -238,8 +238,16 @@ bool tx_info_shown(void) {
     return digital_app_open() || params.mag_alc.x || tune_len > 0.0f;
 }
 
+/* The panel's three numbers, from the readings its bars are drawn from */
+static void panel_values(void) {
+    lv_label_set_text_fmt(pwr_value, "%.1f W", pwr);
+    lv_label_set_text_fmt(swr_value, "%.1f", vswr);
+    lv_label_set_text_fmt(alc_value, "%.1f", alc);
+}
+
 /* TX: the strip or the panel (under the frequency strip), or neither: tx_info_shown(). The readings are 0 until the
  * base's first of this TX (tx_info_clear at the end of the last), or already this TX's: not set here, in this thread.
+ * The strip and the panel's numbers show them as they open (the numbers showed the last TX's, #53).
  * RX: all hidden */
 static void radio_cb(lv_event_t *e) {
     if (lv_event_get_code(e) == EVENT_RADIO_RX) {
@@ -261,6 +269,7 @@ static void radio_cb(lv_event_t *e) {
     update_head();
     lv_obj_set_style_text_color(alc_name, alc_greyed() ? TC(text_mute) : TC(text_value), 0);
     lv_obj_set_style_text_color(alc_value, alc_greyed() ? TC(text_mute) : TC(text), 0);
+    panel_values();
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(panel);
 }
@@ -271,9 +280,7 @@ static void update_tx_info(void *unused) {
     if (!lv_obj_has_flag(strip, LV_OBJ_FLAG_HIDDEN)) {
         update_strip();
     } else if (!lv_obj_has_flag(panel, LV_OBJ_FLAG_HIDDEN)) {
-        lv_label_set_text_fmt(pwr_value, "%.1f W", pwr);
-        lv_label_set_text_fmt(swr_value, "%.1f", vswr);
-        lv_label_set_text_fmt(alc_value, "%.1f", alc);
+        panel_values();
         update_head();
         lv_obj_invalidate(panel);
     }
