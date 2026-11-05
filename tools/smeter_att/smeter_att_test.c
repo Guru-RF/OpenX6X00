@@ -105,7 +105,7 @@ static void bands_of_sql(const char *path) {
     }
 }
 
-/* The manual's table: a "| ... | 51 dB |" row for each group, in order, then "which starts at 35 dB" outside them.
+/* The manual's table: a "| ... | 51 dB |" row for each group, in order, then "which starts at 34 dB" outside them.
  * Before it the settings' table, the attenuator's range: "| Attenuator | 0 to 40 dB (X6200: 0 to 70 dB, ..." */
 static void manual_table(const char *path) {
     FILE *f = fopen(path, "r");
