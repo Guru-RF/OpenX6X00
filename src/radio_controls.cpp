@@ -53,6 +53,9 @@ static const struct {
     {CTRL_NB_WIDTH, &cfg_sm.p_nb_width, 5, "NB width: %i"},
     {CTRL_NR_LEVEL, &cfg_sm.p_nr_level, 5, "NR level: %i"},
     {CTRL_WF_REF, &cfg_sm.p_waterfall_ref, 1, "Waterfall ref: %+i dB"},
+    {CTRL_WF_3D_DEPTH, &cfg_sm.p_wf_3d_depth, 4, "3D depth: %i traces"},
+    {CTRL_WF_3D_TILT, &cfg_sm.p_wf_3d_tilt, 1, "3D tilt: %i"},
+    {CTRL_WF_3D_FLOOR, &cfg_sm.p_wf_3d_floor, 2, "3D floor: +%i"},
 };
 
 static const struct {
@@ -94,6 +97,7 @@ static const struct {
     {CTRL_CW_DECODER, &cfg_sm.p_cw_decoder, "CW decoder: %s", "Off", "On"},
     {CTRL_CW_TUNE, &cfg_sm.p_cw_tune, "CW tune: %s", "Off", "On"},
     {CTRL_WF_MODE, &cfg_sm.p_wf_mode, "Waterfall: %s", "Centered", "Fixed"},
+    {CTRL_WF_3D, &cfg_sm.p_wf_3d, "Waterfall 3D: %s", "Off", "On"},
     {CTRL_CLUSTER_ORDER, &cfg_sm.p_cluster_order, "Cluster order: %s", "frequency", "newest first"},
     {CTRL_CLUSTER_BANDS, &cfg_sm.p_cluster_all_bands, "Cluster: %s", "current band", "all bands"},
     {CTRL_ATU, &cfg_sm.p_atu_enabled, "ATU: %s", "Off", "On"},
@@ -369,6 +373,10 @@ void controls_toggle_vox(button_data_t *data) {
 
 void controls_toggle_wf_mode(button_data_t *data) {
     flip(cfg_sm.p_wf_mode);
+}
+
+void controls_toggle_wf_3d(button_data_t *data) {
+    flip(cfg_sm.p_wf_3d);
 }
 
 /* Span +/- buttons: wider span = lower zoom (1/2/4/8) */

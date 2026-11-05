@@ -238,3 +238,7 @@ void backlight_viewers(bool any) {
 bool backlight_is_dark() {
     return dark();
 }
+
+bool backlight_seen() {
+    return !dark() || viewers;
+}

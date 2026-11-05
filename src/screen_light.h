@@ -38,5 +38,7 @@ void backlight_settings_changed();
 void backlight_viewers(bool any);
 /* The panel is dark (POWER, the blank time or always off) */
 bool backlight_is_dark();
+/* Whether what is drawn is seen: the screen lit, or dark with a viewer from afar (backlight_viewers()) */
+bool backlight_seen();
 
 #endif

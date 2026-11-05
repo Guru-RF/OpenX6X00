@@ -47,6 +47,7 @@ typedef enum {
     ACTION_ATU_TUNE,    /* start a tuning cycle: transmits a carrier */
     ACTION_EXT_TUNE,    /* appended after ATU_TUNE: TUNE for an external tuner, on or off (ext_tune.h) */
     ACTION_FREQ_LOCK,   /* appended after EXT_TUNE: the user's frequency lock on or off, as the X6100's LOCK key */
+    ACTION_WF_3D,       /* appended after FREQ_LOCK: the 3D waterfall on or off */
 
     ACTION_APP_RTTY = 100,
     ACTION_APP_FT8,

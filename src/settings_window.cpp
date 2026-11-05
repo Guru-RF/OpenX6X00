@@ -757,6 +757,7 @@ static const key_action_t front_actions[] = {
     {" Step up ", ACTION_STEP_UP},
     {" Step down ", ACTION_STEP_DOWN},     /* FST's long press until it is changed */
     {" WF mode ", ACTION_WF_MODE},
+    {" WF 3D on/off ", ACTION_WF_3D},
     {" ATT on/off ", ACTION_ATT_TOGGLE},
     {" PRE on/off ", ACTION_PRE_TOGGLE},
     {" Tuner on/off ", ACTION_ATU_TOGGLE},
@@ -795,6 +796,7 @@ static const key_action_t mic_actions[] = {
     {" NR toggle ", ACTION_NR_TOGGLE},
     {" NB toggle ", ACTION_NB_TOGGLE},
     {" WF mode ", ACTION_WF_MODE},
+    {" WF 3D on/off ", ACTION_WF_3D},
     {" ATT on/off ", ACTION_ATT_TOGGLE},
     {" PRE on/off ", ACTION_PRE_TOGGLE},
     {" Tuner on/off ", ACTION_ATU_TOGGLE},
@@ -3153,6 +3155,41 @@ static uint8_t make_param_slider(uint8_t row, const char *label, param_slider_t 
     return row + 1;
 }
 
+/* Waterfall 3D: its settings under it while it is on, the page again after the switch as for Mode */
+static lv_obj_t *wf_3d_sw;
+static param_slider_t wf_3d_depth_slider = {&cfg_sm.p_wf_3d_depth, 8, 64, 4, "%i traces"};
+static param_slider_t wf_3d_tilt_slider  = {&cfg_sm.p_wf_3d_tilt, 0, 10, 1, "%i"};
+static param_slider_t wf_3d_floor_slider = {&cfg_sm.p_wf_3d_floor, 0, 40, 2, "+%i"};
+static param_slider_t wf_3d_range_slider = {&cfg_sm.p_wf_3d_range, 20, 60, 5, "%i dB"};
+
+static void wf_3d_page(void *arg) {
+    if (!page) {
+        return;
+    }
+    make_display_page();
+    lv_group_focus_obj(wf_3d_sw);
+}
+
+static void wf_3d_cb(lv_event_t *e) {
+    lv_async_call(wf_3d_page, NULL);
+}
+
+static uint8_t make_wf_3d(uint8_t row) {
+    wl_row_label(row, "3D");
+    wf_3d_sw = param_switch(row++, 4, 3, SMALL_3, cfg_sm.p_wf_3d);
+    lv_obj_add_event_cb(wf_3d_sw, wf_3d_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    if (cfg_sm.p_wf_3d.get()) {
+        row = make_param_choice(row, "3D colours", " Strength \n Waterfall \n Blue ", cfg_sm.p_wf_3d_colors);
+        row = make_param_slider(row, "3D depth", &wf_3d_depth_slider);
+        row = make_param_slider(row, "3D tilt", &wf_3d_tilt_slider);
+        row = make_param_slider(row, "3D floor", &wf_3d_floor_slider);
+        row = make_param_slider(row, "3D range", &wf_3d_range_slider);
+        row = make_param_switch(row, "3D peaks", cfg_sm.p_wf_3d_peak);
+        row = make_param_switch(row, "3D glide", cfg_sm.p_wf_3d_glide);
+    }
+    return row;
+}
+
 /* The microphone input: Audio > MICROPHONE (p_mic) and the walkie's own (p_walkie_mic).
  * Same order as radio_mic_builtin, radio_mic_handle, radio_mic_auto. */
 static uint8_t make_mic(uint8_t row, const char *label, ParamInt &param) {
@@ -4020,6 +4057,7 @@ static void make_display_page() {
     wl_row_label(row, "Smooth scroll");
     bool_switch(row++, 4, 3, SMALL_3, &params.waterfall_smooth_scroll);
     row = make_param_slider(row, "Speed", &wf_speed_slider);
+    row = make_wf_3d(row);
     card_end(row);
 
     /* Overlays: shown with or without the spectrum */
