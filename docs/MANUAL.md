@@ -6191,6 +6191,16 @@ the battery reading work, that is a fault of base 1.0.7 itself (issue #14):
 
 That is normal while JS8 is open.
 
+#### The screen feels slow: measuring it
+
+A performance overlay at the bottom right of the screen shows what the GUI does each second: the frames
+drawn, the draw time (average/longest, in ms), the longest pass of the GUI's loop, and the time from a turn
+of the main knob to the end of the first frame that shows it (average/longest; "-" without a turn). It is
+on when an empty file named `perf` is on the card's DATA partition (`/mnt/perf`) at the start, and on
+the PC build with `X6100_PERF=1`. The same line goes into the GUI's log every 10 s (`perf: ...`). Delete
+the file and start again to turn it off. Its own label is redrawn once a second, a little of what it
+measures.
+
 #### Where are my logs?
 
 FT8/FT4 in `/mnt/ft_log.adi`, JS8 in `/mnt/js8call_log.adi`, Field Ops in
@@ -6333,6 +6343,7 @@ The DATA partition, readable on a PC.
 | `winlink.conf` | Winlink: `enabled=0|1`, `mycall=`, `locator=` (empty: the radio's), `bandwidth=200|500|1000|2000` (the widest ARDOP may use), `modem=ardop|mercury|xara`, `mercury_bandwidth=500|2300|2750`, `xara_bandwidth=500|2300|2750`, `vara_licence=0|1` (1: you say you hold a VARA HF licence, XARA's full speed; nothing checks it), and for measuring on the bench, not on the page, `xara_path_ms=CAPTURE,KEYING,OUT` (XARA's audio path in ms, default 25,50,80) |
 | `winlink/` | Pat's mailbox (`winlink/pat/mailbox/<call>/`), forms and gateway list |
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
+| `perf` | an empty file: the [performance overlay](#the-screen-feels-slow-measuring-it) at the next start |
 | `bootlogo.png` | your own [boot picture](#boot-picture), from the Display page of the web configurator |
 | `data_fsck.log` | what the last start's check of DATA found, or that the start formatted it and moved the system's `/mnt` files onto it. While the radio runs without DATA, why it left the partition alone and what to do, in the system's `/mnt` folder it runs on (the Files page shows that one then) |
 | `found_on_system/` | files the radio wrote into the system partition's `/mnt` folder while DATA was there but not mounted, put here at the next start that mounted it; `found_on_system.2/`, `.3/` ... when one is there already (nothing on DATA is written over). A DATA without settings of its own (no `params.db`, as after a format on a PC) gets them on its top level instead, the names it has already left here (a database with its `-wal`, `-shm` and `-journal` when DATA has one of those names: SQLite reads a journal into the database of its name). Files that cannot all be copied, or found when the check did not leave DATA clean ("check not clean: ..." in `data_fsck.log`), stay on the system partition until a start that can move them; a DATA without settings of its own is then not used at that start: the radio comes up with the settings kept there |

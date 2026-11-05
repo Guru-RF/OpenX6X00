@@ -70,6 +70,7 @@
 #include "app_sstv.h"
 #include "walkie.h"
 #include "winlink.h"
+#include "perf_hud.h"
 
 /* LVGL draws the areas it refreshes here, then flushes them to the panel */
 #define DISP_BUF_SIZE (BOARD_DISP_W * BOARD_DISP_H * 4)
@@ -182,6 +183,7 @@ static void display_register(void) {
     disp = lv_disp_get_default();
     lv_disp_set_bg_color(disp, lv_color_black());
     lv_disp_set_bg_opa(disp, LV_OPA_COVER);
+    perf_hud_init(&disp_drv);
 }
 
 /* Front keys (event0, the POWER key on its own device where the board has one), main knob,
@@ -332,7 +334,9 @@ static void gui_loop(void) {
             drawn = true;
             start_trace("first frame");
         }
-        int64_t wait = next - get_time();
+        int64_t end = get_time(), wait = next - end;
+
+        perf_loop_time(end - start);
 
         usleep(wait > 0 ? wait * 1000 : 5000);
     }
