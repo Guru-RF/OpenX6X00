@@ -82,7 +82,7 @@ const CARDS = [
     ["wf_center_line", "Center line", "A line on the VFO", "sw"],
     ["wf_zoom", "Zoom", "Zoom with the waterfall instead of the span", "sw"],
     ["wf_smooth", "Smooth scroll", "Scrolls by pixels instead of lines", "sw"],
-    ["wf_3d", "3D", "The last seconds as traces one behind the other, the newest in front", "sw"],
+    ["wf_3d", "3D", "The last seconds as traces one behind the other, the newest in front; not with Amber Trey, whose display covers the waterfall", "sw"],
     ["wf_3d_colors", "3D colours", "3D: by signal strength, the waterfall's, or blue", "sel", ["Strength", "Waterfall", "Blue"]],
     ["wf_3d_depth", "3D depth", "3D: the traces shown, every third line", "range", [8, 64, 4, 1, " traces"]],
     ["wf_3d_tilt", "3D tilt", "3D: seen from the front (tall traces) to from above (more depth)", "range", [0, 10, 1, 1, ""]],
@@ -212,7 +212,7 @@ var control = function(o) {
       if (kind === "theme") {
         const old = D.theme, sel2 = this;
         D.theme = this.value; rowState("theme", "saving");
-        send({name: "theme", theme: this.value}, function() { rowState("theme", "applied", "Applied: the radio's screen restarts"); },
+        send({name: "theme", theme: this.value}, function() { rowState("theme", "applied", "Applied: the radio's screen restarts"); refresh(); },
              function(msg) { D.theme = old; sel2.value = old; rowState("theme", "failed", msg); });
       } else setVal(name, parseInt(this.value, 10));
     });
@@ -276,11 +276,15 @@ var reread = function() {
   $.ajax({url: "/api/display", dataType: "json", success: function(d) { D = d; refresh(); }});
 }
 
-/* Rows that only matter with another option on */
+/* Rows that only matter with another option on. Amber Trey draws no 3D: there 3D shows off and greyed, as on the
+ * radio, and the radio keeps its setting for the other themes */
 var refresh = function() {
+  const amber = String(D.theme).toLowerCase() === "amber trey";   /* the GUI's name match ignores case */
   $("#row-auto_level_offset").toggleClass("off", !D.auto_level);
   $("#row-wf_fixed_jump, #row-wf_fixed_after").toggleClass("off", D.wf_mode !== 1);
-  $("#row-wf_3d_colors, #row-wf_3d_depth, #row-wf_3d_tilt, #row-wf_3d_floor, #row-wf_3d_range, #row-wf_3d_peak, #row-wf_3d_glide").toggleClass("off", !D.wf_3d);
+  $("#row-wf_3d").toggleClass("off", amber);
+  $("#opt-wf_3d").prop({checked: !!D.wf_3d && !amber, disabled: amber});
+  $("#row-wf_3d_colors, #row-wf_3d_depth, #row-wf_3d_tilt, #row-wf_3d_floor, #row-wf_3d_range, #row-wf_3d_peak, #row-wf_3d_glide").toggleClass("off", !D.wf_3d || amber);
   $("#row-spectrum_filled, #row-spectrum_peak, #row-spectrum_height, #row-spectrum_line_color").toggleClass("off", !D.spectrum_show);
   $("#row-spectrum_fill_color, #row-spectrum_fill_gradient").toggleClass("off", !D.spectrum_show || !D.spectrum_filled);
   $("#row-smeter_bar_color").toggleClass("off", D.smeter_color !== 0 || (D.smeter_needle === 1 && D.smeter_lamp === 1));
