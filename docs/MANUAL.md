@@ -16,7 +16,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Channels](#channels)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -52,19 +52,20 @@ Settings. Button and option names are written as the radio shows them.
 
 ### Buttons and knobs
 
-The APP button opens three pages of apps and tools:
+The APP button opens four pages of apps and tools:
 
 | Page | Buttons |
 |---|---|
-| APP 1:3 | Modes, Cluster, SWR Scan, RX Recorder |
-| APP 2:3 | Settings, CW Trainer, Field Ops, Channels |
-| APP 3:3 | Bands, GPS, Screen rec, CW Keyboard |
+| APP 1:4 | Modes, Cluster, SWR Scan, RX Recorder |
+| APP 2:4 | Settings, CW Trainer, Field Ops, Channels |
+| APP 3:4 | Bands, GPS, Screen rec, CW Keyboard |
+| APP 4:4 | Propagation, Scanner |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
 Birdie Cal besides: the MFK chooses a tile, a press opens it, APP or ESC
 closes the grid. "APP > CW Keyboard" in this manual is the tile, or the
-button on APP 3:3.
+button on APP 3:4.
 
 - Each app has its own button pages, named like `(JS8 1:7)`. The first
   button goes to the next page.
@@ -138,7 +139,7 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 |---|---|
 | Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
-| Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Channels, RX recorder, SWR Scan, GPS, QTH grid, Settings |
+| Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
 The hand mic F1 and F2 keys (and the H-22's F3 on the X6200), short and long
 press, are set in the same tab, from the quick actions (all but the
@@ -1088,7 +1089,7 @@ iaru-r3.org), 47 CFR Part 97 of the FCC (ecfr.gov) and the ARRL band plan
 Records the screen and the audio to an AVI file (MJPEG video, 800x480,
 8 frames/s, mono audio).
 
-- Start and stop: APP 3:3 > Screen rec (the button reads Stop rec while
+- Start and stop: APP 3:4 > Screen rec (the button reads Stop rec while
   recording), or a long-press action (screen rec on/off).
 - Files: `/mnt/screenrec/screen-YYYYMMDD-HHMMSS.avi`. The web configurator's
   Gallery lists them and can convert them to MP4.
@@ -1988,7 +1989,7 @@ Not tried on a radio with a transverter yet: checked on the PC build.
 
 ### SWR scan and the tuner
 
-SWR scan: APP 1:3 > SWR Scan. It transmits a carrier (AM on the X6100, FM on
+SWR scan: APP 1:4 > SWR Scan. It transmits a carrier (AM on the X6100, FM on
 the X6200; 1 W, or less when PWR is set lower) and sweeps it across the span
 around the frequency the radio transmits on (the other VFO in split), drawing
 the SWR as it goes.
@@ -3737,7 +3738,8 @@ has its own tile too, a light blue lake with reeds.
 ### Bands
 
 The band overview of Field Ops as an app of its own, in the look of the other
-apps: APP (page 3) > Bands, or a long-press action.
+apps: APP (page 3) > Bands, or a long-press action. For what the sun is doing
+to the bands, and the beacons heard here, see [Propagation](#propagation).
 
 
 - Each band shows its activity bar and word, the cluster / RBN spot counts
@@ -3754,6 +3756,64 @@ apps: APP (page 3) > Bands, or a long-press action.
   carries on and comes back by itself; one waiting for its second press keeps
   its 10 seconds, then sends nothing, and the radio stays where it is.
 - The numbers are the same as in Field Ops.
+
+### Propagation
+
+APP > Propagation (APP 4:4, or a long-press action): how the bands are doing,
+on a map of the world with your QTH in the middle, night shaded and the grey
+line (dawn and dusk, when 80 and 40 m reach furthest) lit. Two views, the
+second button changes between them; ESC closes, and the radio goes back to
+the frequency and mode it had.
+
+**Conditions**: N0NBH's solar data and band forecast from
+[hamqsl.com](https://www.hamqsl.com/solar.html), fetched over WiFi when the
+app opens, once an hour at most (**Refresh**: if the last one is 5 minutes
+old), and kept in `/mnt/conditions.txt`, so the last ones show without a
+network too (the header says how old they are).
+
+- SFI (solar flux) and sunspots: higher opens the higher bands (15, 12 and
+  10 m). A index and K index: geomagnetic unrest, the K of the last three
+  hours in words (quiet, unsettled, active, storm); at 4 and up, noise rises
+  and paths over the poles fade. X-ray: solar flares (an M or X flare can
+  black out the bands on the day side for an hour). Noise: the S-meter level
+  expected from space weather. 6m Es: sporadic E over North America.
+- The forecast by band group, Good, Fair or Poor, by day and by night; the
+  column of the time it is at your QTH is marked.
+- The bottom line says what to try now: the best group for day or night here
+  (the higher band of a tie by day, the lower by night), the K index, and
+  when you are in the grey line.
+- The map marks the point the sun is overhead.
+
+**Beacons**: the 18 beacons of the
+[NCDXF/IARU International Beacon Project](https://www.ncdxf.org/beacon/)
+take turns on 14.100, 18.110, 21.150, 24.930 and 28.200 MHz, 10 s each, a
+round of all 18 every 3 minutes. Each sends its call in CW at 100 W, then
+four 1 s dashes at 100, 10, 1 and 0.1 W. The schedule is fixed by the clock,
+so the radio knows who is calling; it listens in CW and scores each 10 s
+slot from the S-meter: its loud readings over the band's noise. Nothing is
+sent.
+
+- The table: the 18 beacons by 5 bands. A filled cell was heard in the last
+  15 minutes (green 20 dB and more over the noise, amber 10, the accent
+  colour under that); a dark one was listened to and not heard; a faint one
+  not yet listened to. The beacon on the air now is framed.
+- The map: the same for the band the radio is on, a line to the beacon on the
+  air now, and the beacon chosen with the MFK named. The bottom line has the
+  chosen one: where it is, how far, and where it was heard, with the lowest
+  dash that SNR still carries (+26 dB: heard down to 1 W).
+- **Sweep** (the default) stays a whole round on each band in turn: every
+  beacon on every band in 15 minutes. The button changes it to **Band**
+  (stays on one band; the **Band** button steps through them) and **Follow**
+  (goes with the chosen beacon from band to band: when it is not on the air,
+  the radio waits on the last band). A press of the MFK follows the beacon it
+  is on.
+- The clock has to be right to the second: with no NTP time (WiFi) or GPS,
+  the header shows *clock?* and the names may be one slot off.
+- Some beacons are off the air for a while: a beacon never heard on any band
+  may be one of those (ncdxf.org has their status).
+- What was heard stays while the radio is on, from one opening of the app to
+  the next. Retuning by hand drops the slot, the next round takes the band
+  back.
 
 ### Birdie Cal
 
@@ -3852,6 +3912,40 @@ APP Channels, or the V/M key of the hand mic.
   7795.0 kHz.
 - The first list has NAVTEX MF and HF, SHANNON VOLMET, the DWD RTTY stations
   and the DWD and GYA WeFax stations.
+
+### Scanner
+
+APP > Scanner (APP 4:4, or a long-press action): through a list of
+frequencies, a short look at each, a stop on one where something is on the
+air, and on again when it has been quiet for the hang time, as a scanner
+does. The speaker is quiet while it looks, so there is no burst of noise at
+every step. Receive only; ESC closes, and the radio goes back to the
+frequency and mode it had.
+
+| Button | What |
+|---|---|
+| Source | the list: **Channels** (the [Channels](#channels) app's, with their modes), **Airband** (118 to 137 MHz, AM, 25 kHz steps; the X6200), **CB** (the 40 channels, AM), **Segment** (the band plan segment the dial is in, in 3 kHz steps in SSB, 500 Hz in CW, 5 kHz in AM) |
+| Start / Pause / Resume | from the channel the dial is on, else the top |
+| Skip | on to the next one, from a stop or a pause |
+| Lock out | leaves the one it is on out until the list changes (a carrier that is always there) |
+| Stop at | **Auto**, S3, S5, S7, S9: what counts as busy |
+| Speed | Fast, Normal, Slow: 120, 250, 500 ms a frequency (Slow for a radio whose S-meter is slow to follow) |
+| Hang | 2, 5 or 10 s of quiet before it goes on |
+| Clear | the levels learnt, the lockouts and the list of what was heard |
+
+- Auto stops 10 dB over what each frequency reads when quiet. It learns that
+  as it goes: the first visit of a frequency only learns it (unless enough
+  of the others are known), then it follows the quieter readings and lets up
+  a little each visit, so a band that gets noisier does not stop it
+  everywhere. A frequency that is busy all the time when the scan first gets
+  there is taken for quiet: Clear, or a fixed Stop at, catches it.
+- The right side lists what it stopped on, the latest first: the time, the
+  frequency, the channel name, the strongest level and how long it was busy.
+  Left running for an evening on the airband or the CB channels, it shows
+  what was active and when.
+- Turning the main knob pauses the scan where you tuned; Resume (or Skip)
+  goes on. While paused or stopped, the MFK steps through the list by hand.
+- The bar is the S-meter, the mark on it the level that stops the scan.
 
 ## Bluetooth
 
@@ -6321,6 +6415,7 @@ The DATA partition, readable on a PC.
 | `incoming_log.adi` | put an ADIF log here to import it at the next start; a record with neither OPERATOR nor STATION_CALLSIGN is logged under your callsign |
 | `field/` | Field Ops state and activation logs (`field/logs/`) |
 | `digi_text/` | the [text log of the keyboard modes](#text-log-of-the-keyboard-modes): `YYYY-MM-DD.txt`, a file a UTC day |
+| `conditions.txt` | the Propagation app's last band conditions from hamqsl.com |
 | `screenrec/` | screen recordings (AVI) |
 | `themes/` | theme files and folders ([docs/THEMES.md](THEMES.md)) |
 | `sstv/` | received SSTV pictures; `tx_pics/` pictures and `tx_text/` text templates to send |

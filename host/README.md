@@ -29,6 +29,11 @@ round: 100 kS/s complex float32 (I and Q interleaved), centred on the dial and t
 stream is (a signal f above the dial at -f). Tune the GUI to the frequency it was recorded around, so the scale
 reads true.
 
+For the Scanner and the Propagation app's beacons the carrier can stand on chosen frequencies only, nothing
+anywhere else: `HOST_STUB_SCAN=118300000,27185000` (Hz, on 15 s and off 15 s, so the scanner stops and moves on)
+and `HOST_STUB_BEACONS=13,0` (the NCDXF beacons by their place in the round, here OH2B and 4U1UN, each keyed in
+its own slots on 14.100 to 28.200 MHz, at the CW pitch).
+
 ## Keys
 
 The front keys and the knobs are FIFOs under `build-host/data/run`, named as the board's

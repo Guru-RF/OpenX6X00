@@ -45,3 +45,7 @@ int16_t meter_get_raw_db(void);
 
 /* The same, unrounded (the front end measurement in Settings) */
 float meter_get_db(void);
+
+/* Counts the readings: a new one when it changed (the scanner and the beacons take each reading
+ * once, and none from before a retune) */
+uint32_t meter_seq(void);

@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+# The band conditions of N0NBH's solar data (www.hamqsl.com, updated every few hours) for the
+# Propagation app (src/conditions.c), one a line: key|value, and band|80m-40m|day|Good. Nothing
+# when the site does not answer. hamqsl.com asks for its data to be credited, and fetched no
+# more often than it changes: the GUI asks once an hour at most and keeps the last answer.
+import os
+import re
+import urllib.request
+
+# The radio's Python has no xml package (buildroot leaves expat out): the few fields are read with re
+AGENT = f"OpenX6X00/{os.environ.get('X6100_FW') or 'unknown'} (+https://github.com/Guru-RF/OpenX6X00)"
+
+
+def clean(text):
+    return " ".join(str(text or "").replace("|", " ").split())
+
+
+def block(xml, name):
+    """The text inside <name ...>...</name>, "" when it is not there"""
+    m = re.search(r"<%s(?:\s[^>]*)?>(.*?)</%s>" % (name, name), xml, re.S)
+    return m.group(1) if m else ""
+
+
+def items(xml, name):
+    """(attributes, text) of each <name attr="..">text</name>"""
+    return [(dict(re.findall(r'(\w+)="([^"]*)"', a)), clean(t))
+            for a, t in re.findall(r"<%s\s([^>]*)>(.*?)</%s>" % (name, name), xml, re.S)]
+
+
+try:
+    req = urllib.request.Request("https://www.hamqsl.com/solarxml.php", headers={"User-Agent": AGENT})
+    xml = urllib.request.urlopen(req, timeout=20).read().decode("utf-8", "replace")
+except Exception:
+    raise SystemExit(1)
+
+d = block(xml, "solardata")
+if not d:
+    raise SystemExit(1)
+
+for key, name in (("updated", "updated"), ("sfi", "solarflux"), ("ssn", "sunspots"), ("a", "aindex"),
+                  ("k", "kindex"), ("xray", "xray"), ("geomag", "geomagfield"), ("noise", "signalnoise"),
+                  ("wind", "solarwind"), ("bz", "magneticfield"), ("aurora", "aurora")):
+    print("%s|%s" % (key, clean(block(d, name))))
+
+for a, text in items(block(d, "calculatedconditions"), "band"):
+    print("band|%s|%s|%s" % (clean(a.get("name")), clean(a.get("time")), text))
+
+for a, text in items(block(d, "calculatedvhfconditions"), "phenomenon"):
+    if a.get("name") == "E-Skip" and a.get("location") == "north_america":
+        print("esna|%s" % text)
+    if a.get("name") == "E-Skip" and a.get("location") == "europe_6m":
+        print("eseu|%s" % text)
