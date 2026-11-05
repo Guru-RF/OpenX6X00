@@ -530,7 +530,14 @@ Display page, Receiver card). Off by default.
   in TX. That holds until the WR12 answers that it is back in its bypass
   (and 50 ms more, for its relay), or has been unplugged for 3 s (back
   sooner, after a reset on USB, it is set up again first); a WR12 that
-  stops answering keeps it held. A GUI that is stopped (a restart, an
+  stops answering keeps it held. For just as long the base itself is told
+  to key nothing outside its own band table (160 to 6 m, as Xiegu's firmware
+  always has it), so the hand mic's PTT does not even close its TX relay:
+  kept in the base's memory only, back as before as soon as TX goes free,
+  and at every start. Should the base not take it, the screen says so once
+  ("Base's band table not set: TX held at 0 W only", or on the way back
+  "Base still keys only inside its own band table"), and the base log
+  (`/mnt/base_i2c.log`) has each change. A GUI that is stopped (a restart, an
   update or its Rollback, a shutdown) puts the WR12 back in its bypass on
   its way out, without waiting for the answer; after a GUI that ended
   another way (a crash), the radio's start loop does, and says so at the
@@ -540,6 +547,11 @@ Display page, Receiver card). Off by default.
   again. Versions before this one know nothing of the WR12: to go back to
   one (Rollback, or an older bundle), first turn the dial below 54 MHz or
   WR12 on HOST off.
+- A WR12 tag in the frequency strip, left of NR NB DNF, in the theme's info
+  colour, says the WR12 is in use: WR12 on HOST on and the WR12 found and
+  set up. In Black Metal
+  and Total Black it stands under the other VFO; Amber Trey's display covers
+  the strip, so it does not show there.
 - Unplug the WR12 with the dial below 54 MHz or the switch off: unplugged
   while it receives, the radio cannot put it back in its bypass, and whether
   a WR12 without power passes the antenna through is not known yet.

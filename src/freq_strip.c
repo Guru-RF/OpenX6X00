@@ -51,7 +51,6 @@ int freq_strip_step_char(const char *text, int32_t step, bool *big) {
 
 #define QTH_POLL_MS 3000
 #define BC_TOLERANCE_HZ 2000    /* as the SWL panel of the GENE key */
-#define WR12_BLUE   0x1E6FD9    /* the stock app's WR12 sign */
 
 static char      app[16];
 static lv_obj_t *strip, *band_label, *freq_label, *mode_label, *qth_dot, *qth_label, *tx_label;
@@ -480,8 +479,8 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     lv_obj_set_flex_align(top, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(top, 3, 0);
     wr12_label = ind_create(top, "WR12");
-    lv_obj_set_style_text_color(wr12_label, lv_color_white(), 0);
-    lv_obj_set_style_bg_color(wr12_label, lv_color_hex(WR12_BLUE), 0);
+    lv_obj_set_style_text_color(wr12_label, TC(bg), 0);     /* as the deck's A/B badge */
+    lv_obj_set_style_bg_color(wr12_label, TC(info), 0);
     lv_obj_set_style_bg_opa(wr12_label, LV_OPA_COVER, 0);
     if (!wr12_shown) lv_obj_add_flag(wr12_label, LV_OBJ_FLAG_HIDDEN);   /* fitted with the others below */
     nr_label = ind_create(top, "NR");
@@ -602,6 +601,9 @@ void freq_strip_set_offset(int32_t offset_hz) {
 }
 
 void freq_strip_set_wr12(bool in_use) {
+    if (in_use == wr12_shown) {
+        return;     /* each word of the WR12's driver comes here: VISION refits only on a change */
+    }
     wr12_shown = in_use;
     if (!wr12_label) return;
     if (in_use) lv_obj_clear_flag(wr12_label, LV_OBJ_FLAG_HIDDEN);

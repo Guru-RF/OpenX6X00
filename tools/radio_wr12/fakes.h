@@ -35,13 +35,14 @@ void said_clear(void);
 
 /* The base as radio.c left it, through the real hw_stub.c (hw_vfo_set_freq, hw_set_i and hw_set_f wrapped). After
  * every write, and at every wr12_want and the WR12 going out: with the VFO in use on the WR12's IF, or the WR12 out
- * of its bypass or asked out of it, the power at 0 W, VOX off, KEY Train on and neither PTT nor the modem set, or a
- * violation (the first one's words kept) */
+ * of its bypass or asked out of it, the power at 0 W, VOX off, KEY Train on, neither PTT nor the modem set and the
+ * base's own TX outside its band table shut (open TX at 0), or a violation (the first one's words kept) */
 typedef struct {
     int32_t vfo[2];
     int     cur;
     float   pwr;
     bool    vox, train, iq, ptt, modem;
+    int     open_tx;        /* HW_OPEN_TX: 1 as x6200_control_init leaves it */
     float   pwr_at_cur;     /* the power when the VFO in use last changed */
     int     violations;
     char    first[200];
@@ -65,3 +66,4 @@ void wr12_went_out(void);   /* AT+BYPASS=0 answered: out of its bypass; only whi
 void wr12_back_in(void);    /* AT+BYPASS=1 answered: in its bypass again, TX may go */
 void wr12_lost(void);       /* let go (unplugged, not answering): not ready, out of its bypass as it was */
 void wr12_gone(void);       /* unplugged GONE_MS: not out of its bypass any more */
+void fake_start_out(void);  /* before radio_start: maybe out of its bypass, as after a crash (/tmp/wr12-out) */

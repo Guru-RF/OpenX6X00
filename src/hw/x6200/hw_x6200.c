@@ -149,6 +149,8 @@ bool hw_init(void) {
 #define BASE_ADDR       0x72
 #define BASE_READY      0x2000          /* not 0 once the base is ready: x6200_control_init waits for it */
 #define BASE_CAL        0x100           /* the calibration block */
+#define BASE_CAL_WRITE  0xf000          /* the same block written back whole, as x6200_control_init does */
+#define BASE_CAL_OPEN_TX 280            /* in it, 1: the base keys outside its own band table (HW_OPEN_TX) */
 #define BASE_WAIT_S     60
 
 static uint8_t cal[PA_BIAS_BLOCK_LEN];
@@ -163,6 +165,21 @@ static bool base_read(int fd, uint16_t reg, uint8_t *buf, uint16_t len) {
     };
     struct i2c_rdwr_ioctl_data rdwr = { .msgs = msgs, .nmsgs = 2 };
 
+    return ioctl(fd, I2C_RDWR, &rdwr) >= 0;
+}
+
+/* A write of the same kind: the register's address high byte first, then the bytes, in one transfer */
+static bool base_write(int fd, uint16_t reg, const uint8_t *buf, uint16_t len) {
+    uint8_t        msg[2 + PA_BIAS_BLOCK_LEN];
+    struct i2c_msg m = { .addr = BASE_ADDR, .flags = 0, .len = 2 + len, .buf = msg };
+    struct i2c_rdwr_ioctl_data rdwr = { .msgs = &m, .nmsgs = 1 };
+
+    if (len > PA_BIAS_BLOCK_LEN) {
+        return false;
+    }
+    msg[0] = reg >> 8;
+    msg[1] = reg & 0xff;
+    memcpy(msg + 2, buf, len);
     return ioctl(fd, I2C_RDWR, &rdwr) >= 0;
 }
 
@@ -202,6 +219,112 @@ static void cal_block_read(void) {
 const uint8_t *hw_cal_block(size_t *len) {
     *len = cal_read ? sizeof(cal) : 0;
     return cal_read ? cal : NULL;
+}
+
+/* The base's TX outside its own band table (HW_OPEN_TX, #134): byte 280 of the block, 1 open. x6200_control_init sends
+ * the block back at 0xf000 with it at 1, at the start only; Xiegu's app sends it at 0 (fullband-tx=disable in
+ * /etc/xgradio/xgradio.conf), and the base then keys only inside the band table of the same block (160 to 6 m; 60 m
+ * 5.332-5.405 MHz), whatever the VFO and the TX bits say. The base keeps it in RAM: a cold start reads 0 again, and
+ * saving the block is host_cmd 0x8005, which nothing here sends.
+ * The block holds the radio's factory calibration and the PA bias (#173), and this write comes in the middle of a
+ * run, so only a block known good goes back: read twice and the same, byte 280 a 0 or a 1 (the library's own check),
+ * the bias in it a known one, and read back as sent after the write. Anything else leaves the block alone. The known
+ * bias: what went to register 41 last (the library's copy, drive low, final high: 0 from x6200_control_init until
+ * radio.c sends this radio's), or the block's as read at the start (cal): a GUI started while the WR12 may be out of
+ * its bypass asks for the shut from the first VFO on, before radio.c sends the bias.
+ * Under the radio lock, like every write of the library (radio.c), each transfer one I2C_RDWR the kernel runs whole:
+ * about 0.2 s for the four of them at 100 kHz, 20 ms more when the read back takes its tries. -1: not known (refused
+ * or failed), 1 as x6200_control_init leaves it */
+static int open_tx = 1;
+
+static bool cal_read_tries(int fd, uint8_t *buf) {
+    for (int fails = 0; !base_read(fd, BASE_CAL, buf, PA_BIAS_BLOCK_LEN); usleep(RETRY_US)) {
+        if (++fails >= TRIES) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static uint32_t bias_in(const uint8_t *block) {
+    return block[PA_BIAS_DRIVE_AT] | block[PA_BIAS_DRIVE_AT + 1] << 8 | (uint32_t)block[PA_BIAS_FINAL_AT] << 16
+         | (uint32_t)block[PA_BIAS_FINAL_AT + 1] << 24;
+}
+
+/* Why the block must not go back, NULL when it may */
+static const char *open_tx_refusal(int fd, uint8_t *blk) {
+    static uint8_t again[PA_BIAS_BLOCK_LEN];
+    uint32_t       sent = x6200_control_get(x6200_biasdrive_biasfinal);
+    uint32_t       bias;
+
+    if (!cal_read_tries(fd, blk) || !cal_read_tries(fd, again)) {
+        return "not read";
+    }
+    if (memcmp(blk, again, PA_BIAS_BLOCK_LEN)) {
+        return "two reads differ";
+    }
+    if (blk[BASE_CAL_OPEN_TX] > 1) {
+        return "byte 280 neither 0 nor 1";
+    }
+    bias = bias_in(blk);
+    if (bias != sent && !(cal_read && bias == bias_in(cal))) {
+        fprintf(stderr, "hw_x6200: PA bias %u/%u in the calibration block, %u/%u sent, %u/%u at the start\n",
+                bias & 0xffff, bias >> 16, sent & 0xffff, sent >> 16, cal_read ? bias_in(cal) & 0xffff : 0,
+                cal_read ? bias_in(cal) >> 16 : 0);
+        return "PA bias not a known one";
+    }
+    return NULL;
+}
+
+/* After the write: the block read back as sent, a few times 10 ms apart in case the base takes it a moment later */
+#define READ_BACK_US    10000
+
+static bool read_back(int fd, const uint8_t *blk) {
+    static uint8_t back[PA_BIAS_BLOCK_LEN];
+
+    for (int i = 0; i < TRIES; i++) {
+        if (i) {
+            usleep(READ_BACK_US);
+        }
+        if (base_read(fd, BASE_CAL, back, sizeof(back)) && !memcmp(blk, back, sizeof(back))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void open_tx_say(bool on, const char *what, const char *why) {
+    fprintf(stderr, "hw_x6200: TX outside the base's band table %s%s%s\n", what, why ? ": " : "", why ? why : "");
+    base_guard_log("open TX %d: %s%s%s", on, what, why ? ": " : "", why ? why : "");
+}
+
+static bool open_tx_set(bool on) {
+    static uint8_t blk[PA_BIAS_BLOCK_LEN];
+    const char    *why;
+    int            fd = open(BASE_I2C, O_RDWR);
+
+    open_tx = -1;
+    if (fd < 0) {
+        open_tx_say(on, on ? "not opened" : "not shut", strerror(errno));
+        return false;
+    }
+    why = open_tx_refusal(fd, blk);
+    if (!why && blk[BASE_CAL_OPEN_TX] == on) {
+        close(fd);
+        open_tx = on;
+        open_tx_say(on, on ? "open already" : "shut already", NULL);
+        return true;
+    }
+    if (!why) {
+        blk[BASE_CAL_OPEN_TX] = on;
+        why = !base_write(fd, BASE_CAL_WRITE, blk, sizeof(blk)) ? "write failed"
+            : !read_back(fd, blk)                                ? "not read back as sent"
+                                                                 : NULL;
+    }
+    close(fd);
+    open_tx = why ? -1 : on;
+    open_tx_say(on, why ? (on ? "not opened" : "not shut") : (on ? "opened" : "shut"), why);
+    return !why;
 }
 
 /* Register 32 as Xiegu's firmware sets it at the start: 0, then 0x0a, between the CW keyer's register and the QSK
@@ -296,61 +419,6 @@ int32_t hw_get_i(hw_param_t p) {
         default:
             return reg < 0 ? 0 : (int32_t)x6200_control_get((x6200_cmd_enum_t)reg);
     }
-}
-
-/* The base's TX outside its own band table: byte 280 of its calibration block, 1 open. x6200_control_init reads the
- * block at 0x0100 and sends it back whole at 0xf000 with it at 1 (the only write of the block, at the start); Xiegu's
- * app sends it at 0 (fullband-tx=disable in /etc/xgradio/xgradio.conf), and the base then keys only inside the band
- * table of the same block (160 to 6 m; 60 m 5.332-5.405 MHz), whatever the VFO and the TX bits say. The base keeps
- * the block in RAM: at a cold start it reads 0 again, saving it is host_cmd 0x8005 (Xiegu's factory menu only), so
- * this writes no flash. Read back and sent whole as the library does, the library's own bytes kept: it has no setter
- * for it. Each transfer is one I2C_RDWR, which the kernel runs with the adapter locked, so the library's traffic on
- * its own descriptor of /dev/i2c-0 does not cut into it. -1: not known (the library failed to set it) */
-#define BASE_I2C_ADDR       0x72
-#define BASE_CAL_READ       0x0100
-#define BASE_CAL_WRITE      0xf000
-#define BASE_CAL_LEN        507
-#define BASE_CAL_OPEN_TX    280
-
-static int open_tx = 1;
-
-static bool open_tx_set(bool on) {
-    uint8_t                    block[2 + BASE_CAL_LEN];
-    uint8_t                    reg[2] = {BASE_CAL_READ >> 8, BASE_CAL_READ & 0xff};
-    struct i2c_msg             rd_msgs[] = {
-        {.addr = BASE_I2C_ADDR, .flags = 0, .len = sizeof(reg), .buf = reg},
-        {.addr = BASE_I2C_ADDR, .flags = I2C_M_RD, .len = BASE_CAL_LEN, .buf = block + 2},
-    };
-    struct i2c_msg             wr_msg = {.addr = BASE_I2C_ADDR, .flags = 0, .len = sizeof(block), .buf = block};
-    struct i2c_rdwr_ioctl_data rd = {.msgs = rd_msgs, .nmsgs = 2};
-    struct i2c_rdwr_ioctl_data wr = {.msgs = &wr_msg, .nmsgs = 1};
-    int                        fd = open("/dev/i2c-0", O_RDWR);
-    bool                       ok;
-
-    if (fd < 0) {
-        fprintf(stderr, "hw_x6200: TX outside the band table not %s: /dev/i2c-0: %s\n", on ? "opened" : "shut",
-                strerror(errno));
-        open_tx = -1;
-        return false;
-    }
-    ok = ioctl(fd, I2C_RDWR, &rd) >= 0;
-    if (ok && block[2 + BASE_CAL_OPEN_TX] > 1) {    /* as the library: not the layout it knows, left alone */
-        fprintf(stderr, "hw_x6200: calibration byte %d is %u, TX outside the band table left as it is\n",
-                BASE_CAL_OPEN_TX, block[2 + BASE_CAL_OPEN_TX]);
-        close(fd);
-        open_tx = -1;
-        return false;
-    }
-    if (ok) {
-        block[0] = BASE_CAL_WRITE >> 8;
-        block[1] = BASE_CAL_WRITE & 0xff;
-        block[2 + BASE_CAL_OPEN_TX] = on;
-        ok = ioctl(fd, I2C_RDWR, &wr) >= 0;
-    }
-    close(fd);
-    open_tx = ok ? on : -1;
-    fprintf(stderr, "hw_x6200: TX outside the band table %s%s\n", on ? "open" : "shut", ok ? "" : ": failed");
-    return ok;
 }
 
 static void dnf_apply(void) {
@@ -448,7 +516,7 @@ bool hw_set_i(hw_param_t p, int32_t v) {
             break;
         }
         case HW_OPEN_TX:
-            if (open_tx == (v != 0)) return false;
+            if (open_tx == (v != 0)) return true;     /* as asked already: nothing sent */
             return open_tx_set(v != 0);
         /* The X6100 patched firmware's extras: this base has no register for them */
         case HW_TX_I_OFFSET:

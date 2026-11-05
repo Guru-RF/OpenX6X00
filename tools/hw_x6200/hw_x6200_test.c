@@ -7,7 +7,11 @@
  *  host commands and the block, the library's copy of it at 0x0a and the line in the log; the keepalive's block
  *  (hw_resend_all) with 0x0a; the CW keyer's and the QSK time's registers after it (33, 34) set, and the block after
  *  that still with 0x0a; the library's init failing (the base's info not read), nothing written, and the next init
- *  writing it again after its own block.
+ *  writing it again after its own block. Then the base's TX outside its band table (HW_OPEN_TX, #134), byte 280 of
+ *  the calibration block: the shut before radio.c's bias (the block's as read at the start), asked again with nothing
+ *  sent, open and shut with the bias sent; left alone with a bias neither sent nor the start's, two reads that differ,
+ *  byte 280 at 2; a write the base does not take, then sent again; the base having it as asked already. Every time
+ *  the rest of the block as it was.
  *
  *  Copyright (c) 2026 RF.Guru
  */
@@ -65,6 +69,29 @@ static int      host_at;            /* the last host command (0xfffe) */
 static int      info_fails;         /* reads of the base's info to fail: the library's init fails then */
 static int      unknown;            /* transfers or files the base has nothing for */
 
+/* The calibration block (#134): read at 0x100, written back whole at 0xf000 (the library at its init, HW_OPEN_TX) */
+#define CAL_LEN     507
+#define CAL_OPEN_TX 280
+static uint8_t  cal_blk[CAL_LEN];
+static int      cal_writes;         /* writes of the block */
+static int      cal_reads;
+static bool     cal_flaky;          /* every second read with one byte changed: two reads differ */
+static bool     cal_deaf;           /* writes of the block not taken: the read back differs */
+
+static void cal_init(void) {
+    for (int i = 0; i < CAL_LEN; i++) {
+        cal_blk[i] = (uint8_t)(i * 7);              /* the factory calibration, the test's */
+    }
+    cal_blk[CAL_OPEN_TX] = 0;                       /* a cold start: shut, as Xiegu's firmware leaves it */
+    cal_blk[281] = 0x20; cal_blk[282] = 0x0d;       /* the bias: 3360 */
+    cal_blk[283] = 0xec; cal_blk[284] = 0x0e;       /* 3820 */
+}
+
+static void cal_bias(uint16_t drive, uint16_t final) {
+    cal_blk[281] = drive & 0xff; cal_blk[282] = drive >> 8;
+    cal_blk[283] = final & 0xff; cal_blk[284] = final >> 8;
+}
+
 static uint32_t reg_sent(unsigned addr) {
     uint32_t v;
 
@@ -108,10 +135,11 @@ static int base_read(unsigned addr, uint8_t *buf, unsigned len) {
             return -1;
         }
         strcpy((char *)buf + 0x41, "V1.0.8");
-    } else if (addr == 0x100 && len == 507) {
-        buf[280] = 1;                               /* TX open */
-        buf[281] = 0x20; buf[282] = 0x0d;           /* 3360 */
-        buf[283] = 0xec; buf[284] = 0x0e;           /* 3820 */
+    } else if (addr == 0x100 && len == CAL_LEN) {
+        memcpy(buf, cal_blk, CAL_LEN);
+        if (cal_flaky && ++cal_reads % 2 == 0) {
+            buf[100] ^= 0x10;
+        }
     } else {
         unknown++;
         errno = EIO;
@@ -157,6 +185,11 @@ int __wrap_ioctl(int fd, unsigned long req, ...) {
         reg32_at = xfers;
     } else if (addr == 0xfffe) {
         host_at = xfers;
+    } else if (addr == 0xf000 && len == CAL_LEN) {
+        cal_writes++;
+        if (!cal_deaf) {
+            memcpy(cal_blk, m[0].buf + 2, CAL_LEN);
+        }
     }
     return 0;
 }
@@ -192,6 +225,76 @@ static int log_lines(const char *line) {
 
 #define LINE "base: register 32 = 0x0a, as Xiegu's firmware"
 
+/* ---- The base's TX outside its band table (HW_OPEN_TX, #134) ------------------------------------------------- */
+
+#define SAY "hw_x6200: TX outside the base's band table "
+
+static uint8_t cal_snap[CAL_LEN];
+
+/* The block as it was, but byte 280 and the bias */
+static bool cal_kept(void) {
+    return !memcmp(cal_blk, cal_snap, CAL_OPEN_TX) && !memcmp(cal_blk + 285, cal_snap + 285, CAL_LEN - 285);
+}
+
+/* One HW_OPEN_TX: what hw_set_i answers, the block's writes it made, byte 280 after it, the line it logged */
+static void open_tx(const char *what, int v, bool ok, int writes, int byte, const char *line) {
+    int before = cal_writes, lines = log_lines(line);
+
+    check(hw_set_i(HW_OPEN_TX, v) == ok, "%s: hw_set_i(HW_OPEN_TX, %d) did not answer %d", what, v, ok);
+    check(cal_writes - before == writes && cal_blk[CAL_OPEN_TX] == byte && cal_kept(),
+          "%s: %d writes of the block, byte 280 %u, the rest %s (%d, %d, kept)", what, cal_writes - before,
+          cal_blk[CAL_OPEN_TX], cal_kept() ? "kept" : "changed", writes, byte);
+    check(!line[0] || log_lines(line) == lines + 1, "%s: \"%s\" not in the log", what, line);
+}
+
+static void open_tx_cases(void) {
+    memcpy(cal_snap, cal_blk, CAL_LEN);
+    check(cal_blk[CAL_OPEN_TX] == 1, "open TX: byte 280 %u after the library's init (1)", cal_blk[CAL_OPEN_TX]);
+
+    /* A GUI started with the WR12 maybe out of its bypass: the shut before radio.c sends the bias (the library's copy
+     * of register 41 at 0 from its init), the block's bias as read at the start */
+    check(x6200_control_get(x6200_biasdrive_biasfinal) == 0, "open TX: the library's bias not 0 before radio.c's");
+    open_tx("shut before the bias", 0, true, 1, 0, SAY "shut");
+    open_tx("shut again", 0, true, 0, 0, "");
+
+    /* radio.c's bias sent (#173): the block's still the start's, or the one sent, both known */
+    hw_set_i(HW_BIAS_DRIVE, 3326);
+    hw_set_i(HW_BIAS_FINAL, 3843);
+    check(x6200_control_get(x6200_biasdrive_biasfinal) == (3843u << 16 | 3326u), "open TX: the library's bias 0x%08x",
+          x6200_control_get(x6200_biasdrive_biasfinal));
+    open_tx("open, the start's bias in the block", 1, true, 1, 1, SAY "opened");
+    cal_bias(3326, 3843);
+    open_tx("shut, the bias sent in the block", 0, true, 1, 0, SAY "shut");
+
+    /* A bias neither sent nor the start's: left alone, tried again at the next ask, as long as it lasts */
+    cal_bias(1234, 3843);
+    open_tx("an unknown bias", 1, false, 0, 0, SAY "not opened: PA bias not a known one");
+    open_tx("an unknown bias, again", 1, false, 0, 0, SAY "not opened: PA bias not a known one");
+    cal_bias(3326, 3843);
+    open_tx("the bias back", 1, true, 1, 1, SAY "opened");
+
+    /* Two reads that differ, byte 280 neither 0 nor 1: left alone */
+    cal_flaky = true;
+    open_tx("two reads differ", 0, false, 0, 1, SAY "not shut: two reads differ");
+    cal_flaky = false;
+    cal_blk[CAL_OPEN_TX] = 2;
+    open_tx("byte 280 at 2", 0, false, 0, 2, SAY "not shut: byte 280 neither 0 nor 1");
+    cal_blk[CAL_OPEN_TX] = 1;
+
+    /* A write the base does not take: not read back as sent, then sent again at the next ask */
+    cal_deaf = true;
+    open_tx("a write not taken", 0, false, 1, 1, SAY "not shut: not read back as sent");
+    cal_deaf = false;
+    open_tx("sent again", 0, true, 1, 0, SAY "shut");
+
+    /* Not known (a refusal), the base having it as asked already: nothing written */
+    cal_flaky = true;
+    open_tx("not known", 1, false, 0, 0, SAY "not opened: two reads differ");
+    cal_flaky = false;
+    cal_blk[CAL_OPEN_TX] = 1;
+    open_tx("open already", 1, true, 0, 1, SAY "open already");
+}
+
 int main(void) {
     /* The results on stdout; what the code under test prints (the library on stdout, ours on stderr) in the log */
     out = fdopen(dup(STDOUT_FILENO), "w");
@@ -202,6 +305,7 @@ int main(void) {
 
     /* The start: the library's block with 0 there, register 32 alone at 0x0a after the host commands and the block,
      * once; the library's copy at 0x0a; one line in the log */
+    cal_init();
     check(hw_control_init(), "the start: hw_control_init failed");
     check(blocks == 1 && block_reg32 == 0, "the start: %d blocks, register 32 at 0x%x in the library's own (1, 0)",
           blocks, block_reg32);
@@ -244,6 +348,8 @@ int main(void) {
           "(4, 0, 2, 0x0a)", blocks, block_reg32, reg32s, reg_sent(REG32_ADDR));
     check(hw_resend_all() && block_reg32 == 0x0a, "the init after it: 0x%x in the keepalive's block", block_reg32);
     check(log_lines(LINE) == 2, "the init after it: the line in the log %d times (twice)", log_lines(LINE));
+
+    open_tx_cases();
 
     check(!unknown && !stand_ins, "%d transfers the base has nothing for, %d calls of the pins or the packet line",
           unknown, stand_ins);
