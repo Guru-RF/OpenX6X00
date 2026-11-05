@@ -21,6 +21,18 @@ times a second instead of 15. 1.5 MB for the background, allocated the first tim
 - **After that**: 3D shots for the README gallery from the radio, on an antenna. The front labels sit under the Knob
   info lines at the bottom left (seen on the PC build, zoomed in).
 
+## X6200: the short pulse at the start of each transmission, register 32 (#53)
+
+Seen 5 November on an external transient analyser: the X6200 sends a narrow RF pulse at the start of each
+transmission, well above the steady level at low power; another radio is clean. Why is not known. On main
+(unreleased): at each start the X6200 sets its base's register 32 to 0x0a, as Xiegu's firmware does (the X6200
+control library's copy of the stock app's writes, commented out in its low/control.c: 0, then 0x0a, between the CW
+keyer's register and the QSK time's); before, it stayed at the library's 0. What the register does is not known, a
+TX timing value maybe. Host test tools/hw_x6200: the real hw_x6200.c and control library on a base of the test's.
+- **Next**: the same captures with this build (the GUI log says "base: register 32 = 0x0a, as Xiegu's firmware" at
+  the start), at low power and at 8 W, SSB and CW: the pulse gone, smaller, or as it was. As it was: register 32 is
+  not the cause, and it stays at Xiegu's value.
+
 ## FT8/FT4/FT2: answer other stations' CQs by themselves (when not worked yet)
 
 Asked 2026-10-24. Today Auto answers the stations that call *you*, also while you call CQ (what

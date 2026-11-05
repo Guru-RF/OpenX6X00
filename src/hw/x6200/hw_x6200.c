@@ -204,11 +204,25 @@ const uint8_t *hw_cal_block(size_t *len) {
     return cal_read ? cal : NULL;
 }
 
+/* Register 32 as Xiegu's firmware sets it at the start: 0, then 0x0a, between the CW keyer's register and the QSK
+ * time's (the library's copy of those writes, left out in its low/control.c); the library leaves it at 0. What it
+ * does is not known, a TX timing value maybe: the X6200 sends a short RF pulse at the start of each transmission, well
+ * above the steady level at low power, which another radio does not (#53) */
+#define BASE_REG_32     0x0a
+
 bool hw_control_init(void) {
     if (!cal_read) {
         cal_block_read();
     }
-    return x6200_control_init();
+    if (!x6200_control_init()) {
+        return false;
+    }
+    /* After the library's init, whose whole block has 0 there. Through x6200_control_cmd, so the library's copy of
+     * the block keeps it: the block the keepalive sends every second has it too (hw_resend_all), and a failed write
+     * goes out with the next one */
+    x6200_control_cmd(x6200_reg_32, BASE_REG_32);
+    fprintf(stderr, "base: register 32 = 0x%02x, as Xiegu's firmware\n", BASE_REG_32);
+    return true;
 }
 
 void hw_bb_reset(void) {
