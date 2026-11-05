@@ -5,7 +5,7 @@
  *  calls (the delayed observers, none of them the test's, never run) and the GUI thread's check (the test is it).
  */
 
-#include "lvgl/lvgl.h"
+#include "lvgl.h"
 #include "scheduler.h"
 
 extern "C" {
