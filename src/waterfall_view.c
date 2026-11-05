@@ -406,13 +406,17 @@ static void direct_column(int32_t age, uint32_t span, size_t i0, size_t i1) {
 
 /* Direct mode: the waterfall area of the GUI fully transparent (alpha 0), drawn
  * after the parents and before the children (VFO line, grid, spots), so the
- * primary plane shows through whatever is behind in the GUI */
+ * primary plane shows through whatever is behind in the GUI. Also the spectrum's
+ * (spectrum_view.c), but not while it is off: spectrum_layout() parks it under the
+ * top bars at OPA_TRANSP, and a hole there showed the primary plane, black, never
+ * written there, through their gaps and round corners. Same gate as spectrum_draw_cb() */
 void direct_hole_cb(lv_event_t *e) {
+    lv_obj_t        *o = lv_event_get_target(e);
     lv_draw_ctx_t   *ctx = lv_event_get_draw_ctx(e);
     lv_area_t       a;
     int32_t         stride = lv_area_get_width(ctx->buf_area);
 
-    if (!_lv_area_intersect(&a, &lv_event_get_target(e)->coords, ctx->clip_area)) {
+    if (lv_obj_get_style_opa(o, 0) < LV_OPA_MIN || !_lv_area_intersect(&a, &o->coords, ctx->clip_area)) {
         return;
     }
     for (int32_t y = a.y1; y <= a.y2; y++) {
