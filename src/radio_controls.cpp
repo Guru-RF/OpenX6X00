@@ -35,24 +35,24 @@ static const struct {
     int32_t             step;
     const char         *fmt;
 } int_steps[] = {
-    {CTRL_RFG, &cfg_sm.p_rfgain, 1, "RF gain: %i"},
+    {CTRL_RFG, &cfg_sm.p_rfgain, BOARD_RFG_STEP, "RF gain: %i"},
     {CTRL_WEFAX_ALIGN, &cfg_sm.p_wefax_align, 1, "WEFAX Align: %i"},     /* WEFAX app: picture shift */
     {CTRL_WEFAX_TILT, &cfg_sm.p_wefax_tilt, 1, "WEFAX Tilt: %i"},        /* and slant */
-    {CTRL_SQL, &cfg_sm.p_squelch, 1, "Voice SQL: %i"},
-    {CTRL_MONI, &cfg_sm.p_moni, 1, "Moni level: %i"},
-    {CTRL_KEY_SPEED, &cfg_sm.p_key_speed, 1, "Key speed: %i wpm"},
-    {CTRL_KEY_TONE, &cfg_sm.p_key_tone, 10, "Key tone: %i Hz"},
-    {CTRL_KEY_VOL, &cfg_sm.p_key_vol, 1, "Key volume: %i"},
-    {CTRL_QSK_TIME, &cfg_sm.p_qsk_time, 10, "QSK time: %i ms"},
-    {CTRL_CW_PEAK_Q, &cfg_sm.p_cw_peak_q, 1, "CW peak Q: %i"},
-    {CTRL_RIT, &cfg_sm.p_rit, 10, "RIT: %+i"},
-    {CTRL_XIT, &cfg_sm.p_xit, 10, "XIT: %+i"},
-    {CTRL_DNF_CENTER, &cfg_sm.p_dnf_center, 50, "DNF center: %i Hz"},
-    {CTRL_DNF_WIDTH, &cfg_sm.p_dnf_width, 5, "DNF width: %i Hz"},
-    {CTRL_NB_LEVEL, &cfg_sm.p_nb_level, 5, "NB level: %i"},
-    {CTRL_NB_WIDTH, &cfg_sm.p_nb_width, 5, "NB width: %i"},
-    {CTRL_NR_LEVEL, &cfg_sm.p_nr_level, 5, "NR level: %i"},
-    {CTRL_WF_REF, &cfg_sm.p_waterfall_ref, 1, "Waterfall ref: %+i dB"},
+    {CTRL_SQL, &cfg_sm.p_squelch, BOARD_SQL_STEP, "Voice SQL: %i"},
+    {CTRL_MONI, &cfg_sm.p_moni, BOARD_MONI_STEP, "Moni level: %i"},
+    {CTRL_KEY_SPEED, &cfg_sm.p_key_speed, BOARD_KEY_SPEED_STEP, "Key speed: %i wpm"},
+    {CTRL_KEY_TONE, &cfg_sm.p_key_tone, BOARD_KEY_TONE_STEP, "Key tone: %i Hz"},
+    {CTRL_KEY_VOL, &cfg_sm.p_key_vol, BOARD_KEY_VOL_STEP, "Key volume: %i"},
+    {CTRL_QSK_TIME, &cfg_sm.p_qsk_time, BOARD_QSK_TIME_STEP, "QSK time: %i ms"},
+    {CTRL_CW_PEAK_Q, &cfg_sm.p_cw_peak_q, BOARD_CW_PEAK_Q_STEP, "CW peak Q: %i"},
+    {CTRL_RIT, &cfg_sm.p_rit, BOARD_RIT_STEP, "RIT: %+i"},
+    {CTRL_XIT, &cfg_sm.p_xit, BOARD_XIT_STEP, "XIT: %+i"},
+    {CTRL_DNF_CENTER, &cfg_sm.p_dnf_center, BOARD_DNF_CENTER_STEP, "DNF center: %i Hz"},
+    {CTRL_DNF_WIDTH, &cfg_sm.p_dnf_width, BOARD_DNF_WIDTH_STEP, "DNF width: %i Hz"},
+    {CTRL_NB_LEVEL, &cfg_sm.p_nb_level, BOARD_NB_LEVEL_STEP, "NB level: %i"},
+    {CTRL_NB_WIDTH, &cfg_sm.p_nb_width, BOARD_NB_WIDTH_STEP, "NB width: %i"},
+    {CTRL_NR_LEVEL, &cfg_sm.p_nr_level, BOARD_NR_LEVEL_STEP, "NR level: %i"},
+    {CTRL_WF_REF, &cfg_sm.p_waterfall_ref, BOARD_WF_REF_STEP, "Waterfall ref: %+i dB"},
     {CTRL_WF_3D_DEPTH, &cfg_sm.p_wf_3d_depth, 4, "3D depth: %i traces"},
     {CTRL_WF_3D_TILT, &cfg_sm.p_wf_3d_tilt, 1, "3D tilt: %i"},
     {CTRL_WF_3D_FLOOR, &cfg_sm.p_wf_3d_floor, 2, "3D floor: +%i"},
@@ -61,11 +61,12 @@ static const struct {
 static const struct {
     cfg_ctrl_t  ctrl;
     FloatParam *p;
+    float       step;
     const char *fmt;
-} float_steps[] = {     /* all in steps of 0.1 */
-    {CTRL_PWR, &cfg_sm.p_pwr, "Power: %0.1f W"},
-    {CTRL_KEY_RATIO, &cfg_sm.p_key_ratio, "Key ratio: %0.1f"},
-    {CTRL_CW_DECODER_SNR, &cfg_sm.p_cw_decoder_snr, "CW decoder SNR: %0.1f dB"},
+} float_steps[] = {
+    {CTRL_PWR, &cfg_sm.p_pwr, BOARD_PWR_STEP, "Power: " BOARD_PWR_LABEL_FMT " W"},
+    {CTRL_KEY_RATIO, &cfg_sm.p_key_ratio, BOARD_KEY_RATIO_STEP, "Key ratio: %0.1f"},
+    {CTRL_CW_DECODER_SNR, &cfg_sm.p_cw_decoder_snr, BOARD_CW_DECODER_SNR_STEP, "CW decoder SNR: %0.1f dB"},
 };
 
 /* The filter edges follow the mode: changed only when turned. Step 0: by the mode */
@@ -75,9 +76,9 @@ static const struct {
     int32_t                     step;
     const char                 *fmt;
 } filter_steps[] = {
-    {CTRL_FILTER_LOW, &cfg_sm.cp_cur_filter_low, 10, "Filter low: %i Hz"},
+    {CTRL_FILTER_LOW, &cfg_sm.cp_cur_filter_low, BOARD_FILTER_LOW_STEP, "Filter low: %i Hz"},
     {CTRL_FILTER_HIGH, &cfg_sm.cp_cur_filter_high, 0, "Filter high: %i Hz"},
-    {CTRL_FILTER_BW, &cfg_sm.cp_cur_filter_bw, 20, "Filter bw: %i Hz"},
+    {CTRL_FILTER_BW, &cfg_sm.cp_cur_filter_bw, BOARD_FILTER_BW_STEP, "Filter bw: %i Hz"},
 };
 
 /* On/off settings: any turn flips them */
@@ -135,7 +136,7 @@ static bool from_table(cfg_ctrl_t ctrl, int32_t diff, char *buf, size_t size) {
     }
     for (auto &s : float_steps) {
         if (s.ctrl == ctrl) {
-            snprintf(buf, size, s.fmt, turn(*s.p, diff, 0.1f));
+            snprintf(buf, size, s.fmt, turn(*s.p, diff, s.step));
             return true;
         }
     }

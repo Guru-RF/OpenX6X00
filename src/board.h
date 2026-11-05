@@ -51,6 +51,31 @@
 #define BOARD_HF_MIN_HZ     100000      /* upstream f6c97fa */
 #define BOARD_HF_MAX_HZ     55000000
 
+/* Knob / encoder steps (radio_controls.cpp). Same on the X6100 and the X6200 today;
+ * a board that needs coarser PWR or RIT changes these next to its ranges. */
+#define BOARD_PWR_STEP              0.1f
+#define BOARD_PWR_LABEL_FMT         "%0.1f"
+#define BOARD_SQL_STEP              1
+#define BOARD_RFG_STEP              1
+#define BOARD_RIT_STEP              10
+#define BOARD_XIT_STEP              10
+#define BOARD_NB_LEVEL_STEP         5
+#define BOARD_NB_WIDTH_STEP         5
+#define BOARD_NR_LEVEL_STEP         5
+#define BOARD_MONI_STEP             1
+#define BOARD_KEY_SPEED_STEP        1
+#define BOARD_KEY_TONE_STEP         10
+#define BOARD_KEY_VOL_STEP          1
+#define BOARD_QSK_TIME_STEP         10
+#define BOARD_KEY_RATIO_STEP        0.1f
+#define BOARD_CW_DECODER_SNR_STEP   0.1f
+#define BOARD_CW_PEAK_Q_STEP        1
+#define BOARD_DNF_CENTER_STEP       50
+#define BOARD_DNF_WIDTH_STEP        5
+#define BOARD_WF_REF_STEP           1
+#define BOARD_FILTER_LOW_STEP       10
+#define BOARD_FILTER_BW_STEP        20
+
 /* The low-battery power-off (bat_watch.c), the battery's voltage in 0.1 V: from there "Low battery! Turning off in
  * 30s.", then the charger set back On, the save and the radio off. The X6100 runs to 6.0 V, as it always did. The
  * X6200's base (1.0.8) cuts the power by itself at about 6.4-6.6 V, with nothing saved and the run's log lost: in
