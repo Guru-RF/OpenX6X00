@@ -122,6 +122,9 @@ void radio_poweroff();
 /* PTT from the GUI. False: a key down refused where the radio may not transmit (the screen says why, #121), or while
  * the base sends no data (#152) */
 bool radio_set_ptt(bool tx);
+/* The GUI's PTT is on (radio_set_ptt), whoever set it: the PTT key, the browser's, CAT, TCI, the keyboard's. Any
+ * thread */
+bool radio_get_ptt(void);
 /* The mic of the baseband without saving it (radio_mic_sel_t), -1: back to cfg_mic */
 void radio_set_mic_override(int mic);
 /* The mic in use: the override, else cfg_mic */

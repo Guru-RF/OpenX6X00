@@ -20,6 +20,7 @@ extern "C" {
 lv_obj_t *panel_init(lv_obj_t *parent);
 
 void panel_hide(void);
+bool panel_shown(void);                       /* on the screen: its text is the decoder's now, not a hidden one's */
 void panel_clear(void);                       /* the text, unless the panel is hidden */
 void panel_update_visibility(bool clear);     /* shown for the mode and the decoders, cleared if asked */
 void panel_add_text(const char *text);        /* any thread: decoded text, '\n' a new line */

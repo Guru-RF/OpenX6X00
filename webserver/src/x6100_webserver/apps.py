@@ -2090,9 +2090,23 @@ def put_log_qso(name, n):
                 else:
                     rec = adif_del(adif_set(rec, "MODE", v) if v else adif_del(rec, "MODE"), "SUBMODE")
             else:
+                # A band as the radio writes it, 40m: the page sends it in capitals (#174)
+                v = v.lower() if k == "band" else v
                 rec = adif_set(rec, k.upper(), v) if v else adif_del(rec, k.upper())
         return rec
     return edit_qso(name, n, change, bottle.request.query.get("id", "")) or {"status": "OK"}
+
+
+def adif_header(title):
+    """The header of an ADIF file the radio writes, as the GUI's logs have it (src/field/flog.c field_adif_header):
+    title as its first line, ADIF 3.1.8, the program and its version (left out when it can't be read)."""
+    try:
+        with open(settings.APP_VERSION) as f:
+            ver = f.read().strip().encode()
+    except OSError:
+        ver = b""
+    prog = b" <PROGRAMVERSION:%d>%s" % (len(ver), ver) if ver else b""
+    return title.encode() + b"\n<ADIF_VER:5>3.1.8 <PROGRAMID:9>OpenX6X00" + prog + b" <eoh>\n"
 
 
 @app.post('/logs/export')
@@ -2118,8 +2132,8 @@ def export_logs():
             w.writerow([f.get(c, "") for c in cols])
         body, ext, mime = out.getvalue(), "csv", "text/csv"
     else:
-        body = b"OpenX6X00 log export\n<adif_ver:5>3.1.8 <programid:9>OpenX6X00 <eoh>\n" + \
-               b"".join(rec.strip() + b" <eor>\n" for rec in recs)   # the records' bytes: their lengths hold
+        # The records' bytes, their lengths hold: an FT8 QSO as ft_log.adi has it too (#174)
+        body = adif_header("OpenX6X00 log export") + b"".join(rec.strip() + b" <eor>\n" for rec in recs)
         ext, mime = "adi", "text/plain"
     bottle.response.content_type = mime + "; charset=utf-8"
     bottle.response.set_header("Content-Disposition", f'attachment; filename="x6100-log-{stamp}.{ext}"')

@@ -443,6 +443,20 @@ static int32_t ci_cw_pitch_2_x(uint8_t val) {
     return std::round(tone / 5.0f) * 5;     /* to 5 Hz */
 }
 
+/* 15 12: the SWR on the CI-V scale CAT programs read it with (Hamlib's for this rig, which has no table of its
+ * own): 0 = 1.0, 48 = 1.5, 80 = 2.0, 120 = 3.0, 240 = 6.0, straight between. 1.0 and the 0 before a reading give 0,
+ * the radio's most (SWR 5, tx_info_update) 200. The curve before turned down above 3.2: SWR 5 gave 23, read as 1.2 */
+static uint8_t x_swr_2_ci(float swr) {
+    static const float scale[][2] = {{1.0f, 0}, {1.5f, 48}, {2.0f, 80}, {3.0f, 120}, {6.0f, 240}};
+
+    if (swr <= scale[0][0]) return 0;
+    for (size_t i = 1; i < sizeof(scale) / sizeof(scale[0]); i++)
+        if (swr < scale[i][0])
+            return scale[i - 1][1] + (swr - scale[i - 1][0]) * (scale[i][1] - scale[i - 1][1]) /
+                                         (scale[i][0] - scale[i - 1][0]) + 0.5f;
+    return 240;
+}
+
 /* 1A 01: ICOM band codes (BCD: 6 m is 0x10), 0x15 = outside the bands */
 static uint8_t get_ci_band_id(int32_t freq) {
     switch (freq / 1000) {
@@ -788,9 +802,9 @@ static Frame *process_req(const Frame *req) {
 
         case C_RD_SQSM:
             if (data_size == 1) {
-                static float alc, pwr, swr;
-                static uint8_t msg_id;
-                tx_info_refresh(&msg_id, &alc, &pwr, &swr);
+                /* The readings as they are: 0 in RX and in a TX until its first, not the last TX's kept (#53) */
+                float pwr, swr, alc = tx_info_get_alc(NULL);
+                tx_info_get(&pwr, &swr);
                 uint8_t val;
                 switch (req->data[0]) {
                     case 0x02: // S-meter
@@ -810,7 +824,7 @@ static Frame *process_req(const Frame *req) {
                         to_bcd_be(&resp->data[1], val, 3);
                         break;
                     case 0x12:  // SWR
-                        val = -21 * swr * swr + 134 * swr - 122;
+                        val = x_swr_2_ci(swr);
                         resp->set_payload_len(4);
                         to_bcd_be(&resp->data[1], val, 3);
                         break;

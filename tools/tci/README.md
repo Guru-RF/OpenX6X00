@@ -33,7 +33,8 @@ Then it builds `src/tci_server.c` and `src/tci_ws.c` (with `src/tci_audio.c` and
 scheduler, the meters, PulseAudio: a few variables and a 1 kHz tone), starts it on
 127.0.0.1:50001 and runs `tci_client_test.py`, a raw WebSocket client that does what the
 VFO-Knob does on a connection: the greeting, tuning, mode, filter, AGC, RIT, drive, PTT, the
-sensor streams, RX audio as the knob asks for it (24 kHz int16, one channel, 512 a frame), a
+sensor streams (tx_sensors before the radio's first reading: 0 W, SWR 1.0), RX audio as the
+knob asks for it (24 kHz int16, one channel, 512 a frame), a
 transmission with TCI audio, a TX frame whose payload is not what its header says (the
 transmission ends, nothing of it played), ping. Then four more connections: the browser
 pages' format asked for in full; formats out of range and int24 stereo at 48 kHz in frames of

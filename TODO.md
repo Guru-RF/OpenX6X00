@@ -251,6 +251,39 @@ window is open, which can hold a WiFi password).
   two data lines on the mic's plug, MDATA and MSVSW): the packet's other words (`reserved_2`, `reserved_3`, the flag
   bits the library leaves unnamed) logged when they change, in hw_x6200.c.
 
+## Keyboard: CapsLock's chords, the quick QSO log and PTT, on a radio (#175)
+
+Asked 2026-11-04 (F4ESO, X6200, random SSB QSOs logged from a Bluetooth keyboard). Done after v0.3.8: CapsLock is the
+keyboard's hyper key (src/kbd_hyper.c), the one way to shortcuts, so they work on any keyboard: L logs a QSO (the CW
+line's in CW, else the main screen's Log QSO box; the owner: "reuse L"), K the dial lock, P a screenshot, S Settings,
+F the frequency box, 1-5 the CW messages (1-8 JTTY's macros), Up/Down the band, Space a PTT toggle (src/kbd_ptt.c).
+The keyboard's F keys and PgUp/PgDn do nothing any more. Field Ops' Log QSO takes the report sent first, as the box
+does. Checked with tools/keyboard (kbd_hyper, kbd_keymap, kbd_ptt) and the two PC builds only: not on a radio, nor in
+the PC build's window.
+- **Next**: on the bench X6200 with a USB keyboard and a Bluetooth one, on the main screen in USB: CapsLock+L opens
+  `Call [sent [rcvd]]:`, `F4ABC 59 57` and Enter log `QSO logged: F4ABC 59 57 SSB` (59 sent on the Logs page), no L
+  typed and Caps Lock still off after it (a letter typed comes out small), the Caps Lock light off again once L
+  went down. CapsLock tapped alone: the light and capitals on, tapped again both off. CapsLock+L in Settings, FT8
+  and the box itself: nothing. In CW with `F4ABC 599` typed in the CW line: CapsLock+L logs it, the line empties,
+  nothing keyed; with the line empty (sending) the box opens and the line stays. Field Ops, a test activation:
+  `F4ABC 59 57` logs 59 sent, 57 received. Then the X6100 (the light is the console's: KDSKBLED on /dev/tty0).
+- **Next, the same bench**: CapsLock+K and Scroll Lock say "Dial locked" / "Dial unlocked"; CapsLock+P and Print
+  Screen take a screenshot (P also in Settings, an app and the quick log's box); CapsLock+S opens Settings; CapsLock+F
+  the frequency box, in CW too (f goes into the CW line there); CapsLock+Up/Down one band a press, held too; in CW
+  CapsLock+1-5 key the CW messages; in JTTY CapsLock+1-8 its macros. F1-F10, PgUp and PgDn: nothing anywhere. In
+  the WiFi password box and the quick log's box none of them types. The Scroll Lock light is the console's own,
+  which turns at each press: it can show the lock the wrong way round (left as it is). CapsLock tapped and A typed
+  fast over it: a capital A, Caps Lock on. In walkie mode CapsLock+S, L and Space: nothing. The screen dark (Screen
+  off 1 min): the first CapsLock+L only lights it. In USB after CW with a call decoded: CapsLock+L's box empty.
+- **Next, PTT, into a dummy load**: CapsLock+Space keys (`PTT on: CapsLock+Space for off`, the TX panel or the S-meter
+  box's power and SWR), again lets go; in CW the carrier. Then, each while keyed: the side PTT pressed and let go
+  (unkeyed, `PTT off: CapsLock+Space for on`; the next chord keys), Settings opened from the front key then
+  CapsLock+Space (lets go), the USB keyboard pulled and the Bluetooth one switched off (`PTT off: keyboard gone`), CW
+  keyed then the mode to USB and CapsLock+Space (no carrier left down), CAT PTT off in CW (no carrier left down),
+  three minutes keyed (`PTT off: three minutes on the air`). Out of band: `No TX on ...`, the next chord tries again.
+  A browser paired meanwhile: its PTT refused ("controlled by the radio's operator").
+- Open: more chords, a line each in kbd_hyper.c's table.
+
 ## WiFi: a static address, as Ethernet has (#17)
 
 Asked 2026-10-26. Ethernet (Settings > ETHERNET, web System > Network) has DHCP or Static; a WiFi network has

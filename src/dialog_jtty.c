@@ -193,7 +193,7 @@ static button_data_t btn_status = {
     .type = BTN_TEXT_FN, .label_fn = status_label_getter, .press = status_press_cb, .hold = status_hold_cb,
 };
 
-/* The function keys: press sends, as F1..F8 on a keyboard; hold edits */
+/* The function keys: press sends, as CapsLock+1 to 8 on a keyboard (dialog_jtty_macro); hold edits */
 static void fkey_hold(int n);
 #define FKEY_BTN(n)                                                                              \
     static void fkey##n##_cb(button_data_t *b) { (void)b; fkey(n); }                             \
@@ -991,6 +991,16 @@ static void fkey(int n)
     send_text(out, JTTY_PROFILE_RTTY);
 }
 
+/* CapsLock+1 to 8 on a keyboard (screen_main.c): macro n, as its button, while JTTY has the keyboard: open, with no
+ * text box of its own up */
+bool dialog_jtty_macro(int n)
+{
+    if (!alive || input_active || !text_box || lv_group_get_focused(keyboard_group) != text_box)
+        return false;
+    fkey(n);
+    return true;
+}
+
 static bool free_text_ok_cb(void)
 {
     const char *t = textarea_window_get();
@@ -1096,10 +1106,6 @@ static void key_cb(lv_event_t *e)
 {
     uint32_t key = *((uint32_t *)lv_event_get_param(e));
 
-    if (key >= KEYBOARD_F1 && key <= KEYBOARD_F8) {
-        fkey((int)(key - KEYBOARD_F1) + 1);
-        return;
-    }
     switch (key) {
         case LV_KEY_ESC:
             if (jtty_tx_is_on())

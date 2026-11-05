@@ -1095,7 +1095,6 @@ static void key_cb(lv_event_t *e) {
             change_speed(1);
             break;
         case LV_KEY_ENTER:
-        case KEYBOARD_F4:
             play_cb(NULL);
             break;
         case LV_KEY_ESC:

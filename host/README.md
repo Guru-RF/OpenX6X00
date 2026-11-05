@@ -27,7 +27,8 @@ GPS.
 The front keys and the knobs are FIFOs under `build-host/data/run`, named as the board's
 devices, in the kernel's input event format: the radio's own drivers read them, the browser
 panel (port 50002) writes into them, and so does `src/host/host_panel.c` for the PC's keys.
-Everything else typed goes into the GUI as a USB keyboard would.
+Everything else typed goes into the GUI as a USB keyboard would. The F keys and PageUp/PageDown
+here are the radio's front keys; a USB keyboard's do nothing on the radio.
 
 | PC                          | Radio                         |
 |-----------------------------|-------------------------------|
@@ -43,6 +44,9 @@ Everything else typed goes into the GUI as a USB keyboard would.
 | Ctrl+B, Ctrl+R, Ctrl+T      | A/B, PRE, ATU                 |
 | Ctrl+V, Ctrl+G, Ctrl+F      | V/M, AGC, FST                 |
 | Ctrl+P                      | PTT (the stub only pretends)  |
+| CapsLock+L, K, P, S, F      | a USB keyboard's chords (docs/MANUAL.md, Keyboard): log a QSO, lock, screenshot, Settings, frequency box |
+| CapsLock+1 .. 8, Up / Down  | CW messages 1-5 (JTTY's macros 1-8), band up / down |
+| CapsLock+Space              | PTT on, again off, as a USB keyboard's (this PC's Caps Lock still turns with each chord) |
 
 The mouse is a pointer: what is clickable on the screen can be clicked.
 

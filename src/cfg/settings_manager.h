@@ -28,6 +28,7 @@
 #include "../board.h"
 #include "../radio_types.h"
 #include "../common/math.h"
+#include "smeter_att.h"
 #include "computed_parameter.h"
 #include "encoder_bind_types.h"
 #include "parameter.h"
@@ -526,12 +527,11 @@ class SettingsManager {
         &band_params_};
 #ifdef BOARD_X6200
     // The attenuator's depth on this band, dB, added back to the S-meter reading with ATT on (smeter.c): the
-    // X6200's takes 29 to 51 dB off depending on the band and the radio (two radios, #125), past the one value
+    // X6200's takes 29 to about 62 dB off depending on the band and the radio (two radios, #125), past the one value
     // p_smeter_att (0..40) the X6100 keeps. Settings > TX Cal > S-METER and its Measure set the band's. A band never
     // set starts from the radios' figure for its frequency (smeter_att_start, smeter_att.c), also where v0.3.8 stored
     // its one value; that start is never written, so a band set keeps its own and the others follow a new figure.
-    // Measure writes the band's also when it comes out at the start (store())
-    static constexpr int32_t SMETER_ATT_MAX = 60;
+    // Measure writes the band's also when it comes out at the start (store()). Up to SMETER_ATT_MAX (smeter_att.h)
     Parameter<int32_t> p_band_smeter_att{"smeter_att", 35, [](int32_t v) { return clip(v, 0, SMETER_ATT_MAX); },
         StorageType::BAND, pending_writes_, [this] { p_band_smeter_att.set_quiet(smeter_att_start()); },
         &band_params_};

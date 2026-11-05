@@ -9,7 +9,7 @@ Settings. Button and option names are written as the radio shows them.
 
 ## Contents
 
-- [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic)
+- [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
@@ -154,11 +154,11 @@ the radio on the air after PTT was let go, until PTT was pressed again,
 and a key held while another one was pressed lost its long press.
 
 Frequency lock. The LOCK key (X6100), the X6100 mic's SPCH key, a
-keyboard's Scroll Lock, the browser panel's LOCK and any key given
-"Frequency lock on/off" in Settings > Keys (a long press of GEN, APP, KEY,
-MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200 has no
-LOCK key: give it to FST's long press, as on the stock firmware, or to
-another of those. Each turn says "Dial locked" or "Dial unlocked" on the
+keyboard's Scroll Lock or CapsLock+K, the browser panel's LOCK and any key
+given "Frequency lock on/off" in Settings > Keys (a long press of GEN, APP,
+KEY, MSG, DFN, DFL or FST, a hand mic F key) turn it on and off. The X6200
+has no LOCK key: give it to FST's long press, as on the stock firmware, or
+to another of those. Each turn says "Dial locked" or "Dial unlocked" on the
 screen.
 Held, the X6100's LOCK key restarts the radio's base board instead, a way
 out when the base stops answering: after the long press the screen counts
@@ -225,6 +225,120 @@ one second.
   open, where the digits can be a WiFi password. A key of another mic that
   does nothing: send the log lines of its keys in an issue.
 
+### Keyboard
+
+A USB keyboard, or a Bluetooth one paired in Settings > Bluetooth > DEVICES,
+types in the text boxes and the apps. On the main screen it has the keys for
+the knobs (see [Buttons and knobs](#buttons-and-knobs)), `f` for the
+frequency box and, in CW, the [CW line](#cw-from-the-keyboard). Scroll Lock
+turns the [frequency lock](#buttons-and-knobs) on and off and Print Screen
+takes a screenshot, both on the main screen only.
+
+CapsLock is the keyboard's shortcut key: held, the key pressed with it does
+something on the radio instead of typing. Every keyboard has it, small and
+Bluetooth ones too, which often have no F keys, or only with Fn.
+
+| CapsLock + | Does | Where |
+|---|---|---|
+| L | Log a QSO: in CW the line typed in the [CW line](#cw-from-the-keyboard), not sent; else the [quick QSO log](#quick-qso-log)'s box opens | main screen |
+| K | The [frequency lock](#buttons-and-knobs) on or off, as Scroll Lock | main screen |
+| P | A screenshot, as Print Screen | everywhere |
+| S | Settings | main screen |
+| F | The frequency box, as `f`, also in CW, where `f` goes into the CW line | main screen |
+| 1 to 5 | In CW, the MSG > CW messages 1 to 5, keyed from the [CW line](#cw-from-the-keyboard) | main screen |
+| 1 to 8 | [JTTY](#jtty)'s macros F1 to F8, as their buttons | JTTY |
+| Up, Down | The next band up or down, as the [BAND keys](#band-keys) | main screen |
+| Space | PTT on, and at the next press off (below) | on: main screen; off: everywhere |
+
+- Main screen: no app, Settings, list or text box open, not in [Walkie
+  Talkie mode](#walkie-talkie-mode). Elsewhere these chords do nothing, and
+  type nothing: in walkie mode CapsLock+Space keys nothing (it still lets go).
+  RTTY receives on the main screen, with no window of its own: there the
+  chords work, and CapsLock+L logs the QSO as RTTY.
+- The keys count by their place on a US keyboard, as the radio types. The
+  letters are in the same place on AZERTY and QWERTZ keyboards; on an AZERTY
+  one CapsLock+1 is the key marked & and 1.
+- A chord's key is never typed, in the CW line, the quick log's box or a
+  text box neither, and Caps Lock stays as it was, on or off. The
+  keyboard's Caps Lock light can come on while CapsLock is held, and goes
+  back when the other key goes down.
+- A chord acts once a press: held, it does not repeat (one band a press).
+- CapsLock tapped alone, nothing pressed with it, is Caps Lock as before:
+  it turns when you let it go. Shift, Ctrl and Alt work with it as usual.
+- A key with no chord (A, Q, 9, Enter) pressed while CapsLock is still
+  down, as the first key, is fast typing: Caps Lock turns and the key
+  types. A chord's key typed that fast is the chord: let CapsLock go first.
+- The keyboard's keys keep the screen lit, as the radio's own do. On a
+  dark screen (Settings > Display > BACKLIGHT > Screen off) the first
+  chord only lights it, press it again; a key typed types as usual.
+
+PTT from the keyboard. CapsLock+Space keys the radio as its PTT key does,
+with the same refusals where the radio may not transmit, the 0 W hold, the
+SWR protection and the stuck TX watch; in CW it keys the carrier, as the
+PTT key does. The screen says `PTT on: CapsLock+Space for off` and shows TX
+as for any transmission (the TX panel, or the power and SWR in the S-meter
+box). CapsLock+Space again lets go, from any screen: a window opened while
+on the air does not keep the radio there. While it is on the screen stays
+lit.
+
+- It follows the radio. Let go another way (the PTT key, the SWR
+  protection, CAT), the next CapsLock+Space keys again: the screen says
+  `PTT off: CapsLock+Space for on`, after the SWR protection's or the band
+  stop's own message.
+- A press where the radio may not transmit keys nothing ("No TX on ...").
+  A key that has not got the radio on the air after 2 s, or a radio back on
+  receive by itself, is let go: `PTT off: not on the air`.
+- The keyboard unplugged, or its Bluetooth link lost, lets go: `PTT off:
+  keyboard gone`. A Bluetooth link can take some seconds to count as
+  lost. A wireless keyboard whose USB receiver stays plugged in is not
+  seen as gone when the keyboard itself goes quiet (a flat battery, out of
+  range): the three minutes below end it then.
+- No data from the base for 3 s while it is on lets go: `PTT off: no data
+  from the base`. Without it the radio has no SWR protection and no power
+  reading.
+- As the PTT key does, it gives control to the radio's operator: a browser
+  or a TCI client neither keys nor takes control while it is on.
+- It lets go three minutes after it keyed, as the browser's PTT does:
+  `PTT off: three minutes on the air`. CapsLock+Space keys again for three
+  more.
+
+Up to v0.3.8 the keyboard's F keys did some of this: F1-F5 keyed the CW
+messages in CW, F10 logged the CW line, F9 opened Settings, F1-F8 sent
+JTTY's macros, and F4 was Start in the CW Trainer and Edit in MSG > CW
+(Enter still does both). They do nothing now, and neither do PgUp and PgDn.
+Up to v0.3.8 this Manual had PgUp and PgDn for the band and Scroll Lock for
+the lock, and the code Print Screen for a screenshot, but none of the four
+did anything on the radio.
+
+Not tried on a radio yet: checked in the host tests (`tools/keyboard`) and
+on the PC build. The Caps Lock light, the Bluetooth link lost and the PTT
+have not run on hardware.
+
+#### Quick QSO log
+
+A QSO logged from the main screen in any mode, the waterfall and the spots
+on it still in view: CapsLock+L, or the Log QSO button (KEY until the page
+reads CW 1:2, then F5), opens a one-line box near the top,
+`Call [sent [rcvd]]:`.
+
+- Type the call, then the report you sent and the one you received, and
+  press Enter: `F4ABC 59 57`. A report left out is 59, 599 in CW. Esc
+  closes the box without logging. Field Ops' Log QSO takes the same order.
+- In CW with the decoder's text on the screen (and in RTTY) the call it
+  confirmed last is in the box already. Not in SSB after CW: the call heard
+  in CW stays out.
+- The radio says `QSO logged: F4ABC 59 57 SSB`. The QSO goes into the day's
+  log, `/mnt/field/logs/YYYYMMDD.adi` (a file a UTC day), with the time, the
+  radio's frequency and its mode (SSB in USB and LSB), never into a Field
+  Ops activation's log. The web configurator's Logs page lists it, and
+  [Wavelog](#wavelog) gets it when it is set up.
+- With a keyboard no on-screen keyboard opens. Without one the on-screen
+  keyboard does (the Log QSO button).
+- In CW, with a line typed in the [CW line](#cw-from-the-keyboard),
+  CapsLock+L logs that line the same way instead of sending it, and the box
+  does not open. With nothing typed it opens the box. Up to v0.3.8 F10 logged
+  the line.
+
 ## Updating the firmware
 
 The radio updates itself: Settings > Info > Update, or the Update page of the
@@ -289,9 +403,9 @@ web configurator (System > Update).
 
 ### Band keys
 
-The BAND keys (and the hand mic's long UP/DOWN, the keyboard's PgUp/PgDn, the
-Walkie Talkie's Band buttons, the browser panel) step through the active bands
-of the band list, from the frequency up or down.
+The BAND keys (and the hand mic's long UP/DOWN, a keyboard's CapsLock+Up and
+Down, the Walkie Talkie's Band buttons, the browser panel) step through the
+active bands of the band list, from the frequency up or down.
 
 - They skip a band the radio cannot tune: 4 m (70 MHz), 2 m and 70 cm,
   unless a transverter that is on (Settings > General > TRANSVERTERS) or, on
@@ -688,6 +802,13 @@ to 10 W, and the SWR and ALC rows get their bars. Back on receive the
 S-meter starts again from the next reading. Up to v0.3.8 the TX panel came
 up whatever that switch, and the box never showed the readings (issue
 #166).
+
+Each transmission's power, SWR and ALC start from 0, on the radio, on the
+browser panel, over TCI and over CAT, until the radio's first reading of it.
+TCI sends that SWR as 1.0, the least an SWR can be. Up to v0.3.8 a
+transmission could start with the last one's readings: a
+1 W transmission right after an 8 W one read 7.9 W over TCI as it keyed,
+before any of its audio went out (issue #53).
 
 Per band S-meter calibration. Each band has its own correction, -40 to
 +40 dB in 1 dB steps; the value shown is the one of the band the radio is on.
@@ -1290,7 +1411,7 @@ are settings, with the figures measured on one radio as defaults.
 | Setting | Range | Default |
 |---|---|---|
 | Preamp | 0 to 40 dB | 19 dB (X6200: 16 dB) |
-| Attenuator | 0 to 40 dB (X6200: 0 to 60 dB, one for each band) | 15 dB (X6200: by band, below) |
+| Attenuator | 0 to 40 dB (X6200: 0 to 70 dB, one for each band) | 15 dB (X6200: by band, below) |
 | RF gain, a step | 0.00 to 2.00 dB | 0.60 dB |
 
 On the X6200 the attenuator takes much more off, and how much depends on the
@@ -1348,6 +1469,13 @@ range, or ATT taking the reading down to S1 (the attenuator value far too
 low: raise it, or feed a stronger carrier) stops the measurement and
 changes nothing. A band change stops it too ("Stopped: band changed"): PRE
 and ATT belong to the band, so check them on the band you left.
+
+The attenuator value stops at its top, 70 dB on the X6200 and 40 dB on the
+X6100. When Measure comes out there it says so, and leaves the RF gain to
+its slider for the line to fit:
+"Done on 80m: PRE 16 dB, ATT 70, the top, so 70 or more." The attenuator
+then takes that much off or more, and with ATT on the meter reads low by
+whatever it takes off over the top.
 
 The per band S-meter calibration (Settings > General > CONTROLS) is a
 separate correction, for the band's level with everything off.
@@ -2193,7 +2321,15 @@ second entry.
   station's RR73 gets your 73, and a station that calls you is answered once
   the other one has been quiet for a slot of yours.
 
-The log is `/mnt/ft_log.adi`; the radio says "Saved QSO de ...".
+The log is `/mnt/ft_log.adi`; the radio says "Saved QSO de ...". The QSO
+also goes into the day's log, which the web configurator's Logs page lists
+and exports, as the same ADIF record: the time to the second, the band as
+ADIF writes it (`40m`), the frequency in MHz to the Hz, no empty fields.
+While an activation runs it goes into the activation's log instead, with
+the same call, date, time to the second, band, frequency and mode, and the
+activation's fields besides: its reference (MY_SOTA_REF, MY_POTA_REF or
+MY_SIG and MY_SIG_INFO) and, in Tiles, the tile as MY_GRIDSQUARE. For LoTW,
+upload one of the two (see [Where are my logs?](#where-are-my-logs)).
 
 A compound or long callsign. FT8 packs a base call, with /P or /R at most
 (ON6URE, ON6URE/P), together with a grid or a report. Any other call of
@@ -2558,6 +2694,8 @@ frequency of the band in USB-D (14.090 on 20 m). The layout is the same as
 RTTY and PSK: received text in the panel under the waterfall, sent text in
 the TX colour. F1-F8 (pages 2 and 3) are macros: press sends, hold edits
 the name and then the text (an empty text deletes, the ones after move up).
+With a keyboard CapsLock+1 to CapsLock+8 send them too (up to v0.3.8 its F1
+to F8 did).
 By default they are the WSJT-X contest keys. In the text, `%M` is your call,
 `%H` the DX call, `%E` "599" and the serial number, sent as one frame. Up to
 80 characters, kept in `/mnt/jtty_macros.txt`, also on the web configurator's
@@ -2650,7 +2788,7 @@ Train is for practice: the key, the paddle, the CW messages and the
 ### CW decoder
 
 In CW mode the decoder buttons are on the CW pages: CW 1:2 has ZAP, CW
-peak, CW peak Q and Log QSO, CW 2:2 Decoder on/off, Tuner (tuning
+peak, CW peak Q and Log QSO (the [quick QSO log](#quick-qso-log)), CW 2:2 Decoder on/off, Tuner (tuning
 indicator), Dec SNR and Parse. Text and speed (WPM) appear in the panel
 over the waterfall.
 
@@ -2715,8 +2853,13 @@ again when it reconnects.
   same as KEY > Speed), and goes back to its control when the line closes.
 - When everything is sent the line goes away. Out of CW mode or out of the
   CW segment nothing new is sent and the line is cleared.
-- F1 to F5 key the MSG > CW messages 1 to 5 (in list order) as if typed
-  and sent with Enter; Esc stops them. An F key with no message does nothing.
+- CapsLock+1 to CapsLock+5 key the MSG > CW messages 1 to 5 (in list order)
+  as if typed and sent with Enter; Esc stops them. A number with no message
+  does nothing. CapsLock+L logs the line typed instead of sending it (see
+  [Quick QSO log](#quick-qso-log)), and CapsLock+F opens the frequency box,
+  as `f` does outside CW. Like any window (Settings, an app) it drops what
+  waits to be sent and empties the line; a message on the air finishes. Up
+  to v0.3.8 F1 to F5 keyed the messages.
 - In a CW message `{CALL}` is your callsign (Settings > General > STATION),
   also with TX in MSG > CW; with no callsign set it stays as written.
 - Until the line is open, the other keys (- = and so on) work as usual; in
@@ -3196,8 +3339,10 @@ the start and the last call.
   hand mic only (see [recording voice messages](#recording-voice-messages)). It is `CQ SOTA` /
   `CQ POTA` in `/mnt/msg`, so MSG > Voice lists it too. CQ again while it is
   on air stops it.
-- Log QSO: type `CALL`, or `CALL rst_rcvd rst_sent` (default 599 in CW, 59
-  otherwise). Each QSO goes to the SD card at once, in
+- Log QSO: type `CALL`, or `CALL rst_sent rst_rcvd`, the report you sent
+  first, as in the main screen's [quick QSO log](#quick-qso-log) (default 599
+  in CW, 59 otherwise): `F4ABC 59 57` is 59 sent, 57 received. Up to v0.3.8
+  Field Ops took the report received first. Each QSO goes to the SD card at once, in
   `/mnt/field/logs/<date>-<time>_<ref>.adi` with `MY_SOTA_REF` or
   `MY_SIG POTA` / `MY_POTA_REF`. The logs can be downloaded from the web
   configurator's Field Ops page.
@@ -5012,7 +5157,8 @@ program on the network tunes the radio, hears it and keys it.
   `trx` (PTT; `trx:0,true,tci;` keys with the client's
   audio as the microphone), `rx_smeter` and `rx_channel_sensors` (the
   S-meter in dBm, after `rx_sensors_enable:true;`), `tx_sensors` (mic level,
-  forward power, SWR, ALC, after `tx_sensors_enable:true;`), the RX audio
+  forward power, SWR, ALC, after `tx_sensors_enable:true;`; 0 from the key
+  until the radio's first reading, the SWR 1.0, never less), the RX audio
   stream (`audio_start`, in the client's format, below) and the TX audio
   frames the client answers to each `TX_CHRONO`. The greeting ends with
   `start;` then `ready;`: the radio is running, as ExpertSDR3 says of an SDR
@@ -5900,6 +6046,24 @@ FT8/FT4 in `/mnt/ft_log.adi`, JS8 in `/mnt/js8call_log.adi`, Field Ops in
 Logs page shows them all. What PSK, Olivia, Contestia and JTTY received and sent, and what RTTY received, is in
 `/mnt/digi_text/`, a file a UTC day, on the Logs page too ([Text log of the keyboard modes](#text-log-of-the-keyboard-modes)).
 
+An FT8, FT4 or FT2 QSO is in two of them, `ft_log.adi` and the day's log
+(or the activation's), and a JS8 QSO in `js8call_log.adi` and that log. For
+LoTW or another logbook, upload one source, the Logs page's Export ADIF: it
+has every QSO (FT8, FT4, FT2, JS8, the ones logged by hand, the
+activations), the other files one app's each. LoTW tells QSOs apart by call,
+band, mode, date and time, and `ft_log.adi` and the day's log once wrote the
+time in two ways (`1802` and `180259`): the same QSO uploaded from both
+counted twice. `ft_log.adi` and the day's log write it as the same record
+now (issue #174); an activation's log has the same call, date, time to the
+second, band, frequency and mode, with the activation's reference fields
+besides. The records `ft_log.adi` got before stay as they were written. A
+band set on the Logs page goes in the same way (`20m`). `ft_log.adi`,
+the day's and the activations' logs and the export start with the same
+header: a line naming the file, ADIF_VER 3.1.8, PROGRAMID OpenX6X00 and
+PROGRAMVERSION, the firmware's version (Settings > Info). An `ft_log.adi`
+begun before keeps the header it had (PROGRAMVERSION 1.0.0, ADIF_VER 3.14);
+`js8call_log.adi` keeps desktop JS8Call's.
+
 ## Reference
 
 ### Bluetooth CAT connection
@@ -5935,9 +6099,9 @@ Logs page shows them all. What PSK, Olivia, Contestia and JTTY received and sent
 | `14` | `0A` | TX power (0-255 = 0-10 W; the X6200 stops at 8 W) | yes | yes |
 | `14` | `15` | Monitor level | yes | - |
 | `15` | `02` | S-meter (the CI-V scale, 120 = S9, for network clients) | yes | - |
-| `15` | `11` | TX power meter | yes | - |
-| `15` | `12` | SWR meter | yes | - |
-| `15` | `13` | ALC meter | yes | - |
+| `15` | `11` | TX power meter (0 in receive, and in a transmission until its first reading) | yes | - |
+| `15` | `12` | SWR meter, on the CI-V scale: 0 = SWR 1.0, 48 = 1.5, 80 = 2.0, 120 = 3.0, 200 = 5.0, the most the radio reads (as the power meter: 0 before a reading). Up to v0.3.8 it turned down above SWR 3.2: SWR 5 gave 23, which a CAT program reads as 1.2 | yes | - |
+| `15` | `13` | ALC meter (as the power meter) | yes | - |
 | `16` | `02` | Preamp | yes | yes |
 | `16` | `22` | Noise blanker | yes | yes |
 | `16` | `40` | Noise reduction | yes | yes |

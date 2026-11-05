@@ -497,7 +497,7 @@ static void adjust_done(void) {
     timer_cb(NULL);
 }
 
-/* Arrows move in the list, ENTER or F4 edits, ESC closes, VOL keeps the volume. While page 3 adjusts its value the
+/* Arrows move in the list, ENTER edits, ESC closes, VOL keeps the volume. While page 3 adjusts its value the
  * MFK, the arrows and VOL change it, ENTER is done */
 static void key_cb(lv_event_t *e) {
     uint32_t key = *(uint32_t *)lv_event_get_param(e);
@@ -515,7 +515,7 @@ static void key_cb(lv_event_t *e) {
         move_sel(-1);
     else if (key == LV_KEY_RIGHT || key == LV_KEY_DOWN)
         move_sel(1);
-    else if (key == LV_KEY_ENTER || key == KEYBOARD_F4)
+    else if (key == LV_KEY_ENTER)
         edit_cb(NULL);
     else if (key == LV_KEY_ESC)
         dialog_destruct();

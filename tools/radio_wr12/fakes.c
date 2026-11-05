@@ -889,6 +889,9 @@ void tx_info_update(float pwr, float swr, float alc) {
     (void)alc;
 }
 
+void tx_info_clear(void) {
+}
+
 wifi_status_t wifi_get_status() {
     return (wifi_status_t)0;
 }
