@@ -32,9 +32,6 @@
 #ifndef BOARD_DISP_W
 #include "src/board.h"
 #endif
-#ifndef BOARD_FB_ROTATE_90
-#define BOARD_FB_ROTATE_90 1
-#endif
 
 /*********************
  *      DEFINES
@@ -167,8 +164,9 @@ void fbdev_init(void)
 
     // Map the device to memory
     fbp = (char *)mmap(0, screensize, PROT_READ | PROT_WRITE, MAP_SHARED, fbfd, 0);
-    if((intptr_t)fbp == -1) {
+    if (fbp == MAP_FAILED) {
         perror("Error: failed to map framebuffer device to memory");
+        fbp = NULL;     /* flush checks NULL; leave MAP_FAILED and it would write through it */
         return;
     }
 

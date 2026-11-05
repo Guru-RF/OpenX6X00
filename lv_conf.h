@@ -18,7 +18,7 @@
 #include "src/board.h"
 #endif
 
-/* Panel size BOARD_DISP_W x BOARD_DISP_H (800x480 on X6100), 32 bit ARGB; LVGL draws on a transparent screen layer */
+/* Panel size BOARD_DISP_W x BOARD_DISP_H (800x480 on the X6100 and X6200), 32 bit ARGB; LVGL draws on a transparent screen layer */
 #define LV_COLOR_DEPTH 32
 #define LV_COLOR_SCREEN_TRANSP 1
 #define LV_COLOR_MIX_ROUND_OFS (LV_COLOR_DEPTH == 32 ? 0: 128)

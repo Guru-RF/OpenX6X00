@@ -12,7 +12,8 @@
 
 /* The panel, landscape. BOARD_FB_ROTATE_90 says whether the framebuffer is
  * portrait and needs a 90° blit (X6100/X6200: yes). A landscape framebuffer
- * sets it to 0; drm/fbdev then copy without rotating. */
+ * sets it to 0; fbdev then copies without rotating. DRM still needs 1
+ * (waterfall/Walkie planes); drm_init() falls back to fbdev when it is 0. */
 #define BOARD_DISP_W        800
 #define BOARD_DISP_H        480
 #ifndef BOARD_FB_ROTATE_90

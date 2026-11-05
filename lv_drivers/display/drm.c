@@ -43,9 +43,6 @@
 #ifndef BOARD_DISP_W
 #include "src/board.h"
 #endif
-#ifndef BOARD_FB_ROTATE_90
-#define BOARD_FB_ROTATE_90 1
-#endif
 
 /*********************
  *      DEFINES
@@ -446,6 +443,13 @@ static int first_commit(void) {
  **********************/
 
 bool drm_init(void) {
+    /* Landscape blit (BOARD_FB_ROTATE_90=0) is only finished for fbdev: the
+     * primary-plane waterfall and Walkie's portrait path still assume a
+     * portrait panel. Fall back so panel_open() uses fbdev instead. */
+#if !BOARD_FB_ROTATE_90
+    err("BOARD_FB_ROTATE_90=0 needs fbdev, DRM is unused");
+    return false;
+#else
     const char *path = getenv("DRM_CARD");
 
     if (path ? !open_card(path) : !open_card("/dev/dri/card0") && !open_card("/dev/dri/card1")) {
@@ -483,6 +487,7 @@ bool drm_init(void) {
     fprintf(stderr, "drm: %ux%u, connector %u, crtc %u, %s\n", mode.hdisplay, mode.vdisplay, conn_id, crtc_id,
             planes ? "GUI on the overlay plane, waterfall on the primary" : "one plane");
     return true;
+#endif /* BOARD_FB_ROTATE_90 */
 }
 
 bool drm_planes(void) {

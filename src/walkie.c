@@ -3,7 +3,7 @@
  *
  *  Xiegu X6100 LVGL GUI
  *
- *  Walkie Talkie: a portrait screen (the panel turned, 480x800 on the X6100) in place of
+ *  Walkie Talkie: a portrait screen (the panel turned, 480x800 on the X6100 and X6200) in place of
  *  the main one, which is still built and does the radio work unseen. On and
  *  off live: built the first time, then kept.
  */
