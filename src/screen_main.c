@@ -84,6 +84,9 @@
 #include "radio_controls.h"
 #include "apps_menu.h"
 #include "dialog_birdie.h"
+#include "control_owner.h"
+#include "kbd_hyper.h"
+#include "kbd_ptt.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -745,12 +748,14 @@ static bool page_key(keypad_key_t key, bool tap, bool hold) {
     return false;
 }
 
-/* PTT: in CW it keys the carrier too */
-static void ptt_key(keypad_state_t state) {
+/* PTT: in CW it keys the carrier too. False: the press refused where the radio may not transmit (radio_set_ptt) */
+static bool ptt_key(keypad_state_t state) {
+    bool ok = true;
+
     if (state == KEYPAD_PRESS) {
         dialog_msg_voice_ptt_pressed();
         cw_encoder_ptt_pressed();   /* a beacon or QRSS3 lets go of the key first */
-        radio_set_ptt(true);
+        ok = radio_set_ptt(true);
         if (cw_mode()) {
             radio_set_morse_key(true);
         }
@@ -760,6 +765,7 @@ static void ptt_key(keypad_state_t state) {
         }
         radio_set_ptt(false);
     }
+    return ok;
 }
 
 /* A/B, the front key and the H-22's: VFO A/B; long: this VFO copied to the other one. Not while an app holds the
@@ -1313,10 +1319,7 @@ static void spectrum_key_cb(lv_event_t *e) {
         case '}':  case KEY_VOL_RIGHT_SELECT:   vol_change_ctrl(+1); break;
         case LV_KEY_LEFT:           main_screen_mfk(-1); break;
         case LV_KEY_RIGHT:          main_screen_mfk(+1); break;
-        case KEYBOARD_PGUP:         band_step(true); break;
-        case KEYBOARD_PGDN:         band_step(false); break;
         case KEYBOARD_SCRL_LOCK:    say_lock(toggle_freq_lock()); break;
-        case KEYBOARD_F9:           dialog_construct(dialog_settings, obj); break;
 
         case KEYBOARD_PRINT:
         case KEYBOARD_PRINT_SCR:
@@ -1385,16 +1388,142 @@ void main_screen_keys_enable(bool value) {
     lv_group_set_editing(keyboard_group, false);
 }
 
-/* No app, dialog, list or text box took the keyboard */
+/* No app, dialog, list or text box took the keyboard, and the main screen is the one shown: the walkie screen leaves
+ * the spectrum focused, and a window opened from there (Settings, the frequency box, the quick log) went unseen */
 bool main_screen_has_keys(void) {
-    return spectrum && lv_group_get_focused(keyboard_group) == spectrum && !dialog_is_run();
+    return spectrum && lv_group_get_focused(keyboard_group) == spectrum && !dialog_is_run() && !walkie_on();
 }
 
-/* CapsLock+L on a keyboard (key_input.c): the quick QSO log, the box of the Log QSO button, only while
- * the main screen has the keyboard. In an app, a dialog or a text box the chord does nothing */
-void main_screen_log_qso(void) {
-    if (main_screen_has_keys()) {
-        cw_field_log_open();
+/* CapsLock+Space (kbd_ptt.h): PTT on the way the PTT key keys it (ptt_key: its refusals, the hold outside the bands,
+ * the SWR protection, the stuck TX watch all as for it), off at the next one. A key at the radio as the PTT key is:
+ * control is the operator's (control_owner.h), so a browser or TCI client neither keys nor takes control meanwhile.
+ * While on the toggle is looked at every KBD_PTT_TICK_MS */
+#define KBD_PTT_TICK_MS 100
+
+static kbd_ptt_t   kbd_ptt;
+static lv_timer_t *kbd_ptt_timer;
+static bool        kbd_ptt_carrier;     /* keyed in CW: the carrier's key went down with the PTT */
+
+/* The toggle off. The carrier's key it put down goes up whatever happened since: a mode changed, or CAT's or TCI's
+ * PTT off, leave it down, and in CW the base would stay on the air */
+static void kbd_ptt_off(void) {
+    if (kbd_ptt_timer) {
+        lv_timer_del(kbd_ptt_timer);
+        kbd_ptt_timer = NULL;
+    }
+    if (kbd_ptt_carrier) {
+        kbd_ptt_carrier = false;
+        radio_set_morse_key(false);
+    }
+}
+
+static void kbd_ptt_let_go(const char *why) {
+    ptt_key(KEYPAD_RELEASE);
+    kbd_ptt_off();
+    msg_update_text_fmt("%s", why);
+}
+
+static void kbd_ptt_tick_cb(lv_timer_t *t) {
+    backlight_tick();   /* on the air with no key held: the screen stays lit, TX in view */
+    switch (kbd_ptt_tick(&kbd_ptt, radio_get_ptt(), radio_get_state() != RADIO_RX, radio_no_data(), get_time())) {
+        case KBD_PTT_ENDED:     /* let go another way, which says why (the SWR, outside the bands), or not (the PTT
+                                 * key, CAT, TCI): after it, that the next chord keys and does not let go */
+            kbd_ptt_off();
+            msg_schedule_text_fmt("PTT off: CapsLock+Space for on");
+            break;
+        case KBD_PTT_LET_GO:
+            kbd_ptt_let_go("PTT off: not on the air");
+            break;
+        case KBD_PTT_NO_DATA:
+            kbd_ptt_let_go("PTT off: no data from the base");
+            break;
+        case KBD_PTT_TIME_UP:
+            kbd_ptt_let_go("PTT off: three minutes on the air");
+            break;
+        default:
+            break;
+    }
+}
+
+/* On only where the main screen has the keyboard; off from anywhere, so that no window opened meanwhile keeps the
+ * radio on the air */
+static void kbd_ptt_chord_run(void) {
+    if (!kbd_ptt_chord(&kbd_ptt, radio_get_ptt())) {
+        ctl_local_input();
+        kbd_ptt_let_go("PTT off");
+        return;
+    }
+    kbd_ptt_off();      /* on with the PTT gone since: its carrier's key up, the next key is a new one */
+    if (!main_screen_has_keys()) {
+        return;
+    }
+    ctl_local_input();
+
+    bool ok = ptt_key(KEYPAD_PRESS);
+
+    kbd_ptt_keyed(&kbd_ptt, ok, get_time());
+    if (ok) {
+        kbd_ptt_carrier = cw_mode();
+        kbd_ptt_timer   = lv_timer_create(kbd_ptt_tick_cb, KBD_PTT_TICK_MS, NULL);
+        msg_update_text_fmt("PTT on: CapsLock+Space for off");
+    }
+}
+
+void main_screen_keyboard_gone(void) {
+    if (kbd_ptt_gone(&kbd_ptt, radio_get_ptt())) {
+        kbd_ptt_let_go("PTT off: keyboard gone");
+    }
+    kbd_ptt_off();
+}
+
+/* CapsLock and a key (key_input.c, kbd_hyper.c's table): what each chord does, and where. The main screen's act only
+ * while it has the keyboard, where they bring hidden buttons back as a key does; in an app, a dialog or a text box
+ * they do nothing. The screenshot is taken everywhere, as a long press given it is; PTT goes off everywhere; 1-8 are
+ * JTTY's macros while it has the keyboard */
+void main_screen_chord(int action) {
+    bool here = main_screen_has_keys();
+
+    if (here) {
+        main_screen_buttons_wake();
+    }
+    switch ((kbd_hyper_action_t)action) {
+        case HYPER_SCREENSHOT:
+            screenshot_take();
+            return;
+        case HYPER_PTT:
+            kbd_ptt_chord_run();
+            return;
+        default:
+            break;
+    }
+    if (action >= HYPER_KEY_1 && action <= HYPER_KEY_8) {
+        int n = action - HYPER_KEY_1 + 1;
+
+        if (!dialog_jtty_macro(n) && here && n <= 5) {
+            cw_field_message(n);    /* in CW, where the CW line keys */
+        }
+        return;
+    }
+    if (!here) {
+        return;
+    }
+    switch ((kbd_hyper_action_t)action) {
+        case HYPER_LOG_QSO:         /* in CW the line typed is the QSO, else the box of the Log QSO button */
+            if (!cw_field_log_line()) {
+                cw_field_log_open();
+            }
+            break;
+        case HYPER_LOCK:            say_lock(toggle_freq_lock()); break;
+        case HYPER_SETTINGS:        dialog_construct(dialog_settings, obj); break;
+        case HYPER_BAND_UP:         band_step(true); break;
+        case HYPER_BAND_DOWN:       band_step(false); break;
+        case HYPER_FREQ:            /* as f, also in CW where f goes into the CW line */
+            if (!subject_i_get(freq_lock)) {
+                dialog_construct(dialog_freq, obj);
+            }
+            break;
+        default:
+            break;
     }
 }
 

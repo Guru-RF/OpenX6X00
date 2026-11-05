@@ -14,8 +14,10 @@
  *      Ctrl+B A/B   Ctrl+R PRE   Ctrl+T ATU   Ctrl+V V/M   Ctrl+G AGC   Ctrl+F FST   Ctrl+P PTT
  *
  *  The keys taken here never reach the SDL keyboard driver, the rest of the keyboard types
- *  into the GUI as a USB keyboard would. CapsLock held with a letter is a chord, as on the radio
- *  (kbd_hyper.h: CapsLock+L the quick QSO log); this PC's own Caps Lock still turns at each press.
+ *  into the GUI as a USB keyboard would. CapsLock held with a key is a chord, as on the radio
+ *  (kbd_hyper.h: CapsLock+L logs a QSO, CapsLock+Space is PTT...); this PC's own Caps Lock still
+ *  turns at each press. The F keys and PageUp/PageDown here are the radio's front keys, not a
+ *  keyboard's (a keyboard's do nothing on the radio).
  *
  *  Copyright (c) 2026 RF.Guru
  */
@@ -75,11 +77,27 @@ static const struct {
 #define VOL_PRESS BTN_TRIGGER_HAPPY21
 #define MFK_PRESS BTN_TRIGGER_HAPPY27
 
-/* The letters' evdev codes, A to Z as SDL's scancodes go: the chords are named by them */
-static const uint16_t letter_code[26] = {
-    KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M,
-    KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z,
-};
+/* The evdev code of a key by SDL's scancode, for the chords (kbd_hyper.c names them so): the letters, the digits,
+ * Space and the arrows up and down; 0 for the others */
+static uint16_t evdev_code(SDL_Scancode sc) {
+    static const uint16_t letter[26] = {
+        KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M,
+        KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z,
+    };
+
+    if (sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z) {
+        return letter[sc - SDL_SCANCODE_A];
+    }
+    if (sc >= SDL_SCANCODE_1 && sc <= SDL_SCANCODE_0) {     /* 1 to 9, then 0, in both */
+        return KEY_1 + (sc - SDL_SCANCODE_1);
+    }
+    switch (sc) {
+        case SDL_SCANCODE_SPACE:    return KEY_SPACE;
+        case SDL_SCANCODE_UP:       return KEY_UP;
+        case SDL_SCANCODE_DOWN:     return KEY_DOWN;
+        default:                    return 0;
+    }
+}
 
 static void emit(int dev, uint16_t type, uint16_t code, int32_t value) {
     struct input_event ev[2];
@@ -126,9 +144,10 @@ static int filter(void *unused, SDL_Event *e) {
         knob(m & KMOD_SHIFT ? DEV_VOL : m & KMOD_CTRL ? DEV_MFK : DEV_MAIN, n);
         return 0;
     }
-    /* CapsLock held: a letter pressed is its chord, and no key types meanwhile (the text of a key comes on
-     * its own, SDL_TEXTINPUT). Shift, Ctrl, Alt and the Meta keys go through, as kbd_hyper.c lets them */
-    static bool caps_held;
+    /* CapsLock held: a key pressed is its chord, once (not its repeats), and no key types meanwhile (the text of a
+     * key comes on its own, SDL_TEXTINPUT). Shift, Ctrl, Alt and the Meta keys go through, as kbd_hyper.c lets them.
+     * A key with no chord pressed before any chord is typing over a CapsLock tap: it types, and the hold is over */
+    static bool caps_held, caps_chord;
 
     if (e->type == SDL_TEXTINPUT && caps_held) {
         return 0;
@@ -144,12 +163,22 @@ static int filter(void *unused, SDL_Event *e) {
     bool         shift = mod & KMOD_SHIFT;
 
     if (sym == SDLK_CAPSLOCK) {
-        caps_held = down;
+        if (down != caps_held) {
+            caps_held  = down;
+            caps_chord = false;
+        }
         return 0;
     }
-    if (caps_held && !mod_key(sym)) {
-        if (down && !e->key.repeat && sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z) {
-            keyboard_chord(kbd_hyper_action(letter_code[sc - SDL_SCANCODE_A]));
+    if (caps_held && down && !e->key.repeat && !mod_key(sym) && !caps_chord &&
+        kbd_hyper_action(evdev_code(sc)) == HYPER_NONE) {
+        caps_held = false;
+    }
+    /* A key let go goes on below, as kbd_hyper.c lets it: one pressed before CapsLock (Ctrl+P's PTT, Enter, F1) is
+     * let go as it was pressed, and a chord key's release lets go of nothing. Dropped, it left that front key down */
+    if (caps_held && down && !mod_key(sym)) {
+        if (!e->key.repeat && evdev_code(sc)) {
+            caps_chord = true;
+            keyboard_chord(kbd_hyper_action(evdev_code(sc)));
         }
         return 0;
     }

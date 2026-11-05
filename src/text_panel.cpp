@@ -395,6 +395,10 @@ void panel_hide(void) {
     knobs_display(true);    /* the knob labels are where the panel was */
 }
 
+bool panel_shown(void) {
+    return obj && !lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN);
+}
+
 /* A hidden panel keeps its text */
 void panel_clear(void) {
     cw_parse_forget();      /* the calls the app confirmed: they go with the text */

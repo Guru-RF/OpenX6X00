@@ -8,7 +8,7 @@
 
 /* The input group every knob and button feeds, and the USB (or Bluetooth) keyboard:
  * found at start and again whenever a USB device comes or goes. CapsLock is its hyper key
- * (kbd_hyper.h): CapsLock+L opens the quick QSO log. */
+ * (kbd_hyper.h): CapsLock+L logs a QSO, CapsLock+Space is PTT, and the others. */
 
 #include "key_input.h"
 
@@ -20,12 +20,14 @@
 #include "kbd_rollover.h"
 #include "paddle_keyer.h"
 #include "pubsub_ids.h"
+#include "screen_light.h"
 #include "screen_main.h"
 #include "usb_devices.h"
 
 #include "lv_drivers/indev/evdev.h"
 #include "lv_drivers/indev/xkb.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
 #include <linux/input.h>
@@ -55,7 +57,9 @@ static ino_t          kbd_ino;
 static lv_timer_t    *rescan_timer;
 static int            rescans_left;
 static kbd_hyper_t    hyper;        /* CapsLock held for a chord */
+static bool           dead;         /* the open keyboard's node reads ENODEV: unplugged, or its Bluetooth link gone */
 static bool           caps;         /* Caps Lock on, as xkb has it: only a CapsLock tapped alone turns it */
+static bool           woke_hold;    /* the press of the CapsLock held woke the screen: its first chord only did that */
 
 /* The keyboard's Caps Lock light to ours. The light is the kernel console's (/dev/tty0), which turns
  * it at every CapsLock press, also one held for a chord: put back at the chord, and set at each
@@ -74,13 +78,7 @@ static void caps_light(void) {
 
 /* A chord's action, after the read of its key: it opens windows and moves the keyboard's focus */
 static void chord_run(void *arg) {
-    switch ((kbd_hyper_action_t)(intptr_t)arg) {
-        case HYPER_LOG_QSO:
-            main_screen_log_qso();
-            break;
-        default:
-            break;
-    }
+    main_screen_chord((int)(intptr_t)arg);
 }
 
 void keyboard_chord(int action) {
@@ -89,36 +87,91 @@ void keyboard_chord(int action) {
     }
 }
 
-/* CapsLock as the hyper key: false when the event goes no further */
-static bool hyper_key(const struct input_event *ev) {
+/* A CapsLock tap: Caps Lock turns in xkb, and its light */
+static void caps_turn(void) {
+    xkb_process_key(KEY_CAPSLOCK, 1);
+    xkb_process_key(KEY_CAPSLOCK, 0);
+    caps = !caps;
+    caps_light();
+}
+
+/* CapsLock as the hyper key: false when the event goes no further. woke: this press woke the screen */
+static bool hyper_key(const struct input_event *ev, bool woke) {
     kbd_hyper_action_t action = HYPER_NONE;
 
+    if (ev->code == KEY_CAPSLOCK && ev->value == 1) {
+        woke_hold = woke;
+    }
     switch (kbd_hyper_key(&hyper, ev->code, ev->value, &action)) {
         case HYPER_PASS:
             return true;
         case HYPER_CAPS:            /* tapped alone: Caps Lock, as before */
-            xkb_process_key(KEY_CAPSLOCK, 1);
-            xkb_process_key(KEY_CAPSLOCK, 0);
-            caps = !caps;
-            caps_light();
+            caps_turn();
             return false;
+        case HYPER_CAPS_PASS:       /* the tap, then the key typed over it: in that order */
+            caps_turn();
+            return true;
         case HYPER_CHORD:
             caps_light();
-            keyboard_chord(action);
+            /* A chord on a dark screen only lights it, as a front key's press: CapsLock+Space keyed unseen, no TX
+             * on the screen */
+            if (woke || woke_hold) {
+                woke_hold = false;
+            } else {
+                keyboard_chord(action);
+            }
             return false;
         default:
             return false;
     }
 }
 
+/* The keyboard open went away: unplugged, its Bluetooth link lost, another one in its place. The releases of its keys
+ * never come: the key LVGL holds is let go, or LVGL repeats it into the screen (a frequency step, the volume, a letter
+ * keyed in CW Live) until a keyboard opens again; LVGL releases the key it holds. A PTT its CapsLock+Space keyed lets
+ * go too */
+static void keyboard_gone(void) {
+    kbd_keys.down   = false;
+    kbd_keys.queued = false;
+    main_screen_keyboard_gone();
+}
+
+/* The kernel's queue of the keyboard's events overflowed (64 of them, a second of one key's repeat while the GUI is
+ * busy) and the events in it are gone, a release among them maybe: CapsLock's left it held for good (every key a
+ * chord, Space PTT on the main screen), LVGL's key's left it pressed. The keys down are read back: what went up
+ * meanwhile is let go. True with LVGL's key's release in *scancode, *key and *state */
+static bool resync(uint16_t *scancode, uint32_t *key, int *state) {
+    unsigned long down[KBD_HYPER_LONGS] = {0};     /* a failed read: all up, no hold and no key held */
+
+    ioctl(evdev_fd, EVIOCGKEY(sizeof(down)), down);
+    kbd_hyper_sync(&hyper, down);
+    if (!kbd_keys.down || BIT_SET(down, kbd_keys.code)) {
+        return false;
+    }
+    *scancode = kbd_keys.code;
+    *key      = kbd_keys.key;
+    *state    = 0;
+    return true;
+}
+
 /* Key events of the keyboard, the character from xkb (layout and Shift) */
 static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state) {
     struct input_event ev;
+    ssize_t            n;
 
-    while (read(evdev_fd, &ev, sizeof(ev)) > 0) {
+    while ((n = read(evdev_fd, &ev, sizeof(ev))) > 0) {
+        if (ev.type == EV_SYN && ev.code == SYN_DROPPED) {
+            if (resync(scancode, key, state)) {
+                return true;
+            }
+            continue;
+        }
         if (ev.type != EV_KEY) {
             continue;
         }
+        /* A key at the radio, as the front keys and the knobs: the screen stays lit, a dark one wakes */
+        bool woke = backlight_tick() && ev.value == 1;
+
         /* In CW [ ] and the paddle keys are the paddle (paddle_keyer.c): a press stops a
          * message on air, as a break */
         if (paddle_keyer_key(ev.code)) {
@@ -127,7 +180,7 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
             }
             continue;
         }
-        if (!hyper_key(&ev)) {
+        if (!hyper_key(&ev, woke)) {
             continue;
         }
         *key      = xkb_process_key(ev.code, ev.value);     /* xkb follows Shift from these too */
@@ -136,12 +189,16 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
         if (kbd_keymap(ev.code)) {
             *key = kbd_keymap(ev.code);                     /* xkb gives no character for them */
         }
-        /* PgUp, PgDn, Scroll Lock and Print Screen pressed away from the main screen: nowhere to go (a text box
-         * would type them); let go, they still reach LVGL, which only takes the release of the key it holds */
+        /* Scroll Lock and Print Screen pressed away from the main screen: nowhere to go (a text box would type
+         * them); let go, they still reach LVGL, which only takes the release of the key it holds */
         if (ev.value != 0 && kbd_keymap_main_only(ev.code) && !main_screen_has_keys()) {
             continue;
         }
         return true;
+    }
+    if (n < 0 && errno == ENODEV && !dead) {
+        dead = true;
+        keyboard_gone();
     }
     return false;
 }
@@ -216,6 +273,7 @@ static void open_keyboard(char *path) {
     kbd_ino  = st.st_ino;
     kbd_keys = (kbd_keys_t){0};
     hyper    = (kbd_hyper_t){0};
+    dead     = false;
     caps     = false;
     caps_light();
     paddle_keyer_open(path);
@@ -229,16 +287,23 @@ static void open_keyboard(char *path) {
     ready = true;
 }
 
-/* A keyboard there and not open (or a different one: unplugged and back): open it; none: not ready */
+/* A keyboard there and not open (or a different one: unplugged and back): open it; none: not ready. The one open
+ * gone, or another in its place: keyboard_gone() */
 static void check_keyboard(void) {
     char       *path = find_keyboard();
     struct stat st;
 
     if (path && stat(path, &st) == 0) {
         if (!ready || st.st_rdev != kbd_rdev || st.st_ino != kbd_ino) {
+            if (ready) {
+                keyboard_gone();
+            }
             open_keyboard(path);
         }
     } else {
+        if (ready) {
+            keyboard_gone();
+        }
         ready = false;
     }
     paddle_keyer_scan();   /* after the keyboard: a second one with the paddle keys is the paddle */

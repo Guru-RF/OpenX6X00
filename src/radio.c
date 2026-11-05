@@ -1066,12 +1066,19 @@ static bool tx_refused(tx_by_t by) {
            no_data_refused(by);
 }
 
+static atomic_bool ptt_on;      /* the GUI's PTT as last set: the keyboard's toggle follows it (kbd_ptt.h) */
+
 bool radio_set_ptt(bool tx) {
     if (tx && tx_refused(TX_BY_PTT)) {
         return false;
     }
     WITH_RADIO_LOCK(hw_set_i(HW_PTT, tx));
+    atomic_store(&ptt_on, tx);
     return true;
+}
+
+bool radio_get_ptt(void) {
+    return atomic_load(&ptt_on);
 }
 
 static int mic_override = -1;      /* the walkie screen's mic, cfg_mic stays as saved */

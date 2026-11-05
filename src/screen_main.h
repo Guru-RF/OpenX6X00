@@ -34,11 +34,15 @@ void main_screen_set_theme(const char *name);
 /* The keyboard to the spectrum; a dialog takes it away while open */
 void main_screen_keys_enable(bool on);
 
-/* The keyboard's keys go to the main screen: no app, dialog, list or text box took them */
+/* The keyboard's keys go to the main screen: no app, dialog, list or text box took them, not in walkie mode */
 bool main_screen_has_keys(void);
 
-/* CapsLock+L: the quick QSO log, when the main screen has the keyboard */
-void main_screen_log_qso(void);
+/* CapsLock held with a key: the chord's kbd_hyper_action_t (kbd_hyper.h), run once the key's read is over */
+void main_screen_chord(int action);
+
+/* The keyboard open is gone (unplugged, its Bluetooth link lost, another one in its place): a PTT its CapsLock+Space
+ * keyed lets go */
+void main_screen_keyboard_gone(void);
 
 /* A key, or a window opened or closed: the buttons back if Settings > Display > Hide buttons hid them, and hidden
  * again after its time without a key. True when they were hidden */
