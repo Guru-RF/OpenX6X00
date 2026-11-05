@@ -811,16 +811,46 @@ transmission could start with the last one's readings: a
 before any of its audio went out (issue #53).
 
 Per band S-meter calibration. Each band has its own correction, -40 to
-+40 dB in 1 dB steps; the value shown is the one of the band the radio is on.
++40 dB in 1 dB steps (the CW and SSB parts of 40 m and 20 m share one,
+below); the value shown is the one of the band the radio is on.
 Where: Settings > General > CONTROLS > Per band S-meter cal.
 
 - When you start editing it, a panel "S-METER CALIBRATION" says for 5 s:
   "For this band only. Feed -73 dBm and set the reading to S9 on each band you
-  use." (On our bench, -22 dB matched another calibrated transceiver.)
+  use." On 40 m and 20 m it names both parts (below): "For 40m CW and 40m SSB
+  only. ..."
 - Change it only while reading a known signal: -73 dBm (S9) from a generator,
   or the same signal on a calibrated radio.
-- A band never calibrated starts at -22 dB, or at the single S-meter cal value
-  set before.
+- A band never calibrated starts at -22 dB on the X6100 and +11 dB on the
+  X6200, or at the single S-meter cal value set before. On the X6100, -22 dB
+  matched another calibrated transceiver on our bench. The X6200 shows the
+  level its base sends, on another scale: +11 dB is the mean of two X6200s
+  calibrated band by band with a generator, 14 figures from +7 to +14 dB on
+  ten bands from 160 m to 10 m.
+- Up to v0.3.8 the X6200 started at -22 dB too, so a band never calibrated
+  read 30 to 35 dB low there, S3 for an S9 carrier. On the bands you never
+  calibrated, an X6200 now reads about 33 dB higher than before. A band you
+  calibrated keeps its own value.
+- On the X6200, calibrate a band before you press Measure on it (Settings >
+  TX Cal > S-METER): Measure wants the meter to read about S9 to S9+20.
+- 40m CW and 40m SSB are two bands of the band list, and so are 20m CW and
+  20m SSB, but each pair shares one calibration, and on the X6200 one
+  attenuator figure too (Settings > TX Cal > S-METER): the receiver is the
+  same in both parts. Set on one part, the calibration with its slider or
+  the attenuator with its slider or Measure, it is set on the other part
+  too, and a part never set takes the other part's value before the start
+  above. Nothing else is shared: each part
+  keeps its own VFOs, mode, PRE and ATT, and the frequency picks the part,
+  not the mode (CW on 7.100 MHz is 40m SSB).
+- Which bands share goes by frequency, not by name: the bands whose middle
+  lies from 7.000 to 7.300 MHz share one value, and those from 14.000 to
+  14.350 MHz another. A part renamed, or moved on the web page within those
+  ranges, still shares (40m SSB to 7.300 MHz in Region 2 does), one moved
+  out of them keeps its own, and a band you add within them shares too.
+  Broadcast 41m (7.200 to 7.500 MHz) keeps its own.
+- Where the two parts already hold different values, set on an earlier
+  version, each keeps its own until you set one of them: then both take
+  that one.
 
 ### Waterfall
 
@@ -1415,25 +1445,29 @@ are settings, with the figures measured on one radio as defaults.
 | RF gain, a step | 0.00 to 2.00 dB | 0.60 dB |
 
 On the X6200 the attenuator takes much more off, and how much depends on the
-band and on the radio: one radio showed about 51 dB on 80 m, 29 dB on 40 m,
-34 dB on 20 m and 32 dB on 10 m, another 40 dB or more on 40 m. So there the
-row is "Attenuator on this band": each band keeps its own value, and the
-slider and Measure set the band the radio is on. Those are the bands of the
-band list: 40 m CW and 40 m SSB are two, and so are 20 m CW and SSB, and a
-broadcast band is one of its own, so Measure on a broadcast carrier at
-7.3 MHz sets Broadcast 41m, not 40 m. When it is done, Measure names the
-band it set. A band never set starts from the figure of the nearest of 80,
-40, 20 and 10 m, on 40 m the two radios' mean:
+band and on the radio: one radio showed 59 dB on 160 m, 39 to 51 dB on 80 m
+and 24 to 30 dB from 60 m to 10 m, another 40 to about 62 dB on 80 m and
+about 40 dB on 40, 20 and 10 m. So there the row is "Attenuator on this
+band": each band keeps its own value, and the slider and Measure set the
+band the radio is on. Those are the bands of the band list, but for the CW
+and SSB parts of 40 m and 20 m, which share one figure as they share their
+calibration (see [S-meter](#s-meter)). A broadcast band is one of its own,
+so Measure on a broadcast carrier at 7.3 MHz sets Broadcast 41m, not 40 m.
+When it is done, Measure names the band it set, or both parts, and then
+leaves the RF gain to its slider for the line to fit: "Done on 40m CW and
+40m SSB: PRE 16 dB, ATT 34 dB." A band never set starts from these figures:
+on 160 m one radio's, on 80 m one in the middle of the four seen there, and
+from 5 MHz up one between the two radios:
 
 | X6200 bands | Attenuator |
 |---|---|
-| 160 m, 80 m, the 75 m and 60 m broadcast bands (under 5 MHz) | 51 dB |
-| 60 m, 40 m, the 49 m to 31 m broadcast bands (5 to 10 MHz) | 35 dB |
-| 30 m, 20 m, 17 m, the 25 m to 15 m broadcast bands (10 to 20 MHz) | 34 dB |
-| 15 m and up (over 20 MHz) | 32 dB |
+| 160 m (under 2.5 MHz) | 59 dB |
+| 80 m, the 75 m and 60 m broadcast bands (2.5 to 5 MHz) | 51 dB |
+| 60 m and up, the 49 m broadcast band and up (over 5 MHz) | 34 dB |
 
 Outside the bands (medium wave, the 120 m and 90 m broadcast bands, the gaps
-between the bands) all frequencies share one value, which starts at 35 dB.
+between the bands) all frequencies share one value, which starts at 34 dB, as
+on 40 m.
 
 On the X6200 the one attenuator value of v0.3.8 and before (15 dB, or what
 the slider or Measure set) is not used any more: it fit one band at most.
@@ -1449,14 +1483,14 @@ same reading, with these corrections in.
 
 With ATT on, a weak signal, or none, sinks into the radio's own noise, and
 the meter shows that noise as it would be at the antenna: on the X6200,
-with 30 to 50 dB of attenuator, that can be higher than with ATT off. Those
+with 24 to 60 dB of attenuator, that can be higher than with ATT off. Those
 bars stay grey, as noise.
 
 Measure sets them for your radio, since preamps differ a little. Feed a
 steady carrier, from a signal generator (around -73 dBm, S9) or a strong
 broadcast station, so the meter reads between S5 and S9+20 (on the X6200
 from about S9 to S9+20: feed about -55 dBm, S9+18, from a generator. With
-its 30 to 50 dB of attenuator on, a weaker carrier comes close to the
+its 24 to 60 dB of attenuator on, a weaker carrier comes close to the
 radio's own noise and the reading can wander: "Not steady"), and press
 Measure.
 For about 12 s the radio reads its meter with everything off, then with PRE

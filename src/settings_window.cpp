@@ -3060,6 +3060,17 @@ static param_slider_t wf_speed_slider = {&cfg_sm.p_waterfall_speed, 1, 5, 1, "%i
 static param_slider_t spectrum_height_slider = {&cfg_sm.p_spectrum_height, 60, 160, 4, "%i px"};
 static param_slider_t textlog_mb_slider = {&cfg_sm.p_textlog_mb, 1, 100, 1, "%i MB"};
 
+/* The bands of smeter_parts by name, "40m CW and 40m SSB" on 40 m (#125) */
+static std::string smeter_parts_names(const std::vector<BandInfo> &parts) {
+    std::string names;
+
+    for (size_t i = 0; i < parts.size(); i++) {
+        names += i == 0 ? "" : i + 1 < parts.size() ? ", " : " and ";
+        names += parts[i].name;
+    }
+    return names;
+}
+
 /* S-meter cal, when its editing starts: what it is for, before the reading drifts from the truth.
  * Built as the cluster alert (theme roles, popup radius, sony_18 title), framed in the error colour */
 static lv_obj_t   *smeter_warn;
@@ -3103,8 +3114,12 @@ extern "C" void smeter_warn_show(void) {   /* not static: the UI harness shows i
     lv_obj_set_style_text_font(l, &sony_24, 0);
     lv_obj_set_style_text_color(l, TC(text), 0);
     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(l, "For this band only. Feed -73 dBm and set the reading to S9 on each "
-                         "band you use.");
+    /* On 40 m and 20 m the cal goes to both parts, and the panel names them, as Measure's line (#125) */
+    std::vector<BandInfo> parts = SettingsManager::smeter_parts(cfg_sm.p_band_smeter_cal.context_id());
+    std::string           band  = parts.size() > 1 ? smeter_parts_names(parts) : "this band";
+
+    lv_label_set_text_fmt(l, "For %s only. Feed -73 dBm and set the reading to S9 on each band you use.",
+                          band.c_str());
 
     smeter_warn_timer = lv_timer_create(smeter_warn_close, 5000, NULL);
     lv_timer_set_repeat_count(smeter_warn_timer, 1);
@@ -3669,7 +3684,7 @@ static lv_obj_t * upd_line(uint8_t row);
  * noise) the meter is read with everything off, then with PRE, with ATT, and at RF gain 40, 1.5 s
  * to settle and 1.5 s of readings each, and what was left over moves the three settings.
  * PRE, ATT and the RF gain go back as they were after, also when the page closes or on TX.
- * The X6200's attenuator takes 29 to about 62 dB off depending on the band and the radio (#125): there its
+ * The X6200's attenuator takes 24 to about 62 dB off depending on the band and the radio (#125): there its
  * figure is the band's, up to 70 dB, and Measure sets the band's; and the signal has to be about S9 or
  * more, so that it stays over the noise with ATT on: 3 dB under S9 passes, as its readings are whole dB
  * from the base and a generator set to S9, -73 dBm, reading a dB under it was refused. The X6100 has one
@@ -3839,13 +3854,17 @@ static void smc_timer_cb(lv_timer_t *t) {
 
     /* The band by its name: the page follows the band, so "this band" would be another one after a band change, and
      * a broadcast carrier next to a ham band sets the broadcast band's figure, not the ham band's. PRE and ATT as on
-     * the keys, for the line to hold "Broadcast 41m" */
-    BandInfoLoadResult band = BandsTable::get_by_id(smc_band);
-    const char        *on   = band.rc == SUCCESS ? "on " : "outside the bands";
-    const char        *name = band.rc == SUCCESS ? band.value.name.c_str() : "";
+     * the keys, for the line to hold "Broadcast 41m". On 40 m and 20 m every part the figure went to, "40m CW and
+     * 40m SSB" (smeter_parts, #125), and the RF gain then only on its slider, for the line to fit */
+    std::vector<BandInfo> parts  = SettingsManager::smeter_parts(smc_band);
+    std::string           set_on = smeter_parts_names(parts);
+    const char *on   = parts.empty() ? "outside the bands" : "on ";
+    const char *name = set_on.c_str();
 
     if (att_top) {
         snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i, the top, so %i or more.", on, name, pre, att, att);
+    } else if (parts.size() > 1) {
+        snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i dB.", on, name, pre, att);
     } else {
         snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i dB, RF gain %i.%02i dB a step.", on, name, pre, att,
                  rfg / 100, rfg % 100);

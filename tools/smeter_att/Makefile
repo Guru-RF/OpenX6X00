@@ -1,5 +1,6 @@
-# Host test of src/cfg/smeter_att.c, the X6200's attenuator figure on a band never set (#125): `make` builds it and
-# runs it on the band list of sql/params.sql and the table in docs/MANUAL.md. See smeter_att_test.c for the checks.
+# Host test of src/cfg/smeter_att.c, the S-meter on a band never set (#125): the X6200's attenuator figure and either
+# radio's cal start. `make` builds it and runs it on the band list of sql/params.sql and the figures in docs/MANUAL.md.
+# See smeter_att_test.c for the checks.
 SRC    := ../../src
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC)
 

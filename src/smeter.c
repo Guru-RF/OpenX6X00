@@ -676,7 +676,7 @@ void meter_set_noise(float val) {
     float level = val + meter_cal_db();   /* on the same scale as the reading it greys out */
 
 #ifdef BOARD_X6200
-    /* By the reading's own corrections: the X6200's attenuator takes 29 to 51 dB off (#125), and with
+    /* By the reading's own corrections: the X6200's attenuator takes 24 to about 62 dB off (#125), and with
      * FLOOR_DB the noise read with ATT on showed as a signal, 15 to 37 dB over the grey */
     if (att_on) level += param_i_get(cfg_smeter_att);
     if (pre_on) level -= param_i_get(cfg_smeter_pre);

@@ -281,8 +281,11 @@ void SettingsManager::switch_band(int new_band_id, bool implicit) {
     {
         NotifySuppressGuard guard;
 
-        // Save pending writes of the current band before switching context.
+        // Save pending writes of the current band before switching context, and of the band it goes to: a write
+        // may wait there for it, the S-meter figures the parts of 40 m and 20 m share (smeter_parts), and its load
+        // reads the database
         pending_writes_.flush_storage(StorageType::BAND, band_id_);
+        pending_writes_.flush_storage(StorageType::BAND, new_band_id);
 
         band_id_ = new_band_id;
 
@@ -345,6 +348,40 @@ int32_t SettingsManager::smeter_att_start() const {
     return b.rc == SUCCESS ? smeter_att_start_band(b.value.start_freq, b.value.stop_freq) : smeter_att_start_band(0, 0);
 }
 #endif
+
+// The parts of 40 m and 20 m share the S-meter cal and the X6200's attenuator figure (#125): the receiver is the same
+// across 7.0 to 7.3 MHz, and a calibration at 7.100 left 7.020 at the start
+std::vector<BandInfo> SettingsManager::smeter_parts(int32_t band_id) {
+    std::vector<BandInfo> all = BandsTable::all_bands(), parts;
+    int32_t               group = 0;
+
+    for (const BandInfo &b : all) {
+        if (b.id == band_id) group = smeter_share_group(b.start_freq, b.stop_freq);
+    }
+    for (const BandInfo &b : all) {
+        if (b.id == band_id || (group && smeter_share_group(b.start_freq, b.stop_freq) == group)) parts.push_back(b);
+    }
+    return parts;
+}
+
+// Another part's row, in the order of the band list. Where the parts hold different values already, from before
+// they shared, each keeps its own (it has a row) until one is set: the set writes them all (SmeterShareSink)
+std::optional<int32_t> SettingsManager::smeter_shared_row(const ParamBase &p) const {
+    for (const BandInfo &b : smeter_parts(p.context_id())) {
+        if (b.id == p.context_id()) continue;
+        std::optional<int32_t> v = storage_policy_for(StorageType::BAND).load_int(b.id, p.db_name());
+
+        if (v) return v;
+    }
+    return std::nullopt;
+}
+
+void SmeterShareSink::write(const StorageKey &key, int32_t value) {
+    to_.write(key, value);
+    for (const BandInfo &b : SettingsManager::smeter_parts(key.context_id)) {
+        if (b.id != key.context_id) to_.write(StorageKey{key.type, b.id, key.name}, value);
+    }
+}
 
 void SettingsManager::tx_shift_follow() {
     const int32_t shift = p_band_tx_shift.get();
