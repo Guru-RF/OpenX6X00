@@ -450,8 +450,10 @@ def capitals():
     ws.wait_text("ready;")
     ws.text("RX_SENSORS_ENABLE:true,200;TX_SENSORS_ENABLE:FALSE,200;")
     print("capitals:", ws.wait_text("rx_sensors_enable:true;"), ws.wait_text("tx_sensors_enable:false;"))
-    ws.text("VFO:0,0,10136000;")
-    print("capitals:", ws.wait_text("vfo:0,0,10136000;"), end=" ")
+    ws.text("DDS:0,10136000;VFO:0,0,10136000;")    # Hamlib's set_freq: the receiver's centre, then the frequency
+    print("capitals:", ws.wait_text("dds:0,"), ws.wait_text("vfo:0,0,10136000;"), end=" ")
+    ws.text("DDS:0;")
+    print(ws.wait_text("dds:0,10136000;"), end=" ")
     ws.text("VFO:0,0;")
     ws.wait_text("vfo:0,0,10136000;")
     ws.text("MODULATION:0,CW;")

@@ -645,6 +645,26 @@ static void listen_only(void) {
     check(cparam_i_get(cfg_fg_freq) == 14074000 && ctl_holds(CTL_TCI, A), "on Operate A tunes and takes control");
 }
 
+/* dds (Hamlib's TCI backend sends one before each vfo) is answered with the frequency, set or asked, and an unknown
+ * command (its digl_offset) is left unanswered: neither tunes nor takes control. The vfo after it tunes */
+static void dds_and_unknown(void) {
+    const char *h;
+
+    client_open(A);
+    ctl_claim(CTL_BROWSER, 0, "Shack PC", true);
+    say(A, "dds:0,14074000;dds:0;");
+    h = heard(A);
+    check(!strcmp(h, "dds:0,7074000;dds:0,7074000;"), "dds answered with the frequency");
+    say(A, "digl_offset:1500;rx_nb_enable:0,true;");
+    check(!*heard(A), "an unknown command left unanswered");
+    check(stub_run(-1) == 0 && ctl_holds(CTL_BROWSER, 0), "nothing done, control stays with the browser");
+    say(A, "dds:0,14074000;vfo:0,0,14074000;");
+    gui(-1);
+    h = heard(A);
+    check(strstr(h, "dds:0,7074000;") && strstr(h, "vfo:0,0,14074000;") && cparam_i_get(cfg_fg_freq) == 14074000,
+          "dds then vfo, as Hamlib sets a frequency: the vfo tunes");
+}
+
 /* Over Tailscale Funnel (#58) only the Panel's own sound and its key with it: a session that may not transmit, or
  * one that keyed nothing, asking for the TX state or unkeying is answered with the state and takes no control (the
  * browser at home keeps it, as when that session's browser asks on the browser remote's socket); the session that
@@ -766,6 +786,7 @@ int main(void) {
         {"TCI audio in DIGU and DIGL", tci_audio_in_dig},
         {"A browser's TCI audio start gives the browser its control back at the end", control_given_back},
         {"Listen only: a client's tuning and key answered with the state", listen_only},
+        {"dds answered with the frequency, an unknown command with nothing", dds_and_unknown},
         {"Over Funnel, an unkey or a question from a client that keyed nothing", funnel_takes_no_control},
         {"Over Funnel, the same browser back from another network", funnel_same_browser_back},
     };

@@ -27,9 +27,11 @@ to its mobile data, its connection left stale), another browser's key is refused
 browser's key from another address takes its place, its transmission ended, the newcomer keying;
 of two waiting for their key the older goes; wrong keys pause Funnel. One more has a client on
 Listen only: its tuning, mode, filter, AGC, RIT, drive and key answered with the state, nothing
-done, control left with the browser. Each runs in a child process, its clients on socket pairs,
-without a listener, and three times: the clients' commands as written, in capitals (as Hamlib's
-TCI backend sends them, `TRX:0,TRUE,TCI;`, `AUTH:` over Funnel) and in mixed case
+done, control left with the browser. One more sends `dds` (Hamlib's TCI backend sends one before
+each `vfo`): answered with the frequency, set or asked, nothing done; an unknown command left
+unanswered; the `vfo` after a `dds` tunes. Each runs in a child process, its clients on socket
+pairs, without a listener, and three times: the clients' commands as written, in capitals (as
+Hamlib's TCI backend sends them, `TRX:0,TRUE,TCI;`, `AUTH:` over Funnel) and in mixed case
 (`TrX:0,TrUe,tCi;`), which TCI says are the same: the same answers, in lower case. It prints
 `OWNER OK: n cases, each as written, in capitals and in mixed case`.
 
@@ -50,9 +52,9 @@ TX_CHRONO answered with its frame; and
 WSJT-X on a link slower than its RX audio (read at 250 kB/s through a 4 kB receive buffer),
 keyed with the server's queue full: the TX_CHRONOs come ahead of the queued audio, the over
 stays keyed for 3 s, every frame arrives whole. Then a connection in capitals and mixed case, as
-Hamlib's TCI backend and fldigi's TCI build send their commands (`VFO:`, `MODULATION:0,CW;`,
-`TRX:0,true,Vac;`, `TRX:0,true,tci;`, `AUDIO_STREAM_SAMPLE_TYPE:INT16;`): each taken as in lower
-case, every answer's name in lower case. Last, Tailscale Funnel (#58), where only the
+Hamlib's TCI backend and fldigi's TCI build send their commands (`DDS:` then `VFO:`,
+`MODULATION:0,CW;`, `TRX:0,true,Vac;`, `TRX:0,true,tci;`, `AUDIO_STREAM_SAMPLE_TYPE:INT16;`): each
+taken as in lower case, every answer's name in lower case. Last, Tailscale Funnel (#58), where only the
 browser Panel's own sound and microphone may come, with tailscaled's
 `Tailscale-Funnel-Request` header: nothing before a key, closed after 5 s; a command before
 the key, closed unanswered; the key of a browser paired at home (the stub's sessions in

@@ -1073,6 +1073,10 @@ static void handle_cmd(int ci, char *line) {
     } else if (!strcmp(name, "start") || !strcmp(name, "stop")) {
         /* A client cannot switch the radio on or off: the answer is the state as it is, running */
         client_text(c, "start;");
+    } else if (!strcmp(name, "dds")) {
+        /* The receiver's centre, which here moves with the frequency: set or asked, it is answered with the
+         * frequency and changes nothing. Hamlib's TCI backend sends one before each vfo, and the vfo tunes */
+        client_textf(c, "dds:0,%d;", s.freq);
     }
     /* spot, tune_drive, the DSP switches and what we don't know: nothing to say */
 }
