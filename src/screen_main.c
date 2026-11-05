@@ -1656,6 +1656,7 @@ static void on_cluster_spots_wf_change(Subject *subj, void *user_data) {
     freq_scale_lines_set_y(y);
     band_plan_set_y(y);
     spot_marks_layout(y, y + strip + SPOT_LINE_H);
+    cw_tune_set_floor(param_i_get(cfg_spectrum_show) ? -1 : y + strip + 4);   /* no spectrum to sit on */
     /* The cluster column starts under the band plan strip, not over it */
     y += strip;
     cluster_column_layout(y);

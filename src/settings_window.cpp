@@ -353,6 +353,9 @@ static lv_obj_t * switch_in(lv_obj_t *cell, bool on, lv_event_cb_t cb, void *use
 
     dialog_item(&dialog, sw);
     lv_obj_center(sw);
+    /* The theme's colours, not LVGL's blue; the knob stays LVGL's white, which shows on every theme's accent */
+    lv_obj_set_style_bg_color(sw, TC(track), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(sw, TC(accent), LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw, cb, LV_EVENT_VALUE_CHANGED, user);
     if (on) lv_obj_add_state(sw, LV_STATE_CHECKED);
     return sw;
