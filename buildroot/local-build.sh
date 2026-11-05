@@ -113,8 +113,10 @@ grep -E "^(${GUI_VAR}|X6100_WEBSERVER)_SITE" $GUI_MK $WEB_MK
 # The backend: the GUI's CMake defaults to the X6100. Before the eval line: what a .mk sets after
 # $(eval $(cmake-package)) the package never sees
 sed -i "/_CONF_OPTS += -DHW_BACKEND=/d" $GUI_MK
-# Not synced into the build: the worktrees under .claude (gigabytes) and the PC's own builds
-grep -q "^${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS" $GUI_MK || sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = --exclude /.claude --exclude /build --exclude /build-host\n\n&|" $GUI_MK
+# Not synced into the build: the worktrees under .claude (gigabytes) and the PC's own builds. In place of the line
+# the package may have of its own (the X6100's excludes build-host only)
+sed -i "/^${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS/d" $GUI_MK
+sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = --exclude /.claude --exclude /build --exclude /build-host\n\n&|" $GUI_MK
 grep -q "^${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = --exclude /.claude" $GUI_MK
 sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_CONF_OPTS += -DHW_BACKEND=$MODEL\n\n&|" $GUI_MK
 grep -q "^${GUI_VAR}_CONF_OPTS += -DHW_BACKEND=$MODEL" $GUI_MK
