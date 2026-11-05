@@ -98,7 +98,7 @@
 #define FUNNEL_STALE_MS 6000        /* over Funnel: silent this long, its page may be gone without a word */
 #define TX_SILENCE_MS 500           /* keyed with TCI audio: unkeyed without frames this long */
 #define TX_LIMIT_MS   (180 * 1000)
-#define DRIVE_SPAN    (BOARD_PWR_MAX - 0.1f)   /* drive 0..100 %: 0.1 W to the top of PWR (10 W, the X6200 8 W) */
+#define DRIVE_SPAN    (BOARD_PWR_MAX - BOARD_PWR_MIN)   /* drive 0..100 %: BOARD_PWR_MIN to BOARD_PWR_MAX */
 
 /* The TCI audio frame header, 64 bytes, little endian. length counts the samples of all the
  * channels (TCI's "real samples"), so a frame holds length / channels samples of each */
@@ -193,7 +193,7 @@ static int drive_of(float pwr) {
     memcpy(&bits, &pwr, sizeof(bits));
     if ((v >> 32) && (uint32_t)v == bits)
         return (int)(v >> 32) - 1;
-    return (int)lroundf((pwr - 0.1f) * 100.0f / DRIVE_SPAN);
+    return (int)lroundf((pwr - BOARD_PWR_MIN) * 100.0f / DRIVE_SPAN);
 }
 /* A start is its client's from the moment its key is queued, and a second start is refused until
  * the first is over: a second one taking the owner while the first key was on its way to the LVGL
@@ -556,7 +556,7 @@ static void apply_cmd(void *arg) {
             param_i_set(cfg_rit, c->a);
             break;
         case C_DRIVE:
-            cfg_pwr_set(0.1f + c->a * DRIVE_SPAN / 100.0f);   /* saved, the radio follows the setting */
+            cfg_pwr_set(BOARD_PWR_MIN + c->a * DRIVE_SPAN / 100.0f);   /* saved, the radio follows the setting */
             drive_set_store(c->a, param_f_get(cfg_pwr)); /* as the setting kept it */
             break;
         case C_KEY:
@@ -650,7 +650,7 @@ static void send_greeting(client_t *c, const rstate_t *s) {
     client_text(c, "receive_only:false;");
     client_text(c, "trx_count:1;");
     client_text(c, "channels_count:1;");
-    client_text(c, "vfo_limits:100000,55000000;");
+    client_textf(c, "vfo_limits:%d,%d;", BOARD_HF_MIN_HZ, BOARD_HF_MAX_HZ);
     client_text(c, "if_limits:-48000,48000;");
     /* the list and the parser agree: sam and wfm where the base has them (audit B15) */
     client_textf(c, "modulations_list:lsb,usb,digl,digu,cw,cwr,am,nfm%s;", radio_caps() & HW_CAP_SAM_WFM ? ",sam,wfm" : "");
@@ -1002,7 +1002,7 @@ static void handle_cmd(int ci, char *line) {
         if (n < 2 || r == s.rit)
             client_textf(c, "rit_offset:0,%d;", s.rit);
         else
-            put_cmd(C_RIT, LV_CLAMP(-1500, r, 1500), 0, false);
+            put_cmd(C_RIT, LV_CLAMP(-BOARD_RIT_MAX, r, BOARD_RIT_MAX), 0, false);
     } else if (!strcmp(name, "drive")) {
         int d = n >= 2 ? atoi(a[1]) : s.drive;
         if (n < 2 || d == s.drive)
