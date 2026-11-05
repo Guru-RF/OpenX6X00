@@ -125,7 +125,7 @@ static void draw_cb(lv_event_t *e) {
     }
 }
 
-/* Only in CW and CW-R, and only with the tune setting on; never over Amber Trey' display */
+/* Only in CW and CW-R, and only with the tune setting on; never over Amber Trey's display */
 static void show_cb(Subject *subj, void *user_data) {
     radio_mode_t mode = cparam_i_get(cfg_cur_mode);
 

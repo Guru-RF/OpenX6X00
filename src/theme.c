@@ -560,7 +560,7 @@ const uint32_t *theme_waterfall(void) {
     return theme_shape.waterfall_table == 1 ? wf_palette_legacy : wf_palette_gauss;
 }
 
-/* Legacy is kept but not offered: the other built-in ones (1bit last), then the files */
+/* Legacy is kept but not offered: the other built-in ones (Amber Trey last), then the files */
 int theme_list(char names[][32], int max) {
     int            n = 0;
     DIR           *d;
