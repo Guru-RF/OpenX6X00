@@ -19,8 +19,22 @@ country list, the default settings) and the data directory (`build-host/data`: t
 
 What the PC needs: a C/C++ toolchain, cmake and ninja, sqlite3, and the development packages
 for SDL2, libdrm, xkbcommon, NetworkManager (libnm), dbus-glib, libpng, libjpeg, libsndfile,
-libudev, PulseAudio and ALSA. gpsd's library is optional: without it the GUI builds without
-GPS.
+libudev, PulseAudio, ALSA and FFTW 3 (WSPR and JS8). gpsd's library is optional: without it
+the GUI builds without GPS.
+
+## In Docker (macOS, Windows)
+
+Where those packages are not at hand (macOS, Windows, a Linux without them), `host/docker/run.sh` builds a
+Debian image with them (`ox-host`, the first time) and runs a command in it with this repository at `/src`; the
+dependencies built once stay in a Docker volume (`ox-deps`). There is no window: `host/docker/shot.sh` runs the
+GUI on a virtual display, presses keys, touches the screen and saves a screenshot.
+
+    host/docker/run.sh host/build.sh build
+    host/docker/run.sh host/docker/shot.sh /src/build-host/shot.png 8 F9 sleep:1 click:400,240
+
+The arguments after the file are the seconds to wait for the GUI and the steps: a key as the PC's keys below
+(xdotool's names), `sleep:<s>`, or `click:<x>,<y>` on the 800x480 screen. The `HOST_STUB_*` switches set where
+run.sh is started go into the container; a file they name has to be inside the repository.
 
 ## Real signals
 
