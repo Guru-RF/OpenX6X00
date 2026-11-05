@@ -263,9 +263,9 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_waterfall_ref{"waterfall_ref", 0, -40, 20,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // S-meter calibration, dB added to the reading. -22 on the X6100: one X6100 against a calibrated transceiver on
-    // the same antenna; +11 on the X6200, whose base sends another scale (SMETER_CAL_START, smeter_att.h, #125). Now
-    // only the start value of p_band_smeter_cal on bands never calibrated.
+    // S-meter calibration, dB added to the reading. -22: one X6100 against a calibrated transceiver on the same
+    // antenna, and the X6200's start too (SMETER_CAL_START, smeter_att.h, #125). Now only the start value of
+    // p_band_smeter_cal on bands never calibrated.
     // RF gain is compensated on its own (meter.c)
     Parameter<int32_t> p_smeter_cal{"smeter_cal", SMETER_CAL_START, -40, 20,
         StorageType::GLOBAL, pending_writes_, &global_params_};

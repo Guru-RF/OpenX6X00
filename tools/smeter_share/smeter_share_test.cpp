@@ -7,7 +7,7 @@
  *  different values. Bands chosen as a band key does (p_band_id), the figures set as the sliders and Measure set them
  *  (set, and Measure's store), the rows read back after the pending writes are flushed. The cases:
  *  - a part never set takes the other part's row, before the start; a band that shares with none takes the start
- *    (+11 dB on the X6200, -22 on the X6100; 34 dB for the attenuator from 5 MHz up);
+ *    (-22 dB on both radios; 34 dB for the attenuator from 5 MHz up);
  *  - parts holding different values keep their own until one is set; a set writes every part, also when the band
  *    changes to the other part before the writes are flushed, and so does Measure's store at an unchanged value;
  *  - nothing else is shared (the VFO's ATT), and nothing goes to a band outside the parts (30m, Broadcast 41m);
@@ -125,11 +125,7 @@ int main(int argc, char **argv) {
 
     /* The starts */
     check(cfg_sm.p_smeter_cal.get() == SMETER_CAL_START, "the cal start, the radio's", cfg_sm.p_smeter_cal.get());
-#ifdef BOARD_X6200
-    check(SMETER_CAL_START == 11, "the X6200's cal start", SMETER_CAL_START);
-#else
-    check(SMETER_CAL_START == -22, "the X6100's cal start", SMETER_CAL_START);
-#endif
+    check(SMETER_CAL_START == -22, "the cal start, -22 on both radios", SMETER_CAL_START);
 
     /* 20m SSB, the band a new database starts on, has its own; 20m CW takes it, and a load writes nothing */
     check(cfg_sm.p_band_id.get() == 7, "the start on 20m SSB", cfg_sm.p_band_id.get());
