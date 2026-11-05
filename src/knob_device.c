@@ -10,6 +10,7 @@
  * detent, the key chosen by the knob's state (edit or select). The main knob goes to the
  * screen as EVENT_ROTARY with its speed. */
 
+#include "perf_hud.h"
 #include "knob_device.h"
 
 #include "screen_light.h"
@@ -116,6 +117,7 @@ static void *main_knob_thread(void *arg) {
             continue;
         }
         clock_gettime(CLOCK_MONOTONIC, &now);
+        perf_knob_seen((uint64_t)now.tv_sec * 1000000u + now.tv_nsec / 1000u);
 
         float ms = (now.tv_sec - last.tv_sec) * 1000.0f + (now.tv_nsec - last.tv_nsec) * 1e-6f;
 
@@ -159,6 +161,7 @@ static void main_knob_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     if (sum) {
         rotary_data_t *ev = malloc(sizeof(*ev));
 
+        perf_knob_used();
         backlight_tick();
         ev->diff = sum;
         ev->dt   = LV_MAX(ms / count, 1);
