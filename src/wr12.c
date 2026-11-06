@@ -11,9 +11,9 @@
  *
  *  One thread has the port: the GUI says what it wants (wr12_want) and reads the state, and never waits for the WR12.
  *  Each answer goes into the log when it differs from the last one to that command, so a knob turned or the
- *  keepalive add nothing; the screen hears once that the WR12 is found, lost, or answered ERROR, and one set up that
- *  then stops answering, again and again, is said once and set up again less and less often. Stopped with SIGTERM,
- *  the GUI puts it back in its bypass on its way out (on_term).
+ *  keepalive add nothing; the screen hears once that the WR12 is found, lost, or answered ERROR (the keepalive: twice
+ *  in a row), and one set up that then stops answering, again and again, is said once and set up again less and less
+ *  often. Stopped with SIGTERM, the GUI puts it back in its bypass on its way out (on_term).
  *
  *  Copyright (c) 2026 RF.Guru
  */
@@ -138,6 +138,7 @@ static bool            none_said;       /* "none on USB" in the log, until one i
 static bool            endless_said;    /* "keeps sending" in the log, once a plug-in */
 static int             open_err;        /* the errno of the last open that failed, logged once */
 static uint64_t        gone_ms;         /* gone from USB out of its bypass since, 0: not */
+static bool            ayt_err;         /* the last AT+AYT answered ERROR: the next ERROR to it goes to the screen */
 
 /* The last answer logged for each command (AT+FREQ whatever its frequency), and whether its ERROR is on the screen yet */
 static struct {
@@ -366,8 +367,8 @@ static drain_t drain(void) {
 }
 
 /* One command, and its answer: the first line with ERROR or OK in it (an echo before it is passed over), a line ending
- * in \r, \n or both */
-static answer_t command(const char *cmd) {
+ * in \r, \n or both. screen false: an ERROR into the log only */
+static answer_t ask(const char *cmd, bool screen) {
     char     out[64], line[128];
     size_t   len = 0;
     int      n = snprintf(out, sizeof(out), "%s\r\n", cmd);
@@ -426,8 +427,12 @@ static answer_t command(const char *cmd) {
     }
     atomic_store(&asked, false);
     fails = a == ANS_NONE ? fails + 1 : 0;
-    said_answer(cmd, a, true);
+    said_answer(cmd, a, screen);
     return a;
+}
+
+static answer_t command(const char *cmd) {
+    return ask(cmd, true);
 }
 
 /* Marked in /tmp (in memory) while it may be out of its bypass: a GUI started after this one stopped knows */
@@ -555,6 +560,7 @@ static bool start(const char *name, bool on) {
     bypass    = -1;
     freq_sent = 0;
     fails     = 0;
+    ayt_err   = false;
     for (size_t i = 0; i < sizeof(setup) / sizeof(setup[0]) && a == ANS_OK; i++) {
         if (i) {
             sleep_ms(STEP_MS);
@@ -748,10 +754,16 @@ static void *run(void *arg) {
             }
         }
 
-        /* The keepalive, once nothing else has gone for a while */
+        /* The keepalive, once nothing else has gone for a while. An ERROR to it goes to the screen only when the next
+         * one answers ERROR too; one alone goes into the log. On the bench X6200 (6 Nov) a WR12 switched off and on
+         * again answered the first one ERROR and the next one OK, each a second after the command before; why is not
+         * known. An ERROR is an answer all the same: the WR12 is there */
         now = now_ms();
         if (now - sent_ms >= AYT_MS) {
-            answered(command("AT+AYT"));
+            answer_t a = ask("AT+AYT", ayt_err);
+
+            ayt_err = a == ANS_ERROR;
+            answered(a);
         } else {
             wait = (unsigned)(AYT_MS - (now - sent_ms));
         }

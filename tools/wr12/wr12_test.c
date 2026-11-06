@@ -12,9 +12,10 @@
  *  (receiving, and on its way back to the bypass, for good or back within GONE_MS as after a reset on USB), plugged
  *  in again as ttyACM1 beside a GPS on ttyACM0, an echo before the answers, the serial paddle's question, and the
  *  log: each answer once, not one line a command. A WR12 that takes the set-up but answers AT+AYT too late, again
- *  and again: said once, set up again later each time. One that never stops sending. Last, a GUI stopped with
- *  SIGTERM while the WR12 is out of its bypass, in the middle of an AT+AYT (this program again, as `wr12_test term`,
- *  its log in wr12_term.log), and the start loop's AT+BYPASS=1 after a GUI that ended any way
+ *  and again: said once, set up again later each time. One that never stops sending. Switched off out of its bypass
+ *  and on again, its first AT+AYT after that answered ERROR (bench X6200): in the log, not on the screen. Last, a GUI
+ *  stopped with SIGTERM while the WR12 is out of its bypass, in the middle of an AT+AYT (this program again, as
+ *  `wr12_test term`, its log in wr12_term.log), and the start loop's AT+BYPASS=1 after a GUI that ended any way
  *  (rootfs/usr/sbin/x6100-wr12-bypass, run by sh on the stand-ins).
  *
  *  The TX rules are wr12_tx_block's, which cfg_tx_refusal says first and so radio.c's refusals and its hold at 0 W
@@ -107,6 +108,7 @@ static struct {
     bool     cr;                /* ends its lines with \r alone */
     bool     endless;           /* sends lines of its own, without end, as fast as the port takes them */
     char     error[40];         /* a command starting with this answered ERROR */
+    char     error_once[40];    /* the first command starting with this answered ERROR, the next ones OK */
     char     unplug[40];        /* unplugged at the first command starting with this, unanswered */
     char     slow[40];          /* a command starting with this answered slow_ms late */
     unsigned slow_ms;
@@ -208,7 +210,7 @@ static void *fw_run(void *arg) {
         for (ssize_t i = 0; i < k; i++) {
             const char *ans = "OK\r\n";
             const char *eol = "\r\n";
-            bool        unplug, silent, echo;
+            bool        unplug, silent, echo, error;
             unsigned    delay;
             uint64_t    gap;
             pid_t       term;
@@ -228,9 +230,11 @@ static void *fw_run(void *arg) {
                 snprintf(cmds[n_cmds++], sizeof(cmds[0]), "%.39s", line);
             }
             unplug = starts(line, fw.unplug);
-            if (starts(line, fw.error)) ans = "ERROR\r\n";
+            error  = starts(line, fw.error) || starts(line, fw.error_once);
+            if (starts(line, fw.error_once)) fw.error_once[0] = 0;
+            if (error) ans = "ERROR\r\n";
             if (fw.cr) {
-                ans = starts(line, fw.error) ? "ERROR\r" : "OK\r";
+                ans = error ? "ERROR\r" : "OK\r";
                 eol = "\r";
             }
             delay  = starts(line, fw.slow) ? fw.slow_ms : 0;
@@ -887,6 +891,58 @@ int main(int argc, char **argv) {
         wr12_want(false, false, 0);
         WAIT_FOR(!wr12_ready() && !wr12_tx_block(), 3000);
         check(!wr12_ready() && !wr12_tx_block(), "sending without end, then off: let go, TX free");
+    }
+
+    /* Switched off out of its bypass on 145 MHz, on again a moment later, as on the bench X6200 (6 Nov): back in its
+     * bypass before the port is let go; on again, the set-up, AT+FREQ and AT+BYPASS=0 once the radio asks (radio.c
+     * does once it is set up), and the keepalive AYT_MS after them, nothing within 2 ms of an answer. The WR12 there
+     * answered the first AT+AYT ERROR and the next one OK: that goes into the log, not onto the screen. Two in a
+     * row: said on the screen, once */
+    {
+        int      err = notes("WR12: ERROR to AT+AYT"), errs = log_lines("wr12: AT+AYT: ERROR");
+        uint64_t out_at, ayt[4];
+
+        wr12_want(true, false, 0);
+        WAIT_FOR(wr12_ready(), 3000);
+        m = cmds_mark();
+        wr12_want(true, true, 145000000);
+        WAIT_FOR(cmds_since(m, "AT+BYPASS=0") == 1, 1000);
+        sleep_ms(100);
+        m = cmds_mark();
+        wr12_want(false, false, 0);
+        WAIT_FOR(!wr12_ready(), 1500);
+        sleep_ms(50);
+        expect("off out of its bypass on 145 MHz", m, (const char *const[]){"AT+BYPASS=1"}, 1, false);
+        check(!wr12_ready() && !wr12_tx_block() && !marked(), "off out of its bypass: back in it, the port let go");
+        sleep_ms(500);
+        fw_text(fw.error_once, "AT+AYT");
+        m = cmds_mark();
+        wr12_want(true, false, 0);
+        WAIT_FOR(wr12_ready(), 3000);
+        wr12_want(true, true, 145000000);
+        WAIT_FOR(cmds_since(m, "AT+AYT") >= 2, 3000);
+        expect("on again", m, SETUP, N_SETUP, true);
+        expect("on again, after the set-up", m + N_SETUP,
+               (const char *const[]){"AT+FREQ=145000000", "AT+BYPASS=0", "AT+AYT", "AT+AYT"}, 4, false);
+        check(cmd_times(m, "AT+BYPASS=0", &out_at, 1) == 1 && cmd_times(m, "AT+AYT", ayt, 2) == 2 &&
+                  ayt[0] - out_at >= AYT_MS - 5 && ayt[1] - ayt[0] >= AYT_MS - 5,
+              "on again: AT+AYT at the keepalive's pace after AT+BYPASS=0 (%lld, %lld ms)",
+              (long long)(ayt[0] - out_at), (long long)(ayt[1] - ayt[0]));
+        check(deaf_since(m) == 0, "on again: nothing within 2 ms of an answer");
+        check(log_lines("wr12: AT+AYT: ERROR") == errs + 1, "on again, AT+AYT ERROR then OK: in the log");
+        check(notes("WR12: ERROR to AT+AYT") == err, "on again, AT+AYT ERROR then OK: not on the screen");
+        check(wr12_ready() && is(wr12_tx_block(), "WR12 receiving"), "on again: receiving, still set up");
+
+        m = cmds_mark();
+        fw_text(fw.error, "AT+AYT");
+        WAIT_FOR(cmds_since(m, "AT+AYT") >= 3, 3000);
+        check(notes("WR12: ERROR to AT+AYT") == err + 1, "AT+AYT ERROR again and again: said once on the screen (%d)",
+              notes("WR12: ERROR to AT+AYT") - err);
+        check(wr12_ready(), "AT+AYT ERROR again and again: an answer, still set up");
+        fw_text(fw.error, "");
+        wr12_want(false, false, 0);
+        WAIT_FOR(!wr12_ready() && !wr12_tx_block(), 3000);
+        check(!wr12_ready() && !wr12_tx_block(), "AT+AYT ERROR, then off: let go, TX free");
     }
 
     /* A GUI stopped with SIGTERM while the WR12 is out of its bypass (S95gui stop: a restart, an update or its
