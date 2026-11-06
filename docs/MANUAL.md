@@ -561,26 +561,24 @@ says, in plain words.
   a WR12 without power passes the antenna through is not known yet.
 - The S-meter reads what the radio gets from the WR12, its gain included;
   Per band S-meter cal (Settings > General > CONTROLS) sets it for each band.
-- Not tried with a WR12 yet: nothing has been received through a WR12 with
-  OpenX6X00 so far, so the IF, the I/Q swap and the gains are still to be
-  checked on a radio. What was tried, on a PC against a stand-in WR12: the
-  set-up, the commands for each move, the answers (ERROR, none, late),
-  unplugging it in the middle of a command, one that keeps stopping to
-  answer or never stops sending, the GUI stopped while it receives and the
-  start loop after a crash, and when TX is held and when it goes free
-  again. And the radio's side against stand-ins for the settings,
-  the base and the WR12's driver: the hold at 0 W and the base's band table
-  before the radio's receiver goes onto the IF and until the WR12 is back
-  in its bypass, the I/Q swap with it, the knob, a band key, the VFOs
-  swapped, the switch off and the WR12 unplugged while it receives, Birdie
-  Cal, 54.5 MHz with TX outside the bands on, a transverter over 2 m.
-  ea4iln tried the base's band table on his X6200 with a WR12: the hand
-  mic's PTT keyed nothing on 2 m (no TX light), back on HF 5.300 MHz went
-  out (2.1 W on the radio's own meter), and the calibration block stayed
-  as it was but byte 0, which his base changed by itself once. Reports are
-  welcome, with the log of the run (`/mnt/app_logs/`): at every start the
-  radio writes there what is on the HOST port ("USB on HOST: ..."), and
-  each answer of the WR12 when it changes ("wr12: AT+BYPASS=0: OK").
+- Tried on two X6200s with a WR12 (base 1.0.8). ea4iln received 2 m and FM
+  broadcast through it (-98 dBm on 95.9 MHz). On our bench USB and LSB come
+  out the right way round, the image about 34 dB down. RIT and the CW offset
+  do not yet: through the WR12 they come out the wrong way (RIT -500 acts as
+  +500, +500 does about nothing; CW and CW-R give the same tone, on the
+  wrong side). On our bench, with an external wattmeter on a dummy load
+  (6 Nov): the hand mic's PTT keyed nothing on 2 m, with the WR12
+  receiving, switched off on HOST or unplugged, nor on 5.060 MHz; 40 m,
+  5.300 MHz, 8 m and 2200 m went out from the front PTT and the hand mic,
+  and from a key 0.1 s after leaving a frequency where TX is refused; the
+  knob ran smoothly over 14.350 MHz, one write of the base's table each way;
+  Birdie Cal set the table and opened it again after; a GUI killed with the
+  WR12 out of its bypass started again with the table set and the PA bias
+  line in the base log; and the calibration block was the same afterwards
+  but byte 280. Reports are welcome, with the log of the run
+  (`/mnt/app_logs/`): at every start the radio writes there what is on the
+  HOST port ("USB on HOST: ..."), and each answer of the WR12 when it
+  changes ("wr12: AT+BYPASS=0: OK").
 - gpsd leaves the WR12 alone. The WR12 is a USB serial port (USB id
   0483:5740, `/dev/ttyACM0` when it is the only one), and plugged in at boot
   it was handed to gpsd as a GPS, which then read what it said. A USB GPS
@@ -1914,9 +1912,11 @@ instead:
 - While the CW Trainer is open, outside the bands where the radio can
   transmit, the base's table stays open: the X6200's base sounds KEY
   Train's sidetone by going into TX at 0 W (#127), which with its table set
-  it might not do there. Not checked on the bench yet: whether the
-  trainer's sidetone sounds with the table set, on 9.500 MHz say. Receive
-  only (FM broadcast, the airband, the WR12) it is set all the same.
+  it might not do there. On our bench (6 Nov, a wattmeter on a dummy
+  load) the trainer's sidetone sounded on 9.500 MHz with the table open,
+  and nothing went out. Receive only (FM broadcast, the airband, the WR12)
+  it is set all the same, and there the trainer's key is refused anyway
+  ("No TX").
 - Each change is a line in the base log (`/mnt/base_i2c.log`): "open TX 0:
   shut", "open TX 1: opened", at the start "open TX 1: open already". The
   radio writes the base's calibration block back only when two reads of it
