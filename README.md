@@ -502,7 +502,19 @@ the Mercury modem; SP2KMO the Bluetooth tab, PSK31, PSK63 and Olivia, the
 WSJT-X UDP output, the FT8 country and distance, and FT2 (IU8LMC's mode);
 randal007 the PSK and Olivia merge, the Bluetooth scan and
 recovery, the JS8 map, the high-SWR guard and the digital-mode drive level;
-2E0JFS the Black Metal and Total Black themes; OM0WT the Amber Trey theme.
+2E0JFS the Black Metal and Total Black themes; OM0WT the Amber Trey theme,
+independent VFOs (a band key or a band edge moves the active VFO only), the TCI
+start that gives a browser its control back, the locator clear of NR NB DNF and
+Settings pages that scroll to their end; EA4ILN the X6200's TX power caps, its
+charger setting in the top bar, the base's warnings, the H-22's band keys, the
+SWR scan's SWR, and the base's own band table while the WR12 is in use, with
+docs/WR12.md; Chris Lawson the radio's ranges and steps in board.h, the panel
+size from BOARD_DISP_W/H with a landscape blit, taps on the F-bar, the spectrum
+left unpainted while hidden and TCI's limits from board.h; Calin Rigo the 3D
+band scope; Spyyena Contestia; DF8MH the Wavelog upload; Trey (rewtraw) the PC
+build in Docker, LVGL's clock from CLOCK_MONOTONIC, the GUI loop that wakes on
+keys and knobs, the Propagation and Scanner apps, the Codec and Ops Room themes,
+and APPS and Modes over the whole strip.
 Libraries: LVGL, cJSON, FFTW,
 liquid-dsp, ft8_lib, libpng, Boost, Eigen, CRCpp, bottle, jQuery, mp4-muxer,
 PulseAudio, BlueZ. The country list is AD1C's cty.dat. The band plans are our
@@ -512,8 +524,9 @@ Roboto, DejaVu, Arial, Sony Sketch, Inter (the boot logo), Terminus (the 1bit th
 pixel font, OFL-1.1, src/fonts/LICENSE-Terminus-OFL-1.1.txt), Noto Sans CJK JP (a subset:
 the screensaver's characters, OFL-1.1, src/fonts/LICENSE-NotoSansCJK-OFL-1.1.txt), Share Tech Mono (the Codec
 theme's, OFL-1.1, src/fonts/LICENSE-ShareTechMono-OFL-1.1.txt). The skimmer spots
-come from the Reverse Beacon Network and the broadcast schedule from the EiBi
-list by Eike Bierwirth. The Field Ops reference lists come from POTA, SOTA,
+come from the Reverse Beacon Network, the broadcast schedule from the EiBi
+list by Eike Bierwirth, and the Propagation app's solar data and band forecast from
+N0NBH (hamqsl.com). The Field Ops reference lists come from POTA, SOTA,
 WWBOTA, cqhota.app, WWFF, TOTA (OK2IH, wwtota.com), the WCA castle list as
 ON4VT keeps it, GMA (gma.rocks) for the mills and the lighthouses, and LLOTA
 (llota.app) for the lakes and lagoons.
