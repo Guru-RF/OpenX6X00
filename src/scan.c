@@ -28,6 +28,7 @@ static struct {
     scan_hit_t   hits[SCAN_HITS_MAX];
     int          hits_n;
     int64_t      hit_ms;
+    bool         hit_live;      /* hits[0] is the hold under way */
 } s = {.cur = -1, .dwell_ms = 250, .hang_ms = 3000, .stop_db = NAN, .margin_db = 10.0f};
 
 void scan_init(int n) {
@@ -102,6 +103,7 @@ static void tune(int i, int64_t now) {
     s.sum      = 0;
     s.got      = 0;
     s.tune_due = true;
+    s.hit_live = false;
 }
 
 void scan_start(int i, int64_t now_ms) {
@@ -134,7 +136,16 @@ static void hit_begin(int i, time_t wall, float db, int64_t now) {
     memmove(&s.hits[1], &s.hits[0], sizeof(scan_hit_t) * (SCAN_HITS_MAX - 1));
     s.hits[0] = (scan_hit_t){i, wall, 0, db};
     if (s.hits_n < SCAN_HITS_MAX) s.hits_n++;
-    s.hit_ms = now;
+    s.hit_ms   = now;
+    s.hit_live = true;
+}
+
+void scan_touch(int64_t now_ms) {
+    if (s.state == SCAN_SEEKING && s.cur >= 0) {
+        s.state    = SCAN_HOLD;     /* keyed while it looked: it stays on that one */
+        s.hit_live = false;         /* not heard: no line in the list */
+    }
+    if (s.state == SCAN_HOLD) s.active_ms = now_ms;
 }
 
 void scan_reading(int64_t now_ms, float db) {
@@ -148,7 +159,7 @@ void scan_reading(int64_t now_ms, float db) {
         float thr = scan_threshold(s.cur);
 
         if (!isnan(thr) && db >= thr - HOLD_HYST_DB) s.active_ms = now_ms;
-        if (s.state == SCAN_HOLD && s.hits_n && s.hits[0].idx == s.cur) {
+        if (s.state == SCAN_HOLD && s.hit_live) {
             if (db > s.hits[0].peak) s.hits[0].peak = db;
             s.hits[0].secs = (int)((s.active_ms - s.hit_ms) / 1000);
         }

@@ -10,7 +10,7 @@
  *  The first visit of a frequency only learns, unless enough of the others are known already.
  *
  *  No LVGL and no radio here: the window tunes what scan_tick() says and hands in the S-meter
- *  readings (host/tests/scan_test.c)
+ *  readings (host test: tools/propagation/prop_test.c)
  */
 
 #pragma once
@@ -63,6 +63,10 @@ void scan_reading(int64_t now_ms, float db);
 
 /* Away from the one it holds, to the next */
 void scan_skip(int64_t now_ms);
+
+/* The radio transmits on the one it is on: the hang time counts from the last of it, so a reply after the over is
+ * still heard there. Seeking, it stays on that one (a scanner's PTT) */
+void scan_touch(int64_t now_ms);
 
 void scan_lockout(int i, bool on);
 bool scan_locked(int i);

@@ -10,7 +10,8 @@
  *  What it stopped on is listed, the latest first: an evening's activity at a glance.
  *
  *  Skip goes on, Lock out leaves one out for this session (a carrier that is always there), the
- *  MFK steps by hand while paused, the main knob pauses it. Receive only.
+ *  MFK steps by hand while paused, the main knob pauses it. Receive only: a TX (the mic's PTT, TCI)
+ *  holds it on the one it is on, and nothing retunes while the radio is on the air.
  */
 
 #include "dialog_scan.h"
@@ -25,6 +26,7 @@
 #include "events.h"
 #include "keyboard.h"
 #include "meter.h"
+#include "msg_box.h"
 #include "radio.h"
 #include "scan.h"
 #include "styles.h"
@@ -112,6 +114,7 @@ static lv_timer_t *timer;
 static lv_obj_t   *lbl_state, *lbl_freq, *lbl_name, *lbl_info, *meter_track, *meter_bar, *meter_thr;
 static lv_obj_t   *hit_rows[HITS_SHOWN], *hits_head;
 static int32_t     tuned_freq;     /* what the scan tuned last: a different dial is a hand on the knob */
+static uint32_t    tuned_seq;      /* meter_seq() then: the readings that may still be of the frequency before */
 
 /* ---- The lists ---- */
 
@@ -273,9 +276,20 @@ static int64_t mono_ms(void) {
 
 static void tune(int i) {
     if (i < 0 || i >= list_n) return;
-    if (cparam_i_get(cfg_cur_mode) != list[i].mode) cparam_i_set(cfg_cur_mode, list[i].mode);
+    /* The frequency first, as the Channels app: a tune into another band loads that band's mode, which the
+     * channel's then replaces. The mode first had the channel on air in the band's mode, and stored its own in the
+     * band it left */
     cparam_i_set(cfg_fg_freq, list[i].freq);
+    if (cparam_i_get(cfg_cur_mode) != list[i].mode) cparam_i_set(cfg_cur_mode, list[i].mode);
     tuned_freq = list[i].freq;
+    tuned_seq  = meter_seq();
+}
+
+/* Start, Resume, Skip, Lock out and the MFK retune: not while the radio is on the air (the timer does not either) */
+static bool on_air(void) {
+    if (radio_get_state() == RADIO_RX) return false;
+    msg_update_text_fmt("Scanner: not while transmitting");
+    return true;
 }
 
 static void timer_cb(lv_timer_t *t) {
@@ -286,12 +300,17 @@ static void timer_cb(lv_timer_t *t) {
     if (was != SCAN_STOPPED) {
         if (tuned_freq && cparam_i_get(cfg_fg_freq) != tuned_freq && was != SCAN_PAUSED) {
             scan_pause(true, now);      /* tuned by hand: stay there */
-        } else if (radio_get_state() == RADIO_RX) {
+        } else if (radio_get_state() != RADIO_RX) {
+            scan_touch(now);            /* on the air there: its hang from the end of the over, no retune */
+        } else {
             static uint32_t seq;
 
             if (meter_seq() != seq) {     /* each reading once */
                 seq = meter_seq();
-                scan_reading(now, meter_get_db());
+                /* Not the first reading after a retune: a reading is the average of a frame, and that frame can
+                 * still hold the frequency before (the X6200's meter is the base's own, with no settle frames).
+                 * A strong one there stopped the scan on the next channel, and listed it there */
+                if (seq - tuned_seq >= 2) scan_reading(now, meter_get_db());
             }
             tune(scan_tick(now, time(NULL)));
         }
@@ -323,9 +342,20 @@ static void start(void) {
 
 static void run_cb(button_data_t *b) {
     switch (scan_state()) {
-        case SCAN_STOPPED: start(); break;
-        case SCAN_PAUSED:  scan_pause(false, mono_ms()); break;
-        default:           scan_pause(true, mono_ms()); break;
+        case SCAN_STOPPED:
+            if (on_air()) return;
+            start();
+            break;
+        case SCAN_PAUSED:
+            if (on_air()) return;
+            /* Tuned at once, as start(): with the dial still where the knob left it the next tick paused it again,
+             * and the tick after tuned the next one, paused */
+            scan_pause(false, mono_ms());
+            tune(scan_tick(mono_ms(), time(NULL)));
+            break;
+        default:
+            scan_pause(true, mono_ms());
+            break;
     }
     labels_refresh();
     fill();
@@ -343,17 +373,22 @@ static void source_cb(button_data_t *b) {
 }
 
 static void skip_cb(button_data_t *b) {
+    if (on_air()) return;
     if (scan_state() == SCAN_PAUSED) scan_pause(false, mono_ms());
     else scan_skip(mono_ms());
+    tune(scan_tick(mono_ms(), time(NULL)));     /* at once, as Resume */
     labels_refresh();
 }
 
 static void lock_cb(button_data_t *b) {
     int cur = scan_current();
 
-    if (cur < 0) return;
+    if (cur < 0 || on_air()) return;
     scan_lockout(cur, true);
-    if (scan_state() != SCAN_STOPPED) scan_skip(mono_ms());
+    if (scan_state() != SCAN_STOPPED) {
+        scan_skip(mono_ms());
+        tune(scan_tick(mono_ms(), time(NULL)));
+    }
     labels_refresh();
     fill();
 }
@@ -390,7 +425,7 @@ static void clear_cb(button_data_t *b) {
 static void step(int d) {
     int cur = scan_current();
 
-    if (!list_n || scan_state() == SCAN_SEEKING || scan_state() == SCAN_HOLD) return;
+    if (!list_n || scan_state() == SCAN_SEEKING || scan_state() == SCAN_HOLD || on_air()) return;
     cur = cur < 0 ? 0 : (cur + d + list_n) % list_n;
     scan_start(cur, mono_ms());
     tune(scan_tick(mono_ms(), time(NULL)));

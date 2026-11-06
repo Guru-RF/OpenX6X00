@@ -262,6 +262,38 @@ static void test_scan(void) {
     CHECK(scan_state() == SCAN_HOLD && scan_current() == 1, "held on 1");
     scan_skip(now);
     CHECK(scan_tick(now, 0) == 2, "skipped to 2");
+
+    /* Paused by the knob, then Resume: the window tunes what scan_tick() says at once (dialog_scan.c run_cb), and
+     * it goes on scanning, not paused again on the next one */
+    scan_init(5);
+    scan_config(250, 2000, -100, 10);
+    scan_start(0, 0);
+    scan_tick(0, 0);
+    for (now = 0; now < 2000; now += 20) scan_tick(now, 0);
+    scan_pause(true, now);
+    CHECK(scan_state() == SCAN_PAUSED, "paused by the knob");
+    scan_pause(false, now);
+    int t = scan_tick(now, 0);
+    CHECK(t >= 0 && scan_state() == SCAN_SEEKING, "resumed: tuned to %d, scanning", t);
+    CHECK(scan_tick(now + 20, 0) == -1, "no retune due after it");
+
+    /* A TX holds it where it is, and the hang counts from the end of the over: a reply 1.5 s later is still heard
+     * there (hang 2 s), and it goes on 2 s after the last of it */
+    scan_init(3);
+    scan_config(200, 2000, -100, 10);
+    scan_start(0, 0);
+    cur = scan_tick(0, 0);
+    for (now = 0; now < 100; now += 10) scan_tick(now, 0);
+    for (; now < 5000; now += 20) scan_touch(now);      /* keyed 0.1 to 5 s */
+    CHECK(scan_state() == SCAN_HOLD && scan_current() == cur && scan_hits_n() == 0, "held through the TX, not listed");
+    for (; now < 6500; now += 10) CHECK(scan_tick(now, 0) == -1, "no retune at %lld", (long long)now);
+    for (; now < 7000; now += 10) {
+        scan_tick(now, 0);
+        if (now % 50 == 0) scan_reading(now, -80);      /* the reply */
+    }
+    CHECK(scan_state() == SCAN_HOLD && scan_current() == cur, "the reply heard on %d", scan_current());
+    for (; now < 9500 && scan_state() == SCAN_HOLD; now += 10) scan_tick(now, 0);
+    CHECK(scan_state() == SCAN_SEEKING && now > 8950 && now < 9000, "on again at %lld ms, 2 s after the reply", (long long)now);
 }
 
 int main(void) {
