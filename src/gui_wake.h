@@ -31,6 +31,9 @@ void gui_wake_read_input(void);
  * frame when that was sooner (not later at the next regular refresh) */
 void gui_wake_draw_now(uint32_t min_gap_ms);
 
-/* The GUI loop, before lv_timer_handler(): a draw put off by the gap is due now. Returns the ms
- * until it is, -1 when none waits (the loop sleeps no longer than that) */
-int32_t gui_wake_draw_due(void);
+/* The GUI loop, before lv_timer_handler(): a draw put off by the gap is due now. Dropped when a
+ * frame ran since it was put off: that frame showed the input */
+void gui_wake_draw_due(void);
+/* ... and after the frame's commit: the ms from now (get_time()) until it is due, 0 when it is,
+ * -1 when none waits (the loop sleeps no longer than that) */
+int32_t gui_wake_draw_left(uint32_t now);

@@ -307,7 +307,8 @@ static void *tick_thread(void *arg) {
 static void tick_start(void) {
     pthread_t thread;
 
-    lv_tick_mono_read();
+    /* The first as it is, before both writers (lv_tick_mono.h) */
+    __atomic_store_n(&lv_tick_mono_now, (uint32_t)get_time(), __ATOMIC_RELAXED);
     pthread_create(&thread, NULL, tick_thread, NULL);
     pthread_detach(thread);
 }
@@ -345,7 +346,7 @@ static void gui_loop(void) {
         event_obj_check();
         scheduler_work();
         lv_tick_mono_set(get_time());   /* LVGL's timers on the clock's time, not up to 5 ms behind */
-        int32_t  draw_in = gui_wake_draw_due();
+        gui_wake_draw_due();
         uint32_t frame   = refr_last_run();
         uint32_t till    = lv_timer_handler();
         /* LVGL counts the time to its next timer from its clock at the end of the run, not from the loop's top:
@@ -370,7 +371,10 @@ static void gui_loop(void) {
             drawn = true;
             start_trace("first frame");
         }
-        int32_t wait = till == LV_NO_TIMER_READY ? 100 : (int32_t)(due - (uint32_t)get_time());
+        /* Both counted from after the commit: a put-off draw whose time came during the pass after the least wait */
+        uint32_t now     = (uint32_t)get_time();
+        int32_t  wait    = till == LV_NO_TIMER_READY ? 100 : (int32_t)(due - now);
+        int32_t  draw_in = gui_wake_draw_left(now);
 
         if (draw_in >= 0 && draw_in < wait) wait = draw_in;
         /* A timer due at once after a frame (a frame that ran past its period, 3D with FT8 on the X6100): 5 ms for

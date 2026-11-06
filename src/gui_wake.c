@@ -20,6 +20,7 @@ static int           nfds;
 static int           efd = -1, ifd = -1;   /* events, input from threads */
 static bool          draw_pending;
 static uint32_t      draw_at;               /* lv_tick of the put-off draw */
+static uint32_t      draw_after;            /* the refresh timer's last_run when it was put off */
 
 void gui_wake_init(void) {
     efd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -108,20 +109,35 @@ void gui_wake_draw_now(uint32_t min_gap_ms) {
     if (since >= min_gap_ms) {
         lv_timer_ready(d->refr_timer);
         draw_pending = false;
-    } else if (!draw_pending) {
+    } else {
+        /* min_gap_ms after the last frame (a frame since an earlier put-off draw showed that one's input) */
         draw_pending = true;
-        draw_at = d->refr_timer->last_run + min_gap_ms;
+        draw_after   = d->refr_timer->last_run;
+        draw_at      = draw_after + min_gap_ms;
     }
 }
 
-int32_t gui_wake_draw_due(void) {
-    if (!draw_pending) return -1;
-    int32_t left = (int32_t)(draw_at - lv_tick_get());
-
-    if (left > 0) return left;
+/* The refresh timer of the put-off draw, NULL when none waits: a frame since it was put off (the refresh
+ * on its own period, in a long pass or after input) drops it */
+static lv_timer_t *draw_waiting(void) {
     lv_disp_t *d = lv_disp_get_default();
 
-    if (d && d->refr_timer) lv_timer_ready(d->refr_timer);
-    draw_pending = false;
-    return -1;
+    if (draw_pending && (!d || !d->refr_timer || d->refr_timer->last_run != draw_after)) draw_pending = false;
+    return draw_pending ? d->refr_timer : NULL;
+}
+
+void gui_wake_draw_due(void) {
+    lv_timer_t *t = draw_waiting();
+
+    if (t && (int32_t)(draw_at - lv_tick_get()) <= 0) {
+        lv_timer_ready(t);
+        draw_pending = false;
+    }
+}
+
+int32_t gui_wake_draw_left(uint32_t now) {
+    if (!draw_waiting()) return -1;
+    int32_t left = (int32_t)(draw_at - now);
+
+    return left > 0 ? left : 0;
 }

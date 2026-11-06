@@ -23,12 +23,13 @@ static inline uint32_t lv_tick_mono_ms(void) {
     return __atomic_load_n(&lv_tick_mono_now, __ATOMIC_RELAXED);
 }
 
-/* ms: CLOCK_MONOTONIC in ms (get_time()); later than the value stored, or nothing changes. 0 is none yet: the
- * first is taken whatever it is (an uptime over 24.8 days compares as earlier) */
+/* ms: CLOCK_MONOTONIC in ms (get_time()); later than the value stored, or nothing changes. The first is stored as
+ * it is before the writers start (tick_start, gui_main.c): 0 is a time too, every 49.7 days, and an uptime over
+ * 24.8 days compares as earlier than it */
 static inline void lv_tick_mono_set(uint64_t ms) {
     uint32_t v = (uint32_t)ms, old = __atomic_load_n(&lv_tick_mono_now, __ATOMIC_RELAXED);
 
-    while ((old == 0 || (int32_t)(v - old) > 0) &&
+    while ((int32_t)(v - old) > 0 &&
            !__atomic_compare_exchange_n(&lv_tick_mono_now, &old, v, true, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {}
 }
 
