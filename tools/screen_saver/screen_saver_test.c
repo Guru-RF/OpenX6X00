@@ -63,6 +63,18 @@ uint64_t get_time() {
     return clock_ms;
 }
 
+/* LVGL's clock: the GUI's reads CLOCK_MONOTONIC (lv_conf.h's LV_TICK_CUSTOM, #182), the test's is its own, stepped by
+ * run(), so the rain is the same from the same steps. With both defined here the library's lv_hal_tick.o is not linked */
+static uint32_t lv_ms;
+
+uint32_t lv_tick_get(void) {
+    return lv_ms;
+}
+
+uint32_t lv_tick_elaps(uint32_t prev_tick) {
+    return lv_ms - prev_tick;   /* across the wrap too, as LVGL's */
+}
+
 radio_state_t radio_get_state() {
     return state;
 }
@@ -195,7 +207,7 @@ static bool run(uint32_t ms) {
     bool saver = false;
 
     for (uint32_t t = 0; t < ms; t += STEP) {
-        lv_tick_inc(STEP);
+        lv_ms    += STEP;
         clock_ms += STEP;
         lv_timer_handler();
         saver = saver || backlight_saver_on();
