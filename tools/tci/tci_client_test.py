@@ -170,6 +170,7 @@ def main():
     assert any(g.startswith("vfo:0,0,") for g in greeting)
     assert any(g.startswith("modulation:0,") for g in greeting)
     assert any(g.startswith("rx_filter_band:0,") for g in greeting)
+    assert "vfo_limits:100000,55000000;" in greeting, "vfo_limits: BOARD_HF_MIN_HZ to BOARD_HF_MAX_HZ (#189)"
 
     ws.text("vfo:0,0,14074000;")
     print(ws.wait_text("vfo:0,0,14074000;"))
@@ -189,6 +190,12 @@ def main():
     ws.text("rit_offset:0,120;")
     print(ws.wait_text("rit_enable:0,true;"))
     print(ws.wait_text("rit_offset:0,120;"))
+    ws.text("rit_enable:0,false;")
+    print(ws.wait_text("rit_offset:0,0;"))
+    ws.text("rit_offset:0,2000;")                     # clamped to BOARD_RIT_MAX (#189)
+    print(ws.wait_text("rit_offset:0,1500;"))
+    ws.text("rit_offset:0,-2000;")
+    print(ws.wait_text("rit_offset:0,-1500;"))
     ws.text("rit_enable:0,false;")
     print(ws.wait_text("rit_offset:0,0;"))
     ws.text("drive:0,50;")

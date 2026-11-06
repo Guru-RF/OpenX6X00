@@ -57,8 +57,10 @@
 #define BOARD_HF_MIN_HZ     100000      /* upstream f6c97fa */
 #define BOARD_HF_MAX_HZ     55000000
 
-/* Knob / encoder steps (radio_controls.cpp). Same on the X6100 and the X6200 today;
- * a board that needs coarser PWR or RIT changes these next to its ranges. */
+/* Knob / encoder steps: the knob tables in radio_controls.cpp read these, and the PWR and TUNE power settings round
+ * to BOARD_PWR_STEP. Same on the X6100 and the X6200 today. The settings keep PWR and TUNE power in tenths of a watt,
+ * so BOARD_PWR_STEP is 0.1 or a multiple of it; the browser panel, Settings' TUNE power slider, the WLK/dig PWR
+ * buttons and CAT have steps of their own. */
 #define BOARD_PWR_STEP              0.1f
 #define BOARD_PWR_LABEL_FMT         "%0.1f"
 #define BOARD_SQL_STEP              1

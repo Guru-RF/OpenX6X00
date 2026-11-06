@@ -104,8 +104,10 @@ class SettingsManager {
     // clang-format off
     Parameter<int32_t> p_volume{"vol", 30, 0, BOARD_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // On the step first, then clipped: the top in force (8 W, 5 W on the X6200's battery, a transverter's limit) and
+    // 0.1 W always win, whatever BOARD_PWR_STEP is
     Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, [this](float v) {
-            return align(clip(v, BOARD_PWR_MIN, pwr_top()), BOARD_PWR_STEP);
+            return clip(align(v, BOARD_PWR_STEP), BOARD_PWR_MIN, pwr_top());
         },
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     // The PWR a transverter's limit took down (pwr_xvtr_set), W, 0 none: it comes back off the transverter, after a
@@ -417,7 +419,7 @@ class SettingsManager {
     // TUNE for an external tuner (ext_tune.h): its power, W (tune_tx.h's range: up to the PWR top, #87), and its time
     // limit, s
     Parameter<float, int32_t, 10> p_tune_pwr{"tune_pwr", 1.0f,
-        [](float v) { return align(clip(v, BOARD_PWR_MIN, BOARD_PWR_MAX), BOARD_PWR_STEP); },
+        [](float v) { return clip(align(v, BOARD_PWR_STEP), BOARD_PWR_MIN, BOARD_PWR_MAX); },
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     Parameter<int32_t> p_tune_time{"tune_time", 15, 5, 30,
         StorageType::GLOBAL, pending_writes_, &global_params_};
