@@ -7,7 +7,6 @@ import socket
 import subprocess
 import threading
 import time
-import socketserver
 from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
@@ -119,8 +118,8 @@ def ensure_cert(cert_dir):
 
 
 class TlsContext:
-    """The certificate the HTTPS server and the wss proxies hand out. load() puts a new one in for the next
-    connections; a handshake under way keeps the context it started with"""
+    """The certificate the HTTPS server hands out, to its pages and their sockets. load() puts a new one in for the
+    next connections; a handshake under way keeps the context it started with"""
 
     def __init__(self, cert, key):
         self.load(cert, key)
@@ -256,8 +255,9 @@ class Replayed:
 
 def make_https_server(app, host, port, tls):
     """The https server: the pages, and their sockets on the same port (#58). A secure page may only open wss://
-    sockets, and on 50003 and 50004 (WssProxy) the browser wanted the radio's certificate accepted again: Firefox keeps
-    an accepted certificate per port, and refused those sockets without a word ("Connection lost", no pairing code)"""
+    sockets, and on ports of their own (v0.3.7's) the browser wanted the radio's certificate accepted again: Firefox
+    keeps an accepted certificate per port, and refused those sockets without a word ("Connection lost", no pairing
+    code)"""
     class SSLServer(ThreadingWSGIServer):
         def finish_request(self, request, client_address):
             # handshake in the worker thread, so a stalled client can't block accept()
@@ -283,40 +283,6 @@ def make_https_server(app, host, port, tls):
     return make_server(host, port, app, SSLServer, RequestHandler)
 
 
-class WssProxy(ThreadingMixIn, socketserver.TCPServer):
-    """A TLS front door to one of the GUI's plain WebSocket servers (the remote on 50002, TCI on 50001), for the https
-    pages of v0.3.7 and before: a secure page may only open wss:// sockets, and the browser's microphone is only given
-    to a secure page. The pages now open theirs on the https port (make_https_server); these stay for one release, for
-    a page still open from before the update"""
-    allow_reuse_address = True
-    daemon_threads = True
-
-    def __init__(self, addr, tls, target_port):
-        self.tls = tls
-        self.target_port = target_port   # a callable: the port to connect to, read when a client comes
-        super().__init__(addr, None)
-
-    def finish_request(self, request, client_address):
-        request.settimeout(10)
-        try:
-            tls = self.tls.wrap(request)
-        except (ssl.SSLError, OSError):
-            return
-        pipe(tls, self.target_port())
-
-
-def start_wss_proxies(host, tls):
-    for name, port, target in (("WSS_REMOTE_PORT", 50003, lambda: apps.read_remote_conf()["port"]),
-                               ("WSS_TCI_PORT", 50004, lambda: apps.read_tci_conf()["port"])):
-        try:
-            server = WssProxy((host, port), tls, target)
-        except OSError as e:
-            logging.error("wss proxy: can't listen on %d (%s)", port, e)
-            continue
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        setattr(settings, name, port)
-
-
 def start_https(app, host, port, cert_dir):
     if ssl is None:
         logging.error("HTTPS: python ssl module missing, HTTP only")
@@ -332,7 +298,6 @@ def start_https(app, host, port, cert_dir):
         return
     threading.Thread(target=server.serve_forever, daemon=True).start()
     settings.HTTPS_PORT = port
-    start_wss_proxies(host, tls)
     if not clock_set():
         threading.Thread(target=renew_when_clock_set, args=(tls, cert_dir), daemon=True).start()
 

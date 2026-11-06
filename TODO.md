@@ -335,13 +335,6 @@ Asked 2026-10-26. Ethernet (Settings > ETHERNET, web System > Network) has DHCP 
 DHCP only, and a reporter's router never got on with the X6100's DHCP. A Static choice per saved network
 (NetworkManager `ipv4.method manual`, address, gateway, DNS), with Ethernet's fields and checks.
 
-## The https sockets' old ports 50003 and 50004: out one release later (#58)
-
-The https Panel and Screen page open their sockets on the page's own port since the release after v0.3.7
-(`wss://<address>/ws/remote` and `/ws/tci`, make_https_server in webserver/.../__main__.py). 50003 and 50004
-(WssProxy, start_wss_proxies, /api/remote's wss_port and wss_tci_port) stay for that one release, for a page left open
-over the update, and go in the release after it.
-
 ## PSK, Olivia and JTTY: a Log QSO button in the apps (#55)
 
 Asked 2026-10-27 (#55). FT8, FT4 and FT2 log their QSOs by themselves, and JS8 has Log QSO (page 5, and its popup

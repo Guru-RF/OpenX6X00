@@ -4332,9 +4332,9 @@ more. The https Panel and Screen page open their sockets on the same port
 GUI), so the one certificate covers them too. Up to v0.3.7 they used ports
 50003 and 50004, which Firefox wanted accepted on their own: the page said
 "Connection lost" and gave no pairing code
-([#58](https://github.com/Guru-RF/OpenX6X00/issues/58)). Those two ports
-still answer in this release, for a page left open over the update, and go
-in the next one. A certificate that is expired or
+([#58](https://github.com/Guru-RF/OpenX6X00/issues/58)). Since v0.3.9 those
+two ports are closed: a Panel or Screen page still open from v0.3.7 says
+"Connection lost" until it is loaded again. A certificate that is expired or
 not valid yet by the radio's clock (one made while the clock was wrong) is
 made anew at the next start, and the browser asks once more. While the clock
 is not set (a date before 2026: no network or GPS yet, a clock chip that lost

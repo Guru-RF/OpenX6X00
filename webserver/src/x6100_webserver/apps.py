@@ -436,8 +436,7 @@ def write_remote_conf(enabled, port):
 def remote_state():
     r = read_remote_conf()
     t = read_tci_conf()
-    r.update({"tci_enabled": t["enabled"], "tci_port": t["port"],
-              "wss_port": settings.WSS_REMOTE_PORT, "wss_tci_port": settings.WSS_TCI_PORT})
+    r.update({"tci_enabled": t["enabled"], "tci_port": t["port"]})
     if not local_host_ok():   # the radio takes a page's sockets by these names only (src/tci_ws.c): say so
         r["name_refused"] = not_own_name("by another name the radio does not take its connection, as a page from "
                                          "another site could make your browser connect the same way")
