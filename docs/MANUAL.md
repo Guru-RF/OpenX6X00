@@ -3957,13 +3957,15 @@ APP > Propagation (APP 4:4, or a long-press action): how the bands are doing,
 on a map of the world with your QTH in the middle, night shaded and the grey
 line (dawn and dusk, when 80 and 40 m reach furthest) lit. Two views, the
 second button changes between them; ESC closes, and the radio goes back to
-the frequency and mode it had.
+the frequency and mode it had. The bands the beacons were listened to on
+keep their own frequency and mode: the 20 m key goes where it went before.
 
 **Conditions**: N0NBH's solar data and band forecast from
-[hamqsl.com](https://www.hamqsl.com/solar.html), fetched over WiFi when the
-app opens, once an hour at most (**Refresh**: if the last one is 5 minutes
-old), and kept in `/mnt/conditions.txt`, so the last ones show without a
-network too (the header says how old they are).
+[hamqsl.com](https://www.hamqsl.com/solar.html), fetched (WiFi or Ethernet)
+when the app opens and every hour while it stays open, never otherwise; once
+an hour at most (**Refresh**: if the last one is 5 minutes old). They are
+kept in `/mnt/conditions.txt`, so the last ones show without a network too
+(the header says how old they are).
 
 - SFI (solar flux) and sunspots: higher opens the higher bands (15, 12 and
   10 m). A index and K index: geomagnetic unrest, the K of the last three
@@ -4007,7 +4009,11 @@ sent.
   may be one of those (ncdxf.org has their status).
 - What was heard stays while the radio is on, from one opening of the app to
   the next. Retuning by hand drops the slot, the next round takes the band
-  back.
+  back (in Band too); Sweep, Band, Follow or an MFK press takes it back at
+  once. A TX drops the slot as well.
+- While the Beacons view is open the radio sits on a beacon frequency in CW.
+  The band plans keep 500 Hz either side of it for the beacons: a paddle, a
+  CW macro from a logger or PTT would send right on top of them.
 
 ### Birdie Cal
 
@@ -4114,16 +4120,17 @@ frequencies, a short look at each, a stop on one where something is on the
 air, and on again when it has been quiet for the hang time, as a scanner
 does. The speaker is quiet while it looks, so there is no burst of noise at
 every step. Receive only; ESC closes, and the radio goes back to the
-frequency and mode it had.
+frequency and mode it had. The other bands it tuned to keep their own
+frequency and mode: a band key goes where it went before the scan.
 
 | Button | What |
 |---|---|
-| Source | the list: **Channels** (the [Channels](#channels) app's, with their modes), **Airband** (118 to 137 MHz, AM, 25 kHz steps; the X6200), **CB** (the 40 channels, AM), **Segment** (the band plan segment the dial is in, in 3 kHz steps in SSB, 500 Hz in CW, 5 kHz in AM) |
+| Source | the list: **Channels** (the [Channels](#channels) app's, with their modes; not their AGC, PRE and ATT), **Airband** (118 to 137 MHz, AM, 25 kHz steps; the X6200), **CB** (the 40 channels, AM), **Segment** (the band plan segment the dial is in, in 3 kHz steps in SSB, 500 Hz in CW, 5 kHz in AM) |
 | Start / Pause / Resume | from the channel the dial is on, else the top |
 | Skip | on to the next one, from a stop or a pause |
 | Lock out | leaves the one it is on out until the list changes (a carrier that is always there) |
 | Stop at | **Auto**, S3, S5, S7, S9: what counts as busy |
-| Speed | Fast, Normal, Slow: 120, 250, 500 ms a frequency (Slow for a radio whose S-meter is slow to follow) |
+| Speed | Fast, Normal, Slow: 120, 250, 500 ms a frequency (Slow for a radio whose S-meter is slow to follow). The first S-meter reading after each step is left out (it may still be of the frequency before), so Fast takes 150 to 200 ms |
 | Hang | 2, 5 or 10 s of quiet before it goes on |
 | Clear | the levels learnt, the lockouts and the list of what was heard |
 
@@ -4139,7 +4146,14 @@ frequency and mode it had.
   what was active and when.
 - Turning the main knob pauses the scan where you tuned; Resume (or Skip)
   goes on. While paused or stopped, the MFK steps through the list by hand.
+- Keying (the mic's PTT, TCI, a remote session) holds the scan on the
+  frequency it is on, as busy, and the hang time counts from the end of the
+  over, so a reply is heard there. Nothing retunes while the radio
+  transmits: Start, Resume, Skip, Lock out and the MFK wait for receive.
 - The bar is the S-meter, the mark on it the level that stops the scan.
+- Airband has the 25 kHz channels only: in Europe most are 8.33 kHz apart,
+  and two in three of those are not in the list. CB is in AM, where CEPT CB
+  is mostly FM: put FM channels in the Channels app for those.
 
 ## Bluetooth
 
