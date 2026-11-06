@@ -28,7 +28,7 @@
 #define COLS   4
 #define GAP    4
 #define PAD    6
-#define BOX_W  760
+#define BOX_W  796     /* the screen less the top bar's margins: nothing of the strip shows at the sides */
 #define TILE_W ((BOX_W - 2 * PAD - (COLS - 1) * GAP) / COLS)
 #define TILE_H 66
 #define HEAD_H 38
@@ -43,9 +43,9 @@ static const struct {
     open_t         what;
     press_action_t action;
 } apps[] = {
-    {"Modes", "FT8, JS8, PSK, SSTV...", "modes", OPEN_APP, ACTION_APP_MODES},
+    {"Modes", "FT8, JS8, PSK, SSTV", "modes", OPEN_APP, ACTION_APP_MODES},
     {"Cluster", "DX spots", "cluster", OPEN_APP, ACTION_APP_CLUSTER},
-    {"Field Ops", "SOTA, POTA, WWFF...", "field", OPEN_APP, ACTION_APP_FIELD},
+    {"Field Ops", "SOTA, POTA, WWFF", "field", OPEN_APP, ACTION_APP_FIELD},
     {"Bands", "Band activity", "bands", OPEN_APP, ACTION_APP_BANDS},
     {"Channels", "Memory channels", "channels", OPEN_APP, ACTION_APP_CHANNELS},
     {"SWR Scan", "Sweep, transmits", "swr", OPEN_APP, ACTION_APP_SWRSCAN},

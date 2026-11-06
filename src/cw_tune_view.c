@@ -33,6 +33,7 @@ static lv_draw_rect_dsc_t   bar_dsc;            /* the bars at rest */
 static lv_color_t           ok_color, near_color, off_color;
 static lv_anim_t            fade;
 static lv_coord_t           want_y = -1;       /* cw_tune_set_y(), kept for a box made later */
+static lv_coord_t           floor_y = -1;      /* cw_tune_set_floor(): not above the waterfall's top */
 
 /* Written by the audio thread, drawn by the LVGL one */
 static volatile int8_t      lit_bar = -100;     /* none before the first tone */
@@ -80,7 +81,16 @@ void cw_tune_set_y(lv_coord_t y) {
         lv_obj_set_y(box, y);
     } else {
         lv_obj_remove_local_style_prop(box, LV_STYLE_Y, 0);
+        /* Without the spectrum the style's place is on the frequency scale and the band plan */
+        if (floor_y >= 0 && lv_obj_get_style_y(box, 0) < floor_y) {
+            lv_obj_set_y(box, floor_y);
+        }
     }
+}
+
+void cw_tune_set_floor(lv_coord_t y) {
+    floor_y = y;
+    cw_tune_set_y(want_y);
 }
 
 bool cw_tune_recent(int *hz) {

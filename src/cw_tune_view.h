@@ -22,6 +22,9 @@ void cw_tune_set_freq(float hz);
 /* VISION: the bars at y (the CW decoder panel's top line), -1 back where the style puts them */
 void cw_tune_set_y(lv_coord_t y);
 
+/* The highest it goes where no panel places it: under the band plan, on the waterfall */
+void cw_tune_set_floor(lv_coord_t y);
+
 /* Any thread: the last offset (Hz, as cw_tune_set_freq() had it) when it came in the
  * last second, for the remote clients */
 bool cw_tune_recent(int *hz);

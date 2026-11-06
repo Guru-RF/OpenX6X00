@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 
-#define BOX_W  760
+#define BOX_W  796     /* the screen less the top bar's margins: nothing of the strip shows at the sides */
 #define COL_W  ((BOX_W - 4) / 2)
 #define ROW_H  37
 #define HEAD_H 38
