@@ -360,7 +360,7 @@ lv_obj_t *tx_info_init(lv_obj_t *parent) {
     panel = lv_obj_create(parent);
     lv_obj_remove_style_all(panel);
     lv_obj_set_size(panel, PANEL_W, PANEL_H);
-    lv_obj_set_x(panel, (800 - PANEL_W) / 2);
+    lv_obj_set_x(panel, (BOARD_DISP_W - PANEL_W) / 2);
     lv_obj_set_style_bg_color(panel, TC(popup), 0);
     lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(panel, TC(err), 0);

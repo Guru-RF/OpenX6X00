@@ -312,7 +312,7 @@ void cluster_column_tune(void) {
 void cluster_column_layout(lv_coord_t y) {
     if (box) {
         lv_obj_set_y(box, y);
-        lv_obj_set_height(box, 480 - BUTTONS_H - y);
+        lv_obj_set_height(box, BOARD_DISP_H - BUTTONS_H - y);
         redraw();
     }
 }
@@ -354,8 +354,8 @@ void cluster_column_init(lv_obj_t *parent, lv_coord_t y) {
 
     box = lv_obj_create(parent);
     lv_obj_remove_style_all(box);
-    lv_obj_set_pos(box, 800 - COL_W, y);
-    lv_obj_set_size(box, COL_W, 480 - BUTTONS_H - y);
+    lv_obj_set_pos(box, BOARD_DISP_W - COL_W, y);
+    lv_obj_set_size(box, COL_W, BOARD_DISP_H - BUTTONS_H - y);
     lv_obj_set_style_radius(box, theme_shape.radius_popup, 0);
     lv_obj_set_style_bg_color(box, TC(side), 0);
     lv_obj_set_style_bg_opa(box, LV_OPA_60, 0);

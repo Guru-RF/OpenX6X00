@@ -7,11 +7,12 @@
 
 #include "freq_scale.h"
 
+#include "board.h"
 #include "styles.h"
 #include "theme.h"
 #include "util.h"
 
-#define WIDTH    800
+#define WIDTH    BOARD_DISP_W
 #define LABEL_W  150    /* freq_style width */
 #define MAX_REFS 8
 #define EDGE_GAP 100    /* no reference this close to an edge label */

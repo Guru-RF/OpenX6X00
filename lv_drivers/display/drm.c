@@ -40,13 +40,22 @@
 #include <xf86drmMode.h>
 #include <drm_fourcc.h>
 
+#ifndef BOARD_DISP_W
+#include "src/board.h"
+#endif
+
 /*********************
  *      DEFINES
  *********************/
-#define LAND_W      800             /* LVGL, landscape */
-#define LAND_H      480
+#define LAND_W      BOARD_DISP_W    /* LVGL, landscape */
+#define LAND_H      BOARD_DISP_H
+#if BOARD_FB_ROTATE_90
 #define PANEL_W     LAND_H          /* panel, portrait */
 #define PANEL_H     LAND_W
+#else
+#define PANEL_W     LAND_W
+#define PANEL_H     LAND_H
+#endif
 #define MAX_RECTS   128             /* per frame, more: whole screen (the screensaver's rain: two a column) */
 #define FLIP_TIMEOUT_MS 100
 
@@ -312,6 +321,19 @@ static void wait_flip(void) {
     }
 }
 
+#if !BOARD_FB_ROTATE_90
+/* Landscape area -> shadow at the same coordinates (no rotation) */
+static void copy_area(const lv_area_t *a, const uint32_t *src) {
+    int32_t w = lv_area_get_width(a);
+    int32_t h = lv_area_get_height(a);
+
+    for (int32_t y = 0; y < h; y++) {
+        memcpy(shadow + (a->y1 + y) * PANEL_W + a->x1, src + y * w, (size_t) w * 4);
+    }
+}
+#endif
+
+#if BOARD_FB_ROTATE_90
 /* Landscape area (w x h pixels, packed) -> portrait shadow, 90 ccw:
  * landscape (x, y) goes to portrait column y, row LAND_W - 1 - x */
 static void rotate_area(const lv_area_t *a, const uint32_t *src) {
@@ -350,6 +372,7 @@ static void rotate_area(const lv_area_t *a, const uint32_t *src) {
         }
     }
 }
+#endif /* BOARD_FB_ROTATE_90 */
 
 static void rects_add(rects_t *r, const lv_area_t *portrait) {
     if (r->cnt < MAX_RECTS) {
@@ -420,6 +443,13 @@ static int first_commit(void) {
  **********************/
 
 bool drm_init(void) {
+    /* Landscape blit (BOARD_FB_ROTATE_90=0) is only finished for fbdev: the
+     * primary-plane waterfall and Walkie's portrait path still assume a
+     * portrait panel. Fall back so panel_open() uses fbdev instead. */
+#if !BOARD_FB_ROTATE_90
+    err("BOARD_FB_ROTATE_90=0 needs fbdev, DRM is unused");
+    return false;
+#else
     const char *path = getenv("DRM_CARD");
 
     if (path ? !open_card(path) : !open_card("/dev/dri/card0") && !open_card("/dev/dri/card1")) {
@@ -457,6 +487,7 @@ bool drm_init(void) {
     fprintf(stderr, "drm: %ux%u, connector %u, crtc %u, %s\n", mode.hdisplay, mode.vdisplay, conn_id, crtc_id,
             planes ? "GUI on the overlay plane, waterfall on the primary" : "one plane");
     return true;
+#endif /* BOARD_FB_ROTATE_90 */
 }
 
 bool drm_planes(void) {
@@ -487,10 +518,15 @@ void drm_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * color_p
             rects_add(&frame[cur], &p);
         }
     } else if (area->x1 >= 0 && area->y1 >= 0 && area->x2 < LAND_W && area->y2 < LAND_H) {
+#if BOARD_FB_ROTATE_90
         lv_area_t p = { area->y1, LAND_W - 1 - area->x2, area->y2, LAND_W - 1 - area->x1 };
 
         rotate_area(area, (const uint32_t *) color_p);
         rects_add(&frame[cur], &p);
+#else
+        copy_area(area, (const uint32_t *) color_p);
+        rects_add(&frame[cur], area);
+#endif
     }
 
     if (lv_disp_flush_is_last(drv)) {
@@ -672,9 +708,13 @@ void drm_compose_landscape(uint32_t *px) {
         uint32_t *row = px + y * LAND_W;
         uint32_t under[LAND_W];
 
+#if BOARD_FB_ROTATE_90
         for (int32_t x = 0; x < LAND_W; x++) {
             under[x] = wf_shadow[(LAND_W - 1 - x) * PANEL_W + y];
         }
+#else
+        memcpy(under, wf_shadow + y * PANEL_W, (size_t) LAND_W * 4);
+#endif
         drm_blend_under(row, row, under, LAND_W);
     }
 }

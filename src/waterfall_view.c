@@ -12,6 +12,7 @@
  */
 #include "waterfall_view.h"
 
+#include "board.h"
 #include "band_names.h"
 #include "cfg/cfg_api.h"
 #include "dsp.h"
@@ -33,8 +34,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WIDTH       800
-#define MAX_HEIGHT  480     /* the buffers: the height changes live (spectrum on/off, its height) */
+#define WIDTH       BOARD_DISP_W
+#define MAX_HEIGHT  BOARD_DISP_H     /* the buffers: the height changes live (spectrum on/off, its height) */
 #define SPAN_HZ     100000  /* shown at zoom 1 */
 #define DATA_AT     (WATERFALL_NFFT / 2)    /* a row's data from this value on, as many again around them */
 #define ROW_BINS    (WATERFALL_NFFT * 2)

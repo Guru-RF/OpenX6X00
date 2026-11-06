@@ -18,7 +18,7 @@ extern "C" {
 /* Height of the tag strip the frequency row grows by */
 #define SPOT_MARKS_H 44
 
-/* Marks on parent (800 px wide); call after the waterfall is created so
+/* Marks on parent (BOARD_DISP_W px wide); call after the waterfall is created so
  * they are on top. Lines from line_y down to their tag; tags: from tag_y. */
 void spot_marks_init(lv_obj_t *parent, lv_coord_t line_y, lv_coord_t tag_y);
 void spot_marks_layout(lv_coord_t line_y, lv_coord_t tag_y);

@@ -6,6 +6,7 @@
 
 #include "band_plan.h"
 
+#include "board.h"
 #include "band_names.h"
 #include "cfg/cfg_api.h"
 #include "dxcc.h"
@@ -29,7 +30,7 @@
 /* VISION: the sizes of the other themes here (an overlay on VISION's shorter waterfall) */
 #define NF(n) (theme_shape.vision ? font_down(&sony_##n, VISION_FONT_STEPS) : &sony_##n)
 
-#define WIDTH   800
+#define WIDTH   BOARD_DISP_W
 #define POOL    16      /* segments in view: a span is 100 kHz at most */
 #define MAX_SEG 128     /* a plan (62 segments at most: US General, west of 130 W) and the bands of the band list */
 #define BANDS   48

@@ -31,7 +31,7 @@
 #define TIMER_MS  100
 #define LINE_MAX  64
 #define FIELD_W   740
-#define FIELD_X   ((800 - FIELD_W) / 2)   /* the arrow to the MFK fits in the left margin */
+#define FIELD_X   ((BOARD_DISP_W - FIELD_W) / 2)   /* the arrow to the MFK fits in the left margin */
 #define FIELD_H   64
 #define WPM_W     150
 #define FIELD_FONT sony_44   /* big: read at arm's length while keying */
@@ -269,7 +269,7 @@ void cw_field_init(lv_obj_t *parent) {
     field = lv_obj_create(parent);
     lv_obj_remove_style_all(field);
     lv_obj_set_size(field, FIELD_W, FIELD_H);
-    lv_obj_set_pos(field, FIELD_X, 480 - BTN_HEIGHT - FIELD_H - 8);
+    lv_obj_set_pos(field, FIELD_X, BOARD_DISP_H - BTN_HEIGHT - FIELD_H - 8);
     lv_obj_set_style_bg_color(field, TC(panel), 0);
     lv_obj_set_style_bg_opa(field, LV_OPA_80, 0);
     lv_obj_set_style_border_color(field, TC(panel_border), 0);
@@ -313,7 +313,7 @@ void cw_field_init(lv_obj_t *parent) {
     arrow = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(arrow);
     lv_obj_set_size(arrow, 46, 48);              /* a real size, or hiding it would leave the lines on screen */
-    lv_obj_set_pos(arrow, 0, 480 - BTN_HEIGHT - 8 - FIELD_H / 2 - 10);
+    lv_obj_set_pos(arrow, 0, BOARD_DISP_H - BTN_HEIGHT - 8 - FIELD_H / 2 - 10);
     lv_obj_add_flag(arrow, LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(arrow, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     for (int i = 0; i < 4; i++) {               /* a dark outline under, then the yellow line */

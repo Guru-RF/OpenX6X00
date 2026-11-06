@@ -123,9 +123,10 @@ static void dump_signal(int sig) {
 }
 #endif
 
-/* The panel is portrait: the walkie screen goes to it turned 180, not 90. DRM only */
+/* The panel is portrait: the walkie screen goes to it turned 180, not 90. DRM only,
+ * and only when the framebuffer is the radios' portrait layout. */
 bool main_display_portrait(bool on) {
-#if USE_DRM
+#if USE_DRM && BOARD_FB_ROTATE_90
     if (screen_rec_out != drm_flush) {
         return false;
     }
@@ -135,6 +136,7 @@ bool main_display_portrait(bool on) {
     lv_disp_drv_update(lv_disp_get_default(), &disp_drv);
     return true;
 #else
+    (void)on;
     return false;
 #endif
 }

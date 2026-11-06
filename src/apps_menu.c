@@ -63,7 +63,7 @@ static const struct {
 #define ROWS_N ((APPS_N + COLS - 1) / COLS)
 #define BOX_H  (HEAD_H + ROWS_N * TILE_H + (ROWS_N - 1) * GAP + HINT_H + PAD)
 
-_Static_assert(BOX_Y + BOX_H <= 480 - BUTTONS_H_MAX, "APP grid overlaps the buttons");
+_Static_assert(BOX_Y + BOX_H <= BOARD_DISP_H - BUTTONS_H_MAX, "APP grid overlaps the buttons");
 
 static void construct_cb(lv_obj_t *parent);
 static void destruct_cb(void);
@@ -176,7 +176,7 @@ static void construct_cb(lv_obj_t *parent) {
     dialog.obj    = box;
     lv_obj_remove_style_all(box);
     lv_obj_set_size(box, BOX_W, BOX_H);
-    lv_obj_set_pos(box, (800 - BOX_W) / 2, BOX_Y);
+    lv_obj_set_pos(box, (BOARD_DISP_W - BOX_W) / 2, BOX_Y);
     lv_obj_add_style(box, &popup_style, 0);
     lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
 

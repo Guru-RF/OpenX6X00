@@ -13,6 +13,7 @@
 #define X6100_STYLES_H
 
 #include "lvgl/lvgl.h"
+#include "board.h"
 #include "params/params.h"
 #include "theme.h"
 #include <unistd.h>
@@ -33,7 +34,7 @@ extern int top_bar_h, freq_strip_h, clock_w, meter_row_h;
 #define CLOCK_W             clock_w
 #define TOP_BAR_BOX_H       (TOP_BAR_HEIGHT - 2 * TOP_BAR_MARGIN)
 #define TOP_BAR_METER_X     (TOP_BAR_MARGIN + 360 + 3)     /* right of the 360 px info box */
-#define TOP_BAR_METER_W     (800 - TOP_BAR_METER_X - 3 - CLOCK_W - TOP_BAR_MARGIN)
+#define TOP_BAR_METER_W     (BOARD_DISP_W - TOP_BAR_METER_X - 3 - CLOCK_W - TOP_BAR_MARGIN)
 
 #define FREQ_STRIP_Y        TOP_BAR_HEIGHT
 #define FREQ_STRIP_H        freq_strip_h
@@ -48,8 +49,8 @@ extern int buttons_h;
 
 /* App windows fill the space between the frequency strip and the buttons */
 #define DIALOG_Y            (TOP_BAR_STD_H + FREQ_STRIP_STD_H + TOP_BAR_MARGIN)   /* VISION adds up the same */
-#define DIALOG_H            (480 - BUTTONS_H - TOP_BAR_MARGIN - DIALOG_Y)
-#define DIALOG_H_MAX        (480 - BUTTONS_H_MIN - TOP_BAR_MARGIN - DIALOG_Y)    /* static buffers */
+#define DIALOG_H            (BOARD_DISP_H - BUTTONS_H - TOP_BAR_MARGIN - DIALOG_Y)
+#define DIALOG_H_MAX        (BOARD_DISP_H - BUTTONS_H_MIN - TOP_BAR_MARGIN - DIALOG_Y)    /* static buffers */
 
 extern const uint32_t *wf_palette;      /* the waterfall's 256 colours, from the theme */
 extern lv_color_t      bg_color;
