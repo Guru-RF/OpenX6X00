@@ -22,6 +22,7 @@
 /* The reading in dB, S1 to S9+40, after PRE, ATT and the calibration */
 static float            meter_db = S1;          /* smoothed: the bars and the needle */
 static float            meter_db_raw = S1;      /* as read: the dB value, CAT, the app */
+static _Atomic uint32_t  meter_seq_n;            /* readings so far (meter_seq) */
 static float            noise_level = S_MIN;    /* the bars under it stay grey */
 
 /* The peak bar stays PEAK_HOLD_MS, then each reading takes off PEAK_FALL dB for every second
@@ -705,6 +706,7 @@ void meter_update(float db, float beta) {
         meter_peak -= (ms - peak_ms - PEAK_HOLD_MS) * PEAK_FALL / 1000;
     }
     meter_db_raw = db;
+    meter_seq_n++;
     meter_db = meter_db * beta + db * (1.0f - beta);
     scheduler_put_coalesced(show_value);
     event_send(obj, LV_EVENT_REFRESH, NULL);
@@ -716,4 +718,8 @@ int16_t meter_get_raw_db(void) {
 
 float meter_get_db(void) {
     return meter_db_raw;
+}
+
+uint32_t meter_seq(void) {
+    return meter_seq_n;
 }

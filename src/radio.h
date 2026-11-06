@@ -89,6 +89,8 @@ bool radio_change_spmode(int16_t df);
 void radio_change_mute();
 /* A TCI client transmits: the speaker and the monitor quiet until it unkeys */
 void radio_set_tci_mute(bool on);
+/* The scanner looking from one frequency to the next: the speaker quiet until it stops */
+void radio_set_scan_mute(bool on);
 void radio_vol_refresh();
 
 void radio_set_pwr(float d);

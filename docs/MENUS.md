@@ -19,7 +19,9 @@ closed v0.129, finds the same things under these names:
 | Cluster, "DX spots" | Cluster, "DX spots" | the DX cluster app |
 | Field Ops, "SOTA, POTA, WWFF..." | Field Ops, "POTA, SOTA activations" | activations |
 | Bands, "Band activity" | Bands, "Band activity" | cluster and RBN activity per band |
+| Propagation, "Conditions, beacons" | - | solar data and the band forecast, the NCDXF beacons heard, day and night on a map |
 | Channels, "Memory channels" | Channels, "Memory channels" | named channels |
+| Scanner, "Stops on activity" | - | scans the channels, the airband, CB or a band segment |
 | SWR Scan, "Sweep, transmits" | SWR scan, "SWR sweep, transmits" | |
 | Recorder, "RX audio" | Recorder, "Record and play RX" | the RX recorder |
 | CW Trainer, "Learn CW" | CW Trainer, "Learn CW" | |

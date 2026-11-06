@@ -248,6 +248,7 @@ static volatile int8_t  bat_pct = -1;   /* the battery %, -1 on external power o
 static volatile bool    charger_asked;  /* the charger setting as last applied (Shadow at power-off left out: no bolt then) */
 static bool             mute = false;
 static bool             tci_mute = false;   /* a TCI client transmits: the speaker and the monitor off */
+static bool             scan_mute = false;  /* the scanner between stops: no noise burst at every step */
 static bool             rec_moni = false;   /* a screen recording takes the TX audio: the monitor at 30 at least (X6100) */
 static bool             digi_cap;       /* a digital app is open: never above its cap */
 static float            tune_cap;       /* a TUNE for an external tuner: never above its power (under the lock) */
@@ -749,7 +750,7 @@ void radio_change_mute() {
  * silences the speaker (headphones connected) or while a TCI client transmits; the monitor 0 at AF 0 too, which otherwise still played FT8's
  * tones (issue #1). A screen recording keeps the monitor at 30 at least on the X6100, but not under a TCI client's PTT */
 void radio_vol_refresh() {
-    bool    muted = mute || tci_mute || btaudio_speaker_muted() || param_i_get(cfg_speaker_off);
+    bool    muted = mute || tci_mute || scan_mute || btaudio_speaker_muted() || param_i_get(cfg_speaker_off);
     int32_t vol   = param_i_get(cfg_volume);
     int32_t moni  = param_i_get(cfg_moni);
 #ifdef BOARD_X6200
@@ -773,6 +774,12 @@ void radio_vol_refresh() {
 void radio_set_tci_mute(bool on) {
     if (tci_mute == on) return;
     tci_mute = on;
+    radio_vol_refresh();
+}
+
+void radio_set_scan_mute(bool on) {
+    if (scan_mute == on) return;
+    scan_mute = on;
     radio_vol_refresh();
 }
 

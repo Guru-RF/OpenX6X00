@@ -41,6 +41,7 @@ elseif(HOST_BUILD)
         # (host/build.sh puts them there)
         add_compile_definitions(LV_DRAW_NEON=0 HOST_BUILD=1 USE_SDL=1 USE_DRM=0 USE_FBDEV=0)
         add_compile_definitions(BOARD_DATA="${HOST_DATA_DIR}" BOARD_SHARE="${CMAKE_BINARY_DIR}/share")
+        add_compile_definitions(X6100_SBIN="${CMAKE_SOURCE_DIR}/rootfs/usr/sbin")    # the helpers, from the tree
         set(LV_DRIVERS_SDL ON)
         set(HW_BACKEND "stub" CACHE STRING "The radio backend: x6100 or stub")
         set(HOST_DEPS ${CMAKE_SOURCE_DIR}/build-host/deps)

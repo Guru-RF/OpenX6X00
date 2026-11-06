@@ -67,6 +67,8 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_wspr.c app_frame.c
     dialog_field.c
     dialog_bands.c
+    sun.c prop_map.c conditions.c beacons.c dialog_propagation.c
+    scan.c dialog_scan.c
     dialog_snake.c
     remote_server.c
     control_owner.c

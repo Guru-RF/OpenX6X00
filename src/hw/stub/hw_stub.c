@@ -6,6 +6,11 @@
  *  at 7.8 V. For the GUI on a desktop (cmake -DHW_BACKEND=stub) and as the template for a new radio's
  *  backend: everything hw.h asks for, in the order of hw.h, with nothing else to read around it.
  *
+ *  For the scanner and the beacons on a desktop the carrier can be put on some frequencies only:
+ *  HOST_STUB_SCAN=118300000,27185000 (Hz; on 15 s, off 15 s) and HOST_STUB_BEACONS=13,0
+ *  (the NCDXF beacons, by their place in the round, keyed in their slots). Either set: nothing
+ *  anywhere else.
+ *
  *  Copyright (c) 2026 RF.Guru
  */
 
@@ -36,15 +41,69 @@ static struct {
 } vfo[2] = { { 7062000, radio_mode_usb_dig, radio_agc_auto, false, false },
              { 14074000, radio_mode_usb_dig, radio_agc_auto, false, false } };
 
+#define SCENE_MAX       16
+
+static struct {
+    bool    on;
+    int32_t carrier[SCENE_MAX];
+    int     carriers;
+    int     beacon[SCENE_MAX];
+    int     beacons;
+} scene;
+
 static float _Complex samples[SAMPLES];
 static uint64_t       next_pack_ns;     /* when the next packet is due */
 static float          tone_phase;
 
 /* ---- Init ----------------------------------------------------------------------------- */
 
+static int list_env(const char *name, int32_t *out) {
+    const char *v = getenv(name);
+    int         n = 0;
+
+    while (v && *v && n < SCENE_MAX) {
+        char *end;
+        long  x = strtol(v, &end, 10);
+        if (end == v) break;
+        out[n++] = (int32_t)x;
+        v        = *end == ',' ? end + 1 : end;
+    }
+    return n;
+}
+
 bool hw_init(void) {
+    int32_t b[SCENE_MAX];
+
     pins[HW_PIN_LIGHT] = true;
+    scene.carriers     = list_env("HOST_STUB_SCAN", scene.carrier);
+    scene.beacons      = list_env("HOST_STUB_BEACONS", b);
+    for (int i = 0; i < scene.beacons; i++) scene.beacon[i] = b[i];
+    scene.on = scene.carriers || scene.beacons;
     return true;
+}
+
+/* The NCDXF schedule (src/beacons.c): on band k in slot s beacon (s - k) mod 18 */
+static const int32_t beacon_hz[5] = {14100000, 18110000, 21150000, 24930000, 28200000};
+
+/* Whether the carrier is on the air at the frequency tuned now; the tone's offset into hz */
+static bool scene_carrier(int32_t f, float *hz) {
+    struct timespec ts;
+
+    clock_gettime(CLOCK_REALTIME, &ts);
+    *hz = TONE_HZ;
+    if (!scene.on) return true;
+    for (int i = 0; i < scene.carriers; i++)
+        if (labs((long)f - scene.carrier[i]) < 2000) return ts.tv_sec % 30 < 15;
+    for (int k = 0; k < 5; k++) {
+        if (labs((long)f - beacon_hz[k]) > 500) continue;
+        int on = ((int)(ts.tv_sec % 180) / 10 - k + 18) % 18;
+        for (int i = 0; i < scene.beacons; i++)
+            if (scene.beacon[i] == on) {
+                *hz = 600.0f;     /* at the CW pitch, in the CW filter */
+                return (ts.tv_nsec / 250000000) % 2 == 0 || ts.tv_sec % 10 >= 6;   /* the call keyed, then dashes */
+            }
+    }
+    return false;
 }
 
 bool hw_control_init(void) {
@@ -328,7 +387,14 @@ bool hw_flow_read(hw_pack_t *p) {
 
     bool  tx   = hw_tx_keyed_by_gui();
     float gain = front_end_gain(vfo[reg_i[HW_VFO_CUR] & 1].pre, vfo[reg_i[HW_VFO_CUR] & 1].att);
-    float step = 2.0f * (float)M_PI * TONE_HZ / SAMPLE_RATE;
+    float tone_hz;
+    bool  carrier = scene_carrier(vfo[reg_i[HW_VFO_CUR] & 1].freq, &tone_hz);
+    float step    = 2.0f * (float)M_PI * tone_hz / SAMPLE_RATE;
+    radio_mode_t m = vfo[reg_i[HW_VFO_CUR] & 1].mode;
+
+    /* The test signals where the receiver's filter is: the tone as generated lands below the
+     * dial (LSB's side, where the panel starts); USB's is above */
+    if (scene.on && (m == radio_mode_usb || m == radio_mode_usb_dig)) step = -step;
 
     iq_load();
     for (int i = 0; i < SAMPLES && iq_rec; i++) {
@@ -337,7 +403,7 @@ bool hw_flow_read(hw_pack_t *p) {
     }
     for (int i = 0; i < SAMPLES && !iq_rec; i++) {
         float re = NOISE_RMS * gauss(), im = NOISE_RMS * gauss();
-        if (!tx) {
+        if (!tx && carrier) {
             re += TONE_AMP * cosf(tone_phase);
             im += TONE_AMP * sinf(tone_phase);
         }

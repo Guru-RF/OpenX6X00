@@ -218,6 +218,18 @@ def i_navtex(p):     # lines of text
     for y in (32, 48, 64):
         p.line([(30, y), (70 if y != 64 else 56, y)], w=p.w // 2 + 1)
 
+def i_prop(p):       # a sky wave: up from the ground, bent back by the ionosphere, under a sun
+    p.line([(8, 84), (92, 84)])
+    p.line([(16, 84), (34, 44), (50, 32), (66, 44), (84, 84)], w=p.w // 2 + 2)
+    p.ring(78, 18, 8)
+
+def i_scan(p):       # a sweep through the channels, stopped on one
+    for i, h in enumerate((14, 20, 12, 46, 16, 10)):
+        x = 14 + i * 14.4
+        p.line([(x, 82), (x, 82 - h)], w=p.w // 2 + 1)
+    p.line([(57, 22), (57, 88)])
+    p.poly([(49, 12), (65, 12), (57, 24)])
+
 
 ICONS = {n[2:]: f for n, f in globals().items() if n.startswith("i_") and callable(f)}
 
