@@ -18,6 +18,7 @@
 #include "screen_light.h"
 
 #include "app_frame.h"
+#include "band_keep.h"
 #include "beacons.h"
 #include "buttons.h"
 #include "cfg/cfg_api.h"
@@ -265,6 +266,7 @@ static void tune_band(int b) {
     tuned      = b;
     tuned_freq = beacon_freq[b];
     hand_round = -1;
+    band_keep_tune(tuned_freq);
     cparam_i_set(cfg_fg_freq, tuned_freq);
     cparam_i_set(cfg_cur_mode, radio_mode_cw);
     beacons_retune(now_ms());
@@ -592,6 +594,7 @@ static void construct_cb(lv_obj_t *parent) {
     cond_build(body);
     bcn_build(body);
 
+    band_keep_begin();
     if (!scores_kept) {     /* what was heard stays from one opening to the next */
         beacons_reset();
         scores_kept = true;
@@ -612,4 +615,5 @@ static void destruct_cb(void) {
         timer = NULL;
     }
     tuned = -1;
+    band_keep_end();
 }

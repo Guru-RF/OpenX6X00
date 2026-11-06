@@ -276,3 +276,53 @@ int32_t cfg_mode_change_freq_step(bool up) {
     cfg_sm.p_mode_freq_step.set(step);
     return step;
 }
+
+// --- A band's dial (cfg_band_dial_t) ---
+
+static const char *const band_dial_names[CFG_BAND_DIAL_N] = {
+    "vfo", "vfoa_freq", "vfob_freq", "vfoa_mode", "vfob_mode", "vfoa_att", "vfob_att", "vfoa_pre", "vfob_pre",
+    "vfoa_agc", "vfob_agc"};
+
+int32_t cfg_band_current(void) {
+    return cfg_sm.current_band_id();
+}
+
+int32_t cfg_band_of(int32_t freq) {
+    BandInfoLoadResult b = BandsTable::get_by_freq(static_cast<uint32_t>(freq));
+
+    return b.rc == SUCCESS ? b.value.id : BAND_UNDEFINED;
+}
+
+bool cfg_band_dial_get(int32_t freq, cfg_band_dial_t *d) {
+    int32_t id = cfg_band_of(freq);
+
+    if (id == BAND_UNDEFINED || id == cfg_sm.current_band_id()) {
+        return false;
+    }
+    cfg_sm.flush_storage(StorageType::BAND, id);    // a write still waiting for it first (none expected: not in use)
+    d->band_id = id;
+    for (int i = 0; i < CFG_BAND_DIAL_N; i++) {
+        ParamLoadResult<int32_t> r = BandParamsTable::Load<int32_t>(id, band_dial_names[i]);
+
+        d->stored[i] = r.rc == SUCCESS;
+        d->val[i]    = r.value;
+    }
+    return true;
+}
+
+bool cfg_band_dial_put(const cfg_band_dial_t *d) {
+    if (d->band_id == BAND_UNDEFINED || d->band_id == cfg_sm.current_band_id()) {
+        return false;
+    }
+    cfg_sm.flush_storage(StorageType::BAND, d->band_id);    // what the app left there, written now and not after this
+    cfg_db_tx_lock();       // as the pending writes do: outside the legacy writer's transaction (audit B12)
+    for (int i = 0; i < CFG_BAND_DIAL_N; i++) {
+        if (d->stored[i]) {
+            BandParamsTable::Save<int32_t>(d->band_id, band_dial_names[i], d->val[i]);
+        } else {
+            BandParamsTable::Remove(d->band_id, band_dial_names[i]);
+        }
+    }
+    cfg_db_tx_unlock();
+    return true;
+}

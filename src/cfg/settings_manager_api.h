@@ -113,6 +113,25 @@ void cfg_transverter_name(int32_t freq, char *buf, size_t size);
 /* The other VFO; with independent VFOs (p_indep_vfo) its own band comes with it */
 void cfg_vfo_toggle(void);
 
+/* A band's dial as the settings file has it: each VFO's frequency, mode, ATT, PRE and AGC, and the VFO in use. For an
+ * app that tunes across the bands (band_keep.h): taken before it first tunes into a band, put back once the radio is
+ * off that band. A tune into a band stores its frequency and mode there, and the band key then went to the app's */
+#define CFG_BAND_DIAL_N 11
+typedef struct {
+    int32_t band_id;
+    int32_t val[CFG_BAND_DIAL_N];
+    bool    stored[CFG_BAND_DIAL_N];    /* false: the band had none, its default at the next load: put back so */
+} cfg_band_dial_t;
+
+/* The band in use, -1 between the bands */
+int32_t cfg_band_current(void);
+/* The band freq is in, -1 none */
+int32_t cfg_band_of(int32_t freq);
+/* The dial of the band freq is in, unless there is none there or it is the band in use (false then). LVGL thread */
+bool cfg_band_dial_get(int32_t freq, cfg_band_dial_t *d);
+/* d back into the settings file, unless its band is the one in use (false then, nothing written). LVGL thread */
+bool cfg_band_dial_put(const cfg_band_dial_t *d);
+
 /* The mode a frequency opens in: its sideband (LSB under 10 MHz, USB above and on 60 m), WFM and AM on the X6200's FM
  * broadcast and airband, NFM where only the WR12 receives */
 int32_t cfg_default_mode(int32_t freq);

@@ -326,6 +326,9 @@ class BandParamsTable {
     // The bands that have this param stored, as (band name, value): no log line per band
     static std::vector<std::pair<std::string, int32_t>> all_int(const char *name);
 
+    // The band's row of this param gone: the next load of the band takes its default again
+    static bool Remove(int32_t band_id, const char *name);
+
   private:
     // Database handle shared by all statements of this table.
     inline static sqlite3 *db_ = nullptr;

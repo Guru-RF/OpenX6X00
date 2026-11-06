@@ -492,6 +492,20 @@ std::vector<std::pair<std::string, int32_t>> BandParamsTable::all_int(const char
     return result;
 }
 
+bool BandParamsTable::Remove(int32_t band_id, const char *name) {
+    sqlite3_stmt *stmt = nullptr;
+
+    if (!db_ || sqlite3_prepare_v2(db_, "DELETE FROM band_params WHERE bands_id = ? AND name = ?", -1, &stmt, 0) !=
+                    SQLITE_OK) {
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, band_id);
+    sqlite3_bind_text(stmt, 2, name, -1, SQLITE_STATIC);
+    bool ok = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return ok;
+}
+
 // ---------------------------------------------------------------------------
 // ModeParamsTable
 // ---------------------------------------------------------------------------

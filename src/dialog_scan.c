@@ -11,13 +11,15 @@
  *
  *  Skip goes on, Lock out leaves one out for this session (a carrier that is always there), the
  *  MFK steps by hand while paused, the main knob pauses it. Receive only: a TX (the mic's PTT, TCI)
- *  holds it on the one it is on, and nothing retunes while the radio is on the air.
+ *  holds it on the one it is on, and nothing retunes while the radio is on the air. The bands it
+ *  tuned across get their own dial back on close (band_keep.h).
  */
 
 #include "dialog_scan.h"
 #include "screen_light.h"
 
 #include "app_frame.h"
+#include "band_keep.h"
 #include "band_plan.h"
 #include "buttons.h"
 #include "cfg/cfg_api.h"
@@ -276,6 +278,7 @@ static int64_t mono_ms(void) {
 
 static void tune(int i) {
     if (i < 0 || i >= list_n) return;
+    band_keep_tune(list[i].freq);
     /* The frequency first, as the Channels app: a tune into another band loads that band's mode, which the
      * channel's then replaces. The mode first had the channel on air in the band's mode, and stored its own in the
      * band it left */
@@ -522,6 +525,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_group_focus_obj(dialog.obj);
     lv_group_set_editing(keyboard_group, true);
 
+    band_keep_begin();
     channels_load();
     build_list();
     if (!list_n) source_cb(NULL);       /* no channels: the next list that has some */
@@ -538,4 +542,5 @@ static void destruct_cb(void) {
     }
     scan_stop();
     radio_set_scan_mute(false);
+    band_keep_end();
 }

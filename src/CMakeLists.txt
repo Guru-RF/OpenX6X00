@@ -68,7 +68,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dialog_field.c
     dialog_bands.c
     sun.c prop_map.c conditions.c beacons.c dialog_propagation.c
-    scan.c dialog_scan.c
+    scan.c dialog_scan.c band_keep.c
     dialog_snake.c
     remote_server.c
     control_owner.c
