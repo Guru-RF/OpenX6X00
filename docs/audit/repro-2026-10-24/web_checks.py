@@ -595,7 +595,7 @@ with tempfile.TemporaryDirectory(prefix='x6https-') as td:
     ports['remote'] = remote_gui.server_address[1]
     web = repo / 'webserver/src/x6100_webserver'
     named = sorted(str(f.relative_to(web)) for f in web.rglob('*') if f.suffix in ('.py', '.html', '.js') and
-                   re.search(r'\b5000[34]\b|WssProxy|wss_port|wss_tci_port|WSS_(REMOTE|TCI)_PORT', f.read_text()))
+                   re.search(r'\b5000[34]\b|WssProxy|wss prox|wss_port|wss_tci_port|WSS_(REMOTE|TCI)_PORT', f.read_text()))
     cases.append(('v0.3.7\'s ports of their own (50003, 50004): named nowhere in the web server, its code or pages',
                   ' '.join(named) or 'none', 'none'))
     for s in (https, remote_gui, tci_gui):

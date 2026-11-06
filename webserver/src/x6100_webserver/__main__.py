@@ -118,8 +118,8 @@ def ensure_cert(cert_dir):
 
 
 class TlsContext:
-    """The certificate the HTTPS server and the wss proxies hand out. load() puts a new one in for the next
-    connections; a handshake under way keeps the context it started with"""
+    """The certificate the HTTPS server hands out, to its pages and their sockets. load() puts a new one in for the
+    next connections; a handshake under way keeps the context it started with"""
 
     def __init__(self, cert, key):
         self.load(cert, key)
