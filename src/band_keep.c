@@ -36,8 +36,7 @@ void band_keep_tune(int32_t freq) {
 void band_keep_end(void) {
     if (!on) return;
     on = false;
-    if (!kept_n) return;
-    mem_load(MEM_BACKUP_ID);    /* off the bands kept, onto the band it opened on */
+    mem_load(MEM_BACKUP_ID);    /* the radio back where the app opened, also when it kept no other band */
     for (int i = 0; i < kept_n; i++) cfg_band_dial_put(&kept[i]);
     kept_n = 0;
 }

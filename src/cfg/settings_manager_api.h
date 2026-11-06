@@ -127,7 +127,8 @@ typedef struct {
 int32_t cfg_band_current(void);
 /* The band freq is in, -1 none */
 int32_t cfg_band_of(int32_t freq);
-/* The dial of the band freq is in, unless there is none there or it is the band in use (false then). LVGL thread */
+/* The dial of the band freq is in, the band in use too (its pending writes first); false when there is none there or a
+   row could not be read (the band is then left alone). LVGL thread */
 bool cfg_band_dial_get(int32_t freq, cfg_band_dial_t *d);
 /* d back into the settings file, unless its band is the one in use (false then, nothing written). LVGL thread */
 bool cfg_band_dial_put(const cfg_band_dial_t *d);
