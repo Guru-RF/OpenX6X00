@@ -49,3 +49,6 @@ float meter_get_db(void);
 /* Counts the readings: a new one when it changed (the scanner and the beacons take each reading
  * once, and none from before a retune) */
 uint32_t meter_seq(void);
+
+/* x of db on a bar w wide with S9 at 70% (Codec's SIGNAL bar, Ops Room's hexagons): S1 at 0, S9+40 at w */
+lv_coord_t meter_x70(float db, lv_coord_t w);

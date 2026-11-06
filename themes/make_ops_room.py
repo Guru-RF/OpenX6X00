@@ -185,6 +185,8 @@ C = {
     "bar_high": RED, "bar_mid": "#ffd23a", "alc": VIOLET,
     "vfo_line": RED, "vfo": VIOLET, "vfo_bg": "#1c1240", "spot": PALE, "tune_good": GREEN,
     "bp_cw": "#3b2470", "bp_dig": "#1f5a16", "bp_ssb": "#7a3a08", "bp_bcn": "#7a1010", "bp_text": PALE,
+    "bp_out": "#3a2410",
+    "saver": ORANGE, "saver_head": PALE,     # the screensaver's rain in amber, on black as in every theme
     "finder_band": RED, "finder_cursor": GREEN,
     "off": "#2a1606", "card": EMBER, "edited": GREEN, "panel": "#0a0603", "panel_border": EMBER,
     "list": "#080502", "row": "#160a04", "popup": "#0d0703", "popup_border": ORANGE, "side": "#0d0703",

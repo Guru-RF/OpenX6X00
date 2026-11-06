@@ -88,6 +88,33 @@ static void power_gaps(bool fit) {
     }
 }
 
+/* The power as the clocks show it, from the last readings: power_mux held */
+typedef struct {
+    bool known;         /* a reading yet: radio.c gives the first some seconds after start */
+    bool battery;       /* a battery there: not when the base says none, nor under 3 V */
+    bool ext;           /* on a supply */
+    bool full;          /* on a supply at 100%: nothing to full */
+    bool chg;           /* charging */
+    bool low;           /* on battery under the guard level: 20%, or under half an hour left */
+    int  est;           /* minutes to empty, on a supply to full; -1 none, or made before the supply changed */
+} power_t;
+
+static power_t power_get(void) {
+    power_t p = {.known = v_bat >= 3.0f || v_ext >= 3.0f, .battery = !no_battery && v_bat >= 3.0f, .est = -1};
+
+    p.ext = !p.battery || v_ext >= 3.0f;
+    if (!p.known || !p.battery) return p;
+    /* The estimate comes once a minute, to empty on battery or to full on external power. If the supply changed
+     * since, it is the wrong one: hidden until the next. At 100%, nothing to full */
+    p.full = p.ext && cap_bat >= 100;
+    p.est  = est_ext == p.ext && !p.full ? est_min : -1;
+    /* Charging is the base's flag (radio.c drops it when the charger is off) or a time to full, which rides over a
+     * reading where the flag blinks off */
+    p.chg = !p.full && (p.est >= 0 || charging);
+    p.low = !p.ext && (cap_bat <= 20 || (p.est >= 0 && p.est < 30));
+    return p;
+}
+
 /* Time on top (seconds smaller), voltages below, both always shown. */
 static void show_time() {
     time_t      now;
@@ -151,17 +178,13 @@ static void show_time() {
         lv_label_set_text(power_labels[2], SYMBOL_PLUG);
         lv_label_set_text_fmt(power_labels[3], "%.1fv", v_ext);
     } else {
-        bool ext = v_ext >= 3.0f;
-        /* The estimate comes once a minute, to empty on battery or to full on external power. If the
-         * supply changed since, it is the wrong one: hide it until the next. At 100 %, nothing to full */
-        bool full = ext && cap_bat >= 100;
-        int  est = est_ext == ext && !full ? est_min : -1;
+        power_t pw  = power_get();
+        bool    ext = pw.ext;
+        int     est = pw.est;
 
         /* The symbol before the %: the bolt while charging, the plug on external power without
-         * charging (full, or the charger set off), the battery level on battery. Charging is the
-         * base's flag (radio.c drops it when the charger is off) or a time to full, which rides
-         * over a reading where the flag blinks off */
-        bool chg = !full && (est >= 0 || charging);
+         * charging (full, or the charger set off), the battery level on battery (power_get) */
+        bool chg = pw.chg;
 
         if (volts) {
             /* The voltages: the battery's after its level, on a supply its sign and its voltage */
@@ -193,7 +216,7 @@ static void show_time() {
         }
 
         /* On battery below the guard level (20% or under half an hour left): red */
-        bool low = !ext && (cap_bat <= 20 || (est >= 0 && est < 30));
+        bool low = pw.low;
 
         for (int i = 0; i < 4; i++)
             lv_obj_set_style_text_color(power_labels[i], low ? TC(tx)
@@ -205,14 +228,17 @@ static void show_time() {
 }
 
 /* Ops Room: the time in 7-segment digits between INTERNAL / EXTERNAL and the charge, and the time
- * the battery has left as the activity limit under it (ops_room.c draws) */
+ * the battery has left as the activity limit under it (ops_room.c draws), by the rules of the other themes'
+ * power row (power_get): no battery, the estimate of the other supply hidden, nothing to full at 100% */
 static void draw_cb(lv_event_t *e) {
     time_t     now = time(NULL);
     struct tm *t = localtime(&now);
 
     pthread_mutex_lock(&power_mux);
-    ops_room_clock_t c = {.h = t->tm_hour, .m = t->tm_min, .s = t->tm_sec, .cap = cap_bat,
-                          .ext = charging || v_ext > 3.0f, .est_min = est_min, .known = v_bat >= 3.0f || v_ext >= 3.0f};
+    power_t          p = power_get();
+    ops_room_clock_t c = {.h = t->tm_hour, .m = t->tm_min, .s = t->tm_sec, .cap = cap_bat, .ext = p.ext,
+                          .est_min = p.est, .approx = est_approx, .known = p.known, .battery = p.battery,
+                          .full = p.full, .low = p.low, .v_ext = v_ext};
     pthread_mutex_unlock(&power_mux);
     ops_room_clock_draw(lv_event_get_target(e), lv_event_get_draw_ctx(e), &c);
 }

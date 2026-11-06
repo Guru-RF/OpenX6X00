@@ -599,7 +599,7 @@ static void bars_draw_mono(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
 }
 
 /* Codec: SIGNAL over a framed bar of segments, red above S9, the peak bright, the scale under it */
-static lv_coord_t signal_x(float db, lv_coord_t w) {     /* S9 at 70% of the bar */
+lv_coord_t meter_x70(float db, lv_coord_t w) {
     db = LV_CLAMP(S1, db, S9_40);
     return db <= S9 ? (db - S1) * w * 7 / 10 / (S9 - S1) : w * 7 / 10 + (db - S9) * w * 3 / 10 / (S9_40 - S9);
 }
@@ -626,8 +626,8 @@ static void signal_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     lv_draw_rect(draw_ctx, &rect, &a);
 
     /* segments 3 px wide, 1 px apart, lit to the level */
-    lv_coord_t lvl = in_tx ? 0 : signal_x(meter_db, w - 4), peak = in_tx ? 0 : signal_x(meter_peak, w - 4);
-    lv_coord_t s9 = signal_x(S9, w - 4);
+    lv_coord_t lvl = in_tx ? 0 : meter_x70(meter_db, w - 4), peak = in_tx ? 0 : meter_x70(meter_peak, w - 4);
+    lv_coord_t s9 = meter_x70(S9, w - 4);
 
     lv_draw_rect_dsc_init(&rect);
     for (lv_coord_t x = 0; x + 3 <= w - 4; x += 4) {
@@ -642,7 +642,7 @@ static void signal_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     dsc.font = &sony_14;
     for (int i = 0; i < (int)(sizeof(marks) / sizeof(marks[0])); i++) {
         dsc.color = marks[i].db > S9 ? TC(meter_over) : TC(text_dim);
-        label_at(draw_ctx, &dsc, x0 + 2 + signal_x(marks[i].db, w - 4), y0 + 43, marks[i].t, false);
+        label_at(draw_ctx, &dsc, x0 + 2 + meter_x70(marks[i].db, w - 4), y0 + 43, marks[i].t, false);
     }
 }
 
@@ -651,7 +651,7 @@ static void meter_draw_cb(lv_event_t *e) {
     lv_draw_ctx_t *draw_ctx = lv_event_get_draw_ctx(e);
 
     if (theme_shape.ops_room && !tx_readings) {      /* the TX readings as in any theme */
-        ops_room_meter_draw(o, draw_ctx, in_tx ? S1 : meter_db, in_tx ? S1 : meter_peak);
+        ops_room_meter_draw(o, draw_ctx, in_tx ? S1 : meter_db, in_tx ? S1 : meter_peak, meter_db_raw, in_tx);
         if (in_tx) tx_veil(o, draw_ctx);
         return;
     }

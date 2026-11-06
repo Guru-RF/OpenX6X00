@@ -57,7 +57,7 @@ def stroke_notch(im, n, inset, col):
 
 
 def brackets(im, length, inset, col, which="all"):
-    """Corner brackets: an L with a small diagonal, as on the Codec screen"""
+    """Corner brackets: an L with a small diagonal"""
     w, h = im.size
     px = im.load()
     i, L = inset, length
@@ -164,6 +164,7 @@ THEME = {
         "meter_weak": "#1d6b4a", "meter_bar": "#6dffb9", "meter_over": "#ff4136",
         "vfo_line": "#ff4136", "spot": "#d6ffe9",
         "bp_cw": "#0f4a36", "bp_dig": "#176b4b", "bp_ssb": "#1f8a5f", "bp_bcn": "#6b2a24", "bp_text": "#bfffe0",
+        "bp_out": "#0a2a1e",
         "off": "#12382a",
         "bar_grad": "#020c08",
         "strip_grad": "#020b07",

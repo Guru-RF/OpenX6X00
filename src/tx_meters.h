@@ -20,6 +20,9 @@ lv_obj_t *tx_info_init(lv_obj_t *parent);
  * them (#166) */
 bool tx_info_shown(void);
 
+/* Where the TX panel ends, y on the screen, as the theme places it (Ops Room's TRANSMIT band goes under it) */
+lv_coord_t tx_info_bottom(void);
+
 /* The S-meter box while transmitting with neither up (not the deck's scales): power, SWR and ALC */
 void tx_meters_draw(lv_obj_t *box, lv_draw_ctx_t *draw_ctx);
 

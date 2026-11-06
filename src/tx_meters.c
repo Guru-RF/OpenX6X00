@@ -166,6 +166,15 @@ static void panel_draw_cb(lv_event_t *e) {
     }
 }
 
+/* Framed red for TX. VISION: under the S-meter row; deck: under the frequency panel, off its S/SWR/ALC scales */
+static lv_coord_t panel_y(void) {
+    return theme_shape.deck ? FREQ_STRIP_Y + FREQ_STRIP_H + 8 : DIALOG_Y + 8 + METER_ROW_H;
+}
+
+lv_coord_t tx_info_bottom(void) {
+    return panel_y() + PANEL_H;
+}
+
 static lv_obj_t *make_label(lv_obj_t *parent, const lv_font_t *font, uint32_t color) {
     lv_obj_t *l = lv_label_create(parent);
     lv_obj_set_style_text_font(l, font, 0);
@@ -265,8 +274,7 @@ static void radio_cb(lv_event_t *e) {
     }
     if (theme_amber) return;   /* Amber Trey: its bar graph shows SWR and RF, the panel would cover it */
     if (!tx_info_shown()) return;   /* the S-meter box has them */
-    /* Framed red for TX. VISION: under the S-meter row; deck: under the frequency panel, off its S/SWR/ALC scales */
-    lv_obj_set_y(panel, theme_shape.deck ? FREQ_STRIP_Y + FREQ_STRIP_H + 8 : DIALOG_Y + 8 + METER_ROW_H);
+    lv_obj_set_y(panel, panel_y());
     update_head();
     lv_obj_set_style_text_color(alc_name, alc_greyed() ? TC(text_mute) : TC(text_value), 0);
     lv_obj_set_style_text_color(alc_value, alc_greyed() ? TC(text_mute) : TC(text), 0);
