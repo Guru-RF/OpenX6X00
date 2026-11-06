@@ -1,4 +1,4 @@
-# RS theme for the X6100 GUI, cut from an RS-BA1 screenshot (rsba1.png, 863x673).
+# RS theme for the X6100 GUI, cut from a screenshot of another maker's remote-control program (rsba1.png, 863x673).
 # Personal use only: not part of the firmware repo. Output: RS/ (theme.json + PNGs),
 # copy it to the SD card as /mnt/themes/RS/.
 #
@@ -90,7 +90,7 @@ theme = {
     'font': 'arial',
     'radius': 6, 'radius_btn': 5, 'radius_popup': 6, 'border': 1,
     'btn_gradient': True, 'box_gradient': False, 'focus_solid': True,
-    # LED on the buttons as on RS-BA1 (3 px in, 8 x 14 on a 23 px button), scaled to the 52 px ones
+    # LED on the buttons as in the screenshot (3 px in, 8 x 14 on a 23 px button), scaled to the 52 px ones
     'mark': [7, 16, 28],
     'pill_border': 1,       # indicators framed, as P.AMP / ATT / NOTCH
     'mode_box': True,       # the mode in a blue box, as LSB

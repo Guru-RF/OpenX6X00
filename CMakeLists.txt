@@ -96,8 +96,8 @@ else()
         install(DIRECTORY images DESTINATION share/x6100)
         # Callsign -> country for the FT8/FT4 table (AD1C, country-files.com)
         install(FILES third-party/cty/cty.dat DESTINATION share/x6100)
-        # No folder theme is installed: themes/RS is cut from a screenshot of Icom's RS-BA1
-        # (themes/make_rs.py, personal use only)
+        # No folder theme is installed: themes/ has them to copy to /mnt/themes (themes/README.md); themes/RS is
+        # cut from a screenshot of another maker's remote-control program (themes/make_rs.py, personal use only)
         # Pat, the Winlink client: built outside, by tools/pat/build.sh (buildroot/local-build.sh
         # passes its path), and installed as /usr/bin/pat, so the update bundle carries it too
         set(PAT_BINARY "" CACHE FILEPATH "Pat for the radio (tools/pat/build.sh)")
