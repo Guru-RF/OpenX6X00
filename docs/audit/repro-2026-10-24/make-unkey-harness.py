@@ -17,6 +17,7 @@ def fn(name):
 (p/'control_owner.c').write_text(Path('src/control_owner.c').read_text())
 pre = r'''
 #define _GNU_SOURCE
+#include "board.h"     /* the ranges handle_cmd clamps with (BOARD_RIT_MAX, #189) */
 #include "control_owner.h"
 #include "radio.h"
 #include <stdio.h>
