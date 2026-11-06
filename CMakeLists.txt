@@ -37,14 +37,14 @@ if(ENABLE_TESTING)
         FetchContent_MakeAvailable(aether_x6100_control)
 elseif(HOST_BUILD)
         # This PC: no NEON, the SDL window driver, the host board (board.h), the data and share
-        # directories under the build directory; liquid-dsp and ft8_lib from build-host/deps
-        # (host/build.sh puts them there)
+        # directories under the build directory; liquid-dsp and ft8_lib from HOST_DEPS, build-host/deps
+        # by default (host/build.sh puts them in its build folder's deps/ and passes that)
         add_compile_definitions(LV_DRAW_NEON=0 HOST_BUILD=1 USE_SDL=1 USE_DRM=0 USE_FBDEV=0)
         add_compile_definitions(BOARD_DATA="${HOST_DATA_DIR}" BOARD_SHARE="${CMAKE_BINARY_DIR}/share")
         add_compile_definitions(X6100_SBIN="${CMAKE_SOURCE_DIR}/rootfs/usr/sbin")    # the helpers, from the tree
         set(LV_DRIVERS_SDL ON)
         set(HW_BACKEND "stub" CACHE STRING "The radio backend: x6100 or stub")
-        set(HOST_DEPS ${CMAKE_SOURCE_DIR}/build-host/deps)
+        set(HOST_DEPS "${CMAKE_SOURCE_DIR}/build-host/deps" CACHE PATH "The host build's liquid-dsp, ft8_lib and boost")
         include_directories(${HOST_DEPS}/include)
         link_directories(${HOST_DEPS}/lib)
         add_link_options(-Wl,-rpath,${HOST_DEPS}/lib)

@@ -94,7 +94,7 @@ foreach(dir fonts ft8 js8 widgets params qth cluster field wspr cfg cw_decoder)
     add_subdirectory(${dir})
 endforeach()
 
-# ft8_lib headers (buildroot package ft8lib; the host build has them in build-host/deps);
+# ft8_lib headers (buildroot package ft8lib; the host build has them in HOST_DEPS, build-host/deps by default);
 # only for the GUI itself, not the libraries above
 if(NOT HOST_BUILD)
     include_directories(${CMAKE_SYSROOT}/usr/include/ft8lib/)

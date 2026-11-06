@@ -4,7 +4,7 @@
 #   host/docker/run.sh host/build.sh build
 #   host/docker/run.sh host/docker/shot.sh /src/build-docker/shot.png 8 F9 sleep:1
 # The container builds in build-docker/, not build-host/: on a Linux host what it writes is root's, and its CMake
-# cache names /src, so a build of this PC's own in build-host/ would fail on both. Remove it with
+# cache names /src, so a build of this PC's own in build-host/ would fail on both. Empty it (the volume too) with
 # host/docker/run.sh host/build.sh clean
 set -e
 cd "$(dirname "$0")/../.."

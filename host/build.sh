@@ -9,7 +9,8 @@
 #   host/build.sh clean      remove build-host/ (the dependencies and the data too)
 #
 # HOST_BUILD_DIR: another build folder than build-host/ (host/docker/run.sh: build-docker/, so the container's
-# build, owned by root on a Linux host and configured for /src, never meets this PC's own)
+# build, owned by root on a Linux host and configured for /src, never meets this PC's own). The dependencies go
+# in its deps/, which CMake is given as HOST_DEPS
 #
 # Copyright (c) 2026 RF.Guru
 set -e
@@ -53,9 +54,20 @@ deps() {
 build() {
     deps
     echo "== the GUI"
-    cmake -S . -B "$B" -G Ninja -DHOST_BUILD=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo > /dev/null
+    cmake -S . -B "$B" -G Ninja -DHOST_BUILD=ON -DHOST_DEPS="$DEPS" -DCMAKE_BUILD_TYPE=RelWithDebInfo > /dev/null
     cmake --build "$B" --target x6100_gui params_sqlite
     [ -e "$B/data/params.db" ] || { mkdir -p "$B/data"; cp "$B/params.db" "$B/data/params.db"; }
+}
+
+clean() {
+    # In the container deps/ is the ox-deps volume's mount point (host/docker/run.sh), which rm cannot remove:
+    # it is emptied, the rest of the build folder around it removed
+    if mountpoint -q "$DEPS" 2>/dev/null; then
+        find "$DEPS" -mindepth 1 -delete
+        find "$B" -mindepth 1 -maxdepth 1 ! -name deps -exec rm -rf {} +
+    else
+        rm -rf "$B"
+    fi
 }
 
 run() {
@@ -66,7 +78,7 @@ run() {
 case "${1:-all}" in
     build) build ;;
     run)   run ;;
-    clean) rm -rf "$B" ;;
+    clean) clean ;;
     all)   build && run ;;
     *)     echo "usage: host/build.sh [build|run|clean]" >&2; exit 2 ;;
 esac
