@@ -13,9 +13,10 @@
  *  The trail is bright behind the head and fades over its last FADE cells, so a step changes only the cells at the
  *  head and those at the tail: every FRAME_MS each column that moved invalidates those two, and only they are drawn,
  *  some 90 000 pixels in 40 areas a frame on the PC build (the whole trail a step was 160 000). The waterfall and
- *  the spectrum stop drawing their pictures meanwhile (not seen: backlight_seen()), their data goes on. The glyphs are made once from the font (fonts/matrix_20.c) as coverage
- *  masks, mirrored, and blended within their ink in the theme's colours (saver, saver_head on saver_bg) by LVGL's
- *  own blend: the 1bit theme's hooks (mono.c) make them ink and paper as everything else, the fade a stipple.
+ *  the spectrum stop drawing their pictures meanwhile (not seen: backlight_seen()), their data goes on. The glyphs
+ *  are made once from the font (fonts/matrix_20.c) as coverage masks, mirrored, and blended within their ink in the
+ *  theme's colours (saver, saver_head on saver_bg) by LVGL's own blend: the 1bit theme's hooks (mono.c) make them
+ *  ink and paper as everything else, the fade a stipple.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -62,7 +63,7 @@ static int         cols, rows;
 static column_t    col[MAX_COLS];
 static uint8_t    *atlas;       /* each glyph's coverage, mirrored, CELL_W x CELL_H */
 static lv_area_t   ink[GLYPHS]; /* where in its cell each glyph has any */
-static lv_opa_t    mask[CELL_W * CELL_H];  /* a glyph for the blend, which may write in it (mono.c) */
+static lv_opa_t    mask[CELL_W * CELL_H];  /* the part of a glyph blended, packed; the blend may write in it (mono.c) */
 
 /* xorshift32: the rain's randomness */
 static uint32_t rng = 0x2545F491u;
@@ -151,19 +152,26 @@ static lv_opa_t trail_opa(const column_t *c, int d) {
     return f <= 0 ? LV_OPA_COVER : (lv_opa_t)(255 - f * 215 / FADE);
 }
 
-/* One glyph in its cell, the colour at opa over what is there; only where the glyph has ink */
+/* One glyph in its cell, the colour at opa over what is there; only where the glyph has ink, in the area drawn.
+ * The mask is that area's, row after row: LVGL 8.3's blend into the radios' transparent screen (fill_argb, opa
+ * at its top) does not step over the rest of a mask wider than the area, and drew each row from the wrong place */
 static void cell(lv_draw_ctx_t *ctx, lv_coord_t x, lv_coord_t y, uint8_t glyph, lv_color_t color, lv_opa_t opa) {
-    lv_area_t              a = {x, y, x + CELL_W - 1, y + CELL_H - 1};
-    lv_area_t              b = {x + ink[glyph].x1, y + ink[glyph].y1, x + ink[glyph].x2, y + ink[glyph].y2};
+    lv_area_t              g = {x + ink[glyph].x1, y + ink[glyph].y1, x + ink[glyph].x2, y + ink[glyph].y2};
+    lv_area_t              b;
     lv_draw_sw_blend_dsc_t d;
 
-    if (b.x1 > b.x2) {
+    if (g.x1 > g.x2 || !_lv_area_intersect(&b, &g, ctx->clip_area)) {
         return;
     }
-    memcpy(mask, atlas + glyph * CELL_W * CELL_H, sizeof(mask));
+    lv_coord_t     w   = lv_area_get_width(&b);
+    const uint8_t *src = atlas + glyph * CELL_W * CELL_H + (b.y1 - y) * CELL_W + (b.x1 - x);
+
+    for (lv_coord_t r = 0; r <= b.y2 - b.y1; r++) {
+        memcpy(mask + r * w, src + r * CELL_W, w);
+    }
     memset(&d, 0, sizeof(d));
     d.blend_area = &b;
-    d.mask_area  = &a;
+    d.mask_area  = &b;
     d.mask_buf   = mask;
     d.mask_res   = LV_DRAW_MASK_RES_CHANGED;
     d.color      = color;

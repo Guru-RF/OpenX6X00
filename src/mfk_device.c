@@ -32,7 +32,7 @@ static void mfk_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
             turned = true;
         }
     }
-    if (turned && backlight_saver_tick()) {
+    if (turned && backlight_knob_tick()) {
         sum = 0;    /* the turn that ends the screensaver only ends it */
     }
     /* An open dropdown list moves one line a click: the detents of a fast turn, read together,

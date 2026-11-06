@@ -272,7 +272,7 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
   dark screen (Settings > Display > BACKLIGHT > Screen off) or the
   [screensaver](#screensaver) the first chord only brings the screen back,
   press it again; a key typed on a dark screen types as usual, on the
-  screensaver it only brings the screen back.
+  screensaver it only brings the screen back (held, it does not repeat).
 
 PTT from the keyboard. CapsLock+Space keys the radio as its PTT key does,
 with the same refusals where the radio may not transmit, the 0 W hold, the
@@ -1111,6 +1111,9 @@ Records the screen and the audio to an AVI file (MJPEG video, 800x480,
   full"). With less than 10 minutes of space left the radio shows "SD card:
   about N min left", again every minute; at 50 MB it stops by itself and closes the
   file properly ("SD card full, recording saved").
+- While recording, the [screensaver](#screensaver) does not come, and with
+  the panel dark (Screen off, POWER) the screen is still drawn into the
+  file.
 
 
 ### Walkie Talkie mode
@@ -1298,14 +1301,14 @@ its own speed, a pale head and a trail that fades at its end, the
 characters mirrored as in the film (the rain of the VFO-Knob's screensaver).
 It comes after Screensaver (min) minutes without use and stays until the
 radio is used. With Screen off (min) set, the screen goes dark at that time,
-counted from the last use too, with the screensaver before it.
+counted from the last key or knob as before, with the screensaver before it.
 
 | Setting | |
 |---|---|
 | Screensaver | None, or Matrix rain (the default) |
 | Screensaver (min) | minutes without use before it comes, 1 to 120, 5 by default; shown with a screensaver |
 | Screen off (min) | minutes without use before the screen goes dark, 0 never (the default); a screensaver shows until then. One that is not later than the screensaver's comes first, with no screensaver |
-| Screen always off | the screen stays dark: no screensaver, as before (above) |
+| Screen always off | the screen stays dark: no screensaver, as before (above); POWER shows it for Screen off minutes, one when that is 0 |
 
 So the choice is the screensaver alone (Screen off 0), or the screensaver
 and then dark (Screensaver 5, Screen off 30: the screensaver after 5
@@ -1313,16 +1316,25 @@ minutes, the screen dark after 30).
 
 - What counts as use: a key or a knob of the radio, a hand mic key, a
   keyboard, tuning from the browser panel, the remote screen's keys and
-  knobs, a new frequency from a TCI client or from Pat (Winlink), and with
-  a screensaver transmitting. Each starts the minutes again.
+  knobs, a new frequency from a TCI client or from Pat (Winlink). Each
+  starts the minutes again, the screensaver's and Screen off's.
 - Any TX ends the screensaver at once, whatever keyed it: the PTT key, the
-  hand mic, an app, CAT, TCI, the browser, the tuner. No screensaver comes
-  while the radio is on the air; the minutes start again when it is back on
-  receive. The radio never transmits behind the screensaver.
+  hand mic, an app, CAT, TCI, the browser, the tuner, the SWR scan (seen
+  within a second). No screensaver comes while the radio is on the air;
+  its minutes start again when it is back on receive. The radio never
+  transmits behind the screensaver. Screen off keeps its time all the
+  same, as before: FT8 on auto or a beacon do not keep the screen lit, it
+  goes dark Screen off minutes after the last key or knob, on the air or
+  not.
+- The low battery's warning ("Turning off in 30s") ends the screensaver
+  too, so it is read; a dark screen stays dark, as before.
 - The first key, knob turn or hand mic key on the screensaver only brings
-  the screen back: it does not tune, key or change anything. The next one
-  does. On a screen dark by Screen off the first key only lights it, as
-  before; a knob turned lights it and turns.
+  the screen back: it does not tune, key or change anything, and the rest
+  of that turn of a knob, for half a second, only brings it back too. The
+  next one does. A keyboard key held to wake it does not repeat into the
+  radio either. In CW a keyboard's paddle keys (`[`, `]`) key as always:
+  the TX then ends the screensaver. On a screen dark by Screen off the
+  first key only lights it, as before; a knob turned lights it and turns.
 - The POWER key on the screensaver brings the screen back, as any key; on
   the lit screen it turns it dark, as before.
 - Under the screensaver the radio works as it does with the screen lit: it
@@ -1333,6 +1345,12 @@ minutes, the screen dark after 30).
 - Someone watching the screen from a browser (Remote > Screen) sees the
   radio's screen, not the screensaver: it waits while they watch, and comes
   when they close the page. Screen off still darkens the panel at its time.
+  A screen recording (APP > Screen rec) is watched in the same way: no
+  screensaver in the file, and while the panel is dark the GUI, the
+  waterfall and the spectrum still go into it.
+- The screen that comes back shows the radio at once: the GUI is drawn as
+  the screensaver goes dark, and the waterfall and the spectrum draw again
+  as soon as they are seen, not at their next line.
 - The colours come from the theme: green on black in most themes, amber in
   Amber Trey, the paper on the ink in 1bit (the end of the trail dotted).
   A theme file can set them (`saver_bg`, `saver`, `saver_head`, see
@@ -1348,7 +1366,11 @@ screensaver before it: at 5 minutes, or a minute before the dark when that
 comes at 5 minutes or sooner (Screen off 3: the screensaver at 2, dark at
 3). Screen off 1 leaves no room for it: the screensaver is None there, the
 screen as before. Screen off 0 (never dark): the screensaver after 5
-minutes, never dark.
+minutes, never dark; set Screensaver to None for the screen always in view.
+A radio with Screen always off on and Screen off never changed keeps Screen
+off 5: POWER shows the screen 5 minutes, as before (0 would be one), and
+with Screen always off cleared later it goes dark at 5 with the screensaver
+at 4, as it would have.
 
 ### Audio tab
 

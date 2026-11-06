@@ -1940,6 +1940,7 @@ void main_screen_notify_low_power(bool is_low) {
         }
     } else if (!power_off_timer) {
         power_off_timer = timer_once(power_off_cb, 30000);
+        backlight_notice();     /* the warning seen, not under the screensaver */
 #ifdef BOARD_BAT_EXT_MIN
         /* On a supply too low to hold the battery up (board.h): the radio is plugged in, say why */
         float   ext, bat;

@@ -1344,6 +1344,11 @@ void waterfall_refresh_period_set(uint8_t k) {
     }
 }
 
+void waterfall_redraw() {
+    refresh_count = refresh_period;     /* not left out under a dialog */
+    scheduler_put_coalesced(refresh_waterfall);
+}
+
 /* ---- Where the picture is centred ---- */
 
 /* The passband, Hz from the VFO line: from the VFO up (USB), down (LSB) or both ways (AM, FM), as on

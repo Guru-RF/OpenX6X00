@@ -60,6 +60,7 @@ static kbd_hyper_t    hyper;        /* CapsLock held for a chord */
 static bool           dead;         /* the open keyboard's node reads ENODEV: unplugged, or its Bluetooth link gone */
 static bool           caps;         /* Caps Lock on, as xkb has it: only a CapsLock tapped alone turns it */
 static bool           woke_hold;    /* the press of the CapsLock held woke the screen: its first chord only did that */
+static int            swallowed = -1;   /* the key whose press ended the screensaver: its repeats and release too */
 
 /* The keyboard's Caps Lock light to ours. The light is the kernel console's (/dev/tty0), which turns
  * it at every CapsLock press, also one held for a chord: put back at the chord, and set at each
@@ -185,7 +186,16 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
             continue;
         }
         if (woke && saver) {
+            swallowed = ev.code;
             continue;   /* the key that ends the screensaver only ends it: nothing typed (on a dark screen it types) */
+        }
+        /* Its repeats and its release go no further either: LVGL, which never had its press, took a repeat for one.
+         * Pressed again, its release was lost (SYN_DROPPED): that press types */
+        if (ev.code == swallowed) {
+            swallowed = ev.value == 2 ? swallowed : -1;
+            if (ev.value != 1) {
+                continue;
+            }
         }
         *key      = xkb_process_key(ev.code, ev.value);     /* xkb follows Shift from these too */
         *scancode = ev.code;

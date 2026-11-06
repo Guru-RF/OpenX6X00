@@ -43,7 +43,7 @@ static void vol_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
             }
         }
         if (turned) {
-            bool woke = backlight_saver_tick();    /* the turn that ends the screensaver only ends it */
+            bool woke = backlight_knob_tick();     /* the turn that ends the screensaver only ends it */
 
             ctl_local_input();
             if (!woke) {
@@ -159,7 +159,7 @@ static void main_knob_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     }
     pthread_mutex_unlock(&knob_main.lock);
 
-    if (sum && !backlight_saver_tick()) {     /* the turn that ends the screensaver only ends it */
+    if (sum && !backlight_knob_tick()) {      /* the turn that ends the screensaver only ends it */
         rotary_data_t *ev = malloc(sizeof(*ev));
 
         ev->diff = sum;

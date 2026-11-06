@@ -43,3 +43,6 @@ void direct_hole_cb(lv_event_t *e);
 /* Dialogs draw the waterfall one refresh in k, and back to every one */
 void waterfall_refresh_period_set(uint8_t k);
 void waterfall_refresh_reset();
+/* Drawn again now, whole, at the next refresh even under a dialog: the screen seen again after the dark or the
+ * screensaver (screen_light.c) */
+void waterfall_redraw();

@@ -15,11 +15,14 @@
  * With screen_off_always it stays dark (a radio run from the VFO-Knob or a browser), only the
  * POWER key shows it for a while. When is screen_idle.c's; here what it says is done. While the
  * panel is dark or the screensaver is over the GUI, LVGL draws nothing of the GUI, unless a
- * remote viewer (remote_server.c) is looking at the screen. */
+ * remote viewer (remote_server.c) is looking at the screen or it is recorded (screen_rec.c). */
 
 #include "screen_light.h"
 #include "screen_idle.h"
+#include "screen_rec.h"
 #include "screen_saver.h"
+#include "spectrum_view.h"
+#include "waterfall_view.h"
 #include "lvgl/lvgl.h"
 #include "util.h"
 
@@ -30,7 +33,8 @@
 #include <unistd.h>
 
 #define SYS_BL "/sys/class/backlight/backlight/"
-#define STAGE_MS 1000       /* the minutes looked at every second */
+#define STAGE_MS 1000       /* the minutes, the radio's state and a recording looked at every second */
+#define KNOB_MS  500        /* the knob turn that ends the screensaver: its detents for so long only end it */
 
 static int            power_fd, level_fd;
 static screen_idle_t  idle;                 /* the stage and its times */
@@ -39,6 +43,8 @@ static bool           drawing = true;       /* LVGL's invalidation on (its count
 static bool           viewers;              /* a remote viewer: drawn even when dark */
 static int16_t        shown = -1;           /* backlight_level() */
 static lv_timer_t    *idle_timer;
+static uint64_t       knob_woke_ms;         /* a knob ended the screensaver then (backlight_knob_tick) */
+static bool           knob_woke;
 
 /* The driver counts the other way: 10 - level */
 static void write_level(int16_t level) {
@@ -65,19 +71,37 @@ static bool dark(void) {
     return stage == SCREEN_DARK;
 }
 
+/* The screen watched from afar, or recorded: the GUI drawn for them, dark or not, and no screensaver */
+static bool watched(void) {
+    return viewers || screen_rec_is_on();
+}
+
 /* Nothing of the GUI drawn while the panel is dark or under the screensaver, and nobody is watching from
  * afar. LVGL counts the calls: one only when it changes (with each viewer's coming and going it counted up,
- * and a dark screen was drawn on) */
+ * and a dark screen was drawn on). Seen again: all of it drawn, the waterfall and the spectrum now too, not
+ * from their next row */
 static void drawing_update(void) {
-    bool on = stage == SCREEN_LIT || viewers;
+    bool on = stage == SCREEN_LIT || watched();
 
-    if (on != drawing) {
-        drawing = on;
-        lv_disp_enable_invalidation(lv_disp_get_default(), on);
+    if (on == drawing) {
+        return;
     }
+    drawing = on;
+    lv_disp_enable_invalidation(lv_disp_get_default(), on);
     if (on) {
         lv_obj_invalidate(lv_scr_act());
+        waterfall_redraw();
+        spectrum_redraw();
     }
+}
+
+/* The GUI drawn once under the screensaver as it goes dark: the rain left in the buffers would be what the next
+ * wake shows first, until the GUI's first picture. The loop flips it in while the panel is dark (drm_commit) */
+static void gui_picture(void) {
+    lv_disp_enable_invalidation(lv_disp_get_default(), true);
+    lv_obj_invalidate(lv_scr_act());
+    lv_refr_now(NULL);
+    lv_disp_enable_invalidation(lv_disp_get_default(), false);
 }
 
 static void panel_dark(void) {
@@ -104,6 +128,9 @@ static void stage_show(void) {
     stage = idle.stage;
     if (was == SCREEN_SAVER) {
         screen_saver_hide();
+        if (stage == SCREEN_DARK && !drawing) {
+            gui_picture();
+        }
     }
     if (stage == SCREEN_DARK) {
         panel_dark();
@@ -137,9 +164,25 @@ static void light_again(void) {
     keys_light(params.brightness_buttons != BUTTONS_DARK);
 }
 
+/* The radio's state as well as its TX events: the SWR scan sends none, and transmits until stopped */
+static bool on_air(void) {
+    radio_state_t s = radio_get_state();
+
+    return s != RADIO_RX && s != RADIO_POWEROFF && s != RADIO_OFF;
+}
+
 static void stage_cb(lv_timer_t *t) {
+    bool air = on_air(), seen = watched();
+
+    if (air != idle.tx) {
+        backlight_tx(air);
+    }
+    if (seen != idle.viewers) {
+        screen_idle_viewers(&idle, seen);   /* a recording started or stopped */
+    }
     screen_idle_tick(&idle, get_time());
     stage_show();
+    drawing_update();
 }
 
 /* The settings as screen_idle.c takes them, in their ranges */
@@ -185,11 +228,39 @@ bool backlight_saver_tick() {
     return backlight_tick() && saver;
 }
 
+/* A knob is read every 10 ms: the detents of the turn that ended the screensaver, read in the next loops, only end
+ * it too, for KNOB_MS */
+bool backlight_knob_tick() {
+    uint64_t now = get_time();
+
+    if (backlight_saver_tick()) {
+        knob_woke    = true;
+        knob_woke_ms = now;
+        return true;
+    }
+    if (knob_woke && now - knob_woke_ms < KNOB_MS) {
+        return true;
+    }
+    knob_woke = false;
+    return false;
+}
+
 /* With a screensaver: on the air it is gone at once, TX in view as after a key */
 void backlight_tx(bool on) {
     bool saver = stage == SCREEN_SAVER;
 
     screen_idle_tx(&idle, on, get_time());
+    stage_show();
+    if (saver && stage == SCREEN_LIT) {
+        light_again();
+    }
+}
+
+/* As TX: the screensaver gone, the warning in view */
+void backlight_notice() {
+    bool saver = stage == SCREEN_SAVER;
+
+    screen_idle_notice(&idle, get_time());
     stage_show();
     if (saver && stage == SCREEN_LIT) {
         light_again();
@@ -239,7 +310,7 @@ void backlight_settings_changed() {
 
 void backlight_viewers(bool any) {
     viewers = any;
-    screen_idle_viewers(&idle, any);
+    screen_idle_viewers(&idle, watched());
     stage_show();
     drawing_update();
 }
@@ -249,5 +320,5 @@ bool backlight_is_dark() {
 }
 
 bool backlight_seen() {
-    return stage == SCREEN_LIT || viewers;
+    return stage == SCREEN_LIT || watched();
 }

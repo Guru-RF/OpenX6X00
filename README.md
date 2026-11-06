@@ -212,7 +212,7 @@ live, its keys and knobs, Sound, Mic and the Picture choice.
 | | |
 |---|---|
 | ![Settings, General](docs/screenshots/settings_general.png) **[Settings](docs/MANUAL.md#settings) > General**: the station, the ten tabs down the left | ![Settings, TCI server and Browser remote](docs/screenshots/settings_general_remote.png) **General**: the TCI server and the browser remote |
-| ![Settings, Display](docs/screenshots/settings_display.png) **Display**: backlight and screen off | ![Settings, Audio](docs/screenshots/settings_audio.png) **Audio**: Speaker always off |
+| ![Settings, Display](docs/screenshots/settings_display.png) **Display**: backlight, screensaver and screen off | ![Settings, Audio](docs/screenshots/settings_audio.png) **Audio**: Speaker always off |
 
 <details>
 <summary>More Settings tabs</summary>

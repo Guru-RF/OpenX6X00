@@ -36,11 +36,13 @@ flush and the dark screen's), so some 4 to 8 % of an A7 core by the usual factor
 
 - **On an X6100 and an X6200**: `top -d 1 -p $(pidof x6100_gui)` with the screensaver up (Screensaver (min) 1), lit
   in 3D and dark, receiving with FT8 open; the rain on the panel (the overlay plane the right way round, no GUI
-  showing through, the top layer's messages hidden), RF.Guru, 1bit and Amber Trey; the first key, a knob turn and a
-  hand mic key only bring the screen back; FT8 auto's TX ends it at once and none comes while on the air; POWER on
-  it, a theme change from the web page and the walkie mode under it; a radio updated with Screen off 3 goes dark at
-  3 with the rain from 2. If the X6100 finds it heavy: a slower rain or fewer columns (the work follows the cells the
-  columns move over a second, hardly the pictures a second).
+  showing through, the top layer's messages hidden, every glyph whole: tools/screen_saver draws it the radios' way
+  off the radio), RF.Guru, 1bit and Amber Trey; the first key, a knob turn (all of it) and a hand mic key only bring
+  the screen back; FT8 auto's TX and an SWR scan end it at once and none comes while on the air; saver then dark,
+  then a key: the GUI at once, not the rain, the waterfall and the spectrum current; POWER on it, a theme change
+  from the web page and the walkie mode under it; a radio updated with Screen off 3 goes dark at 3 with the rain
+  from 2, on FT8 auto too. If the X6100 finds it heavy: a slower rain or fewer columns (the work follows the cells
+  the columns move over a second, hardly the pictures a second).
 
 ## X6200: the short pulse at the start of each transmission, register 32 (#53)
 

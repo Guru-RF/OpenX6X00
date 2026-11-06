@@ -4,11 +4,12 @@
  *  Host test of the screensaver's and the screen off's times (src/screen_idle.c). The settings, the uses, TX, the
  *  POWER key and a viewer from afar as screen_light.c gives them, with its tick every second; what comes out is the
  *  stage it then shows. The screensaver after its minutes, the screen dark at the screen off time when there is one
- *  and never when not, the first use on the screensaver or a screen dark by the time only waking it, TX ending the
- *  screensaver and holding it off; without a screensaver, and with the screen always off, the screen off of before.
- *  Then the update (src/params/migrations.c, _16) on a params.db made from sql/params.sql, at the version of the
- *  release before: a radio whose screen off time was changed goes dark at that moment still, with the screensaver
- *  before it; every other radio takes the new defaults.
+ *  and never when not, the first use on the screensaver or a screen dark by the time only waking it, TX and a notice
+ *  ending the screensaver and holding it off, the dark at its time all the same; without a screensaver, and with the
+ *  screen always off, the screen off of before. Then the update (src/params/migrations.c, _16) on a params.db made
+ *  from sql/params.sql, at the version of the release before: a radio whose screen off time was changed goes dark at
+ *  that moment still, with the screensaver before it, one with the screen always off keeps POWER's 5 minutes; every
+ *  other radio takes the new defaults; and only once.
  *
  *    screen_idle_test <params.sql>
  */
@@ -104,25 +105,61 @@ static void times(void) {
     check(s.stage == SCREEN_LIT, "woken: lit");
     check(first(&s, 40 * MIN, 2 * 60 * MIN, SCREEN_SAVER) == 45 * MIN, "woken: the screensaver 5 minutes on");
 
-    /* TX ends the screensaver at once, and holds it off while on the air */
-    s = idle(SCREEN_SAVER_MATRIX, 5, 30, false);
+    /* TX ends the screensaver at once, and holds it off while on the air; the dark keeps the last key's time */
+    s = idle(SCREEN_SAVER_MATRIX, 5, 0, false);
     run(&s, 0, 6 * MIN);
     check(s.stage == SCREEN_SAVER, "TX: the screensaver up first");
     screen_idle_tx(&s, true, 6 * MIN);
     check(s.stage == SCREEN_LIT, "TX on: the screensaver gone at once");
-    check(run(&s, 6 * MIN, 2 * 60 * MIN) == SCREEN_LIT, "on the air for two hours: no screensaver, not dark");
+    check(run(&s, 6 * MIN, 2 * 60 * MIN) == SCREEN_LIT, "off 0, on the air for two hours: no screensaver");
     screen_idle_tx(&s, false, 2 * 60 * MIN);
     check(first(&s, 2 * 60 * MIN, 3 * 60 * MIN, SCREEN_SAVER) == 125 * MIN, "back on receive: the screensaver 5 on");
-    check(first(&s, 125 * MIN, 3 * 60 * MIN, SCREEN_DARK) == 150 * MIN, "and dark 30 minutes after TX");
-    screen_idle_tx(&s, true, 151 * MIN);
+    s = idle(SCREEN_SAVER_MATRIX, 5, 30, false);
+    run(&s, 0, 6 * MIN);
+    screen_idle_tx(&s, true, 6 * MIN);
+    check(first(&s, 6 * MIN, 60 * MIN, SCREEN_DARK) == 30 * MIN, "off 30, on the air: dark 30 minutes after the key");
+    check(screen_idle_use(&s, 31 * MIN), "a key on it: for waking");
+    check(run(&s, 31 * MIN, 60 * MIN) == SCREEN_LIT, "woken while on the air: lit while on the air, until the dark");
+    check(first(&s, 60 * MIN, 2 * 60 * MIN, SCREEN_DARK) == 61 * MIN, "dark 30 minutes after that key, TX or not");
+    screen_idle_tx(&s, false, 62 * MIN);
+    check(s.stage == SCREEN_DARK, "TX ending on a dark screen: dark");
+    screen_idle_tx(&s, true, 63 * MIN);
     check(s.stage == SCREEN_DARK, "TX on a dark screen: dark, as before");
-    check(screen_idle_use(&s, 152 * MIN), "a key on it: for waking");
-    check(run(&s, 152 * MIN, 200 * MIN) == SCREEN_LIT, "woken while on the air: lit while on the air");
     s = idle(SCREEN_SAVER_MATRIX, 5, 0, false);
     screen_idle_tx(&s, true, 4 * MIN);
     screen_idle_tx(&s, false, 4 * MIN + 30 * S);
     check(first(&s, 4 * MIN + 30 * S, 60 * MIN, SCREEN_SAVER) == 9 * MIN + 30 * S,
           "a short TX: the minutes from its end");
+
+    /* An FT8 auto CQ, battery saved: Screen off 3 after the update (the screensaver at 2), 13 s on the air in 30 */
+    s = idle(SCREEN_SAVER_MATRIX, 2, 3, false);
+    uint64_t dark = UINT64_MAX;
+    bool     saver = false;
+
+    for (uint64_t t = 0; t <= 20 * MIN && dark == UINT64_MAX; t += S) {
+        if (t % (30 * S) == 0 || t % (30 * S) == 13 * S) {
+            screen_idle_tx(&s, t % (30 * S) == 0, t);
+        }
+        screen_idle_tick(&s, t);
+        saver = saver || s.stage == SCREEN_SAVER;
+        dark  = s.stage == SCREEN_DARK ? t : dark;
+    }
+    check(!saver, "FT8 auto: never the screensaver");
+    check(dark == 3 * MIN, "FT8 auto, off 3: dark at 3 minutes, as before the update");
+
+    /* A notice to be read (the low battery's): the screensaver goes, comes again after its minutes; the dark keeps
+     * its time, a dark screen stays dark */
+    s = idle(SCREEN_SAVER_MATRIX, 5, 30, false);
+    run(&s, 0, 6 * MIN);
+    screen_idle_notice(&s, 6 * MIN);
+    check(s.stage == SCREEN_LIT, "a notice: the screensaver gone");
+    check(first(&s, 6 * MIN, 60 * MIN, SCREEN_SAVER) == 11 * MIN, "a notice: the screensaver again 5 minutes on");
+    check(first(&s, 11 * MIN, 60 * MIN, SCREEN_DARK) == 30 * MIN, "a notice: dark at 30 minutes still");
+    screen_idle_notice(&s, 31 * MIN);
+    check(s.stage == SCREEN_DARK, "a notice on a dark screen: dark");
+    s = idle(SCREEN_SAVER_NONE, 5, 5, false);
+    screen_idle_notice(&s, 4 * MIN);
+    check(first(&s, 0, 60 * MIN, SCREEN_DARK) == 5 * MIN, "None, a notice: dark at 5 minutes, as before");
 
     /* Someone watching from a browser: the screensaver waits, the dark comes at its time */
     s = idle(SCREEN_SAVER_MATRIX, 5, 30, false);
@@ -236,8 +273,9 @@ static int row(const char *name) {
     return v;
 }
 
-/* A new card's params.db (sql/params.sql), at the version `ver`; the screen off time an owner set (-1: none) */
-static void radio(int ver, int off_min) {
+/* A new card's params.db (sql/params.sql), at the version `ver`; the screen off time an owner set (-1: none), and
+ * Screen always off (-1: never set) */
+static void radio_always(int ver, int off_min, int always) {
     char sql[128];
 
     if (db) {
@@ -251,7 +289,15 @@ static void radio(int ver, int off_min) {
         snprintf(sql, sizeof(sql), "INSERT INTO params VALUES ('screen_off_min', %d)", off_min);
         sqlite3_exec(db, sql, NULL, NULL, NULL);
     }
+    if (always >= 0) {
+        snprintf(sql, sizeof(sql), "INSERT INTO params VALUES ('screen_off_always', %d)", always);
+        sqlite3_exec(db, sql, NULL, NULL, NULL);
+    }
     check(migrations_apply() == 0, "the migrations run");
+}
+
+static void radio(int ver, int off_min) {
+    radio_always(ver, off_min, -1);
 }
 
 /* The settings as params.c loads them: the defaults, and the rows over them */
@@ -263,6 +309,7 @@ static screen_idle_t loaded(void) {
     if ((v = row("screen_saver")) >= 0) s.saver = v;
     if ((v = row("screen_saver_min")) >= 0) s.saver_min = v;
     if ((v = row("screen_off_min")) >= 0) s.off_min = v;
+    if ((v = row("screen_off_always")) >= 0) s.always_off = v;
     screen_idle_start(&s, 0);
     return s;
 }
@@ -304,11 +351,31 @@ static void update(void) {
         check(first(&s, saver, 3 * 60 * MIN, SCREEN_DARK) == x * MIN, what);
     }
 
-    /* Once, at the version step: a time set afterwards stays as set */
-    radio(15, 3);
-    sqlite3_exec(db, "UPDATE params SET val = 4 WHERE name = 'screen_off_min'", NULL, NULL, NULL);
-    migrations_apply();
-    check(row("screen_saver_min") == 2, "applied once: a later change is the owner's");
+    /* The screen always off, Screen off never changed: POWER shows the screen 5 minutes still (0 is one there) */
+    radio_always(15, -1, 1);
+    check(row("screen_off_min") == 5 && row("screen_saver_min") == 4, "always off, not set: 5 minutes kept");
+    s = loaded();
+    check(s.stage == SCREEN_DARK, "always off: dark from the start");
+    screen_idle_power(&s, MIN);
+    check(first(&s, MIN, 60 * MIN, SCREEN_DARK) == 6 * MIN, "always off, POWER: shown 5 minutes, as before");
+    s.always_off = false;
+    screen_idle_settings(&s, 60 * MIN);
+    check(first(&s, 60 * MIN, 2 * 60 * MIN, SCREEN_SAVER) == 64 * MIN, "always off cleared: the screensaver at 4");
+    check(first(&s, 64 * MIN, 2 * 60 * MIN, SCREEN_DARK) == 65 * MIN, "always off cleared: dark at 5, as before");
+    radio_always(15, 10, 1);
+    check(row("screen_off_min") == 10 && row("screen_saver_min") < 0, "always off, set to 10: kept as set");
+    radio_always(15, -1, 0);
+    check(row("screen_off_min") < 0 && row("screen_saver_min") < 0, "always off set and cleared: the new defaults");
+
+    /* Once, at the version step: what is set afterwards stays as set, on a radio _16 wrote nothing for */
+    radio(15, 0);
+    sqlite3_exec(db, "UPDATE params SET val = 1 WHERE name = 'screen_off_min'", NULL, NULL, NULL);
+    check(migrations_apply() == 0, "the migrations again");
+    check(row("screen_saver") < 0, "applied once: Screen off set to 1 later leaves the screensaver on");
+    radio(15, -1);
+    sqlite3_exec(db, "INSERT INTO params VALUES ('screen_off_min', 3)", NULL, NULL, NULL);
+    check(migrations_apply() == 0, "the migrations again");
+    check(row("screen_saver_min") < 0, "applied once: Screen off set to 3 later leaves the screensaver's minutes");
 
     /* A new card: the migrations from its first version, nothing of this written */
     radio(1, -1);

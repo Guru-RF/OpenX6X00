@@ -4,13 +4,14 @@
  *  OpenX6X00 - when the screensaver comes and when the screen goes dark (screen_idle.c)
  *
  *  Three stages: the GUI lit, the screensaver over it, the panel dark. The minutes count from the last use: a key,
- *  a knob, the pointer, the hand mic, the browser panel, TCI or CAT tuning (whatever calls backlight_tick()). With a
+ *  a knob, the pointer, the hand mic, the browser panel, TCI or Pat tuning (whatever calls backlight_tick()). With a
  *  screensaver it comes after saver_min minutes, and the screen goes dark off_min minutes after the last use (0:
  *  never, the screensaver stays); a screen off time that is not later than the screensaver's comes first, with no
- *  screensaver. TX counts as use for the screensaver: it ends it at once, and while the radio is on the air the
- *  minutes do not run. The first use on the screensaver, or on a screen dark by the time, only wakes it. While
- *  someone watches the screen from a browser (the remote screen) the screensaver waits, they see the GUI; the dark
- *  comes at its time, as before.
+ *  screensaver. TX, and a warning to be read (screen_idle_notice()), end the screensaver at once; while the radio is
+ *  on the air none comes, and its minutes run again from the end of TX. The dark keeps the last use's time: TX does
+ *  not put it off, as before. The first use on the screensaver, or on a screen dark by the time, only wakes it.
+ *  While someone watches the screen from a browser (the remote screen) or it is recorded the screensaver waits,
+ *  they see the GUI; the dark comes at its time, as before.
  *
  *  Without a screensaver (SCREEN_SAVER_NONE) it is the screen off of before, exactly: dark after off_min minutes
  *  without a key or a knob, 0 never, TX changes nothing. always_off keeps the screen dark (a radio run from the knob
@@ -61,7 +62,8 @@ typedef struct {
     bool     power_off;     /* dark by the POWER key: until it again */
     bool     tx;            /* the radio on the air */
     bool     viewers;       /* the screen watched from a browser */
-    uint64_t use_ms;        /* the last use: the minutes count from it */
+    uint64_t use_ms;        /* the last use: the dark's minutes count from it */
+    uint64_t saver_ms;      /* the screensaver's count from here: the last use, the end of TX, a notice */
     uint64_t shown_ms;      /* always off: when POWER showed the screen */
 } screen_idle_t;
 
@@ -72,10 +74,15 @@ void screen_idle_start(screen_idle_t *s, uint64_t now_ms);
  * the key was for waking, not for the radio. A screen dark on purpose (POWER, always off) stays dark: false */
 bool screen_idle_use(screen_idle_t *s, uint64_t now_ms);
 
-/* The radio on the air or back on receive: with a screensaver it ends it, and the minutes run from the end of TX */
+/* The radio on the air or back on receive: with a screensaver it ends it, and the screensaver's minutes run from the
+ * end of TX. Not a use: the dark keeps its time */
 void screen_idle_tx(screen_idle_t *s, bool on, uint64_t now_ms);
 
-/* Someone watches the screen from a browser, or nobody any more */
+/* Something on the screen to be read (the low battery's warning): the screensaver goes, and comes again after its
+ * minutes. Not a use: the dark keeps its time */
+void screen_idle_notice(screen_idle_t *s, uint64_t now_ms);
+
+/* Someone watches the screen from a browser or records it, or nobody any more */
 void screen_idle_viewers(screen_idle_t *s, bool any);
 
 /* The POWER key's tap: dark when lit or under the screensaver, lit when dark */

@@ -844,6 +844,10 @@ void spectrum_update_min(float db) {
     auto_level(&level_min, db);
 }
 
+void spectrum_redraw() {
+    scheduler_put_coalesced(spectrum_refresh);
+}
+
 void spectrum_clear() {
     uint64_t now = get_time();
 
