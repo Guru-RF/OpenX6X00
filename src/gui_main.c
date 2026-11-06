@@ -283,22 +283,6 @@ static void services_start(void) {
     lv_timer_set_repeat_count(lv_timer_create(settings_note_cb, 3000, NULL), 1);
 }
 
-/* LVGL's clock: 5 ms ticks */
-static void *tick_thread(void *arg) {
-    for (;;) {
-        usleep(5000);
-        lv_tick_inc(5);
-    }
-    return NULL;
-}
-
-static void tick_start(void) {
-    pthread_t thread;
-
-    pthread_create(&thread, NULL, tick_thread, NULL);
-    pthread_detach(thread);
-}
-
 /* The events from the threads, the scheduled work, LVGL; then sleep until LVGL wants to
  * run again, at least 5 ms (when it says now) to keep the CPU free */
 /* A version installed by x6100-update is "pending" until the GUI has run a minute: then it is
@@ -369,7 +353,6 @@ int main(void) {
     radio_start();
     services_start();
     start_trace("services started");
-    tick_start();
 
     lv_scr_load(screen);
     walkie_init(screen);      /* its screen instead, when on */
