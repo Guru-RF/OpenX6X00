@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -36,13 +37,23 @@ void said_clear(void);
 /* The base as radio.c left it, through the real hw_stub.c (hw_vfo_set_freq, hw_set_i and hw_set_f wrapped). After
  * every write, and at every wr12_want and the WR12 going out: with the VFO in use on the WR12's IF, or the WR12 out
  * of its bypass or asked out of it, the power at 0 W, VOX off, KEY Train on, neither PTT nor the modem set and the
- * base's own TX outside its band table shut (open TX at 0), or a violation (the first one's words kept) */
+ * base's own TX outside its band table shut (open TX at 0); with the dial where TX is refused (receive only, outside
+ * the amateur bands with TX outside them off), the open TX at 0 or the power at 0 W: the hold covers the moment until
+ * the dial has settled and the shut goes (#176). Else a violation (the first one's words kept). Where the open TX
+ * must be 1, and Birdie Cal's shut, the cases look themselves: it goes once the dial has settled. The CW key's pin
+ * (hw_pin_set wrapped) is set from another thread in one case: atomic */
 typedef struct {
     int32_t vfo[2];
     int     cur;
     float   pwr;
     bool    vox, train, iq, ptt, modem;
-    int     open_tx;        /* HW_OPEN_TX: 1 as x6200_control_init leaves it */
+    atomic_bool key;        /* the GUI's CW key */
+    int     open_tx;        /* HW_OPEN_TX: 1 as x6200_control_init leaves it (the test may say 0) */
+    int     open_tx_writes; /* tries to write it, those that failed too */
+    int     open_tx_fails;  /* the test's: so many of the next tries fail, nothing reaches the base */
+    int     open_tx_at_vfo; /* the open TX when a VFO last went somewhere */
+    int     open_tx_at_cur; /* and when the VFO in use last changed */
+    int     open_tx_at_key; /* and when PTT, the modem or the CW key last went down */
     float   pwr_at_cur;     /* the power when the VFO in use last changed */
     int     violations;
     char    first[200];
@@ -67,3 +78,14 @@ void wr12_back_in(void);    /* AT+BYPASS=1 answered: in its bypass again, TX may
 void wr12_lost(void);       /* let go (unplugged, not answering): not ready, out of its bypass as it was */
 void wr12_gone(void);       /* unplugged GONE_MS: not out of its bypass any more */
 void fake_start_out(void);  /* before radio_start: maybe out of its bypass, as after a crash (/tmp/wr12-out) */
+
+/* The CW Trainer open or closed (cw_trainer_on), which radio.c is not told of */
+void fake_trainer(bool open);
+
+/* radio_thread.c: one turn of the radio thread at the base's open TX; the base in TX by itself (the hand mic's PTT)
+ * or back in RX; a write of the open TX on its way, as open_tx_send has it (the radio lock held, open_tx_busy set),
+ * and its end */
+void radio_thread_turn(void);
+void base_keys_itself(bool tx);
+void open_tx_write_begin(void);
+void open_tx_write_end(void);

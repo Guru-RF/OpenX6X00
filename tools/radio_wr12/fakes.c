@@ -595,8 +595,16 @@ bool __real_hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz);
 bool __real_hw_set_i(hw_param_t p, int32_t v);
 bool __real_hw_set_f(hw_param_t p, float v);
 
+/* Where the GUI refuses TX on the dial of the VFO in use (no split here), the WR12 aside: cfg_tx_refusal's bands */
+static bool dial_refused(void) {
+    int32_t dial = s_cfg_band_current_vfo.i == RADIO_VFO_A ? s_cfg_band_vfoa_freq.i : s_cfg_band_vfob_freq.i;
+
+    return ham_tx_check(dial, cfg_is_tx_freq(dial), shift_for(dial) != 0, s_cfg_tx_outside_bands.i) != HAM_TX_OK;
+}
+
 /* After every write to the base and every wr12_want: the VFO in use on the WR12's IF, or the WR12 out of its bypass or
- * asked out of it, and not held, or keyed, or the base's own TX outside its band table open */
+ * asked out of it, and not held, or keyed, or the base's own TX outside its band table open; the dial refused, and
+ * the base open at its power */
 static void base_look(const char *what) {
     bool        held = base.pwr == 0.0f && !base.vox && base.train && !base.ptt && !base.modem && base.open_tx == 0;
     const char *why  = base.vfo[base.cur] == WR12_IF_HZ ? "the VFO in use on the IF"
@@ -609,27 +617,51 @@ static void base_look(const char *what) {
                  "%s: %s, VFO %c, PWR %.1f W, VOX %d, Train %d, PTT %d, modem %d, open TX %d", what, why,
                  "AB"[base.cur], base.pwr, base.vox, base.train, base.ptt, base.modem, base.open_tx);
     }
+    if (!why && dial_refused() && base.open_tx != 0 && base.pwr != 0.0f && !base.violations++) {
+        snprintf(base.first, sizeof(base.first), "%s: the dial where TX is refused, VFO %c, PWR %.1f W, open TX %d",
+                 what, "AB"[base.cur], base.pwr, base.open_tx);
+    }
 }
 
 bool __wrap_hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz) {
     base.vfo[vfo] = hz;
+    base.open_tx_at_vfo = base.open_tx;
     base_look("a VFO");
     return __real_hw_vfo_set_freq(vfo, hz);
 }
 
 bool __wrap_hw_set_i(hw_param_t p, int32_t v) {
     switch (p) {
-        case HW_VFO_CUR:    base.cur = v; base.pwr_at_cur = base.pwr; break;
+        case HW_VFO_CUR:    base.cur = v; base.pwr_at_cur = base.pwr; base.open_tx_at_cur = base.open_tx; break;
         case HW_VOX:        base.vox = v; break;
         case HW_KEY_TRAIN:  base.train = v; break;
         case HW_IQ_SWAP:    base.iq = v; break;
-        case HW_PTT:        base.ptt = v; break;
-        case HW_MODEM:      base.modem = v; break;
-        case HW_OPEN_TX:    base.open_tx = v; break;
+        case HW_PTT:        base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.ptt = v; break;
+        case HW_MODEM:      base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.modem = v; break;
+        case HW_OPEN_TX:
+            base.open_tx_writes++;
+            if (base.open_tx_fails > 0) {
+                base.open_tx_fails--;
+                return false;   /* as hw_x6200.c when the block is not as it must be: not written */
+            }
+            base.open_tx = v;
+            break;
         default:            break;
     }
     base_look("a setting");
     return __real_hw_set_i(p, v);
+}
+
+void __real_hw_pin_set(hw_pin_t pin, bool on);
+
+void __wrap_hw_pin_set(hw_pin_t pin, bool on) {
+    if (pin == HW_PIN_MORSE_KEY) {
+        if (on) {
+            base.open_tx_at_key = base.open_tx;
+        }
+        atomic_store(&base.key, on);
+    }
+    __real_hw_pin_set(pin, on);
 }
 
 bool __wrap_hw_set_f(hw_param_t p, float v) {
@@ -784,6 +816,11 @@ bool __wrap_base_no_data(uint64_t now_ms, uint64_t pack_ms, bool seen) {
     return false;
 }
 
+/* The base log taken as free: its one line a second is tools/base_guard's, and the clock here is the test's */
+bool __wrap_base_guard_log_free(void) {
+    return true;
+}
+
 bool btaudio_speaker_muted(void) {
     return false;
 }
@@ -807,8 +844,14 @@ void clock_update_power(float ext, float bat, uint8_t cap, bool charge) {
 void cw_encoder_stop() {
 }
 
+static bool trainer;
+
+void fake_trainer(bool open) {
+    trainer = open;
+}
+
 bool cw_trainer_on(void) {
-    return false;
+    return trainer;
 }
 
 void dialog_msg_voice_ptt_pressed(void) {

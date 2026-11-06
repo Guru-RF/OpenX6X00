@@ -143,8 +143,8 @@ typedef enum {
     HW_NR_LEVEL,
     HW_IQ_SWAP,         /* the X6200 with the WR12: I and Q of its IF the other way round; compared first, as a register */
     HW_OPEN_TX,         /* the X6200: the base keys outside its own band table (byte 280 of its calibration block);
-                         * compared first with what the base has, 1 from x6200_control_init. hw_set_i: true when the
-                         * base has it as asked now, sent or so already; false when refused or failed (hw_x6200.c) */
+                         * read from the base at each call, radio.c keeping what it has. hw_set_i: true when the base
+                         * has it as asked now, written or so already; false when refused or failed (hw_x6200.c) */
     HW_PARAM_COUNT
 } hw_param_t;
 

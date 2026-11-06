@@ -221,29 +221,89 @@ const uint8_t *hw_cal_block(size_t *len) {
     return cal_read ? cal : NULL;
 }
 
-/* The base's TX outside its own band table (HW_OPEN_TX, #134): byte 280 of the block, 1 open. x6200_control_init sends
- * the block back at 0xf000 with it at 1, at the start only; Xiegu's app sends it at 0 (fullband-tx=disable in
+/* The base's TX outside its own band table (HW_OPEN_TX, #134, #176): byte 280 of the block, 1 open. x6200_control_init
+ * sends the block back at 0xf000 with it at 1, at the start only; Xiegu's app sends it at 0 (fullband-tx=disable in
  * /etc/xgradio/xgradio.conf), and the base then keys only inside the band table of the same block (160 to 6 m; 60 m
  * 5.332-5.405 MHz), whatever the VFO and the TX bits say. The base keeps it in RAM: a cold start reads 0 again, and
- * saving the block is host_cmd 0x8005, which nothing here sends.
+ * saving the block is host_cmd 0x8005, which nothing here sends. Read from the base at every call: radio.c keeps
+ * what the base has, and asks only for a change, or when it does not know.
  * The block holds the radio's factory calibration and the PA bias (#173), and this write comes in the middle of a
- * run, so only a block known good goes back: read twice and the same, byte 280 a 0 or a 1 (the library's own check),
- * the bias in it a known one, and read back as sent after the write. Anything else leaves the block alone. The known
- * bias: what went to register 41 last (the library's copy, drive low, final high: 0 from x6200_control_init until
- * radio.c sends this radio's), or the block's as read at the start (cal): a GUI started while the WR12 may be out of
- * its bypass asks for the shut from the first VFO on, before radio.c sends the bias.
+ * run, so only a block known good goes back: read twice and the same, byte 280 a 0 or a 1 (the library's own check).
+ * As asked already: nothing written, but after a write of ours in doubt that left the factory calibration not as
+ * before (put back, cal_fix). Else the bias in it a known one, its factory calibration as this run found it (ref
+ * below), and after the write read back as sent, written once more if not (OPEN_TX_WRITES). Anything else leaves the
+ * block alone. The known bias: what went to register 41 last (the library's copy, drive low, final high: 0 from
+ * x6200_control_init until radio.c sends this radio's), or the block's as read at the start (cal). The base copies
+ * register 41 into the block once radio.c has sent it (ea4iln's bench), not the library's 0, and maybe not at once:
+ * a write just after finds the start's. radio.c writes from its radio thread, which starts after the bias is sent,
+ * or onto the WR12's IF, once the WR12 is set up, later still: so pa_bias_send stays at the end of radio_start, where
+ * the start was tried on a radio.
  * Under the radio lock, like every write of the library (radio.c), each transfer one I2C_RDWR the kernel runs whole:
- * about 0.2 s for the four of them at 100 kHz, 20 ms more when the read back takes its tries. -1: not known (refused
- * or failed), 1 as x6200_control_init leaves it */
-static int open_tx = 1;
+ * about 0.2 s for the four of them at 100 kHz, 0.4 s at most when it is written twice. One line in the base log for
+ * each call, its outcome (that log takes one line a second), but not the same line twice in a row: a write that
+ * keeps failing the same way, tried again every minute (radio.c), has it once, and stderr each time */
+#define OPEN_TX_WRITES  2               /* the block written at most so often in a call: once more when not read back */
+#define OPEN_TX_REPAIRS 2               /* calls that put the factory calibration back after a write in doubt */
+#define READ_BACK_US    10000           /* between the reads after a write, in case the base takes it a moment later */
+
+/* The block's factory calibration as this run found it (ref): the block as read at the start (cal), or without that
+ * the first two reads here. Byte 0 and bytes 280-284 are not looked at: a base 1.0.8 changed byte 0 by itself (10 to
+ * 100 and back, #176), and the GUI sets the others (byte 280 here, the bias through register 41, which the base copies
+ * in). Not as ref, the block is left alone and the bytes logged; found the same way again at the next call (odd),
+ * with no write of ours in doubt, it is taken for ref from then on: a byte the base changes by itself, or a read at
+ * the start gone wrong. Writing back what the base has changes nothing of its calibration, where refusing for the
+ * whole run would leave the base keying where the GUI refuses, or keying nothing where it lets TX go, until the base
+ * loses power. In doubt (a write of ours that failed, or was not read back as sent or not at all: it may have reached
+ * the base wrongly) a block not as ref is ours to put right: ref's factory calibration written back, as the block had
+ * it in the reads before the first such write (cal_fix), until a call finds it as ref again. Taking the battery and
+ * the supply out for a minute brings the base's own back; whether a normal power-off with the battery in does is not
+ * known yet (#173) */
+static uint8_t ref[PA_BIAS_BLOCK_LEN], odd[PA_BIAS_BLOCK_LEN];
+static bool    ref_taken, odd_seen, in_doubt;
+static int     repairs;                 /* calls that put it back since the last one found as ref */
 
 static bool cal_read_tries(int fd, uint8_t *buf) {
-    for (int fails = 0; !base_read(fd, BASE_CAL, buf, PA_BIAS_BLOCK_LEN); usleep(RETRY_US)) {
-        if (++fails >= TRIES) {
-            return false;
+    int fails = 0;
+
+    while (!base_read(fd, BASE_CAL, buf, PA_BIAS_BLOCK_LEN) && ++fails < TRIES) {
+        usleep(RETRY_US);
+    }
+    return fails < TRIES;
+}
+
+static bool cal_write_tries(int fd, const uint8_t *buf) {
+    int fails = 0;
+
+    while (!base_write(fd, BASE_CAL_WRITE, buf, PA_BIAS_BLOCK_LEN) && ++fails < TRIES) {
+        usleep(RETRY_US);
+    }
+    return fails < TRIES;
+}
+
+/* What cal_diff looks at: the whole block; what the base keeps of a write (not byte 0 nor the bias, the base's own:
+ * ref above); the factory calibration (not byte 280 either) */
+enum { CAL_ALL, CAL_KEPT, CAL_FACTORY };
+
+/* Whether cal_diff looks at byte i, for what */
+static bool cal_counts(int i, int what) {
+    bool own = i == 0 || (i >= PA_BIAS_DRIVE_AT && i < PA_BIAS_FINAL_AT + 2);
+
+    return what == CAL_ALL || (!own && (what == CAL_KEPT || i != BASE_CAL_OPEN_TX));
+}
+
+/* The bytes two blocks differ in, the first one in *at */
+static int cal_diff(const uint8_t *a, const uint8_t *b, int what, int *at) {
+    int n = 0;
+
+    for (int i = 0; i < PA_BIAS_BLOCK_LEN; i++) {
+        if (!cal_counts(i, what)) {
+            continue;
+        }
+        if (a[i] != b[i] && !n++) {
+            *at = i;
         }
     }
-    return true;
+    return n;
 }
 
 static uint32_t bias_in(const uint8_t *block) {
@@ -251,80 +311,173 @@ static uint32_t bias_in(const uint8_t *block) {
          | (uint32_t)block[PA_BIAS_FINAL_AT + 1] << 24;
 }
 
-/* Why the block must not go back, NULL when it may */
-static const char *open_tx_refusal(int fd, uint8_t *blk) {
-    static uint8_t again[PA_BIAS_BLOCK_LEN];
-    uint32_t       sent = x6200_control_get(x6200_biasdrive_biasfinal);
-    uint32_t       bias;
-
-    if (!cal_read_tries(fd, blk) || !cal_read_tries(fd, again)) {
-        return "not read";
+/* A write of ours in doubt (ref above), and the block's factory calibration not as ref since: the bytes in *n, the
+ * first one in *at. Found as ref, no longer in doubt */
+static bool cal_spoilt(const uint8_t *blk, int *n, int *at) {
+    if (!in_doubt) {
+        return false;
     }
-    if (memcmp(blk, again, PA_BIAS_BLOCK_LEN)) {
-        return "two reads differ";
+    if (!(*n = cal_diff(ref, blk, CAL_FACTORY, at))) {
+        in_doubt = odd_seen = false;
+        repairs = 0;
+        return false;
     }
-    if (blk[BASE_CAL_OPEN_TX] > 1) {
-        return "byte 280 neither 0 nor 1";
-    }
-    bias = bias_in(blk);
-    if (bias != sent && !(cal_read && bias == bias_in(cal))) {
-        fprintf(stderr, "hw_x6200: PA bias %u/%u in the calibration block, %u/%u sent, %u/%u at the start\n",
-                bias & 0xffff, bias >> 16, sent & 0xffff, sent >> 16, cal_read ? bias_in(cal) & 0xffff : 0,
-                cal_read ? bias_in(cal) >> 16 : 0);
-        return "PA bias not a known one";
-    }
-    return NULL;
+    return true;
 }
 
-/* After the write: the block read back as sent, a few times 10 ms apart in case the base takes it a moment later */
-#define READ_BACK_US    10000
+/* blk spoilt (cal_spoilt, n bytes, the first at): ref's factory calibration put in it again, byte 0 and the bias left
+ * as the base has them (cal_put then writes it). OPEN_TX_REPAIRS calls at most until one finds it as ref: a base that
+ * takes a byte wrongly at every write is not written again and again, the block left alone then. False: not, why
+ * says where; note: put back */
+static bool cal_fix(uint8_t *blk, int n, int at, char *why, char *note, size_t size) {
+    if (repairs >= OPEN_TX_REPAIRS) {
+        snprintf(why, size,
+                 "the calibration not as at the start at byte %d, 0x%02x then, 0x%02x now (%d in all), after a write "
+                 "in doubt, put back %d times", at, ref[at], blk[at], n, repairs);
+        return false;
+    }
+    repairs++;
+    snprintf(note, size, "the calibration put back as at the start, byte %d 0x%02x, 0x%02x before (%d in all)", at,
+             ref[at], blk[at], n);
+    for (int i = 0; i < PA_BIAS_BLOCK_LEN; i++) {
+        if (cal_counts(i, CAL_FACTORY)) {
+            blk[i] = ref[i];
+        }
+    }
+    return true;
+}
 
-static bool read_back(int fd, const uint8_t *blk) {
+/* The block's factory calibration as ref has it (above), no write of ours in doubt (cal_spoilt first). False: not,
+ * why says where; note: ref taken anew */
+static bool cal_as_ref(const uint8_t *blk, char *why, char *note, size_t size) {
+    int n, at = 0, odd_at = 0;
+
+    if (!ref_taken) {
+        memcpy(ref, cal_read ? cal : blk, sizeof(ref));
+        ref_taken = true;
+    }
+    if (!(n = cal_diff(ref, blk, CAL_FACTORY, &at))) {
+        odd_seen = false;
+        return true;
+    }
+    if (odd_seen && !cal_diff(odd, blk, CAL_FACTORY, &odd_at)) {
+        snprintf(note, size, "the calibration taken as it is now, byte %d 0x%02x at the start, 0x%02x now (%d in all)",
+                 at, ref[at], blk[at], n);
+        memcpy(ref, blk, sizeof(ref));
+        odd_seen = false;
+        return true;
+    }
+    memcpy(odd, blk, sizeof(odd));
+    odd_seen = true;
+    snprintf(why, size, "the calibration not as at the start at byte %d, 0x%02x then, 0x%02x now (%d in all)", at,
+             ref[at], blk[at], n);
+    return false;
+}
+
+/* After a write: the block read back, again READ_BACK_US later when that read is not as sent, as the base keeps it
+ * (CAL_KEPT). The bytes not as sent in the last read, the first one in *at and its value in *got; -1 none read */
+static int read_back(int fd, const uint8_t *blk, int *at, uint8_t *got) {
     static uint8_t back[PA_BIAS_BLOCK_LEN];
+    int            n = -1;
 
-    for (int i = 0; i < TRIES; i++) {
+    for (int i = 0; i < 2 && n; i++) {
         if (i) {
             usleep(READ_BACK_US);
         }
-        if (base_read(fd, BASE_CAL, back, sizeof(back)) && !memcmp(blk, back, sizeof(back))) {
-            return true;
+        if (cal_read_tries(fd, back) && (n = cal_diff(blk, back, CAL_KEPT, at))) {
+            *got = back[*at];
         }
+    }
+    return n;
+}
+
+/* blk, byte 280 changed, to the base and read back; written again while it comes back not as sent, OPEN_TX_WRITES in
+ * all: a byte the base took wrongly is put back so, and one it changes by itself after a write is not fought for
+ * long (byte 0 and the bias not at all: read_back). False: why says what went wrong, and the write is in doubt (ref
+ * above): a failed transfer too, which may have reached the base in part */
+static bool cal_put(int fd, const uint8_t *blk, char *why, char *note, size_t size) {
+    uint8_t got = 0;
+    int     n = 0, at = 0;
+
+    for (int w = 1; w <= OPEN_TX_WRITES; w++) {
+        if (!cal_write_tries(fd, blk)) {
+            in_doubt = true;
+            snprintf(why, size, "not written (%d tries)%s", TRIES, w > 1 ? " after one not read back as sent" : "");
+            return false;
+        }
+        if ((n = read_back(fd, blk, &at, &got)) <= 0) {
+            break;
+        }
+        if (w < OPEN_TX_WRITES) {
+            size_t len = strlen(note);
+
+            snprintf(note + len, size - len, "%swritten again, byte %d read back 0x%02x the first time (%d in all)",
+                     len ? "; " : "", at, got, n);
+        }
+    }
+    if (!n) {
+        in_doubt = false;   /* as sent: the factory calibration as ref, or as cal_fix put it back */
+        repairs = 0;
+        return true;
+    }
+    in_doubt = true;
+    if (n < 0) {
+        snprintf(why, size, "written, not read back (%d tries, twice)", TRIES);
+    } else {
+        snprintf(why, size, "written %d times, not read back as sent at byte %d, 0x%02x sent, 0x%02x back (%d in all)",
+                 OPEN_TX_WRITES, at, blk[at], got, n);
     }
     return false;
 }
 
+/* The call's line: on stderr, and in the base log unless it is the line before */
 static void open_tx_say(bool on, const char *what, const char *why) {
-    fprintf(stderr, "hw_x6200: TX outside the base's band table %s%s%s\n", what, why ? ": " : "", why ? why : "");
-    base_guard_log("open TX %d: %s%s%s", on, what, why ? ": " : "", why ? why : "");
+    static char last[200];
+    char        line[200];
+
+    snprintf(line, sizeof(line), "open TX %d: %s%s%s", on, what, why[0] ? ": " : "", why);
+    fprintf(stderr, "hw_x6200: TX outside the base's band table %s%s%s\n", what, why[0] ? ": " : "", why);
+    if (strcmp(line, last)) {
+        if (base_guard_log_free()) {
+            snprintf(last, sizeof(last), "%s", line);   /* else the line is only counted there: again next time */
+        }
+        base_guard_log("%s", line);
+    }
 }
 
 static bool open_tx_set(bool on) {
-    static uint8_t blk[PA_BIAS_BLOCK_LEN];
-    const char    *why;
-    int            fd = open(BASE_I2C, O_RDWR);
+    static uint8_t blk[PA_BIAS_BLOCK_LEN], again[PA_BIAS_BLOCK_LEN];
+    char           why[160] = "", note[160] = "";
+    const char    *done = NULL;
+    uint32_t       sent = x6200_control_get(x6200_biasdrive_biasfinal), bias;
+    int            fd = open(BASE_I2C, O_RDWR), n = 0, at = 0;
+    bool           fix = false;
 
-    open_tx = -1;
     if (fd < 0) {
-        open_tx_say(on, on ? "not opened" : "not shut", strerror(errno));
-        return false;
-    }
-    why = open_tx_refusal(fd, blk);
-    if (!why && blk[BASE_CAL_OPEN_TX] == on) {
-        close(fd);
-        open_tx = on;
-        open_tx_say(on, on ? "open already" : "shut already", NULL);
-        return true;
-    }
-    if (!why) {
+        snprintf(why, sizeof(why), "%s: %s", BASE_I2C, strerror(errno));
+    } else if (!cal_read_tries(fd, blk) || !cal_read_tries(fd, again)) {
+        snprintf(why, sizeof(why), "not read (%d tries)", TRIES);
+    } else if ((n = cal_diff(blk, again, CAL_ALL, &at))) {
+        snprintf(why, sizeof(why), "two reads differ at byte %d (%d in all)", at, n);
+    } else if (blk[BASE_CAL_OPEN_TX] > 1) {
+        snprintf(why, sizeof(why), "byte 280 at %u, neither 0 nor 1", blk[BASE_CAL_OPEN_TX]);
+    } else if (!(fix = cal_spoilt(blk, &n, &at)) && blk[BASE_CAL_OPEN_TX] == on) {
+        done = on ? "open already" : "shut already";
+    } else if ((bias = bias_in(blk)) != sent && !(cal_read && bias == bias_in(cal))) {
+        snprintf(why, sizeof(why), "PA bias not a known one: %u/%u in the block, %u/%u sent, %u/%u at the start",
+                 bias & 0xffff, bias >> 16, sent & 0xffff, sent >> 16, cal_read ? bias_in(cal) & 0xffff : 0,
+                 cal_read ? bias_in(cal) >> 16 : 0);
+    } else if (fix ? cal_fix(blk, n, at, why, note, sizeof(why)) : cal_as_ref(blk, why, note, sizeof(why))) {
         blk[BASE_CAL_OPEN_TX] = on;
-        why = !base_write(fd, BASE_CAL_WRITE, blk, sizeof(blk)) ? "write failed"
-            : !read_back(fd, blk)                                ? "not read back as sent"
-                                                                 : NULL;
+        if (cal_put(fd, blk, why, note, sizeof(why))) {
+            done = on ? "opened" : "shut";
+        }
     }
-    close(fd);
-    open_tx = why ? -1 : on;
-    open_tx_say(on, why ? (on ? "not opened" : "not shut") : (on ? "opened" : "shut"), why);
-    return !why;
+    if (fd >= 0) {
+        close(fd);
+    }
+    open_tx_say(on, done ? done : on ? "not opened" : "not shut", done ? note : why);
+    return done != NULL;
 }
 
 /* Register 32 as Xiegu's firmware sets it at the start: 0, then 0x0a, between the CW keyer's register and the QSK
@@ -515,9 +668,8 @@ bool hw_set_i(hw_param_t p, int32_t v) {
             x6200_control_cmd(x6200_sple_atue_trx, n);
             break;
         }
-        case HW_OPEN_TX:
-            if (open_tx == (v != 0)) return true;     /* as asked already: nothing sent */
-            return open_tx_set(v != 0);
+        /* Not a register: byte 280 of the calibration block, read and written at each call (open_tx_set above) */
+        case HW_OPEN_TX:        return open_tx_set(v != 0);
         /* The X6100 patched firmware's extras: this base has no register for them */
         case HW_TX_I_OFFSET:
         case HW_TX_Q_OFFSET:

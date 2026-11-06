@@ -531,29 +531,29 @@ says, in plain words.
   amateur bands, and the WR12 does not leave its bypass while the radio is
   in TX. That holds until the WR12 answers that it is back in its bypass
   (and 50 ms more, for its relay), or has been unplugged for 3 s (back
-  sooner, after a reset on USB, it is set up again first); a WR12 that
-  stops answering keeps it held. For just as long the base itself is told
-  to key nothing outside its own band table (160 to 6 m, as Xiegu's firmware
-  always has it), so the hand mic's PTT does not even close its TX relay:
-  kept in the base's memory only, back as before as soon as TX goes free,
-  and at every start. Should the base not take it, the screen says so once
-  ("Base's band table not set: TX held at 0 W only", or on the way back
-  "Base still keys only inside its own band table"), and the base log
-  (`/mnt/base_i2c.log`) has each change. A GUI that is stopped (a restart, an
-  update or its Rollback, a shutdown) puts the WR12 back in its bypass on
-  its way out, without waiting for the answer; after a GUI that ended
-  another way (a crash), the radio's start loop does, and says so at the
-  end of that run's log ("x6100-wr12-bypass: ttyACM0: AT+BYPASS=1 sent"). A
-  GUI started while a WR12 is out of its bypass, or may be (after an
-  update, or a crash), holds the same way until it has set the WR12 up
-  again. Versions before this one know nothing of the WR12: to go back to
-  one (Rollback, or an older bundle), first turn the dial below 54 MHz or
-  WR12 on HOST off.
+  sooner, after a reset on USB, it is set up again first); a WR12 that stops
+  answering keeps it held. For just as long the base itself is told to key
+  nothing outside its own band table (160 to 6 m, as Xiegu's firmware always
+  has it), before the radio's receiver goes onto the IF, so the hand mic's
+  PTT does not even close its TX relay. It is told the way back once TX goes
+  free where the radio transmits, half a second after the dial stops, or
+  before the radio keys if that comes sooner: WR12 on HOST switched off or
+  the WR12 unplugged on 2 m leaves it as it is, as the radio is receive only
+  there. Kept in the base's memory only, back as before at every start; see
+  [Amateur bands only](#amateur-bands-only) for the rest, and for what the
+  screen says should the base not take it. A GUI that is stopped (a restart,
+  an update or its Rollback, a shutdown) puts the WR12 back in its bypass on
+  its way out, without waiting for the answer; after a GUI that ended another
+  way (a crash), the radio's start loop does, and says so at the end of that
+  run's log ("x6100-wr12-bypass: ttyACM0: AT+BYPASS=1 sent"). A GUI started
+  while a WR12 is out of its bypass, or may be (after an update, or a crash),
+  holds the same way until it has set the WR12 up again. Versions before this
+  one know nothing of the WR12: to go back to one (Rollback, or an older
+  bundle), first turn the dial below 54 MHz or WR12 on HOST off.
 - A WR12 tag in the frequency strip, left of NR NB DNF, in the theme's info
   colour, says the WR12 is in use: WR12 on HOST on and the WR12 found and
-  set up. In Black Metal
-  and Total Black it stands under the other VFO; Amber Trey's display covers
-  the strip, so it does not show there.
+  set up. In Black Metal and Total Black it stands under the other VFO;
+  Amber Trey's display covers the strip, so it does not show there.
 - Unplug the WR12 with the dial below 54 MHz or the switch off: unplugged
   while it receives, the radio cannot put it back in its bypass, and whether
   a WR12 without power passes the antenna through is not known yet.
@@ -567,14 +567,18 @@ says, in plain words.
   answer or never stops sending, the GUI stopped while it receives and the
   start loop after a crash, and when TX is held and when it goes free
   again. And the radio's side against stand-ins for the settings,
-  the base and the WR12's driver: the hold at 0 W before the radio's
-  receiver goes onto the IF and until the WR12 is back in its bypass, the
-  I/Q swap with it, the knob, a band key, the VFOs swapped, the switch off
-  and the WR12 unplugged while it receives, Birdie Cal, 54.5 MHz with TX
-  outside the bands on, a transverter over 2 m. Reports are welcome, with
-  the log of the run (`/mnt/app_logs/`): at every start the radio writes
-  there what is on the HOST port ("USB on HOST: ..."), and each answer of
-  the WR12 when it changes ("wr12: AT+BYPASS=0: OK").
+  the base and the WR12's driver: the hold at 0 W and the base's band table
+  before the radio's receiver goes onto the IF and until the WR12 is back
+  in its bypass, the I/Q swap with it, the knob, a band key, the VFOs
+  swapped, the switch off and the WR12 unplugged while it receives, Birdie
+  Cal, 54.5 MHz with TX outside the bands on, a transverter over 2 m.
+  ea4iln tried the base's band table on his X6200 with a WR12: the hand
+  mic's PTT keyed nothing on 2 m (no TX light), back on HF 5.300 MHz went
+  out (2.1 W on the radio's own meter), and the calibration block stayed
+  as it was but byte 0, which his base changed by itself once. Reports are
+  welcome, with the log of the run (`/mnt/app_logs/`): at every start the
+  radio writes there what is on the HOST port ("USB on HOST: ..."), and
+  each answer of the WR12 when it changes ("wr12: AT+BYPASS=0: OK").
 - gpsd leaves the WR12 alone. The WR12 is a USB serial port (USB id
   0483:5740, `/dev/ttyACM0` when it is the only one), and plugged in at boot
   it was handed to gpsd as a GPS, which then read what it said. A USB GPS
@@ -1783,7 +1787,8 @@ bands (Settings > TX Cal)". What is refused:
 - The [CW Trainer](#cw-trainer) keeps working on any frequency the radio can
   transmit on: its key sounds the sidetone at 0 W, its PTT does nothing
   there. KEY Train outside the trainer (the key, the paddle, a message) is
-  refused as any CW is.
+  refused as any CW is. On the X6200 the base's own band table stays open
+  for the trainer there (below).
 
 What the radio's base keys by itself, the hand mic's PTT, VOX and the KEY
 jack, the radio cannot refuse. Outside the amateur bands it holds the base
@@ -1795,8 +1800,66 @@ instead:
 - KEY Train on. On the X6100 a paddle in the KEY jack in Auto-L or Auto-R
   should then only sound the sidetone (not checked on the bench yet); the
   X6200's base goes into TX at 0 W with Train (#127).
+- On the X6200 the base's own band table too (#176): the base itself then
+  keys nothing outside it (160 to 6 m, 60 m only from 5.332 to 5.405 MHz),
+  as Xiegu's firmware always has it. ea4iln found where: byte 280 of the
+  base's calibration block, which the radio software sets open at every
+  start. The radio sets it wherever it refuses TX for what the base keys by
+  itself, receive only and the WR12 included, and while Birdie Cal runs;
+  open everywhere else. The base's table is narrower than the radio's (no
+  2200 m, 630 m, Alaska channel or 8 m), and set there the base would send
+  nothing, PTT and the apps neither: so it stays open with TX outside ham
+  bands on, and on a transverter's IF past 29.7 MHz (145.7 to 146 MHz
+  through a 28 MHz IF). Kept in the base's memory only; the radio looks at
+  it at every start.
+- When: before the radio's receiver goes onto the WR12's IF, at once.
+  Anywhere else half a second after the dial stops: each change takes the
+  radio about 0.2 s, and one at every step of the knob over a band's edge
+  stalled the knob. The hold at 0 W covers that half second. Should the
+  radio key within it (PTT, an app, CW, the tuner, the SWR scan), the way
+  back goes first and the key about 0.2 s later: a band the base's table
+  lacks would otherwise go out at nothing, in split an app's TX frequency
+  there too. Never while the base is in TX, by itself too (the hand mic's
+  PTT held at 0 W), nor while the radio keys it or within 3 s of its CW
+  key: what the base does with its calibration written in the middle of a
+  TX is not known. It goes once the base is back in receive, and a CW key
+  pressed while one is on its way waits for it.
+- While the CW Trainer is open, outside the bands where the radio can
+  transmit, the base's table stays open: the X6200's base sounds KEY
+  Train's sidetone by going into TX at 0 W (#127), which with its table set
+  it might not do there. Not checked on the bench yet: whether the
+  trainer's sidetone sounds with the table set, on 9.500 MHz say. Receive
+  only (FM broadcast, the airband, the WR12) it is set all the same.
+- Each change is a line in the base log (`/mnt/base_i2c.log`): "open TX 0:
+  shut", "open TX 1: opened", at the start "open TX 1: open already". The
+  radio writes the base's calibration block back only when two reads of it
+  are the same, it holds a PA bias the radio knows (the one sent, or the
+  one at the start, see [PA bias](#pa-bias-x6200)), and the rest of it, the
+  factory calibration, is as at the start (but byte 0, which a base changed
+  by itself). It reads it back after, and writes it once more if it did not
+  come back so. A factory calibration not as at the start is left alone,
+  and the bytes go into the log; found the same way again at the next try,
+  and no write of the radio's in doubt, it is taken as the base's own. After
+  a write of the radio's that failed or did not come back as sent, it is the
+  radio's to put right: the next try writes it back as at the start ("open
+  TX 0: shut: the calibration put back as at the start, ..."), twice at
+  most, and then leaves the block alone ("not shut: the calibration not as
+  at the start ..., after a write in doubt, put back 2 times").
+  Anything else that goes wrong is in that log too ("open TX 0: not shut:
+  two reads differ at byte 100 (1 in all)"); the radio tries again 5 s
+  later, then twice as long each time up to a minute, never while the base
+  is in TX, and the screen says it once, until one goes through: "Base's
+  band table not set: TX held at 0 W only", or "Base still keys only inside
+  its own band table" when the way back did not go (nothing transmits
+  outside the base's table then). Taking the battery and the supply out for
+  a minute brings the base's own calibration back; whether a normal
+  power-off with the battery in does is not known yet (as for the
+  [PA bias](#pa-bias-x6200)).
 - The first time the base keys while held the radio says "0 W on 27.185
-  MHz", then "Out of band: Settings > TX Cal".
+  MHz", then "Out of band: Settings > TX Cal". On the X6200, once the base's
+  table is set, the hand mic's PTT, VOX and the KEY jack key nothing there
+  and nothing is said: the radio learns of them only when the base goes
+  into TX.
 - The hold comes before the base moves: a band key or a QSY from CAT with the
   hand mic's PTT held does not send PWR outside the bands meanwhile. It goes
   once the radio is back in a band.
@@ -1807,12 +1870,24 @@ instead:
 Left uncovered:
 
 - The hand mic's PTT and a straight key in the KEY jack in Manual still put
-  the base into TX, at 0 W. What either radio puts out at 0 W has not been
+  the base into TX, at 0 W; on the X6200 only inside its own band table,
+  and in the half second before it is set. The hold alone let a little RF
+  out on the X6200 (base 1.0.8, an external meter on a dummy load): 0.3 W
+  from the hand mic on 2 m with the WR12 receiving, NFM and USB, where the
+  radio's own meter read 0.0 or 0.1 W, and under 0.1 W but not nothing on
+  5.060 MHz without the WR12. What the X6100 puts out at 0 W has not been
   measured yet.
+- On the X6200 the hand mic's PTT, VOX or the KEY jack within half a second
+  of tuning from where TX is refused to a band of the radio's that the
+  base's table lacks (2200 m, 630 m, the Alaska channel, 60 m outside 5.332
+  to 5.405 MHz, 8 m): the base sends nothing until it is let go, as the way
+  back waits for receive. After a way back that failed, any TX there until
+  the radio has tried again, after the TX ("Base still keys only inside its
+  own band table" on the screen).
 - The radio's tuner carrier is the base's own, at a power the radio does not
   set: a tune is refused at its start, and one whose dial is moved out is
   given up, but what goes out in between is the base's.
-- What the base itself permits or refuses there is not known.
+- What the X6100's base itself permits or refuses there is not known.
 
 Transverters: a transverter's range transmits as you set it up. Both are off
 by default (a shift of 0), on the X6100 too. Up to v0.3.8 the X6100's two

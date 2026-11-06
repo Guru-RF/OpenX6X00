@@ -72,6 +72,9 @@
 #define MORSE_HANG_MS       3000    /* the base holds TX for the QSK time after the GUI's CW key */
 #define ATU_START_MS        3000    /* the base keys for the tuner within this, or the tune is given up */
 #define ATU_NO_MATCH_MS     1000    /* back in RX this long without the tuner's done flag: no match */
+#define OPEN_TX_SETTLE_MS   500     /* the X6200's open TX goes this long after the dial's last move (open_tx_look), */
+#define OPEN_TX_RETRY_MS    5000    /* again this long after one that failed, twice as long after each one more, */
+#define OPEN_TX_RETRY_MAX_MS 60000  /* up to this */
 
 #define FILTER_2_OFFSET 60
 #define FILTER_2_OFFSET_IN 20
@@ -139,7 +142,11 @@ static void on_key_train_change(Subject *subj, void *user_data);
 static void on_volume_change(Subject *subj, void *user_data);
 static bool wr12_takes(int32_t freq);
 static void wr12_follow(bool rx, int32_t dial);
-static void open_tx_ask(bool open);
+static void open_tx_look(void);
+static void open_tx_key(void);
+static void open_tx_cw_down(void);
+static void open_tx_cw_wait(void);
+static void open_tx_tick(void);
 
 #ifndef BOARD_X6200
 static void recover_processing_audio_inputs();
@@ -802,6 +809,7 @@ void radio_start_atu() {
         msg_schedule_text_fmt("No tuner: %.1f W transverter", xvtr);
         return;
     }
+    WITH_RADIO_LOCK(open_tx_key());     /* the X6200's open TX still due first: the tuner keys at the next packet */
     atomic_store(&atu_band_stop, false);    /* one asked of a tune over already */
     state_move(RADIO_RX, RADIO_ATU_START);
 }
@@ -843,6 +851,7 @@ bool radio_start_swrscan(int32_t from) {
 #ifdef BOARD_X6200
     atomic_store(&swrscan_fresh, true);
 #endif
+    open_tx_key();      /* the X6200's open TX still due goes first, on `from` */
     hw_set_i(SWRSCAN_TX, true);
     radio_unlock();
 
@@ -1080,7 +1089,12 @@ bool radio_set_ptt(bool tx) {
     if (tx && tx_refused(TX_BY_PTT)) {
         return false;
     }
-    WITH_RADIO_LOCK(hw_set_i(HW_PTT, tx));
+    radio_lock();
+    if (tx) {
+        open_tx_key();  /* the X6200's open TX still due goes first */
+    }
+    hw_set_i(HW_PTT, tx);
+    radio_unlock();
     atomic_store(&ptt_on, tx);
     return true;
 }
@@ -1114,6 +1128,9 @@ void radio_set_modem(bool tx) {
     if (tx && param_i_get(cfg_band_split) && !atomic_load(&split_held)) {
         radio_set_tx_freq(radio_tx_freq());
         moved = true;
+    }
+    if (tx) {
+        WITH_RADIO_LOCK(open_tx_key());     /* the X6200's open TX still due goes first, on the TX frequency */
     }
     atomic_store(&modem_on, tx);
     WITH_RADIO_LOCK(hw_set_i(HW_MODEM, tx));
@@ -1233,8 +1250,14 @@ bool radio_set_morse_key(bool on) {
     if (on && tx_refused(TX_BY_MORSE)) {
         return false;
     }
+    if (on && !morse_on) {
+        open_tx_cw_down();  /* the X6200's open TX still due goes first */
+    }
     morse_on = on;
     morse_ms = get_time();
+    if (on) {
+        open_tx_cw_wait();  /* a pin, not under the lock: not in the middle of a write to the base */
+    }
     hw_pin_set(HW_PIN_MORSE_KEY, on);
     atomic_store(&morse_down_ms, on ? morse_ms | 1 : 0);
     return true;
@@ -1336,10 +1359,12 @@ static void train_note(void) {
 }
 
 /* Under the lock: the hold outside the amateur bands on or off (band_hold). The base gets the power, VOX and Train
- * at once; the user's VOX and Train settings stay as saved (on_vox_change, on_key_train_change) */
+ * at once; the user's VOX and Train settings stay as saved (on_vox_change, on_key_train_change). On the X6200 its
+ * open TX looked at first, whether the hold changes or not (open_tx_look) */
 static void band_hold_set(bool hold) {
     int32_t f;
 
+    open_tx_look();
     if (hold == atomic_load(&band_hold)) {
         return;
     }
@@ -1521,48 +1546,12 @@ static bool wr12_takes(int32_t freq) {
     return cfg_wr12_freq(freq) && wr12_ready() && !atomic_load(&off_dial);
 }
 
-/* The base's own TX outside its band table (HW_OPEN_TX, byte 280 of its calibration block), a second layer under our
- * hold while the WR12 receives: the hand mic's PTT, VOX and the KEY jack key the base by itself, held at 0 W, and
- * with it shut the base keys nothing at all outside 160-6 m, as Xiegu's app always has it. Shut exactly while we
- * refuse every TX anyway (on the WR12's IF, the WR12 asked out of its bypass or not seen back in it), open otherwise,
- * so nothing changes on HF: our table has bands the base's has not (2200 m, 630 m, 60 m wider, 8 m). In the base's
- * RAM: x6200_control_init opens it at every start. What was asked last is kept apart from what the base has
- * (hw_x6200.c): a shut or an open that failed is tried again at the next change, not at every step of the dial, as
- * each try holds the radio lock about 0.2 s. A failure is said on the screen once, until one goes through */
-static bool        open_tx_asked = true;
-static atomic_bool open_tx_said;
-static atomic_int  open_tx_failed;     /* what failed last: 1 the open, 0 the shut */
-
-static void open_tx_failed_cb(void *arg) {
-    (void)arg;
-    msg_schedule_text_fmt(atomic_load(&open_tx_failed) ? "Base still keys only inside its own band table"
-                                                       : "Base's band table not set: TX held at 0 W only");
-}
-
-/* Under the lock */
-static void open_tx_ask(bool open) {
-    if (open == open_tx_asked) {
-        return;
-    }
-    open_tx_asked = open;
-    if (hw_set_i(HW_OPEN_TX, open)) {
-        atomic_store(&open_tx_said, false);
-        return;
-    }
-    atomic_store(&open_tx_failed, open);
-    if (!atomic_exchange(&open_tx_said, true) && !scheduler_put_coalesced(open_tx_failed_cb)) {
-        LV_LOG_ERROR("Radio: the base's band table failure not said on the screen (in the base log)");
-    }
-}
-
 /* Under the lock, the VFO in use just sent to the base: the WR12 follows the dial. Out of its bypass on it where the
  * base is on its IF (rx: held at 0 W already, by cfg_tx_refusal from wr12_want on), the base taking the IF's I and Q
- * the other way round; in its bypass elsewhere, IQ as it was. WR12 on HOST off: the WR12 let go. Then the base's own
- * TX outside its band table: shut while the WR12 is asked out or not seen back in its bypass, open once it is */
+ * the other way round; in its bypass elsewhere, IQ as it was. WR12 on HOST off: the WR12 let go */
 static void wr12_follow(bool rx, int32_t dial) {
     hw_set_i(HW_IQ_SWAP, rx);
     wr12_want(param_i_get(cfg_wr12), rx, dial);
-    open_tx_ask(!rx && !wr12_tx_block());
 }
 
 /* Both VFOs to the base again, the WR12 following the one in use (on_vfo_freq_change), the one no longer in use back on
@@ -1611,6 +1600,185 @@ static void on_wr12_change(Subject *subj, void *user_data) {
     (void)user_data;
     wr12_retune();
 }
+
+/* ---- The base's open TX (HW_OPEN_TX, #176) ---- */
+
+/* The base's own TX outside its band table (HW_OPEN_TX, byte 280 of its calibration block, found by ea4iln): at 1, as
+ * x6200_control_init leaves it at every start, the base keys anywhere; at 0 only inside its own table (160 to 6 m,
+ * 60 m 5.332-5.405 MHz), as Xiegu's app always has it. A second layer under the hold at 0 W, which alone let RF out:
+ * 0.3 W from the hand mic on 2 m with the WR12 receiving, under 0.1 W on 5.060 MHz without it (an external meter on a
+ * dummy load, base 1.0.8). Shut exactly while the GUI refuses TX for what the base keys by itself (radio_key_refused:
+ * the WR12 on its IF, out of its bypass or asked out, receive only, outside the amateur bands with TX outside them
+ * off, a split or a TX shift refused) and while Birdie Cal has the base off the dial; open otherwise. Our table is
+ * wider than the base's (2200 m, 630 m, 5.1675 MHz, 60 m from 5.250 to 5.450 MHz, 8 m, a transverter's IF past
+ * 29.7 MHz): shut there, PTT and the apps would key nothing. Open also where the CW Trainer's key goes through
+ * outside the bands (tx_refused_at): base 1.0.8 sounds KEY Train's sidetone by going into TX at 0 W (#127), which
+ * shut it may not do there, as its hand mic's PTT no longer did on 2 m (ea4iln; not tried with the trainer yet).
+ * Onto the WR12's IF the shut goes at once, before the base goes there (band_hold_set from on_vfo_freq_change, and
+ * band_look before the VFO in use changes), as soon as the base is in RX if it is not: not after the CW key's hang,
+ * the GUI's CW does not key there and the WR12 leaves its bypass once the base is in RX (wr12_keyed), nor after the
+ * wait for one that failed elsewhere. Anything else goes once the dial has settled, OPEN_TX_SETTLE_MS after the last
+ * look, from the radio thread (open_tx_tick), the hold at 0 W covering the moment between: each write holds the radio
+ * lock about 0.2 s, and one at each step of the knob over a band's edge stalled the knob. An open still due when the
+ * GUI keys goes then, before the key (open_tx_key): else on a band of ours just tuned to, or an app's TX frequency
+ * there in split, the base would send nothing for the whole TX. Never while the base is in TX, by itself too (the
+ * hand mic's PTT at 0 W), nor while the GUI keys it or within its CW key's hang: what the base does with its working
+ * calibration written in the middle of a TX is not known, so it waits for RX. The CW key is a pin, not under the
+ * lock: it waits for a write on its way (open_tx_busy). One that failed goes again OPEN_TX_RETRY_MS later, from the
+ * radio thread for a radio left alone too, twice as long after each one that fails again, a minute at most, and at
+ * the next look once what is asked changes. A failure is said on the screen once each way, until one goes through.
+ * open_tx_asked: what was asked last, -1 nothing yet; open_tx_base: what the base has, -1 not known: at the start
+ * (the library's write is not looked at, so the first look reads it) and after one that failed. Under the lock;
+ * open_tx_due, open_tx_now and open_tx_busy the other threads read without it */
+static int8_t        open_tx_asked = -1;
+static int8_t        open_tx_base = -1;
+static atomic_ullong open_tx_due;       /* when the one asked goes to the base (get_time), 0 none */
+static atomic_bool   open_tx_now;       /* that one the shut onto the WR12's IF: as soon as the base is in RX */
+static atomic_bool   open_tx_busy;      /* a write on its way: the GUI's CW key waits for it (open_tx_cw_wait) */
+static bool          open_tx_on_if;     /* the last look onto the WR12's IF */
+static uint64_t      open_tx_retry_at;  /* not before this after one that failed, 0 none */
+static uint32_t      open_tx_wait;      /* the wait after the last one that failed, 0 none */
+static bool          open_tx_said[2];   /* a shut, an open that failed: said */
+
+/* The base in TX or about to be: the radio's state (the base's own TX too), what the GUI keys, its CW key's hang */
+static bool open_tx_keyed(void) {
+    return wr12_keyed() || (uint32_t)get_time() - morse_ms < MORSE_HANG_MS;
+}
+
+/* What holds the one due back (open_tx_tick): the base in TX or the GUI keying it; for any but the shut onto the WR12's
+ * IF also its CW key's hang, and the base log with no second free for its line (base_guard_log) */
+static bool open_tx_held(void) {
+    return atomic_load(&open_tx_now) ? wr12_keyed() : open_tx_keyed() || !base_guard_log_free();
+}
+
+/* What the base should have: 0 shut, 1 open (above) */
+static int8_t open_tx_want(void) {
+    int32_t f;
+
+    if (atomic_load(&off_dial)) {
+        return 0;
+    }
+    if (!radio_key_refused(&f)) {
+        return 1;
+    }
+    return practice() && cfg_is_tx_freq(f) && !cfg_tx_block() && !wr12_takes(vfo_freq(true));
+}
+
+/* Under the lock: the one asked to the base. Not once the GUI's CW key is down: it looks at open_tx_busy after it set
+ * morse_on, this at morse_on after it set open_tx_busy, so one of them sees the other (open_tx_cw_wait). False: not
+ * sent, due again at once, held back by the key */
+static bool open_tx_send(void) {
+    int8_t want = open_tx_asked;
+    bool   ok;
+
+    atomic_store(&open_tx_busy, true);
+    atomic_thread_fence(memory_order_seq_cst);
+    if (morse_on) {
+        atomic_store(&open_tx_busy, false);
+        atomic_store(&open_tx_due, get_time());
+        return false;
+    }
+    atomic_store(&open_tx_due, 0);
+    ok = hw_set_i(HW_OPEN_TX, want);
+    atomic_store(&open_tx_busy, false);
+    if (ok) {
+        open_tx_base = want;
+        open_tx_wait = 0;
+        open_tx_retry_at = 0;
+        open_tx_said[0] = open_tx_said[1] = false;
+        return true;
+    }
+    open_tx_base = -1;
+    open_tx_wait = !open_tx_wait ? OPEN_TX_RETRY_MS
+                 : open_tx_wait * 2 > OPEN_TX_RETRY_MAX_MS ? OPEN_TX_RETRY_MAX_MS : open_tx_wait * 2;
+    open_tx_retry_at = get_time() + open_tx_wait;
+    atomic_store(&open_tx_due, open_tx_retry_at);
+    fprintf(stderr, "radio: the base's open TX not set to %d: tried again in %u s (#176)\n", want,
+            (unsigned)(open_tx_wait / 1000));
+    if (!open_tx_said[want]) {
+        open_tx_said[want] = true;
+        msg_schedule_text_fmt("%s", want ? "Base still keys only inside its own band table"
+                                         : "Base's band table not set: TX held at 0 W only");
+    }
+    return true;
+}
+
+/* Under the lock, whenever the hold is looked at (band_hold_set): the one asked, sent at once onto the WR12's IF (as
+ * soon as the base is in RX, if it is not), else once the dial has settled (open_tx_tick). A new one, or the dial onto
+ * the IF, goes without the wait for one that failed before */
+static void open_tx_look(void) {
+    int8_t   want = open_tx_want();
+    bool     wr12 = !want && wr12_takes(vfo_freq(true));
+    uint64_t now = get_time(), due = wr12 ? now : now + OPEN_TX_SETTLE_MS;
+
+    if (want != open_tx_asked || (wr12 && !open_tx_on_if)) {
+        open_tx_asked = want;
+        open_tx_wait = 0;
+        open_tx_retry_at = 0;
+    }
+    open_tx_on_if = wr12;
+    atomic_store(&open_tx_now, wr12);
+    if (open_tx_asked == open_tx_base) {
+        atomic_store(&open_tx_due, 0);
+        return;
+    }
+    if (wr12 && now >= open_tx_retry_at && !wr12_keyed() && open_tx_send()) {
+        return;
+    }
+    atomic_store(&open_tx_due, due > open_tx_retry_at ? due : open_tx_retry_at);
+}
+
+/* Under the lock, the GUI about to key the base (its PTT, the modem, the CW key, the tuner, the SWR scan): an open
+ * still due goes now, while the base is in RX, not once the TX is over (above). The key comes about 0.2 s later then,
+ * only then. Not after one that failed before its wait is over, nor with the base in TX by itself, something of the
+ * GUI's keying it already or within its CW key's hang (the tuner's and the SWR scan's states are set before their
+ * key) */
+static void open_tx_key(void) {
+    open_tx_look();
+    if (open_tx_asked != 1 || open_tx_base == 1 || get_time() < open_tx_retry_at ||
+        atomic_load(&state) == RADIO_TX || hw_tx_keyed_by_gui() || morse_on ||
+        (uint32_t)get_time() - morse_ms < MORSE_HANG_MS) {
+        return;
+    }
+    open_tx_send();
+}
+
+/* The GUI's CW key about to go down (radio_set_morse_key): an open due first, as open_tx_key; the lock only then */
+static void open_tx_cw_down(void) {
+    if (atomic_load(&open_tx_due) || atomic_load(&open_tx_busy)) {
+        WITH_RADIO_LOCK(open_tx_key());
+    }
+}
+
+/* morse_on just set: a write on its way (open_tx_send) is waited for before the key goes down, the lock its end */
+static void open_tx_cw_wait(void) {
+    atomic_thread_fence(memory_order_seq_cst);
+    if (atomic_load(&open_tx_busy)) {
+        radio_lock();
+        radio_unlock();
+    }
+}
+
+/* The radio thread's: the one asked to the base once it is due and nothing holds it back (open_tx_held). The CW
+ * Trainer opened or closed is looked at here: nothing tells radio.c */
+static void open_tx_tick(void) {
+    static bool practising;
+    uint64_t    due;
+
+    if (practice() != practising) {
+        practising = !practising;
+        WITH_RADIO_LOCK(open_tx_look());
+    }
+    due = atomic_load(&open_tx_due);
+    if (!due || get_time() < due || open_tx_held()) {
+        return;
+    }
+    radio_lock();
+    if (atomic_load(&open_tx_due) == due && !open_tx_held()) {
+        open_tx_send();     /* a look meanwhile put it off, or the GUI keyed */
+    }
+    radio_unlock();
+}
 #else
 static bool wr12_takes(int32_t freq) {
     (void)freq;
@@ -1622,8 +1790,19 @@ static void wr12_follow(bool rx, int32_t dial) {
     (void)dial;
 }
 
-static void open_tx_ask(bool open) {
-    (void)open;
+static void open_tx_look(void) {
+}
+
+static void open_tx_key(void) {
+}
+
+static void open_tx_cw_down(void) {
+}
+
+static void open_tx_cw_wait(void) {
+}
+
+static void open_tx_tick(void) {
 }
 #endif
 
@@ -1661,13 +1840,13 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     if (cur) {
         atomic_store(&cur_on_tx, false);    /* on the dial, not an app's TX frequency: it keys here (band_hold_early) */
     }
-    /* The VFO in use where the X6200's WR12 receives (#134): the base on the WR12's IF, held at 0 W before it goes
-     * there whatever the frequency allows (54-55 MHz with TX outside the bands on); the other VFO on its own */
+    /* The VFO in use where the X6200's WR12 receives (#134): the base on the WR12's IF, held at 0 W and its open TX
+     * shut before it goes there (open_tx_look), whatever the frequency allows (54-55 MHz with TX outside the bands on);
+     * the other VFO on its own */
     bool    wr12 = cur && wr12_takes(new_val);
     int32_t base = wr12 ? WR12_IF_HZ : new_val - shift;
     if (wr12) {
         band_hold_set(true);
-        open_tx_ask(false);     /* and the base keys nothing outside its band table, before it goes there */
     }
     bool held = xvtr_hold(vfo, new_val);
     bool band = band_hold_early(vfo, new_val);
@@ -2806,6 +2985,7 @@ static void * radio_thread(void *arg) {
             }
             idle_time = now_time;
         }
+        open_tx_tick();     /* the X6200's open TX when due, after the keepalive's block: its 0.2 s holds none up */
     }
     return NULL;
 }
