@@ -255,9 +255,9 @@ const uint8_t *hw_cal_block(size_t *len) {
  * whole run would leave the base keying where the GUI refuses, or keying nothing where it lets TX go, until the base
  * loses power. In doubt (a write of ours that failed, or was not read back as sent or not at all: it may have reached
  * the base wrongly) a block not as ref is ours to put right: ref's factory calibration written back, as the block had
- * it in the reads before the first such write (cal_fix), until a call finds it as ref again. Taking the battery and
- * the supply out for a minute brings the base's own back; whether a normal power-off with the battery in does is not
- * known yet (#173) */
+ * it in the reads before the first such write (cal_fix), until a call finds it as ref again. Switching the radio off
+ * and on brings the base's own back, battery in and supply connected too (ea4iln, #173: the whole block as at a cold
+ * start) */
 static uint8_t ref[PA_BIAS_BLOCK_LEN], odd[PA_BIAS_BLOCK_LEN];
 static bool    ref_taken, odd_seen, in_doubt;
 static int     repairs;                 /* calls that put it back since the last one found as ref */

@@ -1946,9 +1946,9 @@ instead:
   is in TX, and the screen says it once, until one goes through: "Base's
   band table not set: TX held at 0 W only", or "Base still keys only inside
   its own band table" when the way back did not go (nothing transmits
-  outside the base's table then). Taking the battery and the supply out for
-  a minute brings the base's own calibration back; whether a normal
-  power-off with the battery in does is not known yet (as for the
+  outside the base's table then). Switching the radio off and on brings the
+  base's own calibration back, battery in and supply connected too: ea4iln
+  read the whole block back as at a cold start (#173, base 1.0.8; see the
   [PA bias](#pa-bias-x6200)).
 - The first time the base keys while held the radio says "0 W on 27.185
   MHz", then "Out of band: Settings > TX Cal". On the X6200, once the base's
@@ -2473,10 +2473,10 @@ base log (`/mnt/base_i2c.log`) at each start:
   loses power. After an older version ran, or Aether Radio's X6200 GUI, or
   a start of this one on the fixed 3360 / 3820 (the two "fixed" lines
   below), the block shows 3360 / 3820 until then, and a radio whose own
-  values are those reads the same. To be sure, take the battery and the
-  supply out for a minute: at the next start the radio reads its own.
-  Whether a normal power-off with the battery in is enough is not known
-  yet.
+  values are those reads the same. Switching the radio off and on once is
+  enough: a normal power-off, battery in and supply connected, gives the
+  base its whole block back as at a cold start (ea4iln, #173, base 1.0.8),
+  and at the next start the radio reads its own.
 - "3360 / 3820, fixed (base: N / M)" (log: "PA bias N/M in the base's
   calibration block is out of range (drive 3024-3696, final 3438-4095): the
   fixed 3360/3820 instead"). A value is taken from the block only within
