@@ -154,7 +154,7 @@ The patched X6100 base comes with its own instructions.
 | **Radio** | Band plan strip for IARU Region 1, 2 or 3, Auto from the GPS, the locator or the callsign, or the US sub-bands of your licence class with the rest in grey (60 m too, and a strip for each band you add; guidance only, it never stops the key or the microphone), 60 m on the band keys, which step over a band the radio cannot tune (4 m), a TX shift per band for FM repeaters and a QO-100 IF (split kept by itself, REV on the VFO key), Birdie Cal (the radio's own carriers found, marked, notched), S-meter in bars or a needle, long-press actions on every key, editable bands, memories and channels, the broadcast bands in AM, transverters (off by default), RX recorder, screen recording and screenshots, voice messages, SWR scan, Walkie Talkie portrait mode, PRE and ATT on the VOL 2:2 page, local time on screen with UTC in the logs. |
 | **X6200** | SAM and WFM on the AM key, zoom 1 to 4 over the base's 384 kHz, the two-ring MFK, FM broadcast (87.5-108 MHz) and the airband (118-137 MHz) to receive after 6 m on the band keys, Xiegu's WR12 54 MHz-1 GHz receiver on the HOST port, driven over its USB serial port when its switch is on (from 54 MHz up the radio listens through it, 2 m and 70 cm included, and transmits nothing meanwhile; gpsd leaves it alone; not yet tried with a WR12, [manual](docs/MANUAL.md#wr12-receiver-x6200)), the PA bias from its own base's factory calibration, as Xiegu's firmware does ([manual](docs/MANUAL.md#pa-bias-x6200)), PRE and ATT on the VOL 2:2 page since it has no PRE key, the volume over the base's whole range (0 to 100), the low-battery power-off at 6.8 V, minutes before the base cuts the power by itself, also on a supply the radio reads under 12.0 V (Xiegu's 12 V charger among them), which did not hold a flat battery up ([manual](docs/MANUAL.md#low-battery)). |
 | **Screen** | DRM/KMS output with the GUI on a transparent layer over a waterfall drawn one line at a time, about half the CPU of the old path, or, by default, as a 3D band scope (the last seconds in perspective, coloured by strength; Settings > Display > 3D off for the flat waterfall); a main knob with every detent timed in its own thread and acceleration that grows with the speed; the buttons hidden after a few seconds without a key, for the waterfall down to the bottom (Settings > Display > Hide buttons, off by default); a screensaver, Matrix rain, after 5 minutes without use, the screen dark after it or not, as set ([manual](docs/MANUAL.md#screensaver)). |
-| **Themes** | Every colour, corner, font and waterfall palette comes from the theme. RF.Guru, Classic, Outdoor, Outdoor-Negative, VISION, Black Metal, Total Black, 1bit and Amber Trey (an amber segment LCD) come with the image; Holo, Material 3, Codec (green phosphor boxes with corner brackets, its own monospaced font and a SIGNAL bar meter) and Ops Room (amber operations-room frames in Roboto Condensed, with a TRANSMIT band while the radio transmits) are in [themes/](themes) to copy to the card; your own go on the card too ([docs/THEMES.md](docs/THEMES.md)). |
+| **Themes** | Every colour, corner, font and waterfall palette comes from the theme. RF.Guru, Classic, Outdoor, Outdoor-Negative, VISION, Black Metal, Total Black, 1bit and Amber Trey (an amber segment LCD) come with the image; Holo and Material 3, and Codec (green phosphor boxes with corner brackets, its own monospaced font and a SIGNAL bar meter) and Ops Room (amber operations-room frames in Roboto Condensed, with a TRANSMIT band while the radio transmits), both designed by Trey (rewtraw), are in [themes/](themes) to copy to the card; your own go on the card too ([docs/THEMES.md](docs/THEMES.md)). |
 | **Wireless** | WiFi (a failed join says why on the screen), a USB Ethernet adapter with DHCP or a fixed address, USB tethering, a network name of your own; Bluetooth CAT for three clients, headphones and keyboards with pairings that survive a new image. |
 | **Browser panel** | `http://x6100.local/panel` (`x6200.local` on an X6200): the radio worked natively from a phone, a tablet or a PC, portrait or landscape: the spectrum and the waterfall live (tap or drag to tune, pinch to zoom), the frequency, band, mode, step and zoom, every switch and level, the S-meter, the DX spots (tap to tune), the FT8 app (decodes, tap to answer, CQ, auto, hold), the CW decoder's text, a log entry, RX audio and the browser's microphone for TX, a light theme for the sun. What the closed phone app does, as a web page. |
 | **Browser remote** | `http://x6100.local/remote` (Remote > Screen in the web menu): the radio's screen live in any browser (up to four browsers at a time, the Panel and Screen pages together), every key and knob, RX audio and the browser's microphone for TX, a Picture choice (Sharp, Balanced, Fast) for a slow link, for the radio's own menus and apps. |
@@ -502,25 +502,53 @@ the Mercury modem; SP2KMO the Bluetooth tab, PSK31, PSK63 and Olivia, the
 WSJT-X UDP output, the FT8 country and distance, and FT2 (IU8LMC's mode);
 randal007 the PSK and Olivia merge, the Bluetooth scan and
 recovery, the JS8 map, the high-SWR guard and the digital-mode drive level;
-2E0JFS the Black Metal and Total Black themes; OM0WT the Amber Trey theme,
-independent VFOs (a band key or a band edge moves the active VFO only), the TCI
-start that gives a browser its control back, the locator clear of NR NB DNF and
-Settings pages that scroll to their end; EA4ILN the X6200's TX power caps, its
-charger setting in the top bar, the base's warnings, the H-22's band keys, the
-SWR scan's SWR, and the base's own band table while the WR12 is in use, with
-docs/WR12.md; Chris Lawson the radio's ranges and steps in board.h, the panel
-size from BOARD_DISP_W/H with a landscape blit, taps on the F-bar, the spectrum
-left unpainted while hidden and TCI's limits from board.h; Calin Rigo the 3D
-band scope; Spyyena Contestia; DF8MH the Wavelog upload; Trey (rewtraw) the PC
-build in Docker, LVGL's clock from CLOCK_MONOTONIC, the GUI loop that wakes on
-keys and knobs, the Propagation and Scanner apps, the Codec and Ops Room themes,
-and APPS and Modes over the whole strip.
+2E0JFS the Black Metal and Total Black themes.
+
+Pull requests to OpenX6X00: OM0WT (Pavol Calfa, om0wt) the Amber Trey theme
+(#98), independent VFOs, where a band key or a band edge moves the active VFO
+only (#60, #96), the TCI start that gives a browser its control back (#97), the
+locator clear of NR NB DNF (#99) and Settings pages that scroll to their end
+(#61); EA4ILN (ea4iln-debug) the X6200's TX power caps (#75), its charger
+setting in the top bar (#76), the base's warnings (#77), the H-22's band keys
+(#136), the SWR scan's SWR (#140) and the base's own band table while the WR12
+is in use, with docs/WR12.md (#176), and on his radio the finds behind the PA
+bias (#173) and the base's byte 280; Chris Lawson (cjlawson02) the radio's
+ranges (#171) and knob steps (#188) in board.h, the panel size from
+BOARD_DISP_W/H with a landscape blit (#162), taps on the F-bar and decoded keys
+(#163), the spectrum left unpainted while hidden (#177) and TCI's drive, VFO
+limits and RIT clamp from board.h (#189); Calin Rigo (timerealm) the 3D band
+scope (#161); Spyyena Contestia (#154); DF8MH the Wavelog upload (#12); Trey
+(rewtraw) the PC build in Docker (#180), LVGL's clock from CLOCK_MONOTONIC
+(#182), the GUI loop that wakes on keys, knobs and events (#183), the
+Propagation and Scanner apps (#184), APPS and Modes over the whole strip, the CW
+bars off the band plan and Settings' switches in the theme's colours (#185), and
+the Codec and Ops Room themes (#186, #187); jochenhammes the RADE app (#129,
+#130, not merged yet).
+
+Patches, captures, logs and tests from the issues: BrunoKlu the capture and the
+driver patch of #29; KR8MER the diagnosis and the patch of #50; DL9RP the
+S-meter measurements of #125; 123tcpip (Bob G6CKK) the start-pulse captures of
+#53; ea4iln-debug and edegraaff the battery logs; km4gkd, amystikis (M7SVA) and
+joanpao (EA5JTT) the Winlink logs from the air; doodlecomms the Mercury and XARA
+leads; firatsoygul the tests over https, a tailnet and Funnel; SQ9SZ how LLOTA's
+spots are posted. And everyone who opened an issue: 123tcpip, Al-k6avp,
+amystikis, andybateman, AndyKeir, baumertjohn, BG7JAF, BrunoKlu, ct7arf,
+ctsquid, DC6NS, Derek000, DG1SMD, dl1sdz, DL9RP, doodlecomms, dr4g0nized,
+ea4iln-debug, edegraaff, ericb2B, erikkt, F4ESO, firatsoygul, Flight3R,
+forshaws, gati111, gilcomnz-eng, hecpilot, in3fob, ItsRonan-Honest, joanpao,
+johny1time-code, jonnybb1, K4DB, kb3hjc, KC7BJE, keithwhite1982, kj7prs, km4gkd,
+KR8MER, Meges111, muratbedir, oh8mbu, ON2ON-HAM, orome, oxoocoffee, peterbmarks,
+pkoerner81929, RjulianTN, RSZ-Nld, rwensley, sa5qed, scotty123, SQ9SZ,
+theMadCatter, Urminme, VakrLothbrok, VariousGames, VR2XKP, W3POPat, W8LID,
+waydenie, XRF03, yo4cil and z1pppo78.
+
 Libraries: LVGL, cJSON, FFTW,
 liquid-dsp, ft8_lib, libpng, Boost, Eigen, CRCpp, bottle, jQuery, mp4-muxer,
 PulseAudio, BlueZ. The country list is AD1C's cty.dat. The band plans are our
 reduction of the IARU Region 1, 2 and 3 band plans, 47 CFR Part 97 (FCC) and
 the ARRL band plan. Fonts:
-Roboto, DejaVu, Arial, Sony Sketch, Inter (the boot logo), Terminus (the 1bit theme's
+Roboto, Roboto Condensed (Black Metal's, Total Black's, Amber Trey's and Ops Room's, OFL-1.1,
+src/fonts/LICENSE-RobotoCondensed-OFL-1.1.txt), DejaVu, Arial, Sony Sketch, Inter (the boot logo), Terminus (the 1bit theme's
 pixel font, OFL-1.1, src/fonts/LICENSE-Terminus-OFL-1.1.txt), Noto Sans CJK JP (a subset:
 the screensaver's characters, OFL-1.1, src/fonts/LICENSE-NotoSansCJK-OFL-1.1.txt), Share Tech Mono (the Codec
 theme's, OFL-1.1, src/fonts/LICENSE-ShareTechMono-OFL-1.1.txt). The skimmer spots
