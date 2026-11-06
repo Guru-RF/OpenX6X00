@@ -116,7 +116,7 @@ sed -i "/_CONF_OPTS += -DHW_BACKEND=/d" $GUI_MK
 # Not synced into the build: the worktrees under .claude (gigabytes) and the PC's own builds. In place of the line
 # the package may have of its own (the X6100's excludes build-host only)
 sed -i "/^${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS/d" $GUI_MK
-sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = --exclude /.claude --exclude /build --exclude /build-host\n\n&|" $GUI_MK
+sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = --exclude /.claude --exclude /build --exclude /build-host --exclude /build-docker\n\n&|" $GUI_MK
 grep -q "^${GUI_VAR}_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = --exclude /.claude" $GUI_MK
 sed -i "s|^\$(eval \$(cmake-package))|${GUI_VAR}_CONF_OPTS += -DHW_BACKEND=$MODEL\n\n&|" $GUI_MK
 grep -q "^${GUI_VAR}_CONF_OPTS += -DHW_BACKEND=$MODEL" $GUI_MK
@@ -339,7 +339,7 @@ if ls $BR/build/build/$GUI_PKG-*/.stamp_configured > /dev/null 2>&1; then
     # builds, no longer synced, goes
     for d in $BR/build/build/$GUI_PKG-*/ $BR/build/build/x6100-webserver-*/; do
         [ -d "$d" ] || continue
-        case $d in *webserver*) src=$GUI/webserver ;; *) src=$GUI; rm -rf "$d/.claude" "$d/build" "$d/build-host" ;; esac
+        case $d in *webserver*) src=$GUI/webserver ;; *) src=$GUI; rm -rf "$d/.claude" "$d/build" "$d/build-host" "$d/build-docker" ;; esac
         (cd "$d" && find . -type f -not -path './CMakeFiles/*' -not -name '.stamp_*' -not -name .openx6x00) |
             while read -r f; do
                 if [ -f "$src/$f" ] && ! cmp -s "$src/$f" "$d/$f"; then
