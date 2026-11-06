@@ -19,6 +19,8 @@ lv_obj_t *spectrum_init(lv_obj_t *parent);
 void spectrum_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint8_t fft_dec);
 /* Trace and peaks back to the floor, the levels as set */
 void spectrum_clear();
+/* Drawn again now, from what is there: the screen seen again after the dark or the screensaver (screen_light.c) */
+void spectrum_redraw();
 
 /* The vertical scale: from the band's settings, or (auto levels) from the DSP */
 void spectrum_min_max_reset();

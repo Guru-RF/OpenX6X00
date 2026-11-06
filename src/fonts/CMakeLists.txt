@@ -24,5 +24,6 @@ target_sources(${PROJECT_NAME} PUBLIC
     pixel_12.c pixel_14.c pixel_16.c pixel_18.c pixel_20.c pixel_22.c   # 1bit (Terminus Font, OFL-1.1)
     pixel_24.c pixel_28.c pixel_32.c pixel_44.c
     pixel_freq_40.c                                                     # its frequency
+    matrix_20.c                                                         # the screensaver's rain (Noto Sans CJK JP, OFL-1.1)
     font_select.c
 )

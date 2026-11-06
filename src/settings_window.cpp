@@ -33,6 +33,7 @@ extern "C" {
     #include "theme.h"
     #include "fonts/font_select.h"
     #include "params/params.h"
+    #include "screen_idle.h"
     #include "screen_light.h"
     #include "radio.h"
     #include "tune_tx.h"
@@ -650,6 +651,29 @@ static void bl_keys_cb(lv_event_t *e) {
     backlight_set_buttons((buttons_light_t)lv_dropdown_get_selected(lv_event_get_target(e)));
 }
 
+/* The screensaver (screen_saver.c): its minutes row only with one, the page again after the choice as for the
+ * waterfall's Mode */
+static lv_obj_t *saver_dd;
+
+static void saver_page(void *arg) {
+    if (!page) {
+        return;
+    }
+    make_display_page();
+    lv_group_focus_obj(saver_dd);
+}
+
+static void saver_cb(lv_event_t *e) {
+    params_uint8_set(&params.screen_saver, lv_dropdown_get_selected(lv_event_get_target(e)));
+    backlight_settings_changed();
+    lv_async_call(saver_page, NULL);
+}
+
+static void saver_min_cb(lv_event_t *e) {
+    params_uint16_set(&params.screen_saver_min, lv_spinbox_get_value(lv_event_get_target(e)));
+    backlight_settings_changed();
+}
+
 static uint8_t make_backlight(uint8_t row) {
     lv_obj_t *obj;
 
@@ -673,9 +697,18 @@ static uint8_t make_backlight(uint8_t row) {
     row_choice(row, 1, 6, SMALL_6, " Always Off \n Always On \n Temporarily On ", params.brightness_buttons, bl_keys_cb, NULL);
     row++;
 
-    /* The screen dark after so many minutes without a key or knob (0: never), or always: the
-     * radio run from the knob or a browser, POWER shows the screen for a while. Two rows: one
-     * label for both ran into the minutes */
+    /* The screensaver after so many minutes without use, until a key, a knob or TX */
+    wl_row_label(row, "Screensaver");
+    saver_dd = row_choice(row++, 1, 3, SMALL_3, " None \n Matrix rain ", params.screen_saver.x, saver_cb, NULL);
+    if (params.screen_saver.x != SCREEN_SAVER_NONE) {
+        wl_row_label(row, "Screensaver (min)");
+        obj = row_spin(row++, 1, 2, SMALL_2, params.screen_saver_min.x, 1, SCREEN_MIN_MAX, 3);
+        lv_obj_add_event_cb(obj, saver_min_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    }
+
+    /* The screen dark after so many minutes without use (0: never; a screensaver shows until then), or
+     * always: the radio run from the knob or a browser, POWER shows the screen for a while. Two rows:
+     * one label for both ran into the minutes */
     wl_row_label(row, "Screen off (min)");
     obj = row_spin(row, 1, 2, SMALL_2, params.screen_off_min, 0, 120, 3);
     lv_obj_add_event_cb(obj, bl_blank_cb, LV_EVENT_VALUE_CHANGED, NULL);

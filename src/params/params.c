@@ -17,6 +17,7 @@
 #include "../vol.h"
 #include "../dialog_msg_cw.h"
 #include "../qth/qth.h"
+#include "../screen_idle.h"
 
 #include "../cfg/db.h"
 #include "../cfg/cfg_api.h"
@@ -33,7 +34,11 @@
 
 params_t params = {
     .brightness_normal = 5, .brightness_idle = 4, .brightness_timeout = 30,
-    .screen_off_min = 5, .screen_off_always = false,
+    /* The screensaver after 5 minutes and never dark, until set. Dark after 5 minutes before it came: a radio
+     * where that was changed keeps its moment, with the screensaver before it (migrations.c, _16) */
+    .screen_off_min = SCREEN_OFF_MIN_DEFAULT, .screen_off_always = false,
+    .screen_saver           = { .x = SCREEN_SAVER_DEFAULT, .min = 0, .max = SCREEN_SAVER_LAST, .name = "screen_saver" },
+    .screen_saver_min       = { .x = SCREEN_SAVER_MIN_DEFAULT, .name = "screen_saver_min" },
     .brightness_buttons     = BUTTONS_TEMPORARILY,
 
     .spectrum_beta          = { .name = "spectrum_beta", .x = 85, .min = 0, .max = 90 },
@@ -310,6 +315,8 @@ static bool params_load() {
         if (params_load_float(&params.rec_gain_db_f, name, f)) continue;
 
         if (params_load_uint8(&params.charger, name, i)) continue;
+        if (params_load_uint8(&params.screen_saver, name, i)) continue;
+        if (params_load_uint16(&params.screen_saver_min, name, i)) continue;
         if (params_load_bool(&params.mag_freq, name, i)) continue;
         if (params_load_bool(&params.icon_menus, name, i)) continue;
         if (params_load_js8(&params, name, i)) continue;
@@ -463,6 +470,8 @@ static bool params_save() {
     params_save_uint16(&params.ft8_tx_freq);
 
     params_save_uint8(&params.charger);
+    params_save_uint8(&params.screen_saver);
+    params_save_uint16(&params.screen_saver_min);
     params_save_bool(&params.mag_freq);
     params_save_bool(&params.icon_menus);
     params_save_js8(&params);

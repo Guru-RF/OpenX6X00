@@ -47,7 +47,7 @@
 #define LAND_H      480
 #define PANEL_W     LAND_H          /* panel, portrait */
 #define PANEL_H     LAND_W
-#define MAX_RECTS   64              /* per frame, more: whole screen */
+#define MAX_RECTS   128             /* per frame, more: whole screen (the screensaver's rain: two a column) */
 #define FLIP_TIMEOUT_MS 100
 
 #define err(msg, ...) fprintf(stderr, "drm: " msg "\n", ##__VA_ARGS__)

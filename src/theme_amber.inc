@@ -40,6 +40,8 @@ static const theme_set_t lcd_colors[] = {
     /* the band plan in shades of the glass, not in colour */
     {TC_bp_cw, 0xc89038},       {TC_bp_dig, 0xd8a044},       {TC_bp_ssb, 0xb88430},         {TC_bp_bcn, LCD_DIM},
     {TC_bp_text, LCD_INK},
+    /* the screensaver's rain in the glass's amber, on black as in every theme */
+    {TC_saver, LCD_GLASS},      {TC_saver_head, 0xfff0d0},
 };
 
 /* use_builtin(b): true when b is this theme, applied; every other theme turns theme_amber off */

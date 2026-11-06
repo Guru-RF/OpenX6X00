@@ -98,8 +98,10 @@ typedef struct {
     int16_t             brightness_normal;
     int16_t             brightness_idle;
     uint16_t            brightness_timeout; /* seconds */
-    uint16_t            screen_off_min;     /* the screen blanked after this long without a key, minutes, 0 never */
+    uint16_t            screen_off_min;     /* the screen blanked after this long without use, minutes, 0 never */
     bool                screen_off_always;  /* the screen stays dark: a radio run from the knob or a browser */
+    params_uint8_t      screen_saver;       /* SCREEN_SAVER_* (screen_idle.h) after screen_saver_min, until a use */
+    params_uint16_t     screen_saver_min;   /* minutes without a key, a knob or TX */
     buttons_light_t     brightness_buttons;
 
     /* radio */

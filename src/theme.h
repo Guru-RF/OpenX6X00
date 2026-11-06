@@ -144,6 +144,11 @@ extern "C" {
     X(finder_band,       0xf87171, 0xff5050, 0x830000, 0xff5050) /* app waterfalls: passband */ \
     X(finder_cursor,     0x34d399, 0x50ff50, 0x008300, 0x50ff50) \
     \
+    /* the screensaver (screen_saver.c): on black in every theme, the film's green */ \
+    X(saver_bg,          0x000000, 0x000000, 0x000000, 0x000000) /* its ground */ \
+    X(saver,             0x00ff40, 0x00ff40, 0x00ff40, 0x00ff40) /* Matrix rain: the trail, fading into the ground */ \
+    X(saver_head,        0xc8ffc8, 0xc8ffc8, 0xc8ffc8, 0xc8ffc8) /* the head of each column */ \
+    \
     /* categories */ \
     X(pill_hp,           0x3a2e0c, 0x4b3c14, 0xebdcb4, 0x3a2800) /* Bluetooth: headphones (text: accent) */ \
     X(pill_cat,          0x2a2040, 0x3a2f5a, 0xb0a5d0, 0x2a2040) \

@@ -92,7 +92,7 @@ static void clear_cb(lv_disp_drv_t *drv, uint8_t *buf, uint32_t size) {
 /* Display settings that would break the screen are put right at every start
  * (an old or hand-edited params.db, a backup restored from another version):
  * the spectrum is disabled in this firmware, the font
- * must exist and the legacy spectrum values must stay in their ranges. */
+ * must exist and the legacy spectrum values and the screensaver must stay in their ranges. */
 static void fix_uint8(params_uint8_t *p) {
     if (p->max > p->min && (p->x < p->min || p->x > p->max)) {
         uint8_t v = p->x < p->min ? p->min : p->max;
@@ -110,6 +110,7 @@ static void display_settings_check(void) {
     fix_uint8(&params.spectrum_beta);
     fix_uint8(&params.spectrum_peak_hold);
     fix_uint8(&params.spectrum_peak_speed);
+    fix_uint8(&params.screen_saver);
 }
 
 #if USE_DRM || USE_SDL

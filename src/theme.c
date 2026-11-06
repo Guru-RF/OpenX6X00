@@ -38,6 +38,7 @@ static const theme_color_t onebit_paper[] = {
     TC_veil,       TC_alert_box,     TC_track,        TC_frame,      TC_off,        TC_switch_off,     TC_icon_off,
     TC_mode_text,  TC_bp_text,       TC_pill_hp,      TC_pill_cat,   TC_pill_kbd,   TC_row_alert_text, TC_row_heard,
     TC_row_tx,     TC_row_cq,        TC_row_group,    TC_ft8_cq,     TC_ft8_cq_worked, TC_ft8_cq_same, TC_ft8_tx,
+    TC_saver,      TC_saver_head,    /* paper rain on the ink */
 };
 
 /* VISION: the default's colours made "warm anthracite": white digits on dark grey, orange for what is on,
@@ -184,9 +185,12 @@ static void use_builtin(int b) {
     theme_shape = builtin_shapes[src];
     if (b == B_OUTDOOR_NEG) {
         for (int i = 0; i < TC_COUNT; i++) colors[i] = negative(colors[i]);
-        /* the yellow of the selection stays yellow: its text stays black */
+        /* the yellow of the selection stays yellow: its text stays black; the screensaver stays green on black */
         colors[TC_sel_text]        = builtin_colors[B_OUTDOOR][TC_sel_text];
         colors[TC_btn_active_text] = builtin_colors[B_OUTDOOR][TC_btn_active_text];
+        colors[TC_saver_bg]        = builtin_colors[B_OUTDOOR][TC_saver_bg];
+        colors[TC_saver]           = builtin_colors[B_OUTDOOR][TC_saver];
+        colors[TC_saver_head]      = builtin_colors[B_OUTDOOR][TC_saver_head];
         for (int i = 0; i < theme_shape.waterfall_n; i++) theme_shape.waterfall[i] = negative(theme_shape.waterfall[i]);
     }
     if (b == B_VISION) {

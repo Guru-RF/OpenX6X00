@@ -456,8 +456,8 @@ static void direct_redraw(int new_row) {
     uint32_t    bandwidth = shown_span();
     lv_area_t   a;
 
-    if (!shown(obj)) {
-        wfp_full = true;            /* not up to date when shown again */
+    if (!shown(obj) || !backlight_seen()) {
+        wfp_full = true;            /* not up to date when shown again (the screen dark, the screensaver over it) */
         return;
     }
     /* Tuning moves the centre: the image slides by whole pixels and only the
@@ -1292,6 +1292,9 @@ static void image_redraw(void) {
     /* 1bit: the dither column by frequency, so the dots move with the picture while tuning */
     int         x0 = theme_shape.mono && span ? (int)((int64_t) wf_center_freq * WIDTH / span) : 0;
 
+    if (!backlight_seen()) {
+        return;                     /* all of it again at each refresh: from the next one seen */
+    }
     for (int32_t y = 0; y < height; y++, px += WIDTH) {
         const wf_row_t *row = row_at(y);
 
@@ -1339,6 +1342,11 @@ void waterfall_refresh_period_set(uint8_t k) {
     if (k) {
         refresh_period = k;
     }
+}
+
+void waterfall_redraw() {
+    refresh_count = refresh_period;     /* not left out under a dialog */
+    scheduler_put_coalesced(refresh_waterfall);
 }
 
 /* ---- Where the picture is centred ---- */
