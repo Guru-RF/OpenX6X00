@@ -384,9 +384,13 @@ VER=$(sed -n 's/.*define VERSION.* v\([0-9.]*\).*/\1/p' $GUI/src/main.h)
 KEY=${UPDATE_KEY:-$HOME/.config/openx6x00/update-key.pem}
 KEYARG=""; [ -f "$KEY" ] && KEYARG="--key $KEY"
 # The FT8 library goes in too (mkbundle.py LIB_FILES): the ft8lib package at the tree's pin, installed in target/ by
-# this build (an X6200 card image up to v0.3.6 has 117022b)
+# this build (an X6200 card image up to v0.3.8 has 117022b). Buildroot installs a version once: a tree that had
+# another pin after this one (the X6200's had 117022b) keeps that one's file in target/ when it comes back to this
 FT8LIB_VER=$(sed -n 's/^FT8LIB_VERSION = //p' $EXT/package/ft8lib/ft8lib.mk)
-[ -f $BR/build/build/ft8lib-$FT8LIB_VER/.stamp_target_installed ] || { echo "ft8_lib $FT8LIB_VER, the tree's pin, was never installed in target/"; exit 1; }
+FT8LIB_STAMP=$BR/build/build/ft8lib-$FT8LIB_VER/.stamp_target_installed
+[ -f $FT8LIB_STAMP ] || { echo "ft8_lib $FT8LIB_VER, the tree's pin, was never installed in target/"; exit 1; }
+[ "$(ls -t $BR/build/build/ft8lib-*/.stamp_target_installed | head -1)" = $FT8LIB_STAMP ] ||
+    { echo "ft8_lib $FT8LIB_VER: another version was installed in target/ after it (make ft8lib-dirclean, build again)"; exit 1; }
 echo "   ft8_lib ${FT8LIB_VER:0:7}: /usr/lib/libft8.so $(sha256sum $BR/build/target/usr/lib/libft8.so | cut -c1-12)"
 python3 $GUI/tools/update/mkbundle.py --target $BR/build/target --manifest $(ls -d $BR/build/build/$GUI_PKG-*/install_manifest.txt | head -1) \
     --version $VER --model $MODEL --out $BR/build/images/$OUT-v$VER-update.tar.gz $KEYARG

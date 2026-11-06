@@ -377,7 +377,7 @@ web configurator (System > Update).
     tailnet.
 - The FT8 library (`/usr/lib/libft8.so`) comes with the update since v0.3.9.
   Before, an X6200 kept the one of its card image (ft8_lib 117022b on the
-  images up to v0.3.6), with which a CQ with a compound or long call (see
+  images up to v0.3.8), with which a CQ with a compound or long call (see
   [FT8 and FT4](#ft8-and-ft4)) went out as free text or as a hash
   (`CQ <...>`), or not at all. Going back to v0.3.8 with the button puts the
   card's library back; v0.3.8's bundle leaves the new one, which v0.3.8 runs
