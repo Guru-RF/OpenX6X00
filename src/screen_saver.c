@@ -23,6 +23,7 @@
 
 #include "screen_saver.h"
 
+#include "board.h"
 #include "screen_idle.h"
 #include "screen_light.h"
 #include "theme.h"
@@ -38,8 +39,9 @@ LV_FONT_DECLARE(matrix_20);
 #define FRAME_MS 66         /* 15 frames a second */
 #define CELL_W   16         /* 50 columns of 20 rows on 800 x 480 */
 #define CELL_H   24
-#define MAX_COLS (800 / CELL_W)
-#define MAX_ROWS (800 / CELL_H)     /* the walkie screen is portrait */
+#define DISP_MAX LV_MAX(BOARD_DISP_W, BOARD_DISP_H)    /* the walkie screen is portrait */
+#define MAX_COLS (DISP_MAX / CELL_W)
+#define MAX_ROWS (DISP_MAX / CELL_H)
 #define FADE     4          /* the trail's last cells, fading to the ground */
 
 /* The film's set: the half-width katakana, the digits and a few signs */
