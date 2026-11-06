@@ -1367,8 +1367,10 @@ minutes, the screen dark after 30).
 - Under the screensaver the radio works as it does with the screen lit: it
   receives, the apps decode, the cluster comes in, the browser panel and TCI
   get the spectrum and the waterfall. Only the drawing stops: the waterfall,
-  the 3D band scope and the spectrum are not drawn while covered, and the
-  rain takes a few percent of a core.
+  the 3D band scope and the spectrum are not drawn while covered. On the
+  bench X6200 the GUI took about a quarter of one core with the rain up,
+  half of what it takes lit in 3D (an eighth dark); on the X6100 with FT8
+  open, 55 % of a core with the rain against 68 % lit in 3D.
 - Someone watching the screen from a browser (Remote > Screen) sees the
   radio's screen, not the screensaver: it waits while they watch, and comes
   when they close the page. Screen off still darkens the panel at its time.
@@ -4865,8 +4867,8 @@ hold, no TX while a digital app is open.
 It is experimental. Two stations exchanged mail through it on a PC, each with
 the radio's own Winlink code and Pat, at the free speed and at full speed. It
 has not been on the air from a radio yet, nor against VARA itself or a VARA
-gateway, and its processor load on the radios and its timing through the
-radio's audio are not measured yet. XARA itself is young (its first release
+gateway. Listening on the bench X6200 it took 6-7 % in `top`; keyed, and
+its timing through the radio's audio, are not measured yet. XARA itself is young (its first release
 came out on 21 October 2026) and still changes fast.
 
 Choosing it: on Operating > Winlink, the Station card's Modem, XARA
