@@ -14,6 +14,7 @@
 #include "msg_box.h"
 #include "board.h"
 #include "lvgl/lvgl.h"
+#include "lv_tick_mono.h"
 #if USE_SDL
 #include "host/host_panel.h"
 #else
@@ -291,6 +292,26 @@ static void services_start(void) {
     lv_timer_set_repeat_count(lv_timer_create(settings_note_cb, 3000, NULL), 1);
 }
 
+/* LVGL's clock (lv_tick_mono.h): the GUI loop sets it before each lv_timer_handler(), this thread every 5 ms
+ * meanwhile, through a long frame and for the threads that read it. The kernel's monotonic clock, as get_time() */
+uint32_t lv_tick_mono_now;
+
+static void *tick_thread(void *arg) {
+    for (;;) {
+        usleep(5000);
+        lv_tick_mono_read();
+    }
+    return NULL;
+}
+
+static void tick_start(void) {
+    pthread_t thread;
+
+    lv_tick_mono_read();
+    pthread_create(&thread, NULL, tick_thread, NULL);
+    pthread_detach(thread);
+}
+
 /* The events from the threads, the scheduled work, LVGL; then sleep until LVGL wants to
  * run again, or until a key, a knob or another thread wakes it (gui_wake.h) */
 /* A version installed by x6100-update is "pending" until the GUI has run a minute: then it is
@@ -309,6 +330,7 @@ static void gui_loop(void) {
 
         event_obj_check();
         scheduler_work();
+        lv_tick_mono_set(get_time());   /* LVGL's timers on the clock's time, not up to 5 ms behind */
         int32_t draw_in = gui_wake_draw_due();
 
         int64_t next = start + lv_timer_handler();
@@ -338,6 +360,7 @@ static void gui_loop(void) {
          * at once, and what they changed drawn at the top of the loop, frames at least
          * MIN_FRAME_GAP_MS apart. (It slept 5 ms more when LVGL had a timer due at once.) */
         if (gui_wake_wait(wait < 1 ? 1 : wait > 100 ? 100 : wait) == WAKE_INPUT) {
+            lv_tick_mono_set(get_time());
             gui_wake_read_input();
             lv_timer_handler();
             gui_wake_draw_now(MIN_FRAME_GAP_MS);
@@ -346,6 +369,7 @@ static void gui_loop(void) {
 }
 
 int main(void) {
+    tick_start();       /* LVGL's clock, from the start */
     scheduler_init();   /* this is the GUI thread */
     start_trace("GUI start, %s", VERSION);
     /* the helpers' User-Agent (x6100-field, spots), the logs' PROGRAMVERSION (field_adif_header) */

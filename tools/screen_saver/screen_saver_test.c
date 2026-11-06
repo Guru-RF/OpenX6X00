@@ -63,8 +63,9 @@ uint64_t get_time() {
     return clock_ms;
 }
 
-/* LVGL's clock: the GUI's reads CLOCK_MONOTONIC (lv_conf.h's LV_TICK_CUSTOM, #182), the test's is its own, stepped by
- * run(), so the rain is the same from the same steps. With both defined here the library's lv_hal_tick.o is not linked */
+/* LVGL's clock: the GUI's is CLOCK_MONOTONIC as its loop last read it (lv_conf.h's LV_TICK_CUSTOM, lv_tick_mono.h),
+ * the test's is its own, stepped by run(), so the rain is the same from the same steps. With both defined here the
+ * library's lv_hal_tick.o is not linked */
 static uint32_t lv_ms;
 
 uint32_t lv_tick_get(void) {

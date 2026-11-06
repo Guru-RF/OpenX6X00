@@ -36,6 +36,9 @@
 #define ON_H    76
 #define OFF_H   116         /* off: from the top, under the bars and the strip */
 
+/* LVGL's clock (lv_tick_mono.h): the GUI loop sets it, gui_main.c has it. Here it stays at 0: nothing waits on a timer */
+uint32_t lv_tick_mono_now;
+
 static lv_color_t buf[W * H];
 static int        cases, good;
 
