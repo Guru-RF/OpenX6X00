@@ -9,6 +9,7 @@
  *  order they need each other, then the GUI loop.
  */
 
+#include "gui_wake.h"
 #include "dialog_field.h"
 #include "msg_box.h"
 #include "board.h"
@@ -195,12 +196,18 @@ static void inputs_open(void) {
 #else
     keyboard_init();
 #endif
-    keypad_init(BOARD_DEV_KEYPAD);
-    keypad_init(BOARD_DEV_POWER);
-    rotary_main_init(BOARD_DEV_MAIN);
+    keypad_t *keys = keypad_init(BOARD_DEV_KEYPAD), *power = keypad_init(BOARD_DEV_POWER);
+
+    rotary_main_init(BOARD_DEV_MAIN);   /* its thread wakes the GUI itself */
 
     vol = rotary_init(BOARD_DEV_VOL);
     mfk = encoder_init(BOARD_DEV_MFK);
+
+    /* A key or a knob wakes the GUI loop at once (gui_wake.h) */
+    if (keys) gui_wake_add_fd(keys->fd);
+    if (power) gui_wake_add_fd(power->fd);
+    if (vol) gui_wake_add_fd(vol->fd);
+    if (mfk) gui_wake_add_fd(mfk->fd);
 
     /* VOL turns are keys to the focused widget: the value, or the choice of what it controls */
     vol->left[VOL_STATE_EDIT]    = KEY_VOL_LEFT_EDIT;
@@ -215,6 +222,7 @@ static void inputs_open(void) {
     rotary_t *inner = rotary_init(BOARD_DEV_MFK_INNER);
 
     if (inner) {
+        gui_wake_add_fd(inner->fd);
         for (int i = 0; i < 3; i++) {
             inner->left[i]  = KEY_MFK_PREV;
             inner->right[i] = KEY_MFK_NEXT;
@@ -284,12 +292,14 @@ static void services_start(void) {
 }
 
 /* The events from the threads, the scheduled work, LVGL; then sleep until LVGL wants to
- * run again, at least 5 ms (when it says now) to keep the CPU free */
+ * run again, or until a key, a knob or another thread wakes it (gui_wake.h) */
 /* A version installed by x6100-update is "pending" until the GUI has run a minute: then it is
  * confirmed, otherwise the start loop rolls it back after three failed starts */
 static void update_confirm_cb(lv_timer_t *t) {
     sh_run("/usr/sbin/x6100-update confirm", NULL, NULL);
 }
+
+#define MIN_FRAME_GAP_MS 8
 
 static void gui_loop(void) {
     bool drawn = false;     /* the start trace's last stage */
@@ -299,6 +309,7 @@ static void gui_loop(void) {
 
         event_obj_check();
         scheduler_work();
+        int32_t draw_in = gui_wake_draw_due();
 
         int64_t next = start + lv_timer_handler();
 #if USE_DRM
@@ -321,7 +332,16 @@ static void gui_loop(void) {
         }
         int64_t wait = next - get_time();
 
-        usleep(wait > 0 ? wait * 1000 : 5000);
+        if (draw_in >= 0 && draw_in < wait) wait = draw_in;
+
+        /* Until LVGL's next timer (at most 100 ms), or input: then the keys and knobs are read
+         * at once, and what they changed drawn at the top of the loop, frames at least
+         * MIN_FRAME_GAP_MS apart. (It slept 5 ms more when LVGL had a timer due at once.) */
+        if (gui_wake_wait(wait < 1 ? 1 : wait > 100 ? 100 : wait) == WAKE_INPUT) {
+            gui_wake_read_input();
+            lv_timer_handler();
+            gui_wake_draw_now(MIN_FRAME_GAP_MS);
+        }
     }
 }
 
@@ -335,6 +355,7 @@ int main(void) {
     panel_open();
     audio_init();
     event_init();
+    gui_wake_init();
     usb_devices_monitor_init();
     display_register();
     inputs_open();

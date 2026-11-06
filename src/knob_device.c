@@ -10,6 +10,7 @@
  * detent, the key chosen by the knob's state (edit or select). The main knob goes to the
  * screen as EVENT_ROTARY with its speed. */
 
+#include "gui_wake.h"
 #include "knob_device.h"
 
 #include "screen_light.h"
@@ -133,6 +134,7 @@ static void *main_knob_thread(void *arg) {
             knob_main.head                  = next;
         }
         pthread_mutex_unlock(&knob_main.lock);
+        gui_wake_input();
     }
     return NULL;
 }

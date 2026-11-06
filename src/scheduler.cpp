@@ -6,6 +6,9 @@
  *  Copyright (c) 2024 Georgy Dyuldin aka R2RFE
  */
 
+extern "C" {
+#include "gui_wake.h"
+}
 #include "scheduler.h"
 
 #include <condition_variable>
@@ -70,6 +73,7 @@ static bool put(scheduler_fn_t fn, void *arg, sync_t *sync, bool urgent, bool co
         return false;
     }
     queue.push_back({fn, arg, sync, coalesced});
+    gui_wake();
     return true;
 }
 
