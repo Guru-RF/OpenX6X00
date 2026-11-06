@@ -12,7 +12,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
-- [Settings](#settings): [General](#general-tab), [Display](#display-tab), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
+- [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
@@ -269,8 +269,10 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
   down, as the first key, is fast typing: Caps Lock turns and the key
   types. A chord's key typed that fast is the chord: let CapsLock go first.
 - The keyboard's keys keep the screen lit, as the radio's own do. On a
-  dark screen (Settings > Display > BACKLIGHT > Screen off) the first
-  chord only lights it, press it again; a key typed types as usual.
+  dark screen (Settings > Display > BACKLIGHT > Screen off) or the
+  [screensaver](#screensaver) the first chord only brings the screen back,
+  press it again; a key typed on a dark screen types as usual, on the
+  screensaver it only brings the screen back.
 
 PTT from the keyboard. CapsLock+Space keys the radio as its PTT key does,
 with the same refusals where the radio may not transmit, the 0 W hold, the
@@ -1246,7 +1248,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 
 | Card | Options |
 |---|---|
-| BACKLIGHT | timeout and brightness, buttons brightness (Always Off, Always On, Temporarily On), Screen off (min) (minutes without a key or knob, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser; POWER shows it for the blank time, a minute at least) |
+| BACKLIGHT | timeout and brightness, buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
@@ -1284,6 +1286,69 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
   [Info tab](#info-tab)).
 
 All these options are also on the web configurator's Display page.
+
+#### Screensaver
+
+Where: Settings > Display > BACKLIGHT (also on the web configurator's
+Display page).
+
+Left alone, the radio shows a screensaver, so that the screen does not
+stand still for hours: Matrix rain, columns of characters falling, each at
+its own speed, a pale head and a trail that fades at its end, the
+characters mirrored as in the film (the rain of the VFO-Knob's screensaver).
+It comes after Screensaver (min) minutes without use and stays until the
+radio is used. With Screen off (min) set, the screen goes dark at that time,
+counted from the last use too, with the screensaver before it.
+
+| Setting | |
+|---|---|
+| Screensaver | None, or Matrix rain (the default) |
+| Screensaver (min) | minutes without use before it comes, 1 to 120, 5 by default; shown with a screensaver |
+| Screen off (min) | minutes without use before the screen goes dark, 0 never (the default); a screensaver shows until then. One that is not later than the screensaver's comes first, with no screensaver |
+| Screen always off | the screen stays dark: no screensaver, as before (above) |
+
+So the choice is the screensaver alone (Screen off 0), or the screensaver
+and then dark (Screensaver 5, Screen off 30: the screensaver after 5
+minutes, the screen dark after 30).
+
+- What counts as use: a key or a knob of the radio, a hand mic key, a
+  keyboard, tuning from the browser panel, the remote screen's keys and
+  knobs, a new frequency from a TCI client or from Pat (Winlink), and with
+  a screensaver transmitting. Each starts the minutes again.
+- Any TX ends the screensaver at once, whatever keyed it: the PTT key, the
+  hand mic, an app, CAT, TCI, the browser, the tuner. No screensaver comes
+  while the radio is on the air; the minutes start again when it is back on
+  receive. The radio never transmits behind the screensaver.
+- The first key, knob turn or hand mic key on the screensaver only brings
+  the screen back: it does not tune, key or change anything. The next one
+  does. On a screen dark by Screen off the first key only lights it, as
+  before; a knob turned lights it and turns.
+- The POWER key on the screensaver brings the screen back, as any key; on
+  the lit screen it turns it dark, as before.
+- Under the screensaver the radio works as it does with the screen lit: it
+  receives, the apps decode, the cluster comes in, the browser panel and TCI
+  get the spectrum and the waterfall. Only the drawing stops: the waterfall,
+  the 3D band scope and the spectrum are not drawn while covered, and the
+  rain takes a few percent of a core.
+- Someone watching the screen from a browser (Remote > Screen) sees the
+  radio's screen, not the screensaver: it waits while they watch, and comes
+  when they close the page. Screen off still darkens the panel at its time.
+- The colours come from the theme: green on black in most themes, amber in
+  Amber Trey, the paper on the ink in 1bit (the end of the trail dotted).
+  A theme file can set them (`saver_bg`, `saver`, `saver_head`, see
+  [docs/THEMES.md](THEMES.md)).
+- With None the screen off is as before: dark after Screen off minutes
+  without a key or a knob, 0 never, and TX does not keep it lit.
+
+Updating from an earlier version. Screen off was 5 minutes by default; now
+the screensaver comes after 5 minutes and the screen never goes dark, until
+set. A radio where Screen off was never changed takes these defaults. A
+radio where it was changed keeps going dark at its time, with the
+screensaver before it: at 5 minutes, or a minute before the dark when that
+comes at 5 minutes or sooner (Screen off 3: the screensaver at 2, dark at
+3). Screen off 1 leaves no room for it: the screensaver is None there, the
+screen as before. Screen off 0 (never dark): the screensaver after 5
+minutes, never dark.
 
 ### Audio tab
 
@@ -4138,7 +4203,7 @@ them.
 | S-meter | S-meter type (Bars, Needle), Colours (Theme, Scale, Level), Needle lamp; with a preview |
 | Waterfall | Mode (Centered, Fixed), Jump at (40%, Passband, Line) and Jump to (Center, Other edge, Scroll), greyed unless Mode is Fixed (see [Waterfall](#waterfall)), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll, 3D, 3D colours (Strength, Waterfall, Blue), 3D depth, tilt, floor, range, peaks, glide (greyed unless 3D is on; under Amber Trey 3D off and greyed with them) |
 | On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
-| Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screen off after (0-120 min), Screen always off |
+| Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX outside ham bands (Settings > TX Cal; see [Amateur bands only](#amateur-bands-only)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
@@ -5220,7 +5285,8 @@ together, two of them at most from the internet through
 
 The screen is streamed even while the radio's panel is dark (Screen off after,
 Screen always off): a radio with its screen off, worked from the browser, is
-the intended setup for a remote shack corner. The link's health, the greyed
+the intended setup for a remote shack corner. While the page is open the
+[screensaver](#screensaver) waits: the page shows the radio's screen. The link's health, the greyed
 last picture with its age when the link drops, the reconnection and what is
 never replayed across a gap are as on the Panel page (When the link drops,
 above); so are the pairing, the roles, control of the radio and the PTT as
@@ -5237,7 +5303,7 @@ tunnel or a forwarded port: use another port for that, 8000 for instance.
 While a TCI client transmits (the knob's PTT, AetherSDR, the browser remote's
 microphone) the radio's speaker and TX monitor are quiet, and come back as they
 were when the client unkeys. A frequency change from a TCI client wakes a blanked
-screen like a key does (not with Screen always off).
+screen or ends the screensaver like a key does (not with Screen always off).
 
 TCI (Transceiver Control Interface, version 2.0) is the protocol of Expert
 Electronics' SDRs, the one AetherSDR serves to WSJT-X and to the

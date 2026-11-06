@@ -31,6 +31,7 @@ extern "C" {
     #include "params/params.h"
     #include "radio.h"
     #include "scheduler.h"
+    #include "screen_idle.h"
     #include "screen_light.h"
     #include "screen_main.h"
     #include "theme.h"
@@ -169,6 +170,12 @@ static void disp_apply(void *arg) {
         params.screen_off_always = d->val != 0;
         params_unlock(&params.dirty.screen_off_always);
         backlight_settings_changed();
+    } else if (!strcmp(d->name, "screen_saver")) {
+        params_uint8_set(&params.screen_saver, d->val);
+        backlight_settings_changed();
+    } else if (!strcmp(d->name, "screen_saver_min")) {
+        params_uint16_set(&params.screen_saver_min, d->val);
+        backlight_settings_changed();
     } else if (!strcmp(d->name, "bright_buttons")) {
         backlight_set_buttons((buttons_light_t)d->val);
     } else if (!strcmp(d->name, "theme")) {
@@ -224,6 +231,10 @@ static const char *disp_set(cJSON *req, disp_set_t *d) {
         min = 0, max = 120, known = true;
     if (!strcmp(d->name, "screen_off_always"))
         min = 0, max = 1, known = true;
+    if (!strcmp(d->name, "screen_saver"))
+        min = 0, max = SCREEN_SAVER_LAST, known = true;
+    if (!strcmp(d->name, "screen_saver_min"))
+        min = 1, max = SCREEN_MIN_MAX, known = true;
     if (!known)
         return "Unknown option";
     if (!get_int(req, min, max, &d->val))
@@ -242,10 +253,11 @@ static int disp_get(char *buf, size_t size) {
         l += snprintf(buf + l, size - l, ",\"%s\":%d", o.name, o.b->x ? 1 : 0);
     l += snprintf(buf + l, size - l,
                   ",\"auto_level_offset\":%d,\"bright_normal\":%d,\"bright_idle\":%d,\"bright_timeout\":%d,"
-                  "\"bright_buttons\":%d,\"screen_off_min\":%d,\"screen_off_always\":%d,\"theme\":\"%s\",\"themes\":[",
+                  "\"bright_buttons\":%d,\"screen_off_min\":%d,\"screen_off_always\":%d,\"screen_saver\":%d,"
+                  "\"screen_saver_min\":%d,\"theme\":\"%s\",\"themes\":[",
                   (int)lroundf(cfg_sm.p_auto_level_offset.get() * 10), params.brightness_normal, params.brightness_idle,
                   params.brightness_timeout, (int)params.brightness_buttons, params.screen_off_min, params.screen_off_always ? 1 : 0,
-                  params.theme_name.x);
+                  params.screen_saver.x, params.screen_saver_min.x, params.theme_name.x);
     for (int i = 0; i < count && l < (int)size - 160; i++)   /* room for the band plan after them */
         l += snprintf(buf + l, size - l, "%s\"%s\"", i ? "," : "", names[i]);
     l += snprintf(buf + l, size - l, "]");

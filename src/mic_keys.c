@@ -129,6 +129,11 @@ void hkey_put(uint32_t code) {
         LV_LOG_USER("hand mic: key 0x%02X (%s)", (unsigned)code,
                     i < sizeof(keys) / sizeof(keys[0]) ? keys[i].name : "unknown");
     }
+    /* Every press is a use, the typed ones too. One that ends the screensaver only ends it: nothing typed, no key to
+     * the main screen, its release left alone */
+    if (all_up() && backlight_saver_tick()) {
+        return;
+    }
     if (i == sizeof(keys) / sizeof(keys[0])) {
         cur.key = HKEY_UNKNOWN;
     } else if (keys[i].use != MIC_KEY && keys[i].code != RADIO_HKEY_FINP && textarea_window_is_open()) {
@@ -157,7 +162,6 @@ void hkey_put(uint32_t code) {
         return;
     }
     cur.state = HKEY_PRESS;
-    backlight_tick();
     if (cur.key != HKEY_UNKNOWN) {
         post();
         hold_timer_stop();

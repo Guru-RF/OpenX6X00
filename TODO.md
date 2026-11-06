@@ -24,6 +24,24 @@ times a second instead of 15. 1.5 MB for the background, allocated the first tim
 - **After that**: 3D shots for the README gallery from the radio, on an antenna. The front labels sit under the Knob
   info lines at the bottom left (seen on the PC build, zoomed in).
 
+## Screensaver: Matrix rain on the radios
+
+Settings > Display > BACKLIGHT, Screensaver and Screensaver (min) (src/screen_saver.c, the times src/screen_idle.c):
+the rain of the VFO-Knob's screensaver after 5 minutes without use, never dark until Screen off is set; a radio whose
+Screen off was changed keeps its moment (migrations.c _16). An LVGL object over the screen, the GUI under it not
+drawn, the waterfall, 3D and the spectrum paused. Run on the PC build only: 14 pictures a second, ~90 000 pixels and
+~40 areas each, 0.18 ms a picture of LVGL's own work there (lv_timer_handler with the screensaver up, less the SDL
+flush and the dark screen's), so some 4 to 8 % of an A7 core by the usual factor of 15 to 25, plus the DRM copies
+(MAX_RECTS raised to 128 for its two areas a column).
+
+- **On an X6100 and an X6200**: `top -d 1 -p $(pidof x6100_gui)` with the screensaver up (Screensaver (min) 1), lit
+  in 3D and dark, receiving with FT8 open; the rain on the panel (the overlay plane the right way round, no GUI
+  showing through, the top layer's messages hidden), RF.Guru, 1bit and Amber Trey; the first key, a knob turn and a
+  hand mic key only bring the screen back; FT8 auto's TX ends it at once and none comes while on the air; POWER on
+  it, a theme change from the web page and the walkie mode under it; a radio updated with Screen off 3 goes dark at
+  3 with the rain from 2. If the X6100 finds it heavy: a slower rain or fewer columns (the work follows the cells the
+  columns move over a second, hardly the pictures a second).
+
 ## X6200: the short pulse at the start of each transmission, register 32 (#53)
 
 Seen 5 November on an external transient analyser: the X6200 sends a narrow RF pulse at the start of each

@@ -43,10 +43,13 @@ static void vol_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
             }
         }
         if (turned) {
-            backlight_tick();
+            bool woke = backlight_saver_tick();    /* the turn that ends the screensaver only ends it */
+
             ctl_local_input();
-            pending                = sum;
-            data->continue_reading = true;
+            if (!woke) {
+                pending                = sum;
+                data->continue_reading = true;
+            }
         }
     } else if (key_down) {
         data->state            = LV_INDEV_STATE_RELEASED;
@@ -156,10 +159,9 @@ static void main_knob_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     }
     pthread_mutex_unlock(&knob_main.lock);
 
-    if (sum) {
+    if (sum && !backlight_saver_tick()) {     /* the turn that ends the screensaver only ends it */
         rotary_data_t *ev = malloc(sizeof(*ev));
 
-        backlight_tick();
         ev->diff = sum;
         ev->dt   = LV_MAX(ms / count, 1);
         lv_event_send(lv_scr_act(), EVENT_ROTARY, ev);

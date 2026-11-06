@@ -77,6 +77,7 @@ bool        lv_group_get_editing(const lv_group_t *group) { return editing; }
 void        lv_timer_del(lv_timer_t *t) { hold_cb = NULL; }
 void        lv_timer_set_repeat_count(lv_timer_t *t, int32_t count) {}
 bool        backlight_tick() { return false; }
+bool        backlight_saver_tick() { return false; }
 bool        textarea_window_is_open(void) { return text_window; }
 
 lv_timer_t *lv_timer_create(lv_timer_cb_t cb, uint32_t period, void *data) {

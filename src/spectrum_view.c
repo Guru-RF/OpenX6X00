@@ -22,6 +22,7 @@
 #include "recorder.h"
 #include "rtty.h"
 #include "scheduler.h"
+#include "screen_light.h"
 #include "gui_styles.h"
 #include "lcd_panel.h"
 #include "theme.h"
@@ -627,6 +628,9 @@ static void spectrum_refresh(void *data) {
     keep_trace();
     if (lv_obj_get_style_opa(obj, 0) < LV_OPA_MIN) {
         return;     /* parked under the top chrome while Settings > Display > Spectrum is off */
+    }
+    if (!backlight_seen()) {
+        return;     /* the screen dark or under the screensaver: no picture, the data goes on */
     }
     if (!direct) {
         lv_obj_invalidate(obj);

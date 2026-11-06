@@ -1153,10 +1153,12 @@ static void mic_key_cb(lv_event_t *e) {
     }
 }
 
-/* TX and RX to the widgets that change with them, and to the open app */
+/* TX and RX to the widgets that change with them, and to the open app. Any TX, whatever keyed it, ends the
+ * screensaver: never on the air unseen */
 static void rx_tx_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
 
+    backlight_tx(code == EVENT_RADIO_TX);
     lv_event_send(meter, code, NULL);
     lv_event_send(tx_info, code, NULL);
     lv_event_send(spectrum, code, NULL);

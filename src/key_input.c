@@ -170,7 +170,8 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
             continue;
         }
         /* A key at the radio, as the front keys and the knobs: the screen stays lit, a dark one wakes */
-        bool woke = backlight_tick() && ev.value == 1;
+        bool saver = backlight_saver_on();
+        bool woke  = backlight_tick() && ev.value == 1;
 
         /* In CW [ ] and the paddle keys are the paddle (paddle_keyer.c): a press stops a
          * message on air, as a break */
@@ -182,6 +183,9 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
         }
         if (!hyper_key(&ev, woke)) {
             continue;
+        }
+        if (woke && saver) {
+            continue;   /* the key that ends the screensaver only ends it: nothing typed (on a dark screen it types) */
         }
         *key      = xkb_process_key(ev.code, ev.value);     /* xkb follows Shift from these too */
         *scancode = ev.code;

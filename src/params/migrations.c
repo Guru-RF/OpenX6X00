@@ -356,6 +356,25 @@ static int _15_x6100_transverters_off() {
     return 0;
 }
 
+/* The screensaver (screen_idle.h) comes after 5 minutes without use, and the screen goes dark never by default now,
+ * where it went dark after 5 minutes. A radio whose screen off time was changed (only a change is saved: a row) keeps
+ * going dark at that moment, with the screensaver before it: at 5 minutes, or a minute before when the screen off
+ * comes at 5 minutes or sooner. Dark after a minute leaves no room for it: no screensaver there, as before. A radio
+ * set never to go dark takes the screensaver and stays so; every other radio takes the new defaults. Runs once, on
+ * the version step: what is set afterwards stays */
+static int _16_screen_saver() {
+    if (sqlite3_exec(db,
+                     "INSERT OR IGNORE INTO params SELECT 'screen_saver_min', val - 1 FROM params "
+                     "WHERE name = 'screen_off_min' AND val BETWEEN 2 AND 5;"
+                     "INSERT OR IGNORE INTO params SELECT 'screen_saver', 0 FROM params "
+                     "WHERE name = 'screen_off_min' AND val = 1;",
+                     NULL, NULL, NULL) != SQLITE_OK) {
+        printf("Cannot keep the screen off time: %s\n", sqlite3_errmsg(db));
+        return 1;
+    }
+    return 0;
+}
+
 static int (*migrations[])() = {
     _0_init_migrations,
     _1_create_ftx_table,
@@ -373,6 +392,7 @@ static int (*migrations[])() = {
     _13_x6200_stock_transverters,
     _14_tx_outside_bands_off,
     _15_x6100_transverters_off,
+    _16_screen_saver,
 };
 
 int migrations_apply(void) {
