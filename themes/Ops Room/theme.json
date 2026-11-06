@@ -1,0 +1,241 @@
+{
+  "base": "Classic",
+  "colors": {
+    "bg": "#050403",
+    "bar": "#0d0703",
+    "bar_grad": "#090502",
+    "bar_border": "#a8520f",
+    "strip": "#160a04",
+    "strip_grad": "#0a0502",
+    "strip_border": "#ff8c1a",
+    "dialog": "#0a0603",
+    "dialog_grad": "#0a0603",
+    "dialog_border": "#ff8c1a",
+    "btn": "#0f0804",
+    "btn_grad": "#0f0804",
+    "btn_border": "#a8520f",
+    "btn_text": "#ff8c1a",
+    "btn_active": "#3a1a05",
+    "btn_active_grad": "#3a1a05",
+    "btn_active_border": "#ffb347",
+    "btn_active_text": "#ffe2b8",
+    "btn_page": "#ff8c1a",
+    "btn_page_text": "#140700",
+    "btn_off_text": "#4a2a0c",
+    "btn_off_border": "#2a1606",
+    "btn_mark": "#5a300c",
+    "btn_mark_assigned": "#ff8c1a",
+    "btn_mark_active": "#ffe2b8",
+    "text": "#ffc27a",
+    "text_value": "#ffe2b8",
+    "text_soft": "#e8a35c",
+    "text_dim": "#9a5a1e",
+    "text_mute": "#7a4616",
+    "text_faint": "#4a2a0c",
+    "text_head": "#ff8c1a",
+    "accent": "#ffb347",
+    "accent_soft": "#8c5cff",
+    "line": "#a8520f",
+    "title_text": "#140700",
+    "action": "#7dff5a",
+    "sel_bg": "#4a2306",
+    "sel_text": "#ffe2b8",
+    "sel_border": "#ffb347",
+    "focus": "#ff8c1a",
+    "focus_text": "#140700",
+    "focus_bg": "#4a2306",
+    "near_bg": "#2a1404",
+    "ok": "#7dff5a",
+    "ok_bg": "#0f2a08",
+    "ok_bar": "#7dff5a",
+    "warn": "#ffd23a",
+    "warn_bg": "#2a2005",
+    "err": "#ff2b1c",
+    "err_strong": "#ff1a0a",
+    "err_bg": "#3a0806",
+    "tx": "#ff2b1c",
+    "tx_bg": "#3a0806",
+    "tx_box": "#3a0806",
+    "info": "#8c5cff",
+    "digi": "#7dff5a",
+    "new": "#ffd23a",
+    "alert": "#ff2b1c",
+    "alert_text": "#ffd0c8",
+    "alert_bg": "#3a0806",
+    "alert_box": "#2a0604",
+    "mode_bg": "#ff8c1a",
+    "mode_text": "#140700",
+    "mode_border": "#ffb347",
+    "mode_dig": "#7dff5a",
+    "pill_off_text": "#5a3410",
+    "pill_border": "#a8520f",
+    "icon_off": "#4a2a0c",
+    "meter_weak": "#5a300c",
+    "meter_bar": "#ff8c1a",
+    "meter_low": "#ff8c1a",
+    "meter_high": "#ff2b1c",
+    "meter_over": "#ff2b1c",
+    "bar_high": "#ff2b1c",
+    "bar_mid": "#ffd23a",
+    "alc": "#8c5cff",
+    "vfo_line": "#ff2b1c",
+    "vfo": "#8c5cff",
+    "vfo_bg": "#1c1240",
+    "spot": "#ffe2b8",
+    "tune_good": "#7dff5a",
+    "bp_cw": "#3b2470",
+    "bp_dig": "#1f5a16",
+    "bp_ssb": "#7a3a08",
+    "bp_bcn": "#7a1010",
+    "bp_text": "#ffe2b8",
+    "finder_band": "#ff2b1c",
+    "finder_cursor": "#7dff5a",
+    "off": "#2a1606",
+    "card": "#a8520f",
+    "edited": "#7dff5a",
+    "panel": "#0a0603",
+    "panel_border": "#a8520f",
+    "list": "#080502",
+    "row": "#160a04",
+    "popup": "#0d0703",
+    "popup_border": "#ff8c1a",
+    "side": "#0d0703",
+    "chip": "#1d0e04",
+    "veil": "#050403",
+    "track": "#24120a",
+    "frame": "#080502",
+    "switch_off": "#7a4616",
+    "lock": "#ffd23a",
+    "control_border": "#ff8c1a",
+    "toggle_on": "#ff8c1a",
+    "toggle_focus": "#ffb347",
+    "pill_hp": "#2a2005",
+    "pill_cat": "#1c1240",
+    "pill_cat_text": "#c0a8ff",
+    "pill_kbd": "#0f2a08",
+    "pill_kbd_text": "#7dff5a",
+    "age_mid": "#ffd23a",
+    "age_old": "#a8520f",
+    "row_alert": "#3a0806",
+    "row_alert_text": "#ffd0c8",
+    "row_heard": "#1d0e04",
+    "row_tx": "#3a0806",
+    "row_to_me": "#7a1208",
+    "row_cq": "#2a1404",
+    "row_group": "#1c1240",
+    "row_sel_bar": "#ff8c1a",
+    "ft8_cq": "#7dff5a",
+    "ft8_cq_worked": "#3a6a28",
+    "ft8_cq_same": "#1f3a14",
+    "ft8_to_me": "#ff2b1c",
+    "ft8_tx": "#ffd23a"
+  },
+  "radius": 0,
+  "radius_btn": 0,
+  "radius_popup": 0,
+  "border": 1,
+  "btn_gradient": false,
+  "box_gradient": false,
+  "focus_solid": true,
+  "font": "rcond",
+  "waterfall": [
+    "#000000",
+    "#12021e",
+    "#3a0a4a",
+    "#7a1030",
+    "#d0301a",
+    "#ff7a10",
+    "#ffd060",
+    "#ffffff"
+  ],
+  "waterfall_steps": 0,
+  "mark": [
+    6,
+    9,
+    9
+  ],
+  "pill_border": 1,
+  "mode_box": true,
+  "btn_gap": 1,
+  "ops_room": true,
+  "images": {
+    "btn": {
+      "file": "btn.png",
+      "slice": [
+        7,
+        5,
+        7,
+        5
+      ]
+    },
+    "btn_active": {
+      "file": "btn_active.png",
+      "slice": [
+        7,
+        5,
+        7,
+        5
+      ]
+    },
+    "btn_off": {
+      "file": "btn_off.png",
+      "slice": [
+        7,
+        5,
+        7,
+        5
+      ]
+    },
+    "btn_page": {
+      "file": "btn_page.png",
+      "slice": [
+        7,
+        5,
+        7,
+        5
+      ]
+    },
+    "bar": {
+      "file": "bar.png",
+      "slice": [
+        24,
+        12,
+        12,
+        12
+      ]
+    },
+    "strip": {
+      "file": "strip.png",
+      "slice": [
+        44,
+        14,
+        40,
+        14
+      ]
+    },
+    "dialog": {
+      "file": "panel.png",
+      "slice": [
+        52,
+        14,
+        40,
+        14
+      ]
+    },
+    "bg": {
+      "file": "background.png",
+      "slice": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "mark": {
+      "file": "mark.png"
+    },
+    "mark_active": {
+      "file": "mark_active.png"
+    }
+  }
+}

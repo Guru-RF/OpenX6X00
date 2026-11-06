@@ -203,6 +203,8 @@ typedef struct {
     bool    codec;          /* Codec: the S-meter as a SIGNAL bar of segments, the scale under it (smeter.c) */
     bool    vision;         /* VISION: big type for weak eyes, a low top bar, a tall frequency strip, the S-meter on a row of its own */
 #define VISION_FONT_STEPS 3 /* VISION: every font this many sizes up, apps and Settings too (fonts_scale) */
+    bool    ops_room;       /* Ops Room (a theme's "ops_room": true): the clock as the activity timer in 7-segment
+                             * digits, the S-meter as a row of hexagons, the TRANSMIT band at TX (ops_room.c) */
     bool    deck;           /* Black Metal, Total Black: two rows of state on top, S/SWR/ALC scales beside a big
                              * frequency, the frequency edges in the spectrum, one-line flat buttons */
     bool     mono;          /* 1bit: every pixel ink or paper (src/mono.c): no anti-aliasing, see-through

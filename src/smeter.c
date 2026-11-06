@@ -8,6 +8,7 @@
 
 #include "smeter.h"
 #include "tx_meters.h"
+#include "ops_room.h"
 #include "gui_styles.h"
 #include "theme.h"
 #include "gui_events.h"
@@ -83,6 +84,8 @@ static void db_label_place(void) {
         lv_obj_set_style_text_font(db_val_label, &sony_20, 0);
         lv_obj_set_style_text_color(db_val_label, TC(text_value), 0);
         lv_obj_align(db_val_label, LV_ALIGN_TOP_RIGHT, -12, 3);
+    } else if (theme_shape.ops_room) {     /* drawn with the hexagons (ops_room.c) */
+        lv_obj_add_flag(db_val_label, LV_OBJ_FLAG_HIDDEN);
     } else if (theme_shape.vision) {
         lv_obj_align(db_val_label, LV_ALIGN_RIGHT_MID, -12, 0);
     } else if (needle_on()) {
@@ -647,6 +650,11 @@ static void meter_draw_cb(lv_event_t *e) {
     lv_obj_t      *o = lv_event_get_target(e);
     lv_draw_ctx_t *draw_ctx = lv_event_get_draw_ctx(e);
 
+    if (theme_shape.ops_room && !tx_readings) {      /* the TX readings as in any theme */
+        ops_room_meter_draw(o, draw_ctx, in_tx ? S1 : meter_db, in_tx ? S1 : meter_peak);
+        if (in_tx) tx_veil(o, draw_ctx);
+        return;
+    }
     if (theme_shape.deck) {
         deck_draw(o, draw_ctx);
         return;
@@ -685,7 +693,7 @@ static void radio_cb(lv_event_t *e) {
         lv_label_set_text(db_val_label, "");
         lv_obj_set_style_text_color(db_val_label, TC(text), 0);
         db_label_place();
-        if (!theme_shape.deck) lv_obj_clear_flag(db_val_label, LV_OBJ_FLAG_HIDDEN);
+        if (!theme_shape.deck && !theme_shape.ops_room) lv_obj_clear_flag(db_val_label, LV_OBJ_FLAG_HIDDEN);
         lv_obj_remove_local_style_prop(obj, LV_STYLE_BORDER_COLOR, 0);
         lv_obj_remove_local_style_prop(obj, LV_STYLE_BORDER_WIDTH, 0);
     }

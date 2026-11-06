@@ -61,7 +61,7 @@ Every key is optional: what a file does not set comes from its `base`.
 | `border` | border width of boxes and buttons (3 or more: high contrast boxes) |
 | `btn_gradient`, `box_gradient` | vertical gradient `btn` -> `btn_grad` on the buttons, `bar` -> `bar_grad` etc. on the boxes |
 | `focus_solid` | the focused control in Settings is filled with `focus` (else half see-through) |
-| `font` | `sony`, `roboto`, `dejavu`, `arial`, `pixel` (1bit's) or `codec` (Share Tech Mono, the Codec theme's); without it the base's own (Arial on Classic, Roboto Condensed on Black Metal, Total Black and Amber Trey, pixel on 1bit), on the other bases the font chosen in Settings |
+| `font` | `sony`, `roboto`, `dejavu`, `arial`, `pixel` (1bit's), `codec` (Share Tech Mono, the Codec theme's) or `rcond` (Roboto Condensed, the deck themes' and Ops Room's); without it the base's own (Arial on Classic, Roboto Condensed on Black Metal, Total Black and Amber Trey, pixel on 1bit), on the other bases the font chosen in Settings |
 | `ink`, `paper` | on base `1bit` only: its two colours (`#000000` and `#efece2`), say a green LCD that still has only two |
 | `waterfall` | 2 to 16 colours from weak to strong signal |
 | `waterfall_steps` | 0 smooth, else that many flat bands |
@@ -73,6 +73,7 @@ Every key is optional: what a file does not set comes from its `base`.
 | `btn_text_size` | the text on the bottom buttons, one size on every button and page, the apps' too: 16 to 36, the font's sizes (built in: 26 RF.Guru and Legacy, 28 Outdoor, Outdoor-Negative, Classic and 1bit, 24 Black Metal, Total Black and Amber Trey). Where two lines of it do not fit the buttons' height (`btn_gap`, a taller `font`) the whole row takes a smaller size (not on base `Amber Trey`: one line, an action's two joined with a space); a text too wide for its button takes the biggest smaller size it fits in. On base `VISION`, and on the walkie screen's narrow buttons, each text is fitted to its button instead |
 | `btn_caps` | that text in capitals, a unit after a number as it is (`FILTER HIGH 2950 Hz`, as Black Metal and Total Black write it) |
 | `codec` | the S-meter as a SIGNAL bar: a framed row of segments, red above S9, the peak bright, the S scale under it and the dB value top right (themes/Codec); in TX the TX readings, as in any theme |
+| `ops_room` | the Ops Room theme's own pieces: a red band with TRANSMIT and ON AIR across the screen while the radio transmits, the clock as INTERNAL/EXTERNAL power with the battery in 7-segment digits and an active time LIMIT, and the S-meter as a row of SIGNAL hexagons |
 
 The encoder LED shows which encoder a button's control is on (`btn_mark`,
 `btn_mark_assigned`); the control the encoder adjusts now is `btn_mark_active`
