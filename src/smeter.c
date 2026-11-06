@@ -73,12 +73,17 @@ static void show_value(void *unused) {
 
 /* VISION keeps the bars: its meter is a wide, low row with the value beside it */
 static bool needle_on(void) {
-    return param_i_get(cfg_smeter_needle) && !theme_shape.vision && !theme_shape.deck && !theme_shape.mono;
+    return param_i_get(cfg_smeter_needle) && !theme_shape.vision && !theme_shape.deck && !theme_shape.mono &&
+           !theme_shape.codec;
 }
 
 /* The dB value: under the bars, or under the dial in the needle's dim colour */
 static void db_label_place(void) {
-    if (theme_shape.vision) {
+    if (theme_shape.codec) {        /* top right, beside SIGNAL */
+        lv_obj_set_style_text_font(db_val_label, &sony_20, 0);
+        lv_obj_set_style_text_color(db_val_label, TC(text_value), 0);
+        lv_obj_align(db_val_label, LV_ALIGN_TOP_RIGHT, -12, 3);
+    } else if (theme_shape.vision) {
         lv_obj_align(db_val_label, LV_ALIGN_RIGHT_MID, -12, 0);
     } else if (needle_on()) {
         lv_obj_set_style_text_font(db_val_label, &sony_20, 0);
@@ -590,12 +595,65 @@ static void bars_draw_mono(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
     }
 }
 
+/* Codec: SIGNAL over a framed bar of segments, red above S9, the peak bright, the scale under it */
+static lv_coord_t signal_x(float db, lv_coord_t w) {     /* S9 at 70% of the bar */
+    db = LV_CLAMP(S1, db, S9_40);
+    return db <= S9 ? (db - S1) * w * 7 / 10 / (S9 - S1) : w * 7 / 10 + (db - S9) * w * 3 / 10 / (S9_40 - S9);
+}
+
+static void signal_draw(lv_obj_t *o, lv_draw_ctx_t *draw_ctx) {
+    static const struct { int16_t db; const char *t; } marks[] = {
+        {S1, "1"}, {S3, "3"}, {S5, "5"}, {S7, "7"}, {S9, "9"}, {S9_20, "+20"}, {S9_40, "+40"}};
+    lv_coord_t          x0 = o->coords.x1 + 12, x1 = o->coords.x2 - 12, w = x1 - x0, y0 = o->coords.y1;
+    lv_draw_label_dsc_t dsc;
+    lv_draw_rect_dsc_t  rect;
+    lv_area_t           a;
+
+    lv_draw_label_dsc_init(&dsc);
+    dsc.font = &sony_20;
+    dsc.color = TC(text_head);
+    label_at(draw_ctx, &dsc, x0, y0 + 3, "SIGNAL", true);
+
+    /* the frame */
+    lv_draw_rect_dsc_init(&rect);
+    rect.bg_opa = LV_OPA_TRANSP;
+    rect.border_color = TC(meter_weak);
+    rect.border_width = 1;
+    a = (lv_area_t){x0, y0 + 24, x1, y0 + 41};
+    lv_draw_rect(draw_ctx, &rect, &a);
+
+    /* segments 3 px wide, 1 px apart, lit to the level */
+    lv_coord_t lvl = in_tx ? 0 : signal_x(meter_db, w - 4), peak = in_tx ? 0 : signal_x(meter_peak, w - 4);
+    lv_coord_t s9 = signal_x(S9, w - 4);
+
+    lv_draw_rect_dsc_init(&rect);
+    for (lv_coord_t x = 0; x + 3 <= w - 4; x += 4) {
+        bool lit = x < lvl, top = !lit && x <= peak && x + 4 > peak;
+
+        rect.bg_color = top ? TC(text_value) : !lit ? TC(track) : x >= s9 ? TC(meter_over) : TC(meter_bar);
+        a = (lv_area_t){x0 + 2 + x, y0 + 26, x0 + 2 + x + 2, y0 + 39};
+        lv_draw_rect(draw_ctx, &rect, &a);
+    }
+
+    /* the scale */
+    dsc.font = &sony_14;
+    for (int i = 0; i < (int)(sizeof(marks) / sizeof(marks[0])); i++) {
+        dsc.color = marks[i].db > S9 ? TC(meter_over) : TC(text_dim);
+        label_at(draw_ctx, &dsc, x0 + 2 + signal_x(marks[i].db, w - 4), y0 + 43, marks[i].t, false);
+    }
+}
+
 static void meter_draw_cb(lv_event_t *e) {
     lv_obj_t      *o = lv_event_get_target(e);
     lv_draw_ctx_t *draw_ctx = lv_event_get_draw_ctx(e);
 
     if (theme_shape.deck) {
         deck_draw(o, draw_ctx);
+        return;
+    }
+    if (theme_shape.codec && !tx_readings) {     /* the TX readings as in any theme */
+        signal_draw(o, draw_ctx);
+        if (in_tx) tx_veil(o, draw_ctx);
         return;
     }
     if (tx_readings) tx_meters_draw(o, draw_ctx);

@@ -5,7 +5,8 @@
 extern "C" {
 #endif
 
-enum { FONT_SONY, FONT_ROBOTO, FONT_DEJAVU, FONT_ARIAL, FONT_RCOND, FONT_PIXEL };
+enum { FONT_SONY, FONT_ROBOTO, FONT_DEJAVU, FONT_ARIAL, FONT_RCOND, FONT_PIXEL,
+       FONT_CODEC };   /* CODEC: the Codec theme's (Share Tech Mono) */
 
 /* At boot and on a theme change, before the styles and widgets are made with the fonts */
 void fonts_apply(uint8_t choice);

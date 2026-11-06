@@ -341,6 +341,7 @@ static bool load_file(const char *name) {
     get_int(root, "btn_gap", &theme_shape.btn_gap);
     theme_shape.btn_gap = theme_shape.btn_gap < 0 ? 0 : theme_shape.btn_gap > 4 ? 4 : theme_shape.btn_gap;
     get_bool(root, "rule", &theme_shape.rule);
+    get_bool(root, "codec", &theme_shape.codec);
     get_int(root, "btn_text_size", &theme_shape.btn_text_size);
     get_bool(root, "btn_caps", &theme_shape.btn_caps);
     v = theme_shape.waterfall_steps;
@@ -353,7 +354,8 @@ static bool load_file(const char *name) {
                            !strcasecmp(font, "dejavu") ? FONT_DEJAVU :
                            !strcasecmp(font, "arial") ? FONT_ARIAL :
                            !strcasecmp(font, "pixel") ? FONT_PIXEL :
-                           !strcasecmp(font, "sony") ? FONT_SONY : -1;
+                           !strcasecmp(font, "sony") ? FONT_SONY :
+                           !strcasecmp(font, "codec") ? FONT_CODEC : -1;
     }
     const cJSON *wf = cJSON_GetObjectItemCaseSensitive(root, "waterfall");
     if (cJSON_IsArray(wf) && cJSON_GetArraySize(wf) >= 2) {

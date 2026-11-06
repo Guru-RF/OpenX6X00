@@ -12,6 +12,10 @@ target_sources(${PROJECT_NAME} PUBLIC
     rcond_38.c rcond_40.c rcond_42.c rcond_44.c
     rcond_60.c
     rcond_freq_54.c rcond_freq_88.c rcond_pm_20.c   # the frequency, the scope span
+    codec_14.c codec_16.c codec_18.c codec_20.c codec_22.c codec_24.c codec_26.c   # Codec (Share Tech Mono, OFL)
+    codec_28.c codec_30.c codec_32.c codec_34.c codec_36.c
+    codec_38.c codec_40.c codec_42.c codec_44.c
+    codec_60.c
     dejavu_14.c dejavu_16.c dejavu_18.c dejavu_20.c dejavu_22.c dejavu_24.c dejavu_26.c
     dejavu_28.c dejavu_30.c dejavu_32.c dejavu_34.c dejavu_36.c
     dejavu_38.c dejavu_40.c dejavu_42.c dejavu_44.c
