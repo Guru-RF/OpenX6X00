@@ -78,6 +78,9 @@ answers a CQ it decodes when that station is not in the log yet for this band an
 - **Other digital modes**: FT4 and FT2 share the FT8 app and come with it. JS8 deliberately
   never transmits to the group by itself (MANUAL, JS8 section): an auto answer there would be a
   separate decision. RTTY/PSK are keyboard modes and WSPR a beacon: not candidates.
+- **Gatherer first** (#156, asked 2026-11-06 as the priority): CQ again by itself once a QSO is logged and the RR73
+  or 73 has gone out, while nobody else calls; the same switch, time limit and stop on any key or knob as above.
+  The smaller half, so it can come before the hunt.
 
 ## X6100: the patched base (gdyuldin/x6100_base_patch r13) on radios that came with base V1.1.8
 
@@ -312,6 +315,19 @@ the PC build's window.
   three minutes keyed (`PTT off: three minutes on the air`). Out of band: `No TX on ...`, the next chord tries again.
   A browser paired meanwhile: its PTT refused ("controlled by the radio's operator").
 - Open: more chords, a line each in kbd_hyper.c's table.
+- **Asked next (F4ESO, 2026-11-06)**: name, QTH/locator and a comment in the same Log QSO box, after the reports, each
+  after a comma, all optional (`F4ABC 59 57, Jean, Paris JN18du, nice signal`): a locator into GRIDSQUARE, the rest
+  of the QTH into QTH, the comment into COMMENT. Settle a comment without a name or a QTH, and a comma inside one.
+  A QRZ.com lookup: not now (the PC logger fills these in at import).
+
+## WSPR: band hopping (#190)
+
+Asked 2026-11-06 (rwensley). Today the WSPR app stays on the band chosen. A first version: each WSPR band Off, RX or
+RX+TX, and a Hop switch on WSPR 2:2 F5; the coordinated 2-minute slots first (the minute of the hour picks the band,
+160 to 10 m), the band changed between two cycles, never during a beacon; TX % as it is. The ATU's stored match per
+frequency covers the hops once each WSPR frequency is tuned; an external tuner would need Ext tune at each hop, later.
+The parts of the day (grayline, day, night) later: the radio doesn't work out sunrise and sunset yet. ALE: out of
+scope.
 
 ## WiFi: a static address, as Ethernet has (#17)
 
