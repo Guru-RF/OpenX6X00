@@ -8,8 +8,10 @@
  *  it was on; the others did not.
  *
  *  The app calls band_keep_tune() before each retune: the first time into a band, its dial is taken as the settings
- *  file has it (cfg_band_dial_get). band_keep_end(), from its destruct_cb, takes the radio back first (the backup
- *  memory, which app_window then loads again: nothing changes) and puts each band's dial back.
+ *  file has it (cfg_band_dial_get), the band in use too (a band key went there while the app was open).
+ *  band_keep_end(), from its destruct_cb, takes the radio back first (the backup memory, which app_window then loads
+ *  again: nothing changes) and puts each band's dial back. A power-off with the app open calls it before the settings
+ *  are flushed (screen_main.c); a second call, or one with no app open, does nothing.
  */
 #pragma once
 

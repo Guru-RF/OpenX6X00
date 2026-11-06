@@ -1,7 +1,9 @@
 # Host test of the Propagation and Scanner apps' engines, without the GUI: where the sun is (src/sun.c, against
 # the 2024 solstice and equinox and a local noon), the NCDXF schedule and the scoring of beacon slots
-# (src/beacons.c: one beacon heard among noise, a band open wide, a slot that changed band), and the scanner's
-# stops, hang time, lockouts and learning (src/scan.c). `make` builds it and runs it, for each radio.
+# (src/beacons.c: one beacon heard among noise, a band open wide, a slot that changed band), the Beacons view's
+# retunes (a copy of dialog_propagation.c's bcn_listen: none on the air, a hand tune kept for its round, a slot cut
+# short by closing not scored), and the scanner's stops, hang time, lockouts and learning (src/scan.c). `make` builds
+# it and runs it, for each radio.
 SRC    := ../../src
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC)
 SRCS   := prop_test.c $(SRC)/sun.c $(SRC)/beacons.c $(SRC)/scan.c

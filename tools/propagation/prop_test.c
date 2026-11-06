@@ -175,6 +175,140 @@ static void test_retune(void) {
     CHECK(beacons_heard(13, 0)->heard, "retuned at the slot's start: scored, %d dB", beacons_heard(13, 0)->snr);
 }
 
+/* dialog_propagation.c's want_band, tune_band and bcn_listen, a copy (change both): the radio is the dial, whether it
+ * is on the air, and a count of the retunes. Called each 100 ms tick with the reading of that tick */
+enum { FOLLOW_SWEEP, FOLLOW_BAND, FOLLOW_BEACON };
+
+static int     follow, band_sel, sel = 13, tuned = -1, retunes;
+static int32_t tuned_freq, dial;
+static int64_t hand_round = -1;
+static bool    on_air;
+
+static int want_band(time_t t) {
+    switch (follow) {
+        case FOLLOW_SWEEP:  return (int)((t / BEACON_ROUND_S) % BEACON_BANDS);
+        case FOLLOW_BAND:   return band_sel;
+        case FOLLOW_BEACON: {
+            int b = beacon_band_of(sel, t);
+            return b >= 0 ? b : tuned >= 0 ? tuned : 0;
+        }
+    }
+    return 0;
+}
+
+static void tune_band(int64_t ms, int b) {
+    tuned      = b;
+    tuned_freq = beacon_freq[b];
+    hand_round = -1;
+    dial       = tuned_freq;
+    retunes++;
+    beacons_retune(ms);
+}
+
+static void bcn_listen(int64_t ms, float db) {
+    if (on_air) {
+        beacons_retune(ms);
+        return;
+    }
+    time_t t = (time_t)(ms / 1000);
+    int    b = want_band(t);
+
+    if (b != tuned || dial != tuned_freq) {
+        if (b == tuned && hand_round < 0) hand_round = t / BEACON_ROUND_S;
+        if (b != tuned || t / BEACON_ROUND_S != hand_round) {
+            tune_band(ms, b);
+        } else {
+            beacons_retune(ms);
+            return;
+        }
+    } else {
+        hand_round = -1;
+    }
+    beacons_sample(ms, tuned, db);
+}
+
+static void bcn_open(int f, int band, int64_t ms) {
+    beacons_reset();
+    follow   = f;
+    band_sel = band;
+    tuned    = -1;
+    on_air   = false;
+    retunes  = 0;
+    dial     = 7030000;
+    bcn_listen(ms, -110);
+}
+
+/* On the air nothing retunes (it moved the TX itself): Follow OH2B, keyed on 20 m from 131 to 175 s into the round
+ * while it goes on to 17, 15, 12 and 10 m; Band on 20 m, tuned by hand above the band to 14.400 (a TX there held at
+ * 0 W) and keyed over the round's end. The retune waits for the first tick in receive */
+static void test_on_air(void) {
+    int64_t r0 = (int64_t)1718913600 * 1000, ms;    /* a round's start */
+
+    sel = 13;
+    bcn_open(FOLLOW_BEACON, 0, r0 + 130000);
+    CHECK(dial == 14100000 && retunes == 1, "follow: on 20 m, %d", dial);
+    on_air = true;
+    for (ms = r0 + 131000; ms < r0 + 175000; ms += 100) bcn_listen(ms, -110);
+    CHECK(dial == 14100000 && retunes == 1, "keyed: no retune, on %d after %d", dial, retunes - 1);
+    on_air = false;
+    bcn_listen(ms, -110);
+    CHECK(dial == 28200000 && retunes == 2, "unkeyed: on to 10 m at once, %d", dial);
+    CHECK(beacons_heard(13, 0)->snr == BEACON_NONE, "20 m: keyed in its slot, not scored");
+
+    bcn_open(FOLLOW_BAND, 0, r0);
+    dial = 14400000;
+    for (ms = r0 + 100; ms < r0 + 170000; ms += 100) bcn_listen(ms, -110);
+    CHECK(dial == 14400000, "band: the hand tune kept for the round");
+    on_air = true;
+    for (; ms < r0 + 190000; ms += 100) bcn_listen(ms, -110);
+    CHECK(dial == 14400000 && retunes == 1, "keyed over the round's end: still on %d", dial);
+    on_air = false;
+    bcn_listen(ms, -110);
+    CHECK(dial == 14100000 && retunes == 2, "unkeyed: 20 m taken back, %d", dial);
+}
+
+/* Band: tuned away by hand and back again in one round, then away rounds later. That one stays for its round (it
+ * snapped back at once: the first round was still counted) */
+static void test_hand_round(void) {
+    int64_t r0 = (int64_t)1718913600 * 1000, ms;
+    int32_t moved = -1;
+
+    bcn_open(FOLLOW_BAND, 0, r0);
+    for (ms = r0 + 100; ms < r0 + 4 * BEACON_ROUND_S * 1000 + 1000; ms += 100) {
+        if (ms == r0 + 20000) dial = 14110000;
+        if (ms == r0 + 30000) dial = 14100000;
+        if (ms == r0 + 3 * BEACON_ROUND_S * 1000 + 20000) dial = 14120000;
+        bcn_listen(ms, -110);
+        if (moved < 0 && retunes > 1) moved = (int32_t)((ms - r0) / 1000);
+    }
+    CHECK(moved == 4 * BEACON_ROUND_S, "taken back at %d s, not at the next round (%d s)", moved, 4 * BEACON_ROUND_S);
+    CHECK(dial == 14100000, "back on 20 m");
+}
+
+/* A slot cut short by closing the app (or by the Conditions view): destruct_cb's beacons_retune. Not scored at the
+ * next opening from its second of readings: VK6RBP heard in the round before stays heard, of that round */
+static void test_cut_slot(void) {
+    int64_t r0 = (int64_t)1718913600 * 1000, ms;
+    int64_t cut = r0 + BEACON_ROUND_S * 1000 + 5 * BEACON_SLOT_MS + 1500;   /* 1.5 s into VK6RBP's slot, round 2 */
+
+    bcn_open(FOLLOW_BAND, 0, r0);
+    for (ms = r0 + 100; ms < cut; ms += 100) {
+        bool  vk = beacon_on(0, (time_t)(ms / 1000)) == 5 && ms < r0 + BEACON_ROUND_S * 1000;
+        float db = -110 + noise(1.5);
+
+        if (vk && (ms / 300) % 2) db = -80 + noise(1.0);
+        bcn_listen(ms, db);
+    }
+    const beacon_heard_t *h = beacons_heard(5, 0);
+    CHECK(h->heard && h->when == (time_t)(r0 / 1000) + 50, "VK6RBP heard in round 1, %d dB", h->snr);
+    beacons_retune(cut);                    /* closed */
+    tuned = -1;
+    bcn_listen(cut + 3 * 3600 * 1000, -110);  /* opened again, 3 hours later */
+    h = beacons_heard(5, 0);
+    CHECK(h->heard && h->when == (time_t)(r0 / 1000) + 50, "the cut slot not scored: heard %d, %d dB, %+lld s",
+          h->heard, h->snr, (long long)(h->when - r0 / 1000));
+}
+
 /* Ten frequencies, quiet at -115 dB; the 5th busy (-90) from 4 s on for 3 s */
 static int scan_run(float stop_db, int *stops, int64_t *hold_ms) {
     int64_t now = 0, held_from = -1;
@@ -302,6 +436,9 @@ int main(void) {
     test_schedule();
     test_scoring();
     test_retune();
+    test_on_air();
+    test_hand_round();
+    test_cut_slot();
     test_scan();
     printf(fails ? "%d failed\n" : "all passed\n", fails);
     return fails != 0;

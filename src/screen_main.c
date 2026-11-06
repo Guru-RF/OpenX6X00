@@ -38,6 +38,7 @@
 #include "key_input.h"
 #include "mic_keys.h"
 #include "app_window.h"
+#include "band_keep.h"
 #include "settings_window.h"
 #include "freq_entry.h"
 #include "cw_messages.h"
@@ -942,6 +943,7 @@ static void front_key_cb(lv_event_t *e) {
             } else if (hold) {
                 msg_update_text_fmt("Power off");
                 cluster_client_stop();      /* the cluster link closed, not left to time out at the node */
+                band_keep_end();            /* the Scanner or Propagation open: the other bands' dials back first */
                 radio_poweroff();
             }
             break;
@@ -1940,6 +1942,7 @@ static void power_off_cb(lv_timer_t *t) {
     msg_update_text_fmt("Power off");
     radio_set_charger(true);
     cluster_client_stop();
+    band_keep_end();
     radio_poweroff();
 }
 

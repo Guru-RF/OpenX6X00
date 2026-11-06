@@ -272,7 +272,15 @@ static void tune_band(int b) {
     beacons_retune(now_ms());
 }
 
+/* tools/propagation/prop_test.c keeps a copy of this one, want_band and tune_band: change both */
 static void bcn_listen(void) {
+    /* On the air nothing retunes: a retune moved the TX itself, its band, filters and mode, onto the beacon frequency
+     * (a TX held at 0 W above the band let go at full power on 14.100). The slot does not count; a retune due waits
+     * for the first tick back in RX */
+    if (radio_get_state() != RADIO_RX) {
+        beacons_retune(now_ms());
+        return;
+    }
     time_t t = time(NULL);
     int    b = want_band(t);
 
@@ -286,10 +294,8 @@ static void bcn_listen(void) {
             beacons_retune(now_ms());
             return;
         }
-    }
-    if (radio_get_state() != RADIO_RX) {
-        beacons_retune(now_ms());
-        return;
+    } else {
+        hand_round = -1;    /* back on it by hand: the next tune away counts from its own round, not snapped back */
     }
     static uint32_t seq;
 
@@ -458,6 +464,7 @@ static void show_view(view_t v) {
         lv_obj_add_flag(panel_bcn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(panel_cond, LV_OBJ_FLAG_HIDDEN);
         buttons_load_page(&page_cond);
+        beacons_retune(now_ms());   /* the slot under way cut short: not scored at the next look */
         app_frame_bar(&frame, -1, 0);
         lv_label_set_text(frame.head_left, have_qth ? "PROPAGATION" : "PROPAGATION   no QTH set");
         conditions_refresh(false);
@@ -615,5 +622,6 @@ static void destruct_cb(void) {
         timer = NULL;
     }
     tuned = -1;
+    beacons_retune(now_ms());       /* the slot under way cut short: not scored at the next opening */
     band_keep_end();
 }

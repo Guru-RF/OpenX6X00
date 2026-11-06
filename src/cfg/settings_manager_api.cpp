@@ -296,14 +296,19 @@ int32_t cfg_band_of(int32_t freq) {
 bool cfg_band_dial_get(int32_t freq, cfg_band_dial_t *d) {
     int32_t id = cfg_band_of(freq);
 
-    if (id == BAND_UNDEFINED || id == cfg_sm.current_band_id()) {
+    if (id == BAND_UNDEFINED) {
         return false;
     }
-    cfg_sm.flush_storage(StorageType::BAND, id);    // a write still waiting for it first (none expected: not in use)
+    // The band in use too (a band key, CAT or TCI went there while the app was open): its writes still waiting go in
+    // first, so the rows read are its dial as it is. Refused, it was taken at a later visit with the app's in it
+    cfg_sm.flush_storage(StorageType::BAND, id);
     d->band_id = id;
     for (int i = 0; i < CFG_BAND_DIAL_N; i++) {
         ParamLoadResult<int32_t> r = BandParamsTable::Load<int32_t>(id, band_dial_names[i]);
 
+        if (r.rc != SUCCESS && r.rc != NOT_FOUND) {
+            return false;   // not read: the band left alone. Taken as none, its row was deleted on close
+        }
         d->stored[i] = r.rc == SUCCESS;
         d->val[i]    = r.value;
     }

@@ -4010,7 +4010,9 @@ sent.
 - What was heard stays while the radio is on, from one opening of the app to
   the next. Retuning by hand drops the slot, the next round takes the band
   back (in Band too); Sweep, Band, Follow or an MFK press takes it back at
-  once. A TX drops the slot as well.
+  once. A TX drops the slot as well, and so do a switch to Conditions and
+  closing the app. Nothing retunes while the radio transmits: the next band,
+  or the beacon frequency taken back, waits for receive.
 - While the Beacons view is open the radio sits on a beacon frequency in CW.
   The band plans keep 500 Hz either side of it for the beacons: a paddle, a
   CW macro from a logger or PTT would send right on top of them.
