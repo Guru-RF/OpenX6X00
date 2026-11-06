@@ -347,7 +347,8 @@ The radio updates itself: Settings > Info > Update, or the Update page of the
 web configurator (System > Update).
 
 - Check asks GitHub for the latest release. Install downloads its update
-  bundle (the GUI, the web pages, the helpers and their data, about 14 MB),
+  bundle (the GUI and its FT8 library, the web pages, the helpers and their
+  data, about 14 MB),
   checks every file against the project's signature, puts the files in place
   with the previous ones kept, and restarts the radio software: the screen
   goes dark for a few seconds. Settings, logs and everything on the DATA
@@ -374,6 +375,13 @@ web configurator (System > Update).
     the same for a few seconds, and goes back whatever came of it.
   - This was checked against a stand-in of tailscaled, not on a real
     tailnet.
+- The FT8 library (`/usr/lib/libft8.so`) comes with the update since v0.3.9.
+  Before, an X6200 kept the one of its card image (ft8_lib 117022b on the
+  images up to v0.3.8), with which a CQ with a compound or long call (see
+  [FT8 and FT4](#ft8-and-ft4)) went out as free text or as a hash
+  (`CQ <...>`), or not at all. Going back to v0.3.8 with the button puts the
+  card's library back; v0.3.8's bundle leaves the new one, which v0.3.8 runs
+  with as the X6100 always has (the two have the same interface).
 - Every paired browser pairs again on v0.3.6, since v0.3.7 keeps only a hash
   of each browser's key: Forget all (Settings > General > BROWSER REMOTE), on
   either version, before pairing, so that the first browser paired is the
@@ -2659,7 +2667,10 @@ on, also after a long pause. These QSOs carry no grid. Your CQ is
 `CQ PA/ON6URE`, with no room for the QTH or a CQ Modifier: TX CQ says
 "Next TX: CQ PA/ON6URE (no QTH or modifier with this call)". A CQ that does
 not encode at all (a callsign too long for FT8) is refused at TX CQ, "No
-CQ: callsign ... does not fit FT8", and CQ stays off. The other way round,
+CQ: callsign ... does not fit FT8", and CQ stays off. An X6200 does this
+since v0.3.9, whose update brings the FT8 library: up to v0.3.8 it kept its
+card image's older one, with which such a CQ went out as free text or as a
+hash (`CQ <...>`), or not at all. The other way round,
 a station with such a call answers your CQ with `<ON6URE> PA/W1ABC`, no
 grid: that is a call to you, answered (by Auto, or pressed) with your
 report `PA/W1ABC ON6URE -07`, its call as a hash on the air.
