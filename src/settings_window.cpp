@@ -356,7 +356,7 @@ static lv_obj_t * switch_in(lv_obj_t *cell, bool on, lv_event_cb_t cb, void *use
     lv_obj_center(sw);
     /* The theme's colours, not LVGL's blue; the knob stays LVGL's white, which shows on every theme's accent */
     lv_obj_set_style_bg_color(sw, TC(track), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(sw, TC(accent), LV_PART_INDICATOR | LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(sw, TC(accent), (lv_style_selector_t)LV_PART_INDICATOR | LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw, cb, LV_EVENT_VALUE_CHANGED, user);
     if (on) lv_obj_add_state(sw, LV_STATE_CHECKED);
     return sw;
@@ -1650,8 +1650,8 @@ static void flat_ctl(lv_obj_t *obj) {
         lv_obj_set_style_pad_right(obj, 26, 0);
     } else if (lv_obj_check_type(obj, &lv_spinbox_class)) {
         lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_RIGHT, 0);
-        lv_obj_set_style_text_color(obj, TC(accent), LV_PART_CURSOR | LV_STATE_FOCUSED);   /* no fill behind it now */
-        lv_obj_set_style_text_color(obj, TC(focus_text), LV_PART_CURSOR | LV_STATE_EDITED);
+        lv_obj_set_style_text_color(obj, TC(accent), (lv_style_selector_t)LV_PART_CURSOR | LV_STATE_FOCUSED);   /* no fill behind it now */
+        lv_obj_set_style_text_color(obj, TC(focus_text), (lv_style_selector_t)LV_PART_CURSOR | LV_STATE_EDITED);
     } else if (!toggle && lv_obj_get_child_cnt(obj)) {
         lv_obj_align(lv_obj_get_child(obj, 0), LV_ALIGN_RIGHT_MID, -6, 0);
     }
