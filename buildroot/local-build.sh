@@ -383,6 +383,11 @@ echo "== Update bundle (tools/update/mkbundle.py): what x6100-update installs on
 VER=$(sed -n 's/.*define VERSION.* v\([0-9.]*\).*/\1/p' $GUI/src/main.h)
 KEY=${UPDATE_KEY:-$HOME/.config/openx6x00/update-key.pem}
 KEYARG=""; [ -f "$KEY" ] && KEYARG="--key $KEY"
+# The FT8 library goes in too (mkbundle.py LIB_FILES): the ft8lib package at the tree's pin, installed in target/ by
+# this build (an X6200 card image up to v0.3.6 has 117022b)
+FT8LIB_VER=$(sed -n 's/^FT8LIB_VERSION = //p' $EXT/package/ft8lib/ft8lib.mk)
+[ -f $BR/build/build/ft8lib-$FT8LIB_VER/.stamp_target_installed ] || { echo "ft8_lib $FT8LIB_VER, the tree's pin, was never installed in target/"; exit 1; }
+echo "   ft8_lib ${FT8LIB_VER:0:7}: /usr/lib/libft8.so $(sha256sum $BR/build/target/usr/lib/libft8.so | cut -c1-12)"
 python3 $GUI/tools/update/mkbundle.py --target $BR/build/target --manifest $(ls -d $BR/build/build/$GUI_PKG-*/install_manifest.txt | head -1) \
     --version $VER --model $MODEL --out $BR/build/images/$OUT-v$VER-update.tar.gz $KEYARG
 

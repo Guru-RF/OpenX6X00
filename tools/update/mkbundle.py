@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Makes the update bundle the radio installs by itself (rootfs/usr/sbin/x6100-update): the files
-the GUI and the web server put in the buildroot target, a manifest with a SHA-256 per file, and
-an ECDSA P-256 / SHA-256 signature of the manifest (what the radio's OpenSSL 1.1.1 can check).
+the GUI and the web server put in the buildroot target, and the FT8 library the GUI links, a
+manifest with a SHA-256 per file, and an ECDSA P-256 / SHA-256 signature of the manifest (what the
+radio's OpenSSL 1.1.1 can check).
 
   python3 tools/update/mkbundle.py --target <buildroot target dir> \\
       --manifest <build/x6100-gui-*/install_manifest.txt> --version 0.2.0 \\
@@ -27,6 +28,13 @@ import time
 
 WEB_FILES = ["/usr/bin/x6100_webserver"]
 WEB_DIRS = ["/usr/lib/python3.11/site-packages/x6100_webserver"]
+# The FT8 library the GUI is built with and links (the buildroot tree's ft8lib package, not the GUI's CMake): without
+# it a radio updated in place keeps its card image's. The X6200's images up to v0.3.6 have ft8_lib 117022b, which
+# sends a CQ with a compound call (CQ PA/ON6URE) as free text and refuses CQ OT4ABCD and a CQ over 13 characters; both
+# trees are at 73b0db8 now, the X6100's since before its first image. The two have the same headers and exported
+# symbols (only message.c's packing differs), so the GUI runs on either: v0.3.8's on this one when its bundle is
+# installed over a newer one (which leaves the library), this one's on 117022b when a rollback puts that back
+LIB_FILES = ["/usr/lib/libft8.so"]
 SKIP_PREFIXES = ("/usr/include/",)       # the GUI package installs headers too
 
 
@@ -49,6 +57,7 @@ def main():
             if p != "/" and not p.startswith(SKIP_PREFIXES):
                 paths.add(p)
     paths.update(WEB_FILES)
+    paths.update(LIB_FILES)
     for d in WEB_DIRS:
         for root, _, files in os.walk(os.path.join(a.target, d.lstrip("/"))):
             for n in files:
