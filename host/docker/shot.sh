@@ -3,7 +3,9 @@
 #   host/docker/shot.sh out.png [seconds] [steps...]
 # A step is an xdotool key name (the PC's keys, host/README.md), sleep:<s>, or click:<x>,<y> (a touch
 # on the 800x480 screen)
-OUT=${1:-/src/build-host/shot.png}; WAIT=${2:-6}; shift 2 2>/dev/null
+OUT=${1:-/src/build-docker/shot.png}; WAIT=${2:-6}
+# not "shift 2" with fewer: a special built-in's error, which ends the script in dash (Debian's sh)
+if [ $# -ge 2 ]; then shift 2; else shift $#; fi
 Xvfb :99 -screen 0 1024x600x24 >/dev/null 2>&1 &
 export DISPLAY=:99 SDL_AUDIODRIVER=dummy
 pulseaudio -D --exit-idle-time=-1 --system=false >/dev/null 2>&1; pactl load-module module-null-sink >/dev/null 2>&1

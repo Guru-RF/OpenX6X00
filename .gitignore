@@ -52,5 +52,6 @@ images/*.png
 /tests/
 __pycache__/
 
-# The PC build (host/build.sh)
+# The PC build (host/build.sh), and in Docker (host/docker/run.sh)
 build-host/
+build-docker/

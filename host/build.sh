@@ -8,11 +8,14 @@
 #   host/build.sh run        run what is built
 #   host/build.sh clean      remove build-host/ (the dependencies and the data too)
 #
+# HOST_BUILD_DIR: another build folder than build-host/ (host/docker/run.sh: build-docker/, so the container's
+# build, owned by root on a Linux host and configured for /src, never meets this PC's own)
+#
 # Copyright (c) 2026 RF.Guru
 set -e
 cd "$(dirname "$0")/.."
 TOP=$PWD
-B=$TOP/build-host
+B=${HOST_BUILD_DIR:-$TOP/build-host}
 DEPS=$B/deps
 LIQUID_VER=1.4.0
 FT8LIB_REV=73b0db861dc41c7ca9f3dedc73ee148daa06dd0e

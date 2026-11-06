@@ -30,7 +30,10 @@ dependencies built once stay in a Docker volume (`ox-deps`). There is no window:
 GUI on a virtual display, presses keys, touches the screen and saves a screenshot.
 
     host/docker/run.sh host/build.sh build
-    host/docker/run.sh host/docker/shot.sh /src/build-host/shot.png 8 F9 sleep:1 click:400,240
+    host/docker/run.sh host/docker/shot.sh /src/build-docker/shot.png 8 F9 sleep:1 click:400,240
+
+The container builds in `build-docker/`, beside a `build-host/` of the PC's own: on a Linux host its files are
+root's, and its CMake cache names `/src`. `host/docker/run.sh host/build.sh clean` removes it.
 
 The arguments after the file are the seconds to wait for the GUI and the steps: a key as the PC's keys below
 (xdotool's names), `sleep:<s>`, or `click:<x>,<y>` on the 800x480 screen. The `HOST_STUB_*` switches set where
