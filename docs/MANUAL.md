@@ -312,9 +312,10 @@ Up to v0.3.8 this Manual had PgUp and PgDn for the band and Scroll Lock for
 the lock, and the code Print Screen for a screenshot, but none of the four
 did anything on the radio.
 
-Not tried on a radio yet: checked in the host tests (`tools/keyboard`) and
-on the PC build. The Caps Lock light, the Bluetooth link lost and the PTT
-have not run on hardware.
+On the bench X6200 (5 Nov) the CapsLock chords and the PTT toggle worked,
+with a USB keyboard; checked in the host tests (`tools/keyboard`) and on
+the PC build too. Not tried on an X6100 yet, nor the Caps Lock light and a
+Bluetooth keyboard's link lost.
 
 #### Quick QSO log
 
@@ -1997,7 +1998,9 @@ values and nothing else is set: both are off. If you used one as it came,
 set its shift again in Settings > General > TRANSVERTERS: 116 MHz for 2 m,
 404 MHz for 70 cm (a 28 MHz IF).
 
-Not tried on the air yet: checked on the PC build and in the host tests.
+Tried on the bench X6200 into a dummy load with an external wattmeter (4 to
+6 Nov): the refusals, the 0 W hold and the base's own band table. Not on the
+air, and not on an X6100 yet.
 
 ### No TX without data from the base
 
