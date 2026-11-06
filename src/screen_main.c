@@ -637,7 +637,8 @@ void main_screen_action(press_action_t action) {
 
         default:
             /* Voice mode and battery info were removed but may still be stored: nothing */
-            if (action >= ACTION_APP_RTTY && action <= ACTION_APP_CHANNELS) {
+            if ((action >= ACTION_APP_RTTY && action <= ACTION_APP_CHANNELS) || action == ACTION_APP_PROPAGATION ||
+                action == ACTION_APP_SCAN) {
                 main_screen_start_app(action);
             }
             break;
