@@ -5,6 +5,7 @@
  */
 #include "ops_room.h"
 
+#include "board.h"
 #include "gui_styles.h"
 #include "gui_events.h"
 #include "smeter.h"
@@ -191,7 +192,7 @@ static void radio_cb(lv_event_t *e) {
     if (!band) {
         band = lv_obj_create(lv_layer_sys());
         lv_obj_remove_style_all(band);
-        lv_obj_set_size(band, 800, BAND_H);
+        lv_obj_set_size(band, BOARD_DISP_W, BAND_H);
         lv_obj_set_pos(band, 0, BAND_Y);
         lv_obj_clear_flag(band, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_event_cb(band, band_draw, LV_EVENT_DRAW_MAIN, NULL);

@@ -6,6 +6,7 @@
 
 #include "prop_map.h"
 
+#include "board.h"
 #include "map_geo.h"
 #include "sun.h"
 #include "theme.h"
@@ -109,10 +110,10 @@ void prop_map_begin(time_t t) {
     int    w = m.view.w, h = m.view.h;
     double slat, slon, r = M_PI / 180.0;
     double grey_lo = sin(SUN_GREY_LOW * r), grey_hi = sin(SUN_GREY_HIGH * r);
-    static float cos_dl[800];
+    static float cos_dl[BOARD_DISP_W];      /* the map is never wider than the panel */
 
     sun_subsolar(t, &slat, &slon);
-    for (int x = 0; x < w && x < 800; x++) {
+    for (int x = 0; x < w && x < BOARD_DISP_W; x++) {
         double lon = m.view.clon + ((double)x / (w - 1) - 0.5) * 360.0;
         cos_dl[x]  = (float)cos((lon - slon) * r);
     }
