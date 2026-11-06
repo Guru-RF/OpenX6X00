@@ -320,20 +320,38 @@ static void update_confirm_cb(lv_timer_t *t) {
     sh_run("/usr/sbin/x6100-update confirm", NULL, NULL);
 }
 
-#define MIN_FRAME_GAP_MS 8
+/* Input drawn at once, frames at least this far apart. On the radios one frame of the panel: drm_flush() waits for
+ * the flip of the frame before, so a frame drawn sooner is not shown sooner, and the GUI thread waits in wait_flip()
+ * meanwhile (the scheduler's jobs and the events with it). The PC build 8 ms */
+static uint32_t min_frame_gap(void) {
+#if USE_DRM
+    return drm_frame_ms();
+#else
+    return 8;
+#endif
+}
+
+/* When the screen's refresh timer last ran: it ran in a lv_timer_handler() when this changed */
+static uint32_t refr_last_run(void) {
+    lv_disp_t *d = lv_disp_get_default();
+
+    return d && d->refr_timer ? d->refr_timer->last_run : 0;
+}
 
 static void gui_loop(void) {
     bool drawn = false;     /* the start trace's last stage */
 
     for (;;) {
-        int64_t start = get_time();
-
         event_obj_check();
         scheduler_work();
         lv_tick_mono_set(get_time());   /* LVGL's timers on the clock's time, not up to 5 ms behind */
-        int32_t draw_in = gui_wake_draw_due();
-
-        int64_t next = start + lv_timer_handler();
+        int32_t  draw_in = gui_wake_draw_due();
+        uint32_t frame   = refr_last_run();
+        uint32_t till    = lv_timer_handler();
+        /* LVGL counts the time to its next timer from its clock at the end of the run, not from the loop's top:
+         * from there the loop woke early after every long frame, to sleep again */
+        uint32_t due     = lv_tick_mono_ms() + till;
+        bool     drew    = refr_last_run() != frame;
 #if USE_DRM
         drm_commit();
         if (dump_requested) {
@@ -352,24 +370,37 @@ static void gui_loop(void) {
             drawn = true;
             start_trace("first frame");
         }
-        int64_t wait = next - get_time();
+        int32_t wait = till == LV_NO_TIMER_READY ? 100 : (int32_t)(due - (uint32_t)get_time());
 
         if (draw_in >= 0 && draw_in < wait) wait = draw_in;
+        /* A timer due at once after a frame (a frame that ran past its period, 3D with FT8 on the X6100): 5 ms for
+         * the other threads, as before #183; else 1 ms. Input wakes it all the same */
+        int32_t least = drew && till == 0 ? 5 : 1;
 
-        /* Until LVGL's next timer (at most 100 ms), or input: then the keys and knobs are read
-         * at once, and what they changed drawn at the top of the loop, frames at least
-         * MIN_FRAME_GAP_MS apart. (It slept 5 ms more when LVGL had a timer due at once.) */
-        if (gui_wake_wait(wait < 1 ? 1 : wait > 100 ? 100 : wait) == WAKE_INPUT) {
+        /* Until LVGL's next timer (at most 100 ms), or input: then the keys and knobs are read at once, and what
+         * they changed drawn, frames at least min_frame_gap() apart */
+        if (gui_wake_wait(wait < least ? least : wait > 100 ? 100 : wait) == WAKE_INPUT) {
             lv_tick_mono_set(get_time());
             gui_wake_read_input();
+            frame = refr_last_run();
             lv_timer_handler();
-            gui_wake_draw_now(MIN_FRAME_GAP_MS);
+            if (refr_last_run() != frame) {
+                /* The refresh was due: it ran after the reads (LVGL runs its newer timers first, the indevs'
+                 * after the display's), what they changed is drawn. Shown now, not after the next pass's events
+                 * and jobs */
+#if USE_DRM
+                drm_commit();
+#endif
+            } else {
+                gui_wake_draw_now(min_frame_gap());
+            }
         }
     }
 }
 
 int main(void) {
     tick_start();       /* LVGL's clock, from the start */
+    gui_wake_init();    /* the loop's wake, before any thread that posts to it */
     scheduler_init();   /* this is the GUI thread */
     start_trace("GUI start, %s", VERSION);
     /* the helpers' User-Agent (x6100-field, spots), the logs' PROGRAMVERSION (field_adif_header) */
@@ -379,7 +410,6 @@ int main(void) {
     panel_open();
     audio_init();
     event_init();
-    gui_wake_init();
     usb_devices_monitor_init();
     display_register();
     inputs_open();

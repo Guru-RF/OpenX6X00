@@ -591,6 +591,10 @@ void drm_wf_present_ring(const uint32_t *src, int32_t x, int32_t w, int32_t head
     primary.ready = true;
 }
 
+uint32_t drm_frame_ms(void) {
+    return mode.vrefresh ? (1000 + mode.vrefresh - 1) / mode.vrefresh : 17;
+}
+
 void drm_commit(void) {
     static bool failed;
     int         ret;

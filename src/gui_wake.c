@@ -76,11 +76,14 @@ gui_wake_t gui_wake_wait(int32_t ms) {
             if (read(fds[i].fd, &v, sizeof(v)) < 0) {}
             if (fds[i].fd == ifd) woken = WAKE_INPUT;
             else if (!woken) woken = WAKE_EVENT;
+        } else if (r & (POLLERR | POLLHUP | POLLNVAL)) {
+            /* Gone (unplugged, a driver rebind) or failed: dropped, or poll would return at once forever. Before
+             * POLLIN: evdev gives a removed device that still had events POLLIN too, and its read() fails with
+             * ENODEV, so its indev never empties it */
+            fprintf(stderr, "gui_wake: input %d gone\n", fds[i].fd);
+            fds[i--] = fds[--nfds];
         } else if (r & POLLIN) {
             woken = WAKE_INPUT;     /* its indev reads it */
-        } else {
-            /* hung up or failed, and never readable: dropped, or poll would return at once forever */
-            fds[i--] = fds[--nfds];
         }
     }
     return woken;
