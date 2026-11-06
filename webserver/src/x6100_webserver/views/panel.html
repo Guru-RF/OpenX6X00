@@ -319,8 +319,8 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   function status(text, error, holds) { stHolds = holds || null; $st.toggleClass("error", !!error).html('<span class="dot"></span>').append(document.createTextNode(text)); }
   function statusCheck() { if (stHolds && !stHolds()) { stHolds = null; $st.removeClass("error").empty(); } }
   /* An https page's sockets on its own address and port, the certificate accepted for the page's (#58): tailscaled
-   * hands the Funnel page's to the radio's ports, the radio's https server its own page's. On 50003 and 50004 Firefox
-   * wanted the certificate accepted again, and refused them without a word */
+   * hands the Funnel page's to the radio's ports, the radio's https server its own page's. On ports of their own
+   * (v0.3.7's) Firefox wanted the certificate accepted again, and refused them without a word */
   function wsUrl(kind) {
     if (FUNNEL || secure) return "wss://" + location.host + "/ws/" + kind;
     return "ws://" + location.hostname + ":" + (kind === "remote" ? conf.port : conf.tci_port) + "/";

@@ -2,8 +2,8 @@
  * that answers what the page sends. Pairing paused: the pairing dialog says that no code shows and how long the
  * radio asks to wait, not "a code is on the radio's screen". The away link: its "#t=KEY" stored for the page's
  * address and taken out of the address bar. The pages' sockets on the Funnel page: wss on its own address; on the
- * radio's own https page too, through its https server (#58: on 50003 and 50004 Firefox wanted the certificate
- * accepted again). */
+ * radio's own https page too, through its https server (#58: on ports of their own, v0.3.7's, Firefox wanted the
+ * certificate accepted again). */
 'use strict';
 const {page, between} = require('./browser-dom.js');
 
@@ -67,7 +67,7 @@ for (const view of ['panel.html', 'remote.html']) {
  * page's on the GUI's ports, as before ---- */
 for (const view of ['panel.html', 'remote.html']) {
   const p = page(view);
-  p.eval('var FUNNEL = false, secure = true, conf = {port: 50002, tci_port: 50001, wss_port: 50003, wss_tci_port: 50004};' +
+  p.eval('var FUNNEL = false, secure = true, conf = {port: 50002, tci_port: 50001};' +
          between(p.source, '  function wsUrl(kind) {', '  $("#httpslink")'));
   const urls = (protocol, host, hostname, isSecure) => {
     p.ctx.location = {protocol, host, hostname, hash: '', pathname: '/' + view.replace('.html', ''), search: ''};

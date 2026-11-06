@@ -441,7 +441,8 @@ with tempfile.TemporaryDirectory(prefix='x6funnelrender-') as td:
 # or TCI on 127.0.0.1, its bytes as they came (Origin, Host, Tailscale-Funnel-Request and X-Forwarded-For untouched,
 # nothing added: the GUI's own checks decide, src/tci_ws.c); anything else is a page, read again whole by the web
 # server. Real sockets: the server, two stand-ins for the GUI's sockets and the browser on 127.0.0.1, the
-# certificate made with openssl. The front doors on 50003 and 50004 of v0.3.7's pages (WssProxy) still go through
+# certificate made with openssl. v0.3.7's ports of their own, 50003 and 50004, are gone from the web server: nothing in
+# its code or pages names them, and /api/remote no longer gives them (wss_port, wss_tci_port)
 import hashlib
 import socket
 import socketserver
@@ -450,7 +451,7 @@ import subprocess
 import time
 
 wanted = {'ThreadingWSGIServer', 'RequestHandler', 'TlsContext', 'pipe', 'read_head', 'ws_port', 'Replay', 'Replayed',
-          'make_https_server', 'WssProxy'}
+          'make_https_server'}
 nodes = [n for n in main.body if isinstance(n, ast.ClassDef | ast.FunctionDef) and n.name in wanted or
          isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in ('WS_PATHS', 'HEAD_MAX') for t in n.targets)]
 gui = {}   # what each stand-in of the GUI's sockets got: the bytes, from where
@@ -496,8 +497,7 @@ closed.close()
 ports = {'remote': remote_gui.server_address[1], 'tci': tci_gui.server_address[1]}
 srv_ns = {'apps': SimpleNamespace(read_remote_conf=lambda: {'port': ports['remote']},
                                   read_tci_conf=lambda: {'port': ports['tci']}),
-          'socket': socket, 'ssl': ssl, 'io': io, 'threading': threading, 'socketserver': socketserver,
-          'ThreadingMixIn': socketserver.ThreadingMixIn,
+          'socket': socket, 'ssl': ssl, 'io': io, 'threading': threading, 'ThreadingMixIn': socketserver.ThreadingMixIn,
           **{k: getattr(__import__('wsgiref.simple_server', fromlist=['x']), k)
              for k in ('WSGIRequestHandler', 'WSGIServer', 'make_server')}}
 exec(compile(ast.Module(body=nodes, type_ignores=[]), 'main-https', 'exec'), srv_ns)
@@ -507,8 +507,7 @@ with tempfile.TemporaryDirectory(prefix='x6https-') as td:
                     '-keyout', key, '-out', cert], check=True, capture_output=True)
     tls = srv_ns['TlsContext'](cert, key)
     https = srv_ns['make_https_server'](page_app, '127.0.0.1', 0, tls)
-    wss = srv_ns['WssProxy'](('127.0.0.1', 0), tls, lambda: ports['remote'])
-    for s in (remote_gui, tci_gui, https, wss):
+    for s in (remote_gui, tci_gui, https):
         threading.Thread(target=s.serve_forever, daemon=True).start()
     client = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     client.check_hostname, client.verify_mode = False, ssl.CERT_NONE
@@ -594,11 +593,12 @@ with tempfile.TemporaryDirectory(prefix='x6https-') as td:
     cases.append(('and the pages still served', ask(b'GET /panel HTTP/1.1\r\nHost: x6100.local\r\n\r\n')
                   .split(b'\r\n\r\n')[-1].decode(), 'page GET /panel 0 e3b0c44298fc'))
     ports['remote'] = remote_gui.server_address[1]
-    head = upgrade('/', 'x6100.local:50003')
-    got = ask(head, port=wss.server_address[1], then=b'hi')
-    cases.append(('the front door of v0.3.7\'s pages (50003): the browser remote, both ways',
-                  str(gui.get('remote', (b'',))[0] == head and got.endswith(b'echo:hi')), 'True'))
-    for s in (https, wss, remote_gui, tci_gui):
+    web = repo / 'webserver/src/x6100_webserver'
+    named = sorted(str(f.relative_to(web)) for f in web.rglob('*') if f.suffix in ('.py', '.html', '.js') and
+                   re.search(r'\b5000[34]\b|WssProxy|wss_port|wss_tci_port|WSS_(REMOTE|TCI)_PORT', f.read_text()))
+    cases.append(('v0.3.7\'s ports of their own (50003, 50004): named nowhere in the web server, its code or pages',
+                  ' '.join(named) or 'none', 'none'))
+    for s in (https, remote_gui, tci_gui):
         s.shutdown()
     bad = [c for c in cases if c[1] != c[2]]
     for what, got, want in cases:
