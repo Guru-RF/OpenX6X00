@@ -91,6 +91,7 @@ static int         band_sel;        /* Band */
 static int         sel = 13;        /* the beacon chosen (OH2B) */
 static int         tuned = -1;      /* the band the radio is on for the beacons, -1 none */
 static int32_t     tuned_freq;
+static int64_t     hand_round = -1; /* the round the dial was tuned away by hand in, -1 none */
 static double      my_lat, my_lon;
 static bool        have_qth, scores_kept;
 static time_t      drawn_s;
@@ -263,9 +264,10 @@ static int want_band(time_t t) {
 static void tune_band(int b) {
     tuned      = b;
     tuned_freq = beacon_freq[b];
+    hand_round = -1;
     cparam_i_set(cfg_fg_freq, tuned_freq);
     cparam_i_set(cfg_cur_mode, radio_mode_cw);
-    beacons_drop_slot();
+    beacons_retune(now_ms());
 }
 
 static void bcn_listen(void) {
@@ -273,15 +275,18 @@ static void bcn_listen(void) {
     int    b = want_band(t);
 
     if (b != tuned || cparam_i_get(cfg_fg_freq) != tuned_freq) {
-        if (b != tuned) tune_band(b);
-        else {
-            /* Tuned away by hand: the slot does not count, and the band is taken back next round */
-            beacons_drop_slot();
+        /* Tuned away by hand: the slot does not count, and the band is taken back next round (or by Sweep, Band,
+         * Follow, the MFK press). In Band the band stays the same: by the round, else it never came back */
+        if (b == tuned && hand_round < 0) hand_round = t / BEACON_ROUND_S;
+        if (b != tuned || t / BEACON_ROUND_S != hand_round) {
+            tune_band(b);
+        } else {
+            beacons_retune(now_ms());
             return;
         }
     }
     if (radio_get_state() != RADIO_RX) {
-        beacons_drop_slot();
+        beacons_retune(now_ms());
         return;
     }
     static uint32_t seq;
@@ -486,7 +491,13 @@ static void refresh_cb(button_data_t *b) {
     cond_fill();
 }
 
+/* A button or the MFK press: back on the beacon frequency at once after a hand tune */
+static void take_back(void) {
+    if (tuned >= 0 && cparam_i_get(cfg_fg_freq) != tuned_freq) tuned = -1;
+}
+
 static void mode_cb(button_data_t *b) {
+    take_back();
     follow        = (follow + 1) % 3;
     btn_mode.label = follow_name[follow];
     buttons_refresh(&btn_mode);
@@ -499,6 +510,7 @@ static void band_cb(button_data_t *b) {
 
     /* Into Band on the band it is on; once there, the next one */
     band_sel = follow == FOLLOW_BAND ? (band_sel + 1) % BEACON_BANDS : tuned >= 0 ? tuned : 0;
+    take_back();
     follow   = FOLLOW_BAND;
     snprintf(label, sizeof(label), "Band\n%s", beacon_band_name[band_sel]);
     btn_band.label = label;
@@ -536,6 +548,7 @@ static void key_cb(lv_event_t *e) {
             break;
         case LV_KEY_ENTER:   /* the chosen beacon, followed */
             if (view == VIEW_BEACONS) {
+                take_back();
                 follow         = FOLLOW_BEACON;
                 btn_mode.label = follow_name[follow];
                 buttons_refresh(&btn_mode);

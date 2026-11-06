@@ -84,9 +84,12 @@ const char *beacon_power_heard(int snr) {
 
 static beacon_heard_t heard[BEACONS_N][BEACON_BANDS];
 
+#define BAND_DROPPED  -2      /* it changed band, a retune or TX in it: not scored */
+#define BAND_PENDING  -3      /* retuned in its first SETTLE_MS: the band of its first reading */
+
 static struct {
     int64_t slot;           /* ms / BEACON_SLOT_MS of the slot being read, -1 none */
-    int     band;           /* -2: it changed band, not scored */
+    int     band;           /* the band read, or BAND_DROPPED, BAND_PENDING */
     float   db[SAMPLES_MAX];
     int     n;
     int64_t last_ms;
@@ -162,21 +165,33 @@ void beacons_reset(void) {
     cur.n    = 0;
 }
 
-void beacons_drop_slot(void) {
-    cur.band = -2;
+/* The slot of ms under way: the one before scored first, once it is over */
+static void slot_begin(int64_t slot, int band) {
+    score();
+    cur.slot    = slot;
+    cur.band    = band;
+    cur.n       = 0;
+    cur.last_ms = 0;
+}
+
+void beacons_retune(int64_t ms) {
+    int64_t slot = ms / BEACON_SLOT_MS;
+
+    /* At a slot's start (the Sweep's and Follow's retunes, the first tick of a TX) it was the slot just over that
+     * was dropped, unscored: Follow never scored its beacon but on 10 m, a Sweep never the round's last slot. That
+     * one is scored first now, and a retune in the new slot's first SETTLE_MS, which beacons_sample leaves out
+     * anyway, keeps it: the band of its first reading */
+    if (slot != cur.slot) slot_begin(slot, BAND_PENDING);
+    if (ms % BEACON_SLOT_MS < SETTLE_MS && !cur.n) cur.band = BAND_PENDING;
+    else cur.band = BAND_DROPPED;
 }
 
 void beacons_sample(int64_t ms, int band, float db) {
     int64_t slot = ms / BEACON_SLOT_MS;
 
-    if (slot != cur.slot) {
-        score();
-        cur.slot    = slot;
-        cur.band    = band;
-        cur.n       = 0;
-        cur.last_ms = 0;
-    }
-    if (band != cur.band) cur.band = -2;
+    if (slot != cur.slot) slot_begin(slot, band);
+    if (cur.band == BAND_PENDING) cur.band = band;
+    if (band != cur.band) cur.band = BAND_DROPPED;
     if (cur.band < 0 || isnan(db)) return;
     if (ms % BEACON_SLOT_MS < SETTLE_MS || ms - cur.last_ms < 50) return;    /* 20 a second at most */
     if (cur.n < SAMPLES_MAX) cur.db[cur.n++] = db;

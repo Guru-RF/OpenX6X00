@@ -7,7 +7,7 @@
  *  10, 1 and 0.1 W. Which one is on the air where at a time is fixed, so a clock is enough to know
  *  who is calling; the S-meter says whether it is heard here, and how well.
  *
- *  The schedule and the scoring of each 10 s slot; no LVGL (host tests: host/tests/beacons_test.c)
+ *  The schedule and the scoring of each 10 s slot; no LVGL (host test: tools/propagation/prop_test.c)
  */
 
 #pragma once
@@ -59,8 +59,9 @@ void beacons_reset(void);
  * changed band. A slot is scored once the next one starts */
 void beacons_sample(int64_t ms, int band, float db);
 
-/* The slot under way stops counting (a retune, TX) */
-void beacons_drop_slot(void);
+/* A retune or TX at ms (UTC milliseconds): the slot under way stops counting, unless it is in
+ * its first half second (left out anyway), and the slot before, when it is over, is scored */
+void beacons_retune(int64_t ms);
 
 const beacon_heard_t *beacons_heard(int beacon, int band);
 

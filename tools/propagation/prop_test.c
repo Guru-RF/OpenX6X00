@@ -120,6 +120,61 @@ static void test_scoring(void) {
     CHECK(beacons_heard(13, 0)->snr == BEACON_NONE && beacons_heard(12, 1)->snr == BEACON_NONE, "mixed slot dropped");
 }
 
+/* The Beacons view's order of calls (dialog_propagation.c bcn_listen, its 100 ms timer): the band wanted, a retune
+ * when it changes (beacons_retune), then the reading. Every beacon keyed on every band, 30 dB over the noise, for
+ * 30 minutes: Sweep (a round a band, all five in 15 minutes) and Follow OH2B. A retune at a slot's start dropped the
+ * slot just over, unscored: Follow scored its beacon on 10 m only, a Sweep never a round's last slot */
+static int bcn_never(bool sweep, int sel, int *never_sel) {
+    int64_t t0    = (int64_t)1718913600 * 1000;
+    int     tuned = -1, never = 0;
+
+    beacons_reset();
+    for (int64_t ms = t0; ms < t0 + 30 * 60 * 1000; ms += 100) {
+        time_t t = (time_t)(ms / 1000);
+        int    b = sweep ? (int)((t / BEACON_ROUND_S) % BEACON_BANDS) : beacon_band_of(sel, t);
+
+        if (b < 0) b = tuned >= 0 ? tuned : 0;
+        if (b != tuned) {
+            tuned = b;
+            beacons_retune(ms);
+        }
+        beacons_sample(ms, tuned, ((ms / 300) % 2) ? -80.0f : -110.0f);
+    }
+    *never_sel = 0;
+    for (int band = 0; band < BEACON_BANDS; band++)
+        for (int i = 0; i < BEACONS_N; i++)
+            if (beacons_heard(i, band)->snr == BEACON_NONE) {
+                never++;
+                if (i == sel) (*never_sel)++;
+            }
+    return never;
+}
+
+static void test_retune(void) {
+    int never_sel;
+
+    CHECK(bcn_never(true, 13, &never_sel) == 0, "sweep: %d beacon/band pairs never scored", bcn_never(true, 13, &never_sel));
+    bcn_never(false, 13, &never_sel);
+    CHECK(never_sel == 0, "follow OH2B: never scored on %d bands", never_sel);
+
+    /* A retune half way through a slot drops it; one in its first half second keeps it, on the new band */
+    int64_t s0 = (int64_t)1718913600 * 1000 + 13 * BEACON_SLOT_MS;   /* OH2B on 20 m */
+
+    beacons_reset();
+    for (int64_t ms = s0; ms < s0 + BEACON_SLOT_MS; ms += 60) {
+        if (ms == s0 + 4980) beacons_retune(ms);
+        beacons_sample(ms, 0, ((ms / 300) % 2) ? -80.0f : -110.0f);
+    }
+    beacons_sample(s0 + BEACON_SLOT_MS + 600, 0, -110);
+    CHECK(beacons_heard(13, 0)->snr == BEACON_NONE, "retuned in the slot: dropped");
+    beacons_reset();
+    beacons_retune(s0 + 100);
+    for (int64_t ms = s0 + 120; ms < s0 + BEACON_SLOT_MS; ms += 60)
+        beacons_sample(ms, 0, ((ms / 300) % 2) ? -80.0f : -110.0f);
+    beacons_sample(s0 + BEACON_SLOT_MS + 600, 0, -110);
+    CHECK(beacons_heard(13, 0)->heard, "retuned at the slot's start: scored, %d dB", beacons_heard(13, 0)->snr);
+}
+
 /* Ten frequencies, quiet at -115 dB; the 5th busy (-90) from 4 s on for 3 s */
 static int scan_run(float stop_db, int *stops, int64_t *hold_ms) {
     int64_t now = 0, held_from = -1;
@@ -214,6 +269,7 @@ int main(void) {
     test_sun();
     test_schedule();
     test_scoring();
+    test_retune();
     test_scan();
     printf(fails ? "%d failed\n" : "all passed\n", fails);
     return fails != 0;

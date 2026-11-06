@@ -138,6 +138,8 @@ void prop_map_begin(time_t t) {
 }
 
 void prop_map_square(double lat, double lon, lv_coord_t r, lv_color_t color, bool filled) {
+    if (!m.canvas) return;      /* no memory for it (prop_map_create) */
+
     lv_draw_rect_dsc_t dsc;
     lv_point_t         c = prop_map_xy(lat, lon);
 
@@ -153,6 +155,8 @@ void prop_map_square(double lat, double lon, lv_coord_t r, lv_color_t color, boo
 }
 
 void prop_map_path(double lat1, double lon1, double lat2, double lon2, lv_color_t color, lv_coord_t width) {
+    if (!m.canvas) return;
+
     lv_draw_line_dsc_t dsc;
     double             r    = M_PI / 180.0;
     double             a[3] = {cos(lat1 * r) * cos(lon1 * r), cos(lat1 * r) * sin(lon1 * r), sin(lat1 * r)};
@@ -175,6 +179,8 @@ void prop_map_path(double lat1, double lon1, double lat2, double lon2, lv_color_
 }
 
 void prop_map_text(lv_coord_t x, lv_coord_t y, const lv_font_t *font, lv_color_t color, const char *text) {
+    if (!m.canvas) return;
+
     lv_draw_label_dsc_t dsc;
     lv_point_t          size;
 
