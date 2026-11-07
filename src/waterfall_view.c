@@ -1240,7 +1240,6 @@ static void d3_frames_cb(lv_timer_t *t) {
 
 static void d3_redraw(void) {
     int32_t  ref_x[MAX_D3_REFS], ref_hz[MAX_D3_REFS];
-    int      n = freq_scale_refs(ref_x, ref_hz, MAX_D3_REFS);
     uint32_t since = lv_tick_elaps(d3_last_ms);
 
     if (!shown(obj) || walkie_on() || !backlight_seen()) {
@@ -1257,7 +1256,9 @@ static void d3_redraw(void) {
         return;
     }
     d3_last_ms = lv_tick_get();
-    if (param_i_get(cfg_wf_3d_glide) && d3_seen()) {
+    int n = freq_scale_refs(ref_x, ref_hz, MAX_D3_REFS);
+
+    if (param_i_get(cfg_wf_3d_glide) && refresh_period == 1) {  /* the rest of d3_seen() is held above */
         if (!d3_frames) {
             d3_frames = lv_timer_create(d3_frames_cb, D3_MIN_MS, NULL);
         } else {
