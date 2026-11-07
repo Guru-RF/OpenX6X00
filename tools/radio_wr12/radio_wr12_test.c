@@ -34,7 +34,9 @@
  *  dial turned out of the bands and back meanwhile, open once it is over; TX outside the bands on (open), the switch
  *  turned off there (held at once, shut once settled); the bands of ours that the base's table has not (open). RIT the
  *  other way round on the WR12's IF, where I and Q are swapped (#134). PTT in split on the TX frequency and back, the
- *  dial not counted for it, the TX frequency refused, with the modem on the same move, on VFO B, split off (#201).
+ *  dial not counted for it, the TX frequency refused, on VFO B, split off; what ends under it or goes on after it leaves
+ *  it on the TX frequency until the last one is over, the knob, the WR12's news, the other VFO, split or a swap under it,
+ *  KEY Train's hold (#201).
  *
  *  Copyright (c) 2026 RF.Guru
  */
@@ -841,11 +843,19 @@ int main(void) {
           "split, the dial on 7.350 MHz: the key refused there (%d), PTT not", (int)refused_at);
     check(radio_key_freq() == 7350000, "split, not keyed: the base would key the dial (%d)", (int)radio_key_freq());
     base.open_tx_at_key = -1;
+    int keyed = base.vfo_writes_keyed;
+
+    check(base.split, "split: the base's bit on");
     check(radio_set_ptt(true) && base.ptt && base.vfo[A] == 475000 && base.open_tx_at_key == 1,
           "split, PTT: on B's 475 kHz, the base open before it keys (open TX %d then, on %d Hz)", base.open_tx_at_key,
           (int)base.vfo[A]);
+    check(base.pwr_at_ptt == 5.0f && !base.split, "split, PTT: at PWR (%.1f W), the bit off", base.pwr_at_ptt);
+    check(base.vfo_writes_keyed == keyed, "split, PTT: the VFO moved before the key went down");
     check(radio_key_freq() == 475000, "split, PTT: it keys 475 kHz (%d)", (int)radio_key_freq());
     radio_set_ptt(false);
+    check(!base.ptt && base.pwr == 0.0f && base.vfo[A] == 7350000 && base.split,
+          "split, PTT off: 0 W and the dial back at once, the bit on");
+    check(base.vfo_writes_keyed == keyed, "split, PTT off: the VFO moved after the key went up");
     gui_run();
     base.violations = 0;
     settle();
@@ -864,28 +874,140 @@ int main(void) {
     radio_set_ptt(false);
     check(base.vfo[A] == 7100000, "split, PTT off with nothing moved: as it was");
 
-    /* Both free. A second PTT does not move again; the modem on the same key leaves the way back to PTT */
+    /* Both free. A second PTT does not move again; the modem on and off under it leaves it there */
     set_i(cfg_band_vfob_freq, 7150000);
     gui_run();
     settle();
     check(radio_set_ptt(true) && base.ptt && base.vfo[A] == 7150000, "split, PTT: on B's 7.150 MHz (%d)", (int)base.vfo[A]);
-    check(radio_set_ptt(true) && base.vfo[A] == 7150000, "split, PTT again (CAT): still there");
+    int moves = base.vfo_writes;
+
+    check(radio_set_ptt(true) && base.vfo_writes == moves, "split, PTT again (CAT): no move");
     radio_set_modem(true);
     radio_set_modem(false);
-    check(base.ptt && base.vfo[A] == 7150000, "split, the modem on and off under PTT: still there, still keyed");
+    check(base.ptt && base.vfo[A] == 7150000 && !base.split, "split, the modem on and off under PTT: still there, keyed");
     radio_set_ptt(false);
-    check(!base.ptt && base.vfo[A] == 7100000, "split, PTT off: A back on 7.100 MHz (%d)", (int)base.vfo[A]);
+    check(!base.ptt && base.vfo[A] == 7100000 && base.split, "split, PTT off: A back on 7.100 MHz (%d)", (int)base.vfo[A]);
+    moves = base.vfo_writes;
     radio_set_ptt(false);
-    check(base.vfo[A] == 7100000, "split, PTT off again: nothing moves");
+    check(base.vfo_writes == moves, "split, PTT off again: nothing moves");
 
-    /* The modem moved it first: PTT under it leaves it there, the modem's end takes it back */
+    /* A voice message on the air, PTT pressed to answer (its worker stops after the key): the modem ends under PTT, which
+     * stays on the TX frequency until it lets go */
     radio_set_modem(true);
     check(base.modem && base.vfo[A] == 7150000, "split, the modem: on 7.150 MHz");
     check(radio_set_ptt(true) && base.ptt, "split, PTT under the modem: keyed");
-    radio_set_ptt(false);
-    check(base.vfo[A] == 7150000, "split, PTT off under the modem: still on 7.150 MHz");
     radio_set_modem(false);
-    check(base.vfo[A] == 7100000, "split, the modem off: A back on 7.100 MHz (%d)", (int)base.vfo[A]);
+    check(base.ptt && base.vfo[A] == 7150000 && !base.split && radio_key_freq() == 7150000,
+          "split, the modem over under PTT: still on 7.150 MHz (%d)", (int)base.vfo[A]);
+    radio_set_ptt(false);
+    check(base.vfo[A] == 7100000 && base.split, "split, PTT off after: A back on 7.100 MHz (%d)", (int)base.vfo[A]);
+
+    /* An app's slot the same (radio_set_tx_freq before it keys and at its end), a tone off the TX frequency */
+    radio_set_tx_freq(7151000);
+    radio_set_modem(true);
+    check(radio_set_ptt(true) && base.vfo[A] == 7151000, "split, PTT under an app's slot: on its tone");
+    radio_set_modem(false);
+    radio_set_tx_freq(0);
+    check(base.ptt && base.vfo[A] == 7150000 && !base.split, "split, the slot over under PTT: on 7.150 MHz (%d)",
+          (int)base.vfo[A]);
+    radio_set_ptt(false);
+    check(base.vfo[A] == 7100000 && base.split, "split, PTT off after the slot: A back");
+
+    /* The other way round: PTT lets go first, the audio goes on there and its end takes the VFO back */
+    check(radio_set_ptt(true) && base.vfo[A] == 7150000, "split, PTT first");
+    radio_set_modem(true);
+    radio_set_ptt(false);
+    check(!base.ptt && base.modem && base.vfo[A] == 7150000 && !base.split, "split, PTT off under the modem: goes on there");
+    radio_set_modem(false);
+    check(base.vfo[A] == 7100000 && base.split, "split, the modem off: A back on 7.100 MHz (%d)", (int)base.vfo[A]);
+
+    /* The SWR window closed under PTT (radio_set_tx_freq(0) with nothing of its own moved) */
+    check(radio_set_ptt(true), "split, PTT");
+    radio_set_tx_freq(0);
+    check(base.ptt && base.vfo[A] == 7150000 && !base.split, "split, a window's end under PTT: on 7.150 MHz (%d)",
+          (int)base.vfo[A]);
+
+    /* The knob under PTT: the dial moves, the transmission does not, it goes to the base at the release */
+    knob(7100100);
+    gui_run();
+    check(base.ptt && base.vfo[A] == 7150000 && base.pwr == 5.0f && radio_key_freq() == 7150000,
+          "split, the knob under PTT: still on 7.150 MHz at PWR (%d)", (int)base.vfo[A]);
+    radio_set_ptt(false);
+    check(base.vfo[A] == 7100100, "split, PTT off: A on the dial it was turned to (%d)", (int)base.vfo[A]);
+    knob(7100000);
+    gui_run();
+    settle();
+
+    /* The other VFO, the TX frequency, written under PTT (CAT): the transmission follows; onto a refused one held at
+     * once and stopped */
+    check(radio_set_ptt(true) && base.vfo[A] == 7150000, "split, PTT");
+    set_i(cfg_band_vfob_freq, 7160000);
+    gui_run();
+    check(base.ptt && base.vfo[A] == 7160000 && base.vfo[B] == 7160000 && radio_key_freq() == 7160000,
+          "split, B to 7.160 MHz under PTT: it goes there (%d)", (int)base.vfo[A]);
+    said_clear();
+    set_i(cfg_band_vfob_freq, 7350000);
+    check(base.pwr == 0.0f, "split, B to 7.350 MHz under PTT: 0 W at once (%.1f W)", base.pwr);
+    gui_run();
+    settle();
+    gui_run();
+    check(!base.ptt && base.vfo[A] == 7100000 && said("TX stopped on 7.350 MHz"), "split, B refused under PTT: stopped, A back");
+    set_i(cfg_band_vfob_freq, 7150000);
+    gui_run();
+    base.violations = 0;
+    settle();
+
+    /* Split off under PTT: on the dial, what the radio transmits on now; nothing left over at the release */
+    check(radio_set_ptt(true) && base.vfo[A] == 7150000, "split, PTT");
+    set_i(cfg_band_split, 0);
+    gui_run();
+    check(base.ptt && base.vfo[A] == 7100000 && radio_key_freq() == 7100000, "split off under PTT: on the dial (%d)",
+          (int)base.vfo[A]);
+    radio_set_ptt(false);
+    check(!base.ptt && base.vfo[A] == 7100000 && !base.split, "split off, PTT off: on the dial, the bit off");
+    set_i(cfg_band_split, 1);
+    gui_run();
+    settle();
+
+    /* The VFOs swapped under PTT: the VFO in use is B now, on A's frequency, the one it transmits on now */
+    check(radio_set_ptt(true) && base.vfo[A] == 7150000, "split, PTT");
+    set_i(cfg_band_current_vfo, B);
+    gui_run();
+    check(base.ptt && base.cur == B && base.vfo[B] == 7100000 && radio_key_freq() == 7100000,
+          "split, swapped under PTT: B on A's 7.100 MHz (%d)", (int)base.vfo[B]);
+    radio_set_ptt(false);
+    check(base.vfo[A] == 7100000 && base.vfo[B] == 7150000 && base.split, "split, swapped, PTT off: both on their own");
+    set_i(cfg_band_current_vfo, A);
+    gui_run();
+    settle();
+
+    /* The WR12's news under PTT (it goes through the VFOs again): the transmission stays. Lost, found again below */
+    check(radio_set_ptt(true) && base.vfo[A] == 7150000, "split, PTT");
+    wr12_lost();
+    gui_run();
+    check(base.ptt && base.vfo[A] == 7150000 && base.pwr == 5.0f, "split, the WR12 lost under PTT: still on 7.150 MHz at PWR (%d)",
+          (int)base.vfo[A]);
+    radio_set_ptt(false);
+    check(base.vfo[A] == 7100000, "split, PTT off: A back on 7.100 MHz (%d)", (int)base.vfo[A]);
+    wr12_gone();
+    wr12_found();
+    gui_run();
+    settle();
+
+    /* KEY Train: B in CW holds the power at 0 W in split, PTT or not */
+    set_i(cfg_band_vfob_mode, radio_mode_cw);
+    set_i(cfg_key_train, 1);
+    gui_run();
+    settle();
+    check(base.pwr == 0.0f, "split, KEY Train, B in CW: 0 W (%.1f W)", base.pwr);
+    check(radio_set_ptt(true) && base.pwr == 0.0f && base.pwr_at_ptt == 0.0f, "split, KEY Train, PTT: still 0 W (%.1f W)",
+          base.pwr);
+    radio_set_ptt(false);
+    set_i(cfg_key_train, 0);
+    set_i(cfg_band_vfob_mode, radio_mode_usb);
+    gui_run();
+    settle();
+    check(as_set(), "split, KEY Train off: TX as set");
 
     /* VFO B in use: the same the other way round */
     set_i(cfg_band_current_vfo, B);

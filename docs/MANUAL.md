@@ -572,16 +572,17 @@ says, in plain words.
   set up. In Black Metal and Total Black it stands under the other VFO;
   Amber Trey's display covers the strip, so it does not show there.
 - Unplug the WR12 with the dial below 54 MHz or the switch off: unplugged
-  while it receives, the radio cannot put it back in its bypass, and whether
-  a WR12 without power passes the antenna through is not known yet.
+  while it receives, the radio cannot put it back in its bypass. Pulled while
+  in its bypass, ea4iln's still passed the antenna through, an HF carrier at
+  -72 dBm either way (#134); pulled while it receives is not known yet.
 - The S-meter reads what the radio gets from the WR12, its gain included;
   Per band S-meter cal (Settings > General > CONTROLS) sets it for each band.
 - Tried on two X6200s with a WR12 (base 1.0.8). ea4iln received 2 m and FM
   broadcast through it (-98 dBm on 95.9 MHz). On our bench USB and LSB come
-  out the right way round, the image about 34 dB down. RIT and the CW offset
-  do not yet: through the WR12 they come out the wrong way (RIT -500 acts as
-  +500, +500 does about nothing; CW and CW-R give the same tone, on the
-  wrong side). On our bench, with an external wattmeter on a dummy load
+  out the right way round, the image about 34 dB down. RIT up to v0.3.9: on
+  our bench -500 acted as +500 and +500 did about nothing, ea4iln measured a
+  clean mirror of 500 Hz each way. CW and CW-R give the same tone, as they do
+  on HF (#89). On our bench, with an external wattmeter on a dummy load
   (6 Nov): the hand mic's PTT keyed nothing on 2 m, with the WR12
   receiving, switched off on HOST or unplugged, nor on 5.060 MHz; 40 m,
   5.300 MHz, 8 m and 2200 m went out from the front PTT and the hand mic,
@@ -1849,12 +1850,13 @@ ranges stay receive only.
 
 What is checked: the frequency the radio transmits on, the dial, in split
 the other VFO, with a [TX shift](#tx-shift) the shifted one. On the X6200
-in split the dial too, for CW and what the base keys by itself: its base
-keys the VFO you listen on whatever split says. PTT (the PTT key, the walkie
-screen, CAT, TCI, the browser Panel), the apps, TUNE and the SWR scan move
-that VFO to the TX frequency first and are checked there. On
-either radio the dial turned while they transmit in split is checked too:
-that VFO then sends them there. Not the signal's width, nor XIT, nor
+in split the dial too, for the GUI's CW key (the messages, the CW keyboard, a
+USB paddle) and what the base keys by itself: its base keys the VFO you listen
+on whatever split says. PTT (the PTT key, in CW too, the walkie screen, CAT,
+TCI, the browser Panel), the apps, TUNE and the SWR scan move that VFO to the
+TX frequency first and are checked there. On either radio the dial turned
+while the apps, TUNE or the SWR scan transmit in split is checked too: that
+VFO then sends them there. PTT stays on the TX frequency. Not the signal's width, nor XIT, nor
 where an app's tone lands: LSB keyed at 7.000 MHz, a dial at 14.3495 MHz
 with +1.5 kHz of XIT, or an FT8 tone near the edge go outside the band.
 Keep the signal inside the band yourself.
@@ -2114,11 +2116,16 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   listen on, and that VFO comes back after. Its base keys the VFO you listen
   on whatever split says, on Xiegu's firmware too: ea4iln measured it (#201,
   VFO A on 7.100, B on 7.150, base 1.0.8). Up to v0.3.9 PTT over CAT in split
-  went out on 7.100 with the TX panel showing 7.150. What the base keys by
+  went out on 7.100 with the TX panel showing 7.150. Under PTT the knob moves
+  the dial, not the transmission; a new frequency on the other VFO moves it
+  there; a voice message or an app's slot ending under it leaves it on the TX
+  frequency, and KEY Train holds as it does at rest. What the base keys by
   itself (the hand mic's PTT, VOX, the KEY jack) stays on the VFO you listen
-  on, and so do the GUI's CW key (messages, the CW keyboard, a USB paddle) and
-  the radio's tuner; the TX panel shows that frequency. The X6100's base
-  honours split, nothing changes there. Host test so far, not yet on a radio.
+  on, and so does the GUI's CW key (messages, the CW keyboard, a USB paddle);
+  the TX panel shows that frequency, and the VFO you listen on for the radio's
+  tuner too, measured only with VFO A in use (see
+  [amateur bands only](#amateur-bands-only)). The X6100's base honours split,
+  nothing changes there. Host test so far, not yet on a radio.
 - Winlink is simplex: it keys only on the frequency the radio listens on.
   With a shift on it does not key and says "Winlink: no TX, a TX shift is set
   on this band"; in plain split with VFO B on another frequency it says

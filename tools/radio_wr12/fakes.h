@@ -46,8 +46,11 @@ typedef struct {
     int32_t vfo[2];
     int     cur;
     float   pwr;
-    bool    vox, train, iq, ptt, modem;
+    bool    vox, train, iq, ptt, modem, split;
     int32_t rit;
+    int     vfo_writes;     /* to either VFO */
+    int     vfo_writes_keyed;   /* with PTT set */
+    float   pwr_at_ptt;     /* the power when PTT last went down */
     atomic_bool key;        /* the GUI's CW key */
     int     open_tx;        /* HW_OPEN_TX: 1 as x6200_control_init leaves it (the test may say 0) */
     int     open_tx_writes; /* tries to write it, those that failed too */

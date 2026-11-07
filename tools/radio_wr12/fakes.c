@@ -624,6 +624,10 @@ static void base_look(const char *what) {
 }
 
 bool __wrap_hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz) {
+    if (base.vfo[vfo] != hz) {
+        base.vfo_writes++;
+        base.vfo_writes_keyed += base.ptt;
+    }
     base.vfo[vfo] = hz;
     base.open_tx_at_vfo = base.open_tx;
     base_look("a VFO");
@@ -637,7 +641,12 @@ bool __wrap_hw_set_i(hw_param_t p, int32_t v) {
         case HW_KEY_TRAIN:  base.train = v; break;
         case HW_IQ_SWAP:    base.iq = v; break;
         case HW_RIT:        base.rit = v; break;
-        case HW_PTT:        base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.ptt = v; break;
+        case HW_SPLIT:      base.split = v; break;
+        case HW_PTT:
+            base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key;
+            base.pwr_at_ptt = v ? base.pwr : base.pwr_at_ptt;
+            base.ptt = v;
+            break;
         case HW_MODEM:      base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.modem = v; break;
         case HW_OPEN_TX:
             base.open_tx_writes++;
