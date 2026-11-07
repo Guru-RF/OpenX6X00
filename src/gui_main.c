@@ -163,6 +163,8 @@ static void panel_open(void) {
 #endif
 #if USE_FBDEV
     fbdev_init();
+    /* Same path as DRM: bootanim (and screenshot tools) see that the GUI owns fb0 */
+    fclose(fopen("/tmp/x6100_gui.drm", "w"));
 #endif
 }
 
