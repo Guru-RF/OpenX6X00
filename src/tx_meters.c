@@ -19,7 +19,7 @@
 #include "util.h"
 #include "info_bar.h"
 #include "smeter.h"            /* meter_tx_redraw */
-#include "radio.h"             /* radio_tx_freq */
+#include "radio.h"             /* radio_key_freq */
 #include "rtty.h"
 #include "ft8_window.h"
 #include "dialog_js8.h"
@@ -185,7 +185,7 @@ static lv_obj_t *make_label(lv_obj_t *parent, const lv_font_t *font, uint32_t co
 
 static void update_head(void) {
     uint32_t  s    = lv_tick_elaps(tx_start) / 1000;
-    int32_t   f    = radio_tx_freq();      /* in split the other VFO's, or the TX shift's */
+    int32_t   f    = radio_key_freq();     /* in split the other VFO's, or the TX shift's; the dial if the base keys that */
     uint16_t  mhz, khz, hz;
     float     tune = tune_len;
 

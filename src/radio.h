@@ -58,11 +58,17 @@ bool radio_check_freq(int32_t freq);
 /* The frequency the radio transmits on: the other VFO's in split; with a TX shift the active one's + the shift
  * (- on VFO B), also where the other VFO cannot follow (below 100 kHz), so that it is refused */
 int32_t radio_tx_freq(void);
-/* Where PTT and the GUI's CW key would go out and the radio may not transmit (#121, cfg_tx_refusal): radio_tx_freq,
- * and in split the dial too where the base keys it: always on the X6200, whose base keys it whatever split says; on
+/* Where the GUI's CW key and what the base keys by itself would go out and the radio may not transmit (#121,
+ * cfg_tx_refusal): radio_tx_freq, and in split the dial too where the base keys it: always on the X6200, whose base keys it whatever split says; on
  * either radio while split is held off (an app, TCI's audio, a voice message, the SWR scan) and the VFO in use is back
  * on the dial. *freq (may be NULL): the one refused, for the words. Any thread */
 bool radio_key_refused(int32_t *freq);
+/* The same for PTT: on the X6200 it moves the VFO in use to the TX frequency (radio_set_ptt), so in split the dial does
+ * not count unless split is held off already. Any thread */
+bool radio_ptt_refused(int32_t *freq);
+/* The frequency the base keys now: the dial where it keys that (the X6200 in split, for what does not move the VFO in
+ * use), else radio_tx_freq. For the words on the screen. Any thread */
+int32_t radio_key_freq(void);
 /* Why the radio does not transmit on freq, on the screen (#121): "<what> on 27.185 MHz", then "Out of band:
  * Settings > TX Cal" or "Receive only there", each a line the message box shows whole in every font (DejaVu, the
  * widest: 570 px at most of about 580), all but "Scan stopped on" 100 MHz and up with 1 Hz digits (592 px: it

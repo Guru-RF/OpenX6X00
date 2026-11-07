@@ -666,17 +666,39 @@ static bool split_keys_dial(void) {
 #endif
 }
 
-bool radio_key_refused(int32_t *freq) {
+/* The X6200's PTT in split: the VFO in use goes to the TX frequency for it (radio_set_ptt), so the dial does not key.
+ * Not when split is held off already: something else has that VFO where it wants it */
+static bool ptt_moves(void) {
+#ifdef BOARD_X6200
+    return param_i_get(cfg_band_split) && !atomic_load(&split_held);
+#else
+    return false;
+#endif
+}
+
+static bool key_refused(int32_t *freq, bool keys_dial) {
     int32_t f = radio_tx_freq();
     bool    wr12 = wr12_takes(vfo_freq(true));  /* the base on the X6200's WR12's IF, or on its way: nothing keys (#134) */
 
-    if (wr12 || (!cfg_tx_refusal(f) && split_keys_dial())) {
+    if (wr12 || (!cfg_tx_refusal(f) && keys_dial)) {
         f = vfo_freq(true);
     }
     if (freq) {
         *freq = f;
     }
     return wr12 || cfg_tx_refusal(f) != NULL;
+}
+
+bool radio_key_refused(int32_t *freq) {
+    return key_refused(freq, split_keys_dial());
+}
+
+bool radio_ptt_refused(int32_t *freq) {
+    return key_refused(freq, split_keys_dial() && !ptt_moves());
+}
+
+int32_t radio_key_freq(void) {
+    return split_keys_dial() ? vfo_freq(true) : radio_tx_freq();
 }
 
 /* The VFO the radio transmits on to `freq`. In split that is the active VFO, with the base's split bit off until
@@ -806,7 +828,8 @@ void radio_start_atu() {
     if (tx_refused(TX_BY_GUI)) {
         return;
     }
-    /* In split the base's tuner may key on either VFO, which one the GUI cannot tell: the dial too (#121) */
+    /* In split the dial too (#121): the X6200's tuner went out on VFO A with A in use and B the TX VFO (#201, base
+     * 1.0.8); which one the X6100's keys is not known */
     if (param_i_get(cfg_band_split) && tx_refused_at(cparam_i_get(cfg_fg_freq), TX_BY_GUI)) {
         return;
     }
@@ -1083,19 +1106,29 @@ static bool no_data_refused(tx_by_t by) {
     return true;
 }
 
-/* The modem goes out on radio_tx_freq (radio_set_tx_freq moves the VFO in use there), PTT and the GUI's CW key on
- * the X6200 in split on the dial too (split_keys_dial). Where it may, not without data from the base either */
+/* The modem goes out on radio_tx_freq (radio_set_tx_freq moves the VFO in use there), and on the X6200 so does PTT
+ * (ptt_moves); the GUI's CW key in split on the dial too (split_keys_dial), and PTT with split held off and the dial
+ * back. Where it may, not without data from the base either */
 static bool tx_refused(tx_by_t by) {
     return tx_refused_at(radio_tx_freq(), by) ||
-           (by != TX_BY_GUI && split_keys_dial() && tx_refused_at(vfo_freq(true), by)) ||
+           (by != TX_BY_GUI && !(by == TX_BY_PTT && ptt_moves()) && split_keys_dial() &&
+            tx_refused_at(vfo_freq(true), by)) ||
            no_data_refused(by);
 }
 
 static atomic_bool ptt_on;      /* the GUI's PTT as last set: the keyboard's toggle follows it (kbd_ptt.h) */
+static atomic_bool ptt_moved;   /* the VFO in use on the TX frequency for PTT: back when it lets go */
 
+/* The X6200's base keys the VFO in use whatever split says, on Xiegu's firmware too (#201: PTT over CAT measured on VFO
+ * A with the screen on B). So on the TX frequency for the key, as the modem goes (radio_set_modem), with the mode of
+ * the VFO in use. The hand mic, VOX and the KEY jack the base keys by itself: those stay on the dial */
 bool radio_set_ptt(bool tx) {
     if (tx && tx_refused(TX_BY_PTT)) {
         return false;
+    }
+    if (tx && ptt_moves()) {
+        radio_set_tx_freq(radio_tx_freq());
+        atomic_store(&ptt_moved, true);
     }
     radio_lock();
     if (tx) {
@@ -1104,6 +1137,9 @@ bool radio_set_ptt(bool tx) {
     hw_set_i(HW_PTT, tx);
     radio_unlock();
     atomic_store(&ptt_on, tx);
+    if (!tx && atomic_exchange(&ptt_moved, false)) {
+        radio_set_tx_freq(0);
+    }
     return true;
 }
 
@@ -1311,6 +1347,21 @@ static void on_change_i(Subject *subj, void *user_data) {
     WITH_RADIO_LOCK(hw_set_i((hw_param_t)(intptr_t)user_data, v));
 }
 
+/* RIT to the base. On the X6200's WR12's IF the base takes I and Q the other way round (wr12_follow), and that mirrors
+ * its offset: at 2 m RIT +500 Hz took a carrier's tone 500 Hz up where on HF it goes 500 Hz down (#134, ea4iln's
+ * measurement). So the other way round there. Under the lock */
+static bool rit_mirror;
+
+static void rit_send(void) {
+    int32_t rit = param_i_get(cfg_rit);
+
+    hw_set_i(HW_RIT, rit_mirror ? -rit : rit);
+}
+
+static void on_rit_change(Subject *subj, void *user_data) {
+    WITH_RADIO_LOCK(rit_send());
+}
+
 static void on_change_f(Subject *subj, void *user_data) {
     float v = subject_f_get((SubjectFloat*)subj);
     WITH_RADIO_LOCK(hw_set_f((hw_param_t)(intptr_t)user_data, v));
@@ -1347,21 +1398,6 @@ static void on_train_hold_change(Subject *subj, void *user_data) {
         }
         set_txpwr(txpwr_asked);
     }
-/* RIT to the base. On the X6200's WR12's IF the base takes I and Q the other way round (wr12_follow), and that mirrors
- * its offset: at 2 m RIT +500 Hz took a carrier's tone 500 Hz up where on HF it goes 500 Hz down (#134, ea4iln's
- * measurement). So the other way round there. Under the lock */
-static bool rit_mirror;
-
-static void rit_send(void) {
-    int32_t rit = param_i_get(cfg_rit);
-
-    hw_set_i(HW_RIT, rit_mirror ? -rit : rit);
-}
-
-static void on_rit_change(Subject *subj, void *user_data) {
-    WITH_RADIO_LOCK(rit_send());
-}
-
     radio_unlock();
 }
 
@@ -1574,6 +1610,10 @@ static bool wr12_takes(int32_t freq) {
  * the other way round; in its bypass elsewhere, IQ as it was. WR12 on HOST off: the WR12 let go */
 static void wr12_follow(bool rx, int32_t dial) {
     hw_set_i(HW_IQ_SWAP, rx);
+    if (rx != rit_mirror) {
+        rit_mirror = rx;
+        rit_send();
+    }
     wr12_want(param_i_get(cfg_wr12), rx, dial);
 }
 
@@ -1610,10 +1650,6 @@ static bool wr12_notify(void) {
     return scheduler_put_coalesced(wr12_changed_cb);
 }
 
-    if (rx != rit_mirror) {
-        rit_mirror = rx;
-        rit_send();
-    }
 /* The radio is in TX, or the GUI keys it (a PTT, the modem or the tuner's bit set before the base reports TX, the CW
  * Trainer's key too): the WR12 stays in its bypass meanwhile. Any thread */
 static bool wr12_keyed(void) {

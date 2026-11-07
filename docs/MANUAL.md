@@ -1849,9 +1849,10 @@ ranges stay receive only.
 
 What is checked: the frequency the radio transmits on, the dial, in split
 the other VFO, with a [TX shift](#tx-shift) the shifted one. On the X6200
-in split the dial too, for PTT, CW and what the base keys by itself: its
-base keys the VFO you listen on whatever split says. The apps, TUNE and the
-SWR scan move that VFO to the TX frequency first and are checked there. On
+in split the dial too, for CW and what the base keys by itself: its base
+keys the VFO you listen on whatever split says. PTT (the PTT key, the walkie
+screen, CAT, TCI, the browser Panel), the apps, TUNE and the SWR scan move
+that VFO to the TX frequency first and are checked there. On
 either radio the dial turned while they transmit in split is checked too:
 that VFO then sends them there. Not the signal's width, nor XIT, nor
 where an app's tone lands: LSB keyed at 7.000 MHz, a dial at 14.3495 MHz
@@ -1875,9 +1876,10 @@ bands (Settings > TX Cal)". What is refused:
   QRSS3, the CW keyboard, the USB paddle, the PTT key in CW, Field Ops' test
   beacon.
 - The radio's tuner (in split checked on both VFOs, at its start and while
-  it tunes: which one its carrier goes out on cannot be told), TUNE for an
-  external tuner, the SWR scan (its sweep stays inside the band, see
-  [SWR scan](#swr-scan-and-the-tuner)).
+  it tunes. On the X6200, base 1.0.8, its carrier went out on VFO A with A
+  in use, measured by ea4iln, #201; with B in use not measured yet, and on
+  the X6100 not known), TUNE for an external tuner, the SWR scan (its sweep
+  stays inside the band, see [SWR scan](#swr-scan-and-the-tuner)).
 - In split the VFO on the status bar turns red when the other VFO is
   outside the bands. The X6200's dial outside them does not turn it red:
   only the words name it.
@@ -2107,6 +2109,16 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   whatever its offset, and the X6200's base sends these from VFO A in split
   (an FT8 CQ at 1200 Hz with a +700 Hz shift was heard at VFO A + 1325 Hz,
   575 Hz below where it belonged).
+- On the X6200 PTT does the same: the PTT key, the walkie screen, CAT, TCI
+  and the browser Panel go out on the TX frequency, in the mode of the VFO you
+  listen on, and that VFO comes back after. Its base keys the VFO you listen
+  on whatever split says, on Xiegu's firmware too: ea4iln measured it (#201,
+  VFO A on 7.100, B on 7.150, base 1.0.8). Up to v0.3.9 PTT over CAT in split
+  went out on 7.100 with the TX panel showing 7.150. What the base keys by
+  itself (the hand mic's PTT, VOX, the KEY jack) stays on the VFO you listen
+  on, and so do the GUI's CW key (messages, the CW keyboard, a USB paddle) and
+  the radio's tuner; the TX panel shows that frequency. The X6100's base
+  honours split, nothing changes there. Host test so far, not yet on a radio.
 - Winlink is simplex: it keys only on the frequency the radio listens on.
   With a shift on it does not key and says "Winlink: no TX, a TX shift is set
   on this band"; in plain split with VFO B on another frequency it says
