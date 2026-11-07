@@ -22,6 +22,8 @@
 void fake_cfg_init(void);
 void set_i(ParamInt *p, int32_t v);         /* a band key, a memory, the switches: the setting itself */
 void set_f(ParamFloat *p, float v);
+void set_quiet(ParamInt *p, int32_t v);     /* a band key's round: the value now, its observers told after (notify_now) */
+void notify_now(ParamInt *p);
 void knob(int32_t freq);                    /* the knob: through the dial, cfg_fg_freq (its reverse sets the VFO) */
 
 /* The GUI thread's queue (scheduler_put and the rest), run until it is empty; how many ran */
@@ -51,6 +53,7 @@ typedef struct {
     int     vfo_writes;     /* to either VFO */
     int     vfo_writes_keyed;   /* with PTT set */
     float   pwr_at_ptt;     /* the power when PTT last went down */
+    float   pwr_at_keyed_vfo;   /* the power when the VFO in use last moved with PTT set */
     atomic_bool key;        /* the GUI's CW key */
     int     open_tx;        /* HW_OPEN_TX: 1 as x6200_control_init leaves it (the test may say 0) */
     int     open_tx_writes; /* tries to write it, those that failed too */

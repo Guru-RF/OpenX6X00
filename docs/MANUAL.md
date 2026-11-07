@@ -1856,7 +1856,8 @@ on whatever split says. PTT (the PTT key, in CW too, the walkie screen, CAT,
 TCI, the browser Panel), the apps, TUNE and the SWR scan move that VFO to the
 TX frequency first and are checked there. On either radio the dial turned
 while the apps, TUNE or the SWR scan transmit in split is checked too: that
-VFO then sends them there. PTT stays on the TX frequency. Not the signal's width, nor XIT, nor
+VFO then sends them there; PTT stays on the TX frequency. Not the signal's
+width, nor XIT, nor
 where an app's tone lands: LSB keyed at 7.000 MHz, a dial at 14.3495 MHz
 with +1.5 kHz of XIT, or an FT8 tone near the edge go outside the band.
 Keep the signal inside the band yourself.
@@ -2117,9 +2118,12 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   on whatever split says, on Xiegu's firmware too: ea4iln measured it (#201,
   VFO A on 7.100, B on 7.150, base 1.0.8). Up to v0.3.9 PTT over CAT in split
   went out on 7.100 with the TX panel showing 7.150. Under PTT the knob moves
-  the dial, not the transmission; a new frequency on the other VFO moves it
-  there; a voice message or an app's slot ending under it leaves it on the TX
-  frequency, and KEY Train holds as it does at rest. What the base keys by
+  the dial, not the transmission (with a TX shift it does, as the shift
+  says); a new frequency on the other VFO, or the VFOs swapped, moves it to
+  where the radio then transmits; onto a frequency where it may not, it stays
+  where it is at 0 W and stops. A voice message or an app's slot ending under
+  it leaves it on the TX frequency, and KEY Train holds as it does at rest. A
+  PTT keyed before split comes on stays on the dial. What the base keys by
   itself (the hand mic's PTT, VOX, the KEY jack) stays on the VFO you listen
   on, and so does the GUI's CW key (messages, the CW keyboard, a USB paddle);
   the TX panel shows that frequency, and the VFO you listen on for the radio's

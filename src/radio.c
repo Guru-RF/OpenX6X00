@@ -1143,6 +1143,7 @@ bool radio_set_ptt(bool tx) {
             radio_set_tx_freq(radio_tx_freq());
             split_held_look();  /* held already and the base back on the dial: this look lifts its hold */
         }
+        on_train_hold_change(NULL, NULL);   /* the other VFO's CW holds under PTT, also when nothing moved */
     }
     radio_lock();
     if (tx) {
@@ -1152,8 +1153,13 @@ bool radio_set_ptt(bool tx) {
     radio_unlock();
     atomic_store(&ptt_on, tx);
     if (!tx && atomic_exchange(&ptt_moved, false)) {
+        /* The audio goes on, its end takes the VFO back; the SWR scan's sweep goes on, its window does. Its carrier is
+         * keyed without modem_on (radio_start_swrscan) */
         if (atomic_load(&modem_on)) {
-            modem_moved = true;         /* the audio goes on: its end takes the VFO back */
+            modem_moved = true;
+            on_train_hold_change(NULL, NULL);
+        } else if (atomic_load(&state) == RADIO_SWRSCAN) {
+            on_train_hold_change(NULL, NULL);
         } else {
             radio_set_tx_freq(0);
         }
@@ -1925,20 +1931,24 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     /* The VFO in use where the X6200's WR12 receives (#134): the base on the WR12's IF, held at 0 W and its open TX
      * shut before it goes there (open_tx_look), whatever the frequency allows (54-55 MHz with TX outside the bands on);
      * the other VFO on its own. Under PTT (ptt_moved) the VFO in use stays on the TX frequency, the dial and the WR12
-     * wait for its release */
+     * wait for its release: the hold and a transverter's limit look at where it goes, before it goes (in a band key's
+     * round this VFO hears first, the other one is told after). Where it may not transmit it does not go: at 0 W alone
+     * RF came out on 2 m (#176). It stays where it was until the look that change brings holds and stops the key */
     bool    wr12 = cur && !ptt && wr12_takes(new_val);
     int32_t base = wr12 ? WR12_IF_HZ : new_val - shift;
+    int32_t look = new_val;
+    bool    stay = false;
     if (cur && ptt) {
-        int32_t tx = radio_tx_freq();
-
-        base = tx - cfg_transverter_shift_for(tx);
+        look = radio_tx_freq();
+        base = look - cfg_transverter_shift_for(look);
+        stay = cfg_tx_refusal(look) != NULL;
     }
     if (wr12) {
         band_hold_set(true);
     }
-    bool held = xvtr_hold(vfo, new_val);
+    bool held = xvtr_hold(vfo, look);
     bool band = band_hold_early(vfo, new_val);
-    bool changed = hw_vfo_set_freq(vfo, base);
+    bool changed = !stay && hw_vfo_set_freq(vfo, base);
     if (cur) {
         wr12_follow(wr12, new_val);
     }

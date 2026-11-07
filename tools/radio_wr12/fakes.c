@@ -248,6 +248,14 @@ void set_i(ParamInt *p, int32_t v) {
     set_value(subj(p), v);
 }
 
+void set_quiet(ParamInt *p, int32_t v) {
+    subj(p)->i = v;
+}
+
+void notify_now(ParamInt *p) {
+    notify(subj(p));
+}
+
 void set_f(ParamFloat *p, float v) {
     fake_subj_t *s = subj(p);
 
@@ -378,14 +386,13 @@ void cfg_vfo_toggle(void) {
 }
 
 float cfg_transverter_pwr_for(int32_t freq) {
-    (void)freq;
-    return 0.0f;
+    return shift_for(freq) ? s_cfg_transverter_0_pwr.f : 0.0f;
 }
 
 float cfg_transverter_pwr_cap(int32_t rx, int32_t tx) {
-    (void)rx;
-    (void)tx;
-    return 0.0f;
+    float a = cfg_transverter_pwr_for(rx), b = cfg_transverter_pwr_for(tx);
+
+    return a > 0.0f && b > 0.0f ? (a < b ? a : b) : (a > 0.0f ? a : b);
 }
 
 void cfg_transverter_name(int32_t freq, char *buf, size_t size) {
@@ -627,6 +634,7 @@ bool __wrap_hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz) {
     if (base.vfo[vfo] != hz) {
         base.vfo_writes++;
         base.vfo_writes_keyed += base.ptt;
+        base.pwr_at_keyed_vfo = base.ptt && (int)vfo == base.cur ? base.pwr : base.pwr_at_keyed_vfo;
     }
     base.vfo[vfo] = hz;
     base.open_tx_at_vfo = base.open_tx;
