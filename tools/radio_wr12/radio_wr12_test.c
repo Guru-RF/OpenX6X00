@@ -414,13 +414,19 @@ int main(void) {
     base_is("found, 7 MHz", A, 7074000, false, 0);
     check(as_set(), "found, 7 MHz: TX as set");
 
-    /* The knob to 98 MHz: held and shut before the base goes to the IF, IQ swapped, the WR12 asked out; nothing
-     * keys */
+    set_i(cfg_rit, 500);
+    check(base.rit == 500, "RIT +500 on 7 MHz: +500 to the base (%d)", (int)base.rit);
+
+    /* The knob to 98 MHz: held and shut before the base goes to the IF, IQ swapped, RIT the other way round with it,
+     * the WR12 asked out; nothing keys */
     knob(98000000);
     gui_run();
     base_is("98 MHz", A, WR12_IF_HZ, true, 98000000);
     check(shut(), "98 MHz: held at 0 W, VOX off, Train on, the base shut");
     check(base.open_tx_at_vfo == 0, "98 MHz: shut before the base went to the IF");
+    check(base.rit == -500, "98 MHz: RIT +500 is -500 to the base, I and Q swapped (%d)", (int)base.rit);
+    set_i(cfg_rit, -300);
+    check(base.rit == 300, "98 MHz: RIT -300 is +300 to the base (%d)", (int)base.rit);
     open_is("98 MHz", 0, 2);
     check(base.vfo[B] == 14074000, "98 MHz: VFO B on its own");
     none_yet("98 MHz");
@@ -449,6 +455,9 @@ int main(void) {
     base_is("back to 7 MHz", A, 7074000, false, 0);
     check(shut(), "back to 7 MHz: still held and shut, the WR12 not seen in its bypass");
     clock_add(6000);
+    check(base.rit == -300, "back to 7 MHz: RIT -300 as set (%d)", (int)base.rit);
+    set_i(cfg_rit, 0);
+    check(base.rit == 0, "back to 7 MHz: RIT off");
     said_clear();
     check(!radio_set_ptt(true) && !base.ptt, "back to 7 MHz: PTT refused meanwhile");
     check(said("WR12 not in bypass: no TX"), "back to 7 MHz: the refusal said");

@@ -47,6 +47,7 @@ typedef struct {
     int     cur;
     float   pwr;
     bool    vox, train, iq, ptt, modem;
+    int32_t rit;
     atomic_bool key;        /* the GUI's CW key */
     int     open_tx;        /* HW_OPEN_TX: 1 as x6200_control_init leaves it (the test may say 0) */
     int     open_tx_writes; /* tries to write it, those that failed too */

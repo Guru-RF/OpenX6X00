@@ -128,6 +128,7 @@ static void on_fw_zoom_change(Subject *subj, void *user_data);
 
 static void on_change_i(Subject *subj, void *user_data);
 static void on_change_f(Subject *subj, void *user_data);
+static void on_rit_change(Subject *subj, void *user_data);
 static void on_pwr_change(Subject *subj, void *user_data);
 static void on_train_hold_change(Subject *subj, void *user_data);
 static void on_band_hold_change(Subject *subj, void *user_data);
@@ -477,7 +478,7 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_imic, on_change_i, (void*)HW_IMIC);
     subject_subscribe_and_notify((Subject*)cfg_moni, on_volume_change, NULL);   /* radio_vol_refresh: muted with the speaker */
 
-    subject_subscribe_and_notify((Subject*)cfg_rit, on_change_i, (void*)HW_RIT);
+    subject_subscribe_and_notify((Subject*)cfg_rit, on_rit_change, NULL);
     subject_subscribe_and_notify((Subject*)cfg_xit, on_change_i, (void*)HW_XIT);
     subject_subscribe_and_notify((Subject*)cfg_fm_emphasis, on_change_i, (void*)HW_FM_EMP);
 
@@ -1346,6 +1347,21 @@ static void on_train_hold_change(Subject *subj, void *user_data) {
         }
         set_txpwr(txpwr_asked);
     }
+/* RIT to the base. On the X6200's WR12's IF the base takes I and Q the other way round (wr12_follow), and that mirrors
+ * its offset: at 2 m RIT +500 Hz took a carrier's tone 500 Hz up where on HF it goes 500 Hz down (#134, ea4iln's
+ * measurement). So the other way round there. Under the lock */
+static bool rit_mirror;
+
+static void rit_send(void) {
+    int32_t rit = param_i_get(cfg_rit);
+
+    hw_set_i(HW_RIT, rit_mirror ? -rit : rit);
+}
+
+static void on_rit_change(Subject *subj, void *user_data) {
+    WITH_RADIO_LOCK(rit_send());
+}
+
     radio_unlock();
 }
 
@@ -1594,6 +1610,10 @@ static bool wr12_notify(void) {
     return scheduler_put_coalesced(wr12_changed_cb);
 }
 
+    if (rx != rit_mirror) {
+        rit_mirror = rx;
+        rit_send();
+    }
 /* The radio is in TX, or the GUI keys it (a PTT, the modem or the tuner's bit set before the base reports TX, the CW
  * Trainer's key too): the WR12 stays in its bypass meanwhile. Any thread */
 static bool wr12_keyed(void) {

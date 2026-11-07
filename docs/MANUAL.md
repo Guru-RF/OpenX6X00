@@ -529,8 +529,13 @@ says, in plain words.
   FM broadcast and the airband go through the WR12 too, as does 54-55 MHz,
   which the radio otherwise receives itself. The screen, the S-meter's band
   settings, CAT and TCI keep the dial's frequency; only the radio's receiver
-  is on the IF. Below 54 MHz or with the switch off, the WR12 goes back to
-  its bypass and the radio back to the dial; with the WR12 unplugged or not
+  is on the IF. RIT works as on HF: up to v0.3.9 it came out mirrored through
+  the WR12 (ea4iln measured it, #134: at 145 MHz +500 took a carrier's tone
+  500 Hz up, where on 7 MHz it goes 500 Hz down), as the swapped I and Q
+  mirror the base's offset, so the radio now sends it the other way round
+  there (host test so far, not yet on a radio). CW and CW-R sound as they do
+  on HF. Below 54 MHz or with the switch off, the WR12 goes back to its bypass
+  and the radio back to the dial; with the WR12 unplugged or not
   answering, the radio goes back to the dial at once. The VFO not in use
   keeps its own frequency: the WR12 follows the VFO in use. Birdie Cal runs
   on the radio's own receiver, the WR12 in its bypass meanwhile.

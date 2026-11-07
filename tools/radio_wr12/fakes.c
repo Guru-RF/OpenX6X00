@@ -636,6 +636,7 @@ bool __wrap_hw_set_i(hw_param_t p, int32_t v) {
         case HW_VOX:        base.vox = v; break;
         case HW_KEY_TRAIN:  base.train = v; break;
         case HW_IQ_SWAP:    base.iq = v; break;
+        case HW_RIT:        base.rit = v; break;
         case HW_PTT:        base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.ptt = v; break;
         case HW_MODEM:      base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.modem = v; break;
         case HW_OPEN_TX:
