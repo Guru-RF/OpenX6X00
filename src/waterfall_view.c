@@ -548,6 +548,9 @@ static void direct_redraw(int new_row) {
 #define D3_WALL     0x222c3a
 #define D3_PEAK_DECAY 90.0f /* levels a second the held peaks come down */
 #define D3_MIN_MS   33      /* at most a picture so often (30 a second) while tuning; the last one later */
+#define D3_GLIDE_MS 50      /* the glide's pictures between two rows so often (20 a second): a row a second moves a trace
+                             * a few pixels a picture, and the tuning keeps D3_MIN_MS */
+#define D3_PHASE_Q  16      /* a glide picture is drawn when the phase moved to another 1/16 of a row, or a row came */
 #define D3_CACHE    72      /* rows whose levels are kept (every D3_STEP-th: up to 64 traces and a few) */
 
 enum { D3_STRENGTH, D3_WATERFALL, D3_BLUE };    /* Settings, 3D colours */
@@ -564,6 +567,7 @@ static int32_t      d3_label_hz[D3_LABELS];
 static lv_coord_t   d3_label_y = -1;
 static uint32_t     d3_last_ms;             /* when the last picture was drawn */
 static float        d3_drawn_phase = 1.0f;  /* the phase of the last picture (d3_phase()) */
+static uint32_t     d3_drawn_num;           /* and the number of its newest row */
 static lv_timer_t  *d3_frames;              /* moves the traces between rows */
 static lv_timer_t  *d3_later;               /* a picture asked for too soon: drawn then */
 
@@ -942,8 +946,9 @@ static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
 }
 
 /* How far the newest row is to the next, 0 when it came to 1 when the next is due (the rows' interval from the
- * last 8; 1 also when it is not known, so d3_frames_cb() pauses instead of drawing the same picture again): the traces are drawn that much of a row further back, so they move on at every picture, not at every
- * row. 1 when it is late: no further than where the next row puts them */
+ * last 8): the traces are drawn that much of a row further back, so they move on at every picture, not at every
+ * row. 1 when it is late: no further than where the next row puts them; also when the interval is not known, so
+ * d3_frames_cb() pauses instead of drawing the same picture again */
 static float d3_phase(uint16_t top) {
     const wf_row_t *a = row_from(top, 0), *b = row_from(top, 8);
 
@@ -1132,6 +1137,7 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
         d3_trace(&o, &sc, levels, blk, t, pal, horizon, age == 0 ? front : NULL);
     }
     d3_drawn_phase = phase;
+    d3_drawn_num = newest_row->num;
     if (!newest_row->width) {
         return;
     }
@@ -1228,11 +1234,18 @@ static void d3_later_cb(lv_timer_t *t) {
     }
 }
 
-/* Every D3_MIN_MS while the traces are on their way to the next row; paused once they are there (no rows: still),
- * with 3D off, glide off or nothing seen. A picture from a new row starts it again */
+/* Every D3_GLIDE_MS while the traces are on their way to the next row; paused once they are there (no rows: still),
+ * with 3D off, glide off or nothing seen. A picture from a new row starts it again. Nothing is drawn for a phase
+ * in the same 1/D3_PHASE_Q of a row as the last picture's, with no new row: a picture of the same pixels (a new view
+ * comes by refresh_waterfall(), not by this timer) */
 static void d3_frames_cb(lv_timer_t *t) {
     if (d3_on() && param_i_get(cfg_wf_3d_glide) && d3_drawn_phase < 1.0f && d3_seen()) {
-        d3_redraw();
+        uint16_t        top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
+
+        if (row_from(top, 0)->num != d3_drawn_num ||
+            (int)(d3_phase(top) * D3_PHASE_Q) != (int)(d3_drawn_phase * D3_PHASE_Q)) {
+            d3_redraw();
+        }
     } else {
         lv_timer_pause(t);
     }
@@ -1260,7 +1273,7 @@ static void d3_redraw(void) {
 
     if (param_i_get(cfg_wf_3d_glide) && refresh_period == 1) {  /* the rest of d3_seen() is held above */
         if (!d3_frames) {
-            d3_frames = lv_timer_create(d3_frames_cb, D3_MIN_MS, NULL);
+            d3_frames = lv_timer_create(d3_frames_cb, D3_GLIDE_MS, NULL);
         } else {
             lv_timer_resume(d3_frames);  /* pauses itself when there is nothing to move */
         }
