@@ -25,7 +25,7 @@ extern "C" {
 #endif
 
 /* Voltages in 0.1 V; LOW + HYSTERESIS = HIGH (upstream 21c2b93) */
-#define BAT_LOW         BOARD_BAT_LOW   /* the power-off: 6.0 V, the X6200 6.8 V (board.h) */
+#define BAT_LOW         BOARD_BAT_LOW   /* the power-off: 6.0 V, the X6200 7.0 V (board.h) */
 #define BAT_HYSTERESIS  2
 #define BAT_HIGH        (BAT_LOW + BAT_HYSTERESIS)
 #define BAT_LOW_READS   3       /* in a row, about 1.2 s */

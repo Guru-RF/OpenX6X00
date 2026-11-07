@@ -615,7 +615,7 @@ says, in plain words.
 
 On battery, at 10% or less the radio shows a message every minute: "Battery
 8%: about 15 min left" (the minutes when it knows them), and from 5% "Battery
-5%: connect power". At 6.0 V (the X6200: 6.8 V) it shows "Low battery! Turning
+5%: connect power". At 6.0 V (the X6200: 7.0 V) it shows "Low battery! Turning
 off in 30s", and 30 seconds later it sets the charger back On (see
 [Charger](#general-tab)), saves and switches itself off to protect the
 battery. As a guide, on my radio receiving with WiFi and Bluetooth on, 10%
@@ -628,13 +628,25 @@ the flat radio does not charge on the supply while it is off. Up to v0.3.8 the
 radio's own power-off came at 6.0 V on the X6200 too, so the base always came
 first (issue #160). In that issue, on receive with WiFi and Bluetooth on, the
 first 6.8 V came 4 to 5 minutes before the base's cut and 6.7 V about 2.5
-minutes before, so the warning, the 30 s, the charger and the save are done
+minutes before. v0.3.9's power-off at 6.8 V did all of it on a radio: in that
+issue's run (base 1.0.8, receive on 40 m, WiFi and Bluetooth on, Charger on
+Shadow) the battery went from 8.4 V (99 %) to 7.2 V in 3 h 45 min, to 7.0 V
+27 minutes later and to 6.8 V 3 minutes after that. The radio then closed its
+log, set the charger back On (it charged afterwards with the radio off) and
+switched off, 4 h 15 min after the start, and at the next start DATA was
+clean with the settings kept. Our bench X6200 also switched itself off in
+order at 6.8 V, twice. Since then the X6200 starts at 7.0 V, about 3 minutes
+sooner on receive, because our bench X6200 behaves erratically near the end of
+its battery. So the warning, the 30 s, the charger and the save are done
 minutes before the cut, also when a transmission at the end brings it nearer.
-6.8 V is also where the % from the voltage (below) reaches 0. The X6100 keeps
-6.0 V. The battery sags under the TX current, so with a few % left a long
-transmission can bring the warning; back at 7.0 V (the X6100: 6.2 V) before
-the 30 s are over, or on a supply (on the X6200 one the radio reads at 12.0 V
-or more, see below), the power-off is called off.
+The X6100 keeps 6.0 V.
+
+The battery sags under the TX current, so with a few % left a transmission
+can bring the warning; back at 7.2 V (the X6100: 6.2 V) before the 30 s are
+over, or on a supply (on the X6200 one the radio reads at 12.0 V or more, see
+below), the power-off is called off. On the X6200 that means a transmission
+ends the run once the battery rests at 7.1 V and sags to 7.0 V on TX; in the
+run above, 7.2 V came half an hour before the power-off.
 
 On the X6200 a supply the radio reads under 12.0 V does not stop the
 power-off: External in the POWER box of the [Info tab](#info-tab), or the
