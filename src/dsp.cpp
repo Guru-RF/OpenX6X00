@@ -196,6 +196,8 @@ static uint64_t wf_time;
 
 static uint32_t cur_freq;
 static uint8_t  settle;                 /* frames still to drop after a tune */
+static std::atomic<bool> tune_break{false}; /* VFO moved: drop the PSD average in progress */
+static bool              snap_spectrum;     /* next spectrum trace replaces, rather than eases */
 static uint8_t  after_tx;               /* frames to skip for the colours after TX */
 
 static DspFloorTrack     floor_track;
@@ -422,6 +424,7 @@ void dsp_psd(const float *db, uint16_t n, uint32_t span_hz, bool tx, int16_t sme
 
     uint64_t now  = get_time();
     float    frac = span_hz ? (float)wf_span() / span_hz : 1.0f;
+    bool     jumped = tune_break.exchange(false, std::memory_order_relaxed);
 
     if (settle)
         settle--;
@@ -430,6 +433,13 @@ void dsp_psd(const float *db, uint16_t n, uint32_t span_hz, bool tx, int16_t sme
     PsdFrames *wf = tx ? psd_wf_tx : psd_wf_rx;
 
     pthread_mutex_lock(&mux);
+    /* Packets since the last line were averaged as one frequency. A tune in between left the
+     * carrier from the old centre in the new line, on the side the dial came from. */
+    if (jumped) {
+        sp->reset();
+        wf->reset();
+        snap_spectrum = true;
+    }
     if (spectrum_on()) {
         sp->push(db, n);
         if (now - sp_time > FRAME_MS && sp->ready()) {
@@ -437,8 +447,12 @@ void dsp_psd(const float *db, uint16_t n, uint32_t span_hz, bool tx, int16_t sme
             for (size_t i = 0; i < SPECTRUM_NFFT; i++) {
                 float v = sp_psd[i] + zoom_db;
 
-                sp_shown[i] += (v - sp_shown[i]) * (v > sp_shown[i] ? 0.6f : 0.2f);
+                if (snap_spectrum)
+                    sp_shown[i] = v;
+                else
+                    sp_shown[i] += (v - sp_shown[i]) * (v > sp_shown[i] ? 0.6f : 0.2f);
             }
+            snap_spectrum = false;
             spectrum_data(sp_shown, SPECTRUM_NFFT, tx, 0, zoom);
             sp_time = now;
         }
@@ -547,7 +561,8 @@ static void on_freq_change(Subject *subj, void *user_data) {
     /* From rest the base's next frames may still be of the frequency before: dropped. With the dial
      * turning, each step renewed the drop and the waterfall stood still until it rested (#51): the
      * frames come as they are then, at most a step behind (waterfall_view.c draws but does not keep
-     * them) */
+     * them). The average already in progress is of the frequency before, so it does not join this one. */
+    tune_break.store(true, std::memory_order_relaxed);
     settle = now - last_ms > TURNING_MS ? settle_frames() : 0;
     last_ms = now;
     if (base_ver.rev < 8)
