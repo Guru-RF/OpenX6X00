@@ -26,7 +26,7 @@
 #include <time.h>
 
 #define CELL       20
-#define COLS       (796 / CELL)
+#define COLS       (DIALOG_W / CELL)
 #define ROWS       (DIALOG_H / CELL)        /* DIALOG_H follows the button height: not constant */
 #define MAX_LEN    (COLS * (DIALOG_H_MAX / CELL))
 #define STEP_MS    180      /* the start: slow; 20 ms less every 100 points, down to 100 */

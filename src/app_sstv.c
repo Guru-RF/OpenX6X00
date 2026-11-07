@@ -1045,7 +1045,7 @@ void sstv_rx_back(bool auto_rx)
 static void construct_cb(lv_obj_t *parent)
 {
     dialog.obj = dialog_init(parent);
-    lv_obj_set_size(dialog.obj, 795, DIALOG_H);
+    lv_obj_set_size(dialog.obj, TEXT_PANEL_W, DIALOG_H);
 
     app_frame_create(&sstv_frame, dialog.obj);
     lv_label_set_text(sstv_frame.status, SSTV_HELP_LINE);

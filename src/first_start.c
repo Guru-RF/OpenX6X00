@@ -1144,7 +1144,7 @@ static void build(void) {
 
     body = lv_obj_create(dialog.obj);
     lv_obj_remove_style_all(body);
-    lv_obj_set_size(body, 796 - 2 * PAD, DIALOG_H - 12);
+    lv_obj_set_size(body, DIALOG_W - 2 * PAD, DIALOG_H - 12);
     lv_obj_align(body, LV_ALIGN_TOP_LEFT, PAD, 6);
     lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(body, 6, 0);

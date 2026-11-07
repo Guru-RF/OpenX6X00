@@ -292,7 +292,10 @@ void meter_needle_draw(lv_obj_t *obj, lv_draw_ctx_t *draw_ctx) {
 
     lv_coord_t          w = lv_obj_get_width(obj);
     lv_coord_t          big = lv_obj_get_height(obj) > 120 ? 8 : 0;    /* the walkie screen: bigger labels, rounder arc */
-    lv_coord_t          r = w * (big ? 62 : 64) / 100;     /* wide and flat: 166 px on the 260 px box */
+    /* r ∝ width for TOP_BAR_METER_DESIGN_W; a wider box only clips the scale. Walkie
+     * (tall) meters keep the full width. */
+    lv_coord_t          w_arc = (!big && w > TOP_BAR_METER_DESIGN_W) ? TOP_BAR_METER_DESIGN_W : w;
+    lv_coord_t          r = w_arc * (big ? 62 : 64) / 100; /* wide and flat: ~166 px on the design box */
     lv_point_t          c = {obj->coords.x1 + w / 2, obj->coords.y1 + (big ? 48 : 28) + r};   /* the arc top 28 px down */
     lv_draw_arc_dsc_t   arc_dsc;
     lv_draw_line_dsc_t  line_dsc;

@@ -530,7 +530,7 @@ static void construct_cb(lv_obj_t *parent) {
     head_right = label(dialog.obj, &sony_20, COLOR_DIM);
     lv_obj_set_width(head_right, 300);
     lv_obj_set_style_text_align(head_right, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(head_right, 796 - 16 - 300, 10);
+    lv_obj_set_pos(head_right, DIALOG_W - 16 - 300, 10);
 
     /* Log, newest at the bottom */
     lv_obj_t *box = lv_obj_create(dialog.obj);

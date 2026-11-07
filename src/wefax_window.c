@@ -1311,7 +1311,7 @@ static void apply_view(void)
         return;
 
     if (view == VIEW_SMALL) {
-        lv_obj_set_size(dialog.obj, 795, 182);
+        lv_obj_set_size(dialog.obj, TEXT_PANEL_W, 182);
         lv_obj_align(dialog.obj, LV_ALIGN_CENTER, 0, 84);
         lv_obj_set_style_bg_img_src(dialog.obj, NULL, LV_PART_MAIN);
         lv_obj_set_style_bg_opa(dialog.obj, LV_OPA_TRANSP, LV_PART_MAIN);
@@ -1331,13 +1331,13 @@ static void apply_view(void)
         lv_obj_align(canvas, LV_ALIGN_BOTTOM_MID, 0, 0);
 
         if (panel) {
-            lv_obj_set_size(panel, 795, 182);
+            lv_obj_set_size(panel, TEXT_PANEL_W, 182);
             lv_obj_center(panel);
             lv_obj_clear_flag(panel, LV_OBJ_FLAG_HIDDEN);
             lv_obj_move_background(panel);
         }
     } else {
-        lv_obj_set_size(dialog.obj, 795, DIALOG_H);
+        lv_obj_set_size(dialog.obj, TEXT_PANEL_W, DIALOG_H);
         lv_obj_align(dialog.obj, LV_ALIGN_TOP_MID, 0, DIALOG_Y);
         lv_obj_remove_local_style_prop(dialog.obj, LV_STYLE_BG_IMG_SRC, LV_PART_MAIN);
         lv_obj_remove_local_style_prop(dialog.obj, LV_STYLE_BG_OPA, LV_PART_MAIN);
@@ -1394,7 +1394,7 @@ static void app_open(lv_obj_t *parent)
     }
 
     dialog.obj = dialog_init(parent);
-    lv_obj_set_size(dialog.obj, 795, DIALOG_H);
+    lv_obj_set_size(dialog.obj, TEXT_PANEL_W, DIALOG_H);
     lv_obj_align(dialog.obj, LV_ALIGN_TOP_MID, 0, DIALOG_Y);
 
     /* no background image of dialog_init: its own white edges would show around ours */
@@ -1405,7 +1405,7 @@ static void app_open(lv_obj_t *parent)
     /* transparent clip of the canvas (in Small it shows only the bottom of it) */
     viewport = lv_obj_create(dialog.obj);
     lv_obj_remove_style_all(viewport);
-    lv_obj_set_size(viewport, 795, DIALOG_H);
+    lv_obj_set_size(viewport, TEXT_PANEL_W, DIALOG_H);
     lv_obj_center(viewport);
     lv_obj_clear_flag(viewport, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(viewport, LV_OBJ_FLAG_CLICKABLE);
@@ -1421,7 +1421,7 @@ static void app_open(lv_obj_t *parent)
     lv_obj_remove_style_all(panel);
     lv_obj_add_style(panel, &panel_style, 0);
     lv_obj_set_style_bg_img_src(panel, NULL, LV_PART_MAIN);
-    lv_obj_set_size(panel, 795, DIALOG_H);
+    lv_obj_set_size(panel, TEXT_PANEL_W, DIALOG_H);
     lv_obj_center(panel);
     lv_obj_set_style_bg_color(panel, TC(frame), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, LV_PART_MAIN);

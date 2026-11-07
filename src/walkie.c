@@ -40,7 +40,7 @@
 
 #define W           BOARD_DISP_H
 #define SIDE_W      104             /* the bottom buttons, in a column on the left edge */
-#define SIDE_KEY_H  160             /* the F keys are 160 px apart, as the landscape buttons */
+#define SIDE_KEY_H  F_BAR_BTN_W     /* F keys match landscape F-bar button pitch */
 #define X0          (SIDE_W + 8)    /* the rest of the screen */
 #define CW          (W - X0 - 8)
 #define XC          ((X0 + CW / 2) - W / 2)     /* centre offset for LV_ALIGN_TOP_MID */

@@ -873,7 +873,7 @@ static void window_open(lv_obj_t *parent) {
     head_right = label(dialog.obj, &sony_20, COLOR_HEAD);
     lv_obj_set_width(head_right, 250);
     lv_obj_set_style_text_align(head_right, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(head_right, 796 - 16 - 250, 10);
+    lv_obj_set_pos(head_right, DIALOG_W - 16 - 250, 10);
 
     list = lv_table_create(dialog.obj);
     lv_obj_remove_style(list, NULL, LV_STATE_ANY | LV_PART_MAIN);
