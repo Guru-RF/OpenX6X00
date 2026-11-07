@@ -11,6 +11,9 @@
  *  else into an LVGL image, scrolled the same way (new lines and tune slides only, not a
  *  full rebuild every refresh).
  */
+#ifdef __ARM_NEON
+#include <arm_neon.h>
+#endif
 #include "waterfall_view.h"
 
 #include "board.h"
@@ -1099,8 +1102,8 @@ static void d3_background(const d3_target_t *o, const d3_scene_t *sc, uint32_t b
 }
 
 
-__attribute__((noinline))   /* one picture: measurable on its own */
-static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_refs) {
+__attribute__((noinline))
+static void d3_draw(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_refs) {
     d3_target_t     o = {buf, portrait, height, theme_shape.mono};
     int32_t         h = height;
     uint32_t        span = shown_span();
@@ -1191,6 +1194,61 @@ static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_
         }
         d3_join(&o, x, x > 0 && !isnan(front[x - 1]) ? front[x - 1] : front[x], front[x], 2.0f, lc, 1.0f);
     }
+}
+
+/* Landscape rows dst[y * WIDTH + x] from the portrait columns src[(WIDTH - 1 - x) * h + y]: 4 x 4 blocks, so the
+ * 4 KB-apart pixels of a landscape column are not written one at a time */
+static void d3_transpose(uint32_t *dst, const uint32_t *src, int32_t h) {
+    int32_t y = 0;
+
+#ifdef __ARM_NEON
+    for (; y + 4 <= h; y += 4) {
+        for (int32_t x = 0; x + 4 <= WIDTH; x += 4) {
+            const uint32_t *s = src + (size_t)(WIDTH - 1 - x) * h + y;
+            uint32x4x2_t    a = vtrnq_u32(vld1q_u32(s), vld1q_u32(s - h));
+            uint32x4x2_t    b = vtrnq_u32(vld1q_u32(s - 2 * h), vld1q_u32(s - 3 * h));
+            uint32_t       *d = dst + (size_t) y * WIDTH + x;
+
+            vst1q_u32(d, vcombine_u32(vget_low_u32(a.val[0]), vget_low_u32(b.val[0])));
+            vst1q_u32(d + WIDTH, vcombine_u32(vget_low_u32(a.val[1]), vget_low_u32(b.val[1])));
+            vst1q_u32(d + 2 * WIDTH, vcombine_u32(vget_high_u32(a.val[0]), vget_high_u32(b.val[0])));
+            vst1q_u32(d + 3 * WIDTH, vcombine_u32(vget_high_u32(a.val[1]), vget_high_u32(b.val[1])));
+        }
+        for (int32_t x = WIDTH & ~3; x < WIDTH; x++) {
+            for (int32_t k = 0; k < 4; k++) dst[(size_t)(y + k) * WIDTH + x] = src[(size_t)(WIDTH - 1 - x) * h + y + k];
+        }
+    }
+#endif
+    for (; y < h; y += 8) {                 /* the rest, or all of it: 8 x 8 blocks */
+        int32_t y1 = LV_MIN(y + 8, h);
+
+        for (int32_t x0 = 0; x0 < WIDTH; x0 += 8) {
+            int32_t x1 = LV_MIN(x0 + 8, WIDTH);
+
+            for (int32_t x = x0; x < x1; x++) {
+                const uint32_t *s = src + (size_t)(WIDTH - 1 - x) * h;
+
+                for (int32_t yy = y; yy < y1; yy++) dst[(size_t) yy * WIDTH + x] = s[yy];
+            }
+        }
+    }
+}
+
+/* One picture. A landscape one is drawn as the portrait one into columns of its own and turned over into buf: its
+ * pixels in a column, 4 KB apart in rows, were most of the time */
+__attribute__((noinline))   /* measurable on its own */
+static void d3_render(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_refs) {
+    static uint32_t *columns;
+
+    if (!portrait && !columns) {
+        columns = malloc(sizeof(uint32_t) * WIDTH * MAX_HEIGHT);
+    }
+    if (portrait || !columns) {             /* (no memory for them: drawn in rows) */
+        d3_draw(buf, portrait, ref_x, n_refs);
+        return;
+    }
+    d3_draw(columns, true, ref_x, n_refs);
+    d3_transpose(buf, columns, height);
 }
 
 /* The reference frequencies under the front edge of the floor; hidden out of 3D */
