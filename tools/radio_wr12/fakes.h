@@ -25,6 +25,7 @@ void set_f(ParamFloat *p, float v);
 void set_quiet(ParamInt *p, int32_t v);     /* a band key's round: the value now, its observers told after (notify_now) */
 void notify_now(ParamInt *p);
 void knob(int32_t freq);                    /* the knob: through the dial, cfg_fg_freq (its reverse sets the VFO) */
+extern bool swrscan_stop_runs;  /* dialog_swrscan_stop does what the window's Stop does (run_cb), mem_load aside */
 
 /* The GUI thread's queue (scheduler_put and the rest), run until it is empty; how many ran */
 int gui_run(void);
@@ -54,6 +55,8 @@ typedef struct {
     int     vfo_writes_keyed;   /* with PTT set */
     float   pwr_at_ptt;     /* the power when PTT last went down */
     float   pwr_at_keyed_vfo;   /* the power when the VFO in use last moved with PTT set */
+    int32_t keyed_hz[512];  /* every write to the VFO in use with PTT or the modem set (the test empties it) */
+    int     n_keyed;
     atomic_bool key;        /* the GUI's CW key */
     int     open_tx;        /* HW_OPEN_TX: 1 as x6200_control_init leaves it (the test may say 0) */
     int     open_tx_writes; /* tries to write it, those that failed too */

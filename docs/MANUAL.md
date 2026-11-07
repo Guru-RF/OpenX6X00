@@ -641,12 +641,16 @@ its battery. So the warning, the 30 s, the charger and the save are done
 minutes before the cut, also when a transmission at the end brings it nearer.
 The X6100 keeps 6.0 V.
 
-The battery sags under the TX current, so with a few % left a transmission
-can bring the warning; back at 7.2 V (the X6100: 6.2 V) before the 30 s are
-over, or on a supply (on the X6200 one the radio reads at 12.0 V or more, see
-below), the power-off is called off. On the X6200 that means a transmission
-ends the run once the battery rests at 7.1 V and sags to 7.0 V on TX; in the
-run above, 7.2 V came half an hour before the power-off.
+The battery sags under the TX current, and the readings on TX count too, so
+with a few % left a transmission can bring the warning. Back at 7.2 V (the
+X6100: 6.2 V) before the 30 s are over, or on a supply (on the X6200 one the
+radio reads at 12.0 V or more, see below), the power-off is called off. So on
+the X6200 a short transmission that pulls the battery to 7.0 V ends the run
+once it rests at 7.1 V, and one that keeps it at 7.0 V or under for the 30 s
+(WSPR, SSTV, a long over) ends it in the middle of the transmission, however
+high the battery rests. How far a transmission pulls it down on battery has
+not been measured; in the run above, 7.2 V came half an hour before the
+power-off.
 
 On the X6200 a supply the radio reads under 12.0 V does not stop the
 power-off: External in the POWER box of the [Info tab](#info-tab), or the
@@ -2134,8 +2138,11 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   says); a new frequency on the other VFO, or the VFOs swapped, moves it to
   where the radio then transmits; onto a frequency where it may not, it stays
   where it is at 0 W and stops. A voice message or an app's slot ending under
-  it leaves it on the TX frequency, and KEY Train holds as it does at rest. A
-  PTT keyed before split comes on stays on the dial. What the base keys by
+  it leaves it on the TX frequency, and KEY Train holds as it does at rest.
+  PTT pressed while an app's slot or the SWR scan transmits goes out where
+  they have the VFO (the slot's frequency, the scan's sweep point as it moves)
+  and comes to the TX frequency when they end. A PTT keyed before split comes
+  on stays on the dial. What the base keys by
   itself (the hand mic's PTT, VOX, the KEY jack) stays on the VFO you listen
   on, and so does the GUI's CW key (messages, the CW keyboard, a USB paddle);
   the TX panel shows that frequency, and the VFO you listen on for the radio's

@@ -636,6 +636,9 @@ bool __wrap_hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz) {
         base.vfo_writes_keyed += base.ptt;
         base.pwr_at_keyed_vfo = base.ptt && (int)vfo == base.cur ? base.pwr : base.pwr_at_keyed_vfo;
     }
+    if ((base.ptt || base.modem) && (int)vfo == base.cur && base.n_keyed < 512) {
+        base.keyed_hz[base.n_keyed++] = hz;
+    }
     base.vfo[vfo] = hz;
     base.open_tx_at_vfo = base.open_tx;
     base_look("a VFO");
@@ -879,8 +882,15 @@ void dialog_swrscan_give_up(const char *why) {
     (void)why;
 }
 
+bool swrscan_stop_runs;
+
 void dialog_swrscan_stop(int32_t freq) {
     (void)freq;
+    if (swrscan_stop_runs) {
+        swrscan_stop_runs = false;
+        radio_stop_swrscan();
+        radio_set_tx_freq(0);
+    }
 }
 
 void dialog_swrscan_update(float vswr) {

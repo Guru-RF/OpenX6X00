@@ -716,6 +716,9 @@ void radio_set_tx_freq(int32_t freq) {
 
     if (freq == 0 && atomic_load(&ptt_moved)) {
         freq = radio_tx_freq();     /* over under PTT: its TX frequency, the dial when it lets go */
+        if (cfg_tx_refusal(freq)) {
+            return;     /* not to where TX is refused: it stays, held at 0 W, until the stop lets PTT go (band_stop) */
+        }
     }
     if (freq == 0) {
         /* Both VFOs on their own frequency, transverter and IF shift as tuned: the one that transmits can have
@@ -1538,6 +1541,7 @@ static void band_stop(int32_t freq) {
 
     if (s == RADIO_SWRSCAN) {
         dialog_swrscan_stop(freq);
+        radio_set_ptt(false);   /* a PTT under the scan (CAT, the PTT key) goes with it */
         return;
     }
     atomic_fetch_add(&band_stops, 1);   /* before the modem bit drops: tx_player keeps no level from it */

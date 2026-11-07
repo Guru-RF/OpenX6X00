@@ -388,6 +388,14 @@ static void *key_down(void *arg) {
     return NULL;
 }
 
+/* The VFO in use was sent to f with PTT or the modem set, since base.n_keyed was emptied */
+static bool keyed_at(int32_t f) {
+    for (int k = 0; k < base.n_keyed; k++) {
+        if (base.keyed_hz[k] == f) return true;
+    }
+    return false;
+}
+
 int main(void) {
     int writes;
 
@@ -1115,6 +1123,67 @@ int main(void) {
     gui_run();
     settle();
     check(as_set(), "split, KEY Train off: TX as set");
+
+    /* What ends under PTT does not send the VFO in use where TX is refused: a voice message, CAT's PTT under it, B
+     * then refused; the GUI's stop (the modem off first), or the message over by itself before it. A stays at 0 W
+     * and goes back to the dial with PTT */
+    for (int over = 0; over < 2; over++) {
+        base.n_keyed = 0;
+        radio_set_modem(true);
+        check(base.modem && base.vfo[A] == 7150000, "split, the modem: on 7.150 (%d)", base.vfo[A]);
+        check(radio_set_ptt(true) && base.ptt, "split, PTT under the modem");
+        set_i(cfg_band_vfob_freq, 7350000);
+        check(base.vfo[A] == 7150000 && base.pwr == 0.0f, "split, PTT under the modem, B refused: A stays at 0 W (%d, %.1f W)",
+              base.vfo[A], base.pwr);
+        if (over) {
+            radio_set_modem(false);
+            check(!keyed_at(7350000), "split, PTT, B refused, the modem over: A not sent there keyed");
+        }
+        gui_run();
+        settle();
+        gui_run();
+        check(!keyed_at(7350000), "split, PTT under the modem, B refused, the stop: A not sent there keyed");
+        check(!base.ptt && !base.modem && base.vfo[A] == 7100000, "split, PTT under the modem, B refused: stopped, A back");
+        set_i(cfg_band_vfob_freq, 7150000);
+        gui_run();
+        settle();
+    }
+
+    /* PTT under the SWR scan (CAT, the PTT key) goes with the scan's stop, and not where TX is refused: TX outside the
+     * bands switched off with B outside them, or B to a refused frequency */
+    for (int how = 0; how < 2; how++) {
+        if (!how) {
+            set_i(cfg_tx_outside_bands, 1);
+            set_i(cfg_band_vfob_freq, 7350000);
+            gui_run();
+            settle();
+        }
+        base.n_keyed = 0;
+        int32_t from = how ? 7140000 : 7340000;
+        check(radio_start_swrscan(from) && base.vfo[A] == from, "split, the SWR scan from %d (%d)", from, base.vfo[A]);
+        check(radio_set_ptt(true) && base.ptt, "split, PTT under the SWR scan");
+        swrscan_stop_runs = true;
+        if (how) {
+            set_i(cfg_band_vfob_freq, 7350000);
+        } else {
+            set_i(cfg_tx_outside_bands, 0);
+        }
+        gui_run();
+        settle();
+        gui_run();
+        clock_add(60000);
+        radio_thread_turn();
+        gui_run();
+        check(!base.ptt && radio_get_state() == RADIO_RX, how ? "split, PTT under the scan, B refused: PTT let go" :
+              "split, PTT under the scan, TX outside the bands off: PTT let go");
+        check(!keyed_at(7350000), "split, PTT under the scan, refused: A not sent to 7.350 keyed");
+        swrscan_stop_runs = false;
+        radio_set_ptt(false);
+        set_i(cfg_band_vfob_freq, 7150000);
+        gui_run();
+        settle();
+        check(base.vfo[A] == 7100000 && as_set(), "split, after the scan's stop: A on the dial, TX as set");
+    }
 
     /* VFO B in use: the same the other way round */
     set_i(cfg_band_current_vfo, B);
