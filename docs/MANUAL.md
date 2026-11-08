@@ -30,7 +30,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Tailscale](#tailscale): [Tailscale Funnel](#tailscale-funnel)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
-- [Reference](#reference): [Bluetooth CAT connection](#bluetooth-cat-connection), [CI-V commands](#supported-ci-v-commands), [btcat-ctl](#btcat-ctl), [btaudio-ctl](#btaudio-ctl), [files on /mnt](#files-on-mnt)
+- [Reference](#reference): [Bluetooth CAT connection](#bluetooth-cat-connection), [CI-V commands](#supported-ci-v-commands), [btcat-ctl](#btcat-ctl), [btaudio-ctl](#btaudio-ctl), [files on /mnt](#files-on-mnt), [processor temperature](#processor-temperature-x6200)
 - [Build](#build)
 
 ## Getting started
@@ -6669,6 +6669,37 @@ change.
 Defaults for the Bluetooth bridge are in `/etc/default/btcat`
 (`BTCAT_ENABLE`, `BTCAT_BT`, `BTCAT_ALIAS`); the
 runtime state in `/mnt/btcat.conf` overrides them.
+
+### Processor temperature (X6200)
+
+The X6200's kernel reads its processor's temperature sensor (the Allwinner
+R16's, with the `sun4i-gpadc-iio` driver). Up to v0.3.8 it had no driver for
+it, so nothing read how hot the processor got. The kernel's thermal zone
+`cpu-thermal` now watches it, with the trip points of the processor's device
+tree:
+
+- 75 °C: the processor slows down a step at a time, to 120 MHz at most (it
+  runs at 1008 MHz), and speeds back up as it cools.
+- 110 °C: the kernel powers the radio off.
+
+The zone's other trips, 85 °C for the GPU and the "hot" ones at 90 and
+95 °C, do nothing: the GPU driver registers no cooling device, and nothing
+acts on a "hot" trip.
+
+Reading it over [SSH](#ssh), in thousandths of a degree Celsius:
+
+```
+cat /sys/class/thermal/thermal_zone0/temp
+```
+
+The same value is under hwmon as `iio_hwmon` (`temp1_input`). It is the
+first hwmon device, so the power chip's battery, AC and USB entries come
+after it: find those by their `name`, not their number
+(`grep . /sys/class/hwmon/*/name`).
+
+The kernel turns the sensor's reading into degrees with the same formula for
+every R16; there is no calibration for each processor. There is no setting
+for it, and the X6100's kernel is not changed.
 
 ## Build
 
