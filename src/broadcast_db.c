@@ -9,7 +9,7 @@
 #include "broadcast_db.h"     /* broadcast_match_t */
 
 #include <ctype.h>      /* isdigit */
-#include <math.h>       /* fabs */
+#include <math.h>       /* fabs, isnan */
 #include <stdio.h>      /* fopen, fgets, snprintf */
 #include <stdlib.h>     /* realloc, strtod */
 #include <string.h>     /* strsep, strspn, memset */
@@ -33,6 +33,18 @@ static station_t    *list;
 static size_t       list_len;
 static size_t       list_cap;
 
+/* The list's frequencies in order, each with its entry: a lookup is a binary search there. The scan of the
+ * whole list read one cache line from each ~700-byte entry, at every tuning step (a tenth of an A7 while
+ * tuning). NULL: the scan, as before */
+typedef struct {
+    double      khz;
+    uint32_t    at;
+} by_freq_t;
+
+static by_freq_t    *by_freq;
+
+#define WINDOW_MAX  256     /* entries within the tolerance a lookup sorts; more: the scan */
+
 static bool copy_default(void) {
     FILE    *src = fopen(DB_DEFAULT, "rb");
     FILE    *dst = src ? fopen(DB_FILE, "wb") : NULL;
@@ -51,6 +63,36 @@ static bool copy_default(void) {
         if (!copied) unlink(DB_FILE);     /* no half file: the next start tries again */
     }
     return copied;
+}
+
+static int cmp_freq(const void *a, const void *b) {
+    const by_freq_t *x = a, *y = b;
+
+    if (x->khz != y->khz) return x->khz < y->khz ? -1 : 1;
+    return x->at < y->at ? -1 : x->at > y->at;
+}
+
+static int cmp_at(const void *a, const void *b) {
+    uint32_t x = *(const uint32_t *)a, y = *(const uint32_t *)b;
+
+    return x < y ? -1 : x > y;
+}
+
+/* by_freq for the list loaded; none if out of memory or a frequency is not a number (it is then never "too
+ * far" for the scan, which an order cannot give) */
+static void index_by_freq(void) {
+    free(by_freq);
+    by_freq = list_len ? malloc(list_len * sizeof(*by_freq)) : NULL;
+    for (size_t i = 0; by_freq && i < list_len; i++) {
+        if (isnan(list[i].m.freq_khz)) {
+            free(by_freq);
+            by_freq = NULL;
+            return;
+        }
+        by_freq[i].khz = list[i].m.freq_khz;
+        by_freq[i].at = (uint32_t) i;
+    }
+    if (by_freq) qsort(by_freq, list_len, sizeof(*by_freq), cmp_freq);
 }
 
 /* "HHMM" to minutes of the day, 2400 is the end of it; -1 if not a time */
@@ -214,6 +256,8 @@ bool broadcast_db_init(void) {
     free(list);
     list = NULL;
     list_len = list_cap = 0;
+    free(by_freq);
+    by_freq = NULL;
 
     if (access(DB_FILE, F_OK) != 0 && !copy_default()) return false;
     f = fopen(DB_FILE, "r");
@@ -236,6 +280,7 @@ bool broadcast_db_init(void) {
         list[list_len++] = st;
     }
     fclose(f);
+    index_by_freq();
     return list_len > 0;
 }
 
@@ -270,6 +315,27 @@ size_t broadcast_db_find_matches(int32_t freq_hz, int tolerance_hz, broadcast_ma
 
     if (!list || !out || !max || !gmtime_r(&now, &utc)) return 0;
 
+    if (by_freq) {
+        /* The entries within the tolerance, then in the list's order: the same matches as the scan */
+        uint32_t    at[WINDOW_MAX];
+        size_t      lo = 0, hi = list_len, w = 0;
+
+        while (lo < hi) {
+            size_t mid = lo + (hi - lo) / 2;
+
+            if (by_freq[mid].khz * 1000.0 - freq_hz < -tolerance_hz) lo = mid + 1;
+            else hi = mid;
+        }
+        for (size_t i = lo; i < list_len && by_freq[i].khz * 1000.0 - freq_hz <= tolerance_hz; i++) {
+            if (w == WINDOW_MAX) goto scan;
+            at[w++] = by_freq[i].at;
+        }
+        qsort(at, w, sizeof(*at), cmp_at);
+        for (size_t i = 0; i < w && n < max; i++)
+            if (on_air(&list[at[i]], &utc)) out[n++] = list[at[i]].m;
+        return n;
+    }
+scan:
     for (size_t i = 0; i < list_len && n < max; i++) {
         if (fabs(list[i].m.freq_khz * 1000.0 - freq_hz) > tolerance_hz) continue;
         if (on_air(&list[i], &utc)) out[n++] = list[i].m;
