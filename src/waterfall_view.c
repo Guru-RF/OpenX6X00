@@ -1197,27 +1197,41 @@ static void d3_draw(uint32_t *buf, bool portrait, const int32_t *ref_x, int n_re
 }
 
 /* Landscape rows dst[y * WIDTH + x] from the portrait columns src[(WIDTH - 1 - x) * h + y]: 4 x 4 blocks, so the
- * 4 KB-apart pixels of a landscape column are not written one at a time */
+ * 4 KB-apart pixels of a landscape column are not written one at a time; the blocks D3_TILE x D3_TILE at a time,
+ * so a tile's columns and rows stay in the TLB and the cache (a row of blocks across the whole width touched a page
+ * of the columns for each block: on the A20 with the radio running, 23 ms a picture against 15) */
+#define D3_TILE 64
 static void d3_transpose(uint32_t *dst, const uint32_t *src, int32_t h) {
     int32_t y = 0;
 
 #ifdef __ARM_NEON
-    for (; y + 4 <= h; y += 4) {
-        for (int32_t x = 0; x + 4 <= WIDTH; x += 4) {
-            const uint32_t *s = src + (size_t)(WIDTH - 1 - x) * h + y;
-            uint32x4x2_t    a = vtrnq_u32(vld1q_u32(s), vld1q_u32(s - h));
-            uint32x4x2_t    b = vtrnq_u32(vld1q_u32(s - 2 * h), vld1q_u32(s - 3 * h));
-            uint32_t       *d = dst + (size_t) y * WIDTH + x;
+    int32_t h4 = h & ~3, w4 = WIDTH & ~3;
 
-            vst1q_u32(d, vcombine_u32(vget_low_u32(a.val[0]), vget_low_u32(b.val[0])));
-            vst1q_u32(d + WIDTH, vcombine_u32(vget_low_u32(a.val[1]), vget_low_u32(b.val[1])));
-            vst1q_u32(d + 2 * WIDTH, vcombine_u32(vget_high_u32(a.val[0]), vget_high_u32(b.val[0])));
-            vst1q_u32(d + 3 * WIDTH, vcombine_u32(vget_high_u32(a.val[1]), vget_high_u32(b.val[1])));
+    for (int32_t y0 = 0; y0 < h4; y0 += D3_TILE) {
+        int32_t y1 = LV_MIN(y0 + D3_TILE, h4);
+
+        for (int32_t x0 = 0; x0 < w4; x0 += D3_TILE) {
+            int32_t x1 = LV_MIN(x0 + D3_TILE, w4);
+
+            for (y = y0; y < y1; y += 4) {
+                for (int32_t x = x0; x < x1; x += 4) {
+                    const uint32_t *s = src + (size_t)(WIDTH - 1 - x) * h + y;
+                    uint32x4x2_t    a = vtrnq_u32(vld1q_u32(s), vld1q_u32(s - h));
+                    uint32x4x2_t    b = vtrnq_u32(vld1q_u32(s - 2 * h), vld1q_u32(s - 3 * h));
+                    uint32_t       *d = dst + (size_t) y * WIDTH + x;
+
+                    vst1q_u32(d, vcombine_u32(vget_low_u32(a.val[0]), vget_low_u32(b.val[0])));
+                    vst1q_u32(d + WIDTH, vcombine_u32(vget_low_u32(a.val[1]), vget_low_u32(b.val[1])));
+                    vst1q_u32(d + 2 * WIDTH, vcombine_u32(vget_high_u32(a.val[0]), vget_high_u32(b.val[0])));
+                    vst1q_u32(d + 3 * WIDTH, vcombine_u32(vget_high_u32(a.val[1]), vget_high_u32(b.val[1])));
+                }
+            }
         }
-        for (int32_t x = WIDTH & ~3; x < WIDTH; x++) {
-            for (int32_t k = 0; k < 4; k++) dst[(size_t)(y + k) * WIDTH + x] = src[(size_t)(WIDTH - 1 - x) * h + y + k];
+        for (y = y0; y < y1; y++) {
+            for (int32_t x = w4; x < WIDTH; x++) dst[(size_t) y * WIDTH + x] = src[(size_t)(WIDTH - 1 - x) * h + y];
         }
     }
+    y = h4;
 #endif
     for (; y < h; y += 8) {                 /* the rest, or all of it: 8 x 8 blocks */
         int32_t y1 = LV_MIN(y + 8, h);
