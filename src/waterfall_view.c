@@ -550,6 +550,8 @@ static void direct_redraw(int new_row) {
 #define D3_MIN_MS   33      /* at most a picture so often (30 a second) while tuning; the last one later */
 #define D3_GLIDE_MS 50      /* the glide's pictures between two rows so often (20 a second): a row a second moves a trace
                              * a few pixels a picture, and the tuning keeps D3_MIN_MS */
+#define D3_GLIDE_FAST_MS (2 * D3_GLIDE_MS)  /* rows at least this often (10 a second): smooth as they are, no glide
+                                          * between (a picture a row: half the pictures at the default speed) */
 #define D3_PHASE_Q  16      /* a glide picture is drawn when the phase moved to another 1/16 of a row, or a row came */
 #define D3_CACHE    72      /* rows whose levels are kept (every D3_STEP-th: up to 64 traces and a few) */
 
@@ -949,6 +951,18 @@ static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
  * last 8): the traces are drawn that much of a row further back, so they move on at every picture, not at every
  * row. 1 when it is late: no further than where the next row puts them; also when the interval is not known, so
  * d3_frames_cb() pauses instead of drawing the same picture again */
+/* Rows coming at least every D3_GLIDE_FAST_MS (their interval known): no glide pictures between them */
+static bool d3_rows_fast(uint16_t top) {
+    const wf_row_t *a = row_from(top, 0), *b = row_from(top, 8);
+
+    if (!a->width || !b->width || height <= 9) {
+        return false;
+    }
+    uint32_t every = (a->ms - b->ms) / 8;
+
+    return every && every < D3_GLIDE_FAST_MS;
+}
+
 static float d3_phase(uint16_t top) {
     const wf_row_t *a = row_from(top, 0), *b = row_from(top, 8);
 
@@ -963,6 +977,9 @@ static float d3_phase(uint16_t top) {
 
     if (every == 0 || every > 1000) {
         return 1.0f;                        /* rows from before a pause: no next row is due, the glide has nothing to do */
+    }
+    if (every < D3_GLIDE_FAST_MS) {
+        return 0.0f;                        /* rows fast enough: the traces at their rows, as with the glide off */
     }
     return LV_MIN(1.0f, (float) since / every);
 }
@@ -1239,9 +1256,9 @@ static void d3_later_cb(lv_timer_t *t) {
  * in the same 1/D3_PHASE_Q of a row as the last picture's, with no new row: a picture of the same pixels (a new view
  * comes by refresh_waterfall(), not by this timer) */
 static void d3_frames_cb(lv_timer_t *t) {
-    if (d3_on() && param_i_get(cfg_wf_3d_glide) && d3_drawn_phase < 1.0f && d3_seen()) {
-        uint16_t        top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
+    uint16_t top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
 
+    if (d3_on() && param_i_get(cfg_wf_3d_glide) && d3_drawn_phase < 1.0f && d3_seen() && !d3_rows_fast(top)) {
         if (row_from(top, 0)->num != d3_drawn_num ||
             (int)(d3_phase(top) * D3_PHASE_Q) != (int)(d3_drawn_phase * D3_PHASE_Q)) {
             d3_redraw();
