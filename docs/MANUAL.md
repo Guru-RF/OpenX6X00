@@ -2290,14 +2290,16 @@ the SWR as it goes.
 - On the X6200 each reading waits until the power is up. Its base (1.0.8)
   reports no SWR in its own sweep mode, so the radio keys a plain FM carrier,
   the way the digital apps key (the microphones stay out), and after each step
-  the base brings the power up from 0 in about a second. A sweep of 50 points
-  takes about a minute, one of 100 points (1000 kHz and up) about two; on the
-  X6100 a sweep takes a few seconds. Up to v0.3.8 the X6200's curve stayed at
+  the base brings the power up from 0 in about a second. A sweep of 25 points
+  takes about half a minute, one of 100 points (1000 kHz and up) about two; it
+  reads the ends and a few points first and then fills the gaps, so the whole
+  width shows within seconds. On the X6100 a sweep takes a few seconds.
+  Up to v0.3.8 the X6200's curve stayed at
   1.0 whatever the antenna.
 - Span: 50, 100, 200, 500, 1000, 1500, 2000 or 2500 kHz (not while scanning).
-  Scale: Log or Linear. A sweep takes 50 readings across the span, 100 from
-  1000 kHz up (one every 25 kHz at 2500 kHz), so a wide one takes twice as
-  long.
+  Scale: Log or Linear. A sweep takes 50 readings across the span (25 on the
+  X6200), 100 from 1000 kHz up (one every 25 kHz at 2500 kHz), so a wide one
+  takes longer. Only the points read so far are drawn.
 - The sweep stays inside the band as the band list has it (the web
   configurator's Bands page), which follows the IARU region of the band
   plan: in Region 1 2500 kHz on 40 m sweeps 7.000 to 7.200 MHz (40m CW and

@@ -864,7 +864,7 @@ void radio_start_atu() {
 #ifdef BOARD_X6200
 #define SWRSCAN_TX      HW_MODEM
 #define SWRSCAN_MODE    radio_mode_nfm
-#define SWRSCAN_MIN_MS  1200    /* from a move: the power comes up in about that */
+#define SWRSCAN_MIN_MS  850     /* from a move: with the flat wait, reads as 1.2 s did on 40 and 80 m (measured, SWR on the radio 1.1-2.5) */
 #define SWRSCAN_FLAT_MS 300     /* without the power going up: it is up */
 #define SWRSCAN_WAIT_MS 3000    /* a power that never settles is read anyway */
 
