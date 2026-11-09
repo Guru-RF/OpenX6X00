@@ -1267,12 +1267,12 @@ static void d3_redraw(void) {
         }
     }
     __atomic_store_n(&new_rows, 0, __ATOMIC_RELEASE);
+    wfp_full = true;                /* the waterfall again whole when 3D is switched off: the plane, or the image */
     if (direct) {
         lv_area_t a;
 
         d3_render(wfp, true, ref_x, n);
         wfp_head = 0;
-        wfp_full = true;            /* the waterfall again whole when 3D is switched off */
         lv_obj_get_coords(obj, &a);
 #if USE_DRM
         drm_wf_present_ring(wfp, a.y1, height, wfp_head);
@@ -1371,9 +1371,12 @@ static void image_redraw(int new_row) {
                 image_paint_line(y, wfp_center, span, i0, i1, x0);
             }
         }
-    } else {
+    } else if (wfp_center == wf_center_freq) {
         return;
     }
+    /* Also with only a move under a pixel to go, which waits as on the planes: the image is drawn all the same, as
+     * its draw takes the next step of the scroll (image_drawn_cb(); direct mode has a timer for it). Not drawn, each
+     * of a smooth slide's last steps waited for the next line */
     lv_obj_invalidate(img);
 }
 
