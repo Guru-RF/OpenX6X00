@@ -138,7 +138,9 @@ lv_obj_t *textarea_window_open(textarea_window_cb_t ok_cb, textarea_window_cb_t 
     row = lv_obj_create(window);
     lv_obj_set_layout(row, LV_LAYOUT_FLEX);
     lv_obj_remove_style(row, NULL, LV_PART_MAIN | LV_STATE_ANY);
-    lv_obj_set_height(row, 35);
+    /* at least the text's line high: at 35 px the fonts with a higher one (DejaVu, the default: 43) lost what goes
+     * under the baseline, and J showed as I, j as i (#220) */
+    lv_obj_set_height(row, LV_MAX(35, lv_font_get_line_height(&sony_44)));
     lv_obj_set_width(row, 560);
     lv_obj_center(row);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
