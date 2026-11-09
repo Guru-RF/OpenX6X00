@@ -403,7 +403,9 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_key_mode{"key_mode", radio_key_manual, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_iambic_mode{"iambic_mode", radio_iambic_a, 0, 1,
+    // B by default (#109): on A the base's keyer lost dits, also from a single-lever paddle. Only a change is saved
+    // (a row), so a radio that never changed it takes B and one set to A keeps A
+    Parameter<int32_t> p_iambic_mode{"iambic_mode", radio_iambic_b, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_key_vol{"key_vol", 10, 0, BOARD_KEY_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
