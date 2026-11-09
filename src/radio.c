@@ -2230,7 +2230,8 @@ static void battery_model_load(void) {
             (unsigned long long)(get_time() - t0));
 }
 
-static void battery_log(const hw_pack_t *p, uint8_t cap) {
+/* volts_ext: on external power the % shown is the voltage's, the base has lost count (#223) */
+static void battery_log(const hw_pack_t *p, bool volts_ext) {
     static time_t   last;
     static uint64_t prev_ms;
     static float    tx_s, tx_ws;
@@ -2260,8 +2261,9 @@ static void battery_log(const hw_pack_t *p, uint8_t cap) {
         fclose(f);
     }
     bat_sample_t s = {
-        /* the % shown (bat_watch_cap, bat_watch_cap_ext: the base's can be far off, #49, #223) */
-        .t = t, .vbat = p->vbat * 0.1f, .cap = cap, .vext = p->vext * 0.1f,
+        /* the % shown on battery (bat_watch_cap: the base's can be far off, #49), else the base's: the time to
+         * full is learned in the base's % while charging (bat_est.c), as the log keeps it */
+        .t = t, .vbat = p->vbat * 0.1f, .cap = bat_pct >= 0 ? bat_pct : p->batcap, .vext = p->vext * 0.1f,
         .charging = p->charging,
         .tx_s = tx_s, .tx_w = tx_s > 0 ? tx_ws / tx_s : 0, .bl = backlight_level(),
         .wifi = wifi_get_status() != WIFI_OFF,
@@ -2274,8 +2276,10 @@ static void battery_log(const hw_pack_t *p, uint8_t cap) {
     bat_est_feed(&s);
     int min = bat_est_minutes(0, &chg, &approx);
 
-    if (s.vext >= 3.0f && !charge_flag_counts()) {
-        min = -1;   /* the charger is off: no time to full */
+    if (volts_ext || (s.vext >= 3.0f && !charge_flag_counts())) {
+        /* The charger is off: no time to full. Nor from the base's % next to the voltage's: #223's full pack on
+         * the supply, the base at 2 %, would have shown 98 % and 8 h to full */
+        min = -1;
     }
     clock_update_estimate(min, approx);
 
@@ -2607,26 +2611,30 @@ static bool radio_tick() {
              * and the battery log take it: they took the % of the reading before, and at the first
              * reading on battery that was none, so the base's went in. On #49's radio (the base at 0 %
              * with a full pack) that gave "Battery 0%: connect power" at each power-on and a time left
-             * from 0h00, climbing back over the first ten minutes */
+             * from 0h00, climbing back over the first ten minutes. On external power too, where it is the
+             * base's or the voltage's where the base has lost count (#223): a supply that does not hold the
+             * battery up lets it sag as well. Held only on the supply it was taken on: the base's 2 % from a
+             * supply, held on battery, would have said "connect power" */
             static uint64_t hold_until;
             static int8_t   held_cap = -1;
-            int8_t          cap = bat_watch.counts && !bat_watch.ext ? pack->batcap : -1;
+            static bool     held_ext;
+            int8_t          cap = bat_watch.counts ? pack->batcap : -1;
 
             if (radio_get_state() == RADIO_TX) hold_until = now_time + 30000;
-            if (now_time < hold_until && held_cap >= 0 && cap >= 0) {
+            if (now_time < hold_until && held_cap >= 0 && cap >= 0 && held_ext == bat_watch.ext) {
                 cap = held_cap;
             } else {
-                if (cap >= 0) cap = bat_watch_cap(&bat_watch, pack->vbat, pack->batcap);   /* on receive only */
+                if (cap >= 0) {     /* on receive only */
+                    cap = bat_watch.ext ? bat_watch_cap_ext(&bat_watch, pack->vbat, pack->batcap)
+                                        : bat_watch_cap(&bat_watch, pack->vbat, pack->batcap);
+                }
                 held_cap = cap;
+                held_ext = bat_watch.ext;
             }
-            bat_pct = cap;   /* the % on the screen on battery (clock.c) */
+            bat_pct = bat_watch.ext ? -1 : cap;   /* the % on the screen on battery (clock.c) */
             if (bat_watch.counts) {
-                /* On external power the base's, or the voltage's where the base has lost count (#223). No hold on
-                 * TX there: on its supply the bench X6100's pack stayed at 8.3 V through TX at 10 W */
-                uint8_t shown = cap >= 0 ? cap : bat_watch_cap_ext(&bat_watch, pack->vbat, pack->batcap);
-
-                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, shown, pack->charging);
-                battery_log(pack, shown);
+                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, cap, pack->charging);
+                battery_log(pack, bat_watch.ext && bat_watch.by_volts);
             }
 
             /* The base's warnings, once its readings count (bat_watch.h): shown when one comes on, and again

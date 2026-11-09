@@ -747,9 +747,14 @@ with two exceptions for a base that has lost count. From 8.2 V up the pack is
 full or close, and the radio shows the voltage's % when the base's is more than
 25 points under it. And plugged in while it showed the voltage's %, it keeps
 that one on the supply, as a charge only adds to it, until the pack gets to
-8.2 V or the base's comes within 10 of it (on a supply that does not hold the
-battery up it goes down with the voltage). (Up to v0.3.9 a pack charged with
-the radio off showed the base's 2 % on the supply, issue #223.)
+8.2 V or the base's comes within 10 of it. On a supply that does not hold the
+battery up the voltage's % can be lower: then it shows that one, down at once
+and back up as on battery, never above the % it had. The % shown stays as it
+was while you transmit and for 30 s after, on the supply as on battery. While
+it shows the voltage's % on the supply there is no time to full next to it:
+that is worked out from the base's count, which is off then. (Up to v0.3.9 a
+pack charged with the radio off showed the base's 2 % on the supply, issue
+#223.)
 
 <!-- IMG battery_estimate_main.png: top right, "45%  2h07" -->
 

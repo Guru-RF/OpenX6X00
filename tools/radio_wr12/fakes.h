@@ -82,10 +82,29 @@ void fake_start_out(void);  /* before radio_start: maybe out of its bypass, as a
 /* The CW Trainer open or closed (cw_trainer_on), which radio.c is not told of */
 void fake_trainer(bool open);
 
-/* radio_thread.c: one turn of the radio thread at the base's open TX; the base in TX by itself (the hand mic's PTT)
- * or back in RX; a write of the open TX on its way, as open_tx_send has it (the radio lock held, open_tx_busy set),
- * and its end */
+/* The base's supply as its packets give it (hw_flow_read wrapped): the battery and the DC input in 0.1 V, its own %
+ * and charging flag, TX. And what radio.c made of them last: the % in the top bar (clock_update_power), the % the
+ * battery model was fed (bat_est_feed) and the minutes the top bar was given (clock_update_estimate, -1 none), where
+ * the model's are always MODEL_MIN (bat_est_minutes) */
+typedef struct {
+    uint8_t vbat, vext, batcap;
+    bool    charging, tx;
+} supply_t;
+
+typedef struct {
+    int cap, fed, est;
+} shown_t;
+
+#define MODEL_MIN 16
+
+extern supply_t supply;
+extern shown_t  shown;
+
+/* radio_thread.c: one turn of the radio thread at the base's open TX; one reading of the base's supply, as radio_tick
+ * takes one every 12 packets; the base in TX by itself (the hand mic's PTT) or back in RX; a write of the open TX on
+ * its way, as open_tx_send has it (the radio lock held, open_tx_busy set), and its end */
 void radio_thread_turn(void);
+void base_reading(void);
 void base_keys_itself(bool tx);
 void open_tx_write_begin(void);
 void open_tx_write_end(void);
