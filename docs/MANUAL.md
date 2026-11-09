@@ -1895,9 +1895,8 @@ bands (Settings > TX Cal)". What is refused:
   QRSS3, the CW keyboard, the USB paddle, the PTT key in CW, Field Ops' test
   beacon.
 - The radio's tuner (in split checked on both VFOs, at its start and while
-  it tunes. On the X6200, base 1.0.8, its carrier went out on VFO A with A
-  in use, measured by ea4iln, #201; with B in use not measured yet, and on
-  the X6100 not known), TUNE for an external tuner, the SWR scan (its sweep
+  it tunes. On the X6200, base 1.0.8, its carrier goes out on the VFO in
+  use, A or B, measured by ea4iln, #201; on the X6100 not known), TUNE for an external tuner, the SWR scan (its sweep
   stays inside the band, see [SWR scan](#swr-scan-and-the-tuner)).
 - In split the VFO on the status bar turns red when the other VFO is
   outside the bands. The X6200's dial outside them does not turn it red:
@@ -2146,7 +2145,7 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   itself (the hand mic's PTT, VOX, the KEY jack) stays on the VFO you listen
   on, and so does the GUI's CW key (messages, the CW keyboard, a USB paddle);
   the TX panel shows that frequency, and the VFO you listen on for the radio's
-  tuner too, measured only with VFO A in use (see
+  tuner too, measured with either VFO in use (see
   [amateur bands only](#amateur-bands-only)). The X6100's base honours split,
   nothing changes there. Host test so far, not yet on a radio.
 - Winlink is simplex: it keys only on the frequency the radio listens on.
