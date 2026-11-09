@@ -1,15 +1,16 @@
-From 7d545870366458f935e7689ee2a896fbec6302e8 Mon Sep 17 00:00:00 2001
-From: Joeri Van Dooren <ure@on6ure.be>
-Date: Mon, 9 Nov 2026 13:49:44 +0100
+From 0ea85e619dc7f3eb0c9859e34d19838f125f0b55 Mon Sep 17 00:00:00 2001
+From: x0rro <x0rroRF@proton.me>
+Date: Thu, 29 Oct 2026 17:16:26 +0000
 Subject: [PATCH] Resampler from xara 0.1.2 and 0.1.3: a kernel table in place
  of a sinc and a Kaiser window per tap
 
 The resampler is still 0.1.1's: each output sample computes its taps'
-sinc and Kaiser window (a 30-term Bessel series) afresh. Upstream xara
-0.1.2 made it a table of the windowed sinc at 512 phases (fewer when
-going down), each normalised, with the taps between two phases
-interpolated; 0.1.3 has it as is. This is that file, without the
-silent() its rate matcher used, which this fork does not have.
+sinc and Kaiser window (a 30-term Bessel series) afresh. x0rro's xara
+0.1.2 (5ffffbb8) made it a table of the windowed sinc at 512 phases
+(fewer when going down), each normalised, with the taps between two
+phases interpolated; his 0.1.3 (09a92013) has it as is. This is his
+file, without the silent() his rate matcher used, which this fork does
+not have: taken for OpenX6X00 by Joeri Van Dooren ON6URE.
 
 The same Resampler, new(), identity(), process() and flush(); the
 (tr)uSDX path and xara-monitor take it as before. 12 kHz to 48 kHz,

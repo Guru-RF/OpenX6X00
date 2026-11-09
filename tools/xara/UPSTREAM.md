@@ -10,9 +10,10 @@ independent program that speaks VARA's protocol on the air, not VARA itself.
 Source: https://github.com/NR5P/xara (MIT; a fork of 9M2PJU/xara, which is x0rro's 0.1.0 and the root of the fork
 network since x0rro's repository went; the network still has x0rro's commits, 0.1.3's included)
 Pinned: NR5P's main of 9 November 2026, commit `bd8300a36e4f76fae7d561335bf08649474bdc6d` (the merge of NR5P/xara#1),
-whose `Cargo.toml` says 0.1.2: NR5P's own numbering, not x0rro's 0.1.2 (below). The fork has no release tarballs
-(its tags v0.1.0 to v0.1.2 and android-test-1 have no assets), so the source is GitHub's tarball of the commit,
-`https://codeload.github.com/NR5P/xara/tar.gz/<commit>`:
+whose `Cargo.toml` says 0.1.2: NR5P's own numbering, not x0rro's 0.1.2 (below). The fork has no source release: its
+tags v0.1.0 to v0.1.2 are tags only, and its one release, the pre-release "Android test build 1" (`android-test-1`, 8
+November), holds an Android app (`xara-android.apk`) and nothing for the radios. So the source is GitHub's tarball of
+the commit, `https://codeload.github.com/NR5P/xara/tar.gz/<commit>`:
 
 - the tar in it (what `build.sh` pins): `3aa6bc2cf8e175b373ded6bde1554b0adf98677bc2cd395c5df803c16c67b520`. It is
   `git archive`'s, byte for byte the same from any clone: `git archive --format=tar --prefix=xara-<commit>/
@@ -36,11 +37,12 @@ x0rro's releases were one commit each: 0.1.0 `549bf6a5` (21 October), 0.1.1 `2e9
 `5ffffbb8` (29 October), 0.1.3 `09a92013` (31 October; its release tarball, which v0.3.9 was built from, is that
 commit without `.gitignore`). NR5P's main is x0rro's 0.1.1 and NR5P's own work on it: the macOS port (x0rro took it
 into 0.1.3 as x0rro/xara#19, in a version of his own), the iOS, Android, Windows and Linux apps and `xara-ffi` (the
-modem as a library, for those and for NR5P's OpenSlot), the (tr)uSDX's audio over CAT, the BUSY detector that
-learns the receiver's noise shape, the modulation names, `--monitor`, `--audio-latency-ms`, `--debug-log`,
-`registered` among the default features (off until `--registered`), the program moved into `daemon.rs`; from x0rro's
-0.1.2 the SSID encoding only; then a PTT by a tone on the right channel (`--ptt tone`, Core Audio and AAudio only),
-the WASAPI and Core Audio capture no longer cut for a dry playback, CI and `docs/building-and-releasing.md`.
+modem as a library, for those and for NR5P's OpenSlot), the BUSY detector that learns the receiver's noise shape, the
+modulation names, `--monitor`, `--audio-latency-ms`, `--debug-log`, `registered` among the default features (off
+until `--registered`), the program moved into `daemon.rs`; Shane Curless VA3SHC's audio over CAT for the (tr)uSDX,
+which NR5P ported from VA3SHC's xara-android (x0rro/xara#12; x0rro took it into 0.1.3 too); from x0rro's 0.1.2 the
+SSID encoding only; then a PTT by a tone on the right channel (`--ptt tone`, Core Audio and AAudio only), the WASAPI
+and Core Audio capture no longer cut for a dry playback, CI and `docs/building-and-releasing.md`.
 
 What x0rro's 0.1.2 and 0.1.3 have that it lacks, and what of it the radio needs:
 
@@ -111,12 +113,12 @@ Made with `git format-patch`; `build.sh` applies them in order with `git apply`.
   xara 0.1.3)", `3838b398`). It applies to main as it is. So the modem on the air is 0.1.3's, as in v0.3.9, but for
   NR5P's BUSY detector: the speedups count on the radio's processor, and `warm()` takes the tables' cost off the
   first frame.
-- `0002-resampler-from-xara-0.1.3.patch` (MIT, as XARA): 0.1.3's `resample.rs` (made in 0.1.2), without the
-  `silent()` its rate matcher used: a table of the windowed sinc at 512 phases, the taps between two interpolated.
-  NR5P's (0.1.1's) works out each tap's sinc and Kaiser window, a 30-term Bessel series, for each sample. Our backend
-  resamples the receiver from 12 to 48 kHz all the time and the transmitter from 48 to 12 kHz while keyed: on this PC
-  (x86_64), 10 s of audio in 523 and 497 ms with 0.1.1's, 12 and 11 ms with 0.1.3's; the radio's Cortex-A7 is many
-  times slower.
+- `0002-resampler-from-xara-0.1.3.patch` (MIT, as XARA, with x0rro as its author): his `resample.rs` of 0.1.3 (made
+  in 0.1.2), without the `silent()` his rate matcher used: a table of the windowed sinc at 512 phases, the taps
+  between two interpolated. NR5P's (0.1.1's) works out each tap's sinc and Kaiser window, a 30-term Bessel series,
+  for each sample. Our backend resamples the receiver from 12 to 48 kHz all the time and the transmitter from 48 to
+  12 kHz while keyed: on this PC (x86_64), 10 s of audio in 523 and 497 ms with 0.1.1's, 12 and 11 ms with 0.1.3's;
+  the radio's Cortex-A7 is many times slower.
 - `0003-x6x00-socket-backend.patch` (MIT, as XARA): `--audio x6x00` and `--ptt x6x00`, the radio's GUI as XARA's
   sound card and PTT through the GUI's Winlink modem socket (`src/winlink.c`, the one ardopcf and Mercury use;
   `crates/xara/src/audio/x6x00.rs`, behind the cargo feature `x6x00`). `--capture` and `--playback` are both the
