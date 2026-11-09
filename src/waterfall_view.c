@@ -7,8 +7,9 @@
  *
  *  The waterfall: the DSP's rows kept with the frequency each was taken at, drawn
  *  around the frequency shown now (it slides while tuning), with the VFO line and the
- *  passband over it. With the DRM planes it is drawn on the primary plane under the GUI,
- *  else into an LVGL image.
+ *  passband over it. With the DRM planes it is drawn on the primary plane under the GUI;
+ *  else into an LVGL image, scrolled the same way (new lines and tune slides only, not a
+ *  full rebuild every refresh).
  */
 #include "waterfall_view.h"
 
@@ -122,26 +123,27 @@ static void make_objs(void);
 static void on_palette_change(Subject *subj, void *user_data) {
     extern const uint32_t wf_palette_legacy[256], wf_palette_gauss[256];   /* styles.c */
 
+    wfp_full = true;            /* colours change: the image / plane must be remade */
     if (theme_shape.mono) {     /* 1bit: its ink density, not the presets */
         wf_palette = theme_waterfall();
-        return;
-    }
-    static const uint32_t grey[]    = {0x000000, 0xffffff};
-    static const uint32_t fire[]    = {0x000000, 0x400000, 0xa00000, 0xff4000, 0xffa000, 0xffff60, 0xffffff};
-    static const uint32_t ice[]     = {0x000000, 0x001040, 0x0040a0, 0x0090ff, 0x40e0ff, 0xffffff};
-    static const uint32_t rainbow[] = {0x000000, 0x0000a0, 0x0080ff, 0x00e0a0, 0x80ff00, 0xffe000, 0xff4000, 0xff0000};
-    static uint32_t       preset[256];
+    } else {
+        static const uint32_t grey[]    = {0x000000, 0xffffff};
+        static const uint32_t fire[]    = {0x000000, 0x400000, 0xa00000, 0xff4000, 0xffa000, 0xffff60, 0xffffff};
+        static const uint32_t ice[]     = {0x000000, 0x001040, 0x0040a0, 0x0090ff, 0x40e0ff, 0xffffff};
+        static const uint32_t rainbow[] = {0x000000, 0x0000a0, 0x0080ff, 0x00e0a0, 0x80ff00, 0xffe000, 0xff4000, 0xff0000};
+        static uint32_t       preset[256];
 
-    switch (param_i_get(cfg_wf_palette)) {
-        case 1: wf_palette = wf_palette_legacy; return;
-        case 2: wf_palette = wf_palette_gauss; return;
-        case 3: theme_ramp_palette(grey, 2, 0, preset); break;
-        case 4: theme_ramp_palette(fire, 7, 0, preset); break;
-        case 5: theme_ramp_palette(ice, 6, 0, preset); break;
-        case 6: theme_ramp_palette(rainbow, 8, 0, preset); break;
-        default: wf_palette = theme_waterfall(); return;
+        switch (param_i_get(cfg_wf_palette)) {
+            case 1: wf_palette = wf_palette_legacy; break;
+            case 2: wf_palette = wf_palette_gauss; break;
+            case 3: theme_ramp_palette(grey, 2, 0, preset); wf_palette = preset; break;
+            case 4: theme_ramp_palette(fire, 7, 0, preset); wf_palette = preset; break;
+            case 5: theme_ramp_palette(ice, 6, 0, preset); wf_palette = preset; break;
+            case 6: theme_ramp_palette(rainbow, 8, 0, preset); wf_palette = preset; break;
+            default: wf_palette = theme_waterfall(); break;
+        }
     }
-    wf_palette = preset;
+    scheduler_put_coalesced(refresh_waterfall);
 }
 
 /* The row age rows before the newest (0: the newest), age under height: never the one the DSP thread
@@ -1284,25 +1286,93 @@ static void d3_redraw(void) {
     d3_labels_update(true, ref_x, ref_hz, n, hv);
 }
 
-/* ---- No planes: the whole image again at each refresh ---- */
+/* ---- No planes: LVGL image, scrolled like the DRM path ---- */
 
-static void image_redraw(void) {
-    uint32_t    span = shown_span();
-    lv_color_t *px = (lv_color_t *) frame->data;
-    uint8_t     c[WIDTH];
-    /* 1bit: the dither column by frequency, so the dots move with the picture while tuning */
-    int         x0 = theme_shape.mono && span ? (int)((int64_t) wf_center_freq * WIDTH / span) : 0;
+/* Pixels i0..i1-1 of landscape row age (0 = newest at the top) */
+static void image_paint_line(int32_t age, uint32_t center, uint32_t span, size_t i0, size_t i1, int x0) {
+    lv_color_t     *px = (lv_color_t *) frame->data + (size_t) age * WIDTH;
+    uint8_t         c[WIDTH];
+    const wf_row_t *row = row_at(age);
 
-    if (!backlight_seen()) {
-        return;                     /* all of it again at each refresh: from the next one seen */
+    row_pixels(row, center, span, i0, i1, c);
+    for (size_t i = i0; i < i1; i++) {
+        px[i] = (lv_color_t) wf_pixel(c[i], x0 + (int) i, row);
     }
-    for (int32_t y = 0; y < height; y++, px += WIDTH) {
-        const wf_row_t *row = row_at(y);
+}
 
-        row_pixels(row, wf_center_freq, span, 0, WIDTH, c);
-        for (size_t i = 0; i < WIDTH; i++) {
-            px[i] = (lv_color_t) wf_pixel(c[i], x0 + i, row);
+static void image_redraw(int new_row) {
+    uint32_t span = shown_span();
+    int      x0;
+    bool     full;
+    int32_t  px = 0;
+
+    if (!frame || !shown(obj)) {
+        wfp_full = true;            /* not up to date when shown again */
+        return;
+    }
+    if (!backlight_seen()) {
+        wfp_full = true;            /* all of it again from the next refresh seen */
+        return;
+    }
+    /* Same idea as direct_redraw(): new lines scroll the bitmap; tuning slides it
+     * by whole pixels and only the strip coming in is recomputed. A full rebuild
+     * every refresh was the cost on fbdev and the host build. */
+    full = wfp_full || new_row >= height || wfp_bw != span;
+    if (!full && wfp_center != wf_center_freq) {
+        px   = ((int64_t) wf_center_freq - wfp_center) * WIDTH / (int64_t) span;
+        full = LV_ABS(px) >= WIDTH / 2;
+    }
+    if (full) {
+        wfp_center = wf_center_freq;
+        wfp_bw = span;
+        x0 = theme_shape.mono && span ? (int) ((int64_t) wfp_center * WIDTH / span) : 0;
+        for (int32_t y = 0; y < height; y++) {
+            image_paint_line(y, wfp_center, span, 0, WIDTH, x0);
         }
+        wfp_full = false;
+    } else if (px || new_row) {
+        if (new_row) {
+            lv_color_t *data = (lv_color_t *) frame->data;
+
+            /* Newest at the top: scroll older lines down, then paint the new ones */
+            if (new_row < height) {
+                memmove(data + (size_t) new_row * WIDTH, data,
+                        (size_t) (height - new_row) * WIDTH * sizeof(lv_color_t));
+            }
+            x0 = theme_shape.mono && span ? (int) ((int64_t) wfp_center * WIDTH / span) : 0;
+            for (int32_t y = 0; y < new_row; y++) {
+                image_paint_line(y, wfp_center, span, 0, WIDTH, x0);
+            }
+        }
+        if (px) {
+            size_t      i0, i1;
+            lv_color_t *data = (lv_color_t *) frame->data;
+
+            wfp_center += (int64_t) px * span / WIDTH;
+            x0 = theme_shape.mono && span ? (int) ((int64_t) wfp_center * WIDTH / span) : 0;
+            if (px > 0) {
+                for (int32_t y = 0; y < height; y++) {
+                    lv_color_t *row = data + (size_t) y * WIDTH;
+
+                    memmove(row, row + px, (size_t) (WIDTH - px) * sizeof(lv_color_t));
+                }
+                i0 = WIDTH - (size_t) px;
+                i1 = WIDTH;
+            } else {
+                for (int32_t y = 0; y < height; y++) {
+                    lv_color_t *row = data + (size_t) y * WIDTH;
+
+                    memmove(row - px, row, (size_t) (WIDTH + px) * sizeof(lv_color_t));
+                }
+                i0 = 0;
+                i1 = (size_t) (-px);
+            }
+            for (int32_t y = 0; y < height; y++) {
+                image_paint_line(y, wfp_center, span, i0, i1, x0);
+            }
+        }
+    } else {
+        return;
     }
     lv_obj_invalidate(img);
 }
@@ -1328,10 +1398,14 @@ static void refresh_waterfall(void *arg) {
         d3_label_y = -1;
     }
     d3_drawn_buf = NULL;            /* 2D draws over it: 3D again from the whole background */
-    if (direct) {
-        direct_redraw(__atomic_exchange_n(&new_rows, 0, __ATOMIC_ACQUIRE));
-    } else {
-        image_redraw();
+    {
+        int n = __atomic_exchange_n(&new_rows, 0, __ATOMIC_ACQUIRE);
+
+        if (direct) {
+            direct_redraw(n);
+        } else {
+            image_redraw(n);
+        }
     }
 }
 
