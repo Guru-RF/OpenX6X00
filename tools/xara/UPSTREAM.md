@@ -80,10 +80,14 @@ NR5P's main without them. `--version` says `xara 0.1.2`.
   `$HOME/.cache/openx6x00/rust-1.99.1` (in the container `/work/.brhome/.cache`), about 720 MB, the downloads 150 MB.
 - The crates: `cargo fetch --locked --target <target>` (above), once. Offline from there: `cargo build --frozen
   --release -p xara --bin xara --target armv7-unknown-linux-gnueabihf --no-default-features --features
-  registered,x6x00`, `Cargo.lock` as the source has it, no variable from the environment that steers Rust or cargo.
-  No PulseAudio or ALSA (the radio's audio is the GUI's), our socket backend (`x6x00`, below) and `registered`
-  (below). Linked with the gcc the caller names in `CC`: `buildroot/local-build.sh` gives the buildroot tree's own
-  (`arm-buildroot-linux-gnueabihf-gcc`, glibc 2.36, the GUI's toolchain, after `make toolchain`).
+  registered,x6x00`, `Cargo.lock` as the source has it, no variable from the environment that steers Rust or cargo,
+  and no cargo config file: cargo reads one in each parent of the build's directory (`$HOME/.cargo/config.toml` too,
+  the cache being in `$HOME`; in the container `/work/.brhome/.cargo` and `/work/.cargo`) and in its `CARGO_HOME`,
+  and a `[source]` mirror, `[build]` flags or a wrapper, `[net]` or `[http]` there would change what is fetched or
+  built, so `build.sh` stops at one and names it. No PulseAudio or ALSA (the radio's audio is the GUI's), our
+  socket backend (`x6x00`, below) and `registered` (below). Linked with the gcc the caller names in `CC`:
+  `buildroot/local-build.sh` gives the buildroot tree's own (`arm-buildroot-linux-gnueabihf-gcc`, glibc 2.36, the
+  GUI's toolchain, after `make toolchain`).
 - Checked: a 32-bit ARM ELF that needs only `libc.so.6`, `libm.so.6`, `libgcc_s.so.1` and `ld-linux-armhf.so.3`, and
   glibc 2.36 at most (it needs 2.35). Stripped, the build's directories left out of it
   (`--remap-path-prefix`): 2726788 bytes, SHA-256 `2713555fa2d96c847620edaa82df0a22db25083b21e36ee49c83c7d3e8e553c7`

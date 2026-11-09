@@ -147,6 +147,21 @@ export "$T_VAR=$LINKER"
 # The binary names neither this build's directory nor the cache's; no symbols (6 MB less)
 export RUSTFLAGS="--remap-path-prefix=$SRC=/build --remap-path-prefix=$CARGO_HOME=/cargo"
 export CARGO_PROFILE_RELEASE_STRIP=symbols
+# Nor from a cargo config file: cargo reads one in each parent of the directory it runs in ($HOME/.cargo/config.toml
+# too, the cache being in $HOME; in the container /work/.brhome/.cargo and /work/.cargo) and in its CARGO_HOME, and
+# one there (a [source] mirror, [build] rustflags or a wrapper, [net] or [http]) would change what is fetched or
+# built. The source's own would be pinned with it; NR5P's has none
+CONFIGS=("$CARGO_HOME/config.toml" "$CARGO_HOME/config")
+d=$(cd .. && pwd -P)
+while :; do
+    CONFIGS+=("${d%/}/.cargo/config.toml" "${d%/}/.cargo/config")
+    [ "$d" = / ] && break
+    d=$(dirname "$d")
+done
+for f in "${CONFIGS[@]}"; do
+    [ ! -e "$f" ] \
+        || { echo "tools/xara/build.sh: cargo would read $f, which can change what it fetches or builds: move it aside"; exit 1; }
+done
 
 # The crates Cargo.lock names for this target, from crates.io into cargo's cache (once): cargo takes each one only
 # with the SHA-256 the lock gives it, and the lock is the pinned source's
