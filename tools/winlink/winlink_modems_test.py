@@ -18,10 +18,10 @@
    the free speed and before any Pat: A's XARA calls B's, which neither answers nor keys (on the radio XARA starts
    with listening off; Pat B's listen turns it on). The free run has calls of a European kind (ON4AAA, ON4BBB), the
    registered one US calls. Both XARAs identify in CW as Pat's session closes, with either kind: Pat sends CWID ON,
-   which upstream's XARA 0.1.3 takes only for a US call and our patch 0002 for any. Before any Pat, with no CWID ON,
+   which upstream's XARA takes only for a US call and our patch 0004 for any. Before any Pat, with no CWID ON,
    A's call that B does not answer ends without one with the European call, as upstream's does. Then, with CWID ON,
    a call cancelled in its reply window (ABORT, as Pat's force disconnect) and a tune elsewhere half a second later,
-   as Pat's tune back: A's XARA keys its ID at once (patch 0003), on the call's frequency, and the radio tunes after
+   as Pat's tune back: A's XARA keys its ID at once (patch 0005), on the call's frequency, and the radio tunes after
    that key.
 
 Run it in a network namespace with loopback only (`make modems` does, with unshare -rn): Pat then reaches
@@ -455,8 +455,8 @@ def unanswered_call(ha, hb, la, lb, port_a, call_a, call_b):
 def cancelled_call(ha, la, port_a, call_a, call_b):
     """A call cancelled in its reply window, then a tune elsewhere: Pat's force disconnect (ABORT, and DISCONNECTED
     faked at once), then a second later its tune back to where the radio was (here half a second, inside the 1.3 s
-    reply window that upstream's 0.1.3 waits out before its ID, which then went out there). With CWID ON, A's XARA
-    keys its CW ID at once (patch 0003), on the call's frequency, and the radio tunes once that key is over"""
+    reply window that upstream's XARA waits out before its ID, which then went out there). With CWID ON, A's XARA
+    keys its CW ID at once (patch 0005), on the call's frequency, and the radio tunes once that key is over"""
     c = xara_client(port_a)
     keys, call_hz, ids = len(played(ha)), int(rig(ha, "f")), text(la).count("  tx cw")
     c.sendall(f"CWID ON\rCONNECT {call_a} {call_b}\r".encode())
@@ -553,7 +553,7 @@ def xara_test(procs, tmp, xara, pat, registered):
               "B's XARA says LINK UNREGISTERED")
         check(max(lv) <= 4, f"no level past the free 4 (the highest {max(lv)})")
     # Pat sends CWID ON as it starts the modem, and each side identifies in CW as the session closes, whatever the
-    # kind of call (patch 0002; upstream's XARA 0.1.3 drops CWID ON and identifies only with a US call). The ID is the
+    # kind of call (patch 0004; upstream's XARA drops CWID ON and identifies only with a US call). The ID is the
     # end of a key like any other, through the GUI's socket and checks: played whole. B's waits out A's (blank words)
     kind = "US" if registered else "European"
     for log, h, n in ((la, ha, "A"), (lb, hb, "B")):

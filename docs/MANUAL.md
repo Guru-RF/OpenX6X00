@@ -4964,16 +4964,18 @@ Pat's VERSION with a VERSION line, so Pat never hangs starting it
 
 ### XARA (experimental)
 
-[XARA](https://github.com/x0rro/xara) is a third HF modem for Winlink: an
-independent program by another author (x0rro) that speaks VARA HF on the air
-and VARA's interface to Pat. So the VARA HF gateways in Pat's list answer it,
-where they do not answer Mercury. It comes with the firmware, pinned at
-version 0.1.3 and built from its source with three changes of ours: the
-radio's GUI is its sound card and PTT, as for ardopcf and Mercury, it
-identifies in CW with any callsign, and a call you cancel ends at once
-(below). Every transmission goes through the radio's own TX path, as for the
-other digital modes: the amateur bands only, simplex, at most 7 W, the SWR
-hold, no TX while a digital app is open.
+[XARA](https://github.com/NR5P/xara) is a third HF modem for Winlink: an
+independent program by other authors that speaks VARA HF on the air and
+VARA's interface to Pat. So the VARA HF gateways in Pat's list answer it,
+where they do not answer Mercury. x0rro wrote it and stopped it on 8
+November 2026; NR5P (Nathan Rigg) carries it on, and the firmware follows
+his. It comes with the firmware, pinned at NR5P's version of 9 November 2026
+and built from its source with the modem of x0rro's last version (0.1.3, as
+before) and three changes of ours: the radio's GUI is its sound card and
+PTT, as for ardopcf and Mercury, it identifies in CW with any callsign, and a
+call you cancel ends at once (below). Every transmission goes through the
+radio's own TX path, as for the other digital modes: the amateur bands only,
+simplex, at most 7 W, the SWR hold, no TX while a digital app is open.
 
 It is experimental. Two stations exchanged mail through it on a PC, each with
 the radio's own Winlink code and Pat, at the free speed and at full speed. It
@@ -5004,9 +5006,10 @@ The speed:
   as a registered VARA station does, and the link may use every level ("full
   speed (VARA HF licence ticked)"). The radio always calls (it answers no
   call, below), so its own setting is the one that counts on its links.
-- XARA's author ships his own builds without the faster levels, so that
-  using them takes a build of one's own. This firmware has them built in, off,
-  behind the box: ticking it is your statement that you hold a licence.
+- XARA's first author shipped his builds without the faster levels, so that
+  using them took a build of one's own; NR5P's have them, off until asked
+  for. This firmware has them built in, off, behind the box: ticking it is
+  your statement that you hold a licence.
 
 Dialling: in the mailbox, Connect, VARA HF as the transport, then a gateway
 from the VARA HF gateway list, or another station's callsign and dial
@@ -5031,7 +5034,7 @@ gives.
   the radio first waits out its ID, keyed and silent (about 3 s), then sends
   its own. The ID is part of a key like the rest of XARA's audio: the radio's
   checks and power hold for it, and the silent wait leaves the TX level as it
-  was. XARA 0.1.3 itself sends one only with a US callsign (such as K1ABC or
+  was. XARA itself sends one only with a US callsign (such as K1ABC or
   N0AAA), and after a cancelled call only once the call's wait for an answer
   is over, when Pat may have tuned the radio back already; ours with any, a
   European one too, and at once.
@@ -5065,7 +5068,8 @@ When it does not work:
   127.0.0.1:8300 and its data on 8301 (which Tailscale's userspace mode also
   opens to your tailnet, as ARDOP's), no KISS port, no web UI of its own.
 
-XARA (MIT, x0rro) comes with the firmware built from its v0.1.3 release with
+XARA (MIT, by x0rro, carried on by NR5P) comes with the firmware built from
+NR5P's source at a pinned commit, with x0rro's 0.1.3 modem and resampler and
 three changes of ours: its sound card and PTT through the radio's GUI, its CW
 ID with any callsign, and a cancelled call that ends at once
 (`tools/xara/UPSTREAM.md`). The Rust crates in it are MIT (some also
@@ -6708,14 +6712,16 @@ modem socket with them, Pat to Pat over Mercury and over XARA included
 (see its README).
 
 XARA, the third Winlink modem (experimental), is built outside too, by
-`tools/xara/build.sh`: the pinned v0.1.3 release's source and vendored
-crates, the official Rust 1.99.1 (buildroot's Rust is too old), each
-download's SHA-256 checked and kept in `$HOME/.cache/openx6x00`, with our
-patches: the GUI's modem socket as its sound card and PTT, its CW ID with any
-callsign, a cancelled call that ends at once. Linked with the buildroot
-tree's own gcc, which `local-build.sh` makes first (`make toolchain`), it is
-installed as `/usr/bin/xara`, its licence and the notices of the Rust crates
-in it in `/usr/share/x6100/licenses/xara` (`tools/xara/UPSTREAM.md`).
+`tools/xara/build.sh`: NR5P's source at the pinned commit (GitHub's tarball
+of it) and the crates its `Cargo.lock` names (from crates.io), the official
+Rust 1.99.1 (buildroot's Rust is too old), each download's SHA-256 checked
+and kept in `$HOME/.cache/openx6x00`, with our patches: x0rro's 0.1.3 modem
+and resampler, the GUI's modem socket as its sound card and PTT, its CW ID
+with any callsign, a cancelled call that ends at once. Linked with the
+buildroot tree's own gcc, which `local-build.sh` makes first (`make
+toolchain`), it is installed as `/usr/bin/xara`, its licence and the notices
+of the Rust crates in it in `/usr/share/x6100/licenses/xara`
+(`tools/xara/UPSTREAM.md`).
 `tools/xara/build.sh --host` builds it for the PC, for `tools/winlink`'s
 `make modems`.
 

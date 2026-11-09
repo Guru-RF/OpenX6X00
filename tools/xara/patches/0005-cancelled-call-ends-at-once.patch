@@ -1,4 +1,4 @@
-From 92a85717bad62ce13e2800cbc24284dd2490590e Mon Sep 17 00:00:00 2001
+From 0d646f41a6072e19b9f7d767c0a9c38aa4478be9 Mon Sep 17 00:00:00 2001
 From: Joeri Van Dooren <ure@on6ure.be>
 Date: Wed, 4 Nov 2026 18:18:38 +0100
 Subject: [PATCH] A call the host cancels ends at once, with its CW ID
@@ -75,10 +75,10 @@ index e2f7752..9975494 100644
              }
              State::HeaderSent | State::Sending => {
 diff --git a/crates/xara/tests/host_protocol.rs b/crates/xara/tests/host_protocol.rs
-index 33ce6fa..e434712 100644
+index 56beb9f..9cb132a 100644
 --- a/crates/xara/tests/host_protocol.rs
 +++ b/crates/xara/tests/host_protocol.rs
-@@ -256,6 +256,43 @@ fn cwid_follows_the_host() {
+@@ -255,6 +255,43 @@ fn cwid_follows_the_host() {
      assert_eq!(failed_call("N0CALL", &["CWID OFF"]), (3, false));
  }
  

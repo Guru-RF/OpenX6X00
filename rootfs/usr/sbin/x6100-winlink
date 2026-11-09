@@ -32,8 +32,8 @@
 # `registered` line, and full speed. xara_path_ms=CAPTURE,KEYING,OUT (not on the page) is for measuring XARA's timing
 # on the bench. Pat listens for no P2P call with any modem, and XARA answers none before Pat asks (tools/xara).
 # Pat asks its VARA HF modem for a CW ID (CWID ON) as it starts it: XARA then identifies as each session closes and
-# after a call with no answer, whatever the callsign (our patch 0002; XARA 0.1.3 alone only with a US one), and at once
-# after a call Pat cancels (0003), Mercury not (not one of its commands).
+# after a call with no answer, whatever the callsign (our patch 0004; XARA alone only with a US one), and at once
+# after a call Pat cancels (0005), Mercury not (not one of its commands).
 # Pat's config.json holds the password, so it lives on the root filesystem (/var/lib/winlink/pat), where the
 # web pages cannot read it. It is merged, not written whole: our keys are set (the password when the page has
 # one), every other one is kept, since Pat's own Settings page edits the file too. The mailbox is on the DATA
@@ -115,7 +115,7 @@ MERCURY_BEHIND = 600                   # s: one of MERCURY_BEHIND_SAID this rece
 # Mercury's warnings that its receiver fell behind (modem/modem.c): a decoder thread dropped audio, or the capture
 # backlog passed its cap and was thrown away undecoded
 MERCURY_BEHIND_SAID = ("decoder ring full", "RX backlog exceeded")
-# XARA's (audio/mod.rs, Behind): the capture waiting to be read grew past 100 ms
+# XARA's (our patch's audio/x6x00.rs, as 0.1.3's audio::Behind): the capture waiting to be read grew past 100 ms
 XARA_BEHIND_SAID = ("xara is falling behind real time",)
 # A callsign XARA starts with (xara-host's valid_call): 1-7 letters and digits, an SSID -1 to -19, not N0CALL
 XARA_CALL_RE = re.compile(r"[A-Z0-9]{1,7}(-([1-9]|0[1-9]|1[0-9]))?")
