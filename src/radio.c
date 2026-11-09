@@ -2230,7 +2230,7 @@ static void battery_model_load(void) {
             (unsigned long long)(get_time() - t0));
 }
 
-static void battery_log(const hw_pack_t *p) {
+static void battery_log(const hw_pack_t *p, uint8_t cap) {
     static time_t   last;
     static uint64_t prev_ms;
     static float    tx_s, tx_ws;
@@ -2260,8 +2260,8 @@ static void battery_log(const hw_pack_t *p) {
         fclose(f);
     }
     bat_sample_t s = {
-        /* the % shown on battery (bat_watch_cap: the base's can be far off, #49), else the base's */
-        .t = t, .vbat = p->vbat * 0.1f, .cap = bat_pct >= 0 ? bat_pct : p->batcap, .vext = p->vext * 0.1f,
+        /* the % shown (bat_watch_cap, bat_watch_cap_ext: the base's can be far off, #49, #223) */
+        .t = t, .vbat = p->vbat * 0.1f, .cap = cap, .vext = p->vext * 0.1f,
         .charging = p->charging,
         .tx_s = tx_s, .tx_w = tx_s > 0 ? tx_ws / tx_s : 0, .bl = backlight_level(),
         .wifi = wifi_get_status() != WIFI_OFF,
@@ -2619,10 +2619,14 @@ static bool radio_tick() {
                 if (cap >= 0) cap = bat_watch_cap(&bat_watch, pack->vbat, pack->batcap);   /* on receive only */
                 held_cap = cap;
             }
-            bat_pct = cap;   /* the % on the screen (clock.c) */
+            bat_pct = cap;   /* the % on the screen on battery (clock.c) */
             if (bat_watch.counts) {
-                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, cap >= 0 ? cap : pack->batcap, pack->charging);
-                battery_log(pack);
+                /* On external power the base's, or the voltage's where the base has lost count (#223). No hold on
+                 * TX there: on its supply the bench X6100's pack stayed at 8.3 V through TX at 10 W */
+                uint8_t shown = cap >= 0 ? cap : bat_watch_cap_ext(&bat_watch, pack->vbat, pack->batcap);
+
+                clock_update_power(pack->vext * 0.1f, pack->vbat * 0.1f, shown, pack->charging);
+                battery_log(pack, shown);
             }
 
             /* The base's warnings, once its readings count (bat_watch.h): shown when one comes on, and again

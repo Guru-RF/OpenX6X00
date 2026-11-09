@@ -795,6 +795,12 @@ uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
     return batcap;
 }
 
+uint8_t bat_watch_cap_ext(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
+    (void)w;
+    (void)vbat;
+    return batcap;
+}
+
 bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, bool bat_missing,
                        bool tx, uint64_t now_ms) {
     (void)w;

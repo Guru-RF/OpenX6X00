@@ -11,6 +11,7 @@
 bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, bool bat_missing,
                        bool tx, uint64_t now_ms) {
     bool measured = vbat >= BAT_NONE || vext >= BAT_NONE;
+    bool was_ext  = w->ext;
 
     /* External power: the flag alone is not enough, charging an empty battery it stayed clear with
      * 11.7 V on the jack and the radio switched itself off on the charger */
@@ -19,8 +20,11 @@ bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_fla
         w->settle_at = now_ms + BAT_SETTLE_MS;
     }
     w->counts = measured && w->settle_at && now_ms >= w->settle_at;
-    if (w->ext || !w->counts) {
-        w->cap_vbat = 0;    /* the voltage's % from the next reading on battery as it is (bat_watch_cap) */
+    /* The voltage's % from the next reading as it is, on battery (bat_watch_cap) and on external power
+     * (bat_watch_cap_ext). Plugged in with the voltage's % shown, that one on the supply */
+    if (w->ext != was_ext || !w->counts) {
+        w->cap_ext  = w->ext && w->by_volts && w->cap_vbat ? bat_cap_of_volts(w->cap_vbat) : 0;
+        w->cap_vbat = 0;
     }
 
     /* External power that holds the battery up: on the X6200 only DC IN at BOARD_BAT_EXT_MIN and more (board.h),
@@ -75,16 +79,20 @@ uint8_t bat_cap_of_volts(uint8_t vbat) {
     return cap[vbat - 68];
 }
 
-uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
-    /* Back up a step only once the battery stays there: after a TX, which radio.c holds the % over for 30 s, it
-     * can still be coming back */
+/* The voltage the voltage's % is of: down at once, up a step after BAT_CAP_UP_READS readings over it (bat_watch.h) */
+static uint8_t cap_volts(bat_watch_t *w, uint8_t vbat) {
     w->up_reads = vbat > w->cap_vbat && w->up_reads < BAT_CAP_UP_READS ? w->up_reads + 1 : 0;
     if (!w->cap_vbat || vbat < w->cap_vbat || vbat > w->cap_vbat + 1 || w->up_reads >= BAT_CAP_UP_READS) {
         w->cap_vbat = vbat;
         w->up_reads = 0;
     }
+    return w->cap_vbat;
+}
 
-    uint8_t v = bat_cap_of_volts(w->cap_vbat);
+uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
+    /* Back up a step only once the battery stays there: after a TX, which radio.c holds the % over for 30 s, it
+     * can still be coming back */
+    uint8_t v = bat_cap_of_volts(cap_volts(w, vbat));
     int     apart = abs((int)batcap - v);
 
     /* #49's base (1.1.9) said 0-3 % from 8.2 V down. Back to it at the voltage's 9 % (7.2 V), the radio said
@@ -94,4 +102,17 @@ uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
     if (apart > BAT_CAP_APART || (batcap == 0 && v >= BAT_CAP_AT_ZERO)) w->by_volts = true;
     else if (apart <= BAT_CAP_MET && v >= BAT_CAP_STEEP) w->by_volts = false;
     return w->by_volts ? v : batcap;
+}
+
+uint8_t bat_watch_cap_ext(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
+    if (vbat < BAT_NONE) return batcap;     /* no battery: clock.c shows the supply alone */
+
+    /* On the 8.2/8.3 V step the % of the lower one, as on battery */
+    bool    top = cap_volts(w, vbat) >= BAT_CAP_TOP;
+    uint8_t v   = bat_cap_of_volts(w->cap_vbat);
+
+    if (top && v > batcap + BAT_CAP_APART) w->by_volts = true;
+    w->cap_ext = top || v < w->cap_ext ? v : w->cap_ext;
+    if (w->by_volts && batcap + BAT_CAP_MET >= w->cap_ext) w->by_volts = false;
+    return w->by_volts ? w->cap_ext : batcap;
 }
