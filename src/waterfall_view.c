@@ -1288,21 +1288,20 @@ static void d3_redraw(void) {
 
 /* ---- No planes: LVGL image, scrolled like the DRM path ---- */
 
-/* Pixels i0..i1-1 of landscape row age (0 = newest at the top) */
-static void image_paint_line(int32_t age, uint32_t center, uint32_t span, size_t i0, size_t i1, int x0) {
+/* Pixels i0..i1-1 of landscape row age (0 = newest at the top); 1bit: dithered as direct_column() does */
+static void image_paint_line(int32_t age, uint32_t center, uint32_t span, size_t i0, size_t i1) {
     lv_color_t     *px = (lv_color_t *) frame->data + (size_t) age * WIDTH;
     uint8_t         c[WIDTH];
     const wf_row_t *row = row_at(age);
 
     row_pixels(row, center, span, i0, i1, c);
     for (size_t i = i0; i < i1; i++) {
-        px[i] = (lv_color_t) wf_pixel(c[i], x0 + (int) i, row);
+        px[i] = (lv_color_t) wf_pixel(c[i], i + dither_x, row);
     }
 }
 
 static void image_redraw(int new_row) {
     uint32_t span = shown_span();
-    int      x0;
     bool     full;
     int32_t  px = 0;
 
@@ -1325,9 +1324,8 @@ static void image_redraw(int new_row) {
     if (full) {
         wfp_center = wf_center_freq;
         wfp_bw = span;
-        x0 = theme_shape.mono && span ? (int) ((int64_t) wfp_center * WIDTH / span) : 0;
         for (int32_t y = 0; y < height; y++) {
-            image_paint_line(y, wfp_center, span, 0, WIDTH, x0);
+            image_paint_line(y, wfp_center, span, 0, WIDTH);
         }
         wfp_full = false;
     } else if (px || new_row) {
@@ -1339,17 +1337,18 @@ static void image_redraw(int new_row) {
                 memmove(data + (size_t) new_row * WIDTH, data,
                         (size_t) (height - new_row) * WIDTH * sizeof(lv_color_t));
             }
-            x0 = theme_shape.mono && span ? (int) ((int64_t) wfp_center * WIDTH / span) : 0;
             for (int32_t y = 0; y < new_row; y++) {
-                image_paint_line(y, wfp_center, span, 0, WIDTH, x0);
+                image_paint_line(y, wfp_center, span, 0, WIDTH);
             }
         }
         if (px) {
             size_t      i0, i1;
             lv_color_t *data = (lv_color_t *) frame->data;
 
+            /* 1bit: the dots move with the pixels. Taken again from the centre, which moves by whole Hz, the
+             * strip coming in was a column off the rest at times from zoom 2 on (62.5 Hz a pixel and less) */
             wfp_center += (int64_t) px * span / WIDTH;
-            x0 = theme_shape.mono && span ? (int) ((int64_t) wfp_center * WIDTH / span) : 0;
+            dither_x += px;
             if (px > 0) {
                 for (int32_t y = 0; y < height; y++) {
                     lv_color_t *row = data + (size_t) y * WIDTH;
@@ -1368,7 +1367,7 @@ static void image_redraw(int new_row) {
                 i1 = (size_t) (-px);
             }
             for (int32_t y = 0; y < height; y++) {
-                image_paint_line(y, wfp_center, span, i0, i1, x0);
+                image_paint_line(y, wfp_center, span, i0, i1);
             }
         }
     } else if (wfp_center == wf_center_freq) {
