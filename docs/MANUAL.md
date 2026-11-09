@@ -3109,8 +3109,9 @@ Iambic is B by default (up to v0.3.9, A).
   and dahs, and when you let go of both, A ends with the element being sent,
   B sends one more of the other contact. If you learned to squeeze on A,
   set A.
-- After the update a radio whose Iambic was never changed is on B. One set
-  to A keeps A.
+- The update puts a radio that was on A on B, unless its Iambic was set
+  to B and back to A before: only a changed setting is saved, and A was
+  the default. If you want A, set it again after the update and it stays A.
 
 Train is for practice: the key, the paddle, the CW messages and the
 [CW Trainer](#cw-trainer) sound only the sidetone, and nothing goes out.
