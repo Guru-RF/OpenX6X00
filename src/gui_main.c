@@ -156,14 +156,15 @@ static void panel_open(void) {
     signal(SIGUSR1, dump_signal);
     if (drm_init()) {
         screen_rec_out = drm_flush;
-        fclose(fopen("/tmp/x6100_gui.drm", "w"));  /* tells screenshot tools to use SIGUSR1 */
+        fclose(fopen("/tmp/x6100_gui.drm", "w"));  /* the GUI owns the screen: the boot animation stops */
         return;
     }
     unlink("/tmp/x6100_gui.drm");
 #endif
 #if USE_FBDEV
     fbdev_init();
-    /* Same path as DRM: bootanim (and screenshot tools) see that the GUI owns fb0 */
+    /* As with DRM: the boot animation sees the GUI is up and stops drawing into fb0 (it draws only on a portrait
+     * one). No screenshot tool reads it, and SIGUSR1's dump to /tmp/screen.raw has nothing to write on fbdev */
     fclose(fopen("/tmp/x6100_gui.drm", "w"));
 #endif
 }
