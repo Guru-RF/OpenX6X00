@@ -97,6 +97,7 @@ static int32_t          wfp_center = 0;
 static uint32_t         wfp_bw = 0;
 static bool             wfp_full = true;
 static int              new_rows = 0;       /* rows from the DSP thread not drawn yet */
+static uint16_t         wfp_top;            /* no planes: the newest row in the image (image_redraw()) */
 
 /* Fixed mode: RF frequency at the display centre, valid while view_fixed */
 static int32_t          view_center = 0;
@@ -1288,11 +1289,11 @@ static void d3_redraw(void) {
 
 /* ---- No planes: LVGL image, scrolled like the DRM path ---- */
 
-/* Pixels i0..i1-1 of landscape row age (0 = newest at the top); 1bit: dithered as direct_column() does */
-static void image_paint_line(int32_t age, uint32_t center, uint32_t span, size_t i0, size_t i1) {
+/* Pixels i0..i1-1 of landscape row age before top (0 = newest at the top); 1bit: dithered as direct_column() does */
+static void image_paint_line(uint16_t top, int32_t age, uint32_t center, uint32_t span, size_t i0, size_t i1) {
     lv_color_t     *px = (lv_color_t *) frame->data + (size_t) age * WIDTH;
     uint8_t         c[WIDTH];
-    const wf_row_t *row = row_at(age);
+    const wf_row_t *row = row_from(top, age);
 
     row_pixels(row, center, span, i0, i1, c);
     for (size_t i = i0; i < i1; i++) {
@@ -1304,6 +1305,7 @@ static void image_redraw(int new_row) {
     uint32_t span = shown_span();
     bool     full;
     int32_t  px = 0;
+    uint16_t top;
 
     if (!frame || !shown(obj)) {
         wfp_full = true;            /* not up to date when shown again */
@@ -1317,6 +1319,15 @@ static void image_redraw(int new_row) {
      * by whole pixels and only the strip coming in is recomputed. A full rebuild
      * every refresh was the cost on fbdev and the host build. */
     full = wfp_full || new_row >= height || wfp_bw != span;
+    /* All of it from the rows of one moment, the lines that came in counted from them: the DSP thread may write a row
+     * after refresh_waterfall() counted the new ones. Taken again at each line, that row went in at the top over the
+     * one counted, which was never shown, and was shown twice after the next refresh; in a slide each line's strip
+     * came from the row beside it. All of it scrolled down with the picture till the next full redraw */
+    top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
+    if (!full) {
+        new_row = (top - wfp_top + height + 1) % (height + 1);
+    }
+    wfp_top = top;
     if (!full && wfp_center != wf_center_freq) {
         px   = ((int64_t) wf_center_freq - wfp_center) * WIDTH / (int64_t) span;
         full = LV_ABS(px) >= WIDTH / 2;
@@ -1325,7 +1336,7 @@ static void image_redraw(int new_row) {
         wfp_center = wf_center_freq;
         wfp_bw = span;
         for (int32_t y = 0; y < height; y++) {
-            image_paint_line(y, wfp_center, span, 0, WIDTH);
+            image_paint_line(top, y, wfp_center, span, 0, WIDTH);
         }
         wfp_full = false;
     } else if (px || new_row) {
@@ -1338,7 +1349,7 @@ static void image_redraw(int new_row) {
                         (size_t) (height - new_row) * WIDTH * sizeof(lv_color_t));
             }
             for (int32_t y = 0; y < new_row; y++) {
-                image_paint_line(y, wfp_center, span, 0, WIDTH);
+                image_paint_line(top, y, wfp_center, span, 0, WIDTH);
             }
         }
         if (px) {
@@ -1367,7 +1378,7 @@ static void image_redraw(int new_row) {
                 i1 = (size_t) (-px);
             }
             for (int32_t y = 0; y < height; y++) {
-                image_paint_line(y, wfp_center, span, i0, i1);
+                image_paint_line(top, y, wfp_center, span, i0, i1);
             }
         }
     } else if (wfp_center == wf_center_freq && wf_center_freq == radio_center_freq - waterfall_view_shift()) {

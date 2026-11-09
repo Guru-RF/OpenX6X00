@@ -8,13 +8,23 @@
  *
  *  The real waterfall_view.c, included whole, on the PC build's LVGL: an 800 x 480 display, the waterfall made by
  *  waterfall_init() and waterfall_set_height(), its rows from waterfall_data() as the DSP thread gives them (each of
- *  one level, its colour in the test's palette), the GUI loop run as gui_main.c runs it (the jobs, then LVGL's timers,
- *  the clock stepped by LVGL's refresh period). What the waterfall reaches of the rest of the GUI the test stands in
- *  for, and nothing is over the waterfall: band_info_init() makes no band-plan strip here. Checked, Centered mode,
- *  Smooth scroll on: a tune from rest slides the picture to the new centre with no new line, to its end (the last
- *  steps are under a pixel). In the GUI the strip at the waterfall's top is drawn again at every VFO change, and the
- *  image under it with it, which took the slide's first step; image_redraw() did not draw it, and with nothing over
- *  the waterfall the slide waited for the next line. See the Makefile.
+ *  one level, its colour in the test's palette: a line shows which row it is), the GUI loop run as gui_main.c runs it
+ *  (the jobs, then LVGL's timers, the clock stepped by LVGL's refresh period). What the waterfall reaches of the rest
+ *  of the GUI the test stands in for, and nothing is over the waterfall: band_info_init() makes no band-plan strip
+ *  here. Checked, Centered mode, Smooth scroll on:
+ *  - a tune from rest: the picture slides to the new centre with no new line, to its end (the last steps are under a
+ *    pixel). In the GUI the strip at the waterfall's top is drawn again at every VFO change, and the image under it
+ *    with it, which took the slide's first step; image_redraw() did not draw it, and with nothing over the waterfall
+ *    the slide waited for the next line
+ *  - a row the DSP thread writes after the refresh counted the new ones, before it paints them: the picture is still
+ *    the rows as they are, each line its own row, after that refresh and after the next one; also in a slide. Taken
+ *    again at each line, the row went in at the top over the one counted, which was never shown, and was shown twice
+ *    after the next refresh; in a slide each line's strip came from the row beside it. All of it scrolled down with
+ *    the picture till the next full redraw
+ *  - a row it writes while a refresh paints the whole picture, half way down (in 1bit, where each pixel painted asks
+ *    the theme for its ink: there the test writes it): the picture the rows as they were before it, then with it
+ *    after the next refresh. Taken again at each line, the lines under it were each the row above their own
+ *  See the Makefile.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -139,10 +149,18 @@ const uint32_t *theme_waterfall(void) {
     return pal;
 }
 
-const uint8_t *theme_wf_density(void) {
-    static uint8_t d[256];
+/* 1bit: a pixel's ink by its level, here odd levels ink and even ones paper (row() alternates them). Asked for each
+ * pixel painted: with write_in set, the DSP thread writes a row after so many more, as it may while the GUI paints */
+static uint8_t density[256];
+static long    write_in;
 
-    return d;
+static void row(void);
+
+const uint8_t *theme_wf_density(void) {
+    if (write_in > 0 && --write_in == 0) {
+        row();
+    }
+    return density;
 }
 
 void theme_ramp_palette(const uint32_t *stops, int n, int steps, uint32_t *out) {
@@ -220,11 +238,13 @@ static void flush(lv_disp_drv_t *drv, const lv_area_t *a, lv_color_t *px) {
 /* The GUI loop for ms, as gui_main.c's: the jobs, then LVGL's timers (the screen's refresh among them) */
 static void loop(uint32_t ms) {
     for (uint32_t t = 0; t < ms; t += STEP) {
-        int n = njobs;
+        scheduler_fn_t run[8];
+        int            n = njobs;
 
+        memcpy(run, jobs, sizeof(run));
         njobs = 0;
         for (int i = 0; i < n; i++) {
-            jobs[i](NULL);
+            run[i](NULL);
         }
         lv_tick_mono_now += STEP;
         lv_timer_handler();
@@ -249,36 +269,35 @@ static void tune(int32_t hz) {
     fg_later((Subject *)cfg_fg_freq, NULL);
 }
 
-/* Every line of the picture all the colour of its row as the rows are now (age y on line y): the first that is not */
-static int32_t bad_line(int32_t *x_bad) {
-    uint16_t top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
+/* A level's colour: the test's palette, 1bit ink or paper */
+static uint32_t colour(uint8_t v) {
+    if (theme_shape.mono) {
+        return (density[v] ? theme_shape.ink : theme_shape.paper) | 0xff000000;
+    }
+    return pal[v] | 0xff000000;
+}
 
+/* Every line of the picture all the colour of its row, the rows as they were with top the newest (age y on line y) */
+static void picture_is(uint16_t top, const char *what) {
     for (int32_t y = 0; y < height; y++) {
         const lv_color_t *px = (const lv_color_t *)frame->data + (size_t)y * WIDTH;
-        uint32_t          want = pal[row_from(top, y)->values[DATA_AT]];
+        uint8_t           v = row_from(top, y)->values[DATA_AT];
 
         for (int32_t x = 0; x < WIDTH; x++) {
-            if ((px[x].full | 0xff000000) != (want | 0xff000000)) {
-                *x_bad = x;
-                return y;
+            if ((px[x].full | 0xff000000) != colour(v)) {
+                check(false, "%s: each line the row of its age", what);
+                printf("        line %d, x %d: 0x%06x, its row's level %d is 0x%06x (levels at the top: %d %d %d)\n", y,
+                       x, px[x].full & 0xffffff, v, colour(v) & 0xffffff, row_from(top, 0)->values[DATA_AT],
+                       row_from(top, 1)->values[DATA_AT], row_from(top, 2)->values[DATA_AT]);
+                return;
             }
         }
     }
-    return -1;
+    check(true, "%s: each line the row of its age", what);
 }
 
 static void picture_is_rows(const char *what) {
-    int32_t x = 0, y = bad_line(&x);
-
-    check(y < 0, "%s: each line the row of its age", what);
-    if (y >= 0) {
-        uint16_t top = newest;
-
-        printf("        line %d, x %d: the colour of level %d where its row is level %d (rows at the top: %d %d %d)\n",
-               y, x, (int)(((const lv_color_t *)frame->data)[(size_t)y * WIDTH + x].full >> 16 & 0xff),
-               row_from(top, y)->values[DATA_AT], row_from(top, 0)->values[DATA_AT],
-               row_from(top, 1)->values[DATA_AT], row_from(top, 2)->values[DATA_AT]);
-    }
+    picture_is(__atomic_load_n(&newest, __ATOMIC_ACQUIRE), what);
 }
 
 /* Till the picture's centre is on the VFO and the image within a pixel of it, no new line meanwhile: ms, -1 never */
@@ -330,6 +349,51 @@ int main(void) {
     check(ms >= 0, "the picture slid to the new centre (%d ms; the image %d Hz off it, the centre %d Hz)", ms,
           wfp_center - radio_center_freq, wf_center_freq - radio_center_freq);
     picture_is_rows("after the slide");
+
+    printf("A row the DSP thread writes after the refresh counted the new ones, before it paints them\n");
+    row();
+    int n = __atomic_exchange_n(&new_rows, 0, __ATOMIC_ACQUIRE);    /* refresh_waterfall()'s count: 1 */
+
+    row();
+    image_redraw(n);                                                /* its paint */
+    picture_is_rows("that refresh");
+    loop(100);
+    picture_is_rows("the next one, for the second row");
+
+    printf("The same in a slide\n");
+    tune(-500);
+    loop(STEP);                     /* the refresh for the tune, and the image drawn: the slide's first step */
+    for (int i = 0; i < 20 && LV_ABS(wf_center_freq - wfp_center) * WIDTH < (int32_t)shown_span(); i++) {
+        do_scroll_timer(NULL);      /* its next ones at the next draws, till the next refresh moves the image */
+    }
+    njobs = 0;
+    n = __atomic_exchange_n(&new_rows, 0, __ATOMIC_ACQUIRE);
+    row();
+
+    int32_t was = wfp_center;
+
+    image_redraw(n);
+    check(wfp_center != was, "that refresh slid the image (%d Hz)", wfp_center - was);
+    picture_is_rows("that refresh");
+    ms = slide_ms(1500);
+    check(ms >= 0, "the slide ended (%d ms more)", ms);
+    picture_is_rows("after the slide");
+
+    printf("A row the DSP thread writes while a refresh paints the whole picture (1bit)\n");
+    theme_shape.mono  = true;
+    theme_shape.ink   = 0x000000;
+    theme_shape.paper = 0xefece2;
+    for (int v = 1; v < 256; v += 2) density[v] = 255;
+    on_palette_change(NULL, NULL);          /* the waterfall again whole, in ink and paper */
+
+    uint16_t top = newest;
+
+    write_in = (long)WIDTH * (WF_H / 2);    /* half way down */
+    loop(STEP);
+    check(write_in == 0 && new_rows == 1, "the row came half way down the picture");
+    picture_is(top, "that refresh, the rows as they were before it");
+    loop(100);
+    picture_is_rows("the next one, for that row");
 
     printf("%d of %d cases ok\n", good, cases);
     return good == cases ? 0 : 1;
