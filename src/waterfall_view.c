@@ -548,8 +548,6 @@ static void direct_redraw(int new_row) {
 #define D3_WALL     0x222c3a
 #define D3_PEAK_DECAY 90.0f /* levels a second the held peaks come down */
 #define D3_MIN_MS   33      /* at most a picture so often (30 a second) while tuning; the last one later */
-#define D3_GLIDE_MS 50      /* the glide's pictures between two rows so often (20 a second): a row a second moves a trace
-                             * a few pixels a picture, and the tuning keeps D3_MIN_MS */
 #define D3_PHASE_Q  16      /* a glide picture is drawn when the phase moved to another 1/16 of a row, or a row came */
 #define D3_CACHE    72      /* rows whose levels are kept (every D3_STEP-th: up to 64 traces and a few) */
 
@@ -945,6 +943,15 @@ static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
     }
 }
 
+/* The glide's pictures between two rows so often, by 3D glide (Off, 30, 20, 15 a second; 1 is 30, as the switch's
+ * on was); 0: no glide. The tuning keeps D3_MIN_MS */
+static uint32_t d3_glide_ms(void) {
+    static const uint32_t ms[] = {0, 33, 50, 67};
+    int32_t               i = param_i_get(cfg_wf_3d_glide);
+
+    return i > 0 && i < (int32_t)(sizeof(ms) / sizeof(ms[0])) ? ms[i] : 0;
+}
+
 /* How far the newest row is to the next, 0 when it came to 1 when the next is due (the rows' interval from the
  * last 8): the traces are drawn that much of a row further back, so they move on at every picture, not at every
  * row. 1 when it is late: no further than where the next row puts them; also when the interval is not known, so
@@ -952,7 +959,7 @@ static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
 static float d3_phase(uint16_t top) {
     const wf_row_t *a = row_from(top, 0), *b = row_from(top, 8);
 
-    if (!param_i_get(cfg_wf_3d_glide)) {
+    if (!d3_glide_ms()) {
         return 0.0f;                        /* 3D glide off: the traces stay at their rows, a step at each one */
     }
     if (!a->width || !b->width || height <= 9) {
@@ -1234,14 +1241,20 @@ static void d3_later_cb(lv_timer_t *t) {
     }
 }
 
-/* Every D3_GLIDE_MS while the traces are on their way to the next row; paused once they are there (no rows: still),
- * with 3D off, glide off or nothing seen. A picture from a new row starts it again. Nothing is drawn for a phase
+/* Every d3_glide_ms() while the traces are on their way to the next row; paused once they are there (no rows: still),
+ * with 3D off, glide off or nothing seen. A picture from a new row starts it again. With the glide every picture
+ * keeps its period (d3_redraw()), a row's too, so 3D glide is the pictures a second in all. Nothing is drawn for a phase
  * in the same 1/D3_PHASE_Q of a row as the last picture's, with no new row: a picture of the same pixels (a new view
  * comes by refresh_waterfall(), not by this timer) */
 static void d3_frames_cb(lv_timer_t *t) {
-    if (d3_on() && param_i_get(cfg_wf_3d_glide) && d3_drawn_phase < 1.0f && d3_seen()) {
+    uint32_t glide = d3_glide_ms();
+
+    if (d3_on() && glide && d3_drawn_phase < 1.0f && d3_seen()) {
         uint16_t        top = __atomic_load_n(&newest, __ATOMIC_ACQUIRE);
 
+        if (lv_tick_elaps(d3_last_ms) + 5 < glide) {
+            return;                 /* a picture came meanwhile (d3_later): not one more in this period */
+        }
         if (row_from(top, 0)->num != d3_drawn_num ||
             (int)(d3_phase(top) * D3_PHASE_Q) != (int)(d3_drawn_phase * D3_PHASE_Q)) {
             d3_redraw();
@@ -1254,16 +1267,19 @@ static void d3_frames_cb(lv_timer_t *t) {
 static void d3_redraw(void) {
     int32_t  ref_x[MAX_D3_REFS], ref_hz[MAX_D3_REFS];
     uint32_t since = lv_tick_elaps(d3_last_ms);
+    uint32_t glide = d3_glide_ms();
+    uint32_t every = LV_MAX(glide, D3_MIN_MS);   /* with the glide, its rate for every picture: rows and tuning too */
 
     if (!shown(obj) || walkie_on() || !backlight_seen()) {
         d3_drawn_buf = NULL;        /* the plane may have been drawn over: the whole background again */
         return;
     }
     /* Tuning asks at each step of the scroll, 50 a second: the whole picture each time was a third of a core. At
-     * most one in D3_MIN_MS, and one at its end so the last step is drawn */
-    if (since < D3_MIN_MS) {
+     * most one in D3_MIN_MS (with the glide, in its period: a steady rate, the rows' pictures in it), and one at its
+     * end so the last step is drawn */
+    if (since < every) {
         if (!d3_later) {
-            d3_later = lv_timer_create(d3_later_cb, D3_MIN_MS - since, NULL);
+            d3_later = lv_timer_create(d3_later_cb, every - since, NULL);
             lv_timer_set_repeat_count(d3_later, 1);
         }
         return;
@@ -1271,10 +1287,11 @@ static void d3_redraw(void) {
     d3_last_ms = lv_tick_get();
     int n = freq_scale_refs(ref_x, ref_hz, MAX_D3_REFS);
 
-    if (param_i_get(cfg_wf_3d_glide) && refresh_period == 1) {  /* the rest of d3_seen() is held above */
+    if (glide && refresh_period == 1) {  /* the rest of d3_seen() is held above */
         if (!d3_frames) {
-            d3_frames = lv_timer_create(d3_frames_cb, D3_GLIDE_MS, NULL);
+            d3_frames = lv_timer_create(d3_frames_cb, glide, NULL);
         } else {
+            lv_timer_set_period(d3_frames, glide);  /* 3D glide may have changed */
             lv_timer_resume(d3_frames);  /* pauses itself when there is nothing to move */
         }
     }
