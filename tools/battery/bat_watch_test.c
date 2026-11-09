@@ -7,7 +7,7 @@
  *  more on DC IN); and on the X6200 #160's discharges, on battery and on a charger under 12 V, the power-off's 30 s
  *  and the save done before the base's own cut, and a supply close to 12.0 V or one that sags on TX. Then the
  *  voltage's % (bat_watch_cap) on a 0.1 V step, and on external power (bat_watch_cap_ext) with a base that has lost
- *  count (#223) and one that counts right.
+ *  count (#223), on a supply that does not hold the battery up too, and one that counts right.
  */
 
 #include "bat_watch.h"
@@ -309,12 +309,29 @@ int main(void) {
     check(pct(78, 138, 54) == 65 && pct(78, 138, 55) == 55, "on the supply, the base at 54 %: 65 %, at 55 %: 55 %", 0);
     check(pct(80, 138, 60) == 60, "then the base's", 0);
 
-    /* A supply that does not hold the battery up: under 8.2 V the % follows the voltage's down, not up */
+    /* A supply that does not hold the battery up: under 8.2 V the voltage's, down at once and back up as on battery,
+     * not over the last from 8.2 V up */
     start();
     pct_for(83, 117, 2, BAT_SETTLE_MS + READ_MS, &lo, &hi);
     check(pct(81, 117, 2) == 94 && pct(80, 117, 2) == 88, "on the supply 8.3 V, then 8.1 and 8.0 V: 94 and 88 %", 0);
-    pct_for(81, 117, 2, 120000, &lo, &hi);
-    check(lo == 88 && hi == 88, "then 8.1 V again: 88 %", hi);
+    pct_for(81, 117, 2, (BAT_CAP_UP_READS - 1) * READ_MS, &lo, &hi);
+    check(lo == 88 && hi == 88 && pct(81, 117, 2) == 94, "then 8.1 V again: 88 %, 94 % after a minute", hi);
+
+    /* Plugged into one at 7.9 V with the voltage's 84 % shown, the base at 2 %: the pack at 7.5 V for a while (a TX on
+     * after radio.c's 30 s hold), then 7.9 V: 84 % again at once; one reading at 7.8 V: 84 % again after a minute.
+     * Charging up to 8.1 V meanwhile: not over 84 % */
+    settled(79, 0);
+    check(pct(79, 0, 2) == 84, "7.9 V on battery, the base at 2 %: 84 %", 0);
+    pct_for(79, 117, 2, 60000, &lo, &hi);
+    check(lo == 84 && hi == 84, "plugged into a supply that does not hold it up: 84 %", lo);
+    pct_for(75, 117, 2, 2000, &lo, &hi);
+    check(lo == 56 && hi == 56, "the pack at 7.5 V: 56 %", hi);
+    check(pct(79, 117, 2) == 84, "then 7.9 V: 84 % at once", w.cap_ext);
+    check(pct(78, 117, 2) == 80, "a reading at 7.8 V: 80 %", 0);
+    pct_for(79, 117, 2, (BAT_CAP_UP_READS - 1) * READ_MS, &lo, &hi);
+    check(lo == 80 && hi == 80 && pct(79, 117, 2) == 84, "then 7.9 V: 80 %, 84 % after a minute", hi);
+    pct_for(81, 117, 2, 600000, &lo, &hi);
+    check(lo == 84 && hi == 84, "then 8.1 V for 10 min: 84 %", hi);
 
     /* A base that counts right is shown as it is on the supply: the bench X6100's charge from empty (7.6 V at 21-46 %,
      * 65 % on battery), its end at 8.2 V (87-95 %) and 8.3 V (99 %); and after the base's own % on battery */

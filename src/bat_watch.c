@@ -107,12 +107,14 @@ uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
 uint8_t bat_watch_cap_ext(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
     if (vbat < BAT_NONE) return batcap;     /* no battery: clock.c shows the supply alone */
 
-    /* On the 8.2/8.3 V step the % of the lower one, as on battery */
+    /* On the 8.2/8.3 V step the % of the lower one, as on battery. Under it cap_ext, or the voltage's where that is
+     * lower, back up after a dip as on battery: a % that only went down kept a dip of one reading for good */
     bool    top = cap_volts(w, vbat) >= BAT_CAP_TOP;
     uint8_t v   = bat_cap_of_volts(w->cap_vbat);
 
+    if (top) w->cap_ext = v;
     if (top && v > batcap + BAT_CAP_APART) w->by_volts = true;
-    w->cap_ext = top || v < w->cap_ext ? v : w->cap_ext;
-    if (w->by_volts && batcap + BAT_CAP_MET >= w->cap_ext) w->by_volts = false;
-    return w->by_volts ? w->cap_ext : batcap;
+    v = v < w->cap_ext ? v : w->cap_ext;
+    if (w->by_volts && batcap + BAT_CAP_MET >= v) w->by_volts = false;
+    return w->by_volts ? v : batcap;
 }
