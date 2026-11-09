@@ -2,6 +2,8 @@
 
 **Website: [openx6x00.org](https://openx6x00.org/)**
 
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-on6ure-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/on6ure)
+
 Open firmware for the **Xiegu X6100** and **X6200**: a complete microSD image
 with every digital mode decoded on the radio itself, and sent where the mode
 transmits; the DX cluster on the waterfall; portable activations (SOTA, POTA,
@@ -559,3 +561,10 @@ WWBOTA, cqhota.app, WWFF, TOTA (OK2IH, wwtota.com), the WCA castle list as
 ON4VT keeps it, GMA (gma.rocks) for the mills and the lighthouses, and LLOTA
 (llota.app) for the lakes and lagoons.
 OpenX6X00 is maintained by RF.Guru (Joeri Van Dooren ON6URE).
+
+## Support
+
+OpenX6X00 is free and stays free. If it is useful to you and you would like to
+support the work: [buy me a coffee](https://buymeacoffee.com/on6ure).
+
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-on6ure-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/on6ure)
