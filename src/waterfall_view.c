@@ -1370,12 +1370,14 @@ static void image_redraw(int new_row) {
                 image_paint_line(y, wfp_center, span, i0, i1);
             }
         }
-    } else if (wfp_center == wf_center_freq) {
+    } else if (wfp_center == wf_center_freq && wf_center_freq == radio_center_freq - waterfall_view_shift()) {
         return;
     }
-    /* Also with only a move under a pixel to go, which waits as on the planes: the image is drawn all the same, as
-     * its draw takes the next step of the scroll (image_drawn_cb(); direct mode has a timer for it). Not drawn, each
-     * of a smooth slide's last steps waited for the next line */
+    /* Also with only a move under a pixel to go, which waits as on the planes, and with a slide still to start: the
+     * image is drawn all the same, as its draw takes the next step of the scroll (do_scroll_timer() from
+     * image_drawn_cb(); direct mode has a timer for it). Not drawn, each of a smooth slide's last steps waited for the
+     * next line, and a tune from rest slid only from the next line on where nothing over the waterfall moved with it
+     * (the deck theme has no scale lines) */
     lv_obj_invalidate(img);
 }
 
