@@ -4971,18 +4971,24 @@ where they do not answer Mercury. x0rro wrote it and stopped it on 8
 November 2026; NR5P (Nathan Rigg) carries it on, and the firmware follows
 his. It comes with the firmware, pinned at NR5P's version of 9 November 2026
 and built from its source with the modem of x0rro's last version (0.1.3, as
-before) and three changes of ours: the radio's GUI is its sound card and
-PTT, as for ardopcf and Mercury, it identifies in CW with any callsign, and a
-call you cancel ends at once (below). Every transmission goes through the
-radio's own TX path, as for the other digital modes: the amateur bands only,
-simplex, at most 7 W, the SWR hold, no TX while a digital app is open.
+up to v0.3.9, but for NR5P's detector of a busy channel) and three changes
+of ours: the radio's GUI is its sound card and PTT, as for ardopcf and
+Mercury, it identifies in CW with any callsign, and a call you cancel ends at
+once (below). Every transmission goes through the radio's own TX path, as
+for the other digital modes: the amateur bands only, simplex, at most 7 W,
+the SWR hold, no TX while a digital app is open.
 
-It is experimental. Two stations exchanged mail through it on a PC, each with
-the radio's own Winlink code and Pat, at the free speed and at full speed. It
-has not been on the air from a radio yet, nor against VARA itself or a VARA
-gateway. Listening on the bench X6200 it took 6-7 % in `top`; keyed, and
-its timing through the radio's audio, are not measured yet. XARA itself is young (its first release
-came out on 21 October 2026) and still changes fast.
+It is experimental. Up to v0.3.9 the firmware had x0rro's 0.1.3: two
+stations exchanged mail through it on a PC, each with the radio's own
+Winlink code and Pat, at the free speed and at full speed, and from an X6100
+on 80 m it delivered mail to and from VARA HF gateways at the free speed
+([#120](https://github.com/Guru-RF/OpenX6X00/issues/120)). Listening on the
+bench X6200 it took 6-7 % in `top`. NR5P's version has been tested on a PC
+only so far: two stations at the free speed and at full speed, driven as
+Pat drives XARA, not yet with Pat itself, nor on the radios or on the air.
+Keyed, XARA's processor load and its timing through the radio's audio are
+not measured yet. XARA itself is young (its first release came out on 21
+October 2026) and still changes fast.
 
 Choosing it: on Operating > Winlink, the Station card's Modem, XARA
 (experimental, VARA-compatible), its bandwidth and the VARA HF licence box
