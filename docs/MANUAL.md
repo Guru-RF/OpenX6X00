@@ -3152,11 +3152,14 @@ it in CW-R, and in CW its ZAP and Tuner went the wrong way (#115).
   when it sounds at the key tone, one bar further for each 10 Hz off, in
   green, yellow or red. In CW the lit bar is on the station's side of the
   dial: turn the dial towards it. In CW-R it is the other way round.
-- The bars sit right of the WPM: at the top of the waterfall under the band
-  plan, or at the top of the spectrum when it is on. VISION has them on the
-  decoder panel's top line, Amber Trey as CWT on its bar graph. Up to
-  v0.3.9, with the spectrum off, they were drawn over the frequency scale
-  and the band plan, where they hardly showed (#185, #217).
+- Where the bars are: with the spectrum off, at the top of the waterfall,
+  under the band plan (under the frequency scale with the band plan off);
+  with the spectrum on, at the top of the spectrum. They start right of the
+  decoder's WPM, clear of it. VISION has them on the decoder panel's top
+  line while the decoder is on; with it off, at the top of the waterfall or
+  the spectrum, at the left. Amber Trey shows them as CWT on its bar graph.
+  Up to v0.3.9, with the spectrum off, they were drawn over the frequency
+  scale and the band plan, where they hardly showed (#185, #217).
 
 Parse. Where: CW 2:2 > Parse (on by default). The decoder often runs words
 together when the spacing is tight: "CQCQDEON6UREK". With Parse on, each
