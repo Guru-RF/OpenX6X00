@@ -5,8 +5,9 @@
  *  one-line texts. The real text_popup.c and the real fonts, put in place by font_select.c's fonts_apply() as at boot,
  *  on the PC build's LVGL: an 800 x 480 display flushed into a picture here.
  *
- *  The keys: the on-screen keyboard's J and j type J and j, and so do a USB keyboard's (their keys sent to the text
- *  box as LVGL's keypad sends them, the window's own key handler first).
+ *  The keys: the on-screen keyboard's J and j type J and j, and so do a USB keyboard's. Its key events go the radio's
+ *  way: read by the real key_input.c (CapsLock's hyper key, the keys with no character), made characters by xkb with
+ *  the radio's layout (lv_drv_conf.h), then LVGL's keypad, the window's own key handler and the text box.
  *
  *  The picture: for each font a theme or Settings can put there, and VISION's sizes, the text box's line and the
  *  title's whole inside the window's row, and each letter of "I J i j g p q y" drawn whole: its ink down to the last
@@ -17,18 +18,31 @@
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
+#define _GNU_SOURCE     /* memfd_create */
+
 #include "lvgl/lvgl.h"
+#include "cw_encoder.h"
+#include "cw_field.h"
 #include "fonts/font_select.h"
 #include "gui_styles.h"
+#include "input_caps.h"
 #include "key_input.h"
+#include "paddle_keyer.h"
+#include "pubsub_ids.h"
 #include "radio.h"
+#include "screen_light.h"
+#include "screen_main.h"
 #include "text_popup.h"
 #include "theme.h"
 
+#include <glob.h>
+#include <linux/input.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 #define W       800
 #define H       480
@@ -37,15 +51,8 @@
 
 /* ---- What text_popup.c calls, stood in for ---- */
 
-lv_group_t *keyboard_group;
-lv_color_t  bg_color;
-lv_style_t  msg_style, dialog_item_focus_style;
-
-static bool usb_keyboard;
-
-bool keyboard_ready() {
-    return usb_keyboard;
-}
+lv_color_t bg_color;
+lv_style_t msg_style, dialog_item_focus_style;
 
 uint16_t radio_change_vol(int16_t df) {
     (void)df;
@@ -64,6 +71,84 @@ uint32_t lv_tick_get(void) {
 
 uint32_t lv_tick_elaps(uint32_t prev_tick) {
     return 1000 - prev_tick;
+}
+
+/* ---- What key_input.c calls, stood in for: the USB keyboard a file of its key events ---- */
+
+static int  keys_fd = -1;   /* the key events, as the kernel queues them for the keyboard's node */
+static char keys_node[32];  /* that node: /proc/self/fd/N, opened as key_input.c opens /dev/input's */
+static bool plugged;
+
+/* /dev/input's keyboards: this one while plugged, and none of the PC's own */
+int glob(const char *pattern, int flags, int (*errfunc)(const char *, int), glob_t *found) {
+    static char *paths[] = {keys_node, NULL};
+
+    (void)flags;
+    (void)errfunc;
+    if (!plugged || strcmp(pattern, "/dev/input/by-path/*-kbd")) {
+        return GLOB_NOMATCH;
+    }
+    found->gl_pathc = 1;
+    found->gl_pathv = paths;
+    return 0;
+}
+
+void globfree(glob_t *found) {
+    (void)found;
+}
+
+/* sysfs: every key there, the letters too */
+bool input_caps_bits(dev_t dev, const char *what, unsigned long *bits, size_t n) {
+    (void)dev;
+    (void)what;
+    memset(bits, 0xff, n * sizeof(*bits));
+    return true;
+}
+
+/* Not in CW: [ and ] type, no paddle */
+bool paddle_keyer_key(int code) {
+    (void)code;
+    return false;
+}
+
+void paddle_keyer_open(const char *path) {
+    (void)path;
+}
+
+void paddle_keyer_scan(void) {
+}
+
+cw_encoder_state_t cw_encoder_state() {
+    return CW_ENCODER_IDLE;
+}
+
+void cw_encoder_stop() {
+}
+
+bool cw_field_key(uint32_t key) {
+    (void)key;
+    return false;
+}
+
+/* The screen lit, no screensaver: every key types */
+bool backlight_tick() {
+    return false;
+}
+
+bool backlight_saver_on() {
+    return false;
+}
+
+/* The text window over the main screen */
+bool main_screen_has_keys(void) {
+    return false;
+}
+
+void main_screen_chord(int action) {
+    (void)action;
+}
+
+void main_screen_keyboard_gone(void) {
 }
 
 /* gui_styles.c's message box: the window's size and place */
@@ -131,6 +216,36 @@ static bool ok_cb(void) {
 
 /* ---- The keys ---- */
 
+/* A USB keyboard plugged in (true) or out, as udev tells key_input.c */
+static void plug(bool in) {
+    plugged = in;
+    lv_msg_send(MSG_USB_DEVICE_CHANGED, NULL);
+}
+
+/* One key event, as evdev sends it: the key, then SYN_REPORT */
+static void key_event(uint16_t code, int32_t value) {
+    struct input_event ev[] = {{.type = EV_KEY, .code = code, .value = value}, {.type = EV_SYN, .code = SYN_REPORT}};
+
+    if (write(keys_fd, ev, sizeof(ev)) != sizeof(ev)) {
+        perror("the key events");
+        exit(1);
+    }
+}
+
+static void tap(uint16_t code) {
+    key_event(code, 1);
+    key_event(code, 0);
+}
+
+/* LVGL's read of the keyboard, as its timer does it: every event waiting */
+static void read_keyboard(void) {
+    for (lv_indev_t *i = lv_indev_get_next(NULL); i; i = lv_indev_get_next(i)) {
+        if (i->driver->type == LV_INDEV_TYPE_KEYPAD) {
+            lv_indev_read_timer_cb(i->driver->read_timer);
+        }
+    }
+}
+
 /* The on-screen keyboard's key with this text pressed, as a touch or the knob's press does it: LVGL's keyboard types
  * the text of the key selected when its value changes */
 static bool press(lv_obj_t *kbd, const char *txt) {
@@ -152,7 +267,6 @@ static void keys(void) {
     fonts_apply(FONT_DEJAVU);
 
     /* No USB keyboard: the on-screen one, focused, in capitals first */
-    usb_keyboard = false;
     textarea_window_open(ok_cb, NULL);
     kbd = lv_group_get_focused(keyboard_group);
     if (!kbd || !lv_obj_check_type(kbd, &lv_keyboard_class)) {
@@ -166,13 +280,33 @@ static void keys(void) {
           textarea_window_get());
     textarea_window_close();
 
-    /* A USB keyboard: the text box focused, xkb's characters as its keys */
-    usb_keyboard = true;
+    /* A USB keyboard: no on-screen one, the text box focused. Shift+J, J, then J with Caps Lock on (CapsLock tapped
+     * alone, kbd_hyper.c) */
+    keys_fd = memfd_create("keyboard", 0);
+    if (keys_fd < 0) {
+        perror("the keyboard");
+        exit(1);
+    }
+    snprintf(keys_node, sizeof(keys_node), "/proc/self/fd/%d", keys_fd);
+    plug(true);
+    if (!keyboard_ready()) {
+        check(false, "USB keyboard: not opened");
+        plug(false);
+        return;
+    }
     textarea_window_open(ok_cb, NULL);
-    lv_group_send_data(keyboard_group, 'J');
-    lv_group_send_data(keyboard_group, 'j');
-    check(!strcmp(textarea_window_get(), "Jj"), "USB keyboard: J, j type \"%s\", want \"Jj\"", textarea_window_get());
+    key_event(KEY_LEFTSHIFT, 1);
+    tap(KEY_J);
+    key_event(KEY_LEFTSHIFT, 0);
+    tap(KEY_J);
+    tap(KEY_CAPSLOCK);
+    tap(KEY_J);
+    tap(KEY_CAPSLOCK);
+    read_keyboard();
+    check(!strcmp(textarea_window_get(), "JjJ"), "USB keyboard: Shift+J, J, CapsLock and J type \"%s\", want \"JjJ\"",
+          textarea_window_get());
     textarea_window_close();
+    plug(false);
 }
 
 /* ---- The picture ---- */
@@ -204,7 +338,6 @@ static void drawn(const char *name, uint8_t font, bool vision) {
     if (vision) {
         fonts_scale(VISION_FONT_STEPS);
     }
-    usb_keyboard = false;   /* as #220's: the on-screen keyboard under it */
     textarea_window_open_w_label(ok_cb, NULL, "Key");
     textarea_window_set(LETTERS);
     lv_obj_invalidate(lv_scr_act());
@@ -246,7 +379,7 @@ static void drawn(const char *name, uint8_t font, bool vision) {
 int main(void) {
     display();
     styles();
-    keyboard_group = lv_group_create();
+    keyboard_init();    /* no keyboard yet: as #220's, the on-screen one under the text */
 
     keys();
 
