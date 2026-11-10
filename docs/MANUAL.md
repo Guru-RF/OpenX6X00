@@ -1452,9 +1452,21 @@ Line-in and Play / Rec gain are separate settings:
   change Line-in. After the update, a Line-in left that way goes back to 10.
   A Line-in you set on its own slider afterwards stays as it is.
 
-Compressor on the X6200: its base has three levels, so the ratio chosen (Comp
-on the MFK 2:4 page) goes to the nearest of them: 2:1 and 3:1 as 2:1, 4:1 to
-7:1 as 4:1, 8:1 as 8:1; 1:1 (Off) is off. It is off by default on the X6200.
+Compressor (Comp on the MFK 2:4 page): off (1:1) by default on both radios.
+
+- It is for your voice: the X6100's base leaves the data modes and CW out of
+  it, and the digital apps transmit in a data mode (see
+  [Digital-mode TX level](#digital-mode-tx-level)).
+- A compressor turns the loud parts down. The makeup (TX AUDIO card above)
+  brings the level back up after it; at 0 dB nothing does, and the power
+  drops, more at a higher ratio.
+- Up to v0.3.9 the X6100's default was 4:1, from the GUI this firmware
+  started from. With the makeup at 0 it took the SSB power well down (issue
+  #224). A radio where Comp was never changed is now off; a ratio you chose
+  stays.
+- On the X6200 its base has three levels, so the ratio chosen goes to the
+  nearest of them: 2:1 and 3:1 as 2:1, 4:1 to 7:1 as 4:1, 8:1 as 8:1; 1:1
+  (Off) is off.
 
 TX monitor: Moni level (VOL 2:2 page, F2) plays your own transmission on the
 speaker. It is 0 by default on both radios. At 30, the default in earlier
@@ -2463,6 +2475,15 @@ WeFax) set their audio level by themselves.
   level before and after, the windows (half a second each) that decided it,
   and the blocks of silence in it ("tx_player: level -6.50 -> -5.75 dB,
   3 windows decided in 122 blocks, 64 of them silent").
+
+The apps transmit in a data mode, where the base's voice processing (the
+compressor) leaves their tones alone: in LSB or USB a transmission goes out
+in LSB-D or USB-D, and the radio is back in LSB or USB after it. The sideband
+stays the one chosen: SSTV in LSB below 10 MHz and USB above, WeFax in USB,
+RTTY in LSB as usual or in USB (the app puts the mark on the higher frequency
+in either). FT8, JS8, WSPR, PSK, Olivia and JTTY were in USB-D already. Up to
+v0.3.9 SSTV, RTTY and WeFax went out in LSB or USB: with the X6100's
+compressor at 4:1, SSTV read 0.1-0.5 W at a 10 W setting (issue #224).
 
 While the AF volume is 0, or the speaker is muted (the mute action, Bluetooth
 headphones with Mute speaker, a TCI client transmitting), the TX monitor is

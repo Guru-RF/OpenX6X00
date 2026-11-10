@@ -254,6 +254,7 @@ static bool             scan_mute = false;  /* the scanner between stops: no noi
 static bool             rec_moni = false;   /* a screen recording takes the TX audio: the monitor at 30 at least (X6100) */
 static bool             digi_cap;       /* a digital app is open: never above its cap */
 static float            tune_cap;       /* a TUNE for an external tuner: never above its power (under the lock) */
+static atomic_int       tx_mode = -1;   /* radio_set_tx_mode's for the transmission under way, -1 none */
 /* A transverter's TX power limit where the radio is tuned (#104): never above it, 0 none; -1 until first looked at
  * (on_xvtr_pwr_change). Under the lock, as txpwr_asked: the last power asked of set_txpwr, before its caps */
 static float            xvtr_cap = -1.0f;
@@ -949,6 +950,7 @@ static void tune_cap_top(float top) {
 /* The VFO that transmits is the active one: tx_player moves it to the TX frequency, split held off (radio_set_tx_freq) */
 void radio_set_tx_mode(int mode) {
     radio_lock();
+    atomic_store(&tx_mode, mode);
     if (mode < 0) {
         hw_vfo_set_mode(RADIO_VFO_A, param_i_get(cfg_band_vfoa_mode));
         hw_vfo_set_mode(RADIO_VFO_B, param_i_get(cfg_band_vfob_mode));
@@ -956,6 +958,10 @@ void radio_set_tx_mode(int mode) {
         hw_vfo_set_mode(param_i_get(cfg_band_current_vfo), mode);
     }
     radio_unlock();
+}
+
+int radio_tx_mode(void) {
+    return atomic_load(&tx_mode);
 }
 
 void radio_set_tx_filter(uint16_t from_hz, uint16_t to_hz) {

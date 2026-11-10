@@ -5,7 +5,8 @@
 // Keys the radio and sends a waveform made by an app (FT8, JS8, PSK, Olivia, JTTY, WSPR,
 // RTTY, SSTV, WEFAX), steering the audio level from the ALC and power the radio reads back.
 // The waveform is made on TX_PLAYER_AUDIO_HZ: the VFO is moved for the length of the
-// transmission so that it goes out at the offset the app asked for. Both calls block until
+// transmission so that it goes out at the offset the app asked for. In LSB or USB it goes
+// out in LSB-D or USB-D, without the base's voice processing. Both calls block until
 // the end: use them from a worker thread.
 //
 // Copyright (c) 2026 Giovanni Ricciardi IU1WXY, own code of the IU1WXY firmware

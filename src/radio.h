@@ -121,6 +121,8 @@ void radio_set_tune(float w, uint32_t limit_ms);
 /* The base's mode for a transmission on the VFO that transmits (tx_player's), without the setting; -1: both VFOs
  * back to their own. Any thread */
 void radio_set_tx_mode(int mode);
+/* What radio_set_tx_mode set for the transmission under way, -1 none. Any thread */
+int  radio_tx_mode(void);
 
 /* From RX only, where the radio may transmit and with data from the base (else false, "No TX on ..." or "No TX: no
  * data from the base" said): the VFO that transmits to `from`, then AM at 1 W at most */

@@ -316,13 +316,20 @@ void radio_set_tune(float w, uint32_t limit_ms) {
     set_txpwr(cfg.pwr);
 }
 
+static int tx_mode_set = -1;    /* what radio_set_tx_mode set, -1 none (radio.c's radio_tx_mode) */
+
 void radio_set_tx_mode(int mode) {
+    tx_mode_set = mode;
     if (mode < 0) {
         base.mode[0] = cfg.mode[0];
         base.mode[1] = cfg.mode[1];
     } else {
         base.mode[cfg.cur] = mode;
     }
+}
+
+int radio_tx_mode(void) {
+    return tx_mode_set;
 }
 
 /* The settings' PWR turned up (the knob, the Panel): radio.c's on_pwr_change */
@@ -447,6 +454,7 @@ static void reset(void) {
     base.freq[1] = cfg.freq[1];
     base.mode[0] = cfg.mode[0];
     base.mode[1] = cfg.mode[1];
+    tx_mode_set  = -1;
     base.split   = cfg.split;
     base.modem   = false;
     set_txpwr(cfg.pwr);
@@ -459,7 +467,7 @@ static void reset(void) {
 static bool as_set(void) {
     return base.freq[0] == cfg.freq[0] && base.freq[1] == cfg.freq[1] && base.mode[0] == cfg.mode[0] &&
            base.mode[1] == cfg.mode[1] && base.split == cfg.split && !base.modem && base.pwr == cfg.pwr &&
-           !split_held && tune_cap == 0.0f && guard.pwr_w == 0.0f && seen.tune_w == 0.0f;
+           !split_held && tune_cap == 0.0f && guard.pwr_w == 0.0f && seen.tune_w == 0.0f && tx_mode_set < 0;
 }
 
 static const char *end_name(tune_end_t e) {

@@ -17,10 +17,10 @@
 #include "lvgl/lvgl.h"           /* LV_MIN, LV_MAX */
 
 #include "audio.h"               /* audio_play, audio_gain_db */
-#include "cfg/cfg_api.h"         /* param_f_get */
+#include "cfg/cfg_api.h"         /* param_f_get, the mode in use */
 #include "msg.h"                 /* the watchdog's and the 0 W notes */
 #include "params/params.h"       /* the learned gain offset */
-#include "radio.h"               /* radio_set_modem, radio_set_tx_freq */
+#include "radio.h"               /* radio_set_modem, radio_set_tx_freq, radio_set_tx_mode */
 #include "tx_info.h"             /* tx_info_refresh: ALC and power */
 #include "tx_level.h"
 
@@ -128,6 +128,21 @@ static float tx_pwr(void) {
     return LV_MIN(own_w > 0.0f ? own_w : LV_MIN(param_f_get(cfg_pwr), TX_PLAYER_MAX_PWR_W), cfg_pwr_max_get());
 }
 
+/* The mode a transmission goes out in: the data mode of the sideband in use, LSB-D for LSB and USB-D for USB (#224).
+ * SSTV, RTTY and WeFax keep the mode the radio is in (Winlink USB too), and in LSB or USB the patched X6100 base put
+ * their tones through its compressor and noise gate, which leave out only the data modes and CW: at 4:1 SSTV went
+ * out at 0.1-0.5 W of 10. The sideband stays the one chosen: SSTV in LSB below 10 MHz, RTTY in LSB or USB (its mark
+ * on top in either). -1, the mode as it is: a data mode already (FT8 and the others), CW, AM, FM, or a mode the
+ * transmission set itself (a TUNE's USB-D, tune_tx.c) */
+static int data_mode(void) {
+    if (radio_tx_mode() >= 0) return -1;
+    switch (cparam_i_get(cfg_cur_mode)) {
+        case radio_mode_lsb: return radio_mode_lsb_dig;
+        case radio_mode_usb: return radio_mode_usb_dig;
+        default:             return -1;
+    }
+}
+
 bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, float base_gain,
                       tx_abort_fn_t abort, void *abort_ctx) {
     bool claim = !claimed;      /* else the caller holds the player (tx_player_claim) and lets it go itself */
@@ -168,7 +183,9 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
 
     /* The VFO that transmits moves for the tone: the other one in split (a TX shift), the IF shift put back after */
     int32_t dial = radio_tx_freq();
+    int     mode = data_mode();
 
+    if (mode >= 0) radio_set_tx_mode(mode);
     radio_set_tx_freq(dial + offset_hz - TX_PLAYER_AUDIO_HZ);
     radio_set_modem(true);      /* keyed, the audio from the GUI */
 
@@ -287,6 +304,7 @@ bool tx_player_stream(tx_fill_fn_t fill, void *fill_ctx, int32_t offset_hz, floa
     audio_play_wait();          /* the last block out before unkeying */
     radio_set_modem(false);     /* unkeyed: back to the dial frequency */
     radio_set_tx_freq(0);
+    if (mode >= 0) radio_set_tx_mode(-1);  /* the mode in use back, LSB or USB */
     audio_set_play_vol(params.play_gain_db_f.x);   /* the playback volume of the settings */
     if (pwr_set) {
         /* the setting back: RTTY and WeFax left the radio at the cap, also in SSB after */

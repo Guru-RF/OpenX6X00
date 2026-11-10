@@ -19,4 +19,5 @@ uint32_t      radio_caps(void);
 unsigned      radio_band_stops(void);
 void          radio_set_tune(float w, uint32_t limit_ms);
 void          radio_set_tx_mode(int mode);
+int           radio_tx_mode(void);
 unsigned      radio_swr_trips(void);

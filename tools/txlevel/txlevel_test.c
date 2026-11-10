@@ -142,6 +142,27 @@ static float rnd01(void) {
     return ((rnd >> 8) & 0xFFFF) / 65536.0f;
 }
 
+/* The mode (#224): the one in use, what radio_set_tx_mode set for the transmission (-1 none), the base's as it keyed,
+ * and the calls: none while keyed */
+static int32_t    mode_in_use = radio_mode_usb_dig;
+ComputedParamInt *cfg_cur_mode = (ComputedParamInt *)&mode_in_use;
+static int        tx_mode_set = -1, mode_at_key = -1, mode_calls;
+static bool       mode_on_air;
+
+int32_t cparam_i_get(const ComputedParamInt *p) {
+    return *(const int32_t *)p;
+}
+
+void radio_set_tx_mode(int mode) {
+    tx_mode_set = mode;
+    mode_calls++;
+    mode_on_air |= base.modem;
+}
+
+int radio_tx_mode(void) {
+    return tx_mode_set;
+}
+
 radio_state_t radio_get_state(void) {
     return base.modem ? RADIO_TX : RADIO_RX;
 }
@@ -151,7 +172,10 @@ bool radio_get_modem(void) {
 }
 
 void radio_set_modem(bool on) {
-    if (on && !base.modem) base.key_ns = atomic_load(&virt_ns);
+    if (on && !base.modem) {
+        base.key_ns = atomic_load(&virt_ns);
+        mode_at_key = tx_mode_set >= 0 ? tx_mode_set : mode_in_use;
+    }
     base.modem = on;
 }
 
@@ -546,6 +570,41 @@ int main(int argc, char **argv) {
     r = run(&id_x6200, verbose);
     check(r.level_top <= 0.5f && r.level_end >= -0.5f, "%s: the level %.1f dB after %d, at most %.1f dB",
           id_x6200.name, r.level_end, id_x6200.txs, r.level_top);
+
+    /* The mode (#224): an app in LSB or USB (SSTV, RTTY, WeFax keep the radio's) goes out in LSB-D or USB-D, without
+     * the base's compressor, and the mode is back after the unkey; a data mode, CW and FM as they are, and a TUNE's
+     * own USB-D (tune_tx.c sets it before and puts it back after) left to it */
+    static const scenario_t one = {.name = "one transmission", .pwr = 5.0f, .knee_db = -6.0f, .txs = 1,
+                                   .alc_db = 0.6f};
+    static const struct {
+        const char *name;
+        int         in_use, set_before, keyed;
+    } modes[] = {
+        {"LSB (SSTV on 40 m, RTTY)", radio_mode_lsb, -1, radio_mode_lsb_dig},
+        {"USB (SSTV on 20 m, WeFax, RTTY in USB)", radio_mode_usb, -1, radio_mode_usb_dig},
+        {"USB-D (FT8)", radio_mode_usb_dig, -1, radio_mode_usb_dig},
+        {"LSB-D", radio_mode_lsb_dig, -1, radio_mode_lsb_dig},
+        {"CW", radio_mode_cw, -1, radio_mode_cw},
+        {"FM", radio_mode_nfm, -1, radio_mode_nfm},
+        {"a TUNE in LSB, in its own USB-D", radio_mode_lsb, radio_mode_usb_dig, radio_mode_usb_dig},
+    };
+
+    for (size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i++) {
+        bool changed = modes[i].set_before < 0 && modes[i].keyed != modes[i].in_use;
+
+        mode_in_use = modes[i].in_use;
+        tx_mode_set = modes[i].set_before;
+        mode_at_key = -1;
+        mode_calls  = 0;
+        mode_on_air = false;
+        run(&one, false);
+        check(mode_at_key == modes[i].keyed && !mode_on_air && tx_mode_set == modes[i].set_before
+              && mode_calls == (changed ? 2 : 0), "%s: keyed in mode %d (%d wanted), %d calls, none on the air: %s, "
+              "after it %d", modes[i].name, mode_at_key, modes[i].keyed, mode_calls, mode_on_air ? "no" : "yes",
+              tx_mode_set);
+    }
+    mode_in_use = radio_mode_usb_dig;
+    tx_mode_set = -1;
 
     printf("TXLEVEL %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;
