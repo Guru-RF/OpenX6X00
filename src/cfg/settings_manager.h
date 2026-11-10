@@ -320,8 +320,9 @@ class SettingsManager {
     // 3D peaks: the newest trace's peaks held a moment
     Parameter<int32_t> p_wf_3d_peak{"wf_3d_peak", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // 3D glide: the traces move back at every picture (30 a second); off: a step at each new row, less CPU
-    Parameter<int32_t> p_wf_3d_glide{"wf_3d_glide", true, 0, 1,
+    // 3D glide: the traces move back between rows, 1: 30 pictures a second (the old switch's on), 2: 20, 3: 15;
+    // 0 off: a step at each new row, the least CPU
+    Parameter<int32_t> p_wf_3d_glide{"wf_3d_glide", 2, 0, 3,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // String mapping encoder (cfg_ctrl_t) positions to bind values
     // (ENCODER_BIND_VOL/ENCODER_BIND_MFK/ENCODER_BIND_NONE). GLOBAL: persisted in the flat `params` table under key

@@ -89,7 +89,7 @@ const CARDS = [
     ["wf_3d_floor", "3D floor", "3D: how much above the noise floor is cut away", "range", [0, 40, 2, 1, ""]],
     ["wf_3d_range", "3D range", "3D: the dB above the noise floor at the full height; less makes weak signals taller", "range", [20, 60, 5, 1, " dB"]],
     ["wf_3d_peak", "3D peaks", "3D: the newest trace's peaks held a moment", "sw"],
-    ["wf_3d_glide", "3D glide", "3D: the traces move back smoothly, 30 pictures a second; off: a step at each line, less CPU", "sw"]]],
+    ["wf_3d_glide", "3D glide", "3D: the traces move back smoothly, so many pictures a second (fewer: less CPU); off: a step at each line, the least CPU", "seg", ["Off", "30/s", "20/s", "15/s"]]]],
   ["layers", "On the waterfall", "What is drawn over it", [
     ["band_plan", "Band plan", "The plan's segments on top", "sw"],
     ["band_region", "Plan", "", "sel", ["Auto", "Region 1", "Region 2", "Region 3", "US Extra", "US Advanced", "US General", "US Technician"]],

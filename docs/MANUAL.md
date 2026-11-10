@@ -925,15 +925,16 @@ Where: Settings > Display > WATERFALL.
 | 3D depth, tilt, floor | shown with 3D: the traces (8-64, every third line), the view from the front (0) to from above (10), how much above the noise floor is cut away |
 | 3D range | shown with 3D: the dB above the noise floor at a trace's full height (20-60, 40 by default); less makes weak signals taller |
 | 3D peaks | shown with 3D: the newest trace's peaks held a moment |
-| 3D glide | shown with 3D: the traces move back smoothly, 30 pictures a second (on by default); off, a step at each new line: less CPU |
+| 3D glide | shown with 3D: the traces move back smoothly, 30, 20 (default) or 15 pictures a second, fewer for less CPU; Off, a step at each new line: the least CPU |
 
 With 3D on, the waterfall area shows the spectrum in perspective, as on
 some other makers' radios: the newest trace at the bottom, every third line
 before it a little higher up and narrower, the oldest (about 6 seconds back
 at 32 traces, 3D depth) at the top. They narrow towards the VFO line, which
 stays straight through them all, and move back smoothly, a little at every
-picture (30 a second), not a step at each new line (3D glide off: a step at
-each line, for less CPU).
+picture (3D glide: 30, 20 or 15 a second), not a step at each new line (3D
+glide Off: a step at each line, for the least CPU). A picture that would not
+change is not drawn.
 The noise floor is cut away (3D floor sets how much above it goes too): only
 signals stand up, and a trace shows only where it rises above those in front
 of it. Each point has the colour of its height on the 3D colours scale
