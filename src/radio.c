@@ -128,6 +128,8 @@ static void on_fw_zoom_change(Subject *subj, void *user_data);
 
 static void on_change_i(Subject *subj, void *user_data);
 static void on_change_f(Subject *subj, void *user_data);
+static void on_rit_change(Subject *subj, void *user_data);
+static void on_split_change(Subject *subj, void *user_data);
 static void on_pwr_change(Subject *subj, void *user_data);
 static void on_train_hold_change(Subject *subj, void *user_data);
 static void on_band_hold_change(Subject *subj, void *user_data);
@@ -434,6 +436,7 @@ void radio_start() {
     subject_subscribe((Subject*)cfg_band_current_vfo, on_wr12_change, NULL);  /* once the base has it: the WR12 follows */
 #endif
     subject_subscribe_and_notify((Subject*)cfg_band_split, on_change_i, (void*)HW_SPLIT);
+    subject_subscribe((Subject*)cfg_band_split, on_split_change, NULL);
     subject_subscribe_and_notify((Subject*)cfg_rfgain, on_change_i, (void*)HW_RFG);
 
     subject_subscribe_and_notify((Subject*)cfg_band_if_shift, on_if_shift_change, NULL);
@@ -477,7 +480,7 @@ void radio_start() {
     subject_subscribe_and_notify((Subject*)cfg_imic, on_change_i, (void*)HW_IMIC);
     subject_subscribe_and_notify((Subject*)cfg_moni, on_volume_change, NULL);   /* radio_vol_refresh: muted with the speaker */
 
-    subject_subscribe_and_notify((Subject*)cfg_rit, on_change_i, (void*)HW_RIT);
+    subject_subscribe_and_notify((Subject*)cfg_rit, on_rit_change, NULL);
     subject_subscribe_and_notify((Subject*)cfg_xit, on_change_i, (void*)HW_XIT);
     subject_subscribe_and_notify((Subject*)cfg_fm_emphasis, on_change_i, (void*)HW_FM_EMP);
 
@@ -646,6 +649,10 @@ int32_t radio_tx_freq(void) {
  * knob turned in an app's slot, the slot's end) */
 static atomic_bool split_held;
 static atomic_bool cur_on_tx;
+/* The X6200's PTT in split (ptt_moves) has the VFO in use on the TX frequency until it lets go, whoever moved it there:
+ * what ends under it (a voice message, an app's slot, the SWR scan's window) does not take that VFO back to the dial,
+ * nor does the knob or anything else that sends the base that VFO (on_vfo_freq_change). Set before the move */
+static atomic_bool ptt_moved;
 
 /* In split, whether the base keys the dial, the VFO in use (#121). The X6200's base does whatever split says: 1.0.8
  * ignores its split bit and has no TX VFO (2026-10-26: the GUI's CW spotted by RBN on VFO A with B 3 kHz up). Either
@@ -665,17 +672,38 @@ static bool split_keys_dial(void) {
 #endif
 }
 
-bool radio_key_refused(int32_t *freq) {
+/* The X6200's PTT in split: the VFO in use goes to the TX frequency for it (radio_set_ptt), so the dial does not key */
+static bool ptt_moves(void) {
+#ifdef BOARD_X6200
+    return param_i_get(cfg_band_split);
+#else
+    return false;
+#endif
+}
+
+static bool key_refused(int32_t *freq, bool keys_dial) {
     int32_t f = radio_tx_freq();
     bool    wr12 = wr12_takes(vfo_freq(true));  /* the base on the X6200's WR12's IF, or on its way: nothing keys (#134) */
 
-    if (wr12 || (!cfg_tx_refusal(f) && split_keys_dial())) {
+    if (wr12 || (!cfg_tx_refusal(f) && keys_dial)) {
         f = vfo_freq(true);
     }
     if (freq) {
         *freq = f;
     }
     return wr12 || cfg_tx_refusal(f) != NULL;
+}
+
+bool radio_key_refused(int32_t *freq) {
+    return key_refused(freq, split_keys_dial());
+}
+
+bool radio_ptt_refused(int32_t *freq) {
+    return key_refused(freq, split_keys_dial() && !ptt_moves());
+}
+
+int32_t radio_key_freq(void) {
+    return split_keys_dial() ? vfo_freq(true) : radio_tx_freq();
 }
 
 /* The VFO the radio transmits on to `freq`. In split that is the active VFO, with the base's split bit off until
@@ -686,6 +714,12 @@ bool radio_key_refused(int32_t *freq) {
 void radio_set_tx_freq(int32_t freq) {
     radio_vfo_t vfo = param_i_get(cfg_band_current_vfo);
 
+    if (freq == 0 && atomic_load(&ptt_moved)) {
+        freq = radio_tx_freq();     /* over under PTT: its TX frequency, the dial when it lets go */
+        if (cfg_tx_refusal(freq)) {
+            return;     /* not to where TX is refused: it stays, held at 0 W, until the stop lets PTT go (band_stop) */
+        }
+    }
     if (freq == 0) {
         /* Both VFOs on their own frequency, transverter and IF shift as tuned: the one that transmits can have
          * changed since (split off during an SWR scan left B on a sweep point); one that did not move is not resent.
@@ -805,7 +839,8 @@ void radio_start_atu() {
     if (tx_refused(TX_BY_GUI)) {
         return;
     }
-    /* In split the base's tuner may key on either VFO, which one the GUI cannot tell: the dial too (#121) */
+    /* In split the dial too (#121): the X6200's tuner went out on VFO A with A in use and B the TX VFO (#201, base
+     * 1.0.8); which one the X6100's keys is not known */
     if (param_i_get(cfg_band_split) && tx_refused_at(cparam_i_get(cfg_fg_freq), TX_BY_GUI)) {
         return;
     }
@@ -1082,19 +1117,36 @@ static bool no_data_refused(tx_by_t by) {
     return true;
 }
 
-/* The modem goes out on radio_tx_freq (radio_set_tx_freq moves the VFO in use there), PTT and the GUI's CW key on
- * the X6200 in split on the dial too (split_keys_dial). Where it may, not without data from the base either */
+/* The modem goes out on radio_tx_freq (radio_set_tx_freq moves the VFO in use there), and on the X6200 so does PTT
+ * (ptt_moves); the GUI's CW key in split on the dial too (split_keys_dial), and PTT with split held off and the dial
+ * back. Where it may, not without data from the base either */
 static bool tx_refused(tx_by_t by) {
     return tx_refused_at(radio_tx_freq(), by) ||
-           (by != TX_BY_GUI && split_keys_dial() && tx_refused_at(vfo_freq(true), by)) ||
+           (by != TX_BY_GUI && !(by == TX_BY_PTT && ptt_moves()) && split_keys_dial() &&
+            tx_refused_at(vfo_freq(true), by)) ||
            no_data_refused(by);
 }
 
 static atomic_bool ptt_on;      /* the GUI's PTT as last set: the keyboard's toggle follows it (kbd_ptt.h) */
+static atomic_bool modem_on;    /* read on other threads (Winlink's on_air) while tx_player's thread keys */
+static bool modem_moved;        /* the VFO in use on the TX frequency for the modem: back when it lets go. key_mux */
+static pthread_mutex_t key_mux = PTHREAD_MUTEX_INITIALIZER;     /* PTT from CAT's thread and the GUI's, the modem */
 
+/* The X6200's base keys the VFO in use whatever split says, on Xiegu's firmware too (#201: PTT over CAT measured on VFO
+ * A with the screen on B). So on the TX frequency for the key, as the modem goes (radio_set_modem), with the mode of
+ * the VFO in use. The hand mic, VOX and the KEY jack the base keys by itself: those stay on the dial */
 bool radio_set_ptt(bool tx) {
     if (tx && tx_refused(TX_BY_PTT)) {
         return false;
+    }
+    pthread_mutex_lock(&key_mux);
+    if (tx && ptt_moves()) {
+        atomic_store(&ptt_moved, true);
+        if (!atomic_load(&cur_on_tx)) {     /* else an app or the modem has it there, PTT keeps it there from now on */
+            radio_set_tx_freq(radio_tx_freq());
+            split_held_look();  /* held already and the base back on the dial: this look lifts its hold */
+        }
+        on_train_hold_change(NULL, NULL);   /* the other VFO's CW holds under PTT, also when nothing moved */
     }
     radio_lock();
     if (tx) {
@@ -1103,6 +1155,19 @@ bool radio_set_ptt(bool tx) {
     hw_set_i(HW_PTT, tx);
     radio_unlock();
     atomic_store(&ptt_on, tx);
+    if (!tx && atomic_exchange(&ptt_moved, false)) {
+        /* The audio goes on, its end takes the VFO back; the SWR scan's sweep goes on, its window does. Its carrier is
+         * keyed without modem_on (radio_start_swrscan) */
+        if (atomic_load(&modem_on)) {
+            modem_moved = true;
+            on_train_hold_change(NULL, NULL);
+        } else if (atomic_load(&state) == RADIO_SWRSCAN) {
+            on_train_hold_change(NULL, NULL);
+        } else {
+            radio_set_tx_freq(0);
+        }
+    }
+    pthread_mutex_unlock(&key_mux);
     return true;
 }
 
@@ -1121,30 +1186,28 @@ int radio_get_mic(void) {
     return mic_override < 0 ? param_i_get(cfg_mic) : mic_override;
 }
 
-static atomic_bool modem_on;    /* read on other threads (Winlink's on_air) while tx_player's thread keys */
-
 /* In split the audio goes out on the TX frequency through radio_set_tx_freq, as the apps' tone does (TCI's audio,
  * the voice messages): the active VFO moved before keying and back after; an app that moved it for its tone keeps
  * its own */
 void radio_set_modem(bool tx) {
-    static bool moved;
-
     if (tx && tx_refused(TX_BY_GUI)) {
         return;
     }
+    pthread_mutex_lock(&key_mux);
     if (tx && param_i_get(cfg_band_split) && !atomic_load(&split_held)) {
         radio_set_tx_freq(radio_tx_freq());
-        moved = true;
+        modem_moved = true;
     }
     if (tx) {
         WITH_RADIO_LOCK(open_tx_key());     /* the X6200's open TX still due goes first, on the TX frequency */
     }
     atomic_store(&modem_on, tx);
     WITH_RADIO_LOCK(hw_set_i(HW_MODEM, tx));
-    if (!tx && moved) {
-        moved = false;
+    if (!tx && modem_moved) {
+        modem_moved = false;
         radio_set_tx_freq(0);
     }
+    pthread_mutex_unlock(&key_mux);
 }
 
 bool radio_get_modem(void) {
@@ -1310,6 +1373,21 @@ static void on_change_i(Subject *subj, void *user_data) {
     WITH_RADIO_LOCK(hw_set_i((hw_param_t)(intptr_t)user_data, v));
 }
 
+/* RIT to the base. On the X6200's WR12's IF the base takes I and Q the other way round (wr12_follow), and that mirrors
+ * its offset: at 2 m RIT +500 Hz took a carrier's tone 500 Hz up where on HF it goes 500 Hz down (#134, ea4iln's
+ * measurement). So the other way round there. Under the lock */
+static bool rit_mirror;
+
+static void rit_send(void) {
+    int32_t rit = param_i_get(cfg_rit);
+
+    hw_set_i(HW_RIT, rit_mirror ? -rit : rit);
+}
+
+static void on_rit_change(Subject *subj, void *user_data) {
+    WITH_RADIO_LOCK(rit_send());
+}
+
 static void on_change_f(Subject *subj, void *user_data) {
     float v = subject_f_get((SubjectFloat*)subj);
     WITH_RADIO_LOCK(hw_set_f((hw_param_t)(intptr_t)user_data, v));
@@ -1336,7 +1414,8 @@ static void on_train_hold_change(Subject *subj, void *user_data) {
     bool    a     = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
     int32_t mode  = param_i_get(a ? cfg_band_vfoa_mode : cfg_band_vfob_mode);
     int32_t other = param_i_get(a ? cfg_band_vfob_mode : cfg_band_vfoa_mode);
-    bool    split = param_i_get(cfg_band_split) && !atomic_load(&split_held);
+    /* Held off for an app's slot the other VFO's CW holds nothing; under PTT it does, whichever way it got moved */
+    bool    split = param_i_get(cfg_band_split) && (!atomic_load(&split_held) || atomic_load(&ptt_moved));
     bool    hold  = param_i_get(cfg_key_train) && (is_cw_mode(mode) || (split && is_cw_mode(other)));
 
     if (hold != atomic_load(&train_hold)) {
@@ -1462,6 +1541,7 @@ static void band_stop(int32_t freq) {
 
     if (s == RADIO_SWRSCAN) {
         dialog_swrscan_stop(freq);
+        radio_set_ptt(false);   /* a PTT under the scan (CAT, the PTT key) goes with it */
         return;
     }
     atomic_fetch_add(&band_stops, 1);   /* before the modem bit drops: tx_player keeps no level from it */
@@ -1558,6 +1638,10 @@ static bool wr12_takes(int32_t freq) {
  * the other way round; in its bypass elsewhere, IQ as it was. WR12 on HOST off: the WR12 let go */
 static void wr12_follow(bool rx, int32_t dial) {
     hw_set_i(HW_IQ_SWAP, rx);
+    if (rx != rit_mirror) {
+        rit_mirror = rx;
+        rit_send();
+    }
     wr12_want(param_i_get(cfg_wr12), rx, dial);
 }
 
@@ -1844,20 +1928,31 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     shift += param_i_get(cfg_band_if_shift);
     radio_lock();
     bool cur = vfo == param_i_get(cfg_band_current_vfo);
+    bool ptt = atomic_load(&ptt_moved);
     if (cur) {
-        atomic_store(&cur_on_tx, false);    /* on the dial, not an app's TX frequency: it keys here (band_hold_early) */
+        atomic_store(&cur_on_tx, ptt);      /* on the dial, not an app's TX frequency: it keys here (band_hold_early) */
     }
     /* The VFO in use where the X6200's WR12 receives (#134): the base on the WR12's IF, held at 0 W and its open TX
      * shut before it goes there (open_tx_look), whatever the frequency allows (54-55 MHz with TX outside the bands on);
-     * the other VFO on its own */
-    bool    wr12 = cur && wr12_takes(new_val);
+     * the other VFO on its own. Under PTT (ptt_moved) the VFO in use stays on the TX frequency, the dial and the WR12
+     * wait for its release: the hold and a transverter's limit look at where it goes, before it goes (in a band key's
+     * round this VFO hears first, the other one is told after). Where it may not transmit it does not go: at 0 W alone
+     * RF came out on 2 m (#176). It stays where it was until the look that change brings holds and stops the key */
+    bool    wr12 = cur && !ptt && wr12_takes(new_val);
     int32_t base = wr12 ? WR12_IF_HZ : new_val - shift;
+    int32_t look = new_val;
+    bool    stay = false;
+    if (cur && ptt) {
+        look = radio_tx_freq();
+        base = look - cfg_transverter_shift_for(look);
+        stay = cfg_tx_refusal(look) != NULL;
+    }
     if (wr12) {
         band_hold_set(true);
     }
-    bool held = xvtr_hold(vfo, new_val);
+    bool held = xvtr_hold(vfo, look);
     bool band = band_hold_early(vfo, new_val);
-    bool changed = hw_vfo_set_freq(vfo, base);
+    bool changed = !stay && hw_vfo_set_freq(vfo, base);
     if (cur) {
         wr12_follow(wr12, new_val);
     }
@@ -1870,6 +1965,16 @@ static void on_vfo_freq_change(Subject *subj, void *user_data) {
     }
     if (changed) {
         LV_LOG_USER("Radio set vfo %i freq=%i (%i)", vfo, new_val, base);
+    }
+    if (ptt && !cur) {
+        on_vfo_freq_change(NULL, (void *)(intptr_t)param_i_get(cfg_band_current_vfo));    /* the TX frequency moved */
+    }
+}
+
+/* Split turned off under PTT: the VFO in use on what the radio transmits on now, the dial */
+static void on_split_change(Subject *subj, void *user_data) {
+    if (atomic_load(&ptt_moved)) {
+        on_vfo_freq_change(NULL, (void *)(intptr_t)param_i_get(cfg_band_current_vfo));
     }
 }
 

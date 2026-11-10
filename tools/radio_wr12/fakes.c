@@ -248,6 +248,14 @@ void set_i(ParamInt *p, int32_t v) {
     set_value(subj(p), v);
 }
 
+void set_quiet(ParamInt *p, int32_t v) {
+    subj(p)->i = v;
+}
+
+void notify_now(ParamInt *p) {
+    notify(subj(p));
+}
+
 void set_f(ParamFloat *p, float v) {
     fake_subj_t *s = subj(p);
 
@@ -378,14 +386,13 @@ void cfg_vfo_toggle(void) {
 }
 
 float cfg_transverter_pwr_for(int32_t freq) {
-    (void)freq;
-    return 0.0f;
+    return shift_for(freq) ? s_cfg_transverter_0_pwr.f : 0.0f;
 }
 
 float cfg_transverter_pwr_cap(int32_t rx, int32_t tx) {
-    (void)rx;
-    (void)tx;
-    return 0.0f;
+    float a = cfg_transverter_pwr_for(rx), b = cfg_transverter_pwr_for(tx);
+
+    return a > 0.0f && b > 0.0f ? (a < b ? a : b) : (a > 0.0f ? a : b);
 }
 
 void cfg_transverter_name(int32_t freq, char *buf, size_t size) {
@@ -624,6 +631,14 @@ static void base_look(const char *what) {
 }
 
 bool __wrap_hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz) {
+    if (base.vfo[vfo] != hz) {
+        base.vfo_writes++;
+        base.vfo_writes_keyed += base.ptt;
+        base.pwr_at_keyed_vfo = base.ptt && (int)vfo == base.cur ? base.pwr : base.pwr_at_keyed_vfo;
+    }
+    if ((base.ptt || base.modem) && (int)vfo == base.cur && base.n_keyed < 512) {
+        base.keyed_hz[base.n_keyed++] = hz;
+    }
     base.vfo[vfo] = hz;
     base.open_tx_at_vfo = base.open_tx;
     base_look("a VFO");
@@ -636,7 +651,13 @@ bool __wrap_hw_set_i(hw_param_t p, int32_t v) {
         case HW_VOX:        base.vox = v; break;
         case HW_KEY_TRAIN:  base.train = v; break;
         case HW_IQ_SWAP:    base.iq = v; break;
-        case HW_PTT:        base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.ptt = v; break;
+        case HW_RIT:        base.rit = v; break;
+        case HW_SPLIT:      base.split = v; break;
+        case HW_PTT:
+            base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key;
+            base.pwr_at_ptt = v ? base.pwr : base.pwr_at_ptt;
+            base.ptt = v;
+            break;
         case HW_MODEM:      base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.modem = v; break;
         case HW_OPEN_TX:
             base.open_tx_writes++;
@@ -861,8 +882,15 @@ void dialog_swrscan_give_up(const char *why) {
     (void)why;
 }
 
+bool swrscan_stop_runs;
+
 void dialog_swrscan_stop(int32_t freq) {
     (void)freq;
+    if (swrscan_stop_runs) {
+        swrscan_stop_runs = false;
+        radio_stop_swrscan();
+        radio_set_tx_freq(0);
+    }
 }
 
 void dialog_swrscan_update(float vswr) {

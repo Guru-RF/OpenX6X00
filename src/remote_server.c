@@ -1809,7 +1809,7 @@ static void ptt_down(client_t *c, const char *hold_text) {
     c->ptt_ms = now_ms();
     if (k < c->nheld)
         return;                                 /* down already: the lease renewed, the three minutes count on */
-    if (radio_key_refused(&f) && cfg_tx_refusal_text(f, no, sizeof(no))) {    /* where the PTT would go out (#121) */
+    if (radio_ptt_refused(&f) && cfg_tx_refusal_text(f, no, sizeof(no))) {    /* where the PTT would go out (#121) */
         client_textf(c, "err ptt: no TX on %s", no);
         return;
     }

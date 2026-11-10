@@ -2,7 +2,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
  *  Host test of src/bat_watch.c (#160): the low-battery power-off as radio.c feeds it, one reading of the base's
- *  supply every 0.4 s. Built as the X6100 (6.0 V) and as the X6200 (BOARD_X6200, 6.8 V): not before the readings
+ *  supply every 0.4 s. Built as the X6100 (6.0 V) and as the X6200 (BOARD_X6200, 7.0 V): not before the readings
  *  count, at BAT_LOW three readings in a row, back off at BAT_HIGH, not on external power (on the X6200 12.0 V and
  *  more on DC IN); and on the X6200 #160's discharges, on battery and on a charger under 12 V, the power-off's 30 s
  *  and the save done before the base's own cut, and a supply close to 12.0 V or one that sags on TX. Then the
@@ -64,7 +64,7 @@ int main(void) {
     long t;
 
 #ifdef BOARD_X6200
-    check(BAT_LOW == 68 && BAT_HIGH == 70, "the X6200: the power-off at 6.8 V, back off at 7.0 V", BAT_LOW);
+    check(BAT_LOW == 70 && BAT_HIGH == 72, "the X6200: the power-off at 7.0 V, back off at 7.2 V", BAT_LOW);
 #else
     check(BAT_LOW == 60 && BAT_HIGH == 62, "the X6100: the power-off at 6.0 V, back off at 6.2 V", BAT_LOW);
 #endif
@@ -89,6 +89,22 @@ int main(void) {
     t = feed(BAT_HIGH, 0, false, false, 5000);
     check(t == 0 && !w.low, "at BAT_HIGH: back at once", t);
 
+    /* On battery the readings on TX count: a TX that sags it to BAT_LOW starts it, BAT_HIGH at rest after it calls it
+     * off, one step under that does not */
+    settled(BAT_HIGH, 0);
+    on_tx = true;
+    t     = feed(BAT_LOW, 0, false, false, 15000);
+    on_tx = false;
+    check(t == 2 * READ_MS && w.low, "a TX that sags the battery to BAT_LOW: the power-off", t);
+    t = feed(BAT_HIGH, 0, false, false, 5000);
+    check(t == 0 && !w.low, "then BAT_HIGH at rest: back at once", t);
+    settled(BAT_HIGH - 1, 0);
+    on_tx = true;
+    feed(BAT_LOW, 0, false, false, 15000);
+    on_tx = false;
+    check(feed(BAT_HIGH - 1, 0, false, false, 60000) == NONE && w.low, "the same from one step under BAT_HIGH: still low",
+          0);
+
     /* No battery, or none measured: never */
     settled(0, 138);
     check(feed(0, 138, true, false, 60000) == NONE, "no battery on a supply: never", 0);
@@ -110,10 +126,10 @@ int main(void) {
      * with any supply), the power-off as on battery; plugged in once it runs, it goes on; 12.0 V and more ends it */
     settled(BAT_LOW + 5, 0);
     t = feed(BAT_LOW, 117, true, true, 5000);
-    check(t == 2 * READ_MS && w.low && w.ext, "the X6200 at 6.8 V on 11.7 V, the flags on: the power-off", t);
+    check(t == 2 * READ_MS && w.low && w.ext, "the X6200 at 7.0 V on 11.7 V, the flags on: the power-off", t);
     settled(BAT_LOW + 5, 0);
     t = feed(BAT_LOW, 119, false, false, 5000);
-    check(t == 2 * READ_MS && w.low, "the X6200 at 6.8 V on 11.9 V without the flags: the power-off", t);
+    check(t == 2 * READ_MS && w.low, "the X6200 at 7.0 V on 11.9 V without the flags: the power-off", t);
     check(feed(BAT_LOW, 116, true, true, 60000) == NONE && w.low, "then a charger at 11.6 V: still low", 0);
     t = feed(BAT_LOW, 120, true, true, 10000);
     check(t >= BAT_HELD_MS && t < BAT_HELD_MS + READ_MS && !w.low, "then 12.0 V: back after 5 s", t);
@@ -193,22 +209,25 @@ int main(void) {
 
 #ifdef BOARD_X6200
     /* #160, 1 and 2 November: on battery, receive, WiFi and BT on. The first 6.8 V reading 4-5 min before the base cut
-     * the power, 6.7 V about 2.5 min, the last log rows 6.6 and 6.4 V. Here the shorter 4 min, the voltage first on the
-     * 6.9/6.8 V step for a minute, as the % went back and forth there */
-    settled(72, 0);
-    feed(69, 0, false, false, 300000);
-    long first68 = now - T0, low_at = NONE;
+     * the power, 6.7 V about 2.5 min, the last log rows 6.6 and 6.4 V; 6 November, the same load: 7.0 V 3 min before
+     * 6.8 V. Here the shorter 4 min, the voltage first on the 7.1/7.0 V step for a minute, as it goes back and forth
+     * on a step, then 7.0 V for 1.5 min and 6.9 V for 30 s */
+    settled(73, 0);
+    feed(71, 0, false, false, 300000);
+    long first70 = now - T0, low_at = NONE;
 
-    for (int i = 0; i < 150 && low_at == NONE; i++) {      /* 6.8, 6.9, 6.8, 6.8, 6.9 ... for 60 s */
-        if (feed(i % 3 == 1 ? 69 : 68, 0, false, false, READ_MS) != NONE) low_at = now - T0 - READ_MS;
+    for (int i = 0; i < 150 && low_at == NONE; i++) {      /* 7.0, 7.1, 7.0, 7.0, 7.1 ... for 60 s */
+        if (feed(i % 3 == 1 ? 71 : 70, 0, false, false, READ_MS) != NONE) low_at = now - T0 - READ_MS;
     }
-    if (low_at == NONE && (t = feed(68, 0, false, false, 90000)) != NONE) low_at = now - T0 - 90000 + t;
-    long cut = first68 + 240000;
+    if (low_at == NONE && (t = feed(70, 0, false, false, 90000)) != NONE) low_at = now - T0 - 90000 + t;
+    if (low_at == NONE && (t = feed(69, 0, false, false, 30000)) != NONE) low_at = now - T0 - 30000 + t;
+    if (low_at == NONE && (t = feed(68, 0, false, false, 240000)) != NONE) low_at = now - T0 - 240000 + t;
+    long cut = first70 + 180000 + 240000;
 
-    check(low_at != NONE && low_at + OFF_MS < cut - 120000, "#160's discharge: off 2 min or more before the cut",
+    check(low_at != NONE && low_at + OFF_MS < cut - 300000, "#160's discharge: off 5 min or more before the cut",
           low_at == NONE ? -1 : (cut - low_at - OFF_MS) / 1000);
-    printf("#160's discharge: \"Low battery!\" %.1f s after the first 6.8 V, the radio off %ld s before the cut\n",
-           (low_at - first68) / 1000.0, (cut - low_at - OFF_MS) / 1000);
+    printf("#160's discharge: \"Low battery!\" %.1f s after the first 7.0 V, the radio off %ld s before the cut\n",
+           (low_at - first70) / 1000.0, (cut - low_at - OFF_MS) / 1000);
 #else
     /* The X6100 runs to 6.0 V, as before */
     settled(70, 0);
@@ -251,6 +270,6 @@ int main(void) {
     check(bat_watch_cap(&w, 73, 26) == 26 && bat_watch_cap(&w, 72, 20) == 20 && bat_watch_cap(&w, 73, 19) == 19,
           "a base that counts right: its own %", 0);
 
-    printf("bat_watch (%s): %d checks, %d failed\n", BOARD_BAT_LOW == 68 ? "X6200" : "X6100", checks, fails);
+    printf("bat_watch (%s): %d checks, %d failed\n", BOARD_BAT_LOW == 60 ? "X6100" : "X6200", checks, fails);
     return fails != 0;
 }

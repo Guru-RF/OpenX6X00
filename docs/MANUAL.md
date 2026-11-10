@@ -529,8 +529,13 @@ says, in plain words.
   FM broadcast and the airband go through the WR12 too, as does 54-55 MHz,
   which the radio otherwise receives itself. The screen, the S-meter's band
   settings, CAT and TCI keep the dial's frequency; only the radio's receiver
-  is on the IF. Below 54 MHz or with the switch off, the WR12 goes back to
-  its bypass and the radio back to the dial; with the WR12 unplugged or not
+  is on the IF. RIT works as on HF: up to v0.3.9 it came out mirrored through
+  the WR12 (ea4iln measured it, #134: at 145 MHz +500 took a carrier's tone
+  500 Hz up, where on 7 MHz it goes 500 Hz down), as the swapped I and Q
+  mirror the base's offset, so the radio now sends it the other way round
+  there (host test so far, not yet on a radio). CW and CW-R sound as they do
+  on HF. Below 54 MHz or with the switch off, the WR12 goes back to its bypass
+  and the radio back to the dial; with the WR12 unplugged or not
   answering, the radio goes back to the dial at once. The VFO not in use
   keeps its own frequency: the WR12 follows the VFO in use. Birdie Cal runs
   on the radio's own receiver, the WR12 in its bypass meanwhile.
@@ -567,16 +572,17 @@ says, in plain words.
   set up. In Black Metal and Total Black it stands under the other VFO;
   Amber Trey's display covers the strip, so it does not show there.
 - Unplug the WR12 with the dial below 54 MHz or the switch off: unplugged
-  while it receives, the radio cannot put it back in its bypass, and whether
-  a WR12 without power passes the antenna through is not known yet.
+  while it receives, the radio cannot put it back in its bypass. Pulled while
+  in its bypass, ea4iln's still passed the antenna through, an HF carrier at
+  -72 dBm either way (#134); pulled while it receives is not known yet.
 - The S-meter reads what the radio gets from the WR12, its gain included;
   Per band S-meter cal (Settings > General > CONTROLS) sets it for each band.
 - Tried on two X6200s with a WR12 (base 1.0.8). ea4iln received 2 m and FM
   broadcast through it (-98 dBm on 95.9 MHz). On our bench USB and LSB come
-  out the right way round, the image about 34 dB down. RIT and the CW offset
-  do not yet: through the WR12 they come out the wrong way (RIT -500 acts as
-  +500, +500 does about nothing; CW and CW-R give the same tone, on the
-  wrong side). On our bench, with an external wattmeter on a dummy load
+  out the right way round, the image about 34 dB down. RIT up to v0.3.9: on
+  our bench -500 acted as +500 and +500 did about nothing, ea4iln measured a
+  clean mirror of 500 Hz each way. CW and CW-R give the same tone, as they do
+  on HF (#89). On our bench, with an external wattmeter on a dummy load
   (6 Nov): the hand mic's PTT keyed nothing on 2 m, with the WR12
   receiving, switched off on HOST or unplugged, nor on 5.060 MHz; 40 m,
   5.300 MHz, 8 m and 2200 m went out from the front PTT and the hand mic,
@@ -609,7 +615,7 @@ says, in plain words.
 
 On battery, at 10% or less the radio shows a message every minute: "Battery
 8%: about 15 min left" (the minutes when it knows them), and from 5% "Battery
-5%: connect power". At 6.0 V (the X6200: 6.8 V) it shows "Low battery! Turning
+5%: connect power". At 6.0 V (the X6200: 7.0 V) it shows "Low battery! Turning
 off in 30s", and 30 seconds later it sets the charger back On (see
 [Charger](#general-tab)), saves and switches itself off to protect the
 battery. As a guide, on my radio receiving with WiFi and Bluetooth on, 10%
@@ -622,13 +628,29 @@ the flat radio does not charge on the supply while it is off. Up to v0.3.8 the
 radio's own power-off came at 6.0 V on the X6200 too, so the base always came
 first (issue #160). In that issue, on receive with WiFi and Bluetooth on, the
 first 6.8 V came 4 to 5 minutes before the base's cut and 6.7 V about 2.5
-minutes before, so the warning, the 30 s, the charger and the save are done
+minutes before. v0.3.9's power-off at 6.8 V did all of it on a radio: in that
+issue's run (base 1.0.8, receive on 40 m, WiFi and Bluetooth on, Charger on
+Shadow) the battery went from 8.4 V (99 %) to 7.2 V in 3 h 45 min, to 7.0 V
+27 minutes later and to 6.8 V 3 minutes after that. The radio then closed its
+log, set the charger back On (it charged afterwards with the radio off) and
+switched off, 4 h 15 min after the start, and at the next start DATA was
+clean with the settings kept. Our bench X6200 also switched itself off in
+order at 6.8 V, twice. Since then the X6200 starts at 7.0 V, about 3 minutes
+sooner on receive, because our bench X6200 behaves erratically near the end of
+its battery. So the warning, the 30 s, the charger and the save are done
 minutes before the cut, also when a transmission at the end brings it nearer.
-6.8 V is also where the % from the voltage (below) reaches 0. The X6100 keeps
-6.0 V. The battery sags under the TX current, so with a few % left a long
-transmission can bring the warning; back at 7.0 V (the X6100: 6.2 V) before
-the 30 s are over, or on a supply (on the X6200 one the radio reads at 12.0 V
-or more, see below), the power-off is called off.
+The X6100 keeps 6.0 V.
+
+The battery sags under the TX current, and the readings on TX count too, so
+with a few % left a transmission can bring the warning. Back at 7.2 V (the
+X6100: 6.2 V) before the 30 s are over, or on a supply (on the X6200 one the
+radio reads at 12.0 V or more, see below), the power-off is called off. So on
+the X6200 a short transmission that pulls the battery to 7.0 V ends the run
+once it rests at 7.1 V, and one that keeps it at 7.0 V or under for the 30 s
+(WSPR, SSTV, a long over) ends it in the middle of the transmission, however
+high the battery rests. How far a transmission pulls it down on battery has
+not been measured; in the run above, 7.2 V came half an hour before the
+power-off.
 
 On the X6200 a supply the radio reads under 12.0 V does not stop the
 power-off: External in the POWER box of the [Info tab](#info-tab), or the
@@ -1844,11 +1866,14 @@ ranges stay receive only.
 
 What is checked: the frequency the radio transmits on, the dial, in split
 the other VFO, with a [TX shift](#tx-shift) the shifted one. On the X6200
-in split the dial too, for PTT, CW and what the base keys by itself: its
-base keys the VFO you listen on whatever split says. The apps, TUNE and the
-SWR scan move that VFO to the TX frequency first and are checked there. On
-either radio the dial turned while they transmit in split is checked too:
-that VFO then sends them there. Not the signal's width, nor XIT, nor
+in split the dial too, for the GUI's CW key (the messages, the CW keyboard, a
+USB paddle) and what the base keys by itself: its base keys the VFO you listen
+on whatever split says. PTT (the PTT key, in CW too, the walkie screen, CAT,
+TCI, the browser Panel), the apps, TUNE and the SWR scan move that VFO to the
+TX frequency first and are checked there. On either radio the dial turned
+while the apps, TUNE or the SWR scan transmit in split is checked too: that
+VFO then sends them there; PTT stays on the TX frequency. Not the signal's
+width, nor XIT, nor
 where an app's tone lands: LSB keyed at 7.000 MHz, a dial at 14.3495 MHz
 with +1.5 kHz of XIT, or an FT8 tone near the edge go outside the band.
 Keep the signal inside the band yourself.
@@ -1870,9 +1895,9 @@ bands (Settings > TX Cal)". What is refused:
   QRSS3, the CW keyboard, the USB paddle, the PTT key in CW, Field Ops' test
   beacon.
 - The radio's tuner (in split checked on both VFOs, at its start and while
-  it tunes: which one its carrier goes out on cannot be told), TUNE for an
-  external tuner, the SWR scan (its sweep stays inside the band, see
-  [SWR scan](#swr-scan-and-the-tuner)).
+  it tunes. On the X6200, base 1.0.8, its carrier goes out on the VFO in
+  use, A or B, measured by ea4iln, #201; on the X6100 not known), TUNE for an external tuner, the SWR scan (its sweep
+  stays inside the band, see [SWR scan](#swr-scan-and-the-tuner)).
 - In split the VFO on the status bar turns red when the other VFO is
   outside the bands. The X6200's dial outside them does not turn it red:
   only the words name it.
@@ -2102,6 +2127,27 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   whatever its offset, and the X6200's base sends these from VFO A in split
   (an FT8 CQ at 1200 Hz with a +700 Hz shift was heard at VFO A + 1325 Hz,
   575 Hz below where it belonged).
+- On the X6200 PTT does the same: the PTT key, the walkie screen, CAT, TCI
+  and the browser Panel go out on the TX frequency, in the mode of the VFO you
+  listen on, and that VFO comes back after. Its base keys the VFO you listen
+  on whatever split says, on Xiegu's firmware too: ea4iln measured it (#201,
+  VFO A on 7.100, B on 7.150, base 1.0.8). Up to v0.3.9 PTT over CAT in split
+  went out on 7.100 with the TX panel showing 7.150. Under PTT the knob moves
+  the dial, not the transmission (with a TX shift it does, as the shift
+  says); a new frequency on the other VFO, or the VFOs swapped, moves it to
+  where the radio then transmits; onto a frequency where it may not, it stays
+  where it is at 0 W and stops. A voice message or an app's slot ending under
+  it leaves it on the TX frequency, and KEY Train holds as it does at rest.
+  PTT pressed while an app's slot or the SWR scan transmits goes out where
+  they have the VFO (the slot's frequency, the scan's sweep point as it moves)
+  and comes to the TX frequency when they end. A PTT keyed before split comes
+  on stays on the dial. What the base keys by
+  itself (the hand mic's PTT, VOX, the KEY jack) stays on the VFO you listen
+  on, and so does the GUI's CW key (messages, the CW keyboard, a USB paddle);
+  the TX panel shows that frequency, and the VFO you listen on for the radio's
+  tuner too, measured with either VFO in use (see
+  [amateur bands only](#amateur-bands-only)). The X6100's base honours split,
+  nothing changes there. Host test so far, not yet on a radio.
 - Winlink is simplex: it keys only on the frequency the radio listens on.
   With a shift on it does not key and says "Winlink: no TX, a TX shift is set
   on this band"; in plain split with VFO B on another frequency it says
