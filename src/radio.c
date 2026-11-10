@@ -876,6 +876,8 @@ void radio_start_atu() {
 #define SWRSCAN_MIN_MS  850     /* from a move: with the flat wait, reads as 1.2 s did on 40 and 80 m (measured, SWR on the radio 1.1-2.5) */
 #define SWRSCAN_FLAT_MS 300     /* without the power going up: it is up */
 #define SWRSCAN_WAIT_MS 3000    /* a power that never settles is read anyway */
+#define SWRSCAN_READS   3       /* packets averaged once the power is up: a reading alone strays 0.1-0.2 (one decimal,
+                                 * a diode bridge), ~0.1 s more a point; on the same point, so a narrow dip stays */
 
 /* In ms, not packets: the X6200's come every ~35 ms (hw_x6200.c). The radio thread's own (radio_tick), but for
  * swrscan_fresh, which radio_start_swrscan sets for it */
@@ -883,6 +885,8 @@ static atomic_bool swrscan_fresh;       /* a new scan: the wait starts afresh */
 static uint8_t     swrscan_peak;        /* the power's top since the move */
 static uint64_t    swrscan_move_ms;     /* the move, or the key */
 static uint64_t    swrscan_up_ms;       /* the power last went up */
+static int         swrscan_n;           /* readings summed at this point */
+static int         swrscan_sum;         /* of pack->vswr */
 #else
 #define SWRSCAN_TX      HW_SWRSCAN
 #define SWRSCAN_MODE    radio_mode_am
@@ -2928,21 +2932,35 @@ static bool radio_tick() {
                 if (atomic_exchange(&swrscan_fresh, false) || !pack->tx) {
                     swrscan_peak    = 0;        /* a new scan, or not keyed (yet): the wait counts from the key */
                     swrscan_move_ms = swrscan_up_ms = now_time;
+                    swrscan_n       = swrscan_sum = 0;
                 }
                 if (!pack->tx)
                     break;
-                if (pack->tx_power > swrscan_peak || pack->tx_power + 1 < swrscan_peak) {
-                    swrscan_peak  = pack->tx_power;     /* going up, or a new ramp */
-                    swrscan_up_ms = now_time;
+                if (swrscan_n == 0) {
+                    if (pack->tx_power > swrscan_peak || pack->tx_power + 1 < swrscan_peak) {
+                        swrscan_peak  = pack->tx_power;     /* going up, or a new ramp */
+                        swrscan_up_ms = now_time;
+                    }
+                    if ((now_time - swrscan_move_ms < SWRSCAN_MIN_MS || now_time - swrscan_up_ms < SWRSCAN_FLAT_MS) &&
+                        now_time - swrscan_move_ms < SWRSCAN_WAIT_MS)
+                        break;
                 }
-                if ((now_time - swrscan_move_ms < SWRSCAN_MIN_MS || now_time - swrscan_up_ms < SWRSCAN_FLAT_MS) &&
-                    now_time - swrscan_move_ms < SWRSCAN_WAIT_MS)
+                swrscan_sum += pack->vswr;      /* up: this packet and the next ones, the power no longer watched */
+                if (++swrscan_n < SWRSCAN_READS)
                     break;
-                swrscan_peak    = 0;            /* read: dialog_swrscan_update moves to the next point */
-                swrscan_move_ms = swrscan_up_ms = now_time;
-#endif
+                {
+                    float v = swrscan_sum * 0.1f / swrscan_n;
+
+                    swrscan_peak    = 0;        /* read: dialog_swrscan_update moves to the next point */
+                    swrscan_move_ms = swrscan_up_ms = now_time;
+                    swrscan_n       = swrscan_sum = 0;
+                    dialog_swrscan_update(v);
+                }
+                break;
+#else
                 dialog_swrscan_update(pack->vswr * 0.1f);
                 break;
+#endif
 
             case RADIO_POWEROFF:
                 WITH_RADIO_LOCK(hw_poweroff());
