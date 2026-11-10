@@ -233,6 +233,21 @@ static void draw_cb(lv_event_t *e) {
         lv_draw_line(ctx, &line, &p1, &p2);
     }
 
+    /* The point being read, as the stock firmware's scan indicator: the order jumps about on the X6200 (make_order)
+     * and the curve is redrawn over itself, so without it a sweep at work and one that has stopped looked the same */
+    if (scanning) {
+        int at = LV_MIN(pos, points - 1);   /* the radio thread moves it */
+
+        p1.x = p2.x = x0 + at * w / (points - 1);
+        p1.y = y0;
+        p2.y = y0 + h;
+        line.color = TC(text);
+        line.opa = LV_OPA_50;
+        line.width = 2;
+        lv_draw_line(ctx, &line, &p1, &p2);
+        line.width = 1;
+    }
+
     /* The curve, each piece in the colour of its worse end */
     line.width = 4;
     line.opa = LV_OPA_COVER;
