@@ -945,7 +945,7 @@ static void d3_levels(const wf_row_t *row, uint32_t span, uint8_t *lv) {
 }
 
 /* How far the newest row is to the next, 0 when it came to 1 when the next is due (the rows' interval from the
- * last 8): the traces are drawn that much of a row further back, so they move on at every picture, not at every
+ * last 8; 1 also when it is not known, so d3_frames_cb() pauses instead of drawing the same picture again): the traces are drawn that much of a row further back, so they move on at every picture, not at every
  * row. 1 when it is late: no further than where the next row puts them */
 static float d3_phase(uint16_t top) {
     const wf_row_t *a = row_from(top, 0), *b = row_from(top, 8);
@@ -954,13 +954,13 @@ static float d3_phase(uint16_t top) {
         return 0.0f;                        /* 3D glide off: the traces stay at their rows, a step at each one */
     }
     if (!a->width || !b->width || height <= 9) {
-        return 0.0f;
+        return 1.0f;                        /* no rows yet, or too few to know their interval: nothing to move to */
     }
     uint32_t every = (a->ms - b->ms) / 8;
     uint32_t since = (uint32_t) get_time() - a->ms;
 
     if (every == 0 || every > 1000) {
-        return 0.0f;                        /* rows from before a pause, or none yet */
+        return 1.0f;                        /* rows from before a pause: no next row is due, the glide has nothing to do */
     }
     return LV_MIN(1.0f, (float) since / every);
 }
