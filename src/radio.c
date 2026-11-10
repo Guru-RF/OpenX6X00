@@ -864,16 +864,16 @@ void radio_start_atu() {
     state_move(RADIO_RX, RADIO_ATU_START);
 }
 
-/* The X6200's base (1.0.8) transmits in its scan mode (swrt) but reads no SWR there in FM or AM, a flat 1.0, and in
- * USB only jumps of 1.0-1.7 where the SWR is 4; the stock firmware's scan, which keeps the mode as it is and adds
- * tune_flag, reads the same, and so did a copy of it here (tune_flag changed nothing). A plain carrier reads it,
- * slower: the power comes up from 0 after each move. Keyed as the digital modes are (not radio_set_modem: no app is on air), so the mics
- * stay out, their gain 0 still lets a voice through; nothing plays to the base meanwhile. In FM: an AM carrier
- * at 1 W is ~0.2 W, too little for the bridge */
+/* The X6200's base (1.0.8) transmits in its scan mode (swrt), but on some radios reads no SWR there: on ea4iln's a
+ * flat 1.0 in FM and AM and in USB only jumps of 1.0-1.7 where the SWR is 4, the stock firmware's scan (the mode as
+ * it is, with tune_flag) too, and a copy of it here (tune_flag changed nothing); on others it reads in AM (#212).
+ * A plain carrier reads on all, slower: the power comes up from 0 after each move. Keyed as the digital modes are
+ * (not radio_set_modem: no app is on air), so the mics stay out, their gain 0 still lets a voice through; nothing
+ * plays to the base meanwhile. In FM: an AM carrier at 1 W is ~0.2 W, too little for the bridge */
 #ifdef BOARD_X6200
 #define SWRSCAN_TX      HW_MODEM
 #define SWRSCAN_MODE    radio_mode_nfm
-#define SWRSCAN_MIN_MS  850     /* from a move: with the flat wait, reads as 1.2 s did on 40 and 80 m (measured, SWR on the radio 1.1-2.5) */
+#define SWRSCAN_MIN_MS  850     /* from a move: with the flat wait, reads as 1.2 s did on 40 and 80 m (SWR 1.1-2.5) */
 #define SWRSCAN_FLAT_MS 300     /* without the power going up: it is up */
 #define SWRSCAN_WAIT_MS 3000    /* a power that never settles is read anyway */
 #define SWRSCAN_READS   3       /* packets averaged once the power is up: a reading alone strays 0.1-0.2 (one decimal,
