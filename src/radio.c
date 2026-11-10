@@ -297,12 +297,19 @@ static void power_key_cb(void *arg) {
 }
 
 /* The SWR scan's carrier: 1 W is enough to read the SWR. Held here for as long as the scan runs: PWR set meanwhile
- * (TCI's drive, the Panel's PWR, the X6200's battery cap) came through on_pwr_change, and the sweep went on at PWR */
+ * (TCI's drive, the Panel's PWR, the X6200's battery cap) came through on_pwr_change, and the sweep went on at PWR.
+ * On the X6200 also under a lower PWR, as the stock firmware (its DialogSwrScanner sets 1.0 W whatever PWR is): the
+ * base's bridge has a diode detector, and below 1 W it reads low (EFHW on 80 m, SWR 4 on a NanoVNA: 2.15-2.4 at 1 W,
+ * 1.9-2.15 at 0.5 W, a flat 1.0 at 0.1 W, the "empty" scan of #212) */
 #define SWRSCAN_PWR_W   1.0f
 
 static void set_txpwr(float w) {
     txpwr_asked = w;
+#ifdef BOARD_X6200
+    if (atomic_load(&state) == RADIO_SWRSCAN) w = SWRSCAN_PWR_W;
+#else
     if (atomic_load(&state) == RADIO_SWRSCAN && w > SWRSCAN_PWR_W) w = SWRSCAN_PWR_W;
+#endif
     /* An app open: its cap, but not over a TUNE's own power (#87), which holds the power to it instead */
     if (digi_cap && tune_cap <= 0.0f && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
     if (tune_cap > 0.0f && w > tune_cap) w = tune_cap;     /* PWR turned up, the battery's top, a restore */
@@ -857,8 +864,10 @@ void radio_start_atu() {
     state_move(RADIO_RX, RADIO_ATU_START);
 }
 
-/* The X6200's base (1.0.8) transmits in its scan mode but reports SWR 1.0 there, the stock firmware's scan too;
- * a plain carrier reads it. Keyed as the digital modes are (not radio_set_modem: no app is on air), so the mics
+/* The X6200's base (1.0.8) transmits in its scan mode (swrt) but reads no SWR there in FM or AM, a flat 1.0, and in
+ * USB only jumps of 1.0-1.7 where the SWR is 4; the stock firmware's scan, which keeps the mode as it is and adds
+ * tune_flag, reads the same, and so did a copy of it here (tune_flag changed nothing). A plain carrier reads it,
+ * slower: the power comes up from 0 after each move. Keyed as the digital modes are (not radio_set_modem: no app is on air), so the mics
  * stay out, their gain 0 still lets a voice through; nothing plays to the base meanwhile. In FM: an AM carrier
  * at 1 W is ~0.2 W, too little for the bridge */
 #ifdef BOARD_X6200
@@ -888,8 +897,8 @@ bool radio_start_swrscan(int32_t from) {
     radio_set_tx_freq(from);
     cparam_i_set(cfg_cur_mode, SWRSCAN_MODE);
     radio_lock();
-    /* 1 W, held there by set_txpwr (SWRSCAN_PWR_W); less if PWR is set lower, or a transverter's limit.
-     * ponytail: fixed 1 W cap, make it a setting if the bridge reads poorly that low */
+    /* 1 W, held there by set_txpwr (SWRSCAN_PWR_W); a transverter's limit if lower, and on the X6100 a lower PWR.
+     * ponytail: fixed 1 W, make it a setting if the bridge reads poorly that low */
     set_txpwr(param_f_get(cfg_pwr));
 #ifdef BOARD_X6200
     atomic_store(&swrscan_fresh, true);

@@ -2278,9 +2278,19 @@ Not tried on a radio with a transverter yet: checked on the PC build.
 ### SWR scan and the tuner
 
 SWR scan: APP 1:4 > SWR Scan. It transmits a carrier (AM on the X6100, FM on
-the X6200; 1 W, or less when PWR is set lower) and sweeps it across the span
-around the frequency the radio transmits on (the other VFO in split), drawing
-the SWR as it goes.
+the X6200) and sweeps it across the span around the frequency the radio
+transmits on (the other VFO in split), drawing the SWR as it goes. The carrier
+is 1 W: on the X6200 also when PWR is set lower, as the stock firmware does
+(PWR comes back when the scan ends); on the X6100 less when PWR is lower. Up to
+v0.3.9 the X6200 scanned at PWR when it was under 1 W, and at 0.1 W the curve
+lay flat at 1.0 on the green band, as if nothing had been drawn.
+
+- The SWR it shows is a guide, not a measurement: the base's SWR bridge has
+  diode detectors, which read low at 1 W. On an X6200, an antenna with SWR 4
+  on a NanoVNA read 2.2-2.5, one of 2.1 read 1.3, and below about 1.5 the
+  radio reads 1.0. The scan shows where the dip is and how wide; for the true
+  figure, use an antenna analyzer. Xiegu's manual says the same of its own
+  scan.
 
 - Run starts the sweep and the button turns into Stop. Stop, or closing the
   window, ends it and puts the VFO and the mode back.
@@ -2288,7 +2298,9 @@ the SWR as it goes.
   meanwhile (by a TCI program, the browser Panel, or the X6200 going onto its
   battery).
 - On the X6200 each reading waits until the power is up. Its base (1.0.8)
-  reports no SWR in its own sweep mode, so the radio keys a plain FM carrier,
+  reads no SWR in its own sweep mode (a flat 1.0 in FM and AM, jumps far
+  under the true SWR in USB, with the stock firmware too), so the radio keys
+  a plain FM carrier,
   the way the digital apps key (the microphones stay out), and after each step
   the base brings the power up from 0 in about a second. A sweep of 25 points
   takes about half a minute, one of 100 points (1000 kHz and up) about two; it
