@@ -217,8 +217,13 @@ static void top_bar_styles(void) {
     lv_style_set_pad_hor(&knobs_style, 5);
     lv_style_set_pad_ver(&knobs_style, 3);
 
+    /* The CW tuning bars right of the decoder's "WPM: 50", which hangs over the panel's left end (its x and 10 px
+     * padding, message_styles()): under the band plan it covered it (#217). VISION: at the left of the panel's top
+     * line, the WPM at its right end */
+    lv_coord_t wpm_w = lv_txt_get_width("WPM: 50", 7, &sony_30, 0, LV_TEXT_FLAG_NONE);
+
     lv_style_set_radius(&cw_tune_style, 5);
-    lv_style_set_x(&cw_tune_style, 30);
+    lv_style_set_x(&cw_tune_style, theme_shape.vision ? 30 : CENTRED(795) + 10 + wpm_w + 16);
     lv_style_set_y(&cw_tune_style, FREQ_STRIP_Y + FREQ_STRIP_H + METER_ROW_H + 18);   /* VISION: under the S-meter */
 }
 
