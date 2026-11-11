@@ -238,6 +238,18 @@ done
 echo "== Kernel: UHID for Bluetooth Low Energy keyboards"
 grep -q "^CONFIG_UHID=" $KERNEL_DEFCONFIG || echo "CONFIG_UHID=m" >> $KERNEL_DEFCONFIG
 
+if [ $MODEL = x6200 ]; then
+    # The processor's temperature sensor (the R16's, an A33's: ths@1c25000 in sun8i-a33.dtsi). The DT's cpu-thermal
+    # zone reads it, slows the CPU down from 75 °C and powers the radio off at 110 °C, and its iio-hwmon node shows it
+    # under hwmon. The tree's kernel has sun8i_thermal, which knows the H3, A64 and their kin but not the A33, whose
+    # sensor is sun4i-gpadc-iio's: without it the sensor had no driver and there was no thermal zone at all.
+    # The X6100's kernel config is not changed
+    echo "== Kernel: the X6200's processor temperature sensor and its thermal zone"
+    for o in CONFIG_SUN4I_GPADC=y CONFIG_SENSORS_IIO_HWMON=y; do
+        grep -q "^${o%%=*}=" $KERNEL_DEFCONFIG || echo "$o" >> $KERNEL_DEFCONFIG
+    done
+fi
+
 echo "== Boot logo background"
 cp $GUI/boot/kernel_logo.png $BOARD/logo.png
 
@@ -286,6 +298,11 @@ uboot_source() {
 if [ $MODEL = x6100 ]; then
     # A U-Boot configured here before its defconfig turned mkeficapsule off is configured again
     grep -qs "^CONFIG_TOOLS_MKEFICAPSULE=y" $BR/build/build/uboot-2026.07/.config && make uboot-dirclean
+fi
+# An X6200 kernel configured here before its defconfig had the temperature sensor's driver is configured again
+if [ $MODEL = x6200 ] && ls $BR/build/build/linux-[0-9]*/.config > /dev/null 2>&1 \
+        && ! grep -qs "^CONFIG_SUN4I_GPADC=y" $BR/build/build/linux-[0-9]*/.config; then
+    make linux-dirclean
 fi
 uboot_source
 make lame mpg123
