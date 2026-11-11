@@ -462,6 +462,39 @@ static void bat_unplugged_after_tx(void) {
 int __real_pthread_create(pthread_t *t, const pthread_attr_t *attr, void *(*fn)(void *), void *arg);
 
 /* A keyer's thread: the GUI's CW key down */
+/* The X6200's SWR scan, both ways of its Sweep (#212, #231): Carrier keys the modem in NFM, Quick the base's own sweep
+ * (HW_SWRSCAN) in AM, both at 1 W with PWR lower (as the stock firmware's scan); the way stays the one the scan started
+ * with, so Stop unkeys what it keyed after the setting changed; a second start while one runs is refused; PWR back */
+static void swrscan_ways(void) {
+    fake_cfg_init();
+    set_f(cfg_pwr, 0.1f);
+    start();
+    settle();
+    for (int quick = 0; quick <= 1; quick++) {
+        const char *way = quick ? "Sweep: Quick" : "Sweep: Carrier";
+
+        set_i(cfg_swrscan_quick, quick);
+        check(radio_start_swrscan(7100000) && base.vfo[A] == 7100000, "%s: the scan starts on 7.100 MHz (%d)", way,
+              (int)base.vfo[A]);
+        check(quick ? base.swrscan && !base.modem : base.modem && !base.swrscan,
+              "%s: %s keyed (modem %d, base's sweep %d)", way, quick ? "the base's sweep" : "the carrier", base.modem,
+              base.swrscan);
+        check(cparam_i_get(cfg_cur_mode) == (quick ? radio_mode_am : radio_mode_nfm), "%s: in %s (%d)", way,
+              quick ? "AM" : "NFM", (int)cparam_i_get(cfg_cur_mode));
+        check(base.pwr == 1.0f, "%s: 1 W with PWR at 0.1 W (%.2f W)", way, base.pwr);
+        check(!radio_start_swrscan(7100000), "%s: a second start while it runs is refused", way);
+        set_i(cfg_swrscan_quick, !quick);
+        radio_stop_swrscan();
+        check(!base.swrscan && !base.modem, "%s: the setting changed meanwhile, Stop unkeys what it keyed (modem %d, "
+              "base's sweep %d)", way, base.modem, base.swrscan);
+        check(base.pwr == 0.1f, "%s: PWR back after Stop (%.2f W)", way, base.pwr);
+        radio_set_tx_freq(0);
+        set_i(cfg_band_vfoa_mode, radio_mode_usb);
+        gui_run();
+        settle();
+    }
+}
+
 static void *key_down(void *arg) {
     (void)arg;
     radio_set_morse_key(true);
@@ -490,6 +523,7 @@ int main(void) {
     apart("a base that counts right on the supply", bat_counts_on_supply);
     apart("a TX on a supply that does not hold the battery up", bat_tx_on_supply);
     apart("unplugged after a TX", bat_unplugged_after_tx);
+    apart("the SWR scan's two ways", swrscan_ways);
     fake_cfg_init();
     start();
 

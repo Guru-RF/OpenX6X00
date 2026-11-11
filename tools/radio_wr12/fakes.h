@@ -50,6 +50,7 @@ typedef struct {
     int     cur;
     float   pwr;
     bool    vox, train, iq, ptt, modem, split;
+    bool    swrscan;        /* HW_SWRSCAN: the base's own sweep keyed (the X6200 scan's Sweep: Quick) */
     int32_t rit;
     int     vfo_writes;     /* to either VFO */
     int     vfo_writes_keyed;   /* with PTT set */

@@ -137,6 +137,7 @@ typedef struct fake_subj {
     X(ParamInt, cfg_speaker_off) \
     X(ParamInt, cfg_squelch) \
     X(ParamInt, cfg_swr_protect) \
+    X(ParamInt, cfg_swrscan_quick) \
     X(ParamInt, cfg_transverter_0_from) \
     X(ParamFloat, cfg_transverter_0_pwr) \
     X(ParamInt, cfg_transverter_0_shift) \
@@ -613,7 +614,8 @@ static bool dial_refused(void) {
  * asked out of it, and not held, or keyed, or the base's own TX outside its band table open; the dial refused, and
  * the base open at its power */
 static void base_look(const char *what) {
-    bool        held = base.pwr == 0.0f && !base.vox && base.train && !base.ptt && !base.modem && base.open_tx == 0;
+    bool        held = base.pwr == 0.0f && !base.vox && base.train && !base.ptt && !base.modem && !base.swrscan &&
+                       base.open_tx == 0;
     const char *why  = base.vfo[base.cur] == WR12_IF_HZ ? "the VFO in use on the IF"
                        : out                         ? "the WR12 out of its bypass"
                        : want.rx                     ? "the WR12 asked out of its bypass"
@@ -659,6 +661,7 @@ bool __wrap_hw_set_i(hw_param_t p, int32_t v) {
             base.ptt = v;
             break;
         case HW_MODEM:      base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.modem = v; break;
+        case HW_SWRSCAN:    base.open_tx_at_key = v ? base.open_tx : base.open_tx_at_key; base.swrscan = v; break;
         case HW_OPEN_TX:
             base.open_tx_writes++;
             if (base.open_tx_fails > 0) {
