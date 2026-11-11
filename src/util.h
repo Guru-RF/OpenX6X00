@@ -31,7 +31,9 @@ uint64_t get_time();
 void get_time_str(char *str, size_t str_size);
 
 void split_freq(int32_t freq, uint16_t *mhz, uint16_t *khz, uint16_t *hz);
-int32_t align_int(int32_t x, uint16_t step);
+/* x down to a multiple of step (towards 0). step int32_t: the main knob aligns to a whole turn, 100 kHz a detent
+ * (#234) and more with acceleration, which a uint16_t cut to step % 65536 */
+int32_t align_int(int32_t x, int32_t step);
 int32_t limit(int32_t x, int32_t min, int32_t max);
 float sqr(float x);
 void lpf(float *x, float current, float beta, float initial);
