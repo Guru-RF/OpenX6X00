@@ -3167,6 +3167,20 @@ The keyer's settings are on the KEY button's pages: KEY 1:2 has Speed,
 Volume, Train and Tone, KEY 2:2 Mode, Iambic, QSK time and Ratio. Volume is
 the sidetone's level, 0 to 32 on the X6100 and 0 to 63 on the X6200.
 
+Iambic is B by default (up to v0.3.9, A).
+
+- With a single-lever paddle, or when dits go missing from a paddle in the
+  KEY jack in Auto-L or Auto-R, use B (KEY 2:2 > Iambic). On an X6100
+  (base 1.1.9) with a single-lever paddle in the KEY jack, the base's keyer
+  lost dits on A and kept them all on B (issue #109).
+- A and B differ in a squeeze, both contacts held: the keyer alternates dits
+  and dahs, and when you let go of both, A ends with the element being sent,
+  B sends one more of the other contact. If you learned to squeeze on A,
+  set A.
+- The update puts a radio that was on A on B, unless its Iambic was set
+  to B and back to A before: only a changed setting is saved, and A was
+  the default. If you want A, set it again after the update and it stays A.
+
 Train is for practice: the key, the paddle, the CW messages and the
 [CW Trainer](#cw-trainer) sound only the sidetone, and nothing goes out.
 
@@ -3482,7 +3496,7 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
     sideswiper (issue #109; not checked on the X6100 yet). A USB or Bluetooth
     paddle keys from its dit contact only. Auto-L and Auto-R are the iambic
     keyer for a paddle; L and R swap which side gives dits and dahs.
-  - Iambic: A or B.
+  - Iambic: A or B, B by default (see [CW](#cw)).
   - QSK time and Ratio are on the same page.
 - With a paddle, set Mode to Auto-L or Auto-R before opening the trainer, for
   the keyer's dits and dahs. On Manual the paddle is a straight key (on an

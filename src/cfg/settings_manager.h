@@ -404,7 +404,9 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_key_mode{"key_mode", radio_key_manual, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_iambic_mode{"iambic_mode", radio_iambic_a, 0, 1,
+    // B by default (#109): from a single-lever paddle in the KEY jack an X6100's base keyer lost dits on A, none on
+    // B. Only a change is saved (a row): a radio left on the old default A takes B, one changed back to A keeps A
+    Parameter<int32_t> p_iambic_mode{"iambic_mode", radio_iambic_b, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_key_vol{"key_vol", 10, 0, BOARD_KEY_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
