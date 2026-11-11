@@ -102,6 +102,7 @@ const CARDS = [
     ["bright_buttons", "Button lights", "", "sel", ["Always off", "Always on", "Temporarily on"]],
     ["screen_saver", "Screensaver", "Over the screen after a time without use; a key, a knob or TX ends it, and that key or turn only wakes the screen", "sel", ["None", "Matrix rain"]],
     ["screen_saver_min", "Screensaver after", "Minutes without a key, a knob or TX", "range", [1, 120, 1, 1, " min"]],
+    ["screen_saver_speed", "Rain speed", "How fast the Matrix rain falls: Slow takes twice as long, Very slow three times", "sel", ["Normal", "Slow", "Very slow"]],
     ["screen_off_min", "Screen off after", "Minutes without a key or the knob, 0 never; a screensaver shows until then; the next key wakes it", "range", [0, 120, 1, 1, " min"]],
     ["screen_off_always", "Screen always off", "A radio run from the knob or a browser; POWER shows the screen for a while, no screensaver", "sw"]]],
   ["remote", "Remote station", "A radio run from a browser or a TCI client", [
@@ -294,6 +295,7 @@ var refresh = function() {
   $("#row-smeter_color").toggleClass("off", D.smeter_needle === 1 && D.smeter_lamp === 1);
   $("#row-screen_saver").toggleClass("off", D.screen_off_always === 1);    /* always off: dark, no screensaver */
   $("#row-screen_saver_min").toggleClass("off", !D.screen_saver || D.screen_off_always === 1);
+  $("#row-screen_saver_speed").toggleClass("off", D.screen_saver !== 1 || D.screen_off_always === 1);
   if ("band_region" in D) {
     $("#opt-band_region option[value=0]").text("Auto (Region " + D.band_region_auto + ")");
     let hint = $("#row-band_region .dp-lbl span");

@@ -38,6 +38,13 @@ extern "C" {
 #define SCREEN_SAVER_MATRIX 1       /* Matrix rain */
 #define SCREEN_SAVER_LAST   SCREEN_SAVER_MATRIX
 
+/* How fast the Matrix rain falls (params.screen_saver_speed): Normal as up to v0.3.9, Slow and Very slow take
+ * twice and three times as long a step (#200) */
+#define SAVER_SPEED_NORMAL    0
+#define SAVER_SPEED_SLOW      1
+#define SAVER_SPEED_VERY_SLOW 2
+#define SAVER_SPEED_LAST      SAVER_SPEED_VERY_SLOW
+
 /* The defaults (params.c): the screensaver after 5 minutes, never dark. A radio whose screen off time was set
  * before the screensaver came keeps it (migrations.c, _16) */
 #define SCREEN_SAVER_DEFAULT     SCREEN_SAVER_MATRIX

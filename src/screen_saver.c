@@ -24,6 +24,7 @@
 #include "screen_saver.h"
 
 #include "board.h"
+#include "params/params.h"
 #include "screen_idle.h"
 #include "screen_light.h"
 #include "theme.h"
@@ -59,6 +60,7 @@ typedef struct {
 
 static lv_obj_t   *saver;
 static lv_timer_t *frames;      /* the screensaver on */
+static uint8_t     slow = 1;    /* the step times' factor, from params.screen_saver_speed at the rain's start */
 static bool        top_hidden;  /* the top layer hidden by us */
 static lv_coord_t  width, height;
 static int         cols, rows;
@@ -140,7 +142,7 @@ static bool atlas_make(void) {
 static void column_reset(column_t *c, uint32_t now, bool first) {
     c->head   = (int16_t)-(int)rnd(first ? rows * 2 : rows / 2);
     c->len    = (uint8_t)(FADE + 3 + rnd(10));
-    c->period = (uint16_t)(45 + rnd(100));
+    c->period = (uint16_t)((45 + rnd(100)) * slow);
     c->due    = now + rnd(c->period);
     for (int r = 0; r < rows; r++) {
         c->glyph[r] = (uint8_t)rnd(GLYPHS);
@@ -331,6 +333,7 @@ void screen_saver_show(uint8_t kind) {
         return;
     }
     rng ^= lv_tick_get();
+    slow = 1 + LV_MIN(params.screen_saver_speed.x, SAVER_SPEED_LAST);   /* Normal, Slow, Very slow: 1, 2, 3 (#200) */
     width = height = 0;     /* a new rain */
     frames = lv_timer_create(frame_cb, FRAME_MS, NULL);
     frame_cb(frames);

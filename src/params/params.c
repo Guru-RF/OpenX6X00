@@ -39,6 +39,7 @@ params_t params = {
     .screen_off_min = SCREEN_OFF_MIN_DEFAULT, .screen_off_always = false,
     .screen_saver           = { .x = SCREEN_SAVER_DEFAULT, .min = 0, .max = SCREEN_SAVER_LAST, .name = "screen_saver" },
     .screen_saver_min       = { .x = SCREEN_SAVER_MIN_DEFAULT, .name = "screen_saver_min" },
+    .screen_saver_speed     = { .x = SAVER_SPEED_NORMAL, .min = 0, .max = SAVER_SPEED_LAST, .name = "screen_saver_speed" },
     .brightness_buttons     = BUTTONS_TEMPORARILY,
 
     .spectrum_beta          = { .name = "spectrum_beta", .x = 85, .min = 0, .max = 90 },
@@ -317,6 +318,7 @@ static bool params_load() {
         if (params_load_uint8(&params.charger, name, i)) continue;
         if (params_load_uint8(&params.screen_saver, name, i)) continue;
         if (params_load_uint16(&params.screen_saver_min, name, i)) continue;
+        if (params_load_uint8(&params.screen_saver_speed, name, i)) continue;
         if (params_load_bool(&params.mag_freq, name, i)) continue;
         if (params_load_bool(&params.icon_menus, name, i)) continue;
         if (params_load_js8(&params, name, i)) continue;
@@ -472,6 +474,7 @@ static bool params_save() {
     params_save_uint8(&params.charger);
     params_save_uint8(&params.screen_saver);
     params_save_uint16(&params.screen_saver_min);
+    params_save_uint8(&params.screen_saver_speed);
     params_save_bool(&params.mag_freq);
     params_save_bool(&params.icon_menus);
     params_save_js8(&params);

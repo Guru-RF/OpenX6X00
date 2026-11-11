@@ -104,6 +104,7 @@ typedef struct {
     bool                screen_off_always;  /* the screen stays dark: a radio run from the knob or a browser */
     params_uint8_t      screen_saver;       /* SCREEN_SAVER_* (screen_idle.h) after screen_saver_min, until a use */
     params_uint16_t     screen_saver_min;   /* minutes without a key, a knob or TX */
+    params_uint8_t      screen_saver_speed; /* SAVER_SPEED_* (screen_idle.h): the Matrix rain's */
     buttons_light_t     brightness_buttons;
 
     /* radio */

@@ -113,6 +113,7 @@ static void display_settings_check(void) {
     fix_uint8(&params.spectrum_peak_hold);
     fix_uint8(&params.spectrum_peak_speed);
     fix_uint8(&params.screen_saver);
+    fix_uint8(&params.screen_saver_speed);
 }
 
 #if USE_DRM || USE_SDL

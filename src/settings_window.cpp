@@ -677,6 +677,10 @@ static void saver_min_cb(lv_event_t *e) {
     backlight_settings_changed();
 }
 
+static void saver_speed_cb(lv_event_t *e) {
+    params_uint8_set(&params.screen_saver_speed, lv_dropdown_get_selected(lv_event_get_target(e)));
+}
+
 static uint8_t make_backlight(uint8_t row) {
     lv_obj_t *obj;
 
@@ -707,6 +711,12 @@ static uint8_t make_backlight(uint8_t row) {
         wl_row_label(row, "Screensaver (min)");
         obj = row_spin(row++, 1, 2, SMALL_2, params.screen_saver_min.x, 1, SCREEN_MIN_MAX, 3);
         lv_obj_add_event_cb(obj, saver_min_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    }
+    if (params.screen_saver.x == SCREEN_SAVER_MATRIX) {
+        /* how fast it falls (#200), taken at the next start of the rain */
+        wl_row_label(row, "Rain speed");
+        row_choice(row++, 1, 3, SMALL_3, " Normal \n Slow \n Very slow ", params.screen_saver_speed.x, saver_speed_cb,
+                   NULL);
     }
 
     /* The screen dark after so many minutes without use (0: never; a screensaver shows until then), or
