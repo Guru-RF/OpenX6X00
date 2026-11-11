@@ -6811,7 +6811,7 @@ runtime state in `/mnt/btcat.conf` overrides them.
 ### Processor temperature (X6200)
 
 The X6200's kernel reads its processor's temperature sensor (the Allwinner
-R16's, with the `sun4i-gpadc-iio` driver). Up to v0.3.8 it had no driver for
+R16's, with the `sun4i-gpadc-iio` driver). Up to v0.3.9 it had no driver for
 it, so nothing read how hot the processor got. The kernel's thermal zone
 `cpu-thermal` now watches it, with the trip points of the processor's device
 tree:
