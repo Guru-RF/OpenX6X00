@@ -3046,12 +3046,25 @@ SSTV TX. TX opens the TX menu (turn the MFK, press to choose):
   transmission again.
 - SET TARGET CALLSIGN: type the other station's call (Reply and Replay need
   it).
+- REPLY MODE: a press switches between AS RECEIVED (the default) and TX
+  MODE. As received, Reply and Replay go out in the mode of the last picture
+  received whole since the window opened (Martin M1 for a CQ sent in Martin
+  M1), and the TX Mode button shows it. Without one, or after Scottie DX,
+  which the radio does not send, they take the TX mode as CQ does. Saved
+  across restarts.
 
 Then choose the picture, the text (templates like `R575QSB`, `PSEQSL`, `73`)
 and its colours; the next press transmits.
 
 - TX Mode chooses Martin, Scottie or Robot. Cancel TX goes back. Halt TX
   stops on the air.
+- The TX mode is the one TX Mode was set to last, kept for the next TX
+  (CQ, Image only, and Reply with TX MODE) until the radio restarts; a
+  received picture no longer changes it. TX Mode pressed on a Reply in the
+  received mode sets the TX mode too. The RX Mode for Manual RX stays as it
+  was set for receiving. Up to v0.3.9 every TX went in the mode of the last
+  recording Auto RX started, also one a false start (noise) began, so a
+  CQ could go out in another mode than the one chosen (#230).
 - While a picture goes out the main knob, the band and mode keys and A/B
   leave the frequency, band and mode as they are, as in FT8. Freq. (page 2)
   is off from TX setup to the end of TX: choose the calling frequency

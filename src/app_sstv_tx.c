@@ -78,6 +78,12 @@ static char     pic_name[256];
 static uint8_t     last[TX_MAX];
 static unsigned    last_w, last_h;
 static sstv_mode_t last_mode = SSTV_SCOTTIE1;
+/* The TX mode (#230): TX Mode's choice in setup, kept for the next TX until the radio restarts, CQ's and Image's;
+ * UNKNOWN: none chosen yet, the button's as it was. Reply and Replay go in the mode of the last picture received
+ * (sstv_rx_last) with Reply mode As received, the default. The RX Mode (Manual RX) is put back after the setup */
+static sstv_mode_t tx_mode = SSTV_UNKNOWN;
+static sstv_mode_t setup_mode, rx_kept;
+static bool        rx_kept_ok;
 static bool        last_ok;
 static char        last_file[256];
 /* the received picture while the menus use the picture area */
@@ -560,6 +566,7 @@ static bool picture_load(const char *file)
 /* TX Mode pressed in setup: the picture again at the new size, with its text */
 void sstv_tx_mode_changed(void)
 {
+    tx_mode = setup_mode = sstv_mode;      /* the next CQ goes in it too */
     if (pic_shown < 0 || (size_t)pic_shown >= pic_count || !picture_load(pic_files[pic_shown])) return;
     switch (step) {
     case STEP_MENU:         /* the menu never covers the received picture */
@@ -641,12 +648,20 @@ static void on_air_hold(bool on)
 }
 
 /* Back to listening after any transmission, sent, stopped or failed */
+/* The RX Mode (Manual RX) as it was before the TX setup took the button */
+static void rx_mode_back(void)
+{
+    if (rx_kept_ok) sstv_mode = rx_kept;
+    rx_kept_ok = false;
+}
+
 static void on_air_end(void)
 {
     on_air_hold(false);
     sstv_tx_state = SSTV_TX_OFF;
     step = STEP_NONE;
     sstv_btn_tx.label = "TX";
+    rx_mode_back();
     sstv_mode_button(false, sstv_mode);
     sstv_rx_back(true);
     rx_restore();
@@ -745,10 +760,11 @@ static void menu_hint(void)
         "A picture, sent without any text",
         "The last transmission again, same picture and mode",
         "It goes in the text of Reply and Replay",
+        "Reply and Replay: in the last received picture's mode, or in TX Mode's",
     };
     if (!menu || !sstv_frame.status) return;
     int         r = list_row(menu);
-    const char *h = r >= 0 && r <= 5 ? hints[r] : HINT;
+    const char *h = r >= 0 && r <= 6 ? hints[r] : HINT;
     if ((r == 1 || r == 2) && !target[0]) h = "Set the target callsign first";
     if (r == 4 && !last_ok) h = "No transmission to repeat yet";
     lv_label_set_text(sstv_frame.status, h);
@@ -758,7 +774,7 @@ static void menu_moved_cb(lv_event_t *e)
 {
     (void)e;
     int r = list_row(menu);
-    if (r >= 0 && r <= 5) menu_row = r;
+    if (r >= 0 && r <= 6) menu_row = r;
     menu_hint();
 }
 
@@ -820,6 +836,23 @@ static void kbd_show(void)
     textarea_window_set(target);
 }
 
+static const char *reply_mode_text(void)
+{
+    return params.sstv_reply_rx.x ? "REPLY MODE: AS RECEIVED" : "REPLY MODE: TX MODE";
+}
+
+/* The mode the kind chosen goes in (#230): Reply and Replay the last received picture's, one the radio can send
+ * (not Scottie DX), with Reply mode As received; else the TX mode */
+static void kind_mode(void)
+{
+    sstv_mode_t             rx = sstv_rx_last;
+    const sstv_mode_info_t *mi = sstv_mode_info(rx);
+    bool                    reply = kind == MSG_REPLY || kind == MSG_REPLAY;
+
+    sstv_mode = reply && params.sstv_reply_rx.x && mi && mi->tx_ms ? rx : setup_mode;
+    sstv_mode_button(true, sstv_mode);
+}
+
 static void menu_pressed_cb(lv_event_t *e)
 {
     (void)e;
@@ -833,6 +866,7 @@ static void menu_pressed_cb(lv_event_t *e)
     case 0:
     case 3:
         kind = r == 0 ? MSG_CQ : r == 1 ? MSG_REPLY : r == 2 ? MSG_REPLAY : MSG_IMAGE;
+        kind_mode();
         menu_close();
         step = STEP_PICTURE;
         pictures_open();
@@ -853,6 +887,11 @@ static void menu_pressed_cb(lv_event_t *e)
         lv_group_remove_obj(menu);
         kbd_open = true;           /* from the UI timer, as the CALLSIGN window */
         return;
+    case 6:
+        params_bool_set(&params.sstv_reply_rx, !params.sstv_reply_rx.x);
+        lv_table_set_cell_value(menu, 6, 0, reply_mode_text());
+        menu_hint();
+        return;
     default:
         return;
     }
@@ -867,7 +906,7 @@ static void menu_open(void)
     status_text_show(false);
     rx_restore();                  /* the received picture stays in view */
     box_open("SSTV TX", HINT);
-    menu = list_new(6);
+    menu = list_new(7);
     snprintf(reply, sizeof(reply), target[0] ? "REPLY TO %s" : "REPLY TO...", target);
     snprintf(replay, sizeof(replay), target[0] ? "REPLAY TO %s" : "REPLAY TO...", target);
     lv_table_set_cell_value(menu, 0, 0, "CALL CQ");
@@ -876,13 +915,14 @@ static void menu_open(void)
     lv_table_set_cell_value(menu, 3, 0, "TX IMAGE ONLY");
     lv_table_set_cell_value(menu, 4, 0, "REPEAT LAST TX");
     lv_table_set_cell_value(menu, 5, 0, "SET TARGET CALLSIGN");
+    lv_table_set_cell_value(menu, 6, 0, reply_mode_text());
     lv_obj_add_event_cb(menu, menu_look_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
     lv_obj_add_event_cb(menu, menu_moved_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(menu, menu_pressed_cb, LV_EVENT_PRESSED, NULL);
     list_focus(menu);
 
     /* the row used last; Reply/Replay with no target: Set target instead */
-    int r = menu_row >= 0 && menu_row <= 5 ? menu_row : 0;
+    int r = menu_row >= 0 && menu_row <= 6 ? menu_row : 0;
     if ((r == 1 || r == 2) && !target[0]) r = 5;
     if (r == 4 && !last_ok) r = 0;
     list_go(menu, r);
@@ -1230,6 +1270,7 @@ void sstv_tx_button(void)
         sstv_tx_state = SSTV_TX_OFF;
         sstv_focus_picture();     /* the lists had the focus: volume keys back to the picture */
         sstv_btn_tx.label = "TX";
+        rx_mode_back();
         sstv_mode_button(false, sstv_mode);
         sstv_rx_back(auto_after);
         rx_restore();
@@ -1243,6 +1284,10 @@ void sstv_tx_button(void)
     sstv_tx_state = SSTV_TX_SETUP;
     step = STEP_MENU;
     sstv_btn_tx.label = "Cancel TX";
+    rx_kept = sstv_mode;          /* the RX Mode, back after the setup */
+    rx_kept_ok = true;
+    if (tx_mode != SSTV_UNKNOWN) sstv_mode = tx_mode;
+    setup_mode = sstv_mode;
     sstv_mode_button(true, sstv_mode);
     sstv_status("TX setup\n\nChoose TX action");
     if (sstv_bar) {

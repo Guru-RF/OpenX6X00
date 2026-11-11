@@ -107,6 +107,7 @@ params_t params = {
 #endif
     .ft8_cq_modifier        = { .x = "",        .name = "ft8_cq_modifier"},
     .sstv_denoise           = { .x = true,      .name = "sstv_denoise" },
+    .sstv_reply_rx          = { .x = true,      .name = "sstv_reply_rx" },
     .cw_qrss_hz             = { { .name = "cw_qrss_30m_hz" }, { .name = "cw_qrss_80m_hz" } },
     .cw_bcn_start           = { .x = -1,        .name = "cw_bcn_start" },
     .cw_bcn_until           = { .x = 0,         .name = "cw_bcn_until", .min = 0, .max = 2 },
@@ -324,6 +325,7 @@ static bool params_load() {
         if (params_load_js8(&params, name, i)) continue;
         if (params_load_cw_beacon(&params, name, i)) continue;
         if (params_load_bool(&params.sstv_denoise, name, i)) continue;
+        if (params_load_bool(&params.sstv_reply_rx, name, i)) continue;
         if (params_load_bool(&params.ft8_custom_on, name, i)) continue;
         if (params_load_int32(&params.ft8_custom_hz, name, i)) continue;
         if (params_load_bool(&params.mag_info, name, i)) continue;
@@ -480,6 +482,7 @@ static bool params_save() {
     params_save_js8(&params);
     params_save_cw_beacon(&params);
     params_save_bool(&params.sstv_denoise);
+    params_save_bool(&params.sstv_reply_rx);
     params_save_bool(&params.ft8_custom_on);
     params_save_int32(&params.ft8_custom_hz);
     params_save_bool(&params.mag_info);

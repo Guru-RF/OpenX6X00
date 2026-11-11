@@ -111,6 +111,7 @@ lv_obj_t    *sstv_canvas, *sstv_text, *sstv_bar;
 lv_color_t   sstv_pixels[SSTV_PIC_PIXELS];
 sstv_mode_t  sstv_mode = SSTV_ROBOT8;
 bool         sstv_mode_auto = true;
+volatile sstv_mode_t sstv_rx_last = SSTV_UNKNOWN;
 
 static char         mode_label[48];
 static lv_timer_t  *timer;
@@ -161,7 +162,6 @@ static volatile bool  auto_ready;             /* recorded, to decode */
 static volatile bool  auto_dec;               /* decoding */
 static volatile bool  auto_drop;              /* Halt while decoding: throw the result away */
 static volatile bool  auto_clear;             /* clear the picture area */
-static volatile bool  auto_label;             /* mode button to update */
 static volatile bool  restart = true;         /* a new header restarts the recording */
 static volatile int   auto_unsupported = -1;  /* code to report */
 static int            held_code = -1;         /* unsupported code waiting for VIS_HOLD */
@@ -425,6 +425,9 @@ static void save_picture(void)
     struct tm               tm;
 
     if (!mi || !localtime_r(&now, &tm)) return;
+    /* a picture received whole, not one dropped as noise: Reply answers in its mode (#230). Up to v0.3.9 the TX mode
+     * was the one of the last recording started, also a false VIS's, and CQ went in it too */
+    sstv_rx_last = pic_mode;
     strftime(stem, sizeof(stem), "sstv-%Y%m%d-%H%M%S", &tm);
     snprintf(name, sizeof(name), "%s.png", stem);
     bool ok = save_png(pic, mi, name);
@@ -615,10 +618,6 @@ static bool rec_start(sstv_mode_t mode)
     rec_mode = mode;
     auto_clear = true;
     auto_rows_start();
-    if (mode != SSTV_SCOTTIE_DX) {      /* ready to answer in the same mode (we do not send DX) */
-        sstv_mode = mode;
-        auto_label = true;
-    }
     fprintf(stderr, "SSTV: recording %s, %.1f s\n", sstv_mode_info(mode)->name, (double)want / SSTV_RATE);
     return true;
 }
@@ -728,10 +727,6 @@ static void timer_cb(lv_timer_t *t)
             lv_canvas_fill_bg(sstv_canvas, lv_color_white(), LV_OPA_COVER);
             lv_obj_invalidate(sstv_canvas);
         }
-    }
-    if (auto_label) {
-        auto_label = false;
-        sstv_mode_button(false, sstv_mode);
     }
     if (auto_unsupported >= 0) {
         msg_schedule_text_fmt("SSTV mode not supported (VIS %d)", auto_unsupported);
@@ -1109,7 +1104,7 @@ static void construct_cb(lv_obj_t *parent)
     pic_shown = 0;
     pic_ready = false;
     pic_rows = 0;
-    auto_clear = auto_drop = auto_label = false;
+    auto_clear = auto_drop = false;
     timer = lv_timer_create(timer_cb, 30, NULL);
 }
 
@@ -1134,7 +1129,7 @@ static void destruct_cb(void)
 
     /* a decoder that just ended may have started listening again */
     pthread_mutex_lock(&rx_lock);
-    auto_on = auto_rec = auto_ready = auto_dec = auto_clear = auto_drop = auto_label = false;
+    auto_on = auto_rec = auto_ready = auto_dec = auto_clear = auto_drop = false;
     ring_reset();
     man_rec = man_ready = man_dec = man_locked = man_lock_note = false;
     man_fail = NULL;
@@ -1154,6 +1149,7 @@ static void destruct_cb(void)
     /* the buttons outlive the window: back to their first state */
     sstv_mode = SSTV_ROBOT8;
     sstv_mode_auto = true;
+    sstv_rx_last = SSTV_UNKNOWN;     /* its picture went with the window */
     btn_auto.label = "Start\nAuto RX";
     btn_manual.label = "Start\nManual RX";
     sstv_btn_mode.label = "RX Mode\nAuto";

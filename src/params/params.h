@@ -175,6 +175,7 @@ typedef struct {
     params_int32_t      ft8_custom_hz;   /* last custom dial frequency, 0 = none */
     params_str_t        ft8_cq_modifier;
     params_bool_t       sstv_denoise;    /* clean received pictures, keep the original too */
+    params_bool_t       sstv_reply_rx;   /* Reply and Replay in the mode of the last picture received (#230) */
 
     // FT8 gain offset for different radios/bands/modes
     params_float_t      ft8_output_gain_offset;

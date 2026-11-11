@@ -41,6 +41,7 @@ extern button_data_t sstv_btn_mode, sstv_btn_tx, sstv_btn_gallery, sstv_btn_dele
 /* The RX/TX Mode button: the mode of Manual RX and of TX; sstv_mode_auto:
  * Manual RX finds the mode by itself */
 extern sstv_mode_t  sstv_mode;
+extern volatile sstv_mode_t sstv_rx_last;   /* the mode of the last picture received whole: Reply's (#230) */
 extern bool         sstv_mode_auto;
 
 void sstv_status(const char *text);       /* text right of the picture, its first line in the header */
