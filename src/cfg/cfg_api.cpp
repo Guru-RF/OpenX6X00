@@ -107,6 +107,7 @@ ParamInt         *cfg_ft8_max_repeats     = nullptr;
 ParamInt         *cfg_ft8_info            = nullptr;
 ParamInt         *cfg_swrscan_linear      = nullptr;
 ParamInt         *cfg_swrscan_span        = nullptr;
+ParamInt         *cfg_swrscan_quick       = nullptr;
 ParamInt         *cfg_key_tone            = nullptr;
 ParamInt         *cfg_key_speed           = nullptr;
 ParamInt         *cfg_key_mode            = nullptr;
@@ -304,6 +305,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_ft8_info         = &cfg_sm.p_ft8_info;
     cfg_swrscan_linear   = &cfg_sm.p_swrscan_linear;
     cfg_swrscan_span     = &cfg_sm.p_swrscan_span;
+    cfg_swrscan_quick    = &cfg_sm.p_swrscan_quick;
     cfg_key_tone         = &cfg_sm.p_key_tone;
     cfg_key_speed        = &cfg_sm.p_key_speed;
     cfg_key_mode         = &cfg_sm.p_key_mode;

@@ -143,6 +143,7 @@ extern ParamInt *cfg_ft8_info;       // p_ft8_info
 // SWR scan
 extern ParamInt *cfg_swrscan_linear; // p_swrscan_linear
 extern ParamInt *cfg_swrscan_span;   // p_swrscan_span
+extern ParamInt *cfg_swrscan_quick;  // p_swrscan_quick
 
 // CW
 extern ParamInt   *cfg_key_tone;            // p_key_tone

@@ -400,6 +400,9 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_swrscan_span{"swrscan_span", 200'000, {},
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
+    // X6200: Sweep Carrier, a plain FM carrier (#231), or Quick, the base's own sweep as up to v0.3.8 (#212)
+    Parameter<int32_t> p_swrscan_quick{"swrscan_quick", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // CW
     Parameter<int32_t> p_key_tone{"key_tone", 700, 400, 1200,

@@ -869,18 +869,21 @@ void radio_start_atu() {
  * it is, with tune_flag) too, and a copy of it here (tune_flag changed nothing); on others it reads in AM (#212).
  * A plain carrier reads on all, slower: the power comes up from 0 after each move. Keyed as the digital modes are
  * (not radio_set_modem: no app is on air), so the mics stay out, their gain 0 still lets a voice through; nothing
- * plays to the base meanwhile. In FM: an AM carrier at 1 W is ~0.2 W, too little for the bridge */
+ * plays to the base meanwhile. In FM: an AM carrier at 1 W is ~0.2 W, too little for the bridge.
+ * The scan window's Sweep picks the way (cfg_swrscan_quick): Carrier, this one, by default; Quick, the base's own scan
+ * mode as up to v0.3.8 (in AM, a reading at each packet, a sweep in seconds), for a radio where it reads (#212) */
 #ifdef BOARD_X6200
-#define SWRSCAN_TX      HW_MODEM
-#define SWRSCAN_MODE    radio_mode_nfm
-#define SWRSCAN_MIN_MS  850     /* from a move: with the flat wait, reads as 1.2 s did on 40 and 80 m (SWR 1.1-2.5) */
+#define SWRSCAN_TX      (atomic_load(&swrscan_quick) ? HW_SWRSCAN : HW_MODEM)
+#define SWRSCAN_MODE    (atomic_load(&swrscan_quick) ? radio_mode_am : radio_mode_nfm)
+#define SWRSCAN_MIN_MS  850    /* from a move: with the flat wait, reads as 1.2 s did on 40 and 80 m (SWR 1.1-2.5) */
 #define SWRSCAN_FLAT_MS 300     /* without the power going up: it is up */
 #define SWRSCAN_WAIT_MS 3000    /* a power that never settles is read anyway */
 #define SWRSCAN_READS   3       /* packets averaged once the power is up: a reading alone strays 0.1-0.2 (one decimal,
                                  * a diode bridge), ~0.1 s more a point; on the same point, so a narrow dip stays */
 
 /* In ms, not packets: the X6200's come every ~35 ms (hw_x6200.c). The radio thread's own (radio_tick), but for
- * swrscan_fresh, which radio_start_swrscan sets for it */
+ * swrscan_quick and swrscan_fresh, which radio_start_swrscan sets for it */
+static atomic_bool swrscan_quick;       /* this scan's way, set as it starts: its Stop unkeys what it keyed */
 static atomic_bool swrscan_fresh;       /* a new scan: the wait starts afresh */
 static uint8_t     swrscan_peak;        /* the power's top since the move */
 static uint64_t    swrscan_move_ms;     /* the move, or the key */
@@ -894,6 +897,13 @@ static int         swrscan_sum;         /* of pack->vswr */
 
 /* Nothing moves before the scan is known to start: the VFO that transmits goes to `from` only then */
 bool radio_start_swrscan(int32_t from) {
+#ifdef BOARD_X6200
+    /* The way before the radio thread can see the scan. Only the GUI starts one: one under way keeps its own */
+    if (atomic_load(&state) == RADIO_SWRSCAN) {
+        return false;
+    }
+    atomic_store(&swrscan_quick, param_i_get(cfg_swrscan_quick));
+#endif
     if (tx_refused(TX_BY_GUI) || !state_move(RADIO_RX, RADIO_SWRSCAN)) {
         return false;
     }
@@ -2925,7 +2935,11 @@ static bool radio_tick() {
 
             case RADIO_SWRSCAN:
 #ifdef BOARD_X6200
-                /* Not keyed yet, or the power still coming up: it starts from 0 at each move and comes up
+                if (atomic_load(&swrscan_quick)) {      /* the base's own sweep: a reading at each packet, as v0.3.8 */
+                    dialog_swrscan_update(pack->vswr * 0.1f);
+                    break;
+                }
+                /* The carrier. Not keyed yet, or the power still coming up: it starts from 0 at each move and comes up
                  * in 0.1 W steps over ~1 s, and the SWR reads low meanwhile (1.0-1.1 at 0.2 W where 0.8 W reads
                  * 1.5). Where it settles depends on the SWR (0.8 W at 1.5, 0.6 W at 3.4): read once the move is
                  * SWRSCAN_MIN_MS old and the power has not gone up for SWRSCAN_FLAT_MS */

@@ -24,10 +24,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef BOARD_X6200
-#define POINTS      25      /* across a span under 1 MHz: each point waits for the base's power, ~1 s */
-#else
 #define POINTS      50      /* across a span under 1 MHz */
+#ifdef BOARD_X6200
+#define POINTS_SLOW 25      /* the same with the X6200's carrier: each point waits for the base's power, ~1 s */
 #endif
 #define POINTS_WIDE 100     /* from 1 MHz: one every 25 kHz at 2.5 MHz, so a narrow dip still shows (#107) */
 #define TOP_H       34      /* the frequencies above the grid */
@@ -58,34 +57,56 @@ static void span_cb(button_data_t *b);
 static const char *run_label();
 static const char *scale_label();
 static const char *span_label();
+#ifdef BOARD_X6200
+static void sweep_cb(button_data_t *b);
+static const char *sweep_label();
+#endif
 
 static button_data_t btn_run   = { .type = BTN_TEXT_FN, .label_fn = run_label,      .press = run_cb };
 static button_data_t btn_scale = { .type = BTN_TEXT_FN, .label_fn = scale_label,    .press = scale_cb };
 static button_data_t btn_span  = { .type = BTN_TEXT_FN, .label_fn = span_label,     .press = span_cb };
 
+#ifdef BOARD_X6200
+/* Carrier, a plain FM carrier read once the power is up, or Quick, the base's own sweep (radio_start_swrscan, #212) */
+static button_data_t btn_sweep = { .type = BTN_TEXT_FN, .label_fn = sweep_label,    .press = sweep_cb };
+
+static buttons_page_t page = { { &btn_run, &btn_scale, &btn_span, &btn_sweep } };
+#else
 static buttons_page_t page = { { &btn_run, &btn_scale, &btn_span } };
+#endif
 
 static dialog_t dialog = { .construct_cb = open_cb, .destruct_cb = close_cb, .btn_page = &page, .key_cb = plot_key_cb };
 
 dialog_t *dialog_swrscan = &dialog;
 
-/* On the X6200, where a point takes ~1 s: the two ends, then every 2^n-th point, then the points halfway between
- * those, so that the shape is there after a few seconds. Elsewhere from the low edge up, the base's own scan */
-static void make_order() {
+/* Whether the sweep keys the X6200's carrier, a point in ~1 s (Sweep: Carrier), not the base's own sweep */
+static bool slow_points() {
 #ifdef BOARD_X6200
-    int top = 1, n = 0;
-
-    while (top * 2 < points - 1) top *= 2;
-    order[n++] = 0;
-    order[n++] = points - 1;
-    for (int step = top; step >= 1; step /= 2) {
-        for (int i = step; i < points - 1; i += step) {
-            if (step == top || i % (step * 2) == step) order[n++] = i;
-        }
-    }
+    return !param_i_get(cfg_swrscan_quick);
 #else
-    for (int i = 0; i < points; i++) order[i] = i;
+    return false;
 #endif
+}
+
+/* With the X6200's carrier, where a point takes ~1 s: the two ends, then every 2^n-th point, then the points halfway
+ * between those, so that the shape is there after a few seconds. Elsewhere from the low edge up, the base's own scan */
+static void make_order() {
+    int n = 0;
+
+    if (slow_points()) {
+        int top = 1;
+
+        while (top * 2 < points - 1) top *= 2;
+        order[n++] = 0;
+        order[n++] = points - 1;
+        for (int step = top; step >= 1; step /= 2) {
+            for (int i = step; i < points - 1; i += step) {
+                if (step == top || i % (step * 2) == step) order[n++] = i;
+            }
+        }
+    } else {
+        for (int i = 0; i < points; i++) order[n++] = i;
+    }
     order_at = 0;
     pos = order[0];
 }
@@ -113,7 +134,11 @@ static void reset_scan() {
             f_high = hi;
         }
     }
+#ifdef BOARD_X6200
+    points = f_high - f_low >= 1000000 ? POINTS_WIDE : slow_points() ? POINTS_SLOW : POINTS;
+#else
     points = f_high - f_low >= 1000000 ? POINTS_WIDE : POINTS;
+#endif
     memset(measured, 0, sizeof(measured));
     make_order();
 }
@@ -372,9 +397,12 @@ static lv_obj_t *make_plot(lv_obj_t *parent) {
 static void open_cb(lv_obj_t *parent) {
     dialog.obj = dialog_init(parent);
 
-    /* the Scale and Span labels follow their settings, the plot reads them too */
+    /* the Scale and Span labels follow their settings (Sweep on the X6200 too), the plot reads them too */
     btn_scale.subj = (Subject *)cfg_swrscan_linear;
     btn_span.subj = (Subject *)cfg_swrscan_span;
+#ifdef BOARD_X6200
+    btn_sweep.subj = (Subject *)cfg_swrscan_quick;
+#endif
     linear_obs = subject_subscribe_delayed_and_notify((Subject *)cfg_swrscan_linear, linear_changed, NULL);
     span_obs = subject_subscribe_delayed_and_notify((Subject *)cfg_swrscan_span, span_changed, NULL);
     buttons_load_page(&page);
@@ -453,6 +481,20 @@ static void span_cb(button_data_t *b) {
     reset_scan();
     event_send(plot, LV_EVENT_REFRESH, NULL);
 }
+
+#ifdef BOARD_X6200
+/* Not while scanning, as Span: the sweep under way keeps its way. Its points and their order follow at once */
+static void sweep_cb(button_data_t *b) {
+    if (scanning) return;
+    param_i_set(cfg_swrscan_quick, !param_i_get(cfg_swrscan_quick));
+    reset_scan();
+    event_send(plot, LV_EVENT_REFRESH, NULL);
+}
+
+static const char *sweep_label() {
+    return param_i_get(cfg_swrscan_quick) ? "Sweep:\nQuick" : "Sweep:\nCarrier";
+}
+#endif
 
 static const char *run_label() {
     return scanning ? "Stop" : "Run";

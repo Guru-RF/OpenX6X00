@@ -2309,10 +2309,16 @@ lay flat at 1.0 on the green band, as if nothing had been drawn.
   read. On the X6100 a sweep takes a few seconds. Up to v0.3.8 the X6200 used
   the base's sweep, and on some radios the curve stayed at 1.0 whatever the
   antenna.
+- Sweep (X6200 only, not while scanning): Carrier, the plain FM carrier
+  above (the default), or Quick, the base's own sweep as up to v0.3.8: in
+  AM, a reading at each step, 50 points from the low edge up, a sweep in a
+  few seconds. Quick reads on some radios and stays flat at 1.0 on others
+  (with the stock firmware too): on a new antenna, compare it once with a
+  Carrier sweep. The choice is kept.
 - Span: 50, 100, 200, 500, 1000, 1500, 2000 or 2500 kHz (not while scanning).
-  Scale: Log or Linear. A sweep takes 50 readings across the span (25 on the
-  X6200), 100 from 1000 kHz up (one every 25 kHz at 2500 kHz), so a wide one
-  takes longer. Only the points read so far are drawn.
+  Scale: Log or Linear. A sweep takes 50 readings across the span (25 with
+  the X6200's Carrier), 100 from 1000 kHz up (one every 25 kHz at 2500 kHz),
+  so a wide one takes longer. Only the points read so far are drawn.
 - The sweep stays inside the band as the band list has it (the web
   configurator's Bands page), which follows the IARU region of the band
   plan: in Region 1 2500 kHz on 40 m sweeps 7.000 to 7.200 MHz (40m CW and
