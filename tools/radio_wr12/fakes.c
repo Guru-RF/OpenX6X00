@@ -785,7 +785,7 @@ int16_t backlight_level() {
 }
 
 void bat_est_feed(const bat_sample_t *s) {
-    (void)s;
+    shown.fed = s->cap;
 }
 
 bool bat_est_load(const char *path) {
@@ -795,9 +795,9 @@ bool bat_est_load(const char *path) {
 
 int bat_est_minutes(int to_cap, bool *charging, bool *approx) {
     (void)to_cap;
-    (void)charging;
-    (void)approx;
-    return -1;
+    *charging = supply.vext > 0;
+    *approx   = false;
+    return MODEL_MIN;
 }
 
 bool bat_est_replay(const char *path) {
@@ -810,23 +810,19 @@ bool bat_est_save(const char *path) {
     return false;
 }
 
-uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap) {
-    (void)w;
-    (void)vbat;
-    return batcap;
-}
+/* The base's supply in the packets (hw_flow_read wrapped): only the test's turns of radio_tick read them */
+supply_t supply;
+shown_t  shown = {.cap = -1, .fed = -1, .est = -1};
 
-bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, bool bat_missing,
-                       bool tx, uint64_t now_ms) {
-    (void)w;
-    (void)vbat;
-    (void)vext;
-    (void)vext_flag;
-    (void)charging;
-    (void)bat_missing;
-    (void)tx;
-    (void)now_ms;
-    return false;
+bool __wrap_hw_flow_read(hw_pack_t *p) {
+    memset(p, 0, sizeof(*p));
+    p->tx        = supply.tx;
+    p->vbat      = supply.vbat;
+    p->vext      = supply.vext;
+    p->vext_flag = supply.vext > 0;
+    p->charging  = supply.charging;
+    p->batcap    = supply.batcap;
+    return true;
 }
 
 /* The base's data taken as flowing (#152's rule, which tools/base_guard tests): the radio thread is not started here */
@@ -847,8 +843,8 @@ bool btaudio_speaker_muted(void) {
 }
 
 void clock_update_estimate(int minutes, bool approx) {
-    (void)minutes;
     (void)approx;
+    shown.est = minutes;
 }
 
 void clock_update_no_battery(bool none) {
@@ -858,8 +854,8 @@ void clock_update_no_battery(bool none) {
 void clock_update_power(float ext, float bat, uint8_t cap, bool charge) {
     (void)ext;
     (void)bat;
-    (void)cap;
     (void)charge;
+    shown.cap = cap;
 }
 
 void cw_encoder_stop() {

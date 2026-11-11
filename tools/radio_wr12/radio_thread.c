@@ -2,9 +2,9 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
  *  OpenX6X00 - host test of radio.c's side of the X6200's WR12 (#134): src/radio.c whole, and what its radio thread
- *  does for the base's open TX (#176) within the test's reach, which runs it in the thread's place: the thread itself
- *  is not started here (fakes.c), so no packet comes, and the base keys by itself only when the test says so. See
- *  the Makefile and fakes.h.
+ *  does for the base's open TX (#176) and the base's supply readings (#223) within the test's reach, which runs it in
+ *  the thread's place: the thread itself is not started here (fakes.c), so no packet comes but in a reading the test
+ *  takes, and the base keys by itself only when the test says so. See the Makefile and fakes.h.
  *
  *  Copyright (c) 2026 RF.Guru
  */
@@ -14,6 +14,14 @@
 /* One turn of the radio thread at the base's open TX (open_tx_tick) */
 void radio_thread_turn(void) {
     open_tx_tick();
+}
+
+/* One reading of the base's supply: radio_tick on 12 packets (fakes.h's supply), the battery's taken on the 12th */
+void base_reading(void) {
+    for (int i = 0; i < 12; i++) {
+        now_time = get_time();
+        radio_tick();
+    }
 }
 
 /* The base in TX by itself or back in RX, as radio_tick takes it from the packets (the hand mic's PTT, at 0 W too) */

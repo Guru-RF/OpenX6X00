@@ -762,6 +762,22 @@ there, or at once for 0.2 V more (up to v0.3.8 it went 24 % and 9 % in turn at
 7.3 and 7.2 V, issue #160). The time left and the 10 % warning follow the %
 shown; the battery log keeps the base's.
 
+On the external supply the voltage says little while the pack charges: it
+reads higher than on battery (on our bench X6100 7.6 V with the base at 21 to
+46 %, where 7.6 V on battery is 65 %). So there the radio shows the base's %,
+with two exceptions for a base that has lost count. From 8.2 V up the pack is
+full or close, and the radio shows the voltage's % when the base's is more than
+25 points under it. And plugged in while it showed the voltage's %, it keeps
+that one on the supply, as a charge only adds to it, until the pack gets to
+8.2 V or the base's comes within 10 of it. On a supply that does not hold the
+battery up the voltage's % can be lower: then it shows that one, down at once
+and back up as on battery, never above the % it had. The % shown stays as it
+was while you transmit and for 30 s after, on the supply as on battery. While
+it shows the voltage's % on the supply there is no time to full next to it:
+that is worked out from the base's count, which is off then. (Up to v0.3.9 a
+pack charged with the radio off showed the base's 2 % on the supply, issue
+#223.)
+
 <!-- IMG battery_estimate_main.png: top right, "45%  2h07" -->
 
 How the radio works it out: there is no fixed table, it learns from how you

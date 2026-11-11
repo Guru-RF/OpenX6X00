@@ -13,7 +13,10 @@
  *  write of the open TX not taken (opened at the first turn), a shut and an open that fail (said once, not tried at
  *  every step of the dial but 5 s later, then 10 s after one that fails again; said again after one that went through,
  *  either way; the retry not while the base is in TX), and the CW Trainer outside the bands (the base open for its
- *  sidetone, its key at once opening it first, not where the hardware cannot transmit). Then in order: WR12 on HOST off
+ *  sidetone, its key at once opening it first, not where the hardware cannot transmit). And radio.c's battery % from
+ *  the base's supply readings (#223): a full pack on a supply with the base at 2 % (the voltage's in the top bar, the
+ *  base's to the battery model, no time to full), a base that counts right there, the % held over a TX on a supply as
+ *  on battery, and not carried over an unplug. Then in order: WR12 on HOST off
  *  at the start, on below 54 MHz, the WR12 found; the knob to 98 MHz (held and shut before the base goes to the IF, I
  *  and Q swapped with it, PTT and the modem refused), a band key to 98.1 MHz, the knob back to 7 MHz (the base on the
  *  dial, IQ back, TX held and shut until the WR12's OK to AT+BYPASS=1, PWR, VOX and Train back as they were after it
@@ -379,6 +382,83 @@ static void trainer(void) {
     none_yet("the CW Trainer");
 }
 
+/* ---- The battery % (#223): radio.c's side, the base's supply readings through the real bat_watch.c to the top bar and
+ * the battery model. The battery log takes a row a minute by the wall clock, so each child sees its first one only:
+ * the first reading that counts */
+
+/* Readings of the base's supply (fakes.h) for ms, one every 0.4 s as radio_tick takes them */
+static void readings(long ms) {
+    for (long t = 0; t < ms; t += 400) {
+        base_reading();
+        clock_add(400);
+        gui_run();
+    }
+}
+
+/* A start with the charger on, then the readings until they count (bat_watch.h: 15 s): on battery, or on a supply
+ * with the base's charging flag */
+static void supply_start(uint8_t vbat, uint8_t vext, uint8_t batcap) {
+    fake_cfg_init();
+    start();
+    radio_set_charger(true);
+    gui_run();
+    supply = (supply_t){.vbat = vbat, .vext = vext, .batcap = batcap, .charging = vext > 0};
+    readings(16000);
+}
+
+/* #223: a full pack charged with the radio off, the radio started on a supply with the base at 2 %. The top bar at
+ * the voltage's 100 %; the model fed the base's 2 %, in which it learns the time to full, and none in the top bar */
+static void bat_full_on_supply(void) {
+    supply_start(83, 135, 2);
+    check(shown.cap == 100, "#223 a full pack on the supply, the base at 2 %%: the top bar at 100 %% (%d)", shown.cap);
+    check(shown.fed == 2, "#223 a full pack on the supply: the model fed the base's 2 %% (%d)", shown.fed);
+    check(shown.est == -1, "#223 a full pack on the supply: no time to full (%d)", shown.est);
+}
+
+/* A base that counts right, charging on the supply (the bench X6100 at 7.6 V and 33 %): its own % everywhere, the
+ * model's time to full */
+static void bat_counts_on_supply(void) {
+    supply_start(76, 135, 33);
+    check(shown.cap == 33 && shown.fed == 33, "a base that counts right on the supply: its 33 %% (%d, fed %d)", shown.cap,
+          shown.fed);
+    check(shown.est == MODEL_MIN, "a base that counts right on the supply: the model's time to full (%d)", shown.est);
+}
+
+/* Plugged into a supply that does not hold the battery up (11.7 V on the X6200's DC IN) with the voltage's 84 %
+ * shown: kept, also through a TX that takes the pack to 7.5 V, which the % is held over as on battery (30 s), and
+ * for 10 min after */
+static void bat_tx_on_supply(void) {
+    supply_start(79, 0, 2);
+    check(shown.cap == 84, "7.9 V on battery, the base at 2 %%: 84 %% (%d)", shown.cap);
+    supply.vext     = 117;
+    supply.charging = true;
+    readings(10000);
+    check(shown.cap == 84, "plugged into 11.7 V: 84 %% (%d)", shown.cap);
+    supply.tx   = true;
+    supply.vbat = 75;
+    readings(2000);
+    check(shown.cap == 84, "TX on 11.7 V, the pack at 7.5 V: 84 %% held (%d)", shown.cap);
+    supply.tx   = false;
+    supply.vbat = 79;
+    readings(600000);
+    check(shown.cap == 84, "TX on 11.7 V, then 10 min at 7.9 V: 84 %% (%d)", shown.cap);
+}
+
+/* Held only on the supply it was taken on: started on 11.7 V at 7.9 V the base's 2 % (the voltage cannot tell there),
+ * a TX, unplugged right after it: on battery the voltage's 84 % at once, not the 2 % */
+static void bat_unplugged_after_tx(void) {
+    supply_start(79, 117, 2);
+    check(shown.cap == 2, "started on 11.7 V at 7.9 V, the base at 2 %%: its 2 %% (%d)", shown.cap);
+    supply.tx = true;
+    readings(2000);
+    supply.tx = false;
+    readings(2000);
+    supply.vext     = 0;
+    supply.charging = false;
+    readings(400);
+    check(shown.cap == 84, "a TX on 11.7 V, then unplugged: 84 %% at once (%d)", shown.cap);
+}
+
 int __real_pthread_create(pthread_t *t, const pthread_attr_t *attr, void *(*fn)(void *), void *arg);
 
 /* A keyer's thread: the GUI's CW key down */
@@ -406,6 +486,10 @@ int main(void) {
     apart("open TX 0 at the start", start_open_tx_shut);
     apart("a shut and an open that fail", open_tx_fails);
     apart("the CW Trainer outside the bands", trainer);
+    apart("#223 a full pack on the supply", bat_full_on_supply);
+    apart("a base that counts right on the supply", bat_counts_on_supply);
+    apart("a TX on a supply that does not hold the battery up", bat_tx_on_supply);
+    apart("unplugged after a TX", bat_unplugged_after_tx);
     fake_cfg_init();
     start();
 

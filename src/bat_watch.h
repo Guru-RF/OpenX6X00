@@ -40,8 +40,9 @@ typedef struct {
     bool     low;           /* low battery: the power-off runs */
     bool     counts;        /* the last reading is the battery's and the supply's */
     bool     ext;           /* the last reading: on external power */
-    bool     by_volts;      /* the % shown is the voltage's, not the base's (bat_watch_cap) */
-    uint8_t  cap_vbat;      /* the voltage the voltage's % is of (bat_watch_cap); 0 none yet */
+    bool     by_volts;      /* the % shown is the voltage's, not the base's (bat_watch_cap, bat_watch_cap_ext) */
+    uint8_t  cap_vbat;      /* the voltage the voltage's % is of (bat_watch_cap, bat_watch_cap_ext); 0 none yet */
+    uint8_t  cap_ext;       /* on external power: the most the % shown goes to while by_volts (bat_watch_cap_ext) */
     uint8_t  up_reads;      /* readings in a row over cap_vbat */
     bool     held;          /* the X6200: on a supply that holds the battery up (bat_watch.c) */
     uint64_t over_since;    /* the X6200: the first of the readings in a row at BOARD_BAT_EXT_MIN and more; 0 none */
@@ -71,9 +72,20 @@ uint8_t bat_cap_of_volts(uint8_t vbat);
 
 /* The voltage's % follows a voltage down at once, back up 0.1 V only after BAT_CAP_UP_READS readings in a row over
  * it (about 1 min), 0.2 V or more at once: on a 0.1 V step the readings go back and forth, and the % with them,
- * 24 and 9 % in turn at 7.3 and 7.2 V (#160). From the first reading again after external power */
+ * 24 and 9 % in turn at 7.3 and 7.2 V (#160). From the first reading again when external power comes or goes */
 #define BAT_CAP_UP_READS 150
 uint8_t bat_watch_cap(bat_watch_t *w, uint8_t vbat, uint8_t batcap);
+
+/* The % to show on external power. There the voltage says little: charging, the pack reads higher than on battery, on
+ * the bench X6100 7.6 V with the base at 21-46 % (65 % on battery). So the base's, with two exceptions for a base
+ * that has lost count. From BAT_CAP_TOP up the pack is full or close (the bench X6100's sat at 8.3 V on its supply,
+ * the base at 99 %, also on TX at 10 W): the voltage's when the base's is more than BAT_CAP_APART under it, as #223's
+ * full pack, charged with the radio off, had the base at 2 % on the supply. And plugged in with the voltage's % shown,
+ * that % stays: a charge only adds to it. Under BAT_CAP_TOP no more than that one, or than the last from BAT_CAP_TOP
+ * up, and the voltage's where it is lower (a supply that does not hold the battery up), down at once and back up as on
+ * battery (BAT_CAP_UP_READS); back to the base's once it is within BAT_CAP_MET */
+#define BAT_CAP_TOP     82
+uint8_t bat_watch_cap_ext(bat_watch_t *w, uint8_t vbat, uint8_t batcap);
 
 #ifdef __cplusplus
 }

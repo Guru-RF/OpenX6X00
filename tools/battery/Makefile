@@ -1,5 +1,6 @@
 # Host test of src/bat_watch.c, the battery readings radio.c takes (#160): when the low-battery power-off starts and
-# stops, on the X6100 and on the X6200 (BOARD_X6200), each built from the same test. `make` builds both and runs them.
+# stops, and the % shown where the base's is far off (#49, #223), on the X6100 and on the X6200 (BOARD_X6200), each
+# built from the same test. `make` builds both and runs them.
 # See bat_watch_test.c for the cases.
 SRC    := ../../src
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC)
