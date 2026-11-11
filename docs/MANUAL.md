@@ -2058,6 +2058,12 @@ set its shift again in Settings > General > TRANSVERTERS: 116 MHz for 2 m,
 404 MHz for 70 cm (a 28 MHz IF).
 
 Tried on the bench X6200 into a dummy load with an external wattmeter (4 to
+The waterfall on a transverter's band shows the band you tuned (144.300),
+also on the X6100. Up to v0.3.9 the X6100's waterfall stayed empty there,
+the spectrum alone working (#242): its base says with each frame where it is
+tuned, the transverter's IF (28.300), and the rows went there, out of the
+picture.
+
 6 Nov): the refusals, the 0 W hold and the base's own band table. Not on the
 air, and not on an X6100 yet.
 

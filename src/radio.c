@@ -2796,7 +2796,13 @@ static bool radio_tick() {
         if (pack->psd) {
             dsp_psd(pack->psd, pack->n_psd, pack->psd_span, pack->tx, pack->smeter_dbm);
         } else {
-            dsp_samples((cfloat *)pack->samples, pack->n_samples, pack->tx, pack->lo_freq, pack->vary_freq, pack->fft_dec);
+            /* The patched X6100 base sends where it is tuned itself: through a transverter the IF, the dial less the
+             * shift (28.300 MHz for 144.300). The waterfall and the browser's picture place a frame by that frequency,
+             * so they take it at the dial's; at the IF's no row came into view (#242) */
+            uint32_t at = pack->lo_freq;
+
+            if (at) at += cfg_transverter_shift_for(cparam_i_get(cfg_fg_freq));
+            dsp_samples((cfloat *)pack->samples, pack->n_samples, pack->tx, at, pack->vary_freq, pack->fft_dec);
         }
 
         /* The POWER key where the base reports it (the X6200): to the GUI thread as a key. power_was: what
