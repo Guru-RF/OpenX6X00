@@ -264,17 +264,32 @@ void cfg_band_vfo_copy(void) {
 }
 
 int32_t cfg_mode_change_freq_step(bool up) {
-    static const uint16_t steps[] = {10, 100, 500, 1000, 5000};
-    static const size_t   n       = sizeof(steps) / sizeof(steps[0]);
-    int32_t               step    = cfg_sm.p_mode_freq_step.get();
-    size_t                i;
-    for (i = 0; i < n; i++)
-        if (step == static_cast<int32_t>(steps[i]))
-            break;
-    i    = (i + (up ? 1 : -1) + n) % n;
+    /* 10, 25 and 100 kHz for AM and FM on VHF and UHF and to cross a band quicker (#234); int32_t: 100 kHz is past
+     * uint16_t. Round at both ends, as FST. A step not in the list (the Panel's API takes any) goes to the listed one
+     * above or below it: it used to go to 100 Hz up and to the top down */
+    static const int32_t steps[] = {10, 100, 500, 1000, 5000, 10000, 25000, 100000};
+    static const size_t  n       = sizeof(steps) / sizeof(steps[0]);
+    int32_t              step    = cfg_sm.p_mode_freq_step.get();
+    size_t               i       = 0;
+
+    while (i < n && steps[i] < step) i++;   /* the first at or above it */
+    if (i < n && steps[i] == step) {
+        i = (i + (up ? 1 : n - 1)) % n;
+    } else {
+        i = up ? i % n : (i + n - 1) % n;
+    }
     step = steps[i];
     cfg_sm.p_mode_freq_step.set(step);
     return step;
+}
+
+const char *cfg_freq_step_text(int32_t step, char *buf, size_t size) {
+    if (step <= 5000 || step % 1000) {
+        snprintf(buf, size, "%d Hz", (int)step);
+    } else {
+        snprintf(buf, size, "%d kHz", (int)(step / 1000));
+    }
+    return buf;
 }
 
 // --- A band's dial (cfg_band_dial_t) ---

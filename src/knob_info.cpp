@@ -104,7 +104,11 @@ static const std::map<int, Knob> knobs = {
     {CTRL_ATT, on_off("ATT", cfg_sm.cp_cur_att)},
     {CTRL_ATU, on_off("ATU", cfg_sm.p_atu_enabled)},
     {CTRL_STEP, {"Step", &cfg_sm.p_mode_freq_step,
-                 [] { return std::to_string(cfg_sm.p_mode_freq_step.get()) + " Hz"; }}},
+                 [] {
+                     char st[16];
+
+                     return std::string(cfg_freq_step_text(cfg_sm.p_mode_freq_step.get(), st, sizeof(st)));
+                 }}},
 
     {CTRL_DNF, on_off("Notch filter", cfg_sm.p_dnf)},
     {CTRL_DNF_CENTER, num("DNF center", cfg_sm.p_dnf_center)},

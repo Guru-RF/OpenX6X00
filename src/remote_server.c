@@ -983,7 +983,7 @@ static void panel_apply(void *arg) {
         case P_RFG:    param_i_set(cfg_rfgain, LV_CLAMP(0, p->a, 100)); break;
         case P_VOL:    param_i_set(cfg_volume, LV_CLAMP(0, p->a, BOARD_VOL_MAX)); break;
         case P_PWR:    cfg_pwr_set(LV_CLAMP(1, p->a, (int)(BOARD_PWR_MAX * 10)) / 10.0f); break;
-        case P_STEP:   param_i_set(cfg_mode_freq_step, LV_CLAMP(1, p->a, 10000)); break;
+        case P_STEP:   param_i_set(cfg_mode_freq_step, LV_CLAMP(1, p->a, CFG_FREQ_STEP_MAX)); break;
         case P_ZOOM:   param_i_set(cfg_mode_zoom, LV_CLAMP(1, p->a, 8)); break;
         case P_BAND:
             if (!main_screen_band_locked())

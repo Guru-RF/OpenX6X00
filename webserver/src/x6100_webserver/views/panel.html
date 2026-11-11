@@ -301,7 +301,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   const MODES = ["LSB", "LSB-D", "USB", "USB-D", "CW", "CW-R", "AM", "NFM", "SAM", "WFM"];
   let nModes = 8;    /* "modes N" from the radio: an X6200 has SAM and WFM too */
   const AGCS = ["OFF", "SLOW", "FAST", "AUTO"];
-  const STEPS = [10, 100, 500, 1000, 5000];
+  const STEPS = [10, 100, 500, 1000, 5000, 10000, 25000, 100000];
   const PLAN_COLORS = ["#2a7fff", "#d08a00", "#2e9e4f", "#b040c0", "#7d8796"];     /* CW, DIG, ALL, BCN, OUT (a US class) */
   const PLAN_NAMES = ["CW", "DIG", "SSB", "BCN", "OUT"];
   let conf = null, unreachable = false, updating = null, link = null, tlink = null, ses = null, ptt = null, xtune = null;   /* the links are made below */
@@ -627,7 +627,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     }, 40);
     showState();
   }
-  function roundStep(hz) { const st = state ? state.step : 100; return Math.round(hz / st) * st; }
+  function roundStep(hz) { const st = Math.min(state ? state.step : 100, 5000); return Math.round(hz / st) * st; }   /* a tap or drag: to 5 kHz at most, with 10-100 kHz steps too (#234) */
   function zoomTo(z) { z = Math.max(1, Math.min(8, z)); if (state && z !== state.zoom) set("zoom", z); }
   pan.addEventListener("pointerdown", function(e) {
     e.preventDefault(); pan.setPointerCapture(e.pointerId);

@@ -273,14 +273,17 @@ void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {
             break;
         }
 
-        case CTRL_STEP:         /* 10, 100, 500, 1000, 5000 Hz as FST, but stopping at either end: FST goes round,
-                                 * and a knob turned on past 5 kHz landed on 10 Hz */
+        case CTRL_STEP: {       /* 10 Hz to 100 kHz as FST, but stopping at either end: FST goes round, and a knob
+                                 * turned on past the top landed on 10 Hz */
+            char st[16];
+
             i = cfg_sm.p_mode_freq_step.get();
-            if ((diff > 0 && i < 5000) || (diff < 0 && i > 10)) {
+            if ((diff > 0 && i < CFG_FREQ_STEP_MAX) || (diff < 0 && i > CFG_FREQ_STEP_MIN)) {
                 i = cfg_mode_change_freq_step(diff > 0);
             }
-            snprintf(buf, size, "Freq step: %i Hz", i);
+            snprintf(buf, size, "Freq step: %s", cfg_freq_step_text(i, st, sizeof(st)));
             break;
+        }
 
         case CTRL_IF_SHIFT:
             if (if_shift_supported()) {

@@ -648,7 +648,7 @@ class SettingsManager {
     //     &mode_params_};
     // The step and the zoom are the current mode group's, or every mode's (context MODE_ALL) while
     // p_zoom_step_per_mode is off: their readers and writers never see the difference
-    Parameter<int32_t> p_mode_freq_step{"freq_step", 500, [](int32_t v) { return clip(v, 1, 10000); },
+    Parameter<int32_t> p_mode_freq_step{"freq_step", 500, [](int32_t v) { return clip(v, 1, 100000); },
         StorageType::MODE, pending_writes_, [this]() { on_mode_freq_step_not_found(); }, &mode_params_};
     Parameter<int32_t> p_mode_zoom{"spectrum_factor", 1, [](int32_t v) { return clip(v, 1, 8); },
         StorageType::MODE, pending_writes_, [this]() { on_mode_zoom_not_found(); }, &mode_params_};

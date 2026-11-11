@@ -153,8 +153,15 @@ int cfg_bands_region(void);
 void cfg_band_vfo_copy(void);
 
 // --- Step cycling ---
-// Cycle freq_step through [10, 100, 500, 1000, 5000] Hz. Returns new step.
+// Cycle freq_step through [10, 100, 500, 1000, 5000, 10000, 25000, 100000] Hz (#234). Returns new step.
 int32_t cfg_mode_change_freq_step(bool up);
+
+// The step's ends, for a knob that stops at them (FST goes round)
+#define CFG_FREQ_STEP_MIN 10
+#define CFG_FREQ_STEP_MAX 100000
+
+// The tuning step as the radio writes it: in Hz up to 5000 Hz, as it always did, then in kHz ("25 kHz")
+const char *cfg_freq_step_text(int32_t step, char *buf, size_t size);
 
 #ifdef __cplusplus
 } // extern "C"

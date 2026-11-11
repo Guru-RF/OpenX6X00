@@ -573,6 +573,8 @@ static int32_t freq_step_from_ci(uint8_t val) {
 
 }
 
+/* The codes go up to 5 kHz: 10, 25 and 100 kHz (#234) are told as 5 kHz, the nearest; a step set over CAT is one of
+ * the five */
 static uint8_t freq_step_to_ci(int32_t val) {
     switch (val) {
         case 1 ... 10:
@@ -586,7 +588,7 @@ static uint8_t freq_step_to_ci(int32_t val) {
         case 5000:
             return 0x04;
     }
-    return 0x02;
+    return val > 5000 ? 0x04 : 0x02;
 }
 
 static void set_unsupported(const Frame *req, Frame *resp) {

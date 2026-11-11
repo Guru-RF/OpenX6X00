@@ -287,7 +287,12 @@ static button_data_t btn_atu = knob_toggle([] { return text("ATU:\n%s", on_off(c
                                                cfg_sm.p_atu_enabled.set(!cfg_sm.p_atu_enabled.get());
                                            }, CTRL_ATU, &cfg_sm.p_atu_enabled);
 /* The tuning step: a press puts it on the MFK, as RIT and XIT; held, it goes on a knob too */
-static button_data_t btn_step = knob([] { return text("Step:\n%i Hz", cfg_sm.p_mode_freq_step.get()); }, CTRL_STEP,
+static button_data_t btn_step = knob([] {
+                                         char st[16];
+
+                                         return text("Step:\n%s",
+                                                     cfg_freq_step_text(cfg_sm.p_mode_freq_step.get(), st, sizeof(st)));
+                                     }, CTRL_STEP,
                                      &cfg_sm.p_mode_freq_step);
 static button_data_t btn_comp = knob([] { return text("Comp:\n%s", params_comp_str_get(cfg_sm.p_comp.get())); },
                                      CTRL_COMP, &cfg_sm.p_comp);

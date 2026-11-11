@@ -103,7 +103,7 @@ line).
   switches it; a press of AGC takes it to the next of Off, Slow, Fast, Auto.
 - AGC is on the MFK 2:4 page, PRE, ATT and ATU on VOL 2:2, Step (the tuning
   step, as FST) on the DFL page. On a knob, a turn steps AGC and Step forward
-  or back, stopping at Off and Auto, 10 Hz and 5 kHz (the AGC and FST keys go
+  or back, stopping at Off and Auto, 10 Hz and 100 kHz (the AGC and FST keys go
   round), and switches PRE, ATT and ATU. Up to v0.3.7 AGC, PRE and ATT could not
   go on a knob, and there was no ATU or Step button.
 - At first VOL has Volume, RF gain, the filter edges and TX power, and the MFK
@@ -132,7 +132,9 @@ without a key, and the waterfall shows down to the bottom of the screen.
 Long press. Each button group (GEN, APP, KEY, MSG, DFN, DFL) has a
 long-press action, and so has FST, the tuning step key: a press steps up,
 held it steps down until you give it another action (Frequency lock on/off,
-as on the stock firmware, say).
+as on the stock firmware, say). The steps are 10 Hz, 100 Hz, 500 Hz, 1 kHz,
+5 kHz, 10 kHz, 25 kHz and 100 kHz; up to v0.3.9 they stopped at 5 kHz (#234).
+To go further at once, type the frequency (F-INP, or `f` on a keyboard).
 Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
 | Kind | Actions |
@@ -1268,7 +1270,7 @@ acceleration.
   with the speed.
 - Turning slowly the step is the tuning step. Turning faster it grows up to
   6 times (Lite) or 15 times (Strong, which also starts sooner). None keeps
-  the step.
+  the step. Steps of 10 kHz and up never grow: a detent is one step.
 - Accel. onset (1-5, default 3) sets how soon it starts: 1 only when turned
   fast, 5 already when turned gently.
 
@@ -6657,7 +6659,7 @@ begun before keeps the header it had (PROGRAMVERSION 1.0.0, ADIF_VER 3.14);
 | `06` | - | Set mode (`00` LSB, `01` USB, `02` AM, `03` CW, `05` NFM, `07` CW-R) | - | yes |
 | `07` | - / `00` / `01` / `A0` / `B0` | VFO: read current, VFO A, VFO B, A=B, swap A/B; `07 00` / `07 01` also sent automatically when the VFO changes (transceive) | yes | yes |
 | `0F` | - | Split off/on | yes | yes |
-| `10` | - | Tuning step (`00` 10 Hz, `01` 100 Hz, `02` 500 Hz, `03` 1 kHz, `04` 5 kHz) | yes | yes |
+| `10` | - | Tuning step (`00` 10 Hz, `01` 100 Hz, `02` 500 Hz, `03` 1 kHz, `04` 5 kHz; the 10, 25 and 100 kHz steps are read as `04`) | yes | yes |
 | `11` | - | Attenuator | yes | yes |
 | `14` | `01` | AF volume (0-255) | yes | yes |
 | `14` | `02` | RF gain (0-255) | yes | yes |

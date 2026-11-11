@@ -441,7 +441,9 @@ static bool toggle_atu(void) {
 }
 
 static void step_freq_step(bool up) {
-    msg_update_text_fmt("Freq step: %i Hz", cfg_mode_change_freq_step(up));
+    char st[16];
+
+    msg_update_text_fmt("Freq step: %s", cfg_freq_step_text(cfg_mode_change_freq_step(up), st, sizeof(st)));
 }
 
 static bool toggle_param(ParamInt *p) {
@@ -1229,7 +1231,9 @@ static void freq_shift(int16_t diff, uint16_t dt) {
     }
     snap_hold = 0;
 
-    int32_t df   = diff * param_i_get(cfg_mode_freq_step) * freq_accel(dt);
+    /* Above 5 kHz no acceleration: 100 kHz turned fast on Strong was 1.5 MHz a detent (#234) */
+    int32_t step = param_i_get(cfg_mode_freq_step);
+    int32_t df   = diff * step * (step > 5000 ? 1 : freq_accel(dt));
     int32_t freq = align_int(old + df, abs(df));
 
     if (slow && spot_marks_crossed(old, freq, &spot)) {
