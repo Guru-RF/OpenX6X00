@@ -3249,7 +3249,11 @@ it in CW-R, and in CW its ZAP and Tuner went the wrong way (#115).
 - Tuner: a row of bars while the decoder follows a station, the middle one
   when it sounds at the key tone, one bar further for each 10 Hz off, in
   green, yellow or red. In CW the lit bar is on the station's side of the
-  dial: turn the dial towards it. In CW-R it is the other way round.
+  dial: turn the dial towards it. In CW-R it is the other way round. The lit
+  bar is solid, on the waterfall too: it stays lit a second after the last
+  tone and fades back to the others in half a second. The others stay
+  faint, so the waterfall still shows through them. Up to v0.3.9 the lit bar was see-through as well, and on the
+  waterfall it hardly showed (#232).
 - Where the bars are: with the spectrum off, at the top of the waterfall,
   under the band plan (under the frequency scale with the band plan off);
   with the spectrum on, at the top of the spectrum. They start right of the

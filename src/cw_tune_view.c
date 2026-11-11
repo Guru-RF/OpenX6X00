@@ -106,9 +106,9 @@ static void draw_cb(lv_event_t *e) {
     lv_area_t           a;
 
     lit.bg_color = lv_color_mix(lit_color, bar_dsc.bg_color, lit_level);
-    lit.bg_opa = bar_dsc.bg_opa + lit_level * (LV_OPA_70 - bar_dsc.bg_opa) / 255;
 
-    /* See-through themes draw the box at half: the bars at half too */
+    /* See-through themes draw the box at half: the bars at rest at half too. The lit one is solid as it lights, on the
+     * waterfall too, and fades to the others' (#232: at most 70 %, half that on the waterfall, it hardly showed) */
     if (theme_shape.mono) {     /* 1bit: the bars hollow, the lit one solid until half faded; no mixes */
         rest.bg_opa = LV_OPA_TRANSP;
         rest.border_width = 1;
@@ -119,9 +119,11 @@ static void draw_cb(lv_event_t *e) {
             lit.bg_color = TC(text);
             lit.bg_opa = LV_OPA_COVER;
         }
-    } else if (lv_obj_get_style_bg_opa(box, 0) != LV_OPA_COVER) {
-        rest.bg_opa /= 2;
-        lit.bg_opa /= 2;
+    } else {
+        if (lv_obj_get_style_bg_opa(box, 0) != LV_OPA_COVER) {
+            rest.bg_opa /= 2;
+        }
+        lit.bg_opa = rest.bg_opa + lit_level * (LV_OPA_COVER - rest.bg_opa) / 255;
     }
 
     for (int i = 0; i < BARS; i++) {
