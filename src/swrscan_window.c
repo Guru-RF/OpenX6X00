@@ -62,9 +62,11 @@ dialog_t *dialog_swrscan = &dialog;
 /* A flat 1.0 line and the scan back at the low edge of the span, around the frequency the radio transmits on
  * (the other VFO in split, a TX shift's). The sweep stays where the radio transmits the same way (#107): a span past
  * the edge of HF (0.1 or 55 MHz), of a transverter's range or of the amateur band (with TX outside the amateur bands
- * off, #121) moves inside it, and one wider than the range takes all of it: 2.5 MHz on 40 m sweeps 7.0-7.3, the
- * frequencies on the plot say so. A point outside used to be refused by the radio, and the scan read the last
- * frequency again. The points as many as the sweep's own width wants */
+ * off, #121) moves inside it, and one wider than the range takes all of it; the frequencies on the plot say so. On an
+ * amateur band that is the band list's band, which follows the IARU region (cfg_tx_scan_range): 2.5 MHz on 40 m
+ * sweeps 7.0-7.2 in Region 1. Up to v0.3.9 it swept the table's 7.0-7.3, into the 41 m broadcast band. A point
+ * outside used to be refused by the radio, and the scan read the last frequency again. The points as many as the
+ * sweep's own width wants */
 static void reset_scan() {
     int32_t lo, hi;
 
@@ -72,7 +74,7 @@ static void reset_scan() {
     f_center = radio_tx_freq();
     f_low = f_center - span_hz / 2;
     f_high = f_center + span_hz / 2;
-    if (cfg_tx_range(f_center, &lo, &hi)) {
+    if (cfg_tx_scan_range(f_center, &lo, &hi)) {
         if (f_low < lo) {
             f_high = LV_MIN(f_high + (lo - f_low), hi);
             f_low = lo;

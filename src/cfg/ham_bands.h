@@ -31,6 +31,14 @@ bool ham_band_of(int32_t hz, int32_t *lo, int32_t *hi);
  * TX outside ham bands on */
 ham_tx_t ham_tx_check(int32_t hz, bool hw_tx, bool xvtr, bool any);
 
+/* What the SWR scan sweeps on the amateur band freq is in: [*lo, *hi] no wider than the band list's active rows (start
+ * and stop, Hz, n of them) that lie inside that band. Those follow the IARU region where this table is the union of all
+ * three: in Region 1 40 m is 7.000-7.200 (40m CW and 40m SSB), 80 m 3.500-3.800, where the table goes to 7.300 and
+ * 4.000. A row reaching outside the band (Broadcast 41m from 7.200) is not one of them, nor an inactive one (Broadcast
+ * 75m, 3.900-4.000, inside 80 m). Left as given: freq on no amateur band, no active row inside it, or edges that would
+ * not overlap what was given. Only ever narrows */
+void ham_band_scan_range(int32_t freq, const int32_t *start, const int32_t *stop, int n, int32_t *lo, int32_t *hi);
+
 /* The table, for tools/ham_bands: how many bands, and band i's edges */
 int  ham_bands_count(void);
 void ham_bands_get(int i, int32_t *lo, int32_t *hi);

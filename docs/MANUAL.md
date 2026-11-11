@@ -2278,13 +2278,20 @@ the SWR as it goes.
   Scale: Log or Linear. A sweep takes 50 readings across the span, 100 from
   1000 kHz up (one every 25 kHz at 2500 kHz), so a wide one takes twice as
   long.
-- The sweep stays inside the amateur band (see
-  [Amateur bands only](#amateur-bands-only)): 2500 kHz on 40 m sweeps 7.000
-  to 7.300 MHz, 30 m 50 kHz at most. The frequencies on the plot show the
-  sweep, the Span button the span asked; the readings follow the sweep's
-  width (100 from 1000 kHz of it). Up to v0.3.8 a wide span sent the carrier
-  outside the band, as the stock firmware's sweep does; with TX outside ham
-  bands on it still does.
+- The sweep stays inside the band as the band list has it (the web
+  configurator's Bands page), which follows the IARU region of the band
+  plan: in Region 1 2500 kHz on 40 m sweeps 7.000 to 7.200 MHz (40m CW and
+  40m SSB), 80 m 3.500 to 3.800, 30 m 50 kHz at most. The scan picks its own
+  frequencies, so it keeps to your region's band; a frequency you tune
+  yourself keeps the wider table of
+  [Amateur bands only](#amateur-bands-only). A band hidden from the band
+  list sweeps the table's edges. The frequencies on the plot show the sweep,
+  the Span button the span asked; the readings follow the sweep's width (100
+  from 1000 kHz of it). Up to v0.3.8 a wide span sent the carrier outside
+  the band, as the stock firmware's sweep does; with TX outside ham bands on
+  it still does. Up to v0.3.9 it kept to the table, the union of the three
+  regions: in Region 1 40 m went to 7.300 MHz, into the 41 m broadcast band,
+  and 80 m to 4.000.
 - The sweep stays where the radio transmits. Near the edge of HF (0.1 and
   55 MHz), of a transverter's range or of the amateur band the span moves
   inside it, with the VFO's line off the middle, and a range narrower than

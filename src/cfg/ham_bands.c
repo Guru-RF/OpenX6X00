@@ -56,6 +56,28 @@ ham_tx_t ham_tx_check(int32_t hz, bool hw_tx, bool xvtr, bool any) {
     return HAM_TX_OFF_BAND;
 }
 
+void ham_band_scan_range(int32_t freq, const int32_t *start, const int32_t *stop, int n, int32_t *lo, int32_t *hi) {
+    int32_t blo, bhi, rlo = 0, rhi = -1;
+
+    if (!ham_band_of(freq, &blo, &bhi)) return;
+    for (int i = 0; i < n; i++) {
+        if (start[i] < blo || stop[i] > bhi || start[i] > stop[i]) continue;
+        if (rlo > rhi) {
+            rlo = start[i];
+            rhi = stop[i];
+        } else {
+            if (start[i] < rlo) rlo = start[i];
+            if (stop[i] > rhi) rhi = stop[i];
+        }
+    }
+    if (rlo > rhi) return;                          /* no row inside the band: the table's edges */
+    if (rlo < *lo) rlo = *lo;
+    if (rhi > *hi) rhi = *hi;
+    if (rlo > rhi) return;                          /* no overlap with what was given: left as it is */
+    *lo = rlo;
+    *hi = rhi;
+}
+
 /* For the host test: the table itself */
 int ham_bands_count(void) {
     return (int)(sizeof(bands) / sizeof(bands[0]));

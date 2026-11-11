@@ -62,6 +62,12 @@ const char *cfg_tx_refusal_text(int32_t freq, char *buf, size_t size);
  * or ends; on HF with TX outside the amateur bands off, the amateur band freq is in (#121). False when freq is not
  * transmitted on */
 bool cfg_tx_range(int32_t freq, int32_t *lo, int32_t *hi);
+/* What the SWR scan may sweep around freq: cfg_tx_range, and on an amateur band with TX outside the amateur bands off no
+ * wider than the band list's active rows inside that band (ham_band_scan_range): in Region 1 40 m 7.000-7.200, where
+ * cfg_tx_range has 7.300. The scan picks its own frequencies, so it keeps to the band list's band, which follows the
+ * IARU region; a frequency tuned by hand keeps the wide table. False when freq is not transmitted on. LVGL thread (the
+ * band list) */
+bool cfg_tx_scan_range(int32_t freq, int32_t *lo, int32_t *hi);
 /* The band the radio is on is one it can use (band_use over its edges); true between bands */
 bool cfg_band_usable(void);
 

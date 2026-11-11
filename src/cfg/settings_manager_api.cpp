@@ -128,6 +128,26 @@ bool cfg_tx_range(int32_t freq, int32_t *lo, int32_t *hi) {
     return false;
 }
 
+bool cfg_tx_scan_range(int32_t freq, int32_t *lo, int32_t *hi) {
+    if (!cfg_tx_range(freq, lo, hi)) {
+        return false;
+    }
+    if (cfg_sm.p_tx_outside_bands.get()) {
+        return true;    /* TX outside the bands on: the user's choice, as before */
+    }
+
+    std::vector<int32_t> start, stop;
+
+    for (const BandInfo &b : BandsTable::all_bands()) {
+        if (b.type == BAND_ACTIVE) {
+            start.push_back(static_cast<int32_t>(b.start_freq));
+            stop.push_back(static_cast<int32_t>(b.stop_freq));
+        }
+    }
+    ham_band_scan_range(freq, start.data(), stop.data(), static_cast<int>(start.size()), lo, hi);
+    return true;
+}
+
 bool cfg_band_usable(void) {
     BandInfoLoadResult b = BandsTable::get_by_id(cfg_sm.current_band_id());
     return b.rc != SUCCESS || cfg_sm.band_use(b.value.start_freq, b.value.stop_freq) != BAND_USE_NONE;
