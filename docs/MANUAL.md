@@ -9,7 +9,7 @@ Settings. Button and option names are written as the radio shows them.
 
 ## Contents
 
-- [Getting started](#getting-started): [first steps](#first-steps), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
+- [Getting started](#getting-started): [first steps](#first-steps), [setting up the transmitter](#setting-up-the-transmitter), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
@@ -49,6 +49,106 @@ Settings. Button and option names are written as the radio shows them.
 4. Open the web configurator from a browser on the same network:
    `http://x6100.local/`, or `http://<radio IP>/` where mDNS names do not
    resolve (see [Web configurator](#web-configurator)).
+5. Before your first voice transmission, set the TX level and the
+   microphone: see [Setting up the transmitter](#setting-up-the-transmitter).
+
+### Setting up the transmitter
+
+What to set before you go on the air with your voice, and in which order:
+the TX level first, because the ALC figures further down assume it is set.
+Use a dummy load and a power meter, on a band where you may transmit.
+
+Which settings you have depends on the base, the radio board's own firmware
+(see [The baseband](../README.md#the-baseband) in the README). OpenX6X00
+hides a setting the base can't do. The patched base is gdyuldin's
+x6100_base_patch, which you install apart from OpenX6X00; Settings > Info >
+Baseband shows which base the radio runs.
+
+| Setting | Where | X6100, Xiegu's base | X6100, patched base | X6200 |
+|---|---|---|---|---|
+| Codec gain | Settings > TX Cal > TX CALIBRATION | - | r3 and later | - |
+| Band output gain | Settings > TX Cal > TX CALIBRATION | - | r8 and later | - |
+| IQ offsets | Settings > TX Cal > TX CALIBRATION | yes | yes | - |
+| Mic gain | Settings > Audio > MICROPHONE | yes | yes | yes |
+| Comp (the ratio) | the MFK 2:4 page | the button (see 4) | yes | three levels |
+| Compressor, makeup | Settings > Audio > TX AUDIO | - | r3 and later | - |
+| TX filter | Settings > Audio > TX AUDIO | - | r9 and later | - |
+| FM pre/de-emphasis | Settings > Audio > TX AUDIO | - | r8 and later | - |
+| CESSB | Settings > TX Cal > CESSB | - | r12 and later | - |
+
+1. **Codec gain** (-25 to +25 dB, 0 by default) is the patched base's
+   overall TX level. You set it once, not while you operate. The base's notes
+   say to set it so the radio gives 10 W at a 10 W setting. On our X6100,
+   which shipped with Xiegu's V1.1.8, r13 gave about 10 % too much at 5 W and
+   20 % at 10 W before this. Measure on the second transmission after a band
+   change: on ours the first one sometimes had next to no power.
+2. **Band output gain** (-6 to +6 dB, 0 by default) is kept for each band,
+   the band the radio is on. It evens the bands out where the power is low or
+   the ALC high: the codec gain alone left ours apart. With a codec gain of
+   -3 dB, the five bands we did (160, 40, 20, 15 and 10 m) came right
+   between about -1.3 and +1.2 dB.
+3. **Mic gain**, for the microphone you use: Hand mic (20 by default) or
+   Built-in (30), 0 to 50; Input chooses between them (Auto by default).
+   Speak at your normal voice, with Comp off and CESSB off. If the ALC sits
+   high, turn it down. On the X6200 the ALC reading does not follow the audio
+   (see [Digital-mode TX level](#digital-mode-tx-level)), so judge it by the
+   power reading and by ear: a second receiver, or a recording.
+4. **Compressor**, for voice. It brings loud and soft syllables closer
+   together, which raises the average power. The X6100's base leaves the
+   data modes and CW out of it, and the digital apps transmit in a data mode.
+   - **Comp** on the MFK 2:4 page is the ratio: 1:1 is off, the default on
+     both radios. From 2:1 to 8:1 it compresses more and more: at 4:1, 4 dB
+     more voice above the threshold gives 1 dB more out. On the X6200 the base
+     has three levels: 2:1 and 3:1 go as 2:1, 4:1 to 7:1 as 4:1, 8:1 as 8:1.
+     On the X6100 the compressor came with the patched base (r3); what Comp
+     does with Xiegu's own X6100 base we haven't measured.
+   - **Compressor, makeup** (patched base) are two sliders, -15 to +15 dB in
+     0.5 dB steps, both 0 by default. They shift the base's own values. The
+     first moves the threshold, the level where the compressor starts to act.
+     The second, the makeup, is the gain added after it to bring the voice
+     back up: with the makeup at 0 a compressor turns the power down, more at
+     a higher ratio.
+
+   A careful start is 2:1, the ratio the patched base starts with, and both
+   sliders at 0. More makeup means more drive into what follows, so watch the
+   ALC as you raise it.
+5. **CESSB** (patched base r12 and later, X6100 only) is for SSB: it clips
+   and filters the voice so the average power goes up without splatter. On
+   or off (off by default), and a level from 0.0 to 5.0 dB (3.7 by default),
+   how far the signal is raised before the clipping. The base's notes give
+   2.4 dB as barely audible, 3.7 dB as clean and 4.3 dB as a slightly
+   "processed" sound. With the TX level set as in 1 and 2, the ALC should
+   mostly read 0.1 to 0.3 or below with CESSB on, and not stay over 1 for
+   long. Even at 0 it keeps the peaks from overdriving the final stage, and
+   an amplifier after it. Starting at 0 and going up in small steps while
+   you listen on a second receiver is the careful way.
+
+The compressor and CESSB both raise the average power, in different ways:
+the compressor evens out the syllables, CESSB keeps the SSB signal's peaks
+in check. Their effects add up, so turn up one at a time and listen. A
+spectrum display on a second receiver or an SDR shows splatter better than
+the ear.
+
+The rest, left as it is unless you have a reason:
+
+- **IQ offsets** (X6100, per band, 0 by default) shift the I and Q signals
+  of the transmitter, which sets how well the carrier is suppressed. Change
+  them only while you watch the carrier on a spectrum analyser or a second
+  receiver.
+- **TX filter** (patched base r9 and later): the transmitted audio's
+  passband, low edge 50-400 Hz (160 by default), high edge 2000-4000 Hz
+  (3000).
+- **FM pre/de-emphasis** (patched base r8 and later), for FM.
+- **Moni level** (VOL 2:2 page) plays your own transmission on the speaker.
+  It is 0 by default: higher, the microphone can pick it up again (see
+  [Audio tab](#audio-tab)).
+- The digital apps set their own audio level: see
+  [Digital-mode TX level](#digital-mode-tx-level).
+
+We haven't tried CESSB or the compressor on the air or into a dummy load
+ourselves: the figures in 1, 2 and 5 are from the patched base's notes and
+from what we measured with r13 on our X6100 on 24 October 2026. Reports are
+welcome (issue #157).
 
 ### Buttons and knobs
 
