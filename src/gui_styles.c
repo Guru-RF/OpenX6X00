@@ -459,8 +459,11 @@ void styles_apply(void) {
     message_colours(strong);
     button_colours();
 
+    /* Plain, also with the background pictures: an additive line is drawn through an LVGL layer whose additive blend
+     * skips see-through pixels, and on the radio the GUI is see-through over the waterfall (DRM planes). The decoder's
+     * "WPM: 15" showed only where it lay over the frequency scale, its bottom half or all of it gone (#232) */
     lv_style_set_text_color(&panel_info_style, TC(text_mute));
-    lv_style_set_blend_mode(&panel_info_style, theme_shape.images ? LV_BLEND_MODE_ADDITIVE : LV_BLEND_MODE_NORMAL);
+    lv_style_set_blend_mode(&panel_info_style, LV_BLEND_MODE_NORMAL);
     lv_style_set_bg_color(&spectrum_style, TC(panel));
     lv_style_set_bg_color(&waterfall_style, TC(panel));
 
