@@ -23,6 +23,7 @@
 #include "lvgl/lvgl.h"
 #include "cw_encoder.h"
 #include "cw_field.h"
+#include "cfg/cfg_api.h"
 #include "fonts/font_select.h"
 #include "gui_styles.h"
 #include "input_caps.h"
@@ -53,6 +54,14 @@
 
 lv_color_t bg_color;
 lv_style_t msg_style, dialog_item_focus_style;
+
+/* the keyboard layout setting (#236): only read once the settings are there, which they never are here */
+ParamInt *cfg_kbd_layout;
+
+int32_t param_i_get(const ParamInt *p) {
+    (void)p;
+    return 0;
+}
 
 uint16_t radio_change_vol(int16_t df) {
     (void)df;

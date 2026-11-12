@@ -27,6 +27,7 @@
 #include <ft8lib/constants.h>
 
 #include "../board.h"
+#include "../kbd_layout.h"
 #include "../radio_types.h"
 #include "../common/math.h"
 #include "smeter_att.h"
@@ -343,6 +344,10 @@ class SettingsManager {
     // Settings > Audio > Speaker always off: a remote station's speaker and TX monitor stay silent, whatever the
     // volume (radio.c radio_vol_refresh); the audio to a browser, TCI and headphones goes on
     Parameter<int32_t> p_speaker_off{"speaker_off", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Settings > Keys > KEYBOARD > Layout: the USB or Bluetooth keyboard's xkb layout, an index into kbd_layout.c's
+    // list (0 US, as up to v0.3.9); key_input.c follows it (#236)
+    Parameter<int32_t> p_kbd_layout{"kbd_layout", 0, 0, KBD_LAYOUTS - 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_vox_gain{"vox_gain", 0, 0, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};

@@ -16,6 +16,9 @@ extern lv_group_t *keyboard_group;
 
 void keyboard_init();
 
+/* The keyboard's layout follows Settings > Keys > KEYBOARD from now on: after the settings are read (#236) */
+void keyboard_layout_start(void);
+
 /* A keyboard is plugged in and open */
 bool keyboard_ready();
 

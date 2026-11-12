@@ -3586,6 +3586,11 @@ static void make_keys_page() {
     row = card_begin("PADDLE");
     row = make_paddle(row);
     card_end(row);
+
+    /* The USB or Bluetooth keyboard's layout (#236): key_input.c follows it at once */
+    row = card_begin("KEYBOARD");
+    row = make_param_choice(row, "Layout", kbd_layout_options(), cfg_sm.p_kbd_layout);
+    card_end(row);
 }
 
 /* Cluster: which spots the app, the column and the waterfall show. Saved in

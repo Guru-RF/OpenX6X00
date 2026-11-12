@@ -339,6 +339,15 @@ frequency box and, in CW, the [CW line](#cw-from-the-keyboard). Scroll Lock
 turns the [frequency lock](#buttons-and-knobs) on and off and Print Screen
 takes a screenshot, both on the main screen only.
 
+The keyboard's layout is set in Settings > Keys > KEYBOARD > Layout: US (the
+default, and the only one up to v0.3.9), UK, German (QWERTZ), Swiss German,
+French (AZERTY), Belgian (AZERTY), Spanish, Italian, Portuguese, Swedish,
+Finnish, Danish, Norwegian, Polish or Czech (QWERTZ). It applies at once, to
+the keyboard plugged in and the next ones. With German, Y and Z type as they
+are marked, `/` is Shift+7 and `@` AltGr+Q (issue #236). Letters with
+accents type in the text boxes, but the radio's fonts may not show them, and
+CW has no code for most of them.
+
 CapsLock is the keyboard's shortcut key: held, the key pressed with it does
 something on the radio instead of typing. Every keyboard has it, small and
 Bluetooth ones too, which often have no F keys, or only with Fn.
@@ -360,9 +369,10 @@ Bluetooth ones too, which often have no F keys, or only with Fn.
   type nothing: in walkie mode CapsLock+Space keys nothing (it still lets go).
   RTTY receives on the main screen, with no window of its own: there the
   chords work, and CapsLock+L logs the QSO as RTTY.
-- The keys count by their place on a US keyboard, as the radio types. The
+- The keys count by their place on a US keyboard, whatever the Layout. The
   letters are in the same place on AZERTY and QWERTZ keyboards; on an AZERTY
-  one CapsLock+1 is the key marked & and 1.
+  one CapsLock+1 is the key marked & and 1. The CW paddle keys (`[` and `]`
+  on a US keyboard) stay in their place too.
 - A chord's key is never typed, in the CW line, the quick log's box or a
   text box neither, and Caps Lock stays as it was, on or off. The
   keyboard's Caps Lock light can come on while CapsLock is held, and goes
@@ -1738,6 +1748,7 @@ by itself. The 20 MHz and channel 12 and 13 settings in `x6100-wifi.conf` are
 | FRONT KEYS, LONG PRESS | the long-press action of GEN, APP, KEY, MSG, DFN, DFL and FST (see [Buttons and knobs](#buttons-and-knobs)) |
 | HAND MIC KEYS | F1, F2, F1 long, F2 long; on the X6200 F3 and F3 long too, for the H-22's F3 (see [Hand mic](#hand-mic)) |
 | PADDLE | USB paddles: Connected, the dit/dah of each kind, Learn dit and dah, Swap dit and dah, Serial port (see [USB paddle](#usb-paddle)) |
+| KEYBOARD | Layout of a USB or Bluetooth keyboard: US by default, UK, German, French and others (see [Keyboard](#keyboard)) |
 
 ### Cluster tab
 

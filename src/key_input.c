@@ -14,9 +14,11 @@
 
 #include "cw_encoder.h"
 #include "cw_field.h"
+#include "cfg/cfg_api.h"
 #include "input_caps.h"
 #include "kbd_hyper.h"
 #include "kbd_keymap.h"
+#include "kbd_layout.h"
 #include "kbd_rollover.h"
 #include "paddle_keyer.h"
 #include "pubsub_ids.h"
@@ -37,6 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <xkbcommon/xkbcommon.h>
 
 /* After a USB device comes or goes, look for the keyboard this often, this many times: udev's
  * "add" comes before the keyboard's /dev/input node exists */
@@ -61,6 +64,7 @@ static bool           dead;         /* the open keyboard's node reads ENODEV: un
 static bool           caps;         /* Caps Lock on, as xkb has it: only a CapsLock tapped alone turns it */
 static bool           woke_hold;    /* the press of the CapsLock held woke the screen: its first chord only did that */
 static int            swallowed = -1;   /* the key whose press ended the screensaver: its repeats and release too */
+static bool           layout_on;    /* the settings are there: the keyboard's layout follows Settings > Keys (#236) */
 
 /* The keyboard's Caps Lock light to ours. The light is the kernel console's (/dev/tty0), which turns
  * it at every CapsLock press, also one held for a chord: put back at the chord, and set at each
@@ -86,6 +90,42 @@ void keyboard_chord(int action) {
     if (action != HYPER_NONE) {
         lv_async_call(chord_run, (void *)(intptr_t)action);
     }
+}
+
+/* The layout of Settings > Keys > KEYBOARD into xkb (#236). evdev_set_file() starts xkb on US at every keyboard
+ * opened, so after each, and at each change while one is open (xkb has no context before the first). A layout
+ * xkb cannot make goes back to US rather than leave no keymap. The new state starts with Caps Lock off: put
+ * back as it was */
+static void layout_apply(void) {
+    const kbd_layout_t   *l;
+    struct xkb_rule_names names;
+
+    if (!layout_on || !ready) {
+        return;
+    }
+    l = kbd_layout_get(param_i_get(cfg_kbd_layout));
+    names = (struct xkb_rule_names){.model = l->model, .layout = l->layout};
+    if (!xkb_set_keymap(names)) {
+        LV_LOG_ERROR("Keyboard layout %s: xkb has none, US kept", l->layout);
+        names = (struct xkb_rule_names){.model = "pc101", .layout = "us"};
+        xkb_set_keymap(names);
+    }
+    if (caps) {
+        xkb_process_key(KEY_CAPSLOCK, 1);
+        xkb_process_key(KEY_CAPSLOCK, 0);
+    }
+}
+
+static void layout_cb(Subject *subj, void *user) {
+    (void)subj;
+    (void)user;
+    layout_apply();
+}
+
+void keyboard_layout_start(void) {
+    layout_on = true;
+    subject_subscribe((Subject *)cfg_kbd_layout, layout_cb, NULL);
+    layout_apply();
 }
 
 /* A CapsLock tap: Caps Lock turns in xkb, and its light */
@@ -299,6 +339,7 @@ static void open_keyboard(char *path) {
         lv_indev_set_group(lv_indev_drv_register(&kbd_drv), keyboard_group);
     }
     ready = true;
+    layout_apply();
 }
 
 /* A keyboard there and not open (or a different one: unplugged and back): open it; none: not ready. The one open

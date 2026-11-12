@@ -2,9 +2,9 @@
 # fonts and font_select.c, and the USB keyboard's key_input.c with its kbd_*.c, compiled as the PC build compiles them,
 # on the PC build's LVGL and lv_drivers (LVGL_LIB, DRV_LIB, as host/build.sh leaves them in build-host/lib; xkb's
 # libxkbcommon, as the PC build). What these call of the rest of the GUI (the styles, the theme's colours, the volume,
-# the paddle, the screen) the test stands in for; a link error names what they now reach. LVGL's headers beside src/
-# (LVGL), liquid-dsp's for the GUI's headers (DEPS, as host/build.sh puts them in build-host/deps). See
-# text_popup_test.c for the cases.
+# the paddle, the screen, the keyboard layout setting) the test stands in for; a link error names what they now
+# reach. LVGL's headers beside src/ (LVGL), liquid-dsp's for the GUI's headers (DEPS, as host/build.sh puts them in
+# build-host/deps). See text_popup_test.c for the cases.
 TOP      := ../..
 SRC      := $(TOP)/src
 DEPS     ?= $(TOP)/build-host/deps
@@ -22,7 +22,7 @@ CFLAGS   := $(GUI) -Wall -Wextra -Wno-comment
 SIZES    := 14 16 18 20 22 24 26 28 30 32 34 36 38 40 42 44 60
 FONTS    := $(foreach f,sony roboto dejavu arial rcond codec,$(foreach n,$(SIZES),fonts/$(f)_$(n))) \
             $(foreach n,12 14 16 18 20 22 24 28 32 44,fonts/pixel_$(n))
-FILES    := text_popup fonts/font_select key_input kbd_hyper kbd_keymap kbd_rollover $(FONTS)
+FILES    := text_popup fonts/font_select key_input kbd_hyper kbd_keymap kbd_layout kbd_rollover $(FONTS)
 OBJS     := $(FILES:%=build/%.o)
 
 all: test

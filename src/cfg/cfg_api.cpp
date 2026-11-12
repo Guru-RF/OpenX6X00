@@ -47,6 +47,7 @@ ParamInt         *cfg_walkie_mic          = nullptr;
 ParamInt         *cfg_band_plan           = nullptr;
 ParamInt         *cfg_wr12                = nullptr;
 ParamInt         *cfg_speaker_off         = nullptr;
+ParamInt         *cfg_kbd_layout          = nullptr;
 ParamInt         *cfg_smeter_needle       = nullptr;
 ParamInt         *cfg_smeter_color        = nullptr;
 ParamInt         *cfg_wf_palette          = nullptr;
@@ -242,6 +243,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_band_plan        = &cfg_sm.p_band_plan;
     cfg_wr12             = &cfg_sm.p_wr12;
     cfg_speaker_off      = &cfg_sm.p_speaker_off;
+    cfg_kbd_layout       = &cfg_sm.p_kbd_layout;
     cfg_smeter_needle    = &cfg_sm.p_smeter_needle;
     cfg_smeter_color     = &cfg_sm.p_smeter_color;
     cfg_wf_palette          = &cfg_sm.p_wf_palette;

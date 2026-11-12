@@ -246,6 +246,9 @@ static void settings_load(void) {
     audio_set_rec_vol(params.rec_gain_db_f.x);
     mfk_init();
     vol_init();
+#if !USE_SDL
+    keyboard_layout_start();    /* the keyboard opened before the settings were read: its layout now */
+#endif
     /* The folder for the user's own themes (docs/THEMES.md). None comes with the image any more: the RS
      * theme that was copied here is cut from a screenshot of another maker's remote software (themes/make_rs.py) */
     if (system("mkdir -p " BOARD_DATA "/themes") != 0)
