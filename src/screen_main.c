@@ -630,6 +630,8 @@ void main_screen_action(press_action_t action) {
         case ACTION_ATU_TOGGLE:     say_state("ATU", toggle_atu() ? "On" : "Off"); break;
         case ACTION_WF_MODE:        say_state("Waterfall", toggle_param(cfg_wf_mode) ? "Fixed" : "Centered"); break;
         case ACTION_WF_3D:          say_state("Waterfall 3D", toggle_param(cfg_wf_3d) ? "On" : "Off"); break;
+        case ACTION_CW_DECODER:     say_state("CW decoder", toggle_param(cfg_cw_decoder) ? "On" : "Off"); break;
+        case ACTION_CW_ZAP:         controls_cw_zap(NULL); break;   /* in CW and CW-R, as the button */
 
         case ACTION_APP_QTH:        dialog_construct(dialog_qth, obj); break;
 

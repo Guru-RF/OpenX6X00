@@ -804,6 +804,8 @@ static const key_action_t front_actions[] = {
     {" Step down ", ACTION_STEP_DOWN},     /* FST's long press until it is changed */
     {" WF mode ", ACTION_WF_MODE},
     {" WF 3D on/off ", ACTION_WF_3D},
+    {" CW decoder on/off ", ACTION_CW_DECODER},
+    {" CW ZAP ", ACTION_CW_ZAP},
     {" ATT on/off ", ACTION_ATT_TOGGLE},
     {" PRE on/off ", ACTION_PRE_TOGGLE},
     {" Tuner on/off ", ACTION_ATU_TOGGLE},
@@ -845,6 +847,8 @@ static const key_action_t mic_actions[] = {
     {" NB toggle ", ACTION_NB_TOGGLE},
     {" WF mode ", ACTION_WF_MODE},
     {" WF 3D on/off ", ACTION_WF_3D},
+    {" CW decoder on/off ", ACTION_CW_DECODER},
+    {" CW ZAP ", ACTION_CW_ZAP},
     {" ATT on/off ", ACTION_ATT_TOGGLE},
     {" PRE on/off ", ACTION_PRE_TOGGLE},
     {" Tuner on/off ", ACTION_ATU_TOGGLE},

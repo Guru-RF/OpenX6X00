@@ -139,7 +139,7 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
 | Kind | Actions |
 |---|---|
-| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
