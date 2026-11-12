@@ -78,10 +78,9 @@ static char     pic_name[256];
 static uint8_t     last[TX_MAX];
 static unsigned    last_w, last_h;
 static sstv_mode_t last_mode = SSTV_SCOTTIE1;
-/* The TX mode (#230): TX Mode's choice in setup, kept for the next TX until the radio restarts, CQ's and Image's;
- * UNKNOWN: none chosen yet, the button's as it was. Reply and Replay go in the mode of the last picture received
+/* The TX mode (#230, #229): TX Mode's choice in setup, saved (params.sstv_tx_mode, also over a restart), CQ's and
+ * Image's; none chosen yet, the button's as it was. Reply and Replay go in the mode of the last picture received
  * (sstv_rx_last) with Reply mode As received, the default. The RX Mode (Manual RX) is put back after the setup */
-static sstv_mode_t tx_mode = SSTV_UNKNOWN;
 static sstv_mode_t setup_mode, rx_kept;
 static bool        rx_kept_ok;
 static bool        last_ok;
@@ -566,7 +565,8 @@ static bool picture_load(const char *file)
 /* TX Mode pressed in setup: the picture again at the new size, with its text */
 void sstv_tx_mode_changed(void)
 {
-    tx_mode = setup_mode = sstv_mode;      /* the next CQ goes in it too */
+    setup_mode = sstv_mode;                /* the next CQ goes in it too, also after a restart (#229) */
+    params_uint8_set(&params.sstv_tx_mode, (uint8_t)sstv_mode);
     if (pic_shown < 0 || (size_t)pic_shown >= pic_count || !picture_load(pic_files[pic_shown])) return;
     switch (step) {
     case STEP_MENU:         /* the menu never covers the received picture */
@@ -1286,7 +1286,9 @@ void sstv_tx_button(void)
     sstv_btn_tx.label = "Cancel TX";
     rx_kept = sstv_mode;          /* the RX Mode, back after the setup */
     rx_kept_ok = true;
-    if (tx_mode != SSTV_UNKNOWN) sstv_mode = tx_mode;
+    const sstv_mode_info_t *saved = sstv_mode_info((sstv_mode_t)params.sstv_tx_mode.x);
+
+    if (saved && saved->tx_ms) sstv_mode = saved->mode;   /* one the radio sends: not Scottie DX, nor junk */
     setup_mode = sstv_mode;
     sstv_mode_button(true, sstv_mode);
     sstv_status("TX setup\n\nChoose TX action");

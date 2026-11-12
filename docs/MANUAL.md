@@ -3058,9 +3058,11 @@ and its colours; the next press transmits.
 
 - TX Mode chooses Martin, Scottie or Robot. Cancel TX goes back. Halt TX
   stops on the air.
-- The TX mode is the one TX Mode was set to last, kept for the next TX
-  (CQ, Image only, and Reply with TX MODE) until the radio restarts; a
-  received picture no longer changes it. TX Mode pressed on a Reply in the
+- The TX mode is the one TX Mode was set to last, saved for the next TX
+  (CQ, Image only, and Reply with TX MODE), also over a restart; until it is
+  first set, the button's mode as the window opened. A received picture no
+  longer changes it. Up to v0.3.9 the window opened in Robot 8 each time
+  (#229). TX Mode pressed on a Reply in the
   received mode sets the TX mode too. The RX Mode for Manual RX stays as it
   was set for receiving. Up to v0.3.9 every TX went in the mode of the last
   recording Auto RX started, also one a false start (noise) began, so a

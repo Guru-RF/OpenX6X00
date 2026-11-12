@@ -176,6 +176,7 @@ typedef struct {
     params_str_t        ft8_cq_modifier;
     params_bool_t       sstv_denoise;    /* clean received pictures, keep the original too */
     params_bool_t       sstv_reply_rx;   /* Reply and Replay in the mode of the last picture received (#230) */
+    params_uint8_t      sstv_tx_mode;    /* sstv_mode_t TX Mode was set to last, 0 none yet (#229) */
 
     // FT8 gain offset for different radios/bands/modes
     params_float_t      ft8_output_gain_offset;
