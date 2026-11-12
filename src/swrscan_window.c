@@ -446,6 +446,7 @@ static void run_cb(button_data_t *b) {
         radio_stop_swrscan();
         radio_set_tx_freq(0);
         mem_load(MEM_BACKUP_ID);
+        lv_obj_invalidate(plot);    /* the line on the point being read goes: it stayed on until the next redraw */
     } else if (radio_get_state() != RADIO_RX) {
         msg_update_text_fmt("SWR scan: not while transmitting or tuning");
     } else {
