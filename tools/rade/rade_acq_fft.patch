@@ -1,0 +1,151 @@
+OpenX6X00: rade_acq_detect_pilots()' correlation grid with FFTs (rade_c's kiss_fft), for the radios' Cortex-A7.
+Applied by tools/rade/build.sh in rade_c/src (patch -p0). See the comment it adds to rade_acq.c.
+
+--- rade_acq.h
++++ rade_acq.h
+@@ -61,6 +61,17 @@
+     /* Pre-computed frequency-shifted pilots: p_w[M][n_freq] */
+     RADE_COMP p_w[RADE_ACQ_NFREQ][RADE_M];
+ 
++    /* OpenX6X00: rade_acq_detect_pilots()' grid with FFTs (rade_acq.c). RADE_ACQ_NFFT points at 8 kHz are 2.5 Hz
++       apart, the search's step: each search frequency is the pilot's spectrum turned by whole bins. */
++#define RADE_ACQ_NFFT 3200
++    int fft_ok;                                 /* 0: rade_c's sums */
++    struct kiss_fft_state *fft_fwd, *fft_inv;   /* kiss_fft's plans, in the two buffers below */
++    double fft_fwd_mem[RADE_ACQ_NFFT + 64];
++    double fft_inv_mem[RADE_ACQ_NFFT + 64];
++    int fft_shift[RADE_ACQ_NFREQ];              /* each search frequency in bins, 0..RADE_ACQ_NFFT-1 */
++    RADE_COMP fft_pc[RADE_ACQ_NFFT];            /* conj(the pilot's spectrum) / RADE_ACQ_NFFT */
++    RADE_COMP fft_x[RADE_ACQ_NFFT], fft_y[RADE_ACQ_NFFT], fft_r[RADE_ACQ_NFFT];
++
+     /* Pilot power for normalization */
+     float sigma_p;
+ 
+--- rade_acq.c
++++ rade_acq.c
+@@ -38,6 +38,77 @@
+ #include <stdlib.h>
+ #include <assert.h>
+ 
++/* OpenX6X00: the pilot search's correlations with FFTs. For each of the 40 search frequencies rade_c sums 160
++   products at each of the 2 x 960 times: 12 million complex multiplications for a 120 ms modem frame, about 175 ms of
++   the X6100's and X6200's Cortex-A7 (1 GHz). As correlations through the FFT (one forward, then one product and one
++   inverse for each frequency, of RADE_ACQ_NFFT points) the same grid takes a fraction of it; the search over it is
++   rade_c's own. The grid differs from the sums' in the last bits of a float only. rade_c's kiss_fft (Mark Borgerding,
++   BSD-3-Clause), built in here under names of its own: other code in a program may have a kiss_fft too. */
++#define kiss_fft_alloc          rade_acq_kiss_fft_alloc
++#define kiss_fft                rade_acq_kiss_fft
++#define kiss_fft_stride         rade_acq_kiss_fft_stride
++#define kiss_fft_cleanup        rade_acq_kiss_fft_cleanup
++#define kiss_fft_next_fast_size rade_acq_kiss_fft_next_fast_size
++#include "kiss_fft.c"
++
++_Static_assert(sizeof(RADE_COMP) == sizeof(kiss_fft_cpx), "RADE_COMP and kiss_fft_cpx: the same two floats");
++
++/* The plans and the pilot's spectrum, when every search frequency is a whole bin; else fft_ok stays 0 */
++static void acq_fft_init(rade_acq *acq) {
++    const int N = RADE_ACQ_NFFT;
++    size_t len;
++
++    acq->fft_ok = 0;
++    if (2 * acq->nmf + acq->m > N)
++        return;
++    len = sizeof(acq->fft_fwd_mem);
++    acq->fft_fwd = kiss_fft_alloc(N, 0, acq->fft_fwd_mem, &len);
++    len = sizeof(acq->fft_inv_mem);
++    acq->fft_inv = kiss_fft_alloc(N, 1, acq->fft_inv_mem, &len);
++    if (!acq->fft_fwd || !acq->fft_inv)
++        return;
++    for (int f_idx = 0; f_idx < acq->n_fcoarse; f_idx++) {
++        float b = acq->fcoarse_range[f_idx] * (float)N / (float)acq->fs;
++        int s = (int)lrintf(b);
++        if (fabsf(b - (float)s) > 1e-3f)
++            return;
++        acq->fft_shift[f_idx] = ((s % N) + N) % N;
++    }
++    memset(acq->fft_x, 0, sizeof(acq->fft_x));
++    memcpy(acq->fft_x, acq->p, sizeof(RADE_COMP) * acq->m);
++    kiss_fft(acq->fft_fwd, (const kiss_fft_cpx *)acq->fft_x, (kiss_fft_cpx *)acq->fft_y);
++    for (int m = 0; m < N; m++) {
++        acq->fft_pc[m].real = acq->fft_y[m].real / (float)N;
++        acq->fft_pc[m].imag = -acq->fft_y[m].imag / (float)N;
++    }
++    acq->fft_ok = 1;
++}
++
++/* Dt1[t][f] = sum(conj(rx[t:t+M]) * p_w[f]) and Dt2[t][f] the same at t + Nmf, for all t < Nmf and all f. With
++   p_w[f][n] = p[n] exp(j 2 pi s n / N), s the frequency in bins, the spectrum of p_w[f] is P[m - s]; the circular
++   correlation r = IFFT(X conj(P[m - s])) / N is sum(rx[t+n] conj(p_w[f][n])), wrapping nowhere: t + n < 2*Nmf + M
++   <= N. Dt is its conjugate. */
++static void acq_fft_grid(rade_acq *acq, const RADE_COMP *rx) {
++    const int N = RADE_ACQ_NFFT, Nmf = acq->nmf, L = 2 * acq->nmf + acq->m;
++    RADE_COMP *X = acq->fft_x, *Y = acq->fft_y, *r = acq->fft_r;
++
++    memcpy(Y, rx, sizeof(RADE_COMP) * L);
++    memset(Y + L, 0, sizeof(RADE_COMP) * (N - L));
++    kiss_fft(acq->fft_fwd, (const kiss_fft_cpx *)Y, (kiss_fft_cpx *)X);
++    for (int f_idx = 0; f_idx < acq->n_fcoarse; f_idx++) {
++        int s = acq->fft_shift[f_idx];
++        for (int m = 0; m < s; m++)
++            Y[m] = rade_cmul(X[m], acq->fft_pc[m - s + N]);
++        for (int m = s; m < N; m++)
++            Y[m] = rade_cmul(X[m], acq->fft_pc[m - s]);
++        kiss_fft(acq->fft_inv, (const kiss_fft_cpx *)Y, (kiss_fft_cpx *)r);
++        for (int t = 0; t < Nmf; t++) {
++            acq->Dt1[t][f_idx] = rade_cconj(r[t]);
++            acq->Dt2[t][f_idx] = rade_cconj(r[t + Nmf]);
++        }
++    }
++}
++
+ /*---------------------------------------------------------------------------*\
+                            INITIALIZATION
+ \*---------------------------------------------------------------------------*/
+@@ -78,6 +149,8 @@
+             acq->p_w[f_idx][n] = rade_cmul(w_vec, acq->p[n]);
+         }
+     }
++
++    acq_fft_init(acq);   /* OpenX6X00 */
+ }
+ 
+ /*---------------------------------------------------------------------------*\
+@@ -101,6 +174,9 @@
+     memset(acq->Dt1, 0, sizeof(acq->Dt1));
+     memset(acq->Dt2, 0, sizeof(acq->Dt2));
+ 
++    if (acq->fft_ok)    /* OpenX6X00: the grid with FFTs */
++        acq_fft_grid(acq, rx);
++
+     /* Search over time and frequency */
+     for (int t = 0; t < Nmf; t++) {
+         for (int f_idx = 0; f_idx < n_fcoarse; f_idx++) {
+@@ -109,15 +185,20 @@
+             RADE_COMP Dt1 = rade_czero();
+             RADE_COMP Dt2 = rade_czero();
+ 
+-            for (int n = 0; n < M; n++) {
+-                /* Note: Python uses np.conj(rx) first, then matmul
+-                   So Dt1[t] = conj(rx[t:t+M]) . p_w */
+-                Dt1 = rade_cadd(Dt1, rade_cmul(rade_cconj(rx[t + n]), acq->p_w[f_idx][n]));
+-                Dt2 = rade_cadd(Dt2, rade_cmul(rade_cconj(rx[t + Nmf + n]), acq->p_w[f_idx][n]));
+-            }
++            if (acq->fft_ok) {
++                Dt1 = acq->Dt1[t][f_idx];
++                Dt2 = acq->Dt2[t][f_idx];
++            } else {
++                for (int n = 0; n < M; n++) {
++                    /* Note: Python uses np.conj(rx) first, then matmul
++                       So Dt1[t] = conj(rx[t:t+M]) . p_w */
++                    Dt1 = rade_cadd(Dt1, rade_cmul(rade_cconj(rx[t + n]), acq->p_w[f_idx][n]));
++                    Dt2 = rade_cadd(Dt2, rade_cmul(rade_cconj(rx[t + Nmf + n]), acq->p_w[f_idx][n]));
++                }
+ 
+-            acq->Dt1[t][f_idx] = Dt1;
+-            acq->Dt2[t][f_idx] = Dt2;
++                acq->Dt1[t][f_idx] = Dt1;
++                acq->Dt2[t][f_idx] = Dt2;
++            }
+ 
+             /* Combined metric: |Dt1| + |Dt2| */
+             float Dt12 = rade_cabs(Dt1) + rade_cabs(Dt2);

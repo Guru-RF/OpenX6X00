@@ -493,8 +493,8 @@ Pat are MIT. XARA, the third Winlink modem (built from its release by
 as used here (some also Apache-2.0, Zlib or 0BSD), with the Rust standard library
 Apache-2.0 or MIT; their texts are in the image (`/usr/share/x6100/licenses/xara`),
 see [tools/xara/UPSTREAM.md](tools/xara/UPSTREAM.md). RADE, the RADE app's modem (`tools/rade/build.sh`), is
-freedv/rade_c (BSD-2-Clause) with the Opus fork that has the FARGAN vocoder
-(BSD-3-Clause), linked statically into the GUI. The web server is LGPL-2.1
+freedv/rade_c (BSD-2-Clause, with its kiss_fft, BSD-3-Clause) and the Opus fork that has
+the FARGAN vocoder (BSD-3-Clause), linked statically into the GUI. The web server is LGPL-2.1
 ([webserver/LICENSE](webserver/LICENSE)). Every file keeps the copyright
 notice of its authors.
 

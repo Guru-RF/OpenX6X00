@@ -10,8 +10,9 @@
 #                                               tools/freedv_tx_test.sh
 #
 # The prefix: include/rade and include/opus (the headers, Opus's in the tree they expect), lib/librade.a and
-# lib/libopus.a, and doc/ with rade_c's licence (BSD-2-Clause) and Opus's (BSD-3-Clause). The GUI's CMake takes it as
-# -DRADE_PREFIX=<prefix>, links the two libraries and installs doc/ in /usr/share/x6100/licenses/rade.
+# lib/libopus.a, and doc/ with rade_c's licence (BSD-2-Clause), Opus's and kiss_fft's (BSD-3-Clause). The GUI's
+# CMake takes it as -DRADE_PREFIX=<prefix>, links the two libraries and installs doc/ in
+# /usr/share/x6100/licenses/rade.
 # buildroot/local-build.sh runs it (in the build container and on the GitHub runner) with CC set to the buildroot
 # tree's own cross gcc and that tree's host/bin first on the PATH: Opus is configured with autotools, which the
 # container has not, and buildroot has its own.
@@ -19,10 +20,16 @@
 # V1 only: rade_api.c refers to V2 too, whose sources would bring V2's networks and their weights into the GUI, which
 # opens V1 only. rade_v2_none.c here stands in for them (a rade_open() with RADE_MODE_V2 fails).
 #
+# rade_acq_fft.patch: rade_c's pilot search (rade_acq_detect_pilots) sums 12 million complex products for each 120 ms
+# modem frame, some 175 ms of the radios' Cortex-A7 while no RADE signal is there: the app lost its input and kept a
+# core busy. The patch takes the same correlations through FFTs (rade_c's own kiss_fft, BSD-3-Clause, built into
+# rade_acq.c under names of its own), about 49 ms, with the search over them rade_c's.
+#
 # Everything is kept in $HOME/.cache/openx6x00/rade: the two source tarballs (GitHub's archives of the pinned
 # commits), the DNN model Opus's autogen.sh unpacks (media.xiph.org; its SHA-256 checked here, and again by Opus) and
-# the prefix, under a name made of the two commits, the target and the hash of this script, of rade_v2_none.c and of
-# the compiler's version. A second run with nothing changed prints that path and downloads nothing.
+# the prefix, under a name made of the two commits, the target and the hash of this script, of rade_v2_none.c, of
+# rade_acq_fft.patch and of the compiler's version. A second run with nothing changed prints that path and downloads
+# nothing.
 # Needs curl or wget, autoconf, automake, libtool (libtoolize), m4, perl, make and patch.
 #
 # rade_c is BSD-2-Clause, Opus BSD-3-Clause.
@@ -68,9 +75,11 @@ command -v curl > /dev/null || command -v wget > /dev/null || { echo "tools/rade
 
 CACHE=$HOME/.cache/openx6x00/rade
 DL=$CACHE/dl
-KEY=$( (cat "$HERE/build.sh" "$HERE/rade_v2_none.c"; "$CC" --version | head -1; echo "$TARGET") | sha256sum | cut -c1-12)
+KEY=$( (cat "$HERE/build.sh" "$HERE/rade_v2_none.c" "$HERE/rade_acq_fft.patch"; "$CC" --version | head -1; echo "$TARGET") \
+      | sha256sum | cut -c1-12)
 PREFIX=$CACHE/prefix-${RADE_C_COMMIT:0:8}-opus${OPUS_COMMIT:0:8}-$TARGET-$KEY
-if [ -f "$PREFIX/lib/librade.a" ] && [ -f "$PREFIX/lib/libopus.a" ] && [ -f "$PREFIX/doc/opus-COPYING" ]; then
+if [ -f "$PREFIX/lib/librade.a" ] && [ -f "$PREFIX/lib/libopus.a" ] && [ -f "$PREFIX/doc/opus-COPYING" ] \
+        && [ -f "$PREFIX/doc/kiss_fft-COPYING" ]; then
     echo "== RADE V1, rade_c ${RADE_C_COMMIT:0:8}, Opus ${OPUS_COMMIT:0:8} ($TARGET, $KEY): built already"
     echo "$PREFIX" >&3
     exit 0
@@ -107,6 +116,7 @@ echo "== rade_c $RADE_C_COMMIT"
 # The sources and the licence only: the tarball has some 45 MB of recordings besides
 tar xzf "$DL/rade_c-$RADE_C_COMMIT.tar.gz" rade_c-$RADE_C_COMMIT/src rade_c-$RADE_C_COMMIT/LICENSE
 mv rade_c-$RADE_C_COMMIT rade_c
+(cd rade_c/src && patch -s -p0 < "$HERE/rade_acq_fft.patch")
 
 echo "== Opus $OPUS_COMMIT (FARGAN, the LPCNet encoder), patched as rade_c does"
 tar xzf "$DL/opus-$OPUS_COMMIT.tar.gz"
@@ -202,6 +212,9 @@ cp rade_c/src/*.h "$D/include/rade/"
 # The headers fargan.h and lpcnet.h pull in, with the tree they expect, and the configure's config.h
 (cd opus && tar cf - $(find dnn celt include silk -name '*.h') config.h) | tar xf - -C "$D/include/opus"
 cp rade_c/LICENSE "$D/doc/rade_c-LICENSE"
+# kiss_fft's notice (BSD-3-Clause), the comment its source starts with: rade_acq_fft.patch builds it in
+sed -n '1,/\*\//p' rade_c/src/kiss_fft.c > "$D/doc/kiss_fft-COPYING"
+grep -q 'Mark Borgerding' "$D/doc/kiss_fft-COPYING" || { echo "tools/rade/build.sh: no kiss_fft notice"; exit 1; }
 cp opus/COPYING "$D/doc/opus-COPYING"
 rm -rf "$PREFIX"
 mv "$D" "$PREFIX"

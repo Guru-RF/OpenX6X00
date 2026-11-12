@@ -116,10 +116,11 @@ else()
                         ${XARA_DIR}/doc/rust-std-COPYRIGHT.html.gz DESTINATION share/x6100/licenses/xara)
         endif()
         # RADE, the RADE app's modem: rade_c (RADE V1) and the Opus fork with FARGAN, built outside by
-        # tools/rade/build.sh and linked into the GUI (src/CMakeLists.txt). Their licences, rade_c's (BSD-2-Clause)
-        # and Opus's (BSD-3-Clause), from the prefix's doc/ to /usr/share/x6100/licenses/rade
+        # tools/rade/build.sh and linked into the GUI (src/CMakeLists.txt). Their licences, rade_c's (BSD-2-Clause),
+        # Opus's and kiss_fft's in rade_c (BSD-3-Clause), from the prefix's doc/ to /usr/share/x6100/licenses/rade
         if(RADE_PREFIX)
                 install(FILES ${RADE_PREFIX}/doc/rade_c-LICENSE ${RADE_PREFIX}/doc/opus-COPYING
+                        ${RADE_PREFIX}/doc/kiss_fft-COPYING
                         DESTINATION share/x6100/licenses/rade)
         endif()
         # The apps' version, for the web configurator and the scripts. Read at configure time, so a
