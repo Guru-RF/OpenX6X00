@@ -429,6 +429,12 @@ static lv_coord_t draw_pota(lv_obj_draw_part_dsc_t *dsc, const lv_area_t *row, l
     return tag.x2 + 3;
 }
 
+bool decode_list_miles(void) {
+    int32_t info = param_i_get(cfg_ft8_info);
+
+    return info == 1 || info == 4;
+}
+
 /* On a received message, right-aligned from the right edge: the SNR, the distance, the country */
 static void draw_extras_cb(lv_event_t *e) {
     lv_obj_t               *obj = lv_event_get_target(e);
@@ -462,7 +468,7 @@ static void draw_extras_cb(lv_event_t *e) {
     int32_t info = param_i_get(cfg_ft8_info);
 
     if (info != 2 && cd->dist > 0) {
-        bool miles = info == 1 || info == 4;
+        bool miles = decode_list_miles();
 
         area.x2 = area.x1 - 10;
         area.x1 = area.x2 - 200;

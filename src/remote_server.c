@@ -1297,7 +1297,7 @@ static void ft8_row_line(char *buf, size_t n, uint32_t id, const cell_data_t *cd
                   (int)(cd->meta.freq_hz + 0.5f), cd->meta.local_snr, cd->meta.to_me, (int)cd->worked_type, cd->dist,
                   cd->pota, cd->odd);
     k += json_str(buf + k, n - k, cd->country);
-    snprintf(buf + k, n - k, "}");
+    snprintf(buf + k, n - k, ",\"mi\":%d}", decode_list_miles());   /* d in km, shown in miles (#227) */
 }
 
 /* LVGL thread (decode_list.c): kept, and to the panel clients at once */

@@ -78,6 +78,7 @@
 .ftbar { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; margin-bottom:6px; }
 .ftbar .b { height:38px; font-size:12px; }
 .ftbar .b.armed { border-color:#e03030; box-shadow:inset 0 -3px 0 #e03030; }
+.ftbar .b.wide { grid-column:1 / -1; height:30px; }
 .ftl { display:grid; grid-template-columns:repeat(5, 1fr); gap:3px; margin:0 0 6px; padding:0; list-style:none; counter-reset:step; }
 .ftl li { font:600 10px/1.2 system-ui,sans-serif; letter-spacing:.3px; color:var(--pd); text-align:center; padding:5px 2px; border-radius:6px; background:var(--pb); border:1px solid var(--pl); position:relative; overflow:hidden; }
 .ftl li small { display:block; font-size:10px; font-weight:500; color:var(--pd); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; min-height:1.2em; }
@@ -239,6 +240,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
         <button class="b tg" id="ft-hold" title="Hold the TX offset: do not move onto the station answered">HOLD</button>
         <button class="b" id="ft-stop" title="Stop the transmission, drop the queued message, CQ off, TX off: nothing transmits until armed again">STOP</button>
         <button class="b" id="ft-clear" title="Clear this list (the radio's is not touched)">CLEAR</button>
+        <button class="b wide" id="ft-order" aria-pressed="false" title="Where the newest decode comes in: at the bottom, as on the radio, or on top, under these buttons; this browser keeps the choice">Newest at the bottom</button>
       </div>
       <ol class="ftl" id="ftl" title="What the app does now and next">
         <li data-s="listen">Listening<small></small></li>
@@ -799,7 +801,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   /* ---- FT8, CW, Log ---- */
   const PROTOS = ["FT4", "FT8", "FT2"];
   let ft8 = null, ftCount = 0;
-  const $ftrows = $("#ftrows"), ftList = document.getElementById("ftrows");
+  const $ftrows = $("#ftrows");
   /* The timeline (U10): what the app does now and next, as the radio tells it ("ft8 {...}" with
    * in: ms to our next slot, slot: its length, rep: sends left, qso, hound, nocall, logged, logged_s).
    * The countdown ticks here between the radio's updates. ftStopped: STOP was pressed, the line
@@ -846,18 +848,35 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     else $n.text("Listening, nothing queued. " + (f.auto ? "AUTO: a station calling you is answered by itself. " : "AUTO off: a station calling you waits for your tap. ") + (armed ? "CQ calls, a tap on a CQ answers it." : "TX off (dry run): CQ or a tap arms it."));
   }
   setInterval(function() { if (ft8 && ft8.open && ft8.in >= 0) showFt8(); }, 1000);
+  /* The newest at the bottom, as the radio's list, or on top under the buttons (#227), a choice this browser keeps.
+   * The tab scrolls, its buttons with it: at the bottom the list follows the newest once scrolled to its end, on top
+   * what is in view stays put while scrolled down. The distance comes in km, shown as the radio's Settings > FT8/FT4
+   * info has it (r.mi: in miles) */
+  const ftTab = document.getElementById("tab-ft8");
+  let ftTop = !!pref.ftTop;
+  function ftOrderShow() { $("#ft-order").text(ftTop ? "Newest on top" : "Newest at the bottom").attr("aria-pressed", String(ftTop)); }
+  ftOrderShow();
+  $("#ft-order").on("click", function() {
+    ftTop = !ftTop; pref.ftTop = ftTop; savePref();
+    $ftrows.append($ftrows.children().get().reverse());
+    ftTab.scrollTop = 0;
+    ftOrderShow();
+  });
   function addFt8Row(r) {
-    const atEnd = ftList.scrollHeight - ftList.scrollTop - ftList.clientHeight < 40 || !ftList.parentNode.classList.contains("cur");
+    const shown = ftTab.classList.contains("cur"), h = ftTab.scrollHeight;
+    const follow = ftTop ? ftTab.scrollTop < 40 : ftTab.scrollTop > 0 && h - ftTab.scrollTop - ftTab.clientHeight < 40;
     const li = $("<li>").addClass("t" + r.t).append($("<span class='x'>").text(r.x));
     if (r.t >= 2 && r.t <= 4) {
       li.append($("<span class='i'>").text((r.snr > 0 ? "+" : "") + r.snr + " " + r.f));
-      const k = [r.k, r.d ? r.d + " km" : "", r.w === 1 ? "worked" : r.w === 2 ? "worked (mode)" : "", r.p ? "POTA" : ""].filter(Boolean).join(" · ");
+      const dist = r.d ? (r.mi ? Math.round(r.d * 0.621371) + " mi" : r.d + " km") : "";
+      const k = [r.k, dist, r.w === 1 ? "worked" : r.w === 2 ? "worked (mode)" : "", r.p ? "POTA" : ""].filter(Boolean).join(" · ");
       if (k) li.append($("<span class='k'>").text(k));
       li.on("click", function() { act("ft8 reply " + r.id); });
     }
-    $ftrows.append(li);
-    if (++ftCount > 200) { $ftrows.children().first().remove(); ftCount--; }
-    if (atEnd) ftList.scrollTop = ftList.scrollHeight;
+    if (ftTop) $ftrows.prepend(li); else $ftrows.append(li);
+    if (shown && ftTop && !follow) ftTab.scrollTop += ftTab.scrollHeight - h;   /* by the new row, before the trim */
+    if (++ftCount > 200) { (ftTop ? $ftrows.children().last() : $ftrows.children().first()).remove(); ftCount--; }
+    if (shown && !ftTop && follow) ftTab.scrollTop = ftTab.scrollHeight;
   }
   $("#ft-open").on("click", function() { act("ft8 " + (ft8 && ft8.open ? "close" : "open")); });
   $("#ft-mode").on("click", function() { act("ft8 mode"); });

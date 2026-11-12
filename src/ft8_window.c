@@ -399,8 +399,11 @@ static void save_qso(const done_qso_t *d) {
     if (strlen(grid) >= 4) {
         double lat, lon;
         qth_str_to_pos(grid, &lat, &lon);
-        msg_schedule_long_text_fmt("Saved QSO de %s %d %d (%.0f km)", call, sent, rcvd,
-                                   qth_pos_dist(lat, lon, my_lat, my_lon));
+        double km = qth_pos_dist(lat, lon, my_lat, my_lon);
+        bool   mi = decode_list_miles();    /* Settings > FT8/FT4 info, as the list (#227) */
+
+        msg_schedule_long_text_fmt("Saved QSO de %s %d %d (%.0f %s)", call, sent, rcvd, mi ? km * 0.621371 : km,
+                                   mi ? "mi" : "km");
     } else {
         msg_schedule_long_text_fmt("Saved QSO de %s %d %d", call, sent, rcvd);
     }

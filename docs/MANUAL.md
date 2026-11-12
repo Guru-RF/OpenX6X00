@@ -2697,7 +2697,8 @@ country with its flag, the distance (when the sender sent a grid and your
 QTH is set) and the SNR. The country comes from AD1C's cty.dat (SP2KMO's
 upstream PR #282). Settings > Display > INTERFACE > FT8/FT4 info picks what
 goes next to the SNR: km, mi, Country, Country + km (the default) or
-Country + mi.
+Country + mi. The "Saved QSO" message and the web Panel's FT8 list give the
+distance in the same unit.
 
 | Row | Colour |
 |---|---|
@@ -5615,6 +5616,17 @@ setup, a doubtful antenna or a first look at a band costs no transmission;
 CQ, a tap on a call or TX itself arms it, and the radio says so on its
 screen as well ("TX off: receive only until TX Call, CQ or a call is
 pressed").
+
+The decodes are listed under the buttons, the newest at the bottom as on
+the radio. The wide button under the others, "Newest at the bottom", turns
+the list round to "Newest on top": each new decode then comes in right under
+the buttons, which stay in view (on a tablet in portrait the list is taller
+than the screen). This browser keeps the choice. At the bottom, the list
+follows the newest once you have scrolled to its end; on top, what you are
+reading stays put while you are scrolled down. The distance is in km or in
+miles as the radio's Settings > Display > INTERFACE > FT8/FT4 info has it
+(mi or Country + mi), and the radio's "Saved QSO" message follows it too.
+Up to v0.3.9 the page showed km only, the radio's message too (issue #227).
 
 STOP is one button with one stated outcome: the transmission under way and
 the queued message are dropped, CQ goes off, TX goes off; the line then

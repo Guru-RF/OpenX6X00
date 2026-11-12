@@ -56,6 +56,10 @@ typedef struct {
 /* A press on the list: the row's data, NULL on the "Wait sync" row */
 typedef void (*table_view_press_cb_t)(const cell_data_t *cell);
 
+/* Settings > FT8/FT4 info gives the distances in miles (mi, Country + mi): the list, the saved QSO's message and the
+ * web Panel's rows follow it (#227). Any thread */
+bool      decode_list_miles(void);
+
 /* The list at x, y, w x h on parent (the pin table takes its bottom when it has rows) */
 void      table_view_build(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h);
 void      table_view_destroy(void);
