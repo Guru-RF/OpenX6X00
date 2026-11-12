@@ -15,6 +15,7 @@
 #include "backlight.h"
 #include "msg.h"
 #include "cfg/cfg_api.h"
+#include "params/params.h"
 
 #include <time.h>
 #include <stdio.h>
@@ -115,6 +116,14 @@ static power_t power_get(void) {
     return p;
 }
 
+/* The hour as the clock shows it: 0-23, or with the 12-hour clock 1-12, *ampm then " AM" or " PM" (#54) */
+static int clock_hour(int h, const char **ampm) {
+    *ampm = "";
+    if (!params.clock_12h.x) return h;
+    *ampm = h < 12 ? " AM" : " PM";
+    return h % 12 ? h % 12 : 12;
+}
+
 /* Time on top (seconds smaller), voltages below, both always shown. */
 static void show_time() {
     time_t      now;
@@ -127,8 +136,19 @@ static void show_time() {
         return;
     }
 
-    lv_label_set_text_fmt(time_label, "%02i:%02i", t->tm_hour, t->tm_min);
-    lv_label_set_text_fmt(sec_label, ":%02i", t->tm_sec);
+    const char *ampm;
+    int         h = clock_hour(t->tm_hour, &ampm);
+
+    /* 12-hour: "1:05" and ":30 PM" (12:34:56 PM is 154 px of the 168); VISION has no seconds, the AM or PM in
+     * their place (12:34 PM is 130 px of its 132) */
+    lv_label_set_text_fmt(time_label, *ampm ? "%i:%02i" : "%02i:%02i", h, t->tm_min);
+    if (theme_shape.vision) {
+        lv_label_set_text(sec_label, *ampm ? ampm + 1 : "");
+        if (*ampm) lv_obj_clear_flag(sec_label, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(sec_label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_label_set_text_fmt(sec_label, ":%02i%s", t->tm_sec, ampm);
+    }
 
     int  show = param_i_get(cfg_power_display);
     bool volts = show == 1 || (show == 2 && now / POWER_TURN_S % 2);   /* else the % and the time */
@@ -236,7 +256,8 @@ static void draw_cb(lv_event_t *e) {
 
     pthread_mutex_lock(&power_mux);
     power_t          p = power_get();
-    ops_room_clock_t c = {.h = t->tm_hour, .m = t->tm_min, .s = t->tm_sec, .cap = cap_bat, .ext = p.ext,
+    const char      *ampm;
+    ops_room_clock_t c = {.h = clock_hour(t->tm_hour, &ampm), .m = t->tm_min, .s = t->tm_sec, .cap = cap_bat, .ext = p.ext,
                           .est_min = p.est, .approx = est_approx, .known = p.known, .battery = p.battery,
                           .full = p.full, .low = p.low, .v_ext = v_ext};
     pthread_mutex_unlock(&power_mux);

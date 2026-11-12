@@ -114,6 +114,7 @@ static const struct {
     {"icon_menus", &params.icon_menus},
     {"mag_info", &params.mag_info},
     {"mag_alc", &params.mag_alc},
+    {"clock_12h", &params.clock_12h},
     {"spectrum_filled", &params.spectrum_filled},
     {"spectrum_peak", &params.spectrum_peak},
 };

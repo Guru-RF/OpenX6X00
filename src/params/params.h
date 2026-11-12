@@ -134,6 +134,7 @@ typedef struct {
     params_bool_t       icon_menus;         /* APP, Modes and the Settings rail as icons */
     params_bool_t       mag_info;
     params_bool_t       mag_alc;
+    params_bool_t       clock_12h;      /* the clock at the top right as 1:05 PM, not 13:05 (#54) */
     clock_view_t        clock_view;
     uint8_t             clock_time_timeout;     /* seconds */
     uint8_t             clock_power_timeout;    /* seconds */

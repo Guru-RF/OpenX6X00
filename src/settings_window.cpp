@@ -3329,6 +3329,8 @@ static void make_general_page() {
     row = make_dt_row(row, "Date", 0);
     row = make_dt_row(row, "Time", 3);
     row = make_zone(row);
+    wl_row_label(row, "12-hour clock");     /* the clock at the top right as 1:05 PM (#54) */
+    bool_switch(row++, 3, 1, 100, &params.clock_12h);    /* the 100 px column of col_datetime */
     card_end(row);
 
     row = card_begin("CONTROLS");

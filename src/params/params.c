@@ -54,6 +54,7 @@ params_t params = {
     .icon_menus             = { .x = true,   .name = "icon_menus" },
     .mag_info               = { .x = false, .name = "mag_info" },
     .mag_alc                = { .x = true,  .name = "mag_alc" },
+    .clock_12h              = { .x = false, .name = "clock_12h" },
     .clock_view             = CLOCK_TIME_POWER,
     .clock_time_timeout     = 5,
     .clock_power_timeout    = 3,
@@ -332,6 +333,7 @@ static bool params_load() {
         if (params_load_int32(&params.ft8_custom_hz, name, i)) continue;
         if (params_load_bool(&params.mag_info, name, i)) continue;
         if (params_load_bool(&params.mag_alc, name, i)) continue;
+        if (params_load_bool(&params.clock_12h, name, i)) continue;
         if (params_load_uint8(&params.spectrum_beta, name, i)) continue;
         if (params_load_uint8(&params.spectrum_peak_hold, name, i)) continue;
         if (params_load_uint8(&params.spectrum_peak_speed, name, i)) continue;
@@ -490,6 +492,7 @@ static bool params_save() {
     params_save_int32(&params.ft8_custom_hz);
     params_save_bool(&params.mag_info);
     params_save_bool(&params.mag_alc);
+    params_save_bool(&params.clock_12h);
     params_save_uint8(&params.spectrum_beta);
     params_save_uint8(&params.spectrum_peak_hold);
     params_save_uint8(&params.spectrum_peak_speed);
