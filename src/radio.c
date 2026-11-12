@@ -297,12 +297,19 @@ static void power_key_cb(void *arg) {
 }
 
 /* The SWR scan's carrier: 1 W is enough to read the SWR. Held here for as long as the scan runs: PWR set meanwhile
- * (TCI's drive, the Panel's PWR, the X6200's battery cap) came through on_pwr_change, and the sweep went on at PWR */
+ * (TCI's drive, the Panel's PWR, the X6200's battery cap) came through on_pwr_change, and the sweep went on at PWR.
+ * On the X6200 also under a lower PWR, as the stock firmware (its DialogSwrScanner sets 1.0 W whatever PWR is): the
+ * base's bridge has a diode detector, and below 1 W it reads low (EFHW on 80 m, SWR 4 on a NanoVNA: 2.15-2.4 at 1 W,
+ * 1.9-2.15 at 0.5 W, a flat 1.0 at 0.1 W, the "empty" scan of #212) */
 #define SWRSCAN_PWR_W   1.0f
 
 static void set_txpwr(float w) {
     txpwr_asked = w;
+#ifdef BOARD_X6200
+    if (atomic_load(&state) == RADIO_SWRSCAN) w = SWRSCAN_PWR_W;
+#else
     if (atomic_load(&state) == RADIO_SWRSCAN && w > SWRSCAN_PWR_W) w = SWRSCAN_PWR_W;
+#endif
     /* An app open: its cap, but not over a TUNE's own power (#87), which holds the power to it instead */
     if (digi_cap && tune_cap <= 0.0f && w > TX_PLAYER_MAX_PWR_W) w = TX_PLAYER_MAX_PWR_W;
     if (tune_cap > 0.0f && w > tune_cap) w = tune_cap;     /* PWR turned up, the battery's top, a restore */
@@ -857,16 +864,20 @@ void radio_start_atu() {
     state_move(RADIO_RX, RADIO_ATU_START);
 }
 
-/* The X6200's base (1.0.8) transmits in its scan mode but reports SWR 1.0 there, the stock firmware's scan too;
- * a plain carrier reads it. Keyed as the digital modes are (not radio_set_modem: no app is on air), so the mics
- * stay out, their gain 0 still lets a voice through; nothing plays to the base meanwhile. In FM: an AM carrier
- * at 1 W is ~0.2 W, too little for the bridge */
+/* The X6200's base (1.0.8) transmits in its scan mode (swrt), but on some radios reads no SWR there: on ea4iln's a
+ * flat 1.0 in FM and AM and in USB only jumps of 1.0-1.7 where the SWR is 4, the stock firmware's scan (the mode as
+ * it is, with tune_flag) too, and a copy of it here (tune_flag changed nothing); on others it reads in AM (#212).
+ * A plain carrier reads on all, slower: the power comes up from 0 after each move. Keyed as the digital modes are
+ * (not radio_set_modem: no app is on air), so the mics stay out, their gain 0 still lets a voice through; nothing
+ * plays to the base meanwhile. In FM: an AM carrier at 1 W is ~0.2 W, too little for the bridge */
 #ifdef BOARD_X6200
 #define SWRSCAN_TX      HW_MODEM
 #define SWRSCAN_MODE    radio_mode_nfm
-#define SWRSCAN_MIN_MS  1200    /* from a move: the power comes up in about that */
+#define SWRSCAN_MIN_MS  850     /* from a move: with the flat wait, reads as 1.2 s did on 40 and 80 m (SWR 1.1-2.5) */
 #define SWRSCAN_FLAT_MS 300     /* without the power going up: it is up */
 #define SWRSCAN_WAIT_MS 3000    /* a power that never settles is read anyway */
+#define SWRSCAN_READS   3       /* packets averaged once the power is up: a reading alone strays 0.1-0.2 (one decimal,
+                                 * a diode bridge), ~0.1 s more a point; on the same point, so a narrow dip stays */
 
 /* In ms, not packets: the X6200's come every ~35 ms (hw_x6200.c). The radio thread's own (radio_tick), but for
  * swrscan_fresh, which radio_start_swrscan sets for it */
@@ -874,6 +885,8 @@ static atomic_bool swrscan_fresh;       /* a new scan: the wait starts afresh */
 static uint8_t     swrscan_peak;        /* the power's top since the move */
 static uint64_t    swrscan_move_ms;     /* the move, or the key */
 static uint64_t    swrscan_up_ms;       /* the power last went up */
+static int         swrscan_n;           /* readings summed at this point */
+static int         swrscan_sum;         /* of pack->vswr */
 #else
 #define SWRSCAN_TX      HW_SWRSCAN
 #define SWRSCAN_MODE    radio_mode_am
@@ -888,8 +901,8 @@ bool radio_start_swrscan(int32_t from) {
     radio_set_tx_freq(from);
     cparam_i_set(cfg_cur_mode, SWRSCAN_MODE);
     radio_lock();
-    /* 1 W, held there by set_txpwr (SWRSCAN_PWR_W); less if PWR is set lower, or a transverter's limit.
-     * ponytail: fixed 1 W cap, make it a setting if the bridge reads poorly that low */
+    /* 1 W, held there by set_txpwr (SWRSCAN_PWR_W); a transverter's limit if lower, and on the X6100 a lower PWR.
+     * ponytail: fixed 1 W, make it a setting if the bridge reads poorly that low */
     set_txpwr(param_f_get(cfg_pwr));
 #ifdef BOARD_X6200
     atomic_store(&swrscan_fresh, true);
@@ -2919,21 +2932,35 @@ static bool radio_tick() {
                 if (atomic_exchange(&swrscan_fresh, false) || !pack->tx) {
                     swrscan_peak    = 0;        /* a new scan, or not keyed (yet): the wait counts from the key */
                     swrscan_move_ms = swrscan_up_ms = now_time;
+                    swrscan_n       = swrscan_sum = 0;
                 }
                 if (!pack->tx)
                     break;
-                if (pack->tx_power > swrscan_peak || pack->tx_power + 1 < swrscan_peak) {
-                    swrscan_peak  = pack->tx_power;     /* going up, or a new ramp */
-                    swrscan_up_ms = now_time;
+                if (swrscan_n == 0) {
+                    if (pack->tx_power > swrscan_peak || pack->tx_power + 1 < swrscan_peak) {
+                        swrscan_peak  = pack->tx_power;     /* going up, or a new ramp */
+                        swrscan_up_ms = now_time;
+                    }
+                    if ((now_time - swrscan_move_ms < SWRSCAN_MIN_MS || now_time - swrscan_up_ms < SWRSCAN_FLAT_MS) &&
+                        now_time - swrscan_move_ms < SWRSCAN_WAIT_MS)
+                        break;
                 }
-                if ((now_time - swrscan_move_ms < SWRSCAN_MIN_MS || now_time - swrscan_up_ms < SWRSCAN_FLAT_MS) &&
-                    now_time - swrscan_move_ms < SWRSCAN_WAIT_MS)
+                swrscan_sum += pack->vswr;      /* up: this packet and the next ones, the power no longer watched */
+                if (++swrscan_n < SWRSCAN_READS)
                     break;
-                swrscan_peak    = 0;            /* read: dialog_swrscan_update moves to the next point */
-                swrscan_move_ms = swrscan_up_ms = now_time;
-#endif
+                {
+                    float v = swrscan_sum * 0.1f / swrscan_n;
+
+                    swrscan_peak    = 0;        /* read: dialog_swrscan_update moves to the next point */
+                    swrscan_move_ms = swrscan_up_ms = now_time;
+                    swrscan_n       = swrscan_sum = 0;
+                    dialog_swrscan_update(v);
+                }
+                break;
+#else
                 dialog_swrscan_update(pack->vswr * 0.1f);
                 break;
+#endif
 
             case RADIO_POWEROFF:
                 WITH_RADIO_LOCK(hw_poweroff());

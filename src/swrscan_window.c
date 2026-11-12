@@ -20,20 +20,30 @@
 #include "msg.h"
 
 #include <math.h>
+#include <stdatomic.h>
 #include <stdio.h>
+#include <string.h>
 
+#ifdef BOARD_X6200
+#define POINTS      25      /* across a span under 1 MHz: each point waits for the base's power, ~1 s */
+#else
 #define POINTS      50      /* across a span under 1 MHz */
+#endif
 #define POINTS_WIDE 100     /* from 1 MHz: one every 25 kHz at 2.5 MHz, so a narrow dip still shows (#107) */
 #define TOP_H       34      /* the frequencies above the grid */
 #define BOTTOM_H    10
 
 static lv_obj_t *plot;
 static float    swr[POINTS_WIDE];       /* as measured */
-static float    smooth[POINTS_WIDE];    /* five points averaged, two behind the scan */
+static float    smooth[POINTS_WIDE];    /* the reading, averaged with its neighbours when there are many */
+static bool     measured[POINTS_WIDE];  /* a reading came for it: only these are drawn */
 static uint16_t points = POINTS;        /* in this sweep */
+static uint16_t order[POINTS_WIDE];     /* the points in the order they are read */
+static uint16_t order_at;
 static uint16_t pos;
 static int32_t  f_center, f_low, f_high;
 static bool     scanning;
+static atomic_bool moved;                /* the dial moved the sweep: the reading on its way is the old frequency's */
 static bool     lin_scale;          /* else log */
 static int32_t  span_hz;
 
@@ -59,7 +69,28 @@ static dialog_t dialog = { .construct_cb = open_cb, .destruct_cb = close_cb, .bt
 
 dialog_t *dialog_swrscan = &dialog;
 
-/* A flat 1.0 line and the scan back at the low edge of the span, around the frequency the radio transmits on
+/* On the X6200, where a point takes ~1 s: the two ends, then every 2^n-th point, then the points halfway between
+ * those, so that the shape is there after a few seconds. Elsewhere from the low edge up, the base's own scan */
+static void make_order() {
+#ifdef BOARD_X6200
+    int top = 1, n = 0;
+
+    while (top * 2 < points - 1) top *= 2;
+    order[n++] = 0;
+    order[n++] = points - 1;
+    for (int step = top; step >= 1; step /= 2) {
+        for (int i = step; i < points - 1; i += step) {
+            if (step == top || i % (step * 2) == step) order[n++] = i;
+        }
+    }
+#else
+    for (int i = 0; i < points; i++) order[i] = i;
+#endif
+    order_at = 0;
+    pos = order[0];
+}
+
+/* No curve yet and the scan back at the low edge of the span, around the frequency the radio transmits on
  * (the other VFO in split, a TX shift's). The sweep stays where the radio transmits the same way (#107): a span past
  * the edge of HF (0.1 or 55 MHz), of a transverter's range or of the amateur band (with TX outside the amateur bands
  * off, #121) moves inside it, and one wider than the range takes all of it; the frequencies on the plot say so. On an
@@ -70,7 +101,6 @@ dialog_t *dialog_swrscan = &dialog;
 static void reset_scan() {
     int32_t lo, hi;
 
-    pos = 0;
     f_center = radio_tx_freq();
     f_low = f_center - span_hz / 2;
     f_high = f_center + span_hz / 2;
@@ -84,7 +114,8 @@ static void reset_scan() {
         }
     }
     points = f_high - f_low >= 1000000 ? POINTS_WIDE : POINTS;
-    for (int i = 0; i < points; i++) swr[i] = smooth[i] = 1.0f;
+    memset(measured, 0, sizeof(measured));
+    make_order();
 }
 
 /* The plot's x of a frequency in the sweep */
@@ -100,7 +131,7 @@ static lv_coord_t swr_y(float v, lv_coord_t h) {
         k = (v - 1.0f) / 4.0f;
     else
         k = log10f(1.0f + (v - 1.0f) / (1.0f / logf(10.0)));
-    return (1.0f - k) * h;
+    return (1.0f - LV_CLAMP(0.0f, k, 1.0f)) * h;    /* over 5 stays on the plot, off the frequencies above it */
 }
 
 static void draw_text(lv_draw_ctx_t *ctx, lv_draw_label_dsc_t *dsc, lv_coord_t x, lv_coord_t y_mid,
@@ -202,37 +233,104 @@ static void draw_cb(lv_event_t *e) {
         lv_draw_line(ctx, &line, &p1, &p2);
     }
 
+    /* The point being read, as the stock firmware's scan indicator: the order jumps about on the X6200 (make_order)
+     * and the curve is redrawn over itself, so without it a sweep at work and one that has stopped looked the same */
+    if (scanning) {
+        int at = LV_MIN(pos, points - 1);   /* the radio thread moves it */
+
+        p1.x = p2.x = x0 + at * w / (points - 1);
+        p1.y = y0;
+        p2.y = y0 + h;
+        line.color = TC(text);
+        line.opa = LV_OPA_50;
+        line.width = 2;
+        lv_draw_line(ctx, &line, &p1, &p2);
+        line.width = 1;
+    }
+
     /* The curve, each piece in the colour of its worse end */
     line.width = 4;
     line.opa = LV_OPA_COVER;
     line.round_start = 1;
     line.round_end = 1;
 
-    for (int i = 1; i < points; i++) {
-        float v = LV_MAX(smooth[i - 1], smooth[i]);
+    /* Through what was measured, however few: a rounded line (a cubic per gap, its slopes the harmonic mean of the
+     * two sides, 0 at a peak or dip, so that it never swings past the readings and invents a dip) */
+    int   idx[POINTS_WIDE], n = 0;
+    float d[POINTS_WIDE];
 
-        line.color = v <= 1.5f ? TC(ok) : v <= 3.0f ? TC(warn) : TC(err);
-        p1.x = x0 + (i - 1) * w / points;
-        p1.y = y0 + swr_y(smooth[i - 1], h);
-        p2.x = x0 + i * w / points;
-        p2.y = y0 + swr_y(smooth[i], h);
-        lv_draw_line(ctx, &line, &p1, &p2);
+    for (int i = 0; i < points; i++) {
+        if (measured[i]) idx[n++] = i;
     }
+    for (int k = 1; k < n - 1; k++) {
+        float s0 = (smooth[idx[k]] - smooth[idx[k - 1]]) / (idx[k] - idx[k - 1]);
+        float s1 = (smooth[idx[k + 1]] - smooth[idx[k]]) / (idx[k + 1] - idx[k]);
+
+        d[k] = s0 * s1 <= 0.0f ? 0.0f : 2.0f * s0 * s1 / (s0 + s1);
+    }
+    if (n > 1) {
+        d[0] = (smooth[idx[1]] - smooth[idx[0]]) / (idx[1] - idx[0]);
+        d[n - 1] = (smooth[idx[n - 1]] - smooth[idx[n - 2]]) / (idx[n - 1] - idx[n - 2]);
+    }
+    for (int k = 1; k < n; k++) {
+        int   from = idx[k - 1], gap = idx[k] - from;
+        int   steps = LV_MAX(1, gap * w / (points - 1) / 8);
+        float v0 = smooth[from], v1 = smooth[idx[k]], prev = v0;
+
+        p1.x = x0 + from * w / (points - 1);
+        p1.y = y0 + swr_y(prev, h);
+        for (int part = 1; part <= steps; part++) {
+            float t = (float)part / steps, t2 = t * t, t3 = t2 * t;
+            float v = (2 * t3 - 3 * t2 + 1) * v0 + (t3 - 2 * t2 + t) * gap * d[k - 1] +
+                      (-2 * t3 + 3 * t2) * v1 + (t3 - t2) * gap * d[k];
+
+            v = LV_MAX(v, 1.0f);
+            line.color = LV_MAX(prev, v) <= 1.5f ? TC(ok) : LV_MAX(prev, v) <= 3.0f ? TC(warn) : TC(err);
+            p2.x = x0 + (lv_coord_t)((from + gap * t) * w / (points - 1));
+            p2.y = y0 + swr_y(v, h);
+            lv_draw_line(ctx, &line, &p1, &p2);
+            p1 = p2;
+            prev = v;
+        }
+    }
+}
+
+/* The sweep's points, from f_low to f_high itself: the last one used to stop a point short of the top */
+static int32_t point_freq(int i) {
+    return f_low + (int64_t)(f_high - f_low) * i / (points - 1);
 }
 
 /* One reading at the current point, then on to the next frequency */
 static void scan_step(float v) {
-    int mid = (points + pos - 2) % points;
-    float sum = 0.0f;
+    const int reach = points <= 25 ? 0 : 2;     /* few points: an average lifted a dip of 1.5 to 1.7 */
 
-    swr[pos] = v;
-    for (int i = mid - 2; i <= mid + 2; i++)
-        sum += swr[LV_CLAMP(0, i, points - 1)];
-    smooth[mid] = sum / 5.0f;
+    if (atomic_exchange(&moved, false)) {       /* read before the dial moved: the sweep starts over from here */
+        radio_set_tx_freq(point_freq(pos));
+        return;
+    }
+    v = LV_MAX(v, 1.0f);
+    swr[pos] = smooth[pos] = v;     /* before measured: the plot draws from another thread */
+    measured[pos] = true;
+    for (int i = LV_MAX(pos - reach, 0); i <= LV_MIN(pos + reach, points - 1); i++) {
+        float sum = 0.0f;
+        int   n = 0;
+
+        if (!measured[i]) continue;
+
+        for (int j = LV_MAX(i - reach, 0); j <= LV_MIN(i + reach, points - 1); j++) {
+            if (measured[j]) {
+                sum += swr[j];
+                n++;
+            }
+        }
+        smooth[i] = sum / n;
+    }
     event_send(plot, LV_EVENT_REFRESH, NULL);
 
-    pos = (pos + 1) % points;
-    radio_set_tx_freq(f_low + (int64_t)(f_high - f_low) * pos / points);
+    order_at = (order_at + 1) % points;
+    /* the dial may have changed the sweep's points under this thread: never a frequency past its end */
+    pos = LV_MIN(order[order_at], points - 1);
+    radio_set_tx_freq(point_freq(pos));
 }
 
 /* The dial moved: the sweep around it again. Moved where the radio may not transmit (#121), the scan stops, as if
@@ -245,6 +343,7 @@ static void freq_changed(Subject *subj, void *user_data) {
         return;
     }
     reset_scan();
+    if (scanning) atomic_store(&moved, true);
     lv_obj_invalidate(plot);
 }
 
@@ -324,6 +423,7 @@ static void run_cb(button_data_t *b) {
     } else {
         mem_save(MEM_BACKUP_ID);
         reset_scan();
+        atomic_store(&moved, false);
         scanning = radio_start_swrscan(f_low);
     }
     buttons_refresh(&btn_run);
