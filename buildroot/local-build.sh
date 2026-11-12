@@ -335,8 +335,15 @@ fi
 # build put in target/. A directory that held another GUI's sources (the stock X6200 GUI, in a tree
 # built stock before) is wiped once: its files would be compiled along with ours
 # A tree whose GUI was configured before, also one whose last build failed in the GUI (.stamp_built gone): the
-# first-build path below skipped the web server's reinstall there, and the bundle went without it
-if ls $BR/build/build/$GUI_PKG-*/.stamp_configured > /dev/null 2>&1; then
+# first-build path below skipped the web server's reinstall there, and the bundle went without it. Also one whose
+# last run failed in the GUI's sync: its reconfigure had taken .stamp_configured away, and the next run took the
+# first-build path, without the web server it had removed from target/ (mkbundle.py stopped there: "missing in
+# target"). A tree this script built once has .openx6x00, which stays; a stock-built one has .stamp_configured only
+synced=""
+for f in $BR/build/build/$GUI_PKG-*/.stamp_configured $BR/build/build/$GUI_PKG-*/.openx6x00; do
+    [ -e "$f" ] && synced=1
+done
+if [ -n "$synced" ]; then
     for d in $BR/build/build/$GUI_PKG-*/; do
         [ -d "$d" ] && [ ! -f "$d/.openx6x00" ] && { echo "   wiping $d (not synced from OpenX6X00 before)"; rm -rf "$d"; }
     done
