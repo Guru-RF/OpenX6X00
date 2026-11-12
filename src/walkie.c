@@ -429,8 +429,7 @@ static void update_cb(lv_timer_t *t) {
     uint16_t  mhz, khz, hz;
 
     localtime_r(&now, &tm);
-    strftime(buf, sizeof(buf), "%H:%M", &tm);
-    set_text(clock_label, buf);
+    set_text(clock_label, clock_hm(&tm, buf, sizeof(buf)));     /* 3:07 PM with the 12-hour clock (#54) */
     /* No battery fitted, or no reading yet in the first seconds after power-on (radio.c): nothing */
     if (clock_battery_volts() >= 3.0f)
         snprintf(buf, sizeof(buf), "%.1f V", clock_battery_volts());

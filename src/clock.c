@@ -117,11 +117,19 @@ static power_t power_get(void) {
 }
 
 /* The hour as the clock shows it: 0-23, or with the 12-hour clock 1-12, *ampm then " AM" or " PM" (#54) */
-static int clock_hour(int h, const char **ampm) {
+int clock_hour(int h, const char **ampm) {
     *ampm = "";
     if (!params.clock_12h.x) return h;
     *ampm = h < 12 ? " AM" : " PM";
     return h % 12 ? h % 12 : 12;
+}
+
+const char *clock_hm(const struct tm *tm, char *buf, size_t size) {
+    const char *ampm;
+    int         h = clock_hour(tm->tm_hour, &ampm);
+
+    snprintf(buf, size, ampm[0] ? "%i:%02i%s" : "%02i:%02i%s", h, tm->tm_min, ampm);
+    return buf;
 }
 
 /* Time on top (seconds smaller), voltages below, both always shown. */

@@ -10,7 +10,9 @@
 
 #include "lvgl/lvgl.h"
 
+#include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 
 typedef enum {
     CLOCK_TIME_ALLWAYS = 0,
@@ -26,6 +28,12 @@ void clock_power_get(float *ext, float *bat, uint8_t *cap, bool *charge);
 void clock_update_estimate(int minutes, bool approx);
 /* The base found no battery: a red cross in place of the battery and the % */
 void clock_update_no_battery(bool none);
+
+/* The hour as the clock shows it: 0-23, or 1-12 with Settings > General > DATE / TIME > 12-hour clock, ampm then
+ * " AM" or " PM" ("" with the 24-hour clock, #54) */
+int clock_hour(int h, const char **ampm);
+/* A local time's hours and minutes so: "15:07", or "3:07 PM" (#54); into buf */
+const char *clock_hm(const struct tm *tm, char *buf, size_t size);
 
 void clock_tz_init();
 void clock_tz_set(const char *posix);

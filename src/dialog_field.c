@@ -30,6 +30,7 @@
 #include "field/qsy.h"
 #include "field/rbn.h"
 #include "field/refs.h"
+#include "clock.h"
 #include "gps.h"
 #include "keyboard.h"
 #include "knobs.h"
@@ -119,7 +120,8 @@ static dialog_t dialog = {
 
 dialog_t *dialog_field = &dialog;
 
-static lv_obj_t   *title, *head_icon, *head_right, *head_clock, *head_dot, *body, *list, *status;
+static lv_obj_t   *title, *head_icon, *head_right, *head_clock, *head_ampm, *head_dot, *body, *list, *status;
+#define HEAD_AMPM_W 36  /* PM in VF(22) is 30 px, and a gap to the digits */
 static lv_obj_t   *home_row;        /* the home screen's scrolling row of tiles; NULL on the other screens */
 static lv_coord_t  home_step;       /* a tile and the gap after it */
 static lv_coord_t  body_h;
@@ -1301,8 +1303,9 @@ static void act_update(void) {
     char      recent[200] = "", line[64];
     struct tm tm;
     for (int k = qsos_n > 3 ? qsos_n - 3 : 0; k < qsos_n; k++) {
+        char hm[16];
         localtime_r(&qsos[k].t, &tm);
-        snprintf(line, sizeof(line), "%s%02d:%02d  %-10s  %s / %s  %s %s", recent[0] ? "\n" : "", tm.tm_hour, tm.tm_min,
+        snprintf(line, sizeof(line), "%s%s  %-10s  %s / %s  %s %s", recent[0] ? "\n" : "", clock_hm(&tm, hm, sizeof(hm)),
                  qsos[k].call, qsos[k].rst_s, qsos[k].rst_r, qsos[k].mode, field_qso_tag(&qsos[k]));
         strncat(recent, line, sizeof(recent) - strlen(recent) - 1);
     }
@@ -1443,7 +1446,7 @@ static void build_bands(void) {
 /* Logbook */
 
 static void build_log(void) {
-    static const lv_coord_t widths[] = {52, 90, 180, 80, 100, 140};   /* MODE: room for "SSB LL2LL" */
+    static lv_coord_t widths[] = {52, 90, 180, 80, 100, 140};   /* MODE: room for "SSB LL2LL" */
     char                    row[120], t[80];   /* room for the reference and the red TEST */
     struct tm               tm;
 
@@ -1452,12 +1455,14 @@ static void build_log(void) {
              st.have_ref ? st.ref.ref : "");
     lv_label_set_recolor(title, true);
     head_set("log", t);
+    widths[1] = params.clock_12h.x ? 112 : 90;     /* 12:34 PM (#54) */
     list_create(body, 8, 36, W - 16, body_h - STATUS_H - 40, widths, 6);
     list_head("N\tTIME\tCALL\tBAND\tMODE\tRST S / R", 13, 6);
     log_load();
     for (int k = 0; k < qsos_n; k++) {
+        char hm[16];
         localtime_r(&qsos[k].t, &tm);
-        snprintf(row, sizeof(row), "%d\t%02d:%02d\t%s\t%s\t%s %s\t%s / %s", qsos_total - qsos_n + k + 1, tm.tm_hour, tm.tm_min, qsos[k].call,
+        snprintf(row, sizeof(row), "%d\t%s\t%s\t%s\t%s %s\t%s / %s", qsos_total - qsos_n + k + 1, clock_hm(&tm, hm, sizeof(hm)), qsos[k].call,
                  field_band(qsos[k].freq_hz), qsos[k].mode, field_qso_tag(&qsos[k]), qsos[k].rst_s, qsos[k].rst_r);
         list_add(row);
     }
@@ -2782,7 +2787,14 @@ static void timer_cb(lv_timer_t *t) {
     localtime_r(&now, &tm);
     position(&lat, &lon, &src, &age);
     lv_label_set_text(head_right, src[0] ? src : "NO POS");
-    lv_label_set_text_fmt(head_clock, "%02d:%02d", tm.tm_hour, tm.tm_min);
+    /* The 12-hour clock (#54): the AM or PM in a small label after the big digits, which move left for it */
+    const char *ampm;
+    int         h    = clock_hour(tm.tm_hour, &ampm);
+    bool        am12 = ampm[0] != 0;
+
+    lv_label_set_text_fmt(head_clock, am12 ? "%d:%02d" : "%02d:%02d", h, tm.tm_min);
+    lv_obj_set_x(head_clock, am12 ? 670 - HEAD_AMPM_W : 670);
+    lv_label_set_text(head_ampm, ampm + am12);
     /* Green: a real position (GPS, phone); yellow: the locator square */
     lv_obj_set_style_bg_color(head_dot, !src[0] ? TC(err) : !strcmp(src, "QTH") ? TC(warn) : TC(ok), 0);
     if (end_armed && now - end_armed_at > 4) {
@@ -2850,6 +2862,8 @@ static void construct_cb(lv_obj_t *parent) {
     head_right = label(head, VF(22), TC(text), 572, 11, 100);
     head_clock = label(head, VF(38), TC(text), 670, 4, 118);   /* big: read at a glance outdoors */
     lv_obj_set_style_text_align(head_clock, LV_TEXT_ALIGN_RIGHT, 0);
+    head_ampm  = label(head, VF(22), TC(text), 788 - HEAD_AMPM_W + 4, 17, HEAD_AMPM_W - 4);
+    lv_obj_set_style_text_align(head_ampm, LV_TEXT_ALIGN_RIGHT, 0);
 
     body = lv_obj_create(dialog.obj);
     lv_obj_remove_style_all(body);
