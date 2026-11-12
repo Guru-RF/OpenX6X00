@@ -160,6 +160,9 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
     // changes (e.g. from cp_cur_mode.set() or a VFO switch).
     switch_mode_obs_ = Subscription(cp_cur_mode.subscribe(switch_mode_observer_cb, this));
     zoom_step_obs_   = Subscription(p_zoom_step_per_mode.subscribe(zoom_step_scope_cb, this));
+    step_zoom_obs_[0] = Subscription(p_mode_zoom.subscribe(step_zoom_cb, this));
+    step_zoom_obs_[1] = Subscription(p_mode_freq_step.subscribe(step_zoom_cb, this));
+    step_zoom_obs_[2] = Subscription(p_step_per_zoom.subscribe(step_zoom_cb, this));
 
     // Bind the computed current VFO att/pre/agc and the background VFO
     // frequency to their sources and recompute from the freshly loaded params.
@@ -229,7 +232,8 @@ void SettingsManager::on_mode_zoom_not_found() {
 }
 
 void SettingsManager::zoom_step_scope(bool at_init) {
-    Parameter<int32_t> *const zs[] = {&p_mode_zoom, &p_mode_freq_step};
+    Parameter<int32_t> *const zs[] = {&p_mode_zoom,    &p_mode_freq_step, &p_mode_step_z1,
+                                      &p_mode_step_z2, &p_mode_step_z4,   &p_mode_step_z8};
 
     if (p_zoom_step_per_mode.get()) {
         if (p_mode_zoom.context_id() != MODE_ALL) {
@@ -260,6 +264,38 @@ void SettingsManager::zoom_step_scope(bool at_init) {
 
 void SettingsManager::zoom_step_scope_cb(Subject * /*subj*/, void *user_data) {
     static_cast<SettingsManager *>(user_data)->zoom_step_scope(false);
+}
+
+Parameter<int32_t> *SettingsManager::step_zoom_slot(int32_t zoom) {
+    switch (zoom) {
+        case 1: return &p_mode_step_z1;
+        case 2: return &p_mode_step_z2;
+        case 4: return &p_mode_step_z4;
+        case 8: return &p_mode_step_z8;
+        default: return nullptr;    /* CAT and the browser can set the zooms between: no step of their own */
+    }
+}
+
+// A zoom change brings its step back, when one was chosen there. Anything else (the step chosen with FST, the
+// option turned on, a zoom with no step yet) keeps the step in use for the zoom in use. A mode change loads the
+// zoom, the step and the zoom's steps of that mode (or of every mode) together, so they agree already
+void SettingsManager::step_zoom(Subject *subj) {
+    Parameter<int32_t> *slot = step_zoom_slot(p_mode_zoom.get());
+
+    if (!p_step_per_zoom.get() || !slot) {
+        return;
+    }
+    if (subj == static_cast<Subject *>(&p_mode_zoom) && slot->get() > 0) {
+        if (slot->get() != p_mode_freq_step.get()) {
+            p_mode_freq_step.set(slot->get());
+        }
+        return;
+    }
+    slot->set(p_mode_freq_step.get());
+}
+
+void SettingsManager::step_zoom_cb(Subject *subj, void *user_data) {
+    static_cast<SettingsManager *>(user_data)->step_zoom(subj);
 }
 
 void SettingsManager::switch_band(int new_band_id, bool implicit) {

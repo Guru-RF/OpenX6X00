@@ -96,6 +96,7 @@ static const struct {
     {"band_region", &cfg_sm.p_band_region, 0, BP_PLAN_COUNT - 1},  /* Station: the band plan; live, screen_main.c */
     {"birdie_marks", &cfg_sm.p_birdie_marks, 0, 2},     /* Main screen: Birdie Cal's carriers */
     {"zoom_step_per_mode", &cfg_sm.p_zoom_step_per_mode, 0, 1},   /* Main screen: live, zoom_step_scope follows it */
+    {"step_per_zoom", &cfg_sm.p_step_per_zoom, 0, 1},   /* Main screen (#132): live, step_zoom follows it */
     {"power_display", &cfg_sm.p_power_display, 0, 3},  /* Main screen: live, clock.c reads it */
     {"tx_outside_bands", &cfg_sm.p_tx_outside_bands, 0, 1},   /* TX Cal (#121): live, radio.c, info_bar.c and
                                                                  * freq_strip.c follow it */

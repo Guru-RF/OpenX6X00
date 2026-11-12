@@ -176,6 +176,10 @@ class SettingsManager {
     // step, as it always did. Off, one zoom and one step for every mode (zoom_step_scope)
     Parameter<int32_t> p_zoom_step_per_mode{"zoom_step_per_mode", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Step per zoom (Settings > Display, #132): on, each zoom keeps the last tuning step chosen at it, and a zoom
+    // change brings that step back (step_zoom). Per mode or for every mode, as p_zoom_step_per_mode has it
+    Parameter<int32_t> p_step_per_zoom{"step_per_zoom", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Birdies (birdie.c): 0 nothing, 1 marked on the waterfall, 2 marked and notched in the passband
     Parameter<int32_t> p_birdie_marks{"birdie_marks", 1, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};
@@ -668,6 +672,16 @@ class SettingsManager {
         StorageType::MODE, pending_writes_, [this]() { on_mode_freq_step_not_found(); }, &mode_params_};
     Parameter<int32_t> p_mode_zoom{"spectrum_factor", 1, [](int32_t v) { return clip(v, 1, 8); },
         StorageType::MODE, pending_writes_, [this]() { on_mode_zoom_not_found(); }, &mode_params_};
+    // The step last chosen at the zoom 1, 2, 4 and 8 (100, 50, 25 and 12.5 kHz), 0 none yet (p_step_per_zoom,
+    // #132). Bound as the zoom and the step are (zoom_step_scope); a row not there is none, not the last mode's
+    Parameter<int32_t> p_mode_step_z1{"step_z1", 0, [](int32_t v) { return clip(v, 0, 100000); },
+        StorageType::MODE, pending_writes_, [this]() { p_mode_step_z1.set_quiet(0); }, &mode_params_};
+    Parameter<int32_t> p_mode_step_z2{"step_z2", 0, [](int32_t v) { return clip(v, 0, 100000); },
+        StorageType::MODE, pending_writes_, [this]() { p_mode_step_z2.set_quiet(0); }, &mode_params_};
+    Parameter<int32_t> p_mode_step_z4{"step_z4", 0, [](int32_t v) { return clip(v, 0, 100000); },
+        StorageType::MODE, pending_writes_, [this]() { p_mode_step_z4.set_quiet(0); }, &mode_params_};
+    Parameter<int32_t> p_mode_step_z8{"step_z8", 0, [](int32_t v) { return clip(v, 0, 100000); },
+        StorageType::MODE, pending_writes_, [this]() { p_mode_step_z8.set_quiet(0); }, &mode_params_};
 
   private:
     // MODE-scoped filter band edges. PRIVATE: never read/written directly
@@ -965,6 +979,12 @@ class SettingsManager {
     void zoom_step_scope(bool at_init);
     static void zoom_step_scope_cb(Subject *subj, void *user_data);
 
+    // Step per zoom (#132): a new zoom brings back the step last chosen at it; a step chosen, or the option turned
+    // on, is kept for the zoom in use. step_zoom_slot: the zoom's p_mode_step_z*, nullptr for a zoom not 1, 2, 4, 8
+    Parameter<int32_t> *step_zoom_slot(int32_t zoom);
+    void step_zoom(Subject *subj);
+    static void step_zoom_cb(Subject *subj, void *user_data);
+
     // Switch-time band loads: never loads current_vfo; when `implicit` is true
     // the VFOs as load_band_vfo keeps them.
     void load_band_switch(int new_band_id, bool implicit);
@@ -1049,6 +1069,7 @@ class SettingsManager {
 
     // The p_zoom_step_per_mode observer: rebinds the zoom and the step (zoom_step_scope)
     Subscription zoom_step_obs_;
+    Subscription step_zoom_obs_[3];
 
     // Holds the p_band_id observer that triggers an explicit band switch when
     // p_band_id is set. RAII: unsubscribe on destruction.

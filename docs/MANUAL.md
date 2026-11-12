@@ -1172,6 +1172,21 @@ web configurator's Display page).
 - Turned on again, each mode has its own zoom and step back, as they were
   when the option went off.
 
+Step per zoom. Where: Settings > Display > MAIN SCREEN, under Zoom and step
+per mode (also on the web configurator's Display page; off by default;
+issue #132).
+
+- On: each zoom (100, 50, 25 and 12.5 kHz) keeps the last tuning step you
+  chose at it with FST, and a zoom change brings that step back: for
+  example 1 kHz at 100 kHz and 10 Hz at 12.5 kHz, set once each.
+- A zoom where no step was chosen yet keeps the step in use, and takes it
+  as its own. Turned on, the option takes the step in use for the zoom in
+  use.
+- It follows Zoom and step per mode: on, each mode has its own steps per
+  zoom (CW finer than SSB at the same zoom); off, one set for every mode.
+- A zoom between those four, which CAT or the browser panel can set, keeps
+  the step in use.
+
 Spectrum. Where: Settings > Display > SPECTRUM (off by default; the screen
 restarts to lay it out). The band plan and the cluster spots stay at the top
 of the waterfall. With Spectrum on, the card has:
@@ -1456,7 +1471,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | BACKLIGHT | timeout and brightness, buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Filter shade, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
-| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
+| MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
 | INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Theme, Font, Decoder text, FT8/FT4 info |
 
 - Popups Freq/Info/TX (Popups Freq/Info/ALC up to v0.3.8), three switches:
@@ -4845,7 +4860,7 @@ them.
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX outside ham bands (Settings > TX Cal; see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate
