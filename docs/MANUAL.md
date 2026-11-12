@@ -666,7 +666,8 @@ says, in plain words.
   the WR12 (ea4iln measured it, #134: at 145 MHz +500 took a carrier's tone
   500 Hz up, where on 7 MHz it goes 500 Hz down), as the swapped I and Q
   mirror the base's offset, so the radio now sends it the other way round
-  there (host test so far, not yet on a radio). CW and CW-R sound as they do
+  there (ea4iln-debug checked it on their X6200 with a test build: RIT +500
+  gave 535 Hz; not yet on our bench radio). CW and CW-R sound as they do
   on HF. Below 54 MHz or with the switch off, the WR12 goes back to its bypass
   and the radio back to the dial; with the WR12 unplugged or not
   answering, the radio goes back to the dial at once. The VFO not in use
@@ -2334,7 +2335,10 @@ column. 0 is off; up to 10 MHz up or down (9999 kHz in Settings).
   the TX panel shows that frequency, and the VFO you listen on for the radio's
   tuner too, measured with either VFO in use (see
   [amateur bands only](#amateur-bands-only)). The X6100's base honours split,
-  nothing changes there. Host test so far, not yet on a radio.
+  nothing changes there. ea4iln-debug checked it on their X6200 with a test
+  build and a spectrum analyzer (#201): the PTT key, CAT, the hand mic and
+  TUNE went out where the TX panel said, and nothing was left on the dial
+  after. Not yet on our bench radio.
 - Winlink is simplex: it keys only on the frequency the radio listens on.
   With a shift on it does not key and says "Winlink: no TX, a TX shift is set
   on this band"; in plain split with VFO B on another frequency it says
