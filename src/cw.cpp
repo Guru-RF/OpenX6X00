@@ -20,6 +20,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <string>
 
 extern "C" {
@@ -41,6 +42,7 @@ static std::atomic<bool> trainer{false};
 static std::atomic<int>  trainer_own{-1};      /* cw_trainer_own's count for the audio thread, -1 none */
 static std::atomic<int>  trainer_wpm{0};       /* cw_trainer_speed's for the audio thread, 0 none */
 static std::atomic<bool> tune_turned{false};   /* the bars' offset turned round: CW on the X6200 */
+static std::atomic<int>  key_wpm{0};           /* the KEY Speed, for the audio thread */
 static int32_t key_tone = 0;
 static int32_t band_lo;
 static int32_t band_hi;
@@ -68,6 +70,14 @@ static std::atomic<float>  rx_shift{0.0f};   /* audio Hz the VFO moved, for the 
 static int32_t             last_freq;
 static int                 wpm_sent = 0;
 
+/* Our own keying's speed (#198): the decoder kept the band's, or what the noise between stations made of it (46 WPM
+ * on a quiet band): sending at 15 WPM a dit then read as a dah and VVV as "TTT TTTT". An over's first key-down, after
+ * OWN_OVER_GAP_S without the radio in TX, tells it the KEY Speed; not the breaks within an over (QSK: a straight key's
+ * own speed, once learned, is kept), nor with the CW trainer open, which tells its own */
+#define OWN_OVER_GAP_S  2
+static bool                own_tx   = false;
+static uint32_t            rx_count = UINT32_MAX;   /* samples since the radio left TX */
+
 /* Squelch: noise keys the detector now and then and prints lone Es, Ts and Is. A character counts
  * when its keyed frames average SQ_MARGIN_DB over the Dec SNR threshold: on 40 m the noise's
  * characters averaged 6-11 dB, a real station's 14-28 dB (Dec SNR 8). The text opens after
@@ -86,6 +96,7 @@ static int         sq_good, sq_bad;
 static std::string sq_pending;
 
 static void on_flag(Subject *subj, void *user_data);
+static void on_key_speed(Subject *subj, void *user_data);
 static void on_rx_param_change(Subject *subj, void *user_data);
 static void on_freq_change(Subject *subj, void *user_data);
 static void on_mode_change(Subject *subj, void *user_data);
@@ -97,6 +108,7 @@ static void on_frame();
 void cw_init(void) {
     cfg_sm.p_cw_decoder.subscribe_and_notify(on_flag, &decode_on);
     cfg_sm.p_cw_tune.subscribe_and_notify(on_flag, &tune_on);
+    cfg_sm.p_key_speed.subscribe_and_notify(on_key_speed);
 
     cfg_sm.p_key_tone.subscribe(on_rx_param_change);
     cfg_sm.p_cw_decoder_snr.subscribe(on_rx_param_change);
@@ -176,6 +188,13 @@ void cw_put_audio_samples(unsigned int n, float *samples) {
     int own = trainer_own.exchange(-1);
     if (own >= 0)
         receiver->own(own);
+
+    bool tx = radio_get_state() == RADIO_TX;
+    if (tx && !own_tx && !tr && rx_count >= OWN_OVER_GAP_S * (AUDIO_CAPTURE_RATE / AUDIO_DECIM))
+        receiver->expect(key_wpm);
+    own_tx   = tx;
+    rx_count = tx ? 0 : rx_count > UINT32_MAX - n ? UINT32_MAX : rx_count + n;
+
     resampler->process(n, samples, *receiver);
 }
 
@@ -332,6 +351,10 @@ static void on_flag(Subject *subj, void *user_data) {
     auto *flag = static_cast<std::atomic<bool> *>(user_data);
 
     *flag = static_cast<SubjectT<int32_t> *>(subj)->get() != 0;
+}
+
+static void on_key_speed(Subject *subj, void *user_data) {
+    key_wpm = static_cast<SubjectT<int32_t> *>(subj)->get();
 }
 
 /* The tune bars as the X6100 lights them: in CW on the station's side of the dial (the key tone minus the tone,

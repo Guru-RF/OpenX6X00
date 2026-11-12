@@ -3318,6 +3318,12 @@ over the waterfall.
   1.0.8). While the X6200 keys in CW the decoder's audio is raised to make
   up for it. Up to v0.3.9 its decoder read nothing of your keying at the
   usual Volumes, and the trainer missed dits (#198, #199).
+- Your speed: the first key-down of a transmission, after 2 s or more
+  without one, sets the decoder to the KEY Speed (KEY > Speed), on both
+  radios. Before that it went on at the band's speed, or at whatever speed
+  it had read out of the noise between stations, and the first word you
+  sent came out wrong (VVV as TTT TTTT). Within a transmission it follows
+  your keying, a straight key's speed too.
 
 In CW and CW-R a station on the dial sounds at the key tone (KEY > Tone),
 on the X6100 and the X6200 alike, and the waterfall, the spectrum and the

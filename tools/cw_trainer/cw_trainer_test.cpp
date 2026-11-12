@@ -628,7 +628,12 @@ static void call_pauses(void) {
  * while the radio is in TX, which the radio thread sees late_ms after the audio changed. The decoder's text from
  * the key-down to 2.5 s after the key-up: the message's last character comes after its gap, then the band's noise
  * as characters (the app's squelch takes those, cw.cpp) */
-static std::string own_keying(int key_vol, bool raise, double late_ms) {
+struct OwnStart {
+    int  band_wpm = 0;      /* the decoder's speed before (ElementTimer::expect), 0 its start */
+    bool told     = false;  /* the key-down tells it the KEY Speed, 15 WPM (cw.cpp) */
+};
+
+static std::string own_keying(int key_vol, bool raise, double late_ms, OwnStart st = {}) {
     static const double BAND = 0.04, FLOOR = 3.5e-5;   /* the band's noise (~-47 dBFS at 700 Hz), the cut audio's */
     std::mt19937        rng(7);
     std::normal_distribution<double> gauss(0.0, 1.0);
@@ -660,6 +665,8 @@ static std::string own_keying(int key_vol, bool raise, double late_ms) {
 
     rx.set_floor_db(8.0f);
     rx.set_band(TONE - 250.0, TONE + 250.0);
+    if (st.band_wpm > 0) rx.expect(st.band_wpm);
+    bool told = false;
 
     auto env = [&](double ms) {
         for (const Mark &m : marks) {
@@ -680,6 +687,10 @@ static std::string own_keying(int key_vol, bool raise, double late_ms) {
                                                      : BAND * gauss(rng);
             x         = std::round(x * 32768.0) / 32768.0;   /* the codec's 16 bits */
             buf[i]    = raise && ms >= key_on && ms < key_off + late_ms ? cw_own_tone_apply((float)x, gain) : (float)x;
+        }
+        if (st.told && !told && now >= key_on) {
+            rx.expect(15);
+            told = true;
         }
         now = 1000.0 * n / RATE;
         rs.process(buf.size(), buf.data(), rx);
@@ -704,6 +715,15 @@ static void own_keying_x6200(void) {
         std::string t = own_keying(10, true, late);
         check(t.find("VVV TEST DE ON6URE") != std::string::npos, "raised, Volume 10, TX seen %.0f ms after the key-up's "
               "audio (the band's noise raised that long, limited): \"%s\"", late, t.c_str());
+    }
+    for (int wpm : {46, 30, 10}) {
+        std::string as = own_keying(10, true, 0, {wpm, false}), t = own_keying(10, true, 0, {wpm, true});
+        printf("        the decoder at %d WPM before, not told: \"%s\"\n", wpm, as.c_str());
+        if (wpm == 46)
+            check(as.find("VVV") == std::string::npos, "as it was, the decoder at 46 WPM before (what the noise made of "
+                  "it on our dummy load): the first word lost");
+        check(t.find("VVV TEST DE ON6URE") != std::string::npos, "raised, Volume 10, the decoder at %d WPM before, "
+              "the key-down telling it the KEY Speed: \"%s\"", wpm, t.c_str());
     }
 }
 
