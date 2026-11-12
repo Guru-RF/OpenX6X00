@@ -51,7 +51,7 @@ command -v "$CC" > /dev/null || { echo "tools/rade/build.sh: no $CC"; exit 1; }
 TARGET=$("$CC" -dumpmachine)
 case $TARGET in
     arm*-linux-gnueabihf)
-        # The A33: Cortex-A7, hard float, NEON (the GUI's own flags, CMakeLists.txt); Opus's DNN code has NEON paths
+        # The radios' processor: Cortex-A7, hard float, NEON (the GUI's own flags, CMakeLists.txt); Opus's DNN code has NEON paths
         ARCH_FLAGS="-mtune=cortex-a7 -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4"
         CROSS=1 ;;
     *)  ARCH_FLAGS=""
