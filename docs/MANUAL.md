@@ -3018,6 +3018,11 @@ WeFax buttons. WeFax opens in RX Auto: it waits for the start tone of a fax.
 | 3 | Fax Browser, Fix Align, Fix Tilt, Done |
 | 4 | Power |
 
+The VOL knob works as on the main screen: turned it changes what it is on
+(volume, squelch, RF gain, the filter edges...), a press of VOL switches
+between that and choosing what it is on. Up to v0.3.9 it was the volume only
+in WeFax (#226).
+
 SSTV buttons:
 
 | Page | Buttons |

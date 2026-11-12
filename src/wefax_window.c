@@ -16,6 +16,7 @@
 #include "msg_box.h"
 #include "audio.h"
 #include "mfk_control.h"
+#include "vol_control.h"
 #include "key_input.h"
 #include "cfg/cfg_api.h"
 #include "gui_styles.h"
@@ -1064,15 +1065,23 @@ static void app_key_cb(lv_event_t *e)
 {
     uint32_t key = *((uint32_t *)lv_event_get_param(e));
 
-    /* the volume knob, whatever the MFK does */
+    /* VOL as on the main screen, whatever the MFK does: turned it changes what it is on (volume, RF gain, the
+     * filter edges...), a press switches to choosing that and back (#226) */
     switch (key) {
         case KEY_VOL_LEFT_EDIT:
-        case KEY_VOL_LEFT_SELECT:
-            radio_change_vol(-1);
+            vol_update(-1);
             return;
         case KEY_VOL_RIGHT_EDIT:
+            vol_update(1);
+            return;
+        case KEY_VOL_LEFT_SELECT:
+            vol_change_ctrl(-1);
+            return;
         case KEY_VOL_RIGHT_SELECT:
-            radio_change_vol(1);
+            vol_change_ctrl(1);
+            return;
+        case KEY_VOL_PRESS:
+            main_screen_vol_press();
             return;
         default:
             break;
