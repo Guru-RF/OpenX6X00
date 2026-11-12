@@ -57,6 +57,7 @@ SettingsManager::SettingsManager()
       // Mode LO offset: CW→-key_tone, CWR→+key_tone, else 0 (0 also in CW where the base's
       // spectrum is centred on the dial). One-way (no reverse).
       cp_mode_lo_offset([this]() { return lo_offset_compute(); }),
+      cp_mode_tx_lo_offset([this]() { return tx_lo_offset_compute(); }),
 
       // Computed current filter params. The compute fns derive the effective
       // filter edges/bw from the MODE-scoped filter params (and key_tone for
@@ -189,6 +190,9 @@ void SettingsManager::init_load(void (*on_db_error)(const char *msg)) {
     cp_mode_lo_offset.bind(cp_cur_mode);
     cp_mode_lo_offset.bind(p_key_tone);
     cp_mode_lo_offset.recompute();
+    cp_mode_tx_lo_offset.bind(cp_cur_mode);
+    cp_mode_tx_lo_offset.bind(p_key_tone);
+    cp_mode_tx_lo_offset.recompute();
 
     // Bind the computed filter params to their sources (filter_low/high +
     // key_tone) so reverse writes to them propagate to the sibling cur_* and
@@ -1220,4 +1224,14 @@ int32_t SettingsManager::lo_offset_compute() {
         return key_tone;
     }
     return 0;
+}
+
+/* The same while the base transmits. Xiegu's X6100 base from 1.1.9 on centres it on the dial then, where the carrier
+ * is (HW_CAP_TX_SPECTRUM_ON_DIAL): moved by the key tone as in receive, the carrier was drawn a key tone off the line,
+ * below it in CW. Its 1.1.8 keeps it on the oscillator in TX too, and there the carrier is on the line (#191) */
+int32_t SettingsManager::tx_lo_offset_compute() {
+    if (hw_caps_ & HW_CAP_TX_SPECTRUM_ON_DIAL) {
+        return 0;
+    }
+    return lo_offset_compute();
 }

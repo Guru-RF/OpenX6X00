@@ -74,6 +74,7 @@ static int32_t          pass_hi = 3000;
 static int32_t          vfo_hz;
 static int32_t          rit_hz;
 static int32_t          lo_offset;          /* where the base's spectrum is centred, Hz from the dial */
+static int32_t          tx_lo_offset;       /* the same while it transmits (#191) */
 static int32_t          bfo;                /* CW and CW-R: the oscillator the tone is heard from, Hz from the dial */
 static int32_t          if_shift;
 static int32_t          notch_on;
@@ -105,9 +106,10 @@ static lv_coord_t markers_px(lv_coord_t w) {
     return hz_px(bfo + if_shift + waterfall_view_shift(), w);
 }
 
-/* Where the base's spectrum is centred, with no lag */
-static lv_coord_t lo_px(lv_coord_t w) {
-    return hz_px(lo_offset + if_shift + waterfall_view_shift(), w);
+/* Where the base's spectrum is centred, with no lag; tx: where it is centred while the base transmits, on the dial
+ * with Xiegu's X6100 base from 1.1.9 on (#191) */
+static lv_coord_t lo_px(bool tx, lv_coord_t w) {
+    return hz_px((tx ? tx_lo_offset : lo_offset) + if_shift + waterfall_view_shift(), w);
 }
 
 /* Where the data are: the base takes a few frames to follow a new frequency, and
@@ -117,7 +119,7 @@ static lv_coord_t trace_px(lv_coord_t w) {
     int16_t lag = 0;
 
     if (data_tx) {
-        return lo_px(w);
+        return lo_px(true, w);
     }
     if (base_lo_hz) {
         lag = base_lo_hz - (vfo_hz + lo_offset - if_shift + rit_hz);
@@ -707,6 +709,10 @@ static void on_lo_offset_change(Subject *subj, void *user_data) {
     kept_settle();
 }
 
+static void on_tx_lo_offset_change(Subject *subj, void *user_data) {
+    tx_lo_offset = subject_i_get((SubjectInt *)subj);
+}
+
 static void on_bfo_change(Subject *subj, void *user_data) {
     bfo = radio_cw_tone_dir(subject_i_get((SubjectInt *)cfg_cur_mode)) * param_i_get(cfg_key_tone);
 }
@@ -755,6 +761,7 @@ lv_obj_t *spectrum_init(lv_obj_t *parent) {
     subject_subscribe_and_notify((Subject *)cfg_cur_mode, on_filter_change, NULL);
     subject_subscribe_and_notify((Subject *)cfg_cur_mode, on_mode_change, NULL);
     subject_subscribe_and_notify((Subject *)cfg_mode_lo_offset, on_lo_offset_change, NULL);
+    subject_subscribe_and_notify((Subject *)cfg_mode_tx_lo_offset, on_tx_lo_offset_change, NULL);
     subject_subscribe((Subject *)cfg_cur_mode, on_bfo_change, NULL);
     subject_subscribe_and_notify((Subject *)cfg_key_tone, on_bfo_change, NULL);
     subject_subscribe_and_notify((Subject *)cfg_band_if_shift, on_if_shift_change, NULL);
@@ -830,7 +837,7 @@ void spectrum_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint8_
 }
 
 int32_t spectrum_span(float *vfo_at) {
-    *vfo_at = 0.5f + (float)lo_px(POINTS) / POINTS;
+    *vfo_at = 0.5f + (float)lo_px(false, POINTS) / POINTS;
     return SPAN_HZ / zoom;
 }
 

@@ -3562,6 +3562,14 @@ it in CW-R, and in CW its ZAP and Tuner went the wrong way (#115).
   Up to v0.3.9, with the spectrum off, they were drawn over the frequency
   scale and the band plan, where they hardly showed (#185, #217).
 
+While you send in CW or CW-R, the waterfall and the spectrum draw your
+carrier on the VFO line, as they draw a station on the dial. Up to v0.3.10
+an X6100 with Xiegu's base 1.1.9 drew it a key tone below the line in CW, and
+we'd expect above it in CW-R: that base centres the picture on the dial
+while it transmits, where 1.1.8 keeps it a key tone off, as in receive. Only
+the picture was off: the carrier went out on the dial (#191). We haven't run
+this on a 1.1.9 base ourselves.
+
 Parse. Where: CW 2:2 > Parse (on by default). The decoder often runs words
 together when the spacing is tight: "CQCQDEON6UREK". With Parse on, each
 finished word is split on the usual CW words and on callsigns: "CQ CQ DE

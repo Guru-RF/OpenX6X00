@@ -77,7 +77,8 @@ static uint8_t       skip_rows;         /* rows of the old frequency still comin
 static bool          retuned;           /* since the row before (#51) */
 static int32_t       radio_center_freq; /* where the base is tuned */
 static int32_t       wf_center_freq;    /* the frequency at the centre of the picture */
-static int32_t       mode_lo_offset;
+static int32_t       mode_lo_offset;    /* where the base's spectrum is centred, Hz from the dial */
+static int32_t       tx_lo_offset;      /* the same while it transmits (#191) */
 static int32_t       if_shift;
 static uint8_t       zoom = 1;
 static uint8_t       line_zoom = 1;  /* the zoom the VFO line and the passband were placed at */
@@ -278,8 +279,11 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
     static uint32_t acc_freq;
     int             frames = speed_frames[LV_CLAMP(1, param_i_get(cfg_waterfall_speed), 5) - 1];
     /* Where the frame was taken: with no frequency from the base (the OEM X6100 base) the GUI's,
-     * else a line averaged frames of several tuning steps */
-    uint32_t        at = base_freq ? base_freq : radio_center_freq + mode_lo_offset;
+     * else a line averaged frames of several tuning steps. In TX where the base centres the frame
+     * then: on the dial with Xiegu's X6100 base from 1.1.9 on, a key tone from where it receives in
+     * CW, so a line holds frames of TX or of receive, not of both (#191) */
+    int32_t         lo = tx ? tx_lo_offset : mode_lo_offset;
+    uint32_t        at = base_freq ? base_freq : radio_center_freq + lo;
 
     if (frames > 1 && size <= WATERFALL_NFFT) {
         if (acc_n == 0 || at != acc_freq) {
@@ -312,9 +316,9 @@ void waterfall_data(float *db, uint16_t size, bool tx, uint32_t base_freq, uint3
 
     waterfall_get_levels(tx, &min, &max);
     if (base_freq == 0) {
-        base_freq = radio_center_freq + mode_lo_offset;     /* no frequency with the data: the one set */
+        base_freq = radio_center_freq + lo;     /* no frequency with the data: the one set */
     } else if (tx) {
-        base_freq += mode_lo_offset;
+        base_freq += tx_lo_offset;
     }
 
     wf_row_t *row = &rows[next];
@@ -1718,6 +1722,10 @@ static void on_mode_lo_offset_change(Subject *subj, void *user_data) {
     mode_lo_offset = subject_i_get((SubjectInt *)subj);
 }
 
+static void on_tx_lo_offset_change(Subject *subj, void *user_data) {
+    tx_lo_offset = subject_i_get((SubjectInt *)subj);
+}
+
 static void on_filter_change(Subject *subj, void *user_data) {
     update_middle_line();
 }
@@ -1810,6 +1818,7 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
     subject_subscribe_delayed_and_notify((Subject *)cfg_filter_color, on_filter_color_change, NULL);
     subject_subscribe_delayed((Subject *)cfg_filter_shade, on_filter_color_change, NULL);
     subject_subscribe_and_notify((Subject *)cfg_mode_lo_offset, on_mode_lo_offset_change, NULL);
+    subject_subscribe_and_notify((Subject *)cfg_mode_tx_lo_offset, on_tx_lo_offset_change, NULL);
     subject_subscribe((Subject *)cfg_auto_level_enabled, on_levels_change, NULL);
     subject_subscribe((Subject *)cfg_band_grid_min, on_levels_change, NULL);
     subject_subscribe_and_notify((Subject *)cfg_band_grid_max, on_levels_change, NULL);

@@ -48,6 +48,9 @@ typedef enum {
      * falls as the dial goes up. A station on the dial sounds at the key tone on both radios (#115) */
     HW_CAP_CW_SPECTRUM_ON_DIAL = 1 << 16,   /* the spectrum centred on the dial in CW and CW-R too (the X6200) */
     HW_CAP_CW_TONE_RISES       = 1 << 17,   /* CW's tone rises as the dial goes up, as CW-R's does (the X6200) */
+    /* While it transmits, the spectrum centred on the dial, where the carrier is, in CW and CW-R too, and nothing in
+     * the data to say so: Xiegu's X6100 base from 1.1.9 on. Its 1.1.8 keeps it on the oscillator in TX too (#191) */
+    HW_CAP_TX_SPECTRUM_ON_DIAL = 1 << 18,
 } hw_cap_t;
 
 /* The hand mic's keys as the base reports them (mic_keys.c): the X6100 mic's codes. The X6200's library has the

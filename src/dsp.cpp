@@ -263,12 +263,9 @@ static void feed(cfloat *x, uint16_t n, firdecim_crcf decim, Panorama *sp, Panor
         wf->push(iq, n);   /* also when hidden: the S-meter reads it */
 }
 
-/* Keep the smoothed trace on the same frequencies when the centre moves */
-static void spectrum_follow(uint32_t freq) {
-    if (freq == sp_freq)
-        return;
-
-    int32_t shift = ((int64_t)freq - sp_freq) * zoom * SPECTRUM_NFFT / SPAN_HZ;
+/* The smoothed trace on the same frequencies, its centre moved up by hz */
+static void spectrum_move(int64_t hz) {
+    int32_t shift = hz * zoom * SPECTRUM_NFFT / SPAN_HZ;
     int32_t n     = SPECTRUM_NFFT;
 
     if (shift >= n || shift <= -n) {
@@ -280,7 +277,32 @@ static void spectrum_follow(uint32_t freq) {
         std::copy_backward(sp_shown, sp_shown + n + shift, sp_shown + n);
         std::fill(sp_shown, sp_shown - shift, (float)S_MIN);
     }
+}
+
+/* Keep the smoothed trace on the same frequencies when the centre moves */
+static void spectrum_follow(uint32_t freq) {
+    if (freq == sp_freq)
+        return;
+
+    spectrum_move((int64_t)freq - sp_freq);
     sp_freq = freq;
+}
+
+/* The same when the base goes into TX or out of it: Xiegu's X6100 base from 1.1.9 on centres the spectrum on the
+ * dial while it transmits, a key tone from where it receives in CW and CW-R, and says nothing of it in the data
+ * (cfg_mode_tx_lo_offset). Not moved, the carrier fading out of the trace after a transmission would be drawn a key
+ * tone off the line, and the stations fading out as TX begins a key tone off theirs (#191) */
+static void spectrum_follow_tx(bool tx) {
+    static bool was_tx;
+
+    if (tx == was_tx)
+        return;
+
+    int64_t hz = cfg_sm.cp_mode_tx_lo_offset.get() - cfg_sm.cp_mode_lo_offset.get();
+
+    if (hz)
+        spectrum_move(tx ? hz : -hz);
+    was_tx = tx;
 }
 
 static void spectrum_frame(Panorama *sp, uint64_t now, bool tx, uint32_t freq, uint8_t fft_dec) {
@@ -289,6 +311,7 @@ static void spectrum_frame(Panorama *sp, uint64_t now, bool tx, uint32_t freq, u
 
     sp->take(sp_psd);
     spectrum_follow(freq);
+    spectrum_follow_tx(tx);
 
     /* Quick to rise, slow to fall: a carrier shows at once, the noise trace stays calm
      * and a weak steady carrier stands out of it */

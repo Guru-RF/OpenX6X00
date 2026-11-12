@@ -721,6 +721,8 @@ class SettingsManager {
     // CWR → +key_tone, else 0; 0 in every mode with HW_CAP_CW_SPECTRUM_ON_DIAL.
     // Driven by cp_cur_mode, p_key_tone and hw_caps_.
     ComputedParameter<int32_t> cp_mode_lo_offset;
+    // The same while the base transmits: cp_mode_lo_offset's, 0 with HW_CAP_TX_SPECTRUM_ON_DIAL (#191).
+    ComputedParameter<int32_t> cp_mode_tx_lo_offset;
 
     // Computed current filter params for the active MODE category. The compute
     // fns map the MODE-scoped filter_low/filter_high (and key_tone for CW)
@@ -1047,6 +1049,7 @@ class SettingsManager {
     int32_t cur_filter_bw_compute();
 
     int32_t lo_offset_compute();
+    int32_t tx_lo_offset_compute();
 
     // reverse fns for cp_cur_filter_{low,high,bw}: map back into
     // p_mode_filter_low/high per the current mode category.

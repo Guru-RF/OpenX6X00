@@ -24,6 +24,11 @@
  *  - a row it writes while a refresh paints the whole picture, half way down (in 1bit, where each pixel painted asks
  *    the theme for its ink: there the test writes it): the picture the rows as they were before it, then with it
  *    after the next refresh. Taken again at each line, the lines under it were each the row above their own
+ *  - in CW and CW-R, on an X6100 base that sends no frequency with its data (Xiegu's): a station on the dial in
+ *    receive and the carrier in TX on the line, the rows placed by the LO offsets as the settings give them for each
+ *    base. Xiegu's 1.1.9 centres its spectrum on the dial in TX, its 1.1.8 on the oscillator as in receive: with the
+ *    receive offset in TX too, 1.1.9's carrier was a key tone below the line in CW (#191). At Speed 1 a line holds
+ *    frames of TX or of receive, not of both, there a key tone apart. A patched base's rows as before
  *  See the Makefile.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -67,10 +72,13 @@ ParamInt         *cfg_wf_mode = P(0), *cfg_wf_3d = P(1), *cfg_waterfall_speed = 
                  *cfg_wf_3d_floor = P(17), *cfg_wf_3d_peak = P(18), *cfg_wf_3d_glide = P(19),
                  *cfg_wf_3d_range = P(20), *cfg_filter_shade = P(21);
 ComputedParamInt *cfg_fg_freq = P(30), *cfg_cur_filter_low = P(31), *cfg_cur_filter_high = P(32),
-                 *cfg_cur_mode = P(33), *cfg_mode_lo_offset = P(34);
+                 *cfg_cur_mode = P(33), *cfg_mode_lo_offset = P(34), *cfg_mode_tx_lo_offset = P(35);
+
+static int     speed = 3;           /* Settings > Waterfall > Speed */
+static int32_t lo_rx, lo_tx;        /* the LO offsets, in receive and in TX (lo_offsets()) */
 
 int32_t param_i_get(const ParamInt *p) {
-    if (p == cfg_waterfall_speed) return 3;
+    if (p == cfg_waterfall_speed) return speed;
     if (p == cfg_mode_zoom) return 1;
     if (p == cfg_band_grid_max) return 255;     /* with the minimum 0: a row's level is its colour index */
     if (p == cfg_filter_shade) return 4;        /* Full, the default (#167) */
@@ -90,6 +98,8 @@ int32_t subject_i_get(SubjectInt *subj) {
     if (subj == (SubjectInt *)cfg_fg_freq) return fg_freq;
     if (subj == (SubjectInt *)cfg_cur_filter_high) return 2700;
     if (subj == (SubjectInt *)cfg_mode_zoom) return 1;
+    if (subj == (SubjectInt *)cfg_mode_lo_offset) return lo_rx;
+    if (subj == (SubjectInt *)cfg_mode_tx_lo_offset) return lo_tx;
     return 0;
 }
 
@@ -263,6 +273,43 @@ static void row(void) {
     waterfall_data(db, WATERFALL_NFFT, false, radio_center_freq + mode_lo_offset, 100000);
 }
 
+/* The LO offsets as the settings give them for the base and the mode (settings_manager.cpp's lo_offset_compute() and
+ * tx_lo_offset_compute()), told to the waterfall */
+static void lo_offsets(int32_t rx, int32_t tx) {
+    lo_rx = rx;
+    lo_tx = tx;
+    on_mode_lo_offset_change((Subject *)cfg_mode_lo_offset, NULL);
+    on_tx_lo_offset_change((Subject *)cfg_mode_tx_lo_offset, NULL);
+}
+
+/* A frame of the X6100's base, its spectrum centred `centre` Hz from the dial as the base centres it, with a carrier
+ * on the dial; at: the frequency the base sends with it, 0 none (Xiegu's own bases). In TX the levels of the TX scale */
+static void x6100_frame(bool tx, int32_t centre, uint32_t at) {
+    float db[WATERFALL_NFFT];
+    int   carrier = WATERFALL_NFFT / 2 - centre * WATERFALL_NFFT / SPAN_HZ;
+
+    for (int i = 0; i < WATERFALL_NFFT; i++) {
+        db[i] = i != carrier ? (tx ? TX_MIN : 10) : tx ? TX_MAX : 200;
+    }
+    waterfall_data(db, WATERFALL_NFFT, tx, at, SPAN_HZ);
+}
+
+/* Where the newest row has its carrier, Hz from the dial: the frequency of its highest value */
+static int32_t carrier_at(void) {
+    const wf_row_t *r = &rows[__atomic_load_n(&newest, __ATOMIC_ACQUIRE)];
+    int             top = 0;
+
+    for (int i = 1; i < WATERFALL_NFFT; i++) {
+        if (r->values[DATA_AT + i] > r->values[DATA_AT + top]) top = i;
+    }
+    return (int32_t)r->center_freq - (int32_t)r->width / 2 + top * (int32_t)r->width / WATERFALL_NFFT - fg_freq;
+}
+
+/* The newest row's level away from its carrier, near the low edge: its noise */
+static uint8_t noise_level(void) {
+    return rows[__atomic_load_n(&newest, __ATOMIC_ACQUIRE)].values[DATA_AT + 8];
+}
+
 /* The VFO moved by hz, as the parameters tell it */
 static void tune(int32_t hz) {
     fg_freq += hz;
@@ -395,6 +442,62 @@ int main(void) {
     picture_is(top, "that refresh, the rows as they were before it");
     loop(100);
     picture_is_rows("the next one, for that row");
+
+    printf("Where a row has the carrier in CW and CW-R, a 700 Hz key tone, by the X6100's base (#191)\n");
+    skip_rows = 0;              /* at rest: no rows of a frequency before to drop */
+    retuned = false;
+
+    const int32_t bin = SPAN_HZ / WATERFALL_NFFT;
+    const struct {
+        const char *base;
+        int32_t     rx, tx;     /* where the base centres its spectrum, Hz from the dial: the LO offsets */
+    } bases[] = {
+        /* Measured on the bench X6100, 1.1.8: the carrier on the line in CW and CW-R */
+        {"Xiegu's 1.1.8, CW", -700, -700},
+        {"Xiegu's 1.1.8, CW-R", 700, 700},
+        /* The reporter's 1.1.9: centred on the dial in TX, the carrier a key tone below the line in CW */
+        {"Xiegu's 1.1.9, CW", -700, 0},
+        {"Xiegu's 1.1.9, CW-R", 700, 0},
+    };
+
+    for (size_t i = 0; i < sizeof(bases) / sizeof(bases[0]); i++) {
+        int32_t at;
+
+        lo_offsets(bases[i].rx, bases[i].tx);
+        x6100_frame(false, bases[i].rx, 0);
+        at = carrier_at();
+        check(LV_ABS(at) < bin, "%s, receive: a station on the dial on the line (%+d Hz)", bases[i].base, at);
+        x6100_frame(true, bases[i].tx, 0);
+        at = carrier_at();
+        check(LV_ABS(at) < bin, "%s, TX: the carrier on the line (%+d Hz)", bases[i].base, at);
+    }
+
+    printf("The same base at Speed 1, three frames a line: a line of TX or of receive, not of both\n");
+    lo_offsets(-700, 0);
+    speed = 1;
+    x6100_frame(false, -700, 0);
+    x6100_frame(false, -700, 0);
+    uint16_t was_newest = newest;
+
+    x6100_frame(true, 0, 0);
+    check(newest != was_newest && noise_level() == 0 && LV_ABS(carrier_at()) < bin,
+          "the first TX frame: a line of it alone, the carrier on the line (%+d Hz, beside it %d)", carrier_at(),
+          noise_level());
+    x6100_frame(true, 0, 0);
+    x6100_frame(true, 0, 0);
+    was_newest = newest;
+    x6100_frame(false, -700, 0);
+    check(newest != was_newest && noise_level() == 10 && LV_ABS(carrier_at()) < bin,
+          "the first receive frame after TX: a line of it alone, the station on the line (%+d Hz, beside it %d)",
+          carrier_at(), noise_level());
+    speed = 3;
+
+    printf("A patched base, which sends where it is tuned: its rows as before\n");
+    lo_offsets(-700, -700);
+    x6100_frame(false, -700, fg_freq - 700);
+    check(rows[newest].center_freq == (uint32_t)fg_freq - 700, "receive: the row centred on the frequency it sent");
+    x6100_frame(true, -700, fg_freq);
+    check(rows[newest].center_freq == (uint32_t)fg_freq - 700, "TX: the row centred the key tone below the dial it sent");
 
     printf("%d of %d cases ok\n", good, cases);
     return good == cases ? 0 : 1;

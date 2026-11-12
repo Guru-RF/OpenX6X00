@@ -195,6 +195,7 @@ void cfg_pwr_set(float watts) {
 void cfg_hw_caps_set(uint32_t caps) {
     cfg_sm.hw_caps_ = caps;
     cfg_sm.cp_mode_lo_offset.recompute();
+    cfg_sm.cp_mode_tx_lo_offset.recompute();
 }
 
 void cfg_pwr_max_set(float watts) {

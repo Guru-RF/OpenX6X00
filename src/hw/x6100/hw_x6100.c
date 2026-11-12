@@ -162,13 +162,19 @@ const char *hw_base_ver_str(void) {
 
 /* The patched firmware (1.1.9, and every rev 8 board) zooms and shifts the IF itself; the auto
  * notch, the compressor and the codec gain came with rev 3, the band gain and FM emphasis with
- * rev 8, the TX filter with rev 9, CESSB with rev 12 */
+ * rev 8, the TX filter with rev 9, CESSB with rev 12. Xiegu's own base from 1.1.9 on centres the
+ * spectrum on the dial while it transmits, and sends no frequency to say so: in CW the carrier was
+ * drawn a key tone below the line. Its 1.1.8 keeps the spectrum on the oscillator then, as in
+ * receive, and the patched bases say in each packet where it is (#191) */
 uint32_t hw_caps(void) {
     x6100_base_ver_t v    = x6100_control_get_base_ver();
     uint32_t         caps = HW_CAP_TX_IQ_OFFSET;
 
     if (ver_cmp(v, (x6100_base_ver_t){1, 1, 9, 0}) >= 0 || v.rev >= 8) {
         caps |= HW_CAP_ZOOM | HW_CAP_IF_SHIFT;
+    }
+    if (ver_cmp(v, (x6100_base_ver_t){1, 1, 9, 0}) >= 0 && v.rev < 8) {
+        caps |= HW_CAP_TX_SPECTRUM_ON_DIAL;
     }
     if (v.rev >= 3) {
         caps |= HW_CAP_DNF_AUTO | HW_CAP_COMP | HW_CAP_COMP_SHAPE | HW_CAP_CODEC_GAIN | HW_CAP_TX_LEVEL;

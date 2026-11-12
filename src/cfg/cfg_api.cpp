@@ -202,6 +202,7 @@ ComputedParamInt *cfg_cur_filter_low      = nullptr;
 ComputedParamInt *cfg_cur_filter_high     = nullptr;
 ComputedParamInt *cfg_cur_filter_bw       = nullptr;
 ComputedParamInt *cfg_mode_lo_offset      = nullptr;
+ComputedParamInt *cfg_mode_tx_lo_offset   = nullptr;
 
 void cfg_api_init(void (*on_db_error)(const char *)) {
     // on_db_error is kept for signature compatibility but is currently inert
@@ -405,6 +406,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_cur_filter_high  = &cfg_sm.cp_cur_filter_high;
     cfg_cur_filter_bw    = &cfg_sm.cp_cur_filter_bw;
     cfg_mode_lo_offset   = &cfg_sm.cp_mode_lo_offset;
+    cfg_mode_tx_lo_offset = &cfg_sm.cp_mode_tx_lo_offset;
 
     // Wire the ATU cache to the parameter sources and do the initial load.
     atu_cache_wire_subscriptions();
