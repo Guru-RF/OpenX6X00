@@ -3154,7 +3154,10 @@ amateur radio: send only on the bands and with the privileges you hold.
 the decoder or the player was behind, "gaps" the breaks in the speech;
 "decode" and "synth" are the slowest ms for one 120 ms modem frame, and above
 120 the speech breaks up. The callsign that the last End-of-Over carried is
-shown after "last over".
+shown after "last over", in the form rade_c's own test sends it (8 characters
+of 7 bits, as this app sends yours), and only when it reads as a callsign.
+FreeDV's own program sends its callsign in another form (with error
+correction): nothing is shown for its overs, and it may not show yours.
 
 **Sending: record, then send, not live.** Linux records only the hand mic, and
 only while the radio is receiving (the same limit as the

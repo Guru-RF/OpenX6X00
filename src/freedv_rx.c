@@ -106,6 +106,24 @@ static void stat_inc(uint32_t *field, uint32_t n)
     pthread_mutex_unlock(&rx.lock);
 }
 
+/* 3 to 8 of A-Z, 0-9 and /, with a letter and a digit in them */
+static bool callsign_like(const char *s, int len)
+{
+    bool letter = false, digit = false;
+
+    if (len < 3 || len > 8)
+        return false;
+    for (int i = 0; i < len; i++) {
+        if (s[i] >= 'A' && s[i] <= 'Z')
+            letter = true;
+        else if (s[i] >= '0' && s[i] <= '9')
+            digit = true;
+        else if (s[i] != '/')
+            return false;
+    }
+    return letter && digit;
+}
+
 static void feat_push(const float *feat)
 {
     uint32_t h = atomic_load_explicit(&rx.feat_idx.head, memory_order_relaxed);
@@ -187,6 +205,10 @@ static void *decode_thread(void *arg)
                 }
                 while (len > 0 && call[len - 1] == ' ')
                     len--;
+                /* Only what reads as a callsign: FreeDV's own program sends its callsign in another form (with
+                   error correction), which came out here as garbage (" 7i:Iw" off the air) */
+                if (!callsign_like(call, len))
+                    len = 0;
                 memcpy(rx.st.callsign, call, (size_t)len);
                 rx.st.callsign[len] = '\0';
             }
