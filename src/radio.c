@@ -895,6 +895,28 @@ static int         swrscan_sum;         /* of pack->vswr */
 #define SWRSCAN_MODE    radio_mode_am
 #endif
 
+/* The scan's TX after its Stop, either way: the base still reports TX for a packet or two once the key is off, and the
+ * RX case took that for the base keying by itself, as for a hand mic. RADIO_TX for ~60 ms: TCI and CAT said TX on and
+ * off again, and the GUI was told of a TX (the bench X6200 on the air, 12 Nov). Until the base reports RX, those
+ * packets are the scan's, for SWRSCAN_TAIL_MS at most: a TX that goes on longer is the base's own again. The Stop's
+ * time, set before its move to RX (no packet sees RX without it), 0 once the radio thread has seen the base in RX */
+#define SWRSCAN_TAIL_MS 500
+static _Atomic uint64_t swrscan_stop_ms;
+
+/* On the radio thread, in RX: whether this packet's TX is still the stopped scan's */
+static bool swrscan_tail(bool tx) {
+    uint64_t at = atomic_load(&swrscan_stop_ms);
+
+    if (!at) {
+        return false;
+    }
+    if (tx && (int64_t)(now_time - at) < SWRSCAN_TAIL_MS) {   /* signed: the Stop may come after this turn's clock */
+        return true;
+    }
+    atomic_compare_exchange_strong(&swrscan_stop_ms, &at, 0);  /* not a newer Stop's */
+    return false;
+}
+
 /* Nothing moves before the scan is known to start: the VFO that transmits goes to `from` only then */
 bool radio_start_swrscan(int32_t from) {
 #ifdef BOARD_X6200
@@ -925,11 +947,14 @@ bool radio_start_swrscan(int32_t from) {
 }
 
 void radio_stop_swrscan() {
+    atomic_store(&swrscan_stop_ms, get_time());     /* before the move: the base's TX after it is the scan's (above) */
     if (state_move(RADIO_SWRSCAN, RADIO_RX)) {
         radio_lock();
         hw_set_i(SWRSCAN_TX, false);
         set_txpwr(param_f_get(cfg_pwr));
         radio_unlock();
+    } else {
+        atomic_store(&swrscan_stop_ms, 0);
     }
 }
 
@@ -2843,6 +2868,9 @@ static bool radio_tick() {
 
         switch (state) {
             case RADIO_RX:
+                if (swrscan_tail(pack->tx)) {
+                    break;
+                }
                 if (pack->tx && state_move(RADIO_RX, RADIO_TX)) {
                     tx_by_gui = false;  /* set below while the GUI keys it */
                     if (notify_rx_tx) {

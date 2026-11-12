@@ -24,6 +24,12 @@ void base_reading(void) {
     }
 }
 
+/* One packet of the base as the radio thread takes it (radio_tick): supply.tx is its TX flag */
+void base_packet(void) {
+    now_time = get_time();
+    radio_tick();
+}
+
 /* The base in TX by itself or back in RX, as radio_tick takes it from the packets (the hand mic's PTT, at 0 W too) */
 void base_keys_itself(bool tx) {
     atomic_store(&state, tx ? RADIO_TX : RADIO_RX);

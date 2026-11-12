@@ -495,6 +495,66 @@ static void swrscan_ways(void) {
     }
 }
 
+static int rx_tx_told;     /* the GUI told of a TX or its end (notify_rx_tx) */
+
+static void rx_tx_seen(bool tx) {
+    (void)tx;
+    rx_tx_told++;
+}
+
+/* A packet of the base, then its ~35 ms to the next */
+static void packet(bool tx) {
+    supply.tx = tx;
+    base_packet();
+    clock_add(35);
+}
+
+/* The scan's Stop with the base still reporting TX for a packet or two (the bench X6200 on the air, 12 Nov: TCI's trx
+ * off, on for ~60 ms, off): those are the scan's, not the base keying by itself, so the state stays RX and the GUI is
+ * told nothing. A TX once the base was back in RX is its own again (a hand mic), and so is one going on past 500 ms */
+static void swrscan_stop_tail(void) {
+    fake_cfg_init();
+    start();
+    settle();
+    radio_set_rx_tx_notify_fn(rx_tx_seen);
+    for (int quick = 0; quick <= 1; quick++) {
+        const char *way = quick ? "Sweep: Quick" : "Sweep: Carrier";
+
+        set_i(cfg_swrscan_quick, quick);
+        check(radio_start_swrscan(7100000), "%s: the scan starts", way);
+        packet(true);
+        radio_stop_swrscan();
+        rx_tx_told = 0;
+        for (int i = 0; i < 3; i++) {
+            packet(true);   /* ~100 ms of the base's TX after Stop */
+        }
+        check(radio_get_state() == RADIO_RX && rx_tx_told == 0, "%s: the base's TX for 100 ms after Stop is the scan's: "
+              "RX (state %d), the GUI told nothing (%d)", way, (int)radio_get_state(), rx_tx_told);
+        packet(false);
+        packet(true);       /* the hand mic's PTT, the base back in RX before it */
+        check(radio_get_state() == RADIO_TX && rx_tx_told == 1, "%s: a TX after the base's RX is its own: TX (state %d), "
+              "told (%d)", way, (int)radio_get_state(), rx_tx_told);
+        packet(false);
+        check(radio_get_state() == RADIO_RX && rx_tx_told == 2, "%s: its end: RX (state %d), told (%d)", way,
+              (int)radio_get_state(), rx_tx_told);
+        radio_set_tx_freq(0);
+        set_i(cfg_band_vfoa_mode, radio_mode_usb);
+        gui_run();
+        settle();
+    }
+    check(radio_start_swrscan(7100000), "the scan starts again");
+    packet(true);
+    radio_stop_swrscan();
+    rx_tx_told = 0;
+    for (int ms = 0; ms <= 600; ms += 35) {
+        packet(true);
+    }
+    check(radio_get_state() == RADIO_TX && rx_tx_told == 1, "the base still in TX 600 ms after Stop: its own, TX "
+          "(state %d), told (%d)", (int)radio_get_state(), rx_tx_told);
+    packet(false);
+    check(radio_get_state() == RADIO_RX, "and back in RX (state %d)", (int)radio_get_state());
+}
+
 static void *key_down(void *arg) {
     (void)arg;
     radio_set_morse_key(true);
@@ -524,6 +584,7 @@ int main(void) {
     apart("a TX on a supply that does not hold the battery up", bat_tx_on_supply);
     apart("unplugged after a TX", bat_unplugged_after_tx);
     apart("the SWR scan's two ways", swrscan_ways);
+    apart("the SWR scan's Stop and the base's TX after it", swrscan_stop_tail);
     fake_cfg_init();
     start();
 

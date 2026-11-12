@@ -112,10 +112,11 @@ extern supply_t supply;
 extern shown_t  shown;
 
 /* radio_thread.c: one turn of the radio thread at the base's open TX; one reading of the base's supply, as radio_tick
- * takes one every 12 packets; the base in TX by itself (the hand mic's PTT) or back in RX; a write of the open TX on
+ * takes one every 12 packets; one packet; the base in TX by itself (the hand mic's PTT) or back in RX; a write of the open TX on
  * its way, as open_tx_send has it (the radio lock held, open_tx_busy set), and its end */
 void radio_thread_turn(void);
 void base_reading(void);
+void base_packet(void);
 void base_keys_itself(bool tx);
 void open_tx_write_begin(void);
 void open_tx_write_end(void);
