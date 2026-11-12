@@ -33,6 +33,7 @@
 #include <string.h>
 
 #define UI_TICK_MS 200
+#define ROW_H      30
 /* The RADE carriers sit at 750..2200 Hz above the dial frequency (rade_ofdm.c: 30 carriers of
  * 50 Hz around 1500 Hz): USB or LSB alike, the list's frequencies are the dial's */
 #define AUDIO_HZ 0
@@ -49,7 +50,7 @@ static pthread_t   tx_thr;
 static bool        tx_thr_live;
 static atomic_bool tx_abort, tx_finished, tx_sent;
 
-static lv_obj_t *lbl_sync, *lbl_snr, *lbl_foff, *lbl_level, *lbl_audio, *lbl_loss, *lbl_cpu;
+static lv_obj_t *lbl_sync, *lbl_snr, *lbl_level, *lbl_audio, *lbl_loss, *lbl_cpu;
 
 static void app_open(lv_obj_t *parent);
 static void app_close(void);
@@ -128,20 +129,20 @@ static lv_obj_t *row(lv_obj_t *body, const char *name, lv_obj_t **value)
     lv_obj_t *r = lv_obj_create(body);
 
     lv_obj_remove_style_all(r);
-    lv_obj_set_size(r, lv_pct(100), 40);
+    lv_obj_set_size(r, lv_pct(100), ROW_H);   /* six of them in the app's body on both radios' screen */
     lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_t *n = lv_label_create(r);
     lv_obj_set_style_text_font(n, &sony_22, 0);
     lv_obj_set_style_text_color(n, TC(text_dim), 0);
     lv_label_set_text(n, name);
-    lv_obj_set_pos(n, 0, 6);
+    lv_obj_set_pos(n, 0, 2);
 
     lv_obj_t *v = lv_label_create(r);
     lv_obj_set_style_text_font(v, &sony_22, 0);
     lv_obj_set_style_text_color(v, TC(text), 0);
     lv_label_set_text(v, "-");
-    lv_obj_set_pos(v, 220, 6);
+    lv_obj_set_pos(v, 200, 2);
     *value = v;
     return r;
 }
@@ -236,7 +237,6 @@ static void show_tx_state(void)
         set_text(lbl_sync, b, t.done ? TC(toggle_on) : TC(warn));
     }
     set_text(lbl_snr, "-", TC(text_dim));
-    set_text(lbl_foff, "-", TC(text_dim));
     if (st == ST_REC) {
         snprintf(b, sizeof(b), "%d %%%s", t.level_pct, t.level_pct >= 95 ? "   too loud" : "");
         set_text(lbl_level, b, t.level_pct >= 95 ? TC(warn) : TC(text));
@@ -285,10 +285,11 @@ static void ui_timer_cb(lv_timer_t *t)
         return;
     }
     set_text(lbl_sync, s.sync ? "SYNC" : "searching", s.sync ? TC(toggle_on) : TC(text_dim));
-    snprintf(b, sizeof(b), s.sync ? "%.1f dB" : "-", s.snr_db);
+    if (s.sync)
+        snprintf(b, sizeof(b), "%.1f dB   %+.0f Hz", s.snr_db, s.foff_hz);
+    else
+        snprintf(b, sizeof(b), "-");
     set_text(lbl_snr, b, TC(text));
-    snprintf(b, sizeof(b), s.sync ? "%+.0f Hz" : "-", s.foff_hz);
-    set_text(lbl_foff, b, TC(text));
     snprintf(b, sizeof(b), "%d %%%s", s.level_pct, s.level_pct >= 95 ? "   too loud" : "");
     set_text(lbl_level, b, s.level_pct >= 95 ? TC(warn) : TC(text));
     int tci = tci_server_audio_clients();
@@ -321,13 +322,13 @@ static void app_open(lv_obj_t *parent)
 
     lv_obj_remove_style_all(body);
     app_frame_body(body);
-    lv_obj_set_style_pad_all(body, 12, 0);
+    lv_obj_set_style_pad_hor(body, 12, 0);
+    lv_obj_set_style_pad_ver(body, 8, 0);
     lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
     lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLLABLE);
 
     row(body, "Sync", &lbl_sync);
-    row(body, "SNR", &lbl_snr);
-    row(body, "Offset", &lbl_foff);
+    row(body, "SNR, offset", &lbl_snr);
     row(body, "Input level", &lbl_level);
     row(body, "Speech to", &lbl_audio);
     row(body, "Lost", &lbl_loss);
@@ -365,7 +366,7 @@ static void app_close(void)
     freedv_rx_stop();       /* the audio callback has left when this returns */
     started = false;
     tci_server_speech_on(false);
-    lbl_sync = lbl_snr = lbl_foff = lbl_level = lbl_audio = lbl_loss = lbl_cpu = NULL;
+    lbl_sync = lbl_snr = lbl_level = lbl_audio = lbl_loss = lbl_cpu = NULL;
     dsp_set_waterfall_enabled(true);
     dsp_set_spectrum_enabled(true);
 }

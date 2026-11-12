@@ -533,7 +533,7 @@ void main_screen_start_app(press_action_t app_action) {
     /* RADE's speech can't go to the speaker (the base plays no app audio there while it receives): it needs Bluetooth
      * headphones or a TCI client, the browser's Panel and Remote pages too */
     if (app_action == ACTION_APP_FREEDV && !dialog_freedv_can_open()) {
-        msg_update_text_fmt("RADE: connect Bluetooth headphones, a TCI client (VFO-Knob) or the browser's Panel first");
+        msg_schedule_long_text_fmt("RADE needs headphones, TCI or the browser");
         return;
     }
     close_apps();
