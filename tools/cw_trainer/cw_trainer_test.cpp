@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#include "cw_own_tone.h"
 #include "cw_trainer_answer.h"
 
 namespace cw {
@@ -621,6 +622,91 @@ static void call_pauses(void) {
     }
 }
 
+/* The X6200's base keying a message in CW (KEY Train or a transmission), heard by the decoder (not the trainer, Dec
+ * SNR 8): the band's noise, then the base's own sidetone at the KEY Volume's level with the receiver's audio cut
+ * (measured, cw_own_tone.h), through the codec's 16 bits, then the band again. dsp.cpp raises the decoder's audio
+ * while the radio is in TX, which the radio thread sees late_ms after the audio changed. The decoder's text from
+ * the key-down to 2.5 s after the key-up: the message's last character comes after its gap, then the band's noise
+ * as characters (the app's squelch takes those, cw.cpp) */
+static std::string own_keying(int key_vol, bool raise, double late_ms) {
+    static const double BAND = 0.04, FLOOR = 3.5e-5;   /* the band's noise (~-47 dBFS at 700 Hz), the cut audio's */
+    std::mt19937        rng(7);
+    std::normal_distribution<double> gauss(0.0, 1.0);
+    std::vector<Mark>   marks;
+    double              dit = 1200.0 / 15, k = 3000.0;
+
+    for (const char *c = "VVV TEST DE ON6URE"; *c; c++) {
+        if (*c == ' ') {
+            k += 4 * dit;   /* the word gap: 7 dots with the character's 3 */
+            continue;
+        }
+        for (const char *p = morse_of(*c); *p; p++) {
+            double el = *p == '.' ? dit : 3 * dit;
+            marks.push_back({k, k + el});
+            k += el + dit;
+        }
+        k += 2 * dit;
+    }
+    double      key_on = 3000.0 - 20.0, key_off = marks.back().off + 100.0;   /* QSK 100 ms */
+    double      tone = pow(10.0, cw_own_tone_db(key_vol) / 20.0);
+    float       gain = cw_own_tone_gain(key_vol);
+    double      now  = 0;
+    std::string text;
+    cw::Receiver rx([&](const char *t, bool) {
+                        if (now >= key_on && now <= key_off + 2500.0) text += t;
+                    },
+                    [](bool) {});
+    cw::AudioResampler rs(RATE);
+
+    rx.set_floor_db(8.0f);
+    rx.set_band(TONE - 250.0, TONE + 250.0);
+
+    auto env = [&](double ms) {
+        for (const Mark &m : marks) {
+            if (ms < m.on || ms > m.off) continue;
+            double x = 1.0;
+            if (ms < m.on + EDGE) x = 0.5 - 0.5 * cos(M_PI * (ms - m.on) / EDGE);
+            if (ms > m.off - EDGE) x = std::min(x, 0.5 - 0.5 * cos(M_PI * (m.off - ms) / EDGE));
+            return x;
+        }
+        return 0.0;
+    };
+    std::vector<float> buf(FRAG);
+
+    for (long n = 0; 1000.0 * n / RATE < key_off + 3000.0;) {
+        for (int i = 0; i < FRAG; i++, n++) {
+            double ms = 1000.0 * n / RATE;
+            double x  = ms >= key_on && ms < key_off ? tone * env(ms) * sin(2.0 * M_PI * TONE * n / RATE) + FLOOR * gauss(rng)
+                                                     : BAND * gauss(rng);
+            x         = std::round(x * 32768.0) / 32768.0;   /* the codec's 16 bits */
+            buf[i]    = raise && ms >= key_on && ms < key_off + late_ms ? cw_own_tone_apply((float)x, gain) : (float)x;
+        }
+        now = 1000.0 * n / RATE;
+        rs.process(buf.size(), buf.data(), rx);
+    }
+    return text;
+}
+
+static void own_keying_x6200(void) {
+    printf("The X6200's own keying, its sidetone at the KEY Volume's level (#198, #199)\n");
+    for (int vol : {10, 30, 63}) {
+        std::string t = own_keying(vol, false, 0);
+        printf("        as it was, Volume %d: \"%s\"\n", vol, t.c_str());
+    }
+    check(own_keying(10, false, 0).find("TEST") == std::string::npos,
+          "as it was, at Volume 10 (the default) the decoder does not read the message");
+    for (int vol : {10, 20, 30, 40, 63}) {
+        std::string t = own_keying(vol, true, 0);
+        check(t.find("TEST DE ON6URE") != std::string::npos && t.find("VVV") != std::string::npos,
+              "raised, Volume %d: \"%s\"", vol, t.c_str());
+    }
+    for (double late : {30.0, 80.0}) {
+        std::string t = own_keying(10, true, late);
+        check(t.find("VVV TEST DE ON6URE") != std::string::npos, "raised, Volume 10, TX seen %.0f ms after the key-up's "
+              "audio (the band's noise raised that long, limited): \"%s\"", late, t.c_str());
+    }
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     morse_text_rules();
@@ -630,6 +716,7 @@ int main(void) {
     no_character();
     call_pauses();
     first_groups();
+    own_keying_x6200();
     printf("%d of %d CW trainer cases as they should be\n", good, cases);
     return good == cases ? 0 : 1;
 }

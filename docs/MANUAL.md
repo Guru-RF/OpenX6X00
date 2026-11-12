@@ -3308,6 +3308,16 @@ over the waterfall.
   nothing is decoded. A key-down longer than 8 dots (tune-up) is ignored.
 - Upstream bugs fixed here: a strong station slightly off tune was never
   decoded, and a dash cut by a retune came out as a dot.
+- Your own keying: while the radio keys in CW, with KEY Train on or on the
+  air, the base cuts the receiver's audio and puts its sidetone there
+  instead, so the decoder shows what you send and the
+  [CW Trainer](#cw-trainer) reads your answers from it. The X6100's base
+  puts it in at full scale. The X6200's base puts it in at the KEY Volume's
+  level, far under a band's: about -89 dBFS at Volume 10 (the default),
+  -66 at 40 and -48 at 63, the Moni level not counting (measured on base
+  1.0.8). While the X6200 keys in CW the decoder's audio is raised to make
+  up for it. Up to v0.3.9 its decoder read nothing of your keying at the
+  usual Volumes, and the trainer missed dits (#198, #199).
 
 In CW and CW-R a station on the dial sounds at the key tone (KEY > Tone),
 on the X6100 and the X6200 alike, and the waterfall, the spectrum and the
@@ -4369,6 +4379,12 @@ pairing and connection in DEVICES, the audio switches in HEADPHONES.
   A2DP source) into the radio TX audio.
 - The headphones get mono audio, like the radio's, with about 0.4 s of delay;
   it can grow to 0.7 s when the link is busy.
+- CW: the headphones get the receiver's audio, which the base cuts while it
+  keys. The X6100's base puts its sidetone in at full scale, so the
+  headphones hear it, that much late. The X6200's base puts it in at the KEY
+  Volume's level, about -89 dBFS at Volume 10, so the headphones hear next
+  to nothing of your keying (#192). For your own sidetone on an X6200, turn
+  Mute speaker off: the radio's speaker plays it.
 - WiFi runs at 20 MHz only, so it leaves more of the band to the headphones.
 - Bluetooth keyboards (for [CW from the keyboard](#cw-from-the-keyboard)) are paired the
   same way: Scan also finds keyboards, marked *keyboard* in the list (one

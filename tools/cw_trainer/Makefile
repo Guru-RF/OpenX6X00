@@ -18,12 +18,15 @@
 # space there does not end the answer (cwt_space_ends), every one right (#202). Last the first 4 groups after the trainer opens, 84 runs of them for each of Learn's groups of 1 and 3
 # and Calls at 10-15 WPM, the sound 30-250 ms behind the key: the lock finds the tone with the first group, and its
 # first dah can come in pieces then; the same checks, and the decoder's speed at the end.
+# Last the X6200's own keying (#198, #199): the base's sidetone at the KEY Volume's level with the receiver's audio cut,
+# after the band's noise: as it was the decoder reads nothing of it at Volume 10; raised as dsp.cpp does while the radio
+# is in TX (src/cw_own_tone.h) the whole message at Volumes 10-63, also with the TX seen 30 and 80 ms late.
 # DEPS: liquid-dsp (host/build.sh puts it in build-host/deps).
 SRC      := ../../src
 DEPS     ?= ../../build-host/deps
 CXXFLAGS := -std=c++17 -Wall -Wextra -O2 -g -I $(SRC)/cw_decoder -I $(SRC) -I $(DEPS)/include
 DECODER  := morse_text.cpp tone_finder.cpp tone_lock.cpp key_detector.cpp element_timer.cpp receiver.cpp
-HEADERS  := $(wildcard $(SRC)/cw_decoder/*.h) $(SRC)/cw_trainer_answer.h
+HEADERS  := $(wildcard $(SRC)/cw_decoder/*.h) $(SRC)/cw_trainer_answer.h $(SRC)/cw_own_tone.h
 
 all: test
 

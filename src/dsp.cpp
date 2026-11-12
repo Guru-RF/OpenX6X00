@@ -18,6 +18,7 @@
 #include "cfg/settings_manager.h"
 
 #include "cw.h"
+#include "cw_own_tone.h"
 #include "util.h"
 
 #include <algorithm>
@@ -207,6 +208,9 @@ static std::atomic<bool> floor_reset{true};
 static int32_t      filter_from = 0;
 static int32_t      filter_to   = 3000;
 static radio_mode_t cur_mode;
+#ifdef BOARD_X6200
+static std::atomic<float> own_tone_gain{1.0f};  /* cw_own_tone_gain() at the KEY Volume, for the audio thread */
+#endif
 
 /* FT8 and other dialogs switch the panorama off to save CPU */
 static std::atomic<bool> waterfall_enabled{true};
@@ -569,6 +573,12 @@ static void on_freq_change(Subject *subj, void *user_data) {
         cur_freq = static_cast<SubjectT<int32_t> *>(subj)->get();
 }
 
+#ifdef BOARD_X6200
+static void on_key_vol_change(Subject *subj, void *user_data) {
+    own_tone_gain = cw_own_tone_gain(cfg_sm.p_key_vol.get());
+}
+#endif
+
 static void on_spectrum_show(Subject *subj, void *user_data) {
     spectrum_shown = cfg_sm.p_spectrum_show.get() || cfg_sm.p_walkie.get();
 }
@@ -609,6 +619,9 @@ void dsp_init() {
     cfg_sm.cp_cur_mode.subscribe_and_notify(on_filter_change);
     cfg_sm.cp_cur_mode.subscribe_and_notify(on_mode_change);
     cfg_sm.cp_fg_freq.subscribe(on_freq_change);
+#ifdef BOARD_X6200
+    cfg_sm.p_key_vol.subscribe_and_notify(on_key_vol_change);
+#endif
 
     ready = true;
 }
@@ -684,6 +697,16 @@ void dsp_put_audio_samples(size_t nsamples, int16_t *samples) {
             iirfilt_rrrf_execute(audio_dc, v, &audio[out++]);
         }
     }
+#ifdef BOARD_X6200
+    /* The X6200's base keying in CW: its sidetone, far under the band's level, raised for the decoder and the CW
+     * Trainer (cw_own_tone.h, #198, #199) */
+    if (sink == cw_put_audio_samples && radio_get_state() == RADIO_TX) {
+        float g = own_tone_gain;
+
+        for (size_t i = 0; i < out; i++)
+            audio[i] = cw_own_tone_apply(audio[i], g);
+    }
+#endif
     if (out)
         sink(out, audio);
 }
