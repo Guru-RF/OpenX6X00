@@ -1722,10 +1722,19 @@ static void on_filter_change(Subject *subj, void *user_data) {
     update_middle_line();
 }
 
+/* The passband's colour and Filter shade (#167): a band of 20% at Full, as before, a quarter of that at 25%; Edges
+ * its two edges in that colour (1bit: always its edges, in the line's colour) */
 static void on_filter_color_change(Subject *subj, void *user_data) {
-    int32_t c = theme_filter_color(param_i_get(cfg_filter_color));
+    int32_t    c = theme_filter_color(param_i_get(cfg_filter_color));
+    int32_t    q = LV_CLAMP(0, param_i_get(cfg_filter_shade), 4);
+    lv_color_t col = c >= 0 ? lv_color_hex(c) : TC(vfo_line);
 
-    lv_obj_set_style_bg_color(filter_band, c >= 0 ? lv_color_hex(c) : TC(vfo_line), 0);
+    if (theme_shape.mono) return;
+    lv_obj_set_style_bg_color(filter_band, col, 0);
+    lv_obj_set_style_bg_opa(filter_band, (lv_opa_t)(LV_OPA_20 * q / 4), 0);
+    lv_obj_set_style_border_side(filter_band, LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_RIGHT, 0);
+    lv_obj_set_style_border_width(filter_band, q == 0 ? 1 : 0, 0);
+    lv_obj_set_style_border_color(filter_band, col, 0);
 }
 
 /* Manual levels follow the band's settings; automatic ones come from the DSP */
@@ -1799,6 +1808,7 @@ lv_obj_t * waterfall_init(lv_obj_t * parent) {
     subject_subscribe_delayed((Subject *)cfg_wf_fixed_after, on_view_changed, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_wf_palette, on_palette_change, NULL);
     subject_subscribe_delayed_and_notify((Subject *)cfg_filter_color, on_filter_color_change, NULL);
+    subject_subscribe_delayed((Subject *)cfg_filter_shade, on_filter_color_change, NULL);
     subject_subscribe_and_notify((Subject *)cfg_mode_lo_offset, on_mode_lo_offset_change, NULL);
     subject_subscribe((Subject *)cfg_auto_level_enabled, on_levels_change, NULL);
     subject_subscribe((Subject *)cfg_band_grid_min, on_levels_change, NULL);

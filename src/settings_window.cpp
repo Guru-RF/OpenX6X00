@@ -4104,6 +4104,7 @@ static void make_display_page() {
         row = make_param_choice(row, "Filter colour",
                                 " Theme \n Blue \n Cyan \n Green \n Yellow \n Orange \n Red \n Violet \n White ",
                                 cfg_sm.p_filter_color);
+        row = make_param_choice(row, "Filter shade", " Edges \n 25 % \n 50 % \n 75 % \n Full ", cfg_sm.p_filter_shade);
         row = make_param_slider(row, "Height", &spectrum_height_slider);   /* live, at each step */
     }
     card_end(row);

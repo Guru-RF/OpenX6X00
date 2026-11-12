@@ -218,6 +218,10 @@ class SettingsManager {
     // Filter passband on the spectrum and waterfall: 0 the theme's, then the presets (theme_filter_color())
     Parameter<int32_t> p_filter_color{"filter_color", 0, 0, 8,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // How strongly the passband is shaded (#167): 0 its two edges only, 1-4 a quarter to all of the shade as up to
+    // v0.3.9 (FILTER_SHADE_FULL)
+    Parameter<int32_t> p_filter_shade{"filter_shade", 4, 0, 4,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Spectrum trace and fill: 0xRRGGBB, -1 the theme's (the fill: as the trace)
     Parameter<int32_t> p_spectrum_line_color{"spectrum_line_color", -1, -1, 0xffffff,
         StorageType::GLOBAL, pending_writes_, &global_params_};

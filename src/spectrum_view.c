@@ -390,16 +390,26 @@ void spectrum_draw_cb(lv_event_t *e) {
 
     lv_draw_rect_dsc_init(&band);
     band.bg_color = fc >= 0 ? lv_color_hex(fc) : theme_shape.deck ? TC(vfo_bg) : bg_color;   /* deck: shaded on the black */
-    band.bg_opa = LV_OPA_50;
+    /* Filter shade (#167): Edges, a quarter, a half, three quarters or all of the 50% of before */
+    int32_t q = LV_CLAMP(0, param_i_get(cfg_filter_shade), 4);
+
+    band.bg_opa = (lv_opa_t)(LV_OPA_50 * q / 4);
     lv_coord_t pass_x1 = vfo_x + (int32_t)((float)(w * pass_lo) / span + 1.0f);
     lv_coord_t pass_x2 = vfo_x + (int32_t)((float)(w * pass_hi) / span + 1.0f);
 
     if (theme_shape.mono) {     /* 1bit: its two edges, no shade over the bars */
         vline(ctx, &line, pass_x1, top, h);
         vline(ctx, &line, pass_x2, top, h);
+    } else if (q == 0) {        /* Edges: the two in the passband's colour, the signals inside clear */
+        lv_draw_line_dsc_t edge = line;
+
+        edge.color = band.bg_color;
+        vline(ctx, &edge, pass_x1, top, h);
+        vline(ctx, &edge, pass_x2, top, h);
     } else {
         shade(ctx, &band, pass_x1, pass_x2, top, h);
     }
+    band.bg_opa = LV_OPA_50;    /* the notch's, as before */
 
     /* notch_hz already carries the sideband's sign: no second flip, or LSB lands on the USB side */
     if (notch_on) {

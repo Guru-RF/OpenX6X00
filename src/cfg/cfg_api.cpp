@@ -51,6 +51,7 @@ ParamInt         *cfg_smeter_needle       = nullptr;
 ParamInt         *cfg_smeter_color        = nullptr;
 ParamInt         *cfg_wf_palette          = nullptr;
 ParamInt         *cfg_filter_color        = nullptr;
+ParamInt         *cfg_filter_shade        = nullptr;
 ParamInt         *cfg_spectrum_line_color = nullptr;
 ParamInt         *cfg_spectrum_fill_color = nullptr;
 ParamInt         *cfg_spectrum_fill_gradient = nullptr;
@@ -243,6 +244,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_smeter_color     = &cfg_sm.p_smeter_color;
     cfg_wf_palette          = &cfg_sm.p_wf_palette;
     cfg_filter_color        = &cfg_sm.p_filter_color;
+    cfg_filter_shade        = &cfg_sm.p_filter_shade;
     cfg_spectrum_line_color = &cfg_sm.p_spectrum_line_color;
     cfg_spectrum_fill_color = &cfg_sm.p_spectrum_fill_color;
     cfg_spectrum_fill_gradient = &cfg_sm.p_spectrum_fill_gradient;

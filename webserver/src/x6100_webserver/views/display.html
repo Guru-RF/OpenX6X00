@@ -72,6 +72,8 @@ const CARDS = [
     ["spectrum_line_color", "Trace colour", "The theme's, or your own", "color", "Theme"],
     ["spectrum_fill_color", "Fill colour", "As the trace, or your own", "color", "As trace"],
     ["spectrum_fill_gradient", "Fill gradient", "The fill fading to the background at the bottom", "sw"],
+    ["filter_color", "Filter colour", "The receive filter's passband on the spectrum and the waterfall", "sel", ["Theme", "Blue", "Cyan", "Green", "Yellow", "Orange", "Red", "Violet", "White"]],
+    ["filter_shade", "Filter shade", "How strongly the passband is shaded; Edges draws only its two edges, the signals inside clear", "sel", ["Edges", "25 %", "50 %", "75 %", "Full"]],
     ["wf_palette", "Waterfall colours", "The theme's, or one of these", "sel", ["Theme", "Classic", "Gauss", "Grey", "Fire", "Ice", "Rainbow"]],
     ["wf_mode", "Mode", "Centered keeps the VFO in the middle, Fixed keeps the span", "seg", ["Centered", "Fixed"]],
     ["wf_fixed_jump", "Jump at", "Fixed: the view moves on when the VFO line is 40% of the span from the centre, or when the passband or the line reaches the screen's edge (100 Hz from it)", "sel", ["40%", "Passband", "Line"]],

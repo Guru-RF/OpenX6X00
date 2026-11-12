@@ -81,6 +81,7 @@ extern ParamInt         *cfg_smeter_needle;      // p_smeter_needle
 extern ParamInt         *cfg_smeter_color;       // p_smeter_color
 extern ParamInt         *cfg_wf_palette;         // p_wf_palette
 extern ParamInt         *cfg_filter_color;       // p_filter_color
+extern ParamInt         *cfg_filter_shade;       // p_filter_shade: 0 edges only, 4 the full shade (#167)
 extern ParamInt         *cfg_spectrum_line_color; // p_spectrum_line_color
 extern ParamInt         *cfg_spectrum_fill_color; // p_spectrum_fill_color
 extern ParamInt         *cfg_spectrum_fill_gradient; // p_spectrum_fill_gradient

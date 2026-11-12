@@ -77,6 +77,7 @@ static const struct {
     {"smeter_color", &cfg_sm.p_smeter_color, 0, 2},
     {"wf_palette", &cfg_sm.p_wf_palette, 0, 6},
     {"filter_color", &cfg_sm.p_filter_color, 0, 8},
+    {"filter_shade", &cfg_sm.p_filter_shade, 0, 4},
     {"spectrum_line_color", &cfg_sm.p_spectrum_line_color, -1, 0xffffff},
     {"spectrum_fill_color", &cfg_sm.p_spectrum_fill_color, -1, 0xffffff},
     {"spectrum_fill_gradient", &cfg_sm.p_spectrum_fill_gradient, 0, 1},
