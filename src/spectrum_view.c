@@ -88,7 +88,7 @@ static bool             vfo_line_on = true;
 static bool             direct;
 static uint32_t        *strip;
 static int32_t          strip_h;
-static int32_t          drawn_markers[13];
+static int32_t          drawn_markers[15];
 
 /* Pixels from the centre of a view w wide for hz, rounded either way from 0 (half up, a VFO
  * tuned below the centre of the Fixed view had its trace a pixel to the right) */
@@ -544,13 +544,14 @@ static void polyline(const float *db, int from, int to, float min, float max, lv
 }
 
 /* The markers drawn by LVGL: redrawn only when one of them changes, or the zoom that places them (#59: on
- * a new zoom the passband kept its old width, but where something over it happened to be redrawn) */
+ * a new zoom the passband kept its old width, but where something over it happened to be redrawn), or how the
+ * passband is drawn (#167: a new Filter shade or colour showed only at the next redraw for something else) */
 static void markers_check(void) {
     int32_t now[sizeof(drawn_markers) / sizeof(drawn_markers[0])] = {
         markers_px(POINTS), pass_lo, pass_hi, notch_on, notch_hz, notch_half,
         rtty_get_state(), params.rtty_center, params.rtty_shift,
         dialog_navtex_is_active() | dialog_wefax_is_active() << 1, vfo_line_on, recorder_is_on(),
-        zoom
+        zoom, param_i_get(cfg_filter_shade), param_i_get(cfg_filter_color)
     };
 
     if (memcmp(now, drawn_markers, sizeof(now))) {
