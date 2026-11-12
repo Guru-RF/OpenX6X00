@@ -7131,11 +7131,13 @@ runtime state in `/mnt/btcat.conf` overrides them.
 
 ### Processor temperature (X6200)
 
-The X6200's kernel reads its processor's temperature sensor (the Allwinner
-R16's, with the `sun4i-gpadc-iio` driver). Up to v0.3.9 it had no driver for
-it, so nothing read how hot the processor got. The kernel's thermal zone
-`cpu-thermal` now watches it, with the trip points of the processor's device
-tree:
+The X6200's kernel reads its processor's temperature sensor (with the
+`sun4i-gpadc-iio` driver) on a card written from the v0.3.10 card image or
+later (PR #216). The card images up to v0.3.9 have no driver for it, so
+nothing reads how hot the processor gets; the update in the radio does not
+bring it, as it never changes the kernel: only a new card does. The kernel's
+thermal zone `cpu-thermal` watches it, with the trip points of the
+processor's device tree:
 
 - 75 °C: the processor slows down a step at a time, to 120 MHz at most (it
   runs at 1008 MHz), and speeds back up as it cools.
@@ -7157,7 +7159,7 @@ after it: find those by their `name`, not their number
 (`grep . /sys/class/hwmon/*/name`).
 
 The kernel turns the sensor's reading into degrees with the same formula for
-every R16; there is no calibration for each processor. There is no setting
+every radio; there is no calibration for each processor. There is no setting
 for it, and the X6100's kernel is not changed.
 
 ## Build
