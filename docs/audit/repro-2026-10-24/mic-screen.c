@@ -38,7 +38,7 @@ static lv_obj_t    *obj;
 static lv_timer_t   timer;
 static struct {
     bool run;
-} apps[7];
+} apps[8];
 static struct {
     uint8_t press_f1, press_f2, press_f3, long_f1, long_f2, long_f3;
 } params = {1, 2, 3, 11, 12, 13};
@@ -50,6 +50,7 @@ static struct {
 #define dialog_psk      (&apps[4])
 #define dialog_olivia   (&apps[5])
 #define dialog_jtty     (&apps[6])
+#define dialog_freedv   (&apps[7])
 #define dialog_channels NULL
 
 void *lv_event_get_param(lv_event_t *e) { return &ev; }
