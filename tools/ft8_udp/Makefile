@@ -2,7 +2,8 @@
 # #248): `make` builds and runs it. The real module sends to a socket of the test's own on 127.0.0.1; the test reads
 # "QSO Logged" (type 5) and "Logged ADIF" (type 12) back field by field, and checks enabled=0 (nothing), a socket of
 # its own closed again with the FT8 window shut, the window's socket kept while it is open, and a record too long for
-# a datagram (type 5 alone). The sources are copied to build/ first, as in tools/textlog.
+# a datagram (type 5 alone). The sources are copied to build/ first, as in tools/textlog, and both are made again at
+# every run: the data directory is compiled in, and a tree copied elsewhere would read the old one's.
 SRC    := ../../src
 DATA   := $(CURDIR)/build/data
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -DHOST_BUILD=1 -DBOARD_DATA='"$(DATA)"'
@@ -23,4 +24,4 @@ test: ft8_udp_test
 clean:
 	rm -rf ft8_udp_test build
 
-.PHONY: all test clean
+.PHONY: all test clean build/.copied ft8_udp_test
