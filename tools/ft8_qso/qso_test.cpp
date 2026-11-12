@@ -1403,6 +1403,36 @@ static void own_qth(void) {
     }
 }
 
+/* Free text with a bare sign where the report goes: "A B +" is a valid free-text frame that anyone can send. The
+ * dispatch looked at the first character only and std::stoi("+") threw std::invalid_argument; on the radio nothing
+ * catches it on the FT8 decoder thread, so the GUI ended (std::terminate). Not a report: nothing thrown, queued or
+ * logged, and a real report after it still works */
+static void bare_sign(void) {
+    begin("Free text with a bare sign where the report goes: not a report");
+    for (const char *t : {"A B +", "A B -", "A B R+", "A B R-", "A B +X", "A B R-1X", "Q1QQQ A1AAA +", "Q1QQQ A1AAA R-"}) {
+        bool threw = false;
+        try {
+            rx(t);
+        } catch (...) {
+            threw = true;
+        }
+        check(!threw && logged.empty() && !tx.msg[0], "\"%s\": nothing thrown, queued or logged", t);
+    }
+    tx_cq();
+    our_slot();
+    rx("Q1QQQ A1AAA IN80", -10);
+    slot_end();
+    check(next_is("A1AAA Q1QQQ -10"), "a call after them answered (%s)", tx.msg);
+    our_slot();
+    rx("Q1QQQ A1AAA R+", -11);
+    slot_end();
+    check(logged.empty(), "its bare R+ logs nothing");
+    our_slot();
+    rx("Q1QQQ A1AAA R-12", -11);
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -12, -10, false), "its real R-report logs it: rcvd -12, sent -10");
+}
+
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "-v");
     good_paths();
@@ -1414,6 +1444,7 @@ int main(int argc, char **argv) {
     force();
     own_call();
     own_qth();
+    bare_sign();
     ftx_qso_processor_delete(qso);
     printf("FT8 QSO %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;
