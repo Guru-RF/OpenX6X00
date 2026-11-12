@@ -4031,11 +4031,11 @@ or a long-press action. GEN or Radio goes back to the normal screen.
 - The main knob still tunes; the MFK chooses.
 
 
-| Home | SOTA, before the activation |
+| Home | Further along the row |
 |---|---|
-| ![Field Ops home](screenshots/field_home.png) | ![SOTA mode](screenshots/field_sota.png) |
-| **Activation** | **Bands** |
-| ![Activation](screenshots/field_activation.png) | ![Band overview](screenshots/field_bands.png) |
+| ![Field Ops home](screenshots/field_home.png) | ![The home row further along: WCA, MOTA, LH, TILES, LLOTA, BANDS](screenshots/field_llota.png) |
+| **Logbook** | |
+| ![Field Ops logbook](screenshots/field_log.png) | |
 
 Home: a row of thirteen tiles, LOG first, then SOTA, POTA, WWBOTA, HOTA, WWFF,
 TOTA, WCA, MOTA, LH, Tiles, LLOTA and Bands. Six and a half fit on the screen (five and a half
@@ -4064,8 +4064,6 @@ SOTA / POTA, before the activation:
   that could not be fetched keeps its previous entries and is named after:
   "Not updated, kept as it was: <list>: <reason>". A run that hangs (a
   connection that never answers) ends after 45 minutes with "timed out".
-
-  ![Field Ops while the reference lists download](screenshots/fieldops_list_progress.png)
 - Start begins the activation and its ADIF log.
 
 SOTA / POTA, during the activation: the band, the frequency and the mode,
@@ -4888,10 +4886,6 @@ Server options: `--host`, `--port`, `--https-port` (0 = off), `--cert-dir`,
 `--db`, `--cluster-conf`, `--tci-conf`, `--channels-file`,
 `--filebrowser-path`, `--debug`; see
 [webserver/README.md](../webserver/README.md).
-
-| Cluster | Digital modes |
-|---|---|
-| ![Cluster page](screenshots/web/cluster_desktop.png) | ![Digital modes page](screenshots/web/digital_modes_desktop.png) |
 
 ### Boot picture
 
