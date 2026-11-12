@@ -423,6 +423,37 @@ static bool hota_ref(const char *w) {
     return d >= 4 && d <= 5 && all_digits(dash + 2, d);
 }
 
+/* ONFF-0123, KFF-1234, VKFF-0001 (WWFF) */
+static bool wwff_ref(const char *w) {
+    const char *dash = strchr(w, '-');
+    if (!dash || strchr(w, '/')) return false;
+    size_t n = (size_t)(dash - w);
+    if (n < 3 || !prefix_ok(w, n) || strncmp(dash - 2, "FF", 2) != 0) return false;
+    return strlen(dash + 1) == 4 && all_digits(dash + 1, 4);
+}
+
+bool cluster_spot_ref(const cluster_spot_t *s, char *ref, size_t size) {
+    char text[sizeof(s->comment)];
+
+    if (size) ref[0] = '\0';
+    for (size_t i = 0; i < sizeof(text); i++) {
+        text[i] = (char)toupper((unsigned char)s->comment[i]);
+        if (!text[i]) break;
+    }
+    text[sizeof(text) - 1] = '\0';
+    for (char *save, *w = strtok_r(text, " ,;:()[]!?\t", &save); w; w = strtok_r(NULL, " ,;:()[]!?\t", &save)) {
+        /* HOTA's own prefixes are two letters (RO-H0390); field_ref_prog takes no other as HOTA */
+        bool hota = hota_ref(w) && strchr(w, '-') - w == 2;
+
+        if (park_ref(w) || summit_ref(w) || bunker_ref(w) || hota || wwff_ref(w)) {
+            if (strlen(w) >= size) return false;
+            memcpy(ref, w, strlen(w) + 1);
+            return true;
+        }
+    }
+    return false;
+}
+
 uint8_t cluster_spot_activity(const cluster_spot_t *s) {
     char    text[sizeof(s->comment)];
     uint8_t bits = 0;

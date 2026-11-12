@@ -705,14 +705,20 @@ static void table_draw_end_cb(lv_event_t *e) {
     draw_text(dsc, FONT_SMALL, time_x, WIDTH - 12, lv_color_hex(COLOR_DIM), LV_TEXT_ALIGN_RIGHT, text);
 }
 
-/* The last spot tuned here (MFK on the column or the Cluster app), for a log prefill. Read from any
- * thread: ponytail: no lock, a torn call costs one log prefill */
-static char     tuned_call[16];
+/* The last spot tuned here (MFK on the column or the Cluster app), for the quick QSO log (#245). LVGL thread */
+static char     tuned_call[16], tuned_ref[16];
+static int32_t  tuned_freq;
 static uint32_t tuned_seq;
 
-uint32_t dialog_cluster_tuned(char *call, size_t size) {
+bool dialog_cluster_tuned_near(int32_t freq_hz, char *call, size_t size, char *ref, size_t ref_size) {
+    int32_t off = freq_hz - tuned_freq;
+
+    if (size) call[0] = 0;
+    if (ref_size) ref[0] = 0;
+    if (!tuned_seq || !tuned_call[0] || off < -CLUSTER_TUNED_NEAR_HZ || off > CLUSTER_TUNED_NEAR_HZ) return false;
     snprintf(call, size, "%s", tuned_call);
-    return tuned_seq;
+    snprintf(ref, ref_size, "%s", tuned_ref);
+    return true;
 }
 
 /* Short enough for one line of the message, no scrolling */
@@ -733,6 +739,8 @@ bool dialog_cluster_tune_spot(const cluster_spot_t *s) {
         return false;
     }
     snprintf(tuned_call, sizeof(tuned_call), "%s", s->dx);
+    cluster_spot_ref(s, tuned_ref, sizeof(tuned_ref));
+    tuned_freq = f;
     tuned_seq++;
     switch (cluster_guess_mode(s)) {
         case CLUSTER_MODE_CW:   mode = radio_mode_cw; break;

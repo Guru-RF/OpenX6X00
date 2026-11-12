@@ -333,6 +333,17 @@ reads CW 1:2, then F5), opens a one-line box near the top,
 - In CW with the decoder's text on the screen (and in RTTY) the call it
   confirmed last is in the box already. Not in SSB after CW: the call heard
   in CW stays out.
+- After you tune to a [DX Cluster](#dx-cluster) spot (an MFK press in the
+  Cluster app, on the cluster column or on an alert), the box opens with the
+  spot's call in it while the radio is within 3 kHz of the spot; that call
+  comes before the decoder's. When the spot's comment has an activity
+  reference (a POTA park US-1234, a SOTA summit G/LD-001, a WWBOTA bunker
+  B/G-0070, a HOTA one RO-H0390, a WWFF one ONFF-0123) and you log that call
+  there, the reference goes into the QSO: ADIF `SIG` and `SIG_INFO` (and
+  `POTA_REF` for a park), `SOTA_REF` for a summit, so Wavelog has it for
+  your side as a hunter. The radio says it too:
+  `QSO logged: EA2ABC 59 57 SSB US-1234`. Up to v0.3.9 the box opened empty
+  after a spot (issue #245).
 - The radio says `QSO logged: F4ABC 59 57 SSB`. The QSO goes into the day's
   log, `/mnt/field/logs/YYYYMMDD.adi` (a file a UTC day), with the time, the
   radio's frequency and its mode (SSB in USB and LSB), never into a Field

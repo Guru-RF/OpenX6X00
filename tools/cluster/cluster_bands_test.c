@@ -9,6 +9,7 @@
 
 #include "cluster/client.h"
 #include "cluster/spots.h"
+#include "field/flog.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -162,6 +163,39 @@ static void activity_of_spots(void) {
     }
 }
 
+/* The reference a tuned spot puts into the QSO (#245): the first one of the comment, in capitals, the programme the
+ * Field Ops log gives it by its shape the spot's own; none in a comment without one, nor from the shapes the
+ * activity filter leaves out (lakes, towers, castles, lighthouses) or a report like -12DB */
+static void reference_of_spots(void) {
+    static const struct {
+        const char *comment, *ref;
+        char        prog;
+    } want[] = {
+        {"POTA US-1234 SSB", "US-1234", 'P'},      {"us-1234 ft8", "US-1234", 'P'},
+        {"FR-10234", "FR-10234", 'P'},             {"SOTA G/LD-001 CW", "G/LD-001", 'S'},
+        {"sota w7w/kg-001", "W7W/KG-001", 'S'},    {"WWBOTA B/G-0070 SSB", "B/G-0070", 'B'},
+        {"HOTA RO-H0390", "RO-H0390", 'H'},        {"WWFF ONFF-0123 CW", "ONFF-0123", 'F'},
+        {"KFF-1234", "KFF-1234", 'F'},             {"POTA K-1234 WWFF KFF-1234", "K-1234", 'P'},
+        {"LLOTA LLPL-0123 SSB", "", 0},            {"TOTA OKR-0150 SSB", "", 0},
+        {"WCA DL-01156 CW", "", 0},                {"LH ARLHS BEL 002 SSB", "", 0},
+        {"FT8 -12DB JO20AB", "", 0},               {"tnx QSO 73", "", 0},
+        {"", "", 0},
+    };
+    char what[128], ref[16];
+
+    for (int i = 0; i < LEN(want); i++) {
+        cluster_spot_t s     = spot(14285000, "SQ9SZ", want[i].comment);
+        bool           found = cluster_spot_ref(&s, ref, sizeof(ref));
+
+        snprintf(what, sizeof(what), "\"%s\": reference \"%s\" (%c), not \"%s\" (%c)", want[i].comment, ref,
+                 field_ref_prog(ref) ? field_ref_prog(ref) : '-', want[i].ref, want[i].prog ? want[i].prog : '-');
+        check(found == (want[i].ref[0] != 0) && !strcmp(ref, want[i].ref) && field_ref_prog(ref) == want[i].prog,
+              what);
+    }
+    cluster_spot_t s = spot(14285000, "SQ9SZ", "POTA US-1234");
+    check(!cluster_spot_ref(&s, ref, 7) && ref[0] == 0, "US-1234 into 7 bytes: none, no part of it");
+}
+
 static void spots_from_the_cluster(void) {
     cluster_spot_t s;
 
@@ -239,6 +273,7 @@ int main(void) {
     bands_of_frequencies();
     modes_of_spots();
     activity_of_spots();
+    reference_of_spots();
     spots_from_the_cluster();
     filter_of_before();
     filter_saved();

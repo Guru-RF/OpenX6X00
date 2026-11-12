@@ -13,6 +13,7 @@
 #include "cw.h"
 #include "cw_encoder.h"
 #include "dialog.h"
+#include "dialog_cluster.h"
 #include "dialog_field.h"
 #include "keyboard.h"
 #include "main_screen.h"
@@ -27,6 +28,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 
 #define TIMER_MS  100
 #define LINE_MAX  64
@@ -152,13 +154,18 @@ static void add_text(const char *text, bool space) {
 }
 
 void cw_field_log_qso(const char *text) {
-    char call[32] = "", rs[8] = "", rr[8] = "", line[64];
+    char call[32] = "", rs[8] = "", rr[8] = "", line[64], spot[16], ref[16];
 
     if (sscanf(text, "%31s %7s %7s", call, rs, rr) < 1) {
         return;
     }
     snprintf(line, sizeof(line), "%s|%s|%s", call, rs, rr);
-    dialog_field_qso_log(line);
+    /* The spot tuned to, the radio still on it and the call its own: its park, summit, bunker... into the QSO (#245) */
+    if (!dialog_cluster_tuned_near(cparam_i_get(cfg_fg_freq), spot, sizeof(spot), ref, sizeof(ref)) ||
+        strcasecmp(spot, call) != 0) {
+        ref[0] = 0;
+    }
+    dialog_field_qso_log_ref(line, ref);
 }
 
 static bool log_ok(void) {
@@ -177,10 +184,16 @@ static bool log_cancel(void) {
 void cw_field_log_open(void) {
     main_screen_keys_enable(false);
     textarea_window_open_w_label(log_ok, log_cancel, "Call [sent [rcvd]]: ");
-    /* The last call the decoder wrote, ready to log, while its text is on the screen: a hidden panel keeps its text,
-     * and in SSB after CW the box had the CW decoder's last call in it */
-    if (panel_shown() && *panel_last_call()) {
-        char line[24];
+
+    char spot[16], ref[16], line[24];
+
+    /* The spot tuned to, while the radio is still on it (#245). Else the last call the decoder wrote, ready to log,
+     * while its text is on the screen: a hidden panel keeps its text, and in SSB after CW the box had the CW
+     * decoder's last call in it */
+    if (dialog_cluster_tuned_near(cparam_i_get(cfg_fg_freq), spot, sizeof(spot), ref, sizeof(ref))) {
+        snprintf(line, sizeof(line), "%s ", spot);
+        textarea_window_set(line);
+    } else if (panel_shown() && *panel_last_call()) {
         snprintf(line, sizeof(line), "%s ", panel_last_call());
         textarea_window_set(line);
     }

@@ -1859,11 +1859,17 @@ static bool day_log_add(const field_qso_t *q, const char *me) {
 /* The phone's logger outside Field Ops (QSOs in voice and so on): the day's log, on the radio's frequency, in the
  * mode of the digital app open or else the radio's (adif_mode) */
 bool dialog_field_qso_log(const char *text) {
+    return dialog_field_qso_log_ref(text, NULL);
+}
+
+bool dialog_field_qso_log_ref(const char *text, const char *their_ref) {
     field_qso_t     q   = {.t = time(NULL), .freq_hz = cparam_i_get(cfg_fg_freq)};
     const char     *rst = is_cw() ? "599" : "59";
     char            call[32] = "", rs[8] = "", rr[8] = "";
 
     parse_log_text(text, call, sizeof(call), rs, rr, &q);
+    if (their_ref && field_ref_prog(their_ref))     /* a shape the log files under a programme, nothing else */
+        snprintf(q.their_ref, sizeof(q.their_ref), "%s", their_ref);
     if (!ref_ok(call)) {
         msg_update_text_fmt("Log from the phone: \"%s\" not logged", call);
         return false;
@@ -1876,11 +1882,12 @@ bool dialog_field_qso_log(const char *text) {
     snprintf(q.rst_r, sizeof(q.rst_r), "%s", rr[0] ? rr : rst);
     if (!day_log_add(&q, my_call()))
         return false;
+    const char *sp = q.their_ref[0] ? " " : "";
     if (q.mode[0])
-        msg_update_text_fmt("QSO logged: %s %s %s %s", q.call, q.rst_s, q.rst_r, q.mode);
+        msg_update_text_fmt("QSO logged: %s %s %s %s%s%s", q.call, q.rst_s, q.rst_r, q.mode, sp, q.their_ref);
     else    /* long: it scrolls */
-        msg_schedule_text_ms(9000, "QSO logged: %s %s %s, without a mode (no app open): set it on the Logs page",
-                             q.call, q.rst_s, q.rst_r);
+        msg_schedule_text_ms(9000, "QSO logged: %s %s %s%s%s, without a mode (no app open): set it on the Logs page",
+                             q.call, q.rst_s, q.rst_r, sp, q.their_ref);
     return true;
 }
 

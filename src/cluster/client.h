@@ -115,6 +115,11 @@ uint8_t cluster_spot_mode_class(const cluster_spot_t *s);
  * "WWBOTA"/"BOTA" or a bunker (B/G-0070), "HOTA" or a HOTA reference (RO-H0390). */
 uint8_t cluster_spot_activity(const cluster_spot_t *s);
 
+/* The activity reference in a spot's comment, the first word that is one: a park (US-1234), a summit (I/LO-123), a
+ * bunker (B/G-0070), a HOTA one (RO-H0390) or a WWFF one (ONFF-0123), in capitals into ref. False, ref "", when there
+ * is none. The Field Ops log files it under its programme by its shape (field_ref_prog, #245) */
+bool cluster_spot_ref(const cluster_spot_t *s, char *ref, size_t size);
+
 /* Sets the modes, bands and activity filters in CLUSTER_CONF, keeping the
  * other lines (CLUSTER_FM_ALL / 0 / 0 = no filter). LVGL thread only. */
 bool cluster_filter_save(uint8_t modes, uint16_t bands, uint8_t activity);

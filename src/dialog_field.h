@@ -23,6 +23,9 @@ extern dialog_t *dialog_field;
  * field_end, field_log (text "CALL|rst sent|rst received"), field_spot, field_update */
 /* qso_log (any app or none): text as field_log, into the day's log; false: not logged */
 bool dialog_field_qso_log(const char *text);
+/* ... with the other station's reference (a spot's park, summit, bunker...; NULL or "" none): their_ref of the QSO,
+ * SIG/SIG_INFO, POTA_REF or SOTA_REF in the log, when its shape names a programme (field_ref_prog, #245) */
+bool dialog_field_qso_log_ref(const char *text, const char *their_ref);
 /* A QSO of FT8, FT4 or JS8 into the day's log */
 void dialog_field_day_log(const qso_log_record_t *r);
 

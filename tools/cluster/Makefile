@@ -1,4 +1,5 @@
-# Host test of the DX cluster's bands, band filter and alerts (src/cluster/spots.c and client.c, issue #103): `make`
+# Host test of the DX cluster's bands, band filter and alerts (src/cluster/spots.c and client.c, issue #103), and the
+# activity reference a spot puts into the QSO, with the programme Field Ops gives it (src/field/flog.c, #245): `make`
 # builds it and runs it. CONF is the cluster.conf it writes and reads (/mnt/cluster.conf on the radio), removed after.
 SRC    := ../../src
 CONF   ?= $(CURDIR)/cluster-test.conf
@@ -8,8 +9,8 @@ CFLAGS := -std=gnu11 -Wall -Wextra -Wno-format-truncation -O1 -g -pthread -I $(S
 all: test
 
 cluster_bands_test: cluster_bands_test.c $(SRC)/cluster/spots.c $(SRC)/cluster/spots.h $(SRC)/cluster/client.c \
-                    $(SRC)/cluster/client.h
-	$(CC) $(CFLAGS) -o $@ cluster_bands_test.c $(SRC)/cluster/spots.c $(SRC)/cluster/client.c
+                    $(SRC)/cluster/client.h $(SRC)/field/flog.c $(SRC)/field/flog.h
+	$(CC) $(CFLAGS) -o $@ cluster_bands_test.c $(SRC)/cluster/spots.c $(SRC)/cluster/client.c $(SRC)/field/flog.c
 
 test: cluster_bands_test
 	./cluster_bands_test
