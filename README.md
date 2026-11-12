@@ -22,7 +22,7 @@ strip and the cluster's calls at the top of the waterfall, FT8 at the marker,
 the needle S-meter.*
 
 [Install](#install) · [Updating](#updating) · [Screenshots](#screenshots) ·
-[Manual](docs/MANUAL.md) · [Releases](https://github.com/Guru-RF/OpenX6X00/releases) ·
+[Manual](docs/MANUAL.md) (a PDF with each release) · [Releases](https://github.com/Guru-RF/OpenX6X00/releases) ·
 [openx6x00.org](https://openx6x00.org/)
 
 **A release every Friday.** We try to put out a new version each Friday:

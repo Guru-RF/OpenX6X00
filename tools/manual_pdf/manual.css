@@ -1,0 +1,34 @@
+/* docs/MANUAL.md as an A4 PDF (build.sh): WeasyPrint's page rules, the manual's tables and code kept on the page */
+@page {
+    size: A4;
+    margin: 18mm 16mm 20mm 16mm;
+    @bottom-left { content: string(version); font: 8pt "Noto Sans", sans-serif; color: #666; }
+    @bottom-right { content: counter(page) " / " counter(pages); font: 8pt "Noto Sans", sans-serif; color: #666; }
+}
+@page :first {
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+}
+html { font: 9.5pt/1.4 "Noto Sans", "DejaVu Sans", sans-serif; color: #111; }
+body { margin: 0; }
+.title-page { page-break-after: always; padding-top: 70mm; text-align: center; }
+.title-page h1 { font-size: 30pt; margin: 0 0 6mm 0; border: 0; bookmark-level: none; }
+.title-page p { font-size: 12pt; margin: 2mm 0; color: #444; }
+.title-page .version { string-set: version "OpenX6X00 " content() " manual"; }
+h1, h2, h3, h4 { font-weight: 600; line-height: 1.2; page-break-after: avoid; }
+h1 { font-size: 20pt; }
+h2 { font-size: 15pt; page-break-before: always; border-bottom: 1px solid #bbb; padding-bottom: 1.5mm; }
+h3 { font-size: 12pt; margin-top: 7mm; }
+h4 { font-size: 10.5pt; }
+a { color: #0645ad; text-decoration: none; }
+code, pre { font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace; font-size: 8.5pt; }
+code { background: #f2f2f2; padding: 0 0.5mm; overflow-wrap: anywhere; }
+pre { background: #f2f2f2; padding: 2mm 3mm; white-space: pre-wrap; overflow-wrap: anywhere; page-break-inside: avoid; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 3mm 0; font-size: 8.5pt; }
+th, td { border: 1px solid #ccc; padding: 1mm 1.5mm; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+th { background: #eee; }
+tr { page-break-inside: avoid; }
+img { max-width: 100%; max-height: 120mm; }
+blockquote { margin: 3mm 0; padding-left: 4mm; border-left: 2px solid #ccc; color: #333; }
+li { margin: 0.6mm 0; }

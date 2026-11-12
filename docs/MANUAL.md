@@ -1,7 +1,9 @@
 # OpenX6X00: manual
 
 How to use every part of the firmware, and the reference tables. The short
-overview is the [README](../README.md).
+overview is the [README](../README.md). Each release on GitHub has this
+manual as a PDF too, `OpenX6X00-manual-v<version>.pdf`, to read offline or
+print (A4); `tools/manual_pdf/build.sh` makes it.
 
 Each option has a "Where:" line with its place on the radio, for example
 "Where: Settings > Display > MAIN SCREEN". Settings opens from APP (page 2) >
