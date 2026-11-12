@@ -9,6 +9,8 @@
  *    decode thread  rade_rx(): the ring to speech features (120 ms of modem per frame)
  *    synth thread   FARGAN: features to 16 kHz speech, to 44100 Hz, into a ring
  *    play thread    the ring to the Bluetooth headphones (audio_play_bt_begin)
+ *  and, set with freedv_rx_set_tap, the speech at FREEDV_RX_TAP_RATE to the TCI clients and the browser
+ *  (tci_server_speech_write), from the synth thread.
  *
  *  Built with RADE_ENABLED (CMake: -DRADE_PREFIX=..., tools/rade/build.sh). Without it every
  *  function is there and does nothing, freedv_rx_available() says false.
@@ -17,6 +19,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -24,6 +27,10 @@ extern "C" {
 #endif
 
 #define FREEDV_RX_IN_RATE 11025      /* what dialog_t.audio_cb delivers */
+#define FREEDV_RX_TAP_RATE 24000     /* the speech to the tap: the TCI server's rate */
+
+/* Where else the speech goes: returns how many samples it took */
+typedef size_t (*freedv_rx_tap_t)(const float *x, size_t n);
 
 typedef struct {
     bool     running;
@@ -32,6 +39,7 @@ typedef struct {
     float    foff_hz;        /* frequency offset, 0 without sync */
     int      level_pct;      /* input peak of the last 100 ms, 0..100 (100 = full scale, clipping) */
     bool     audio_out;      /* the headphones are there and the speech goes to them */
+    bool     tap_out;        /* the speech goes to the tap */
     uint32_t eoo_count;      /* End-of-Over frames seen */
     char     callsign[9];    /* the callsign the last End-of-Over carried (8 characters, trimmed), empty if none */
     uint32_t in_dropped;     /* input samples lost, the decoder was too slow */
@@ -52,6 +60,9 @@ void freedv_rx_stop(void);
 
 /* The receiver's audio, float +-1.0 at FREEDV_RX_IN_RATE (audio thread; never blocks) */
 void freedv_rx_put_audio(unsigned int count, const float *samples);
+
+/* The tap for the speech, NULL none; set before freedv_rx_start (LVGL thread) */
+void freedv_rx_set_tap(freedv_rx_tap_t tap);
 
 /* A copy of the numbers for the UI */
 void freedv_rx_get_stats(freedv_rx_stats_t *out);

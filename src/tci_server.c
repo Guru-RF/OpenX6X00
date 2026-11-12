@@ -172,6 +172,15 @@ static atomic_bool     trust_operate = true;   /* trust=operate (default) or vie
 static atomic_int      nclients;
 static int             wake_fd[2] = {-1, -1};
 static atomic_bool     cap_wanted;      /* a client wants RX audio: set by the socket thread alone (cap_update) */
+
+/* RADE's speech in place of the RX audio (tci_server_speech_on): one writer, the capture thread reads. A talk burst
+ * starts once SPEECH_PREBUF is in, so the bursts of the decoder (a modem frame is 120 ms) play without gaps */
+#define SPEECH_RING    65536            /* 2.7 s at 24 kHz, a power of two */
+#define SPEECH_PREBUF  (TCI_SPEECH_RATE / 5)
+static atomic_bool     speech_on;
+static float           speech_ring[SPEECH_RING];
+static atomic_uint     speech_head, speech_tail;
+static pthread_mutex_t speech_wlock = PTHREAD_MUTEX_INITIALIZER;
 /* The drive a client set, with the power the setting took from it: reported as long as the
  * setting still holds that power. A change from the front panel or another client then shows
  * as the conversion of the actual power again (audit A17). One word: written on the GUI
@@ -1245,6 +1254,48 @@ static void tx_session_tick(uint64_t now) {
 
 /* ---- RX audio to the clients -------------------------------------------------------- */
 
+/* RADE's speech over the capture's n samples (the capture thread's clock paces it): silence while there is none, and
+ * at the start of a burst until SPEECH_PREBUF is in */
+static void speech_read(float *x, size_t n) {
+    static bool playing;
+    unsigned    tail = atomic_load(&speech_tail), used = atomic_load(&speech_head) - tail;
+
+    if (!playing && used >= SPEECH_PREBUF)
+        playing = true;
+    for (size_t k = 0; k < n; k++) {
+        if (playing && used) {
+            x[k] = speech_ring[tail++ % SPEECH_RING];
+            used--;
+        } else {
+            x[k] = 0.0f;
+        }
+    }
+    if (!used)
+        playing = false;
+    atomic_store(&speech_tail, tail);
+}
+
+void tci_server_speech_on(bool on) {
+    if (on && !atomic_load(&speech_on))
+        atomic_store(&speech_tail, atomic_load(&speech_head));     /* nothing left from an earlier time */
+    atomic_store(&speech_on, on);
+}
+
+size_t tci_server_speech_write(const float *x, size_t n) {
+    size_t k = 0;
+
+    if (!atomic_load(&speech_on))
+        return 0;
+    pthread_mutex_lock(&speech_wlock);
+    unsigned head = atomic_load(&speech_head), used = head - atomic_load(&speech_tail);
+
+    for (; k < n && used < SPEECH_RING; k++, used++)
+        speech_ring[head++ % SPEECH_RING] = x[k];
+    atomic_store(&speech_head, head);
+    pthread_mutex_unlock(&speech_wlock);
+    return k;
+}
+
 /* Captured once at AUDIO_RATE, mono; each client gets it in its format (audio_fmt): at 48 kHz
  * through the halfband (run once a read for all of them), the one channel in each of the
  * client's, in frames of the client's size, what is short of a frame kept for the next read.
@@ -1303,6 +1354,8 @@ static void *capture_thread(void *arg) {
         }
         for (int k = 0; k < AUDIO_FRAMES; k++)
             x24[k] = pcm[k] / 32768.0f;
+        if (atomic_load(&speech_on))
+            speech_read(x24, AUDIO_FRAMES);
         tci_up2(&up, x24, AUDIO_FRAMES, any48 ? x48 : NULL);
 
         for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -1771,6 +1824,19 @@ int tci_server_clients(void) {
 
     for (int i = 0; i < MAX_CLIENTS; i++)
         n += clients[i].fd >= 0 && clients[i].up;
+    return n;
+}
+
+int tci_server_audio_clients(void) {
+    int n = 0;
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        client_t *c = &clients[i];
+
+        pthread_mutex_lock(&c->lock);
+        n += c->fd >= 0 && c->up && c->audio_on;
+        pthread_mutex_unlock(&c->lock);
+    }
     return n;
 }
 

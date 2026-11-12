@@ -133,6 +133,7 @@ extern ParamInt *cfg_freq_accel_onset; // p_freq_accel_onset
 extern ParamInt *cfg_wspr_tx_freq;   // p_wspr_tx_freq
 extern ParamInt *cfg_wspr_upload;    // p_wspr_upload
 extern ParamInt *cfg_wspr_dbm;       // p_wspr_dbm
+extern ParamInt *cfg_rade_pwr;       // p_rade_pwr
 extern ParamInt *cfg_pskreporter;    // p_pskreporter
 extern ParamInt *cfg_field_boot;     // p_field_boot
 extern ParamInt *cfg_field_respot;   // p_field_respot

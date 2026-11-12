@@ -535,7 +535,7 @@ scope (#161); Spyyena Contestia (#154); DF8MH the Wavelog upload (#12); Trey
 Propagation and Scanner apps (#184), APPS and Modes over the whole strip, the CW
 bars off the band plan and Settings' switches in the theme's colours (#185), and
 the Codec and Ops Room themes (#186, #187); jochenhammes the RADE app (#129,
-#130, not merged yet).
+#130).
 
 Patches, captures, logs and tests from the issues: BrunoKlu the capture and the
 driver patch of #29; KR8MER the diagnosis and the patch of #50; DL9RP the

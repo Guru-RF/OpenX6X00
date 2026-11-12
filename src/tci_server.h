@@ -13,6 +13,7 @@
 
 #include "board.h"
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +39,17 @@ void tci_server_set_trust_operate(bool on);
 
 /* Connected clients, 0 when none */
 int tci_server_clients(void);
+
+/* The RADE app (dialog_freedv.c): while on, the clients' RX audio is the decoded speech written with
+ * tci_server_speech_write in place of the receiver's (the modem's own signal is only a hiss), silence between the
+ * overs. The browser's Panel and Remote pages get their sound this way too */
+#define TCI_SPEECH_RATE  24000
+void   tci_server_speech_on(bool on);
+/* The speech, float +-1.0 at TCI_SPEECH_RATE, from any one thread; what does not fit is dropped (returns the count
+ * taken) */
+size_t tci_server_speech_write(const float *x, size_t n);
+/* Clients that take the RX audio now */
+int    tci_server_audio_clients(void);
 /* The address of the first client ("192.168.1.20"), NULL when none; a static buffer */
 const char *tci_server_client(void);
 

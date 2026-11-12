@@ -99,6 +99,7 @@ ParamInt         *cfg_freq_accel_onset    = nullptr;
 ParamInt         *cfg_wspr_tx_freq        = nullptr;
 ParamInt         *cfg_wspr_upload         = nullptr;
 ParamInt         *cfg_wspr_dbm            = nullptr;
+ParamInt         *cfg_rade_pwr            = nullptr;
 ParamInt         *cfg_pskreporter         = nullptr;
 ParamInt         *cfg_field_boot          = nullptr;
 ParamInt         *cfg_field_respot        = nullptr;
@@ -297,6 +298,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_wspr_tx_freq     = &cfg_sm.p_wspr_tx_freq;
     cfg_wspr_upload      = &cfg_sm.p_wspr_upload;
     cfg_wspr_dbm         = &cfg_sm.p_wspr_dbm;
+    cfg_rade_pwr         = &cfg_sm.p_rade_pwr;
     cfg_pskreporter      = &cfg_sm.p_pskreporter;
     cfg_field_boot       = &cfg_sm.p_field_boot;
     cfg_field_respot     = &cfg_sm.p_field_respot;

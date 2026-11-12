@@ -41,7 +41,7 @@
 #define WARMUP_FRAMES   5
 
 /* One slot: a feature frame. FARGAN is not reset when the sync goes and comes back: rade_rx_wav
- * and pluto-tx's decoder both run on with the state they have (the warm-up is once per start) */
+ * and other decoders both run on with the state they have (the warm-up is once per start) */
 typedef struct {
     float feat[RADE_NB_TOTAL_FEATURES];
 } feat_slot_t;
@@ -70,6 +70,8 @@ static struct {
     int16_t         out_ring[OUT_RING];
     spsc_t          out_idx;
     olivia_resamp_t out_rs;             /* synth thread only */
+    olivia_resamp_t tap_rs;             /* synth thread only: 16 kHz to the tap's rate */
+    freedv_rx_tap_t tap;                /* set while stopped */
 
     pthread_mutex_t lock;               /* st */
     freedv_rx_stats_t st;
@@ -212,11 +214,15 @@ static void *synth_thread(void *arg)
     float       cont_buf[WARMUP_FRAMES * RADE_NB_TOTAL_FEATURES];
     int         out_max = olivia_resamp_max_out(&rx.out_rs, LPCNET_FRAME_SIZE);
     float      *res = malloc(sizeof(float) * out_max);
+    int         tap_max = rx.tap ? olivia_resamp_max_out(&rx.tap_rs, LPCNET_FRAME_SIZE) : 0;
+    float      *tres = tap_max ? malloc(sizeof(float) * tap_max) : NULL;
     int         batch = 0, batch_ms = 0;
     struct timespec t0;
 
-    if (!res)
+    if (!res || (tap_max && !tres)) {
+        free(res); free(tres);
         return NULL;
+    }
     fargan_init(&fargan);
 
     while (!atomic_load(&rx.stop)) {
@@ -252,6 +258,13 @@ static void *synth_thread(void *arg)
         batch_ms += ms_since(&t0);
         atomic_store_explicit(&rx.feat_idx.tail, t + 1, memory_order_release);
 
+        if (tres) {
+            int m = olivia_resamp_process(&rx.tap_rs, fpcm, LPCNET_FRAME_SIZE, tres);
+
+            if (m > 0)
+                rx.tap(tres, (size_t)m);
+        }
+
         int n = olivia_resamp_process(&rx.out_rs, fpcm, LPCNET_FRAME_SIZE, res);
         uint32_t h = atomic_load_explicit(&rx.out_idx.head, memory_order_relaxed);
 
@@ -275,6 +288,7 @@ static void *synth_thread(void *arg)
         }
     }
     free(res);
+    free(tres);
     return NULL;
 }
 
@@ -370,11 +384,19 @@ bool freedv_rx_start(void)
         olivia_resamp_free(&rx.in_rs);
         return false;
     }
+    if (rx.tap && olivia_resamp_init(&rx.tap_rs, SPEECH_RATE, FREEDV_RX_TAP_RATE) != 0) {
+        olivia_resamp_free(&rx.in_rs);
+        olivia_resamp_free(&rx.out_rs);
+        return false;
+    }
+    rx.st.tap_out = rx.tap != NULL;
     /* V1; the weights are compiled in, the file name is not used */
     rx.rade = rade_open("", RADE_VERBOSE_0);
     if (!rx.rade) {
         olivia_resamp_free(&rx.in_rs);
         olivia_resamp_free(&rx.out_rs);
+        if (rx.tap)
+            olivia_resamp_free(&rx.tap_rs);
         return false;
     }
     if (pthread_create(&rx.th_dec, NULL, decode_thread, NULL) != 0 ||
@@ -410,6 +432,8 @@ void freedv_rx_stop(void)
     rx.rade = NULL;
     olivia_resamp_free(&rx.in_rs);
     olivia_resamp_free(&rx.out_rs);
+    if (rx.tap)
+        olivia_resamp_free(&rx.tap_rs);
     rx.up = false;
     pthread_mutex_lock(&rx.lock);
     rx.st.running = false;
@@ -460,6 +484,12 @@ void freedv_rx_put_audio(unsigned int count, const float *samples)
     atomic_fetch_sub(&rx.in_put, 1);
 }
 
+void freedv_rx_set_tap(freedv_rx_tap_t tap)
+{
+    if (!rx.up)
+        rx.tap = tap;
+}
+
 void freedv_rx_get_stats(freedv_rx_stats_t *out)
 {
     if (!rx.up) {
@@ -477,6 +507,7 @@ bool freedv_rx_available(void) { return false; }
 bool freedv_rx_start(void) { return false; }
 void freedv_rx_stop(void) {}
 void freedv_rx_put_audio(unsigned int count, const float *samples) { (void)count; (void)samples; }
+void freedv_rx_set_tap(freedv_rx_tap_t tap) { (void)tap; }
 void freedv_rx_get_stats(freedv_rx_stats_t *out) { memset(out, 0, sizeof(*out)); }
 
 #endif

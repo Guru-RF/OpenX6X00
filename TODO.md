@@ -141,12 +141,13 @@ Asked 2026-10-27 (#37; #52 asked the same and was closed for it). FreeDV's RADE 
 with the FARGAN vocoder model from the Opus project) as a digital voice mode in APP, and FreeDV's older Codec 2
 modes (1600, 700D) with it. No date.
 
-- **Open work: draft PR #130** (jochenhammes, 2026-10-31, in place of #129): RADE V1 as APP > Modes > RADE, receive
-  (the speech to Bluetooth headphones only) and send as record-then-send, like a voice message, through
-  `tx_player_stream()`; RADE V2 and the Codec 2 modes are not in it. Run on a PC only so far. Before a merge: a run
-  on an X6100 and an X6200 (its decode, synthesis and encode times, the GUI's CPU), its build (tools/rade/build.sh,
-  run by hand for now) from local-build.sh with every download pinned and checked, the licence notices on the
-  radio, V1 only for the size, and a TX power of its own instead of the level the digital apps share.
+- **In (experimental), from PR #130** (jochenhammes, 2026-10-31), finished by us 2026-11-12 for both radios: RADE V1
+  as APP > Modes > RADE, receive and send as record-then-send, like a voice message, through `tx_player_stream()` at
+  RADE's own power (`rade_pwr`, 0.5-3 W). The speech goes to Bluetooth headphones and to the TCI clients (the
+  VFO-Knob, the browser's Panel and Remote pages: `tci_server_speech_write()` in place of the RX audio); the app opens
+  only with one of them there. Built in the image and the bundle by tools/rade/build.sh from local-build.sh, every
+  download pinned. Still open: a decode of a real over on a radio (the X6100 or the air), the X6100's CPU, live speech
+  (needs the mic in Linux while transmitting, as below), RADE V2 and the Codec 2 modes.
 - **The audio path is there**: RADE is a modem in an SSB passband, and the digital apps (FT8, Winlink) already take
   the receiver's audio into Linux and transmit audio from Linux (`radio_set_modem()`). What is new: the decoded
   voice on the speaker while receiving, and the mic recorded in Linux while transmitting (`AUDIO_PLAY_VOICE_REC`),

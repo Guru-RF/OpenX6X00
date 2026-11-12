@@ -2,12 +2,16 @@
 //
 // Xiegu X6100 LVGL GUI - RADE app: FreeDV's RADE V1. Receive (src/freedv_rx.c) and "record, then send"
 // (src/freedv_tx.c): Rec records the hand mic and encodes it, Send plays the over into the transmitter
-// through tx_player. The receiver is stopped meanwhile.
+// through tx_player at RADE's own power. The receiver is stopped meanwhile. The speech goes to Bluetooth
+// headphones and to the TCI clients (the browser's Panel and Remote pages too): the base plays no app audio on
+// the speaker while it receives, so the app opens only with one of them there (dialog_freedv_can_open).
 
 #include "dialog_freedv.h"
 #include "freedv_rx.h"
 #include "freedv_tx.h"
 #include "tx_player.h"
+#include "tci_server.h"
+#include "btaudio.h"
 #include "msg_box.h"
 #include "params/params.h"
 #include "app_window.h"
@@ -56,15 +60,27 @@ static void rec_cb(button_data_t *data);
 static void send_cb(button_data_t *data);
 static void discard_cb(button_data_t *data);
 static void close_btn_cb(button_data_t *btn);
+static void pwr_cb(button_data_t *data);
 static const char *rec_label(void);
+static const char *pwr_label(void);
 
 static button_data_t btn_freq    = {.type = BTN_TEXT, .label = "Freq.", .press = freq_cb};
 static button_data_t btn_rec     = {.type = BTN_TEXT_FN, .label_fn = rec_label, .press = rec_cb};
 static button_data_t btn_send    = {.type = BTN_TEXT, .label = "Send", .press = send_cb};
 static button_data_t btn_discard = {.type = BTN_TEXT, .label = "Discard", .press = discard_cb};
 static button_data_t btn_close   = {.type = BTN_TEXT, .label = "Close", .press = close_btn_cb};
+static button_data_t btn_close2  = {.type = BTN_TEXT, .label = "Close", .press = close_btn_cb};
+static button_data_t btn_pwr     = {.type = BTN_TEXT_FN, .label_fn = pwr_label, .press = pwr_cb};  /* RADE's own */
 
-static buttons_page_t page_1 = {.items = {&btn_freq, &btn_rec, &btn_send, &btn_discard, &btn_close}};
+static buttons_page_t page_1, page_2;
+
+static button_data_t btn_page1 = {.type = BTN_TEXT, .label = "(RADE 1:2)", .press = button_next_page_cb,
+                                  .hold = button_prev_page_cb, .next = &page_2, .prev = &page_2};
+static button_data_t btn_page2 = {.type = BTN_TEXT, .label = "(RADE 2:2)", .press = button_next_page_cb,
+                                  .hold = button_prev_page_cb, .next = &page_1, .prev = &page_1};
+
+static buttons_page_t page_1 = {.items = {&btn_page1, &btn_freq, &btn_rec, &btn_send, &btn_close}};
+static buttons_page_t page_2 = {.items = {&btn_page2, &btn_pwr, &btn_discard, &btn_close2}};
 
 static dialog_t dialog = {.construct_cb = app_open, .destruct_cb = app_close, .audio_cb = audio_in,
                           .btn_page = &page_1, .restore_radio = true};
@@ -275,8 +291,17 @@ static void ui_timer_cb(lv_timer_t *t)
     set_text(lbl_foff, b, TC(text));
     snprintf(b, sizeof(b), "%d %%%s", s.level_pct, s.level_pct >= 95 ? "   too loud" : "");
     set_text(lbl_level, b, s.level_pct >= 95 ? TC(warn) : TC(text));
-    set_text(lbl_audio, s.audio_out ? "Bluetooth headphones" : "none - connect Bluetooth headphones",
-             s.audio_out ? TC(toggle_on) : TC(warn));
+    int tci = tci_server_audio_clients();
+
+    if (s.audio_out && tci)
+        snprintf(b, sizeof(b), "Bluetooth headphones, TCI / browser (%d)", tci);
+    else if (s.audio_out)
+        snprintf(b, sizeof(b), "Bluetooth headphones");
+    else if (tci)
+        snprintf(b, sizeof(b), "TCI / browser (%d)", tci);
+    else
+        snprintf(b, sizeof(b), "none - headphones, TCI or the browser");
+    set_text(lbl_audio, b, s.audio_out || tci ? TC(toggle_on) : TC(warn));
     snprintf(b, sizeof(b), "input %u   speech %u   gaps %u%s%s", (unsigned)s.in_dropped, (unsigned)s.speech_dropped,
              (unsigned)s.underruns, s.callsign[0] ? "   last over: " : "", s.callsign);
     set_text(lbl_loss, b, (s.in_dropped || s.speech_dropped) ? TC(warn) : TC(text_dim));
@@ -309,7 +334,7 @@ static void app_open(lv_obj_t *parent)
     row(body, "CPU", &lbl_cpu);
     lv_obj_set_style_text_font(lbl_sync, &sony_22, 0);
 
-    lv_label_set_text(frame.status, "RADE V1   Rec: hand mic only, then Send   Filter wide, AGC and NR off   AF 0 or speaker off");
+    lv_label_set_text(frame.status, "RADE V1   Rec: hand mic only, then Send   Filter wide, AGC and NR off");
 
     /* The volume knob is not seen by the main screen while an app is open */
     lv_group_add_obj(keyboard_group, body);
@@ -318,6 +343,8 @@ static void app_open(lv_obj_t *parent)
     lv_group_set_editing(lv_obj_get_group(body), true);
 
     atomic_store(&state, ST_RX);
+    freedv_rx_set_tap(tci_server_speech_write);
+    tci_server_speech_on(true);
     started = freedv_rx_start();
     ui_timer = lv_timer_create(ui_timer_cb, UI_TICK_MS, NULL);
     ui_timer_cb(ui_timer);
@@ -337,6 +364,7 @@ static void app_close(void)
     freedv_tx_discard();
     freedv_rx_stop();       /* the audio callback has left when this returns */
     started = false;
+    tci_server_speech_on(false);
     lbl_sync = lbl_snr = lbl_foff = lbl_level = lbl_audio = lbl_loss = lbl_cpu = NULL;
     dsp_set_waterfall_enabled(true);
     dsp_set_spectrum_enabled(true);
@@ -364,11 +392,15 @@ static bool abort_cb(void *arg)
     return atomic_load(&tx_abort);
 }
 
+/* At RADE's own power, not the radio's setting or the level the other apps share (tx_player_set_pwr): the power
+ * reading follows the OFDM signal's average, and its peaks go several dB higher */
 static void *tx_worker(void *arg)
 {
     (void)arg;
+    tx_player_set_pwr(param_i_get(cfg_rade_pwr) / 10.0f);
     bool ok = tx_player_stream(freedv_tx_read, NULL, TX_PLAYER_AUDIO_HZ, tx_player_base_gain_offset(), abort_cb, NULL);
 
+    tx_player_set_pwr(0.0f);
     atomic_store(&tx_sent, ok);
     atomic_store(&tx_finished, true);
     return NULL;
@@ -466,3 +498,33 @@ static void freq_cb(button_data_t *data)
 }
 
 static void close_btn_cb(button_data_t *btn) { (void)btn; dialog_destruct(); }
+
+static const char *pwr_label(void)
+{
+    static char buf[24];
+
+    snprintf(buf, sizeof(buf), "Power\n%g W", param_i_get(cfg_rade_pwr) / 10.0);
+    return buf;
+}
+
+/* RADE's own power: the next level up, round to the lowest. Takes effect at the next Send */
+static void pwr_cb(button_data_t *data)
+{
+    static const int levels[] = {5, 10, 20, 30};
+    int              cur = param_i_get(cfg_rade_pwr);
+    size_t           k   = 0;
+
+    while (k < sizeof(levels) / sizeof(levels[0]) && levels[k] <= cur)
+        k++;
+    param_i_set(cfg_rade_pwr, k < sizeof(levels) / sizeof(levels[0]) ? levels[k] : levels[0]);
+    buttons_refresh(data);
+}
+
+/* Somewhere to hear the speech: Bluetooth headphones (with Mute speaker on, as audio_play_bt_begin wants them) or a
+ * TCI client (the VFO-Knob, the browser's Panel or Remote page) */
+bool dialog_freedv_can_open(void)
+{
+    char sink[128];
+
+    return btaudio_hp_sink(sink, sizeof(sink)) || tci_server_clients() > 0;
+}
