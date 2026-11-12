@@ -2328,16 +2328,17 @@ static void tb_stay(const char *why) {
     tb_end();
 }
 
-/* Two lines of about 30 characters: the second counts down. In split it says where the test goes out, the other VFO:
- * the frequency listened on alone hid that the test keys somewhere nobody listened */
+/* Two lines of about 30 characters: the second counts down and says what the second press does, as one press sent
+ * up to v0.3.8 and "Test beacon again sends" read as if it would send by itself (#197). In split the first says where
+ * the test goes out, the other VFO: the frequency listened on alone hid that the test keys somewhere nobody listened */
 static void tb_listen_msg(void) {
     int32_t tx = radio_tx_freq();
 
     if (tx == tb.hz)
-        msg_update_text_fmt("Listen first: %s, %.3f MHz\nTest beacon again sends: %i s", field_band_name(tb.band),
+        msg_update_text_fmt("Listen first: %s, %.3f MHz\nPress again to send: %i s", field_band_name(tb.band),
                             tb.hz / 1e6, tb.left);
     else
-        msg_update_text_fmt("Listen first: %s, %.3f MHz\nAgain sends on %.3f MHz: %i s", field_band_name(tb.band),
+        msg_update_text_fmt("Listen: %s %.3f, TX %.3f\nPress again to send: %i s", field_band_name(tb.band),
                             tb.hz / 1e6, (tx < 0 ? -tx : tx) / 1e6, tb.left);
 }
 
