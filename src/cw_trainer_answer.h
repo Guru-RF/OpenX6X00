@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -55,6 +56,15 @@ static inline const char *cwt_answer_shown(const char *heard, char *out, size_t 
     }
     out[n] = 0;
     return out;
+}
+
+/* A word space from the decoder after a character of the answer, heard_n of them so far. In Learn it ends the answer:
+ * a group is keyed in one go. In Calls it does not: a pause inside a call ("N 2JAH", "ON4 ABC") is the user keying it
+ * in pieces, and the answer ends at the call's length or after the silence (cwt_answer_ms), the spaces left out. Up to
+ * v0.3.9 the space ended a call's answer too, judged on the characters before it: wrong, and the speed went down
+ * (#202) */
+static inline bool cwt_space_ends(bool calls, int heard_n) {
+    return !calls && heard_n > 0;
 }
 
 #define CWT_ANSWER_MS     3000  /* silence that ends an answer shorter than the group, at least */

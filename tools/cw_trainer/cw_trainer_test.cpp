@@ -291,6 +291,7 @@ struct Scenario {
     int         first    = 0;   /* Learn draws from the level's characters from this one on */
     bool        garble   = false;   /* the user keys every ? with a dit too many, ..--..., in no table */
     double      ratio    = 3.0;     /* KEY Ratio, dah to dit: the encoder's group and the keyer's answer */
+    double      pause    = 0;       /* dots the user waits after the answer's first character, past its gap */
 };
 
 struct Result {
@@ -381,6 +382,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
             }
             if (i == 0) user_first_end = marks.back().off;
             u += 2 * udit;
+            if (i == 0) u += sc.pause * udit;
         }
         user_last = marks.back().off;
         st        = PLAYING;
@@ -478,7 +480,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
             if (e.s != " " && t1 < user_first_end) own_taken = true;   /* it cannot be the user's yet */
             last_rx_t = t1;
             if (e.s == " ") {
-                heard_end = heard_n > 0;
+                heard_end = cwt_space_ends(sc.group == 0, heard_n);
             } else if (heard_n < (sc.group == 0 ? 12 : 6)) {
                 char h[32];   /* the trainer's heard[] */
                 snprintf(h, sizeof(h), "%s", heard.c_str());
@@ -600,6 +602,25 @@ static void first_groups(void) {
     }
 }
 
+/* Calls: the user waits a word gap or longer after the call's first character ("N 2JAH"), the decoder giving a space
+ * there: one answer still, the space left out, right. Up to v0.3.9 the space ended it, "N" judged against the call
+ * (#202) */
+static void call_pauses(void) {
+    printf("Calls, a pause inside the answer\n");
+    for (double pause : {8.0, 15.0, 22.0}) {
+        for (int wpm : {12, 20}) {
+            Scenario sc = {"Calls, a pause after the first character", wpm, 30, 0, 0, 20, 400, 1200};
+            sc.pause    = pause;
+            Result r    = learn(sc, 1);
+            int    other = r.wrong - r.guard_lost;
+
+            check(r.finished && r.own_answers == 0 && r.into_answer == 0 && other == 0,
+                  "%s, %.0f dots, from %d WPM: %d calls, answers wrong %d (%d inside GUARD_MS), our own character the "
+                  "answer %d times", sc.what, pause, wpm, r.rounds, r.wrong, r.guard_lost, r.own_answers);
+        }
+    }
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     morse_text_rules();
@@ -607,6 +628,7 @@ int main(void) {
     answer_rules();
     end_to_end();
     no_character();
+    call_pauses();
     first_groups();
     printf("%d of %d CW trainer cases as they should be\n", good, cases);
     return good == cases ? 0 : 1;

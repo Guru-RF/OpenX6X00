@@ -120,7 +120,7 @@ static radio_mode_t   prev_mode;
 static char     target[TARGET_MAX];
 static char     heard[HEARD_MAX];
 static int      heard_n;        /* decoded characters in heard[] */
-static bool     heard_end;      /* word gap after the answer */
+static bool     heard_end;      /* word gap after the answer (Learn; cwt_space_ends) */
 static uint32_t listen_t, last_rx_t;
 static int      told_wpm;       /* the speed the decoder was told (cw_trainer_speed), 0 none */
 static bool     last_ok;
@@ -302,7 +302,7 @@ static void on_text(void *arg) {
     if (st != ST_LISTEN || lv_tick_elaps(listen_t) < GUARD_MS) return;
     last_rx_t = lv_tick_get();
     if (t[0] == ' ') {
-        heard_end = heard_n > 0;
+        heard_end = cwt_space_ends(mode == MODE_CALLS, heard_n);
     } else if (heard_n < (mode == MODE_CALLS ? 12 : 6)) {
         cwt_answer_add(heard, HEARD_MAX, t);    /* "<?>" and prosigns as CWT_NO_CHAR, never "?" */
         heard_n++;
