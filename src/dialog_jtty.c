@@ -271,6 +271,8 @@ typedef struct {
     char     s[TXT_LINE_LEN];
     uint8_t  kind;      /* 0 received, 1 received elsewhere (dim), 2 sent */
     uint32_t id;        /* receiver's message id, 0 = none */
+    long     sig_sum;   /* received: the SNR of its frames, summed, and how many (#249) */
+    int      sig_n;
 } txt_line_t;
 
 static txt_line_t txt[TXT_LINES];
@@ -293,6 +295,8 @@ static txt_line_t *txt_add(uint8_t kind, uint32_t id)
         txt_cnt++;
     txt[txt_head].kind = kind;
     txt[txt_head].id = id;
+    txt[txt_head].sig_sum = 0;
+    txt[txt_head].sig_n = 0;
     txt[txt_head].s[0] = '\0';
     txt_dirty = true;
     return &txt[txt_head];
@@ -377,6 +381,7 @@ static void rx_msg_ui(void *data)
     txt_line_t *l;
     bool win;
     char before[16];
+    long db;
 
     if (!alive)
         return;
@@ -386,10 +391,15 @@ static void rx_msg_ui(void *data)
     win = l ? l->kind == 0 : in_window(m->freq);
     if (!l)
         l = txt_add(win ? 0 : 1, m->id);
+    /* The report in front (#249): the mean over the message's frames so far, as digi_text's file has it */
+    l->sig_sum += m->snr;
+    l->sig_n++;
+    db = lround((double)l->sig_sum / l->sig_n);
+    db = db < -99 ? -99 : db > 99 ? 99 : db;
     if (win)
-        snprintf(l->s, sizeof(l->s), "%s", m->text);
+        snprintf(l->s, sizeof(l->s), "%+3ld dB  %s", db, m->text);
     else
-        snprintf(l->s, sizeof(l->s), "%4.0f  %s", m->freq, m->text);
+        snprintf(l->s, sizeof(l->s), "%4.0f  %+3ld dB  %s", m->freq, db, m->text);
     txt_dirty = true;
 
     /* A CQ heard is a spot; the call is a field of its own, not text */

@@ -3242,7 +3242,10 @@ The keyboard mode added in WSJT-X 3.2 by K1JT and the WSJT-X team (ported
 from WSJT-X, GPLv3). APP > Modes > JTTY. The radio goes to the JTTY dial
 frequency of the band in USB-D (14.090 on 20 m). The layout is the same as
 RTTY and PSK: received text in the panel under the waterfall, sent text in
-the TX colour. F1-F8 (pages 2 and 3) are macros: press sends, hold edits
+the TX colour. Each received line starts with its report, the signal-to-noise
+in 2500 Hz in dB, averaged over the message's frames as the text log has it
+(`-12 dB  CQ PA3XYZ JO21`); a line from outside the RX window has its audio
+frequency in front of that. F1-F8 (pages 2 and 3) are macros: press sends, hold edits
 the name and then the text (an empty text deletes, the ones after move up).
 With a keyboard CapsLock+1 to CapsLock+8 send them too (up to v0.3.8 its F1
 to F8 did).
