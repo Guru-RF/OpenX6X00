@@ -65,7 +65,7 @@ ParamInt         *cfg_wf_mode = P(0), *cfg_wf_3d = P(1), *cfg_waterfall_speed = 
                  *cfg_waterfall_ref = P(11), *cfg_wf_fixed_jump = P(12), *cfg_wf_fixed_after = P(13),
                  *cfg_wf_3d_colors = P(14), *cfg_wf_3d_depth = P(15), *cfg_wf_3d_tilt = P(16),
                  *cfg_wf_3d_floor = P(17), *cfg_wf_3d_peak = P(18), *cfg_wf_3d_glide = P(19),
-                 *cfg_wf_3d_range = P(20);
+                 *cfg_wf_3d_range = P(20), *cfg_filter_shade = P(21);
 ComputedParamInt *cfg_fg_freq = P(30), *cfg_cur_filter_low = P(31), *cfg_cur_filter_high = P(32),
                  *cfg_cur_mode = P(33), *cfg_mode_lo_offset = P(34);
 
@@ -73,6 +73,7 @@ int32_t param_i_get(const ParamInt *p) {
     if (p == cfg_waterfall_speed) return 3;
     if (p == cfg_mode_zoom) return 1;
     if (p == cfg_band_grid_max) return 255;     /* with the minimum 0: a row's level is its colour index */
+    if (p == cfg_filter_shade) return 4;        /* Full, the default (#167) */
     return 0;
 }
 
