@@ -1,6 +1,14 @@
 % rebase('funnel_base.html' if get('funnel', False) else 'base.html', title='Remote')
 <style>
 /* The remote: the radio's screen and its front panel, laid out as on the radio. SPDX-License-Identifier: LGPL-2.1-or-later */
+/* PTT options (#241, radio_session.js) */
+.ptto { margin-top:14px; max-width:720px; }
+.ptto summary { cursor:pointer; color:var(--dim); }
+.ptto label { display:block; margin:10px 0 2px; }
+.ptto select { margin-left:6px; }
+.ptto .sub { margin:2px 0 6px; font-size:13px; }
+.ptto-st { margin:8px 0 0; font-size:13px; }
+.ptto-st:empty { display:none; }
 .rm { display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
 .rm-left { flex:1 1 560px; min-width:300px; }
 .rm-screen { position:relative; background:#000; border-radius:10px; overflow:hidden; aspect-ratio:800/480; box-shadow:0 0 0 1px #1a283c, 0 6px 24px #0008; }
@@ -97,10 +105,11 @@
   </div>
 </div>
 
+<div id="pttopts"></div>
 <p class="sub" style="margin-top:14px">Keyboard: F1–F5, ← → the main knob, Shift + ← → faster, [ ] volume, PageUp/PageDown the MFK, Enter the MFK push, Space PTT. Knobs: drag around the ring, or the mouse wheel over it. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/remote</a> (the browser warns of the radio's own certificate: accept it, once for that address).</span></p>
 
 <script src="/static/js/radio_link.js?v=2"></script>
-<script src="/static/js/radio_session.js?v=6"></script>
+<script src="/static/js/radio_session.js?v=7"></script>
 <script>
 (function() {
   "use strict";
@@ -213,6 +222,9 @@
   ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); statusCheck(); }, onTx: function(on) { ptt.radioTx(on); }});
   ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses, link: link,
     mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
+  /* PTT options (#241): the button tapped on and off, a Bluetooth headset's button, a headset's mute */
+  const hands = RadioPttHands.create({ptt: ptt, el: document.getElementById("pttopts"), status: status,
+    mic: {on: function() { return micOn; }, stream: function() { return micStream; }, ctx: function() { return actx; }}});
   /* What touches the air is let go when the link can no longer carry it in time: a held key, knob turns not sent
    * yet, a transmission. The link went (nothing of it is sent again, the radio drops them too), or it stalled: the
    * releases go out behind whatever is stuck, so a late arrival lets go too (audit C02). The operator presses
@@ -291,8 +303,9 @@
   function keysHave(names) { document.querySelectorAll("[data-key]").forEach(function(el) { const no = names.indexOf(el.dataset.key) < 0; el.disabled = no; el.title = no ? "Not on this radio" : el.title; }); }
   document.querySelectorAll("[data-key]").forEach(function(el) {
     const name = el.dataset.key;
-    el.addEventListener("pointerdown", function(e) { e.preventDefault(); el.setPointerCapture(e.pointerId); if (name === "PTT") ptt.press(); else keyDown(name, el); });
-    const up = function(e) { if (name === "PTT") ptt.release(); else keyUp(name, el); };
+    /* PTT: held, or tapped on and off (PTT options, #241) */
+    el.addEventListener("pointerdown", function(e) { e.preventDefault(); el.setPointerCapture(e.pointerId); if (name !== "PTT") keyDown(name, el); else if (hands.tap()) hands.toggle(); else ptt.press(); });
+    const up = function(e) { if (name !== "PTT") keyUp(name, el); else if (!hands.tap()) ptt.release(); };
     el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); el.addEventListener("lostpointercapture", up);
     el.addEventListener("contextmenu", function(e) { e.preventDefault(); });
   });

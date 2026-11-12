@@ -5580,6 +5580,40 @@ button shows "No TX" and the status line "this session may not transmit
 from a page older than the radio: reload the page". With Mic on (the
 browser's microphone, through the TCI) such a page still transmits.
 
+#### PTT options
+
+PTT options, under the Panel and under the Screen page, are kept per browser
+(a phone with its headset keeps its own), and each is off until chosen
+(#241):
+
+- PTT button: Hold to talk, or Tap on, tap off. A tap keys, the next tap
+  unkeys, and the button says "tap to stop" while on the air. The radio's
+  three minutes still end a transmission, and so does the page going out of
+  sight. Space stays held to talk.
+- Bluetooth headset button: Off, Play/pause (the middle button), Next track
+  or Previous track, each a tap on, tap off; or Speaker mic, held to talk,
+  for a Bluetooth speaker mic whose PTT sends forward when pressed and
+  backward when let go: it keys while held. For this the page plays a few seconds of silence in a loop and is the
+  phone's media player ("PTT", OpenX6X00 in the notification), and the
+  headset's buttons come to it as to any player. A phone needs a tap on the
+  page once before it plays. The buttons work while the page is on screen; a
+  page out of sight lets PTT go and keys nothing. A phone's volume keys, and
+  the selfie remotes that send them, never reach a web page: a remote that
+  sends Space (a small Bluetooth key or presentation clicker) is held to
+  talk instead.
+- Headset mute as PTT: for a headset whose mute sends digital silence, such
+  as one that mutes when its boom is raised. With Mic on, the headset's sound
+  keys the radio (about 0.1 s after the boom comes down) and its silence
+  unkeys it (about 1.5 s after the boom goes up). It arms only once it has
+  had some sound and then digital silence (below -90 dBFS), so a phone's own
+  microphone, never that silent, keys nothing; mute the headset once to arm
+  it. A transmission it keyed that the radio ended or refused waits for the
+  mute again before it keys once more; a PTT keyed otherwise is not unkeyed
+  by it.
+
+The line under the options says what each still waits for (a tap on the
+page, Mic on, the mute). Through Tailscale Funnel they work the same.
+
 TUNE for an external tuner (the button beside ATU TUNE) is a press, not a
 hold: Tuning... until the radio says it tunes (within 2 s, else "No tune",
 the radio did not start it), then TUNE with the seconds against its

@@ -43,6 +43,13 @@
  *   press's own number. The radio renews only the hold that keyed, so renewals that arrive after
  *   it let go (a stalled link delivering late) never key it again (audit C02).
  *
+ *   const hands = RadioPttHands.create({ptt, el, status, mic: {on, stream, ctx}});   PTT options (#241), per browser in
+ *                                 localStorage "x6100ptt", all off until chosen: the PTT button tapped on and off, a Bluetooth
+ *                                 headset's button (play/pause, next, previous; a speaker mic's PTT, forward and backward),
+ *                                 a headset's mute (digital silence, the boom raised) as PTT with Mic on. el gets the choices
+ *     hands.tap()                   -> true: the PTT button is tapped on and off, hands.toggle() then
+ *   Nothing keys while the page is out of sight; mic.on/stream/ctx: Mic on, its MediaStream, the page's AudioContext.
+ *
  *   const tune = RadioTune.create({el, send, status, session, link});   TUNE for an external tuner (#85)
  *     tune.press()                  a tune, or the one on the air stopped (also one started at the radio)
  *     tune.radio(on, limit)         the radio's state: "tune" and "tune_s" of "state {...}"
@@ -380,16 +387,16 @@
   Ptt.prototype.render = function() {
     if (this.state === "refused" && this.holds && !this.holds()) { this.set("idle", ""); return; }
     const el = this.o.el; if (!el) return;
-    const mic = this.o.mic && this.o.mic.wanted();
+    const mic = this.o.mic && this.o.mic.wanted(), tap = !!this.hands && this.hands.tap();   /* PTT options (#241) */
     let main, sub = "TX audio: " + (mic ? "browser microphone" : "microphone at the radio");
     switch (this.state) {
       case "requesting": main = "Keying..."; break;
-      case "tx": { const s = Math.floor((Date.now() - this.since) / 1000); main = "ON AIR " + Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); sub = this.path === "mic" ? "browser microphone" : "microphone at the radio"; break; }
+      case "tx": { const s = Math.floor((Date.now() - this.since) / 1000); main = "ON AIR " + Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); sub = (tap ? "tap to stop · " : "") + (this.path === "mic" ? "browser microphone" : "microphone at the radio"); break; }
       case "releasing": main = "Unkeying..."; break;
       case "ended": main = "TX ended"; sub = "press again to transmit"; break;
       case "refused": main = "No TX"; sub = this.why.length > 48 ? this.why.slice(0, 46) + "…" : this.why; break;
       case "busy": main = "TX (not this browser)"; sub = "the radio is on the air"; break;
-      default: main = "PTT (hold)";
+      default: main = tap ? "PTT (tap)" : "PTT (hold)";
     }
     el.classList.toggle("down", this.state === "tx" || this.state === "requesting");
     el.classList.toggle("warn", this.state === "ended" || this.state === "refused" || this.state === "busy");
@@ -485,8 +492,188 @@
     el.innerHTML = ""; el.appendChild(document.createTextNode(main)); const sm = document.createElement("small"); sm.textContent = sub; el.appendChild(sm);
   };
 
+  /* ---- PTT options (#241), as SVXConnect for Android has them, each off until chosen ---- */
+  const HANDS_KEY = "x6100ptt";
+  const HS = ["off", "play", "next", "prev", "held"];
+  const HS_ACTIONS = ["play", "pause", "stop", "nexttrack", "previoustrack", "seekforward", "seekbackward"];
+  /* Mute PTT: the level as SVXConnect's meter has it, the RMS as a bar of -60..0 dBFS, 15 times a second, 10 ms up and
+   * 400 ms down; on the air at 0.05 for 80 ms, off at 0.02 for 300 ms. Armed by 300 ms of digital silence (under
+   * -90 dBFS, which no open microphone gives) after some sound */
+  const MUTE_TICK_MS = 67, MUTE_ON = 0.05, MUTE_OFF = 0.02, MUTE_ATTACK_MS = 80, MUTE_HANG_MS = 300, MUTE_ARM_MS = 300,
+        MUTE_SILENT_RMS = 3.2e-5;
+  function rmsBar(rms) {
+    if (!(rms >= 1e-7)) return 0;
+    return (Math.max(-60, Math.min(0, 20 * Math.log10(rms))) + 60) / 60;
+  }
+  /* 10 s of silence, 8 kHz 8 bit mono: what the page plays to be the phone's media player */
+  function silentWav() {
+    const n = 80000, b = new ArrayBuffer(44 + n), v = new DataView(b);
+    const str = function(at, s) { for (let i = 0; i < s.length; i++) v.setUint8(at + i, s.charCodeAt(i)); };
+    str(0, "RIFF"); v.setUint32(4, 36 + n, true); str(8, "WAVEfmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true);
+    v.setUint16(34, 8, true); str(36, "data"); v.setUint32(40, n, true);
+    new Uint8Array(b, 44).fill(128);
+    return URL.createObjectURL(new Blob([b], {type: "audio/wav"}));
+  }
+  function Hands(o) {
+    this.o = o; this.audio = null; this.w = null; this.line = "";
+    this.opt = {tap: false, hs: "off", mute: false};
+    try {
+      const s = JSON.parse(load(HANDS_KEY) || "{}");
+      this.opt.tap = s.tap === true; this.opt.mute = s.mute === true;
+      if (HS.indexOf(s.hs) >= 0) this.opt.hs = s.hs;
+    } catch (e) {}
+    if (o.ptt) o.ptt.hands = this;    /* its button says hold or tap */
+    const self = this, g = function() { self.gesture(); };
+    document.addEventListener("pointerdown", g, true); document.addEventListener("keydown", g, true);
+    this.timer = setInterval(function() { self.tick(); }, MUTE_TICK_MS);
+    this.render(); this.media();
+    if (o.ptt) o.ptt.render();
+  }
+  Hands.prototype.tap = function() { return this.opt.tap; };
+  Hands.prototype.keyed = function() { const s = this.o.ptt.state; return s === "requesting" || s === "tx"; };
+  Hands.prototype.toggle = function() { if (this.keyed()) this.o.ptt.release(); else this.o.ptt.press(); };
+  Hands.prototype.save = function() { store(HANDS_KEY, JSON.stringify(this.opt)); };
+  Hands.prototype.render = function() {
+    const el = this.o.el, self = this; if (!el) return;
+    el.innerHTML = '<details class="ptto"><summary>PTT options</summary>' +
+      '<label>PTT button <select data-o="tap"><option value="0">Hold to talk</option><option value="1">Tap on, tap off</option></select></label>' +
+      '<p class="sub">Tap on, tap off: a tap keys, the next one unkeys. The radio still ends a transmission after three minutes.</p>' +
+      '<label>Bluetooth headset button <select data-o="hs"><option value="off">Off</option><option value="play">Play/pause (the middle button)</option>' +
+      '<option value="next">Next track</option><option value="prev">Previous track</option><option value="held">Speaker mic, held to talk</option></select></label>' +
+      '<p class="sub">The headset\'s button keys and unkeys while this page is on screen; a speaker mic that sends forward as its PTT goes down and backward as it comes up keys while held. ' +
+      'For this the page plays silence as the phone\'s media player, and the headset\'s buttons come to it. A phone\'s volume keys, and the ' +
+      'selfie remotes that send them, never reach a web page.</p>' +
+      '<label><input type="checkbox" data-o="mute"> Headset mute as PTT</label>' +
+      '<p class="sub">For a headset whose mute sends digital silence, as some do with the boom raised: with Mic on, the headset\'s sound ' +
+      'keys the radio and its silence unkeys it. It arms once it has had that silence, so a phone\'s own microphone never keys it.</p>' +
+      '<p class="ptto-st" aria-live="polite"></p></details>';
+    el.querySelector('[data-o="tap"]').value = this.opt.tap ? "1" : "0";
+    el.querySelector('[data-o="hs"]').value = this.opt.hs;
+    el.querySelector('[data-o="mute"]').checked = this.opt.mute;
+    el.querySelector('[data-o="tap"]').addEventListener("change", function() { self.opt.tap = this.value === "1"; self.save(); self.o.ptt.render(); });
+    el.querySelector('[data-o="hs"]').addEventListener("change", function() { self.opt.hs = this.value; self.save(); self.media(); });
+    el.querySelector('[data-o="mute"]').addEventListener("change", function() {
+      self.opt.mute = this.checked; self.save();
+      if (!self.opt.mute && self.w) { if (self.w.keyed && self.keyed()) self.o.ptt.release(); self.unwatch(); }
+      self.tick();
+    });
+    this.show();
+  };
+  Hands.prototype.show = function() {
+    const el = this.o.el && this.o.el.querySelector(".ptto-st"); if (!el) return;
+    const o = this.o, w = this.w, parts = [];
+    if (this.opt.hs !== "off") {
+      if (!navigator.mediaSession) parts.push("Headset button: this browser gives a page no media buttons");
+      else if (!this.audio || this.audio.paused) parts.push("Headset button: tap the page once to start");
+      else parts.push("Headset button: ready");
+    }
+    if (this.opt.mute) {
+      if (!o.mic.on() || !o.mic.stream()) parts.push("Headset mute: turn Mic on");
+      else if (!w || (o.mic.ctx() && o.mic.ctx().state === "suspended")) parts.push("Headset mute: tap the page once to start");
+      else if (!w.armed) parts.push("Headset mute: mute the headset once (raise the boom) to arm it");
+      else parts.push("Headset mute: armed, unmute to transmit");
+    }
+    const t = parts.join(". ");
+    if (t !== this.line) { this.line = t; el.textContent = t; }
+  };
+  /* The silent sound plays only after a tap or a key (browsers ask for one): tried again at each */
+  Hands.prototype.gesture = function() {
+    const ctx = this.opt.mute && this.o.mic.ctx();
+    if (ctx && ctx.state === "suspended" && ctx.resume) ctx.resume().catch(function() {});
+    this.play();
+  };
+  Hands.prototype.play = function() {
+    const a = this.audio, self = this; if (!a || !a.paused) return;
+    let p; try { p = a.play(); } catch (e) { p = null; }
+    if (p && p.then) p.then(function() { if (self.audio === a) navigator.mediaSession.playbackState = "playing"; self.show(); }, function() { self.show(); });
+  };
+  Hands.prototype.media = function() {
+    const ms = navigator.mediaSession, self = this, on = this.opt.hs !== "off";
+    if (ms && on && !this.audio) {
+      const a = document.createElement("audio");
+      a.loop = true; a.setAttribute("playsinline", ""); a.src = silentWav();
+      this.audio = a;
+      HS_ACTIONS.forEach(function(n) { try { ms.setActionHandler(n, function() { self.action(n); }); } catch (e) {} });
+      try { ms.metadata = new window.MediaMetadata({title: "PTT", artist: "OpenX6X00"}); } catch (e) {}
+    } else if (ms && !on && this.audio) {
+      const a = this.audio; this.audio = null;
+      a.pause(); URL.revokeObjectURL(a.src); a.removeAttribute("src");
+      HS_ACTIONS.forEach(function(n) { try { ms.setActionHandler(n, null); } catch (e) {} });
+      try { ms.metadata = null; } catch (e) {}
+      ms.playbackState = "none";
+    }
+    this.play(); this.show();
+  };
+  /* A headset button: the page stays the player whatever it was (a pause would hand the buttons to another app).
+   * Out of sight nothing keys: the page lets PTT go then */
+  Hands.prototype.action = function(n) {
+    this.play();
+    if (navigator.mediaSession) navigator.mediaSession.playbackState = "playing";
+    if (document.hidden) return;
+    const hs = this.opt.hs;
+    if (hs === "held") {      /* a speaker mic's PTT: forward as it goes down, backward as it comes up */
+      if (n === "seekforward" && !this.keyed()) this.o.ptt.press();
+      else if (n === "seekbackward") this.o.ptt.release();
+    } else if ((hs === "play" && (n === "play" || n === "pause")) || (hs === "next" && n === "nexttrack") ||
+               (hs === "prev" && n === "previoustrack")) {
+      this.toggle();
+    }
+  };
+  /* The headset mute watch: the browser microphone's level while Mic is on */
+  Hands.prototype.unwatch = function() {
+    const w = this.w; this.w = null; if (!w) return;
+    try { w.src.disconnect(); w.an.disconnect(); w.sink.disconnect(); } catch (e) {}
+  };
+  Hands.prototype.watch = function() {
+    const o = this.o, s = this.opt.mute && o.mic.on() ? o.mic.stream() : null, ctx = s ? o.mic.ctx() : null;
+    if (this.w && this.w.stream !== s) this.unwatch();
+    if (!s || !ctx) return null;
+    if (!this.w) {
+      const src = ctx.createMediaStreamSource(s), an = ctx.createAnalyser(), sink = ctx.createGain();
+      an.fftSize = 2048; sink.gain.value = 0;
+      src.connect(an); an.connect(sink); sink.connect(ctx.destination);   /* pulled through a silent output */
+      this.w = {stream: s, src: src, an: an, sink: sink, buf: new Float32Array(2048), level: 0, above: 0, below: 0,
+                heard: false, silentSince: 0, armed: false, ready: false, keyed: false};
+    }
+    return ctx.state === "suspended" ? null : this.w;
+  };
+  Hands.prototype.tick = function(now) {
+    const w = this.watch(), o = this.o;
+    now = now || Date.now();
+    if (w) {
+      w.an.getFloatTimeDomainData(w.buf);
+      let sum = 0;
+      for (let i = 0; i < w.buf.length; i++) sum += w.buf[i] * w.buf[i];
+      const rms = Math.sqrt(sum / w.buf.length), bar = rmsBar(rms);
+      w.level += (bar - w.level) * (1 - Math.exp(-MUTE_TICK_MS / (bar > w.level ? 10 : 400)));
+      const lvl = w.level < 0.005 ? 0 : w.level;
+      if (rms >= MUTE_SILENT_RMS) { w.heard = true; w.silentSince = 0; }
+      else if (!w.silentSince) w.silentSince = now;
+      /* armed, and ready once the meter has fallen as at an unkey: its fall from the sound before is no new sound */
+      if (!w.armed && w.heard && w.silentSince && now - w.silentSince >= MUTE_ARM_MS) {
+        w.armed = true;
+        if (o.status) o.status("Headset mute armed: unmute it to transmit");
+      }
+      if (lvl >= MUTE_ON) {
+        w.below = 0; if (!w.above) w.above = now;
+        if (w.armed && w.ready && !this.keyed() && !document.hidden && now - w.above >= MUTE_ATTACK_MS) {
+          w.ready = false; w.keyed = true; o.ptt.press();   /* once: a refused or ended transmission waits for the mute again */
+        }
+      } else if (lvl <= MUTE_OFF) {
+        w.above = 0; if (!w.below) w.below = now;
+        if (now - w.below >= MUTE_HANG_MS) {
+          if (w.keyed && this.keyed()) o.ptt.release();
+          w.keyed = false; if (w.armed) w.ready = true;
+        }
+      }
+    }
+    this.show();
+  };
+
   window.RadioSession = {create: function(o) { return new Session(o); }, forRadio: forRadio, takeLink: takeLink,
                          token: function() { return load(TOKEN_KEY); }};
   window.RadioPtt = {create: function(o) { return new Ptt(o); }};
+  window.RadioPttHands = {create: function(o) { return new Hands(o); }};
   window.RadioTune = {create: function(o) { return new Tune(o); }};
 })();
