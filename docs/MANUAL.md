@@ -442,6 +442,14 @@ reads CW 1:2, then F5), opens a one-line box near the top,
 - Type the call, then the report you sent and the one you received, and
   press Enter: `F4ABC 59 57`. A report left out is 59, 599 in CW. Esc
   closes the box without logging. Field Ops' Log QSO takes the same order.
+- More can follow, each after a comma: the name, the QTH with its locator,
+  and a comment: `F4ABC 59 57, Jean, Paris JN18du, Nice signal`. Each may be
+  empty or left out (`F4ABC 59 57, , JN18`). The QTH's last word is the
+  locator when it has a locator's shape (4 or 6 characters); the comment is
+  the rest of the line, commas and all. They go into the log as ADIF `NAME`,
+  `QTH`, `GRIDSQUARE` and `COMMENT`, and so to [Wavelog](#wavelog). The box
+  takes 64 characters. Field Ops' Log QSO takes them too, after the call,
+  the reports and their reference (issue #195).
 - In CW with the decoder's text on the screen (and in RTTY) the call it
   confirmed last is in the box already. Not in SSB after CW: the call heard
   in CW stays out.

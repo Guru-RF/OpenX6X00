@@ -1829,7 +1829,8 @@ static void cq_cb(button_data_t *b) {
     cw_encoder_send(text, false);
 }
 
-/* The phone's "CALL|rst sent|rst received[|name|qth|grid|country]", any field may be empty */
+/* The phone's "CALL|rst sent|rst received[|name|qth|grid|country[|comment]]", any field may be empty; the comment
+ * comes from the quick log's box (cw_field_log_qso, #195) */
 static bool activation_log_add(const field_qso_t *q, bool udp);
 
 static void parse_log_text(const char *text, char *call, size_t call_size, char *rs, char *rr, field_qso_t *more) {
@@ -1837,6 +1838,7 @@ static void parse_log_text(const char *text, char *call, size_t call_size, char 
     struct { char *dst; size_t size; } out[] = {
         {call, call_size}, {rs, 8}, {rr, 8}, {more->name, sizeof(more->name)},
         {more->qth, sizeof(more->qth)}, {more->grid, sizeof(more->grid)}, {more->country, sizeof(more->country)},
+        {more->comment, sizeof(more->comment)},
     };
 
     snprintf(buf, sizeof(buf), "%s", text);
@@ -1947,6 +1949,7 @@ static bool log_add(const char *call_in, const char *rst_s, const char *rst_r, c
         memcpy(q.grid, more->grid, sizeof(q.grid));
         memcpy(q.country, more->country, sizeof(q.country));
         memcpy(q.their_ref, more->their_ref, sizeof(q.their_ref));
+        memcpy(q.comment, more->comment, sizeof(q.comment));
     }
     return activation_log_add(&q, true);
 }
@@ -2009,6 +2012,8 @@ static bool log_ok(void) {
     field_qso_t more = {0};
 
     snprintf(text, sizeof(text), "%s", v ? v : "");
+    if (strchr(text, ','))
+        *strchr(text, ',') = 0;     /* ", name, QTH LOCATOR, comment" after it, as in the quick log (#195) */
     for (char *t = strtok_r(text, " \t", &save); t && nw < 8; t = strtok_r(NULL, " \t", &save)) {   /* not strtok: other threads use it */
         for (char *p = t; *p; p++) *p = toupper((unsigned char)*p);
         words[nw++] = t;
@@ -2067,6 +2072,7 @@ static bool log_ok(void) {
             else if (n_rst == 1)
                 snprintf(rr, sizeof(rr), "%s", w), n_rst++;
         }
+        field_log_extra(v, &more);
         if (!log_add(call, rs, rr, &more))
             msg_update_text_fmt("Log: \"%s\" is not a callsign", call);
     }

@@ -27,6 +27,7 @@ typedef struct {
     char    rst_s[4], rst_r[4];
     char    name[48], qth[48], grid[8], country[32];   /* the other station, from a logbook lookup; "" unknown */
     char    their_ref[16];  /* the other station's reference: park to park, summit to summit...; "" none */
+    char    comment[64];    /* ADIF COMMENT: typed after the last comma in a log box (field_log_extra, #195) */
 } field_qso_t;
 
 typedef struct {
@@ -71,6 +72,13 @@ const char *field_band(int32_t hz);
 
 /* One ADIF record (with <eor>) into buf; returns its length */
 size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const field_station_t *st);
+
+/* What a log box takes after the call and the reports, from the first comma on (#195): ", name, QTH LOCATOR,
+ * comment", "F4ABC 59 57, Jean, Paris JN18du, Nice signal". Each part may be empty or left out; the QTH's last word
+ * shaped as a locator (JN18 or JN18du) is the locator, and a locator alone is no QTH; the comment is the rest, its
+ * commas kept. Spaces around a part go, a '|' (the phone's separator) becomes a space. Only the parts given are
+ * written into q's name, qth, grid and comment */
+void field_log_extra(const char *text, field_qso_t *q);
 
 /* The header of an ADIF log the radio writes (field_log_add's, ft_log.adi's): title as its first line (a file that
  * starts with a tag has no header in ADIF), the ADIF version, the program and its version, from X6100_FW (set by

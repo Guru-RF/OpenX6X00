@@ -136,6 +136,7 @@ size_t field_adif_record(char *buf, size_t size, const field_qso_t *q, const fie
     char their = field_ref_prog(q->their_ref);
     n = field(buf, size, n, "GRIDSQUARE", their == 'G' ? q->their_ref : q->grid);
     n = field(buf, size, n, "COUNTRY", q->country);
+    n = field(buf, size, n, "COMMENT", q->comment);
     n = field(buf, size, n, "STATION_CALLSIGN", st->call);
     n = field(buf, size, n, "OPERATOR", st->call);
     /* Tiles: the tile is where the activation was, whatever the station's locator says; Tiles reads it here */
@@ -323,6 +324,66 @@ int field_log_read(const char *path, field_qso_t *out, int max) {
         reverse(out, 0, max - 1);
     }
     return n;
+}
+
+/* A Maidenhead locator of 4 or 6 characters: JN18, JN18du */
+static bool locator_shape(const char *w) {
+    size_t n = strlen(w);
+
+    return (n == 4 || n == 6) && toupper((unsigned char)w[0]) >= 'A' && toupper((unsigned char)w[0]) <= 'R' &&
+           toupper((unsigned char)w[1]) >= 'A' && toupper((unsigned char)w[1]) <= 'R' && isdigit((unsigned char)w[2]) &&
+           isdigit((unsigned char)w[3]) &&
+           (n == 4 || (toupper((unsigned char)w[4]) >= 'A' && toupper((unsigned char)w[4]) <= 'X' &&
+                       toupper((unsigned char)w[5]) >= 'A' && toupper((unsigned char)w[5]) <= 'X'));
+}
+
+/* s without the spaces around it, into out, a '|' as a space */
+static void part_copy(char *out, size_t size, const char *s, size_t len) {
+    while (len && isspace((unsigned char)*s))
+        s++, len--;
+    while (len && isspace((unsigned char)s[len - 1]))
+        len--;
+    if (len >= size)
+        len = size - 1;
+    for (size_t i = 0; i < len; i++)
+        out[i] = s[i] == '|' ? ' ' : s[i];
+    out[len] = 0;
+}
+
+void field_log_extra(const char *text, field_qso_t *q) {
+    const char *p = text ? strchr(text, ',') : NULL;
+    char        part[128];
+
+    for (int k = 0; p && k < 3; k++) {
+        const char *s = p + 1, *e = k < 2 ? strchr(s, ',') : NULL;
+        size_t      len = e ? (size_t)(e - s) : strlen(s);
+
+        part_copy(part, sizeof(part), s, len);
+        if (k == 0 && part[0]) {
+            part_copy(q->name, sizeof(q->name), part, strlen(part));
+        } else if (k == 1 && part[0]) {
+            char *last = strrchr(part, ' ');
+            char *word = last ? last + 1 : part;
+
+            if (locator_shape(word)) {
+                /* JN18du: the square in capitals, the subsquare in small letters */
+                for (int i = 0; word[i]; i++)
+                    word[i] = i < 2 ? toupper((unsigned char)word[i]) : tolower((unsigned char)word[i]);
+                part_copy(q->grid, sizeof(q->grid), word, strlen(word));
+                if (last) {
+                    *last = 0;
+                    part_copy(part, sizeof(part), part, strlen(part));
+                } else {
+                    part[0] = 0;
+                }
+            }
+            if (part[0])
+                part_copy(q->qth, sizeof(q->qth), part, strlen(part));
+        } else if (k == 2 && part[0]) {
+            part_copy(q->comment, sizeof(q->comment), part, strlen(part));
+        }
+        p = e;
+    }
 }
 
 /* n digits from p, and nothing after them */

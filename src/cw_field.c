@@ -15,6 +15,7 @@
 #include "dialog.h"
 #include "dialog_cluster.h"
 #include "dialog_field.h"
+#include "field/flog.h"
 #include "keyboard.h"
 #include "main_screen.h"
 #include "mfk.h"
@@ -154,12 +155,18 @@ static void add_text(const char *text, bool space) {
 }
 
 void cw_field_log_qso(const char *text) {
-    char call[32] = "", rs[8] = "", rr[8] = "", line[64], spot[16], ref[16];
+    char        call[32] = "", rs[8] = "", rr[8] = "", head[72], line[256], spot[16], ref[16];
+    const char *comma = strchr(text, ',');
+    field_qso_t extra = {0};
 
-    if (sscanf(text, "%31s %7s %7s", call, rs, rr) < 1) {
+    /* "CALL [sent [rcvd]]", then ", name, QTH LOCATOR, comment", each one may be left out (#195) */
+    snprintf(head, sizeof(head), "%.*s", comma ? (int)(comma - text) : (int)strlen(text), text);
+    if (sscanf(head, "%31s %7s %7s", call, rs, rr) < 1) {
         return;
     }
-    snprintf(line, sizeof(line), "%s|%s|%s", call, rs, rr);
+    field_log_extra(text, &extra);
+    snprintf(line, sizeof(line), "%s|%s|%s|%s|%s|%s||%s", call, rs, rr, extra.name, extra.qth, extra.grid,
+             extra.comment);
     /* The spot tuned to, the radio still on it and the call its own: its park, summit, bunker... into the QSO (#245) */
     if (!dialog_cluster_tuned_near(cparam_i_get(cfg_fg_freq), spot, sizeof(spot), ref, sizeof(ref)) ||
         strcasecmp(spot, call) != 0) {

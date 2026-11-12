@@ -126,11 +126,64 @@ static void modes(void) {
     remove(path);
 }
 
+/* What a log box takes after the call and the reports (#195): ", name, QTH LOCATOR, comment" into the QSO, and
+ * the comment into the record as COMMENT */
+static void extra(void) {
+    static const struct {
+        const char *text, *name, *qth, *grid, *comment;
+    } t[] = {
+        {"F4ABC 59 57, Jean, Paris JN18du, Nice signal", "Jean", "Paris", "JN18du", "Nice signal"},
+        {"F4ABC 59 57", "", "", "", ""},
+        {"F4ABC, Jean", "Jean", "", "", ""},
+        {"F4ABC 59 57,Jean,Paris", "Jean", "Paris", "", ""},
+        {"F4ABC ,  , jn18DU ,  QSB, then 5/9 ", "", "", "JN18du", "QSB, then 5/9"},
+        {"F4ABC, , Saint Malo IN88", "", "Saint Malo", "IN88", ""},
+        {"F4ABC, , Saint Malo IN88X", "", "Saint Malo IN88X", "", ""},
+        {"F4ABC, , , 73 Jean", "", "", "", "73 Jean"},
+        {"F4ABC, A|B, C|D JN18, E|F", "A B", "C D", "JN18", "E F"},
+        {"F4ABC, , ZZ99", "", "ZZ99", "", ""},
+    };
+
+    for (size_t i = 0; i < LEN(t); i++) {
+        field_qso_t q = {0};
+        char        what[320];
+
+        field_log_extra(t[i].text, &q);
+        snprintf(what, sizeof(what), "\"%s\": name \"%s\" qth \"%s\" grid \"%s\" comment \"%s\"", t[i].text, q.name,
+                 q.qth, q.grid, q.comment);
+        check(!strcmp(q.name, t[i].name) && !strcmp(q.qth, t[i].qth) && !strcmp(q.grid, t[i].grid) &&
+                  !strcmp(q.comment, t[i].comment),
+              what);
+    }
+
+    /* Only what is given: a locator the words before gave stays when no comma part has one */
+    field_qso_t q = {.grid = "JO20"};
+    field_log_extra("ON4ABC 59 59, Jan", &q);
+    check(!strcmp(q.grid, "JO20") && !strcmp(q.name, "Jan"), "a part not given: the field kept");
+    field_log_extra(NULL, &q);
+    check(!strcmp(q.name, "Jan"), "no text: nothing changes");
+
+    field_station_t sta = {.call = "PA3XYZ", .grid = "JO21"};
+    field_qso_t     r   = {.t = 1793000000, .call = "F4ABC", .freq_hz = 14250000, .mode = "SSB", .rst_s = "59",
+                           .rst_r = "57"};
+    char            rec[768];
+
+    field_log_extra("F4ABC 59 57, Jean, Paris JN18du, Nice signal", &r);
+    field_adif_record(rec, sizeof(rec), &r, &sta);
+    check(strstr(rec, "<NAME:4>Jean ") && strstr(rec, "<QTH:5>Paris ") && strstr(rec, "<GRIDSQUARE:6>JN18du ") &&
+              strstr(rec, "<COMMENT:11>Nice signal "),
+          "the record has NAME, QTH, GRIDSQUARE and COMMENT");
+    r.comment[0] = 0;
+    field_adif_record(rec, sizeof(rec), &r, &sta);
+    check(!strstr(rec, "COMMENT"), "no comment, no COMMENT");
+}
+
 int main(void) {
     programmes();
     tags();
     records();
     modes();
+    extra();
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;
 }
