@@ -102,6 +102,18 @@ void ft8_udp_send_qso_logged(time_t when, const char *dx_call, const char *dx_gr
  * receivers that prefer the ADIF form. Pass a full ADIF fragment. */
 void ft8_udp_send_logged_adif(const char *adif_record);
 
+/* A QSO logged anywhere else on the radio (#248): the quick QSO log, the
+ * phone's logger, Field Ops, the CW line, JS8. "QSO Logged" (type 5) and
+ * "Logged ADIF" (type 12) as for FT8, adif_record one record with its <eor>
+ * (field_adif_record). With the FT8 window closed the socket is opened for
+ * it and closed again; nothing goes out with enabled=0. GUI thread. */
+void ft8_udp_log_record(time_t when, const char *dx_call, const char *dx_grid,
+                        uint64_t freq_hz, const char *mode,
+                        const char *rst_sent, const char *rst_rcvd,
+                        const char *tx_power, const char *name,
+                        const char *my_call, const char *my_grid,
+                        const char *adif_record);
+
 #ifdef __cplusplus
 }
 #endif

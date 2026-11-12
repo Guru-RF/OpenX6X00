@@ -30,6 +30,7 @@
 #include "field/qsy.h"
 #include "field/rbn.h"
 #include "field/refs.h"
+#include "ft8_udp.h"
 #include "clock.h"
 #include "gps.h"
 #include "keyboard.h"
@@ -1829,7 +1830,7 @@ static void cq_cb(button_data_t *b) {
 }
 
 /* The phone's "CALL|rst sent|rst received[|name|qth|grid|country]", any field may be empty */
-static bool activation_log_add(const field_qso_t *q);
+static bool activation_log_add(const field_qso_t *q, bool udp);
 
 static void parse_log_text(const char *text, char *call, size_t call_size, char *rs, char *rr, field_qso_t *more) {
     char buf[256], *p = buf, *f;
@@ -1843,8 +1844,19 @@ static void parse_log_text(const char *text, char *call, size_t call_size, char 
         snprintf(out[i].dst, out[i].size, "%s", f);
 }
 
-/* The day's log, LOGS_DIR/YYYYMMDD.adi (UTC date of the QSO): every QSO outside Field Ops */
-static bool day_log_add(const field_qso_t *q, const char *me) {
+/* The QSO to GridTracker, JTAlert and the like as WSJT-X's UDP "QSO Logged" and "Logged ADIF" (#248), the way the
+ * FT8 window sends its own; nothing with ft8_udp.conf's enabled=0 */
+static void udp_log(const field_qso_t *q, const field_station_t *sta) {
+    char rec[1024], pwr[16];
+
+    field_adif_record(rec, sizeof(rec), q, sta);
+    snprintf(pwr, sizeof(pwr), "%g", param_f_get(cfg_pwr));
+    ft8_udp_log_record(q->t, q->call, q->grid, (uint64_t)q->freq_hz, q->mode, q->rst_s, q->rst_r, pwr, q->name,
+                       sta->call, sta->grid, rec);
+}
+
+/* The day's log, LOGS_DIR/YYYYMMDD.adi (UTC date of the QSO): every QSO outside Field Ops. udp: over WSJT-X UDP too */
+static bool day_log_add(const field_qso_t *q, const char *me, bool udp) {
     field_station_t sta = {0};
     char            path[64];
     struct tm       tm;
@@ -1858,6 +1870,8 @@ static bool day_log_add(const field_qso_t *q, const char *me) {
         return false;
     }
     wavelog_kick(true);
+    if (udp)
+        udp_log(q, &sta);
     return true;
 }
 
@@ -1885,7 +1899,7 @@ bool dialog_field_qso_log_ref(const char *text, const char *their_ref) {
     snprintf(q.mode, sizeof(q.mode), "%s", adif_mode());
     snprintf(q.rst_s, sizeof(q.rst_s), "%s", rs[0] ? rs : rst);
     snprintf(q.rst_r, sizeof(q.rst_r), "%s", rr[0] ? rr : rst);
-    if (!day_log_add(&q, my_call()))
+    if (!day_log_add(&q, my_call(), true))
         return false;
     const char *sp = q.their_ref[0] ? " " : "";
     if (q.mode[0])
@@ -1899,13 +1913,15 @@ bool dialog_field_qso_log_ref(const char *text, const char *their_ref) {
 /* FT8, FT4, FT2 and JS8 QSOs into the day's log too, next to the phone's: the QSO as ft_log.adi has it (adif.c) */
 void dialog_field_day_log(const qso_log_record_t *r) {
     field_qso_t q = adif_field_qso(r);
+    /* The FT8 window sends its FT8, FT4 and FT2 QSOs over UDP itself */
+    bool        udp = r->mode != MODE_FT8 && r->mode != MODE_FT4 && r->mode != MODE_FT2;
 
     /* An activation going on: the QSO counts for it and goes in its log, as the voice QSOs
      * logged here do; otherwise in the day's log. Not both: the web page lists every log */
     if (st.active)
-        activation_log_add(&q);
+        activation_log_add(&q, udp);
     else
-        day_log_add(&q, r->local_call);
+        day_log_add(&q, r->local_call, udp);
 }
 
 /* A QSO in the log: false when the call is not a callsign */
@@ -1932,11 +1948,11 @@ static bool log_add(const char *call_in, const char *rst_s, const char *rst_r, c
         memcpy(q.country, more->country, sizeof(q.country));
         memcpy(q.their_ref, more->their_ref, sizeof(q.their_ref));
     }
-    return activation_log_add(&q);
+    return activation_log_add(&q, true);
 }
 
-/* Into the activation's log, with the reference of the activation; the screen follows */
-static bool activation_log_add(const field_qso_t *q) {
+/* Into the activation's log, with the reference of the activation; the screen follows. udp: over WSJT-X UDP too */
+static bool activation_log_add(const field_qso_t *q, bool udp) {
     field_station_t sta;
 
     snprintf(sta.call, sizeof(sta.call), "%s", my_call());
@@ -1948,6 +1964,8 @@ static bool activation_log_add(const field_qso_t *q) {
         return false;
     }
     wavelog_kick(true);
+    if (udp)
+        udp_log(q, &sta);
     log_load();
     const char *tag = field_qso_tag(q);
     if (q->mode[0])

@@ -569,3 +569,38 @@ void ft8_udp_send_logged_adif(const char *adif_record) {
     qb_str(&b, adif_record);
     qb_send(&b);
 }
+
+void ft8_udp_log_record(time_t when, const char *dx_call, const char *dx_grid,
+                        uint64_t freq_hz, const char *mode,
+                        const char *rst_sent, const char *rst_rcvd,
+                        const char *tx_power, const char *name,
+                        const char *my_call, const char *my_grid,
+                        const char *adif_record) {
+    bool opened = false;
+
+    /* The FT8 window owns the socket while it is open; otherwise one for
+     * this QSO only, with the file as it is now */
+    if (!running) {
+        conf_read();
+        if (!enabled) return;
+        socket_open();
+        opened = true;
+    }
+    if (emitters_on()) {
+        ft8_udp_send_qso_logged(when, dx_call, dx_grid, freq_hz, mode,
+                                rst_sent, rst_rcvd, tx_power, "", name,
+                                my_call, my_grid);
+        if (adif_record && adif_record[0]) {
+            char adif[BUF_MAX];
+            int  n = snprintf(adif, sizeof(adif),
+                              BOARD_NAME " ADIF export\n<adif_ver:5>3.1.0\n"
+                              "<programid:9>OpenX6X00\n<EOH>\n%s", adif_record);
+            if (n > 0 && (size_t)n < sizeof(adif))
+                ft8_udp_send_logged_adif(adif);
+        }
+    }
+    if (opened && sock_fd >= 0) {
+        close(sock_fd);
+        sock_fd = -1;
+    }
+}

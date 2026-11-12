@@ -2857,7 +2857,12 @@ UDP messages (heartbeat, status, decodes, logged QSOs), so GridTracker or
 JTAlert can follow it. From SP2KMO's upstream PR #275. It is set in
 `/mnt/ft8_udp.conf` (`enabled=`, `host=`, `port=`, `id=`); the defaults are
 port 2237 and the network gateway (your phone on a hotspot) plus the WSJT-X
-multicast group.
+multicast group. QSOs logged anywhere else on the radio go out the same way,
+as "QSO Logged" and "Logged ADIF", also with the FT8 app closed: the QSO
+log, Field Ops, the phone's and the browser's Log tab, the CW line and JS8
+(#248). So a logger that listens to WSJT-X (GridTracker, JTAlert, a
+log program's WSJT-X input) gets the phone and CW QSOs too. `enabled=0` turns
+all of it off.
 
 Custom frequency. DXpeditions often work away from 14.074, e.g. H49A on
 14.091. Page 4 > Freq lists the mode's preset frequencies, one per band: pick
@@ -6938,7 +6943,7 @@ The DATA partition, readable on a PC.
 | `btcat.conf` | Bluetooth power, written by `btcat-ctl` |
 | `btaudio.conf` | headphones settings (RX loopback, speaker mute, Connect at startup devices) |
 | `ft_log.adi`, `js8call_log.adi` | FT8/FT4 and JS8 logs (ADIF) |
-| `ft8_udp.conf` | FT8/FT4 WSJT-X UDP output: `enabled=`, `host=`, `port=`, `id=` |
+| `ft8_udp.conf` | WSJT-X UDP output (FT8/FT4/FT2, and every logged QSO): `enabled=`, `host=`, `port=`, `id=` |
 | `app_freqs` | the last frequency and mode of each digital app |
 | `psk_macros.txt`, `olivia_macros.txt`, `psk.conf` | PSK and Olivia macros, PSK squelch |
 | `js8_inbox.txt`, `js8_held.txt`, `js8_texts.txt` | JS8 inbox, messages held for others, INFO/STATUS/alert words/groups |
