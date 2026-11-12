@@ -25,6 +25,12 @@ the needle S-meter.*
 [Manual](docs/MANUAL.md) · [Releases](https://github.com/Guru-RF/OpenX6X00/releases) ·
 [openx6x00.org](https://openx6x00.org/)
 
+**A release every Friday.** We try to put out a new version each Friday:
+mostly bug fixes, with one or two new features. The radio fetches it itself
+(Settings > Info > Update), and the
+[release notes](https://github.com/Guru-RF/OpenX6X00/releases) say what each
+one fixes and adds.
+
 ## Reporting a problem
 
 Open a [bug report](https://github.com/Guru-RF/OpenX6X00/issues/new?template=bug.yml),
@@ -88,6 +94,8 @@ Please give:
 
 The form asks for each of these, and labels the issue **enhancement**. One
 feature per issue lets each be answered, built and closed on its own.
+New features go into the Friday releases one or two at a time, after the bug
+fixes, so a request may wait a few weeks even when it's a clear yes.
 
 ## The baseband
 
