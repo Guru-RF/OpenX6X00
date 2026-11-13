@@ -543,16 +543,18 @@ S-meter measurements of #125; 123tcpip (Bob G6CKK) the start-pulse captures of
 #53; ea4iln-debug and edegraaff the battery logs; km4gkd, amystikis (M7SVA) and
 joanpao (EA5JTT) the Winlink logs from the air; doodlecomms the Mercury and XARA
 leads; firatsoygul the tests over https, a tailnet and Funnel; SQ9SZ how LLOTA's
-spots are posted. And everyone who opened an issue: 123tcpip, Al-k6avp,
+spots are posted. And everyone who opened an issue: 123tcpip, airis01, Al-k6avp,
 amystikis, andybateman, AndyKeir, baumertjohn, BG7JAF, BrunoKlu, ct7arf,
-ctsquid, DC6NS, Derek000, DG1SMD, dl1sdz, DL9RP, doodlecomms, dr4g0nized,
-ea4iln-debug, edegraaff, ericb2B, erikkt, F4ESO, firatsoygul, Flight3R,
-forshaws, gati111, gilcomnz-eng, hecpilot, in3fob, ItsRonan-Honest, joanpao,
-johny1time-code, jonnybb1, K4DB, kb3hjc, KC7BJE, keithwhite1982, kj7prs, km4gkd,
-KR8MER, Meges111, muratbedir, oh8mbu, ON2ON-HAM, orome, oxoocoffee, peterbmarks,
-pkoerner81929, RjulianTN, RSZ-Nld, rwensley, sa5qed, scotty123, SQ9SZ,
-theMadCatter, Urminme, VakrLothbrok, VariousGames, VR2XKP, W3POPat, W8LID,
-waydenie, XRF03, yo4cil and z1pppo78.
+ctsquid, DC6NS, Derek000, DG1SMD, DL1EJD, dl1sdz, DL9RP, doodlecomms,
+dr4g0nized, ea4iln-debug, ea8ee, edegraaff, ericb2B, erikkt, F4ESO, firatsoygul,
+Flight3R, forshaws, gati111, gilcomnz-eng, giuseppepassera61-dot, gogoterie,
+Guecar66, hecpilot, in3fob, ItsRonan-Honest, joanpao, johny1time-code, jonnybb1,
+K4DB, kb3hjc, KC7BJE, keithwhite1982, kj7prs, km4gkd, KR8MER, Lomax73X6X00,
+marcoverheiden, Meges111, morel666, muratbedir, nmunlin, oh8mbu, ON2ON-HAM,
+orome, oxoocoffee, peterbmarks, pkoerner81929, PLAN8VR, RjulianTN, RSZ-Nld,
+rwensley, sa5qed, scotty123, SQ9SZ, stevearish, theMadCatter, UA0AOS, Urminme,
+VakrLothbrok, VariousGames, VR2XKP, W3POPat, W8LID, waydenie, WheezeNL, xes,
+XRF03, yo4cil and z1pppo78.
 
 Libraries: LVGL, cJSON, FFTW,
 liquid-dsp, ft8_lib, libpng, Boost, Eigen, CRCpp, bottle, jQuery, mp4-muxer,
