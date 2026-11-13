@@ -1275,7 +1275,8 @@ of the waterfall. With Spectrum on, the card has:
 | Peaks | the peaks held for a moment |
 | Fill gradient | the fill fades from its colour at the trace to the background at the bottom |
 | Filter colour | the filter passband on the spectrum and the waterfall: Theme (default), Blue, Cyan, Green, Yellow, Orange, Red, Violet, White |
-| Filter shade | how strongly the passband is shaded: Full (the default, as up to v0.3.9), 75 %, 50 %, 25 %, or Edges: only its two edges, in the filter colour, the signals inside it clear (#167). The 1bit theme always draws the edges |
+| Filter shade | how strongly the passband is shaded: Full (the default, as up to v0.3.9), 75 %, 50 %, 25 %, or Edges: only its two edges, in the filter colour, the signals inside it clear (#167). With Shaded part Outside the strength is that of the shade outside the passband. The 1bit theme always draws the edges |
+| Shaded part | where the filter shade goes, on the spectrum and the waterfall (2D and 3D): Passband (the default, as up to v0.3.11), or Outside: the same shade over everything left and right of the passband, the passband itself clear, so the signals in it are not dimmed and you still see at a glance where it is (#250). Edges draws the two edges with either. A passband partly off the screen (a high zoom) leaves the part on the screen clear. The 1bit theme always draws the edges |
 | Height | the height of the spectrum, 60-160 px |
 
 
@@ -1286,7 +1287,7 @@ Colours, on the web configurator's Display page:
 | Waterfall colours | Theme (default), Classic, Gauss, Grey, Fire, Ice, Rainbow |
 | Trace colour | Theme, or your own |
 | Fill colour | As trace, or your own (the trace is then drawn over it) |
-| Filter colour, Filter shade | as on the radio (above); up to v0.3.9 not on the web page |
+| Filter colour, Filter shade, Shaded part | as on the radio (above); up to v0.3.9 not on the web page, Shaded part from v0.3.12 |
 
 ### Band plan
 
@@ -1547,7 +1548,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | Card | Options |
 |---|---|
 | BACKLIGHT | timeout and brightness, buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver) |
-| SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Filter shade, Height (see [Waterfall](#waterfall)) |
+| SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
 | INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Theme, Font, Decoder text, FT8/FT4 info |

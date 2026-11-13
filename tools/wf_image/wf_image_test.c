@@ -24,6 +24,11 @@
  *  - a row it writes while a refresh paints the whole picture, half way down (in 1bit, where each pixel painted asks
  *    the theme for its ink: there the test writes it): the picture the rows as they were before it, then with it
  *    after the next refresh. Taken again at each line, the lines under it were each the row above their own
+ *  - the filter shade over the picture as the screen shows it (#250): with Shaded part Passband over the passband and
+ *    nothing else, with Outside every column but the passband's, at Full and 25 %, Edges the passband's two edges with
+ *    either; after the passband moved (a narrower filter, the other sideband, a zoom that puts it partly off the
+ *    screen) still so, though only the columns between its old and new edges are drawn again: a 1 px move of an edge
+ *    redraws a few columns, not the shade's whole width
  *  - in CW and CW-R, on an X6100 base that sends no frequency with its data (Xiegu's): a station on the dial in
  *    receive and the carrier in TX on the line, the rows placed by the LO offsets as the settings give them for each
  *    base. Xiegu's 1.1.9 centres its spectrum on the dial in TX, its 1.1.8 on the oscillator as in receive: with the
@@ -70,18 +75,22 @@ ParamInt         *cfg_wf_mode = P(0), *cfg_wf_3d = P(1), *cfg_waterfall_speed = 
                  *cfg_waterfall_ref = P(11), *cfg_wf_fixed_jump = P(12), *cfg_wf_fixed_after = P(13),
                  *cfg_wf_3d_colors = P(14), *cfg_wf_3d_depth = P(15), *cfg_wf_3d_tilt = P(16),
                  *cfg_wf_3d_floor = P(17), *cfg_wf_3d_peak = P(18), *cfg_wf_3d_glide = P(19),
-                 *cfg_wf_3d_range = P(20), *cfg_filter_shade = P(21);
+                 *cfg_wf_3d_range = P(20), *cfg_filter_shade = P(21), *cfg_filter_shade_where = P(22);
 ComputedParamInt *cfg_fg_freq = P(30), *cfg_cur_filter_low = P(31), *cfg_cur_filter_high = P(32),
                  *cfg_cur_mode = P(33), *cfg_mode_lo_offset = P(34), *cfg_mode_tx_lo_offset = P(35);
 
 static int     speed = 3;           /* Settings > Waterfall > Speed */
+static int32_t shade = 4;           /* Filter shade: Full, the default (#167) */
+static int32_t where = FILTER_SHADE_PASSBAND;  /* Shaded part (#250) */
+static int32_t filter_high = 2700, cur_mode = radio_mode_lsb, cur_zoom = 1;
 static int32_t lo_rx, lo_tx;        /* the LO offsets, in receive and in TX (lo_offsets()) */
 
 int32_t param_i_get(const ParamInt *p) {
     if (p == cfg_waterfall_speed) return speed;
-    if (p == cfg_mode_zoom) return 1;
+    if (p == cfg_mode_zoom) return cur_zoom;
     if (p == cfg_band_grid_max) return 255;     /* with the minimum 0: a row's level is its colour index */
-    if (p == cfg_filter_shade) return 4;        /* Full, the default (#167) */
+    if (p == cfg_filter_shade) return shade;
+    if (p == cfg_filter_shade_where) return where;
     return 0;
 }
 
@@ -96,8 +105,9 @@ int32_t cparam_i_get(const ComputedParamInt *p) {
 
 int32_t subject_i_get(SubjectInt *subj) {
     if (subj == (SubjectInt *)cfg_fg_freq) return fg_freq;
-    if (subj == (SubjectInt *)cfg_cur_filter_high) return 2700;
-    if (subj == (SubjectInt *)cfg_mode_zoom) return 1;
+    if (subj == (SubjectInt *)cfg_cur_filter_high) return filter_high;
+    if (subj == (SubjectInt *)cfg_cur_mode) return cur_mode;
+    if (subj == (SubjectInt *)cfg_mode_zoom) return cur_zoom;
     if (subj == (SubjectInt *)cfg_mode_lo_offset) return lo_rx;
     if (subj == (SubjectInt *)cfg_mode_tx_lo_offset) return lo_tx;
     return 0;
@@ -241,8 +251,15 @@ static void check(bool ok, const char *fmt, ...) {
     putchar('\n');
 }
 
+/* The screen as LVGL drew it: each area flushed copied to its place */
+static lv_color_t screen[W * H];
+
 static void flush(lv_disp_drv_t *drv, const lv_area_t *a, lv_color_t *px) {
-    (void)a, (void)px;
+    int32_t w = lv_area_get_width(a);
+
+    for (int32_t y = a->y1; y <= a->y2; y++) {
+        memcpy(&screen[y * W + a->x1], px + (y - a->y1) * w, w * sizeof(lv_color_t));
+    }
     lv_disp_flush_ready(drv);
 }
 
@@ -361,6 +378,48 @@ static int32_t slide_ms(uint32_t limit) {
     return -1;
 }
 
+/* The filter shade on the screen (#250): on the waterfall's middle line, the columns whose pixel is not the image's.
+ * Passband: the columns filter_band covers; Outside: all the others; Edges: its first and last, with either.
+ * SHADE_DEBUG=1 in the environment prints them, # shaded, . not */
+static void shade_is(const char *what) {
+    loop(2 * STEP);
+
+    int32_t           y = height / 2, x1 = filter_band->coords.x1, x2 = filter_band->coords.x2;
+    const lv_color_t *pic = (const lv_color_t *)frame->data + (size_t)y * WIDTH;
+    const lv_color_t *scr = screen + (size_t)(obj->coords.y1 + y) * W;
+    int               wrong = 0, first = -1, shaded = 0;
+
+    if (getenv("SHADE_DEBUG")) {
+        printf("obj %d,%d img %d,%d band %d-%d out %d-%d\n", obj->coords.x1, obj->coords.y1, img->coords.x1,
+               img->coords.y1, x1, x2, out_x1, out_x2);
+        for (int32_t x = 0; x < WIDTH; x++) putchar((scr[x].full & 0xffffff) != (pic[x].full & 0xffffff) ? '#' : '.');
+        putchar('\n');
+    }
+    for (int32_t x = 0; x < WIDTH; x++) {
+        bool in = x >= x1 && x <= x2;
+        bool want = shade == 0 ? x == x1 || x == x2 : where == FILTER_SHADE_OUTSIDE ? !in : in;
+        bool got = (scr[x].full & 0xffffff) != (pic[x].full & 0xffffff);
+
+        shaded += got;
+        if (got != want && wrong++ == 0) first = x;
+    }
+    check(wrong == 0, "%s: the passband on columns %d-%d, %d shaded", what, x1, x2, shaded);
+    if (wrong) {
+        printf("        %d columns wrong, the first %d (SHADE_DEBUG=1 shows them all)\n", wrong, first);
+    }
+}
+
+/* The columns waiting to be drawn again in the waterfall (LVGL's invalidated areas, all of the waterfall's height) */
+static int32_t columns_waiting(void) {
+    lv_disp_t *d = lv_disp_get_default();
+    int32_t    n = 0;
+
+    for (uint16_t i = 0; i < d->inv_p; i++) {
+        if (!d->inv_area_joined[i] && d->inv_areas[i].y2 >= obj->coords.y1) n += lv_area_get_width(&d->inv_areas[i]);
+    }
+    return n;
+}
+
 int main(void) {
     static lv_disp_draw_buf_t draw_buf;
     static lv_color_t         px[W * H];     /* as gui_main.c's, the whole screen: the image drawn in one piece */
@@ -378,6 +437,13 @@ int main(void) {
     drv.flush_cb = flush;
     drv.draw_buf = &draw_buf;
     lv_disp_drv_register(&drv);
+
+    /* The waterfall's frame as gui_styles.c gives it: none, its children placed from its edge (LVGL's default theme
+     * gave it a padding and a border, which the screen's shade checks would see) */
+    lv_style_init(&waterfall_style);
+    lv_style_set_border_width(&waterfall_style, 0);
+    lv_style_set_radius(&waterfall_style, 0);
+    lv_style_set_pad_all(&waterfall_style, 0);
 
     lv_obj_t *wf = waterfall_init(lv_scr_act());
 
@@ -426,6 +492,59 @@ int main(void) {
     ms = slide_ms(1500);
     check(ms >= 0, "the slide ended (%d ms more)", ms);
     picture_is_rows("after the slide");
+
+    printf("The filter shade on the screen, Passband or Outside (#250), the VFO line hidden\n");
+    params.waterfall_center_line.x = false;
+    lv_obj_add_flag(vfo_line, LV_OBJ_FLAG_HIDDEN);
+    shade_is("Passband, Full (as up to v0.3.11)");
+    where = FILTER_SHADE_OUTSIDE;
+    on_filter_color_change(NULL, NULL);
+    shade_is("Outside, Full");
+    shade = 1;
+    on_filter_color_change(NULL, NULL);
+    shade_is("Outside, 25 %");
+    shade = 0;
+    on_filter_color_change(NULL, NULL);
+    shade_is("Outside, Edges");
+    where = FILTER_SHADE_PASSBAND;
+    on_filter_color_change(NULL, NULL);
+    shade_is("Passband, Edges");
+    where = FILTER_SHADE_OUTSIDE;
+    shade = 4;
+    on_filter_color_change(NULL, NULL);
+    shade_is("Outside, Full again");
+    filter_high = 1200;
+    on_filter_change(NULL, NULL);
+    shade_is("Outside, a 1.2 kHz filter: its left edge moved");
+    loop(2 * STEP);
+    filter_high = 1300;             /* LSB, 100 Hz at 125 Hz a pixel: the left edge a column on */
+    on_filter_change(NULL, NULL);
+
+    int32_t waiting = columns_waiting();
+
+    check(waiting > 0 && waiting < 40, "a 1 px move of the edge: %d columns drawn again, not the shade's %d", waiting,
+          WIDTH - (filter_band->coords.x2 - filter_band->coords.x1 + 1));
+    shade_is("Outside, after it");
+    cur_mode = radio_mode_usb;
+    on_filter_change(NULL, NULL);
+    shade_is("Outside, USB: both edges moved, over the line");
+    params.waterfall_zoom.x = true;
+    cur_zoom = 32;
+    filter_high = 2700;
+    on_zoom_changed((Subject *)cfg_mode_zoom, NULL);
+    shade_is("Outside, zoom 32: the passband partly off the right edge");
+    cur_zoom = 1;
+    cur_mode = radio_mode_lsb;
+    on_zoom_changed((Subject *)cfg_mode_zoom, NULL);
+    shade_is("Outside, zoom 1 and LSB again");
+    params.waterfall_zoom.x = false;
+    where = FILTER_SHADE_PASSBAND;
+    on_filter_color_change(NULL, NULL);
+    shade_is("Passband again");
+    params.waterfall_center_line.x = true;
+    lv_obj_clear_flag(vfo_line, LV_OBJ_FLAG_HIDDEN);
+    loop(2 * STEP);
+    picture_is_rows("the picture under it as it was");
 
     printf("A row the DSP thread writes while a refresh paints the whole picture (1bit)\n");
     theme_shape.mono  = true;
