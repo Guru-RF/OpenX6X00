@@ -344,7 +344,12 @@ default, and the only one up to v0.3.9), UK, German (QWERTZ), Swiss German,
 French (AZERTY), Belgian (AZERTY), Spanish, Italian, Portuguese, Swedish,
 Finnish, Danish, Norwegian, Polish or Czech (QWERTZ). It applies at once, to
 the keyboard plugged in and the next ones. With German, Y and Z type as they
-are marked, `/` is Shift+7 and `@` AltGr+Q (issue #236). Letters with
+are marked, `/` is Shift+7 and `@` AltGr+Q (issue #236). With French or
+Belgian, Caps Lock on makes the number row type its digits, as these
+keyboards do on Windows: F4ABC types without Shift. Shift with Caps Lock types
+the row's own characters (`&`, `é`, `"` and the others) and AltGr's are as
+always; up to v0.3.10 Caps Lock only made the letters capitals there, so the
+row typed `&`, `É`, `"` (issue #254). Letters with
 accents type in the text boxes, but the radio's fonts may not show them, and
 CW has no code for most of them.
 

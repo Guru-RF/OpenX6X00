@@ -65,6 +65,7 @@ static bool           caps;         /* Caps Lock on, as xkb has it: only a CapsL
 static bool           woke_hold;    /* the press of the CapsLock held woke the screen: its first chord only did that */
 static int            swallowed = -1;   /* the key whose press ended the screensaver: its repeats and release too */
 static bool           layout_on;    /* the settings are there: the keyboard's layout follows Settings > Keys (#236) */
+static bool           caps_digits;  /* the layout xkb has types the number row's digits with Caps Lock on (#254) */
 
 /* The keyboard's Caps Lock light to ours. The light is the kernel console's (/dev/tty0), which turns
  * it at every CapsLock press, also one held for a chord: put back at the chord, and set at each
@@ -105,10 +106,12 @@ static void layout_apply(void) {
     }
     l = kbd_layout_get(param_i_get(cfg_kbd_layout));
     names = (struct xkb_rule_names){.model = l->model, .layout = l->layout};
+    caps_digits = l->caps_digits;
     if (!xkb_set_keymap(names)) {
         LV_LOG_ERROR("Keyboard layout %s: xkb has none, US kept", l->layout);
         names = (struct xkb_rule_names){.model = "pc101", .layout = "us"};
         xkb_set_keymap(names);
+        caps_digits = false;
     }
     if (caps) {
         xkb_process_key(KEY_CAPSLOCK, 1);
@@ -238,6 +241,11 @@ static bool next_key(void *unused, uint16_t *scancode, uint32_t *key, int *state
             }
         }
         *key      = xkb_process_key(ev.code, ev.value);     /* xkb follows Shift from these too */
+        if (caps && caps_digits && layout_on) {
+            uint32_t digit = kbd_layout_digits_row(xkb_get_state(), ev.code);
+
+            *key = digit ? digit : *key;                    /* a French or Belgian number row's digit (#254) */
+        }
         *scancode = ev.code;
         *state    = ev.value;
         if (kbd_keymap(ev.code)) {

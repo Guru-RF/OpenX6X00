@@ -91,6 +91,14 @@ void xkb_deinit_state(xkb_drv_state_t *state) {
 }
 
 /**
+ * The default driver state's xkb state (OpenX6X00, #254)
+ * @return the state, NULL before a keymap is set
+ */
+struct xkb_state *xkb_get_state(void) {
+  return default_state.state;
+}
+
+/**
  * Set a new keymap to be used for processing future key events using the default driver state. Use
  * this function if you only want to connect a single device.
  * @param names XKB rule names structure (use NULL components for default values)

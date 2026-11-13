@@ -72,6 +72,11 @@ void xkb_deinit_state(xkb_drv_state_t *state);
  * @param names XKB rule names structure (use NULL components for default values)
  * @return true if creating the keymap and associated state succeeded
  */
+/**
+ * The default driver state's xkb state (OpenX6X00, #254: key_input.c reads the levels of a key from it)
+ * @return the state, NULL before a keymap is set
+ */
+struct xkb_state *xkb_get_state(void);
 bool xkb_set_keymap(struct xkb_rule_names names);
 /**
  * Set a new keymap to be used for processing future key events using a specific driver state. Use
