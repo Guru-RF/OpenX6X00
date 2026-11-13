@@ -5,14 +5,19 @@
  *  of the keyboard's events, a second keyboard (the Vail adapter's Ctrl keys), the buttons of a
  *  paddle that shows up as a mouse, a USB MIDI port and the modem lines of a USB serial port,
  *  with their real press and release, and keys the radio as the CW messages do
- *  (radio_set_morse_key). Elements are timed on CLOCK_MONOTONIC deadlines.
+ *  (radio_set_morse_key). Elements are timed on CLOCK_MONOTONIC deadlines. On SmartCW's MIDI port
+ *  its keyed notes key the radio as they come, its paddle notes go to the keyer here.
  */
 
 #define _GNU_SOURCE   /* ppoll */
 
 #include "paddle_keyer.h"
 
+#include <limits.h>
 #include <linux/input.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* The paddle that is not the element's own: its press is the one remembered */
 static bool other_held(const iambic_t *k, bool dit, bool dah) {
@@ -111,7 +116,70 @@ bool paddle_mouse(bool btn_left, bool btn_right, bool rel_x, bool adapter, unsig
     return btn_left && btn_right && (!rel_x || adapter || (vendor == 0x1500 && product == 0x3001));
 }
 
-#ifndef PADDLE_IAMBIC_ONLY   /* tests/test_paddle_keyer.cpp: the logic alone */
+bool paddle_smartcw(unsigned vendor, unsigned product) {
+    return vendor == 0x1209 && (product == 0xff42 || product == 0xff43);
+}
+
+smartcw_note_t smartcw_note(int note, bool swap) {
+    switch (note) {
+        case SMARTCW_NOTE_STRAIGHT:
+        case SMARTCW_NOTE_KEYER: return SMARTCW_KEYED;
+        case SMARTCW_NOTE_PTT:   return SMARTCW_NONE;
+    }
+    switch (paddle_side(PADDLE_SRC_MIDI, note, paddle_learn_map(SMARTCW_NOTE_DIT, SMARTCW_NOTE_DAH, false), swap)) {
+        case 1:  return SMARTCW_LEFT;
+        case 2:  return SMARTCW_RIGHT;
+        default: return SMARTCW_OTHER;
+    }
+}
+
+static bool read_hex(const char *dir, const char *name, unsigned *out) {
+    char  path[PATH_MAX];
+    FILE *f;
+    bool  ok;
+
+    if (snprintf(path, sizeof(path), "%s/%s", dir, name) >= (int)sizeof(path) || !(f = fopen(path, "r"))) return false;
+    ok = fscanf(f, "%x", out) == 1;
+    fclose(f);
+    return ok;
+}
+
+bool paddle_usb_id(const char *dir, unsigned *vendor, unsigned *product) {
+    char *p = realpath(dir, NULL);
+    char *end;
+    bool  found = false;
+
+    if (!p) return false;
+    /* the MIDI port, its sound card and the USB interface have no IDs of their own: the USB device above them has */
+    while (!(found = read_hex(p, "idVendor", vendor) && read_hex(p, "idProduct", product)) &&
+           (end = strrchr(p, '/')) && end != p) {
+        *end = 0;
+    }
+    free(p);
+    return found;
+}
+
+void smartcw_keyed(smartcw_key_t *s, int note, bool on, bool busy) {
+    unsigned char bit = note == SMARTCW_NOTE_STRAIGHT ? 2 : 1;
+
+    if (on) {
+        s->held |= bit;
+        if (busy) s->drop = true;
+    } else {
+        s->held &= ~bit;
+        if (!s->held) s->drop = false;   /* the next note on is an element of its own */
+    }
+}
+
+void smartcw_drop(smartcw_key_t *s) {
+    if (s->held) s->drop = true;
+}
+
+bool smartcw_down(const smartcw_key_t *s) {
+    return s->held && !s->drop;
+}
+
+#ifndef PADDLE_IAMBIC_ONLY   /* tests/test_paddle_keyer.cpp, tools/smartcw: the logic alone */
 
 #include "cfg/cfg_api.h"
 #include "cw_encoder.h"
@@ -130,6 +198,7 @@ bool paddle_mouse(bool btn_left, bool btn_right, bool rel_x, bool adapter, unsig
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>   /* major, minor */
 #include <time.h>
 #include <unistd.h>
 
@@ -156,7 +225,11 @@ static int           ser_last;        /* modem lines as last read */
 static paddle_midi_t midi;
 static bool          left, right;     /* the paddles held */
 static bool          keyed;
+static bool          sending;         /* the keyer here is on an element or its space */
 static iambic_t      k;
+static bool          midi_sc;         /* the MIDI port is SmartCW's */
+static atomic_bool   midi_sc_shown;   /* the same, for the PADDLE card */
+static smartcw_key_t sc;              /* SmartCW's keyed notes */
 
 void paddle_keyer_stop(void) {
     atomic_store(&halt, true);
@@ -166,6 +239,10 @@ bool paddle_keyer_active(void) {
     int32_t m = cparam_i_get(cfg_cur_mode);
 
     return m == radio_mode_cw || m == radio_mode_cwr;
+}
+
+bool paddle_keyer_smartcw(void) {
+    return atomic_load(&midi_sc_shown);
 }
 
 bool paddle_keyer_key(int code) {
@@ -207,17 +284,8 @@ static void key(bool on) {
     }
 }
 
-/* A press or release from a source: a paddle, or with Learn on what was pressed */
-static void got(paddle_src_t src, int code, bool on) {
-    int side;
-
-    if (atomic_load(&learning)) {
-        int none = -1;
-
-        if (on) atomic_compare_exchange_strong(&learned, &none, (int)src << 16 | code);
-        return;
-    }
-    side = paddle_side(src, code, param_i_get(cfg_paddle_map[src]), param_i_get(cfg_paddle_swap));
+/* A paddle pressed or let go: 1 left, 2 right, 0 none */
+static void press(int side, bool on) {
     if (side == 1) {
         left = on;
     } else if (side == 2) {
@@ -228,10 +296,65 @@ static void got(paddle_src_t src, int code, bool on) {
     iambic_paddles(&k, dit(), dah());
 }
 
+/* A press or release from a source: a paddle, or with Learn on what was pressed */
+static void got(paddle_src_t src, int code, bool on) {
+    if (atomic_load(&learning)) {
+        int none = -1;
+
+        if (on) atomic_compare_exchange_strong(&learned, &none, (int)src << 16 | code);
+        return;
+    }
+    press(paddle_side(src, code, param_i_get(cfg_paddle_map[src]), param_i_get(cfg_paddle_swap)), on);
+}
+
+/* SmartCW's note on would be keyed late or into another source's keying: the keyer here on an element or its
+ * space, another straight key down (KEY Manual), the SWR protection, not CW, or a CW message on the air (which a
+ * USB paddle does not stop, so neither does SmartCW). The first source keeps the key: two at once would make
+ * neither's characters, and an element of SmartCW's that came in during another's is dropped whole */
+static bool smartcw_busy(void) {
+    return sending || (keyed && !smartcw_down(&sc)) || atomic_load(&halt) || !paddle_keyer_active() ||
+           cw_encoder_state() != CW_ENCODER_IDLE;
+}
+
+/* A MIDI note. SmartCW's keyed notes (MIDI mode "keyed") key the radio as a straight key whatever the KEY mode:
+ * its keyer timed them already, and the keyer here would make its own elements of them. Its raw contacts (mode
+ * "paddles") are a paddle for the keyer here. Every other MIDI device goes by the MIDI map (Learn) as before. Learn
+ * takes SmartCW's presses too; their releases still let go, so a key down when Learn started does not stay down */
+static void midi_note(int note, bool on) {
+    smartcw_note_t what = midi_sc ? smartcw_note(note, param_i_get(cfg_paddle_swap)) : SMARTCW_OTHER;
+
+    if (on && atomic_load(&learning)) {
+        what = SMARTCW_OTHER;
+    }
+    switch (what) {
+        case SMARTCW_KEYED: smartcw_keyed(&sc, note, on, on && smartcw_busy()); break;
+        case SMARTCW_LEFT:  press(1, on); break;
+        case SMARTCW_RIGHT: press(2, on); break;
+        case SMARTCW_NONE:  break;
+        default:            got(PADDLE_SRC_MIDI, note, on);
+    }
+}
+
+/* The MIDI port just opened is on SmartCW: its character device's sysfs folder, up to the USB device */
+static bool smartcw_fd(int n) {
+    struct stat st;
+    char        dir[64];
+    unsigned    vendor, product;
+
+    if (fstat(n, &st) != 0 || !S_ISCHR(st.st_mode)) return false;
+    snprintf(dir, sizeof(dir), "/sys/dev/char/%u:%u", major(st.st_rdev), minor(st.st_rdev));
+    return paddle_usb_id(dir, &vendor, &product) && paddle_smartcw(vendor, product);
+}
+
 static void fd_close(int i) {
     if (fd[i] >= 0) close(fd[i]);
     fd[i] = -1;
     left  = right = false;
+    if (i == FD_MIDI) {   /* SmartCW unplugged: its key goes up as the thread looks next, at once */
+        sc      = (smartcw_key_t){0};
+        midi_sc = false;
+        atomic_store(&midi_sc_shown, false);
+    }
     atomic_fetch_and(&open_bits, ~(1u << i));
 }
 
@@ -252,7 +375,7 @@ static void ser_read(void) {
  * again soon: it may be waiting for a CW message it stopped) */
 static void wait_until(const struct timespec *deadline) {
     for (;;) {
-        struct timespec t = {0, left || right ? 20000000L : 500000000L};
+        struct timespec t = {0, left || right || keyed ? 20000000L : 500000000L};   /* keyed: a mode change soon */
         struct pollfd   p[FD_N];
 
         for (int i = 0; i < FD_N; i++) {
@@ -263,6 +386,10 @@ static void wait_until(const struct timespec *deadline) {
                 if (n >= 0) {
                     fd[i] = n;
                     atomic_fetch_or(&open_bits, 1u << i);
+                }
+                if (i == FD_MIDI && n >= 0 && (midi_sc = smartcw_fd(n))) {
+                    atomic_store(&midi_sc_shown, true);
+                    LV_LOG_USER("Paddle: the MIDI port is SmartCW's");
                 }
                 midi = (paddle_midi_t){0};
                 if (i == FD_SER && n >= 0 && ioctl(n, TIOCMGET, &ser_last) < 0) ser_last = 0;
@@ -302,7 +429,7 @@ static void wait_until(const struct timespec *deadline) {
                 if (i == FD_MIDI) {
                     while (fd[i] >= 0 && (n = read(fd[i], buf, sizeof(buf))) > 0) {
                         for (ssize_t j = 0; j < n; j++) {
-                            if (paddle_midi(&midi, buf[j], &note, &on)) got(PADDLE_SRC_MIDI, note, on);
+                            if (paddle_midi(&midi, buf[j], &note, &on)) midi_note(note, on);
                         }
                     }
                     continue;
@@ -332,23 +459,31 @@ static void * keyer_thread(void *arg) {
 
         wait_until(NULL);
         if (!paddle_keyer_active() || cw_encoder_state() != CW_ENCODER_IDLE) {
+            smartcw_drop(&sc);   /* the rest of an element of SmartCW's is not keyed when CW comes back */
             key(false);   /* a message on air: the press stopped it (keyboard.c), the paddle goes after */
             continue;
         }
         if (atomic_load(&halt)) {
             key(false);
-            while (left || right) {
+            smartcw_drop(&sc);
+            while (left || right || sc.held) {
                 wait_until(NULL);
             }
             atomic_store(&halt, false);
+            continue;
+        }
+        if (smartcw_down(&sc)) {
+            key(true);    /* SmartCW keys: the paddles here wait until it is up */
             continue;
         }
         if (param_i_get(cfg_key_mode) == radio_key_manual) {
             key(left);    /* a straight key */
             continue;
         }
+        key(false);       /* SmartCW's element ended */
         k = (iambic_t){.mode_b = param_i_get(cfg_iambic_mode) == radio_iambic_b};
         clock_gettime(CLOCK_MONOTONIC, &t);
+        sending = true;
         while (!atomic_load(&halt) && (el = iambic_next(&k, dit(), dah())) != PADDLE_NONE) {
             long dit_nsec = 1200000000L / param_i_get(cfg_key_speed);
 
@@ -357,6 +492,7 @@ static void * keyer_thread(void *arg) {
             key(false);
             wait_nsec(&t, dit_nsec);
         }
+        sending = false;
     }
     return NULL;
 }
@@ -466,8 +602,19 @@ static void scan_input(void) {
     globfree(&g);
 }
 
+/* SmartCW's own USB serial port: its text protocol, for a logger, and no paddle's contacts on its lines.
+ * SmartCW keys the radio over MIDI */
+static bool smartcw_tty(const char *path) {
+    char     dir[96];
+    unsigned vendor, product;
+
+    snprintf(dir, sizeof(dir), "/sys/class/tty/%s/device", strrchr(path, '/') + 1);
+    return paddle_usb_id(dir, &vendor, &product) && paddle_smartcw(vendor, product);
+}
+
 /* The first device of the pattern into the slot, if it is not the one open already. Not the X6200's WR12 with WR12 on
- * HOST on, a USB serial port too (#134): its port is the WR12 driver's, and its line state no paddle's contacts */
+ * HOST on, a USB serial port too (#134): its port is the WR12 driver's, and its line state no paddle's contacts. Nor
+ * SmartCW's (smartcw_tty) */
 static void scan_one(int slot, const char *pattern, const char *pattern2, int flags) {
     glob_t      g;
     struct stat st;
@@ -475,7 +622,7 @@ static void scan_one(int slot, const char *pattern, const char *pattern2, int fl
     int         n;
 
     if (glob(pattern, 0, NULL, &g) != 0 && (!pattern2 || glob(pattern2, 0, NULL, &g) != 0)) return;
-    while (i < g.gl_pathc && slot == FD_SER && wr12_port(g.gl_pathv[i])) i++;
+    while (i < g.gl_pathc && slot == FD_SER && (wr12_port(g.gl_pathv[i]) || smartcw_tty(g.gl_pathv[i]))) i++;
     if (i < g.gl_pathc && stat(g.gl_pathv[i], &st) == 0 && !is_open(slot, &st) && (n = open(g.gl_pathv[i], flags)) >= 0) {
         LV_LOG_USER("Paddle on %s", g.gl_pathv[i]);
         if (slot == FD_SER) snprintf(ser_name, sizeof(ser_name), "%s", g.gl_pathv[i] + 5);   /* no /dev/ */

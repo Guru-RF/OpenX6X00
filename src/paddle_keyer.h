@@ -3,7 +3,8 @@
  *
  *  A paddle on the keyboard's [ and ] keys (the N6ARA TinyMIDI in Keyboard Mode sends them) or
  *  on other USB inputs (keys, mouse buttons, MIDI notes, serial lines; Settings > Keys > PADDLE):
- *  in CW / CW-R they key the radio through an iambic keyer that follows the KEY settings.
+ *  in CW / CW-R they key the radio through an iambic keyer that follows the KEY settings. SmartCW's
+ *  MIDI keys the radio itself with what its own keyer timed, or hands its paddles to the radio's keyer.
  */
 
 #pragma once
@@ -60,6 +61,53 @@ typedef struct {
 
 bool paddle_midi(paddle_midi_t *m, unsigned char byte, int *note, bool *on);
 
+/* SmartCW, RF.Guru's keyer, sends its MIDI notes on channel 1. These are its defaults (its settings midiStraightNote,
+ * midiCwNote, midiPttNote, midiDitNote and midiDahNote); the radio takes these numbers and asks SmartCW for none */
+enum {
+    SMARTCW_NOTE_STRAIGHT = 64,   /* MIDI mode "keyed": its straight key closed */
+    SMARTCW_NOTE_KEYER    = 65,   /* "keyed": an element of its keyer, its text, memories or beacon */
+    SMARTCW_NOTE_PTT      = 66,   /* a PTT pulse */
+    SMARTCW_NOTE_DIT      = 67,   /* MIDI mode "paddles": the dit contact as it is */
+    SMARTCW_NOTE_DAH      = 68    /* "paddles": the dah contact */
+};
+
+/* SmartCW's USB IDs: 1209:ff42, ff43 with its USB keyboard on */
+bool paddle_smartcw(unsigned vendor, unsigned product);
+
+/* What a note from SmartCW does: keys the radio as it comes (KEYED), a paddle for the keyer here (LEFT, RIGHT, as
+ * Swap leaves them), nothing (NONE, its PTT pulse: in CW the key brings the transmitter on), or what any MIDI note
+ * does, by the MIDI map (OTHER: other note numbers set on SmartCW) */
+typedef enum {
+    SMARTCW_OTHER = 0,
+    SMARTCW_KEYED,
+    SMARTCW_LEFT,
+    SMARTCW_RIGHT,
+    SMARTCW_NONE
+} smartcw_note_t;
+
+smartcw_note_t smartcw_note(int note, bool swap);
+
+/* The USB device a sysfs folder belongs to: from dir (links followed) up to the first folder with idVendor and
+ * idProduct. False when there is none (not on USB) */
+bool paddle_usb_id(const char *dir, unsigned *vendor, unsigned *product);
+
+/* SmartCW's keyed notes as a straight key: SmartCW timed them, so each note on is an element (or the straight key
+ * closed) from its start to its note off. One that starts while busy (another source has the key, or the radio may
+ * not key: not CW, a CW message on the air) is dropped whole, up to the note off of every keyed note held: keyed
+ * late it would be an element cut short, a wrong character */
+typedef struct {
+    unsigned char held;   /* the keyed notes held: 1 the keyer's, 2 the straight key's */
+    bool          drop;   /* what is held is not keyed */
+} smartcw_key_t;
+
+void smartcw_keyed(smartcw_key_t *s, int note, bool on, bool busy);
+
+/* What is held now is not keyed any more (the key went up for another reason): up to the note off */
+void smartcw_drop(smartcw_key_t *s);
+
+/* Key down for SmartCW */
+bool smartcw_down(const smartcw_key_t *s);
+
 /* Mouse buttons that are a paddle, not a pointer: no X axis (rel_x: relative or absolute, so a touchscreen,
  * a tablet or a KVM's absolute mouse is a pointer too), or with one a keyer adapter (adapter: the USB
  * device has a serial port or MIDI too, as -Yuan- 3key, Vail) or the HOTSPOTEK paddle 1500:3001. A real
@@ -71,7 +119,7 @@ void paddle_keyer_open(const char *path);
 
 /* Looks for paddles and opens new ones (keyboard.c, on USB changes): a mouse-button paddle and
  * a second USB/Bluetooth keyboard with the paddle keys in /dev/input, a USB MIDI port, and with
- * p_paddle_serial on the first /dev/ttyUSB* or /dev/ttyACM* (never the radio's own ttyS*) */
+ * p_paddle_serial on the first /dev/ttyUSB* or /dev/ttyACM* (never the radio's own ttyS*, nor SmartCW's) */
 void paddle_keyer_scan(void);
 
 /* What is open, 1 << PADDLE_SRC_* bits; the serial port's name in tty (may be NULL) */
@@ -89,6 +137,9 @@ void paddle_keyer_stop(void);
 
 /* CW / CW-R: [ and ] are the paddle, not keys */
 bool paddle_keyer_active(void);
+
+/* The MIDI port open is SmartCW's */
+bool paddle_keyer_smartcw(void);
 
 #ifdef __cplusplus
 }

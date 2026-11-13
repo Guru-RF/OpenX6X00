@@ -3476,7 +3476,9 @@ static void pd_update() {
     for (int i = 0; i < PADDLE_SRC_N; i++) {
         if (s & 1u << i) {
             snprintf(text + strlen(text), sizeof(text) - strlen(text), "%s%s", text[0] ? ", " : "",
-                     i == PADDLE_SRC_SER ? tty : src_name[i]);
+                     i == PADDLE_SRC_SER                                ? tty
+                     : i == PADDLE_SRC_MIDI && paddle_keyer_smartcw() ? "SmartCW (MIDI)"
+                                                                      : src_name[i]);
         }
         int map = pd_param(i)->get();
         int lo = map & 0xffff, hi = map >> 16;
