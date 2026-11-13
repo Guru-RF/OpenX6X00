@@ -5,7 +5,7 @@ state in a folder of its own under build/tmp for each case, the files an update 
     make          (python3 -I -B rollback_test.py [-v])
 
 1. The start loop's step back after MAX_STARTS starts without a minute: last.json keeps the reason and the
-   sentence, "notice" gives it once and then nothing, "status" has it in "last".
+   sentence, "notice" gives it once as two short lines for the screen and then nothing, "status" has the sentence in "last".
 2. The same for a version whose GUI said it could not use the settings file ("fault settings"): that reason, not
    "did not stay up". "fault" with nothing pending, or with another word, changes nothing.
 3. The step back by hand (rollback) and the one of an install cut short by a power cut.
@@ -105,9 +105,9 @@ class RollbackNotice(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def notice_once(self, text):
-        """notice gives the sentence, then nothing at the next start"""
-        self.assertEqual(self.u.run("notice"), (0, "ok " + text))
+    def notice_once(self, text, screen):
+        """notice gives the screen's two short lines, then nothing at the next start; status keeps the sentence"""
+        self.assertEqual(self.u.run("notice"), (0, "ok " + screen))
         self.assertEqual(self.u.run("notice"), (0, "ok"))
         rc, out = self.u.run("status")
         self.assertEqual(rc, 0)
@@ -125,7 +125,8 @@ class RollbackNotice(unittest.TestCase):
         self.assertEqual((last["result"], last["version"], last["to"], last["reason"], last["starts"]),
                          ("rolled back", "0.3.12", "0.3.11", "starts", 3))
         self.assertEqual(last["why"], "the GUI did not stay up (3 starts)", "the old pages' why, as before")
-        self.notice_once("Update v0.3.12 taken back to v0.3.11: it did not stay up a minute in 3 starts")
+        self.notice_once("Update v0.3.12 taken back to v0.3.11: it did not stay up a minute in 3 starts",
+                         "v0.3.12 taken back to v0.3.11\nit did not stay up (3 starts)")
         self.assertEqual(u.run("boot-check"), (0, "ok"), "nothing pending after it")
 
     def test_settings(self):
@@ -140,7 +141,8 @@ class RollbackNotice(unittest.TestCase):
         self.assertEqual(u.run("boot-check"), (0, "rolled back to 0.3.11"))
         self.assertEqual(u.last()["reason"], "settings")
         self.assertEqual(u.last()["why"], "this version could not use the settings file")
-        self.notice_once("Update v0.3.12 taken back to v0.3.11: it could not use the settings file")
+        self.notice_once("Update v0.3.12 taken back to v0.3.11: it could not use the settings file",
+                         "v0.3.12 taken back to v0.3.11\nit could not use the settings")
 
     def test_confirmed(self):
         u = self.u
@@ -163,7 +165,7 @@ class RollbackNotice(unittest.TestCase):
         self.assertEqual(u.run("rollback"), (0, "ok back to 0.3.11"))
         self.assertEqual((u.installed(), u.restarts), ("0.3.11", 1))
         self.assertEqual(u.last()["reason"], "hand")
-        self.notice_once("Update v0.3.12 taken back to v0.3.11 by hand")
+        self.notice_once("Update v0.3.12 taken back to v0.3.11 by hand", "v0.3.12 taken back to v0.3.11\nby hand")
 
     def test_interrupted(self):
         u = self.u
@@ -173,35 +175,40 @@ class RollbackNotice(unittest.TestCase):
         u.up["save"](u.up["JOURNAL"], journal)
         self.assertEqual(u.run("boot-check"), (0, "rolled back: interrupted install"))
         self.assertEqual(u.last()["reason"], "interrupted")
-        self.notice_once("Update v0.3.12 taken back to v0.3.11: the install was cut short")
+        self.notice_once("Update v0.3.12 taken back to v0.3.11: the install was cut short",
+                         "v0.3.12 taken back to v0.3.11\nits install was cut short")
 
     def test_old_files(self):
         u = self.u
         cases = [
             ({"result": "rolled back", "version": "0.3.10", "to": "0.3.9",
               "why": "the GUI did not stay up (3 starts)", "when": 1},
-             "Update v0.3.10 taken back to v0.3.9: it did not stay up a minute in 3 starts"),
+             "Update v0.3.10 taken back to v0.3.9: it did not stay up a minute in 3 starts",
+             "v0.3.10 taken back to v0.3.9\nit did not stay up (3 starts)"),
             ({"result": "rolled back", "version": "0.3.10", "to": "0.3.9", "when": 1},
-             "Update v0.3.10 taken back to v0.3.9 by hand"),
+             "Update v0.3.10 taken back to v0.3.9 by hand", "v0.3.10 taken back to v0.3.9\nby hand"),
             ({"result": "rolled back", "version": "0.3.10", "to": "0.3.9", "why": "the install was interrupted",
               "when": 1},
-             "Update v0.3.10 taken back to v0.3.9: the install was cut short"),
+             "Update v0.3.10 taken back to v0.3.9: the install was cut short",
+             "v0.3.10 taken back to v0.3.9\nits install was cut short"),
             ({"result": "rolled back", "version": "0.3.13", "to": "0.3.12", "reason": "battery",
               "why": "the battery ran out during its first minute", "when": 1},
-             "Update v0.3.13 taken back to v0.3.12: the battery ran out during its first minute"),
+             "Update v0.3.13 taken back to v0.3.12: the battery ran out during its first minute",
+             "v0.3.13 taken back to v0.3.12\nthe battery ran out during its first minute"),
             ({"result": "rolled back", "version": "0.3.10", "to": "unknown", "reason": "starts", "starts": 5,
               "when": 1},
-             "Update v0.3.10 taken back to the version before: it did not stay up a minute in 5 starts"),
+             "Update v0.3.10 taken back to the version before: it did not stay up a minute in 5 starts",
+             "v0.3.10 taken back to the version before\nit did not stay up (5 starts)"),
             ({"result": "rolled back", "to": "0.3.9", "reason": "hand", "when": 1},
-             "The update taken back to v0.3.9 by hand"),
+             "The update taken back to v0.3.9 by hand", "Update taken back to v0.3.9\nby hand"),
         ]
-        for old, text in cases:
+        for old, text, screen in cases:
             with self.subTest(old=old):
                 u.write_last(old)
                 rc, out = u.run("status")
                 self.assertEqual(json.loads(out)["last"]["text"], text)
                 self.assertNotIn("text", u.last(), "status reads, it writes nothing")
-                self.notice_once(text)
+                self.notice_once(text, screen)
         u.write_last({"result": "confirmed", "version": "0.3.10", "when": 1})
         self.assertEqual(u.run("notice"), (0, "ok"))
         u.write_last(["not", "an", "object"])
@@ -215,7 +222,7 @@ class RollbackNotice(unittest.TestCase):
         u = self.u
         u.write_last({"result": "rolled back", "version": "0.4.0", "to": "0.3.12", "reason": "new",
                       "text": "Update v0.4.0 taken back to v0.3.12: something new", "when": 1})
-        self.notice_once("Update v0.4.0 taken back to v0.3.12: something new")
+        self.notice_once("Update v0.4.0 taken back to v0.3.12: something new", "v0.4.0 taken back to v0.3.12\nsomething new")
 
 
 if __name__ == "__main__":

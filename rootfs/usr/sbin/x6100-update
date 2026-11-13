@@ -211,6 +211,30 @@ def rollback_text(last):
     return f"{head}: {why}" if why else head
 
 
+def screen_text(last):
+    """The step back for the GUI's message box, two short lines: which version went back to which, then why (the
+    web page and status keep the whole sentence of rollback_text). About 30 characters a line show whole there; a
+    longer one scrolls past. A reason of a later updater is said in its own words, whole"""
+    what = version_name(last.get("version"), "")
+    head = f"{what + ' taken back' if what else 'Update taken back'} to {version_name(last.get('to'))}"
+    reason = rollback_reason(last)
+    if reason == "hand":
+        why = "by hand"
+    elif reason == "settings":
+        why = "it could not use the settings"
+    elif reason == "interrupted":
+        why = "its install was cut short"
+    elif reason == "starts":
+        n = last.get("starts")
+        if not isinstance(n, int):
+            digits = "".join(ch if ch.isdigit() else " " for ch in str(last.get("why") or "")).split()
+            n = int(digits[0]) if digits else MAX_STARTS
+        why = f"it did not stay up ({n} starts)"
+    else:
+        why = str(last.get("why") or "").strip() or str(last.get("text") or "").partition(": ")[2].strip()
+    return f"{head}\n{why}" if why else head
+
+
 def last_state():
     """last.json, its sentence with it: the one it keeps, else made from its fields (an earlier updater's file)"""
     last = load(LAST)
@@ -639,14 +663,14 @@ def cmd_fault(args):
 
 
 def cmd_notice(args):
-    """What the GUI says once at its start: the last step back, until it has been said. The mark goes into last.json,
-    which the next install replaces"""
+    """What the GUI says once at its start: the last step back, until it has been said, in two short lines for its
+    message box (screen_text). The mark goes into last.json, which the next install replaces"""
     last = last_state()
     if not last or last.get("result") != "rolled back" or last.get("shown"):
         return "ok"
     last["shown"] = time.time()
     save(LAST, last)
-    return f"ok {last['text']}"
+    return f"ok {screen_text(last)}"
 
 
 def cmd_status(args):

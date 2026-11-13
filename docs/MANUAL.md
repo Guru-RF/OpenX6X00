@@ -545,18 +545,20 @@ web configurator (System > Update).
   confirmed. If it does not stay up for a minute three times in a row, the
   start loop puts the previous version back by itself. A power cut during the
   install is undone the same way at the next start.
-- A version taken back is said once on the screen at the next start, which
-  version, to which, and why. Up to v0.3.10 nothing on the screen said so.
-  - "Update v0.3.12 taken back to v0.3.11: it did not stay up a minute in 3
-    starts": the start loop's step back above.
-  - "...: it could not use the settings file": the new version came up on the
-    default settings (see
+- A version taken back is said once on the screen at the next start, on two
+  lines: which version went back to which, and why. Up to v0.3.10 nothing on
+  the screen said so.
+  - "v0.3.12 taken back to v0.3.11", "it did not stay up (3 starts)": the
+    start loop's step back above.
+  - "it could not use the settings": the new version came up on the default
+    settings (see
     ["Settings not usable by this version"](#settings-file-unusable-put-aside-defaults-loaded))
     and was not confirmed.
-  - "...: the install was cut short": the power went during the install.
-  - "... by hand": the web page's button below.
-  - The web Update page shows the same line in red under Previous version,
-    Last update, with its date, until the next install. So does
+  - "its install was cut short": the power went during the install.
+  - "by hand": the web page's button below.
+  - The web Update page shows it as one sentence in red ("Update v0.3.12
+    taken back to v0.3.11: it did not stay up a minute in 3 starts") under
+    Previous version, Last update, with its date, until the next install. So does
     `x6100-update status` over SSH, in "last" ("text", and "reason": starts,
     settings, interrupted or hand).
   - A step back to v0.3.10 or earlier shows nothing on the screen: those
@@ -2077,7 +2079,7 @@ seconds of dark screen); the radio does not reboot.
 > so you can put your settings back.
 
 - Reset: all the settings in params.db (band memory and CW messages
-  included) and their [last good copy](#settings-restored-from-2026-11-13-1402-the-settings-file-was-damaged),
+  included) and their [last good copy](#settings-file-damaged-restored-from-2026-11-13-1402),
   app frequencies, DX cluster, FT8 UDP, PSK squelch, TCI server, time
   zone, headphone volume, Bluetooth CAT.
 - Kept: logs (ADIF, QSO, field), memory channels, PSK/Olivia macros, JS8
@@ -6877,7 +6879,7 @@ UTC and the seconds since power-on:
    2. "settings: ..." only when the settings file could not be used (see
       ["Settings file unusable"](#settings-file-unusable-put-aside-defaults-loaded));
       "... the last good copy of <date time> loaded" when the copy took its
-      place (see ["Settings restored"](#settings-restored-from-2026-11-13-1402-the-settings-file-was-damaged))
+      place (see ["Settings file damaged"](#settings-file-damaged-restored-from-2026-11-13-1402))
    3. "settings read"
    4. "base: no answer (try N)" for each try while the base gives no answer,
       and "base: reset" after about 6 seconds of that; then "base answered".
@@ -6924,7 +6926,7 @@ web configurator, read the file on a PC.
    whose DATA partition did not mount, or went read-only after card errors,
    has all its lines in that file too, the GUI's included.
 
-#### "Settings restored from 2026-11-13 14:02: the settings file was damaged"
+#### "Settings file damaged, restored from 2026-11-13 14:02"
 
 The radio keeps a last good copy of its settings: a minute after each start
 whose settings loaded, and at each power-off with the POWER key (the

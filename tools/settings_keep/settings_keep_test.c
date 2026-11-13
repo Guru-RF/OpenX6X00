@@ -9,7 +9,7 @@
  *  - A clean start, then the copy: one file in rollback mode (no -wal beside it), sound, with what was committed
  *    through the GUI's connection and still in its WAL, and nothing of a transaction that connection has open.
  *  - A damaged params.db (pages overwritten, its header gone, cut to nothing) with a copy: put aside, the copy in its
- *    place, the note "Settings restored from <date time>\nthe settings file was damaged" in the copy's local time,
+ *    place, the note "Settings file damaged\nrestored from <date time>" in the copy's local time,
  *    the start trace's line; the copy is made again of it.
  *  - Without a copy, with a damaged one, with one of another program (no version row): the defaults, as before.
  *  - No params.db (a factory reset, which restarts the GUI without S95gui): the defaults, never the copy, no note,
@@ -216,8 +216,8 @@ static void restored_check(const char *what) {
     check(database_init(), "restored: the settings open");
     snprintf(line, sizeof(line), "%s: the note", what);
     check(database_note() && !strcmp(database_note(),
-                                     "Settings restored from 2026-11-13 10:20\nthe settings file was damaged"), line);
-    if (database_note() && strcmp(database_note(), "Settings restored from 2026-11-13 10:20\nthe settings file was damaged"))
+                                     "Settings file damaged\nrestored from 2026-11-13 10:20"), line);
+    if (database_note() && strcmp(database_note(), "Settings file damaged\nrestored from 2026-11-13 10:20"))
         fprintf(report, "  note: %s\n", database_note());
     snprintf(line, sizeof(line), "%s: the copy's settings", what);
     check(value_in(db, "owner") == 1, line);

@@ -288,20 +288,16 @@ static void update_confirm_cb(lv_timer_t *t) {
  * could not use the settings file, by hand, or its install was cut short. The step back happens before this GUI
  * starts (x6100-update boot-check, or the web page's button), so nothing else on the screen would tell */
 static void update_notice_done(const char *out, int status, void *user) {
-    const char *text = out + 3, *colon;
+    const char *text = out + 3;
     int         len;
 
     (void)user;
     if (status == 0 && strncmp(out, "ok ", 3) == 0 && out[3]) {
-        len   = (int)strcspn(text, "\r\n");
-        colon = strstr(text, ": ");
-        /* On two lines at its first ": ", what went back and why: one line this long scrolls past in the message box
-         * before it can be read. The updater's own line stays whole for its status and the web page */
-        if (colon && colon - text < len) {
-            msg_schedule_text_ms(8000, "%.*s\n%.*s", (int)(colon - text), text, len - (int)(colon - text) - 2, colon + 2);
-        } else {
-            msg_schedule_text_ms(8000, "%.*s", len, text);
+        /* Two short lines from the updater (x6100-update screen_text): one line this long would scroll past in the
+         * message box before it could be read */
+        for (len = (int)strlen(text); len > 0 && (text[len - 1] == '\n' || text[len - 1] == '\r'); len--) {
         }
+        msg_schedule_text_ms(8000, "%.*s", len, text);
     }
 }
 
