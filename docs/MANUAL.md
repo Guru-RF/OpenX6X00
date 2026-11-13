@@ -19,7 +19,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
-- [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [a PC on Bluetooth](#a-pc-on-bluetooth)
+- [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
 - [Wavelog](#wavelog)
@@ -5022,6 +5022,46 @@ On Linux: `rfcomm connect /dev/rfcomm0
 device exposes an outgoing COM/SPP port. Log files: `/tmp/btcat.log`,
 `/tmp/btcat-setup.log`. Connection details: [reference](#bluetooth-cat-connection).
 
+### TCI over Bluetooth
+
+The [TCI server](#tci-server) is also offered over Bluetooth, for a device
+that has no network to reach the radio by: the VFO-Knob's Bluetooth
+firmware. The knob tunes and keys the radio and transmits its microphone; the
+radio's speaker plays the receiver, as always.
+
+- **The service:** "OpenX6X00 TCI", a Bluetooth serial port (RFCOMM) on
+  channel 22, with service class UUID
+  `1d21eea1-57bf-4f53-9ad6-721d624f2e67`. A device looks it up by that UUID.
+  Bluetooth CAT keeps channel 1.
+- **What runs over it:** the same TCI WebSocket as over the network, opened
+  with the same HTTP upgrade request. A device that sends no `Origin`
+  header is taken for a TCI program, not a browser page.
+- **Paired devices only:** the link must be encrypted, so a device that has
+  not paired can't connect.
+  - Pair once, in the pairing window, as for CAT: Settings > Bluetooth,
+    Pairing, then pair from the device within 3 minutes (Just Works, no PIN).
+  - Afterwards the device connects whenever it likes, also after a restart
+    of either, without the window.
+- **Asked before it transmits:** it is a client like one on the network,
+  known by the device's address. Its first key brings up the question on
+  the screen: "Bluetooth AA:BB:CC:DD:EE:FF (its name) wants to transmit"
+  (see [Ask before TX](#tci-server)). Always keeps that address in the
+  TCI page's Allowed list.
+- **TCI's own switch:** turning TCI off (Settings > General > TCI SERVER,
+  or System > TCI on the web configurator) closes and refuses Bluetooth
+  connections too. Listen only applies to them as well.
+- **The PTT when the link goes:** Bluetooth notices a link that died
+  without a word (the knob carried out of range) only after its own timeout
+  of up to 20 s. So the radio ends a Bluetooth client's transmission:
+  - at once when the link or the WebSocket closes;
+  - after 0.5 s without its TX audio, when it keys with its audio;
+  - after 5 s without a word from it otherwise (the radio pings it every
+    2 s);
+  - after 3 minutes on the air, as for every client.
+- **Up to 4 TCI clients in all**, over the network and Bluetooth together.
+- **Log:** the TCI lines in the GUI's log (`tci: Bluetooth ... connected`),
+  and the service in `/tmp/bt_pair.log` (`tci: service registered`).
+
 ### A PC on Bluetooth
 
 When a PC (or a phone) pairs with the radio it gets:
@@ -6605,7 +6645,8 @@ the radio, hears it, keys it and sends CW with it.
   on the knob's configuration page as the AetherSDR computer, port 50001.
   The knob tunes, changes mode, filter and AGC, keys the radio, shows the
   S-meter and the TX meters, plays the RX audio on its jack and sends its
-  microphone when keyed.
+  microphone when keyed. Its Bluetooth firmware reaches the radio without a
+  network: see [TCI over Bluetooth](#tci-over-bluetooth).
 - Other clients: anything that talks to AetherSDR or ExpertSDR3 over TCI
   (loggers, CW keyers) should work for what the radio has; what it does not
   have is answered with the radio's own value.

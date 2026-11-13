@@ -32,6 +32,13 @@
  *  (funnel_auth). Closed when its session is revoked; a wrong token counts towards Funnel's pause.
  *  TCI programs cannot pair and do not come over Funnel.
  *
+ *  Over Bluetooth (tci_server_bt_take): the GUI's BlueZ service "OpenX6X00 TCI" (bt_dev.c, RFCOMM, paired devices
+ *  only) hands each connection over as a socket, with the same WebSocket on it as over TCP: the VFO-Knob's Bluetooth
+ *  firmware. It is a client on the network like any other, known by the device's address: asked about before it
+ *  transmits, kept by that address with Always. A link that dies without a word (the knob carried out of range) is
+ *  noticed by Bluetooth only after its own timeout, so a transmission also ends once the client has been silent
+ *  BT_TX_SILENT_MS, pinged every BT_PING_MS meanwhile; TCI audio's TX_SILENCE_MS ends one with audio sooner.
+ *
  *  A start from a client on the network is the operator's to allow (tx_permit), unless tx_confirm=0: it is answered
  *  trx:0,false and the radio asks on its screen, "<client> wants to transmit", Allow once (while that connection
  *  stays open), Always (TCI_ALLOWED), No (for that connection); no answer within TCI_ASK_S is a No. One question
@@ -122,6 +129,11 @@
 #define ASK_MS        (TCI_ASK_S * 1000)   /* a start asked on the screen: no answer this long is a No */
 #define TX_SILENCE_MS 500           /* keyed with TCI audio: unkeyed without frames this long */
 #define TX_LIMIT_MS   (180 * 1000)
+#define BT_PING_MS    2000          /* over Bluetooth: silent this long, it is pinged (its answer shows the link is up) */
+#define BT_TX_SILENT_MS 5000        /* over Bluetooth: silent this long while it transmits, its transmission ends. The
+                                       link's own timeout (20 s by default) is too long for a knob carried out of range
+                                       with the PTT down; keyed with its audio, TX_SILENCE_MS ends it sooner */
+#define BT_QUEUE      4             /* Bluetooth connections handed over, not taken by the socket thread yet */
 #define DRIVE_SPAN    (BOARD_PWR_MAX - BOARD_PWR_MIN)   /* drive 0..100 %: BOARD_PWR_MIN to BOARD_PWR_MAX */
 #define CW_QUEUE      1024          /* a client's CW text waiting for the keyer, as the keyer takes it */
 #define CW_STOP_MS    300           /* the keyer asked to stop a client's text and not seen stopped: asked again */
@@ -141,6 +153,7 @@ typedef struct {
     bool            ws;             /* handshake done: frames are read */
     bool            up;             /* and it is sent to: at once, or over Funnel once its token is good */
     bool            funnel;         /* from the internet through Tailscale Funnel: the Panel's sound and mic (#58) */
+    bool            bt;             /* over Bluetooth (tci_server_bt_take): ip is the device's address */
     uint64_t        open_ms;        /* when the handshake was done */
     uint64_t        check_ms;       /* over Funnel: when its session was last found still there */
     char            token[33];      /* over Funnel: the paired browser's token it gave */
@@ -208,6 +221,14 @@ static atomic_bool     trust_operate = true;   /* trust=operate (default) or vie
 static atomic_bool     tx_confirm = true;      /* tx_confirm=1 (default): a client on the network is asked about */
 static atomic_int      nclients;
 static int             wake_fd[2] = {-1, -1};
+/* Bluetooth connections handed over by bt_dev.c's thread (fd >= 0), and devices whose connections BlueZ asks to end
+ * (fd -1), for the socket thread to take (bt_handed) */
+static pthread_mutex_t bt_mux = PTHREAD_MUTEX_INITIALIZER;
+static struct {
+    int  fd;
+    char addr[18];
+} bt_new[BT_QUEUE];
+static int             bt_nnew;
 static atomic_bool     cap_wanted;      /* a client wants RX audio: set by the socket thread alone (cap_update) */
 
 /* RADE's speech in place of the RX audio (tci_server_speech_on): one writer, the capture thread reads. A talk burst
@@ -691,11 +712,15 @@ static void client_close(client_t *c) {
     ctl_release(CTL_TCI, (int)(c - clients));
     pthread_mutex_lock(&c->lock);
     if (c->fd >= 0) {
+        /* BlueZ keeps a copy of a Bluetooth connection's socket: closing ours alone would leave the link up, the
+         * client never told. A shutdown ends it for both copies */
+        if (c->bt)
+            shutdown(c->fd, SHUT_RDWR);
         close(c->fd);
         c->fd = -1;
         atomic_fetch_sub(&nclients, 1);
     }
-    c->ws = c->up = c->funnel = false;
+    c->ws = c->up = c->funnel = c->bt = false;
     c->token[0] = 0;
     c->out_head = c->out_len = c->out_cut = c->urg_len = c->in_len = c->text_len = 0;
     c->audio_on = c->rx_sensors = c->tx_sensors = false;
@@ -1416,12 +1441,15 @@ static void ask_close_apply(void *arg) {
     tci_ask_close(m->id, m->why);
 }
 
-/* The client as the screen and the log name it: its address, and the name it gave in brackets */
+/* The client as the screen and the log name it: its address, and the name it gave in brackets; "Bluetooth" before a
+ * device's address, which would mean little on its own */
 static void client_who(const client_t *c, char *buf, size_t n) {
+    const char *bt = c->bt ? "Bluetooth " : "";
+
     if (c->app[0])
-        snprintf(buf, n, "%s (%s)", c->ip, c->app);
+        snprintf(buf, n, "%s%s (%s)", bt, c->ip, c->app);
     else
-        snprintf(buf, n, "%s", c->ip);
+        snprintf(buf, n, "%s%s", bt, c->ip);
 }
 
 /* What became of the question, answered or not: kept for its client's connection, or for its address with Always;
@@ -2289,25 +2317,17 @@ static int listen_open(int p) {
     return fd;
 }
 
-static void accept_client(int listen_fd) {
-    struct sockaddr_in peer;
-    socklen_t          pl = sizeof(peer);
-    int                fd = accept4(listen_fd, (struct sockaddr *)&peer, &pl, SOCK_NONBLOCK | SOCK_CLOEXEC);
-    int                one = 1;
-
-    if (fd < 0)
-        return;
+/* A connection in a free place, as a client before its handshake: its place, -1 when there is none (the caller closes
+ * it). ip is the address it is known by; bt: one over Bluetooth */
+static int client_add(int fd, const char *ip, bool bt) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         client_t *c = &clients[i];
         if (c->fd >= 0)
             continue;
-        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-#ifdef TCP_NOTSENT_LOWAT
-        setsockopt(fd, IPPROTO_TCP, TCP_NOTSENT_LOWAT, &(int){NOTSENT_LOWAT}, sizeof(int));
-#endif
         pthread_mutex_lock(&c->lock);
         c->fd          = fd;
         c->ws = c->up = c->funnel = false;
+        c->bt          = bt;
         c->token[0]    = 0;
         c->local = c->seen = false;
         c->said        = SAID_NOTHING;
@@ -2321,12 +2341,74 @@ static void accept_client(int listen_fd) {
         c->fmt_rate_asked = false;
         c->fmt_gen++;
         c->last_ms = c->ping_ms = now_ms();
-        inet_ntop(AF_INET, &peer.sin_addr, c->ip, sizeof(c->ip));
+        snprintf(c->ip, sizeof(c->ip), "%s", ip);
         pthread_mutex_unlock(&c->lock);
         atomic_fetch_add(&nclients, 1);
-        return;
+        return i;
     }
+    return -1;
+}
+
+static void accept_client(int listen_fd) {
+    struct sockaddr_in peer;
+    socklen_t          pl = sizeof(peer);
+    int                fd = accept4(listen_fd, (struct sockaddr *)&peer, &pl, SOCK_NONBLOCK | SOCK_CLOEXEC);
+    int                one = 1;
+    char               ip[INET_ADDRSTRLEN];
+
+    if (fd < 0)
+        return;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+#ifdef TCP_NOTSENT_LOWAT
+    setsockopt(fd, IPPROTO_TCP, TCP_NOTSENT_LOWAT, &(int){NOTSENT_LOWAT}, sizeof(int));
+#endif
+    inet_ntop(AF_INET, &peer.sin_addr, ip, sizeof(ip));
+    if (client_add(fd, ip, false) < 0)
+        close(fd);
+}
+
+/* A Bluetooth connection the server does not keep: ended for BlueZ's copy too (client_close) */
+static void bt_refuse(int fd) {
+    shutdown(fd, SHUT_RDWR);
     close(fd);
+}
+
+/* The Bluetooth connections handed over since the last round, taken as clients (none while TCI is off), and the
+ * devices BlueZ asked to let go of, their connections closed. Socket thread */
+static void bt_handed(bool en) {
+    int  n;
+    struct {
+        int  fd;
+        char addr[18];
+    } got[BT_QUEUE];
+
+    pthread_mutex_lock(&bt_mux);
+    n = bt_nnew;
+    memcpy(got, bt_new, sizeof(got[0]) * (size_t)n);
+    bt_nnew = 0;
+    pthread_mutex_unlock(&bt_mux);
+    for (int k = 0; k < n; k++) {
+        if (got[k].fd < 0) {
+            for (int i = 0; i < MAX_CLIENTS; i++)
+                if (clients[i].fd >= 0 && clients[i].bt && !strcmp(clients[i].ip, got[k].addr)) {
+                    LV_LOG_USER("tci: Bluetooth %s let go (BlueZ asked)", got[k].addr);
+                    tx_session_end(i, false);
+                    client_close(&clients[i]);
+                }
+            continue;
+        }
+        /* What waits unsent stays in out, as NOTSENT_LOWAT keeps it for TCP: the pacing frames then go first */
+        setsockopt(got[k].fd, SOL_SOCKET, SO_SNDBUF, &(int){NOTSENT_LOWAT / 2}, sizeof(int));
+        if (!en) {
+            LV_LOG_USER("tci: Bluetooth %s refused: TCI is off", got[k].addr);
+            bt_refuse(got[k].fd);
+        } else if (client_add(got[k].fd, got[k].addr, true) < 0) {
+            LV_LOG_USER("tci: Bluetooth %s refused: %d clients already", got[k].addr, MAX_CLIENTS);
+            bt_refuse(got[k].fd);
+        } else {
+            LV_LOG_USER("tci: Bluetooth %s connected", got[k].addr);
+        }
+    }
 }
 
 static void telemetry(uint64_t now, const rstate_t *s) {
@@ -2354,6 +2436,43 @@ static void telemetry(uint64_t now, const rstate_t *s) {
     }
 }
 
+/* Each client's timers, every STATE_MS: gone when silent IDLE_MS, Funnel's key and session, Bluetooth's silence
+ * while transmitting, and a PING to one silent for its interval. Socket thread */
+static void clients_tick(uint64_t now) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        client_t *c    = &clients[i];
+        uint64_t  ping = c->funnel ? FUNNEL_PING_MS : c->bt ? BT_PING_MS : PING_MS;
+        if (c->fd < 0)
+            continue;
+        if (now - c->last_ms > IDLE_MS) {
+            tx_session_end(i, false);
+            client_close(c);
+        } else if (c->bt && (i == txs.owner || i == ptt_owner || i == cw_owner) &&
+                   now - c->last_ms > BT_TX_SILENT_MS) {
+            /* Not even an answer to the pings: the link is most likely gone, the knob out of range */
+            LV_LOG_USER("tci: Bluetooth %s silent for %d s while transmitting: its transmission ends", c->ip,
+                        BT_TX_SILENT_MS / 1000);
+            tx_session_end(i, false);
+        } else if (c->funnel && !c->up && now - c->open_ms > FUNNEL_AUTH_MS) {
+            LV_LOG_USER("tci: %s over Tailscale Funnel gave no key in time", c->ip);
+            client_close(c);
+        } else if (c->funnel && c->up && now - c->check_ms > FUNNEL_CHECK_MS) {
+            /* the browser's session revoked at home (Sessions, Forget all): its sound goes too */
+            int  role;
+            bool tx;
+            c->check_ms = now;
+            if (!remote_server_session_check(c->token, &role, &tx, NULL, 0)) {
+                LV_LOG_USER("tci: %s over Tailscale Funnel: its session was revoked", c->ip);
+                tx_session_end(i, false);
+                client_close(c);
+            }
+        } else if (c->up && now - c->last_ms > ping && now - c->ping_ms > ping) {
+            c->ping_ms = now;
+            client_frame(c, WS_OP_PING, NULL, 0, NULL, 0);
+        }
+    }
+}
+
 static void *server_thread(void *arg) {
     int      listen_fd = -1, listen_port = 0;
     rstate_t last;
@@ -2375,6 +2494,12 @@ static void *server_thread(void *arg) {
                     client_close(&clients[i]);
                 }
         }
+        if (!en)        /* the Bluetooth ones too, which no listener brought: TCI off is off for them as well */
+            for (int i = 0; i < MAX_CLIENTS; i++)
+                if (clients[i].fd >= 0) {
+                    tx_session_end(i, false);
+                    client_close(&clients[i]);
+                }
         if (en && listen_fd < 0) {
             listen_fd   = listen_open(p);
             listen_port = p;
@@ -2410,6 +2535,7 @@ static void *server_thread(void *arg) {
         }
         if (listen_fd >= 0 && (pfd[1].revents & POLLIN))
             accept_client(listen_fd);
+        bt_handed(en);
         for (int k = 2; k < n; k++) {
             client_t *c = &clients[slot[k]];
             if (c->fd < 0)
@@ -2434,32 +2560,7 @@ static void *server_thread(void *arg) {
             state_ms = now;
             state_follow(&last, false);
             telemetry(now, &last);
-            for (int i = 0; i < MAX_CLIENTS; i++) {
-                client_t *c    = &clients[i];
-                uint64_t  ping = c->funnel ? FUNNEL_PING_MS : PING_MS;
-                if (c->fd < 0)
-                    continue;
-                if (now - c->last_ms > IDLE_MS) {
-                    tx_session_end(i, false);
-                    client_close(c);
-                } else if (c->funnel && !c->up && now - c->open_ms > FUNNEL_AUTH_MS) {
-                    LV_LOG_USER("tci: %s over Tailscale Funnel gave no key in time", c->ip);
-                    client_close(c);
-                } else if (c->funnel && c->up && now - c->check_ms > FUNNEL_CHECK_MS) {
-                    /* the browser's session revoked at home (Sessions, Forget all): its sound goes too */
-                    int  role;
-                    bool tx;
-                    c->check_ms = now;
-                    if (!remote_server_session_check(c->token, &role, &tx, NULL, 0)) {
-                        LV_LOG_USER("tci: %s over Tailscale Funnel: its session was revoked", c->ip);
-                        tx_session_end(i, false);
-                        client_close(c);
-                    }
-                } else if (c->up && now - c->last_ms > ping && now - c->ping_ms > ping) {
-                    c->ping_ms = now;
-                    client_frame(c, WS_OP_PING, NULL, 0, NULL, 0);
-                }
-            }
+            clients_tick(now);
         }
         if (now - conf_ms >= CONF_MS) {
             conf_ms = now;
@@ -2621,10 +2722,42 @@ const char *tci_server_client(void) {
         pthread_mutex_lock(&c->lock);
         bool up = c->fd >= 0 && c->up;
         if (up)
-            snprintf(buf, sizeof(buf), "%s%s", c->ip, c->funnel ? " via Funnel" : "");
+            snprintf(buf, sizeof(buf), "%s%s", c->ip, c->funnel ? " via Funnel" : c->bt ? " via Bluetooth" : "");
         pthread_mutex_unlock(&c->lock);
         if (up)
             return buf;
     }
     return NULL;
+}
+
+/* Queued for the socket thread (bt_handed): it alone touches the clients */
+static void bt_queue(int fd, const char *addr) {
+    bool queued = false;
+
+    pthread_mutex_lock(&bt_mux);
+    if (bt_nnew < BT_QUEUE) {
+        bt_new[bt_nnew].fd = fd;
+        snprintf(bt_new[bt_nnew].addr, sizeof(bt_new[0].addr), "%s", addr);
+        bt_nnew++;
+        queued = true;
+    }
+    pthread_mutex_unlock(&bt_mux);
+    if (queued)
+        wake();
+    else if (fd >= 0)
+        bt_refuse(fd);      /* four handed over within one round of the socket thread: something is wrong */
+}
+
+void tci_server_bt_take(int fd, const char *addr) {
+    int fl = fcntl(fd, F_GETFL);
+
+    if (fl < 0 || fcntl(fd, F_SETFL, fl | O_NONBLOCK) < 0 || fcntl(fd, F_SETFD, FD_CLOEXEC) < 0) {
+        bt_refuse(fd);
+        return;
+    }
+    bt_queue(fd, addr);
+}
+
+void tci_server_bt_drop(const char *addr) {
+    bt_queue(-1, addr);
 }

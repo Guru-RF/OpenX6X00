@@ -37,11 +37,21 @@
  *
  *  The worker's D-Bus calls are synchronous on its own connection; the GUI
  *  only reads the cached list.
+ *
+ *  TCI over Bluetooth: the agent's thread also offers the service
+ *  "OpenX6X00 TCI" (ProfileManager1.RegisterProfile, TCI_BT_UUID in
+ *  tci_server.h) on RFCOMM channel TCI_BT_CHANNEL. BlueZ makes its SDP
+ *  record, listens, asks for an encrypted link (a paired device) and asks
+ *  the agent's AuthorizeService for a device it does not trust; each
+ *  connection comes to Profile1.NewConnection as a socket, handed to the
+ *  TCI server. Registered again whenever bluetoothd (re)appears.
  */
 
 #include "bt_dev.h"
+#include "tci_server.h"
 
 #include <gio/gio.h>
+#include <gio/gunixfdlist.h>
 
 #include <pthread.h>
 #include <stdarg.h>
@@ -67,6 +77,7 @@
 #define AGENT_CAP       "NoInputNoOutput"
 #define AGENT_CAP_KBD   "KeyboardDisplay"   /* only while pairing a keyboard */
 #define AGENT_PIN       "0000"
+#define TCI_PROFILE_PATH "/org/x6100/bt_tci"
 
 #define BTCAT_CTL       "/usr/sbin/btcat-ctl"
 #define BTAUDIO_CTL     "/usr/sbin/btaudio-ctl"
@@ -1028,13 +1039,106 @@ static gboolean agent_tick(gpointer user) {
     return G_SOURCE_CONTINUE;
 }
 
+/* ---- TCI over Bluetooth ------------------------------------------------- */
+
+static const char PROFILE_XML[] =
+    "<node>"
+    " <interface name='org.bluez.Profile1'>"
+    "  <method name='Release'/>"
+    "  <method name='NewConnection'>"
+    "   <arg type='o' name='device' direction='in'/>"
+    "   <arg type='h' name='fd' direction='in'/>"
+    "   <arg type='a{sv}' name='fd_properties' direction='in'/>"
+    "  </method>"
+    "  <method name='RequestDisconnection'>"
+    "   <arg type='o' name='device' direction='in'/>"
+    "  </method>"
+    " </interface>"
+    "</node>";
+
+/* "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF" -> "AA:BB:CC:DD:EE:FF"; false for anything else */
+static bool path_addr(const char *path, char *out, size_t out_sz) {
+    const char *d = path ? strstr(path, "/dev_") : NULL;
+
+    if (!d || out_sz < 18) return false;
+    snprintf(out, out_sz, "%.17s", d + 5);
+    for (char *p = out; *p; p++) {
+        if (*p == '_') *p = ':';
+    }
+    return addr_ok(out);
+}
+
+/* Runs on the agent thread. A connection BlueZ made from a paired device: its socket to the TCI server, which closes
+ * it (also when TCI is off). BlueZ keeps a copy of its own, so what ends the link is the server's shutdown */
+static void profile_call(GDBusConnection *c, const gchar *sender, const gchar *obj, const gchar *iface,
+                         const gchar *method, GVariant *params, GDBusMethodInvocation *inv, gpointer user) {
+    const char *dev = NULL;
+    char        addr[18];
+
+    if (strcmp(method, "NewConnection") == 0) {
+        GUnixFDList *fds = g_dbus_message_get_unix_fd_list(g_dbus_method_invocation_get_message(inv));
+        GError      *err = NULL;
+        gint32       idx = -1;
+        int          fd;
+
+        g_variant_get(params, "(&oh@a{sv})", &dev, &idx, NULL);
+        fd = fds ? g_unix_fd_list_get(fds, idx, &err) : -1;    /* a copy of its own, ours to close */
+        if (fd < 0 || !path_addr(dev, addr, sizeof(addr))) {
+            plog("tci: connection from %s not taken: %s", dev ? dev : "?", err ? err->message : "no socket");
+            g_clear_error(&err);
+            if (fd >= 0) close(fd);
+            g_dbus_method_invocation_return_dbus_error(inv, "org.bluez.Error.Rejected", "Not taken");
+            return;
+        }
+        plog("tci: connection from %s", addr);
+        tci_server_bt_take(fd, addr);
+    } else if (strcmp(method, "RequestDisconnection") == 0) {
+        g_variant_get(params, "(&o)", &dev);
+        if (path_addr(dev, addr, sizeof(addr))) {
+            plog("tci: %s to be let go", addr);
+            tci_server_bt_drop(addr);
+        }
+    }
+    g_dbus_method_invocation_return_value(inv, NULL);
+}
+
+static const GDBusInterfaceVTable profile_vtable = { .method_call = profile_call };
+
+/* The service on BlueZ: on a channel of its own, as Bluetooth CAT is on channel 1. Left to choose one, the kernel
+ * would give channel 1 here too: it looks only for a listener on the adapter's own address, and the CAT bridge
+ * listens on any address. RequireAuthentication: an encrypted link, so a paired device (BT_SECURITY_MEDIUM, as the
+ * CAT bridge); RequireAuthorization: a device not trusted is the agent's to allow (only one that is paired) */
+static void profile_register(void) {
+    GVariantBuilder o;
+    GVariant       *r;
+    char            err[96];
+
+    g_variant_builder_init(&o, G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(&o, "{sv}", "Name", g_variant_new_string(TCI_BT_NAME));
+    g_variant_builder_add(&o, "{sv}", "Role", g_variant_new_string("server"));
+    g_variant_builder_add(&o, "{sv}", "Channel", g_variant_new_uint16(TCI_BT_CHANNEL));
+    g_variant_builder_add(&o, "{sv}", "RequireAuthentication", g_variant_new_boolean(TRUE));
+    g_variant_builder_add(&o, "{sv}", "RequireAuthorization", g_variant_new_boolean(TRUE));
+    g_variant_builder_add(&o, "{sv}", "AutoConnect", g_variant_new_boolean(FALSE));
+    r = call_on(A.conn, "/org/bluez", "org.bluez.ProfileManager1", "RegisterProfile",
+                g_variant_new("(osa{sv})", TCI_PROFILE_PATH, TCI_BT_UUID, &o), NULL, CALL_TIMEOUT_MS,
+                err, sizeof(err));
+    if (r) {
+        plog("tci: service registered, RFCOMM channel %d", TCI_BT_CHANNEL);
+    } else if (strcmp(err, "org.bluez.Error.AlreadyExists") != 0) {
+        plog("tci: service not registered (%s)", err[0] ? err : "no reply");
+    }
+    unref(r);
+}
+
 static void bluez_appeared(GDBusConnection *c, const gchar *name, const gchar *owner, gpointer user) {
     agent_register();
+    profile_register();
 }
 
 static void *agent_thread(void *arg) {
     GError        *err = NULL;
-    GDBusNodeInfo *info;
+    GDBusNodeInfo *info, *pinfo;
     GSource       *tick;
 
     A.ctx = g_main_context_new();
@@ -1048,6 +1152,13 @@ static void *agent_thread(void *arg) {
         plog("agent: not started: %s", err ? err->message : "no D-Bus");
         g_clear_error(&err);
         return NULL;
+    }
+    /* TCI over Bluetooth: the object BlueZ hands the connections to (profile_register, at each bluez_appeared) */
+    pinfo = g_dbus_node_info_new_for_xml(PROFILE_XML, &err);
+    if (!pinfo || !g_dbus_connection_register_object(A.conn, TCI_PROFILE_PATH, pinfo->interfaces[0], &profile_vtable,
+                                                     NULL, NULL, &err)) {
+        plog("tci: no Bluetooth service: %s", err ? err->message : "?");
+        g_clear_error(&err);
     }
     /* (re)register with bluez every time bluetoothd appears */
     g_bus_watch_name_on_connection(A.conn, BLUEZ, G_BUS_NAME_WATCHER_FLAGS_NONE, bluez_appeared, NULL, NULL, NULL);

@@ -84,6 +84,17 @@ int    tci_server_audio_clients(void);
 /* The address of the first client ("192.168.1.20"), NULL when none; a static buffer */
 const char *tci_server_client(void);
 
+/* TCI over Bluetooth (bt_dev.c): BlueZ's "OpenX6X00 TCI" service hands each connection over as a socket, a byte
+ * stream that carries the same WebSocket as TCP does (the VFO-Knob's Bluetooth firmware). The server takes fd and
+ * closes it when done; addr is the device's address ("AA:BB:CC:DD:EE:FF"), which is what the screen's question and
+ * the clients allowed always know it by. With TCI off, or no room, it is closed at once. Any thread */
+#define TCI_BT_UUID    "1d21eea1-57bf-4f53-9ad6-721d624f2e67"
+#define TCI_BT_NAME    "OpenX6X00 TCI"
+#define TCI_BT_CHANNEL 22
+void tci_server_bt_take(int fd, const char *addr);
+/* BlueZ asks for the connections of the device at addr to end (Device1.Disconnect): they are closed. Any thread */
+void tci_server_bt_drop(const char *addr);
+
 #ifdef __cplusplus
 }
 #endif

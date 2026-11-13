@@ -72,7 +72,14 @@ alone, a change on the radio told too; and the text's rules (`cw_text`: `^ ~ *` 
 sign or the letters of a run with none, TCI's own example of `<` and `>`, what has no Morse left
 out, a text longer than the queue cut with the speed back) with the commands ignored unanswered
 (another transceiver, no text, nothing to key, `cw_msg`, `cw_terminal`) and a comma left in a
-text kept. Each runs in a child process, its clients on socket
+text kept. One more is a knob over Bluetooth (`tci_server_bt_take`, as bt_dev.c hands BlueZ's
+socket over, a copy kept as BlueZ keeps one): known by the device's address, asked as
+"Bluetooth AA:BB:CC:DD:EE:01 (VFO-Knob BT/1.0)", Always kept by that address and its next
+connection keying without a question; silent 4 s on the air it stays keyed, 5 s and its
+transmission ends with the connection kept, silent with nothing on the air it is only pinged;
+BlueZ asking to let go (`tci_server_bt_drop`) closes it and the other end sees the end while
+BlueZ's copy is open (a shutdown, not a close alone); the link gone unkeys at once; with TCI off
+a connection is refused the same way. Each runs in a child process, its clients on socket
 pairs, without a listener, and three times: the clients' commands as written, in capitals (as
 Hamlib's TCI backend sends them, `TRX:0,TRUE,TCI;`, `AUTH:` over Funnel) and in mixed case
 (`TrX:0,TrUe,tCi;`), which TCI says are the same: the same answers, in lower case. It prints

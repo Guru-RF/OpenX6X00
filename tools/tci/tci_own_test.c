@@ -1509,6 +1509,108 @@ static void cw_text_rules(void) {
     gui(-1);
 }
 
+/* ---- Over Bluetooth (the VFO-Knob's Bluetooth firmware) ----------------------------- */
+
+#define KNOB "AA:BB:CC:DD:EE:01"
+
+/* A connection BlueZ hands over for the device at addr, taken by the socket thread's round (en: TCI on), then its
+ * upgrade request; *bluez a copy of the socket kept as BlueZ keeps one. The place it took, -1 none */
+static int bt_connect(const char *addr, bool en, int *bluez) {
+    static char resp[65536];    /* the 101 and the greeting after it, all the server wrote: frames read whole later */
+    int         sv[2];
+    char        req[512];
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0) {
+        perror("socketpair");
+        exit(2);
+    }
+    *bluez = dup(sv[0]);
+    tci_server_bt_take(sv[0], addr);
+    bt_handed(en);
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i].fd != sv[0])
+            continue;
+        fcntl(sv[1], F_SETFL, O_NONBLOCK);
+        peer[i] = sv[1];
+        snprintf(req, sizeof(req), "GET / HTTP/1.1\r\nHost: x6100.local\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                 "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n"
+                 "User-Agent: VFO-Knob BT/1.0\r\n\r\n");
+        if (send(sv[1], req, strlen(req), MSG_NOSIGNAL) != (ssize_t)strlen(req))
+            exit(2);
+        client_read(i);
+        ssize_t n = recv(sv[1], resp, sizeof(resp) - 1, 0);
+        return n > 12 && !strncmp(resp, "HTTP/1.1 101", 12) ? i : -1;
+    }
+    peer[0] = sv[1];    /* for ended() */
+    return -1;
+}
+
+/* The other end saw the connection end (a shutdown reaches it while BlueZ's copy is still open) */
+static bool ended(int fd) {
+    char    b[65536];
+    ssize_t n;
+
+    fcntl(fd, F_SETFL, O_NONBLOCK);
+    while ((n = recv(fd, b, sizeof(b), 0)) > 0) {}
+    return n == 0;
+}
+
+/* A knob's connection: a client on the network known by its address, "Bluetooth" on the screen, asked before its first
+ * key; Always kept by that address, its next connection keys without a question. Silent BT_TX_SILENT_MS while on the
+ * air: its transmission ends, the connection stays; silent as long with nothing on the air, it is only pinged. BlueZ
+ * asking to let go closes it, and with a shutdown the other end sees that while BlueZ's copy is open. TCI off: a
+ * connection is refused the same way */
+static void bluetooth(void) {
+    int  bluez, ci = bt_connect(KNOB, true, &bluez);
+    char buf[256];
+
+    check(ci == A && clients[A].bt && !clients[A].local && !strcmp(clients[A].ip, KNOB) &&
+          !strcmp(clients[A].app, "VFO-Knob BT/1.0"), "handed over: a client known by the device's address");
+    say(A, "trx:0,true;");
+    gui(-1);
+    check(strstr(heard(A), "trx:0,false;") && !on_air() && stub_ask_id &&
+          !strcmp(stub_ask_who, "Bluetooth " KNOB " (VFO-Knob BT/1.0)"),
+          "its first key: refused, the radio asks \"Bluetooth " KNOB " (VFO-Knob BT/1.0) wants to transmit\"");
+    answer(TCI_ASK_ALWAYS);
+    check(tci_server_allowed(buf, sizeof(buf)) == 1 && !strcmp(buf, KNOB " (VFO-Knob BT/1.0)"),
+          "Always: kept by its address");
+    say(A, "trx:0,true;");
+    gui(-1);
+    check(on_air() && ptt_owner == A, "its next key: on the air");
+    clients[A].last_ms = now_ms() - BT_TX_SILENT_MS + 1000;
+    clients_tick(now_ms());
+    gui(-1);
+    check(on_air() && ptt_owner == A, "silent 4 s: still on the air");
+    clients[A].last_ms = now_ms() - BT_TX_SILENT_MS - 1;
+    clients_tick(now_ms());
+    gui(-1);
+    gui(-1);
+    check(!on_air() && ptt_owner < 0 && clients[A].fd >= 0, "silent 5 s while on the air: unkeyed, still connected");
+    clients[A].last_ms = now_ms() - BT_TX_SILENT_MS - 1;
+    clients_tick(now_ms());
+    check(clients[A].fd >= 0, "silent with nothing on the air: kept (pinged)");
+    clients[A].last_ms = now_ms();
+    tci_server_bt_drop(KNOB);
+    bt_handed(true);
+    check(clients[A].fd < 0 && ended(peer[A]), "BlueZ asks to let go: closed, the other end told (BlueZ's copy open)");
+    close(bluez);
+
+    ci = bt_connect(KNOB, true, &bluez);
+    say(ci, "trx:0,true;");
+    gui(-1);
+    check(on_air() && ptt_owner == ci && stub_ask_shown == 1, "back on a new connection: keys, no question");
+    tx_session_end(ci, false);      /* the link dropped (client_read: recv failed) */
+    client_close(&clients[ci]);
+    gui(-1);
+    gui(-1);
+    check(!on_air() && ended(peer[ci]), "the link gone: unkeyed at once");
+    close(bluez);
+
+    ci = bt_connect("AA:BB:CC:DD:EE:02", false, &bluez);
+    check(ci < 0 && ended(peer[0]), "TCI off: refused, the other end told");
+    close(bluez);
+}
+
 static int run(const char *name, void (*fn)(void)) {
     int   st;
     pid_t pid;
@@ -1576,6 +1678,7 @@ int main(void) {
         {"CW: more text waits and follows; out of CW it stops", cw_more_text},
         {"CW: cw_macros_speed and cw_keyer_speed", cw_speed},
         {"CW: the text's rules, and commands ignored", cw_text_rules},
+        {"Over Bluetooth: asked, kept by address, silent while on the air, let go, gone, TCI off", bluetooth},
     };
     static const char *const written[] = {"", ", in capitals", ", in mixed case"};
     int  n = sizeof(cases) / sizeof(cases[0]), bad = 0;

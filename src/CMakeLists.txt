@@ -112,8 +112,9 @@ endif()
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
+# gio-unix-2.0: the sockets BlueZ hands over with a D-Bus call (bt_dev.c, TCI over Bluetooth)
 pkg_check_modules(deps REQUIRED IMPORTED_TARGET
-    libnm dbus-glib-1 sqlite3 libpng sndfile libudev libpulse libpulse-simple alsa libjpeg
+    libnm dbus-glib-1 sqlite3 libpng sndfile libudev libpulse libpulse-simple alsa libjpeg gio-unix-2.0
 )
 # gpsd's library: the radio has it; a PC without it builds without GPS (gps.c)
 pkg_check_modules(gps IMPORTED_TARGET libgps)
