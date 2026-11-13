@@ -19,6 +19,7 @@
 #include "screen_light.h"
 #include "screen_main.h"
 #include "smeter.h"
+#include "tci_ask.h"
 #include "tci_server.h"
 #include "tx_meters.h"
 
@@ -134,6 +135,38 @@ void remote_server_funnel_refused(const char *addr) {
 }
 bool remote_server_funnel_paused(void) { return funnel_wrong >= 3; }
 
+/* ---- the radio's question before a client on the network transmits (tci_ask.c): what the server asked, kept here
+ * for tci_own_test.c, and for tci_client_test.py in the file TCI_TEST_ASK ("ID<TAB>WHO" while it is open, gone when
+ * it closes); main() answers it with what the test writes in TCI_TEST_ANSWER (once, always or no) ---- */
+uint32_t stub_ask_id;           /* the question on the "screen", 0 none */
+uint32_t stub_ask_last;         /* the last one shown */
+char     stub_ask_who[128];
+int      stub_ask_shown, stub_ask_why;
+void tci_ask_show(uint32_t id, const char *who, int seconds) {
+    const char *path = getenv("TCI_TEST_ASK");
+    FILE       *f    = path ? fopen(path, "w") : NULL;
+
+    stub_ask_id = stub_ask_last = id;
+    snprintf(stub_ask_who, sizeof(stub_ask_who), "%s", who);
+    stub_ask_shown++;
+    fprintf(stderr, "[stub] asked: %s wants to transmit (%u, %d s)\n", who, id, seconds);
+    if (f) {
+        fprintf(f, "%u\t%s\n", id, who);
+        fclose(f);
+    }
+}
+void tci_ask_close(uint32_t id, int why) {
+    const char *path = getenv("TCI_TEST_ASK");
+
+    if (id == stub_ask_id) {
+        stub_ask_id = 0;
+        if (path)
+            unlink(path);
+    }
+    stub_ask_why = why;
+    fprintf(stderr, "[stub] question %u closed: %d\n", id, why);
+}
+
 /* ---- the main screen ---- */
 bool backlight_tick(void) { return false; }
 bool main_screen_freq_locked(void) { return false; }
@@ -200,22 +233,48 @@ int pa_simple_read(pa_simple *s, void *data, size_t bytes, int *error) {
 void pa_simple_free(pa_simple *s) { free(s); }
 
 #ifndef TCI_STUBS_NO_MAIN
+/* The operator at the "screen": the answer the test wrote, to the question open now. "off" and "on" set asking
+ * itself, as Settings or the TCI page do; "forget ADDR" forgets one allowed always, as the lists do */
+static void answer_poll(void) {
+    const char *path = getenv("TCI_TEST_ANSWER");
+    char        word[64] = "";
+    FILE       *f        = path ? fopen(path, "r") : NULL;
+
+    if (!f)
+        return;
+    if (!fgets(word, sizeof(word), f))
+        word[0] = 0;
+    fclose(f);
+    unlink(path);
+    word[strcspn(word, "\r\n")] = 0;
+    fprintf(stderr, "[stub] the operator: %s\n", word);
+    if (!strcmp(word, "off") || !strcmp(word, "on"))
+        tci_server_set_tx_confirm(!strcmp(word, "on"));
+    else if (!strncmp(word, "forget ", 7))
+        tci_server_forget(word + 7);
+    else if (stub_ask_id)
+        tci_server_answer(stub_ask_id, !strcmp(word, "once") ? TCI_ASK_ONCE : !strcmp(word, "always") ? TCI_ASK_ALWAYS
+                                                                                                    : TCI_ASK_NO);
+}
+
 int main(int argc, char **argv) {
     const char *port = getenv("TCI_TEST_PORT");
     (void)argc; (void)argv;
-    /* The conf: enabled on the test port */
+    /* The conf: enabled on the test port; nobody allowed always yet */
     FILE *f = fopen(TCI_CONF, "w");
     if (f) {
         fprintf(f, "enabled=1\nport=%s\n", port ? port : "50001");
         fclose(f);
     }
+    unlink(TCI_ALLOWED);
     tci_server_init();
     if (!tci_server_get_enabled())
         tci_server_set_enabled(true);
     fprintf(stderr, "[stub] TCI server on port %d\n", tci_server_port());
-    for (;;) {
-        sleep(1);
-        if (tci_server_clients())
+    for (int n = 0;; n++) {
+        usleep(50000);
+        answer_poll();
+        if (n % 20 == 0 && tci_server_clients())
             fprintf(stderr, "[stub] %d client(s), first %s\n", tci_server_clients(), tci_server_client());
     }
 }

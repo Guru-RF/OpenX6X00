@@ -36,7 +36,21 @@ and drive without their value, each answered with the state, nothing done; contr
 it is: with the browser, with another client that tuned, with the asking client during its own
 transmission, with the browser again after it, which that transmission's end gave it back to.
 Every set takes control as before, a `trx` true or false too, also a value the radio has
-already. Each runs in a child process, its clients on socket
+already. Six more ask the operator before a client on the network transmits (Ask before TX):
+its start answered `trx:0,false;`, keying nothing and taking no control, and the question shown
+(the stub's `tci_ask_show`) with its address and the name it gave; a second start asking
+nothing more, another client's start refused without a question; then Allow once (its next start
+keys, its reconnect asks again), Always (kept in TCI_ALLOWED with its name, not asked after a
+reconnect nor after a restart that reads the file back, asked again once forgotten, also on the
+connection that is open), No (refused without asking until it reconnects), no answer in time
+(No, with the note; a late answer changes nothing) and the client leaving while asked (the
+question closed, nothing kept). Not asked: a program on the radio (127.0.0.1, with a User-Agent
+as Pat's), a browser page from 127.0.0.1 with its Origin, a client through the radio's own proxy
+(X-Forwarded-For's last address is the one asked about), a LAN client's X-Forwarded-For not
+believed, its User-Agent cleaned for the screen, a browser that gave a paired key (keys at once),
+one whose session may only watch (refused without a question), a wrong key (asked), a start while
+the radio is on the air and one under Listen only (refused, nothing asked); with `tx_confirm` off
+every client keys as before, and the file says `tx_confirm=0`. Each runs in a child process, its clients on socket
 pairs, without a listener, and three times: the clients' commands as written, in capitals (as
 Hamlib's TCI backend sends them, `TRX:0,TRUE,TCI;`, `AUTH:` over Funnel) and in mixed case
 (`TrX:0,TrUe,tCi;`), which TCI says are the same: the same answers, in lower case. It prints
@@ -74,7 +88,15 @@ unkeying; the first one silent 6 s, another browser's key closed and the same br
 from another address greeted, the first one closed; the session revoked (the file `REVOKED`
 names exists) closing it; a session that may not transmit refused; three wrong keys pausing
 Funnel (the stub's rule); then a request through Tailscale's proxy from the tailnet (no such
-header) and one from the LAN, taken as before. The
+header) and one from the LAN, taken as before. Then Ask before TX on the running server, the
+operator played through the files ASK (the question on the screen: its id and who) and ANSWER
+(`once`, `always`, `no`, `off`, `on`, `forget ADDR`, read by the stub every 50 ms), the clients
+on the network coming from loopback through X-Forwarded-For as from the radio's proxies: a
+program on the radio keys unasked; a client asked, its second start asking nothing more and
+another client's start refused unasked; Allow once keying, its reconnect asked again; No
+refusing until it reconnects; Always keeping it in ALLOWED (`192.0.2.12`, `JTDX`), not asked
+after a reconnect, asked again once forgotten; the Panel's key from a paired browser keying
+unasked, a session that may only watch refused unasked; off keying everyone, on asking again. The
 stub keeps what each transmission played in `played.raw` (PLAYED), int16 at 44.1 kHz, for the
 client test to read: how many samples, the tone, its level.
 `make syntax` only compiles; `make PORT=50411 CONF=/tmp/other.conf` runs on another port and
