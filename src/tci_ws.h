@@ -43,6 +43,10 @@ typedef struct {
 typedef struct {
     bool funnel;            /* Tailscale-Funnel-Request: from the internet, through Tailscale Funnel (#58) */
     char addr[48];          /* with it, the browser's address (X-Forwarded-For, which tailscaled sets), "" none */
+    bool browser;           /* it sent Origin: a page in a browser, one of the radio's own (the check let it in) */
+    char via[48];           /* X-Forwarded-For's last address, "" none: the client as the proxy next to the server saw it
+                               (tailscaled from the tailnet, the web server's https port), whatever the client put before */
+    char agent[32];         /* the User-Agent it gave: its first 31 letters, digits and marks, "" none */
 } ws_peer_t;
 
 /* An HTTP request (the bytes read so far, len of them): complete when the blank line is in.
@@ -56,7 +60,7 @@ typedef struct {
  * came over Tailscale Funnel: tailscaled sets the header on every request from the internet and
  * drops one the browser sent, so only the internet's requests have it (a client on the LAN that
  * sends it is taken for one from the internet, which only holds it back). The caller decides
- * what such a client may do */
+ * what such a client may do, and whether to believe via: only a proxy on the radio itself sets it */
 int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max, ws_peer_t *peer);
 
 /* One frame from the start of buf: returns the bytes it took (header and payload), 0 when

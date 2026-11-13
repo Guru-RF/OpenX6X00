@@ -110,6 +110,7 @@
 #include "screen_light.h"
 #include "screen_main.h"
 #include "smeter.h"
+#include "tci_server.h"
 #include "tci_ws.h"
 #include "tx_meters.h"
 
@@ -1920,12 +1921,15 @@ static void tune_lease(client_t *c, uint64_t now) {
         client_text(c, "err tune stopped: no renewal from the page");
 }
 
+/* The paired browsers, then the TCI clients allowed to transmit always ("tci":1, by their address: "revoke tci
+ * ADDR" forgets one), one list for the admin to look after (tci_server.h) */
 static void sessions_tell(client_t *c) {
-    char line[4096];          /* 16 sessions of up to 220 characters: 1 kB held five or six */
+    char line[8192];          /* 16 sessions and 16 TCI clients of up to 220 characters */
     int  n = snprintf(line, sizeof(line), "sessions [");
+    int  shown = 0;
 
     pthread_mutex_lock(&sess_mux);
-    for (int i = 0; i < nsessions && n < (int)sizeof(line) - 240; i++) {
+    for (int i = 0; i < nsessions && n < (int)sizeof(line) - 240; i++, shown++) {
         bool online = false;
         for (int k = 0; k < MAX_CLIENTS; k++)
             if (clients[k].fd >= 0 && clients[k].up && clients[k].sess == i)
@@ -1936,6 +1940,13 @@ static void sessions_tell(client_t *c) {
                       c->sess == i ? 1 : 0);
     }
     pthread_mutex_unlock(&sess_mux);
+    char     addr[48], name[32];
+    uint64_t last;
+    bool     online;
+    for (int i = 0; n < (int)sizeof(line) - 240 && tci_server_allowed_get(i, addr, sizeof(addr), name, sizeof(name),
+                                                                            &last, &online); i++, shown++)
+        n += snprintf(line + n, sizeof(line) - n, "%s{\"tci\":1,\"name\":\"%s\",\"ip\":\"%s\",\"last\":%llu,\"online\":%d}",
+                      shown ? "," : "", name, addr, (unsigned long long)last, online ? 1 : 0);
     snprintf(line + n, sizeof(line) - n, "]");
     client_text(c, line);
 }
@@ -2078,6 +2089,12 @@ static void handle_text(client_t *c, char *text) {
     } else if (!strcmp(a[0], "sessions")) {
         if (allowed(c, ROLE_ADMIN, false))
             sessions_tell(c);
+    } else if (!strcmp(a[0], "revoke") && n >= 3 && !strcmp(a[1], "tci")) {   /* "revoke tci ADDR" */
+        if (!allowed(c, ROLE_ADMIN, false))
+            return;
+        if (!tci_server_forget(a[2]))
+            client_text(c, "err no such TCI client");
+        sessions_tell(c);
     } else if (!strcmp(a[0], "revoke") && n >= 2) {
         if (!allowed(c, ROLE_ADMIN, false))
             return;

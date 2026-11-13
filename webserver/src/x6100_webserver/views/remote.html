@@ -109,7 +109,7 @@
 <p class="sub" style="margin-top:14px">Keyboard: F1–F5, ← → the main knob, Shift + ← → faster, [ ] volume, PageUp/PageDown the MFK, Enter the MFK push, Space PTT. Knobs: drag around the ring, or the mouse wheel over it. Sound starts on a tap (browsers ask for one). <span id="httpsnote">Mic needs an https page: <a id="httpslink" href="#">https://this radio/remote</a> (the browser warns of the radio's own certificate: accept it, once for that address).</span></p>
 
 <script src="/static/js/radio_link.js?v=2"></script>
-<script src="/static/js/radio_session.js?v=7"></script>
+<script src="/static/js/radio_session.js?v=8"></script>
 <script>
 (function() {
   "use strict";
@@ -120,6 +120,7 @@
   const $st = $("#st"), $msg = $("#msg"), cv = document.getElementById("cv"), ctx2d = cv.getContext("2d");
   const secure = location.protocol === "https:";
   let conf = null, unreachable = false, updating = null, link = null, tlink = null, ses = null, ptt = null;   /* the links are made below */
+  let tlinkKey;   /* the key last given on the TCI link (tciKey), undefined: none yet on this connection */
   let micOn = false, txOn = false, micStream = null;   /* the microphone, asked about by the PTT from the start */
   let frames = 0, bytes = 0, lastStat = Date.now(), lastFrame = 0, lastAudio = 0, abytes = 0, fpsText = "", kbsText = "";
   let greeted = false, awayless = false;   /* over Funnel: greeted on this connection; closed unpaired (the Panel's) */
@@ -219,7 +220,7 @@
     onStall: function(on) { stalled(on); },
   });
   /* Who this browser is to the radio and who controls it (R3); the PTT as the radio confirms it (R4) */
-  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); statusCheck(); }, onTx: function(on) { ptt.radioTx(on); }});
+  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { tciKey(); showHealth(); ptt.render(); statusCheck(); }, onTx: function(on) { ptt.radioTx(on); }});
   ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses, link: link,
     mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
   /* PTT options (#241): the button tapped on and off, a Bluetooth headset's button, a headset's mute */
@@ -387,11 +388,22 @@
   const HDR = 64;
   /* The format this page plays, asked for on every connection (the radio's TCI default is 48 kHz float32 stereo, 8x the bytes) */
   const AUDIO_START = "audio_samplerate:24000;audio_stream_sample_type:int16;audio_stream_channels:1;audio_stream_samples:512;audio_start:0;";
+  /* The key on the TCI link follows the pairing: given when this browser pairs while the link is open, taken back
+   * ("auth:;") when it unpairs. Over Funnel only at the start, where it has to come first */
+  function tciKey() {
+    const t = RadioSession.token() || "";
+    if (!tlink || !tlink.up || t === tlinkKey) return;
+    const first = tlinkKey === undefined;
+    tlinkKey = t;
+    if ((first && !t) || (FUNNEL && !first)) return;
+    tlink.send("auth:" + t + ";");
+  }
   tlink = RadioLink.create({
-    /* over Funnel once greeted on the other link, the key first (the Panel's) */
+    /* over Funnel once greeted on the other link, the key first (the Panel's); at home too, so the microphone
+     * transmits as this browser's pairing may, not asked about on the radio's screen as a TCI program is */
     url: function() { return conf && conf.tci_enabled && (!FUNNEL || (greeted && link.up)) ? wsUrl("tci") : null; },
     ping: null,
-    onOpen: function() { if (FUNNEL && RadioSession.token()) tlink.send("auth:" + RadioSession.token() + ";"); if (sndOn) tlink.send(AUDIO_START); },
+    onOpen: function() { tlinkKey = undefined; tciKey(); if (sndOn) tlink.send(AUDIO_START); },
     onBinary: function(buf) {
       if (!sndOn || !actx) return;
       const dv = new DataView(buf);

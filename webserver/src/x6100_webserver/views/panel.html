@@ -299,7 +299,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
 
 
 <script src="/static/js/radio_link.js?v=2"></script>
-<script src="/static/js/radio_session.js?v=7"></script>
+<script src="/static/js/radio_session.js?v=8"></script>
 <script>
 (function() {
   "use strict";
@@ -316,6 +316,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   const PLAN_COLORS = ["#2a7fff", "#d08a00", "#2e9e4f", "#b040c0", "#7d8796"];     /* CW, DIG, ALL, BCN, OUT (a US class) */
   const PLAN_NAMES = ["CW", "DIG", "SSB", "BCN", "OUT"];
   let conf = null, unreachable = false, updating = null, link = null, tlink = null, ses = null, ptt = null, xtune = null;   /* the links are made below */
+  let tlinkKey;   /* the key last given on the TCI link (tciKey), undefined: none yet on this connection */
   let micOn = false, txOn = false, micStream = null;   /* the microphone, asked about by the PTT from the start */
   let state = null, stateAt = 0, bands = [], plan = [], spots = [];
   let frames = 0, bytes = 0, lastStat = Date.now(), lastFrame = 0, lastAudio = 0, fpsText = "", abytes = 0, kbsText = "";
@@ -1069,7 +1070,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     onStall: function(on) { stalled(on); },
   });
   /* Who this browser is to the radio and who controls it (R3); the PTT as the radio confirms it (R4) */
-  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { showHealth(); ptt.render(); if (xtune) xtune.render(); statusCheck(); }, onTx: function(on) { ptt.radioTx(on); },
+  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { tciKey(); showHealth(); ptt.render(); if (xtune) xtune.render(); statusCheck(); }, onTx: function(on) { ptt.radioTx(on); },
     awayUrl: function() { return !FUNNEL && conf && conf.funnel_url ? conf.funnel_url : null; }});   /* Use away from home (#58) */
   ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses, link: link,
     mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
@@ -1212,12 +1213,23 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
   const HDR = 64;
   /* The format this page plays, asked for on every connection (the radio's TCI default is 48 kHz float32 stereo, 8x the bytes) */
   const AUDIO_START = "audio_samplerate:24000;audio_stream_sample_type:int16;audio_stream_channels:1;audio_stream_samples:512;audio_start:0;";
+  /* The key on the TCI link follows the pairing: given when this browser pairs while the link is open, taken back
+   * ("auth:;") when it unpairs. Over Funnel only at the start, where it has to come first */
+  function tciKey() {
+    const t = RadioSession.token() || "";
+    if (!tlink || !tlink.up || t === tlinkKey) return;
+    const first = tlinkKey === undefined;
+    tlinkKey = t;
+    if ((first && !t) || (FUNNEL && !first)) return;
+    tlink.send("auth:" + t + ";");
+  }
   tlink = RadioLink.create({
     /* over Funnel once the radio greeted this browser on the other link, with its key first: TCI takes nothing
-     * from the internet before it (over the tailnet the same page needs none, and TCI ignores it) */
+     * from the internet before it. At home the key goes too: with it the microphone transmits as this browser's
+     * pairing may, where a TCI program on the network is asked about on the radio's screen first */
     url: function() { return conf && conf.tci_enabled && (!FUNNEL || (greeted && link.up)) ? wsUrl("tci") : null; },
     ping: null,
-    onOpen: function() { if (FUNNEL && RadioSession.token()) tlink.send("auth:" + RadioSession.token() + ";"); if (sndOn) tlink.send(AUDIO_START); },
+    onOpen: function() { tlinkKey = undefined; tciKey(); if (sndOn) tlink.send(AUDIO_START); },
     onBinary: function(buf) {
       if (!sndOn || !actx) return;
       const dv = new DataView(buf);

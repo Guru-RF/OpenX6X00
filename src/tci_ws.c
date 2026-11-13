@@ -438,6 +438,44 @@ static void forwarded_for(const char *req, char *out, size_t out_max) {
         memcpy(out, a, l + 1);
 }
 
+/* X-Forwarded-For's last address: the one the proxy that handed the request over added, after whatever the client
+ * sent in its own; checked to be one, "" when none */
+static void forwarded_last(const char *req, char *out, size_t out_max) {
+    struct in6_addr a6;
+    struct in_addr  a4;
+    char            a[64];
+    size_t          vl, l = 0;
+    const char     *v = header(req, "X-Forwarded-For", &vl), *s;
+
+    out[0] = 0;
+    if (!v)
+        return;
+    for (s = v + vl; s > v && s[-1] != ','; s--) {}
+    while (s < v + vl && *s == ' ')
+        s++;
+    l = v + vl - s;
+    if (!l || l >= sizeof(a) || l >= out_max)
+        return;
+    memcpy(a, s, l);
+    a[l] = 0;
+    if (inet_pton(AF_INET, a, &a4) == 1 || inet_pton(AF_INET6, a, &a6) == 1)
+        memcpy(out, a, l + 1);
+}
+
+/* The User-Agent, its name for itself: letters, digits, space and a few marks, up to n - 1 of them, as the radio's
+ * screen shows it when the client asks to transmit */
+static void agent_name(const char *req, char *out, size_t n) {
+    size_t      vl, k = 0;
+    const char *v = header(req, "User-Agent", &vl);
+
+    for (size_t i = 0; v && i < vl && k + 1 < n; i++)
+        if (isalnum((unsigned char)v[i]) || (v[i] && strchr(" ._/()+-", v[i])))
+            out[k++] = v[i];
+    while (k && out[k - 1] == ' ')
+        k--;
+    out[k] = 0;
+}
+
 int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max, ws_peer_t *peer) {
     char line[WS_REQUEST_MAX];
 
@@ -490,6 +528,9 @@ int ws_handshake(const char *req, size_t len, char *resp, size_t resp_max, ws_pe
         peer->funnel = header(line, "Tailscale-Funnel-Request", &fl) != NULL;
         if (peer->funnel)
             forwarded_for(line, peer->addr, sizeof(peer->addr));
+        peer->browser = org && ol;
+        forwarded_last(line, peer->via, sizeof(peer->via));
+        agent_name(line, peer->agent, sizeof(peer->agent));
     }
 
     /* accept = base64(sha1(key + the RFC's GUID)) */

@@ -2504,6 +2504,8 @@ static struct {
     lv_obj_t *pill;
     lv_obj_t *client;
     lv_obj_t *trust;     /* Operate / Listen only (R3) */
+    lv_obj_t *ask;       /* a client on the network asks before it transmits */
+    lv_obj_t *allowed;   /* the note beside Forget: the clients allowed always */
 } wv;
 
 /* Browser remote (remote_server.c): on/off, who is watching, the paired browsers (R3) */
@@ -2629,6 +2631,30 @@ static void wv_update() {
         if (lv_dropdown_get_selected(wv.trust) != want)
             lv_dropdown_set_selected(wv.trust, want);
     }
+    if (wv.ask && tci_server_get_tx_confirm() != lv_obj_has_state(wv.ask, LV_STATE_CHECKED)) {
+        if (tci_server_get_tx_confirm()) lv_obj_add_state(wv.ask, LV_STATE_CHECKED);
+        else lv_obj_clear_state(wv.ask, LV_STATE_CHECKED);
+    }
+    if (wv.allowed) {
+        char list[160], text[176];
+        int  k = tci_server_allowed(list, sizeof(list));
+        if (k)
+            snprintf(text, sizeof(text), "%d allowed: %s", k, list);
+        else
+            snprintf(text, sizeof(text), "none allowed always");
+        if (strcmp(lv_label_get_text(wv.allowed), text))
+            lv_label_set_text(wv.allowed, text);
+        lv_obj_set_style_text_color(wv.allowed, k ? TC(text) : TC(text_faint), 0);
+    }
+}
+
+static void wv_ask_cb(lv_event_t *e) {
+    tci_server_set_tx_confirm(lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED));
+}
+
+static void wv_forget_cb(lv_event_t *e) {
+    tci_server_forget(NULL);
+    wv_update();
 }
 
 static void wv_trust_cb(lv_event_t *e) {
@@ -2667,6 +2693,22 @@ static uint8_t make_tci(uint8_t row) {
     wv.trust = row_choice(row, 1, 3, SMALL_3, "Operate\nListen only", tci_server_get_trust_operate() ? 0 : 1, wv_trust_cb, NULL);
     obj = wl_note(row);
     lv_label_set_text(obj, "listen only: tune and key refused");
+    row++;
+
+    /* A client on the network asks on the screen before it transmits: Allow once, Always, No */
+    wl_row_label(row, "Ask before TX");
+    wv.ask = bt_switch_cell(row, 1, tci_server_get_tx_confirm(), wv_ask_cb);
+    obj = wl_note(row);
+    lv_label_set_text(obj, "not for programs on the radio");
+    row++;
+
+    /* Those it was answered Always for: by their address */
+    wl_row_label(row, "Allowed");
+    wl_button(row, "Forget all", wv_forget_cb);
+    wv.allowed = wl_note(row);
+    lv_label_set_long_mode(wv.allowed, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(wv.allowed, 330);
+    lv_label_set_text(wv.allowed, "");
     return row + 1;
 }
 

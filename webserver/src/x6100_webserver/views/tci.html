@@ -16,6 +16,10 @@
     <div class="dp-lbl"><label for="trust"><b>Clients may</b></label><span>Operate: tune, change mode, key, as before. Listen only: hear and follow the radio; tuning and keying are answered with the state as it is</span></div>
     <div class="dp-ctl"><select id="trust"><option value="operate">Operate</option><option value="view">Listen only</option></select></div>
   </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Ask before TX</b><span>A client on the network that is not allowed yet is answered "not keyed", and the radio asks on its screen: Allow once, Always or No; no answer in 20 s is No. Programs on the radio itself and the Panel of a paired browser are not asked. Those allowed always: Settings &gt; General &gt; TCI SERVER on the radio, Sessions on the Panel for the admin. Off: every operating client keys as before</span></div>
+    <div class="dp-ctl"><label class="sw" title="Ask before TX"><input id="tx_confirm" type="checkbox" role="switch" aria-label="Ask before TX"><i></i></label></div>
+  </div>
   <div class="dp-body" style="border-top:1px solid #1a283c">
     <div class="actions" style="margin-top:0">
       <button type="submit" class="primary">Save</button>
@@ -36,6 +40,7 @@ var render = function(data) {
   $("#enabled").prop("checked", data.enabled);
   $("#port").val(data.port);
   $("#trust").val(data.trust || "operate");
+  $("#tx_confirm").prop("checked", data.tx_confirm !== false);
   form.reset();
 }
 const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
@@ -48,7 +53,7 @@ $("#conf").on("submit", function(e) {
   $.ajax({
     url: "/api/tci",
     type: "POST",
-    data: JSON.stringify({enabled: $("#enabled").prop("checked"), port: parseInt($("#port").val(), 10), trust: $("#trust").val()}),
+    data: JSON.stringify({enabled: $("#enabled").prop("checked"), port: parseInt($("#port").val(), 10), trust: $("#trust").val(), tx_confirm: $("#tx_confirm").prop("checked")}),
     contentType: "application/json; charset=utf-8",
     dataType: "json",
     timeout: X6100_WAIT_MS,

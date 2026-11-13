@@ -204,6 +204,15 @@ def read_head(sock):
     return head
 
 
+def forwarded(head, addr):
+    """The request's head with X-Forwarded-For naming the browser's address, in place of any it brought. Through this
+    port the GUI sees a connection from 127.0.0.1, which TCI takes for a program on the radio itself, never asked
+    about before it transmits; with the header it knows the client, as behind tailscaled (src/tci_server.c)"""
+    req, sep, rest = head.partition(b"\r\n\r\n")
+    lines = [line for line in req.split(b"\r\n") if line.partition(b":")[0].strip().lower() != b"x-forwarded-for"]
+    return b"\r\n".join(lines + [b"X-Forwarded-For: " + addr.encode()]) + sep + rest
+
+
 def ws_port(head):
     """The GUI's port for a request of a page's socket, GET /ws/remote or /ws/tci with Upgrade: websocket; None for
     anything else, which the web server answers"""
@@ -273,7 +282,7 @@ def make_https_server(app, host, port, tls):
                 return
             port = ws_port(head)
             if port:
-                pipe(request, port, head)
+                pipe(request, port, forwarded(head, client_address[0]))
                 return
             try:
                 super().finish_request(Replayed(request, head), client_address)

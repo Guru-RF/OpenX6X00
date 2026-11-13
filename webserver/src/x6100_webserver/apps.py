@@ -377,8 +377,9 @@ def cluster_update(change):
 
 
 # TCI server routes
-# Same file and format as the radio GUI (src/tci_server.c): enabled=0|1, port=
-TCI_DEFAULTS = {"enabled": "1", "port": "50001", "trust": "operate"}
+# Same file and format as the radio GUI (src/tci_server.c): enabled=0|1, port=, trust=operate|view, tx_confirm=0|1
+# (a client on the network asks on the radio's screen before it transmits; on in a file from before)
+TCI_DEFAULTS = {"enabled": "1", "port": "50001", "trust": "operate", "tx_confirm": "1"}
 
 
 def read_tci_conf():
@@ -395,7 +396,8 @@ def read_tci_conf():
         port = int(conf["port"])
     except ValueError:
         port = int(TCI_DEFAULTS["port"])
-    return {"enabled": conf["enabled"] == "1", "port": port, "trust": "view" if conf["trust"] == "view" else "operate"}
+    return {"enabled": conf["enabled"] == "1", "port": port, "trust": "view" if conf["trust"] == "view" else "operate",
+            "tx_confirm": conf["tx_confirm"].strip() != "0"}
 
 
 @app.route('/tci')
@@ -1344,10 +1346,15 @@ def set_tci():
     if trust not in ("operate", "view"):
         bottle.response.status = 400
         return {"status": "error", "msg": "trust is operate or view"}
+    confirm = data.get("tx_confirm", read_tci_conf()["tx_confirm"])   # kept too
+    if not isinstance(confirm, bool):
+        bottle.response.status = 400
+        return {"status": "error", "msg": "tx_confirm is true or false"}
     try:
         tmp = settings.TCI_CONF + ".tmp"
         with open(tmp, "w") as f:
-            f.write(f"enabled={1 if data.get('enabled') else 0}\nport={port}\ntrust={trust}\n")
+            f.write(f"enabled={1 if data.get('enabled') else 0}\nport={port}\ntrust={trust}\n"
+                    f"tx_confirm={1 if confirm else 0}\n")
         os.rename(tmp, settings.TCI_CONF)
     except OSError as e:
         bottle.response.status = 500

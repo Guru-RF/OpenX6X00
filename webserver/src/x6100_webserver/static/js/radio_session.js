@@ -289,9 +289,17 @@
     if (this.sessions === null) list.text("Asking the radio...");
     else if (!this.sessions.length) list.text("No browser is paired.");
     else this.sessions.forEach(function(s) {
-      const row = $("<div class='srow'>").append(
+      const seen = s.online ? " · connected" : s.last ? " · seen " + age(Math.max(0, Date.now() / 1000 - s.last)) : "";
+      /* a TCI program the radio was answered Always for: known by its address, forgotten by it */
+      const row = s.tci ? $("<div class='srow'>").append(
+        $("<b>").text(s.ip + (s.name ? " (" + s.name + ")" : "")),
+        $("<span>").text("TCI program, may transmit" + seen),
+        $("<button type='button'>").text("Forget").on("click", function() {
+          if (!confirm("Forget " + s.ip + "? Its next transmission asks on the radio's screen again.")) return;
+          self.o.send("revoke tci " + s.ip);
+        })) : $("<div class='srow'>").append(
         $("<b>").text(s.name + (s.me ? " (this browser)" : "")),
-        $("<span>").text(s.role + (s.online ? " · connected" : " · seen " + age(Math.max(0, Date.now() / 1000 - s.last))) + " · " + s.ip + (s.funnel ? " via Funnel" : "")),
+        $("<span>").text(s.role + seen + " · " + s.ip + (s.funnel ? " via Funnel" : "")),
         $("<button type='button'>").text(s.me ? "Unpair" : "Revoke").on("click", function() {
           if (!confirm((s.me ? "Unpair this browser?" : "Revoke \"" + s.name + "\"?") + " Its connections close now and it only watches until it is paired again.")) return;
           if (s.me) store(TOKEN_KEY, null);
@@ -299,7 +307,7 @@
         }));
       list.append(row);
     });
-    popup("Paired browsers", $("<div>").append($("<p>").text("Each paired browser may operate the radio; the admin (the first paired) manages this list. Revoke closes a browser's connections at once."), list), [{t: "Close", primary: true}]);
+    popup("Paired browsers", $("<div>").append($("<p>").text("Each paired browser may operate the radio; the admin (the first paired) manages this list. Revoke closes a browser's connections at once. TCI programs below them transmit without the radio asking, as it was answered Always for them; Forget makes it ask again."), list), [{t: "Close", primary: true}]);
   };
 
   /* ---- PTT ---- */

@@ -1430,7 +1430,7 @@ base is too old.
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Processor (Full speed, Saves power, see [Processor speed](#processor-speed)), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
-| TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only, see [TCI server](#tci-server)) |
+| TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only), Ask before TX (on by default) and Allowed with Forget all (see [TCI server](#tci-server)) |
 | TEXT LOG | Keyboard modes (on by default), Size limit (1-100 MB, 10 MB by default): what PSK, Olivia, Contestia and JTTY receive and send, and what RTTY receives, on the card (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 
 Main knob acceleration. Where: Settings > General > CONTROLS > Freq
@@ -5891,7 +5891,14 @@ that browser left meanwhile; not when a knob at the radio took it during
 the transmission.
 Mic on keys the browser's microphone through the TCI: during such an over
 the bar says "TCI client", and after it control is where it was, with no
-Take control needed. The TCI page's "Clients may" (or Settings > General >
+Take control needed. The page gives the browser's key on its TCI link, so
+the radio does not ask about it before it transmits (Ask before TX, under
+[TCI server](#tci-server)): the pairing decides, and a browser whose
+session may not transmit is refused without a question. A page left open
+since before the update that brought this gives no key, and the radio asks
+about it as about any TCI client until it is reloaded. Sessions lists, under
+the browsers, the TCI programs the radio was answered Always for, with
+Forget, which makes the radio ask about that program again. The TCI page's "Clients may" (or Settings > General >
 TCI SERVER > Clients) set to Listen only makes TCI clients hear and follow
 the radio without tuning or keying it, for a shared network. A browser that
 loses its link loses control with it. Web Logs and the configurator pages
@@ -5940,7 +5947,9 @@ A Panel or Screen page left open since before the update that brought the
 numbers cannot key the radio's own microphone until it is reloaded: its PTT
 button shows "No TX" and the status line "this session may not transmit
 from a page older than the radio: reload the page". With Mic on (the
-browser's microphone, through the TCI) such a page still transmits.
+browser's microphone, through the TCI) such a page still transmits, once
+allowed on the radio, which asks about it as about any TCI client (Ask
+before TX, under [TCI server](#tci-server)).
 
 #### PTT options
 
@@ -6077,7 +6086,8 @@ here it is a web page, nothing to install.
 - Sound: the RX audio to the browser, over the TCI server (so TCI must be on,
   the default). Browsers need a tap before they play: press Sound once.
 - Mic: the browser's microphone goes to the radio while PTT is held, over the
-  TCI server as any TCI client does it. Browsers only give the microphone to
+  TCI server as any TCI client does it, with the paired browser's key, so
+  the radio does not ask before it transmits (Pairing and control, above). Browsers only give the microphone to
   an https page: open `https://x6100.local/remote` and accept the radio's
   certificate, once for that address: the page's picture, sound and
   microphone come through the same port (see HTTPS under
@@ -6125,7 +6135,7 @@ program on the network tunes the radio, hears it and keys it.
 - On by default, on whatever network the radio is on. Turn it off in Settings > General > TCI SERVER or on the
   web configurator's TCI page (System > TCI). The port is 50001, the one TCI
   clients expect; both places can change it. Stored in `/mnt/tci.conf`
-  (`enabled=0|1`, `port=`, `trust=operate|view`).
+  (`enabled=0|1`, `port=`, `trust=operate|view`, `tx_confirm=0|1`).
 - What clients may do: Operate (the default: tune, change the mode, key, as
   always) or Listen only (the TCI page's "Clients may", the card's Clients):
   a listening client hears and follows the radio, and its tuning and keying
@@ -6162,13 +6172,62 @@ program on the network tunes the radio, hears it and keys it.
   browser's PTT stays on the air.
 - There is no login or pairing for TCI clients: enable it only on a network
   you trust, or set Listen only, and turn it off when it is not needed.
-  Anyone who reaches the port can key the transmitter when clients may
-  operate. A web page is the exception: a browser names the page's site
+  Anyone who reaches the port can tune the radio when clients may operate,
+  and key it once it is allowed at the radio (Ask before TX, below), or at
+  once with Ask before TX off. A web page is the exception: a browser names the page's site
   (Origin) when it opens the socket, and the radio refuses a page from any
   site but its own, so a page you happen to visit cannot key the radio
   through your browser. Pat's Winlink mailbox (port 8080) is refused too: it
   is the radio's, but it shows what anyone can send by Winlink. TCI programs
   send no Origin and are not affected.
+- Ask before TX (on by default): a client on the network that was not
+  allowed yet does not key the radio. Its start is answered `trx:0,false;`,
+  as any refused key, and the radio asks on its screen, over whatever is on
+  it (the main screen, an app, Settings; a dark screen or the screensaver
+  wakes up): "192.168.1.20 (JTDX) wants to transmit", Allow once, Always,
+  No. No is chosen when it opens, so a press meant for something else lets
+  nothing on the air. Turn the MFK to choose and press it, or tap a choice;
+  a keyboard's arrows and Enter do the same, Esc is No. No answer in 20 s is
+  No, with a note on the screen.
+  - Allow once: the client may transmit while that connection stays open; it
+    is asked again when it connects again. Always: kept in
+    `/mnt/tci_allowed.conf` (address, name, when allowed, when last seen),
+    through restarts too, up to sixteen clients; with sixteen kept, Always
+    is Allow once and a note says so. No, or no answer: its starts are
+    refused without a question until it connects again.
+  - Nothing keys by itself after an answer: the client's next start keys.
+    The radio's own rules still decide then, as for any key: the
+    [amateur bands](#amateur-bands-only), the WR12, the PTT locks, someone
+    else on the air.
+  - The client is known by its address alone. TCI has no login: the name in
+    brackets is the one the program gives (its User-Agent, when it sends
+    one), whatever it says, so it would protect nothing, and the radio would
+    ask again after every update of the program. A computer that gets
+    another address is asked again; a fixed address (a DHCP reservation in
+    the router) keeps it allowed.
+  - One question at a time: a second start of the same client while it is
+    asked opens nothing more. A start of another client meanwhile is refused
+    (`trx:0,false;`) without a question of its own; its next start, once
+    the first is answered, asks.
+  - Not asked: programs on the radio itself (from 127.0.0.1, not a browser
+    page and not through a proxy); the browser Panel and Screen page with
+    Mic on, which give the paired browser's key on their TCI link, so the
+    pairing decides (Pairing and control, under Browser panel); the Panel
+    over [Tailscale Funnel](#tailscale-funnel), whose session decides as
+    before. A client over Tailscale or through the web configurator's https
+    port comes to the TCI server from the radio itself: it is known, and
+    asked about, by its own address, which those proxies pass on.
+  - Listen only refuses every start and asks nothing, and so does a start
+    while someone is on the air.
+  - Settings > General > TCI SERVER: Ask before TX turns it off and on;
+    Allowed lists the clients kept (address and name), and Forget all
+    forgets them. On the Panel the admin sees each under Sessions, "TCI
+    program, may transmit", with Forget for one. A forgotten client is asked
+    at its next start, also on a connection that is open.
+  - Off (Ask before TX, on the card or the TCI page): every operating client
+    keys at once, as before. A `/mnt/tci.conf` from before has no
+    `tx_confirm` and asks. Turning it off while the radio asks closes the
+    question; the client's next start keys.
 - The TCI SERVER card shows the connected client (address), "no client"
   otherwise.
 - What it carries: `vfo`, `modulation` (lsb, usb, cw, cwr, am, nfm, digl,
@@ -6242,6 +6301,10 @@ program on the network tunes the radio, hears it and keys it.
     the TCI page's "Clients may"). With Listen only, their band and mode
     changes are answered with the radio's state, unchanged, and they stop
     with a Rig Failure.
+  - Their first over asks on the radio (Ask before TX, above) and does not
+    go out. Choose Always for a PC that keeps its address: with Allow once,
+    each restart of the program, or a change in its Radio settings, which
+    connects again, asks again.
 
 ## Network name
 
@@ -7230,7 +7293,8 @@ The DATA partition, readable on a PC.
 | `params-unusable-<date>Z.db` | a settings file the radio could not use, put aside at a start (["Settings file unusable"](#settings-file-unusable-put-aside-defaults-loaded)) |
 | `cluster.conf` | DX cluster server in use, saved servers, filters and alerts |
 | `cw_trainer.json` | CW trainer statistics and Calls best score |
-| `tci.conf` | TCI server on/off and port |
+| `tci.conf` | TCI server on/off, port, Clients and Ask before TX |
+| `tci_allowed.conf` | the TCI clients allowed to transmit without asking (Always), one a line: address, name, when allowed, when last seen |
 | `btcat.conf` | Bluetooth power, written by `btcat-ctl` |
 | `btaudio.conf` | headphones settings (RX loopback, speaker mute, Connect at startup devices) |
 | `ft_log.adi`, `js8call_log.adi` | FT8/FT4 and JS8 logs (ADIF) |
