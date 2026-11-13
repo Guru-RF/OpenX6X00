@@ -16,9 +16,12 @@ radio image in TARGETS has (links to this PC's in a folder of their own, PATH as
 4. The profile of the link the browser is on (here a dummy link with a static address, as an Ethernet one),
    replaced by another radio's (another UUID, another address): the answer is out before NetworkManager leaves
    that link, then the restored profile is the active one.
+5. A network the radio has under another file name (the GUI names its files after the SSID, another system after
+   whatever it called the network), twice in the backup: one profile of it after, the backup's latest used,
+   written over the radio's file, and the radio's own kept as the safety copy.
 
 What NetworkManager has is read with this PC's nmcli (the test's own look, not the web server's).
-WEBSERVER=<a webserver/src> tests another web server (make v038: v0.3.8's, which has to fail 1, 2 and 4).
+WEBSERVER=<a webserver/src> tests another web server (make v038: v0.3.8's, which has to fail 1, 2, 4 and 5).
 """
 import glob
 import io
@@ -205,10 +208,11 @@ def tearDownModule():
         shutil.rmtree(work, ignore_errors=True)
 
 
-def profile(name, ssid, uid):
-    """A saved WiFi network as NetworkManager writes it to system-connections"""
-    return (f"[connection]\nid={name}\nuuid={uid}\ntype=wifi\n\n[wifi]\nmode=infrastructure\nssid={ssid}\n\n"
-            "[wifi-security]\nkey-mgmt=wpa-psk\npsk=a-password-1\n\n"
+def profile(name, ssid, uid, psk="a-password-1", used=0):
+    """A saved WiFi network as NetworkManager writes it to system-connections; used: when it was last joined"""
+    stamp = f"timestamp={used}\n" if used else ""
+    return (f"[connection]\nid={name}\nuuid={uid}\ntype=wifi\n{stamp}\n[wifi]\nmode=infrastructure\nssid={ssid}\n\n"
+            f"[wifi-security]\nkey-mgmt=wpa-psk\npsk={psk}\n\n"
             "[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=ignore\n").encode()
 
 
@@ -288,6 +292,21 @@ class WifiRestore(unittest.TestCase):
         self.assertEqual(known(), {"Home": "HomeNet"})
         with open(os.path.join(settings.BACKUP_SAFETY, "wifi", "Home.nmconnection"), "rb") as f:
             self.assertIn(b"ssid=OldNet", f.read())    # the radio's own, kept
+
+    def test_same_network_other_name(self):
+        self.have("HomeNet.nmconnection", profile("HomeNet", "HomeNet", UUID_HOME, "old-password"))
+        self.assertEqual(known(), {"HomeNet": "HomeNet"})
+        r = self.restore({"wifi/Home.nmconnection": profile("Home", "HomeNet", UUID_CLUB, "new-password", 1762000200),
+                          "wifi/Home 2.nmconnection": profile("Home 2", "HomeNet", UUID_ETH, "older-password",
+                                                              1762000100)})
+        self.assertEqual((r["restored"], r["failed"]), (["wifi"], {}))
+        reloaded()
+        self.assertEqual(sorted(os.listdir(settings.WIFI_DIR)), ["HomeNet.nmconnection"])   # one profile of it
+        self.assertEqual(known(), {"Home": "HomeNet"})      # the backup's latest used
+        with open(os.path.join(settings.WIFI_DIR, "HomeNet.nmconnection"), "rb") as f:
+            self.assertIn(b"psk=new-password", f.read())
+        with open(os.path.join(settings.BACKUP_SAFETY, "wifi", "HomeNet.nmconnection"), "rb") as f:
+            self.assertIn(b"psk=old-password", f.read())    # the radio's own, kept
 
     def test_networkmanager_not_reachable(self):
         os.environ["DBUS_SYSTEM_BUS_ADDRESS"] = "unix:path=/run/no-bus-here"

@@ -1697,6 +1697,12 @@ Joining a network:
   channel or router security", "not in range", "joined, but no address from
   DHCP", and so on. A wrong password and a weak signal look the same to the
   radio, so the first message names both.
+- A network the radio has saved, but whose profile no longer fits it (the
+  router went from open to WPA2, or the profile came from a backup made with
+  another access point), asks for its password again on Connect. Its profile
+  then takes the new password and the security the network has now, and keeps
+  its name: the radio has one profile per network. Up to v0.3.10 a second
+  profile of the same name was added, and the old one was tried as well.
 - After a failed join the radio writes what its WiFi module, NetworkManager and
   the supplicant said to `app_logs/wifi.txt` on the card's DATA partition (no
   password is in it). Attach that file to a report.
@@ -4937,7 +4943,10 @@ replaces the network the radio is on with another profile of the same name
 network joined anew) makes the radio leave that network and join the
 restored one: the link to the browser drops for a few seconds. A restored
 Ethernet setting with another radio's static address moves the radio to
-that address; open the web configurator there.
+that address; open the web configurator there. A restored network the radio
+has saved under another file name (the same network name, the SSID) is
+written onto the radio's own profile of it, so the radio keeps one profile
+per network; a backup holding a network twice leaves the one joined last.
 
 Display page (System > Display): the options of Settings > Display and a
 few station options of the other tabs, applied on the radio as you change

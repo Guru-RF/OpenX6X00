@@ -15,7 +15,7 @@ BOTTLE    ?= $(patsubst %/,%,$(dir $(firstword $(wildcard \
                  $(TOP)/../AetherX6100Buildroot/build/build/python-bottle-*/bottle.py))))
 TARGETS   ?= $(wildcard $(TOP)/../AetherX6200Buildroot/build/target $(TOP)/../AetherX6100Buildroot/build/target)
 WEBSERVER ?=
-V038_FAILS = test_changed_network test_network_in_use_replaced test_new_network
+V038_FAILS = test_changed_network test_network_in_use_replaced test_new_network test_same_network_other_name
 RUN        = mkdir -p build/tmp && TMPDIR=$(CURDIR)/build/tmp BOTTLE=$(if $(BOTTLE),$(abspath $(BOTTLE))) \
              TARGETS="$(abspath $(TARGETS))" WEBSERVER=$(WEBSERVER) unshare -rmn python3 -I -B wifi_restore_test.py
 

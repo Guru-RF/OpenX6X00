@@ -338,11 +338,120 @@ const char *wifi_ap_refusal(const wifi_ap_info_t *ap) {
     return NULL;
 }
 
+/* The saved profile of a network, by its SSID's bytes (the latest used of several), NULL when there is none */
+static NMRemoteConnection *saved_for_ssid(const uint8_t *ssid, size_t len) {
+    const GPtrArray    *cons = nm_client_get_connections(client);
+    NMRemoteConnection *best = NULL;
+    guint64             latest = 0;
+
+    for (guint i = 0; cons && i < cons->len; i++) {
+        NMRemoteConnection  *rc = NM_REMOTE_CONNECTION(g_ptr_array_index(cons, i));
+        NMSettingConnection *sc = nm_connection_get_setting_connection(NM_CONNECTION(rc));
+        NMSettingWireless   *sw = nm_connection_get_setting_wireless(NM_CONNECTION(rc));
+
+        if (!sc || !sw || g_strcmp0(nm_setting_connection_get_connection_type(sc), NM_SETTING_WIRELESS_SETTING_NAME)) {
+            continue;
+        }
+        const char *mode = nm_setting_wireless_get_mode(sw);
+        GBytes     *s = nm_setting_wireless_get_ssid(sw);
+        gsize       n = 0;
+        const void *d = s ? g_bytes_get_data(s, &n) : NULL;
+        guint64     ts = nm_setting_connection_get_timestamp(sc);
+
+        if ((!mode || strcmp(mode, NM_SETTING_WIRELESS_MODE_INFRA) == 0) && d && n == len && memcmp(d, ssid, len) == 0
+            && (!best || ts > latest)) {
+            best = rc;
+            latest = ts;
+        }
+    }
+    return best;
+}
+
+/* The network a saved profile is joined on, kept for the commit's callback: the access point is looked up again
+ * then, the list may have changed meanwhile */
+static uint8_t join_ssid[32];
+static size_t  join_ssid_len;
+
+static void saved_join_cb(GObject *connection, GAsyncResult *result, gpointer user_data) {
+    NMRemoteConnection *rc = NM_REMOTE_CONNECTION(connection);
+    GError             *error = NULL;
+
+    if (!nm_remote_connection_commit_changes_finish(rc, result, &error)) {
+        LV_LOG_ERROR("Failed to save connection '%s': %s", nm_connection_get_id(NM_CONNECTION(rc)), error->message);
+        msg_update_text_fmt("WiFi: %s", error->message);
+        retry_uuid[0] = '\0';
+        g_error_free(error);
+    } else if (device != NULL) {
+        NMAccessPoint *ap = find_ap(join_ssid, join_ssid_len);
+
+        LV_LOG_USER("Connection '%s' (%s) saved again, joining it", nm_connection_get_id(NM_CONNECTION(rc)),
+                    nm_connection_get_uuid(NM_CONNECTION(rc)));
+        nm_client_activate_connection_async(client, NM_CONNECTION(rc), device,
+                                            ap ? nm_object_get_path(NM_OBJECT(ap)) : NULL, NULL,
+                                            connection_activating_cb, loop);
+    }
+    g_main_loop_quit(loop);
+}
+
+/* A network joined again that has a saved profile, one that does not fit it now (the router went from open to
+ * WPA2, or the profile came from a backup tied to another access point or WiFi adapter): that profile takes the
+ * password and the security the network has now, and is joined. A second profile of the same name was added
+ * before, and NetworkManager went on trying the old one too. Its name and its address settings stay */
+static void join_saved(NMRemoteConnection *rc, NMAccessPoint *ap, const wifi_ap_info_t *ap_info,
+                       const char *password) {
+    NMConnection      *c = nm_simple_connection_new_clone(NM_CONNECTION(rc));
+    NMSettingWireless *sw = nm_connection_get_setting_wireless(c);
+
+    // clang-format off
+    g_object_set(nm_connection_get_setting_connection(c),
+                 NM_SETTING_CONNECTION_AUTOCONNECT, TRUE,
+                 NM_SETTING_CONNECTION_AUTOCONNECT_RETRIES, 0,   // 0 = forever, see fix_wifi_profiles()
+                 NM_SETTING_CONNECTION_INTERFACE_NAME, NULL,     // any WiFi device: see fix_wifi_profiles()
+                 NULL);
+    /* Any access point of the network, on any band and channel, broadcast as it is in the list, on this adapter */
+    g_object_set(sw,
+                 NM_SETTING_WIRELESS_BSSID, NULL,
+                 NM_SETTING_WIRELESS_BAND, NULL,
+                 NM_SETTING_WIRELESS_CHANNEL, 0,
+                 NM_SETTING_WIRELESS_HIDDEN, FALSE,
+                 NM_SETTING_WIRELESS_MAC_ADDRESS, NULL,
+                 NULL);
+    // clang-format on
+    nm_connection_remove_setting(c, NM_TYPE_SETTING_WIRELESS_SECURITY);
+    nm_connection_remove_setting(c, NM_TYPE_SETTING_802_1X);
+    if (password) {
+        NMSettingWirelessSecurity *s_wsec = (NMSettingWirelessSecurity *)nm_setting_wireless_security_new();
+
+        // clang-format off
+        g_object_set(s_wsec,
+                     NM_SETTING_WIRELESS_SECURITY_AUTH_ALG, "open",
+                     NM_SETTING_WIRELESS_SECURITY_KEY_MGMT, "wpa-psk",
+                     NM_SETTING_WIRELESS_SECURITY_PSK, password,
+                     NULL);
+        // clang-format on
+        nm_connection_add_setting(c, NM_SETTING(s_wsec));
+    }
+    memcpy(join_ssid, ap_info->ssid_raw, ap_info->ssid_len);
+    join_ssid_len = ap_info->ssid_len;
+    retry_start(nm_connection_get_uuid(NM_CONNECTION(rc)), ap_info->ssid);
+    LV_LOG_USER("Saving connection %s again (%s)", ap_info->ssid, nm_access_point_get_bssid(ap));
+    msg_update_text_fmt("Connecting to %s...", shown(ap_info->ssid));
+    nm_connection_replace_settings_from_connection(NM_CONNECTION(rc), c);
+    nm_remote_connection_commit_changes_async(rc, TRUE, NULL, saved_join_cb, NULL);
+    g_object_unref(c);
+}
+
 void wifi_add_connection(const wifi_ap_info_t *ap_info, const char *password) {
     NMAccessPoint *ap = find_ap(ap_info->ssid_raw, ap_info->ssid_len);
 
     if (!ap) {
         msg_update_text_fmt("WiFi %s: no longer in range, scan again", shown(ap_info->ssid));
+        return;
+    }
+    NMRemoteConnection *saved = saved_for_ssid(ap_info->ssid_raw, ap_info->ssid_len);
+
+    if (saved) {
+        join_saved(saved, ap, ap_info, password);
         return;
     }
     const char *ssid = ap_info->ssid;

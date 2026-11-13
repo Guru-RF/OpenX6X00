@@ -3644,6 +3644,76 @@ def backup_current():
     return files
 
 
+KEYFILE_ESCAPES = {b"s": b" ", b"n": b"\n", b"t": b"\t", b"r": b"\r", b"\\": b"\\", b";": b";"}
+
+
+def keyfile_bytes(value):
+    """A NetworkManager keyfile's byte value (the SSID): a list of numbers ("72;111;109;101;"), or else the text
+    with its escapes"""
+    parts = value.rstrip(b";").split(b";")
+    if value and all(p.isdigit() and int(p) < 256 for p in parts):
+        return bytes(int(p) for p in parts)
+    out, i = bytearray(), 0
+    while i < len(value):
+        if value[i:i + 1] == b"\\" and value[i + 1:i + 2] in KEYFILE_ESCAPES:
+            out += KEYFILE_ESCAPES[value[i + 1:i + 2]]
+            i += 2
+        else:
+            out += value[i:i + 1]
+            i += 1
+    return bytes(out)
+
+
+def wifi_profile(path):
+    """(SSID, time last used) of a NetworkManager profile file of a network the radio joins, None for any other
+    (Ethernet, a hotspot) or a file that can't be read"""
+    try:
+        with open(path, "rb") as f:
+            lines = f.read(BACKUP_TEXT_MAX).split(b"\n")
+    except OSError:
+        return None
+    keys, section = {}, b""
+    for line in lines:
+        line = line.strip(b"\r").lstrip()
+        if line.startswith(b"[") and line.rstrip().endswith(b"]"):
+            section = line.strip()[1:-1]
+        elif line and not line.startswith((b"#", b";")) and b"=" in line:
+            k, _, v = line.partition(b"=")
+            keys[(section, k.strip())] = v.lstrip()
+    wifi = b"wifi" if (b"wifi", b"ssid") in keys else b"802-11-wireless"
+    if keys.get((b"connection", b"type")) not in (b"wifi", b"802-11-wireless") or (wifi, b"ssid") not in keys \
+            or keys.get((wifi, b"mode"), b"infrastructure") != b"infrastructure":
+        return None
+    stamp = keys.get((b"connection", b"timestamp"), b"0")
+    return keyfile_bytes(keys[(wifi, b"ssid")]), int(stamp) if stamp.isdigit() else 0
+
+
+def wifi_in_place(todo, files):
+    """The WiFi networks of a restore go onto the radio's own profile of the same network (SSID), when it has one
+    under another file name: NetworkManager names a file after the profile, the GUI's after the SSID, another
+    system's after whatever it was called there, and the radio had two profiles of one network then, the old
+    password tried as well. Several of one network in the backup: the latest used is the one left. todo: member ->
+    file on the radio, as restore_backup makes it; changed in place, the networks last"""
+    have = {}   # SSID -> (time last used, file on the radio)
+    try:
+        names = sorted(os.listdir(settings.WIFI_DIR))
+    except OSError:
+        names = []
+    for n in names:
+        path = os.path.join(settings.WIFI_DIR, n)
+        info = wifi_profile(path) if n.endswith(".nmconnection") and os.path.isfile(path) else None
+        if info and (info[0] not in have or info[1] > have[info[0]][0]):
+            have[info[0]] = info[1], path
+    nets = []
+    for name in [n for n in todo if backup_member(n)[0] == "wifi"]:
+        info = wifi_profile(files[name])
+        nets.append((info[1] if info else 0, name, info[0] if info else None, todo.pop(name)))
+    for _, name, ssid, dst in sorted(nets):
+        if ssid is not None:
+            dst = have.setdefault(ssid, (0, dst))[1]
+        todo[name] = dst
+
+
 def plural(n, word):
     return f"{n} {word}" + ("" if n == 1 else "s")
 
@@ -4062,6 +4132,8 @@ def restore_backup():
                 todo[name] = member[1]
         if not todo:
             return backup_error(409, "No uploaded backup: choose the file again")
+        if any(backup_member(n)[0] == "wifi" for n in todo):
+            wifi_in_place(todo, files)
         gui = any(backup_member(n)[0] in BACKUP_GUI_PARTS for n in todo)
         gui_up = False
         if gui:
@@ -4071,7 +4143,7 @@ def restore_backup():
                 return backup_error(500, f"Can't stop the radio screen: {e}")
             if err:
                 return backup_error(500, err)
-        failed, restored = {}, []
+        failed, restored, saved = {}, [], set()
         try:
             for name, dst in todo.items():
                 part = backup_member(name)[0]
@@ -4081,7 +4153,12 @@ def restore_backup():
                             save_safety_copy("params.db", dst)
                         apply_memory_slots(files[name])
                     else:
-                        save_safety_copy(name, dst)
+                        # A WiFi network under the name of the radio's file it goes onto (wifi_in_place), and the
+                        # radio's own once: a second of the network in the backup goes onto the first
+                        keep = "wifi/" + os.path.basename(dst) if part == "wifi" else name
+                        if dst not in saved:
+                            save_safety_copy(keep, dst)
+                            saved.add(dst)
                         install_file(files[name], dst, 0o600 if part == "wifi" else 0o644)
                         if name.endswith(".db"):
                             for ext in ("-wal", "-shm"):   # stale journal of the replaced file
