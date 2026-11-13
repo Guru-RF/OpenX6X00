@@ -721,6 +721,35 @@ bool dialog_cluster_tuned_near(int32_t freq_hz, char *call, size_t size, char *r
     return true;
 }
 
+bool dialog_cluster_call_here(int32_t freq_hz, char *call, size_t size, char *ref, size_t ref_size) {
+    static cluster_spot_t spots[CLUSTER_MAX_SPOTS];
+    static int            n;
+    static uint32_t       gen;
+    char                  tcall[16], tref[16];
+    bool                  tuned = dialog_cluster_tuned_near(freq_hz, tcall, sizeof(tcall), tref, sizeof(tref));
+    int                   mode = cparam_i_get(cfg_cur_mode);
+    bool                  voice = mode == radio_mode_lsb || mode == radio_mode_usb || mode == radio_mode_am ||
+                 mode == radio_mode_nfm || mode == radio_mode_sam || mode == radio_mode_wfm;
+    int                   k = cluster_client_snapshot(spots, CLUSTER_MAX_SPOTS, &gen);
+    int                   on;
+
+    if (k >= 0) n = k;
+    on = cluster_spot_on_dial(spots, n, cluster_filter(), utc_now_min(), freq_hz,
+                              voice ? CLUSTER_ON_DIAL_HZ : CLUSTER_ON_DIAL_NARROW_HZ, tuned ? tcall : NULL, call, size,
+                              ref, ref_size);
+    if (on == 1) {
+        /* the tuned spot's reference when the spots on the dial have none (a spot gone from the list since) */
+        if (tuned && !strcasecmp(call, tcall) && ref_size && !ref[0]) snprintf(ref, ref_size, "%s", tref);
+        return true;
+    }
+    if (on == 0 && tuned) {
+        snprintf(call, size, "%s", tcall);
+        snprintf(ref, ref_size, "%s", tref);
+        return true;
+    }
+    return false;
+}
+
 /* Short enough for one line of the message, no scrolling */
 #ifdef BOARD_X6200
 #define NO_TUNE "No transverter/WR12: %d.%03d"

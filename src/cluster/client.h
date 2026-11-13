@@ -136,6 +136,15 @@ int cluster_alert_match(const cluster_filter_t *f, const cluster_spot_t *s);
 /* The spot is shown: its mode, age and spotter pass (an alert match always does). */
 bool cluster_filter_pass(const cluster_filter_t *f, const cluster_spot_t *s, uint16_t now_utc_min);
 
+/* The call of the spot the dial is on, for the quick QSO log (#245), however the dial got there: among the spots f
+ * passes (those the waterfall marks), the ones within window Hz of freq_hz. One call there (a station spotted twice
+ * is one): 1, its call and the reference of its newest spot with one. prefer (the spot tuned with the MFK, NULL or ""
+ * for none) among the calls there: 1 and that call. Else the number of calls there, 0 or 2 and more, call and ref
+ * "": on a busy band the box never offers a call that may not be the one heard */
+int cluster_spot_on_dial(const cluster_spot_t *spots, int n, const cluster_filter_t *f, uint16_t now_utc_min,
+                         int32_t freq_hz, int32_t window, const char *prefer, char *call, size_t size, char *ref,
+                         size_t ref_size);
+
 /* "host" or "host:port" -> host, port (23 when missing). */
 bool cluster_parse_server(const char *text, char *host, size_t host_size, int *port);
 

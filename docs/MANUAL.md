@@ -506,10 +506,16 @@ reads CW 1:2, then F5), opens a one-line box near the top,
 - In CW with the decoder's text on the screen (and in RTTY) the call it
   confirmed last is in the box already. Not in SSB after CW: the call heard
   in CW stays out.
-- After you tune to a [DX Cluster](#dx-cluster) spot (an MFK press in the
-  Cluster app, on the cluster column or on an alert), the box opens with the
-  spot's call in it while the radio is within 3 kHz of the spot; that call
-  comes before the decoder's. When the spot's comment has an activity
+- With the dial on a [DX Cluster](#dx-cluster) spot, the box opens with the
+  spot's call in it, however you tuned there, the main knob too: within
+  1 kHz of a spot the waterfall marks in SSB, AM and FM, within 200 Hz in CW
+  and the data modes. With two calls or more that close it offers none, as on
+  a busy band the call might not be the one you hear, unless one of them is
+  a spot you tuned to with the MFK (in the Cluster app, on the cluster column
+  or on an alert). A spot tuned with the MFK is also offered while the radio
+  is within 3 kHz of it and no other spot is on the dial. That call comes
+  before the decoder's. Up to v0.3.11 only a spot tuned with the MFK was
+  offered. When the spot's comment has an activity
   reference (a POTA park US-1234, a SOTA summit G/LD-001, a WWBOTA bunker
   B/G-0070, a HOTA one RO-H0390, a WWFF one ONFF-0123) and you log that call
   there, the reference goes into the QSO: ADIF `SIG` and `SIG_INFO` (and

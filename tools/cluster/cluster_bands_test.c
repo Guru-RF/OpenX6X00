@@ -5,6 +5,7 @@
  *  after 6 m, a spot's band and the mode it is tuned in there, and the band filter and the alerts in cluster.conf.
  *  Files of before (filter_bands=40,20,6, alerts on 20,17) read as they were; 2 m and 70 cm saved as 2 and 70, the
  *  numbers the web configurator writes too. The country list is not read: the spotters filter is not tested here.
+ *  The call of the spot the dial is on, for the quick QSO log (#245).
  */
 
 #include "cluster/client.h"
@@ -269,6 +270,50 @@ static void filter_saved(void) {
     check(cluster_filter_save(CLUSTER_FM_ALL, 0, 0) && !conf_line("filter_bands=")[0], "all bands: no line");
 }
 
+/* The call of the spot the dial is on, for the quick QSO log, however the dial got there (#245) */
+static void spot_on_dial(void) {
+    cluster_filter_t f = {.modes = CLUSTER_FM_ALL};
+    char             call[16], ref[16];
+    cluster_spot_t   one[] = {spot(7158000, "M0RBG/P", "59 in Kent"), spot(7172000, "G4ABC", "")};
+    cluster_spot_t   twice[] = {spot(14285000, "EA2ABC", "POTA EA-1234"), spot(14285100, "ea2abc", "still on"),
+                                spot(14290000, "DL1XYZ", "")};
+    cluster_spot_t   busy[] = {spot(7074000, "VK1AX", "FT8"), spot(7074300, "G6CKK", "FT8"),
+                               spot(7074500, "VK1AX", "FT8 again")};
+    cluster_spot_t   cw[] = {spot(7011000, "OK1AB", ""), spot(7011300, "SP2XY", "")};
+
+    check(cluster_spot_on_dial(one, LEN(one), &f, 12 * 60, 7158000, 1000, NULL, call, sizeof(call), ref,
+                               sizeof(ref)) == 1 && !strcmp(call, "M0RBG/P") && !ref[0],
+          "on the dial by the knob: M0RBG/P, no reference");
+    check(cluster_spot_on_dial(one, LEN(one), &f, 12 * 60, 7158700, 1000, NULL, call, sizeof(call), ref,
+                               sizeof(ref)) == 1 && !strcmp(call, "M0RBG/P"),
+          "700 Hz off in SSB: still M0RBG/P");
+    check(cluster_spot_on_dial(one, LEN(one), &f, 12 * 60, 7159500, 1000, NULL, call, sizeof(call), ref,
+                               sizeof(ref)) == 0 && !call[0] && !ref[0],
+          "1.5 kHz off: no call");
+    check(cluster_spot_on_dial(twice, LEN(twice), &f, 12 * 60, 14285000, 1000, NULL, call, sizeof(call), ref,
+                               sizeof(ref)) == 1 && !strcmp(call, "EA2ABC") && !strcmp(ref, "EA-1234"),
+          "a station spotted twice is one call; the reference of the spot with one");
+    check(cluster_spot_on_dial(busy, LEN(busy), &f, 12 * 60, 7074000, 1000, NULL, call, sizeof(call), ref,
+                               sizeof(ref)) == 2 && !call[0],
+          "two calls on the dial (VK1AX twice, G6CKK): none, 2 calls");
+    check(cluster_spot_on_dial(busy, LEN(busy), &f, 12 * 60, 7074000, 1000, "g6ckk", call, sizeof(call), ref,
+                               sizeof(ref)) == 1 && !strcmp(call, "G6CKK"),
+          "two calls, one of them tuned with the MFK: that one");
+    check(cluster_spot_on_dial(busy, LEN(busy), &f, 12 * 60, 7074000, 1000, "PA0ABC", call, sizeof(call), ref,
+                               sizeof(ref)) == 2 && !call[0],
+          "two calls, the one tuned with the MFK not among them: none");
+    check(cluster_spot_on_dial(cw, LEN(cw), &f, 12 * 60, 7011000, 1000, NULL, call, sizeof(call), ref,
+                               sizeof(ref)) == 2 && !call[0],
+          "CW spots 300 Hz apart in a 1 kHz window: none");
+    check(cluster_spot_on_dial(cw, LEN(cw), &f, 12 * 60, 7011000, 200, NULL, call, sizeof(call), ref,
+                               sizeof(ref)) == 1 && !strcmp(call, "OK1AB"),
+          "the same in CW's 200 Hz: OK1AB");
+    f.modes = CLUSTER_FM_CW;
+    check(cluster_spot_on_dial(one, LEN(one), &f, 12 * 60, 7158000, 1000, NULL, call, sizeof(call), ref,
+                               sizeof(ref)) == 0 && !call[0],
+          "a spot the filter hides (SSB with only CW shown) is not offered");
+}
+
 int main(void) {
     bands_of_frequencies();
     modes_of_spots();
@@ -277,6 +322,7 @@ int main(void) {
     spots_from_the_cluster();
     filter_of_before();
     filter_saved();
+    spot_on_dial();
     remove(CLUSTER_CONF);
     printf("%d cases, %d wrong\n", cases, bad);
     return bad != 0;

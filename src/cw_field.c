@@ -167,8 +167,8 @@ void cw_field_log_qso(const char *text) {
     field_log_extra(text, &extra);
     snprintf(line, sizeof(line), "%s|%s|%s|%s|%s|%s||%s", call, rs, rr, extra.name, extra.qth, extra.grid,
              extra.comment);
-    /* The spot tuned to, the radio still on it and the call its own: its park, summit, bunker... into the QSO (#245) */
-    if (!dialog_cluster_tuned_near(cparam_i_get(cfg_fg_freq), spot, sizeof(spot), ref, sizeof(ref)) ||
+    /* The spot the radio is on and the call its own: its park, summit, bunker... into the QSO (#245) */
+    if (!dialog_cluster_call_here(cparam_i_get(cfg_fg_freq), spot, sizeof(spot), ref, sizeof(ref)) ||
         strcasecmp(spot, call) != 0) {
         ref[0] = 0;
     }
@@ -194,10 +194,10 @@ void cw_field_log_open(void) {
 
     char spot[16], ref[16], line[24];
 
-    /* The spot tuned to, while the radio is still on it (#245). Else the last call the decoder wrote, ready to log,
-     * while its text is on the screen: a hidden panel keeps its text, and in SSB after CW the box had the CW
-     * decoder's last call in it */
-    if (dialog_cluster_tuned_near(cparam_i_get(cfg_fg_freq), spot, sizeof(spot), ref, sizeof(ref))) {
+    /* The spot the dial is on, tuned there with the MFK or the main knob (#245). Else the last call the decoder
+     * wrote, ready to log, while its text is on the screen: a hidden panel keeps its text, and in SSB after CW the
+     * box had the CW decoder's last call in it */
+    if (dialog_cluster_call_here(cparam_i_get(cfg_fg_freq), spot, sizeof(spot), ref, sizeof(ref))) {
         snprintf(line, sizeof(line), "%s ", spot);
         textarea_window_set(line);
     } else if (panel_shown() && *panel_last_call()) {

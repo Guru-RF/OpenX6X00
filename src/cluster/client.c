@@ -639,6 +639,62 @@ bool cluster_filter_pass(const cluster_filter_t *f, const cluster_spot_t *s, uin
     return true;
 }
 
+int cluster_spot_on_dial(const cluster_spot_t *spots, int n, const cluster_filter_t *f, uint16_t now_utc_min,
+                         int32_t freq_hz, int32_t window, const char *prefer, char *call, size_t size, char *ref,
+                         size_t ref_size) {
+    const cluster_spot_t *first = NULL, *chosen = NULL;
+    int                   calls = 0;
+
+    if (size) call[0] = '\0';
+    if (ref_size) ref[0] = '\0';
+    for (int i = 0; i < n; i++) {
+        const cluster_spot_t *s = &spots[i];
+        int32_t               off = s->freq_hz - freq_hz;
+
+        if (!s->dx[0] || off < -window || off > window || !cluster_filter_pass(f, s, now_utc_min)) continue;
+        if (!first) {
+            first = s;
+            calls = 1;
+        } else if (strcasecmp(first->dx, s->dx) != 0 && calls == 1) {
+            calls = 2;
+        }
+        if (prefer && prefer[0] && !strcasecmp(prefer, s->dx)) chosen = s;
+    }
+    if (!chosen && calls == 1) chosen = first;
+    if (!chosen) {
+        /* the calls there, each once */
+        int count = 0;
+
+        for (int i = 0; i < n && calls > 1; i++) {
+            const cluster_spot_t *s = &spots[i];
+            int32_t               off = s->freq_hz - freq_hz;
+            bool                  seen = false;
+
+            if (!s->dx[0] || off < -window || off > window || !cluster_filter_pass(f, s, now_utc_min)) continue;
+            for (int j = 0; j < i && !seen; j++) {
+                int32_t o = spots[j].freq_hz - freq_hz;
+
+                seen = o >= -window && o <= window && !strcasecmp(spots[j].dx, s->dx) &&
+                       cluster_filter_pass(f, &spots[j], now_utc_min);
+            }
+            count += !seen;
+        }
+        return calls > 1 ? count : 0;
+    }
+    snprintf(call, size, "%s", chosen->dx);
+    /* the newest spot of that call there with a reference: the store keeps them oldest first */
+    for (int i = n - 1; i >= 0 && ref_size; i--) {
+        const cluster_spot_t *s = &spots[i];
+        int32_t               off = s->freq_hz - freq_hz;
+
+        if (off < -window || off > window || strcasecmp(s->dx, chosen->dx) != 0 ||
+            !cluster_filter_pass(f, s, now_utc_min))
+            continue;
+        if (cluster_spot_ref(s, ref, ref_size)) break;
+    }
+    return 1;
+}
+
 bool cluster_parse_server(const char *text, char *host, size_t host_size, int *port) {
     while (*text == ' ') text++;
     const char *colon = strrchr(text, ':');
