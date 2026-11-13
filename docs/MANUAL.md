@@ -7411,13 +7411,16 @@ once, and again at every start.
   processor was busy most of that time (a decode, a busy screen); below
   that it follows the load. A little less heat.
 
-> **Experimental.** Saves power is new and not yet measured on a radio.
-> On a card written with v0.3.10's image or an earlier one it saves less
-> than its name says: the processor's voltage stays at 1.2 V at every speed,
-> so only what its clock costs while it waits is saved. The card image after
-> v0.3.10 lowers the voltage with the speed too (1.04 V up to 648 MHz, 1.1 V
-> to 816 MHz), and Full speed stays at 1.2 V as before. If the waterfall,
-> the audio or CW keying behave differently with it, set Full speed.
+> **Experimental.** On a card written with v0.3.10's image or an earlier one
+> it saves less than its name says: the processor's voltage stays at 1.2 V
+> at every speed, so only what its clock costs while it waits is saved. On
+> our bench X6200, on such a card, it ran no cooler: on the main screen the
+> processor was still at 1008 MHz for 62 % of a minute's readings, and the
+> audio server worked harder at the lower speeds. A card written from the
+> v0.3.11 image lowers the voltage with the speed too (1.04 V up to 648 MHz,
+> 1.1 V to 816 MHz), and Full speed stays at 1.2 V as before; that is not
+> yet measured on a radio. If the waterfall, the audio or CW keying behave
+> differently with it, set Full speed.
 
 Reading it over [SSH](#ssh): the speed now in kHz, and the processor's
 governor (`performance` for Full speed, `ondemand` for Saves power):
