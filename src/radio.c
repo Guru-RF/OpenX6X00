@@ -415,13 +415,15 @@ void radio_start() {
     on_xvtr_pwr_change(NULL, NULL);
 
     /* Outside the amateur bands the base held at 0 W, VOX off, KEY Train on (#121): where the radio transmits and the
-     * switch. Looked at once now, before PWR, VOX and Train go to the base below; subscribed before the split bit and
-     * the VFO in use (HW_SPLIT, HW_VFO_CUR below), which observers get in that order: held before the base moves */
+     * switch, the TX ranges and a read of the own list (#247). Looked at once now, before PWR, VOX and Train go to the
+     * base below; subscribed before the split bit and the VFO in use (HW_SPLIT, HW_VFO_CUR below), which observers get
+     * in that order: held before the base moves */
     Subject *band_by[] = {
         (Subject*)cfg_fg_freq, (Subject*)cfg_bg_freq, (Subject*)cfg_band_split, (Subject*)cfg_band_tx_shift,
         (Subject*)cfg_band_current_vfo, (Subject*)cfg_transverter_0_from, (Subject*)cfg_transverter_0_to,
         (Subject*)cfg_transverter_0_shift, (Subject*)cfg_transverter_1_from, (Subject*)cfg_transverter_1_to,
         (Subject*)cfg_transverter_1_shift, (Subject*)cfg_wr12, (Subject*)cfg_tx_outside_bands,
+        (Subject*)cfg_tx_ranges, (Subject*)cfg_tx_ranges_read,
     };
     for (size_t i = 0; i < sizeof(band_by) / sizeof(band_by[0]); i++) {
         subject_subscribe(band_by[i], on_band_hold_change, NULL);
@@ -1101,14 +1103,16 @@ static bool practice(void) {
  * tuner and the SWR scan come through here; what the base keys by itself (its hand-mic PTT, VOX, the KEY jack) is
  * not, it is held at 0 W there instead (band_hold). The CW Trainer's key goes through outside the bands, where the
  * hardware transmits, its PTT is refused without a word: the key that follows it sounds. Not while the X6200's WR12
- * is out of its bypass, or may be (cfg_tx_block, #134): then nothing goes, anywhere */
+ * is out of its bypass, or may be (cfg_tx_block, #134): then nothing goes, anywhere. Nor outside South Korea's ranges
+ * or the own list (cfg_tx_ranges_narrow, #247): a radio limited to them for its approval puts the base into TX
+ * nowhere else, at 0 W neither; the trainer works inside them */
 static bool tx_refused_at(int32_t freq, tx_by_t by) {
     static uint64_t said;
 
     if (!cfg_tx_refusal(freq)) {
         return false;
     }
-    if (by != TX_BY_GUI && practice() && cfg_is_tx_freq(freq) && !cfg_tx_block()) {
+    if (by != TX_BY_GUI && practice() && cfg_is_tx_freq(freq) && !cfg_tx_block() && !cfg_tx_ranges_narrow()) {
         return by == TX_BY_PTT;
     }
     if (get_time() - said > 5000) {     /* once, not for every CW element nor each slot of a beacon */
@@ -1131,11 +1135,18 @@ bool radio_say_no_tx(const char *what, int32_t freq, bool now) {
     } else {
         msg_schedule_text_fmt("%s on %s", what, mhz);
     }
-    /* Where the hardware transmits it is the bands (cfg_tx_refusal): where the switch is. The WR12 holds it anywhere */
+    /* Where the hardware transmits it is the bands or the TX ranges (cfg_tx_check, #247): where the switch and the
+     * list are. The WR12 holds it anywhere. Each about 30 characters, what the message box shows whole */
     if (block) {
         msg_schedule_text_fmt("%s: no TX", block);
     } else {
-        msg_schedule_text_fmt("%s", cfg_is_tx_freq(freq) ? "Out of band: Settings > TX Cal" : "Receive only there");
+        switch (cfg_tx_check(freq)) {
+            case HAM_TX_OFF_RANGE: msg_schedule_text_fmt("TX ranges: Settings > TX Cal"); break;
+            case HAM_TX_NO_RANGES: msg_schedule_text_fmt("No TX ranges: Settings > TX Cal"); break;
+            default:
+                msg_schedule_text_fmt("%s", cfg_is_tx_freq(freq) ? "Out of band: Settings > TX Cal" : "Receive only there");
+                break;
+        }
     }
     return true;
 }
@@ -1815,7 +1826,8 @@ static int8_t open_tx_want(void) {
     if (!radio_key_refused(&f)) {
         return 1;
     }
-    return practice() && cfg_is_tx_freq(f) && !cfg_tx_block() && !wr12_takes(vfo_freq(true));
+    /* The trainer's key goes through where tx_refused_at lets it: not outside the TX ranges (#247) */
+    return practice() && cfg_is_tx_freq(f) && !cfg_tx_block() && !wr12_takes(vfo_freq(true)) && !cfg_tx_ranges_narrow();
 }
 
 /* Under the lock: the one asked to the base. Not once the GUI's CW key is down: it looks at open_tx_busy after it set

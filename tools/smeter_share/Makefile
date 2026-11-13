@@ -7,7 +7,9 @@ TOP      := ../..
 SRC      := $(TOP)/src
 DEPS     ?= $(TOP)/build-host/deps
 LVGL     ?= $(TOP)/lvgl
-DEFS     := -DHOST_BUILD=1 -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE
+# A host build names the data folder (board.h): settings_manager_api.cpp keeps the own TX list's file there (#247),
+# which no case here reads
+DEFS     := -DHOST_BUILD=1 -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE -DBOARD_DATA='"$(CURDIR)/build"'
 INC      := -I $(TOP) -I $(SRC) -I $(SRC)/cfg -I $(DEPS)/include -isystem $(LVGL)
 CFLAGS   := -std=gnu11 -O1 -g $(DEFS) $(INC)
 CXXFLAGS := -std=gnu++17 -O1 -g $(DEFS) $(INC)

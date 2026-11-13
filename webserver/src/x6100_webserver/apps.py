@@ -2501,6 +2501,47 @@ def display_set():
     return {"status": "OK"}
 
 
+# The own TX list (#247): Settings > TX Cal > TX ranges > Own list, one "from-to" a line in MHz. The file is kept
+# here as written; the GUI reads it (src/cfg/tx_ranges.c) and says what it took, the lines it could not read too
+
+TX_RANGES_MAX = 8 * 1024    # 64 ranges with a comment each
+
+
+@app.get('/api/tx_ranges')
+def tx_ranges_get():
+    try:
+        with open(settings.TX_RANGES_FILE, encoding="utf-8", errors="replace") as f:
+            return {"text": f.read(TX_RANGES_MAX), "missing": False}
+    except FileNotFoundError:
+        return {"text": "", "missing": True}
+    except OSError as ex:
+        return api_error(500, f"Can't read {settings.TX_RANGES_FILE}: {ex.strerror}")
+
+
+@app.post('/api/tx_ranges')
+def tx_ranges_set():
+    try:
+        data = bottle.request.json
+    except ValueError:
+        data = None
+    text = data.get("text") if isinstance(data, dict) else None
+    if not isinstance(text, str) or len(text.encode()) > TX_RANGES_MAX:
+        return api_error(400, "Invalid list")
+    text = text.replace("\r\n", "\n")
+    if text and not text.endswith("\n"):
+        text += "\n"
+    try:
+        with config_lock:
+            replace_file(settings.TX_RANGES_FILE, lambda f: f.write(text), encoding="utf-8")
+    except OSError as ex:
+        return api_error(500, f"Can't save: {ex.strerror}")
+    reply = display_call({"cmd": "tx_ranges_read"})
+    if not reply or reply.get("t") != "tx_ranges":
+        return api_error(503, "Saved; the radio's GUI is not reachable, it reads the list at its next start")
+    reply.pop("t", None)
+    return reply
+
+
 # Boot picture (#101): the owner's own picture for the start, on the Display page. Kept on the DATA partition
 # (settings.BOOT_PICTURE), which updates leave as it is; bootanim/bootanim.c shows it in place of ours, and ours when
 # it can't read it. Checked here before it is kept, so the start doesn't fall back to ours unexplained

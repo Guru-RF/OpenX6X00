@@ -55,15 +55,51 @@ const char *cfg_tx_refusal(int32_t freq) {
     if (block) {
         return block;
     }
-    switch (ham_tx_check(freq, cfg_sm.is_tx_freq(freq), cfg_sm.transverter_shift_for(freq) != 0,
-                         cfg_sm.p_tx_outside_bands.get())) {
-        case HAM_TX_RX_ONLY:
-            return "receive only";
-        case HAM_TX_OFF_BAND:
-            return "outside the amateur bands (Settings > TX Cal)";
-        default:
-            return NULL;
+    return tx_ranges_why(cfg_tx_check(freq));
+}
+
+ham_tx_t cfg_tx_check(int32_t freq) {
+    return tx_ranges_check(static_cast<tx_ranges_t>(cfg_sm.p_tx_ranges.get()), freq, cfg_sm.is_tx_freq(freq),
+                           cfg_sm.transverter_shift_for(freq), cfg_sm.p_tx_outside_bands.get());
+}
+
+bool cfg_tx_ranges_narrow(void) {
+    return cfg_sm.p_tx_ranges.get() != TX_RANGES_BANDS;
+}
+
+const char *cfg_tx_ranges_path(void) {
+    return BOARD_DATA "/tx_ranges.conf";
+}
+
+tx_ranges_own_t cfg_tx_ranges_load(void) {
+    tx_ranges_own_t st = tx_ranges_own_load(cfg_tx_ranges_path());
+
+    /* The log says what the list was at each read: what a radio transmitted on is then known afterwards. A radio
+     * without the file and on another choice says nothing */
+    if (st.missing && cfg_sm.p_tx_ranges.get() != TX_RANGES_OWN) {
+        return st;
     }
+    if (st.missing) {
+        fprintf(stderr, "TX ranges: no %s: the own list is empty, no TX anywhere\n", cfg_tx_ranges_path());
+        return st;
+    }
+    fprintf(stderr, "TX ranges: own list from %s: %d range(s)", cfg_tx_ranges_path(), st.count);
+    for (int i = 0; i < st.count; i++) {
+        int32_t lo, hi;
+
+        if (tx_ranges_own_get(i, &lo, &hi)) {
+            fprintf(stderr, "%s%d-%d", i ? ", " : ": ", (int)lo, (int)hi);
+        }
+    }
+    if (st.bad) {
+        fprintf(stderr, "; %d line(s) not read, the first line %d", st.bad, st.first_bad);
+    }
+    fprintf(stderr, "%s\n", st.count ? "" : ": no TX anywhere with Own list");
+    return st;
+}
+
+void cfg_tx_ranges_changed(void) {
+    cfg_sm.s_tx_ranges_read.set(cfg_sm.s_tx_ranges_read.get() + 1);
 }
 
 /* tools/tune/tune_test.c keeps a copy of this one and cfg_tx_refusal_text: change both */
@@ -95,12 +131,14 @@ const char *cfg_tx_refusal_text(int32_t freq, char *buf, size_t size) {
 bool cfg_tx_range(int32_t freq, int32_t *lo, int32_t *hi) {
     struct Range {
         bool    on;
-        int32_t from, to;
+        int32_t from, to, shift;
     };
     const Range r[] = {
-        {cfg_sm.p_transverter_0_shift.get() != 0, cfg_sm.p_transverter_0_from.get(), cfg_sm.p_transverter_0_to.get()},
-        {cfg_sm.p_transverter_1_shift.get() != 0, cfg_sm.p_transverter_1_from.get(), cfg_sm.p_transverter_1_to.get()},
-        {true, SettingsManager::HF_MIN_FREQ, SettingsManager::HF_MAX_FREQ},
+        {cfg_sm.p_transverter_0_shift.get() != 0, cfg_sm.p_transverter_0_from.get(), cfg_sm.p_transverter_0_to.get(),
+         cfg_sm.p_transverter_0_shift.get()},
+        {cfg_sm.p_transverter_1_shift.get() != 0, cfg_sm.p_transverter_1_from.get(), cfg_sm.p_transverter_1_to.get(),
+         cfg_sm.p_transverter_1_shift.get()},
+        {true, SettingsManager::HF_MIN_FREQ, SettingsManager::HF_MAX_FREQ, 0},
     };
 
     for (size_t k = 0; k < std::size(r); k++) {
@@ -123,7 +161,9 @@ bool cfg_tx_range(int32_t freq, int32_t *lo, int32_t *hi) {
                 *lo = std::max(*lo, r[j].to + 1);
             }
         }
-        return true;
+        /* South Korea's ranges or the own list (#247), where the radio's own output goes: the SWR scan sweeps no
+         * further. False where cfg_tx_refusal refuses */
+        return tx_ranges_narrow(static_cast<tx_ranges_t>(cfg_sm.p_tx_ranges.get()), freq, r[k].shift, lo, hi);
     }
     return false;
 }

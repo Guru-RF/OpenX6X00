@@ -4079,9 +4079,96 @@ static uint8_t make_smeter_fe(uint8_t row) {
     return row;
 }
 
+/* TX ranges (#247): Ham bands (the amateur bands, the default), South Korea's ranges, or the own list read from its
+ * file on the DATA partition. The note under it says what is in force, for the own list its ranges as read or why
+ * there are none (an empty list transmits nowhere). Choosing Own list reads the file as it is now, as Read again does
+ * after an edit over SSH; the choice is saved at once, so a radio switched off right after keeps it. "Amateur bands"
+ * did not fit the dropdown */
+static lv_obj_t *txr_note;
+
+static void txr_note_show(void) {
+    char            text[160], mhz[24];
+    tx_ranges_own_t st = tx_ranges_own_state();
+    int             l  = 0;
+
+    if (!txr_note) {
+        return;
+    }
+    switch (cfg_sm.p_tx_ranges.get()) {
+        case TX_RANGES_KR:
+            lv_label_set_text(txr_note, "South Korea's ranges only, 160 to 6 m: the switch below goes no further");
+            return;
+        case TX_RANGES_OWN:
+            break;
+        default:
+            lv_label_set_text(txr_note, "Every region's amateur bands; past them only with the switch below");
+            return;
+    }
+    /* What matters first: the line cut with ... keeps it */
+    if (!st.count) {
+        if (st.bad) {
+            l += snprintf(text + l, sizeof(text) - l, "No TX anywhere: line %d not read%s,", st.first_bad,
+                          st.bad > 1 ? " (and more)" : "");
+        } else {
+            l += snprintf(text + l, sizeof(text) - l, "No TX anywhere:");
+        }
+        snprintf(text + l, sizeof(text) - l, " no %s%s", st.missing ? "" : "range in ", cfg_tx_ranges_path());
+    } else {
+        if (st.bad) {
+            l += snprintf(text + l, sizeof(text) - l, "Line %d not read%s. ", st.first_bad,
+                          st.bad > 1 ? " (and more)" : "");
+        }
+        l += snprintf(text + l, sizeof(text) - l, "%d range%s, MHz:", st.count, st.count > 1 ? "s" : "");
+        for (int i = 0; i < st.count && l < (int)sizeof(text) - 1; i++) {
+            int32_t lo, hi;
+            char    to[24], *unit;
+
+            if (!tx_ranges_own_get(i, &lo, &hi)) {
+                break;
+            }
+            cfg_tx_mhz(lo, mhz, sizeof(mhz));
+            cfg_tx_mhz(hi, to, sizeof(to));
+            if ((unit = strchr(mhz, ' '))) *unit = '\0';    /* "7.000 MHz": the number */
+            if ((unit = strchr(to, ' '))) *unit = '\0';
+            l += snprintf(text + l, sizeof(text) - l, "%s %s-%s", i ? "," : "", mhz, to);
+        }
+    }
+    lv_label_set_text(txr_note, text);
+}
+
+static void txr_choice_cb(lv_event_t *e) {
+    int32_t v = lv_dropdown_get_selected(lv_event_get_target(e));
+
+    if (v == TX_RANGES_OWN) {
+        cfg_tx_ranges_load();
+        cfg_tx_ranges_changed();
+    }
+    cfg_sm.p_tx_ranges.set(v);
+    cfg_api_flush_all();
+    txr_note_show();
+}
+
+static void txr_read_cb(lv_event_t *e) {
+    (void)e;
+    cfg_tx_ranges_load();
+    cfg_tx_ranges_changed();
+    txr_note_show();
+}
+
 /* TX outside the amateur bands (#121): off by default, for operators licensed outside them. The receive-only ranges
- * stay so. The note on a line of its own: beside the switch, VISION's type ran the label into it */
+ * stay so. The note on a line of its own: beside the switch, VISION's type ran the label into it. The TX ranges
+ * before it: South Korea's and the own list win over it (#247) */
 static uint8_t make_tx_bands(uint8_t row) {
+    wl_row_label(row, "TX ranges");
+    row_choice(row, 1, 3, SMALL_3, "Ham bands\nSouth Korea\nOwn list", cfg_sm.p_tx_ranges.get(), txr_choice_cb, NULL);
+    row++;
+    txr_note = upd_line(row);
+    lv_obj_add_event_cb(txr_note, ptr_clear_cb, LV_EVENT_DELETE, &txr_note);
+    txr_note_show();
+    row++;
+    wl_row_label(row, "Own list file");
+    wl_button(row, "Read again", txr_read_cb);
+    row++;
     row = make_param_switch(row, "TX outside ham bands", cfg_sm.p_tx_outside_bands);
     lv_label_set_text(upd_line(row), "Only if licensed outside the amateur bands: MARS, CAP");
     return row + 1;

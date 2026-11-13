@@ -60,6 +60,8 @@ ParamInt         *cfg_smeter_bar_color = nullptr;
 ParamInt         *cfg_swr_color = nullptr;
 ParamInt         *cfg_swr_protect = nullptr;
 ParamInt         *cfg_tx_outside_bands = nullptr;
+ParamInt         *cfg_tx_ranges        = nullptr;
+SubjectInt       *cfg_tx_ranges_read   = nullptr;
 ParamFloat       *cfg_tune_pwr    = nullptr;
 ParamInt         *cfg_tune_time   = nullptr;
 ParamInt         *cfg_smeter_lamp         = nullptr;
@@ -259,6 +261,8 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_swr_color        = &cfg_sm.p_swr_color;
     cfg_swr_protect      = &cfg_sm.p_swr_protect;
     cfg_tx_outside_bands = &cfg_sm.p_tx_outside_bands;
+    cfg_tx_ranges        = &cfg_sm.p_tx_ranges;
+    cfg_tx_ranges_read   = &cfg_sm.s_tx_ranges_read;
     cfg_tune_pwr         = &cfg_sm.p_tune_pwr;
     cfg_tune_time        = &cfg_sm.p_tune_time;
     cfg_smeter_lamp      = &cfg_sm.p_smeter_lamp;
@@ -414,6 +418,10 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
 
     // Wire the ATU cache to the parameter sources and do the initial load.
     atu_cache_wire_subscriptions();
+
+    // The own TX list (#247), before radio.c first looks where the radio may transmit: with Own list chosen a radio
+    // starts on the file as it is now, an empty list if there is none
+    cfg_tx_ranges_load();
 }
 
 int cfg_smeter_cal_bands(int *start, char (*names)[16], int *vals, int max) {

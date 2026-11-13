@@ -22,6 +22,8 @@ typedef enum {
     HAM_TX_RX_ONLY,     /* the hardware does not transmit there (the X6200's FM broadcast and airband, the WR12, above
                          * HF without a transverter, under 0 Hz with a TX shift), whatever the setting */
     HAM_TX_OFF_BAND,    /* HF outside the amateur bands, with TX outside them off */
+    HAM_TX_OFF_RANGE,   /* outside South Korea's ranges or the own list (tx_ranges.h, #247), whatever the switch */
+    HAM_TX_NO_RANGES,   /* the own list chosen with no range in it: nowhere (tx_ranges.h) */
 } ham_tx_t;
 
 /* The amateur band hz is in, its edges into *lo and *hi (Hz, both in; either may be NULL); false: none. Any thread */

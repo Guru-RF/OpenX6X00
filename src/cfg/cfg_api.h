@@ -90,6 +90,8 @@ extern ParamInt         *cfg_smeter_bar_color;   // p_smeter_bar_color
 extern ParamInt         *cfg_swr_color;          // p_swr_color
 extern ParamInt         *cfg_swr_protect;        // p_swr_protect
 extern ParamInt         *cfg_tx_outside_bands;   // p_tx_outside_bands
+extern ParamInt         *cfg_tx_ranges;          // p_tx_ranges (tx_ranges_t, #247)
+extern SubjectInt       *cfg_tx_ranges_read;     // s_tx_ranges_read: a read of the own list (cfg_tx_ranges_changed)
 extern ParamFloat       *cfg_tune_pwr;           // p_tune_pwr
 extern ParamInt         *cfg_tune_time;          // p_tune_time
 extern ParamInt         *cfg_smeter_lamp;        // p_smeter_lamp

@@ -552,6 +552,8 @@ lv_obj_t *freq_strip_init(lv_obj_t *parent) {
     subject_subscribe_delayed((Subject *)cfg_band_split, update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_band_tx_shift, update_cb, NULL);   /* deck: after the other VFO */
     subject_subscribe_delayed((Subject *)cfg_tx_outside_bands, update_cb, NULL);    /* its colour (#121) */
+    subject_subscribe_delayed((Subject *)cfg_tx_ranges, update_cb, NULL);           /* and the TX ranges' (#247) */
+    subject_subscribe_delayed((Subject *)cfg_tx_ranges_read, update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_cur_mode, update_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_broadcast_name, bc_setting_cb, NULL);
     subject_subscribe_delayed((Subject *)cfg_mode_freq_step, step_change_cb, NULL);
