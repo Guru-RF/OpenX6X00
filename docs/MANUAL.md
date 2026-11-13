@@ -2080,9 +2080,16 @@ the frequency strip use the new list at once, without a restart.
 
 Factory reset (from v0.127). Where: Settings > Info > FIRMWARE > Factory
 reset, Reset.... A panel lists what goes and what stays; hold the MFK down for
-3 seconds to confirm, ESC cancels ("Released: reset cancelled"). A press or a
-turn of the knob does nothing. Then the radio software restarts (a few
-seconds of dark screen); the radio does not reboot.
+3 seconds to confirm, ESC cancels ("Released: reset cancelled"). A press of
+the knob does nothing. Then the radio software restarts (a few seconds of dark
+screen); the radio does not reboot.
+
+The panel's WiFi line says what happens to the saved WiFi networks: "kept"
+when it opens. Turn the MFK right to delete them too ("deleted too"), left to
+keep them. Not while the MFK is held down: the hold confirms what the panel
+showed. Deleted, they are gone from the copy on the DATA partition as well,
+so a card image written afterwards brings none of them back; other network
+profiles (Ethernet, USB tethering) and the SSH keys stay.
 
 > **There is no undo.** Download the Backup from the web configurator first,
 > so you can put your settings back.
@@ -2097,19 +2104,21 @@ seconds of dark screen); the radio does not reboot.
   JS8 texts, voice messages, pictures, recordings, themes, CW trainer
   progress, Bluetooth pairings and autoconnect list, the paired browsers,
   your own TX ranges list (the choice of list goes back to Ham bands), the
-  WiFi networks and SSH keys, the radio's network name, Tailscale, and the
-  accounts (Winlink, Wavelog, QRZ, HOTA, WWFF). Settings > Wireless > WIFI
-  deletes a saved network: select it while it is in range, then Delete.
+  WiFi networks (unless the WiFi line says "deleted too") and SSH keys, the
+  radio's network name, Tailscale, and the accounts (Winlink, Wavelog, QRZ,
+  HOTA, WWFF). Settings > Wireless > WIFI deletes one saved network: select it
+  while it is in range, then Delete.
 
 A card image written over the card does not reset anything either: the image
 holds only the system's two partitions, and the radio keeps the DATA partition
 it finds after them, with the settings, logs and files (see [Updating the
 firmware](#updating-the-firmware)). Its first start also takes back the WiFi
-networks and SSH keys from the copy on DATA (`backups/backup.tgz`). To start
-clean:
+networks and SSH keys from the copy on DATA (`backups/backup.tgz`), unless a
+factory reset deleted the WiFi networks. To start clean:
 
-- Settings to the defaults, logs and files kept: Factory reset as above, then
-  delete the WiFi networks you no longer want.
+- Settings to the defaults, logs and files kept: Factory reset as above, with
+  the WiFi line turned to "deleted too" when the WiFi networks should go as
+  well.
 - A card with nothing of before: deleting the partitions or a quick format on
   a PC is most likely not enough, as both write only the start of the card;
   the old DATA lies past the end of the image, and the new image's first

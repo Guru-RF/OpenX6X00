@@ -5190,6 +5190,8 @@ static lv_obj_t   *fr_count;
 static lv_timer_t *fr_timer;
 static uint32_t    fr_held;     /* ms the MFK has been down, 0: up */
 static bool        fr_armed;    /* the MFK was seen up since the panel opened */
+static bool        fr_wifi;     /* the WiFi choice: the saved WiFi networks go too (#257); keep, each time it opens */
+static lv_obj_t   *fr_wifi_lbl;
 
 static void fr_close(void *arg) {
     if (fr_timer) {
@@ -5223,6 +5225,7 @@ static void fr_timer_cb(lv_timer_t *t) {
     }
     lv_label_set_text(fr_count, "Resetting...");
     lv_refr_now(NULL);
+    if (fr_wifi) factory_reset_wifi();   /* before the settings: it waits for NetworkManager and the copy on DATA */
     database_keep_drop();   /* the settings' last good copy too, before the reset's sync: nothing brings them back */
     factory_reset_dir(BOARD_DATA);
     _exit(0);   /* not exit(): no destructor may write the settings back */
@@ -5236,12 +5239,30 @@ static void fr_delete_cb(lv_event_t *e) {
         lv_timer_del(fr_timer);
         fr_timer = NULL;
     }
-    fr_count = NULL;
+    fr_count    = NULL;
+    fr_wifi_lbl = NULL;
+}
+
+/* The WiFi choice as it stands, and the turn that changes it */
+static void fr_wifi_show(void) {
+    if (!fr_wifi_lbl) return;
+    lv_label_set_text(fr_wifi_lbl, fr_wifi ? "WiFi networks: deleted too. Turn MFK left: keep them"
+                                           : "WiFi networks: kept. Turn MFK right: delete them too");
+    lv_obj_set_style_text_color(fr_wifi_lbl, lv_color_hex(theme_hex(fr_wifi ? TC_text_head : TC_text_value)), 0);
 }
 
 static void fr_key_cb(lv_event_t *e) {
     switch (*((uint32_t *)lv_event_get_param(e))) {
         case LV_KEY_ESC:    lv_async_call(fr_close, NULL); break;
+        /* The MFK's turn sets the WiFi choice by its direction (a quick spin can't leave it either way), never
+         * while the MFK is held down for the reset: what the hold confirms is what was on the screen */
+        case LV_KEY_RIGHT:
+        case LV_KEY_LEFT:
+            if (!fr_held) {
+                fr_wifi = *((uint32_t *)lv_event_get_param(e)) == LV_KEY_RIGHT;
+                fr_wifi_show();
+            }
+            break;
         case KEY_VOL_LEFT_EDIT:
         case KEY_VOL_LEFT_SELECT:   radio_change_vol(-1); break;
         case KEY_VOL_RIGHT_EDIT:
@@ -5270,6 +5291,11 @@ static void fr_btn_cb(lv_event_t *e) {
      * never the line that says how to confirm. Below the lists, VISION cut it in half (#257) */
     fr_count = wl_label(fr_panel, SF(22), theme_hex(TC_text_head), 0);
     lv_label_set_text(fr_count, "Hold MFK down 3 s to reset - ESC: cancel");
+    fr_wifi     = false;
+    fr_wifi_lbl = wl_label(fr_panel, SF(18), theme_hex(TC_text_value), 0);
+    lv_obj_set_width(fr_wifi_lbl, lv_pct(100));
+    lv_label_set_long_mode(fr_wifi_lbl, LV_LABEL_LONG_WRAP);
+    fr_wifi_show();
 
     obj = wl_label(fr_panel, SF(18), theme_hex(TC_text_value), 0);
     lv_obj_set_width(obj, lv_pct(100));
@@ -5280,13 +5306,9 @@ static void fr_btn_cb(lv_event_t *e) {
     obj = wl_label(fr_panel, SF(18), theme_hex(TC_text_dim), 0);
     lv_obj_set_width(obj, lv_pct(100));
     lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
-    /* No longer than this: with VISION's big type the panel just holds the three texts (#257) */
+    /* No longer than this: with VISION's big type the panel just holds the texts (#257) */
     lv_label_set_text(obj, "Kept: logs, memory channels, macros and texts, voice messages, pictures, recordings, themes, "
-                           "CW trainer progress, pairings, WiFi networks, SSH keys, network name, accounts.");
-    obj = wl_label(fr_panel, SF(18), theme_hex(TC_text_dim), 0);
-    lv_obj_set_width(obj, lv_pct(100));
-    lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(obj, "Then the radio software restarts (a few seconds dark).");
+                           "CW trainer progress, pairings, SSH keys, network name, accounts. Then the radio software restarts.");
 
     fr_held  = 0;
     fr_armed = false;

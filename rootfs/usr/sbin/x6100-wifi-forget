@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# The saved WiFi networks forgotten: the factory reset's WiFi choice (Settings > Info > Factory reset, #257).
+# Their profiles go from NetworkManager's folder, NetworkManager reads the folder again (a profile whose file is
+# gone is dropped, and its connection taken down), and the copy on DATA is made again without them
+# (S04restore_backup_config stop), so a card written afterwards brings none of them back. Only WiFi profiles: the
+# others in the folder (Ethernet, the image's USB tethering) stay, and so do the SSH keys in the copy.
+#
+# Prints how many went. Exit 0 also when NetworkManager is not reachable: the files are gone, and it drops them at
+# its next start. Exit 1 when a WiFi profile could not be deleted, or the copy still names one and could not go.
+# X6100_BACKUP_CONFIG: another S04restore_backup_config (tools/wifi_restore's test runs the tree's).
+
+DIR=/etc/NetworkManager/system-connections
+BACKUP=/mnt/backups/backup.tgz      # S04restore_backup_config's BACKUP_PATH
+BACKUP_CONFIG=${X6100_BACKUP_CONFIG:-/etc/init.d/S04restore_backup_config}
+GONE=/tmp/x6100-wifi-forget.$$      # the deleted profiles, as the copy names them (no leading /)
+
+rc=0
+: > $GONE
+for f in "$DIR"/*; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    # The profile's type, in its [connection] section: wifi, or 802-11-wireless as older files have it
+    t=$(sed -n '/^\[connection\]/,/^\[/s/^type=//p' "$f" | head -n 1)
+    case "$t" in
+        wifi|802-11-wireless)
+            if rm -f "$f"; then
+                printf '%s\n' "${f#/}" >> $GONE
+            else
+                rc=1
+            fi
+            ;;
+    esac
+done
+n=$(wc -l < $GONE)
+
+# What `nmcli connection reload` does (the radios have no nmcli), as the web configurator's WiFi restore
+dbus-send --system --print-reply --dest=org.freedesktop.NetworkManager /org/freedesktop/NetworkManager/Settings \
+    org.freedesktop.NetworkManager.Settings.ReloadConnections > /dev/null 2>&1
+
+if [ "$n" -gt 0 ] && [ -f "$BACKUP" ]; then
+    "$BACKUP_CONFIG" stop
+    # The copy made again holds what is in the folders now. One that still names a deleted profile (not made
+    # again: a full card, a failed write) goes: the next written card then brings back no network and no SSH key
+    # (the SSH host keys are made new), rather than the networks the reset was told to forget
+    if { gunzip -c "$BACKUP" 2>/dev/null || cat "$BACKUP"; } | tar tf - 2>/dev/null | grep -qxF -f $GONE; then
+        rm -f "$BACKUP" || rc=1
+    fi
+fi
+rm -f $GONE
+echo "$n"
+exit $rc

@@ -20,6 +20,16 @@ radio image in TARGETS has (links to this PC's in a folder of their own, PATH as
    whatever it called the network), twice in the backup: one profile of it after, the backup's latest used,
    written over the radio's file, and the radio's own kept as the safety copy.
 
+The factory reset's WiFi choice (rootfs/usr/sbin/x6100-wifi-forget, #257), with the tree's
+S04restore_backup_config making the copy on DATA (/mnt, /etc/ssh and /root on tmpfs here too):
+
+6. The WiFi profiles go (an older file's 802-11-wireless too, a name with spaces and brackets), the Ethernet and
+   USB tethering ones stay; NetworkManager drops the WiFi ones at once, and the copy on DATA is made again
+   without them, the others and the SSH key still in it.
+7. No WiFi profile: nothing deleted, the copy left as it was.
+8. NetworkManager not reachable: the files and the copy are done all the same; it drops them at its next start.
+9. The copy not made again (S04restore_backup_config failing): the copy that still names a deleted network goes.
+
 What NetworkManager has is read with this PC's nmcli (the test's own look, not the web server's).
 WEBSERVER=<a webserver/src> tests another web server (make v038: v0.3.8's, which has to fail 1, 2, 4 and 5).
 """
@@ -168,7 +178,11 @@ def setUpModule():
     for args in (["-t", "sysfs", "-o", "ro", "sysfs", "/sys"],    # read-only: NetworkManager then does without udev
                  ["-t", "tmpfs", "tmpfs", "/run"],
                  ["-t", "tmpfs", "tmpfs", "/var/lib/NetworkManager"],
-                 ["-t", "tmpfs", "tmpfs", "/etc/NetworkManager"]):
+                 ["-t", "tmpfs", "tmpfs", "/etc/NetworkManager"],
+                 # the WiFi forget's copy on DATA (/mnt/backups) and what S04restore_backup_config puts in it
+                 ["-t", "tmpfs", "tmpfs", "/mnt"],
+                 ["-t", "tmpfs", "tmpfs", "/etc/ssh"],
+                 ["-t", "tmpfs", "tmpfs", "/root"]):
         subprocess.run([tool("mount"), *args], check=True)
     work = tempfile.mkdtemp(prefix="x6100-wifi-restore.")
     for d in ("/run/dbus", "/run/NetworkManager", settings.WIFI_DIR):
@@ -326,6 +340,106 @@ class WifiRestore(unittest.TestCase):
         self.assertEqual((r["restored"], r["failed"]), (["wifi"], {}))
         reloaded()
         self.assertEqual(until(link, (UUID_ETH_OTHER, "10.9.0.3/24")), (UUID_ETH_OTHER, "10.9.0.3/24"))
+
+
+FORGET = os.path.join(TOP, "rootfs", "usr", "sbin", "x6100-wifi-forget")
+BACKUP_CONFIG = os.path.join(TOP, "rootfs", "etc", "init.d", "S04restore_backup_config")
+COPY = "/mnt/backups/backup.tgz"
+UUID_TETHER = "441863a7-da0e-48a6-8f9f-4823484d6da7"
+
+
+def tether():
+    """The image's USB tethering profile: Ethernet, matched by driver"""
+    return (f"[connection]\nid=USB tethering\nuuid={UUID_TETHER}\ntype=ethernet\nautoconnect-priority=50\n\n"
+            "[match]\ndriver=rndis_host;\n\n[ethernet]\n\n[ipv4]\nmethod=auto\nnever-default=true\n").encode()
+
+
+def older(name, ssid, uid):
+    """A WiFi profile as older NetworkManagers wrote it: type=802-11-wireless"""
+    return (f"[connection]\nid={name}\nuuid={uid}\ntype=802-11-wireless\n\n[802-11-wireless]\nmode=infrastructure\n"
+            f"ssid={ssid}\n\n[ipv4]\nmethod=auto\n").encode()
+
+
+class WifiForget(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(os.environ.pop, "DBUS_SYSTEM_BUS_ADDRESS", None)
+        for n in os.listdir(settings.WIFI_DIR):
+            os.remove(os.path.join(settings.WIFI_DIR, n))
+        nm("connection", "reload")
+        for d in ("/etc/ssh", "/root/.ssh", "/mnt/backups"):
+            os.makedirs(d, exist_ok=True)
+        with open("/etc/ssh/ssh_host_ed25519_key", "w") as f:
+            f.write("a host key\n")
+        if os.path.exists(COPY):
+            os.remove(COPY)
+
+    def have(self, name, data):
+        with open(os.path.join(settings.WIFI_DIR, name), "wb") as f:
+            f.write(data)
+        os.chmod(os.path.join(settings.WIFI_DIR, name), 0o600)
+
+    def run_sh(self, *args, env=None):
+        return subprocess.run(["sh", *args], capture_output=True, text=True, timeout=60,
+                              env={**os.environ, **(env or {})})
+
+    def copy_made(self):
+        """The copy on DATA, as at a clean power-off"""
+        self.assertEqual(self.run_sh(BACKUP_CONFIG, "stop").returncode, 0)
+        return self.members()
+
+    def members(self):
+        with tarfile.open(COPY) as tf:
+            return sorted(tf.getnames())
+
+    def forget(self, **env):
+        r = self.run_sh(FORGET, env={"X6100_BACKUP_CONFIG": BACKUP_CONFIG, **env})
+        return r.returncode, r.stdout.strip()
+
+    def test_wifi_gone_others_stay(self):
+        self.have("Home.nmconnection", profile("Home", "HomeNet", UUID_HOME))
+        self.have("Cafe [5G].nmconnection", profile("Cafe [5G]", "Cafe 5G", UUID_CLUB))
+        self.have("Old", older("Old", "OldNet", UUID_ETH_OTHER))
+        self.have("Ethernet.nmconnection", wired(UUID_ETH, "10.9.0.2"))
+        self.have("usb-tether.nmconnection", tether())
+        nm("connection", "reload")
+        self.assertEqual(known(), {"Home": "HomeNet", "Cafe [5G]": "Cafe 5G", "Old": "OldNet"})
+        before = self.copy_made()
+        self.assertIn("etc/NetworkManager/system-connections/Cafe [5G].nmconnection", before)
+        self.assertEqual(self.forget(), (0, "3"))
+        self.assertEqual(sorted(os.listdir(settings.WIFI_DIR)), ["Ethernet.nmconnection", "usb-tether.nmconnection"])
+        self.assertEqual(until(known, {}), {})          # dropped at once, no restart
+        self.assertEqual(self.members(), ["etc/NetworkManager/system-connections/Ethernet.nmconnection",
+                                          "etc/NetworkManager/system-connections/usb-tether.nmconnection",
+                                          "etc/ssh/ssh_host_ed25519_key"])
+
+    def test_no_wifi(self):
+        self.have("Ethernet.nmconnection", wired(UUID_ETH, "10.9.0.2"))
+        nm("connection", "reload")
+        self.copy_made()
+        with open(COPY, "rb") as f:
+            copy = f.read()
+        self.assertEqual(self.forget(), (0, "0"))
+        self.assertEqual(os.listdir(settings.WIFI_DIR), ["Ethernet.nmconnection"])
+        with open(COPY, "rb") as f:
+            self.assertEqual(f.read(), copy)            # not made again
+
+    def test_networkmanager_not_reachable(self):
+        self.have("Home.nmconnection", profile("Home", "HomeNet", UUID_HOME))
+        nm("connection", "reload")
+        self.copy_made()
+        self.assertEqual(self.forget(DBUS_SYSTEM_BUS_ADDRESS="unix:path=/run/no-bus-here"), (0, "1"))
+        self.assertEqual(os.listdir(settings.WIFI_DIR), [])
+        self.assertEqual(self.members(), ["etc/ssh/ssh_host_ed25519_key"])
+        self.assertEqual(known(), {"Home": "HomeNet"})  # NetworkManager still has it...
+        nm("connection", "reload")                      # ...until its next start reads the folder
+        self.assertEqual(known(), {})
+
+    def test_copy_not_made_again(self):
+        self.have("Home.nmconnection", profile("Home", "HomeNet", UUID_HOME))
+        nm("connection", "reload")
+        self.copy_made()
+        self.assertEqual(self.forget(X6100_BACKUP_CONFIG=tool("false")), (0, "1"))
+        self.assertFalse(os.path.exists(COPY))          # it named the network: gone, rather than bring it back
 
 
 if __name__ == "__main__":

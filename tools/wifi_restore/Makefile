@@ -1,5 +1,6 @@
 # Host test of the Backup page's WiFi restore (webserver apps.py): `make` runs it, a backup uploaded and its WiFi
-# part restored through bottle's WSGI app, with the web server's own code, against a NetworkManager of this PC.
+# part restored through bottle's WSGI app, with the web server's own code, against a NetworkManager of this PC. And
+# the factory reset's WiFi choice (rootfs/usr/sbin/x6100-wifi-forget, #257) against the same NetworkManager.
 # It runs in namespaces of its own (unshare -rmn): no network but loopback, NetworkManager's folders on tmpfs and its
 # D-Bus a bus of its own, so nothing of this PC's network is touched. The web server's commands find only the
 # programs every radio image in TARGETS has, as on the radio: dbus-send, no nmcli. See wifi_restore_test.py.

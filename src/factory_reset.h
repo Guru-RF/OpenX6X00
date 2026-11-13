@@ -8,7 +8,10 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 /*
@@ -25,7 +28,8 @@
  *  own names (own_names.conf), Tailscale (tailscale.conf, tailscale/), Winlink (winlink.conf,
  *  winlink/), the upload accounts (field/), https/ and device_id. The WiFi networks and the SSH keys
  *  are not on /mnt but on the system partition (S04restore_backup_config keeps their copy in
- *  backups/, for a rewritten card): a reset leaves them too, Settings > Wireless deletes a network.
+ *  backups/, for a rewritten card): a reset leaves them, unless its WiFi choice deletes the WiFi
+ *  networks too (factory_reset_wifi below).
  *  A card image written over the card leaves all of /mnt as it was (S00adata keeps DATA).
  */
 static const char *const factory_reset_files[] = {
@@ -55,4 +59,17 @@ static inline int factory_reset_dir(const char *dir) {
     }
     sync();
     return n;
+}
+
+/* The saved WiFi networks deleted, with their copy on DATA (the panel's WiFi choice, #257): x6100-wifi-forget, waited
+ * for. Never on the PC build, whose helpers come from the tree: this PC's WiFi networks are not the radio's. False:
+ * not run, or it failed (the reset goes on all the same) */
+static inline bool factory_reset_wifi(void) {
+#ifdef HOST_BUILD
+    return false;
+#else
+    int r = system("/usr/sbin/x6100-wifi-forget > /dev/null 2>&1");
+
+    return r != -1 && WIFEXITED(r) && WEXITSTATUS(r) == 0;
+#endif
 }
