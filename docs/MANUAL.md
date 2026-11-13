@@ -6180,8 +6180,9 @@ TCI (Transceiver Control Interface, version 2.0) is the protocol of Expert
 Electronics' SDRs, the one AetherSDR serves to WSJT-X and to the
 [VFO-Knob](https://github.com/Guru-RF/VFO-Knob). The radio serves it too:
 one WebSocket carries the frequency, mode, filter, AGC, RIT, drive and PTT
-both ways, the S-meter and the TX meters, and the audio, so a knob or a
-program on the network tunes the radio, hears it and keys it.
+both ways, the S-meter and the TX meters, the audio, and CW text for the
+radio's own keyer with its speed, so a knob or a program on the network tunes
+the radio, hears it, keys it and sends CW with it.
 
 - On by default, on whatever network the radio is on. Turn it off in Settings > General > TCI SERVER or on the
   web configurator's TCI page (System > TCI). The port is 50001, the one TCI
@@ -6220,7 +6221,8 @@ program on the network tunes the radio, hears it and keys it.
   base). A key still on its way when its client unkeys or leaves keys
   nothing, and a client whose key was refused or cancelled unkeys nothing:
   a transmission keyed meanwhile with the PTT key on the radio or the
-  browser's PTT stays on the air.
+  browser's PTT stays on the air. A client's CW text is a transmission too
+  (CW from a client, below).
 - There is no login or pairing for TCI clients: enable it only on a network
   you trust, or set Listen only, and turn it off when it is not needed.
   Anyone who reaches the port can tune the radio when clients may operate,
@@ -6286,7 +6288,8 @@ program on the network tunes the radio, hears it and keys it.
   `drive` (TX power, 0-100 %: 0.1 W up to 10 W, 8 W on the X6200; on its
   battery 5 W from 62 % up),
   `trx` (PTT; `trx:0,true,tci;` keys with the client's
-  audio as the microphone), `rx_smeter` and `rx_channel_sensors` (the
+  audio as the microphone), `cw_macros`, `cw_macros_stop`,
+  `cw_macros_speed` and `cw_keyer_speed` (CW, below), `rx_smeter` and `rx_channel_sensors` (the
   S-meter in dBm, after `rx_sensors_enable:true;`), `tx_sensors` (mic level,
   forward power, SWR, ALC, after `tx_sensors_enable:true;`; 0 from the key
   until the radio's first reading, the SWR 1.0, never less), the RX audio
@@ -6309,7 +6312,7 @@ program on the network tunes the radio, hears it and keys it.
   a change is answered with what moved, and every frame's header says its
   rate, type, length and channels.
 - TCI audio on the air (`trx:0,true,tci;`): in every mode but CW and CW-R,
-  where the key is refused. DIGU and DIGL take it as the radio's own FT8,
+  where the key is refused (CW goes as text, below). DIGU and DIGL take it as the radio's own FT8,
   PSK and Winlink take theirs in USB-D. Every 21.3 ms a `TX_CHRONO`
   asks for 21.3 ms of audio in the client's format (1024 samples of each
   channel at 48 kHz, 512 at 24 kHz); the radio takes 8 to 48 kHz in any of
@@ -6317,6 +6320,58 @@ program on the network tunes the radio, hears it and keys it.
   what its header says ends the transmission at once (the radio unkeys);
   WSJT-X's and JTDX's frame, twice the size with the audio in its first half,
   is taken as theirs.
+- CW from a client (#179): `cw_macros:0,CQ DE ON6URE K;` keys the text with
+  the radio's own keyer, the one the CW keyboard, the stored messages and the
+  beacon use, at KEY Speed (KEY > Speed). This is what QLog's "Morse over
+  CAT" CW keyer sends through its TCI rig.
+  - CW and CW-R only. In another mode the text is refused, `trx:0,false;`,
+    with "TCI CW: set CW or CW-R mode" on the screen, and nobody is asked.
+    A text that goes stops when the mode leaves CW and CW-R ("TCI CW
+    stopped: not CW").
+  - A text is a start, as a key is: Listen only answers it with the state
+    (`trx`); Ask before TX asks at the client's first text, which does not go
+    out, so send it again after Allow once or Always; while someone else is
+    on the air, another client's text or key goes, or the radio's own keyer
+    sends (the CW keyboard, a message, a beacon, its pauses too) it is
+    refused with `trx:0,false;`. It takes control as a key does and gives it
+    back at the end. A client that holds the PTT (`trx:0,true;`) cannot send
+    a text: the keyer keys the radio itself.
+  - The radio's own rules: where it may not transmit (the
+    [amateur bands](#amateur-bands-only), receive only, the WR12, no data
+    from the base) the keyer's first key is refused with the radio's words
+    on the screen, and the client hears `trx:0,false;`. The SWR protection and
+    a move out of the band stop it as they stop the radio's own CW.
+  - More text from the client while its text goes waits and follows it, as
+    TCI says, up to 1024 characters; the texts are joined as they come, so
+    put the spaces in them.
+  - Every client hears `trx` as the radio goes on the air and back. All of it
+    sent, the client hears `cw_macros_empty:0;` (TCI sends it as the last
+    character starts; the radio as it ends). Cut short, it hears
+    `trx:0,false;` then `cw_macros_empty:0;`: the operator started a text on
+    the radio (the last one started takes the keyer), the SWR, the band.
+  - `cw_macros_stop;` stops the client's own text at once and drops what
+    waits; its `trx:0,false;` and its leaving (the program closed, the
+    connection lost) do the same. It does not stop another client's text or
+    the operator's.
+  - The text: TCI's stand-ins `^` for `:`, `~` for `,` and `*` for `;` (the
+    protocol's separators; QLog writes them); the letters between two bars
+    run together as one sign: `|SK|` and `|VA|` are SK, `|BT|` is =, `|AR|`,
+    `|KN|`, and a run the radio has no sign for goes as its letters; `>` and
+    `<` raise and lower the speed by 5 WPM for the rest of that text, within
+    5 to 50 WPM, and the next text starts at KEY Speed again. Letters in any
+    case; a character the radio has no Morse for is left out. `{CALL}` and the
+    like are for the radio's own messages: a client fills in its own macros.
+  - Speed: `cw_macros_speed` and `cw_keyer_speed` are both KEY Speed, the one
+    speed of the radio's keyer, its paddle and its messages, 5 to 50 WPM.
+    `cw_macros_speed:25;` sets it (`cw_macros_speed:0,25;` too, and a value
+    outside is taken to the nearest end), `cw_macros_speed;` asks. The
+    greeting gives both, and every client hears both when the speed
+    changes, from a client or on the radio. A text on the air keeps the
+    speed it started at. Asking takes no control; setting takes it, as
+    `drive` does.
+  - Not there: `cw_msg`, `cw_terminal`, `cw_macros_delay`,
+    `cw_macros_speed_up` and `cw_macros_speed_down`, and `keyer`: left
+    unanswered, as TCI says of a command a radio does not have.
 - VFO-Knob: build or flash its AetherSDR firmware, set the radio's address
   on the knob's configuration page as the AetherSDR computer, port 50001.
   The knob tunes, changes mode, filter and AGC, keys the radio, shows the

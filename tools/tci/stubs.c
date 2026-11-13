@@ -13,6 +13,8 @@
 
 #include "audio.h"
 #include "cfg/cfg_api.h"
+#include "cw_encoder.h"
+#include "msg_box.h"
 #include "radio.h"
 #include "remote_sessions.h"
 #include "scheduler.h"
@@ -24,7 +26,10 @@
 #include "tx_meters.h"
 
 #include <math.h>
+#include <pthread.h>
 #include <pulse/simple.h>
+#include <stdarg.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,28 +41,98 @@ struct ParamInt { int32_t v; };
 struct ParamFloat { float v; };
 struct ComputedParamInt { int32_t v; };
 
-static struct ParamInt         rit;
+static struct ParamInt         rit, key_speed = {15};
 static struct ParamFloat       pwr = {5.0f};
 static struct ComputedParamInt freq = {7074000}, mode = {radio_mode_lsb}, agc = {radio_agc_fast}, flo = {300},
                                fhi = {2700};
-ParamInt         *cfg_rit = &rit;
+ParamInt         *cfg_rit = &rit, *cfg_key_speed = &key_speed;
 ParamFloat       *cfg_pwr = &pwr;
 ComputedParamInt *cfg_fg_freq = &freq, *cfg_cur_mode = &mode, *cfg_cur_agc = &agc, *cfg_cur_filter_low = &flo,
                  *cfg_cur_filter_high = &fhi;
 
 int32_t param_i_get(const ParamInt *p) { return p->v; }
-void    param_i_set(ParamInt *p, int32_t v) { p->v = v; }
+/* KEY Speed keeps to its limits, as the settings' validator does */
+void    param_i_set(ParamInt *p, int32_t v) {
+    p->v = p == &key_speed ? (v < BOARD_KEY_SPEED_MIN ? BOARD_KEY_SPEED_MIN : v > BOARD_KEY_SPEED_MAX ? BOARD_KEY_SPEED_MAX : v) : v;
+}
 float   param_f_get(const ParamFloat *p) { return p->v; }
 int32_t cparam_i_get(const ComputedParamInt *p) { return p->v; }
 void    cparam_i_set(ComputedParamInt *p, int32_t v) { p->v = v; }
 bool    cfg_is_valid_hw_freq(int32_t f) { return f >= 100000 && f <= 55000000; }
 void    cfg_pwr_set(float w) { pwr.v = w; fprintf(stderr, "[stub] power %.1f W\n", w); }
 
+/* ---- the radio's keyer (cw_encoder.c): each text it was given kept in stub_cw_text, a line each, and for
+ * tci_client_test.py in the file TCI_TEST_KEYED; the radio on the air while it sends. It sends until stub_cw_end: all
+ * of it (as the real keyer ends a text) or cut short (the radio's own stops); main() ends a text by itself after
+ * 20 ms a character. With stub_tx_refused its first key down is refused, as radio_set_morse_key does where the radio
+ * may not transmit: started and over at once, not all of it sent ---- */
+bool               stub_tx_refused;
+char               stub_cw_text[4096];
+int                stub_cw_stops;
+static atomic_uint cw_sends, cw_on, cw_all;
+static uint64_t    cw_until;        /* main(): when the text on the keyer is all sent */
+static pthread_mutex_t cw_mux = PTHREAD_MUTEX_INITIALIZER;
+
+static uint64_t stub_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000;
+}
+
+unsigned cw_encoder_send(const char *text, bool beacon) {
+    const char *path = getenv("TCI_TEST_KEYED");
+    FILE       *f    = path ? fopen(path, "a") : NULL;
+    unsigned    n;
+    (void)beacon;
+
+    pthread_mutex_lock(&cw_mux);
+    n = atomic_fetch_add(&cw_sends, 1) + 1;
+    snprintf(stub_cw_text + strlen(stub_cw_text), sizeof(stub_cw_text) - strlen(stub_cw_text), "%s\n", text);
+    cw_until = stub_ms() + 20 * strlen(text);
+    atomic_store(&cw_on, stub_tx_refused ? 0 : n);
+    pthread_mutex_unlock(&cw_mux);
+    if (f) {
+        /* the speed steps as the letters TCI writes them, so the file is text */
+        for (const char *p = text; *p; p++)
+            fputc(*p == CW_ENCODER_FASTER ? '+' : *p == CW_ENCODER_SLOWER ? '-' : *p == CW_ENCODER_SPEED ? '=' : *p, f);
+        fputc('\n', f);
+        fclose(f);
+    }
+    fprintf(stderr, "[stub] keyer %u: %s\n", n, text);
+    return n;
+}
+void cw_encoder_stop(void) {
+    if (atomic_exchange(&cw_on, 0)) {
+        stub_cw_stops++;
+        fprintf(stderr, "[stub] keyer stopped\n");
+    }
+}
+cw_encoder_state_t cw_encoder_state(void) { return atomic_load(&cw_on) ? CW_ENCODER_SEND : CW_ENCODER_IDLE; }
+unsigned cw_encoder_sending(void) { return atomic_load(&cw_on); }
+unsigned cw_encoder_done(void) { return atomic_load(&cw_all); }
+/* The text on the keyer over: all of it sent, or cut short */
+void stub_cw_end(bool all) {
+    unsigned n = atomic_exchange(&cw_on, 0);
+    if (n && all)
+        atomic_store(&cw_all, n);
+}
+
+/* ---- the message box: the last note, and how many ---- */
+char stub_said[128];
+int  stub_said_n;
+void msg_schedule_text_fmt(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(stub_said, sizeof(stub_said), fmt, ap);
+    va_end(ap);
+    stub_said_n++;
+    fprintf(stderr, "[stub] on the screen: %s\n", stub_said);
+}
+
 /* ---- the radio. stub_tx_refused: a key does nothing, as radio.c's tx_refused() on a frequency
  * the radio may not transmit on (the key is taken, the radio stays on receive) ---- */
 static bool ptt, modem;
-bool stub_tx_refused;
-radio_state_t radio_get_state(void) { return ptt || modem ? RADIO_TX : RADIO_RX; }
+radio_state_t radio_get_state(void) { return ptt || modem || atomic_load(&cw_on) ? RADIO_TX : RADIO_RX; }
 bool radio_set_ptt(bool tx) {
     if (tx && stub_tx_refused) return false;
     ptt = tx;
@@ -274,6 +349,10 @@ int main(int argc, char **argv) {
     for (int n = 0;; n++) {
         usleep(50000);
         answer_poll();
+        pthread_mutex_lock(&cw_mux);
+        if (atomic_load(&cw_on) && stub_ms() > cw_until)
+            stub_cw_end(true);
+        pthread_mutex_unlock(&cw_mux);
         if (n % 20 == 0 && tci_server_clients())
             fprintf(stderr, "[stub] %d client(s), first %s\n", tci_server_clients(), tci_server_client());
     }

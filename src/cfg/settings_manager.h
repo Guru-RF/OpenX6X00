@@ -421,7 +421,7 @@ class SettingsManager {
     // CW
     Parameter<int32_t> p_key_tone{"key_tone", 700, 400, 1200,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    Parameter<int32_t> p_key_speed{"key_speed", 15, 5, 50,
+    Parameter<int32_t> p_key_speed{"key_speed", 15, BOARD_KEY_SPEED_MIN, BOARD_KEY_SPEED_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_key_mode{"key_mode", radio_key_manual, 0, 2,
         StorageType::GLOBAL, pending_writes_, &global_params_};

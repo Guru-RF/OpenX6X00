@@ -4,7 +4,8 @@
  *  OpenX6X00 - TCI server: the radio on the network as a TCI v2.0 transceiver
  *  (Expert Electronics' protocol, the one AetherSDR serves and the VFO-Knob speaks), over a
  *  WebSocket on TCP 50001. Clients tune, set the mode, filter, AGC, RIT and drive, key the
- *  transmitter, read the S-meter and the TX meters, take the RX audio and send TX audio.
+ *  transmitter, read the S-meter and the TX meters, take the RX audio and send TX audio, and send
+ *  CW text to the radio's own keyer at its KEY Speed, which they set too (#179).
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */

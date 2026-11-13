@@ -290,6 +290,7 @@ def main():
     capitals()
     funnel()
     ask()
+    cw()
     print("ALL OK")
 
 
@@ -601,6 +602,93 @@ def ask():
     assert asked(), "asking on again: not asked"
     operator("no")
     d.send(8, struct.pack(">H", 1000))
+
+
+KEYED = os.environ.get("TCI_TEST_KEYED")      # the texts the stub's keyer was given, a line each (speed steps + - =)
+
+
+def keyed():
+    """The texts the stub's keyer was given so far"""
+    if not KEYED or not os.path.exists(KEYED):
+        return []
+    with open(KEYED) as f:
+        return f.read().split("\n")[:-1]
+
+
+def cw():
+    """CW from a client (#179) as QLog's TCI driver sends it ("Morse over CAT"): its commands in capitals, the speed
+    with one argument, TCI's stand-ins for ':' ',' ';' in the text. The greeting gives the keyer's speed; outside CW
+    a text is refused; in CW it goes on the radio's keyer (the stub's ends a text by itself, 20 ms a character), more
+    text follows it, the end says cw_macros_empty; a stop, the client leaving and Ask before TX"""
+    ws = WS()
+    greeting = []
+    while not greeting or greeting[-1] != "ready;":
+        op, p = ws.frame()
+        greeting.append(p.decode())
+    speed = [g for g in greeting if g.startswith("cw_")]
+    assert speed == ["cw_macros_speed:15;", "cw_keyer_speed:15;"], speed
+    print("cw: the greeting:", " ".join(speed))
+
+    ws.text("MODULATION:0,USB;")
+    ws.wait_text("modulation:0,usb;")
+    ws.text("CW_MACROS:0,TEST;")
+    assert ws.wait_text("trx:0,") == "trx:0,false;", ws.texts[-1]
+    assert keyed() == [], keyed()
+    print("cw: a text in USB: trx:0,false;, nothing keyed")
+    ws.text("MODULATION:0,CW;")
+    ws.wait_text("modulation:0,cw;")
+
+    ws.text("CW_MACROS_SPEED;")
+    assert ws.wait_text("cw_macros_speed:") == "cw_macros_speed:15;", ws.texts[-1]
+    ws.text("CW_KEYER_SPEED:28;CW_MACROS_SPEED:28;")      # QLog sets both
+    ws.wait_text("cw_macros_speed:28;")
+    ws.wait_text("cw_keyer_speed:28;")
+    print("cw: CW_MACROS_SPEED; answered, CW_KEYER_SPEED:28; CW_MACROS_SPEED:28; set it: cw_macros_speed:28; cw_keyer_speed:28;")
+
+    ws.text("CW_MACROS:0,CQ DE ON6URE^ 5NN~ TU* |SK|;")
+    ws.wait_text("trx:0,true;")
+    ws.wait_text("cw_macros_empty:0;")
+    ws.wait_text("trx:0,false;")
+    assert keyed() == ["CQ DE ON6URE: 5NN, TU; <SK>"], keyed()
+    print("cw: CW_MACROS:0,CQ DE ON6URE^ 5NN~ TU* |SK|; keyed as", repr(keyed()[-1]), "then cw_macros_empty:0;")
+
+    ws.text("cw_macros:0,cq ;cw_macros:0,>tu <ra6lh >>599 004 |sk| ;")
+    ws.wait_text("trx:0,true;")
+    ws.wait_text("cw_macros_empty:0;", timeout=5)
+    assert keyed()[-2:] == ["CQ ", "+TU -RA6LH ++599 004 <SK> ="], keyed()
+    print("cw: two texts in one frame: the second after the first:", keyed()[-2:])
+
+    ws.text("cw_macros:0," + "paris " * 20 + ";")
+    ws.wait_text("trx:0,true;")
+    t0 = time.time()
+    ws.text("CW_MACROS_STOP;")
+    ws.wait_text("trx:0,false;", timeout=1)
+    print(f"cw: CW_MACROS_STOP; stopped it, trx:0,false; after {1000 * (time.time() - t0):.0f} ms")
+
+    b = WS()
+    b.wait_text("ready;")
+    b.text("cw_macros:0," + "paris " * 20 + ";")
+    ws.wait_text("trx:0,true;")
+    b.s.close()                     # without a word: the connection lost
+    t0 = time.time()
+    ws.wait_text("trx:0,false;", timeout=1.5)
+    print(f"cw: its client gone mid-text: stopped, trx:0,false; after {1000 * (time.time() - t0):.0f} ms")
+
+    n = len(keyed())
+    a = net_client("192.0.2.20", "QLog")
+    a.text("CW_MACROS:0,TEST;")
+    assert a.wait_text("trx:0,") == "trx:0,false;", a.texts[-1]
+    q = asked()
+    assert q and q[1] == "192.0.2.20 (QLog)", q
+    operator("once")
+    assert off_screen() and len(keyed()) == n, keyed()
+    a.text("CW_MACROS:0,TEST;")
+    a.wait_text("trx:0,true;")
+    a.wait_text("cw_macros_empty:0;")
+    assert keyed()[n:] == ["TEST"], keyed()
+    print(f"cw: a client on the network: asked (\"{q[1]} wants to transmit\"), Allow once, its next text keyed")
+    a.send(8, struct.pack(">H", 1000))
+    ws.send(8, struct.pack(">H", 1000))
 
 
 def capitals():

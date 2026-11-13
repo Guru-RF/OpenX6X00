@@ -43,6 +43,13 @@
  *  whose session's TX right decides. Through a proxy on the radio (tailscaled from the tailnet, the web server's https
  *  port) a client comes from 127.0.0.1: it is the address the proxy names in X-Forwarded-For.
  *
+ *  CW from a client (#179): "cw_macros:0,<text>;" keys the text with the radio's own keyer (cw_encoder.c), as the CW
+ *  keyboard does, in CW and CW-R only. It is a start like a key: the same trust, control, Ask before TX and one
+ *  transmission at a time; refused, it is answered trx:0,false. More text from the client while its own goes waits
+ *  and follows it, as TCI says; cw_macros_stop, its unkey or its leaving stops it, and the session ends with
+ *  cw_macros_empty:0 once all of it went. cw_macros_speed and cw_keyer_speed are KEY Speed, the one speed of the
+ *  radio's keyer, its paddle and its messages, set and asked, and told to every client when it changes.
+ *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
@@ -57,6 +64,9 @@
 
 #include "audio.h"
 #include "cfg/cfg_api.h"
+#include "cw_decoder/morse_code.h"
+#include "cw_encoder.h"
+#include "msg_box.h"
 #include "radio.h"
 #include "scheduler.h"
 #include "screen_light.h"
@@ -78,6 +88,7 @@
 #include <pulse/simple.h>
 #include <stdarg.h>
 #include <stdatomic.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -112,6 +123,9 @@
 #define TX_SILENCE_MS 500           /* keyed with TCI audio: unkeyed without frames this long */
 #define TX_LIMIT_MS   (180 * 1000)
 #define DRIVE_SPAN    (BOARD_PWR_MAX - BOARD_PWR_MIN)   /* drive 0..100 %: BOARD_PWR_MIN to BOARD_PWR_MAX */
+#define CW_QUEUE      1024          /* a client's CW text waiting for the keyer, as the keyer takes it */
+#define CW_STOP_MS    300           /* the keyer asked to stop a client's text and not seen stopped: asked again */
+#define CW_SAY_MS     5000          /* a note on the screen about a client's CW at most this often */
 
 /* The TCI audio frame header, 64 bytes, little endian. length counts the samples of all the
  * channels (TCI's "real samples"), so a frame holds length / channels samples of each */
@@ -171,6 +185,7 @@ typedef struct {
 typedef struct {
     int32_t freq, mode, flo, fhi, agc, rit;
     int     drive;
+    int     wpm;        /* KEY Speed */
     bool    tx;
 } rstate_t;
 
@@ -178,7 +193,7 @@ typedef struct {
 enum { SAID_NOTHING = 0, SAID_ONCE, SAID_NO };
 
 /* A command for the LVGL thread */
-typedef enum { C_FREQ, C_MODE, C_FILTER, C_AGC, C_RIT, C_DRIVE, C_KEY, C_UNKEY } cmd_id_t;
+typedef enum { C_FREQ, C_MODE, C_FILTER, C_AGC, C_RIT, C_DRIVE, C_WPM, C_KEY, C_UNKEY } cmd_id_t;
 
 typedef struct {
     cmd_id_t id;
@@ -254,6 +269,31 @@ static struct {
     double      pos;
     int16_t     prev;
 } txs;
+
+/* A client's CW (cw_macros): its text keyed by the radio's own keyer (cw_encoder.c), the CW keyboard's and the stored
+ * messages', one client at a time as for a key (tx_free). Its texts go in turn: the one the keyer sends, the rest
+ * waiting here until the keyer is done with it, then handed to the LVGL thread as one. Every text handed over has its
+ * own number, never one twice, so what the LVGL thread says of an older one is never taken for a newer one. Socket
+ * thread, but for the atomics */
+typedef struct {
+    uint32_t gen;           /* the session's start (key_gen) */
+    uint32_t fed;           /* the text's number */
+    bool     first;         /* the session's first: its start, as a key's */
+    char     text[CW_QUEUE];
+} cw_cmd_t;
+
+static int                  cw_owner = -1;      /* the client whose text is on the air or on its way, -1 none */
+static char                 cw_queue[CW_QUEUE]; /* its texts waiting, as the keyer takes them */
+static size_t               cw_queued;
+static uint32_t             cw_fed;             /* the last text handed to the LVGL thread */
+static uint32_t             cw_first;           /* the session's first */
+static bool                 cw_stop_due;        /* the keyer asked to stop the session's text, not seen stopped yet */
+static uint64_t             cw_stop_ms;
+static atomic_uint          cw_live;            /* the session's start while it is on, 0 none: an older text keys nothing */
+static atomic_uint          cw_ran;             /* the last text the LVGL thread put on the keyer */
+static atomic_uint          cw_refused;         /* the last text it refused */
+static atomic_uint          cw_send;            /* the keyer's number for the last one it put there (cw_encoder.h) */
+static atomic_uint_fast64_t cw_said_ms;         /* the last note on the screen about a client's CW */
 
 /* The question on the radio's screen (tx_permit): one at a time, for one client's start. Socket thread */
 static struct {
@@ -668,10 +708,60 @@ static void client_close(client_t *c) {
 
 /* ---- The radio, on the LVGL thread -------------------------------------------------- */
 
+/* The modes the radio's keyer is for, and so a client's CW text (cw_macros) */
+static bool cw_mode(int32_t m) {
+    return m == radio_mode_cw || m == radio_mode_cwr;
+}
+
 /* The modes TCI audio keys the radio in: all but CW and CW-R. In DIGL and DIGU the modem bit takes
  * the codec's audio too: the radio's own FT8, PSK, Olivia and Winlink transmit so in USB-D (#17) */
 static bool takes_tx_audio(int32_t m) {
-    return m != radio_mode_cw && m != radio_mode_cwr;
+    return !cw_mode(m);
+}
+
+/* A note on the screen about a client's CW, at most every CW_SAY_MS: a client that sends its text again and again
+ * would fill the message box. Any thread */
+static void cw_say(const char *what) {
+    uint64_t now = now_ms(), was = atomic_load(&cw_said_ms);
+
+    if (was && now - was < CW_SAY_MS)
+        return;
+    atomic_store(&cw_said_ms, now);
+    msg_schedule_text_fmt("%s", what);
+}
+
+/* A client's text on the keyer, in CW and CW-R only, the keyer idle (a send of the CW keyboard, a message or a beacon,
+ * its pauses too, is the operator's and goes on) and nothing else on the air: TCI audio, an app's modem, and for the
+ * session's first text the radio's PTT; a later text follows the one before, the radio still on the air for the
+ * break-in delay. The keyer's first key down is the radio's to refuse (the amateur bands, the WR12, no data from the
+ * base), with its words on the screen. The socket thread learns what became of it by its number (cw_tick) */
+static void cw_apply(void *arg) {
+    cw_cmd_t *m  = (cw_cmd_t *)arg;
+    bool      cw = cw_mode(cparam_i_get(cfg_cur_mode));
+    unsigned  k  = 0;
+
+    if (m->gen == atomic_load(&cw_live) && cw && cw_encoder_state() == CW_ENCODER_IDLE && !radio_get_modem() &&
+        !atomic_load(&txs.keyed) && (!m->first || radio_get_state() == RADIO_RX))
+        k = cw_encoder_send(m->text, false);
+    if (k) {
+        atomic_store(&cw_send, k);      /* before it is said to run: the socket thread then looks for that send */
+        atomic_store(&cw_ran, m->fed);
+    } else {
+        if (!cw && m->gen == atomic_load(&cw_live))
+            cw_say("TCI CW: set CW or CW-R mode");
+        atomic_store(&cw_refused, m->fed);
+    }
+    if (m->first)
+        atomic_store(k ? &key_keyed : &key_refused, m->gen);
+}
+
+/* The keyer stops the client's text if it still sends it; a send of the operator's started since goes on */
+static void cw_stop_apply(void *arg) {
+    unsigned k = atomic_load(&cw_send);
+
+    (void)arg;
+    if (k && cw_encoder_sending() == k)
+        cw_encoder_stop();
 }
 
 /* tci: the TCI audio session (if there is one); else the radio's own PTT */
@@ -730,6 +820,9 @@ static void apply_cmd(void *arg) {
         case C_DRIVE:
             cfg_pwr_set(BOARD_PWR_MIN + c->a * DRIVE_SPAN / 100.0f);   /* saved, the radio follows the setting */
             drive_set_store(c->a, param_f_get(cfg_pwr)); /* as the setting kept it */
+            break;
+        case C_WPM:
+            param_i_set(cfg_key_speed, c->a);   /* KEY Speed, saved: the keyer, the paddle and the messages follow */
             break;
         case C_KEY:
             /* keyed or refused, the socket thread learns it by the start's number (state_follow).
@@ -793,6 +886,7 @@ static void state_read(rstate_t *s) {
     s->agc   = cparam_i_get(cfg_cur_agc);
     s->rit   = param_i_get(cfg_rit);
     s->drive = drive_of(param_f_get(cfg_pwr));
+    s->wpm   = param_i_get(cfg_key_speed);
     s->tx    = radio_get_state() != RADIO_RX || radio_get_modem();
 }
 
@@ -844,6 +938,9 @@ static void send_greeting(client_t *c, const rstate_t *s) {
     client_text(c, "split_enable:0,false;");
     client_textf(c, "drive:0,%d;", s->drive);
     client_textf(c, "trx:0,%s;", s->tx ? "true" : "false");
+    /* the keyer's speed, which TCI's server sends on connection and on every change */
+    client_textf(c, "cw_macros_speed:%d;", s->wpm);
+    client_textf(c, "cw_keyer_speed:%d;", s->wpm);
     /* The receiver runs whenever the server does. ExpertSDR3 and Thetis end the state with
      * start; (stop; for an SDR switched off), and WSJT-X's and JTDX's TCI client take a
      * greeting without it as a radio switched off: "TCI SDR is not switched on" (#17) */
@@ -883,6 +980,10 @@ static void state_follow(rstate_t *last, bool first) {
     }
     if (s.drive != last->drive)
         broadcastf("drive:0,%d;", s.drive);
+    if (s.wpm != last->wpm) {
+        broadcastf("cw_macros_speed:%d;", s.wpm);
+        broadcastf("cw_keyer_speed:%d;", s.wpm);
+    }
     if (s.tx != last->tx)
         broadcastf("trx:0,%s;", s.tx ? "true" : "false");
     /* The last start refused: its client holds nothing and hears so (audit A01). The refusal of
@@ -1009,10 +1110,228 @@ static void tx_give_back(int ci) {
     }
 }
 
+/* ---- CW from a client ------------------------------------------------------------- */
+
+/* The code of c alone in the keyer's table (letters, figures, punctuation), NULL when the radio has no sign for it */
+static const char *cw_sign(char c) {
+    for (const cw_characters_t *k = cw_characters; k->morse; k++)
+        if (k->character[0] == c && !k->character[1])
+            return k->morse;
+    return NULL;
+}
+
+/* A character of a client's text: TCI's stand-ins for its separators back (^ is :, ~ is , and * is ;), a tab or a
+ * line end a space, letters in capitals */
+static char cw_char(char c) {
+    c = c == '^' ? ':' : c == '~' ? ',' : c == '*' ? ';' : c;
+    return c == '\t' || c == '\r' || c == '\n' ? ' ' : (char)toupper((unsigned char)c);
+}
+
+/* l bytes of s after the k in out (n bytes), with room left for a speed back and the end; false: none */
+static bool cw_put(char *out, size_t n, size_t *k, const char *s, size_t l) {
+    if (*k + l + 2 > n)
+        return false;
+    memcpy(out + *k, s, l);
+    *k += l;
+    return true;
+}
+
+/* A cw_macros text as the keyer takes it, into out (n bytes); its length, 0 when there is nothing in it the radio can
+ * key. TCI's rules: its stand-ins for the separators back (cw_char); the letters between two bars run together as one
+ * sign, the one the radio has for that code (|SK| and |VA| its <SK>, |BT| its =, |AR| its <AR>), a run it has none for
+ * going as its letters; < and > a step of 5 WPM down or up for the rest of the text (cw_encoder.h), the speed back at
+ * its end, so the text after it starts where KEY Speed is. A character the radio has no sign for is left out, as is
+ * what does not fit */
+static size_t cw_text(const char *in, char *out, size_t n) {
+    size_t k       = 0;
+    bool   stepped = false, signs = false;
+
+    for (const char *p = in; *p; p++) {
+        char        c = cw_char(*p);
+        const char *bar;
+
+        if (c == '<' || c == '>') {
+            char step = c == '>' ? CW_ENCODER_FASTER : CW_ENCODER_SLOWER;
+
+            if (!cw_put(out, n, &k, &step, 1))
+                break;
+            stepped = true;
+        } else if (c == '|' && (bar = strchr(p + 1, '|'))) {
+            char        code[32] = "";
+            size_t      len      = 0;
+            const char *one      = NULL;
+
+            for (const char *q = p + 1; q < bar && len < sizeof(code); q++) {
+                const char *m = cw_sign(cw_char(*q));
+
+                if (m && len + strlen(m) < sizeof(code)) {
+                    strcpy(code + len, m);
+                    len += strlen(m);
+                } else if (m) {
+                    len = sizeof(code);     /* longer than any sign */
+                }
+            }
+            if (len && len < sizeof(code))
+                one = morse_to_text(code);
+            if (one) {
+                if (!cw_put(out, n, &k, one, strlen(one)))
+                    break;
+                signs = true;
+            } else {
+                for (const char *q = p + 1; q < bar; q++) {
+                    char d = cw_char(*q);
+
+                    if (cw_sign(d) && cw_put(out, n, &k, &d, 1))
+                        signs = true;
+                }
+            }
+            p = bar;
+        } else if (c == ' ' || cw_sign(c)) {
+            if (!cw_put(out, n, &k, &c, 1))
+                break;
+            signs = signs || c != ' ';
+        }
+    }
+    if (stepped)
+        out[k++] = CW_ENCODER_SPEED;
+    out[k] = 0;
+    return signs ? k : 0;
+}
+
+/* cw_macros's text whole, from the line as it came, into raw (n bytes): a client that left a comma in it (TCI writes ~
+ * for one) loses nothing after it when the arguments are split. False: another command, or no text */
+static bool cw_raw(const char *line, char *raw, size_t n) {
+    const char *p = line + strspn(line, " \r\n"), *colon = strchr(p, ':'), *comma;
+
+    if (!colon || colon - p != 9 || strncasecmp(p, "cw_macros", 9) || !(comma = strchr(colon, ',')))
+        return false;
+    snprintf(raw, n, "%s", comma + 1);
+    return true;
+}
+
+/* What waits goes to the LVGL thread as one text, under a new number */
+static void cw_feed(void) {
+    static cw_cmd_t m;      /* 1 kB: not on the stack of every round */
+
+    m.gen = atomic_load(&cw_live);
+    if (!++cw_fed)
+        ++cw_fed;           /* 0 is none */
+    m.fed   = cw_fed;
+    m.first = cw_fed == cw_first;
+    memcpy(m.text, cw_queue, cw_queued);
+    m.text[cw_queued] = 0;
+    cw_queued         = 0;
+    if (!scheduler_put(cw_apply, &m, offsetof(cw_cmd_t, text) + strlen(m.text) + 1)) {
+        atomic_store(&cw_refused, m.fed);       /* lost: refused, as the LVGL thread would */
+        if (m.first)
+            atomic_store(&key_refused, m.gen);
+    }
+}
+
+/* Client ci's first text: a start, as a key's (key_gen), taking control for itself when it had none (held) */
+static void cw_start(int ci, bool held, const char *text, size_t len) {
+    key_gen++;
+    tx_lent  = held ? -1 : ci;
+    cw_owner = ci;
+    atomic_store(&cw_live, key_gen);
+    memcpy(cw_queue, text, len + 1);
+    cw_queued = len;
+    cw_first  = cw_fed + 1 ? cw_fed + 1 : 1;
+    cw_feed();
+}
+
+/* More text from the client whose text goes: it waits for the keyer, the one before it first (TCI's queue) */
+static void cw_more(const char *text, size_t len) {
+    if (cw_queued + len >= sizeof(cw_queue)) {
+        LV_LOG_USER("tci: %s's CW text dropped: %d characters wait already", clients[cw_owner].ip, (int)cw_queued);
+        return;
+    }
+    memcpy(cw_queue + cw_queued, text, len + 1);
+    cw_queued += len;
+}
+
+/* The client's CW over: what waits dropped, control given back. stop: the keyer stops its text if it still sends it
+ * (its stop, its unkey, its leaving, the mode no longer CW); asked again until seen (cw_tick), as the scheduler's
+ * queue can drop it */
+static void cw_end(bool stop) {
+    if (cw_owner < 0)
+        return;
+    tx_give_back(cw_owner);
+    atomic_store(&cw_live, 0);
+    cw_owner  = -1;
+    cw_queued = 0;
+    if (stop) {
+        cw_stop_due = true;
+        cw_stop_ms  = now_ms();
+        scheduler_put_urgent(cw_stop_apply, NULL, 0);
+    }
+}
+
+/* The client's CW followed, every round: its text refused (trx:0,false), still on its way or on the keyer, or done
+ * with, then what waits goes, or the session ends: cw_macros_empty:0 when all of it went (TCI sends it as the last
+ * character starts; here as it ends), trx:0,false first when it was cut short (another sender took the keyer, the
+ * radio stopped it: the SWR, the band, a key refused). Out of CW and CW-R it stops. Socket thread */
+static void cw_tick(uint64_t now) {
+    if (cw_stop_due) {
+        unsigned k = atomic_load(&cw_send);
+
+        if (!k || cw_encoder_sending() != k) {
+            cw_stop_due = false;
+        } else if (now - cw_stop_ms > CW_STOP_MS) {
+            cw_stop_ms = now;
+            scheduler_put_urgent(cw_stop_apply, NULL, 0);
+        }
+    }
+    if (cw_owner < 0)
+        return;
+
+    client_t *c = &clients[cw_owner];
+
+    if (c->fd < 0) {
+        cw_end(true);
+        return;
+    }
+    if (atomic_load(&cw_refused) == cw_fed) {
+        client_text(c, "trx:0,false;");
+        if (cw_fed != cw_first)
+            client_text(c, "cw_macros_empty:0;");
+        cw_end(false);
+        return;
+    }
+    if (atomic_load(&cw_ran) != cw_fed)
+        return;     /* on its way to the keyer */
+
+    unsigned k = atomic_load(&cw_send);
+
+    if (cw_encoder_sending() == k) {
+        if (!cw_mode(cparam_i_get(cfg_cur_mode))) {
+            LV_LOG_USER("tci: %s's CW stopped: the mode is no longer CW", c->ip);
+            cw_say("TCI CW stopped: not CW");
+            client_text(c, "trx:0,false;");
+            client_text(c, "cw_macros_empty:0;");
+            cw_end(true);
+        }
+        return;
+    }
+
+    bool all = cw_encoder_done() == k;
+
+    if (all && cw_queued) {
+        cw_feed();
+        return;
+    }
+    if (!all)
+        client_text(c, "trx:0,false;");
+    client_text(c, "cw_macros_empty:0;");
+    cw_end(false);
+}
+
 /* The client's transmission ends, whichever way it keyed: from the socket thread. A key still
  * on its way to the LVGL thread is cancelled; one that ran meanwhile is undone by the unkey
- * queued after it. */
+ * queued after it. Its CW stops */
 static void tx_session_end(int ci, bool drain) {
+    if (cw_owner == ci)
+        cw_end(true);
     if (txs.owner == ci || ptt_owner == ci)
         tx_give_back(ci);
     if ((txs.owner == ci || ptt_owner == ci) && atomic_load(&key_keyed) != key_gen &&
@@ -1038,8 +1357,8 @@ static void tx_session_end(int ci, bool drain) {
 static bool tx_free(const rstate_t *s) {
     bool handled = atomic_load(&key_keyed) == key_gen || atomic_load(&key_refused) == key_gen;
 
-    return !s->tx && txs.owner < 0 && ptt_owner < 0 && handled && !atomic_load(&txs.keyed) &&
-           !atomic_load(&ptt_unkey_due);
+    return !s->tx && txs.owner < 0 && ptt_owner < 0 && cw_owner < 0 && handled && !atomic_load(&txs.keyed) &&
+           !atomic_load(&ptt_unkey_due) && !cw_stop_due;
 }
 
 /* Over Funnel the Panel's own sound and microphone, nothing more (#58): the audio format, audio on and off, the
@@ -1213,12 +1532,25 @@ static bool tx_permit(int ci) {
     return false;
 }
 
+/* cw_macros_speed and cw_keyer_speed: the speed set, the last argument (cw_macros_speed:25; as TCI has it, or
+ * cw_macros_speed:0,25; with the transceiver first). False: a question, a value that is no number (TCI reads it as a
+ * question), or one below 1, which is no speed: cw_macros_speed:0; is the question of a client that names its
+ * transceiver as for the other commands */
+static bool wpm_arg(char **a, int n, int *v) {
+    return n >= 1 && parse_int(a[n - 1], v) && *v >= 1;
+}
+
 static void handle_cmd(int ci, char *line) {
-    client_t *c = &clients[ci];
-    char     *name, *a[4];
-    int       n = split_args(line, &name, a, 4);
-    rstate_t  s;
-    char      fb[64];
+    static char raw[TEXT_MAX];
+    static char cwt[CW_QUEUE];
+    client_t   *c   = &clients[ci];
+    bool        cwr = cw_raw(line, raw, sizeof(raw));   /* before the split, which cuts it at each comma */
+    char       *name, *a[4];
+    int         n = split_args(line, &name, a, 4);
+    rstate_t    s;
+    char        fb[64];
+    size_t      cwl = 0;
+    int         wpm = 0;
 
     while (*name == ' ' || *name == '\n' || *name == '\r') name++;
     if (!*name)
@@ -1233,32 +1565,46 @@ static void handle_cmd(int ci, char *line) {
         return;
     state_read(&s);
 
+    /* CW text (cw_macros:0,<text>;) for another transceiver, or with nothing in it the radio can key, is ignored, as
+     * TCI ignores a command it cannot take: before anything below asks the operator about it or takes control */
+    bool cw    = !strcmp(name, "cw_macros");
+    bool speed = !strcmp(name, "cw_macros_speed") || !strcmp(name, "cw_keyer_speed");
+    if (cw && (n < 2 || strcmp(a[0], "0") || !cwr || !(cwl = cw_text(raw, cwt, sizeof(cwt)))))
+        return;
+
     /* What touches the RF side: a trusted client takes control of the radio as the knob always
      * did, unless someone is on the air; a client trusted to view only is answered with the
      * state as it is, which is what the echo below does when nothing changes */
     bool rf = !strcmp(name, "vfo") || !strcmp(name, "modulation") || !strcmp(name, "rx_filter_band") ||
               !strcmp(name, "agc_mode") || !strcmp(name, "rit_enable") || !strcmp(name, "rit_offset") ||
-              !strcmp(name, "drive") || !strcmp(name, "trx");
+              !strcmp(name, "drive") || !strcmp(name, "trx") || cw || speed;
     /* Ending its own transmission is never refused: the client that keyed unkeys whatever happened
      * to control (a knob took it) or to its trust (Listen only) since; refusing left the radio on
-     * the air until the 180 s limit (audit B01) */
-    bool release = !strcmp(name, "trx") && n >= 2 && !parse_bool(a[1]) && (txs.owner == ci || ptt_owner == ci);
+     * the air until the 180 s limit (audit B01). Its CW stops the same way */
+    bool release = !strcmp(name, "trx") && n >= 2 && !parse_bool(a[1]) &&
+                   (txs.owner == ci || ptt_owner == ci || cw_owner == ci);
+    /* More CW text from the client whose text goes follows it: part of that transmission, not a start, taking no
+     * control (a knob may have taken it since). Under Listen only, set meanwhile, it is a start, and refused */
+    bool more    = cw && cw_owner == ci && atomic_load(&trust_operate);
     /* A start that cannot be had is answered trx:0,false below and takes nothing: control stays
      * where it is, with the client whose start is on its way or on the air, which then still
      * tunes during its over (C01). A client trusted to view only is answered with the state. So
      * is a start the operator has not allowed (tx_permit, which asks): asked about only when it
-     * could be had, and never under Listen only, which refuses every start */
-    bool key     = !strcmp(name, "trx") && n >= 2 && parse_bool(a[1]);
-    bool refused = key && (!tx_free(&s) || (atomic_load(&trust_operate) && !tx_permit(ci)));
+     * could be had, and never under Listen only, which refuses every start. CW text is a start too, refused outside
+     * CW and CW-R before anyone is asked */
+    bool key     = (!strcmp(name, "trx") && n >= 2 && parse_bool(a[1])) || (cw && !more);
+    bool not_cw  = cw && !more && !cw_mode(s.mode);
+    bool refused = key && (!tx_free(&s) || not_cw || (atomic_load(&trust_operate) && !tx_permit(ci)));
     /* A question takes no control: a vfo without its frequency (vfo:0,0;), a trx without true or false, the filter
      * without its two edges, the others without their value. It is answered with the state below, so a program that
      * polls (Hamlib's TCI backend asks VFO:0,0; and TRX:0; at every poll) leaves control with a browser that has it.
      * What sets something takes it, a trx true or false too */
-    bool asks    = n < (!strcmp(name, "vfo") || !strcmp(name, "rx_filter_band") ? 3 : 2);
+    bool asks    = speed ? !wpm_arg(a, n, &wpm) : n < (!strcmp(name, "vfo") || !strcmp(name, "rx_filter_band") ? 3 : 2);
     bool claim   = !refused && !asks;
     bool held    = ctl_holds(CTL_TCI, ci);   /* before a start's claim: whether it takes control for itself */
-    bool may     = !rf || release || (atomic_load(&trust_operate) && (!claim || ctl_claim(CTL_TCI, ci, "TCI", true)));
-    if (rf && !may && n >= 2) {
+    bool may     = !rf || release || more ||
+                   (atomic_load(&trust_operate) && (!claim || ctl_claim(CTL_TCI, ci, "TCI", true)));
+    if (rf && !may && (n >= 2 || speed)) {
         /* the state as it is, as for a command that changes nothing */
         if (!strcmp(name, "vfo")) client_textf(c, "vfo:0,0,%d;", s.freq);
         else if (!strcmp(name, "modulation")) client_textf(c, "modulation:0,%s;", mode_name(s.mode));
@@ -1267,6 +1613,7 @@ static void handle_cmd(int ci, char *line) {
         else if (!strcmp(name, "rit_enable")) client_textf(c, "rit_enable:0,%s;", s.rit ? "true" : "false");
         else if (!strcmp(name, "rit_offset")) client_textf(c, "rit_offset:0,%d;", s.rit);
         else if (!strcmp(name, "drive")) client_textf(c, "drive:0,%d;", s.drive);
+        else if (speed) client_textf(c, "%s:%d;", name, s.wpm);
         else client_textf(c, "trx:0,%s;", s.tx ? "true" : "false");
         return;
     }
@@ -1351,11 +1698,35 @@ static void handle_cmd(int ci, char *line) {
                     atomic_store(&key_refused, key_gen);    /* lost: refused, as the LVGL thread would */
             }
         } else {
-            if (txs.owner == ci || ptt_owner == ci)
+            if (txs.owner == ci || ptt_owner == ci || cw_owner == ci)
                 tx_session_end(ci, true);
             else
                 client_text(c, "trx:0,false;");     /* not this client's transmission */
         }
+    } else if (cw) {
+        if (more) {
+            cw_more(cwt, cwl);
+        } else if (refused) {   /* as decided above: control was not claimed */
+            if (not_cw) {
+                LV_LOG_USER("tci: %s's CW refused: the radio is not in CW or CW-R", c->ip);
+                cw_say("TCI CW: set CW or CW-R mode");
+            }
+            client_text(c, "trx:0,false;");
+        } else {
+            cw_start(ci, held, cwt, cwl);
+        }
+    } else if (!strcmp(name, "cw_macros_stop")) {
+        /* Its own text alone: another client's, or the operator's on the radio, goes on. No answer, as TCI has none;
+         * the radio's trx follows */
+        if (cw_owner == ci)
+            tx_session_end(ci, false);
+    } else if (speed) {
+        /* KEY Speed, within the radio's limits; told to every client as it changes (state_follow). A text on the air
+         * keeps the speed it started at, the next one takes the new one */
+        if (!asks && LV_CLAMP(BOARD_KEY_SPEED_MIN, wpm, BOARD_KEY_SPEED_MAX) != s.wpm)
+            put_cmd(C_WPM, LV_CLAMP(BOARD_KEY_SPEED_MIN, wpm, BOARD_KEY_SPEED_MAX), 0, false);
+        else
+            client_textf(c, "%s:%d;", name, s.wpm);
     } else if (!strcmp(name, "rx_sensors_enable")) {
         if (n >= 1) c->rx_sensors = parse_bool(a[0]);
         client_textf(c, "rx_sensors_enable:%s;", c->rx_sensors ? "true" : "false");
@@ -1408,7 +1779,7 @@ static void handle_cmd(int ci, char *line) {
          * frequency and changes nothing. Hamlib's TCI backend sends one before each vfo, and the vfo tunes */
         client_textf(c, "dds:0,%d;", s.freq);
     }
-    /* spot, tune_drive, the DSP switches and what we don't know: nothing to say */
+    /* spot, tune_drive, the DSP switches, cw_msg, cw_terminal and what we don't know: nothing to say */
 }
 
 static void handle_text(int ci, char *text) {
@@ -1500,6 +1871,7 @@ static void handle_tx_audio(int ci, const uint8_t *frame, size_t len) {
 /* Keyed with TCI audio: the pacing frames, and the watchdog. The radio's own PTT keyed from
  * here has the time limit too. */
 static void tx_session_tick(uint64_t now) {
+    cw_tick(now);
     if (ptt_owner >= 0 && (clients[ptt_owner].fd < 0 || now - ptt_ms > TX_LIMIT_MS))
         tx_session_end(ptt_owner, false);
     /* A key that never took (no TX on this frequency, the base did not follow) holds nothing:
