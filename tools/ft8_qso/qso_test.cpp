@@ -1433,6 +1433,48 @@ static void bare_sign(void) {
     check(logged_once("A1AAA", "IN80", -12, -10, false), "its real R-report logs it: rcvd -12, sent -10");
 }
 
+/* ---- No station to answer (#228) ------------------------------------------------------------------------------- */
+
+/* "<...>": a call sent as a hash the decoder has not heard in full (a compound or long call). It was taken as a
+ * station called "...": Auto answered "... Q1QQQ R-10" in place of our CQ, and that does not encode (ft8_lib refuses
+ * it), so its retries went by with TX rows and nothing on the air. Still a message to us, no QSO made of it */
+static void unknown_call(void) {
+    begin("We call CQ: a report from a call we know only as <...> gets no answer, the CQ goes on");
+    tx_cq();
+    our_slot();
+    ftx_msg_meta_t m = rx(ME " <...> -05", -10);
+    check(m.to_me && !m.call_de[0], "a message to us from no call we know (to_me %d, '%s')", m.to_me, m.call_de);
+    slot_end();
+    check(next_is("CQ " ME " " MY_QTH) && !ftx_qso_processor_has_current(qso), "the CQ stays, no QSO (%s)", tx.msg);
+    for (const char *t : {ME " <...> JO22", ME " <...> R-05", ME " <...> RR73", ME " <...> 73"}) {
+        m = rx(t);
+        check(m.to_me && !m.call_de[0] && next_is("CQ " ME " " MY_QTH), "\"%s\": the CQ stays (%s)", t, tx.msg);
+    }
+    slot_end();
+    check(logged.empty(), "nothing logged");
+    rx(ME " A1AAA IN80", -12);
+    slot_end();
+    check(next_is("A1AAA " ME " -12"), "a call after them answered (%s)", tx.msg);
+
+    begin("We answer A's CQ: a report from <...> in between leaves A's QSO as it is");
+    ftx_msg_meta_t cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    our_slot();
+    rx(ME " <...> -03");
+    rx(ME " A1AAA -05");
+    slot_end();
+    check(next_is("A1AAA " ME " R-10"), "our R-report to A (%s)", tx.msg);
+    our_slot();
+    rx(ME " A1AAA RR73");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -5, -10, false) && logged.size() == 1, "A logged, nothing else");
+
+    begin("A CQ from <...>: no call in its row");
+    m = rx("CQ <...>");
+    check(m.type == FTX_MSG_TYPE_CQ && !m.call_de[0], "a CQ with no call (type %d, '%s')", m.type, m.call_de);
+}
+
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "-v");
     good_paths();
@@ -1445,6 +1487,7 @@ int main(int argc, char **argv) {
     own_call();
     own_qth();
     bare_sign();
+    unknown_call();
     ftx_qso_processor_delete(qso);
     printf("FT8 QSO %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;

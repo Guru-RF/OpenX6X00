@@ -2954,7 +2954,12 @@ card image's older one, with which such a CQ went out as free text or as a
 hash (`CQ <...>`), or not at all. The other way round,
 a station with such a call answers your CQ with `<ON6URE> PA/W1ABC`, no
 grid: that is a call to you, answered (by Auto, or pressed) with your
-report `PA/W1ABC ON6URE -07`, its call as a hash on the air.
+report `PA/W1ABC ON6URE -07`, its call as a hash on the air. A message
+whose call shows as `<...>` (`ON6URE <...> -05`) comes from such a call
+that the radio has not heard in full yet: it is in red, a message to you,
+but Auto does not answer it and a press does not either, as there is no call
+to send the answer to; nothing is logged with it. The call shows once a
+message of that station's with its full call has been decoded.
 
 Log Map. Page 3 > Log Map shows the logged stations on a world map centred on you:
 great-circle paths, a dot and the callsign for each station. Calls and dots
