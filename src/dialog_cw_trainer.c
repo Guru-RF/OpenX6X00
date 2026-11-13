@@ -52,6 +52,7 @@
 #define GUARD_MS    600     /* the end of our own sidetone is still being decoded */
 #define NEXT_OK_MS  1000    /* auto mode: pause before the next group */
 #define NEXT_BAD_MS 2500    /* longer after a wrong answer, to read it */
+#define REPLAY_MS   1000    /* Replay: a breath between the press and the group or call again (#202) */
 #define WINDOW      10      /* results the accuracy is measured over */
 #define PASS_PCT    90
 #define HEARD_MAX   32
@@ -125,6 +126,8 @@ static uint32_t listen_t, last_rx_t;
 static int      told_wpm;       /* the speed the decoder was told (cw_trainer_speed), 0 none */
 static bool     last_ok;
 static bool     autoplay;       /* Start: groups follow each other until Pause */
+static bool     replay_due;     /* Replay pressed: played once REPLAY_MS have passed (tick_cb) */
+static uint32_t replay_t;
 static uint32_t result_t;
 static uint8_t  hist[WINDOW];   /* 1 = right, newest overwrites the oldest */
 static int      hist_n, hist_pos;
@@ -517,6 +520,16 @@ static bool play(void) {
     return true;
 }
 
+/* Replay: the same group or call again, REPLAY_MS after the press, so it does not start while the hand is still on
+ * the key (#202). Meanwhile the screen says "Listen..." and keying is not taken for an answer: answers count only
+ * while listening */
+static void replay(void) {
+    cw_encoder_stop();
+    st         = ST_PLAYING;
+    replay_due = true;
+    replay_t   = lv_tick_get();
+}
+
 static void evaluate(void) {
     last_ok = strcmp(heard, target) == 0;
     tried++;
@@ -655,6 +668,17 @@ static void tick_cb(lv_timer_t *t) {
     }
 
     if (mode == MODE_PRACTICE) return;
+    if (replay_due) {
+        if (lv_tick_elaps(replay_t) >= REPLAY_MS) {
+            replay_due = false;
+            if (!play()) {                  /* key train off: back to the answer as it was */
+                st       = ST_LISTEN;
+                listen_t = last_rx_t = lv_tick_get();
+            }
+            refresh_ui();
+        }
+        return;
+    }
     if (st == ST_PLAYING && cw_encoder_state() == CW_ENCODER_IDLE) {
         st        = ST_LISTEN;
         listen_t  = lv_tick_get();
@@ -684,9 +708,10 @@ static void tick_cb(lv_timer_t *t) {
 static void stop_round(void) {
     cw_encoder_stop();
     cw_trainer_own(0);
-    autoplay  = false;
-    st        = ST_READY;
-    target[0] = 0;
+    autoplay   = false;
+    replay_due = false;
+    st         = ST_READY;
+    target[0]  = 0;
     heard[0]  = 0;
     heard_n   = 0;
 }
@@ -695,7 +720,7 @@ static void play_cb(button_data_t *b) {
     (void)b;
     if (mode == MODE_PRACTICE || stats_view) return;
     if (mode == MODE_LEARN && st == ST_LISTEN) {    /* Replay */
-        play();
+        replay();
     } else if (autoplay) {          /* Pause: the current group still ends */
         autoplay = false;
     } else {                        /* Start */
@@ -715,7 +740,7 @@ static void skip_cb(button_data_t *b) {
     (void)b;
     if (mode == MODE_PRACTICE || stats_view) return;
     if (mode == MODE_CALLS) {       /* Replay */
-        if (st == ST_LISTEN) play();
+        if (st == ST_LISTEN) replay();
     } else {
         cw_encoder_stop();
         new_target();
@@ -1173,6 +1198,7 @@ static void construct_cb(lv_obj_t *parent) {
     mode = MODE_LEARN;
     st   = ST_READY;
     autoplay = false;
+    replay_due = false;
     told_wpm = 0;
     target[0] = heard[0] = text[0] = 0;
     heard_n = tried = right = wpm_seen = 0;
