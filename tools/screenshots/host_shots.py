@@ -3,12 +3,14 @@
 sandbox, driven by a script of x6drive.py's commands; every "shot NAME" lands as NAME.png.
 
   python3 tools/screenshots/host_shots.py <build dir> <script> <out dir> [--theme NAME]
-                                          [--set name=value ...] [--keep]
+                                          [--set name=value ...] [--first-start] [--keep]
 
 <build dir> is a host build (host/build.sh, cmake -DHOST_BUILD=ON). <script> is a file, or the
 commands inline with ";" between them ("key APP; sleep 1; shot apps"). Each run starts from the
 default settings (the build's params.db, or sql/params.sql) with the theme and the --set values in
-params; the GUI gets 10 s after its FIFOs appear before the script starts.
+params; the GUI gets 10 s after its FIFOs appear before the script starts. The defaults have no
+callsign, so the first-start guide (src/first_start.c) would come up over every shot: it is marked
+done, unless --first-start leaves it to come up.
 
 The sandbox (bwrap): the whole system read-only, the GUI's data folder and /tmp private, no
 network (no cluster spots: the shots are the same each run), no D-Bus (NetworkManager and BlueZ on
@@ -59,6 +61,7 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--theme")
     ap.add_argument("--set", action="append", default=[], metavar="NAME=VALUE")
+    ap.add_argument("--first-start", action="store_true", help="the first-start guide comes up, as on a new card")
     ap.add_argument("--keep", action="store_true", help="keep the run folder (its gui.log)")
     a = ap.parse_args()
 
@@ -82,7 +85,7 @@ def main():
     else:
         with open(os.path.join(source, "sql", "params.sql")) as f:
             subprocess.run(["sqlite3", db], stdin=f, check=True)
-    sets = ([f"theme_name={a.theme}"] if a.theme else []) + a.set
+    sets = ([f"theme_name={a.theme}"] if a.theme else []) + ([] if a.first_start else ["first_start_done=1"]) + a.set
     for s in sets:
         name, _, value = s.partition("=")
         v = value if value.lstrip("-").isdigit() else "'" + value.replace("'", "''") + "'"
