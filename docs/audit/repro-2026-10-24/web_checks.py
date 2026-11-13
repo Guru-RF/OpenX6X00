@@ -148,10 +148,14 @@ class Headers(dict):
     def get(self, name, default=None):
         return dict.get(self, name.lower(), default)
 
+# sites.py as it is (no bottle in it): the Origin check, the Host's name and Funnel's header, which the guard shares
+# with SmartCW's page (smartcw.py)
+sites = SimpleNamespace(**runpy.run_path(str(repo / 'webserver/src/x6100_webserver/sites.py')))
 guard = {'bottle': GuardBottle, 'json': json, 'os': os, 'socket': __import__('socket'), 're': re, 'tempfile': tempfile,
-         'ipaddress': __import__('ipaddress'), 'urllib': __import__('urllib.parse')}
+         'ipaddress': __import__('ipaddress'), 'urllib': __import__('urllib.parse'), 'sites': sites}
 # with #105's own names: the domains of the radio's network, the list on the Network page and its routes
-names = {'host_refused', 'via_funnel', 'funnel_refused', 'refuse_other_sites', 'local_host_ok', 'tailscale_status',
+names = {'host_refused', 'via_funnel', 'funnel_refused', 'refuse_other_sites', 'local_host_ok', 'name_ok',
+         'tailscale_status',
          'file_lines', 'public_suffix', 'network_domains', 'listed_names', 'own_names', 'request_host', 'radio_address',
          'own_name_error', 'not_own_name', 'own_names_state', 'own_names_set', 'api_error', 'replace_file'}
 nodes = []
