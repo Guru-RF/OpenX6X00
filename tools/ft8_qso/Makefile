@@ -7,7 +7,8 @@
 # or the retries run out before the station's last message comes, a new caller once our RR73 or 73 went, and Force
 # QSO save. Each checks what is logged: once, with the right reports, never a QSO that was not complete. A
 # non-standard call of ours (KF0QGT/6Y): its answers as WSJT-X makes them, type 4 without a report; and one of the
-# other station's answering our CQ the same way ("<Q1QQQ> PA/A1AAA").
+# other station's answering our CQ the same way ("<Q1QQQ> PA/A1AAA"). #228's: no station to answer (a call known only
+# as "<...>", free text pressed), and the QSO kj7prs reported, with Auto on and off.
 # qso.cpp's own warnings under -Wextra (a switch without FXT_MSG_TYPE_OTHER, an snr unused, the R+report case falling
 # through to the report's on purpose) are left off.
 SRC      := ../../src

@@ -2843,7 +2843,10 @@ Buttons:
   same slot and one is a POTA activator, that one is answered first. Once
   your RR73 or 73 has gone out, the next station that calls you is answered
   at once; if the other station sends again in that slot (it missed your
-  RR73 or 73), it gets that message again first.
+  RR73 or 73), it gets that message again first. With Auto: Disabled
+  nothing moves on by itself: press the station's row for each next message
+  (its report, its RR73). Until then the message queued goes out again, up
+  to its Retries, and the other station may give up.
 - Retries: how many times a message goes out with no answer before the QSO is
   dropped (its late RR73 still logs it, see Log). Each press steps 3, 4, 5, 6,
   8, 10, 12, 15 and back to 3; 6 by default.

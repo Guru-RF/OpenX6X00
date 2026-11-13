@@ -1503,6 +1503,61 @@ static void no_call_press(void) {
     check(next_is("A1AAA " ME " JO21"), "our call to A (%s)", tx.msg);
 }
 
+/* The story of #228 (kj7prs): four calls to A with no answer, B pressed, B answers at once. Auto on moves to our
+ * R-report; with Auto off (as in the log the reporter sent: ft8_auto=0) our call to B stays, and goes out its retries
+ * while B sends its report again. A, given up, only comes back if it calls us: then Auto answers it, as the manual
+ * says; with Auto off it does not */
+static void story_228(void) {
+    for (bool auto_on : {true, false}) {
+        begin(auto_on ? "#228 with Auto on: B's report gets our R-report" : "#228 with Auto off: our call to B stays",
+              auto_on);
+        ftx_msg_meta_t cqa = rx("CQ A1AAA IN80");
+        ftx_msg_meta_t cqb = rx("CQ B1BBB FN31");
+        slot_end();
+        press(cqa);
+        for (int i = 0; i < 4; i++) {
+            our_slot();
+            rx("CQ B1BBB FN31");
+            slot_end();
+        }
+        press(cqb);
+        our_slot();
+        ftx_msg_meta_t report = rx(ME " B1BBB -05");
+        slot_end();
+        if (auto_on) {
+            check(next_is("B1BBB " ME " R-10"), "our R-report to B (%s)", tx.msg);
+            continue;
+        }
+        check(next_is("B1BBB " ME " JO21"), "our call to B stays (%s)", tx.msg);
+        for (int i = 0; i < 6; i++) {
+            our_slot();
+            rx(ME " B1BBB -05");
+            slot_end();
+        }
+        check(times_sent("B1BBB " ME " JO21") == 6 && !tx.msg[0], "it went out its 6 retries, nothing after (%d)",
+              times_sent("B1BBB " ME " JO21"));
+        check(times_sent("A1AAA " ME " JO21") == 4, "A called 4 times only (%d)", times_sent("A1AAA " ME " JO21"));
+        rx(ME " A1AAA -12");
+        slot_end();
+        check(!tx.msg[0], "A's late report: nothing queued with Auto off (%s)", tx.msg);
+        press(report);
+        check(next_is("B1BBB " ME " R-10"), "B's report pressed: our R-report (%s)", tx.msg);
+    }
+
+    begin("#228 with Auto on: A calls us after B's QSO was given up, and is answered", true);
+    ftx_msg_meta_t cqb = rx("CQ B1BBB FN31");
+    slot_end();
+    press(cqb);
+    for (int i = 0; i < 14; i++) {
+        our_slot();
+        slot_end();
+    }
+    check(!tx.msg[0] && !ftx_qso_processor_has_current(qso), "B given up, nothing queued (%s)", tx.msg);
+    rx(ME " A1AAA -12");
+    slot_end();
+    check(next_is("A1AAA " ME " R-10"), "A's report answered (%s)", tx.msg);
+}
+
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "-v");
     good_paths();
@@ -1517,6 +1572,7 @@ int main(int argc, char **argv) {
     bare_sign();
     unknown_call();
     no_call_press();
+    story_228();
     ftx_qso_processor_delete(qso);
     printf("FT8 QSO %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;
