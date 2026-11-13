@@ -445,7 +445,7 @@ static void timing(void) {
     second();
     check(strstr(hint(), "No in 17 s") != NULL, "three seconds on: \"%s\"", hint());
     tci_ask_close(13, TCI_ASK_TIMEOUT);
-    check(!strcmp(note, WHO ": no answer, no transmission"), "the server's no answer: the note \"%s\"", note);
+    check(!strcmp(note, WHO ": no answer\nnot allowed to transmit"), "the server's no answer: the note \"%s\"", note);
     check(answers == 5, "the server's no answer: nothing answered back");
     closed_back("the server's no answer");
 

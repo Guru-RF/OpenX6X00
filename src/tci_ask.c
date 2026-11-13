@@ -265,15 +265,16 @@ void tci_ask_close(uint32_t id, int why) {
     if (id != last_id) {
         return;
     }
+    /* Two short lines each: one line this long scrolls past in the message box before it can be read */
     switch (why) {
         case TCI_ASK_TIMEOUT:
-            msg_schedule_text_ms(NOTE_MS, "%s: no answer, no transmission", last_who);
+            msg_schedule_text_ms(NOTE_MS, "%s: no answer\nnot allowed to transmit", last_who);
             break;
         case TCI_ASK_ALWAYS:
-            msg_schedule_text_ms(NOTE_MS, "%s may transmit from now on (Settings > General > TCI SERVER)", last_who);
+            msg_schedule_text_ms(NOTE_MS, "%s may transmit from now on\nSettings > General > TCI SERVER", last_who);
             break;
         case TCI_ASK_FULL:
-            msg_schedule_text_ms(NOTE_MS, "%s may transmit until it disconnects: no room to keep it, forget one in "
+            msg_schedule_text_ms(NOTE_MS, "%s may transmit until it disconnects\nno room to keep it: forget one in "
                                           "Settings > General > TCI SERVER", last_who);
             break;
         default:
