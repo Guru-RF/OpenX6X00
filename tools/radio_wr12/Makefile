@@ -1,7 +1,7 @@
 # Host test of radio.c's side of the X6200's WR12 (#134): `make` builds it and runs it. The real src/radio.c, compiled
-# as the PC build compiles it for the X6200 (BOARD_X6200, HOST_BUILD), with the real hw_stub.c, base_guard.c and
-# ham_bands.c, and stand-ins for the settings, the WR12's driver and the rest of the GUI (fakes.c). What radio.c
-# sends the base is caught on its way to hw_stub.c (--wrap); the radio's own thread is not started (--wrap of
+# as the PC build compiles it for the X6200 (BOARD_X6200, HOST_BUILD), with the real hw_stub.c, base_guard.c,
+# ham_bands.c and tx_ranges.c, and stand-ins for the settings, the WR12's driver and the rest of the GUI (fakes.c). What
+# radio.c sends the base is caught on its way to hw_stub.c (--wrap); the radio's own thread is not started (--wrap of
 # pthread_create): no packets, the base keys by itself only when the test says so, its data is taken as flowing (--wrap
 # of base_no_data: these cases are the WR12's; tools/base_guard tests the no-data rule, #152), and the base log as
 # free (--wrap of base_guard_log_free: its one line a second is base_guard's), the CW key's pin caught too (--wrap of
@@ -32,9 +32,9 @@ build/radio.o: radio_thread.c $(SRC)/radio.c $(wildcard $(SRC)/*.h $(SRC)/hw/*.h
 	mkdir -p build && $(CC) $(GUI) -c -o $@ radio_thread.c
 
 radio_wr12_test: radio_wr12_test.c fakes.c fakes.h build/radio.o $(SRC)/hw/stub/hw_stub.c $(SRC)/base_guard.c \
-                 $(SRC)/pa_bias.c $(SRC)/cfg/ham_bands.c $(SRC)/bat_watch.c
+                 $(SRC)/pa_bias.c $(SRC)/cfg/ham_bands.c $(SRC)/cfg/tx_ranges.c $(SRC)/bat_watch.c
 	$(CC) $(CFLAGS) -o $@ radio_wr12_test.c fakes.c build/radio.o $(SRC)/hw/stub/hw_stub.c $(SRC)/base_guard.c \
-	    $(SRC)/pa_bias.c $(SRC)/cfg/ham_bands.c $(SRC)/bat_watch.c -lm $(WRAPS)
+	    $(SRC)/pa_bias.c $(SRC)/cfg/ham_bands.c $(SRC)/cfg/tx_ranges.c $(SRC)/bat_watch.c -lm $(WRAPS)
 
 test: radio_wr12_test
 	./radio_wr12_test

@@ -10,6 +10,8 @@
  *    {"cmd":"eth_set","dhcp":0|1,"ip":..,"mask":..,"gw":..,"dns":..}
  *    {"cmd":"band_use","lo":hz,"hi":hz}               -> {"t":"band_use","use":0|1|2} (none, receive, transmit)
  *    {"cmd":"digi_lists"}                             -> {"t":"digi_lists","plan":p,"region":r,"lists":{"6":[[hz,own]...],..}}
+ *    {"cmd":"tx_ranges_read"}                         -> {"t":"tx_ranges", "tx_own_count":n, ...} after the own TX list
+ *                                                        is read again (the web server wrote its file)
  *  The values are checked here and applied on the LVGL thread through the scheduler, as the
  *  Settings pages apply them.
  *
@@ -50,7 +52,7 @@ extern "C" {
 
 #define SOCK_PATH "/tmp/x6100_cfg.sock"
 #define IN_SIZE   1024
-#define OUT_SIZE  2048
+#define OUT_SIZE  4096
 
 /* Screen options of Settings > Display, by name: the ranges the page may set */
 static const struct {
@@ -104,6 +106,8 @@ static const struct {
     {"power_display", &cfg_sm.p_power_display, 0, 3},  /* Main screen: live, clock.c reads it */
     {"tx_outside_bands", &cfg_sm.p_tx_outside_bands, 0, 1},   /* TX Cal (#121): live, radio.c, info_bar.c and
                                                                  * freq_strip.c follow it */
+    {"tx_ranges", &cfg_sm.p_tx_ranges, TX_RANGES_BANDS, TX_RANGES_OWN},  /* TX Cal (#247): the same; Own list reads
+                                                                           * its file first (disp_apply) */
 #ifdef BOARD_X6200
     {"wr12", &cfg_sm.p_wr12, 0, 1},                     /* live: screen_main.c follows it; the X6100 has no row */
 #endif
@@ -143,10 +147,17 @@ static bool get_int(cJSON *req, int32_t min, int32_t max, int32_t *out) {
 /* LVGL thread */
 static void disp_apply(void *arg) {
     disp_set_t *d = (disp_set_t *)arg;
+    bool        tx = !strcmp(d->name, "tx_ranges") || !strcmp(d->name, "tx_outside_bands");
 
+    if (!strcmp(d->name, "tx_ranges") && d->val == TX_RANGES_OWN) {
+        cfg_tx_ranges_load();       /* the file as it is now, as Settings does (#247) */
+        cfg_tx_ranges_changed();
+    }
     for (auto &o : disp_ints)
         if (!strcmp(d->name, o.name))
             o.p->set(d->val);
+    if (tx)
+        cfg_api_flush_all();        /* where the radio may transmit: saved now, kept by a radio switched off at once */
     for (auto &o : disp_bools)
         if (!strcmp(d->name, o.name))
             params_bool_set(o.b, d->val);
@@ -253,6 +264,14 @@ static const char *disp_set(cJSON *req, disp_set_t *d) {
     return NULL;
 }
 
+/* The own TX list as read last (#247), for the web page's note: ',"tx_own_count":n,...' */
+static int tx_own_fields(char *buf, size_t size) {
+    tx_ranges_own_t st = tx_ranges_own_state();
+
+    return snprintf(buf, size, ",\"tx_own_count\":%d,\"tx_own_bad\":%d,\"tx_own_first_bad\":%d,\"tx_own_missing\":%d",
+                    st.count, st.bad, st.first_bad, st.missing ? 1 : 0);
+}
+
 static int disp_get(char *buf, size_t size) {
     int  l = snprintf(buf, size, "{\"t\":\"disp\"");
     char names[32][32];
@@ -269,7 +288,7 @@ static int disp_get(char *buf, size_t size) {
                   (int)lroundf(cfg_sm.p_auto_level_offset.get() * 10), params.brightness_normal, params.brightness_idle,
                   params.brightness_timeout, (int)params.brightness_buttons, params.screen_off_min, params.screen_off_always ? 1 : 0,
                   params.screen_saver.x, params.screen_saver_min.x, params.screen_saver_speed.x, params.theme_name.x);
-    for (int i = 0; i < count && l < (int)size - 160; i++)   /* room for the band plan after them */
+    for (int i = 0; i < count && l < (int)size - 300; i++)   /* room for the band plan and the own list after them */
         l += snprintf(buf + l, size - l, "%s\"%s\"", i ? "," : "", names[i]);
     l += snprintf(buf + l, size - l, "]");
     /* The band plan in use and what Auto finds (the locator or the callsign: letters, digits and /) */
@@ -277,7 +296,9 @@ static int disp_get(char *buf, size_t size) {
     char        at[16];
     int         region = band_plan_auto(&how, at, sizeof(at));
     l += snprintf(buf + l, size - l, ",\"band_region_now\":%d,\"band_region_auto\":%d,\"band_region_how\":\"%s\","
-                  "\"band_region_at\":\"%s\"}\n", band_plan_now(), region, how, at);
+                  "\"band_region_at\":\"%s\"", band_plan_now(), region, how, at);
+    l += tx_own_fields(buf + l, size - l);
+    l += snprintf(buf + l, size - l, "}\n");
     return l;
 }
 
@@ -362,6 +383,14 @@ static int digi_lists_get(char *buf, size_t size) {
     return l;
 }
 
+/* LVGL thread, the socket's thread waiting (scheduler_call): the own list read again from the file the web server
+ * wrote, and what follows the TX ranges told */
+static void tx_ranges_read_cb(void *arg) {
+    (void)arg;
+    cfg_tx_ranges_load();
+    cfg_tx_ranges_changed();
+}
+
 /* The answer to one request line */
 static int handle_line(const char *line, char *out, size_t size) {
     cJSON      *req  = cJSON_Parse(line);
@@ -387,6 +416,14 @@ static int handle_line(const char *line, char *out, size_t size) {
         err = band_use_get(req, out, size, &l);
     } else if (!strcmp(name->valuestring, "digi_lists")) {
         l = digi_lists_get(out, size);
+    } else if (!strcmp(name->valuestring, "tx_ranges_read")) {
+        if (!scheduler_call(tx_ranges_read_cb, NULL)) {
+            err = "Busy, try again";
+        } else {
+            l = snprintf(out, size, "{\"t\":\"tx_ranges\"");
+            l += tx_own_fields(out + l, size - l);
+            l += snprintf(out + l, size - l, "}\n");
+        }
     } else {
         err = "Unknown command";
     }
@@ -398,7 +435,7 @@ static int handle_line(const char *line, char *out, size_t size) {
 
 /* One request per connection: a line in, a line out, the socket closes */
 static void serve(int fd) {
-    char   in[IN_SIZE], out[OUT_SIZE];
+    char   in[IN_SIZE], out[OUT_SIZE];   /* disp_get: every option, the themes' names, the band plan, the own list */
     size_t n = 0;
     struct timeval tv = {3, 0};
 

@@ -1030,7 +1030,7 @@ the connections on the second.
 
 | Item | Meaning |
 |---|---|
-| VFO-A / VFO-B | the VFO in use; SPL-A / SPL-B when split is on; with a [TX shift](#tx-shift) the shift ("-600k") or REV; red in split when the radio cannot or may not transmit on the other VFO (receive only, or outside the [amateur bands](#amateur-bands-only); not for the X6200's dial) |
+| VFO-A / VFO-B | the VFO in use; SPL-A / SPL-B when split is on; with a [TX shift](#tx-shift) the shift ("-600k") or REV; red in split when the radio cannot or may not transmit on the other VFO (receive only, or outside the [amateur bands](#amateur-bands-only) or the TX ranges; not for the X6200's dial) |
 | USB-D, LSB, CW... | the mode |
 | AUTO, FAST, SLOW, OFF | the AGC |
 | PRE, ATT, ATU | highlighted when the preamp, the attenuator or the tuner is on |
@@ -1895,7 +1895,7 @@ What they do: see [DX Cluster](#dx-cluster).
 |---|---|
 | TX CALIBRATION | IQ offsets, band output gain, codec gain |
 | CESSB | on, level |
-| TX PROTECTION | SWR protection, TX outside ham bands (see [Amateur bands only](#amateur-bands-only)) |
+| TX PROTECTION | SWR protection, TX ranges (Ham bands, South Korea, Own list), Own list file (Read again), TX outside ham bands (see [Amateur bands only](#amateur-bands-only)) |
 | EXTERNAL TUNER | TUNE power, W; TUNE time limit, s (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | S-METER | Preamp, Attenuator (X6200: on supply, on battery), RF gain a step, Measure |
 
@@ -2140,7 +2140,8 @@ PWR goes back to 5 W. The X6100 has no battery limit.
 
 By default the radio transmits only inside the amateur bands and on the range
 of a transverter you turned on, and never on the X6200's receive-only ranges
-(#121). Up to v0.3.8 it transmitted anywhere from 0.1 to 55 MHz.
+(#121). Up to v0.3.8 it transmitted anywhere from 0.1 to 55 MHz. TX ranges
+(below) narrows that to South Korea's ranges or to a list of your own (#247).
 
 | Band | From | To |
 |---|---|---|
@@ -2179,6 +2180,75 @@ before; a backup restored afterwards brings its own. Turn it on only if you
 are licensed to transmit outside the amateur bands (MARS, CAP and the like):
 the radio then transmits wherever it can, 0.1 to 55 MHz. The receive-only
 ranges stay receive only.
+
+TX ranges. Where: Settings > TX Cal > TX PROTECTION > TX ranges (also on the
+web Display page, Transmitter card). Three choices:
+
+- Ham bands: the amateur bands of the table above, and TX outside ham bands
+  as just said. The default, and how every radio was before.
+- South Korea: only the Korean amateur ranges below, for a radio that has to
+  transmit only there to be approved (#247).
+- Own list: only the ranges in `/mnt/tx_ranges.conf`, for another country's
+  rules (below).
+
+| Band | From | To |
+|---|---|---|
+| 160 m | 1.800 MHz | 1.825 MHz |
+| 80 m | 3.500 MHz | 3.550 MHz |
+| 80 m | 3.790 MHz | 3.800 MHz |
+| 40 m | 7.000 MHz | 7.200 MHz |
+| 30 m | 10.100 MHz | 10.150 MHz |
+| 20 m | 14.000 MHz | 14.350 MHz |
+| 17 m | 18.068 MHz | 18.168 MHz |
+| 15 m | 21.000 MHz | 21.450 MHz |
+| 12 m | 24.890 MHz | 24.990 MHz |
+| 10 m | 28.000 MHz | 29.700 MHz |
+| 6 m | 50.000 MHz | 54.000 MHz |
+
+With South Korea or Own list chosen:
+
+- TX outside ham bands does not take the radio outside them. With Own list,
+  a range outside the amateur bands transmits only with that switch on too:
+  the narrower of the two always wins.
+- Everything below keeps to them as it keeps to the amateur bands: PTT, CAT,
+  TCI, the browser Panel, the apps, CW, the tuners, the SWR scan (its sweep
+  stays inside the range) and the hold at 0 W for the hand mic, VOX and the
+  KEY jack. The CW Trainer's key is refused outside them too, where it
+  otherwise goes through at 0 W.
+- A transverter's range transmits only where the radio's own output, its IF
+  (the frequency less the transverter's shift), is inside them. With South
+  Korea a 2 m transverter on a 28 MHz IF transmits from 144.000 to 145.700
+  MHz. A shift cannot move the radio's own output outside the ranges.
+- Receive does not change.
+- The choice is saved at once and kept over a restart and an update. A
+  settings reset, a backup from before it, or a settings file the radio
+  cannot use brings Ham bands back: look at it after one of those.
+- The screen says "No TX on 7.250 MHz", then "TX ranges: Settings > TX
+  Cal". The browser Panel and Winlink's page say "7.250 MHz: outside the TX
+  ranges (Settings > TX Cal)".
+
+The own list: one range a line, in MHz, from-to, both edges in. A # starts a
+comment.
+
+```
+# My licence: 40 m and 20 m only
+7.000-7.200
+14.000-14.350   # all of 20 m
+```
+
+- Up to 6 decimals (1 Hz); spaces are fine. A comma for the point, kHz, a
+  range from above to, or one outside 0.1 to 55 MHz (what the radio itself
+  transmits on) is not read. A line not read is left out, so it only ever
+  narrows the list.
+- Up to 64 ranges. Ranges that overlap or touch count as one.
+- No file, or no line that can be read: the list is empty, and with Own list
+  chosen the radio transmits nowhere. The screen says "No TX ranges: Settings
+  > TX Cal", Settings "No TX anywhere: no /mnt/tx_ranges.conf".
+- The radio reads the file at its start, when Own list is chosen, on Read
+  again (Settings > TX Cal, the Own list file row) and on Save in the web
+  configurator (the Transmitter card has the list as a text field). After an
+  edit over SSH, press Read again. Settings shows the ranges as read and the
+  first line it could not read; the GUI's log has each read.
 
 What is checked: the frequency the radio transmits on, the dial, in split
 the other VFO, with a [TX shift](#tx-shift) the shifted one. On the X6200
@@ -2224,7 +2294,8 @@ bands (Settings > TX Cal)". What is refused:
   ("Tuner stopped"), the SWR scan stops as its Stop does.
 - The [CW Trainer](#cw-trainer) keeps working on any frequency the radio can
   transmit on: its key sounds the sidetone at 0 W, its PTT does nothing
-  there. KEY Train outside the trainer (the key, the paddle, a message) is
+  there. Not outside South Korea's ranges or the own list (TX ranges above):
+  there its key is refused too. KEY Train outside the trainer (the key, the paddle, a message) is
   refused as any CW is. On the X6200 the base's own band table stays open
   for the trainer there (below).
 
@@ -2328,8 +2399,12 @@ Left uncovered:
   set: a tune is refused at its start, and one whose dial is moved out is
   given up, but what goes out in between is the base's.
 - What the X6100's base itself permits or refuses there is not known.
+- With TX ranges on South Korea or Own list the same holds outside them. The
+  X6200's own band table covers whole bands (160 to 6 m), so inside it, on
+  7.250 MHz for one, the hand mic's PTT still puts the base into TX at 0 W.
 
-Transverters: a transverter's range transmits as you set it up. Both are off
+Transverters: a transverter's range transmits as you set it up (with TX
+ranges on South Korea or Own list, only where its IF is inside them). Both are off
 by default (a shift of 0), on the X6100 too. Up to v0.3.8 the X6100's two
 were on from the start (2 m and 70 cm through a 28 MHz IF): with nothing
 connected, transmitting on 2 m or 70 cm (PTT, an app, CW) sent that IF, 28
@@ -2608,7 +2683,8 @@ lay flat at 1.0 on the green band, as if nothing had been drawn.
   regions: in Region 1 40 m went to 7.300 MHz, into the 41 m broadcast band,
   and 80 m to 4.000.
 - The sweep stays where the radio transmits. Near the edge of HF (0.1 and
-  55 MHz), of a transverter's range or of the amateur band the span moves
+  55 MHz), of a transverter's range, of the amateur band or of the TX range
+  (South Korea's or the own list's) the span moves
   inside it, with the VFO's line off the middle, and a range narrower than
   the span is swept whole. Up to v0.3.7 the radio refused the points
   outside, and the curve showed there the SWR of the last frequency it could
@@ -3680,7 +3756,8 @@ Train is for practice: the key, the paddle, the CW messages and the
   (voice, the apps) the power is not held. To transmit CW, turn Train off.
 - Outside the amateur bands only the CW Trainer keeps sounding; Train with
   the key, the paddle or the messages is refused there as any CW is (see
-  [Amateur bands only](#amateur-bands-only)).
+  [Amateur bands only](#amateur-bands-only)). Outside South Korea's ranges or
+  the own list the trainer's key is refused too.
 
 ### CW decoder
 
@@ -4964,7 +5041,7 @@ The menu has General and five groups:
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
 | | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture (optionally CW trainer and WiFi) as one file, and restore the parts you choose (restored WiFi networks are taken a few seconds after, no restart needed; see below) |
-| System | Display | every display option of the radio, a few station options of the other tabs (independent VFOs, the band plan, the WR12, [TX outside ham bands](#amateur-bands-only) in the Transmitter card), and the [boot picture](#boot-picture) (see below) |
+| System | Display | every display option of the radio, a few station options of the other tabs (independent VFOs, the band plan, the WR12, [TX ranges, the own list and TX outside ham bands](#amateur-bands-only) in the Transmitter card), and the [boot picture](#boot-picture) (see below) |
 | | Time | local and server time; Sync sets the radio clock from the browser's, in the radio's timezone; NTP sync; timezone |
 | | Network | the radio's [network name](#network-name), its [other names](#the-radios-own-names), and the USB Ethernet adapter: state, DHCP or static address (see [Ethernet](#ethernet)) |
 | | TCI | enable the [TCI server](#tci-server), set its port |
@@ -5075,7 +5152,7 @@ them.
 | On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
-| Transmitter | TX outside ham bands (Settings > TX Cal; see [Amateur bands only](#amateur-bands-only)) |
+| Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
@@ -7357,7 +7434,7 @@ begun before keeps the header it had (PROGRAMVERSION 1.0.0, ADIF_VER 3.14);
 | `1A` | `01` | Band (the CI-V codes `01` 160 m ... `09` 10 m, `10` 6 m, `15` none); write tunes the band's centre | yes | yes |
 | `1A` | `03` | IF filter width (BCD index) | yes | - |
 | `1A` | `06` | Data mode + filter; write only adds or drops the data mode (USB ↔ USB-D, LSB ↔ LSB-D) | yes | yes |
-| `1C` | `00` | PTT (`00` RX, `01` TX); a TX the radio refuses (outside the [amateur bands](#amateur-bands-only), receive only, [no data from the base](#no-tx-without-data-from-the-base)) answers NG (`FA`) | yes | yes |
+| `1C` | `00` | PTT (`00` RX, `01` TX); a TX the radio refuses (outside the [amateur bands](#amateur-bands-only) or the TX ranges, receive only, [no data from the base](#no-tx-without-data-from-the-base)) answers NG (`FA`) | yes | yes |
 | `25` | `00` / `01` | Frequency of selected / unselected VFO | yes | yes |
 | `26` | `00` / `01` | Mode + data mode of selected / unselected VFO | yes | yes |
 | `27` | `10` / `11` | Scope on (always) / wave data output: accepted, a stub | yes | yes |
@@ -7432,6 +7509,7 @@ The DATA partition, readable on a PC.
 | `app_logs/` | the log of each run of the GUI (`x6100_log_*.txt`), `wifi.txt` after a failed join, `start_trace.txt`: each step of each start ([a start that stops](#the-radio-stops-at-the-boot-logo-or-the-screen-stays-dark-after-it)) |
 | `perf` | an empty file: the [performance overlay](#the-screen-feels-slow-measuring-it) at the next start |
 | `bootlogo.png` | your own [boot picture](#boot-picture), from the Display page of the web configurator |
+| `tx_ranges.conf` | the own TX list for TX ranges > Own list: one `from-to` range a line in MHz, `#` comments; none or empty: no TX with Own list (see [Amateur bands only](#amateur-bands-only)) |
 | `data_fsck.log` | what the last start's check of DATA found, or that the start formatted it and moved the system's `/mnt` files onto it. While the radio runs without DATA, why it left the partition alone and what to do, in the system's `/mnt` folder it runs on (the Files page shows that one then) |
 | `found_on_system/` | files the radio wrote into the system partition's `/mnt` folder while DATA was there but not mounted, put here at the next start that mounted it; `found_on_system.2/`, `.3/` ... when one is there already (nothing on DATA is written over). A DATA without settings of its own (no `params.db`, as after a format on a PC) gets them on its top level instead, the names it has already left here (a database with its `-wal`, `-shm` and `-journal` when DATA has one of those names: SQLite reads a journal into the database of its name). Files that cannot all be copied, or found when the check did not leave DATA clean ("check not clean: ..." in `data_fsck.log`), stay on the system partition until a start that can move them; a DATA without settings of its own is then not used at that start: the radio comes up with the settings kept there |
 

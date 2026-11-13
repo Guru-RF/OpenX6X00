@@ -207,10 +207,11 @@ def main():
             + server[start:server.index("        case P_VFO:", start)] + "    }\n}\n\n"
             + screen[step:screen.index("\n}\n", step) + 3])
         command([*CC, *cflags, "-c", "src/cfg/ham_bands.c", "-o", work / "ham_bands.o"], env)
+        command([*CC, *cflags, "-c", "src/cfg/tx_ranges.c", "-o", work / "tx_ranges.o"], env)   # the TX ranges (#247)
         binary = work / "band-keys"
         command([*CXX, "-std=c++20", *common, "-I" + directory, HERE / "band-keys.cpp", *cfg,
-                 "src/cfg/settings_manager_api.cpp", work / "ham_bands.o", *gc, "-pthread", "-lsqlite3", "-o", binary],
-                env)
+                 "src/cfg/settings_manager_api.cpp", work / "ham_bands.o", work / "tx_ranges.o", *gc, "-pthread",
+                 "-lsqlite3", "-o", binary], env)
         every_band = "80m, 60m, 40m CW, 40m SSB, 30m, 20m CW, 20m SSB, 17m, 15m, 12m, CB A, CB B, CB C, CB D, 10m, 6m"
         every_band_down = ", ".join(every_band.split(", ")[-2::-1]) + ", 160m"
         print("#168 the band keys from the browser and on the radio:\n" + command([binary], env, contains=(

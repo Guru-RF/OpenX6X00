@@ -444,6 +444,12 @@ class SettingsManager {
     // transmit; on, wherever the hardware does, for operators licensed there (MARS, CAP...). Receive-only stays so
     Parameter<int32_t> p_tx_outside_bands{"tx_outside_bands", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // TX ranges (#247, tx_ranges.h): the amateur bands (the default, as above), South Korea's ranges, or the own list
+    // (TX_RANGES_FILE). The last two win over TX outside the amateur bands. s_tx_ranges_read counts the reads of the
+    // own list's file, so that what follows the ranges looks again after one (cfg_tx_ranges_changed)
+    Parameter<int32_t> p_tx_ranges{"tx_ranges", TX_RANGES_BANDS, TX_RANGES_BANDS, TX_RANGES_OWN,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    SubjectT<int32_t>  s_tx_ranges_read{0};
     // TUNE for an external tuner (ext_tune.h): its power, W (tune_tx.h's range: up to the PWR top, #87), and its time
     // limit, s
     Parameter<float, int32_t, 10> p_tune_pwr{"tune_pwr", 1.0f,

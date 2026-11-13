@@ -9,6 +9,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "tx_ranges.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,10 +44,28 @@ bool cfg_wr12_freq(int32_t freq);
 /* The hardware transmits on freq: HF, a transverter with a shift. Whether the radio may: cfg_tx_refusal */
 bool cfg_is_tx_freq(int32_t freq);
 /* Why the radio may not transmit on freq (#121), NULL: it may. "receive only": the hardware does not transmit there,
- * whatever the setting; "outside the amateur bands (Settings > TX Cal)": HF outside them (ham_bands.h) with
- * Settings > TX Cal > TX outside ham bands off. A transverter's range transmits. Before those, what keeps the radio
- * from transmitting anywhere for now (cfg_tx_block). Any thread */
+ * whatever the setting; "outside the TX ranges (Settings > TX Cal)": outside South Korea's ranges or the own list
+ * with either chosen in Settings > TX Cal > TX ranges, whatever the switch below (#247), on a transverter's range
+ * its IF ("no TX ranges in the own list ...": that list is empty, nothing transmits); "outside the amateur bands
+ * (Settings > TX Cal)": HF outside them (ham_bands.h) with Settings > TX Cal > TX outside ham bands off. A
+ * transverter's range transmits as far as the TX ranges let its IF. Before those, what keeps the radio from
+ * transmitting anywhere for now (cfg_tx_block). The words are tx_ranges_why's. Any thread */
 const char *cfg_tx_refusal(int32_t freq);
+/* The same as what it is (tx_ranges_check), the block aside: HAM_TX_OK where the bands and the ranges let the radio
+ * transmit. For the screen's second line (radio_say_no_tx). Any thread */
+ham_tx_t    cfg_tx_check(int32_t freq);
+/* South Korea or the own list chosen (#247): nothing keys outside them, not even the CW Trainer's key at 0 W, which
+ * goes through outside the amateur bands (radio.c, practice). Any thread */
+bool        cfg_tx_ranges_narrow(void);
+/* The own list's file on the DATA partition, BOARD_DATA "/tx_ranges.conf" */
+const char *cfg_tx_ranges_path(void);
+/* Read the own list's file again into the list in use (tx_ranges_own_load), with a line in the log: at the start, when
+ * Own list is chosen, on Read again in Settings and from the web configurator. Any thread; the GUI thread then calls
+ * cfg_tx_ranges_changed */
+tx_ranges_own_t cfg_tx_ranges_load(void);
+/* What follows the TX ranges looks again after a read of the own list (s_tx_ranges_read: the hold at 0 W, the
+ * status bar's colour). GUI thread */
+void        cfg_tx_ranges_changed(void);
 /* What keeps the radio from transmitting on any frequency for now, its words or NULL: the X6200's WR12 out of its
  * bypass or asked out of it (wr12_tx_block, #134). Set once at the start (radio.c); the function is called on any
  * thread. The get: its words now, NULL nothing */
@@ -59,8 +79,9 @@ const char *cfg_tx_mhz(int32_t freq, char *buf, size_t size);
 const char *cfg_tx_refusal_text(int32_t freq, char *buf, size_t size);
 /* The frequencies transmitted on the same way as freq, [*lo, *hi] (Hz): the range of the transverter it is on (the
  * first, as cfg_transverter_shift_for), else HF 0.1-55 MHz, cut where a transverter before it in that order starts
- * or ends; on HF with TX outside the amateur bands off, the amateur band freq is in (#121). False when freq is not
- * transmitted on */
+ * or ends; on HF with TX outside the amateur bands off, the amateur band freq is in (#121); with South Korea or the
+ * own list chosen no wider than their range that freq (on a transverter its IF) is in (#247). False when freq is
+ * not transmitted on */
 bool cfg_tx_range(int32_t freq, int32_t *lo, int32_t *hi);
 /* What the SWR scan may sweep around freq: cfg_tx_range, and on an amateur band with TX outside the amateur bands off no
  * wider than the band list's active rows inside that band (ham_band_scan_range): in Region 1 40 m 7.000-7.200, where

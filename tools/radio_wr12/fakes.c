@@ -4,7 +4,8 @@
  *  OpenX6X00 - host test of radio.c's side of the X6200's WR12 (#134): the GUI around the real src/radio.c, as little
  *  of it as radio.c needs. The settings (subjects that notify in the order they were subscribed in, the dial computed
  *  from the VFOs as the settings manager does, the rules of where the radio receives and transmits as
- *  settings_manager.h has them, cfg_tx_refusal as settings_manager_api.cpp has it over the real ham_bands.c), the
+ *  settings_manager.h has them, cfg_tx_refusal as settings_manager_api.cpp has it over the real ham_bands.c and
+ *  tx_ranges.c), the
  *  GUI thread's queue, the screen's messages, the clock, a stand-in WR12 driver, and what reaches the base on its way
  *  to the real hw_stub.c. The rest answers as an idle radio would. See fakes.h.
  *
@@ -26,6 +27,7 @@
 #include "bat_watch.h"
 #include "btaudio.h"
 #include "cfg/ham_bands.h"
+#include "cfg/tx_ranges.h"
 #include "clock.h"
 #include "cw.h"
 #include "cw_encoder.h"
@@ -150,6 +152,8 @@ typedef struct fake_subj {
     X(ParamInt, cfg_tx_filter_high) \
     X(ParamInt, cfg_tx_filter_low) \
     X(ParamInt, cfg_tx_outside_bands) \
+    X(ParamInt, cfg_tx_ranges) \
+    X(SubjectInt, cfg_tx_ranges_read) \
     X(ParamInt, cfg_volume) \
     X(ParamInt, cfg_vox_ag) \
     X(ParamInt, cfg_vox_delay) \
@@ -227,6 +231,7 @@ void fake_cfg_init(void) {
     s_cfg_key_train.i         = 0;
     s_cfg_wr12.i              = 0;
     s_cfg_tx_outside_bands.i  = 0;
+    s_cfg_tx_ranges.i         = TX_RANGES_BANDS;
     s_cfg_key_tone.i          = 700;
     s_cfg_qsk_time.i          = 100;
     s_cfg_key_speed.i         = 20;
@@ -362,20 +367,22 @@ const char *cfg_tx_block(void) {
     return tx_block ? tx_block() : NULL;
 }
 
+ham_tx_t cfg_tx_check(int32_t freq) {
+    return tx_ranges_check((tx_ranges_t)s_cfg_tx_ranges.i, freq, cfg_is_tx_freq(freq), shift_for(freq),
+                           s_cfg_tx_outside_bands.i);
+}
+
 const char *cfg_tx_refusal(int32_t freq) {
     const char *block = cfg_tx_block();
 
     if (block) {
         return block;
     }
-    switch (ham_tx_check(freq, cfg_is_tx_freq(freq), shift_for(freq) != 0, s_cfg_tx_outside_bands.i)) {
-        case HAM_TX_RX_ONLY:
-            return "receive only";
-        case HAM_TX_OFF_BAND:
-            return "outside the amateur bands (Settings > TX Cal)";
-        default:
-            return NULL;
-    }
+    return tx_ranges_why(cfg_tx_check(freq));
+}
+
+bool cfg_tx_ranges_narrow(void) {
+    return s_cfg_tx_ranges.i != TX_RANGES_BANDS;
 }
 
 const char *cfg_tx_mhz(int32_t freq, char *buf, size_t size) {
@@ -612,11 +619,12 @@ bool __real_hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz);
 bool __real_hw_set_i(hw_param_t p, int32_t v);
 bool __real_hw_set_f(hw_param_t p, float v);
 
-/* Where the GUI refuses TX on the dial of the VFO in use (no split here), the WR12 aside: cfg_tx_refusal's bands */
+/* Where the GUI refuses TX on the dial of the VFO in use (no split here), the WR12 aside: cfg_tx_refusal's bands and
+ * TX ranges */
 static bool dial_refused(void) {
     int32_t dial = s_cfg_band_current_vfo.i == RADIO_VFO_A ? s_cfg_band_vfoa_freq.i : s_cfg_band_vfob_freq.i;
 
-    return ham_tx_check(dial, cfg_is_tx_freq(dial), shift_for(dial) != 0, s_cfg_tx_outside_bands.i) != HAM_TX_OK;
+    return cfg_tx_check(dial) != HAM_TX_OK;
 }
 
 /* After every write to the base and every wr12_want: the VFO in use on the WR12's IF, or the WR12 out of its bypass or

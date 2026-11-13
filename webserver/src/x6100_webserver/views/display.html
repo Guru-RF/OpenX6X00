@@ -16,6 +16,10 @@
 .bp-prev{display:block;width:100%;max-width:400px;aspect-ratio:5/3;margin:0 0 12px;border-radius:8px;border:1px solid var(--line);background:#08090c;object-fit:contain}
 .bp-prev[hidden]{display:none}
 #bp_now.note{color:var(--err)}
+/* The own TX list (#247) */
+#tx_own textarea{width:100%;resize:vertical;margin-top:8px;background:#0b1422;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font:13px/1.4 ui-monospace,monospace}
+#tx_own_now{margin:8px 0 0;font-size:13px;color:var(--dim)}
+#tx_own_now.note{color:var(--err)}
 </style>
 
 <div class="dp-foot"><span class="status" id="status" style="margin-left:0"></span></div>
@@ -113,7 +117,8 @@ const CARDS = [
   ["antenna", "Receiver", "What the radio receives above HF", [
     ["wr12", "WR12 on HOST", "Xiegu's WR12 receiver on the HOST port: 54 MHz-1 GHz to receive, never to transmit. The radio tunes it and listens through it from 54 MHz up, and transmits nothing meanwhile; the band keys and the band plan take its bands (2 m, 70 cm)", "sw"]]],
   ["tx", "Transmitter", "Where the radio may transmit (Settings → TX Cal)", [
-    ["tx_outside_bands", "TX outside ham bands", "Off: PTT, the apps, CW, the tuners and the SWR scan only on the amateur bands and a transverter's range; the hand mic, VOX and the KEY jack held at 0 W elsewhere. On: wherever the radio can transmit, only for operators licensed there (MARS, CAP). Receive-only ranges stay receive only", "sw"]]],
+    ["tx_ranges", "TX ranges", "Ham bands: every region's amateur bands, the switch below goes past them. South Korea: only the Korean amateur ranges, 160 to 6 m. Own list: only the ranges of the list below. With either of those the switch below never goes past them; on a transverter the radio's own output, its IF, is what counts", "sel", ["Ham bands", "South Korea", "Own list"]],
+    ["tx_outside_bands", "TX outside ham bands", "Off: PTT, the apps, CW, the tuners and the SWR scan only on the amateur bands and a transverter's range; the hand mic, VOX and the KEY jack held at 0 W elsewhere. On: wherever the radio can transmit, only for operators licensed there (MARS, CAP). Receive-only ranges stay receive only", "sw"]], "ranges"],
   ["text", "Text and info", "What the screen shows bigger", [
     ["indep_vfo", "Independent VFOs", "VFO A and VFO B each keep their own band, frequency and mode; A=B copies everything", "sw"],
     ["birdie_marks", "Birdies", "The radio's own carriers found by Birdie Cal: marked on the waterfall, and notched out of the passband", "seg", ["Off", "Marks", "Marks + notch"]],
@@ -169,7 +174,7 @@ var setVal = function(name, v) {
   rowState(name, "saving");
   send({name: name, val: v}, function() {
     rowState(name, "applied", RESTARTS[name] ? "Applied: the radio's screen restarts" : "Applied on the radio");
-    if (name === "band_region") setTimeout(reread, 500);   /* the plan the radio uses now */
+    if (name === "band_region" || name === "tx_ranges") setTimeout(reread, 500);   /* the plan, the own list as read */
   }, function(msg) {
     /* not taken: the control shows what the radio still has */
     D[name] = old;
@@ -308,6 +313,45 @@ var refresh = function() {
     hint.text(planHint());
   }
   $("#prev").html(preview());
+  ownNote();     /* editable whatever is chosen: a list can be made ready before Own list is chosen */
+}
+
+/* The own TX list (#247): the file on the radio's DATA partition, edited here. Save writes it and has the radio read it
+ * at once; what the radio took (D.tx_own_*) is said under it, the lines it could not read too */
+var ownNote = function() {
+  if (!("tx_own_count" in D)) return;
+  const n = D.tx_own_count, bad = D.tx_own_bad;
+  let t = D.tx_own_missing ? "No list on the radio yet" : n ? "The radio has " + n + " range" + (n > 1 ? "s" : "") + " from it" : "The radio found no range in it";
+  if (bad) t += "; line " + D.tx_own_first_bad + (bad > 1 ? " and " + (bad - 1) + " more" : "") + " not read";
+  if (!n) t += ": with Own list chosen it transmits nowhere";
+  $("#tx_own_now").toggleClass("note", !n || !!bad).text(t + ".");
+}
+
+var ownStatus = function(text, error=false) {
+  const el = $("#tx_own_status");
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var ownList = function() {
+  const box = $("<div class='dp-body' id='tx_own'>");
+  const ta = $("<textarea id='tx_own_text' rows='6' spellcheck='false' autocomplete='off' autocapitalize='off'>")
+    .attr({"aria-label": "Own TX list", placeholder: "# 40 m and 20 m only\n7.000-7.200\n14.000-14.350"});
+  const save = $("<button type='button' class='primary'>").text("Save");
+  box.append($("<div class='dp-lbl'>").append($("<b>").text("Own list"), $("<span>").text("One range a line in MHz, from-to, both edges in: 7.000-7.200; a # starts a comment. Kept on the DATA partition as tx_ranges.conf, which SSH can edit too (then Read again in Settings → TX Cal). Outside the amateur bands a range transmits only with TX outside ham bands on")),
+    ta, $("<p id='tx_own_now'>"), $("<div class='actions'>").append(save, $("<span class='status' id='tx_own_status'>")));
+  save.on("click", function() {
+    save.prop("disabled", true);
+    ownStatus("Saving...");
+    $.ajax({url: "/api/tx_ranges", type: "POST", data: JSON.stringify({text: ta.val()}),
+      contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
+      success: function(st) { Object.assign(D, st); ownNote(); ownStatus("Saved and read by the radio"); },
+      error: function(xhr, why) { ownStatus(x6100FailText(xhr, why), true); },
+      complete: function() { save.prop("disabled", false); }});
+  });
+  $.ajax({url: "/api/tx_ranges", dataType: "json", timeout: X6100_WAIT_MS, success: function(r) { ta.val(r.text); },
+    error: function(xhr, why) { ownStatus(x6100FailText(xhr, why), true); }});
+  return box;
 }
 
 var render = function() {
@@ -325,6 +369,7 @@ var render = function() {
       if (o[2]) lbl.append($("<span>").text(o[2]));
       card.append($("<div class='dp-row'>").attr("id", "row-" + o[0]).append(lbl, $("<div class='dp-ctl'>").append(control(o))));
     });
+    if (c[4] === "ranges" && "tx_ranges" in D) card.append(ownList());
     cards.append(card);
   });
   refresh();
