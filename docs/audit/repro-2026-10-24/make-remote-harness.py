@@ -132,6 +132,13 @@ static void remote_server_funnel_refused(const char *addr) { (void)addr; funnel_
 #define client_close(c) (closed++, (c)->fd = -1, (c)->up = false)
 static int  sess_new(const char *name, const char *ip, char *token);
 static void sess_revoke(int i);
+/* the TCI programs allowed to transmit always (tci_server.c), listed in Sessions and forgotten by "revoke tci ADDR":
+ * none here */
+static __attribute__((unused)) bool tci_server_allowed_get(int i, char *addr, size_t an, char *name, size_t nn,
+                                                           uint64_t *last, bool *online) {
+    (void)i; (void)addr; (void)an; (void)name; (void)nn; (void)last; (void)online; return false;
+}
+static __attribute__((unused)) bool tci_server_forget(const char *addr) { (void)addr; return false; }
 /* the radio's screen: what it showed last, and how many codes */
 static char shown[256];
 static int  codes_shown;

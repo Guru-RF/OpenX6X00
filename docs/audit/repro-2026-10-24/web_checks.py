@@ -439,7 +439,9 @@ with tempfile.TemporaryDirectory(prefix='x6funnelrender-') as td:
 # Issue #58: the https page's sockets on the page's own port. The https server (make_https_server, from __main__.py
 # as it is) reads a request's head: GET /ws/remote or /ws/tci with Upgrade: websocket goes to the GUI's browser remote
 # or TCI on 127.0.0.1, its bytes as they came (Origin, Host, Tailscale-Funnel-Request and X-Forwarded-For untouched,
-# nothing added: the GUI's own checks decide, src/tci_ws.c); anything else is a page, read again whole by the web
+# nothing added: the GUI's own checks decide, src/tci_ws.c) when it comes from the radio itself (tailscaled); from a
+# browser on the network, X-Forwarded-For names that browser, in place of any it sent (TCI asks the operator about the
+# client before it transmits, src/tci_server.c); anything else is a page, read again whole by the web
 # server. Real sockets: the server, two stand-ins for the GUI's sockets and the browser on 127.0.0.1, the
 # certificate made with openssl. v0.3.7's ports of their own, 50003 and 50004, are gone from the web server: nothing in
 # its code or pages names them, and /api/remote no longer gives them (wss_port, wss_tci_port)
@@ -451,7 +453,7 @@ import subprocess
 import time
 
 wanted = {'ThreadingWSGIServer', 'RequestHandler', 'TlsContext', 'pipe', 'read_head', 'ws_port', 'Replay', 'Replayed',
-          'make_https_server'}
+          'make_https_server', 'forwarded', 'local_peer'}
 nodes = [n for n in main.body if isinstance(n, ast.ClassDef | ast.FunctionDef) and n.name in wanted or
          isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in ('WS_PATHS', 'HEAD_MAX') for t in n.targets)]
 gui = {}   # what each stand-in of the GUI's sockets got: the bytes, from where
@@ -498,6 +500,7 @@ ports = {'remote': remote_gui.server_address[1], 'tci': tci_gui.server_address[1
 srv_ns = {'apps': SimpleNamespace(read_remote_conf=lambda: {'port': ports['remote']},
                                   read_tci_conf=lambda: {'port': ports['tci']}),
           'socket': socket, 'ssl': ssl, 'io': io, 'threading': threading, 'ThreadingMixIn': socketserver.ThreadingMixIn,
+          'ipaddress': __import__('ipaddress'),
           **{k: getattr(__import__('wsgiref.simple_server', fromlist=['x']), k)
              for k in ('WSGIRequestHandler', 'WSGIServer', 'make_server')}}
 exec(compile(ast.Module(body=nodes, type_ignores=[]), 'main-https', 'exec'), srv_ns)
@@ -566,6 +569,15 @@ with tempfile.TemporaryDirectory(prefix='x6https-') as td:
     ask(head, pieces=7)
     cases.append(('the head in pieces of 7 bytes, the header in other case: the browser remote',
                   str(gui.get('remote', (b'',))[0] == head), 'True'))
+    lan = upgrade('/ws/tci', extra='X-Forwarded-For: 10.9.9.9\r\n')
+    got = srv_ns['forwarded'](lan, '192.168.1.50')
+    cases.append(('a browser on the network: X-Forwarded-For its own address, the one it sent dropped',
+                  str(got.endswith(b'X-Forwarded-For: 192.168.1.50\r\n\r\n') and b'10.9.9.9' not in got and
+                      got.count(b'X-Forwarded-For') == 1 and got.startswith(b'GET /ws/tci HTTP/1.1\r\n')), 'True'))
+    cases.append(('the same head from the radio itself (127.0.0.1, ::1, ::ffff:127.0.0.1): as it came',
+                  str(all(srv_ns['forwarded'](lan, a) == lan for a in ('127.0.0.1', '::1', '::ffff:127.0.0.1'))), 'True'))
+    cases.append(('a head from the network with none: one added', str(srv_ns['forwarded'](upgrade('/ws/remote'), '10.0.0.7')
+                  .count(b'X-Forwarded-For: 10.0.0.7\r\n') == 1), 'True'))
     cases.append(('GET /ws/remote without Upgrade: a page', ask(upgrade('/ws/remote', upg='X-Nothing: 1'))
                   .split(b'\r\n\r\n')[-1].decode(), 'page GET /ws/remote 0 e3b0c44298fc'))
     cases.append(('GET /ws/remote/x with Upgrade: a page', ask(upgrade('/ws/remote/x')).split(b'\r\n\r\n')[-1].decode(),

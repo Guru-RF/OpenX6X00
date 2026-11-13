@@ -64,6 +64,8 @@ static int agc_index(const char *s) {(void)s;return 0;}
 static bool put_cmd(int id,int a,int b,bool tci) {(void)a;(void)b;(void)tci;last_command=id;return true;}
 static void tx_session_end(int ci,bool drain) {(void)ci;(void)drain;ends++;keyed=false;}
 static bool tx_free(const rstate_t *s) {return !s->tx;}
+/* the operator's question before a network client transmits (tx_permit): allowed here, these cases are about who unkeys */
+static bool tx_permit(int ci) {(void)ci;return true;}
 static void cap_update(void) {}
 '''
 main = r'''

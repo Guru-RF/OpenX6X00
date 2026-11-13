@@ -1,5 +1,6 @@
 import argparse
 import io
+import ipaddress
 import logging
 import os
 import signal
@@ -204,10 +205,23 @@ def read_head(sock):
     return head
 
 
+def local_peer(addr):
+    """A connection from the radio itself: 127.0.0.1, ::1, or 127.0.0.1 as an IPv6 socket names it"""
+    try:
+        ip = ipaddress.ip_address(addr.split("%")[0])
+    except ValueError:
+        return False
+    return (getattr(ip, "ipv4_mapped", None) or ip).is_loopback
+
+
 def forwarded(head, addr):
-    """The request's head with X-Forwarded-For naming the browser's address, in place of any it brought. Through this
-    port the GUI sees a connection from 127.0.0.1, which TCI takes for a program on the radio itself, never asked
-    about before it transmits; with the header it knows the client, as behind tailscaled (src/tci_server.c)"""
+    """The request's head for the GUI's socket. Through this port the GUI sees a connection from 127.0.0.1, which TCI
+    takes for a program on the radio itself, never asked about before it transmits: for a browser on the network,
+    X-Forwarded-For names its address, in place of any it brought, so the GUI knows the client (src/tci_server.c). A
+    connection from the radio itself (tailscaled's serve, or another program here) goes on as it came: tailscaled names
+    its client in that header itself, and the GUI's Funnel checks read it and Tailscale-Funnel-Request as it set them"""
+    if local_peer(addr):
+        return head
     req, sep, rest = head.partition(b"\r\n\r\n")
     lines = [line for line in req.split(b"\r\n") if line.partition(b":")[0].strip().lower() != b"x-forwarded-for"]
     return b"\r\n".join(lines + [b"X-Forwarded-For: " + addr.encode()]) + sep + rest
