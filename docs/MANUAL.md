@@ -7410,10 +7410,12 @@ once, and again at every start.
   that it follows the load. A little less heat.
 
 > **Experimental.** Saves power is new and not yet measured on a radio.
-> It saves less than its name says: on both radios the processor's voltage
-> stays the same at every speed, so only what its clock costs while it waits
-> is saved. If the waterfall, the audio or CW keying behave differently with
-> it, set Full speed.
+> On a card written with v0.3.10's image or an earlier one it saves less
+> than its name says: the processor's voltage stays at 1.2 V at every speed,
+> so only what its clock costs while it waits is saved. The card image after
+> v0.3.10 lowers the voltage with the speed too (1.04 V up to 648 MHz, 1.1 V
+> to 816 MHz), and Full speed stays at 1.2 V as before. If the waterfall,
+> the audio or CW keying behave differently with it, set Full speed.
 
 Reading it over [SSH](#ssh): the speed now in kHz, and the processor's
 governor (`performance` for Full speed, `ondemand` for Saves power):

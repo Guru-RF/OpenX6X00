@@ -230,6 +230,16 @@ if [ $MODEL = x6100 ]; then
         || echo "# CONFIG_TOOLS_MKEFICAPSULE is not set" >> $EXT/board/X6100/u-boot/sun8i-r16-x6100_defconfig
     grep -E "^BR2_TARGET_UBOOT_(CUSTOM_VERSION_VALUE|NEEDS_PYTHON3|CUSTOM_DTS_PATH)" $DEFCONFIG
 fi
+# The processor's voltage with its speed. The boards' device tree gives the processor no supply (cpu-supply), so the
+# kernel changes the clock but never the voltage: U-Boot's 1.2 V at every speed, and Settings > Processor > Saves power
+# only saves what the clock costs. With the power chip's vdd-cpu rail (dcdc3) named, the kernel follows the
+# processor's own table: 1.04 V up to 648 MHz, 1.1 V to 816 MHz, 1.2 V above, so Full speed (1008 MHz) stays at the
+# 1.2 V it has now. The same line as the kernel's own boards of this processor family. U-Boot builds the same file
+# (the X6100's: with its dtsi); it knows both labels
+DTS=$EXT/board/$M/dts/sun8i-r16-$MODEL.dts
+grep -q "cpu-supply" $DTS || printf '\n&cpu0 {\n\tcpu-supply = <&reg_dcdc3>;\n};\n' >> $DTS
+grep -A1 "^&cpu0" $DTS
+
 grep -q "^BR2_ROOTFS_DEVICE_TABLE=" $DEFCONFIG || echo "BR2_ROOTFS_DEVICE_TABLE=\"system/device_table.txt \$(BR2_EXTERNAL_${M}_PATH)/board/$M/linux/device_table.txt\"" >> $DEFCONFIG
 for o in CONFIG_USB_NET_RNDIS_HOST=m CONFIG_IP_ADVANCED_ROUTER=y CONFIG_IP_MULTIPLE_TABLES=y; do
     grep -q "^$o" $KERNEL_DEFCONFIG || echo "$o" >> $KERNEL_DEFCONFIG
