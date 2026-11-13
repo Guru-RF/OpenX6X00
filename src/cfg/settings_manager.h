@@ -28,6 +28,7 @@
 
 #include "../board.h"
 #include "../kbd_layout.h"
+#include "../wspr/wspr_hop.h"
 #include "../radio_types.h"
 #include "../common/math.h"
 #include "smeter_att.h"
@@ -390,6 +391,13 @@ class SettingsManager {
     // WSPR's own TX power, as the dBm the beacon reports (20 = 0.1 W, 23 = 0.2 W ... 37 = 5 W); the radio's power
     // setting is left alone. 23 dBm: 0.2 W is a 0.1 W step of the X6200 and an exact WSPR level, 0.25 W neither
     Parameter<int32_t> p_wspr_dbm{"wspr_dbm", 23, 20, 37,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Band hopping (#190), WSPR page 2 F5: off, the app stays on its band as before
+    Parameter<int32_t> p_wspr_hop{"wspr_hop", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Each band's use while hopping, two bits a band from 160 m to 6 m: 0 Off, 1 RX, 2 RX+TX (wspr/wspr_hop.h). The
+    // ten slot bands receive at first, 6 m is off: nothing transmits until a band is set to RX+TX
+    Parameter<int32_t> p_wspr_bands{"wspr_bands", WSPR_HOP_DEFAULT, 0, WSPR_HOP_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     // RADE's own TX power, in tenths of a W (the radio's power setting is left alone). Its OFDM signal's peaks are
     // several dB over its average, which the power reading follows: 2 W by default, at most 3 W

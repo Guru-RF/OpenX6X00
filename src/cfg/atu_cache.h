@@ -43,6 +43,10 @@ class AtuNetworkCache {
     // network=value. Returns SUCCESS or a sqlite3 rc.
     int save_network(int32_t ant_id, int32_t freq, uint32_t network);
 
+    // Whether a network is saved within ATU_SAVE_STEP Hz of freq for the antenna, whatever the frequency now and
+    // whether the ATU is on: the WSPR app's band hopping asks it of a band before it goes there (#190).
+    bool has_network(int32_t ant_id, int32_t freq);
+
   private:
     static constexpr int32_t ATU_SAVE_STEP = 25000;
 

@@ -16,7 +16,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
-- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
+- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [a PC on Bluetooth](#a-pc-on-bluetooth)
@@ -3258,8 +3258,9 @@ from the even UTC minute, so the clock must be right to about a second (GPS
 or NTP).
 
 - RX: every cycle not used for TX is decoded at 1:54. The spots go to the
-  top of the table (UTC, SNR, DT, audio Hz, drift, call, grid, dBm, km from
-  your QTH).
+  top of the table (UTC, band, SNR, DT, audio Hz, drift, call, grid, dBm,
+  km from your QTH). The band is the one the cycle was heard on, so the
+  rows stay right when Hop changes the band.
 - TX % (0, 10, 20, 33, 50): the chance that a cycle is a beacon, chosen at
   random as in WSJT-X. TX next sends one beacon in the next cycle; press
   again before that cycle to cancel it. Turning TX % to 0 cancels a beacon
@@ -3286,10 +3287,78 @@ or NTP).
   next and TX % say which one is missing and stay off.
 - The main knob moves the TX audio offset (1410-1590 Hz).
 - Upload: the spots of each cycle go to WSPRnet (plain HTTP over WiFi). The
-  status line counts what was sent and what failed.
+  status line counts what was sent and what failed. Each cycle's spots go
+  with that cycle's dial frequency, also when Hop has changed the band since.
 - Page 2: Power and TX %, the same 0, 10, 20, 33, 50 steps as on page 1,
-  and Ext tune: a carrier at the TX offset for an external tuner, at the
-  TUNE power, not WSPR's (see [TUNE for an external tuner](#tune-for-an-external-tuner)).
+  Ext tune: a carrier at the TX offset for an external tuner, at the
+  TUNE power, not WSPR's (see [TUNE for an external tuner](#tune-for-an-external-tuner)),
+  and Hop (F5): band hopping on or off, below.
+- Page 3: the bands of the hop. While it is up the table shows the eleven
+  bands with their WSPR frequency, their use, their slots and whether the
+  ATU has a match stored for them. F2 Band (or the MFK) chooses a row, a
+  hold of F2 goes back one. F3 Use sets that band to Off, RX or RX+TX. F4
+  is Hop, as on page 2. F5 Go to tunes that band now, as the band keys do.
+
+#### Band hopping
+
+Hop on (page 2 F5, or page 3 F4) makes the band follow WSJT-X's
+coordinated hopping, so everyone who hops this way is on the same band at
+the same time: the minute of the hour picks the band, in ten 2-minute slots
+every 20 minutes.
+
+| Minute | :00 | :02 | :04 | :06 | :08 | :10 | :12 | :14 | :16 | :18 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Band | 160m | 80m | 60m | 40m | 30m | 20m | 17m | 15m | 12m | 10m |
+
+Then again from :20 and from :40. Hop off: WSPR stays on its band as
+before.
+
+- Each band is Off, RX or RX+TX (page 3); this counts only with Hop on. At
+  first the ten slot bands are RX and 6m is Off, so nothing transmits until
+  you set a band to RX+TX.
+- A slot whose band is Off goes to the other bands that are on, in turn
+  (WSJT-X picks one at random; here each gets the same share, the same on
+  every radio). 6m has no slot of its own: set to RX or RX+TX it takes its
+  turn in those Off slots. Every band Off: WSPR stays where it is.
+- The band changes only between two cycles, after the beacon and after the
+  decode has the cycle's audio, never in the middle of one. Hop on goes to
+  the band of the next cycle at the end of this one; WSPR opened with Hop on
+  goes there at once.
+- TX % and TX next work as before, on the bands set to RX+TX. A band set to
+  RX never transmits: TX next stays armed for the next RX+TX band.
+- The band keys and F5 Go to still change the band at once, until the next
+  hop.
+- A band with no WSPR frequency in the list (the web Digital modes page)
+  is skipped. With two on one band (60m), the hop uses the one nearest
+  WSJT-X's.
+- The header shows "Hop", and "Hop, RX only" on a band that receives only.
+- The web Digital modes page sets Hop and the bands too.
+
+**The antenna and the ATU.** Hop sends no tuning carrier by itself. The
+radio remembers each match the ATU finds, per frequency (within 25 kHz),
+and sets it again when you come back there with the ATU on. So:
+
+- With the ATU on, a band set to RX+TX transmits only when a match is
+  stored for its WSPR frequency. Without one that hop is RX only, and the
+  message says so ("40m: no ATU match stored, RX only"). Page 3's ATU match
+  column shows Stored or None for each band.
+- To store one: with Hop off, page 3, choose the band, F5 Go to, then hold
+  the ATU key. Once on each band you transmit on is enough: the WSPR
+  frequencies don't change. The ATU off: every RX+TX band transmits on the
+  antenna as it is.
+- If a match is off all the same, the SWR protection stops the beacon, as
+  before.
+- An external tuner is not seen by the radio, so this rule can't cover it.
+  One that keeps its own memory per band: tune it once on each RX+TX band
+  with Ext tune (page 2) before hopping. One that needs a carrier at every
+  band change can't follow the hops yet: keep a single band at RX+TX and
+  the others at RX.
+
+Example: a multiband vertical with the ATU on. Page 3: 40m, 30m and 20m to
+RX+TX, 160m and 6m Off, the rest RX. Go to 40m, hold ATU; the same on 30m
+and 20m (the ATU match column then reads Stored). TX % to 20, Hop on. At
+:06 WSPR is on 40m and may beacon there, at :02 it listens on 80m, at :00
+(160m Off) it takes the next band that is on in turn.
 
 ### SSTV, WeFax and NavTex
 
@@ -4901,7 +4970,7 @@ The menu has General and five groups:
 | | Screen | the radio's screen live, its keys and knobs, the audio both ways (see [Browser remote](#browser-remote)) |
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
-| | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies |
+| | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies; WSPR band hopping: Hop and each band's Off, RX or RX+TX, set live (see [Band hopping](#band-hopping)) |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)), on the frequencies the radio tunes |
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |

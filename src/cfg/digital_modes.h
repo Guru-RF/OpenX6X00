@@ -30,6 +30,10 @@ typedef enum {
 // error returns false and leaves the frequency, mode and label unchanged.
 bool cfg_digital_load(int8_t dir, cfg_digital_type_t type);
 
+// The same for the `type` preset closest to freq, wherever the front panel is: the WSPR app's band hopping goes to
+// the preset of the band it hops to (#190).
+bool cfg_digital_load_at(int32_t freq, cfg_digital_type_t type);
+
 // Label of the last successfully loaded preset. Borrowed pointer: valid until
 // the next successful cfg_digital_load() call; empty string before any
 // successful load.
