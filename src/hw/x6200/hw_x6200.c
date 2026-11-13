@@ -23,6 +23,7 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdatomic.h>
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
 #include <stddef.h>
@@ -95,6 +96,18 @@ static radio_base_ver_t ver;
 /* The notch: the GUI sets on/off and auto apart, the base takes one mode */
 static bool dnf_on, dnf_auto;
 
+/* ---- The base lent to base_flash (hw_base_hold) -------------------------------------------- */
+
+/* While base_flash (tools/base_update/base_flash.c, from dialog_base_update.c) writes the base's firmware, nothing of
+ * the GUI's may reach it: no packet read from /dev/ttyS1 (the bootloader's answers are base_flash's), no write on the
+ * I2C bus through the library's own entry below or its others (the whole block, the power-off, the notch and zoom),
+ * no reset or key line moved. radio.c also keeps its thread out of hw_flow_read meanwhile (radio_base_hold) */
+static atomic_bool held;
+
+void hw_base_hold(bool on) {
+    atomic_store(&held, on);
+}
+
 /* ---- The library's writes, watched (base_guard.h) ---------------------------------------- */
 
 #define TRIES       3
@@ -116,6 +129,10 @@ bool x6200_control_cmd(x6200_cmd_enum_t cmd, uint32_t arg) {
     uint32_t prev = x6200_control_get(cmd);
     int      fails = 0;
     bool     ok;
+
+    if (atomic_load(&held)) {
+        return false;
+    }
 
     while (!(ok = lib_cmd(cmd, arg)) && ++fails < TRIES) {
         usleep(RETRY_US);
@@ -450,6 +467,10 @@ static bool open_tx_set(bool on) {
     char           why[160] = "", note[160] = "";
     const char    *done = NULL;
     uint32_t       sent = x6200_control_get(x6200_biasdrive_biasfinal), bias;
+
+    if (atomic_load(&held)) {
+        return false;
+    }
     int            fd = open(BASE_I2C, O_RDWR), n = 0, at = 0;
     bool           fix = false;
 
@@ -581,6 +602,9 @@ static void dnf_apply(void) {
 bool hw_set_i(hw_param_t p, int32_t v) {
     int reg = reg_of(p);
 
+    if (atomic_load(&held)) {
+        return false;
+    }
     if (reg >= 0) {
         if (x6200_control_get((x6200_cmd_enum_t)reg) == (uint32_t)v) {
             return false;
@@ -692,6 +716,9 @@ bool hw_set_i(hw_param_t p, int32_t v) {
 }
 
 bool hw_set_f(hw_param_t p, float v) {
+    if (atomic_load(&held)) {
+        return false;
+    }
     switch (p) {
         case HW_TXPWR_F:            x6200_control_txpwr_set(v); break;
         case HW_KEY_RATIO_F:        x6200_control_key_ratio_set(v); break;
@@ -710,6 +737,9 @@ bool hw_set_f(hw_param_t p, float v) {
 }
 
 bool hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz) {
+    if (atomic_load(&held)) {
+        return false;
+    }
     if (x6200_control_get(vfo == RADIO_VFO_A ? x6200_vfoa_freq : x6200_vfob_freq) == (uint32_t)hz) {
         return false;
     }
@@ -720,6 +750,9 @@ bool hw_vfo_set_freq(radio_vfo_t vfo, int32_t hz) {
 bool hw_vfo_set_mode(radio_vfo_t vfo, radio_mode_t mode) {
     x6200_mode_t m = lib_mode(mode);
 
+    if (atomic_load(&held)) {
+        return false;
+    }
     if (x6200_control_get(vfo == RADIO_VFO_A ? x6200_vfoa_mode : x6200_vfob_mode) == (uint32_t)m) {
         return false;
     }
@@ -728,23 +761,30 @@ bool hw_vfo_set_mode(radio_vfo_t vfo, radio_mode_t mode) {
 }
 
 void hw_vfo_set_agc(radio_vfo_t vfo, radio_agc_t agc) {
+    if (atomic_load(&held)) return;
     x6200_control_vfo_agc_set((x6200_vfo_t)vfo, (x6200_agc_t)agc);
 }
 
 void hw_vfo_set_att(radio_vfo_t vfo, bool on) {
+    if (atomic_load(&held)) return;
     x6200_control_vfo_att_set((x6200_vfo_t)vfo, on ? x6200_att_on : x6200_att_off);
 }
 
 void hw_vfo_set_pre(radio_vfo_t vfo, bool on) {
+    if (atomic_load(&held)) return;
     x6200_control_vfo_pre_set((x6200_vfo_t)vfo, on ? x6200_pre_on : x6200_pre_off);
 }
 
 void hw_poweroff(void) {
+    if (atomic_load(&held)) return;     /* not in the middle of a firmware write: the base switches itself off after */
     x6200_control_poweroff();
 }
 
 /* The library reopens the bus and tries once more on its own, and reports nothing but errno */
 bool hw_resend_all(void) {
+    if (atomic_load(&held)) {
+        return false;
+    }
     errno = 0;
     x6200_control_idle();
     return errno == 0;
@@ -755,6 +795,9 @@ bool hw_tx_keyed_by_gui(void) {
 }
 
 void hw_pin_set(hw_pin_t pin, bool on) {
+    if (atomic_load(&held) && (pin == HW_PIN_BB_RESET || pin == HW_PIN_MORSE_KEY)) {
+        return;
+    }
     switch (pin) {
         case HW_PIN_WIFI:       x6200_gpio_set(x6200_pin_wifi, on ? 1 : 0); break;
         case HW_PIN_LIGHT:      x6200_gpio_set(x6200_pin_light, on ? 1 : 0); break;
@@ -769,7 +812,7 @@ void hw_pin_set(hw_pin_t pin, bool on) {
 /* 552 bytes every ~35 ms: 512 spectrum bins as unsigned dB (126 = 0 dBm), the flags, the
  * meters (dbm is the S-meter, negated), the hand mic's key */
 bool hw_flow_read(hw_pack_t *p) {
-    if (!x6200_flow_read(pack)) {
+    if (atomic_load(&held) || !x6200_flow_read(pack)) {
         return false;
     }
     for (size_t i = 0; i < PSD_BINS; i++) {
@@ -806,5 +849,6 @@ bool hw_flow_read(hw_pack_t *p) {
 }
 
 void hw_flow_restart(void) {
+    if (atomic_load(&held)) return;     /* it opens /dev/ttyS1 again and sets it up: base_flash has it */
     x6200_flow_restart();
 }

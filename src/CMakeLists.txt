@@ -78,6 +78,11 @@ target_sources(${PROJECT_NAME} PUBLIC
     winlink.c
 )
 
+# The X6200's base firmware screen (tools/base_update): built for the X6200 only, never in another radio's GUI
+if(HW_BACKEND STREQUAL "x6200")
+    target_sources(${PROJECT_NAME} PRIVATE dialog_base_update.c)
+endif()
+
 # The radio behind src/hw/hw.h (HW_BACKEND, chosen in the top-level CMakeLists.txt)
 if(HW_BACKEND STREQUAL "x6100")
     target_sources(${PROJECT_NAME} PUBLIC hw/x6100/hw_x6100.c)

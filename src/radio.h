@@ -158,6 +158,13 @@ void radio_set_play_mode(audio_play_mode_t mode);
 /* The base's firmware version, and as the base prints it */
 radio_base_ver_t radio_base_ver(void);
 const char *radio_base_ver_str(void);
+
+#ifdef BOARD_X6200
+/* The base lent to base_flash (dialog_base_update.c), or given back: while lent, the radio thread reads no packet
+ * and sends nothing, not even the X6200's keepalive, and no write from any thread reaches the base (hw_base_hold).
+ * False: not lent (transmitting, or the radio thread did not let go of the base within 2 s). The X6200's only */
+bool radio_base_hold(bool on);
+#endif
 #ifdef BOARD_X6200
 /* The PA bias sent and where it came from, for Settings > Info (pa_bias.h) */
 void radio_pa_bias_info(char *buf, size_t size);

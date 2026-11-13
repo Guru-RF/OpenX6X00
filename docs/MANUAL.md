@@ -12,7 +12,7 @@ Settings. Button and option names are written as the radio shows them.
 ## Contents
 
 - [Getting started](#getting-started): [first-start guide](#first-start-guide), [first steps](#first-steps), [setting up the transmitter](#setting-up-the-transmitter), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
-- [Updating the firmware](#updating-the-firmware)
+- [Updating the firmware](#updating-the-firmware): [the X6200's base firmware](#the-x6200s-base-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
@@ -622,6 +622,61 @@ web configurator (System > Update).
     `/etc/openx6x00-image`, which no update touches, and each version lists the
     level it wants in `/usr/share/x6100/image-required`. Images up to v0.3.3
     have no stamp and count as level 1.
+
+### The X6200's base firmware
+
+The X6200 only. The update above brings OpenX6X00; the base, the radio
+board's own firmware from Xiegu, is updated apart from it, and Xiegu's way
+takes its own system (two card swaps and its UPGRADE menu, see the README's
+[baseband](../README.md#the-baseband) section). Here it is done while
+OpenX6X00 runs, with Xiegu's own steps: the writer does on the radio what
+Xiegu's app 1.0.8 does from MENU > SYSTEM > UPGRADE. More, and how it was
+worked out and tested: [tools/base_update](../tools/base_update/README.md).
+
+Where: Settings > Info > Base firmware > Open.
+
+- The top line: the base the radio runs, and its supply now. The next: the
+  last look at xiegu.eu.
+- The list: every release, HERE when its file is on the card
+  (`/mnt/base_update`), ON XIEGU.EU when it can be fetched, `<- NOW` on the
+  one the base runs. Files are told apart by their SHA-256, not their name or
+  date. The base files of Xiegu's own system on the internal memory are copied
+  there the first time (1.0.7 of January 2026 is Xiegu's factory build, not on
+  xiegu.eu). A `.xgf` of your own put there is listed as UNKNOWN, and a release
+  xiegu.eu has that the list does not as NEW. The MFK chooses.
+- **Get** (F2): the chosen release from xiegu.eu. Xiegu's update zip is
+  streamed and only the base file kept, so the card needs no room for the
+  370 MB; about two thirds of it come down, some minutes on WiFi.
+- **Check** (F3): xiegu.eu's downloads page read now.
+- **Flash** (F4): what it is about to do, Xiegu's power conditions and the
+  supply now; then **FLASH NOW** writes it (an unknown file asks once more,
+  UNKNOWN: OK?). About half a minute: the window shows the writer's steps,
+  every kernel message and the base's serial port once a second.
+- Then wait: "the base's firmware is running" ten seconds after the write,
+  and about three minutes later "the base stopped its stream: it is switching
+  the radio off". The radio switches itself off. **Switch it on again**: it
+  runs the new base. The window keeps the log (`/mnt/base_update.log`) and
+  shows its end when opened again.
+
+Once a day, online, the radio reads xiegu.eu's X6200 downloads and says on the
+screen, once, when a newer base is out; Settings > Info shows it next to Base
+firmware. It never downloads or writes one by itself. An empty file
+`/mnt/base_update/no-check` turns it off.
+
+- As Xiegu asks for its own update: a 13.8 V supply of 3 A or more and the
+  battery out, and the radio not switched off while it writes.
+- Any release can be written, older ones too: 1.0.8 to 1.0.7 and back has
+  been done.
+- A write that fails after the erase leaves the base without its application:
+  **Recover** writes it again (the base's bootloader is not erased). Do not
+  switch the radio off before.
+- Only an X6200's base, only with an X6200 file: the writer refuses to run on
+  any other radio (its device tree), and refuses a file named for another
+  radio even when asked to take an unknown one.
+
+From a computer over SSH, the same steps: `tools/base_update/fetch.sh`, then
+`tools/base_update/build.sh` and `tools/base_update/flash.sh root@<radio>
+--check` or `--flash` (`--to 1.0.7`, `--file FILE.xgf`, `--recover`).
 
 ## Main screen
 

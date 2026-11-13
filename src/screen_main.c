@@ -524,6 +524,11 @@ void main_screen_close_app(void) {
     buttons_load_page_group(buttons_group_gen);
 }
 
+void main_screen_open_dialog(dialog_t *d) {
+    close_apps();
+    dialog_construct(d, obj);
+}
+
 void main_screen_start_app(press_action_t app_action) {
     main_screen_buttons_wake();     /* the app's buttons seen, also when it is opened from afar */
 
