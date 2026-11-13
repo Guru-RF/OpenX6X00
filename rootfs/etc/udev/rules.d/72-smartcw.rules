@@ -1,0 +1,10 @@
+# SmartCW, RF.Guru's keyer, on the radio's USB port: its USB network is named smartcw0 (smartcw1 when the kernel
+# called it eth1). Its driver, cdc_ncm, is the one of many USB Ethernet adapters too, so neither NetworkManager nor
+# the GUI could tell the two apart by it: the name lets SmartCW's own profile take it
+# (/usr/lib/NetworkManager/system-connections/smartcw.nmconnection) and keeps it off the GUI's Ethernet card.
+#
+# Not a rename by MAC address, which broke the WiFi profiles (issue #3, see 75-persistent-net-generator.rules): this
+# one goes by SmartCW's USB IDs (1209:ff42, ff43 with its USB keyboard on), so any SmartCW gets the same name at every
+# plug, as the interface is added: NetworkManager waits for udev to be done with a new interface before it manages
+# it. Nothing else is renamed.
+SUBSYSTEM=="net", ACTION=="add", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="ff42|ff43", NAME="smartcw%n"

@@ -1,0 +1,31 @@
+# SmartCW, RF.Guru's keyer, on the radio's USB port: its USB network (SmartCW is 192.168.7.1, its DHCP hands out .16
+# to .23, no gateway, no DNS). The web configurator shows SmartCW's page through it (port 8073).
+# Matched by the name udev gives it (72-smartcw.rules), not by driver: cdc_ncm is the driver of many USB Ethernet
+# adapters too, which must keep the GUI's Ethernet profile and their route.
+# Here, not in /etc: NetworkManager reads this folder as read-only profiles, and the WiFi backup and restore, which
+# work on /etc/NetworkManager/system-connections, leave it alone. Installed root's own and 0600 (CMakeLists.txt), as
+# NetworkManager wants; a radio updated in place has the web server ask NetworkManager to read it (__main__.py).
+[connection]
+id=SmartCW
+uuid=aec2a210-3c10-4d5e-8ad8-85bbf7e55b06
+type=ethernet
+# Above the GUI's "Ethernet" profile (0), which has no match and would take any wired interface; as usb-tether's
+autoconnect-priority=50
+
+[match]
+interface-name=smartcw*;
+
+[ethernet]
+
+[ipv4]
+method=auto
+# Never the way out, and not its DNS (it hands out neither, this keeps it so): the internet stays on WiFi or Ethernet
+never-default=true
+ignore-auto-dns=true
+# The subnet's route after WiFi's (metric 600) and Ethernet's (100), as a higher metric loses: a home network that is
+# 192.168.7.0/24 too keeps the radio's traffic to it. The web server reaches SmartCW on this interface by its name
+# (SO_BINDTODEVICE) all the same
+route-metric=1000
+
+[ipv6]
+method=disabled

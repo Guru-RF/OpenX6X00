@@ -1028,8 +1028,11 @@ static NMDevice *eth_device() {
     for (guint i = 0; i < devs->len; i++) {
         NMDevice *d = NM_DEVICE(g_ptr_array_index(devs, i));
 
-        /* a phone's USB tethering is not the adapter: it has its own profile (usb-tether) */
-        if (NM_IS_DEVICE_ETHERNET(d) && g_strcmp0(nm_device_get_driver(d), "rndis_host") != 0) {
+        /* a phone's USB tethering is not the adapter: it has its own profile (usb-tether). Nor SmartCW's USB
+         * network: its driver is the one of many USB Ethernet adapters (cdc_ncm), so udev names it smartcw<n> by its
+         * USB IDs (72-smartcw.rules) and it has a profile of its own too (smartcw.nmconnection) */
+        if (NM_IS_DEVICE_ETHERNET(d) && g_strcmp0(nm_device_get_driver(d), "rndis_host") != 0 &&
+            !g_str_has_prefix(nm_device_get_iface(d), "smartcw")) {
             return d;
         }
     }

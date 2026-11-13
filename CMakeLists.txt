@@ -92,7 +92,10 @@ else()
         # Installed into the buildroot target: the GUI, the rootfs overlay
         # (init scripts, tools, data) and the images
         install(TARGETS ${PROJECT_NAME} DESTINATION sbin)
-        install(DIRECTORY rootfs/ DESTINATION / USE_SOURCE_PERMISSIONS)
+        # NetworkManager's profiles root's own and 0600, or it leaves them out: git keeps 0644 (the update bundle and
+        # the card image take the mode of the installed file, tools/update/mkbundle.py; both make it root's)
+        install(DIRECTORY rootfs/ DESTINATION / USE_SOURCE_PERMISSIONS
+                PATTERN "*.nmconnection" PERMISSIONS OWNER_READ OWNER_WRITE)
         install(DIRECTORY images DESTINATION share/x6100)
         # Callsign -> country for the FT8/FT4 table (AD1C, country-files.com)
         install(FILES third-party/cty/cty.dat DESTINATION share/x6100)
