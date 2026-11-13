@@ -552,10 +552,10 @@ Flight3R, forshaws, gati111, gilcomnz-eng, giuseppepassera61-dot, gogoterie,
 Guecar66, hecpilot, in3fob, ItsRonan-Honest, joanpao, johny1time-code, jonnybb1,
 K4DB, kb3hjc, KC7BJE, keithwhite1982, kj7prs, km4gkd, KR8MER, Lomax73X6X00,
 marcoverheiden, Meges111, morel666, muratbedir, nmunlin, oh8mbu, ON2ON-HAM,
-orome, oxoocoffee, peterbmarks, pkoerner81929, PLAN8VR, RjulianTN, RSZ-Nld,
-rwensley, sa5qed, scotty123, SQ9SZ, stevearish, theMadCatter, UA0AOS, Urminme,
-VakrLothbrok, VariousGames, VR2XKP, W3POPat, W8LID, waydenie, WheezeNL, xes,
-XRF03, yo4cil and z1pppo78.
+orome, oxoocoffee, peterbmarks, pkoerner81929, PLAN8VR, Qinka, RjulianTN,
+RSZ-Nld, rwensley, sa5qed, scotty123, SQ9SZ, stevearish, theMadCatter, UA0AOS,
+Urminme, VakrLothbrok, VariousGames, VR2XKP, W3POPat, W8LID, waydenie, WheezeNL,
+xes, XRF03, yo4cil and z1pppo78.
 
 Libraries: LVGL, cJSON, FFTW,
 liquid-dsp, ft8_lib, libpng, Boost, Eigen, CRCpp, bottle, jQuery, mp4-muxer,
