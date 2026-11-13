@@ -74,6 +74,7 @@
 #include "walkie.h"
 #include "winlink.h"
 #include "first_start.h"
+#include "perf_hud.h"
 
 /* LVGL draws the areas it refreshes here, then flushes them to the panel */
 #define DISP_BUF_SIZE (BOARD_DISP_W * BOARD_DISP_H * 4)
@@ -193,6 +194,7 @@ static void display_register(void) {
     disp = lv_disp_get_default();
     lv_disp_set_bg_color(disp, lv_color_black());
     lv_disp_set_bg_opa(disp, LV_OPA_COVER);
+    perf_hud_init(&disp_drv);
 }
 
 /* Front keys (event0, the POWER key on its own device where the board has one), main knob,
@@ -387,6 +389,8 @@ static void gui_loop(void) {
     bool drawn = false;     /* the start trace's last stage */
 
     for (;;) {
+        int64_t start = get_time();     /* the performance overlay's loop time */
+
         event_obj_check();
         scheduler_work();
         lv_tick_mono_set(get_time());   /* LVGL's timers on the clock's time, not up to 5 ms behind */
@@ -416,10 +420,12 @@ static void gui_loop(void) {
             start_trace("first frame");
         }
         /* Both counted from after the commit: a put-off draw whose time came during the pass after the least wait */
-        uint32_t now     = (uint32_t)get_time();
+        int64_t  end     = get_time();
+        uint32_t now     = (uint32_t)end;
         int32_t  wait    = till == LV_NO_TIMER_READY ? 100 : (int32_t)(due - now);
         int32_t  draw_in = gui_wake_draw_left(now);
 
+        perf_loop_time(end - start);
         if (draw_in >= 0 && draw_in < wait) wait = draw_in;
         /* A timer due at once after a frame (a frame that ran past its period, 3D with FT8 on the X6100): 5 ms for
          * the other threads, as before #183; else 1 ms. Input wakes it all the same */

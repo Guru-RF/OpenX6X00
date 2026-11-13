@@ -12,6 +12,7 @@
 
 #include "gui_wake.h"
 #include "knob_device.h"
+#include "perf_hud.h"
 
 #include "screen_light.h"
 #include "control_owner.h"
@@ -120,6 +121,7 @@ static void *main_knob_thread(void *arg) {
             continue;
         }
         clock_gettime(CLOCK_MONOTONIC, &now);
+        perf_knob_seen((uint64_t)now.tv_sec * 1000000u + now.tv_nsec / 1000u);
 
         float ms = (now.tv_sec - last.tv_sec) * 1000.0f + (now.tv_nsec - last.tv_nsec) * 1e-6f;
 
@@ -164,9 +166,12 @@ static void main_knob_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     if (sum && !backlight_knob_tick()) {      /* the turn that ends the screensaver only ends it */
         rotary_data_t *ev = malloc(sizeof(*ev));
 
+        perf_knob_used();
         ev->diff = sum;
         ev->dt   = LV_MAX(ms / count, 1);
         lv_event_send(lv_scr_act(), EVENT_ROTARY, ev);
+    } else if (sum) {
+        perf_knob_drop();                     /* it never reaches the dial: not in the knob's time */
     }
 }
 
