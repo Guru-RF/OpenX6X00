@@ -2,3 +2,8 @@
 # to the running gpsd through the control socket.
 GPSD_SOCKET="/var/run/gpsd.sock"
 GPSD_OPTIONS="-n"
+# The hotplug script only once S50gpsd has started gpsd (STARTED, until S50gpsd stops it). At boot it started one of
+# its own for a GPS plugged in, before S50gpsd, whose gpsd then took the control socket over and left, port 2947
+# taken; S50gpsd hands gpsd the GPS plugged in at boot itself (#237)
+STARTED=/var/run/gpsd.started
+[ -e $STARTED ] || USBAUTO=false

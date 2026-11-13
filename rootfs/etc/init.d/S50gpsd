@@ -7,6 +7,7 @@
 NAME=gpsd
 DAEMON=/usr/sbin/$NAME
 PIDFILE=/var/run/$NAME.pid
+STARTED=/var/run/$NAME.started
 [ -r /etc/default/gpsd ] && . /etc/default/gpsd
 
 # The WR12 receiver on an X6200's HOST port is a USB serial port too (0483:5740, /dev/ttyACM0 when it is the only
@@ -19,16 +20,50 @@ is_wr12() {
                 [ "$(cat $n/idVendor 2>/dev/null):$(cat $n/idProduct 2>/dev/null)" = "0483:5740" ]
 }
 
+# The ports gpsd starts with: ttyACM0 and those udev knows as GPS receivers (/dev/gps*, 25-gpsd.rules), each once and
+# by its own name. /dev/gps0 is a link to the port of a GPS udev knows, ttyACM0 for most: both were handed over, and
+# gpsd opened the port twice, two readers each getting part of what the GPS sent. The hotplug script (gpsdctl) names
+# the port as the kernel does, and so finds it already there (#237)
+devices() {
+        DEVICES=""
+        for d in /dev/ttyACM0 /dev/gps*; do
+                [ -e "$d" ] || continue
+                d=$(readlink -f "$d")
+                is_wr12 $d && continue
+                case " $DEVICES " in
+                        *" $d "*) ;;
+                        *) DEVICES="$DEVICES $d" ;;
+                esac
+        done
+}
+
 start() {
         printf "Starting $NAME: "
-        DEVICES=""
-        for d in /dev/ttyACM0 /dev/gps0; do [ -e $d ] && ! is_wr12 $d && DEVICES="$DEVICES $d"; done
+        # One gpsd. At boot, for a GPS udev knows, the hotplug script started one before this script (gpsdctl, no pid
+        # file); this one then took its control socket over, found port 2947 taken and left, and from then on the
+        # hotplug script, the WR12's let-go and stop here reached nobody (#237). The hotplug script waits for this
+        # one now (STARTED, /etc/default/gpsd); one running all the same stays
+        touch $STARTED
+        if pidof $NAME >/dev/null; then
+                echo "OK (running)"
+                return 0
+        fi
+        devices
         start-stop-daemon -S -q -p $PIDFILE --exec $DAEMON -- -P $PIDFILE -F $GPSD_SOCKET $GPSD_OPTIONS $DEVICES && echo "OK" || echo "Failed"
 }
 stop() {
         printf "Stopping $NAME: "
-        start-stop-daemon -K -q -p $PIDFILE && echo "OK" || echo "Failed"
-        rm -f $PIDFILE
+        # Every gpsd, one the hotplug script started too, and gone before the next one starts: one on its way out
+        # removes the control socket's name, the next one's by then (#237)
+        start-stop-daemon -K -q -x $DAEMON
+        n=0
+        while pidof $NAME >/dev/null && [ $n -lt 30 ]; do
+                sleep 0.1
+                n=$((n + 1))
+        done
+        pidof $NAME >/dev/null && start-stop-daemon -K -q -s KILL -x $DAEMON && sleep 0.2
+        rm -f $PIDFILE $STARTED
+        pidof $NAME >/dev/null && echo "Failed" || echo "OK"
 }
 restart() {
         stop
