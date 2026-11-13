@@ -108,6 +108,8 @@ static const struct {
                                                                  * freq_strip.c follow it */
     {"tx_ranges", &cfg_sm.p_tx_ranges, TX_RANGES_BANDS, TX_RANGES_OWN},  /* TX Cal (#247): the same; Own list reads
                                                                            * its file first (disp_apply) */
+    {"wspr_hop", &cfg_sm.p_wspr_hop, 0, 1},             /* WSPR band hopping (#190), the web Digital modes page: */
+    {"wspr_bands", &cfg_sm.p_wspr_bands, 0, WSPR_HOP_MAX},   /* live, dialog_wspr.c reads them at each cycle */
 #ifdef BOARD_X6200
     {"wr12", &cfg_sm.p_wr12, 0, 1},                     /* live: screen_main.c follows it; the X6100 has no row */
 #endif

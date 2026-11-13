@@ -27,17 +27,8 @@ std::atomic<int32_t> last_freq{0};
 
 } // namespace
 
-extern "C" bool cfg_digital_load(int8_t dir, cfg_digital_type_t type) {
-    int32_t cur_freq = cfg_sm.cp_fg_freq.get();
-
-    DigitalModesTable::LoadResult result;
-    if (dir > 0) {
-        result = DigitalModesTable::find_next(type, cur_freq);
-    } else if (dir == 0) {
-        result = DigitalModesTable::find_closest(type, cur_freq);
-    } else {
-        result = DigitalModesTable::find_prev(type, cur_freq);
-    }
+// Applies a found preset: its frequency and mode, its label for cfg_digital_label_get
+static bool apply(const DigitalModesTable::LoadResult &result) {
     if (result.rc != SUCCESS) {
         return false;
     }
@@ -47,6 +38,21 @@ extern "C" bool cfg_digital_load(int8_t dir, cfg_digital_type_t type) {
     cfg_sm.cp_fg_freq.set(result.value.freq);
     cfg_sm.cp_cur_mode.set(result.value.mode);
     return true;
+}
+
+extern "C" bool cfg_digital_load(int8_t dir, cfg_digital_type_t type) {
+    int32_t cur_freq = cfg_sm.cp_fg_freq.get();
+
+    if (dir > 0) {
+        return apply(DigitalModesTable::find_next(type, cur_freq));
+    } else if (dir == 0) {
+        return apply(DigitalModesTable::find_closest(type, cur_freq));
+    }
+    return apply(DigitalModesTable::find_prev(type, cur_freq));
+}
+
+extern "C" bool cfg_digital_load_at(int32_t freq, cfg_digital_type_t type) {
+    return apply(DigitalModesTable::find_closest(type, freq));
 }
 
 extern "C" const char *cfg_digital_label_get(void) {

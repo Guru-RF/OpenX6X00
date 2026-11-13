@@ -1,7 +1,7 @@
 % rebase("base.html", title="Digital modes editor")
 <h2><svg class="i"><use href="#i-pulse"/></svg>Digital modes</h2>
-<p class="sub">Frequencies offered by the FT8/FT4, FT2, JS8 and WSPR apps, and your own ones for PSK31/PSK63, Olivia and
-JTTY. Those three have a built-in list that follows the band plan of the radio (Settings &gt; General &gt; STATION &gt;
+<p class="sub">Frequencies offered by the FT8/FT4, FT2, JS8 and WSPR apps, the WSPR app's band hopping, and your own ones
+for PSK31/PSK63, Olivia and JTTY. Those three have a built-in list that follows the band plan of the radio (Settings &gt; General &gt; STATION &gt;
 Band plan): PSK on 40m is 7.040 MHz in Region 1, 7.070 in Region 2 and the US, 7.035 in Region 3. A frequency you add
 for one of them takes the place of the built-in one on its band (its other entries stay); delete yours and the built-in
 one is back. They always go to USB-D, whatever the Mode column says.</p>
@@ -25,6 +25,14 @@ one is back. They always go to USB-D, whatever the Mode column says.</p>
 </div>
 <div class="actions"><span class="status"></span></div>
 </div>
+</section>
+
+<!-- The WSPR app's Hop (its page 2) and each band's use (its page 3), set live through the GUI (/api/display, the
+     wspr_hop and wspr_bands options of src/cfg_socket.cpp): shown only when the radio answers -->
+<section class="dp-card" id="wspr_hop" hidden>
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-bands"/></svg></span><div><h3>WSPR band hopping<span class="eff">Takes effect: at the next cycle</span></h3><p>WSJT-X's coordinated slots: 160m at :00, 80m :02, 60m :04 ... 10m :18, again every 20 minutes. A band set to Off gives its slot to the other bands that are on, in turn. RX+TX transmits at the app's TX %; with the radio's ATU on, only on a band with a match stored for its WSPR frequency.</p></div></div>
+<div id="hop_rows"></div>
+<div class="dp-body"><div class="actions"><span class="status" id="hop_status"></span></div></div>
 </section>
 
 <script src="/static/js/edit_flow.js?v=3"></script>
@@ -73,4 +81,62 @@ listEditor({
   what: f => 'the digital mode "' + f.label + '"',
   effect: "at the next frequency step in the app",
 });
+
+// WSPR band hopping: the bands in the order of src/wspr/wspr_hop.h, two bits each in wspr_bands (0 Off, 1 RX, 2 RX+TX)
+const HOP_BANDS = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"];
+const HOP_USES = ["Off", "RX", "RX+TX"];
+let H = null;
+
+var hopUse = function(bands, i) { const v = (bands >> (2 * i)) & 3; return v > 2 ? 0 : v; };
+
+/* The row's own word: Saving..., Applied on the radio, or why not (the control back to what the radio has) */
+var hopState = function(row, st, text) {
+  let el = row.find(".rst");
+  if (!el.length) el = $("<span class='rst'>").appendTo(row.find(".dp-ctl"));
+  el.attr("data-st", st).text(st === "failed" ? "Failed: " + text : st === "saving" ? "Saving..." : "Applied on the radio");
+}
+
+var hopSet = function(name, val, row) {
+  const old = H[name];
+  H[name] = val;
+  hopState(row, "saving");
+  $.ajax({
+    url: "/api/display", type: "POST", data: JSON.stringify({name: name, val: val}),
+    contentType: "application/json; charset=utf-8", dataType: "json", timeout: X6100_WAIT_MS,
+    success: function() { hopState(row, "applied"); },
+    error: function(xhr, why) { H[name] = old; hopRender(); hopState($("#" + row.attr("id")), "failed", x6100FailText(xhr, why)); }
+  });
+}
+
+var hopRender = function() {
+  const rows = $("#hop_rows").empty();
+  const hop = $("<div class='dp-row' id='hop-on'>").append(
+    $("<div class='dp-lbl'>").append($("<b>").text("Hop"), $("<span>").text("WSPR page 2, F5. Off: the app stays on the band it is on, as before")));
+  const box = $("<label class='sw'>").attr("title", "Hop");
+  $("<input type='checkbox' role='switch' aria-label='Hop'>").prop("checked", !!H.wspr_hop)
+    .on("change", function() { hopSet("wspr_hop", this.checked ? 1 : 0, hop); }).appendTo(box);
+  rows.append(hop.append($("<div class='dp-ctl'>").append(box.append("<i></i>"))));
+  HOP_BANDS.forEach(function(name, i) {
+    const m = 2 * i;
+    const when = i < 10 ? "Slots :" + ("0" + m).slice(-2) + ", :" + (m + 20) + ", :" + (m + 40) : "No slot of its own: a turn in the Off slots";
+    const row = $("<div class='dp-row'>").attr("id", "hop-" + i).append($("<div class='dp-lbl'>").append($("<b>").text(name), $("<span>").text(when)));
+    const seg = $("<div class='seg' role='group'>").attr("aria-label", name);
+    HOP_USES.forEach(function(t, u) {
+      $("<button type='button'>").text(t).attr("aria-pressed", hopUse(H.wspr_bands, i) === u ? "true" : "false")
+        .on("click", function() {
+          seg.children().attr("aria-pressed", "false");
+          $(this).attr("aria-pressed", "true");
+          hopSet("wspr_bands", (H.wspr_bands & ~(3 << m)) | (u << m), row);
+        }).appendTo(seg);
+    });
+    rows.append(row.append($("<div class='dp-ctl'>").append(seg)));
+  });
+}
+
+$.ajax({url: "/api/display", dataType: "json", success: function(d) {
+  if (!("wspr_bands" in d)) return;   /* a GUI from before band hopping */
+  H = {wspr_hop: d.wspr_hop, wspr_bands: d.wspr_bands};
+  hopRender();
+  $("#wspr_hop").prop("hidden", false);
+}});
 </script>

@@ -36,6 +36,10 @@ uint32_t cfg_atu_get_network(void) {
     return g_atu_cache.network.get();
 }
 
+bool cfg_atu_has_network_at(int32_t freq) {
+    return g_atu_cache.has_network(ATU_ANT, freq);
+}
+
 Observer *cfg_atu_loaded_subscribe(observer_cb cb, void *user_data) {
     return g_atu_cache.loaded.subscribe(cb, user_data);
 }

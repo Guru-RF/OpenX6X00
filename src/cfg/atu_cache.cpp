@@ -82,3 +82,12 @@ int AtuNetworkCache::save_network(int32_t ant_id, int32_t freq, uint32_t network
     this->network.set(network);
     return SUCCESS;
 }
+
+bool AtuNetworkCache::has_network(int32_t ant_id, int32_t freq) {
+    // The cache is loaded when the ATU is first on: with it off since the start it may not be yet
+    if (current_ant_id_ != ant_id) {
+        current_ant_id_ = ant_id;
+        load_cache(ant_id);
+    }
+    return find_nearest(freq) >= 0;
+}

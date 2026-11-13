@@ -30,6 +30,10 @@ int cfg_atu_save_network(uint32_t network);
 bool     cfg_atu_is_loaded(void);
 uint32_t cfg_atu_get_network(void);
 
+// Whether a network is saved for freq (within 25 kHz), at any frequency and with the ATU on or off: the WSPR app's
+// band hopping (#190). LVGL thread, as the cache's other users
+bool cfg_atu_has_network_at(int32_t freq);
+
 // ATU subjects: whether a saved network exists for the current freq/ant and
 // its value (0 when not loaded). The returned Observer / ObserverDelayed is
 // freed with param_unsubscribe.
