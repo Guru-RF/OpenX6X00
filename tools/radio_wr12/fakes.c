@@ -43,6 +43,7 @@
 #include "scheduler.h"
 #include "screen_rec.h"
 #include "settings_window.h"
+#include "smeter.h"
 #include "start_trace.h"
 #include "swr_guard.h"
 #include "tune_tx.h"
@@ -933,6 +934,13 @@ void keypad_power_set(bool down) {
 
 int32_t limit(int32_t x, int32_t min, int32_t max) {
     return x < min ? min : x > max ? max : x;
+}
+
+/* The supply the S-meter takes its attenuator figure for (#125), as radio.c told it last */
+bool meter_battery;
+
+void meter_set_battery(bool battery) {
+    meter_battery = battery;
 }
 
 void paddle_keyer_stop(void) {

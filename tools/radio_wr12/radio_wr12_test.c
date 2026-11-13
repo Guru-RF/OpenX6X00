@@ -16,7 +16,8 @@
  *  sidetone, its key at once opening it first, not where the hardware cannot transmit). And radio.c's battery % from
  *  the base's supply readings (#223): a full pack on a supply with the base at 2 % (the voltage's in the top bar, the
  *  base's to the battery model, no time to full), a base that counts right there, the % held over a TX on a supply as
- *  on battery, and not carried over an unplug. Then in order: WR12 on HOST off
+ *  on battery, and not carried over an unplug; and the S-meter told the supply for its attenuator figure as the TX
+ *  power top follows it (#125). Then in order: WR12 on HOST off
  *  at the start, on below 54 MHz, the WR12 found; the knob to 98 MHz (held and shut before the base goes to the IF, I
  *  and Q swapped with it, PTT and the modem refused), a band key to 98.1 MHz, the knob back to 7 MHz (the base on the
  *  dial, IQ back, TX held and shut until the WR12's OK to AT+BYPASS=1, PWR, VOX and Train back as they were after it
@@ -459,6 +460,34 @@ static void bat_unplugged_after_tx(void) {
     check(shown.cap == 84, "a TX on 11.7 V, then unplugged: 84 %% at once (%d)", shown.cap);
 }
 
+/* The S-meter's attenuator figure follows the supply as the TX power top does (#125): started on battery, the figure
+ * on the supply until the readings count, the one on battery 5 s after; plugged in, the supply's 5 s on; unplugged
+ * for 2 s and back, no change; unplugged, the battery's 5 s on */
+static void meter_follows_supply(void) {
+    supply_start(83, 0, 80);
+    check(!meter_battery, "started on battery, the readings just counting: the figure on the supply (%d)",
+          meter_battery);
+    readings(5200);
+    check(meter_battery, "on battery for 5 s: the figure on battery (%d)", meter_battery);
+    supply.vext     = 135;
+    supply.charging = true;
+    readings(4400);
+    check(meter_battery, "a 13.5 V supply in for under 5 s: still the figure on battery (%d)", meter_battery);
+    readings(1200);
+    check(!meter_battery, "the supply in for 5 s: the figure on the supply (%d)", meter_battery);
+    supply.vext     = 0;
+    supply.charging = false;
+    readings(2000);
+    supply.vext     = 135;
+    supply.charging = true;
+    readings(6000);
+    check(!meter_battery, "unplugged for 2 s and back: the figure on the supply throughout (%d)", meter_battery);
+    supply.vext     = 0;
+    supply.charging = false;
+    readings(6000);
+    check(meter_battery, "unplugged: the figure on battery (%d)", meter_battery);
+}
+
 int __real_pthread_create(pthread_t *t, const pthread_attr_t *attr, void *(*fn)(void *), void *arg);
 
 /* A keyer's thread: the GUI's CW key down */
@@ -583,6 +612,7 @@ int main(void) {
     apart("a base that counts right on the supply", bat_counts_on_supply);
     apart("a TX on a supply that does not hold the battery up", bat_tx_on_supply);
     apart("unplugged after a TX", bat_unplugged_after_tx);
+    apart("the S-meter's attenuator figure and the supply", meter_follows_supply);
     apart("the SWR scan's two ways", swrscan_ways);
     apart("the SWR scan's Stop and the base's TX after it", swrscan_stop_tail);
     fake_cfg_init();

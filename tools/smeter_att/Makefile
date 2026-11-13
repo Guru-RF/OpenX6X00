@@ -1,13 +1,16 @@
-# Host test of src/cfg/smeter_att.c, the S-meter on a band never set (#125): the X6200's attenuator figure and the cal
-# start of both radios. `make` builds it and runs it on the band list of sql/params.sql and the figures in
-# docs/MANUAL.md. See smeter_att_test.c for the checks.
+# Host test of src/cfg/smeter_att.c, the S-meter on a band never set (#125): the X6200's attenuator figures, on a supply
+# and on battery, and the cal start of both radios; and which figure the meter takes as the supply comes and goes,
+# by src/bat_watch.c as radio.c feeds it on the X6200. `make` builds it and runs it on the band list of
+# sql/params.sql and the figures in docs/MANUAL.md. See smeter_att_test.c for the checks.
 SRC    := ../../src
-CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC)
+CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC) -DBOARD_X6200
+DEPS   := smeter_att_test.c $(SRC)/cfg/smeter_att.c $(SRC)/cfg/smeter_att.h $(SRC)/bat_watch.c $(SRC)/bat_watch.h \
+          $(SRC)/board.h
 
 all: test
 
-smeter_att_test: smeter_att_test.c $(SRC)/cfg/smeter_att.c $(SRC)/cfg/smeter_att.h
-	$(CC) $(CFLAGS) -o $@ smeter_att_test.c $(SRC)/cfg/smeter_att.c
+smeter_att_test: $(DEPS)
+	$(CC) $(CFLAGS) -o $@ smeter_att_test.c $(SRC)/cfg/smeter_att.c $(SRC)/bat_watch.c
 
 test: smeter_att_test
 	./smeter_att_test ../../sql/params.sql ../../docs/MANUAL.md

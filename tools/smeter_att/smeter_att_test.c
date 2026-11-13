@@ -1,13 +1,21 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  Host test of src/cfg/smeter_att.c (#125): every band of sql/params.sql takes the figure of its group (the bands
- *  written out here, by id, as the manual lists them), outside the bands 40 m's, the groups' edges by the middle of
- *  a band, every figure under the top (SMETER_ATT_MAX) so that Measure can go past it, the deepest attenuator seen
- *  inside the top, and the manual's table ("X6200 bands | Attenuator"), its value outside the bands, its range
- *  ("| Attenuator | ... X6200: 0 to 70 dB") and Measure's line at the top ("ATT 70, the top, so 70 or more") the
- *  same as the code's. And the S-meter cal a band never calibrated starts at, one for both radios, the same in
- *  the manual ("A band never calibrated starts at -22 dB on both radios") as in smeter_att.h.
+ *  Host test of src/cfg/smeter_att.c (#125): every band of sql/params.sql takes the figures of its group (the bands
+ *  written out here, by id, as the manual lists them), on the supply 16 dB on every band and on battery by group,
+ *  outside the bands 40 m's, the groups' edges by the middle of a band, every figure under the top (SMETER_ATT_MAX)
+ *  so that Measure can go past it, the deepest attenuator seen inside the top, and the manual's table ("X6200 bands
+ *  | On the supply | On battery"), its values outside the bands, its range ("| Attenuator | ... X6200: 0 to 70 dB")
+ *  and Measure's line at the top ("ATT 70, the top, so 70 or more") the same as the code's. And the S-meter cal a
+ *  band never calibrated starts at, one for both radios, the same in the manual ("A band never calibrated starts at
+ *  -22 dB on both radios") as in smeter_att.h.
+ *  And which figure the meter takes (smeter_att_now) as the supply comes and goes, the X6200's readings fed to
+ *  bat_watch_reading and bat_supply_reading as radio.c feeds them: the figure on the supply until the readings count
+ *  after power-on, the one on battery 5 s after they say battery, back to the supply's 5 s after it is plugged in,
+ *  neither changed by a supply that flickers in or out for less, a power-on on the supply never on battery, and a
+ *  change the GUI's queue had no room for told again at the next reading. The rows: the figure on the supply keeps
+ *  the row of the one figure of v0.3.9 and v0.3.10, so a value stored then is read as the figure on the supply, and
+ *  the one on battery has its own (tools/smeter_share loads and stores them in the settings).
  *  And the bands that share both (smeter_share_group): 40m CW and SSB, 20m CW and SSB, no other band of the list,
  *  40m SSB on Region 2's edges too, the ranges' edges by the middle of a band, and the manual's ranges ("from 7.000 to
  *  7.300 MHz share one value, and those from 14.000 to 14.350 MHz another") the code's.
@@ -15,6 +23,7 @@
  */
 
 #include "cfg/smeter_att.h"
+#include "bat_watch.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,9 +44,11 @@ static void check(int ok, const char *what, long v) {
 #define DEEPEST_DB 62
 #define DEEPEST_SPREAD 2
 
-/* The groups, by the middle of a band: under 2.5 MHz, to 5, above. The figures the code must give */
+/* The groups, by the middle of a band: under 2.5 MHz, to 5, above. The figures the code must give, on the supply and
+ * on battery */
 enum { G160, G80, G40, GROUPS };
-static const int32_t group_db[GROUPS] = {59, 51, 34};
+static const int32_t supply_db[GROUPS]  = {16, 16, 16};
+static const int32_t battery_db[GROUPS] = {59, 34, 28};
 
 /* Each band of the list, by id, in the manual's groups. G40: 40 m's figure, from 60 m up */
 static const struct {
@@ -93,7 +104,10 @@ static void bands_of_sql(const char *path) {
         check(i < WANT_N, "a band of params.sql in this test's list (add it)", id);
         if (i < WANT_N) {
             seen[i]++;
-            check(smeter_att_start_band(start, stop) == group_db[want[i].group], "a band's figure, its group's", id);
+            check(smeter_att_start_band(start, stop, false) == supply_db[want[i].group],
+                  "a band's figure on the supply, its group's", id);
+            check(smeter_att_start_band(start, stop, true) == battery_db[want[i].group],
+                  "a band's figure on battery, its group's", id);
         }
         check(smeter_share_group(start, stop) == shared_group(id), "a band's share, 40m and 20m CW and SSB only", id);
         if (strchr(line, ';')) break;   /* the last row */
@@ -105,12 +119,12 @@ static void bands_of_sql(const char *path) {
     }
 }
 
-/* The manual's table: a "| ... | 51 dB |" row for each group, in order, then "which starts at 34 dB" outside them.
- * Before it the settings' table, the attenuator's range: "| Attenuator | 0 to 40 dB (X6200: 0 to 70 dB, ..." */
+/* The manual's table: a "| ... | 16 dB | 34 dB |" row for each group, in order. Before it the settings' table, the
+ * attenuator's range: "| Attenuator | 0 to 40 dB (X6200: 0 to 70 dB, ..." */
 static void manual_table(const char *path) {
     FILE *f = fopen(path, "r");
     char  line[512];
-    int   row = -2, outside = -1, top = -1;
+    int   row = -2, top = -1;
 
     check(f != NULL, "MANUAL.md opened", 0);
     if (!f) return;
@@ -119,7 +133,7 @@ static void manual_table(const char *path) {
 
         if (range && (range = strstr(range, "X6200: 0 to "))) top = atoi(range + strlen("X6200: 0 to "));
         if (row == -2) {
-            if (strstr(line, "| X6200 bands | Attenuator |")) row = -1;     /* then the |---| line */
+            if (strstr(line, "| X6200 bands | On the supply | On battery |")) row = -1;     /* then the |---| line */
             continue;
         }
         if (row == -1) {
@@ -128,25 +142,23 @@ static void manual_table(const char *path) {
         }
         if (row < GROUPS) {
             char *bar = strrchr(line, '|');
-            int   db  = -1;
+            int   db[2] = {-1, -1};
 
-            if (bar) *bar = '\0';
-            bar = strrchr(line, '|');
-            if (bar) sscanf(bar, "| %d dB", &db);
-            check(db == group_db[row], "the manual's figure, a group's", db);
+            /* The last two cells, from the right: on battery, then on the supply */
+            for (int c = 1; c >= 0 && bar; c--) {
+                *bar = '\0';
+                bar  = strrchr(line, '|');
+                if (bar) sscanf(bar, "| %d dB", &db[c]);
+            }
+            check(db[0] == supply_db[row], "the manual's figure on the supply, a group's", db[0]);
+            check(db[1] == battery_db[row], "the manual's figure on battery, a group's", db[1]);
             row++;
             continue;
         }
-        char *s = strstr(line, "which starts at ");
-
-        if (s) {
-            outside = atoi(s + strlen("which starts at "));
-            break;
-        }
+        break;
     }
     fclose(f);
     check(row == GROUPS, "the manual's table, a row for each group", row);
-    check(outside == smeter_att_start_band(0, 0), "the manual's value outside the bands", outside);
     check(top == SMETER_ATT_MAX, "the manual's range, the code's top", top);
 }
 
@@ -191,6 +203,23 @@ static char *manual_text(const char *path) {
     return text;
 }
 
+/* After the manual's table, outside the bands, its sentence across lines: "... which starts at 16 dB on the supply
+ * and 28 dB on battery" */
+static void manual_outside(const char *path) {
+    char *text = manual_text(path);
+    int   supply = -1, battery = -1;
+
+    if (!text) return;
+    char *s = strstr(text, "| X6200 bands | On the supply | On battery |");
+
+    if (s) s = strstr(s, "which starts at ");
+    check(s != NULL, "the manual says where outside the bands starts", 0);
+    if (!s) return;
+    sscanf(s, "which starts at %d dB on the supply and %d dB on battery", &supply, &battery);
+    check(supply == smeter_att_start_band(0, 0, false), "the manual's value outside the bands on the supply", supply);
+    check(battery == smeter_att_start_band(0, 0, true), "the manual's value outside the bands on battery", battery);
+}
+
 /* The manual's S-meter cal start, its sentence across lines: "... starts at -22 dB on both radios" */
 static void manual_cal_start(const char *path) {
     char *text = manual_text(path);
@@ -233,27 +262,128 @@ static void manual_share(const char *path) {
     }
 }
 
+/* The meter's figure as the supply comes and goes, on the X6200: a reading every 0.4 s as radio.c takes them
+ * (bat_watch_reading, then bat_supply_reading, whose state supply_cb gives the meter), and the figure smeter.c adds
+ * back with ATT on (smeter_att_now) from a band's two, here 16 dB on the supply and 30 on battery */
+#define READ_MS     400
+#define STEADY_MS   ((BAT_SUPPLY_MS + READ_MS - 1) / READ_MS * READ_MS)    /* the first reading 5 s on */
+#define T0          1000000
+#define ON_SUPPLY   16
+#define ON_BATTERY  30
+
+static bat_watch_t  w;
+static bat_supply_t sup;
+static uint64_t     now;
+
+static void power_on(void) {
+    memset(&w, 0, sizeof(w));
+    memset(&sup, 0, sizeof(sup));
+    now = T0;
+}
+
+/* Readings for ms, on the battery alone (8.3 V, nothing on DC IN) or with a 13.5 V supply in, the base's external
+ * power and charging flags with it as the X6200's raises them. The figure the meter takes after them; *changed: when
+ * it first changed, ms into the stretch, or -1 */
+static int32_t feed(bool supply, long ms, long *changed) {
+    *changed = -1;
+    for (long t = 0; t < ms; t += READ_MS, now += READ_MS) {
+        bat_watch_reading(&w, 83, supply ? 135 : 0, supply, supply, false, false, now);
+        if (bat_supply_reading(&sup, &w, now) && *changed < 0) *changed = t;
+    }
+    return smeter_att_now(ON_SUPPLY, ON_BATTERY, sup.bat);
+}
+
+static void supply_switch(void) {
+    long    at;
+    int32_t db;
+
+    check(smeter_att_now(ON_SUPPLY, ON_BATTERY, false) == ON_SUPPLY, "on the supply: the figure on the supply", 0);
+    check(smeter_att_now(ON_SUPPLY, ON_BATTERY, true) == ON_BATTERY, "on battery: the figure on battery", 0);
+
+    /* Switched on on battery: the figure on the supply until the readings count (BAT_SETTLE_MS), as the TX power cap
+     * assumes external power then, and the one on battery BAT_SUPPLY_MS after */
+    power_on();
+    db = feed(false, BAT_SETTLE_MS, &at);
+    check(db == ON_SUPPLY && at < 0, "power-on on battery, before the readings count: the supply's", at);
+    db = feed(false, 2 * BAT_SUPPLY_MS, &at);
+    check(db == ON_BATTERY, "then on battery: the battery's", db);
+    check(at == STEADY_MS, "the battery's once the readings have said so for 5 s", at);
+
+    /* The supply plugged in: the battery's for 5 s, then the supply's */
+    db = feed(true, STEADY_MS - READ_MS, &at);
+    check(db == ON_BATTERY && at < 0, "the supply in, under 5 s: still the battery's", at);
+    db = feed(true, BAT_SUPPLY_MS, &at);
+    check(db == ON_SUPPLY && at == READ_MS, "the supply in for 5 s: the supply's, from the reading 5 s on", at);
+
+    /* A flicker out and back: no change either way */
+    db = feed(false, 2000, &at);
+    check(db == ON_SUPPLY && at < 0, "the supply out for 2 s: still the supply's", at);
+    db = feed(true, 2 * BAT_SUPPLY_MS, &at);
+    check(db == ON_SUPPLY && at < 0, "and back: the supply's throughout", at);
+
+    /* Unplugged: the battery's 5 s on */
+    db = feed(false, 2 * BAT_SUPPLY_MS, &at);
+    check(db == ON_BATTERY && at == STEADY_MS, "unplugged: the battery's after 5 s", at);
+
+    /* A flicker in and out, just under 5 s: no change */
+    db = feed(true, STEADY_MS - READ_MS, &at);
+    check(db == ON_BATTERY && at < 0, "a supply in for just under 5 s: the battery's", at);
+    db = feed(false, 2 * BAT_SUPPLY_MS, &at);
+    check(db == ON_BATTERY && at < 0, "and out again: the battery's throughout", at);
+
+    /* The GUI's queue full: radio.c takes the change back and it comes again at the next reading */
+    db = feed(true, STEADY_MS + READ_MS, &at);
+    check(db == ON_SUPPLY && at == STEADY_MS, "plugged in: the change 5 s on", at);
+    sup.bat = !sup.bat;     /* scheduler_put refused it */
+    db = feed(true, READ_MS, &at);
+    check(db == ON_SUPPLY && at == 0, "a change not told: again at the next reading", at);
+
+    /* Switched on on the supply: the supply's from the start, never the battery's */
+    power_on();
+    db = feed(true, BAT_SETTLE_MS + 3 * BAT_SUPPLY_MS, &at);
+    check(db == ON_SUPPLY && at < 0, "power-on on the supply: the supply's throughout", at);
+}
+
 int main(int argc, char **argv) {
     if (argc != 3) {
         fprintf(stderr, "usage: smeter_att_test <params.sql> <MANUAL.md>\n");
         return 2;
     }
     for (int g = 0; g < GROUPS; g++) {
-        check(group_db[g] > 0 && group_db[g] < SMETER_ATT_MAX, "a start under the top, Measure can go past it",
-              group_db[g]);
+        check(supply_db[g] > 0 && supply_db[g] < SMETER_ATT_MAX, "a start on the supply under the top", supply_db[g]);
+        check(battery_db[g] > 0 && battery_db[g] < SMETER_ATT_MAX, "a start on battery under the top", battery_db[g]);
+        /* The attenuator took more off on battery on every band read on both (#125) */
+        check(battery_db[g] > supply_db[g], "a start on battery over the one on the supply", battery_db[g]);
     }
     check(DEEPEST_DB + DEEPEST_SPREAD <= SMETER_ATT_MAX, "the deepest attenuator seen, inside the top", DEEPEST_DB);
-    check(smeter_att_start_band(0, 0) == group_db[G40], "outside the bands: 40 m's", smeter_att_start_band(0, 0));
+    check(smeter_att_start_band(0, 0, true) == battery_db[G40], "outside the bands on battery: 40 m's",
+          smeter_att_start_band(0, 0, true));
+    check(smeter_att_start_band(0, 0, false) == supply_db[G40], "outside the bands on the supply: 40 m's",
+          smeter_att_start_band(0, 0, false));
 
-    /* The edges, by the middle */
-    check(smeter_att_start_band(2499999, 2499999) == group_db[G160], "just under 2.5 MHz: 160 m's", 2499999);
-    check(smeter_att_start_band(2500000, 2500000) == group_db[G80], "2.5 MHz: 80 m's", 2500000);
-    check(smeter_att_start_band(2400000, 2600000) == group_db[G80], "a band round 2.5 MHz, its middle on it", 2500000);
-    check(smeter_att_start_band(4999999, 4999999) == group_db[G80], "just under 5 MHz: 80 m's", 4999999);
-    check(smeter_att_start_band(5000000, 5000000) == group_db[G40], "5 MHz: 40 m's", 5000000);
-    check(smeter_att_start_band(4900000, 5100000) == group_db[G40], "a band round 5 MHz, its middle on it", 5000000);
-    check(smeter_att_start_band(999000000, 1000000000) == group_db[G40], "the WR12's top, no overflow", 1000000000);
-    check(smeter_att_start_band(135700, 137800) == group_db[G160], "2200 m, a band of your own: 160 m's", 135700);
+    /* The edges, by the middle, on battery; on the supply one figure throughout */
+    check(smeter_att_start_band(2499999, 2499999, true) == battery_db[G160], "just under 2.5 MHz: 160 m's", 2499999);
+    check(smeter_att_start_band(2500000, 2500000, true) == battery_db[G80], "2.5 MHz: 80 m's", 2500000);
+    check(smeter_att_start_band(2400000, 2600000, true) == battery_db[G80], "a band round 2.5 MHz, its middle on it",
+          2500000);
+    check(smeter_att_start_band(4999999, 4999999, true) == battery_db[G80], "just under 5 MHz: 80 m's", 4999999);
+    check(smeter_att_start_band(5000000, 5000000, true) == battery_db[G40], "5 MHz: 40 m's", 5000000);
+    check(smeter_att_start_band(4900000, 5100000, true) == battery_db[G40], "a band round 5 MHz, its middle on it",
+          5000000);
+    check(smeter_att_start_band(999000000, 1000000000, true) == battery_db[G40], "the WR12's top, no overflow",
+          1000000000);
+    check(smeter_att_start_band(135700, 137800, true) == battery_db[G160], "2200 m, a band of your own: 160 m's",
+          135700);
+    check(smeter_att_start_band(135700, 137800, false) == supply_db[G160], "2200 m on the supply", 135700);
+    check(smeter_att_start_band(999000000, 1000000000, false) == supply_db[G40], "the WR12's top on the supply",
+          1000000000);
+
+    /* The rows: the figure on the supply reads the row v0.3.9 and v0.3.10 stored the one figure in, so a value
+     * measured or set there is the one on the supply; the one on battery has a row of its own */
+    check(strcmp(SMETER_ATT_ROW, "smeter_att") == 0, "the figure on the supply, the row of before", 0);
+    check(strcmp(SMETER_ATT_BAT_ROW, SMETER_ATT_ROW) != 0, "the figure on battery, a row of its own", 0);
+
+    supply_switch();
 
     /* The bands that share */
     check(smeter_share_group(7040000, 7300000) == 40, "40m SSB on Region 2's edges: 40 m's", 7300000);
@@ -265,6 +395,7 @@ int main(int argc, char **argv) {
     bands_of_sql(argv[1]);
     manual_table(argv[2]);
     manual_measure_top(argv[2]);
+    manual_outside(argv[2]);
     manual_cal_start(argv[2]);
     manual_share(argv[2]);
 

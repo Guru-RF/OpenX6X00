@@ -70,6 +70,16 @@ bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_fla
     return false;
 }
 
+bool bat_supply_reading(bat_supply_t *s, const bat_watch_t *w, uint64_t now_ms) {
+    if (w->counts && w->ext == s->seen_bat) {
+        s->seen_bat = !w->ext;
+        s->seen_ms  = now_ms;
+    }
+    if (s->seen_bat == s->bat || now_ms - s->seen_ms < BAT_SUPPLY_MS) return false;
+    s->bat = s->seen_bat;
+    return true;
+}
+
 uint8_t bat_cap_of_volts(uint8_t vbat) {
     /* 0.1 V from 6.8 V up: the median % the base reported at each, on battery and receive */
     static const uint8_t cap[] = {0, 1, 1, 3, 9, 24, 42, 56, 65, 73, 80, 84, 88, 94, 98, 100};

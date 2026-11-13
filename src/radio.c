@@ -60,6 +60,7 @@
 #include "wr12.h"
 #include "pa_bias.h"
 #include "freq_strip.h"
+#include "smeter.h"
 
 /*********************
  *      DEFINES
@@ -197,8 +198,10 @@ static void hkey_sched_cb(void *arg) {
 #ifdef BOARD_PWR_MAX_BAT
 /* The supply changed (true: external power), on the LVGL thread. On battery the cap drops and a
  * power set above it comes down to it; back on external power only the cap goes up, the power
- * stays where it was, as in Xiegu's app */
+ * stays where it was, as in Xiegu's app. And the S-meter takes the attenuator figure for it: the
+ * X6200's attenuator takes off more on battery alone (#125) */
 static void supply_cb(void *arg) {
+    meter_set_battery(!*(bool *)arg);
     if (*(bool *)arg) {
         cfg_pwr_max_set(BOARD_PWR_MAX);
     } else {
@@ -2823,20 +2826,16 @@ static bool radio_tick() {
             }
 
 #ifdef BOARD_PWR_MAX_BAT
-            /* The TX power cap follows the supply once it has been steady for 5 s, as Xiegu's app
-             * waits. Until the readings count we assume external power, the cap we start with */
-            static bool     supply_ext = true, seen_ext = true;
-            static uint64_t seen_time;
+            /* The TX power cap and the S-meter's attenuator figure follow the supply once it has been steady for
+             * 5 s, as Xiegu's app waits. Until the readings count we assume external power, the cap we start with
+             * (bat_supply_reading). Not told when the GUI's queue is full: then again at the next reading */
+            static bat_supply_t supply;
 
-            if (bat_watch.counts && bat_watch.ext != seen_ext) {
-                seen_ext  = bat_watch.ext;
-                seen_time = now_time;
-            }
-            if (seen_ext != supply_ext && now_time - seen_time >= 5000) {
-                bool ext = seen_ext;
+            if (bat_supply_reading(&supply, &bat_watch, now_time)) {
+                bool ext = !supply.bat;
 
-                if (scheduler_put(supply_cb, &ext, sizeof(ext))) {
-                    supply_ext = ext;
+                if (!scheduler_put(supply_cb, &ext, sizeof(ext))) {
+                    supply.bat = !supply.bat;
                 }
             }
 #endif

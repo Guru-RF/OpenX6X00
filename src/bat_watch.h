@@ -54,6 +54,21 @@ typedef struct {
 bool bat_watch_reading(bat_watch_t *w, uint8_t vbat, uint8_t vext, bool vext_flag, bool charging, bool bat_missing,
                        bool tx, uint64_t now_ms);
 
+/* The supply the X6200's TX power cap and its S-meter's attenuator figure follow (radio.c): external power or the
+ * battery alone, once the readings that count have said so for BAT_SUPPLY_MS in a row, as Xiegu's app waits for the
+ * cap. External power until they count. So a supply that flickers in or out for less than that changes neither: the
+ * meter's figure for ATT went from 16 dB to 27-35 dB the moment the supply went out (#125). All zero: external power */
+#define BAT_SUPPLY_MS   5000
+
+typedef struct {
+    bool     seen_bat;  /* the readings that count say: the battery alone */
+    uint64_t seen_ms;   /* since then */
+    bool     bat;       /* the supply followed: the battery alone */
+} bat_supply_t;
+
+/* After each bat_watch_reading, from its ext and counts. True when bat changed */
+bool bat_supply_reading(bat_supply_t *s, const bat_watch_t *w, uint64_t now_ms);
+
 /* The % of a pack at vbat (0.1 V) on battery and receive: what an X6100 base (1.1.8) reports there,
  * from its discharge 8.3 to 6.4 V on the bench */
 uint8_t bat_cap_of_volts(uint8_t vbat);

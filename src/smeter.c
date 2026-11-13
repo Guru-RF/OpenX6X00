@@ -16,8 +16,10 @@
 #include "cfg/cfg_api.h"
 #include "util.h"
 #include "scheduler.h"
+#include "cfg/smeter_att.h"
 
 #include <math.h>
+#include <stdatomic.h>
 #include <stdio.h>
 
 /* The reading in dB, S1 to S9+40, after PRE, ATT and the calibration */
@@ -37,10 +39,35 @@ static bool             in_tx;        /* TX: no reading from the receiver, frame
 static bool             tx_readings;  /* TX with neither the TX panel nor the apps' strip: their readings here (#166) */
 
 /* PRE and ATT shift the reading (by the settings cfg_smeter_pre / cfg_smeter_att, measured or
- * from Settings > TX Cal > S-METER > Measure; the X6200's attenuator figure is the band's) and the
- * noise floor: kept here, meter_update() and meter_set_noise() run in the DSP thread */
+ * from Settings > TX Cal > S-METER > Measure; the X6200's attenuator figure is the band's, for the
+ * power it is on) and the noise floor: kept here, meter_update() and meter_set_noise() run in the
+ * DSP thread */
 static bool             pre_on, att_on;
 #define FLOOR_DB        14.0f
+
+#ifdef BOARD_X6200
+/* On the battery alone the X6200's attenuator took 27 to 35 dB off on one radio, where it took 16 with the supply in
+ * (#125): then the band's figure on battery, cfg_smeter_att_bat, from when the TX power cap goes down to the battery's
+ * (supply_cb, radio.c) */
+static atomic_bool      on_battery;
+
+void meter_set_battery(bool battery) {
+    atomic_store(&on_battery, battery);
+}
+
+bool meter_on_battery(void) {
+    return atomic_load(&on_battery);
+}
+#endif
+
+/* The attenuator's depth, added back with ATT on */
+static int32_t att_db(void) {
+#ifdef BOARD_X6200
+    return smeter_att_now(param_i_get(cfg_smeter_att), param_i_get(cfg_smeter_att_bat), atomic_load(&on_battery));
+#else
+    return param_i_get(cfg_smeter_att);
+#endif
+}
 
 static lv_obj_t         *obj;
 static lv_obj_t         *db_val_label;
@@ -743,9 +770,9 @@ void meter_set_noise(float val) {
     float level = val + meter_cal_db();   /* on the same scale as the reading it greys out */
 
 #ifdef BOARD_X6200
-    /* By the reading's own corrections: the X6200's attenuator takes 24 to about 62 dB off (#125), and with
+    /* By the reading's own corrections: the X6200's attenuator takes 15 to about 62 dB off (#125), and with
      * FLOOR_DB the noise read with ATT on showed as a signal, 15 to 37 dB over the grey */
-    if (att_on) level += param_i_get(cfg_smeter_att);
+    if (att_on) level += att_db();
     if (pre_on) level -= param_i_get(cfg_smeter_pre);
 #else
     if (att_on) level += FLOOR_DB;
@@ -759,7 +786,7 @@ void meter_update(float db, float beta) {
     if (isnan(db) || in_tx) return;
     if (!isfinite(meter_db) || !isfinite(meter_peak)) meter_db = meter_peak = S1;
 
-    if (att_on) db += param_i_get(cfg_smeter_att);
+    if (att_on) db += att_db();
     if (pre_on) db -= param_i_get(cfg_smeter_pre);
     db = LV_CLAMP(S1, db + meter_cal_db(), S9_40);
 

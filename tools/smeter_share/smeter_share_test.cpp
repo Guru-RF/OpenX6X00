@@ -7,7 +7,12 @@
  *  different values. Bands chosen as a band key does (p_band_id), the figures set as the sliders and Measure set them
  *  (set, and Measure's store), the rows read back after the pending writes are flushed. The cases:
  *  - a part never set takes the other part's row, before the start; a band that shares with none takes the start
- *    (-22 dB on both radios; 34 dB for the attenuator from 5 MHz up);
+ *    (-22 dB on both radios; for the X6200's attenuator 16 dB on the supply, and on battery 59, 34 and 28 dB under
+ *    2.5 MHz, to 5 MHz and above);
+ *  - the X6200's attenuator figures (#125): the row v0.3.9 and v0.3.10 stored the one figure in is the figure on the
+ *    supply, the one on battery starts from its start with no row written; Measure on battery writes the figure on
+ *    battery of both parts and leaves the one on the supply as it was, Measure on the supply the other way round,
+ *    and a part never set on battery takes the other part's;
  *  - parts holding different values keep their own until one is set; a set writes every part, also when the band
  *    changes to the other part before the writes are flushed, and so does Measure's store at an unchanged value;
  *  - nothing else is shared (the VFO's ATT), and nothing goes to a band outside the parts (30m, Broadcast 41m);
@@ -89,10 +94,15 @@ static int att() {
     return cfg_sm.p_band_smeter_att.get();
 }
 
-/* Measure's end on the X6200 (settings_window.cpp): the figure set, and its row also when unchanged */
-static void measure(int v) {
-    cfg_sm.p_band_smeter_att.set(v);
-    cfg_sm.p_band_smeter_att.store();
+static int att_bat() {
+    return cfg_sm.p_band_smeter_att_bat.get();
+}
+
+/* Measure's end on the X6200 (settings_window.cpp), on battery or on the supply: the figure for that power set, and
+ * its row also when unchanged */
+static void measure(bool battery, int v) {
+    cfg_sm.smeter_att_for(battery).set(v);
+    cfg_sm.smeter_att_for(battery).store();
 }
 #endif
 
@@ -130,12 +140,19 @@ int main(int argc, char **argv) {
     /* 20m SSB, the band a new database starts on, has its own; 20m CW takes it, and a load writes nothing */
     check(cfg_sm.p_band_id.get() == 7, "the start on 20m SSB", cfg_sm.p_band_id.get());
     check(cal() == 9, "20m SSB: its own cal", cal());
+#ifdef BOARD_X6200
+    /* Its attenuator figure of v0.3.10: the one on the supply now; on battery the start, and no row for it */
+    check(att() == 30, "20m SSB: the figure of before, on the supply", att());
+    check(att_bat() == 28, "20m SSB: on battery the start from 5 MHz up", att_bat());
+    check(rows("smeter_att_bat") == 0, "no row on battery from a load", rows("smeter_att_bat"));
+#endif
     to_band(6);
     check(cal() == 9, "20m CW never set: 20m SSB's cal", cal());
     check(row(6, "smeter_cal") == NONE, "20m CW: no row from a load", row(6, "smeter_cal"));
 #ifdef BOARD_X6200
     check(att() == 30, "20m CW never set: 20m SSB's attenuator", att());
     check(row(6, "smeter_att") == NONE, "20m CW: no attenuator row from a load", row(6, "smeter_att"));
+    check(att_bat() == 28, "20m CW, on battery never set: the start from 5 MHz up", att_bat());
 #endif
 
     /* Different values in the two parts of 40 m: each keeps its own */
@@ -164,12 +181,48 @@ int main(int argc, char **argv) {
 
     /* Measure on 20m CW at the value it took from 20m SSB: the rows of both */
     to_band(6);
-    measure(30);
+    measure(false, 30);
     check(row(6, "smeter_att") == 30 && row(7, "smeter_att") == 30, "Measure at an unchanged value, both rows",
           row(6, "smeter_att"));
-    measure(33);
+    measure(false, 33);
     to_band(7);
     check(att() == 33, "20m SSB after Measure on 20m CW", att());
+
+    /* Measure on battery on 40m SSB: the figure on battery of both parts, the one on the supply as it was */
+    to_band(4);
+    measure(true, 27);
+    check(att_bat() == 27 && att() == 31, "40m SSB after Measure on battery: on battery 27, on the supply 31", att());
+    check(row(3, "smeter_att_bat") == 27 && row(4, "smeter_att_bat") == 27, "both parts' rows on battery",
+          row(3, "smeter_att_bat"));
+    check(row(3, "smeter_att") == 31 && row(4, "smeter_att") == 31, "both parts' rows on the supply, as they were",
+          row(4, "smeter_att"));
+    to_band(3);
+    check(att_bat() == 27 && att() == 31, "40m CW: both figures as 40m SSB's", att_bat());
+
+    /* Measure on battery at the start's value: its row all the same */
+    to_band(7);
+    measure(true, 28);
+    check(row(6, "smeter_att_bat") == 28 && row(7, "smeter_att_bat") == 28, "Measure on battery at the start: rows",
+          row(7, "smeter_att_bat"));
+
+    /* Measure on the supply after: the figure on the supply, the one on battery as it was */
+    measure(false, 16);
+    check(att() == 16 && att_bat() == 28, "Measure on the supply: that figure alone", att());
+    check(row(6, "smeter_att") == 16 && row(7, "smeter_att") == 16 && row(7, "smeter_att_bat") == 28,
+          "the rows on the supply set, on battery as they were", row(7, "smeter_att"));
+
+    /* The slider on battery: as Measure, both parts */
+    cfg_sm.p_band_smeter_att_bat.set(26);
+    to_band(6);
+    check(att_bat() == 26, "20m CW right after a set on battery on 20m SSB", att_bat());
+
+    /* A band never set: its starts, on the supply 16 dB everywhere */
+    to_band(1);
+    check(att() == 16 && att_bat() == 59, "160m never set: 16 and 59 dB", att_bat());
+    to_band(2);
+    check(att() == 16 && att_bat() == 34, "80m never set: 16 and 34 dB", att_bat());
+    check(row(2, "smeter_att") == NONE && row(2, "smeter_att_bat") == NONE, "80m: no rows from a load",
+          row(2, "smeter_att_bat"));
 #endif
 
     /* Nothing else is shared */
@@ -185,7 +238,8 @@ int main(int argc, char **argv) {
     to_band(5);
     check(cal() == SMETER_CAL_START, "30m never set: the start", cal());
 #ifdef BOARD_X6200
-    check(att() == 34, "30m never set: the attenuator start", att());
+    check(att() == 16, "30m never set: the attenuator start on the supply", att());
+    check(att_bat() == 28, "30m never set: the attenuator start on battery", att_bat());
 #endif
     cfg_sm.p_band_smeter_cal.set(8);
     check(rows("smeter_cal") == n + 1 && row(5, "smeter_cal") == 8, "30m's set, its row alone", rows("smeter_cal"));

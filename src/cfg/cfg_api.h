@@ -100,7 +100,8 @@ extern ParamInt         *cfg_cluster_all_bands;  // p_cluster_all_bands
 extern ParamInt         *cfg_waterfall_ref;      // p_waterfall_ref
 extern ParamInt         *cfg_smeter_cal;         // p_band_smeter_cal (current band)
 extern ParamInt         *cfg_smeter_pre;         // p_smeter_pre
-extern ParamInt         *cfg_smeter_att;         // p_smeter_att (X6200: p_band_smeter_att, current band)
+extern ParamInt         *cfg_smeter_att;         // p_smeter_att (X6200: p_band_smeter_att, current band, on a supply)
+extern ParamInt         *cfg_smeter_att_bat;     // X6200: p_band_smeter_att_bat, current band, on battery (#125)
 extern ParamInt         *cfg_smeter_rfg;         // p_smeter_rfg
 extern ParamInt         *cfg_waterfall_speed;    // p_waterfall_speed
 extern ParamInt         *cfg_wf_mode;            // p_wf_mode

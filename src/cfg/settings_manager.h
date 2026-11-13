@@ -70,7 +70,7 @@ class SettingsManager {
     // Public because it is the shared sink of the managed parameters;
     // flushing goes through the manager methods (flush_all / flush_storage).
     PendingWrites pending_writes_;
-    // The sink of the S-meter cal and the X6200's attenuator figure: into pending_writes_, for every part
+    // The sink of the S-meter cal and the X6200's attenuator figures: into pending_writes_, for every part
     SmeterShareSink smeter_share_sink_{pending_writes_};
 
     // Parameter registries (non-owning). MUST be declared before any Parameter
@@ -286,8 +286,9 @@ class SettingsManager {
     // change: the preamp's gain, the attenuator's depth, and hundredths of a dB for each RF gain
     // step under 100. Defaults measured on one radio; Settings > TX Cal > S-METER > Measure sets
     // them for this one (smeter.c, settings_window.cpp). The X6200's preamp gives about 16 dB (two radios, 14 to
-    // 20 dB on 80, 40, 20 and 10 m, #125); its attenuator is the band's, p_band_smeter_att, and the one attenuator
-    // value is the X6100's alone: the X6200 neither reads nor writes the row v0.3.8 stored, left for going back
+    // 20 dB on 80, 40, 20 and 10 m, #125); its attenuator figures are the band's, p_band_smeter_att and
+    // p_band_smeter_att_bat, and the one attenuator value is the X6100's alone: the X6200 neither reads nor writes
+    // the row v0.3.8 stored, left for going back
 #ifdef BOARD_X6200
     Parameter<int32_t> p_smeter_pre{"smeter_pre", 16, 0, 40,
 #else
@@ -598,15 +599,28 @@ class SettingsManager {
         &band_params_};
 #ifdef BOARD_X6200
     // The attenuator's depth on this band, dB, added back to the S-meter reading with ATT on (smeter.c): the
-    // X6200's takes 24 to about 62 dB off depending on the band and the radio (two radios, #125), past the one value
-    // p_smeter_att (0..40) the X6100 keeps. Settings > TX Cal > S-METER and its Measure set the band's. A band never
-    // set starts from the radios' figure for its frequency (smeter_att_start, smeter_att.c), also where v0.3.8 stored
-    // its one value; that start is never written, so a band set keeps its own and the others follow a new figure.
-    // Measure writes the band's also when it comes out at the start (store()). Up to SMETER_ATT_MAX (smeter_att.h).
-    // Shared by the parts of 40 m and 20 m, as p_band_smeter_cal
-    Parameter<int32_t> p_band_smeter_att{"smeter_att", 34, [](int32_t v) { return clip(v, 0, SMETER_ATT_MAX); },
+    // X6200's takes 15 to about 62 dB off depending on the band, the radio and the power (two radios, #125), past the
+    // one value p_smeter_att (0..40) the X6100 keeps. Two figures, as it takes off more on the battery alone than on
+    // an external supply: p_band_smeter_att on a supply, its row the one figure's of before (SMETER_ATT_ROW), and
+    // p_band_smeter_att_bat on battery; the meter takes the one for the power the radio is on (meter_on_battery).
+    // Settings > TX Cal > S-METER sets each, and its Measure the one for the power it measured on. A band never set
+    // starts from the figure for its frequency and that power (smeter_att_start, smeter_att.c), also where v0.3.8
+    // stored its one value; that start is never written, so a band set keeps its own and the others follow a new
+    // figure. Measure writes the band's also when it comes out at the start (store()). Up to SMETER_ATT_MAX
+    // (smeter_att.h). Shared by the parts of 40 m and 20 m, as p_band_smeter_cal
+    Parameter<int32_t> p_band_smeter_att{SMETER_ATT_ROW, 16, [](int32_t v) { return clip(v, 0, SMETER_ATT_MAX); },
         StorageType::BAND, smeter_share_sink_,
-        [this] { p_band_smeter_att.set_quiet(smeter_shared_row(p_band_smeter_att).value_or(smeter_att_start())); },
+        [this] {
+            p_band_smeter_att.set_quiet(
+                smeter_shared_row(p_band_smeter_att).value_or(smeter_att_start(p_band_smeter_att, false)));
+        },
+        &band_params_};
+    Parameter<int32_t> p_band_smeter_att_bat{SMETER_ATT_BAT_ROW, 28,
+        [](int32_t v) { return clip(v, 0, SMETER_ATT_MAX); }, StorageType::BAND, smeter_share_sink_,
+        [this] {
+            p_band_smeter_att_bat.set_quiet(
+                smeter_shared_row(p_band_smeter_att_bat).value_or(smeter_att_start(p_band_smeter_att_bat, true)));
+        },
         &band_params_};
 #endif
     // BAND VFO params (context_id = bands_id). These are NOT in the band
@@ -892,11 +906,17 @@ class SettingsManager {
     // WR12 receives
     int32_t default_mode(int32_t freq) const;
 
-    // The bands that share the S-meter cal and the X6200's attenuator figure with band_id, by frequency
+    // The bands that share the S-meter cal and the X6200's attenuator figures with band_id, by frequency
     // (smeter_share_group): the parts of 40 m, or of 20 m, band_id among them, in the order of the band list. Only
     // band_id's own where it shares with none, nothing outside the bands. Read from the list each time: the web page
     // edits it while the radio runs
     static std::vector<BandInfo> smeter_parts(int32_t band_id);
+
+#ifdef BOARD_X6200
+    // The X6200's attenuator figure for the power the radio is on, battery or a supply: the one the meter adds back
+    // and Measure sets (#125)
+    Parameter<int32_t> &smeter_att_for(bool battery) { return battery ? p_band_smeter_att_bat : p_band_smeter_att; }
+#endif
 
   private:
     // active VFO frequency of the current band (compute fn for cp_fg_freq).
@@ -1011,8 +1031,9 @@ class SettingsManager {
     bool band_usable(int32_t id) const;
 
 #ifdef BOARD_X6200
-    // p_band_smeter_att on a band never set: the X6200s' figure for the band's frequency
-    int32_t smeter_att_start() const;
+    // An attenuator figure, p_band_smeter_att or p_band_smeter_att_bat, on a band never set: the X6200's for the
+    // band's frequency, on a supply or on battery
+    int32_t smeter_att_start(const ParamBase &p, bool battery) const;
 #endif
     // A shared S-meter figure on a part with no row of its own: the row of another part of the band, if one has it
     std::optional<int32_t> smeter_shared_row(const ParamBase &p) const;

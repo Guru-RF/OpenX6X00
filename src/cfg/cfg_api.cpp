@@ -71,6 +71,7 @@ ParamInt         *cfg_waterfall_ref       = nullptr;
 ParamInt         *cfg_smeter_cal          = nullptr;
 ParamInt         *cfg_smeter_pre          = nullptr;
 ParamInt         *cfg_smeter_att          = nullptr;
+ParamInt         *cfg_smeter_att_bat      = nullptr;
 ParamInt         *cfg_smeter_rfg          = nullptr;
 ParamInt         *cfg_waterfall_speed     = nullptr;
 ParamInt         *cfg_wf_mode             = nullptr;
@@ -269,6 +270,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_smeter_pre       = &cfg_sm.p_smeter_pre;
 #ifdef BOARD_X6200
     cfg_smeter_att       = &cfg_sm.p_band_smeter_att;   /* the X6200's attenuator: the band's (#125) */
+    cfg_smeter_att_bat   = &cfg_sm.p_band_smeter_att_bat;   /* and on battery alone */
 #else
     cfg_smeter_att       = &cfg_sm.p_smeter_att;
 #endif

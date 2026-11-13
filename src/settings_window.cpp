@@ -3786,33 +3786,34 @@ static lv_obj_t * upd_line(uint8_t row);
  * noise) the meter is read with everything off, then with PRE, with ATT, and at RF gain 40, 1.5 s
  * to settle and 1.5 s of readings each, and what was left over moves the three settings.
  * PRE, ATT and the RF gain go back as they were after, also when the page closes or on TX.
- * The X6200's attenuator takes 24 to about 62 dB off depending on the band and the radio (#125): there its
- * figure is the band's, up to 70 dB, and Measure sets the band's; and the signal has to be about S9 or
- * more, so that it stays over the noise with ATT on: 3 dB under S9 passes, as its readings are whole dB
+ * The X6200's attenuator takes 15 to about 62 dB off depending on the band, the radio and the power (#125): there
+ * its figure is the band's, up to 70 dB, one on an external supply and one on the battery alone, which takes more
+ * off; Measure sets the band's for the power the radio is on (meter_on_battery). And the signal has to be about S9
+ * or more, so that it stays over the noise with ATT on: 3 dB under S9 passes, as its readings are whole dB
  * from the base and a generator set to S9, -73 dBm, reading a dB under it was refused. The X6100 has one
  * figure, up to 40 dB, and takes S5 or more. */
 #ifdef BOARD_X6200
-static ParamInt &sm_att = cfg_sm.p_band_smeter_att;
 #define SM_ATT_MAX   SMETER_ATT_MAX
-#define SM_ATT_WHERE " on this band"
 #define SMC_MIN      (S9 - 3)
 #define SMC_MIN_S    "S9"
+static param_slider_t sm_att_slider     = {&cfg_sm.p_band_smeter_att, 0, SM_ATT_MAX, 1, "%i dB"};
+static param_slider_t sm_att_bat_slider = {&cfg_sm.p_band_smeter_att_bat, 0, SM_ATT_MAX, 1, "%i dB"};
 #else
 static ParamInt &sm_att = cfg_sm.p_smeter_att;
 #define SM_ATT_MAX   40
-#define SM_ATT_WHERE ""
 #define SMC_MIN      S5
 #define SMC_MIN_S    "S5"
+static param_slider_t sm_att_slider = {&sm_att, 0, SM_ATT_MAX, 1, "%i dB"};
 #endif
 static param_slider_t sm_pre_slider = {&cfg_sm.p_smeter_pre, 0, 40, 1, "%i dB"};
-static param_slider_t sm_att_slider = {&sm_att, 0, SM_ATT_MAX, 1, "%i dB"};
 
 #define SMC_SETTLE   15     /* ticks of 100 ms */
 #define SMC_SAMPLE   15
 #define SMC_RFG_LOW  40
 #define SMC_STEPS    4
 
-static lv_obj_t   *smc_sl[3];       /* the sliders: Preamp, Attenuator, RF gain (hundredths a step) */
+static lv_obj_t   *smc_sl[4];       /* the sliders: Preamp, Attenuator (X6200: on a supply), RF gain (hundredths a
+                                     * step), and the X6200's Attenuator on battery */
 static lv_obj_t   *smc_btn, *smc_note;
 static lv_timer_t *smc_timer;
 static int         smc_step;        /* 0 all off, 1 PRE, 2 ATT, 3 RF gain low */
@@ -3821,6 +3822,9 @@ static float       smc_sum, smc_min, smc_max;
 static float       smc_read[SMC_STEPS];
 static int32_t     smc_pre, smc_att, smc_rfg;     /* as they were */
 static int32_t     smc_band;                       /* the band measured: PRE and ATT are per band */
+#ifdef BOARD_X6200
+static bool        smc_bat;                        /* measured on the battery alone: the attenuator's figure for it */
+#endif
 
 static void sm_rfg_cb(lv_event_t *e) {
     lv_obj_t *obj = lv_event_get_target(e);
@@ -3891,6 +3895,13 @@ static void smc_timer_cb(lv_timer_t *t) {
         smc_stop_fe("Stopped: band changed. Check PRE and ATT on the band you left.", false);
         return;
     }
+#ifdef BOARD_X6200
+    if (meter_on_battery() != smc_bat) {
+        /* The attenuator takes off another figure on each power (#125): the readings would mix the two */
+        smc_stop("Stopped: the supply came or went. Nothing changed.");
+        return;
+    }
+#endif
     smc_tick++;
     if (smc_tick <= SMC_SETTLE) {
         if (smc_tick == 1) {
@@ -3932,6 +3943,10 @@ static void smc_timer_cb(lv_timer_t *t) {
         return;
     }
 
+#ifdef BOARD_X6200
+    /* The figure for the power it measured on, which the readings came through */
+    ParamInt &sm_att = cfg_sm.smeter_att_for(smc_bat);
+#endif
     /* The readings came through the present corrections: each moves by what was left over */
     int32_t pre = LV_CLAMP(0, lroundf(cfg_sm.p_smeter_pre.get() + (smc_read[1] - smc_read[0])), 40);
     int32_t att = LV_CLAMP(0, lroundf(sm_att.get() + (smc_read[0] - smc_read[2])), SM_ATT_MAX);
@@ -3944,7 +3959,11 @@ static void smc_timer_cb(lv_timer_t *t) {
 
     smc_stop(NULL);
     smc_slider_set(smc_sl[0], pre, 1);
+#ifdef BOARD_X6200
+    smc_slider_set(smc_sl[smc_bat ? 3 : 1], att, 1);
+#else
     smc_slider_set(smc_sl[1], att, 1);
+#endif
     smc_slider_set(smc_sl[2], rfg, 5);
     cfg_sm.p_smeter_pre.set(pre);   /* also without the sliders (the page may be gone) */
     sm_att.set(att);
@@ -3957,19 +3976,18 @@ static void smc_timer_cb(lv_timer_t *t) {
     /* The band by its name: the page follows the band, so "this band" would be another one after a band change, and
      * a broadcast carrier next to a ham band sets the broadcast band's figure, not the ham band's. PRE and ATT as on
      * the keys, for the line to hold "Broadcast 41m". On 40 m and 20 m every part the figure went to, "40m CW and
-     * 40m SSB" (smeter_parts, #125), and the RF gain then only on its slider, for the line to fit */
+     * 40m SSB" (smeter_parts, #125). And the power it was set for, "on the supply" or "on battery" (#125): the RF
+     * gain then only on its slider, and at the top PRE too, for the line to fit */
     std::vector<BandInfo> parts  = SettingsManager::smeter_parts(smc_band);
     std::string           set_on = smeter_parts_names(parts);
-    const char *on   = parts.empty() ? "outside the bands" : "on ";
-    const char *name = set_on.c_str();
+    const char *on    = parts.empty() ? "outside the bands" : "on ";
+    const char *name  = set_on.c_str();
+    const char *power = smc_bat ? "on battery" : "on the supply";
 
     if (att_top) {
-        snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i, the top, so %i or more.", on, name, pre, att, att);
-    } else if (parts.size() > 1) {
-        snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i dB.", on, name, pre, att);
+        snprintf(buf, sizeof(buf), "Done %s%s, %s: ATT %i, the top, so %i or more.", on, name, power, att, att);
     } else {
-        snprintf(buf, sizeof(buf), "Done %s%s: PRE %i dB, ATT %i dB, RF gain %i.%02i dB a step.", on, name, pre, att,
-                 rfg / 100, rfg % 100);
+        snprintf(buf, sizeof(buf), "Done %s%s, %s: PRE %i dB, ATT %i dB.", on, name, power, pre, att);
     }
 #else
     if (att_top) {
@@ -3995,6 +4013,9 @@ static void smc_btn_cb(lv_event_t *e) {
     smc_att  = cparam_i_get(cfg_cur_att);
     smc_rfg  = param_i_get(cfg_rfgain);
     smc_band = param_i_get(cfg_band_id);
+#ifdef BOARD_X6200
+    smc_bat  = meter_on_battery();
+#endif
     smc_step = 0;
     smc_tick = 0;
     smc_timer = lv_timer_create(smc_timer_cb, 100, NULL);
@@ -4021,13 +4042,25 @@ static uint8_t make_smeter_fe(uint8_t row) {
     smc_sl[0] = param_slider(row_cell(row, 4, 3, SMALL_3), SMALL_3 - 134, &sm_pre_slider);
     lv_obj_add_event_cb(smc_sl[0], ptr_clear_cb, LV_EVENT_DELETE, &smc_sl[0]);
     row++;
-    wl_row_label(row, "Attenuator" SM_ATT_WHERE);
+#ifdef BOARD_X6200
+    /* The band's two figures, each following a band change: the one for the power the radio is on is the one in use
+     * (#125) */
+    wl_row_label(row, "Attenuator on supply");
     smc_sl[1] = param_slider(row_cell(row, 4, 3, SMALL_3), SMALL_3 - 134, &sm_att_slider);
     lv_obj_add_event_cb(smc_sl[1], ptr_clear_cb, LV_EVENT_DELETE, &smc_sl[1]);
-#ifdef BOARD_X6200
-    observers.emplace_back(sm_att.subscribe(sm_att_follow, smc_sl[1]));
-#endif
+    observers.emplace_back(cfg_sm.p_band_smeter_att.subscribe(sm_att_follow, smc_sl[1]));
     row++;
+    wl_row_label(row, "Attenuator on battery");
+    smc_sl[3] = param_slider(row_cell(row, 4, 3, SMALL_3), SMALL_3 - 134, &sm_att_bat_slider);
+    lv_obj_add_event_cb(smc_sl[3], ptr_clear_cb, LV_EVENT_DELETE, &smc_sl[3]);
+    observers.emplace_back(cfg_sm.p_band_smeter_att_bat.subscribe(sm_att_follow, smc_sl[3]));
+    row++;
+#else
+    wl_row_label(row, "Attenuator");
+    smc_sl[1] = param_slider(row_cell(row, 4, 3, SMALL_3), SMALL_3 - 134, &sm_att_slider);
+    lv_obj_add_event_cb(smc_sl[1], ptr_clear_cb, LV_EVENT_DELETE, &smc_sl[1]);
+    row++;
+#endif
     wl_row_label(row, "RF gain, a step");
     smc_sl[2] = row_slider(row_cell(row, 4, 3, SMALL_3), rfg / 5, 0, 40, SMALL_3 - 134, sm_rfg_cb, NULL,
                            "%i.%02i dB", rfg / 100, rfg % 100);

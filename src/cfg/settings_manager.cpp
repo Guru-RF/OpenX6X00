@@ -379,17 +379,18 @@ bool SettingsManager::band_usable(int32_t id) const {
 }
 
 #ifdef BOARD_X6200
-// The X6200's attenuator on a band never set (#125): the figure for the band's frequency (smeter_att.c). The one value
-// of v0.3.8 and before (params "smeter_att": 15 dB, or a Measure on one band) is not taken: it fit one band at most.
-// Its row stays, for going back
-int32_t SettingsManager::smeter_att_start() const {
-    BandInfoLoadResult b = BandsTable::get_by_id(p_band_smeter_att.context_id());
+// The X6200's attenuator on a band never set (#125): the figure for the band's frequency and the power (smeter_att.c).
+// The one value of v0.3.8 and before (params "smeter_att": 15 dB, or a Measure on one band) is not taken: it fit one
+// band at most. Its row stays, for going back
+int32_t SettingsManager::smeter_att_start(const ParamBase &p, bool battery) const {
+    BandInfoLoadResult b = BandsTable::get_by_id(p.context_id());
 
-    return b.rc == SUCCESS ? smeter_att_start_band(b.value.start_freq, b.value.stop_freq) : smeter_att_start_band(0, 0);
+    return b.rc == SUCCESS ? smeter_att_start_band(b.value.start_freq, b.value.stop_freq, battery)
+                           : smeter_att_start_band(0, 0, battery);
 }
 #endif
 
-// The parts of 40 m and 20 m share the S-meter cal and the X6200's attenuator figure (#125): the receiver is the same
+// The parts of 40 m and 20 m share the S-meter cal and the X6200's attenuator figures (#125): the receiver is the same
 // across 7.0 to 7.3 MHz, and a calibration at 7.100 left 7.020 at the start
 std::vector<BandInfo> SettingsManager::smeter_parts(int32_t band_id) {
     std::vector<BandInfo> all = BandsTable::all_bands(), parts;
