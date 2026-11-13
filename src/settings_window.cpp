@@ -156,10 +156,15 @@ static dialog_t dialog = {
 
 dialog_t *dialog_settings = &dialog;
 
-/* The Ethernet card starts from the settings in use, not from a draft left on the tab */
+/* The Ethernet card starts from the settings in use, not from a draft left on the tab. A WiFi scan as the tab
+ * opens: while connected nothing else scans (the background scans are off, see dispatcher.d/20-wifi-steady), and
+ * the networks last seen drop out of the list after a few minutes */
+static void wifi_scan();
+
 static void make_wireless_tab() {
     eth_draft_load();
     make_wireless_page();
+    wifi_scan();
 }
 
 /* In the order of the buttons, four to a page */
@@ -2056,13 +2061,17 @@ static void wifi_power_cb(lv_event_t *e) {
     wifi_update();
 }
 
-static void wifi_scan_cb(lv_event_t *e) {
+static void wifi_scan() {
     wifi_status_t status = wifi_get_status();
 
     if (status == WIFI_OFF || status == WIFI_STARTING || wifi_scanning()) {
         return;
     }
     wifi_start_scan();
+}
+
+static void wifi_scan_cb(lv_event_t *e) {
+    wifi_scan();
 }
 
 static bool wl_kbd_close() {

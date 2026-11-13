@@ -1,0 +1,49 @@
+#!/bin/sh
+# A WiFi link up: no power saving and no background scans for as long as it lasts.
+#
+# Power saving: NetworkManager turns it off at the join (conf.d/x6100-wifi-steady.conf); here again, for a profile
+# that asks for it on (one restored from another system).
+#
+# Background scans: NetworkManager gives the supplicant "simple:30:-70:86400" for every network, a scan every 30 s
+# while the signal is under -70 dBm and once a day above it, and "simple:30:-65:300" once it has seen two access
+# points of the network. Each scan takes the chip off the network's channel for a second or more: on a weak link
+# the Panel, the Screen page and TCI stalled every 30 s, and the shared antenna was away from the Bluetooth
+# headphones meanwhile. NetworkManager has no setting to leave them out (only a profile locked to one access point,
+# which then never joins another). So the supplicant's network gets an empty bgscan over D-Bus, which stops them at
+# once and for as long as that network is the one joined. A scan asked for (the WiFi window, Settings > Wireless,
+# Scan) still runs, and the supplicant still looks for the network when the access point is lost: only the timed
+# scans go. NetworkManager hands the supplicant the network again at each join, and this runs again then.
+
+IF=$1
+[ "$2" = up ] || exit 0
+[ -e "/sys/class/net/$IF/phy80211" ] || exit 0     # WiFi only: not Ethernet, not the tether
+
+iw dev "$IF" set power_save off 2> /dev/null
+
+SUP=fi.w1.wpa_supplicant1
+call() {
+    gdbus call --system --dest $SUP --timeout 5 "$@" 2> /dev/null
+}
+# gdbus prints (objectpath '/fi/w1/...',) and, for a property, (<objectpath '/fi/w1/...'>,)
+object() {
+    sed -n "s/.*objectpath '\([^']*\)'.*/\1/p"
+}
+
+iface=$(call --object-path /fi/w1/wpa_supplicant1 --method $SUP.GetInterface "$IF" | object)
+net=
+[ -n "$iface" ] && net=$(call --object-path "$iface" --method org.freedesktop.DBus.Properties.Get \
+    $SUP.Interface CurrentNetwork | object)
+case "$net" in
+    */Networks/*)
+        if call --object-path "$net" --method org.freedesktop.DBus.Properties.Set $SUP.Network Properties \
+                "<{'bgscan': <''>}>" > /dev/null; then
+            logger -t wifi "$IF: no background scans while connected"
+        else
+            logger -t wifi "$IF: background scans not turned off (the supplicant refused)"
+        fi
+        ;;
+    *)
+        logger -t wifi "$IF: background scans not turned off (no network joined in the supplicant)"
+        ;;
+esac
+exit 0

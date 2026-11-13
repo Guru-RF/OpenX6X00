@@ -1709,6 +1709,21 @@ Joining a network:
   radio itself: a link, a device, or a name the archive holds twice is left
   out.
 
+Once joined:
+
+- The WiFi stays awake, on both radios: its power saving is off, so the
+  Panel, the Screen page, TCI and the browser remote come without pauses.
+- The radio does not scan for other networks while it is connected: each
+  scan took the chip off the network's channel for a second or more, every
+  30 s on a weak signal. A scan runs when the WiFi window or this tab opens,
+  and on Scan. When the access point is lost the radio still looks for it,
+  and joins it again.
+- The clock is set from the internet (NTP), with three tries 10 s apart, and
+  written into the clock chip. ntpd, which keeps the clock from then on, is
+  started again if it has found no time server yet: it starts with the
+  radio, mostly before there is a network, and asked for its servers again
+  only minutes later. What happened is in `/var/log/ntpdate.log`.
+
 An access point that does not answer the X6100 (#29, #32):
 
 - Some access points never let the X6100 join, with the right password and a

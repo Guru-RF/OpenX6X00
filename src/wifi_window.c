@@ -490,6 +490,12 @@ static void construct_cb(lv_obj_t *parent) {
 
     state_sub = lv_msg_subscribe(MSG_WIFI_STATE_CHANGED, state_cb, NULL);
     state_changed();
+
+    /* A scan as the window opens: while connected nothing else scans (the background scans are off, see
+     * dispatcher.d/20-wifi-steady), and the networks last seen drop out of the list after a few minutes */
+    if (radio_up() && !wifi_scanning()) {
+        wifi_start_scan();
+    }
 }
 
 static void destruct_cb(void) {
