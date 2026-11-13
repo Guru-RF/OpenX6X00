@@ -49,4 +49,6 @@ void audio_gain_db_transition(int16_t *buf, size_t samples, float gain1, float g
 float audio_set_play_vol(float db);
 float audio_set_rec_vol(float db);
 
+/* The input level for the Recorder window's meter: watched from on until off, -60 dB meanwhile and after (audio.c) */
+void audio_peak_watch(bool on);
 float audio_get_peak_db();

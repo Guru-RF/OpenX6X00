@@ -263,6 +263,7 @@ static void open_cb(lv_obj_t *parent) {
 
     files_list = make_list(dialog.obj);
     meter = make_meter(dialog.obj, files_list);
+    audio_peak_watch(true);
     meter_timer = lv_timer_create(meter_cb, 30, NULL);
 
     mkdir(recorder_path, 0755);
@@ -274,6 +275,7 @@ static void close_cb(void) {
     playing = false;    /* the thread stops; play_done() joins it, this screen gone or not */
     textarea_window_close();
     lv_timer_del(meter_timer);
+    audio_peak_watch(false);
 }
 
 static void rec_cb(button_data_t *b) {

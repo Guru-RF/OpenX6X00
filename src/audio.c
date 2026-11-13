@@ -45,11 +45,11 @@ static pa_stream            *capture_stm;
 static char                 *capture_device = BOARD_PA_SOURCE;
 
 static pa_stream            *monitor_stm = NULL;
+static bool                 monitor_wanted; /* the Recorder window is open (audio_peak_watch) */
 
 static float                peak_db = -60.0f;
 static bool                 connected;      /* the context was READY once */
 
-static void record_monitor_setup();
 
 /* On the mainloop thread, with its lock held */
 static void on_state_change(pa_context *c, void *userdata) {
@@ -180,8 +180,6 @@ void audio_init() {
         LV_LOG_ERROR("pa_stream_connect_record() failed: %s", pa_strerror(pa_context_errno(ctx)));
     }
     pa_threaded_mainloop_unlock(mloop);
-
-    record_monitor_setup();
 }
 
 void audio_mixer_setup(radio_base_ver_t base_ver) {
@@ -524,24 +522,62 @@ static void monitor_cb(pa_stream *stream, size_t nbytes, void *udata) {
     peak_db = 20.0f * log10f(LV_CLAMP(1.0f / ((1UL << 15) - 1), peak, 1.0f));
 }
 
+/* The meter stream ended: disconnected first if the server has it, and let go (libpulse frees it once it is gone) */
+static void monitor_drop(void) {
+    pa_stream_set_state_callback(monitor_stm, NULL, NULL);
+    pa_stream_set_read_callback(monitor_stm, NULL, NULL);
+    if (pa_stream_get_state(monitor_stm) == PA_STREAM_READY) {
+        pa_stream_disconnect(monitor_stm);
+    }
+    pa_stream_unref(monitor_stm);
+    monitor_stm = NULL;
+}
 
-static void record_monitor_setup() {
+/* A stream cannot be disconnected before the server has answered it: one closed before that is dropped when the
+ * answer comes, else it would read on unseen, and one that failed is dropped so the next opening makes a new one */
+static void monitor_state_cb(pa_stream *stream, void *udata) {
+    pa_stream_state_t st = pa_stream_get_state(stream);
 
-    pa_sample_spec  spec = {
-        .format = PA_SAMPLE_FLOAT32,
-        .channels = 1,
-        .rate = AUDIO_RATE_MS,
-    };
-    pa_buffer_attr  attr = {
-        .maxlength = (uint32_t) -1,
-        .fragsize = sizeof(float),      /* one peak per fragment */
-    };
+    if (stream == monitor_stm && st != PA_STREAM_CREATING && (!monitor_wanted || st != PA_STREAM_READY)) {
+        monitor_drop();
+    }
+}
 
-    monitor_stm = pa_stream_new(ctx, "X6100 GUI Monitor", &spec, NULL);
-
+/* The level for the Recorder window's meter, only while the window is open. The stream's fragment is one peak, 10 ms,
+ * and PulseAudio runs the codec's capture at the shortest fragment any stream on it asks for: with this stream always
+ * there, every other stream's 100 ms (the decoders') or 20 ms (Winlink's) was read in 10 ms pieces, and a hundred
+ * peaks a second came to the GUI that only that window shows */
+void audio_peak_watch(bool on) {
+    if (!mloop || !ctx) {
+        return;
+    }
     pa_threaded_mainloop_lock(mloop);
-    pa_stream_set_read_callback(monitor_stm, monitor_cb, NULL);
-    pa_stream_connect_record(monitor_stm, capture_device, &attr,
-                             PA_STREAM_PEAK_DETECT | PA_STREAM_DONT_MOVE | PA_STREAM_ADJUST_LATENCY);
+    monitor_wanted = on;
+    if (on && !monitor_stm) {
+        pa_sample_spec spec = {
+            .format = PA_SAMPLE_FLOAT32,
+            .channels = 1,
+            .rate = AUDIO_RATE_MS,
+        };
+        pa_buffer_attr attr = {
+            .maxlength = (uint32_t) -1,
+            .fragsize = sizeof(float),      /* one peak per fragment */
+        };
+
+        monitor_stm = pa_stream_new(ctx, "X6100 GUI Monitor", &spec, NULL);
+        if (monitor_stm) {
+            pa_stream_set_state_callback(monitor_stm, monitor_state_cb, NULL);
+            pa_stream_set_read_callback(monitor_stm, monitor_cb, NULL);
+            if (pa_stream_connect_record(monitor_stm, capture_device, &attr,
+                                         PA_STREAM_PEAK_DETECT | PA_STREAM_DONT_MOVE | PA_STREAM_ADJUST_LATENCY) < 0) {
+                monitor_drop();
+            }
+        }
+    } else if (!on && monitor_stm && pa_stream_get_state(monitor_stm) != PA_STREAM_CREATING) {
+        monitor_drop();
+    }
+    if (!on) {
+        peak_db = -60.0f;   /* the next opening does not start from this one's last peak */
+    }
     pa_threaded_mainloop_unlock(mloop);
 }
