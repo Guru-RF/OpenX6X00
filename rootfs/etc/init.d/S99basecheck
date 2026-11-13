@@ -1,0 +1,53 @@
+#!/bin/sh
+#
+# The X6200's base firmware, checked once a day: x6x00-base-fetch check reads xiegu.eu's downloads page and compares
+# it with the releases known and with the base's version (/tmp/x6x00-base-version, from the GUI), into
+# /mnt/base_update/check.json. The GUI says a newer one once (and Settings > Info > Base firmware shows it);
+# nothing is downloaded and the base is never written by this. The first look 5 to 35 minutes after the start (a
+# random wait: radios do not all ask xiegu.eu at once), then every 24 hours, or every hour while there is no network.
+# /mnt/base_update/no-check stops it. On the X6100 it does nothing.
+#
+PIDFILE=/var/run/basecheck.pid
+DIR=/mnt/base_update
+
+loop() {
+    sleep $((300 + RANDOM % 1800))
+    while :; do
+        if [ -e "$DIR/no-check" ]; then
+            sleep 86400
+            continue
+        fi
+        if /usr/sbin/x6x00-base-fetch check --out "$DIR" > /tmp/basecheck.log 2>&1; then
+            sleep 86400
+        else
+            sleep 3600
+        fi
+    done
+}
+
+start() {
+    grep -q 'xiegu,x6200' /proc/device-tree/compatible 2> /dev/null || return 0     # the X6200's base only
+    [ -x /usr/sbin/x6x00-base-fetch ] || return 0
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2> /dev/null; then
+        return 0
+    fi
+    printf 'Starting basecheck: '
+    loop < /dev/null > /dev/null 2>&1 &
+    echo $! > "$PIDFILE"
+    echo "OK"
+}
+
+stop() {
+    printf 'Stopping basecheck: '
+    [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2> /dev/null
+    rm -f "$PIDFILE"
+    echo "OK"
+}
+
+case "$1" in
+    start | stop) "$1" ;;
+    restart | reload) stop; start ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|reload}"
+        exit 1 ;;
+esac
