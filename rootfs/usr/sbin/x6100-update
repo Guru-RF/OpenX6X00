@@ -18,6 +18,14 @@
 #   confirm                  the new version runs: the pending mark goes (the GUI, after a minute)
 #   boot-check               before each GUI start (x6100_daemon): a pending version that keeps
 #                            dying is rolled back
+#   fault settings           the pending version could not use the settings file (the GUI, at its start):
+#                            the step back that follows says so instead of "did not stay up"
+#   notice                   "ok <text>" once after a version was taken back, what the GUI shows at its
+#                            next start; "ok" when there is nothing (new) to say
+#
+# A step back is kept in last.json with its reason ("reason": starts, settings, hand, interrupted) and the
+# sentence that says it ("text"); status gives that sentence for a last.json of an earlier updater too, from
+# the fields it has. "why" stays for the web pages of the versions before, which show it.
 #
 # Going back by hand to a version before Tailscale Funnel (rollback, or the install of its bundle) takes Funnel
 # off first, and refuses when it cannot be sure of that (#58): that version would leave the funnel on the
@@ -157,8 +165,71 @@ def before_funnel(version):
     return v + (0,) * (n - len(v)) < FUNNEL_SINCE + (0,) * (n - len(FUNNEL_SINCE))
 
 
-def version_name(version):
-    return f"v{version}" if version_parts(version) > (0,) else "the version before"
+def version_name(version, unknown="the version before"):
+    return f"v{version}" if version_parts(version) > (0,) else unknown
+
+
+# Why a version was taken back, as last.json keeps it, and what is said for each
+REASONS = ("starts", "settings", "hand", "interrupted")
+
+
+def rollback_reason(last):
+    """The reason of a step back in last.json; for one written before "reason" was kept (v0.3.10 and before), from
+    its "why", which each of the three steps back wrote in its own way: none for the one by hand"""
+    reason = last.get("reason")
+    if reason in REASONS:
+        return reason
+    why = str(last.get("why") or "")
+    if reason is None:
+        if not why:
+            return "hand"
+        if "interrupted" in why:
+            return "interrupted"
+        if "did not stay up" in why:
+            return "starts"
+    return ""      # a reason of a later updater, said by its "why"
+
+
+def rollback_text(last):
+    """One line for the screen and the web page: which version was taken back, to which, and why"""
+    what = version_name(last.get("version"), "")
+    head = f"{'Update ' + what if what else 'The update'} taken back to {version_name(last.get('to'))}"
+    reason = rollback_reason(last)
+    if reason == "hand":
+        return f"{head} by hand"
+    if reason == "settings":
+        return f"{head}: it could not use the settings file"
+    if reason == "interrupted":
+        return f"{head}: the install was cut short"
+    if reason == "starts":
+        n = last.get("starts")
+        if not isinstance(n, int):
+            digits = "".join(ch if ch.isdigit() else " " for ch in str(last.get("why") or "")).split()
+            n = int(digits[0]) if digits else MAX_STARTS
+        return f"{head}: it did not stay up a minute in {n} starts"
+    why = str(last.get("why") or "").strip()
+    return f"{head}: {why}" if why else head
+
+
+def last_state():
+    """last.json, its sentence with it: the one it keeps, else made from its fields (an earlier updater's file)"""
+    last = load(LAST)
+    if not isinstance(last, dict):
+        return None
+    if last.get("result") == "rolled back" and not last.get("text"):
+        last["text"] = rollback_text(last)
+    return last
+
+
+def save_rollback(version, to, reason, **more):
+    """last.json for a step back: the reason, the sentence, and "why" for the web pages of the versions before"""
+    why = {"starts": f"the GUI did not stay up ({more.get('starts', MAX_STARTS)} starts)",
+           "settings": "this version could not use the settings file",
+           "interrupted": "the install was interrupted", "hand": "taken back by hand"}[reason]
+    last = {"result": "rolled back", "version": version, "to": to, "reason": reason, "why": why, **more,
+            "when": time.time()}
+    last["text"] = rollback_text(last)
+    save(LAST, last)
 
 
 def funnel_off_before(version, what):
@@ -503,7 +574,7 @@ def cmd_rollback(args):
     save(JOURNAL, journal)
     if os.path.exists(PENDING):
         os.remove(PENDING)
-    save(LAST, {"result": "rolled back", "version": journal.get("version"), "to": journal.get("from"), "when": time.time()})
+    save_rollback(journal.get("version"), journal.get("from"), "hand")
     restart_apps()
     return f"ok back to {journal.get('from')}{note}"
 
@@ -529,8 +600,7 @@ def cmd_boot_check(args):
         save(JOURNAL, journal)
         if os.path.exists(PENDING):
             os.remove(PENDING)
-        save(LAST, {"result": "rolled back", "version": journal.get("version"), "to": journal.get("from"),
-                    "why": "the install was interrupted", "when": time.time()})
+        save_rollback(journal.get("version"), journal.get("from"), "interrupted")
         return "rolled back: interrupted install"
     pend = load(PENDING)
     if not pend:
@@ -543,16 +613,49 @@ def cmd_boot_check(args):
             journal["state"] = "rolled back"
             save(JOURNAL, journal)
         os.remove(PENDING)
-        save(LAST, {"result": "rolled back", "version": pend.get("version"), "to": pend.get("from"),
-                    "why": f"the GUI did not stay up ({MAX_STARTS} starts)", "when": time.time()})
+        # A GUI that came up on the defaults because it could not use the settings file said so (fault): it was
+        # never confirmed, but it did not die
+        if pend.get("fault") == "settings":
+            save_rollback(pend.get("version"), pend.get("from"), "settings")
+        else:
+            save_rollback(pend.get("version"), pend.get("from"), "starts", starts=MAX_STARTS)
         return f"rolled back to {pend.get('from')}"
     save(PENDING, pend)
     return f"pending {pend.get('version')} start {pend['starts']}"
 
 
+def cmd_fault(args):
+    """The pending version's GUI could not use the settings file (params/db.c, database_version_fault): it runs on
+    the defaults and is not confirmed, and the step back after MAX_STARTS starts says why"""
+    if args != ["settings"]:
+        raise Fail("fault takes: settings")
+    pend = load(PENDING)
+    if not isinstance(pend, dict):
+        return "ok nothing pending"
+    if pend.get("fault") != "settings":
+        pend["fault"] = "settings"
+        save(PENDING, pend)
+    return f"ok {pend.get('version')} could not use the settings file"
+
+
+def cmd_notice(args):
+    """What the GUI says once at its start: the last step back, until it has been said. The mark goes into last.json,
+    which the next install replaces"""
+    last = last_state()
+    if not last or last.get("result") != "rolled back" or last.get("shown"):
+        return "ok"
+    last["shown"] = time.time()
+    save(LAST, last)
+    return f"ok {last['text']}"
+
+
 def cmd_status(args):
-    return {"running": running_version(), "pending": load(PENDING), "last": load(LAST),
-            "progress": open(PROGRESS).read().strip() if os.path.exists(PROGRESS) else "",
+    try:
+        with open(PROGRESS) as f:
+            prog = f.read().strip()
+    except OSError:
+        prog = ""
+    return {"running": running_version(), "pending": load(PENDING), "last": last_state(), "progress": prog,
             "image": image_state()}
 
 
@@ -573,7 +676,8 @@ def take_lock():
 
 def main(argv):
     cmds = {"status": cmd_status, "check": cmd_check, "download": cmd_download, "install": cmd_install,
-            "upgrade": cmd_upgrade, "rollback": cmd_rollback, "confirm": cmd_confirm, "boot-check": cmd_boot_check}
+            "upgrade": cmd_upgrade, "rollback": cmd_rollback, "confirm": cmd_confirm, "boot-check": cmd_boot_check,
+            "fault": cmd_fault, "notice": cmd_notice}
     if not argv or argv[0] not in cmds:
         print("error usage: x6100-update " + "|".join(cmds))
         return 1

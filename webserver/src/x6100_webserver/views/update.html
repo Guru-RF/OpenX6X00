@@ -58,8 +58,10 @@ var render = function(st, mine) {
   }
   if (st.pending) $("#running").text("v" + st.running + " (installed, waiting for its first minute)");
   if (st.last) {
+    /* A version taken back: the updater's sentence (which, to which, why), the one the radio shows once */
     var l = st.last, when = new Date(l.when * 1000).toLocaleString();
-    $("#last").text(l.result + (l.version ? " v" + l.version : "") + (l.to ? " (back to v" + l.to + ")" : "") + (l.why ? ": " + l.why : "") + ", " + when);
+    $("#last").css("color", l.result == "rolled back" ? "var(--err)" : "")
+      .text((l.text || l.result + (l.version ? " v" + l.version : "") + (l.to ? " (back to v" + l.to + ")" : "") + (l.why ? ": " + l.why : "")) + ", " + when);
   }
   if (st.job && st.job.running) {
     var p = (st.progress || "").split(" "), text = "Working...";

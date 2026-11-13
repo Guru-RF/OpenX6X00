@@ -266,6 +266,29 @@ static void settings_note_cb(lv_timer_t *t) {
     }
 }
 
+#define UPDATE_CTL "/usr/sbin/x6100-update"
+
+/* A version installed by x6100-update is "pending" until the GUI has run a minute: then it is
+ * confirmed, otherwise the start loop rolls it back after three failed starts */
+static void update_confirm_cb(lv_timer_t *t) {
+    sh_run(UPDATE_CTL " confirm", NULL, NULL);
+}
+
+/* A version taken back, said once at the start after it, which version, to which and why: it did not stay up, it
+ * could not use the settings file, by hand, or its install was cut short. The step back happens before this GUI
+ * starts (x6100-update boot-check, or the web page's button), so nothing else on the screen would tell */
+static void update_notice_done(const char *out, int status, void *user) {
+    (void)user;
+    if (status == 0 && strncmp(out, "ok ", 3) == 0 && out[3]) {
+        msg_schedule_text_ms(8000, "%.*s", (int)strcspn(out + 3, "\r\n"), out + 3);
+    }
+}
+
+static void update_notice_cb(lv_timer_t *t) {
+    (void)t;
+    sh_run(UPDATE_CTL " notice", update_notice_done, NULL);
+}
+
 /* Everything that runs beside the GUI, once the radio is up */
 static void services_start(void) {
     cw_init();
@@ -297,6 +320,7 @@ static void services_start(void) {
     dialog_cluster_start_client();
     image_level_notice_init();   /* a newer card image wanted: said once per version */
     lv_timer_set_repeat_count(lv_timer_create(settings_note_cb, 3000, NULL), 1);
+    lv_timer_set_repeat_count(lv_timer_create(update_notice_cb, 4000, NULL), 1);
 }
 
 /* LVGL's clock (lv_tick_mono.h): the GUI loop sets it before each lv_timer_handler(), this thread every 5 ms
@@ -322,11 +346,6 @@ static void tick_start(void) {
 
 /* The events from the threads, the scheduled work, LVGL; then sleep until LVGL wants to
  * run again, or until a key, a knob or another thread wakes it (gui_wake.h) */
-/* A version installed by x6100-update is "pending" until the GUI has run a minute: then it is
- * confirmed, otherwise the start loop rolls it back after three failed starts */
-static void update_confirm_cb(lv_timer_t *t) {
-    sh_run("/usr/sbin/x6100-update confirm", NULL, NULL);
-}
 
 /* Input drawn at once, frames at least this far apart. On the radios one frame of the panel: drm_flush() waits for
  * the flip of the frame before, so a frame drawn sooner is not shown sooner, and the GUI thread waits in wait_flip()
@@ -445,9 +464,12 @@ int main(void) {
     if (!walkie_on() && param_i_get(cfg_field_boot)) {
         main_screen_start_app(ACTION_APP_FIELD);
     }
-    /* Not when this version could not use the settings file (params/db.c): the update is then taken back */
+    /* Not when this version could not use the settings file (params/db.c): the update is then taken back, and the
+     * updater told why, for what it says after the step back */
     if (!database_version_fault()) {
         lv_timer_set_repeat_count(lv_timer_create(update_confirm_cb, 60000, NULL), 1);
+    } else {
+        sh_run(UPDATE_CTL " fault settings", NULL, NULL);
     }
     dialog_field_wavelog_start();
     gui_loop();

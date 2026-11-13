@@ -497,6 +497,22 @@ web configurator (System > Update).
   confirmed. If it does not stay up for a minute three times in a row, the
   start loop puts the previous version back by itself. A power cut during the
   install is undone the same way at the next start.
+- A version taken back is said once on the screen at the next start, which
+  version, to which, and why. Up to v0.3.10 nothing on the screen said so.
+  - "Update v0.3.12 taken back to v0.3.11: it did not stay up a minute in 3
+    starts": the start loop's step back above.
+  - "...: it could not use the settings file": the new version came up on the
+    default settings (see
+    ["Settings not usable by this version"](#settings-file-unusable-put-aside-defaults-loaded))
+    and was not confirmed.
+  - "...: the install was cut short": the power went during the install.
+  - "... by hand": the web page's button below.
+  - The web Update page shows the same line in red under Previous version,
+    Last update, with its date, until the next install. So does
+    `x6100-update status` over SSH, in "last" ("text", and "reason": starts,
+    settings, interrupted or hand).
+  - A step back to v0.3.10 or earlier shows nothing on the screen: those
+    versions know nothing of it. Their web page shows the reason as before.
 - The web page can also take a bundle file (`OpenX6X00-x6100-vX.Y.Z-update.tar.gz` or `OpenX6X00-x6200-vX.Y.Z-update.tar.gz`
   from the releases page) for a radio without internet, and has a button to go
   back to the previous version by hand.
@@ -6774,7 +6790,8 @@ sound but this version could not bring it up to date or use it: a fault of the
 version, not of the file, which is kept. That start runs on the default
 settings and saves nothing. A version installed by an update is then not
 confirmed: after three such starts, the next start goes back to the version
-before. Please report it, with the run's log from `app_logs`.
+before, and says so ("Update ... taken back to ...: it could not use the
+settings file"). Please report it, with the run's log from `app_logs`.
 
 #### On a PC the card has no DATA drive, only an unknown partition
 
