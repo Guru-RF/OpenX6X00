@@ -13,8 +13,8 @@
     <div class="dp-ctl"><input id="url" type="url" autocomplete="off" maxlength="200" placeholder="https://log.example.org"></div>
   </div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="key"><b>API key</b></label><span>Key: <b id="key-state"></b>. A new key replaces the stored one; empty keeps it, for the same server only: with the URL of another one, type its key too. Remove takes it away and stops the upload.</span></div>
-    <div class="dp-ctl"><input id="key" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" id="remove">Remove</button></div>
+    <div class="dp-lbl"><label for="key"><b>API key</b></label><span>Key: <b id="key-state"></b>. A new key replaces the stored one; empty keeps it, for the same server only: with the URL of another one, type its key too. Clear takes it away and stops the upload.</span></div>
+    <div class="dp-ctl"><input id="key" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" id="clear">Clear</button></div>
   </div>
   <div class="dp-row">
     <div class="dp-lbl"><label for="station"><b>Station profile</b></label><span>Automatic: each QSO goes to the profile with the radio's callsign, so changing the callsign on the radio (DF8MH, DF8MH/P) is all it takes. Load reads the profiles of the key from Wavelog</span></div>
@@ -65,8 +65,8 @@ var render = function(data) {
   $("#enabled").prop("checked", data.enabled);
   $("#url").val(data.url);
   $("#key").val("");
-  $("#key-state").text(data.key ? "set (hidden)" : "not set");
-  $("#remove").prop("disabled", !data.key);
+  $("#key-state").text(data.key ? "Set" : "Not set");
+  $("#clear").prop("disabled", !data.key);
   $("#verify").prop("checked", data.verify_tls);
   const sel = baseOptions($("#station"));
   if (data.station_id && data.station_id !== "auto") sel.append(station(data.station_id, data.station_name));
@@ -101,7 +101,7 @@ var asks = function(on) {
 
 var post = function(url, data, done, statusId) {
   const ms = url === "/api/wavelog/sync" ? 345000 : 55000;   /* x6100-wavelog: 330 s for a sync, 40 s for the rest */
-  const helper = url !== "/api/wavelog";   /* Save and Remove don't wait for it */
+  const helper = url !== "/api/wavelog";   /* Save and Clear don't wait for it */
   if (helper) asks(true);
   $.ajax({
     url: url,
@@ -149,9 +149,9 @@ $("#conf").on("submit", function(e) {
        function(r) { render(r); showStatus("#status", r.enabled ? "Saved: the next QSO goes to Wavelog" : "Saved: the upload is off"); }, "#status");
 });
 
-$("#remove").on("click", function() {
-  if (!confirm("Remove the Wavelog API key? The upload stops until a new key is saved.")) return;
-  post("/api/wavelog", {remove: true}, function(r) { render(r); showStatus("#status", "Removed: the upload is off"); }, "#status");
+$("#clear").on("click", function() {
+  if (!confirm("Clear the Wavelog API key? The upload stops until a new key is saved.")) return;
+  post("/api/wavelog", {remove: true}, function(r) { render(r); showStatus("#status", "Cleared: the upload is off"); }, "#status");
 });
 
 $("#sync").on("click", function() {

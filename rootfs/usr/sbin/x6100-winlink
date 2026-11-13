@@ -12,6 +12,7 @@
 #   x6100-winlink apply         write Pat's config again from the settings; Pat restarts when they changed, and
 #                               the modem when another one was chosen (XARA also when its own settings changed)
 #   x6100-winlink set-password  the Winlink password, read from stdin (the web page): never on a command line
+#   x6100-winlink clear-password  the Winlink password gone: the page's, and the one typed in Pat's own Settings
 #   x6100-winlink status        the state as key=value lines: state, text, pat, ardop, mercury, xara, password, and
 #                               the outcomes kept apart: service, modem, speed (XARA's), session, browsers,
 #                               last_* (the last connection: result, gateway, freq, bandwidths, speed, counts,
@@ -1344,6 +1345,47 @@ def cmd_set_password():
     return 0
 
 
+def cmd_clear_password():
+    """The web page's Clear: no Winlink password on the radio from now on, neither the page's nor the one typed in
+    Pat's own Settings, which Pat would go on using (write_config keeps it while the page has none). Pat asks for it
+    in the mailbox again. The page then runs apply, so a running Pat starts again without it"""
+    try:
+        os.remove(PASSWORD)
+    except FileNotFoundError:
+        pass
+    os.makedirs(RUN, exist_ok=True)
+    with open(CONFIG_LOCK, "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            with open(PAT_CONFIG) as f:
+                cfg = json.load(f)
+        except (OSError, ValueError, UnicodeDecodeError):
+            cfg = None
+        if isinstance(cfg, dict) and cfg.get("secure_login_password"):
+            cfg["secure_login_password"] = ""
+            tmp = f"{PAT_CONFIG}.{os.getpid()}"
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(json.dumps(cfg, indent=2) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, PAT_CONFIG)
+    # The status the page reads says where the password is: "none" now, also while Winlink is off and no
+    # supervisor writes it again
+    try:
+        with open(STATUS) as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return 0
+    where = password_where()
+    body = "".join((f"password={where}" if line.startswith("password=") else line) + "\n" for line in lines)
+    tmp = f"{STATUS}.{os.getpid()}"
+    with open(tmp, "w") as f:
+        f.write(body)
+    os.replace(tmp, STATUS)
+    return 0
+
+
 def cmd_status():
     try:
         with open(STATUS) as f:
@@ -1424,7 +1466,8 @@ def cmd_stop():
 
 def main(argv):
     cmds = {"on": cmd_on, "off": cmd_off, "apply": cmd_apply, "set-password": cmd_set_password,
-            "status": cmd_status, "logs": cmd_logs, "stop": cmd_stop, "run": run}
+            "clear-password": cmd_clear_password, "status": cmd_status, "logs": cmd_logs, "stop": cmd_stop,
+            "run": run}
     if argv and argv[0] not in cmds:
         print("usage: x6100-winlink [" + "|".join(cmds) + "]", file=sys.stderr)
         return 1

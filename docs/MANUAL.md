@@ -4828,14 +4828,15 @@ A change is taken only from a page opened by one of the
 (`x6200.local`, or the [network name](#network-name) you gave it), its name
 in your network's domain (`x6100.home.lan`), a name you added on the Network
 page, or its Tailscale name (the full `*.ts.net` one, or the short one on your
-tailnet). The same goes for the Files page and the Backup download, which
-hold the keys and passwords kept on the radio, and for the connections of the
-Panel and the Remote page (the Panel's sound too). Opened by another name, the
-pages show the settings but do not save them, the Panel and the Remote page do
-not connect, and they say by which name the page was opened, by which names it
-works and where to add that name: a web site can point a name of its own at the
-radio (DNS rebinding), and through your browser it could otherwise change
-settings, download the keys or key the transmitter. Logs > Export and the
+tailnet). The same goes for the Files page (your mail, logs and recordings)
+and the Backup download (the WiFi passwords, with WiFi ticked), and for the
+connections of the Panel and the Remote page (the Panel's sound too). Opened
+by another name, the pages show the settings but do not save them, the Panel
+and the Remote page do not connect, and they say by which name the page was
+opened, by which names it works and where to add that name: a web site can
+point a name of its own at the radio (DNS rebinding), and through your browser
+it could otherwise change settings, download your files or key the
+transmitter. Logs > Export and the
 Gallery's ZIP download hold no secret and work by any name; TCI programs, which
 are not browsers, connect by any name as before.
 
@@ -4911,9 +4912,20 @@ the channel with its frequency, the band), and for twenty seconds the status
 line offers Undo, which puts the entry back where it was. QSO logs and
 activation logs cannot be undone and say so, with the advice to export first.
 
-Stored secrets (QRZ Logbook keys, the HOTA and WWFF keys) are only ever
-replaced by a key typed in, or taken away by their Remove button; a field
-left empty keeps the key.
+Stored secrets (the QRZ Logbook keys, the HOTA and WWFF keys, the Wavelog
+key, the Winlink password) are never sent back to the browser: not shown on
+their page, not in any answer of the radio, not on the Files page. Each row
+says only Set or Not set. A key or password typed in replaces the stored one,
+the row's Clear button takes it away, and a field left empty keeps it. What a
+server or a helper program answers (Wavelog's Test, a reference list update,
+Winlink's messages) is shown with any stored secret in it replaced by
+"(hidden)". The Files page lists the files that hold them (`field/wavelog.conf`,
+`qrz.conf`, `hota.conf`, `wwff.conf`, and `backups/`, with the copy of the WiFi
+passwords, the SSH host keys and the Bluetooth pairings made at power-off), but
+does not download them; take the SD card out to copy them. The Backup download
+holds the WiFi passwords when its WiFi part is ticked, as it did: that file is
+yours, keep it to yourself. Up to v0.3.10 the Files page downloaded those files
+as well.
 
 Gallery: a folder per kind (screen recordings, voice recordings, screenshots,
 SSTV and WeFax received and to send) with count and size.
@@ -5040,7 +5052,7 @@ Every QSO the radio logs goes to your [Wavelog](https://github.com/wavelog/wavel
 - A QSO Wavelog refuses (a record it can't take) goes to `/mnt/field/wavelog.failed.adi` and is not sent again unless it is edited on the Logs page. A refused key stops the upload until a new key is saved; the QSOs wait.
 - A QSO edited on the Logs page after it was sent goes again with the next upload. Wavelog adds QSOs and changes none it has. When the QSO's call, date, time, band, mode and own callsign are as they were (a report or a name corrected), Wavelog keeps its own copy, and the display says "Wavelog: DL1ABC was already there, edit it in Wavelog too". An edit of any of those reaches Wavelog as another QSO: it is added ("uploaded"), or, within 15 minutes of the old one with the same call, band and mode, found as a duplicate ("was already there"); either way the old one is to be corrected or deleted in Wavelog by hand. A QSO edited while it waits (no network) goes as it stands then, once; deleted while it waits, it does not go. A QSO deleted on the Logs page after it was sent stays in Wavelog.
 - HTTPS is checked against the radio's root certificates. Check the certificate off only for a Wavelog at home with a self-signed certificate.
-- The key is kept in `/mnt/field/wavelog.conf`. The Wavelog page never shows it again and it is not in the Backup, but like the QRZ, HOTA and WWFF keys it can be downloaded from the Files page by anyone who reaches the web configurator (your LAN, and your tailnet with Tailscale on). The upload uses Wavelog's API v1 (`api/qso`, `api/station_info`, `api/version`, `api/auth`); QSOs sent through it are not uploaded on to other services by Wavelog at once and get no callbook lookup there.
+- The key is kept in `/mnt/field/wavelog.conf`. The Wavelog page says only Set or Not set, Clear takes the key away and stops the upload, and it is not in the Backup. Like the QRZ, HOTA and WWFF keys it is not on the Files page either (up to v0.3.10 anyone who reached the web configurator could download it there). The upload uses Wavelog's API v1 (`api/qso`, `api/station_info`, `api/version`, `api/auth`); QSOs sent through it are not uploaded on to other services by Wavelog at once and get no callbook lookup there.
 - By hand: `x6100-wavelog sync`, `x6100-wavelog stations`, `x6100-wavelog test` (one line each, as the other helpers).
 
 ## Winlink
@@ -5067,8 +5079,9 @@ Setting it up:
    - Locator: sent to the gateway, and Pat's gateway list is sorted by the
      distance from it. Empty takes the radio's QTH.
    - Winlink password: kept on the radio and never shown again; a field left
-     empty keeps it. The row says where the password Pat uses is set: "set
-     here (hidden)", "set in Pat's own Settings (hidden)" or "not set". With
+     empty keeps it, Clear takes it away (also one typed in Pat's own
+     Settings). The row says where the password Pat uses is set: "Set" (here),
+     "Set in Pat's own Settings" or "Not set". With
      Winlink on and none set anywhere, the page says so in red at the top
      (see the password below); it is a warning only, since a new account's
      first connection over the air needs none.
@@ -5353,8 +5366,8 @@ Good to know:
   the Files page. A new card image keeps the settings (`/mnt/winlink.conf`)
   but asks for the password again.
 - The mail is on the DATA partition (`/mnt/winlink/pat/mailbox`, one file per
-  message), so it survives a new card image. Like everything on `/mnt`, anyone
-  who reaches the web configurator can download it from the Files page.
+  message), so it survives a new card image. Like the other files on `/mnt`,
+  anyone who reaches the web configurator can download it from the Files page.
 - Pat's own calls home are off: the version report, the release check and the
   password-recovery check. When the radio is online, Pat still fetches the
   gateway list from winlink.org, checks the account at a connection (once

@@ -98,8 +98,9 @@ button.save{color:var(--ok)}
 button.remove:hover{color:var(--err);border-color:var(--err)}
 
 /* File browser */
-.files a{display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid #1a283c;color:var(--text);text-decoration:none}
-.files a:last-child{border-bottom:0}
+.files a,.files .locked{display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid #1a283c;color:var(--text);text-decoration:none}
+.files a:last-child,.files .locked:last-child{border-bottom:0}
+.files .locked{color:var(--dim);word-break:break-all}
 .files a:hover{background:#17243a}
 .files i,.files .i{color:var(--accent)}
 .files a{word-break:break-all}

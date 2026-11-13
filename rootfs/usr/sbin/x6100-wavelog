@@ -73,6 +73,16 @@ def one_line(text, n=80):
     return " ".join(str(text).split())[:n]
 
 
+def hidden(text, conf):
+    """text with the API key (the saved one, and one the web page passed) as (hidden): a server's error, or an
+    exception's text, can quote the request, and the line goes to the web page, the radio's screen and
+    wavelog.state"""
+    for key in sorted({conf.get("key", ""), os.environ.get("X6100_WAVELOG_KEY", "")}, key=len, reverse=True):
+        if len(key) >= 3:
+            text = text.replace(key, "(hidden)")
+    return text
+
+
 def read_conf():
     conf = {}
     try:
@@ -464,6 +474,7 @@ def cmd_sync(conf):
         now = time.time()
         state["sent"] = {k: t for k, t in state["sent"].items() if t > now - KEEP_SENT}
         state["revs"] = {k: r for k, r in state["revs"].items() if k in state["sent"]}
+        result = hidden(result, conf)
         state["last"] = {"time": int(now), "result": result, "queue": len(queue)}
         save_json(QUEUE, queue)
         save_json(STATE, state)
@@ -475,16 +486,17 @@ def main(argv):
     if len(argv) != 1 or argv[0] not in cmds:
         print("error usage: x6100-wavelog sync|stations|test")
         return 1
+    conf = read_conf()
     try:
         signal.signal(signal.SIGALRM, lambda *_: (print("error timed out"), sys.exit(1)))
         signal.alarm(RUN_LIMIT)
-        result = cmds[argv[0]](read_conf())
-        print(result)
+        result = cmds[argv[0]](conf)
+        print(hidden(result, conf))
         return 0 if result.split()[0] in ("ok", "off") else 1
     except Fail as e:
-        print(f"error {e}")
+        print(hidden(f"error {e}", conf))
     except Exception as e:
-        print(f"error {one_line(e) or type(e).__name__}")
+        print(hidden(f"error {one_line(e) or type(e).__name__}", conf))
     return 1
 
 

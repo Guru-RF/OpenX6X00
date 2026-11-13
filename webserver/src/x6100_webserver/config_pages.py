@@ -128,16 +128,56 @@ def plain_page(view='index'):
     return bottle.template(view)
 
 
+def secret_places():
+    """The files and folders of the DATA partition that hold secrets (apps.py, SECRET_HIDDEN): the keys of the
+    Wavelog and Field pages, the copy of the WiFi passwords, the SSH host keys and root's SSH files made at each
+    power-off and the Bluetooth link keys (backups/: backup.tgz, bluetooth.tgz), an uploaded backup while it waits
+    for Restore (its WiFi passwords) and the WiFi networks a restore replaced"""
+    files = [os.path.join(settings.FIELD_DIR, n + tmp) for n in ("wavelog.conf", "qrz.conf", "hota.conf", "wwff.conf")
+             for tmp in ("", ".tmp")]
+    folders = [os.path.join(settings.FILEBROWSER_PATH, "backups"), settings.BACKUP_WORK,
+               os.path.join(settings.BACKUP_SAFETY, "wifi")]
+    return files, folders
+
+
+def same(a, b):
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def secret_file(path, places=None):
+    """path is one of secret_places, or in one of its folders. Told by the file itself, not by its name: the DATA
+    partition is FAT, where WAVELOG.CONF and the short name WAVELO~1.CON open wavelog.conf too"""
+    files, folders = places or secret_places()
+    if any(same(path, f) for f in files):
+        return True
+    d = path
+    while True:
+        if any(same(d, f) for f in folders):
+            return True
+        up = os.path.dirname(d)
+        if up == d:
+            return False
+        d = up
+
+
 @app.get('/files/')
 @app.get('/files/<filepath:path>')
 @app.get('/files/<filepath:path>/')   # kept for old links: the route above takes the slash too
 def file_browser(filepath=''):
     """The DATA partition (FILEBROWSER_PATH): a folder lists its entries, a file is downloaded.
-    Nothing outside it: no '..' above it, no absolute path."""
+    Nothing outside it: no '..' above it, no absolute path. A file that holds a secret (secret_file) is listed
+    without a link and never sent."""
     root = os.path.abspath(settings.FILEBROWSER_PATH)
     target = os.path.abspath(os.path.join(root, filepath.lstrip('/')))
     if os.path.commonpath([root, target]) != root or filepath.startswith('/'):
         raise bottle.HTTPError(403, 'Access denied.')
+    places = secret_places()
+    if os.path.isfile(target) and secret_file(target, places):
+        raise bottle.HTTPError(403, 'This file holds passwords or keys the radio keeps to itself: it is not '
+                                    'downloaded here. The pages that use them say only whether one is set.')
     if os.path.isfile(target):
         os.sync()   # what the GUI has just written, complete
         response = bottle.static_file(os.path.relpath(target, root), root=root, download=True)
@@ -148,8 +188,9 @@ def file_browser(filepath=''):
     except OSError:
         raise bottle.HTTPError(404, 'Not found')
     folders = {n for n in names if os.path.isdir(os.path.join(target, n))}
-    return bottle.template('files', dirs=[n for n in names if n in folders],
-                           files=[n for n in names if n not in folders], href=urllib.parse.quote)
+    files = [n for n in names if n not in folders]
+    return bottle.template('files', dirs=[n for n in names if n in folders], files=files, href=urllib.parse.quote,
+                           locked={n for n in files if secret_file(os.path.join(target, n), places)})
 
 
 # Time page: the radio clock (set by hand or by NTP) and its timezone (/etc/localtime)

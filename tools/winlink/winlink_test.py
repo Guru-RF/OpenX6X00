@@ -309,6 +309,31 @@ class Password(Root):
         self.assertEqual(st["password"], "page")
         self.assertNotIn("s3cret", read(self.wl.STATUS))
 
+    def test_cleared(self):
+        """The page's Clear: neither the page's password nor Pat's own is left, the rest of Pat's config is, and
+        the status says none, with nothing running to write it again"""
+        self.conf(enabled=0, mycall="ON6URE")
+        self.wl.write_config(self.wl.wanted(), "")
+        cfg = self.pat_config()
+        cfg["secure_login_password"] = "typed-in-pat"
+        with open(self.wl.PAT_CONFIG, "w") as f:
+            json.dump(cfg, f)
+        with open(self.wl.PASSWORD, "w") as f:
+            f.write("from-the-page\n")
+        self.wl.say("off", "Off")
+        self.assertEqual(self.status()["password"], "page")
+        self.assertEqual(self.wl.cmd_clear_password(), 0)
+        self.assertFalse(os.path.exists(self.wl.PASSWORD))
+        self.assertEqual(self.pat_config()["secure_login_password"], "")
+        self.assertEqual(self.pat_config()["mycall"], "ON6URE")
+        self.assertEqual(self.wl.password_where(), "none")
+        self.assertEqual(self.status(), {"state": "off", "text": "Off", "pat": "off", "ardop": "off",
+                                         "mercury": "off", "xara": "off", "password": "none"})
+        self.assertEqual(self.wl.cmd_clear_password(), 0)     # again, with nothing to clear
+        os.remove(self.wl.STATUS)
+        self.assertEqual(self.wl.cmd_clear_password(), 0)     # no status file: none made
+        self.assertFalse(os.path.exists(self.wl.STATUS))
+
     def test_broken_pat_config(self):
         os.makedirs(os.path.dirname(self.wl.PAT_CONFIG))
         with open(self.wl.PAT_CONFIG, "w") as f:

@@ -63,8 +63,8 @@
     <div class="dp-ctl"><input id="locator" type="text" autocomplete="off" spellcheck="false" maxlength="6"></div>
   </div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="password"><b>Winlink password</b></label><span>Password: <b id="pw-state"></b>. A new one replaces it, also one set in Pat's own Settings; empty keeps it. It stays on the radio and is never shown again</span></div>
-    <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="64" placeholder="New password (empty = keep)"></div>
+    <div class="dp-lbl"><label for="password"><b>Winlink password</b></label><span>Password: <b id="pw-state"></b>. A new one replaces it, also one set in Pat's own Settings; empty keeps it. Clear takes it away, also the one in Pat's own Settings. It stays on the radio and is never shown again</span></div>
+    <div class="dp-ctl"><input id="password" type="password" autocomplete="new-password" maxlength="64" placeholder="New password (empty = keep)"> <button type="button" id="pw-clear">Clear</button></div>
   </div>
   <div class="dp-row">
     <div class="dp-lbl"><label for="modem"><b>Modem</b></label><span>ARDOP: the gateways in Pat's list. Mercury: faster on a good path, but only with a station that runs Mercury 1.9.20 or later (station to station, or one of the few gateways that run it), dialled by hand in Pat as VARA HF. XARA: speaks VARA HF, so the VARA HF gateways in Pat's list answer it (Connect, VARA HF), at VARA's free speed unless you tick your VARA HF licence below. Mercury and XARA cost the radio more processor and heat. One runs at a time</span></div>
@@ -120,7 +120,7 @@ var showStatus = function(id, text, error=false) {
   el.html('<span class="dot"></span>').append(document.createTextNode(text));
 }
 var busy = false;
-const PW_STATE = {page: "set here (hidden)", pat: "set in Pat's own Settings (hidden)", none: "not set"};
+const PW_STATE = {page: "Set", pat: "Set in Pat's own Settings", none: "Not set"};
 const SERVICE = {running: "Running", starting: "Starting", stopped: "Stopped"};
 const MODEM = {ready: "Ready", waiting: "Waiting for the radio's audio",
                behind: "Ready, but it fell behind the receiver lately: see Pat's log"};
@@ -240,7 +240,9 @@ var renderState = function(st) {
   if (!st.host_ok) notes.push(st.name_refused ? st.name_refused + "." : "This page was opened by a name the radio does not know as its own. Open it by the radio's address or its .local name to change Winlink; the mailbox only opens by those names too.");
   if (st.enabled && !st.mycall && !st.radio_mycall) notes.push("No callsign: set yours below, or the radio's in Settings > General.");
   if (st.enabled && st.password === "none") notes.push("No Winlink password on the radio: when the gateway asks for it, Pat asks in the mailbox and gives up after a minute (\"context deadline exceeded\"). Set it below before you connect, or keep the mailbox open to type it there. A new account's first connection needs none.");
-  $("#pw-state").text(PW_STATE[st.password || (st.password_set ? "page" : "none")] || PW_STATE.none);
+  const pw = st.password || (st.password_set ? "page" : "none");
+  $("#pw-state").text(PW_STATE[pw] || PW_STATE.none);
+  $("#pw-clear").prop("disabled", pw === "none");
   renderConnections(st);
   renderRadio(st);
   $("#logs").toggle(!!st.host_ok);   /* like the Files page: only by the radio's own names */
@@ -309,6 +311,13 @@ $("#conf").on("submit", function(e) {
         xara_bandwidth: parseInt($("#xara_bandwidth").val(), 10), vara_licence: $("#vara_licence").prop("checked"),
         password: $("#password").val()},
        function(r) { render(r); showStatus("#status", r.enabled ? "Saved: Pat restarts with it" : "Saved"); });
+});
+
+/* The password is only ever replaced by a typed one or taken away by Clear: an empty field changes nothing */
+$("#pw-clear").on("click", function() {
+  if (!confirm("Clear the Winlink password, also the one set in Pat's own Settings? Pat then asks for it in the mailbox when a gateway asks.")) return;
+  showStatus("#status", "Clearing...");
+  post({clear_password: true}, function(r) { renderState(r); showStatus("#status", r.enabled ? "Cleared: Pat restarts without it" : "Cleared"); });
 });
 
 $.get('/api/winlink', {}, render);

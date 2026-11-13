@@ -31,10 +31,9 @@ from . import settings
 
 app = bottle.Bottle()   # the configurator pages and their API
 
-# Reads that hand out what the radio keeps secret, taken only by its own names as the changes are: the Files page
-# serves all of /mnt (the Wavelog, QRZ, HOTA and WWFF keys, backups/backup.tgz with the SSH host keys and the WiFi
-# passwords, the Winlink mail), the Backup download can hold the WiFi passwords, and the Winlink logs your mail's
-# subjects and gateways
+# Reads that hand out what is the owner's own, taken only by its own names as the changes are: the Files page serves
+# /mnt (the Winlink mail, the logs; not the files with the keys and passwords, config_pages.secret_file), the Backup
+# download can hold the WiFi passwords, and the Winlink logs your mail's subjects and gateways
 HOST_ONLY_READS = ("/files/", "/api/backup/download", "/api/winlink/logs")
 # Reads sent as a POST (a form with the selection), with no secret in them: by any name, as the GET reads are (the
 # QSOs and the pictures are on the pages by any name). The cross-site check still applies
@@ -942,6 +941,8 @@ def winlink_state():
                     st[k] = v
     except OSError:
         pass
+    hide = secret_hider()       # the supervisor masks the page's password; a program's words could hold Pat's own
+    st.update({k: hide(v) for k, v in st.items() if k not in ("state", "pat", "ardop", "mercury", "xara", "password")})
     conf = winlink_conf()
     try:
         password_set = os.path.getsize(WINLINK_PASSWORD) > 0
@@ -996,7 +997,7 @@ def winlink_run(args, stdin=None):
         return str(e)
     if r.returncode != 0:
         msg = (r.stderr.strip().splitlines() or [f"exit code {r.returncode}"])[-1]
-        return msg[6:] if msg.startswith("error ") else msg
+        return hide_secrets(msg[6:] if msg.startswith("error ") else msg, stdin)
     return None
 
 
@@ -1012,7 +1013,8 @@ def get_winlink():
 
 @app.get('/api/winlink/logs')
 def winlink_logs():
-    """Pat's, the modem's and the radio's logs as one text file for a bug report; the helper masks the passwords"""
+    """Pat's, the modem's and the radio's logs as one text file for a bug report; the helper masks the passwords,
+    and what it may not know as one (the other secrets the radio keeps) is hidden here"""
     try:
         r = subprocess.run([WINLINK_CMD, "logs"], capture_output=True, timeout=30)
     except (OSError, subprocess.SubprocessError) as e:
@@ -1023,14 +1025,15 @@ def winlink_logs():
     bottle.response.content_type = "text/plain; charset=utf-8"
     bottle.response.set_header("Content-Disposition",
                                f'attachment; filename="winlink-logs-{time.strftime("%Y%m%d-%H%M")}.txt"')
-    return r.stdout
+    return hide_secrets(r.stdout.decode(errors="replace"))
 
 
 @app.post('/api/winlink')
 def set_winlink():
     """Any of enabled, mycall, locator, bandwidth, modem_choice (ardop, mercury or xara), mercury_bandwidth,
     xara_bandwidth, vara_licence and password; what is not sent stays. An empty callsign or locator is the radio's own,
-    an empty password keeps the one set"""
+    an empty password keeps the one set. clear_password: true takes the password away, the page's and the one typed
+    in Pat's own Settings"""
     try:
         data = bottle.request.json
     except ValueError:
@@ -1081,8 +1084,15 @@ def set_winlink():
         password = password.strip() if isinstance(password, str) else None
         if password is None or len(password) > 64 or any(ord(c) < 32 or ord(c) == 127 for c in password):
             return api_error(400, "Password: up to 64 characters")
+        clear = data.get("clear_password") is True
+        if password and clear:
+            return api_error(400, "A new password or Clear, not both")
         if password:
             err = winlink_run(["set-password"], password)
+            if err:
+                return api_error(500, "Winlink: " + err)
+        if clear:
+            err = winlink_run(["clear-password"])
             if err:
                 return api_error(500, "Winlink: " + err)
         keys = ["enabled", "mycall", "locator", "bandwidth", "modem", "mercury_bandwidth", "xara_bandwidth",
@@ -1095,7 +1105,7 @@ def set_winlink():
                 return api_error(500, f"Can't save: {e}")
         err = None
         if new["enabled"] == "1":
-            if password or any(new[k] != conf[k] for k in keys[1:]):
+            if password or clear or any(new[k] != conf[k] for k in keys[1:]):
                 err = winlink_run(["apply"])          # Pat restarts with them, the modem when another is chosen
                                                       # and XARA when its own settings changed
             err = err or winlink_run(["on"])
@@ -1417,6 +1427,97 @@ def qrz_state():
     return {"active": active, "profiles": [{"call": calls[i], "key": bool(keys[i])} for i in range(QRZ_PROFILES)]}
 
 
+# The secrets the radio keeps for its owner. None of them goes back to a browser, in a page or in an answer: each page
+# says only Set or Not set, a new one is typed in its place and Clear takes it away. What a helper or a server said is
+# passed on with them taken out: a server's error can quote the request, which carries the key (x6100-wavelog asks
+# Wavelog for the station list as api/station_info/<key>), and a program's log line the password it was given. The
+# Files page does not hand out the files that hold them (config_pages.secret_file). The SSH keys on the SSH page are
+# the public ones. The Backup download holds the WiFi passwords, with WiFi ticked: that file is for its owner
+SECRET_HIDDEN = "(hidden)"
+WINLINK_PAT_CONFIG = "/var/lib/winlink/pat/config.json"   # Pat's own Settings page writes passwords into it
+WIFI_SECRET_KEY = re.compile(r"psk|wep-key[0-3]|pin|([a-z0-9]+-)*password(-raw)?")   # NetworkManager's names
+
+
+def field_key(name):
+    """The key of hota.conf or wwff.conf, "" when none"""
+    try:
+        with open(field_path(name), errors="replace") as f:
+            return next((line[4:].strip() for line in f if line.startswith("key=")), "")
+    except OSError:
+        return ""
+
+
+def wifi_secrets():
+    """The passwords of the saved networks (and the Ethernet setting's, if it has one)"""
+    found = set()
+    try:
+        names = os.listdir(settings.WIFI_DIR)
+    except OSError:
+        return found
+    for n in names:
+        try:
+            with open(os.path.join(settings.WIFI_DIR, n), errors="replace") as f:
+                for line in f:
+                    k, sep, v = line.strip().partition("=")
+                    if sep and WIFI_SECRET_KEY.fullmatch(k.strip()):
+                        found.add(v.strip())
+        except OSError:
+            pass
+    return found
+
+
+def winlink_secrets():
+    """The Winlink page's password, and those typed in Pat's own Settings (the login's, an auxiliary address's
+    "CALL:password", the telnet listener's), as x6100-winlink's secrets()"""
+    found = set()
+    try:
+        with open(WINLINK_PASSWORD, errors="replace") as f:
+            found.add(f.read().strip("\r\n"))
+    except OSError:
+        pass
+    try:
+        with open(WINLINK_PAT_CONFIG) as f:
+            cfg = json.load(f)
+    except (OSError, ValueError, UnicodeDecodeError):
+        cfg = {}
+    if isinstance(cfg, dict):
+        found.add(cfg.get("secure_login_password"))
+        aux = cfg.get("auxiliary_addresses") or []
+        found.update(a.split(":", 1)[1] for a in aux if isinstance(a, str) and ":" in a)
+        if isinstance(cfg.get("telnet"), dict):
+            found.add(cfg["telnet"].get("password"))
+    return {s for s in found if isinstance(s, str)}
+
+
+def stored_secrets():
+    """Every secret the radio keeps: the Wavelog key, the QRZ, HOTA and WWFF keys, the Winlink passwords, the WiFi
+    passwords"""
+    found = {wavelog_read().get("key", ""), field_key("hota.conf"), field_key("wwff.conf")}
+    found.update(qrz_read()[2])
+    found.update(winlink_secrets())
+    found.update(wifi_secrets())
+    return found
+
+
+def secret_hider(*also):
+    """A function that gives a text with every stored secret, and those of also (one typed on the page, not saved
+    yet), as (hidden). The longest first: one secret inside another would leave the other's ends. Three characters
+    or more: a shorter one would hide parts of words"""
+    hidden = sorted({s for s in stored_secrets().union(also) if isinstance(s, str) and len(s) >= 3},
+                    key=len, reverse=True)
+
+    def hide(text):
+        if isinstance(text, str):
+            for secret in hidden:
+                text = text.replace(secret, SECRET_HIDDEN)
+        return text
+    return hide
+
+
+def hide_secrets(text, *also):
+    return secret_hider(*also)(text) if isinstance(text, str) and text else text
+
+
 def field_refs():
     global field_refs_counts
     try:
@@ -1462,7 +1563,7 @@ def run_field_update():
     except (OSError, subprocess.SubprocessError) as e:
         result = f"error {e}"
     with field_lock:
-        field_update.update(running=False, result=result)
+        field_update.update(running=False, result=hide_secrets(result))
 
 
 @app.route('/field')
@@ -1616,7 +1717,7 @@ def wavelog_state(result=None):
             "verify_tls": conf.get("verify_tls", "1") != "0",
             "since": time.strftime("%Y-%m-%d %H:%M", time.localtime(since)) if since else "",
             "queue": len(wavelog_json("wavelog.queue", [])), "result": result,
-            "last": {"result": last.get("result", ""),
+            "last": {"result": hide_secrets(last.get("result", "")),
                      "time": time.strftime("%Y-%m-%d %H:%M", time.localtime(last["time"])) if last.get("time") else ""}}
 
 
@@ -1630,14 +1731,14 @@ def wavelog_run(cmd, form=None, timeout=330):
     try:   # the helper gives up after 300 s (its RUN_LIMIT): a little longer here, to hear why
         r = subprocess.run([settings.WAVELOG_CMD, cmd], capture_output=True, text=True, timeout=timeout, env=env)
         lines = r.stdout.strip().splitlines()
-        return lines[-1] if lines else f"error exit code {r.returncode}"
+        return hide_secrets(lines[-1], form and form["key"]) if lines else f"error exit code {r.returncode}"
     except subprocess.TimeoutExpired:
         # The helper's own timeouts leave out the name lookup: a name the network's DNS never answers holds it
         # past them. The page said "Wavelog: Command '['/usr/sbin/x6100-wavelog', 'test']' timed out after 40
         # seconds" (#73)
         return f"error no answer in {timeout} s: check the URL, and that the radio can reach that address"
     except (OSError, subprocess.SubprocessError) as e:
-        return f"error {e}"
+        return hide_secrets(f"error {e}", form and form["key"])
 
 
 def wavelog_origin(url):
