@@ -342,7 +342,8 @@ bool database_init() {
                 fprintf(stderr, "params.db: put aside as %s, the last good copy of %s in its place\n", aside, when);
                 start_trace("settings: params.db unusable (%s), put aside as %s; the last good copy of %s loaded",
                             sqlite3_errstr(first), strrchr(aside, '/') + 1, when);
-                snprintf(note, sizeof(note), "Settings restored from %s: the settings file was damaged", when);
+                /* two lines: one this long scrolls past in the message box before the time can be read */
+                snprintf(note, sizeof(note), "Settings restored from %s\nthe settings file was damaged", when);
                 on_card = true;
                 return true;
             }
