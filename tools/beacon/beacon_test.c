@@ -819,6 +819,54 @@ static void test_cw(void) {
     check(wait_idle() && n_key == 0 && !key_on, "a message refused: stopped, never keyed");
 }
 
+/* The time a dot of the key log took, the i-th element */
+static uint32_t dot_ms(int i) {
+    return keylog[2 * i + 1].t - keylog[2 * i].t;
+}
+
+/* A TCI client's text (#179, tci_server.c): every send has its number, the keyer tells which one it is on and the last
+ * keyed to its end, which a send stopped or refused is not. The speed steps of its text: 5 WPM up or down for the rest
+ * of it, within 5 to 50, back to KEY Speed; the transmitter held for the word space at each new speed, none after the
+ * last character */
+static void test_cw_tci(void) {
+    unsigned n1, n2, n3;
+
+    puts("CW from a TCI client: the send's number, the speed steps");
+    reset();
+    n1 = cw_encoder_send("E", false);
+    check(n1 && cw_encoder_sending() == n1, "a send's number, the keyer on it");
+    check(wait_idle() && !cw_encoder_sending() && cw_encoder_done() == n1, "keyed to its end: idle, done says its number");
+    reset();
+    at(500, EV_HOLD);           /* the keyer held in the middle of the text while it is stopped */
+    n2 = cw_encoder_send("TEST TEST TEST", false);
+    while (!atomic_load(&held)) usleep(1000);
+    pthread_t th;
+    pthread_create(&th, NULL, stop_thread, NULL);
+    usleep(20000);
+    atomic_store(&hold_release, true);
+    pthread_join(th, NULL);
+    check(n2 > n1 && !cw_encoder_sending() && cw_encoder_done() == n1 && key_left_up(), "stopped: not done");
+    reset();
+    refuse = true;
+    n3 = cw_encoder_send("EE", false);
+    check(wait_idle() && n3 > n2 && cw_encoder_done() == n1, "its key refused: not done");
+    check(!cw_encoder_send("", false), "nothing to send: no number");
+
+    reset();
+    cw_encoder_send("E" "\x01" "E" "\x02\x02" "E" "\x03" "E", false);
+    check(wait_idle() && n_key == 8 && dot_ms(0) == 60 && dot_ms(1) == 48 && dot_ms(2) >= 79 && dot_ms(2) <= 80 &&
+          dot_ms(3) == 60, "E at 20 WPM, a step up 25, two down 15, back 20: dots of 60, 48, 80, 60 ms");
+    check(n_qsk == 7 && qsk_set[1] == 7 * 48 + 150 && qsk_set[3] == 559 + 150 && qsk_set[4] == 7 * 60 + 150 &&
+          qsk_set[6] == qsk, "the transmitter held for the word space at each speed, then the break-in delay back");
+    reset();
+    cw_encoder_send("\x01\x01\x01\x01\x01\x01\x01\x01" "E" "\x02\x02\x02\x02\x02\x02\x02\x02\x02\x02\x02\x02" "E",
+                    false);
+    check(wait_idle() && n_key == 4 && dot_ms(0) == 24 && dot_ms(1) == 240, "steps keep to 5 to 50 WPM: 24 ms, 240 ms");
+    reset();
+    cw_encoder_send("E" "\x03", false);
+    check(wait_idle() && n_key == 2 && n_qsk == 3 && qsk_set[1] == qsk, "a step after the last character holds nothing");
+}
+
 int main(void) {
     main_thread = pthread_self();
     test_plan();
@@ -827,6 +875,7 @@ int main(void) {
     test_qrss_send();
     test_qrss_stops();
     test_cw();
+    test_cw_tci();
     test_sched_rules();
     test_sched_keyer();
     printf("%d of %d cases ok\n", good, cases);

@@ -21,8 +21,25 @@ typedef enum {
     CW_ENCODER_BEACON_WAIT      /* a beacon before its start time (cw_encoder_schedule), receiving */
 } cw_encoder_state_t;
 
-void cw_encoder_send(const char *text, bool beacon);
+/* A TCI client's speed steps in its text (tci_server.c): from there on 5 WPM faster or slower, within
+ * BOARD_KEY_SPEED_MIN to BOARD_KEY_SPEED_MAX, or back to the speed the send started at. No sign and no time of their
+ * own. The radio's own texts never hold them */
+#define CW_ENCODER_FASTER   '\x01'
+#define CW_ENCODER_SLOWER   '\x02'
+#define CW_ENCODER_SPEED    '\x03'
+#define CW_ENCODER_STEP_WPM 5
+
+/* The text keyed once, or again after each pause as a beacon. Its send's number: one more at every send started
+ * (QRSS3's too), never 0; 0 when nothing started */
+unsigned cw_encoder_send(const char *text, bool beacon);
 void cw_encoder_stop();
+
+/* The number of the send the keyer is on (a beacon's in its pauses too), 0 when it is idle; and the number of the last
+ * send keyed to its end, not stopped (cw_encoder_stop, another send started, a key refused where the radio may not
+ * transmit, its stops for the SWR or for leaving the band). A sender that kept its number knows from them whether the
+ * keyer still sends its text, and whether all of it went. Any thread */
+unsigned cw_encoder_sending(void);
+unsigned cw_encoder_done(void);
 
 /* The text in QRSS3 (cw_beacon.h), on the frequency the radio is on: every element by our own timing of the key,
  * never down longer than a dash (9 s) and up with the break-in delay as set, so the radio receives in every gap.

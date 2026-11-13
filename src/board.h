@@ -56,6 +56,8 @@
 #define BOARD_NB_MAX        100
 #define BOARD_HF_MIN_HZ     100000      /* upstream f6c97fa */
 #define BOARD_HF_MAX_HZ     55000000
+#define BOARD_KEY_SPEED_MIN 5           /* KEY Speed (KEY > Speed), WPM: TCI's speed commands and the speed steps */
+#define BOARD_KEY_SPEED_MAX 50          /* of a TCI text keep to it too */
 
 /* Knob / encoder steps: the knob tables in radio_controls.cpp read these, and the PWR and TUNE power settings round
  * to BOARD_PWR_STEP. Same on the X6100 and the X6200 today. The settings keep PWR and TUNE power in tenths of a watt,

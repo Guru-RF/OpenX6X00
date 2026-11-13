@@ -8,6 +8,7 @@
  */
 #include "cw_encoder.h"
 
+#include "board.h"
 #include "cw_beacon.h"
 #include "cw_decoder.h"
 #include "params/params.h"
@@ -41,6 +42,11 @@ typedef enum { WHY_NONE = 0, WHY_ASKED, WHY_FREQ, WHY_MODE, WHY_VFO, WHY_PTT, WH
 static cw_encoder_state_t   state = CW_ENCODER_IDLE;
 static pthread_t            thread;
 static bool                 thread_started;
+
+/* The sends' numbers (cw_encoder_sending): the last one given, the one the keyer is on (0 idle), the last one keyed
+ * to its end, and the thread's own */
+static atomic_uint          sends, sending_n, done_n;
+static unsigned             thread_n;
 
 static char                 *current_msg = NULL;
 static char                 *current_char = NULL;
@@ -290,15 +296,38 @@ static void over_said(void) {
     }
 }
 
+/* The element times at wpm: a dit, a dah (KEY Ratio), a word space */
+static void timing(int wpm, long *dit_nsec, long *dah_nsec, long *world_space_nsec) {
+    *dit_nsec         = 20000000L / wpm * 60;
+    *dah_nsec         = *dit_nsec * param_f_get(cfg_key_ratio);
+    *world_space_nsec = *dit_nsec * 7;
+}
+
+static bool speed_step(char c) {
+    return c == CW_ENCODER_FASTER || c == CW_ENCODER_SLOWER || c == CW_ENCODER_SPEED;
+}
+
+/* A character to key from p on: not only spaces and speed steps */
+static bool more_signs(const char *p) {
+    for (; *p; p++) {
+        if (*p != ' ' && !speed_step(*p)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Keys the text (again after a pause, as a beacon) until done or stopped.
  * Stopping is by flag: the key is always released by this thread. */
 static void * endecode_thread(void *arg) {
     (void)arg;
-    long dit_nsec         = 20000000L / (param_i_get(cfg_key_speed)) * 60;
-    long dah_nsec         = dit_nsec * param_f_get(cfg_key_ratio);
-    long world_space_nsec = dit_nsec * 7;
+    int    base_wpm       = param_i_get(cfg_key_speed);
+    int    wpm            = base_wpm;
+    long   dit_nsec, dah_nsec, world_space_nsec;
     time_t end            = 0;
     bool   over           = false;
+
+    timing(wpm, &dit_nsec, &dah_nsec, &world_space_nsec);
 
     /* A beacon waits for its start time receiving (BEACON_WAIT, start()); its end comes from the start. A clock set
      * forward past the start starts it at once, past the end too: over, nothing sent */
@@ -326,10 +355,25 @@ static void * endecode_thread(void *arg) {
         } else if (*current_char == ' ') {
             current_char++;
             wait_nsec(world_space_nsec - dah_nsec);
+        } else if (speed_step(*current_char)) {
+            /* A TCI text's speed step: the next character at the new speed, the transmitter held through its word
+             * space; none after the last character, whose last element put the break-in delay back */
+            if (*current_char == CW_ENCODER_SPEED) {
+                wpm = base_wpm;
+            } else if (*current_char == CW_ENCODER_FASTER) {
+                wpm = wpm + CW_ENCODER_STEP_WPM > BOARD_KEY_SPEED_MAX ? BOARD_KEY_SPEED_MAX : wpm + CW_ENCODER_STEP_WPM;
+            } else {
+                wpm = wpm - CW_ENCODER_STEP_WPM < BOARD_KEY_SPEED_MIN ? BOARD_KEY_SPEED_MIN : wpm - CW_ENCODER_STEP_WPM;
+            }
+            timing(wpm, &dit_nsec, &dah_nsec, &world_space_nsec);
+            current_char++;
+            if (more_signs(current_char)) {
+                hold_tx(world_space_nsec, true);
+            }
         } else {
             len = get_morse(current_char, &morse);
             if (len) {
-                send_morse(morse, dit_nsec, dah_nsec, !current_char[len + strspn(current_char + len, " ")]);
+                send_morse(morse, dit_nsec, dah_nsec, !more_signs(current_char + len));
                 current_char += len;
             } else {
                 current_char++;
@@ -356,6 +400,8 @@ static void * endecode_thread(void *arg) {
                 over = true;
                 break;
             }
+            wpm = base_wpm;     /* each send from the speed it started at */
+            timing(wpm, &dit_nsec, &dah_nsec, &world_space_nsec);
             if (!qrss) {
                 hold_tx(world_space_nsec, true);
             }
@@ -373,7 +419,12 @@ static void * endecode_thread(void *arg) {
     if (over) {
         over_said();
     }
+    /* All of a send keyed, before it is seen idle: whoever sees the keyer idle can tell whether it went */
+    if (state == CW_ENCODER_SEND && !stop_req) {
+        atomic_store(&done_n, thread_n);
+    }
     state = CW_ENCODER_IDLE;
+    atomic_store(&sending_n, 0);
     return NULL;
 }
 
@@ -384,6 +435,7 @@ void cw_encoder_stop() {
         thread_started = false;
         radio_set_morse_key(false);
         state = CW_ENCODER_IDLE;
+        atomic_store(&sending_n, 0);
     }
 }
 
@@ -422,13 +474,14 @@ const char *cw_encoder_expand(const char *text) {
     return buf;
 }
 
-static bool start(const char *text, bool beacon, bool slow) {
+/* The send's number (cw_encoder_sending), 0 not started */
+static unsigned start(const char *text, bool beacon, bool slow) {
     cw_encoder_stop();
     sched      = next_sched;    /* for this one only, started or not */
     next_sched = (bcn_sched_t){BCN_NOW, BCN_UNTIL_STOP, 1, BCN_NOW};
 
     if (!text || !*text) {
-        return false;
+        return 0;
     }
     if (current_msg) {
         free(current_msg);
@@ -443,7 +496,7 @@ static bool start(const char *text, bool beacon, bool slow) {
 
         if (n == 0 || !(plan = malloc(n * sizeof(*plan)))) {
             current_msg = current_char = NULL;
-            return false;
+            return 0;
         }
         plan_n = qrss3_plan(text, plan, n);
         qrss   = true;
@@ -466,23 +519,38 @@ static bool start(const char *text, bool beacon, bool slow) {
     param.sched_priority += 5;
     pthread_attr_setschedparam(&attr, &param);
 
+    /* The number before the thread runs: a short send may be over before pthread_create returns */
+    thread_n = atomic_fetch_add(&sends, 1) + 1;
+    if (!thread_n) {
+        thread_n = atomic_fetch_add(&sends, 1) + 1;     /* 0 is none */
+    }
+    atomic_store(&sending_n, thread_n);
     thread_started = pthread_create(&thread, &attr, endecode_thread, NULL) == 0;
     if (!thread_started) {
         state = CW_ENCODER_IDLE;
+        atomic_store(&sending_n, 0);
         if (slow) {
             radio_set_morse_key_limit(0);
             atomic_store(&qrss_on, false);
         }
     }
-    return thread_started;
+    return thread_started ? thread_n : 0;
 }
 
-void cw_encoder_send(const char *text, bool beacon) {
-    start(text, beacon, false);
+unsigned cw_encoder_send(const char *text, bool beacon) {
+    return start(text, beacon, false);
 }
 
 bool cw_encoder_send_qrss3(const char *text, bool beacon) {
-    return start(text, beacon, true);
+    return start(text, beacon, true) != 0;
+}
+
+unsigned cw_encoder_sending(void) {
+    return atomic_load(&sending_n);
+}
+
+unsigned cw_encoder_done(void) {
+    return atomic_load(&done_n);
 }
 
 bool cw_encoder_qrss3(void) {

@@ -135,7 +135,8 @@ def main():
                  work / "control_owner.c", "-pthread", "-o", binary], env)
         print("B01 TCI unkey (fixed):\n" + command([binary], env,
               contains=("after local input and explicit unkey: keyed=0, tx_session_end_calls=1",
-                        "after listen-only and explicit unkey: keyed=0, tx_session_end_calls=2")).strip())
+                        "after listen-only and explicit unkey: keyed=0, tx_session_end_calls=2",
+                        "after listen-only and its CW's unkey: keyed=0, tx_session_end_calls=3")).strip())
 
         command([sys.executable, HERE / "make-log-harness.py"], env)
         binary = work / "log-identities"

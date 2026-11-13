@@ -32,13 +32,16 @@ pre = r'''
 #include <stdarg.h>
 #define LV_CLAMP(lo,x,hi) ((x)<(lo)?(lo):(x)>(hi)?(hi):(x))
 #define AUDIO_RATE 24000
+#define TEXT_MAX 2048
+#define CW_QUEUE 1024
+#define LV_LOG_USER(...) ((void)0)
 static bool keyed;
 radio_state_t radio_get_state(void) {return keyed ? RADIO_TX : RADIO_RX;}
 typedef struct {pthread_mutex_t lock; bool rx_sensors,tx_sensors,audio_on; uint32_t fmt_gen;
-                bool funnel; char token[33]; int role; bool tx_ok;} client_t;   /* funnel: #58, never set here */
+                bool funnel; char token[33]; int role; bool tx_ok; char ip[48];} client_t;   /* funnel: #58, never set here */
 static bool remote_server_session_check(const char *t,int *role,bool *tx,char *name,size_t n) {(void)t;(void)role;(void)tx;(void)name;(void)n;return false;}
 static client_t clients[4];
-typedef struct {int32_t freq,mode,flo,fhi,agc,rit; int drive; bool tx;} rstate_t;
+typedef struct {int32_t freq,mode,flo,fhi,agc,rit; int drive; bool tx; int wpm;} rstate_t;
 static atomic_bool trust_operate = true;
 static struct {int owner; uint64_t start_ms,last_audio_ms,chrono_t0,chrono_n; uint32_t rate;} txs;
 typedef struct {uint32_t rate,type,ch,samples;} afmt_t;
@@ -51,7 +54,7 @@ static uint64_t ptt_ms, ptt_keyed_ms;
 static uint32_t key_gen;
 static atomic_uint key_refused;
 static int ends, last_command = -1;
-enum {C_FREQ,C_MODE,C_FILTER,C_AGC,C_RIT,C_DRIVE,C_KEY,C_UNKEY};
+enum {C_FREQ,C_MODE,C_FILTER,C_AGC,C_RIT,C_DRIVE,C_KEY,C_UNKEY,C_WPM};
 static uint64_t now_ms(void) {return 0;}
 static void state_read(rstate_t *s) {*s=(rstate_t){.tx=keyed};}
 static void client_text(client_t *c,const char *s) {(void)c;puts(s);}
@@ -67,6 +70,15 @@ static bool tx_free(const rstate_t *s) {return !s->tx;}
 /* the operator's question before a network client transmits (tx_permit): allowed here, these cases are about who unkeys */
 static bool tx_permit(int ci) {(void)ci;return true;}
 static void cap_update(void) {}
+/* #179's CW from a client: the client whose text goes (cw_owner) unkeys it with trx:0,false whatever its trust, as a
+ * key's client does; the text itself is tools/tci's */
+static int cw_owner = -1;
+static bool cw_mode(int32_t m) {(void)m;return true;}
+static bool cw_raw(const char *line,char *raw,size_t n) {(void)line;(void)raw;(void)n;return false;}
+static size_t cw_text(const char *in,char *out,size_t n) {(void)in;(void)out;(void)n;return 0;}
+static void cw_start(int ci,bool held,const char *t,size_t l) {(void)ci;(void)held;(void)t;(void)l;}
+static void cw_more(const char *t,size_t l) {(void)t;(void)l;}
+static void cw_say(const char *w) {(void)w;}
 '''
 main = r'''
 int main(void) {
@@ -81,7 +93,11 @@ int main(void) {
   char stop2[]="trx:0,false";
   handle_cmd(0,stop2);
   printf("after listen-only and explicit unkey: keyed=%d, tx_session_end_calls=%d, queued_command=%d\n",keyed,ends,last_command);
-  return !(!keyed && ends==2 && last_command==-1);   /* fixed (audit B01): both unkeys end the session */
+  ptt_owner=-1; cw_owner=0; keyed=true;   /* #179: its CW text on the air, still under Listen only */
+  char stop3[]="trx:0,false";
+  handle_cmd(0,stop3);
+  printf("after listen-only and its CW's unkey: keyed=%d, tx_session_end_calls=%d, queued_command=%d\n",keyed,ends,last_command);
+  return !(!keyed && ends==3 && last_command==-1);   /* fixed (audit B01): every unkey ends the session */
 }
 '''
-(p/'unkey-ownership.c').write_text(pre+'\n'+fn('static bool parse_bool(')+'\n'+fn('static int split_args(')+'\n'+fn('static bool funnel_cmd_ok(')+'\n'+fn('static void handle_cmd(')+'\n'+main)
+(p/'unkey-ownership.c').write_text(pre+'\n'+fn('static bool parse_bool(')+'\n'+fn('static int split_args(')+'\n'+fn('static bool funnel_cmd_ok(')+'\n'+fn('static bool parse_int(')+'\n'+fn('static bool wpm_arg(')+'\n'+fn('static void handle_cmd(')+'\n'+main)
