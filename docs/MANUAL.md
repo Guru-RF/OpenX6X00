@@ -2826,8 +2826,10 @@ Buttons:
   or stops transmitting; stopping cuts a transmission in progress.
 - An FT8 or FT4 transmission starts 0.5 s into its slot, as WSJT-X sends.
   One that can only start later (a press up to 1.5 s into the slot, 1.0 s
-  in FT4; an answer after a long last decode) leaves out the part already
-  past, so the rest of the message is where it belongs. One so late that
+  in FT4; an answer after a long last decode; a message waiting for the
+  slot while the decoder was still busy with the slot before) leaves out the
+  part already past, so the rest of the message is where it belongs. A press
+  later than that goes in your next slot. One so late that
   more than a fifth of it would be left out (2.5 s of FT8, 1.0 s of FT4; the
   clock set while FT8 is open) is not sent: the radio says "TX not sent: too
   late into the slot", and the message goes in your next slot, its retry not

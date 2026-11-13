@@ -1549,14 +1549,21 @@ static bool tx_stopped_cb(void *ctx) {
 }
 
 /* Our transmission, when one is due in this slot; returns whether it went out. The message is
- * taken under qso_mux and sent without it: the GUI may stop or change it meanwhile */
-static bool transmit(const slot_info_t *slot, float sec) {
+ * taken under qso_mux and sent without it: the GUI may stop or change it meanwhile.
+ * first: the slot's first look (audio_worker.c's new slot). Its sec is read after the decoder's last pass of the
+ * slot before, which can run past the slot's start (a busy band, a busy radio). Past tx_start_limit() a message due
+ * since then was dropped for the slot with no row and no log line, a skipped cycle, while the same lateness from the
+ * pass after the read went to tx_worker.c. Now on the first look FT8 and FT4 always go there: what is past is left
+ * out by the clock, and past a fifth nothing is keyed ("TX not sent: too late into the slot", the retry kept). FT2's
+ * first look comes before its last decode and nothing after it checks the time: its limit stays (#228) */
+static bool transmit(const slot_info_t *slot, float sec, bool first) {
     ftx_tx_msg_t out;
     ui_job_t     j = {0};
     uint32_t     gen;
+    bool         overran = sec >= tx_start_limit();
 
     qso_lock();
-    if (!decoder_on || sec >= tx_start_limit() || !tx_msg.msg[0] || tx_odd != slot->odd ||
+    if (!decoder_on || (overran && (!first || is_ft2())) || !tx_msg.msg[0] || tx_odd != slot->odd ||
         !subject_i_get(tx_enabled)) {
         qso_unlock();
         return false;
@@ -1576,6 +1583,9 @@ static bool transmit(const slot_info_t *slot, float sec) {
     sending = true;     /* a stop from now on clears it */
     if (!hound_on) ftx_qso_processor_sent(qso, out.msg);   /* our report out: its QSO may be kept aside */
     qso_unlock();
+    if (overran)
+        fprintf(stderr, "ft8: the slot's first look at %.2f s, the decoder's pass before it ran past the slot's start\n",
+                sec);
     if (j.txfreq) {
         /* Hound's offset to the GUI, whose queue may keep it waiting: stopped or changed meanwhile,
          * this message does not go */
@@ -1617,7 +1627,7 @@ static void on_tick(const slot_info_t *slot, bool new_slot, float sec, void *ctx
     bool tx_pending = tx_msg.msg[0] != '\0';
     qso_unlock();
 
-    if (transmit(slot, sec) || !new_slot) return;
+    if (transmit(slot, sec, new_slot) || !new_slot) return;
 
     static unsigned ft2_slots;
     struct timespec now;
