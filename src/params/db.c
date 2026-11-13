@@ -10,6 +10,7 @@
 #include "../board.h"
 #include "../cfg/db.h"
 
+#include "db_keep.h"
 #include "migrations.h"
 #include "../util.h"
 #include "../start_trace.h"
@@ -18,6 +19,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 #include <lvgl/src/misc/lv_log.h>
@@ -28,10 +30,26 @@ sqlite3                 *db = NULL;
 static sqlite3_stmt     *insert_stmt;
 
 #define PARAMS_DB   BOARD_DATA "/params.db"
+#ifndef SPARE_DB
 #define SPARE_DB    "/tmp/x6100-params.db"      /* a start on the defaults that writes nothing on the card */
+#endif
 
-static char note[96];   /* for the screen once it is up: the settings did not come from params.db */
+/* params.db's last good copy (db_keep.h), on the system partition: ext4 with its journal, where a file renamed into
+ * place is whole after a power cut. The DATA partition is FAT, which the kernel writes out some 30 s after the GUI
+ * (synchronous=OFF), and fsck.fat cuts at each start a file whose clusters it cannot follow: a copy beside params.db
+ * would go with it. On a PC beside the settings */
+#ifndef PARAMS_KEEP
+#ifdef HOST_BUILD
+#define PARAMS_KEEP BOARD_DATA "/params-good.db"
+#else
+#define PARAMS_KEEP "/var/lib/x6100/params-good.db"
+#endif
+#endif
+
+static char note[128];  /* for the screen once it is up: the settings did not come from params.db as it was */
 static bool version_fault;  /* the GUI's own params.db, which this version could not migrate or use */
+static bool on_card;    /* this start runs on params.db, not on the defaults in /tmp: the last good copy is made of it */
+static pthread_mutex_t keep_mux = PTHREAD_MUTEX_INITIALIZER;     /* one copy at a time: the minute's and the power-off's */
 
 
 /* A params.db with no usable bands (an old, foreign or broken one kept on the DATA partition
@@ -232,8 +250,9 @@ static bool copy_file(const char *from, const char *to) {
 }
 
 /* The card's params.db and its journals put aside under one name (opened together they are the file as it was: a
- * journal left beside a new params.db would be played into it), and the defaults in its place */
-static bool put_aside(char *aside, size_t size) {
+ * journal left beside a new params.db would be played into it), and `with` in its place: the last good copy, or the
+ * defaults */
+static bool put_aside(char *aside, size_t size, const char *with) {
     static const char *const side[] = { "", "-wal", "-shm", "-journal" };
     char       from[PATH_MAX], to[PATH_MAX], when[24];
     time_t     now = time(NULL);
@@ -256,7 +275,18 @@ static bool put_aside(char *aside, size_t size) {
             unlink(from);
         }
     }
-    return copy_file(DEFAULT_DB, PARAMS_DB);
+    return copy_file(with, PARAMS_DB);
+}
+
+/* params.db's journals gone: what takes its place is played into by none */
+static void unlink_journals(void) {
+    static const char *const side[] = { "-wal", "-shm", "-journal" };
+    char                     path[PATH_MAX];
+
+    for (size_t i = 0; i < sizeof(side) / sizeof(side[0]); i++) {
+        snprintf(path, sizeof(path), PARAMS_DB "%s", side[i]);
+        unlink(path);
+    }
 }
 
 /* The settings database: params.db on the card. One the GUI cannot use stopped it at every start (a setting left
@@ -265,31 +295,69 @@ static bool put_aside(char *aside, size_t size) {
  * GUI's own that this version cannot migrate or use is not put aside: the fault is the version's, and an update
  * goes back to the one before (database_version_fault). That start, and one whose card does not let the file be
  * replaced or opened (read-only, busy, I/O errors), runs on a copy of the defaults in /tmp. Each is said on the
- * screen (database_note) and in the start trace */
+ * screen (database_note) and in the start trace.
+ *
+ * A damaged or empty file put aside gets the last good copy in its place (database_keep), when there is a sound one,
+ * rather than the defaults: the settings as they were at the end of a minute's run or at a clean power-off. No
+ * params.db at all is no damage: a factory reset, which restarts the GUI without S95gui's copy of the defaults, or
+ * one deleted by hand. It gets the defaults as S95gui gives them, never the copy */
 bool database_init() {
     static const char *const side[] = { "-wal", "-shm", "-journal" };
     int         err = SQLITE_OK, first;
     bool        ours;
     char        aside[PATH_MAX] = "";
     const char *why = "not usable now";
+    struct stat st;
 
     sqlite3_config(SQLITE_CONFIG_LOG, errorLogCallback, NULL);
     sqlite3_config(SQLITE_CONFIG_SERIALIZED);
 
+    if (stat(PARAMS_DB, &st) != 0 && errno == ENOENT) {
+        unlink_journals();
+        if (copy_file(DEFAULT_DB, PARAMS_DB)) {
+            fprintf(stderr, "params.db: none, the defaults in its place\n");
+        }
+    }
     if (database_try(PARAMS_DB, &err, &ours)) {
+        on_card = true;
         return true;
     }
     database_close();
     first = err;
     fprintf(stderr, "params.db: %s (%d)%s\n", sqlite3_errstr(first), first, ours ? ", the GUI's own" : "");
     if (file_damaged(first) || (file_misfit(first) && !ours)) {
+        time_t kept = 0;
+        bool   keep = db_keep_sound(PARAMS_KEEP, &kept);
+
         why = "unusable and not replaced";
-        if (put_aside(aside, sizeof(aside))) {
-            if (database_try(PARAMS_DB, &err, &ours)) {
+        if (put_aside(aside, sizeof(aside), keep ? PARAMS_KEEP : DEFAULT_DB)) {
+            if (keep && database_try(PARAMS_DB, &err, &ours)) {
+                char      when[24];
+                struct tm tm;
+
+                /* the radio's own time, as on its clock (clock_tz_init ran before) */
+                localtime_r(&kept, &tm);
+                strftime(when, sizeof(when), "%Y-%m-%d %H:%M", &tm);
+                fprintf(stderr, "params.db: put aside as %s, the last good copy of %s in its place\n", aside, when);
+                start_trace("settings: params.db unusable (%s), put aside as %s; the last good copy of %s loaded",
+                            sqlite3_errstr(first), strrchr(aside, '/') + 1, when);
+                snprintf(note, sizeof(note), "Settings restored from %s: the settings file was damaged", when);
+                on_card = true;
+                return true;
+            }
+            if (keep) {
+                /* the copy did not do either: the defaults after all, with nothing of the copy's journals */
+                database_close();
+                unlink_journals();
+                fprintf(stderr, "params.db: the last good copy not usable (%s)\n", sqlite3_errstr(err));
+                keep = !copy_file(DEFAULT_DB, PARAMS_DB);
+            }
+            if (!keep && database_try(PARAMS_DB, &err, &ours)) {
                 fprintf(stderr, "params.db: put aside as %s, the defaults in its place\n", aside);
                 start_trace("settings: params.db unusable (%s), put aside as %s; the defaults loaded",
                             sqlite3_errstr(first), strrchr(aside, '/') + 1);
                 snprintf(note, sizeof(note), "Settings file unusable: put aside, defaults loaded");
+                on_card = true;
                 return true;
             }
             database_close();
@@ -326,6 +394,47 @@ const char *database_note(void) {
 
 bool database_version_fault(void) {
     return version_fault;
+}
+
+bool database_keep(void) {
+    char dir[] = PARAMS_KEEP;
+    bool ok;
+
+    /* db is closed again when the settings did not load (params.c) */
+    if (!on_card || !db) {
+        return false;
+    }
+    pthread_mutex_lock(&keep_mux);
+    *strrchr(dir, '/') = '\0';
+    mkdir(dir, 0755);       /* a card whose system partition never had it */
+    ok = db_keep_copy(PARAMS_DB, PARAMS_KEEP);
+    pthread_mutex_unlock(&keep_mux);
+    if (ok) {
+        LV_LOG_USER("Settings: last good copy made, " PARAMS_KEEP);
+    } else {
+        LV_LOG_ERROR("Settings: no last good copy made (" PARAMS_KEEP "), the one before kept");
+    }
+    return ok;
+}
+
+static void *keep_thread(void *arg) {
+    (void)arg;
+    database_keep();
+    return NULL;
+}
+
+void database_keep_later(void) {
+    pthread_t thread;
+
+    if (on_card && pthread_create(&thread, NULL, keep_thread, NULL) == 0) {
+        pthread_detach(thread);
+    }
+}
+
+void database_keep_drop(void) {
+    pthread_mutex_lock(&keep_mux);
+    unlink(PARAMS_KEEP);
+    pthread_mutex_unlock(&keep_mux);
 }
 
 bool sql_query_exec(const char *sql) {

@@ -33,6 +33,7 @@ extern "C" {
     #include "theme.h"
     #include "fonts/font_select.h"
     #include "params/params.h"
+    #include "params/db.h"
     #include "screen_idle.h"
     #include "screen_light.h"
     #include "radio.h"
@@ -5124,6 +5125,7 @@ static void fr_timer_cb(lv_timer_t *t) {
     }
     lv_label_set_text(fr_count, "Resetting...");
     lv_refr_now(NULL);
+    database_keep_drop();   /* the settings' last good copy too, before the reset's sync: nothing brings them back */
     factory_reset_dir(BOARD_DATA);
     _exit(0);   /* not exit(): no destructor may write the settings back */
 }

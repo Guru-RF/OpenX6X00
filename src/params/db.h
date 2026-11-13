@@ -15,12 +15,24 @@
 
 extern sqlite3          *db;
 
-/* params.db opened, repaired and migrated, cfg_db_init done; one the GUI cannot use is put aside for the defaults
- * (db.c). False: no settings database at all */
+/* params.db opened, repaired and migrated, cfg_db_init done; one the GUI cannot use is put aside for its last good
+ * copy (database_keep) or the defaults (db.c). False: no settings database at all */
 bool database_init();
 
-/* What to say on the screen once it is up when the settings did not come from params.db; NULL when they did */
+/* What to say on the screen once it is up when the settings did not come from params.db as it was (the last good
+ * copy, the defaults); NULL when they did */
 const char *database_note(void);
+
+/* The last good copy of params.db (params/db_keep.h), made now in the caller's thread: of a start whose settings came
+ * from params.db and loaded, never of the defaults in /tmp. False: none made, the one before kept. A clean power-off
+ * (radio.c), after the settings' last writes */
+bool database_keep(void);
+
+/* The same in a thread of its own: once the GUI has run a minute (gui_main.c) */
+void database_keep_later(void);
+
+/* The copy gone: a factory reset, whose next start would otherwise not be on the defaults after a damaged file */
+void database_keep_drop(void);
 
 /* True when params.db is the GUI's own and this version could not migrate or use it (left as it is, this start on
  * the defaults): a new version is then not confirmed, and x6100-update's boot-check takes it back after 3 starts */

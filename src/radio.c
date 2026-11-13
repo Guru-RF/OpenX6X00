@@ -32,6 +32,7 @@
 #include "dsp.h"
 #include "screen_rec.h"
 #include "params/params.h"
+#include "params/db.h"
 #include "hkey.h"
 #include "tx_info.h"
 #include "info.h"
@@ -1066,7 +1067,12 @@ void radio_poweroff() {
     if (params.charger.x == RADIO_CHARGER_SHADOW) {
         WITH_RADIO_LOCK(hw_set_i(HW_CHARGER, true));
     }
+    /* The settings' last changes written, the older settings' too (theirs go 3 s after a change), then the last good
+     * copy of params.db made of them on the system partition (params/db.c): what a start puts in place of a
+     * params.db the power cut damaged */
+    params_flush();
     cfg_api_flush_all();
+    database_keep();
     cfg_db_shutdown();
     /* Onto the card before the base cuts the power: the settings are written with synchronous=OFF (params/db.c), the
      * FAT keeps its table and folder changes in memory, and the kernel writes them out some 30 s later. Cut before,

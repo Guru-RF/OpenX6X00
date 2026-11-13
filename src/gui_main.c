@@ -256,14 +256,22 @@ static void settings_load(void) {
     styles_load(params.theme_name.x);
 }
 
-/* Settings that did not come from params.db (params/db.c: one the GUI could not use), said once the screen is up */
+/* Settings that did not come from params.db as it was (params/db.c: one the GUI could not use, the last good copy or
+ * the defaults in its place), said once the screen is up; long enough for the line to scroll through */
 static void settings_note_cb(lv_timer_t *t) {
     const char *note = database_note();
 
     (void)t;
     if (note) {
-        msg_schedule_long_text_fmt("%s", note);
+        msg_schedule_text_ms(8000, "%s", note);
     }
+}
+
+/* A minute up on settings that loaded: the last good copy of params.db (params/db.c), what a damaged one is replaced
+ * with at a start, made in a thread of its own. The update's confirm comes at the same moment */
+static void settings_keep_cb(lv_timer_t *t) {
+    (void)t;
+    database_keep_later();
 }
 
 #define UPDATE_CTL "/usr/sbin/x6100-update"
@@ -471,6 +479,7 @@ int main(void) {
     } else {
         sh_run(UPDATE_CTL " fault settings", NULL, NULL);
     }
+    lv_timer_set_repeat_count(lv_timer_create(settings_keep_cb, 60000, NULL), 1);
     dialog_field_wavelog_start();
     gui_loop();
     return 0;

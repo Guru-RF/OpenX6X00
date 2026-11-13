@@ -538,8 +538,12 @@ static void * params_thread(void *arg) {
     return NULL;
 }
 
-/* Save now, before the GUI restarts itself */
+/* Save now, before the GUI restarts itself or the radio goes off. Nothing without a settings database (none opened,
+ * or closed again when the settings did not load): its statements would run on none */
 void params_flush() {
+    if (!db) {
+        return;
+    }
     pthread_mutex_lock(&params_mux);
     params_save();
     pthread_mutex_unlock(&params_mux);

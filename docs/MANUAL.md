@@ -2004,7 +2004,8 @@ seconds of dark screen); the radio does not reboot.
 > so you can put your settings back.
 
 - Reset: all the settings in params.db (band memory and CW messages
-  included), app frequencies, DX cluster, FT8 UDP, PSK squelch, TCI server, time
+  included) and their [last good copy](#settings-restored-from-2026-11-13-1402-the-settings-file-was-damaged),
+  app frequencies, DX cluster, FT8 UDP, PSK squelch, TCI server, time
   zone, headphone volume, Bluetooth CAT.
 - Kept: logs (ADIF, QSO, field), memory channels, PSK/Olivia macros, JS8
   texts, voice messages, pictures, recordings, themes, CW trainer progress,
@@ -6721,7 +6722,9 @@ UTC and the seconds since power-on:
    own lines:
    1. "GUI start", with the version
    2. "settings: ..." only when the settings file could not be used (see
-      ["Settings file unusable"](#settings-file-unusable-put-aside-defaults-loaded))
+      ["Settings file unusable"](#settings-file-unusable-put-aside-defaults-loaded));
+      "... the last good copy of <date time> loaded" when the copy took its
+      place (see ["Settings restored"](#settings-restored-from-2026-11-13-1402-the-settings-file-was-damaged))
    3. "settings read"
    4. "base: no answer (try N)" for each try while the base gives no answer,
       and "base: reset" after about 6 seconds of that; then "base answered".
@@ -6768,6 +6771,32 @@ web configurator, read the file on a PC.
    whose DATA partition did not mount, or went read-only after card errors,
    has all its lines in that file too, the GUI's included.
 
+#### "Settings restored from 2026-11-13 14:02: the settings file was damaged"
+
+The radio keeps a last good copy of its settings: a minute after each start
+whose settings loaded, and at each power-off with the POWER key (the
+low-battery power-off too). When the settings file, `params.db` on the DATA
+partition, is damaged at a start (the radio lost its power, or the card was
+pulled, while it was being written) or left empty, it is put aside as
+`params-unusable-<date>Z.db` and the copy takes its place. The settings come
+back as they were at the time in the message, by the radio's clock; what was
+changed after it is lost. Attach the put-aside files to a report: they show
+what happened to the file.
+
+- Without a good copy (a new card image, or the copy damaged too), the default
+  settings are loaded instead (see below).
+- The copy is on the card's system partition, `/var/lib/x6100/params-good.db`:
+  ext4, which keeps a file whole through a power cut. DATA is FAT, which does
+  not, and a copy beside `params.db` could go with it. Each new copy is checked
+  before it replaces the one before: a copy of a file that went bad never
+  replaces a good one.
+- A new card image starts without a copy, until a minute after its first start.
+- A Factory reset deletes the copy too. No `params.db` at all (after a factory
+  reset, or deleted by hand) is not damage: the radio starts on the defaults,
+  never on the copy.
+- The copy is made only of settings that came from `params.db`, not of a start
+  on the defaults that saves nothing ("... defaults, not saved", below).
+
 #### "Settings file unusable: put aside, defaults loaded"
 
 The settings file, `params.db` on the DATA partition, could not be used at the
@@ -6775,9 +6804,11 @@ start: empty, damaged (the radio switched off or the card pulled while it was
 being written), or not this firmware's. Up to v0.3.5 the radio then stopped at
 the boot logo at every start. Now the file is renamed
 `params-unusable-<date>Z.db` (its `-wal` and `-shm` files with it), the
-default settings take its place and the radio starts. Set it up again, or
-restore a Backup on the web configurator. Attach the put-aside files to a
-report: they show what happened to the file.
+default settings take its place and the radio starts. Since v0.3.11 the last
+good copy takes its place when there is one (above), and this message is for a
+radio without one. Set it up again, or restore a Backup on the web
+configurator. Attach the put-aside files to a report: they show what happened
+to the file.
 
 "Settings not readable: defaults, not saved" means the card would not let the
 radio use or replace the file (it went read-only after card errors, or it was

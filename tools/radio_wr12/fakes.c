@@ -441,6 +441,14 @@ void cfg_api_flush_all(void) {
 void cfg_db_shutdown() {
 }
 
+/* The power-off's save of the old settings and its last good copy of params.db (params/db.c): none here */
+void params_flush() {
+}
+
+bool database_keep(void) {
+    return false;
+}
+
 /* The old settings (params.c): all 0, as nothing radio.c reads there matters here */
 params_t params;
 
