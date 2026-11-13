@@ -4149,6 +4149,8 @@ static void make_display_page() {
                                 " Theme \n Blue \n Cyan \n Green \n Yellow \n Orange \n Red \n Violet \n White ",
                                 cfg_sm.p_filter_color);
         row = make_param_choice(row, "Filter shade", " Edges \n 25 % \n 50 % \n 75 % \n Full ", cfg_sm.p_filter_shade);
+        /* Where it goes (#250): over the passband, or outside it with the passband clear */
+        row = make_param_choice(row, "Shaded part", " Passband \n Outside ", cfg_sm.p_filter_shade_where);
         row = make_param_slider(row, "Height", &spectrum_height_slider);   /* live, at each step */
     }
     card_end(row);

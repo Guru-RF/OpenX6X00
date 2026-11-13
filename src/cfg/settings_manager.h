@@ -227,6 +227,10 @@ class SettingsManager {
     // v0.3.9 (FILTER_SHADE_FULL)
     Parameter<int32_t> p_filter_shade{"filter_shade", 4, 0, 4,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Where that shade goes (#250): 0 over the passband as up to v0.3.11, 1 outside it, the passband clear
+    // (FILTER_SHADE_PASSBAND, FILTER_SHADE_OUTSIDE in filter_shade.h)
+    Parameter<int32_t> p_filter_shade_where{"filter_shade_where", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Spectrum trace and fill: 0xRRGGBB, -1 the theme's (the fill: as the trace)
     Parameter<int32_t> p_spectrum_line_color{"spectrum_line_color", -1, -1, 0xffffff,
         StorageType::GLOBAL, pending_writes_, &global_params_};

@@ -13,6 +13,7 @@
 #include "spectrum_view.h"
 
 #include "cfg/cfg_api.h"
+#include "filter_shade.h"
 #include "navtex_window.h"
 #include "wefax_window.h"
 #include "dsp.h"
@@ -89,7 +90,7 @@ static bool             vfo_line_on = true;
 static bool             direct;
 static uint32_t        *strip;
 static int32_t          strip_h;
-static int32_t          drawn_markers[15];
+static int32_t          drawn_markers[16];
 
 /* Pixels from the centre of a view w wide for hz, rounded either way from 0 (half up, a VFO
  * tuned below the centre of the Fixed view had its trace a pixel to the right) */
@@ -408,6 +409,17 @@ void spectrum_draw_cb(lv_event_t *e) {
         edge.color = band.bg_color;
         vline(ctx, &edge, pass_x1, top, h);
         vline(ctx, &edge, pass_x2, top, h);
+    } else if (param_i_get(cfg_filter_shade_where) == FILTER_SHADE_OUTSIDE) {
+        /* Outside (#250): the same shade left and right of the passband, inside the frame (the walkie's bandscope
+         * has a border, which it would tint), the passband clear */
+        lv_coord_t          bw = lv_obj_get_style_border_width(o, LV_PART_MAIN);
+        filter_shade_span_t s[2];
+        int                 n = filter_shade_spans(FILTER_SHADE_OUTSIDE, o->coords.x1 + bw, o->coords.x2 - bw,
+                                                   pass_x1, pass_x2, s);
+
+        for (int i = 0; i < n; i++) {
+            shade(ctx, &band, s[i].x1, s[i].x2, top + bw, h - 1 - 2 * bw);
+        }
     } else {
         shade(ctx, &band, pass_x1, pass_x2, top, h);
     }
@@ -547,13 +559,14 @@ static void polyline(const float *db, int from, int to, float min, float max, lv
 
 /* The markers drawn by LVGL: redrawn only when one of them changes, or the zoom that places them (#59: on
  * a new zoom the passband kept its old width, but where something over it happened to be redrawn), or how the
- * passband is drawn (#167: a new Filter shade or colour showed only at the next redraw for something else) */
+ * passband is drawn (#167: a new Filter shade or colour showed only at the next redraw for something else; #250 the
+ * part shaded) */
 static void markers_check(void) {
     int32_t now[sizeof(drawn_markers) / sizeof(drawn_markers[0])] = {
         markers_px(POINTS), pass_lo, pass_hi, notch_on, notch_hz, notch_half,
         rtty_get_state(), params.rtty_center, params.rtty_shift,
         dialog_navtex_is_active() | dialog_wefax_is_active() << 1, vfo_line_on, recorder_is_on(),
-        zoom, param_i_get(cfg_filter_shade), param_i_get(cfg_filter_color)
+        zoom, param_i_get(cfg_filter_shade), param_i_get(cfg_filter_color), param_i_get(cfg_filter_shade_where)
     };
 
     if (memcmp(now, drawn_markers, sizeof(now))) {
