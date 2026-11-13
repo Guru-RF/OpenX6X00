@@ -17,7 +17,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
-- [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
+- [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
@@ -4048,7 +4048,9 @@ kinds:
   Ctrl = dah (the Vail adapter); [ and ] always work too.
 - Mouse type: the paddle shows up as a mouse, default left button = dit,
   right button = dah. An ordinary mouse is not taken for a paddle.
-- USB MIDI (highly experimental): notes, default 1 = dit, 2 = dah.
+- USB MIDI (highly experimental): notes, default 1 = dit, 2 = dah. SmartCW
+  is recognised by itself and needs no Learn: see [SmartCW](#smartcw). The
+  radio reads one MIDI device, the first one plugged in.
 - USB serial (CH340, FTDI, CP210x, PL2303, CDC ACM): the paddle on the
   modem lines, default CTS = dit, DSR = dah. Off by default: turn on Serial
   port. The first ttyUSB or ttyACM port is read; the radio's own ports are
@@ -4073,6 +4075,90 @@ them for all the USB paddles.
 
 A keyboard-type paddle press stops a CW message on the air; the other kinds
 do not.
+
+### SmartCW
+
+SmartCW, RF.Guru's CW keyer, plugs into the radio's USB port with its USB
+cable. The radio recognises it by itself: there is nothing to set on the
+radio. A few seconds after the plug:
+
+- The radio is on SmartCW's USB network: SmartCW is 192.168.7.1 and gives
+  the radio an address (192.168.7.16 to .23). SmartCW is never the radio's
+  way to the internet and gives it no DNS: the internet stays on WiFi or
+  Ethernet, also when your home network uses 192.168.7.x. SmartCW does not
+  show on the ETHERNET card.
+- SmartCW's own web page opens through the radio: in the web configurator's
+  menu, Operating > SmartCW (there while SmartCW is plugged in) opens it in
+  a new tab. Its address is the radio's on port 8073:
+  `http://x6100.local:8073/` (`x6200.local`, your
+  [network name](#network-name)) or `http://<radio IP>:8073/`. The whole page
+  works there: the live keying and decoder, sending text, the memories, the
+  beacon, the settings, the configuration file, restart. It is plain http,
+  also when you opened the configurator by https.
+- SmartCW's MIDI keys the radio in CW and CW-R (below). Settings > Keys >
+  PADDLE shows "SmartCW (MIDI)" under Connected.
+- SmartCW's USB serial port (its text protocol, for a logger) is never
+  taken for a serial paddle, with Serial port on or off.
+
+Plugged in while the radio took an update to this version: unplug SmartCW
+and plug it in again.
+
+#### Keying from SmartCW
+
+Choose SmartCW's MIDI mode on its own page (its USB MIDI settings). Leave
+its note numbers at SmartCW's own (its defaults, "SmartCW notes"): the radio
+knows those.
+
+| SmartCW's MIDI mode | Note | On the radio |
+|---|---|---|
+| keyed (SmartCW's default) | 65, its keyer | keys the radio as SmartCW timed it: the elements of its paddles, its text, memories and beacon |
+| | 64, its straight key | keys the radio while the key is closed |
+| paddles | 67, the dit contact | the dit paddle of the radio's own keyer, as any USB paddle |
+| | 68, the dah contact | the dah paddle |
+| both | 66, PTT | nothing: in CW the key brings the transmitter on |
+
+- Keyed is the mode for most: speed, weight and the keyer are SmartCW's,
+  and what you send from its page, its memories or its beacon goes on the
+  air. The radio's KEY mode (Manual, Auto-L, Auto-R) and Swap dit and dah do
+  not apply: SmartCW's elements key the radio as they come.
+- Paddles: the radio's keyer makes the elements, with the KEY buttons in CW
+  (mode, iambic A/B, speed, ratio) and Swap dit and dah, as for any USB
+  paddle. SmartCW's text, memories and beacon do not reach the radio in this
+  mode: SmartCW sends them over MIDI in keyed mode only.
+- Other note numbers set on SmartCW (its other preset, or your own) are
+  taken as any MIDI paddle's: by the MIDI notes of Learn dit and dah.
+- Only in CW and CW-R, as any USB paddle. Out of CW the notes do nothing. A
+  change of mode, the SWR protection, or SmartCW unplugged while the key is
+  down lets it go at once, and the rest of that element is not sent.
+- One keyer at a time: the first to key keeps the key. An element SmartCW
+  starts while the radio's own keyer sends (another USB paddle), or while a
+  CW message is on the air, is left out whole rather than cut short; the
+  radio's keyer waits while SmartCW keys. SmartCW does not stop a CW message
+  on the air.
+- SmartCW sends nothing over MIDI in its practice mode or with a trainer page
+  open: practising on it never keys the radio.
+
+#### Who can use SmartCW's page
+
+Anyone on the radio's network who can open the web configurator can open
+SmartCW's page through the radio, and send CW on the air with it: the same
+as with the configurator's own Panel. The same rules guard it: sending, a setting, a restart or a configuration upload is taken
+only from the page opened by one of the
+[radio's own names](#the-radios-own-names) (its address, `x6100.local`, a
+name you added), never from another site's page in your browser, and nothing
+goes through [Tailscale Funnel](#tailscale-funnel). Reading SmartCW's state
+works by any name, as the configurator's pages do.
+
+#### When the page says
+
+- "SmartCW is not plugged in": SmartCW is not on the radio's USB port, or
+  its USB network is off (its setting network, on by default). Plug it in,
+  wait a few seconds, load the page again.
+- "SmartCW did not answer": it is plugged in and still starting (load the
+  page again a few seconds later), or its address was changed: the radio
+  looks for it at 192.168.7.1, SmartCW's default (its setting ip).
+- "Not one of the radio's names": open the page by the radio's address or
+  one of its own names, as above.
 
 ### CW messages
 
@@ -5179,6 +5265,7 @@ The menu has General and five groups:
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
+| | SmartCW | SmartCW's own page through the radio, in a new tab on port 8073; in the menu while SmartCW is plugged in (see [SmartCW](#smartcw)) |
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |
 | | Backup | download settings, memories, cluster, TCI server, QSO log, voice messages, your own boot picture (optionally CW trainer and WiFi) as one file, and restore the parts you choose (restored WiFi networks are taken a few seconds after, no restart needed; see below) |
@@ -7135,7 +7222,8 @@ with the adapter, also with the page open. Without one the web page says
 "No Ethernet adapter connected".
 
 - Status: connected, no cable, connecting or not connected, and the
-  adapter's name (eth0).
+  adapter's name (eth0). SmartCW's USB network is no Ethernet adapter and
+  does not show here (see [SmartCW](#smartcw)).
 - Address in use / Gateway in use: what the adapter has now.
 - Mode: DHCP (the default, the network gives the address) or Static.
 - IP address, Netmask, Gateway, DNS: used in Static mode. The netmask can be
