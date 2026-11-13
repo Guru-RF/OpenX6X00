@@ -38,6 +38,10 @@ void database_keep_drop(void);
  * the defaults): a new version is then not confirmed, and x6100-update's boot-check takes it back after 3 starts */
 bool database_version_fault(void);
 
+/* True when this start runs on a copy of the defaults in /tmp (params.db not usable by this version, or not readable
+ * now): nothing set is kept, and the radio's own settings are still on the card */
+bool database_unsaved(void);
+
 bool sql_query_exec(const char *sql);
 
 /* A save: begin, the writes (false: that one failed, its dirty flag stays), commit (false:

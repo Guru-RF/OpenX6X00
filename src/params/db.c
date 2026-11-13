@@ -50,6 +50,7 @@ static char note[128];  /* for the screen once it is up: the settings did not co
 static bool version_fault;  /* the GUI's own params.db, which this version could not migrate or use */
 static bool on_card;    /* this start runs on params.db, not on the defaults in /tmp: the last good copy is made of it */
 static pthread_mutex_t keep_mux = PTHREAD_MUTEX_INITIALIZER;     /* one copy at a time: the minute's and the power-off's */
+static bool unsaved;        /* this start on SPARE_DB, a copy of the defaults */
 
 
 /* A params.db with no usable bands (an old, foreign or broken one kept on the DATA partition
@@ -377,6 +378,7 @@ bool database_init() {
     }
     if (copy_file(DEFAULT_DB, SPARE_DB) && database_try(SPARE_DB, &err, &ours)) {
         fprintf(stderr, "params.db: this start runs on the defaults, " SPARE_DB "\n");
+        unsaved = true;
         start_trace("settings: params.db %s (%s); this start runs on the defaults, nothing saved", why,
                     sqlite3_errstr(first));
         snprintf(note, sizeof(note), version_fault ? "Settings not usable by this version: defaults, not saved"
@@ -435,6 +437,10 @@ void database_keep_drop(void) {
     pthread_mutex_lock(&keep_mux);
     unlink(PARAMS_KEEP);
     pthread_mutex_unlock(&keep_mux);
+}
+
+bool database_unsaved(void) {
+    return unsaved;
 }
 
 bool sql_query_exec(const char *sql) {

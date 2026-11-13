@@ -558,6 +558,11 @@ class SettingsManager {
     Parameter<int32_t> p_textlog_mb{"textlog_mb", 10, 1, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};
 
+    // The first-start guide had (first_start.c): finished, skipped or left once. No row on a new card or after a
+    // settings reset, nor on a radio updated from before the guide: there the callsign decides (first_start_rule.h)
+    Parameter<int32_t> p_first_start_done{"first_start_done", 0, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
+
     // Waterfall Mode Fixed (Settings > Display > WATERFALL, live, #10): the view moves on when 0 the line (or what is
     // received) is 40% of the span from the centre, 1 the passband's edge 100 Hz from the screen's edge, 2 the line
     // 100 Hz from it; and puts the line 0 where it is received (the centre), 1 at the other edge, 2 where it went

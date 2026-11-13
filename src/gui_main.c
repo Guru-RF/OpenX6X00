@@ -73,6 +73,7 @@
 #include "app_sstv.h"
 #include "walkie.h"
 #include "winlink.h"
+#include "first_start.h"
 
 /* LVGL draws the areas it refreshes here, then flushes them to the panel */
 #define DISP_BUF_SIZE (BOARD_DISP_W * BOARD_DISP_H * 4)
@@ -483,6 +484,7 @@ int main(void) {
     }
     lv_timer_set_repeat_count(lv_timer_create(settings_keep_cb, 60000, NULL), 1);
     dialog_field_wavelog_start();
+    first_start_init();     /* a new card or a settings reset: the guide, once the screen is up */
     gui_loop();
     return 0;
 }

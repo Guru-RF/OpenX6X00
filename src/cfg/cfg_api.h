@@ -203,6 +203,9 @@ extern ParamFloat *cfg_cessb_power_up;       // p_cessb_power_up
 extern ParamInt   *cfg_textlog;              // p_textlog
 extern ParamInt   *cfg_textlog_mb;           // p_textlog_mb
 
+// The first-start guide had
+extern ParamInt   *cfg_first_start_done;     // p_first_start_done
+
 // Waterfall Mode Fixed: when the view moves on, and where the line goes
 extern ParamInt   *cfg_wf_fixed_jump;        // p_wf_fixed_jump
 extern ParamInt   *cfg_wf_fixed_after;       // p_wf_fixed_after

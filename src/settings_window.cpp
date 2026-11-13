@@ -531,91 +531,57 @@ static void preview_fade(lv_obj_t *obj) {
 
 /* Date and time, local. A change sets the system clock at once, the RTC (in UTC) when the focus
  * comes back to a field after the edit. The fields hold the time the page was built: only what an
- * edit changed is applied, to the clock as it is now */
+ * edit changed is applied, to the clock as it is now (clock_fields_set(), the first-start guide's too) */
 
 static struct tm dt_tm;         /* the fields */
-static struct tm dt_utc;        /* the same instant, for the RTC */
 static bool      dt_changed;
 static bool      zone_refresh;  /* spinboxes being reloaded: not a user edit */
 static lv_obj_t *dt_spin[6];
 
-/* Day, month, year, hour, min, sec: shown as the struct tm field + base */
-static const struct {
-    int        base;
-    int        lo, hi;
-    uint8_t    digits;
-    lv_coord_t w;
-} dt_spec[6] = {
-    {0, 1, 31, 2, 78}, {1, 1, 12, 2, 78}, {1900, 2020, 2038, 4, 100}, {0, 0, 23, 2, 78}, {0, 0, 59, 2, 78}, {0, 0, 59, 2, 78},
-};
+/* Day, month, year, hour, min, sec (clock_fields): their widths, the columns of col_datetime */
+static const lv_coord_t dt_w[6] = {78, 78, 100, 78, 78, 78};
 
 static int * dt_field(int i) {
-    int *f[6] = {&dt_tm.tm_mday, &dt_tm.tm_mon, &dt_tm.tm_year, &dt_tm.tm_hour, &dt_tm.tm_min, &dt_tm.tm_sec};
-
-    return f[i];
+    return clock_field(&dt_tm, i);
 }
 
 /* The fields again from dt_tm */
 static void dt_show() {
     zone_refresh = true;
     for (int i = 0; i < 6; i++) {
-        lv_spinbox_set_value(dt_spin[i], *dt_field(i) + dt_spec[i].base);
+        lv_spinbox_set_value(dt_spin[i], *dt_field(i) + clock_fields[i].base);
     }
     zone_refresh = false;
 }
 
-/* The MFK press that moves a field's edit cursor sends a change too: the whole fields went to the clock, which an
- * edit that changed nothing set back by the time the page had been open (23 s on the bench, 2026-10-26) */
 static void dt_changed_cb(lv_event_t *e) {
-    struct timespec tp;
-    struct tm       was = dt_tm, now;
+    struct tm was = dt_tm;
 
     if (zone_refresh) return;
     for (int i = 0; i < 6; i++) {
-        *dt_field(i) = lv_spinbox_get_value(dt_spin[i]) - dt_spec[i].base;
+        *dt_field(i) = lv_spinbox_get_value(dt_spin[i]) - clock_fields[i].base;
     }
-    now = dt_tm;        /* mktime normalises (31 in a 30-day month): copies, the fields stay as shown */
-    was.tm_isdst = now.tm_isdst = -1;
-
-    time_t delta = mktime(&now) - mktime(&was);
-
-    if (delta == 0) return;
-    clock_gettime(CLOCK_REALTIME, &tp);
-    tp.tv_sec += delta;
-    if (clock_settime(CLOCK_REALTIME, &tp) != 0) {
-        LV_LOG_ERROR("Can't set system time: %s\n", strerror(errno));
-        return;
+    if (clock_fields_set(&was, &dt_tm)) {
+        dt_changed = true;
     }
-    dt_changed = true;
-    gmtime_r(&tp.tv_sec, &dt_utc);
 }
 
 static void dt_rtc_cb(lv_event_t *e) {
     if (lv_obj_has_state(lv_event_get_target(e), LV_STATE_EDITED) || !dt_changed) {
         return;
     }
-    int rtc = open(BOARD_RTC_DEV, O_WRONLY);
-
-    if (rtc <= 0) {
-        LV_LOG_ERROR("Can't open " BOARD_RTC_DEV ": %s\n", strerror(errno));
-    } else {
-        int res = ioctl(rtc, RTC_SET_TIME, &dt_utc);
-
-        close(rtc);
-        if (res != 0) {
-            LV_LOG_ERROR("Can't set RTC time: %s\n", strerror(errno));
-            return;     /* tried again at the next focus */
-        }
+    if (clock_rtc_save()) {
+        dt_changed = false;     /* else tried again at the next focus */
     }
-    dt_changed = false;
 }
 
 /* Date (fields 0-2) or time (3-5) */
 static uint8_t make_dt_row(uint8_t row, const char *label, int first) {
     wl_row_label(row, label);
     for (int i = first; i < first + 3; i++) {
-        dt_spin[i] = row_spin(row, 1 + i - first, 1, dt_spec[i].w, *dt_field(i) + dt_spec[i].base, dt_spec[i].lo,
-                              dt_spec[i].hi, dt_spec[i].digits);
+        const clock_field_t *f = &clock_fields[i];
+
+        dt_spin[i] = row_spin(row, 1 + i - first, 1, dt_w[i], *dt_field(i) + f->base, f->lo, f->hi, f->digits);
         lv_obj_add_event_cb(dt_spin[i], dt_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
         lv_obj_add_event_cb(dt_spin[i], dt_rtc_cb, LV_EVENT_FOCUSED, NULL);
     }
@@ -3142,7 +3108,23 @@ static uint8_t make_band_region(uint8_t row) {
     return row + 1;
 }
 
+/* The first-start guide again (first_start.c): Settings gives way to it once this press is over, its window going with
+ * the press's own object */
+static void guide_open(void *arg) {
+    main_screen_start_app(ACTION_APP_FIRST_START);
+}
+
+static void guide_cb(lv_event_t *e) {
+    lv_async_call(guide_open, NULL);
+}
+
 static uint8_t make_station(uint8_t row) {
+    wl_row_label(row, "First-start guide");
+
+    lv_obj_t *obj = wl_button(row, "Start", guide_cb);   /* as wide as the callsign's, under it */
+    lv_obj_set_size(obj, 150, ROW_H - 4);
+    lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_CENTER, row++, 1);
+
     row = make_station_row(row, "Callsign", params.callsign.x, ST_CALLSIGN);
     row = make_station_row(row, "QTH locator", params.qth.x, ST_QTH);
     row = make_band_region(row);
@@ -3316,41 +3298,12 @@ static uint8_t make_mic(uint8_t row, const char *label, ParamInt &param) {
     return row + 1;
 }
 
-/* Time zone: POSIX TZ strings, applied at once (see clock_tz_set) */
-
-static const struct { const char *label; const char *posix; } zones[] = {
-    /* UTC, then west to east; the POSIX strings must differ (the current one is found by its string) */
-    { "UTC",                              "UTC0" },
-    { "Pacific/Honolulu (HST)",           "HST10" },
-    { "America/Anchorage (AKST/AKDT)",    "AKST9AKDT,M3.2.0,M11.1.0" },
-    { "America/Los_Angeles (PST/PDT)",    "PST8PDT,M3.2.0,M11.1.0" },
-    { "America/Denver (MST/MDT)",         "MST7MDT,M3.2.0,M11.1.0" },
-    { "America/Chicago (CST/CDT)",        "CST6CDT,M3.2.0,M11.1.0" },
-    { "America/New_York (EST/EDT)",       "EST5EDT,M3.2.0,M11.1.0" },
-    { "America/Sao_Paulo (BRT)",          "BRT3" },
-    { "America/Buenos_Aires (ART)",       "ART3" },
-    { "Europe/London (GMT/BST)",          "GMT0BST,M3.5.0/1,M10.5.0" },
-    { "Europe/Lisbon, Canary (WET/WEST)", "WET0WEST,M3.5.0/1,M10.5.0" },
-    { "Europe/Rome (CET/CEST)",           "CET-1CEST,M3.5.0,M10.5.0/3" },
-    { "Europe/Athens (EET/EEST)",         "EET-2EEST,M3.5.0/3,M10.5.0/4" },
-    { "Africa/Johannesburg (SAST)",       "SAST-2" },
-    { "Europe/Moscow (MSK)",              "MSK-3" },
-    { "Asia/Kolkata (IST)",               "IST-5:30" },
-    { "Asia/Singapore (SGT)",             "SGT-8" },
-    { "Asia/Shanghai (CST)",              "CST-8" },
-    { "Australia/Perth (AWST)",           "AWST-8" },
-    { "Asia/Seoul (KST)",                 "KST-9" },
-    { "Asia/Tokyo (JST)",                 "JST-9" },
-    { "Australia/Brisbane (AEST)",        "AEST-10" },
-    { "Australia/Sydney (AEST/AEDT)",     "AEST-10AEDT,M10.1.0,M4.1.0/3" },
-    { "Pacific/Auckland (NZST/NZDT)",     "NZST-12NZDT,M9.5.0,M4.1.0/3" },
-};
-#define ZONES_NUM   (sizeof(zones) / sizeof(zones[0]))
+/* Time zone: POSIX TZ strings, applied at once (clock_tz_set, clock_zones) */
 
 static void zone_update_cb(lv_event_t *e) {
     time_t now = time(NULL);
 
-    clock_tz_set(zones[lv_dropdown_get_selected(lv_event_get_target(e))].posix);
+    clock_tz_set(clock_zones[lv_dropdown_get_selected(lv_event_get_target(e))].posix);
     localtime_r(&now, &dt_tm);
     dt_show();
 }
@@ -3358,17 +3311,12 @@ static void zone_update_cb(lv_event_t *e) {
 static uint8_t make_zone(uint8_t row) {
     lv_obj_t    *obj;
     std::string  options;
-    const char  *tz = getenv("TZ");
-    uint16_t     sel = 0;
 
-    for (size_t i = 0; i < ZONES_NUM; i++) {
-        options += std::string(i ? "\n " : " ") + zones[i].label + " ";
-        if (tz && !strcmp(tz, zones[i].posix)) {
-            sel = i;
-        }
+    for (size_t i = 0; i < clock_zones_n; i++) {
+        options += std::string(i ? "\n " : " ") + clock_zones[i].label + " ";
     }
     wl_row_label(row, "Zone");
-    obj = row_choice(row, 1, 3, 270, options.c_str(), sel, zone_update_cb, NULL);
+    obj = row_choice(row, 1, 3, 270, options.c_str(), clock_zone_now(), zone_update_cb, NULL);
     lv_obj_set_style_text_font(obj, &sony_22, 0);   /* the long zone names fit at this size only */
     lv_obj_set_style_text_font(lv_dropdown_get_list(obj), SF(22), 0);
 
@@ -4332,6 +4280,11 @@ static void nn_load(char *out, size_t size) {
     if (!out[0]) {
         snprintf(out, size, "%s", BOARD_NAME_LOWER);   /* x6100-hostname's default too */
     }
+}
+
+/* The first-start guide's last step names the web configurator by it */
+extern "C" void settings_network_name(char *out, size_t size) {
+    nn_load(out, size);
 }
 
 /* Letters, digits and '-', 1 to 32, not starting or ending with '-' (x6100-hostname checks too) */

@@ -29,6 +29,8 @@ static int32_t   mode_back = -1;     /* the mode an app replaced, given back whe
 static int32_t   mode_forced;
 static bool      radio_back;         /* dialog_restore_radio_on_close() */
 static char      app_name[8];        /* dialog_app_memory(): the app being opened, "" none */
+static dialog_t *step_window;        /* dialog_on_close(): opened as another window's step */
+static lv_async_cb_t step_back;      /* and what brings that one back */
 
 bool app_mem_load(const char *name, int32_t *freq, int32_t *mode) {
     FILE *f = fopen(APP_FREQS, "r");
@@ -165,6 +167,16 @@ static void close_window(dialog_t *d) {
     }
     main_screen_keys_enable(true);
     main_screen_buttons_wake();     /* Hide buttons: counted from the close */
+    /* Not from here: the key that closed it is still being handled, GEN's page or the app it opens comes after */
+    if (d == step_window) {
+        step_window = NULL;
+        lv_async_call(step_back, NULL);
+    }
+}
+
+void dialog_on_close(dialog_t *d, lv_async_cb_t back) {
+    step_window = d;
+    step_back   = back;
 }
 
 void dialog_destruct() {

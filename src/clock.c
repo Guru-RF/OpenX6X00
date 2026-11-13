@@ -21,7 +21,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
 #include <sys/time.h>
+#include <linux/rtc.h>
 #include <pthread.h>
 #include <sys/stat.h>
 
@@ -420,6 +425,99 @@ void clock_tz_set(const char *posix) {
     if (time_label) {
         show_time();
     }
+}
+
+const clock_zone_t clock_zones[] = {
+    { "UTC",                              "UTC0" },
+    { "Pacific/Honolulu (HST)",           "HST10" },
+    { "America/Anchorage (AKST/AKDT)",    "AKST9AKDT,M3.2.0,M11.1.0" },
+    { "America/Los_Angeles (PST/PDT)",    "PST8PDT,M3.2.0,M11.1.0" },
+    { "America/Denver (MST/MDT)",         "MST7MDT,M3.2.0,M11.1.0" },
+    { "America/Chicago (CST/CDT)",        "CST6CDT,M3.2.0,M11.1.0" },
+    { "America/New_York (EST/EDT)",       "EST5EDT,M3.2.0,M11.1.0" },
+    { "America/Sao_Paulo (BRT)",          "BRT3" },
+    { "America/Buenos_Aires (ART)",       "ART3" },
+    { "Europe/London (GMT/BST)",          "GMT0BST,M3.5.0/1,M10.5.0" },
+    { "Europe/Lisbon, Canary (WET/WEST)", "WET0WEST,M3.5.0/1,M10.5.0" },
+    { "Europe/Rome (CET/CEST)",           "CET-1CEST,M3.5.0,M10.5.0/3" },
+    { "Europe/Athens (EET/EEST)",         "EET-2EEST,M3.5.0/3,M10.5.0/4" },
+    { "Africa/Johannesburg (SAST)",       "SAST-2" },
+    { "Europe/Moscow (MSK)",              "MSK-3" },
+    { "Asia/Kolkata (IST)",               "IST-5:30" },
+    { "Asia/Singapore (SGT)",             "SGT-8" },
+    { "Asia/Shanghai (CST)",              "CST-8" },
+    { "Australia/Perth (AWST)",           "AWST-8" },
+    { "Asia/Seoul (KST)",                 "KST-9" },
+    { "Asia/Tokyo (JST)",                 "JST-9" },
+    { "Australia/Brisbane (AEST)",        "AEST-10" },
+    { "Australia/Sydney (AEST/AEDT)",     "AEST-10AEDT,M10.1.0,M4.1.0/3" },
+    { "Pacific/Auckland (NZST/NZDT)",     "NZST-12NZDT,M9.5.0,M4.1.0/3" },
+};
+const size_t clock_zones_n = sizeof(clock_zones) / sizeof(clock_zones[0]);
+
+size_t clock_zone_now(void) {
+    const char *tz = getenv("TZ");
+
+    for (size_t i = 0; tz && i < clock_zones_n; i++) {
+        if (!strcmp(tz, clock_zones[i].posix)) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+const clock_field_t clock_fields[6] = {
+    {0, 1, 31, 2}, {1, 1, 12, 2}, {1900, 2020, 2038, 4}, {0, 0, 23, 2}, {0, 0, 59, 2}, {0, 0, 59, 2},
+};
+
+int *clock_field(struct tm *tm, int i) {
+    int *f[6] = {&tm->tm_mday, &tm->tm_mon, &tm->tm_year, &tm->tm_hour, &tm->tm_min, &tm->tm_sec};
+
+    return f[i];
+}
+
+/* The MFK press that moves a field's edit cursor sends a change too: the whole fields went to the clock, which an
+ * edit that changed nothing set back by the time the page had been open (23 s on the bench, 2026-10-26). So only the
+ * difference: mktime normalises (31 in a 30-day month) copies, the fields stay as shown */
+bool clock_fields_set(const struct tm *was, const struct tm *now) {
+    struct tm       a = *was, b = *now;
+    struct timespec tp;
+    time_t          delta;
+
+    a.tm_isdst = b.tm_isdst = -1;
+    delta = mktime(&b) - mktime(&a);
+    if (delta == 0) {
+        return false;
+    }
+    clock_gettime(CLOCK_REALTIME, &tp);
+    tp.tv_sec += delta;
+    if (clock_settime(CLOCK_REALTIME, &tp) != 0) {
+        LV_LOG_ERROR("Can't set system time: %s\n", strerror(errno));
+        return false;
+    }
+    return true;
+}
+
+/* The time as it is when written: an edit's own moment, written at the next focus, left the chip that many seconds
+ * behind */
+bool clock_rtc_save(void) {
+    time_t    now = time(NULL);
+    struct tm utc;
+    int       rtc = open(BOARD_RTC_DEV, O_WRONLY);
+    int       res;
+
+    if (rtc < 0) {
+        LV_LOG_ERROR("Can't open " BOARD_RTC_DEV ": %s\n", strerror(errno));
+        return false;
+    }
+    gmtime_r(&now, &utc);
+    res = ioctl(rtc, RTC_SET_TIME, &utc);
+    close(rtc);
+    if (res != 0) {
+        LV_LOG_ERROR("Can't set RTC time: %s\n", strerror(errno));
+        return false;
+    }
+    return true;
 }
 
 void clock_power_get(float *ext, float *bat, uint8_t *cap, bool *charge) {

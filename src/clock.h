@@ -10,6 +10,7 @@
 
 #include "lvgl/lvgl.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>
@@ -37,4 +38,39 @@ const char *clock_hm(const struct tm *tm, char *buf, size_t size);
 
 void clock_tz_init();
 void clock_tz_set(const char *posix);
+
+/* The time zones offered (Settings > General > DATE / TIME, the first-start guide): a name and its POSIX TZ string for
+ * clock_tz_set(). UTC first, then west to east; the strings differ, as the zone in use is found by its string */
+typedef struct {
+    const char *label;
+    const char *posix;
+} clock_zone_t;
+
+extern const clock_zone_t clock_zones[];
+extern const size_t       clock_zones_n;
+
+/* The zone in use (TZ) in clock_zones, 0 (UTC) when it is none of them */
+size_t clock_zone_now(void);
+
+/* The date and time fields (Settings > General > DATE / TIME, the first-start guide): day, month, year, hour, minute,
+ * second, each shown as a struct tm field + base, from lo to hi in digits */
+typedef struct {
+    int     base;
+    int     lo, hi;
+    uint8_t digits;
+} clock_field_t;
+
+extern const clock_field_t clock_fields[6];
+
+/* The struct tm field of clock_fields[i] */
+int *clock_field(struct tm *tm, int i);
+
+/* The fields edited from was to now: the system clock moved by what the edit changed, from where the clock is now (the
+ * fields hold the time they were filled with, the clock went on). False when it changed nothing or the clock could not
+ * be set */
+bool clock_fields_set(const struct tm *was, const struct tm *now);
+
+/* The system clock into the clock chip, in UTC, as the kernel reads it at boot. False when it could not be written:
+ * tried again later */
+bool clock_rtc_save(void);
 

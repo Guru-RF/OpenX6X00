@@ -91,6 +91,7 @@
 #include "radio_controls.h"
 #include "apps_menu.h"
 #include "dialog_birdie.h"
+#include "first_start.h"
 #include "control_owner.h"
 #include "kbd_hyper.h"
 #include "kbd_ptt.h"
@@ -498,6 +499,7 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_PROPAGATION: return "Propagation";
         case ACTION_APP_SCAN:       return "Scanner";
         case ACTION_APP_FREEDV:     return "RADE";
+        case ACTION_APP_FIRST_START: return "First start";
         default:                   return NULL;    /* Modes menu: a menu, not an app */
     }
 }
@@ -596,6 +598,7 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_PROPAGATION, &dialog_propagation},
         {ACTION_APP_SCAN, &dialog_scan},
         {ACTION_APP_FREEDV, &dialog_freedv},
+        {ACTION_APP_FIRST_START, &dialog_first_start},
     };
 
     if (app_action == ACTION_APP_RTTY) {
