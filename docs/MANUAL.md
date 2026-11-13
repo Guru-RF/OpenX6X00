@@ -16,7 +16,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
-- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
+- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [a PC on Bluetooth](#a-pc-on-bluetooth)
@@ -1367,7 +1367,11 @@ what count. What follows it:
   leaves the list as it is;
 - the typical frequencies of Field Ops and the Bands app: in Region 2 and
   the US phone on 80 m at 3.860 and on 40 m at 7.200 MHz, and outside
-  Region 1 CW on 6 m at 50.090 MHz (50.060 is among the beacons there).
+  Region 1 CW on 6 m at 50.090 MHz (50.060 is among the beacons there);
+- the frequencies of PSK31/PSK63 and Olivia: PSK on 40 m at 7.040 MHz in
+  Region 1, 7.070 in Region 2 and the US, 7.035 in Region 3; Olivia on 160 m
+  and 40 m at 1.8255 and 7.0385 in Region 2 and the US (see
+  [Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty)).
 
 A band of the band list the plan does not cover (one added on the web
 configurator's Bands page, the top of 6 m in Region 1, 4 m, 2 m) gets a strip
@@ -3473,9 +3477,12 @@ message:
 Keyboard-to-keyboard modes, ported from SP2KMO's OpenX6100 PSK31 and Olivia
 work (randal007's merge). APP > Modes > PSK31, PSK63 or Olivia; Contestia is
 in the Olivia window, from its Mode button. The radio
-goes to the nearest standard dial frequency in USB-D (PSK 14.070, 7.040,
-3.580...; Olivia 14.071, 7.071, 3.5815...); the BAND keys step through the
-others. Frequency and mode come back when the app closes.
+goes to the nearest standard dial frequency in USB-D (PSK 14.070, 3.580, and
+on 40 m 7.040, 7.070 or 7.035 by the region of the band plan; Olivia 14.071,
+3.5815...); the BAND keys step through the others. The lists, and how to put
+your own frequencies in them, are in
+[Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty).
+Frequency and mode come back when the app closes.
 
 - The waterfall covers the receive filter; the coloured band is where the
   decoder listens. The main knob moves it (5 Hz a click in PSK, 10 Hz in
@@ -3526,7 +3533,9 @@ others. Frequency and mode come back when the app closes.
 
 The keyboard mode added in WSJT-X 3.2 by K1JT and the WSJT-X team (ported
 from WSJT-X, GPLv3). APP > Modes > JTTY. The radio goes to the JTTY dial
-frequency of the band in USB-D (14.090 on 20 m). The layout is the same as
+frequency of the band in USB-D (14.090 on 20 m; WSJT-X's list, or yours, see
+[Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty)).
+The layout is the same as
 RTTY and PSK: received text in the panel under the waterfall, sent text in
 the TX colour. Each received line starts with its report, the signal-to-noise
 in 2500 Hz in dB, averaged over the message's frames as the text log has it
@@ -3543,6 +3552,40 @@ tuner. Decoded stations go to PSK Reporter when it is on. TX goes through the sa
 protection). I haven't made a QSO with it yet, so reports are welcome. A
 QSO logged from the browser panel's Log tab while JTTY is open goes into the
 log as JTTY (ADIF 3.1.8: mode MFSK, submode JTTY).
+
+### Frequencies of PSK, Olivia and JTTY
+
+PSK31/PSK63, Olivia/Contestia and JTTY each have a built-in list of dial
+frequencies (USB), one a band. Opening the app goes to the one closest to
+where the radio is, the BAND keys step through the list, and the Dial button
+moves up to 50 kHz away from it. Where the activity differs by region, the
+list follows the band plan (Settings > General > STATION > Band plan; Auto
+takes the region from the GPS, the locator or the callsign, see
+[Band plan](#band-plan)):
+
+| App | 160m | 80m | 40m | 30m | 20m | 17m | 15m | 12m | 10m | 6m |
+|---|---|---|---|---|---|---|---|---|---|---|
+| PSK31/PSK63 | 1.838 | 3.580 | 7.040 (Region 1), 7.070 (Region 2 and the US), 7.035 (Region 3) | 10.140 | 14.070 | 18.097 | 21.070 | 24.920 | 28.120 | 50.290 |
+| Olivia | 1.8375, 1.8255 (Region 2 and the US) | 3.5815 | 7.071, 7.0385 (Region 2 and the US) | 10.1415 | 14.071 and 14.107 (32/1000) | 18.0975 | 21.071 | 24.921 | 28.121 | |
+| JTTY | 1.838 | 3.575 | 7.090 | 10.140 | 14.090 | 18.100 | 21.090 | 24.920 | 28.090 | |
+
+The Olivia frequencies assume the waterfall centre at 1500 Hz, where opening
+the window and every band change put it. PSK has no single official list:
+these are where activity is found. The Olivia ones are those of
+oliviadigitalmode.org, the JTTY ones those of WSJT-X.
+
+Your own frequencies: on the web configurator, Frequencies > Digital modes,
+Add frequency, with PSK, Olivia or JTTY as the Type (PSK is for PSK31 and
+PSK63 both, Olivia for Contestia too). A frequency of yours takes the place
+of the built-in one on its band (on 20 m both Olivia ones); several of yours
+on one band are all in the list; one on a band without a built-in one (60 m)
+is added. The label is what the app shows ("PSK31 40m US  7.070 MHz"); left
+empty, the band's. The apps always tune USB-D, whatever the Mode column says.
+The list is read at each band key and each opening: no restart. The PSK,
+Olivia and JTTY card at the top of the page shows what the band keys step
+through now, with the band plan, yours in bold. To go back to the built-in
+frequency of a band, delete yours there. The rows are kept in `params.db`
+with the other digital mode frequencies, so a backup of the settings has them.
 
 ### Text log of the keyboard modes
 
@@ -4908,7 +4951,7 @@ The menu has General and five groups:
 | | Screen | the radio's screen live, its keys and knobs, the audio both ways (see [Browser remote](#browser-remote)) |
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
-| | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies |
+| | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies, and your own for PSK, Olivia and JTTY in the place of their built-in ones; a card shows what the band keys of those three step through, with the band plan ([Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty)) |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)), on the frequencies the radio tunes |
 | Operating | Cluster | DX cluster servers, filters and alerts (writes `/mnt/cluster.conf`) |
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |

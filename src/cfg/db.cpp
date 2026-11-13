@@ -861,7 +861,9 @@ DigitalModesTable::LoadResult DigitalModesTable::find_next(int32_t type, int32_t
         return {record, SUCCESS};
     }
     if (rc == SQLITE_DONE) {
-        LV_LOG_WARN("No next digital mode for type=%i, freq=%i", type, current_freq);
+        /* The end of the list, where cfg_digital_list() stops every time: the keyboard modes read it at each band key,
+         * and their type mostly has no row at all */
+        LV_LOG_INFO("No next digital mode for type=%i, freq=%i", type, current_freq);
         return {Record{}, NOT_FOUND};
     }
     LV_LOG_WARN("find_next failed: %s", sqlite3_errmsg(db_));

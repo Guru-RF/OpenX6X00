@@ -44,6 +44,7 @@
 #include "main_screen.h"
 #include "keyboard.h"
 #include "msg.h"
+#include "digi_freqs.h"
 #include "scheduler.h"
 #include "textarea_window.h"
 #include "theme.h"
@@ -111,35 +112,12 @@
 #define KNOB_HOLD_MS    8000    /* MFK knob goes back to fine tuning */
 
 /* ------------------------------------------------------------------ */
-/* Olivia dial frequencies (USB)                                       */
+/* Olivia dial frequencies (USB): the built-in list of the band plan's  */
+/* region with the user's own in it (digi_freqs.c, #205). They assume   */
+/* the waterfall centre at 1500 Hz.                                     */
 
-/*
- * From the frequency table of oliviadigitalmode.org: dial frequencies
- * for the calling channels, with the waterfall centre at 1500 Hz, which
- * is where opening the window and every band change put the finder.
- * Region 1 values where regions differ (160 m 1837.5, not 1825.5; 40 m
- * the secondary 7071.0, since 7038.5 is a Region 2 channel). 20 m has a
- * second, 32/1000 channel. No 6 m channel is listed.
- */
-typedef struct {
-    const char *label;
-    uint32_t    dial_hz;
-} olivia_band_t;
+static digi_freq_t olivia_bands[DIGI_FREQS_MAX];
 
-static const olivia_band_t olivia_bands[] = {
-    {"160m",       1837500},
-    {"80m",        3581500},
-    {"40m",        7071000},
-    {"30m",       10141500},
-    {"20m",       14071000},
-    {"20m wide",  14107000},
-    {"17m",       18097500},
-    {"15m",       21071000},
-    {"12m",       24921000},
-    {"10m",       28121000},
-};
-
-#define OLIVIA_BAND_CNT ((int)(sizeof(olivia_bands) / sizeof(olivia_bands[0])))
 #define BAND_CENTER_HZ  1500
 
 static int cur_band = -1;
@@ -754,24 +732,6 @@ static void knob_timer_restart(void)
 
 /* ---- Band selection --------------------------------------------------- */
 
-static int band_nearest(uint32_t freq)
-{
-    int best = 0;
-    int64_t best_d = -1;
-
-    for (int i = 0; i < OLIVIA_BAND_CNT; i++) {
-        int64_t d = (int64_t)freq - (int64_t)olivia_bands[i].dial_hz;
-
-        if (d < 0)
-            d = -d;
-        if (best_d < 0 || d < best_d) {
-            best_d = d;
-            best = i;
-        }
-    }
-    return best;
-}
-
 static void band_msg(uint32_t f)
 {
     if (dial_offset_hz == 0)
@@ -783,34 +743,32 @@ static void band_msg(uint32_t f)
                             (int)(dial_offset_hz / 1000));
 }
 
-/* dir 0 picks the band closest to where the radio already is, which is
- * what opening the window does; +-1 steps through the list. */
+/* dir 0 picks the entry closest to where the radio already is, which is
+ * what opening the window does; +-1 steps through the list. The list is
+ * read again each time, so a frequency changed on the web configurator
+ * counts from the next band key; stepping goes from the frequency of the
+ * entry the window was on, which may be gone from the new list. */
 static void load_band(int8_t dir)
 {
-    int idx;
+    int32_t from = dir == 0 || cur_band < 0 ? cparam_i_get(cfg_fg_freq) : olivia_bands[cur_band].freq;
+    int     n = digi_freqs_get(CFG_DIG_TYPE_OLIVIA, olivia_bands, DIGI_FREQS_MAX);
+    int     idx = digi_freqs_step(olivia_bands, n, from, cur_band < 0 ? 0 : dir);
 
-    if (dir == 0 || cur_band < 0) {
-        idx = band_nearest((uint32_t)cparam_i_get(cfg_fg_freq));
-    } else {
-        idx = cur_band + dir;
-        if (idx < 0)
-            idx = OLIVIA_BAND_CNT - 1;
-        if (idx >= OLIVIA_BAND_CNT)
-            idx = 0;
-    }
+    if (idx < 0)
+        return;     /* never: the built-in list is not empty */
 
     cur_band = idx;
     dial_offset_hz = 0;
     refresh_btn(&btn_dial);
 
     /* Frequency first, then mode - the order cfg_digital_load() uses. */
-    cparam_i_set(cfg_fg_freq, (int32_t)olivia_bands[idx].dial_hz);
+    cparam_i_set(cfg_fg_freq, olivia_bands[idx].freq);
     cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
 
     /* The listed dial frequencies assume the waterfall centre at 1500. */
     olivia_tx_set_center(BAND_CENTER_HZ);
 
-    band_msg(olivia_bands[idx].dial_hz);
+    band_msg((uint32_t)olivia_bands[idx].freq);
 }
 
 static void change_band(int8_t dir)
@@ -867,7 +825,7 @@ static void dial_apply(void)
     if (cur_band < 0)
         return;
 
-    f = (uint32_t)((int32_t)olivia_bands[cur_band].dial_hz + dial_offset_hz);
+    f = (uint32_t)(olivia_bands[cur_band].freq + dial_offset_hz);
     cparam_i_set(cfg_fg_freq, (int32_t)f);
 
     /* What the waterfall and the receiver hold belongs to the old dial.

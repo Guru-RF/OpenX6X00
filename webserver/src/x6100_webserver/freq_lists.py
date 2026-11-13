@@ -11,6 +11,9 @@ TX_SHIFT_MAX = 10_000_000                   # Hz, the GUI's SettingsManager::TX_
 HF_MIN, HF_MAX = 100_000, 55_000_000        # where the radio transmits without a transverter
 BAND_KEYS = ("name", "start_freq", "stop_freq", "type", "id")
 FREQ_KEYS = ("label", "freq", "mode", "type", "id")
+# digital_modes.type (src/cfg/digital_modes.h cfg_digital_type_t): FT8, FT4, JS8, GhostNet, WSPR, FT2, then PSK, Olivia
+# and JTTY, whose rows are the user's own in the place of the GUI's built-in ones (src/digi_freqs.c)
+DIGITAL_TYPES = range(9)
 
 
 class Invalid(ValueError):
@@ -180,7 +183,7 @@ def delete_band(con, band_id):
     con.execute("DELETE FROM band_params WHERE bands_id = ?", (band_id,))
 
 
-# Digital mode frequencies (FT8/FT4/JS8 lists)
+# Digital mode frequencies (FT8/FT4/FT2, JS8, WSPR lists; the user's own PSK, Olivia and JTTY ones)
 
 def digital_modes(con):
     return [dict(zip(FREQ_KEYS, row))
@@ -192,7 +195,10 @@ def _freq_input(data):
         raise Invalid("Invalid frequency: label, freq, mode and type are needed")
     if not isinstance(data["label"], str):
         raise Invalid("Invalid label")
-    return (data["label"], _whole(data["freq"], "frequency"), _whole(data["mode"], "mode"), _whole(data["type"], "type"))
+    kind = _whole(data["type"], "type")
+    if kind not in DIGITAL_TYPES:
+        raise Invalid("Unknown app")
+    return (data["label"], _whole(data["freq"], "frequency"), _whole(data["mode"], "mode"), kind)
 
 
 def _write_freq(con, sql, values):

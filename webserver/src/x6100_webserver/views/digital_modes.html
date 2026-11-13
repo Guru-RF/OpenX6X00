@@ -1,6 +1,19 @@
 % rebase("base.html", title="Digital modes editor")
 <h2><svg class="i"><use href="#i-pulse"/></svg>Digital modes</h2>
-<p class="sub">Frequencies offered by the FT8/FT4 and JS8 apps.</p>
+<p class="sub">Frequencies offered by the FT8/FT4, FT2, JS8 and WSPR apps, and your own ones for PSK31/PSK63, Olivia and
+JTTY. Those three have a built-in list that follows the band plan of the radio (Settings &gt; General &gt; STATION &gt;
+Band plan): PSK on 40m is 7.040 MHz in Region 1, 7.070 in Region 2 and the US, 7.035 in Region 3. A frequency you add
+for one of them takes the place of the built-in one on its band (its other entries stay); delete yours and the built-in
+one is back. They always go to USB-D, whatever the Mode column says.</p>
+
+<section class="dp-card" id="keyboard_card" hidden>
+<div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-bands"/></svg></span><div><h3>PSK, Olivia and JTTY</h3><p id="keyboard_plan">What the band keys of those apps step through</p></div></div>
+<div class="dp-body">
+<div class="table-wrap">
+<table id="keyboard_lists"><tbody></tbody></table>
+</div>
+</div>
+</section>
 
 <section class="dp-card">
 <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-list"/></svg></span><div><h3>Frequencies</h3><p>Label, dial frequency, mode and app</p></div><div class="dp-x"><button id="add_mode" class="primary"><svg class="i"><use href="#i-plus"/></svg>Add frequency</button></div></div>
@@ -18,8 +31,33 @@
 <script src="/static/js/list_editor.js?v=4"></script>
 <script>
 // src/cfg/digital_modes.h cfg_digital_type_t. Every type must be here: an entry of a missing one
-// would be saved as FT8 (its select would have no matching option)
-const apps = {0: "FT8", 1: "FT4", 2: "JS8", 3: "JS8 GhostNet", 4: "WSPR", 5: "FT2"};
+// would be saved as FT8 (its select would have no matching option). tools/digi_freqs checks it
+const apps = {0: "FT8", 1: "FT4", 2: "JS8", 3: "JS8 GhostNet", 4: "WSPR", 5: "FT2", 6: "PSK", 7: "Olivia", 8: "JTTY"};
+
+/* What PSK, Olivia and JTTY step through on the radio now: the built-in list of its band plan's region with your
+ * frequencies in it (src/digi_freqs.c, through the radio's screen program). Read again after each change below */
+function keyboardLists() {
+  $.ajax({url: "/api/digital_modes/lists", dataType: "json", success: function(d) {
+    const names = ["Auto", "IARU Region 1", "IARU Region 2", "IARU Region 3", "US Extra", "US Advanced", "US General", "US Technician"];
+    const mhz = hz => (hz / 1e6).toFixed(4).replace(/0$/, "");
+    const body = $("#keyboard_lists tbody").empty();
+    $("#keyboard_plan").text("What their band keys step through, band plan " + (names[d.plan] || "Region " + d.region) +
+                             "; yours in bold");
+    [6, 7, 8].forEach(function(t) {
+      const cell = $("<td>");
+      (d.lists[t] || []).forEach(function([hz, own], i) {
+        if (i) cell.append(", ");
+        cell.append(own ? $("<b>").text(mhz(hz)) : document.createTextNode(mhz(hz)));
+      });
+      $("<tr>").append($("<th>").text(apps[t]), cell).appendTo(body);
+    });
+    $("#keyboard_card").prop("hidden", false);
+  }, error: function() { $("#keyboard_card").prop("hidden", true); }});
+}
+keyboardLists();
+$(document).on("ajaxComplete", function(e, xhr, s) {
+  if (s.type !== "GET" && s.url.indexOf("/api/digital_modes") === 0) keyboardLists();
+});
 
 listEditor({
   table: "#freq_list", add: "#add_mode", url: "/api/digital_modes",

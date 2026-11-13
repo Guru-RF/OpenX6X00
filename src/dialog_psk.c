@@ -58,6 +58,7 @@
 #include "main_screen.h"
 #include "keyboard.h"
 #include "msg.h"
+#include "digi_freqs.h"
 #include "freq_strip.h"
 #include "scheduler.h"
 #include "textarea_window.h"
@@ -178,39 +179,10 @@
 #endif
 
 /* ------------------------------------------------------------------ */
-/* Standard PSK31 dial frequencies (USB)                               */
+/* PSK31 dial frequencies (USB): the built-in list of the band plan's   */
+/* region with the user's own in it (digi_freqs.c, #205)               */
 
-/*
- * PSK31 has no single official list of frequencies. These are where
- * activity is found, cross-checked between several published lists;
- * PSK31 signals sit within the 3 kHz above the dial, which is exactly
- * what the waterfall shows. Region 1 values where regions differ:
- *
- *  - 40 m: 7040 kHz is Region 1. Region 2 uses 7070, Region 3 7035.
- *  - 17 m: 18097 kHz. PSK31 moved down from 18100 in 2019, when FT8
- *    took that frequency.
- *  - 60 m is left out: allocations and permitted modes differ from
- *    country to country and there is no common PSK31 frequency.
- */
-typedef struct {
-    const char *label;
-    uint32_t    dial_hz;
-} psk_band_t;
-
-static const psk_band_t psk_bands[] = {
-    {"160m",   1838000},
-    {"80m",    3580000},
-    {"40m",    7040000},
-    {"30m",   10140000},
-    {"20m",   14070000},
-    {"17m",   18097000},
-    {"15m",   21070000},
-    {"12m",   24920000},
-    {"10m",   28120000},
-    {"6m",    50290000},
-};
-
-#define PSK_BAND_CNT ((int)(sizeof(psk_bands) / sizeof(psk_bands[0])))
+static digi_freq_t psk_bands[DIGI_FREQS_MAX];
 
 static int cur_band = -1;
 
@@ -992,51 +964,31 @@ static void apply_range(void)
 
 /* ---- Band selection --------------------------------------------------- */
 
-static int band_nearest(uint32_t freq)
-{
-    int best = 0;
-    int64_t best_d = -1;
-
-    for (int i = 0; i < PSK_BAND_CNT; i++) {
-        int64_t d = (int64_t)freq - (int64_t)psk_bands[i].dial_hz;
-
-        if (d < 0)
-            d = -d;
-        if (best_d < 0 || d < best_d) {
-            best_d = d;
-            best = i;
-        }
-    }
-    return best;
-}
-
-/* dir 0 picks the band closest to where the radio already is, which is
- * what opening the window does; +-1 steps through the list. */
+/* dir 0 picks the entry closest to where the radio already is, which is
+ * what opening the window does; +-1 steps through the list. The list is
+ * read again each time, so a frequency changed on the web configurator
+ * counts from the next band key; stepping goes from the frequency of the
+ * entry the window was on, which may be gone from the new list. */
 static void load_band(int8_t dir)
 {
-    int idx;
+    int32_t from = dir == 0 || cur_band < 0 ? cparam_i_get(cfg_fg_freq) : psk_bands[cur_band].freq;
+    int     n = digi_freqs_get(CFG_DIG_TYPE_PSK, psk_bands, DIGI_FREQS_MAX);
+    int     idx = digi_freqs_step(psk_bands, n, from, cur_band < 0 ? 0 : dir);
 
-    if (dir == 0 || cur_band < 0) {
-        idx = band_nearest((uint32_t)cparam_i_get(cfg_fg_freq));
-    } else {
-        idx = cur_band + dir;
-        if (idx < 0)
-            idx = PSK_BAND_CNT - 1;
-        if (idx >= PSK_BAND_CNT)
-            idx = 0;
-    }
+    if (idx < 0)
+        return;     /* never: the built-in list is not empty */
 
     cur_band = idx;
     dial_offset_hz = 0;
     refresh_btn(&btn_dial);
 
     /* Frequency first, then mode - the order cfg_digital_load() uses. */
-    cparam_i_set(cfg_fg_freq, (int32_t)psk_bands[idx].dial_hz);
+    cparam_i_set(cfg_fg_freq, psk_bands[idx].freq);
     cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
 
     msg_update_text_fmt("%s %s  %u.%03u MHz", mode_name(), psk_bands[idx].label,
-                        (unsigned)(psk_bands[idx].dial_hz / 1000000u),
-                        (unsigned)((psk_bands[idx].dial_hz / 1000u) % 1000u));
+                        (unsigned)(psk_bands[idx].freq / 1000000),
+                        (unsigned)((psk_bands[idx].freq / 1000) % 1000));
 }
 
 static void restart_rx(void)
@@ -1083,7 +1035,7 @@ static void dial_apply(void)
     if (cur_band < 0)
         return;
 
-    f = (uint32_t)((int32_t)psk_bands[cur_band].dial_hz + dial_offset_hz);
+    f = (uint32_t)(psk_bands[cur_band].freq + dial_offset_hz);
     cparam_i_set(cfg_fg_freq, (int32_t)f);
 
     /* What the waterfall and the averages hold belongs to the old dial.

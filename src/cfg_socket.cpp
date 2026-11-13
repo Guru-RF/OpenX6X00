@@ -9,6 +9,7 @@
  *    {"cmd":"eth_get"}                                -> {"t":"eth", ...}
  *    {"cmd":"eth_set","dhcp":0|1,"ip":..,"mask":..,"gw":..,"dns":..}
  *    {"cmd":"band_use","lo":hz,"hi":hz}               -> {"t":"band_use","use":0|1|2} (none, receive, transmit)
+ *    {"cmd":"digi_lists"}                             -> {"t":"digi_lists","plan":p,"region":r,"lists":{"6":[[hz,own]...],..}}
  *  The values are checked here and applied on the LVGL thread through the scheduler, as the
  *  Settings pages apply them.
  *
@@ -28,6 +29,7 @@
 extern "C" {
     #include "band_plan.h"
     #include "cJSON.h"
+    #include "digi_freqs.h"
     #include "params/params.h"
     #include "radio.h"
     #include "scheduler.h"
@@ -48,6 +50,7 @@ extern "C" {
 
 #define SOCK_PATH "/tmp/x6100_cfg.sock"
 #define IN_SIZE   1024
+#define OUT_SIZE  2048
 
 /* Screen options of Settings > Display, by name: the ranges the page may set */
 static const struct {
@@ -331,6 +334,33 @@ static const char *band_use_get(cJSON *req, char *out, size_t size, int *l) {
     return NULL;
 }
 
+/* The lists the band keys of PSK, Olivia and JTTY step through (digi_freqs.c): the band plan in use (bp_plan_t), its
+ * region, and for each of the three types every dial frequency with 1 for the user's own. The web Digital modes page
+ * shows them beside the user's rows, the region and the built-in lists being the GUI's alone. Answered from this
+ * thread: the table's statements have their locks, the database connection is serialized (params/db.c) */
+static const cfg_digital_type_t digi_types[] = {CFG_DIG_TYPE_PSK, CFG_DIG_TYPE_OLIVIA, CFG_DIG_TYPE_JTTY};
+
+/* Each entry at most "[2147483647,1]," */
+static_assert(sizeof(digi_types) / sizeof(digi_types[0]) * (DIGI_FREQS_MAX * 15 + 8) + 96 < OUT_SIZE,
+              "the digi_lists answer may not fit");
+
+static int digi_lists_get(char *buf, size_t size) {
+    int l = snprintf(buf, size, "{\"t\":\"digi_lists\",\"plan\":%d,\"region\":%d,\"lists\":{", band_plan_now(),
+                     band_plan_region());
+
+    for (size_t t = 0; t < sizeof(digi_types) / sizeof(digi_types[0]); t++) {
+        digi_freq_t list[DIGI_FREQS_MAX];
+        int         n = digi_freqs_get(digi_types[t], list, DIGI_FREQS_MAX);
+
+        l += snprintf(buf + l, size - l, "%s\"%d\":[", t ? "," : "", (int)digi_types[t]);
+        for (int i = 0; i < n; i++)
+            l += snprintf(buf + l, size - l, "%s[%d,%d]", i ? "," : "", (int)list[i].freq, list[i].own ? 1 : 0);
+        l += snprintf(buf + l, size - l, "]");
+    }
+    l += snprintf(buf + l, size - l, "}}\n");
+    return l;
+}
+
 /* The answer to one request line */
 static int handle_line(const char *line, char *out, size_t size) {
     cJSON      *req  = cJSON_Parse(line);
@@ -354,6 +384,8 @@ static int handle_line(const char *line, char *out, size_t size) {
             err = "Busy, try again";
     } else if (!strcmp(name->valuestring, "band_use")) {
         err = band_use_get(req, out, size, &l);
+    } else if (!strcmp(name->valuestring, "digi_lists")) {
+        l = digi_lists_get(out, size);
     } else {
         err = "Unknown command";
     }
@@ -365,7 +397,7 @@ static int handle_line(const char *line, char *out, size_t size) {
 
 /* One request per connection: a line in, a line out, the socket closes */
 static void serve(int fd) {
-    char   in[IN_SIZE], out[2048];
+    char   in[IN_SIZE], out[OUT_SIZE];
     size_t n = 0;
     struct timeval tv = {3, 0};
 
