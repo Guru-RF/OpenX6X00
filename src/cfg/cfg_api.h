@@ -78,6 +78,7 @@ extern ParamInt         *cfg_band_plan;          // p_band_plan
 extern ParamInt         *cfg_wr12;               // p_wr12 (the X6200: the WR12 on HOST)
 extern ParamInt         *cfg_speaker_off;        // p_speaker_off
 extern ParamInt         *cfg_kbd_layout;         // p_kbd_layout
+extern ParamInt         *cfg_cpu_save;           // p_cpu_save
 extern ParamInt         *cfg_smeter_needle;      // p_smeter_needle
 extern ParamInt         *cfg_smeter_color;       // p_smeter_color
 extern ParamInt         *cfg_wf_palette;         // p_wf_palette

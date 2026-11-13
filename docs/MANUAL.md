@@ -32,7 +32,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Tailscale](#tailscale): [Tailscale Funnel](#tailscale-funnel)
 - [Ethernet](#ethernet): [USB tethering](#usb-tethering)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
-- [Reference](#reference): [Bluetooth CAT connection](#bluetooth-cat-connection), [CI-V commands](#supported-ci-v-commands), [btcat-ctl](#btcat-ctl), [btaudio-ctl](#btaudio-ctl), [files on /mnt](#files-on-mnt), [processor temperature](#processor-temperature-x6200)
+- [Reference](#reference): [Bluetooth CAT connection](#bluetooth-cat-connection), [CI-V commands](#supported-ci-v-commands), [btcat-ctl](#btcat-ctl), [btaudio-ctl](#btaudio-ctl), [files on /mnt](#files-on-mnt), [processor speed](#processor-speed), [processor temperature](#processor-temperature-x6200)
 - [Build](#build)
 
 ## Getting started
@@ -1427,7 +1427,7 @@ base is too old.
 |---|---|
 | STATION | callsign (an empty field clears it), QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone, 12-hour clock (the clock at the top right as `1:05:30 PM`, off as `13:05:30`, the default; VISION shows `1:05 PM`, Ops Room's digits the hours 1 to 12 without AM or PM; Field Ops' clock and its QSO times and Walkie Talkie's clock follow it, `1:05 PM`; the logs, FT8 and the other digital modes stay on UTC; #54) |
-| CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
+| CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Processor (Full speed, Saves power, see [Processor speed](#processor-speed)), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
 | WR12 RECEIVER | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | TCI SERVER | on/off, port and status, connected client, Clients (Operate or Listen only, see [TCI server](#tci-server)) |
@@ -1470,6 +1470,10 @@ what its base reports: with Charger Off the plug sign from the moment the
 supply is in. (Up to v0.3.7 an X6100 with Charger Off showed the lightning
 sign and a time to full for its first minute on the supply, then the plug,
 issue #108.)
+
+Processor. Where: Settings > General > CONTROLS > Processor (default Full
+speed), also on the web configurator's Display page, Processor card. See
+[Processor speed](#processor-speed).
 
 Zone. Where: Settings > General > DATE / TIME > Zone. The change applies at
 once; summer time follows by itself where the zone has it. 24 zones, UTC then
@@ -4933,6 +4937,7 @@ them.
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX outside ham bands (Settings > TX Cal; see [Amateur bands only](#amateur-bands-only)) |
+| Processor | Processor (Full speed, Saves power; Settings > General; see [Processor speed](#processor-speed)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
@@ -7242,6 +7247,40 @@ Defaults for the Bluetooth bridge are in `/etc/default/btcat`
 (`BTCAT_ENABLE`, `BTCAT_BT`, `BTCAT_ALIAS`); the
 runtime state in `/mnt/btcat.conf` overrides them.
 
+### Processor speed
+
+Settings > General > CONTROLS > Processor, also on the web configurator's
+Display page (Processor card). Default Full speed. The change applies at
+once, and again at every start.
+
+- Full speed: the processor at 1008 MHz all the time, as in every version
+  before.
+- Saves power: slower while there is little to do, never under 480 MHz. The
+  kernel looks at the load every 20 ms and goes to 1008 MHz as soon as the
+  processor was busy most of that time (a decode, a busy screen); below
+  that it follows the load. A little less heat.
+
+> **Experimental.** Saves power is new and not yet measured on a radio.
+> It saves less than its name says: on both radios the processor's voltage
+> stays the same at every speed, so only what its clock costs while it waits
+> is saved. If the waterfall, the audio or CW keying behave differently with
+> it, set Full speed.
+
+Reading it over [SSH](#ssh): the speed now in kHz, and the processor's
+governor (`performance` for Full speed, `ondemand` for Saves power):
+
+```
+cat /sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq
+cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor
+```
+
+The kernels keep no statistics of the time at each speed; a count of a
+minute's readings, ten a second, stands in for it:
+
+```
+for i in $(seq 600); do cat /sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq; sleep 0.1; done | sort -n | uniq -c
+```
+
 ### Processor temperature (X6200)
 
 The X6200's kernel reads its processor's temperature sensor (with the
@@ -7253,7 +7292,8 @@ thermal zone `cpu-thermal` watches it, with the trip points of the
 processor's device tree:
 
 - 75 °C: the processor slows down a step at a time, to 120 MHz at most (it
-  runs at 1008 MHz), and speeds back up as it cools.
+  runs at 1008 MHz, see [Processor speed](#processor-speed)), and speeds back
+  up as it cools.
 - 110 °C: the kernel powers the radio off.
 
 The zone's other trips, 85 °C for the GPU and the "hot" ones at 90 and

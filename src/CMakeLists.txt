@@ -23,7 +23,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     digi_textlog.c
     tx_player.c tx_level.c
     swr_guard.c tune_tx.c ext_tune.c
-    base_guard.c
+    base_guard.c cpu_power.c
     app_sstv.c
     app_sstv_tx.c
     app_sstv_gallery.c

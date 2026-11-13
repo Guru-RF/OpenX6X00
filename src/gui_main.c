@@ -52,6 +52,7 @@
 #include "ext_tune.h"
 #include "birdie.h"
 #include "cfg_socket.h"
+#include "cpu_power.h"
 #include "clock.h"
 #include "btaudio.h"
 #include "rtty.h"
@@ -299,6 +300,7 @@ static void update_notice_cb(lv_timer_t *t) {
 
 /* Everything that runs beside the GUI, once the radio is up */
 static void services_start(void) {
+    cpu_power_start();  /* the processor's speed chosen: the start until here ran at full speed */
     cw_init();
     rtty_init();
     radio_set_rx_tx_notify_fn(&main_screen_notify_rx_tx);
