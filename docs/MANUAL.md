@@ -11,7 +11,7 @@ Settings. Button and option names are written as the radio shows them.
 
 ## Contents
 
-- [Getting started](#getting-started): [first steps](#first-steps), [setting up the transmitter](#setting-up-the-transmitter), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
+- [Getting started](#getting-started): [first-start guide](#first-start-guide), [first steps](#first-steps), [setting up the transmitter](#setting-up-the-transmitter), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
 - [Updating the firmware](#updating-the-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
@@ -37,7 +37,55 @@ Settings. Button and option names are written as the radio shows them.
 
 ## Getting started
 
+### First-start guide
+
+A radio with no callsign, at its first start on a new card or after a factory
+reset (Settings > Info), opens the first-start guide a few seconds after the
+start: three steps, then a summary. The radio receives underneath all the
+while. A radio that has a callsign, for example one updated from an earlier
+version, never opens it by itself. The X6100 and the X6200 show the same guide
+(both screens are 800 by 480).
+Where: Settings > General > STATION > First-start guide (Start runs it again).
+
+1. WiFi. Networks opens the WiFi window and turns WiFi on: choose a network
+   there, then ESC or GEN brings you back to the guide. The line above
+   Networks says whether the radio is connected, to which network and with
+   which address. With Ethernet connected, WiFi is not needed.
+2. Callsign and locator. Callsign and Locator open the keyboard (on the
+   screen, or a USB keyboard when one is plugged in); Enter or the tick key
+   saves. With a GPS that has a fix, a GPS fix line offers its locator:
+   Use <locator> sets it.
+3. Clock and time zone. The clock with the date and UTC, and what set it:
+   NTP (over WiFi) or the GPS. Set by either, there is nothing to do. If
+   neither did, set the date and time in the fields under it, as in
+   Settings > General > DATE / TIME. Time zone sets the zone the clock at the
+   top right shows; the logs and the digital modes stay on UTC.
+4. Done. What is set and what is not, the web configurator's address
+   (`http://x6100.local` or `http://x6200.local`, or the
+   [network name](#network-name) you gave the radio, and its IP address), and
+   where this manual is.
+
+Moving through it:
+
+- The buttons at the bottom: Back, the step's own (Networks, Callsign,
+  Locator, Time zone), Skip and Next (Done on the last screen). The MFK moves
+  between the controls of a step and its press opens one; touch works too.
+- Skip goes on without the step: the summary then says "Skipped" for WiFi
+  or the callsign while they are not set. One set elsewhere (the callsign in
+  Settings, WiFi in the WiFi window) shows as set.
+- ESC asks "Skip the guide?" first; a second ESC within 4 seconds skips the
+  rest. GEN, or another app, leaves the guide as well.
+- Finished, skipped or left, the guide does not come back by itself; a
+  message says where to start it again.
+- A start that runs on the defaults without saving them ("defaults, not
+  saved", see
+  [Settings file unusable](#settings-file-unusable-put-aside-defaults-loaded))
+  opens no guide: the radio's own settings are still on the card.
+
 ### First steps
+
+On a new card the [first-start guide](#first-start-guide) takes you through
+steps 1 to 3 and names the web configurator's address.
 
 1. Set your callsign and QTH locator.
    Where: Settings > General > STATION.
@@ -1425,7 +1473,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | callsign (an empty field clears it), QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
+| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone, 12-hour clock (the clock at the top right as `1:05:30 PM`, off as `13:05:30`, the default; VISION shows `1:05 PM`, Ops Room's digits the hours 1 to 12 without AM or PM; Field Ops' clock and its QSO times and Walkie Talkie's clock follow it, `1:05 PM`; the logs, FT8 and the other digital modes stay on UTC; #54) |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Processor (Full speed, Saves power, see [Processor speed](#processor-speed)), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |
