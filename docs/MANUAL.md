@@ -321,9 +321,11 @@ the restart switches the radio off (switch it on again).
 While it is on, LOCK shows in the frequency strip, the main knob and F-INP
 do not tune, the step mark under the frequency goes and the frequency scale
 greys out, and the browser panel, TCI programs, Pat's QSY (Winlink) and Field
-Ops' band tune are refused, and so are channels (the CHANNELS window and
-the hand mic's UP/DOWN). The band keys, memories, cluster spots and CAT
-still tune.
+Ops' band tune are refused. The band keys, memories, channels (the
+CHANNELS window and the hand mic's UP/DOWN), cluster spots and CAT still
+tune: they are chosen, and LOCK is there against a knob turned by accident.
+LOCK stays on after them. Up to v0.3.11 LOCK refused channels too
+(issue #111).
 - LOCK is left of the frequency; in VISION in front of the locator; in Black
   Metal and Total Black on the right, between the other VFO and the A/B
   badge, and left of the frequency while an app window is open. On the
@@ -350,7 +352,7 @@ one second.
 | F-INP (H-22: the red F-INP/ENT) | both | the frequency box, see below | |
 | F1, F2 | both | the action set in Settings > Keys > HAND MIC KEYS: F1 steps up, F2 does nothing until it has one | F1 steps down, F2 as set |
 | F3 | H-22 | as F2, with its own action (X6200: Settings > Keys > HAND MIC KEYS) | as set |
-| UP, DOWN (H-22: the arrow keys) | both | the [channel](#channels) before or after the last one tuned, its name shown (not while LOCK is on or an app holds the frequency or the mode) | band up or down |
+| UP, DOWN (H-22: the arrow keys) | both | the [channel](#channels) before or after the last one tuned, its name shown (not while an app holds the frequency or the mode; LOCK lets it through) | band up or down |
 | MODE | both | the next mode: LSB, USB, CW, CW-R, AM, NFM (and SAM, WFM on the X6200) | DIG on or off in SSB, like a long press of the front SSB key |
 | V/M | both | the [CHANNELS](#channels) window (not over an app that has the screen) | |
 | VOL+, VOL- | H-22 | the RX volume one step up or down, shown like the VOL knob's | held: on by itself from 0.4 s, before the long press, about ten steps a second until let go |
@@ -4612,9 +4614,10 @@ APP Channels, or the V/M key of the hand mic.
   frequency and the mode on the right. A channel with no name shows as
   "CHANNEL n".
 - The MFK moves along the list; a press tunes the channel (frequency, mode,
-  AGC, PRE, ATT) and closes the window. Not while LOCK is on or an app holds
-  the frequency or the mode (FT8, WSPR, SSTV on the air...): "Channel not
-  tuned" says which, and the window stays.
+  AGC, PRE, ATT) and closes the window, LOCK on or not (LOCK stays on). Not
+  while an app holds the frequency or the mode (FT8, WSPR, SSTV on the
+  air...): "Channel not tuned" says which, and the window stays. Up to
+  v0.3.11 LOCK refused it too ("dial locked", issue #111).
 - Close closes it. Add stores the current VFO (frequency, mode, AGC, PRE, ATT)
   as a new channel at the end of the list. Delete removes the channel under
   the cursor. Edit renames it (the keyboard opens, "Channel name").
@@ -4623,8 +4626,8 @@ APP Channels, or the V/M key of the hand mic.
 - Hand mic: V/M opens the window (not over WeFax, NavTex, SSTV, JS8, PSK,
   Olivia or JTTY); UP and DOWN (the H-22's arrow keys) tune the channel
   before or after the last one tuned and show its name for a moment, without
-  opening the window. With LOCK on or an app holding the frequency or the
-  mode they do not tune either.
+  opening the window. With an app holding the frequency or the mode they do
+  not tune either; LOCK lets them through.
 - Up to 100 channels. They are the same as on the web configurator's
   Memories page; a change made there shows on the radio within a few
   seconds, unless the window is open. The window has the list it read when

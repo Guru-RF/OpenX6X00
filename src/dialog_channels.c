@@ -189,12 +189,13 @@ static bool tune(int16_t row, bool close) {
 
     if (!c) return false;
 
-    /* LOCK, or an app holding the frequency or the mode (FT8, WSPR, SSTV on the air...): no recall, as the main
-     * knob does not tune. The hand mic's UP/DOWN tuned past them, keyed too */
-    const char *why = main_screen_freq_user_locked() ? "dial locked"
-                      : main_screen_freq_locked()    ? "the app holds the frequency"
-                      : main_screen_mode_locked()    ? "the app holds the mode"
-                                                     : NULL;
+    /* An app holding the frequency or the mode (FT8, WSPR, SSTV on the air...): no recall, as the main knob does not
+     * tune. The hand mic's UP/DOWN tuned past them, keyed too. The user's LOCK lets a recall through: it is there
+     * against a knob turned by accident, and a recall is chosen (#111; up to v0.3.11 it said "dial locked"). The
+     * lock stays on, so the knob still does not move the recalled frequency */
+    const char *why = main_screen_freq_app_locked() ? "the app holds the frequency"
+                      : main_screen_mode_locked()   ? "the app holds the mode"
+                                                    : NULL;
     if (why) {
         msg_update_text_fmt("Channel not tuned: %s", why);
         return false;

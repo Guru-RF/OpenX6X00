@@ -63,6 +63,8 @@ void main_screen_agc_next();
 void main_screen_lock_freq(bool lock);
 void main_screen_user_lock_freq(bool lock);
 bool main_screen_freq_user_locked(void);
+/* An app holds the frequency (FT8, WSPR, SSTV on the air...), whatever the user's lock */
+bool main_screen_freq_app_locked(void);
 void main_screen_lock_band(bool lock);
 void main_screen_lock_mode(bool lock);
 void main_screen_lock_ab(bool lock);

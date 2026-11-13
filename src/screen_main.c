@@ -1576,6 +1576,10 @@ bool main_screen_freq_user_locked(void) {
     return user_lock;
 }
 
+bool main_screen_freq_app_locked(void) {
+    return app_lock;
+}
+
 void main_screen_lock_band(bool lock) {
     band_lock = lock;
 }
