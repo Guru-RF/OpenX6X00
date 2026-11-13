@@ -12,6 +12,9 @@ state in a folder of its own under build/tmp for each case, the files an update 
 4. last.json as the updaters up to v0.3.10 wrote it (no reason, no sentence): status and notice make the sentence
    from its "why"; a reason of a later updater is said by its "why"; a version not known reads "the version before".
 5. "why" is still written, for the web pages of the versions before, which show it.
+6. Each file put in place has the manifest's mode, whatever its staged copy has: the staging is on the DATA partition,
+   whose FAT gives every file 0755 (SmartCW's NetworkManager profile, 0600, came out 0755 and was refused). A
+   rollback gives the earlier file its own mode back.
 """
 import io
 import json
@@ -19,6 +22,7 @@ import os
 import runpy
 import shutil
 import signal
+import stat
 import sys
 import tempfile
 import unittest
@@ -223,6 +227,46 @@ class RollbackNotice(unittest.TestCase):
         u.write_last({"result": "rolled back", "version": "0.4.0", "to": "0.3.12", "reason": "new",
                       "text": "Update v0.4.0 taken back to v0.3.12: something new", "when": 1})
         self.notice_once("Update v0.4.0 taken back to v0.3.12: something new", "v0.4.0 taken back to v0.3.12\nsomething new")
+
+
+class Modes(unittest.TestCase):
+    """6: the manifest's mode, not the staged copy's"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="modes-", dir=os.environ.get("TMPDIR"))
+        self.u = Updater(self.tmp)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_manifest_mode(self):
+        u, root = self.u, os.path.join(self.tmp, "root")
+        with open(u.version, "w") as f:
+            f.write("0.3.12\n")
+        os.makedirs(root)
+        before = os.path.join(root, "smartcw.nmconnection")
+        with open(before, "w") as f:            # an earlier one, as an earlier updater left it
+            f.write("old")
+        os.chmod(before, 0o640)
+        entries = [{"path": before, "mode": "600"}, {"path": os.path.join(root, "page.pyc"), "mode": "644"},
+                   {"path": os.path.join(root, "tool"), "mode": "755"}, {"path": os.path.join(root, "old-bundle")}]
+        stage = os.path.join(u.up["WORK"], "stage")
+        for e in entries:
+            staged = os.path.join(stage, e["path"].lstrip("/"))
+            os.makedirs(os.path.dirname(staged), exist_ok=True)
+            with open(staged, "w") as f:
+                f.write("new")
+            os.chmod(staged, 0o755)             # as FAT shows every file
+        u.up["apply"]({"version": "0.3.13", "files": entries})
+
+        def mode(path):
+            return oct(stat.S_IMODE(os.stat(path).st_mode))
+        for e in entries:
+            self.assertEqual(mode(e["path"]), oct(int(e.get("mode", "644"), 8)), e["path"])
+        self.assertEqual(u.run("rollback")[0], 0)
+        self.assertEqual(mode(before), oct(0o640), "the earlier file's own mode")
+        for e in entries[1:]:
+            self.assertFalse(os.path.exists(e["path"]), e["path"])
 
 
 if __name__ == "__main__":

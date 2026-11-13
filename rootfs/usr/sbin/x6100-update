@@ -496,6 +496,7 @@ def apply(m):
     """The staged files into place, one by one, the previous ones kept and the journal ahead of each step."""
     st = os.path.join(WORK, "stage")
     shutil.rmtree(PREV, ignore_errors=True)
+    modes = {e["path"]: int(str(e.get("mode", "644")), 8) for e in m["files"]}
     files = [{"path": e["path"], "prev": os.path.exists(e["path"]), "done": False} for e in m["files"]]
     journal = {"version": m["version"], "from": running_version(), "state": "applying", "files": files,
                "started": time.time()}
@@ -511,6 +512,9 @@ def apply(m):
         os.makedirs(os.path.dirname(p), exist_ok=True)
         tmp = p + ".x6new"
         shutil.copy2(os.path.join(st, p.lstrip("/")), tmp)
+        # The manifest's mode, not the staged copy's: WORK is the DATA partition, whose FAT keeps none, and every
+        # file came out 0755, also NetworkManager's profile for SmartCW (0600), which it then refused
+        os.chmod(tmp, modes[p])
         fd = os.open(tmp, os.O_RDONLY)
         os.fsync(fd)
         os.close(fd)

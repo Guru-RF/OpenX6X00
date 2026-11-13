@@ -72,10 +72,17 @@ def follow_profile(reload, profile=PROFILE):
     update brought it), is read now with reload (apps.NM_RELOAD, ReloadConnections, as the WiFi restore does). Else
     SmartCW's network would wait for the next start of the radio. A clock set after NetworkManager's start can make
     the file look newer than it is: the reload then reads the same files again, which changes nothing. True when it
-    asked NetworkManager"""
+    asked NetworkManager. The updaters up to v0.3.12 put every file in place 0755 (they staged them on the DATA
+    partition, whose FAT keeps no modes), and NetworkManager refuses a profile that others may read: such a profile is
+    made 0600 and read again, also when it is older than NetworkManager's start"""
     started = process_started("NetworkManager")
     try:
-        if started is None or os.path.getmtime(profile) <= started:
+        st = os.stat(profile)
+        loose = st.st_mode & 0o077
+        if loose:
+            os.chmod(profile, 0o600)
+            logging.warning("SmartCW: its NetworkManager profile was %04o, now 0600", st.st_mode & 0o777)
+        if started is None or (not loose and st.st_mtime <= started):
             return False
     except OSError:
         return False

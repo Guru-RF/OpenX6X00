@@ -12,12 +12,15 @@ them: smartcw0 as udev names SmartCW's (72-smartcw.rules), eth9 as a USB Etherne
 1. The profile as an update brings it, after NetworkManager's start: not known until the web server's start tells
    NetworkManager to read its profiles (smartcw.follow_profile, apps.NM_RELOAD by dbus-send, which the radios
    have), then known with its settings. A file older than NetworkManager's start is left alone. Installed 0644 (as
-   git has it) NetworkManager leaves it out: CMakeLists.txt installs it 0600.
+   git has it) NetworkManager leaves it out: CMakeLists.txt installs it 0600. Put in place 0755 (as the updaters up
+   to v0.3.12 left every file, staged on the FAT DATA partition), also older than NetworkManager's start, the web
+   server makes it 0600 and tells NetworkManager.
 2. With the GUI's own "Ethernet" profile saved (src/wifi.cpp eth_connection_new: no match, no priority):
    NetworkManager takes SmartCW's profile on smartcw0 and the GUI's on eth9, never SmartCW's.
 """
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -168,17 +171,19 @@ class AfterAnUpdate(unittest.TestCase):
         self.assertFalse(smartcw.follow_profile(RELOAD, dest), "no file: nothing asked")
         shutil.copyfile(PROFILE, dest)
         os.chmod(dest, 0o644)                         # as git has it
-        self.assertTrue(smartcw.follow_profile(RELOAD, dest), "newer than NetworkManager: told")
+        subprocess.run(RELOAD, check=True, capture_output=True)
         self.assertNotIn("SmartCW", known(), "0644: NetworkManager takes it after all")
         os.chmod(dest, 0o600)                         # as CMakeLists.txt installs it
         self.assertNotIn("SmartCW", known(), "known before NetworkManager was told")
+        os.chmod(dest, 0o755)                         # as the updaters up to v0.3.12 put every file in place
         started = smartcw.process_started("NetworkManager")
         os.utime(dest, (started - 60, started - 60))
-        self.assertFalse(smartcw.follow_profile(RELOAD, dest), "older than NetworkManager: asked anyway")
-        self.assertNotIn("SmartCW", known())
+        self.assertTrue(smartcw.follow_profile(RELOAD, dest), "0755, older than NetworkManager: not told")
+        self.assertEqual(stat.S_IMODE(os.stat(dest).st_mode), 0o600, "0755: not made 0600")
+        self.assertTrue(until(lambda: "SmartCW" in known(), True), "made 0600 and told, and not known")
+        self.assertFalse(smartcw.follow_profile(RELOAD, dest), "0600, older than NetworkManager: asked anyway")
         os.utime(dest)
-        self.assertTrue(smartcw.follow_profile(RELOAD, dest))
-        self.assertTrue(until(lambda: "SmartCW" in known(), True), "told, and not known")
+        self.assertTrue(smartcw.follow_profile(RELOAD, dest), "newer than NetworkManager: not told")
         got = nm("-g", "connection.autoconnect-priority,match.interface-name,ipv4.method,ipv4.never-default,"
                  "ipv4.ignore-auto-dns,ipv4.route-metric,ipv6.method", "connection", "show", "SmartCW").stdout
         self.assertEqual(got.split("\n")[:7], ["50", "smartcw*", "auto", "yes", "yes", "1000", "disabled"])

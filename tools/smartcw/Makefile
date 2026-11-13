@@ -17,7 +17,8 @@
 #   names they agree on with the GUI and the proxy, and the profile installed 0600 by CMakeLists.txt's own rule.
 # - smartcw_nm_test.py: the profile with a NetworkManager of this PC, in namespaces of its own as tools/wifi_restore
 #   (unshare -rmn; needs NetworkManager, nmcli, dbus-daemon, dbus-send, ip): left out at 0644, read after an update
-#   when the web server tells NetworkManager (smartcw.follow_profile), and taken on smartcw0 before the GUI's own
+#   when the web server tells NetworkManager (smartcw.follow_profile), made 0600 by it when an updater left it 0755,
+#   and taken on smartcw0 before the GUI's own
 #   Ethernet profile, which takes another adapter. KEEP=1 keeps NetworkManager's log (the folder is printed).
 SRC    := ../../src
 TOP    := ../..
