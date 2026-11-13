@@ -704,10 +704,12 @@ void dsp_put_audio_samples(size_t nsamples, int16_t *samples) {
 
     void (*sink)(unsigned int, float *) = NULL;
 
+    /* In CW with the decoder, the tuning bars and the trainer all off nothing takes it: the 44.1 kHz are not
+     * decimated for nobody */
     if (rtty_get_state() == RTTY_RX)
         sink = rtty_put_audio_samples;
     else if (cur_mode == radio_mode_cw || cur_mode == radio_mode_cwr)
-        sink = cw_put_audio_samples;
+        sink = cw_audio_wanted() ? cw_put_audio_samples : NULL;
     else if (dialog_need_audio())
         sink = dialog_audio_samples;
 

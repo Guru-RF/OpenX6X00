@@ -18,6 +18,8 @@ void cw_init(void);
 
 /* Audio thread: RX audio after the app decimation (AUDIO_CAPTURE_RATE / AUDIO_DECIM) */
 void cw_put_audio_samples(unsigned int n, float *samples);
+/* Something in CW takes that audio now: the decoder, the tuning bars or the CW trainer. Any thread */
+bool cw_audio_wanted(void);
 
 /* Received tone (Hz), smoothed: what the tuning indicator shows */
 float cw_get_tone_freq(void);

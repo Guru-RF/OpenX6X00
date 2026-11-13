@@ -168,6 +168,10 @@ static void apply_rx_params() {
     }
 }
 
+bool cw_audio_wanted(void) {
+    return started && (decode_on || tune_on || trainer);
+}
+
 void cw_put_audio_samples(unsigned int n, float *samples) {
     static bool trainer_range = false;   /* the receiver has the trainer's speed range */
     bool        tr     = trainer;
