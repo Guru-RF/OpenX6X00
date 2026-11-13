@@ -1475,6 +1475,34 @@ static void unknown_call(void) {
     check(m.type == FTX_MSG_TYPE_CQ && !m.call_de[0], "a CQ with no call (type %d, '%s')", m.type, m.call_de);
 }
 
+/* A row with no call in it pressed: free text (Show: All), a call we know only as <...>. The answer had no call:
+ * " Q1QQQ JO21" went out as the free text "Q1QQQ JO21", and "... Q1QQQ JO21" did not encode. ft8_window.c says "No
+ * call to answer in that message"; the processor makes nothing of it either */
+static void no_call_press(void) {
+    begin("Free text pressed: nothing queued, no QSO");
+    ftx_msg_meta_t m = rx("TNX FER QSO");
+    check(m.type == FXT_MSG_TYPE_OTHER && !m.call_de[0], "free text, no call (type %d)", m.type);
+    slot_end();
+    press(m);
+    check(!tx.msg[0] && !ftx_qso_processor_has_current(qso), "nothing queued (%s), no QSO", tx.msg);
+
+    begin("Rows of <...> pressed: nothing queued, the CQ goes on");
+    tx_cq();
+    our_slot();
+    for (const char *t : {"A1AAA <...> -05", "CQ <...>", ME " <...> -05"}) {
+        m = rx(t);
+        press(m);
+        check(next_is("CQ " ME " " MY_QTH) && !ftx_qso_processor_has_current(qso), "\"%s\": the CQ stays (%s)", t,
+              tx.msg);
+    }
+
+    begin("A row of another station's QSO pressed still calls its sender");
+    m = rx("B1BBB A1AAA -05");
+    slot_end();
+    press(m);
+    check(next_is("A1AAA " ME " JO21"), "our call to A (%s)", tx.msg);
+}
+
 int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "-v");
     good_paths();
@@ -1488,6 +1516,7 @@ int main(int argc, char **argv) {
     own_qth();
     bare_sign();
     unknown_call();
+    no_call_press();
     ftx_qso_processor_delete(qso);
     printf("FT8 QSO %s: %d of %d cases\n", good == cases ? "OK" : "FAILED", good, cases);
     return good == cases ? 0 : 1;

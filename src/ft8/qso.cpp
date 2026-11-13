@@ -545,7 +545,10 @@ bool FTxQsoProcessor::take_ahead(std::string call) {
     return true;
 }
 
+/* A row pressed. One with no call in it (free text, a call we know only as "<...>") is nobody's: its answer had no
+ * call to go to, " Q1QQQ JO21" went out as free text and "... Q1QQQ JO21" did not encode at all (#228) */
 void FTxQsoProcessor::start_qso(ftx_msg_meta_t *meta, ftx_tx_msg_t *tx_msg) {
+    if (!meta->call_de[0] || is_unknown_call(meta->call_de)) return;
     auto type = meta->type;
     if (!meta->to_me) {
         type = FTX_MSG_TYPE_CQ;

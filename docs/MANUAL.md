@@ -2878,7 +2878,9 @@ answers that station, moves your TX offset there (unless Hold Freq is on) and
 turns TX Call on. A press while transmitting stops TX. Touching a row answers
 it too; the MFK stays on its row, and on the last row the list keeps
 following new messages. Dragging the list leaves the MFK on the row you let
-go on.
+go on. A row with no call in it (free text, shown with Show: All, or a call
+shown as `<...>`, see below) has no station to answer: the radio says "No
+call to answer in that message" and sends nothing.
 
 The "For you" strip. Stations that call you stay pinned in a strip under the
 list, so they do not scroll away.

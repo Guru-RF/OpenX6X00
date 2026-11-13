@@ -1282,6 +1282,13 @@ static void list_pressed(const cell_data_t *cd) {
         return;
     }
 
+    /* Free text (Show: All), or a call we know only as "<...>" (qso.cpp): no station to answer. The answer made had no
+     * call in it, " ON6URE JO21", and went out as free text for all its retries, the TX offset moved to it (#228) */
+    if (!cd->meta.call_de[0]) {
+        msg_schedule_text_fmt("No call to answer in that message");
+        return;
+    }
+
     char was[sizeof(tx_msg.msg)], next[sizeof(tx_msg.msg)];
 
     qso_lock();
