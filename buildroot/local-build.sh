@@ -231,10 +231,10 @@ if [ $MODEL = x6100 ]; then
     grep -E "^BR2_TARGET_UBOOT_(CUSTOM_VERSION_VALUE|NEEDS_PYTHON3|CUSTOM_DTS_PATH)" $DEFCONFIG
 fi
 # The processor's voltage with its speed. The boards' device tree gives the processor no supply (cpu-supply), so the
-# kernel changes the clock but never the voltage: U-Boot's 1.2 V at every speed, and Settings > Processor > Saves power
-# only saves what the clock costs. With the power chip's vdd-cpu rail (dcdc3) named, the kernel follows the
-# processor's own table: 1.04 V up to 648 MHz, 1.1 V to 816 MHz, 1.2 V above, so Full speed (1008 MHz) stays at the
-# 1.2 V it has now. The same line as the kernel's own boards of this processor family. U-Boot builds the same file
+# kernel changes the clock but never the voltage: U-Boot's 1.2 V at every speed. With the power chip's vdd-cpu rail
+# (dcdc3) named, the kernel follows the processor's own table: 1.04 V up to 648 MHz, 1.1 V to 816 MHz, 1.2 V above, so
+# full speed (1008 MHz, the only one the GUI uses since v0.3.12) stays at the 1.2 V it has now, and a processor slowed
+# by its temperature limit runs at a lower voltage too. The same line as the kernel's own boards of this processor family. U-Boot builds the same file
 # (the X6100's: with its dtsi); it knows both labels
 DTS=$EXT/board/$M/dts/sun8i-r16-$MODEL.dts
 grep -q "cpu-supply" $DTS || printf '\n&cpu0 {\n\tcpu-supply = <&reg_dcdc3>;\n};\n' >> $DTS

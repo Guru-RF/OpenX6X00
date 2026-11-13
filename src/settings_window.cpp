@@ -98,7 +98,6 @@ static void make_cluster_page();
 static void make_txcal_page();
 static void make_walkie_page();
 static void wl_row_label(uint8_t row, const char *text);
-static lv_obj_t * wl_note(uint8_t row);
 static void nn_load(char *out, size_t size);     /* the network name (Wireless) */
 static void ts_update();                         /* Tailscale (Wireless) */
 static void ts_forget();
@@ -1307,12 +1306,6 @@ static uint8_t make_charger(uint8_t row) {
     return row + 1;
 }
 
-/* The processor's speed (cpu_power.h): applied as it is chosen */
-static uint8_t make_cpu_speed(uint8_t row) {
-    make_param_choice(row, "Processor", " Full speed \n Saves power ", cfg_sm.p_cpu_save);
-    lv_label_set_text(wl_note(row), "Saves power: slower when idle");
-    return row + 1;
-}
 
 static uint8_t make_freq_accel(uint8_t row) {
     wl_row_label(row, "Freq acceleration");
@@ -3346,7 +3339,6 @@ static void make_general_page() {
     row = make_freq_accel(row);
     row = make_param_slider(row, "Accel. onset", &accel_onset_slider);
     row = make_charger(row);
-    row = make_cpu_speed(row);
     row = make_param_slider(row, "Per band S-meter cal", &smeter_cal_slider);
     row = make_tx_shift(row);
     /* The Walkie Talkie portrait screen: on at once (walkie.c follows the setting), Settings closes */

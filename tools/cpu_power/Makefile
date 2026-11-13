@@ -1,4 +1,4 @@
-# Host test of src/cpu_power.c, Settings > General > CONTROLS > Processor: Full speed and Saves power written into a
+# Host test of src/cpu_power.c: a radio that v0.3.11's Saves power left on ondemand put back to full speed, on a
 # folder laid out as the radios' cpufreq files (test.d, made and removed by the test), and what is left alone. `make`
 # builds it and runs it. See cpu_power_test.c for the cases.
 SRC    := ../../src

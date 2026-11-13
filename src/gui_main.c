@@ -308,7 +308,7 @@ static void update_notice_cb(lv_timer_t *t) {
 
 /* Everything that runs beside the GUI, once the radio is up */
 static void services_start(void) {
-    cpu_power_start();  /* the processor's speed chosen: the start until here ran at full speed */
+    cpu_power_start();  /* a radio v0.3.11's Saves power left on ondemand: back to full speed */
     cw_init();
     rtty_init();
     radio_set_rx_tx_notify_fn(&main_screen_notify_rx_tx);

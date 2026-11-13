@@ -91,7 +91,6 @@ static const struct {
     {"buttons_hide", &cfg_sm.p_buttons_hide, 0, 3},     /* live: screen_main.c follows it */
     {"walkie", &cfg_sm.p_walkie, 0, 1},                 /* live: walkie.c follows it */
     {"speaker_off", &cfg_sm.p_speaker_off, 0, 1},       /* live: radio.c follows it */
-    {"cpu_save", &cfg_sm.p_cpu_save, 0, 1},             /* Processor: live, cpu_power.c follows it */
     {"indep_vfo", &cfg_sm.p_indep_vfo, 0, 1},           /* Station: independent VFOs */
     {"mode_from_plan", &cfg_sm.p_mode_from_plan, 0, 1}, /* Station: the mode follows the band plan */
     {"band_region", &cfg_sm.p_band_region, 0, BP_PLAN_COUNT - 1},  /* Station: the band plan; live, screen_main.c */

@@ -350,10 +350,6 @@ class SettingsManager {
     // volume (radio.c radio_vol_refresh); the audio to a browser, TCI and headphones goes on
     Parameter<int32_t> p_speaker_off{"speaker_off", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // Settings > General > CONTROLS > Processor: 1 Saves power, the kernel's ondemand governor from 480 MHz up; 0 Full
-    // speed, performance at 1008 MHz, as up to v0.3.10 (cpu_power.c)
-    Parameter<int32_t> p_cpu_save{"cpu_save", false, 0, 1,
-        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Settings > Keys > KEYBOARD > Layout: the USB or Bluetooth keyboard's xkb layout, an index into kbd_layout.c's
     // list (0 US, as up to v0.3.9); key_input.c follows it (#236)
     Parameter<int32_t> p_kbd_layout{"kbd_layout", 0, 0, KBD_LAYOUTS - 1,

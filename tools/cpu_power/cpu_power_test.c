@@ -1,17 +1,14 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  Host test of src/cpu_power.c, Settings > General > CONTROLS > Processor: what it writes into the kernel's cpufreq
- *  files for Full speed and Saves power, on a folder laid out as the radios' /sys/devices/system/cpu/cpufreq (one
- *  policy for the four cores, the radios' frequencies), and what it leaves alone. The setting and its subscription are
- *  stood in for here.
+ *  Host test of src/cpu_power.c: a radio that v0.3.11's Saves power left on the kernel's ondemand governor from 480 MHz
+ *  is put back to full speed at the start, and anything else is left alone, on a folder laid out as the radios'
+ *  /sys/devices/system/cpu/cpufreq (one policy for the four cores, the radios' frequencies).
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
 #include "cpu_power.h"
-
-#include "cfg/cfg_api.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,26 +34,6 @@ static int fails, checks;
             printf("\n");                                   \
         }                                                   \
     } while (0)
-
-/* ---- The setting, as cfg_api.h has it --------------------------------------------- */
-
-static int32_t     cpu_save_val;
-static observer_cb subscribed;
-static int         subscriptions;
-ParamInt          *cfg_cpu_save = (ParamInt *)&cpu_save_val;
-
-int32_t param_i_get(const ParamInt *p) {
-    return p == cfg_cpu_save ? cpu_save_val : -1;
-}
-
-Observer *subject_subscribe(Subject *subj, observer_cb fn, void *user_data) {
-    (void)user_data;
-    if (subj == (Subject *)cfg_cpu_save) {
-        subscribed = fn;
-        subscriptions++;
-    }
-    return NULL;
-}
 
 /* ---- A cpufreq folder ---------------------------------------------------------------- */
 
@@ -90,20 +67,19 @@ static const char *get(const char *policy, const char *name) {
     return buf;
 }
 
-/* A policy as the kernel starts it: performance, the floor at the bottom step */
-static void policy(const char *name, const char *govs, const char *freqs, const char *min, const char *max) {
+/* A policy with governor gov and floor min (kHz text), the kernel's own floor cpuinfo_min */
+static void policy(const char *name, const char *gov, const char *min, const char *cpuinfo_min, const char *max) {
     char path[256];
 
     snprintf(path, sizeof(path), DIR_ "/%s", name);
     mkdir(path, 0755);
-    put(name, "scaling_available_governors", govs);
-    if (freqs)
-        put(name, "scaling_available_frequencies", freqs);
-    put(name, "cpuinfo_min_freq", min);
+    put(name, "scaling_available_governors", RADIO_GOVS);
+    put(name, "scaling_available_frequencies", RADIO_FREQS);
+    put(name, "cpuinfo_min_freq", cpuinfo_min);
     put(name, "cpuinfo_max_freq", max);
     put(name, "scaling_min_freq", min);
     put(name, "scaling_max_freq", max);
-    put(name, "scaling_governor", "performance\n");
+    put(name, "scaling_governor", gov);
 }
 
 static void fresh(void) {
@@ -113,106 +89,72 @@ static void fresh(void) {
 
 /* ---- The cases ------------------------------------------------------------------------ */
 
-static void floor_cases(void) {
-    CHECK(cpu_power_floor_khz(RADIO_FREQS, 120000, 1008000) == 480000, "the radios' table: 480 MHz");
-    CHECK(cpu_power_floor_khz("1008000 408000 600000 816000", 408000, 1008000) == 600000,
-          "no 480 MHz step, in any order: the next one up, 600 MHz");
-    CHECK(cpu_power_floor_khz("120000 240000 312000", 120000, 312000) == 312000, "all under 480 MHz: the top one");
-    CHECK(cpu_power_floor_khz("", 120000, 1008000) == 480000, "no list: 480 MHz");
-    CHECK(cpu_power_floor_khz(NULL, 120000, 400000) == 400000, "no list, a top under 480 MHz: the top");
-    CHECK(cpu_power_floor_khz("", 600000, 1008000) == 600000, "no list, a bottom over 480 MHz: the bottom");
-    CHECK(cpu_power_floor_khz("garbage", 120000, 1008000) == 480000, "a list that is no list: as none");
-}
-
-static void apply_cases(void) {
+static void restore_cases(void) {
+    /* What v0.3.11's Saves power left: ondemand from 480 MHz. Back to performance and the kernel's floor */
     fresh();
-    policy("policy0", RADIO_GOVS, RADIO_FREQS, "120000\n", "1008000\n");
-
-    CHECK(cpu_power_apply(DIR_, true), "Saves power applied");
-    CHECK(!strcmp(get("policy0", "scaling_governor"), "ondemand"), "Saves power: ondemand, not %s",
+    policy("policy0", "ondemand\n", "480000\n", "120000\n", "1008000\n");
+    CHECK(cpu_power_restore(DIR_) == 1, "Saves power's policy put back");
+    CHECK(!strcmp(get("policy0", "scaling_governor"), "performance"), "back to performance, not %s",
           get("policy0", "scaling_governor"));
-    CHECK(!strcmp(get("policy0", "scaling_min_freq"), "480000"), "Saves power: from 480 MHz, not %s",
+    CHECK(!strcmp(get("policy0", "scaling_min_freq"), "120000"), "the kernel's floor back, not %s",
           get("policy0", "scaling_min_freq"));
-    CHECK(!strcmp(get("policy0", "scaling_max_freq"), "1008000"), "the top is left as it is");
+    CHECK(!strcmp(get("policy0", "scaling_max_freq"), "1008000"), "the top left as it is");
+    CHECK(cpu_power_restore(DIR_) == 0, "once back, nothing more to do");
 
-    CHECK(cpu_power_apply(DIR_, true), "Saves power again");
-    CHECK(!strcmp(get("policy0", "scaling_governor"), "ondemand"), "Saves power twice: the same");
-
-    CHECK(cpu_power_apply(DIR_, false), "Full speed applied");
-    CHECK(!strcmp(get("policy0", "scaling_governor"), "performance"), "Full speed: performance, not %s",
-          get("policy0", "scaling_governor"));
-    CHECK(!strcmp(get("policy0", "scaling_min_freq"), "120000"), "Full speed: the kernel's floor back, not %s",
-          get("policy0", "scaling_min_freq"));
-
-    /* A kernel without ondemand: nothing written, the policy stays at full speed */
+    /* Full speed as the kernel starts it: nothing written */
     fresh();
-    policy("policy0", "userspace powersave performance\n", RADIO_FREQS, "120000\n", "1008000\n");
-    CHECK(!cpu_power_apply(DIR_, true), "no ondemand: not applied");
-    CHECK(!strcmp(get("policy0", "scaling_governor"), "performance"), "no ondemand: still performance");
-    CHECK(!strcmp(get("policy0", "scaling_min_freq"), "120000"), "no ondemand: the floor untouched");
+    policy("policy0", "performance\n", "120000\n", "120000\n", "1008000\n");
+    CHECK(cpu_power_restore(DIR_) == 0, "performance: left alone");
+    CHECK(!strcmp(get("policy0", "scaling_governor"), "performance"), "performance: still performance");
 
-    /* "ondemand" only as part of another word is not ondemand */
+    /* Set by hand over SSH: left alone, ondemand at the kernel's own floor too (v0.3.11 never left that) */
     fresh();
-    policy("policy0", "notondemand performance\n", RADIO_FREQS, "120000\n", "1008000\n");
-    CHECK(!cpu_power_apply(DIR_, true), "a governor named like it is not it");
+    policy("policy0", "schedutil\n", "120000\n", "120000\n", "1008000\n");
+    CHECK(cpu_power_restore(DIR_) == 0, "schedutil by hand: left alone");
+    CHECK(!strcmp(get("policy0", "scaling_governor"), "schedutil"), "schedutil by hand: still schedutil");
+    fresh();
+    policy("policy0", "ondemand\n", "120000\n", "120000\n", "1008000\n");
+    CHECK(cpu_power_restore(DIR_) == 0, "ondemand at the kernel's floor: left alone");
+    CHECK(!strcmp(get("policy0", "scaling_governor"), "ondemand"), "ondemand at the kernel's floor: still ondemand");
+    fresh();
+    policy("policy0", "powersave\n", "480000\n", "120000\n", "1008000\n");
+    CHECK(cpu_power_restore(DIR_) == 0, "another governor with a raised floor: left alone");
 
-    /* Two policies (a kernel with a clock per cluster): both, each with its own table */
+    /* Two policies (a kernel with a clock per cluster): each by its own floor */
     fresh();
-    policy("policy0", RADIO_GOVS, RADIO_FREQS, "120000\n", "1008000\n");
-    policy("policy4", RADIO_GOVS, "300000 600000 1200000\n", "300000\n", "1200000\n");
+    policy("policy0", "ondemand\n", "480000\n", "120000\n", "1008000\n");
+    policy("policy4", "ondemand\n", "600000\n", "300000\n", "1200000\n");
     mkdir(DIR_ "/ondemand", 0755);  /* the governor's own folder, no policy */
-    CHECK(cpu_power_apply(DIR_, true), "two policies applied");
-    CHECK(!strcmp(get("policy4", "scaling_governor"), "ondemand"), "the second policy: ondemand");
-    CHECK(!strcmp(get("policy4", "scaling_min_freq"), "600000"), "the second policy: its own floor, not %s",
+    CHECK(cpu_power_restore(DIR_) == 2, "two policies put back");
+    CHECK(!strcmp(get("policy4", "scaling_governor"), "performance"), "the second policy: performance");
+    CHECK(!strcmp(get("policy4", "scaling_min_freq"), "300000"), "the second policy: its own floor, not %s",
           get("policy4", "scaling_min_freq"));
-    CHECK(cpu_power_apply(DIR_, false), "two policies back");
-    CHECK(!strcmp(get("policy4", "scaling_min_freq"), "300000"), "the second policy: its own floor back");
 
-    /* A policy whose files cannot be read: false, the others still done */
+    /* A policy whose files cannot be read: -1, the others still done */
     fresh();
-    policy("policy0", RADIO_GOVS, RADIO_FREQS, "120000\n", "1008000\n");
+    policy("policy0", "ondemand\n", "480000\n", "120000\n", "1008000\n");
     mkdir(DIR_ "/policy1", 0755);
-    CHECK(!cpu_power_apply(DIR_, true), "a policy without its files: not all applied");
-    CHECK(!strcmp(get("policy0", "scaling_governor"), "ondemand"), "the good policy applied all the same");
+    CHECK(cpu_power_restore(DIR_) == -1, "a policy without its files: -1");
+    CHECK(!strcmp(get("policy0", "scaling_governor"), "performance"), "the good policy put back all the same");
 
     /* No cpufreq at all, or no policy in it; the PC build passes none */
     fresh();
-    CHECK(!cpu_power_apply(DIR_, true), "no policy: false");
-    CHECK(!cpu_power_apply("test.d/none", true), "no folder: false");
-    CHECK(!cpu_power_apply(NULL, true), "NULL: false");
+    CHECK(cpu_power_restore(DIR_) == -1, "no policy: -1");
+    CHECK(cpu_power_restore("test.d/none") == -1, "no folder: -1");
+    CHECK(cpu_power_restore(NULL) == -1, "NULL: -1");
 }
 
 static void start_cases(void) {
-    /* Full speed at the start: the kernel's setting left as it is (one set by hand over SSH stays) */
+    /* At the start, on the radio's folder (CPUFREQ_DIR, the test's here) */
     fresh();
-    policy("policy0", RADIO_GOVS, RADIO_FREQS, "120000\n", "1008000\n");
-    put("policy0", "scaling_governor", "schedutil\n");
-    cpu_save_val  = 0;
-    subscriptions = 0;
+    policy("policy0", "ondemand\n", "480000\n", "120000\n", "1008000\n");
     cpu_power_start();
-    CHECK(subscriptions == 1, "the setting followed");
-    CHECK(!strcmp(get("policy0", "scaling_governor"), "schedutil"), "Full speed at the start: nothing written");
-
-    /* Chosen in Settings: applied at once, either way */
-    cpu_save_val = 1;
-    subscribed((Subject *)cfg_cpu_save, NULL);
-    CHECK(!strcmp(get("policy0", "scaling_governor"), "ondemand"), "Saves power chosen: ondemand");
-    cpu_save_val = 0;
-    subscribed((Subject *)cfg_cpu_save, NULL);
-    CHECK(!strcmp(get("policy0", "scaling_governor"), "performance"), "Full speed chosen: performance");
-
-    /* Saves power at the start: applied before anything is chosen */
-    fresh();
-    policy("policy0", RADIO_GOVS, RADIO_FREQS, "120000\n", "1008000\n");
-    cpu_save_val = 1;
-    cpu_power_start();
-    CHECK(!strcmp(get("policy0", "scaling_governor"), "ondemand"), "Saves power at the start: ondemand");
-    CHECK(!strcmp(get("policy0", "scaling_min_freq"), "480000"), "Saves power at the start: from 480 MHz");
+    CHECK(!strcmp(get("policy0", "scaling_governor"), "performance"), "the start puts it back");
+    CHECK(!strcmp(get("policy0", "scaling_min_freq"), "120000"), "the start: the kernel's floor back");
 }
 
 int main(void) {
-    floor_cases();
-    apply_cases();
+    restore_cases();
     start_cases();
     if (system("rm -rf test.d") != 0)
         fails++;

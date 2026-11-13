@@ -31,8 +31,8 @@ also switch them on in the defconfig and the kernel configuration:
   attached and takes one plugged in later.
 
 `local-build.sh` also gives both radios' device tree the processor's supply (`cpu-supply` on
-`cpu0`, the power chip's vdd-cpu rail), so the kernel lowers the voltage with the speed under
-Settings > Processor > Saves power; Full speed keeps U-Boot's 1.2 V.
+`cpu0`, the power chip's vdd-cpu rail), so the kernel lowers the voltage with the speed (when the
+temperature limit slows the processor); full speed keeps U-Boot's 1.2 V.
 
 These come from the published GPL sources of the X6100 firmware this project was forked from
 (v0.129, buildroot tree and patches, GPL-2.0), taken as they are.
