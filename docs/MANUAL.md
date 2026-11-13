@@ -6860,6 +6860,19 @@ stopped ... started"). The chip takes the right time at the next NTP sync
 (when WiFi or Ethernet comes up), from FT8's Time Sync, or from the date and
 time set in Settings > General > DATE / TIME, and keeps it from then on.
 
+#### The GPS icon turns grey after a while
+
+The arrow at the top is green while a GPS position has come in the last 10
+seconds. When nothing comes from the GPS for 5 seconds, the radio connects
+again to gpsd, the program that reads the GPS. With the GPS still plugged in
+and nothing for about a minute, it starts gpsd again, and then again after 2,
+4, 8 minutes and so on, up to every 30 minutes, for as long as nothing comes.
+Once the GPS sends again the arrow is green, with no restart of the radio. If
+it stays grey, unplug the GPS and plug it in again. The radio's log
+(`/mnt/app_logs/`, the newest `x6100_log_*.txt`) has a line starting with
+`gps:` for each of these steps. Up to v0.3.10 the radio could stop reading the
+GPS after a while until it was restarted (issue #237).
+
 #### The ALC reads about 1 in FT8 or JS8. Is it too high?
 
 No. The TX level settles with the ALC working a little, with the power at the
