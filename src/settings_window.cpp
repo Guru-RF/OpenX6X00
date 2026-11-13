@@ -5266,25 +5266,27 @@ static void fr_btn_cb(lv_event_t *e) {
 
     lv_obj_t *obj = wl_label(fr_panel, SF(22), theme_hex(TC_text_head), 0);
     lv_label_set_text(obj, "Factory reset");
+    /* The hold line under the title: what overflows the panel (VISION's big type) is the text at the bottom,
+     * never the line that says how to confirm. Below the lists, VISION cut it in half (#257) */
+    fr_count = wl_label(fr_panel, SF(22), theme_hex(TC_text_head), 0);
+    lv_label_set_text(fr_count, "Hold MFK down 3 s to reset - ESC: cancel");
 
     obj = wl_label(fr_panel, SF(18), theme_hex(TC_text_value), 0);
     lv_obj_set_width(obj, lv_pct(100));
     lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(obj, "Back to defaults: all settings with the band memory and the CW messages, app frequencies, "
-                           "DX cluster, FT8 UDP, PSK squelch, TCI server, time zone, headphone volume, Bluetooth CAT.");
+    lv_label_set_text(obj, "Back to defaults: all settings with the band memory and CW messages, app frequencies, "
+                           "DX cluster, FT8 UDP, PSK squelch, TCI server and allowed clients, browser remote, time zone, "
+                           "headphone volume, Bluetooth CAT.");
     obj = wl_label(fr_panel, SF(18), theme_hex(TC_text_dim), 0);
     lv_obj_set_width(obj, lv_pct(100));
     lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(obj, "Kept: logs (ADIF, QSO, field), memory channels, PSK/Olivia macros, JS8 texts, voice messages, "
-                           "pictures, recordings, themes, CW trainer progress, Bluetooth pairings.");
+    /* No longer than this: with VISION's big type the panel just holds the three texts (#257) */
+    lv_label_set_text(obj, "Kept: logs, memory channels, macros and texts, voice messages, pictures, recordings, themes, "
+                           "CW trainer progress, pairings, WiFi networks, SSH keys, network name, accounts.");
     obj = wl_label(fr_panel, SF(18), theme_hex(TC_text_dim), 0);
     lv_obj_set_width(obj, lv_pct(100));
     lv_label_set_long_mode(obj, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(obj, "Then the screen goes dark for a few seconds while the radio software restarts.");
-
-    lv_obj_set_flex_grow(wl_label(fr_panel, SF(16), theme_hex(TC_text_dim), 0), 1);   /* spacer */
-    fr_count = wl_label(fr_panel, SF(22), theme_hex(TC_text_head), 0);
-    lv_label_set_text(fr_count, "Hold MFK down 3 s to reset - ESC: cancel");
+    lv_label_set_text(obj, "Then the radio software restarts (a few seconds dark).");
 
     fr_held  = 0;
     fr_armed = false;

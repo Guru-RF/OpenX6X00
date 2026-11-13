@@ -2089,11 +2089,34 @@ seconds of dark screen); the radio does not reboot.
 
 - Reset: all the settings in params.db (band memory and CW messages
   included) and their [last good copy](#settings-file-damaged-restored-from-2026-11-13-1402),
-  app frequencies, DX cluster, FT8 UDP, PSK squelch, TCI server, time
-  zone, headphone volume, Bluetooth CAT.
-- Kept: logs (ADIF, QSO, field), memory channels, PSK/Olivia macros, JS8
-  texts, voice messages, pictures, recordings, themes, CW trainer progress,
-  Bluetooth pairings and autoconnect list.
+  app frequencies, DX cluster, FT8 UDP, PSK squelch, TCI server and the
+  clients allowed to transmit through it (each asks again), the browser
+  remote (on again, at its port 50002), time zone, headphone volume,
+  Bluetooth CAT.
+- Kept: logs (ADIF, QSO, field), memory channels, PSK/Olivia/JTTY macros,
+  JS8 texts, voice messages, pictures, recordings, themes, CW trainer
+  progress, Bluetooth pairings and autoconnect list, the paired browsers,
+  your own TX ranges list (the choice of list goes back to Ham bands), the
+  WiFi networks and SSH keys, the radio's network name, Tailscale, and the
+  accounts (Winlink, Wavelog, QRZ, HOTA, WWFF). Settings > Wireless > WIFI
+  deletes a saved network: select it while it is in range, then Delete.
+
+A card image written over the card does not reset anything either: the image
+holds only the system's two partitions, and the radio keeps the DATA partition
+it finds after them, with the settings, logs and files (see [Updating the
+firmware](#updating-the-firmware)). Its first start also takes back the WiFi
+networks and SSH keys from the copy on DATA (`backups/backup.tgz`). To start
+clean:
+
+- Settings to the defaults, logs and files kept: Factory reset as above, then
+  delete the WiFi networks you no longer want.
+- A card with nothing of before: deleting the partitions or a quick format on
+  a PC is most likely not enough, as both write only the start of the card;
+  the old DATA lies past the end of the image, and the new image's first
+  start finds it there. A full overwrite does clear it (SD Card Formatter's
+  "Overwrite format", which takes a while); then write the image. Download
+  the Backup from the web configurator first, or copy `qso_log.db` and the
+  `.adi` logs off the card.
 
 POWER, below Factory reset, has three lines:
 - Battery: voltage and charge, for example "7.9 V  66%", or "not fitted".
