@@ -326,6 +326,13 @@ if [ $MODEL = x6200 ] && ls $BR/build/build/linux-[0-9]*/.config > /dev/null 2>&
         && ! grep -qs "^CONFIG_SUN4I_GPADC=y" $BR/build/build/linux-[0-9]*/.config; then
     make linux-dirclean
 fi
+# A kernel built here before its board's DTS named the processor's supply (cpu-supply, above) builds its device tree
+# again: buildroot copies the DTS into the kernel's tree at the kernel's build step only, so the card image kept the
+# DTB without it (the voltage at 1.2 V at every speed)
+if ls $BR/build/build/linux-[0-9]*/.config > /dev/null 2>&1 && [ -f $BR/build/images/sun8i-r16-$MODEL.dtb ] \
+        && ! grep -qs "cpu-supply" $BR/build/images/sun8i-r16-$MODEL.dtb; then
+    make linux-rebuild
+fi
 uboot_source
 make lame mpg123
 make libsndfile-dirclean
