@@ -4,6 +4,7 @@
 #   sh s50gpsd_test.sh <rootfs>
 # Each port once, by the kernel's name: a GPS udev knows (a /dev/gps* link) on ttyACM0 was handed over twice before,
 # as /dev/ttyACM0 and /dev/gps0, and gpsd opened it twice. The X6200's WR12 (0483:5740) left out, on the X6200 only.
+# SmartCW (1209:ff42, ff43) left out on both radios: its command port keys in CW what gpsd writes to it.
 R=${1:?rootfs folder}
 T=$(pwd)/test.d/s50
 fails=0
@@ -74,6 +75,19 @@ check "X6200, the WR12 on ttyACM0 and a GPS udev knows on ttyACM1: the GPS only"
 radio x6200
 port ttyACM0 0483:5740
 check "X6200, the WR12 alone: nothing" "" "$(ports)"
+
+radio x6100
+port ttyACM0 1209:ff42
+check "X6100, SmartCW alone on ttyACM0: nothing (it keys what it is sent)" "" "$(ports)"
+
+radio x6200
+port ttyACM0 1209:ff43
+port ttyACM1 1546:01a7 gps1
+check "X6200, SmartCW on ttyACM0 and a GPS udev knows on ttyACM1: the GPS only" "ttyACM1" "$(ports)"
+
+radio x6200
+port ttyACM0 1209:ff00
+check "X6200, another 1209 device on ttyACM0: kept" "ttyACM0" "$(ports)"
 
 radio x6100
 check "no port: nothing" "" "$(ports)"

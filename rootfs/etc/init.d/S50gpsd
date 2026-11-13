@@ -20,6 +20,18 @@ is_wr12() {
                 [ "$(cat $n/idVendor 2>/dev/null):$(cat $n/idProduct 2>/dev/null)" = "0483:5740" ]
 }
 
+# SmartCW, RF.Guru's keyer (1209:ff42 or 1209:ff43, 72-smartcw.rules), is a USB serial port too, on either radio: its
+# command port, which keys in CW the text it is sent. Handed to gpsd as ttyACM0, the probes gpsd writes to learn what
+# GPS it has went out in CW after every start, until a paddle stopped them
+is_smartcw() {
+        n=$(readlink -f $1)
+        n=/sys/class/tty/${n##*/}/device/..
+        case "$(cat $n/idVendor 2>/dev/null):$(cat $n/idProduct 2>/dev/null)" in
+                1209:ff42 | 1209:ff43) return 0 ;;
+        esac
+        return 1
+}
+
 # The ports gpsd starts with: ttyACM0 and those udev knows as GPS receivers (/dev/gps*, 25-gpsd.rules), each once and
 # by its own name. /dev/gps0 is a link to the port of a GPS udev knows, ttyACM0 for most: both were handed over, and
 # gpsd opened the port twice, two readers each getting part of what the GPS sent. The hotplug script (gpsdctl) names
@@ -30,6 +42,7 @@ devices() {
                 [ -e "$d" ] || continue
                 d=$(readlink -f "$d")
                 is_wr12 $d && continue
+                is_smartcw $d && continue
                 case " $DEVICES " in
                         *" $d "*) ;;
                         *) DEVICES="$DEVICES $d" ;;
