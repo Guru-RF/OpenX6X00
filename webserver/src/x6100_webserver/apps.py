@@ -28,6 +28,8 @@ import zipfile
 import bottle
 
 from . import settings
+from . import sites
+from . import smartcw
 
 app = bottle.Bottle()   # the configurator pages and their API
 
@@ -51,7 +53,7 @@ def host_refused():
 def via_funnel():
     """The request came from the internet through Tailscale Funnel: tailscaled sets this header on every one of
     those and drops one a browser sent, so a request from the LAN or the tailnet never has it (#58)"""
-    return bottle.request.get_header("Tailscale-Funnel-Request") is not None
+    return bottle.request.get_header(sites.FUNNEL_HEADER) is not None
 
 
 def funnel_refused():
@@ -91,17 +93,8 @@ def refuse_other_sites():
     if req.headers.get("Sec-Fetch-Site", "") == "cross-site":
         bottle.abort(403, "Cross-site request refused")
     origin = req.headers.get("Origin", "")
-    if origin:   # "null" (a file:// page) has no host and is refused too
-        theirs = urllib.parse.urlsplit(origin)
-        ours = urllib.parse.urlsplit("//" + req.headers.get("Host", ""))
-        # A browser names the port in Origin, as in Host, only when it is not the scheme's own (80, 443): the radio's
-        # pages, by http, https, the tailnet or on a PC on a port of their own, send the same port in both
-        try:
-            same_port = theirs.port is None or theirs.port == ours.port
-        except ValueError:   # no port number
-            same_port = False
-        if not theirs.hostname or theirs.hostname.lower() != (ours.hostname or "").lower() or not same_port:
-            bottle.abort(403, "Cross-site request refused")
+    if origin and not sites.origin_ok(origin, req.headers.get("Host", "")):   # "null" (a file:// page) too
+        bottle.abort(403, "Cross-site request refused")
 
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -126,7 +119,17 @@ def read_callsign():
     return read_param("callsign")
 
 
-bottle.BaseTemplate.defaults.update(callsign=read_callsign, request=bottle.request)
+def smartcw_link():
+    """SmartCW's page (smartcw.py) for the menu, by the name this page was opened by: "" while it does not run or
+    SmartCW is not plugged in (most radios never have one). Plain http on its own port, also from a page opened by
+    https: a link in a new tab is no mixed content"""
+    host = request_host()
+    if not settings.SMARTCW_PORT or not host or not smartcw.smartcw_iface():
+        return ""
+    return f"http://{f'[{host}]' if ':' in host else host}:{settings.SMARTCW_PORT}/"
+
+
+bottle.BaseTemplate.defaults.update(callsign=read_callsign, request=bottle.request, smartcw_link=smartcw_link)
 
 
 # DX cluster routes
@@ -789,7 +792,7 @@ def own_names():
 
 def request_host():
     """The name or address the page was opened by (the Host header's), lower case, without port and trailing dot"""
-    return (urllib.parse.urlsplit("//" + (bottle.request.get_header("Host") or "")).hostname or "").rstrip(".")
+    return sites.host_name(bottle.request.get_header("Host"))
 
 
 def local_host_ok():
@@ -800,9 +803,12 @@ def local_host_ok():
     (tools/pat). MagicDNS's short name too, which is the tailnet's name for the radio: x6200-1 while the tailnet
     still has the machine of an earlier card image as x6200. Never a request from the internet through Tailscale
     Funnel: its name is a *.ts.net name too (#58)"""
-    if via_funnel():
-        return False
-    host = request_host()
+    return not via_funnel() and name_ok(request_host())
+
+
+def name_ok(host):
+    """local_host_ok's names, host as request_host gives it: also for SmartCW's page on a port of its own
+    (smartcw.py), which reads its requests without bottle"""
     try:
         ipaddress.ip_address(host)
         return True

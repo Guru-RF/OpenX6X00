@@ -103,6 +103,7 @@
       <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
       <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
       <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+      <symbol id="i-paddle" viewBox="0 0 24 24"><path d="M4 20h16M7 20v-3h10v3M12 17V6M9 6h6"/><path d="M12 4v.01"/></symbol>
     </svg>
     <header><div class="bar">
         <a class="brand" href="/">
@@ -111,10 +112,11 @@
           <div>OpenX6X00 <small>{{call + ' · ' if call else ''}}configurator</small></div>
         </a>
         <nav>
+          % sc = smartcw_link()   # SmartCW's page, on a port of its own: in a new tab
           % menu = [('General', 'home', [('/', 'General', 'home')]),
           %         ('Remote', 'sliders', [('/panel', 'Panel', 'sliders'), ('/remote', 'Screen', 'monitor'), ('/tailscale', 'Tailscale', 'lock')]),
           %         ('Frequencies', 'wave', [('/bands', 'Bands', 'bands'), ('/digital_modes', 'Digital modes', 'pulse'), ('/memories', 'Memories', 'bookmark')]),
-          %         ('Operating', 'antenna', [('/cluster', 'Cluster', 'globe'), ('/field', 'Field Ops', 'mountain'), ('/wavelog', 'Wavelog', 'upload'), ('/winlink', 'Winlink', 'file'), ('/cw_messages', 'CW messages', 'cw'), ('/macros', 'Macros', 'list'), ('/logs', 'Logs', 'book')]),
+          %         ('Operating', 'antenna', [('/cluster', 'Cluster', 'globe'), ('/field', 'Field Ops', 'mountain'), ('/wavelog', 'Wavelog', 'upload'), ('/winlink', 'Winlink', 'file'), ('/cw_messages', 'CW messages', 'cw'), ('/macros', 'Macros', 'list'), ('/logs', 'Logs', 'book')] + ([(sc, 'SmartCW', 'paddle')] if sc else [])),
           %         ('Files', 'folder', [('/files/', 'Files', 'sd'), ('/gallery', 'Gallery', 'image'), ('/backup', 'Backup', 'archive')]),
           %         ('System', 'cpu', [('/display', 'Display', 'monitor'), ('/time', 'Time', 'clock'), ('/network', 'Network', 'ethernet'), ('/tci', 'TCI', 'network'), ('/ssh', 'SSH', 'key'), ('/update', 'Update', 'download')])]
           % for group, gicon, items in menu:
@@ -126,7 +128,7 @@
             <button type="button"{{!' aria-current="page"' if any(here) else ''}}><svg class="i"><use href="#i-{{gicon}}"/></svg>{{group}}<svg class="i chev"><use href="#i-chev"/></svg></button>
             <div class="sub">
               % for (h, label, icon), cur in zip(items, here):
-              <a href="{{h}}"{{!' aria-current="page"' if cur else ''}}><svg class="i"><use href="#i-{{icon}}"/></svg>{{label}}</a>
+              <a href="{{h}}"{{!' aria-current="page"' if cur else ''}}{{!' target="_blank" rel="noopener"' if h.startswith('http') else ''}}><svg class="i"><use href="#i-{{icon}}"/></svg>{{label}}</a>
               % end
             </div>
           </div>

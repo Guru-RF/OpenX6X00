@@ -21,6 +21,7 @@ except ImportError:   # python built without SSL
 
 from . import apps
 from . import settings
+from . import smartcw
 
 
 class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
@@ -355,6 +356,18 @@ def follow_sshd_config():
         pass
 
 
+def follow_smartcw_profile():
+    """SmartCW's NetworkManager profile, brought by an update, read by NetworkManager now (smartcw.follow_profile).
+    Done here because every updater restarts the web server after an install. On the radio only"""
+    try:
+        with open("/proc/device-tree/compatible", "rb") as f:
+            if b"xiegu," not in f.read():
+                return
+    except OSError:
+        return
+    smartcw.follow_profile(apps.NM_RELOAD)
+
+
 OLD_SSH_KEYS = "/mnt/ssh/authorized_keys"
 
 
@@ -398,6 +411,7 @@ def options():
     p.add_argument("--cert-dir", help="directory of the self-signed cert.pem and key.pem", default="/mnt/https")
     p.add_argument("--funnel-dir", help="where the Panel for Tailscale Funnel is written (empty: not written)",
                    default=settings.FUNNEL_DIR)
+    p.add_argument("--smartcw-port", type=int, default=smartcw.PORT, help="port of SmartCW's page (0 = off)")
     return p.parse_args()
 
 
@@ -439,6 +453,11 @@ def serve():
         start_https(apps.app, opts.host, opts.https_port, opts.cert_dir)
     adopt_old_ssh_keys()
     follow_sshd_config()
+    follow_smartcw_profile()
+    # SmartCW's page on its own port (smartcw.py); the configurator's menu links to it while it runs
+    if opts.smartcw_port and not (opts.debug and "BOTTLE_CHILD" not in os.environ):   # not in the reloader's parent
+        if smartcw.start(opts.host, opts.smartcw_port, apps.name_ok):
+            settings.SMARTCW_PORT = opts.smartcw_port
     settings.FUNNEL_DIR = opts.funnel_dir
     name = apps.funnel_name()
     write_funnel_pages(opts.funnel_dir, name)
