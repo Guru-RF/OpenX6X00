@@ -533,8 +533,9 @@ scope (#161); Spyyena Contestia (#154); DF8MH the Wavelog upload (#12); Trey
 (rewtraw) the PC build in Docker (#180), LVGL's clock from CLOCK_MONOTONIC
 (#182), the GUI loop that wakes on keys, knobs and events (#183), the
 Propagation and Scanner apps (#184), APPS and Modes over the whole strip, the CW
-bars off the band plan and Settings' switches in the theme's colours (#185), and
-the Codec and Ops Room themes (#186, #187); jochenhammes the RADE app (#129,
+bars off the band plan and Settings' switches in the theme's colours (#185), the
+Codec and Ops Room themes (#186, #187) and the performance overlay (#181);
+jochenhammes the RADE app (#129,
 #130).
 
 Patches, captures, logs and tests from the issues: BrunoKlu the capture and the
