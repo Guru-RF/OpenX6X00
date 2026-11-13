@@ -108,6 +108,8 @@ INSERT INTO version (id) VALUES (1);
 
 -- Dial frequencies of the digital modes (DigitalModesTable in src/cfg/db.h).
 -- type: 0 FT8, 1 FT4, 2 JS8, 3 GhostNet, 4 WSPR, 5 FT2. mode 3 = USB-D.
+-- 6 PSK, 7 Olivia, 8 JTTY: none here, those apps have built-in lists by region (src/digi_freqs.c); a row of one of
+-- them is the user's own frequency, in the place of the built-in ones on its band.
 CREATE TABLE digital_modes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     label varchar(64) NOT NULL,

@@ -82,6 +82,18 @@ def freqs_get(dbcon):
     return json_list(freq_lists.digital_modes(dbcon))
 
 
+@app.get('/api/digital_modes/lists')
+def freqs_keyboard():
+    """What the band keys of PSK, Olivia and JTTY step through, as the GUI has it (src/digi_freqs.c): the band plan in
+    use ("plan", "region") and "lists", by type, of [Hz, 1 for the user's own]. Only the GUI knows its region and its
+    built-in lists"""
+    reply = display_call({"cmd": "digi_lists"})
+    if not reply or reply.get("t") != "digi_lists":
+        return api_error(503, "Radio GUI not reachable")
+    reply.pop("t", None)
+    return reply
+
+
 @app.put('/api/digital_modes')
 def freqs_add(dbcon):
     return freq_list_change(freq_lists.add_digital_mode, dbcon, created=True)

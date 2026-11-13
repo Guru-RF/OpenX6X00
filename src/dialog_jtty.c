@@ -37,6 +37,7 @@
 #include "main_screen.h"
 #include "keyboard.h"
 #include "msg.h"
+#include "digi_freqs.h"
 #include "scheduler.h"
 #include "textarea_window.h"
 #include "theme.h"
@@ -87,19 +88,9 @@
 #define DIAL_STEP_HZ    1000
 #define DIAL_MAX_HZ     50000
 
-/* JTTY dial frequencies of WSJT-X 3.2 (models/FrequencyList.cpp; 14.090
- * MHz is the suggested meeting place), USB, the signals 200-2800 Hz above */
-typedef struct {
-    const char *label;
-    uint32_t    dial_hz;
-} jtty_band_t;
-
-static const jtty_band_t bands[] = {
-    {"160m", 1838000},  {"80m", 3575000},  {"40m", 7090000},  {"30m", 10140000}, {"20m", 14090000},
-    {"17m", 18100000},  {"15m", 21090000}, {"12m", 24920000}, {"10m", 28090000},
-};
-
-#define BAND_CNT ((int)(sizeof(bands) / sizeof(bands[0])))
+/* JTTY dial frequencies (USB, the signals 200-2800 Hz above): WSJT-X's list
+ * with the user's own in it (digi_freqs.c, #205) */
+static digi_freq_t bands[DIGI_FREQS_MAX];
 
 /* Rx window tolerance, Hz (WSJT-X: FTol, 20 by default) */
 static const uint16_t tols[] = {10, 20, 50, 100};
@@ -512,29 +503,24 @@ static void apply_range(void)
 
 /* ---- Band and dial ----------------------------------------------------- */
 
+/* dir 0: the entry closest to where the radio is (opening the window); +-1
+ * steps through the list, read again each time so that a frequency changed
+ * on the web configurator counts from the next band key */
 static void load_band(int8_t dir)
 {
-    int idx = 0;
+    int32_t from = dir == 0 || cur_band < 0 ? cparam_i_get(cfg_fg_freq) : bands[cur_band].freq;
+    int     n = digi_freqs_get(CFG_DIG_TYPE_JTTY, bands, DIGI_FREQS_MAX);
+    int     idx = digi_freqs_step(bands, n, from, cur_band < 0 ? 0 : dir);
 
-    if (dir == 0 || cur_band < 0) {
-        int64_t best = -1, f = cparam_i_get(cfg_fg_freq);
-        for (int i = 0; i < BAND_CNT; i++) {
-            int64_t d = llabs(f - (int64_t)bands[i].dial_hz);
-            if (best < 0 || d < best) {
-                best = d;
-                idx = i;
-            }
-        }
-    } else {
-        idx = (cur_band + dir + BAND_CNT) % BAND_CNT;
-    }
+    if (idx < 0)
+        return;     /* never: the built-in list is not empty */
     cur_band = idx;
     dial_offset_hz = 0;
     refresh_btn(&btn_dial);
-    cparam_i_set(cfg_fg_freq, (int32_t)bands[idx].dial_hz);
+    cparam_i_set(cfg_fg_freq, bands[idx].freq);
     cparam_i_set(cfg_cur_mode, radio_mode_usb_dig);
-    msg_update_text_fmt("JTTY %s  %u.%03u MHz", bands[idx].label, (unsigned)(bands[idx].dial_hz / 1000000u),
-                        (unsigned)((bands[idx].dial_hz / 1000u) % 1000u));
+    msg_update_text_fmt("JTTY %s  %u.%03u MHz", bands[idx].label, (unsigned)(bands[idx].freq / 1000000),
+                        (unsigned)((bands[idx].freq / 1000) % 1000));
 }
 
 static void band_cb(lv_event_t *e)
@@ -558,7 +544,7 @@ static void dial_apply(void)
 
     if (cur_band < 0)
         return;
-    f = (uint32_t)((int32_t)bands[cur_band].dial_hz + dial_offset_hz);
+    f = (uint32_t)(bands[cur_band].freq + dial_offset_hz);
     cparam_i_set(cfg_fg_freq, (int32_t)f);
     lv_waterfall_clear_data(waterfall);
     jtty_rx_reset();

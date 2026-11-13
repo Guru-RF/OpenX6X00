@@ -13,8 +13,9 @@
 extern "C" {
 #endif
 
-// The digital_modes.type column, FT8 0 up to FT2 5: the numbers are stored in params.db,
-// never renumber them.
+// The digital_modes.type column, FT8 0 up to JTTY 8: the numbers are stored in params.db,
+// never renumber them. The web configurator's Digital modes page lists them too
+// (webserver views/digital_modes.html, tools/digi_freqs checks it).
 typedef enum {
     CFG_DIG_TYPE_FT8,
     CFG_DIG_TYPE_FT4,
@@ -22,6 +23,11 @@ typedef enum {
     CFG_DIG_TYPE_JS8_GHOSTNET = 3,  /* JS8 on the GhostNet nets */
     CFG_DIG_TYPE_WSPR,
     CFG_DIG_TYPE_FT2,   /* 5 (upstream's 4 is WSPR here) */
+    /* The keyboard modes, 6 to 8: the table holds only the user's own frequencies (the web configurator's Digital
+     * modes page), each in the place of the built-in ones of its band (src/digi_freqs.c, #205) */
+    CFG_DIG_TYPE_PSK,       /* PSK31 and PSK63 */
+    CFG_DIG_TYPE_OLIVIA,    /* Olivia and Contestia */
+    CFG_DIG_TYPE_JTTY,
 } cfg_digital_type_t;
 
 // Load the next (dir > 0), closest (dir == 0) or previous (dir < 0) digital
