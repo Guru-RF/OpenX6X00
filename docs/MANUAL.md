@@ -289,7 +289,7 @@ Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
 | Kind | Actions |
 |---|---|
-| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), SWL panel (as the X6100 hand mic's GENE: the broadcast stations on the air within 2 kHz, again the next one), SWL: save channel (as its NW: the station shown saved as a channel; up to v0.3.11 neither was a key action, so an X6200 could not open the panel, #155), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
 | Digital modes | RTTY, FT8, WSPR, JS8, SSTV, WeFax, NavTex, RADE |
 | Tools | Cluster, CW Trainer, CW Keyboard, Field Ops, Bands, Propagation, Channels, Scanner, RX recorder, SWR Scan, GPS, QTH grid, Settings |
 
@@ -361,8 +361,8 @@ one second.
 | XFC | X6100 | VFO A/B (not while an app holds the VFOs) | |
 | SPCH | X6100 | frequency lock on or off | |
 | TUNER | X6100 | the tuner on or off | a tuning cycle (it transmits) |
-| GENE | X6100 | the SWL panel; again: the next station | |
-| NW | X6100 | the station shown in the SWL panel saved as a channel | |
+| GENE | X6100 | the SWL panel; again: the next station (on an X6200, give "SWL panel" to a key in Settings > Keys) | |
+| NW | X6100 | the station shown in the SWL panel saved as a channel (any radio: "SWL: save channel" on a key) | |
 
 - The frequency box: F-INP (the H-22's red F-INP/ENT) opens it, not while the frequency
   is locked. Type the frequency in MHz with the digits and the dot (the
@@ -2070,7 +2070,7 @@ Ethernet ("Downloading 0.3 of 0.5 MB") and says "Broadcast list updated:
 9,593 stations, season A26."; with no connection, "No internet connection.
 Connect the radio to WiFi or Ethernet."; if the download fails, "The
 download failed, the old list is still in use." The old list stays as a
-spare copy. The SWL panel (GENE key of the hand mic) and the station name on
+spare copy. The SWL panel (GENE key of the hand mic, or the "SWL panel" key action) and the station name on
 the frequency strip use the new list at once, without a restart.
 
 Factory reset (from v0.127). Where: Settings > Info > FIRMWARE > Factory

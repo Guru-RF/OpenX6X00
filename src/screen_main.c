@@ -644,6 +644,9 @@ void main_screen_action(press_action_t action) {
         case ACTION_WF_3D:          say_state("Waterfall 3D", toggle_param(cfg_wf_3d) ? "On" : "Off"); break;
         case ACTION_CW_DECODER:     say_state("CW decoder", toggle_param(cfg_cw_decoder) ? "On" : "Off"); break;
         case ACTION_CW_ZAP:         controls_cw_zap(NULL); break;   /* in CW and CW-R, as the button */
+        /* The X6100 mic's GENE and NW on any key: the X6200's mic has neither (#155) */
+        case ACTION_SWL_PANEL:      swl_gene(); break;
+        case ACTION_SWL_SAVE:       swl_save_channel(); break;
 
         case ACTION_APP_QTH:        dialog_construct(dialog_qth, obj); break;
 
