@@ -60,6 +60,7 @@ import urllib.request
 VERSION = "1.104.2"
 TGZ_URL = f"https://pkgs.tailscale.com/stable/tailscale_{VERSION}_arm.tgz"
 TGZ_SHA256 = "b694ff9c67235da98798b9592a0cc900bc9d1613041f77722ec9bf4ce2d215cf"
+TGZ_SIZE = 36970941                                                                  # bytes, so a cut shows
 BIN_SHA256 = "9404866023e64385091fe5e9faebe88f9051f035b26785b656c410f174e5eb25"    # tailscaled in it
 
 CONF = "/mnt/tailscale.conf"          # enabled=0|1, funnel=0|1: on the DATA partition, it survives a new image
@@ -195,41 +196,61 @@ def remove(path):
 
 
 def download():
-    """Tailscale's tarball, checked against the pinned SHA-256, and tailscaled out of it"""
+    """Tailscale's tarball, checked against the pinned SHA-256, and tailscaled out of it.
+
+    A link that breaks off mid-way leaves the part already received, and the next try asks for the rest only
+    (an HTTP range). A cut used to be found out only by the checksum: Python's reader takes a connection that
+    closes before its Content-Length as the end, and the next try started again at 0 (#262)."""
     os.makedirs(DIR, exist_ok=True)
-    part = os.path.join(DIR, "download.part")
+    part = os.path.join(DIR, f"download-{VERSION}.part")    # a part of another version is not taken further
     tmp = os.path.join(DIR, "unpack")
-    # What an interrupted try left (a lost link, the power gone) is not counted against the room needed
-    remove(part)
     shutil.rmtree(tmp, ignore_errors=True)
-    if shutil.disk_usage(DIR).free < 120 * 1024 * 1024:
+    for name in os.listdir(DIR):
+        if name.endswith(".part") and os.path.join(DIR, name) != part:
+            remove(os.path.join(DIR, name))
+    have = os.path.getsize(part) if os.path.isfile(part) else 0
+    if have >= TGZ_SIZE:                           # all there and still here: its check failed, or it is not ours
+        remove(part)
+        have = 0
+    # The part already received counts as room: it is part of what is needed
+    if shutil.disk_usage(DIR).free + have < 120 * 1024 * 1024:
         raise Fail("not enough room on the card (120 MB needed)")
     h = hashlib.sha256()
-    got = 0
-    req = urllib.request.Request(TGZ_URL, headers={"User-Agent": "OpenX6X00"})
-    try:
-        with urllib.request.urlopen(req, timeout=60) as r, open(part, "wb") as f:
-            total = int(r.headers.get("Content-Length") or 0)
-            shown = -1
-            while True:
-                if stopping():
-                    raise Stopped()
-                chunk = r.read(65536)
-                if not chunk:
-                    break
-                f.write(chunk)
+    if have:
+        with open(part, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
                 h.update(chunk)
-                got += len(chunk)
-                pct = got * 100 // total if total else 0
-                if pct != shown:
-                    say("download", f"Downloading Tailscale: {pct} %", pct=pct)
-                    shown = pct
+    headers = {"User-Agent": "OpenX6X00"}
+    if have:
+        headers["Range"] = f"bytes={have}-"
+    req = urllib.request.Request(TGZ_URL, headers=headers)
+    got = have
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            if have and r.status != 206:           # the whole file after all: from the start
+                h, got = hashlib.sha256(), 0
+            with open(part, "ab" if got else "wb") as f:
+                shown = -1
+                while True:
+                    if stopping():
+                        raise Stopped()
+                    chunk = r.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    h.update(chunk)
+                    got += len(chunk)
+                    pct = min(got * 100 // TGZ_SIZE, 100)
+                    if pct != shown:
+                        say("download", f"Downloading Tailscale: {pct} %", pct=pct)
+                        shown = pct
     except Stopped:
-        os.remove(part)
+        remove(part)                               # turned off: nothing left on the card
         raise
     except OSError as e:
-        remove(part)
-        raise Fail(f"download failed: {getattr(e, 'reason', e)}")
+        raise Fail(f"download failed at {got >> 20} of {TGZ_SIZE >> 20} MB: {getattr(e, 'reason', e)}")
+    if got < TGZ_SIZE:
+        raise Fail(f"the download broke off at {got >> 20} of {TGZ_SIZE >> 20} MB")
     if h.hexdigest() != TGZ_SHA256:
         os.remove(part)
         raise Fail("the download does not match its checksum")

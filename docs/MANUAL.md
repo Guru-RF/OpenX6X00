@@ -7039,7 +7039,9 @@ Turning it on (the radio needs the internet for it):
 2. The first time, the radio downloads Tailscale from Tailscale's own site
    (version 1.104.2 for 32-bit ARM, 37 MB, to the DATA partition) and checks
    it against the checksum that comes with OpenX6X00. Status shows the
-   download.
+   download. When the link breaks off, Status says where, and a minute later
+   the radio asks for the rest only: on a weak WiFi link it gets there in a
+   few tries.
 3. Status says "Waiting for your login". Scan the code on the radio's screen
    with a phone, or press Log in to Tailscale on the web page, and log in with
    your Tailscale account (a free Personal account will do). If your tailnet
