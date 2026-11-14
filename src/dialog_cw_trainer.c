@@ -55,7 +55,7 @@
 #define GUARD_MS    600     /* the end of our own sidetone is still being decoded */
 #define NEXT_OK_MS  1000    /* auto mode: pause before the next group */
 #define NEXT_BAD_MS 2500    /* longer after a wrong answer, to read it */
-#define REPLAY_MS   1000    /* Replay: a breath between the press and the group or call again (#202) */
+#define PRESS_MS    1000    /* Start, Replay: a breath between the press and the group or call (#202) */
 #define WINDOW      10      /* results the accuracy is measured over */
 #define PASS_PCT    90
 #define HEARD_MAX   32
@@ -129,8 +129,9 @@ static uint32_t listen_t, last_rx_t;
 static int      told_wpm;       /* the speed the decoder was told (cw_trainer_speed), 0 none */
 static bool     last_ok;
 static bool     autoplay;       /* Start: groups follow each other until Pause */
-static bool     replay_due;     /* Replay pressed: played once REPLAY_MS have passed (tick_cb) */
-static uint32_t replay_t;
+static bool     play_due;       /* Start or Replay pressed: played once PRESS_MS have passed (tick_cb) */
+static bool     due_start;      /* the one due is Start's: refused, back to Ready rather than to the answer */
+static uint32_t play_t;
 static uint32_t result_t;
 static uint8_t  hist[WINDOW];   /* 1 = right, newest overwrites the oldest */
 static int      hist_n, hist_pos;
@@ -535,14 +536,27 @@ static bool play(void) {
     return true;
 }
 
-/* Replay: the same group or call again, REPLAY_MS after the press, so it does not start while the hand is still on
- * the key (#202). Meanwhile the screen says "Listen..." and keying is not taken for an answer: answers count only
- * while listening */
-static void replay(void) {
+/* Start and Replay: the group or call PRESS_MS after the press, so it does not start while the hand is still on the
+ * key (#202). Meanwhile the screen says "Listen..." and keying is not taken for an answer: answers count only while
+ * listening. Start's group or call is chosen at the press (Calls: its number and speed in the head line at once), and
+ * so is Replay's, the same again. Up to v0.3.12 Start keyed the first one at once */
+static void play_after_press(bool start) {
     cw_encoder_stop();
-    st         = ST_PLAYING;
-    replay_due = true;
-    replay_t   = lv_tick_get();
+    st        = ST_PLAYING;
+    play_due  = true;
+    due_start = start;
+    play_t    = lv_tick_get();
+}
+
+static void replay(void) {
+    play_after_press(false);
+}
+
+/* Start refused (key train could not be set): back to Ready, a call not counted */
+static void start_refused(void) {
+    autoplay = false;
+    if (mode == MODE_CALLS) call_no--;
+    st = ST_READY;
 }
 
 static void evaluate(void) {
@@ -626,17 +640,18 @@ static void calls_leave(void) {
     speed_saved = false;
 }
 
-/* Next call of the run, keyed at the speed the last answer earned */
-static void start_call(void) {
+/* Next call of the run, keyed at the speed the last answer earned: at once after a result, PRESS_MS after the press
+ * of Start (pressed) */
+static void start_call(bool pressed) {
     call_no++;
     call_wpm = next_wpm;
     param_i_set(cfg_key_speed, call_wpm);
     new_call();
     round_t = lv_tick_get();
-    if (!play()) {
-        autoplay = false;
-        call_no--;
-        st = ST_READY;
+    if (pressed) {
+        play_after_press(true);
+    } else if (!play()) {
+        start_refused();
     }
 }
 
@@ -683,12 +698,16 @@ static void tick_cb(lv_timer_t *t) {
     }
 
     if (mode == MODE_PRACTICE) return;
-    if (replay_due) {
-        if (lv_tick_elaps(replay_t) >= REPLAY_MS) {
-            replay_due = false;
-            if (!play()) {                  /* key train off: back to the answer as it was */
-                st       = ST_LISTEN;
-                listen_t = last_rx_t = lv_tick_get();
+    if (play_due) {
+        if (lv_tick_elaps(play_t) >= PRESS_MS) {
+            play_due = false;
+            if (!play()) {                  /* key train off: Start back to Ready, Replay to the answer as it was */
+                if (due_start) {
+                    start_refused();
+                } else {
+                    st       = ST_LISTEN;
+                    listen_t = last_rx_t = lv_tick_get();
+                }
             }
             refresh_ui();
         }
@@ -708,7 +727,7 @@ static void tick_cb(lv_timer_t *t) {
         refresh_ui();
     } else if (st == ST_RESULT && autoplay && lv_tick_elaps(result_t) > (last_ok ? NEXT_OK_MS : NEXT_BAD_MS)) {
         if (mode == MODE_CALLS) {
-            start_call();
+            start_call(false);
         } else {
             new_target();
             play();
@@ -724,7 +743,7 @@ static void stop_round(void) {
     cw_encoder_stop();
     cw_trainer_own(0);
     autoplay   = false;
-    replay_due = false;
+    play_due   = false;
     st         = ST_READY;
     target[0]  = 0;
     heard[0]  = 0;
@@ -742,10 +761,10 @@ static void play_cb(button_data_t *b) {
         autoplay = true;
         if (mode == MODE_CALLS) {
             if (run_done) calls_enter();    /* a new run */
-            if (st != ST_PLAYING && st != ST_LISTEN) start_call();
+            if (st != ST_PLAYING && st != ST_LISTEN) start_call(true);
         } else if (st != ST_PLAYING) {
             new_target();
-            play();
+            play_after_press(true);
         }
     }
     refresh_ui();
@@ -758,6 +777,7 @@ static void skip_cb(button_data_t *b) {
         if (st == ST_LISTEN) replay();
     } else {
         cw_encoder_stop();
+        play_due = false;           /* played now: a Start or Replay still due played the new group again */
         new_target();
         play();
     }
@@ -1213,7 +1233,7 @@ static void construct_cb(lv_obj_t *parent) {
     mode = MODE_LEARN;
     st   = ST_READY;
     autoplay = false;
-    replay_due = false;
+    play_due = false;
     told_wpm = 0;
     target[0] = heard[0] = text[0] = 0;
     heard_n = tried = right = wpm_seen = 0;

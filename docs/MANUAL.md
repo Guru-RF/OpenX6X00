@@ -4326,10 +4326,12 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   space there does not end the answer, and the spaces are left out when it
   is checked. Up to v0.3.9 the space ended it and the call counted wrong
   (issue #202).
-- Replay (Learn while it waits for your answer, Calls) plays the group or
-  the call again one second after the press, so your hand is off the key by
-  then; the screen says "Listen..." meanwhile, and nothing you key counts.
-  Up to v0.3.11 it started at once (issue #202).
+- Start, and Replay (in Learn while it waits for your answer, and in
+  Calls), play the group or the call one second after the press, so your
+  hand is off the key by then; the screen says "Listen..." meanwhile, and
+  nothing you key counts. After Start only the first group or call waits
+  that second; the ones that follow come after the result as before. Up to
+  v0.3.11 Replay started at once, up to v0.3.12 Start did (issue #202).
 - The trainer at work keeps the [screensaver](#screensaver) away: each
   group or call it plays and each character of your answer (or of your
   keying in Practice) counts as use, as a key does. Left waiting for an
