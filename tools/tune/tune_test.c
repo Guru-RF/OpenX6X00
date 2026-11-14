@@ -523,8 +523,8 @@ static void pure_rules(void) {
     tune_plan(&p, radio_mode_usb, 0, 9.0f, BOARD_PWR_MAX, 15);
     check(p.pwr_w == (BOARD_PWR_MAX < 9.0f ? BOARD_PWR_MAX : 9.0f), "9 W asked, for a tuner that needs it (#87): %.1f W",
           p.pwr_w);
-    tune_plan(&p, radio_mode_usb, 0, 8.0f, 5.0f, 15);
-    check(p.pwr_w == 5.0f, "8 W asked with the radio's top at 5 W (the X6200's battery): %.1f W", p.pwr_w);
+    tune_plan(&p, radio_mode_usb, 0, 8.0f, BOARD_PWR_MAX_BAT, 15);
+    check(p.pwr_w == 5.0f, "8 W asked with the radio's top at 5 W (its battery, either radio, #258): %.1f W", p.pwr_w);
     tune_plan(&p, radio_mode_usb, 0, 4.0f, 2.5f, 15);
     check(p.pwr_w == 2.5f, "4 W asked with the radio's top at 2.5 W: %.1f W", p.pwr_w);
     tune_plan(&p, radio_mode_usb, 0, 0.0f, 10.0f, 2);

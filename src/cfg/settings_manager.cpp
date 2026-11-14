@@ -487,7 +487,7 @@ SettingsManager::XvtrPwr SettingsManager::pwr_xvtr_set(float w, bool on_xvtr) {
         return XvtrPwr::SAME;
     }
     p_pwr_xvtr_held.set(0.0f);
-    p_pwr.set(held / 10.0f);    /* the top is pwr_max_ again: the X6200 on battery stops there */
+    p_pwr.set(held / 10.0f);    /* the top is pwr_max_ again: on battery the radio stops there */
     return XvtrPwr::RESTORED;
 }
 

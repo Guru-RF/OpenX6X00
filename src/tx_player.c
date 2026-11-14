@@ -121,7 +121,7 @@ void tx_player_release(void) {
 }
 
 /* The power a transmission goes out at: the app's own, else the radio's setting at most the cap; then at most the
- * radio's top (a transverter's TX power limit, #104; the X6200 on battery): WSPR's own 5 W at 0.5 W there, and the
+ * radio's top (a transverter's TX power limit, #104; the battery): WSPR's own 5 W at 0.5 W there, and the
  * level control aims at what comes out. An own power has its own top: WSPR's 5 W, TUNE's the radio's PWR top for its
  * time limit (#87), which the cap held to 7 W */
 static float tx_pwr(void) {

@@ -199,10 +199,12 @@ static void hkey_sched_cb(void *arg) {
 #ifdef BOARD_PWR_MAX_BAT
 /* The supply changed (true: external power), on the LVGL thread. On battery the cap drops and a
  * power set above it comes down to it; back on external power only the cap goes up, the power
- * stays where it was, as in Xiegu's app. And the S-meter takes the attenuator figure for it: the
- * X6200's attenuator takes off more on battery alone (#125) */
+ * stays where it was, as in Xiegu's app. And on the X6200 the S-meter takes the attenuator figure
+ * for it: its attenuator takes off more on battery alone (#125) */
 static void supply_cb(void *arg) {
+#ifdef BOARD_X6200
     meter_set_battery(!*(bool *)arg);
+#endif
     if (*(bool *)arg) {
         cfg_pwr_max_set(BOARD_PWR_MAX);
     } else {
@@ -301,7 +303,7 @@ static void power_key_cb(void *arg) {
 }
 
 /* The SWR scan's carrier: 1 W is enough to read the SWR. Held here for as long as the scan runs: PWR set meanwhile
- * (TCI's drive, the Panel's PWR, the X6200's battery cap) came through on_pwr_change, and the sweep went on at PWR.
+ * (TCI's drive, the Panel's PWR, the battery cap) came through on_pwr_change, and the sweep went on at PWR.
  * On the X6200 also under a lower PWR, as the stock firmware (its DialogSwrScanner sets 1.0 W whatever PWR is): the
  * base's bridge has a diode detector, and below 1 W it reads low (EFHW on 80 m, SWR 4 on a NanoVNA: 2.15-2.4 at 1 W,
  * 1.9-2.15 at 0.5 W, a flat 1.0 at 0.1 W, the "empty" scan of #212) */
@@ -2062,7 +2064,7 @@ static void on_transverter_change(Subject *subj, void *user_data) {
 }
 
 /* A transverter's TX power limit came or went (#104), on the LVGL thread: PWR and its top follow it, and the screen
- * says so, as for the X6200's battery. In place of what it said last, not queued after it: the limit stepped in
+ * says so, as for the battery. In place of what it said last, not queued after it: the limit stepped in
  * Settings on its band would stack a message for each step */
 typedef struct {
     float   w;          /* the limit, 0 none */
@@ -2844,7 +2846,7 @@ static bool radio_tick() {
             }
 
 #ifdef BOARD_PWR_MAX_BAT
-            /* The TX power cap and the S-meter's attenuator figure follow the supply once it has been steady for
+            /* The TX power cap and the X6200's S-meter attenuator figure follow the supply once it has been steady for
              * 5 s, as Xiegu's app waits. Until the readings count we assume external power, the cap we start with
              * (bat_supply_reading). Not told when the GUI's queue is full: then again at the next reading */
             static bat_supply_t supply;

@@ -1343,7 +1343,7 @@ static void radio_file_body(char *buf, size_t size, bool modem) {
     const char *app   = main_screen_digital_app();
     bool        txf   = radio_caps() & HW_CAP_TX_FILTER;  /* 0-0: the base has none (the X6200) */
     /* The most a key gets: PWR, at most TX_PLAYER_MAX_PWR_W (tx_player), and PWR no higher than its top, which the
-     * X6200's battery lowers (BOARD_PWR_MAX_BAT, radio.c) and a transverter's TX power limit (#104): cap_battery or
+     * battery lowers (BOARD_PWR_MAX_BAT, radio.c) and a transverter's TX power limit (#104): cap_battery or
      * cap_transverter when that is what holds Winlink */
     float       top   = cfg_pwr_max_get();
     float       xv    = cfg_pwr_xvtr_get();

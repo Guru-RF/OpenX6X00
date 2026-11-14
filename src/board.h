@@ -37,14 +37,15 @@
 
 /* The top of the TX power setting (PWR), in W: the X6100 is a 10 W radio, the X6200 is rated 8 W on an
  * external supply, and gdyuldin's X6200 GUI stops its setting at 8.0 (vol.c). 10 W asked of the X6200
- * went to its base as 10 W (#53). On battery the X6200 stops at 5 W, as Xiegu's app (1.0.8) does
- * (radio.c follows the supply); the X6100 has no battery cap */
+ * went to its base as 10 W (#53). On battery both stop at 5 W (radio.c follows the supply): the X6200 as Xiegu's
+ * app (1.0.8) does, the X6100 as Xiegu rates it on its battery. The X6100 had no cap, and went up to 10 W on its
+ * pack (#258) */
 #ifdef BOARD_X6200
 #define BOARD_PWR_MAX       8.0f
-#define BOARD_PWR_MAX_BAT   5.0f
 #else
 #define BOARD_PWR_MAX       10.0f
 #endif
+#define BOARD_PWR_MAX_BAT   5.0f
 
 /* The rest of the radio's ranges. The same on the X6100 and the X6200; the settings manager reads them. */
 #define BOARD_PWR_MIN       0.1f        /* PWR and the external tuner's TUNE power */

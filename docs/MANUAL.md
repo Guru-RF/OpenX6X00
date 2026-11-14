@@ -2159,14 +2159,17 @@ Up to v0.3.6 the X6200 also went up to 10 W and asked its base for that
 (issue #53). A setting saved above 8 W comes back as 8 W. The TX meter keeps
 its 0-10 W scale on both radios, so it shows what the radio measures.
 
-On battery the X6200 stops at 5 W, as Xiegu's own firmware (1.0.8) does. The
-radio follows the supply once it has been steady for 5 seconds (and once the
-battery readings count after power-on, see [low battery](#low-battery)). With
+On battery both radios stop at 5 W: the X6200 as Xiegu's own firmware (1.0.8)
+does, the X6100 as Xiegu rates it on its battery (up to v0.3.12 the X6100 had
+no battery limit and went up to 10 W on its pack, #258). The radio follows
+the supply once it has been steady for 5 seconds (and once the battery
+readings count after power-on, see [low battery](#low-battery)). With
 PWR above 5 W when the supply goes, PWR comes down to 5 W and the radio says
 "TX power 5 W on battery". When the supply comes back PWR stays at 5 W: the
-top goes back to 8 W, turn it up yourself. On battery every way of setting
-PWR stops at 5 W: TCI's `drive` from 62 % up gives 5 W, and the browser panel's
-PWR goes back to 5 W. The X6100 has no battery limit.
+top goes back to 10 W on the X6100 and 8 W on the X6200, turn it up yourself.
+On battery every way of setting PWR stops at 5 W: TCI's `drive` gives 5 W from
+50 % up on the X6100 and from 62 % up on the X6200, and the browser panel's PWR
+goes back to 5 W.
 
 ### Amateur bands only
 
@@ -2650,8 +2653,8 @@ second), under the transverter's from, to and shift: Off, the default, or
   tune" action): its carrier is the base's own, at a power the radio does
   not set. It says "No tuner: 0.5 W transverter". TUNE for an external
   tuner tunes, at its TUNE power or the limit, whichever is lower.
-- On the X6200 on battery the 5 W top stays: off the transverter PWR comes
-  back to 5 W at most.
+- On battery the 5 W top stays: off the transverter PWR comes back to 5 W
+  at most.
 - The Winlink page's Power row says when the limit is what holds Winlink.
 
 Not tried on a radio with a transverter yet: checked on the PC build.
@@ -2811,8 +2814,8 @@ What goes on the air:
   meanwhile included. Where: Settings > TX Cal > EXTERNAL TUNER > TUNE power,
   W: 0.1 W up to the radio's PWR top, 10 W on the X6100 and 8 W on the X6200,
   for a tuner that needs about 9 W to match (#87). In a digital app too:
-  the apps' 7 W cap is for their own transmissions, not for the tune. The
-  X6200 on battery stops at its 5 W as always, a tune under way too once the
+  the apps' 7 W cap is for their own transmissions, not for the tune. On
+  battery either radio stops at its 5 W as always, a tune under way too once the
   radio has gone onto its battery (unplugged, after the 5 s it waits for the
   supply to settle), and on a transverter's band at its
   [TX power limit](#transverter-tx-power-limit).
@@ -6641,8 +6644,8 @@ the radio, hears it, keys it and sends CW with it.
   otherwise.
 - What it carries: `vfo`, `modulation` (lsb, usb, cw, cwr, am, nfm, digl,
   digu), `rx_filter_band`, `agc_mode`, `rit_enable` / `rit_offset`,
-  `drive` (TX power, 0-100 %: 0.1 W up to 10 W, 8 W on the X6200; on its
-  battery 5 W from 62 % up),
+  `drive` (TX power, 0-100 %: 0.1 W up to 10 W, 8 W on the X6200; on
+  battery 5 W, from 50 % up on the X6100 and 62 % up on the X6200),
   `trx` (PTT; `trx:0,true,tci;` keys with the client's
   audio as the microphone), `cw_macros`, `cw_macros_stop`,
   `cw_macros_speed` and `cw_keyer_speed` (CW, below), `rx_smeter` and `rx_channel_sensors` (the

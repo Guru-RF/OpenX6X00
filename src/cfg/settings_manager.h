@@ -106,7 +106,7 @@ class SettingsManager {
     // clang-format off
     Parameter<int32_t> p_volume{"vol", 30, 0, BOARD_VOL_MAX,
         StorageType::GLOBAL, pending_writes_, &global_params_};
-    // On the step first, then clipped: the top in force (8 W, 5 W on the X6200's battery, a transverter's limit) and
+    // On the step first, then clipped: the top in force (10 W or 8 W, 5 W on the battery, a transverter's limit) and
     // 0.1 W always win, whatever BOARD_PWR_STEP is
     Parameter<float, int32_t, 10> p_pwr{"pwr", 5.0f, [this](float v) {
             return clip(align(v, BOARD_PWR_STEP), BOARD_PWR_MIN, pwr_top());
@@ -890,7 +890,7 @@ class SettingsManager {
 
     // A transverter's TX power limit is in force (W), or none (0), on the LVGL thread (radio.c). Coming onto one, a
     // PWR above it comes down to it and the PWR from before is kept (p_pwr_xvtr_held, once: the one from before the
-    // first transverter); off the transverters again, that PWR comes back (at most pwr_max_, the X6200's battery).
+    // first transverter); off the transverters again, that PWR comes back (at most pwr_max_, the battery's).
     // A PWR the limit holds down follows a new one (another transverter, the limit stepped up in Settings), up to the
     // PWR from before; one under the limit, or turned down on the transverter, is left as it is. `on_xvtr`: the radio
     // is still tuned through a transverter, one without a limit (the limit stepped down to Off there, the next one to

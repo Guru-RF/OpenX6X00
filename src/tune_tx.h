@@ -27,7 +27,7 @@ extern "C" {
 
 #define TUNE_PWR_MIN_W  0.1f
 /* The setting's top: the radio's PWR top (#87), 10 W on the X6100 and 8 W on the X6200, for a tuner that needs about
- * 9 W to match; 5 W on the X6200's battery through tune_plan's top_w. It was 5 W */
+ * 9 W to match; 5 W on either radio's battery through tune_plan's top_w. It was 5 W */
 #define TUNE_PWR_MAX_W  BOARD_PWR_MAX
 #define TUNE_ATU_MAX_W  1.0f    /* the most a tune sends with the radio's own ATU on (tune_atu_off) */
 #define TUNE_TIME_MIN_S 5
@@ -62,7 +62,7 @@ typedef struct {
 
 /* mode: the VFO's (radio_mode_t); app_hz: the open app's TX audio offset, 0 none (in LSB and LSB-D the tone goes that
  * far below the dial, as the app's audio does); pwr_w and limit_s: the settings; top_w: the most the radio gives now
- * (its PWR top, lower on the X6200's battery) */
+ * (its PWR top, lower on the battery) */
 void tune_plan(tune_plan_t *p, int mode, int32_t app_hz, float pwr_w, float top_w, int limit_s);
 
 /* A tune above TUNE_ATU_MAX_W goes out with the radio's own ATU off, on both radios (#87): the tuner at the antenna

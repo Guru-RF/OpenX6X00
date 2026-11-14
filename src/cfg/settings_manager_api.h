@@ -111,7 +111,7 @@ void cfg_band_load_next(bool up);
 /* TX power in W (p_pwr, 0.1..BOARD_PWR_MAX), saved and applied as Settings does it */
 void cfg_pwr_set(float watts);
 
-/* The highest TX power in W that can be set (BOARD_PWR_MAX; the X6200 on battery BOARD_PWR_MAX_BAT).
+/* The highest TX power in W that can be set (BOARD_PWR_MAX; on battery BOARD_PWR_MAX_BAT).
  * Only later settings are clipped to it: the power already set is left as it is. The get is the top in force: a
  * transverter's TX power limit under it too (cfg_pwr_xvtr_set) */
 void cfg_pwr_max_set(float watts);
