@@ -20,7 +20,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     dejavu_28.c dejavu_30.c dejavu_32.c dejavu_34.c dejavu_36.c
     dejavu_38.c dejavu_40.c dejavu_42.c dejavu_44.c
     dejavu_60.c
-    latin1_14.c latin1_16.c latin1_18.c latin1_20.c latin1_22.c latin1_24.c latin1_26.c   # Å Ä Ö Ü É Ñ behind every font (DejaVu Sans, tools/fonts/mklatin.sh)
+    latin1_14.c latin1_16.c latin1_18.c latin1_20.c latin1_22.c latin1_24.c latin1_26.c   # Å Ä Ö Ü É Ñ å ä ö ü é ñ behind every font (DejaVu Sans, tools/fonts/mklatin.sh)
     latin1_28.c latin1_30.c latin1_32.c latin1_34.c latin1_36.c
     latin1_38.c latin1_40.c latin1_42.c latin1_44.c
     latin1_60.c

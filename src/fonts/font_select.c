@@ -6,7 +6,8 @@
  * The pixel family (1bit): Terminus Font's bitmap sizes at 1 bpp (tools/fonts/bdf2lvgl.py), chosen by
  * cap and line height, so several Sony sizes share one; Latin-1 too.
  * Behind every sony_N, before the stock font's copy (orig), the capitals the CW decoder and the CW Keyboard
- * show beyond ASCII, Å Ä Ö Ü É Ñ (latin1_N, tools/fonts/mklatin.sh), for the fonts that have none. */
+ * show beyond ASCII, Å Ä Ö Ü É Ñ, and their small letters for the text boxes (latin1_N, tools/fonts/mklatin.sh),
+ * for the fonts that have none. */
 #include <stdbool.h>
 #include "lvgl/lvgl.h"
 #include "font_select.h"
@@ -38,7 +39,7 @@ static const lv_font_t *const pixel[] = {
     &pixel_24, &pixel_28, &pixel_28, &pixel_32, &pixel_32, &pixel_32, &pixel_32, &pixel_44,
 };
 static const lv_font_t *const codec[] = { SIZES(CODEC) };
-static const lv_font_t *const latin1[] = { SIZES(LATIN1) };   /* DejaVu Sans at dejavu_N's size, Å Ä Ö Ü É Ñ */
+static const lv_font_t *const latin1[] = { SIZES(LATIN1) };   /* DejaVu Sans at dejavu_N's size, Å Ä Ö Ü É Ñ å ä ö ü é ñ */
 #define N_FONTS (sizeof(sony) / sizeof(sony[0]))
 _Static_assert(sizeof(pixel) / sizeof(pixel[0]) == N_FONTS, "a pixel font for every size");
 

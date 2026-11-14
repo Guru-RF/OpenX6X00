@@ -415,8 +415,9 @@ keyboards do on Windows: F4ABC types without Shift. Shift with Caps Lock types
 the row's own characters (`&`, `é`, `"` and the others) and AltGr's are as
 always; up to v0.3.10 Caps Lock only made the letters capitals there, so the
 row typed `&`, `É`, `"` (issue #254). Letters with
-accents type in the text boxes, but the radio's fonts may not show them, and
-CW has no code for most of them.
+accents type in the text boxes. Å Ä Ö Ü É Ñ and å ä ö ü é ñ show in every
+font (up to v0.3.12 they could be missing; issues #265 and #269); other
+accented letters may not show, and CW has codes only for those six.
 
 CapsLock is the keyboard's shortcut key: held, the key pressed with it does
 something on the radio instead of typing. Every keyboard has it, small and
