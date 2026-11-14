@@ -402,7 +402,7 @@ class MenuLink(unittest.TestCase):
         setup_testing_defaults(env)
         env.update(HTTP_HOST=host, PATH_INFO="/time")
         status = []
-        page = b"".join(self.apps.app(env, lambda s, h: status.append(s))).decode()
+        page = b"".join(self.apps.app(env, lambda s, h, exc_info=None: status.append(s))).decode()
         self.assertTrue(status[0].startswith("200"), status)
         return [line.strip() for line in page.splitlines() if ">SmartCW</a>" in line]
 
