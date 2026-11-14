@@ -64,22 +64,14 @@ static bcn_sched_t          sched;
 static volatile time_t      start_at;   /* when its first send starts */
 static volatile int         sends_done;
 
+/* The code of the character at str and its bytes, 0 when the table has none (morse_find: "\xc3\xa5", å, as Å) */
 static uint8_t get_morse(char *str, char **morse) {
-    cw_characters_t *character = &cw_characters[0];
+    const cw_characters_t *character = morse_find(str);
 
-    while (character->morse) {
-        uint8_t char_len = strlen(character->character);
-
-        if (strncasecmp(character->character, str, char_len) == 0) {
-            *morse = character->morse;
-
-            return char_len;
-        }
-
-        character++;
-    }
-
-    return 0;
+    if (!character)
+        return 0;
+    *morse = character->morse;
+    return strlen(character->character);
 }
 
 static volatile bool stop_req;

@@ -306,8 +306,11 @@ static void on_text(void *arg) {
     if (mode == MODE_PRACTICE) {
         size_t n = strlen(text), l = strlen(t);
         in_use();                   /* the user keys: what the decoder hears of it */
-        if (n + l >= TEXT_MAX) {    /* drop the oldest quarter */
-            memmove(text, text + TEXT_MAX / 4, n - TEXT_MAX / 4 + 1);
+        if (n + l >= TEXT_MAX) {    /* drop the oldest quarter, a letter of two bytes (Å) whole */
+            size_t drop = TEXT_MAX / 4;
+
+            while (((unsigned char)text[drop] & 0xC0) == 0x80) drop++;
+            memmove(text, text + drop, n - drop + 1);
             n = strlen(text);
         }
         snprintf(text + n, TEXT_MAX - n, "%s", t);

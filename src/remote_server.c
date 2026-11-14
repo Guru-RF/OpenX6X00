@@ -1328,8 +1328,10 @@ void remote_server_cw_text(const char *text) {
         cw_new_len += n;
     }
     if (n < CW_HIST) {
-        if (cw_hist_len + n > CW_HIST) {        /* the oldest make room */
+        if (cw_hist_len + n > CW_HIST) {        /* the oldest make room, a letter of two bytes (Å) whole */
             size_t drop = cw_hist_len + n - CW_HIST;
+            while (drop < cw_hist_len && ((unsigned char)cw_hist[drop] & 0xC0) == 0x80)
+                drop++;
             memmove(cw_hist, cw_hist + drop, cw_hist_len - drop);
             cw_hist_len -= drop;
         }

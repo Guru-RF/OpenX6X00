@@ -649,8 +649,12 @@ void lcd_panel_set_strip(lv_obj_t *spectrum) {
     strip = spectrum;
 }
 
-/* Any thread: the CW decoder's text, kept to the last line's worth */
+/* Any thread: the CW decoder's text, kept to the last line's worth. A cell is one byte: a letter of two in UTF-8
+ * (the decoder's Å Ä Ö Ü É Ñ, U+00C0..U+00FF after 0xC3) goes in as its letter without the accent, as a
+ * fourteen-segment display can draw it; so the line is ASCII and its oldest cut anywhere */
 void lcd_panel_cw_text(const char *text) {
+    static const char plain[] = "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPSaaaaaaaceeeeiiiidnooooo/ouuuuypy";
+
     pthread_mutex_lock(&cw_mux);
     size_t n = strlen(cw_line), add = strlen(text);
     if (n + add >= sizeof(cw_line)) {
@@ -665,6 +669,10 @@ void lcd_panel_cw_text(const char *text) {
         if (!strncmp(c, "<?>", 3)) {   /* the decoder's unknown sign: one place */
             *c = '?';
             memmove(c + 1, c + 3, strlen(c + 3) + 1);
+        }
+        if ((unsigned char)c[0] == 0xC3 && ((unsigned char)c[1] & 0xC0) == 0x80) {
+            *c = plain[(unsigned char)c[1] - 0x80];
+            memmove(c + 1, c + 2, strlen(c + 2) + 1);
         }
     }
     cw_seq++;

@@ -1165,15 +1165,17 @@ static bool cw_put(char *out, size_t n, size_t *k, const char *s, size_t l) {
  * key. TCI's rules: its stand-ins for the separators back (cw_char); the letters between two bars run together as one
  * sign, the one the radio has for that code (|SK| and |VA| its <SK>, |BT| its =, |AR| its <AR>), a run it has none for
  * going as its letters; < and > a step of 5 WPM down or up for the rest of the text (cw_encoder.h), the speed back at
- * its end, so the text after it starts where KEY Speed is. A character the radio has no sign for is left out, as is
- * what does not fit */
+ * its end, so the text after it starts where KEY Speed is. A letter of two bytes the radio has a sign for (UTF-8 "é")
+ * goes as its capital (É, as the decoder shows it). A character the radio has no sign for is left out, as is what does
+ * not fit */
 static size_t cw_text(const char *in, char *out, size_t n) {
     size_t k       = 0;
     bool   stepped = false, signs = false;
 
     for (const char *p = in; *p; p++) {
-        char        c = cw_char(*p);
-        const char *bar;
+        char                   c = cw_char(*p);
+        const char            *bar;
+        const cw_characters_t *wide;
 
         if (c == '<' || c == '>') {
             char step = c == '>' ? CW_ENCODER_FASTER : CW_ENCODER_SLOWER;
@@ -1211,6 +1213,13 @@ static size_t cw_text(const char *in, char *out, size_t n) {
                 }
             }
             p = bar;
+        } else if ((unsigned char)*p >= 0x80 && (wide = morse_find(p)) && (unsigned char)wide->character[0] >= 0x80) {
+            size_t l = strlen(wide->character);
+
+            if (!cw_put(out, n, &k, wide->character, l))
+                break;
+            signs = true;
+            p += l - 1;
         } else if (c == ' ' || cw_sign(c)) {
             if (!cw_put(out, n, &k, &c, 1))
                 break;

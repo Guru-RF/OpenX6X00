@@ -12,11 +12,12 @@
 #include <string.h>
 
 /* A place of the answer the decoder found no character for: a code not in its table ("<?>": a keying slip, or the
- * group's last element and the answer run together) or a prosign ("<AR>"). Never in a group or a callsign, so never
- * right. One byte, one place: the checks go place by place. It shows as CWT_NO_CHAR_SHOWN. Up to v0.3.8 "<?>" became
- * "?", a Koch character itself (level 32 on): a garbled answer to "?" counted right, and the two looked the same. A
- * prosign went in as its text, one place taking four: the places after it no longer lined up with the group's, and
- * its letters counted for the group's (the R of "<AR>") */
+ * group's last element and the answer run together), a prosign ("<AR>") or a letter of more than one byte (Å in
+ * UTF-8, CH: #265). Never in a group or a callsign, so never right. One byte, one place: the checks go place by
+ * place. It shows as CWT_NO_CHAR_SHOWN. Up to v0.3.8 "<?>" became "?", a Koch character itself (level 32 on): a
+ * garbled answer to "?" counted right, and the two looked the same. A prosign went in as its text, one place taking
+ * four: the places after it no longer lined up with the group's, and its letters counted for the group's (the R of
+ * "<AR>") */
 #define CWT_NO_CHAR '*'
 
 /* How a place with no character shows in Learn and Calls: as the CW decoder panel (and Practice) shows a code not in

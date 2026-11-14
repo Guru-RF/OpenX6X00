@@ -18,9 +18,10 @@ GC       := -ffunction-sections -fdata-sections
 # The GUI's files as the PC build has them, without its warnings; the test's own file with them
 GUI      := -std=gnu11 -O1 -g -pthread $(DEFS) $(INC) $(GC)
 CFLAGS   := $(GUI) -Wall -Wextra -Wno-comment
-# every font fonts_apply() can put in the window: the families at each size, the 1bit theme's
+# every font fonts_apply() can put in the window: the families at each size, the decoder's capitals behind them
+# (latin1), the 1bit theme's
 SIZES    := 14 16 18 20 22 24 26 28 30 32 34 36 38 40 42 44 60
-FONTS    := $(foreach f,sony roboto dejavu arial rcond codec,$(foreach n,$(SIZES),fonts/$(f)_$(n))) \
+FONTS    := $(foreach f,sony roboto dejavu arial rcond codec latin1,$(foreach n,$(SIZES),fonts/$(f)_$(n))) \
             $(foreach n,12 14 16 18 20 22 24 28 32 44,fonts/pixel_$(n))
 FILES    := text_popup fonts/font_select key_input kbd_hyper kbd_keymap kbd_layout kbd_rollover $(FONTS)
 OBJS     := $(FILES:%=build/%.o)

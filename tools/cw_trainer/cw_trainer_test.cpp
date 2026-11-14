@@ -30,6 +30,7 @@
 
 #include "cw_own_tone.h"
 #include "cw_trainer_answer.h"
+#include "morse_code.h"
 
 namespace cw {
 struct ReceiverPeek {
@@ -183,6 +184,56 @@ static void morse_text_rules(void) {
     }
 }
 
+/* ---- The table: letters of other languages (#265) ---------------------------------------------------------------- */
+
+/* The decoder's text for each code (MorseText, with the table), and the keyer's code for each text (morse_find, as
+ * cw_encoder.c and cw_beacon.c take it) */
+static void table_rules(void) {
+    printf("The table: letters of other languages\n");
+    {
+        Out           o;
+        cw::MorseText m([&](const char *t, bool own) { o.add(t, own); });
+        for (const char *code : {".--.-", ".-.-", "---.", "..--", "..-..", "--.--", "----", ".-.-.", ".-.-.-", "..--.."}) {
+            put_code(m, code);
+            m.put(cw::SYM_CHAR_GAP);
+        }
+        m.put(cw::SYM_WORD_GAP);
+        check(o.s == "\xc3\x85\xc3\x84\xc3\x96\xc3\x9c\xc3\x89\xc3\x91" "CH<AR>.? ",
+              "decoded: .--.- .-.- ---. ..-- ..-.. --.-- ---- as \"\xc3\x85\xc3\x84\xc3\x96\xc3\x9c\xc3\x89\xc3\x91" "CH\", the "
+              "prosign and the signs that start the same as they were: \"%s\"", o.s.c_str());
+    }
+    {
+        static const struct {
+            const char *text, *morse;
+        } t[] = {
+            {"\xc3\x85KE", ".--.-"}, {"\xc3\xa5ke", ".--.-"},    /* Å, å as Å */
+            {"\xc3\xa4", ".-.-"},     {"\xc3\xb6", "---."},      {"\xc3\xbc", "..--"},
+            {"\xc3\xa9", "..-.."},    {"\xc3\xb1", "--.--"},
+            {"CHARLIE", "-.-."},     {"ch", "-.-."},           /* C and H, not CH's ---- */
+            {"<ar>", ".-.-."},       {"a", ".-"},
+            {"\xc3\x98", nullptr},    {"\xc3\x9f", nullptr},     /* Ø and ß: no sign */
+            {"\xc3", nullptr},         {"\xc3\xb7", nullptr},     /* half a letter; the division sign is no small letter */
+        };
+        std::string bad;
+
+        for (const auto &c : t) {
+            const cw_characters_t *k = morse_find(c.text);
+
+            if (c.morse ? !k || strcmp(k->morse, c.morse) : k != nullptr) bad += std::string(" ") + c.text;
+        }
+        /* every text the decoder shows keys as the code it came from, the first of a text's codes (! <ERR>); CH, two
+         * letters, aside */
+        for (const cw_characters_t *e = cw_characters; e->morse; e++) {
+            const cw_characters_t *first = cw_characters;
+
+            while (strcmp(first->character, e->character)) first++;
+            if (strcmp(e->character, "CH") && morse_find(e->character) != first) bad += std::string(" ") + e->character;
+        }
+        check(bad.empty(), "keyed: Å Ä Ö Ü É Ñ by their codes, small ones as capitals, CH as C and H, Ø ß and half a "
+              "letter as nothing, the table's own texts by their codes%s", bad.c_str());
+    }
+}
+
 /* ---- ElementTimer: the pause between the turns ------------------------------------------------------------------- */
 
 /* Keys a code into the timer at `dot` ms in its 8 ms steps, the edges on the steps; the symbols go to m. As
@@ -260,6 +311,12 @@ static void answer_rules(void) {
     check(strcmp(shown, "K<?><?>?R") == 0 && strcmp(small, "K<?>") == 0,
           "shown as \"%s\", a place with no character as the decoder panel's <?>, the ? as ?; in 6 bytes whole places "
           "only, \"%s\"", shown, small);
+
+    char        w[8] = "";
+    std::string two  = std::string() + CWT_NO_CHAR + CWT_NO_CHAR + "E";
+
+    for (const char *t : {"\xc3\x85", "CH", "E"}) cwt_answer_add(w, sizeof(w), t);
+    check(two == w, "\xc3\x85 and CH (#265): one place each, no character of a group: \"%s\"", w);
 }
 
 /* ---- Learn and Calls, end to end --------------------------------------------------------------------------------- */
@@ -730,6 +787,7 @@ static void own_keying_x6200(void) {
 int main(void) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     morse_text_rules();
+    table_rules();
     element_timer_rules();
     answer_rules();
     end_to_end();

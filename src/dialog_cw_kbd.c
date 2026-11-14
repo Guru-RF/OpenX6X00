@@ -13,6 +13,7 @@
 #include "cfg/cfg_api.h"
 #include "cw.h"
 #include "cw_encoder.h"
+#include "cw_decoder/morse_code.h"
 #include "params/params.h"
 #include "events.h"
 #include "keyboard.h"
@@ -134,18 +135,40 @@ static bool busy(void) {
     return cw_encoder_state() != CW_ENCODER_IDLE;
 }
 
+/* i moved on past the second byte of a letter of two (UTF-8, Å): a cut there would leave half of it */
+static size_t whole(const char *s, size_t i) {
+    while (((unsigned char)s[i] & 0xC0) == 0x80) {
+        i++;
+    }
+    return i;
+}
+
 static void history_add(const char *text) {
     size_t len = strlen(history), add = strlen(text);
 
     if (add > HISTORY_MAX) {
-        text += add - HISTORY_MAX;
-        add = HISTORY_MAX;
+        text += whole(text, add - HISTORY_MAX);
+        add = strlen(text);
     }
     if (len + add > HISTORY_MAX) {     /* drop the oldest */
-        memmove(history, history + len + add - HISTORY_MAX, HISTORY_MAX - add);
-        len = HISTORY_MAX - add;
+        size_t drop = whole(history, len + add - HISTORY_MAX);
+
+        memmove(history, history + drop, len - drop);
+        len -= drop;
     }
     memcpy(history + len, text, add + 1);
+}
+
+/* Live: the last letter queued and not keyed yet goes, both bytes of one of two */
+static void unqueue_last(void) {
+    size_t n = strlen(queue);
+
+    while (n > 1 && ((unsigned char)queue[n - 1] & 0xC0) == 0x80) {
+        n--;
+    }
+    if (n) {
+        queue[n - 1] = 0;
+    }
 }
 
 /* The log: sent text dim, the line being keyed white up to where the key is
@@ -216,6 +239,14 @@ static bool enqueue_raw(const char *text, bool space) {
     for (; *text && len < sizeof(queue) - 2; text++) {
         if (*text != '#') {
             queue[len++] = toupper((unsigned char)*text);
+        }
+    }
+    if (((unsigned char)*text & 0xC0) == 0x80) {   /* full inside a letter of two bytes: none of it */
+        while (len && ((unsigned char)queue[len - 1] & 0xC0) == 0x80) {
+            len--;
+        }
+        if (len) {
+            len--;
         }
     }
     if (space) {
@@ -359,7 +390,7 @@ static void key_cb(lv_event_t *e) {
             if (*lv_textarea_get_text(input)) {
                 lv_textarea_del_char(input);
             } else if (param_i_get(cfg_cw_live) && queue[0]) {   /* Live: the last letter not keyed yet */
-                queue[strlen(queue) - 1] = 0;
+                unqueue_last();
                 update_view();
             }
             break;
@@ -386,17 +417,34 @@ static void key_cb(lv_event_t *e) {
         case KEY_VOL_RIGHT_SELECT:
             radio_change_vol(1);
             break;
-        default:
-            if (key >= ' ' && key < 127 && key != '#') {
-                char c[2] = {(char)toupper((int)key), 0};
+        default: {
+            char c[sizeof(key) + 1] = {0};
 
-                if (param_i_get(cfg_cw_live)) {   /* keyed at once, letter by letter; a space is the word gap */
-                    enqueue_raw(c, false);
+            if (key >= ' ' && key < 127 && key != '#') {
+                c[0] = (char)toupper((int)key);
+            } else {
+                /* A letter of the keyboard's layout (Å on a Swedish one) comes as its UTF-8 bytes (lv_drivers'
+                 * xkb.c): taken when the keyer has a sign for it, in the capital its table has (å as Å) */
+                const cw_characters_t *k;
+
+                memcpy(c, &key, sizeof(key));
+                k = (unsigned char)c[0] >= 0xC0 ? morse_find(c) : NULL;
+                if (k && strlen(k->character) == strlen(c)) {
+                    strcpy(c, k->character);
                 } else {
-                    lv_textarea_add_text(input, c);
+                    c[0] = 0;
                 }
             }
+            if (!c[0]) {
+                break;
+            }
+            if (param_i_get(cfg_cw_live)) {   /* keyed at once, letter by letter; a space is the word gap */
+                enqueue_raw(c, false);
+            } else {
+                lv_textarea_add_text(input, c);
+            }
             break;
+        }
     }
 }
 

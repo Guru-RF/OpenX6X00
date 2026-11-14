@@ -15,6 +15,11 @@
  *  needs, and the other fonts have a higher one (DejaVu's, the default, 43 px): what goes under the baseline was cut
  *  off, so J showed as I, j as i, and g p q y without their tails.
  *
+ *  The CW decoder's letters (#265): Å Ä Ö Ü É Ñ in each family and VISION's sizes, in the fonts the decoder's text is
+ *  drawn in (the panel's sony_24 and sony_18, the CW trainer's sony_44), found through font_select.c's fallbacks in a
+ *  font that has them, not LVGL's empty box: a latin1_N whose capitals (dejavu_N's A, the same face and size) are as
+ *  tall as the font's own within a pixel.
+ *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
@@ -385,6 +390,60 @@ static void drawn(const char *name, uint8_t font, bool vision) {
     textarea_window_close();
 }
 
+#define LATIN_SIZES(X) X(14) X(16) X(18) X(20) X(22) X(24) X(26) X(28) X(30) X(32) X(34) X(36) X(38) X(40) X(42) X(44) \
+    X(60)
+#define LATIN_DECL(n) extern const lv_font_t latin1_##n, dejavu_##n;
+LATIN_SIZES(LATIN_DECL)
+#define LATIN_PAIR(n) {&latin1_##n, &dejavu_##n},
+
+/* The A of the dejavu_N whose latin1_N f's glyph came from (font_select.c copies it: the same glyph data); 0 none */
+static int latin_cap(const lv_font_t *f) {
+    static const struct {
+        const lv_font_t *latin, *dejavu;
+    } pair[] = {LATIN_SIZES(LATIN_PAIR)};
+    lv_font_glyph_dsc_t a;
+
+    for (size_t k = 0; f && k < sizeof(pair) / sizeof(pair[0]); k++) {
+        if (f->dsc == pair[k].latin->dsc) {
+            return lv_font_get_glyph_dsc(pair[k].dejavu, &a, 'A', 0) ? a.box_h : 0;
+        }
+    }
+    return 0;
+}
+
+static void latin_letters(const char *name, uint8_t font, bool vision) {
+    static const uint32_t letters[] = {0xC5, 0xC4, 0xD6, 0xDC, 0xC9, 0xD1};    /* Å Ä Ö Ü É Ñ */
+    static const struct {
+        const lv_font_t *f;
+        const char      *name;
+    } in[] = {{&sony_18, "sony_18"}, {&sony_24, "sony_24"}, {&sony_44, "sony_44"}};
+    char bad[256] = "";
+
+    fonts_apply(font);
+    if (vision) {
+        fonts_scale(VISION_FONT_STEPS);
+    }
+    for (size_t i = 0; i < sizeof(in) / sizeof(in[0]); i++) {
+        lv_font_glyph_dsc_t a, g;
+        bool                found = true;
+        int                 cap   = -1;     /* -1: not from a latin1_N (the pixel family's own) */
+
+        for (size_t k = 0; k < sizeof(letters) / sizeof(letters[0]); k++) {
+            found = found && lv_font_get_glyph_dsc(in[i].f, &g, letters[k], 0) && g.resolved_font && !g.is_placeholder;
+            if (found && latin_cap(g.resolved_font)) {
+                cap = latin_cap(g.resolved_font);
+            }
+        }
+        if (!found || !lv_font_get_glyph_dsc(in[i].f, &a, 'A', 0)) {
+            snprintf(bad + strlen(bad), sizeof(bad) - strlen(bad), " %s: a letter missing", in[i].name);
+        } else if (cap >= 0 && LV_ABS(cap - a.box_h) > 1) {
+            snprintf(bad + strlen(bad), sizeof(bad) - strlen(bad), " %s: capitals of %d px, the font's %d", in[i].name,
+                     cap, a.box_h);
+        }
+    }
+    check(!bad[0], "%s: the CW decoder's letters there, as tall as its own%s%s", name, bad[0] ? ":" : "", bad);
+}
+
 int main(void) {
     display();
     styles();
@@ -401,6 +460,16 @@ int main(void) {
     drawn("Codec's Share Tech Mono", FONT_CODEC, false);
     drawn("DejaVu, VISION's sizes", FONT_DEJAVU, true);
     drawn("the stock font, VISION's sizes", FONT_SONY, true);
+
+    latin_letters("the stock font", FONT_SONY, false);
+    latin_letters("Roboto", FONT_ROBOTO, false);
+    latin_letters("DejaVu (the default)", FONT_DEJAVU, false);
+    latin_letters("Classic's", FONT_ARIAL, false);
+    latin_letters("the deck themes' Roboto Condensed", FONT_RCOND, false);
+    latin_letters("1bit's Terminus", FONT_PIXEL, false);
+    latin_letters("Codec's Share Tech Mono", FONT_CODEC, false);
+    latin_letters("DejaVu, VISION's sizes", FONT_DEJAVU, true);
+    latin_letters("the stock font, VISION's sizes", FONT_SONY, true);
 
     printf("%d of %d cases ok\n", good, cases);
     return good == cases ? 0 : 1;

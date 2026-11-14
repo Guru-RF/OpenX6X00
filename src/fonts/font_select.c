@@ -4,7 +4,9 @@
  * Sony's; Arial: tools/font_gen.py, about 0.8 x Sony's size so two-line button labels fit);
  * icon glyphs come from the untouched Sony copy through the fallback.
  * The pixel family (1bit): Terminus Font's bitmap sizes at 1 bpp (tools/fonts/bdf2lvgl.py), chosen by
- * cap and line height, so several Sony sizes share one; Latin-1 too. */
+ * cap and line height, so several Sony sizes share one; Latin-1 too.
+ * Behind every sony_N, before the stock font's copy (orig), the capitals the CW decoder and the CW Keyboard
+ * show beyond ASCII, Å Ä Ö Ü É Ñ (latin1_N, tools/fonts/mklatin.sh), for the fonts that have none. */
 #include <stdbool.h>
 #include "lvgl/lvgl.h"
 #include "font_select.h"
@@ -12,7 +14,8 @@
 #define SIZES(X) X(14) X(16) X(18) X(20) X(22) X(24) X(26) X(28) X(30) \
                  X(32) X(34) X(36) X(38) X(40) X(42) X(44) X(60)
 
-#define DECL(n) extern lv_font_t sony_##n; extern const lv_font_t roboto_##n, dejavu_##n, arial_##n, rcond_##n, codec_##n;
+#define DECL(n) extern lv_font_t sony_##n; extern const lv_font_t roboto_##n, dejavu_##n, arial_##n, rcond_##n, codec_##n, \
+    latin1_##n;
 SIZES(DECL)
 extern const lv_font_t pixel_12, pixel_14, pixel_16, pixel_18, pixel_20, pixel_22, pixel_24, pixel_28, pixel_32,
     pixel_44;
@@ -23,6 +26,7 @@ extern const lv_font_t pixel_12, pixel_14, pixel_16, pixel_18, pixel_20, pixel_2
 #define ARIAL(n) &arial_##n,
 #define RCOND(n) &rcond_##n,
 #define CODEC(n) &codec_##n,
+#define LATIN1(n) &latin1_##n,
 static lv_font_t *const sony[] = { SIZES(SONY) };
 static const lv_font_t *const roboto[] = { SIZES(ROBOTO) };
 static const lv_font_t *const dejavu[] = { SIZES(DEJAVU) };
@@ -34,11 +38,36 @@ static const lv_font_t *const pixel[] = {
     &pixel_24, &pixel_28, &pixel_28, &pixel_32, &pixel_32, &pixel_32, &pixel_32, &pixel_44,
 };
 static const lv_font_t *const codec[] = { SIZES(CODEC) };
+static const lv_font_t *const latin1[] = { SIZES(LATIN1) };   /* DejaVu Sans at dejavu_N's size, Å Ä Ö Ü É Ñ */
 #define N_FONTS (sizeof(sony) / sizeof(sony[0]))
 _Static_assert(sizeof(pixel) / sizeof(pixel[0]) == N_FONTS, "a pixel font for every size");
 
 static lv_font_t orig[N_FONTS];   /* Sony's, as built */
+static lv_font_t latin_link[N_FONTS];   /* the latin1_N behind each sony_N, orig behind it */
 static bool saved;
+
+/* The decoder's capitals behind sony_N i, as drawn now (another family, a bigger size under VISION): the latin1 size
+ * whose capitals stand as tall as its own, by the A (dejavu_N's: latin1_N is the same face at the same size). The
+ * families' capitals differ at one size (sony_24's 12 pixels, dejavu_24's 14): the slot's own latin1 would stand
+ * out. The stock font's copy of the slot (orig) after it, for the symbols */
+static void latin_behind(unsigned i) {
+    lv_font_glyph_dsc_t g;
+    int                 cap  = sony[i]->get_glyph_dsc(sony[i], &g, 'A', 0) ? g.box_h : 0;
+    unsigned            best = i;
+    int                 off  = -1;     /* best's capitals from the font's, in pixels */
+
+    for (unsigned k = 0; cap && k < N_FONTS; k++) {
+        int d = dejavu[k]->get_glyph_dsc(dejavu[k], &g, 'A', 0) ? LV_ABS(g.box_h - cap) : -1;
+
+        if (d >= 0 && (off < 0 || d < off)) {
+            best = k;
+            off  = d;
+        }
+    }
+    latin_link[i]          = *latin1[best];
+    latin_link[i].fallback = &orig[i];
+    sony[i]->fallback      = &latin_link[i];
+}
 
 int buttons_h = 54;  /* = BUTTONS_H_MIN */
 
@@ -51,8 +80,10 @@ void fonts_apply(uint8_t choice) {
     saved = true;
     buttons_h = 54;
     if (choice != FONT_ROBOTO && choice != FONT_DEJAVU && choice != FONT_ARIAL && choice != FONT_RCOND &&
-        choice != FONT_PIXEL && choice != FONT_CODEC)
+        choice != FONT_PIXEL && choice != FONT_CODEC) {
+        for (unsigned i = 0; i < N_FONTS; i++) latin_behind(i);
         return;
+    }
     if (choice == FONT_DEJAVU) buttons_h = 62;
     const lv_font_t *const *alt = choice == FONT_ROBOTO ? roboto : choice == FONT_DEJAVU ? dejavu :
                                    choice == FONT_ARIAL ? arial : choice == FONT_PIXEL ? pixel :
@@ -60,7 +91,7 @@ void fonts_apply(uint8_t choice) {
 
     for (unsigned i = 0; i < N_FONTS; i++) {
         *sony[i] = *alt[i];
-        sony[i]->fallback = &orig[i];
+        latin_behind(i);
     }
 }
 
@@ -85,7 +116,8 @@ void fonts_scale(int steps) {
         unsigned to = i + steps < N_FONTS - 1 ? i + steps : N_FONTS - 2;
         *sony[i]    = was[to];
         /* what the bigger one lacks (the symbols: only Sony's 24 and 38 have them) from Sony's
-         * size the code asked for: an empty box otherwise (the knobs' arrows) */
-        sony[i]->fallback = &orig[i];
+         * size the code asked for: an empty box otherwise (the knobs' arrows); the decoder's capitals
+         * at the bigger one's size before that */
+        latin_behind(i);
     }
 }

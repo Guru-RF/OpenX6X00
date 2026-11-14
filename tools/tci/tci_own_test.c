@@ -1467,12 +1467,14 @@ static void cw_text_rules(void) {
     } t[] = {
         {"cq^ 5nn~ tu*", "CQ: 5NN, TU;"},
         {"|SK| |va| |BT| |ar| |KN| |SOS| |s k|", "<SK> <SK> = <AR> <KN> <SOS> <SK>"},
-        {"|AA| |e|", "AA E"},                               /* .-.- has no sign of its own: the letters */
+        {"|AA| |e|", "\xc3\x84 E"},                         /* .-.- is Ä's sign (#265) */
+        {"|QQ| |ch|", "QQ CH"},                             /* --.---.- has none: the letters; ---- CH, two letters */
         {"a|b", "AB"},                                      /* a bar that does not close */
         {">TU <RA6LH >>599 004 |SK|", "\x01TU \x02RA6LH \x01\x01" "599 004 <SK>\x03"},  /* TCI's own example */
         {"#%&{call}", "CALL"},
         {"tab\there\r\n", "TAB HERE  "},
-        {"73 \xc3\xa9 @ ? / = !", "73  @ ? / = !"},
+        {"73 \xc3\xa9 \xc3\x9f @ ? / = !", "73 \xc3\x89  @ ? / = !"},  /* é as É, ß (no sign) left out */
+        {"\xc3\xa5\xc3\xa4\xc3\xb6 \xc3", "\xc3\x85\xc3\x84\xc3\x96 "},      /* åäö as ÅÄÖ, half a letter left out */
         {"   ", ""},
         {"<>", ""},
         {"###", ""},
@@ -1489,7 +1491,8 @@ static void cw_text_rules(void) {
             ok = false;
         }
     }
-    check(ok, "^ ~ * back, |..| one sign or its letters, < > steps and the speed back, capitals, unknown left out");
+    check(ok, "^ ~ * back, |..| one sign or its letters, < > steps and the speed back, capitals (å's too), unknown "
+              "left out");
     memset(big, 'e', sizeof(big) - 1);
     big[0]               = '>';
     big[sizeof(big) - 1] = 0;

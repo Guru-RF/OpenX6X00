@@ -3899,6 +3899,9 @@ over the waterfall.
   be. Lower copies weaker signals but can print noise.
 - No characters from noise: lone blips, clicks and steady carriers (birdies)
   on the tone are not decoded and do not change the speed estimate.
+- It knows A-Z, the figures, punctuation and the prosigns, and Å Ä Ö Ü É Ñ
+  and CH; up to v0.3.12 those came out as <?> (#265). The CW Keyboard and
+  TCI key them too.
 - A letter shows when the next one starts; the last one after a short pause.
   For 1 s after the decoder is reset (first use, CW peak or key tone change)
   nothing is decoded. A key-down longer than 8 dots (tune-up) is ignored.

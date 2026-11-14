@@ -11,7 +11,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
-#include <strings.h>
 
 #include "cw_decoder/morse_code.h"
 
@@ -23,17 +22,14 @@ const qrss_band_t qrss_bands[QRSS_BANDS] = {
     {"80 m",  3500000,  4000000,  3569800,  3570000,  3569900,  3568600},
 };
 
-/* The table's first entry for the start of str, as the keyer takes it (cw_encoder.c get_morse): its length, 0 none */
+/* The table's entry for the start of str, as the keyer takes it (cw_encoder.c get_morse): its length, 0 none */
 static size_t morse_of(const char *str, const char **morse) {
-    for (const cw_characters_t *c = cw_characters; c->morse; c++) {
-        size_t len = strlen(c->character);
+    const cw_characters_t *c = morse_find(str);
 
-        if (strncasecmp(c->character, str, len) == 0) {
-            *morse = c->morse;
-            return len;
-        }
-    }
-    return 0;
+    if (!c)
+        return 0;
+    *morse = c->morse;
+    return strlen(c->character);
 }
 
 int qrss3_plan(const char *text, cw_el_t *out, int max) {
