@@ -4,12 +4,13 @@
  *  OpenX6X00 - when the screensaver comes and when the screen goes dark (screen_idle.c)
  *
  *  Three stages: the GUI lit, the screensaver over it, the panel dark. The minutes count from the last use: a key,
- *  a knob, the pointer, the hand mic, the browser panel, TCI or Pat tuning (whatever calls backlight_tick()). With a
- *  screensaver it comes after saver_min minutes, and the screen goes dark off_min minutes after the last use (0:
- *  never, the screensaver stays); a screen off time that is not later than the screensaver's comes first, with no
- *  screensaver. TX, and a warning to be read (screen_idle_notice()), end the screensaver at once; while the radio is
- *  on the air none comes, and its minutes run again from the end of TX. The dark keeps the last use's time: TX does
- *  not put it off, as before. The first use on the screensaver, or on a screen dark by the time, only wakes it.
+ *  a knob, the pointer, the hand mic, the browser panel, TCI or Pat tuning, the CW Trainer's groups and the answers
+ *  keyed back (whatever calls backlight_tick()). With a screensaver it comes after saver_min minutes, and the screen
+ *  goes dark off_min minutes after the last use (0: never, the screensaver stays); a screen off time that is not later
+ *  than the screensaver's comes first, with no screensaver. TX, and a warning to be read (screen_idle_notice()), end
+ *  the screensaver at once; while the radio is on the air none comes, and its minutes run again from the end of TX.
+ *  The dark keeps the last use's time: TX does not put it off, as before. The first use on the screensaver, or on a
+ *  screen dark by the time, only wakes it.
  *  While someone watches the screen from a browser (the remote screen) or it is recorded the screensaver waits,
  *  they see the GUI; the dark comes at its time, as before.
  *

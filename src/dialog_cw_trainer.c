@@ -18,6 +18,8 @@
  *  the transmitter at PWR from the KEY jack all the same. That holds for the
  *  trainer's own keying too.
  *  Calls changes the key speed: it is given back when leaving Calls too.
+ *  The trainer's groups and the answers keyed back are use of the radio, as a
+ *  key is (in_use): the screensaver stays away while it is worked.
  */
 
 #include "dialog_cw_trainer.h"
@@ -39,6 +41,7 @@
 #include "params/params.h"
 #include "radio.h"
 #include "scheduler.h"
+#include "screen_light.h"
 #include "styles.h"
 #include "theme.h"
 
@@ -241,6 +244,15 @@ static bool is_cw(void) {
     return m == radio_mode_cw || m == radio_mode_cwr;
 }
 
+/* The radio in use, as after a key (#263): the screensaver's and the screen off's minutes again from now, and a
+ * screensaver that came while the trainer waited for an answer goes as the answer comes. In train mode the keyer only
+ * sounds the sidetone, which the X6100's base does not report as TX, and the KEY jack's paddle or key is the base's,
+ * no key the GUI sees: up to v0.3.12 nothing of the trainer counted, and the screensaver came over it after its
+ * minutes, while groups were played and answered */
+static void in_use(void) {
+    backlight_tick();
+}
+
 /* Decoder */
 
 static void on_text(void *arg);
@@ -292,6 +304,7 @@ static void on_text(void *arg) {
 
     if (mode == MODE_PRACTICE) {
         size_t n = strlen(text), l = strlen(t);
+        in_use();                   /* the user keys: what the decoder hears of it */
         if (n + l >= TEXT_MAX) {    /* drop the oldest quarter */
             memmove(text, text + TEXT_MAX / 4, n - TEXT_MAX / 4 + 1);
             n = strlen(text);
@@ -303,6 +316,7 @@ static void on_text(void *arg) {
 
     /* Learn, Calls: only while listening, and not our own sidetone */
     if (st != ST_LISTEN || lv_tick_elaps(listen_t) < GUARD_MS) return;
+    in_use();       /* the answer keyed */
     last_rx_t = lv_tick_get();
     if (t[0] == ' ') {
         heard_end = cwt_space_ends(mode == MODE_CALLS, heard_n);
@@ -500,6 +514,7 @@ static bool play(void) {
         msg_update_text_fmt("Key train is off: not playing");
         return false;
     }
+    in_use();       /* a group or a call to listen to */
     heard[0] = 0;
     heard_n  = 0;
     heard_end = false;

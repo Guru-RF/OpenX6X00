@@ -1619,8 +1619,17 @@ minutes, the screen dark after 30).
 
 - What counts as use: a key or a knob of the radio, a hand mic key, a
   keyboard, tuning from the browser panel, the remote screen's keys and
-  knobs, a new frequency from a TCI client or from Pat (Winlink). Each
-  starts the minutes again, the screensaver's and Screen off's.
+  knobs, a new frequency from a TCI client or from Pat (Winlink), and in the
+  [CW Trainer](#cw-trainer) each group or call it plays and each character
+  of your keying it hears. Each starts the minutes again, the screensaver's
+  and Screen off's.
+- A key or paddle in the KEY jack is the base's own: it counts only through
+  the TX it keys (next point). With KEY Train on the X6100's base sounds
+  the sidetone and, as reported in issue #263, no TX, so outside the CW
+  Trainer keying with Train on does not keep the screensaver away; on the
+  X6200 Train goes into TX at 0 W, which does. Up to v0.3.12 the CW
+  Trainer did not count either: the screensaver came over it while you
+  practised (issue #263).
 - Any TX ends the screensaver at once, whatever keyed it: the PTT key, the
   hand mic, an app, CAT, TCI, the browser, the tuner, the SWR scan (seen
   within a second). No screensaver comes while the radio is on the air;
@@ -4321,6 +4330,12 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   the call again one second after the press, so your hand is off the key by
   then; the screen says "Listen..." meanwhile, and nothing you key counts.
   Up to v0.3.11 it started at once (issue #202).
+- The trainer at work keeps the [screensaver](#screensaver) away: each
+  group or call it plays and each character of your answer (or of your
+  keying in Practice) counts as use, as a key does. Left waiting for an
+  answer, it goes under the screensaver after its minutes, and your answer
+  brings the screen back. Up to v0.3.12 nothing of the trainer counted
+  (issue #263).
 - The trainer keys at the key speed, 5 to 50 WPM, and the decoder follows
   it, and a straight key, down to 5 WPM while the trainer is open (on the
   band it stops at 10). Up to v0.3.8 it stopped at 10 in the trainer too:
