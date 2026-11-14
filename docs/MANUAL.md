@@ -4040,7 +4040,10 @@ open it too (Settings > Keys > FRONT KEYS, LONG PRESS: APP CW Keyboard).
 - Turning the MFK (or the arrow keys) sets the speed, 5 to 60 WPM, the same
   as KEY > Speed; the head of the window shows it.
 - The log: what was sent dim, the line on the air bright up to the key and
-  highlighted after it, the queue grey. On the right READY, ON AIR or NOT CW.
+  highlighted after it, the queue grey, on as many rows as it takes, the
+  newest at the bottom. On the right READY, ON AIR or NOT CW. Up to v0.3.12,
+  once the log ran onto a second row, that row came bright and ended in
+  colour codes such as "#f1f5f9 #e5a823 475569" (#269).
 - Buttons: Send, Stop, Clear (the log and the line), Close. The next pages
   key the MSG > CW messages (up to eight, four to a page), each as a typed
   line; the last page has Live.

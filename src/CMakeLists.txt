@@ -38,7 +38,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     birdie.c dialog_birdie.c
     first_start.c first_start_rule.c
     dialog_cw_trainer.c
-    dialog_cw_kbd.c
+    dialog_cw_kbd.c recolor_rows.c
     theme.c
     freq_strip.c
     lcd_panel.c
