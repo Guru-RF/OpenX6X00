@@ -1076,7 +1076,7 @@ static void refresh_ui(void) {
     cwt_answer_shown(heard, shown, sizeof(shown));
     switch (st) {
         case ST_READY:
-            lv_label_set_text(big, "Press Play");
+            lv_label_set_text(big, "Press Start");  /* the button's word, as in Calls; up to v0.3.12 "Play" (#264) */
             lv_obj_set_style_text_color(big, lv_color_hex(COLOR_HEAD), 0);
             lv_label_set_text(hint, "Start: groups follow each other, key each one back with the paddle");
             break;
