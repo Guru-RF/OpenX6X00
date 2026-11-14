@@ -229,7 +229,7 @@ Knobs. On the main screen the main knob tunes, and VOL and the MFK each turn
 one control of their own list. The two lines over the buttons say which
 control and its value (Settings > Display > INTERFACE > Knob info; with it
 off, or while Hide buttons has hidden them, the value shows on the message
-line).
+line, unless Keep knob lines is on).
 - A press of the knob switches it between changing the value and choosing
   the control: while it chooses, a turn goes to the next control on its list
   (the name lit), and the next press changes that one again.
@@ -280,7 +280,13 @@ without a key, and the waterfall shows down to the bottom of the screen.
   KEY 1:2 showed KEY 2:2; issue #128).
 - The main knob tunes and the buttons stay hidden. VOL and the MFK, turned
   or pressed, leave them hidden too: their control and value show on the
-  message line, as with Knob info off. While the buttons show, a turn or a
+  message line, as with Knob info off.
+- Keep knob lines (Settings > Display > INTERFACE, off by default): the two
+  knob lines stay on the screen, where they are, while the buttons hide, and
+  VOL and the MFK show their control and value there instead of on the
+  message line. The waterfall still shows down to the bottom, under them.
+  It needs Knob info on. Up to v0.3.12 the knob lines always hid with the
+  buttons (issue #128). While the buttons show, a turn or a
   press of VOL or the MFK keeps them a while longer, the main knob does not.
   A keyboard's keys for the knobs (- and =, [ ] { }, the left and right
   arrows, Enter, ESC) count as the knobs.
@@ -1566,7 +1572,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
-| INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Theme, Font, Decoder text, FT8/FT4 info |
+| INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Theme, Font, Decoder text, FT8/FT4 info |
 
 - Popups Freq/Info/TX (Popups Freq/Info/ALC up to v0.3.8), three switches:
   - Freq (off by default): the new frequency, big in the middle of the
@@ -1590,6 +1596,8 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 - Hide buttons (Off by default): on the main screen the buttons and the knob
   lines hide after 3, 5 or 10 s without a key, and the next key brings them
   back (see [Buttons and knobs](#buttons-and-knobs)).
+- Keep knob lines (Off by default): with Hide buttons on, the knob lines
+  stay on the screen when the buttons hide.
 - Theme: see [Themes](#themes). A new theme applies at once, without a restart.
 - Font: Sony Sketch, Roboto or DejaVu (default). A new font applies at once.
   Themes with their own font (Classic, Black Metal, Total Black, 1bit,
@@ -5422,7 +5430,7 @@ them.
 | Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
-| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
+| Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |
 | Boot picture | the picture the radio starts with, Upload, Default; kept by the web server, not a Settings option, so it works with the radio's screen down too (see [Boot picture](#boot-picture)) |
 
 HTTPS. The server also listens on port 443, with a self-signed certificate

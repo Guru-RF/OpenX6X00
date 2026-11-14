@@ -4285,6 +4285,7 @@ static void make_display_page() {
     /* The main screen's buttons and knob lines hidden after so long without a key, back at the next (screen_main.c) */
     row = make_param_choice(row, "Hide buttons", " Off \n After 3 s \n After 5 s \n After 10 s ",
                             cfg_sm.p_buttons_hide);
+    row = make_param_switch(row, "Keep knob lines", cfg_sm.p_knob_lines_stay);   /* not hidden with the buttons */
     row = make_theme(row);
     row = make_font(row);
     /* CW / RTTY decoder text: Large or Compact (more lines), from SP2KMO's upstream c2fbe40c */

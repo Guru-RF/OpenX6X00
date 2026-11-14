@@ -842,7 +842,8 @@ static void ab_key(bool tap, bool hold) {
  * DFN DFL VM) over a page of its own group only brings them back too, the page that was hidden is the one seen: up to
  * v0.3.12 KEY on KEY 1:2 showed KEY 2:2, a page not looked for. Over another group's page it shows its own group, as
  * before, and its long press does its action. The main knob tunes with them hidden; VOL and the MFK too, their value
- * on the message line (as with Knob info off), and while the buttons show a turn or a press of them counts as a key.
+ * on the message line (as with Knob info off; on the knob lines with Keep knob lines on, knob_info.cpp), and while the
+ * buttons show a turn or a press of them counts as a key.
  * Never over an app (its window, RTTY) or in walkie mode */
 static const uint32_t hide_ms[] = {0, 3000, 5000, 10000};   /* the setting: Off, 3 s, 5 s, 10 s */
 

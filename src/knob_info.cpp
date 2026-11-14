@@ -229,9 +229,20 @@ static KnobLine &mfk_line = *new KnobLine(LV_SYMBOL_DOWN);
 static bool      enabled;
 static bool      wanted = true;     /* knobs_display(): no window or decoder text over them */
 static bool      tucked;            /* hidden with the buttons (Hide buttons, button_bar.cpp) */
+static bool      stay;              /* Keep knob lines: shown while the buttons are hidden (#128) */
+
+static void show_lines();
 
 static void knob_info_cb(Subject *subj, void *user_data) {
     enabled = cfg_sm.p_knob_info.get();
+}
+
+/* Changed in Settings (shown as it says when the window closes) or on the web Display page: at once */
+static void stay_cb(Subject *subj, void *user_data) {
+    stay = cfg_sm.p_knob_lines_stay.get();
+    if (vol_line.obj()) {
+        show_lines();
+    }
 }
 
 void knobs_init(lv_obj_t *parent) {
@@ -249,11 +260,18 @@ void knobs_init(lv_obj_t *parent) {
     lv_obj_set_y(mfk_line.obj(), y - h);
     tucked = false;     /* made shown, as the buttons are (buttons_init()) */
     cfg_sm.p_knob_info.subscribe_delayed_and_notify(knob_info_cb, nullptr);
+
+    static bool subscribed;     /* once: knobs_init() runs again at each theme change */
+
+    if (!subscribed) {
+        subscribed = true;
+        cfg_sm.p_knob_lines_stay.subscribe_delayed_and_notify(stay_cb, nullptr);
+    }
 }
 
 static void show_lines() {
     for (lv_obj_t *l : {vol_line.obj(), mfk_line.obj()}) {
-        if (wanted && enabled && !tucked) {
+        if (wanted && enabled && (!tucked || stay)) {
             lv_obj_clear_flag(l, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(l, LV_OBJ_FLAG_HIDDEN);
