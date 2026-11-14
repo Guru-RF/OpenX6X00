@@ -754,7 +754,22 @@ static const struct {
     {KEYPAD_DFL, buttons_group_dfl, &params.long_dfl},
 };
 
-static bool page_key(keypad_key_t key, bool tap, bool hold) {
+/* The group of buttons a key's tap steps through: GEN APP KEY DFN DFL (page_keys) and VM; NULL for the others */
+static buttons_page_t **key_group(keypad_key_t key) {
+    if (key == KEYPAD_VM) {
+        return buttons_group_vm;
+    }
+    for (size_t i = 0; i < sizeof(page_keys) / sizeof(page_keys[0]); i++) {
+        if (page_keys[i].key == key) {
+            return page_keys[i].pages;
+        }
+    }
+    return NULL;
+}
+
+/* step false: the tap brought hidden buttons back over its own group's page, which stays (front_key_cb). The APP
+ * grid still opens: it is the tap's own job, not a page */
+static bool page_key(keypad_key_t key, bool tap, bool hold, bool step) {
     for (size_t i = 0; i < sizeof(page_keys) / sizeof(page_keys[0]); i++) {
         if (page_keys[i].key != key) {
             continue;
@@ -765,12 +780,16 @@ static bool page_key(keypad_key_t key, bool tap, bool hold) {
                 dialog_destruct();
             } else {
                 close_apps();
-                buttons_load_page_group(page_keys[i].pages);
+                if (step) {
+                    buttons_load_page_group(page_keys[i].pages);
+                }
                 dialog_construct(dialog_apps, obj);
             }
         } else if (tap) {
             close_apps();
-            buttons_load_page_group(page_keys[i].pages);
+            if (step) {
+                buttons_load_page_group(page_keys[i].pages);
+            }
         } else if (hold) {
             main_screen_action(*page_keys[i].hold_action);
         }
@@ -819,13 +838,17 @@ static void ab_key(bool tap, bool hold) {
 
 /* Settings > Display > Hide buttons (#128): on the main screen the five buttons and the knob lines over them hide
  * after 3, 5 or 10 s without a key, the waterfall seen down to the bottom. A key brings them back and does what it
- * does, but for F1-F5, whose press only brings them back: a button not seen is never pressed. The main knob tunes
- * with them hidden; VOL and the MFK too, their value on the message line (as with Knob info off), and while the
- * buttons show a turn or a press of them counts as a key. Never over an app (its window, RTTY) or in walkie mode */
+ * does, but for F1-F5, whose press only brings them back: a button not seen is never pressed. A group key (GEN APP KEY
+ * DFN DFL VM) over a page of its own group only brings them back too, the page that was hidden is the one seen: up to
+ * v0.3.12 KEY on KEY 1:2 showed KEY 2:2, a page not looked for. Over another group's page it shows its own group, as
+ * before, and its long press does its action. The main knob tunes with them hidden; VOL and the MFK too, their value
+ * on the message line (as with Knob info off), and while the buttons show a turn or a press of them counts as a key.
+ * Never over an app (its window, RTTY) or in walkie mode */
 static const uint32_t hide_ms[] = {0, 3000, 5000, 10000};   /* the setting: Off, 3 s, 5 s, 10 s */
 
 static lv_timer_t   *hide_timer;
 static keypad_key_t woke_key;       /* the F key whose press brought them back: the rest of it does nothing */
+static keypad_key_t woke_group;     /* the group key whose press brought them back over its group: its tap no page */
 
 static void hide_arm(void);
 
@@ -878,6 +901,7 @@ static void front_key_cb(lv_event_t *e) {
     bool            tap  = ev->state == KEYPAD_RELEASE;
     bool            hold = ev->state == KEYPAD_LONG;
     bool            woke = main_screen_buttons_wake();
+    bool            step;
 
     if (woke && ev->state == KEYPAD_PRESS && ev->key >= KEYPAD_F1 && ev->key <= KEYPAD_F5) {
         woke_key = ev->key;
@@ -888,7 +912,15 @@ static void front_key_cb(lv_event_t *e) {
         }
         return;
     }
-    if (page_key(ev->key, tap, hold)) {
+    /* Looked at on the press, which brings them back: by its release, the tap, they show already */
+    if (woke && ev->state == KEYPAD_PRESS && key_group(ev->key) && buttons_group_shown(key_group(ev->key))) {
+        woke_group = ev->key;
+    }
+    step = ev->key != woke_group;
+    if (!step && (ev->state == KEYPAD_RELEASE || ev->state == KEYPAD_LONG_RELEASE)) {
+        woke_group = KEYPAD_UNKNOWN;
+    }
+    if (page_key(ev->key, tap, hold, step)) {
         return;
     }
     switch (ev->key) {
@@ -983,7 +1015,7 @@ static void front_key_cb(lv_event_t *e) {
             break;
 
         case KEYPAD_VM:
-            if (tap && !dialog_is_run()) {
+            if (tap && step && !dialog_is_run()) {
                 buttons_load_page_group(buttons_group_vm);
             }
             break;
@@ -1105,7 +1137,7 @@ static void mic_key_cb(lv_event_t *e) {
         }
 
         case HKEY_FIL:
-            page_key(KEYPAD_DFL, tap, hold);
+            page_key(KEYPAD_DFL, tap, hold, true);
             break;
 
         /* Hand mic MODE: press steps LSB, USB, CW, CW-R, AM, NFM (and SAM, WFM where the base has

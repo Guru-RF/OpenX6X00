@@ -264,11 +264,20 @@ Hide buttons. With Settings > Display > INTERFACE > Hide buttons at After
 knob lines over them hide on the main screen once that long has gone by
 without a key, and the waterfall shows down to the bottom of the screen.
 - Any key brings them back: a front key, a hand mic key, a keyboard key. It
-  also does its usual job (GEN goes to its next page, ATU switches the
-  tuner), except F1-F5: their press only brings the buttons back, so a
-  button you can't see is never pressed. Press it again to use it. F1-F5
-  from a browser (the Panel's Keys tab, the Screen page) are the same: the
-  first press only brings the radio's buttons back.
+  also does its usual job (ATU switches the tuner), except F1-F5: their
+  press only brings the buttons back, so a button you can't see is never
+  pressed. Press it again to use it. F1-F5 from a browser (the Panel's Keys
+  tab, the Screen page) are the same: the first press only brings the
+  radio's buttons back.
+- A page key (GEN, APP, KEY, DFN, DFL, and V/M on the X6100) brings back
+  the page that was hidden when it is a page of its own: with KEY 1:2
+  hidden, KEY shows KEY 1:2, and the next KEY goes on to KEY 2:2. Over
+  another key's page it shows its own first page, as before (with KEY 1:2
+  hidden, GEN shows its first page). Held, it does its long-press action as
+  always, and with Icon menus on APP still opens the APP grid. The same
+  on the X6100 and the X6200, from the radio or from a browser. Up to
+  v0.3.12 the page key also went to its next page at once (KEY on a hidden
+  KEY 1:2 showed KEY 2:2; issue #128).
 - The main knob tunes and the buttons stay hidden. VOL and the MFK, turned
   or pressed, leave them hidden too: their control and value show on the
   message line, as with Knob info off. While the buttons show, a turn or a

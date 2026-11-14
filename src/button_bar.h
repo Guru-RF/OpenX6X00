@@ -100,6 +100,8 @@ void            button_next_page_cb(button_data_t *data);
 void            button_prev_page_cb(button_data_t *data);
 void            buttons_press(uint8_t n, bool hold);
 void            buttons_load_page_group(buttons_group_t group);
+/* One of the group's pages is the one loaded (also while Hide buttons hides it) */
+bool            buttons_group_shown(buttons_group_t group);
 buttons_page_t *buttons_get_cur_page();
 
 #ifdef __cplusplus

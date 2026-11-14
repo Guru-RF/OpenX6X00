@@ -783,6 +783,16 @@ void buttons_load_page_group(buttons_group_t group) {
     }
 }
 
+bool buttons_group_shown(buttons_group_t group) {
+    for (const auto &g : groups) {
+        if (g.pages != group) continue;
+        for (size_t i = 0; i < g.n; i++) {
+            if (cur_page == g.pages[i]) return true;
+        }
+    }
+    return false;
+}
+
 buttons_page_t *buttons_get_cur_page() {
     return cur_page;
 }
