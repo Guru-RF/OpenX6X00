@@ -20,6 +20,7 @@
 #include "msg.h"
 
 #include <math.h>
+#include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
@@ -41,7 +42,10 @@ static uint16_t order[POINTS_WIDE];     /* the points in the order they are read
 static uint16_t order_at;
 static uint16_t pos;
 static int32_t  f_center, f_low, f_high;
-static bool     scanning;
+/* Set by the GUI thread (run_cb), read by the radio thread too (dialog_swrscan_update). Its Stop under scan_mux, as
+ * the steps' moves (scan_move) */
+static atomic_bool scanning;
+static pthread_mutex_t scan_mux = PTHREAD_MUTEX_INITIALIZER;
 static atomic_bool moved;                /* the dial moved the sweep: the reading on its way is the old frequency's */
 static bool     lin_scale;          /* else log */
 static int32_t  span_hz;
@@ -325,12 +329,21 @@ static int32_t point_freq(int i) {
     return f_low + (int64_t)(f_high - f_low) * i / (points - 1);
 }
 
+/* A step's move of the VFO that transmits, on the radio thread: only while the scan runs, under scan_mux. A step under
+ * way as Stop came (the GUI thread) moved the VFO to its point after Stop had put both VFOs back, and the radio was
+ * left there, on a sweep point, after the scan (found looking into #266) */
+static void scan_move(int32_t freq) {
+    pthread_mutex_lock(&scan_mux);
+    if (scanning) radio_set_tx_freq(freq);
+    pthread_mutex_unlock(&scan_mux);
+}
+
 /* One reading at the current point, then on to the next frequency */
 static void scan_step(float v) {
     const int reach = points <= 25 ? 0 : 2;     /* few points: an average lifted a dip of 1.5 to 1.7 */
 
     if (atomic_exchange(&moved, false)) {       /* read before the dial moved: the sweep starts over from here */
-        radio_set_tx_freq(point_freq(pos));
+        scan_move(point_freq(pos));
         return;
     }
     v = LV_MAX(v, 1.0f);
@@ -355,7 +368,7 @@ static void scan_step(float v) {
     order_at = (order_at + 1) % points;
     /* the dial may have changed the sweep's points under this thread: never a frequency past its end */
     pos = LV_MIN(order[order_at], points - 1);
-    radio_set_tx_freq(point_freq(pos));
+    scan_move(point_freq(pos));
 }
 
 /* The dial moved: the sweep around it again. Moved where the radio may not transmit (#121), the scan stops, as if
@@ -442,7 +455,9 @@ static void plot_key_cb(lv_event_t *e) {
  * frequency) says why and moves nothing: it used to keep "Run" and move the VFO to the low edge in silence (#25) */
 static void run_cb(button_data_t *b) {
     if (scanning) {
-        scanning = false;
+        pthread_mutex_lock(&scan_mux);
+        scanning = false;       /* from here no step moves the VFO; one under way has moved it (scan_move) */
+        pthread_mutex_unlock(&scan_mux);
         radio_stop_swrscan();
         radio_set_tx_freq(0);
         mem_load(MEM_BACKUP_ID);
