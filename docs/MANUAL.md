@@ -3954,6 +3954,15 @@ while it transmits, where 1.1.8 keeps it a key tone off, as in receive. Only
 the picture was off: the carrier went out on the dial (#191). We haven't run
 this on a 1.1.9 base ourselves.
 
+With an IF shift (the MFK 2:4 page, an X6100 with base 1.1.9 or later) the
+base is tuned that far from the dial and the received picture is centred
+there; while it transmits, on the dial. Up to v0.3.12 the waterfall drew
+your carrier the IF shift off the line in every mode, while the spectrum
+had it on the line (#191; not run on a 1.1.9 base either). The faint
+stripe of the radio's own noise is where the base is tuned: on the line in
+USB and LSB, a key tone below it in CW and above it in CW-R; an IF shift
+moves it as far the other way (+1000 Hz: 1 kHz lower).
+
 Parse. Where: CW 2:2 > Parse (on by default). The decoder often runs words
 together when the spacing is tight: "CQCQDEON6UREK". With Parse on, each
 finished word is split on the usual CW words and on callsigns: "CQ CQ DE

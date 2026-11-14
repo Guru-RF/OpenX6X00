@@ -291,14 +291,19 @@ static void spectrum_follow(uint32_t freq) {
 /* The same when the base goes into TX or out of it: Xiegu's X6100 base from 1.1.9 on centres the spectrum on the
  * dial while it transmits, a key tone from where it receives in CW and CW-R, and says nothing of it in the data
  * (cfg_mode_tx_lo_offset). Not moved, the carrier fading out of the trace after a transmission would be drawn a key
- * tone off the line, and the stations fading out as TX begins a key tone off theirs (#191) */
-static void spectrum_follow_tx(bool tx) {
+ * tone off the line, and the stations fading out as TX begins a key tone off theirs (#191). With an IF shift such a
+ * base is tuned that far from the dial, its receive spectrum centred there, its TX one on the dial: the trace moves by
+ * that too. A base that sends its frequency (freq) is followed by it (spectrum_follow()) */
+static void spectrum_follow_tx(bool tx, uint32_t freq) {
     static bool was_tx;
 
     if (tx == was_tx)
         return;
 
     int64_t hz = cfg_sm.cp_mode_tx_lo_offset.get() - cfg_sm.cp_mode_lo_offset.get();
+
+    if (!freq)
+        hz += cfg_sm.p_band_if_shift.get();
 
     if (hz)
         spectrum_move(tx ? hz : -hz);
@@ -311,7 +316,7 @@ static void spectrum_frame(Panorama *sp, uint64_t now, bool tx, uint32_t freq, u
 
     sp->take(sp_psd);
     spectrum_follow(freq);
-    spectrum_follow_tx(tx);
+    spectrum_follow_tx(tx, freq);
 
     /* Quick to rise, slow to fall: a carrier shows at once, the noise trace stays calm
      * and a weak steady carrier stands out of it */

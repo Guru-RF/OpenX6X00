@@ -33,7 +33,11 @@
  *    receive and the carrier in TX on the line, the rows placed by the LO offsets as the settings give them for each
  *    base. Xiegu's 1.1.9 centres its spectrum on the dial in TX, its 1.1.8 on the oscillator as in receive: with the
  *    receive offset in TX too, 1.1.9's carrier was a key tone below the line in CW (#191). At Speed 1 a line holds
- *    frames of TX or of receive, not of both, there a key tone apart. A patched base's rows as before
+ *    frames of TX or of receive, not of both, there a key tone apart. A patched base's rows as before. With an IF
+ *    shift 1.1.9 is tuned that far from the dial, its receive spectrum centred there and its TX one on the dial: a
+ *    station on the dial in receive and the carrier in TX on the line in USB, CW and CW-R, as the spectrum draws
+ *    them; placed from where the base was tuned the TX rows were the IF shift off the line (#191). At Speed 1 a
+ *    line holds frames of TX or of receive there too
  *  See the Makefile.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -84,6 +88,7 @@ static int32_t shade = 4;           /* Filter shade: Full, the default (#167) */
 static int32_t where = FILTER_SHADE_PASSBAND;  /* Shaded part (#250) */
 static int32_t filter_high = 2700, cur_mode = radio_mode_lsb, cur_zoom = 1;
 static int32_t lo_rx, lo_tx;        /* the LO offsets, in receive and in TX (lo_offsets()) */
+static int32_t if_shift_hz;         /* the band's IF shift (if_shift_to()) */
 
 int32_t param_i_get(const ParamInt *p) {
     if (p == cfg_waterfall_speed) return speed;
@@ -91,6 +96,7 @@ int32_t param_i_get(const ParamInt *p) {
     if (p == cfg_band_grid_max) return 255;     /* with the minimum 0: a row's level is its colour index */
     if (p == cfg_filter_shade) return shade;
     if (p == cfg_filter_shade_where) return where;
+    if (p == cfg_band_if_shift) return if_shift_hz;
     return 0;
 }
 
@@ -110,6 +116,7 @@ int32_t subject_i_get(SubjectInt *subj) {
     if (subj == (SubjectInt *)cfg_mode_zoom) return cur_zoom;
     if (subj == (SubjectInt *)cfg_mode_lo_offset) return lo_rx;
     if (subj == (SubjectInt *)cfg_mode_tx_lo_offset) return lo_tx;
+    if (subj == (SubjectInt *)cfg_band_if_shift) return if_shift_hz;
     return 0;
 }
 
@@ -297,6 +304,14 @@ static void lo_offsets(int32_t rx, int32_t tx) {
     lo_tx = tx;
     on_mode_lo_offset_change((Subject *)cfg_mode_lo_offset, NULL);
     on_tx_lo_offset_change((Subject *)cfg_mode_tx_lo_offset, NULL);
+}
+
+/* The IF shift set to hz, as its parameter tells it, at rest after it: no rows of the frequency before to drop */
+static void if_shift_to(int32_t hz) {
+    if_shift_hz = hz;
+    on_if_shift_changed((Subject *)cfg_band_if_shift, NULL);
+    skip_rows = 0;
+    retuned = false;
 }
 
 /* A frame of the X6100's base, its spectrum centred `centre` Hz from the dial as the base centres it, with a carrier
@@ -611,12 +626,65 @@ int main(void) {
           carrier_at(), noise_level());
     speed = 3;
 
-    printf("A patched base, which sends where it is tuned: its rows as before\n");
+    printf("Xiegu's 1.1.9 with an IF shift of +1.5 kHz: tuned that far below the dial, its receive spectrum centred "
+           "there, its TX one on the dial\n");
+    const int32_t shift = 1500;
+    const struct {
+        const char *mode;
+        int32_t     rx, tx;     /* the LO offsets, as the settings give them for 1.1.9 */
+    } shifted[] = {
+        {"USB", 0, 0},
+        {"CW", -700, 0},
+        {"CW-R", 700, 0},
+    };
+
+    if_shift_to(shift);
+    for (size_t i = 0; i < sizeof(shifted) / sizeof(shifted[0]); i++) {
+        int32_t at;
+
+        lo_offsets(shifted[i].rx, shifted[i].tx);
+        x6100_frame(false, shifted[i].rx - shift, 0);
+        at = carrier_at();
+        check(LV_ABS(at) < bin, "%s, receive: a station on the dial on the line (%+d Hz)", shifted[i].mode, at);
+        x6100_frame(true, shifted[i].tx, 0);
+        at = carrier_at();
+        check(LV_ABS(at) < bin, "%s, TX: the carrier on the line, as the spectrum has it (%+d Hz)", shifted[i].mode, at);
+    }
+
+    printf("The same at Speed 1 in USB: a line of TX or of receive, not of both, there the IF shift apart\n");
+    lo_offsets(0, 0);
+    speed = 1;
+    x6100_frame(false, -shift, 0);
+    x6100_frame(false, -shift, 0);
+    was_newest = newest;
+    x6100_frame(true, 0, 0);
+    check(newest != was_newest && noise_level() == 0 && LV_ABS(carrier_at()) < bin,
+          "the first TX frame: a line of it alone, the carrier on the line (%+d Hz, beside it %d)", carrier_at(),
+          noise_level());
+    x6100_frame(true, 0, 0);
+    x6100_frame(true, 0, 0);
+    was_newest = newest;
+    x6100_frame(false, -shift, 0);
+    check(newest != was_newest && noise_level() == 10 && LV_ABS(carrier_at()) < bin,
+          "the first receive frame after TX: a line of it alone, the station on the line (%+d Hz, beside it %d)",
+          carrier_at(), noise_level());
+    speed = 3;
+    if_shift_to(0);
+
+    printf("A patched base, which sends where it is tuned: its rows as before, with an IF shift too\n");
     lo_offsets(-700, -700);
     x6100_frame(false, -700, fg_freq - 700);
     check(rows[newest].center_freq == (uint32_t)fg_freq - 700, "receive: the row centred on the frequency it sent");
     x6100_frame(true, -700, fg_freq);
     check(rows[newest].center_freq == (uint32_t)fg_freq - 700, "TX: the row centred the key tone below the dial it sent");
+    if_shift_to(shift);
+    x6100_frame(false, -700 - shift, fg_freq - 700 - shift);
+    check(rows[newest].center_freq == (uint32_t)(fg_freq - 700 - shift),
+          "receive, the IF shift on: the row centred on the frequency it sent");
+    x6100_frame(true, -700, fg_freq);
+    check(rows[newest].center_freq == (uint32_t)fg_freq - 700,
+          "TX, the IF shift on: the row centred the key tone below the dial it sent");
+    if_shift_to(0);
 
     printf("%d of %d cases ok\n", good, cases);
     return good == cases ? 0 : 1;
