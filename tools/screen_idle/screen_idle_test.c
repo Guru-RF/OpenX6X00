@@ -6,7 +6,8 @@
  *  stage it then shows. The screensaver after its minutes, the screen dark at the screen off time when there is one
  *  and never when not, the first use on the screensaver or a screen dark by the time only waking it, TX and a notice
  *  ending the screensaver and holding it off, the dark at its time all the same; without a screensaver, and with the
- *  screen always off, the screen off of before. Then the update (src/params/migrations.c, _16) on a params.db made
+ *  screen always off, the screen off of before. The ranges of the dim and the brightness (#271): the dim timeout's
+ *  Off and 5-120 s, the idle level never above the brightness, a knob's 0-9. Then the update (src/params/migrations.c, _16) on a params.db made
  *  from sql/params.sql, at the version of the release before: a radio whose screen off time was changed goes dark at
  *  that moment still, with the screensaver before it, one with the screen always off keeps POWER's 5 minutes; every
  *  other radio takes the new defaults; and only once.
@@ -256,6 +257,42 @@ static void always(void) {
     check(s.stage == SCREEN_DARK, "always off: POWER, POWER: dark again");
 }
 
+/* ---- The dim and the brightness (#271): their ranges as Settings, the web configurator and a knob set them ---- */
+static void dim_and_brightness(void) {
+    int16_t idle;
+
+    /* The dim timeout: Off below 5, the spinbox's steps between them going on the way they went */
+    check(screen_dim_set(30, 0) == SCREEN_DIM_OFF, "dim: 0 is Off");
+    check(screen_dim_set(5, 4) == SCREEN_DIM_OFF, "dim: a step down from 5 is Off");
+    check(screen_dim_set(SCREEN_DIM_OFF, 1) == 5, "dim: a step up from Off is 5");
+    check(screen_dim_set(SCREEN_DIM_OFF, 10) == 10, "dim: Off, the tens up: 10");
+    check(screen_dim_set(30, 3) == SCREEN_DIM_OFF, "dim: 3 coming down from 30 (the web, by hand) is Off");
+    check(screen_dim_set(30, -5) == SCREEN_DIM_OFF, "dim: below 0 is Off");
+    check(screen_dim_set(5, 5) == 5 && screen_dim_set(30, 120) == 120, "dim: 5 and 120 as they are");
+    check(screen_dim_set(30, 300) == SCREEN_DIM_MAX_S, "dim: above 120 is 120");
+    for (int v = SCREEN_DIM_MIN_S; v <= SCREEN_DIM_MAX_S; v++) {
+        if (screen_dim_set(30, v) != v) {
+            check(false, "dim: a time of before (5-120 s) kept");
+            break;
+        }
+    }
+
+    /* The brightness: -1 to 9, the idle level brought down to it, never up */
+    idle = 4;
+    check(screen_bright_set(6, &idle) == 6 && idle == 4, "brightness 6 over idle 4: idle as it was");
+    check(screen_bright_set(3, &idle) == 3 && idle == 3, "brightness 3 under idle 4: idle down to 3");
+    check(screen_bright_set(8, &idle) == 8 && idle == 3, "brightness up to 8: idle stays at 3");
+    check(screen_bright_set(12, &idle) == SCREEN_BRIGHT_MAX, "brightness 12: 9");
+    check(screen_bright_set(-4, &idle) == SCREEN_BRIGHT_OFF && idle == SCREEN_BRIGHT_OFF, "brightness -4: -1, idle too");
+
+    /* A knob: 0 to 9, never the light off */
+    check(screen_bright_turn(5, 1) == 6 && screen_bright_turn(5, -2) == 3, "knob: a step a detent");
+    check(screen_bright_turn(9, 1) == 9 && screen_bright_turn(8, 5) == 9, "knob: 9 at the top");
+    check(screen_bright_turn(0, -1) == 0 && screen_bright_turn(2, -6) == 0, "knob: 0 at the bottom, not off");
+    check(screen_bright_turn(-1, 1) == 0, "knob: from off (Settings) up to 0");
+    check(screen_bright_turn(-1, -1) == SCREEN_BRIGHT_OFF, "knob: off turned down stays off");
+}
+
 /* ---- The update: _16 on a params.db of the release before ---- */
 
 static char *sql_text;
@@ -407,6 +444,7 @@ int main(int argc, char **argv) {
     times();
     none();
     always();
+    dim_and_brightness();
     update();
 
     printf("%d cases, %d wrong\n", cases, bad);

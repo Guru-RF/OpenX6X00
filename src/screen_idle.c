@@ -120,3 +120,39 @@ void screen_idle_tick(screen_idle_t *s, uint64_t now_ms) {
         s->stage = SCREEN_SAVER;
     }
 }
+
+/* The dim and the brightness: their ranges */
+
+int32_t screen_dim_set(int32_t was, int32_t now) {
+    if (now <= SCREEN_DIM_OFF) {
+        return SCREEN_DIM_OFF;
+    }
+    if (now < SCREEN_DIM_MIN_S) {
+        return now < was ? SCREEN_DIM_OFF : SCREEN_DIM_MIN_S;
+    }
+    return now > SCREEN_DIM_MAX_S ? SCREEN_DIM_MAX_S : now;
+}
+
+int16_t screen_bright_set(int16_t level, int16_t *idle) {
+    if (level < SCREEN_BRIGHT_OFF) {
+        level = SCREEN_BRIGHT_OFF;
+    } else if (level > SCREEN_BRIGHT_MAX) {
+        level = SCREEN_BRIGHT_MAX;
+    }
+    if (*idle > level) {
+        *idle = level;
+    }
+    return level;
+}
+
+int16_t screen_bright_turn(int16_t level, int32_t diff) {
+    int32_t lo = level < 0 ? SCREEN_BRIGHT_OFF : 0;
+    int32_t v  = level + diff;
+
+    if (v < lo) {
+        v = lo;
+    } else if (v > SCREEN_BRIGHT_MAX) {
+        v = SCREEN_BRIGHT_MAX;
+    }
+    return (int16_t)v;
+}

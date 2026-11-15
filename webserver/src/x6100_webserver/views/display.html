@@ -56,7 +56,7 @@ const ICONS = {
 };
 
 /* [icon, title, note, rows]; row: [name, label, hint, kind, extra]
- * kind: sw (on/off), seg (labels), sel (labels), range ([min, max, step, scale, unit]), theme,
+ * kind: sw (on/off), seg (labels), sel (labels), range ([min, max, step, scale, unit, the label of min if any]), theme,
  * color (0xRRGGBB, -1 the theme's; extra: the label of -1). A row the radio does not report is not
  * shown (wr12: the X6200 only), nor a card left without rows */
 const CARDS = [
@@ -104,8 +104,8 @@ const CARDS = [
     ["cluster_column", "Cluster column", "The spot list on the right", "sw"]]],
   ["sun", "Backlight", "Screen and button lights", [
     ["bright_normal", "Brightness", "", "range", [-1, 9, 1, 1, ""]],
-    ["bright_idle", "Brightness when idle", "", "range", [-1, 9, 1, 1, ""]],
-    ["bright_timeout", "Idle after", "Seconds without a key or the knob", "range", [5, 120, 5, 1, " s"]],
+    ["bright_idle", "Brightness when idle", "The level the screen dims to after Idle after", "range", [-1, 9, 1, 1, ""]],
+    ["bright_timeout", "Idle after", "Seconds without a key or the knob; Off: the screen never dims, it stays at its brightness", "range", [0, 120, 5, 1, " s", "Off"]],
     ["bright_buttons", "Button lights", "", "sel", ["Always off", "Always on", "Temporarily on"]],
     ["screen_saver", "Screensaver", "Over the screen after a time without use; a key, a knob or TX ends it, and that key or turn only wakes the screen", "sel", ["None", "Matrix rain"]],
     ["screen_saver_min", "Screensaver after", "Minutes without a key, a knob or TX", "range", [1, 120, 1, 1, " min"]],
@@ -175,6 +175,10 @@ var setVal = function(name, v) {
   rowState(name, "saving");
   send({name: name, val: v}, function() {
     rowState(name, "applied", RESTARTS[name] ? "Applied: the radio's screen restarts" : "Applied on the radio");
+    if (name === "bright_normal" && D.bright_idle > v) {    /* the radio brought the idle level down with it */
+      D.bright_idle = v;
+      $("#row-bright_idle .dp-ctl").empty().append(control(ROWS.bright_idle));
+    }
     if (name === "band_region" || name === "tx_ranges") setTimeout(reread, 500);   /* the plan, the own list as read */
   }, function(msg) {
     /* not taken: the control shows what the radio still has */
@@ -231,8 +235,10 @@ var control = function(o) {
       } else setVal(name, parseInt(this.value, 10));
     });
   }
-  const [min, max, step, scale, unit] = extra;
-  const out = $("<output>"), show = function(v) { out.text((scale === 1 ? v : (v / scale).toFixed(1)) + unit); };
+  const [min, max, step, scale, unit, atMin] = extra;
+  const out = $("<output>"), show = function(v) {
+    out.text(atMin && +v === min ? atMin : (scale === 1 ? v : (v / scale).toFixed(1)) + unit);
+  };
   const r = $("<input type='range'>").attr({id: id, min: min, max: max, step: step, "aria-label": o[1]}).val(D[name]);
   show(D[name]);
   r.on("input", function() { show(this.value); }).on("change", function() { setVal(name, parseInt(this.value, 10)); });
@@ -304,6 +310,7 @@ var refresh = function() {
   $("#row-smeter_bar_color").toggleClass("off", D.smeter_color !== 0 || (D.smeter_needle === 1 && D.smeter_lamp === 1));
   $("#row-smeter_lamp").toggleClass("off", D.smeter_needle !== 1);
   $("#row-smeter_color").toggleClass("off", D.smeter_needle === 1 && D.smeter_lamp === 1);
+  $("#row-bright_idle").toggleClass("off", D.bright_timeout === 0);        /* Idle after Off: never dimmed */
   $("#row-screen_saver").toggleClass("off", D.screen_off_always === 1);    /* always off: dark, no screensaver */
   $("#row-screen_saver_min").toggleClass("off", !D.screen_saver || D.screen_off_always === 1);
   $("#row-screen_saver_speed").toggleClass("off", D.screen_saver !== 1 || D.screen_off_always === 1);

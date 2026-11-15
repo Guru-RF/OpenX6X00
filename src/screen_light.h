@@ -36,6 +36,11 @@ void backlight_notice();
 
 /* Level 0-9 now (the settings), below 0: off */
 void backlight_set_brightness(int16_t level);
+/* The brightness setting (params.brightness_normal: Settings, the web configurator, a knob) set and saved, -1 to 9;
+ * the idle level brought down to it when above it, the light at it now */
+void backlight_set_normal(int16_t level);
+/* The brightness setting as the knob line and its button show it: 0-9, Off for -1 */
+const char *backlight_normal_text(void);
 /* The front keys' light setting, saved */
 void backlight_set_buttons(buttons_light_t mode);
 

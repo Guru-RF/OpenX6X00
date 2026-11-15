@@ -470,6 +470,9 @@ class SettingsManager {
     Parameter<int32_t> p_tx_ranges{"tx_ranges", TX_RANGES_BANDS, TX_RANGES_BANDS, TX_RANGES_OWN,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     SubjectT<int32_t>  s_tx_ranges_read{0};
+    // The screen's brightness as last set (params.brightness_normal, screen_light.c's backlight_set_normal): the knob
+    // line and the VOL 3:3 button follow it (#271). Not stored here, the params table has it
+    SubjectT<int32_t>  s_brightness{5};
     // TUNE for an external tuner (ext_tune.h): its power, W (tune_tx.h's range: up to the PWR top, #87), and its time
     // limit, s
     Parameter<float, int32_t, 10> p_tune_pwr{"tune_pwr", 1.0f,

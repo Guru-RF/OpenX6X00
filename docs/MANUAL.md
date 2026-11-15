@@ -220,7 +220,7 @@ The rest, left as it is unless you have a reason:
   passband, low edge 50-400 Hz (160 by default), high edge 2000-4000 Hz
   (3000).
 - **FM pre/de-emphasis** (patched base r8 and later), for FM.
-- **Moni level** (VOL 2:2 page) plays your own transmission on the speaker.
+- **Moni level** (VOL 2:3 page) plays your own transmission on the speaker.
   It is 0 by default: higher, the microphone can pick it up again (see
   [Audio tab](#audio-tab)).
 - The digital apps set their own audio level: see
@@ -273,22 +273,33 @@ line, unless Keep knob lines is on).
   they are the paddle).
 - What is on each list is yours to choose. Hold a value button (TX power, RF
   gain, Squelch, the filter edges, RIT, XIT, Spectrum Zoom, WF ref, AGC,
-  Comp, IF shift, VOX, PRE, ATT, ATU, Step, NB, NR, DNF, the KEY and CW
-  values...): each hold steps it from no knob to VOL ("Added to VOL
+  Comp, IF shift, VOX, PRE, ATT, ATU, Step, Brightness, NB, NR, DNF, the KEY
+  and CW values...): each hold steps it from no knob to VOL ("Added to VOL
   encoder"), then to the MFK ("Moved to MFK encoder"), then off again
   ("Removed from MFK encoder"). A mark on the left of the button shows which
   knob it is on, in another colour while that knob turns it.
 - A press of a value button puts it on a knob at once: VOL for Volume,
-  Squelch, RF gain, TX power, Moni level and the filter, the MFK for the
-  others. A press of an on/off button (NB, NR, DNF, VOX, PRE, ATT, ATU)
+  Squelch, RF gain, TX power, Moni level, Brightness and the filter, the MFK
+  for the others. A press of an on/off button (NB, NR, DNF, VOX, PRE, ATT, ATU)
   switches it; a press of AGC takes it to the next of Off, Slow, Fast, Auto.
-- AGC is on the MFK 2:4 page, PRE, ATT and ATU on VOL 2:2, Step (the tuning
+- AGC is on the MFK 2:4 page, PRE, ATT and ATU on VOL 2:3, Step (the tuning
   step, as FST) on the DFL page. On a knob, a turn steps AGC and Step forward
   or back, stopping at Off and Auto, 10 Hz and 100 kHz (the AGC and FST keys go
   round), and switches PRE, ATT and ATU. Up to v0.3.7 AGC, PRE and ATT could not
   go on a knob, and there was no ATU or Step button.
 - At first VOL has Volume, RF gain, the filter edges and TX power, and the MFK
   Spectrum Zoom and DNF. Volume never leaves VOL.
+- GEN shows the VOL pages, then the MFK pages: VOL 1:3 (Volume, Squelch, RF
+  gain, TX power), VOL 2:3 (Moni level, PRE, ATT, ATU), VOL 3:3
+  (Brightness), MFK 1:4 to 4:4.
+- Brightness (VOL 3:3) is the screen's, the one of Settings > Display >
+  BACKLIGHT: a press puts it on VOL, and a turn sets it from 0 to 9 and
+  keeps it, as Settings does. Turned below the level the screen dims to,
+  it takes that level down with it, so the screen never brightens when it
+  dims. A turn never puts the light out: the light off (-1) is only in
+  Settings. VOL 2:3 was full, so Brightness has a page of its own and
+  nothing else moved; the MFK pages are one GEN press further than up to
+  v0.3.12, when VOL had two pages (issue #271).
 
 Hide buttons. With Settings > Display > INTERFACE > Hide buttons at After
 3 s, After 5 s or After 10 s (Off by default), the five buttons and the two
@@ -748,7 +759,7 @@ active bands of the band list, from the frequency up or down.
 - On HF outside the amateur bands (CB, the broadcast bands, marine) the radio
   does not transmit either, by default: "No TX on 27.185 MHz", then "Out of
   band: Settings > TX Cal". See [Amateur bands only](#amateur-bands-only).
-- PRE and ATT are on the VOL 2:2 button page (F1 from the main screen), per
+- PRE and ATT are on the VOL 2:3 button page (F1 from the main screen), per
   band, and can go on a knob (see [Buttons and knobs](#buttons-and-knobs)).
   The X6200 has no PRE key, and its receiver is specified with the
   preamplifier on: turn PRE on when the band sounds quiet.
@@ -1600,12 +1611,24 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 
 | Card | Options |
 |---|---|
-| BACKLIGHT | timeout and brightness, buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver) |
+| BACKLIGHT | Timeout (0 off), Brightness (see below), buttons brightness (Always Off, Always On, Temporarily On), Screensaver (None, Matrix rain), Screensaver (min) (with a screensaver: 1-120 minutes without use), Rain speed (Normal, Slow, Very slow), Screen off (min) (minutes without use, 0 never; the key that wakes it does nothing else), Screen always off (the screen stays dark for a radio run from the VFO-Knob or a browser, no screensaver; POWER shows it for the blank time, a minute at least); see [Screensaver](#screensaver) |
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
 | INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Theme, Font, Decoder text, FT8/FT4 info |
 
+- Timeout (0 off), Brightness: the seconds without a key or a knob before
+  the screen dims, 5 to 120 (30 by default), and the slider of the
+  brightness, from -1 (the light off) to 9, with the level it dims to on
+  its left knob. After the timeout the screen dims to that level, and the
+  next key or knob brings it back. At 0 (Off) the screen never dims: it
+  stays at its brightness, under the screensaver too, until Screen off or
+  POWER darkens it. With Off the slider has one knob, the brightness, and
+  the dim level no longer stands in its way. Buttons brightness Temporarily
+  On lights the keys as long as the screen is at its brightness: with Off,
+  until the screen goes dark. Up to v0.3.12 the timeout went from 5 s, so
+  the screen always dimmed (issue #271). The brightness is also on the VOL
+  3:3 button page (see [Buttons and knobs](#buttons-and-knobs)).
 - Popups Freq/Info/TX (Popups Freq/Info/ALC up to v0.3.8), three switches:
   - Freq (off by default): the new frequency, big in the middle of the
     screen, while tuning.
@@ -1778,7 +1801,7 @@ Compressor (Comp on the MFK 2:4 page): off (1:1) by default on both radios.
   nearest of them: 2:1 and 3:1 as 2:1, 4:1 to 7:1 as 4:1, 8:1 as 8:1; 1:1
   (Off) is off.
 
-TX monitor: Moni level (VOL 2:2 page, F2) plays your own transmission on the
+TX monitor: Moni level (VOL 2:3 page, F2) plays your own transmission on the
 speaker. It is 0 by default on both radios. At 30, the default in earlier
 releases, the microphone picked the monitor up and fed it back into the
 transmission: on the X6200, whose speaker and built-in microphone share the
@@ -5531,7 +5554,7 @@ them.
 | S-meter | S-meter type (Bars, Needle), Colours (Theme, Scale, Level), Needle lamp; with a preview |
 | Waterfall | Mode (Centered, Fixed), Jump at (40%, Passband, Line) and Jump to (Center, Other edge, Scroll), greyed unless Mode is Fixed (see [Waterfall](#waterfall)), Speed (1-5), Auto level, Auto level offset (-15 to +15 dB), Center line, Zoom, Smooth scroll, 3D, 3D colours (Strength, Waterfall, Blue), 3D depth, tilt, floor, range, peaks, glide (greyed unless 3D is on; under Amber Trey 3D off and greyed with them) |
 | On the waterfall | Band plan, Plan (Auto or a plan, with what Auto takes and from what; see [Band plan](#band-plan)), Cluster spots, Cluster column |
-| Backlight | Brightness, Brightness when idle, Idle after (5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver) |
+| Backlight | Brightness, Brightness when idle (greyed with Idle after Off), Idle after (Off, 5-120 s), Button lights (Always off, Always on, Temporarily on), Screensaver (None, Matrix rain), Screensaver after (1-120 min, greyed with None), Rain speed (Normal, Slow, Very slow; greyed with None), Screen off after (0-120 min), Screen always off (the screensaver's rows greyed while it is on); see [Screensaver](#screensaver) |
 | Receiver | the X6200 only: WR12 on HOST (see [WR12 receiver](#wr12-receiver-x6200)) |
 | Transmitter | TX ranges (Ham bands, South Korea, Own list), TX outside ham bands (Settings > TX Cal), and the own list as a text field: Save writes `tx_ranges.conf` and the radio reads it at once, the ranges it took and a line it could not read said under it (see [Amateur bands only](#amateur-bands-only)) |
 | Text and info | Independent VFOs, Birdies (Off, Marks, Marks + notch), Mode from band plan, Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)), 12-hour clock, Icon menus, Knob info, Hide buttons (Off, 3 s, 5 s, 10 s; see [Buttons and knobs](#buttons-and-knobs)), Keep knob lines, Decoder text (Large, Compact), Magnify frequency, Magnify info, TX panel (the radio's Popups TX) |

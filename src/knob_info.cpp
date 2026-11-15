@@ -27,6 +27,8 @@
 
 extern "C" {
 #include "gui_styles.h"
+#include "screen_idle.h"
+#include "screen_light.h"
 #include "theme.h"
 
 #include <stdio.h>
@@ -78,6 +80,7 @@ static const std::map<int, Knob> knobs = {
     {CTRL_FILTER_BW, num("Filter bw", cfg_sm.cp_cur_filter_bw)},
     {CTRL_PWR, num("Power", cfg_sm.p_pwr)},
     {CTRL_MONI, num("Moni level", cfg_sm.p_moni)},
+    {CTRL_BRIGHTNESS, {"Brightness", &cfg_sm.s_brightness, [] { return std::string(backlight_normal_text()); }}},
     {CTRL_SPECTRUM_FACTOR, num("Zoom", cfg_sm.p_mode_zoom)},
     {CTRL_COMP, {"Compressor", &cfg_sm.p_comp, [] { return std::string(params_comp_str_get(cfg_sm.p_comp.get())); }}},
     {CTRL_VOX_ON, on_off("VOX", cfg_sm.p_vox_en)},
@@ -216,6 +219,7 @@ class KnobLine {
         float max = ctrl == CTRL_VOL                                            ? BOARD_VOL_MAX
                   : ctrl == CTRL_SQL || ctrl == CTRL_RFG || ctrl == CTRL_MONI ? 100
                   : ctrl == CTRL_PWR                                            ? BOARD_PWR_MAX
+                  : ctrl == CTRL_BRIGHTNESS                                     ? SCREEN_BRIGHT_MAX
                                                                                 : 0;
 
         *level = max > 0 ? atof(val) / max : -1;

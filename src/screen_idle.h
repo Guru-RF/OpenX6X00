@@ -102,6 +102,27 @@ void screen_idle_settings(screen_idle_t *s, uint64_t now_ms);
 /* The minutes: every so often, the stage they lead to */
 void screen_idle_tick(screen_idle_t *s, uint64_t now_ms);
 
+/* The dim and the brightness (screen_light.c does them). The lit screen dims to its idle level after
+ * params.brightness_timeout seconds without use, 5 to 120, back at the next use; Off (0) it never dims and stays at
+ * its brightness (#271). The levels, params.brightness_normal and brightness_idle, go from 0 to 9, -1 the light off */
+#define SCREEN_DIM_OFF     0
+#define SCREEN_DIM_MIN_S   5        /* the least time before Off came, and the least now */
+#define SCREEN_DIM_MAX_S   120
+#define SCREEN_BRIGHT_OFF  (-1)
+#define SCREEN_BRIGHT_MAX  9
+
+/* The dim timeout as set, `was` before it: Off, or 5 to 120. 1 to 4 (the spinbox a step down from 5 or up from
+ * Off) go on to Off or 5, the way it went; a higher value to 120 */
+int32_t screen_dim_set(int32_t was, int32_t now);
+
+/* The brightness set to `level`, in its range. The idle level `*idle` comes down with it when it was above it: the
+ * dim never brightens the screen, as the Settings slider keeps them. The level */
+int16_t screen_bright_set(int16_t level, int16_t *idle);
+
+/* A knob turned `diff` steps on the brightness `level`: 0 to 9, a turn never puts the light off (-1, Settings
+ * only); a light off stays off on a turn down */
+int16_t screen_bright_turn(int16_t level, int32_t diff);
+
 #ifdef __cplusplus
 }
 #endif

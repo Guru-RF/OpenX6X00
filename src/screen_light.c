@@ -12,12 +12,14 @@
  *
  * OpenX6X00: after screen_saver_min minutes without use the screensaver (screen_saver.c), and
  * the screen dark after screen_off_min minutes (0: never); the key that wakes it is swallowed.
+ * The dim after brightness_timeout seconds can be Off: the light stays at its level (#271).
  * With screen_off_always it stays dark (a radio run from the VFO-Knob or a browser), only the
  * POWER key shows it for a while. When is screen_idle.c's; here what it says is done. While the
  * panel is dark or the screensaver is over the GUI, LVGL draws nothing of the GUI, unless a
  * remote viewer (remote_server.c) is looking at the screen or it is recorded (screen_rec.c). */
 
 #include "screen_light.h"
+#include "cfg/cfg_api.h"
 #include "screen_idle.h"
 #include "screen_rec.h"
 #include "screen_saver.h"
@@ -45,6 +47,7 @@ static int16_t        shown = -1;           /* backlight_level() */
 static lv_timer_t    *idle_timer;
 static uint64_t       knob_woke_ms;         /* a knob ended the screensaver then (backlight_knob_tick) */
 static bool           knob_woke;
+static bool           at_level;             /* the light put at its level by light_again(), not dimmed since */
 
 /* The driver counts the other way: 10 - level */
 static void write_level(int16_t level) {
@@ -108,7 +111,8 @@ static void panel_dark(void) {
     write_power(false);
     write_level(9);
     keys_light(false);
-    shown = -1;
+    shown    = -1;
+    at_level = false;
 }
 
 static void panel_lit(void) {
@@ -143,23 +147,36 @@ static void stage_show(void) {
     drawing_update();
 }
 
+/* The only dim: the idle level after brightness_timeout seconds without use */
 static void idle_cb(lv_timer_t *t) {
     idle_timer = NULL;
+    at_level   = false;
     backlight_set_brightness(params.brightness_idle);
     keys_light(params.brightness_buttons == BUTTONS_LIGHT);
 }
 
-/* The idle time again, the light back at its level if it was dimmed */
+/* The idle time again, the light back at its level if it was dimmed. With the dim Off no timer: the light stays at
+ * its level, and the keys' too (Temporarily On as long as the screen is lit), written once and not at every key */
 static void light_again(void) {
-    uint32_t ms = params.brightness_timeout * 1000;
+    bool     off = params.brightness_timeout == SCREEN_DIM_OFF;
+    uint32_t ms  = params.brightness_timeout * 1000;
 
-    if (idle_timer) {
+    if (idle_timer && !off) {
         lv_timer_set_period(idle_timer, ms);
         lv_timer_reset(idle_timer);
         return;
     }
-    idle_timer = lv_timer_create(idle_cb, ms, NULL);
-    lv_timer_set_repeat_count(idle_timer, 1);
+    if (idle_timer) {
+        lv_timer_del(idle_timer);   /* Off now: lit at its level, no dim to come */
+        idle_timer = NULL;
+    } else if (!off) {
+        idle_timer = lv_timer_create(idle_cb, ms, NULL);
+        lv_timer_set_repeat_count(idle_timer, 1);
+    }
+    if (at_level) {
+        return;
+    }
+    at_level = true;
     backlight_set_brightness(params.brightness_normal);
     keys_light(params.brightness_buttons != BUTTONS_DARK);
 }
@@ -196,6 +213,7 @@ static void idle_settings(void) {
 void backlight_init() {
     power_fd = open(SYS_BL "bl_power", O_WRONLY);
     level_fd = open(SYS_BL "brightness", O_WRONLY);
+    subject_i_set(cfg_brightness, params.brightness_normal);
     idle_settings();
     screen_idle_start(&idle, get_time());
     lv_timer_create(stage_cb, STAGE_MS, NULL);
@@ -281,6 +299,36 @@ void backlight_set_brightness(int16_t value) {
         write_level(value);
         write_power(true);
     }
+}
+
+/* The brightness setting: saved, the idle level not above it, the light at it now (also while dimmed, as Settings
+ * did), the knob line and its button told */
+void backlight_set_normal(int16_t level) {
+    int16_t idle = params.brightness_idle;
+
+    level = screen_bright_set(level, &idle);
+    if (level != params.brightness_normal) {
+        params_lock();
+        params.brightness_normal = level;
+        params_unlock(&params.dirty.brightness_normal);
+    }
+    if (idle != params.brightness_idle) {
+        params_lock();
+        params.brightness_idle = idle;
+        params_unlock(&params.dirty.brightness_idle);
+    }
+    backlight_set_brightness(level);
+    subject_i_set(cfg_brightness, level);
+}
+
+const char *backlight_normal_text(void) {
+    static char text[8];
+
+    if (params.brightness_normal < 0) {
+        return "Off";
+    }
+    snprintf(text, sizeof(text), "%i", params.brightness_normal);
+    return text;
 }
 
 void backlight_set_buttons(buttons_light_t value) {

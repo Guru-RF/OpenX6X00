@@ -592,25 +592,45 @@ static uint8_t make_dt_row(uint8_t row, const char *label, int first) {
     return row + 1;
 }
 
-/* Backlight: the timeout, the level in use and the dimmed one (a range slider), the key lights */
+/* Backlight: the timeout, the level in use and the dimmed one (a range slider), the key lights. With the timeout
+ * Off (0) the screen never dims (#271): the slider has the one knob of the level in use, the idle level does not
+ * stand in its way */
 
+static lv_obj_t *bl_slider;
+
+static void bl_slider_mode() {
+    bool dims = params.brightness_timeout != SCREEN_DIM_OFF;
+
+    lv_slider_set_mode(bl_slider, dims ? LV_SLIDER_MODE_RANGE : LV_SLIDER_MODE_NORMAL);
+    lv_slider_set_left_value(bl_slider, params.brightness_idle, LV_ANIM_OFF);   /* with two knobs only */
+}
+
+/* 1-4 s go on to Off or 5: the spinbox shown so, its VALUE_CHANGED back here with that */
 static void bl_timeout_cb(lv_event_t *e) {
+    lv_obj_t *sb  = lv_event_get_target(e);
+    int32_t   now = lv_spinbox_get_value(sb);
+    int32_t   v   = screen_dim_set(params.brightness_timeout, now);
+
+    if (v != now) {
+        lv_spinbox_set_value(sb, v);
+        return;
+    }
     params_lock();
-    params.brightness_timeout = lv_spinbox_get_value(lv_event_get_target(e));
+    params.brightness_timeout = v;
     params_unlock(&params.dirty.brightness_timeout);
+    bl_slider_mode();
     backlight_tick();
 }
 
 static void bl_level_cb(lv_event_t *e) {
     lv_obj_t *s = lv_event_get_target(e);
 
-    params_lock();
-    params.brightness_normal = lv_slider_get_value(s);
-    params_unlock(&params.dirty.brightness_normal);
-    params_lock();
-    params.brightness_idle = lv_slider_get_left_value(s);
-    params_unlock(&params.dirty.brightness_idle);
-    backlight_set_brightness(params.brightness_normal);
+    if (lv_slider_get_mode(s) == LV_SLIDER_MODE_RANGE) {
+        params_lock();
+        params.brightness_idle = lv_slider_get_left_value(s);
+        params_unlock(&params.dirty.brightness_idle);
+    }
+    backlight_set_normal(lv_slider_get_value(s));
 }
 
 static void bl_blank_cb(lv_event_t *e) {
@@ -661,17 +681,17 @@ static void saver_speed_cb(lv_event_t *e) {
 static uint8_t make_backlight(uint8_t row) {
     lv_obj_t *obj;
 
-    wl_row_label(row, "Timeout, Brightness");
-    obj = row_spin(row, 1, 2, SMALL_2, params.brightness_timeout, 5, 120, 3);
+    wl_row_label(row, "Timeout (0 off), Brightness");
+    obj = row_spin(row, 1, 2, SMALL_2, params.brightness_timeout, SCREEN_DIM_OFF, SCREEN_DIM_MAX_S, 3);
     lv_obj_add_event_cb(obj, bl_timeout_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-    obj = lv_slider_create(row_cell(row, 3, 4, SMALL_4));
+    bl_slider = obj = lv_slider_create(row_cell(row, 3, 4, SMALL_4));
     dialog_item(&dialog, obj);
-    lv_slider_set_mode(obj, LV_SLIDER_MODE_RANGE);
+    lv_slider_set_mode(obj, params.brightness_timeout != SCREEN_DIM_OFF ? LV_SLIDER_MODE_RANGE : LV_SLIDER_MODE_NORMAL);
     /* The levels go in before the range: an idle level of -1 shows as 0 */
     lv_slider_set_value(obj, params.brightness_normal, LV_ANIM_OFF);
     lv_slider_set_left_value(obj, params.brightness_idle, LV_ANIM_OFF);
-    lv_slider_set_range(obj, -1, 9);
+    lv_slider_set_range(obj, SCREEN_BRIGHT_OFF, SCREEN_BRIGHT_MAX);
     lv_obj_set_width(obj, SMALL_4 - 30);
     lv_obj_center(obj);
     lv_obj_add_event_cb(obj, bl_level_cb, LV_EVENT_VALUE_CHANGED, NULL);

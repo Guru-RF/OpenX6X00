@@ -24,6 +24,8 @@ extern "C" {
 #include "cluster_column.h"
 #include "msg_box.h"
 #include "rtty.h"
+#include "screen_idle.h"
+#include "screen_light.h"
 }
 
 using FloatParam = Parameter<float, int32_t, 10>;
@@ -262,7 +264,7 @@ void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {
             break;
         }
 
-        case CTRL_PRE:          /* per band, as the PRE key and the VOL 2:2 buttons */
+        case CTRL_PRE:          /* per band, as the PRE key and the VOL 2:3 buttons */
         case CTRL_ATT: {
             ComputedParameter<int32_t> &p = ctrl == CTRL_PRE ? cfg_sm.cp_cur_pre : cfg_sm.cp_cur_att;
 
@@ -284,6 +286,13 @@ void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {
             snprintf(buf, size, "Freq step: %s", cfg_freq_step_text(i, st, sizeof(st)));
             break;
         }
+
+        case CTRL_BRIGHTNESS:   /* the screen's, saved as Settings saves it; 0 to 9, a turn never darkens it (#271) */
+            if (diff) {
+                backlight_set_normal(screen_bright_turn(params.brightness_normal, diff));
+            }
+            snprintf(buf, size, "Brightness: %s", backlight_normal_text());
+            break;
 
         case CTRL_IF_SHIFT:
             if (if_shift_supported()) {

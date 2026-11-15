@@ -63,6 +63,7 @@ ParamInt         *cfg_swr_protect = nullptr;
 ParamInt         *cfg_tx_outside_bands = nullptr;
 ParamInt         *cfg_tx_ranges        = nullptr;
 SubjectInt       *cfg_tx_ranges_read   = nullptr;
+SubjectInt       *cfg_brightness       = nullptr;
 ParamFloat       *cfg_tune_pwr    = nullptr;
 ParamInt         *cfg_tune_time   = nullptr;
 ParamInt         *cfg_smeter_lamp         = nullptr;
@@ -270,6 +271,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_tx_outside_bands = &cfg_sm.p_tx_outside_bands;
     cfg_tx_ranges        = &cfg_sm.p_tx_ranges;
     cfg_tx_ranges_read   = &cfg_sm.s_tx_ranges_read;
+    cfg_brightness       = &cfg_sm.s_brightness;
     cfg_tune_pwr         = &cfg_sm.p_tune_pwr;
     cfg_tune_time        = &cfg_sm.p_tune_time;
     cfg_smeter_lamp      = &cfg_sm.p_smeter_lamp;

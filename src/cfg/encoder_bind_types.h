@@ -80,6 +80,7 @@ typedef enum {
     CTRL_WF_3D_DEPTH,     /* its traces, tilt and floor cut (Settings > Display > WATERFALL) */
     CTRL_WF_3D_TILT,
     CTRL_WF_3D_FLOOR,
+    CTRL_BRIGHTNESS,      /* the screen's (Settings > Display > BACKLIGHT), 0-9 on a knob; VOL 3:3 (#271) */
 
     CTRL_FAST_ACCESS_LAST,
 

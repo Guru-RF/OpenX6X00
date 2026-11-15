@@ -17,11 +17,16 @@
  *  GUI drawn under the screensaver as it goes dark (not the rain shown at the next wake), the waterfall and the
  *  spectrum asked to draw when seen again, the top layer hidden under it, the SWR scan (no TX event) and a screen
  *  recording holding it off, TX and the low battery's notice ending it, the knob turn that ends it swallowed for
- *  half a second, a hand mic key not. See the Makefile.
+ *  half a second, a hand mic key not.
+ *
+ *  The dim (#271): after its seconds to the idle level, the key lights with it; Off never, before, under and after
+ *  the screensaver, Off chosen on a dimmed screen, after the screen dark by the time; the brightness set from a knob
+ *  saved, the idle level brought down to it, the knob line told. See the Makefile.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
 
+#include "cfg/subject_api.h"
 #include "lvgl/lvgl.h"
 #include "mono.h"
 #include "params/params.h"
@@ -58,6 +63,15 @@ static uint64_t      clock_ms = 1000;
 static radio_state_t state    = RADIO_RX;
 static bool          recording, onebit;
 static int           wf_redraws, sp_redraws;
+static bool          keys_lit;              /* the front keys' light as last set */
+static int32_t       told = -100;           /* the brightness the knob line and its button were told */
+
+SubjectInt *cfg_brightness;
+
+void subject_i_set(SubjectInt *subj, int32_t val) {
+    (void)subj;
+    told = val;
+}
 
 uint64_t get_time() {
     return clock_ms;
@@ -81,7 +95,7 @@ radio_state_t radio_get_state() {
 }
 
 void radio_backlight_power(bool on) {
-    (void)on;
+    keys_lit = on;
 }
 
 void params_lock() {}
@@ -392,6 +406,87 @@ static void stages(bool transp) {
     check(backlight_is_dark(), "a notice on a dark screen: dark");
 }
 
+/* ---- The dim: after its seconds, never with Off (#271) ---- */
+
+static void dims(void) {
+    printf("The dim\n");
+    display(false, false);
+    settings(SCREEN_SAVER_MATRIX, 5, 0);
+    backlight_init();
+    check(backlight_level() == 5 && keys_lit && told == 5, "lit at its brightness (%d), the keys lit, the knob told %d",
+          backlight_level(), (int)told);
+    run(29 * SEC);
+    check(backlight_level() == 5, "29 s: at its brightness still");
+    run(2 * SEC);
+    check(backlight_level() == 4 && !keys_lit, "30 s: dimmed to the idle level (%d), the keys dark (Temporarily On)",
+          backlight_level());
+    check(!backlight_tick() && backlight_level() == 5 && keys_lit, "a key: back at its brightness, not for waking");
+    run(5 * MIN + 2 * SEC);
+    check(backlight_saver_on() && backlight_level() == 4, "the screensaver at 5 minutes, over the dimmed light");
+    backlight_tick();
+
+    /* Off, as Settings and the web configurator set it: never dimmed, the screensaver over the light at its level */
+    params.brightness_timeout = SCREEN_DIM_OFF;
+    backlight_tick();
+    check(!run(5 * MIN - 2 * SEC) && backlight_level() == 5 && keys_lit, "Off: 5 minutes at its brightness, keys lit");
+    check(run(4 * SEC) && backlight_level() == 5, "Off: the screensaver at 5 minutes, the light at its brightness");
+    run(10 * MIN);
+    check(backlight_saver_on() && backlight_level() == 5, "Off: under the screensaver 10 minutes on, at its brightness");
+    check(backlight_tick() && backlight_level() == 5, "Off: a key ends the screensaver, the light as it was");
+    run(3 * MIN);
+    check(backlight_level() == 5 && keys_lit, "Off: 3 minutes after it, at its brightness");
+    backlight_tx(true);
+    run(SEC);
+    backlight_tx(false);
+    run(MIN);
+    check(backlight_level() == 5, "Off: TX and a minute after it, at its brightness");
+
+    /* Off chosen on a dimmed screen (the web configurator: no key on the radio but its own tick) */
+    params.brightness_timeout = 30;
+    backlight_tick();
+    run(31 * SEC);
+    check(backlight_level() == 4, "30 s again: dimmed");
+    params.brightness_timeout = SCREEN_DIM_OFF;
+    backlight_tick();
+    check(backlight_level() == 5 && keys_lit, "Off on the dimmed screen: back at its brightness");
+    run(2 * MIN);
+    check(backlight_level() == 5, "and it stays there");
+
+    /* Off and the screen dark by the time: lit again at its brightness */
+    params.screen_off_min = 1;
+    backlight_settings_changed();
+    run(MIN + 2 * SEC);
+    check(backlight_is_dark() && backlight_level() == -1 && !keys_lit, "Off, screen off 1 min: dark at a minute");
+    check(backlight_tick() && backlight_level() == 5 && keys_lit, "a key on it: lit at its brightness");
+    params.screen_off_min = 0;
+    backlight_settings_changed();
+    run(3 * MIN);
+    check(backlight_level() == 5, "Off: 3 minutes on, at its brightness");
+
+    /* A knob's brightness (backlight_set_normal): saved, the idle level not above it, the knob line told */
+    backlight_set_normal(3);
+    check(params.brightness_normal == 3 && params.brightness_idle == 3 && backlight_level() == 3 && told == 3,
+          "brightness 3 under idle 4: lit at 3, idle down to 3, told");
+    backlight_set_normal(12);
+    check(params.brightness_normal == 9 && params.brightness_idle == 3 && backlight_level() == 9 && told == 9 &&
+          strcmp(backlight_normal_text(), "9") == 0, "brightness 12: 9, idle as it was, shown as 9");
+    backlight_set_normal(-1);
+    check(backlight_level() == -1 && params.brightness_idle == -1 && strcmp(backlight_normal_text(), "Off") == 0,
+          "brightness -1 (Settings): the light off, shown as Off");
+    backlight_set_normal(5);
+    params.brightness_timeout = 30;
+    backlight_tick();
+    run(31 * SEC);
+    check(backlight_level() == -1, "the dim back on with idle -1: the light off after 30 s");
+    backlight_tick();
+    check(backlight_level() == 5, "a key: at its brightness, 5");
+}
+
+static void dims_run(int k, bool transp, bool mono) {
+    (void)k, (void)transp, (void)mono;
+    dims();
+}
+
 /* Each in a process of its own */
 static void in_child(void (*fn)(int, bool, bool), int k, bool transp, bool mono) {
     fflush(stdout);
@@ -429,6 +524,7 @@ int main(void) {
     rain_checks();
     in_child(stages_run, 0, false, false);
     in_child(stages_run, 0, true, false);
+    in_child(dims_run, 0, false, false);
 
     printf("%d of %d cases ok\n", out->good, out->cases);
     return out->good == out->cases ? 0 : 1;

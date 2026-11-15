@@ -171,19 +171,15 @@ static void disp_apply(void *arg) {
             params_bool_set(o.b, d->val);
     if (!strcmp(d->name, "auto_level_offset")) {
         cfg_sm.p_auto_level_offset.set(d->val / 10.0f);
-    } else if (!strcmp(d->name, "bright_normal") || !strcmp(d->name, "bright_idle")) {
-        bool normal = d->name[7] == 'n';
+    } else if (!strcmp(d->name, "bright_normal")) {
+        backlight_set_normal(d->val);       /* as Settings: the idle level not above it */
+    } else if (!strcmp(d->name, "bright_idle")) {
         params_lock();
-        if (normal)
-            params.brightness_normal = d->val;
-        else
-            params.brightness_idle = d->val;
-        params_unlock(normal ? &params.dirty.brightness_normal : &params.dirty.brightness_idle);
-        if (normal)
-            backlight_set_brightness(params.brightness_normal);
+        params.brightness_idle = d->val;
+        params_unlock(&params.dirty.brightness_idle);
     } else if (!strcmp(d->name, "bright_timeout")) {
         params_lock();
-        params.brightness_timeout = d->val;
+        params.brightness_timeout = screen_dim_set(params.brightness_timeout, d->val);   /* 0 Off (#271) */
         params_unlock(&params.dirty.brightness_timeout);
         backlight_tick();
     } else if (!strcmp(d->name, "screen_off_min")) {
@@ -250,9 +246,9 @@ static const char *disp_set(cJSON *req, disp_set_t *d) {
     if (!strcmp(d->name, "auto_level_offset"))
         min = -150, max = 150, known = true;   /* tenths of dB */
     if (!strcmp(d->name, "bright_normal") || !strcmp(d->name, "bright_idle"))
-        min = -1, max = 9, known = true;
+        min = SCREEN_BRIGHT_OFF, max = SCREEN_BRIGHT_MAX, known = true;
     if (!strcmp(d->name, "bright_timeout"))
-        min = 5, max = 120, known = true;
+        min = SCREEN_DIM_OFF, max = SCREEN_DIM_MAX_S, known = true;
     if (!strcmp(d->name, "bright_buttons"))
         min = 0, max = 2, known = true;
     if (!strcmp(d->name, "screen_off_min"))

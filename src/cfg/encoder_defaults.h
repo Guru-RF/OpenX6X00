@@ -4,7 +4,7 @@
 #include <cstddef>
 #include "encoder_bind_types.h"
 
-constexpr std::array<cfg_ctrl_t, 8> kEncoderVolDefaults = {{
+constexpr std::array<cfg_ctrl_t, 9> kEncoderVolDefaults = {{
     CTRL_VOL,
     CTRL_SQL,
     CTRL_RFG,
@@ -13,6 +13,7 @@ constexpr std::array<cfg_ctrl_t, 8> kEncoderVolDefaults = {{
     CTRL_PWR,
     CTRL_MONI,
     CTRL_FILTER_BW,
+    CTRL_BRIGHTNESS,
 }};
 
 constexpr std::array<cfg_ctrl_t, 32> kEncoderMfkDefaults = {{
