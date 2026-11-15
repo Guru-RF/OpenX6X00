@@ -5,10 +5,12 @@
  *  added compressor/gate, CESSB and adjustable TX filter. TEST ONLY: not validated on a radio.
  *
  *  The base takes its added settings only from a GUI that asks for them: register 36 with "TX" (0x5458) in its upper
- *  half arms them. Each change goes out whole, in this order: register 36 without the token (the added processing
- *  off), register 25 (compressor) and register 38 (TX filter) in full, then register 36 with the token, last. A
- *  setting changed while the radio transmits waits for receive: the base keeps its settings through a TX, and the
- *  token taken away mid-over would switch the processing off under the voice.
+ *  half lets it use them: the TX filter in every mode, the compressor in voice TX, the CESSB path with its own
+ *  interpolation in voice TX with CESSB on (not for the token alone). Each change goes out whole, in this order:
+ *  register 36 without the token (the added processing off), register 25 (compressor) and register 38 (TX filter) in
+ *  full, then register 36 with the token, last. A setting changed while the radio transmits waits for receive: the
+ *  base keeps its settings through a TX, and the token taken away mid-over would switch the processing off under the
+ *  voice. Not all at once on the base's side: a change just as a TX starts can still reach it then.
  *
  *  No hardware here: the bits, the identity and the order, tested on the PC (tools/test_base).
  *
@@ -28,7 +30,7 @@
 #define TEST_BASE_REG_COMP  25u
 #define TEST_BASE_REG_CESSB 36u
 #define TEST_BASE_REG_TXF   38u
-#define TEST_BASE_TOKEN     ((uint32_t)0x5458u << 16)
+#define TEST_BASE_TOKEN     ((uint32_t)0x5458u << 16)   /* lets the base use the settings in 25, 36 and 38 */
 
 /* What the test image starts from, and what the GUI sets at each start on it: the compressor bypassed, CESSB off,
  * the TX filter 300-3000 Hz */
@@ -75,3 +77,9 @@ bool test_base_send(const test_base_t *t, test_base_write_t write, void *ctx);
 void test_base_changed(test_base_t *t, bool transmitting, test_base_write_t write, void *ctx);
 /* What was held, sent once the radio receives */
 void test_base_settle(test_base_t *t, bool transmitting, test_base_write_t write, void *ctx);
+
+/* The whole register block again (block: the library's, false when it did not get through). Words the base already
+ * has change nothing there, register 36 with the token ahead of 38 included. After a failed write, a reset or a gap in
+ * the base's data (held set), the base may not have them: in receive, register 36 without the token ahead of the
+ * block, then the explicit send after it. Never while transmitting: the block as it is then, the rest once receiving */
+bool test_base_resend(test_base_t *t, bool transmitting, bool (*block)(void *ctx), test_base_write_t write, void *ctx);

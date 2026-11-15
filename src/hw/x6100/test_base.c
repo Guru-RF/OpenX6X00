@@ -111,3 +111,16 @@ void test_base_settle(test_base_t *t, bool transmitting, test_base_write_t write
         t->held = !test_base_send(t, write, ctx);
     }
 }
+
+bool test_base_resend(test_base_t *t, bool transmitting, bool (*block)(void *ctx), test_base_write_t write, void *ctx) {
+    if (!t->held || transmitting) {
+        return block(ctx);
+    }
+    /* Failed or not, the library's copy of register 36 is without the token now: the block takes it so */
+    write(ctx, TEST_BASE_REG_CESSB, (uint32_t)t->cessb);
+    if (!block(ctx)) {
+        return false;
+    }
+    t->held = !test_base_send(t, write, ctx);
+    return true;
+}

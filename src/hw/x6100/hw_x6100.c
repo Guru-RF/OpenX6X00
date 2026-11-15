@@ -111,6 +111,9 @@ bool x6100_control_cmd(x6100_cmd_enum_t cmd, uint32_t arg) {
     if (fails) {
         base_guard_write_failed(cmd, ok);
     }
+    if (!ok && test_base) {
+        tb.held = true;     /* the base may not have what the GUI thinks: the test base's settings sent again */
+    }
     if (cmd == x6100_sple_atue_trx && (prev & TX_BITS) && !(arg & TX_BITS)) {
         base_guard_unkeyed();
     }
@@ -136,6 +139,9 @@ bool hw_control_init(void) {
 }
 
 void hw_bb_reset(void) {
+    if (test_base) {
+        tb.held = true;     /* its settings again once it is back (hw_resend_all, hw_send_held) */
+    }
     x6100_gpio_set(x6100_pin_bb_reset, 1);
     usleep(100000);
     x6100_gpio_set(x6100_pin_bb_reset, 0);
@@ -423,10 +429,20 @@ void hw_poweroff(void) {
 }
 
 /* The library reopens the bus and tries once more on its own, and reports nothing but errno */
-bool hw_resend_all(void) {
+static bool block_send(void *ctx) {
+    (void)ctx;
     errno = 0;
     x6100_control_idle();
     return errno == 0;
+}
+
+/* The test base after a failed write, a reset or a gap in its data: the explicit send around the block
+ * (test_base_resend). Otherwise, and on every other base, the block as it is */
+bool hw_resend_all(void) {
+    if (test_base) {
+        return test_base_resend(&tb, transmitting(), block_send, tb_write, NULL);
+    }
+    return block_send(NULL);
 }
 
 bool hw_tx_keyed_by_gui(void) {
@@ -506,5 +522,8 @@ bool hw_flow_read(hw_pack_t *p) {
 }
 
 void hw_flow_restart(void) {
+    if (test_base) {
+        tb.held = true;     /* a gap in the data: the base may have started again, without them */
+    }
     x6100_flow_restart();
 }

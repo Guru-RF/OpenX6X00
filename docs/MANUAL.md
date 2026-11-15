@@ -143,10 +143,14 @@ says how to install it and how to go back. OpenX6X00 does not install it.
   of TX AUDIO and CESSB. A short message says so at each start too.
 - At each start on it, OpenX6X00 sets the compressor and CESSB off and the TX
   filter to 300-3000 Hz, as the test base starts. Turn on what you test.
-- A change goes to the base whole, its added processing off for a moment and
-  back on with the new settings. A change made while the radio transmits
-  waits until it receives again: the base keeps its settings through a
-  transmission.
+- Change these settings while the radio receives. A change goes to the base
+  whole, its added processing off for a moment and back on with the new
+  settings. One made while the radio transmits waits until it receives
+  again. One made just as a transmission starts can still reach the base at
+  its start: the test base does not yet take a change all at once.
+- After a failed write to the base, a reset of the base or a gap in its data,
+  OpenX6X00 sends these settings to it again, in the same order, once the
+  radio receives.
 - The added processing works in LSB and USB voice only. The TX filter is the
   base's own and works in the other modes too.
 - It has none of the patched base's codec gain, band output gain, FM

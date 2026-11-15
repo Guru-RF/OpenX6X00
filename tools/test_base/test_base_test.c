@@ -7,6 +7,8 @@
  *  - the order: 36 without the token, 25, 38, 36 with the token last, for every change
  *  - a write that fails: nothing after it, no token unless 25 and 38 got through, held to try again
  *  - while transmitting: nothing written, held; sent once receiving
+ *  - the whole block again: as it is, unless the base may have lost the settings (held): then, in receive only,
+ *    register 36 without the token ahead of it and the explicit send after it
  */
 #include "test_base.h"
 
@@ -43,6 +45,14 @@ static bool log_write(void *ctx, unsigned reg, uint32_t word) {
     }
     l->n++;
     return l->fail_at != l->n;
+}
+
+/* The library's whole block, in the same log: register 99 */
+static bool block_ok = true;
+
+static bool log_block(void *ctx) {
+    log_write(ctx, 99, 0);
+    return block_ok;
 }
 
 static void identity(void) {
@@ -232,6 +242,37 @@ static void transmitting(void) {
     CHECK(l.n == 0, "nothing held: nothing sent (%u)", l.n);
 }
 
+static void resend(void) {
+    test_base_t t;
+    log_t       l = {0};
+
+    test_base_defaults(&t);
+    test_base_cessb_on(&t, true);
+    CHECK(test_base_resend(&t, false, log_block, log_write, &l), "the block got through");
+    CHECK(l.n == 1 && l.reg[0] == 99, "nothing held: the block as it is (%u writes)", l.n);
+
+    t.held = true;      /* a failed write, a reset, a gap in the data */
+    l = (log_t){0};
+    CHECK(test_base_resend(&t, true, log_block, log_write, &l), "in TX, the block got through");
+    CHECK(l.n == 1 && l.reg[0] == 99 && t.held, "while transmitting: the block as it is, still held (%u)", l.n);
+
+    l = (log_t){0};
+    CHECK(test_base_resend(&t, false, log_block, log_write, &l), "in RX, the block got through");
+    CHECK(l.n == 6, "in RX: six writes (%u)", l.n);
+    CHECK(l.reg[0] == 36 && l.word[0] == t.cessb, "register 36 without the token ahead of the block (0x%08x)", l.word[0]);
+    CHECK(l.reg[1] == 99, "then the block");
+    CHECK(l.reg[2] == 36 && (l.word[2] >> 16) == 0 && l.reg[3] == 25 && l.reg[4] == 38, "then clear, 25, 38");
+    CHECK(l.reg[5] == 36 && l.word[5] == (0x54580000u | t.cessb), "and the token last (0x%08x)", l.word[5]);
+    CHECK(!t.held, "nothing held after");
+
+    t.held   = true;
+    block_ok = false;
+    l        = (log_t){0};
+    CHECK(!test_base_resend(&t, false, log_block, log_write, &l), "the block did not get through");
+    CHECK(l.n == 2 && t.held, "the block failed: nothing after it, still held (%u)", l.n);
+    block_ok = true;
+}
+
 int main(void) {
     identity();
     defaults();
@@ -240,6 +281,7 @@ int main(void) {
     order();
     failures();
     transmitting();
+    resend();
     printf("test_base: %d of %d checks failed\n", fails, checks);
     return fails != 0;
 }
