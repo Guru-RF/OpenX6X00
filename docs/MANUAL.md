@@ -4444,6 +4444,21 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   space there does not end the answer, and the spaces are left out when it
   is checked. Up to v0.3.9 the space ended it and the call counted wrong
   (issue #202).
+- Calls keys a callsign and you key it back. Right: the next call comes
+  1 WPM faster. Wrong: 1 WPM slower. 50 calls make a run. TX speed (page 2,
+  in Calls) sets what your own keying does meanwhile (issue #270):
+  - Follows (the default, as before): KEY Speed goes up and down with the
+    calls, so your paddle speeds up and slows down with them. Leaving Calls
+    puts it back.
+  - Fixed: KEY Speed stays at your own sending speed, and only the calls go
+    up and down. The run starts at your speed. Turning the MFK (or the
+    arrow keys) sets it in Calls too; before the run's first call the calls
+    start from the new speed as well. The hint line shows it ("Key back the
+    callsign at your 20 WPM").
+  - The decoder listens for each call at the slower of the two speeds,
+    and for your answer at yours. A call more than four times faster than
+    you can cost your answer its first character.
+  - The choice is kept for the next time.
 - Start, and Replay (in Learn while it waits for your answer, and in
   Calls), play the group or the call one second after the press, so your
   hand is off the key by then; the screen says "Listen..." meanwhile, and
@@ -4456,13 +4471,13 @@ its TX power held at 0 W in every key mode, Manual too (see [CW](#cw)).
   answer, it goes under the screensaver after its minutes, and your answer
   brings the screen back. Up to v0.3.12 nothing of the trainer counted
   (issue #263).
-- The trainer keys at the key speed, 5 to 50 WPM, and the decoder follows
-  it, and a straight key, down to 5 WPM while the trainer is open (on the
-  band it stops at 10). Up to v0.3.8 it stopped at 10 in the trainer too:
-  at 5 WPM it read every group and answer wrong (an M as two Ts). Below
-  10 WPM with KEY Ratio over 3 it also took a long dah for a steady
-  carrier: dahs and the dits after them were lost (a J heard as W, a Z as
-  M).
+- The trainer keys at the key speed (Calls with TX speed Fixed: each call
+  at its own), 5 to 50 WPM, and the decoder follows it, and a straight key,
+  down to 5 WPM while the trainer is open (on the band it stops at 10).
+  Up to v0.3.8 it stopped at 10 in the trainer too: at 5 WPM it read every
+  group and answer wrong (an M as two Ts). Below 10 WPM with KEY Ratio over
+  3 it also took a long dah for a steady carrier: dahs and the dits after
+  them were lost (a J heard as W, a Z as M).
 - A character of your answer the decoder cannot read (dits and dahs that
   make no character, or a prosign such as AR) shows as `<?>`, in Learn and
   Calls, as the CW decoder panel shows it, and is never right; the hint

@@ -32,6 +32,9 @@ typedef enum {
 /* The text keyed once, or again after each pause as a beacon. Its send's number: one more at every send started
  * (QRSS3's too), never 0; 0 when nothing started */
 unsigned cw_encoder_send(const char *text, bool beacon);
+/* The text keyed once at wpm (BOARD_KEY_SPEED_MIN to _MAX), not at the KEY Speed, which stays as it is: the CW
+ * Trainer's calls at their own speed while the user's keyer keeps its own (#270). Otherwise as cw_encoder_send */
+unsigned cw_encoder_send_wpm(const char *text, int wpm);
 void cw_encoder_stop();
 
 /* The number of the send the keyer is on (a beacon's in its pauses too), 0 when it is idle; and the number of the last

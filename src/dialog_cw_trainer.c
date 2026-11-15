@@ -17,7 +17,9 @@
  *  radio.c holds the TX power at 0 W (#127): in Manual the X6200's base keyed
  *  the transmitter at PWR from the KEY jack all the same. That holds for the
  *  trainer's own keying too.
- *  Calls changes the key speed: it is given back when leaving Calls too.
+ *  Calls changes the key speed: it is given back when leaving Calls too. With
+ *  TX speed Fixed (#270) it does not: the calls are keyed at their own speed,
+ *  and the key speed, the paddle's, stays the user's.
  *  The trainer's groups and the answers keyed back are use of the radio, as a
  *  key is (in_use): the screensaver stays away while it is worked.
  */
@@ -184,6 +186,7 @@ static void close_cb(button_data_t *b);
 static void level_up_cb(button_data_t *b);
 static void level_down_cb(button_data_t *b);
 static void group_cb(button_data_t *b);
+static bool tx_fixed(void);
 static void stats_cb(button_data_t *b);
 static void reset_cb(button_data_t *b);
 static void clear_cb(button_data_t *b);
@@ -268,6 +271,15 @@ static void sink_text(const char *t, bool own) {
 
 static void sink_wpm(int w) {
     scheduler_put(on_wpm, &w, sizeof(w));
+}
+
+/* The decoder told the speed of the keying it hears next, when it is new: the trainer's group or call (play), the
+ * answer (tick_cb) */
+static void tell_speed(int wpm) {
+    if (wpm != told_wpm) {
+        cw_trainer_speed(wpm);
+        told_wpm = wpm;
+    }
 }
 
 static const char *morse_of(char c) {
@@ -528,14 +540,18 @@ static bool play(void) {
      * for the answer. The next group then came while the user was still keying, and the two ran
      * together into one character not in the table: "?" (#144) */
     cw_trainer_own(elements_of(target));
-    /* At the key speed, as the paddle's: opened at 10 WPM, the decoder, still near 20, misread
-     * the second answer. Told when the speed is new, so it learns a straight key's from there */
-    int wpm = param_i_get(cfg_key_speed);
-    if (wpm != told_wpm) {
-        cw_trainer_speed(wpm);
-        told_wpm = wpm;
-    }
-    cw_encoder_send(target, false);
+    /* The decoder at the key speed, as the paddle's: opened at 10 WPM, the decoder, still near 20, misread the second
+     * answer. Told when the speed is new, so it learns a straight key's from there. Calls with TX speed Fixed key the
+     * call at its own speed, and the decoder hears it at the slower of the two, at the key speed again as the answer
+     * is due (tick_cb). A call slower than the key speed, heard at that, had its character gaps taken for word gaps,
+     * which end our own run (MorseText::own), and the rest of the call was the answer; a faster one only runs its
+     * characters together, all ours the same. Heard at its own speed, a call at 50 WPM, the decoder's fastest, lost a
+     * dit now and then, and the gap left ended our own run too (tools/cw_trainer) */
+    int key = param_i_get(cfg_key_speed);
+    int wpm = mode == MODE_CALLS && tx_fixed() ? call_wpm : key;
+
+    tell_speed(wpm < key ? wpm : key);
+    cw_encoder_send_wpm(target, wpm);
     return true;
 }
 
@@ -623,8 +639,16 @@ static void new_call(void) {
     else snprintf(target, sizeof(target), "%s", base);
 }
 
+/* Calls, TX speed: Follows sets the key speed to each call's (as before), Fixed (#270) leaves it as the user set it,
+ * so the paddle keeps the user's own speed while the calls go up and down */
+static bool tx_fixed(void) {
+    return param_i_get(cfg_cwt_tx_fixed) != 0;
+}
+
 static void calls_enter(void) {
-    if (!speed_saved) {     /* a new run keeps the speed saved when Calls was entered */
+    /* A new run keeps the speed saved when Calls was entered; with TX speed Fixed the key speed is the user's all
+     * along, and the new run starts from it */
+    if (!speed_saved || tx_fixed()) {
         base_wpm    = param_i_get(cfg_key_speed);
         speed_saved = true;
     }
@@ -636,11 +660,21 @@ static void calls_enter(void) {
     call_wpm    = next_wpm;
 }
 
-/* The key speed is also the paddle speed: give the user's back */
+/* The key speed is also the paddle speed: give the user's back (TX speed Fixed never moved it) */
 static void calls_leave(void) {
     if (!speed_saved) return;
-    param_i_set(cfg_key_speed, base_wpm);
+    if (!tx_fixed()) param_i_set(cfg_key_speed, base_wpm);
     speed_saved = false;
+}
+
+/* TX speed Follows <-> Fixed, in Calls. To Fixed the user's speed is back on the paddle at once; to Follows the one
+ * given back on leaving is the key speed as it is now (the knob sets it while Fixed) */
+static void tx_speed_toggle(void) {
+    bool fixed = !tx_fixed();
+
+    param_i_set(cfg_cwt_tx_fixed, fixed);
+    if (fixed) param_i_set(cfg_key_speed, base_wpm);
+    else base_wpm = param_i_get(cfg_key_speed);
 }
 
 /* Next call of the run, keyed at the speed the last answer earned: at once after a result, PRESS_MS after the press
@@ -648,7 +682,7 @@ static void calls_leave(void) {
 static void start_call(bool pressed) {
     call_no++;
     call_wpm = next_wpm;
-    param_i_set(cfg_key_speed, call_wpm);
+    if (!tx_fixed()) param_i_set(cfg_key_speed, call_wpm);    /* Follows: the paddle at the call's speed too */
     new_call();
     round_t = lv_tick_get();
     if (pressed) {
@@ -720,6 +754,7 @@ static void tick_cb(lv_timer_t *t) {
         st        = ST_LISTEN;
         listen_t  = lv_tick_get();
         last_rx_t = listen_t;
+        tell_speed(param_i_get(cfg_key_speed));     /* the answer, at the key speed (TX speed Fixed: not the call's) */
         refresh_ui();
     } else if (st == ST_LISTEN && heard_n > 0 &&
                (heard_n >= (int)strlen(target) || heard_end ||
@@ -818,19 +853,23 @@ static void level_down_cb(button_data_t *b) {
     refresh_ui();
 }
 
+/* Learn: the group's length. Calls: TX speed */
 static void group_cb(button_data_t *b) {
     (void)b;
-    if (mode != MODE_LEARN) return;
-    param_i_set(cfg_cwt_group, param_i_get(cfg_cwt_group) % 5 + 1);
+    if (mode == MODE_CALLS) tx_speed_toggle();
+    else if (mode == MODE_LEARN) param_i_set(cfg_cwt_group, param_i_get(cfg_cwt_group) % 5 + 1);
+    else return;
     refresh_ui();
 }
 
-/* The key speed is also the paddle speed of the keyer (Calls sets it itself) */
+/* The key speed is also the paddle speed of the keyer. Calls sets it itself, but with TX speed Fixed: there it is the
+ * user's own, and before the run's first call the calls start from it too */
 static void change_speed(int d) {
-    if (mode == MODE_CALLS) return;
+    if (mode == MODE_CALLS && !tx_fixed()) return;
     int v = param_i_get(cfg_key_speed) + d;
     if (v < 5 || v > 50) return;
     param_i_set(cfg_key_speed, v);
+    if (mode == MODE_CALLS && call_no == 0) next_wpm = v < CALLS_MIN ? CALLS_MIN : v;
     refresh_ui();
 }
 
@@ -902,6 +941,7 @@ static const char *level_down_label(void) {
 }
 
 static const char *group_label(void) {
+    if (mode == MODE_CALLS) return tx_fixed() ? "TX speed:\nFixed" : "TX speed:\nFollows";
     snprintf(label_buf[2], sizeof(label_buf[2]), "Group\n%i", (int)param_i_get(cfg_cwt_group));
     return label_buf[2];
 }
@@ -970,6 +1010,9 @@ static void refresh_calls(void) {
     lv_label_set_text(c_res, buf);
     if (run_done && rev) lv_label_set_text(hint, "Start: a new run of 50 callsigns");
     else if (rev && strchr(heard, CWT_NO_CHAR)) lv_label_set_text(hint, CWT_NO_CHAR_SHOWN " = not a character. Right: +1 WPM, wrong: -1 WPM.");
+    else if (tx_fixed())
+        lv_label_set_text_fmt(hint, "Key back the callsign at your %i WPM. Right: +1 WPM, wrong: -1 WPM.",
+                              (int)param_i_get(cfg_key_speed));
     else lv_label_set_text(hint, "Key back the callsign with the paddle. Right: +1 WPM, wrong: -1 WPM.");
 
     fmt_num(score, n1, sizeof(n1));
@@ -1043,7 +1086,7 @@ static void refresh_ui(void) {
     set_btn(&btn_skip, mode == MODE_PRACTICE || sv);
     set_btn(&btn_lvl_u, !learn);
     set_btn(&btn_lvl_d, !learn);
-    set_btn(&btn_group, !learn);
+    set_btn(&btn_group, !learn && !calls);     /* Calls: TX speed */
     set_btn(&btn_stats, !learn);
     set_btn(&btn_reset, !learn);
     set_btn(&btn_clear, mode != MODE_PRACTICE);

@@ -52,6 +52,7 @@ static char                 *current_msg = NULL;
 static char                 *current_char = NULL;
 
 static bool                 qrss;       /* the text goes in QRSS3: set before the thread starts, read by it */
+static int                  send_wpm;   /* the send's own speed (cw_encoder_send_wpm), 0: the KEY Speed */
 static cw_el_t              *plan;      /* its elements */
 static int                  plan_n;
 static atomic_bool          qrss_on;    /* a QRSS3 send or beacon, from its start until its thread let go */
@@ -313,7 +314,7 @@ static bool more_signs(const char *p) {
  * Stopping is by flag: the key is always released by this thread. */
 static void * endecode_thread(void *arg) {
     (void)arg;
-    int    base_wpm       = param_i_get(cfg_key_speed);
+    int    base_wpm       = send_wpm > 0 ? send_wpm : param_i_get(cfg_key_speed);
     int    wpm            = base_wpm;
     long   dit_nsec, dah_nsec, world_space_nsec;
     time_t end            = 0;
@@ -467,7 +468,7 @@ const char *cw_encoder_expand(const char *text) {
 }
 
 /* The send's number (cw_encoder_sending), 0 not started */
-static unsigned start(const char *text, bool beacon, bool slow) {
+static unsigned start(const char *text, bool beacon, bool slow, int wpm) {
     cw_encoder_stop();
     sched      = next_sched;    /* for this one only, started or not */
     next_sched = (bcn_sched_t){BCN_NOW, BCN_UNTIL_STOP, 1, BCN_NOW};
@@ -482,6 +483,10 @@ static unsigned start(const char *text, bool beacon, bool slow) {
     plan     = NULL;
     plan_n   = 0;
     qrss     = false;
+    send_wpm = wpm > BOARD_KEY_SPEED_MAX ? BOARD_KEY_SPEED_MAX : wpm;
+    if (send_wpm > 0 && send_wpm < BOARD_KEY_SPEED_MIN) {
+        send_wpm = BOARD_KEY_SPEED_MIN;
+    }
     stop_req = false;   /* before qrss_on: a stop asked from now on is kept */
     if (slow) {
         int n = qrss3_plan(text, NULL, 0);
@@ -530,11 +535,15 @@ static unsigned start(const char *text, bool beacon, bool slow) {
 }
 
 unsigned cw_encoder_send(const char *text, bool beacon) {
-    return start(text, beacon, false);
+    return start(text, beacon, false, 0);
+}
+
+unsigned cw_encoder_send_wpm(const char *text, int wpm) {
+    return start(text, false, false, wpm);
 }
 
 bool cw_encoder_send_qrss3(const char *text, bool beacon) {
-    return start(text, beacon, true) != 0;
+    return start(text, beacon, true, 0) != 0;
 }
 
 unsigned cw_encoder_sending(void) {

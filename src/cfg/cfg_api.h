@@ -173,6 +173,7 @@ extern ParamInt   *cfg_paddle_serial;       // p_paddle_serial
 // CW decoder
 extern ParamInt   *cfg_cwt_level;           // p_cwt_level
 extern ParamInt   *cfg_cwt_group;           // p_cwt_group
+extern ParamInt   *cfg_cwt_tx_fixed;        // p_cwt_tx_fixed
 extern ParamInt   *cfg_cw_decoder;         // p_cw_decoder
 extern ParamInt   *cfg_cw_tune;            // p_cw_tune
 extern ParamInt   *cfg_cw_live;            // p_cw_live

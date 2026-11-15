@@ -824,6 +824,26 @@ static uint32_t dot_ms(int i) {
     return keylog[2 * i + 1].t - keylog[2 * i].t;
 }
 
+/* The CW Trainer's calls at their own speed while KEY Speed, the paddle's, stays (#270): the send at its speed, within
+ * 5 to 50 WPM, the next one at KEY Speed again */
+static void test_cw_wpm(void) {
+    puts("CW at a speed of its own");
+    reset();
+    cw_encoder_send_wpm("E", 40);
+    check(wait_idle() && n_key == 2 && dot_ms(0) == 30, "E at 40 WPM, KEY Speed 20: a 30 ms dot");
+    check(n_qsk >= 2 && qsk_set[0] == 7 * 30 + 150 && qsk_set[n_qsk - 1] == qsk,
+          "the break-in delay held for its word space and 150 ms, then back");
+    reset();
+    cw_encoder_send("E", false);
+    check(wait_idle() && n_key == 2 && dot_ms(0) == 60, "the next send at KEY Speed again: a 60 ms dot");
+    reset();
+    cw_encoder_send_wpm("E", 3);
+    check(wait_idle() && n_key == 2 && dot_ms(0) == 240, "3 WPM keyed at 5: a 240 ms dot");
+    reset();
+    cw_encoder_send_wpm("E", 60);
+    check(wait_idle() && n_key == 2 && dot_ms(0) == 24, "60 WPM keyed at 50: a 24 ms dot");
+}
+
 /* A TCI client's text (#179, tci_server.c): every send has its number, the keyer tells which one it is on and the last
  * keyed to its end, which a send stopped or refused is not. The speed steps of its text: 5 WPM up or down for the rest
  * of it, within 5 to 50, back to KEY Speed; the transmitter held for the word space at each new speed, none after the
@@ -875,6 +895,7 @@ int main(void) {
     test_qrss_send();
     test_qrss_stops();
     test_cw();
+    test_cw_wpm();
     test_cw_tci();
     test_sched_rules();
     test_sched_keyer();

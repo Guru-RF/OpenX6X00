@@ -11,8 +11,9 @@
  *  the sound some way behind the key. The trainer's rules are dialog_cw_trainer.c's (tick_cb, on_text, play): its
  *  100 ms timer, GUARD_MS, the end of a short answer (cwt_answer_ms, the trainer's own: src/cw_trainer_answer.h),
  *  NEXT_OK_MS, NEXT_BAD_MS, the own count and a new speed given as the group starts, and cw.cpp hands them to the
- *  receiver before its next block, and the decoder's speed to the trainer after a character. Last the first groups
- *  after the trainer opens, over and over, as the lock finds the tone.
+ *  receiver before its next block, and the decoder's speed to the trainer after a character. Then the first groups
+ *  after the trainer opens, over and over, as the lock finds the tone, and Calls with TX speed Fixed (#270), the
+ *  calls at their own speed and the answers at the KEY Speed.
  *
  *  Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
  */
@@ -350,6 +351,8 @@ struct Scenario {
     bool        garble   = false;   /* the user keys every ? with a dit too many, ..--..., in no table */
     double      ratio    = 3.0;     /* KEY Ratio, dah to dit: the encoder's group and the keyer's answer */
     double      pause    = 0;       /* dots the user waits after the answer's first character, past its gap */
+    int         tx_wpm   = 0;       /* Calls with TX speed Fixed (#270): the KEY Speed, the user's keyer, the calls
+                                     * at their own speed; 0 Follows, the KEY Speed set to each call's */
 };
 
 struct Result {
@@ -362,7 +365,8 @@ struct Result {
     bool  finished    = false;
     float word_dots   = 0;   /* the word boundary at the end, in dots */
     float wpm_end     = 0;   /* the decoder's speed at the end */
-    int   key_wpm     = 0;   /* ... and the key's (Calls moves it) */
+    int   key_wpm     = 0;   /* ... and the key's (Calls moves it, but with TX speed Fixed) */
+    int   call_top    = 0;   /* the fastest call's speed (Calls) */
     int   garbled     = 0;   /* groups whose answer the user garbled (Scenario::garble) */
     int   garbled_ok  = 0;   /* ... counted right */
     int   garbled_no  = 0;   /* ... heard as no character where the ? was */
@@ -390,12 +394,13 @@ static Result learn(const Scenario &sc, unsigned seed) {
 
     enum { READY, PLAYING, LISTEN, RESULT } st = READY;
     std::string target, heard;
+    int         key = sc.tx_wpm > 0 ? sc.tx_wpm : sc.wpm;   /* the KEY Speed: the keyer's, the answer's */
     int         heard_n = 0, wpm = sc.wpm, own_req = -1, wpm_req = 0, told_wpm = 0, wpm_seen = 0;
     bool        heard_end = false, last_ok = false, own_taken = false, lost = false, garbled = false;
     double      idle = 0, listen_t = 0, last_rx_t = 0, result_t = 0, user_first_end = 1e12, user_last = -1;
 
-    /* play(): the own count, the speed when it is new, then the encoder (cw_encoder.c send_morse); the user keys
-     * it back */
+    /* play(): the own count, the speed when it is new (the slower of the group's and the KEY Speed), then the
+     * encoder at the group's speed (cw_encoder.c send_morse); the user keys it back at the KEY Speed */
     auto play = [&](double t) {
         if (sc.group > 0) {
             target.clear();
@@ -412,9 +417,10 @@ static Result learn(const Scenario &sc, unsigned seed) {
         heard_n   = 0;
         heard_end = false;
         own_taken = lost = false;
-        if (user_last >= 0 && t + sc.delay < user_last + 3 * 1200.0 / wpm) r.into_answer++;
-        own_req = elements_of(target);
-        if (wpm != told_wpm) wpm_req = told_wpm = wpm;
+        if (user_last >= 0 && t + sc.delay < user_last + 3 * 1200.0 / key) r.into_answer++;
+        own_req    = elements_of(target);
+        r.call_top = std::max(r.call_top, wpm);
+        if (std::min(wpm, key) != told_wpm) wpm_req = told_wpm = std::min(wpm, key);
 
         double dit = 1200.0 / wpm, dah = sc.ratio * dit, k = t;   /* the character gap a dah too (send_morse) */
         for (char c : target) {
@@ -430,7 +436,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
         /* the user hears the end of it at once, the capture the sound later; keyed back with the keyer: exact,
          * its dahs at KEY Ratio (a straight key's 3 dots), the character gaps the user's own 3 dots */
         double u = marks.back().off - sc.delay + urand(sc.react_min, sc.react_max);
-        double udit = sc.user_wpm > 0 ? 1200.0 / sc.user_wpm : dit, udah = (sc.user_wpm > 0 ? 3 : sc.ratio) * udit;
+        double udit = 1200.0 / (sc.user_wpm > 0 ? sc.user_wpm : key), udah = (sc.user_wpm > 0 ? 3 : sc.ratio) * udit;
         garbled     = sc.garble && target.find('?') != std::string::npos;
         for (size_t i = 0; i < target.size(); i++) {
             for (const char *p = garbled && target[i] == '?' ? "..--..." : morse_of(target[i]); *p; p++) {
@@ -472,12 +478,13 @@ static Result learn(const Scenario &sc, unsigned seed) {
         for (; tick <= t1 && !done; tick += TIMER_MS) {
             if (st == READY) {
                 if (tick >= 3000) play(tick);   /* Start, a while after the trainer opened */
-            } else if (st == PLAYING && tick >= idle) {
+            } else if (st == PLAYING && tick >= idle) {   /* the answer next, at the KEY Speed */
                 st       = LISTEN;
                 listen_t = last_rx_t = tick;
+                if (key != told_wpm) wpm_req = told_wpm = key;
             } else if (st == LISTEN && heard_n > 0 &&
                        (heard_n >= (int)target.size() || heard_end ||
-                        tick - last_rx_t > cwt_answer_ms(wpm, wpm_seen, sc.ratio))) {
+                        tick - last_rx_t > cwt_answer_ms(key, wpm_seen, sc.ratio))) {
                 last_ok = heard == target;
                 r.own_answers += own_taken;
                 if (garbled) {
@@ -500,7 +507,9 @@ static Result learn(const Scenario &sc, unsigned seed) {
                 if (r.rounds == sc.rounds) {
                     done = true;
                 } else {
-                    if (sc.group == 0) wpm += last_ok ? 1 : -1;   /* Calls: right +1 WPM, wrong -1 */
+                    /* Calls: right +1 WPM, wrong -1, 10 to 50; the KEY Speed with them but with TX speed Fixed */
+                    if (sc.group == 0) wpm = std::clamp(wpm + (last_ok ? 1 : -1), 10, 50);
+                    if (sc.tx_wpm == 0) key = wpm;
                     play(tick);
                 }
             }
@@ -551,7 +560,7 @@ static Result learn(const Scenario &sc, unsigned seed) {
     const cw::ElementTimer &et = cw::ReceiverPeek::timer(rx);
     r.word_dots = cw::ElementTimerPeek::word_from(et) / cw::ElementTimerPeek::dot(et);
     r.wpm_end   = et.wpm();
-    r.key_wpm   = wpm;
+    r.key_wpm   = key;
     r.finished  = done;
     if (!done) printf("        stopped after %d groups: no answer heard\n", r.rounds);
     return r;
@@ -627,12 +636,14 @@ static void first_groups(void) {
     static const struct {
         const char *what;
         int         level, group;
+        int         tx_wpm = 0;
     } kinds[] = {
         {"Learn, group 1, level 2", 2, 1},
         {"Learn, group 1, all 40", 40, 1},
         {"Learn, group 3, level 10", 10, 3},   /* level 10: no character of 5 or 6 elements */
         {"Calls", 0, 0},
         {"Learn, group 3, all 40", 40, 3},     /* with them: a fixed 3 s cut the answer at 10 WPM (cwt_answer_ms) */
+        {"Calls, TX speed Fixed at 25 WPM", 0, 0, 25},   /* the decoder at the call's speed, then at the answer's */
     };
 
     printf("The first 4 groups after the trainer opens, the lock finding the tone\n");
@@ -642,6 +653,7 @@ static void first_groups(void) {
             for (double delay : {30.0, 60.0, 90.0, 130.0, 170.0, 210.0, 250.0}) {
                 for (unsigned seed = 1; seed <= 4; seed++) {
                     Scenario sc = {k.what, wpm, delay, k.level, k.group, 4, 300, 1200};
+                    sc.tx_wpm   = k.tx_wpm;
                     Result   r  = learn(sc, seed);
                     runs++;
                     own += r.own_answers;
@@ -675,6 +687,41 @@ static void call_pauses(void) {
             check(r.finished && r.own_answers == 0 && r.into_answer == 0 && other == 0,
                   "%s, %.0f dots, from %d WPM: %d calls, answers wrong %d (%d inside GUARD_MS), our own character the "
                   "answer %d times", sc.what, pause, wpm, r.rounds, r.wrong, r.guard_lost, r.own_answers);
+        }
+    }
+}
+
+/* Calls with TX speed Fixed (#270): the calls at their own speed, +1 WPM a right answer from 10 or 30 WPM up to 50,
+ * while the user keys back with the keyer at the KEY Speed, which stays. The decoder is told the slower of the two
+ * as a call starts and the KEY Speed as the answer is due (play, tick_cb): a call slower than the answer, heard at
+ * the answer's speed, had its character gaps taken for word gaps, which end the trainer's own run (MorseText::own),
+ * and the rest of the call was the answer; told the call's speed at 50 WPM the decoder, which reads no faster, lost
+ * a dit of a call now and then and ended the run there too. At 10 WPM the calls up to 40 WPM (30 of them): faster
+ * than four times the user's speed a dit of the call the decoder lost took the answer's first character with it */
+static void tx_fixed(void) {
+    printf("Calls with TX speed Fixed, the calls faster or slower than the answer (#270)\n");
+    for (int tx : {10, 15, 25, 40}) {
+        for (int from : {10, 30}) {
+            if (tx == 10 && from == 30) continue;
+            int rounds = 0, own = 0, into = 0, other = 0, lost = 0, stuck = 0, off = 0, top = 0;
+            for (double delay : {30.0, 130.0, 250.0}) {
+                Scenario sc = {"Calls, TX speed Fixed", from, delay, 0, 0, tx == 10 ? 30 : 40, 400, 1200};
+                sc.tx_wpm   = tx;
+                Result r    = learn(sc, 1);
+                rounds += r.rounds;
+                own += r.own_answers;
+                into += r.into_answer;
+                other += r.wrong - r.guard_lost;
+                lost += r.guard_lost;
+                stuck += !r.finished;
+                off += std::fabs(r.wpm_end - tx) > 0.25f * tx;
+                top = std::max(top, r.call_top);
+            }
+            check(own == 0 && into == 0 && other == 0 && stuck == 0 && off == 0,
+                  "KEY Speed %d WPM, the calls from %d up to %d WPM: %d calls, our own character the answer %d "
+                  "times, a call into the answer %d, answers wrong %d (and %d inside GUARD_MS), no answer heard %d, "
+                  "the decoder's speed off the KEY Speed at the end %d", tx, from, top, rounds, own, into, other, lost,
+                  stuck, off);
         }
     }
 }
@@ -794,6 +841,7 @@ int main(void) {
     no_character();
     call_pauses();
     first_groups();
+    tx_fixed();
     own_keying_x6200();
     printf("%d of %d CW trainer cases as they should be\n", good, cases);
     return good == cases ? 0 : 1;

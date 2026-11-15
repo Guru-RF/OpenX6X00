@@ -5,6 +5,8 @@
 # way it stops (a change of frequency or mode, the PTT key, the radio in TX from elsewhere, the limit, a stop asked),
 # the key always let go after; a beacon waiting for its start, over after its sends or at its end time. A TCI
 # client's text (#179): each send's number, done or not (stopped, refused), the speed steps of its text and their limits.
+# A send at a speed of its own (cw_encoder_send_wpm, the CW Trainer's calls, #270): its dots, kept to 5-50 WPM, and the
+# next send at KEY Speed again.
 # The sources are copied to build/ first: a quoted #include looks beside the including file before the -I paths, and
 # the shims in stub_include must win over src/ (as in tools/tune). The clocks are the test's own (--wrap=clock_gettime,
 # nanosleep, usleep, time): the keyer's sleeps move them on, a beacon of an hour takes no hour.
