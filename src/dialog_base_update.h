@@ -14,10 +14,11 @@ extern "C" {
 
 extern dialog_t *dialog_base_update;
 
-/* The daily check's word for Settings > Info: "1.0.9 out", "latest", or "" before any check (check.json) */
+/* The last check's word for Settings > Info: "1.0.9 out", "latest", or "" before any check (check.json) */
 void base_update_status(char *buf, size_t n);
 
-/* A newer release the daily check found said on the screen once (a minute after the start, then every ten) */
+/* A newer release the daily check found said on the screen once (a minute after the start, then every ten), while
+ * the daily check is on (params.base_daily_check, off until the owner turns it on) */
 void base_update_watch_init(void);
 
 #ifdef __cplusplus

@@ -61,7 +61,7 @@ Settings > Info > Base firmware > Open... (an X6200 only). Its window takes the 
   by (the zip's card image, its FAT partition, rootfs.tar, `./usr/firmware/*.xgf`), nothing else kept: about two
   thirds of the 370 MB come down and none of it is stored, so a radio has room for it. Checked against the list;
   4½ minutes on the test X6200's WiFi (255 MB at 0.9 MB/s).
-- **Check** reads xiegu.eu's downloads page now, as the daily check does.
+- **Check** reads xiegu.eu's downloads page now, as the daily check does, whether the daily check is on or off.
 - **Flash** shows what it is about to do (versions, Xiegu's power conditions and the radio's own supply now), then
   **FLASH NOW** writes it. An unknown file asks once more first (**UNKNOWN: OK?**). The GUI stays up: it lends the
   base to the writer (it stops reading the base's port and sends it nothing, as Xiegu's own app pauses its own
@@ -74,13 +74,18 @@ Settings > Info > Base firmware > Open... (an X6200 only). Its window takes the 
 
 ### The daily check
 
-[S99basecheck](../../rootfs/etc/init.d/S99basecheck) runs `x6x00-base-fetch check` on an X6200 5 to 35 minutes
-after the start (a random wait: radios do not all ask xiegu.eu at once), then every 24 hours, or every hour while
-there is no network. It reads xiegu.eu's X6200 downloads (nothing of the X6100's) and compares them with the list and
-with the base's version (the GUI writes it to `/tmp/x6x00-base-version`), into `/mnt/base_update/check.json`. A newer
-release is said on the screen once ("Base firmware 1.0.9 is out: Settings > Info > Base firmware"), and Settings > Info
-shows it next to Base firmware. It never downloads a base file and never writes the base.
-`/mnt/base_update/no-check` stops it. On an X6100 it does nothing.
+**Off by default:** the radio asks xiegu.eu nothing until its owner turns it on, in Settings > Info > **Daily base
+check** (`base_daily_check` in `/mnt/params.db`, kept with the other settings). Get and Check work the same either way.
+
+[S99basecheck](../../rootfs/etc/init.d/S99basecheck) runs `x6x00-base-fetch daily` on an X6200 5 to 35 minutes after
+the start (a random wait: radios do not all ask xiegu.eu at once). While the setting is off (or `params.db` cannot be
+read) it stops there with exit 3, nothing sent, and asks the setting again ten minutes later; so a switch turned on
+takes effect within ten minutes, without a restart. On, it is `x6x00-base-fetch check`, then every 24 hours, or every
+hour while there is no network. It reads xiegu.eu's X6200 downloads (nothing of the X6100's) and compares them with
+the list and with the base's version (the GUI writes it to `/tmp/x6x00-base-version`), into
+`/mnt/base_update/check.json`. A newer release is said on the screen once ("Base firmware 1.0.9 is out: Settings >
+Info > Base firmware"), and Settings > Info shows it next to Base firmware. It never downloads a base file and never
+writes the base. On an X6100 it does nothing.
 
 ## From a computer
 
@@ -142,7 +147,8 @@ again. That is how Xiegu's design reads; no write here has needed it yet.
   confirmation (`--unknown-ok` from the computer). The writer takes it only if it passes what can be checked of an
   encrypted file: a multiple of 16 bytes, 16 to 512 KiB, and not a plain ARM image (one starting with a stack pointer
   and a reset vector would be decrypted into garbage by the bootloader).
-- **A new release from Xiegu**: the daily check finds it on xiegu.eu's downloads page and the screen lists it as NEW;
+- **A new release from Xiegu**: Check (or the daily check, when it is on) finds it on xiegu.eu's downloads page and
+  the screen lists it as NEW;
   Get (or `fetch.sh --discover`) fetches it, keeps it as unverified (`NAME.xgf.json`, with the version from Xiegu's
   release note) and prints its line for `base_releases.txt`. Added to the list and to `known[]` in
   [base_flash.c](base_flash.c) (the test suite checks the two agree), it is a known release like the others.
@@ -224,7 +230,9 @@ be; anything else holding them is refused.
   - the fetcher on small update zips made as Xiegu's are ([test/synth.py](test/synth.py): a zip written as a stream,
     an MBR, a FAT16 boot partition, a Linux one, a FAT16 one with rootfs.tar), through Python's zlib and through libz
     as on the radio (whose Python has no zlib module): Xiegu's 1.0.8 file out and checked, an unknown one out whole,
-    unverified, with its line for the list.
+    unverified, with its line for the list;
+  - the daily check's switch (`x6x00-base-fetch daily`, the network a closed port): no `params.db`, no
+    `base_daily_check` row and 0 all stop with exit 3 and ask xiegu.eu nothing; 1 goes on to ask.
 - **run_on_radio.sh on the radio** with a stand-in that sends nothing: the GUI stopped, nothing left holding the port
   or the bus, the lock held, the GUI started again.
 - **Fetching on the radio**: 1.0.8 from xiegu.eu, the file out and checked after 255 of the zip's 371 MB, in 272 s;

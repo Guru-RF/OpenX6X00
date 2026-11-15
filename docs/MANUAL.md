@@ -647,7 +647,8 @@ Where: Settings > Info > Base firmware > Open.
 - **Get** (F2): the chosen release from xiegu.eu. Xiegu's update zip is
   streamed and only the base file kept, so the card needs no room for the
   370 MB; about two thirds of it come down, some minutes on WiFi.
-- **Check** (F3): xiegu.eu's downloads page read now.
+- **Check** (F3): xiegu.eu's downloads page read now, whether the daily
+  check below is on or off.
 - **Flash** (F4): what it is about to do, Xiegu's power conditions and the
   supply now; then **FLASH NOW** writes it (an unknown file asks once more,
   UNKNOWN: OK?). About half a minute: the window shows the writer's steps,
@@ -658,10 +659,13 @@ Where: Settings > Info > Base firmware > Open.
   runs the new base. The window keeps the log (`/mnt/base_update.log`) and
   shows its end when opened again.
 
-Once a day, online, the radio reads xiegu.eu's X6200 downloads and says on the
-screen, once, when a newer base is out; Settings > Info shows it next to Base
-firmware. It never downloads or writes one by itself. An empty file
-`/mnt/base_update/no-check` turns it off.
+**Daily base check** (Settings > Info, under Base firmware): **off by
+default**, so the radio asks xiegu.eu nothing until you do (Get or Check).
+Turn the switch on and, once online, the radio reads xiegu.eu's X6200
+downloads once a day (the first look within ten minutes), says on the screen,
+once, when a newer base is out, and Settings > Info shows it next to Base
+firmware. It never downloads or writes one by itself. Turn the switch off and
+it stops; the setting is kept with the others.
 
 - As Xiegu asks for its own update: a 13.8 V supply of 3 A or more and the
   battery out, and the radio not switched off while it writes.
@@ -2118,8 +2122,10 @@ keyed. The radio watches for it; there is nothing to set.
 
 The FIRMWARE card: the project, where its source is, the firmware version and
 the baseband version, on the X6200 the PA bias in use and where it came from
-("3326 / 3843, the radio's own", see [PA bias](#pa-bias-x6200)), then the
-broadcast list and the factory reset (below).
+("3326 / 3843, the radio's own", see [PA bias](#pa-bias-x6200)), on the X6200
+Base firmware and Daily base check (off by default, see [the X6200's base
+firmware](#the-x6200s-base-firmware)), then the broadcast list and the factory
+reset (below).
 
 Broadcast list, Update: the timetable of the broadcast stations (EiBi,
 eibispace.de) for the current season: A from the end of March to the end of

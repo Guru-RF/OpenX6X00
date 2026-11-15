@@ -7,7 +7,7 @@
 #     erase, no XMODEM start, NAK, CAN, garbage, no ACK for the EOT); the bytes the base receives are checked against
 #     the file, packet by packet;
 #   - the fetcher on small update zips built as Xiegu's are (test/synth.py), through Python's zlib and through libz as
-#     on the radio; its deduplication by SHA-256.
+#     on the radio; its deduplication by SHA-256; the daily check off unless params.db turns it on.
 # The transfers use a stand-in of a base file's size. A few minutes.
 name: Base firmware updater tests
 

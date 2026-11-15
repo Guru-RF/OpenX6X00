@@ -138,6 +138,7 @@ params_t params = {
     .callsign               = { .x = "",  .max_len = 12, .name = "callsign" },
 
     .wifi_enabled           = { .x = false, .name="wifi_enabled" },
+    .base_daily_check       = { .x = false, .name = "base_daily_check" },
 
     .theme                  = { .x = THEME_SIMPLE, .name="theme"},
     .theme_name             = { .x = "RF.Guru", .max_len = 31, .name = "theme_name" },
@@ -356,6 +357,7 @@ static bool params_load() {
         if (params_load_str(&params.callsign, name, t)) continue;
         if (params_load_str(&params.theme_name, name, t)) continue;
         if (params_load_bool(&params.wifi_enabled, name, i)) continue;
+        if (params_load_bool(&params.base_daily_check, name, i)) continue;
         if (params_load_uint8(&params.theme, name, i)) continue;
         if (params_load_uint8(&params.font, name, i)) continue;
     }
@@ -509,6 +511,7 @@ static bool params_save() {
     params_save_str(&params.callsign);
     params_save_str(&params.theme_name);
     params_save_bool(&params.wifi_enabled);
+    params_save_bool(&params.base_daily_check);
     params_save_uint8(&params.theme);
     params_save_uint8(&params.font);
 

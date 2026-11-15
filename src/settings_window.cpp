@@ -5349,10 +5349,16 @@ static uint8_t make_base_update(uint8_t row) {
     char        st[24];
     std::string name = "Base firmware";
 
-    base_update_status(st, sizeof(st));     /* the daily check's word: "1.0.9 out", "latest" */
+    base_update_status(st, sizeof(st));     /* the last check's word: "1.0.9 out", "latest" */
     if (st[0]) name += std::string(" (") + st + ")";
     wl_row_label(row, name.c_str());
     wl_button(row, "Open...", base_update_btn_cb);
+    row++;
+
+    /* The daily look at xiegu.eu (S99basecheck): off until the owner turns it on; Check in the Base firmware window
+     * asks whenever pressed, whatever this says */
+    wl_row_label(row, "Daily base check");
+    bool_switch(row, 4, 3, SMALL_3, &params.base_daily_check);
     return row + 1;
 }
 #endif

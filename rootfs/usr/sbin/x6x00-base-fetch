@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """x6x00-base-fetch: Xiegu's X6200 base firmware, found and fetched for OpenX6X00. On the radio for its Settings >
-Info > Base firmware screen and its daily check (/etc/init.d/S99basecheck), on a computer for tools/base_update/fetch.sh.
+Info > Base firmware screen and its daily check (/etc/init.d/S99basecheck, off until the owner turns it on), on a
+computer for tools/base_update/fetch.sh.
 
   x6x00-base-fetch list
         the releases known (base_releases.txt), and which of their files are in DIR
@@ -18,8 +19,13 @@ Info > Base firmware screen and its daily check (/etc/init.d/S99basecheck), on a
         xiegu.eu's downloads page ("X6200 Firmware Upgrade vX.Y.Z") against the list and the base's version
         (/tmp/x6x00-base-version, which the GUI writes): DIR/check.json, and a line. Never downloads a base file and
         never writes the base.
+  x6x00-base-fetch daily [--base VERSION] [--out DIR] [--params FILE]
+        the daily check (S99basecheck): check, only while Settings > Info > Daily base check is on (base_daily_check
+        in the GUI's /mnt/params.db, or FILE). Off, the default, or while the file cannot be read: exit 3 and nothing
+        is asked of xiegu.eu.
 
-DIR: /mnt/base_update on the radio (the default there), else --out. Exit 0 done, 1 failed, 2 nothing to do.
+DIR: /mnt/base_update on the radio (the default there), else --out. Exit 0 done, 1 failed, 2 nothing to do, 3 the
+daily check is off.
 Only Xiegu's own site is fetched from; nothing of Xiegu's is kept in OpenX6X00's repository.
 
 SPDX-License-Identifier: LGPL-2.1-or-later
@@ -42,6 +48,7 @@ SDM = "https://xiegu.eu/?sdm_process_download=1&download_id=%s"
 HERE = os.path.dirname(os.path.abspath(__file__))
 LISTS = ["/usr/share/x6100/base_releases.txt", os.path.join(HERE, "../share/x6100/base_releases.txt")]
 BASE_VERSION_FILE = "/tmp/x6x00-base-version"
+PARAMS_DB = "/mnt/params.db"                                # the GUI's settings
 
 
 def say(*a):
@@ -534,6 +541,21 @@ def online():
     return found
 
 
+def daily_on(path):
+    """Settings > Info > Daily base check: base_daily_check in the GUI's params.db, 1 on. Off when there is no such row
+    (the default: the owner never turned it on), and while the file cannot be read"""
+    import sqlite3
+    try:
+        con = sqlite3.connect("file:%s?mode=ro" % urllib.parse.quote(path), uri=True, timeout=2)
+        try:
+            row = con.execute("SELECT val FROM params WHERE name = 'base_daily_check'").fetchone()
+        finally:
+            con.close()
+        return row is not None and int(row[0]) != 0
+    except (sqlite3.Error, TypeError, ValueError):
+        return False
+
+
 def check(args, rels):
     out = args.get("out") or default_dir()
     base = args.get("base")
@@ -573,7 +595,7 @@ def main(argv):
     i = 0
     while i < len(argv):
         a = argv[i]
-        if a in ("--out", "--url", "--zip", "--base") and i + 1 < len(argv):
+        if a in ("--out", "--url", "--zip", "--base", "--params") and i + 1 < len(argv):
             args[a[2:]] = argv[i + 1]
             i += 2
         else:
@@ -599,6 +621,11 @@ def main(argv):
             args["version"] = "latest"
         return get(args, rels)
     if pos[0] == "check":
+        return check(args, rels)
+    if pos[0] == "daily":
+        if not daily_on(args.get("params") or PARAMS_DB):
+            say("the daily check is off (Settings > Info > Daily base check): xiegu.eu not asked")
+            return 3
         return check(args, rels)
     say(__doc__)
     return 1
