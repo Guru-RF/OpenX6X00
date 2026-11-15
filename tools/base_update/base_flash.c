@@ -932,6 +932,8 @@ static int check(bool for_flash, bool recover) {
 static bool wait_back(void) {
     struct timespec until;
     char            last[160] = "";
+    int             seen = -1, state;
+    bool            up;
 
     say("looking for the base's application on I2C for %d s", BACK_WAIT_S);
     clock_gettime(CLOCK_MONOTONIC, &until);
@@ -942,9 +944,19 @@ static bool wait_back(void) {
         uint8_t         ready = 0;
 
         msleep(1000);
+        up = base_up(v, sizeof(v), &ready);
+        /* What the bus says, each time it changes: nothing, an answer without the version yet, a version */
+        state = !up ? 0 : !ready ? 1 : 2;
+        if (state != seen) {
+            if (state == 0)
+                say("I2C: no answer from the base");
+            else
+                say("I2C: the base answers, %s \"%s\"", state == 1 ? "without its version yet:" : "version", v);
+            seen = state;
+        }
         /* The X6100's: the same text twice, a second apart, and then 2 s more before the GUI starts and reads it (read
-         * just after a reset it once came without its first three bytes) */
-        if (base_up(v, sizeof(v), &ready) && ready && (model != MODEL_X6100 || !strcmp(v, last))) {
+         * just after a reset it once came without its first three bytes, once empty) */
+        if (up && ready && (model != MODEL_X6100 || !strcmp(v, last))) {
             say("the base is back: version \"%s\"", v);
             if (model == MODEL_X6100)
                 msleep(2000);

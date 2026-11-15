@@ -134,11 +134,12 @@ bool hw_init(void) {
     return pack != NULL;
 }
 
-/* The base's version text starts with "V" ("V1.1.8 Sep 15 2024,15:22:37"). Read a few seconds after the base was
- * reset, it once came without its first three bytes ("1.8 Sep 15 ...", bench X6100, 15 Nov 2026), and the library keeps
- * its first reading for the whole run: no version, so no test base and none of 1.1.9's capabilities. Read again then,
- * the library's copy emptied (it reads again while its first byte is 0); 5 times at most (about 3 s with radio_init's
- * waits, before its own reset of the base at the 6th), then taken as it is */
+/* The base's version text ("V1.1.8 Sep 15 2024,15:22:37"), read by the library's init and turned into its version
+ * there, once for the whole run. Read just after the base started, it came without its first three bytes ("1.8 Sep 15
+ * ...") and, on a base just written, empty (bench X6100, 15 Nov 2026): no version, so no test base and none of 1.1.9's
+ * capabilities. The init again then, its copy of the text emptied first (the library reads it again while its first
+ * byte is 0); 5 times at most (about 3 s with radio_init's waits, before its own reset of the base at the 6th), then
+ * taken as it is. Each init opens the bus again and leaves the handle before open: 5 at most, once */
 bool hw_control_init(void) {
     static int garbled;
     char      *ver;
@@ -146,11 +147,13 @@ bool hw_control_init(void) {
     if (!x6100_control_init()) {
         return false;
     }
-    ver = x6100_control_get_fw_version_str();
-    if (ver && ver[0] != 'V' && garbled < 5) {
-        fprintf(stderr, "base: version read as \"%.40s\", not \"V...\": read again\n", ver);
+    if (x6100_control_get_base_ver().major == 0 && garbled < 5) {
+        ver = x6100_control_get_fw_version_str();
+        fprintf(stderr, "base: no version in \"%.40s\": read again\n", ver ? ver : "");
         garbled++;
-        ver[0] = '\0';
+        if (ver) {
+            ver[0] = '\0';
+        }
         return false;
     }
     return true;
