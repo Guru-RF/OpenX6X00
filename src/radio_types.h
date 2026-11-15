@@ -51,6 +51,8 @@ typedef enum {
     /* While it transmits, the spectrum centred on the dial, where the carrier is, in CW and CW-R too, and nothing in
      * the data to say so: Xiegu's X6100 base from 1.1.9 on. Its 1.1.8 keeps it on the oscillator in TX too (#191) */
     HW_CAP_TX_SPECTRUM_ON_DIAL = 1 << 18,
+    /* A TEST ONLY base, not validated on a radio: the X6100's "tx1a2-test" (hw/x6100/test_base.h), labelled so */
+    HW_CAP_TEST_BASE           = 1 << 19,
 } hw_cap_t;
 
 /* The hand mic's keys as the base reports them (mic_keys.c): the X6100 mic's codes. The X6200's library has the

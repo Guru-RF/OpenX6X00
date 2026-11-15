@@ -754,6 +754,13 @@ bool hw_tx_keyed_by_gui(void) {
     return (x6200_control_get(x6200_sple_atue_trx) & TX_BITS) != 0;
 }
 
+bool hw_settings_held(void) {
+    return false;
+}
+
+void hw_send_held(void) {
+}
+
 void hw_pin_set(hw_pin_t pin, bool on) {
     switch (pin) {
         case HW_PIN_WIFI:       x6200_gpio_set(x6200_pin_wifi, on ? 1 : 0); break;

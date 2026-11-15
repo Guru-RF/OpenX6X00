@@ -81,7 +81,7 @@ target_sources(${PROJECT_NAME} PUBLIC
 
 # The radio behind src/hw/hw.h (HW_BACKEND, chosen in the top-level CMakeLists.txt)
 if(HW_BACKEND STREQUAL "x6100")
-    target_sources(${PROJECT_NAME} PUBLIC hw/x6100/hw_x6100.c)
+    target_sources(${PROJECT_NAME} PUBLIC hw/x6100/hw_x6100.c hw/x6100/test_base.c)
     set(HW_LIBS aether_x6100_control)
 elseif(HW_BACKEND STREQUAL "x6200")
     target_sources(${PROJECT_NAME} PUBLIC hw/x6200/hw_x6200.c)

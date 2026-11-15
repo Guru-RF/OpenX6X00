@@ -480,6 +480,17 @@ void radio_start() {
     cfg_atu_network_subscribe(on_atu_network_change, NULL);
     on_atu_network_change(NULL, NULL);
 
+    /* The X6100's test base (hw/x6100/test_base.h), TEST ONLY and not validated on a radio: at each start its added
+     * processing as the test image starts, the compressor and CESSB off, the TX filter 300-3000 Hz, before they go to
+     * the base below. Turned on by hand, for a test */
+    if (hw_caps() & HW_CAP_TEST_BASE) {
+        param_i_set(cfg_comp, 1);
+        param_i_set(cfg_cessb_on, 0);
+        param_i_set(cfg_tx_filter_low, 300);
+        param_i_set(cfg_tx_filter_high, 3000);
+        start_trace("base: TEST ONLY base, compressor and CESSB off, TX filter 300-3000 Hz");
+    }
+
     /* Compressor */
     subject_subscribe_and_notify((Subject*)cfg_comp, on_change_comp_ratio, NULL);
     subject_subscribe_and_notify((Subject*)cfg_comp_threshold_offset, on_change_f, (void*)HW_COMP_THRESHOLD_F);
@@ -3189,6 +3200,10 @@ static void * radio_thread(void *arg) {
 
         if (radio_tick()) {
             usleep(2000);
+        }
+        /* The X6100's test base: settings changed during a TX, now that it receives */
+        if (hw_settings_held()) {
+            WITH_RADIO_LOCK(hw_send_held());
         }
 
         int32_t idle = now_time - idle_time;

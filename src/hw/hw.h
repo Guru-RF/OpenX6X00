@@ -187,6 +187,10 @@ void hw_poweroff(void);
 bool hw_resend_all(void);
 /* A TX bit the GUI set (PTT, modem, tune, SWR scan, calibration) is on in the settings block */
 bool hw_tx_keyed_by_gui(void);
+/* Settings held back while the radio transmitted (the X6100's test base, test_base.h); hw_send_held, under the radio
+ * lock, sends them once it receives */
+bool hw_settings_held(void);
+void hw_send_held(void);
 
 void hw_pin_set(hw_pin_t pin, bool on);
 

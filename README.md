@@ -111,7 +111,7 @@ shows its version.
 | V1.1.8 (240915003) | Xiegu's base on most radios since late 2024 | Works. The bench X6100 runs it. |
 | V1.1.9 (251127001) | Xiegu's newer base. Some radios carry it, not yet flashed, on their internal memory. | Should work: OpenX6X00 uses its zoom and IF shift, as the upstream GUI did. Not yet run on the bench. |
 | [x6100_base_patch](https://github.com/gdyuldin/x6100_base_patch) r13 | gdyuldin's patched base, built on V1.1.6 | Works. It adds the TX audio and calibration options (compressor shape, band output gain, TX filter, CESSB, FM emphasis) and a battery percentage from a measured discharge curve. On a radio that shipped with V1.1.8 we saw its power about 10 % high at 5 W and 20 % high at 10 W before calibration, next to no power on the first transmission after a band change (on 6 m nearly always, on other bands now and then), and the external voltage read as 0 V ([TODO.md](TODO.md)). |
-| [X6100-Baseband](https://github.com/Guru-RF/X6100-Baseband/releases/tag/v0.1.0-alpha.1) v0.1.0-alpha.1 | **TEST ONLY, NOT INSTALLABLE.** RF.Guru's own TX audio for V1.1.9 (251127001): CESSB, an adjustable TX filter, a compressor and TX-only interpolation. A source preview for research: the release has the source and its checksums, and no file to flash. | Not for use yet. Do not flash anything built from it: OpenX6X00 does not install it and has no button for it. Before it can be installed, it still has to be checked on the radio: its timing, its RF overshoot and power, how OpenX6X00 controls it and tells it is there, and an update with a way back. |
+| [X6100-Baseband](https://github.com/Guru-RF/X6100-Baseband/releases/tag/v0.1.0-alpha.2) v0.1.0-alpha.2 (`tx1a2-test`) | **TEST ONLY, not validated on a radio.** RF.Guru's own test release on V1.1.9 (251127001), with a compressor/gate, CESSB and an adjustable TX filter added. A base file you can install, with Xiegu's own system, as its [TESTING.md](https://github.com/Guru-RF/X6100-Baseband/blob/v0.1.0-alpha.2/TESTING.md) says. | For testing only, into a dummy load first. Its RF output and power, its timing and the way back to Xiegu's base are still to be checked on a radio. OpenX6X00 after v0.3.12 knows it by its exact version and shows its compressor, CESSB and TX filter, marked TEST ONLY, with the compressor and CESSB off at each start ([manual](docs/MANUAL.md#the-x6100-test-base)). An older OpenX6X00 runs it as Xiegu's V1.1.9, without them. |
 
 The settings that need a newer base are hidden when the base is too old.
 
@@ -147,8 +147,8 @@ internal memory when OpenX6X00 runs from the card.
 
 Xiegu's tutorial:
 [X6200 firmware upgrade](https://xiegu.eu/wp-content/uploads/sites/4/2024/07/X6200FirmwareUpgradeTutorialWS-JSZL-2407-01ENRevised.pdf).
-The patched X6100 base comes with its own instructions. RF.Guru's
-X6100-Baseband has nothing to install yet (see the table above).
+The patched X6100 base comes with its own instructions, and so does RF.Guru's
+X6100-Baseband test release (its TESTING.md, with the way back to Xiegu's base).
 
 ## What it does
 

@@ -114,17 +114,44 @@ hides a setting the base can't do. The patched base is gdyuldin's
 x6100_base_patch, which you install apart from OpenX6X00; Settings > Info >
 Baseband shows which base the radio runs.
 
-| Setting | Where | X6100, Xiegu's base | X6100, patched base | X6200 |
-|---|---|---|---|---|
-| Codec gain | Settings > TX Cal > TX CALIBRATION | - | r3 and later | - |
-| Band output gain | Settings > TX Cal > TX CALIBRATION | - | r8 and later | - |
-| IQ offsets | Settings > TX Cal > TX CALIBRATION | yes | yes | - |
-| Mic gain | Settings > Audio > MICROPHONE | yes | yes | yes |
-| Comp (the ratio) | the MFK 2:4 page | the button (see 4) | yes | three levels |
-| Compressor, makeup | Settings > Audio > TX AUDIO | - | r3 and later | - |
-| TX filter | Settings > Audio > TX AUDIO | - | r9 and later | - |
-| FM pre/de-emphasis | Settings > Audio > TX AUDIO | - | r8 and later | - |
-| CESSB | Settings > TX Cal > CESSB | - | r12 and later | - |
+| Setting | Where | X6100, Xiegu's base | X6100, patched base | X6100, test base | X6200 |
+|---|---|---|---|---|---|
+| Codec gain | Settings > TX Cal > TX CALIBRATION | - | r3 and later | - | - |
+| Band output gain | Settings > TX Cal > TX CALIBRATION | - | r8 and later | - | - |
+| IQ offsets | Settings > TX Cal > TX CALIBRATION | yes | yes | yes | - |
+| Mic gain | Settings > Audio > MICROPHONE | yes | yes | yes | yes |
+| Comp (the ratio) | the MFK 2:4 page | the button (see 4) | yes | yes | three levels |
+| Compressor, makeup | Settings > Audio > TX AUDIO | - | r3 and later | yes | - |
+| TX filter | Settings > Audio > TX AUDIO | - | r9 and later | yes | - |
+| FM pre/de-emphasis | Settings > Audio > TX AUDIO | - | r8 and later | - | - |
+| CESSB | Settings > TX Cal > CESSB | - | r12 and later | yes | - |
+
+#### The X6100 test base
+
+The test base is RF.Guru's own
+[X6100-Baseband test release](https://github.com/Guru-RF/X6100-Baseband/releases/tag/v0.1.0-alpha.2)
+(v0.1.0-alpha.2): Xiegu's V1.1.9 with a compressor/gate, CESSB and an
+adjustable TX filter added. It is **TEST ONLY**. It has not been validated
+on a radio yet: its RF output and power, its timing and the way back to
+Xiegu's base are still to be checked. Try it into a dummy load first. Its
+[TESTING.md](https://github.com/Guru-RF/X6100-Baseband/blob/v0.1.0-alpha.2/TESTING.md)
+says how to install it and how to go back. OpenX6X00 does not install it.
+
+- OpenX6X00 knows it only by its whole version string,
+  `V1.1.9 Nov 27 2025,tx1a2-test`, as Settings > Info > Baseband shows it.
+  "TEST ONLY, not validated on a radio" stands under it there, and at the top
+  of TX AUDIO and CESSB. A short message says so at each start too.
+- At each start on it, OpenX6X00 sets the compressor and CESSB off and the TX
+  filter to 300-3000 Hz, as the test base starts. Turn on what you test.
+- A change goes to the base whole, its added processing off for a moment and
+  back on with the new settings. A change made while the radio transmits
+  waits until it receives again: the base keeps its settings through a
+  transmission.
+- The added processing works in LSB and USB voice only. The TX filter is the
+  base's own and works in the other modes too.
+- It has none of the patched base's codec gain, band output gain, FM
+  emphasis or auto notch: those stay hidden, as on Xiegu's own V1.1.9.
+- An older OpenX6X00 runs it as Xiegu's V1.1.9, with the added processing off.
 
 1. **Codec gain** (-25 to +25 dB, 0 by default) is the patched base's
    overall TX level. You set it once, not while you operate. The base's notes

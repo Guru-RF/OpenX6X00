@@ -96,6 +96,11 @@ static void make_info_page();
 static void make_keys_page();
 static void make_cluster_page();
 static void make_txcal_page();
+static uint8_t info_row(uint8_t row, const char *label, const char *val);
+
+/* The X6100's test base (HW_CAP_TEST_BASE): beside its settings and its version */
+#define TEST_BASE_NOTE "TEST ONLY, not validated on a radio"
+
 static void make_walkie_page();
 static void wl_row_label(uint8_t row, const char *text);
 static void nn_load(char *out, size_t size);     /* the network name (Wireless) */
@@ -4202,6 +4207,9 @@ static void make_txcal_page() {
 
     if (caps & HW_CAP_CESSB) {
         row = card_begin("CESSB");
+        if (caps & HW_CAP_TEST_BASE) {
+            row = info_row(row, "Test base", TEST_BASE_NOTE);
+        }
         row = make_cessb(row);
         card_end(row);
     }
@@ -4317,6 +4325,9 @@ static void make_audio_page() {
 
     if (caps & (HW_CAP_COMP_SHAPE | HW_CAP_TX_FILTER | HW_CAP_FM_EMP)) {
         row = card_begin("TX AUDIO");
+        if (caps & HW_CAP_TEST_BASE) {
+            row = info_row(row, "Test base", TEST_BASE_NOTE);
+        }
         if (caps & HW_CAP_COMP_SHAPE) {
             row = make_comp(row);
         }
@@ -5341,6 +5352,9 @@ static void make_info_page() {
     row = info_row(row, "Project", "OpenX6X00 by RF.Guru");
     row = info_row(row, "Source", "github.com/Guru-RF/OpenX6X00");
     row = info_row(row, "Baseband", radio_base_ver_str());
+    if (radio_caps() & HW_CAP_TEST_BASE) {
+        row = info_row(row, "", TEST_BASE_NOTE);
+    }
 #ifdef BOARD_X6200
     char bias[48];
     radio_pa_bias_info(bias, sizeof(bias));

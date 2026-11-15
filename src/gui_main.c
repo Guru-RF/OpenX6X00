@@ -271,6 +271,13 @@ static void settings_note_cb(lv_timer_t *t) {
     }
 }
 
+/* The X6100's test base (radio_caps HW_CAP_TEST_BASE), said at each start: a TEST ONLY firmware, and its added
+ * processing off until turned on (radio.c) */
+static void test_base_note_cb(lv_timer_t *t) {
+    (void)t;
+    msg_schedule_text_ms(8000, "TEST ONLY base, not validated on a radio\nCompressor and CESSB start off");
+}
+
 /* A minute up on settings that loaded: the last good copy of params.db (params/db.c), what a damaged one is replaced
  * with at a start, made in a thread of its own. The update's confirm comes at the same moment */
 static void settings_keep_cb(lv_timer_t *t) {
@@ -341,6 +348,9 @@ static void services_start(void) {
     image_level_notice_init();   /* a newer card image wanted: said once per version */
     lv_timer_set_repeat_count(lv_timer_create(settings_note_cb, 3000, NULL), 1);
     lv_timer_set_repeat_count(lv_timer_create(update_notice_cb, 4000, NULL), 1);
+    if (radio_caps() & HW_CAP_TEST_BASE) {
+        lv_timer_set_repeat_count(lv_timer_create(test_base_note_cb, 13000, NULL), 1);
+    }
 }
 
 /* LVGL's clock (lv_tick_mono.h): the GUI loop sets it before each lv_timer_handler(), this thread every 5 ms

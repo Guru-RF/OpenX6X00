@@ -226,6 +226,13 @@ bool hw_tx_keyed_by_gui(void) {
     return reg_i[HW_PTT] || reg_i[HW_MODEM] || reg_i[HW_ATU_TUNE] || reg_i[HW_SWRSCAN];
 }
 
+bool hw_settings_held(void) {
+    return false;
+}
+
+void hw_send_held(void) {
+}
+
 void hw_pin_set(hw_pin_t pin, bool on) {
     if (pin <= HW_PIN_BB_RESET) {
         pins[pin] = on;

@@ -12,6 +12,7 @@
 #define _GNU_SOURCE
 #include "../hw.h"
 #include "../../base_guard.h"
+#include "test_base.h"
 
 #include <aether_radio/x6100_control/control.h>
 #include <aether_radio/x6100_control/low/flow.h>
@@ -19,6 +20,7 @@
 
 #include <dlfcn.h>
 #include <errno.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,6 +72,14 @@ static x6100_flow_t    *pack;
 static float _Complex   samples_buf[SAMPLES * 2];
 static x6100_base_ver_t base_ver;
 static bool             new_base;   /* rev 8 and up: the bf16 stream, the centre frequency in the packet */
+
+/* The test base (test_base.h): its added settings, as last set, under the radio lock */
+_Static_assert(TEST_BASE_REG_COMP == x6100_cmplevel_cmpe, "register 25 is the compressor");
+_Static_assert(TEST_BASE_REG_CESSB == x6100_cw_peak_cessb, "register 36 is CW peak and CESSB");
+_Static_assert(TEST_BASE_REG_TXF == x6100_tx_filter, "register 38 is the TX filter");
+static bool             test_base;
+static test_base_t      tb;
+static atomic_bool      base_tx;    /* the last packet's TX flag: the base transmits, the hand mic's PTT too */
 
 /* ---- The library's writes, watched (base_guard.h) ---------------------------------------- */
 
@@ -140,8 +150,16 @@ static int32_t ver_cmp(x6100_base_ver_t a, x6100_base_ver_t b) {
 }
 
 void hw_start(void) {
+    const char *ver = x6100_control_get_fw_version_str();
+
     base_ver = x6100_control_get_base_ver();
     new_base = base_ver.rev >= 8;
+    /* The test base: its whole string, and the library's reading of it as Xiegu's 1.1.9 (no ",rN") */
+    test_base = test_base_is(ver, 0x80) && ver_cmp(base_ver, (x6100_base_ver_t){1, 1, 9, 0}) == 0;
+    if (test_base) {
+        test_base_defaults(&tb);
+        fprintf(stderr, "base: %s, a TEST ONLY base not validated on a radio: compressor, CESSB and TX filter only\n", ver);
+    }
     /* Centre mode by default on the patched bases (the old behaviour) */
     if (ver_cmp(base_ver, (x6100_base_ver_t){1, 1, 9, 0}) >= 0 || new_base) {
         x6100_control_if_shift_set(false);
@@ -188,7 +206,66 @@ uint32_t hw_caps(void) {
     if (v.rev >= 12) {
         caps |= HW_CAP_CESSB;
     }
+    /* The test base: Xiegu's 1.1.9 above, and its added settings only (no calibration, FM emphasis or auto notch) */
+    if (test_base) {
+        caps |= HW_CAP_COMP | HW_CAP_COMP_SHAPE | HW_CAP_TX_FILTER | HW_CAP_CESSB | HW_CAP_TEST_BASE;
+    }
     return caps;
+}
+
+/* ---- The test base's settings (test_base.h) ---------------------------------------------- */
+
+static bool tb_write(void *ctx, unsigned reg, uint32_t word) {
+    (void)ctx;
+    return x6100_control_cmd((x6100_cmd_enum_t)reg, word);
+}
+
+static bool transmitting(void) {
+    return hw_tx_keyed_by_gui() || atomic_load(&base_tx);
+}
+
+/* A change: all of them to the base now, in the test image's order; while transmitting, once receiving
+ * (hw_send_held). A write that failed: again from the radio thread, the base left with its processing off */
+static void tb_changed(void) {
+    test_base_changed(&tb, transmitting(), tb_write, NULL);
+}
+
+static bool tb_set_i(hw_param_t p, int32_t v) {
+    unsigned u = v < 0 ? 0u : (unsigned)v;
+
+    switch (p) {
+        case HW_COMP_ON:        test_base_comp_bypass(&tb, v != 0); break;     /* true: off (radio.c, ratio 1) */
+        case HW_COMP_LEVEL:     test_base_comp_level(&tb, u); break;
+        case HW_CESSB:          test_base_cessb_on(&tb, v != 0); break;
+        case HW_CW_PEAK:        test_base_cw_peak(&tb, v != 0); break;          /* Xiegu's, in register 36 too */
+        case HW_CW_PEAK_Q:      test_base_cw_peak_q(&tb, u); break;
+        case HW_TX_FILTER_LOW:  test_base_txf_low(&tb, u); break;
+        case HW_TX_FILTER_HIGH: test_base_txf_high(&tb, u); break;
+        default:                return false;
+    }
+    tb_changed();
+    return true;
+}
+
+static bool tb_set_f(hw_param_t p, float v) {
+    switch (p) {
+        case HW_COMP_THRESHOLD_F:   test_base_comp_threshold(&tb, v); break;
+        case HW_COMP_MAKEUP_F:      test_base_comp_makeup(&tb, v); break;
+        case HW_CESSB_POWER_UP_F:   test_base_cessb_boost(&tb, v); break;
+        default:                    return false;
+    }
+    tb_changed();
+    return true;
+}
+
+bool hw_settings_held(void) {
+    return test_base && tb.held;
+}
+
+void hw_send_held(void) {
+    if (test_base) {
+        test_base_settle(&tb, transmitting(), tb_write, NULL);
+    }
 }
 
 /* ---- Settings ------------------------------------------------------------------------- */
@@ -218,6 +295,9 @@ int32_t hw_get_i(hw_param_t p) {
 bool hw_set_i(hw_param_t p, int32_t v) {
     int reg = reg_of(p);
 
+    if (test_base && tb_set_i(p, v)) {
+        return true;
+    }
     if (reg >= 0) {
         if (x6100_control_get((x6100_cmd_enum_t)reg) == (uint32_t)v) {
             return false;
@@ -289,6 +369,9 @@ bool hw_set_i(hw_param_t p, int32_t v) {
 }
 
 bool hw_set_f(hw_param_t p, float v) {
+    if (test_base && tb_set_f(p, v)) {
+        return true;
+    }
     switch (p) {
         case HW_TXPWR_F:            x6100_control_txpwr_set(v); break;
         case HW_ADC_DAC_GAIN_F:     x6100_control_adc_dac_gain_set(v); break;
@@ -401,6 +484,7 @@ bool hw_flow_read(hw_pack_t *p) {
         }
     }
     p->tx         = pack->flag.tx;
+    atomic_store(&base_tx, pack->flag.tx);
     p->atu_status = pack->flag.atu_status;
     p->charging   = pack->flag.charging;
     p->vext_flag  = pack->flag.vext;
