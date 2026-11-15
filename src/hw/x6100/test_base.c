@@ -25,7 +25,23 @@ void test_base_defaults(test_base_t *t) {
     t->comp  = (uint32_t)1u << 4;
     t->cessb = 0;
     t->txf   = TEST_BASE_TXF_LOW | ((uint32_t)TEST_BASE_TXF_HIGH << 16);
-    t->held  = false;
+    atomic_store(&t->held, false);
+    atomic_store(&t->fault, false);
+}
+
+void test_base_fault(test_base_t *t) {
+    atomic_store(&t->fault, true);
+}
+
+bool test_base_pending(test_base_t *t) {
+    return atomic_load(&t->held) || atomic_load(&t->fault);
+}
+
+/* A fault that came in: held from now on */
+static void take_fault(test_base_t *t) {
+    if (atomic_exchange(&t->fault, false)) {
+        atomic_store(&t->held, true);
+    }
 }
 
 static uint32_t with_field(uint32_t word, unsigned shift, unsigned bits, uint32_t value) {
@@ -99,28 +115,38 @@ bool test_base_send(const test_base_t *t, test_base_write_t write, void *ctx) {
 }
 
 void test_base_changed(test_base_t *t, bool transmitting, test_base_write_t write, void *ctx) {
+    take_fault(t);
     if (transmitting) {
-        t->held = true;
+        atomic_store(&t->held, true);
         return;
     }
-    t->held = !test_base_send(t, write, ctx);
+    atomic_store(&t->held, !test_base_send(t, write, ctx));
 }
 
 void test_base_settle(test_base_t *t, bool transmitting, test_base_write_t write, void *ctx) {
-    if (t->held && !transmitting) {
-        t->held = !test_base_send(t, write, ctx);
+    take_fault(t);
+    if (atomic_load(&t->held) && !transmitting) {
+        atomic_store(&t->held, !test_base_send(t, write, ctx));
     }
 }
 
 bool test_base_resend(test_base_t *t, bool transmitting, bool (*block)(void *ctx), test_base_write_t write, void *ctx) {
-    if (!t->held || transmitting) {
-        return block(ctx);
+    take_fault(t);
+    if (!atomic_load(&t->held) || transmitting) {
+        if (block(ctx)) {
+            return true;
+        }
+        atomic_store(&t->held, true);   /* the base may have part of it: the explicit send once receiving */
+        return false;
     }
-    /* Failed or not, the library's copy of register 36 is without the token now: the block takes it so */
-    write(ctx, TEST_BASE_REG_CESSB, (uint32_t)t->cessb);
+    /* The library's copy of register 36 is without the token from here, written or not; the base's is only if the
+     * write got through. Not: the base may still hold the token, and the block's register 25 would reach it armed */
+    if (!write(ctx, TEST_BASE_REG_CESSB, (uint32_t)t->cessb)) {
+        return false;
+    }
     if (!block(ctx)) {
         return false;
     }
-    t->held = !test_base_send(t, write, ctx);
+    atomic_store(&t->held, !test_base_send(t, write, ctx));
     return true;
 }

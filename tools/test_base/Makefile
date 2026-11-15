@@ -3,7 +3,7 @@
 # 25 and 38 whole, 36 with the token last), held while the radio transmits, stopped at a failed write. `make` builds
 # it and runs it. See test_base_test.c for the cases.
 SRC    := ../../src
-CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O1 -g -I $(SRC)/hw/x6100
+CFLAGS := -std=gnu11 -Wall -Wextra -Werror -O1 -g -pthread -I $(SRC)/hw/x6100
 
 all: test
 

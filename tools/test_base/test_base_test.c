@@ -12,6 +12,7 @@
  */
 #include "test_base.h"
 
+#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -30,10 +31,12 @@ static int fails, checks;
 
 /* A stand-in base: the writes as they came, and the one to fail (0: none) */
 typedef struct {
-    unsigned reg[16];
-    uint32_t word[16];
-    unsigned n;
-    unsigned fail_at;   /* 1-based */
+    unsigned     reg[16];
+    uint32_t     word[16];
+    unsigned     n;
+    unsigned     fail_at;   /* 1-based */
+    unsigned     fault_at;  /* 1-based: a fault comes in (another thread's) as this write goes */
+    test_base_t *t;
 } log_t;
 
 static bool log_write(void *ctx, unsigned reg, uint32_t word) {
@@ -44,6 +47,9 @@ static bool log_write(void *ctx, unsigned reg, uint32_t word) {
         l->word[l->n] = word;
     }
     l->n++;
+    if (l->fault_at == l->n && l->t) {
+        test_base_fault(l->t);
+    }
     return l->fail_at != l->n;
 }
 
@@ -96,7 +102,7 @@ static void defaults(void) {
     CHECK(t.comp == 0x10u, "the compressor bypassed (bit 4), all else 0: 0x%08x", t.comp);
     CHECK(t.cessb == 0, "CESSB off, no boost, CW peak off: 0x%04x", t.cessb);
     CHECK(t.txf == (300u | 3000u << 16), "the TX filter 300-3000 Hz: 0x%08x", t.txf);
-    CHECK(!t.held, "nothing held");
+    CHECK(!atomic_load(&t.held), "nothing held");
     CHECK(t.comp != 0 && t.txf != 0, "never the zeroed registers");
 }
 
@@ -182,7 +188,7 @@ static void order(void) {
     CHECK(l.reg[1] == 25 && l.word[1] == t.comp, "then register 25 whole (0x%08x)", l.word[1]);
     CHECK(l.reg[2] == 38 && l.word[2] == t.txf, "then register 38 whole (0x%08x)", l.word[2]);
     CHECK(l.reg[3] == 36 && l.word[3] == (0x54580000u | t.cessb), "last: register 36 with the token (0x%08x)", l.word[3]);
-    CHECK(!t.held, "nothing held");
+    CHECK(!atomic_load(&t.held), "nothing held");
 
     /* radio.c's ratio: bypass off, then the level, two changes: each its own whole send, off first */
     l = (log_t){0};
@@ -203,7 +209,7 @@ static void failures(void) {
         test_base_defaults(&t);
         test_base_changed(&t, false, log_write, &l);
         CHECK(l.n == at, "write %u failed: nothing after it (%u writes)", at, l.n);
-        CHECK(t.held, "write %u failed: held, to send again", at);
+        CHECK(atomic_load(&t.held), "write %u failed: held, to send again", at);
         bool token = false;
         for (unsigned i = 0; i < l.n && i < 16; i++) {
             token |= (l.word[i] >> 16) == 0x5458u && !(i + 1 == at);
@@ -213,7 +219,7 @@ static void failures(void) {
         /* Tried again from the radio thread, in receive: whole */
         l = (log_t){0};
         test_base_settle(&t, false, log_write, &l);
-        CHECK(l.n == 4 && !t.held, "after write %u failed: sent again whole (%u writes)", at, l.n);
+        CHECK(l.n == 4 && !atomic_load(&t.held), "after write %u failed: sent again whole (%u writes)", at, l.n);
     }
 }
 
@@ -225,17 +231,17 @@ static void transmitting(void) {
     test_base_cessb_on(&t, true);
     test_base_changed(&t, true, log_write, &l);
     CHECK(l.n == 0, "while transmitting: nothing written (%u)", l.n);
-    CHECK(t.held, "held");
+    CHECK(atomic_load(&t.held), "held");
     test_base_txf_low(&t, 250);
     test_base_changed(&t, true, log_write, &l);
     test_base_settle(&t, true, log_write, &l);
-    CHECK(l.n == 0 && t.held, "still transmitting: still nothing");
+    CHECK(l.n == 0 && atomic_load(&t.held), "still transmitting: still nothing");
 
     test_base_settle(&t, false, log_write, &l);
     CHECK(l.n == 4, "receiving again: one whole send (%u writes)", l.n);
     CHECK(l.word[2] == t.txf && (t.txf & 0xFFFFu) == 250u, "with every change made meanwhile");
     CHECK(l.word[3] == (0x54580000u | 0x100u), "CESSB on, armed last (0x%08x)", l.word[3]);
-    CHECK(!t.held, "nothing held after");
+    CHECK(!atomic_load(&t.held), "nothing held after");
 
     l = (log_t){0};
     test_base_settle(&t, false, log_write, &l);
@@ -251,10 +257,10 @@ static void resend(void) {
     CHECK(test_base_resend(&t, false, log_block, log_write, &l), "the block got through");
     CHECK(l.n == 1 && l.reg[0] == 99, "nothing held: the block as it is (%u writes)", l.n);
 
-    t.held = true;      /* a failed write, a reset, a gap in the data */
+    test_base_fault(&t);    /* a failed write, a reset, a gap in the data */
     l = (log_t){0};
     CHECK(test_base_resend(&t, true, log_block, log_write, &l), "in TX, the block got through");
-    CHECK(l.n == 1 && l.reg[0] == 99 && t.held, "while transmitting: the block as it is, still held (%u)", l.n);
+    CHECK(l.n == 1 && l.reg[0] == 99 && atomic_load(&t.held), "while transmitting: the block as it is, still held (%u)", l.n);
 
     l = (log_t){0};
     CHECK(test_base_resend(&t, false, log_block, log_write, &l), "in RX, the block got through");
@@ -263,14 +269,122 @@ static void resend(void) {
     CHECK(l.reg[1] == 99, "then the block");
     CHECK(l.reg[2] == 36 && (l.word[2] >> 16) == 0 && l.reg[3] == 25 && l.reg[4] == 38, "then clear, 25, 38");
     CHECK(l.reg[5] == 36 && l.word[5] == (0x54580000u | t.cessb), "and the token last (0x%08x)", l.word[5]);
-    CHECK(!t.held, "nothing held after");
+    CHECK(!atomic_load(&t.held), "nothing held after");
 
-    t.held   = true;
+    test_base_fault(&t);
     block_ok = false;
     l        = (log_t){0};
     CHECK(!test_base_resend(&t, false, log_block, log_write, &l), "the block did not get through");
-    CHECK(l.n == 2 && t.held, "the block failed: nothing after it, still held (%u)", l.n);
+    CHECK(l.n == 2 && atomic_load(&t.held), "the block failed: nothing after it, still held (%u)", l.n);
     block_ok = true;
+}
+
+/* The firmware's review of ed1f1d0f: a pre-clear that fails, a block that fails, a fault during a send */
+static void recovery(void) {
+    test_base_t t;
+    log_t       l;
+
+    /* 1. Held, in receive, the first write (register 36 without the token) fails: no block over a base that may
+     *    still hold its token, false, still held */
+    test_base_defaults(&t);
+    test_base_cessb_on(&t, true);
+    test_base_fault(&t);
+    l = (log_t){.fail_at = 1};
+    CHECK(!test_base_resend(&t, false, log_block, log_write, &l), "the pre-clear failed: false");
+    CHECK(l.n == 1 && l.reg[0] == 36, "the pre-clear failed: no block after it (%u writes)", l.n);
+    CHECK(atomic_load(&t.held) && test_base_pending(&t), "the pre-clear failed: still held");
+    l = (log_t){0};
+    CHECK(test_base_resend(&t, false, log_block, log_write, &l) && l.n == 6 && !test_base_pending(&t),
+          "the next resend: clear, block, the explicit send (%u writes)", l.n);
+
+    /* 2. Nothing held, the block fails, in receive and in TX: held from then on, and no clear in TX */
+    l        = (log_t){0};
+    block_ok = false;
+    CHECK(!test_base_resend(&t, false, log_block, log_write, &l), "the steady block failed: false");
+    CHECK(l.n == 1 && l.reg[0] == 99 && atomic_load(&t.held), "the steady block failed: held (%u writes)", l.n);
+    test_base_defaults(&t);
+    l = (log_t){0};
+    CHECK(!test_base_resend(&t, true, log_block, log_write, &l), "the block failed in TX: false");
+    CHECK(l.n == 1 && l.reg[0] == 99 && atomic_load(&t.held), "in TX: only the block tried, held (%u writes)", l.n);
+    block_ok = true;
+    l        = (log_t){0};
+    test_base_settle(&t, true, log_write, &l);
+    CHECK(l.n == 0 && atomic_load(&t.held), "still in TX: no clear sent (%u writes)", l.n);
+    test_base_settle(&t, false, log_write, &l);
+    CHECK(l.n == 4 && !test_base_pending(&t), "in receive: the explicit send (%u writes)", l.n);
+
+    /* 3. A fault that comes while a send is under way is not lost when that send clears held */
+    for (unsigned at = 1; at <= 4; at++) {
+        test_base_defaults(&t);
+        l = (log_t){.fault_at = at, .t = &t};
+        test_base_changed(&t, false, log_write, &l);
+        CHECK(l.n == 4 && !atomic_load(&t.held), "fault at write %u: the send itself went through", at);
+        CHECK(test_base_pending(&t), "fault at write %u: still pending after the send", at);
+        l = (log_t){0};
+        test_base_settle(&t, false, log_write, &l);
+        CHECK(l.n == 4 && !test_base_pending(&t), "fault at write %u: sent whole again, then nothing (%u)", at, l.n);
+    }
+    /* during a resend's block and its explicit send too */
+    for (unsigned at = 2; at <= 6; at++) {
+        test_base_defaults(&t);
+        test_base_fault(&t);
+        l = (log_t){.fault_at = at, .t = &t};
+        CHECK(test_base_resend(&t, false, log_block, log_write, &l) && l.n == 6, "resend, fault at %u: whole", at);
+        CHECK(test_base_pending(&t), "resend, fault at %u: still pending after it", at);
+    }
+    /* during a TX: taken in, held, nothing written */
+    test_base_defaults(&t);
+    test_base_fault(&t);
+    l = (log_t){0};
+    test_base_changed(&t, true, log_write, &l);
+    CHECK(l.n == 0 && atomic_load(&t.held) && !atomic_load(&t.fault), "a fault in TX: held, nothing written");
+}
+
+/* Faults from another thread while this one sends under its lock: every fault after a send's start leads to one
+ * more whole send; none is lost. The other thread: hw_flow_restart, outside the radio lock */
+static test_base_t     mt;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static atomic_uint     faults_done;
+
+static bool count_write(void *ctx, unsigned reg, uint32_t word) {
+    (void)reg;
+    (void)word;
+    (*(unsigned *)ctx)++;
+    return true;
+}
+
+static void *faulter(void *arg) {
+    (void)arg;
+    for (unsigned i = 0; i < 20000; i++) {
+        test_base_fault(&mt);
+        atomic_fetch_add(&faults_done, 1);
+    }
+    return NULL;
+}
+
+static void threads(void) {
+    pthread_t th;
+    unsigned  writes = 0, sends = 0;
+
+    test_base_defaults(&mt);
+    pthread_create(&th, NULL, faulter, NULL);
+    while (atomic_load(&faults_done) < 20000) {
+        if (test_base_pending(&mt)) {
+            pthread_mutex_lock(&lock);
+            unsigned before = writes;
+            test_base_settle(&mt, false, count_write, &writes);
+            sends += writes != before;
+            pthread_mutex_unlock(&lock);
+        }
+    }
+    pthread_join(th, NULL);
+    /* The last fault came after the last send started, or was taken by it: one more settle sends or not, then
+     * nothing is pending */
+    pthread_mutex_lock(&lock);
+    test_base_settle(&mt, false, count_write, &writes);
+    pthread_mutex_unlock(&lock);
+    CHECK(!test_base_pending(&mt), "after the last fault and a settle, nothing pending");
+    CHECK(writes % 4 == 0 && sends > 0, "only whole sends (%u writes, %u sends)", writes, sends);
 }
 
 int main(void) {
@@ -282,6 +396,8 @@ int main(void) {
     failures();
     transmitting();
     resend();
+    recovery();
+    threads();
     printf("test_base: %d of %d checks failed\n", fails, checks);
     return fails != 0;
 }

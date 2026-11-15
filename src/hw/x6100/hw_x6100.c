@@ -77,7 +77,7 @@ static bool             new_base;   /* rev 8 and up: the bf16 stream, the centre
 _Static_assert(TEST_BASE_REG_COMP == x6100_cmplevel_cmpe, "register 25 is the compressor");
 _Static_assert(TEST_BASE_REG_CESSB == x6100_cw_peak_cessb, "register 36 is CW peak and CESSB");
 _Static_assert(TEST_BASE_REG_TXF == x6100_tx_filter, "register 38 is the TX filter");
-static bool             test_base;
+static atomic_bool      test_base;  /* set once by hw_start; read by the radio thread too */
 static test_base_t      tb;
 static atomic_bool      base_tx;    /* the last packet's TX flag: the base transmits, the hand mic's PTT too */
 
@@ -112,7 +112,7 @@ bool x6100_control_cmd(x6100_cmd_enum_t cmd, uint32_t arg) {
         base_guard_write_failed(cmd, ok);
     }
     if (!ok && test_base) {
-        tb.held = true;     /* the base may not have what the GUI thinks: the test base's settings sent again */
+        test_base_fault(&tb);   /* the base may not have what the GUI thinks: the test base's settings sent again */
     }
     if (cmd == x6100_sple_atue_trx && (prev & TX_BITS) && !(arg & TX_BITS)) {
         base_guard_unkeyed();
@@ -140,7 +140,7 @@ bool hw_control_init(void) {
 
 void hw_bb_reset(void) {
     if (test_base) {
-        tb.held = true;     /* its settings again once it is back (hw_resend_all, hw_send_held) */
+        test_base_fault(&tb);   /* its settings again once it is back (hw_resend_all, hw_send_held) */
     }
     x6100_gpio_set(x6100_pin_bb_reset, 1);
     usleep(100000);
@@ -160,12 +160,14 @@ void hw_start(void) {
 
     base_ver = x6100_control_get_base_ver();
     new_base = base_ver.rev >= 8;
-    /* The test base: its whole string, and the library's reading of it as Xiegu's 1.1.9 (no ",rN") */
-    test_base = test_base_is(ver, 0x80) && ver_cmp(base_ver, (x6100_base_ver_t){1, 1, 9, 0}) == 0;
-    if (test_base) {
+    /* The test base: its whole string, and the library's reading of it as Xiegu's 1.1.9 (no ",rN"). Its settings
+     * ready before the flag says so: the radio thread already runs */
+    bool is_test = test_base_is(ver, 0x80) && ver_cmp(base_ver, (x6100_base_ver_t){1, 1, 9, 0}) == 0;
+    if (is_test) {
         test_base_defaults(&tb);
         fprintf(stderr, "base: %s, a TEST ONLY base not validated on a radio: compressor, CESSB and TX filter only\n", ver);
     }
+    atomic_store(&test_base, is_test);
     /* Centre mode by default on the patched bases (the old behaviour) */
     if (ver_cmp(base_ver, (x6100_base_ver_t){1, 1, 9, 0}) >= 0 || new_base) {
         x6100_control_if_shift_set(false);
@@ -264,8 +266,9 @@ static bool tb_set_f(hw_param_t p, float v) {
     return true;
 }
 
+/* Outside the lock: a hint, hw_send_held looks again under it */
 bool hw_settings_held(void) {
-    return test_base && tb.held;
+    return test_base && test_base_pending(&tb);
 }
 
 void hw_send_held(void) {
@@ -523,7 +526,7 @@ bool hw_flow_read(hw_pack_t *p) {
 
 void hw_flow_restart(void) {
     if (test_base) {
-        tb.held = true;     /* a gap in the data: the base may have started again, without them */
+        test_base_fault(&tb);   /* a gap in the data: the base may have started again, without them (outside the lock) */
     }
     x6100_flow_restart();
 }

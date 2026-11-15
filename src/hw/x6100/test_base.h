@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -42,8 +43,14 @@ typedef struct {
                          * bits 11-16 (signed, half dB) */
     uint16_t cessb;     /* register 36's lower half: CW peak in bit 0 and its Q in bits 1-7 (Xiegu's), CESSB in bit 8,
                          * its boost in bits 9-14 (0.1 dB) */
-    uint32_t txf;       /* register 38: the low edge in Hz in bits 0-15, the high edge in bits 16-31 */
-    bool     held;      /* changed while transmitting: to send once receiving */
+    uint32_t    txf;    /* register 38: the low edge in Hz in bits 0-15, the high edge in bits 16-31 */
+    /* To send whole once receiving: changed while transmitting, a send or a block that failed, a fault taken in.
+     * Changed under the radio lock only; read anywhere (test_base_pending) */
+    atomic_bool held;
+    /* The base may have lost them: a failed write, a reset, a gap in its data. Set from any thread (test_base_fault),
+     * taken into held under the radio lock at the start of each call below: one that comes during a send is kept for
+     * the next, not lost when the send clears held */
+    atomic_bool fault;
 } test_base_t;
 
 /* One register write; false: it did not get through */
@@ -79,7 +86,14 @@ void test_base_changed(test_base_t *t, bool transmitting, test_base_write_t writ
 void test_base_settle(test_base_t *t, bool transmitting, test_base_write_t write, void *ctx);
 
 /* The whole register block again (block: the library's, false when it did not get through). Words the base already
- * has change nothing there, register 36 with the token ahead of 38 included. After a failed write, a reset or a gap in
- * the base's data (held set), the base may not have them: in receive, register 36 without the token ahead of the
- * block, then the explicit send after it. Never while transmitting: the block as it is then, the rest once receiving */
+ * has change nothing there, register 36 with the token ahead of 38 included. When something is held (a fault, a
+ * failed send), the base may not have them: in receive, register 36 without the token ahead of the block, and the
+ * explicit send after it; if that first write fails, no block (the base may still hold its token, and register 25 in
+ * the block would reach it armed): false, still held. While transmitting, the block as it is, the rest once
+ * receiving. A block that fails, in any state: held */
 bool test_base_resend(test_base_t *t, bool transmitting, bool (*block)(void *ctx), test_base_write_t write, void *ctx);
+
+/* From any thread: the base may have lost the settings */
+void test_base_fault(test_base_t *t);
+/* From any thread: something to send once receiving (checked again under the lock) */
+bool test_base_pending(test_base_t *t);
