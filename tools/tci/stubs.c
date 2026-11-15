@@ -139,8 +139,11 @@ bool radio_set_ptt(bool tx) {
     fprintf(stderr, "[stub] ptt %d\n", tx);
     return true;
 }
+/* stub_modem_on: called as the modem bit goes on, for a test to look at what the server set before it */
+void (*stub_modem_on)(void);
 void radio_set_modem(bool tx) {
     if (tx && stub_tx_refused) return;
+    if (tx && stub_modem_on) stub_modem_on();
     modem = tx;
     fprintf(stderr, "[stub] modem %d\n", tx);
 }

@@ -23,6 +23,7 @@
 enum { A = 0, B = 1 };
 
 extern bool     stub_defer, stub_tx_refused;
+extern void (*stub_modem_on)(void);
 int             stub_run(int n);
 extern char     stub_cw_text[4096], stub_said[128];
 extern int      stub_cw_stops, stub_said_n;
@@ -557,6 +558,48 @@ static void two_tci_starts(void) {
     check(strstr(heard(B), "trx:0,false;"), "B's start, with A's on its way, is refused at once");
     gui(-1);
     check(radio_get_modem() && txs.owner == A, "on the air with A's audio");
+    say(A, "trx:0,false;");
+    gui(-1);
+    check(!on_air(), "A's unkey ends it");
+}
+
+/* A TCI audio start sets the modem bit before it counts as keyed: the socket thread's tick ends a keyed session whose
+ * bit is off, and on the radio the bit waits for the key and radio locks. Keyed first, a tick between the two ended
+ * the start without a word to its client (bench X6100, 15 Nov). Where the radio does not transmit no bit is set:
+ * the start is refused, its client hears trx:0,false at once, nothing stays keyed, and the next start keys */
+static bool keyed_at_modem;
+static void look_keyed(void) {
+    keyed_at_modem = atomic_load(&txs.keyed);
+}
+
+static void tci_modem_first(void) {
+    const char *h;
+
+    client_open(A);
+    stub_modem_on  = look_keyed;
+    keyed_at_modem = true;
+    say(A, "trx:0,true,tci;");
+    gui(-1);
+    h = heard(A);
+    check(radio_get_modem() && atomic_load(&txs.keyed) && !keyed_at_modem && txs.owner == A &&
+          strstr(h, "trx:0,true;"), "A's TCI audio start: the modem bit set before it counts as keyed, A on the air");
+    stub_modem_on = NULL;
+    follow();
+    check(txs.owner == A && radio_get_modem(), "the socket thread's next round leaves A on the air");
+    say(A, "trx:0,false;");
+    gui(-1);
+    heard(A);
+    check(!on_air() && !atomic_load(&txs.keyed), "A's unkey ends it");
+    stub_tx_refused = true;             /* No TX there: radio_set_modem sets no bit */
+    say(A, "trx:0,true,tci;");
+    gui(-1);
+    h = heard(A);
+    check(!on_air() && !atomic_load(&txs.keyed) && txs.owner < 0 && strstr(h, "trx:0,false;") &&
+          !strstr(h, "trx:0,true;"), "where the radio does not transmit A's TCI audio start is refused, A hears trx:0,false");
+    stub_tx_refused = false;
+    say(A, "trx:0,true,tci;");
+    gui(-1);
+    check(radio_get_modem() && atomic_load(&txs.keyed) && txs.owner == A, "A's next TCI audio start keys");
     say(A, "trx:0,false;");
     gui(-1);
     check(!on_air(), "A's unkey ends it");
@@ -1659,6 +1702,8 @@ int main(void) {
         {"Starts ended before their key ran key nothing", cancelled_keys_nothing},
         {"Two TCI audio starts", two_tci_starts},
         {"TCI audio in DIGU and DIGL", tci_audio_in_dig},
+        {"A TCI audio start sets the modem bit before it counts as keyed; refused where the radio does not transmit",
+         tci_modem_first},
         {"A browser's TCI audio start gives the browser its control back at the end", control_given_back},
         {"Listen only: a client's tuning and key answered with the state", listen_only},
         {"dds answered with the frequency, an unknown command with nothing", dds_and_unknown},

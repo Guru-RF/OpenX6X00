@@ -212,6 +212,7 @@ typedef struct {
     cmd_id_t id;
     int32_t  a, b;      /* C_KEY: a is the start's number (key_gen); C_UNKEY of the PTT: b is */
     bool     tci;
+    uint64_t queued;    /* ms, when it was queued: a start that waited long says so */
 } cmd_t;
 
 static client_t        clients[MAX_CLIENTS];
@@ -794,10 +795,15 @@ static void tx_unkey(bool tci, bool drain) {
     if (tci) {
         if (!atomic_load(&txs.keyed))
             return;
-        if (drain)
+        if (drain) {
+            uint64_t t = now_ms();
             audio_play_wait();
-        else
+            if (now_ms() - t > 200)
+                LV_LOG_USER("tci: the unkey waited %llu ms for the audio to play out",
+                            (unsigned long long)(now_ms() - t));
+        } else {
             audio_play_flush();
+        }
         radio_set_modem(false);
         audio_play_lowlat_end();
         atomic_store(&txs.keyed, false);
@@ -849,23 +855,45 @@ static void apply_cmd(void *arg) {
         case C_WPM:
             param_i_set(cfg_key_speed, c->a);   /* KEY Speed, saved: the keyer, the paddle and the messages follow */
             break;
-        case C_KEY:
+        case C_KEY: {
             /* keyed or refused, the socket thread learns it by the start's number (state_follow).
-             * A start that ended before its key got here keys nothing: no one would hold it (C01) */
-            if ((uint32_t)c->a == atomic_load(&key_cancelled) || radio_get_state() != RADIO_RX || radio_get_modem() ||
-                atomic_load(&txs.keyed)) {
+             * A start that ended before its key got here keys nothing: no one would hold it (C01).
+             * A refusal says why in the log, with how long the start waited for this thread */
+            uint64_t    waited = now_ms() - c->queued;
+            int         state  = radio_get_state();
+            const char *why    = (uint32_t)c->a == atomic_load(&key_cancelled) ? "it was cancelled before it ran"
+                                 : state != RADIO_RX                           ? "the radio is not on receive"
+                                 : radio_get_modem()                           ? "the modem bit is still set"
+                                 : atomic_load(&txs.keyed) ? "the last TCI transmission has not ended" : NULL;
+            if (why) {
+                LV_LOG_USER("tci: start %d refused: %s (radio state %d, waited %llu ms)", c->a, why, state,
+                            (unsigned long long)waited);
                 atomic_store(&key_refused, (uint32_t)c->a);
                 break;
             }
+            if (waited > 300)
+                LV_LOG_USER("tci: start %d waited %llu ms for the GUI thread", c->a, (unsigned long long)waited);
             if (c->tci && takes_tx_audio(cparam_i_get(cfg_cur_mode))) {
                 if (!audio_play_lowlat_begin()) {
+                    LV_LOG_USER("tci: start %d refused: the network voice stream did not open", c->a);
                     atomic_store(&key_refused, (uint32_t)c->a);
                     break;
                 }
+                /* The modem bit first, keyed after: the socket thread's tick ends a keyed session whose bit is off
+                 * (the SWR guard or an app took it), and radio_set_modem waits for the key lock and the radio lock
+                 * before it sets the bit. Keyed first, a tick in between ended the start without a word to its
+                 * client and the radio keyed for an instant (bench X6100, 15 Nov: 4 starts in 7). A start the radio
+                 * does not transmit for (No TX there, no data from the base: tx_refused) sets no bit: refused */
                 txs.pos  = 0;
                 txs.prev = 0;
-                atomic_store(&txs.keyed, true);
                 radio_set_modem(true);
+                if (!radio_get_modem()) {
+                    audio_play_lowlat_end();
+                    LV_LOG_USER("tci: start %d refused: the radio does not transmit there now", c->a);
+                    atomic_store(&key_refused, (uint32_t)c->a);
+                    break;
+                }
+                atomic_store(&txs.keyed, true);
             } else if (c->tci) {
                 /* CW or CW-R: the audio has no way in, and the radio's own PTT would have been
                  * keyed with nothing in the session to release it (audit A01) */
@@ -877,6 +905,7 @@ static void apply_cmd(void *arg) {
             radio_set_tci_mute(true);   /* the operator is at the other end: nothing from the speaker */
             atomic_store(&key_keyed, (uint32_t)c->a);
             break;
+        }
         case C_UNKEY:
             /* The radio's PTT is the operator's too (the PTT key, the browser's PTT): a start's
              * unkey releases it only if that start's key set it, and once, while it is the one
@@ -892,7 +921,7 @@ static void apply_cmd(void *arg) {
 /* An unkey takes the scheduler's reserve: a flood of tuning must not keep the radio on the air.
  * False: the queue was full, the command is lost */
 static bool put_cmd(cmd_id_t id, int32_t a, int32_t b, bool tci) {
-    cmd_t c = {.id = id, .a = a, .b = b, .tci = tci};
+    cmd_t c = {.id = id, .a = a, .b = b, .tci = tci, .queued = now_ms()};
     if (id == C_UNKEY)
         return scheduler_put_urgent(apply_cmd, &c, sizeof(c));
     return scheduler_put(apply_cmd, &c, sizeof(c));
@@ -1937,11 +1966,16 @@ static void tx_session_tick(uint64_t now) {
     }
     client_t *c = &clients[txs.owner];
     if (c->fd < 0 || !atomic_load(&txs.keyed)) {
-        if (c->fd < 0 || now - txs.start_ms > 1000)   /* gone, or the key never took */
+        if (c->fd < 0 || now - txs.start_ms > 1000) {  /* gone, or the key never took */
+            if (c->fd >= 0)
+                LV_LOG_USER("tci: start %u of %s did not key within 1 s: ended", key_gen, c->ip);
             tx_session_end(txs.owner, false);
+        }
         return;
     }
     if (!radio_get_modem()) {               /* the SWR guard or an app took the modem bit */
+        LV_LOG_USER("tci: start %u of %s ended: the modem bit went off after %llu ms", key_gen, c->ip,
+                    (unsigned long long)(now - txs.start_ms));
         tx_session_end(txs.owner, false);
         return;
     }
