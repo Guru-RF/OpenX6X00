@@ -233,6 +233,11 @@ bool hw_settings_held(void) {
 void hw_send_held(void) {
 }
 
+/* The base lent to the writer (radio_base_hold, the X6200's): nothing to hold here */
+void hw_base_hold(bool on) {
+    (void)on;
+}
+
 void hw_pin_set(hw_pin_t pin, bool on) {
     if (pin <= HW_PIN_BB_RESET) {
         pins[pin] = on;

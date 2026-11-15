@@ -3201,8 +3201,8 @@ static bool resend_all() {
 }
 
 #ifdef BOARD_X6200
-/* The base lent to base_flash (radio_base_hold): asked, and the thread out of its packet read. The X6200's only: the
- * base firmware updater is never built for another radio */
+/* The base lent to base_flash (radio_base_hold): asked, and the thread out of its packet read. The X6200's only: its
+ * Base firmware window lends the base; the X6100's is written from a computer with the GUI stopped */
 static atomic_bool base_lent, base_lent_seen;
 
 bool radio_base_hold(bool on) {
