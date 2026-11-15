@@ -4,7 +4,8 @@ bottle's WSGI app, every path of the radio it uses moved into a new temporary fo
 
     BOTTLE=<a directory with bottle.py> python3 -I -B tools/secrets/secrets_web_test.py [-v]
 
-The secrets stored: the Wavelog key, three QRZ Logbook keys, the HOTA and WWFF keys, the Winlink page's password and
+The secrets stored: the Wavelog key and the live link's token (the path Wavelog's page tunes the radio by, #245),
+three QRZ Logbook keys, the HOTA and WWFF keys, the Winlink page's password and
 one typed in Pat's own Settings, two WiFi passwords. On the DATA partition the files that hold them: field/*.conf,
 backups/ (backup.tgz, bluetooth.tgz), an uploaded backup waiting in backup_work, the WiFi networks a restore replaced
 in backup_before_restore/wifi, and a second name for the Wavelog key's file (a hard link here; on the radio's FAT,
@@ -72,7 +73,8 @@ PAT_PW = "Pat-own-settings-pw"
 WIFI_PSKS = ("home-wifi-psk-1234", "club-wifi-psk-5678")
 BT_KEY = "B1E2C3D4E5F60718293A4B5C6D7E8F90"      # a Bluetooth link key in bluetooth.tgz
 TYPED_KEY = "wlTYPEDnotsaved1"                   # typed on the Wavelog page, not saved
-SECRETS = (WAVELOG_KEY, *QRZ_KEYS, HOTA_KEY, WWFF_KEY, WINLINK_PW, PAT_PW, *WIFI_PSKS, BT_KEY, TYPED_KEY)
+CAT_TOKEN = "cAtT0ken-live-link-245x"            # in the cat_url the radio gives Wavelog (wavelog_live.py)
+SECRETS = (WAVELOG_KEY, *QRZ_KEYS, HOTA_KEY, WWFF_KEY, WINLINK_PW, PAT_PW, *WIFI_PSKS, BT_KEY, TYPED_KEY, CAT_TOKEN)
 HOST = "192.168.1.10"     # an address: one of the radio's own names, by which every page and answer is given
 
 # The GET routes with parameters, filled in; None: asked for elsewhere (the Files page, the Backup download)
@@ -86,6 +88,7 @@ ROUTES = {
     "/gallery/file/<kind>/<name>": ["/gallery/file/shots/shot.png"],
     "/gallery/thumb/<kind>/<name>": ["/gallery/thumb/shots/shot.png"],
     "/api/backup/download": None,
+    "/cat/<token>/<freq>/<mode>": [f"/cat/{CAT_TOKEN}/7074000/usb", "/cat/x/7074000/usb"],
 }
 KEEP = {"PACKAGE_DIR", "STATIC_PATH", "TOP"}     # paths of the web server's own files, not the radio's
 
@@ -194,7 +197,8 @@ class Secrets(unittest.TestCase):
         con.close()
 
         f = settings.FIELD_DIR
-        write(f + "/wavelog.conf", f"enabled=0\nurl=https://log.example.org\nkey={WAVELOG_KEY}\nstation_id=1\n", 0o600)
+        write(f + "/wavelog.conf", f"enabled=0\nurl=https://log.example.org\nkey={WAVELOG_KEY}\nstation_id=1\n"
+                                   f"cat=1\ncat_token={CAT_TOKEN}\n", 0o600)
         write(f + "/wavelog.state", json.dumps({"last": {"result": "ok 2 QSOs sent", "time": 1762000000}}))
         write(f + "/qrz.conf", "active=1\n" + "".join(f"call{i + 1}=ON6URE\nkey{i + 1}={k}\n"
                                                        for i, k in enumerate(QRZ_KEYS)), 0o600)

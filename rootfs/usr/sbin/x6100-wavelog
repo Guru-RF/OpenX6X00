@@ -120,18 +120,20 @@ def api_url(url, path):
     return f"{url}/api/{path}"
 
 
-def request(url, body, verify):
-    """(HTTP code, parsed JSON or None, text); Retry when the server can't be reached"""
+def request(url, body, verify, timeout=TIMEOUT):
+    """(HTTP code, parsed JSON or None, text); Retry when the server can't be reached. Also the web server's live
+    link to Wavelog (wavelog_live.py, #245), which loads this file as a module and waits less: a frequency is soon old"""
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method="POST" if data else "GET",
                                  headers={"User-Agent": user_agent, "Accept": "application/json",
                                           "Content-Type": "application/json"})
     ctx = None if verify else ssl._create_unverified_context()
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as r:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
             code, text = r.status, r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
-        code, text = e.code, e.read().decode("utf-8", "replace")
+        with e:   # closed: the live link meets these at every refused post
+            code, text = e.code, e.read().decode("utf-8", "replace")
     except (urllib.error.URLError, OSError) as e:   # urllib wraps a refused certificate in a URLError
         why = getattr(e, "reason", e)
         if isinstance(why, ssl.SSLCertVerificationError):

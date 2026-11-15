@@ -1503,9 +1503,10 @@ def winlink_secrets():
 
 
 def stored_secrets():
-    """Every secret the radio keeps: the Wavelog key, the QRZ, HOTA and WWFF keys, the Winlink passwords, the WiFi
-    passwords"""
-    found = {wavelog_read().get("key", ""), field_key("hota.conf"), field_key("wwff.conf")}
+    """Every secret the radio keeps: the Wavelog key and its live link's secret path, the QRZ, HOTA and WWFF keys, the
+    Winlink passwords, the WiFi passwords"""
+    wl = wavelog_read()
+    found = {wl.get("key", ""), wl.get("cat_token", ""), field_key("hota.conf"), field_key("wwff.conf")}
     found.update(qrz_read()[2])
     found.update(winlink_secrets())
     found.update(wifi_secrets())
@@ -1677,10 +1678,12 @@ def field_log_file(name):
 
 
 # Wavelog routes: x6100-wavelog (rootfs/usr/sbin) talks to the user's Wavelog; the GUI runs it after each QSO.
-# <FIELD_DIR>/wavelog.conf: enabled, url, key, station_id, station_name, verify_tls, since. The key never goes
-# back to the browser, only whether one is set; wavelog.state and wavelog.queue are the helper's.
+# <FIELD_DIR>/wavelog.conf: enabled, url, key, station_id, station_name, verify_tls, since; the live link's live,
+# radio_name, cat, cat_url, cat_origin and cat_token (wavelog_live.py, #245). The key and the token never go back to
+# the browser, only whether a key is set; wavelog.state and wavelog.queue are the helper's.
 
-WAVELOG_KEYS = ("enabled", "url", "key", "station_id", "station_name", "verify_tls", "since")
+WAVELOG_KEYS = ("enabled", "url", "key", "station_id", "station_name", "verify_tls", "since",
+                "live", "radio_name", "cat", "cat_url", "cat_origin", "cat_token")
 WAVELOG_URL = r"https?://[^\s<>\"'=]{3,200}"
 # Wavelog 3.1 and later make two kinds: API keys ("Legacy API Keys (API v1)", wl and 13 hex, cl... from Cloudlog)
 # and API tokens ("API Tokens (API v2)", wl2_ and 40 hex). x6100-wavelog speaks API v1 (the key in the request),
@@ -1731,7 +1734,8 @@ def wavelog_state(result=None):
             "since": time.strftime("%Y-%m-%d %H:%M", time.localtime(since)) if since else "",
             "queue": len(wavelog_json("wavelog.queue", [])), "result": result,
             "last": {"result": hide_secrets(last.get("result", "")),
-                     "time": time.strftime("%Y-%m-%d %H:%M", time.localtime(last["time"])) if last.get("time") else ""}}
+                     "time": time.strftime("%Y-%m-%d %H:%M", time.localtime(last["time"])) if last.get("time") else ""},
+            "live": wavelog_live.page_state(conf)}
 
 
 def wavelog_run(cmd, form=None, timeout=330):
@@ -1810,7 +1814,8 @@ def wavelog_save(body):
     conf = wavelog_read()
     if body.get("remove"):
         conf.pop("key", None)
-        conf["enabled"] = "0"
+        conf.pop("cat_token", None)   # the live link stops with the upload: it posts with the key
+        conf.update(enabled="0", live="0", cat="0")
     else:
         form, why = wavelog_form(body, conf)
         if not form:
@@ -1866,6 +1871,10 @@ def wavelog_test():
 @app.post('/api/wavelog/sync')
 def wavelog_sync():
     return wavelog_state(wavelog_run("sync"))
+
+
+# The live link, both ways (#245): its routes and the thread that posts the radio's frequency
+from . import wavelog_live   # noqa: E402  (it takes app, the Wavelog settings and the GUI socket from here)
 
 
 def field_active_log():

@@ -13,7 +13,7 @@
     <div class="dp-ctl"><input id="url" type="url" autocomplete="off" maxlength="200" placeholder="https://log.example.org"></div>
   </div>
   <div class="dp-row">
-    <div class="dp-lbl"><label for="key"><b>API key</b></label><span>Key: <b id="key-state"></b>. A new key replaces the stored one; empty keeps it, for the same server only: with the URL of another one, type its key too. Clear takes it away and stops the upload.</span></div>
+    <div class="dp-lbl"><label for="key"><b>API key</b></label><span>Key: <b id="key-state"></b>. A new key replaces the stored one; empty keeps it, for the same server only: with the URL of another one, type its key too. Clear takes it away and stops the upload and the live link.</span></div>
     <div class="dp-ctl"><input id="key" type="password" autocomplete="off" maxlength="128" placeholder="New key (empty = keep)"> <button type="button" id="clear">Clear</button></div>
   </div>
   <div class="dp-row">
@@ -42,6 +42,44 @@
     </div>
   </div>
 </section>
+
+<form class="dp-card" id="live">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-wave"/></svg></span><div><h3>Live link<span class="eff">Takes effect: within a few seconds</span></h3><p>Wavelog follows the radio, and the radio follows a click in Wavelog. Both use the Wavelog URL and the read &amp; write API key saved above, whether the upload is on or not; each is off until switched on here.</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Show the radio in Wavelog</b><span>The frequency, the mode and the power go to Wavelog as you tune, so its QSO form and band map follow the radio: the value once the knob has stopped for a moment and a few seconds after the last one, and once a minute while nothing changes. In split the frequency is where the radio transmits, and the RX frequency goes too. In Wavelog choose the radio in the radio list of the QSO page or the band map</span></div>
+    <div class="dp-ctl"><label class="sw" title="Show the radio in Wavelog"><input id="live-on" type="checkbox" role="switch" aria-label="Show the radio in Wavelog"><i></i></label></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="radio-name"><b>Radio name</b></label><span>How Wavelog lists this radio. Empty: <b id="radio-default"></b></span></div>
+    <div class="dp-ctl"><input id="radio-name" type="text" maxlength="32" autocomplete="off"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Tune from Wavelog</b><span>A click on a spot in Wavelog's DX cluster or band map (with its CAT connection on) tunes the radio: frequency and mode, nothing else. It never transmits, and is refused while the radio transmits or an app holds the frequency. Needs Show the radio in Wavelog: Wavelog learns the radio's address from it</span></div>
+    <div class="dp-ctl"><label class="sw" title="Tune from Wavelog"><input id="cat-on" type="checkbox" role="switch" aria-label="Tune from Wavelog"><i></i></label></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="cat-url"><b>The radio's address for Wavelog</b></label><span>What the browser you use Wavelog in calls to tune the radio, with a secret path the radio adds. Empty: automatic, now <b id="cat-auto"></b><span id="cat-accept-wrap">. <a id="cat-accept" target="_blank" rel="noopener">Open it once</a> in that browser and accept the radio's certificate</span>. New address makes a new secret path: the old one stops working</span></div>
+    <div class="dp-ctl"><input id="cat-url" type="url" maxlength="300" autocomplete="off" placeholder="Automatic"> <button type="button" id="cat-new">New address</button></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="cat-origin"><b>Wavelog in the browser</b></label><span>The address you open Wavelog with in the browser, when it is not the Wavelog URL above (the radio reaches Wavelog by another name). Only Wavelog's page from there may tune the radio. Empty: <b id="cat-origin-default"></b></span></div>
+    <div class="dp-ctl"><input id="cat-origin" type="url" maxlength="300" autocomplete="off"></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <p id="live-state" class="meta" style="margin-top:0"></p>
+    <ul style="margin:0;padding-left:18px;color:var(--dim);line-height:1.5">
+      <li>Wavelog opened over https (most are): the radio's address has to be https too, as a secure page may not call a plain http one. The radio's certificate is its own, not one a browser knows: open the radio's address once in the browser you use Wavelog in, accept the warning (Advanced, then Proceed), and the clicks work. The same for the Tailscale name, which serves the same certificate.</li>
+      <li>Wavelog opened over plain http (at home on a NAS): http and https both work. Wavelog tries the other one by itself when one fails.</li>
+      <li>The browser has to reach the radio: on the radio's own network, or from anywhere over Tailscale with Tailscale on that computer too. Automatic gives the radio's Tailscale name while Tailscale runs, else its address on the network; with Tailscale Funnel on, the Tailscale name's https is the Panel's, so then the address on the network.</li>
+      <li>Chrome and Edge may ask once whether Wavelog's site may reach devices on your local network: allow it, or the click does nothing.</li>
+      <li>After New address, or Tune from Wavelog off and on again, reload Wavelog's page: it keeps the address it read. Switched off here, Wavelog keeps the last address it got and the radio refuses it; Wavelog's Hardware Interfaces page (Edit) clears it there.</li>
+    </ul>
+    <div class="actions">
+      <button type="submit" class="primary">Save</button>
+      <span class="status" id="lstatus"></span>
+    </div>
+  </div>
+</form>
 
 <script src="/static/js/edit_flow.js?v=3"></script>
 <script>
@@ -74,6 +112,30 @@ var render = function(data) {
   $("#since").text(data.enabled && data.since ? " (on since " + data.since + ")" : "");
   renderState(data);
   form.reset();
+  renderLiveState(data.live);   /* the live link's fields stay as typed */
+}
+
+/* The live link's card (#245): its fields, then its line */
+var renderLive = function(live) {
+  $("#live-on").prop("checked", live.on);
+  $("#radio-name").val(live.radio_name).attr("placeholder", live.radio_name_default);
+  $("#radio-default").text(live.radio_name_default);
+  $("#cat-on").prop("checked", live.cat);
+  $("#cat-url").val(live.cat_url);
+  $("#cat-origin").val(live.cat_origin).attr("placeholder", live.cat_origin_default || "the Wavelog URL's");
+  $("#cat-origin-default").text(live.cat_origin_default || "the Wavelog URL's");
+  liveForm.reset();
+  renderLiveState(live);
+}
+
+var renderLiveState = function(live) {
+  $("#cat-auto").text(live.cat_url_auto);
+  const base = live.cat_url || live.cat_url_auto;
+  $("#cat-accept").attr("href", base + "/");
+  $("#cat-accept-wrap").toggle(/^https:/.test(base));
+  const said = {off: "Off.", ok: "Wavelog has: ", retry: "", refused: "", noradio: ""}[live.state] || "";
+  $("#live-state").text(said + live.text + (live.tuned ? " Last tuned from Wavelog: " + live.tuned + "." : ""))
+                  .toggleClass("note", live.state === "retry" || live.state === "refused");
 }
 
 var renderState = function(data) {
@@ -85,9 +147,12 @@ var renderState = function(data) {
 }
 
 const form = EditFlow.form($("#conf"), $("#status"), $("#conf button[type=submit]"));
+const liveForm = EditFlow.form($("#live"), $("#lstatus"), $("#live button[type=submit]"));
 
-var load = function() { $.get('/api/wavelog', {}, render); }
+var load = function() { $.get('/api/wavelog', {}, function(d) { render(d); renderLive(d.live); }); }
 load();
+/* The live link's line follows what the radio sends, the fields stay as typed */
+setInterval(function() { $.get('/api/wavelog', {}, function(d) { renderLiveState(d.live); }); }, 5000);
 
 /* Test connection, Load and Send now each run x6100-wavelog on the radio and wait for it: one at a time, their
  * buttons off until the answer. Pressed again while Wavelog was slow to answer, each press started another helper
@@ -101,7 +166,7 @@ var asks = function(on) {
 
 var post = function(url, data, done, statusId) {
   const ms = url === "/api/wavelog/sync" ? 345000 : 55000;   /* x6100-wavelog: 330 s for a sync, 40 s for the rest */
-  const helper = url !== "/api/wavelog";   /* Save and Clear don't wait for it */
+  const helper = url !== "/api/wavelog" && url !== "/api/wavelog/live";   /* the Saves and Clear don't wait for it */
   if (helper) asks(true);
   $.ajax({
     url: url,
@@ -149,9 +214,32 @@ $("#conf").on("submit", function(e) {
        function(r) { render(r); showStatus("#status", r.enabled ? "Saved: the next QSO goes to Wavelog" : "Saved: the upload is off"); }, "#status");
 });
 
+var liveBody = function(extra) {
+  return Object.assign({live: $("#live-on").prop("checked"), radio_name: $("#radio-name").val().trim(), cat: $("#cat-on").prop("checked"),
+                        cat_url: $("#cat-url").val().trim(), cat_origin: $("#cat-origin").val().trim()}, extra || {});
+}
+
+$("#live").on("submit", function(e) {
+  e.preventDefault();
+  showStatus("#lstatus", "Saving...");
+  post("/api/wavelog/live", liveBody(), function(r) {
+    renderLive(r.live);
+    showStatus("#lstatus", !r.live.on ? "Saved: the live link is off" : r.live.cat ? "Saved: Wavelog follows the radio, and a click in Wavelog tunes it" : "Saved: Wavelog follows the radio");
+  }, "#lstatus");
+});
+
+$("#cat-new").on("click", function() {
+  if (!confirm("Make a new address for Wavelog? The old one stops working; reload Wavelog's page after the radio's next update.")) return;
+  showStatus("#lstatus", "Saving...");
+  post("/api/wavelog/live", liveBody({new_token: true}), function(r) {
+    renderLive(r.live);
+    showStatus("#lstatus", r.live.cat ? "New address saved: reload Wavelog's page" : "Saved: Tune from Wavelog is off, a new address comes when it is on");
+  }, "#lstatus");
+});
+
 $("#clear").on("click", function() {
-  if (!confirm("Clear the Wavelog API key? The upload stops until a new key is saved.")) return;
-  post("/api/wavelog", {remove: true}, function(r) { render(r); showStatus("#status", "Cleared: the upload is off"); }, "#status");
+  if (!confirm("Clear the Wavelog API key? The upload and the live link stop until a new key is saved.")) return;
+  post("/api/wavelog", {remove: true}, function(r) { render(r); renderLive(r.live); showStatus("#status", "Cleared: the upload and the live link are off"); }, "#status");
 });
 
 $("#sync").on("click", function() {

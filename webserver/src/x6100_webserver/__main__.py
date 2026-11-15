@@ -22,6 +22,7 @@ except ImportError:   # python built without SSL
 from . import apps
 from . import settings
 from . import smartcw
+from . import wavelog_live
 
 
 class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
@@ -464,6 +465,8 @@ def serve():
     if opts.funnel_dir and not (opts.debug and "BOTTLE_CHILD" not in os.environ):   # not in the reloader's parent
         threading.Thread(target=follow_funnel_name, args=(opts.funnel_dir, name), daemon=True).start()
     settings.HTTP_PORT = opts.port
+    if not (opts.debug and "BOTTLE_CHILD" not in os.environ):   # not in the reloader's parent
+        wavelog_live.start()   # Wavelog's live link, while it is on (#245)
     apps.app.run(server=ThreadedServer, host=opts.host, port=opts.port, debug=opts.debug, reloader=opts.debug)
 
 
