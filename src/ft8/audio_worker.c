@@ -51,6 +51,14 @@ struct audio_worker_s {
     pthread_mutex_t audio_mux;
     cbufferf        audio_buf;
 
+    /* When the decoder's audio began (Auto Time Sync, time_sync.h), under audio_mux: the buffer emptied (created,
+     * drained) marks the next feed as the first sample's, which is stamped as it comes, by the clocks of then less
+     * the fragment's length (it is the fragment's first sample). A feed that does not fit loses samples: the time
+     * of what follows is not known until the next drain */
+    bool            stamp_next;
+    bool            stamp_lost;
+    int64_t         stamp_ns, stamp_mono_ns;
+
     /* DSP state (worker thread only). */
     spgramf         sg;
     float          *psd;
@@ -59,6 +67,12 @@ struct audio_worker_s {
     int             block_size;
 
     uint64_t        last_psd_time_ms;
+
+    /* The decoder's audio (worker thread): when its first sample came, 0 not known; the blocks put into it since;
+     * wf_first: the next block read is its first */
+    int64_t         wf_ns, wf_mono_ns;
+    uint32_t        wf_blocks;
+    bool            wf_first;
 };
 
 /* ---------- small helpers ---------------------------------------------- */
@@ -86,12 +100,25 @@ static void msleep_interruptible(audio_worker_t *w, long ms) {
     pthread_mutex_unlock(&w->sleep_mux);
 }
 
+static int64_t clock_ns(clockid_t id) {
+    struct timespec t;
+
+    clock_gettime(id, &t);
+    return (int64_t)t.tv_sec * 1000000000LL + t.tv_nsec;
+}
+
+/* The decoder's audio starts again with the next sample fed */
 static void drain_audio_buf(audio_worker_t *w) {
     pthread_mutex_lock(&w->audio_mux);
     if (w->audio_buf) {
         cbufferf_reset(w->audio_buf);
     }
+    w->stamp_next = true;
+    w->stamp_lost = false;
     pthread_mutex_unlock(&w->audio_mux);
+    w->wf_ns = w->wf_mono_ns = 0;
+    w->wf_blocks = 0;
+    w->wf_first  = true;
 }
 
 /* ---------- PSD / waterfall ------------------------------------------- */
@@ -124,7 +151,11 @@ typedef struct {
 static void decode_cb(const char *text, int snr, float freq_hz, float time_sec, void *user) {
     decode_ctx_t *dc = (decode_ctx_t *)user;
     if (dc && dc->w && dc->w->cb.on_message) {
-        dc->w->cb.on_message(text, snr, freq_hz, time_sec, dc->info, dc->w->cb.ctx);
+        slot_info_t info = *dc->info;
+
+        info.rx_start_ns      = dc->w->wf_ns;
+        info.rx_start_mono_ns = dc->w->wf_mono_ns;
+        dc->w->cb.on_message(text, snr, freq_hz, time_sec, &info, dc->w->cb.ctx);
     }
 }
 
@@ -137,20 +168,24 @@ static void rx_consume_frames(audio_worker_t *w, const slot_info_t *info,
     for (;;) {
         if (atomic_load(&w->stop_req)) return;
 
-        bool           has_frame = false;
-        bool           copied    = false;
         unsigned int   got       = 0;
         float         *block       = NULL;
         float          block_data[w->block_size];
 
         pthread_mutex_lock(&w->audio_mux);
         if (cbufferf_size(w->audio_buf) >= w->block_size) {
-            has_frame = true;
             cbufferf_read(w->audio_buf, w->block_size, &block, &got);
             // Copy data to external buffer
             memcpy((void*)block_data, (void*)block, got * sizeof(float));
             block = block_data;
             cbufferf_release(w->audio_buf, got);
+            /* The first block since the drain: it begins with the sample stamped */
+            if (w->wf_first) {
+                w->wf_first   = false;
+                w->wf_ns      = w->stamp_next ? 0 : w->stamp_ns;
+                w->wf_mono_ns = w->stamp_next ? 0 : w->stamp_mono_ns;
+            }
+            if (w->stamp_lost) w->wf_ns = w->wf_mono_ns = 0;
         }
         pthread_mutex_unlock(&w->audio_mux);
 
@@ -162,10 +197,19 @@ static void rx_consume_frames(audio_worker_t *w, const slot_info_t *info,
         maybe_emit_psd(w, info, sec_since_slot_start);
 
         ftx_worker_put_rx_samples(block, w->block_size);
+        w->wf_blocks++;
 
         if (ftx_worker_is_full()) {
             ftx_worker_decode(decode_cb, true, (void *)&dc);
             ftx_worker_reset();
+            /* The decoder's audio goes on from the next block, this many samples on */
+            if (w->wf_ns) {
+                int64_t on = (int64_t)w->wf_blocks * w->block_size * 1000000000LL / w->sample_rate;
+
+                w->wf_ns      += on;
+                w->wf_mono_ns += on;
+            }
+            w->wf_blocks = 0;
         } else {
             ftx_worker_decode(decode_cb, false, (void *)&dc);
         }
@@ -266,6 +310,8 @@ audio_worker_t *audio_worker_create(int audio_sample_rate,
     if (w->block_size <= 0) goto fail;
 
     atomic_store(&w->stop_req, false);
+    w->stamp_next = true;   /* the first sample fed begins the decoder's audio */
+    w->wf_first   = true;
 
     return w;
 
@@ -331,8 +377,19 @@ void audio_worker_destroy(audio_worker_t *w) {
 
 void audio_worker_feed(audio_worker_t *w, unsigned int n, float *samples) {
     if (!w || !samples || (n == 0)) return;
+
+    /* The fragment's first sample came n samples before its last, which is now */
+    int64_t back = (int64_t)n * 1000000000LL / w->sample_rate;
+    int64_t now  = clock_ns(CLOCK_REALTIME), mono = clock_ns(CLOCK_MONOTONIC);
+
     pthread_mutex_lock(&w->audio_mux);
     if (w->audio_buf) {
+        if (cbufferf_space_available(w->audio_buf) < n) w->stamp_lost = true;   /* cbufferf_write drops it all */
+        else if (w->stamp_next) {
+            w->stamp_ns      = now - back;
+            w->stamp_mono_ns = mono - back;
+            w->stamp_next    = false;
+        }
         cbufferf_write(w->audio_buf, samples, n);
     }
     pthread_mutex_unlock(&w->audio_mux);

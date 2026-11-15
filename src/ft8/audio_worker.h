@@ -40,11 +40,17 @@ extern "C" {
 typedef struct {
     bool odd;
     bool answer_generated;
+    /* on_message: the decoder's audio began at rx_start_ns by CLOCK_REALTIME, rx_start_mono_ns by CLOCK_MONOTONIC
+     * (the same moment), its time_sec counted from there; 0 not known. That is not the slot's start: the audio of a
+     * new slot starts after the last decode of the slot before, and in the fragment PulseAudio delivers then */
+    int64_t rx_start_ns;
+    int64_t rx_start_mono_ns;
 } slot_info_t;
 
 typedef struct audio_worker_s audio_worker_t;
 
 typedef struct {
+    /* time_sec: where the signal starts in the decoder's audio (info's rx_start_ns) */
     void (*on_message)(const char *text, int snr, float freq_hz,
                        float time_sec,
                        const slot_info_t *info, void *ctx);

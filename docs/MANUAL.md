@@ -3088,7 +3088,7 @@ Buttons:
 | 2 | Hold Freq, Auto, Force QSO save, Power |
 | 3 | CQ Modifier, Time Sync, Log Map, Live Map |
 | 4 | Freq: Preset / 14.091, Hound: Off / On, Retries, For you |
-| 5 | Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
+| 5 | Ext tune (see [TUNE for an external tuner](#tune-for-an-external-tuner)), Auto Sync |
 
 - Show: CQ shows the CQs and the messages to you; All shows all traffic.
 - TX CQ calls CQ. A band key, Freq or Mode ends the CQ: TX CQ goes to
@@ -3128,6 +3128,24 @@ Buttons:
   FT8, 7.5 s FT4, 3.75 s FT2) and is kept in the clock chip. A clock that
   NTP (WiFi) or the GPS keeps is left alone ("Clock in sync", "The GPS keeps
   the clock"): moved to a press it could only get worse.
+- Auto Sync (page 5): Time Sync by itself, from the decodes, for a radio
+  with no WiFi or GPS. Disabled by default; a press switches it. In FT8 and
+  FT4 (not FT2) it reads the time offset (DT) of each station it decodes,
+  one vote a station however often it is heard (a Fox counts once). Once 5
+  stations or more were heard in 3 slots or more within the last 4 minutes,
+  and they agree, their median says how far the clock is off. At 0.2 s or
+  more the clock moves by that, just past the middle of a
+  slot the radio does not transmit in, and goes into the clock chip: "Auto
+  Sync: clock moved -0.42 s by the decodes of 7 stations". Then it starts
+  over with the decodes that follow. It aims at the DT a right clock shows
+  on this radio, a little over 0 (the signals reach the decoder a moment
+  late), not at 0. The clock must be within about 2 s first: Time Sync, at
+  a slot start, does that. Further off it moves nothing and says so once
+  ("too far: press Time Sync as a slot starts"); stations that disagree
+  (two groups of clocks) move nothing either. A clock that NTP or the GPS
+  keeps is left alone. Switched on, the first answer shows too ("the clock
+  is on time by the decodes of 6 stations"). The system log has a line a
+  minute with what it reads ("ft8: Auto Time Sync: median DT ...").
 - CQ Modifier: for example `CQ POTA` or `CQ DX`.
 
 The list. Each row has the slot time, the message, and on the right the
@@ -7526,7 +7544,8 @@ FAT32 on a PC settles it.
 
 Check the clock: FT8 and JS8 need it within about 2 s, WSPR within about a
 second. WiFi (NTP) or GPS sets it. FT8 and JS8 also have Time Sync (FT8's
-for a clock that neither keeps).
+for a clock that neither keeps), and FT8 Auto Sync, which keeps the clock
+right from the decodes once Time Sync has it within about 2 s.
 
 #### The clock is back at the same time after every power-off
 

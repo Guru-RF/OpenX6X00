@@ -131,6 +131,7 @@ extern ParamInt *cfg_ft8_protocol;   // p_ft8_protocol
 extern ParamInt *cfg_ft8_auto;       // p_ft8_auto
 extern ParamInt *cfg_ft8_hold_freq;  // p_ft8_hold_freq
 extern ParamInt *cfg_ft8_foryou;     // p_ft8_foryou
+extern ParamInt *cfg_ft8_auto_sync;  // p_ft8_auto_sync
 extern ParamInt *cfg_wspr_tx_pct;    // p_wspr_tx_pct
 extern ParamInt *cfg_spot_snap_hold; // p_spot_snap_hold
 extern ParamInt *cfg_spot_snap_slow; // p_spot_snap_slow

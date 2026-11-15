@@ -382,6 +382,10 @@ class SettingsManager {
     /* "For you": the callers pinned under the list (off: the list only) */
     Parameter<int32_t> p_ft8_foryou{"ft8_foryou", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    /* Auto Sync (FT8 5:5): the clock set from the decodes' DT when neither NTP nor the GPS keeps it (ft8/time_sync.h);
+     * off by default */
+    Parameter<int32_t> p_ft8_auto_sync{"ft8_auto_sync", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_ft8_max_repeats{"ft8_max_repeats", 6, {},
         StorageType::GLOBAL, pending_writes_, {}, &global_params_};
     /* RX row, right side: 0 km, 1 mi, 2 country, 3 country + km, 4 country + mi
