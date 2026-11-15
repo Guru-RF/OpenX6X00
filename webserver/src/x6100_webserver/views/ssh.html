@@ -22,7 +22,7 @@
     <textarea id="key" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Public key"
       placeholder="ssh-ed25519 AAAA... you@computer"
       style="width:100%;resize:vertical;background:#0b1422;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font:13px/1.4 ui-monospace,monospace;word-break:break-all"></textarea>
-    <p style="margin:10px 0 0;color:var(--dim);font-size:13px">No key yet? On your computer, <code>ssh-keygen -t ed25519</code> makes one; paste the line of <code>~/.ssh/id_ed25519.pub</code> here (on Windows, in PowerShell, <code>cat ~\.ssh\id_ed25519.pub | clip</code> copies it). Taken: ssh-ed25519, ecdsa-sha2-nistp256, -nistp384 and -nistp521, and ssh-rsa of <span id="rsamin">3072</span> bits or more, one key at a time, with no options before it. Step by step for Windows, a Mac, Linux and PuTTY: <a href="https://github.com/Guru-RF/OpenX6X00/blob/main/docs/MANUAL.md#ssh">the manual</a>.</p>
+    <p style="margin:10px 0 0;color:var(--dim);font-size:13px">No key yet? On your computer, <code>ssh-keygen -t ed25519</code> makes one; paste the line of <code>~/.ssh/id_ed25519.pub</code> here (on Windows, in PowerShell, <code>cat ~\.ssh\id_ed25519.pub | clip</code> copies it). Taken: ssh-ed25519, ecdsa-sha2-nistp256, -nistp384 and -nistp521, ssh-rsa of <span id="rsamin">3072</span> bits or more, and a security key's (YubiKey...) sk-ssh-ed25519@openssh.com and sk-ecdsa-sha2-nistp256@openssh.com, one key at a time. Nothing goes before the key but a security key's <code>verify-required</code> (its PIN at each login) or <code>no-touch-required</code>. Step by step for Windows, a Mac, Linux and PuTTY: <a href="https://github.com/Guru-RF/OpenX6X00/blob/main/docs/MANUAL.md#ssh">the manual</a>.</p>
     <div class="actions">
       <button type="submit" class="primary">Add</button>
       <span class="status" id="astatus"></span>
@@ -64,13 +64,15 @@ var label = function(k) { return k.comment ? '"' + k.comment + '"' : k.type + " 
 
 var remove = function(k, last) {
   const lost = last ? "It is the only key: SSH then lets nobody in until a key is added here." : "SSH no longer lets it in.";
-  if (k.options ? !confirm("Remove the key " + label(k) + "?\n\n" + lost + "\n\nIt has options, so it is not offered back: add it again by hand.")
-                : !EditFlow.confirmDelete("the key " + label(k), lost)) return;
+  // a security key's verify-required / no-touch-required are added back with it; other options only by hand
+  const back = !k.options || (k.type.indexOf("sk-") === 0 && /^(verify-required|no-touch-required)(,(verify-required|no-touch-required))?$/.test(k.options));
+  if (!back ? !confirm("Remove the key " + label(k) + "?\n\n" + lost + "\n\nIt has options, so it is not offered back: add it again by hand.")
+            : !EditFlow.confirmDelete("the key " + label(k), lost)) return;
   call("DELETE", "/api/ssh/keys", {fingerprint: k.fingerprint}, "#status", function(r) {
     render(r);
-    if (k.options) { showStatus("#status", "Removed " + label(k) + "."); return; }
+    if (!back) { showStatus("#status", "Removed " + label(k) + "."); return; }
     EditFlow.undo($("#status"), "Removed " + label(k) + ".", function() {
-      call("POST", "/api/ssh/keys", {key: k.line}, "#status", function(r2) { render(r2); showStatus("#status", "Brought back"); });
+      call("POST", "/api/ssh/keys", {key: (k.options ? k.options + " " : "") + k.line}, "#status", function(r2) { render(r2); showStatus("#status", "Brought back"); });
     });
   });
 }
