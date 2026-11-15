@@ -28,8 +28,9 @@
  *   4. Every way out ends the same in Xiegu's app ("finished.", "civ start", its reading of the port resumed); it
  *      neither resets the base nor sends it a command after. Here the exit status says which step failed.
  *
- *  Only on an X6200 (its device tree says xiegu,x6200; on any other radio nothing is sent to the base), only the
- *  files listed in known[] (Xiegu's X6200 releases 1.0.3 to 1.0.8, by SHA-256) or, with --unknown-ok, one that passes
+ *  Only on an X6200 or an X6100 (its device tree says xiegu,x6200 or xiegu,x6100; on any other radio nothing is sent
+ *  to the base), only the files listed in known[] for that radio (by SHA-256: Xiegu's X6200 releases 1.0.3 to 1.0.8,
+ *  Xiegu's X6100 V1.1.8 and V1.1.9, RF.Guru's X6100 test build with --test-ok) or, with --unknown-ok, one that passes
  *  the checks below and is not named for another radio, and only with nothing else holding /dev/ttyS1 or /dev/i2c-0
  *  (the GUI stopped first, tools/base_update/flash.sh, or lending the base, --held-by). From step 1 on, the hang-up,
  *  interrupt and terminate signals are ignored: a lost SSH session must not end the transfer half way.
@@ -64,7 +65,9 @@
  *      greeting or not. No greeting: the base's application started again (the key line up, a 100 ms reset), exit 2.
  *   4. 'r' (erase, 60 s), 'p' (1 s), each written once; then two bytes within 10 s whose second is 'C' or 'c', and the
  *      file by XMODEM-1K as above. The bootloader starts the new application by itself (about a minute on 24
- *      October); if it does not, the GUI's own start resets a base that does not answer.
+ *      October; 4 s on 15 November); if it does not, the GUI's own start resets a base that does not answer. For
+ *      a minute after, its version text read over I2C mostly came without its first three bytes: the GUI reads it
+ *      again.
  *
  *      base_flash --flash FILE --yes --dry-run
  *                                  the X6100's only: steps 1 to 3, then the base's application started again. Nothing
@@ -928,12 +931,16 @@ static int check(bool for_flash, bool recover) {
 }
 
 /* After the write: a minute's look for the base's new application, by the clock (a locked bus makes each read take
- * seconds) */
-static bool wait_back(void) {
+ * seconds). BACK_OK: it answers, ready (the X6100's: the same whole version text twice); BACK_ANSWERS: it answered, but
+ * not that (the X6100's application, started by its bootloader or by a reset after it, gave its version text without
+ * its first three bytes on most reads for the next minute: bench X6100, 15 November 2026); BACK_NONE: no answer */
+enum { BACK_NONE, BACK_ANSWERS, BACK_OK };
+
+static int wait_back(void) {
     struct timespec until;
     char            last[160] = "";
     int             seen = -1, state;
-    bool            up;
+    bool            up, answered = false;
 
     say("looking for the base's application on I2C for %d s", BACK_WAIT_S);
     clock_gettime(CLOCK_MONOTONIC, &until);
@@ -947,6 +954,7 @@ static bool wait_back(void) {
         up = base_up(v, sizeof(v), &ready);
         /* What the bus says, each time it changes: nothing, an answer without the version yet, a version */
         state = !up ? 0 : !ready ? 1 : 2;
+        answered = answered || up;
         if (state != seen) {
             if (state == 0)
                 say("I2C: no answer from the base");
@@ -960,7 +968,7 @@ static bool wait_back(void) {
             say("the base is back: version \"%s\"", v);
             if (model == MODEL_X6100)
                 msleep(2000);
-            return true;
+            return BACK_OK;
         }
         if (ready)
             snprintf(last, sizeof(last), "%s", v);
@@ -968,7 +976,7 @@ static bool wait_back(void) {
             last[0] = '\0';
         clock_gettime(CLOCK_MONOTONIC, &now);
         if (now.tv_sec >= until.tv_sec)
-            return false;
+            return answered ? BACK_ANSWERS : BACK_NONE;
     }
 }
 
@@ -989,9 +997,15 @@ static int flash_x6100(bool dry_run) {
     if (dry_run) {
         say("dry run: the bootloader answered; nothing is erased or written");
         x6100_start_app();
-        if (!wait_back()) {
-            say("the base's application did not answer again yet: the GUI's start resets a base that does not answer");
-            return EXIT_BEFORE_ERASE;
+        switch (wait_back()) {
+            case BACK_NONE:
+                say("the base's application did not answer again yet: the GUI's start resets a base that does not "
+                    "answer");
+                return EXIT_BEFORE_ERASE;
+            case BACK_ANSWERS:
+                say("dry run done: the way into the bootloader works on this radio, and the base's application answers "
+                    "again (its version text not yet read whole twice: the GUI's start reads it again)");
+                return EXIT_DONE;
         }
         say("dry run done: the way into the bootloader works on this radio, and the base runs as before");
         return EXIT_DONE;
@@ -1015,11 +1029,20 @@ static int flash_x6100(bool dry_run) {
         return EXIT_AFTER_ERASE;
     }
     say("finished.");
-    /* The bootloader starts the new application by itself (about a minute for each write on 24 October 2026) */
-    if (!wait_back())
-        say("written. The base has not started the new firmware yet: the GUI's start resets a base that does not "
-            "answer (about 6 s); else switch the radio off and on. Then tools/base_update/flash.sh --check shows the "
-            "version");
+    /* The bootloader starts the new application by itself: it answered on I2C 4 s after the transfer (15 November
+     * 2026, V1.1.8) */
+    switch (wait_back()) {
+        case BACK_NONE:
+            say("written. The base has not started the new firmware yet: the GUI's start resets a base that does not "
+                "answer (about 6 s); else switch the radio off and on. Then tools/base_update/flash.sh --check shows "
+                "the version");
+            break;
+        case BACK_ANSWERS:
+            say("written. The base's new firmware answers on I2C, its version text not yet read whole twice in a row "
+                "(for a minute after a write it comes without its first bytes): the GUI's start reads it again. Then "
+                "tools/base_update/flash.sh --check shows the version");
+            break;
+    }
     return EXIT_DONE;
 }
 
@@ -1122,7 +1145,7 @@ int main(int argc, char **argv) {
     /* Xiegu's app ends here. Its bootloader did not start the new application by itself on the radio this was first
      * run on (2026-11-13): the I2C bus stayed locked ("mv64xxx: I2C bus locked") and the radio switched itself off
      * about two minutes later; switched on again, its base ran 1.0.8. So a minute's look, then the power cycle said */
-    if (!wait_back())
+    if (wait_back() != BACK_OK)
         say("written. The base did not start the new firmware by itself: switch the radio on again (it may switch "
             "itself off first, a minute or two from now); then tools/base_update/flash.sh --check shows the version");
     return EXIT_DONE;

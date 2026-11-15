@@ -12,7 +12,7 @@ Settings. Button and option names are written as the radio shows them.
 ## Contents
 
 - [Getting started](#getting-started): [first-start guide](#first-start-guide), [first steps](#first-steps), [setting up the transmitter](#setting-up-the-transmitter), [buttons and knobs](#buttons-and-knobs), [hand mic](#hand-mic), [keyboard](#keyboard) ([quick QSO log](#quick-qso-log))
-- [Updating the firmware](#updating-the-firmware): [the X6200's base firmware](#the-x6200s-base-firmware)
+- [Updating the firmware](#updating-the-firmware): [the X6200's base firmware](#the-x6200s-base-firmware), [the X6100's base firmware](#the-x6100s-base-firmware)
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
@@ -131,11 +131,15 @@ Baseband shows which base the radio runs.
 The test base is RF.Guru's own
 [X6100-Baseband test release](https://github.com/Guru-RF/X6100-Baseband/releases/tag/v0.1.0-alpha.2)
 (v0.1.0-alpha.2): Xiegu's V1.1.9 with a compressor/gate, CESSB and an
-adjustable TX filter added. It is **TEST ONLY**. It has not been validated
-on a radio yet: its RF output and power, its timing and the way back to
-Xiegu's base are still to be checked. Try it into a dummy load first. Its
+adjustable TX filter added. It is **TEST ONLY**. On 15 November 2026 it was
+written to one X6100, tried into a dummy load with the radio's own power
+meter, and Xiegu's V1.1.8 written back, its calibration kept; its spectrum,
+its peaks at the start of a transmission and its timing are still to be
+measured. Try it into a dummy load first. Its
 [TESTING.md](https://github.com/Guru-RF/X6100-Baseband/blob/v0.1.0-alpha.2/TESTING.md)
-says how to install it and how to go back. OpenX6X00 does not install it.
+says how to install it with Xiegu's own system and how to go back; from a
+computer, OpenX6X00's writer does both (see
+[The X6100's base firmware](#the-x6100s-base-firmware)).
 
 - OpenX6X00 knows it only by its whole version string,
   `V1.1.9 Nov 27 2025,tx1a2-test`, as Settings > Info > Baseband shows it.
@@ -682,13 +686,14 @@ web configurator (System > Update).
 
 ### The X6200's base firmware
 
-The X6200 only. The update above brings OpenX6X00; the base, the radio
-board's own firmware from Xiegu, is updated apart from it, and Xiegu's way
-takes its own system (two card swaps and its UPGRADE menu, see the README's
-[baseband](../README.md#the-baseband) section). Here it is done while
-OpenX6X00 runs, with Xiegu's own steps: the writer does on the radio what
-Xiegu's app 1.0.8 does from MENU > SYSTEM > UPGRADE. More, and how it was
-worked out and tested: [tools/base_update](../tools/base_update/README.md).
+The X6200's window and checks (the X6100's base:
+[below](#the-x6100s-base-firmware)). The update above brings OpenX6X00; the
+base, the radio board's own firmware from Xiegu, is updated apart from it,
+and Xiegu's way takes its own system (two card swaps and its UPGRADE menu,
+see the README's [baseband](../README.md#the-baseband) section). Here it is
+done while OpenX6X00 runs, with Xiegu's own steps: the writer does on the
+radio what Xiegu's app 1.0.8 does from MENU > SYSTEM > UPGRADE. More, and how
+it was worked out and tested: [tools/base_update](../tools/base_update/README.md).
 
 Where: Settings > Info > Base firmware > Open.
 
@@ -731,13 +736,38 @@ it stops; the setting is kept with the others.
 - A write that fails after the erase leaves the base without its application:
   **Recover** writes it again (the base's bootloader is not erased). Do not
   switch the radio off before.
-- Only an X6200's base, only with an X6200 file: the writer refuses to run on
-  any other radio (its device tree), and refuses a file named for another
-  radio even when asked to take an unknown one.
+- Each radio its own files: the writer knows the radio by its device tree,
+  writes only that radio's files, and refuses a file named for another radio
+  even when asked to take an unknown one.
 
 From a computer over SSH, the same steps: `tools/base_update/fetch.sh`, then
 `tools/base_update/build.sh` and `tools/base_update/flash.sh root@<radio>
 --check` or `--flash` (`--to 1.0.7`, `--file FILE.xgf`, `--recover`).
+
+### The X6100's base firmware
+
+From a computer over SSH only: the X6100 has no Base firmware window and no
+daily check, and Xiegu's X6100 base files come with Xiegu's X6100 updates (keep
+the one your radio runs; none is fetched here). The same writer as the
+X6200's, the X6100's way into its base's bootloader: the Morse key line held
+low while the base is reset, as Xiegu's own X6100 updater does. More in
+[tools/base_update](../tools/base_update/README.md#the-x6100).
+
+- `tools/base_update/build.sh`, then
+  `tools/base_update/flash.sh root@<radio> --check --file FILE.xgf`: reads
+  only, the file and the base's version.
+- `--dry-run --file FILE.xgf`: into the base's bootloader and out again,
+  nothing erased or written. Try this first.
+- `--flash --file FILE.xgf`: asks for FLASH to be typed, stops the GUI,
+  writes (about 15 seconds), starts the GUI again. The base starts its new
+  firmware by itself; the radio does not switch itself off.
+- Files known by their SHA-256: Xiegu's V1.1.8 and V1.1.9, and RF.Guru's
+  [test base](#the-x6100-test-base) with `--test-ok` (TEST to be typed).
+  An X6200 file is refused.
+- As Xiegu asks: a 13.8 V supply of 3 A or more, the battery out, and the
+  radio not switched off while it writes.
+- Checked on one X6100 on 15 November 2026: the test base written and
+  Xiegu's V1.1.8 back, the base's calibration the same after each.
 
 ## Main screen
 

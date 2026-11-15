@@ -28,8 +28,8 @@
 # held, so a GUI start waits for the end of the write. The write runs on the radio by itself (run_on_radio.sh under
 # setsid, its log in /tmp/base_update/flash.log, then appended to /mnt/base_update.log): a lost connection does not
 # stop it, and this script follows the log until it ends. Do not switch the radio off while it runs. After it the
-# base does not start the new firmware by itself: the radio switches itself off a minute or two later, and is
-# switched on again by hand; then --check shows the new version.
+# X6200's base does not start the new firmware by itself: the radio switches itself off a minute or two later, and is
+# switched on again by hand; then --check shows the new version. The X6100's starts it by itself, in seconds.
 #
 set -euo pipefail
 RADIO=root@x6200.local

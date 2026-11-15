@@ -140,6 +140,12 @@ only when its owner does: Get and Check in that window, and a once-a-day look
 for a newer base that is **off by default**. To turn the daily look on:
 Settings > Info > Daily base check.
 
+**The X6100's baseband** is written by the same writer from a computer over
+SSH, `tools/base_update/flash.sh --file` with Xiegu's X6100 file (V1.1.8,
+V1.1.9) or RF.Guru's test base, the X6100's way into its bootloader (its Morse
+key line held low while the base is reset); `--dry-run` goes in and out again
+without writing ([manual](docs/MANUAL.md#the-x6100s-base-firmware)).
+
 **Updating the baseband**: with Xiegu's own system, which stays on the radio's
 internal memory when OpenX6X00 runs from the card.
 
@@ -552,7 +558,10 @@ Propagation and Scanner apps (#184), APPS and Modes over the whole strip, the CW
 bars off the band plan and Settings' switches in the theme's colours (#185), the
 Codec and Ops Room themes (#186, #187) and the performance overlay (#181);
 jochenhammes the RADE app (#129,
-#130).
+#130); MAVProxyUser the X6200's base firmware updater, from the radio's screen
+and over SSH, Xiegu's UPGRADE steps with their tests (#259), which also writes
+the X6100's base, by the way in of Franco Venturi's (fventuri)
+x6100-base-experiments flasher.
 
 Patches, captures, logs and tests from the issues: BrunoKlu the capture and the
 driver patch of #29; KR8MER the diagnosis and the patch of #50; DL9RP the
