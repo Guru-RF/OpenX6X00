@@ -40,6 +40,7 @@ static radio_mode_t prev_mode;      /* CW-R kept as CW: switching between them k
 static void mode_cb(Subject *subj, void *user_data);
 static void dim_on_tuning(Subject *subj, void *user_data);
 static void fade_to(void *var, int32_t opa);
+static bool too_wide();
 
 /* RTTY tuning scope, bottom right of the panel: mark filter on X, space on Y. Tuned, two
  * thin ellipses cross at right angles; off tune they open and lean, the tones' offset on top */
@@ -268,6 +269,12 @@ static void text_size_cb(Subject *subj, void *user_data) {
 
     lv_obj_set_style_text_font(obj, cfg_sm.p_digi_text_compact.get() ? &sony_18 : &sony_24, 0);
     update_line_count();
+    if (too_wide()) {
+        /* Compact to Large: lines broken for the smaller font no longer fit, and LVGL's own wrap
+         * would give rows that are not counted. That text goes */
+        buf_write = buf;
+        *buf = '\0';
+    }
     do {
         len = strlen(buf);
         drop_first_line();
@@ -275,12 +282,19 @@ static void text_size_cb(Subject *subj, void *user_data) {
     show();
 }
 
-/* The text wider than the panel (its widest line) */
+/* The text wider than the panel's text area (its widest line). The area, not the panel less 20: in RTTY
+ * the scope takes the right of the panel (its padding, panel_update_visibility()), and lines up to the
+ * panel's width came out wrapped by LVGL into rows drop_first_line() did not count, the text running on
+ * below the panel and off the screen (#273) */
 static bool too_wide() {
     lv_point_t size;
 
+    /* From the styles, as update_line_count(): what lv_obj_get_content_width() gives once laid out */
+    lv_coord_t w = lv_obj_get_style_width(obj, 0) - lv_obj_get_style_pad_left(obj, 0)
+        - lv_obj_get_style_pad_right(obj, 0) - 2 * lv_obj_get_style_border_width(obj, 0);
+
     lv_txt_get_size(&size, buf, lv_obj_get_style_text_font(obj, 0), 0, 0, LV_COORD_MAX, 0);
-    return size.x > lv_obj_get_width(obj) - 20;
+    return size.x > w;
 }
 
 /* New decoded text at the end of buf. No bound on its length: the decoders send a few
