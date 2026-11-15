@@ -15,6 +15,7 @@
 #ifdef RADE_ENABLED
 
 #include "audio.h"
+#include "freedv_text.h"
 #include "olivia_resamp.h"
 
 #include "rade_api.h"
@@ -106,6 +107,8 @@ static void stat_inc(uint32_t *field, uint32_t n)
     pthread_mutex_unlock(&rx.lock);
 }
 
+_Static_assert(FREEDV_RX_CALL_MAX == FREEDV_TEXT_MAX, "a callsign in either form fits the stats");
+
 /* 3 to 8 of A-Z, 0-9 and /, with a letter and a digit in them */
 static bool callsign_like(const char *s, int len)
 {
@@ -122,6 +125,43 @@ static bool callsign_like(const char *s, int len)
             return false;
     }
     return letter && digit;
+}
+
+/* FreeDV's own form first (freedv_text.c): LDPC coded, taken only with its parity checks and its CRC-8 holding. An
+ * EOO not in that form (its second half empty) is read in ours, the form this app sends: 8 characters of 7 bits, the
+ * soft bit above 0 a 1 (rade_v1_text_test.c). One in FreeDV's form that fails its checks gives none: read in ours it
+ * would be garbage (" 7i:Iw" off the air, before FreeDV's form was read). Either kept only when it reads as a
+ * callsign: a wrong code word that passes the CRC (one in 256 of them) is often a text with punctuation in it */
+void freedv_rx_eoo_callsign(const float *eoo, int n, char out[FREEDV_RX_CALL_MAX + 1])
+{
+    char call[FREEDV_TEXT_MAX + 1];
+    int  len = 0;
+
+    switch (freedv_text_read(eoo, n, call, NULL)) {
+    case FREEDV_TEXT_READ:
+        len = (int)strlen(call);
+        break;
+    case FREEDV_TEXT_OTHER:
+        if (!eoo || n < FREEDV_TEXT_MAX * 7)
+            break;
+        len = FREEDV_TEXT_MAX;
+        for (int i = 0; i < FREEDV_TEXT_MAX; i++) {
+            unsigned c = 0;
+
+            for (int b = 0; b < 7; b++)
+                c |= (unsigned)(eoo[i * 7 + b] > 0.0f) << (6 - b);
+            call[i] = (c >= 32 && c < 127) ? (char)c : ' ';
+        }
+        while (len > 0 && call[len - 1] == ' ')
+            len--;
+        break;
+    case FREEDV_TEXT_UNREAD:
+        break;
+    }
+    if (!callsign_like(call, len))
+        len = 0;
+    memcpy(out, call, (size_t)len);
+    out[len] = '\0';
 }
 
 static void feat_push(const float *feat)
@@ -177,6 +217,10 @@ static void *decode_thread(void *arg)
         int  ms = ms_since(&t0);
         bool sync = rade_sync(rx.rade) != 0;
         int  peak = atomic_exchange(&rx.peak_x1000, 0);
+        char call[FREEDV_RX_CALL_MAX + 1];
+
+        if (has_eoo && eoo)
+            freedv_rx_eoo_callsign(eoo, n_eoo, call);   /* outside the lock: up to 30 rounds of the LDPC decoder */
 
         pthread_mutex_lock(&rx.lock);
         if (ms > rx.st.decode_ms_max)
@@ -191,27 +235,8 @@ static void *decode_thread(void *arg)
         }
         if (has_eoo) {
             rx.st.eoo_count++;
-            /* 8 characters of 7 bits, the soft bit above 0 is a 1 (rade_v1_text_test.c) */
-            if (eoo && n_eoo >= 8 * 7) {
-                char call[9];
-                int  len = 8;
-
-                for (int i = 0; i < 8; i++) {
-                    unsigned c = 0;
-
-                    for (int b = 0; b < 7; b++)
-                        c |= (unsigned)(eoo[i * 7 + b] > 0.0f) << (6 - b);
-                    call[i] = (c >= 32 && c < 127) ? (char)c : ' ';
-                }
-                while (len > 0 && call[len - 1] == ' ')
-                    len--;
-                /* Only what reads as a callsign: FreeDV's own program sends its callsign in another form (with
-                   error correction), which came out here as garbage (" 7i:Iw" off the air) */
-                if (!callsign_like(call, len))
-                    len = 0;
-                memcpy(rx.st.callsign, call, (size_t)len);
-                rx.st.callsign[len] = '\0';
-            }
+            if (eoo)
+                memcpy(rx.st.callsign, call, sizeof(rx.st.callsign));
         }
         pthread_mutex_unlock(&rx.lock);
 
@@ -531,5 +556,10 @@ void freedv_rx_stop(void) {}
 void freedv_rx_put_audio(unsigned int count, const float *samples) { (void)count; (void)samples; }
 void freedv_rx_set_tap(freedv_rx_tap_t tap) { (void)tap; }
 void freedv_rx_get_stats(freedv_rx_stats_t *out) { memset(out, 0, sizeof(*out)); }
+void freedv_rx_eoo_callsign(const float *eoo, int n, char out[FREEDV_RX_CALL_MAX + 1])
+{
+    (void)eoo; (void)n;
+    out[0] = '\0';
+}
 
 #endif

@@ -3670,10 +3670,17 @@ amateur radio: send only on the bands and with the privileges you hold.
 the decoder or the player was behind, "gaps" the breaks in the speech;
 "decode" and "synth" are the slowest ms for one 120 ms modem frame, and above
 120 the speech breaks up. The callsign that the last End-of-Over carried is
-shown after "last over", in the form rade_c's own test sends it (8 characters
-of 7 bits, as this app sends yours), and only when it reads as a callsign.
-FreeDV's own program sends its callsign in another form (with error
-correction): nothing is shown for its overs, and it may not show yours.
+shown after "last over", and only when it reads as a callsign (3 to 8
+letters, digits and /, with a letter and a digit). The app reads it in
+either form:
+- **FreeDV's own**, as FreeDV's program sends it: error correction and a
+  check sum, read as FreeDV reads it. It comes through down to about 5 dB
+  SNR. FreeDV versions from before July 2026 send / as 0 (K6AQ/5 shows as
+  K6AQ05).
+- **this app's**, the form rade_c's own test sends (8 characters of 7 bits),
+  as this app sends yours. It has no error correction and no check: it needs
+  about 15 dB SNR, and below that a bit error can show a callsign a letter
+  off.
 
 **Sending: record, then send, not live.** Linux records only the hand mic, and
 only while the radio is receiving (the same limit as the
@@ -3691,7 +3698,8 @@ message:
   are low because the power reading follows the average of RADE's signal, and
   its peaks go several dB higher. Stop ends the send. The End-of-Over frame at
   the end of an over carries your callsign (Settings > callsign; the first 8
-  characters), and the receiver shows it. Send again sends the same over once
+  characters) in this app's form: this app shows it, FreeDV's own program
+  does not. Send again sends the same over once
   more; Discard drops it, and Rec starts a new one.
 - Send is refused without a callsign set, while another transmission runs, or
   when the radio does not transmit on this frequency.

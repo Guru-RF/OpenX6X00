@@ -120,10 +120,11 @@ else()
         endif()
         # RADE, the RADE app's modem: rade_c (RADE V1) and the Opus fork with FARGAN, built outside by
         # tools/rade/build.sh and linked into the GUI (src/CMakeLists.txt). Their licences, rade_c's (BSD-2-Clause),
-        # Opus's and kiss_fft's in rade_c (BSD-3-Clause), from the prefix's doc/ to /usr/share/x6100/licenses/rade
+        # Opus's and kiss_fft's in rade_c (BSD-3-Clause), from the prefix's doc/ to /usr/share/x6100/licenses/rade,
+        # with freedv-backend's (BSD-2-Clause): src/freedv_text.c, built with RADE, is a port of its RADE text
         if(RADE_PREFIX)
                 install(FILES ${RADE_PREFIX}/doc/rade_c-LICENSE ${RADE_PREFIX}/doc/opus-COPYING
-                        ${RADE_PREFIX}/doc/kiss_fft-COPYING
+                        ${RADE_PREFIX}/doc/kiss_fft-COPYING src/LICENSE-freedv-backend.txt
                         DESTINATION share/x6100/licenses/rade)
         endif()
         # The apps' version, for the web configurator and the scripts. Read at configure time, so a

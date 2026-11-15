@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 #define FREEDV_RX_IN_RATE 11025      /* what dialog_t.audio_cb delivers */
+#define FREEDV_RX_CALL_MAX 8         /* characters of the callsign in an End-of-Over */
 #define FREEDV_RX_TAP_RATE 24000     /* the speech to the tap: the TCI server's rate */
 
 /* Where else the speech goes: returns how many samples it took */
@@ -41,7 +42,8 @@ typedef struct {
     bool     audio_out;      /* the headphones are there and the speech goes to them */
     bool     tap_out;        /* the speech goes to the tap */
     uint32_t eoo_count;      /* End-of-Over frames seen */
-    char     callsign[9];    /* the callsign the last End-of-Over carried (8 characters, trimmed), empty if none */
+    char     callsign[FREEDV_RX_CALL_MAX + 1]; /* the callsign the last End-of-Over carried, in FreeDV's form or
+                                                  ours (freedv_rx_eoo_callsign), empty if none */
     uint32_t in_dropped;     /* input samples lost, the decoder was too slow */
     uint32_t speech_dropped; /* speech samples lost, the player was too slow */
     uint32_t underruns;      /* the stream ran dry in the middle of a talk burst (a gap in the speech) */
@@ -66,6 +68,11 @@ void freedv_rx_set_tap(freedv_rx_tap_t tap);
 
 /* A copy of the numbers for the UI */
 void freedv_rx_get_stats(freedv_rx_stats_t *out);
+
+/* The callsign in an End-of-Over's n soft bits (rade_rx()'s eoo_out), "" if none: FreeDV's own form (freedv_text.h)
+   or ours (freedv_tx.c), and only when it reads as a callsign, 3 to 8 of A-Z, 0-9 and / with a letter and a digit.
+   The decode thread's, at each End-of-Over; any thread, no state (the host tests call it too) */
+void freedv_rx_eoo_callsign(const float *eoo, int n, char out[FREEDV_RX_CALL_MAX + 1]);
 
 #ifdef __cplusplus
 }
