@@ -1130,7 +1130,7 @@ def set_winlink():
 SSH_DIR = "/root/.ssh"
 SSH_AUTHORIZED_KEYS = os.path.join(SSH_DIR, "authorized_keys")
 SSH_BACKUP = ["/etc/init.d/S04restore_backup_config", "stop"]
-# sk-: a FIDO security key (YubiKey...), ssh-keygen -t ed25519-sk / ecdsa-sk; sshd checks its signatures itself
+# sk-: a FIDO2 security key, ssh-keygen -t ed25519-sk / ecdsa-sk; sshd checks its signatures itself
 SSH_SK_TYPES = ("sk-ssh-ed25519@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com")
 SSH_KEY_TYPES = ("ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
                  "ssh-rsa") + SSH_SK_TYPES

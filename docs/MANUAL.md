@@ -6896,7 +6896,7 @@ A key has two halves, made once on each computer you log in from:
 In short: make a key on the computer, paste its public half on System > SSH
 and press Add, then `ssh root@x6100.local`. The radio takes ed25519 keys (the
 ones made below), ECDSA keys, RSA keys of 3072 bits or more, and keys on a
-[security key](#a-key-on-a-security-key) (YubiKey...). This section
+[FIDO2 security key](#a-key-on-a-security-key). This section
 writes `x6100.local`: an X6200 answers as `x6200.local`, a radio you gave a
 [network name](#network-name) by that name, and every radio by its address.
 
@@ -6971,9 +6971,8 @@ OpenSSH `id_ed25519` chosen there is converted to one).
 
 ### A key on a security key
 
-A FIDO2 security key (a YubiKey 5, a SoloKey, a Nitrokey 3...) holds the
-secret that signs each login: `ssh` logs in only while it is plugged in and
-touched. There are two kinds, and the radio takes both the same way:
+A FIDO2 security key holds the secret that signs each login: `ssh` logs in
+only while it is plugged in and touched. There are two kinds, and the radio takes both the same way:
 
 - Non-resident (`ssh-keygen`'s default): logging in needs both the stub file
   `ssh-keygen` writes on the computer (`id_ed25519_sk`, without `.pub`) and
@@ -6987,8 +6986,8 @@ key support: most Linux distributions' is; a Mac's own `ssh` is not
 (Homebrew's `openssh` is).
 
 1. Plug the key in. In a terminal: `ssh-keygen -t ed25519-sk`, and touch the
-   key when it blinks. A key that does not know ed25519 (older YubiKeys,
-   firmware before 5.2.3) says so: `ssh-keygen -t ecdsa-sk` then.
+   key when it blinks. A key that does not know ed25519 (some older
+   security keys) says so: `ssh-keygen -t ecdsa-sk` then.
 2. To ask for the key's PIN at each login as well as the touch, add
    `-O verify-required` (the key needs a PIN set), and on the radio type
    `verify-required ` in front of the line before pressing Add: the radio
@@ -7001,9 +7000,9 @@ key support: most Linux distributions' is; a Mac's own `ssh` is not
 - `no-touch-required` in front logs in without the touch (the key must have
   been made with `-O no-touch-required`). It is up to you, but a key that logs
   in untouched is little more than a file.
-- A YubiKey's PIV (smart card) keys are ordinary ECDSA or RSA keys: the page
-  takes them as such, but refuses a PIV RSA key of 2048 bits (the only RSA
-  size of YubiKeys before firmware 5.7). Make an ECDSA P-256 one instead.
+- A security key's smart-card (PIV) keys are ordinary ECDSA or RSA keys: the
+  page takes them as such. Some security keys make RSA keys of 2048 bits
+  only, which the page refuses: make an ECDSA P-256 one instead.
 
 ### Adding the key on the radio
 
