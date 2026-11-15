@@ -1,0 +1,583 @@
+#!/usr/bin/env python3
+# FreeDV Reporter for the RADE app (APP > Modes > RADE, #37): while the app is open with Reporter on, the radio is on
+# qso.freedv.org, FreeDV's public list of the stations on the air now: its callsign, locator and frequency, TX on or
+# off, the last station it heard with the SNR, and a status message. Off by default (the app's Reporter button).
+#
+# The GUI (src/freedv_report.c) starts it when the app opens and ends it when the app closes:
+#
+#   x6100-freedv-reporter <call> <grid> <rx_only 0|1> <freq_hz> <version>
+#
+# stdin, a line each, from the GUI:          stdout, a line each, to the GUI:
+#   freq <hz>         tuned                    connected                on the list now
+#   tx 0|1            a send ends / starts     offline <reason>         not connected: the first try failed, or the
+#   rx <call> <snr>   an End-of-Over heard                              connection dropped; quiet retries follow
+#   msg <text>        the status message       qsy <call> <hz> <text>   a QSY request: shown, the radio does nothing
+#                                              error <text>             bad arguments: it exits
+# The end of stdin (the app closed, or the GUI is gone) closes the connection, and it exits. The GUI ends it with
+# SIGTERM when that takes more than a second (a connection attempt under way).
+#
+# The protocol is the one of FreeDV's own client (github.com/freedv/freedv-backend: src/reporting/FreeDVReporter.cpp
+# and src/util/SocketIoClient.cpp, BSD-2-Clause, by Mooneer Salem; read for the protocol, no code taken from it):
+#   - Engine.IO 4 and Socket.IO 5 over one websocket, wss://qso.freedv.org/socket.io/?EIO=4&transport=websocket:
+#     TLS to port 443, FreeDV's default; no long polling, no transport upgrade
+#   - the server opens with 0{"sid","pingInterval","pingTimeout",...}; the client connects with 40<auth>: role
+#     "report_wo" (a reporter the server sends no station list to, as FreeDV's own radio integrations connect),
+#     callsign, grid_square, version, rx_only, os "linux", protocol_version 2
+#   - the server pings ("2"), the client answers "3"; no ping for pingInterval + pingTimeout: the line is dead
+#   - nothing is sent before the server's connection_successful event; then freq_change {freq}, tx_report {mode,
+#     transmitting} and message_update {message}, and again after each reconnect
+#   - rx_report {callsign, mode, snr} only while connected (none is kept for later); qsy_request {callsign,
+#     frequency, message} from the server goes to the GUI's message line
+# The mode is "RADEV1", FreeDV's name for RADE V1. Nothing here tunes or keys the radio.
+#
+# For tests and the bench only: X6100_FDVR_URL (ws:// or wss://), X6100_FDVR_RETRY and X6100_FDVR_RETRY_MAX (s, the
+# first and the longest wait between tries), X6100_FDVR_TIMEOUT (s, each connection step), X6100_FDVR_ROLE
+# ("report" instead of "report_wo": the server then sends the station list too, which is read and dropped).
+#
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
+
+import base64
+import hashlib
+import json
+import os
+import random
+import re
+import select
+import socket
+import ssl
+import sys
+import threading
+import time
+import urllib.parse
+
+URL = "wss://qso.freedv.org/socket.io/?EIO=4&transport=websocket"
+MODE = "RADEV1"                 # FreeDV's name for RADE V1 (freedv-gui GetCurrentModeStrImpl_, freedv-integrations)
+PROTOCOL_VERSION = 2            # FreeDVReporter.h FREEDV_REPORTER_PROTOCOL_VERSION
+ROLES = ("report_wo", "report")
+FREQ_GAP = 1.0                  # s: one freq_change a second at most while the knob turns, the last frequency
+SIO_TIMEOUT = 15.0              # s: the websocket open to connection_successful
+PING_DEFAULT = 30.0             # s: no ping for this long when the server names no times (SocketIoClient.cpp)
+CLOSE_WAIT = 0.5                # s: the goodbye frames at the end
+MAX_MESSAGE = 1000000           # bytes: Engine.IO's maxPayload; a longer one ends the connection
+MSG_MAX = 64                    # characters of the status message
+GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"   # RFC 6455
+CALL_RE = re.compile(r"^[A-Z0-9/]{3,12}$")
+GRID_RE = re.compile(r"^[A-R]{2}[0-9]{2}([A-X]{2}([0-9]{2})?)?$", re.I)
+AGENT = f"OpenX6X00/{os.environ.get('X6100_FW') or 'unknown'} (+https://github.com/Guru-RF/OpenX6X00)"
+
+
+def env_float(name, default):
+    try:
+        v = float(os.environ.get(name, ""))
+        return v if v > 0 else default
+    except ValueError:
+        return default
+
+
+class Dropped(Exception):
+    """The connection is no good any more; the text says why, in a few words"""
+
+
+def clean(text, limit=120):
+    """One line of printable text: no control characters, the spaces folded"""
+    return " ".join("".join(c if c.isprintable() else " " for c in str(text)).split())[:limit]
+
+
+def reason(e):
+    """A few words for an exception of a connection attempt"""
+    if isinstance(e, Dropped):
+        return str(e)
+    if isinstance(e, socket.gaierror):
+        return "no network" if e.errno in (socket.EAI_AGAIN, getattr(socket, "EAI_NODATA", -5)) else "name not found"
+    if isinstance(e, ssl.SSLCertVerificationError):
+        return "certificate: " + clean(e.verify_message or e, 60)
+    if isinstance(e, (socket.timeout, TimeoutError)):
+        return "no answer"
+    if isinstance(e, ConnectionRefusedError):
+        return "refused"
+    if isinstance(e, OSError) and e.errno in (101, 113):     # ENETUNREACH, EHOSTUNREACH
+        return "no network"
+    return clean(e, 60) or e.__class__.__name__
+
+
+def unmask(data, mask):
+    n = len(data)
+    if not n:
+        return b""
+    m = (mask * (n // 4 + 1))[:n]
+    return (int.from_bytes(data, "big") ^ int.from_bytes(m, "big")).to_bytes(n, "big")
+
+
+class WebSocket:
+    """An RFC 6455 client connection over a non-blocking socket (plain, or TLS); text messages only"""
+
+    def __init__(self, sock, data=b""):
+        self.sock = sock
+        self.buf = bytearray(data)
+        self.part_op = None
+        self.parts = []
+        self.size = 0
+
+    def fileno(self):
+        return self.sock.fileno()
+
+    def pending(self):
+        """TLS data already decrypted, which select() doesn't see"""
+        return isinstance(self.sock, ssl.SSLSocket) and self.sock.pending() > 0
+
+    def close(self):
+        try:
+            self.sock.close()
+        except OSError:
+            pass
+
+    def send(self, op, payload, timeout=SIO_TIMEOUT):
+        n = len(payload)
+        head = bytes([0x80 | op])
+        if n < 126:
+            head += bytes([0x80 | n])
+        elif n < 65536:
+            head += bytes([0x80 | 126]) + n.to_bytes(2, "big")
+        else:
+            head += bytes([0x80 | 127]) + n.to_bytes(8, "big")
+        mask = os.urandom(4)
+        view = memoryview(head + mask + unmask(payload, mask))
+        deadline = time.monotonic() + timeout
+        while view:
+            want = None
+            try:
+                view = view[self.sock.send(view):]
+                continue
+            except (BlockingIOError, ssl.SSLWantWriteError):
+                want = "w"
+            except ssl.SSLWantReadError:
+                want = "r"
+            except InterruptedError:
+                continue
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise Dropped("send stalled")
+            select.select([self.sock] if want == "r" else [], [self.sock] if want == "w" else [], [], min(left, 0.5))
+
+    def send_text(self, text):
+        self.send(0x1, text.encode("utf-8"))
+
+    def read(self):
+        """The whole messages the socket has now, [(opcode, bytes)]. Dropped at the end of the stream"""
+        eof = False
+        while True:
+            try:
+                chunk = self.sock.recv(65536)
+            except (BlockingIOError, ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                break
+            except InterruptedError:
+                continue
+            if not chunk:
+                eof = True
+                break
+            self.buf += chunk
+            if len(self.buf) > 2 * MAX_MESSAGE:
+                raise Dropped("too much data")
+        msgs = self.parse()
+        if eof:
+            raise Dropped("closed by the server")
+        return msgs
+
+    def parse(self):
+        msgs = []
+        while len(self.buf) >= 2:
+            b = self.buf
+            fin, op, masked, n, i = b[0] & 0x80, b[0] & 0x0F, b[1] & 0x80, b[1] & 0x7F, 2
+            if n == 126:
+                if len(b) < 4:
+                    break
+                n, i = int.from_bytes(b[2:4], "big"), 4
+            elif n == 127:
+                if len(b) < 10:
+                    break
+                n, i = int.from_bytes(b[2:10], "big"), 10
+            if n > MAX_MESSAGE:
+                raise Dropped("message too long")
+            mask = b""
+            if masked:
+                if len(b) < i + 4:
+                    break
+                mask, i = bytes(b[i:i + 4]), i + 4
+            if len(b) < i + n:
+                break
+            payload = bytes(b[i:i + n])
+            del self.buf[:i + n]
+            if masked:
+                payload = unmask(payload, mask)
+            if op == 0x8:                       # close: answered, and the end
+                try:
+                    self.send(0x8, payload[:2], CLOSE_WAIT)
+                except (Dropped, OSError):
+                    pass
+                raise Dropped("closed by the server")
+            if op == 0x9:                       # ping
+                self.send(0xA, payload)
+                continue
+            if op >= 0x8:                       # pong and the reserved ones
+                continue
+            if op == 0x0:
+                if self.part_op is None:
+                    raise Dropped("bad frame")
+            else:
+                if self.part_op is not None:
+                    raise Dropped("bad frame")
+                self.part_op, self.parts, self.size = op, [], 0
+            self.parts.append(payload)
+            self.size += len(payload)
+            if self.size > MAX_MESSAGE:
+                raise Dropped("message too long")
+            if fin:
+                msgs.append((self.part_op, b"".join(self.parts)))
+                self.part_op, self.parts = None, []
+        return msgs
+
+
+def open_websocket(url, timeout):
+    """TCP, TLS for wss:, and the websocket upgrade, each step under timeout s. Blocks (the DNS above all): it runs
+    in a thread of its own. A WebSocket, non-blocking, or an exception"""
+    u = urllib.parse.urlsplit(url)
+    secure = u.scheme == "wss"
+    host, port = u.hostname, u.port or (443 if secure else 80)
+    path = (u.path or "/") + ("?" + u.query if u.query else "")
+    infos = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
+    infos.sort(key=lambda a: a[0] != socket.AF_INET)    # IPv4 first: the radio has no IPv6 (S44nm-no-ipv6)
+    sock, err = None, None
+    for family, kind, proto, _, addr in infos:
+        sock = socket.socket(family, kind, proto)
+        sock.settimeout(timeout)
+        try:
+            sock.connect(addr)
+            break
+        except OSError as e:
+            err = e
+            sock.close()
+            sock = None
+    if sock is None:
+        raise err or OSError("no address")
+    try:
+        if secure:
+            # The image's root certificates, the host name checked, TLS 1.2 at least (as FreeDV insists on)
+            ctx = ssl.create_default_context()
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            sock = ctx.wrap_socket(sock, server_hostname=host)
+        key = base64.b64encode(os.urandom(16)).decode()
+        req = (f"GET {path} HTTP/1.1\r\nHost: {host if port == (443 if secure else 80) else f'{host}:{port}'}\r\n"
+               f"Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\n"
+               f"Sec-WebSocket-Version: 13\r\nUser-Agent: {AGENT}\r\n\r\n")
+        sock.sendall(req.encode())
+        head, deadline = b"", time.monotonic() + timeout
+        while b"\r\n\r\n" not in head:
+            left = deadline - time.monotonic()
+            if left <= 0 or len(head) > 16384:
+                raise Dropped("no websocket answer")
+            sock.settimeout(left)
+            chunk = sock.recv(4096)
+            if not chunk:
+                raise Dropped("closed before the websocket")
+            head += chunk
+        head, rest = head.split(b"\r\n\r\n", 1)
+        lines = head.decode("latin-1").split("\r\n")
+        status = lines[0].split(" ", 2)
+        if len(status) < 2 or status[1] != "101":
+            raise Dropped("refused: " + clean(lines[0], 40))
+        hdrs = {k.strip().lower(): v.strip() for k, _, v in (line.partition(":") for line in lines[1:])}
+        accept = base64.b64encode(hashlib.sha1((key + GUID).encode()).digest()).decode()
+        if (hdrs.get("upgrade", "").lower() != "websocket" or "upgrade" not in hdrs.get("connection", "").lower()
+                or hdrs.get("sec-websocket-accept") != accept):
+            raise Dropped("not a websocket answer")
+        sock.setblocking(False)
+        return WebSocket(sock, rest)
+    except BaseException:
+        sock.close()
+        raise
+
+
+class Reporter:
+    def __init__(self, call, grid, rx_only, freq, version, out):
+        self.auth = {"role": os.environ.get("X6100_FDVR_ROLE") if os.environ.get("X6100_FDVR_ROLE") in ROLES
+                     else ROLES[0],
+                     "callsign": call, "grid_square": grid, "version": version, "rx_only": rx_only, "os": "linux",
+                     "protocol_version": PROTOCOL_VERSION}
+        self.url = os.environ.get("X6100_FDVR_URL") or URL
+        self.first_retry = env_float("X6100_FDVR_RETRY", 5.0)
+        self.max_retry = max(env_float("X6100_FDVR_RETRY_MAX", 120.0), self.first_retry)
+        self.timeout = env_float("X6100_FDVR_TIMEOUT", 10.0)
+        self.out = out
+        self.freq, self.tx, self.message = freq, False, ""
+        self.ws = None
+        self.phase = None               # "open" (waiting for 0), "sio" (40 sent), "wait" (for connection_successful),
+        self.ready = False              # and ready: connection_successful came
+        self.deadline = 0.0             # of the phase before ready
+        self.ping_gap = PING_DEFAULT
+        self.ping_deadline = None
+        self.freq_sent, self.freq_at = None, -FREQ_GAP
+        self.retry = self.first_retry
+        self.next_try = 0.0
+        self.told_offline = False       # "offline" said since the start, or since the last "connected"
+        self.connector = None
+        self.result = None
+        self.wake_r, self.wake_w = os.pipe()
+
+    def say(self, line):
+        try:
+            os.write(self.out, (line + "\n").encode("utf-8", "replace"))
+        except OSError:                 # the GUI is gone
+            os._exit(0)
+
+    # The connection
+
+    def connect_start(self):
+        def attempt():
+            try:
+                self.result = open_websocket(self.url, self.timeout)
+            except BaseException as e:      # noqa: B902 - any failure is a failed try
+                self.result = e
+            os.write(self.wake_w, b"x")
+
+        self.connector = threading.Thread(target=attempt, daemon=True)
+        self.connector.start()
+
+    def connect_done(self, now):
+        os.read(self.wake_r, 64)
+        self.connector.join()
+        self.connector, res, self.result = None, self.result, None
+        if not isinstance(res, WebSocket):
+            self.failed(reason(res), now)
+            return
+        self.ws, self.phase, self.deadline = res, "open", now + SIO_TIMEOUT
+        self.receive(now)               # what came with the upgrade's answer
+
+    def failed(self, why, now):
+        if not self.told_offline:
+            self.say("offline " + clean(why, 60))
+            self.told_offline = True
+        self.next_try = now + self.retry * random.uniform(0.9, 1.1)
+        self.retry = min(self.retry * 2, self.max_retry)
+
+    def drop(self, why, now):
+        if self.ws:
+            self.ws.close()
+        self.ws, self.phase, self.ready, self.ping_deadline = None, None, False, None
+        self.failed(why, now)
+
+    def emit(self, name, data):
+        self.ws.send_text("42" + json.dumps([name, data], separators=(",", ":")))
+
+    def receive(self, now):
+        try:
+            for op, payload in self.ws.read():
+                if op == 0x1:
+                    self.engine(payload.decode("utf-8", "replace"), now)
+                    if not self.ws:
+                        return
+        except (Dropped, OSError) as e:
+            self.drop(reason(e), now)
+
+    def engine(self, text, now):
+        """An Engine.IO packet"""
+        kind, body = text[:1], text[1:]
+        if kind == "0":                 # open: the ping times, then the Socket.IO connect with the auth
+            try:
+                info = json.loads(body)
+                gap = (int(info.get("pingInterval", 0)) + int(info.get("pingTimeout", 0))) / 1000.0
+            except (ValueError, TypeError, AttributeError):
+                raise Dropped("bad open packet")
+            self.ping_gap = gap if 0 < gap < 3600 else PING_DEFAULT
+            self.ping_deadline = now + self.ping_gap
+            self.ws.send_text("40" + json.dumps(self.auth, separators=(",", ":")))
+            self.phase = "sio"
+        elif kind == "1":
+            raise Dropped("closed by the server")
+        elif kind == "2":               # ping
+            self.ws.send_text("3" + body)
+            self.ping_deadline = now + self.ping_gap
+        elif kind == "4":
+            self.socketio(body, now)
+        elif not kind.isdigit():
+            raise Dropped("bad data")
+
+    def socketio(self, text, now):
+        """A Socket.IO packet of the main namespace"""
+        kind, body = text[:1], text[1:]
+        if kind == "0":
+            self.phase = "wait"
+        elif kind == "1":
+            raise Dropped("disconnected by the server")
+        elif kind == "4":               # connect error: the auth refused
+            try:
+                why = json.loads(body).get("message", "")
+            except (ValueError, AttributeError):
+                why = body
+            raise Dropped("refused: " + clean(why, 40))
+        elif kind == "2":
+            try:
+                event = json.loads(body.lstrip("0123456789"))    # an ack id may come before the array
+            except ValueError:
+                return
+            if isinstance(event, list) and event and isinstance(event[0], str):
+                self.event(event[0], event[1] if len(event) > 1 else None, now)
+
+    def event(self, name, args, now):
+        if name == "connection_successful":
+            self.ready = True
+            self.retry = self.first_retry
+            self.told_offline = False
+            self.say("connected")
+            self.emit("freq_change", {"freq": self.freq})
+            self.freq_sent, self.freq_at = self.freq, now
+            self.emit("tx_report", {"mode": MODE, "transmitting": self.tx})
+            self.emit("message_update", {"message": self.message})
+        elif name == "qsy_request" and isinstance(args, dict):
+            call, freq, text = args.get("callsign"), args.get("frequency"), args.get("message", "")
+            if isinstance(call, str) and isinstance(freq, int) and not isinstance(freq, bool) and freq > 0:
+                self.say(f"qsy {clean(call, 16).replace(' ', '') or '?'} {freq} {clean(text or '', 80)}".rstrip())
+        elif name == "bulk_update" and isinstance(args, list):     # the station list (role "report"): only a QSY
+            for item in args:
+                if isinstance(item, list) and len(item) > 1 and item[0] == "qsy_request":
+                    self.event(item[0], item[1], now)
+
+    # The GUI's lines
+
+    def command(self, raw):
+        word, _, rest = raw.decode("utf-8", "replace").strip().partition(" ")
+        rest = rest.strip()
+        if word == "freq":
+            try:
+                f = int(rest)
+            except ValueError:
+                return
+            if 0 < f < 10 ** 10:
+                self.freq = f           # sent by timers(), one a second at most
+        elif word == "tx":
+            tx = rest == "1"
+            if tx != self.tx:
+                self.tx = tx
+                if self.ready:
+                    self.emit("tx_report", {"mode": MODE, "transmitting": tx})
+        elif word == "rx":
+            parts = rest.split()
+            if len(parts) != 2 or not CALL_RE.match(parts[0].upper()):
+                return
+            try:
+                snr = max(-99, min(99, int(parts[1])))
+            except ValueError:
+                return
+            if self.ready:
+                self.emit("rx_report", {"callsign": parts[0].upper(), "mode": MODE, "snr": snr})
+        elif word == "msg":
+            self.message = clean(rest, MSG_MAX)
+            if self.ready:
+                self.emit("message_update", {"message": self.message})
+
+    # The loop
+
+    def timers(self, now):
+        if not self.ws:
+            return
+        if self.ping_deadline is not None and now >= self.ping_deadline:
+            self.drop("no ping from the server", now)
+        elif not self.ready and now >= self.deadline:
+            self.drop("no answer", now)
+        elif self.ready and self.freq != self.freq_sent and now >= self.freq_at + FREQ_GAP:
+            self.emit("freq_change", {"freq": self.freq})
+            self.freq_sent, self.freq_at = self.freq, now
+
+    def wait_time(self, now):
+        times = []
+        if self.ws:
+            if self.ping_deadline is not None:
+                times.append(self.ping_deadline)
+            if not self.ready:
+                times.append(self.deadline)
+            elif self.freq != self.freq_sent:
+                times.append(self.freq_at + FREQ_GAP)
+        elif not self.connector:
+            times.append(self.next_try)
+        return max(0.0, min(times) - now) if times else None
+
+    def goodbye(self):
+        """The end of stdin: Socket.IO's disconnect and the websocket's close, then the socket shut"""
+        if self.ws:
+            try:
+                if self.phase != "open":
+                    self.ws.send(0x1, b"41", CLOSE_WAIT)
+                self.ws.send(0x8, (1000).to_bytes(2, "big"), CLOSE_WAIT)
+            except (Dropped, OSError):
+                pass
+            self.ws.close()
+
+    def run(self, inp):
+        buf = b""
+        while True:
+            now = time.monotonic()
+            if not self.ws and not self.connector and now >= self.next_try:
+                self.connect_start()
+            fds = [inp, self.wake_r] + ([self.ws] if self.ws else [])
+            wait = 0.0 if self.ws and self.ws.pending() else self.wait_time(now)
+            try:
+                ready, _, _ = select.select(fds, [], [], wait)
+            except InterruptedError:
+                continue
+            now = time.monotonic()
+            if inp in ready:
+                try:
+                    data = os.read(inp, 4096)
+                except OSError:
+                    data = b""
+                if not data:
+                    self.goodbye()
+                    return 0
+                buf += data
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    try:
+                        self.command(line)
+                    except (Dropped, OSError) as e:
+                        self.drop(reason(e), now)
+                if len(buf) > 4096:     # no line in it: not the GUI's
+                    buf = b""
+            if self.wake_r in ready:
+                self.connect_done(now)
+            if self.ws and (self.ws in ready or self.ws.pending()):
+                self.receive(now)
+            try:
+                self.timers(time.monotonic())
+            except (Dropped, OSError) as e:
+                self.drop(reason(e), time.monotonic())
+
+
+def main(argv):
+    if len(argv) != 6:
+        print("error usage: x6100-freedv-reporter <call> <grid> <rx_only 0|1> <freq_hz> <version>", flush=True)
+        return 2
+    call, grid, rx_only, freq, version = argv[1].upper(), argv[2], argv[3] == "1", argv[4], clean(argv[5], 40)
+    if not CALL_RE.match(call):
+        print("error no callsign", flush=True)
+        return 2
+    if not GRID_RE.match(grid):
+        print("error no locator", flush=True)
+        return 2
+    grid = grid[:2].upper() + grid[2:4] + grid[4:6].lower() + grid[6:]
+    try:
+        freq = int(freq)
+    except ValueError:
+        freq = 0
+    # The GUI's own descriptors (its sockets, its database) came along with the spawn: not ours to hold
+    os.closerange(3, 1024)
+    try:
+        os.nice(10)     # after the RADE decoder and the GUI, whose CPU it shares
+    except OSError:
+        pass
+    code = Reporter(call, grid, rx_only, freq if 0 < freq < 10 ** 10 else 0, version, sys.stdout.fileno()).run(
+        sys.stdin.fileno())
+    os._exit(code)      # a connection attempt in its thread is not waited for
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

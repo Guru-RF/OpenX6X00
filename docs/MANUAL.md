@@ -3641,7 +3641,7 @@ APP > Modes > RADE receives and sends FreeDV's RADE V1 digital voice
 (#130), finished for both radios. The window shows Sync, the SNR (dB), the
 frequency offset (Hz), the input level, where the speech goes, what was lost
 and the processor's time per modem frame. The buttons: Freq., Rec, Send and
-Close on the first page; Power, Discard and Close on the second.
+Close on the first page; Power, Reporter, Discard and Close on the second.
 
 **Where you hear it.** The radio's speaker can't play the speech: with the
 base's firmware it plays the app's audio only in Play mode, and then the base
@@ -3697,6 +3697,34 @@ message:
   when the radio does not transmit on this frequency.
 - The built-in microphone cannot be used. The level meter shows the mic's
   peak while recording; "too loud" is clipping.
+
+**FreeDV Reporter (off by default).** Reporter on the second page puts the
+radio on [qso.freedv.org](https://qso.freedv.org), FreeDV's public list of
+the stations on the air, while the RADE window is open. **It publishes your
+callsign, your QTH locator and your frequency on a public site**, and with
+them when you send, the callsigns of the stations you receive with their SNR,
+and your status message if you set one. The locator is the one the radio
+works with everywhere: from the GPS while it has a fix, else the QTH locator
+of Settings. Press Reporter to switch it on or off; the radio keeps the
+choice. It needs the callsign and the QTH locator set in Settings, and the
+internet over WiFi or Ethernet.
+- While the window is open, the list shows a new frequency within a second
+  of tuning, a Send as transmitting until the over ends, and each End-of-Over
+  that carries a callsign (the one shown after "last over") as received, with
+  the SNR. Closing the window takes the radio off the list.
+- Hold Reporter to type the status message, up to 64 characters (kept in
+  `freedv_reporter.txt` on the DATA partition). An empty one clears it.
+- A QSY request from someone on the list shows on the message line: their
+  callsign, the frequency and their words. The radio does not tune or
+  transmit because of it.
+- **Without the internet, RADE works as it does with Reporter off.** One note
+  says it is not connected, and it tries again quietly, waiting longer each
+  time (5 s, then up to 2 minutes). Nothing waits for the network: not the
+  screen, not the decoder, not a send.
+- The connection is encrypted (TLS), and the server's certificate is checked:
+  a radio whose clock is wrong connects once the clock is set. The radio
+  connects as FreeDV's own radio integrations do, a reporter that does not
+  download the list of stations. The mode on the list is RADEV1.
 
 ### PSK31, PSK63 and Olivia
 
@@ -7868,6 +7896,7 @@ The DATA partition, readable on a PC.
 | `app_freqs` | the last frequency and mode of each digital app |
 | `psk_macros.txt`, `olivia_macros.txt`, `psk.conf` | PSK and Olivia macros, PSK squelch |
 | `js8_inbox.txt`, `js8_held.txt`, `js8_texts.txt` | JS8 inbox, messages held for others, INFO/STATUS/alert words/groups |
+| `freedv_reporter.txt` | the RADE app's [FreeDV Reporter](#rade-freedv) status message, one line |
 | `incoming_log.adi` | put an ADIF log here to import it at the next start; a record with neither OPERATOR nor STATION_CALLSIGN is logged under your callsign |
 | `field/` | Field Ops state and activation logs (`field/logs/`) |
 | `digi_text/` | the [text log of the keyboard modes](#text-log-of-the-keyboard-modes): `YYYY-MM-DD.txt`, a file a UTC day |

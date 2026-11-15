@@ -5,10 +5,15 @@
 // through tx_player at RADE's own power. The receiver is stopped meanwhile. The speech goes to Bluetooth
 // headphones and to the TCI clients (the browser's Panel and Remote pages too): the base plays no app audio on
 // the speaker while it receives, so the app opens only with one of them there (dialog_freedv_can_open).
+// Reporter (page 2, off by default) shows the radio on qso.freedv.org while the app is open (src/freedv_report.c).
 
 #include "dialog_freedv.h"
 #include "freedv_rx.h"
 #include "freedv_tx.h"
+#include "freedv_report.h"
+#include "main.h"           /* VERSION */
+#include "station.h"
+#include "text_popup.h"
 #include "tx_player.h"
 #include "tci_server.h"
 #include "btaudio.h"
@@ -51,6 +56,7 @@ static bool        tx_thr_live;
 static atomic_bool tx_abort, tx_finished, tx_sent;
 
 static lv_obj_t *lbl_sync, *lbl_snr, *lbl_level, *lbl_audio, *lbl_loss, *lbl_cpu;
+static lv_obj_t *body_obj;      /* in the keyboard group: the Reporter's message popup takes it out a while */
 
 static void app_open(lv_obj_t *parent);
 static void app_close(void);
@@ -64,6 +70,12 @@ static void close_btn_cb(button_data_t *btn);
 static void pwr_cb(button_data_t *data);
 static const char *rec_label(void);
 static const char *pwr_label(void);
+static void report_cb(button_data_t *data);
+static void report_hold_cb(button_data_t *data);
+static const char *report_label(void);
+static void report_begin(void);
+static void report_end(void);
+static void report_tick(const freedv_rx_stats_t *s);
 
 static button_data_t btn_freq    = {.type = BTN_TEXT, .label = "Freq.", .press = freq_cb};
 static button_data_t btn_rec     = {.type = BTN_TEXT_FN, .label_fn = rec_label, .press = rec_cb};
@@ -72,6 +84,8 @@ static button_data_t btn_discard = {.type = BTN_TEXT, .label = "Discard", .press
 static button_data_t btn_close   = {.type = BTN_TEXT, .label = "Close", .press = close_btn_cb};
 static button_data_t btn_close2  = {.type = BTN_TEXT, .label = "Close", .press = close_btn_cb};
 static button_data_t btn_pwr     = {.type = BTN_TEXT_FN, .label_fn = pwr_label, .press = pwr_cb};  /* RADE's own */
+static button_data_t btn_report  = {.type = BTN_TEXT_FN, .label_fn = report_label, .press = report_cb,
+                                    .hold = report_hold_cb};
 
 static buttons_page_t page_1, page_2;
 
@@ -81,7 +95,7 @@ static button_data_t btn_page2 = {.type = BTN_TEXT, .label = "(RADE 2:2)", .pres
                                   .hold = button_prev_page_cb, .next = &page_1, .prev = &page_1};
 
 static buttons_page_t page_1 = {.items = {&btn_page1, &btn_freq, &btn_rec, &btn_send, &btn_close}};
-static buttons_page_t page_2 = {.items = {&btn_page2, &btn_pwr, &btn_discard, &btn_close2}};
+static buttons_page_t page_2 = {.items = {&btn_page2, &btn_pwr, &btn_report, &btn_discard, &btn_close2}};
 
 static dialog_t dialog = {.construct_cb = app_open, .destruct_cb = app_close, .audio_cb = audio_in,
                           .btn_page = &page_1, .restore_radio = true};
@@ -276,9 +290,11 @@ static void ui_timer_cb(lv_timer_t *t)
     header_update();
     if (atomic_load(&state) != ST_RX) {
         show_tx_state();
+        report_tick(NULL);
         return;
     }
     freedv_rx_get_stats(&s);
+    report_tick(started ? &s : NULL);
 
     if (!started) {
         set_text(lbl_sync, freedv_rx_available() ? "decoder did not start" : "not built into this image", TC(warn));
@@ -320,6 +336,7 @@ static void app_open(lv_obj_t *parent)
 
     lv_obj_t *body = lv_obj_create(dialog.obj);
 
+    body_obj = body;
     lv_obj_remove_style_all(body);
     app_frame_body(body);
     lv_obj_set_style_pad_hor(body, 12, 0);
@@ -347,6 +364,7 @@ static void app_open(lv_obj_t *parent)
     freedv_rx_set_tap(tci_server_speech_write);
     tci_server_speech_on(true);
     started = freedv_rx_start();
+    report_begin();
     ui_timer = lv_timer_create(ui_timer_cb, UI_TICK_MS, NULL);
     ui_timer_cb(ui_timer);
     short_label();
@@ -354,6 +372,7 @@ static void app_open(lv_obj_t *parent)
 
 static void app_close(void)
 {
+    report_end();
     freq_list_close();
     lv_timer_del(ui_timer);
     ui_timer = NULL;
@@ -367,6 +386,7 @@ static void app_close(void)
     started = false;
     tci_server_speech_on(false);
     lbl_sync = lbl_snr = lbl_level = lbl_audio = lbl_loss = lbl_cpu = NULL;
+    body_obj = NULL;
     dsp_set_waterfall_enabled(true);
     dsp_set_spectrum_enabled(true);
 }
@@ -528,4 +548,165 @@ bool dialog_freedv_can_open(void)
     char sink[128];
 
     return btaudio_hp_sink(sink, sizeof(sink)) || tci_server_clients() > 0;
+}
+
+/* FreeDV Reporter (#37): while the app is open with Reporter on, qso.freedv.org shows the callsign, the locator, the
+ * frequency, the sends and the callsigns the End-of-Overs carry, with their SNR. freedv_report.c and its helper hold
+ * the connection; nothing here waits for it, and without the internet the app works as without the Reporter: one
+ * note says it is not connected, the helper tries again quietly. A QSY request is shown, and nothing else is done */
+
+static bool      rep_told_on, rep_told_off;  /* the notes "on the list" and "not connected": once each while open */
+static bool      rep_editing;                /* the message popup is open */
+static char      rep_error[64];              /* the helper's "error" line, said when it has gone */
+
+static const char *report_label(void)
+{
+    return param_i_get(cfg_rade_report) ? "Reporter\nOn" : "Reporter\nOff";
+}
+
+static void report_begin(void)
+{
+    const char *grid = station_qth();
+    char        version[48], m[FREEDV_REPORT_MSG_MAX + 1];
+
+    rep_told_on = rep_told_off = false;
+    rep_error[0] = '\0';
+    if (!param_i_get(cfg_rade_report) || freedv_report_running())
+        return;
+    if (!params.callsign.x[0]) {
+        msg_schedule_text_fmt("FreeDV Reporter: set your callsign in Settings first");
+        return;
+    }
+    if (strlen(grid) < 4) {
+        msg_schedule_text_fmt("FreeDV Reporter: set the QTH locator in Settings first");
+        return;
+    }
+    snprintf(version, sizeof(version), "OpenX6X00 %s", strrchr(VERSION, 'v') + 1);
+    if (!freedv_report_start(params.callsign.x, grid, !freedv_tx_available(), cparam_i_get(cfg_fg_freq), version)) {
+        msg_schedule_text_fmt("FreeDV Reporter: could not start");
+        return;
+    }
+    freedv_report_message_load(m, sizeof(m));
+    freedv_report_message(m);
+}
+
+static void report_end(void)
+{
+    if (rep_editing) {
+        textarea_window_close();
+        rep_editing = false;
+    }
+    freedv_report_stop();
+}
+
+/* The helper's lines: the two notes, a QSY request on the message line */
+static void report_line(const char *l)
+{
+    if (!strcmp(l, "connected")) {
+        if (!rep_told_on)
+            msg_schedule_text_fmt("FreeDV Reporter: %s is on qso.freedv.org", params.callsign.x);
+        rep_told_on = true;
+    } else if (!strncmp(l, "offline", 7)) {
+        if (!rep_told_off)
+            msg_schedule_text_fmt("FreeDV Reporter: not connected (%s), trying again", l[7] ? l + 8 : "?");
+        rep_told_off = true;
+    } else if (!strncmp(l, "qsy ", 4)) {
+        char               call[17] = "", text[96];
+        unsigned long long hz = 0;
+        int                at = 0;
+
+        if (sscanf(l + 4, "%16s %llu %n", call, &hz, &at) < 2)
+            return;
+        /* Someone else's words: no "#" for the message line's colour codes */
+        snprintf(text, sizeof(text), "%s", at ? l + 4 + at : "");
+        for (char *c = text; *c; c++)
+            if (*c == '#')
+                *c = ' ';
+        for (char *c = call; *c; c++)
+            if (*c == '#')
+                *c = ' ';
+        msg_schedule_long_text_fmt("FreeDV Reporter: %s asks for a QSY to %.1f kHz%s%s", call, hz / 1000.0,
+                                   text[0] ? ": " : "", text);
+    } else if (!strncmp(l, "error ", 6)) {
+        snprintf(rep_error, sizeof(rep_error), "%s", l + 6);
+    } else if (!strcmp(l, "gone")) {
+        msg_schedule_text_fmt("FreeDV Reporter: stopped%s%s", rep_error[0] ? ", " : "", rep_error);
+    }
+}
+
+/* Every UI tick; s: the receiver's numbers, NULL while recording or sending */
+static void report_tick(const freedv_rx_stats_t *s)
+{
+    char line[200];
+
+    if (!freedv_report_running())
+        return;
+    freedv_report_freq(cparam_i_get(cfg_fg_freq));
+    freedv_report_tx(atomic_load(&state) == ST_TX);
+    freedv_report_rx_stats(s);
+    for (int i = 0; i < 4 && freedv_report_poll(line, sizeof(line)); i++)
+        report_line(line);
+}
+
+static void report_cb(button_data_t *data)
+{
+    bool on = !param_i_get(cfg_rade_report);
+
+    param_i_set(cfg_rade_report, on);
+    buttons_refresh(data);
+    if (on) {
+        msg_schedule_long_text_fmt("FreeDV Reporter on: while RADE is open, your callsign, locator and frequency are "
+                                   "published on qso.freedv.org, a public site");
+        report_begin();
+    } else {
+        report_end();
+        msg_update_text_fmt("FreeDV Reporter off");
+    }
+}
+
+/* The popup closed first, then the keys back to the body (as voice_messages.c's rename) */
+static void message_done(void)
+{
+    textarea_window_close();
+    rep_editing = false;
+    if (body_obj) {
+        lv_group_add_obj(keyboard_group, body_obj);
+        lv_group_focus_obj(body_obj);
+        lv_group_set_editing(keyboard_group, true);
+    }
+}
+
+static bool message_ok(void)
+{
+    const char *t = textarea_window_get();
+
+    if (!freedv_report_message_save(t ? t : "")) {
+        msg_update_text_fmt("FreeDV Reporter: the message was not saved");
+        return false;
+    }
+    freedv_report_message(t ? t : "");
+    message_done();
+    return true;
+}
+
+static bool message_cancel(void)
+{
+    message_done();
+    return true;
+}
+
+/* Held: the status message the list shows next to the callsign */
+static void report_hold_cb(button_data_t *data)
+{
+    char m[FREEDV_REPORT_MSG_MAX + 1];
+
+    (void)data;
+    if (rep_editing || textarea_window_is_open())
+        return;
+    rep_editing = true;
+    lv_group_remove_obj(body_obj);      /* the popup gets the keys only with the body out of the group */
+    textarea_window_open_w_label(message_ok, message_cancel, "Reporter message:");
+    lv_textarea_set_max_length(textarea_window_text(), FREEDV_REPORT_MSG_MAX);
+    freedv_report_message_load(m, sizeof(m));
+    textarea_window_set(m);
 }

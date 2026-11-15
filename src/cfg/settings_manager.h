@@ -415,6 +415,10 @@ class SettingsManager {
     // several dB over its average, which the power reading follows: 2 W by default, at most 3 W
     Parameter<int32_t> p_rade_pwr{"rade_pwr", 20, 5, 30,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // FreeDV Reporter (#37): while the RADE app is open, the radio on qso.freedv.org (callsign, locator, frequency).
+    // Off by default: it publishes the station on a public site
+    Parameter<int32_t> p_rade_report{"rade_report", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Decodes (FT8 FT4 FT2 JS8 PSK31 PSK63 Olivia) to PSK Reporter, on by default
     Parameter<int32_t> p_pskreporter{"pskreporter", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};

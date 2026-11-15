@@ -161,7 +161,10 @@ modes (1600, 700D) with it. No date.
   of its own, so a card image cannot rely on it.
 - **Codec 2 1600 and 700D** need far less CPU (they run on a microcontroller): a first step that
   needs only the audio path.
-- **Reporting**: FreeDV Reporter (https://qso.freedv.org), later.
+- **Reporting**: FreeDV Reporter (https://qso.freedv.org), #37: Reporter in the RADE app (off by default),
+  rootfs/usr/sbin/x6100-freedv-reporter as role report_wo. To see on the air: whether a QSY request reaches a
+  report_wo client (FreeDV's radio integrations connect that way; the server's code is not public), and the
+  callsigns FreeDV's own program sends once the receiver reads them.
 
 ## Winlink over HF: Pat with ARDOP on the radio, Mercury and XARA (#18, #19, #43)
 

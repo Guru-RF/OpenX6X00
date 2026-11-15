@@ -32,6 +32,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     freq_list.c
     ft8_udp.c
     pskreporter.c
+    freedv_report.c
     dxcc.c
     dialog_modes.c
     apps_menu.c
