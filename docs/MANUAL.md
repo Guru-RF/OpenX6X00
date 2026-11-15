@@ -220,9 +220,9 @@ The rest, left as it is unless you have a reason:
   passband, low edge 50-400 Hz (160 by default), high edge 2000-4000 Hz
   (3000).
 - **FM pre/de-emphasis** (patched base r8 and later), for FM.
-- **Moni level** (VOL 2:3 page) plays your own transmission on the speaker.
-  It is 0 by default: higher, the microphone can pick it up again (see
-  [Audio tab](#audio-tab)).
+- **Moni level** (Settings > Audio > MICROPHONE) plays your own transmission
+  on the speaker. It is 0 by default: higher, the microphone can pick it up
+  again (see [Audio tab](#audio-tab)).
 - The digital apps set their own audio level: see
   [Digital-mode TX level](#digital-mode-tx-level).
 
@@ -279,27 +279,26 @@ line, unless Keep knob lines is on).
   ("Removed from MFK encoder"). A mark on the left of the button shows which
   knob it is on, in another colour while that knob turns it.
 - A press of a value button puts it on a knob at once: VOL for Volume,
-  Squelch, RF gain, TX power, Moni level, Brightness and the filter, the MFK
-  for the others. A press of an on/off button (NB, NR, DNF, VOX, PRE, ATT, ATU)
+  Squelch, RF gain, TX power, Brightness and the filter, the MFK for the
+  others. A press of an on/off button (NB, NR, DNF, VOX, PRE, ATT, ATU)
   switches it; a press of AGC takes it to the next of Off, Slow, Fast, Auto.
-- AGC is on the MFK 2:4 page, PRE, ATT and ATU on VOL 2:3, Step (the tuning
+- AGC is on the MFK 2:4 page, PRE, ATT and ATU on VOL 2:2, Step (the tuning
   step, as FST) on the DFL page. On a knob, a turn steps AGC and Step forward
   or back, stopping at Off and Auto, 10 Hz and 100 kHz (the AGC and FST keys go
   round), and switches PRE, ATT and ATU. Up to v0.3.7 AGC, PRE and ATT could not
   go on a knob, and there was no ATU or Step button.
 - At first VOL has Volume, RF gain, the filter edges and TX power, and the MFK
   Spectrum Zoom and DNF. Volume never leaves VOL.
-- GEN shows the VOL pages, then the MFK pages: VOL 1:3 (Volume, Squelch, RF
-  gain, TX power), VOL 2:3 (Moni level, PRE, ATT, ATU), VOL 3:3
-  (Brightness), MFK 1:4 to 4:4.
-- Brightness (VOL 3:3) is the screen's, the one of Settings > Display >
+- GEN shows the VOL pages, then the MFK pages: VOL 1:2 (Volume, Squelch, RF
+  gain, TX power), VOL 2:2 (Brightness, PRE, ATT, ATU), MFK 1:4 to 4:4.
+- Brightness (VOL 2:2, F2) is the screen's, the one of Settings > Display >
   BACKLIGHT: a press puts it on VOL, and a turn sets it from 0 to 9 and
   keeps it, as Settings does. Turned below the level the screen dims to,
   it takes that level down with it, so the screen never brightens when it
   dims. A turn never puts the light out: the light off (-1) is only in
-  Settings. VOL 2:3 was full, so Brightness has a page of its own and
-  nothing else moved; the MFK pages are one GEN press further than up to
-  v0.3.12, when VOL had two pages (issue #271).
+  Settings. It took the place of Moni level, which up to v0.3.12 was on VOL
+  2:2 and is now in Settings > Audio > MICROPHONE; a knob you had put Moni
+  level on keeps it (issue #271).
 
 Hide buttons. With Settings > Display > INTERFACE > Hide buttons at After
 3 s, After 5 s or After 10 s (Off by default), the five buttons and the two
@@ -759,7 +758,7 @@ active bands of the band list, from the frequency up or down.
 - On HF outside the amateur bands (CB, the broadcast bands, marine) the radio
   does not transmit either, by default: "No TX on 27.185 MHz", then "Out of
   band: Settings > TX Cal". See [Amateur bands only](#amateur-bands-only).
-- PRE and ATT are on the VOL 2:3 button page (F1 from the main screen), per
+- PRE and ATT are on the VOL 2:2 button page (F1 from the main screen), per
   band, and can go on a knob (see [Buttons and knobs](#buttons-and-knobs)).
   The X6200 has no PRE key, and its receiver is specified with the
   preamplifier on: turn PRE on when the band sounds quiet.
@@ -1628,7 +1627,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
   On lights the keys as long as the screen is at its brightness: with Off,
   until the screen goes dark. Up to v0.3.12 the timeout went from 5 s, so
   the screen always dimmed (issue #271). The brightness is also on the VOL
-  3:3 button page (see [Buttons and knobs](#buttons-and-knobs)).
+  2:2 button page (see [Buttons and knobs](#buttons-and-knobs)).
 - Popups Freq/Info/TX (Popups Freq/Info/ALC up to v0.3.8), three switches:
   - Freq (off by default): the new frequency, big in the middle of the
     screen, while tuning.
@@ -1764,7 +1763,7 @@ at 4, as it would have.
 |---|---|
 | RX AUDIO | Speaker mode, Line-in / Line-out, Play / Rec gain, Boot sound (CQ CQ in CW with the boot logo, quiet; at volume 28 when your VOL is lower; off by default), Speaker always off |
 | TX AUDIO | compressor (threshold, makeup), TX filter, FM pre/de-emphasis |
-| MICROPHONE | Input (Built-in, Hand, Auto), Hand mic gain, Built-in gain |
+| MICROPHONE | Input (Built-in, Hand, Auto), Hand mic gain, Built-in gain, Moni level (0-100, 0 by default) |
 | VOX | On, Gain, Anti-VOX, Delay |
 | AGC | Hang, Knee, Slope |
 
@@ -1801,8 +1800,11 @@ Compressor (Comp on the MFK 2:4 page): off (1:1) by default on both radios.
   nearest of them: 2:1 and 3:1 as 2:1, 4:1 to 7:1 as 4:1, 8:1 as 8:1; 1:1
   (Off) is off.
 
-TX monitor: Moni level (VOL 2:3 page, F2) plays your own transmission on the
-speaker. It is 0 by default on both radios. At 30, the default in earlier
+TX monitor: Moni level (MICROPHONE card) plays your own transmission on the
+speaker, and is silent whenever the speaker is (muted, volume 0, Speaker
+always off, Bluetooth headphones on). Up to v0.3.12 it was on the VOL 2:2
+button page, where Brightness is now (issue #271); a knob you had put it on
+keeps it. It is 0 by default on both radios. At 30, the default in earlier
 releases, the microphone picked the monitor up and fed it back into the
 transmission: on the X6200, whose speaker and built-in microphone share the
 case, a loud ringing from the moment PTT was pressed in SSB (issue #15); on

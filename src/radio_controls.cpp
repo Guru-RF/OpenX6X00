@@ -264,7 +264,7 @@ void controls_encoder_update(cfg_ctrl_t ctrl, int32_t diff, std::string &msg) {
             break;
         }
 
-        case CTRL_PRE:          /* per band, as the PRE key and the VOL 2:3 buttons */
+        case CTRL_PRE:          /* per band, as the PRE key and the VOL 2:2 buttons */
         case CTRL_ATT: {
             ComputedParameter<int32_t> &p = ctrl == CTRL_PRE ? cfg_sm.cp_cur_pre : cfg_sm.cp_cur_att;
 

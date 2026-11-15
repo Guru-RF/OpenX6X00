@@ -141,7 +141,8 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     /* The TX monitor off on both radios: at 30 the microphone took the monitor back into the transmission,
      * a loud ringing on PTT in SSB on the X6200 (issue #15), and a feedback loop from the X6100's speaker
-     * on PTT and on an app's tones (issue #72) */
+     * on PTT and on an app's tones (issue #72). Settings > Audio > MICROPHONE, a knob bound to it (CTRL_MONI);
+     * on VOL 2:2 until Brightness took its place (#271) */
     Parameter<int32_t> p_moni{"moni", 0, 0, 100,
         StorageType::GLOBAL, pending_writes_, &global_params_};
     Parameter<int32_t> p_atu_enabled{"atu", false, 0, 1,
@@ -471,7 +472,7 @@ class SettingsManager {
         StorageType::GLOBAL, pending_writes_, &global_params_};
     SubjectT<int32_t>  s_tx_ranges_read{0};
     // The screen's brightness as last set (params.brightness_normal, screen_light.c's backlight_set_normal): the knob
-    // line and the VOL 3:3 button follow it (#271). Not stored here, the params table has it
+    // line and the VOL 2:2 button follow it (#271). Not stored here, the params table has it
     SubjectT<int32_t>  s_brightness{5};
     // TUNE for an external tuner (ext_tune.h): its power, W (tune_tx.h's range: up to the PWR top, #87), and its time
     // limit, s

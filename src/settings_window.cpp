@@ -3166,6 +3166,7 @@ static uint8_t make_station(uint8_t row) {
 
 static param_slider_t hmic_slider      = {&cfg_sm.p_hmic, 0, 50, 1, "%i"};
 static param_slider_t imic_slider      = {&cfg_sm.p_imic, 0, 50, 1, "%i"};
+static param_slider_t moni_slider      = {&cfg_sm.p_moni, 0, 100, BOARD_MONI_STEP, "%i"};
 static param_slider_t vox_gain_slider  = {&cfg_sm.p_vox_gain, 0, 100, 1, "%i"};
 static param_slider_t vox_ag_slider    = {&cfg_sm.p_vox_ag, 0, 100, 1, "%i"};
 static param_slider_t vox_delay_slider = {&cfg_sm.p_vox_delay, 100, 2000, 50, "%i ms"};
@@ -4364,6 +4365,8 @@ static void make_audio_page() {
     row = make_mic(row, "Input", cfg_sm.p_mic);
     row = make_param_slider(row, "Hand mic", &hmic_slider);
     row = make_param_slider(row, "Built-in", &imic_slider);
+    /* The TX monitor: your own transmission on the speaker, muted with it (radio.c). On VOL 2:2 until #271 */
+    row = make_param_slider(row, "Moni level", &moni_slider);
     card_end(row);
 
     row = card_begin("VOX");

@@ -249,9 +249,8 @@ button_data_t btn_tx_pwr = knob([] { return text("TX power:\n%0.1f W", cfg_sm.p_
                                 CTRL_PWR, &cfg_sm.p_pwr);
 button_data_t btn_dig_pwr = fn_btn(dig_pwr_label, dig_pwr_cb, &cfg_sm.p_pwr);
 button_data_t btn_ext_tune = fn_btn(ext_tune_label, [](button_data_t *) { ext_tune_toggle(); }, &cfg_sm.p_tune_pwr);
-static button_data_t btn_moni = knob([] { return text("Moni level:\n%i", cfg_sm.p_moni.get()); },
-                                     CTRL_MONI, &cfg_sm.p_moni);
-/* The screen's brightness, as Settings > Display sets it: a press puts it on VOL (#271) */
+/* The screen's brightness, as Settings > Display sets it: a press puts it on VOL (#271). It took Moni level's
+ * place on VOL 2:2; Moni level is in Settings > Audio, and a knob bound to it keeps it (CTRL_MONI) */
 static button_data_t btn_bright = knob([] { return text("Brightness:\n%s", backlight_normal_text()); },
                                        CTRL_BRIGHTNESS, &cfg_sm.s_brightness);
 
@@ -413,8 +412,7 @@ buttons_page_t buttons_page_rtty = {{&btn_rtty_p1, &btn_rtty_rate, &btn_rtty_shi
 
 /* ---- pages and groups; buttons_init() links the page buttons of a group in a ring ---- */
 
-static button_data_t btn_vol_p1 = page_btn("(VOL 1:3)"), btn_vol_p2 = page_btn("(VOL 2:3)"),
-                     btn_vol_p3 = page_btn("(VOL 3:3)");
+static button_data_t btn_vol_p1 = page_btn("(VOL 1:2)"), btn_vol_p2 = page_btn("(VOL 2:2)");
 static button_data_t btn_mfk_p1 = page_btn("(MFK 1:4)"), btn_mfk_p2 = page_btn("(MFK 2:4)"),
                      btn_mfk_p3 = page_btn("(MFK 3:4)"), btn_mfk_p4 = page_btn("(MFK 4:4)");
 static button_data_t btn_app_p1 = page_btn("(APP 1:4)"), btn_app_p2 = page_btn("(APP 2:4)"),
@@ -426,9 +424,7 @@ static button_data_t btn_dfn_p1 = page_btn("(DFN 1:3)"), btn_dfn_p2 = page_btn("
 static button_data_t btn_mem_p1 = page_btn("(MEM 1:2)"), btn_mem_p2 = page_btn("(MEM 2:2)");
 
 buttons_page_t        buttons_page_vol_1 = {{&btn_vol_p1, &btn_vol, &btn_sql, &btn_rfg, &btn_tx_pwr}};
-static buttons_page_t page_vol_2 = {{&btn_vol_p2, &btn_moni, &btn_pre, &btn_att, &btn_atu}};
-/* VOL 2:3 is full: the brightness on a page of its own, nothing moved (#271) */
-static buttons_page_t page_vol_3 = {{&btn_vol_p3, &btn_bright}};
+static buttons_page_t page_vol_2 = {{&btn_vol_p2, &btn_bright, &btn_pre, &btn_att, &btn_atu}};
 static buttons_page_t page_mfk_1 = {{&btn_mfk_p1, &btn_rit, &btn_xit, &btn_zoom, &btn_wf_ref}};
 static buttons_page_t page_mfk_2 = {{&btn_mfk_p2, &btn_agc, &btn_comp, &btn_if_shift, &btn_vox}};
 static buttons_page_t page_mfk_3 = {{&btn_mfk_p3, &btn_wf_mode, &btn_span_wider, &btn_span_narrower, &btn_screen_rec}};
@@ -455,7 +451,7 @@ static buttons_page_t page_dfl = {{&btn_flt_low, &btn_flt_high, &btn_flt_bw, &bt
 static buttons_page_t page_mem_1 = {{&btn_mem_p1, &btn_mem[0], &btn_mem[1], &btn_mem[2], &btn_mem[3]}};
 static buttons_page_t page_mem_2 = {{&btn_mem_p2, &btn_mem[4], &btn_mem[5], &btn_mem[6], &btn_mem[7]}};
 
-buttons_group_t buttons_group_gen = {&buttons_page_vol_1, &page_vol_2, &page_vol_3,
+buttons_group_t buttons_group_gen = {&buttons_page_vol_1, &page_vol_2,
                                      &page_mfk_1, &page_mfk_2, &page_mfk_3, &page_mfk_4};
 buttons_group_t buttons_group_app = {&page_app_1, &page_app_2, &page_app_3, &page_app_4};
 buttons_group_t buttons_group_key = {&page_key_1, &page_key_2, &page_cw_1, &page_cw_2};
