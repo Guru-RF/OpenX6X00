@@ -6971,9 +6971,18 @@ OpenSSH `id_ed25519` chosen there is converted to one).
 
 ### A key on a security key
 
-A FIDO2 security key (a YubiKey 5, a SoloKey, a Nitrokey 3...) keeps the
-private half on the key itself: `ssh` logs in only while it is plugged in and
-touched. It needs OpenSSH 8.2 or later on the computer, built with security
+A FIDO2 security key (a YubiKey 5, a SoloKey, a Nitrokey 3...) holds the
+secret that signs each login: `ssh` logs in only while it is plugged in and
+touched. There are two kinds, and the radio takes both the same way:
+
+- Non-resident (`ssh-keygen`'s default): logging in needs both the stub file
+  `ssh-keygen` writes on the computer (`id_ed25519_sk`, without `.pub`) and
+  the security key.
+- Resident (`-O resident`): only the security key is needed, since the key
+  lives on the device. On another computer, `ssh-keygen -K` writes the stub
+  file again from the key.
+
+It needs OpenSSH 8.2 or later on the computer, built with security
 key support: most Linux distributions' is; a Mac's own `ssh` is not
 (Homebrew's `openssh` is).
 
