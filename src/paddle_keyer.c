@@ -497,10 +497,23 @@ static void * keyer_thread(void *arg) {
     return NULL;
 }
 
-static void hand_over(int i, int n) {
+/* The thread reads the settings (the mode, the key speed): it starts with the first device handed
+ * over, but not before the first scan, which settings_load() makes after params_init(). A keyboard
+ * there at boot is handed over before that (keyboard_init()), and the thread on it read the params
+ * unmade (SEGV in cparam_i_get). With nothing handed over there is no thread */
+static bool settings_ready, handed;
+
+static void start(void) {
     static pthread_t thread;
     static bool      started;
-    struct stat      st;
+
+    if (settings_ready && handed && !started) {
+        started = pthread_create(&thread, NULL, keyer_thread, NULL) == 0;
+    }
+}
+
+static void hand_over(int i, int n) {
+    struct stat st;
 
     if (n >= 0 && fstat(n, &st) == 0) {
         fd_rdev[i] = st.st_rdev;
@@ -509,14 +522,13 @@ static void hand_over(int i, int n) {
         fd_rdev[i] = 0;
         fd_ino[i]  = 0;
     }
+    handed |= n >= 0;
     if (n != FD_NONE) {
         int old = atomic_exchange(&new_fd[i], n);
 
         if (old >= 0) close(old);
     }
-    if (!started) {
-        started = pthread_create(&thread, NULL, keyer_thread, NULL) == 0;
-    }
+    start();
 }
 
 void paddle_keyer_open(const char *path) {
@@ -632,6 +644,8 @@ static void scan_one(int slot, const char *pattern, const char *pattern2, int fl
 }
 
 void paddle_keyer_scan(void) {
+    settings_ready = true;
+    start();   /* a keyboard handed over before the settings */
     scan_input();
     scan_one(FD_MIDI, "/dev/snd/midiC*D*", NULL, O_RDONLY | O_NONBLOCK);
     if (param_i_get(cfg_paddle_serial)) {   /* opening it raises DTR and RTS: the supply of many interfaces */
