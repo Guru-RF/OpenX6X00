@@ -69,8 +69,11 @@ int main(int argc, char **argv) {
     FILE *rf = argc > 1 ? fopen(argv[1], "r") : NULL;
     if (rf) {
         char   line[600];
-        size_t n_known = sizeof(known) / sizeof(known[0]), in_list = 0;
+        size_t n_known = 0, in_list = 0;
         bool   all = true;
+
+        for (size_t k = 0; k < sizeof(known) / sizeof(known[0]); k++)    /* the list is the X6200's */
+            n_known += known[k].model == MODEL_X6200;
 
         while (fgets(line, sizeof(line), rf)) {
             char ver[16], built[16], name[80], sha[80];
@@ -78,8 +81,8 @@ int main(int argc, char **argv) {
 
             if (line[0] == '#' || sscanf(line, "%15s %15s %79s %ld %79s", ver, built, name, &size, sha) != 5) continue;
             bool found = false;
-            for (size_t k = 0; k < n_known; k++)
-                if (!strncmp(known[k].name, name, strlen(name)) && known[k].size == size &&
+            for (size_t k = 0; k < sizeof(known) / sizeof(known[0]); k++)
+                if (known[k].model == MODEL_X6200 && !strncmp(known[k].name, name, strlen(name)) && known[k].size == size &&
                     !strcmp(known[k].sha256, sha) && !strcmp(known[k].ver, ver))
                     found = true;
             if (!found) printf("      %s %s is in the list but not in base_flash's known[]\n", ver, name);
@@ -89,12 +92,15 @@ int main(int argc, char **argv) {
         fclose(rf);
         expect(all && in_list == n_known, "base_flash's known[] and base_releases.txt: the same files");
     }
+    test_ok = true;                             /* each file given is known (a test build too, with --test-ok) */
     for (int i = 2; i < argc; i++) {
         image = NULL;
         expect(load(argv[i]) == 0, argv[i]);
         free(image);
     }
+    test_ok = false;
     FILE *f = fopen("units_junk.xgf", "wb");     /* in the directory run.sh works in */
+    model   = MODEL_X6200;                      /* on an X6200 */
     if (f) {
         for (int i = 0; i < 32768; i++)
             fputc(rand(), f);
@@ -112,8 +118,63 @@ int main(int argc, char **argv) {
         image = NULL;
         expect(load("g90_units_junk.xgf") < 0, "a G90 base file is refused, --unknown-ok or not");
         unknown_ok = false;
-        remove("g90_units_junk.xgf");
+
+        /* On an X6100: the X6200's names refused, its own taken with --unknown-ok */
+        model      = MODEL_X6100;
+        unknown_ok = true;
+        rename("g90_units_junk.xgf", "x6200_mcu_20300101000000.xgf");
+        image = NULL;
+        expect(load("x6200_mcu_20300101000000.xgf") < 0, "on an X6100, an X6200 base file is refused, --unknown-ok or not");
+        rename("x6200_mcu_20300101000000.xgf", "X6100_BBFW_units_junk.xgf");
+        image = NULL;
+        expect(load("X6100_BBFW_units_junk.xgf") == 0, "on an X6100, --unknown-ok takes an unknown X6100 file");
+        free(image);
+        unknown_ok = false;
+        image      = NULL;
+        expect(load("X6100_BBFW_units_junk.xgf") < 0, "on an X6100, an unknown file is refused without --unknown-ok");
+        remove("X6100_BBFW_units_junk.xgf");
     }
+
+    /* Each radio's known files on the other refused, the test build only with --test-ok (argv: the files given, matched
+     * by their sums) */
+    for (int i = 2; i < argc; i++) {
+        size_t k;
+        FILE  *g = fopen(argv[i], "rb");
+        long   len;
+        uint8_t *d;
+        char   sum[65];
+
+        if (!g) continue;
+        fseek(g, 0, SEEK_END);
+        len = ftell(g);
+        rewind(g);
+        d = malloc(len);
+        if (!d || fread(d, 1, len, g) != (size_t)len) { fclose(g); free(d); continue; }
+        fclose(g);
+        sha256_hex(d, len, sum);
+        free(d);
+        for (k = 0; k < sizeof(known) / sizeof(known[0]); k++)
+            if (!strcmp(known[k].sha256, sum)) break;
+        if (k == sizeof(known) / sizeof(known[0])) continue;
+        char what[300];
+
+        model = known[k].model == MODEL_X6100 ? MODEL_X6200 : MODEL_X6100;
+        unknown_ok = true, test_ok = true, image = NULL;
+        snprintf(what, sizeof(what), "%s refused on the other radio, --unknown-ok or not", known[k].ver);
+        expect(load(argv[i]) < 0, what);
+        model = known[k].model, unknown_ok = false, test_ok = false, image = NULL;
+        snprintf(what, sizeof(what), "%s %s", known[k].ver, known[k].test ? "refused without --test-ok" : "taken on its own radio");
+        expect(known[k].test ? load(argv[i]) < 0 : load(argv[i]) == 0, what);
+        free(image);
+        if (known[k].test) {
+            test_ok = true, image = NULL;
+            snprintf(what, sizeof(what), "%s taken with --test-ok", known[k].ver);
+            expect(load(argv[i]) == 0, what);
+            free(image);
+            test_ok = false;
+        }
+    }
+    model = MODEL_NONE;
     printf("%s\n", fails ? "UNIT TESTS FAILED" : "unit tests: all pass");
     return fails != 0;
 }

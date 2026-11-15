@@ -134,8 +134,26 @@ bool hw_init(void) {
     return pack != NULL;
 }
 
+/* The base's version text starts with "V" ("V1.1.8 Sep 15 2024,15:22:37"). Read a few seconds after the base was
+ * reset, it once came without its first three bytes ("1.8 Sep 15 ...", bench X6100, 15 Nov 2026), and the library keeps
+ * its first reading for the whole run: no version, so no test base and none of 1.1.9's capabilities. Read again then,
+ * the library's copy emptied (it reads again while its first byte is 0); 5 times at most (about 3 s with radio_init's
+ * waits, before its own reset of the base at the 6th), then taken as it is */
 bool hw_control_init(void) {
-    return x6100_control_init();
+    static int garbled;
+    char      *ver;
+
+    if (!x6100_control_init()) {
+        return false;
+    }
+    ver = x6100_control_get_fw_version_str();
+    if (ver && ver[0] != 'V' && garbled < 5) {
+        fprintf(stderr, "base: version read as \"%.40s\", not \"V...\": read again\n", ver);
+        garbled++;
+        ver[0] = '\0';
+        return false;
+    }
+    return true;
 }
 
 void hw_bb_reset(void) {

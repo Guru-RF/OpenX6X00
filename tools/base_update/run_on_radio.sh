@@ -6,7 +6,7 @@
 # start" takes: a GUI started by anyone during the write waits until the write has ended, rather than opening the
 # base's port and bus in the middle of it. Its output in DIR/flash.log, appended to /mnt/base_update.log at the end.
 #
-#     run_on_radio.sh DIR FILE [--recover]
+#     run_on_radio.sh DIR FILE [--recover | --dry-run] [--unknown-ok] [--test-ok]
 #
 D=$1
 F=$2

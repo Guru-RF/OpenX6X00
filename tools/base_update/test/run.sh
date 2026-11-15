@@ -116,6 +116,25 @@ for mode in ok silent stream dead noerase nostart nak can garbage eot x6100; do
     pids+=($!)
 done
 [ -f "$X7" ] && { python3 "$T/sim.py" "$CC" "$T/../base_flash.c" "$T/stub" "$W" "$X7" ok ok107 > "$W/result_ok107" 2>&1 & pids+=($!); }
+
+# The X6100 (sim6100.py): Xiegu's V1.1.8 file when build/base_update has it, else a stand-in of its size let through
+# the same way, in place of V1.1.8's sum
+X18=$TOP/build/base_update/X6100_BBFW_V1.1.8_240915003.xgf
+if [ -f "$X18" ]; then
+    F6=$X18
+    SRC6=$T/../base_flash.c
+else
+    F6=$W/standin6100.xgf
+    head -c 391584 /dev/urandom > "$F6"
+    H6=$(shasum -a 256 "$F6" 2> /dev/null || sha256sum "$F6")
+    sed "s/8516de0bdcb4a3dcbba1605a482250d17acad2402f89f5d3719db33d6c48348d/${H6%% *}/" "$T/../base_flash.c" > "$W/base_flash6100.c"
+    SRC6=$W/base_flash6100.c
+    echo "no X6100 file of Xiegu's in build/base_update: the X6100 transfers use a stand-in"
+fi
+for mode in ok zeros dry nogreet noerase noprog nostart nak eot x6200dt; do
+    python3 "$T/sim6100.py" "$CC" "$SRC6" "$T/stub" "$W" "$F6" "$mode" > "$W/result_x6100_$mode" 2>&1 &
+    pids+=($!)
+done
 for p in "${pids[@]}"; do wait "$p" || fails=1; done
 cat "$W"/result_*
 [ -z "${fails:-}" ] && echo "all base_flash tests pass" || { echo "BASE_FLASH TESTS FAILED (logs in $W)"; exit 1; }

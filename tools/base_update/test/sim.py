@@ -32,7 +32,7 @@ MODES = {
     'can':     (3, '1k xmodem transfer canceled. (packet 50', False),
     'garbage': (3, '1k xmodem error, = 88 (packet 10', False),
     'eot':     (3, '1k xmodem error, = 0 (after EOT)', True),
-    'x6100':   (1, 'refused: this radio is not an X6200', False),  # another radio: nothing at all sent to its base
+    'x6100':   (1, 'refused: nothing was sent to the base', False),  # another radio: nothing at all sent to its base
 }
 
 cc, src, stub, work, xgf_path, mode = sys.argv[1:7]

@@ -83,12 +83,11 @@ else()
         if(NOT HOST_BUILD)
                 add_subdirectory(btcat)       # the radio's own programs
                 add_subdirectory(bootanim)
-                # The X6200's base firmware writer (tools/base_update/base_flash.c), which Settings > Info > Base
-                # firmware runs: in the X6200's image only, never in another radio's (it also refuses to run on one)
-                if(HW_BACKEND STREQUAL "x6200")
-                        add_executable(x6x00-base-flash tools/base_update/base_flash.c)
-                        install(TARGETS x6x00-base-flash DESTINATION sbin)
-                endif()
+                # The base firmware writer (tools/base_update/base_flash.c): on the X6200 Settings > Info > Base
+                # firmware runs it, on the X6100 it is run over SSH (tools/base_update/flash.sh). It finds the radio
+                # in its device tree and takes only that radio's files
+                add_executable(x6x00-base-flash tools/base_update/base_flash.c)
+                install(TARGETS x6x00-base-flash DESTINATION sbin)
         endif()
         # The Winlink modems for Pat: ardopcf, and Mercury (experimental). On the PC too, where they are
         # built only when asked for by name, for the Winlink tests (tools/winlink)

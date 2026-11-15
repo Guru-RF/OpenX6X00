@@ -52,6 +52,25 @@
  *                                  an .xgf can be given without its key: a multiple of 16 bytes, 16 KiB to 512 KiB,
  *                                  and not a plain ARM image. With a warning; the screen and flash.sh ask twice.
  *
+ *  The X6100 (its device tree says xiegu,x6100) is written another way into the same kind of bootloader, as Franco
+ *  Venturi's x6100-base-experiments base-flasher does it (LGPL-2.1-or-later; it wrote the bench X6100's base on 24
+ *  October 2026, r13 and back to Xiegu's V1.1.8), which agrees with what was read of the X6100's own app: no 'c', the
+ *  erase 'r' given 60 s and 'p' 1 s, each answered by any byte that is not 0:
+ *
+ *   1. The port at 1500000 baud (the bootloader's rate on the X6100), its input flushed.
+ *   2. Its key line (GPIO 203 on /dev/gpiochip1, the bootloader's strap: low asks for the bootloader) low and its reset
+ *      line (204) high, 100 ms, the input flushed, the reset line low and let go, the port opened again.
+ *   3. The bootloader's greeting, 'A' or 'a': up to 51 one-second reads 100 ms apart. The key line up and let go,
+ *      greeting or not. No greeting: the base's application started again (the key line up, a 100 ms reset), exit 2.
+ *   4. 'r' (erase, 60 s), 'p' (1 s), each written once; then two bytes within 10 s whose second is 'C' or 'c', and the
+ *      file by XMODEM-1K as above. The bootloader starts the new application by itself (about a minute on 24
+ *      October); if it does not, the GUI's own start resets a base that does not answer.
+ *
+ *      base_flash --flash FILE --yes --dry-run
+ *                                  the X6100's only: steps 1 to 3, then the base's application started again. Nothing
+ *                                  is erased or written: it shows the way into the bootloader works on this radio.
+ *      ... --test-ok               a test build listed in known[] (RF.Guru's X6100-Baseband) taken; never without it.
+ *
  *  Exit status: 0 done, 1 refused before anything was sent to the base, 2 failed before the erase (the base's
  *  application is still there; switching the radio off and on brings it back), 3 failed after the erase (the base has
  *  no application: run the same again, and do not switch the radio off).
@@ -62,8 +81,10 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/gpio.h>
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -94,6 +115,20 @@
 #ifndef DT_COMPAT                   /* the radio's model, from its device tree (a test points it at a file of its own) */
 #define DT_COMPAT   "/proc/device-tree/compatible"
 #endif
+#ifndef GPIO_CHIP                   /* the X6100's: the base's bootloader strap (its Morse key line) and its reset */
+#define GPIO_CHIP   "/dev/gpiochip1"
+#endif
+#define LINE_STRAP  203             /* low while the base comes out of reset: it stays in its bootloader (key: active low) */
+#define LINE_RESET  204             /* high holds the base in reset */
+#ifndef GREET_TRIES                 /* the X6100 bootloader's greeting: reads of 1 s, 100 ms apart (fewer in a test) */
+#define GREET_TRIES 51
+#endif
+#ifndef ERASE_MS                    /* the X6100's erase answered within (shorter in a test) */
+#define ERASE_MS    60000
+#endif
+
+typedef enum { MODEL_NONE, MODEL_X6100, MODEL_X6200 } model_t;
+static model_t model;           /* from the device tree; MODEL_NONE on a computer (--identify) */
 
 #define SOH_STX 0x02
 #define EOT     0x04
@@ -103,26 +138,45 @@
 
 enum { EXIT_DONE = 0, EXIT_REFUSED = 1, EXIT_BEFORE_ERASE = 2, EXIT_AFTER_ERASE = 3 };
 
-/* Xiegu's base files, as their update images bring them to /usr/firmware */
+/* Xiegu's base files, as their update images bring them to /usr/firmware, each for one radio; and test builds, taken
+ * only with --test-ok */
 static const struct {
     const char *name, *sha256;
     long        size;
     const char *ver;
-} known[] = {     /* as rootfs/usr/share/x6100/base_releases.txt has them (tools/base_update/test checks) */
+    model_t     model;
+    bool        test;
+} known[] = {     /* the X6200's as rootfs/usr/share/x6100/base_releases.txt has them (tools/base_update/test checks) */
     {"x6200_mcu_20260820141208.xgf (base 1.0.8, Aug 2026)",
-     "9a19f97a5ad9e141a3663d222f984073bf0b18b38d4662604372a0036f9daa23", 524288, "1.0.8"},
+     "9a19f97a5ad9e141a3663d222f984073bf0b18b38d4662604372a0036f9daa23", 524288, "1.0.8", MODEL_X6200, false},
     {"x6200_mcu_20260116092100.xgf (base 1.0.7, Jan 2026: Xiegu's factory build, not on xiegu.eu)",
-     "9baa46b824d9b20ddb41c6c3b64dde4a3dfbc3bdcd0a0cbc600506cb7a1e2690", 401024, "1.0.7"},
+     "9baa46b824d9b20ddb41c6c3b64dde4a3dfbc3bdcd0a0cbc600506cb7a1e2690", 401024, "1.0.7", MODEL_X6200, false},
     {"x6200_mcu_20250916150221.xgf (base 1.0.7, Sep 2025: xiegu.eu's update)",
-     "d58382c210738fee5261e58819aef9f3829030bf0997d53511dab3355a8fb4e2", 524288, "1.0.7"},
+     "d58382c210738fee5261e58819aef9f3829030bf0997d53511dab3355a8fb4e2", 524288, "1.0.7", MODEL_X6200, false},
     {"x6200_mcu_20250111134652.xgf (base 1.0.6, Jan 2025)",
-     "dca90387b70d9550448006310a69ea65625bec87f402c10df789deeb13ff12f3", 524288, "1.0.6"},
+     "dca90387b70d9550448006310a69ea65625bec87f402c10df789deeb13ff12f3", 524288, "1.0.6", MODEL_X6200, false},
     {"x6200_mcu_20240924203603.xgf (base 1.0.3, Sep 2024)",
-     "61e59a52e7c007c427d31f9de3b296e5568225efb93a1fd8df46028d48ffc3f1", 524288, "1.0.3"},
+     "61e59a52e7c007c427d31f9de3b296e5568225efb93a1fd8df46028d48ffc3f1", 524288, "1.0.3", MODEL_X6200, false},
+    /* The X6100's: V1.1.9 as Xiegu's own system on the radio's internal memory has it (/usr/firmware), V1.1.8 from
+     * Xiegu's update of September 2024 (APP 1.1.9, BASE 1.1.8: "V1.1.8 Sep 15 2024,15:22:37") */
+    {"X6100_BBFW_V1.1.9_251127001.xgf (base V1.1.9, Nov 2025)",
+     "87a3e96ea21abf16a14b0fb771aad19a9e0bf8c267f93ec71a09d38e59c25737", 392048, "V1.1.9", MODEL_X6100, false},
+    {"X6100_BBFW_V1.1.8_240915003.xgf (base V1.1.8, Sep 2024)",
+     "8516de0bdcb4a3dcbba1605a482250d17acad2402f89f5d3719db33d6c48348d", 391584, "V1.1.8", MODEL_X6100, false},
+    /* RF.Guru's X6100-Baseband v0.1.0-alpha.2: Xiegu's V1.1.9 with CESSB, a compressor and a TX filter, its build
+     * text "Nov 27 2025,tx1a2-test". TEST ONLY: not validated on a radio */
+    {"X6100_BBFW_V1.1.9_251127001_tx1_alpha2_TEST.xgf (RF.Guru X6100-Baseband v0.1.0-alpha.2, a TEST build)",
+     "7e1278064af5eda40dd8a5029c10ecd2ec6d4232880b274d04f9e70cf7b9881e", 405504, "V1.1.9-tx1a2-test", MODEL_X6100,
+     true},
 };
 static const char *image_ver;   /* the loaded file's base version, known[].ver, or "unknown" (--unknown-ok) */
 static char        image_sha[65];   /* and its SHA-256 */
 static bool        unknown_ok;  /* --unknown-ok: a file not in known[] taken when it passes the checks below */
+static bool        test_ok;     /* --test-ok: a test build in known[] taken */
+
+static const char *model_name(model_t m) {
+    return m == MODEL_X6100 ? "X6100" : m == MODEL_X6200 ? "X6200" : "radio";
+}
 
 #define UNKNOWN_MIN 16384       /* an .xgf not known here: AES blocks (a multiple of 16), no more than the 512 KiB */
 #define UNKNOWN_MAX 524288      /* Xiegu's own files fill, and not a plain ARM image (the bootloader decrypts it) */
@@ -231,34 +285,49 @@ static int load(const char *path) {
     fclose(f);
     sha256_hex(image, image_len, hex);
     memcpy(image_sha, hex, sizeof(image_sha));
-    for (size_t i = 0; i < sizeof(known) / sizeof(known[0]); i++)
-        if (image_len == known[i].size && !strcmp(hex, known[i].sha256))
-            name = known[i].name, image_ver = known[i].ver;
     say("file %s: %ld bytes, %ld packets of 1024, sha256 %s", path, image_len, (image_len + 1023) / 1024, hex);
+    for (size_t i = 0; i < sizeof(known) / sizeof(known[0]); i++) {
+        if (image_len != known[i].size || strcmp(hex, known[i].sha256))
+            continue;
+        if (model != MODEL_NONE && known[i].model != model) {
+            say("refused: it is the %s's %s, and this radio is an %s", model_name(known[i].model), known[i].name,
+                model_name(model));
+            return -1;
+        }
+        if (known[i].test && !test_ok) {
+            say("refused: it is %s, for testing only: written only with --test-ok", known[i].name);
+            return -1;
+        }
+        image_ver = known[i].ver;
+        name      = known[i].name;
+        break;
+    }
     if (name) {
-        say("it is Xiegu's %s", name);
+        say("it is %s%s", strstr(name, "RF.Guru") ? "" : "Xiegu's ", name);
         return 0;
     }
-    /* Another radio's base, by its name: never written to the X6200's, --unknown-ok or not (its content can't tell:
-     * Xiegu encrypts the X6100's and the G90's with the same key) */
+    /* Another radio's base, by its name: never written to this one's, --unknown-ok or not (its content can't tell:
+     * Xiegu encrypts the X6100's, the X6200's and the G90's with the same key) */
     {
-        static const char *other[] = {"x6100", "6100_", "g90", "g106", "x5105", "x6100_mcu"};
-        const char        *b       = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
+        static const char *for_x6200[] = {"x6100", "6100_", "g90", "g106", "x5105"};
+        static const char *for_x6100[] = {"x6200", "6200_", "g90", "g106", "x5105"};
+        const char       **other       = model == MODEL_X6100 ? for_x6100 : for_x6200;
+        const char        *b           = strrchr(path, '/') ? strrchr(path, '/') + 1 : path;
         char               low[256];
         size_t             i;
 
         for (i = 0; b[i] && i < sizeof(low) - 1; i++) low[i] = (char)tolower((unsigned char)b[i]);
         low[i] = '\0';
-        for (i = 0; i < sizeof(other) / sizeof(other[0]); i++)
+        for (i = 0; i < sizeof(for_x6200) / sizeof(for_x6200[0]); i++)
             if (strstr(low, other[i])) {
-                say("refused: %s is named for another radio (%s): only the X6200's base firmware is written here", b,
-                    other[i]);
+                say("refused: %s is named for another radio (%s): only the %s's base firmware is written here", b,
+                    other[i], model == MODEL_X6100 ? "X6100" : "X6200");
                 return -1;
             }
     }
     if (!unknown_ok) {
-        say("not one of Xiegu's X6200 base files known here: it is not written (--unknown-ok takes one that passes "
-            "the checks)");
+        say("not one of the %s base files known here: it is not written (--unknown-ok takes one that passes the "
+            "checks)", model == MODEL_X6100 ? "X6100" : "X6200");
         return -1;
     }
     /* Unknown: what can be told of an encrypted file. A plain ARM image starts with its stack pointer (in SRAM,
@@ -350,8 +419,9 @@ static bool host_cmd(uint16_t cmd) {
     return ioctl(i2c, I2C_RDWR, &d) >= 0;
 }
 
-/* The base's version text, printable characters only: the string at 0x41 of its 128-byte info block, as
- * src/hw/x6200/hw_x6200.c reads it ("BASE fw version"); false when the base does not answer */
+/* The base's version text, printable characters only: on the X6200 the string at 0x41 of its 128-byte info block, as
+ * src/hw/x6200/hw_x6200.c reads it ("BASE fw version"); on the X6100 the block's own start ("V1.1.8 Sep 15
+ * 2024,15:22:37"), as the X6100's control library reads it. False when the base does not answer */
 static bool base_version(char *out, size_t n) {
     uint8_t v[128];
     size_t  k = 0;
@@ -359,9 +429,26 @@ static bool base_version(char *out, size_t n) {
     memset(v, 0, sizeof(v));
     if (!base_read(REG_VERSION, v, sizeof(v)))
         return false;
-    for (size_t i = 0x41; i < sizeof(v) && v[i] && k + 1 < n; i++)
+    for (size_t i = model == MODEL_X6100 ? 0 : 0x41; i < sizeof(v) && v[i] && k + 1 < n; i++)
         out[k++] = (v[i] >= 0x20 && v[i] < 0x7f) ? (char)v[i] : '.';
     out[k] = 0;
+    return true;
+}
+
+/* The base's application answers: the X6200's says it is ready (0x2000), the X6100's has its version text, "V..."
+ * (the X6100 has no ready register) */
+static bool base_up(char *v, size_t n, uint8_t *ready) {
+    *ready = 0;
+#ifdef SIM_BASE_VERSION                 /* a test's simulated base, which has no I2C: its application answers */
+    snprintf(v, n, "%s", SIM_BASE_VERSION);
+    *ready = 1;
+    return true;
+#endif
+    if (model == MODEL_X6200)
+        return base_read(REG_READY, ready, 1) && base_version(v, n);
+    if (!base_version(v, n))
+        return false;
+    *ready = v[0] == 'V';
     return true;
 }
 
@@ -371,12 +458,15 @@ static int uart = -1;
 
 /* uart_create's settings (cfsetispeed and cfsetospeed B1152000; iflag less IGNBRK BRKINT PARMRK ISTRIP INLCR IGNCR
  * ICRNL IXON; oflag less OPOST ONLCR; cflag CS8, less CSTOPB PARENB; lflag less ECHO ECHONL ICANON ISIG IEXTEN;
- * VTIME and VMIN 0), then BaseComm::start's open: read-write, no controlling terminal, blocking, both queues flushed.
- * CREAD is added should the port not have it: without it nothing at all is received */
+ * VTIME and VMIN 0), then BaseComm::start's open: read-write, no controlling terminal, both queues flushed. The X6100's
+ * bootloader at 1500000. Not blocking, unlike Xiegu's: another opener of the port (a GUI started in the middle) setting
+ * VMIN to 1 would otherwise turn every read here into a wait for ever, past every timeout. CREAD is added should the
+ * port not have it: without it nothing at all is received */
 static int uart_open(void) {
     struct termios t;
+    speed_t        speed = model == MODEL_X6100 ? B1500000 : B1152000;
 
-    uart = open(UART, O_RDWR | O_NOCTTY);
+    uart = open(UART, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (uart < 0) {
         say("%s: %s", UART, strerror(errno));
         return -1;
@@ -385,8 +475,8 @@ static int uart_open(void) {
         say("%s: %s", UART, strerror(errno));
         return -1;
     }
-    cfsetispeed(&t, B1152000);
-    cfsetospeed(&t, B1152000);
+    cfsetispeed(&t, speed);
+    cfsetospeed(&t, speed);
     t.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
     t.c_oflag &= ~(OPOST | ONLCR);
     t.c_cflag &= ~(CSIZE | CSTOPB | PARENB);
@@ -415,6 +505,13 @@ static void uart_write(const uint8_t *p, size_t n) {
             p += w, n -= w;
         } else if (w < 0 && errno == EINTR) {
             continue;
+        } else if (w < 0 && errno == EAGAIN) {        /* the port's queue full: wait for room, 10 s at most */
+            struct pollfd pf = {uart, POLLOUT, 0};
+
+            if (poll(&pf, 1, 10000) > 0)
+                continue;
+            say("%s: write: no room in 10 s", UART);
+            return;
         } else {
             say("%s: write: %s", UART, w < 0 ? strerror(errno) : "nothing written");
             return;
@@ -464,6 +561,198 @@ static bool send_cmd(uint8_t cmd, uint8_t want) {
         if (retry == 0)
             return false;
     }
+}
+
+/* ---- The X6100: its bootloader asked for with two GPIO lines ---------------------------------------------------- */
+
+/* Up to n bytes within ms milliseconds, gathered over as many reads as it takes; how many came */
+static size_t read_for(uint8_t *buf, size_t n, int ms) {
+    struct timespec now, end;
+    size_t          got = 0;
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    end.tv_sec += ms / 1000;
+    end.tv_nsec += (ms % 1000) * 1000000L;
+    if (end.tv_nsec >= 1000000000L)
+        end.tv_sec++, end.tv_nsec -= 1000000000L;
+    while (got < n) {
+        struct pollfd pf = {uart, POLLIN, 0};
+        long          left;
+        ssize_t       r;
+
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        left = (end.tv_sec - now.tv_sec) * 1000L + (end.tv_nsec - now.tv_nsec) / 1000000L;
+        if (left <= 0)
+            break;
+        if (poll(&pf, 1, (int)left) < 0 && errno != EINTR)
+            break;
+        r = read(uart, buf + got, n - got);
+        if (r > 0)
+            got += (size_t)r;
+        else if (r < 0 && errno != EAGAIN && errno != EINTR)
+            break;
+        else if (!(pf.revents & POLLIN))
+            continue;
+        else
+            msleep(1);
+    }
+    return got;
+}
+
+/* One line of GPIO_CHIP as an output at v, held while the descriptor returned is open (closed: let go). A value is
+ * changed by asking for the line again, as the way that worked on the radio did. In a test the lines are a log */
+static int line_hold(unsigned line, int v) {
+#ifdef GPIO_LOG
+    FILE *f = fopen(GPIO_LOG, "a");
+
+    if (f) {
+        fprintf(f, "%u=%d\n", line, v);
+        fclose(f);
+    }
+    return open(GPIO_CHIP, O_RDONLY | O_CLOEXEC);
+#else
+    struct gpio_v2_line_request r;
+    int                         chip = open(GPIO_CHIP, O_RDWR | O_CLOEXEC);
+
+    if (chip < 0) {
+        say("%s: %s", GPIO_CHIP, strerror(errno));
+        return -1;
+    }
+    memset(&r, 0, sizeof(r));
+    r.offsets[0]                  = line;
+    r.num_lines                   = 1;
+    r.config.flags                = GPIO_V2_LINE_FLAG_OUTPUT;
+    r.config.num_attrs            = 1;
+    r.config.attrs[0].attr.id     = GPIO_V2_LINE_ATTR_ID_OUTPUT_VALUES;
+    r.config.attrs[0].attr.values = v ? 1 : 0;
+    r.config.attrs[0].mask        = 1;
+    snprintf(r.consumer, sizeof(r.consumer), "base_flash");
+    if (ioctl(chip, GPIO_V2_GET_LINE_IOCTL, &r) < 0) {
+        say("%s line %u: %s", GPIO_CHIP, line, strerror(errno));
+        close(chip);
+        return -1;
+    }
+    close(chip);
+    return r.fd;
+#endif
+}
+
+static void line_free(int *fd, unsigned line) {
+    if (*fd < 0)
+        return;
+    close(*fd);
+    *fd = -1;
+#ifdef GPIO_LOG
+    FILE *f = fopen(GPIO_LOG, "a");
+
+    if (f) {
+        fprintf(f, "%u free\n", line);
+        fclose(f);
+    }
+#else
+    (void)line;
+#endif
+}
+
+/* The line held again at v (let go first: the value changed by asking again) */
+static bool line_to(int *fd, unsigned line, int v) {
+    line_free(fd, line);
+    *fd = line_hold(line, v);
+    return *fd >= 0;
+}
+
+/* The base reset with its key line up: it starts its application (after a dry run, or a bootloader that did not
+ * greet). True when both lines moved */
+static bool x6100_start_app(void) {
+    int  strap = -1, rst = -1;
+    bool ok    = line_to(&strap, LINE_STRAP, 1) && line_to(&rst, LINE_RESET, 1);
+
+    if (ok) {
+        msleep(100);
+        ok = line_to(&rst, LINE_RESET, 0);
+    }
+    line_free(&rst, LINE_RESET);
+    line_free(&strap, LINE_STRAP);
+    say(ok ? "the base reset with its key line up: its application starts" :
+             "the base's lines could not be moved: switch the radio off and on to start its application");
+    return ok;
+}
+
+/* Steps 1-3 for the X6100: 1 the bootloader greeted, 0 it did not (the base was reset into it), -1 the lines could not
+ * be taken (the base was not touched) */
+static int x6100_enter(void) {
+    int     strap = -1, rst = -1, greeted = 0;
+    uint8_t b = 0;
+
+    tcflush(uart, TCIFLUSH);
+    say("asking for the bootloader: key line (%u) low, the base held in reset (%u) for 100 ms", LINE_STRAP, LINE_RESET);
+    if (!line_to(&strap, LINE_STRAP, 0)) {
+        return -1;
+    }
+    if (!line_to(&rst, LINE_RESET, 1)) {
+        line_to(&strap, LINE_STRAP, 1);
+        line_free(&strap, LINE_STRAP);
+        return -1;
+    }
+    msleep(100);
+    tcflush(uart, TCIFLUSH);
+    line_to(&rst, LINE_RESET, 0);
+    line_free(&rst, LINE_RESET);
+    /* Opened again: the application's stream at another rate leaves the port with framing and overrun errors */
+    close(uart);
+    if (uart_open() < 0) {
+        line_to(&strap, LINE_STRAP, 1);
+        line_free(&strap, LINE_STRAP);
+        return 0;
+    }
+    for (int i = 0; i < GREET_TRIES && !greeted; i++) {
+        if (read_for(&b, 1, 1000) == 1 && (b & 0xdf) == 'A') {
+            greeted = 1;
+            break;
+        }
+        msleep(100);
+    }
+    line_to(&strap, LINE_STRAP, 1);         /* up and let go, greeting or not */
+    line_free(&strap, LINE_STRAP);
+    if (greeted)
+        say("[OK] Get IAP respond ('%c'): the bootloader runs", b);
+    else
+        say("[ERR] Wait IAP respond timeout: no greeting from the bootloader in %d tries", GREET_TRIES);
+    return greeted;
+}
+
+/* A command byte written once, and the first byte that is not 0 within ms as its answer: the X6100's app does not look
+ * at what it is. True when one came */
+static bool x6100_cmd(uint8_t cmd, int ms) {
+    struct timespec t, now;
+
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    uart_write(&cmd, 1);
+    for (;;) {
+        uint8_t b = 0;
+        long    left;
+
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        left = ms - ((now.tv_sec - t.tv_sec) * 1000L + (now.tv_nsec - t.tv_nsec) / 1000000L);
+        if (left <= 0)
+            return false;
+        if (read_for(&b, 1, (int)left) == 1 && b) {
+            say("'%c' answered 0x%02x", cmd, b);
+            return true;
+        }
+    }
+}
+
+/* The answer XMODEM waits for: Xmodem::waitRespond on the X6200 (a read of exactly n bytes), any n bytes within s
+ * seconds on the X6100; the last of them, 0 for none */
+static uint8_t answer(int s, int n) {
+    uint8_t buf[2] = {0, 0};
+
+    if (model != MODEL_X6100)
+        return wait_respond(s, n);
+    if (n > 2)
+        n = 2;
+    return read_for(buf, (size_t)n, s * 1000) == (size_t)n ? buf[n - 1] : 0;
 }
 
 /* ---- The steps of XMWorker::slot_start -------------------------------------------------------------------------- */
@@ -527,7 +816,7 @@ static bool send_file(void) {
 
     if (image_len <= 0 || !image)
         return false;
-    r = wait_respond(10, 2);
+    r = answer(10, 2);
     if (r == 0) {
         say("1k xmodem timeout.");
         return false;
@@ -548,7 +837,7 @@ static bool send_file(void) {
         }
         put_packet((uint8_t)seq, block, pkt);
         uart_write(pkt, sizeof(pkt));
-        r = wait_respond(10, 1);
+        r = answer(10, 1);
         if (r == CAN) {
             say("1k xmodem transfer canceled. (packet %ld of %ld)", seq, total);
             return false;
@@ -568,7 +857,7 @@ static bool send_file(void) {
     }
     r = EOT;
     uart_write(&r, 1);
-    r = wait_respond(10, 1);
+    r = answer(10, 1);
     if (r != ACK) {
         say("1k xmodem error, = %d (after EOT)", r);
         return false;
@@ -577,46 +866,48 @@ static bool send_file(void) {
     return true;
 }
 
-/* An X6200: its device tree says so. Anything that touches the base is refused on any other radio: an X6100's base
- * is written another way (its Morse key line held low while it is reset), and this file's I2C command and serial
- * bytes are not for it */
-static bool is_x6200(void) {
+
+/* The radio, from its device tree: an X6100 or an X6200. Anything that touches the base is refused on any other */
+static model_t detect_model(void) {
     char   buf[512];
     FILE  *f = fopen(DT_COMPAT, "rb");
     size_t n;
 
-    if (!f) return false;
+    if (!f) return MODEL_NONE;
     n = fread(buf, 1, sizeof(buf), f);
     fclose(f);
-    for (size_t i = 0; i + 11 <= n; i++)
-        if (!memcmp(buf + i, "xiegu,x6200", 11)) return true;
-    return false;
+    for (size_t i = 0; i + 11 <= n; i++) {
+        if (!memcmp(buf + i, "xiegu,x6200", 11)) return MODEL_X6200;
+        if (!memcmp(buf + i, "xiegu,x6100", 11)) return MODEL_X6100;
+    }
+    return MODEL_NONE;
 }
 
 static int check(bool for_flash, bool recover) {
-    char v[160];
-    int  busy;
+    char    v[160];
+    int     busy;
+    uint8_t ready = 0;
 
-    if (!is_x6200()) {
-        say("refused: this radio is not an X6200 (%s has no xiegu,x6200): only the X6200's base is written by this, "
-            "and nothing was sent to the base", DT_COMPAT);
+    if (model == MODEL_NONE) {
+        say("refused: this radio is neither an X6100 nor an X6200 (%s has neither xiegu,x6100 nor xiegu,x6200), and "
+            "nothing was sent to the base", DT_COMPAT);
         return EXIT_REFUSED;
     }
-    busy = holders(UART) + holders(I2C_BUS);
+    say("this radio is an %s", model_name(model));
+    busy = holders(UART) + holders(I2C_BUS) + (model == MODEL_X6100 ? holders(GPIO_CHIP) : 0);
     if (busy && for_flash) {
         say("refused: stop what holds them first (the GUI: tools/base_update/flash.sh does it)");
         return EXIT_REFUSED;
     }
     if (!busy)
-        say("nothing else holds %s or %s", UART, I2C_BUS);
+        say("nothing else holds %s or %s%s%s", UART, I2C_BUS, model == MODEL_X6100 ? " or " : "",
+            model == MODEL_X6100 ? GPIO_CHIP : "");
     i2c = open(I2C_BUS, O_RDWR);
     if (i2c < 0) {
         say("%s: %s", I2C_BUS, strerror(errno));
         return EXIT_REFUSED;
     }
-    uint8_t ready = 0;
-
-    if (!base_read(REG_READY, &ready, 1) || !base_version(v, sizeof(v))) {
+    if (!base_up(v, sizeof(v), &ready)) {
         say("the base does not answer on I2C (0x%02x): %s", BASE_ADDR, strerror(errno));
         if (recover) {
             say("--recover: going on without it (a base with no application has nothing to answer with)");
@@ -624,16 +915,104 @@ static int check(bool for_flash, bool recover) {
         }
         return EXIT_REFUSED;
     }
-    say("the base answers on I2C: ready 0x%02x, version \"%s\"", ready, v);
+    say("the base answers on I2C: %s%02x, version \"%s\"", model == MODEL_X6200 ? "ready 0x" : "up ", ready, v);
     if (for_flash && !ready) {
+        if (recover) {
+            say("--recover: going on all the same (the base may have no application to be ready with)");
+            return EXIT_DONE;
+        }
         say("refused: the base says it is not ready");
         return EXIT_REFUSED;
     }
     return EXIT_DONE;
 }
 
+/* After the write: a minute's look for the base's new application, by the clock (a locked bus makes each read take
+ * seconds) */
+static bool wait_back(void) {
+    struct timespec until;
+    char            last[160] = "";
+
+    say("looking for the base's application on I2C for %d s", BACK_WAIT_S);
+    clock_gettime(CLOCK_MONOTONIC, &until);
+    until.tv_sec += BACK_WAIT_S;
+    for (;;) {
+        struct timespec now;
+        char            v[160];
+        uint8_t         ready = 0;
+
+        msleep(1000);
+        /* The X6100's: the same text twice, a second apart, and then 2 s more before the GUI starts and reads it (read
+         * just after a reset it once came without its first three bytes) */
+        if (base_up(v, sizeof(v), &ready) && ready && (model != MODEL_X6100 || !strcmp(v, last))) {
+            say("the base is back: version \"%s\"", v);
+            if (model == MODEL_X6100)
+                msleep(2000);
+            return true;
+        }
+        if (ready)
+            snprintf(last, sizeof(last), "%s", v);
+        else
+            last[0] = '\0';
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        if (now.tv_sec >= until.tv_sec)
+            return false;
+    }
+}
+
+/* The X6100: steps 1 to 4 of its own (see the top) */
+static int flash_x6100(bool dry_run) {
+    int e = x6100_enter();
+
+    if (e < 0) {
+        say("refused: the base's key and reset lines could not be taken; the base was not touched");
+        return EXIT_REFUSED;
+    }
+    if (e == 0) {
+        say("[ERR] IAP failed, connect timeout");
+        x6100_start_app();
+        say("FAILED before the erase: nothing was erased; the base's application should start again");
+        return EXIT_BEFORE_ERASE;
+    }
+    if (dry_run) {
+        say("dry run: the bootloader answered; nothing is erased or written");
+        x6100_start_app();
+        if (!wait_back()) {
+            say("the base's application did not answer again yet: the GUI's start resets a base that does not answer");
+            return EXIT_BEFORE_ERASE;
+        }
+        say("dry run done: the way into the bootloader works on this radio, and the base runs as before");
+        return EXIT_DONE;
+    }
+    say("[OK] Start IAP erase app flash");
+    if (!x6100_cmd('r', ERASE_MS)) {
+        say("[ERR] IAP failed, can't erase flash");
+        say("FAILED at the erase: the base's application may be gone. Run the same with --recover; do not switch off");
+        return EXIT_AFTER_ERASE;
+    }
+    say("[OK] Start IAP xmodem transfer");
+    if (!x6100_cmd('p', 1000)) {
+        say("[ERR] IAP failed, can't start xmodem");
+        say("FAILED after the erase: the base has no application. Run the same with --recover; do not switch off");
+        return EXIT_AFTER_ERASE;
+    }
+    say("[OK] xmodem started");
+    if (!send_file()) {
+        say("[ERR] xmodem send file failed");
+        say("FAILED after the erase: the base has no application. Run the same with --recover; do not switch off");
+        return EXIT_AFTER_ERASE;
+    }
+    say("finished.");
+    /* The bootloader starts the new application by itself (about a minute for each write on 24 October 2026) */
+    if (!wait_back())
+        say("written. The base has not started the new firmware yet: the GUI's start resets a base that does not "
+            "answer (about 6 s); else switch the radio off and on. Then tools/base_update/flash.sh --check shows the "
+            "version");
+    return EXIT_DONE;
+}
+
 int main(int argc, char **argv) {
-    bool        do_flash = false, yes = false, recover = false, identify = false;
+    bool        do_flash = false, yes = false, recover = false, identify = false, dry_run = false;
     const char *path     = NULL;
     int         rc;
 
@@ -647,22 +1026,30 @@ int main(int argc, char **argv) {
             yes = true;
         else if (!strcmp(argv[i], "--recover"))
             recover = true;
+        else if (!strcmp(argv[i], "--dry-run"))
+            dry_run = true;
         else if (!strcmp(argv[i], "--held-by") && i + 1 < argc)
             held_by = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--unknown-ok"))
             unknown_ok = true;
+        else if (!strcmp(argv[i], "--test-ok"))
+            test_ok = true;
         else if (!strcmp(argv[i], "--identify") && i + 1 < argc)
             path = argv[++i], identify = true;
         else
             path = NULL, i = argc;
     }
-    if (!path || (do_flash && !yes) || (recover && !do_flash) || (identify && do_flash)) {
-        fprintf(stderr, "usage: %s --check FILE | --flash FILE --yes [--recover] [--held-by PID] | --identify FILE  "
-                        "[--unknown-ok]\n", argv[0]);
+    if (!path || (do_flash && !yes) || (recover && !do_flash) || (dry_run && (!do_flash || recover)) ||
+        (identify && do_flash)) {
+        fprintf(stderr, "usage: %s --check FILE | --flash FILE --yes [--recover | --dry-run] [--held-by PID] | "
+                        "--identify FILE  [--unknown-ok] [--test-ok]\n", argv[0]);
         return EXIT_REFUSED;
     }
-    if (load(path) < 0)
+    model = detect_model();
+    if (load(path) < 0) {
+        say("refused: nothing was sent to the base");
         return EXIT_REFUSED;
+    }
     if (identify) {                     /* the file only: its version and SHA-256 on a line (dialog_base_update.c) */
         printf("xiegu-base %s %s\n", image_ver, image_sha);
         return EXIT_DONE;
@@ -673,6 +1060,11 @@ int main(int argc, char **argv) {
             say(rc == EXIT_DONE ? "check done: nothing was sent to the base" : "check failed");
         return rc;
     }
+    if (dry_run && model != MODEL_X6100) {
+        say("refused: --dry-run is the X6100's only (the X6200's bootloader is asked for over I2C, with no way back "
+            "but a write); nothing was sent to the base");
+        return EXIT_REFUSED;
+    }
     if (uart_open() < 0)
         return EXIT_REFUSED;
 
@@ -681,8 +1073,13 @@ int main(int argc, char **argv) {
     signal(SIGINT, SIG_IGN);
     signal(SIGTERM, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
-    say("writing the base: hang-up, interrupt and terminate signals ignored until it ends");
+    say("%s the base: hang-up, interrupt and terminate signals ignored until it ends",
+        dry_run ? "asking for the bootloader of" : "writing");
 
+    if (model == MODEL_X6100) {
+        say("started, %ld bytes%s", image_len, dry_run ? " (a dry run: not sent)" : "");
+        return flash_x6100(dry_run);
+    }
     say("started, %ld bytes", image_len);
     to_bootloader();
     say("[OK] Start IAP connection");
@@ -712,28 +1109,9 @@ int main(int argc, char **argv) {
     say("finished.");
     /* Xiegu's app ends here. Its bootloader did not start the new application by itself on the radio this was first
      * run on (2026-11-13): the I2C bus stayed locked ("mv64xxx: I2C bus locked") and the radio switched itself off
-     * about two minutes later; switched on again, its base ran 1.0.8. So a minute's look, by the clock (a locked bus
-     * makes each read take seconds), then the power cycle said */
-    say("written. Looking for the base's new application on I2C for %d s", BACK_WAIT_S);
-    struct timespec until;
-
-    clock_gettime(CLOCK_MONOTONIC, &until);
-    until.tv_sec += BACK_WAIT_S;
-    for (;;) {
-        struct timespec now;
-        char            v[160];
-        uint8_t         ready = 0;
-
-        msleep(1000);
-        if (base_read(REG_READY, &ready, 1) && ready && base_version(v, sizeof(v))) {
-            say("the base is back: version \"%s\"", v);
-            return EXIT_DONE;
-        }
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        if (now.tv_sec >= until.tv_sec)
-            break;
-    }
-    say("written. The base did not start the new firmware by itself: switch the radio on again (it may switch itself "
-        "off first, a minute or two from now); then tools/base_update/flash.sh --check shows the version");
+     * about two minutes later; switched on again, its base ran 1.0.8. So a minute's look, then the power cycle said */
+    if (!wait_back())
+        say("written. The base did not start the new firmware by itself: switch the radio on again (it may switch "
+            "itself off first, a minute or two from now); then tools/base_update/flash.sh --check shows the version");
     return EXIT_DONE;
 }
