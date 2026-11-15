@@ -1,0 +1,55 @@
+#!/bin/sh
+#
+# The X6200's base firmware, checked once a day, but only once the owner turns it on: Settings > Info > Daily base
+# check, off by default (base_daily_check in /mnt/params.db). While it is off, xiegu.eu is never asked; the setting is
+# read again every ten minutes, so turning it on takes effect without a restart. Check in Settings > Info > Base
+# firmware asks xiegu.eu whenever pressed, whatever the setting says.
+#
+# On: x6x00-base-fetch daily reads xiegu.eu's downloads page and compares it with the releases known and with the
+# base's version (/tmp/x6x00-base-version, from the GUI), into /mnt/base_update/check.json. The GUI says a newer one
+# once (and Settings > Info > Base firmware shows it); nothing is downloaded and the base is never written by this.
+# The first look 5 to 35 minutes after the start (a random wait: radios do not all ask xiegu.eu at once), or within
+# ten minutes of the setting being turned on, then every 24 hours, or every hour while there is no network.
+# On the X6100 it does nothing.
+#
+PIDFILE=/var/run/basecheck.pid
+DIR=/mnt/base_update
+
+loop() {
+    sleep $((300 + RANDOM % 1800))
+    while :; do
+        /usr/sbin/x6x00-base-fetch daily --out "$DIR" > /tmp/basecheck.log 2>&1
+        case $? in
+            0) sleep 86400 ;;   # looked
+            3) sleep 600 ;;     # off in Settings: nothing asked; the setting read again in ten minutes
+            *) sleep 3600 ;;    # no network, or xiegu.eu did not answer
+        esac
+    done
+}
+
+start() {
+    grep -q 'xiegu,x6200' /proc/device-tree/compatible 2> /dev/null || return 0     # the X6200's base only
+    [ -x /usr/sbin/x6x00-base-fetch ] || return 0
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2> /dev/null; then
+        return 0
+    fi
+    printf 'Starting basecheck: '
+    loop < /dev/null > /dev/null 2>&1 &
+    echo $! > "$PIDFILE"
+    echo "OK"
+}
+
+stop() {
+    printf 'Stopping basecheck: '
+    [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2> /dev/null
+    rm -f "$PIDFILE"
+    echo "OK"
+}
+
+case "$1" in
+    start | stop) "$1" ;;
+    restart | reload) stop; start ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|reload}"
+        exit 1 ;;
+esac

@@ -128,6 +128,18 @@ v0.3.3 lose the transmit power about a second into a transmission on the
 X6200, on both bases (issues #1 and #8). v0.3.4 fixes it: tested into a dummy
 load on 1.0.7 and 1.0.8.
 
+**Updating the X6200's baseband from OpenX6X00**: Settings > Info > Base
+firmware lists every base Xiegu has published, fetches the one chosen from
+xiegu.eu and writes it, without Xiegu's own system and its card swaps; or from
+a computer over SSH, `tools/base_update/flash.sh`. It does what Xiegu's own app
+1.0.8 does from its UPGRADE screen, step for step, and only ever writes an
+X6200's base with an X6200 file
+([tools/base_update](tools/base_update/README.md),
+[manual](docs/MANUAL.md#the-x6200s-base-firmware)). The radio asks xiegu.eu
+only when its owner does: Get and Check in that window, and a once-a-day look
+for a newer base that is **off by default**. To turn the daily look on:
+Settings > Info > Daily base check.
+
 **Updating the baseband**: with Xiegu's own system, which stays on the radio's
 internal memory when OpenX6X00 runs from the card.
 

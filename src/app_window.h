@@ -72,6 +72,9 @@ bool dialog_need_audio();
 void dialog_audio_samples(unsigned int count, float *samples);
 void dialog_rotary(int32_t steps);
 
+/* A window that has no APP action (Settings > Info > Base firmware), opened as the APP grid is (screen_main.c) */
+void main_screen_open_dialog(dialog_t *d);
+
 #ifdef __cplusplus
 }
 #endif

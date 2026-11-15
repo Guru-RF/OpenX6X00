@@ -219,6 +219,11 @@ typedef struct {
 
     params_bool_t       wifi_enabled;
 
+    /* X6200 base firmware */
+
+    params_bool_t       base_daily_check;   /* xiegu.eu looked at once a day for a newer base (S99basecheck); off
+                                             * until the owner turns it on in Settings > Info */
+
     /* Theme */
 
     params_uint8_t       theme;         /* old setting, replaced by theme_name */

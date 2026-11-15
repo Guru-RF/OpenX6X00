@@ -83,6 +83,12 @@ else()
         if(NOT HOST_BUILD)
                 add_subdirectory(btcat)       # the radio's own programs
                 add_subdirectory(bootanim)
+                # The X6200's base firmware writer (tools/base_update/base_flash.c), which Settings > Info > Base
+                # firmware runs: in the X6200's image only, never in another radio's (it also refuses to run on one)
+                if(HW_BACKEND STREQUAL "x6200")
+                        add_executable(x6x00-base-flash tools/base_update/base_flash.c)
+                        install(TARGETS x6x00-base-flash DESTINATION sbin)
+                endif()
         endif()
         # The Winlink modems for Pat: ardopcf, and Mercury (experimental). On the PC too, where they are
         # built only when asked for by name, for the Winlink tests (tools/winlink)
@@ -94,7 +100,13 @@ else()
         install(TARGETS ${PROJECT_NAME} DESTINATION sbin)
         # NetworkManager's profiles root's own and 0600, or it leaves them out: git keeps 0644 (the update bundle and
         # the card image take the mode of the installed file, tools/update/mkbundle.py; both make it root's)
-        install(DIRECTORY rootfs/ DESTINATION / USE_SOURCE_PERMISSIONS
+        # The X6200's base firmware updater (its fetcher, its list of releases, its daily check) in the X6200's image only
+        set(ROOTFS_EXCLUDE)
+        if(NOT HW_BACKEND STREQUAL "x6200")
+                list(APPEND ROOTFS_EXCLUDE PATTERN "x6x00-base-fetch" EXCLUDE PATTERN "base_releases.txt" EXCLUDE
+                     PATTERN "S99basecheck" EXCLUDE)
+        endif()
+        install(DIRECTORY rootfs/ DESTINATION / USE_SOURCE_PERMISSIONS ${ROOTFS_EXCLUDE}
                 PATTERN "*.nmconnection" PERMISSIONS OWNER_READ OWNER_WRITE)
         install(DIRECTORY images DESTINATION share/x6100)
         # Callsign -> country for the FT8/FT4 table (AD1C, country-files.com)
