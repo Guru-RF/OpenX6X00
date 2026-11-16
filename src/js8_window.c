@@ -2260,6 +2260,21 @@ static void edit_finish(void)
     compose_close();  /* and the list gets its keys back */
 }
 
+/* A message closed unsent (ESC, the MFK held, its button again) comes back in the next window that starts as it
+ * does (Send..., or Reply to the same station); one sent is forgotten (#280) */
+static char compose_draft[TX_TEXT_MAX + 1];
+static char compose_first[TX_TEXT_MAX + 1]; /* what the window opened with: closed as it was, the draft stays */
+
+/* A message window closing unsent: what was typed in is kept (true), a text emptied forgets the draft */
+static bool compose_keep(void)
+{
+    if (!composing || edit_target != 0 || !strcmp(textarea_window_get(), compose_first)) return false;
+    snprintf(compose_draft, sizeof(compose_draft), "%s", textarea_window_get());
+    if (compose_draft[strspn(compose_draft, " ")]) return true;
+    compose_draft[0] = '\0';
+    return false;
+}
+
 /* OK in the compose window. As in the FT8 app's keyboard we close it here
  * and return true, which makes textarea_window's own close do nothing;
  * false keeps it open. */
@@ -2321,7 +2336,8 @@ static bool compose_ok_cb(void)
         if (deliver_pending.id && !strcasecmp(out, deliver_pending.text))
             deliver_start(deliver_pending.id, deliver_pending.group_call, out);
         deliver_pending.id = 0;
-        compose_close(); /* sent */
+        compose_draft[0]   = '\0'; /* sent: no draft */
+        compose_close();           /* sent */
         return true;
     }
     case EDIT_INFO:
@@ -2367,6 +2383,7 @@ static bool compose_ok_cb(void)
 static bool compose_cancel_cb(void)
 {
     deliver_pending.id = 0; /* not sent: no longer on offer */
+    if (compose_keep()) msg_update_text_fmt("Not sent: kept for Send... or Reply");
     switch (edit_target) {
     case 0:
     case EDIT_INFO:
@@ -2457,8 +2474,22 @@ static void compose_open(const char *prefill)
     if (edit_target == 0) lv_obj_add_event_cb(box, compose_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
     else if (edit_target >= EDIT_BEACON_GRID) lv_obj_add_event_cb(box, beacon_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
-    if (prefill && prefill[0]) textarea_window_set(prefill);
+    const char *start = prefill ? prefill : "";
+    if (edit_target == 0 && compose_draft[0] && !strncasecmp(compose_draft, start, strlen(start))) {
+        start = compose_draft;
+        msg_update_text_fmt("Your message not sent yet: Enter sends it");
+    }
+    snprintf(compose_first, sizeof(compose_first), "%s", start);
+    if (start[0]) textarea_window_set(start);
     else lv_textarea_set_placeholder_text(box, edit_hint(edit_target));
+}
+
+/* The window's button pressed again: it closes as with ESC, the words kept */
+static bool compose_again(void)
+{
+    if (!composing) return false;
+    textarea_window_cancel();
+    return true;
 }
 
 /* ---- Band and frequency ------------------------------------------------ */
@@ -3228,6 +3259,7 @@ static void destruct_cb(void) { /* the app closes: the radio goes back to how it
         lv_timer_del(*timers[i]);
         *timers[i] = NULL;
     }
+    compose_keep();  /* closed unsent: the message comes back next time */
     compose_close(); /* the keyboard, if open */
 
     /* Popups go now, not later as query_close() and aprs_close() would do it: dialog_destruct() frees
@@ -3379,7 +3411,7 @@ static bool need_station(char *call, float *hz) {
  * answer instead (and the held message it hands over, if any). */
 static void reply_cb(button_data_t *b) {
     (void)b;
-    if (press_closes_list()) return;
+    if (compose_again() || press_closes_list()) return;
     char  call[JS8_RX_CALL_LEN], start[JS8_RX_TEXT_LEN];
     float hz;
     if (!need_station(call, &hz)) return;
@@ -3401,7 +3433,7 @@ static void reply_cb(button_data_t *b) {
 
 static void send_cb(button_data_t *b) {
     (void)b;
-    if (press_closes_list()) return;
+    if (compose_again() || press_closes_list()) return;
     compose_open(NULL); /* an empty keyboard */
 }
 
@@ -4390,7 +4422,7 @@ static void conv_back_cb(button_data_t *b) {
 static void conv_msg_cb(button_data_t *b) { /* Write...: words for them, through the keyboard */
     char text[JS8_RX_CALL_LEN + 8];
     (void)b;
-    if (press_closes_list() || composing || !conv_call[0]) return;
+    if (compose_again() || press_closes_list() || !conv_call[0]) return;
     snprintf(text, sizeof(text), "%s ", conv_call);
     compose_open(text);
     lv_group_set_editing(keyboard_group, true);

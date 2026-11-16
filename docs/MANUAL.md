@@ -281,6 +281,13 @@ button on APP 3:6.
 - A press of VOL does not close menus or apps, and in a text field it types
   nothing; on the main screen it still works as ESC. Held, it is still one
   press.
+- A text box (a call, a message, a password) takes Enter as OK. Without a
+  keyboard the on-screen keyboard is under it: its tick is OK, its keyboard
+  key (bottom left) closes the box and nothing is taken or sent. With a
+  keyboard a line under the text says it: Enter OK, Esc or the MFK held
+  closes the box, nothing taken or sent. Up to v0.3.12 the MFK's hold did
+  nothing there, and a keyboard without an Esc key had no way out but OK
+  (issue #280).
 
 Knobs. On the main screen the main knob tunes, and VOL and the MFK each turn
 one control of their own list. The two lines over the buttons say which
@@ -3605,6 +3612,15 @@ locator, distance and the reports on top. The MFK goes from one station to
 the next, its press opens Query > for it. Buttons: Board (back), Heartbeat,
 Reply, Query > and Write... (words for them; MSG first puts them in their
 Inbox). The lane and the TX line stay above it.
+
+The message window (Reply, Send..., Write...): Enter sends. ESC, the MFK
+held (with a keyboard), the on-screen keyboard's keyboard key, or the same
+button again closes it without sending; what you typed is kept ("Not sent:
+kept for Send... or Reply") and comes back in the next window that starts
+the same way (Send..., or Reply and Write... to that station), also after
+the app was closed (not after a restart). A message sent is forgotten, and
+so is one whose text you empty before closing. Up to v0.3.12 the button
+again did nothing and the words were lost (issue #280).
 
 Heartbeat (page 1) sends one at once; it reads "Heartbeat auto 10 min"
 while the automatic ones go out. Held, it opens Settings on HB to turn them

@@ -15,6 +15,12 @@
  *  needs, and the other fonts have a higher one (DejaVu's, the default, 43 px): what goes under the baseline was cut
  *  off, so J showed as I, j as i, and g p q y without their tails.
  *
+ *  The ways out without sending (#280): ESC on a USB keyboard, the on-screen keyboard's close key, the MFK held on the
+ *  text box (a keyboard there: no on-screen keyboard), alone in the group or with other objects, and
+ *  textarea_window_cancel(); each closes the window through its cancel callback and never its OK. The MFK's short
+ *  press on the text box does neither, its hold on the on-screen keyboard still repeats the key under it (CW Live),
+ *  and with a keyboard a line under the text says that Esc and the MFK's hold close.
+ *
  *  The CW decoder's letters (#265): Å Ä Ö Ü É Ñ in each family and VISION's sizes, in the fonts the decoder's text is
  *  drawn in (the panel's sony_24 and sony_18, the CW trainer's sony_44), found through font_select.c's fallbacks in a
  *  font that has them, not LVGL's empty box: a latin1_N whose capitals (dejavu_N's A, the same face and size) are as
@@ -82,14 +88,20 @@ const char *i18n_font(void) {
     return NULL;
 }
 
-/* LVGL's clock: still, the test draws with lv_refr_now(). With both defined here the library's lv_hal_tick.o is not
- * linked */
+/* LVGL's clock: still, the test draws with lv_refr_now(); the MFK's hold moves it on (later()). With both defined here
+ * the library's lv_hal_tick.o is not linked */
+static uint32_t now_ms = 1000;
+
 uint32_t lv_tick_get(void) {
-    return 1000;
+    return now_ms;
 }
 
 uint32_t lv_tick_elaps(uint32_t prev_tick) {
-    return 1000 - prev_tick;
+    return now_ms - prev_tick;
+}
+
+static void later(uint32_t ms) {
+    now_ms += ms;
 }
 
 /* ---- What key_input.c calls, stood in for: the USB keyboard a file of its key events ---- */
@@ -229,7 +241,15 @@ static void display(void) {
     lv_obj_set_style_bg_opa(lv_scr_act(), LV_OPA_TRANSP, 0);
 }
 
+static int oks, cancels;     /* the window's callbacks, as they were called */
+
 static bool ok_cb(void) {
+    oks++;
+    return true;
+}
+
+static bool cancel_cb(void) {
+    cancels++;
     return true;
 }
 
@@ -280,6 +300,155 @@ static bool press(lv_obj_t *kbd, const char *txt) {
     return false;
 }
 
+/* ---- The ways out (#280) ---- */
+
+static bool shown_whole(lv_obj_t *obj);
+
+/* The MFK as an LVGL encoder, as mfk_device.c registers it: its press read from here */
+static lv_indev_drv_t mfk_drv;
+static bool           mfk_down;
+
+static void mfk_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
+    (void)drv;
+    data->enc_diff = 0;
+    data->state    = mfk_down ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+}
+
+static void mfk_init(void) {
+    lv_indev_drv_init(&mfk_drv);
+    mfk_drv.type    = LV_INDEV_TYPE_ENCODER;
+    mfk_drv.read_cb = mfk_read;
+    lv_indev_set_group(lv_indev_drv_register(&mfk_drv), keyboard_group);
+}
+
+/* The MFK pressed (true) or let go, ms after the last read, as LVGL's timer reads it */
+static void mfk(bool down, uint32_t ms) {
+    later(ms);
+    mfk_down = down;
+    lv_indev_read_timer_cb(mfk_drv.read_timer);
+}
+
+/* The MFK held ms, read every 50 ms as LVGL's timer does, then let go */
+static void mfk_hold(uint32_t ms) {
+    mfk(true, 0);
+    for (uint32_t t = 50; t <= ms; t += 50) {
+        mfk(true, 50);
+    }
+    mfk(false, 50);
+}
+
+/* The window open with both callbacks, the counts at 0 */
+static void open_counted(void) {
+    oks     = 0;
+    cancels = 0;
+    textarea_window_open(ok_cb, cancel_cb);
+    textarea_window_set("CQ DX");
+}
+
+/* Closed through cancel, OK never called */
+static bool closed_unsent(void) {
+    return !textarea_window_is_open() && cancels == 1 && oks == 0;
+}
+
+static const char *state(void) {
+    static char text[64];
+
+    snprintf(text, sizeof(text), "%s, OK %d, cancel %d", textarea_window_is_open() ? "open" : "closed", oks, cancels);
+    return text;
+}
+
+/* The line under the text, with a keyboard: the window's label that names Esc */
+static lv_obj_t *hint_label(void) {
+    lv_obj_t *window = lv_obj_get_parent(lv_obj_get_parent(textarea_window_text()));
+
+    for (uint32_t i = 0; i < lv_obj_get_child_cnt(window); i++) {
+        lv_obj_t *c = lv_obj_get_child(window, i);
+
+        if (lv_obj_check_type(c, &lv_label_class) && strstr(lv_label_get_text(c), "Esc")) {
+            return c;
+        }
+    }
+    return NULL;
+}
+
+static void ways_out_on_screen(void) {
+    lv_obj_t *kbd;
+
+    open_counted();
+    kbd = lv_group_get_focused(keyboard_group);
+    bool closed = kbd && press(kbd, LV_SYMBOL_KEYBOARD) && closed_unsent();
+
+    check(closed, "on-screen keyboard: its close key closes the window unsent (%s)", state());
+    textarea_window_close();
+
+    open_counted();
+    check(hint_label() == NULL, "on-screen keyboard: no line about Esc under the text (no Esc to press)");
+    kbd = lv_group_get_focused(keyboard_group);
+    press(kbd, "J");    /* the key under the knob */
+    mfk_hold(1000);
+    check(textarea_window_is_open() && oks == 0 && cancels == 0 && strlen(textarea_window_get()) > strlen("CQ DXJ"),
+          "on-screen keyboard: the MFK held repeats the key under it, the window stays (\"%s\", %s)",
+          textarea_window_get(), state());
+    textarea_window_close();
+}
+
+static void ways_out_keyboard(void) {
+    lv_obj_t *other = lv_obj_create(lv_scr_act());
+
+    open_counted();
+    tap(KEY_ESC);
+    read_keyboard();
+    check(closed_unsent(), "USB keyboard: Esc closes the window unsent (%s)", state());
+    textarea_window_close();
+
+    open_counted();
+    tap(KEY_ENTER);
+    read_keyboard();
+    check(!textarea_window_is_open() && oks == 1 && cancels == 0, "USB keyboard: Enter is OK (%s)", state());
+
+    /* the MFK: the text box alone in the group, as JS8's message window has it */
+    open_counted();
+    mfk_hold(100);
+    check(textarea_window_is_open() && oks == 0 && cancels == 0,
+          "USB keyboard: the MFK's short press neither sends nor closes (%s)", state());
+    textarea_window_close();
+
+    open_counted();
+    mfk_hold(1000);
+    check(closed_unsent(), "USB keyboard: the MFK held 1 s closes the window unsent (%s)", state());
+    textarea_window_close();
+
+    open_counted();
+    mfk_hold(mfk_drv.long_press_time + 50);    /* let go just after LVGL's long press */
+    check(closed_unsent(), "USB keyboard: the MFK held %u ms closes the window unsent (%s)",
+          (unsigned)mfk_drv.long_press_time + 50, state());
+    textarea_window_close();
+
+    /* another object in the group (an app's list under the window): the hold still closes, the knob not gone to it */
+    lv_group_add_obj(keyboard_group, other);
+    open_counted();
+    mfk_hold(1000);
+    check(closed_unsent(), "USB keyboard, another object in the group: the MFK held closes the window unsent (%s)",
+          state());
+    textarea_window_close();
+    lv_obj_del(other);
+
+    open_counted();
+    textarea_window_cancel();
+    check(closed_unsent(), "textarea_window_cancel(): the button pressed again closes it unsent (%s)", state());
+
+    /* the line under the text: whole in the window, under the text's row */
+    open_counted();
+    lv_obj_invalidate(lv_scr_act());
+    lv_refr_now(NULL);
+    lv_obj_t *hint = hint_label();
+    lv_obj_t *row  = lv_obj_get_parent(textarea_window_text());
+
+    check(hint && shown_whole(hint) && hint->coords.y1 > row->coords.y2,
+          "USB keyboard: \"%s\" under the text, whole in the window", hint ? lv_label_get_text(hint) : "no line");
+    textarea_window_close();
+}
+
 static void keys(void) {
     lv_obj_t *kbd;
 
@@ -298,6 +467,8 @@ static void keys(void) {
     check(pressed && !strcmp(textarea_window_get(), "Jj"), "on-screen keyboard: J, abc, j type \"%s\", want \"Jj\"",
           textarea_window_get());
     textarea_window_close();
+
+    ways_out_on_screen();
 
     /* A USB keyboard: no on-screen one, the text box focused. Shift+J, J, then J with Caps Lock on (CapsLock tapped
      * alone, kbd_hyper.c) */
@@ -325,6 +496,8 @@ static void keys(void) {
     check(!strcmp(textarea_window_get(), "JjJ"), "USB keyboard: Shift+J, J, CapsLock and J type \"%s\", want \"JjJ\"",
           textarea_window_get());
     textarea_window_close();
+
+    ways_out_keyboard();
     plug(false);
 }
 
@@ -453,6 +626,7 @@ int main(void) {
     display();
     styles();
     keyboard_init();    /* no keyboard yet: as #220's, the on-screen one under the text */
+    mfk_init();
 
     keys();
 
