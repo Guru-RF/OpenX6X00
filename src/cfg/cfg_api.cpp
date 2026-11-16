@@ -111,6 +111,7 @@ ParamInt         *cfg_wspr_bands          = nullptr;
 ParamInt         *cfg_rade_pwr            = nullptr;
 ParamInt         *cfg_rade_report         = nullptr;
 ParamInt         *cfg_pskreporter         = nullptr;
+ParamInt         *cfg_zello_talk_bt       = nullptr;
 ParamInt         *cfg_field_boot          = nullptr;
 ParamInt         *cfg_field_respot        = nullptr;
 ParamInt         *cfg_voice_msg_gain      = nullptr;
@@ -323,6 +324,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_rade_pwr         = &cfg_sm.p_rade_pwr;
     cfg_rade_report      = &cfg_sm.p_rade_report;
     cfg_pskreporter      = &cfg_sm.p_pskreporter;
+    cfg_zello_talk_bt    = &cfg_sm.p_zello_talk_bt;
     cfg_field_boot       = &cfg_sm.p_field_boot;
     cfg_field_respot     = &cfg_sm.p_field_respot;
     cfg_voice_msg_gain   = &cfg_sm.p_voice_msg_gain;

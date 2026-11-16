@@ -423,6 +423,9 @@ class SettingsManager {
     // Decodes (FT8 FT4 FT2 JS8 PSK31 PSK63 Olivia) to PSK Reporter, on by default
     Parameter<int32_t> p_pskreporter{"pskreporter", true, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // The Zello app (dialog_zello.c): talk on Zello from a Bluetooth headset's mic instead of the hand mic
+    Parameter<int32_t> p_zello_talk_bt{"zello_talk_bt", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
 
     // Field Ops: start in Field Ops at power on
     Parameter<int32_t> p_field_boot{"field_boot", false, 0, 1,

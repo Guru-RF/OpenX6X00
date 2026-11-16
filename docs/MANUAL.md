@@ -5449,6 +5449,16 @@ The name is the service's; the app's icon is a plain cloud, not Zello's logo.
   for [voice messages](#recording-voice-messages)). With no hand mic, after
   3 seconds the radio says "No audio: talking on Zello uses the hand mic". A
   message ends after two minutes, as in Zello's own apps.
+- Talk via (page 2): **Hand mic** (as above) or **Bluetooth**, a Bluetooth
+  headset's microphone. Talking through it never keys the radio either, and
+  the radio's own audio stays on meanwhile. Talk says "No BT mic" (and the
+  line above it "No Bluetooth mic") while none is there. A headset's
+  microphone works only on its headset profile (HSP/HFP), and the radio
+  keeps headsets on A2DP, the music profile, which has none: on the X6100
+  the headset profile's audio link gives no audio and drops the WiFi (see
+  [Bluetooth headphones](#bluetooth-headphones)). So with the radio as it is,
+  Bluetooth finds no mic and talking is from the hand mic; the setting is for
+  a radio or headset where a Bluetooth mic shows up.
 - While the app is open the PTT key talks on Zello and never keys the radio.
   It keys the radio again the moment the app has closed. A PTT key held for
   the radio when the app opened stays the radio's until it is let go.

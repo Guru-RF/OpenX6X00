@@ -30,6 +30,7 @@
 #include "audio.h"
 #include "board.h"
 #include "buttons.h"
+#include "cfg/cfg_api.h"
 #include "events.h"
 #include "fonts/font_select.h"
 #include "keyboard.h"
@@ -89,20 +90,31 @@ static void destruct_cb(void);
 static void conn_cb(button_data_t *b);
 static void talk_cb(button_data_t *b);
 static void reload_cb(button_data_t *b);
+static void via_cb(button_data_t *b);
 static const char *conn_label(void);
 static const char *talk_label(void);
+static const char *via_label(void);
 
 static button_data_t btn_conn   = {.type = BTN_TEXT_FN, .label_fn = conn_label, .press = conn_cb};
 static button_data_t btn_talk   = {.type = BTN_TEXT_FN, .label_fn = talk_label, .press = talk_cb};
 static button_data_t btn_reload = {.type = BTN_TEXT, .label = "Reload\nchannels", .press = reload_cb};
+static button_data_t btn_via    = {.type = BTN_TEXT_FN, .label_fn = via_label, .press = via_cb};
 
-static buttons_page_t page = {{&btn_conn, &btn_talk, &btn_reload}};
+static buttons_page_t page_1, page_2;
+
+static button_data_t btn_page1 = {.type = BTN_TEXT, .label = "(ZELLO 1:2)", .press = button_next_page_cb,
+                                  .hold = button_prev_page_cb, .next = &page_2, .prev = &page_2};
+static button_data_t btn_page2 = {.type = BTN_TEXT, .label = "(ZELLO 2:2)", .press = button_next_page_cb,
+                                  .hold = button_prev_page_cb, .next = &page_1, .prev = &page_1};
+
+static buttons_page_t page_1 = {{&btn_page1, &btn_conn, &btn_talk, &btn_reload}};
+static buttons_page_t page_2 = {{&btn_page2, &btn_via}};
 
 static dialog_t dialog = {
     .run          = false,
     .construct_cb = construct_cb,
     .destruct_cb  = destruct_cb,
-    .btn_page     = &page,
+    .btn_page     = &page_1,
 };
 
 dialog_t *dialog_zello = &dialog;
@@ -143,6 +155,9 @@ static atomic_bool connected;       /* the channel online */
 static atomic_bool talk_want;       /* a message wanted: Talk, or the PTT key held */
 static atomic_int  talk_pending;    /* talk start sent, its talk on or talk refused not seen yet */
 static atomic_bool helper_error;    /* it gave up ("error ..."): not started again by itself */
+static atomic_bool btmic_on;        /* the helper sees a Bluetooth headset's mic (talkvia bt) */
+static atomic_bool talk_bt;         /* the message wanted is from the Bluetooth mic, not the hand mic */
+static int         via_sent = -1;   /* the talkvia last sent to this helper: 1 bt, 0 mic, -1 none yet */
 
 /* The base's audio path and the speaker's stream: the play thread, and tx_prepare on a thread that keys */
 static pthread_mutex_t gate_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -225,6 +240,8 @@ static void on_line(char *line) {
     } else if (!strncmp(line, "talker", 6)) {
         snprintf(st.talker, sizeof(st.talker), "%s", line[6] == ' ' ? line + 7 : "");
         atomic_store(&talker_on, st.talker[0] != 0);
+    } else if (!strcmp(line, "btmic on") || !strcmp(line, "btmic off")) {
+        atomic_store(&btmic_on, line[7] == 'n');
     } else if (!strcmp(line, "talk on")) {
         st.talk_on = true;
         if (atomic_load(&talk_pending) > 0) atomic_fetch_sub(&talk_pending, 1);
@@ -337,7 +354,8 @@ static void path_tick(zello_gate_t *g) {
     bool         air  = on_air(now);
     bool         talk = atomic_load(&talk_want);
     bool         play = atomic_load(&talker_on) || now - heard_ms < PLAY_HOLD_MS;
-    zello_path_t to   = zello_path(g, atomic_load(&connected), talk, play, air, now);
+    /* A message from the Bluetooth mic needs no path of the base's: the radio's own meanwhile */
+    zello_path_t to   = zello_path(g, atomic_load(&connected), talk && !atomic_load(&talk_bt), play, air, now);
 
     pthread_mutex_lock(&gate_lock);
     apply_path(to);
@@ -515,6 +533,8 @@ static bool launch(void) {
     st.talk_on   = false;
     pthread_mutex_unlock(&st_lock);
     atomic_store(&helper_error, false);
+    atomic_store(&btmic_on, false);
+    via_sent = -1;
     atomic_store(&connected, false);
     atomic_store(&talk_want, false);
     atomic_store(&talk_pending, 0);
@@ -605,11 +625,18 @@ static void talk_start(bool by_ptt) {
         msg_update_text_fmt("Zello: not while the radio transmits");
         return;
     }
+    bool bt = param_i_get(cfg_zello_talk_bt);
+
+    if (bt && !atomic_load(&btmic_on)) {
+        msg_update_text_fmt("Zello: no Bluetooth mic connected");
+        return;
+    }
     talk_by_ptt = by_ptt;
     quiet_told  = false;
+    atomic_store(&talk_bt, bt);
     atomic_fetch_add(&talk_pending, 1);
     atomic_store(&talk_want, true);
-    send_line("talk start\n");
+    send_line(bt ? "talk start bt\n" : "talk start\n");
     buttons_refresh(&btn_talk);
 }
 
@@ -690,7 +717,21 @@ static const char *conn_label(void) {
 }
 
 static const char *talk_label(void) {
-    return atomic_load(&talk_want) ? "Stop\ntalking" : "Talk";
+    if (atomic_load(&talk_want)) return "Stop\ntalking";
+    return param_i_get(cfg_zello_talk_bt) && !atomic_load(&btmic_on) ? "No BT\nmic" : "Talk";
+}
+
+static const char *via_label(void) {
+    return param_i_get(cfg_zello_talk_bt) ? "Talk via\nBluetooth" : "Talk via\nHand mic";
+}
+
+/* The mic to talk with: the hand mic or a Bluetooth headset's (its headset profile). From the next message */
+static void via_cb(button_data_t *b) {
+    bool bt = !param_i_get(cfg_zello_talk_bt);
+
+    param_i_set(cfg_zello_talk_bt, bt);
+    buttons_refresh(b);
+    msg_update_text_fmt("%s", bt ? "Zello: talk through a Bluetooth headset's mic" : "Zello: talk through the hand mic");
 }
 
 /* The two buttons again when what they say has changed: a message ended by the helper or the radio's TX, the helper
@@ -758,10 +799,20 @@ static void status_cb(lv_timer_t *t) {
         lv_label_set_text_fmt(state_lbl, "#%06x %s %s#", theme_hex(TC_text_dim), _("Connecting to"), cur_channel);
     }
 
+    /* The helper looks for a Bluetooth mic while it is the one to talk with */
+    if (thread_live && via_sent != param_i_get(cfg_zello_talk_bt)) {
+        via_sent = param_i_get(cfg_zello_talk_bt);
+        send_line(via_sent ? "talkvia bt\n" : "talkvia mic\n");
+    }
+
+    bool bt = param_i_get(cfg_zello_talk_bt);
+
     if (atomic_load(&talk_want)) {
         uint64_t since = atomic_load(&mic_since_ms);
 
-        lv_label_set_text_fmt(talk_lbl, "#%06x %s#", theme_hex(TC_tx), _("Talking on Zello: speak into the hand mic"));
+        lv_label_set_text_fmt(talk_lbl, "#%06x %s#", theme_hex(TC_tx),
+                              atomic_load(&talk_bt) ? _("Talking on Zello: speak into the Bluetooth headset")
+                                                    : _("Talking on Zello: speak into the hand mic"));
         if (!quiet_told && atomic_load(&mic_on) && get_time() - since > MIC_QUIET_MS &&
             atomic_load(&mic_peak) < MIC_QUIET) {
             quiet_told = true;
@@ -770,6 +821,10 @@ static void status_cb(lv_timer_t *t) {
     } else if (state == ST_ONLINE && talker[0]) {
         lv_label_set_text_fmt(talk_lbl, "#%06x %s# #%06x %s#", theme_hex(TC_text_dim), _("Talking now:"),
                               theme_hex(TC_accent), talker);
+    } else if (state == ST_ONLINE && bt) {
+        lv_label_set_text_fmt(talk_lbl, "#%06x %s#", theme_hex(atomic_load(&btmic_on) ? TC_text_dim : TC_warn),
+                              atomic_load(&btmic_on) ? _("PTT or Talk: speak into the Bluetooth headset")
+                                                     : _("No Bluetooth mic: a headset on its headset profile"));
     } else if (state == ST_ONLINE) {
         lv_label_set_text_fmt(talk_lbl, "#%06x %s#", theme_hex(TC_text_dim),
                               _("PTT or Talk: speak into the hand mic, without its own PTT"));
@@ -858,7 +913,7 @@ static lv_obj_t *text(lv_coord_t y, const lv_font_t *font) {
 
 static void construct_cb(lv_obj_t *parent) {
     dialog.obj = dialog_init(parent);
-    buttons_load_page(&page);
+    buttons_load_page(&page_1);
 
     if (!prepare_set) {
         prepare_set = true;

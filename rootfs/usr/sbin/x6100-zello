@@ -11,17 +11,23 @@
 #
 # run: stdin and stdout are one SOCK_SEQPACKET socket from the GUI, a record each. A record that starts with a 0 byte
 # is audio, PCM s16 little-endian mono at 16 kHz after the 0; any other is a line of text.
-#   from the GUI:                         to the GUI:
-#     talk start   start a message          state connecting | online      the connection
-#     talk stop    end it                   state offline <reason>         on Zello, the channel not online
-#                                           state retry <s> <reason>       lost: trying again in <s> s
-#     <audio>      the mic while talking    error <reason>                 given up (account, key, channel): it exits
-#                                           channel <users|-> <name>       the channel's state, users online
-#                                           talker [<name>]                who talks now; none without a name
-#                                           talk on | off                  the message started / ended
-#                                           talk refused <reason>          talk start not taken
-#                                           <audio>                        what the channel says, decoded
+#   from the GUI:                           to the GUI:
+#     talk start     a message, its audio     state connecting | online      the connection
+#                    from the GUI             state offline <reason>         on Zello, the channel not online
+#     talk start bt  a message from the       state retry <s> <reason>       lost: trying again in <s> s
+#                    Bluetooth headset's mic  error <reason>                 given up (account, key, channel): it exits
+#     talk stop      end it                   channel <users|-> <name>       the channel's state, users online
+#     talkvia bt     watch for a Bluetooth    talker [<name>]                who talks now; none without a name
+#     talkvia mic    mic / stop watching      talk on | off                  the message started / ended
+#     <audio>        the mic while talking    talk refused <reason>          talk start not taken
+#                                             btmic on | off                 a Bluetooth mic there (talkvia bt)
+#                                             <audio>                        what the channel says, decoded
 # The end of stdin (the app closed, or the GUI is gone) closes the connection, and it exits.
+#
+# The Bluetooth mic: a headset's microphone is a PulseAudio source only on its headset profile (HSP/HFP,
+# bluez_source.<address>.headset_head_unit); parec records it at 16 kHz while a message from it is sent, pactl lists
+# the sources. The radio's images keep the headsets on A2DP (btaudio-ctl, /etc/pulse/system.pa.d/btaudio.pa: on the
+# X6100 the headset profile's SCO gives no audio and drops the WiFi), so there it says "no Bluetooth mic".
 #
 # The account: the web page's Zello page writes it on the DATA partition, never shown again (webserver apps.py):
 #   /mnt/zello/account.conf      user=, password=, issuer= (the Zello developer key's Issuer)
@@ -46,7 +52,8 @@
 # the ping and the dead connection, the audio thread, the quick reconnect with the refresh_token, the log.
 #
 # For tests and the bench only: X6100_ZELLO_URL (ws:// or wss://, instead of wss://zello.io/ws), X6100_ZELLO_DIR (the
-# account's folder), X6100_ZELLO_LOG, X6100_ZELLO_PING and X6100_ZELLO_DEAD (s), X6100_ZELLO_RETRY (s, the first wait).
+# account's folder), X6100_ZELLO_LOG, X6100_ZELLO_PING and X6100_ZELLO_DEAD (s), X6100_ZELLO_RETRY (s, the first wait),
+# X6100_ZELLO_BT_POLL (s).
 #
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # Copyright (c) 2026 Joeri Van Dooren ON6URE / Guru-RF
@@ -61,6 +68,7 @@ import queue
 import socket
 import ssl
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -93,6 +101,8 @@ PING = env_float("X6100_ZELLO_PING", 20.0)      # s: a websocket ping keeps the 
 DEAD = env_float("X6100_ZELLO_DEAD", 50.0)      # s without a frame from Zello: the connection is dead
 RETRY = env_float("X6100_ZELLO_RETRY", 1.0)     # s: the first wait before a new try, doubled up to RETRY_MAX
 RETRY_MAX = 30.0
+BT_POLL = env_float("X6100_ZELLO_BT_POLL", 5.0)    # s: how often the Bluetooth mic is looked for (talkvia bt)
+PULSE = os.environ.get("PULSE_SERVER") or "unix:/var/run/pulse/native"
 STEADY = 60.0                   # s up: the next drop is tried again at once
 TIMEOUT = 15.0                  # s: each step of a connection, and an answer to a command
 AUDIO_QUEUE = 150               # decoded packets waiting for the GUI (about 3 s): more are dropped
@@ -808,21 +818,114 @@ class Session:
             pass
 
 
+# ---------- the Bluetooth mic ----------
+
+def pulse_env():
+    return dict(os.environ, PULSE_SERVER=PULSE)
+
+
+def bt_sources():
+    """The Bluetooth headsets' mics PulseAudio has (bluez_source.*, PipeWire's bluez_input.*), not their monitors"""
+    try:
+        out = subprocess.run(["pactl", "list", "short", "sources"], capture_output=True, text=True, timeout=5,
+                             env=pulse_env(), stdin=subprocess.DEVNULL).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    found = []
+    for line in out.splitlines():
+        f = line.split("\t")
+        if len(f) >= 2 and f[1].startswith(("bluez_source.", "bluez_input.")) and not f[1].endswith(".monitor"):
+            found.append(f[1])
+    return found
+
+
+class BtMic:
+    """A headset's mic through parec, 16 kHz mono, into the message"""
+
+    def __init__(self, source, talk):
+        self.source, self.talk, self.proc = source, talk, None
+
+    def start(self):
+        try:
+            self.proc = subprocess.Popen(["parec", "--device=" + self.source, f"--rate={RATE}", "--channels=1",
+                                          "--format=s16le", "--latency-msec=60", "--raw"],
+                                         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                         env=pulse_env())
+        except OSError as e:
+            log("Bluetooth mic: " + clean(e, 60))
+            return False
+        threading.Thread(target=self.read, daemon=True).start()
+        return True
+
+    def read(self):
+        out = self.proc.stdout
+        while True:
+            data = out.read(FRAME * 2)
+            if not data:
+                out.close()
+                return
+            self.talk.audio(data, bt=True)
+
+    def stop(self):
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(2)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait()
+
+
+class BtWatch:
+    """While the app talks through the Bluetooth mic (talkvia bt): "btmic on" or "off" to the GUI when it changes"""
+
+    def __init__(self, gui):
+        self.gui = gui
+        self.on = False
+        self.said = None
+        self.wake = threading.Event()
+        threading.Thread(target=self.run, daemon=True).start()
+
+    def set(self, on):
+        self.on = on
+        self.said = None
+        self.wake.set()
+
+    def run(self):
+        while not self.gui.gone.is_set():
+            if self.on:
+                has = bool(bt_sources())
+                if has != self.said and self.on:
+                    self.said = has
+                    self.gui.line("btmic on" if has else "btmic off")
+            self.wake.wait(BT_POLL)
+            self.wake.clear()
+
+
 # ---------- run: the GUI's side ----------
 
 class Talk:
-    """The message the GUI sends: its mic's audio in 20 ms Opus packets while the GUI says talk"""
+    """The message the GUI sends: its mic's audio (or the Bluetooth mic's) in 20 ms Opus packets while the GUI says
+    talk"""
 
     def __init__(self, gui, opus):
         self.gui, self.opus = gui, opus
         self.session = None
         self.lock = threading.Lock()
         self.enc = None
+        self.bt = None              # the Bluetooth mic while a message from it is sent
         self.pending = b""
         self.since = 0.0
         self.last_audio = 0.0
 
-    def start(self):
+    def start(self, bt=False):
+        source = ""
+        if bt:
+            found = bt_sources()
+            if not found:
+                self.gui.line("talk refused no Bluetooth mic connected")
+                return
+            source = found[0]
         with self.lock:
             s = self.session
             if self.enc or not s or s.closed.is_set():
@@ -836,7 +939,13 @@ class Talk:
             self.enc = self.opus.encoder()
             self.pending = b""
             self.since = self.last_audio = time.monotonic()
-            log("talking")
+            log("talking" + (" (Bluetooth mic)" if bt else ""))
+            if source:
+                self.bt = BtMic(source, self)
+        if self.bt and not self.bt.start():
+            self.bt = None
+            self.stop("the Bluetooth mic did not start")
+            return
         self.gui.line("talk on")
 
     def stop(self, why=""):
@@ -845,15 +954,18 @@ class Talk:
                 return
             self.enc.close()
             self.enc = None
+            bt, self.bt = self.bt, None
             s = self.session
             if s:
                 s.talk_stop()
             log("talk ended" + (": " + why if why else ""))
+        if bt:
+            bt.stop()       # outside the lock: its reader may wait for it in audio()
         self.gui.line("talk off")
 
-    def audio(self, pcm):
+    def audio(self, pcm, bt=False):
         with self.lock:
-            if not self.enc or not self.session:
+            if not self.enc or not self.session or bt != (self.bt is not None):
                 return
             self.last_audio = time.monotonic()
             self.pending += pcm
@@ -878,7 +990,8 @@ class Talk:
 
 
 def gui_reader(gui, talk):
-    """The GUI's records: talk start, talk stop, the mic's audio. The end of the socket ends the run"""
+    """The GUI's records: talk start, talk stop, the mic's audio, talkvia. The end of the socket ends the run"""
+    watch = BtWatch(gui)
     gui.sock.settimeout(0.25)
     while not gui.gone.is_set():
         try:
@@ -894,12 +1007,15 @@ def gui_reader(gui, talk):
             talk.audio(rec[1:])
             continue
         cmd = rec.decode("utf-8", "replace").strip()
-        if cmd == "talk start":
-            talk.start()
+        if cmd in ("talk start", "talk start bt"):
+            talk.start(bt=cmd.endswith(" bt"))
         elif cmd == "talk stop":
             talk.stop()
+        elif cmd in ("talkvia bt", "talkvia mic"):
+            watch.set(cmd.endswith(" bt"))
     talk.stop("app closed")
     gui.gone.set()
+    watch.wake.set()
 
 
 def run(channel, gui, url=URL):

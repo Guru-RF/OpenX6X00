@@ -42,7 +42,20 @@ HELPER = os.path.join(TOP, "rootfs", "usr", "sbin", "x6100-zello")
 
 WORK = tempfile.mkdtemp(prefix="x6100-zello.")
 os.environ.update(X6100_ZELLO_DIR=os.path.join(WORK, "zello"), X6100_ZELLO_LOG=os.path.join(WORK, "logs", "zello.txt"),
-                  X6100_ZELLO_PING="0.4", X6100_ZELLO_DEAD="1.5", X6100_ZELLO_RETRY="0.2", X6100_FW="9.9.9-test")
+                  X6100_ZELLO_PING="0.4", X6100_ZELLO_DEAD="1.5", X6100_ZELLO_RETRY="0.2", X6100_FW="9.9.9-test",
+                  X6100_ZELLO_BT_POLL="0.2")
+# Stand-ins for PulseAudio's pactl and parec (the Bluetooth mic): the sources listed from a file, a tone recorded
+BIN = os.path.join(WORK, "bin")
+BT_SOURCES = os.path.join(WORK, "bt_sources")
+PAREC_ARGS = os.path.join(WORK, "parec_args")
+os.makedirs(BIN)
+with open(os.path.join(BIN, "pactl"), "w") as f:
+    f.write(f'#!/bin/sh\n[ "$*" = "list short sources" ] && cat {BT_SOURCES} 2>/dev/null\nexit 0\n')
+with open(os.path.join(BIN, "parec"), "w") as f:
+    f.write(f'#!/bin/sh\necho "$$ $*" > {PAREC_ARGS}\nwhile :; do cat {os.path.join(WORK, "tone.raw")}; sleep 0.02; done\n')
+for name in ("pactl", "parec"):
+    os.chmod(os.path.join(BIN, name), 0o755)
+os.environ["PATH"] = BIN + os.pathsep + os.environ.get("PATH", "")
 os.environ.pop("X6100_ZELLO_URL", None)
 
 # Only this PC: a test never reaches Zello or anything else
@@ -653,6 +666,67 @@ class Run(unittest.TestCase):
         gui.expect("error no Zello account: the web page's Zello page")
         t.join(5)
         self.assertEqual(result["rc"], 1)
+
+    def test_bluetooth_mic(self):
+        """talkvia bt: "btmic on" while a headset's mic is there, a message from it through parec at 16 kHz, parec
+        ended with the message; none there: said, and talk start bt refused"""
+        with open(os.path.join(WORK, "tone.raw"), "wb") as f:
+            f.write(tone(0))
+        with open(BT_SOURCES, "w") as f:
+            f.write("1\talsa_input.platform-sound.stereo-fallback\tmodule-alsa-card.c\ts16le 2ch 44100Hz\tRUNNING\n"
+                    "2\tbluez_sink.00_11_22_33_44_55.a2dp_sink.monitor\tmodule-bluez5-device.c\ts16le 2ch 44100Hz\tIDLE\n"
+                    "3\tbluez_source.00_11_22_33_44_55.headset_head_unit\tmodule-bluez5-device.c\ts16le 1ch 16000Hz\t"
+                    "SUSPENDED\n")
+        got = {}
+
+        def scene(c):
+            m = self.logon(c)
+            c.json({"seq": m["seq"], "success": True})
+            self.online(c)
+            m = c.command()
+            self.assertEqual(m["command"], "start_stream")
+            c.json({"seq": m["seq"], "success": True, "stream_id": 5})
+            packets = []
+            while True:
+                op, payload = c.recv()
+                if op == 2:
+                    packets.append(z.parse_audio(payload))
+                    continue
+                break
+            got["packets"], got["stop"] = packets, json.loads(payload)
+            c.recv(timeout=10)
+
+        server, gui, t, result, a, b = self.start([scene])
+        gui.expect("state online")
+        a.send(b"talkvia bt\n")
+        gui.expect("btmic on")
+        a.send(b"talk start bt\n")
+        gui.expect("talk on")
+        time.sleep(0.6)
+        a.send(b"\x00" + tone(1))                  # the hand mic's audio meanwhile: not in a Bluetooth message
+        a.send(b"talk stop\n")
+        gui.expect("talk off")
+        with open(PAREC_ARGS) as f:
+            pid, *args = f.read().split()
+        self.assertEqual(args, ["--device=bluez_source.00_11_22_33_44_55.headset_head_unit", "--rate=16000",
+                                "--channels=1", "--format=s16le", "--latency-msec=60", "--raw"])
+        time.sleep(0.3)
+        with self.assertRaises(ProcessLookupError):     # parec ended with the message
+            os.kill(int(pid), 0)
+        os.remove(BT_SOURCES)
+        gui.expect("btmic off", timeout=3)
+        a.send(b"talk start bt\n")
+        gui.expect("talk refused no Bluetooth mic connected")
+        a.close()
+        t.join(10)
+        self.assertEqual(result["rc"], 0)
+        server.done.wait(10)
+        self.assertEqual(server.errors, [])
+        self.assertGreaterEqual(len(got["packets"]), 10)
+        self.assertEqual({p[0] for p in got["packets"]}, {5})
+        self.assertEqual([p[1] for p in got["packets"]], list(range(1, len(got["packets"]) + 1)))
+        self.assertEqual(got["stop"]["command"], "stop_stream")
+        self.assertIn("talking (Bluetooth mic)", read_log())
 
     def test_talk_refused_and_channel_offline(self):
         def scene(c):
