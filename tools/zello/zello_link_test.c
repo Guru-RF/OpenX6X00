@@ -554,6 +554,11 @@ static void test_amateur_bands_only(void) {
     CHECK(w.talk_starts == 1 && w.keys == 0);
 }
 
+/* A language for the words: the format translated, the name put in after */
+static const char *test_tr(const char *s) {
+    return !strcmp(s, "Link: amateur bands only, nothing to %s") ? "Link: alleen amateurbanden, niets naar %s" : s;
+}
+
 /* RF to the network with TX outside ham bands off: nothing received outside the amateur bands (the CB, the airband,
  * broadcast) goes to a channel or a talkgroup */
 static void test_rf_to_net_amateur_bands_only(void) {
@@ -625,6 +630,15 @@ static void test_rf_to_net_amateur_bands_only(void) {
     CHECK(!vlink_rx_band(127500000, false));        /* VHF airband */
     CHECK(!vlink_rx_band(145500000, false));        /* 2 m without a transverter: not a band of the radio's */
     CHECK(vlink_rx_band(145500000, true));          /* ... with one on that covers it */
+
+    /* Said in the screen's language */
+    world_init(&w);
+    w.c.tr            = test_tr;
+    w.c.to_rf         = false;
+    w.in.rx_ham_band  = false;
+    w.in.squelch_open = true;
+    o = step(&w);
+    CHECK(o.why && !strcmp(o.why, "Link: alleen amateurbanden, niets naar " LINK_NET));
 }
 
 /* With TX outside ham bands on (MARS, CAP) the receiver goes to the network outside the bands too, said once when

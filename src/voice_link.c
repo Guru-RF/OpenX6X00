@@ -32,9 +32,9 @@ static void go(vlink_t *l, vlink_state_t s, uint64_t now) {
     l->since_ms = now;
 }
 
-/* The words for the screen, with the network's name where they have a %s */
+/* The words for the screen, in its language, with the network's name where they have a %s */
 static const char *say(vlink_t *l, const vlink_cfg_t *c, const char *fmt) {
-    snprintf(l->why, sizeof(l->why), fmt, c->net ? c->net : "Net");
+    snprintf(l->why, sizeof(l->why), c->tr ? c->tr(fmt) : fmt, c->net ? c->net : "Net");
     return l->why;
 }
 

@@ -51,6 +51,8 @@ typedef struct {
     uint32_t    limit_ms;       /* a transmission's longest, and a message's to the network */
     uint32_t    pause_ms;       /* between the end of a transmission and the next relayed one */
     const char *net;            /* the network's name in what the link says ("Zello", "SVX"); NULL "Net" */
+    /* What the link says in the screen's language (i18n_tr: the format before the name goes in); NULL English */
+    const char *(*tr)(const char *text);
 } vlink_cfg_t;
 
 typedef enum {

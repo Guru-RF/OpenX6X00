@@ -454,6 +454,7 @@ static void link_cfg(const vnet_app_t *a, vlink_cfg_t *c) {
     c->limit_ms     = (uint32_t)P(a, limit) * 1000u;
     c->pause_ms     = (uint32_t)P(a, pause) * 1000u;
     c->net          = a->net;
+    c->tr           = i18n_tr;
 }
 
 /* A voice mode, a callsign for the ID, the squelch to tell a busy frequency */
