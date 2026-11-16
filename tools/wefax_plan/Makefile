@@ -2,13 +2,14 @@
 # plan_test. The plan built into the firmware (src/wefax/plan_default.h, made by plan_to_c.py from plan.json) and one
 # from the card replacing it; which slot comes next and when, on which frequency, which slot a fax is, a chart going on
 # joined, a fax kept against the next slot, the names a fax is saved under and the best copy of a chart (files in
-# build/data/wefax), the Bulletin's kinds; the mark of charts made up here (clean, noisy, cut short, noise).
+# build/data/wefax), the slot a saved chart came from, the Bulletin's kinds; the charts' previews (src/wefax/thumb.c:
+# made, read, swept); the mark of charts made up here (clean, noisy, cut short, noise).
 TOP    := ../..
 SRC    := $(TOP)/src
 DATA   := $(CURDIR)/build/data
 CFLAGS := -std=gnu11 -Wall -Wextra -O1 -g -I $(SRC) -DBOARD_DATA='"$(DATA)"'
-OURS   := $(SRC)/wefax/plan.c $(SRC)/wefax/quality.c $(SRC)/cJSON.c
-HDRS   := $(SRC)/wefax/plan.h $(SRC)/wefax/plan_default.h $(SRC)/wefax/quality.h
+OURS   := $(SRC)/wefax/plan.c $(SRC)/wefax/quality.c $(SRC)/wefax/thumb.c $(SRC)/cJSON.c
+HDRS   := $(SRC)/wefax/plan.h $(SRC)/wefax/plan_default.h $(SRC)/wefax/quality.h $(SRC)/wefax/thumb.h
 
 all: test
 
@@ -17,7 +18,7 @@ check_header:
 	@python3 -I plan_to_c.py --check
 
 plan_test: plan_test.c $(OURS) $(HDRS)
-	$(CC) $(CFLAGS) -o $@ plan_test.c $(OURS) -lm
+	$(CC) $(CFLAGS) -pthread -o $@ plan_test.c $(OURS) -lpng -lm
 
 test: check_header plan_test
 	rm -rf $(DATA) && mkdir -p $(DATA)/wefax

@@ -7,8 +7,10 @@
 
 #include "wefax/plan.h"
 #include "wefax/quality.h"
+#include "wefax/thumb.h"
 
 #include <math.h>
+#include <png.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -276,6 +278,20 @@ static void test_names(void)
     CHECK(wefax_plan_copies(dir, "NW-surface-analysis-00Z", t, NULL, false, NULL) == 65, "the best now 65");
 }
 
+/* The slot a saved chart came from: the last of its chart started before it was saved */
+static void test_slot_of_file(void)
+{
+    wefax_plan_load();
+
+    const wefax_slot_t *s = wefax_plan_slot_of_file("wefax-20261116-044107-DWD-surface-analysis-00Z-q57.png");
+
+    CHECK(s && s->min == 4 * 60 + 30 && s->freq_hz == 3855000, "DWD's 00Z analysis saved 04:41: the 04:30 slot");
+    s = wefax_plan_slot_of_file("wefax-20261116-002000-DWD-surface-analysis-00Z-q57.png");
+    CHECK(s && s->min == 4 * 60 + 30, "saved 00:20: yesterday's 04:30 is the last one started");
+    CHECK(!wefax_plan_slot_of_file("wefax-20261116-044107-q57.png"), "no chart: no slot");
+    CHECK(!wefax_plan_slot_of_file("wefax-20261116-044107-XX-nothing-q57.png"), "a chart not in the plan: none");
+}
+
 static void test_bulletin(void)
 {
     wefax_plan_load();
@@ -321,6 +337,86 @@ static void test_bulletin(void)
           product_of(i), wait);
     i = wefax_plan_next_of_kind(ice, hms(22, 0, 0), &wait);
     CHECK(i == slot_at(15, 20) && wait == hms(17, 20, 0), "after 22:00 tomorrow's: %s", product_of(i));
+}
+
+/* ---- previews ---- */
+
+static bool write_png(const char *path, const uint8_t *img, unsigned w, unsigned h)
+{
+    FILE       *fp  = fopen(path, "wb");
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    png_infop   info = png ? png_create_info_struct(png) : NULL;
+
+    if (!fp || !png || !info || setjmp(png_jmpbuf(png))) {
+        if (fp)
+            fclose(fp);
+        png_destroy_write_struct(&png, &info);
+        return false;
+    }
+    png_init_io(png, fp);
+    png_set_IHDR(png, info, w, h, 8, PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
+                 PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png, info);
+    for (unsigned y = 0; y < h; y++)
+        png_write_row(png, (png_bytep)(img + (size_t)y * w));
+    png_write_end(png, NULL);
+    png_destroy_write_struct(&png, &info);
+    fclose(fp);
+    return true;
+}
+
+static void test_previews(void)
+{
+    char     dir[512], path[700];
+    unsigned w = 1809, h = 1300, pw = 0, ph = 0;
+    uint8_t *img = malloc((size_t)w * h);
+
+    snprintf(dir, sizeof(dir), "%s/wefax", BOARD_DATA);
+    for (unsigned y = 0; y < h; y++)
+        for (unsigned x = 0; x < w; x++)
+            img[(size_t)y * w + x] = x < w / 2 ? 0 : 255;       /* black left, white right */
+
+    const char *name = "wefax-20261116-120000-NW-surface-analysis-12Z-q80.png";
+
+    snprintf(path, sizeof(path), "%s/%s", dir, name);
+    CHECK(write_png(path, img, w, h), "a chart written");
+
+    unsigned rw, rh;
+    uint8_t *back = wefax_png_read_grey(path, &rw, &rh);
+
+    CHECK(back && rw == w && rh == h && back[10] == 0 && back[w - 10] == 255, "read back grey, %u x %u", rw, rh);
+    free(back);
+
+    CHECK(!wefax_preview_load(dir, name, &pw, &ph), "no preview before it is made");
+    CHECK(wefax_preview_make(dir, name), "the preview made");
+
+    uint8_t *prv = wefax_preview_load(dir, name, &pw, &ph);
+
+    CHECK(prv && pw <= WEFAX_PREVIEW_W && ph <= WEFAX_PREVIEW_H && (pw == WEFAX_PREVIEW_W || ph == WEFAX_PREVIEW_H),
+          "the preview %u x %u fits", pw, ph);
+    CHECK(prv && abs((int)pw * (int)h - (int)ph * (int)w) <= (int)w, "it keeps the chart's shape");
+    CHECK(prv && prv[(size_t)(ph / 2) * pw + 2] == 0 && prv[(size_t)(ph / 2) * pw + pw - 3] == 255,
+          "black left, white right");
+    free(prv);
+
+    /* the chart deleted elsewhere: its preview swept, another's kept */
+    const char *other = "wefax-20261116-130000-NW-surface-analysis-12Z-q85.png";
+
+    snprintf(path, sizeof(path), "%s/%s", dir, other);
+    write_png(path, img, w, h);
+    wefax_preview_make(dir, other);
+    snprintf(path, sizeof(path), "%s/%s", dir, name);
+    unlink(path);
+    CHECK(wefax_preview_sweep(dir) == 1, "one preview swept");
+    CHECK(!wefax_preview_load(dir, name, &pw, &ph), "the deleted chart's preview is gone");
+    prv = wefax_preview_load(dir, other, &pw, &ph);
+    CHECK(prv != NULL, "the other's is there");
+    free(prv);
+    wefax_preview_remove(dir, other);
+    CHECK(!wefax_preview_load(dir, other, &pw, &ph), "removed with its chart");
+
+    CHECK(!wefax_png_read_grey("/nonexistent.png", &rw, &rh), "no file: NULL");
+    free(img);
 }
 
 /* ---- the quality mark, on charts made up here ---- */
@@ -405,7 +501,9 @@ int main(void)
     test_next();
     test_fax();
     test_names();
+    test_slot_of_file();
     test_bulletin();
+    test_previews();
     test_quality();
     printf("wefax plan: %d checks, %d failed\n", checks, fails);
     return fails != 0;

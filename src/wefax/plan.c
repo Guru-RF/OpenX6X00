@@ -316,6 +316,30 @@ void wefax_plan_name_product(const char *name, char *out, size_t size)
         snprintf(out, size, "%.*s", (int)len, name + 22);
 }
 
+const wefax_slot_t *wefax_plan_slot_of_file(const char *name)
+{
+    char                chart[48];
+    time_t              t = wefax_plan_name_time(name);
+    const wefax_slot_t *best = NULL;
+    int                 best_d = 0;
+
+    wefax_plan_name_product(name, chart, sizeof(chart));
+    if (!chart[0] || t == (time_t)-1)
+        return NULL;
+
+    int sod = wefax_plan_sod(t);
+
+    for (int i = 0; i < slots_n; i++) {
+        int d = (sod - slots[i].min * 60 + DAY_S) % DAY_S;      /* saved this long after the slot's start */
+
+        if (!strcmp(slots[i].product, chart) && (!best || d < best_d)) {
+            best   = &slots[i];
+            best_d = d;
+        }
+    }
+    return best;
+}
+
 int wefax_plan_copies(const char *dir, const char *product, time_t when, const char *keep, bool drop,
                       void (*dropped)(const char *dir, const char *name))
 {

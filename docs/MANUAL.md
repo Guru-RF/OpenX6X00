@@ -3889,12 +3889,27 @@ WeFax buttons. WeFax opens in RX Auto: it waits for the start tone of a fax.
 
 | Page | Buttons |
 |---|---|
-| 1 | Freq., RX Auto / Cont, Clear, Close |
-| 2 | Align, Tilt, View, Save |
-| 3 | Fax Browser, Fix Align, Fix Tilt, Done |
-| 4 | Auto Plan, Power |
+| 1 | Auto Plan, Bulletin, Fax Browser, Close |
+| 2 | Freq., RX Auto / Cont, View, Clear |
+| 3 | Align, Tilt, Save, Power |
 
-Auto Plan (page 4) leaves WeFax on its own for the day: the radio follows a
+The Fax Browser and the Bulletin have their own buttons while they show; F1
+(Browser, Bulletin) goes back to page 1, so does Close Browser or Close
+Bulletin. The status line under the picture says what the MFK does there.
+Up to v0.3.12 the pages were Freq./RX/Clear/Close, Align/Tilt/View/Save,
+the browser and Power.
+
+| Where | Buttons |
+|---|---|
+| Fax Browser, the list | Close Browser, Delete Fax |
+| Fax Browser, a fax open | Back to List, Fix Align, Fix Tilt, Done / Save Fax |
+| Bulletin, the tiles | Auto Plan, Open Chart, All Faxes, Close Bulletin |
+| Bulletin, one chart large | Auto Plan, Fix Chart, All Kinds, Close Bulletin |
+
+Fix Align and Fix Tilt in the browser move the fax by the MFK, the value on
+the screen ("Align -16", "Tilt -183"); Save Fax writes it over its file.
+
+Auto Plan (page 1) leaves WeFax on its own for the day: the radio follows a
 plan of the DWD and Northwood charts (UTC), each on the frequency that comes
 in best at its hour (Northwood: 2618.5 kHz at night, 4610 from 06:00, 8040
 from 09:00, 4610 from 16:12; DWD: 7880 by day, 3855 at night), tuned in USB
@@ -3928,6 +3943,26 @@ header too. The plan and the way it keeps the best copy are F4OLI's
   690 by default, `fill` true for a filler). The Fax Browser lists the newest
   128 faxes.
 - The browser remote has it too: `wefax plan` and `wefax unplan`.
+
+Bulletin (page 1) shows each kind of chart (analysis, forecasts at 24 h,
+36-48 h and 3-5 days, sea and swell, wind, significant weather, rain and
+visibility, ice) as a tile, eight a page: its newest copy, how old it is (the
+dot green under 6 h, orange under 24 h, red older) and its mark; a kind with
+no copy yet says when the plan has the next one, and the chart coming in
+draws in its tile ("receiving 40 %"). The MFK picks a tile, its press (or
+Open Chart) shows it large: the whole chart, its station and frequency, when
+it was taken, its mark and the next one; the MFK goes through the kinds
+there, All Kinds goes back to the tiles. A press there shows the chart over
+the whole screen: the next press goes x2, then 1:1 (the pressure figures
+readable), then whole again; the MFK moves up and down, VOL left and right, a
+small map in the corner shows where; any button goes back. Fix Chart opens it
+in the Fax Browser for Fix Align and Fix Tilt; All Faxes is the Browser's
+list of every fax. The tiles come from a small preview of each chart in
+`/mnt/wefax/thumbs`, made when it is saved; a chart saved before gets one
+the first time it is shown ("preparing" for a few seconds), and the preview
+of a chart deleted on the web Gallery goes when the Bulletin opens. The kinds
+and the charts in each are the plan's `"bulletin"` (a `/mnt/wefax/plan.json`
+can have its own). Bulletin and viewer are F4OLI's too.
 
 The VOL knob works as on the main screen: turned it changes what it is on
 (volume, squelch, RF gain, the filter edges...), a press of VOL switches

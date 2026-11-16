@@ -95,6 +95,9 @@ int wefax_plan_name_mark(const char *name);
 /* Its chart: the name's middle, "" for none */
 void wefax_plan_name_product(const char *name, char *out, size_t size);
 
+/* The slot a saved chart came from: its chart, the last such slot started before it was saved (UTC); NULL none */
+const wefax_slot_t *wefax_plan_slot_of_file(const char *name);
+
 /* The best mark of the copies of product saved within WEFAX_PLAN_SAME_S of when in dir, -1 for none. With drop set,
  * the copies other than keep are deleted instead, each named to dropped (a better one was just written) */
 int wefax_plan_copies(const char *dir, const char *product, time_t when, const char *keep, bool drop,
