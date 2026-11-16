@@ -3892,7 +3892,42 @@ WeFax buttons. WeFax opens in RX Auto: it waits for the start tone of a fax.
 | 1 | Freq., RX Auto / Cont, Clear, Close |
 | 2 | Align, Tilt, View, Save |
 | 3 | Fax Browser, Fix Align, Fix Tilt, Done |
-| 4 | Power |
+| 4 | Auto Plan, Power |
+
+Auto Plan (page 4) leaves WeFax on its own for the day: the radio follows a
+plan of the DWD and Northwood charts (UTC), each on the frequency that comes
+in best at its hour (Northwood: 2618.5 kHz at night, 4610 from 06:00, 8040
+from 09:00, 4610 from 16:12; DWD: 7880 by day, 3855 at night), tuned in USB
+10 s before the chart starts. The button shows the next slot's time, the
+header too. The plan and the way it keeps the best copy are F4OLI's
+(OlivLoze's fork), from his own receiving station.
+
+- A chart coming in is not cut by the next slot; a filler slot of the plan
+  gives way to a chart of the plan. A chart whose stop tone was missed gives
+  way 30 s before its end.
+- Each fax gets a quality mark (0-100: stripes, noise, lost sync, fading,
+  times 0.8 when its stop tone was not heard), in its name with the chart:
+  `wefax-20261116-062315-NW-surface-analysis-00Z-q91.png`. A fax saved by
+  hand or out of the plan has the mark only.
+- A chart is sent several times a day: of one chart (the same name within
+  16 h) only the best copy is kept; a worse one is not written ("Fax
+  dropped: quality 41, a copy has 77"). Charts whose name holds `unknown`
+  are all kept.
+- Auto Plan stays on: the app opens with it on until its button turns it off
+  (off-grid: put up an antenna, open WeFax, the charts come). Tuning by hand
+  (Freq., the knob, the web page) stops it until the app opens again.
+- Opened during a chart of the plan (with more than 2 minutes of it to come),
+  the app takes the chart from where it is: its first 30 rows tell a chart
+  from noise, on noise it waits for the next start. Its top is missing and,
+  its phasing missed, it can sit sideways (Fix Align in the browser); a
+  full copy of the chart replaces it when one comes in.
+- The plan is in the firmware (tools/wefax_plan/plan.json, from a 48 h watch
+  in November 2026, made for western Europe); a `/mnt/wefax/plan.json` of the
+  same form replaces it (`"slots"`: `t` the UTC start, `st` the station, `hz`
+  the frequency the fax is on, `prod` the chart's name, `dur` its length in s,
+  690 by default, `fill` true for a filler). The Fax Browser lists the newest
+  128 faxes.
+- The browser remote has it too: `wefax plan` and `wefax unplan`.
 
 The VOL knob works as on the main screen: turned it changes what it is on
 (volume, squelch, RF gain, the filter edges...), a press of VOL switches
@@ -7326,8 +7361,8 @@ text, call, grid, audio Hz, SNR, to me, worked, distance, country), the app's
 state as `ft8 {...}` (open, proto, cq, tx, auto, hold, sending, txf, next),
 the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
 `ft8 txcall`, `ft8 txfreq HZ` and `ft8 reply ID` work the app; `wefax
-open|close|auto|cont|save|clear` works the WeFax app as its buttons do (RX
-Auto, RX Cont, Save, Clear; operate and control, `err wefax WHAT` for one it
+open|close|auto|cont|save|clear|plan|unplan` works the WeFax app as its buttons
+do (RX Auto, RX Cont, Save, Clear, Auto Plan on and off; operate and control, `err wefax WHAT` for one it
 does not know), and the panel state's `app` names the digital app open
 (`"FT8"`, `"WeFax"`, `""` for none); the FT8 state
 carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`

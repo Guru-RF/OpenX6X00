@@ -59,7 +59,7 @@
  *  list's rows go out as they come ("ft8r {...}", the last 48 to a page that opens later), the
  *  app's state when it changes ("ft8 {...}"), the CW decoder's text ("cw \"...\""); "ft8
  *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "wefax
- *  open|close|auto|cont|save|clear" the WeFax app (the state's "app" names the one open), "pos LAT
+ *  open|close|auto|cont|save|clear|plan|unplan" the WeFax app (the state's "app" names the one open), "pos LAT
  *  LON [ACC]" gives the radio the phone's position (degrees, the accuracy in metres; Field Ops uses
  *  it when no GPS is plugged in, operate without control: it touches nothing of the RF side), "clk?
  *  MS" and "clk MS RTT" the phone's clock (clock_from_phone: the radio's set from it in the field,
@@ -1593,13 +1593,15 @@ static bool app_ft8_cmd(const char *what, const char *arg) {
     return true;
 }
 
-/* "wefax open|close|auto|cont|save|clear": Auto waits for the start tone and saves at the stop tone, Cont takes rows
- * at once, Save writes the rows kept to /mnt/wefax and starts over, Clear drops them */
+/* "wefax open|close|auto|cont|save|clear|plan|unplan": Auto waits for the start tone and saves at the stop tone, Cont
+ * takes rows at once, Save writes the rows kept to /mnt/wefax and starts over, Clear drops them, Plan and Unplan turn
+ * Auto Plan on and off (the day's charts, wefax/plan.h) */
 static bool app_wefax_cmd(const char *what) {
     static const struct {
         const char *name;
         wefax_rc_t  rc;
-    } rcs[] = {{"auto", WEFAX_RC_AUTO}, {"cont", WEFAX_RC_CONT}, {"save", WEFAX_RC_SAVE}, {"clear", WEFAX_RC_CLEAR}};
+    } rcs[] = {{"auto", WEFAX_RC_AUTO},   {"cont", WEFAX_RC_CONT}, {"save", WEFAX_RC_SAVE},
+               {"clear", WEFAX_RC_CLEAR}, {"plan", WEFAX_RC_PLAN}, {"unplan", WEFAX_RC_UNPLAN}};
     acmd_t a = {.id = A_WEFAX};
 
     if (!strcasecmp(what, "open")) {

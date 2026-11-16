@@ -53,4 +53,8 @@ uint32_t wefax_decoder_auto_start_generation(const wefax_decoder_t *decoder);
 /* Auto: the black band after the start tone was seen, the rows are a real fax */
 bool wefax_decoder_auto_fax_confirmed(const wefax_decoder_t *decoder);
 
+/* Auto: take a fax already going on (tuned in during it, Auto Plan): rows at once as a confirmed fax, its stop tone
+ * still ends it. Its start and phasing were missed: the rows begin anywhere in the line. LVGL thread, as set_mode */
+void wefax_decoder_auto_join(wefax_decoder_t *decoder);
+
 #endif /* X6100_WEFAX_DECODER_H */
