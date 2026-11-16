@@ -50,6 +50,12 @@ static bool                 monitor_wanted; /* the Recorder window is open (audi
 static float                peak_db = -60.0f;
 static bool                 connected;      /* the context was READY once */
 
+/* The Internet radio's listening (audio_listen_begin): the stream it played into last, NULL when none, and whether
+ * a key cut it since it began. Both under the mainloop lock */
+static pa_stream            *listen_stm;
+static bool                 listen_cut;
+#define LISTEN_PIECE        1024    /* samples a write: a stream may never have room for a much bigger one */
+
 
 /* On the mainloop thread, with its lock held */
 static void on_state_change(pa_context *c, void *userdata) {
@@ -240,6 +246,83 @@ int audio_play(int16_t *samples_buf, size_t samples) {
     }
 
     return res;
+}
+
+void audio_listen_begin(void) {
+    pa_threaded_mainloop_lock(mloop);
+    listen_cut = false;
+    listen_stm = NULL;
+    pa_threaded_mainloop_unlock(mloop);
+}
+
+/* Each piece written with the lock held from the check of the cut on, so a key's cut comes either before it (no
+ * write) or after it (the piece flushed with the rest) */
+int audio_listen_play(const int16_t *buf, size_t samples, bool (*go_on)(void), int timeout_ms) {
+    while (samples) {
+        size_t n      = samples > LISTEN_PIECE ? LISTEN_PIECE : samples;
+        int    waited = 0;
+
+        while (true) {
+            if (!go_on()) {
+                return -1;
+            }
+            pa_threaded_mainloop_lock(mloop);
+            if (listen_cut) {
+                pa_threaded_mainloop_unlock(mloop);
+                return -1;
+            }
+            listen_stm  = cur_stm();
+            size_t room = pa_stream_writable_size(listen_stm);
+            if (room != (size_t)-1 && room >= n * 2) {
+                int res = pa_stream_write(listen_stm, buf, n * 2, NULL, 0, PA_SEEK_RELATIVE);
+                pa_threaded_mainloop_unlock(mloop);
+                if (res < 0) {
+                    return -3;
+                }
+                break;
+            }
+            pa_threaded_mainloop_unlock(mloop);
+            if (waited >= timeout_ms) {
+                return -2;
+            }
+            usleep(2000);
+            waited += 2;
+        }
+        buf += n;
+        samples -= n;
+    }
+    return 0;
+}
+
+/* What is still queued is dropped, so a stop is heard at once; after a cut nothing is: the cut dropped it, and the
+ * stream may carry what the radio sends by now (the TX players write into the same one) */
+void audio_listen_end(void) {
+    pa_threaded_mainloop_lock(mloop);
+    if (listen_stm && !listen_cut) {
+        pa_operation *op = pa_stream_flush(listen_stm, NULL, NULL);
+
+        if (op) {
+            pa_operation_unref(op);
+        }
+    }
+    listen_stm = NULL;
+    pa_threaded_mainloop_unlock(mloop);
+}
+
+void audio_listen_cut(void) {
+    if (!mloop) {
+        return;
+    }
+    pa_threaded_mainloop_lock(mloop);
+    listen_cut = true;
+    if (listen_stm) {
+        pa_operation *op = pa_stream_flush(listen_stm, NULL, NULL);
+
+        if (op) {
+            pa_operation_unref(op);
+        }
+    }
+    pa_threaded_mainloop_unlock(mloop);
 }
 
 /* Drops the queued audio, so a stop is immediate. */

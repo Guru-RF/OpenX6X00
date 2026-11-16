@@ -248,6 +248,14 @@ def i_flights(p):    # an aircraft seen from above, nose up: the Flights app
     p.line([(50, 8), (57, 18), (57, 38), (92, 58), (92, 66), (57, 56), (57, 76), (70, 86), (70, 92), (50, 87),
             (30, 92), (30, 86), (43, 76), (43, 56), (8, 66), (8, 58), (43, 38), (43, 18), (50, 8)], w=p.w // 2 + 2)
 
+def i_iradio(p):     # a radio set with its antenna and a wave: the Internet radio (the CX8ANM edition's drawing)
+    p.box(10, 40, 90, 86, r=8)
+    p.ring(36, 63, 11)
+    for y in (56, 70):
+        p.line([(58, y), (78, y)], w=p.w // 2 + 1)
+    p.line([(30, 40), (70, 12)], w=p.w // 2 + 1)
+    p.ring(74, 12, 8, w=p.w // 2 + 1, start=200, end=340)
+
 
 ICONS = {n[2:]: f for n, f in globals().items() if n.startswith("i_") and callable(f)}
 

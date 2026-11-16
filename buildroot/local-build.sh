@@ -163,6 +163,31 @@ done
 mkdir -p $BOARD/rootfs-overlay/usr/bin
 cp $GUI/buildroot/bt_start.sh $BOARD/rootfs-overlay/usr/bin/bt_start.sh
 
+echo "== ffmpeg for the Internet radio: the audio decoders and stream formats it plays, nothing else"
+# x6100-iradio plays MP3 with mpg123 and hands AAC, Ogg Vorbis, Opus, FLAC and HLS streams to the ffmpeg
+# command line: decoded to s16le PCM on its standard output. Only those parts are built (no video, no
+# devices, no swscale); TLS comes from the image's GnuTLS (buildroot's ffmpeg.mk picks it). An image
+# without it plays MP3 stations only (image-required, level 3)
+sed -i "/BR2_PACKAGE_FFMPEG/d" $DEFCONFIG
+cat >> $DEFCONFIG <<'FFMPEG'
+BR2_PACKAGE_FFMPEG=y
+BR2_PACKAGE_FFMPEG_FFMPEG=y
+# BR2_PACKAGE_FFMPEG_FFPLAY is not set
+# BR2_PACKAGE_FFMPEG_FFPROBE is not set
+# BR2_PACKAGE_FFMPEG_SWSCALE is not set
+# BR2_PACKAGE_FFMPEG_INDEVS is not set
+# BR2_PACKAGE_FFMPEG_OUTDEVS is not set
+BR2_PACKAGE_FFMPEG_ENCODERS="pcm_s16le"
+BR2_PACKAGE_FFMPEG_DECODERS="aac aac_latm mp3 mp3float vorbis opus flac pcm_s16le"
+BR2_PACKAGE_FFMPEG_MUXERS="s16le"
+BR2_PACKAGE_FFMPEG_DEMUXERS="aac ogg flac mp3 wav mov mpegts hls matroska"
+BR2_PACKAGE_FFMPEG_PARSERS="aac aac_latm mpegaudio vorbis opus flac"
+BR2_PACKAGE_FFMPEG_BSFS="aac_adtstoasc"
+BR2_PACKAGE_FFMPEG_PROTOCOLS="pipe file http https httpproxy tcp tls crypto hls"
+BR2_PACKAGE_FFMPEG_FILTERS="aresample aformat anull atrim abuffer abuffersink format null trim"
+FFMPEG
+grep -q '^BR2_PACKAGE_FFMPEG_DECODERS="aac ' $DEFCONFIG
+
 # rootfs/ is synced into the GUI package and installed as is: a __pycache__ left there by running
 # one of its scripts on the host (tests) would land in the image
 find $GUI/rootfs -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null

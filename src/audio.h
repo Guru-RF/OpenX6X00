@@ -38,6 +38,18 @@ void audio_play_flush();
 bool audio_play_bt_begin(void);
 void audio_play_bt_end(void);
 
+/* Long listening on the speaker or the headphones (the Internet radio, dialog_iradio.c), from its playing thread:
+ * begin as it starts; play writes in pieces of at most 1024 samples into this thread's stream (the headphones' after
+ * audio_play_bt_begin, else the speaker's in AUDIO_PLAY_ON), each one after go_on() said yes, and returns 0 when all
+ * is written, -1 when go_on() said no or a key cut it, -2 when the stream had no room for timeout_ms, -3 when the
+ * write failed; end (what is still queued dropped) before audio_play_bt_end and the play mode off. audio_listen_cut(),
+ * from any thread: what it queued is dropped and it writes nothing more until its next begin. radio.c calls it before
+ * its PTT and its modem key, so a station never plays into what the radio sends */
+void audio_listen_begin(void);
+int audio_listen_play(const int16_t *buf, size_t samples, bool (*go_on)(void), int timeout_ms);
+void audio_listen_end(void);
+void audio_listen_cut(void);
+
 /* Short-delay playback into the codec for the phone's voice, from the playing thread (see audio.c) */
 bool audio_play_lowlat_begin(void);
 void audio_play_lowlat_end(void);

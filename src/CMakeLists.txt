@@ -75,6 +75,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     scan.c dialog_scan.c band_keep.c
     aero.c dialog_aero.c cb.c dialog_cb.c
     dialog_snake.c
+    dialog_iradio.c iradio_list.c
     remote_server.c
     control_owner.c
     winlink.c

@@ -3031,6 +3031,149 @@ def set_js8_texts():
     return read_js8_texts()
 
 
+# Internet radio (APP > Internet radio, src/dialog_iradio.c): its favourites, one station a line of IRADIO_FAV_FILE,
+# name<TAB>address<TAB>codec<TAB>kbps<TAB>country<TAB>uuid as src/iradio_list.c reads and writes them; the window
+# reads the file each time it shows the favourites. The uuid is radio-browser.info's, kept while the address stays
+IRADIO_FAV_MAX = 150    # src/dialog_iradio.c MAX_ST
+IRADIO_NAME_MAX = 63    # bytes of UTF-8: iradio_station_t
+IRADIO_URL_MAX = 255
+IRADIO_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+
+@app.route('/iradio')
+def iradio_page():
+    return bottle.template('iradio')
+
+
+def iradio_cut(text, most):
+    """text in at most most bytes of UTF-8, cut on a whole character, as the GUI cuts it"""
+    return text.encode("utf-8")[:most].decode("utf-8", "ignore")
+
+
+def iradio_url_ok(url):
+    return (url.lower().startswith(("http://", "https://")) and len(url.encode("utf-8")) <= IRADIO_URL_MAX
+            and not any(c in url for c in " \t\"'") and all(" " < c for c in url))
+
+
+def read_iradio():
+    """The favourites the GUI would read: lines without a name or an http(s) address skipped"""
+    items = []
+    try:
+        with open(settings.IRADIO_FAV_FILE, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                p = line.rstrip("\r\n").split("\t")
+                p += [""] * (6 - len(p))
+                if p[0] and iradio_url_ok(p[1]) and len(items) < IRADIO_FAV_MAX:
+                    items.append({"name": iradio_cut(p[0], IRADIO_NAME_MAX), "url": p[1], "codec": p[2].upper()[:8],
+                                  "kbps": p[3] if p[3].isdigit() and len(p[3]) < 8 else "",
+                                  "cc": p[4].upper() if re.fullmatch(r"[A-Za-z]{2}", p[4]) else "",
+                                  "uuid": p[5] if IRADIO_UUID_RE.fullmatch(p[5]) else ""})
+    except FileNotFoundError:
+        pass
+    return items
+
+
+def iradio_state():
+    return {"stations": [dict(s, id=i) for i, s in enumerate(read_iradio())], "max": IRADIO_FAV_MAX,
+            "every": os.access(settings.FFMPEG, os.X_OK)}
+
+
+def write_iradio(items):
+    os.makedirs(os.path.dirname(settings.IRADIO_FAV_FILE), exist_ok=True)
+    replace_file(settings.IRADIO_FAV_FILE,
+                 lambda f: f.write("".join("\t".join([s["name"], s["url"], s["codec"], s["kbps"], s["cc"], s["uuid"]])
+                                           + "\n" for s in items)), encoding="utf-8")
+
+
+def iradio_entry(old=None):
+    """The station of the request: a name, an http(s) address, and the codec, kbps and country when given. The uuid
+    of old stays while the address does"""
+    data = bottle.request.json
+    if not isinstance(data, dict):
+        raise ValueError("Invalid request")
+    one = lambda k: " ".join(str(data.get(k) or "").split())
+    s = {"name": one("name"), "url": one("url"), "codec": one("codec").upper(), "kbps": one("kbps"),
+         "cc": one("cc").upper(), "uuid": ""}
+    if not s["name"] or len(s["name"].encode("utf-8")) > IRADIO_NAME_MAX:
+        raise ValueError("Name: 1 to %d bytes" % IRADIO_NAME_MAX)
+    if not iradio_url_ok(s["url"]):
+        raise ValueError("Address: http:// or https://, up to %d characters, no spaces or quotes" % IRADIO_URL_MAX)
+    if not re.fullmatch(r"[A-Z0-9+]{0,8}", s["codec"]):
+        raise ValueError("Format: up to 8 letters, MP3, AAC, OGG...")
+    if not re.fullmatch(r"[0-9]{0,6}", s["kbps"]):
+        raise ValueError("kbps: a number, 128")
+    if not re.fullmatch(r"(?:[A-Z]{2})?", s["cc"]):
+        raise ValueError("Country: its two letters (BE, UY) or empty")
+    if old and old["url"] == s["url"]:
+        s["uuid"] = old["uuid"]
+    return s
+
+
+def change_iradio(fn):
+    """Read the file, let fn change the list (ValueError: refused), write it back"""
+    try:
+        with config_lock:
+            items = read_iradio()
+            fn(items)
+            write_iradio(items)
+    except ValueError as ex:
+        return api_error(400, str(ex))
+    except OSError as ex:
+        return api_error(500, f"Can't save: {ex}")
+    return iradio_state()
+
+
+def iradio_index(items, id):
+    if not 0 <= id < len(items):
+        raise ValueError("That station is gone, reload the page")
+    return id
+
+
+def iradio_unique(items, s, but=-1):
+    if any(x["url"] == s["url"] for i, x in enumerate(items) if i != but):
+        raise ValueError("That address is in the list already")
+
+
+@app.get('/api/iradio')
+def get_iradio():
+    return iradio_state()
+
+
+@app.post('/api/iradio')
+def add_iradio():
+    def add(items):
+        if len(items) >= IRADIO_FAV_MAX:
+            raise ValueError("All %d places are used, delete a station first" % IRADIO_FAV_MAX)
+        s = iradio_entry()
+        iradio_unique(items, s)
+        items.append(s)
+    return change_iradio(add)
+
+
+@app.put('/api/iradio/<id:int>')
+def set_iradio(id):
+    def put(items):
+        i = iradio_index(items, id)
+        s = iradio_entry(items[i])
+        iradio_unique(items, s, i)
+        items[i] = s
+    return change_iradio(put)
+
+
+@app.delete('/api/iradio/<id:int>')
+def delete_iradio(id):
+    return change_iradio(lambda items: items.pop(iradio_index(items, id)))
+
+
+@app.post('/api/iradio/<id:int>/up')
+def move_iradio_up(id):
+    def up(items):
+        i = iradio_index(items, id)
+        if i > 0:
+            items[i - 1], items[i] = items[i], items[i - 1]
+    return change_iradio(up)
+
+
 CJSON_NESTING_LIMIT = 1000   # src/cJSON.h: lists and objects within each other, at most
 # A \u escape of half a UTF-16 pair (1: high, 2: the low after it, 3: a low alone), or any other escape
 SURROGATE_ESCAPE_RE = re.compile(r"\\(?:u([dD][89abAB][0-9a-fA-F]{2})(?:\\u([dD][c-fC-F][0-9a-fA-F]{2}))?"

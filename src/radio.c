@@ -1235,6 +1235,9 @@ bool radio_set_ptt(bool tx) {
     if (tx && tx_refused(TX_BY_PTT)) {
         return false;
     }
+    if (tx) {
+        audio_listen_cut();     /* the Internet radio's station out of the audio before the key (audio.h) */
+    }
     pthread_mutex_lock(&key_mux);
     if (tx && ptt_moves()) {
         atomic_store(&ptt_moved, true);
@@ -1288,6 +1291,9 @@ int radio_get_mic(void) {
 void radio_set_modem(bool tx) {
     if (tx && tx_refused(TX_BY_GUI)) {
         return;
+    }
+    if (tx) {
+        audio_listen_cut();     /* the modem sends the codec's audio: the Internet radio's station out of it first */
     }
     pthread_mutex_lock(&key_mux);
     if (tx && param_i_get(cfg_band_split) && !atomic_load(&split_held)) {

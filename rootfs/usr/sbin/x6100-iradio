@@ -1,0 +1,576 @@
+#!/usr/bin/env python3
+# Internet radio for APP > Internet radio (src/dialog_iradio.c): the station lists of radio-browser.info, the open
+# directory of Internet radio stations, and one station played as PCM for the GUI to send to the speaker.
+#
+#   x6100-iradio country <CC>      the stations of a country (its ISO 3166-1 code), the most listened first
+#   x6100-iradio top               the most listened stations of the world
+#   x6100-iradio search <text>     stations by name, and by tag (a genre: jazz, news) when the names give few
+#        one station a line: name<TAB>address<TAB>codec<TAB>kbps<TAB>country code<TAB>station uuid
+#   x6100-iradio countries         the countries the directory has stations of: name<TAB>code<TAB>stations
+#        "error <reason>" instead when there is no list
+#   x6100-iradio play <address> [<uuid>]
+#        PCM s16 mono 44100 Hz on stdout until the GUI ends it (SIGTERM to the process group, the decoder with it).
+#        The state in /tmp/x6100-iradio.status, three lines: "connecting", "playing" or "error <reason>"; the format
+#        ("MP3 128 kbps"); the title the station sends (its ICY metadata), else its name
+#
+# The decoders: MP3 with mpg123, always (it is the lighter one), every other format (AAC, Ogg Vorbis, Opus, FLAC) and
+# HLS with ffmpeg, on a card image that has it (/usr/bin/ffmpeg). On one without, the lists ask the directory for MP3
+# stations only and leave out HLS, and a station that turns out to send something else is refused with its format
+# named. A playlist (.pls, .m3u, .asx, .xspf) is read for its first stream address.
+#
+# radio-browser.info's rules for clients (api.radio-browser.info): no fixed server, the servers are the names behind
+# all.api.radio-browser.info (its addresses, each looked up back to its name), tried in a random order, the next one
+# when one fails; a User-Agent that names the program and its version (OpenX6X00/<version>, no callsign); a station
+# played is counted with /json/url/<uuid> (its click count, once a day per station and address). The lists are kept
+# LIST_S in CACHE, the countries and the server names a day. Nothing goes out but what the user asked for in the app.
+#
+# For the tests and the bench: X6100_IRADIO_CACHE (the cache folder), X6100_IRADIO_STATUS (the state file),
+# X6100_IRADIO_FFMPEG (another ffmpeg, or a path that is not there to play MP3 only).
+#
+# After the Internet radio of the CX8ANM edition of OpenX6X00 (condoruy): its lists, playlists, decoders, ICY titles.
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+import html
+import http.client
+import json
+import os
+import random
+import re
+import socket
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+STATUS = os.environ.get("X6100_IRADIO_STATUS") or "/tmp/x6100-iradio.status"
+CACHE = os.environ.get("X6100_IRADIO_CACHE") or "/tmp/x6100-iradio"
+AGENT = f"OpenX6X00/{os.environ.get('X6100_FW') or 'unknown'} (+https://github.com/Guru-RF/OpenX6X00)"
+DIRECTORY = "all.api.radio-browser.info"
+SERVER_RE = re.compile(r"[a-z0-9-]+\.api\.radio-browser\.info")
+UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+LIST_S = 3600           # a station list kept an hour
+DAY_S = 86400           # the countries and the server names a day
+TRIES = 3               # servers tried for one request
+LIST_MAX = 100          # stations a list
+FEW = 15                # a search by name that finds fewer also searches the tags
+NAME_MAX = 60           # bytes of a station's or a country's name (the GUI keeps 63)
+URL_MAX = 250           # bytes of an address (the GUI keeps 255): a longer one is left out, a cut one would not play
+TITLE_MAX = 120         # bytes of the title on the state line
+FFMPEG = os.environ.get("X6100_IRADIO_FFMPEG") or "/usr/bin/ffmpeg"
+MPG123 = ["mpg123", "-q", "-s", "-m", "-r", "44100", "-e", "s16", "-"]   # stdin to s16 mono 44.1 kHz on stdout
+PCM_OUT = ["-vn", "-sn", "-dn", "-f", "s16le", "-ac", "1", "-ar", "44100", "pipe:1"]
+COMMON = {"hidebroken": "true", "order": "clickcount", "reverse": "true", "limit": str(LIST_MAX)}
+
+MP3_TYPES = {"audio/mpeg", "audio/mp3", "audio/mpeg3", "audio/x-mpeg", "audio/x-mp3", "audio/x-mpeg3", "audio/mpg",
+             "audio/x-mpg"}
+PLAYLIST_TYPES = {"audio/x-scpls", "audio/scpls", "application/pls+xml", "audio/x-mpegurl", "audio/mpegurl",
+                  "application/x-mpegurl", "application/vnd.apple.mpegurl", "video/x-ms-asf", "video/x-ms-asx",
+                  "audio/x-ms-asx", "application/xspf+xml"}
+OTHER_TYPES = {"audio/aac": "AAC", "audio/aacp": "AAC", "audio/x-aac": "AAC", "audio/mp4": "AAC", "audio/x-m4a": "AAC",
+               "audio/ogg": "Ogg", "application/ogg": "Ogg", "audio/x-ogg": "Ogg", "audio/opus": "Opus",
+               "audio/flac": "FLAC", "audio/x-flac": "FLAC", "audio/wav": "WAV", "audio/x-wav": "WAV",
+               "audio/webm": "WebM", "video/mp2t": "MPEG-TS"}
+ENDINGS = {".mp3": ("mp3", "MP3"), ".pls": ("playlist", ""), ".m3u": ("playlist", ""), ".m3u8": ("playlist", ""),
+           ".asx": ("playlist", ""), ".xspf": ("playlist", ""), ".aac": ("other", "AAC"), ".m4a": ("other", "AAC"),
+           ".ogg": ("other", "Ogg"), ".oga": ("other", "Ogg"), ".opus": ("other", "Opus"), ".flac": ("other", "FLAC")}
+
+
+class Fail(Exception):
+    """A reason in a few words, for the GUI's line. final: trying again would not help (a format the radio cannot
+    play, a page that is not a stream)"""
+
+    def __init__(self, text, final=False):
+        super().__init__(text)
+        self.final = final
+
+
+# Old SHOUTcast servers answer "ICY 200 OK" where HTTP has "HTTP/1.0 200 OK": read as the latter
+def _read_status(self):
+    line = str(self.fp.readline(65537), "iso-8859-1")
+    if not line:
+        raise http.client.RemoteDisconnected("the station did not answer")
+    if line.startswith("ICY"):
+        line = "HTTP/1.0" + line[3:]
+    parts = line.split(None, 2)
+    if len(parts) < 2 or not parts[0].startswith("HTTP/") or not parts[1].isdigit():
+        self._close_conn()
+        raise http.client.BadStatusLine(line)
+    return parts[0], int(parts[1]), parts[2].strip() if len(parts) > 2 else ""
+
+
+http.client.HTTPResponse._read_status = _read_status
+
+
+def clean(s):
+    return " ".join(str(s or "").replace("\t", " ").split())
+
+
+def cut(s, n):
+    """s in at most n bytes of UTF-8, cut on a whole character"""
+    b = s.encode("utf-8")
+    return s if len(b) <= n else b[:n].decode("utf-8", "ignore").rstrip()
+
+
+def reason(e):
+    """An error in a few words: an OSError's own text without its number ("Network is unreachable")"""
+    r = getattr(e, "reason", None) or getattr(e, "code", None) or e
+    if isinstance(r, OSError) and r.strerror:
+        r = r.strerror
+    return cut(clean(r), 70) or type(e).__name__
+
+
+def http_open(url, headers=None, timeout=15):
+    req = urllib.request.Request(url, headers=dict({"User-Agent": AGENT}, **(headers or {})))
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
+# ---------- the directory ----------
+
+def server_names(addresses, lookup):
+    """The directory's servers by name, from the addresses all.api.radio-browser.info has: each looked up back
+    (lookup(address) -> name, or an exception), only names under api.radio-browser.info, each once"""
+    names = []
+    for a in addresses:
+        try:
+            name = str(lookup(a)).lower().rstrip(".")
+        except Exception:
+            continue
+        if SERVER_RE.fullmatch(name) and name not in names:
+            names.append(name)
+    return names
+
+
+def servers():
+    """The server names to try, in a random order: from the cache, else from the DNS; the DNS name itself when
+    neither has any"""
+    text = cached("servers", DAY_S)
+    names = [n for n in (text or "").split() if SERVER_RE.fullmatch(n)]
+    if not names:
+        try:
+            addresses = sorted({ai[4][0] for ai in socket.getaddrinfo(DIRECTORY, 443, socket.AF_INET,
+                                                                       socket.SOCK_STREAM)})
+        except OSError:
+            addresses = []
+        names = server_names(addresses, lambda a: socket.gethostbyaddr(a)[0])
+        if names:
+            keep("servers", "\n".join(names) + "\n")
+    random.shuffle(names)
+    return names or [DIRECTORY]
+
+
+def api(path, params=None, tries=TRIES, timeout=10):
+    """The JSON answer of the first server that gives one"""
+    query = "?" + urllib.parse.urlencode(params) if params else ""
+    last = None
+    for name in servers()[:tries]:
+        try:
+            with http_open(f"https://{name}{path}{query}", {"Accept": "application/json"}, timeout) as r:
+                return json.load(r)
+        except Exception as e:      # the next server
+            last = e
+    raise Fail("no answer from radio-browser.info (" + reason(last) + ")")
+
+
+def cached(key, max_age):
+    path = os.path.join(CACHE, key)
+    try:
+        if time.time() - os.path.getmtime(path) < max_age:
+            with open(path, encoding="utf-8") as f:
+                return f.read()
+    except OSError:
+        pass
+    return None
+
+
+def keep(key, text):
+    try:
+        os.makedirs(CACHE, mode=0o700, exist_ok=True)
+        tmp = os.path.join(CACHE, key + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, os.path.join(CACHE, key))
+    except OSError:
+        pass
+
+
+def all_formats():
+    """ffmpeg on the image: every format and HLS; else MP3 only"""
+    return os.access(FFMPEG, os.X_OK)
+
+
+def station_row(s, every=False):
+    """A list's line for the GUI from a station of the directory; None for one the radio cannot keep: no name, no
+    http(s) address or one over URL_MAX; without ffmpeg (every False) also one not MP3, and HLS"""
+    if not isinstance(s, dict):
+        return None
+    url = clean(s.get("url_resolved")) or clean(s.get("url"))
+    name = cut(clean(s.get("name")), NAME_MAX)
+    if not name or " " in url or not url.lower().startswith(("http://", "https://")) or len(url.encode()) > URL_MAX:
+        return None
+    codec = clean(s.get("codec")).upper()
+    hls = s.get("hls") in (1, "1", True) or urllib.parse.urlsplit(url).path.lower().endswith(".m3u8")
+    if not every and (codec != "MP3" or hls):
+        return None
+    codec = "HLS" if hls and codec in ("", "UNKNOWN") else codec if re.fullmatch(r"[A-Z0-9+]{1,8}", codec) else ""
+    kbps = str(s.get("bitrate") or "").strip()
+    kbps = kbps if kbps.isdigit() and 0 < int(kbps) < 10000 else ""
+    cc = clean(s.get("countrycode")).upper()
+    uuid = clean(s.get("stationuuid")).lower()
+    return "\t".join([name, url, "" if codec == "UNKNOWN" else codec, kbps, cc if re.fullmatch(r"[A-Z]{2}", cc) else "",
+                      uuid if UUID_RE.fullmatch(uuid) else ""])
+
+
+def station_rows(stations, limit=LIST_MAX, every=False):
+    """The lines of the stations the radio can play, each address once, in the directory's order"""
+    rows, seen = [], set()
+    for s in stations if isinstance(stations, list) else []:
+        row = station_row(s, every)
+        url = row and row.split("\t")[1]
+        if row and url not in seen:
+            seen.add(url)
+            rows.append(row)
+            if len(rows) >= limit:
+                break
+    return rows
+
+
+def country_rows(countries):
+    """name<TAB>code<TAB>stations of each country with stations, by name; a code given twice keeps the larger"""
+    best = {}
+    for c in countries if isinstance(countries, list) else []:
+        if not isinstance(c, dict):
+            continue
+        cc = clean(c.get("iso_3166_1")).upper()
+        name = cut(clean(c.get("name")).replace("#", " "), NAME_MAX)
+        try:
+            n = int(c.get("stationcount") or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if re.fullmatch(r"[A-Z]{2}", cc) and name and n > 0 and n > best.get(cc, ("", 0))[1]:
+            best[cc] = (name, n)
+    return ["%s\t%s\t%d" % (name, cc, n) for cc, (name, n) in sorted(best.items(), key=lambda i: sort_key(i[1][0]))]
+
+
+def sort_key(name):
+    """A name as a list sorts it: without its accents (Åland with the A), whatever the case"""
+    try:
+        import unicodedata
+        name = "".join(c for c in unicodedata.normalize("NFKD", name) if not unicodedata.combining(c))
+    except ImportError:         # an image without the module: by the letters as they are
+        pass
+    return name.casefold()
+
+
+def listing(key, queries):
+    """The rows of a list from the cache, else from the directory: the first query, the next when it finds fewer
+    than FEW. Without ffmpeg the directory is asked for MP3 stations only, and that list is kept apart"""
+    every = all_formats()
+    key += ("" if every else "-mp3") + ".tsv"
+    text = cached(key, LIST_S)
+    if text is not None:
+        return text.splitlines()
+    found = []
+    for i, q in enumerate(queries):
+        if i and len(station_rows(found, every=every)) >= FEW:
+            break
+        found += api("/json/stations/search", q if every else dict(q, codec="MP3")) or []
+    rows = station_rows(found, every=every)
+    if not rows:
+        raise Fail("no stations found" if every else "no MP3 stations found")
+    keep(key, "\n".join(rows) + "\n")
+    return rows
+
+
+def cmd_country(args):
+    cc = (args[0] if args else "").upper()
+    if not re.fullmatch(r"[A-Z]{2}", cc):
+        raise Fail("no country chosen")
+    return listing("country-" + cc, [dict(COMMON, countrycode=cc)])
+
+
+def cmd_top(args):
+    return listing("top", [dict(COMMON)])
+
+
+def cmd_search(args):
+    text = cut(clean(" ".join(args)), 40)
+    if not text:
+        raise Fail("type a name or a genre to search for")
+    key = "search-" + re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")[:40]
+    return listing(key, [dict(COMMON, name=text), dict(COMMON, tag=text.lower())])
+
+
+def cmd_countries(args):
+    text = cached("countries.tsv", DAY_S)
+    if text is not None:
+        return text.splitlines()
+    rows = country_rows(api("/json/countries", {"hidebroken": "true"}))
+    if not rows:
+        raise Fail("the directory gave no countries")
+    keep("countries.tsv", "\n".join(rows) + "\n")
+    return rows
+
+
+# ---------- playing ----------
+
+def status(state, detail="", title=""):
+    try:
+        tmp = STATUS + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("%s\n%s\n%s\n" % (state, clean(detail), cut(clean(title), TITLE_MAX)))
+        os.replace(tmp, STATUS)
+    except OSError:
+        pass
+
+
+def stream_kind(ctype, url=""):
+    """What a station's answer is, by its Content-Type, by the address's ending when the type says nothing:
+    ("mp3", "MP3"), ("playlist", ""), ("page", type), ("other", "AAC") or ("unknown", "")"""
+    t = (ctype or "").split(";")[0].strip().lower()
+    path = urllib.parse.urlsplit(url).path.lower()
+    by_ending = next((v for e, v in ENDINGS.items() if path.endswith(e)), None)
+    if t in MP3_TYPES:
+        return "mp3", "MP3"
+    if t in PLAYLIST_TYPES:
+        return "playlist", ""
+    if t in OTHER_TYPES:
+        return "other", OTHER_TYPES[t]
+    if t == "text/plain":
+        return "playlist", ""           # a playlist served as text, else read and found to have no address
+    if t in ("", "application/octet-stream", "binary/octet-stream"):
+        return by_ending or ("unknown", "")
+    if t.startswith("audio/"):
+        return "other", t[6:].upper()[:8]
+    return "page", t
+
+
+def playlist_urls(text):
+    """The stream addresses of a playlist, in order, and whether it is HLS (#EXT-X- lines), which the radio cannot
+    play: PLS (FileN=), M3U (an address a line), ASX (href="..."), XSPF (<location>)"""
+    if "#EXT-X-" in text:
+        return [], True
+    urls = []
+    for line in text.splitlines():
+        line = line.strip().lstrip("﻿")
+        m = re.match(r"(?i)^file\d+\s*=\s*(.+)$", line)
+        if m:
+            line = m.group(1).strip()
+        found = [html.unescape(u) for u in re.findall(r'(?i)(?:href\s*=\s*"|<location>)\s*(https?://[^"<\s]+)', line)]
+        if not found and re.match(r"(?i)^https?://", line):
+            found = [line.split()[0]]
+        urls += [u for u in found if u not in urls]
+    return urls, False
+
+
+def icy_title(meta):
+    """The StreamTitle of an ICY metadata block, None when it has none"""
+    raw = meta.rstrip(b"\0")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")
+    m = re.search(r"StreamTitle='(.*?)';", text, re.S)
+    return cut(clean(m.group(1)), TITLE_MAX) if m else None
+
+
+def pump(src, dst, metaint, on_title):
+    """The audio of src into dst, the ICY metadata taken out (metaint bytes of audio between blocks, 0: none) and
+    each title given to on_title. Returns at the end of src"""
+    while True:
+        chunk = src.read(metaint if metaint else 8192)
+        if not chunk:
+            return
+        dst.write(chunk)
+        if metaint:
+            n = src.read(1)
+            if not n:
+                return
+            if n[0]:
+                t = icy_title(src.read(n[0] * 16))
+                if t is not None:
+                    on_title(t)
+
+
+NOT_HERE = "not playable on this card image (MP3 only): a newer image plays it"
+
+
+def open_stream(url, depth=0):
+    """The station's answer, playlists followed (by the answer's type, or the address's ending) to their first stream
+    address, the ICY metadata asked for: (response, kind, format name), or (None, "hls", address) for HLS, which ffmpeg
+    reads itself. Fail for what the radio cannot play"""
+    if depth > 3:
+        raise Fail("playlists in a playlist, too deep", True)
+    try:
+        r = http_open(url, {"Icy-MetaData": "1"})
+    except urllib.error.HTTPError as e:
+        raise Fail("the station answered HTTP %d" % e.code, e.code in (403, 404, 410))
+    kind, name = stream_kind(r.headers.get("Content-Type"), r.geturl() or url)
+    if kind == "playlist":
+        text = r.read(65536).decode("utf-8", "replace")
+        r.close()
+        urls, hls = playlist_urls(text)
+        if hls:
+            if not all_formats():
+                raise Fail("HLS stream: " + NOT_HERE, True)
+            return None, "hls", url
+        if not urls:
+            raise Fail("not a stream: no audio address in it", True)
+        return open_stream(urls[0], depth + 1)
+    if kind == "page":
+        r.close()
+        raise Fail("not a stream: a web page (%s)" % name, True)
+    if kind == "other" and not all_formats():
+        r.close()
+        raise Fail("%s stream: %s" % (name, NOT_HERE), True)
+    return r, kind, name
+
+
+def decoder(kind, name, ffmpeg_first):
+    """The command that decodes the stream on its stdin to PCM on its stdout, and the format's name: MP3 with mpg123
+    (ffmpeg_first: a station whose "MP3" mpg123 could not decode), the rest with ffmpeg, a stream of no known type
+    with ffmpeg too when there is one"""
+    if kind == "mp3" and not (ffmpeg_first and all_formats()):
+        return MPG123, "MP3"
+    if all_formats():
+        return [FFMPEG, "-nostdin", "-hide_banner", "-loglevel", "quiet", "-i", "pipe:0"] + PCM_OUT, name or "Audio"
+    return MPG123, name or "MP3"
+
+
+def run_decoder(cmd):
+    try:
+        return subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except OSError:
+        raise Fail(os.path.basename(cmd[0]) + " is missing", True)
+
+
+def play_hls(url):
+    """HLS: ffmpeg fetches the playlist and its pieces itself, with our User-Agent; its PCM through here, so the state
+    says playing once the first comes"""
+    status("connecting", "HLS")
+    try:
+        p = subprocess.Popen([FFMPEG, "-nostdin", "-hide_banner", "-loglevel", "quiet", "-user_agent", AGENT,
+                              "-rw_timeout", "15000000", "-i", url, "-map", "0:a:0"] + PCM_OUT,
+                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except OSError:
+        raise Fail("ffmpeg is missing", True)
+    out = sys.stdout.buffer
+    first = True
+    try:
+        while True:
+            chunk = p.stdout.read1(8192)
+            if not chunk:
+                break
+            if first:
+                status("playing", "HLS")
+                first = False
+            out.write(chunk)
+            out.flush()
+    finally:
+        p.stdout.close()
+        try:
+            p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            p.kill()
+    raise Fail("the station stopped sending" if not first else "the HLS stream did not open")
+
+
+def play_once(url, ffmpeg_first=False):
+    r, kind, name = open_stream(url)
+    if kind == "hls":
+        return play_hls(name)
+    try:
+        try:
+            metaint = int(r.headers.get("icy-metaint") or 0)
+        except ValueError:
+            metaint = 0
+        cmd, fmt = decoder(kind, name, ffmpeg_first)
+        kbps = clean(r.headers.get("icy-br")).split(",")[0]
+        detail = fmt + (" %s kbps" % kbps if kbps.isdigit() else "")
+        station = clean(r.headers.get("icy-name"))
+        dec = run_decoder(cmd)
+        # mpg123 stopping: not MP3 after all, final (ffmpeg may try it, cmd_play); ffmpeg stopping: tried again
+        stopped = "the decoder stopped: not an MP3 stream" if cmd is MPG123 else "the decoder stopped (%s)" % fmt
+        status("playing", detail, station)
+        try:
+            pump(r, dec.stdin, metaint, lambda t: status("playing", detail, t or station))
+        except BrokenPipeError:
+            raise Fail(stopped, cmd is MPG123)
+        finally:
+            try:
+                dec.stdin.close()
+            except OSError:
+                pass
+            try:
+                dec.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                dec.kill()
+        if dec.returncode:
+            raise Fail(stopped, cmd is MPG123)
+    finally:
+        r.close()
+
+
+def count_click(uuid):
+    """The directory's count of the station, its rule for players: best effort, one server, a short wait"""
+    if UUID_RE.fullmatch(uuid or ""):
+        try:
+            api("/json/url/" + uuid, tries=1, timeout=5)
+        except Fail:
+            pass
+
+
+def cmd_play(args):
+    if not args or not re.match(r"(?i)^https?://\S+$", args[0]):
+        raise Fail("no stream address", True)
+    url = args[0]
+    count_click(args[1] if len(args) > 1 else "")
+    misses, err, ffmpeg_first = 0, "", False
+    while True:
+        status("connecting", "trying again: " + err if err else "")
+        started = time.time()
+        try:
+            play_once(url, ffmpeg_first)
+            err = "the station stopped sending"
+        except Fail as e:
+            # A station that says MP3 and sends something mpg123 cannot decode: ffmpeg's turn, when there is one
+            if e.final and str(e).startswith("the decoder stopped") and all_formats() and not ffmpeg_first:
+                ffmpeg_first = True
+            elif e.final:
+                raise
+            err = str(e)
+        except Exception as e:
+            err = reason(e)
+        if os.getppid() == 1:       # the GUI is gone: there is nothing to play to
+            return 0
+        # a station that played a while and dropped is tried again, up to three times in a row
+        misses = 0 if time.time() - started > 60 else misses + 1
+        if misses >= 3:
+            raise Fail(err)
+        time.sleep(2)
+
+
+def main(argv):
+    cmds = {"country": cmd_country, "top": cmd_top, "search": cmd_search, "countries": cmd_countries,
+            "play": cmd_play}
+    if len(argv) < 2 or argv[1] not in cmds:
+        print("usage: x6100-iradio country CC | top | search TEXT | countries | play URL [UUID]", file=sys.stderr)
+        return 2
+    play = argv[1] == "play"
+    try:
+        out = cmds[argv[1]](argv[2:])
+    except Exception as e:
+        text = str(e) if isinstance(e, Fail) else reason(e)
+        if play:
+            status("error " + text)
+        else:
+            print("error", text)
+        return 1
+    if not play:
+        sys.stdout.write("".join(row + "\n" for row in out))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

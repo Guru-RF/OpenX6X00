@@ -1,0 +1,52 @@
+[
+ {
+  "name": "Belgium",
+  "iso_3166_1": "BE",
+  "stationcount": 412
+ },
+ {
+  "name": "Åland Islands",
+  "iso_3166_1": "AX",
+  "stationcount": 3
+ },
+ {
+  "name": "Netherlands",
+  "iso_3166_1": "NL",
+  "stationcount": 1203
+ },
+ {
+  "name": "The Netherlands",
+  "iso_3166_1": "NL",
+  "stationcount": 7
+ },
+ {
+  "name": "No code",
+  "iso_3166_1": "",
+  "stationcount": 9
+ },
+ {
+  "name": "Uruguay",
+  "iso_3166_1": "UY",
+  "stationcount": 188
+ },
+ {
+  "name": "Empty land",
+  "iso_3166_1": "ZZ",
+  "stationcount": 0
+ },
+ {
+  "name": "Bad count",
+  "iso_3166_1": "XB",
+  "stationcount": "many"
+ },
+ {
+  "name": "The United Kingdom Of Great Britain And Northern Ireland",
+  "iso_3166_1": "gb",
+  "stationcount": 2301
+ },
+ {
+  "name": "Number#Sign",
+  "iso_3166_1": "NS",
+  "stationcount": 1
+ }
+]
