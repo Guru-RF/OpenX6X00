@@ -1,0 +1,48 @@
+# GhostNet's nets, as GhostNet version 1.5 has them (github.com/s2underground/GhostNet): the weekly net of each
+# region (on Thursday evening there) and the data bridges between the regions on Saturday. Read by the JS8 app's
+# GhostNet list and its reminders (src/ghostnet.c) and by the web page GhostNet (webserver ghostnet_web.py).
+# A file of the same name on the DATA partition (/mnt/ghostnet_nets.txt) is read instead of this one: a newer
+# GhostNet schedule without waiting for a firmware update.
+#
+#   net <id> <name>
+#   <id> <day, UTC: Sun Mon Tue Wed Thu Fri Sat> <HH:MM UTC> <minutes> <kHz, - for none> <mode> <what>
+#
+# The reminder comes before the first JS8 window of each net; VARA and ALE windows need a PC, LSB is voice for
+# emergencies only.
+net NA North America
+net EU Europe
+net AU Australia
+net B_NAEU Bridge North America-Europe
+net B_NAAU Bridge North America-Australia
+net B_EUAU Bridge Europe-Australia
+net B_AUSP Bridge Australia-South Pacific
+
+NA Fri 01:00 30 7107 JS8 JS8 40 m
+NA Fri 01:30 30 7107 VARA Winlink VARA (PC)
+NA Fri 02:00 30 7077 RTTY RTTY 45.45 baud
+NA Fri 02:30 30 7190 LSB Voice, emergencies only
+
+EU Thu 18:00 30 7107 JS8 JS8 40 m
+EU Thu 18:30 30 7107 VARA Winlink VARA (PC)
+EU Thu 19:00 30 7077 RTTY RTTY 45.45 baud
+EU Thu 19:30 30 7190 LSB Voice, emergencies only
+
+AU Thu 07:00 30 7107 JS8 JS8 40 m
+AU Thu 07:30 30 7107 VARA Winlink VARA (PC)
+AU Thu 08:00 30 7077 RTTY RTTY 45.45 baud
+AU Thu 08:30 30 7190 LSB Voice, emergencies only
+
+B_NAEU Sat 18:00 60 14107 JS8 JS8 20 m
+B_NAEU Sat 19:00 60 - ALE Ion2G ALE (PC)
+
+B_NAAU Sat 12:00 60 14107 JS8 JS8 20 m
+B_NAAU Sat 13:00 30 - ALE Ion2G ALE (PC)
+B_NAAU Sat 13:30 30 3575 JS8 JS8 80 m
+
+B_EUAU Sat 20:00 60 14107 JS8 JS8 20 m
+B_EUAU Sat 21:00 30 - ALE Ion2G ALE (PC)
+B_EUAU Sat 21:30 30 3575 JS8 JS8 80 m
+
+B_AUSP Sat 08:00 60 14107 JS8 JS8 20 m
+B_AUSP Sat 09:00 30 7107 JS8 JS8 40 m
+B_AUSP Sat 09:30 30 - ALE Ion2G ALE (PC)

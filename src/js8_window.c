@@ -11,7 +11,9 @@
 
 #define _GNU_SOURCE     /* pthread_setname_np */
 #include "js8_window.h"
+#include "band_plan.h"
 #include "board.h"
+#include "ghostnet.h"
 #include "js8_map.h"
 #include "main.h"
 #include "pskreporter.h"
@@ -5268,11 +5270,26 @@ static void swr_guard_tick(void) {
     swr_guard_trip(swr_high_max);
 }
 
-/* Every decode except our own: alert words first, then the sounds. */
+/* GhostNet's emergency group: how long its notice stays in the message box */
+#define FLASH_SHOW_MS 20000
+
+/* Every decode except our own: GhostNet's emergency group, alert words, then the sounds. */
 static void alert_check(js8_rx_msg_t *msg, bool first_heard) {
     char    word[16];
     uint8_t on = params.js8_alerts.x;
     if (msg->low_confidence) return; /* likely a false decode */
+    /* A message to @GSTFLASH (or naming it), for an operator in that group (GhostNet mode puts it in Groups): the
+     * notice in red, the row as an alert word's, three beeps with Beep on. The station's text is only shown, its
+     * '#' doubled so that it cannot colour the box; nothing else follows from it. */
+    if (ghostnet_groups_have(groups_text, "@GSTFLASH") && ghostnet_is_flash(msg->to, msg->text)) {
+        char shown[2 * JS8_RX_TEXT_LEN];
+        ghostnet_box_text(msg->text, shown, sizeof(shown));
+        msg->alert = true;
+        msg_schedule_text_ms(FLASH_SHOW_MS, "#%06x EMERGENCY @GSTFLASH:# %s", (unsigned)theme_hex(TC_err), shown);
+        LV_LOG_USER("JS8 @GSTFLASH from %s", msg->from);
+        alert_beep(3);
+        return;
+    }
     if (js8_alert_hit(msg->text, msg->from, alert_words, word, sizeof(word))) {
         msg->alert = true; /* the row turns purple */
         msg_update_text_fmt("Alert %s: %s", word, msg->text);
@@ -5470,9 +5487,12 @@ static void decode_cb(button_data_t *b) {
 
 /* The band keys step through JS8Call's usual dial frequencies or, with
  * GhostNet chosen, through GhostNet's (3.575, 7.107, 14.107 MHz). A
- * custom frequency is kept; the band keys go from it back to the list. */
+ * custom frequency is kept; the band keys go from it back to the list.
+ * GhostNet mode starts on 7.107, the weekly nets' frequency, and puts
+ * GhostNet's groups in ours; its own popup has the nets' times and the
+ * reminder, and RTTY on GhostNet's RTTY window. */
 
-enum freq_choice { FQ_JS8, FQ_GHOSTNET, FQ_CUSTOM, FQ_CLOSE };
+enum freq_choice { FQ_JS8, FQ_GHOSTNET, FQ_GN_MORE, FQ_CUSTOM, FQ_CLOSE };
 
 static const char *freq_label_getter(void) { /* "Freq:\nJS8", "Freq:\nGhostNet" or the custom kHz */
     static char text[32];
@@ -5492,6 +5512,152 @@ static void p3_use_list(bool use_ghostnet) {
     params_bool_set(&params.js8_custom_on, false); /* the band keys use the list again */
     load_band(0); /* the closest one */
     retuned();    /* station list, waterfall, labels */
+}
+
+/* GhostNet mode: the GhostNet list from 7.107 MHz, and @GHOSTNET, @GSTFLASH
+ * and the regional group (when the country is known, or one was typed on
+ * the web page) added to our groups. With AUTO on, JS8 answers the queries
+ * sent to our groups, as desktop JS8Call does. */
+static void p3_ghostnet_mode(void) {
+    char region[16], before[sizeof(groups_text)];
+    if (!p3_tx_idle()) return;
+    params_bool_set(&params.js8_ghostnet, true);
+    params_bool_set(&params.js8_custom_on, false);
+    cparam_i_set(cfg_fg_freq, 7107000); /* the weekly nets; the band keys go on to 14.107 and 3.575 */
+    load_band(0);
+    retuned();
+    snprintf(before, sizeof(before), "%s", groups_text);
+    ghostnet_region_tag(region, sizeof(region));
+    ghostnet_groups_add(groups_text, sizeof(groups_text), region);
+    js8_groups_normalise(groups_text, groups_text, sizeof(groups_text));
+    if (strcmp(before, groups_text)) save_texts();
+    add_info_row("GhostNet groups: %s", groups_text); /* the band's name is in the message box already */
+}
+
+/* ---- GhostNet's popup: the nets, the reminder, RTTY ---- */
+
+enum gn_choice { GN_REMIND, GN_RTTY, GN_CLOSE, GN_ROW };
+#define GN_ROWS 16                       /* the nets' windows listed */
+
+static lv_obj_t *gn_row_obj[GN_ROWS];    /* the rows, to mark a net's reminder on all of its rows */
+static char      gn_row_net[GN_ROWS][8]; /* the net of each */
+static int       gn_rows;
+
+static void gn_item_text(int item, char *out, size_t size) {
+    const ghostnet_conf_t *c = ghostnet_conf();
+    switch (item) {
+    case GN_REMIND:
+        snprintf(out, size, _("Reminder %d min before: %s"), c->remind_min, c->remind ? _("On") : _("Off"));
+        break;
+    case GN_RTTY: snprintf(out, size, "%s", _("RTTY 7.077 MHz, 45.45 baud (closes JS8)")); break;
+    default: snprintf(out, size, "%s", _("Close"));
+    }
+}
+
+/* A row of the schedule: "* Thu 18:00 UTC (20:00 CEST)  JS8 7.107  Europe", the star on a net reminded */
+static void gn_row_text(const ghostnet_slot_t *s, bool reminded, char *out, size_t size) {
+    char when[48], freq[16] = "";
+    ghostnet_when(s->start, when, sizeof(when));
+    if (s->khz > 0) snprintf(freq, sizeof(freq), " %d.%03d", s->khz / 1000, s->khz % 1000);
+    snprintf(out, size, "%s%s  %s%s  %s", reminded ? "* " : "", when, s->mode, freq, s->name);
+}
+
+static void gn_row_mark(int k, bool reminded) {
+    lv_obj_t *label = lv_obj_get_child(gn_row_obj[k], 0);
+    char      text[128];
+    const char *now = lv_label_get_text(label);
+    bool        had = !strncmp(now, "* ", 2);
+    snprintf(text, sizeof(text), "%s%s", reminded ? "* " : "", had ? now + 2 : now);
+    lv_label_set_text(label, text);
+    lv_obj_set_style_text_color(gn_row_obj[k], reminded ? TC(ok) : TC(text), 0);
+}
+
+static void gn_item_cb(lv_event_t *ev) {
+    int             item = (int)(intptr_t)lv_event_get_user_data(ev);
+    ghostnet_conf_t c    = *ghostnet_conf();
+    char            text[96];
+    if (item >= GN_ROW) { /* a net's row: its reminder set or cleared */
+        const char *net = gn_row_net[item - GN_ROW];
+        ghostnet_net_toggle(&c, net);
+        bool on = ghostnet_net_reminded(&c, net);
+        if (!ghostnet_conf_save(&c)) {
+            p3_say("Can't write the GhostNet settings");
+            return;
+        }
+        for (int k = 0; k < gn_rows; k++)
+            if (!strcmp(gn_row_net[k], net)) gn_row_mark(k, on);
+        /* short: a longer text scrolls in the box and is gone before it is read */
+        if (on && !c.remind) msg_update_text_fmt("%s marked, Reminder off", net);
+        else msg_update_text_fmt(on ? "%s: reminder set" : "%s: no reminder", net);
+        return;
+    }
+    switch (item) {
+    case GN_REMIND:
+        c.remind = !c.remind;
+        if (c.remind && !c.nets[0]) {
+            /* none chosen yet: the weekly net of the radio's IARU region to begin with */
+            const char *net = ghostnet_region_net(band_plan_region());
+            ghostnet_net_toggle(&c, net);
+            for (int k = 0; k < gn_rows; k++)
+                if (!strcmp(gn_row_net[k], net)) gn_row_mark(k, true);
+        }
+        break;
+    case GN_RTTY:
+        if (!p3_tx_idle()) return;
+        p3_popup_shut(&freq_list);
+        ghostnet_rtty_open(); /* once this app has closed */
+        dialog_destruct();
+        return;
+    default: p3_popup_shut(&freq_list); return;
+    }
+    if (!ghostnet_conf_save(&c)) {
+        p3_say("Can't write the GhostNet settings");
+        return;
+    }
+    gn_item_text(item, text, sizeof(text));
+    lv_label_set_text(lv_obj_get_child(lv_event_get_target(ev), 0), text);
+}
+
+static void gn_key_cb(lv_event_t *ev) {
+    if (p3_popup_key(ev)) p3_popup_shut(&freq_list);
+}
+
+static void ghostnet_show(void) { /* where the Freq popup was */
+    static ghostnet_slot_t slots[GN_ROWS];
+    const ghostnet_conf_t *c = ghostnet_conf();
+    char                   text[128], region[16];
+    lv_obj_t              *top = NULL;
+
+    freq_list = p3_popup_new(620);
+    ghostnet_region_tag(region, sizeof(region));
+    snprintf(text, sizeof(text), _("GhostNet: groups @GHOSTNET @GSTFLASH %s"), region);
+    p3_popup_note(freq_list, text);
+    for (int k = GN_REMIND; k <= GN_CLOSE; k++) {
+        gn_item_text(k, text, sizeof(text));
+        lv_obj_t *made = p3_popup_item(freq_list, text, gn_item_cb, gn_key_cb, k);
+        p3_popup_dots(made);
+        if (k == GN_CLOSE) lv_obj_set_style_text_color(made, TC(action), 0);
+        if (top == NULL) top = made;
+    }
+    p3_popup_note(freq_list, "The next 7 days; * reminded: press a net to set or clear it");
+    gn_rows = 0;
+    int n = ghostnet_upcoming(time(NULL), slots, GN_ROWS, 7 * 24, false);
+    for (int i = 0; i < n && gn_rows < GN_ROWS; i++) {
+        const ghostnet_slot_t *s = &slots[i];
+        /* VARA and ALE need a PC, the voice window is for emergencies: in the web page's list only */
+        if (!strcmp(s->mode, "VARA") || !strcmp(s->mode, "ALE") || !strcmp(s->mode, "LSB")) continue;
+        bool reminded = ghostnet_net_reminded(c, s->net);
+        gn_row_text(s, reminded, text, sizeof(text));
+        lv_obj_t *row = p3_popup_item(freq_list, text, gn_item_cb, gn_key_cb, GN_ROW + gn_rows);
+        p3_popup_dots(row);
+        lv_obj_set_style_text_font(row, &sony_22, 0);
+        if (reminded) lv_obj_set_style_text_color(row, TC(ok), 0);
+        snprintf(gn_row_net[gn_rows], sizeof(gn_row_net[0]), "%s", s->net);
+        gn_row_obj[gn_rows++] = row;
+    }
+    if (n == 0) p3_popup_note(freq_list, "No schedule: ghostnet_nets.txt is missing");
+    p3_popup_note(freq_list, "Own net, reminder time, regional group: web page GhostNet");
+    p3_popup_focus(top);
 }
 
 /* As typed: kHz ("7107.5") or, under 100, MHz ("7.1075"). On a bad one,
@@ -5531,8 +5697,14 @@ static void p3_freq_item_cb(lv_event_t *ev) {
         p3_say("Dial frequency in kHz, then Enter");
         return;
     }
+    if (item == FQ_GN_MORE) { /* GhostNet's popup where this one was */
+        p3_popup_drop(&freq_list);
+        ghostnet_show();
+        return;
+    }
     p3_popup_shut(&freq_list);
-    if (item == FQ_JS8 || item == FQ_GHOSTNET) p3_use_list(item == FQ_GHOSTNET);
+    if (item == FQ_JS8) p3_use_list(false);
+    if (item == FQ_GHOSTNET) p3_ghostnet_mode();
 }
 
 static void p3_freq_key_cb(lv_event_t *ev) {
@@ -5552,7 +5724,8 @@ static void freq_show(void) { /* the Freq popup */
     snprintf(text, sizeof(text), "Now: %s", where_label());
     p3_popup_note(freq_list, text);
     opt[FQ_JS8]      = p3_freq_add(FQ_JS8, "JS8Call frequencies (7.078, 14.078...)");
-    opt[FQ_GHOSTNET] = p3_freq_add(FQ_GHOSTNET, "GhostNet (3.575, 7.107, 14.107)");
+    opt[FQ_GHOSTNET] = p3_freq_add(FQ_GHOSTNET, "GhostNet mode: 7.107 + its groups");
+    opt[FQ_GN_MORE]  = p3_freq_add(FQ_GN_MORE, "GhostNet: nets, reminder, RTTY...");
     if (params.js8_custom_hz.x == 0) {
         snprintf(text, sizeof(text), "Custom kHz...");
     } else {
@@ -5564,6 +5737,7 @@ static void freq_show(void) { /* the Freq popup */
     lv_obj_set_style_text_color(opt[FQ_CLOSE], TC(action), 0);
     /* The list in use stands out, and the knob starts on it. */
     int now = params.js8_custom_on.x ? FQ_CUSTOM : params.js8_ghostnet.x ? FQ_GHOSTNET : FQ_JS8;
+    lv_obj_set_style_text_color(opt[FQ_GN_MORE], TC(row_alert_text), 0);
     lv_obj_set_style_text_color(opt[now], TC(ok), 0);
     p3_popup_focus(opt[now]);
 }

@@ -3,14 +3,15 @@
 sandbox, driven by a script of x6drive.py's commands; every "shot NAME" lands as NAME.png.
 
   python3 tools/screenshots/host_shots.py <build dir> <script> <out dir> [--theme NAME]
-                                          [--set name=value ...] [--first-start] [--keep]
+                                          [--set name=value ...] [--data DIR] [--first-start] [--keep]
 
 <build dir> is a host build (host/build.sh, cmake -DHOST_BUILD=ON). <script> is a file, or the
 commands inline with ";" between them ("key APP; sleep 1; shot apps"). Each run starts from the
 default settings (the build's params.db, or sql/params.sql) with the theme and the --set values in
-params; the GUI gets 10 s after its FIFOs appear before the script starts. The defaults have no
-callsign, so the first-start guide (src/first_start.c) would come up over every shot: it is marked
-done, unless --first-start leaves it to come up.
+params, and the files of --data DIR copied into the GUI's data folder (a ghostnet.conf, a
+cluster.conf); the GUI gets 10 s after its FIFOs appear before the script starts. The defaults have
+no callsign, so the first-start guide (src/first_start.c) would come up over every shot: it is
+marked done, unless --first-start leaves it to come up.
 
 The sandbox (bwrap): the whole system read-only, the GUI's data folder and /tmp private, no
 network (no cluster spots: the shots are the same each run), no D-Bus (NetworkManager and BlueZ on
@@ -61,6 +62,7 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--theme")
     ap.add_argument("--set", action="append", default=[], metavar="NAME=VALUE")
+    ap.add_argument("--data", metavar="DIR", help="files copied into the GUI's data folder before it starts")
     ap.add_argument("--first-start", action="store_true", help="the first-start guide comes up, as on a new card")
     ap.add_argument("--keep", action="store_true", help="keep the run folder (its gui.log)")
     a = ap.parse_args()
@@ -79,6 +81,10 @@ def main():
     data, tmp = os.path.join(run, "data"), os.path.join(run, "tmp")
     os.makedirs(data)
     os.makedirs(tmp)
+    if a.data:
+        for n in os.listdir(a.data):
+            if os.path.isfile(os.path.join(a.data, n)):
+                shutil.copy(os.path.join(a.data, n), os.path.join(data, n))
     db = os.path.join(data, "params.db")
     if os.path.exists(os.path.join(build, "params.db")):
         shutil.copy(os.path.join(build, "params.db"), db)

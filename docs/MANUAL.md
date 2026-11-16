@@ -16,7 +16,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
-- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
+- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
@@ -3583,6 +3583,61 @@ default, and everyone is free to take it out:
 Known limits: relays, store and forward, and most APRS items are not yet
 proven on the air (only the grid spot and SMS are). The main screen's
 waterfall stands still while JS8 is open.
+
+#### GhostNet
+
+GhostNet is a weekly JS8 net for emergency communication, with a net in
+each region on Thursday evening and data bridges between the regions on
+Saturday. Freq (page 6) has two GhostNet items:
+
+- **GhostNet mode: 7.107 + its groups** tunes 7.107 MHz, the GhostNet
+  frequency of the weekly nets (the band keys step through GhostNet's list:
+  3.575, 7.107 and 14.107), and puts @GHOSTNET, @GSTFLASH and your regional group
+  in Groups (page 4, Settings...). The groups go in once; take any of them
+  out in Groups as you would @X6100. The row "GhostNet groups: ..." in the
+  list says what you are in. With AUTO on, JS8 answers the queries sent to
+  your groups (SNR?, GRID? ...) as desktop JS8Call does; AUTO is off every
+  time the app opens.
+- **GhostNet: nets, reminder, RTTY...** opens GhostNet's popup:
+  - Reminder N min before: On / Off (Off by default). On, a message comes
+    up N minutes (10 by default) before each net you chose, over whatever
+    screen is open, in the message box above the bottom buttons. It never
+    comes while the radio is transmitting: then it comes after, until the
+    net starts. When none is chosen yet, the first press chooses your IARU
+    region's weekly net (Region 1 Europe, Region 2 North America, Region 3
+    Australia).
+  - The nets of the next 7 days, each window on its own row: the day and
+    time in UTC, in brackets the radio's own time when the time zone
+    (Settings > General > DATE / TIME) is not UTC, the mode, the frequency and the net.
+    Press a row to choose that net for the reminder or to take it out; the
+    rows of the nets chosen are green with a `*`. The reminder comes before
+    each net's first JS8 window only. VARA and ALE windows need a PC and are
+    not listed; neither is the voice window (LSB 7.190, emergencies only).
+  - RTTY 7.077 MHz, 45.45 baud: closes JS8 and opens the RTTY app on
+    7.077 MHz USB with Rate 45.45, Shift 170 and Reverse off, for the RTTY
+    window of the net. These stay the RTTY app's settings afterwards: for
+    the weather stations (50 baud, 450 Hz shift) set Rate, Shift and Reverse
+    back on RTTY's buttons. The frequency and mode you were on before come
+    back when RTTY closes, as with any app.
+- **@GSTFLASH**: while @GSTFLASH is in your groups, a message to @GSTFLASH,
+  or with the word @GSTFLASH in it, comes up in red in the message box for
+  20 seconds ("EMERGENCY @GSTFLASH: ..."), with three beeps when Alerts >
+  Beep is on, and its row is marked as an alert. The message is only shown:
+  nothing in it is run or answered.
+- **Regional group**: @GN, the country's three-letter code and the
+  department, for example @GNURY01. It needs the radio's country, which the
+  radio does not know yet; until then type the group on the web page
+  GhostNet (Groups). Without either, only @GHOSTNET and @GSTFLASH go in.
+- **Own net**: a net of your own (a club's or a region's) with its weekday
+  and time in the radio's time zone, length, frequency and mode, set on the
+  web page GhostNet. It shows in the popup's list and the reminder treats it
+  like the others.
+
+The settings are in `ghostnet.conf` on the DATA partition (`/mnt`). The
+times are GhostNet version 1.5's (github.com/s2underground/GhostNet), in
+`/usr/share/x6100/ghostnet_nets.txt`. A file `/mnt/ghostnet_nets.txt` in the
+same format is read instead, for a newer schedule before the next firmware
+update; the file says how its lines are made.
 
 
 ### WSPR

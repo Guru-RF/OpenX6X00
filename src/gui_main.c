@@ -68,6 +68,7 @@
 #include "bt_dev.h"
 #include "usb_devices.h"
 #include "image_level.h"
+#include "ghostnet.h"
 #ifdef BOARD_X6200
 #include "dialog_base_update.h"
 #endif
@@ -350,6 +351,7 @@ static void services_start(void) {
     start_trace("services: QSO log read");
     dialog_cluster_start_client();
     image_level_notice_init();   /* a newer card image wanted: said once per version */
+    ghostnet_init();             /* the reminder before a GhostNet net, when the operator turned it on */
 #ifdef BOARD_X6200
     base_update_watch_init();    /* a newer base firmware on xiegu.eu (the daily check): said once per version */
 #endif

@@ -54,6 +54,10 @@ bool app_mem_load(const char *name, int32_t *freq, int32_t *mode) {
 
 /* The other apps' lines are kept (at most 16), this one's goes last */
 void app_mem_save(const char *name) {
+    app_mem_set(name, (int32_t)cparam_i_get(cfg_fg_freq), (int32_t)cparam_i_get(cfg_cur_mode));
+}
+
+void app_mem_set(const char *name, int32_t freq, int32_t mode) {
     char  keep[16][48], app[16];
     int   n = 0, hz, md;
     FILE *f = fopen(APP_FREQS, "r");
@@ -73,7 +77,7 @@ void app_mem_save(const char *name) {
     for (int i = 0; i < n; i++) {
         fprintf(f, "%s\n", keep[i]);
     }
-    fprintf(f, "%s %d %d\n", name, (int)cparam_i_get(cfg_fg_freq), (int)cparam_i_get(cfg_cur_mode));
+    fprintf(f, "%s %d %d\n", name, (int)freq, (int)mode);
     fclose(f);
     rename(APP_FREQS ".tmp", APP_FREQS);
 }
