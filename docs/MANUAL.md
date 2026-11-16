@@ -3564,11 +3564,12 @@ First steps:
    timing (a drift shown on the top line); hold the button to reset it.
 3. APP > Modes > JS8. The radio tunes the nearest JS8 frequency; the band
    keys step through JS8Call's (or GhostNet's) frequencies, or type your own
-   (Freq, page 6). While JS8 is open the RX filter is 200-3000 Hz, noise
+   (Settings..., Freq). While JS8 is open the RX filter is 200-3000 Hz, noise
    reduction, noise blanker and notch are off, and power is capped at 7 W;
    all go back when you leave.
-4. Turn the MFK onto a station's row, then HW CPY? (page 1), Reply (page 2)
-   or Query > (page 1).
+4. Turn the MFK onto a station's row: Reply (page 1) shows its call. Press
+   the MFK there for the conversation with that station, or use HW CPY? and
+   Query > (page 2).
 5. ESC or the top knob stops sending; the next ESC leaves the app.
 
 Nothing sends by itself: AUTO (automatic replies), HB (heartbeats) and HB ACK
@@ -3578,24 +3579,51 @@ Buttons (the first one of each row turns the page, hold to go back):
 
 | Page | Buttons |
 |---|---|
-| 1 | CQ (hold: auto CQ), Heartbeat, Query >, HW CPY? |
-| 2 | Show: No HB / Directed / All, Reply, Send..., Clear |
-| 3 | Time Sync, Hold: Off / On, Show Stations / Messages, Inbox |
-| 4 | AUTO, HB, HB ACK, Settings... (INFO, STATUS, Relay, Groups) |
-| 5 | APRS >, Log QSO, Activ.: Off / POTA / SOTA, Log prompt |
-| 6 | Alerts >, Speed, Decode: All speeds / My speed, Freq: JS8 / GhostNet / kHz |
-| 7 | Power, Map, Ext tune, Translate |
+| 1 | CQ (hold: auto CQ), Reply (the call selected), Send..., Inbox (n new) |
+| 2 | Query >, HW CPY?, Show Stations / Messages, Map |
+| 3 | Time Sync (hold: reset), Power, Ext tune, Settings... |
+| 4 | Translate |
+
+Settings... is one list of the switches set once, each row doing what its
+button did: AUTO, HB (on, off) and its interval (the knob), HB ACK, Hold,
+Show: No HB / Directed / All, Speed and the selected station's speed,
+Decode: All speeds / My speed, Freq: JS8 / GhostNet / kHz (and
+GhostNet's nets, reminder and RTTY),
+Activation: Off / POTA / SOTA and its reference, Log prompt, Log QSO, a
+heartbeat now, Alerts, APRS, Groups / INFO / STATUS / Relay, and Clear the
+list. A switch shows its new value on its row; ESC or Settings... closes it.
+
+The screen: over the waterfall a lane of the calls heard in the last 3
+minutes, each over its offset (the one selected in the warning colour,
+those that called you in red, TX where you send); the newest rows of the
+waterfall; the TX line; the list. Each message shows its sender's flag,
+country and distance on the right where it fits (the distance from the
+locator they sent, else from their country's middle, "~"); the Stations view
+has the flag before the call and a country column.
+
+The conversation (the MFK's press on a station's row): every message from
+them, to them and yours to them, theirs on the left, yours on the right in
+blue, their flag, country, locator, distance and signal on top. The MFK
+scrolls, its press opens Query > for them; the buttons are Reply, HW CPY?,
+Query > and MSG... (a message for their Inbox); F1 (their call) goes back to
+the list. A new message of theirs comes in there too.
+
+A message for you or your group comes in: besides the line in the list and
+the beep, a box says "Message from ..." with its text, their country and
+distance. The MFK's press opens it in the Inbox (Reply there); ESC or any
+button leaves it in the Inbox for later. It does not open over the keyboard
+or a list.
 
 What it does:
 
 - One-press messages (SNR?, GRID?, INFO?, STATUS?, HEARING?, AGN?, RR, 73),
   an Inbox for `MSG` messages, relays and store-and-forward like desktop
   JS8Call.
-- Log: the Log popup (page 5, or when a QSO ends with 73/SK) saves to
+- Log: the Log popup (Settings..., Log QSO, or when a QSO ends with 73/SK) saves to
   `js8call_log.adi` in desktop JS8Call's ADIF format, with POTA/SOTA
   activation fields. FT8 keeps its own `ft_log.adi`.
-- Map (page 7): the stations of the JS8 log on the same map as FT8.
-- Translate (page 7): the message on the list's cursor, translated into the
+- Map (page 2): the stations of the JS8 log on the same map as FT8.
+- Translate (page 4): the message on the list's cursor, translated into the
   GUI's language; see [GhostNet](#ghostnet), Translation.
 - Alerts: beeps for messages, CQs and new stations, and purple alert words.
 - APRS through JS8 gateways: grid and GPS position beacons (optionally with a
@@ -3613,7 +3641,7 @@ default, and everyone is free to take it out:
 - The radio never transmits to the group by itself: no automatic answers,
   heartbeat acks, ACKs or relays for @X6100 traffic, with AUTO on or off,
   in the group or not. Only what you send yourself goes out.
-- To leave it: page 4, Settings..., Groups: @X6100. Delete @X6100 from the
+- To leave it: page 3, Settings..., Groups, INFO, STATUS, Relay..., Groups: @X6100. Delete @X6100 from the
   text and confirm; the radio shows "No groups" (or your other groups). It
   stays out after that, also after a restart or an update. To join again,
   type @X6100 there.
