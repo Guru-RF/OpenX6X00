@@ -20,7 +20,7 @@ typedef enum {
     SCAN_SRC_CHANNELS,
     SCAN_SRC_AIRBAND,
     SCAN_SRC_HF_AIR,        /* the HF Air Band app's area (dialog_aero.h) */
-    SCAN_SRC_CB,            /* the 40 CB channels, AM */
+    SCAN_SRC_CB,            /* the CB app's plan (dialog_cb.h) */
     SCAN_SRC_SEGMENT,
     SCAN_SRC_N,
 } scan_source_t;

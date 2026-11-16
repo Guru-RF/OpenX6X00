@@ -111,6 +111,9 @@ params_t params = {
     .sstv_reply_rx          = { .x = true,      .name = "sstv_reply_rx" },
     .sstv_tx_mode           = { .x = 0,         .name = "sstv_tx_mode" },
     .aero_area              = { .x = 0,         .name = "aero_area" },
+    .cb_plan                = { .x = 0,         .name = "cb_plan" },
+    .cb_mode                = { .x = 0,         .name = "cb_mode" },
+    .cb_knob                = { .x = true,      .name = "cb_knob" },
     .cw_qrss_hz             = { { .name = "cw_qrss_30m_hz" }, { .name = "cw_qrss_80m_hz" } },
     .cw_bcn_start           = { .x = -1,        .name = "cw_bcn_start" },
     .cw_bcn_until           = { .x = 0,         .name = "cw_bcn_until", .min = 0, .max = 2 },
@@ -333,6 +336,9 @@ static bool params_load() {
         if (params_load_bool(&params.sstv_reply_rx, name, i)) continue;
         if (params_load_uint8(&params.sstv_tx_mode, name, i)) continue;
         if (params_load_uint8(&params.aero_area, name, i)) continue;
+        if (params_load_uint8(&params.cb_plan, name, i)) continue;
+        if (params_load_uint8(&params.cb_mode, name, i)) continue;
+        if (params_load_bool(&params.cb_knob, name, i)) continue;
         if (params_load_bool(&params.ft8_custom_on, name, i)) continue;
         if (params_load_int32(&params.ft8_custom_hz, name, i)) continue;
         if (params_load_bool(&params.mag_info, name, i)) continue;
@@ -495,6 +501,9 @@ static bool params_save() {
     params_save_bool(&params.sstv_reply_rx);
     params_save_uint8(&params.sstv_tx_mode);
     params_save_uint8(&params.aero_area);
+    params_save_uint8(&params.cb_plan);
+    params_save_uint8(&params.cb_mode);
+    params_save_bool(&params.cb_knob);
     params_save_bool(&params.ft8_custom_on);
     params_save_int32(&params.ft8_custom_hz);
     params_save_bool(&params.mag_info);

@@ -236,6 +236,14 @@ def i_aero(p):       # an aeroplane from above with radio waves: the HF air band
     for r in (16, 28):
         p.ring(66, 36, r, w=p.w // 2 + 1, start=-60, end=60)
 
+def i_cb(p):         # a mobile set with its hand microphone: CB
+    p.box(6, 30, 70, 64, r=6)
+    p.dot(24, 47, 7)
+    p.line([(42, 42), (58, 42)], w=p.w // 2 + 1)
+    p.line([(42, 53), (58, 53)], w=p.w // 2 + 1)
+    p.line([(70, 47), (83, 56), (83, 68)], w=p.w // 2 + 1)
+    p.fill_box(73, 68, 93, 94, r=8)
+
 
 ICONS = {n[2:]: f for n, f in globals().items() if n.startswith("i_") and callable(f)}
 

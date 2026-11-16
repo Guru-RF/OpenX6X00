@@ -61,6 +61,7 @@ static const struct {
     {"Walkie", "Portrait screen", "walkie", OPEN_WALKIE, 0},
     {"Birdie Cal", "Find birdies, antenna off", "birdie", OPEN_APP, ACTION_APP_BIRDIE},
     {"HF Air Band", "Oceanic routes, VOLMET", "aero", OPEN_APP, ACTION_APP_AERO},
+    {"CB", "27 MHz channels", "cb", OPEN_APP, ACTION_APP_CB},
     {"Settings", "All settings", "settings", OPEN_APP, ACTION_APP_SETTINGS},
 };
 

@@ -4,8 +4,8 @@
  *  Xiegu X6100 LVGL GUI - Scanner app
  *
  *  The list to scan (Source): the Channels app's channels, the airband (118-137 MHz, AM, 25 kHz:
- *  the X6200), the HF Air Band app's frequencies (USB, its area: aero.c), the 40 CB channels (AM),
- *  or the band plan segment the dial is in, in steps of the mode. The engine
+ *  the X6200), the HF Air Band app's frequencies (USB, its area: aero.c), the CB app's channels (its
+ *  plan and mode: cb.c), or the band plan segment the dial is in, in steps of the mode. The engine
  *  (scan.c) looks at each in turn and stops on one over the threshold, Auto by default (a margin
  *  over what each reads when quiet); the speaker is quiet between stops. What it stopped on is
  *  listed, the latest first: an evening's activity at a glance.
@@ -24,10 +24,12 @@
 #include "band_keep.h"
 #include "band_plan.h"
 #include "buttons.h"
+#include "cb.h"
 #include "cfg/cfg_api.h"
 #include "channel_list.h"
 #include "dialog.h"
 #include "dialog_aero.h"
+#include "dialog_cb.h"
 #include "events.h"
 #include "keyboard.h"
 #include "meter.h"
@@ -54,13 +56,6 @@ static const struct { const char *name; float db; } stops[] = {
 };
 static const struct { const char *name; int ms; } speeds[] = {{"Fast", 120}, {"Normal", 250}, {"Slow", 500}};
 static const int hangs_s[] = {2, 5, 10};
-
-/* US CB channels 1-40: 23 sits between 22 and 24 out of order, as the FCC numbered them */
-static const int32_t cb_khz[40] = {
-    26965, 26975, 26985, 27005, 27015, 27025, 27035, 27055, 27065, 27075, 27085, 27105, 27115, 27125,
-    27135, 27155, 27165, 27175, 27185, 27205, 27215, 27225, 27255, 27235, 27245, 27265, 27275, 27285,
-    27295, 27305, 27315, 27325, 27335, 27345, 27355, 27365, 27375, 27385, 27395, 27405,
-};
 
 static void construct_cb(lv_obj_t *parent);
 static void destruct_cb(void);
@@ -159,12 +154,14 @@ static void build_list(void) {
             }
             break;
         }
-        case SCAN_SRC_CB:
-            for (int i = 0; i < 40; i++) {
-                snprintf(name, sizeof(name), "CB %d", i + 1);
-                add(cb_khz[i] * 1000, radio_mode_am, name);
-            }
+        case SCAN_SRC_CB: {
+            int plan = dialog_cb_plan();
+
+            for (int ch = 1; ch <= cb_channels(plan); ch++)
+                add(cb_freq(plan, ch), dialog_cb_radio_mode(cb_channel_mode(plan, ch, dialog_cb_mode())),
+                    cb_name(plan, ch, name, sizeof(name)));
             break;
+        }
         case SCAN_SRC_SEGMENT: {
             int32_t      dial = cparam_i_get(cfg_fg_freq), from = 0, to = 0, s, e;
             radio_mode_t mode = (radio_mode_t)cparam_i_get(cfg_cur_mode);

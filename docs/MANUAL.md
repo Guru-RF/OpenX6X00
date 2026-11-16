@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -244,7 +244,7 @@ The APP button opens four pages of apps and tools:
 | APP 1:4 | Modes, Cluster, SWR Scan, RX Recorder |
 | APP 2:4 | Settings, CW Trainer, Field Ops, Channels |
 | APP 3:4 | Bands, GPS, Screen rec, CW Keyboard |
-| APP 4:4 | Propagation, Scanner, HF Air Band |
+| APP 4:4 | Propagation, Scanner, HF Air Band, CB |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
@@ -5374,7 +5374,7 @@ frequency and mode: a band key goes where it went before the scan.
 
 | Button | What |
 |---|---|
-| Source | the list: **Channels** (the [Channels](#channels) app's, with their modes; not their AGC, PRE and ATT), **Airband** (118 to 137 MHz, AM, 25 kHz steps; the X6200), **HF Air** (the [HF Air Band](#hf-air-band) app's frequencies of the area it shows, USB), **CB** (the 40 channels, AM), **Segment** (the band plan segment the dial is in, in 3 kHz steps in SSB, 500 Hz in CW, 5 kHz in AM) |
+| Source | the list: **Channels** (the [Channels](#channels) app's, with their modes; not their AGC, PRE and ATT), **Airband** (118 to 137 MHz, AM, 25 kHz steps; the X6200), **HF Air** (the [HF Air Band](#hf-air-band) app's frequencies of the area it shows, USB), **CB** (the channels of the plan the [CB](#cb) app shows, in its mode), **Segment** (the band plan segment the dial is in, in 3 kHz steps in SSB, 500 Hz in CW, 5 kHz in AM) |
 | Start / Pause / Resume | from the channel the dial is on, else the top |
 | Skip | on to the next one, from a stop or a pause |
 | Lock out | leaves the one it is on out until the list changes (a carrier that is always there) |
@@ -5401,10 +5401,10 @@ frequency and mode: a band key goes where it went before the scan.
   transmits: Start, Resume, Skip, Lock out and the MFK wait for receive.
 - The bar is the S-meter, the mark on it the level that stops the scan.
 - Airband has the 25 kHz channels only: in Europe most are 8.33 kHz apart,
-  and two in three of those are not in the list. CB is in AM, where CEPT CB
-  is mostly FM: put FM channels in the Channels app for those.
-- HF Air takes the HF Air Band app's list as that app shows it: change the
-  area there. Scan in the app opens the Scanner on its list.
+  and two in three of those are not in the list.
+- HF Air and CB take the HF Air Band and CB apps' lists as those apps show
+  them: change the area, the plan or the CB mode there. Scan in either app
+  opens the Scanner on its list.
 
 ### HF Air Band
 
@@ -5448,6 +5448,55 @@ list (the carrier), as aircraft and ground stations use them.
   radio's power and SWR protection as anywhere. Transmitting there is your
   responsibility under your licence.
 
+### CB
+
+APP > CB (APP 4:4, or a long-press action): the 27 MHz Citizens Band
+channels of a country's plan, each with its frequency, the mode it is
+tuned in and what the plan keeps it for (9 emergency, 19 the road in most
+countries).
+
+| Plan | Channels | Modes | From |
+|---|---|---|---|
+| Europe (CEPT) | 1-40, 26.965-27.405 MHz | FM, AM, USB, LSB (FM first) | ECC Decision (11)03 |
+| Germany (80 channels) | 1-40 as Europe, 41-80 at 26.565-26.955 MHz | as Europe; 41-80 FM only | BNetzA Vfg. 21/2021 |
+| United Kingdom 27/81 | 1-40 at 27.60125-27.99125 MHz | FM only | Ofcom IR 2027 (the UK has Europe's 40 too: choose Europe for those) |
+| USA, Americas (FCC) | 1-40, 26.965-27.405 MHz | AM, FM, USB, LSB (AM first) | 47 CFR 95.963 and 95.971 |
+| Australia | 1-40, 26.965-27.405 MHz | AM, USB, LSB (AM first), no FM; 11 AM only, 16 LSB only | CB Class Licence 2015 |
+| Poland (PL) | 1-40, 5 kHz below Europe's | AM, FM, USB, LSB (AM first) | the Polish grid, as Polish sets have it |
+| Band A, B, D, E | Europe's 40 moved 900 or 450 kHz down (A, B) or up (D, E; E 11 channels, below 28 MHz) | AM | the export sets' band names, no country's plan |
+
+Channel 23 sits between 22 and 24 in frequency in every plan with the 40,
+as the plans number them.
+
+- Plan goes to the next plan; the choice is kept. Until one is chosen it is
+  the plan of the radio's IARU region: Region 1 Europe, Region 2 USA,
+  Region 3 Australia (see [Band plan](#band-plan)).
+- Mode goes through the modes the plan allows, the plan's own first. A
+  channel that allows only one (Germany's 41-80 FM, Australia's 11 AM and
+  16 LSB) is tuned in that one whatever Mode says, and the screen says so
+  ("CB 50: FM only").
+- The MFK moves along the channels; a press or a tap tunes the one chosen
+  in its mode, through the radio's own tuning (the band memory, the mode's
+  filter, a transverter's range). Not while transmitting.
+- Knob: Channels (the default): while the app is open and the radio is on
+  the plan's channels, the main knob steps from channel to channel in the
+  plan's numbering (22, 23, 24), the channel shown big for a moment and its
+  mode set where the channel needs another. Free: the main knob tunes as
+  always. Off the plan's channels it tunes as always too; with LOCK on it
+  does nothing, as always, and while the radio transmits it stays where it
+  is.
+- Save channel: the channel into the [Channels](#channels) app ("CB 19").
+  Scan: the [Scanner](#scanner) on this plan (Source CB).
+- ESC closes; the radio stays where it is.
+- Transmitting: CB is not an amateur band. PTT there does what it does
+  anywhere outside the amateur bands: refused ("No TX on 27.185 MHz", then
+  "Out of band: Settings > TX Cal") unless TX outside ham bands is on (see
+  [Amateur bands only](#amateur-bands-only)), and then in the plan's mode
+  for the channel, with the radio's power and SWR protection as anywhere.
+  The power a plan allows (4 W in AM and FM, 12 W PEP in SSB under the
+  European decision and the FCC's rules, less in some countries) is not set
+  by the app: PWR is yours to set. Transmitting there is your responsibility
+  under your licence.
 
 ## Bluetooth
 

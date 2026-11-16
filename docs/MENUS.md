@@ -32,6 +32,7 @@ closed v0.129, finds the same things under these names:
 | Settings, "All settings" | Settings, "All settings" | |
 | Birdie Cal, "Find birdies, antenna off" | Birdie Cal, "Find birdies, antenna off" | the radio's own carriers: found, marked, notched |
 | HF Air Band, "Oceanic routes, VOLMET" | - | the HF aviation frequencies by area, tuned in USB |
+| CB, "27 MHz channels" | - | the CB channels of a country's plan, in its mode |
 
 ## Modes grid
 
