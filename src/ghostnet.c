@@ -10,6 +10,7 @@
 #define _GNU_SOURCE     /* strcasestr, tm_gmtoff */
 #endif
 #include "ghostnet.h"
+#include "i18n.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -348,6 +349,7 @@ int ghostnet_upcoming(time_t now, ghostnet_slot_t *out, int max, int hours, bool
 }
 
 void ghostnet_when(time_t t, char *out, size_t size) {
+    /* the day in the screen's language (the schedule file's own days stay English: ghostnet_load reads them) */
     struct tm u, l;
     char      zone[16];
 
@@ -355,12 +357,12 @@ void ghostnet_when(time_t t, char *out, size_t size) {
     localtime_r(&t, &l);
     strftime(zone, sizeof(zone), "%Z", &l);
     if (l.tm_gmtoff == 0) {     /* the radio on UTC (or GMT): the one time */
-        snprintf(out, size, "%s %02d:%02d UTC", day_names[u.tm_wday], u.tm_hour, u.tm_min);
+        snprintf(out, size, "%s %02d:%02d UTC", _(day_names[u.tm_wday]), u.tm_hour, u.tm_min);
     } else if (l.tm_wday != u.tm_wday) {
-        snprintf(out, size, "%s %02d:%02d UTC (%s %02d:%02d %s)", day_names[u.tm_wday], u.tm_hour, u.tm_min,
-                 day_names[l.tm_wday], l.tm_hour, l.tm_min, zone);
+        snprintf(out, size, "%s %02d:%02d UTC (%s %02d:%02d %s)", _(day_names[u.tm_wday]), u.tm_hour, u.tm_min,
+                 _(day_names[l.tm_wday]), l.tm_hour, l.tm_min, zone);
     } else {
-        snprintf(out, size, "%s %02d:%02d UTC (%02d:%02d %s)", day_names[u.tm_wday], u.tm_hour, u.tm_min, l.tm_hour,
+        snprintf(out, size, "%s %02d:%02d UTC (%02d:%02d %s)", _(day_names[u.tm_wday]), u.tm_hour, u.tm_min, l.tm_hour,
                  l.tm_min, zone);
     }
 }

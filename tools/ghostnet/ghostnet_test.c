@@ -36,6 +36,11 @@ static int fails, checks;
         }                                                                           \
     } while (0)
 
+/* No language here: the English, as the GUI with none chosen */
+const char *i18n_tr(const char *s) {
+    return s;
+}
+
 /* The test's clock: a UTC date and time */
 static time_t utc(int y, int mo, int d, int h, int mi) {
     struct tm t = {.tm_year = y - 1900, .tm_mon = mo - 1, .tm_mday = d, .tm_hour = h, .tm_min = mi};
