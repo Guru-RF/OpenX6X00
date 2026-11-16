@@ -163,6 +163,11 @@ class SettingsManager {
     // on the screen, where they are, when the buttons hide (knob_info.cpp). Off (the default): they hide with them
     Parameter<int32_t> p_knob_lines_stay{"knob_lines_stay", false, 0, 1,
         StorageType::GLOBAL, pending_writes_, &global_params_};
+    // Knob press: next control (Settings > Display > INTERFACE, live, #282): a short press of VOL or the MFK takes
+    // the next control on its list, ready to change; a held one does what any press does with it off (screen_main.c,
+    // knob_press.h). Off (the default): a press switches between changing the value and choosing the control
+    Parameter<int32_t> p_knob_press_next{"knob_press_next", false, 0, 1,
+        StorageType::GLOBAL, pending_writes_, &global_params_};
     // Independent VFOs: A and B each keep their own band, a VFO switch brings its band back
     // (vfo_toggle). Off: both VFOs live in the current band, as the radio does it.
     // Turning the knob into another band plan segment sets its mode: CW in the CW segment, the

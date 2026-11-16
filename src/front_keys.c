@@ -75,6 +75,11 @@ static struct {
 } key_st[KEYS];
 
 static uint32_t hold_ms = HOLD_MS;
+static bool     vol_down;       /* the VOL knob is down now: Knob press: next control tells a short press (#282) */
+
+bool keypad_vol_down(void) {
+    return vol_down;
+}
 
 void keypad_set_long_time(uint32_t hold) {
     hold_ms = hold ? hold : HOLD_MS;
@@ -147,6 +152,7 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
             if (backlight_tick() && in.value) {
                 /* the press woke the screen: that was its job, the radio does not see it */
             } else if (in.code == VOL_PRESS) {
+                vol_down = in.value != 0;
                 if (in.value == 1) {    /* the press only: let go below, whatever the key does */
                     pad->evdev_key   = KEY_VOL_PRESS;
                     pad->evdev_state = LV_INDEV_STATE_PRESSED;

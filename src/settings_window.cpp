@@ -4408,6 +4408,8 @@ static void make_display_page() {
     row = make_param_choice(row, "Hide buttons", " Off \n After 3 s \n After 5 s \n After 10 s ",
                             cfg_sm.p_buttons_hide);
     row = make_param_switch(row, "Keep knob lines", cfg_sm.p_knob_lines_stay);   /* not hidden with the buttons */
+    /* A short press of VOL or the MFK: the next control on its list, as the stock firmware does (#282) */
+    row = make_param_switch(row, "Knob press: next control", cfg_sm.p_knob_press_next);
     row = make_theme(row);
     row = make_font(row);
     row = make_language(row);

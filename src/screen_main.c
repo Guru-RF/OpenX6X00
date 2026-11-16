@@ -91,6 +91,8 @@
 #include "walkie.h"
 #include "cfg/memory.h"
 #include "knob_info.h"
+#include "knob_press.h"
+#include "front_keys.h"
 #include "radio_controls.h"
 #include "apps_menu.h"
 #include "dialog_birdie.h"
@@ -1358,15 +1360,102 @@ static void main_knob_cb(lv_event_t *e) {
     free(turn);     /* rotary.c allocates one per event */
 }
 
-/* VOL press: turning changes the value, or chooses what VOL controls */
-void main_screen_vol_press(void) {
-    if (walkie_on()) return;    /* the volume, always */
-
+/* VOL's press with Knob press: next control off, its long one with it on: turning changes the value, or chooses
+ * what VOL controls */
+static void vol_toggle(void) {
     bool edit = vol->state != VOL_STATE_EDIT;
 
     vol->state = edit ? VOL_STATE_EDIT : VOL_STATE_SELECT;
     knobs_set_vol_state(edit);
     vol_update(0);
+}
+
+/* The MFK's, as VOL's */
+static void mfk_toggle(void) {
+    bool edit = mfk_state != MFK_STATE_EDIT;
+
+    mfk_state = edit ? MFK_STATE_EDIT : MFK_STATE_SELECT;
+    knobs_set_mfk_state(edit);
+    mfk_update(0);
+}
+
+/* Knob press: next control (#282), as the stock firmware does it: a short press takes the knob's next control
+ * (round the list) ready to change, the knob line and the button's mark on it at once; a long one does what a
+ * press does with it off. A press is told short or long by watching the knob until it is let go or held
+ * (knob_press.h): the encoder's own LONG_PRESSED is not sent for VOL, nor for a click (Field Ops) */
+static knob_press_watch_t vol_watch, mfk_watch;
+static lv_timer_t        *knob_press_timer;
+
+static void vol_next(void) {
+    if (vol->state != VOL_STATE_EDIT) {
+        vol->state = VOL_STATE_EDIT;
+        knobs_set_vol_state(true);
+    }
+    vol_change_ctrl(+1);
+}
+
+static void mfk_next(void) {
+    if (mfk_state != MFK_STATE_EDIT) {
+        mfk_state = MFK_STATE_EDIT;
+        knobs_set_mfk_state(true);
+    }
+    mfk_change_ctrl(+1);
+}
+
+/* Held on the cluster column: tune to the spot, the knob left as it was, as the long press does with it off (a
+ * press, then the long press tuned and pressed again) */
+static void mfk_held(void) {
+    if (mfk_ctrl == CTRL_CLUSTER) {
+        cluster_column_tune();
+    } else {
+        mfk_toggle();
+    }
+}
+
+static void knob_press_cb(lv_timer_t *t) {
+    uint32_t now = lv_tick_get();
+
+    switch (knob_press_look(&vol_watch, now, keypad_vol_down())) {
+        case KNOB_PRESS_SHORT:  vol_next(); break;
+        case KNOB_PRESS_HELD:   vol_toggle(); break;
+        default:                break;
+    }
+    switch (knob_press_look(&mfk_watch, now, mfk && mfk->pressed)) {
+        case KNOB_PRESS_SHORT:  mfk_next(); break;
+        case KNOB_PRESS_HELD:   mfk_held(); break;
+        default:                break;
+    }
+    if (!vol_watch.watching && !mfk_watch.watching) {
+        lv_timer_pause(t);
+    }
+}
+
+/* A press to watch, and the first look at once: one with no knob down behind it (a keyboard's key, a click that
+ * comes at the release) is short there and then */
+static void knob_press_watch(knob_press_watch_t *w) {
+    knob_press_begin(w, lv_tick_get());
+    if (knob_press_timer) {
+        lv_timer_resume(knob_press_timer);
+    } else {
+        knob_press_timer = lv_timer_create(knob_press_cb, 20, NULL);
+    }
+    knob_press_cb(knob_press_timer);
+}
+
+static bool knob_press_next(void) {
+    return param_i_get(cfg_knob_press_next);
+}
+
+/* VOL press: turning changes the value, or chooses what VOL controls; with Knob press: next control the next
+ * control, or that when held */
+void main_screen_vol_press(void) {
+    if (walkie_on()) return;    /* the volume, always */
+
+    if (knob_press_next()) {
+        knob_press_watch(&vol_watch);
+    } else {
+        vol_toggle();
+    }
 }
 
 /* MFK as on the main screen: dir -1 / +1 turns it, 0 is the press */
@@ -1378,12 +1467,11 @@ void main_screen_mfk(int dir) {
             mfk_change_ctrl(dir);
         return;
     }
-
-    bool edit = mfk_state != MFK_STATE_EDIT;
-
-    mfk_state = edit ? MFK_STATE_EDIT : MFK_STATE_SELECT;
-    knobs_set_mfk_state(edit);
-    mfk_update(0);
+    if (knob_press_next()) {
+        knob_press_watch(&mfk_watch);
+    } else {
+        mfk_toggle();
+    }
 }
 
 /* Keys sent to the spectrum (it has the keyboard when no app does): the VOL knob, and a USB
@@ -1462,8 +1550,10 @@ static void spectrum_pressed_cb(lv_event_t *e) {
 }
 
 /* Long MFK press: with the Cluster item active, tune to the highlighted spot.
- * The press already toggled the MFK state; toggle it back to keep browsing. */
+ * The press already toggled the MFK state; toggle it back to keep browsing.
+ * With Knob press: next control the press is watched instead (mfk_held()) */
 static void spectrum_long_pressed_cb(lv_event_t *e) {
+    if (knob_press_next()) return;
     if (mfk_ctrl == CTRL_CLUSTER) {
         cluster_column_tune();
         spectrum_pressed_cb(e);

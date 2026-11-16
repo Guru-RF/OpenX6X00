@@ -113,6 +113,7 @@ static const struct {
     {"knob_info", &cfg_sm.p_knob_info, 0, 1},
     {"buttons_hide", &cfg_sm.p_buttons_hide, 0, 3},     /* live: screen_main.c follows it */
     {"knob_lines_stay", &cfg_sm.p_knob_lines_stay, 0, 1},   /* live: knob_info.cpp follows it */
+    {"knob_press_next", &cfg_sm.p_knob_press_next, 0, 1},   /* live: screen_main.c reads it at each press */
     {"walkie", &cfg_sm.p_walkie, 0, 1},                 /* live: walkie.c follows it */
     {"speaker_off", &cfg_sm.p_speaker_off, 0, 1},       /* live: radio.c follows it */
     {"indep_vfo", &cfg_sm.p_indep_vfo, 0, 1},           /* Station: independent VFOs */
