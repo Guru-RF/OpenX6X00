@@ -26,9 +26,10 @@ typedef enum {
     KEYPAD_AB, KEYPAD_PRE, KEYPAD_ATU, KEYPAD_VM, KEYPAD_AGC, KEYPAD_FST
 } keypad_key_t;
 
-/* What happened to it: LONG once held for the hold time, then LONG_RELEASE instead of RELEASE */
+/* What happened to it: LONG once held for the hold time, then LONG_RELEASE instead of RELEASE. BAND UP and DOWN
+ * have no LONG: held, they send REPEAT, again and again, and then RELEASE (front_keys.c) */
 typedef enum {
-    KEYPAD_PRESS = 0, KEYPAD_RELEASE, KEYPAD_LONG, KEYPAD_LONG_RELEASE
+    KEYPAD_PRESS = 0, KEYPAD_RELEASE, KEYPAD_LONG, KEYPAD_LONG_RELEASE, KEYPAD_REPEAT
 } keypad_state_t;
 
 typedef struct {

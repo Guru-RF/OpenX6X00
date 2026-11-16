@@ -2067,15 +2067,13 @@ def rec_id(rec):
     return hashlib.sha1(rec.strip()).hexdigest()[:12]
 
 
-def edit_qso(name, n, fn, rid):
-    """Applies fn to the record with the identity rid (rec_id), of which n is the row number the
-    page knew (0 = the first QSO of the file; records without CALL do not count): fn returns the
-    new record, or None to delete it. A rid the file no longer holds is a 409: the page is stale.
-    Returns an error response or None."""
+def edit_records(name, edits):
+    """Applies each (n, rid, fn) of edits to the record with the identity rid (rec_id) in the log name, of which n is
+    the row number the page knew (0 = the first QSO of the file; records without CALL do not count): fn returns the
+    new record, or None to delete it. The file is written once. Returns (error response or None, the (old, new)
+    records changed, new None for one deleted, the edits whose QSO the file no longer holds: the page is stale)."""
     if not name.endswith(".adi") or os.path.basename(name) != name:
-        return api_error(400, "Not a log")
-    if not rid:
-        return api_error(400, "Which QSO: the id is missing (reload the page)")
+        return api_error(400, "Not a log"), [], []
     path = field_path("logs", name)
     # The radio appends QSOs to the same file and takes this lock on the folder while it does
     # (src/field/flog.c): a QSO logged while the file is rewritten here would otherwise be lost
@@ -2083,42 +2081,259 @@ def edit_qso(name, n, fn, rid):
     try:
         lock = os.open(os.path.dirname(path), os.O_RDONLY)
     except OSError:
-        return api_error(404, "Not found")
+        return api_error(404, "Not found"), [], []
+    changed, stale = [], []
     try:
         fcntl.flock(lock, fcntl.LOCK_EX)
         try:
             with open(path, "rb") as f:
                 raw = f.read()
         except FileNotFoundError:
-            return api_error(404, "Not found")
+            return api_error(404, "Not found"), [], []
         head, parts = adif_split(raw)
         recs = [i for i, p in enumerate(parts[:-1]) if re.search(rb'<call:\d+', p, re.I)]
-        same = [i for i in recs if rec_id(parts[i]) == rid]
-        if len(same) == 1:
-            at = same[0]
-        elif same and 0 <= n < len(recs) and recs[n] in same:
-            at = recs[n]      # identical records: the row the page meant
-        else:
-            return api_error(409, "This QSO is not in the log as the page shows it: reload the page")
-        new = fn(parts[at])
-        if new is None:
-            del parts[at]
-        else:
-            parts[at] = new
-        tmp = path + ".tmp"
-        with open(tmp, "wb") as f:
-            f.write(head + b"<eor>".join(parts))
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, path)
+        new, taken = list(parts), set()
+        for n, rid, fn in edits:
+            same = [i for i in recs if i not in taken and rec_id(parts[i]) == rid]
+            if len(same) == 1:
+                at = same[0]
+            elif same and 0 <= n < len(recs) and recs[n] in same:
+                at = recs[n]      # identical records: the row the page meant
+            else:
+                stale.append((n, rid, fn))
+                continue
+            taken.add(at)
+            new[at] = fn(parts[at])
+            changed.append((parts[at], new[at]))
+        if changed:
+            tmp = path + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(head + b"<eor>".join(p for p in new if p is not None))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
     finally:
         os.close(lock)   # releases the lock
-    return None
+    return None, changed, stale
+
+
+def edit_qso(name, n, fn, rid):
+    """Applies fn to the record with the identity rid (rec_id), as edit_records does, and the change to the radio's
+    other stores of the QSO (follow_qsos). A rid the file no longer holds is a 409: the page is stale. Returns an
+    error response, or {"status": "OK"} with a "note" when another store could not follow."""
+    if not rid:
+        return api_error(400, "Which QSO: the id is missing (reload the page)")
+    err, changed, stale = edit_records(name, [(n, rid, fn)])
+    if err:
+        return err
+    if stale:
+        return api_error(409, "This QSO is not in the log as the page shows it: reload the page")
+    return ok_noted(follow_qsos(changed))
+
+
+def ok_noted(notes, **more):
+    return dict({"status": "OK"}, **more, **({"note": "; ".join(notes)} if notes else {}))
+
+
+# An app's QSO in the radio's other stores (#284). The FT8, FT4, FT2 and JS8 apps log a QSO into the day's log or the
+# activation's, the logs the Logs page and the Field Ops page show, and besides into the radio's QSO list
+# qso_log.db, whose calls the FT8, FT4 and JS8 lists mark as worked, and into the app's own ADIF file, ft_log.adi or
+# js8call_log.adi, whose QSOs the apps' maps draw (src/ft8_window.c save_qso, src/js8_window.c p3_log_save). The
+# logs here are the operator's, the truth: a QSO deleted or changed here is deleted or changed in those too, found
+# by its call, date and time (to the second; to the minute for a time given as hhmm). Up to v0.3.12 they kept it,
+# and a call deleted here to start an activation from zero was still worked in FT8. The apps read qso_log.db at each
+# decode and the files at each map: nothing to restart. A QSO in qso_log.db alone (imported from incoming_log.adi,
+# or deleted here before) is in no log here: worked_extra() counts those, forget_worked() takes them out.
+
+QSO_DB_MODES = {"SSB": 1, "AM": 2, "FM": 3, "CW": 4, "FT8": 5, "FT4": 6, "RTTY": 7, "JS8": 8, "FT2": 9}  # qso_log.h
+# The bands as qso_log.db numbers them, edges in kHz (src/qso_log.c); 0 any other
+QSO_DB_BANDS = ((1800, 2000, 160), (3500, 4000, 80), (5351, 5367, 60), (7000, 7300, 40), (10100, 10150, 30),
+                (14000, 14350, 20), (18068, 18168, 17), (21000, 21450, 15), (24890, 24990, 12), (28000, 29700, 10),
+                (50000, 54000, 6))
+
+
+def qso_key(rec):
+    """(CALL, QSO_DATE, TIME_ON) of a record, the call in capitals and the time as hhmmss or hhmm; None for a record
+    without them"""
+    f = adif_fields(rec)
+    call, date, tm = f.get("call", "").strip().upper(), f.get("qso_date", "").strip(), f.get("time_on", "").strip()
+    if not call or not re.fullmatch(r'[0-9]{8}', date) or not re.fullmatch(r'[0-9]{4}([0-9]{2})?', tm):
+        return None
+    return call, date, tm
+
+
+def same_qso(a, b):
+    """Two qso_keys are one QSO: the call and the date, and the time to the second, or to the minute when one of
+    them has no seconds (a time set on the Logs page)"""
+    return a[:2] == b[:2] and (a[2] == b[2] or (min(len(a[2]), len(b[2])) == 4 and a[2][:4] == b[2][:4]))
+
+
+def db_span(key):
+    """The first and last ts in qso_log.db of a qso_key: the second, or the minute of an hhmm"""
+    d, t = f"{key[1][:4]}-{key[1][4:6]}-{key[1][6:]}", key[2]
+    if len(t) == 6:
+        return (f"{d} {t[:2]}:{t[2:4]}:{t[4:]}",) * 2
+    return f"{d} {t[:2]}:{t[2:4]}:00", f"{d} {t[:2]}:{t[2:4]}:59"
+
+
+def canon_call(call):
+    """The call qso_log.db looks the worked calls up by: the part with a digit in its first three characters and 4
+    long or more, ON6URE of PA/ON6URE/P (src/util.cpp util_canonize_callsign)"""
+    for part in call.split("/"):
+        if len(part) >= 4 and re.search(r'[0-9]', part[:3]):
+            return part
+    return call
+
+
+def db_values(rec):
+    """ts, call, canonized call, band, mode and frequency of a record as qso_log.db has them; None for a band, mode
+    or frequency the record does not give (the row keeps its own)"""
+    f, key = adif_fields(rec), qso_key(rec)
+    try:
+        mhz = float(f.get("freq", ""))
+    except ValueError:
+        mhz = None
+    mhz = mhz if mhz and mhz > 0 else None
+    band = f.get("band", "").strip().lower()
+    band = int(band[:-1]) if re.fullmatch(r'[0-9]{1,3}m', band) else None
+    if band not in [b[2] for b in QSO_DB_BANDS]:
+        khz = mhz * 1000 if mhz else -1
+        # a band the log does not number (2m) is 0, as the radio saves it; none at all leaves the row's
+        band = next((b[2] for b in QSO_DB_BANDS if b[0] <= khz <= b[1]), 0 if mhz or band is not None else None)
+    mode = (f.get("submode") or f.get("mode") or "").strip().upper()
+    return db_span(key)[0], key[0], canon_call(key[0]), band, QSO_DB_MODES.get(mode, 0) if mode else None, mhz
+
+
+def rec_changes(old, new):
+    """The fields that differ between two records: [(NAME, value, or None for a field gone)]"""
+    a, b = adif_fields(old), adif_fields(new)
+    return [(k.upper(), b.get(k)) for k in list(a) + [k for k in b if k not in a] if a.get(k) != b.get(k)]
+
+
+DB_FIELDS = ("CALL", "QSO_DATE", "TIME_ON", "BAND", "FREQ", "MODE", "SUBMODE")
+
+
+def follow_db(changes):
+    """The changes [(old, new)] into qso_log.db: a QSO deleted, or its call, date, time, band, mode or frequency
+    changed. The file is never made here: none on a PC. Returns the notes"""
+    if not os.path.isfile(settings.QSO_LOG_DB):
+        return []
+    where = "remote_callsign = ? COLLATE NOCASE AND ts BETWEEN ? AND ?"
+    try:
+        # timeout: the GUI writes a QSO in a few ms
+        con = sqlite3.connect(f"file:{settings.QSO_LOG_DB}?mode=rw", uri=True, timeout=10)
+        try:
+            with con:
+                for old, new in changes:
+                    key = qso_key(old)
+                    if not key:
+                        continue
+                    if new is None:
+                        con.execute(f"DELETE FROM qso_log WHERE {where}", (key[0], *db_span(key)))
+                    elif qso_key(new) and any(k in DB_FIELDS for k, _ in rec_changes(old, new)):
+                        # OR REPLACE: the same call at the same second is one QSO (its UNIQUE index)
+                        con.execute("UPDATE OR REPLACE qso_log SET ts = ?, remote_callsign = ?, "
+                                    "canonized_remote_callsign = ?, band = coalesce(?, band), "
+                                    f"mode = coalesce(?, mode), freq = coalesce(?, freq) WHERE {where}",
+                                    (*db_values(new), key[0], *db_span(key)))
+        finally:
+            con.close()
+    except sqlite3.Error as ex:
+        return [f"the worked-before list (qso_log.db) not changed: {ex}"]
+    return []
+
+
+def follow_app_log(path, changes):
+    """The changes [(old, new)] into an app's own ADIF file (ft_log.adi, js8call_log.adi): the record of the same QSO
+    deleted, or the fields that changed changed in it. The file is written once, under the lock on its folder the GUI
+    takes to append (src/field/flog.c field_log_append, src/js8/qso_book.cpp). Returns the notes"""
+    keyed = [(qso_key(old), old, new) for old, new in changes]
+    keyed = [c for c in keyed if c[0] and (c[2] is None or rec_changes(c[1], c[2]))]
+    if not keyed:
+        return []
+    try:
+        lock = os.open(os.path.dirname(path) or ".", os.O_RDONLY)
+    except OSError:
+        return []
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            with open(path, "rb") as f:
+                raw = f.read()
+        except FileNotFoundError:
+            return []
+        head, parts = adif_split(raw)
+        out, hit = [], False
+        for p in parts[:-1]:
+            k = qso_key(p)
+            c = next((c for c in keyed if same_qso(k, c[0])), None) if k else None
+            if c:
+                hit = True
+                if c[2] is None:
+                    continue
+                for name, v in rec_changes(c[1], c[2]):
+                    p = adif_set(p, name, v) if v is not None else adif_del(p, name)
+            out.append(p)
+        if hit:
+            tmp = path + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(head + b"<eor>".join(out + parts[-1:]))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+    except OSError as ex:
+        return [f"{os.path.basename(path)} not changed: {ex.strerror}"]
+    finally:
+        os.close(lock)   # releases the lock
+    return []
+
+
+def follow_qsos(changes):
+    """The QSOs deleted or changed in a log here, [(old, new)], deleted or changed in qso_log.db, ft_log.adi and
+    js8call_log.adi too. Returns what could not be done, for the page"""
+    if not changes:
+        return []
+    notes = follow_db(changes)
+    for path in (settings.FT_LOG, settings.JS8_LOG):
+        notes += follow_app_log(path, changes)
+    return notes
+
+
+def worked_rows():
+    """The QSOs of qso_log.db, [(rowid, qso_key)], the key None for a ts that is no date and time; [] without it"""
+    if not os.path.isfile(settings.QSO_LOG_DB):
+        return []
+    try:
+        con = sqlite3.connect(f"file:{settings.QSO_LOG_DB}?mode=ro", uri=True, timeout=10)
+        try:
+            rows = con.execute("SELECT rowid, ts, remote_callsign FROM qso_log").fetchall()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return []
+    out = []
+    for rowid, ts, call in rows:
+        m = re.fullmatch(r'([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})', str(ts or ""))
+        out.append((rowid, (str(call or "").upper(), "".join(m.groups()[:3]), "".join(m.groups()[3:])) if m else None))
+    return out
+
+
+def worked_extra(keys=None):
+    """The rowids of the QSOs in qso_log.db that are in none of the logs here (imported, or deleted here before),
+    and how many it holds. keys: the qso_keys of the logs' QSOs, when the caller has read them already"""
+    if keys is None:
+        keys = [qso_key(rec) for log in field_logs() for rec in log_records(log["name"])]
+    exact = {k for k in keys if k and len(k[2]) == 6}
+    minute = {k for k in keys if k and len(k[2]) == 4}
+    rows = worked_rows()
+    extra = [rowid for rowid, key in rows
+             if not key or (key not in exact and (key[0], key[1], key[2][:4]) not in minute)]
+    return extra, len(rows)
 
 
 @app.delete('/api/field/logs/<name>/<n:int>')
 def delete_qso(name, n):
-    return edit_qso(name, n, lambda rec: None, bottle.request.query.get("id", "")) or {"status": "OK"}
+    return edit_qso(name, n, lambda rec: None, bottle.request.query.get("id", ""))
 
 
 @app.put('/api/field/logs/<name>/<n:int>')
@@ -2145,7 +2360,7 @@ def put_qso(name, n):
     def change(rec):
         rec = adif_set(adif_set(adif_set(rec, "CALL", call), "RST_SENT", rs), "RST_RCVD", rr)
         return rec if ref is None else set_ref(rec, ref)
-    return edit_qso(name, n, change, bottle.request.query.get("id", "")) or {"status": "OK"}
+    return edit_qso(name, n, change, bottle.request.query.get("id", ""))
 
 
 @app.delete('/api/field/logs/<name>')
@@ -2154,11 +2369,13 @@ def delete_field_log(name):
         return api_error(400, "Not a log")
     if name == field_active_log():
         return api_error(409, "This activation is still running: end it on the radio first")
+    recs = log_records(name)
     try:
         os.remove(field_path("logs", name))
     except FileNotFoundError:
         return api_error(404, "Not found")
-    return get_field()
+    notes = follow_qsos([(rec, None) for rec in recs])   # its QSOs no longer worked (#284)
+    return dict(get_field(), **({"note": "; ".join(notes)} if notes else {}))
 
 
 # Logs page: every QSO of every log in <FIELD_DIR>/logs (the day's logs YYYYMMDD.adi and the activations),
@@ -2193,14 +2410,69 @@ def logs_page():
 
 @app.get('/api/logs')
 def get_logs():
-    qsos = []
+    """The QSOs; "worked": how many QSOs the FT8, FT4 and JS8 apps count as worked (qso_log.db), and how many of them
+    are in none of these logs (worked_extra)"""
+    qsos, keys = [], []
     for log in field_logs():
         for n, rec in enumerate(log_records(log["name"])):
             q = adif_fields(rec)
             if q.get("submode"):   # MFSK with SUBMODE FT4, JS8, FT2, JTTY, PSK with PSK31: the submode names it
                 q["mode"] = q["submode"]
             qsos.append(dict(q, file=log["name"], n=n, id=rec_id(rec)))
-    return {"qsos": qsos, "active": field_active_log()}
+            keys.append(qso_key(rec))
+    extra, total = worked_extra(keys)
+    return {"qsos": qsos, "active": field_active_log(), "worked": {"total": total, "extra": len(extra)}}
+
+
+@app.post('/api/logs/delete')
+def delete_log_qsos():
+    """JSON {"qsos": [{"file", "n", "id"}, ...]}: those QSOs deleted, each log written once, then from the radio's
+    other stores (follow_qsos). Delete shown went a request a QSO, each rewriting ft_log.adi too. Not while one of
+    them is in the activation running on the radio. A QSO the file no longer holds is counted as stale"""
+    try:
+        data = bottle.request.json
+    except ValueError:
+        data = None
+    items = data.get("qsos") if isinstance(data, dict) else None
+    if not isinstance(items, list) or not all(isinstance(q, dict) for q in items):
+        return api_error(400, "Which QSOs")
+    by_file = {}
+    for q in items:
+        name, rid = str(q.get("file", "")), str(q.get("id", ""))
+        try:
+            n = int(q.get("n", -1))
+        except (TypeError, ValueError):
+            n = -1
+        if not name.endswith(".adi") or os.path.basename(name) != name or not re.fullmatch(r'[0-9a-f]{12}', rid):
+            return api_error(400, "Which QSOs")
+        by_file.setdefault(name, []).append((n, rid, lambda rec: None))
+    if field_active_log() in by_file:
+        return api_error(409, "The activation running on the radio is in the list: end it first")
+    changed, stale = [], 0
+    for name, edits in sorted(by_file.items()):
+        err, done, left = edit_records(name, edits)
+        changed += done
+        stale += len(edits) if err else len(left)
+    return ok_noted(follow_qsos(changed), deleted=len(changed), stale=stale)
+
+
+@app.post('/api/logs/worked/forget')
+def forget_worked():
+    """The QSOs the FT8, FT4 and JS8 apps count as worked that are in none of the logs here taken out of
+    qso_log.db (worked_extra): those deleted here by an older firmware, and the ones imported from
+    incoming_log.adi, which were never here"""
+    extra, _ = worked_extra()
+    if extra:
+        try:
+            con = sqlite3.connect(f"file:{settings.QSO_LOG_DB}?mode=rw", uri=True, timeout=10)
+            try:
+                with con:
+                    con.executemany("DELETE FROM qso_log WHERE rowid = ?", [(r,) for r in extra])
+            finally:
+                con.close()
+        except sqlite3.Error as ex:
+            return api_error(500, f"Not done: {ex}")
+    return {"status": "OK", "forgot": len(extra)}
 
 
 # Editable fields and what they may hold (no < or >: they would break the ADIF tags)
@@ -2278,7 +2550,7 @@ def put_log_qso(name, n):
                 v = v.lower() if k == "band" else v
                 rec = adif_set(rec, k.upper(), v) if v else adif_del(rec, k.upper())
         return rec
-    return edit_qso(name, n, change, bottle.request.query.get("id", "")) or {"status": "OK"}
+    return edit_qso(name, n, change, bottle.request.query.get("id", ""))
 
 
 def adif_header(title):

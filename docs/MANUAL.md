@@ -369,6 +369,10 @@ as on the stock firmware, say). The steps are 10 Hz, 100 Hz, 500 Hz, 1 kHz,
 To go further at once, type the frequency (F-INP, or `f` on a keyboard).
 Where: Settings > Keys > FRONT KEYS, LONG PRESS.
 
+A key let go while the radio is busy (a band change, an app closing) is a
+tap however late the radio reads it. Up to v0.3.12 one read after the long
+press time counted as held: a tap of F1 did its long action (#233).
+
 | Kind | Actions |
 |---|---|
 | Quick | none, screenshot, RX recorder on/off, screen rec on/off, mute, frequency lock on/off, step up, step down, WF mode, WF 3D on/off, CW decoder on/off, CW ZAP (in CW and CW-R, the dial onto the signal the CW Tuner hears, as the CW 1:2 ZAP button; up to v0.3.9 neither was a key action, #196), SWL panel (as the X6100 hand mic's GENE: the broadcast stations on the air within 2 kHz, again the next one), SWL: save channel (as its NW: the station shown saved as a channel; up to v0.3.11 neither was a key action, so an X6200 could not open the panel, #155), ATT on/off, PRE on/off, tuner on/off, tuner tune (transmits a carrier), TUNE ext. tuner on/off (a carrier for a tuner at the antenna, see [TUNE for an external tuner](#tune-for-an-external-tuner)) |
@@ -798,6 +802,15 @@ low while the base is reset, as Xiegu's own X6100 updater does. More in
 The BAND keys (and the hand mic's long UP/DOWN, a keyboard's CapsLock+Up and
 Down, the Walkie Talkie's Band buttons, the browser panel) step through the
 active bands of the band list, from the frequency up or down.
+
+- A BAND key steps on the press, as on the stock firmware, and held it goes
+  on: the next band half a second later, then one every 0.3 s, until it is
+  let go. Up to v0.3.12 the step came on the release, so it felt late, and a
+  press held past one second (the long press time) did nothing, nor did a
+  tap the radio read late while busy (just after a band change, a quick turn
+  of the knob, an app closing) (#233). An app with its own band list (FT8,
+  WSPR, PSK, Olivia, JTTY) steps through it the same way. The browser's
+  screen keys work like the radio's.
 
 - They skip a band the radio cannot tune: 4 m (70 MHz), 2 m and 70 cm,
   unless a transverter that is on (Settings > General > TRANSVERTERS) or, on
@@ -3375,6 +3388,16 @@ distance in the same unit.
 A POTA tag after the message marks a station spotted on POTA right now, and
 any `CQ POTA`. The spots are the ones the cluster already fetches from
 pota.app; with no spots there is no tag.
+
+Worked comes from the radio's QSO list, `/mnt/qso_log.db`: every FT8, FT4,
+FT2 and JS8 QSO, and the QSOs imported from `incoming_log.adi`. A QSO
+deleted on the web Logs page, or with its whole log on the Field Ops page,
+goes from the list too, and from `ft_log.adi` or `js8call_log.adi`: from the
+next decode the call is no longer worked, no restart. A QSO whose call,
+time, band or mode is changed there is worked under the new ones. Up to
+v0.3.12 a deleted QSO stayed in the list (issue #284); those, and the
+imported ones, are in no log on the Logs page, which counts them under
+Worked before and forgets them on request.
 
 Replying. Turn the MFK onto a row and press it. The radio
 answers that station, moves your TX offset there (unless Hold Freq is on) and
@@ -6424,7 +6447,7 @@ The menu has General and five groups:
 | | GhostNet | GhostNet's nets of the next 7 days in UTC and the radio's own time, the reminder and the nets it is for, the own net, the regional group, the two translation switches, the messages JS8 heard and sent there with their translations, the stations heard, a short guide (writes `/mnt/ghostnet.conf`, see [GhostNet](#ghostnet)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
-| | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
+| | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV (a QSO deleted or edited here is so in the worked-before list of FT8, FT4 and JS8 and in `ft_log.adi` or `js8call_log.adi` too); Worked before: the QSOs that list has besides (imported, or deleted by v0.3.12 or older), counted and forgotten on request; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
 | | Internet radio | the [Internet radio](#internet-radio)'s favourites: add a station by its name and stream address, edit, move up, delete; whether this card image plays more than MP3 (writes `/mnt/iradio/favorites.tsv`) |
 | | Zello | the [Zello](#zello) app's account (user name, password, the developer key's Issuer and Private Key: only Set or Not set shown again, the user name as its first two characters), Clear account, Test (logs on to zello.io and off again), and the channels, one a line (writes `/mnt/zello`, for root alone; the account not in a Backup and not on the Files page, the channels in the Backup's Apps' lists) |
 | | Flights | the aircraft around the radio, as APP > Flights shows them: plot, list, range, a centre by locator (see [Flights](#flights)) |
@@ -8920,6 +8943,12 @@ header: a line naming the file, ADIF_VER 3.1.8, PROGRAMID OpenX6X00 and
 PROGRAMVERSION, the firmware's version (Settings > Info). An `ft_log.adi`
 begun before keeps the header it had (PROGRAMVERSION 1.0.0, ADIF_VER 3.14);
 `js8call_log.adi` keeps desktop JS8Call's.
+
+The logs on the Logs page are the ones that count. A QSO deleted there (or
+with its log on the Field Ops page) is deleted from `ft_log.adi`,
+`js8call_log.adi` and the worked-before list (`qso_log.db`) too; a QSO
+edited there is edited in them, field for field. The other files' records
+of QSOs not on the page stay as they are.
 
 ## Reference
 

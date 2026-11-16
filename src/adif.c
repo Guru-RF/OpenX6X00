@@ -27,8 +27,11 @@
 
 #define COPY_STR(dst, src, len) (copy_str(dst, src, len, sizeof(dst)))
 
+/* The file's name only: each QSO opens it, appends and closes it under the lock on its folder (field_log_append).
+ * Held open from the app's start, the file was appended to after the web configurator's Logs page had replaced it
+ * with a QSO deleted (#284): the QSOs after that went into the old copy, gone */
 struct adif_log_s {
-    FILE *fd;
+    char path[256];
 };
 
 static void copy_str(char * dst, char * src, size_t val_len, size_t dst_len);
@@ -39,30 +42,15 @@ static qso_log_mode_t create_mode(const char * mode, const char * submode);
 
 
 adif_log adif_log_init(const char * path) {
-    adif_log log = (adif_log) malloc(sizeof(struct adif_log_s));
-    bool new_file = false;
-    if (access(path, F_OK) != 0) {
-        new_file = true;
-    }
-    FILE *log_fd = fopen(path, "a");
-    if (log_fd == NULL) {
-        perror("Unable to open log file:");
-        free(log);
-        return NULL;
-    } else {
-        log->fd = log_fd;
-        if (new_file) {
-            /* the day's log's header (#174). Before: PROGRAMVERSION 1.0.0, ADIF_VER 3.14, and the file
-             * started with a tag, which in ADIF means it has no header */
-            field_adif_header(log->fd, BOARD_NAME " FT8, FT4 and FT2 log");
-        }
-    }
+    adif_log log = (adif_log) calloc(1, sizeof(struct adif_log_s));
+
+    if (log)
+        snprintf(log->path, sizeof(log->path), "%s", path);
     return log;
 }
 
 void adif_log_close(adif_log l) {
-    if (!l) return;     /* /mnt/ft_log.adi could not be opened (read-only or full microSD) */
-    fclose(l->fd);
+    free(l);
 }
 
 field_qso_t adif_field_qso(const qso_log_record_t *r) {
@@ -99,15 +87,15 @@ void adif_add_qso(adif_log l, qso_log_record_t qso)
 {
     field_station_t sta = {0};
     field_qso_t     q;
-    char            rec[768];
 
-    if (!l) return;     /* the day's log says why (dialog_field_day_log) */
+    if (!l) return;
     q = adif_field_qso(&qso);
     snprintf(sta.call, sizeof(sta.call), "%s", qso.local_call);
     snprintf(sta.grid, sizeof(sta.grid), "%s", qso.local_grid);
-    field_adif_record(rec, sizeof(rec), &q, &sta);
-    fputs(rec, l->fd);
-    fflush(l->fd);
+    /* the day's log's header in a new file (#174). Before: PROGRAMVERSION 1.0.0, ADIF_VER 3.14, and the file
+     * started with a tag, which in ADIF means it has no header. A file that can't be written: the day's log
+     * says why (dialog_field_day_log) */
+    field_log_append(l->path, BOARD_NAME " FT8, FT4 and FT2 log", &q, &sta);
 }
 
 /* One ADIF tag: <NAME:LEN[:TYPE]> or <EOR>/<EOH>. p is at '<'. TAG_OK with *next after the

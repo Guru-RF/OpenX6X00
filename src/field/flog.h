@@ -89,6 +89,10 @@ int field_adif_header(FILE *f, const char *title);
 /* Appends the QSO (a header first when the file is new) */
 bool field_log_add(const char *path, const field_qso_t *q, const field_station_t *st);
 
+/* As field_log_add, a new file's header with title as its first line: ft_log.adi's (adif.c). Under the lock on the
+ * file's folder the web configurator takes while it rewrites a log (apps.py edit_qso, #284) */
+bool field_log_append(const char *path, const char *title, const field_qso_t *q, const field_station_t *st);
+
 /* What went wrong with field_log_add, from its errno, in words for the operator */
 const char *field_log_error(int err);
 

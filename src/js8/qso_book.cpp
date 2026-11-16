@@ -15,7 +15,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <fcntl.h>
 #include <sstream>
+#include <sys/file.h>
 #include <unistd.h>
 #include <vector>
 
@@ -270,10 +272,23 @@ std::string adif_record(const LogEntry &entry) {
 static const char ADIF_HEADER[] = "X6100 JS8 log, desktop JS8Call format\n"
                                   "<adif_ver:5>3.1.4 <programid:9>X6100_JS8 <eoh>\n";
 
+/* The lock on the file's folder the web configurator takes while it rewrites the file (a QSO deleted or changed on
+ * its Logs page, apps.py, #284), as the radio's other logs take it (src/field/flog.c): a QSO appended meanwhile
+ * would go into the copy being replaced. -1 when the folder can't be opened: the QSO goes in all the same */
+static int folder_lock(const std::string &path) {
+    const std::size_t slash = path.rfind('/');
+    const std::string dir   = slash == std::string::npos ? "." : slash == 0 ? "/" : path.substr(0, slash);
+    const int         fd    = open(dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (fd >= 0) flock(fd, LOCK_EX);
+    return fd;
+}
+
 bool adif_append(const std::string &path, const LogEntry &entry, std::string &err) {
-    FILE *fp = std::fopen(path.c_str(), "a");
+    const int lock = folder_lock(path);
+    FILE     *fp   = std::fopen(path.c_str(), "a");
     if (fp == nullptr) {
         err.assign("can't open ").append(path);
+        if (lock >= 0) close(lock);
         return false;
     }
     /* In append mode the position is only known after seeking to the end. */
@@ -284,6 +299,7 @@ bool adif_append(const std::string &path, const LogEntry &entry, std::string &er
     /* Straight to the SD card: the radio may lose power at any moment; a card error is a failure */
     if (good) good = fsync(fileno(fp)) == 0;
     const bool closed = std::fclose(fp) == 0;
+    if (lock >= 0) close(lock); /* lets go of the lock */
     good = closed && good;
     if (!good) err = "can't write " + path;
     return good;

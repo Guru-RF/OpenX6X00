@@ -298,7 +298,9 @@ static void front_key(keypad_key_t key, keypad_state_t state) {
     lv_event_send(main_obj, EVENT_KEYPAD, &ev);
 }
 
+/* A tap: the press, then its release. The band keys step on the press, the others act on the release */
 static void key_press_cb(button_data_t *d) {
+    front_key(d->ctrl, KEYPAD_PRESS);
     front_key(d->ctrl, KEYPAD_RELEASE);
 }
 

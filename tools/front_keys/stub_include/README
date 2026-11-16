@@ -1,0 +1,3 @@
+Stand-ins for the GUI's headers that src/front_keys.c includes, for front_keys_test.c: it is compiled from a copy in
+build/, so these come before src/ (a quoted #include looks beside the including file first). front_keys.h and
+gui_events.h are the GUI's own, with LVGL's part of them from lvgl/lvgl.h here.
