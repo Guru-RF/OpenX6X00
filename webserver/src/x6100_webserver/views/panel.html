@@ -57,7 +57,7 @@
 .b.lvl:active { background:var(--pc); color:var(--pt); }
 .pn-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 10px; }
 .pn-bar .status { margin-left:auto; }
-.pn-bar button[aria-pressed="true"] { background:var(--pon); color:#fff; border-color:var(--pon); }
+.pn-bar button[aria-pressed="true"] { background:var(--pon, #2a7fff); color:#fff; border-color:var(--pon, #2a7fff); }   /* the bar is outside .pn, where --pon lives */
 /* The side column */
 .tabs { display:flex; gap:4px; background:var(--pc); border:1px solid var(--pl); border-radius:10px; padding:4px; }
 .tabs { flex-wrap:wrap; }
@@ -169,6 +169,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
 <div class="pn-bar">
   <button type="button" id="snd" aria-pressed="false">Sound</button>
   <button type="button" id="mic" aria-pressed="false" title="The browser's microphone transmits while PTT is held">Mic</button>
+  <button type="button" id="gps" aria-pressed="false" title="The phone's position to the radio, for Field Ops when no GPS is plugged in">GPS</button>
   <button type="button" id="theme" title="Dark or light (for the sun)">Light</button>
   <button type="button" id="pal" title="The waterfall's colours">Colours</button>
   <button type="button" id="appmode" title="The panel alone, the height of the screen">App</button>
@@ -1028,6 +1029,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
       if (head === "err") wantDrop();                /* a change refused (whichever): the radio's values again */
       if (head === "err" && xtune.err(body)) return; /* a tune refused or stopped by the radio: the TUNE button says so */
       if (head === "err" && ptt.err(body)) return;   /* a refused or ended transmission: the PTT button says so */
+      if (head === "clk") { clockAnswer(body); return; }
       if (head === "state") { state = JSON.parse(body); stateAt = Date.now(); showState(); requestDraw(); }
       else if (head === "m") showMeter(parseFloat(body));
       else if (head === "t") { const a = body.split(" "); showTx(parseFloat(a[0]), parseFloat(a[1]), parseFloat(a[2])); }
@@ -1070,7 +1072,7 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
     onStall: function(on) { stalled(on); },
   });
   /* Who this browser is to the radio and who controls it (R3); the PTT as the radio confirms it (R4) */
-  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { tciKey(); showHealth(); ptt.render(); if (xtune) xtune.render(); statusCheck(); }, onTx: function(on) { ptt.radioTx(on); },
+  ses = RadioSession.create({send: send, status: status, el: document.getElementById("ses"), onChange: function() { tciKey(); showHealth(); ptt.render(); if (xtune) xtune.render(); statusCheck(); gpsSend(true); }, onTx: function(on) { ptt.radioTx(on); },
     awayUrl: function() { return !FUNNEL && conf && conf.funnel_url ? conf.funnel_url : null; }});   /* Use away from home (#58) */
   ptt = RadioPtt.create({el: document.getElementById("pttbtn"), send: send, status: status, session: ses, link: link,
     mic: {wanted: function() { return micOn; }, ready: function() { return !!micStream && tlink.up; }, start: function() { return txStart(); }, stop: function() { txStop(); }}});
@@ -1277,6 +1279,57 @@ body.app h2, body.app #intro, body.app #intro-away { display:none; }
       });
     } else { micState = "off"; status("Microphone off: PTT transmits the microphone at the radio"); }
     ptt.reset();
+  });
+  /* GPS: the phone's position to the radio ("pos LAT LON ACC"), Field Ops' place when no GPS is plugged in. Sent when
+   * it moved 20 m or more, and again every two minutes standing still (the radio forgets one older than ten); as soon
+   * as the browser may operate too (paired), since a watcher's is refused. The phone's clock goes with it: "clk? T",
+   * the radio sets its clock from the phone's where nothing else keeps it (no internet in the field). The browsers
+   * give a position to an https page only */
+  let gpsWatch = null, gpsLast = null, gpsSent = 0, gpsTimer = null;
+  function gpsSend(force) {
+    const p = gpsLast;
+    if (!p || !ses || ses.role === "view") return;
+    if (!force && Date.now() - gpsSent < 120000) return;
+    if (send("pos " + p.lat.toFixed(6) + " " + p.lon.toFixed(6) + " " + Math.round(p.acc))) {
+      gpsSent = Date.now();
+      send("clk? " + Date.now());
+    }
+  }
+  /* "clk T S": the radio's answer to "clk? T", T ours, S its: the round trip measured, our time goes with it. "clk set
+   * D": the radio took ours, D ms off */
+  function clockAnswer(body) {
+    const a = body.split(" ");
+    if (a.length === 2 && /^\d+$/.test(a[0])) {
+      const rtt = Date.now() - parseInt(a[0], 10);
+      if (rtt >= 0) send("clk " + Date.now() + " " + rtt);
+    } else if (a[0] === "set") {
+      const d = parseInt(a[1], 10) / 1000;
+      status("Radio clock set from the phone (" + (d > 0 ? "+" : "") + d.toFixed(1) + " s)");
+    }
+  }
+  function gpsMetres(a, b) {
+    const r = Math.PI / 180, x = (b.lon - a.lon) * r * Math.cos((a.lat + b.lat) / 2 * r), y = (b.lat - a.lat) * r;
+    return Math.sqrt(x * x + y * y) * 6371000;
+  }
+  $("#gps").on("click", function() {
+    if (gpsWatch !== null) {
+      navigator.geolocation.clearWatch(gpsWatch); clearInterval(gpsTimer); gpsWatch = gpsTimer = null; gpsLast = null;
+      $("#gps").attr("aria-pressed", "false"); status("Phone position off: the radio keeps the last one ten minutes"); return;
+    }
+    if (!navigator.geolocation || !window.isSecureContext) { status(secure ? "No position in this browser" : "Position: open the https page (link below)", true); return; }
+    $("#gps").attr("aria-pressed", "true"); status("Asking the browser for the position...");
+    gpsWatch = navigator.geolocation.watchPosition(function(pos) {
+      const p = {lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy || 0};
+      const moved = !gpsLast || gpsMetres(gpsLast, p) >= 20;
+      gpsLast = p;
+      gpsSend(moved);
+      status("Phone position to the radio: ±" + Math.round(p.acc) + " m");
+    }, function(e) {
+      if (gpsWatch !== null) navigator.geolocation.clearWatch(gpsWatch);
+      clearInterval(gpsTimer); gpsWatch = gpsTimer = null;
+      $("#gps").attr("aria-pressed", "false"); status("Position refused: " + e.message, true);
+    }, {enableHighAccuracy: true, maximumAge: 30000, timeout: 60000});
+    gpsTimer = setInterval(function() { gpsSend(false); }, 10000);
   });
   function txFrame(samples, rate) {
     const n = samples.length, buf = new ArrayBuffer(HDR + n * 2), dv = new DataView(buf);

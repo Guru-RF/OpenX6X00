@@ -89,7 +89,8 @@
 #define STATUS_H    34
 #define MAX_NEAR    30
 #define MAX_QSO     200
-#define GPS_MAX_AGE 600     /* s */
+#define GPS_MAX_AGE 600     /* s; the phone's position too */
+#define PHONE_MAX_ACC 1000  /* m: coarser than that (a phone placed by its cell), the locator does as well */
 #define PHONE_MAX_AGE 1800
 
 typedef enum { SCR_HOME, SCR_PROG, SCR_BANDS, SCR_LOG } screen_t;
@@ -401,11 +402,18 @@ static bool is_cw(void) {
     return m == radio_mode_cw || m == radio_mode_cwr;
 }
 
-/* The best position: radio GPS, else the QTH locator. src: "GPS", "QTH" */
+/* The best position: radio GPS, else the phone's (the Panel page's GPS button), else the QTH locator. src: "GPS",
+ * "PHONE", "QTH" */
 static bool position(double *lat, double *lon, const char **src, int *age) {
+    int acc;
+
     *age = 0;
     if (gps_last_fix(lat, lon, age) && *age < GPS_MAX_AGE) {
         *src = "GPS";
+        return true;
+    }
+    if (gps_phone_fix(lat, lon, age, &acc) && *age < GPS_MAX_AGE && acc <= PHONE_MAX_ACC) {
+        *src = "PHONE";
         return true;
     }
     const char *qth = station_qth();
@@ -417,6 +425,11 @@ static bool position(double *lat, double *lon, const char **src, int *age) {
     }
     *src = "";
     return false;
+}
+
+/* A position older than this is shown "(old)": the phone's comes every two minutes standing still */
+static int old_s(const char *src) {
+    return strcmp(src, "PHONE") ? 60 : 150;
 }
 
 static void deg_text(char *buf, size_t size, double lat, double lon) {
@@ -638,9 +651,9 @@ static void near_result_cb(void *arg) {
     memcpy(near, r->refs, sizeof(near));
     /* The nearest one is the reference while none is chosen. Tiles: the tile we are in follows a move while it is
      * the automatic one, "here (...)" (the name is in the state file, so a tile chosen around it or typed in stays
-     * chosen after a restart too); a GPS tile is not given up for the locator's when the fix gets old */
+     * chosen after a restart too); a GPS or phone tile is not given up for the locator's when the fix gets old */
     bool follow = r->prog == 'G' && near_n > 0 && st.have_ref && st.ref.type == 'G' && !strncmp(st.ref.name, "here (", 6)
-                  && (strcmp(st.ref.name, "here (GPS)") || !strcmp(near[0].name, "here (GPS)"));
+                  && (!strcmp(st.ref.name, "here (locator)") || strcmp(near[0].name, "here (locator)"));
     if (!st.active && near_n > 0 && (!st.have_ref || st.ref.type != r->prog || follow)) {
         st.ref      = near[0];
         st.have_ref = true;
@@ -694,7 +707,7 @@ static int tiles_near(double lat, double lon, const char *src, field_ref_t *out,
                 r->km = (float)qth_pos_dist(lat, lon, nlat, nlon);
                 snprintf(r->name, sizeof(r->name), "%s", dirs[dy + 1][dx + 1]);
             } else {
-                snprintf(r->name, sizeof(r->name), "here (%s)", !strcmp(src, "GPS") ? "GPS" : "locator");
+                snprintf(r->name, sizeof(r->name), "here (%s)", !strcmp(src, "QTH") ? "locator" : src);
             }
         }
     for (int i = 1; i < n; i++)                 /* by distance; here first, at 0 */
@@ -1233,7 +1246,7 @@ static void prog_info_update(void) {
                  theme_hex(TC_text_dim), st.ref.points);
     snprintf(buf, sizeof(buf), "%s%s\n%s\n#%06x Position from %s%s#", alt, have_pos ? grid : "-",
              have_pos ? deg : "GPS, phone or locator needed", theme_hex(TC_text_dim), have_pos ? src : "-",
-             have_pos && age > 60 ? " (old)" : "");
+             have_pos && age > old_s(src) ? " (old)" : "");
     lv_label_set_text(info_lines, buf);
     lv_obj_set_style_bg_color(info_dot, TC(err), 0);
     lv_label_set_text(info_state, "NOT ACTIVE");

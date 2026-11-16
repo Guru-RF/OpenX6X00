@@ -58,7 +58,11 @@
  *  server uses them) and tells the panel clients what changed every 50 ms. The apps: the FT8
  *  list's rows go out as they come ("ft8r {...}", the last 48 to a page that opens later), the
  *  app's state when it changes ("ft8 {...}"), the CW decoder's text ("cw \"...\""); "ft8
- *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "log
+ *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "pos LAT
+ *  LON [ACC]" gives the radio the phone's position (degrees, the accuracy in metres; Field Ops uses
+ *  it when no GPS is plugged in, operate without control: it touches nothing of the RF side), "clk?
+ *  MS" and "clk MS RTT" the phone's clock (clock_from_phone: the radio's set from it in the field,
+ *  where neither NTP nor a GPS keeps it), "log
  *  CALL|RSTS|RSTR|NAME" writes the day's log as the CW keyboard does ("logged ok|no"). "logq ID
  *  CALL|..." is the same with a number the page chose: the answer is "logged ID ok|no", kept for
  *  the last 64, and "logq? ID CALL|..." asks for it again after a dropped connection or a reload,
@@ -90,7 +94,10 @@
 #include "remote_server.h"
 #include "remote_sessions.h"
 #include "control_owner.h"
+#include "clock.h"
 #include "front_keys.h"
+#include "ft8/utils.h"
+#include "gps.h"
 #include "msg_box.h"
 #include "board.h"
 
@@ -1782,6 +1789,58 @@ static bool allowed(client_t *c, uint8_t role, bool control) {
     return true;
 }
 
+/* "clk MS RTT": the phone's clock, step 2 (operate, no control: it touches nothing of the RF side). MS the phone's
+ * time as it sent this, RTT the round trip it measured with "clk?": the radio's clock is set to MS + RTT / 2 when it
+ * is more than CLK_STEP_MS off, and only while nothing else keeps it, neither ntpd (the network, or the GPS through
+ * it) nor a GPS fix of the last seconds, the FT8 app's Time Sync rule: in the field, with no internet. A round trip
+ * over CLK_RTT_MAX_MS is no measure. A clock set goes into the RTC too and the radio says so. Answered "clk
+ * set|ok|ntp|gps|slow DIFF" (the difference found, in ms) or "err clk ...". Socket thread */
+#define CLK_STEP_MS    300
+#define CLK_RTT_MAX_MS 1000
+#define CLK_GPS_AGE_S  10      /* a GPS fix this recent: gpsd feeds ntpd */
+
+static void clock_from_phone(client_t *c, const char *ms_s, const char *rtt_s) {
+    char           *e1, *e2;
+    long long       ms = strtoll(ms_s, &e1, 10), rtt = strtoll(rtt_s, &e2, 10);
+    struct timespec now;
+    double          lat, lon;
+    int             age;
+
+    if (!allowed(c, ROLE_OPERATE, false))
+        return;
+    if (*e1 || *e2 || ms < 1700000000000LL || rtt < 0) {     /* 1700000000000: November 2023, no phone's clock */
+        client_text(c, "err clk MS RTT");
+        return;
+    }
+    clock_gettime(CLOCK_REALTIME, &now);
+    long long ours = (long long)now.tv_sec * 1000 + now.tv_nsec / 1000000, theirs = ms + rtt / 2, diff = theirs - ours;
+    if (rtt > CLK_RTT_MAX_MS) {
+        client_textf(c, "clk slow %lld", diff);
+        return;
+    }
+    if (ftx_clock_synced(NULL)) {
+        client_textf(c, "clk ntp %lld", diff);
+        return;
+    }
+    if (gps_last_fix(&lat, &lon, &age) && age <= CLK_GPS_AGE_S) {
+        client_textf(c, "clk gps %lld", diff);
+        return;
+    }
+    if (llabs(diff) <= CLK_STEP_MS) {
+        client_textf(c, "clk ok %lld", diff);
+        return;
+    }
+    struct timespec set = {.tv_sec = theirs / 1000, .tv_nsec = (theirs % 1000) * 1000000};
+    if (clock_settime(CLOCK_REALTIME, &set) != 0) {
+        client_textf(c, "err clk: %s", strerror(errno));
+        return;
+    }
+    clock_rtc_save();
+    LV_LOG_USER("Clock set from the phone: %+lld ms (round trip %lld ms)", diff, rtt);
+    msg_schedule_text_fmt("Clock set from the phone: %+.1f s", diff / 1000.0);
+    client_textf(c, "clk set %lld", diff);
+}
+
 /* "key PTT 1 HOLD": the radio's own microphone keyed, HOLD the page's number for this press; the page sends the
  * same every second to renew the lease (ptt_lease). Only the hold that keyed is renewed: one that ended (the lease
  * ran out, three minutes, a release) or was refused stays ended, so the renewals a stalled link delivers late key
@@ -2140,6 +2199,26 @@ static void handle_text(client_t *c, char *text) {
             return;
         if (!app_ft8_cmd(a[1], n >= 3 ? a[2] : NULL))
             client_textf(c, "err ft8 %s", a[1]);
+    } else if (!strcmp(a[0], "clk?") && n >= 2) {
+        /* the phone's clock, step 1: its time sent back with ours, so the page knows the round trip */
+        struct timespec ts;
+
+        clock_gettime(CLOCK_REALTIME, &ts);
+        client_textf(c, "clk %s %lld", a[1], (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    } else if (!strcmp(a[0], "clk") && n >= 3) {
+        clock_from_phone(c, a[1], a[2]);
+    } else if (!strcmp(a[0], "pos") && n >= 3) {
+        char   *e1, *e2;
+        double  lat = strtod(a[1], &e1), lon = strtod(a[2], &e2);
+        double  acc = n >= 4 ? strtod(a[3], NULL) : 0;
+        if (!allowed(c, ROLE_OPERATE, false))
+            return;
+        if (*e1 || *e2 || !isfinite(lat) || !isfinite(lon) || fabs(lat) > 90 || fabs(lon) > 180 || !isfinite(acc)
+            || acc < 0) {
+            client_text(c, "err pos LAT LON [ACC]");
+            return;
+        }
+        gps_phone_set(lat, lon, acc > 100000 ? 100000 : (int)lround(acc));
     } else if (!strcmp(a[0], "key") && n >= 3) {
         int  code = key_code(a[1]);
         bool down = atoi(a[2]) != 0;

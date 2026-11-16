@@ -4783,9 +4783,13 @@ SOTA / POTA, before the activation:
   (SOTA), locator, coordinates and where the position comes from. On the
   right the nearest references with their distance. The nearest one is
   taken; the MFK and a press choose another; Ref... (page 2) types one.
-- The position comes from the radio's GPS, else from the QTH locator. The
-  dot in the header is green for a real position (GPS), yellow for the
-  locator.
+- The position comes from the radio's GPS, else from the phone's (the GPS
+  button of the [Browser panel](#browser-panel), "PHONE" in the header) while
+  it is under ten minutes old and better than 1 km, else from the QTH
+  locator. The dot in the header is green for a real position (GPS or
+  phone), yellow for the locator. The phone's position is "(old)" after
+  150 s (it comes every two minutes when you stand still), the GPS's after
+  60 s.
 - Update list (page 2) downloads the reference lists of all the programmes; then it
   works offline. Also from the web configurator's Field Ops page. The radio
   says "Downloading the reference lists: up to half an hour on a slow WiFi",
@@ -6384,6 +6388,17 @@ browser paired at home on any device.
 - Sound (the RX audio in the browser) and Mic (the browser's microphone while
   PTT is held) as on the Screen page, over the TCI server; PTT without Mic
   keys the radio's own microphone.
+- GPS: the phone's position to the radio, for Field Ops when no GPS is
+  plugged in (see [Field Ops](#field-ops-sota--pota)), and the phone's clock
+  with it. The browser asks first, and gives a position to the https page
+  only. It is sent when the phone moved 20 m or more and every two minutes
+  standing still, as soon as the browser is paired (a browser that only
+  watches sends nothing); a second press stops it, and the radio keeps the
+  last one ten minutes. The radio sets its clock from the phone's when it is
+  more than 0.3 s off and nothing else keeps it, neither NTP (WiFi) nor a GPS:
+  in the field, so FT8 and the other digital modes have the time right. The
+  radio says "Clock set from the phone: +12.3 s", and the clock goes into
+  the radio's RTC too. A round trip over a second is not taken.
 - Light: a light theme for the sun. App: the panel alone, without the
   configurator's header, for a phone. Fullscreen.
 - Keyboard: left and right arrows tune (Shift: ten steps), `[` and `]` the
@@ -6457,7 +6472,15 @@ before with the same QSO is written only once (the answer goes out again),
 with another QSO it is answered `logged ID conflict` and not written.
 `logq? ID CALL|...` asks for one again: `ok`, `no`, `pending` (still being
 written), `conflict` (the number holds another QSO) or `unknown` (never
-seen, the radio restarted since, or no longer kept). After `size` the radio lists its keys (`keys GEN APP
+seen, the radio restarted since, or no longer kept). `pos LAT LON [ACC]`
+(operate, no control needed) gives the radio the phone's position, in
+degrees, its accuracy in metres; `err pos LAT LON [ACC]` for one that is no
+position. `clk? MS` (MS the client's time in ms since 1970) is answered
+`clk MS OURS`; `clk MS RTT` (operate), the client's time and the round trip
+it measured, sets the radio's clock to MS + RTT / 2 and is answered `clk set
+D`, D the difference in ms, or, leaving the clock alone, `clk ok D` (0.3 s
+or less off), `clk ntp D` (NTP keeps it), `clk gps D` (a GPS fix in the last
+10 s), `clk slow D` (a round trip over a second). After `size` the radio lists its keys (`keys GEN APP
 ...`: the X6200 has no PRE, V/M, AGC or LOCK key) and, to a panel, `modes 8|10`
 (the X6200 adds SAM and WFM; `set mode` with one the radio has not is answered
 `err mode: not on this radio`), `volmax 55|100`, the AF volume's range, and `pwrmax 100|80`, the top of
@@ -7784,7 +7807,8 @@ FAT32 on a PC settles it.
 #### FT8, JS8 or WSPR decode nothing, or nobody answers
 
 Check the clock: FT8 and JS8 need it within about 2 s, WSPR within about a
-second. WiFi (NTP) or GPS sets it. FT8 and JS8 also have Time Sync (FT8's
+second. WiFi (NTP) or GPS sets it, and in the field the phone's clock (the
+[Browser panel](#browser-panel)'s GPS button). FT8 and JS8 also have Time Sync (FT8's
 for a clock that neither keeps), and FT8 Auto Sync, which keeps the clock
 right from the decodes once Time Sync has it within about 2 s.
 
