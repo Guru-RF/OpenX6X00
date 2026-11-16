@@ -202,3 +202,25 @@ const char *cb_mode_name(cb_mode_t mode) {
 
     return mode < CB_MODES ? names[mode] : "";
 }
+
+/* How many characters from s on are digits (letters: alpha) */
+static int run(const char *s, bool alpha) {
+    int n = 0;
+
+    while (s[n] && (alpha ? isalpha((unsigned char)s[n]) : isdigit((unsigned char)s[n]))) n++;
+    return n;
+}
+
+bool cb_callsign(const char *call) {
+    if (!call) return false;
+
+    int club = run(call, false);
+    if (club < 1 || club > 3) return false;
+    const char *p = call + club;
+    int letters = run(p, true);
+    if (letters < 1 || letters > 2) return false;
+    p += letters;
+    if (*p == '/') return run(p + 1, true) == 2 && !p[3];
+    int unit = run(p, false);
+    return unit >= 1 && !p[unit] && (unit <= 3 || (unit == 4 && club == 1));
+}

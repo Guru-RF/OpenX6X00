@@ -23,8 +23,9 @@ extern "C" {
 bool ftx_call_is_standard(const char *call);
 
 /* ftx_message_encode(), and the type 4 form WSJT-X sends for a non-standard call of ours, "<W1ABC> KF0QGT/6Y" and
- * "<W1ABC> KF0QGT/6Y RR73": ft8_lib takes it only with the hashed call without its brackets. The message is zeroed
- * first */
+ * "<W1ABC> KF0QGT/6Y RR73": ft8_lib takes it only with the hashed call without its brackets. One call and a report or
+ * an end ("26AT101 -07", "26AT101 RR73": two CB calls in WSJT-CB) goes as free text, and free text right-aligned, as
+ * WSJT-X packs them. The message is zeroed first */
 ftx_message_rc_t ftx_encode_text(ftx_message_t *msg, ftx_callsign_hash_interface_t *hash_if, const char *text);
 
 #ifdef __cplusplus

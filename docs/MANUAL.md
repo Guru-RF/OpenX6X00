@@ -3466,6 +3466,32 @@ but Auto does not answer it and a press does not either, as there is no call
 to send the answer to; nothing is logged with it. The call shows once a
 message of that station's with its full call has been decoded.
 
+CB callsigns. The app works CB stations on 11 m with a CB call as WSJT-CB,
+the 27 MHz edition of the desktop program, does, and the two decode each
+other. A CB call (26AT101, 1AT106, 999ZZ999, 999ZZ/ZZ: 1 to 3 digits, 1 or 2
+letters, then 1 to 3 digits or a stroke and 2 letters) goes in Settings >
+General > STATION as any other callsign. Your CQ is `CQ 1AT106`, with
+no QTH. With another CB call the QSO goes as WSJT-CB makes it: your call to
+its CQ `<26AT101> 1AT106`, then the reports, RR73 and 73 with the other
+station's call alone, as free text: it sends `1AT106 -07`, you `26AT101
+R-05`, it `1AT106 RR73`, you `26AT101 73` (FT8 has no message with two
+such calls and a report). The messages to you name no sender: the app takes
+each one for the QSO whose station it heard on that audio frequency (within
+25 Hz), else for the QSO going on; Auto answers them, a press does too, and
+the QSO is logged as any other, with no grid. One with no QSO it could be
+part of is a message to you (red) that nothing answers. WSJT-CB's call as
+free text, its call and then yours (`1AT107 1AT106`), is taken as a call to
+you too. With an amateur call on the other side, the QSO goes as with a
+long call (above). A CB call has no country: its row shows none and the
+maps no place. A call such as 1A1, which FT8 packs as a standard one, works
+as any standard call, as in WSJT-CB.
+
+PSK Reporter takes CB calls (it shows the 11 m spots of WSJT-CB
+stations), so the app's spots go there as any other, except a free-text
+message to you, whose sender the app worked out itself. Transmitting on 11 m
+goes by the radio's rule, as anywhere outside the amateur bands: refused
+unless TX outside ham bands is on (see [CB](#cb)).
+
 Log Map. Page 3 > Log Map shows the logged stations on a world map centred on you:
 great-circle paths, a dot and the callsign for each station. Calls and dots
 are larger since v0.119. ESC or Log Map closes it.
@@ -5654,6 +5680,8 @@ as the plans number them.
   European decision and the FCC's rules, less in some countries) is not set
   by the app: PWR is yours to set. Transmitting there is your responsibility
   under your licence.
+- FT8 and FT4 with a CB callsign (26AT101), as WSJT-CB works them: see CB
+  callsigns under [FT8 and FT4](#ft8-and-ft4).
 
 ### Flights
 

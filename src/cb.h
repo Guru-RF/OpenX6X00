@@ -88,6 +88,14 @@ const char *cb_freq_text(int32_t hz, char *buf, size_t size);
 /* "AM", "FM", "USB", "LSB" */
 const char *cb_mode_name(cb_mode_t mode);
 
+/* A CB callsign, as the CB clubs number their members and WSJT-CB (the 27 MHz edition of the desktop FT8 program)
+ * takes them, in either case: 1 to 3 digits (the club's or the country's number), 1 or 2 letters, 1 to 3 digits
+ * (4 after a single first digit): 26AT101, 1AT106, 999ZZ999, 1AT1000; or the digits and letters, a stroke and 2
+ * letters: 999ZZ/ZZ. No amateur call has these forms: theirs have letters after the digit of their prefix
+ * (ON6URE, 2E0ABC, 4X1AB). A CB call has no DXCC country, and the amateur services (the DX clusters, the RBN, the
+ * activation programmes, Wavelog) do not get it */
+bool cb_callsign(const char *call);
+
 #ifdef __cplusplus
 }
 #endif

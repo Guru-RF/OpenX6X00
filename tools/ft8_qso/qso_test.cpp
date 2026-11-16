@@ -106,6 +106,19 @@ static ftx_msg_meta_t rx(const char *text, int snr = -10) {
     return meta;
 }
 
+/* A decode heard at freq_hz of the audio, as worker.c gives each one */
+static ftx_msg_meta_t rx_at(const char *text, int snr, float freq_hz) {
+    ftx_msg_meta_t meta = {};
+    char           was[sizeof(tx.msg)];
+
+    meta.freq_hz = freq_hz;
+    snprintf(was, sizeof(was), "%s", tx.msg);
+    ftx_qso_processor_add_rx_text(qso, text, snr, &meta, &tx);
+    say("    rx %-28s%5.0f Hz %s%s\n", text, freq_hz, strcmp(was, tx.msg) ? "next: " : "",
+        strcmp(was, tx.msg) ? tx.msg : "");
+    return meta;
+}
+
 /* In Hound mode the sequence's answers are not sent, and of its QSOs only one put aside is logged, not the Fox's
  * (add_rx_text drops the others: Hound logs its own) */
 static void rx_hound(const char *text, int snr = -10) {
@@ -1382,6 +1395,162 @@ static void own_call(void) {
     check(!m.to_me && !tx.msg[0], "\"<...> PA/A1AAA\" is not to us, nothing queued");
 }
 
+/* ---- CB calls (#286) ------------------------------------------------------------------------------------------- */
+
+/* Two CB calls, as WSJT-CB works them: the CQ and the call to it type 4 ("CQ 26AT101", "<26AT101> 1AT106"), the
+ * reports, RR73 and 73 free text with the other station's call only ("26AT101 -10", "1AT106 R-12"). Its messages to us
+ * name no sender: they are taken for the QSO whose station was heard on that audio frequency. A CB call on one side
+ * only: the forms of any non-standard call */
+#define CB_ME "1AT106"
+#define CB_A  "26AT101"
+#define CB_B  "161XZ085"
+
+static void cb_calls(void) {
+    begin("Two CB calls: we answer " CB_A "'s CQ, its free-text report, our R-report, its RR73 logs it, our 73", true,
+          6, CB_ME, false);
+    ftx_msg_meta_t cq = rx_at("CQ " CB_A, -10, 1500);
+    check(cq.type == FTX_MSG_TYPE_CQ && !strcmp(cq.call_de, CB_A) && !cq.free_text, "a CQ of " CB_A " (type %d, '%s')",
+          cq.type, cq.call_de);
+    slot_end();
+    press(cq);
+    check(next_is("<" CB_A "> " CB_ME), "type 4 call, no grid (%s)", tx.msg);
+    our_slot();
+    ftx_msg_meta_t m = rx_at(CB_ME " -12", -10, 1503);
+    check(m.to_me && m.free_text && m.type == FTX_MSG_TYPE_REPORT && !strcmp(m.call_de, CB_A) && m.remote_snr == -12,
+          "\"" CB_ME " -12\" is " CB_A "'s report to us (type %d, '%s', %d)", m.type, m.call_de, m.remote_snr);
+    slot_end();
+    check(next_is(CB_A " R-10"), "our R-report, one call (%s)", tx.msg);
+    our_slot();
+    m = rx_at(CB_ME " RR73", -9, 1498);
+    slot_end();
+    check(m.type == FTX_MSG_TYPE_RR73 && logged_once(CB_A, "", -12, -10, false),
+          "logged at its RR73: no grid, rcvd -12, sent -10");
+    check(next_is(CB_A " 73"), "our 73, one call (%s)", tx.msg);
+    our_slot();
+    slot_end();
+    our_slot();
+    check(times_sent(CB_A " 73") == 1 && !tx.msg[0], "73 sent once, nothing after it");
+
+    begin("Two CB calls: we call CQ, " CB_A " calls us type 4, our report, its R-report logs it, our RR73, its 73",
+          true, 6, CB_ME, false);
+    snprintf(tx.msg, sizeof(tx.msg), "CQ %s", CB_ME);   /* cq_make_message: no grid with this call */
+    tx.repeats = retries;
+    ftx_qso_processor_reset(qso);
+    our_slot();
+    m = rx_at("<" CB_ME "> " CB_A, -10, 1200);
+    check(m.to_me && m.type == FTX_MSG_TYPE_GRID && !strcmp(m.call_de, CB_A) && !m.free_text,
+          "a call to us from " CB_A " (type %d, '%s')", m.type, m.call_de);
+    slot_end();
+    check(next_is(CB_A " -10"), "our report, one call (%s)", tx.msg);
+    our_slot();
+    rx_at(CB_ME " R-12", -11, 1204);
+    slot_end();
+    check(logged_once(CB_A, "", -12, -10, false), "logged at its R-report: rcvd -12, sent -10");
+    check(next_is(CB_A " RR73"), "our RR73, one call (%s)", tx.msg);
+    our_slot();
+    m = rx_at(CB_ME " 73", -11, 1199);
+    slot_end();
+    check(m.to_me && m.type == FTX_MSG_TYPE_73 && !strcmp(m.call_de, CB_A) && logs_of(CB_A) == 1 && !tx.msg[0],
+          "its 73: " CB_A "'s, logged once, nothing queued (%s)", tx.msg);
+
+    begin("Two CB calls: \"1AT107 " CB_ME "\" (free text, its call before ours) answers our CQ as WSJT-CB takes it",
+          true, 6, CB_ME, false);
+    snprintf(tx.msg, sizeof(tx.msg), "CQ %s", CB_ME);
+    tx.repeats = retries;
+    ftx_qso_processor_reset(qso);
+    our_slot();
+    m = rx_at("1AT107 " CB_ME, -8, 900);
+    slot_end();
+    check(m.to_me && m.free_text && m.type == FTX_MSG_TYPE_GRID && !strcmp(m.call_de, "1AT107"),
+          "a call to us from 1AT107 (type %d, '%s')", m.type, m.call_de);
+    check(next_is("1AT107 -08"), "our report (%s)", tx.msg);
+
+    begin("Two CB calls: A put aside for B, A's late RR73 goes to A by its frequency, B's QSO goes on", true, 6, CB_ME,
+          false);
+    cq = rx_at("CQ " CB_A, -10, 1500);
+    slot_end();
+    press(cq);
+    our_slot();
+    rx_at(CB_ME " -12", -10, 1500);
+    slot_end();
+    our_slot();                                     /* our R-report to A */
+    ftx_msg_meta_t cq_b = rx_at("CQ " CB_B, -7, 700);
+    slot_end();
+    press(cq_b);
+    check(next_is("<" CB_B "> " CB_ME), "B called (%s)", tx.msg);
+    our_slot();
+    m = rx_at(CB_ME " RR73", -10, 1502);
+    slot_end();
+    check(!strcmp(m.call_de, CB_A) && logged_once(CB_A, "", -12, -10, true) && !logs_of(CB_B),
+          "A logged aside, B not ('%s')", m.call_de);
+    check(next_is("<" CB_B "> " CB_ME), "our call to B stays (%s)", tx.msg);
+    our_slot();
+    rx_at(CB_ME " -05", -7, 698);
+    slot_end();
+    check(next_is(CB_B " R-07"), "B's report: our R-report to B (%s)", tx.msg);
+
+    begin("Two CB calls: after our RR73 to A, B calls and A's 73 comes in the same slot: A's 73, B answered", true, 6,
+          CB_ME, false);
+    snprintf(tx.msg, sizeof(tx.msg), "CQ %s", CB_ME);
+    tx.repeats = retries;
+    ftx_qso_processor_reset(qso);
+    our_slot();
+    rx_at("<" CB_ME "> " CB_A, -10, 1500);
+    slot_end();
+    our_slot();
+    rx_at(CB_ME " R-12", -11, 1500);
+    slot_end();
+    our_slot();                                     /* our RR73 to A */
+    rx_at("<" CB_ME "> " CB_B, -6, 800);
+    m = rx_at(CB_ME " 73", -11, 1500);
+    slot_end();
+    check(!strcmp(m.call_de, CB_A) && logs_of(CB_A) == 1 && !logs_of(CB_B), "A's 73, A logged once ('%s')",
+          m.call_de);
+    check(next_is(CB_B " -06"), "our report to B (%s)", tx.msg);
+
+    begin("A CB call of ours: free text to us with no QSO going is to us, no call, nothing queued", true, 6, CB_ME,
+          false);
+    m = rx_at(CB_ME " RR73", -10, 1500);
+    check(m.to_me && !m.call_de[0] && !m.free_text && !tx.msg[0], "to us, no sender ('%s'), nothing queued",
+          m.call_de);
+    m = rx_at(CB_ME " TNX", -10, 1500);
+    check(m.to_me == false && m.type == FXT_MSG_TYPE_OTHER, "\"" CB_ME " TNX\" is free text");
+    m = rx_at("1AT107 26AT", -10, 1500);
+    check(!m.to_me && !tx.msg[0], "\"1AT107 26AT\" is no call to us");
+
+    begin("A CB call of ours, an amateur call's CQ: the forms of a non-standard call", true, 6, CB_ME, false);
+    cq = rx("CQ A1AAA IN80");
+    slot_end();
+    press(cq);
+    check(next_is("<A1AAA> " CB_ME), "type 4 call (%s)", tx.msg);
+    our_slot();
+    rx("<" CB_ME "> A1AAA -05", -10);
+    slot_end();
+    check(next_is("A1AAA " CB_ME " R-10"), "our R-report with both calls (%s)", tx.msg);
+    our_slot();
+    rx("<" CB_ME "> A1AAA RR73");
+    slot_end();
+    check(logged_once("A1AAA", "IN80", -5, -10, false), "logged at its RR73");
+    check(next_is("<A1AAA> " CB_ME " 73"), "type 4 73 (%s)", tx.msg);
+
+    begin("Our amateur call, a CB station's CQ: as any non-standard call, its RR73 type 4 logs it");
+    cq = rx_at("CQ " CB_A, -10, 1500);
+    slot_end();
+    press(cq);
+    check(next_is(CB_A " " ME " " MY_QTH), "our call with the grid (%s)", tx.msg);
+    our_slot();
+    m = rx_at(ME " <" CB_A "> -05", -10, 1500);
+    check(m.to_me && !m.free_text && !strcmp(m.call_de, CB_A), "its report to us ('%s')", m.call_de);
+    slot_end();
+    check(next_is(CB_A " " ME " R-10"), "our R-report (%s)", tx.msg);
+    our_slot();
+    rx_at("<" ME "> " CB_A " RR73", -10, 1500);
+    slot_end();
+    check(logged_once(CB_A, "", -5, -10, false), "logged at its RR73");
+    m = rx_at(ME " -05", -10, 1500);
+    check(!m.to_me && !m.free_text, "free text \"" ME " -05\" is no CB QSO's with an amateur call of ours");
+}
+
 /* ---- The QTH in our answers ------------------------------------------------------------------------------------ */
 
 /* The settings take a locator in either case and of 2 characters; the answer carries its square in upper case, or
@@ -1568,6 +1737,7 @@ int main(int argc, char **argv) {
     new_caller();
     force();
     own_call();
+    cb_calls();
     own_qth();
     bare_sign();
     unknown_call();

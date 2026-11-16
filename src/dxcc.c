@@ -22,6 +22,7 @@
 
 #include "dxcc.h"
 #include "board.h"
+#include "cb.h"
 
 #include <ctype.h>
 #include <pthread.h>
@@ -352,6 +353,12 @@ bool dxcc_lookup(const char *call, const char **name, const char **prefix)
     s[o] = '\0';
     if (o < 2 || strstr(s, "...") != NULL) {
         return false;               /* "<...>": hash not resolved */
+    }
+    /* A CB call (26AT101, 1AT106) has no country here: its first number is its club's or its country's own, and
+     * cty.dat would take the first characters for an amateur prefix (1A, the Order of Malta). No country rather
+     * than a wrong one */
+    if (cb_callsign(s)) {
+        return false;
     }
 
     /* Whole calls in cty.dat may contain a '/' themselves. */

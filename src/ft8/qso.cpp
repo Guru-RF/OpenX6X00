@@ -4,16 +4,23 @@
 #define DEFAULT_SNR 100
 #define ASIDE_SLOTS 4       /* a QSO put aside waits this many slots for its station's late message */
 #define ASIDE_MAX   4       /* QSOs put aside at most, the oldest goes */
+/* A CB station's free text belongs to the QSO whose station was last heard this near it: a station keeps its audio
+ * frequency through a QSO, and two signals nearer than this overlap (an FT8 signal is 50 Hz wide) */
+#define FREE_TEXT_HZ 25.0f
+
+#include <cmath>
 
 extern "C" {
+    #include "../cb.h"
     #include "../qth/qth.h"
+    #include "msg_encode.h"
     #include "string.h"
     #include "utils.h"
 }
 
 static std::string make_answer_text(ftx_msg_type_t last_rx_type, std::string remote_callsign,
                                     std::string local_callsign, const int local_snr, std::string grid,
-                                    bool local_std);
+                                    bool local_std, bool cb_pair);
 
 std::vector<std::string> split_text(std::string text) {
     std::vector<std::string> tokens;
@@ -47,9 +54,10 @@ void Candidate::set_report(int report) {
     _rcvd_snr = report;
 }
 
-void Candidate::set_msg_type(ftx_msg_type_t msg_type) {
+void Candidate::set_msg_type(ftx_msg_type_t msg_type, float freq_hz) {
     _last_rx_type = msg_type;
     _quiet_slots = 0;
+    if (freq_hz > 0.0f) _freq_hz = freq_hz;
     if ((msg_type == FTX_MSG_TYPE_CQ) || (msg_type == FTX_MSG_TYPE_GRID) || (msg_type == FTX_MSG_TYPE_REPORT))
         _ended = false;     // begun again: a call, a grid or a report goes on until its own end
 }
@@ -64,6 +72,11 @@ void Candidate::set_rcvd_snr(int snr) {
 
 bool Candidate::match_callsign(std::string callsign) {
     return callsign == _remote_callsign;
+}
+
+/* Its station was last heard within FREE_TEXT_HZ of freq_hz (both known) */
+bool Candidate::heard_near(float freq_hz) {
+    return freq_hz > 0.0f && _freq_hz > 0.0f && std::fabs(freq_hz - _freq_hz) <= FREE_TEXT_HZ;
 }
 
 std::string Candidate::callsign() {
@@ -117,9 +130,9 @@ bool Candidate::aside_slot() {
     return ++_quiet_slots > ASIDE_SLOTS;
 }
 
-std::string Candidate::get_tx_text(std::string local_callsign, std::string local_qth, bool local_std) {
+std::string Candidate::get_tx_text(std::string local_callsign, std::string local_qth, bool local_std, bool cb_pair) {
     std::string answer =
-        make_answer_text(_last_rx_type, _remote_callsign, local_callsign, _local_snr, local_qth, local_std);
+        make_answer_text(_last_rx_type, _remote_callsign, local_callsign, _local_snr, local_qth, local_std, cb_pair);
     if ((_last_rx_type == FTX_MSG_TYPE_GRID) || (_last_rx_type == FTX_MSG_TYPE_REPORT)) {
         _sent_snr = _local_snr;
         _report_text = answer;
@@ -173,6 +186,7 @@ void FTxQsoProcessor::add_rx_text(std::string text, const int snr, ftx_msg_meta_
     meta->type = FXT_MSG_TYPE_OTHER;
     meta->local_snr = snr;
     meta->to_me = false;
+    meta->free_text = false;
     meta->grid[0] = '\0';
 
     std::vector<std::string> tokens = split_text(text);
@@ -210,6 +224,30 @@ void FTxQsoProcessor::add_rx_text(std::string text, const int snr, ftx_msg_meta_
         return;
     }
 
+    /* WSJT-CB's free text between two CB calls, ours and the other station's (type 4 has brackets, free text none).
+     * Its report, R-report, RRR, RR73 or 73 to us names no sender, "1AT106 -07": it is the station's whose QSO it fits
+     * (cb_sender), and goes on as that station's "1AT106 26AT101 -07". Its call to us as free text, "26AT101 1AT106"
+     * (WSJT-CB takes that for a call too), goes as "<1AT106> 26AT101" */
+    if ((tokens.size() == 2) && (text.find('<') == text.npos) && cb_pair(_local_callsign)) {
+        const std::string &word = tokens[1];
+        bool ours = (tokens[0] == _local_callsign) &&
+                    (is_report(word) || ((word[0] == 'R') && is_report(word.substr(1))) || (word == "RRR") ||
+                     (word == "RR73") || (word == "73"));
+
+        if (ours) {
+            meta->to_me = true;
+            Candidate *candidate = cb_sender(meta->freq_hz);
+            if (candidate == NULL) return;      // no QSO it could be part of: a message to us all the same
+            meta->free_text = true;
+            tokens = {tokens[0], candidate->callsign(), word};
+        } else if ((tokens[1] == _local_callsign) && (tokens[0] != _local_callsign) && cb_pair(tokens[0])) {
+            meta->free_text = true;
+            tokens = {tokens[1], tokens[0], ""};
+            process_grid(meta, tokens, snr, *tx_msg);
+            return;
+        }
+    }
+
     if (tokens[0] == "CQ") {
         process_cq(meta, tokens, snr);
     } else if ((tokens.size() == 2) && (tokens[0] == _local_callsign) && (text.find('<') != text.npos)) {
@@ -244,12 +282,12 @@ void FTxQsoProcessor::process_grid(ftx_msg_meta_t *meta, std::vector<std::string
         meta->to_me = true;
         auto candidate_to_update = get_candidate_to_update(call_de);
         if (candidate_to_update != NULL) {
-            (*candidate_to_update)->set_msg_type(meta->type);
+            (*candidate_to_update)->set_msg_type(meta->type, meta->freq_hz);
             (*candidate_to_update)->set_local_snr(snr);
             (*candidate_to_update)->set_grid(grid);
             if ((*candidate_to_update == _cur_candidate) && _auto) {
                 tx_msg.repeats = _max_repeats;
-                strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth, _local_std).c_str());
+                strcpy(tx_msg.msg, answer(_cur_candidate).c_str());
             }
         }
     }
@@ -267,12 +305,12 @@ void FTxQsoProcessor::process_report(ftx_msg_meta_t *meta, std::vector<std::stri
         meta->to_me = true;
         auto candidate_to_update = get_candidate_to_update(call_de);
         if (candidate_to_update != NULL) {
-            (*candidate_to_update)->set_msg_type(meta->type);
+            (*candidate_to_update)->set_msg_type(meta->type, meta->freq_hz);
             (*candidate_to_update)->set_local_snr(snr);
             (*candidate_to_update)->set_rcvd_snr(rcvd_snr);
             if ((*candidate_to_update == _cur_candidate) && _auto) {
                 tx_msg.repeats = _max_repeats;
-                strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth, _local_std).c_str());
+                strcpy(tx_msg.msg, answer(_cur_candidate).c_str());
             }
         }
     }
@@ -290,17 +328,17 @@ void FTxQsoProcessor::process_r_report(ftx_msg_meta_t *meta, std::vector<std::st
         meta->to_me = true;
         if (((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) || take_back(call_de) ||
             take_up(call_de)) {
-            _cur_candidate->set_msg_type(meta->type);
+            _cur_candidate->set_msg_type(meta->type, meta->freq_hz);
             _cur_candidate->set_local_snr(snr);
             _cur_candidate->set_rcvd_snr(rcvd_snr);
             save_current();
             if (_auto) {
                 tx_msg.repeats = 1;
-                strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth, _local_std).c_str());
+                strcpy(tx_msg.msg, answer(_cur_candidate).c_str());
             }
         } else if (Candidate *aside = find_aside(call_de)) {
             /* A QSO we moved on from (we called CQ), another in progress: logged now, not answered */
-            aside->set_msg_type(meta->type);
+            aside->set_msg_type(meta->type, meta->freq_hz);
             aside->set_local_snr(snr);
             aside->set_rcvd_snr(rcvd_snr);
             aside->save_qso(_save_qso_cb, true);
@@ -317,16 +355,16 @@ void FTxQsoProcessor::process_rr73(ftx_msg_meta_t *meta, std::vector<std::string
     if (call_to == _local_callsign) {
         meta->to_me = true;
         if (((_cur_candidate != NULL) && (_cur_candidate->match_callsign(call_de))) || take_back(call_de)) {
-            _cur_candidate->set_msg_type(meta->type);
+            _cur_candidate->set_msg_type(meta->type, meta->freq_hz);
             _cur_candidate->set_local_snr(snr);
             save_current();
             if (_auto) {
                 tx_msg.repeats = 1;
-                strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth, _local_std).c_str());
+                strcpy(tx_msg.msg, answer(_cur_candidate).c_str());
             }
         } else if (Candidate *aside = find_aside(call_de)) {
             /* A QSO we moved on from: logged now, no 73 for it */
-            aside->set_msg_type(meta->type);
+            aside->set_msg_type(meta->type, meta->freq_hz);
             aside->set_local_snr(snr);
             aside->save_qso(_save_qso_cb, true);
         }
@@ -350,13 +388,13 @@ void FTxQsoProcessor::process_73(ftx_msg_meta_t *meta, std::vector<std::string> 
                 _next_candidate = NULL;
                 if (_auto) {
                     tx_msg.repeats = 1;
-                    strcpy(tx_msg.msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth, _local_std).c_str());
+                    strcpy(tx_msg.msg, answer(_cur_candidate).c_str());
                 }
             } else {
                 _cur_candidate = NULL;
             }
         } else if (Candidate *aside = find_aside(call_de)) {
-            aside->set_msg_type(meta->type);    // its wait for a call again starts over, as at its other messages
+            aside->set_msg_type(meta->type, meta->freq_hz);    // its wait for a call again starts over, as at its other messages
             aside->save_qso(_save_qso_cb, true);
         }
     }
@@ -557,7 +595,7 @@ void FTxQsoProcessor::start_qso(ftx_msg_meta_t *meta, ftx_tx_msg_t *tx_msg) {
     }
     get_or_create_cur_candidate(meta->call_de);
     _cur_candidate->set_local_snr(meta->local_snr);
-    _cur_candidate->set_msg_type(type);
+    _cur_candidate->set_msg_type(type, meta->freq_hz);
 
     tx_msg->repeats = _max_repeats;
     switch (type) {
@@ -577,7 +615,7 @@ void FTxQsoProcessor::start_qso(ftx_msg_meta_t *meta, ftx_tx_msg_t *tx_msg) {
     default:
         break;
     }
-    strcpy(tx_msg->msg, _cur_candidate->get_tx_text(_local_callsign, _local_qth, _local_std).c_str());
+    strcpy(tx_msg->msg, answer(_cur_candidate).c_str());
 }
 
 bool FTxQsoProcessor::can_save_qso() {
@@ -623,6 +661,33 @@ Candidate **FTxQsoProcessor::get_candidate_to_update(std::string call_de) {
     return candidate_to_update;
 }
 
+/* Our call and call are CB calls (26AT101, 1AT106), neither a standard one: the QSO goes as WSJT-CB makes it between
+ * two of them, the reports, RR73 and 73 as free text with one call (make_answer_text) */
+bool FTxQsoProcessor::cb_pair(std::string call) {
+    return !_local_std && cb_callsign(_local_callsign.c_str()) && cb_callsign(call.c_str()) &&
+           !ftx_call_is_standard(call.c_str());
+}
+
+/* The QSO a CB station's free text to us at freq_hz belongs to: the one whose station was last heard near it (the
+ * current QSO, the next, then those put aside, the latest first), else the current one (its station moved); a QSO
+ * with a CB call only. NULL: none. A late 73 from a station whose QSO a caller took over is that station's, not the
+ * caller's */
+Candidate *FTxQsoProcessor::cb_sender(float freq_hz) {
+    std::vector<Candidate *> qsos;
+
+    if (_cur_candidate != NULL) qsos.push_back(_cur_candidate);
+    if (_next_candidate != NULL) qsos.push_back(_next_candidate);
+    qsos.insert(qsos.end(), _aside.rbegin(), _aside.rend());
+    for (auto candidate : qsos)
+        if (candidate->heard_near(freq_hz) && cb_pair(candidate->callsign())) return candidate;
+    return ((_cur_candidate != NULL) && cb_pair(_cur_candidate->callsign())) ? _cur_candidate : NULL;
+}
+
+/* Our next message to the station of candidate */
+std::string FTxQsoProcessor::answer(Candidate *candidate) {
+    return candidate->get_tx_text(_local_callsign, _local_qth, _local_std, cb_pair(candidate->callsign()));
+}
+
 Candidate *FTxQsoProcessor::get_or_create_cur_candidate(std::string remote_callsign) {
     _cur_fresh = false;     // the operator chose
     _gave_way.clear();
@@ -639,10 +704,13 @@ bool FTxQsoProcessor::has_current() {
 
 /* With a non-standard call of ours (KF0QGT/6Y) the answers are WSJT-X's: those without a report go as type 4,
  * "<W1ABC> KF0QGT/6Y" and "<W1ABC> KF0QGT/6Y RR73", our call in plain text, so that a station that has not heard us
- * learns it; there is no grid. The reports go as type 1, our call as a hash: "W1ABC <KF0QGT/6Y> -05" on the air */
+ * learns it; there is no grid. The reports go as type 1, our call as a hash: "W1ABC <KF0QGT/6Y> -05" on the air.
+ * Between two CB calls (cb_pair) they are WSJT-CB's: the call to a CQ as that type 4, then the report, R-report, RR73
+ * and 73 as free text with the other station's call only, "26AT101 -05", "26AT101 R-05", "26AT101 RR73", "26AT101 73":
+ * FT8 has no message with two such calls and a report, and WSJT-CB answers these */
 static std::string make_answer_text(ftx_msg_type_t last_rx_type, std::string remote_callsign,
                                     std::string local_callsign, const int local_snr, std::string grid,
-                                    bool local_std) {
+                                    bool local_std, bool cb_pair) {
     char answer[35];
     int  len = 0;
     switch (last_rx_type) {
@@ -655,16 +723,32 @@ static std::string make_answer_text(ftx_msg_type_t last_rx_type, std::string rem
                        grid.c_str());
         break;
     case FTX_MSG_TYPE_GRID:
+        if (cb_pair) {
+            len = snprintf(answer, 35, "%s %+03d", remote_callsign.c_str(), local_snr);
+            break;
+        }
         len = snprintf(answer, 35, "%s %s %+03d", remote_callsign.c_str(), local_callsign.c_str(), local_snr);
         break;
     case FTX_MSG_TYPE_REPORT:
+        if (cb_pair) {
+            len = snprintf(answer, 35, "%s R%+03d", remote_callsign.c_str(), local_snr);
+            break;
+        }
         len = snprintf(answer, 35, "%s %s R%+03d", remote_callsign.c_str(), local_callsign.c_str(), local_snr);
         break;
     case FTX_MSG_TYPE_R_REPORT:
+        if (cb_pair) {
+            len = snprintf(answer, 35, "%s RR73", remote_callsign.c_str());
+            break;
+        }
         len = snprintf(answer, 35, local_std ? "%s %s RR73" : "<%s> %s RR73", remote_callsign.c_str(),
                        local_callsign.c_str());
         break;
     case FTX_MSG_TYPE_RR73:
+        if (cb_pair) {
+            len = snprintf(answer, 35, "%s 73", remote_callsign.c_str());
+            break;
+        }
         len = snprintf(answer, 35, local_std ? "%s %s 73" : "<%s> %s 73", remote_callsign.c_str(),
                        local_callsign.c_str());
         break;
