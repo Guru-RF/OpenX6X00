@@ -7341,7 +7341,19 @@ in the picture, from 1}`, then a grey byte a pixel); to a client that sent
 `ft8 wf 1` (no role needed either) the FT8 app's own waterfall row by row,
 binary too (`{u16 0xFFFD, u16 bins, u16 low Hz, u16 high Hz}`, then a signed
 byte a bin, dB over the noise floor, the app's filter from its low edge to
-its high one); the FT8 state
+its high one); `js8 open|close|cq|autocq|hbnow|hb|auto|hold|speed|stop`,
+`js8 txfreq HZ`, `js8 select CALL` and `js8 send TEXT` (500 characters at
+most, macros filled as on the radio) work the JS8 app as its buttons do
+(operate and control); its messages come as `js8r {...}` (id, utc, snr,
+audio Hz, speed, tx: ours, me, cq, hb, grp, lc: low confidence, part: still
+coming in, chk, fr, to, g: the sender's locator, x: the text), the last 64
+again to a client that connects later, a message coming in keeping its id as
+it grows; its state as `js8 {...}` (open, busy, sending, acq, hb, auto, hold,
+speed, frame and frames, txf, selhz, hbmin, next in seconds, sel, where,
+text, and note, noteerr and notes: the answer to the last command, "Queued:
+3 frames, 45 s" or why not); `js8 wf 1` brings its waterfall as FT8's. A text
+message longer than 1023 bytes is answered `err message too long for the
+radio`; the FT8 state
 carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
 the sends left, `qso`, `hound`, `nocall`, `logged` and `logged_s`), once a
 second while a countdown runs; `log CALL|RSTS|RSTR|NAME`

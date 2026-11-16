@@ -40,6 +40,7 @@
 #include "msg.h"
 #include "params/params.h"
 #include "radio.h"
+#include "remote_server.h"
 #include "keypad.h"
 #include "scheduler.h"
 #include "styles.h"
@@ -303,6 +304,7 @@ static void speed_warn(void);
 
 /* The list */
 static void handle_incoming(const js8_rx_msg_t *msg);
+static void remote_msg(const js8_rx_msg_t *msg), remote_wf_row(const float *row, unsigned n), rstat_update(void);
 static bool find_station(const char *call, js8_station_t *found);
 static void rebuild_station_rows(void), show_selection(void);
 static int64_t now_wall_ms(void), now_mono_ms(void);
@@ -1259,6 +1261,7 @@ static void ui_add_message(void *arg)
     if (!table || !dialog.run) return;
     const js8_rx_msg_t *m = arg;
     add_message(m);
+    remote_msg(m); /* the browser's JS8 page */
 }
 
 static void on_message(const js8_rx_msg_t *msg, void *unused)
@@ -1390,6 +1393,7 @@ static void wf_timer_cb(lv_timer_t *timer)
 
     unsigned h = wf_q_head;
     lv_waterfall_add_data(waterfall, wf_queue[h], wf_queue_size[h]);
+    remote_wf_row(wf_queue[h], wf_queue_size[h]); /* the browser's JS8 page */
     wf_queue_pop();
     /* Paint it now. Waiting for LVGL's own refresh (every 33 ms of a slow
      * tick) put rows 66 to 134 ms apart instead of evenly. */
@@ -1618,6 +1622,7 @@ static void ui_tx_status(void *arg)
         ours.submode      = (uint8_t)js8_speed_submode(st->speed);
         snprintf(ours.text, sizeof(ours.text), "%s", tx_preview[0] ? tx_preview : st->text);
         add_message(&ours);
+        remote_msg(&ours); /* the browser's JS8 page */
         char done_call[JS8_RX_CALL_LEN];
         if (js8_qsos_sent(qsos, ours.text, params.callsign.x, now_wall_ms(), done_call, sizeof(done_call)))
             log_offer(done_call);
@@ -1700,6 +1705,7 @@ static void tx_timer_cb(lv_timer_t *timer)
     LV_UNUSED(timer);
     swr_guard_tick();
     update_tx_bar(); /* the countdown */
+    rstat_update(); /* the browser's JS8 page */
     n++;
     if (n % 4 == 0) every_second();
     if (n % 20 == 0 && view_stations) rebuild_station_rows(); /* the ages move on */
@@ -2660,6 +2666,7 @@ static void destruct_cb(void) { /* the app closes: the radio goes back to how it
     table     = NULL;
     status    = NULL;
     tx_bar    = NULL;
+    rstat_update(); /* the browser's JS8 page: closed */
 }
 
 /* ---- Bottom buttons ----------------------------------------------------- */
@@ -6003,4 +6010,154 @@ static void translate_cb(button_data_t *btn) {
     else if (!ghostnet_translate(GHOSTNET_TR_ASK, m->text, m->msg_id, m->utc, trans_ask_done))
         msg_update_text_fmt("Busy: try again shortly");
     else msg_update_text_fmt("Translating...");
+}
+
+
+/* ---- The browser's JS8 page (remote_server.c), from OlivLoze's fork --------------------------------------------
+ * Its messages and its state in remote_server.h's types, and its commands as the buttons' own handlers. Only the
+ * hooks above call in here (ui_add_message, ui_tx_status, wf_timer_cb, tx_timer_cb, destruct_cb) */
+
+static pthread_mutex_t     rstat_lock = PTHREAD_MUTEX_INITIALIZER;
+static remote_js8_status_t rstat;         /* what js8_window_status() hands out, under rstat_lock */
+static char                rnote[80];     /* the answer to the pages' last command, and whether it refused */
+static bool                rnote_err;
+static uint32_t            rnotes;
+
+/* A message as it comes, ours too, with the sender's locator when the app knows it */
+static void remote_msg(const js8_rx_msg_t *msg) {
+    static remote_js8_msg_t r; /* the LVGL thread's alone: 700 bytes off its stack */
+    js8_station_t           st;
+
+    memset(&r, 0, sizeof(r));
+    r.msg_id         = msg->msg_id;
+    r.utc            = msg->utc;
+    r.snr            = msg->snr;
+    r.freq_hz        = (int)(msg->freq_hz + 0.5f);
+    r.submode        = msg->submode;
+    r.tx             = msg->tx;
+    r.to_me          = msg->to_me;
+    r.cq             = msg->cq;
+    r.heartbeat      = msg->heartbeat;
+    r.to_group       = msg->to_group;
+    r.low_confidence = msg->low_confidence;
+    r.partial        = msg->partial;
+    r.checksum       = msg->checksum;
+    snprintf(r.from, sizeof(r.from), "%s", msg->from);
+    snprintf(r.to, sizeof(r.to), "%s", msg->to);
+    if (!msg->tx && msg->from[0] && find_station(msg->from, &st)) snprintf(r.grid, sizeof(r.grid), "%s", st.grid);
+    snprintf(r.text, sizeof(r.text), "%s", msg->text);
+    remote_server_js8_msg(&r);
+}
+
+/* Every third row of the waterfall: five a second, enough for the page, a third of the bytes */
+static void remote_wf_row(const float *row, unsigned n) {
+    static unsigned k;
+    if (k++ % 3 == 0) remote_server_app_wf(row, n, filter_low, filter_high);
+}
+
+/* LVGL thread: the state as it is now, for any thread to read */
+static void rstat_update(void) {
+    remote_js8_status_t s;
+    int64_t             now = now_wall_ms(), next = 0;
+
+    memset(&s, 0, sizeof(s)); /* the padding too: the panel thread compares two of them whole */
+    s.open = dialog.run && tx_bar != NULL;
+    if (s.open) {
+        s.busy    = tx != NULL && js8_tx_busy(tx);
+        s.sending = tx_status.state == JS8_TX_KEYING;
+        s.auto_cq = auto_cq;
+        s.hb      = params.js8_hb.x;
+        s.auto_on = params.js8_auto.x;
+        s.hold    = params.js8_hold_offset.x;
+        s.speed   = cur_speed();
+        s.frame   = tx_status.frame;
+        s.frames  = tx_status.frames;
+        s.txf     = params.js8_tx_freq.x;
+        s.sel_hz  = sel_call[0] && qso_freq >= 0 ? (int32_t)(qso_freq + 0.5f) : -1;
+        s.hb_min  = params.js8_hb_interval.x;
+        snprintf(s.sel, sizeof(s.sel), "%s", sel_call);
+        snprintf(s.where, sizeof(s.where), "%s", where_label());
+        if (s.busy) snprintf(s.text, sizeof(s.text), "%s", tx_preview[0] ? tx_preview : tx_status.text);
+        if (tx_status.state != JS8_TX_IDLE) next = tx_status.next_ms;
+        else if (auto_cq) next = auto_cq_next_ms;
+        else if (params.js8_hb.x) next = hb_next_ms;
+    }
+    s.next_s   = next > now ? (int32_t)((next - now + 999) / 1000) : -1;
+    s.notes    = rnotes;
+    s.note_err = rnote_err;
+    snprintf(s.note, sizeof(s.note), "%s", rnote);
+    pthread_mutex_lock(&rstat_lock);
+    rstat = s;
+    pthread_mutex_unlock(&rstat_lock);
+}
+
+void js8_window_status(remote_js8_status_t *s) {
+    pthread_mutex_lock(&rstat_lock);
+    *s = rstat;
+    pthread_mutex_unlock(&rstat_lock);
+}
+
+bool js8_window_running(void) { return dialog.run; }
+
+/* The answer to a page's command, in the state the pages get; the radio's own screen says it its way */
+static bool remote_note(bool err, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(rnote, sizeof(rnote), fmt, ap);
+    va_end(ap);
+    rnote_err = err;
+    rnotes++;
+    rstat_update();
+    return !err;
+}
+
+bool js8_window_remote(remote_js8_rc_t what, int32_t arg, const char *text) {
+    if (!dialog.run || !tx_bar) return remote_note(true, "The JS8 app is closed on the radio");
+    /* A list open on the radio would take the press for itself (popup_guard): the browser's goes through */
+    popups_close_all();
+    user_touch(); /* someone is working the app */
+    switch (what) {
+    case REMOTE_JS8_CQ: cq_cb(&btn_cq); break;
+    case REMOTE_JS8_AUTOCQ: /* as the CQ hold, without handing the knob the interval */
+        if (!auto_cq) cq_hold_cb(&btn_cq);
+        cq_adjust_end();
+        break;
+    case REMOTE_JS8_HBNOW: heartbeat_cb(NULL); break;
+    case REMOTE_JS8_HB: /* as the HB button, the same: the interval is not left on the knob */
+        hb_adjust_end();
+        hb_cb(&btn_hbauto);
+        hb_adjust_end();
+        break;
+    case REMOTE_JS8_AUTO: auto_cb(&btn_auto); break;
+    case REMOTE_JS8_HOLD: hold_cb(&btn_hold); break;
+    case REMOTE_JS8_SPEED: speed_cb(NULL); break;
+    case REMOTE_JS8_STOP: stop_tx_cb(NULL); break;
+    case REMOTE_JS8_TXFREQ: set_tx_offset(arg); break;
+    case REMOTE_JS8_SELECT: { /* as a station picked on the map */
+        js8_station_t st;
+        if (!text || !find_station(text, &st)) return remote_note(true, "%s: not heard on this band", text ? text : "");
+        snprintf(sel_call, sizeof(sel_call), "%s", st.call);
+        qso_freq = st.freq_hz;
+        sel_snr  = st.snr;
+        show_selection();
+        break;
+    }
+    case REMOTE_JS8_SEND: { /* as OK in the compose window: the macros filled; to the station selected, as Reply */
+        static char      filled[TX_TEXT_MAX * 2], out[TX_TEXT_MAX + 8];
+        static js8_tx_preview_t plan;
+        char             them[JS8_RX_CALL_LEN];
+        if (!text || !*text) return remote_note(true, "Nothing to send");
+        if (js8_tx_busy(tx)) return remote_note(true, "Already sending: Stop first");
+        macros_fill(text, false, filled, sizeof(filled));
+        if (!aprs_prepare(filled, out, sizeof(out))) return remote_note(true, "Not sent: the radio's screen says why");
+        js8_tx_preview(params.callsign.x, station_qth(), out, cur_speed(), &plan);
+        if (!plan.ok) return remote_note(true, "Not sent: %s", plan.error);
+        if (sel_call[0] && qso_freq >= 0 && starts_with_call(out, them, sizeof(them)) && !strcasecmp(them, sel_call))
+            apply_hold(qso_freq); /* Hold off: on their offset, as Reply does */
+        if (!tx_queue(out)) return remote_note(true, "Not sent: the radio's screen says why");
+        return remote_note(false, "Queued: %d frame%s, %.0f s", plan.frames, plan.frames != 1 ? "s" : "", plan.seconds);
+    }
+    }
+    rstat_update();
+    return true;
 }

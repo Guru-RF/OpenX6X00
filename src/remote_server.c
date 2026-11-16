@@ -62,7 +62,11 @@
  *  open|close|auto|cont|save|clear" the WeFax app (the state's "app" names the one open), whose state goes
  *  out as "wefax {...}" and, to a page that sent "wefax rows 1", its picture row by row (binary 0xFFFE,
  *  remote_server_wefax_row); "ft8 wf 1" asks for the FT8 app's waterfall row by row (binary 0xFFFD,
- *  remote_server_app_wf), "pos LAT
+ *  remote_server_app_wf). "js8 open|close|cq|autocq|hbnow|hb|auto|hold|speed|stop", "js8 txfreq HZ", "js8 select
+ *  CALL" and "js8 send TEXT" work the JS8 app (js8_window.c, through the types of remote_server.h), whose messages
+ *  go out as "js8r {...}" (the last 64 to a page that opens later; one still coming in keeps its id as it grows),
+ *  its state as "js8 {...}" (with "note": the answer to the last command) and, after "js8 wf 1", its waterfall as
+ *  FT8's. "pos LAT
  *  LON [ACC]" gives the radio the phone's position (degrees, the accuracy in metres; Field Ops uses
  *  it when no GPS is plugged in, operate without control: it touches nothing of the RF side), "clk?
  *  MS" and "clk MS RTT" the phone's clock (clock_from_phone: the radio's set from it in the field,
@@ -157,7 +161,7 @@
 #define FUNNEL_PAUSE_MS (600 * 1000)  /* ... and Funnel's connections are refused this long */
 #define IN_SIZE     4096
 #define OUT_SIZE    (384 * 1024)    /* two frames at the most */
-#define TEXT_MAX    256
+#define TEXT_MAX    1024            /* a text message, its NUL too: "js8 send" and 500 characters fit */
 #define FRAME_MS    100             /* ten frames a second at the most */
 #define STILL_MS    1000            /* an unchanged screen: a frame this often */
 #define IDLE_MS     30000           /* a silent client is gone (the page pings every 5 s) */
@@ -202,6 +206,7 @@ typedef struct {
     pthread_mutex_t lock;
     char            text[TEXT_MAX];
     size_t          text_len;
+    bool            text_over;      /* the message coming in is longer than TEXT_MAX: its other frames go too */
     uint64_t        last_ms;
     uint64_t        ping_ms;        /* the last PING we sent */
     uint16_t        held[MAX_HELD]; /* keys this client holds down: released when it goes */
@@ -213,7 +218,7 @@ typedef struct {
     bool            panel;          /* wants the state, the spectrum and the spots (the Panel page) */
     bool            panel_fresh;    /* just subscribed: the whole state goes out next */
     bool            fax;            /* wants the WeFax picture's rows (the WeFax page: "wefax rows 1") */
-    bool            appwf;          /* wants the FT8 app's waterfall rows (the FT8 page: "ft8 wf 1") */
+    bool            appwf;          /* wants the FT8 or JS8 app's waterfall rows ("ft8 wf 1", "js8 wf 1") */
     atomic_bool     state_due;      /* a "set" refused: the state goes out to it next, changed or not */
     int             sess;           /* the session it authenticated as, -1 none (a viewer) */
     uint8_t         role;           /* ROLE_VIEW, ROLE_OPERATE, ROLE_ADMIN */
@@ -1422,6 +1427,76 @@ void remote_server_cw_text(const char *text) {
     pthread_mutex_unlock(&app_mux);
 }
 
+/* The JS8 messages kept for a page that opens later, ours too. A message still coming in has one place, written
+ * again as its frames arrive (the same msg_id), so the page grows its row */
+#define JS8_RING 64
+static struct {
+    uint32_t         id;            /* ours, from 1; 0 unused */
+    remote_js8_msg_t m;
+} js8_ring[JS8_RING];
+static uint32_t js8_ids;
+
+/* A message as JSON: "js8r {...}" */
+static void js8_msg_line(char *buf, size_t n, uint32_t id, const remote_js8_msg_t *m) {
+    size_t k = snprintf(buf, n, "js8r {\"id\":%u,\"utc\":%d,\"snr\":%d,\"f\":%d,\"sp\":%d,\"tx\":%d,\"me\":%d,"
+                        "\"cq\":%d,\"hb\":%d,\"grp\":%d,\"lc\":%d,\"part\":%d,\"chk\":%d,\"fr\":",
+                        id, (int)m->utc, m->snr, m->freq_hz, m->submode, m->tx, m->to_me, m->cq, m->heartbeat,
+                        m->to_group, m->low_confidence, m->partial, m->checksum);
+    k += json_str(buf + k, n - k, m->from);
+    k += snprintf(buf + k, n - k, ",\"to\":");
+    k += json_str(buf + k, n - k, m->to);
+    k += snprintf(buf + k, n - k, ",\"g\":");
+    k += json_str(buf + k, n - k, m->grid);
+    k += snprintf(buf + k, n - k, ",\"x\":");
+    k += json_str(buf + k, n - k - 1, m->text);     /* room for the closing brace, whatever the text */
+    snprintf(buf + k, n - k, "}");
+}
+
+#define JS8_LINE (REMOTE_JS8_TEXT * 2 + 512)       /* a js8r line: the text with every character escaped fits */
+
+/* LVGL thread (js8_window.c): kept, and to the panel clients at once */
+void remote_server_js8_msg(const remote_js8_msg_t *m) {
+    static char line[JS8_LINE];     /* this thread's alone */
+    uint32_t    id;
+    int         at = -1;
+
+    pthread_mutex_lock(&app_mux);
+    if (!m->tx && m->msg_id)        /* more of a message already kept */
+        for (int i = 0; i < JS8_RING && at < 0; i++)
+            if (js8_ring[i].id && !js8_ring[i].m.tx && js8_ring[i].m.msg_id == m->msg_id && js8_ring[i].m.partial)
+                at = i;
+    if (at < 0) {
+        id = ++js8_ids;
+        at = id % JS8_RING;
+    } else {
+        id = js8_ring[at].id;
+    }
+    js8_ring[at].id = id;
+    js8_ring[at].m  = *m;
+    pthread_mutex_unlock(&app_mux);
+    if (!atomic_load(&npanel))
+        return;
+    js8_msg_line(line, sizeof(line), id, m);
+    panel_broadcast(line);
+}
+
+/* The JS8 app as JSON: "js8 {...}" */
+static void js8_status_line(char *buf, size_t n, const remote_js8_status_t *s) {
+    size_t k = snprintf(buf, n, "js8 {\"open\":%d,\"busy\":%d,\"sending\":%d,\"acq\":%d,\"hb\":%d,\"auto\":%d,"
+                        "\"hold\":%d,\"speed\":%d,\"frame\":%d,\"frames\":%d,\"txf\":%d,\"selhz\":%d,\"hbmin\":%d,"
+                        "\"next\":%d,\"notes\":%u,\"noteerr\":%d,\"note\":", s->open, s->busy, s->sending, s->auto_cq,
+                        s->hb, s->auto_on, s->hold, s->speed, s->frame, s->frames, s->txf, s->sel_hz, s->hb_min,
+                        s->next_s, s->notes, s->note_err);
+    k += json_str(buf + k, n - k, s->note);
+    k += snprintf(buf + k, n - k, ",\"sel\":");
+    k += json_str(buf + k, n - k, s->sel);
+    k += snprintf(buf + k, n - k, ",\"where\":");
+    k += json_str(buf + k, n - k, s->where);
+    k += snprintf(buf + k, n - k, ",\"text\":");
+    k += json_str(buf + k, n - k - 1, s->text);
+    snprintf(buf + k, n - k, "}");
+}
+
 /* The rows kept and the CW text so far: to a client that just subscribed */
 static void panel_app_history(client_t *c) {
     char line[CW_HIST * 2 + 16];
@@ -1432,6 +1507,13 @@ static void panel_app_history(client_t *c) {
         if (ft8_ring[id % FT8_RING].id != id)
             continue;
         ft8_row_line(line, 512, id, &ft8_ring[id % FT8_RING].cell);
+        client_text(c, line);
+    }
+    uint32_t jfirst = js8_ids > JS8_RING ? js8_ids - JS8_RING + 1 : 1;
+    for (uint32_t id = jfirst; id <= js8_ids; id++) {
+        if (js8_ring[id % JS8_RING].id != id)
+            continue;
+        js8_msg_line(line, sizeof(line), id, &js8_ring[id % JS8_RING].m);
         client_text(c, line);
     }
     if (cw_hist_len) {
@@ -1473,15 +1555,16 @@ static void ft8_status_line(char *buf, size_t n, const ft8_status_t *s) {
 }
 
 /* What the panel asks of the apps, on the LVGL thread */
-typedef enum { A_FT8_OPEN, A_FT8_CLOSE, A_FT8, A_WEFAX_OPEN, A_WEFAX_CLOSE, A_WEFAX, A_LOG } acmd_id_t;
+typedef enum { A_FT8_OPEN, A_FT8_CLOSE, A_FT8, A_WEFAX_OPEN, A_WEFAX_CLOSE, A_WEFAX, A_JS8_OPEN, A_JS8_CLOSE, A_JS8,
+               A_LOG } acmd_id_t;
 
 typedef struct {
     acmd_id_t   id;
-    int         what;       /* ft8_rc_t, wefax_rc_t */
+    int         what;       /* ft8_rc_t, wefax_rc_t, remote_js8_rc_t */
     int32_t     arg;
     bool        has_cell;
     cell_data_t cell;
-    char        text[200];
+    char        text[512];  /* A_LOG's QSO; A_JS8's message (500 characters at most) or call */
     uint64_t    log_id;     /* A_LOG: the page's number for its answer, 0 for none */
     uint64_t    who;        /* A_LOG: the session it came from */
     uint64_t    sum;        /* A_LOG: its text as sent, hashed (log_sum) */
@@ -1619,6 +1702,19 @@ static void app_apply(void *arg) {
         case A_WEFAX:
             wefax_window_remote((wefax_rc_t)a->what);
             break;
+        case A_JS8_OPEN:
+            if (!js8_window_running()) {
+                backlight_tick();
+                main_screen_start_app(ACTION_APP_JS8);
+            }
+            break;
+        case A_JS8_CLOSE:
+            if (js8_window_running())
+                main_screen_close_app();
+            break;
+        case A_JS8:
+            js8_window_remote((remote_js8_rc_t)a->what, a->arg, a->text);
+            break;
         case A_LOG:
             log_answer(a->who, a->log_id, a->sum, dialog_field_qso_log(a->text));
             break;
@@ -1685,6 +1781,37 @@ static bool app_wefax_cmd(const char *what) {
     return true;
 }
 
+/* "js8 open|close|cq|autocq|hbnow|hb|auto|hold|speed|stop", "js8 txfreq HZ", "js8 select CALL", "js8 send TEXT":
+ * the JS8 app's buttons. False for a word it does not know or an argument missing */
+static bool app_js8_cmd(const char *what, const char *arg) {
+    static const struct {
+        const char     *name;
+        remote_js8_rc_t rc;
+    } rcs[] = {{"cq", REMOTE_JS8_CQ},       {"autocq", REMOTE_JS8_AUTOCQ}, {"hbnow", REMOTE_JS8_HBNOW},
+               {"hb", REMOTE_JS8_HB},       {"auto", REMOTE_JS8_AUTO},     {"hold", REMOTE_JS8_HOLD},
+               {"speed", REMOTE_JS8_SPEED}, {"stop", REMOTE_JS8_STOP},     {"txfreq", REMOTE_JS8_TXFREQ},
+               {"select", REMOTE_JS8_SELECT}, {"send", REMOTE_JS8_SEND}};
+    acmd_t a = {.id = A_JS8};
+
+    if (!strcasecmp(what, "open")) {
+        a.id = A_JS8_OPEN;
+    } else if (!strcasecmp(what, "close")) {
+        a.id = A_JS8_CLOSE;
+    } else {
+        size_t i = 0;
+        while (i < sizeof(rcs) / sizeof(rcs[0]) && strcasecmp(rcs[i].name, what)) i++;
+        if (i == sizeof(rcs) / sizeof(rcs[0]))
+            return false;
+        a.what = rcs[i].rc;
+        bool needs = a.what == REMOTE_JS8_SELECT || a.what == REMOTE_JS8_SEND || a.what == REMOTE_JS8_TXFREQ;
+        if (needs && (!arg || !*arg || strlen(arg) >= sizeof(a.text)))
+            return false;
+        a.arg = a.what == REMOTE_JS8_TXFREQ ? (int32_t)strtol(arg, NULL, 10) : 0;
+        snprintf(a.text, sizeof(a.text), "%s", needs ? arg : "");
+    }
+    return scheduler_put(app_apply, &a, sizeof(a));
+}
+
 /* "log CALL|RSTS|RSTR|NAME|QTH|GRID|COUNTRY" (dialog_field_qso_log's text), the day's log;
  * "logq ID CALL|..." the same, answered with the ID. A queue with no room answers "no" at once:
  * the page must not believe a QSO sent into nothing was logged (audit A21). An ID this session
@@ -1729,7 +1856,9 @@ static void *panel_thread(void *arg) {
     pstate_t       last = {0};
     ft8_status_t   ft8_last = {0};
     wefax_status_t fax_last = {0};
-    uint64_t       fax_ms = 0;
+    uint64_t       fax_ms = 0, js8_ms = 0;
+    static remote_js8_status_t js8_last;
+    static char    jline[1024];     /* the JS8 state's line: its texts may be escaped whole */
     bool           have_last = false;
     uint32_t       sp_seq = 0, spots_gen = 0, plan_gen = band_plan_gen();
     uint64_t       state_ms = 0, meter_ms = 0, spots_ms = 0, ft8_ms = 0, ft8_sent_ms = 0;
@@ -1799,6 +1928,9 @@ static void *panel_thread(void *arg) {
                     wefax_window_status(&fax_last);
                     wefax_status_line(line, sizeof(line), &fax_last);
                     client_text(c, line);
+                    js8_window_status(&js8_last);
+                    js8_status_line(jline, sizeof(jline), &js8_last);
+                    client_text(c, jline);
                     panel_app_history(c);
                     if (changed)
                         pstate_line(line, sizeof(line), &s);     /* the line the others get */
@@ -1865,6 +1997,17 @@ static void *panel_thread(void *arg) {
                 fax_ms   = now;
                 wefax_status_line(line, sizeof(line), &ws);
                 panel_broadcast(line);
+            }
+            /* JS8: on a change, the countdown once a second at most */
+            remote_js8_status_t js, ja, jb;
+            js8_window_status(&js);
+            ja = js; jb = js8_last;
+            ja.next_s = jb.next_s = 0;
+            if (memcmp(&ja, &jb, sizeof(ja)) != 0 || (js.next_s != js8_last.next_s && now - js8_ms >= 1000)) {
+                js8_last = js;
+                js8_ms   = now;
+                js8_status_line(jline, sizeof(jline), &js);
+                panel_broadcast(jline);
             }
             panel_cw_flush();
             log_flush();
@@ -2161,6 +2304,11 @@ static void handle_text(client_t *c, char *text) {
         client_text(c, "err pairing refused over the internet: pair this browser at home, then Use away from home");
         return;
     }
+    if (!strncmp(text, "js8 send ", 9)) {   /* the message as it is: it has spaces */
+        if (allowed(c, ROLE_OPERATE, true) && !app_js8_cmd("send", text + 9))
+            client_text(c, "err js8 send: an empty message, one too long, or the radio is busy");
+        return;
+    }
     if (!strncmp(text, "log ", 4)) {        /* the text as it is: names have spaces */
         if (allowed(c, ROLE_OPERATE, false))
             app_log_cmd(c, 0, text + 4);
@@ -2321,7 +2469,7 @@ static void handle_text(client_t *c, char *text) {
         panel_set(c, a[1], n >= 3 ? a[2] : NULL, n >= 4 ? a[3] : NULL);
     } else if (!strcmp(a[0], "tune") && n >= 2) {
         tune_cmd(c, atoi(a[1]) != 0, n >= 3 ? a[2] : NULL);
-    } else if (!strcmp(a[0], "ft8") && n >= 3 && !strcmp(a[1], "wf")) {
+    } else if ((!strcmp(a[0], "ft8") || !strcmp(a[0], "js8")) && n >= 3 && !strcmp(a[1], "wf")) {
         c->appwf = atoi(a[2]) != 0;         /* only watching: no role needed */
     } else if (!strcmp(a[0], "ft8") && n >= 2) {
         if (!allowed(c, ROLE_OPERATE, true))
@@ -2335,6 +2483,11 @@ static void handle_text(client_t *c, char *text) {
             return;
         if (!app_wefax_cmd(a[1]))
             client_textf(c, "err wefax %s", a[1]);
+    } else if (!strcmp(a[0], "js8") && n >= 2) {
+        if (!allowed(c, ROLE_OPERATE, true))
+            return;
+        if (!app_js8_cmd(a[1], n >= 3 ? a[2] : NULL))
+            client_textf(c, "err js8 %s", a[1]);
     } else if (!strcmp(a[0], "clk?") && n >= 2) {
         /* the phone's clock, step 1: its time sent back with ours, so the page knows the round trip */
         struct timespec ts;
@@ -2531,13 +2684,20 @@ static void client_read(client_t *c) {
         switch (f.opcode) {
             case WS_OP_TEXT:
             case WS_OP_CONT:
-                if (f.opcode == WS_OP_TEXT)
-                    c->text_len = 0;
-                if (c->text_len + f.len < TEXT_MAX) {
+                if (f.opcode == WS_OP_TEXT) {
+                    c->text_len  = 0;
+                    c->text_over = false;
+                }
+                if (!c->text_over && c->text_len + f.len < TEXT_MAX) {
                     memcpy(c->text + c->text_len, f.payload, f.len);
                     c->text_len += f.len;
                 } else {
-                    c->text_len = 0;
+                    /* Said, not dropped without a word: a page's long JS8 message was lost so. The rest of the
+                     * message is not taken for one of its own */
+                    if (!c->text_over && c->up)
+                        client_text(c, "err message too long for the radio");
+                    c->text_over = !f.fin;
+                    c->text_len  = 0;
                     break;
                 }
                 if (f.fin) {

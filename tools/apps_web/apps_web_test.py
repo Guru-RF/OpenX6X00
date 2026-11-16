@@ -9,8 +9,10 @@ See the Makefile:
    list has them (none within 50 Hz of a station, none past INT32_MAX).
 2. Through bottle's WSGI app (skipped without BOTTLE): each app's page, in the menu and on General, what it puts
    into its script as JavaScript that a name cannot break out of, and every file it loads from /static there.
-3. src/remote_server.c: a page's "watching" words ("wefax rows 1", "ft8 wf 1") are taken before the app's own
-   branch, which wants operate and control: after it, a viewer's "ft8 wf 1" was refused as an unknown command.
+3. src/remote_server.c: a page's "watching" words ("wefax rows 1", "ft8 wf 1", "js8 wf 1") are taken before the
+   app's own branch, which wants operate and control: after it, a viewer's "ft8 wf 1" was refused as an unknown
+   command. "js8 send TEXT" is taken before the words are split (its text has spaces), a text message of 500
+   characters fits TEXT_MAX, and the JS8 page's ring and lines are as the page reads them.
 Its files go in build/ (the Makefile empties it first).
 """
 import io
@@ -193,10 +195,21 @@ class RemoteWords(unittest.TestCase):
     def test_watching_before_the_apps_commands(self):
         src = source("remote_server.c")
         body = src[src.index("static void handle_text(client_t *c, char *text)"):]
-        for app, word in (("wefax", "rows"), ("ft8", "wf")):
-            watch = body.index('!strcmp(a[0], "%s") && n >= 3 && !strcmp(a[1], "%s")' % (app, word))
-            cmd = body.index('!strcmp(a[0], "%s") && n >= 2)' % app)
-            self.assertLess(watch, cmd, app)
+        for app, watch in (("wefax", '!strcmp(a[0], "wefax") && n >= 3 && !strcmp(a[1], "rows")'),
+                           ("ft8", '!strcmp(a[0], "ft8") || !strcmp(a[0], "js8")) && n >= 3 && !strcmp(a[1], "wf")'),
+                           ("js8", '!strcmp(a[0], "ft8") || !strcmp(a[0], "js8")) && n >= 3 && !strcmp(a[1], "wf")')):
+            self.assertLess(body.index(watch), body.index('!strcmp(a[0], "%s") && n >= 2)' % app), app)
+        self.assertLess(body.index('!strncmp(text, "js8 send ", 9)'), body.index("strtok(text,"))
+
+    def test_text_room(self):
+        """"js8 send " and the page's 500 characters (TX_TEXT_MAX in js8_window.c, the page's maxlength) fit a
+        text message and the command's queue"""
+        src = source("remote_server.c")
+        text_max = int(re.search(r"#define TEXT_MAX +(\d+)", src).group(1))
+        tx_max = int(re.search(r"#define TX_TEXT_MAX +(\d+)", source("js8_window.c")).group(1))
+        acmd_text = int(re.search(r"char +text\[(\d+)\]; +/\* A_LOG's QSO", src).group(1))
+        self.assertGreater(text_max, len("js8 send ") + tx_max)
+        self.assertGreater(acmd_text, tx_max)
 
 
 if __name__ == "__main__":
