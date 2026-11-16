@@ -41,35 +41,41 @@ Settings. Button and option names are written as the radio shows them.
 
 A radio with no callsign, at its first start on a new card or after a factory
 reset (Settings > Info), opens the first-start guide a few seconds after the
-start: three steps, then a summary. The radio receives underneath all the
+start: four steps, then a summary. The radio receives underneath all the
 while. A radio that has a callsign, for example one updated from an earlier
 version, never opens it by itself. The X6100 and the X6200 show the same guide
 (both screens are 800 by 480).
 Where: Settings > General > STATION > First-start guide (Start runs it again).
 
-1. WiFi. Networks opens the WiFi window and turns WiFi on: choose a network
+1. Language. The same list as Settings > Display > Language, each language
+   by its own name ("(draft)" after one a speaker has not checked yet; a
+   name our fonts cannot draw before it is chosen, such as 中文, has its code
+   beside it: zh_CN). The choice is taken at once: the screen is built again
+   in it, and the guide comes back on this step in that language.
+2. WiFi. Networks opens the WiFi window and turns WiFi on: choose a network
    there, then ESC or GEN brings you back to the guide. The line above
    Networks says whether the radio is connected, to which network and with
    which address. With Ethernet connected, WiFi is not needed.
-2. Callsign and locator. Callsign and Locator open the keyboard (on the
+3. Callsign and locator. Callsign and Locator open the keyboard (on the
    screen, or a USB keyboard when one is plugged in); Enter or the tick key
    saves. With a GPS that has a fix, a GPS fix line offers its locator:
    Use <locator> sets it.
-3. Clock and time zone. The clock with the date and UTC, and what set it:
+4. Clock and time zone. The clock with the date and UTC, and what set it:
    NTP (over WiFi) or the GPS. Set by either, there is nothing to do. If
    neither did, set the date and time in the fields under it, as in
    Settings > General > DATE / TIME. Time zone sets the zone the clock at the
    top right shows; the logs and the digital modes stay on UTC.
-4. Done. What is set and what is not, the web configurator's address
+5. Done. What is set and what is not, the web configurator's address
    (`http://x6100.local` or `http://x6200.local`, or the
    [network name](#network-name) you gave the radio, and its IP address), and
    where this manual is.
 
 Moving through it:
 
-- The buttons at the bottom: Back, the step's own (Networks, Callsign,
-  Locator, Time zone), Skip and Next (Done on the last screen). The MFK moves
-  between the controls of a step and its press opens one; touch works too.
+- The buttons at the bottom: Back, the step's own (Language, Networks,
+  Callsign, Locator, Time zone), Skip and Next (Done on the last screen).
+  The MFK moves between the controls of a step and its press opens one;
+  touch works too.
 - Skip goes on without the step: the summary then says "Skipped" for WiFi
   or the callsign while they are not set. One set elsewhere (the callsign in
   Settings, WiFi in the WiFi window) shows as set.
@@ -85,7 +91,7 @@ Moving through it:
 ### First steps
 
 On a new card the [first-start guide](#first-start-guide) takes you through
-steps 1 to 3 and names the web configurator's address.
+steps 1 to 3 (and the language) and names the web configurator's address.
 
 1. Set your callsign and QTH locator.
    Where: Settings > General > STATION.
