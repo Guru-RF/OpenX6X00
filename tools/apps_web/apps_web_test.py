@@ -43,7 +43,7 @@ except ImportError:
     bottle = apps = config_pages = settings = None
 
 BUILD = os.path.join(HERE, "build")
-APPS = ("ft8", "wefax")       # the Apps menu's pages
+APPS = ("ft8", "js8", "wefax")       # the Apps menu's pages
 runs = 0
 
 
@@ -149,19 +149,26 @@ class Pages(unittest.TestCase):
         self.assertEqual(json.loads(listed)[-1], ["Channels", [["</script><b>x", 9001500, ""]]])
         self.assertIn(b'"wefax rows 1"', page)
 
-    def test_ft8_page(self):
+    def test_ft8_and_js8_pages(self):
         con = sqlite3.connect(settings.DB_PATH)
         con.execute("CREATE TABLE params (name TEXT PRIMARY KEY, val TEXT)")
         con.executemany("INSERT INTO params VALUES (?, ?)", [("callsign", 'ON0X"</script>'), ("qth", "JO20sv")])
         con.commit()
         con.close()
-        code, page, _ = self.req("/ft8")
-        self.assertEqual(code, 200)
-        self.assertIn(b'<a href="/ft8"', page)
-        m = re.search(rb"const MYCALL = (.*?)\.toUpperCase\(\), MYGRID = (.*?)\.toUpperCase\(\);", page)
-        self.assertEqual((json.loads(m.group(1)), json.loads(m.group(2))), ('ON0X"</script>', "JO20sv"))
-        self.assertNotIn(b"</", m.group(0))
-        self.assertIn(b'"ft8 wf 1"', page)
+        for name in ("ft8", "js8"):
+            code, page, _ = self.req("/" + name)
+            self.assertEqual(code, 200)
+            self.assertIn(b'<a href="/%s"' % name.encode(), page)
+            m = re.search(rb"const MYCALL = (.*?)\.toUpperCase\(\), MYGRID = (.*?)\.toUpperCase\(\);", page)
+            self.assertEqual((json.loads(m.group(1)), json.loads(m.group(2))), ('ON0X"</script>', "JO20sv"), name)
+            self.assertNotIn(b"</", m.group(0))
+            self.assertIn(b'"%s wf 1"' % name.encode(), page)
+
+    def test_js8_page_room(self):
+        """The box takes what the radio sends (TX_TEXT_MAX in js8_window.c), and no more"""
+        tx_max = int(re.search(r"#define TX_TEXT_MAX +(\d+)", source("js8_window.c")).group(1))
+        code, page, _ = self.req("/js8")
+        self.assertEqual(set(re.findall(rb'maxlength="(\d+)"', page)), {str(tx_max).encode()})
 
     def test_general_has_the_tiles(self):
         code, page, _ = self.req("/")

@@ -26,7 +26,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Winlink](#winlink): [Mercury](#mercury-experimental), [XARA](#xara-experimental)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
-- [Browser apps](#browser-apps): [FT8](#ft8-in-the-browser), [WeFax](#wefax-in-the-browser)
+- [Browser apps](#browser-apps): [FT8](#ft8-in-the-browser), [JS8](#js8-in-the-browser), [WeFax](#wefax-in-the-browser)
 - [TCI server](#tci-server)
 - [Network name](#network-name): [the radio's own names](#the-radios-own-names)
 - [SSH](#ssh): [a key on Windows](#a-key-on-windows), [on a Mac or on Linux](#a-key-on-a-mac-or-on-linux), [in PuTTY](#a-key-in-putty), [on a security key](#a-key-on-a-security-key), [adding the key on the radio](#adding-the-key-on-the-radio), [the first login](#the-first-login), [after a new card image](#after-a-new-card-image), [when SSH does not let you in](#when-ssh-does-not-let-you-in)
@@ -6416,6 +6416,7 @@ The menu has General and six groups:
 | | Screen | the radio's screen live, its keys and knobs, the audio both ways (see [Browser remote](#browser-remote)) |
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
 | Apps | FT8 | the radio's FT8 app: its own waterfall with the calls of each slot, the stations on a map, the band's decodes, the QSO under way, the app's buttons and its next message (see [FT8 in the browser](#ft8-in-the-browser)) |
+| | JS8 | the radio's JS8 app: its own waterfall with the calls heard, the stations on a map, the band's messages or the stations heard, the conversation with a box to write, the app's buttons (see [JS8 in the browser](#js8-in-the-browser)) |
 | | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies, and your own for PSK, Olivia and JTTY in the place of their built-in ones; a card shows what the band keys of those three step through, with the band plan ([Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty)); WSPR band hopping: Hop and each band's Off, RX or RX+TX, set live (see [Band hopping](#band-hopping)) |
@@ -7802,6 +7803,43 @@ On a phone the page has two pairs of tabs, Waterfall or Map on top and Band
 activity or QSO under them (the browser keeps the choice), and a bar under
 the thumb with the next message, the seconds to our slot, Open, TX, CQ, Auto
 and Stop; Mode, TX Hz, Hold and the steps are under the lists.
+
+### JS8 in the browser
+
+Apps > JS8 (`http://x6100.local/js8`) shows the radio's [JS8](#js8) app as
+four screens over its buttons, as the FT8 page:
+
+- Waterfall: the app's own (five rows a second), the calls heard at their
+  offset on the row they came in, the station selected in green and our TX
+  offset in red. A click moves our TX offset there.
+- Map: the stations heard at the locator they sent (called me, CQ,
+  heartbeat, the others, each its colour), us at the radio's locator, and Sat
+  as on the FT8 page.
+- Band activity: the messages with the time, the dB, the audio Hz (F, T or S
+  after it for Fast, Turbo or Slow), a message still coming in in italics,
+  growing as its frames arrive. HB hides the heartbeats and their SNR
+  answers; Stations lists the stations heard instead (those that called us
+  first). A tap on a message or a station selects it on the radio, as its map
+  does.
+- Conversation: our messages, those to us and those of the station
+  selected, and a box to write in (500 characters, Enter sends). With a
+  station selected, chips fill in the usual questions (SNR?, GRID?, INFO?,
+  STATUS?, HEARING?, AGN?), RR, 73 and our grid.
+- The buttons: Open or Close, Speed (Normal, Fast, Turbo, Slow), TX Hz with -
+  and + (10 Hz), CQ, Auto CQ, HB (on or off), HB now, Auto, Hold and Stop,
+  as on the radio. Under them what is on the air or queued, what goes out by
+  itself (auto CQ, HB, Auto) and the seconds to the next frame.
+
+Send queues the message as OK in the radio's keyboard does: its macros
+filled, an APRS message checked, and to the station selected on its offset
+when Hold is off, as Reply. The radio's answer shows on the page's status
+line ("Queued: 3 frames, 45 s", "Already sending: Stop first", or why it was
+not sent). The page sends what was typed: GhostNet's Mine into English first
+works in the radio's keyboard only. A page that opens later gets the last 64 messages the
+radio kept.
+
+On a phone the page has the FT8 page's tabs, and a bar under the thumb with
+what goes out next, the seconds to it, Open, CQ, HB, Auto and Stop.
 
 ### WeFax in the browser
 

@@ -525,6 +525,12 @@ def ft8_page():
     return bottle.template('ft8', me=js_value(read_callsign() or ""), grid=js_value(read_param("qth") or ""))
 
 
+# The JS8 page: the callsign and the locator, as FT8's
+@app.route('/js8')
+def js8_page():
+    return bottle.template('js8', me=js_value(read_callsign() or ""), grid=js_value(read_param("qth") or ""))
+
+
 # Tailscale Funnel (#58): the Panel and the Screen page for the internet, written at the start into a folder in RAM
 # (settings.FUNNEL_DIR) with the files they load. tailscaled serves them itself, path by path
 # (rootfs/usr/sbin/x6100-tailscale, which lists the same files): no request from the internet reaches this server
