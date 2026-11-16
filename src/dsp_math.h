@@ -14,7 +14,65 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <vector>
+
+/* dB to power and back without powf and log10f, for the loops that convert every bin of every frame: the IQ
+ * spectrum and waterfall of the X6100, the base's spectrum averaged in power on the X6200, some 30 000 to 100 000
+ * calls a second. Each takes the float apart (exponent and mantissa) and works out the rest with a short polynomial,
+ * with no loop and no table:
+ *   dsp_db_to_pow(db): 10^(db / 10), within 7e-6 of it (0.00003 dB); db past +-376 dB is taken as +-376 dB
+ *   dsp_pow_to_db(p):  10 log10(p), within 8e-5 dB; p under 1.2e-38 (0 too) reads -379 dB, where log10f gave -inf
+ * The polynomials are Chebyshev fits of 2^f on -0.5 .. 0.5 (degree 4) and of log2(1 + u) on sqrt(0.5) - 1 ..
+ * sqrt(2) - 1 (degree 5). tools/dsp_math checks them against powf and log10f, and that the waterfall's colours,
+ * the spectrum's pixels and the noise level come out as with those. The rounding below needs IEEE arithmetic as
+ * written: with -ffast-math the compiler may take (x + c) - c for x */
+static inline float dsp_db_to_pow(float db) {
+    float x = std::min(std::max(db * 0.33219280948873623f, -125.0f), 125.0f);   /* log2(10) / 10 */
+    float r = (x + 12582912.0f) - 12582912.0f;      /* x rounded to the nearest whole number (1.5 * 2^23) */
+    float f = x - r;
+    float p = 0.009666368515387469f;
+
+    p = p * f + 0.055921975842256264f;
+    p = p * f + 0.24022349038020335f;
+    p = p * f + 0.693121045203427f;
+    p = p * f + 1.0f;                               /* 2^f, 0.71 .. 1.41 */
+
+    int32_t bits;
+
+    std::memcpy(&bits, &p, 4);
+    bits += (int32_t)r << 23;                       /* times 2^r: added to the exponent */
+    std::memcpy(&p, &bits, 4);
+    return p;
+}
+
+static inline float dsp_pow_to_db(float p) {
+    int32_t bits;
+
+    p = std::max(p, 1.1754944e-38f);                /* the smallest normal float: a denormal's exponent is not one */
+    std::memcpy(&bits, &p, 4);
+
+    int32_t e = (bits >> 23) - 127;
+    int32_t m = (bits & 0x7fffff) | 0x3f800000;     /* the mantissa, 1 .. 2 */
+    float   f;
+
+    std::memcpy(&f, &m, 4);
+    if (f > 1.41421356f) {                          /* to 0.71 .. 1.41, where the fit is made */
+        f *= 0.5f;
+        e++;
+    }
+    f -= 1.0f;
+
+    float l = 0.24327277823433333f;
+
+    l = l * f - 0.3936896830253101f;
+    l = l * f + 0.48822569555232936f;
+    l = l * f - 0.7202141342183704f;
+    l = l * f + 1.442517608220981f;
+    l = l * f - 6.308052795937077e-06f;             /* log2 of the mantissa */
+    return 3.0102999566398120f * ((float)e + l);    /* 10 log10(2) */
+}
 
 /* Four-term Blackman-Harris (periodic form, -92 dB sidelobes), scaled so that the
  * squares add up to 1: white noise then reads its variance in every bin, whatever

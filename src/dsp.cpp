@@ -141,7 +141,7 @@ class PsdFrames {
         if (acc.size() != n)
             acc.assign(n, 0.0f);
         for (size_t i = 0; i < n; i++)
-            acc[i] += powf(10.0f, db[i] * 0.1f);
+            acc[i] += dsp_db_to_pow(db[i]);
         count++;
     }
 
@@ -159,7 +159,7 @@ class PsdFrames {
             float  f = x - i;
             float  p = i + 1 < n ? acc[i] * (1.0f - f) + acc[i + 1] * f : acc[i];
 
-            out[j] = 10.0f * log10f(std::max(p * k, 1e-20f));
+            out[j] = dsp_pow_to_db(std::max(p * k, 1e-20f));
         }
         reset();
     }
@@ -321,7 +321,7 @@ static void spectrum_frame(Panorama *sp, uint64_t now, bool tx, uint32_t freq, u
     /* Quick to rise, slow to fall: a carrier shows at once, the noise trace stays calm
      * and a weak steady carrier stands out of it */
     for (size_t i = 0; i < SPECTRUM_NFFT; i++) {
-        float v = 10.0f * log10f(sp_psd[i]) + LEVEL_DB + zoom_db;
+        float v = dsp_pow_to_db(sp_psd[i]) + LEVEL_DB + zoom_db;
 
         sp_shown[i] += (v - sp_shown[i]) * (v > sp_shown[i] ? 0.6f : 0.2f);
     }
@@ -343,7 +343,7 @@ static bool waterfall_frame(Panorama *wf, uint64_t now) {
 
     wf->take(wf_lin);
     for (size_t i = 0; i < WATERFALL_NFFT; i++)
-        wf_db[i] = 10.0f * log10f(wf_lin[i]) + LEVEL_DB + zoom_db;
+        wf_db[i] = dsp_pow_to_db(wf_lin[i]) + LEVEL_DB + zoom_db;
     wf_time = now;
     return true;
 }
@@ -500,7 +500,7 @@ void dsp_psd(const float *db, uint16_t n, uint32_t span_hz, bool tx, int16_t sme
     wf->take(wf_db, WATERFALL_NFFT, frac);
     /* The lift for the zoom, and the linear powers auto_levels() reads on the scale of the IQ path */
     for (size_t i = 0; i < WATERFALL_NFFT; i++) {
-        wf_lin[i] = powf(10.0f, (wf_db[i] - LEVEL_DB) * 0.1f);
+        wf_lin[i] = dsp_db_to_pow(wf_db[i] - LEVEL_DB);
         wf_db[i] += zoom_db;
     }
     wf_time = now;
