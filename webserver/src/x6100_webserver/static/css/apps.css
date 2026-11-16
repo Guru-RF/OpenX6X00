@@ -1,0 +1,130 @@
+/* The apps' pages (FT8, JS8): a wall of four screens (the app's waterfall, a map, two lists) and a desk of
+ * buttons under it, on base.css's colours and cards. From OlivLoze's fork, in our look.
+ * SPDX-License-Identifier: LGPL-2.1-or-later */
+.bar,main{max-width:1480px}
+main h2{margin-bottom:6px}
+/* the kinds of station, the same on the map, the lists and the waterfall */
+.app-page{--c-cq:var(--ok);--c-pota:#ffd860;--c-dx:#ff5cb4;--c-me:var(--err);--c-oth:#5cb8ff;--c-mine:var(--accent);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--well:#0b1422;--line2:#34465f}
+.app-top{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:0 0 10px}
+.app-top .grow{flex:1}
+.app-wall{display:grid;grid-template-columns:1.12fr 1fr;grid-template-rows:1fr 1fr;gap:10px;height:620px;min-height:480px}
+.mon{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.mh{display:flex;align-items:center;gap:9px;padding:6px 12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#172539,#131e2e);flex:none;min-height:38px}
+.mh h3{font-size:15px;margin:0;color:var(--text)}
+.mh .meta{margin-left:auto;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.lbl{font-size:12.5px;color:var(--dim)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.led{width:8px;height:8px;border-radius:50%;background:var(--c,var(--ok));flex:none}
+.led.off{--c:#3a4a60}
+.mb{flex:1;min-height:0;position:relative}
+.chip{padding:3px 10px;font-size:12px;font-weight:600;border-radius:999px;color:var(--dim);background:var(--well)}
+.chip:hover{color:var(--text)}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#111}
+
+/* the waterfall: the app's own, the audio it decodes */
+.wf{display:flex;flex-direction:column;height:100%}
+.scale{height:20px;position:relative;flex:none;border-bottom:1px solid var(--line);background:var(--well);overflow:hidden}
+.scale span{position:absolute;top:2px;transform:translateX(-50%);font:11px var(--mono);color:var(--dim)}
+.scale i{position:absolute;bottom:0;width:1px;height:4px;background:var(--line2)}
+.wfb{position:relative;flex:1;min-height:0;overflow:hidden;cursor:crosshair;background:#000}
+.wfb canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#wfc{image-rendering:pixelated}
+.wfb .empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:16px;color:var(--dim);font-size:13px;pointer-events:none}
+.wfb .empty[hidden]{display:none}
+
+/* the lists */
+.list{position:absolute;inset:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+.row{display:grid;grid-template-columns:62px 32px 44px minmax(0,1fr) minmax(0,150px);gap:6px;align-items:center;padding:2px 10px 2px 12px;font:12.5px/1.55 var(--mono);font-variant-numeric:tabular-nums;border-left:2px solid transparent}
+.row.go{cursor:pointer}
+.row.go:hover,.row.hl{background:rgba(255,255,255,.05)}
+.row .r{text-align:right;color:var(--dim)}
+.row .u{color:var(--dim)}
+.row .m{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--text)}
+.row .k{font:12px system-ui,sans-serif;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.thead{position:sticky;top:0;z-index:2;background:var(--well);border-bottom:1px solid var(--line)}
+.thead>*{font:600 11.5px system-ui,sans-serif!important;color:var(--dim)!important}
+.sep{display:flex;align-items:center;gap:8px;padding:5px 12px 2px;font:600 11.5px var(--mono);color:var(--accent)}
+.sep::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(255,176,32,.35),transparent)}
+.note{padding:2px 12px;font-size:12.5px;color:var(--dim);font-style:italic}
+.list .empty{padding:18px 14px;color:var(--dim);font-size:13px}
+
+/* the map */
+#map{position:absolute;inset:0;width:100%;height:100%;display:block;background:#08101c}
+#land{fill:#1d2c44;stroke:#3d5374;stroke-width:.7}
+#sat{filter:brightness(.8) saturate(.9)}
+#map.sat #land{fill:none;stroke:rgba(230,237,245,.22);stroke-width:.6}
+.chip.gap{margin-left:6px}
+.mapkey{position:absolute;left:8px;bottom:8px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;background:rgba(11,19,32,.86);padding:4px 8px;border-radius:8px;border:1px solid var(--line);max-width:calc(100% - 16px)}
+.mapkey span{display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--dim)}
+.mapkey i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+@keyframes ring{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(3.2)}}
+.pulse{animation:ring 1.6s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none}}
+
+/* the desk */
+.desk{margin-top:10px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;padding:12px 14px;align-items:center}
+.grp{display:flex;flex-direction:column;gap:8px;min-width:0}
+.line{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.btn{height:34px;padding:0 12px;font-size:13px;white-space:nowrap;background:var(--well)}
+.btn small{font:600 13px var(--mono);color:var(--dim)}
+.btn.open{color:var(--ok);border-color:#2f6b45}
+.btn.armed{color:#fff;background:rgba(255,107,107,.22);border-color:var(--err)}
+.btn.on{background:var(--accent);border-color:var(--accent);color:#111}
+.btn.on small{color:#111}
+.btn.auto.on{background:rgba(95,211,138,.16);border-color:var(--ok);color:var(--ok)}
+.btn.hold.on{background:rgba(92,184,255,.14);border-color:var(--c-oth);color:var(--c-oth)}
+.btn.stop{color:var(--err);border-color:#7a2a2a}
+.btn.stop:hover,.btn.stop.down{background:var(--err);border-color:var(--err);color:#111}
+.txhz{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;height:34px;background:var(--well);overflow:hidden}
+.txhz button{width:30px;height:32px;padding:0;border:0;border-radius:0;color:var(--dim);font:600 16px var(--mono)}
+.txhz button:hover{color:var(--text)}
+.txhz span{font:600 14px var(--mono);color:var(--err);min-width:52px;text-align:center}
+.nextline{font-size:13.5px;line-height:1.4;color:var(--dim);min-height:19px}
+.nextline b{font:600 13.5px var(--mono);color:var(--accent)}
+.nextline.stop{color:var(--err)}
+.cd{display:flex;align-items:center;gap:12px}
+.ringcd{position:relative;width:64px;height:64px;flex:none}
+.ringcd svg{width:64px;height:64px;transform:rotate(-90deg)}
+.ringcd circle{fill:none;stroke-width:4}
+.ringcd div{position:absolute;inset:0;display:grid;place-items:center}
+.ringcd strong{font:700 22px/1 var(--mono);color:var(--text)}
+.acts{display:grid;grid-template-columns:repeat(3,auto);gap:6px}
+.desk .status{grid-column:1/-1;margin:0;min-height:20px}
+.app-help{margin:10px 0 0;font-size:13px}
+/* a sender's flag (app_wall.js flag(): the radio's flags, 40 x 30 in flags.png, shown at half) */
+.flag{display:inline-block;width:20px;height:15px;border-radius:2px;background:url(/static/img/flags.png?v=1) no-repeat;background-size:320px auto;
+  box-shadow:0 0 0 1px rgba(255,255,255,.14);vertical-align:-2px;flex:none;margin-right:6px}
+.tabs,.mbar{display:none}
+
+/* a phone: two pairs of tabs (the waterfall or the map, one list or the other), the main buttons in a bar under
+ * the thumb; the rest of the desk (the steps, the messages, what the bar has no room for) under the lists */
+@media (max-width:760px){
+  .app-wall{display:block;height:auto!important;min-height:0}
+  .wfx{display:none}
+  .tabs{display:flex;gap:4px;margin:0 0 6px}
+  .tabs button{flex:1;height:32px;padding:0;font-size:12.5px;border-radius:8px;background:var(--panel);color:var(--dim)}
+  .tabs button[aria-selected=true]{color:#111;background:var(--accent);border-color:var(--accent)}
+  .tabs .n{font:11.5px var(--mono)}
+  .mon{margin-bottom:6px}
+  .mh{min-height:30px;padding:3px 10px}
+  .mh h3{font-size:14px}
+  #m-wf .mh{display:none}
+  .pane{display:none}
+  .pane.show{display:flex}
+  .pane .mb{height:52vh;min-height:300px;flex:none}
+  #m-wf .mb,#m-map .mb{height:36vh;min-height:220px}
+  .row{grid-template-columns:56px 30px 40px minmax(0,1fr);padding:4px 10px 4px 12px}
+  .row .k{display:none}
+  .desk{grid-template-columns:1fr}
+  .desk .dup,.ringcd{display:none}         /* the bar has them */
+  main{padding-bottom:150px}
+  .mbar{display:flex;flex-direction:column;gap:7px;position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(19,30,46,.97);border-top:1px solid var(--line2);padding:8px 16px calc(8px + env(safe-area-inset-bottom))}
+  .mbar .top{display:flex;align-items:center;gap:10px}
+  .mbar .nx{flex:1;min-width:0;display:flex;flex-direction:column}
+  #m-next{font:600 13px var(--mono);color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #m-next.tx{color:var(--err)}
+  .mbar .cds{font:700 26px/1 var(--mono);color:var(--text);min-width:44px;text-align:right}
+  .mbar .acts2{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+  .mbar .btn{height:42px;padding:0 4px}
+}

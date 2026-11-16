@@ -119,7 +119,9 @@ def static_files(filepath):
     if isinstance(response, bottle.HTTPError) or response.status_code != 200:
         return response
     response.set_header('Cache-Control', 'max-age=86400')
-    if gzip and 'gzip' in bottle.request.headers.get('Accept-Encoding', ''):
+    # A JPEG or a PNG is compressed already: gzip would only cost the radio its time and a copy in memory
+    if gzip and 'gzip' in bottle.request.headers.get('Accept-Encoding', '') \
+            and not filepath.lower().endswith(('.jpg', '.jpeg', '.png')):
         if filepath not in _gzip_cache:
             with open(os.path.join(STATIC_PATH, filepath), 'rb') as f:
                 _gzip_cache[filepath] = gzip.compress(f.read())

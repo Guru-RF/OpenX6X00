@@ -1,8 +1,9 @@
 from datetime import datetime
 try:
+    import gzip
     import zlib
-except ImportError:   # images built before python3-zlib was selected
-    zlib = None
+except ImportError:   # images built before python3-zlib was selected (gzip needs it)
+    gzip = zlib = None
 import base64
 import binascii
 import csv
@@ -461,6 +462,134 @@ def remote():
 @app.route('/panel')
 def panel():
     return bottle.template('panel')
+
+
+# The apps' pages (the Apps menu, from OlivLoze's fork): the radio's WeFax, FT8 and JS8 apps from the browser, over
+# the Panel's socket (src/remote_server.c). The radio decodes, answers and saves on its own; a page shows and commands.
+#
+# The WeFax app's stations as src/wefax_window.c lists them (stations[]: tools/apps_web checks that these are the
+# same), by their published frequency: the app tunes WEFAX_CENTER_HZ under it, in USB
+WEFAX_CENTER_HZ = 1500
+WEFAX_SAME_HZ = 50       # SAME_STATION_HZ: a channel this close to a station is that station
+WEFAX_STATIONS = (
+    ("DWD (DE)", (("DDH3", 3855000, "night"), ("DDK3", 7880000, "day and night"), ("DDK6", 13882500, "day"))),
+    ("Northwood (UK)", (("GYA", 2618500, ""), ("GYA", 4610000, ""), ("GYA", 8040000, ""), ("GYA", 11086500, ""))),
+    ("Athens (GR)", (("SVJ4", 4481000, ""), ("SVJ4", 8105000, ""))),
+    ("Boston (US)", (("NMF", 4235000, "night"), ("NMF", 6340500, ""), ("NMF", 9110000, ""),
+                     ("NMF", 12750000, "day"))),
+    ("New Orleans (US)", (("NMG", 4317900, "night"), ("NMG", 8503900, ""), ("NMG", 12789900, ""),
+                          ("NMG", 17146400, "day"))),
+    ("Pt. Reyes (US)", (("NMC", 4346000, "night"), ("NMC", 8682000, ""), ("NMC", 12786000, ""),
+                        ("NMC", 17151200, "day"), ("NMC", 22527000, "day"))),
+    ("Kodiak (US)", (("NOJ", 2054000, "night"), ("NOJ", 4298000, ""), ("NOJ", 8459000, ""),
+                     ("NOJ", 12412500, "day"))),
+    ("Honolulu (US)", (("KVM70", 9982500, ""), ("KVM70", 11090000, ""), ("KVM70", 16135000, ""),
+                       ("KVM70", 23331500, "day"))),
+)
+
+
+def wefax_channel_name(name):
+    """A channel's name as the WeFax app lists it (channel_name in src/wefax_window.c): what follows WEFAX and its
+    separators, all of it when nothing does, without '#'"""
+    return (name[5:].lstrip(" -_:./#") or name).replace("#", "")
+
+
+def wefax_stations():
+    """What the app's Freq. list holds: its stations, then the channels whose name starts with WEFAX (APP >
+    Channels, the Memories page) that are not one of them, under Channels. [[group, [[name, Hz, note]]]]"""
+    groups = [[g, [list(s) for s in st]] for g, st in WEFAX_STATIONS]
+    known = [s[1] for _, st in WEFAX_STATIONS for s in st]
+    own = []
+    for c in channels_state()["channels"]:
+        f = c["frequency"] + WEFAX_CENTER_HZ
+        if c["name"][:5].upper() != "WEFAX" or f > 0x7FFFFFFF or any(abs(k - f) <= WEFAX_SAME_HZ for k in known):
+            continue
+        own.append([wefax_channel_name(c["name"]), f, ""])
+    if own:
+        groups.append(["Channels", own])
+    return groups
+
+
+def js_value(v):
+    """v as JavaScript in a page's script: JSON, "<" escaped, so a name with "</script>" in it stays text"""
+    return json.dumps(v).replace("<", "\\u003c")
+
+
+@app.route('/wefax')
+def wefax_page():
+    return bottle.template('wefax', stations=js_value(wefax_stations()))
+
+
+# The FT8 page: the callsign and the locator for its map and its QSO's messages (the radio sends the rest)
+@app.route('/ft8')
+def ft8_page():
+    return bottle.template('ft8', me=js_value(read_callsign() or ""), grid=js_value(read_param("qth") or ""))
+
+
+# The JS8 page: the callsign and the locator, as FT8's
+@app.route('/js8')
+def js8_page():
+    return bottle.template('js8', me=js_value(read_callsign() or ""), grid=js_value(read_param("qth") or ""))
+
+
+# The country of a call for the apps' pages (their flags and distances): AD1C's cty.dat as the radio reads it
+# (src/dxcc.c), /mnt/cty.dat first so a newer one put on the card counts here too, then the image's; the last is the
+# source tree's (a server on a PC). Sent whole, compact, and looked up in the page as dxcc_lookup does (app_wall.js):
+# {"e": [[name, primary prefix, lat, lon]], "p": {prefix: e}, "x": {whole call: e}}, lon east positive (cty.dat's is
+# west). From OlivLoze's fork
+CTY_PATHS = ("/mnt/cty.dat", "/usr/share/x6100/cty.dat",
+             os.path.join(PACKAGE_DIR, "..", "..", "..", "third-party", "cty", "cty.dat"))
+CTY_SHORT = {"Fed. Rep. of Germany": "Germany", "United States": "USA", "European Russia": "Russia",
+             "Republic of Korea": "South Korea", "DPR of Korea": "North Korea", "United Arab Emirates": "UAE",
+             "Slovak Republic": "Slovakia", "Czech Republic": "Czechia", "Bosnia-Herzegovina": "Bosnia",
+             "Dem. Rep. of the Congo": "DR Congo", "Republic of the Congo": "Congo",
+             "Republic of South Sudan": "South Sudan", "Antigua & Barbuda": "Antigua", "Trinidad & Tobago": "Trinidad",
+             "Turks & Caicos Islands": "Turks & Caicos", "St. Kitts & Nevis": "St. Kitts",
+             "Sov Mil Order of Malta": "SMOM", "UK Base Areas on Cyprus": "UK Cyprus"}   # short_name in src/dxcc.c
+_cty = {"key": None, "json": None, "gz": None}
+
+
+def cty_table(text):
+    """parse() in src/dxcc.c: eight ':'-ended fields, then the prefixes up to ';' (split at commas and spaces),
+    "=CALL" a whole call, what follows a ( [ < { ~ cut off. The primary prefix counts only where it is listed, as
+    there. A whole call listed under two entities (4U1A and a few more of the UN's): the first here, either one
+    there (its binary search)"""
+    ents, pfx, exact = [], {}, {}
+    for block in text.split(";"):
+        f = block.split(":", 8)
+        if len(f) < 9:
+            break                   # a truncated file: what came before it
+        try:
+            lat, lon = float(f[4]), -float(f[5])
+        except ValueError:
+            lat = lon = 0.0
+        e, name, prim = len(ents), f[0].strip(), f[7].strip()
+        ents.append([CTY_SHORT.get(name, name), prim[1:] if prim.startswith("*") else prim, lat, lon])
+        for a in re.split(r"[,\s]+", f[8]):
+            whole = a.startswith("=")
+            a = re.split(r"[(\[<{~]", a[whole:], maxsplit=1)[0]
+            if a:
+                (exact if whole else pfx).setdefault(a, e)
+    return {"e": ents, "p": pfx, "x": exact}
+
+
+@app.get('/api/dxcc')
+def dxcc_table():
+    path = next((p for p in CTY_PATHS if os.path.exists(p)), None)
+    if not path:
+        raise bottle.HTTPError(404, "No cty.dat on the radio")
+    key = (path, os.path.getmtime(path))
+    if _cty["key"] != key:
+        with open(path, encoding="latin-1") as f:
+            _cty["json"] = json.dumps(cty_table(f.read()), separators=(",", ":")).encode()
+        _cty["gz"] = gzip.compress(_cty["json"]) if gzip else None
+        _cty["key"] = key
+    bottle.response.content_type = "application/json"
+    bottle.response.set_header("Cache-Control", "max-age=3600")
+    if _cty["gz"] and "gzip" in bottle.request.headers.get("Accept-Encoding", ""):
+        bottle.response.set_header("Content-Encoding", "gzip")
+        return _cty["gz"]
+    return _cty["json"]
 
 
 # Tailscale Funnel (#58): the Panel and the Screen page for the internet, written at the start into a folder in RAM
@@ -3361,6 +3490,36 @@ def set_js8_texts():
     except OSError as ex:
         return api_error(500, f"Can't save: {ex}")
     return read_js8_texts()
+
+
+# The JS8 app's saved messages (Query > Saved on the radio, which edits them): a line each, an empty line for an
+# empty slot, read in capitals as the app reads them (load_saved in src/js8_window.c). The JS8 page offers them;
+# their macros (<CALL> and the others) are filled in by the radio as it sends
+JS8_SAVED_N = 10
+JS8_SAVED_MAX = 500             # TX_TEXT_MAX there
+JS8_SAVED_DEFAULT = "TNX 73 GL"  # the first slot's before anything was saved
+
+
+def read_js8_saved():
+    try:
+        with open(settings.JS8_SAVED_FILE, "rb") as f:     # bytes: a line ends at \n alone, as for its fgets
+            lines = [f.readline(JS8_SAVED_MAX + 7).decode("latin-1") for _ in range(JS8_SAVED_N)]
+    except FileNotFoundError:
+        lines = [JS8_SAVED_DEFAULT]
+    except OSError:
+        lines = []
+    saved = []
+    for slot, line in enumerate(lines):
+        line = line.split("\n", 1)[0].split("\r", 1)[0]
+        text = "".join(c.upper() if "a" <= c <= "z" else c for c in line)[:JS8_SAVED_MAX]
+        if text:
+            saved.append({"n": slot + 1, "text": text})
+    return {"saved": saved}
+
+
+@app.get('/api/js8_saved')
+def get_js8_saved():
+    return read_js8_saved()
 
 
 # Internet radio (APP > Internet radio, src/dialog_iradio.c): its favourites, one station a line of IRADIO_FAV_FILE,

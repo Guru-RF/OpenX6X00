@@ -26,6 +26,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Winlink](#winlink): [Mercury](#mercury-experimental), [XARA](#xara-experimental)
 - [Browser panel](#browser-panel)
 - [Browser remote](#browser-remote)
+- [Browser apps](#browser-apps): [FT8](#ft8-in-the-browser), [JS8](#js8-in-the-browser), [WeFax](#wefax-in-the-browser)
 - [TCI server](#tci-server)
 - [Network name](#network-name): [the radio's own names](#the-radios-own-names)
 - [SSH](#ssh): [a key on Windows](#a-key-on-windows), [on a Mac or on Linux](#a-key-on-a-mac-or-on-linux), [in PuTTY](#a-key-in-putty), [on a security key](#a-key-on-a-security-key), [adding the key on the radio](#adding-the-key-on-the-radio), [the first login](#the-first-login), [after a new card image](#after-a-new-card-image), [when SSH does not let you in](#when-ssh-does-not-let-you-in)
@@ -6451,7 +6452,7 @@ transmitter. Logs > Export and the
 Gallery's ZIP download hold no secret and work by any name; TCI programs, which
 are not browsers, connect by any name as before.
 
-The menu has General and five groups:
+The menu has General and six groups:
 
 | Group | Page | Does |
 |---|---|---|
@@ -6459,6 +6460,9 @@ The menu has General and five groups:
 | Remote | Panel | the radio's own controls in the browser, for a touch screen (see [Browser panel](#browser-panel)) |
 | | Screen | the radio's screen live, its keys and knobs, the audio both ways (see [Browser remote](#browser-remote)) |
 | | Tailscale | Enabled, status, Log in to Tailscale, the radio on your tailnet, Log out, and Funnel (see [Tailscale](#tailscale) and [Tailscale Funnel](#tailscale-funnel)) |
+| Apps | FT8 | the radio's FT8 app: its own waterfall with the calls of each slot, the stations on a map, the band's decodes, the QSO under way, the app's buttons and its next message (see [FT8 in the browser](#ft8-in-the-browser)) |
+| | JS8 | the radio's JS8 app: its own waterfall with the calls heard, the stations on a map, the band's messages or the stations heard, the conversation with a box to write, the app's buttons (see [JS8 in the browser](#js8-in-the-browser)) |
+| | WeFax | the radio's WeFax app: the chart live as it comes in, open and close, RX Auto or Cont, Save now, Clear, the stations, the last charts (see [WeFax in the browser](#wefax-in-the-browser)) |
 | Frequencies | Bands | band edges, default modes and TX shifts ([TX shift](#tx-shift)); the band plan the radio uses, whose region 160m, 80m, 40m SSB and 6m follow unless edited ([Band plan](#band-plan)). A band may overlap an inactive broadcast band (80m to 4 MHz over Broadcast 75m): the radio takes the band |
 | | Digital modes | add, edit and delete the FT8/FT4, JS8, WSPR and FT2 frequencies, and your own for PSK, Olivia and JTTY in the place of their built-in ones; a card shows what the band keys of those three step through, with the band plan ([Frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty)); WSPR band hopping: Hop and each band's Off, RX or RX+TX, set live (see [Band hopping](#band-hopping)) |
 | | Memories | MEM 1-9 slots and the named channel list ([Channels](#channels)), on the frequencies the radio tunes |
@@ -7376,8 +7380,28 @@ the CW decoder's text as `cw "..."`; `ft8 open|close|cq|stop|auto|hold|mode`,
 open|close|auto|cont|save|clear` works the WeFax app as its buttons do (RX
 Auto, RX Cont, Save, Clear; operate and control, `err wefax WHAT` for one it
 does not know), and the panel state's `app` names the digital app open
-(`"FT8"`, `"WeFax"`, `""` for none); the FT8 state
-carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
+(`"FT8"`, `"WeFax"`, `""` for none); its state comes as `wefax {...}` (open,
+auto, fax: a chart coming in, tx and txp, gen: a new picture, rows kept,
+freq, station, saved: the last file written to `/mnt/wefax`, saves), and to
+a client that sent `wefax rows 1` (no role needed) the picture row by row as
+binary frames (8 bytes header `{u16 0xFFFE, u16 width, u32 the row's number
+in the picture, from 1}`, then a grey byte a pixel); to a client that sent
+`ft8 wf 1` (no role needed either) the FT8 app's own waterfall row by row,
+binary too (`{u16 0xFFFD, u16 bins, u16 low Hz, u16 high Hz}`, then a signed
+byte a bin, dB over the noise floor, the app's filter from its low edge to
+its high one); `js8 open|close|cq|autocq|hbnow|hb|auto|hold|speed|stop`,
+`js8 txfreq HZ`, `js8 select CALL` and `js8 send TEXT` (500 characters at
+most, macros filled as on the radio) work the JS8 app as its buttons do
+(operate and control); its messages come as `js8r {...}` (id, utc, snr,
+audio Hz, speed, tx: ours, me, cq, hb, grp, lc: low confidence, part: still
+coming in, chk, fr, to, g: the sender's locator, x: the text), the last 64
+again to a client that connects later, a message coming in keeping its id as
+it grows; its state as `js8 {...}` (open, busy, sending, acq, hb, auto, hold,
+speed, frame and frames, txf, selhz, hbmin, next in seconds, sel, where,
+text, and note, noteerr, notefor and notes: the answer to the last command,
+"Queued: 3 frames, 45 s" or why not, and that command's word); `js8 wf 1`
+brings its waterfall as FT8's. A text message longer than 1023 bytes is
+answered `err message too long for the radio`; the FT8 state carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
 the sends left, `qso`, `hound`, `nocall`, `logged` and `logged_s`), once a
 second while a countdown runs; `log CALL|RSTS|RSTR|NAME`
 writes the day's log and is answered with `logged ok|no`. `logq ID CALL|...`
@@ -7776,6 +7800,146 @@ other sites cannot connect (the browser's Origin is checked), nor can Pat's
 Winlink mailbox (port 8080). So the Panel and the Screen page do not connect
 either when you open them at port 8080 of your own computer, through an SSH
 tunnel or a forwarded port: use another port for that, 8000 for instance.
+
+## Browser apps
+
+The web configurator's Apps menu works the radio's apps from a browser, over
+the Panel's link (the same port, pairing, control and health chips, see
+[Browser panel](#browser-panel)). The radio does the work on its own, with
+or without the page: it decodes, answers and saves as it does when no browser
+is open, and a page that closes or drops leaves it as it was. Anyone on the
+network sees the pages; a change needs a paired browser in control, as on
+the Panel. These pages came from OlivLoze's fork (f4oli-apps).
+
+### FT8 in the browser
+
+Apps > FT8 (`http://x6100.local/ft8`) shows the radio's [FT8](#ft8-and-ft4)
+app (FT4 and FT2 too) as four screens over the app's buttons:
+
+- Waterfall: the app's own, the audio it decodes from its filter's low edge
+  to its high one, the newest row on top, each slot's start and time, the
+  calls decoded in it at their frequency, and our TX frequency in red. A
+  click moves our TX frequency there.
+- Map: the stations heard in the last half hour at their locator (CQ, POTA,
+  CQ DX, calling me, the others, each its colour, the older ones paler), us
+  at the radio's locator (Settings > General > STATION), and the path to the station
+  worked. Near shows our part of the world, World all of it. Sat puts NASA's
+  Blue Marble (public domain) under the stations: on by default on a computer,
+  off on a phone, where its 280 kB are the most of the page's weight; the
+  browser keeps the choice. Everything comes from the radio: the page needs no
+  internet.
+- Band activity: the decodes slot by slot with the dB, the audio Hz, the
+  sender's flag, its country and the distance; a tap on a CQ or a call answers it in our next
+  slot and arms TX, as a tap on the radio's list does. Clear empties the
+  page's list only.
+- QSO: our messages, the stations calling us and the station worked.
+- The buttons: Open or Close, Mode (FT8, FT4, FT2), TX Hz with - and + (10 Hz),
+  TX armed or off, CQ, Auto, Hold and Stop, as on the radio. Under them the
+  steps (listening, queued, next slot, sending, logged), the QSO's six
+  messages with the next one lit, what the app does next in words, and the
+  seconds to our next slot.
+
+The country of a call is the radio's own answer: the pages read the radio's
+cty.dat (a newer one put on the card as `/mnt/cty.dat` counts there too)
+and look a call up as the FT8 list does, and the flags are the radio's,
+drawn larger. Both load once an hour at most (about 100 kB).
+
+The radio's own list and its rules decide: CQ and Auto go on when the page
+closes or drops, a reply waits for its slot, and Stop ends the transmission,
+drops the queued message and turns CQ and TX off. TX off makes a dry run:
+the app listens, decodes and queues, and nothing keys the transmitter. A
+page that opens later gets the last 48 rows the radio kept.
+
+On a phone the page has two pairs of tabs, Waterfall or Map on top and Band
+activity or QSO under them (the browser keeps the choice), and a bar under
+the thumb with the next message, the seconds to our slot, Open, TX, CQ, Auto
+and Stop; Mode, TX Hz, Hold and the steps are under the lists.
+
+### JS8 in the browser
+
+Apps > JS8 (`http://x6100.local/js8`) shows the radio's [JS8](#js8) app as
+four screens over its buttons, as the FT8 page:
+
+- Waterfall: the app's own (five rows a second), the calls heard at their
+  offset on the row they came in, the station selected in green and our TX
+  offset in red. A click moves our TX offset there.
+- Map: the stations heard at the locator they sent (called me, CQ,
+  heartbeat, the others, each its colour), us at the radio's locator, and Sat
+  as on the FT8 page.
+- Band activity: the messages with the time, the dB, the audio Hz (F, T or S
+  after it for Fast, Turbo or Slow), the sender's flag, a message still
+  coming in in italics, growing as its frames arrive. HB hides the
+  heartbeats and their SNR answers; Stations lists the stations heard
+  instead (those that called us first) with their flag and how far they are:
+  from the locator they sent, or about (≈) from their country's centre. A tap on a message or a station selects it on the radio, as its map
+  does.
+- Conversation: our messages, those to us and those of the station
+  selected, and a box to write in (500 characters, Enter sends). With a
+  station selected, chips fill in the usual questions (SNR?, GRID?, INFO?,
+  STATUS?, HEARING?, AGN?), RR, 73 and our grid.
+- The buttons: Open or Close, Speed (Normal, Fast, Turbo, Slow), TX Hz with -
+  and + (10 Hz), CQ, Auto CQ, HB (on or off), HB now, Auto, Hold and Stop,
+  as on the radio. Under them what is on the air or queued, what goes out by
+  itself (auto CQ, HB, Auto) and the seconds to the next frame.
+
+Send queues the message as OK in the radio's keyboard does: its macros
+filled, an APRS message checked, and to the station selected on its offset
+when Hold is off, as Reply. The radio's answer shows on the page's status
+line ("Queued: 3 frames, 45 s", "Already sending: Stop first", or why it was
+not sent). The page sends what was typed: GhostNet's Mine into English first
+works in the radio's keyboard only. A page that opens later gets the last 64 messages the
+radio kept.
+
+Chat (the switch at the top, the browser keeps the choice) shows the same
+messages as conversations, for writing from a computer's or a phone's
+keyboard:
+
+- The chats: one per station (what it sends us and what we send it, its
+  flag, country and distance) and one per group (@NAME), the newest on top
+  with its last message and the messages not read yet; the stations heard in the last half hour under
+  them, a tap starts a chat. A call or a group typed in the box above starts
+  one with a station not heard yet (a sked) or with @ALLCALL. Heartbeats, CQs
+  and SNR answers stay out. Open and CQ are there too.
+- A chat: the messages as bubbles with the time and the dB, a message still
+  coming in growing with three dots, a message of the station to another one
+  paler, ours with a clock while the radio has it queued, two ticks once on
+  the air, ON AIR while it goes out, or the radio's reason when it was not
+  sent. Opening a chat selects the station on the radio (its offset); Send
+  writes its call first, as Reply on the radio. Chips fill in the usual
+  questions, our grid and the radio's saved messages (Query > Saved on the
+  radio, which edits them; a `<CALL>` in front is the chat's call).
+- The conversations are kept in this browser (the last 600 messages), not on
+  the radio: another browser has its own, and both get the radio's last 64
+  messages when they connect.
+
+On a phone the page has the FT8 page's tabs, and a bar under the thumb with
+what goes out next, the seconds to it, Open, CQ, HB, Auto and Stop; a chat
+opens over the whole screen, the arrow goes back to the list.
+
+### WeFax in the browser
+
+Apps > WeFax (`http://x6100.local/wefax`) shows the radio's
+[WeFax](#sstv-wefax-and-navtex) app:
+
+- Chart: the picture row by row as the radio decodes it, the station and its
+  frequency, receiving, waiting for a start tone or listening, the signal and
+  the rows kept. The radio keeps a chart's last 2400 rows, and so does the
+  page: past those the picture moves up as on the radio. With nothing coming
+  in, the chart shows the last one the radio saved.
+- Open the app or Close it, RX Auto (waits for a chart's start tone, saves at
+  its stop tone) or RX Cont (takes the rows at once), Save now (writes the
+  rows kept to `/mnt/wefax` and starts over), Clear (asks first: what was not
+  saved is lost).
+- Stations: the app's own list (DWD, Northwood, Athens and NOAA's five) and
+  your channels named WEFAX ([Channels](#channels), the Memories page), and a
+  box for any other station by its published frequency in kHz. A tap tunes
+  the radio 1.5 kHz under it in USB, as the app's Freq. list does; the station
+  the radio is on is marked.
+- Last charts: the newest eight on the card, a tap opens one; all of them in
+  the Gallery.
+
+The page receives only: the WeFax transmitter ([RTTY and WeFax
+TX](#rtty-and-wefax-tx)) stays on the radio.
 
 ## TCI server
 
