@@ -8,6 +8,10 @@ extern _Atomic int cfg_cur_mode, cfg_key_mode, cfg_paddle_swap, cfg_iambic_mode,
 extern _Atomic int cfg_paddle_map[4];
 extern float       cfg_key_ratio;
 
-#define cparam_i_get(p) atomic_load(&(p))
-#define param_i_get(p)  atomic_load(&(p))
-#define param_f_get(p)  (p)
+/* Every read goes through settings_read() (the test's): it tells one made before the settings are, by the keyer thread
+ * on a keyboard there at boot */
+void settings_read(void);
+
+#define cparam_i_get(p) (settings_read(), atomic_load(&(p)))
+#define param_i_get(p)  (settings_read(), atomic_load(&(p)))
+#define param_f_get(p)  (settings_read(), (p))

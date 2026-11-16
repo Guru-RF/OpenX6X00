@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
+#include <linux/input.h>
 #include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -256,6 +257,55 @@ static bool smartcw_within(bool want, long ms) {
 
 /* ---- The cases ------------------------------------------------------------------------------------------------- */
 
+/* A USB keyboard there at boot: keyboard_init() hands it over before settings_load() makes the settings. The keyer
+ * thread waits for the first scan, which settings_load() makes after params_init(); started with the keyboard, it
+ * read the settings not made yet (a SEGV in cparam_i_get on the radio) */
+static atomic_bool settings_made, read_early;
+static int         kbd = -1;   /* the keyboard: a pseudo-terminal, what the test writes on its master side its events */
+
+void settings_read(void) {
+    if (!atomic_load(&settings_made)) atomic_store(&read_early, true);
+}
+
+static void kbd_event(int type, int code, int value) {
+    struct input_event e = {.type = type, .code = code, .value = value};
+
+    if (write(kbd, &e, sizeof(e)) != sizeof(e)) {
+        perror("write");
+        exit(2);
+    }
+}
+
+static void boot(void) {
+    struct termios t;
+    int            slave;
+
+    printf("A keyboard there at boot, before the settings\n");
+    if ((kbd = posix_openpt(O_RDWR | O_NOCTTY)) < 0 || grantpt(kbd) || unlockpt(kbd) ||
+        (slave = open(ptsname(kbd), O_RDWR | O_NOCTTY)) < 0 || tcgetattr(slave, &t) != 0) {
+        perror("keyboard pty");
+        exit(2);
+    }
+    cfmakeraw(&t);
+    tcsetattr(slave, TCSANOW, &t);
+    paddle_keyer_open(ptsname(kbd));
+    kbd_event(EV_SYN, SYN_REPORT, 0);   /* something to read at once: a thread on it would look at the mode now */
+    sleep_ms(700);                      /* and after its first wait, 500 ms */
+    check(!atomic_load(&read_early), "handed over before the first scan: no settings read");
+    atomic_store(&settings_made, true);
+}
+
+/* After the first scan: the keyboard handed over before it is the keyer's */
+static void boot_keyboard(void) {
+    long el;
+
+    kbd_event(EV_KEY, KEY_LEFTBRACE, 1);
+    el = next_element(400);
+    check(el >= 40 && el <= 90, "the keyboard from before the scan: [ held gives dits (%ld ms)", el);
+    kbd_event(EV_KEY, KEY_LEFTBRACE, 0);
+    check(key_within(false, 200) && key_stays(false, 200), "[ let go: the keyer stops");
+}
+
 static void keyed(void) {
     printf("Keyed notes\n");
     on(65);
@@ -418,8 +468,10 @@ static void other_device(void) {
 int main(int argc, char **argv) {
     snprintf(root, sizeof(root), "%s", argc > 1 ? argv[1] : "build/root");
     setvbuf(stdout, NULL, _IOLBF, 0);
+    boot();
     plug("1-1", "1209\n", "ff42\n");
     check(smartcw_within(true, 2000), "SmartCW's MIDI port found by its USB IDs");
+    boot_keyboard();
     keyed();
     not_cw();
     learn();
