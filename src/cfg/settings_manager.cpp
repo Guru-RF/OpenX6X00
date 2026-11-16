@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <iterator>
@@ -1207,6 +1208,13 @@ std::string SettingsManager::encoder_bind_validate(const std::string &val) {
                             CTRL_VOX_GAIN, CTRL_VOX_AG, CTRL_VOX_DELAY})
         result[ctrl] = static_cast<char>(ENCODER_BIND_NONE);
     return result;
+}
+
+std::string SettingsManager::country_validate(const std::string &val) {
+    if (val.size() != 2 || !isalpha(static_cast<unsigned char>(val[0])) || !isalpha(static_cast<unsigned char>(val[1])))
+        return "";
+    return {static_cast<char>(toupper(static_cast<unsigned char>(val[0]))),
+            static_cast<char>(toupper(static_cast<unsigned char>(val[1])))};
 }
 
 /* Where the base's spectrum is centred, Hz from the dial: the X6100's in CW and CW-R on the oscillator the tone is

@@ -27,7 +27,7 @@ a QO-100 station's IF; only on a band the radio transmits on, and only where the
 $.ajax({url: "/api/display", dataType: "json", success: function(d) {
   if (!("band_region_now" in d)) return;
   const names = ["Auto", "IARU Region 1", "IARU Region 2", "IARU Region 3", "US Extra", "US Advanced", "US General", "US Technician"];
-  const how = {gps: "the GPS", qth: "the locator", call: "the callsign"}[d.band_region_how];
+  const how = {gps: "the GPS", qth: "the locator", country: "the country", call: "the callsign"}[d.band_region_how];
   const from = how ? " from " + how + " " + d.band_region_at : d.band_region_how === "last" ? ", the last one it had" : "";
   const plan = d.band_region ? names[d.band_region] : "Auto, " + names[d.band_region_now] + from;
   $("#band_plan_line").text("Band plan on the radio: " + plan + " (Settings > General there, or Display here). The edges of 160m, 80m, " +

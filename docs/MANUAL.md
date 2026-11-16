@@ -1454,15 +1454,19 @@ STATION > Band plan (also on the web configurator's Display page, Plan).
 | US Extra, US Advanced, US General, US Technician | the US sub-bands of 47 CFR Part 97 for that licence class (Technician stands for Novice too), as of October 2026 |
 
 Auto takes the region from the first of these that it has: a GPS fix less
-than 10 s old, the QTH locator, the country of the callsign (from cty.dat,
-looked up once, a moment after the start). With none of them (the GPS fix
+than 10 s old, the QTH locator, the country set in Settings > General >
+STATION > Country (or in the first-start guide), the country of the callsign
+(from cty.dat, looked up once, a moment after the start). The country set
+goes before the callsign, which may be a foreign one; a GPS fix or a
+locator goes before both. With none of them (the GPS fix
 lost, or not there yet after a start) it keeps the region the radio had
 last, from one of them or from a plan chosen by hand: the one the band list
 is on (below), so the strip and the band list agree. Region 1 only when it
 never had another. The dropdown's first entry says what Auto takes, "Auto
 (Region 2)", and the web page from what: "Auto: Region 2 from the locator
-FN31", or "Region 2, the last one it had". Auto looks again when the locator
-or the callsign is saved, at each band change, and every 10 s for the GPS.
+FN31", "from the country UY", or "Region 2, the last one it had". Auto looks
+again when the locator, the country or the callsign is saved, at each band
+change, and every 10 s for the GPS.
 The regions are the ITU's (Radio Regulations, Article 5), with the countries
 it puts whole in one region (Russia, Kazakhstan, Mongolia, Turkey, the
 Caucasus and Central Asia in Region 1, all of Iran in Region 3). A
@@ -1634,7 +1638,7 @@ base is too old.
 
 | Card | Options |
 |---|---|
-| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
+| STATION | First-start guide (Start runs the [first-start guide](#first-start-guide) again), callsign (an empty field clears it), QTH locator, Country (the country you operate from, "-" for none, the default; the names in the screen's language, from the Unicode CLDR; the band plan's Auto takes its region when the GPS and the locator do not tell, see [Band plan](#band-plan)), Band plan (Auto, Region 1, 2 or 3, US Extra, Advanced, General or Technician: see [Band plan](#band-plan)), Mode from band plan (the knob turned into another band plan segment sets its mode: CW in a CW segment, the band's sideband in a phone segment; SSB and CW only), Independent VFOs (VFO A and VFO B each keep their own band, frequency and mode: a band key moves the VFO you are on only, the VFO key brings the other one's band back, A=B copies everything to the other VFO; off, a band key brings both VFOs of that band, and a VFO tuned into another band leaves the other as it was, see [Band keys](#band-keys)) |
 | DATE / TIME | date, time, time zone, 12-hour clock (the clock at the top right as `1:05:30 PM`, off as `13:05:30`, the default; VISION shows `1:05 PM`, Ops Room's digits the hours 1 to 12 without AM or PM; Field Ops' clock and its QSO times and Walkie Talkie's clock follow it, `1:05 PM`; the logs, FT8 and the other digital modes stay on UTC; #54) |
 | CONTROLS | Freq acceleration, Accel. onset, Charger (Off, On, Shadow), Per band S-meter cal, TX shift of the band the radio is on (see [TX shift](#tx-shift)), Walkie Talkie (see [Walkie Talkie mode](#walkie-talkie-mode)) |
 | TRANSVERTERS | two transverters: from, to, shift in MHz; a shift of 0 is off, the default on both radios (see [Amateur bands only](#amateur-bands-only) and [WR12 receiver](#wr12-receiver-x6200)); TX power limit, W: Off, or 0.1 W up to the radio's top (see [Transverter TX power limit](#transverter-tx-power-limit)) |

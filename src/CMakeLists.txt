@@ -33,7 +33,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     ft8_udp.c
     pskreporter.c
     freedv_report.c
-    dxcc.c
+    dxcc.c countries.c
     dialog_modes.c
     apps_menu.c
     birdie.c dialog_birdie.c
