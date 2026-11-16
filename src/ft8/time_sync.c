@@ -37,6 +37,17 @@ static uint32_t call_hash(const char *call) {
     return h;
 }
 
+/* What a right clock reads: FTX_SYNC_RX_DT_S until the radio learned its own (clock_sync.c) */
+static float rx_dt = FTX_SYNC_RX_DT_S;
+
+void ftx_sync_set_rx_dt(float dt) {
+    rx_dt = dt;
+}
+
+float ftx_sync_rx_dt(void) {
+    return rx_dt;
+}
+
 void ftx_sync_reset(ftx_sync_t *s) {
     s->n     = 0;
     s->proto = -1;
@@ -165,7 +176,7 @@ ftx_sync_rc_t ftx_sync_check(ftx_sync_t *s, int proto, int64_t now_ns, int64_t n
     for (int i = 0; i < res.stations; i++) dist[i] = fabsf(votes[i] - res.median_dt);
     qsort(dist, res.stations, sizeof(dist[0]), cmp_float);
     res.spread = median_sorted(dist, res.stations);
-    res.step   = FTX_SYNC_RX_DT_S - res.median_dt;
+    res.step   = rx_dt - res.median_dt;
     if (r) *r = res;
 
     if (res.spread > FTX_SYNC_SPREAD_MAX_S) return FTX_SYNC_SPREAD;

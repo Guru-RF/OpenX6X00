@@ -57,6 +57,7 @@
 #include "tx_player.h"
 #include "util.h"
 #include "btaudio.h"   /* sh_run */
+#include "clock_sync.h"
 #include "ft8/audio_worker.h"
 #include "ft8/cq_scheduler.h"
 #include "ft8/ft2.h"
@@ -948,43 +949,24 @@ static void cq_modifier_cb(button_data_t *btn) {
 /* Time Sync, pressed as a slot starts: the system clock to the nearest slot start, for a clock
  * off by a few seconds with nothing to set it. A clock that ntpd keeps (WiFi, or the GPS through
  * it) is right already, and moved to where the press fell it would be off by up to half a slot:
- * it is left alone. The step is taken from the time to the nanosecond (FT4's and FT2's slots
- * start on fractions of a second, whole seconds missed them), and only a clock that moved goes
- * into the RTC */
-#define SYNC_GPS_AGE_S  10      /* a GPS fix this recent: gpsd feeds ntpd */
+ * it is left alone (clock_sync.h's rule). The step is taken from the time to the nanosecond
+ * (FT4's and FT2's slots start on fractions of a second, whole seconds missed them), and only a
+ * clock that moved goes into the RTC */
 #define SYNC_ON_SLOT_NS 50000000
-
-/* What keeps the clock: CLOCK_NTP, CLOCK_GPS, or nothing (CLOCK_FREE); any thread */
-typedef enum { CLOCK_FREE, CLOCK_NTP, CLOCK_GPS } clock_keeper_t;
-
-static clock_keeper_t clock_keeper(int *err_ms) {
-    double lat, lon;
-    int    age;
-
-    if (ftx_clock_synced(err_ms)) return CLOCK_NTP;
-    if (gps_last_fix(&lat, &lon, &age) && age <= SYNC_GPS_AGE_S) return CLOCK_GPS;
-    return CLOCK_FREE;
-}
-
-/* The clock moved: into the RTC too, in UTC as the kernel reads it at boot, kept across a power-off. sh_run runs it
- * on a thread of its own (hwclock waits for the second to set it) */
-static void rtc_write(void) {
-    sh_run("hwclock -w -u -f /dev/rtc1", NULL, NULL);
-}
 
 static void time_sync_cb(button_data_t *btn) {
     struct timespec now;
     int             err_ms;
-    int64_t         off, t;
+    int64_t         off;
 
-    switch (clock_keeper(&err_ms)) {
-        case CLOCK_NTP:
+    switch (clock_sync_keeper(&err_ms)) {
+        case CLOCK_BY_NTP:
             msg_update_text_fmt("Clock in sync (NTP, within %d ms): no Time Sync needed", err_ms);
             return;
-        case CLOCK_GPS:
+        case CLOCK_BY_GPS:
             msg_update_text_fmt("The GPS keeps the clock: no Time Sync needed");
             return;
-        case CLOCK_FREE:
+        default:
             break;
     }
     clock_gettime(CLOCK_REALTIME, &now);
@@ -993,72 +975,28 @@ static void time_sync_cb(button_data_t *btn) {
         msg_update_text_fmt("Clock on the slot already (%+.2f s)", off / 1e9);
         return;
     }
-    clock_gettime(CLOCK_REALTIME, &now);    /* the step on the time as it is now: nothing lost */
-    t = (int64_t)now.tv_sec * 1000000000LL + now.tv_nsec - off;
-
-    struct timespec ts = {.tv_sec = t / 1000000000LL, .tv_nsec = t % 1000000000LL};
-
-    if (clock_settime(CLOCK_REALTIME, &ts)) {
-        const char *why = strerror(errno);
-
-        LV_LOG_ERROR("Can't set system time: %s\n", why);
-        msg_update_text_fmt("Time Sync: the clock can't be set (%s)", why);
+    if (!clock_sync_step(-off / 1e9, CLOCK_BY_HAND, "Time Sync")) {
+        msg_update_text_fmt("Time Sync: the clock can't be set (%s)", strerror(errno));
         return;
     }
-    rtc_write();
     msg_update_text_fmt("Clock moved %+.2f s to the slot start", -off / 1e9);
 }
 
-/* ---- Auto Sync (FT8 5:5, ft8/time_sync.h): the clock from the decodes' DT, for a clock that neither NTP nor the
- * GPS keeps. The decodes of FT8 and FT4 are gathered as they come (on_message), and once a slot, just past its
- * middle (on_tick), what they say is looked at: with enough stations agreeing that the clock is 0.2 s off or more,
- * it moves then, unless something transmits. All on the decoder thread: a transmission of the app holds it, so
- * none is under way as the clock moves. With NTP or the GPS keeping the clock it only logs what it reads (the bench
- * measures FTX_SYNC_RX_DT_S so) */
+/* ---- Auto Sync (ft8/time_sync.h): the clock from the decodes' DT. The decodes of FT8 and FT4 are gathered as they
+ * come (on_message), and once a slot, just past its middle (on_tick), what they say is looked at and told to the
+ * GPS / Clock page (clock_sync.h), Auto Sync on or off. The clock moves only by clock_sync.h's rule: nothing keeps it
+ * (neither NTP nor the GPS), Auto Sync is on (its switch is on the GPS / Clock page) and no time station set it in
+ * the last hour; with enough stations agreeing that it is 0.2 s off or more, it moves then, unless something
+ * transmits. All on the decoder thread: a transmission of the app holds it, so none is under way as the clock moves.
+ * With NTP keeping the clock, the median DT a right clock shows here is learned (clock_sync_ft8_rx_dt) */
 
-#define SYNC_LOG_MS 60000       /* the log line at most once a minute, a move always */
+#define SYNC_LOG_MS 60000       /* the log line and the learning at most once a minute, a move always */
 
 static ftx_sync_t  sync_state;
 static int64_t     sync_slot_seen;      /* the slot last looked at (its number), decoder thread */
 static int64_t     sync_logged_ms;
-static bool        sync_said_far;       /* "too far" said: again only after a move or Auto Sync on again */
+static bool        sync_said_far;       /* "too far" said: again only after a move */
 static bool        sync_said_fail;
-/* Auto Sync switched on: the first verdict goes on the message line, "on time" too */
-static atomic_bool sync_report;
-
-static const char *auto_sync_label(void) {
-    static char buf[32];
-    return switch_label(buf, sizeof(buf), "Auto Sync", param_i_get(cfg_ft8_auto_sync));
-}
-
-static void auto_sync_cb(button_data_t *btn) {
-    if (kb_open) return;
-
-    bool on = !param_i_get(cfg_ft8_auto_sync);
-    int  err_ms;
-
-    param_i_set(cfg_ft8_auto_sync, on);
-    sync_report = on;
-    if (!on) {
-        msg_update_text_fmt("Auto Sync off: the clock moves only with Time Sync");
-        return;
-    }
-    if (!ftx_sync_proto(cur_proto())) {
-        msg_update_text_fmt("Auto Sync on: it works in FT8 and FT4, not in %s", mode_name());
-        return;
-    }
-    switch (clock_keeper(&err_ms)) {
-        case CLOCK_NTP:
-            msg_update_text_fmt("Auto Sync on: NTP keeps the clock, nothing to do while it does");
-            break;
-        case CLOCK_GPS:
-            msg_update_text_fmt("Auto Sync on: the GPS keeps the clock, nothing to do while it does");
-            break;
-        case CLOCK_FREE:
-            msg_update_text_fmt("Auto Sync on: the clock follows the decodes, after a minute or more");
-            break;
-    }
-}
 
 static int64_t clock_ns(clockid_t id) {
     struct timespec t;
@@ -1067,41 +1005,21 @@ static int64_t clock_ns(clockid_t id) {
     return (int64_t)t.tv_sec * 1000000000LL + t.tv_nsec;
 }
 
-/* A decode of a known sender (decoder thread) */
+/* A decode of a known sender (decoder thread): gathered always, the page shows what they say */
 static void auto_sync_heard(const slot_info_t *slot, const char *call, float time_sec) {
-    if (!param_i_get(cfg_ft8_auto_sync)) return;
-
     int64_t now = clock_ns(CLOCK_REALTIME), mono = clock_ns(CLOCK_MONOTONIC);
 
     ftx_sync_add(&sync_state, dec_proto, slot->rx_start_ns, slot->rx_start_mono_ns, time_sec, call, now, mono);
 }
 
-static void auto_sync_log(const ftx_sync_result_t *r, const char *what, bool always) {
+/* True once a minute (always: a move) */
+static bool auto_sync_log(const ftx_sync_result_t *r, const char *what, bool always) {
     uint64_t ms = get_time();
 
-    if (!always && sync_logged_ms && ms - sync_logged_ms < SYNC_LOG_MS) return;
+    if (!always && sync_logged_ms && ms - sync_logged_ms < SYNC_LOG_MS) return false;
     sync_logged_ms = ms;
     fprintf(stderr, "ft8: Auto Time Sync: median DT %+.3f s (%+.3f s on time) of %d stations, %d slots, %d decodes, "
-            "spread %.3f s: %s\n", r->median_dt, FTX_SYNC_RX_DT_S, r->stations, r->slots, r->decodes, r->spread, what);
-}
-
-/* The clock moved by step s, now */
-static bool auto_sync_step(float step) {
-    struct timespec ts;
-    int64_t         t;
-
-    clock_gettime(CLOCK_REALTIME, &ts);
-    t  = (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec + llround(step * 1e9);
-    ts = (struct timespec){.tv_sec = t / 1000000000LL, .tv_nsec = t % 1000000000LL};
-    if (clock_settime(CLOCK_REALTIME, &ts)) {
-        const char *why = strerror(errno);
-
-        LV_LOG_ERROR("Auto Sync: can't set system time: %s", why);
-        if (!sync_said_fail) msg_schedule_text_fmt("Auto Sync: the clock can't be set (%s)", why);
-        sync_said_fail = true;
-        return false;
-    }
-    rtc_write();
+            "spread %.3f s: %s\n", r->median_dt, ftx_sync_rx_dt(), r->stations, r->slots, r->decodes, r->spread, what);
     return true;
 }
 
@@ -1109,7 +1027,7 @@ static bool auto_sync_step(float step) {
 static void auto_sync_tick(float sec) {
     int proto = dec_proto;
 
-    if (!param_i_get(cfg_ft8_auto_sync) || !ftx_sync_proto(proto)) {
+    if (!ftx_sync_proto(proto)) {
         if (sync_state.n) ftx_sync_reset(&sync_state);
         sync_said_far  = false;
         sync_said_fail = false;
@@ -1125,14 +1043,31 @@ static void auto_sync_tick(float sec) {
     sync_slot_seen = id;
 
     ftx_sync_result_t r;
-    ftx_sync_rc_t     rc = ftx_sync_check(&sync_state, proto, now, mono, &r);
-    int               err_ms;
+    clock_by_t        keeper;
 
+    clock_sync_ft8_rx_dt(NULL);     /* the learned DT into the checks (read from the card once) */
+
+    ftx_sync_rc_t rc      = ftx_sync_check(&sync_state, proto, now, mono, &r);
+    bool          allowed = clock_sync_allowed(CLOCK_BY_FT8, &keeper);
+
+    clock_sync_ft8_word(rc, r.step, r.median_dt, r.stations, r.slots);
     if (rc == FTX_SYNC_WAIT) return;
-    switch (clock_keeper(&err_ms)) {
-        case CLOCK_NTP: auto_sync_log(&r, "NTP keeps the clock", false); return;
-        case CLOCK_GPS: auto_sync_log(&r, "the GPS keeps the clock", false); return;
-        case CLOCK_FREE: break;
+    switch (keeper) {
+        case CLOCK_BY_NTP:
+            /* a right clock: what it reads by the decodes is learned, the stations agreeing */
+            if (auto_sync_log(&r, "NTP keeps the clock", false) && rc != FTX_SYNC_SPREAD)
+                clock_sync_ft8_rx_dt_learn(r.median_dt);
+            return;
+        case CLOCK_BY_GPS:
+            auto_sync_log(&r, "the GPS keeps the clock", false);
+            return;
+        default:
+            break;
+    }
+    if (!allowed) {
+        auto_sync_log(&r, param_i_get(cfg_ft8_auto_sync) ? "a time station set the clock, measured only"
+                                                         : "Auto Sync off, measured only", false);
+        return;
     }
     switch (rc) {
         case FTX_SYNC_SPREAD:
@@ -1140,12 +1075,9 @@ static void auto_sync_tick(float sec) {
             break;
         case FTX_SYNC_ON_TIME:
             auto_sync_log(&r, "on time", false);
-            if (atomic_exchange(&sync_report, false))
-                msg_schedule_text_fmt("Auto Sync: the clock is on time by the decodes of %d stations", r.stations);
             break;
         case FTX_SYNC_TOO_FAR:
             auto_sync_log(&r, "too far to move", false);
-            sync_report = false;
             if (!sync_said_far)
                 msg_schedule_text_fmt("Auto Sync: by the decodes the clock is %.1f s %s, too far: press Time Sync as "
                                       "a slot starts", fabsf(r.step), r.step < 0 ? _("ahead") : _("behind"));
@@ -1158,13 +1090,18 @@ static void auto_sync_tick(float sec) {
                 auto_sync_log(&r, "not now", false);
                 break;
             }
-            if (!auto_sync_step(r.step)) break;
-            ftx_sync_reset(&sync_state);    /* the DTs gathered were of the clock before */
-            sync_report   = false;
-            sync_said_far = false;
             {
                 char what[32];
 
+                snprintf(what, sizeof(what), "%d stations", r.stations);
+                if (!clock_sync_step(r.step, CLOCK_BY_FT8, what)) {
+                    if (!sync_said_fail)
+                        msg_schedule_text_fmt("Auto Sync: the clock can't be set (%s)", strerror(errno));
+                    sync_said_fail = true;
+                    break;
+                }
+                ftx_sync_reset(&sync_state);    /* the DTs gathered were of the clock before */
+                sync_said_far = false;
                 snprintf(what, sizeof(what), "moved %+.3f s", r.step);
                 auto_sync_log(&r, what, true);
             }
@@ -1378,13 +1315,12 @@ static button_data_t button_foryou  = {.type = BTN_TEXT_FN, .label_fn = foryou_l
 
 /* TUNE for an external tuner: a tone at the TX offset, where the app transmits (ext_tune.h) */
 static button_data_t button_page_5  = {.type = BTN_TEXT, .label = "(FT8 5:5)", .press = button_next_page_cb, .next = &page_1};
-static button_data_t button_auto_sync = {.type = BTN_TEXT_FN, .label_fn = auto_sync_label, .press = auto_sync_cb};
 
 static buttons_page_t page_1 = {{&button_page_1, &button_show, &button_mode, &button_tx_cq, &button_tx_call}};
 static buttons_page_t page_2 = {{&button_page_2, &button_hold, &button_auto, &button_force, &btn_dig_pwr}};
 static buttons_page_t page_3 = {{&button_page_3, &button_cq_mod, &button_sync, &button_log_map, &button_live_map}};
 static buttons_page_t page_4 = {{&button_page_4, &button_freq, &button_hound, &button_retries, &button_foryou}};
-static buttons_page_t page_5 = {{&button_page_5, &btn_ext_tune, &button_auto_sync}};
+static buttons_page_t page_5 = {{&button_page_5, &btn_ext_tune}};     /* Auto Sync: on the GPS / Clock page */
 
 /* ---- keyboard window ---- */
 
@@ -1877,7 +1813,6 @@ static void construct_cb(lv_obj_t *parent) {
     button_auto.subj    = (Subject *)cfg_ft8_auto;
     button_foryou.subj  = (Subject *)cfg_ft8_foryou;
     button_retries.subj = (Subject *)cfg_ft8_max_repeats;
-    button_auto_sync.subj = (Subject *)cfg_ft8_auto_sync;
 
     /* TX CQ starts off each time, TX Call as it was left */
     if (cq_enabled) {

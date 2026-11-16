@@ -308,6 +308,21 @@ static void moment(void) {
     check(!ftx_sync_moment(FT4, 3.7f, 0.3f), "FT4 3.7 s: before the middle");
 }
 
+/* A radio whose right clock shows another median DT (clock_sync.c learns it under NTP): its checks go by that one */
+static void learned_rx_dt(void) {
+    ftx_sync_result_t r;
+    band_t            b = {.proto = FT8, .clock = 0.0f, .start = 0.2f, .ofs = OFS};
+
+    check(near(ftx_sync_rx_dt(), FTX_SYNC_RX_DT_S, 1e-6f), "the receive DT is FTX_SYNC_RX_DT_S until set");
+    ftx_sync_reset(&sync);
+    band(&b, 4, 7, right, 9);
+    ftx_sync_set_rx_dt(0.45f);      /* this radio's right clock reads 0.45 s: by it ours is 0.3 s behind */
+    check(look(&b, 4, &r) == FTX_SYNC_STEP && near(r.step, 0.30f, 0.02f), "learned 0.45 s: a step of +0.30 s");
+    ftx_sync_set_rx_dt(0.20f);
+    check(look(&b, 4, &r) == FTX_SYNC_ON_TIME, "learned 0.20 s: on time (0.05 s)");
+    ftx_sync_set_rx_dt(FTX_SYNC_RX_DT_S);
+}
+
 int main(void) {
     right_and_off(FT8);
     right_and_off(FT4);
@@ -318,6 +333,7 @@ int main(void) {
     modes();
     dt();
     moment();
+    learned_rx_dt();
     printf("%d of %d right\n", cases - bad, cases);
     return bad != 0;
 }

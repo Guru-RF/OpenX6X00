@@ -111,7 +111,7 @@ typedef enum {
 typedef struct {
     float median_dt;        /* the stations' median DT, s */
     float spread;           /* their median distance from it, s */
-    float step;             /* what the clock should move by, s: FTX_SYNC_RX_DT_S - median_dt (+ forward) */
+    float step;             /* what the clock should move by, s: ftx_sync_rx_dt() - median_dt (+ forward) */
     int   stations, slots, decodes;
 } ftx_sync_result_t;
 
@@ -119,6 +119,11 @@ typedef struct {
 bool ftx_sync_proto(int proto);
 
 void ftx_sync_reset(ftx_sync_t *s);
+
+/* What a right clock reads here, FTX_SYNC_RX_DT_S until set: the radio's own, learned while NTP keeps the clock
+ * (clock_sync.c). Set from the decoder thread, as the checks run */
+void  ftx_sync_set_rx_dt(float dt);
+float ftx_sync_rx_dt(void);
 
 /* The DT of a signal time_sec into the decoder's audio of proto, that audio begun at start_ns (CLOCK_REALTIME): from
  * FTX_SYNC_START_S into its slot (the nearest slot start), the decoder's lag taken off */
