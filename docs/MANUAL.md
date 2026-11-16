@@ -3653,9 +3653,11 @@ Saturday. Freq (page 6) has two GhostNet items:
   Beep is on, and its row is marked as an alert. The message is only shown:
   nothing in it is run or answered.
 - **Regional group**: @GN, the country's three-letter code and the
-  department, for example @GNURY01. It needs the radio's country, which the
-  radio does not know yet; until then type the group on the web page
-  GhostNet (Groups). Without either, only @GHOSTNET and @GSTFLASH go in.
+  department, for example @GNURY01. The country is the radio's (Settings >
+  General > STATION > Country, or the first-start guide's), the department
+  is set on the web page GhostNet (Groups). A group typed there goes before
+  the one made from the country. Without either, only @GHOSTNET and
+  @GSTFLASH go in.
 - **Own net**: a net of your own (a club's or a region's) with its weekday
   and time in the radio's time zone, length, frequency and mode, set on the
   web page GhostNet. It shows in the popup's list and the reminder treats it
@@ -3708,8 +3710,8 @@ the same settings, and more:
   length, frequency (kHz, or MHz under 100) and mode (JS8, RTTY, LSB, USB).
 - Groups and translation: the regional group typed by hand (@GN and up to
   12 letters or digits), or the department (up to 3 letters or digits) for
-  a group made from the radio's country once it knows one; the two
-  translation switches.
+  a group made from the radio's country (the page says which one is used);
+  the two translation switches.
 - Messages: what JS8 heard to GhostNet's groups, or on GhostNet's
   frequencies (the GhostNet list in use), and what you sent there, the
   newest first, with their translations; messages to @GSTFLASH again in a

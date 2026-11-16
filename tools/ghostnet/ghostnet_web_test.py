@@ -19,6 +19,7 @@ import io
 import json
 import os
 import re
+import sqlite3
 import sys
 import time
 import types
@@ -263,7 +264,27 @@ class Conf(unittest.TestCase):
         self.assertEqual(gn.region_tag(conf, "")[0], "")
         self.assertEqual(gn.region_tag(conf, "ZZ")[0], "")
         self.assertEqual(gn.region_tag(dict(conf, region="@GNARGBA"), "UY")[0], "@GNARGBA")
-        self.assertEqual(gn.region_tag(conf)[0], "")            # the radio has no country yet: country_iso2() ""
+
+    def test_region_from_the_radios_country(self):
+        """country_iso2() reads "country" from params.db as the GUI's country_code(); the group typed still wins"""
+        conf = dict(gn.DEFAULTS, dept="MO")
+        self.addCleanup(setattr, settings, "DB_PATH", settings.DB_PATH)
+        settings.DB_PATH = os.path.join(fresh_dir(), "params.db")
+        self.assertEqual(gn.country_iso2(), "")                 # no params.db
+        self.assertEqual(gn.region_tag(conf)[0], "")
+        con = sqlite3.connect(settings.DB_PATH)
+        con.execute("CREATE TABLE params (name TEXT PRIMARY KEY, val TEXT)")
+        con.commit()
+        self.assertEqual(gn.country_iso2(), "")                 # no country set yet
+        for val, want in (("UY", "UY"), ("be", "BE"), ("", ""), ("BEL", ""), ("1", "")):
+            con.execute("INSERT OR REPLACE INTO params VALUES ('country', ?)", (val,))
+            con.commit()
+            self.assertEqual(gn.country_iso2(), want, val)
+        con.execute("INSERT OR REPLACE INTO params VALUES ('country', 'UY')")
+        con.commit()
+        con.close()
+        self.assertEqual(gn.region_tag(conf), ("@GNURYMO", "the radio's country and the department"))
+        self.assertEqual(gn.region_tag(dict(conf, region="@GNARGBA"))[0], "@GNARGBA")
 
     def test_iso3_as_the_gui(self):
         with open(os.path.join(TOP, "src", "ghostnet_iso3.inc")) as f:

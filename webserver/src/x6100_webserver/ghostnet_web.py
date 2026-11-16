@@ -8,6 +8,7 @@ SPDX-License-Identifier: LGPL-2.1-or-later
 After the GhostNet page of the CX8ANM edition of OpenX6X00 (condoruy, Cóndor Tecnológico)."""
 import calendar
 import re
+import sqlite3
 import time
 
 from . import settings
@@ -23,9 +24,19 @@ DEFAULTS = {"remind": False, "remind_min": 10, "nets": [], "own_on": False, "own
 
 
 def country_iso2():
-    """The radio's country, ISO 3166-1 alpha-2, for the regional group; "" while the radio has none. The first-start
-    guide's country setting returns it here, as ghostnet_country_iso2() in src/ghostnet_gui.c"""
-    return ""
+    """The radio's country, ISO 3166-1 alpha-2 in capitals, for the regional group: the setting "country" of params.db
+    (Settings > General > STATION > Country, or the first-start guide's), as ghostnet_country_iso2() in
+    src/ghostnet_gui.c reads it; "" while none is set or params.db cannot be read"""
+    try:
+        con = sqlite3.connect(f"file:{settings.DB_PATH}?mode=ro", uri=True)
+        try:
+            row = con.execute("SELECT val FROM params WHERE name = ?", ("country",)).fetchone()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return ""
+    cc = str(row[0]).strip().upper() if row and row[0] else ""
+    return cc if re.fullmatch(r"[A-Z]{2}", cc) else ""
 
 
 # ---- The radio's time zone: the POSIX TZ string of /mnt/tz.conf ----

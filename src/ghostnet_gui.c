@@ -9,6 +9,7 @@
 #include "ghostnet.h"
 
 #include "app_window.h"
+#include "countries.h"
 #include "msg_box.h"
 #include "params/params.h"
 #include "radio.h"
@@ -61,11 +62,13 @@ void ghostnet_init(void) {
     lv_timer_create(remind_cb, LOOK_MS, NULL);
 }
 
-/* The radio's country for the regional group. Nothing yet: the country of the radio comes with the first-start
- * guide's country setting (Settings > General), which returns it here; until then the group is the one typed on
- * the web page GhostNet */
+/* The radio's country for the regional group: the country setting (Settings > General > STATION > Country, or the
+ * first-start guide's), "" while none is set; the group typed on the web page GhostNet goes before it
+ * (ghostnet_region_group). A buffer per thread, so a caller on another thread does not change this one's */
 const char *ghostnet_country_iso2(void) {
-    return "";
+    static __thread char cc[3];
+
+    return country_code(cc);
 }
 
 void ghostnet_region_tag(char *out, size_t size) {
