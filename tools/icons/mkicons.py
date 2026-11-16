@@ -213,6 +213,10 @@ def i_birdie(p):     # a spike over the noise: a birdie
     p.line([(60, 74), (60, 16)])
     p.dot(60, 14, 6)
 
+def i_mail(p):       # an envelope: Winlink mail
+    p.box(8, 22, 92, 78, r=6)
+    p.line([(12, 28), (50, 56), (88, 28)])
+
 def i_navtex(p):     # lines of text
     p.box(16, 10, 84, 90, r=6)
     for y in (32, 48, 64):

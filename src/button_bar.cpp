@@ -397,6 +397,7 @@ static button_data_t btn_flights = app_btn("Flights", ACTION_APP_FLIGHTS);
 static button_data_t btn_aero = app_btn("HF Air\nBand", ACTION_APP_AERO);
 static button_data_t btn_cb = app_btn("CB", ACTION_APP_CB);
 static button_data_t btn_meteo = app_btn("Weather", ACTION_APP_METEO);
+static button_data_t btn_mail = app_btn("Mail", ACTION_APP_MAIL);
 static button_data_t btn_gps = {.type = BTN_TEXT, .label = "GPS", .press = app_press,
                                 .hold = [](button_data_t *) { main_screen_start_app(ACTION_APP_SNAKE); },  /* the hidden game */
                                 .ctrl = ACTION_APP_GPS};
@@ -445,7 +446,7 @@ static buttons_page_t page_app_3 = {{&btn_app_p3, &btn_bands, &btn_gps, &btn_scr
 static buttons_page_t page_app_4 = {{&btn_app_p4, &btn_prop, &btn_scan, &btn_iradio, &btn_zello}};
 /* SVXConnect next to Zello, the voice links one after the other */
 static buttons_page_t page_app_5 = {{&btn_app_p5, &btn_svx, &btn_flights, &btn_aero, &btn_cb}};
-static buttons_page_t page_app_6 = {{&btn_app_p6, &btn_meteo}};
+static buttons_page_t page_app_6 = {{&btn_app_p6, &btn_meteo, &btn_mail}};
 
 static buttons_page_t page_key_1 = {{&btn_key_p1, &btn_key_speed, &btn_key_vol, &btn_key_train, &btn_key_tone}};
 static buttons_page_t page_key_2 = {{&btn_key_p2, &btn_key_mode, &btn_iambic, &btn_qsk, &btn_ratio}};
