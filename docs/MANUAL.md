@@ -16,7 +16,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Main screen](#main-screen): [band keys](#band-keys), [receiving outside the ham bands](#receiving-outside-the-ham-bands), [WR12 receiver](#wr12-receiver-x6200), [low battery](#low-battery), [battery time](#battery-time), [status bar](#status-bar), [S-meter](#s-meter), [waterfall](#waterfall), [band plan](#band-plan), [screen recording](#screen-recording), [Walkie Talkie](#walkie-talkie-mode)
 - [Settings](#settings): [General](#general-tab), [Display](#display-tab) ([screensaver](#screensaver)), [Audio](#audio-tab), [Wireless](#wireless-tab), [Bluetooth](#bluetooth-tab), [Keys](#keys-tab), [Cluster](#cluster-tab), [TX Cal](#tx-cal-tab), [Info](#info-tab), [Walkie](#walkie-tab)
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
-- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
+- [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8) ([GhostNet](#ghostnet)), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
 - [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band), [CB](#cb), [Flights](#flights), [Internet radio](#internet-radio), [Zello](#zello)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
@@ -3574,7 +3574,7 @@ Buttons (the first one of each row turns the page, hold to go back):
 | 4 | AUTO, HB, HB ACK, Settings... (INFO, STATUS, Relay, Groups) |
 | 5 | APRS >, Log QSO, Activ.: Off / POTA / SOTA, Log prompt |
 | 6 | Alerts >, Speed, Decode: All speeds / My speed, Freq: JS8 / GhostNet / kHz |
-| 7 | Power, Map, Ext tune |
+| 7 | Power, Map, Ext tune, Translate |
 
 What it does:
 
@@ -3585,6 +3585,8 @@ What it does:
   `js8call_log.adi` in desktop JS8Call's ADIF format, with POTA/SOTA
   activation fields. FT8 keeps its own `ft_log.adi`.
 - Map (page 7): the stations of the JS8 log on the same map as FT8.
+- Translate (page 7): the message on the list's cursor, translated into the
+  GUI's language; see [GhostNet](#ghostnet), Translation.
 - Alerts: beeps for messages, CQs and new stations, and purple alert words.
 - APRS through JS8 gateways: grid and GPS position beacons (optionally with a
   message), POTA and SOTA spots, SMS, email and Winlink.
@@ -3609,6 +3611,121 @@ default, and everyone is free to take it out:
 Known limits: relays, store and forward, and most APRS items are not yet
 proven on the air (only the grid spot and SMS are). The main screen's
 waterfall stands still while JS8 is open.
+
+#### GhostNet
+
+GhostNet is a weekly JS8 net for emergency communication, with a net in
+each region on Thursday evening and data bridges between the regions on
+Saturday. Freq (page 6) has two GhostNet items:
+
+- **GhostNet mode: 7.107 + its groups** tunes 7.107 MHz, the GhostNet
+  frequency of the weekly nets (the band keys step through GhostNet's list:
+  3.575, 7.107 and 14.107), and puts @GHOSTNET, @GSTFLASH and your regional group
+  in Groups (page 4, Settings...). The groups go in once; take any of them
+  out in Groups as you would @X6100. The row "GhostNet groups: ..." in the
+  list says what you are in. With AUTO on, JS8 answers the queries sent to
+  your groups (SNR?, GRID? ...) as desktop JS8Call does; AUTO is off every
+  time the app opens.
+- **GhostNet: nets, reminder, RTTY...** opens GhostNet's popup:
+  - Reminder N min before: On / Off (Off by default). On, a message comes
+    up N minutes (10 by default) before each net you chose, over whatever
+    screen is open, in the message box above the bottom buttons. It never
+    comes while the radio is transmitting: then it comes after, until the
+    net starts. When none is chosen yet, the first press chooses your IARU
+    region's weekly net (Region 1 Europe, Region 2 North America, Region 3
+    Australia).
+  - The nets of the next 7 days, each window on its own row: the day and
+    time in UTC, in brackets the radio's own time when the time zone
+    (Settings > General > DATE / TIME) is not UTC, the mode, the frequency and the net.
+    Press a row to choose that net for the reminder or to take it out; the
+    rows of the nets chosen are green with a `*`. The reminder comes before
+    each net's first JS8 window only. VARA and ALE windows need a PC and are
+    not listed; neither is the voice window (LSB 7.190, emergencies only).
+  - RTTY 7.077 MHz, 45.45 baud: closes JS8 and opens the RTTY app on
+    7.077 MHz USB with Rate 45.45, Shift 170 and Reverse off, for the RTTY
+    window of the net. These stay the RTTY app's settings afterwards: for
+    the weather stations (50 baud, 450 Hz shift) set Rate, Shift and Reverse
+    back on RTTY's buttons. The frequency and mode you were on before come
+    back when RTTY closes, as with any app.
+- **@GSTFLASH**: while @GSTFLASH is in your groups, a message to @GSTFLASH,
+  or with the word @GSTFLASH in it, comes up in red in the message box for
+  20 seconds ("EMERGENCY @GSTFLASH: ..."), with three beeps when Alerts >
+  Beep is on, and its row is marked as an alert. The message is only shown:
+  nothing in it is run or answered.
+- **Regional group**: @GN, the country's three-letter code and the
+  department, for example @GNURY01. It needs the radio's country, which the
+  radio does not know yet; until then type the group on the web page
+  GhostNet (Groups). Without either, only @GHOSTNET and @GSTFLASH go in.
+- **Own net**: a net of your own (a club's or a region's) with its weekday
+  and time in the radio's time zone, length, frequency and mode, set on the
+  web page GhostNet. It shows in the popup's list and the reminder treats it
+  like the others.
+
+Translation, through MyMemory (mymemory.translated.net, Translated's free
+translation memory, used without a key and without an account). GhostNet's
+nets are held in English, and some in Spanish:
+
+- **Translate** (page 7): turn the MFK onto a message, press Translate. The
+  translation into the GUI's language (Settings > Display > INTERFACE >
+  Language) comes on a line of its own under the message, with the language
+  in front ("NL: ..."), and stays while the radio is on. It translates from
+  English, or from Spanish when the message reads as Spanish; with the GUI
+  in English, from Spanish.
+- **Translate arriving messages** (GhostNet's popup, Off by default): each
+  message that arrives in English (or Spanish) is translated the same way,
+  on any frequency. Messages already in your language, heartbeats and SNR
+  reports are not sent.
+- **Mine into English first** (GhostNet's popup, Off by default): the first
+  OK in the message window puts your text into English, in the letters JS8
+  can send, in the window; check it and press OK again to send it, as it is
+  or changed. The callsigns and @groups at the front stay as typed. A text
+  in English already stays as it is ("English already") and the next OK
+  sends it; with the GUI in English the switch does nothing.
+- What goes to MyMemory: the text of the message and the two languages,
+  over the internet (WiFi or Ethernet), only when you press Translate or
+  turn one of the two switches on. The callsigns and commands at the front
+  of a message stay on the radio; callsigns, locators, @groups, <macros>
+  and e-mail addresses inside the text go as [1], [2] ... and are put back
+  in the translation. No callsign of yours, no e-mail address and no
+  account. A text translated once is kept (300 texts, until the radio is
+  switched off) and not sent again.
+- MyMemory's free use is about 5000 characters a day. When it is used up
+  the radio says so with the hours until more ("MyMemory's free
+  translations of today are used up: more in 9 h") and asks nothing until
+  then. No answer from MyMemory: "No answer from MyMemory".
+- A translation is a machine's: read it as a help, and check what you send.
+
+The web page GhostNet (Operating > GhostNet in the web configurator) has
+the same settings, and more:
+
+- The nets of the next 7 days in UTC and, in brackets, the radio's own time
+  (its time zone in Settings > General > DATE / TIME), the window now on
+  marked, a star where the reminder comes. VARA, ALE and voice windows are
+  there too.
+- Reminder: on or off, the minutes before, the nets it is for (the own net
+  among them).
+- Own net: on or off, its name, weekday and time in the radio's time zone,
+  length, frequency (kHz, or MHz under 100) and mode (JS8, RTTY, LSB, USB).
+- Groups and translation: the regional group typed by hand (@GN and up to
+  12 letters or digits), or the department (up to 3 letters or digits) for
+  a group made from the radio's country once it knows one; the two
+  translation switches.
+- Messages: what JS8 heard to GhostNet's groups, or on GhostNet's
+  frequencies (the GhostNet list in use), and what you sent there, the
+  newest first, with their translations; messages to @GSTFLASH again in a
+  red card at the top. The JS8 app writes them to `/mnt/ghostnet_log.txt`;
+  past 256 KB it becomes `ghostnet_log.txt.1` (the one before that goes)
+  and a new one starts. No heartbeats or SNR reports.
+- Stations heard, with their groups, and a short guide to taking part.
+
+A change saved on the page is used on the radio within seconds, also with
+JS8 open; the GhostNet popup and the page write the same file.
+
+The settings are in `ghostnet.conf` on the DATA partition (`/mnt`). The
+times are GhostNet version 1.5's (github.com/s2underground/GhostNet), in
+`/usr/share/x6100/ghostnet_nets.txt`. A file `/mnt/ghostnet_nets.txt` in the
+same format is read instead, for a newer schedule before the next firmware
+update; the file says how its lines are made.
 
 
 ### WSPR
@@ -6021,6 +6138,7 @@ The menu has General and five groups:
 | | Field Ops | QRZ Logbook profiles (three callsigns with their API keys, the active one), HOTA key, WWFF key, update the reference lists, download the activation logs |
 | | Wavelog | every logged QSO to your Wavelog: URL, API key, station profile (one, or Automatic by the radio's callsign), connection test, Send now; the live link: Show the radio in Wavelog, Radio name, Tune from Wavelog, the radio's address for Wavelog, Wavelog in the browser (writes `/mnt/field/wavelog.conf`, see [Wavelog](#wavelog) and [live link](#live-link)) |
 | | Winlink | Winlink email over HF with Pat and ARDOP, or Mercury or XARA (both experimental): Enabled, callsign, locator, the Winlink password (write only, and where Pat's is set), the modem, ARDOP's, Mercury's or XARA's bandwidth, the VARA HF licence tick box (XARA's full speed; the radio does not check it), the status and Open the mailbox (Pat's page on port 8080), the radio before a connection, the last connection with what to do next, and the logs as a download (writes `/mnt/winlink.conf`, see [Winlink](#winlink)) |
+| | GhostNet | GhostNet's nets of the next 7 days in UTC and the radio's own time, the reminder and the nets it is for, the own net, the regional group, the two translation switches, the messages JS8 heard and sent there with their translations, the stations heard, a short guide (writes `/mnt/ghostnet.conf`, see [GhostNet](#ghostnet)) |
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |

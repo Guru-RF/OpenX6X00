@@ -27,6 +27,7 @@ import zipfile
 
 import bottle
 
+from . import ghostnet_web
 from . import settings
 from . import sites
 from . import smartcw
@@ -1366,6 +1367,38 @@ def set_tci():
         bottle.response.status = 500
         return {"status": "error", "msg": f"Can't save: {e}"}
     return read_tci_conf()
+
+
+# GhostNet (ghostnet_web.py): the nets' schedule, the settings the JS8 app's GhostNet popup shares
+# (/mnt/ghostnet.conf, read again by the radio when it changes) and the messages the JS8 app wrote
+@app.route('/ghostnet')
+def ghostnet_page():
+    return bottle.template('ghostnet')
+
+
+@app.get('/api/ghostnet')
+def ghostnet_get():
+    return ghostnet_web.state()
+
+
+@app.post('/api/ghostnet')
+def ghostnet_set():
+    try:
+        data = bottle.request.json
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        return api_error(400, "A JSON object of the settings")
+    with config_lock:
+        nets, _ = ghostnet_web.read_schedule()
+        conf, err = ghostnet_web.change_conf(ghostnet_web.read_conf(), data, nets)
+        if err:
+            return api_error(400, err)
+        try:
+            replace_file(settings.GHOSTNET_CONF, lambda f: f.write(ghostnet_web.conf_text(conf)), encoding="utf-8")
+        except OSError as e:
+            return api_error(500, f"Can't save: {e}")
+    return ghostnet_web.state()
 
 
 # Field Ops routes: x6100-field (rootfs/usr/sbin) does the downloads, same files as the GUI:

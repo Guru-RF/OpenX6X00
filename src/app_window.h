@@ -53,6 +53,8 @@ void dialog_restore_radio_on_close(void);
 void dialog_app_memory(const char *name);
 bool app_mem_load(const char *name, int32_t *freq, int32_t *mode);
 void app_mem_save(const char *name);
+/* The same with a frequency and mode of the caller's, the radio left alone (GhostNet's RTTY shortcut) */
+void app_mem_set(const char *name, int32_t freq, int32_t mode);
 
 /* d is opened next as a step of the window open now (the first-start guide's WiFi): once d has closed, by ESC, GEN or
  * another app, back runs (after the close is over), to open that window again or let it go */
