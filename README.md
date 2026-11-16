@@ -566,7 +566,10 @@ x6100-base-experiments flasher.
 From their forks: condoruy (Cóndor Tecnológico, the CX8ANM edition) the GUI's
 languages, the hook that passes every text to LVGL through the language and
 the matching line by line, with the first Spanish, French, German and Italian
-lists.
+lists; OlivLoze NOTA, XOTA, the map of a reference's surroundings, the phone's
+position and clock from the Panel and the WeFax commands of the browser
+remote; Chris Lawson (cjlawson02) the spectrum's dB without powf and log10f
+and the paddle keyer's start after the settings.
 
 Patches, captures, logs and tests from the issues: BrunoKlu the capture and the
 driver patch of #29; KR8MER the diagnosis and the patch of #50; DL9RP the
