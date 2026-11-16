@@ -9,6 +9,7 @@
 #include "station.h"
 
 #include "band_plan.h"
+#include "cb.h"
 #include "textarea_window.h"
 #include "params/params.h"
 #include "qth/qth.h"
@@ -87,6 +88,9 @@ bool station_callsign_save(const char *callsign) {
         if (!check_ftx_msg_encoding(buf)) {
             msg_schedule_text_fmt("Unsupported callsign (too long)");
             return false;
+        } else if (cb_callsign(callsign)) {
+            /* 26AT101: FT8 and FT4 work CB stations with it (as WSJT-CB does); the amateur services do not get it */
+            msg_schedule_long_text_fmt("CB callsign: FT8 sends no QTH with it; no DX cluster, RBN or Wavelog");
         } else {
             msg_schedule_text_fmt("Callsign is long, QTH will be omitted");
         }

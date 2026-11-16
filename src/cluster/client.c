@@ -8,6 +8,7 @@
 
 #include "client.h"
 
+#include "../cb.h"
 #include "../dxcc.h"
 
 #include <ctype.h>
@@ -231,6 +232,8 @@ void cluster_config_login(char *out, size_t size, const char *callsign) {
     /* Letters, digits, / and -: what a cluster takes as a login, else the station's call */
     if (conf_value("login=", v, sizeof(v)) && v[0] && strspn(v, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/-") == strlen(v)) {
         snprintf(out, size, "%s", v);
+    } else if (cb_callsign(callsign)) {
+        out[0] = '\0';     /* not to an amateur cluster */
     } else {
         snprintf(out, size, "%s", callsign);
     }

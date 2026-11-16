@@ -152,6 +152,7 @@ static char     server[128];
 static int      server_port;
 static time_t   conf_mtime;
 static bool     link_on; /* the Link switch as load_server() last read it: what the client was told */
+static bool     cb_call; /* the callsign is a CB call and no login is set: no login (cluster_config_login) */
 static char     client_call[sizeof(params.callsign.x)];
 static bool     net_was_up, wifi_was_up;
 
@@ -164,6 +165,7 @@ static void load_server(void) {
     cluster_config_load(server, sizeof(server), &server_port);
     snprintf(client_call, sizeof(client_call), "%s", params.callsign.x);
     cluster_config_login(login, sizeof(login), client_call);
+    cb_call = client_call[0] && !login[0];
     link_on = cluster_config_enabled();
     if (client_call[0] && login[0] && link_on) cluster_client_start(server, server_port, login);
     else cluster_client_stop();
@@ -487,6 +489,11 @@ static uint32_t link_status(char *text, size_t size, const char **word) {
     if (!params.callsign.x[0]) {
         *word = "nocall";
         snprintf(text, size, "Set your callsign: Settings > General");
+        return theme_hex(TC_err);
+    }
+    if (cb_call) {
+        *word = "nocall";   /* no link, as with no callsign */
+        snprintf(text, size, "CB call: no amateur cluster login");
         return theme_hex(TC_err);
     }
     if (!link_on) {
