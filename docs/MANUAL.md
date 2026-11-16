@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [Flights](#flights)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -244,12 +244,13 @@ The APP button opens four pages of apps and tools:
 | APP 1:4 | Modes, Cluster, SWR Scan, RX Recorder |
 | APP 2:4 | Settings, CW Trainer, Field Ops, Channels |
 | APP 3:4 | Bands, GPS, Screen rec, CW Keyboard |
-| APP 4:4 | Propagation, Scanner |
+| APP 4:4 | Propagation, Scanner, Flights |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
 Birdie Cal besides: the MFK chooses a tile, a press opens it, APP or ESC
-closes the grid. "APP > CW Keyboard" in this manual is the tile, or the
+closes the grid. Four rows show at a time: the MFK going down past the
+fourth (or a finger dragging the grid up) brings the next row into view. "APP > CW Keyboard" in this manual is the tile, or the
 button on APP 3:4.
 
 - Each app has its own button pages, named like `(JS8 1:7)`. The first
@@ -5403,6 +5404,55 @@ frequency and mode: a band key goes where it went before the scan.
   and two in three of those are not in the list. CB is in AM, where CEPT CB
   is mostly FM: put FM channels in the Channels app for those.
 
+### Flights
+
+APP > Flights (the last tile of the APP grid, APP 4:4, or a long-press
+action): the aircraft around you, from their ADS-B positions as networks of
+volunteers' receivers share them on the internet (WiFi or Ethernet). Only
+aircraft that some receiver near you picks up are there: far from one, the
+list stays short or empty. Nothing is received by the radio itself and
+nothing retunes it; ESC closes.
+
+- The plot: north up, you in the middle, rings at a third, two thirds and
+  the whole range (their distances in km on them). Each aircraft is a dot
+  with a stroke the way it flies, named while there are 15 or fewer; on the
+  ground in grey, an emergency in red, the one chosen larger.
+- The list, the nearest first: flight number (else the registration, else
+  the transponder's address), type, altitude in metres (*ground*), speed in
+  km/h, distance and bearing from you ("22 km  SW 236"). The MFK chooses
+  one; the two lines under the list have its registration, type,
+  description, track, climb or descent in m/min and squawk, and
+  *EMERGENCY* when it squawks one.
+- **Range**: 25, 50, 100 (the default), 200 or 400 km; kept until the radio
+  is switched off. **Update** (or a press of the MFK): ask now.
+- The header says where the plot is centred: *GPS* (the radio's GPS), *Phone*
+  (the position the Panel page's GPS button sends, when it is no coarser
+  than 1 km), else *Locator* and your QTH locator (Settings > General). A
+  GPS or phone position older than 10 minutes is not taken. With none of
+  the three the app asks for a locator and fetches nothing.
+- The data: [airplanes.live](https://airplanes.live/) first, and
+  [adsb.lol](https://adsb.lol/) when that one does not answer. Both are free
+  for personal, non-commercial use, without a key; adsb.lol's data are under
+  the Open Database Licence (ODbL 1.0). The bottom line always names the
+  source of what is shown, and when it was fetched.
+- What is sent: your position rounded to 0.1 degree (about 11 km) and the
+  range, with the firmware's name and version (`OpenX6X00/0.3.12`); never
+  your callsign. The distances and bearings are worked out on the radio
+  from your position itself.
+- How often: when the app opens, then every 20 s (every 60 s while the data
+  come from adsb.lol, which allows 500 requests a day from an address
+  without a key), only while the app is open and the screen is lit; never
+  in the background. airplanes.live allows one request a second, adsb.lol
+  answers "too many" with a time to wait, which the radio keeps. The app
+  and the web page (below) share an answer for 10 s, so having both open
+  costs no extra requests.
+- The web configurator has the same as Operating > Flights: the plot and
+  the list in the browser, with Range and a **Centre** box for another
+  place by its locator (empty: the radio's position, as above). It asks
+  only while the page is open and in view; a tab in the background waits.
+- The answers are kept in `/tmp` (gone at power-off): `x6100-flights.json`
+  for the app, `x6100-flights-web.json` for the page.
+
 ## Bluetooth
 
 ### Bluetooth headphones
@@ -5638,6 +5688,7 @@ The menu has General and five groups:
 | | CW messages | the MSG > CW messages: add, edit, delete (1-64 characters) |
 | | Macros | the PSK31, Olivia and JTTY macros (add, edit, move up, delete) and the JS8 INFO and STATUS answers (see below) |
 | | Logs | every QSO on the radio, day by day: edit, delete, export as ADIF or CSV; the text of the keyboard modes, a file a day: read, download, delete (see [Text log of the keyboard modes](#text-log-of-the-keyboard-modes)) |
+| | Flights | the aircraft around the radio, as APP > Flights shows them: plot, list, range, a centre by locator (see [Flights](#flights)) |
 | | SmartCW | SmartCW's own page through the radio, in a new tab on port 8073; in the menu while SmartCW is plugged in (see [SmartCW](#smartcw)) |
 | Files | Files | browse and download `/mnt` |
 | | Gallery | screen recordings, voice recordings, screenshots, SSTV and WeFax pictures (see below) |

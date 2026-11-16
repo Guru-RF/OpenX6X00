@@ -834,6 +834,7 @@ static const key_action_t front_actions[] = {
     {" APP Propagation ", ACTION_APP_PROPAGATION},
     {" APP Channels ", ACTION_APP_CHANNELS},
     {" APP Scanner ", ACTION_APP_SCAN},
+    {" APP Flights ", ACTION_APP_FLIGHTS},
     {" APP RX recorder ", ACTION_APP_RECORDER},
     {" APP SWR Scan ", ACTION_APP_SWRSCAN},
     {" APP GPS ", ACTION_APP_GPS},

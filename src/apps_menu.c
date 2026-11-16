@@ -2,7 +2,8 @@
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
  *  OpenX6X00 - the APP menu as a grid of icons: the apps of the three APP button pages as
- *  tiles, four to a row. The MFK moves along the tiles, a press opens the one chosen, ESC or
+ *  tiles, four to a row, four rows in view: more scroll up into view as the MFK (or a finger) goes
+ *  down to them. The MFK moves along the tiles, a press opens the one chosen, ESC or
  *  the APP key closes the grid. The button bar keeps the page it had, so the text buttons
  *  work as before underneath. Settings > Display > Icon menus turns the grid off.
  *
@@ -35,6 +36,7 @@
 #define HINT_H 26
 #define BOX_Y  (TOP_BAR_STD_H + 4)
 #define ICON   36
+#define VIEW_ROWS 4    /* the rows in view; the grid scrolls to those under them */
 
 typedef enum { OPEN_APP, OPEN_SCREEN_REC, OPEN_WALKIE } open_t;
 
@@ -59,11 +61,14 @@ static const struct {
     {"Walkie", "Portrait screen", "walkie", OPEN_WALKIE, 0},
     {"Birdie Cal", "Find birdies, antenna off", "birdie", OPEN_APP, ACTION_APP_BIRDIE},
     {"Settings", "All settings", "settings", OPEN_APP, ACTION_APP_SETTINGS},
+    {"Flights", "Aircraft around", "flights", OPEN_APP, ACTION_APP_FLIGHTS},
 };
 
 #define APPS_N ((int)(sizeof(apps) / sizeof(apps[0])))
 #define ROWS_N ((APPS_N + COLS - 1) / COLS)
-#define BOX_H  (HEAD_H + ROWS_N * TILE_H + (ROWS_N - 1) * GAP + HINT_H + PAD)
+#define SHOWN  (ROWS_N < VIEW_ROWS ? ROWS_N : VIEW_ROWS)
+#define GRID_H (SHOWN * TILE_H + (SHOWN - 1) * GAP)
+#define BOX_H  (HEAD_H + GRID_H + HINT_H + PAD)
 
 _Static_assert(BOX_Y + BOX_H <= BOARD_DISP_H - BUTTONS_H_MAX, "APP grid overlaps the buttons");
 
@@ -84,6 +89,7 @@ static dialog_t dialog = {
 dialog_t *dialog_apps = &dialog;
 
 static void show_sel(void) {
+    lv_obj_scroll_to_view(tiles[sel], LV_ANIM_OFF);     /* a row under the four in view comes up */
     for (int i = 0; i < APPS_N; i++) {
         bool on = i == sel;
 
@@ -188,12 +194,26 @@ static void construct_cb(lv_obj_t *parent) {
     lv_label_set_text(head, "APPS");
     lv_obj_set_pos(head, 22, 9);
 
+    /* The tiles on a grid of their own, four rows high: it scrolls, a whole row at a time, to the rows under them */
+    lv_obj_t *grid = lv_obj_create(box);
+    lv_obj_remove_style_all(grid);
+    lv_obj_set_pos(grid, PAD, HEAD_H);
+    lv_obj_set_size(grid, BOX_W - 2 * PAD, GRID_H);
+    lv_obj_set_scroll_dir(grid, LV_DIR_VER);
+    lv_obj_set_scroll_snap_y(grid, LV_SCROLL_SNAP_START);
+    lv_obj_set_scrollbar_mode(grid, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_style_width(grid, 3, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(grid, 2, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(grid, TC(text_dim), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(grid, LV_OPA_COVER, LV_PART_SCROLLBAR);
+    if (ROWS_N <= VIEW_ROWS) lv_obj_clear_flag(grid, LV_OBJ_FLAG_SCROLLABLE);
+
     for (int i = 0; i < APPS_N; i++) {
-        lv_obj_t *t = lv_obj_create(box);
+        lv_obj_t *t = lv_obj_create(grid);
         tiles[i]    = t;
         lv_obj_remove_style_all(t);
         lv_obj_set_size(t, TILE_W, TILE_H);
-        lv_obj_set_pos(t, PAD + (i % COLS) * (TILE_W + GAP), HEAD_H + (i / COLS) * (TILE_H + GAP));
+        lv_obj_set_pos(t, (i % COLS) * (TILE_W + GAP), (i / COLS) * (TILE_H + GAP));
         lv_obj_set_style_radius(t, 8, 0);
         lv_obj_set_style_bg_opa(t, LV_OPA_COVER, 0);
         lv_obj_clear_flag(t, LV_OBJ_FLAG_SCROLLABLE);
@@ -227,7 +247,7 @@ static void construct_cb(lv_obj_t *parent) {
     lv_obj_set_style_text_font(hint, &sony_20, 0);
     lv_obj_set_style_text_color(hint, TC(text_dim), 0);
     lv_label_set_text(hint, "MFK: choose - press: open - APP or ESC: close");
-    lv_obj_set_pos(hint, 22, HEAD_H + ROWS_N * TILE_H + (ROWS_N - 1) * GAP + 4);
+    lv_obj_set_pos(hint, 22, HEAD_H + GRID_H + 4);
 
     show_sel();
 
