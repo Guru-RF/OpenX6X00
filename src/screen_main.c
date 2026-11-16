@@ -91,6 +91,7 @@
 #include "radio_controls.h"
 #include "apps_menu.h"
 #include "dialog_birdie.h"
+#include "dialog_svx.h"
 #include "dialog_zello.h"
 #include "voice_net.h"
 #include "first_start.h"
@@ -503,6 +504,7 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_FREEDV:     return "RADE";
         case ACTION_APP_FIRST_START: return "First start";
         case ACTION_APP_ZELLO:      return "Zello";
+        case ACTION_APP_SVX:        return "SVXConnect";
         default:                   return NULL;    /* Modes menu: a menu, not an app */
     }
 }
@@ -608,6 +610,7 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_FREEDV, &dialog_freedv},
         {ACTION_APP_FIRST_START, &dialog_first_start},
         {ACTION_APP_ZELLO, &dialog_zello},
+        {ACTION_APP_SVX, &dialog_svx},
     };
 
     if (app_action == ACTION_APP_RTTY) {

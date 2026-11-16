@@ -152,6 +152,13 @@ extern ParamInt *cfg_zello_limit;    // p_zello_limit
 extern ParamInt *cfg_zello_pause;    // p_zello_pause
 extern ParamInt *cfg_zello_id;       // p_zello_id
 extern ParamInt *cfg_zello_id_min;   // p_zello_id_min
+extern ParamInt *cfg_svx_talk_bt;    // p_svx_talk_bt
+extern ParamInt *cfg_svx_to_rf;      // p_svx_to_rf
+extern ParamInt *cfg_svx_to_svx;     // p_svx_to_svx
+extern ParamInt *cfg_svx_limit;      // p_svx_limit
+extern ParamInt *cfg_svx_pause;      // p_svx_pause
+extern ParamInt *cfg_svx_id;         // p_svx_id
+extern ParamInt *cfg_svx_id_min;     // p_svx_id_min
 extern ParamInt *cfg_field_boot;     // p_field_boot
 extern ParamInt *cfg_field_respot;   // p_field_respot
 extern ParamInt *cfg_voice_msg_gain; // p_voice_msg_gain

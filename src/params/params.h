@@ -82,6 +82,7 @@ typedef enum {
     ACTION_APP_FREEDV,   /* 128: RADE (FreeDV) */
     ACTION_APP_FIRST_START, /* 129: the first-start guide (first_start.c), from Settings > General; no key gets it */
     ACTION_APP_ZELLO = 202,  /* Zello (dialog_zello.c): the CX8ANM edition's number for it, which a key there may keep */
+    ACTION_APP_SVX = 206,    /* SVXConnect (dialog_svx.c) */
 } press_action_t;
 
 typedef enum {

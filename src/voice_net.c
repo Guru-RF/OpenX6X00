@@ -815,17 +815,26 @@ static void *play_fn(void *arg) {
     return NULL;
 }
 
-/* The helper's stderr: its log, started again from empty once it is over LOG_MAX; else nowhere */
-static void open_log(posix_spawn_file_actions_t *fa, const char *path) {
+/* The helper's stderr: its log, started again from empty once it is over LOG_MAX (its folder made if need be); else,
+ * or when it cannot be opened, nowhere. The descriptor to close after the start, or -1 */
+static int open_log(posix_spawn_file_actions_t *fa, const char *path) {
     struct stat sb;
-    int         flags = O_WRONLY | O_CREAT | O_APPEND;
+    char        dir[256];
+    char       *slash;
+    int         flags = O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, fd = -1;
 
-    if (!path) {
-        posix_spawn_file_actions_addopen(fa, 2, "/dev/null", O_WRONLY, 0);
-        return;
+    if (path) {
+        snprintf(dir, sizeof(dir), "%s", path);
+        if ((slash = strrchr(dir, '/')) && slash != dir) {
+            *slash = 0;
+            mkdir(dir, 0755);
+        }
+        if (stat(path, &sb) == 0 && sb.st_size > LOG_MAX) flags |= O_TRUNC;
+        fd = open(path, flags, 0644);
     }
-    if (stat(path, &sb) == 0 && sb.st_size > LOG_MAX) flags |= O_TRUNC;
-    posix_spawn_file_actions_addopen(fa, 2, path, flags, 0644);
+    if (fd >= 0) posix_spawn_file_actions_adddup2(fa, fd, 2);
+    else posix_spawn_file_actions_addopen(fa, 2, "/dev/null", O_WRONLY, 0);
+    return fd;
 }
 
 /* The wanted app's helper started, with the play thread. False: it could not be */
@@ -848,7 +857,7 @@ static bool launch(void) {
     posix_spawn_file_actions_init(&fa);
     posix_spawn_file_actions_adddup2(&fa, sv[1], 0);
     posix_spawn_file_actions_adddup2(&fa, sv[1], 1);
-    open_log(&fa, a->log);
+    int log_fd = open_log(&fa, a->log);
     posix_spawnattr_init(&attr);
     sigemptyset(&none);
     sigemptyset(&dfl);
@@ -866,6 +875,7 @@ static bool launch(void) {
     posix_spawn_file_actions_destroy(&fa);
     posix_spawnattr_destroy(&attr);
     close(sv[1]);
+    if (log_fd >= 0) close(log_fd);
     if (r != 0) {
         close(sv[0]);
         return false;

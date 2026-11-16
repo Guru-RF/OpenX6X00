@@ -32,6 +32,7 @@
 #include "params/params.h"
 #include "radio.h"
 #include "styles.h"
+#include "svx.h"
 #include "theme.h"
 #include "zello.h"
 
@@ -185,11 +186,21 @@ static bool voice_mode(void) {
     return m == radio_mode_lsb || m == radio_mode_usb || m == radio_mode_am || m == radio_mode_nfm;
 }
 
+/* One app's link at a time: SVXConnect's on, this one is not switched on */
+static bool other_link(const char *what) {
+    const char *other = vnet_link_taken(&zello_app, &svx_app);
+
+    if (!other) return false;
+    msg_update_text_fmt("%s: %s %s", what, other, _("link is on"));
+    return true;
+}
+
 /* Zello to RF: the channel's messages transmitted on this frequency. Not without a callsign while the ID is on, nor
  * without the squelch, which tells it the frequency is busy */
 static void to_rf_cb(button_data_t *b) {
     bool on = !param_i_get(cfg_zello_to_rf);
 
+    if (on && other_link("Zello to RF")) return;
     if (on && param_i_get(cfg_zello_id) && !params.callsign.x[0]) {
         msg_update_text_fmt("Zello to RF: set your callsign first (Settings), the link sends it as its CW ID");
         return;
@@ -213,6 +224,7 @@ static void to_rf_cb(button_data_t *b) {
 static void to_zello_cb(button_data_t *b) {
     bool on = !param_i_get(cfg_zello_to_zello);
 
+    if (on && other_link("RF to Zello")) return;
     if (on && param_i_get(cfg_squelch) == 0) {
         msg_update_text_fmt("RF to Zello: set the squelch (SQL) first, it tells when a station is on");
         return;

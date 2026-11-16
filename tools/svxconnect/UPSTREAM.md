@@ -49,3 +49,16 @@ and run under qemu with OpenSSL 1.1.1).
 3. `0003` Tests: the fake reflector's `FR_SCRIPT` (talkers, Opus audio, errors, a report of
    what the client did) and `tests/fakerefl_main.c`, the fake as a program (`make fakerefl`).
 4. `0004` Build: `make TUI=0`, no terminal interface and no ncurses (`src/ui/ui_none.c`).
+
+## Seen while integrating (not patched, to raise upstream)
+
+- `example.conf` says `default_tg = 0` starts monitoring only; `tgm_init()` selects the first
+  switchable talkgroup instead (`tg 0` from the control commands does give monitoring only).
+  The radio's web page says what the program does.
+- The capture watchdog (`CAP_GRACE_MS` 500 and one reopen) ends an over after about a second
+  without frames: "the microphone delivers no audio". The app sends the hand mic from the
+  over's start and starts a Bluetooth over with the headset mic's first frame (src/svx.c); a
+  host backend could take a longer grace.
+- `THIRD-PARTY-NOTICES` names OpenSSL 3, ncurses and miniaudio. The radio's build links
+  OpenSSL 1.1.1 (its own licence, not Apache-2.0) and has neither ncurses nor miniaudio
+  (`TUI=0`, `AUDIO=pipe`): the notices could say which parts go with which build.

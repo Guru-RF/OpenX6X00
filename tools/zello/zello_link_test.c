@@ -27,9 +27,15 @@ static int failed, checks;
 
 #define MIN_MS (60u * 1000u)
 
+/* The app whose link this is: tools/svx/svx_link_test.c runs the same cases as SVXConnect's */
+#ifndef LINK_NET
+#define LINK_NET       "Zello"
+#define LINK_TEST_NAME "zello_link_test"
+#endif
+
 static vlink_cfg_t cfg(void) {
     return (vlink_cfg_t){.to_rf = true, .to_net = true, .id_on = true, .id_period_ms = 60 * MIN_MS,
-                         .limit_ms = 120000, .pause_ms = 3000, .net = "Zello"};
+                         .limit_ms = 120000, .pause_ms = 3000, .net = LINK_NET};
 }
 
 /* A world the link runs in: the inputs, and what voice_net.c would do with the outputs (its thread keyed or not) */
@@ -449,7 +455,7 @@ static void test_radio_stops_it(void) {
     thread_ends(&w, VLINK_TX_STOPPED);          /* SWR, a band stop, refused there */
     vlink_out_t o = step(&w);
     CHECK(o.why != NULL && w.l.to_rf_stopped);
-    CHECK(o.why && !strcmp(o.why, "Zello to RF stopped: the radio ended the transmission"));   /* the app's name */
+    CHECK(o.why && !strcmp(o.why, LINK_NET " to RF stopped: the radio ended the transmission"));   /* the app's name */
     w.in.net_msg = false;
     step(&w);
     w.in.net_msg = true;
@@ -590,6 +596,6 @@ int main(void) {
     test_amateur_bands_only();
     test_squelch();
     test_morse();
-    printf("zello_link_test: %d checks, %d failed\n", checks, failed);
+    printf(LINK_TEST_NAME ": %d checks, %d failed\n", checks, failed);
     return failed ? 1 : 0;
 }

@@ -61,6 +61,7 @@ static const struct {
     {"Walkie", "Portrait screen", "walkie", OPEN_WALKIE, 0},
     {"Birdie Cal", "Find birdies, antenna off", "birdie", OPEN_APP, ACTION_APP_BIRDIE},
     {"Zello", "Internet voice", "zello", OPEN_APP, ACTION_APP_ZELLO},
+    {"SVXConnect", "Reflector talkgroups", "svx", OPEN_APP, ACTION_APP_SVX},
     {"Settings", "All settings", "settings", OPEN_APP, ACTION_APP_SETTINGS},
 };
 

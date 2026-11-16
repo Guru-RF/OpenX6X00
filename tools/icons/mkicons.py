@@ -238,6 +238,14 @@ def i_zello(p):      # a cloud with a voice in it: talk over the internet (the Z
     for x, h in ((38, 7), (50, 14), (62, 5)):
         p.line([(x, 52 - h), (x, 52 + h)], w=p.w // 2 + 1)
 
+def i_svx(p):        # a reflector: stations around a hub, each linked to it (the SVXConnect app)
+    p.ring(50, 50, 12)
+    for x, y in ((16, 18), (84, 18), (16, 82), (84, 82)):
+        dx, dy = 50 - x, 50 - y
+        k = 12 / math.hypot(dx, dy)
+        p.line([(x + dx * 0.2, y + dy * 0.2), (50 - dx * k, 50 - dy * k)], w=p.w // 2 + 1)
+        p.dot(x, y, 7)
+
 
 ICONS = {n[2:]: f for n, f in globals().items() if n.startswith("i_") and callable(f)}
 
