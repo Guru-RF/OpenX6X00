@@ -15,6 +15,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import socket
 import sqlite3
 import subprocess
@@ -1504,13 +1505,14 @@ def winlink_secrets():
 
 def stored_secrets():
     """Every secret the radio keeps: the Wavelog key and its live link's secret path, the QRZ, HOTA and WWFF keys, the
-    Winlink passwords, the WiFi passwords, the Zello password and developer key"""
+    Winlink passwords, the WiFi passwords, the Zello password and developer key, SVXConnect's private key"""
     wl = wavelog_read()
     found = {wl.get("key", ""), wl.get("cat_token", ""), field_key("hota.conf"), field_key("wwff.conf")}
     found.update(qrz_read()[2])
     found.update(winlink_secrets())
     found.update(wifi_secrets())
     found.update(zello_secrets())
+    found.update(svx_secrets())
     return found
 
 
@@ -4538,6 +4540,305 @@ def test_zello():
         zello_lock.release()
     ok = line.startswith("ok ")
     return {"ok": ok, "msg": line[3:] if ok else line[6:] if line.startswith("error ") else line}
+
+
+# SVXConnect routes: the SVXConnect app (APP > SVXConnect, src/dialog_svx.c) and its helper /usr/bin/svxconnect
+# (SVXConnect-CLI, tools/svxconnect), which talks to the SvxLink reflector set here, and only while the app is
+# connected. In SVX_DIR: svxconnect.conf, the settings this page writes whole (the reflector, the callsign, the
+# talkgroups; the paths the radio needs), and pki/: the private key, the signing request, the certificate the
+# reflector's sysop signed and the reflector's CA, written by svxconnect itself. pki/ is the radio's own: for root
+# alone, never handed back (the page says what the certificate is, from svxconnect --cert-status), not in a backup
+# (backup_files) and not on the Files page (config_pages.secret_places); the key's lines are hidden in whatever a
+# helper says. The enrolment: svxconnect --enroll in the background, which sends the request and waits for the sysop
+# (minutes or days, asking again every 30 s), or with a certificate asks the reflector whether it still takes it.
+
+SVX_CONF_NAME = "svxconnect.conf"
+SVX_TGS_MAX = 32                # talkgroups in the two lists together: the app's table holds as many
+SVX_CALL = re.compile(r"[A-Z0-9]{3,10}(-[A-Z0-9]{1,4})?")    # also the key's file name: no '/'
+SVX_HOST = re.compile(r"(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,62})(\.[A-Za-z0-9]([A-Za-z0-9-]{0,62}))*\.?")
+SVX_EMAIL = re.compile(r"[^\s@#;\"'\\]{1,64}@[^\s@#;\"'\\]+\.[^\s@#;\"'\\]+")
+SVX_TG = re.compile(r"([1-9][0-9]{0,9})(\+{0,3})")
+SVX_TEXT_BAD = re.compile(r"[#;\"'\\\x00-\x1f\x7f]")       # svxconnect.conf's comments and quotes
+# What the page sets: name -> (default, the type: "int" lo hi, "bool", "tgs", "text")
+SVX_FIELDS = {
+    "callsign": ("", "call"), "email": ("", "email"), "reflector": ("", "host"), "port": (5300, "int", 1, 65535),
+    "switchable": ("", "tgs"), "monitored": ("", "tgs"), "default_tg": (0, "int", 0, 4294967295),
+    "lock_on_start": (False, "bool"), "linger_seconds": (30, "int", 10, 300), "idle_seconds": (0, "int", 0, 3600),
+    "tx_timeout_sec": (120, "int", 30, 600), "roger_beep": (True, "bool"), "location": ("", "text"),
+}
+svx_lock = threading.Lock()
+svx_enroll = {"proc": None, "rc": None, "started": 0.0}
+
+
+def svx_path(*names):
+    return os.path.join(settings.SVX_DIR, *names)
+
+
+def svx_read():
+    """svxconnect.conf as this page wrote it: the defaults for what is missing"""
+    out = {k: v[0] for k, v in SVX_FIELDS.items()}
+    try:
+        with open(svx_path(SVX_CONF_NAME), encoding="utf-8", errors="replace") as f:
+            for line in f:
+                k, sep, v = line.split("#", 1)[0].partition("=")
+                k, v = k.strip().lower(), v.strip()
+                if not sep or k not in SVX_FIELDS:
+                    continue
+                kind = SVX_FIELDS[k][1]
+                if kind == "int":
+                    try:
+                        out[k] = int(v)
+                    except ValueError:
+                        pass
+                elif kind == "bool":
+                    out[k] = v.lower() in ("on", "yes", "true", "1")
+                else:
+                    out[k] = v
+    except OSError:
+        pass
+    return out
+
+
+def svx_tg_list(value, what):
+    """"8, 1745+, 9990" or a list: [(id, '+'s)], checked as svxconnect reads it"""
+    if isinstance(value, list):
+        items = value
+    elif isinstance(value, str):
+        items = value.replace(",", " ").split()
+    else:
+        raise ValueError(f"{what}: talkgroups as 8, 1745+, 9990")
+    out = []
+    for it in items:
+        m = SVX_TG.fullmatch(str(it).strip())
+        if not m or int(m.group(1)) > 4294967295:
+            raise ValueError(f"{what}: {str(it)[:20]!r} is not a talkgroup (a number, up to three + for priority)")
+        if all(t != m.group(1) for t, _ in out):
+            out.append((m.group(1), m.group(2)))
+    return out
+
+
+def svx_conf_text(c):
+    """The whole file: what the page sets, and the paths the radio needs (no FIFO, status file or log file of its own:
+    the app reads its lines and keeps its log in /mnt/app_logs)"""
+    lines = ["# Written by the radio's web page (SVXConnect): edit it there, it is written whole at each Save",
+             f"callsign = {c['callsign']}", f"email = {c['email']}", f"reflector = {c['reflector']}",
+             f"port = {c['port']}", f"pki_dir = {svx_path('pki')}"]
+    if c["location"]:
+        lines.append(f"location = {c['location']}")
+    lines += [f"switchable = {c['switchable']}", f"monitored = {c['monitored']}", f"default_tg = {c['default_tg']}",
+              f"lock_on_start = {'on' if c['lock_on_start'] else 'off'}", f"linger_seconds = {c['linger_seconds']}",
+              f"idle_seconds = {c['idle_seconds']}", f"tx_timeout_sec = {c['tx_timeout_sec']}",
+              f"roger_beep = {'on' if c['roger_beep'] else 'off'}",
+              "ctl_fifo =", "status_file =", "log_file =", "lock_file = /tmp/svxconnect.lock", "log_level = info"]
+    return "\n".join(lines) + "\n"
+
+
+def svx_key_text():
+    """The private key svxconnect made, "" when none: <callsign>.key in pki/"""
+    call = svx_read()["callsign"]
+    if not SVX_CALL.fullmatch(call):
+        return ""
+    try:
+        with open(svx_path("pki", call + ".key"), encoding="utf-8", errors="replace") as f:
+            return f.read(16384)
+    except OSError:
+        return ""
+
+
+def svx_secrets():
+    """The private key's lines: hidden in whatever svxconnect says"""
+    return {line.strip() for line in svx_key_text().splitlines() if len(line.strip()) >= 8 and "-----" not in line}
+
+
+def svx_enroll_running():
+    """The enrolment's svxconnect still running; when it has ended, its exit code kept"""
+    p = svx_enroll["proc"]
+    if p is not None and p.poll() is not None:
+        svx_enroll["rc"], svx_enroll["proc"] = p.returncode, None
+    return svx_enroll["proc"] is not None
+
+
+def svx_enroll_log(n=12):
+    """The enrolment's last lines, the secrets hidden"""
+    try:
+        with open(settings.SVX_ENROLL_LOG, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - 6000))
+            text = f.read().decode("utf-8", "replace")
+    except OSError:
+        return []
+    hide = secret_hider()
+    return [hide(line[:300]) for line in text.splitlines()[-n:] if line.strip()]
+
+
+def svx_cert():
+    """svxconnect --cert-status with the saved settings: {"status", "usable", "request", "not_after", "renew_at",
+    "days"}, or {"status": "unknown", "why": ...} when it cannot tell"""
+    if not os.path.exists(svx_path(SVX_CONF_NAME)):
+        return {"status": "unknown", "why": "Save the settings first"}
+    try:
+        r = subprocess.run([settings.SVX_CMD, "--cert-status", "-c", svx_path(SVX_CONF_NAME)], capture_output=True,
+                           text=True, timeout=15, stdin=subprocess.DEVNULL)
+    except FileNotFoundError:
+        return {"status": "unknown", "why": "svxconnect is not on this radio: install the update"}
+    except (OSError, subprocess.SubprocessError) as e:
+        return {"status": "unknown", "why": hide_secrets(str(e))}
+    out = {}
+    for item in r.stdout.split():
+        k, sep, v = item.partition("=")
+        if sep:
+            out[k] = v
+    if "status" not in out:
+        return {"status": "unknown", "why": "the callsign, e-mail and reflector are needed"}
+    num = lambda k: int(out[k]) if out.get(k, "").lstrip("-").isdigit() else 0   # noqa: E731
+    return {"status": out["status"].replace("_", " "), "usable": out.get("usable") == "1",
+            "request": out.get("request") == "1", "not_after": num("not_after"), "renew_at": num("renew_at"),
+            "days": num("days")}
+
+
+def svx_state(result=None):
+    c = svx_read()
+    running = svx_enroll_running()
+    return {"conf": c, "saved": os.path.exists(svx_path(SVX_CONF_NAME)), "cert": svx_cert(),
+            "enroll": {"running": running, "rc": None if running else svx_enroll["rc"], "log": svx_enroll_log()},
+            "result": result}
+
+
+def svx_text(value, limit, what):
+    if value is None:
+        return ""
+    if not isinstance(value, str) or len(value) > limit or SVX_TEXT_BAD.search(value):
+        raise ValueError(f"{what}: at most {limit} characters, on one line, without # ; quotes or backslashes")
+    return value.strip()
+
+
+def svx_int(value, lo, hi, what):
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{what}: a whole number")
+    if not lo <= v <= hi:
+        raise ValueError(f"{what}: {lo} to {hi}")
+    return v
+
+
+def svx_write_conf(c):
+    os.makedirs(settings.SVX_DIR, exist_ok=True)
+    path = svx_path(SVX_CONF_NAME)
+    tmp = path + ".tmp"
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644), "w", encoding="utf-8") as f:
+        f.write(svx_conf_text(c))
+    os.replace(tmp, path)
+
+
+@app.route('/svxconnect')
+def svx_page():
+    return bottle.template('svxconnect')
+
+
+@app.get('/api/svxconnect')
+def get_svx():
+    with svx_lock:
+        return svx_state()
+
+
+@app.post('/api/svxconnect')
+def set_svx():
+    """The settings, all of them (svxconnect.conf is written whole). Not while an enrolment runs: it reads them"""
+    try:
+        body = bottle.request.json
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        return api_error(400, "Send the settings as JSON")
+    try:
+        with svx_lock:
+            if svx_enroll_running():
+                raise ValueError("A certificate request is running: Stop it first")
+            c = svx_read()
+            call = svx_text(body.get("callsign", c["callsign"]), 16, "Callsign").upper()
+            if call and not SVX_CALL.fullmatch(call):
+                raise ValueError("Callsign: letters and digits, as ON6URE (a -suffix may follow; no /P)")
+            email = svx_text(body.get("email", c["email"]), 100, "E-mail")
+            if email and not SVX_EMAIL.fullmatch(email):
+                raise ValueError("E-mail: an address the reflector's sysop can write to")
+            host = svx_text(body.get("reflector", c["reflector"]), 253, "Reflector")
+            if host and not SVX_HOST.fullmatch(host):
+                raise ValueError("Reflector: a host name or address, as reflector.example.org")
+            sw = svx_tg_list(body.get("switchable", c["switchable"]), "Switchable")
+            mon = svx_tg_list(body.get("monitored", c["monitored"]), "Monitored")
+            if len({t for t, _ in sw} | {t for t, _ in mon}) > SVX_TGS_MAX:
+                raise ValueError(f"Talkgroups: {SVX_TGS_MAX} at most in the two lists together")
+            if call and host and not sw and not mon:
+                raise ValueError("Talkgroups: at least one, switchable or monitored")
+            new = {"callsign": call, "email": email, "reflector": host.rstrip("."),
+                   "port": svx_int(body.get("port", c["port"]), 1, 65535, "Port"),
+                   "switchable": ", ".join(t + p for t, p in sw), "monitored": ", ".join(t + p for t, p in mon),
+                   "default_tg": svx_int(body.get("default_tg", c["default_tg"]), 0, 4294967295, "Start on"),
+                   "lock_on_start": bool(body.get("lock_on_start", c["lock_on_start"])),
+                   "linger_seconds": svx_int(body.get("linger_seconds", c["linger_seconds"]), 10, 300, "Linger"),
+                   "idle_seconds": svx_int(body.get("idle_seconds", c["idle_seconds"]), 0, 3600, "Idle"),
+                   "tx_timeout_sec": svx_int(body.get("tx_timeout_sec", c["tx_timeout_sec"]), 30, 600,
+                                             "TX time-out"),
+                   "roger_beep": bool(body.get("roger_beep", c["roger_beep"])),
+                   "location": svx_text(body.get("location", c["location"]), 60, "Location")}
+            if new["default_tg"] and all(t != str(new["default_tg"]) for t, _ in sw):
+                raise ValueError("Start on: one of the switchable talkgroups, or 0 for the first of them")
+            svx_write_conf(new)
+            return svx_state("Saved. On the radio: APP > SVXConnect, Connect")
+    except ValueError as e:
+        return api_error(400, str(e))
+    except OSError as e:
+        return api_error(500, f"Can't save: {e}")
+
+
+@app.post('/api/svxconnect/enroll')
+def svx_enroll_cmd():
+    """{"action": "start"}: svxconnect --enroll in the background (a request to the sysop, or the check of the
+    certificate there is). {"action": "stop"}: it ends; the key and the request stay, a new start carries on.
+    {"action": "remove"}: the key, the request and the certificate gone (a new callsign, another reflector)"""
+    try:
+        body = bottle.request.json
+    except ValueError:
+        body = None
+    action = body.get("action") if isinstance(body, dict) else None
+    with svx_lock:
+        running = svx_enroll_running()
+        if action == "start":
+            if running:
+                return api_error(409, "A request is running already")
+            c = svx_read()
+            if not (os.path.exists(svx_path(SVX_CONF_NAME)) and c["callsign"] and c["email"] and c["reflector"]):
+                return api_error(400, "Save the callsign, the e-mail and the reflector first")
+            try:
+                os.makedirs(os.path.dirname(settings.SVX_ENROLL_LOG), exist_ok=True)
+                with open(settings.SVX_ENROLL_LOG, "w") as log:
+                    svx_enroll["proc"] = subprocess.Popen(
+                        [settings.SVX_CMD, "--enroll", "-c", svx_path(SVX_CONF_NAME)], stdin=subprocess.DEVNULL,
+                        stdout=log, stderr=log, start_new_session=True, close_fds=True)
+            except OSError as e:
+                return api_error(500, hide_secrets(f"svxconnect did not start: {e}"))
+            svx_enroll["rc"], svx_enroll["started"] = None, time.time()
+            return svx_state("Request started")
+        if action == "stop":
+            p = svx_enroll["proc"]
+            if p is not None and running:
+                try:
+                    os.killpg(p.pid, signal.SIGTERM)
+                    p.wait(10)
+                except (OSError, subprocess.TimeoutExpired):
+                    try:
+                        os.killpg(p.pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+                svx_enroll_running()
+            return svx_state("Stopped: the key and the request are kept")
+        if action == "remove":
+            if running:
+                return api_error(409, "A request is running: Stop it first")
+            shutil.rmtree(svx_path("pki"), ignore_errors=True)
+            return svx_state("Key, request and certificate removed")
+    return api_error(400, "action: start, stop or remove")
 
 
 # The Bands, Digital modes, Time and Files pages, static files: config_pages.py adds their routes to app

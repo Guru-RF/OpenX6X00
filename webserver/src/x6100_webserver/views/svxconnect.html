@@ -1,0 +1,176 @@
+% rebase('base.html', title='SVXConnect')
+<h2><svg class="i"><use href="#i-network"/></svg>SVXConnect</h2>
+<p class="sub">The radio on an SvxLink reflector's talkgroups, over the internet only: nothing of it goes on the air. On the radio: APP &gt; SVXConnect, Connect. The talkgroups you hear play on the speaker at the radio's volume; to talk press the radio's PTT key (or Talk) and speak into the hand mic, without the hand mic's own PTT. The radio connects to the reflector only while the app is connected, and never at boot.</p>
+
+<form class="dp-card" id="acc">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-network"/></svg></span><div><h3>Reflector<span class="eff">Takes effect: at the next Connect</span></h3><p>The reflector, and the callsign and e-mail that go into the certificate request its sysop signs. The talkgroups as on the reflector's own page: a + after a number gives it priority (up to +++), so its talkers pull the radio over from a quieter one.</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="callsign"><b>Callsign</b></label><span>Yours, as the reflector knows it; also the key's name. A new callsign needs a new certificate</span></div>
+    <div class="dp-ctl"><input id="callsign" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="16"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="email"><b>E-mail</b></label><span>In the request, so the sysop can reach you</span></div>
+    <div class="dp-ctl"><input id="email" type="email" autocomplete="off" spellcheck="false" maxlength="100"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="reflector"><b>Reflector</b></label><span>Its host name; its own DNS record (SRV) gives the port when it has one</span></div>
+    <div class="dp-ctl"><input id="reflector" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="253"> <input id="port" type="number" min="1" max="65535" style="width:7em" aria-label="Port"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="switchable"><b>Switchable</b></label><span>The talkgroups you choose in the app and talk on, as 8, 1745, 8000</span></div>
+    <div class="dp-ctl"><input id="switchable" type="text" autocomplete="off" spellcheck="false" maxlength="400"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="monitored"><b>Monitored</b></label><span>The talkgroups you hear and see the talkers of, as 8++, 1745+, 9990. 32 at most in the two lists</span></div>
+    <div class="dp-ctl"><input id="monitored" type="text" autocomplete="off" spellcheck="false" maxlength="400"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="default_tg"><b>Start on</b></label><span>The talkgroup selected at Connect, one of the switchable ones; 0 the first of them</span></div>
+    <div class="dp-ctl"><input id="default_tg" type="number" min="0" style="width:9em"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="lock"><b>Locked at the start</b></label><span>The selected talkgroup stays whoever talks elsewhere (Lock in the app)</span></div>
+    <div class="dp-ctl"><label class="sw" title="Locked at the start"><input id="lock" type="checkbox" role="switch" aria-label="Locked at the start"><i></i></label></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="linger"><b>Linger</b></label><span>Seconds a talkgroup is held after its talker stops, before another may pull the radio over (10 to 300)</span></div>
+    <div class="dp-ctl"><input id="linger" type="number" min="10" max="300" style="width:7em"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="idle"><b>Idle</b></label><span>Seconds of quiet everywhere after which it drops to monitoring only; 0 never (0 to 3600)</span></div>
+    <div class="dp-ctl"><input id="idle" type="number" min="0" max="3600" style="width:7em"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="txto"><b>TX time-out</b></label><span>Seconds after which an over of yours ends by itself (30 to 600)</span></div>
+    <div class="dp-ctl"><input id="txto" type="number" min="30" max="600" style="width:7em"></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="roger"><b>Roger beep</b></label><span>A short beep on the speaker when the other station lets go</span></div>
+    <div class="dp-ctl"><label class="sw" title="Roger beep"><input id="roger" type="checkbox" role="switch" aria-label="Roger beep"><i></i></label></div>
+  </div>
+  <div class="dp-row">
+    <div class="dp-lbl"><label for="location"><b>Location</b></label><span>Shown with your callsign on the reflector, as Gent; empty none</span></div>
+    <div class="dp-ctl"><input id="location" type="text" autocomplete="off" maxlength="60"></div>
+  </div>
+  <div class="dp-body" style="border-top:1px solid #1a283c">
+    <div class="actions" style="margin-top:0">
+      <button type="submit" class="primary">Save</button>
+      <span class="status" id="status"></span>
+    </div>
+  </div>
+</form>
+
+<div class="dp-card" id="cert-card">
+  <div class="dp-head"><span class="dp-ico"><svg class="i"><use href="#i-key"/></svg></span><div><h3>Certificate</h3><p>The reflector lets in a radio with a certificate its sysop signed. Request makes a key on the radio and sends the request with your callsign and e-mail; the sysop signs it by hand, which can take minutes or days, and the radio asks again every 30 seconds until it is signed (this page can be closed meanwhile; Stop and a new Request carry on with the same request). With a certificate, Request asks the reflector whether it still takes it. The reflector renews it by itself once two thirds of its time have gone, while the app is connected. The key and the certificate stay on the radio, readable by root only, out of the backups and off the Files page.</p></div></div>
+  <div class="dp-row">
+    <div class="dp-lbl"><b>Now</b><span id="cert-detail"></span></div>
+    <div class="dp-ctl"><b id="cert-state"></b></div>
+  </div>
+  <div class="dp-body">
+    <div class="actions" style="margin-top:0">
+      <button type="button" class="primary" id="enroll">Request</button>
+      <button type="button" id="stop">Stop</button>
+      <button type="button" id="remove">Remove certificate</button>
+      <span class="status" id="cert-status"></span>
+    </div>
+    <pre id="enroll-log" class="meta" style="white-space:pre-wrap;max-height:16em;overflow:auto"></pre>
+    <p class="meta">The app's connection report: /mnt/app_logs/svxconnect.txt on the Files page, the last request's: svxconnect-enroll.txt; never with the key in them.</p>
+  </div>
+</div>
+
+<script src="/static/js/edit_flow.js?v=3"></script>
+<script>
+var showStatus = function(id, text, error=false) {
+  const el = $(id);
+  el.toggleClass("error", error);
+  el.html('<span class="dot"></span>').append(document.createTextNode(text));
+}
+
+var day = function(t) { return t ? new Date(t * 1000).toISOString().slice(0, 10) : ""; }
+
+var certWords = function(c, e) {
+  if (e.running) return c.request ? ["Waiting for the sysop to sign the request", "The radio asks again every 30 s"]
+                                  : ["Asking the reflector", ""];
+  if (c.usable === false && ["valid", "renewal due", "expiring"].includes(c.status))
+    return ["Not usable with this radio's key", "Request a new one"];
+  switch (c.status) {
+    case "valid": return ["Signed: valid until " + day(c.not_after), c.days + " days left; renewed from " + day(c.renew_at)];
+    case "renewal due":
+    case "expiring": return ["Signed, renewal due: valid until " + day(c.not_after),
+                             c.days + " days left. The reflector renews it while the app is connected (ten minutes)"];
+    case "expired": return ["Expired on " + day(c.not_after), "Request a new one: the same key goes to the sysop again"];
+    case "not yet valid": return ["Not valid yet", "Is the radio's clock right?"];
+    case "missing": return c.request ? ["Requested, not signed yet", "Request to ask again"]
+                                     : ["None", "Save the settings, then Request"];
+    case "unreadable": return ["Unreadable", "Remove it and Request a new one"];
+    case "unknown": return ["Unknown", c.why || ""];
+  }
+  return [c.status, ""];
+}
+
+var poll = null;
+var renderCert = function(d) {
+  const c = d.cert, e = d.enroll, w = certWords(c, e);
+  $("#cert-state").text(w[0]);
+  $("#cert-detail").text(w[1]);
+  $("#enroll").prop("disabled", e.running || !d.saved).text(c.usable ? "Check with the reflector" : "Request");
+  $("#stop").prop("disabled", !e.running);
+  $("#remove").prop("disabled", e.running || !(c.usable || c.request || ["expired", "unreadable", "not yet valid"].includes(c.status)));
+  $("#enroll-log").text(e.log.join("\n"));
+  if (e.running && !poll) poll = setInterval(function() { $.get('/api/svxconnect', {}, renderCert); }, 5000);
+  if (!e.running && poll) { clearInterval(poll); poll = null; }
+}
+
+var render = function(d) {
+  const c = d.conf;
+  $("#callsign").val(c.callsign); $("#email").val(c.email); $("#reflector").val(c.reflector); $("#port").val(c.port);
+  $("#switchable").val(c.switchable); $("#monitored").val(c.monitored); $("#default_tg").val(c.default_tg);
+  $("#lock").prop("checked", c.lock_on_start); $("#linger").val(c.linger_seconds); $("#idle").val(c.idle_seconds);
+  $("#txto").val(c.tx_timeout_sec); $("#roger").prop("checked", c.roger_beep); $("#location").val(c.location);
+  form.reset();
+  renderCert(d);
+}
+
+const form = EditFlow.form($("#acc"), $("#status"), $("#acc button[type=submit]"));
+
+var post = function(url, data, done, ms, statusId) {
+  $.ajax({
+    url: url,
+    type: "POST",
+    data: JSON.stringify(data),
+    contentType: "application/json; charset=utf-8",
+    dataType: "json",
+    timeout: ms,
+    success: done,
+    error: function(xhr, why) { showStatus(statusId, x6100FailText(xhr, why, ms), true); }
+  });
+}
+
+$.get('/api/svxconnect', {}, render);
+
+$("#acc").on("submit", function(e) {
+  e.preventDefault();
+  showStatus("#status", "Saving...");
+  post("/api/svxconnect", {callsign: $("#callsign").val().trim(), email: $("#email").val().trim(),
+                           reflector: $("#reflector").val().trim(), port: Number($("#port").val()),
+                           switchable: $("#switchable").val(), monitored: $("#monitored").val(),
+                           default_tg: Number($("#default_tg").val()), lock_on_start: $("#lock").prop("checked"),
+                           linger_seconds: Number($("#linger").val()), idle_seconds: Number($("#idle").val()),
+                           tx_timeout_sec: Number($("#txto").val()), roger_beep: $("#roger").prop("checked"),
+                           location: $("#location").val().trim()},
+       function(r) { render(r); showStatus("#status", r.result); }, 20000, "#status");
+});
+
+var enroll = function(action, busy) {
+  showStatus("#cert-status", busy);
+  post("/api/svxconnect/enroll", {action: action}, function(r) { renderCert(r); showStatus("#cert-status", r.result); },
+       20000, "#cert-status");
+}
+
+$("#enroll").on("click", function() { enroll("start", "Starting..."); });
+$("#stop").on("click", function() { enroll("stop", "Stopping..."); });
+$("#remove").on("click", function() {
+  if (!confirm("Remove the key, the request and the certificate from the radio? Getting back on the reflector then takes a new request the sysop signs.")) return;
+  enroll("remove", "Removing...");
+});
+</script>

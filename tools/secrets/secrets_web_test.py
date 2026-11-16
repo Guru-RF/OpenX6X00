@@ -7,8 +7,8 @@ bottle's WSGI app, every path of the radio it uses moved into a new temporary fo
 The secrets stored: the Wavelog key and the live link's token (the path Wavelog's page tunes the radio by, #245),
 three QRZ Logbook keys, the HOTA and WWFF keys, the Winlink page's password and
 one typed in Pat's own Settings, two WiFi passwords, the Zello account (its user name, password, Issuer and the
-developer key's Private Key). On the DATA partition the files that hold them: field/*.conf, zello/account.conf and
-zello/private_key.pem,
+developer key's Private Key), SVXConnect's private key. On the DATA partition the files that hold them: field/*.conf,
+zello/account.conf and zello/private_key.pem, svxconnect/pki/ (the key, the request, the certificate),
 backups/ (backup.tgz, bluetooth.tgz), an uploaded backup waiting in backup_work, the WiFi networks a restore replaced
 in backup_before_restore/wifi, and a second name for the Wavelog key's file (a hard link here; on the radio's FAT,
 WAVELOG.CONF or the short name WAVELO~1.CON).
@@ -18,10 +18,10 @@ WAVELOG.CONF or the short name WAVELO~1.CON).
 2. The Files page, followed link by link from /files/: no secret in any page or file, the files that hold them
    listed without a link and refused when asked for by name, the others still downloaded.
 3. The answers after a Save with the secret fields empty, and Clear (Wavelog, QRZ, HOTA, WWFF, Winlink, Zello);
-   Zello's files written for root alone.
+   Zello's files written for root alone. SVXConnect's settings checked as svxconnect reads them.
 4. The answers that pass on what a helper or a server said, with stand-in helpers that say the secrets: Wavelog's
    Test, Load and Sync (with the stored key, and with one typed and not saved), the reference list update, Winlink's
-   errors, its status and its logs download, Zello's Test.
+   errors, its status and its logs download, Zello's Test, SVXConnect's certificate request and its log.
 5. The Backup download, which is the owner's own file: without its WiFi part no secret; with it the WiFi passwords,
    as before (said, not changed).
 
@@ -82,8 +82,10 @@ ZELLO_PW = "Zello-acct-pw-77"
 ZELLO_ISSUER = "WyJNVFl4TWpNME5UWTNPRGt3IiwiZGV2In0="
 ZELLO_KEY_LINES = ("MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7", "ZeLLoPrIvAtEkEyLiNeTwOaaaabbbbccccddddeeeeffff0000")
 ZELLO_PEM = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(ZELLO_KEY_LINES) + "\n-----END PRIVATE KEY-----\n"
+SVX_KEY_LINES = ("MIIEowIBAAKCAQEAsvxSVXconnectKEYline1aaaabbbbccccdddd", "SvXcOnNeCtPrIvAtEkEyLiNeTwOeeeeffff00001111")
+SVX_KEY = "-----BEGIN RSA PRIVATE KEY-----\n" + "\n".join(SVX_KEY_LINES) + "\n-----END RSA PRIVATE KEY-----\n"
 SECRETS = (WAVELOG_KEY, *QRZ_KEYS, HOTA_KEY, WWFF_KEY, WINLINK_PW, PAT_PW, *WIFI_PSKS, BT_KEY, TYPED_KEY, CAT_TOKEN,
-           ZELLO_USER, ZELLO_PW, ZELLO_ISSUER, *ZELLO_KEY_LINES)
+           ZELLO_USER, ZELLO_PW, ZELLO_ISSUER, *ZELLO_KEY_LINES, *SVX_KEY_LINES)
 HOST = "192.168.1.10"     # an address: one of the radio's own names, by which every page and answer is given
 
 # The GET routes with parameters, filled in; None: asked for elsewhere (the Files page, the Backup download)
@@ -198,6 +200,8 @@ class Secrets(unittest.TestCase):
         settings.WAVELOG_CMD = r + "/bin/x6100-wavelog"
         settings.FIELD_CMD = r + "/bin/x6100-field"
         settings.ZELLO_CMD = r + "/bin/x6100-zello"
+        if hasattr(settings, "SVX_CMD"):
+            settings.SVX_CMD = r + "/bin/svxconnect"
         os.makedirs(r + "/mnt")
         con = sqlite3.connect(DB.path)
         with open(os.path.join(TOP, "sql", "params.sql")) as f:
@@ -233,6 +237,11 @@ class Secrets(unittest.TestCase):
         write(settings.BACKUP_SAFETY + "/channels.json", '{"version": 1, "channels": []}')
         cls.write_zello()
         write(settings.ZELLO_DIR + "/channels.txt", "Test channel\n")
+        svx = getattr(settings, "SVX_DIR", r + "/mnt/svxconnect")
+        write(svx + "/svxconnect.conf", "callsign = ON6URE\nemail = on6ure@example.org\nreflector = refl.example.org\n"
+                                        "port = 5300\nswitchable = 8, 1745\nmonitored = 8++, 9990\ndefault_tg = 8\n")
+        for name in ("ON6URE.key", "ON6URE.csr", "ON6URE.crt", "ca-bundle.crt"):
+            write(svx + "/pki/" + name, SVX_KEY if name.endswith(".key") else "-----BEGIN CERTIFICATE-----\n", 0o600)
         write(m + "/ft_log.adi", "<call:6>ON4ABC <eor>\n")
         write(m + "/shot.png", b"\x89PNG\r\n\x1a\n")
         write(m + "/digi_text/2026-11-13.txt", "12:00 RX CQ ON4ABC\n")
@@ -246,6 +255,13 @@ class Secrets(unittest.TestCase):
         stub(settings.FIELD_CMD, f'echo "error the list server refused {HOTA_KEY} and {WWFF_KEY}"\n')
         stub(settings.ZELLO_CMD, f'echo "error logon of {ZELLO_USER} with {ZELLO_PW}, {ZELLO_ISSUER}, '
                                  f'{ZELLO_KEY_LINES[0]} refused"\n')
+        # svxconnect: --cert-status as it prints it; --enroll a log line with the key's lines in it, then it waits
+        stub(r + "/bin/svxconnect", f'case "$1" in\n'
+                                    f'  --cert-status) echo "status=valid usable=1 request=0 not_after=1790000000 '
+                                    f'renew_at=1780000000 days=300"; exit 0 ;;\n'
+                                    f'  --enroll) echo "12:00:00 [info] key {SVX_KEY_LINES[0]} {SVX_KEY_LINES[1]}" >&2;'
+                                    f' exec sleep 30 ;;\n'
+                                    f'esac\n')
         stub(apps.WINLINK_CMD, f'echo "$*" >> {cls.calls}\n'
                                f'case "$1" in\n'
                                f'  logs) echo "Pat: login {WINLINK_PW} / {PAT_PW}; wifi {WIFI_PSKS[0]}" ;;\n'
@@ -314,7 +330,7 @@ class Secrets(unittest.TestCase):
         self.assertGreater(seen, 50)
         for path in ("/wavelog", "/field", "/winlink", "/backup", "/cluster", "/tailscale", "/ssh", "/zello",
                      "/api/wavelog", "/api/field", "/api/winlink", "/api/backup", "/api/cluster", "/api/tailscale",
-                     "/api/zello"):
+                     "/api/zello", "/svxconnect", "/api/svxconnect"):
             self.get(path, 200)
 
     def test_says_only_whether_one_is_set(self):
@@ -347,13 +363,16 @@ class Secrets(unittest.TestCase):
             else:
                 files.add(path)
         for path in ("/files/ft_log.adi", "/files/shot.png", "/files/backup_before_restore/channels.json",
-                     "/files/field/logs/2026-11-13-ONFF-0001.adi", "/files/zello/channels.txt"):
+                     "/files/field/logs/2026-11-13-ONFF-0001.adi", "/files/zello/channels.txt",
+                     "/files/svxconnect/svxconnect.conf"):
             self.assertIn(path, files)       # the others are still downloaded
         for path in ("/files/field/wavelog.conf", "/files/field/qrz.conf", "/files/field/hota.conf",
                      "/files/field/wwff.conf", "/files/field/copy-of-wavelog.conf", "/files/backups/backup.tgz",
                      "/files/backups/bluetooth.tgz", "/files/backup_work/stage/wifi/Home.nmconnection",
                      "/files/backup_before_restore/wifi/Club.nmconnection", "/files/zello/account.conf",
-                     "/files/zello/private_key.pem"):
+                     "/files/zello/private_key.pem", "/files/svxconnect/pki/ON6URE.key",
+                     "/files/svxconnect/pki/ON6URE.csr", "/files/svxconnect/pki/ON6URE.crt",
+                     "/files/svxconnect/pki/ca-bundle.crt"):
             self.assertNotIn(path, files)
             self.get(path, 403)              # asked for by name
         st, data = self.get("/files/field/", 200)
@@ -415,6 +434,64 @@ class Secrets(unittest.TestCase):
         self.assertNoSecret("Zello Clear", data)
         self.assertFalse(os.path.exists(acc) or os.path.exists(key))
         self.assertEqual(json.loads(data)["channels"], ["Test channel", "Second"])
+
+    def test_svxconnect(self):
+        """The settings: checked as svxconnect reads them, the file written whole with the radio's paths. The
+        certificate: what --cert-status says. A request: its log with the key's lines hidden; Stop ends it; Remove
+        takes pki/ away, not while a request runs"""
+        if not hasattr(settings, "SVX_DIR"):
+            self.skipTest("a web server from before SVXConnect")
+        conf = settings.SVX_DIR + "/svxconnect.conf"
+        with open(conf) as f:
+            saved = f.read()
+        self.addCleanup(write, conf, saved)
+        st, data = self.get("/api/svxconnect", 200)
+        d = json.loads(data)
+        self.assertEqual((d["conf"]["callsign"], d["conf"]["monitored"], d["conf"]["port"]), ("ON6URE", "8++, 9990", 5300))
+        self.assertEqual((d["cert"]["status"], d["cert"]["usable"], d["cert"]["days"]), ("valid", True, 300))
+        for bad in ({"callsign": "ON6URE/P"}, {"monitored": "8++++"}, {"switchable": "8, x"}, {"email": "a#b@c.d"},
+                    {"reflector": "refl.example.org; rm"}, {"port": 0}, {"default_tg": 9990},
+                    {"location": "Gent # here"}, {"tx_timeout_sec": 0}, {"switchable": "", "monitored": ""},
+                    {"monitored": ", ".join(str(n) for n in range(100, 140))}):
+            st, data = self.req("POST", "/api/svxconnect", bad)
+            self.assertEqual(st, 400, (bad, data))
+        st, data = self.req("POST", "/api/svxconnect", {"callsign": "on6ure", "monitored": "8+++ 9990 8",
+                                                        "location": "Gent", "idle_seconds": 0})
+        self.assertEqual(st, 200, data)
+        self.assertNoSecret("SVXConnect Save", data)
+        with open(conf) as f:
+            text = f.read()
+        for line in ("callsign = ON6URE", "monitored = 8+++, 9990", "switchable = 8, 1745", "location = Gent",
+                     f"pki_dir = {settings.SVX_DIR}/pki", "ctl_fifo =", "log_file =", "status_file =",
+                     "lock_file = /tmp/svxconnect.lock", "idle_seconds = 0", "tx_timeout_sec = 120"):
+            self.assertIn(line + "\n", text)
+        st, data = self.req("POST", "/api/svxconnect/enroll", {"action": "start"})
+        self.assertEqual(st, 200, data)
+        self.addCleanup(self.req, "POST", "/api/svxconnect/enroll", {"action": "stop"})
+        self.assertTrue(json.loads(data)["enroll"]["running"])
+        st, data = self.req("POST", "/api/svxconnect", {"location": "Brugge"})
+        self.assertEqual(st, 400, data)                  # not while it runs: it reads the settings
+        st, data = self.req("POST", "/api/svxconnect/enroll", {"action": "remove"})
+        self.assertEqual(st, 409, data)
+        for _ in range(50):
+            st, data = self.get("/api/svxconnect", 200)
+            if json.loads(data)["enroll"]["log"]:
+                break
+            threading.Event().wait(0.1)
+        self.assertEqual(json.loads(data)["enroll"]["log"], ["12:00:00 [info] key (hidden) (hidden)"])
+        st, data = self.req("POST", "/api/svxconnect/enroll", {"action": "stop"})
+        self.assertEqual(st, 200, data)
+        self.assertFalse(json.loads(data)["enroll"]["running"])
+        self.addCleanup(self.write_svx_pki)
+        st, data = self.req("POST", "/api/svxconnect/enroll", {"action": "remove"})
+        self.assertEqual(st, 200, data)
+        self.assertFalse(os.path.exists(settings.SVX_DIR + "/pki"))
+
+    @staticmethod
+    def write_svx_pki():
+        for name in ("ON6URE.key", "ON6URE.csr", "ON6URE.crt", "ca-bundle.crt"):
+            write(settings.SVX_DIR + "/pki/" + name, SVX_KEY if name.endswith(".key") else "-----BEGIN CERTIFICATE-----\n",
+                  0o600)
 
     def test_what_a_helper_said(self):
         form = {"url": "https://log.example.org", "key": "", "verify_tls": True}
