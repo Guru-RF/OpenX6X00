@@ -96,6 +96,7 @@
 #include "remote_sessions.h"
 #include "control_owner.h"
 #include "clock.h"
+#include "clock_sync.h"
 #include "front_keys.h"
 #include "ft8/utils.h"
 #include "gps.h"
@@ -1837,19 +1838,17 @@ static bool allowed(client_t *c, uint8_t role, bool control) {
 /* "clk MS RTT": the phone's clock, step 2 (operate, no control: it touches nothing of the RF side). MS the phone's
  * time as it sent this, RTT the round trip it measured with "clk?": the radio's clock is set to MS + RTT / 2 when it
  * is more than CLK_STEP_MS off, and only while nothing else keeps it, neither ntpd (the network, or the GPS through
- * it) nor a GPS fix of the last seconds, the FT8 app's Time Sync rule: in the field, with no internet. A round trip
- * over CLK_RTT_MAX_MS is no measure. A clock set goes into the RTC too and the radio says so. Answered "clk
+ * it) nor a GPS fix of the last seconds, clock_sync.h's rule for a move by hand: in the field, with no internet. A
+ * round trip over CLK_RTT_MAX_MS is no measure. A clock set goes into the RTC too, the GPS / Clock page names it
+ * ("phone") and the radio says so. Answered "clk
  * set|ok|ntp|gps|slow DIFF" (the difference found, in ms) or "err clk ...". Socket thread */
 #define CLK_STEP_MS    300
 #define CLK_RTT_MAX_MS 1000
-#define CLK_GPS_AGE_S  10      /* a GPS fix this recent: gpsd feeds ntpd */
 
 static void clock_from_phone(client_t *c, const char *ms_s, const char *rtt_s) {
     char           *e1, *e2;
     long long       ms = strtoll(ms_s, &e1, 10), rtt = strtoll(rtt_s, &e2, 10);
     struct timespec now;
-    double          lat, lon;
-    int             age;
 
     if (!allowed(c, ROLE_OPERATE, false))
         return;
@@ -1863,24 +1862,24 @@ static void clock_from_phone(client_t *c, const char *ms_s, const char *rtt_s) {
         client_textf(c, "clk slow %lld", diff);
         return;
     }
-    if (ftx_clock_synced(NULL)) {
-        client_textf(c, "clk ntp %lld", diff);
-        return;
-    }
-    if (gps_last_fix(&lat, &lon, &age) && age <= CLK_GPS_AGE_S) {
-        client_textf(c, "clk gps %lld", diff);
-        return;
+    switch (clock_sync_keeper(NULL)) {
+        case CLOCK_BY_NTP:
+            client_textf(c, "clk ntp %lld", diff);
+            return;
+        case CLOCK_BY_GPS:
+            client_textf(c, "clk gps %lld", diff);
+            return;
+        default:
+            break;
     }
     if (llabs(diff) <= CLK_STEP_MS) {
         client_textf(c, "clk ok %lld", diff);
         return;
     }
-    struct timespec set = {.tv_sec = theirs / 1000, .tv_nsec = (theirs % 1000) * 1000000};
-    if (clock_settime(CLOCK_REALTIME, &set) != 0) {
+    if (!clock_sync_step(diff / 1000.0, CLOCK_BY_HAND, "phone")) {
         client_textf(c, "err clk: %s", strerror(errno));
         return;
     }
-    clock_rtc_save();
     LV_LOG_USER("Clock set from the phone: %+lld ms (round trip %lld ms)", diff, rtt);
     msg_schedule_text_fmt("Clock set from the phone: %+.1f s", diff / 1000.0);
     client_textf(c, "clk set %lld", diff);

@@ -5557,7 +5557,8 @@ Which source moves the clock, one rule for all:
    millisecond and holds FT8 off for an hour after (the FT8 stations' own
    clocks and the receive path move FT8's word by a tenth of a second).
 3. FT8 and FT4, with Auto Sync on.
-4. By hand: FT8's Time Sync, pressed as a slot starts.
+4. By hand: FT8's Time Sync, pressed as a slot starts, or the phone's clock
+   (the [Browser panel](#browser-panel)'s GPS button).
 
 Every move goes into the clock chip too.
 

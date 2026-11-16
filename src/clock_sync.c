@@ -166,7 +166,7 @@ bool clock_sync_allowed(clock_by_t by, clock_by_t *keeper) {
 /* Into the clock chip too, in UTC as the kernel reads it at boot: sh_run runs it on a thread of its own (hwclock
  * waits for the second to set it) */
 static void rtc_write(void) {
-    sh_run("hwclock -w -u -f /dev/rtc1", NULL, NULL);
+    sh_run("hwclock -w -u -f " BOARD_RTC_DEV, NULL, NULL);
 }
 
 bool clock_sync_step(double step, clock_by_t by, const char *name) {
