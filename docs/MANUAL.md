@@ -249,7 +249,8 @@ The APP button opens four pages of apps and tools:
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
 Birdie Cal besides: the MFK chooses a tile, a press opens it, APP or ESC
-closes the grid. "APP > CW Keyboard" in this manual is the tile, or the
+closes the grid. Four rows are in sight; the grid scrolls to the rows below
+as the MFK goes there (or by a swipe on the touch screen). "APP > CW Keyboard" in this manual is the tile, or the
 button on APP 3:4.
 
 - Each app has its own button pages, named like `(JS8 1:7)`. The first
