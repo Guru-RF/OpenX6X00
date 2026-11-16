@@ -7,6 +7,8 @@
  */
 #include "voice_link.h"
 
+#include "cfg/ham_bands.h"
+
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -61,7 +63,12 @@ static void tx_over(vlink_t *l, const vlink_cfg_t *c, const vlink_in_t *in, vlin
     go(l, VLINK_IDLE, in->now_ms);
 }
 
-vlink_out_t vlink_step(vlink_t *l, const vlink_cfg_t *c, const vlink_in_t *in) {
+/* RF to the network may take the receiver now: inside the amateur bands, or outside them with TX outside on */
+static bool rx_allowed(const vlink_in_t *in) {
+    return in->rx_ham_band || in->rx_outside_ok;
+}
+
+static vlink_out_t step(vlink_t *l, const vlink_cfg_t *c, const vlink_in_t *in) {
     vlink_out_t out = {0};
     uint64_t    now = in->now_ms;
 
@@ -125,6 +132,12 @@ vlink_out_t vlink_step(vlink_t *l, const vlink_cfg_t *c, const vlink_in_t *in) {
             } else if (in->rx_ended) {
                 stop      = true;       /* the helper ended it (refused, its time out): not again until the squelch closes */
                 l->rx_cut = true;
+            } else if (!rx_allowed(in)) {
+                stop = true;            /* the receiver tuned out of the amateur bands: not one more moment of it */
+                if (!l->rx_band_told) {
+                    l->rx_band_told = true;
+                    out.why         = say(l, c, "Link: amateur bands only, RF to %s ended");
+                }
             } else if (!c->to_net || !in->connected || !in->squelch_open) {
                 stop = true;
             } else if (now - l->since_ms >= c->limit_ms) {
@@ -156,6 +169,9 @@ vlink_out_t vlink_step(vlink_t *l, const vlink_cfg_t *c, const vlink_in_t *in) {
     if (in->ham_band) {
         l->band_told = false;
     }
+    if (rx_allowed(in)) {
+        l->rx_band_told = false;
+    }
 
     bool free = in->connected && !in->radio_busy && !in->keyed &&
                 (l->air_end_ms == 0 || now - l->air_end_ms >= VLINK_HOLD_MS);
@@ -163,7 +179,13 @@ vlink_out_t vlink_step(vlink_t *l, const vlink_cfg_t *c, const vlink_in_t *in) {
                  !l->cut && (l->air_end_ms == 0 || now - l->air_end_ms >= c->pause_ms);
     bool id = l->tx_since_id && id_due(l, c, now) && in->can_key && free && !in->squelch_open;
 
-    if (c->to_net && free && in->squelch_open && !l->rx_cut) {
+    if (c->to_net && free && in->squelch_open && !l->rx_cut && !rx_allowed(in)) {
+        /* Something heard outside the amateur bands: nothing of it to the network, said once */
+        if (!l->rx_band_told && !out.why) {
+            l->rx_band_told = true;
+            out.why         = say(l, c, "Link: amateur bands only, nothing to %s");
+        }
+    } else if (c->to_net && free && in->squelch_open && !l->rx_cut) {
         out.talk_start = true;
         go(l, VLINK_TO_NET, now);
     } else if ((relay || id) && !in->ham_band) {
@@ -182,6 +204,24 @@ vlink_out_t vlink_step(vlink_t *l, const vlink_cfg_t *c, const vlink_in_t *in) {
         go(l, VLINK_ID, now);
     }
     return out;
+}
+
+vlink_out_t vlink_step(vlink_t *l, const vlink_cfg_t *c, const vlink_in_t *in) {
+    vlink_out_t out = step(l, c, in);
+
+    /* RF to the network outside the amateur bands with TX outside them on: it goes, said once when it starts out there
+     * or the receiver tunes out while it is on; again after it was off or back inside. Never over other words */
+    if (!c->to_net || in->rx_ham_band || !in->rx_outside_ok) {
+        l->rx_outside_told = false;
+    } else if (!l->rx_outside_told && !out.why) {
+        l->rx_outside_told = true;
+        out.why            = say(l, c, "RF>%s: outside the amateur bands, check your licence");
+    }
+    return out;
+}
+
+bool vlink_rx_band(int32_t hz, bool xvtr) {
+    return xvtr || ham_band_of(hz, NULL, NULL);
 }
 
 bool vlink_sql_step(vlink_sql_t *s, int rms, uint32_t ms, uint32_t hang_ms) {

@@ -2438,7 +2438,10 @@ of a transverter you turned on, and never on the X6200's receive-only ranges
   transverter's range you turned on, whatever TX outside ham bands and the TX
   ranges below say: they can run unattended, and the radio tunes CB and the
   aeronautical bands too (the Scanner's lists, for one), which are outside
-  the amateur bands.
+  the amateur bands. What they send to the internet follows TX outside ham
+  bands: what the radio receives inside this table or a transverter's range
+  goes to a Zello channel or a talkgroup; CB, aeronautical or broadcast audio
+  only with TX outside ham bands on (MARS, CAP), and then with a warning.
 
 TX outside ham bands. Where: Settings > TX Cal > TX PROTECTION > TX outside
 ham bands (also on the web Display page, Transmitter card). Off by default,
@@ -5899,8 +5902,24 @@ It keeps every TX rule of the radio:
   outside them, the link does not key and says "Link: amateur bands only"
   once; its button says No ham band and the main screen Z>RF(no ham band).
   Tuned out of a band while it transmits, it unkeys at once, and the rest of
-  that message is not sent. RF>Zello sends nothing on the air and is not held
-  to them.
+  that message is not sent.
+- **RF>Zello** sends what the radio receives inside the amateur bands or a
+  transverter's range. Outside them (CB, the aeronautical bands, broadcast)
+  it follows TX outside ham bands:
+  - Off (the default): nothing goes to the channel, and the app says "Link:
+    amateur bands only, nothing to Zello" once; its button says No ham band
+    and the main screen RF>Z(no ham band). Tuned out while a message goes to
+    the channel, it ends at once ("Link: amateur bands only, RF to Zello
+    ended").
+  - On (for MARS, CAP and the like): it goes, and the radio says "RF>Zello:
+    outside the amateur bands, check your licence" when RF>Zello starts out
+    there or the radio tunes out of the bands while it is on (not at every
+    message); its button says Outside bands and the main screen
+    RF>Z(outside bands).
+  The frequency that counts is the one the radio receives on: in split,
+  Zello>RF looks at the TX frequency and RF>Zello at the receiver's.
+  Zello>RF stays inside the amateur bands, whatever TX outside ham bands
+  says (above).
 - One link at a time: while SVXConnect's Simplex repeater is on, Zello's
   switches say so and stay off (and the other way round).
 - The power is your TX power setting, at most 7 W (the cap the apps
@@ -6033,7 +6052,10 @@ turn it on. Both directions are off until you turn them on.
   includes **amateur bands only**: the link keys only inside the
   [amateur bands](#amateur-bands-only) or a transverter's range, whatever TX
   outside ham bands and the TX ranges say ("Link: amateur bands only"; the
-  button says No ham band).
+  button says No ham band). RF>SVX sends what the radio receives inside
+  them; outside them only with TX outside ham bands on, with the warning
+  "RF>SVX: outside the amateur bands, check your licence" (with it off:
+  "Link: amateur bands only, nothing to SVX", and RF>SVX says No ham band).
 - The talkgroup selected is the one relayed. A talker on a talkgroup of
   higher priority pulls the selection over, and its overs then go on the
   air too: Lock the talkgroup for a link that relays one talkgroup only.

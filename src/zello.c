@@ -149,6 +149,8 @@ void zello_status(zello_status_t *out) {
     out->link          = v.on && v.link;
     out->to_rf_stopped = v.to_rf_stopped;
     out->off_band      = v.off_band;
+    out->rx_off_band   = v.rx_off_band;
+    out->rx_outside    = v.rx_outside;
     out->link_show     = v.show;
 }
 

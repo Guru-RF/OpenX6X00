@@ -17,7 +17,13 @@
  *    bands only"), and a transmission still on when the frequency leaves them is unkeyed at once.
  *  - RF to the network: what the receiver hears with the squelch open goes to the network as a message, ended when
  *    the squelch has closed (its hang time), at the time limit (then not again until the squelch has closed), or the
- *    moment the radio transmits, ours or anyone's: no loop.
+ *    moment the radio transmits, ours or anyone's: no loop. What the receiver hears inside the amateur bands or a
+ *    transverter's range goes; outside them only while Settings > TX Cal > TX outside ham bands is on (MARS, CAP),
+ *    so no airband, CB or broadcast audio reaches a channel or a talkgroup unless that licence is the operator's.
+ *    With it off nothing goes, said once ("Link: amateur bands only, nothing to Zello"), and a message still going
+ *    when the receiver leaves the bands ends at once. With it on it goes, and the link says so once when RF to the
+ *    network starts out there or the receiver tunes out of the bands while it is on ("RF>Zello: outside the amateur
+ *    bands, check your licence"), not at every message.
  *  - The CW ID: at the end of a transmission when the last one is a period ago (the first transmission's too), and on
  *    its own once a period has gone by since the last one if the link transmitted since.
  *  - One thing at a time: never RF to the network while the radio transmits, never a key while the squelch is open.
@@ -62,6 +68,9 @@ typedef struct {
                                      * PTT, a transmission holding the player, the user talking on the network */
     bool              can_key;      /* network to RF may key: a voice mode, a callsign for the ID, the squelch set */
     bool              ham_band;     /* the radio would transmit inside the amateur bands or a transverter's range */
+    bool              rx_ham_band;  /* the receiver listens inside them (vlink_rx_band): RF to the network may go */
+    bool              rx_outside_ok;    /* TX outside ham bands on (MARS, CAP): RF to the network goes outside them
+                                         * too */
     bool              operator_key; /* the operator keyed (a PTT press, the radio's PTT on while we transmit) */
     bool              keyed;        /* our transmission's thread runs (keying, on the air, unkeying) */
     vlink_tx_result_t result;       /* how it ended, read once keyed has gone false */
@@ -98,6 +107,9 @@ typedef struct {
     bool          rx_cut;           /* the message to the network was cut: not again until the squelch closes */
     bool          to_rf_stopped;    /* the radio stopped a transmission: network to RF off until switched on */
     bool          band_told;        /* "amateur bands only" said: not again until back inside them */
+    bool          rx_band_told;     /* the same for RF to the network, the receiver's frequency */
+    bool          rx_outside_told;  /* "outside the amateur bands, check your licence" said: not again until RF to
+                                     * the network is off or back inside them */
     char          why[96];
 } vlink_t;
 
@@ -105,6 +117,11 @@ void vlink_init(vlink_t *l);
 /* Network to RF on again after the radio stopped it (the user switched it on) */
 void vlink_rearm(vlink_t *l);
 vlink_out_t vlink_step(vlink_t *l, const vlink_cfg_t *c, const vlink_in_t *in);
+
+/* The receiver's frequency hz is inside the amateur bands (ham_bands.h) or a transverter's range (xvtr: a transverter
+ * that is on covers hz): RF to the network goes. Outside them (the CB, HF Air Band and Flights' frequencies) it goes
+ * only with TX outside ham bands on (vlink_in_t.rx_outside_ok), whatever the TX ranges allow */
+bool vlink_rx_band(int32_t hz, bool xvtr);
 
 /* The squelch as the receiver's audio shows it: the base mutes its audio with the squelch closed, so open is audio
  * over VLINK_SQL_OPEN for VLINK_SQL_OPEN_MS, closed again under VLINK_SQL_CLOSE for hang_ms */

@@ -123,7 +123,9 @@ static const char *to_rf_label(void) {
 }
 
 static const char *to_svx_label(void) {
-    return param_i_get(cfg_svx_to_svx) ? "RF>SVX:\nOn" : "RF>SVX:\nOff";
+    if (!param_i_get(cfg_svx_to_svx)) return "RF>SVX:\nOff";
+    if (ss.v.rx_off_band) return "RF>SVX:\nNo ham band";
+    return ss.v.rx_outside ? "RF>SVX:\nOutside bands" : "RF>SVX:\nOn";
 }
 
 static const char *id_label(void) {
@@ -270,7 +272,7 @@ static void pause_cb(button_data_t *b) {
 
 /* The buttons again when what they say has changed */
 static void refresh_buttons(void) {
-    static const char *conn_shown, *talk_shown, *rf_shown, *lock_shown;
+    static const char *conn_shown, *talk_shown, *rf_shown, *rx_shown, *lock_shown;
 
     if (conn_label() != conn_shown) {
         conn_shown = conn_label();
@@ -283,6 +285,10 @@ static void refresh_buttons(void) {
     if (to_rf_label() != rf_shown) {
         rf_shown = to_rf_label();
         buttons_refresh(&btn_to_rf);
+    }
+    if (to_svx_label() != rx_shown) {
+        rx_shown = to_svx_label();
+        buttons_refresh(&btn_to_svx);
     }
     if (lock_label() != lock_shown) {
         lock_shown = lock_label();
@@ -373,10 +379,12 @@ static void show_head(void) {
                               theme_hex(TC_text_dim), _("reflector talkgroups on the internet, never on the air"));
         return;
     }
+    bool        off  = (ss.v.off_band && rf) || (ss.v.rx_off_band && rx);
     const char *what = ss.v.show == VNET_SHOW_TX     ? _("on the air: the talkgroup")
                        : ss.v.show == VNET_SHOW_ID     ? _("on the air: CW ID")
                        : ss.v.show == VNET_SHOW_TO_NET ? _("receiver to the talkgroup")
-                       : ss.v.off_band && rf           ? _("amateur bands only")
+                       : off                           ? _("amateur bands only")
+                       : ss.v.rx_outside && rx         ? _("outside the amateur bands")
                                                         : "";
 
     lv_label_set_text_fmt(head_lbl, "#%06x SVXCONNECT#  #%06x %s%s%s#  #%06x %s#", theme_hex(TC_text_head),

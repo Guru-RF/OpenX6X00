@@ -68,6 +68,8 @@ typedef struct {
     bool        link;           /* the Simplex repeater on: a direction switched on, the session on */
     bool        to_rf_stopped;  /* network to RF stopped by the radio (SWR, refused there) */
     bool        off_band;       /* the radio is outside the amateur bands: the link keys nothing */
+    bool        rx_off_band;    /* the receiver is outside them: nothing goes from it to the network */
+    bool        rx_outside;     /* ... but TX outside ham bands is on: it goes, with a warning */
     vnet_show_t show;
 } vnet_status_t;
 

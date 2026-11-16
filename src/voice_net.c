@@ -14,7 +14,10 @@
  *  inside the amateur bands or a transverter's range, whatever TX outside them says (the CB and HF Air Band apps tune
  *  outside); the SWR protection and a band stop end it and stop network to RF; the radio's power setting at most the
  *  apps' cap (tx_player's 7 W) and the radio's top; never while anyone else transmits; the operator's PTT ends it at
- *  once; a time limit and a pause between transmissions; the CW ID. Everything else is over the internet only:
+ *  once; a time limit and a pause between transmissions; the CW ID. Its RF to the network: what is received inside
+ *  the amateur bands or a transverter's range goes to the network; the CB, airband or broadcast frequencies the radio
+ *  may listen to only with TX outside ham bands on (MARS, CAP), and then with a word of warning. Everything else is
+ *  over the internet only:
  *  - with the app open the PTT key talks on the network and never reaches the radio's PTT (voice_ptt.h,
  *    screen_main.c);
  *  - while the radio transmits, whatever keyed it, and half a second after, the network's audio is dropped and the
@@ -166,6 +169,8 @@ static atomic_bool      link_on;        /* a direction on, for the badge and the
 static atomic_int       link_show;      /* vnet_show_t */
 static atomic_bool      link_stopped;   /* network to RF stopped by the radio */
 static atomic_bool      off_band;       /* outside the amateur bands: the link keys nothing */
+static atomic_bool      rx_off_band;    /* the receiver outside them: nothing of it to the network */
+static atomic_bool      rx_outside;     /* ... but TX outside ham bands is on: it goes, with a warning */
 static atomic_bool      rearm_rf;       /* switched on again: armed */
 static atomic_bool      ptt_pressed;    /* a PTT press since the play thread last looked: the operator */
 static atomic_bool      rx_tap;         /* RF to the network on: the audio thread reads the receiver */
@@ -480,6 +485,15 @@ static bool in_ham_band(void) {
     return ham_freq(radio_tx_freq()) && ham_freq(radio_key_freq());
 }
 
+/* RF to the network: the frequency the receiver is on (the VFO in use, as radio.c reads it) inside the amateur bands
+ * or a transverter's range (vlink_rx_band); outside them TX outside ham bands decides (vlink_in_t.rx_outside_ok) */
+static bool rx_in_ham_band(void) {
+    bool    a = param_i_get(cfg_band_current_vfo) == RADIO_VFO_A;
+    int32_t f = param_i_get(a ? cfg_band_vfoa_freq : cfg_band_vfob_freq);
+
+    return vlink_rx_band(f, cfg_transverter_shift_for(f) != 0);
+}
+
 /* Someone else on the air or about to be: the radio's TX that is not ours, the GUI's PTT, a transmission holding the
  * player, the keyer (a beacon), the user talking on the network */
 static bool radio_busy(void) {
@@ -611,28 +625,36 @@ static void link_tick(const vnet_app_t *a) {
     if (!c.to_rf && !c.to_net && rules.state == VLINK_IDLE && !rules.tx_since_id && !atomic_load(&tx_live)) {
         atomic_store(&link_show, VNET_SHOW_IDLE);
         atomic_store(&off_band, false);
+        atomic_store(&rx_off_band, false);
+        atomic_store(&rx_outside, false);
         atomic_exchange(&ptt_pressed, false);
         return;
     }
 
-    bool       keyed = atomic_load(&tx_live);
-    bool       band  = in_ham_band();
+    bool       keyed   = atomic_load(&tx_live);
+    bool       band    = in_ham_band();
+    bool       rx_band = rx_in_ham_band();
+    bool       mars    = param_i_get(cfg_tx_outside_bands) != 0;
     vlink_in_t in    = {
-        .now_ms       = get_time(),
-        .connected    = atomic_load(&connected),
-        .net_msg      = c.to_rf && (atomic_load(&talker_on) || ring_count() > 0),
-        .squelch_open = atomic_load(&sql_open),
-        .radio_busy   = radio_busy(),
-        .can_key      = can_key(&c),
-        .ham_band     = band,
-        .operator_key = atomic_exchange(&ptt_pressed, false) || (keyed && radio_get_ptt()),
-        .keyed        = keyed,
-        .result       = (vlink_tx_result_t)atomic_load(&tx_result),
-        .rx_ended     = atomic_exchange(&rx_ended, false),
+        .now_ms        = get_time(),
+        .connected     = atomic_load(&connected),
+        .net_msg       = c.to_rf && (atomic_load(&talker_on) || ring_count() > 0),
+        .squelch_open  = atomic_load(&sql_open),
+        .radio_busy    = radio_busy(),
+        .can_key       = can_key(&c),
+        .ham_band      = band,
+        .rx_ham_band   = rx_band,
+        .rx_outside_ok = mars,
+        .operator_key  = atomic_exchange(&ptt_pressed, false) || (keyed && radio_get_ptt()),
+        .keyed         = keyed,
+        .result        = (vlink_tx_result_t)atomic_load(&tx_result),
+        .rx_ended      = atomic_exchange(&rx_ended, false),
     };
     vlink_out_t out = vlink_step(&rules, &c, &in);
 
     atomic_store(&off_band, c.to_rf && !band);
+    atomic_store(&rx_off_band, c.to_net && !rx_band && !mars);
+    atomic_store(&rx_outside, c.to_net && !rx_band && mars);
     /* A transmission still on well past the time limit and the ID: its thread hangs (the audio stream stalled), the
      * radio unkeyed from here. The link keys nothing more while that thread lives */
     if (keyed && !tx_forced && in.now_ms - tx_began_ms > c.limit_ms + TX_HANG_MS && radio_get_modem()) {
@@ -814,6 +836,8 @@ static void *play_fn(void *arg) {
     atomic_store(&sql_open, false);
     atomic_store(&link_show, VNET_SHOW_IDLE);
     atomic_store(&off_band, false);
+    atomic_store(&rx_off_band, false);
+    atomic_store(&rx_outside, false);
     ring_clear();
     vlink_init(&rules);
     pthread_mutex_lock(&gate_lock);
@@ -1015,7 +1039,13 @@ static void timer_cb(lv_timer_t *t) {
                      : atomic_load(&off_band)        ? "(no ham band)"
                                                      : "");
         }
-        if (P(a, to_net)) snprintf(rx, sizeof(rx), " RF>%s%s", a->tag, param_i_get(cfg_squelch) == 0 ? "(no SQL)" : "");
+        if (P(a, to_net)) {
+            snprintf(rx, sizeof(rx), " RF>%s%s", a->tag,
+                     param_i_get(cfg_squelch) == 0  ? "(no SQL)"
+                     : atomic_load(&rx_off_band)    ? "(no ham band)"
+                     : atomic_load(&rx_outside)     ? "(outside bands)"
+                                                    : "");
+        }
         if (s == VNET_SHOW_TO_NET) {
             snprintf(text, sizeof(text), "%s%s%s%s [RX>%s]", _(a->badge), rf, rx,
                      atomic_load(&connected) ? "" : " ...", a->tag);
@@ -1062,6 +1092,8 @@ void vnet_status(const vnet_app_t *a, vnet_status_t *out) {
     out->link          = atomic_load(&link_on);
     out->to_rf_stopped = atomic_load(&link_stopped);
     out->off_band      = atomic_load(&off_band);
+    out->rx_off_band   = atomic_load(&rx_off_band);
+    out->rx_outside    = atomic_load(&rx_outside);
     out->show          = (vnet_show_t)atomic_load(&link_show);
 }
 

@@ -35,6 +35,8 @@ typedef struct {
     bool         link;              /* the Simplex repeater on: a direction switched on, on a channel */
     bool         to_rf_stopped;     /* Zello to RF stopped by the radio (SWR, refused there) */
     bool         off_band;          /* outside the amateur bands: Zello to RF keys nothing */
+    bool         rx_off_band;       /* the receiver outside them: RF to Zello sends nothing */
+    bool         rx_outside;        /* ... but TX outside ham bands is on: it sends, with a warning */
     vnet_show_t  link_show;
 } zello_status_t;
 

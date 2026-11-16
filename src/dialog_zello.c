@@ -145,7 +145,9 @@ static const char *to_rf_label(void) {
 }
 
 static const char *to_zello_label(void) {
-    return param_i_get(cfg_zello_to_zello) ? "RF>Zello:\nOn" : "RF>Zello:\nOff";
+    if (!param_i_get(cfg_zello_to_zello)) return "RF>Zello:\nOff";
+    if (zs.rx_off_band) return "RF>Zello:\nNo ham band";
+    return zs.rx_outside ? "RF>Zello:\nOutside bands" : "RF>Zello:\nOn";
 }
 
 static const char *id_label(void) {
@@ -280,9 +282,9 @@ static void pause_cb(button_data_t *b) {
 }
 
 /* The buttons again when what they say has changed: a message ended by the helper or the radio's TX, the helper
- * gone, Zello to RF stopped by the radio */
+ * gone, Zello to RF stopped by the radio, a direction outside the amateur bands */
 static void refresh_buttons(void) {
-    static const char *conn_shown, *talk_shown, *rf_shown;
+    static const char *conn_shown, *talk_shown, *rf_shown, *rx_shown;
 
     if (conn_label() != conn_shown) {
         conn_shown = conn_label();
@@ -295,6 +297,10 @@ static void refresh_buttons(void) {
     if (to_rf_label() != rf_shown) {
         rf_shown = to_rf_label();
         buttons_refresh(&btn_to_rf);
+    }
+    if (to_zello_label() != rx_shown) {
+        rx_shown = to_zello_label();
+        buttons_refresh(&btn_to_zello);
     }
 }
 
@@ -320,10 +326,12 @@ static void show_head(void) {
                               _("voice channels on the internet, never on the air"));
         return;
     }
+    bool        off  = (zs.off_band && rf) || (zs.rx_off_band && rx);
     const char *what = zs.link_show == VNET_SHOW_TX     ? _("on the air: the channel")
                        : zs.link_show == VNET_SHOW_ID     ? _("on the air: CW ID")
                        : zs.link_show == VNET_SHOW_TO_NET ? _("receiver to the channel")
-                       : zs.off_band && rf               ? _("amateur bands only")
+                       : off                              ? _("amateur bands only")
+                       : zs.rx_outside && rx              ? _("outside the amateur bands")
                                                           : "";
 
     lv_label_set_text_fmt(head_lbl, "#%06x ZELLO#  #%06x %s%s%s#  #%06x %s#", theme_hex(TC_text_head),

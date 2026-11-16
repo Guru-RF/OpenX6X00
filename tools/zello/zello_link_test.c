@@ -56,6 +56,7 @@ static void world_init(world_t *w) {
     w->in.connected = true;
     w->in.can_key   = true;
     w->in.ham_band  = true;
+    w->in.rx_ham_band = true;
 }
 
 static vlink_out_t step(world_t *w) {
@@ -81,6 +82,7 @@ static vlink_out_t step(world_t *w) {
     }
     if (o.talk_start) {
         CHECK(!w->on_air && !w->in.radio_busy);     /* no loop: never while the radio transmits */
+        CHECK(w->in.rx_ham_band || w->in.rx_outside_ok);   /* never from outside the bands, unless MARS, CAP */
         w->talk_starts++;
         w->to_zello = true;
     }
@@ -543,12 +545,178 @@ static void test_amateur_bands_only(void) {
     o = step(&w);
     CHECK(w.keys == 3 && o.id);
 
-    /* RF to Zello sends nothing on the air: it is not held to the bands */
+    /* The receiver's frequency is what counts for RF to the network, the TX one for the key: in split (or with a TX
+     * shift) out of the bands but listening inside them, the receiver still goes to the network */
     world_init(&w);
     w.in.ham_band     = false;
     w.in.squelch_open = true;
     step(&w);
     CHECK(w.talk_starts == 1 && w.keys == 0);
+}
+
+/* RF to the network with TX outside ham bands off: nothing received outside the amateur bands (the CB, the airband,
+ * broadcast) goes to a channel or a talkgroup */
+static void test_rf_to_net_amateur_bands_only(void) {
+    world_t     w;
+    vlink_out_t o;
+
+    world_init(&w);
+    w.c.to_rf          = false;
+    w.in.rx_ham_band   = false;
+    w.in.squelch_open  = true;
+    o = step(&w);
+    CHECK(w.talk_starts == 0 && o.why && !strcmp(o.why, "Link: amateur bands only, nothing to " LINK_NET));
+    o = step(&w);
+    CHECK(w.talk_starts == 0 && o.why == NULL);     /* said once */
+    for (int i = 0; i < 100; i++) {
+        advance(&w, 1000);
+        w.in.squelch_open = (i % 3) != 0;           /* signals come and go out there: still nothing, not said again */
+        o = step(&w);
+        CHECK(o.why == NULL);
+    }
+    CHECK(w.talk_starts == 0 && w.l.state == VLINK_IDLE);
+
+    /* Back inside the bands with something on the frequency: it goes */
+    w.in.rx_ham_band  = true;
+    w.in.squelch_open = true;
+    step(&w);
+    CHECK(w.talk_starts == 1 && w.l.state == VLINK_TO_NET);
+
+    /* Tuned out while it goes: ended at once, said; nothing more until back inside */
+    advance(&w, 500);
+    w.in.rx_ham_band = false;
+    o = step(&w);
+    CHECK(o.talk_stop && w.talk_stops == 1 && w.l.state == VLINK_IDLE);
+    CHECK(o.why && !strcmp(o.why, "Link: amateur bands only, RF to " LINK_NET " ended"));
+    for (int i = 0; i < 20; i++) {
+        advance(&w, 500);
+        o = step(&w);
+        CHECK(o.why == NULL);
+    }
+    CHECK(w.talk_starts == 1);
+    w.in.rx_ham_band = true;                        /* back: the station heard there goes, and leaving is said again */
+    step(&w);
+    CHECK(w.talk_starts == 2);
+    w.in.rx_ham_band = false;
+    o = step(&w);
+    CHECK(o.talk_stop && o.why != NULL);
+
+    /* Listening outside the bands while the TX frequency is inside (split): the key still works for the network's
+     * messages, RF to the network does not */
+    world_init(&w);
+    w.in.rx_ham_band = false;
+    w.in.net_msg     = true;
+    step(&w);
+    CHECK(w.keys == 1 && w.l.state == VLINK_RELAY);
+
+    /* The frequencies themselves (vlink_rx_band): the amateur bands' edges in, the apps that tune outside them out,
+     * a transverter's range in */
+    CHECK(vlink_rx_band(7100000, false));
+    CHECK(vlink_rx_band(14000000, false) && vlink_rx_band(14350000, false));
+    CHECK(!vlink_rx_band(13999999, false) && !vlink_rx_band(14350001, false));
+    CHECK(vlink_rx_band(28000000, false) && vlink_rx_band(50100000, false));
+    CHECK(!vlink_rx_band(27185000, false));         /* CB channel 19 */
+    CHECK(!vlink_rx_band(26965000, false));         /* CB channel 1 */
+    CHECK(!vlink_rx_band(8891000, false));          /* HF air band (the North Atlantic) */
+    CHECK(vlink_rx_band(5450000, false));           /* the 60 m band's top edge, still in */
+    CHECK(!vlink_rx_band(5505000, false));          /* Shannon VOLMET */
+    CHECK(!vlink_rx_band(6000000, false));          /* 49 m broadcast */
+    CHECK(!vlink_rx_band(100000000, false));        /* FM broadcast */
+    CHECK(!vlink_rx_band(127500000, false));        /* VHF airband */
+    CHECK(!vlink_rx_band(145500000, false));        /* 2 m without a transverter: not a band of the radio's */
+    CHECK(vlink_rx_band(145500000, true));          /* ... with one on that covers it */
+}
+
+/* With TX outside ham bands on (MARS, CAP) the receiver goes to the network outside the bands too, said once when
+ * it starts out there and when the receiver tunes out while it is on, not at every message; the key stays inside */
+static void test_rf_to_net_outside_with_tx_outside_on(void) {
+    world_t     w;
+    vlink_out_t o;
+    const char *warn = "RF>" LINK_NET ": outside the amateur bands, check your licence";
+
+    world_init(&w);
+    w.c.to_rf          = false;
+    w.in.rx_outside_ok = true;
+    w.in.rx_ham_band   = false;
+    o = step(&w);                                   /* RF to the network on out there: said as it starts */
+    CHECK(o.why && !strcmp(o.why, warn));
+    w.in.squelch_open = true;
+    o = step(&w);
+    CHECK(w.talk_starts == 1 && w.l.state == VLINK_TO_NET && o.why == NULL);
+    w.in.squelch_open = false;
+    for (int i = 0; i < 4; i++) {
+        advance(&w, 500);
+        o = step(&w);
+        CHECK(o.why == NULL);
+    }
+    CHECK(w.talk_stops == 1);
+    w.in.squelch_open = true;                       /* the next message: not said again */
+    o = step(&w);
+    CHECK(w.talk_starts == 2 && o.why == NULL);
+    w.in.squelch_open = false;
+    for (int i = 0; i < 4; i++) {
+        advance(&w, 500);
+        step(&w);
+    }
+
+    /* Back inside the bands: nothing to say; out again: said again */
+    w.in.rx_ham_band = true;
+    o = step(&w);
+    CHECK(o.why == NULL);
+    w.in.rx_ham_band = false;
+    o = step(&w);
+    CHECK(o.why && !strcmp(o.why, warn));
+
+    /* Tuned out while a message goes: it goes on, said once */
+    w.in.rx_ham_band = true;
+    step(&w);
+    w.in.squelch_open = true;
+    step(&w);
+    CHECK(w.talk_starts == 3 && w.l.state == VLINK_TO_NET);
+    w.in.rx_ham_band = false;
+    o = step(&w);
+    CHECK(!o.talk_stop && w.l.state == VLINK_TO_NET && o.why && !strcmp(o.why, warn));
+    advance(&w, 500);
+    o = step(&w);
+    CHECK(o.why == NULL && w.l.state == VLINK_TO_NET);
+
+    /* TX outside switched off meanwhile: that message ends at once, the next is refused */
+    w.in.rx_outside_ok = false;
+    o = step(&w);
+    CHECK(o.talk_stop && w.l.state == VLINK_IDLE && o.why && strstr(o.why, "amateur bands only"));
+    advance(&w, 500);
+    step(&w);
+    CHECK(w.talk_starts == 3);
+
+    /* On again, RF to the network switched off and on out there: said again as it starts */
+    w.in.rx_outside_ok = true;
+    w.in.squelch_open  = false;
+    w.c.to_net         = false;
+    o = step(&w);
+    CHECK(o.why == NULL);
+    w.c.to_net = true;
+    o = step(&w);
+    CHECK(o.why && !strcmp(o.why, warn));
+
+    /* The key stays inside the amateur bands whatever TX outside them says: a message from the network out there is
+     * not keyed */
+    world_init(&w);
+    w.in.rx_outside_ok = true;
+    w.in.rx_ham_band   = false;
+    w.in.ham_band      = false;
+    w.in.net_msg       = true;
+    for (int i = 0; i < 20; i++) {
+        advance(&w, 1000);
+        step(&w);
+    }
+    CHECK(w.keys == 0);
+
+    /* Inside the bands it is as without it: nothing said */
+    world_init(&w);
+    w.in.rx_outside_ok = true;
+    w.in.squelch_open  = true;
+    o = step(&w);
+    CHECK(w.talk_starts == 1 && o.why == NULL);
 }
 
 static void test_squelch(void) {
@@ -594,6 +762,8 @@ int main(void) {
     test_id_timing();
     test_radio_stops_it();
     test_amateur_bands_only();
+    test_rf_to_net_amateur_bands_only();
+    test_rf_to_net_outside_with_tx_outside_on();
     test_squelch();
     test_morse();
     printf(LINK_TEST_NAME ": %d checks, %d failed\n", checks, failed);
