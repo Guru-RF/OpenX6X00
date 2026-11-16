@@ -174,6 +174,10 @@ int field_adif_header(FILE *f, const char *title) {
 }
 
 bool field_log_add(const char *path, const field_qso_t *q, const field_station_t *st) {
+    return field_log_append(path, BOARD_NAME " Field Ops log", q, st);
+}
+
+bool field_log_append(const char *path, const char *title, const field_qso_t *q, const field_station_t *st) {
     char  rec[768], dir[256];
     int   mk = 0, err = 0;
 
@@ -209,7 +213,7 @@ bool field_log_add(const char *path, const field_qso_t *q, const field_station_t
         return false;
     }
     if (is_new)
-        field_adif_header(f, BOARD_NAME " Field Ops log");
+        field_adif_header(f, title);
     field_adif_record(rec, sizeof(rec), q, st);
     if (fputs(rec, f) < 0 || fflush(f) != 0)
         err = errno;

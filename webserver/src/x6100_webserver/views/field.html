@@ -163,12 +163,12 @@ $(".kclear").on("click", function() {
 $("#update").on("click", function() { post("/api/field/update", {}, null, "#ustatus"); });
 
 var deleteLog = function(name) {
-  if (!confirm(`Delete the log "${name}"? Download it first if you still need it: this cannot be undone.`)) return;
+  if (!confirm(`Delete the log "${name}"? Its QSOs go from the worked-before list of FT8, FT4 and JS8 too. Download it first if you still need it: this cannot be undone.`)) return;
   $.ajax({
     url: "/api/field/logs/" + encodeURIComponent(name),
     type: "DELETE",
     dataType: "json",
-    success: function(r) { render(r); showStatus("#lstatus", "Deleted " + name); },
+    success: function(r) { render(r); showStatus("#lstatus", r.note ? `Deleted ${name}; ${r.note}` : "Deleted " + name, !!r.note); },
     error: function(xhr) { showStatus("#lstatus", xhr.responseJSON ? xhr.responseJSON.msg : "Failed", true); }
   });
 }
