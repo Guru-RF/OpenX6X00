@@ -81,6 +81,10 @@ typedef enum {
     ACTION_APP_SCAN,     /* 127: Scanner */
     ACTION_APP_FREEDV,   /* 128: RADE (FreeDV) */
     ACTION_APP_FIRST_START, /* 129: the first-start guide (first_start.c), from Settings > General; no key gets it */
+
+    /* The CX8ANM edition's numbers (condoruy's fork), so a key given one of its apps there opens it here as well */
+    ACTION_APP_AERO = 204,  /* HF Air Band */
+    ACTION_APP_CB,          /* 205: CB */
 } press_action_t;
 
 typedef enum {
@@ -184,6 +188,12 @@ typedef struct {
     params_bool_t       sstv_denoise;    /* clean received pictures, keep the original too */
     params_bool_t       sstv_reply_rx;   /* Reply and Replay in the mode of the last picture received (#230) */
     params_uint8_t      sstv_tx_mode;    /* sstv_mode_t TX Mode was set to last, 0 none yet (#229) */
+
+    /* HF Air Band and CB (aero.h, cb.h) */
+    params_uint8_t      aero_area;       /* aero_area_t + 1 the list shown, 0 the radio's region's */
+    params_uint8_t      cb_plan;         /* cb_plan_t + 1, 0 the radio's region's */
+    params_uint8_t      cb_mode;         /* cb_mode_t + 1 chosen with Mode, 0 the plan's own */
+    params_bool_t       cb_knob;         /* the main knob steps the channels while the CB app is open */
 
     // FT8 gain offset for different radios/bands/modes
     params_float_t      ft8_output_gain_offset;

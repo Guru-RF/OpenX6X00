@@ -4,10 +4,11 @@
  *  Xiegu X6100 LVGL GUI - Scanner app
  *
  *  The list to scan (Source): the Channels app's channels, the airband (118-137 MHz, AM, 25 kHz:
- *  the X6200), the 40 CB channels (AM), or the band plan segment the dial is in, in steps of the
- *  mode. The engine (scan.c) looks at each in turn and stops on one over the threshold, Auto by
- *  default (a margin over what each reads when quiet); the speaker is quiet between stops.
- *  What it stopped on is listed, the latest first: an evening's activity at a glance.
+ *  the X6200), the HF Air Band app's frequencies (USB, its area: aero.c), the CB app's channels (its
+ *  plan and mode: cb.c), or the band plan segment the dial is in, in steps of the mode. The engine
+ *  (scan.c) looks at each in turn and stops on one over the threshold, Auto by default (a margin
+ *  over what each reads when quiet); the speaker is quiet between stops. What it stopped on is
+ *  listed, the latest first: an evening's activity at a glance.
  *
  *  Skip goes on, Lock out leaves one out for this session (a carrier that is always there), the
  *  MFK steps by hand while paused, the main knob pauses it. Receive only: a TX (the mic's PTT, TCI)
@@ -18,13 +19,17 @@
 #include "dialog_scan.h"
 #include "screen_light.h"
 
+#include "aero.h"
 #include "app_frame.h"
 #include "band_keep.h"
 #include "band_plan.h"
 #include "buttons.h"
+#include "cb.h"
 #include "cfg/cfg_api.h"
 #include "channel_list.h"
 #include "dialog.h"
+#include "dialog_aero.h"
+#include "dialog_cb.h"
 #include "events.h"
 #include "keyboard.h"
 #include "meter.h"
@@ -44,22 +49,13 @@
 #define LEFT_W      372
 #define NAME_MAX    24
 
-typedef enum { SRC_CHANNELS, SRC_AIRBAND, SRC_CB, SRC_SEGMENT, SRC_N } source_t;
-
-static const char *source_name[SRC_N] = {"Channels", "Airband", "CB", "Segment"};
+static const char *source_name[SCAN_SRC_N] = {"Channels", "Airband", "HF Air", "CB", "Segment"};
 
 static const struct { const char *name; float db; } stops[] = {
     {"Auto", NAN}, {"S3", S3}, {"S5", S5}, {"S7", S7}, {"S9", S9},
 };
 static const struct { const char *name; int ms; } speeds[] = {{"Fast", 120}, {"Normal", 250}, {"Slow", 500}};
 static const int hangs_s[] = {2, 5, 10};
-
-/* US CB channels 1-40: 23 sits between 22 and 24 out of order, as the FCC numbered them */
-static const int32_t cb_khz[40] = {
-    26965, 26975, 26985, 27005, 27015, 27025, 27035, 27055, 27065, 27075, 27085, 27105, 27115, 27125,
-    27135, 27155, 27165, 27175, 27185, 27205, 27215, 27225, 27255, 27235, 27245, 27265, 27275, 27285,
-    27295, 27305, 27315, 27325, 27335, 27345, 27355, 27365, 27375, 27385, 27395, 27405,
-};
 
 static void construct_cb(lv_obj_t *parent);
 static void destruct_cb(void);
@@ -108,9 +104,10 @@ static struct {
     char         name[NAME_MAX];
 } list[SCAN_MAX];
 
-static int        list_n;
-static source_t   source = SRC_CHANNELS;
-static int        stop_i, speed_i = 1, hang_i;
+static int           list_n;
+static scan_source_t source = SCAN_SRC_CHANNELS;
+static int           preset = -1;     /* dialog_scan_preset() */
+static int           stop_i, speed_i = 1, hang_i;
 static app_frame_t frame;
 static lv_timer_t *timer;
 static lv_obj_t   *lbl_state, *lbl_freq, *lbl_name, *lbl_info, *meter_track, *meter_bar, *meter_thr;
@@ -133,23 +130,39 @@ static void build_list(void) {
 
     list_n = 0;
     switch (source) {
-        case SRC_CHANNELS:
+        case SCAN_SRC_CHANNELS:
             channels_reload_if_changed();
             for (uint16_t i = 0; i < channels_count(); i++) {
                 const channel_t *c = channels_get(i);
                 add(c->freq, c->mode, c->name);
             }
             break;
-        case SRC_AIRBAND:
+        case SCAN_SRC_AIRBAND:
             for (int32_t f = 118000000; f <= 136975000; f += 25000) add(f, radio_mode_am, "");
             break;
-        case SRC_CB:
-            for (int i = 0; i < 40; i++) {
-                snprintf(name, sizeof(name), "CB %d", i + 1);
-                add(cb_khz[i] * 1000, radio_mode_am, name);
+        case SCAN_SRC_HF_AIR: {
+            static int16_t  fam[SCAN_MAX];
+            static uint16_t khz[SCAN_MAX];
+            int             n = aero_rows(dialog_aero_area(), fam, khz, SCAN_MAX);
+
+            /* A frequency of two families once (13300 kHz is CEP's, CWP's, NP's and SP's), named after the first */
+            for (int i = 0; i < n; i++) {
+                bool seen = false;
+
+                for (int j = 0; j < list_n && !seen; j++) seen = list[j].freq == khz[i] * 1000;
+                if (!seen) add(khz[i] * 1000, radio_mode_usb, aero_family(fam[i])->code);
             }
             break;
-        case SRC_SEGMENT: {
+        }
+        case SCAN_SRC_CB: {
+            int plan = dialog_cb_plan();
+
+            for (int ch = 1; ch <= cb_channels(plan); ch++)
+                add(cb_freq(plan, ch), dialog_cb_radio_mode(cb_channel_mode(plan, ch, dialog_cb_mode())),
+                    cb_name(plan, ch, name, sizeof(name)));
+            break;
+        }
+        case SCAN_SRC_SEGMENT: {
             int32_t      dial = cparam_i_get(cfg_fg_freq), from = 0, to = 0, s, e;
             radio_mode_t mode = (radio_mode_t)cparam_i_get(cfg_cur_mode);
             int          type, step;
@@ -364,9 +377,13 @@ static void run_cb(button_data_t *b) {
     fill();
 }
 
+void dialog_scan_preset(scan_source_t s) {
+    preset = s;
+}
+
 static void source_cb(button_data_t *b) {
-    for (int k = 0; k < SRC_N; k++) {
-        source = (source + 1) % SRC_N;
+    for (int k = 0; k < SCAN_SRC_N; k++) {
+        source = (source + 1) % SCAN_SRC_N;
         build_list();
         if (list_n) break;      /* the airband only where the radio receives it */
     }
@@ -527,6 +544,8 @@ static void construct_cb(lv_obj_t *parent) {
 
     band_keep_begin();
     channels_load();
+    if (preset >= 0 && preset < SCAN_SRC_N) source = preset;
+    preset = -1;
     build_list();
     if (!list_n) source_cb(NULL);       /* no channels: the next list that has some */
     tuned_freq = 0;

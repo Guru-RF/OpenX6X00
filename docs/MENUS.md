@@ -21,7 +21,7 @@ closed v0.129, finds the same things under these names:
 | Bands, "Band activity" | Bands, "Band activity" | cluster and RBN activity per band |
 | Propagation, "Conditions, beacons" | - | solar data and the band forecast, the NCDXF beacons heard, day and night on a map |
 | Channels, "Memory channels" | Channels, "Memory channels" | named channels |
-| Scanner, "Stops on activity" | - | scans the channels, the airband, CB or a band segment |
+| Scanner, "Stops on activity" | - | scans the channels, the airband, the HF air band, CB or a band segment |
 | SWR Scan, "Sweep, transmits" | SWR scan, "SWR sweep, transmits" | |
 | Recorder, "RX audio" | Recorder, "Record and play RX" | the RX recorder |
 | CW Trainer, "Learn CW" | CW Trainer, "Learn CW" | |
@@ -31,6 +31,8 @@ closed v0.129, finds the same things under these names:
 | Walkie, "Portrait screen" | Settings > Walkie | the Walkie Talkie screen |
 | Settings, "All settings" | Settings, "All settings" | |
 | Birdie Cal, "Find birdies, antenna off" | Birdie Cal, "Find birdies, antenna off" | the radio's own carriers: found, marked, notched |
+| HF Air Band, "Oceanic routes, VOLMET" | - | the HF aviation frequencies by area, tuned in USB |
+| CB, "27 MHz channels" | - | the CB channels of a country's plan, in its mode |
 
 ## Modes grid
 

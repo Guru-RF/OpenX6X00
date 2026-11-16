@@ -52,6 +52,8 @@
 #include "dialog_bands.h"
 #include "dialog_propagation.h"
 #include "dialog_scan.h"
+#include "dialog_aero.h"
+#include "dialog_cb.h"
 #include "ops_room.h"
 #include "dialog_snake.h"
 #include "qth_entry.h"
@@ -498,6 +500,8 @@ static const char *app_name(press_action_t a) {
         case ACTION_APP_BIRDIE:     return "Birdie Cal";
         case ACTION_APP_PROPAGATION: return "Propagation";
         case ACTION_APP_SCAN:       return "Scanner";
+        case ACTION_APP_AERO:       return "HF Air Band";
+        case ACTION_APP_CB:         return "CB";
         case ACTION_APP_FREEDV:     return "RADE";
         case ACTION_APP_FIRST_START: return "First start";
         default:                   return NULL;    /* Modes menu: a menu, not an app */
@@ -602,6 +606,8 @@ void main_screen_start_app(press_action_t app_action) {
         {ACTION_APP_BIRDIE, &dialog_birdie},
         {ACTION_APP_PROPAGATION, &dialog_propagation},
         {ACTION_APP_SCAN, &dialog_scan},
+        {ACTION_APP_AERO, &dialog_aero},
+        {ACTION_APP_CB, &dialog_cb},
         {ACTION_APP_FREEDV, &dialog_freedv},
         {ACTION_APP_FIRST_START, &dialog_first_start},
     };
@@ -663,7 +669,7 @@ void main_screen_action(press_action_t action) {
         default:
             /* Voice mode and battery info were removed but may still be stored: nothing */
             if ((action >= ACTION_APP_RTTY && action <= ACTION_APP_CHANNELS) || action == ACTION_APP_PROPAGATION ||
-                action == ACTION_APP_SCAN) {
+                action == ACTION_APP_SCAN || action == ACTION_APP_AERO || action == ACTION_APP_CB) {
                 main_screen_start_app(action);
             }
             break;
@@ -1278,6 +1284,8 @@ static void freq_shift(int16_t diff, uint16_t dt) {
     int32_t old  = cparam_i_get(cfg_fg_freq);
     int32_t spot;
     int     hold = cw_mode() ? 0 : param_i_get(cfg_spot_snap_hold);
+
+    if (dialog_cb_knob(old, diff)) return;     /* the CB app open with Knob on channels: a channel a detent */
     bool    slow = hold > 0 && (dt == 0 || dt * param_i_get(cfg_spot_snap_slow) >= 33);
 
     if (slow && snap_hold > 0 && old == snap_hz) {

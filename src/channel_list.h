@@ -41,6 +41,9 @@ uint16_t channels_count(void);                      /* entries in memory */
 const channel_t *channels_get(uint16_t i);          /* NULL past the end */
 
 bool channels_add_current(void);                    /* the current settings, no name, at the end */
+/* The file read first, then the current settings at the end with that name (the HF Air Band and CB apps' Save): false
+ * when either write fails, the list then as it was */
+bool channels_add_named(const char *name);
 bool channels_delete(uint16_t i);                   /* the ones after it move up; saved */
 bool channels_set_name(uint16_t i, const char *name);   /* saved */
 bool channels_move(uint16_t i, uint16_t to);        /* memory only: the dialog saves on Drop */

@@ -297,6 +297,15 @@ bool channels_add_current(void) {
     return false;
 }
 
+bool channels_add_named(const char *name) {
+    if (!channels_load() || !channels_add_current()) return false;
+    if (name && *name && !channels_set_name(channels_count() - 1, name)) {
+        channels_delete(channels_count() - 1);  /* written without its name: out again */
+        return false;
+    }
+    return true;
+}
+
 bool channels_move(uint16_t from, uint16_t to) {
     if (from >= list_len || to >= list_len) return false;
 
