@@ -61,7 +61,8 @@
  *  open|close|cq|stop|auto|hold|mode", "ft8 txfreq HZ", "ft8 reply ID" work the app, "wefax
  *  open|close|auto|cont|save|clear" the WeFax app (the state's "app" names the one open), whose state goes
  *  out as "wefax {...}" and, to a page that sent "wefax rows 1", its picture row by row (binary 0xFFFE,
- *  remote_server_wefax_row), "pos LAT
+ *  remote_server_wefax_row); "ft8 wf 1" asks for the FT8 app's waterfall row by row (binary 0xFFFD,
+ *  remote_server_app_wf), "pos LAT
  *  LON [ACC]" gives the radio the phone's position (degrees, the accuracy in metres; Field Ops uses
  *  it when no GPS is plugged in, operate without control: it touches nothing of the RF side), "clk?
  *  MS" and "clk MS RTT" the phone's clock (clock_from_phone: the radio's set from it in the field,
@@ -212,6 +213,7 @@ typedef struct {
     bool            panel;          /* wants the state, the spectrum and the spots (the Panel page) */
     bool            panel_fresh;    /* just subscribed: the whole state goes out next */
     bool            fax;            /* wants the WeFax picture's rows (the WeFax page: "wefax rows 1") */
+    bool            appwf;          /* wants the FT8 app's waterfall rows (the FT8 page: "ft8 wf 1") */
     atomic_bool     state_due;      /* a "set" refused: the state goes out to it next, changed or not */
     int             sess;           /* the session it authenticated as, -1 none (a viewer) */
     uint8_t         role;           /* ROLE_VIEW, ROLE_OPERATE, ROLE_ADMIN */
@@ -960,6 +962,7 @@ static void client_close(client_t *c) {
     c->funnel  = false;
     c->panel   = false;
     c->fax     = false;
+    c->appwf   = false;
     c->out_len = c->in_len = c->text_len = 0;
     pthread_mutex_unlock(&c->lock);
 }
@@ -1356,6 +1359,32 @@ void remote_server_wefax_row(const uint8_t *row, unsigned width, uint32_t number
         pthread_mutex_unlock(&c->lock);
         if (room)
             client_frame(c, WS_OP_BINARY, &hdr, sizeof(hdr), row, width);
+    }
+}
+
+/* LVGL thread (ft8_window.c): a row of the FT8 app's own waterfall, to the pages that asked for them ("ft8 wf 1"),
+ * binary: {u16 0xFFFD, u16 bins, u16 low Hz, u16 high Hz}, then an int8 a bin, dB over the noise floor: the audio
+ * the app decodes, from its filter's low edge to its high one (the Panel's spectrum is the receiver's, wider and
+ * coarser). As the WeFax rows: only to the pages that asked, and a client with no room loses the row */
+void remote_server_app_wf(const float *db, unsigned n, int lo_hz, int hi_hz) {
+    struct {
+        uint16_t mark, n, lo, hi;
+    } hdr = {0xFFFD, (uint16_t)n, (uint16_t)LV_CLAMP(0, lo_hz, 65535), (uint16_t)LV_CLAMP(0, hi_hz, 65535)};
+    int8_t row[2048];
+
+    if (!atomic_load(&npanel) || !n || n > sizeof(row))
+        return;
+    for (unsigned i = 0; i < n; i++)
+        row[i] = (int8_t)(db[i] < -128.0f ? -128 : db[i] > 127.0f ? 127 : lroundf(db[i]));
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        client_t *c = &clients[i];
+        if (c->fd < 0 || !c->up || !c->panel || !c->appwf)
+            continue;
+        pthread_mutex_lock(&c->lock);
+        bool room = c->out_len < PANEL_ROOM;
+        pthread_mutex_unlock(&c->lock);
+        if (room)
+            client_frame(c, WS_OP_BINARY, &hdr, sizeof(hdr), row, n);
     }
 }
 
@@ -2292,6 +2321,8 @@ static void handle_text(client_t *c, char *text) {
         panel_set(c, a[1], n >= 3 ? a[2] : NULL, n >= 4 ? a[3] : NULL);
     } else if (!strcmp(a[0], "tune") && n >= 2) {
         tune_cmd(c, atoi(a[1]) != 0, n >= 3 ? a[2] : NULL);
+    } else if (!strcmp(a[0], "ft8") && n >= 3 && !strcmp(a[1], "wf")) {
+        c->appwf = atoi(a[2]) != 0;         /* only watching: no role needed */
     } else if (!strcmp(a[0], "ft8") && n >= 2) {
         if (!allowed(c, ROLE_OPERATE, true))
             return;
@@ -2586,7 +2617,7 @@ static void accept_client(int listen_fd) {
         c->pic     = PIC_SHARP;
         c->screen_stale = true;
         c->screen_ms    = 0;
-        c->panel   = c->panel_fresh = c->fax = false;
+        c->panel   = c->panel_fresh = c->fax = c->appwf = false;
         atomic_store(&c->state_due, false);
         c->sess    = -1;
         c->role    = ROLE_VIEW;

@@ -7336,7 +7336,11 @@ auto, fax: a chart coming in, tx and txp, gen: a new picture, rows kept,
 freq, station, saved: the last file written to `/mnt/wefax`, saves), and to
 a client that sent `wefax rows 1` (no role needed) the picture row by row as
 binary frames (8 bytes header `{u16 0xFFFE, u16 width, u32 the row's number
-in the picture, from 1}`, then a grey byte a pixel); the FT8 state
+in the picture, from 1}`, then a grey byte a pixel); to a client that sent
+`ft8 wf 1` (no role needed either) the FT8 app's own waterfall row by row,
+binary too (`{u16 0xFFFD, u16 bins, u16 low Hz, u16 high Hz}`, then a signed
+byte a bin, dB over the noise floor, the app's filter from its low edge to
+its high one); the FT8 state
 carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
 the sends left, `qso`, `hound`, `nocall`, `logged` and `logged_s`), once a
 second while a countdown runs; `log CALL|RSTS|RSTR|NAME`

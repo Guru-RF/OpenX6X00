@@ -49,6 +49,7 @@
 #include "qso_log.h"
 #include "qth/qth.h"
 #include "radio.h"
+#include "remote_server.h"
 #include "scheduler.h"
 #include "station.h"
 #include "gui_styles.h"
@@ -1685,7 +1686,10 @@ typedef struct {
 static void wf_row_add(void *data) {
     wf_row_t *row = data;
 
-    if (row->win_gen == win_gen) lv_waterfall_add_data(waterfall, row->db, row->n);
+    if (row->win_gen == win_gen) {
+        lv_waterfall_add_data(waterfall, row->db, row->n);
+        remote_server_app_wf(row->db, row->n, filter_low, filter_high);     /* the FT8 page's */
+    }
     free(row->db);
 }
 

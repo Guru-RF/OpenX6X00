@@ -56,6 +56,10 @@ void remote_server_cw_text(const char *text);
  * number counts the picture's rows from 1, a new picture starts at 1 again */
 void remote_server_wefax_row(const uint8_t *row, unsigned width, uint32_t number);
 
+/* For the FT8 page: a row of the app's own waterfall in dB over the noise floor, low to high Hz (LVGL thread), to
+ * the pages that asked ("ft8 wf 1") */
+void remote_server_app_wf(const float *db, unsigned n, int lo_hz, int hi_hz);
+
 #ifdef __cplusplus
 }
 #endif
