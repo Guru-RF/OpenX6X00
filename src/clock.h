@@ -38,6 +38,9 @@ const char *clock_hm(const struct tm *tm, char *buf, size_t size);
 
 void clock_tz_init();
 void clock_tz_set(const char *posix);
+/* A time zone was chosen once (Settings, the first-start guide): its file is there. A new card and a factory reset
+ * have none, the clock then on UTC */
+bool clock_tz_chosen(void);
 
 /* The time zones offered (Settings > General > DATE / TIME, the first-start guide): a name and its POSIX TZ string for
  * clock_tz_set(). UTC first, then west to east; the strings differ, as the zone in use is found by its string */

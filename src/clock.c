@@ -427,6 +427,10 @@ void clock_tz_set(const char *posix) {
     }
 }
 
+bool clock_tz_chosen(void) {
+    return access(TZ_FILE, F_OK) == 0;
+}
+
 const clock_zone_t clock_zones[] = {
     { "UTC",                              "UTC0" },
     { "Pacific/Honolulu (HST)",           "HST10" },

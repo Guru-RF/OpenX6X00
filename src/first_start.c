@@ -1,14 +1,16 @@
 /*
  *  SPDX-License-Identifier: LGPL-2.1-or-later
  *
- *  OpenX6X00 - the first-start guide: four steps over the main screen, the language, WiFi, the callsign and locator,
- *  the clock and its time zone, each with Back, Skip and Next, then a last screen with what was set and where the
- *  manual and the web configurator are. An app window like the others: F1-F5 for its buttons, the MFK walks its
- *  controls and a press chooses, a touch does the same. The radio receives under it all the while, the main knob tunes
- *  and VOL is the volume. It reuses what Settings has: the language list, the WiFi window for the network, the
- *  station's checked keyboard entry for the callsign and locator, the clock's time zones and date and time fields.
- *  The language comes first and is taken at once: the screen is built again in it, the guide with it, so the steps
- *  after it are in that language (the language step after the CX8ANM edition's first-start wizard, condoruy).
+ *  OpenX6X00 - the first-start guide: five steps over the main screen, the language, WiFi, the callsign and locator,
+ *  the country, the clock and its time zone, each with Back, Skip and Next, then a last screen with what was set and
+ *  where the manual and the web configurator are. An app window like the others: F1-F5 for its buttons, the MFK walks
+ *  its controls and a press chooses, a touch does the same. The radio receives under it all the while, the main knob
+ *  tunes and VOL is the volume. It reuses what Settings has: the language list, the WiFi window for the network, the
+ *  station's checked keyboard entry for the callsign and locator, the country list (countries.h), the clock's time
+ *  zones and date and time fields. The language comes first and is taken at once: the screen is built again in it,
+ *  the guide with it, so the steps after it are in that language. The country is offered from the callsign, and
+ *  gives the clock its time zone when none was chosen (the language and country steps after the CX8ANM edition's
+ *  first-start wizard, condoruy).
  *
  *  It comes up by itself once (first_start_rule.h): a new card, or the settings reset. Settings > General > STATION >
  *  First-start guide runs it again.
@@ -19,9 +21,11 @@
 #include "first_start.h"
 
 #include "first_start_rule.h"
+#include "band_plan.h"
 #include "button_bar.h"
 #include "cfg/cfg_api.h"
 #include "clock.h"
+#include "countries.h"
 #include "ft8/utils.h"
 #include "gps.h"
 #include "gui_events.h"
@@ -43,7 +47,10 @@
 #include "wifi_window.h"
 
 #include "lvgl/lvgl.h"
+#include <pthread.h>
+#include <stdatomic.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -56,7 +63,7 @@
 #define GPS_AGE_S   10      /* a fix this recent is where the radio is, as station_qth() takes it */
 #define TIME_SYNC   "/var/run/time-sync"    /* ntpdate set the clock when the network came up (99-ntp-sync.sh) */
 
-enum { STEP_LANG, STEP_WIFI, STEP_STATION, STEP_TIME, STEP_DONE, STEPS };
+enum { STEP_LANG, STEP_WIFI, STEP_STATION, STEP_COUNTRY, STEP_TIME, STEP_DONE, STEPS };
 enum { KBD_NONE, KBD_CALLSIGN, KBD_QTH };
 
 static void construct_cb(lv_obj_t *parent);
@@ -107,13 +114,15 @@ static lv_obj_t   *items[ITEMS];        /* its controls, in the order the MFK wa
 static int         items_n;
 static lv_obj_t   *status;              /* the WiFi or clock line */
 static lv_obj_t   *clock_now, *clock_date;
-static lv_obj_t   *zone_dd, *lang_dd;   /* the step's list */
+static lv_obj_t   *zone_dd, *lang_dd, *country_dd;     /* the step's list */
 static lv_obj_t   *dt_spin[6];
 static lv_timer_t *tick;
 
 /* What a step was built with: looked at again as the clock ticks, and the step built again when one changed */
-static char        gps_grid[7];         /* the locator of a current fix, "" none: step 2 offers it */
-static const char *kept_shown;          /* step 3: what keeps the clock */
+static char        gps_grid[7];         /* the locator of a current fix, "" none: step 3 offers it */
+static char        suggest_shown[3];    /* step 4: the callsign's country offered, "" none */
+static const char *kept_shown;          /* step 5: what keeps the clock */
+static bool        zone_by_country;     /* the clock's zone was set from the country in this guide */
 
 static struct tm dt_tm;                 /* step 3: the date and time fields */
 static bool      dt_changed;            /* the clock set by them, not yet in the clock chip */
@@ -305,7 +314,8 @@ static lv_obj_t *dropdown(lv_obj_t *parent, const char *options, uint16_t sel, l
 
 /* The step's list open: the step is not built again under it */
 static bool list_open(void) {
-    return (zone_dd && lv_dropdown_is_open(zone_dd)) || (lang_dd && lv_dropdown_is_open(lang_dd));
+    return (zone_dd && lv_dropdown_is_open(zone_dd)) || (lang_dd && lv_dropdown_is_open(lang_dd))
+           || (country_dd && lv_dropdown_is_open(country_dd));
 }
 
 /* The step's own button (F2): its list opened, the MFK in it */
@@ -505,7 +515,154 @@ static void build_station(void) {
     }
 }
 
-/* ---- step 4: the clock and its time zone ---- */
+/* ---- step 4: the country ---- */
+
+/* The callsign's country (countries.h), on a worker: cty.dat is read on the first lookup, about 0.1 s. suggest_for is
+ * the callsign asked last, suggest its country ("" none), good once suggest_busy is down again */
+static char        suggest_for[16];
+static char        suggest[3];
+static atomic_bool suggest_busy;
+
+static void *suggest_thread(void *arg) {
+    char cc[3];
+
+    country_of_call(arg, cc);
+    memcpy(suggest, cc, sizeof(cc));
+    free(arg);
+    atomic_store(&suggest_busy, false);
+    return NULL;
+}
+
+/* The country to offer for the callsign as it is now, "" none (yet): asked once a callsign, the guide's tick asks
+ * again until the answer is there */
+static const char *suggestion(void) {
+    pthread_t t;
+    char     *call;
+
+    if (atomic_load(&suggest_busy)) {
+        return "";
+    }
+    if (strcmp(suggest_for, params.callsign.x) == 0) {
+        return suggest;
+    }
+    snprintf(suggest_for, sizeof(suggest_for), "%s", params.callsign.x);
+    suggest[0] = 0;
+    if (!params.callsign.x[0] || !(call = strdup(params.callsign.x))) {
+        return "";
+    }
+    atomic_store(&suggest_busy, true);
+    if (pthread_create(&t, NULL, suggest_thread, call) == 0) {
+        pthread_detach(t);
+    } else {
+        free(call);
+        atomic_store(&suggest_busy, false);
+    }
+    return "";
+}
+
+/* The clock's zone from the country: the zone of the list with its time (the same string, else the same offsets and
+ * rules), when no zone was ever chosen (a new card, a factory reset) or this guide set it from a country before. The
+ * clock step shows it, to be changed there */
+static void zone_from_country(void) {
+    const country_t *c = country_now();
+    int              z = -1;
+
+    if (!c || (clock_tz_chosen() && !zone_by_country)) {
+        return;
+    }
+    for (size_t i = 0; i < clock_zones_n && z < 0; i++) {
+        if (!strcmp(clock_zones[i].posix, c->tz)) {
+            z = i;
+        }
+    }
+    for (size_t i = 0; i < clock_zones_n && z < 0; i++) {
+        if (tz_alike(clock_zones[i].posix, c->tz)) {
+            z = i;
+        }
+    }
+    if (z >= 0) {
+        clock_tz_set(clock_zones[z].posix);
+        zone_by_country = true;
+    }
+}
+
+static void rebuild(void *arg) {
+    build();
+}
+
+static void country_set(const char *cc) {
+    first_start_esc_reset(&esc);
+    country_save(cc);
+    zone_from_country();
+    focus_back = 0;
+    lv_async_call(rebuild, NULL);   /* not from inside the list's or the button's own event */
+}
+
+static void country_cb(lv_event_t *e) {
+    uint16_t         i = lv_dropdown_get_selected(lv_event_get_target(e));
+    const country_t *c = i ? country_sorted(i - 1) : NULL;
+
+    country_set(c ? c->cc : "");
+}
+
+static void suggest_use_cb(lv_event_t *e) {
+    country_set(suggest_shown);
+}
+
+/* What the band plan takes now, for the step's line */
+static void plan_line(char *buf, size_t size) {
+    const char *how;
+    char        at[16];
+    int         plan   = param_i_get(cfg_band_region);
+    int         region = band_plan_auto(&how, at, sizeof(at));
+
+    if (plan != BP_PLAN_AUTO) {
+        snprintf(buf, size, _("Band plan: %s, as chosen in Settings > General"), _(band_plan_name(plan)));
+    } else if (!strcmp(how, "gps")) {
+        snprintf(buf, size, _("Band plan: Auto, Region %i from the GPS"), region);
+    } else if (!strcmp(how, "qth")) {
+        snprintf(buf, size, _("Band plan: Auto, Region %i from the locator %s"), region, at);
+    } else if (!strcmp(how, "country")) {
+        snprintf(buf, size, _("Band plan: Auto, Region %i from the country"), region);
+    } else if (!strcmp(how, "call")) {
+        snprintf(buf, size, _("Band plan: Auto, Region %i from the callsign %s"), region, at);
+    } else {
+        snprintf(buf, size, _("Band plan: Auto, Region %i: nothing tells where the radio is"), region);
+    }
+}
+
+static void build_country(void) {
+    static char options[8192];
+    char        line[128], use[64];
+    char        cc[3];
+    size_t      n   = 0;
+    const char *sug = suggestion();
+
+    para(&sony_22, TC(text), "The country you operate from. The band plan's Auto takes its IARU region when the GPS "
+                             "and the locator do not tell, and the clock its time zone when none was chosen. Settings "
+                             "> General has it too.");
+    n = snprintf(options, sizeof(options), "-");
+    for (int i = 0; i < countries_n() && n < sizeof(options) - 64; i++) {
+        n += snprintf(options + n, sizeof(options) - n, "\n%s", country_name(country_sorted(i)));
+    }
+    country_dd = dropdown(row("Country"), "-", 0, 400, country_cb);
+    (lv_dropdown_set_options)(country_dd, options);     /* the names are in the language already: past i18n_hook.h */
+    lv_dropdown_set_selected(country_dd, country_sorted_index(country_code(cc)) + 1);
+
+    /* The callsign's country, while another one (or none) is set: one press takes it */
+    snprintf(suggest_shown, sizeof(suggest_shown), "%s", sug);
+    if (sug[0] && strcmp(sug, cc)) {
+        snprintf(use, sizeof(use), _("Use %s"), country_name(country_find(sug)));
+        button(row("From the callsign"), use, 400, suggest_use_cb);
+        if (!cc[0]) {
+            focus_back = 1;
+        }
+    }
+    plan_line(line, sizeof(line));
+    status = para(&sony_22, cc[0] ? TC(ok) : TC(text_value), line);
+}
+
+/* ---- step 5: the clock and its time zone ---- */
 
 static void clock_show(void) {
     time_t      now = time(NULL);
@@ -569,6 +726,7 @@ static void dt_rtc_cb(lv_event_t *e) {
 }
 
 static void zone_cb(lv_event_t *e) {
+    zone_by_country = false;    /* chosen here: a country chosen again leaves it */
     clock_tz_set(clock_zones[lv_dropdown_get_selected(lv_event_get_target(e))].posix);
     clock_show();
     dt_show();
@@ -621,6 +779,9 @@ static void build_time(void) {
         n += snprintf(options + n, sizeof(options) - n, "%s%s", i ? "\n" : "", clock_zones[i].label);
     }
     zone_dd = dropdown(row("Time zone"), options, clock_zone_now(), 400, zone_cb);
+    if (zone_by_country) {
+        para(&sony_20, TC(text_dim), "From the country: choose another zone here if yours differs.");
+    }
 
     /* By hand only when nothing keeps it: set by NTP or the GPS, a field moved would only put it wrong */
     memset(dt_spin, 0, sizeof(dt_spin));
@@ -672,6 +833,13 @@ static void build_done(void) {
         summary("Station", TC(warn), skipped[STEP_STATION] ? "Skipped: Settings > General > STATION has the callsign"
                                                            : "No callsign: Settings > General > STATION has it");
     }
+    if (country_now()) {
+        snprintf(s, sizeof(s), _("%s, band plan Region %i"), country_name(country_now()), band_plan_region());
+        summary("Country", TC(ok), s);
+    } else {
+        summary("Country", TC(text_dim), skipped[STEP_COUNTRY] ? "Skipped: Settings > General > STATION has it"
+                                                               : "Not set: Settings > General > STATION has it");
+    }
     snprintf(s, sizeof(s), "%s, %s", kept ? (strcmp(kept, "NTP") ? _("Kept by the GPS") : _("Set by NTP"))
                                           : _("Not set by NTP or a GPS"), clock_zones[clock_zone_now()].label);
     summary("Clock", kept ? TC(ok) : TC(text_value), s);
@@ -689,7 +857,8 @@ static void build_done(void) {
 
 /* ---- the window ---- */
 
-static const char *const titles[STEPS] = {"Language", "WiFi", "Callsign and locator", "Clock and time zone", "Done"};
+static const char *const titles[STEPS] = {"Language", "WiFi", "Callsign and locator", "Country", "Clock and time zone",
+                                          "Done"};
 
 static void build(void) {
     lv_obj_t *head;
@@ -701,7 +870,7 @@ static void build(void) {
         lv_obj_del(body);
     }
     items_n = 0;
-    status = clock_now = clock_date = zone_dd = lang_dd = NULL;
+    status = clock_now = clock_date = zone_dd = lang_dd = country_dd = NULL;
     memset(dt_spin, 0, sizeof(dt_spin));
 
     body = lv_obj_create(dialog.obj);
@@ -727,6 +896,7 @@ static void build(void) {
         case STEP_LANG:     build_lang(); break;
         case STEP_WIFI:     build_wifi(); break;
         case STEP_STATION:  build_station(); break;
+        case STEP_COUNTRY:  build_country(); break;
         case STEP_TIME:     build_time(); break;
         default:            build_done(); break;
     }
@@ -776,7 +946,21 @@ static void tick_cb(lv_timer_t *t) {
 
         case STEP_STATION:
             gps_locator(grid);
+            suggestion();                   /* the callsign's country looked up for the next step */
             if (strcmp(grid, gps_grid)) {   /* a fix came or went, or the radio moved into another square */
+                lv_obj_t *f = lv_group_get_focused(keyboard_group);
+
+                for (int i = 0; i < items_n; i++) {
+                    if (items[i] == f) {
+                        focus_back = i;
+                    }
+                }
+                build();
+            }
+            break;
+
+        case STEP_COUNTRY:
+            if (strcmp(suggestion(), suggest_shown)) {  /* the callsign's country came */
                 lv_obj_t *f = lv_group_get_focused(keyboard_group);
 
                 for (int i = 0; i < items_n; i++) {
@@ -859,6 +1043,7 @@ static void construct_cb(lv_obj_t *parent) {
     if (!detour) {      /* opened anew: from the first step; back from the WiFi window or a new language: on it */
         step = STEP_LANG;
         memset(skipped, 0, sizeof(skipped));
+        zone_by_country = false;
     }
     detour   = false;
     finished = false;
@@ -903,6 +1088,7 @@ static const char *act1_label(void) {
         case STEP_LANG:     return "Language";
         case STEP_WIFI:     return "Networks";
         case STEP_STATION:  return "Callsign";
+        case STEP_COUNTRY:  return "Country";
         case STEP_TIME:     return "Time zone";
         default:            return "";
     }
@@ -941,6 +1127,9 @@ static void act1_press(button_data_t *b) {
         case STEP_STATION:
             kbd_open(KBD_CALLSIGN);
             break;
+        case STEP_COUNTRY:
+            list_show(country_dd);
+            break;
         case STEP_TIME:
             list_show(zone_dd);
             break;
@@ -966,6 +1155,9 @@ static void skip_press(button_data_t *b) {
 static void next_press(button_data_t *b) {
     if (typing) {
         return;
+    }
+    if (step == STEP_COUNTRY) {
+        zone_from_country();    /* a country set before the guide: its zone too, when none was chosen */
     }
     if (step < STEP_DONE) {
         skipped[step] = false;
