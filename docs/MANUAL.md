@@ -3548,7 +3548,7 @@ Buttons (the first one of each row turns the page, hold to go back):
 | 4 | AUTO, HB, HB ACK, Settings... (INFO, STATUS, Relay, Groups) |
 | 5 | APRS >, Log QSO, Activ.: Off / POTA / SOTA, Log prompt |
 | 6 | Alerts >, Speed, Decode: All speeds / My speed, Freq: JS8 / GhostNet / kHz |
-| 7 | Power, Map, Ext tune |
+| 7 | Power, Map, Ext tune, Translate |
 
 What it does:
 
@@ -3559,6 +3559,8 @@ What it does:
   `js8call_log.adi` in desktop JS8Call's ADIF format, with POTA/SOTA
   activation fields. FT8 keeps its own `ft_log.adi`.
 - Map (page 7): the stations of the JS8 log on the same map as FT8.
+- Translate (page 7): the message on the list's cursor, translated into the
+  GUI's language; see [GhostNet](#ghostnet), Translation.
 - Alerts: beeps for messages, CQs and new stations, and purple alert words.
 - APRS through JS8 gateways: grid and GPS position beacons (optionally with a
   message), POTA and SOTA spots, SMS, email and Winlink.
@@ -3632,6 +3634,40 @@ Saturday. Freq (page 6) has two GhostNet items:
   and time in the radio's time zone, length, frequency and mode, set on the
   web page GhostNet. It shows in the popup's list and the reminder treats it
   like the others.
+
+Translation, through MyMemory (mymemory.translated.net, Translated's free
+translation memory, used without a key and without an account). GhostNet's
+nets are held in English, and some in Spanish:
+
+- **Translate** (page 7): turn the MFK onto a message, press Translate. The
+  translation into the GUI's language (Settings > Display > INTERFACE >
+  Language) comes on a line of its own under the message, with the language
+  in front ("NL: ..."), and stays while the radio is on. It translates from
+  English, or from Spanish when the message reads as Spanish; with the GUI
+  in English, from Spanish.
+- **Translate arriving messages** (GhostNet's popup, Off by default): each
+  message that arrives in English (or Spanish) is translated the same way,
+  on any frequency. Messages already in your language, heartbeats and SNR
+  reports are not sent.
+- **Mine into English first** (GhostNet's popup, Off by default): the first
+  OK in the message window puts your text into English, in the letters JS8
+  can send, in the window; check it and press OK again to send it, as it is
+  or changed. The callsigns and @groups at the front stay as typed. A text
+  in English already stays as it is ("English already") and the next OK
+  sends it; with the GUI in English the switch does nothing.
+- What goes to MyMemory: the text of the message and the two languages,
+  over the internet (WiFi or Ethernet), only when you press Translate or
+  turn one of the two switches on. The callsigns and commands at the front
+  of a message stay on the radio; callsigns, locators, @groups, <macros>
+  and e-mail addresses inside the text go as [1], [2] ... and are put back
+  in the translation. No callsign of yours, no e-mail address and no
+  account. A text translated once is kept (300 texts, until the radio is
+  switched off) and not sent again.
+- MyMemory's free use is about 5000 characters a day. When it is used up
+  the radio says so with the hours until more ("MyMemory's free
+  translations of today are used up: more in 9 h") and asks nothing until
+  then. No answer from MyMemory: "No answer from MyMemory".
+- A translation is a machine's: read it as a help, and check what you send.
 
 The settings are in `ghostnet.conf` on the DATA partition (`/mnt`). The
 times are GhostNet version 1.5's (github.com/s2underground/GhostNet), in

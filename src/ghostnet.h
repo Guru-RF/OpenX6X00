@@ -4,10 +4,11 @@
  *  OpenX6X00 - GhostNet in the JS8 app: the HF nets of GhostNet version 1.5 (s2underground), mostly in JS8, for
  *  passing news without the internet or the phone networks. The nets' times with a reminder on any screen, an own
  *  net of the operator's, the groups @GHOSTNET, @GSTFLASH and the regional @GN + country + department, the red
- *  notice of an @GSTFLASH message.
+ *  notice of an @GSTFLASH message and the translation of messages on request (x6100-translate, MyMemory).
  *
  *  ghostnet.c is the part a PC test checks (tools/ghostnet): the settings file, the schedule, the groups, the
- *  @GSTFLASH test; ghostnet_gui.c the part on the screen: the reminder, the RTTY shortcut.
+ *  @GSTFLASH test and the helper's answers; ghostnet_gui.c the part on the screen: the reminder, the RTTY shortcut;
+ *  ghostnet_tr.c the translation's worker.
  *
  *  After the GhostNet mode of the CX8ANM edition of OpenX6X00 (condoruy, Cóndor Tecnológico).
  */
@@ -52,6 +53,8 @@ typedef struct {
     char own_mode[8];       /* JS8, RTTY, LSB or USB */
     char dept[4];           /* the department, state or province of the regional group: up to 3 letters or digits */
     char region[16];        /* the regional group typed by hand ("@GNURYMO"); "" makes it from country and dept */
+    bool translate_rx;      /* messages arriving in English (or Spanish) come with their translation; off by default */
+    bool translate_tx;      /* what the operator types goes into English first, to be checked before it is sent */
 } ghostnet_conf_t;
 
 void ghostnet_conf_defaults(ghostnet_conf_t *c);
@@ -152,6 +155,35 @@ bool ghostnet_is_group(const char *to);
 bool ghostnet_is_flash(const char *to, const char *text);
 /* text for the message box, where "#rrggbb text#" colours a part: each '#' doubled, which the box shows as one */
 void ghostnet_box_text(const char *text, char *out, size_t size);
+
+/* ---- The translation helper (rootfs/usr/sbin/x6100-translate) ---- */
+
+typedef enum {
+    GHOSTNET_TR_RX,         /* an arriving message, only when it is in the other language (the switch) */
+    GHOSTNET_TR_ASK,        /* a message the operator asked for (the Translate button) */
+    GHOSTNET_TR_TX,         /* the operator's text into English, before it is sent */
+} ghostnet_tr_kind_t;
+
+typedef enum {
+    GHOSTNET_TR_OK,         /* the translation */
+    GHOSTNET_TR_SKIP,       /* nothing to translate: in the operator's language already */
+    GHOSTNET_TR_NET,        /* no answer from MyMemory: no connection */
+    GHOSTNET_TR_BAD,        /* an answer without a translation, or no helper */
+    GHOSTNET_TR_LIMIT,      /* MyMemory's free daily amount is used up; text: the hours until more */
+} ghostnet_tr_result_t;
+
+/* MyMemory's code of the GUI's language (i18n_code(): "" English, "es", "zh_CN"): "en", "es", "zh-CN" */
+void ghostnet_tr_lang(const char *gui_code, char *out, size_t size);
+/* The helper's argument for kind: "rx", "ask" or "tx" */
+const char *ghostnet_tr_verb(ghostnet_tr_kind_t kind);
+/* The helper's line ("ok <text>", "skip", "error net", "limit 9") as a result, with the text or the hours */
+ghostnet_tr_result_t ghostnet_tr_parse(const char *line, char *text, size_t size);
+
+/* The translation, done by the helper on a thread of its own, one at a time: done runs on the LVGL thread with the
+ * result and the text (or the hours of GHOSTNET_TR_LIMIT). False when the queue is full. LVGL thread */
+#define GHOSTNET_TR_TEXT 480    /* the longest text sent, and the longest answer kept */
+typedef void (*ghostnet_tr_cb)(uint32_t id, int32_t utc, ghostnet_tr_result_t result, const char *text);
+bool ghostnet_translate(ghostnet_tr_kind_t kind, const char *text, uint32_t id, int32_t utc, ghostnet_tr_cb done);
 
 /* ---- On the screen (ghostnet_gui.c) ---- */
 

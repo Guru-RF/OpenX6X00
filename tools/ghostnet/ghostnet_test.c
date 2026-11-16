@@ -4,7 +4,8 @@
  *  Host test of GhostNet in the JS8 app (src/ghostnet.c): the regional group from a country and a department, the
  *  groups added, the @GSTFLASH test and the message box's text of a station's words, the schedule file the image
  *  ships, the next window of a net and the reminder's choice across midnight (UTC and local) and a week's end, the
- *  times shown in UTC with the local zone, the settings file.
+ *  times shown in UTC with the local zone, the settings file, the translation helper's language code and its answers.
+ *  translate_test.py checks the helper itself (rootfs/usr/sbin/x6100-translate) without the network.
  */
 #define _GNU_SOURCE
 #include "ghostnet.h"
@@ -321,9 +322,10 @@ static void test_conf(void) {
 
     ghostnet_conf_defaults(&c);
     CHECK(!c.remind && c.remind_min == 10 && !c.nets[0] && !c.own_on);
+    CHECK(!c.translate_rx && !c.translate_tx);  /* nothing goes to MyMemory until the operator says so */
     const char *lines[] = {"remind=1", "remind_min=500", "nets=EU,OWN", "own_on=1", "own_name=Red hispana",
                            "own_day=9", "own_time=20:45", "own_min=3", "own_khz=7107", "own_mode=FT8",
-                           "dept=v-o-v2", "region=@GNBELVOV", "# remind=0", "nonsense"};
+                           "dept=v-o-v2", "region=@GNBELVOV", "# remind=0", "nonsense", "translate_rx=1"};
     for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]); i++) {
         snprintf(line, sizeof(line), "%s\n", lines[i]);
         ghostnet_conf_parse_line(&c, line);
@@ -338,6 +340,7 @@ static void test_conf(void) {
     CHECK_STR(c.own_mode, "JS8");       /* FT8 is not one of them */
     CHECK_STR(c.dept, "VOV");
     CHECK_STR(c.region, "@GNBELVOV");
+    CHECK(c.translate_rx && !c.translate_tx);
 
     /* toggling a net */
     ghostnet_conf_defaults(&d);
@@ -358,6 +361,48 @@ static void test_conf(void) {
     const ghostnet_conf_t *got = ghostnet_conf();
     CHECK(got->remind && !strcmp(got->nets, "EU,OWN") && got->own_hh == 20 && got->own_mm == 45);
     CHECK(!strcmp(got->own_name, "Red hispana") && !strcmp(got->dept, "VOV") && !strcmp(got->region, "@GNBELVOV"));
+    CHECK(got->translate_rx && !got->translate_tx);
+}
+
+static void test_translate_words(void) {
+    char out[64], text[GHOSTNET_TR_TEXT + 1];
+
+    /* the GUI's language as MyMemory writes it */
+    ghostnet_tr_lang("", out, sizeof(out));
+    CHECK_STR(out, "en");
+    ghostnet_tr_lang(NULL, out, sizeof(out));
+    CHECK_STR(out, "en");
+    ghostnet_tr_lang("es", out, sizeof(out));
+    CHECK_STR(out, "es");
+    ghostnet_tr_lang("nl", out, sizeof(out));
+    CHECK_STR(out, "nl");
+    ghostnet_tr_lang("zh_CN", out, sizeof(out));
+    CHECK_STR(out, "zh-CN");
+    ghostnet_tr_lang("x;rm -rf", out, sizeof(out));    /* a translator's file of a strange name: English */
+    CHECK_STR(out, "en");
+    ghostnet_tr_lang("abcdefghijklmnop", out, sizeof(out));
+    CHECK_STR(out, "en");
+
+    CHECK_STR(ghostnet_tr_verb(GHOSTNET_TR_RX), "rx");
+    CHECK_STR(ghostnet_tr_verb(GHOSTNET_TR_ASK), "ask");
+    CHECK_STR(ghostnet_tr_verb(GHOSTNET_TR_TX), "tx");
+
+    /* the helper's one line */
+    CHECK(ghostnet_tr_parse("ok Buenas noches a todos\n", text, sizeof(text)) == GHOSTNET_TR_OK);
+    CHECK_STR(text, "Buenas noches a todos");
+    CHECK(ghostnet_tr_parse("ok\n", text, sizeof(text)) == GHOSTNET_TR_BAD);       /* no text: no translation */
+    CHECK(ghostnet_tr_parse("skip\n", text, sizeof(text)) == GHOSTNET_TR_SKIP);
+    CHECK(ghostnet_tr_parse("limit 9\n", text, sizeof(text)) == GHOSTNET_TR_LIMIT);
+    CHECK_STR(text, "9");
+    CHECK(ghostnet_tr_parse("error net\n", text, sizeof(text)) == GHOSTNET_TR_NET);
+    CHECK(ghostnet_tr_parse("error answer\n", text, sizeof(text)) == GHOSTNET_TR_BAD);
+    CHECK(ghostnet_tr_parse("", text, sizeof(text)) == GHOSTNET_TR_BAD);             /* the helper did not run */
+    CHECK(ghostnet_tr_parse("Traceback (most recent call last):", text, sizeof(text)) == GHOSTNET_TR_BAD);
+    CHECK(ghostnet_tr_parse("ok one line\nok another\n", text, sizeof(text)) == GHOSTNET_TR_OK);
+    CHECK_STR(text, "one line");
+    char small[8];
+    CHECK(ghostnet_tr_parse("ok a long translation", small, sizeof(small)) == GHOSTNET_TR_OK);
+    CHECK_STR(small, "a long ");
 }
 
 int main(void) {
@@ -369,6 +414,7 @@ int main(void) {
     test_when();
     test_upcoming_and_remind();
     test_conf();
+    test_translate_words();
     printf("ghostnet_test: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }

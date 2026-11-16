@@ -14,6 +14,7 @@
 #include "band_plan.h"
 #include "board.h"
 #include "ghostnet.h"
+#include "i18n.h"
 #include "js8_map.h"
 #include "main.h"
 #include "pskreporter.h"
@@ -52,6 +53,7 @@
 
 #include <liquid/liquid.h>
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -88,6 +90,7 @@
  * depending on the words, so the compose box allows more than that and the
  * frame limit is what you run into, as on desktop JS8Call. */
 #define TX_TEXT_MAX      500
+#define ROW_MAX          (JS8_RX_TEXT_LEN + 64 + GHOSTNET_TR_TEXT) /* a row: the message and its translation */
 #define TEXT_MAX         64                        /* INFO and STATUS answers */
 #define SAVED_N          10                        /* Query > Saved messages > */
 #define APRS_COMMENT_MAX 43                        /* longest comment in an APRS position report */
@@ -217,6 +220,7 @@ static void speed_hold_cb(button_data_t *btn);
 static void decode_cb(button_data_t *btn);
 static void freq_cb(button_data_t *btn);
 static void map_cb(button_data_t *btn);
+static void translate_cb(button_data_t *btn);
 static void stop_tx_cb(button_data_t *btn);
 
 /* CQ, heartbeats, auto replies */
@@ -554,7 +558,8 @@ static buttons_page_t page_6    = {{&btn_p6, &btn_alerts, &btn_speed, &btn_decod
 /* 7 */
 static button_data_t btn_p7     = PAGE_BUTTON("(JS8 7:7)", &page_1, &page_6);
 static button_data_t btn_map    = {.type = BTN_TEXT, .label = "Map", .press = map_cb};
-static buttons_page_t page_7    = {{&btn_p7, &btn_dig_pwr, &btn_map, &btn_ext_tune}};
+static button_data_t btn_transl = {.type = BTN_TEXT, .label = "Trans-\nlate", .press = translate_cb};
+static buttons_page_t page_7    = {{&btn_p7, &btn_dig_pwr, &btn_map, &btn_ext_tune, &btn_transl}};
 
 static dialog_t dialog = {.run           = false,
                           .construct_cb  = construct_cb,
@@ -594,6 +599,26 @@ static bool passes_filter(const js8_rx_msg_t *msg)
 /* "hh:mm:ss  TX 1500  text" for ours, "hh:mm:ss -12 1500  text" for theirs.
  * A speed other than Normal adds its letter after the offset, the same
  * column desktop shows it in. */
+/* Translations (MyMemory, through x6100-translate): of the messages the operator asked for (Translate, page 7) or,
+ * with GhostNet's switch on, of those arriving in English (or Spanish). By message, the newest 48 kept while the
+ * radio is on; a row shows its translation on a line of its own under the message. */
+#define TRANS_N 48
+static struct {
+    uint32_t id;
+    int32_t  utc;
+    char     lang[8];                    /* the GUI's language it was made in, shown in front: "NL" */
+    char     text[GHOSTNET_TR_TEXT + 1];
+} trans[TRANS_N];
+static int  trans_head;
+static bool trans_said;                  /* a failure of the automatic translation: said once while JS8 is open */
+
+static int trans_find(const js8_rx_msg_t *msg) {
+    if (msg->tx || msg->partial || msg->msg_id == 0) return -1;
+    for (int i = 0; i < TRANS_N; i++)
+        if (trans[i].id == msg->msg_id && trans[i].utc == msg->utc && trans[i].text[0]) return i;
+    return -1;
+}
+
 static void format_row(const js8_rx_msg_t *msg, char *out, size_t out_size)
 {
     int         utc = (int)msg->utc;
@@ -608,8 +633,11 @@ static void format_row(const js8_rx_msg_t *msg, char *out, size_t out_size)
         if (msg->partial) tail = " ...";
         else if (msg->checksum < 0) tail = "  (bad checksum)";
         const char *open = msg->low_confidence ? "[" : "", *close = msg->low_confidence ? "]" : "";
-        snprintf(out, out_size, "%02d:%02d:%02d %+3d %4.0f%s  %s%s%s%s", utc / 10000, utc / 100 % 100, utc % 100,
-                 msg->snr, msg->freq_hz, letter, open, msg->text, close, tail);
+        int n = snprintf(out, out_size, "%02d:%02d:%02d %+3d %4.0f%s  %s%s%s%s", utc / 10000, utc / 100 % 100,
+                         utc % 100, msg->snr, msg->freq_hz, letter, open, msg->text, close, tail);
+        int t = trans_find(msg);
+        if (t >= 0 && n > 0 && (size_t)n < out_size)
+            snprintf(out + n, out_size - n, "\n          %s: %s", trans[t].lang, trans[t].text);
     } else {
         snprintf(out, out_size, "%02d:%02d:%02d  TX %4.0f%s  %s", utc / 10000, utc / 100 % 100, utc % 100,
                  msg->freq_hz, letter, msg->text);
@@ -713,7 +741,7 @@ static void rebuild_message_rows(void)
 
     table_empty();
     if (!count) append_row("Listening for JS8...", -1);
-    char line[JS8_RX_TEXT_LEN + 48];
+    char line[ROW_MAX];
     while (count--) {
         format_row(&history[picked[count]], line, sizeof(line));
         append_row(line, picked[count]);
@@ -830,7 +858,7 @@ static void update_slot(int slot, const js8_rx_msg_t *msg)
     history[slot] = *msg;
     if (stations_view_update(msg)) return;
 
-    char line[JS8_RX_TEXT_LEN + 48];
+    char line[ROW_MAX];
     format_row(msg, line, sizeof(line));
     uint16_t r = 0;
     while (r < rows && row_hist[r] != slot) r++;
@@ -844,6 +872,8 @@ static void update_slot(int slot, const js8_rx_msg_t *msg)
     }
 }
 
+static void trans_auto(const js8_rx_msg_t *m);
+
 static void add_message(const js8_rx_msg_t *in)
 {
     js8_rx_msg_t m = *in;
@@ -851,6 +881,7 @@ static void add_message(const js8_rx_msg_t *in)
     int growing = -1;
     if (!m.tx) growing = find_partial(m.msg_id);
     if (!m.partial) process_message(&m);
+    if (!m.partial) trans_auto(&m);
     if (growing >= 0) {
         update_slot(growing, &m);
         return;
@@ -872,9 +903,65 @@ static void add_message(const js8_rx_msg_t *in)
         rebuild_rows(); /* also cuts a full list back to KEEP_ROWS */
         return;
     }
-    char line[JS8_RX_TEXT_LEN + 48];
+    char line[ROW_MAX];
     format_row(&m, line, sizeof(line));
     push_row(line, (int16_t)slot);
+}
+
+/* Why a translation did not come, in the message box */
+static void trans_fail_say(ghostnet_tr_result_t result, const char *text) {
+    switch (result) {
+    case GHOSTNET_TR_SKIP:  msg_update_text_fmt("In your language already"); break;
+    case GHOSTNET_TR_NET:   msg_update_text_fmt("No answer from MyMemory"); break;
+    case GHOSTNET_TR_LIMIT: /* the free amount of the day (about 5000 characters): longer, to be read */
+        msg_schedule_long_text_fmt("MyMemory's free translations of today are used up: more in %s h", text);
+        break;
+    default:                msg_update_text_fmt("MyMemory gave no translation"); break;
+    }
+}
+
+/* A translation came: kept, and onto its message's row */
+static void trans_store(uint32_t id, int32_t utc, const char *text) {
+    int idx = hist_head;
+    for (int i = 0; i < hist_count; i++) {
+        idx = idx == 0 ? HISTORY - 1 : idx - 1;
+        const js8_rx_msg_t *h = &history[idx];
+        if (h->msg_id != id || h->utc != utc || h->tx || h->partial) continue;
+        char lang[8];
+        ghostnet_tr_lang(i18n_code(), lang, sizeof(lang));
+        for (char *p = lang; *p; p++) *p = (char)toupper((unsigned char)*p);
+        trans[trans_head].id  = id;
+        trans[trans_head].utc = utc;
+        snprintf(trans[trans_head].lang, sizeof(trans[0].lang), "%.2s", lang);
+        snprintf(trans[trans_head].text, sizeof(trans[0].text), "%s", text);
+        trans_head = (trans_head + 1) % TRANS_N;
+        js8_rx_msg_t copy = *h;
+        update_slot(idx, &copy); /* its row again, with the translation */
+        return;
+    }
+}
+
+static void trans_rx_done(uint32_t id, int32_t utc, ghostnet_tr_result_t result, const char *text) {
+    if (!table) return; /* JS8 closed meanwhile */
+    if (result == GHOSTNET_TR_OK) trans_store(id, utc, text);
+    else if (result != GHOSTNET_TR_SKIP && !trans_said) {
+        trans_said = true; /* once: the next messages would say the same */
+        trans_fail_say(result, text);
+    }
+}
+
+static void trans_ask_done(uint32_t id, int32_t utc, ghostnet_tr_result_t result, const char *text) {
+    if (!table) return;
+    if (result == GHOSTNET_TR_OK) trans_store(id, utc, text);
+    else trans_fail_say(result, text);
+}
+
+/* GhostNet's switch: a whole message from someone else, worth translating, to the helper, which leaves the ones
+ * already in the operator's language alone without asking MyMemory */
+static void trans_auto(const js8_rx_msg_t *m) {
+    if (m->tx || m->partial || m->heartbeat || m->snr_report || m->low_confidence || m->msg_id == 0) return;
+    if (!ghostnet_conf()->translate_rx || strlen(m->text) < 12 || trans_find(m) >= 0) return;
+    ghostnet_translate(GHOSTNET_TR_RX, m->text, m->msg_id, m->utc, trans_rx_done); /* a full queue: not this one */
 }
 
 /* Age as "now", "12m" or "3h". */
@@ -1954,12 +2041,54 @@ static void edit_finish(void)
 /* OK in the compose window. As in the FT8 app's keyboard we close it here
  * and return true, which makes textarea_window's own close do nothing;
  * false keeps it open. */
+/* GhostNet's "Mine into English first": the first OK sends the text to MyMemory and puts the English into the box;
+ * the next OK sends what is in the box then, checked or changed. Each time the window opens */
+static bool     tx_tr_done;   /* the translation came, or could not: OK sends */
+static bool     tx_tr_busy;   /* asked, no answer yet */
+static uint32_t tx_tr_window; /* counts the windows opened: an answer for one closed since is dropped */
+
+static void trans_tx_done(uint32_t id, int32_t utc, ghostnet_tr_result_t result, const char *text) {
+    (void)utc;
+    tx_tr_busy = false;
+    if (id != tx_tr_window || !composing || edit_target != 0) return; /* that window was closed meanwhile */
+    tx_tr_done = true;
+    switch (result) {
+    case GHOSTNET_TR_OK:
+        textarea_window_set(text);
+        msg_update_text_fmt("In English: check, OK sends");
+        break;
+    case GHOSTNET_TR_SKIP:  msg_update_text_fmt("English already: OK sends it"); break;
+    case GHOSTNET_TR_NET:   msg_update_text_fmt("No MyMemory: OK sends as typed"); break;
+    case GHOSTNET_TR_LIMIT: msg_update_text_fmt("Limit (%s h): OK sends as typed", text); break;
+    default:                msg_update_text_fmt("Not translated: OK sends as is"); break;
+    }
+}
+
+/* True: wait, the window stays open for the English */
+static bool trans_tx_first(const char *typed) {
+    char lang[16];
+    ghostnet_tr_lang(i18n_code(), lang, sizeof(lang));
+    if (!ghostnet_conf()->translate_tx || tx_tr_done || !typed[strspn(typed, " ")] || !strcmp(lang, "en"))
+        return false; /* with the GUI in English it is English already */
+    if (!tx_tr_busy) {
+        if (!ghostnet_translate(GHOSTNET_TR_TX, typed, tx_tr_window, 0, trans_tx_done)) {
+            tx_tr_done = true;
+            msg_update_text_fmt("Busy: OK sends as typed");
+            return true;
+        }
+        tx_tr_busy = true;
+    }
+    msg_update_text_fmt("Into English...");
+    return true;
+}
+
 static bool compose_ok_cb(void)
 {
     const char *typed = textarea_window_get();
 
     switch (edit_target) {
     case 0: {
+        if (trans_tx_first(typed)) return false; /* window stays: the English comes into it */
         /* Macros in the message are filled in on the way out, as on
          * desktop; one that can't be (<CALL> with no station selected) is
          * sent as typed. */
@@ -2088,6 +2217,8 @@ static void compose_open(const char *prefill)
         return;
     }
     composing = true; /* from here on ESC and the keys belong to the window */
+    tx_tr_done = false; /* a new message: into English first again, when GhostNet's switch says so */
+    tx_tr_window++;
     lv_group_remove_obj(table); /* keys go to the text box now */
     lv_obj_t *win = textarea_window_open(compose_ok_cb, compose_cancel_cb);
     lv_obj_set_y(win, 0);
@@ -5536,7 +5667,7 @@ static void p3_ghostnet_mode(void) {
 
 /* ---- GhostNet's popup: the nets, the reminder, RTTY ---- */
 
-enum gn_choice { GN_REMIND, GN_RTTY, GN_CLOSE, GN_ROW };
+enum gn_choice { GN_REMIND, GN_TR_RX, GN_TR_TX, GN_RTTY, GN_CLOSE, GN_ROW };
 #define GN_ROWS 16                       /* the nets' windows listed */
 
 static lv_obj_t *gn_row_obj[GN_ROWS];    /* the rows, to mark a net's reminder on all of its rows */
@@ -5548,6 +5679,12 @@ static void gn_item_text(int item, char *out, size_t size) {
     switch (item) {
     case GN_REMIND:
         snprintf(out, size, _("Reminder %d min before: %s"), c->remind_min, c->remind ? _("On") : _("Off"));
+        break;
+    case GN_TR_RX:
+        snprintf(out, size, _("Translate arriving messages: %s"), c->translate_rx ? _("On") : _("Off"));
+        break;
+    case GN_TR_TX:
+        snprintf(out, size, _("Mine into English first: %s"), c->translate_tx ? _("On") : _("Off"));
         break;
     case GN_RTTY: snprintf(out, size, "%s", _("RTTY 7.077 MHz, 45.45 baud (closes JS8)")); break;
     default: snprintf(out, size, "%s", _("Close"));
@@ -5601,6 +5738,16 @@ static void gn_item_cb(lv_event_t *ev) {
             for (int k = 0; k < gn_rows; k++)
                 if (!strcmp(gn_row_net[k], net)) gn_row_mark(k, true);
         }
+        break;
+    case GN_TR_RX:
+        c.translate_rx = !c.translate_rx;
+        trans_said     = false;
+        if (c.translate_rx) msg_update_text_fmt("Their texts go to MyMemory");
+        break;
+    case GN_TR_TX:
+        c.translate_tx = !c.translate_tx;
+        tx_tr_done     = false;
+        if (c.translate_tx) msg_update_text_fmt("OK: English first, OK sends");
         break;
     case GN_RTTY:
         if (!p3_tx_idle()) return;
@@ -5818,4 +5965,30 @@ static void map_cb(button_data_t *btn) {
     lv_group_add_obj(keyboard_group, map_obj);
     lv_group_focus_obj(map_obj);
     lv_group_set_editing(keyboard_group, true); /* the MFK steps through the stations */
+}
+
+/* Translate (page 7): the message on the list's cursor into the GUI's language, from English (or Spanish), under it
+ * on its row. Only on this press: the text goes to MyMemory over the internet */
+static void translate_cb(button_data_t *btn) {
+    uint16_t r = 0, c = 0;
+
+    (void)btn;
+    user_touch();
+    if (popup_guard() || composing) return;
+    if (view_stations) {
+        msg_update_text_fmt("Translate: Show Messages first");
+        return;
+    }
+    lv_table_get_selected_cell(table, &r, &c);
+    if (r == LV_TABLE_CELL_NONE || r >= rows || row_hist[r] < 0) {
+        msg_update_text_fmt("Turn the MFK onto a message");
+        return;
+    }
+    const js8_rx_msg_t *m = &history[row_hist[r]];
+    if (m->tx) msg_update_text_fmt("Your own message");
+    else if (m->partial) msg_update_text_fmt("Still arriving: wait");
+    else if (trans_find(m) >= 0) msg_update_text_fmt("Translated already");
+    else if (!ghostnet_translate(GHOSTNET_TR_ASK, m->text, m->msg_id, m->utc, trans_ask_done))
+        msg_update_text_fmt("Busy: try again shortly");
+    else msg_update_text_fmt("Translating...");
 }

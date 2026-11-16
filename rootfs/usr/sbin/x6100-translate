@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+# The translation of JS8 messages for the JS8 app (src/ghostnet_tr.c), through MyMemory
+# (api.mymemory.translated.net: free, no key, about 5000 characters a day for each address).
+#
+#   x6100-translate rx  <lang> <text>   an arriving message: translated into lang when it is in
+#                                       English (or Spanish), else "skip"
+#   x6100-translate ask <lang> <text>   the operator asked: from English (or Spanish) into lang
+#   x6100-translate tx  <lang> <text>   the operator's text from lang into English, in what JS8
+#                                       can send; "skip" when lang is English or it is English
+#
+# One line on stdout: "ok <text>", "skip", "limit <hours>" (the free amount of the day is used up),
+# "error net" (no answer) or "error answer" (an answer without a translation).
+#
+# What MyMemory gets is the message's text and the language pair, nothing else: the addresses and
+# commands at the front (CX1ABC: @GHOSTNET MSG ...) stay here, and callsigns, locators, @groups,
+# <macros> and e-mail addresses inside the text go as [1], [2] ... and are put back in the answer.
+# No e-mail ("de") parameter either. What was translated is kept in /tmp/x6100-translate.json
+# (300 texts) and not asked again; after "limit" nothing is asked until the hours have passed.
+import html
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+API = "https://api.mymemory.translated.net/get"
+CACHE = "/tmp/x6100-translate.json"
+CACHE_N = 300
+TEXT_MAX = 480       # MyMemory takes 500 bytes of q
+AGENT = f"OpenX6X00/{os.environ.get('X6100_FW') or 'unknown'} (+https://github.com/Guru-RF/OpenX6X00)"
+JS8_OK = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .-+?!\"/@:<>{}_#&'(),=;*")
+
+# The radio's Python may lack unicodedata: the accents of Latin-1 and Latin Extended-A by hand
+FOLD = str.maketrans("ÀÁÂÃÄÅĀĂĄÇĆĈĊČĎÈÉÊËĒĔĖĘĚĜĞĠĢĤÌÍÎÏĨĪĬĮĴĶĹĻĽŁÑŃŅŇÒÓÔÕÖØŌŎŐŔŖŘŚŜŞŠŢŤÙÚÛÜŨŪŬŮŰŲŴÝŶŸŹŻŽ",
+                     "AAAAAAAAACCCCCDEEEEEEEEEGGGGHIIIIIIIIJKLLLLNNNNOOOOOOOOORRRSSSSTTUUUUUUUUUUWYYYZZZ")
+
+EN = set("""THE AND IS ARE TO OF YOU YOUR FOR WITH THIS THAT HAVE HAS WILL BE WE OUR ALL STATIONS STATION
+PLEASE CHECK IN ON AT FROM GOOD MORNING EVENING NIGHT THANKS THANK WEATHER HERE THERE ANY ANYONE COPY
+HEAR HEARD NET TONIGHT TODAY POWER OUT DOWN UP IT AN NOT CAN WHAT WHERE WHEN HOW SIGNAL REPORT
+SAFE EVERYONE NEED NEEDS HELP LOUD CLEAR WORKING BAND OPEN CLOSED SUNNY RAIN STORM WIND""".split())
+ES = set("""EL LA LOS LAS DE DEL Y ES SON PARA CON ESTE ESTA ESO QUE HAY TODOS TODAS ESTACION ESTACIONES
+POR FAVOR BUENAS BUENOS DIAS TARDES NOCHES GRACIAS TIEMPO AQUI ALLI ALGUIEN COPIA ESCUCHO RED HOY
+LUZ SIN SI UN UNA DONDE CUANDO COMO SENAL REPORTE BIEN TODO NECESITO AYUDA ESTADO SALUDOS DESDE
+LLUVIA VIENTO SOL CHEQUEO""".split())
+COMMANDS = {"MSG", "TO:", "ACK", "NACK", "HB", "HEARTBEAT", "SNR", "SNR?", "GRID", "GRID?", "INFO", "INFO?",
+            "STATUS", "STATUS?", "HEARING", "HEARING?", "QUERY", "MSGS", "MSGS?", "CMD", "RELAY", "CQ", "DE",
+            "AGN?", "QSL", "QSL?", "QTH", "QTH?", "73", "RR", "SK"}
+ADDRESS = re.compile(r"^@?[A-Z0-9/]*\d[A-Z0-9/]*:?$|^@[A-Z0-9]+:?$")
+EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+CALL_LIKE = re.compile(r"^(?=.*\d)(?=.*[A-Z])[A-Z0-9/]+$|^[A-Z0-9]+/[A-Z0-9/]+$")
+SLOT = re.compile(r"\[\s*(\d{1,2})\s*\]")
+
+
+def say(*words):
+    print(" ".join(str(w) for w in words))
+    sys.exit(0)
+
+
+def split_head(text):
+    """(the addresses and commands at the front, the rest)"""
+    words = text.split()
+    i = 0
+    while i < len(words) and (ADDRESS.match(words[i]) or words[i] in COMMANDS or words[i].rstrip(":") in COMMANDS):
+        i += 1
+    return " ".join(words[:i]), " ".join(words[i:])
+
+
+def mask(body):
+    """(the text with callsigns, locators, @groups, <macros> and e-mail addresses as [1], [2] ..., them)"""
+    kept, out = [], []
+    for word in body.split():
+        core = word.rstrip(".,!?;:")
+        tail = word[len(core):]
+        up = core.upper()
+        if core and (EMAIL.match(core) or core.startswith("@") or (core.startswith("<") and core.endswith(">"))
+                     or CALL_LIKE.match(up)):
+            kept.append(core)
+            out.append(f"[{len(kept)}]{tail}")
+        else:
+            out.append(word)
+    return " ".join(out), kept
+
+
+def unmask(text, kept):
+    used = set()
+
+    def back(m):
+        n = int(m.group(1))
+        if 1 <= n <= len(kept):
+            used.add(n)
+            return kept[n - 1]
+        return m.group(0)
+
+    text = SLOT.sub(back, text)
+    rest = [kept[n - 1] for n in range(1, len(kept) + 1) if n not in used]
+    return " ".join([text] + rest).strip()
+
+
+def counts(body):
+    words = re.findall(r"[A-Z']+", body.upper().translate(FOLD))
+    return len(words), sum(w in EN for w in words), sum(w in ES for w in words)
+
+
+def english(body):
+    n, en, es = counts(body)
+    return n >= 3 and en >= 2 and en > es
+
+
+def spanish(body):
+    n, en, es = counts(body)
+    return n >= 3 and es >= 2 and es > en
+
+
+def pair_for(verb, lang, body):
+    """MyMemory's langpair, or None: nothing to translate"""
+    if verb == "tx":
+        return None if lang == "en" or english(body) else f"{lang}|en"
+    if verb == "rx":
+        if lang != "en" and english(body):
+            return f"en|{lang}"
+        if lang != "es" and spanish(body):
+            return f"es|{lang}"
+        return None
+    n, en, es = counts(body)          # ask: from English unless it reads as Spanish
+    source = "es" if es > en else "en"
+    return None if source == lang else f"{source}|{lang}"
+
+
+def sentence_case(s):
+    s = s.lower()
+    return re.sub(r"(^|[.!?]\s+)([a-z])", lambda m: m.group(1) + m.group(2).upper(), s)
+
+
+def cut(s, n):
+    if len(s) <= n:
+        return s
+    s = s[:n]
+    return s[:s.rfind(" ")] if " " in s else s
+
+
+def load_cache():
+    try:
+        with open(CACHE) as f:
+            d = json.load(f)
+        if isinstance(d, dict) and isinstance(d.get("done"), dict):
+            return d
+    except (OSError, ValueError):
+        pass
+    return {"until": 0, "done": {}}
+
+
+def save_cache(c):
+    done = c["done"]
+    for k in list(done)[:max(0, len(done) - CACHE_N)]:
+        del done[k]
+    try:
+        with open(CACHE + ".tmp", "w") as f:
+            json.dump(c, f, ensure_ascii=False)
+        os.replace(CACHE + ".tmp", CACHE)
+    except OSError:
+        pass
+
+
+def limit_hours(text):
+    """The hours MyMemory names in its "NEXT AVAILABLE IN 10 HOURS 20 MINUTES" warning, or None"""
+    up = str(text or "").upper()
+    if "MYMEMORY WARNING" not in up and "NEXT AVAILABLE" not in up:
+        return None
+    h = re.search(r"(\d+)\s*HOURS?", up)
+    m = re.search(r"(\d+)\s*MINUTES?", up)
+    return (int(h.group(1)) if h else 0) + ((int(m.group(1)) + 59) // 60 if m else 0) or 1
+
+
+def limit_reached(cache, hours):
+    cache["until"] = int(time.time()) + hours * 3600
+    save_cache(cache)
+    say("limit", hours)
+
+
+def url_for(text, pair):
+    return API + "?" + urllib.parse.urlencode({"q": text, "langpair": pair})
+
+
+def translate(text, pair):
+    cache = load_cache()
+    left = int(cache.get("until") or 0) - int(time.time())
+    if left > 0:
+        say("limit", (left + 3599) // 3600)
+    key = pair + "|" + text
+    if key in cache["done"]:
+        return cache["done"][key]
+    req = urllib.request.Request(url_for(sentence_case(text), pair),
+                                 headers={"User-Agent": AGENT, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            body = r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read().decode("utf-8", "replace")
+        except Exception:
+            body = ""
+        hours = limit_hours(body)
+        if hours or e.code == 429:
+            limit_reached(cache, hours or 24)
+        say("error", "answer")
+    except Exception:
+        say("error", "net")
+    try:
+        data = json.loads(body)
+    except ValueError:
+        say("error", "answer")
+    if not isinstance(data, dict):
+        say("error", "answer")
+    out = str((data.get("responseData") or {}).get("translatedText") or "")
+    hours = limit_hours(out) or limit_hours(data.get("responseDetails"))
+    if hours or str(data.get("responseStatus")) == "429":
+        limit_reached(cache, hours or 24)
+    if str(data.get("responseStatus")) != "200" or not out.strip():
+        say("error", "answer")
+    out = " ".join(html.unescape(out).split())
+    cache["done"][key] = out
+    save_cache(cache)
+    return out
+
+
+def js8_text(s):
+    s = s.upper().translate(FOLD).replace("¿", "").replace("¡", "")
+    s = s.replace("’", "'").replace("“", '"').replace("”", '"')
+    s = "".join(c if c in JS8_OK else " " for c in s)
+    return " ".join(s.split())
+
+
+def main(argv):
+    if len(argv) < 4 or argv[1] not in ("rx", "ask", "tx") or not re.match(r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,4})?$",
+                                                                           argv[2]):
+        say("error", "usage")
+    verb, lang = argv[1], argv[2]
+    head, body = split_head(" ".join(argv[3:]).strip())
+    if not body:
+        say("skip")
+    pair = pair_for(verb, lang, body)
+    if not pair:
+        say("skip")
+    masked, kept = mask(body)
+    masked = cut(masked, TEXT_MAX)
+    if not re.search(r"[A-Za-z]{2}", SLOT.sub(" ", masked)):
+        say("skip")                   # only callsigns and numbers: nothing to translate
+    out = unmask(translate(masked, pair), kept)
+    if verb == "tx":
+        out = js8_text(out)
+        if not out:
+            say("error", "answer")
+        say("ok", (head + " " + out).strip())
+    say("ok", out)
+
+
+if __name__ == "__main__":
+    main(sys.argv)

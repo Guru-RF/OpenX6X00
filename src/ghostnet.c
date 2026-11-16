@@ -85,6 +85,10 @@ void ghostnet_conf_parse_line(ghostnet_conf_t *c, char *line) {
         alnum_upper(c->dept, sizeof(c->dept), v);
     } else if (!strcmp(line, "region")) {
         snprintf(c->region, sizeof(c->region), "%s", v);
+    } else if (!strcmp(line, "translate_rx")) {
+        c->translate_rx = n != 0;
+    } else if (!strcmp(line, "translate_tx")) {
+        c->translate_tx = n != 0;
     }
 }
 
@@ -122,6 +126,7 @@ bool ghostnet_conf_save(const ghostnet_conf_t *c) {
     fprintf(f, "own_on=%d\nown_name=%s\nown_day=%d\nown_time=%02d:%02d\nown_min=%d\nown_khz=%d\nown_mode=%s\n",
             c->own_on, c->own_name, c->own_day, c->own_hh, c->own_mm, c->own_min, c->own_khz, c->own_mode);
     fprintf(f, "dept=%s\nregion=%s\n", c->dept, c->region);
+    fprintf(f, "translate_rx=%d\ntranslate_tx=%d\n", c->translate_rx, c->translate_tx);
     fflush(f);
     fsync(fileno(f));           /* /mnt is FAT on the card */
     if (fclose(f) != 0 || rename(tmp, GHOSTNET_CONF) != 0) {
@@ -477,4 +482,55 @@ void ghostnet_box_text(const char *text, char *out, size_t size) {
         out[k++] = *text;
     }
     out[k] = 0;
+}
+
+/* ---- The translation helper's words ---- */
+
+void ghostnet_tr_lang(const char *gui_code, char *out, size_t size) {
+    size_t n = 0;
+
+    if (!gui_code || !gui_code[0] || !strcmp(gui_code, "en") || strlen(gui_code) > 10) {
+        snprintf(out, size, "en");
+        return;
+    }
+    /* "zh_CN" as MyMemory writes it, "zh-CN"; anything but letters, digits and the one separator is not a code */
+    for (const char *p = gui_code; *p && n + 1 < size; p++) {
+        if (*p == '_' || *p == '-') out[n++] = '-';
+        else if (isalnum((unsigned char)*p)) out[n++] = *p;
+        else {
+            snprintf(out, size, "en");
+            return;
+        }
+    }
+    out[n] = '\0';
+}
+
+const char *ghostnet_tr_verb(ghostnet_tr_kind_t kind) {
+    switch (kind) {
+        case GHOSTNET_TR_RX:  return "rx";
+        case GHOSTNET_TR_TX:  return "tx";
+        default:              return "ask";
+    }
+}
+
+ghostnet_tr_result_t ghostnet_tr_parse(const char *line, char *text, size_t size) {
+    char   word[8];
+    size_t n = 0;
+
+    text[0] = '\0';
+    while (line[n] && line[n] != ' ' && line[n] != '\n' && n + 1 < sizeof(word)) {
+        word[n] = line[n];
+        n++;
+    }
+    word[n] = '\0';
+    const char *rest = line + n;
+    while (*rest == ' ') rest++;
+    snprintf(text, size, "%s", rest);
+    /* one line: the end of the line and anything after it go */
+    text[strcspn(text, "\r\n")] = '\0';
+    if (!strcmp(word, "ok")) return text[0] ? GHOSTNET_TR_OK : GHOSTNET_TR_BAD;
+    if (!strcmp(word, "skip")) return GHOSTNET_TR_SKIP;
+    if (!strcmp(word, "limit")) return GHOSTNET_TR_LIMIT;
+    if (!strcmp(word, "error") && !strcmp(text, "net")) return GHOSTNET_TR_NET;
+    return GHOSTNET_TR_BAD;
 }

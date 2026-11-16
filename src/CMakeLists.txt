@@ -15,7 +15,7 @@ target_sources(${PROJECT_NAME} PUBLIC
     app_window.c settings_window.cpp swrscan_window.c ft8_window.c
     freq_entry.c gps_window.c cw_messages.c
     voice_messages.c recorder_window.c qth_entry.c station.c dialog_channels.c
-    js8_window.c js8_map.c map_geo.c ghostnet.c ghostnet_gui.c
+    js8_window.c js8_map.c map_geo.c ghostnet.c ghostnet_gui.c ghostnet_tr.c
     dialog_psk.c psk_rx.c psk_tx.c psk_spec.c psk_macro.c digi_qso.c
     dialog_olivia.c olivia.c olivia_app.c olivia_demod.c olivia_macro.c olivia_mod.c olivia_resamp.c
     olivia_rx.c olivia_tx.c
