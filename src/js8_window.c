@@ -197,6 +197,8 @@ static void query_cb(button_data_t *btn);
 static void hw_cpy_cb(button_data_t *btn);
 static void show_cb(button_data_t *btn);
 static void reply_cb(button_data_t *btn);
+static const char *reply_label_getter(void);
+static void settings_cb(button_data_t *btn);
 static void send_cb(button_data_t *btn);
 static void clear_cb(button_data_t *btn);
 static void time_sync_cb(button_data_t *btn);
@@ -264,6 +266,7 @@ static void alerts_close(void), alerts_show(void);
 static void freq_close(void);
 static void freq_show(void);
 static void map_close(void);
+static void settings_close(void);
 static void spot_show(bool sota, spot_item_t focus);
 static void spot_close(void);
 
@@ -366,6 +369,7 @@ static bool          st_worked[MAX_ROWS];            /* st_rows[i] is in the log
 static lv_obj_t *query_list, *aprs_list, *log_list, *inbox_list, *alerts_list, *freq_list, *spot_list;
 static lv_obj_t *map_obj;
 static lv_obj_t *texts_list;
+static lv_obj_t *settings_list;   /* Settings... (page 3) */
 
 /* Settings kept in JS8_TEXTS_PATH */
 static char alert_words[128];                        /* ALERTS=, e.g. "VE7ABC @POTA SOTA" */
@@ -494,72 +498,59 @@ static float beep_level_before_db = -200.0f;
         .next = nxt, .prev = prv                                                                    \
     }
 
-static buttons_page_t page_1, page_2, page_3, page_4, page_5, page_6, page_7;
+static buttons_page_t page_1, page_2, page_3, page_4;
 
-/* 1: calling */
-static button_data_t btn_p1     = PAGE_BUTTON("(JS8 1:7)", &page_2, &page_7);
+/* 1: every day: calling, answering, writing, the Inbox */
+static button_data_t btn_p1     = PAGE_BUTTON("(JS8 1:4)", &page_2, &page_4);
 static button_data_t btn_cq     = {.type = BTN_TEXT_FN, .label_fn = cq_label_getter,
                                    .press = cq_cb, .hold = cq_hold_cb};
-static button_data_t btn_hb     = {.type = BTN_TEXT, .label = "Heart-\nbeat", .press = heartbeat_cb};
-static button_data_t btn_query  = {.type = BTN_TEXT, .label = "Query >", .press = query_cb};
-static button_data_t btn_hw_cpy = {.type = BTN_TEXT, .label = "HW CPY?", .press = hw_cpy_cb};
-static buttons_page_t page_1    = {{&btn_p1, &btn_cq, &btn_hb, &btn_query, &btn_hw_cpy}};
-
-/* 2: the list */
-static button_data_t btn_p2     = PAGE_BUTTON("(JS8 2:7)", &page_3, &page_1);
-static button_data_t btn_show   = {.type = BTN_TEXT_FN, .label_fn = show_label_getter, .press = show_cb};
-static button_data_t btn_reply  = {.type = BTN_TEXT, .label = "Reply", .press = reply_cb};
+static button_data_t btn_reply  = {.type = BTN_TEXT_FN, .label_fn = reply_label_getter, .press = reply_cb};
 static button_data_t btn_send   = {.type = BTN_TEXT, .label = "Send...", .press = send_cb};
-static button_data_t btn_clear  = {.type = BTN_TEXT, .label = "Clear", .press = clear_cb};
-static buttons_page_t page_2    = {{&btn_p2, &btn_show, &btn_reply, &btn_send, &btn_clear}};
+static button_data_t btn_inbox  = {.type = BTN_TEXT_FN, .label_fn = inbox_label_getter,
+                                   .press = inbox_cb};
+static buttons_page_t page_1    = {{&btn_p1, &btn_cq, &btn_reply, &btn_send, &btn_inbox}};
 
-/* 3 */
-static button_data_t btn_p3        = PAGE_BUTTON("(JS8 3:7)", &page_4, &page_2);
+/* 2: the stations */
+static button_data_t btn_p2       = PAGE_BUTTON("(JS8 2:4)", &page_3, &page_1);
+static button_data_t btn_query    = {.type = BTN_TEXT, .label = "Query >", .press = query_cb};
+static button_data_t btn_hw_cpy   = {.type = BTN_TEXT, .label = "HW CPY?", .press = hw_cpy_cb};
+static button_data_t btn_stations = {.type = BTN_TEXT_FN, .label_fn = stations_label_getter,
+                                     .press = stations_cb};
+static button_data_t btn_map      = {.type = BTN_TEXT, .label = "Map", .press = map_cb};
+static buttons_page_t page_2      = {{&btn_p2, &btn_query, &btn_hw_cpy, &btn_stations, &btn_map}};
+
+/* 3: the clock, the power and the switches set once (Settings...) */
+static button_data_t btn_p3        = PAGE_BUTTON("(JS8 3:4)", &page_4, &page_2);
 static button_data_t btn_time_sync = {.type = BTN_TEXT, .label = "Time\nSync",
                                       .press = time_sync_cb, .hold = time_sync_hold_cb};
-static button_data_t btn_hold      = {.type = BTN_TEXT_FN, .label_fn = hold_label_getter,
-                                      .press = hold_cb};
-static button_data_t btn_stations  = {.type = BTN_TEXT_FN, .label_fn = stations_label_getter,
-                                      .press = stations_cb};
-static button_data_t btn_inbox     = {.type = BTN_TEXT_FN, .label_fn = inbox_label_getter,
-                                      .press = inbox_cb};
-static buttons_page_t page_3       = {{&btn_p3, &btn_time_sync, &btn_hold, &btn_stations, &btn_inbox}};
+static button_data_t btn_settings  = {.type = BTN_TEXT, .label = "Settings...", .press = settings_cb};
+static buttons_page_t page_3       = {{&btn_p3, &btn_time_sync, &btn_dig_pwr, &btn_ext_tune, &btn_settings}};
 
-/* 4: automatic sending */
-static button_data_t btn_p4     = PAGE_BUTTON("(JS8 4:7)", &page_5, &page_3);
-static button_data_t btn_auto   = {.type = BTN_TEXT_FN, .label_fn = auto_label_getter,
-                                   .press = auto_cb};
+/* 4: GhostNet's on-demand translation (the message on the list's cursor) */
+static button_data_t btn_p4     = PAGE_BUTTON("(JS8 4:4)", &page_1, &page_3);
+static button_data_t btn_transl = {.type = BTN_TEXT, .label = "Trans-\nlate", .press = translate_cb};
+static buttons_page_t page_4    = {{&btn_p4, &btn_transl}};
+
+/* Not on a page: the Settings list presses them (settings_open), their labels are its rows */
+static button_data_t btn_hb     = {.type = BTN_TEXT, .label = "Heart-\nbeat", .press = heartbeat_cb};
+static button_data_t btn_show   = {.type = BTN_TEXT_FN, .label_fn = show_label_getter, .press = show_cb};
+static button_data_t btn_clear  = {.type = BTN_TEXT, .label = "Clear", .press = clear_cb};
+static button_data_t btn_hold   = {.type = BTN_TEXT_FN, .label_fn = hold_label_getter, .press = hold_cb};
+static button_data_t btn_auto   = {.type = BTN_TEXT_FN, .label_fn = auto_label_getter, .press = auto_cb};
 static button_data_t btn_hbauto = {.type = BTN_TEXT_FN, .label_fn = hb_label_getter,
                                    .press = hb_cb, .hold = hb_hold_cb};
-static button_data_t btn_hbackk = {.type = BTN_TEXT_FN, .label_fn = hb_ack_label_getter,
-                                   .press = hb_ack_cb};
-static button_data_t btn_texts  = {.type = BTN_TEXT, .label = "Settings...",
-                                   .press = texts_cb};
-static buttons_page_t page_4    = {{&btn_p4, &btn_auto, &btn_hbauto, &btn_hbackk, &btn_texts}};
-
-/* 5 */
-static button_data_t btn_p5     = PAGE_BUTTON("(JS8 5:7)", &page_6, &page_4);
+static button_data_t btn_hbackk = {.type = BTN_TEXT_FN, .label_fn = hb_ack_label_getter, .press = hb_ack_cb};
+static button_data_t btn_texts  = {.type = BTN_TEXT, .label = "Settings...", .press = texts_cb};
 static button_data_t btn_aprs   = {.type = BTN_TEXT, .label = "APRS >", .press = aprs_cb};
 static button_data_t btn_log    = {.type = BTN_TEXT, .label = "Log QSO", .press = log_cb};
 static button_data_t btn_act    = {.type = BTN_TEXT_FN, .label_fn = act_label_getter,
                                    .press = act_cb, .hold = act_hold_cb};
 static button_data_t btn_prompt = {.type = BTN_TEXT_FN, .label_fn = prompt_label_getter, .press = prompt_cb};
-static buttons_page_t page_5    = {{&btn_p5, &btn_aprs, &btn_log, &btn_act, &btn_prompt}};
-
-/* 6 */
-static button_data_t btn_p6     = PAGE_BUTTON("(JS8 6:7)", &page_7, &page_5);
 static button_data_t btn_alerts = {.type = BTN_TEXT, .label = "Alerts >", .press = alerts_cb};
 static button_data_t btn_speed  = {.type = BTN_TEXT_FN, .label_fn = speed_label_getter,
                                    .press = speed_cb, .hold = speed_hold_cb};
 static button_data_t btn_decode = {.type = BTN_TEXT_FN, .label_fn = decode_label_getter, .press = decode_cb};
 static button_data_t btn_freq   = {.type = BTN_TEXT_FN, .label_fn = freq_label_getter, .press = freq_cb};
-static buttons_page_t page_6    = {{&btn_p6, &btn_alerts, &btn_speed, &btn_decode, &btn_freq}};
-
-/* 7 */
-static button_data_t btn_p7     = PAGE_BUTTON("(JS8 7:7)", &page_1, &page_6);
-static button_data_t btn_map    = {.type = BTN_TEXT, .label = "Map", .press = map_cb};
-static button_data_t btn_transl = {.type = BTN_TEXT, .label = "Trans-\nlate", .press = translate_cb};
-static buttons_page_t page_7    = {{&btn_p7, &btn_dig_pwr, &btn_map, &btn_ext_tune, &btn_transl}};
 
 static dialog_t dialog = {.run           = false,
                           .construct_cb  = construct_cb,
@@ -599,7 +590,7 @@ static bool passes_filter(const js8_rx_msg_t *msg)
 /* "hh:mm:ss  TX 1500  text" for ours, "hh:mm:ss -12 1500  text" for theirs.
  * A speed other than Normal adds its letter after the offset, the same
  * column desktop shows it in. */
-/* Translations (MyMemory, through x6100-translate): of the messages the operator asked for (Translate, page 7) or,
+/* Translations (MyMemory, through x6100-translate): of the messages the operator asked for (Translate, page 4) or,
  * with GhostNet's switch on, of those arriving in English (or Spanish). By message, the newest 48 kept while the
  * radio is on; a row shows its translation on a line of its own under the message. */
 #define TRANS_N 48
@@ -756,7 +747,7 @@ static void rebuild_rows(void)
     else rebuild_station_rows();
 }
 
-/* Our TX speed (page 6). */
+/* Our TX speed (Settings...). */
 static js8_speed_t cur_speed(void)
 {
     js8_speed_t sp = (js8_speed_t)params.js8_speed.x;
@@ -1208,6 +1199,7 @@ static void table_draw_end_cb(lv_event_t *ev)
 /* The green line on the waterfall at the selected station's offset. */
 static void show_selection(void)
 {
+    buttons_refresh(&btn_reply); /* "Reply\nTHEIRCALL" */
     lv_obj_t *line = finder;
     if (qso_freq < 0) lv_finder_clear_cursor(line);
     else lv_finder_set_cursor(line, (int16_t)(qso_freq + 0.5f));
@@ -1234,6 +1226,7 @@ static void select_at_cursor(bool announce)
 static void clear_selection(void)
 {
     memset(sel_call, 0, sizeof(sel_call));
+    buttons_refresh(&btn_reply);
     selection_move(-1, sel_snr);
 }
 
@@ -2637,7 +2630,7 @@ static void destruct_cb(void) { /* the app closes: the radio goes back to how it
      * their parent, dialog.obj, as soon as this returns, and a delete still pending then would use
      * freed memory (GEN or APP pressed with the Query list open used to crash the app). */
     lv_obj_t **popups[] = {&query_list, &aprs_list,  &texts_list, &log_list,
-                           &inbox_list, &alerts_list, &freq_list,  &spot_list};
+                           &inbox_list, &alerts_list, &freq_list,  &spot_list, &settings_list};
     for (size_t i = 0; i < sizeof(popups) / sizeof(popups[0]); i++) {
         if (!*popups[i]) continue;
         lv_obj_del(*popups[i]);
@@ -3098,7 +3091,7 @@ static void query_key_cb(lv_event_t *ev) {
 /* Closes whichever list popups are open. */
 static void popups_close_all(void) {
     void (*const closers[])(void) = {query_close, texts_close, aprs_close, log_close, inbox_close,
-                                     alerts_close, freq_close, spot_close, map_close};
+                                     alerts_close, freq_close, spot_close, map_close, settings_close};
     if (any_popup())
         for (size_t k = 0; k < sizeof(closers) / sizeof(closers[0]); k++) closers[k]();
 }
@@ -3243,6 +3236,116 @@ static void query_saved_cb(lv_event_t *ev) {
     (void)ev;
     list_drop(&query_list);
     saved_open(0);
+}
+
+/* ---- Settings... (page 3): the switches set once, one list ---------------
+ * Each row does what its button did on the old pages: the list goes first (the buttons' callbacks close an open
+ * list and stop there), the button's callback runs, and a switch opens the list again on its row, its new value
+ * shown. The rows that open their own list, the keyboard, the knob or send close it for good. */
+
+typedef struct {
+    button_data_t *btn;
+    bool           hold;    /* its hold, not its press */
+    bool           again;   /* a switch: the list again, on this row */
+    const char    *text;    /* else its label, "AUTO:\nOff" read "AUTO: Off" */
+} setting_t;
+
+static const setting_t settings[] = {
+    {&btn_auto, false, true, NULL},          {&btn_hbauto, false, true, NULL},
+    {&btn_hbauto, true, false, "Heartbeat interval (knob)..."},
+    {&btn_hbackk, false, true, NULL},        {&btn_hold, false, true, NULL},
+    {&btn_show, false, true, NULL},          {&btn_speed, false, true, NULL},
+    {&btn_speed, true, true, "Speed: the selected station's"},
+    {&btn_decode, false, true, NULL},        {&btn_freq, false, false, NULL},
+    {&btn_act, false, true, NULL},           {&btn_act, true, false, "Activation reference..."},
+    {&btn_prompt, false, true, NULL},        {&btn_log, false, false, "Log QSO..."},
+    {&btn_hb, false, false, "Send a heartbeat now"},
+    {&btn_alerts, false, false, NULL},       {&btn_aprs, false, false, NULL},
+    {&btn_texts, false, false, "Groups, INFO, STATUS, Relay..."},
+    {&btn_clear, false, true, "Clear the list"},
+};
+#define SETTINGS_N (sizeof(settings) / sizeof(settings[0]))
+
+static void settings_open(int focus);
+
+static void settings_close(void) {
+    if (settings_list == NULL) return;
+    list_forget(&settings_list);
+    if (table) table_takes_keys();
+}
+
+static void settings_key_cb2(lv_event_t *ev) {
+    uint32_t key = *(uint32_t *)lv_event_get_param(ev);
+    if (key == LV_KEY_ESC) settings_close();
+    else if (!list_step_key(key)) volume_key(key);
+}
+
+static void settings_item_cb(lv_event_t *ev) {
+    intptr_t i = (intptr_t)lv_event_get_user_data(ev);
+
+    list_drop(&settings_list);
+    if (table) table_takes_keys();
+    if (i < 0 || i >= (intptr_t)SETTINGS_N) return; /* Close */
+
+    const setting_t *st = &settings[i];
+    void (*fn)(button_data_t *) = st->hold ? st->btn->hold : st->btn->press;
+
+    if (fn) fn(st->btn);
+    if (st->again && !any_popup() && !composing) settings_open((int)i);
+}
+
+static void settings_open(int focus) {
+    lv_obj_t *p = settings_list = query_list_create(380, "JS8 Settings");
+    lv_obj_t *first = NULL;
+
+    for (size_t i = 0; i < SETTINGS_N; i++) {
+        const setting_t *st = &settings[i];
+        char             text[64];
+
+        if (st->text) {
+            snprintf(text, sizeof(text), "%s", st->text);
+        } else {
+            const char *l = st->btn->type == BTN_TEXT_FN ? st->btn->label_fn() : st->btn->label;
+
+            snprintf(text, sizeof(text), "%s", l);
+            for (char *c = text; *c; c++)
+                if (*c == '\n') *c = ' ';
+        }
+
+        lv_obj_t *item = list_add_item(p, text);
+
+        lv_obj_add_event_cb(item, settings_item_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_add_event_cb(item, settings_key_cb2, LV_EVENT_KEY, NULL);
+        lv_group_add_obj(keyboard_group, item);
+        if ((int)i == focus) first = item;
+    }
+
+    lv_obj_t *close = list_add_item(p, "Close");
+
+    lv_obj_set_style_text_color(close, TC(action), LV_PART_MAIN);
+    lv_obj_add_event_cb(close, settings_item_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
+    lv_obj_add_event_cb(close, settings_key_cb2, LV_EVENT_KEY, NULL);
+    lv_group_add_obj(keyboard_group, close);
+    lv_group_focus_obj(first ? first : close);
+    lv_group_set_editing(keyboard_group, false);
+}
+
+static void settings_cb(button_data_t *b) {
+    (void)b;
+    user_touch();
+    if (settings_list) { /* a second press closes it */
+        settings_close();
+        return;
+    }
+    if (popup_guard() || composing) return;
+    settings_open(0);
+}
+
+static const char *reply_label_getter(void) { /* "Reply\nTHEIRCALL" once a station is selected */
+    static char text[JS8_RX_CALL_LEN + 8];
+    if (!sel_call[0]) return "Reply";
+    snprintf(text, sizeof(text), "Reply\n%s", sel_call);
+    return text;
 }
 
 static void query_cb(button_data_t *b) {
@@ -4526,7 +4629,7 @@ static void spot_show(bool sota, spot_item_t start) {
 
 /* A popup or the map is over the waterfall. */
 static bool any_popup(void) { return aprs_list || spot_list || log_list || inbox_list || alerts_list || freq_list ||
-                                     query_list || texts_list || map_obj; }
+                                     query_list || texts_list || settings_list || map_obj; }
 
 static bool find_station(const char *wanted, js8_station_t *found) {
     static js8_station_t seen[MAX_ROWS]; /* too big for the stack */
@@ -4804,8 +4907,8 @@ static void log_offer(const char *with) {
         msg_update_text_fmt("QSO with %s ended - Save to log?", with);
         return;
     }
-    if (params.js8_log_prompt.x) msg_update_text_fmt("QSO with %s ended: Log QSO (page 5) to log it", with);
-    add_info_row("QSO with %s ended: Log QSO (page 5) to log it", with);
+    if (params.js8_log_prompt.x) msg_update_text_fmt("QSO with %s ended: Settings... (page 3), Log QSO, to log it", with);
+    add_info_row("QSO with %s ended: Settings... (page 3), Log QSO, to log it", with);
 }
 
 static const char *prompt_label_getter(void) { return params.js8_log_prompt.x ? "Log\nprompt: On" : "Log\nprompt: Off"; }
@@ -4912,9 +5015,9 @@ static void stored_received(const js8_stored_t *s) {
     if (s->id < 0) msg_update_text_fmt("Message from %s - can't save %s", by, JS8_INBOX_PATH);
     if (!s->resend) {
         if (s->id >= 0 && s->to[0] == '@')
-            msg_update_text_fmt("New message to %s from %s - Inbox on page 3", s->to, by);
+            msg_update_text_fmt("New message to %s from %s - Inbox on page 1", s->to, by);
         else if (s->id >= 0)
-            msg_update_text_fmt("New message from %s - Inbox on page 3", by);
+            msg_update_text_fmt("New message from %s - Inbox on page 1", by);
         add_info_row("Message from %s in the Inbox: %s", by, s->text);
         if (params.js8_alerts.x & JS8_ALERT_INBOX) alert_beep(2);
     }
@@ -5564,7 +5667,7 @@ static void speed_warn(void) { /* before a reply goes out */
     char        who[JS8_RX_CALL_LEN];
     float       audio_hz;
     if (!p3_selected_speed(&theirs) || theirs == ours || !p3_selected(who, &audio_hz)) return;
-    msg_update_text_fmt("%s was heard on %s, you send %s - hold Speed (page 6) to match", who, js8_speed_name(theirs),
+    msg_update_text_fmt("%s was heard on %s, you send %s - Settings... (page 3), Speed: theirs, to match", who, js8_speed_name(theirs),
                         js8_speed_name(ours));
 }
 
@@ -5979,7 +6082,7 @@ static void map_cb(button_data_t *btn) {
     lv_group_set_editing(keyboard_group, true); /* the MFK steps through the stations */
 }
 
-/* Translate (page 7): the message on the list's cursor into the GUI's language, from English (or Spanish), under it
+/* Translate (page 4): the message on the list's cursor into the GUI's language, from English (or Spanish), under it
  * on its row. Only on this press: the text goes to MyMemory over the internet */
 static void translate_cb(button_data_t *btn) {
     uint16_t r = 0, c = 0;
