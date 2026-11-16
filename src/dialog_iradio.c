@@ -397,14 +397,15 @@ static bool keep_playing(void) {
 
 static void play_done_cb(void *arg);
 
-/* As the Recorder plays a recording: the headphones when they stand in for the speaker, else the speaker in Play mode
- * (the base plays Linux's audio on it at the VOL, and gives the receiver's back after) */
+/* On a stream of its own: the headphones when they stand in for the speaker, else the speaker in Play mode (the base
+ * plays Linux's audio on it at the VOL, and gives the receiver's back after). A message of a voice link (Zello) plays
+ * over it: the station is dropped meanwhile and goes on after (audio.h) */
 static void *play_thread(void *arg) {
     play_job_t  job = *(play_job_t *)arg;
     play_done_t done = {.gen = job.gen, .why = END_HELPER};
     char       *argv[] = {(char *)HELPER, (char *)"play", job.url, job.uuid[0] ? job.uuid : NULL, NULL};
     int         fd;
-    bool        started = false, bt = false;
+    bool        started = false;
 
     free(arg);
     audio_listen_begin();
@@ -444,10 +445,7 @@ static void *play_thread(void *arg) {
                 continue;
             }
             if (!started) {
-                bt = audio_play_bt_begin();
-                if (!bt) {
-                    radio_set_play_mode(AUDIO_PLAY_ON);
-                }
+                audio_listen_open();    /* its stream and the speaker (or the headphones): audio.h */
                 started = true;
             }
 
@@ -468,14 +466,7 @@ static void *play_thread(void *arg) {
         }
         close(fd);
     }
-    audio_listen_end();
-    if (started) {
-        if (bt) {
-            audio_play_bt_end();
-        } else {
-            radio_set_play_mode(AUDIO_PLAY_OFF);
-        }
-    }
+    audio_listen_end();     /* the speaker given back, unless a voice link still has it */
     if (pid > 0) {
         end_child(pid);
     }

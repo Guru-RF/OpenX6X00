@@ -38,14 +38,43 @@ void audio_play_flush();
 bool audio_play_bt_begin(void);
 void audio_play_bt_end(void);
 
-/* Long listening on the speaker or the headphones (the Internet radio, dialog_iradio.c), from its playing thread:
- * begin as it starts; play writes in pieces of at most 1024 samples into this thread's stream (the headphones' after
- * audio_play_bt_begin, else the speaker's in AUDIO_PLAY_ON), each one after go_on() said yes, and returns 0 when all
- * is written, -1 when go_on() said no or a key cut it, -2 when the stream had no room for timeout_ms, -3 when the
- * write failed; end (what is still queued dropped) before audio_play_bt_end and the play mode off. audio_listen_cut(),
- * from any thread: what it queued is dropped and it writes nothing more until its next begin. radio.c calls it before
- * its PTT and its modem key, so a station never plays into what the radio sends */
+/* The apps that play long audio of their own, each on a stream of its own, and who has the speaker meanwhile
+ * (audio_owner.h): the speaker in Play mode from the first claim to the last release (the receiver muted in the
+ * Bluetooth headphones while they stand in for it), and a voice link's message over the station: the station's audio
+ * is dropped while a link holds a claim and goes on after it */
+typedef enum {
+    AUDIO_USER_STATION,     /* the Internet radio (dialog_iradio.c), through audio_listen_* */
+    AUDIO_USER_ZELLO,       /* a voice link: Zello's channel (zello.c) */
+    AUDIO_USER_SVX,         /* a voice link: SVXConnect's */
+    AUDIO_USERS
+} audio_user_t;
+
+/* From the user's playing thread: its stream, on the headphones while they stand in for the speaker, else the codec's.
+ * 1 on the headphones, 0 on the speaker, -1 none (what it writes is not heard). Close: its claims released, the
+ * stream and what it queued gone */
+int audio_user_open(audio_user_t u);
+void audio_user_close(audio_user_t u);
+/* While it plays (any thread): claims nest, the speaker or the headphones are given back at the last release */
+void audio_user_claim(audio_user_t u);
+void audio_user_release(audio_user_t u);
+/* A voice link recording the hand mic for its message: the speaker in Rec mode until off (any thread) */
+void audio_user_rec(audio_user_t u, bool on);
+/* What fits now of a write, the samples taken, from its thread: in pieces of about a thousand samples, a stream never
+ * has room for much more. While held (a voice link over the station) all is taken and dropped */
+size_t audio_user_write(audio_user_t u, const int16_t *buf, size_t samples);
+/* What it has queued is dropped, its own and no other's (any thread) */
+void audio_user_flush(audio_user_t u);
+
+/* The Internet radio's station (AUDIO_USER_STATION), from its playing thread: begin as it starts; open as its first
+ * audio comes (its stream and its claim: as audio_user_open); play writes in pieces of at most 1024 samples, each one
+ * after go_on() said yes, and returns 0 when all is written, -1 when go_on() said no or a key cut it, -2 when the
+ * stream had no room for timeout_ms, -3 when the write failed; while a voice link holds the speaker the pieces are
+ * dropped at the pace they would have played. End: what is still queued dropped, the claim and the stream gone.
+ * audio_listen_cut(), from any thread: what it queued is dropped, its claim released at once and it writes nothing
+ * more until its next begin. radio.c calls it before its PTT and its modem key, so a station never plays into what
+ * the radio sends */
 void audio_listen_begin(void);
+int audio_listen_open(void);
 int audio_listen_play(const int16_t *buf, size_t samples, bool (*go_on)(void), int timeout_ms);
 void audio_listen_end(void);
 void audio_listen_cut(void);
@@ -54,10 +83,6 @@ void audio_listen_cut(void);
 bool audio_play_lowlat_begin(void);
 void audio_play_lowlat_end(void);
 bool audio_play_if_room(int16_t *buf, size_t samples);
-/* What fits now of a write, the count of samples taken: the rest is the caller's to write later (audio.c) */
-size_t audio_play_room(int16_t *buf, size_t samples);
-/* Drops the audio waiting on the codec's stream, from any thread (the Zello app's, before the GUI keys) */
-void audio_play_flush_speaker(void);
 
 void audio_gain_db(int16_t *buf, size_t samples, float gain, int16_t *out);
 void audio_gain_db_transition(int16_t *buf, size_t samples, float gain1, float gain2, int16_t *out);

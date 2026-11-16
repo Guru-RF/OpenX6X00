@@ -5613,6 +5613,10 @@ Internet radio stations, which anyone can add a station to.
   after the over.
 - While a station plays the speaker plays it in place of the receiver, as
   for the RX recorder's playback; the receiver comes back at Stop.
+- A message of a [Zello](#zello) channel (with its Simplex repeater on, the
+  Zello session stays when its app closes) is heard over the station: the
+  station drops out while the message plays and comes back after it, on the
+  speaker and on Bluetooth headphones alike.
 - The radio fetches a list when you show it and keeps it an hour (the
   countries a day), and it fetches the station only while it plays: nothing
   goes out while the window is closed. To the directory it says
@@ -5669,7 +5673,10 @@ logo.
 - What the channel says plays on the speaker at the radio's volume (VOL),
   or on the Bluetooth headphones while they stand in for the speaker. The
   line under it says who talks. Between messages the speaker is the
-  receiver's, as without the app.
+  receiver's, as without the app. A message that comes while the
+  [Internet radio](#internet-radio) plays a station wins: the station drops
+  out for the message and comes back after it. On the headphones the
+  receiver is muted while a message plays, and heard between them.
 - To talk: press and hold the radio's PTT key (or press Talk, and again to
   end) and speak into the **hand mic, without pressing the hand mic's own
   PTT**. The hand mic's PTT keys the radio, as always. The built-in

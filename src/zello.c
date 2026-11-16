@@ -72,7 +72,7 @@
 #endif
 
 #define ZRATE         16000         /* Hz: the helper's audio, both ways */
-#define PIECE         1024          /* samples a write to the speaker (audio_play_room) */
+#define PIECE         1024          /* samples a write to the speaker (audio_user_write) */
 #define ROOM_WAIT_MS  3000          /* the speaker taking nothing for this long: the rest of the block is dropped */
 #define MIC_SKIP_MS   150           /* the capture's first ms on the hand mic: still the receiver's */
 #define MIC_QUIET_MS  3000          /* a message with nothing from the hand mic this long: said once */
@@ -141,7 +141,6 @@ static atomic_bool talker_on;       /* someone talks on the channel */
 static pthread_mutex_t  gate_lock = PTHREAD_MUTEX_INITIALIZER;
 static zello_path_t     applied = ZELLO_PATH_OFF;
 static atomic_int       path_now;   /* applied, for the audio thread */
-static bool             play_bt;    /* the play thread plays on the Bluetooth headphones */
 static _Atomic uint64_t keyed_ms;   /* when the GUI last went to key */
 static uint64_t         heard_ms;   /* the channel's last audio (play thread) */
 
@@ -316,21 +315,32 @@ static void mic_start(void) {
     atomic_store(&mic_since_ms, now);
 }
 
-/* To path, with gate_lock held. Leaving LISTEN drops what waits in the stream */
+/* The path left, with gate_lock held: what waits in its own stream dropped (a station's stays), its claim on the
+ * speaker or its Rec given back (audio_owner.h: the speaker the receiver's once nobody claims it) */
+static void leave_path(void) {
+    if (applied == ZELLO_PATH_LISTEN) {
+        audio_user_flush(AUDIO_USER_ZELLO);
+        audio_user_release(AUDIO_USER_ZELLO);
+    } else if (applied == ZELLO_PATH_TALK) {
+        audio_user_rec(AUDIO_USER_ZELLO, false);
+    }
+}
+
+/* To path, with gate_lock held. LISTEN claims the speaker (or the headphones standing in for it): a message from the
+ * channel over an Internet radio station, which goes on after it; TALK records the hand mic */
 static void apply_path(zello_path_t to) {
     if (to == applied) return;
-    if (applied == ZELLO_PATH_LISTEN) audio_play_flush();
+    leave_path();
     atomic_store(&mic_on, false);
     switch (to) {
         case ZELLO_PATH_OFF:
-            radio_set_play_mode(AUDIO_PLAY_OFF);
             break;
         case ZELLO_PATH_LISTEN:
-            radio_set_play_mode(play_bt ? AUDIO_PLAY_OFF : AUDIO_PLAY_ON);
+            audio_user_claim(AUDIO_USER_ZELLO);
             break;
         case ZELLO_PATH_TALK:
             mic_start();
-            radio_set_play_mode(AUDIO_PLAY_VOICE_REC);
+            audio_user_rec(AUDIO_USER_ZELLO, true);
             atomic_store(&mic_on, true);
             break;
     }
@@ -345,8 +355,7 @@ static void tx_prepare(void) {
     atomic_store(&keyed_ms, get_time());
     if (applied != ZELLO_PATH_OFF) {
         atomic_store(&mic_on, false);
-        if (applied == ZELLO_PATH_LISTEN && !play_bt) audio_play_flush_speaker();
-        radio_set_play_mode(AUDIO_PLAY_OFF);
+        leave_path();
         applied = ZELLO_PATH_OFF;
         atomic_store(&path_now, ZELLO_PATH_OFF);
     }
@@ -649,7 +658,7 @@ static void play_out(zello_gate_t *g, int16_t *buf, size_t n) {
         path_tick(g);
         pthread_mutex_lock(&gate_lock);
         listen = applied == ZELLO_PATH_LISTEN;
-        if (listen) took = audio_play_room(buf, n > PIECE ? PIECE : n);
+        if (listen) took = audio_user_write(AUDIO_USER_ZELLO, buf, n > PIECE ? PIECE : n);
         pthread_mutex_unlock(&gate_lock);
         if (!listen) return;
         if (took) {
@@ -710,14 +719,13 @@ static void *play_fn(void *arg) {
     zello_gate_t    gate = {0};
     olivia_resamp_t rs;
     bool            rs_ok = olivia_resamp_init(&rs, ZRATE, AUDIO_PLAY_RATE) == 0;
-    bool            bt    = audio_play_bt_begin();      /* the headphones, while they stand in for the speaker */
+    /* Its own stream: on the headphones while they stand in for the speaker */
+    bool            heard = audio_user_open(AUDIO_USER_ZELLO) >= 0;
 
     pthread_mutex_lock(&fd_lock);
     fd = helper_fd;
     pthread_mutex_unlock(&fd_lock);
-    pthread_mutex_lock(&gate_lock);
-    play_bt = bt;
-    pthread_mutex_unlock(&gate_lock);
+    if (!heard) LV_LOG_ERROR("Zello: no stream to play the channel on");
 
     while (atomic_load(&running) && fd >= 0) {
         struct pollfd p = {.fd = fd, .events = POLLIN};
@@ -757,9 +765,8 @@ static void *play_fn(void *arg) {
     zello_link_init(&zlink);
     pthread_mutex_lock(&gate_lock);
     apply_path(ZELLO_PATH_OFF);
-    play_bt = false;
     pthread_mutex_unlock(&gate_lock);
-    if (bt) audio_play_bt_end();
+    audio_user_close(AUDIO_USER_ZELLO);
     if (rs_ok) olivia_resamp_free(&rs);
 
     /* The socket closed: the helper's stdin ends, it says goodbye to Zello and exits */
