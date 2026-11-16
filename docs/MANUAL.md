@@ -18,7 +18,7 @@ Settings. Button and option names are written as the radio shows them.
 - [Transmitting](#transmitting): [amateur bands only](#amateur-bands-only), [no TX without data from the base](#no-tx-without-data-from-the-base), [TX shift](#tx-shift), [transverter TX power limit](#transverter-tx-power-limit), [SWR scan and the tuner](#swr-scan-and-the-tuner), [TUNE for an external tuner](#tune-for-an-external-tuner), [digital-mode TX level](#digital-mode-tx-level), [recording voice messages](#recording-voice-messages), [ALC in CW](#alc-in-cw), [PA bias](#pa-bias-x6200), [register 32](#register-32-x6200)
 - [Digital modes](#digital-modes): [opening a mode](#opening-a-mode), [FT8 and FT4](#ft8-and-ft4), [JS8](#js8), [WSPR](#wspr) ([band hopping](#band-hopping)), [SSTV, WeFax and NavTex](#sstv-wefax-and-navtex), [RADE (FreeDV)](#rade-freedv), [PSK31, PSK63 and Olivia](#psk31-psk63-and-olivia), [JTTY](#jtty), [frequencies of PSK, Olivia and JTTY](#frequencies-of-psk-olivia-and-jtty), [text log of the keyboard modes](#text-log-of-the-keyboard-modes), [RTTY and WeFax TX](#rtty-and-wefax-tx)
 - [CW](#cw): [CW decoder](#cw-decoder), [CW from the keyboard](#cw-from-the-keyboard), [CW Keyboard](#cw-keyboard), [USB paddle](#usb-paddle), [SmartCW](#smartcw), [CW messages](#cw-messages) ([beacon](#cw-beacon), [QRSS3](#qrss3)), [CW Trainer](#cw-trainer)
-- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner)
+- [Apps](#apps): [DX Cluster](#dx-cluster), [Field Ops (SOTA / POTA)](#field-ops-sota--pota), [Bands](#bands), [Propagation](#propagation), [Channels](#channels), [Scanner](#scanner), [HF Air Band](#hf-air-band)
 - [Bluetooth](#bluetooth): [headphones](#bluetooth-headphones), [CAT](#bluetooth-cat), [TCI over Bluetooth](#tci-over-bluetooth), [a PC on Bluetooth](#a-pc-on-bluetooth)
 - [Themes](#themes)
 - [Web configurator](#web-configurator)
@@ -244,7 +244,7 @@ The APP button opens four pages of apps and tools:
 | APP 1:4 | Modes, Cluster, SWR Scan, RX Recorder |
 | APP 2:4 | Settings, CW Trainer, Field Ops, Channels |
 | APP 3:4 | Bands, GPS, Screen rec, CW Keyboard |
-| APP 4:4 | Propagation, Scanner |
+| APP 4:4 | Propagation, Scanner, HF Air Band |
 
 With Icon menus on (Settings > Display > INTERFACE, on by default) APP also
 opens the same apps as a grid of tiles over these pages, with Walkie and
@@ -5374,7 +5374,7 @@ frequency and mode: a band key goes where it went before the scan.
 
 | Button | What |
 |---|---|
-| Source | the list: **Channels** (the [Channels](#channels) app's, with their modes; not their AGC, PRE and ATT), **Airband** (118 to 137 MHz, AM, 25 kHz steps; the X6200), **CB** (the 40 channels, AM), **Segment** (the band plan segment the dial is in, in 3 kHz steps in SSB, 500 Hz in CW, 5 kHz in AM) |
+| Source | the list: **Channels** (the [Channels](#channels) app's, with their modes; not their AGC, PRE and ATT), **Airband** (118 to 137 MHz, AM, 25 kHz steps; the X6200), **HF Air** (the [HF Air Band](#hf-air-band) app's frequencies of the area it shows, USB), **CB** (the 40 channels, AM), **Segment** (the band plan segment the dial is in, in 3 kHz steps in SSB, 500 Hz in CW, 5 kHz in AM) |
 | Start / Pause / Resume | from the channel the dial is on, else the top |
 | Skip | on to the next one, from a stop or a pause |
 | Lock out | leaves the one it is on out until the list changes (a carrier that is always there) |
@@ -5403,6 +5403,51 @@ frequency and mode: a band key goes where it went before the scan.
 - Airband has the 25 kHz channels only: in Europe most are 8.33 kHz apart,
   and two in three of those are not in the list. CB is in AM, where CEPT CB
   is mostly FM: put FM channels in the Channels app for those.
+- HF Air takes the HF Air Band app's list as that app shows it: change the
+  area there. Scan in the app opens the Scanner on its list.
+
+### HF Air Band
+
+APP > HF Air Band (APP 4:4, or a long-press action): the HF frequencies of
+aviation, to listen to. The VOLMET weather broadcasts, the air traffic of
+the oceanic and remote air routes (the ITU's Major World Air Route Areas,
+MWARA: NAT the North Atlantic, SAT the South Atlantic, CEP and CWP the
+Pacific...), the two common channels 3023 and 5680 kHz (search and rescue
+among their uses), and the worldwide frequencies of the airlines' own
+operational control (LDOC). All in USB with the dial on the frequency of the
+list (the carrier), as aircraft and ground stations use them.
+
+- The list is that of one area: Europe, Africa, Middle East; Americas; Asia
+  and Pacific; Worldwide LDOC; All areas. Area goes to the next one; the
+  choice is kept. Until one is chosen it is the area of the radio's IARU
+  region (see [Band plan](#band-plan)).
+- Under each heading (the code and its name, the VOLMET areas first) a row
+  for each frequency, with the station the broadcast list (EiBi, Settings >
+  Info > Broadcast list) has on the air there now, where it has one. The row
+  the radio is on is marked.
+- The MFK moves along the frequencies; a press, Tune or a tap tunes the one
+  chosen in USB, through the radio's own tuning: the band it lands in keeps
+  its own memory, the filter is USB's, a transverter's or the WR12's range
+  does as anywhere. Not while transmitting.
+- Save channel: what the radio is on into the [Channels](#channels) app,
+  named after the station ("Shannon VOLMET") or the row ("NAT 8891"). Scan:
+  the [Scanner](#scanner) on this list (Source HF Air).
+- ESC closes; the radio stays where it is.
+- Where the lists come from: the ITU Radio Regulations, Appendix 27, the
+  aeronautical HF Plan (the frequencies of each route area and VOLMET area,
+  and the worldwide ones the airlines' LDOC stations use), and a few VOLMET
+  stations outside the Plan from the EiBi list (Shannon 5505, the RAF 11253,
+  Ezeiza 11369, Cordoba 3434 and 5475, Trenton 6754 and 15034 kHz). The Plan
+  gives the frequencies an area may use; which of them are on the air at an
+  hour is the stations' choice, so many are quiet: the higher ones by day,
+  the lower ones at night.
+- Transmitting: these are not amateur frequencies. PTT there does what it
+  does anywhere outside the amateur bands: refused ("No TX on 8.891 MHz",
+  then "Out of band: Settings > TX Cal") unless TX outside ham bands is on
+  (see [Amateur bands only](#amateur-bands-only)), and then in USB, with the
+  radio's power and SWR protection as anywhere. Transmitting there is your
+  responsibility under your licence.
+
 
 ## Bluetooth
 
