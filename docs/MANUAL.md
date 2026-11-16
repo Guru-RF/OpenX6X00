@@ -290,6 +290,16 @@ line, unless Keep knob lines is on).
 - A press of the knob switches it between changing the value and choosing
   the control: while it chooses, a turn goes to the next control on its list
   (the name lit), and the next press changes that one again.
+- Knob press: next control (Settings > Display > INTERFACE, off by default;
+  also on the web configurator's Display page): as on the stock firmware, a
+  short press of VOL or the MFK takes the next control on its list, round to
+  the first after the last, ready to turn: its value lit on the knob line
+  and the mark lit on its button. A long press (from 0.4 s) does what a
+  press does with it off: choose or change; on the cluster column it tunes to
+  the spot, as the long press always did. Volume keeps VOL in walkie mode. A
+  keyboard's Enter and ESC count as short presses, as does the MFK press in
+  Field Ops while it tunes (that one comes at the release). Up to v0.3.12 a
+  press only switched between choosing and changing (issue #282).
 - X6200: the MFK has an inner ring. The inner ring chooses the MFK's control,
   the next one or the one before on its list, and the outer ring changes its
   value, with no press. The X6100's MFK has no inner ring: it uses the press.
@@ -872,6 +882,15 @@ active bands of the band list, from the frequency up or down.
   Airband, after 6 m on the band keys. They are receive only: PTT, the digital
   apps, CW from the keyboard, the tuner and the SWR scan are refused there:
   "No TX on 100.000 MHz", then "Receive only there".
+- Wide FM's filter (X6200): 16 kHz by default, the widest the X6200's base
+  takes and the stock firmware's own WFM filter. Filter BW (the knob, the
+  button, the info bar) shows the whole width, both sides of the dial, as the
+  stock firmware does, from 16 kHz down in 100 Hz detents; Filter high is the
+  edge on one side, 8 kHz at the widest. Up to v0.3.12 Filter BW showed that
+  edge, 8000 Hz at the default and 10000 Hz at most: the base took 8 to 10 kHz
+  all as 16 kHz, so the sound was the same, only the number was half (issue
+  #283). A filter set to 10000 then is 16 kHz now. AM, NFM and SAM still show
+  the edge as Filter BW. CAT reports WFM's filter by its edge, as before.
 - The same refusal holds anywhere the radio does not transmit: above 55 MHz
   without a transverter, and what the WR12 receives unless a transverter with
   a shift covers it (the transverter wins, see
@@ -1743,7 +1762,7 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
 | SPECTRUM | Spectrum; with it on Fill, Peaks, Fill gradient, Fill by level, Filter colour, Filter shade, Shaded part, Height (see [Waterfall](#waterfall)) |
 | WATERFALL | see [Waterfall](#waterfall) |
 | MAIN SCREEN | Band plan, Cluster spots, Cluster column, Broadcast names, S-meter type, S-meter colours, Needle lamp, Birdies (see [Birdie Cal](#birdie-cal)), Zoom and step per mode, Step per zoom (see [Waterfall](#waterfall)), Power display (% + time, Volts, Alternate, % + V; see [battery time](#battery-time)) |
-| INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Theme, Font, Language, Decoder text, FT8/FT4 info |
+| INTERFACE | Popups Freq/Info/TX, Icon menus, Knob info, Hide buttons (Off, After 3 s, After 5 s, After 10 s), Keep knob lines, Knob press: next control, Theme, Font, Language, Decoder text, FT8/FT4 info |
 
 - Timeout (0 off), Brightness: the seconds without a key or a knob before
   the screen dims, 5 to 120 (30 by default), and the slider of the
@@ -1781,6 +1800,9 @@ Per band S-meter cal: see [S-meter](#s-meter). TCI SERVER: see
   back (see [Buttons and knobs](#buttons-and-knobs)).
 - Keep knob lines (Off by default): with Hide buttons on, the knob lines
   stay on the screen when the buttons hide.
+- Knob press: next control (Off by default): a short press of VOL or the
+  MFK takes the next control on its list, a long one chooses or changes
+  (see [Buttons and knobs](#buttons-and-knobs)).
 - Theme: see [Themes](#themes). A new theme applies at once, without a restart.
 - Font: Sony Sketch, Roboto or DejaVu (default). A new font applies at once.
   Themes with their own font (Classic, Black Metal, Total Black, 1bit,
@@ -7241,9 +7263,11 @@ browser paired at home on any device.
   typed alone takes the other one along, as the radio's own Filter low and
   Filter high do, and the two typed give their width; in AM, NFM and
   SAM the high edge alone, the low one is always 0 (2.5 to 6 kHz); in WFM
-  the same up to 10 kHz (4 to 10 kHz). No edge goes past 6 kHz, 10 kHz in
-  WFM. A field left empty, or holding no number, keeps its edge. The preset
-  lit is the one whose edges the radio has.
+  the same up to 8 kHz, the presets and the button showing the whole width,
+  twice the edge (10, 12, 14 and 16 kHz). No edge goes past 6 kHz, 8 kHz in
+  WFM (up to v0.3.12 10 kHz, which the base took as 16 kHz too). A field
+  left empty, or holding no number, keeps its edge. The preset lit is the
+  one whose edges the radio has.
 - The S-meter, the power and SWR while transmitting, the battery.
 - Spots: the DX cluster's spots as the radio filters them (see
   [DX Cluster](#dx-cluster)), newest first, tap one to tune to it; the calls

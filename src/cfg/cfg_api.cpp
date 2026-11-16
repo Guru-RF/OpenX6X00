@@ -33,6 +33,7 @@ ParamInt         *cfg_auto_level_enabled  = nullptr;
 ParamFloat       *cfg_auto_level_offset   = nullptr;
 ParamInt         *cfg_knob_info           = nullptr;
 ParamInt         *cfg_buttons_hide        = nullptr;
+ParamInt         *cfg_knob_press_next     = nullptr;
 ParamInt         *cfg_mode_from_plan      = nullptr;
 ParamInt         *cfg_band_region         = nullptr;
 ParamInt         *cfg_birdie_marks        = nullptr;
@@ -258,6 +259,7 @@ void cfg_api_init(void (*on_db_error)(const char *)) {
     cfg_auto_level_offset  = &cfg_sm.p_auto_level_offset;
     cfg_knob_info        = &cfg_sm.p_knob_info;
     cfg_buttons_hide     = &cfg_sm.p_buttons_hide;
+    cfg_knob_press_next  = &cfg_sm.p_knob_press_next;
     cfg_mode_from_plan   = &cfg_sm.p_mode_from_plan;
     cfg_band_region      = &cfg_sm.p_band_region;
     cfg_birdie_marks     = &cfg_sm.p_birdie_marks;
