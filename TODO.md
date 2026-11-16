@@ -401,3 +401,33 @@ Winlink is used from (the #153 replies of 3 and 4 November).
   copyright assertions", plus NTIA/ITS work). The same data comes in `voacapl`'s itshfbc, so either route ships it:
   settle it before an image carries it.
 - **Then** x6100-winlink sets the engine when the program is in the image, instead of `disabled`.
+
+## GSOC: the G90 driven from Xiegu's GSOC touchscreen head (this week, from cjlawson02's fork)
+
+Planned 2026-11-16. cjlawson02's fork (cjlawson02/OpenX6X00, branch `gsoc/g90-probe`, 25 commits on our main of
+about 13 Nov) runs OpenX6X00 on the GSOC head driving a G90 over its DE-9 cable: a third board next to the X6100 and
+X6200 (`HW_BACKEND=g90`, `hw_g90`, a GSOC panel profile and `gsoc_input`). We take it in ourselves and credit them;
+no pull request asked. What their branch has, to port onto main as it is then:
+
+- **The board**: board.h ranges for the G90 body, the dialogs, F-bar and meter widths from `BOARD_DISP_W` (the GSOC
+  panel is landscape, 1024 x 600), the rotary encoder (one detent one step), the clock tap opening APP, the boot
+  animation centred, dimmer defaults, the shutdown pulse.
+- **The link to the body**: their `libg90` library (github.com/cjlawson02/libg90, pinned by commit through
+  FetchContent; check its licence and build it like our other libraries, not fetched at build time), the body's
+  firmware profiles 1.78/1.81 picked from its replies, starting without the body and picking it up when it answers
+  (`BOARD_BASE_DETACHABLE`, Connected/Disconnected by the S-meter).
+- **Audio**: the head's codec unmuted, the headphones bit, the AF on the cabinet speaker through a loopback or an
+  analog path (`G90_AF_ANALOG`), VOL on the body's VOL byte.
+- **IQ and spectrum**: the IQ from the head's DMA buffer (`G90_IQ_MMAP`), the body band + codec skirts fuse
+  (`G90_FUSE_IQ`) with its quickselect percentile.
+- **Display speed**: DRM planes on the landscape panel with the strips on planes of their own, and the 3D waterfall
+  drawn in columns and turned over in 64 x 64 tiles on a thread of its own (on the GSOC: the GUI from a full core to
+  about 42 %; tools/d3_colmajor_test checks the pictures). Only landscape framebuffers take that path; the X6100 and
+  X6200 (portrait, `BOARD_FB_ROTATE_90`) draw as today.
+- **WiFi**: the head's WiFi is a USB adapter with no power pin; Off also disconnects it and turns autoconnect off,
+  On asks NetworkManager to join again (the rfkill switch left that adapter dead until replugged).
+- **Images and updates**: a buildroot tree for the GSOC (theirs or ours), its card image and update bundle, the
+  model name in x6100-update and the web server, and an image level line in rootfs/usr/share/x6100/image-required.
+- **Already on main** from that branch: dB <-> power without powf/log10f, and the paddle keyer's start after the
+  settings (both 16 Nov).
+- **Needs**: a GSOC head and a G90 on the bench.
