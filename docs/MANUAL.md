@@ -7351,11 +7351,10 @@ coming in, chk, fr, to, g: the sender's locator, x: the text), the last 64
 again to a client that connects later, a message coming in keeping its id as
 it grows; its state as `js8 {...}` (open, busy, sending, acq, hb, auto, hold,
 speed, frame and frames, txf, selhz, hbmin, next in seconds, sel, where,
-text, and note, noteerr and notes: the answer to the last command, "Queued:
-3 frames, 45 s" or why not); `js8 wf 1` brings its waterfall as FT8's. A text
-message longer than 1023 bytes is answered `err message too long for the
-radio`; the FT8 state
-carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
+text, and note, noteerr, notefor and notes: the answer to the last command,
+"Queued: 3 frames, 45 s" or why not, and that command's word); `js8 wf 1`
+brings its waterfall as FT8's. A text message longer than 1023 bytes is
+answered `err message too long for the radio`; the FT8 state carries the timeline too (`in` ms to our next slot, `slot` its length, `rep`
 the sends left, `qso`, `hound`, `nocall`, `logged` and `logged_s`), once a
 second while a countdown runs; `log CALL|RSTS|RSTR|NAME`
 writes the day's log and is answered with `logged ok|no`. `logq ID CALL|...`
@@ -7838,8 +7837,31 @@ not sent). The page sends what was typed: GhostNet's Mine into English first
 works in the radio's keyboard only. A page that opens later gets the last 64 messages the
 radio kept.
 
+Chat (the switch at the top, the browser keeps the choice) shows the same
+messages as conversations, for writing from a computer's or a phone's
+keyboard:
+
+- The chats: one per station (what it sends us and what we send it) and one
+  per group (@NAME), the newest on top with its last message and the
+  messages not read yet; the stations heard in the last half hour under
+  them, a tap starts a chat. A call or a group typed in the box above starts
+  one with a station not heard yet (a sked) or with @ALLCALL. Heartbeats, CQs
+  and SNR answers stay out. Open and CQ are there too.
+- A chat: the messages as bubbles with the time and the dB, a message still
+  coming in growing with three dots, a message of the station to another one
+  paler, ours with a clock while the radio has it queued, two ticks once on
+  the air, ON AIR while it goes out, or the radio's reason when it was not
+  sent. Opening a chat selects the station on the radio (its offset); Send
+  writes its call first, as Reply on the radio. Chips fill in the usual
+  questions, our grid and the radio's saved messages (Query > Saved on the
+  radio, which edits them; a `<CALL>` in front is the chat's call).
+- The conversations are kept in this browser (the last 600 messages), not on
+  the radio: another browser has its own, and both get the radio's last 64
+  messages when they connect.
+
 On a phone the page has the FT8 page's tabs, and a bar under the thumb with
-what goes out next, the seconds to it, Open, CQ, HB, Auto and Stop.
+what goes out next, the seconds to it, Open, CQ, HB, Auto and Stop; a chat
+opens over the whole screen, the arrow goes back to the list.
 
 ### WeFax in the browser
 

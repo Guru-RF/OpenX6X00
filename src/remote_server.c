@@ -1480,13 +1480,31 @@ void remote_server_js8_msg(const remote_js8_msg_t *m) {
     panel_broadcast(line);
 }
 
-/* The JS8 app as JSON: "js8 {...}" */
+/* The JS8 app's commands by their word: "js8 WORD" */
+static const struct {
+    const char     *name;
+    remote_js8_rc_t rc;
+} js8_words[] = {{"cq", REMOTE_JS8_CQ},         {"autocq", REMOTE_JS8_AUTOCQ}, {"hbnow", REMOTE_JS8_HBNOW},
+                 {"hb", REMOTE_JS8_HB},         {"auto", REMOTE_JS8_AUTO},     {"hold", REMOTE_JS8_HOLD},
+                 {"speed", REMOTE_JS8_SPEED},   {"stop", REMOTE_JS8_STOP},     {"txfreq", REMOTE_JS8_TXFREQ},
+                 {"select", REMOTE_JS8_SELECT}, {"send", REMOTE_JS8_SEND}};
+#define JS8_WORDS (sizeof(js8_words) / sizeof(js8_words[0]))
+
+static const char *js8_word(int rc) {
+    for (size_t i = 0; i < JS8_WORDS; i++)
+        if ((int)js8_words[i].rc == rc)
+            return js8_words[i].name;
+    return "";
+}
+
+/* The JS8 app as JSON: "js8 {...}"; "notefor" is the word of the command the note answers (a page that sent a
+ * message waits for "send"'s) */
 static void js8_status_line(char *buf, size_t n, const remote_js8_status_t *s) {
     size_t k = snprintf(buf, n, "js8 {\"open\":%d,\"busy\":%d,\"sending\":%d,\"acq\":%d,\"hb\":%d,\"auto\":%d,"
                         "\"hold\":%d,\"speed\":%d,\"frame\":%d,\"frames\":%d,\"txf\":%d,\"selhz\":%d,\"hbmin\":%d,"
-                        "\"next\":%d,\"notes\":%u,\"noteerr\":%d,\"note\":", s->open, s->busy, s->sending, s->auto_cq,
-                        s->hb, s->auto_on, s->hold, s->speed, s->frame, s->frames, s->txf, s->sel_hz, s->hb_min,
-                        s->next_s, s->notes, s->note_err);
+                        "\"next\":%d,\"notes\":%u,\"noteerr\":%d,\"notefor\":\"%s\",\"note\":", s->open, s->busy,
+                        s->sending, s->auto_cq, s->hb, s->auto_on, s->hold, s->speed, s->frame, s->frames, s->txf,
+                        s->sel_hz, s->hb_min, s->next_s, s->notes, s->note_err, js8_word(s->note_cmd));
     k += json_str(buf + k, n - k, s->note);
     k += snprintf(buf + k, n - k, ",\"sel\":");
     k += json_str(buf + k, n - k, s->sel);
@@ -1784,13 +1802,6 @@ static bool app_wefax_cmd(const char *what) {
 /* "js8 open|close|cq|autocq|hbnow|hb|auto|hold|speed|stop", "js8 txfreq HZ", "js8 select CALL", "js8 send TEXT":
  * the JS8 app's buttons. False for a word it does not know or an argument missing */
 static bool app_js8_cmd(const char *what, const char *arg) {
-    static const struct {
-        const char     *name;
-        remote_js8_rc_t rc;
-    } rcs[] = {{"cq", REMOTE_JS8_CQ},       {"autocq", REMOTE_JS8_AUTOCQ}, {"hbnow", REMOTE_JS8_HBNOW},
-               {"hb", REMOTE_JS8_HB},       {"auto", REMOTE_JS8_AUTO},     {"hold", REMOTE_JS8_HOLD},
-               {"speed", REMOTE_JS8_SPEED}, {"stop", REMOTE_JS8_STOP},     {"txfreq", REMOTE_JS8_TXFREQ},
-               {"select", REMOTE_JS8_SELECT}, {"send", REMOTE_JS8_SEND}};
     acmd_t a = {.id = A_JS8};
 
     if (!strcasecmp(what, "open")) {
@@ -1799,10 +1810,10 @@ static bool app_js8_cmd(const char *what, const char *arg) {
         a.id = A_JS8_CLOSE;
     } else {
         size_t i = 0;
-        while (i < sizeof(rcs) / sizeof(rcs[0]) && strcasecmp(rcs[i].name, what)) i++;
-        if (i == sizeof(rcs) / sizeof(rcs[0]))
+        while (i < JS8_WORDS && strcasecmp(js8_words[i].name, what)) i++;
+        if (i == JS8_WORDS)
             return false;
-        a.what = rcs[i].rc;
+        a.what = js8_words[i].rc;
         bool needs = a.what == REMOTE_JS8_SELECT || a.what == REMOTE_JS8_SEND || a.what == REMOTE_JS8_TXFREQ;
         if (needs && (!arg || !*arg || strlen(arg) >= sizeof(a.text)))
             return false;

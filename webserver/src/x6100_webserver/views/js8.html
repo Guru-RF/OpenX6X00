@@ -36,6 +36,94 @@
 .txline.on b{color:var(--c-me)}
 .btn.hb.on{background:rgba(92,184,255,.14);border-color:var(--c-hb);color:var(--c-hb)}
 .acts{grid-template-columns:repeat(4,auto)}
+.quick .chip.saved{border-style:dashed}
+
+/* The chat view: the conversations as a messaging app, the list beside the thread (one or the other on a phone) */
+.vsw{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.vsw button{height:30px;padding:0 14px;border:0;border-radius:0;background:var(--well);color:var(--dim);font-size:12.5px;gap:7px}
+.vsw button+button{border-left:1px solid var(--line)}
+.vsw button[aria-pressed=true]{background:var(--accent);color:#111}
+.vsw .badge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--err);color:#fff;font:600 11px/18px var(--mono)}
+.vsw .badge[hidden]{display:none}
+.chat-st:empty{display:none}
+.chat-st .status{margin:0 0 8px}
+.chat{display:grid;grid-template-columns:320px minmax(0,1fr);height:620px;min-height:420px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.chat[hidden],.app-wall[hidden],.desk[hidden],.cv-h[hidden],.cv-f[hidden]{display:none!important}
+.cl{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
+.cl-h{display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#172539,#131e2e);min-height:46px}
+.cl-h h3{font-size:15px;margin:0 auto 0 0}
+.cl-new{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.cl-new input{font:13px var(--mono);padding:6px 9px;text-transform:uppercase}
+.cl-new .btn{height:32px}
+.cl-list{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+.cl-sec{padding:10px 14px 4px;font-size:11.5px;font-weight:600;color:var(--dim)}
+.th{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.035)}
+.th:hover{background:rgba(255,255,255,.04)}
+.th.cur{background:rgba(255,176,32,.1)}
+.av{position:relative;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font:700 13px var(--mono);color:#0b1320;background:var(--c,var(--c-oth));flex:none}
+.av.grp{background:var(--well);color:var(--c-grp);border:1px solid rgba(255,92,180,.4)}
+.av .on{position:absolute;right:0;bottom:1px;width:11px;height:11px;border-radius:50%;background:var(--ok);border:2px solid var(--panel)}
+.th .nm{display:flex;align-items:baseline;gap:8px;min-width:0}
+.th .nm b{font:600 14px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.th .nm small{font:11.5px var(--mono);color:var(--dim);white-space:nowrap}
+.th .pv{font-size:13px;line-height:1.35;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.th .pv .tk{vertical-align:-2px;margin-right:3px}
+.th .rt{display:flex;flex-direction:column;align-items:flex-end;gap:5px;font:11.5px var(--mono);color:var(--dim)}
+.th .un{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--ok);color:#0b1320;font:700 11px/20px var(--mono);text-align:center}
+.th.has-un .rt>span:first-child{color:var(--ok)}
+.cl-empty{padding:22px 16px;color:var(--dim);font-size:13px;line-height:1.5}
+.cv{display:flex;flex-direction:column;min-height:0;min-width:0;position:relative}
+.cv-h{display:flex;align-items:center;gap:12px;padding:6px 12px;border-bottom:1px solid var(--line);min-height:46px;background:linear-gradient(180deg,#172539,#131e2e)}
+.cv-h .who{min-width:0;flex:1}
+.cv-h .who b{display:block;font:600 15px var(--mono)}
+.cv-h .who small{display:block;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv-h .who small.on{color:var(--ok)}
+.cv-h .back{display:none;width:36px;height:36px;padding:0;border:0}
+.cv-h .txs{font-size:12px;font-weight:600;color:var(--dim);white-space:nowrap}
+.cv-h .txs.on{color:var(--err)}
+.cv-b{flex:1;overflow-y:auto;padding:14px 6% 10px;display:flex;flex-direction:column;gap:3px;scrollbar-width:thin;scrollbar-color:var(--line2) transparent;background:var(--well)}
+.day{align-self:center;margin:10px 0 6px;padding:2px 10px;border-radius:6px;background:var(--panel);font-size:11.5px;font-weight:600;color:var(--dim)}
+.bub{position:relative;max-width:min(76%,560px);padding:6px 10px 4px;border-radius:10px;font:14px/1.4 var(--mono);overflow-wrap:anywhere;margin-top:3px}
+.bub.in{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-top-left-radius:3px}
+.bub.out{align-self:flex-end;background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.35);border-top-right-radius:3px}
+.bub.cont{margin-top:0}
+.bub.in.cont{border-top-left-radius:10px} .bub.out.cont{border-top-right-radius:10px}
+.bub.oh{opacity:.62}
+.bub .to,.bub .fr{display:block;font:600 11px var(--mono);margin-bottom:1px}
+.bub .to{color:var(--dim)} .bub .fr{color:var(--c,var(--c-oth))}
+.bub .meta{float:right;display:inline-flex;align-items:center;gap:5px;margin:6px 0 -2px 12px;font:11px var(--mono);color:var(--dim)}
+.bub .why{display:block;clear:both;font:12px system-ui,sans-serif;color:var(--err)}
+.bub.air{border-color:var(--err)}
+.bub .air{color:var(--err);font-weight:600}
+.tk{width:16px;height:11px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tk.done{color:var(--c-hb)} .tk.wait{width:12px;height:12px} .tk.bad{width:12px;height:12px;color:var(--err)}
+.dots{display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle}
+.dots i{width:5px;height:5px;border-radius:50%;background:var(--dim);animation:dot 1.2s infinite}
+.dots i:nth-child(2){animation-delay:.2s} .dots i:nth-child(3){animation-delay:.4s}
+@keyframes dot{0%,60%,100%{opacity:.3;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){.dots i{animation:none}}
+.cv-empty{margin:auto;text-align:center;color:var(--dim);font-size:14px;line-height:1.6;max-width:340px}
+.cv-f{border-top:1px solid var(--line);background:var(--panel);padding:8px 10px 10px;display:flex;flex-direction:column;gap:7px}
+.cv-in{display:flex;gap:8px;align-items:center}
+.cv-in input{flex:1;min-width:0;height:42px;border-radius:21px;padding:0 16px;font:14px var(--mono);text-transform:uppercase}
+.cv-in small{font:11.5px var(--mono);color:var(--dim);min-width:28px;text-align:right}
+.send{width:44px;height:44px;border-radius:50%;padding:0;border:0;background:var(--accent);color:#111;flex:none}
+.send:disabled{opacity:.4;cursor:default}
+.send svg{width:20px;height:20px;fill:currentColor;margin-left:2px}
+@media (max-width:760px){
+  .chat{display:block;height:auto!important;min-height:0}
+  .chat .cv{display:none}
+  .chat.open .cl{display:none}
+  .chat.open .cv{display:flex;position:fixed;inset:0;z-index:30;background:var(--bg)}
+  .chat.open .cv-h .back{display:grid;place-items:center}
+  .cl{border:0}
+  .cl-list{overflow:visible}
+  .bub{max-width:84%}
+  .cv-b{padding:12px 10px 8px}
+  .cv-f{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+  body.chatting .mbar{display:none}
+  body.chatting{overflow:hidden}
+}
 @media (max-width:760px){
   .row{grid-template-columns:56px 30px 40px minmax(0,1fr)}
   .srow{grid-template-columns:minmax(0,1fr) 36px 46px 56px}
@@ -50,7 +138,34 @@
 <div class="app-top">
   <span class="lbl"><span id="where">-</span> · <span class="num" id="utc" style="color:var(--text)">--:--:--</span> UTC</span>
   <span id="ses" class="health"></span><span class="grow"></span><span id="health" class="health"></span>
+  <span class="vsw" role="group" aria-label="View"><button type="button" id="v-console" aria-pressed="true">Console</button><button type="button" id="v-chat" aria-pressed="false">Chat <span class="badge" id="chat-badge" hidden>0</span></button></span>
 </div>
+<div class="chat-st" id="chat-st"></div>
+
+<section class="chat" id="chat" hidden aria-label="Chat">
+  <div class="cl">
+    <div class="cl-h"><h3>Chats</h3>
+      <button type="button" class="btn" id="c-open">Open</button>
+      <button type="button" class="btn cq" id="c-cq" title="One CQ now, as the radio's CQ">CQ</button></div>
+    <div class="cl-new"><input id="cl-new" maxlength="15" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="A call or @GROUP" aria-label="A call or @GROUP to write to"><button type="button" class="btn" id="cl-start">New chat</button></div>
+    <div class="cl-list" id="cl-list"></div>
+  </div>
+  <div class="cv" id="cv">
+    <div class="cv-h" id="cv-h" hidden>
+      <button type="button" class="back" id="cv-back" aria-label="Back to the chats"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <span class="av" id="cv-av"></span>
+      <div class="who"><b id="cv-name"></b><small id="cv-sub"></small></div>
+      <span class="txs" id="cv-tx"></span>
+      <button type="button" class="btn stop" id="cv-stop" title="Stop the transmission now">Stop</button>
+    </div>
+    <div class="cv-b" id="cv-b"><div class="cv-empty" id="cv-none">Pick a chat, or a station heard, on the left.<br>A message to us starts one by itself.</div></div>
+    <div class="cv-f" id="cv-f" hidden>
+      <div class="quick" id="cv-quick"></div>
+      <div class="cv-in"><input id="cv-msg" maxlength="490" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Message" aria-label="Message"><small id="cv-n">0</small>
+        <button type="button" class="send" id="cv-send" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M3.4 20.4l17.45-7.48a1 1 0 0 0 0-1.84L3.4 3.6a.99.99 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"/></svg></button></div>
+    </div>
+  </div>
+</section>
 
 <section class="app-wall" id="wall">
   <div class="tabs" role="tablist" data-g="top">
@@ -166,8 +281,8 @@
 <p class="sub app-help">All of it runs on the radio: it decodes, beacons (HB), answers (Auto) and keeps its inbox with or
 without this page. A tap on a message or a station selects it; the box then writes to it, and its chips fill in the
 usual questions. Nothing goes out until Send, CQ or HB is pressed, or Auto answers a question; Stop ends a transmission
-at once. A click on the waterfall moves our TX offset there. The buttons work from a paired browser in control, as on
-the Panel.</p>
+at once. A click on the waterfall moves our TX offset there. Chat shows the same as conversations, one per station or
+group, kept in this browser. The buttons work from a paired browser in control, as on the Panel.</p>
 </div>
 
 <script src="/static/js/radio_link.js?v=2"></script>
@@ -181,7 +296,8 @@ the Panel.</p>
   /* by the app's speed (js8_speed_t): its name and the 8 tones' width, Hz; by a message's submode: its width and
    * its letter */
   const SPEEDS = ["Normal", "Fast", "Turbo", "Slow"], WIDTHS = [50, 80, 160, 25];
-  const SUB_W = {0: 50, 1: 80, 2: 160, 4: 25}, SUB_L = {1: "F", 2: "T", 4: "S"};
+  const SUB_L = {1: "F", 2: "T", 4: "S"};
+  const MAXTX = 500;         /* the radio's room for a message, TX_TEXT_MAX in src/js8_window.c */
   let radio = null, js8 = null, js8At = 0, notes = -1;
   function status(text, error) { if (radio) radio.status(text, error); }
   function act(s) { return !!radio && radio.act(s); }
@@ -276,6 +392,7 @@ the Panel.</p>
     if (which === "band") $("#n-band").text(++nBand); else $("#n-talk").text(++nTalk);
   }
   function addMsg(r) {
+    chatAdd(r);
     put("band", $band, bandEl, r.id, r);
     if (concerns(r)) put("talk", $talk, talkEl, r.id, r);
     if (r.fr && !r.tx) {
@@ -333,15 +450,31 @@ the Panel.</p>
   /* ================= the box ================= */
   /* The usual questions, to the station selected; the radio fills in any macro and answers what comes back */
   const QUICK = ["SNR?", "GRID?", "INFO?", "STATUS?", "HEARING?", "AGN?", "RR", "73"];
-  function showQuick() {
-    const s = sel(), $q = $("#quick").empty();
-    if (!s) { $q.append($("<span class='lbl'>").text("Select a station for its questions; @ALLCALL, @HB or any text otherwise")); return; }
-    QUICK.forEach(function(q) {
-      $q.append($("<button type='button' class='chip'>").text(q).on("click", function() { $("#msg").val(s + " " + q).trigger("input").focus(); }));
-    });
-    if (MYGRID) $q.append($("<button type='button' class='chip'>").text("My grid").on("click", function() { $("#msg").val(s + " GRID " + MYGRID).trigger("input").focus(); }));
+  let saved = [];            /* the radio's saved messages, [{n, text}]: their macros are filled in as it sends */
+  function chip(text, title, fill) {
+    return $("<button type='button' class='chip'>").text(text).attr("title", title || null).on("click", fill);
   }
-  showQuick();
+  function savedChip($in, text) {
+    return chip(text.length > 18 ? text.slice(0, 17) + "…" : text, "Saved on the radio: " + text, function() {
+      $in.val(text).trigger("input").focus();
+    }).addClass("saved");
+  }
+  function showQuick() {
+    const s = sel(), $q = $("#quick").empty(), $in = $("#msg");
+    if (!s) $q.append($("<span class='lbl'>").text("Select a station for its questions; @ALLCALL, @HB or any text otherwise"));
+    else {
+      QUICK.forEach(function(q) { $q.append(chip(q, null, function() { $in.val(s + " " + q).trigger("input").focus(); })); });
+      if (MYGRID) $q.append(chip("My grid", null, function() { $in.val(s + " GRID " + MYGRID).trigger("input").focus(); }));
+    }
+    saved.forEach(function(m) { $q.append(savedChip($in, m.text)); });
+    boxHeight();
+  }
+  $.get("/api/js8_saved").then(function(d) {
+    saved = d && d.saved || [];
+    showQuick();
+    drawThread.last = "";      /* the chat's chips again */
+    chatShow();
+  });
   $("#msg").on("input", function() { $("#msgn").text(this.value.length); });
   function sendMsg() {
     const t = $("#msg").val().trim().toUpperCase();
@@ -353,12 +486,13 @@ the Panel.</p>
   $("#msg").on("keydown", function(e) { if (e.key === "Enter") { e.preventDefault(); sendMsg(); } });
   function boxHeight() { talkEl.style.setProperty("--boxh", document.getElementById("box").offsetHeight + "px"); }
   if (window.ResizeObserver) new ResizeObserver(boxHeight).observe(document.getElementById("box"));
+  showQuick();
 
   /* ================= the app's state and the desk ================= */
   function nextIn() { return js8 && js8.next >= 0 ? Math.max(0, js8.next - Math.round((Date.now() - js8At) / 1000)) : -1; }
   function showJs8() {
     const j = js8; if (!j) return;
-    $("#b-open, #m-open").text(j.open ? "Close" : "Open").toggleClass("open", !!j.open);
+    $("#b-open, #m-open, #c-open").text(j.open ? "Close" : "Open").toggleClass("open", !!j.open);
     $("#v-speed").text(SPEEDS[j.speed] || "Normal");
     $("#v-txf").text(j.open ? j.txf : "----");
     $("#b-acq").toggleClass("on", !!j.acq);
@@ -367,7 +501,7 @@ the Panel.</p>
     $("#b-auto, #m-auto").toggleClass("on", !!j.auto);
     $("#b-hold").toggleClass("on", !!j.hold);
     $("#b-stop, #m-stop").toggleClass("down", !!j.sending);
-    $("#desk .btn:not(#b-open), #mbar .btn:not(#m-open), #b-send").prop("disabled", !j.open);
+    $("#desk .btn:not(#b-open), #mbar .btn:not(#m-open), #b-send, #c-cq, #cv-send").prop("disabled", !j.open);
     $("#b-stop, #m-stop").prop("disabled", false);
     $("#led-wf").toggleClass("off", !j.open || Date.now() - wf.last > 5000);
     if (!j.open) wf.closed("The app is closed: Open starts it on the radio, and its waterfall shows here.");
@@ -391,11 +525,12 @@ the Panel.</p>
     document.getElementById("cd-arc").setAttribute("stroke", j.sending ? COL.me : COL.mine);
     $("#cd-n, #m-cd").text(j.sending ? "TX" : n >= 0 && j.open ? n : "--");
     if (j.sel !== showJs8.sel) { showJs8.sel = j.sel; selChanged(); }
+    if (chat.on && chat.cur) chatTx();
     wf.redraw();
   }
   /* The radio's answer to a command (ours or another page's): only a new one, not the one it had at the connection */
   function showNote(j) {
-    if (notes >= 0 && j.notes !== notes && j.note) status(j.note, !!j.noteerr);
+    if (notes >= 0 && j.notes !== notes && j.note) { status(j.note, !!j.noteerr); chatNote(j); }
     notes = j.notes;
   }
   setInterval(function() {
@@ -404,9 +539,9 @@ the Panel.</p>
   }, 1000);
 
   /* the buttons, the same on the desk and on the phone's bar */
-  $("#b-open, #m-open").on("click", function() { act("js8 " + (js8 && js8.open ? "close" : "open")); });
+  $("#b-open, #m-open, #c-open").on("click", function() { act("js8 " + (js8 && js8.open ? "close" : "open")); });
   $("#b-speed").on("click", function() { act("js8 speed"); });
-  $("#b-cq, #m-cq").on("click", function() { act("js8 cq"); });
+  $("#b-cq, #m-cq, #c-cq").on("click", function() { act("js8 cq"); });
   $("#b-acq").on("click", function() { act(js8 && js8.acq ? "js8 cq" : "js8 autocq"); });
   $("#b-hb, #m-hb").on("click", function() { act("js8 hb"); });
   $("#b-hbnow").on("click", function() { act("js8 hbnow"); });
@@ -415,6 +550,254 @@ the Panel.</p>
   $("#b-stop, #m-stop").on("click", function() { act("js8 stop"); });
   $("#b-dn").on("click", function() { if (js8) act("js8 txfreq " + (js8.txf - 10)); });
   $("#b-up").on("click", function() { if (js8) act("js8 txfreq " + (js8.txf + 10)); });
+
+  /* ================= the chat view ================= */
+  /* Threads: a station (what it sends us and what we send it), or a group (@NAME, @ALLCALL once a chat with it
+   * is started). Heartbeats, CQs and SNR answers stay out; a thread starts with a message to us, one of ours, a
+   * group's, a tap on a station heard or a call typed. Kept in this browser (a convenience: the radio keeps its
+   * own inbox) */
+  const TICK2 = '<svg class="tk done" viewBox="0 0 16 11"><path d="M1 6l3.2 3.2L10.5 2.5M6.5 8.6l.6.6L14.5 2.5"/></svg>';
+  const CLOCK = '<svg class="tk wait" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6"/><path d="M6 3.4V6l1.8 1.2"/></svg>';
+  const BANG = '<svg class="tk bad" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6"/><path d="M6 3.3v3.2M6 8.6v.1"/></svg>';
+  const AVC = ["#ffb020", "#5cb8ff", "#5fd38a", "#ff5cb4", "#b99bff", "#ffd860"];
+  const chat = {th: {}, msgs: [], cur: "", on: false, keys: {}, live: {}};
+  function avColor(c) { let h = 0; for (let i = 0; i < c.length; i++) h = (h * 31 + c.charCodeAt(i)) >>> 0; return AVC[h % AVC.length]; }
+  function avatar($a, name) {
+    $a.empty().removeClass("grp").css("--c", "");
+    if (name[0] === "@") $a.addClass("grp").text("@");
+    else $a.css("--c", avColor(name)).text(name.replace(/^[0-9]*/, "").slice(0, 2) || name.slice(0, 2));
+    const h = heard[name];
+    if (h && Date.now() - h.t < 300000) $a.append("<span class='on'></span>");
+  }
+  function isCall(w) { return /^([A-Z0-9]{1,4}\/)?[A-Z0-9]{1,3}[0-9][A-Z0-9]*[A-Z](\/[A-Z0-9]+)?$/.test(w || ""); }
+  function isGroup(w) { return /^@[A-Z0-9]{1,15}$/.test(w || ""); }
+  function km(g) {
+    const a = ME, b = AppWall.loc2ll(g); if (!a || !b) return 0;
+    const r = Math.PI / 180, d = Math.sin((b[0] - a[0]) * r / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin((b[1] - a[1]) * r / 2) ** 2;
+    return Math.round(12742 * Math.asin(Math.sqrt(d)));
+  }
+  /* What went on the air, the newest 600: one waiting, refused or still coming in is not kept */
+  function save() {
+    try { localStorage.setItem("js8.chat", JSON.stringify(chat.msgs.filter(function(m) { return !m.part && !m.st; }).slice(-600))); } catch (e) {}
+  }
+  /* A message as the chat sees it, null when it stays out */
+  function chatMsg(r) {
+    const body = r.x.replace(/^\s*[A-Z0-9/]+:\s*/, ""), w = body.split(/\s+/), first = w[0] || "";
+    if (r.hb || (r.cq && !r.me)) return null;
+    if (r.tx) {
+      if (/^(@HB|CQ)\b/.test(first) || (first === "@ALLCALL" && (!chat.th[first] || /^@ALLCALL CQ\b/.test(body)))) return null;
+      const to = isGroup(first) || isCall(first) ? first : "";
+      if (!to) return null;
+      return {th: to, dir: "out", text: body.slice(first.length).trim(), to: to};
+    }
+    if (!r.fr) return null;
+    const to = r.to || (isGroup(first) || isCall(first) ? first : "");
+    let text = body; if (to && first === to) text = body.slice(first.length).trim();
+    if (/^SNR [+-]\d\d$/.test(text) && !r.me) return null;
+    if (to && to[0] === "@" && to !== "@HB" && (to !== "@ALLCALL" || chat.th[to])) return {th: to, dir: "in", text: text, fr: r.fr, to: to};
+    if (r.me) return {th: r.fr, dir: "in", text: text, to: to};
+    if (chat.th[r.fr]) return {th: r.fr, dir: "in", text: text, to: to, oh: !!to && to !== MYBASE};
+    return null;
+  }
+  function thread(name) {
+    return chat.th[name] = chat.th[name] || {name: name, last: 0, un: 0};
+  }
+  function chatAdd(r) {
+    const c = chatMsg(r); if (!c) return;
+    const key = r.part ? "p" + r.id : [r.utc, r.fr || "ME", r.x].join("|");
+    if (!r.part && chat.keys[key]) return;       /* one this browser has: the radio sends its last 64 again */
+    let m = chat.live[r.id];                     /* the same message, more of it */
+    if (!m) { m = {}; chat.msgs.push(m); }
+    Object.assign(m, c, {k: key, ts: m.ts || Date.now(), utc: r.utc, snr: r.snr, f: r.f, part: !!r.part});
+    if (r.part) chat.live[r.id] = m; else { delete chat.live[r.id]; chat.keys[key] = 1; }
+    if (r.tx) {                                  /* ours on the air: the bubble that waited for it, the oldest */
+      const w = chat.msgs.find(function(x) { return (x.st === "wait" || x.st === "queued") && x.th === c.th; });
+      if (w) { chat.msgs.splice(chat.msgs.indexOf(w), 1); m.ts = w.ts; }
+    }
+    const t = thread(c.th); t.last = Date.now();
+    if (c.dir === "in" && !c.oh && !r.part && !(chat.on && chat.cur === c.th && !document.hidden)) t.un++;
+    if (!r.part) save();
+    chatShow();
+  }
+  /* The radio's answer to a send: queued, or refused and why */
+  function chatNote(j) {
+    if (j.notefor !== "send") return;
+    chat.msgs.forEach(function(m) {
+      if (m.st !== "wait" || m.notes === j.notes) return;
+      if (j.noteerr) { m.st = "bad"; m.why = j.note; } else m.st = "queued";
+    });
+    chatShow();
+  }
+  function bubble(m, prev) {
+    const $b = $("<div class='bub'>").addClass(m.dir).toggleClass("oh", !!m.oh).toggleClass("cont", !!prev && prev.dir === m.dir && prev.fr === m.fr && m.ts - prev.ts < 120000);
+    if (m.fr && m.th[0] === "@" && !$b.hasClass("cont")) $b.append($("<span class='fr'>").css("--c", avColor(m.fr)).text(m.fr));
+    if (m.oh) $b.append($("<span class='to'>").text("to " + m.to));
+    $b.append(document.createTextNode(m.text || " "));
+    if (m.part) $b.append("<span class='dots'><i></i><i></i><i></i></span>");
+    const $m = $("<span class='meta'>").text(utcText(m.utc || 0).slice(0, 5) + (m.dir === "in" && typeof m.snr === "number" ? " · " + snr(m.snr) : ""));
+    if (m.dir === "out") {
+      const air = !m.st && js8 && js8.sending && js8.text && js8.text.indexOf(m.text) >= 0 && m === lastOut(m.th);
+      $b.toggleClass("air", !!air);
+      $m.append(m.st === "wait" || m.st === "queued" ? CLOCK : m.st === "bad" ? BANG : air ? "<span class='air'>ON AIR</span>" : TICK2);
+      $m.attr("title", m.st === "wait" ? "Sent to the radio" : m.st === "queued" ? "Queued on the radio" : m.st === "bad" ? "Not sent" : "On the air");
+    }
+    $b.append($m);
+    if (m.st === "bad" && m.why) $b.append($("<span class='why'>").text(m.why));
+    return $b;
+  }
+  function lastOut(th) { for (let i = chat.msgs.length - 1; i >= 0; i--) if (chat.msgs[i].th === th && chat.msgs[i].dir === "out") return chat.msgs[i]; return null; }
+  function dayText(ts) {
+    const d = new Date(ts), t = new Date();
+    if (d.toDateString() === t.toDateString()) return "Today";
+    t.setDate(t.getDate() - 1);
+    if (d.toDateString() === t.toDateString()) return "Yesterday";
+    return d.toLocaleDateString(undefined, {day: "numeric", month: "short"});
+  }
+  let chatTimer = 0;
+  function chatShow() { if (!chatTimer) chatTimer = setTimeout(function() { chatTimer = 0; drawList(); drawThread(); }, 60); }
+  function drawList() {
+    const $l = $("#cl-list").empty(), names = Object.keys(chat.th).sort(function(a, b) { return chat.th[b].last - chat.th[a].last; });
+    let un = 0;
+    names.forEach(function(n) {
+      const t = chat.th[n], last = chat.msgs.filter(function(m) { return m.th === n; }).pop();
+      un += t.un;
+      const $a = $("<span class='av'>"); avatar($a, n);
+      const $pv = $("<div class='pv'>");
+      if (last) { if (last.dir === "out") $pv.append(last.st === "bad" ? BANG : last.st ? CLOCK : TICK2); $pv.append(document.createTextNode((last.fr && n[0] === "@" ? last.fr + ": " : "") + (last.text || "…"))); }
+      else $pv.text("New chat");
+      const h = heard[n], $rt = $("<div class='rt'>").append($("<span>").text(last ? utcText(last.utc || 0).slice(0, 5) : ""));
+      if (t.un) $rt.append($("<span class='un'>").text(t.un));
+      const $t = $("<div class='th'>").toggleClass("cur", n === chat.cur).toggleClass("has-un", !!t.un)
+        .append($a, $("<div>").append($("<div class='nm'>").append($("<b>").text(n), $("<small>").text(h && h.g ? h.g.slice(0, 4) : "")), $pv), $rt);
+      $t.on("click", function() { openThread(n); });
+      $l.append($t);
+    });
+    /* stations heard in the last half hour with no chat yet: a tap starts one */
+    const more = Object.values(heard).filter(function(h) { return !chat.th[h.c] && Date.now() - h.t < 1800000; })
+      .sort(function(a, b) { return (b.me - a.me) || (b.t - a.t); });
+    if (more.length) {
+      $l.append($("<div class='cl-sec'>").text("Heard now: a tap starts a chat"));
+      more.forEach(function(h) {
+        const $a = $("<span class='av'>"); avatar($a, h.c);
+        const $t = $("<div class='th'>").append($a, $("<div>").append($("<div class='nm'>").append($("<b>").text(h.c), $("<small>").text(h.g || "")),
+          $("<div class='pv'>").text(snr(h.snr) + " dB · " + h.f + " Hz · " + ago(h.t) + " ago")), $("<div class='rt'>"));
+        $t.on("click", function() { thread(h.c).last = Date.now(); openThread(h.c); });
+        $l.append($t);
+      });
+    }
+    if (!names.length && !more.length) $l.append($("<div class='cl-empty'>").text("No chats yet. A message to us starts one; the stations heard show here to start one, or type a call or @GROUP above."));
+    $("#chat-badge").text(un).prop("hidden", !un);
+  }
+  function quickChat(n) {
+    const $q = $("#cv-quick").empty(), $in = $("#cv-msg");
+    function fill(t) { return function() { $in.val(t).trigger("input").focus(); }; }
+    if (n[0] !== "@") {
+      QUICK.forEach(function(q) { $q.append(chip(q, null, fill(q))); });
+      if (MYGRID) $q.append(chip("My grid", null, fill("GRID " + MYGRID)));
+    }
+    /* a saved message goes after the thread's call: its own <CALL> in front is that call already */
+    saved.forEach(function(m) { $q.append(savedChip($in, m.text.replace(/^\s*<CALL>\s*/i, ""))); });
+  }
+  function drawThread() {
+    const n = chat.cur, $b = $("#cv-b");
+    $("#cv-h, #cv-f").prop("hidden", !n);
+    if (!n) { $b.empty().append($("<div class='cv-empty'>").html("Pick a chat, or a station heard, on the left.<br>A message to us starts one by itself.")); drawThread.last = ""; return; }
+    const h = heard[n], d = h && h.g ? km(h.g) : 0;
+    avatar($("#cv-av"), n);
+    $("#cv-name").text(n);
+    const online = h && Date.now() - h.t < 300000;
+    $("#cv-sub").toggleClass("on", !!online).text(n[0] === "@" ? "Group: every station in it gets these" :
+      h ? (online ? "On the air · " : "Heard " + ago(h.t) + " ago · ") + snr(h.snr) + " dB · " + h.f + " Hz" + (h.g ? " · " + h.g : "") + (d ? " · " + d + " km" : "") : "Not heard on this band yet");
+    const atEnd = $b[0].scrollHeight - $b[0].scrollTop - $b[0].clientHeight < 60;
+    $b.empty();
+    let prev = null, day = "";
+    chat.msgs.filter(function(m) { return m.th === n; }).forEach(function(m) {
+      const dt = dayText(m.ts); if (dt !== day) { day = dt; $b.append($("<div class='day'>").text(dt)); prev = null; }
+      $b.append(bubble(m, prev)); prev = m;
+    });
+    if (!prev) $b.append($("<div class='cv-empty'>").text(n[0] === "@" ? "Nothing in " + n + " yet." : "Say hello to " + n + ": the first message goes out on the radio's next frame."));
+    if (atEnd || drawThread.last !== n) $b[0].scrollTop = $b[0].scrollHeight;
+    if (drawThread.last !== n) {                 /* built once a thread: the chips and the room left after the call */
+      quickChat(n);
+      $("#cv-msg").attr("maxlength", MAXTX - n.length - 1);
+    }
+    drawThread.last = n;
+    drawThread.air = onAir();
+    chatTx();
+  }
+  /* What changes with the app's state alone: the header's TX words, and a redraw when ours goes on or off the air */
+  function onAir() { return !!(js8 && js8.sending) + ":" + (js8 ? js8.text : ""); }
+  function chatTx() {
+    $("#cv-tx").toggleClass("on", !!(js8 && js8.sending)).text(js8 && js8.sending ? "On the air " + js8.frame + "/" + js8.frames : js8 && js8.busy ? "Queued" : "");
+    if (chat.cur && drawThread.air !== onAir()) chatShow();
+  }
+  function openThread(n) {
+    chat.cur = n; thread(n).un = 0;
+    $("#chat").addClass("open"); document.body.classList.toggle("chatting", window.innerWidth <= 760);
+    if (n[0] !== "@" && sel() !== n && heard[n]) act("js8 select " + n);   /* its offset, as on the radio */
+    drawList(); drawThread();
+    if (window.innerWidth > 760) $("#cv-msg").focus();
+  }
+  $("#cv-back").on("click", function() { chat.cur = ""; $("#chat").removeClass("open"); document.body.classList.remove("chatting"); drawList(); drawThread(); });
+  $("#cv-msg").on("input", function() { $("#cv-n").text(this.value.length); });
+  /* To the thread's station or group: the call first, as the radio's Reply writes it */
+  function chatSend() {
+    const n = chat.cur, t = $("#cv-msg").val().trim().toUpperCase();
+    if (!n || !t) return;
+    if (js8 && js8.busy) { status("Already sending: Stop first", true); return; }
+    if (n[0] !== "@" && heard[n] && sel() !== n) act("js8 select " + n);
+    if (!act("js8 send " + n + " " + t)) return;
+    const w = {th: n, dir: "out", text: t, to: n, ts: Date.now(), utc: +hms(Date.now()).replace(/:/g, ""), st: "wait", notes: notes, k: "w" + Date.now()};
+    chat.msgs.push(w);
+    setTimeout(function() { if (w.st === "wait") { w.st = "bad"; w.why = "No answer from the radio"; chatShow(); } }, 15000);
+    thread(n).last = Date.now();
+    $("#cv-msg").val("").trigger("input");
+    chatShow();
+  }
+  $("#cv-send").on("click", chatSend);
+  $("#cv-msg").on("keydown", function(e) { if (e.key === "Enter") { e.preventDefault(); chatSend(); } });
+  $("#cv-stop").on("click", function() { act("js8 stop"); });
+  /* A chat with anyone: a call not heard yet (a sked), or a group */
+  function startChat() {
+    const v = $("#cl-new").val().trim().toUpperCase();
+    if (!isCall(v) && !isGroup(v)) { status("A call (ON6URE, EA8/ON6URE) or a group (@ALLCALL, @NAME)", true); return; }
+    $("#cl-new").val("");
+    thread(v).last = Date.now();
+    openThread(v);
+  }
+  $("#cl-start").on("click", startChat);
+  $("#cl-new").on("keydown", function(e) { if (e.key === "Enter") { e.preventDefault(); startChat(); } });
+  /* Console or chat: this browser keeps the choice; the status line goes with the view */
+  function setView(chatOn) {
+    chat.on = chatOn;
+    $("#v-console").attr("aria-pressed", String(!chatOn)); $("#v-chat").attr("aria-pressed", String(chatOn));
+    $("#wall, #desk").prop("hidden", chatOn); $("#chat").prop("hidden", !chatOn);
+    $("#st").appendTo(chatOn ? "#chat-st" : "#desk");
+    document.body.classList.toggle("chatting", chatOn && !!chat.cur && window.innerWidth <= 760);
+    if (chatOn) { if (chat.cur) thread(chat.cur).un = 0; fitChat(); chatShow(); } else { AppWall.fit(); wf.redraw(); map.draw(); }
+    try { localStorage.setItem("js8.view", chatOn ? "chat" : "console"); } catch (e) {}
+  }
+  function fitChat() {
+    const el = document.getElementById("chat");
+    if (window.innerWidth <= 760) { el.style.height = ""; return; }
+    el.style.height = Math.max(420, window.innerHeight - el.getBoundingClientRect().top - window.scrollY - 18) + "px";
+  }
+  window.addEventListener("resize", function() { if (chat.on) fitChat(); });
+  $("#v-console").on("click", function() { setView(false); });
+  $("#v-chat").on("click", function() { setView(true); });
+  (function() {
+    try {
+      (JSON.parse(localStorage.getItem("js8.chat") || "[]")).forEach(function(m) {
+        if (!m || !m.th || m.st) return;
+        chat.msgs.push(m); chat.keys[m.k] = 1;
+        const t = thread(m.th); t.last = Math.max(t.last, m.ts || 0);
+      });
+    } catch (e) {}
+    let v = null; try { v = localStorage.getItem("js8.view"); } catch (e) {}
+    if (v === "chat") setView(true);
+    drawList();
+  })();
+  setInterval(function() { if (chat.on) { drawList(); if (chat.cur) drawThread(); } }, 15000);
 
   AppWall.tabs("js8", function(id) { if (id === "m-map") map.draw(); if (id === "m-wf") wf.redraw(); });
 
@@ -426,6 +809,8 @@ the Panel.</p>
       Object.keys(rows).forEach(function(k) { delete rows[k]; });
       lastSep = {band: "", talk: ""}; nBand = nTalk = 0; notes = -1;
       $("#n-band, #n-talk").text(0);
+      /* a message that was still coming in will come again whole; the ids may start over with the radio's app */
+      chat.msgs = chat.msgs.filter(function(m) { return !m.part; }); chat.live = {};
     },
     onText: function(head, body) {
       if (head === "js8") { js8 = JSON.parse(body); js8At = Date.now(); showNote(js8); showJs8(); }

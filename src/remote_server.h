@@ -92,6 +92,7 @@ typedef struct {
     int32_t  next_s;                        /* seconds to the next frame, heartbeat or CQ, -1 none */
     uint32_t notes;                         /* counts the answers to the pages' commands */
     bool     note_err;                      /* the last answer is a refusal */
+    int      note_cmd;                      /* the remote_js8_rc_t it answers */
     char     note[80];                      /* "Queued: 3 frames, 45 s", "Already sending: Stop first" */
     char     sel[16];                       /* the selected station, "" none */
     char     where[40];                     /* "JS8 7078.0 kHz", or the preset's name */

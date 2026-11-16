@@ -165,10 +165,31 @@ class Pages(unittest.TestCase):
             self.assertIn(b'"%s wf 1"' % name.encode(), page)
 
     def test_js8_page_room(self):
-        """The box takes what the radio sends (TX_TEXT_MAX in js8_window.c), and no more"""
+        """The box takes what the radio sends (TX_TEXT_MAX in js8_window.c), and no more; the chat's the room left
+        after the call"""
         tx_max = int(re.search(r"#define TX_TEXT_MAX +(\d+)", source("js8_window.c")).group(1))
         code, page, _ = self.req("/js8")
-        self.assertEqual(set(re.findall(rb'maxlength="(\d+)"', page)), {str(tx_max).encode()})
+        self.assertIn(b'id="msg" maxlength="%d"' % tx_max, page)
+        self.assertIn(b"const MAXTX = %d;" % tx_max, page)
+        self.assertEqual(apps.JS8_SAVED_MAX, tx_max)
+
+    def test_js8_saved(self):
+        """The radio's saved messages as its load_saved reads them: ten lines at most, in capitals, an empty line
+        an empty slot, a line cut at TX_TEXT_MAX; none saved yet: its first slot's default"""
+        self.addCleanup(setattr, settings, "JS8_SAVED_FILE", settings.JS8_SAVED_FILE)
+        settings.JS8_SAVED_FILE = os.path.join(fresh_dir(), "js8_saved.txt")
+        self.assertEqual(self.req("/api/js8_saved")[1], b'{"saved": [{"n": 1, "text": "TNX 73 GL"}]}')
+        with open(settings.JS8_SAVED_FILE, "wb") as f:
+            f.write(b"<call> tnx fer the qso 73\n\nqrz? de <mycall>\r\nwith\ra cr\n" + b"x" * 600 + b"\n"
+                    + b"\n" * 5 + b"eleventh\n")
+        code, body, _ = self.req("/api/js8_saved")
+        saved = json.loads(body)["saved"]
+        self.assertEqual([m["n"] for m in saved], [1, 3, 4, 5, 6])
+        self.assertEqual(saved[0]["text"], "<CALL> TNX FER THE QSO 73")
+        self.assertEqual(saved[1]["text"], "QRZ? DE <MYCALL>")
+        self.assertEqual(saved[2]["text"], "WITH")                       # strcspn: up to the first \r
+        self.assertEqual(saved[3]["text"], "X" * 500)                    # the first 507 bytes, cut at 500
+        self.assertEqual(saved[4]["text"], "X" * 93)                     # the rest of the line: the next slot
 
     def test_general_has_the_tiles(self):
         code, page, _ = self.req("/")
@@ -207,6 +228,13 @@ class RemoteWords(unittest.TestCase):
                            ("js8", '!strcmp(a[0], "ft8") || !strcmp(a[0], "js8")) && n >= 3 && !strcmp(a[1], "wf")')):
             self.assertLess(body.index(watch), body.index('!strcmp(a[0], "%s") && n >= 2)' % app), app)
         self.assertLess(body.index('!strncmp(text, "js8 send ", 9)'), body.index("strtok(text,"))
+
+    def test_each_app_its_words(self):
+        """FT8's and WeFax's commands are looked up in their own tables, JS8's words in js8_words only"""
+        src = source("remote_server.c")
+        others = src[src.index("static bool app_ft8_cmd("):src.index("static bool app_js8_cmd(")]
+        self.assertNotIn("js8_words", others)
+        self.assertIn('{"send", REMOTE_JS8_SEND}', src[src.index("} js8_words[] = "):])
 
     def test_text_room(self):
         """"js8 send " and the page's 500 characters (TX_TEXT_MAX in js8_window.c, the page's maxlength) fit a

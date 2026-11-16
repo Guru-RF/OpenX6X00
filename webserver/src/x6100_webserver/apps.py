@@ -3159,6 +3159,36 @@ def set_js8_texts():
     return read_js8_texts()
 
 
+# The JS8 app's saved messages (Query > Saved on the radio, which edits them): a line each, an empty line for an
+# empty slot, read in capitals as the app reads them (load_saved in src/js8_window.c). The JS8 page offers them;
+# their macros (<CALL> and the others) are filled in by the radio as it sends
+JS8_SAVED_N = 10
+JS8_SAVED_MAX = 500             # TX_TEXT_MAX there
+JS8_SAVED_DEFAULT = "TNX 73 GL"  # the first slot's before anything was saved
+
+
+def read_js8_saved():
+    try:
+        with open(settings.JS8_SAVED_FILE, "rb") as f:     # bytes: a line ends at \n alone, as for its fgets
+            lines = [f.readline(JS8_SAVED_MAX + 7).decode("latin-1") for _ in range(JS8_SAVED_N)]
+    except FileNotFoundError:
+        lines = [JS8_SAVED_DEFAULT]
+    except OSError:
+        lines = []
+    saved = []
+    for slot, line in enumerate(lines):
+        line = line.split("\n", 1)[0].split("\r", 1)[0]
+        text = "".join(c.upper() if "a" <= c <= "z" else c for c in line)[:JS8_SAVED_MAX]
+        if text:
+            saved.append({"n": slot + 1, "text": text})
+    return {"saved": saved}
+
+
+@app.get('/api/js8_saved')
+def get_js8_saved():
+    return read_js8_saved()
+
+
 # Internet radio (APP > Internet radio, src/dialog_iradio.c): its favourites, one station a line of IRADIO_FAV_FILE,
 # name<TAB>address<TAB>codec<TAB>kbps<TAB>country<TAB>uuid as src/iradio_list.c reads and writes them; the window
 # reads the file each time it shows the favourites. The uuid is radio-browser.info's, kept while the address stays

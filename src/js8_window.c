@@ -6021,6 +6021,7 @@ static pthread_mutex_t     rstat_lock = PTHREAD_MUTEX_INITIALIZER;
 static remote_js8_status_t rstat;         /* what js8_window_status() hands out, under rstat_lock */
 static char                rnote[80];     /* the answer to the pages' last command, and whether it refused */
 static bool                rnote_err;
+static remote_js8_rc_t     rnote_cmd;     /* the command it answers */
 static uint32_t            rnotes;
 
 /* A message as it comes, ours too, with the sender's locator when the app knows it */
@@ -6085,6 +6086,7 @@ static void rstat_update(void) {
     s.next_s   = next > now ? (int32_t)((next - now + 999) / 1000) : -1;
     s.notes    = rnotes;
     s.note_err = rnote_err;
+    s.note_cmd = rnote_cmd;
     snprintf(s.note, sizeof(s.note), "%s", rnote);
     pthread_mutex_lock(&rstat_lock);
     rstat = s;
@@ -6100,19 +6102,20 @@ void js8_window_status(remote_js8_status_t *s) {
 bool js8_window_running(void) { return dialog.run; }
 
 /* The answer to a page's command, in the state the pages get; the radio's own screen says it its way */
-static bool remote_note(bool err, const char *fmt, ...) {
+static bool remote_note(remote_js8_rc_t what, bool err, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(rnote, sizeof(rnote), fmt, ap);
     va_end(ap);
     rnote_err = err;
+    rnote_cmd = what;
     rnotes++;
     rstat_update();
     return !err;
 }
 
 bool js8_window_remote(remote_js8_rc_t what, int32_t arg, const char *text) {
-    if (!dialog.run || !tx_bar) return remote_note(true, "The JS8 app is closed on the radio");
+    if (!dialog.run || !tx_bar) return remote_note(what, true, "The JS8 app is closed on the radio");
     /* A list open on the radio would take the press for itself (popup_guard): the browser's goes through */
     popups_close_all();
     user_touch(); /* someone is working the app */
@@ -6135,7 +6138,7 @@ bool js8_window_remote(remote_js8_rc_t what, int32_t arg, const char *text) {
     case REMOTE_JS8_TXFREQ: set_tx_offset(arg); break;
     case REMOTE_JS8_SELECT: { /* as a station picked on the map */
         js8_station_t st;
-        if (!text || !find_station(text, &st)) return remote_note(true, "%s: not heard on this band", text ? text : "");
+        if (!text || !find_station(text, &st)) return remote_note(what, true, "%s: not heard on this band", text ? text : "");
         snprintf(sel_call, sizeof(sel_call), "%s", st.call);
         qso_freq = st.freq_hz;
         sel_snr  = st.snr;
@@ -6146,16 +6149,16 @@ bool js8_window_remote(remote_js8_rc_t what, int32_t arg, const char *text) {
         static char      filled[TX_TEXT_MAX * 2], out[TX_TEXT_MAX + 8];
         static js8_tx_preview_t plan;
         char             them[JS8_RX_CALL_LEN];
-        if (!text || !*text) return remote_note(true, "Nothing to send");
-        if (js8_tx_busy(tx)) return remote_note(true, "Already sending: Stop first");
+        if (!text || !*text) return remote_note(what, true, "Nothing to send");
+        if (js8_tx_busy(tx)) return remote_note(what, true, "Already sending: Stop first");
         macros_fill(text, false, filled, sizeof(filled));
-        if (!aprs_prepare(filled, out, sizeof(out))) return remote_note(true, "Not sent: the radio's screen says why");
+        if (!aprs_prepare(filled, out, sizeof(out))) return remote_note(what, true, "Not sent: the radio's screen says why");
         js8_tx_preview(params.callsign.x, station_qth(), out, cur_speed(), &plan);
-        if (!plan.ok) return remote_note(true, "Not sent: %s", plan.error);
+        if (!plan.ok) return remote_note(what, true, "Not sent: %s", plan.error);
         if (sel_call[0] && qso_freq >= 0 && starts_with_call(out, them, sizeof(them)) && !strcasecmp(them, sel_call))
             apply_hold(qso_freq); /* Hold off: on their offset, as Reply does */
-        if (!tx_queue(out)) return remote_note(true, "Not sent: the radio's screen says why");
-        return remote_note(false, "Queued: %d frame%s, %.0f s", plan.frames, plan.frames != 1 ? "s" : "", plan.seconds);
+        if (!tx_queue(out)) return remote_note(what, true, "Not sent: the radio's screen says why");
+        return remote_note(what, false, "Queued: %d frame%s, %.0f s", plan.frames, plan.frames != 1 ? "s" : "", plan.seconds);
     }
     }
     rstat_update();

@@ -10,6 +10,7 @@ VOICE_DIR = "/mnt/msg"
 MACRO_FILES = {"psk": "/mnt/psk_macros.txt", "olivia": "/mnt/olivia_macros.txt",
                "jtty": "/mnt/jtty_macros.txt"}   # src/psk_macro.c, olivia_macro.c, jtty_macro.c
 JS8_TEXTS_FILE = "/mnt/js8_texts.txt"   # INFO, STATUS and more, src/dialog_js8.c
+JS8_SAVED_FILE = "/mnt/js8_saved.txt"   # the JS8 app's ten saved messages, src/js8_window.c (JS8_SAVED_PATH)
 IRADIO_FAV_FILE = "/mnt/iradio/favorites.tsv"   # the Internet radio's favourites, src/dialog_iradio.c
 IRADIO_COUNTRY_FILE = "/mnt/iradio/country"     # the country its list of stations is of, src/dialog_iradio.c
 FFMPEG = "/usr/bin/ffmpeg"          # the Internet radio's decoder of every format but MP3, on an image that has it
